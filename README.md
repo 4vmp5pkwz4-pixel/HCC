@@ -23,6 +23,33 @@ or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 **Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·
 ⚙/ⓘ bottom-sheet panels · horizontal mode row · iOS safe-area aware · DPR capped for stable FPS.
 
+## WebXR — Meta Quest 3 VR & MR
+
+Serve over **HTTPS** and open in Meta Quest Browser: 🥽 VR and ◈ MR header
+buttons appear only when `immersive-vr` / `immersive-ar` are genuinely supported
+(feature-detected; flat experience untouched otherwise).
+
+Inside XR: **wrist Control Observatory** (modes, time, χ/β/N navigation, quality,
+snap-turn, recenter, exit), **controller rays** with models + haptics,
+**hand tracking** (pinch select, index-ray, wrist-following menu),
+**blink teleport** + smooth fly with comfort vignette + snap turn 15/30/45°,
+**two-hand grab** to move/scale/rotate the whole universe (0.05–20×),
+**in-world object cards** with rows + formula provenance + source tags
+(grabbable, billboarded), **status panel** (UTC/sim clocks, FPS, frame time,
+draw calls, triangles, foveation, target Hz, XR feature flags, discipline
+disclaimer), and **MR passthrough** with hit-test reticle, tap-to-place tabletop
+models and session anchors where granted. Quality presets (Quest Safe /
+Balanced / Ultra / Desktop Cinematic) drive foveation, raymarch steps, star
+draw-ranges and Hopf density, with an automatic downgrade guard below ~63 FPS.
+Honesty rule: capabilities WebXR does not expose (raw camera pixels, multiview,
+native SDK) are documented in `XR_VALIDATION.md`, never faked. The Fractal
+Explorer is excluded from XR (fullscreen mono raymarch is not stereo-safe).
+
+XR docs: `XR_VALIDATION.md` (capability matrix + manual checklist) and
+`QUEST3_TEST_PLAN.md` (device test plan). New exports: `xr_session_capabilities.json`,
+`formula_registry.json`, `source_registry.json`, `validation_report.json`
+(all stamped with timestamp, version, registry hashes and the model disclaimer).
+
 **Universal interactivity:** every visible object — Sun, planets, the Moon,
 light-sphere screens, S³ observer/antipode/cap/photon, Hopf fibres' base map,
 φ-shells, epoch markers, constellations, cycle instruments — is click/tap

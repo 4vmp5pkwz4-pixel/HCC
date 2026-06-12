@@ -83,7 +83,35 @@ check(!/topology (is|was) (detected|proven)/i.test(html),
 check(html.includes('not a topology detection') || html.includes('NOT a topology detection'),
   'explicit conditional-reconstruction disclaimer present');
 
-/* 10 · Event-handler integrity: every onclick/oninput assignment target id exists */
+/* 10 · WebXR layer (Quest 3 VR/MR) */
+check(html.includes('renderer.xr.enabled = true'), 'renderer.xr.enabled = true');
+check(html.includes('id="vrBtn"') && html.includes('id="mrBtn"'), 'custom Enter VR / Enter MR buttons exist');
+check(html.includes("isSessionSupported('immersive-vr')") && html.includes("isSessionSupported('immersive-ar')"),
+  'VR/MR support is feature-detected (buttons appear only when supported)');
+for (const feat of ['local-floor','bounded-floor','hand-tracking','layers','anchors','plane-detection','hit-test','dom-overlay'])
+  check(html.includes(`'${feat}'`), `optional feature requested/detected: ${feat}`);
+check(html.includes('XRControllerModelFactory') && html.includes('getControllerGrip'),
+  'controller models + grips wired');
+check(html.includes('XRHandModelFactory') && html.includes('pinchstart'),
+  'hand tracking models + pinch gestures wired');
+check(html.includes('hapticActuators'), 'haptics are feature-detected');
+check(html.includes('setAnimationLoop'), 'XR-compatible setAnimationLoop main loop');
+check(html.includes('class XRPanel') && html.includes('CanvasTexture'),
+  'in-world 3D UI panels exist (CSS2D is not the only XR UI layer)');
+check(html.includes('snapAngle') && html.includes('vignette'), 'snap turn + comfort vignette');
+check(html.includes('getHitTestResults') && html.includes('createAnchor'),
+  'MR hit-test reticle + anchors (feature-detected)');
+check(html.includes('setFoveation') && html.includes('updateTargetFrameRate'),
+  'fixed foveated rendering + target frame-rate control');
+check(html.includes('XR session unavailable') || html.includes('graceful'), 'XR fallback messaging present');
+check(html.includes('FORMULA_REGISTRY'), 'FORMULA_REGISTRY present');
+check(html.includes('UNCERTAINTY'), 'uncertainty ranges disclosed');
+check(html.includes('runSelfTests'), 'derived-value self-tests present');
+for (const ex of ['exportXRCapabilities','exportFormulaRegistry','exportSourceRegistry','exportValidationReport'])
+  check(html.includes(ex), `export present: ${ex}`);
+check(html.includes('not stereo-safe'), 'fractal fullscreen pass honestly excluded from XR');
+
+/* 11 · Event-handler integrity: every onclick/oninput assignment target id exists */
 {
   const assigns = [...html.matchAll(/querySelector\('#([\w-]+)'\)\.(onclick|oninput|onchange)/g)].map(x => x[1]);
   for (const id of new Set(assigns))

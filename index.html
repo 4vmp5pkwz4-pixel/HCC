@@ -207,6 +207,8 @@
     <button class="modebtn" data-mode="fractal">❄ Fractal Explorer</button>
   </nav>
   <button class="btn" id="themeBtn" title="Day / Night theme">☀</button>
+  <button class="modebtn" id="vrBtn" style="display:none" title="Enter immersive VR (Meta Quest Browser)">🥽 VR</button>
+  <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ MR</button>
   <div id="clock"><div class="rt" id="clockReal">—</div><div class="st" id="clockSim">—</div></div>
 </div>
 <button id="togglePanels" class="btn">⤢ panels</button>
@@ -246,6 +248,8 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
+import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 
 /* ================================================================
    MODEL CONSTANTS — fiducial benchmark values from the article
@@ -354,6 +358,60 @@ const FBS_EPOCHS = [
   {key:'s3',     N:FBS.Ns3,                 name:'S³ curvature radius — Light-Trisphere closure', time:null,
    desc:'Cross-model consistency: the compact carrier radius R = 548.3 Gly of the companion article is reached after N ≈ '+FBS.Ns3.toFixed(1)+' golden-ratio levels from the Planck seed.'},
 ];
+
+/* ================================================================
+   FORMULA_REGISTRY — every load-bearing formula, source-tagged, with
+   units; UNCERTAINTY — disclosed input ranges; selfTests — derived-
+   value consistency checks executed at startup and exportable.
+   ================================================================ */
+const FORMULA_REGISTRY = [
+ {id:'s3.radius',   expr:'R = (c/H0)/sqrt(|Omega_K|)',        units:'Gly',     src:'S3'},
+ {id:'s3.volume',   expr:'V = 2*pi^2*R^3',                    units:'Gly^3',   src:'S3'},
+ {id:'s3.causal',   expr:'D_causal = pi*R',                   units:'Gly',     src:'S3'},
+ {id:'s3.circle',   expr:'C = 2*pi*R',                        units:'Gly',     src:'S3'},
+ {id:'s3.area',     expr:'A(chi) = 4*pi*R^2*sin(chi)^2',      units:'Gly^2',   src:'S3'},
+ {id:'s3.gamma',    expr:'Gamma(chi) = (chi - sin(2chi)/2)/pi',units:'1',      src:'S3'},
+ {id:'s3.eigen',    expr:'lambda_beta = (beta^2-1)/R^2',      units:'Gly^-2',  src:'S3'},
+ {id:'s3.degen',    expr:'g_beta = beta^2',                   units:'1',       src:'S3'},
+ {id:'fbs.ladder',  expr:'R(N) = l_P*phi^N',                  units:'m',       src:'FBS'},
+ {id:'fbs.inverse', expr:'N(L) = ln(L/l_P)/ln(phi)',          units:'1',       src:'FBS'},
+ {id:'fbs.density', expr:'rho(N)/rho_P = phi^(-3N)',          units:'1',       src:'FBS'},
+ {id:'fbs.fib',     expr:'F_N ~ phi^N/sqrt(5)',               units:'1',       src:'FBS'},
+ {id:'eph.kepler',  expr:'M = E - e*sinE (Newton-iterated)',  units:'rad',     src:'JPL'},
+ {id:'eph.season',  expr:'event: lambda_sun(t) = k*90 deg',   units:'date',    src:'DERIVED'},
+];
+const UNCERTAINTY = {
+  H0:        {value:67.4,  range:[66.9,67.9],   unit:'km/s/Mpc', note:'Planck 2018 TT,TE,EE+lowE+lensing'},
+  OmegaK:    {value:0.0007,range:[0.0005,0.001],unit:'1',        note:'fiducial benchmark modulus, NOT a detection'},
+  t0:        {value:13.7877,range:[13.76,13.82],unit:'Gyr',      note:'background-dependent'},
+  Dparticle: {value:46.125,range:[45.5,46.9],   unit:'Gly',      note:'depends on E(z) input'},
+  lP:        {value:1.616255e-35, range:[1.616237e-35,1.616273e-35], unit:'m', note:'CODATA 2018 ±18 in last digits'},
+  ephemeris: {value:'J2000 elements', range:['1800 AD','2050 AD'], unit:'date', note:'JPL approximate validity window'},
+  galYear:   {value:230, range:[225,250], unit:'Myr', note:'literature range'},
+};
+function runSelfTests(){
+  const T=[], ok=(name,cond,detail)=>T.push({name,pass:!!cond,detail:String(detail)});
+  const eps=(a,b,tol)=>Math.abs(a-b)<=tol*Math.max(1,Math.abs(b));
+  ok('Gamma(pi) = 1 (full sphere)', eps(Gamma(Math.PI),1,1e-12), Gamma(Math.PI));
+  ok('Gamma(pi/2) = 1/2', eps(Gamma(Math.PI/2),.5,1e-12), Gamma(Math.PI/2));
+  ok('A(pi/2) = 4*pi*R^2', eps(screenArea(Math.PI/2),4*Math.PI*S3.R*S3.R,1e-12), screenArea(Math.PI/2));
+  ok('V = 2*pi^2*R^3 matches table', eps(2*Math.PI**2*S3.R**3, S3.V, 1e-9), 2*Math.PI**2*S3.R**3);
+  ok('D_causal = pi*R matches table', eps(Math.PI*S3.R, S3.Dcausal, 1e-12), Math.PI*S3.R);
+  ok('C = 2*pi*R matches table', eps(2*Math.PI*S3.R, S3.Circ, 1e-12), 2*Math.PI*S3.R);
+  ok('Gamma(chi_particle) matches table', eps(Gamma(S3.chiP), S3.GammaObs, 2e-3), Gamma(S3.chiP));
+  ok('N(R(n)) inverse consistency (n=266)', eps(levelOf(levelR(266)),266,1e-9), levelOf(levelR(266)));
+  ok('R(N(1 m)) = 1 m round-trip', eps(levelR(levelOf(1)),1,1e-9), levelR(levelOf(1)));
+  ok('N(S3 radius) = 299.1±0.1', Math.abs(FBS.Ns3-299.1)<0.1, FBS.Ns3);
+  { const E=keplerE(1.3,0.2056); ok('Kepler residual < 1e-10', Math.abs(E-0.2056*Math.sin(E)-1.3)<1e-10, E); }
+  { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
+    ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
+  { const ev=nextSeasonEvents(7.5,1)[0];   // true vernal equinox 2000-03-20 07:35 UT = epochDays 78.816
+    ok('Vernal equinox 2000 solved within 2 h', Math.abs(ev.days-78.816)<0.09, daysToDateStr(ev.days)); }
+  { const g=moonGeo(0); ok('Moon distance at J2000 in 356–407 Mm band',
+      g.rAU*KM_PER_AU>356000&&g.rAU*KM_PER_AU<407000, (g.rAU*KM_PER_AU|0)+' km'); }
+  return T;
+}
+let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
 
 /* ================================================================
    COSMOLOGICAL CYCLES, MOON, ECLIPSES & SEASONS
@@ -471,7 +529,7 @@ const DEG = Math.PI/180;
 
 /* ============================== RENDERER ============================== */
 const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({antialias:true, logarithmicDepthBuffer:true});
+const renderer = new THREE.WebGLRenderer({antialias:true, logarithmicDepthBuffer:true, alpha:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));
 renderer.setSize(innerWidth,innerHeight);
 app.appendChild(renderer.domElement);
@@ -571,6 +629,7 @@ renderer.domElement.addEventListener('pointerup', e=>{
   if(hit) selectKey(hit.object.userData.selKey);
 });
 
+const STARFIELDS = [];   // registry for quality scaling & MR passthrough hiding
 function starfield(n, radius){
   const g = new THREE.BufferGeometry(); const pos = new Float32Array(n*3);
   for(let i=0;i<n;i++){
@@ -578,7 +637,10 @@ function starfield(n, radius){
     pos.set([v.x,v.y,v.z], i*3);
   }
   g.setAttribute('position', new THREE.BufferAttribute(pos,3));
-  return new THREE.Points(g, new THREE.PointsMaterial({color:0x9db4d8,size:1.2,sizeAttenuation:false,transparent:true,opacity:.7}));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({color:0x9db4d8,size:1.2,sizeAttenuation:false,transparent:true,opacity:.7}));
+  p.userData.fullCount = n;
+  STARFIELDS.push(p);
+  return p;
 }
 
 /* ================================================================
@@ -1816,6 +1878,7 @@ const fractalUniforms = {
   uTanFov: {value:Math.tan(27.5*DEG)},
   uPower:  {value:8.0},
   uIters:  {value:12},
+  uSteps:  {value:140},
   uHue:    {value:0.62},
 };
 const fractalScene = new THREE.Scene();
@@ -1826,8 +1889,8 @@ const fractalScene = new THREE.Scene();
     fragmentShader: `
       precision highp float;
       uniform vec2 uRes; uniform vec3 uCamPos,uCamFwd,uCamRight,uCamUp;
-      uniform float uTanFov,uPower,uHue; uniform int uIters;
-      const int MARCH = 140;
+      uniform float uTanFov,uPower,uHue; uniform int uIters,uSteps;
+      const int MARCH = 200;
 
       float mandelbulbDE(vec3 pos, out float trap){
         vec3 z = pos; float dr = 1.0, r = 0.0;
@@ -1858,6 +1921,7 @@ const fractalScene = new THREE.Scene();
         float t = 0.0, trap = 0.0, d;
         int steps = 0; bool hit = false;
         for(int i=0;i<MARCH;i++){
+          if(i>=uSteps) break;
           vec3 p = ro + rd*t;
           d = mandelbulbDE(p, trap);
           if(d < 0.0008*t){ hit = true; break; }
@@ -1874,7 +1938,7 @@ const fractalScene = new THREE.Scene();
             mandelbulbDE(p+vec3(0,0,h),tr2)-mandelbulbDE(p-vec3(0,0,h),tr2)));
           vec3 ldir = normalize(vec3(0.7,0.9,0.4));
           float dif = clamp(dot(n,ldir),0.0,1.0);
-          float ao = 1.0 - float(steps)/float(MARCH);
+          float ao = 1.0 - float(steps)/float(uSteps);
           float hue = fract(uHue + trap*0.45);
           vec3 base = hsl2rgb(vec3(hue, 0.65, 0.32+0.35*ao));
           col = base*(0.25 + 0.85*dif)*ao*1.5;
@@ -1893,6 +1957,603 @@ const fractalScene = new THREE.Scene();
   fractalScene.add(quad);
 }
 const orthoCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+
+/* ================================================================
+   XRX — WebXR layer for Meta Quest 3 (VR + MR/passthrough).
+   Honest scope: only capabilities actually exposed through WebXR in
+   Meta Quest Browser are used; everything is feature-detected with
+   graceful fallback. No raw camera pixels, no native-only SDK calls.
+   Sub-sections: session · rig/locomotion · controllers · hands ·
+   XR panels (canvas UI) · MR hit-test/anchors · quality/telemetry.
+   ================================================================ */
+const XRX = (()=>{
+  renderer.xr.enabled = true;
+
+  /* ---------- rig: camera rides a movable/turnable player group ---------- */
+  const rig = new THREE.Group(); rig.name='xrRig'; scene.add(rig); rig.add(camera);
+  const RIG_DEFAULTS = {
+    solar:{pos:[0,3,40], speed:8},  obs:{pos:[0,1.6,0], speed:12},
+    s3:{pos:[0,2,14], speed:4},     fbs:{pos:[0,1.6,18], speed:5},
+    cyc:{pos:[0,8,45], speed:10},   fractal:{pos:[0,3,40], speed:8},
+  };
+  const flags = {                        // capability snapshot (exported)
+    webxr:!!navigator.xr, vr:false, ar:false, handTracking:false, haptics:false,
+    localFloor:false, boundedFloor:false, layers:false, anchors:false,
+    planeDetection:false, hitTest:false, domOverlay:false,
+    enabledFeatures:[], targetFrameRate:null, supportedFrameRates:[],
+  };
+  let session=null, xrMode=null, refSpace=null;
+  let hitTestSource=null, reticle=null, placedAnchor=null, anchoredGroup=null;
+  const savedTransforms = new Map();     // group → original {pos,quat,scale}
+  const fps = {ema:72, ms:14, low:0, cooldown:0};
+
+  /* ---------- feature detection & entry buttons ---------- */
+  const vrBtn=document.getElementById('vrBtn'), mrBtn=document.getElementById('mrBtn');
+  if(navigator.xr){
+    navigator.xr.isSessionSupported('immersive-vr').then(s=>{ flags.vr=s; if(s) vrBtn.style.display='inline-block'; }).catch(()=>{});
+    navigator.xr.isSessionSupported('immersive-ar').then(s=>{ flags.ar=s; if(s) mrBtn.style.display='inline-block'; }).catch(()=>{});
+  }
+  vrBtn.onclick = ()=> session ? session.end() : start('immersive-vr');
+  mrBtn.onclick = ()=> session ? session.end() : start('immersive-ar');
+
+  async function start(mode){
+    if(!navigator.xr) return;
+    const init = {
+      optionalFeatures:['local-floor','bounded-floor','hand-tracking','layers'],
+    };
+    if(mode==='immersive-ar'){
+      init.optionalFeatures.push('hit-test','anchors','plane-detection','dom-overlay');
+      init.domOverlay = {root:document.body};
+    }
+    try{ session = await navigator.xr.requestSession(mode, init); }
+    catch(e){ console.warn('[XR] session request failed:', e); hudFlash('XR session unavailable: '+e.message); return; }
+    xrMode = mode==='immersive-ar' ? 'ar' : 'vr';
+    renderer.xr.setReferenceSpaceType('local-floor');
+    try{ await renderer.xr.setSession(session); }
+    catch(e){ console.warn(e); session=null; xrMode=null; return; }
+    flags.enabledFeatures = [...(session.enabledFeatures||[])];
+    flags.localFloor   = flags.enabledFeatures.includes('local-floor');
+    flags.boundedFloor = flags.enabledFeatures.includes('bounded-floor');
+    flags.handTracking = flags.enabledFeatures.includes('hand-tracking');
+    flags.layers       = flags.enabledFeatures.includes('layers');
+    flags.anchors      = flags.enabledFeatures.includes('anchors');
+    flags.planeDetection = flags.enabledFeatures.includes('plane-detection');
+    flags.hitTest      = flags.enabledFeatures.includes('hit-test');
+    flags.domOverlay   = flags.enabledFeatures.includes('dom-overlay');
+    flags.supportedFrameRates = [...(session.supportedFrameRates||[])];
+    if(session.updateTargetFrameRate && flags.supportedFrameRates.length){
+      const want = flags.supportedFrameRates.includes(90)?90:Math.max(...flags.supportedFrameRates);
+      session.updateTargetFrameRate(want).then(()=>flags.targetFrameRate=want).catch(()=>{});
+    }
+    if(renderer.xr.setFoveation) renderer.xr.setFoveation(QUALITY[qualityName].fov);
+    session.addEventListener('end', onEnd);
+    refSpace = renderer.xr.getReferenceSpace();
+    if(state.mode==='fractal') setMode('solar');     // fullscreen raymarch is not stereo-safe
+    labelRenderer.domElement.style.display='none';
+    selectKey(null);
+    if(xrMode==='ar') enterAR(); else enterVR();
+    placeRigForMode();
+    menuPanel.visible = cardPanel.visible = false;
+    statusPanel.visible = true;
+    refreshMenu(); refreshStatus();
+    vrBtn.textContent = xrMode==='vr' ? '✕ Exit VR' : '🥽 VR';
+    mrBtn.textContent = xrMode==='ar' ? '✕ Exit MR' : '◈ MR';
+  }
+  function onEnd(){
+    session=null; refSpace=null; hitTestSource=null; placedAnchor=null;
+    if(xrMode==='ar') exitAR();
+    xrMode=null;
+    rig.position.set(0,0,0); rig.rotation.set(0,0,0); rig.scale.setScalar(1);
+    labelRenderer.domElement.style.display = state.mode==='fractal'?'none':'block';
+    vrBtn.textContent='🥽 VR'; mrBtn.textContent='◈ MR';
+    [menuPanel,cardPanel,statusPanel].forEach(p=>p.visible=false);
+    if(reticle) reticle.visible=false;
+    setMode(state.mode);   // restore flat camera framing
+  }
+  function placeRigForMode(){
+    const d = RIG_DEFAULTS[state.mode]||RIG_DEFAULTS.solar;
+    rig.position.set(...d.pos); rig.rotation.set(0,0,0);
+    moveSpeed = d.speed;
+  }
+  function hudFlash(msg){ hudBig.textContent = msg; }
+
+  /* ---------- VR / AR environment switches ---------- */
+  function enterVR(){ scene.background = new THREE.Color(0x02040a); }
+  function enterAR(){
+    scene.background = null;                      // passthrough shows through
+    skyGroup.visible = false;
+    STARFIELDS.forEach(p=>p.visible=false);
+    // tabletop scale for the active mode group
+    const g = modeGroup(); anchoredGroup = g;
+    savedTransforms.set(g, {pos:g.position.clone(), quat:g.quaternion.clone(), scale:g.scale.clone()});
+    const factor = {solar:0.012, obs:0.012, s3:0.045, fbs:0.04, cyc:0.018}[state.mode]||0.02;
+    g.scale.multiplyScalar(factor);
+    g.position.set(0, 1.0, -1.2);
+    rig.position.set(0,0,0);
+    if(!reticle){
+      reticle = new THREE.Mesh(new THREE.RingGeometry(.07,.09,32).rotateX(-Math.PI/2),
+        new THREE.MeshBasicMaterial({color:0xf1dda6, transparent:true, opacity:.9, depthWrite:false}));
+      reticle.matrixAutoUpdate=false; reticle.visible=false; scene.add(reticle);
+    }
+    if(flags.hitTest){
+      session.requestReferenceSpace('viewer').then(vs=>
+        session.requestHitTestSource({space:vs}).then(src=>hitTestSource=src)
+      ).catch(()=>{ hitTestSource=null; });
+    }
+  }
+  function exitAR(){
+    scene.background = new THREE.Color(0x02040a);
+    skyGroup.visible = true;
+    applyQuality(qualityName);                    // restores star draw ranges/visibility
+    STARFIELDS.forEach(p=>p.visible=true);
+    if(anchoredGroup && savedTransforms.has(anchoredGroup)){
+      const t=savedTransforms.get(anchoredGroup);
+      anchoredGroup.position.copy(t.pos); anchoredGroup.quaternion.copy(t.quat); anchoredGroup.scale.copy(t.scale);
+      savedTransforms.delete(anchoredGroup);
+    }
+    anchoredGroup=null;
+  }
+  const modeGroup = ()=>({solar:solarGroup,obs:obsGroup,s3:s3Group,fbs:fbsGroup,cyc:cycGroup}[state.mode]||solarGroup);
+  function placeAtReticle(){
+    if(!reticle?.visible || !anchoredGroup) return;
+    const p=new THREE.Vector3(), q=new THREE.Quaternion(), s=new THREE.Vector3();
+    reticle.matrix.decompose(p,q,s);
+    anchoredGroup.position.copy(p);
+    if(placedAnchor?.delete) try{ placedAnchor.delete(); }catch(e){}
+    placedAnchor = null;
+    if(flags.anchors && reticle.userData.hit?.createAnchor){
+      reticle.userData.hit.createAnchor().then(a=>{ placedAnchor=a; }).catch(()=>{});
+    }
+    pulse(lastSelectCtrl, .6, 60);
+    refreshStatus();
+  }
+
+  /* ---------- XR canvas panels (in-world 3D UI; CSS2D is hidden in XR) ---------- */
+  class XRPanel{
+    constructor(wM, pxW){
+      this.pxW=pxW; this.canvas=document.createElement('canvas');
+      this.canvas.width=pxW; this.canvas.height=64; this.ctx=this.canvas.getContext('2d');
+      this.tex=new THREE.CanvasTexture(this.canvas); this.tex.colorSpace=THREE.SRGBColorSpace;
+      this.mat=new THREE.MeshBasicMaterial({map:this.tex,transparent:true,depthTest:false,side:THREE.DoubleSide});
+      this.mesh=new THREE.Mesh(new THREE.PlaneGeometry(1,1), this.mat);
+      this.mesh.renderOrder=996; this.wM=wM; this.btns=[]; this.hover=-1; this.spec=null;
+      this.mesh.userData.panel=this; scene.add(this.mesh); this.mesh.visible=false;
+    }
+    get visible(){ return this.mesh.visible; } set visible(v){ this.mesh.visible=v; }
+    render(spec){
+      this.spec=spec; const c=this.ctx, W=this.pxW, P=18;
+      const rowH=44, gap=8, lineH=26;
+      let h = P + (spec.title?34:0) + (spec.lines?.length||0)*lineH
+            + (spec.rows?.length||0)*(rowH+gap) + P;
+      h = Math.max(h, 64);
+      if(this.canvas.height!==h){ this.canvas.height=h; }
+      this.mesh.geometry.dispose();
+      this.mesh.geometry=new THREE.PlaneGeometry(this.wM, this.wM*h/W);
+      c.clearRect(0,0,W,h);
+      // obsidian glass + gold hairline
+      c.fillStyle='rgba(8,11,20,.92)'; roundRect(c,1,1,W-2,h-2,16); c.fill();
+      c.strokeStyle='rgba(212,175,106,.55)'; c.lineWidth=2; roundRect(c,1,1,W-2,h-2,16); c.stroke();
+      let y=P;
+      if(spec.title){ c.fillStyle='#f1dda6'; c.font='600 24px Cinzel, serif';
+        c.textBaseline='top'; c.fillText(spec.title, P, y); y+=34; }
+      c.font='400 19px Manrope, sans-serif';
+      for(const ln of (spec.lines||[])){
+        c.fillStyle = ln.startsWith('§') ? '#d4af6a' : '#dde6f8';
+        c.fillText(ln.replace(/^§/,''), P, y); y+=lineH;
+      }
+      this.btns=[];
+      for(const row of (spec.rows||[])){
+        const n=row.length, bw=(W-P*2-(n-1)*8)/n; let x=P;
+        for(const b of row){
+          const on=!!b.on, hov=this.btns.length===this.hover;
+          c.fillStyle = on?'rgba(212,175,106,.3)': hov?'rgba(212,175,106,.18)':'rgba(20,28,46,.9)';
+          roundRect(c,x,y,bw,rowH,10); c.fill();
+          c.strokeStyle = (on||hov)?'#d4af6a':'rgba(212,175,106,.35)'; c.lineWidth=1.5;
+          roundRect(c,x,y,bw,rowH,10); c.stroke();
+          c.fillStyle = on?'#f1dda6':'#e9e6dc'; c.font='600 19px Manrope, sans-serif';
+          const tw=c.measureText(b.label).width;
+          c.fillText(b.label, x+(bw-tw)/2, y+11);
+          this.btns.push({x,y,w:bw,h:rowH,cb:b.cb});
+          x+=bw+8;
+        }
+        y+=rowH+gap;
+      }
+      this.tex.needsUpdate=true;
+    }
+    uvHit(uv){
+      const x=uv.x*this.pxW, y=(1-uv.y)*this.canvas.height;
+      return this.btns.findIndex(b=>x>=b.x&&x<=b.x+b.w&&y>=b.y&&y<=b.y+b.h);
+    }
+  }
+  function roundRect(c,x,y,w,h,r){ c.beginPath(); c.moveTo(x+r,y);
+    c.arcTo(x+w,y,x+w,y+h,r); c.arcTo(x+w,y+h,x,y+h,r); c.arcTo(x,y+h,x,y,r); c.arcTo(x,y,x+w,y,r); c.closePath(); }
+
+  const menuPanel   = new XRPanel(.42, 760);   // wrist control observatory
+  const cardPanel   = new XRPanel(.5, 820);    // object data card
+  const statusPanel = new XRPanel(.46, 780);   // clock · telemetry · discipline
+  const panels=[menuPanel,cardPanel,statusPanel];
+
+  function refreshMenu(){
+    const m=state.mode, rows=[];
+    rows.push([
+      {label:'☀ Solar', on:m==='solar', cb:()=>xrSetMode('solar')},
+      {label:'✶ Cycles', on:m==='cyc', cb:()=>xrSetMode('cyc')},
+      {label:'◯ Observ.', on:m==='obs', cb:()=>xrSetMode('obs')},
+    ]);
+    rows.push([
+      {label:'⬡ S³·Hopf', on:m==='s3', cb:()=>xrSetMode('s3')},
+      {label:'φ FBS3R', on:m==='fbs', cb:()=>xrSetMode('fbs')},
+      {label:'ℹ Status', on:statusPanel.visible, cb:()=>{statusPanel.visible=!statusPanel.visible; placePanel(statusPanel,-.35);} },
+    ]);
+    if(m==='solar'||m==='cyc') rows.push([
+      {label:'⏸/▶', cb:()=>{state.paused=!state.paused;}},
+      {label:'t −', cb:()=>{ if(m==='solar') state.daysPerSec/=4; else state.cycYrPerSec/=4; }},
+      {label:'t +', cb:()=>{ if(m==='solar') state.daysPerSec*=4; else state.cycYrPerSec*=4; }},
+      {label:'⌂ today', cb:()=>{state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0;}},
+    ]);
+    if(m==='solar') rows.push([
+      {label:'True scale', on:state.trueScale, cb:()=>{state.trueScale=!state.trueScale; refreshMenu();}},
+      {label:'Next eclipse', cb:()=>{ const now=state.epochDays;
+        const i=ECLIPSES.findIndex(e=>(e.date.getTime()/86400000+2440587.5)-2451545>now);
+        if(i>=0) jumpToEclipse(i); refreshMenu(); }},
+    ]);
+    if(m==='s3'){
+      rows.push([
+        {label:'Section', on:state.s3view==='sec', cb:()=>{setS3View('sec'); refreshMenu();}},
+        {label:'Hopf', on:state.s3view==='hopf', cb:()=>{setS3View('hopf'); refreshMenu();}},
+        {label:'Modes β', on:state.s3view==='eig', cb:()=>{setS3View('eig'); refreshMenu();}},
+      ]);
+      if(state.s3view==='sec') rows.push([
+        {label:'χ −', cb:()=>{state.chi=Math.max(.01,state.chi-.07); setChiRing(state.chi);}},
+        {label:'χ +', cb:()=>{state.chi=Math.min(Math.PI,state.chi+.07); setChiRing(state.chi);}},
+        {label:'χ→hor.', cb:()=>{state.chi=S3.chiP; setChiRing(state.chi);}},
+      ]);
+      if(state.s3view==='hopf') rows.push([
+        {label:'fibres −', cb:()=>{state.hopfDensity=Math.max(.4,state.hopfDensity-.3); buildHopfFibers(state.hopfDensity);}},
+        {label:'fibres +', cb:()=>{state.hopfDensity=Math.min(3,state.hopfDensity+.3); buildHopfFibers(state.hopfDensity);}},
+        {label:'flow', on:state.hopfFlow, cb:()=>{state.hopfFlow=!state.hopfFlow; refreshMenu();}},
+      ]);
+      if(state.s3view==='eig') rows.push([
+        {label:'β −', cb:()=>{state.eigBeta=Math.max(2,state.eigBeta-1); state.eigM=Math.min(state.eigM,state.eigBeta-1); setEigMode(state.eigBeta,state.eigM); refreshMenu();}},
+        {label:'β +', cb:()=>{state.eigBeta=Math.min(14,state.eigBeta+1); setEigMode(state.eigBeta,state.eigM); refreshMenu();}},
+        {label:'m ±', cb:()=>{state.eigM=(state.eigM+1)%state.eigBeta; setEigMode(state.eigBeta,state.eigM); refreshMenu();}},
+      ]);
+    }
+    if(m==='fbs') rows.push([
+      {label:'N −1', cb:()=>{state.fbsTarget=Math.max(0,Math.round(state.fbsDepth-1)); state.fbsCycle=false;}},
+      {label:'N +1', cb:()=>{state.fbsTarget=Math.min(FBS.Nmax,Math.round(state.fbsDepth+1)); state.fbsCycle=false;}},
+      {label:'N −10', cb:()=>{state.fbsTarget=Math.max(0,Math.round(state.fbsDepth-10)); state.fbsCycle=false;}},
+      {label:'N +10', cb:()=>{state.fbsTarget=Math.min(FBS.Nmax,Math.round(state.fbsDepth+10)); state.fbsCycle=false;}},
+    ]);
+    if(m==='fbs') rows.push([
+      {label:'⟲ cycle', on:state.fbsCycle, cb:()=>{state.fbsCycle=!state.fbsCycle; state.fbsTarget=null; refreshMenu();}},
+      {label:'→ N=266', cb:()=>{state.fbsTarget=266; state.fbsCycle=false;}},
+      {label:'→ S³ R', cb:()=>{state.fbsTarget=FBS.Ns3; state.fbsCycle=false;}},
+    ]);
+    rows.push([
+      {label:'Quality: '+qualityName.replace('quest','Q·'), cb:()=>{cycleQuality(); refreshMenu();}},
+      {label:'Turn '+snapAngle+'°', cb:()=>{snapAngle=snapAngle===15?30:snapAngle===30?45:15; refreshMenu();}},
+    ]);
+    rows.push([
+      {label:'⌖ Recenter', cb:()=>placeRigForMode()},
+      {label:xrMode==='ar'?'Place here':'—', cb:()=>{ if(xrMode==='ar') placeAtReticle(); }},
+      {label:'✕ Exit XR', cb:()=>session?.end()},
+    ]);
+    menuPanel.render({title:'CONTROL OBSERVATORY', lines:[
+      '§'+({solar:'Solar System',cyc:'Cycles & Events',obs:'Observable Universe',
+            s3:'S³ Carrier & Hopf',fbs:'FBS3R φ-Ladder'}[m]||m),
+    ], rows});
+  }
+  function xrSetMode(m){ setMode(m); placeRigForMode(); refreshMenu(); }
+  function refreshStatus(){
+    const f=k=>flags[k]?'yes':'no';
+    statusPanel.render({title:'STATUS · '+new Date().toISOString().slice(11,19)+' UTC', lines:[
+      'sim '+simDateString(),
+      `fps ${fps.ema.toFixed(0)} · ${fps.ms.toFixed(1)} ms · calls ${renderer.info.render.calls} · tris ${(renderer.info.render.triangles/1000).toFixed(0)}k`,
+      `quality ${qualityName} · foveation ${QUALITY[qualityName].fov} · target ${flags.targetFrameRate||'—'} Hz`,
+      `§XR ${xrMode||'flat'} · hands ${f('handTracking')} · anchors ${f('anchors')} · hit-test ${f('hitTest')} · planes ${f('planeDetection')}`,
+      'Conditional reconstruction — model visualization.',
+      'Not a topology detection. Not a ΛCDM replacement',
+      'unless explicitly tested. All formulas source-tagged.',
+    ], rows:[[{label:'Export capabilities JSON', cb:exportXRCapabilities}]]});
+  }
+  function showObjectCard(key){
+    const s=SELECT.get(key); if(!s){ cardPanel.visible=false; return; }
+    const rows=(s.rows?s.rows():[]).map(r=>r[0]+': '+String(r[1]).replace(/<[^>]+>/g,''));
+    cardPanel.render({
+      title:(typeof s.name==='function'?s.name():s.name).toUpperCase(),
+      lines:[...rows,
+        ...(s.formulas||[]).map(fr=>'§'+fr),
+        ...(s.src?['sources: '+s.src.map(t=>SOURCE_MAP[t].tag).join(' · ')]:[])],
+      rows:[[
+        {label:'⤳ Approach', cb:()=>approach(s)},
+        ...(s.planetIdx!==undefined?[{label:'⬇ Land',cb:()=>{}}]:[]),   // landing is desktop-first; XR approach instead
+        {label:'✕ Close', cb:()=>{cardPanel.visible=false; selectKey(null);}},
+      ]],
+    });
+    cardPanel.visible=true;
+    placePanel(cardPanel, .35);
+  }
+  function approach(s){
+    const p=s.getPos();
+    const dir=rig.position.clone().sub(p).normalize();
+    const dist=Math.max((s.focusDist?s.focusDist():2)*.8, .5);
+    rig.position.copy(p).add(dir.multiplyScalar(dist));
+  }
+  function placePanel(panel, side){
+    const head=new THREE.Vector3(); camera.getWorldPosition(head);
+    const fwd=new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y=0; fwd.normalize();
+    const right=new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0));
+    panel.mesh.position.copy(head).add(fwd.multiplyScalar(1.1)).add(right.multiplyScalar(side)).add(new THREE.Vector3(0,-.1,0));
+  }
+
+  /* ---------- controllers ---------- */
+  const cmFactory=new XRControllerModelFactory(), hmFactory=new XRHandModelFactory();
+  const rayGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
+  const pointers=[]; let lastSelectCtrl=null, moveSpeed=8, snapAngle=30, snapReady=true;
+  function mkPointer(i){
+    const ctrl=renderer.xr.getController(i);
+    const grip=renderer.xr.getControllerGrip(i);
+    const hand=renderer.xr.getHand(i);
+    grip.add(cmFactory.createControllerModel(grip));
+    hand.add(hmFactory.createHandModel(hand,'mesh'));
+    const ray=new THREE.Line(rayGeom, new THREE.LineBasicMaterial({color:0xd4af6a,transparent:true,opacity:.6}));
+    ray.scale.z=4; ctrl.add(ray);
+    const cursor=new THREE.Mesh(new THREE.SphereGeometry(.012,12,8),
+      new THREE.MeshBasicMaterial({color:0xf1dda6,depthTest:false})); cursor.renderOrder=997;
+    cursor.visible=false; scene.add(cursor);
+    rig.add(ctrl,grip,hand);
+    const P={i, ctrl, grip, hand, ray, cursor, gamepad:null, handed:'unknown', hit:null, panelIdx:-1, grabbed:null, usingHand:false};
+    ctrl.addEventListener('connected', e=>{
+      P.gamepad=e.data.gamepad||null; P.handed=e.data.handedness;
+      P.usingHand=e.data.hand!=null;
+      flags.handTracking = flags.handTracking || P.usingHand;
+      flags.haptics = flags.haptics || !!(P.gamepad?.hapticActuators?.length);
+    });
+    ctrl.addEventListener('disconnected', ()=>{ P.gamepad=null; });
+    ctrl.addEventListener('selectstart', ()=>onSelect(P));
+    ctrl.addEventListener('squeezestart', ()=>onSqueezeStart(P));
+    ctrl.addEventListener('squeezeend', ()=>onSqueezeEnd(P));
+    hand.addEventListener('pinchstart', ()=>onSelect(P));
+    pointers.push(P);
+    return P;
+  }
+  mkPointer(0); mkPointer(1);
+  function pulse(P,inten,ms){ try{ P?.gamepad?.hapticActuators?.[0]?.pulse?.(inten,ms); }catch(e){} }
+
+  function onSelect(P){
+    lastSelectCtrl=P;
+    if(P.hit?.panel){
+      const idx=P.hit.panel.uvHit(P.hit.uv);
+      if(idx>=0){ pulse(P,.5,40); P.hit.panel.btns[idx].cb(); refreshMenu(); if(statusPanel.visible) refreshStatus(); }
+      return;
+    }
+    if(P.hit?.selKey){ pulse(P,.4,30); selectKey(P.hit.selKey); showObjectCard(P.hit.selKey); return; }
+    if(xrMode==='ar' && reticle?.visible){ placeAtReticle(); return; }
+    // blink teleport to cursor point in open space
+    if(P.cursor.visible && xrMode==='vr'){
+      rig.position.add(P.cursor.position.clone().sub(getHead()).setY(0));
+      pulse(P,.3,25);
+    }
+  }
+  /* two-hand grab: scale & rotate the active mode group; one-hand on panel: grab panel */
+  const grabState={active:false, d0:0, s0:1, mid0:new THREE.Vector3(), g0:new THREE.Vector3(), ang0:0, rot0:0};
+  function onSqueezeStart(P){
+    if(P.hit?.panel){ P.grabbed=P.hit.panel.mesh; P.grabbed.userData.prevParent=scene;
+      P.ctrl.attach(P.grabbed); pulse(P,.5,40); return; }
+    P.squeezing=true;
+    const both=pointers.every(q=>q.squeezing);
+    if(both){
+      const g=modeGroup(), a=ctrlPos(pointers[0]), b=ctrlPos(pointers[1]);
+      grabState.active=true; grabState.d0=a.distanceTo(b); grabState.s0=g.scale.x;
+      grabState.mid0=a.clone().add(b).multiplyScalar(.5); grabState.g0=g.position.clone();
+      grabState.ang0=Math.atan2(b.x-a.x,b.z-a.z); grabState.rot0=g.rotation.y;
+    }
+  }
+  function onSqueezeEnd(P){
+    P.squeezing=false;
+    if(P.grabbed){ scene.attach(P.grabbed); P.grabbed=null; }
+    grabState.active=false;
+  }
+  const ctrlPos=P=>new THREE.Vector3().setFromMatrixPosition(P.ctrl.matrixWorld);
+  function getHead(){ const v=new THREE.Vector3(); camera.getWorldPosition(v); return v; }
+
+  /* hand ray: wrist→index-tip direction when using articulated hands */
+  const tmpM=new THREE.Matrix4(), tmpQ=new THREE.Quaternion();
+  function pointerRay(P, raycaster){
+    if(P.usingHand && P.hand.joints?.['index-finger-tip'] && P.hand.joints?.['index-finger-phalanx-proximal']){
+      const tip=new THREE.Vector3(), prox=new THREE.Vector3();
+      P.hand.joints['index-finger-tip'].getWorldPosition(tip);
+      P.hand.joints['index-finger-phalanx-proximal'].getWorldPosition(prox);
+      raycaster.set(prox, tip.clone().sub(prox).normalize());
+      return true;
+    }
+    tmpM.identity().extractRotation(P.ctrl.matrixWorld);
+    raycaster.ray.origin.setFromMatrixPosition(P.ctrl.matrixWorld);
+    raycaster.ray.direction.set(0,0,-1).applyMatrix4(tmpM);
+    return true;
+  }
+
+  /* ---------- vignette (comfort) ---------- */
+  const vignette=(()=>{
+    const c=document.createElement('canvas'); c.width=c.height=256;
+    const x=c.getContext('2d'); const g=x.createRadialGradient(128,128,70,128,128,128);
+    g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,'rgba(0,0,0,.85)');
+    x.fillStyle=g; x.fillRect(0,0,256,256);
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(.5,.5),
+      new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+    m.renderOrder=999; m.position.z=-.25; m.visible=false; camera.add(m); return m;
+  })();
+
+  /* ---------- quality & telemetry ---------- */
+  const QUALITY={
+    questSafe:     {fov:1,  steps:60,  hopfCap:0.8, stars:0.35, fb:0.8, dpr:1.2},
+    questBalanced: {fov:0.7,steps:90,  hopfCap:1.4, stars:0.7,  fb:1.0, dpr:1.5},
+    questUltra:    {fov:0.4,steps:130, hopfCap:2.2, stars:1,    fb:1.1, dpr:1.75},
+    desktopCinematic:{fov:0,steps:160, hopfCap:3,   stars:1,    fb:1.2, dpr:2},
+  };
+  let qualityName = isMobileQ()? 'questBalanced' : 'desktopCinematic';
+  function isMobileQ(){ return matchMedia('(max-width:760px)').matches; }
+  function applyQuality(name){
+    qualityName=name; const q=QUALITY[name];
+    fractalUniforms.uSteps.value=q.steps;
+    STARFIELDS.forEach(p=>{ p.geometry.setDrawRange(0, Math.floor(p.userData.fullCount*q.stars)); p.visible = xrMode!=='ar'; });
+    if(state.hopfDensity>q.hopfCap && hopfDefs.length){ buildHopfFibers(q.hopfCap); }
+    if(renderer.xr.setFoveation && renderer.xr.isPresenting) renderer.xr.setFoveation(q.fov);
+    renderer.xr.setFramebufferScaleFactor?.(q.fb);   // applies to the NEXT session
+    if(!renderer.xr.isPresenting) renderer.setPixelRatio(Math.min(devicePixelRatio,q.dpr));
+  }
+  function cycleQuality(){
+    const names=Object.keys(QUALITY);
+    applyQuality(names[(names.indexOf(qualityName)+1)%names.length]);
+  }
+  // initial applyQuality is deferred to startup (state is declared later)
+  function telemetry(dt){
+    const ms=dt*1000; fps.ms=fps.ms*.92+ms*.08;
+    fps.ema=fps.ema*.95+(1/Math.max(dt,1e-4))*.05;
+    if(renderer.xr.isPresenting){
+      if(fps.ema<63) fps.low+=dt; else fps.low=0;
+      fps.cooldown-=dt;
+      if(fps.low>3 && fps.cooldown<=0 && qualityName!=='questSafe'){
+        const names=Object.keys(QUALITY);
+        applyQuality(names[Math.max(0,names.indexOf(qualityName)-1)]);
+        fps.cooldown=6; fps.low=0; refreshStatus();
+      }
+    }
+  }
+
+  /* ---------- exports (capabilities · registries · validation report) ---------- */
+  const hashStr=s=>{ let h=5381; for(let i=0;i<s.length;i++) h=((h<<5)+h+s.charCodeAt(i))>>>0; return h.toString(16); };
+  const exportMeta=()=>({
+    app:'S³ LIGHT-TRISPHERE / FBS3R — Quest 3 WebXR edition', version:'3.0.0',
+    exportedAt:new Date().toISOString(),
+    sourceRegistryHash:hashStr(JSON.stringify(SOURCE_MAP)),
+    formulaRegistryHash:hashStr(JSON.stringify(FORMULA_REGISTRY)),
+    disclaimer:'Conditional reconstruction / model visualization — not a topology detection; not a replacement for ΛCDM unless explicitly tested.',
+    mode:state.mode, xrFlags:flags,
+  });
+  function exportXRCapabilities(){
+    downloadFile('xr_session_capabilities.json','application/json',
+      JSON.stringify({...exportMeta(), capabilities:flags,
+        userAgent:navigator.userAgent, quality:qualityName,
+        notes:'Feature-detected via WebXR; absent features are honestly reported, never faked.'},null,2));
+  }
+  function exportFormulaRegistry(){
+    downloadFile('formula_registry.json','application/json',
+      JSON.stringify({...exportMeta(), formulas:FORMULA_REGISTRY, uncertainty:UNCERTAINTY},null,2));
+  }
+  function exportSourceRegistry(){
+    downloadFile('source_registry.json','application/json',
+      JSON.stringify({...exportMeta(), sources:SOURCE_MAP},null,2));
+  }
+  function exportValidationReport(){
+    downloadFile('validation_report.json','application/json',
+      JSON.stringify({...exportMeta(), selfTests:SELF_TESTS,
+        passed:SELF_TESTS.filter(t=>t.pass).length, total:SELF_TESTS.length},null,2));
+  }
+
+  /* ---------- per-frame update ---------- */
+  const raycaster2=new THREE.Raycaster();
+  function update(dt, frame){
+    if(!renderer.xr.isPresenting){ return; }
+    // wrist-follow for the menu panel (left grip or left wrist joint)
+    const left=pointers.find(p=>p.handed==='left')||pointers[0];
+    {
+      const anchor=new THREE.Vector3();
+      if(left.usingHand && left.hand.joints?.wrist) left.hand.joints.wrist.getWorldPosition(anchor);
+      else anchor.setFromMatrixPosition(left.grip.matrixWorld);
+      if(anchor.lengthSq()>1e-8){
+        menuPanel.visible=true;
+        const target=anchor.add(new THREE.Vector3(0,.28,0));
+        menuPanel.mesh.position.lerp(target,.25);
+      }
+    }
+    for(const p of panels) if(p.visible && !pointerGrabbedMesh(p.mesh)) p.mesh.lookAt(getHead());
+    // pointer rays: panels first, then mode picks
+    const picks=[]; for(const [key,d] of SELECT){ if(d.mode===state.mode&&d.pick){ d.pick.userData.selKey=key; picks.push(d.pick);} }
+    const panelMeshes=panels.filter(p=>p.visible).map(p=>p.mesh);
+    let anyHover=false;
+    for(const P of pointers){
+      P.hit=null; P.cursor.visible=false;
+      if(!pointerRay(P,raycaster2)) continue;
+      const hitsP=raycaster2.intersectObjects(panelMeshes,false)[0];
+      const hitsO=hitsP?null:raycaster2.intersectObjects(picks,false)[0];
+      if(hitsP){
+        const panel=hitsP.object.userData.panel;
+        P.hit={panel, uv:hitsP.uv};
+        const idx=panel.uvHit(hitsP.uv);
+        if(panel.hover!==idx){ panel.hover=idx; panel.render(panel.spec); if(idx>=0) pulse(P,.15,8); }
+        anyHover=true;
+        P.cursor.position.copy(hitsP.point); P.cursor.visible=true;
+        P.ray.scale.z=hitsP.distance;
+      } else if(hitsO){
+        P.hit={selKey:hitsO.object.userData.selKey};
+        P.cursor.position.copy(hitsO.point); P.cursor.visible=true;
+        P.ray.scale.z=hitsO.distance;
+      } else {
+        P.ray.scale.z=4;
+        P.cursor.position.copy(raycaster2.ray.origin).addScaledVector(raycaster2.ray.direction,4);
+        P.cursor.visible=true;
+      }
+    }
+    if(!anyHover) panels.forEach(p=>{ if(p.hover!==-1){ p.hover=-1; if(p.spec) p.render(p.spec); } });
+    // locomotion: left stick fly, right stick snap turn + vertical; scale-aware
+    let moving=false;
+    for(const P of pointers){
+      const a=P.gamepad?.axes; if(!a||a.length<4) continue;
+      const head=camera;
+      if(P.handed==='left'){
+        const f=new THREE.Vector3(); head.getWorldDirection(f); f.y=0; f.normalize();
+        const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).negate();
+        const v=new THREE.Vector3().addScaledVector(f,-a[3]).addScaledVector(r,-a[2]);
+        if(v.lengthSq()>.01){ rig.position.addScaledVector(v, moveSpeed*dt); moving=true; }
+      } else {
+        if(Math.abs(a[2])>.7 && snapReady){
+          const headPos=getHead();
+          rig.position.sub(headPos);
+          rig.position.applyAxisAngle(new THREE.Vector3(0,1,0), -Math.sign(a[2])*snapAngle*DEG);
+          rig.rotateY(-Math.sign(a[2])*snapAngle*DEG);
+          rig.position.add(headPos);
+          snapReady=false; pulse(P,.2,20);
+        }
+        if(Math.abs(a[2])<.3) snapReady=true;
+        if(Math.abs(a[3])>.2){ rig.position.y -= a[3]*moveSpeed*.6*dt; moving=true; }
+      }
+    }
+    vignette.visible = moving;
+    // two-hand universe grab: translate / scale / rotate the active group
+    if(grabState.active && pointers[0].squeezing && pointers[1].squeezing){
+      const g=modeGroup(), A=ctrlPos(pointers[0]), B=ctrlPos(pointers[1]);
+      const d=A.distanceTo(B), mid=A.clone().add(B).multiplyScalar(.5);
+      const k=THREE.MathUtils.clamp(d/Math.max(grabState.d0,1e-4), .05, 20);
+      g.scale.setScalar(grabState.s0*k);
+      g.position.copy(grabState.g0).add(mid.sub(grabState.mid0));
+      g.rotation.y=grabState.rot0+(Math.atan2(B.x-A.x,B.z-A.z)-grabState.ang0);
+    }
+    // MR hit-test reticle
+    if(xrMode==='ar' && hitTestSource && frame){
+      const hits=frame.getHitTestResults(hitTestSource);
+      if(hits.length){
+        const pose=hits[0].getPose(refSpace);
+        if(pose){ reticle.visible=true; reticle.matrix.fromArray(pose.transform.matrix);
+          reticle.userData.hit=hits[0]; }
+      } else reticle.visible=false;
+      if(placedAnchor && frame.getPose && placedAnchor.anchorSpace && anchoredGroup){
+        const ap=frame.getPose(placedAnchor.anchorSpace, refSpace);
+        if(ap) anchoredGroup.position.set(ap.transform.position.x, ap.transform.position.y, ap.transform.position.z);
+      }
+    }
+    // periodic panel refresh
+    XRX._acc=(XRX._acc||0)+dt;
+    if(XRX._acc>0.5){ XRX._acc=0; if(statusPanel.visible) refreshStatus();
+      if(cardPanel.visible && selectedKey) showObjectCard(selectedKey); }
+  }
+  const pointerGrabbedMesh=m=>pointers.some(P=>P.grabbed===m);
+
+  return { update, telemetry, flags, applyQuality, cycleQuality,
+           exportXRCapabilities, exportFormulaRegistry, exportSourceRegistry, exportValidationReport,
+           get qualityName(){ return qualityName; }, rig };
+})();
 
 /* ============================== UI / STATE ============================== */
 const ctl = document.getElementById('ctl');
@@ -2503,9 +3164,38 @@ function buildInfo(){
     `<b style="color:var(--gold)">${s.tag}</b> — ${s.label}`).join('<br>')}</div>
   <div class="note">Every selection card carries formula provenance and source tags
   (hover a tag for the full citation). Export the full φ-ladder benchmark (CSV) and
-  app state (JSON) from the FBS3R control panel.</div>`;
+  app state (JSON) from the FBS3R control panel.</div>
+  <h3>WebXR · Meta Quest 3</h3>
+  <div class="note">On a Quest 3 (Meta Quest Browser over HTTPS) the 🥽 VR and ◈ MR
+  buttons appear in the header — they are shown only when <i>immersive-vr</i> /
+  <i>immersive-ar</i> are actually supported. Inside XR: wrist Control Observatory,
+  controller rays &amp; haptics, hand-tracking pinch, blink teleport, snap turn,
+  two-hand grab to scale/rotate the universe, MR tabletop placement via hit-test
+  (+ anchors where granted), live performance dashboard with dynamic quality.
+  Every absent capability is reported honestly — nothing is faked.</div>
+  <div class="note" id="expRow">
+    <button class="btn" data-exp="caps">⬇ XR capabilities</button>
+    <button class="btn" data-exp="formulas">⬇ Formula registry</button>
+    <button class="btn" data-exp="sources">⬇ Source registry</button>
+    <button class="btn" data-exp="report">⬇ Validation report</button>
+  </div>
+  <div class="note">Self-tests at startup: <b style="color:var(--gold)">${SELF_TESTS.filter(t=>t.pass).length}/${SELF_TESTS.length} passed</b>
+  (Γ(π)=1 · A(π/2)=4πR² · V=2π²R³ · πR · 2πR · N↔L round-trips · Kepler residual ·
+  vernal-equinox 2000 solve · lunar distance band). Export the JSON report above.</div>
+  <h3>Sensitivity (disclosed uncertainty)</h3>
+  <div class="note">R = (c/H₀)/√|Ω_K| responds as R ∝ H₀⁻¹·|Ω_K|⁻½:
+  H₀ ∈ [66.9, 67.9] → R ∈ [${(299792.458/67.9/Math.sqrt(0.0007)*3.2615638e-3).toFixed(0)},
+  ${(299792.458/66.9/Math.sqrt(0.0007)*3.2615638e-3).toFixed(0)}] Gly;
+  |Ω_K| ∈ [0.0005, 0.001] → R ∈ [459, 649] Gly;
+  N_S3 shifts by ±ln(R-ratio)/ln φ ≈ ∓0.35 levels. Γ_obs ∝ χ³ amplifies D_particle
+  uncertainty three-fold. Ephemeris validity: 1800–2050 AD (JPL approximate).</div>`;
 }
 buildInfo();
+info.addEventListener('click', e=>{
+  const k = e.target?.dataset?.exp; if(!k) return;
+  ({caps:XRX.exportXRCapabilities, formulas:XRX.exportFormulaRegistry,
+    sources:XRX.exportSourceRegistry, report:XRX.exportValidationReport})[k]();
+});
 
 /* ---------------- MODE SWITCHING ---------------- */
 function setMode(mode){
@@ -2581,11 +3271,12 @@ try{ applyTheme(localStorage.getItem('lts-theme')==='day'); }catch(e){}
 
 /* ============================== MAIN LOOP ============================== */
 let last = performance.now(), cardTimer = 0;
-function tick(now){
+function tick(now, frame){
   const dt = Math.min((now-last)/1000, .1); last = now;
+  XRX.update(dt, frame);
 
-  /* fractal mode renders its own scene */
-  if(state.mode==='fractal'){
+  /* fractal mode renders its own scene (desktop/mobile only — not stereo-safe) */
+  if(state.mode==='fractal' && !renderer.xr.isPresenting){
     controls.update();
     fractalUniforms.uCamPos.value.copy(camera.position);
     camera.getWorldDirection(fractalUniforms.uCamFwd.value);
@@ -2595,7 +3286,7 @@ function tick(now){
     hudBig.textContent = `Mandelbulb z → zⁿ + c · n = ${fractalUniforms.uPower.value.toFixed(1)}`;
     hudSub.textContent = 'self-similar detail at every zoom level · drag to orbit · scroll to zoom';
     renderer.render(fractalScene, orthoCam);
-    requestAnimationFrame(tick);
+    XRX.telemetry(dt);
     return;
   }
 
@@ -2735,10 +3426,10 @@ function tick(now){
     if(cardTimer>0.25){ cardTimer=0; updateSelCard(); }
   } else selMarker.visible = false;
 
-  if(!state.landed) controls.update();
+  if(!state.landed && !renderer.xr.isPresenting) controls.update();
   renderer.render(scene, camera);
-  labelRenderer.render(scene, camera);
-  requestAnimationFrame(tick);
+  if(!renderer.xr.isPresenting) labelRenderer.render(scene, camera);
+  XRX.telemetry(dt);
 }
 /* ---------------- provenance auto-tagging for every selectable ---------------- */
 for(const [k,d] of SELECT){
@@ -2772,8 +3463,14 @@ for(const [k,d] of SELECT){
   else if(k==='cycSea'){ d.src=['JPL','DERIVED']; d.formulas=['event: λ_sun(t) = k·90°, k = 0..3 (bisection)','accuracy ~1 h (mean elements, no nutation/aberration)']; }
 }
 
+SELF_TESTS = runSelfTests();
+console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
+SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name, t.detail));
+XRX.applyQuality(XRX.qualityName);
+buildInfo();   // re-render: self-test results are now available
+
 setMode('solar');
-requestAnimationFrame(tick);
+renderer.setAnimationLoop(tick);   // XR-compatible main loop (rAF does not fire in immersive sessions)
 </script>
 </body>
 </html>

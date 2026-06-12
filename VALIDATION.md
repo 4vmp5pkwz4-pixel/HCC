@@ -1,5 +1,9 @@
 # VALIDATION — S³ LIGHT-TRISPHERE / FBS3R Interactive 3D Model
 
+> XR-specific validation lives in `XR_VALIDATION.md` and `QUEST3_TEST_PLAN.md`.
+> The automated suite now also covers the WebXR layer (191 checks) and the app
+> runs 14 numerical self-tests at startup (exportable as `validation_report.json`).
+
 ## Automated checks
 
 Run from the repository root (requires Node ≥ 18):
