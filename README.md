@@ -1,115 +1,126 @@
 # S³ LIGHT-TRISPHERE — Interactive 3D Universe Model
 
-An interactive, fully three-dimensional model of the **Solar System** and of the
-**Universe as a compact three-sphere carrier S³_R**, built in exact accordance with
-the article *“Conditional Reconstruction of a Quasi-Local Observable Domain within
-Compact S³ Geometry”* (Preece & Batenin, v38, “light sphere screens”) and the
-companion **FB(S³)R — Fractal Bindu (S³) of Reality** model by the same authors.
+A rigorous, source-auditable, fully interactive 3D explorer for the **Solar System**,
+the **compact S³ Light-Trisphere universe** (Preece & Batenin 2026, v38
+"light sphere screens") and the **FB(S³)R golden-ratio fractal ladder**
+(Preece & Batenin 2025). One self-contained `index.html`, desktop **and**
+smartphone, fully in English, with per-object formula provenance.
 
-**Works on desktop and smartphones** (responsive layout, touch orbit/pinch
-gestures, bottom-sheet panels). Fully in English.
+> Discipline: everything here is a **conditional reconstruction** of the cited
+> publications — never a claim of topology detection. Light-sphere screens are
+> reconstruction boundaries, not cosmic edges (∂S³_R = ∅); the local patch
+> U ⊂ S³_R stays quasi-Euclidean; FBS3R is rendered as published, distinct
+> from ΛCDM.
 
 ## Run
 
-Open `index.html` in any modern browser (internet access needed for the Three.js
-CDN). No build step:
-
 ```bash
-python3 -m http.server 8000   # → http://localhost:8000
+python3 -m http.server 8000     # → http://localhost:8000
 ```
+or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 
-Desktop: drag = rotate, wheel = zoom, right-drag = pan.
-Mobile: 1 finger = rotate, 2 fingers = pinch zoom; ⚙/ⓘ buttons open panels.
+**Desktop:** drag = orbit · wheel = zoom · right-drag = pan · Esc = leave surface/deselect.
+**Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·
+⚙/ⓘ bottom-sheet panels · horizontal mode row · iOS safe-area aware · DPR capped for stable FPS.
 
-## Interactivity (all modes)
+**Universal interactivity:** every visible object — Sun, planets, the Moon,
+light-sphere screens, S³ observer/antipode/cap/photon, Hopf fibres' base map,
+φ-shells, epoch markers, constellations, cycle instruments — is click/tap
+selectable and opens a live data card with **Focus** (fly-and-follow camera),
+**formula provenance + source tags** (hover for full citation), and for
+planets/Moon **Land** (first-person surface view with true-scale sky).
 
-- **Every object is selectable** — tap/click its 3D body or its floating name.
-  A live data card shows its parameters, updated in real time.
-- **Focus** — the camera flies to and then follows any selected object.
-- **Land** (planets) — first-person view from the planet's surface: drag to look
-  around, scroll/pinch to zoom (FOV). The sky auto-switches to true scale, so the
-  Sun appears at its real angular diameter (0.53° from Earth) and other planets
-  become realistic dots of light. Esc / 🚀 to leave.
-- **Clock** — real UTC time plus the simulation clock of the active mode.
-
-## Five modes
+## The six modes
 
 ### ☀ Solar System (1 unit = 1 AU)
-8 planets + Pluto on **exact Keplerian orbits** (J2000 elements from JPL
-approximate ephemerides; Kepler's equation solved by Newton iteration), time
-control from days/s to millennia/s, asteroid belt, Saturn's rings, true-scale
-toggle — the honest proportion demo of locally Euclidean physics (U ⊂ S³_R, U ≃ ℝ³).
+Keplerian J2000 orbits (JPL approximate ephemerides; Kepler's equation by Newton
+iteration), the Moon (Meeus principal-term theory), asteroid belt, Saturn's rings,
+time control (days/s → millennia/s), **date picker**, true-scale toggle, gold
+**syzygy line** when Sun–Moon–node align (eclipse window). Celestial sphere:
+procedural **Milky Way** aligned to the true galactic plane, bright-star catalogue
+with real colours, **12 zodiac constellations** (gold, with glyphs ♈…♓) + 8
+principal figures, dashed gold ecliptic; all toggleable, all selectable.
+
+### ✶ Cycles & Events
+Three instruments on **one shared timeline** (speed up to Gyr/s, date picker):
+- **Galactic clock** — Sun orbiting Sgr A*, T ≈ 230 Myr, live galactic-year counter;
+- **Precession clock** — the 25,772-yr Great Year, axis cone 23.44°, the twelve
+  zodiac Ages with live progress (Pisces → Aquarius ≈ 2150 AD);
+- **Seasons dial** — true Earth orbit; **equinoxes & solstices computed by
+  bisection on λ_sun = k·90°** with jump buttons;
+- **Solar-eclipse catalogue 2024–2035** (NASA Canon dates/types/regions):
+  one click jumps to greatest eclipse, pauses, switches to true scale and shows
+  the alignment;
+- **All-cycles dashboard** — synodic month, tropical year, Saros, Metonic,
+  precession, galactic year, FBS3R re-quantization, S³ photon loop: period,
+  live phase bar, 👁 one-click observation preset each.
 
 ### ◯ Observable Universe (1 unit = 1 Gly)
-The article's invariant **light-sphere screens** S²_χ(p): the light-age sphere
-ct₀ = 13.788 Gly, the last-scattering screen S²_LSS, and the particle-horizon
-screen S²_ph = 46.125 Gly, with clustered large-scale structure inside the
-geodesic ball B³_χ(p). Screens are reconstruction boundaries, never cosmic
-edges: ∂S³_R = ∅.
+Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
+S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
-### ⬡ Global S³ Carrier (1 unit = 100 Gly)
-Great 2-sphere section of the compact carrier with R = 548.324513026856 Gly:
-the observable Universe as a 4.82° cap (Γ_obs = 0.0126 %), interactive screen
-S²_χ with the exact laws A(χ) = 4πR²sin²χ and Γ(χ) = (χ − ½sin 2χ)/π
-(“boundary without boundary”), a photon circling the great circle
-C = 2πR = 3445.2 Gly with the causal-accessibility counter Γ(T) and
-t_coh = πR/c = 1722.6 Gyr, and the **Hopf fibration** S¹ ↪ S³ → S² in
-stereographic projection.
+### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
+Three sub-laboratories:
+- **Section** — R = 548.3245 Gly great 2-sphere; observable cap θ = 4.82°
+  (Γ_obs = 0.0126 %); interactive screen S²_χ with live A(χ), Γ(χ); photon on
+  the great circle with Γ(T) and t_coh = πR/c = 1722.6 Gyr;
+- **Hopf fibration** — fibre-density control, **Hopf-flow beads** (the S¹ action
+  slides each fibre along itself), a draggable **linked pair** (linking number 1,
+  the seed of π₃(S²) = ℤ), mini **base-S² map** (one dot = one fibre);
+- **Eigenmodes** — the compact ladder λ_β = (β²−1)/R², g_β = β² painted as
+  Y_ℓm sectors with live eigenvalue/wavenumber/wavelength readouts.
 
-### φ FBS3R Levels — fractal-level transitions
-Interactive 3D visualization of the **FB(S³)R golden-ratio ladder**, using the
-published relations verbatim:
-
-| FBS3R relation | Value / law |
-|---|---|
-| Ladder law | **R(N) = l_P · φᴺ** |
-| Seed (N = 0) | l_P = 1.616×10⁻³⁵ m, t_P = 5.39×10⁻⁴⁴ s |
-| Recombination anchor | **N(t_rec) = 266** (t ≈ 380,000 yr) |
-| Density law | **ρ ∝ V⁻¹ ∝ φ⁻³ᴺ** (fixed energy budget) |
-| Energy quantization | **Eₙ ∝ Fibonacci Fₙ ≈ φⁿ/√5** |
-| Particle horizon 46.13 Gly | N ≈ 293.8 |
-| **S³ radius 548.3 Gly** | **N ≈ 299.1 — the Light-Trisphere consistency bridge** |
-
-Features: endless-zoom **nested φ-shells** (scroll/pinch or slider travels the
-ladder), ± level transitions (×φ / ÷φ), **jump-to-epoch** navigator (Planck seed →
-proton → atom → human → Earth → AU → light-year → galaxy → recombination N=266 →
-particle horizon → S³ radius), every epoch marker selectable with live
-N, R(N), ρ/ρ_P and F_N readouts, the **golden spiral** winding by the golden
-angle per level, the **nonlocal re-quantization wave**, and a **continuous
-cyclicity** animation (expansion phase ↗ / re-quantization phase ↘) — the
-model's eternal cycle instead of a singular Big Bang.
+### φ FBS3R Levels
+The published golden-ratio ladder with full navigation:
+- slider over N **with epoch tick marks** + quick-access chips
+  (Planck → proton → atom → human → Earth → AU → ly → galaxy → recombination
+  N=266 → particle horizon → S³ radius);
+- **exact-N input** and **physical-length input** with units fm/nm/mm/cm/m/km/AU/ly/Gly
+  via N(L) = ln(L/l_P)/ln φ;
+- endless-zoom nested φ-shells (clickable), golden spiral, re-quantization wave,
+  continuous-cyclicity animation, phase indicator (fractal φ-phase ≤ 266 <
+  exponential H-phase), familiar-scale comparator;
+- **live formula matrix** and **exports**: app-state **JSON** and the full
+  313-row φ-ladder benchmark **CSV**.
 
 ### ❄ Fractal Explorer
-Real-time GPU raymarching of the Mandelbulb z → zⁿ + c (distance estimator,
-adjustable power/iterations) — a playground for self-similar structure at
-every zoom depth.
+GPU distance-estimator raymarching of the Mandelbulb z → zⁿ + c (power,
+iterations, palette) — self-similar detail at every zoom.
 
-## Fiducial S³ values (verbatim from the article's benchmark table)
+## Core formulas (all exposed in-app with provenance)
 
-R = 548.324513026856 Gly · 2R = 1096.65 Gly · πR = 1722.61 Gly ·
-2πR = 3445.22 Gly · V = 2π²R³ = 3.254×10⁹ Gly³ · K = 3.326×10⁻⁶ Gly⁻² ·
-t_coh = 1722.61 Gyr · t₀ = 13.7877 Gyr · D_particle = 46.1252 Gly ·
-θ_particle = 4.8197° · θ₀ = 1.4407° · Γ_obs = 1.2614×10⁻⁴ · Γ_ST = 4.255×10⁻¹⁰
+```
+R   = (c/H₀)/√|Ω_K| = 548.324513026856 Gly   (|Ω_K| = 0.0007, H₀ = 67.4)
+V   = 2π²R³            D_causal = πR           C = 2πR
+A(χ) = 4πR²·sin²χ      Γ(χ) = (χ − ½sin 2χ)/π
+λ_β = (β²−1)/R²        g_β = β²                k_β = √(β²−1)/R
+R(N) = l_P·φᴺ          N(L) = ln(L/l_P)/ln φ
+ρ(N)/ρ_P = φ⁻³ᴺ        F_N ≈ φᴺ/√5             N(t_rec) = 266
+```
 
-## Model discipline (kept from the sources)
+## Source / provenance policy
 
-Conditional reconstruction, not a topology detection; round S³ selects no
-preferred axis (SO(4)); t_R = 548.3 Gyr is not the age of the Universe; the
-particle horizon is a background-dependent input; quotients S³/Γ (Poincaré
-dodecahedral space) are the excluded sector of the simply connected choice
-Γ = {1}; FBS3R cyclicity is the authors' published framework, rendered as-is.
+All constants live in tagged blocks (`S3`, `FBS`, `SOURCE_MAP`, planetary
+elements, lunar theory, eclipse catalogue) and every selection card shows its
+source tags — hover for the full citation: **S3-v38**, **FBS3R**, **JPL-approx**,
+**Meeus**, **CODATA**, **IAU**, **NASA-Canon**, **astro-std**, **derived**.
+Accuracy envelopes are disclosed in `VALIDATION.md`. The app never presents the
+S³ topology or the FBS3R ladder as detected facts.
 
-## FBS3R sources (web)
+## Validation
 
-- A. Preece & B. Batenin, *Fractal Bindu (S³) of Reality: The Golden Ratio as the
-  Principle of Perfection and Harmony in Interdependent Existence* —
-  [figshare 28631525](https://figshare.com/articles/preprint/_sup_strong_Fractal_Bindu_S3_of_Reality_The_Golden_Ratio_as_the_Principle_of_Perfection_and_Harmony_in_Interdependent_Existence_strong_sup_/28631525),
-  [PhilArchive PREFBS](https://philarchive.org/archive/PREFBS),
-  [OSF preprint vdfwh](https://osf.io/preprints/osf/vdfwh_v2)
-- A. Preece & B. Batenin, *FB(S³)R: A Causally Interdependent Cyclic Model of the
-  Universe* — [PhilArchive PREFAC-3](https://philarchive.org/rec/PREFAC-3)
+```bash
+node scripts/validate.mjs     # 161 automated checks — see VALIDATION.md
+```
+
+## FBS3R web sources
+
+[figshare 28631525](https://figshare.com/articles/preprint/_sup_strong_Fractal_Bindu_S3_of_Reality_The_Golden_Ratio_as_the_Principle_of_Perfection_and_Harmony_in_Interdependent_Existence_strong_sup_/28631525) ·
+[PhilArchive PREFBS](https://philarchive.org/archive/PREFBS) ·
+[PhilArchive PREFAC-3](https://philarchive.org/rec/PREFAC-3) ·
+[OSF vdfwh](https://osf.io/preprints/osf/vdfwh_v2)
 
 ## Technology
 
-Three.js r160 (WebGL2, OrbitControls, CSS2DRenderer, logarithmic depth buffer,
-GLSL raymarching), one self-contained HTML file, no build step.
+Three.js r160 (WebGL2, OrbitControls, CSS2DRenderer, logarithmic depth, GLSL
+raymarching), Cinzel + Manrope, one self-contained HTML file, no build step.
