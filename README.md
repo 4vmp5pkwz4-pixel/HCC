@@ -23,6 +23,44 @@ or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 **Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·
 ⚙/ⓘ bottom-sheet panels · horizontal mode row · iOS safe-area aware · DPR capped for stable FPS.
 
+## Quest 3 quick start & diagnostics
+
+**Read `QUEST3_START_HERE.md` first.** WebXR needs HTTPS — never `file://`.
+The header shows an **XR Launch Gate** (`XR: checking… / HTTPS required /
+unsupported / 🥽 Enter VR / XR failed — open XR CHECK`) instead of an optimistic
+button. The **XR CHECK** panel shows secure-context, `navigator.xr`,
+`isSessionSupported`, reference space, `enabledFeatures`, target frame rate and
+the exact last `requestSession` error, with **Export XR Diagnostics JSON** and a
+*Fallback reference space* switch. A minimal sanity route **`?xrtest=1`**
+renders only a cube + grid + controller rays to isolate environment problems
+from app problems. Platform matrix: `COMPATIBILITY.md`.
+
+## iPhone / Android motion control
+
+📱 **Motion** (touch devices): after explicit permission
+(`DeviceOrientationEvent/DeviceMotionEvent.requestPermission`, iOS 13+, HTTPS)
+phone tilt drives the app — modes: Orbit Camera, Inside Sphere Look, Outside
+Sphere Parallax, **FBS3R Ladder Tilt** (pitch = N, roll = shell opacity),
+**S³ Chi Tilt** (pitch = χ, twist = center spin), Fractal Flight. Sensitivity,
+dead-zone, smoothing, invert, absolute-compass, calibrate-neutral-pose and
+reset included; velocity-based and clamped for comfort; touch always preserved.
+
+## S³ Center Lab & FBS3R deep control
+
+S³ mode gained a **Center Lab** sub-view: arbitrary observer centers as unit
+quaternions (presets / w,x,y,z / Hopf η,ξ₁,ξ₂ / geodesic-polar χ,θ,φ), two
+χ-screens with overlap diagnostic, geodesic arc, tangent frame, antipode —
+rendered in stereographic projection where every χ-screen is a round sphere;
+centers are labelled *mathematical basepoints in the conditional S³
+reconstruction*. FBS3R gained: N step/velocity/range, density exponent k,
+exact BigInt Fibonacci vs Binet, φ′/l_P′ exploration with explicit **Tier 2**
+labelling (canonical anchors hide), a **Sensitivity Observatory** (H₀, |Ω_K| →
+live R′, N′, Γ′_obs) and eight one-tap **Experiences** (φ-Ladder Walk,
+Recombination Gate 266, Particle Horizon Gate, Light-Trisphere Closure,
+Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
+Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
+separate labelled layers with deconflicted labels.
+
 ## WebXR — Meta Quest 3 VR & MR
 
 Serve over **HTTPS** and open in Meta Quest Browser: 🥽 VR and ◈ MR header

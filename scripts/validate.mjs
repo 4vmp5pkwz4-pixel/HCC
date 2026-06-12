@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /* Automated validation for the S³ LIGHT-TRISPHERE / FBS3R app (index.html).
    Run: node scripts/validate.mjs            (from the repository root)      */
-import { readFileSync, writeFileSync, rmSync } from 'fs';
+import { readFileSync, writeFileSync, rmSync, existsSync } from 'fs';
 import { execSync } from 'child_process';
 
 const html = readFileSync('index.html', 'utf8');
@@ -111,7 +111,62 @@ for (const ex of ['exportXRCapabilities','exportFormulaRegistry','exportSourceRe
   check(html.includes(ex), `export present: ${ex}`);
 check(html.includes('not stereo-safe'), 'fractal fullscreen pass honestly excluded from XR');
 
-/* 11 · Event-handler integrity: every onclick/oninput assignment target id exists */
+/* 11 · XR Launch Gate, diagnostics, sanity route */
+check(html.includes('XR LAUNCH GATE'), 'XR Launch Gate exists');
+check(html.includes('isSecureContext'), 'window.isSecureContext displayed/checked');
+check(html.includes('id="xrCheck"') && html.includes('XR CHECK'), 'XR CHECK UI exists');
+check(html.includes('Export XR Diagnostics JSON'), 'Export XR Diagnostics JSON exists');
+check(html.includes('lastSessionError'), 'requestSession errors surfaced in UI');
+check(html.includes('fallbackRefSpace') && html.includes("requiredFeatures:['local']"),
+  'reference-space fallback (required local) exists');
+check(html.includes("requiredFeatures:['local-floor']"), 'primary VR request requires local-floor');
+check(html.includes('xrtest'), '?xrtest=1 minimal sanity route exists');
+check(html.includes('session.end()') || html.includes('session.end?.()'),
+  'failed sessions are properly ended (no zombie sessions)');
+check(html.includes('XR: HTTPS required') && html.includes('XR: checking'),
+  'gate button states (checking/HTTPS/unsupported/failed) exist');
+
+/* 12 · iPhone / mobile motion layer */
+check(html.includes('DeviceOrientationEvent.requestPermission'), 'iOS DeviceOrientation permission code exists');
+check(html.includes('DeviceMotionEvent.requestPermission'), 'iOS DeviceMotion permission code exists');
+check(html.includes('Enable Motion Control'), 'Enable Motion Control button exists');
+check(html.includes('Calibrate Neutral Pose') && html.includes('Reset Motion'), 'calibrate/reset controls exist');
+check(html.includes("'deviceorientationabsolute'"), 'absolute compass mode handled');
+check(html.includes('Inside Sphere Look') && html.includes('FBS3R Ladder Tilt')
+  && html.includes('Fractal Flight'), 'all motion modes present');
+check(html.includes('sensors are unavailable') || html.includes('sensors unavailable'),
+  'motion-sensor fallback message exists');
+
+/* 13 · S³ multi-center lab */
+check(html.includes('S3M'), 'S³ 4-vector math module exists');
+check(html.includes('arccos') || html.includes('Math.acos(THREE.MathUtils.clamp(S3M.dot'),
+  'geodesic distance formula chi=arccos<p,q> exists');
+check(html.includes('S3M.norm'), 'quaternion normalization exists');
+check(html.includes('fromHopf') && html.includes('fromPolar'), 'Hopf & geodesic-polar coordinates exist');
+check(html.includes('CENTER LAB') || html.includes('Center Lab'), 'Center Lab UI exists');
+check(html.includes('mathematical basepoint'), 'centers honestly labelled as mathematical basepoints');
+check(html.includes('caps overlap'), 'two-cap overlap diagnostic exists');
+
+/* 14 · FBS3R expansion + zodiac layer cleanup */
+check(html.includes('fibExact'), 'exact BigInt Fibonacci mode exists');
+check(html.includes('fbsDensExp'), 'density exponent control exists');
+check(html.includes('Tier 2'), 'tier labelling for speculative exploration exists');
+check(html.includes('Sensitivity Observatory'), 'Sensitivity Observatory exists');
+check(html.includes('φ-Ladder Walk') && html.includes('Density Chamber'), 'FBS3R experiences wired');
+check(html.includes('Sky zodiac constellations') && html.includes('PRECESSION AGE WHEEL'),
+  'zodiac layers renamed & separated (sky vs age wheel)');
+check(html.includes('not a duplicate'), 'layer-distinction tooltips exist');
+check(html.includes('SKY_NAME_ELS') && html.includes('label deconfliction'),
+  'distance-based label deconfliction exists');
+
+/* 15 · Documentation set */
+for (const f of ['README.md','VALIDATION.md','XR_VALIDATION.md','QUEST3_TEST_PLAN.md',
+                 'QUEST3_START_HERE.md','COMPATIBILITY.md'])
+  check(existsSync(f), `doc exists: ${f}`);
+check(readFileSync('QUEST3_START_HERE.md','utf8').includes('xrtest=1'),
+  'start-here doc explains the ?xrtest=1 sanity route');
+
+/* 16 · Event-handler integrity: every onclick/oninput assignment target id exists */
 {
   const assigns = [...html.matchAll(/querySelector\('#([\w-]+)'\)\.(onclick|oninput|onchange)/g)].map(x => x[1]);
   for (const id of new Set(assigns))

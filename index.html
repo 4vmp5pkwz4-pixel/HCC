@@ -92,6 +92,17 @@
   .srct{border:1px solid var(--gold-dim);border-radius:4px;padding:0 5px;cursor:help;color:var(--gold)}
   #fbsMatrix{font-family:'SFMono-Regular',Consolas,'Liberation Mono',monospace;font-size:10.5px;
     color:var(--gold-2);line-height:1.8;border-left:2px solid var(--gold-dim);padding-left:8px}
+  #xrCheck{right:14px;top:64px;width:372px;max-height:74vh;overflow:auto;z-index:32}
+  #motionPanel{left:14px;top:64px;width:340px;max-height:74vh;overflow:auto;z-index:31;font-size:12px}
+  #motionPanel h3{font-family:var(--serif);color:var(--gold);letter-spacing:1.5px;font-size:12.5px;margin-bottom:5px}
+  .label.age{font-family:var(--serif);font-size:11px;font-weight:600;letter-spacing:2.5px;
+    color:#b9a6e0;text-transform:uppercase;text-shadow:0 0 6px #000}
+  .label{transition:opacity .4s}
+  button:disabled{cursor:not-allowed}
+  @media (max-width:760px){
+    #xrCheck,#motionPanel{left:10px;right:10px;width:auto;top:auto;
+      bottom:calc(60px + env(safe-area-inset-bottom,0px));max-height:55vh}
+  }
 
   .ctlrow{display:flex;align-items:center;gap:8px;margin:7px 0}
   .ctlrow label{flex:0 0 128px;color:var(--dim);font-size:11.5px;letter-spacing:.3px}
@@ -207,8 +218,10 @@
     <button class="modebtn" data-mode="fractal">❄ Fractal Explorer</button>
   </nav>
   <button class="btn" id="themeBtn" title="Day / Night theme">☀</button>
-  <button class="modebtn" id="vrBtn" style="display:none" title="Enter immersive VR (Meta Quest Browser)">🥽 VR</button>
-  <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ MR</button>
+  <button class="btn" id="xrCheckBtn" title="WebXR launch diagnostics">XR CHECK</button>
+  <button class="btn" id="motionBtn" style="display:none" title="Phone accelerometer / gyroscope control">📱 Motion</button>
+  <button class="modebtn" id="vrBtn" title="Enter immersive VR (Meta Quest Browser)">XR: checking…</button>
+  <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ Enter MR</button>
   <div id="clock"><div class="rt" id="clockReal">—</div><div class="st" id="clockSim">—</div></div>
 </div>
 <button id="togglePanels" class="btn">⤢ panels</button>
@@ -219,6 +232,8 @@
 
 <div id="ctl" class="panel"></div>
 <div id="info" class="panel"></div>
+<div id="xrCheck" class="panel" style="display:none"></div>
+<div id="motionPanel" class="panel" style="display:none"></div>
 <div id="selCard" class="panel">
   <h3 id="selName"></h3>
   <div class="desc" id="selDesc"></div>
@@ -792,8 +807,9 @@ const CONSTELLATIONS = [
 ];
 
 const constGroup = new THREE.Group();   // non-zodiac figures & names
-const zodGroup   = new THREE.Group();   // zodiac figures, glyphs & ecliptic belt
+const zodGroup   = new THREE.Group();   // SKY zodiac constellations, glyphs & ecliptic belt
 const starsGroup = new THREE.Group();   // catalogue stars & proper names
+const SKY_NAME_ELS = [];                // for distance-based label deconfliction
 skyGroup.add(constGroup, zodGroup, starsGroup);
 
 function starSpriteTex(){
@@ -845,8 +861,12 @@ function starSpriteTex(){
     const centroid = con.dirs.reduce((v,d)=>v.add(d), new THREE.Vector3()).normalize();
     const lab = mkLabel(con.z ? `${ZGL[con.z]} ${con.n}` : con.n,
                         con.z ? 'label zod' : 'label const', 'con'+ci);
+    lab.element.title = con.z
+      ? 'Sky zodiac constellation — celestial-sphere layer. The Precession Age Wheel (Cycles & Events) is a different interpretive layer, not a duplicate object.'
+      : 'Constellation — celestial-sphere layer (J2000)';
     lab.position.copy(centroid).multiplyScalar(RSKY*1.05);
     (con.z ? zodGroup : constGroup).add(lab);
+    SKY_NAME_ELS.push(lab.element);
     const bright = con.s.reduce((m,s)=>s[2]<m[2]?s:m, con.s[0]);
     registerSel('con'+ci, {
       name: con.z ? `${ZGL[con.z]} ${con.n}` : con.n,
@@ -1405,16 +1425,156 @@ function setEigMode(beta, m){
   eigSphere.material.map = ylmTexture(l, mm);
   eigSphere.material.needsUpdate = true;
 }
+/* ----------------------------------------------------------------
+   CLAB — S³ Multi-Center Research Laboratory.
+   Points of S³ are unit 4-vectors p=(w,x,y,z), ‖p‖=1 (quaternions).
+   χ(p,q)=arccos⟨p,q⟩ · d=R·χ · A(χ)=4πR²sin²χ · Γ(χ)=(χ−½sin2χ)/π.
+   Rendered in stereographic projection from pole (−1,0,0,0): every
+   χ-sphere S²_χ(p)⊂S³ maps to a round Euclidean sphere (computed via
+   the two radial geodesic points q± = cosχ·p ± sinχ·u).
+   Centers are labelled honestly: mathematical basepoints / observer
+   centers in the conditional S³ reconstruction — not physical claims.
+   ---------------------------------------------------------------- */
+const S3M = {
+  dot:(p,q)=>p[0]*q[0]+p[1]*q[1]+p[2]*q[2]+p[3]*q[3],
+  norm:(p)=>{ const n=Math.hypot(...p)||1; return p.map(c=>c/n); },
+  chi:(p,q)=>Math.acos(THREE.MathUtils.clamp(S3M.dot(p,q),-1,1)),
+  dist:(p,q)=>S3.R*S3M.chi(p,q),                       // Gly
+  slerp:(p,q,t)=>{
+    const w=S3M.chi(p,q), s=Math.sin(w);
+    if(s<1e-9) return [...p];
+    const a=Math.sin((1-t)*w)/s, b=Math.sin(t*w)/s;
+    return S3M.norm(p.map((c,i)=>a*c+b*q[i]));
+  },
+  fromHopf:(eta,xi1,xi2)=>[Math.cos(eta)*Math.cos(xi1), Math.cos(eta)*Math.sin(xi1),
+                           Math.sin(eta)*Math.cos(xi2), Math.sin(eta)*Math.sin(xi2)],
+  fromPolar:(chi,th,ph)=>[Math.cos(chi), Math.sin(chi)*Math.sin(th)*Math.cos(ph),
+                          Math.sin(chi)*Math.sin(th)*Math.sin(ph), Math.sin(chi)*Math.cos(th)],
+  random:()=>S3M.norm([Math.random()*2-1,Math.random()*2-1,Math.random()*2-1,Math.random()*2-1]),
+  antipode:p=>p.map(c=>-c),
+  // stereographic projection from pole (−1,0,0,0) → R³, scaled to scene
+  stereo:(p)=>{ const d=1+p[0];
+    if(Math.abs(d)<1e-4) return null;                  // near projection infinity
+    return new THREE.Vector3(p[1]/d, p[3]/d, -p[2]/d).multiplyScalar(RU*.8); },
+  tangentBasis:(p)=>{                                   // orthonormal frame ⊥ p
+    const seeds=[[0,1,0,0],[0,0,1,0],[0,0,0,1],[1,0,0,0]], out=[];
+    for(const s of seeds){
+      let v=s.map((c,i)=>c - S3M.dot(s,p)*p[i]);
+      for(const u of out) { const du=S3M.dot(v,u); v=v.map((c,i)=>c-du*u[i]); }
+      const n=Math.hypot(...v);
+      if(n>1e-6){ out.push(v.map(c=>c/n)); if(out.length===3) break; }
+    }
+    return out;
+  },
+};
+const s3LabGroup = new THREE.Group(); s3LabGroup.visible=false; s3Group.add(s3LabGroup);
+const CLAB = (()=>{
+  const P = { A:[1,0,0,0], B:[-1,0,0,0], chiA:0.55, chiB:0.85, arc:true, frames:true };
+  const matA=new THREE.MeshBasicMaterial({color:0xd4af6a,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false});
+  const matB=new THREE.MeshBasicMaterial({color:0x9bb7e8,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false});
+  const capA=new THREE.Mesh(new THREE.SphereGeometry(1,48,32), matA);
+  const capB=new THREE.Mesh(new THREE.SphereGeometry(1,48,32), matB);
+  const dotA=new THREE.Mesh(new THREE.SphereGeometry(RU*.015,14,10), new THREE.MeshBasicMaterial({color:0xf1dda6}));
+  const dotB=new THREE.Mesh(new THREE.SphereGeometry(RU*.015,14,10), new THREE.MeshBasicMaterial({color:0xcfe0ff}));
+  const dotAnti=new THREE.Mesh(new THREE.SphereGeometry(RU*.012,12,8), new THREE.MeshBasicMaterial({color:0xff6a6a}));
+  const arcLine=new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0xffd34d,transparent:true,opacity:.9}));
+  const frameA=new THREE.Group();
+  ['#ff8080','#80ff9d','#80b9ff'].forEach(cl=>{
+    frameA.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({color:new THREE.Color(cl)})));
+  });
+  const labA=mkLabel('center A — mathematical basepoint','label major');
+  const labB=mkLabel('center B','label dim');
+  const labAnti=mkLabel('antipode −A','label dim');
+  dotA.add(labA); dotB.add(labB); dotAnti.add(labAnti);
+  // reference: faint unit-S³ equator sphere (image of w=0 great sphere is the unit sphere)
+  const eqSphere=new THREE.Mesh(new THREE.SphereGeometry(RU*.8,36,24),
+    new THREE.MeshBasicMaterial({color:0x3f6fb6,wireframe:true,transparent:true,opacity:.07}));
+  s3LabGroup.add(eqSphere,capA,capB,dotA,dotB,dotAnti,arcLine,frameA);
+  const title=mkLabel('S³ CENTER LAB — stereographic projection from (−1,0,0,0)','label const');
+  title.position.set(0,RU*1.1,0); s3LabGroup.add(title);
+
+  function capSphere(mesh, p, chi){
+    // image of S²_χ(p): Euclidean sphere through proj(q±), q± = cosχ·p ± sinχ·u
+    const basis=S3M.tangentBasis(p);
+    // pick u with largest |component| toward the pole direction for numeric stability
+    const pole=[-1,0,0,0];
+    let u=basis[0], best=-1;
+    for(const b of basis){ const c=Math.abs(S3M.dot(b,pole)); if(c>best){best=c;u=b;} }
+    const q1=S3M.norm(p.map((c,i)=>Math.cos(chi)*c+Math.sin(chi)*u[i]));
+    const q2=S3M.norm(p.map((c,i)=>Math.cos(chi)*c-Math.sin(chi)*u[i]));
+    const P1=S3M.stereo(q1), P2=S3M.stereo(q2);
+    if(!P1||!P2){ mesh.visible=false; return; }
+    mesh.visible=true;
+    mesh.position.copy(P1).add(P2).multiplyScalar(.5);
+    mesh.scale.setScalar(Math.max(P1.distanceTo(P2)/2, RU*.004));
+  }
+  function update(){
+    P.A=S3M.norm(P.A); P.B=S3M.norm(P.B);
+    capSphere(capA,P.A,P.chiA); capSphere(capB,P.B,P.chiB);
+    const pA=S3M.stereo(P.A), pB=S3M.stereo(P.B), pAn=S3M.stereo(S3M.antipode(P.A));
+    dotA.visible=!!pA; if(pA) dotA.position.copy(pA);
+    dotB.visible=!!pB; if(pB) dotB.position.copy(pB);
+    dotAnti.visible=!!pAn; if(pAn) dotAnti.position.copy(pAn);
+    labAnti.element.textContent = pAn ? 'antipode −A (d = πR)' : '';
+    // geodesic arc A→B
+    arcLine.visible=P.arc;
+    if(P.arc){
+      const pts=[];
+      for(let k=0;k<=72;k++){ const s=S3M.stereo(S3M.slerp(P.A,P.B,k/72)); if(s) pts.push(s); }
+      if(pts.length>1) arcLine.geometry.setFromPoints(pts);
+    }
+    // tangent frame at A (projected, short)
+    frameA.visible=P.frames&&!!pA;
+    if(frameA.visible){
+      const basis=S3M.tangentBasis(P.A), eps=.12;
+      basis.forEach((b,i)=>{
+        const q=S3M.norm(P.A.map((c,j)=>Math.cos(eps)*c+Math.sin(eps)*b[j]));
+        const pq=S3M.stereo(q);
+        if(pq) frameA.children[i].geometry.setFromPoints([pA.clone(),pq]);
+      });
+    }
+    refreshReadout();
+  }
+  function refreshReadout(){
+    const el=ctl.querySelector('#labOut'); if(!el) return;
+    const chiAB=S3M.chi(P.A,P.B);
+    el.innerHTML =
+      `χ(A,B) = ${chiAB.toFixed(4)} rad · d = ${(S3.R*chiAB).toFixed(1)} Gly<br>`+
+      `cap A: Γ(χ)=${(Gamma(P.chiA)*100).toPrecision(3)} % · A(χ)=${screenArea(P.chiA).toExponential(2)} Gly²<br>`+
+      `cap B: Γ(χ)=${(Gamma(P.chiB)*100).toPrecision(3)} %<br>`+
+      `caps overlap: ${P.chiA+P.chiB>chiAB?'<b style="color:#7ec77e">yes</b>':'no'} (χA+χB ${P.chiA+P.chiB>chiAB?'>':'<'} χAB)<br>`+
+      `antipodal distance A→−A = πR = ${S3.Dcausal.toFixed(1)} Gly<br>`+
+      `vs particle horizon: χAB/χ_ph = ${(chiAB/S3.chiP).toFixed(1)}×`;
+  }
+  function setCenter(which, preset){
+    const tgt = preset==='observer' ? [1,0,0,0]
+      : preset==='antipode' ? S3M.antipode(which==='A'?P.B:P.A).slice()
+      : preset==='antipodeA' ? S3M.antipode(P.A)
+      : preset==='random' ? S3M.random() : null;
+    if(tgt) P[which]=tgt;
+    update();
+  }
+  function spinA(dAng){   // rotate A in the (x,y) Hopf phase plane (motion-sensor hook)
+    const c=Math.cos(dAng), s=Math.sin(dAng), [w,x,y,z]=P.A;
+    P.A=[w, x*c-y*s, x*s+y*c, z]; update();
+  }
+  return { P, update, setCenter, spinA };
+})();
+
 /* sub-view switching for the S³ laboratory */
 function setS3View(v){
   state.s3view = v;
-  sectionGroup.visible = v!=='hopf';
+  sectionGroup.visible = (v==='sec'||v==='eig');
   hopfGroup.visible    = v==='hopf';
+  s3LabGroup.visible   = v==='lab';
   eigSphere.visible    = v==='eig';
-  s3MainSphere.visible = v!=='eig';
+  s3MainSphere.visible = (v==='sec');
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
   if(v==='eig') setEigMode(state.eigBeta, state.eigM);
+  if(v==='lab') CLAB.update();
 }
 
 /* ================================================================
@@ -1567,8 +1727,14 @@ function updateFBS(dt){
     const rate = Math.max(6, Math.abs(diff)*1.8);
     state.fbsDepth += Math.sign(diff)*Math.min(Math.abs(diff), rate*dt);
     if(Math.abs(state.fbsTarget-state.fbsDepth)<0.01){ state.fbsDepth=state.fbsTarget; state.fbsTarget=null; }
+  } else if(state.fbsVel){
+    state.fbsDepth += state.fbsVel*dt;
   }
+  state.fbsDepth = THREE.MathUtils.clamp(state.fbsDepth, state.fbsNmin, state.fbsNmaxU);
   const D = state.fbsDepth;
+  const tier2 = fbsTier2();
+  const phiX = state.fbsPhiX, lnPhiX = Math.log(phiX), lPX = state.fbsLPX;
+  const levelRX = n => lPX*Math.exp(n*lnPhiX);
   const base = Math.floor(D);
 
   // nested shells: scene radius of level n is φ^(n−D) — an endless zoom ladder
@@ -1580,19 +1746,19 @@ function updateFBS(dt){
     if(!ok) return;
     sh.scale.setScalar(rs);
     const lr = Math.log10(rs);
-    sh.material.opacity = .42*Math.max(0, 1-Math.abs(lr-0.4)/2.2);
+    sh.material.opacity = .42*Math.max(0, 1-Math.abs(lr-0.4)/2.2)*state.fbsOpacityK;
     sh.material.color.setHSL((n*0.118)%1, .55, .55);
-    if(sh.userData.n!==n){
-      sh.userData.n = n;
-      sh.userData.label.element.textContent = `N=${n} · R=${fmtLen(levelR(n))}`;
+    if(sh.userData.n!==n || sh.userData.t2!==tier2){
+      sh.userData.n = n; sh.userData.t2 = tier2;
+      sh.userData.label.element.textContent = `N=${n} · R=${fmtLen(levelRX(n))}${tier2?' (Tier 2)':''}`;
     }
     sh.userData.label.visible = rs>0.7 && rs<70;
   });
 
-  // epoch markers ride their shells
+  // epoch markers ride their shells (canonical anchors hide in Tier-2 exploration)
   for(const eo of fbsEpochObjs){
     const rs = Math.exp((eo.ep.N-D)*LN_PHI);
-    eo.mesh.visible = rs>0.05 && rs<400;
+    eo.mesh.visible = !tier2 && rs>0.05 && rs<400;
     if(eo.mesh.visible){
       eo.mesh.position.copy(eo.dir).multiplyScalar(rs);
       eo.mesh.scale.setScalar(THREE.MathUtils.clamp(rs*0.028, 0.05, 5));
@@ -1610,31 +1776,44 @@ function updateFBS(dt){
     fbsSpiralDot.position.set(Math.cos(D*GOLDEN_ANGLE), 0, Math.sin(D*GOLDEN_ANGLE));
   }
 
-  // nonlocal re-quantization wave
-  state.fbsPulse = (state.fbsPulse + dt/7)%1;
+  // nonlocal re-quantization wave (Density Chamber experience boosts it)
+  state.fbsPulse = (state.fbsPulse + dt/(state.fbsDensityFX?3:7))%1;
   fbsPulse.scale.setScalar(0.06*Math.pow(7000, state.fbsPulse));
-  fbsPulse.material.opacity = .3*(1-state.fbsPulse);
+  fbsPulse.material.opacity = (state.fbsDensityFX?.6:.3)*(1-state.fbsPulse);
 
   // HUD + live slider sync
-  const Rm = levelR(D);
+  const Rm = levelRX(D);
   const phase = D<=FBS.Nrec ? 'fractal φ-phase' : 'exponential H-phase';
-  hudBig.textContent = `N = ${D.toFixed(2)} · R = l_P·φᴺ = ${fmtLen(Rm)} · ${nearestScaleRef(Rm)}`;
+  const rhoLog = -state.fbsDensExp*D*Math.log10(phiX);
+  hudBig.textContent = (tier2?'⚠ Tier 2 (φ′, l_P′ exploration) · ':'')+
+    `N = ${D.toFixed(2)} · R = l_P·φᴺ = ${fmtLen(Rm)} · ${nearestScaleRef(Rm)}`;
   hudSub.textContent =
-    `${phase} · ρ/ρ_P = 10^${log10RhoRatio(D).toFixed(1)} · F_N ≈ 10^${log10Fib(D).toFixed(1)} · ` +
+    `${phase} · ρ/ρ_P = 10^${rhoLog.toFixed(1)} · F_N ≈ 10^${log10Fib(D).toFixed(1)} · ` +
     (state.fbsCycle ? (state.fbsDir>0?'cycle: expansion ↗':'cycle: re-quantization ↘')
-                    : 'scroll / pinch / chips to travel');
+     : state.fbsVel ? `continuous velocity ${state.fbsVel.toFixed(1)} N/s`
+     : 'scroll / pinch / chips to travel');
   const sl = ctl.querySelector('#fbsN');
   if(sl && document.activeElement!==sl){
     sl.value = D;
     const v = ctl.querySelector('#fbsNV'); if(v) v.textContent = 'N = '+D.toFixed(1);
   }
   const fm = ctl.querySelector('#fbsMatrix');
-  if(fm) fm.innerHTML =
-    `R(N) = l_P·φᴺ &nbsp;&nbsp;&nbsp;&nbsp;= ${fmtLen(Rm)}<br>`+
-    `N(L) = ln(L/l_P)/ln φ = ${D.toFixed(3)}<br>`+
-    `ρ(N)/ρ_P = φ⁻³ᴺ &nbsp;&nbsp;= 10^${log10RhoRatio(D).toFixed(2)}<br>`+
-    `F_N ≈ φᴺ/√5 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 10^${log10Fib(D).toFixed(2)}<br>`+
-    `V(N) = 2π²R(N)³ &nbsp;= ${(2*Math.PI*Math.PI*Rm**3).toExponential(3)} m³`;
+  if(fm){
+    const nInt = Math.round(D);
+    let fibLine = `F_N ≈ φᴺ/√5 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;= 10^${log10Fib(D).toFixed(2)} (Binet)`;
+    if(state.fbsFibExact && Math.abs(D-nInt)<0.02 && nInt<=312 && !tier2){
+      const fs = fibExact(nInt).toString();
+      fibLine = `F_${nInt} exact &nbsp;= ${fs.length>26 ? fs.slice(0,24)+'…('+fs.length+' digits)' : fs}`;
+    }
+    fm.innerHTML =
+      (tier2?`<b>⚠ Tier 2:</b> φ′=${phiX.toFixed(6)}, l_P′=${lPX.toExponential(3)}<br>`:'')+
+      `R(N) = l_P·φᴺ &nbsp;&nbsp;&nbsp;&nbsp;= ${fmtLen(Rm)}<br>`+
+      `N(L) = ln(L/l_P)/ln φ = ${D.toFixed(3)}<br>`+
+      `ρ(N)/ρ_P = φ^(−kN), k=${state.fbsDensExp.toFixed(1)} = 10^${rhoLog.toFixed(2)}<br>`+
+      fibLine+`<br>`+
+      `V(N) = 2π²R(N)³ &nbsp;= ${(2*Math.PI*Math.PI*Rm**3).toExponential(3)} m³`+
+      (state.fbsDensityFX?`<br><b style="color:#7ef0c2">Density Chamber: re-quantization wave ×2</b>`:'');
+  }
 }
 
 /* ================================================================
@@ -1712,13 +1891,17 @@ let precAxis, precPointer;
   const ring=[]; for(let k=0;k<=128;k++){const a=k/128*2*Math.PI;ring.push(new THREE.Vector3(Math.cos(a)*5,0,Math.sin(a)*5));}
   precInst.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring),
     new THREE.LineBasicMaterial({color:0xd4af6a,transparent:true,opacity:.5})));
-  // the twelve Ages, laid out in precession (retrograde) order
+  // the twelve AGES, laid out in precession (retrograde) order — this is the
+  // Precession Age Wheel, a separate interpretive layer from the sky zodiac
+  precInst.userData.ageLabels = [];
   AGES_ORDER.forEach((nm,i)=>{
     const a=i/12*2*Math.PI;
     const lab=mkLabel(ZGL[{Pisces:'Psc',Aquarius:'Aqr',Capricornus:'Cap',Sagittarius:'Sgr',Scorpius:'Sco',Libra:'Lib',
-      Virgo:'Vir',Leo:'Leo',Cancer:'Cnc',Gemini:'Gem',Taurus:'Tau',Aries:'Ari'}[nm]]+' '+nm,'label zod');
+      Virgo:'Vir',Leo:'Leo',Cancer:'Cnc',Gemini:'Gem',Taurus:'Tau',Aries:'Ari'}[nm]]+' '+nm,'label age');
+    lab.element.title='Precession Age Wheel — astrological-age layer driven by Earth\'s 25,772-yr axial precession. Different coordinate/interpretive layer from the sky zodiac constellations, not a duplicate object.';
     lab.position.set(Math.cos(a)*5.7, .25, Math.sin(a)*5.7);
     precInst.add(lab);
+    precInst.userData.ageLabels.push(lab);
   });
   // Earth with precessing axis
   const earth=new THREE.Mesh(new THREE.SphereGeometry(.9,28,18),
@@ -1737,7 +1920,7 @@ let precAxis, precPointer;
   precInst.children.at(-1).computeLineDistances();
   precPointer=new THREE.Mesh(new THREE.SphereGeometry(.13,12,8), new THREE.MeshBasicMaterial({color:0xffffff}));
   precInst.add(precPointer);
-  const tl=mkLabel('PRECESSION CLOCK · GREAT YEAR = 25,772 yr','label const');
+  const tl=mkLabel('PRECESSION AGE WHEEL · GREAT YEAR = 25,772 yr','label const');
   tl.position.set(0,4.6,0); precInst.add(tl);
   const pe=mkLabel('','label major','cycPrec'); pe.position.set(0,-1.7,0); precInst.add(pe);
   precInst.userData.ageLabel = pe;
@@ -1958,6 +2141,9 @@ const fractalScene = new THREE.Scene();
 }
 const orthoCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 
+/* minimal WebXR sanity route: ?xrtest=1 → cube + grid + controller rays only */
+const XRTEST = new URLSearchParams(location.search).has('xrtest');
+
 /* ================================================================
    XRX — WebXR layer for Meta Quest 3 (VR + MR/passthrough).
    Honest scope: only capabilities actually exposed through WebXR in
@@ -1987,31 +2173,128 @@ const XRX = (()=>{
   const savedTransforms = new Map();     // group → original {pos,quat,scale}
   const fps = {ema:72, ms:14, low:0, cooldown:0};
 
-  /* ---------- feature detection & entry buttons ---------- */
+  /* ---------- XR LAUNCH GATE — diagnose first, never an optimistic button ---------- */
   const vrBtn=document.getElementById('vrBtn'), mrBtn=document.getElementById('mrBtn');
-  if(navigator.xr){
-    navigator.xr.isSessionSupported('immersive-vr').then(s=>{ flags.vr=s; if(s) vrBtn.style.display='inline-block'; }).catch(()=>{});
-    navigator.xr.isSessionSupported('immersive-ar').then(s=>{ flags.ar=s; if(s) mrBtn.style.display='inline-block'; }).catch(()=>{});
+  const diag = {
+    href:location.href, protocol:location.protocol,
+    servedVia:location.protocol.replace(':',''),
+    secureContext:!!window.isSecureContext,
+    userAgent:navigator.userAgent,
+    browser:/OculusBrowser/i.test(navigator.userAgent)?'Meta Quest Browser'
+      :/iPhone|iPad/i.test(navigator.userAgent)?'iOS (Safari family)'
+      :/Android/i.test(navigator.userAgent)?'Android browser':'Desktop browser',
+    hasFocus:document.hasFocus(),
+    navigatorXR:!!navigator.xr,
+    vrSupported:null, arSupported:null,
+    mode:'flat', refSpace:null, refSpaceError:null, lastSessionError:null,
+    enabledFeatures:[], targetFrameRate:null,
+    rendererXREnabled:true, animationLoopActive:true,
+    fallbackRefSpace:false,
+  };
+  async function runXRCheck(){
+    diag.hasFocus=document.hasFocus();
+    diag.secureContext=!!window.isSecureContext;
+    diag.navigatorXR=!!navigator.xr;
+    diag.rendererXREnabled=renderer.xr.enabled;
+    if(navigator.xr){
+      try{ diag.vrSupported=await navigator.xr.isSessionSupported('immersive-vr'); }
+      catch(e){ diag.vrSupported=false;
+        diag.lastSessionError={name:e.name,message:e.message,phase:'isSessionSupported(immersive-vr)'}; }
+      try{ diag.arSupported=await navigator.xr.isSessionSupported('immersive-ar'); }
+      catch(e){ diag.arSupported=false; }
+    } else { diag.vrSupported=false; diag.arSupported=false; }
+    flags.vr=!!diag.vrSupported; flags.ar=!!diag.arSupported;
+    updateGateButtons(); renderXRCheck();
+    return diag;
+  }
+  function gateState(){
+    if(session) return xrMode==='ar'?'in-mr':'in-vr';
+    if(diag.vrSupported===null) return 'checking';
+    if(!diag.secureContext) return 'insecure';
+    if(!diag.navigatorXR) return 'no-xr';
+    if(diag.lastSessionError?.phase?.startsWith('requestSession')
+      || diag.lastSessionError?.phase==='setSession/referenceSpace') return 'failed';
+    if(diag.vrSupported||diag.arSupported) return 'ready';
+    return 'unsupported';
+  }
+  function updateGateButtons(){
+    const st=gateState();
+    const set=(b,txt,en)=>{ b.textContent=txt; b.disabled=!en; b.style.opacity=en?'1':'.5'; };
+    vrBtn.style.display='inline-block';
+    if(st==='in-vr') set(vrBtn,'✕ Exit VR',true);
+    else if(st==='checking') set(vrBtn,'XR: checking…',false);
+    else if(st==='insecure') set(vrBtn,'XR: HTTPS required',false);
+    else if(st==='no-xr') set(vrBtn,'XR: unsupported browser',false);
+    else if(st==='failed') set(vrBtn,'XR failed — open XR CHECK',true);
+    else if(diag.vrSupported) set(vrBtn,'🥽 Enter VR',true);
+    else set(vrBtn,'XR: VR unsupported',false);
+    mrBtn.style.display = (diag.arSupported||st==='in-mr') ? 'inline-block':'none';
+    if(st==='in-mr') set(mrBtn,'✕ Exit MR',true);
+    else set(mrBtn,'◈ Enter MR', !!diag.arSupported && !session);
   }
   vrBtn.onclick = ()=> session ? session.end() : start('immersive-vr');
   mrBtn.onclick = ()=> session ? session.end() : start('immersive-ar');
+  runXRCheck();
 
   async function start(mode){
-    if(!navigator.xr) return;
-    const init = {
-      optionalFeatures:['local-floor','bounded-floor','hand-tracking','layers'],
-    };
-    if(mode==='immersive-ar'){
-      init.optionalFeatures.push('hit-test','anchors','plane-detection','dom-overlay');
-      init.domOverlay = {root:document.body};
+    diag.lastSessionError=null;
+    if(!navigator.xr || !window.isSecureContext){ await runXRCheck(); return; }
+    let s=null, granted='local-floor';
+    try{
+      if(mode==='immersive-vr'){
+        try{
+          s = await navigator.xr.requestSession('immersive-vr', {
+            requiredFeatures:['local-floor'],
+            optionalFeatures:['bounded-floor','hand-tracking','layers'],
+          });
+        }catch(e1){
+          diag.lastSessionError={name:e1.name,message:e1.message,
+            stack:(e1.stack||'').slice(0,400),phase:'requestSession(vr, required local-floor)'};
+          if(diag.fallbackRefSpace){
+            s = await navigator.xr.requestSession('immersive-vr', {
+              requiredFeatures:['local'],
+              optionalFeatures:['hand-tracking','layers'],
+            });
+            granted='local'; diag.lastSessionError=null;
+          } else throw e1;
+        }
+      } else {
+        s = await navigator.xr.requestSession('immersive-ar', {
+          requiredFeatures:[],
+          optionalFeatures:['local-floor','hit-test','anchors','plane-detection','dom-overlay','hand-tracking'],
+          domOverlay:{root:document.body},
+        });
+      }
+    }catch(e){
+      if(!diag.lastSessionError)
+        diag.lastSessionError={name:e.name,message:e.message,stack:(e.stack||'').slice(0,400),phase:'requestSession('+mode+')'};
+      updateGateButtons(); renderXRCheck();
+      hudFlash('XR session failed: '+(e.message||e.name)+' — open XR CHECK for details');
+      return;
     }
-    try{ session = await navigator.xr.requestSession(mode, init); }
-    catch(e){ console.warn('[XR] session request failed:', e); hudFlash('XR session unavailable: '+e.message); return; }
-    xrMode = mode==='immersive-ar' ? 'ar' : 'vr';
-    renderer.xr.setReferenceSpaceType('local-floor');
-    try{ await renderer.xr.setSession(session); }
-    catch(e){ console.warn(e); session=null; xrMode=null; return; }
+    session=s; xrMode = mode==='immersive-ar'?'ar':'vr';
+    try{
+      renderer.xr.setReferenceSpaceType(granted);
+      await renderer.xr.setSession(session);
+      diag.refSpace=granted; diag.refSpaceError=null;
+    }catch(eRef){
+      diag.refSpaceError={name:eRef.name,message:eRef.message};
+      try{
+        renderer.xr.setReferenceSpaceType('local');
+        await renderer.xr.setSession(session);
+        diag.refSpace='local';
+      }catch(e2){
+        diag.lastSessionError={name:e2.name,message:e2.message,phase:'setSession/referenceSpace'};
+        try{ await session.end(); }catch(_){}
+        session=null; xrMode=null; diag.mode='flat';
+        updateGateButtons(); renderXRCheck();
+        hudFlash('XR reference space failed: '+e2.message);
+        return;
+      }
+    }
+    diag.mode=xrMode;
     flags.enabledFeatures = [...(session.enabledFeatures||[])];
+    diag.enabledFeatures = flags.enabledFeatures;
     flags.localFloor   = flags.enabledFeatures.includes('local-floor');
     flags.boundedFloor = flags.enabledFeatures.includes('bounded-floor');
     flags.handTracking = flags.enabledFeatures.includes('hand-tracking');
@@ -2023,12 +2306,13 @@ const XRX = (()=>{
     flags.supportedFrameRates = [...(session.supportedFrameRates||[])];
     if(session.updateTargetFrameRate && flags.supportedFrameRates.length){
       const want = flags.supportedFrameRates.includes(90)?90:Math.max(...flags.supportedFrameRates);
-      session.updateTargetFrameRate(want).then(()=>flags.targetFrameRate=want).catch(()=>{});
+      session.updateTargetFrameRate(want)
+        .then(()=>{ flags.targetFrameRate=want; diag.targetFrameRate=want; }).catch(()=>{});
     }
     if(renderer.xr.setFoveation) renderer.xr.setFoveation(QUALITY[qualityName].fov);
     session.addEventListener('end', onEnd);
     refSpace = renderer.xr.getReferenceSpace();
-    if(state.mode==='fractal') setMode('solar');     // fullscreen raymarch is not stereo-safe
+    if(state.mode==='fractal' && !XRTEST) setMode('solar');   // fullscreen raymarch is not stereo-safe
     labelRenderer.domElement.style.display='none';
     selectKey(null);
     if(xrMode==='ar') enterAR(); else enterVR();
@@ -2036,26 +2320,86 @@ const XRX = (()=>{
     menuPanel.visible = cardPanel.visible = false;
     statusPanel.visible = true;
     refreshMenu(); refreshStatus();
-    vrBtn.textContent = xrMode==='vr' ? '✕ Exit VR' : '🥽 VR';
-    mrBtn.textContent = xrMode==='ar' ? '✕ Exit MR' : '◈ MR';
+    updateGateButtons(); renderXRCheck();
   }
   function onEnd(){
     session=null; refSpace=null; hitTestSource=null; placedAnchor=null;
     if(xrMode==='ar') exitAR();
-    xrMode=null;
+    xrMode=null; diag.mode='flat'; diag.enabledFeatures=[];
     rig.position.set(0,0,0); rig.rotation.set(0,0,0); rig.scale.setScalar(1);
     labelRenderer.domElement.style.display = state.mode==='fractal'?'none':'block';
-    vrBtn.textContent='🥽 VR'; mrBtn.textContent='◈ MR';
     [menuPanel,cardPanel,statusPanel].forEach(p=>p.visible=false);
     if(reticle) reticle.visible=false;
     setMode(state.mode);   // restore flat camera framing
+    updateGateButtons(); renderXRCheck();
   }
   function placeRigForMode(){
+    if(XRTEST){ rig.position.set(0,0,0); rig.rotation.set(0,0,0); moveSpeed=2; return; }
     const d = RIG_DEFAULTS[state.mode]||RIG_DEFAULTS.solar;
     rig.position.set(...d.pos); rig.rotation.set(0,0,0);
     moveSpeed = d.speed;
   }
   function hudFlash(msg){ hudBig.textContent = msg; }
+
+  /* ---------- XR CHECK panel + diagnostics export ---------- */
+  const xrCheckEl = document.getElementById('xrCheck');
+  function renderXRCheck(){
+    if(!xrCheckEl || xrCheckEl.style.display==='none') return;
+    const yn=v=>v===null?'checking…':v?'<b style="color:#7ec77e">yes</b>':'<b style="color:#d97f7f">no</b>';
+    const err=diag.lastSessionError
+      ? `<b style="color:#d97f7f">${diag.lastSessionError.name}</b>: ${diag.lastSessionError.message}<br><i>${diag.lastSessionError.phase}</i>`
+      : '—';
+    xrCheckEl.innerHTML = `
+      <h3 style="font-family:var(--serif);color:var(--gold);letter-spacing:1.5px;margin-bottom:6px">XR CHECK</h3>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+      ${[
+        ['URL', diag.href.length>46?diag.href.slice(0,46)+'…':diag.href],
+        ['Protocol / served via', diag.protocol+' ('+diag.servedVia+')'],
+        ['Secure context', yn(diag.secureContext)],
+        ['navigator.xr', yn(diag.navigatorXR)],
+        ['document.hasFocus()', yn(diag.hasFocus)],
+        ['immersive-vr supported', yn(diag.vrSupported)],
+        ['immersive-ar supported', yn(diag.arSupported)],
+        ['Browser', diag.browser],
+        ['Current mode', diag.mode],
+        ['renderer.xr.enabled', yn(diag.rendererXREnabled)],
+        ['setAnimationLoop active', yn(diag.animationLoopActive)],
+        ['Reference space', diag.refSpace||'—'],
+        ['Ref-space error', diag.refSpaceError?diag.refSpaceError.name+': '+diag.refSpaceError.message:'—'],
+        ['Last session error', err],
+        ['enabledFeatures', diag.enabledFeatures.join(', ')||'—'],
+        ['Target frame rate', diag.targetFrameRate?diag.targetFrameRate+' Hz':'—'],
+      ].map(([k,v])=>`<tr><td style="padding:1.5px 4px;color:var(--dim);border-bottom:1px solid rgba(212,175,106,.1)">${k}</td>
+        <td style="padding:1.5px 4px;text-align:right;border-bottom:1px solid rgba(212,175,106,.1)">${v}</td></tr>`).join('')}
+      </table>
+      <div class="ctlrow" style="margin-top:8px">
+        <label style="flex:1">Fallback reference space ('local')</label>
+        <input type="checkbox" id="xrFallback" ${diag.fallbackRefSpace?'checked':''}>
+      </div>
+      <div class="ctlrow">
+        <button class="btn" id="xrRerun">↻ Re-run checks</button>
+        <button class="btn green" id="xrExport">⬇ Export XR Diagnostics JSON</button>
+      </div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">
+        First test <b>?xrtest=1</b> in Quest Browser over <b>HTTPS</b> — if the bare cube
+        does not enter VR, the problem is serving/browser/permissions, not this app.
+        Never open via file:// — see QUEST3_START_HERE.md.</div>`;
+    xrCheckEl.querySelector('#xrRerun').onclick = runXRCheck;
+    xrCheckEl.querySelector('#xrExport').onclick = exportXRDiagnostics;
+    xrCheckEl.querySelector('#xrFallback').onchange = e=>{ diag.fallbackRefSpace = e.target.checked; };
+  }
+  function exportXRDiagnostics(){
+    downloadFile('xr_diagnostics.json','application/json', JSON.stringify({
+      exportedAt:new Date().toISOString(), app:'S3 LIGHT-TRISPHERE / FBS3R', version:'3.1.0',
+      diagnostics:diag, capabilityFlags:flags, quality:qualityName, xrtestRoute:XRTEST,
+      hint:'If immersive-vr supported=yes but requestSession fails, check HTTPS, browser permissions, and that no other immersive session is active.',
+    },null,2));
+  }
+  document.getElementById('xrCheckBtn').onclick = ()=>{
+    const show = xrCheckEl.style.display==='none';
+    xrCheckEl.style.display = show?'block':'none';
+    if(show) runXRCheck();
+  };
 
   /* ---------- VR / AR environment switches ---------- */
   function enterVR(){ scene.background = new THREE.Color(0x02040a); }
@@ -2550,9 +2894,206 @@ const XRX = (()=>{
   }
   const pointerGrabbedMesh=m=>pointers.some(P=>P.grabbed===m);
 
-  return { update, telemetry, flags, applyQuality, cycleQuality,
+  return { update, telemetry, flags, diag, runXRCheck, exportXRDiagnostics,
+           applyQuality, cycleQuality,
            exportXRCapabilities, exportFormulaRegistry, exportSourceRegistry, exportValidationReport,
            get qualityName(){ return qualityName; }, rig };
+})();
+
+/* ================================================================
+   MOTION — iPhone / Android accelerometer & gyroscope control layer.
+   Explicit permission (DeviceOrientationEvent/DeviceMotionEvent
+   .requestPermission on iOS), sensor fusion (orientation + smoothed
+   rotationRate), calibration, dead-zone, clamping — never required,
+   touch controls always preserved.
+   ================================================================ */
+const MOTION = (()=>{
+  const sensorsAvailable = 'DeviceOrientationEvent' in window || 'DeviceMotionEvent' in window;
+  const st = {
+    enabled:false, mode:'off',
+    granted:{orient:null, motion:null},
+    sens:1, dead:2, smooth:0.15, invert:false, absolute:false,
+    calib:{a:0,b:0,g:0}, cur:{a:0,b:0,g:0,ra:0,rb:0,rg:0,ax:0,ay:0,az:0,interval:0},
+    sm:{a:0,b:0,g:0}, baseOff:null, uiAcc:0, lastEvent:0,
+  };
+  const panel = document.getElementById('motionPanel');
+  const btn = document.getElementById('motionBtn');
+  if(sensorsAvailable && !XRTEST && matchMedia('(pointer:coarse)').matches)
+    btn.style.display='inline-block';
+  btn.onclick = ()=>{
+    const show = panel.style.display==='none';
+    panel.style.display = show?'block':'none';
+    if(show) render();
+  };
+  const wrap180 = d=>{ d%=360; if(d>180)d-=360; if(d<-180)d+=360; return d; };
+
+  function onOrient(e){
+    st.cur.a=e.alpha??0; st.cur.b=e.beta??0; st.cur.g=e.gamma??0;
+    st.lastEvent=performance.now();
+  }
+  function onMotion(e){
+    const r=e.rotationRate||{};
+    st.cur.ra=r.alpha??0; st.cur.rb=r.beta??0; st.cur.rg=r.gamma??0;
+    const a=e.accelerationIncludingGravity||{};
+    st.cur.ax=a.x??0; st.cur.ay=a.y??0; st.cur.az=a.z??0;
+    st.cur.interval=e.interval??0;
+  }
+  async function enable(){
+    // iOS 13+: permissions must come from a user gesture in a secure context
+    if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+      try{ st.granted.orient = (await DeviceOrientationEvent.requestPermission())==='granted'; }
+      catch(e){ st.granted.orient=false; }
+    } else st.granted.orient = 'DeviceOrientationEvent' in window ? true : false;
+    if(typeof DeviceMotionEvent!=='undefined' && typeof DeviceMotionEvent.requestPermission==='function'){
+      try{ st.granted.motion = (await DeviceMotionEvent.requestPermission())==='granted'; }
+      catch(e){ st.granted.motion=false; }
+    } else st.granted.motion = 'DeviceMotionEvent' in window ? true : false;
+    if(st.granted.orient){
+      addEventListener(st.absolute?'deviceorientationabsolute':'deviceorientation', onOrient);
+    }
+    if(st.granted.motion) addEventListener('devicemotion', onMotion);
+    st.enabled = !!(st.granted.orient||st.granted.motion);
+    if(st.enabled) calibrate();
+    render();
+  }
+  function calibrate(){ st.calib={a:st.cur.a, b:st.cur.b, g:st.cur.g}; st.baseOff=null; }
+  function reset(){ st.mode='off'; st.sm={a:0,b:0,g:0}; st.baseOff=null; controls.enabled=true; render(); }
+  function deltas(){
+    const inv = st.invert?-1:1;
+    const raw = {
+      a:wrap180(st.cur.a-st.calib.a),
+      b:wrap180(st.cur.b-st.calib.b)*inv,
+      g:wrap180(st.cur.g-st.calib.g)*inv,
+    };
+    for(const k of ['a','b','g']){
+      let v=raw[k];
+      v = Math.abs(v)<st.dead ? 0 : (v-Math.sign(v)*st.dead);
+      v = THREE.MathUtils.clamp(v*st.sens, -45, 45);
+      st.sm[k] += (v-st.sm[k])*st.smooth;
+    }
+    return st.sm;
+  }
+  /* per-frame application — flat screen only, clamped, comfort-first */
+  function apply(dt){
+    if(!st.enabled || st.mode==='off' || renderer.xr.isPresenting || state.landed) return;
+    const d=deltas(), UP=new THREE.Vector3(0,1,0);
+    if(st.mode==='orbit' || st.mode==='parallax'){
+      const off=camera.position.clone().sub(controls.target);
+      if(st.mode==='orbit'){
+        off.applyAxisAngle(UP, -d.g*DEG*1.4*dt);
+        const right=new THREE.Vector3().crossVectors(UP,off).normalize();
+        const polar=off.angleTo(UP), dp=d.b*DEG*1.4*dt;
+        if(polar-dp>0.08 && polar-dp<Math.PI-0.08) off.applyAxisAngle(right,-dp);
+      } else {
+        if(!st.baseOff) st.baseOff=off.clone();
+        const right=new THREE.Vector3().crossVectors(UP,st.baseOff).normalize();
+        off.copy(st.baseOff)
+          .addScaledVector(right, st.baseOff.length()*d.g/45*0.25)
+          .addScaledVector(UP,    st.baseOff.length()*d.b/45*0.18);
+      }
+      camera.position.copy(controls.target).add(off);
+    }
+    else if(st.mode==='look'){
+      // inside-sphere look: device orientation drives the view direction
+      const q=new THREE.Quaternion(), e=new THREE.Euler(), q1=new THREE.Quaternion(-Math.sqrt(.5),0,0,Math.sqrt(.5));
+      const orient=(screen.orientation?.angle||0)*DEG;
+      e.set(st.cur.b*DEG, st.cur.a*DEG, -st.cur.g*DEG, 'YXZ');
+      q.setFromEuler(e).multiply(q1)
+       .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,0,1), -orient));
+      camera.quaternion.slerp(q, 0.25);
+      const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+      controls.target.copy(camera.position).addScaledVector(dir, 0.01);
+    }
+    else if(st.mode==='fbs' && state.mode==='fbs'){
+      state.fbsTarget=null; state.fbsCycle=false;
+      state.fbsDepth=THREE.MathUtils.clamp(state.fbsDepth + d.b*dt*0.18, 0, FBS.Nmax);
+      state.fbsOpacityK=THREE.MathUtils.clamp(1+d.g/45, 0.25, 1.8);
+    }
+    else if(st.mode==='chi' && state.mode==='s3'){
+      state.chi=THREE.MathUtils.clamp(state.chi + d.b*DEG*0.5*dt, 0.01, Math.PI);
+      setChiRing(state.chi);
+      if(state.s3view==='lab'){ CLAB.spinA(d.a*DEG*0.4*dt); }
+    }
+    else if(st.mode==='fly' && state.mode==='fractal'){
+      const dir=new THREE.Vector3(); camera.getWorldDirection(dir);
+      const right=new THREE.Vector3().crossVectors(dir,UP).normalize();
+      camera.position.addScaledVector(dir, -d.b*dt*0.04)
+                     .addScaledVector(right, d.g*dt*0.04);
+      controls.target.copy(camera.position).addScaledVector(dir,1);
+    }
+  }
+  function render(){
+    if(panel.style.display==='none') return;
+    const yn=v=>v===null?'—':v?'granted':'denied';
+    if(!sensorsAvailable){
+      panel.innerHTML='<h3>MOTION CONTROL</h3><div class="note">Motion sensors are unavailable in this browser. Touch controls remain fully functional.</div>';
+      return;
+    }
+    panel.innerHTML = `
+      <h3>MOTION CONTROL</h3>
+      ${st.enabled?'':'<div class="ctlrow"><button class="btn green" id="moEnable" style="flex:1">Enable Motion Control</button></div>'}
+      <div class="note">orientation: <b>${yn(st.granted.orient)}</b> · motion: <b>${yn(st.granted.motion)}</b>
+      ${location.protocol!=='https:'?'<br>⚠ iOS requires HTTPS for sensor permission':''}</div>
+      <div class="note" style="font-variant-numeric:tabular-nums">
+        α ${st.cur.a.toFixed(1)}° β ${st.cur.b.toFixed(1)}° γ ${st.cur.g.toFixed(1)}°<br>
+        rate ${st.cur.ra.toFixed(0)}/${st.cur.rb.toFixed(0)}/${st.cur.rg.toFixed(0)} °/s ·
+        acc ${st.cur.ax.toFixed(1)}/${st.cur.ay.toFixed(1)}/${st.cur.az.toFixed(1)} ·
+        Δt ${st.cur.interval?st.cur.interval.toFixed(0)+'ms':'—'}</div>
+      <div class="ctlrow"><label>Motion mode</label>
+        <select id="moMode" style="flex:1">
+          ${[['off','Off'],['orbit','Orbit Camera'],['look','Inside Sphere Look'],
+             ['parallax','Outside Sphere Parallax'],['fbs','FBS3R Ladder Tilt'],
+             ['chi','S³ Chi Tilt'],['fly','Fractal Flight']]
+            .map(([v,l])=>`<option value="${v}" ${st.mode===v?'selected':''}>${l}</option>`).join('')}
+        </select></div>
+      <div class="ctlrow"><label>Sensitivity</label>
+        <input type="range" id="moSens" min="0.2" max="3" step="0.1" value="${st.sens}">
+        <span class="val">${st.sens.toFixed(1)}×</span></div>
+      <div class="ctlrow"><label>Dead zone</label>
+        <input type="range" id="moDead" min="0" max="10" step="0.5" value="${st.dead}">
+        <span class="val">${st.dead}°</span></div>
+      <div class="ctlrow"><label>Smoothing</label>
+        <input type="range" id="moSm" min="0.03" max="0.5" step="0.01" value="${st.smooth}">
+        <span class="val">${st.smooth.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Invert tilt</label><input type="checkbox" id="moInv" ${st.invert?'checked':''}></div>
+      <div class="ctlrow"><label>Absolute compass</label><input type="checkbox" id="moAbs" ${st.absolute?'checked':''}
+        ${'ondeviceorientationabsolute' in window?'':'disabled'}>
+        <span class="val" style="font-size:10px">${'ondeviceorientationabsolute' in window?'':'n/a'}</span></div>
+      <div class="ctlrow">
+        <button class="btn" id="moCal">⌖ Calibrate Neutral Pose</button>
+        <button class="btn warn" id="moReset">↺ Reset Motion</button>
+      </div>
+      <div class="note" style="font-size:10.5px">Tilt is velocity-based, dead-zoned and clamped (±45°)
+      to avoid nausea. “Inside Sphere Look” works best in Observable Universe mode standing at the observer.</div>`;
+    panel.querySelector('#moEnable')?.addEventListener('click', enable);
+    panel.querySelector('#moMode').onchange = e=>{
+      st.mode=e.target.value; st.baseOff=null;
+      controls.enabled = (st.mode!=='look');
+      if(st.mode!=='off' && !st.enabled) enable();
+    };
+    panel.querySelector('#moSens').oninput = e=>{ st.sens=+e.target.value; render(); };
+    panel.querySelector('#moDead').oninput = e=>{ st.dead=+e.target.value; render(); };
+    panel.querySelector('#moSm').oninput   = e=>{ st.smooth=+e.target.value; render(); };
+    panel.querySelector('#moInv').onchange = e=>st.invert=e.target.checked;
+    panel.querySelector('#moAbs').onchange = e=>{
+      removeEventListener('deviceorientation', onOrient);
+      removeEventListener('deviceorientationabsolute', onOrient);
+      st.absolute=e.target.checked;
+      if(st.granted.orient) addEventListener(st.absolute?'deviceorientationabsolute':'deviceorientation', onOrient);
+    };
+    panel.querySelector('#moCal').onclick = calibrate;
+    panel.querySelector('#moReset').onclick = reset;
+  }
+  function uiTick(dt){
+    st.uiAcc+=dt;
+    if(st.uiAcc>0.33 && panel.style.display!=='none' && st.enabled
+       && !panel.contains(document.activeElement)){
+      st.uiAcc=0;
+      // refresh only the live numbers row cheaply
+      render();
+    }
+  }
+  return { apply, uiTick, st, sensorsAvailable };
 })();
 
 /* ============================== UI / STATE ============================== */
@@ -2571,8 +3112,19 @@ const state = {
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
   fovLand: 60,
   fbsDepth: 0, fbsTarget: null, fbsCycle: false, fbsDir: 1, fbsCycleSpeed: 12, fbsPulse: 0,
+  fbsStep: 1, fbsVel: 0, fbsNmin: 0, fbsNmaxU: FBS.Nmax,
+  fbsDensExp: 3, fbsFibExact: false, fbsPhiX: PHI, fbsLPX: FBS.lP, fbsOpacityK: 1, fbsDensityFX: false,
+  sensH0: 67.4, sensOK: 0.0007,
   cycYrPerSec: 1, cycSeasons: null,
 };
+const fibCache = new Map([[0,0n],[1,1n]]);
+function fibExact(n){
+  if(fibCache.has(n)) return fibCache.get(n);
+  let a=0n, b=1n;
+  for(let i=2;i<=n;i++){ const t=a+b; a=b; b=t; }
+  fibCache.set(n,b); return b;
+}
+const fbsTier2 = ()=> Math.abs(state.fbsPhiX-PHI)>1e-12 || Math.abs(state.fbsLPX-FBS.lP)>1e-45;
 
 function simDateString(){
   const ms = (state.epochDays + 2451545.0 - 2440587.5)*86400000;
@@ -2718,9 +3270,9 @@ function buildCtl(){
     <div class="sect"><b>Celestial sphere</b>
       <div class="ctlrow"><label>Milky Way</label>
         <input type="checkbox" id="skyMW" ${mwMesh.visible?'checked':''}></div>
-      <div class="ctlrow"><label>Constellations</label>
+      <div class="ctlrow" title="Celestial-sphere layer: constellation stick figures (J2000)"><label>Constellation figures</label>
         <input type="checkbox" id="skyConst" ${constGroup.visible?'checked':''}></div>
-      <div class="ctlrow"><label>Zodiac & ecliptic</label>
+      <div class="ctlrow" title="Celestial-sphere layer: the 12 zodiac constellations on the ecliptic. The Precession Age Wheel in Cycles & Events is a DIFFERENT interpretive layer, not a duplicate."><label>Sky zodiac constellations</label>
         <input type="checkbox" id="skyZod" ${zodGroup.visible?'checked':''}></div>
       <div class="ctlrow"><label>Star names</label>
         <input type="checkbox" id="skyStars" ${starsGroup.visible?'checked':''}></div>
@@ -2780,6 +3332,9 @@ function buildCtl(){
       <div class="ctlrow"><label>Go to date</label>
         <input type="datetime-local" id="cdate" style="flex:1">
         <button class="btn green" id="cdateGo">Set</button></div>
+      <div class="ctlrow" title="Precession Age Wheel — interpretive ages layer; distinct from the sky zodiac constellations in Solar System mode">
+        <label>Age wheel labels</label>
+        <input type="checkbox" id="ageLab" checked></div>
     </div>
     <div class="sect"><b>Equinoxes & solstices (computed)</b>
       <div id="seasonList"></div>
@@ -2802,6 +3357,7 @@ function buildCtl(){
       and selects the Moon — the golden syzygy line marks the alignment
       (ephemeris ≈0.1°, geometry approximate).</div>`;
     ctl.querySelector('#cspd').oninput = e=>{ state.cycYrPerSec=10**(+e.target.value); updCtlVals(); };
+    ctl.querySelector('#ageLab').onchange = e=>precInst.userData.ageLabels.forEach(l=>l.visible=e.target.checked);
     ctl.querySelector('#cpause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
     ctl.querySelector('#ctoday').onclick = ()=>{ state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0; refreshSeasons(); buildCtl(); };
     {
@@ -2895,6 +3451,47 @@ function buildCtl(){
       exactly once — the topological seed of π₃(S²) = ℤ, qubit phase geometry and
       Hopfions. The mini-sphere is the base S²: one dot = one whole fibre. Move the
       gold and white fibres — they can never be separated.</div>`;
+    else if(V==='lab') body = `
+    <div class="sect"><b>Center A <span style="color:var(--dim);font-weight:400">(mathematical basepoint)</span></b>
+      <div class="ctlrow"><label>Preset</label>
+        <select id="labApre" style="flex:1">
+          <option value="observer">default observer p₀ (1,0,0,0)</option>
+          <option value="antipodeA">antipode −p₀</option>
+          <option value="random">random S³ point</option>
+          <option value="custom">custom (inputs below)</option>
+        </select></div>
+      <div class="ctlrow"><label>Quaternion w x y z</label>
+        <input type="text" id="labAq" style="flex:1" placeholder="1, 0, 0, 0"></div>
+      <div class="ctlrow"><label>Hopf η ξ₁ ξ₂</label>
+        <input type="text" id="labAh" style="flex:1" placeholder="0.5, 1.0, 2.0"></div>
+      <div class="ctlrow"><label>Polar χ θ φ</label>
+        <input type="text" id="labAp" style="flex:1" placeholder="0.8, 1.2, 0.4"></div>
+      <div class="ctlrow"><label>Screen χ_A</label>
+        <input type="range" id="labChiA" min="0.05" max="3.09" step="0.01" value="${CLAB.P.chiA}">
+        <span class="val" id="labChiAV"></span></div>
+    </div>
+    <div class="sect"><b>Center B (comparison)</b>
+      <div class="ctlrow"><label>Preset</label>
+        <select id="labBpre" style="flex:1">
+          <option value="antipode">antipode of A</option>
+          <option value="random">random S³ point</option>
+          <option value="observer">observer p₀</option>
+        </select></div>
+      <div class="ctlrow"><label>Screen χ_B</label>
+        <input type="range" id="labChiB" min="0.05" max="3.09" step="0.01" value="${CLAB.P.chiB}">
+        <span class="val" id="labChiBV"></span></div>
+      <div class="ctlrow"><label>Geodesic arc A→B</label><input type="checkbox" id="labArc" ${CLAB.P.arc?'checked':''}></div>
+      <div class="ctlrow"><label>Tangent frame at A</label><input type="checkbox" id="labFr" ${CLAB.P.frames?'checked':''}></div>
+    </div>
+    <div class="sect"><b>Invariant readout</b>
+      <div id="labOut" class="note" style="font-size:11.5px;font-variant-numeric:tabular-nums"></div>
+    </div>
+    <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">
+      Points are unit 4-vectors p∈S³ (quaternions): χ(p,q)=arccos⟨p,q⟩,
+      d=R·χ, A(χ)=4πR²sin²χ, Γ(χ)=(χ−½sin2χ)/π. View: stereographic projection
+      from (−1,0,0,0) — every χ-screen maps to a round Euclidean sphere.
+      Centers are mathematical basepoints / observer centers in the conditional
+      S³ reconstruction — no physical observer claim.</div>`;
     else body = `
     <div class="sect"><b>Compact eigenmode ladder λ_β = (β²−1)/R²</b>
       <div class="ctlrow"><label>β (mode number)</label>
@@ -2914,13 +3511,35 @@ function buildCtl(){
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
-        <button class="btn ${V==='hopf'?'on':''}" id="v-hopf">Hopf fibration</button>
-        <button class="btn ${V==='eig'?'on':''}" id="v-eig">Eigenmodes</button>
+        <button class="btn ${V==='hopf'?'on':''}" id="v-hopf">Hopf</button>
+        <button class="btn ${V==='eig'?'on':''}" id="v-eig">Modes</button>
+        <button class="btn ${V==='lab'?'on':''}" id="v-lab">Center Lab</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
     ctl.querySelector('#v-hopf').onclick = ()=>{ setS3View('hopf'); buildCtl(); };
     ctl.querySelector('#v-eig').onclick  = ()=>{ setS3View('eig');  buildCtl(); };
+    ctl.querySelector('#v-lab').onclick  = ()=>{ setS3View('lab');  buildCtl(); };
+    if(V==='lab'){
+      const parse = s=>s.split(/[,\s]+/).map(Number).filter(n=>isFinite(n));
+      const upd = ()=>{ CLAB.update(); updCtlVals(); };
+      ctl.querySelector('#labApre').onchange = e=>{
+        if(e.target.value!=='custom') CLAB.setCenter('A', e.target.value==='antipodeA'?'antipodeA':e.target.value);
+        upd();
+      };
+      ctl.querySelector('#labAq').onchange = e=>{ const v=parse(e.target.value);
+        if(v.length===4){ CLAB.P.A=S3M.norm(v); upd(); } };
+      ctl.querySelector('#labAh').onchange = e=>{ const v=parse(e.target.value);
+        if(v.length===3){ CLAB.P.A=S3M.fromHopf(v[0],v[1],v[2]); upd(); } };
+      ctl.querySelector('#labAp').onchange = e=>{ const v=parse(e.target.value);
+        if(v.length===3){ CLAB.P.A=S3M.fromPolar(v[0],v[1],v[2]); upd(); } };
+      ctl.querySelector('#labBpre').onchange = e=>{ CLAB.setCenter('B', e.target.value); upd(); };
+      ctl.querySelector('#labChiA').oninput = e=>{ CLAB.P.chiA=+e.target.value; upd(); };
+      ctl.querySelector('#labChiB').oninput = e=>{ CLAB.P.chiB=+e.target.value; upd(); };
+      ctl.querySelector('#labArc').onchange = e=>{ CLAB.P.arc=e.target.checked; upd(); };
+      ctl.querySelector('#labFr').onchange  = e=>{ CLAB.P.frames=e.target.checked; upd(); };
+      CLAB.update();
+    }
     if(V==='sec'){
       ctl.querySelector('#chi').oninput = e=>{ state.chi=+e.target.value; setChiRing(state.chi); updCtlVals(); };
       ctl.querySelector('#chiP').onclick = ()=>{ state.chi=S3.chiP; ctl.querySelector('#chi').value=state.chi; setChiRing(state.chi); updCtlVals(); };
@@ -2984,6 +3603,52 @@ function buildCtl(){
     <div class="sect"><b>Formula matrix — live</b>
       <div id="fbsMatrix"></div>
     </div>
+    <div class="sect"><b>Experiences</b>
+      <div class="chips">
+        <button class="chip" data-exp2="walk">φ-Ladder Walk</button>
+        <button class="chip" data-exp2="gate266">Recombination Gate 266</button>
+        <button class="chip" data-exp2="horizon">Particle Horizon Gate</button>
+        <button class="chip" data-exp2="closure">Light-Trisphere Closure</button>
+        <button class="chip" data-exp2="chamber">Density Chamber</button>
+        <button class="chip" data-exp2="fib">Fibonacci Energy Ladder</button>
+        <button class="chip" data-exp2="bridge">S³/FBS Bridge</button>
+        <button class="chip" data-exp2="sens">Sensitivity Observatory</button>
+      </div>
+    </div>
+    <details><summary>Advanced parameters (Tier 2 when modified)</summary>
+      <div class="ctlrow"><label>N step (±)</label>
+        <select id="fbsStep"><option>0.1</option><option selected>1</option><option>5</option><option>10</option></select>
+        <label style="flex:0 0 60px">velocity</label>
+        <input type="range" id="fbsVel" min="-5" max="5" step="0.1" value="${state.fbsVel}" style="flex:1">
+        <span class="val" id="fbsVelV"></span></div>
+      <div class="ctlrow"><label>Range N min/max</label>
+        <input type="number" id="fbsNmin" value="${state.fbsNmin}" min="0" max="${FBS.Nmax}" style="width:70px">
+        <input type="number" id="fbsNmaxU" value="${state.fbsNmaxU}" min="1" max="${FBS.Nmax}" style="width:70px"></div>
+      <div class="ctlrow"><label>Density exponent k (ρ∝φ⁻ᵏᴺ)</label>
+        <input type="range" id="fbsK" min="2" max="4" step="0.1" value="${state.fbsDensExp}">
+        <span class="val" id="fbsKV"></span></div>
+      <div class="ctlrow"><label>Exact Fibonacci (BigInt)</label>
+        <input type="checkbox" id="fbsFx" ${state.fbsFibExact?'checked':''}>
+        <span class="val" style="flex:1;text-align:left;color:var(--dim)">vs Binet φᴺ/√5</span></div>
+      <div class="ctlrow"><label>φ (unlock = Tier 2)</label>
+        <input type="number" id="fbsPhiX" value="${state.fbsPhiX}" step="0.0001" style="flex:1">
+        <button class="btn" id="fbsPhiLock">lock golden</button></div>
+      <div class="ctlrow"><label>l_P [m] (CODATA)</label>
+        <input type="number" id="fbsLPX" value="${state.fbsLPX}" step="1e-40" style="flex:1">
+        <button class="btn" id="fbsLPLock">lock CODATA</button></div>
+      <div class="note" style="font-size:10.5px">Tier 0 = sourced formula · Tier 1 = derived ·
+        Tier 2 = speculative parameter exploration (epoch anchors hide) · Tier 3 = symbolic.
+        Canonical anchors stay tagged FBS3R/CODATA.</div>
+    </details>
+    <details id="sensDet"><summary>Sensitivity Observatory (Tier 1, S³ inputs)</summary>
+      <div class="ctlrow"><label>H₀ [km/s/Mpc]</label>
+        <input type="range" id="sensH0" min="66.9" max="67.9" step="0.01" value="${state.sensH0}">
+        <span class="val" id="sensH0V"></span></div>
+      <div class="ctlrow"><label>|Ω_K|</label>
+        <input type="range" id="sensOK" min="0.0005" max="0.001" step="0.00001" value="${state.sensOK}">
+        <span class="val" id="sensOKV"></span></div>
+      <div id="sensOut" class="note" style="font-variant-numeric:tabular-nums;font-size:11.5px"></div>
+    </details>
     <div class="sect"><b>Export</b>
       <div class="ctlrow">
         <button class="btn" id="expJ">⬇ State JSON</button>
@@ -3005,8 +3670,8 @@ function buildCtl(){
       R = 548.3 Gly is reached at N ≈ ${FBS.Ns3.toFixed(1)}. Scroll / pinch to travel;
       click any shell-riding epoch marker for details.</div>`;
     ctl.querySelector('#fbsN').oninput = e=>{ state.fbsDepth=+e.target.value; state.fbsTarget=null; state.fbsCycle=false; updCtlVals(); };
-    ctl.querySelector('#lvDn').onclick = ()=>{ state.fbsTarget=Math.max(0,Math.round(state.fbsDepth-1)); state.fbsCycle=false; };
-    ctl.querySelector('#lvUp').onclick = ()=>{ state.fbsTarget=Math.min(FBS.Nmax,Math.round(state.fbsDepth+1)); state.fbsCycle=false; };
+    ctl.querySelector('#lvDn').onclick = ()=>{ state.fbsTarget=Math.max(state.fbsNmin,state.fbsDepth-state.fbsStep); state.fbsCycle=false; };
+    ctl.querySelector('#lvUp').onclick = ()=>{ state.fbsTarget=Math.min(state.fbsNmaxU,state.fbsDepth+state.fbsStep); state.fbsCycle=false; };
     ctl.querySelectorAll('.chip[data-ep]').forEach(ch=>ch.onclick = ()=>{
       const ep = FBS_EPOCHS[+ch.dataset.ep];
       state.fbsTarget = ep.N; state.fbsCycle=false;
@@ -3025,6 +3690,29 @@ function buildCtl(){
     };
     ctl.querySelector('#expJ').onclick = exportStateJSON;
     ctl.querySelector('#expC').onclick = exportLadderCSV;
+    ctl.querySelectorAll('[data-exp2]').forEach(ch=>ch.onclick=()=>{
+      const k=ch.dataset.exp2;
+      if(k==='walk'){ state.fbsCycle=true; state.fbsTarget=null; buildCtl(); }
+      else if(k==='gate266'){ state.fbsTarget=266; state.fbsCycle=false; }
+      else if(k==='horizon'){ state.fbsTarget=FBS.Nobs; state.fbsCycle=false; }
+      else if(k==='closure'){ state.fbsTarget=FBS.Ns3; state.fbsCycle=false; }
+      else if(k==='chamber'){ state.fbsDensityFX=!state.fbsDensityFX; }
+      else if(k==='fib'){ state.fbsFibExact=!state.fbsFibExact; buildCtl(); }
+      else if(k==='bridge'){ state.fbsTarget=FBS.Ns3; setTimeout(()=>setMode('s3'),900); }
+      else if(k==='sens'){ const d=ctl.querySelector('#sensDet'); if(d){ d.open=true; d.scrollIntoView({block:'nearest'}); } }
+    });
+    ctl.querySelector('#fbsStep').onchange = e=>state.fbsStep=+e.target.value;
+    ctl.querySelector('#fbsVel').oninput = e=>{ state.fbsVel=+e.target.value; state.fbsCycle=false; state.fbsTarget=null; updCtlVals(); };
+    ctl.querySelector('#fbsNmin').onchange = e=>{ state.fbsNmin=THREE.MathUtils.clamp(+e.target.value||0,0,FBS.Nmax); };
+    ctl.querySelector('#fbsNmaxU').onchange = e=>{ state.fbsNmaxU=THREE.MathUtils.clamp(+e.target.value||FBS.Nmax,1,FBS.Nmax); };
+    ctl.querySelector('#fbsK').oninput = e=>{ state.fbsDensExp=+e.target.value; updCtlVals(); };
+    ctl.querySelector('#fbsFx').onchange = e=>state.fbsFibExact=e.target.checked;
+    ctl.querySelector('#fbsPhiX').onchange = e=>{ const v=+e.target.value; if(v>1.01&&v<3) state.fbsPhiX=v; };
+    ctl.querySelector('#fbsPhiLock').onclick = ()=>{ state.fbsPhiX=PHI; buildCtl(); };
+    ctl.querySelector('#fbsLPX').onchange = e=>{ const v=+e.target.value; if(v>0) state.fbsLPX=v; };
+    ctl.querySelector('#fbsLPLock').onclick = ()=>{ state.fbsLPX=FBS.lP; buildCtl(); };
+    ctl.querySelector('#sensH0').oninput = e=>{ state.sensH0=+e.target.value; updCtlVals(); };
+    ctl.querySelector('#sensOK').oninput = e=>{ state.sensOK=+e.target.value; updCtlVals(); };
     ctl.querySelector('#cyc').onclick = ()=>{ state.fbsCycle=!state.fbsCycle; state.fbsTarget=null; buildCtl(); };
     ctl.querySelector('#cycSp').oninput = e=>{ state.fbsCycleSpeed=+e.target.value; updCtlVals(); };
   }
@@ -3068,6 +3756,8 @@ function updCtlVals(){
     if(q('#hApV')) q('#hApV').textContent = state.hopfA.p.toFixed(2);
     if(q('#hBtV')) q('#hBtV').textContent = state.hopfB.t.toFixed(2);
     if(q('#hBpV')) q('#hBpV').textContent = state.hopfB.p.toFixed(2);
+    if(q('#labChiAV')) q('#labChiAV').textContent = CLAB.P.chiA.toFixed(2)+' rad';
+    if(q('#labChiBV')) q('#labChiBV').textContent = CLAB.P.chiB.toFixed(2)+' rad';
     if(q('#eigBV')) q('#eigBV').textContent = 'β = '+state.eigBeta;
     if(q('#eigMV')) q('#eigMV').textContent = 'm = '+state.eigM;
     if(q('#eigInfo')){
@@ -3085,6 +3775,19 @@ function updCtlVals(){
   } else if(state.mode==='fbs'){
     if(q('#fbsNV')) q('#fbsNV').textContent = 'N = '+state.fbsDepth.toFixed(1);
     if(q('#cycSpV')) q('#cycSpV').textContent = state.fbsCycleSpeed+' lvl/s';
+    if(q('#fbsVelV')) q('#fbsVelV').textContent = state.fbsVel.toFixed(1)+'/s';
+    if(q('#fbsKV')) q('#fbsKV').textContent = 'k = '+state.fbsDensExp.toFixed(1);
+    if(q('#sensH0V')) q('#sensH0V').textContent = state.sensH0.toFixed(2);
+    if(q('#sensOKV')) q('#sensOKV').textContent = state.sensOK.toFixed(5);
+    if(q('#sensOut')){
+      const Rg = 299792.458/state.sensH0/Math.sqrt(state.sensOK)*3.2615638e-3;   // Gly
+      const Ns = Math.log(Rg*GLY_M/FBS.lP)/LN_PHI;
+      const chiP2 = S3.Dparticle/Rg;
+      q('#sensOut').innerHTML =
+        `R′ = (c/H₀)/√|Ω_K| = <b>${Rg.toFixed(1)} Gly</b><br>`+
+        `N(R′) = ${Ns.toFixed(2)} · Δ from canon ${(Ns-FBS.Ns3).toFixed(2)} levels<br>`+
+        `χ′_particle = ${chiP2.toFixed(4)} rad · Γ′_obs = ${(Gamma(chiP2)*100).toPrecision(3)} %`;
+    }
   } else if(state.mode==='fractal'){
     if(q('#powV')) q('#powV').textContent = 'n = '+fractalUniforms.uPower.value.toFixed(1);
     if(q('#itrV')) q('#itrV').textContent = fractalUniforms.uIters.value;
@@ -3270,10 +3973,19 @@ themeBtn.onclick = ()=>applyTheme(!document.body.classList.contains('day'));
 try{ applyTheme(localStorage.getItem('lts-theme')==='day'); }catch(e){}
 
 /* ============================== MAIN LOOP ============================== */
-let last = performance.now(), cardTimer = 0;
+let last = performance.now(), cardTimer = 0, labelFadeAcc = 0;
 function tick(now, frame){
   const dt = Math.min((now-last)/1000, .1); last = now;
   XRX.update(dt, frame);
+  MOTION.apply(dt); MOTION.uiTick(dt);
+
+  if(XRTEST){
+    if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
+    if(!renderer.xr.isPresenting) controls.update();
+    renderer.render(scene, camera);
+    XRX.telemetry(dt);
+    return;
+  }
 
   /* fractal mode renders its own scene (desktop/mobile only — not stereo-safe) */
   if(state.mode==='fractal' && !renderer.xr.isPresenting){
@@ -3358,6 +4070,14 @@ function tick(now, frame){
       hudBig.textContent = simDateString();
       hudSub.textContent = 'heliocentric ecliptic J2000 · 1 unit = 1 AU · click any object to select it';
     }
+    // label deconfliction: fade sky names when zoomed into the planetary region
+    labelFadeAcc += dt;
+    if(labelFadeAcc > 0.3){
+      labelFadeAcc = 0;
+      const z = camera.position.distanceTo(controls.target);
+      const op = state.landed ? '1' : z<6 ? '0.12' : z<16 ? '0.5' : '1';
+      for(const el of SKY_NAME_ELS) el.style.opacity = op;
+    }
   }
   else if(state.mode==='obs'){
     hudBig.textContent = `Γ_obs = 0.0126 % of the S³ volume · θ_particle = 4.82°`;
@@ -3386,6 +4106,10 @@ function tick(now, frame){
       hopfGroup.rotation.y += dt*0.03;
       hudBig.textContent = `Hopf flow · ${hopfDefs.length} fibres · every pair linked once`;
       hudSub.textContent = 'beads ride the S¹ action — each fibre slides along itself · gold & white fibres are inseparable';
+    } else if(state.s3view==='lab'){
+      const chiAB=S3M.chi(CLAB.P.A,CLAB.P.B);
+      hudBig.textContent = `Center Lab · χ(A,B) = ${chiAB.toFixed(3)} rad · d = ${(S3.R*chiAB).toFixed(0)} Gly`;
+      hudSub.textContent = 'mathematical basepoints in the conditional S³ reconstruction · stereographic view · χ-screens are round spheres';
     } else {
       eigSphere.rotation.y += dt*0.06;
       const b=state.eigBeta;
@@ -3470,6 +4194,29 @@ XRX.applyQuality(XRX.qualityName);
 buildInfo();   // re-render: self-test results are now available
 
 setMode('solar');
+
+/* ?xrtest=1 — minimal WebXR sanity scene: cube + floor grid + controller rays */
+let xrTestCube = null;
+if(XRTEST){
+  [solarGroup,obsGroup,s3Group,fbsGroup,cycGroup].forEach(g=>g.visible=false);
+  labelRenderer.domElement.style.display='none';
+  document.getElementById('modeRow').style.display='none';
+  document.getElementById('motionBtn').style.display='none';
+  ctl.style.display='none'; info.style.display='none'; selMarker.visible=false;
+  const tg=new THREE.Group(); scene.add(tg);
+  tg.add(new THREE.GridHelper(10,20,0xd4af6a,0x2c3a58));
+  xrTestCube=new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.4),
+    new THREE.MeshStandardMaterial({color:0xd4af6a,roughness:.35,metalness:.3}));
+  xrTestCube.position.set(0,1.4,-2); tg.add(xrTestCube);
+  tg.add(new THREE.AmbientLight(0xffffff,.6));
+  const dl=new THREE.DirectionalLight(0xffffff,.9); dl.position.set(2,4,3); tg.add(dl);
+  camera.position.set(0,1.6,1.2); controls.target.set(0,1.3,-2);
+  hudBig.textContent='WEBXR SANITY TEST — cube · grid · controller rays';
+  hudSub.textContent='If Enter VR fails HERE, the problem is serving/browser/permissions, not the app — open XR CHECK';
+  document.getElementById('xrCheck').style.display='block';
+  XRX.runXRCheck();
+}
+
 renderer.setAnimationLoop(tick);   // XR-compatible main loop (rAF does not fire in immersive sessions)
 </script>
 </body>
