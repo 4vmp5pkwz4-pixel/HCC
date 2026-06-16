@@ -1308,6 +1308,13 @@ function runSelfTests(){
       return ORBIT && typeof ORBIT.on==='boolean' && INTERACTION.scientificUnchanged(before, getAtlasEntityContract);
     }catch(e){ return false; } })(),
     'orbit affects camera + autoRotate only');
+  ok('Hydrogen orbitals are exact real |ψ| shapes (1s positive · 2p has a nodal plane & phase flip)',
+    (()=>{ try{ const f1=ORBITALS['1s'].f, f2=ORBITALS['2p'].f;
+      return FRACTAL_TYPES.orbital3d!==undefined
+        && f1({x:1,y:1,z:1,r:Math.sqrt(3)})>0
+        && Math.abs(f2({x:2,y:0,z:0,r:2}))<1e-9
+        && f2({x:0,y:0,z:2,r:2})*f2({x:0,y:0,z:-2,r:2})<0; }catch(e){ return false; } })(),
+    'real hydrogen orbital nodes/phase correct');
   ok('4D regular polytopes have exact vertex/edge counts (tesseract 16/32 · 16-cell 8/24 · 24-cell 24/96)',
     (()=>{ try{ return POLY4D.tesseract.V.length===16&&POLY4D.tesseract.E.length===32
       && POLY4D.cell16.V.length===8&&POLY4D.cell16.E.length===24
@@ -5736,7 +5743,7 @@ const fractalUniforms = {
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
 let fractalPalette='silver';
@@ -5758,7 +5765,7 @@ function setFractalType(type,reset=true){
     else { setFractalZoom(1); fractalUniforms.uCenter.value.set(type==='julia'?0:-.5,0); }
   }
   setFractalZoom(fractalUniforms.uZoom.value);
-  if(state.mode==='fractal' && (type==='bifurc3d'||type==='polytope4d')){
+  if(state.mode==='fractal' && GEO_FRACTALS.has(type)){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
     else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
@@ -5867,13 +5874,49 @@ function updatePolytope4D(dt){
   proj.forEach((p,i)=>{ pp[i*3]=p[0];pp[i*3+1]=p[1];pp[i*3+2]=p[2]; });
   POLY4.ptGeo.attributes.position.needsUpdate=true;
 }
-const GEO_FRACTALS=new Set(['bifurc3d','polytope4d']);   // fractal "types" rendered as real 3D geometry
+/* ── Hydrogen electron orbital clouds — real quantum |ψ|² ─────────────
+   Exact real-orbital shapes of the hydrogen atom (correct angular nodes,
+   radial decay, phase). A density cloud built by rejection sampling |ψ|²;
+   gold = positive lobe, blue = negative lobe. Honest physics: the smallest
+   structures in the atlas, the quantum end of the scale ladder. */
+const orbitalGroup=new THREE.Group(); orbitalGroup.visible=false; scene.add(orbitalGroup);
+const ORBITALS={
+  '1s':  {f:p=>Math.exp(-p.r),                                   ext:9,  lab:'1s'},
+  '2s':  {f:p=>(2-p.r)*Math.exp(-p.r/2),                         ext:18, lab:'2s · radial node'},
+  '2p':  {f:p=>p.z*Math.exp(-p.r/2),                             ext:18, lab:'2p_z · one angular node'},
+  '3dz2':{f:p=>(3*p.z*p.z-p.r*p.r)*Math.exp(-p.r/3),            ext:30, lab:'3d_z²'},
+  '3dxy':{f:p=>p.x*p.y*Math.exp(-p.r/3),                         ext:30, lab:'3d_xy · four lobes'},
+  '4fz3':{f:p=>p.z*(5*p.z*p.z-3*p.r*p.r)*Math.exp(-p.r/4),      ext:46, lab:'4f_z³'},
+};
+let _orbWhich=null;
+function buildOrbital3D(){
+  const which=state.orbital||'2p';
+  if(_orbWhich===which && orbitalGroup.children.length) return;
+  _orbWhich=which;
+  while(orbitalGroup.children.length){ const c=orbitalGroup.children.pop(); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); orbitalGroup.remove(c); }
+  const O=ORBITALS[which]||ORBITALS['2p'], ext=O.ext, S=5.2/ext, N=MOBILE_GPU?9000:26000;
+  let maxd=1e-12;
+  for(let i=0;i<6000;i++){ const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,r=Math.hypot(x,y,z),v=O.f({x,y,z,r}),d=v*v; if(d>maxd)maxd=d; }
+  const px=[],pc=[], pos=new THREE.Color(0xffcf6a), neg=new THREE.Color(0x5aa8ff); let tries=0;
+  while(px.length<N*3 && tries<N*70){ tries++;
+    const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,r=Math.hypot(x,y,z),v=O.f({x,y,z,r});
+    if(Math.random()<v*v/maxd){ px.push(x*S,y*S,z*S); const c=v>=0?pos:neg; pc.push(c.r,c.g,c.b); } }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(px,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(pc,3));
+  orbitalGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending})));
+  orbitalGroup.add(new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})));   // nucleus
+  const lab=mkLabel('Hydrogen '+O.lab+' · |ψ|² electron cloud (gold +, blue −)','label axis'); lab.position.set(0,5.7,0); orbitalGroup.add(lab);
+}
+const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d']);   // fractal "types" rendered as real 3D geometry
 function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
   if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
+  if(isFrac&&fractalType==='orbital3d') buildOrbital3D();
   bifurcGroup.visible = isFrac&&fractalType==='bifurc3d';
   poly4dGroup.visible = isFrac&&fractalType==='polytope4d';
+  orbitalGroup.visible = isFrac&&fractalType==='orbital3d';
   if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(isFrac&&!geo)?'none':'block';
 }
 const fractalScene = new THREE.Scene();
@@ -7454,7 +7497,7 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
-  evidenceFilter:null, tierFilter:null, poly4d:'tesseract',
+  evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbital:'2p',
 };
 const lastGoodCamera={position:new THREE.Vector3(0,26,52),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
 const finiteVector=v=>v?.isVector3&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);
@@ -8476,7 +8519,7 @@ function buildCtl(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes'}[k]}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals'}[k]}</button>`).join('')}
       </div>
     </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
@@ -8533,6 +8576,10 @@ function buildCtl(){
         <button class="chip ${state.poly4d==='cell16'?'on':''}" data-poly4d="cell16">16-cell</button>
         <button class="chip ${state.poly4d==='cell24'?'on':''}" data-poly4d="cell24">24-cell</button></div>
     </div>`:''}
+    ${fractalType==='orbital3d'?`<div class="sect"><b>Hydrogen electron orbital · |ψ|²</b>
+      <div class="note">Exact real orbitals of the hydrogen atom rebuilt as a probability cloud (rejection-sampled |ψ|²). Gold = positive lobe, blue = negative lobe; the white dot is the nucleus. Correct nodes, lobes and radial decay — the quantum, smallest-scale end of the atlas.</div>
+      <div class="chips">${['1s','2s','2p','3dz2','3dxy','4fz3'].map(o=>`<button class="chip ${state.orbital===o?'on':''}" data-orbital="${o}">${o}</button>`).join('')}</div>
+    </div>`:''}
     ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
       <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
       <div class="note">The logistic map x→r·x·(1−x) is exactly conjugate to z→z²+c via <b>c = r/2 − r²/4</b>, so the whole bifurcation diagram lives on the Mandelbrot real axis. Landmarks (gold = periodic, ember = chaotic):</div>
@@ -8552,6 +8599,7 @@ function buildCtl(){
       FBS3R-inspired exploratory layer. Default palette is neutral silver metal; every palette uses the same iteration/density scalar and changes only its visual transfer function.</div>`;
     ctl.querySelectorAll('[data-fractal]').forEach(b=>b.onclick=()=>{setFractalType(b.dataset.fractal);buildCtl();});
     ctl.querySelectorAll('[data-poly4d]').forEach(b=>b.onclick=()=>{ state.poly4d=b.dataset.poly4d; buildPolytope4D(); buildCtl(); });
+    ctl.querySelectorAll('[data-orbital]').forEach(b=>b.onclick=()=>{ state.orbital=b.dataset.orbital; buildOrbital3D(); buildCtl(); });
     ctl.querySelector('#fpalette').onchange=e=>{setFractalPalette(e.target.value);buildCtl();};
     ctl.querySelector('#pow')?.addEventListener('input',e=>{fractalUniforms.uPower.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr')?.addEventListener('input',e=>{fractalUniforms.uIters.value=+e.target.value|0;updCtlVals();});
@@ -8916,7 +8964,7 @@ function setMode(mode){
     setControlDistanceLimits(2,400);
   } else {
     if(fractalType==='bifurc3d'){ camera.position.set(6,6,21); controls.target.set(0,0,0); setControlDistanceLimits(4,160); }
-    else if(fractalType==='polytope4d'){ camera.position.set(4.5,3.5,8.5); controls.target.set(0,0,0); setControlDistanceLimits(2,60); }
+    else if(fractalType==='polytope4d'||fractalType==='orbital3d'){ camera.position.set(4.5,3.5,8.5); controls.target.set(0,0,0); setControlDistanceLimits(2,60); }
     else { camera.position.set(2.2,1.4,2.2); controls.target.set(0,0,0); setControlDistanceLimits(2.25,20); }
   }
   camera.fov = 55;syncControlCapabilities();stabilizeCamera();syncCameraClipping(true);
@@ -9655,10 +9703,14 @@ function tickBody(now, frame){
       if(fractalType==='bifurc3d'){
         hudBig.textContent='Bifurcation ⊗ Mandelbrot · 3D';
         hudSub.textContent='Logistic period-doubling (z) rises above the real axis of the Mandelbrot set · drag to orbit · scroll to zoom';
-      } else {
+      } else if(fractalType==='polytope4d'){
         updatePolytope4D(dt);
         hudBig.textContent=(POLY4.P?POLY4.P.name:'4D Polytope')+' · live 4D rotation';
         hudSub.textContent='regular 4-polytope tumbling in R⁴, projected to R³ · drag to orbit in 3D · scroll to zoom';
+      } else {
+        orbitalGroup.rotation.y+=dt*0.12;
+        hudBig.textContent='Hydrogen electron orbital · |ψ|² quantum cloud';
+        hudSub.textContent='real hydrogen orbital shape (exact nodes & phase) · gold + lobe, blue − lobe · drag to orbit';
       }
       renderer.render(scene, camera);
       if(!MOBILE_GPU||++labelRenderFrame%2===0) labelRenderer.render(scene,camera);   // 3D annotations
