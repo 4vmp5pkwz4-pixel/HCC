@@ -1308,6 +1308,11 @@ function runSelfTests(){
       return ORBIT && typeof ORBIT.on==='boolean' && INTERACTION.scientificUnchanged(before, getAtlasEntityContract);
     }catch(e){ return false; } })(),
     'orbit affects camera + autoRotate only');
+  ok('3D Bifurcation⊗Mandelbrot fractal is registered; logistic = real-axis dynamics of z→z²+c',
+    (()=>{ try{ if(FRACTAL_TYPES.bifurc3d===undefined || typeof buildBifurcMandelbrot3D!=='function') return false;
+      const orbit=c=>{ let x=0; for(let n=0;n<200;n++){ x=x*x+c; if(!Number.isFinite(x)||Math.abs(x)>1e3) return Infinity; } return Math.abs(x); };
+      return orbit(-1)<2 && orbit(-3)===Infinity; }catch(e){ return false; } })(),
+    'orbit bounded inside the set (c=−1), escapes outside (c=−3)');
   ok('Navigation layer (tutorial/history/bookmarks/related/double-click) never mutates scientific data',
     (()=>{ try{ const before=INTERACTION.scientificSnapshot(getAtlasEntityContract);
       NAV.makeHistoryEntry(); NAV.makeBookmark('t'); AtlasCoach.refresh();
@@ -5725,7 +5730,7 @@ const fractalUniforms = {
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
 let fractalPalette='silver';
@@ -5747,11 +5752,68 @@ function setFractalType(type,reset=true){
     else { setFractalZoom(1); fractalUniforms.uCenter.value.set(type==='julia'?0:-.5,0); }
   }
   setFractalZoom(fractalUniforms.uZoom.value);
-  syncControlCapabilities();
+  if(type==='bifurc3d' && state.mode==='fractal'){
+    camera.position.set(6,6,21); controls.target.set(0,0,0); camera.fov=55;
+    setControlDistanceLimits(4,160); camera.updateProjectionMatrix();
+  }
+  if(typeof updateBifurcView==='function') updateBifurcView();
+  syncControlCapabilities(); syncCameraClipping(true);
 }
 function setFractalPalette(name){
   fractalPalette=name in FRACTAL_PALETTES?name:'silver';
   fractalUniforms.uPalette.value=FRACTAL_PALETTES[fractalPalette];
+}
+/* ── Bifurcation ⊗ Mandelbrot in true 3D ─────────────────────────────
+   A real Three.js point cloud (no shader): the Mandelbrot set lies in the
+   z=0 plane (x=Re c, y=Im c); the logistic/quadratic period-doubling
+   cascade rises along +Z exactly above the real axis — because the logistic
+   map is the real-axis dynamics of z→z²+c. Fully orbit-rotatable. */
+const bifurcGroup=new THREE.Group(); bifurcGroup.visible=false; scene.add(bifurcGroup);
+let _bifurcBuilt=false;
+const BIF_S=4.0, bifCx=c=>(c+0.875)*BIF_S;       // complex coord → centred scene units
+function buildBifurcMandelbrot3D(){
+  if(_bifurcBuilt) return; _bifurcBuilt=true;
+  const lo=MOBILE_GPU;
+  const addPts=(px,pc,size,op)=>{ const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(px,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(pc,3));
+    bifurcGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size,vertexColors:true,sizeAttenuation:true,
+      transparent:true,opacity:op,depthWrite:false,blending:THREE.AdditiveBlending}))); };
+  // Mandelbrot set in the z=0 plane
+  { const NX=lo?220:340, NY=lo?150:240, N=lo?60:96, reMin=-2.1,reMax=0.6,imMin=-1.25,imMax=1.25;
+    const px=[],pc=[], cs=new THREE.Color(0xc69a52), cb1=new THREE.Color(0x244b86),cb2=new THREE.Color(0x7ed0ff),cb3=new THREE.Color(0xfff2d0);
+    for(let i=0;i<NX;i++){ const re=reMin+(reMax-reMin)*i/(NX-1);
+      for(let j=0;j<NY;j++){ const im=imMin+(imMax-imMin)*j/(NY-1);
+        let zr=0,zi=0,k=0; for(;k<N;k++){ const t=zr*zr-zi*zi+re; zi=2*zr*zi+im; zr=t; if(zr*zr+zi*zi>16) break; }
+        if(k>=N){ if((i+j)&1) continue; px.push(bifCx(re),im*BIF_S,0); pc.push(cs.r*.5,cs.g*.5,cs.b*.5); }
+        else if(k>=4){ const mag=Math.sqrt(zr*zr+zi*zi), nu=k+1-Math.log(Math.log(Math.max(mag,2.0001)))/Math.LN2, t=Math.min(1,nu/44);
+          const col=t<.5?cb1.clone().lerp(cb2,t*2):cb2.clone().lerp(cb3,(t-.5)*2);
+          px.push(bifCx(re),im*BIF_S,0); pc.push(col.r,col.g,col.b); } }
+    }
+    addPts(px,pc,lo?0.02:0.014,0.85); }
+  // logistic / quadratic bifurcation rising along +Z above the real axis (c: 0.25 → −2)
+  { const NC=lo?440:700, skip=240, keep=lo?64:96, Zs=1.5;
+    const px=[],pc=[], warm=new THREE.Color(0xff7a3c), cool=new THREE.Color(0x6ad0ff);
+    for(let i=0;i<NC;i++){ const c=0.25-(2.25)*i/(NC-1); let x=0,ok=true;
+      for(let n=0;n<skip;n++){ x=x*x+c; if(!Number.isFinite(x)||Math.abs(x)>1e3){ok=false;break;} } if(!ok) continue;
+      const t=i/(NC-1), col=warm.clone().lerp(cool,t);
+      for(let n=0;n<keep;n++){ x=x*x+c; if(!Number.isFinite(x)) break; px.push(bifCx(c),0,x*Zs); pc.push(col.r,col.g,col.b); } }
+    addPts(px,pc,lo?0.022:0.016,0.95); }
+  // real-axis guide + annotations
+  bifurcGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    [new THREE.Vector3(bifCx(-2.05),0,0),new THREE.Vector3(bifCx(0.55),0,0)]),
+    new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.28})));
+  const L=(txt,cls,x,y,z)=>{ const l=mkLabel(txt,cls); l.position.set(x,y,z); bifurcGroup.add(l); };
+  L('Mandelbrot set · Im(c)','label axis',bifCx(-0.6),1.32*BIF_S,0);
+  L('period-doubling → chaos  (z = attractor)','label axis',bifCx(-1.55),0,3.1);
+  L('real axis  c : +0.25 → −2','label axis',bifCx(0.6),0,0);
+  L('the logistic map is the real-axis dynamics of z→z²+c','label dim',bifCx(-0.6),-1.36*BIF_S,0);
+}
+function updateBifurcView(){
+  const on=state.mode==='fractal'&&fractalType==='bifurc3d';
+  if(on) buildBifurcMandelbrot3D();
+  bifurcGroup.visible=on;
+  if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(state.mode==='fractal'&&!on)?'none':'block';
 }
 const fractalScene = new THREE.Scene();
 {
@@ -7347,6 +7409,7 @@ function cameraClipProfile(){
   if(state.mode==='s3')return {nearMin:1e-4,far:state.s3view==='ring'?5000:1600};
   if(state.mode==='cyc')return {nearMin:1e-4,far:3000};
   if(state.mode==='fbs')return {nearMin:1e-4,far:3000};
+  if(state.mode==='fractal'&&fractalType==='bifurc3d')return {nearMin:1e-4,far:400};
   return {nearMin:1e-4,far:40};
 }
 function syncCameraClipping(force=false){
@@ -8352,7 +8415,7 @@ function buildCtl(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation'}[k]}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D'}[k]}</button>`).join('')}
       </div>
     </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
@@ -8733,11 +8796,12 @@ info.addEventListener('click', e=>{
 
 /* ---------------- MODE SWITCHING ---------------- */
 function syncControlCapabilities(){
-  const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&fractalType!=='mandelbulb');
+  const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||fractalType==='bifurc3d');  // true 3D fractal views
+  const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&!is3D);
   controls.enabled=!state.landed;
   controls.enableZoom=!semanticZoom;
-  controls.enableRotate=state.mode!=='fractal'||fractalType==='mandelbulb';
-  controls.enablePan=state.mode!=='fractal'||fractalType==='mandelbulb';
+  controls.enableRotate=state.mode!=='fractal'||is3D;
+  controls.enablePan=state.mode!=='fractal'||is3D;
   controls.touches.ONE=THREE.TOUCH.ROTATE;
   controls.touches.TWO=THREE.TOUCH.DOLLY_PAN;
 }
@@ -8782,11 +8846,12 @@ function setMode(mode){
     camera.position.set(0,7,26); controls.target.set(0,0,0);
     setControlDistanceLimits(2,400);
   } else {
-    camera.position.set(2.2,1.4,2.2); controls.target.set(0,0,0);
-    setControlDistanceLimits(2.25,20);
+    if(fractalType==='bifurc3d'){ camera.position.set(6,6,21); controls.target.set(0,0,0); setControlDistanceLimits(4,160); }
+    else { camera.position.set(2.2,1.4,2.2); controls.target.set(0,0,0); setControlDistanceLimits(2.25,20); }
   }
   camera.fov = 55;syncControlCapabilities();stabilizeCamera();syncCameraClipping(true);
   applySpatialGuideVisibility();
+  if(typeof updateBifurcView==='function') updateBifurcView();
   buildCtl();
   updateBreadcrumb();
 }
@@ -9516,6 +9581,16 @@ function tickBody(now, frame){
   if(state.mode==='fractal' && !renderer.xr.isPresenting){
     controls.update();
     stabilizeCamera();
+    if(fractalType==='bifurc3d'){                 // true-3D point cloud rendered with the perspective camera
+      hudBig.textContent='Bifurcation ⊗ Mandelbrot · 3D';
+      hudSub.textContent='Logistic period-doubling (z) rises above the real axis of the Mandelbrot set · drag to orbit · scroll to zoom';
+      renderer.render(scene, camera);
+      if(!MOBILE_GPU||++labelRenderFrame%2===0) labelRenderer.render(scene,camera);   // 3D annotations
+      if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
+      renderHierarchyLocator();
+      XRX.telemetry(dt);
+      return;
+    }
     fractalUniforms.uCamPos.value.copy(camera.position);
     camera.getWorldDirection(fractalUniforms.uCamFwd.value);
     fractalUniforms.uCamRight.value.crossVectors(fractalUniforms.uCamFwd.value, camera.up).normalize();
