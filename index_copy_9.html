@@ -125,6 +125,21 @@
     border-radius:9px;background:rgba(7,12,22,.42);font-size:10.5px}
   #selContract{margin:7px 0;padding:7px 8px;border:1px solid rgba(212,175,106,.22);
     border-radius:9px;background:rgba(8,11,18,.48);font-size:10px;overflow-wrap:anywhere}
+  #physDebug{position:fixed;left:12px;bottom:12px;z-index:40;max-width:300px;
+    border:1px solid rgba(126,200,255,.3);border-radius:9px;background:rgba(5,9,16,.86);
+    padding:8px 10px;font:10.5px/1.5 ui-monospace,monospace;color:var(--dim);pointer-events:none;
+    box-shadow:0 6px 24px rgba(0,0,0,.5)}
+  #physDebug b{color:#9cc8ff;font-family:var(--sans);letter-spacing:.4px}
+  #physDebug .ok{color:#9ce3c6}
+  #selTabs{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0 4px}
+  .selTab{border:1px solid rgba(212,175,106,.28);border-radius:7px;padding:2px 7px;cursor:pointer;
+    background:rgba(20,28,46,.6);color:var(--dim);font:600 9.5px var(--sans);letter-spacing:.3px}
+  .selTab:hover{color:var(--txt);border-color:var(--gold-dim)}
+  .selTab.on{background:rgba(212,175,106,.22);border-color:var(--gold);color:var(--gold-2)}
+  .selStab{margin:7px 0;padding:7px 8px;border:1px solid rgba(126,200,255,.25);border-radius:9px;
+    background:rgba(8,13,22,.5);font-size:10px;overflow-wrap:anywhere}
+  #selPaneRaw pre{white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.45 ui-monospace,monospace;
+    max-height:300px;overflow:auto;color:var(--dim);background:rgba(5,9,16,.5);border-radius:8px;padding:7px}
   .atlasBadges{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0}
   .atlasBadge{border:1px solid rgba(212,175,106,.28);border-radius:999px;padding:2px 6px;
     color:var(--dim);font:700 8.5px var(--sans);letter-spacing:.35px;text-transform:uppercase}
@@ -455,11 +470,16 @@
 <div id="atlasPanel" class="panel" style="display:none"></div>
 <div id="selCard" class="panel">
   <h3 id="selName"></h3>
+  <div id="selTabs"></div>
   <div class="desc" id="selDesc"></div>
-  <table id="selTable"></table>
+  <div id="selPaneSummary"><table id="selTable"></table></div>
+  <div id="selPaneCoords"></div>
   <div id="selProv"></div>
   <div id="selContract"></div>
+  <div id="selPaneUncert"></div>
   <div id="selRelations"></div>
+  <div id="selPaneRaw"></div>
+  <div id="selPaneExport"></div>
   <div class="btns">
     <button class="btn green" id="selFocus">◎ Focus</button>
     <button class="btn" id="selLinks">⌁ Connections</button>
@@ -474,6 +494,7 @@
   <button class="btn warn" id="leaveBtn" style="margin-top:5px;pointer-events:auto">🚀 Leave surface (Esc)</button>
 </div>
 <div id="hud"><div class="big" id="hudBig"></div><div class="sub" id="hudSub"></div></div>
+<div id="physDebug" style="display:none"></div>
 <div id="hierarchyLegend">
   <div class="ht">3D hierarchy locator</div>
   <div class="hq">
@@ -601,6 +622,7 @@ const SOURCE_MAP = {
   ASTRO: {tag:'astro-std', label:'Standard astronomy: galactic year ≈230 Myr (225–250 quoted range); axial precession 25,772 yr; bright-star positions curated to ~0.1°; Saros 6585.32 d; Metonic 19 yr'},
   FLOW:  {tag:'CF4-flow',  label:'Tully et al. 2014 Laniakea peculiar-velocity basin; Tully et al. 2022 Cosmicflows-4; Valade et al. 2024 probabilistic basins; Stiskalek et al. 2026 scale-dependent Great-Attractor convergence; Hollinger et al. 2026 CF4++/Vela reconstruction; Pomarède et al. 2026 Sloan BoA cosmography; Pomarède & Tully 2020 South Pole Wall; Hoffman et al. 2017 Dipole Repeller. Displayed streamlines are reconstruction-inspired orientation aids, never measured galaxy trajectories.'},
   LSS:   {tag:'LSS-survey', label:'Large-scale-structure surveys (observational): Böhringer et al. 2025 CLASSIX X-ray cluster superstructures (Quipu); Bagchi et al. 2017 Saraswati supercluster (SDSS Stripe 82); Kirshner et al. 1981 Boötes Void. Published directions/extents; centroids of extended/filamentary structures are approximate and 3D shape is not asserted.'},
+  JWST_LRD:{tag:'JWST-LRD', label:'Juodžbalis et al. 2026 (Nature); Abell 2744−QSO1; direct dynamical black-hole mass measurement in a little red dot at z=7.04; JWST/NIRSpec IFU; MOKA3D; MAST; Zenodo reduced products.'},
   DERIVED:{tag:'derived',  label:'Derived live inside this app from the tagged formulas — no fitting, no hidden parameters'},
 };
 
@@ -998,6 +1020,48 @@ function runSelfTests(){
   ok('MR Tabletop Universe mode is feature-detected with a declared graceful fallback',
     typeof XRX.tabletopFallback==='string' && XRX.tabletopFallback.length>0,
     XRX.tabletopFallback.slice(0,48)+'…');
+  // --- Phase: catalogue corrections + Nature 2026 JWST little-red-dot object ---
+  ok('Sloan Basin of Attraction is source-tagged FLOW (CF4 reconstruction)',
+    (SELECT.get('cosmos_sloanboa')?.src||[]).includes('FLOW'),
+    (SELECT.get('cosmos_sloanboa')?.src||[]).join(', '));
+  ok('SOURCE_MAP.JWST_LRD registered (Juodžbalis et al. 2026 Nature)',
+    !!SOURCE_MAP.JWST_LRD && SOURCE_MAP.JWST_LRD.tag==='JWST-LRD',
+    SOURCE_MAP.JWST_LRD?.tag||'missing');
+  ok('SOURCE_CLASS.JWST_LRD classified as observation',
+    SOURCE_CLASS.JWST_LRD==='observation', String(SOURCE_CLASS.JWST_LRD));
+  ok('JWST object cosmos_a2744_qso1 exists with exact RA/Dec/z (3.5798375, −30.4015733, 7.04)',
+    (()=>{ const s=SELECT.get('cosmos_a2744_qso1'); if(!s) return false; const c=s.coords;
+      return c && c.raDeg===3.5798375 && c.decDeg===-30.4015733 && c.z===7.04; })(),
+    JSON.stringify(SELECT.get('cosmos_a2744_qso1')?.coords||null));
+  ok('cosmos_a2744_qso1 is accuracy tier A',
+    atlasAccuracyTier('cosmos_a2744_qso1',SELECT.get('cosmos_a2744_qso1'))==='A',
+    atlasAccuracyTier('cosmos_a2744_qso1',SELECT.get('cosmos_a2744_qso1')));
+  ok('cosmos_a2744_qso1 evidence class is observation',
+    atlasEvidenceClass('cosmos_a2744_qso1',SELECT.get('cosmos_a2744_qso1'))==='observation',
+    atlasEvidenceClass('cosmos_a2744_qso1',SELECT.get('cosmos_a2744_qso1')));
+  ok('cosmos_a2744_qso1 forbids large-scale-structure and topology-inference claims',
+    (()=>{ const f=getAtlasEntityContract('cosmos_a2744_qso1').quality.forbidden_claims;
+      return f.includes('Do not treat as a large-scale structure.')
+        && f.includes('Do not infer topology from this object.'); })(),
+    'custom forbidden claims appended');
+  ok('cosmos_a2744_qso1 introduces no significance / Bayes / topology-detection / primordial-BH claim',
+    (()=>{ const c=getAtlasEntityContract('cosmos_a2744_qso1'), f=c.quality.forbidden_claims;
+      const forbidsAll = f.includes('Bayesian evidence / Bayes factor')
+        && f.includes('statistical significance recomputed here')
+        && f.includes('Do not claim primordial black-hole proof.')
+        && f.includes('Do not infer topology from this object.');
+      // and it must NOT positively assert any of those things anywhere in its contract text
+      const txt=JSON.stringify(c).toLowerCase();
+      const noPositive=!/topology (is|was) (detected|proven)|primordial black-hole proof confirmed/.test(txt);
+      return forbidsAll && noPositive; })(),
+    'no fabricated significance / Bayes / primordial-BH / topology claim');
+  ok('Desktop selCard exposes all seven tabs',
+    ['Summary','Coordinates','Evidence','Uncertainty','Relations','Raw Contract','Export'].every(t=>SEL_TABS.includes(t)) && SEL_TABS.length===7,
+    SEL_TABS.join(' · '));
+  ok('Physics Debug (desktop/QA) reports scientificMutation=false / scientificCoordinatesAffected=NO',
+    INTERACTION.diagnostics().scientificCoordinatesAffected==='NO'
+      && INTERACTION.simulateInteraction({position:{x:0,y:0,z:0}},'grab',{x:1,y:1,z:1}).scientificMutated===false,
+    'physics debug is read-only over science');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -1394,11 +1458,118 @@ function selectKey(key){
   openPanel('selCard');
   updateSelCard();
   renderSelectionRelations();
+  buildSelTabs();
+  if(selTabKey!==key){ selTab='Summary'; selTabKey=key; }
+  setSelTab(selTab);
   rebuildSelectionLinks();
   if(panelIsOpen('objectPanel')) renderObjectPanel();
   requestHierarchyLayout();
   selMarker.visible = true;
   updateBreadcrumb();
+}
+/* ---------- desktop selCard tabs (read-only over scientific data) ----------
+   Summary · Coordinates · Evidence · Uncertainty · Relations · Raw Contract ·
+   Export — all reuse existing data/functions; none mutate the contract. */
+const SEL_TABS=['Summary','Coordinates','Evidence','Uncertainty','Relations','Raw Contract','Export'];
+const SEL_TAB_PANES={
+  'Summary':['selDesc','selPaneSummary'], 'Coordinates':['selPaneCoords'],
+  'Evidence':['selContract','selProv'],   'Uncertainty':['selPaneUncert'],
+  'Relations':['selRelations'],           'Raw Contract':['selPaneRaw'], 'Export':['selPaneExport'],
+};
+const SEL_ALL_PANES=['selDesc','selPaneSummary','selPaneCoords','selContract','selProv',
+  'selPaneUncert','selRelations','selPaneRaw','selPaneExport'];
+let selTab='Summary', selTabKey=null;
+function buildSelTabs(){
+  const bar=document.getElementById('selTabs'); if(!bar) return;
+  bar.innerHTML=SEL_TABS.map(t=>`<span class="selTab" data-tab="${esc(t)}">${esc(t)}</span>`).join('');
+  bar.querySelectorAll('.selTab').forEach(b=>b.onclick=()=>setSelTab(b.dataset.tab));
+}
+function setSelTab(tab){
+  if(!SEL_TAB_PANES[tab]) tab='Summary';
+  selTab=tab;
+  if(tab==='Coordinates') renderSelCoords();
+  else if(tab==='Uncertainty') renderSelUncert();
+  else if(tab==='Raw Contract') renderSelRaw();
+  else if(tab==='Export') renderSelExport();
+  const show=new Set(SEL_TAB_PANES[tab]);
+  for(const id of SEL_ALL_PANES){ const el=document.getElementById(id); if(el) el.style.display=show.has(id)?'':'none'; }
+  document.querySelectorAll('#selTabs .selTab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+}
+function renderSelCoords(){
+  const box=document.getElementById('selPaneCoords'); if(!box) return;
+  const c=getAtlasEntityContract(selectedKey); if(!c){ box.innerHTML=''; return; }
+  const cc=c.space.coordinate_contract, ic=cc.input_coordinates, dc=cc.derived_coordinates;
+  const tbl=o=>'<table>'+Object.entries(o).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(typeof v==='object'?JSON.stringify(v):v)}</td></tr>`).join('')+'</table>';
+  let h=`<div class="note"><b style="color:var(--gold)">COORDINATE CONTRACT</b></div>`;
+  h+=`<div class="relclaim">input frame: ${esc(cc.input_frame)}</div>`;
+  h+=(ic&&typeof ic==='object')?tbl(ic):`<div class="relclaim">${esc(ic)}</div>`;
+  if(dc&&typeof dc==='object'){ h+=`<div class="note">derived (scene / comoving)</div>`+tbl(dc); }
+  else if(dc) h+=`<div class="relclaim">derived: ${esc(dc)}</div>`;
+  h+=`<div class="note">transformation chain</div>`+(cc.transformation_chain||[]).map(t=>`<div class="relclaim">· ${esc(t)}</div>`).join('');
+  box.innerHTML=h;
+}
+function renderSelUncert(){
+  const box=document.getElementById('selPaneUncert'); if(!box) return;
+  const s=SELECT.get(selectedKey); if(!s){ box.innerHTML=''; return; }
+  const ev=atlasEvidenceClass(selectedKey,s), u=atlasUncertainty(selectedKey,s,ev);
+  let h=`<div class="note"><b style="color:var(--gold)">UNCERTAINTY</b></div>`;
+  h+=`<div class="relclaim">epistemic: ${esc(u.epistemic)}</div>`;
+  h+=`<div class="relclaim">aleatoric: ${esc(u.aleatoric)}</div>`;
+  h+=`<div class="relclaim">calibration: ${esc(u.calibration_status)}</div>`;
+  h+=`<div class="relclaim">refs: ${esc((u.uncertainty_refs||[]).join(', ')||'—')}</div>`;
+  if(s.catalogueLoaded && atlasAccuracyTier(selectedKey,s)==='A' && (s.fitStability||s.fitJackknife)){
+    const b=s.fitStability, j=s.fitJackknife, f3=a=>Array.isArray(a)?a.map(x=>x.toFixed(4)).join(' / '):'—';
+    h+=`<div class="selStab"><b style="color:#9cc8ff">CATALOGUE STABILITY DIAGNOSTIC</b>
+      <div class="relclaim" style="color:var(--warn)">stability diagnostic, not significance, not p-value, not Bayes factor.</div>`;
+    if(b){ h+=`<div class="relclaim">bootstrap centroid σ (x/y/z Gly): ${f3(b.centroidStd)}</div>`;
+      h+=`<div class="relclaim">bootstrap centroid CI95 (x/y/z Gly): ${f3(b.centroidCI95)}</div>`;
+      h+=`<div class="relclaim">plane-normal stability: ${b.planeNormalStability!=null?b.planeNormalStability.toFixed(4):'—'} (1 = perfectly stable)</div>`; }
+    if(j) h+=`<div class="relclaim">jackknife centroid σ (x/y/z Gly): ${f3(j.centroidStd)}</div>`;
+    h+=`<div class="relclaim">${esc((b&&b.note)||(j&&j.note)||'')}</div></div>`;
+  }
+  box.innerHTML=h;
+}
+function renderSelRaw(){
+  const box=document.getElementById('selPaneRaw'); if(!box) return;
+  const c=getAtlasEntityContract(selectedKey);
+  box.innerHTML=c?`<div class="note"><b style="color:var(--gold)">RUNTIME CONTRACT (read-only)</b></div><pre>${esc(JSON.stringify(c,null,2))}</pre>`:'';
+}
+function renderSelExport(){
+  const box=document.getElementById('selPaneExport'); if(!box) return;
+  box.innerHTML=`<div class="note"><b style="color:var(--gold)">EXPORT</b></div>
+    <div class="ctlrow" style="flex-wrap:wrap;gap:6px">
+      <button class="btn green" id="selExpContract" ${selectedKey?'':'disabled'}>⬇ Selected contract</button>
+      <button class="btn" id="selExpState">⬇ Runtime state</button>
+      <button class="btn" id="selExpValidation">⬇ Validation report</button>
+      <button class="btn" id="selExpSources">⬇ Source registry</button></div>
+    <div class="note">Reuses the existing entity-contract / state / validation / source-registry serializers; no scientific data is altered.</div>`;
+  box.querySelector('#selExpContract').onclick=()=>exportSelectedContract();
+  box.querySelector('#selExpState').onclick=()=>exportStateJSON();
+  box.querySelector('#selExpValidation').onclick=()=>XRX.exportValidationReport();
+  box.querySelector('#selExpSources').onclick=()=>XRX.exportSourceRegistry();
+}
+/* ---------- desktop/QA Physics Debug overlay (default OFF) ----------
+   Read-only window onto INTERACTION.diagnostics(); wires no new grab
+   behavior and mutates no scene/scientific data. */
+let _physDebugTimer=null;
+function renderPhysDebug(){
+  const el=document.getElementById('physDebug'); if(!el||!state.showPhysDebug) return;
+  const d=INTERACTION.diagnostics();
+  el.innerHTML=`<b>PHYSICS DEBUG · QA</b><br>
+    engine: ${esc(d.engine)}<br>
+    colliders: ${d.colliders} · activeBodies: ${d.activeBodies}<br>
+    raycastHits: ${d.raycastHits} · xrGrabActive: ${d.xrGrabActive?'yes':'no'}<br>
+    deterministic: ${d.deterministic?'yes':'no'}<br>
+    scientificCoordinatesAffected: <span class="ok">${esc(d.scientificCoordinatesAffected)}</span><br>
+    <span class="ok">scientificMutation = false</span>`;
+}
+function togglePhysDebug(){
+  state.showPhysDebug=!state.showPhysDebug;
+  const el=document.getElementById('physDebug');
+  if(state.showPhysDebug){ if(el) el.style.display='block'; renderPhysDebug();
+    if(!_physDebugTimer) _physDebugTimer=setInterval(renderPhysDebug,500); }
+  else { if(el) el.style.display='none'; if(_physDebugTimer){ clearInterval(_physDebugTimer); _physDebugTimer=null; } }
+  if(panelIsOpen('atlasPanel')) renderAtlasPanel();
 }
 function updateSelCard(){
   const s = SELECT.get(selectedKey); if(!s) return;
@@ -1538,7 +1709,7 @@ const ATLAS_RUNTIME_PROFILE={
 };
 const SOURCE_CLASS={
   LOPEZ:'observation',FLOW:'probabilistic-reconstruction',JPL:'reference-model',MEEUS:'reference-model',
-  LSS:'observation',
+  LSS:'observation',JWST_LRD:'observation',
   IAU:'reference-model',IERS:'reference-model',CANON:'catalogue',ASTRO:'reference-model',CODATA:'reference-standard',
   S3:'conditional-model',FBS:'conditional-model',GCS:'conditional-model',RING:'conditional-model',
   HOPF:'mathematical-model',DERIVED:'derived-runtime',
@@ -1568,7 +1739,7 @@ function atlasSemanticType(key,s){
 }
 function atlasEvidenceClass(key,s){
   const src=s?.src||[];
-  if(src.includes('LOPEZ')||src.includes('LSS'))return 'observation';
+  if(src.includes('LOPEZ')||src.includes('LSS')||src.includes('JWST_LRD'))return 'observation';
   if(src.includes('FLOW'))return 'probabilistic-reconstruction';
   if(s?.mode==='fractal'||src.includes('HOPF'))return 'mathematical-model';
   if(src.some(x=>['S3','FBS','GCS','RING'].includes(x)))return 'conditional-model';
@@ -1622,6 +1793,7 @@ function atlasForbiddenClaims(key,s){
   if(isRing)out.push('unique closed 3D ring geometry');   // a closed ring needs a justified circle fit + significance
   if(t==='C')out.push('exact basin boundary','measured attractor trajectory');
   if(s?.mode==='s3')out.push('S³ topology detection','preferred cosmic axis for round S³');
+  if(Array.isArray(s?.forbiddenClaims))out.push(...s.forbiddenClaims);   // per-object custom forbidden claims
   return [...new Set(out)];
 }
 // Per-object coordinate contract: declared input coords → derived scene coords + the transform chain.
@@ -1848,7 +2020,8 @@ function renderAtlasPanel(){
       <button class="btn green" id="atlasExport">⬇ Runtime manifest</button>
       <button class="btn" id="atlasEntityExport" ${selectedKey?'':'disabled'}>⬇ Selected contract</button>
       <button class="btn" id="atlasValidation">⬇ Validation report</button>
-      <button class="btn" id="atlasRefresh">↻ Refresh scorecards</button></div></div>
+      <button class="btn" id="atlasRefresh">↻ Refresh scorecards</button>
+      <button class="btn ${state.showPhysDebug?'green':''}" id="atlasPhysDebug">⚙ Physics Debug ${state.showPhysDebug?'on':'off'}</button></div></div>
     <details><summary>Actual integration status</summary><div class="note">${Object.entries(ATLAS_RUNTIME_PROFILE).map(([k,v])=>
       typeof v==='string'?`<b>${esc(k)}</b>: ${esc(v)}`:`<b>${esc(k)}</b>: ${esc(v.status)} · target ${esc(v.recommended)}`).join('<br>')}</div></details>`;
   p.querySelector('#atlasOverlay').onchange=e=>{state.showQualityOverlay=e.target.checked;document.body.classList.toggle('qualityOverlay',state.showQualityOverlay);};
@@ -1857,6 +2030,7 @@ function renderAtlasPanel(){
   p.querySelector('#atlasEntityExport').onclick=exportSelectedContract;
   p.querySelector('#atlasValidation').onclick=XRX.exportValidationReport;
   p.querySelector('#atlasRefresh').onclick=renderAtlasPanel;
+  p.querySelector('#atlasPhysDebug').onclick=togglePhysDebug;
   const catTgt=()=>p.querySelector('#catTarget').value;
   const reportCat=(r,name)=>{ catLoadStatus = r.ok
     ? `<b style="color:#9ce3c6">Loaded ${r.n} points → ${esc(name)}</b> · tier D→A · plane RMS ${r.fit.planeRmsResidual.toFixed(3)} Gly · 1σ axes ${r.fit.ellipsoidRadii1Sigma.map(x=>x.toFixed(2)).join(' / ')} Gly. Centroid/PCA now permitted; closed-ring geometry, significance & Bayes still forbidden.`
@@ -1872,6 +2046,7 @@ function renderAtlasPanel(){
   p.querySelector('#catClear').onclick=()=>{ const k=catTgt(),s=SELECT.get(k);
     if(s){ if(s.fitVisual){cosmosGroup.remove(s.fitVisual);disposeGroup(s.fitVisual);s.fitVisual=null;}
       delete s.catalogueLoaded;delete s.fit;delete s.nMembers;delete s.catalogueHash;delete s.catalogueSource;
+      delete s.fitStability;delete s.fitJackknife;
       s.accuracyTier='D'; s.catalogueStatus='external-required'; s.src=['LOPEZ'];
       if(selectedKey===k)selectKey(k); }
     catLoadStatus='Cleared — '+esc(k)+' reset to tier-D field anchor.'; renderAtlasPanel(); };
@@ -3087,7 +3262,7 @@ const COSMOS = [
   {key:'shapley', name:'Shapley concentration', ra:201.4,  dec:-31.0,  dGly:0.65,  size:0.25,  type:'supercluster',col:0xffd080, reconstruction:true, note:'major nearby mass concentration · large-scale streamline convergence candidate'},
   {key:'vela',    name:'Vela concentration',    ra:VELA_EQ.ra,dec:VELA_EQ.dec,dGly:0.915, size:0.677, type:'supercluster',col:0xff9d70, reconstruction:true, galLon:272.5, galLat:0, note:'CF4++ 2026 hybrid reconstruction · double-core Vela concentration · 189 h⁻¹ Mpc distance · characteristic radius 70 h⁻¹ Mpc; displayed scale converts with h=0.674'},
   {key:'sloan',   name:'Sloan Great Wall',      ra:195.0,  dec:  0.0,  z:0.073,    size:1.38,  type:'wall',        col:0xd0b0ff, note:'observed wall at z≈0.07–0.09 · ~1.38 Gly long; not identical to reconstructed Sloan-region basins of attraction'},
-  {key:'sloanboa',name:'Sloan Basin of Attraction',ra:195.0,dec:0.0,z:0.073,      size:1.89,  type:'supercluster',col:0x9f80d8, reconstruction:true, centroidKnown:false, note:'Pomarède et al. June 2026 probabilistic CF4 reconstruction · by far the largest basin in its study region · diameter ~0.13c; marker centre is an approximate display anchor'},
+  {key:'sloanboa',name:'Sloan Basin of Attraction',ra:195.0,dec:0.0,z:0.073,      size:1.89,  type:'supercluster',col:0x9f80d8, reconstruction:true, centroidKnown:false, srcTags:['FLOW'], note:'Pomarède et al. June 2026 probabilistic CF4 reconstruction · by far the largest basin in its study region · diameter ~0.13c; marker centre is an approximate display anchor'},
   {key:'gr',      name:'Giant Ring field',      ra:220.0,  dec: 45.0,  z:0.802,    size:2.74,  type:'field',       col:0x7ef0c2, note:'Lopez & Clowes 2026 · 4.73σ · 840 Mpc; marker is display midpoint of the approximate Figure 9 RA/Dec bounds, not a measured centroid', centroidKnown:false},
   {key:'ga',      name:'Giant Arc field',       ra:220.0,  dec: 45.0,  z:0.802,    size:3.07,  type:'field',       col:0xf1dda6, note:'Lopez+ 2022 · 4.5σ · 940 Mpc; exact catalogue centroid not encoded in the attached paper', centroidKnown:false},
   {key:'br',      name:'Big Ring field',        ra:220.0,  dec: 45.0,  z:0.802,    size:1.31,  type:'field',       col:0x77b7ff, note:'Lopez+ 2024 · 4.10σ · 400 Mpc; exact catalogue centroid not encoded in the attached paper', centroidKnown:false},
@@ -3110,6 +3285,17 @@ const COSMOS = [
     note:'Bagchi et al. 2017 (ApJ 844 25) · Stripe 82 (SDSS), direction of Pisces · wall-like, ≥200 Mpc across, ≥43 clusters, ~2×10¹⁶ M☉, core anchored on Abell 2631 (z=0.277)'},
   {key:'quipu',   name:'Quipu superstructure',       ra:60.0,  dec:-5.0,  z:0.045, size:1.30, type:'wall', col:0xff6a8a, srcTags:['LSS'], centroidKnown:false,
     note:'Böhringer, Chon, Trümper & Kraan-Korteweg 2025 (A&A; arXiv:2501.19236) · CLASSIX X-ray clusters, z=0.028–0.065 · ~428 Mpc long (~1.3 Gly), ~2×10¹⁷ M☉ — the largest local structure known to date. Marker is a display anchor near the filament mid-track (Pictor→Carina→Puppis→Columba→Lepus→Eridanus→Taurus→Triangulum→Perseus); not a 3D centroid'},
+  // Nature 2026 JWST little-red-dot black-hole seed — a single high-z AGN, NOT a large-scale structure.
+  {key:'a2744_qso1', name:'Abell 2744−QSO1 / Little Red Dot BH Seed', ra:3.5798375, dec:-30.4015733, z:7.04,
+    size:0.01, type:'high-z AGN / little red dot / black-hole seed', col:0xff8a5c, srcTags:['JWST_LRD'],
+    accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:[
+      'Do not treat as a large-scale structure.',
+      'Do not infer topology from this object.',
+      'Do not claim primordial black-hole proof.',
+      'Do not convert lensed image-plane morphology into source-plane morphology without lens model.',
+      'Do not load FITS cubes directly in browser runtime.'],
+    note:'Juodžbalis et al. 2026 (Nature); JWST/NIRSpec IFU; z=7.04; MOKA3D direct dynamical log(MBH/Msun)=7.7±0.3; strongly lensed image A; programme ID 5015'},
 ];
 const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map();
 for(const s of COSMOS){
@@ -3151,8 +3337,9 @@ for(const s of COSMOS){
   registerSel('cosmos_'+s.key, { name:s.name, mode:'obs', pick:dot, labelEl:lab.element,
     src: s.srcTags ? s.srcTags.slice() : [s.centroidKnown===false?'LOPEZ':s.reconstruction?'FLOW':'ASTRO'],
     centroidKnown:s.centroidKnown, reconstruction:s.reconstruction,
-    accuracyTier:s.centroidKnown===false?'D':s.reconstruction?'C':'B',
-    catalogueStatus:s.centroidKnown===false?'external-required':s.reconstruction?'external-required':'literature-derived',
+    accuracyTier:s.accuracyTier || (s.centroidKnown===false?'D':s.reconstruction?'C':'B'),
+    catalogueStatus:s.catalogueStatus || (s.centroidKnown===false?'external-required':s.reconstruction?'external-required':'literature-derived'),
+    ...(s.forbiddenClaims?{forbiddenClaims:s.forbiddenClaims.slice()}:{}),
     coords:{frame:'ICRS_J2000_RA_DEC',raDeg:s.ra,decDeg:s.dec,z:s.z},
     desc:`${s.name} — ${s.note}. Placed at ΛCDM comoving distance ${dist.toFixed(2)} Gly (flat, H0=67.4, Ωm=0.315). ${s.reconstruction?'The marker is a reconstruction/display anchor: basin boundary and flow convergence are probabilistic and scale-dependent.':s.centroidKnown===false?'The direction is an explicitly labelled field midpoint, not a structure centroid; no precise 3D ring is asserted.':'Direction is the cited approximate centre of this extended structure.'} Observational context only; not a topology claim.`,
     getPos:()=>g.position.clone(), focusDist:()=>Math.max(r*3,1.2),
@@ -3313,6 +3500,8 @@ function loadAbsorberCatalogue(targetKey, parsed, sourceName, synthetic){
   s.catalogueStatus=synthetic?'synthetic-demo':'embedded';
   s.src=synthetic?['SYNTHETIC']:[...new Set([...(s.src||[]),'CATALOGUE'])];
   s.fit=fit; s.nMembers=pts.length; s.catalogueHash=parsed.hash; s.catalogueSource=sourceName||(synthetic?'synthetic-demo':'user-loaded');
+  // stability diagnostics from the existing FIT resamplers (dispersion of the geometry estimator — NOT significance)
+  s.fitStability=FIT.bootstrap(pts,weights); s.fitJackknife=FIT.jackknife(pts,weights);
   if(selectedKey===targetKey) selectKey(targetKey);
   return {ok:true,n:pts.length,fit};
 }
@@ -6345,6 +6534,9 @@ const XRX = (()=>{
       {mode:'obs', key:'cosmos_virgo', say:'Tier B (gold): a published centroid with disclosed extent. Compare materials to read each object’s evidence standing.'},
       {mode:'obs', key:'youAreHere', say:'Tiers A→M encode catalogue→model. Load an external catalogue to upgrade a ring field from tier D to tier A — significance still requires an external likelihood module.'},
     ]},
+    {id:'jwstbh', short:'● BH Seeds', name:'JWST Black-Hole Seeds', stops:[
+      {mode:'obs', key:'cosmos_a2744_qso1', say:'Abell 2744−QSO1 — a "little red dot" at z=7.04 behind the Pantheon cluster lens. JWST/NIRSpec IFU resolves Hα kinematics; MOKA3D gives a direct dynamical black-hole mass log(MBH/M☉)=7.7±0.3. This is one high-z AGN, NOT a large-scale structure and NOT topology evidence — and the lensed image-plane morphology is not converted to the source plane here.'},
+    ]},
     {id:'time', short:'✶ Cycles', name:'Cycles, Eclipses & Time', stops:[
       {mode:'cyc', key:'cycSea',  say:'The seasonal frame: equinoxes and solstices solved from λ_sun(t). Vernal equinox 2000 is recovered within 2 hours.'},
       {mode:'cyc', key:'cycGal',  say:'The galactic year — a ~230 Myr reference cycle. Absolute phase is an explicitly arbitrary J2000 display anchor, not an inferred orbit count.'},
@@ -6785,7 +6977,7 @@ const state = {
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18,
-  atlasAudience:'expert', showQualityOverlay:true,
+  atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
 };
 const lastGoodCamera={position:new THREE.Vector3(0,26,52),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
 const finiteVector=v=>v?.isVector3&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);
