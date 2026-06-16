@@ -214,6 +214,11 @@
   .scorecard{border:1px solid rgba(212,175,106,.18);border-radius:10px;padding:8px;background:rgba(5,9,16,.42)}
   .scorecard b{display:block;color:var(--gold-2);font:700 17px var(--serif)}
   .scorecard span{color:var(--dim);font-size:9px;letter-spacing:.5px;text-transform:uppercase}
+  .atlasExpTier{cursor:pointer;user-select:none}
+  .atlasExpTier.on{outline:2px solid var(--gold);outline-offset:1px}
+  #atlasPanel .navRow{cursor:pointer;padding:3px 5px;border-radius:7px}
+  #atlasPanel .navRow:hover{background:rgba(212,175,106,.12)}
+  #atlasPanel .navRow.on{background:rgba(212,175,106,.2)}
   #atlasPanel{right:14px;top:calc(var(--topbar-h,64px) + 50px);width:430px;
     max-height:calc(100vh - var(--topbar-h,64px) - 64px);overflow:auto;font-size:11px;z-index:32}
   #atlasPanel h3{font-family:var(--serif);color:var(--gold);letter-spacing:1.5px;font-size:12.5px;margin-bottom:5px}
@@ -2259,6 +2264,7 @@ function applyAtlasContracts(){
     if(s.labelEl){s.labelEl.dataset.entityId=c.identity.entity_id;s.labelEl.classList.add('evidence-'+c.quality.evidence_class);}
   }
 }
+let atlasExploreTier=null;   // QA Atlas entity-explorer tier filter (UI only)
 function renderAtlasPanel(){
   const p=document.getElementById('atlasPanel');if(!p||!panelIsOpen('atlasPanel'))return;
   const scores=atlasScorecards(),contracts=[...SELECT.keys()].map(getAtlasEntityContract);
@@ -2275,6 +2281,19 @@ function renderAtlasPanel(){
       <div class="note">A catalogue-derived · B literature fit · C probabilistic reconstruction · D display anchor · M model-only</div>
       <div class="atlasBadges">${['A','B','C','D','M'].filter(t=>tiers[t]).map(t=>`<span class="atlasBadge tier-${t}">${t} · ${tiers[t].length}</span>`).join('')}</div>
       ${catReq.length?`<div class="note">${catReq.length} structure(s) await an external catalogue to reach tier A: ${esc(catReq.map(c=>c.identity.label).join(', '))}. Until loaded they render as field anchors and the contract forbids exact 3D centroid / tilt / covariance / Bayes-factor claims.</div>`:''}</div>
+    <div class="sect"><b>Entity explorer · click to fly to it in 3D</b>
+      <div class="note">Filter the live catalogue and jump straight to any object in the scene. Tier chips also fade non-matching labels in 3D.</div>
+      <div class="atlasBadges">
+        ${['A','B','C','D','M'].filter(t=>tiers[t]).map(t=>`<span class="atlasBadge tier-${t} atlasExpTier ${atlasExploreTier===t?'on':''}" data-exptier="${t}">${t} · ${tiers[t].length}</span>`).join('')}
+        <span class="atlasBadge atlasExpTier ${atlasExploreTier===null?'on':''}" data-exptier="">all · ${contracts.length}</span></div>
+      <div class="navList" style="max-height:210px;overflow:auto;margin-top:6px">
+        ${[...SELECT.keys()].map(k=>({k,c:getAtlasEntityContract(k)}))
+          .filter(o=>!atlasExploreTier||o.c.quality.accuracy_tier===atlasExploreTier)
+          .sort((a,b)=>a.c.quality.accuracy_tier.localeCompare(b.c.quality.accuracy_tier)||a.c.identity.label.localeCompare(b.c.identity.label))
+          .map(o=>`<div class="navRow ${o.k===selectedKey?'on':''}" data-expsel="${esc(o.k)}" title="Select &amp; fly to in 3D">
+            <span class="atlasBadge tier-${o.c.quality.accuracy_tier}">${o.c.quality.accuracy_tier}</span>
+            <span class="nm">${esc(o.c.identity.label)}</span>
+            <span class="note" style="font-size:9px">${esc(MODE_META[SELECT.get(o.k).mode]||'')}</span></div>`).join('')}</div></div>
     <div class="sect"><b>Uncertainty & audience</b>
       <div class="ctlrow"><label>Quality cues on labels</label><input id="atlasOverlay" type="checkbox" ${state.showQualityOverlay?'checked':''}></div>
       <div class="radioRow"><button class="btn ${state.atlasAudience==='expert'?'on':''}" data-audience="expert">Expert</button>
@@ -2297,6 +2316,8 @@ function renderAtlasPanel(){
       <button class="btn ${state.showPhysDebug?'green':''}" id="atlasPhysDebug">⚙ Physics Debug ${state.showPhysDebug?'on':'off'}</button></div></div>
     <details><summary>Actual integration status</summary><div class="note">${Object.entries(ATLAS_RUNTIME_PROFILE).map(([k,v])=>
       typeof v==='string'?`<b>${esc(k)}</b>: ${esc(v)}`:`<b>${esc(k)}</b>: ${esc(v.status)} · target ${esc(v.recommended)}`).join('<br>')}</div></details>`;
+  p.querySelectorAll('[data-exptier]').forEach(b=>b.onclick=()=>{ atlasExploreTier=b.dataset.exptier||null; setTierFilter(atlasExploreTier); renderAtlasPanel(); });
+  p.querySelectorAll('[data-expsel]').forEach(r=>r.onclick=()=>selectGlobalKey(r.dataset.expsel,true));
   p.querySelector('#atlasOverlay').onchange=e=>{state.showQualityOverlay=e.target.checked;document.body.classList.toggle('qualityOverlay',state.showQualityOverlay);};
   p.querySelectorAll('[data-audience]').forEach(b=>b.onclick=()=>applyAudienceMode(b.dataset.audience));
   p.querySelector('#atlasExport').onclick=exportAtlasManifest;
@@ -8769,8 +8790,12 @@ function setMode(mode){
   buildCtl();
   updateBreadcrumb();
 }
-// selecting a main section opens its Controls so the relevant tools are always one tap away
-document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{ setMode(b.dataset.mode); openPanel('ctl'); });
+// selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
+// (so the same button both reveals and hides them — quick to see, quick to dismiss)
+document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
+  if(b.dataset.mode===state.mode){ togglePanel('ctl'); }
+  else { setMode(b.dataset.mode); openPanel('ctl'); }
+});
 /* compact topbar "More" dropdown + Controls FAB */
 (()=>{
   const moreBtn=document.getElementById('moreBtn'), moreMenu=document.getElementById('moreMenu'), ctlFab=document.getElementById('ctlFab');
