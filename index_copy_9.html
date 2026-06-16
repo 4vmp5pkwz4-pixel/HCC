@@ -1062,6 +1062,32 @@ function runSelfTests(){
     INTERACTION.diagnostics().scientificCoordinatesAffected==='NO'
       && INTERACTION.simulateInteraction({position:{x:0,y:0,z:0}},'grab',{x:1,y:1,z:1}).scientificMutated===false,
     'physics debug is read-only over science');
+  // --- Phase: machine-readable JWST/Abell 2744−QSO1 data provenance ---
+  ok('cosmos_a2744_qso1 jwstProgramId === "5015"',
+    SELECT.get('cosmos_a2744_qso1')?.dataProvenance?.jwstProgramId==='5015',
+    SELECT.get('cosmos_a2744_qso1')?.dataProvenance?.jwstProgramId);
+  ok('cosmos_a2744_qso1 jwstInstrument includes NIRSpec',
+    (SELECT.get('cosmos_a2744_qso1')?.dataProvenance?.jwstInstrument||'').includes('NIRSpec'),
+    SELECT.get('cosmos_a2744_qso1')?.dataProvenance?.jwstInstrument);
+  ok('cosmos_a2744_qso1 raw contract includes mastPortalUrl',
+    JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('mastPortalUrl')
+      && JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('mast.stsci.edu/portal'),
+    'MAST portal URL present in contract');
+  ok('cosmos_a2744_qso1 raw contract includes dataAccess',
+    JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('dataAccess')
+      && JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('MAST Portal / MAST API'),
+    'dataAccess present in contract');
+  ok('cosmos_a2744_qso1 raw contract includes modellingCode "MOKA3D"',
+    (()=>{ const dp=getAtlasEntityContract('cosmos_a2744_qso1').provenance.data_provenance;
+      return dp && dp.modellingCode==='MOKA3D'
+        && JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('MOKA3D'); })(),
+    'modellingCode MOKA3D present in contract');
+  ok('cosmos_a2744_qso1 raw contract includes Nature DOI 10.1038/s41586-026-10579-4',
+    JSON.stringify(getAtlasEntityContract('cosmos_a2744_qso1')).includes('10.1038/s41586-026-10579-4'),
+    'Nature article DOI present in contract');
+  ok('cosmos_a2744_qso1 forbidden claims still include no FITS cubes in browser runtime',
+    getAtlasEntityContract('cosmos_a2744_qso1').quality.forbidden_claims.includes('Do not load FITS cubes directly in browser runtime.'),
+    'in-browser FITS loading remains forbidden');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -1591,7 +1617,22 @@ function renderSelectionContract(){
     <span class="atlasBadge">${esc(c.space.coord_frame)}</span><span class="atlasBadge">${esc(c.physics.unit)}</span></div>
     <div class="relclaim">${esc(c.identity.entity_id)} · ${esc(c.identity.semantic_type)} ·
     catalogue: ${esc(q.catalogue_status)} · uncertainty: ${esc(c.uncertainty.semantics)} · metadata completeness ${q.metadata_completeness_pct}%</div>
-    ${q.forbidden_claims.length?`<div class="relclaim" style="color:var(--warn)">⚠ Forbidden at tier ${esc(q.accuracy_tier)}: ${esc(q.forbidden_claims.join(' · '))}</div>`:''}`;
+    ${q.forbidden_claims.length?`<div class="relclaim" style="color:var(--warn)">⚠ Forbidden at tier ${esc(q.accuracy_tier)}: ${esc(q.forbidden_claims.join(' · '))}</div>`:''}
+    ${c.provenance.data_provenance?dataProvenanceHtml(c.provenance.data_provenance):''}`;
+}
+const DP_LABELS={jwstProgramId:'JWST program ID',jwstInstrument:'Instrument',mastPortalUrl:'MAST portal',
+  mastSearchHint:'MAST search hint',dataAccess:'Data access',reducedProducts:'Reduced products',
+  modellingCode:'Modelling code',natureArticleDoi:'Nature DOI'};
+function dataProvenanceHtml(dp){
+  const row=(k,v)=>{
+    let val=esc(v);
+    if(k==='mastPortalUrl') val=`<a href="${esc(v)}" target="_blank" rel="noopener" style="color:var(--gold-2)">${esc(v)}</a>`;
+    else if(k==='natureArticleDoi') val=`<a href="https://doi.org/${esc(v)}" target="_blank" rel="noopener" style="color:var(--gold-2)">${esc(v)}</a>`;
+    return `<div class="relclaim"><b style="color:var(--dim)">${esc(DP_LABELS[k]||k)}:</b> ${val}</div>`;
+  };
+  return `<div class="selStab"><b style="color:#9cc8ff">DATA PROVENANCE</b>
+    <div class="relclaim">Metadata only in browser runtime — no FITS cubes embedded or fetched.</div>
+    ${Object.entries(dp).map(([k,v])=>row(k,v)).join('')}</div>`;
 }
 function renderSelectionRelations(){
   const box=document.getElementById('selRelations'), rels=getObjectRelations(selectedKey);
@@ -1879,7 +1920,8 @@ function getAtlasEntityContract(key){
     uncertainty:atlasUncertainty(key,s,evidence),
     provenance:{source_dataset:sources,source_classes:sources.map(x=>SOURCE_CLASS[x]||'unregistered'),
       source_run:'browser-runtime-live',source_model:evidence,derivation_rule:formulas,
-      license:'not encoded in embedded source registry',checksum:atlasHash({key,sources,formulas,desc:s.desc||''})},
+      license:'not encoded in embedded source registry',checksum:atlasHash({key,sources,formulas,desc:s.desc||''}),
+      ...(s.dataProvenance?{data_provenance:{...s.dataProvenance}}:{})},
     quality:{validation_suite_version:'runtime-self-tests/v1',quality_score:{kind:'metadata-completeness-only',value_pct:0},
       evidence_class:evidence,accuracy_tier:tier,accuracy_tier_meaning:ATLAS_ACCURACY_TIERS[tier],
       precision_policy:atlasPrecisionPolicy(key,s),catalogue_status:atlasCatalogueStatus(key,s),
@@ -3289,6 +3331,15 @@ const COSMOS = [
   {key:'a2744_qso1', name:'Abell 2744−QSO1 / Little Red Dot BH Seed', ra:3.5798375, dec:-30.4015733, z:7.04,
     size:0.01, type:'high-z AGN / little red dot / black-hole seed', col:0xff8a5c, srcTags:['JWST_LRD'],
     accuracyTier:'A', catalogueStatus:'literature-derived',
+    dataProvenance:{
+      jwstProgramId:'5015',
+      jwstInstrument:'NIRSpec IFU',
+      mastPortalUrl:'https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html',
+      mastSearchHint:'JWST Program ID 5015; Instrument NIRSpec; RA 00:14:19.161; Dec -30:24:05.664',
+      dataAccess:'MAST Portal / MAST API; metadata only in browser runtime',
+      reducedProducts:'Zenodo reduced products; do not embed FITS cubes',
+      modellingCode:'MOKA3D',
+      natureArticleDoi:'10.1038/s41586-026-10579-4'},
     forbiddenClaims:[
       'Do not treat as a large-scale structure.',
       'Do not infer topology from this object.',
@@ -3340,6 +3391,7 @@ for(const s of COSMOS){
     accuracyTier:s.accuracyTier || (s.centroidKnown===false?'D':s.reconstruction?'C':'B'),
     catalogueStatus:s.catalogueStatus || (s.centroidKnown===false?'external-required':s.reconstruction?'external-required':'literature-derived'),
     ...(s.forbiddenClaims?{forbiddenClaims:s.forbiddenClaims.slice()}:{}),
+    ...(s.dataProvenance?{dataProvenance:{...s.dataProvenance}}:{}),
     coords:{frame:'ICRS_J2000_RA_DEC',raDeg:s.ra,decDeg:s.dec,z:s.z},
     desc:`${s.name} — ${s.note}. Placed at ΛCDM comoving distance ${dist.toFixed(2)} Gly (flat, H0=67.4, Ωm=0.315). ${s.reconstruction?'The marker is a reconstruction/display anchor: basin boundary and flow convergence are probabilistic and scale-dependent.':s.centroidKnown===false?'The direction is an explicitly labelled field midpoint, not a structure centroid; no precise 3D ring is asserted.':'Direction is the cited approximate centre of this extended structure.'} Observational context only; not a topology claim.`,
     getPos:()=>g.position.clone(), focusDist:()=>Math.max(r*3,1.2),
