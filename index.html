@@ -1308,6 +1308,12 @@ function runSelfTests(){
       return ORBIT && typeof ORBIT.on==='boolean' && INTERACTION.scientificUnchanged(before, getAtlasEntityContract);
     }catch(e){ return false; } })(),
     'orbit affects camera + autoRotate only');
+  ok('4D regular polytopes have exact vertex/edge counts (tesseract 16/32 · 16-cell 8/24 · 24-cell 24/96)',
+    (()=>{ try{ return POLY4D.tesseract.V.length===16&&POLY4D.tesseract.E.length===32
+      && POLY4D.cell16.V.length===8&&POLY4D.cell16.E.length===24
+      && POLY4D.cell24.V.length===24&&POLY4D.cell24.E.length===96
+      && FRACTAL_TYPES.polytope4d!==undefined; }catch(e){ return false; } })(),
+    'exact 4-polytope combinatorics');
   ok('3D Bifurcation⊗Mandelbrot fractal is registered; logistic = real-axis dynamics of z→z²+c',
     (()=>{ try{ if(FRACTAL_TYPES.bifurc3d===undefined || typeof buildBifurcMandelbrot3D!=='function') return false;
       const orbit=c=>{ let x=0; for(let n=0;n<200;n++){ x=x*x+c; if(!Number.isFinite(x)||Math.abs(x)>1e3) return Infinity; } return Math.abs(x); };
@@ -5730,7 +5736,7 @@ const fractalUniforms = {
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
 let fractalPalette='silver';
@@ -5752,9 +5758,11 @@ function setFractalType(type,reset=true){
     else { setFractalZoom(1); fractalUniforms.uCenter.value.set(type==='julia'?0:-.5,0); }
   }
   setFractalZoom(fractalUniforms.uZoom.value);
-  if(type==='bifurc3d' && state.mode==='fractal'){
-    camera.position.set(6,6,21); controls.target.set(0,0,0); camera.fov=55;
-    setControlDistanceLimits(4,160); camera.updateProjectionMatrix();
+  if(state.mode==='fractal' && (type==='bifurc3d'||type==='polytope4d')){
+    camera.fov=55; controls.target.set(0,0,0);
+    if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
+    else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
+    camera.updateProjectionMatrix();
   }
   if(typeof updateBifurcView==='function') updateBifurcView();
   syncControlCapabilities(); syncCameraClipping(true);
@@ -5809,11 +5817,64 @@ function buildBifurcMandelbrot3D(){
   L('real axis  c : +0.25 → −2','label axis',bifCx(0.6),0,0);
   L('the logistic map is the real-axis dynamics of z→z²+c','label dim',bifCx(-0.6),-1.36*BIF_S,0);
 }
+/* ── True 4D regular polytopes (tesseract · 16-cell · 24-cell) ───────
+   Exact 4D vertex/edge data, live double-rotation in R⁴ (XW & YZ planes),
+   perspective-projected R⁴→R³. Pure geometry, fully orbit-rotatable in 3D
+   on top of the intrinsic 4D tumble — a genuine glimpse of the 4th
+   dimension, none of it a physical claim. */
+const POLY4D=(()=>{
+  const tess={name:'Tesseract · 8-cell',V:[],E:[]};
+  for(let i=0;i<16;i++) tess.V.push([(i&1)?1:-1,(i&2)?1:-1,(i&4)?1:-1,(i&8)?1:-1]);
+  for(let i=0;i<16;i++)for(let j=i+1;j<16;j++){let d=0;for(let k=0;k<4;k++)if(tess.V[i][k]!==tess.V[j][k])d++;if(d===1)tess.E.push([i,j]);}
+  const c16={name:'16-cell',V:[],E:[]};
+  for(let k=0;k<4;k++)for(const s of[1,-1]){const v=[0,0,0,0];v[k]=s;c16.V.push(v);}
+  for(let i=0;i<8;i++)for(let j=i+1;j<8;j++){let anti=true;for(let k=0;k<4;k++)if(c16.V[i][k]!==-c16.V[j][k])anti=false;if(!anti)c16.E.push([i,j]);}
+  const c24={name:'24-cell',V:[],E:[]};
+  for(const[p,q]of[[0,1],[0,2],[0,3],[1,2],[1,3],[2,3]])for(const sp of[1,-1])for(const sq of[1,-1]){const v=[0,0,0,0];v[p]=sp;v[q]=sq;c24.V.push(v);}
+  for(let i=0;i<24;i++)for(let j=i+1;j<24;j++){let d2=0;for(let k=0;k<4;k++){const dd=c24.V[i][k]-c24.V[j][k];d2+=dd*dd;}if(Math.abs(d2-2)<1e-9)c24.E.push([i,j]);}
+  return {tesseract:tess,cell16:c16,cell24:c24};
+})();
+const poly4dGroup=new THREE.Group(); poly4dGroup.visible=false; scene.add(poly4dGroup);
+const POLY4={a:0,b:0,which:null,P:null,lineGeo:null,ptGeo:null,scale:2.4};
+function buildPolytope4D(){
+  const which=state.poly4d||'tesseract';
+  if(POLY4.which===which && POLY4.lineGeo) return;
+  POLY4.which=which;
+  while(poly4dGroup.children.length){ const c=poly4dGroup.children.pop(); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); poly4dGroup.remove(c); }
+  const P=POLY4.P=POLY4D[which]||POLY4D.tesseract;
+  POLY4.lineGeo=new THREE.BufferGeometry();
+  POLY4.lineGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P.E.length*6),3));
+  poly4dGroup.add(new THREE.LineSegments(POLY4.lineGeo,new THREE.LineBasicMaterial({color:0x8fd0ff,transparent:true,opacity:.7,blending:THREE.AdditiveBlending})));
+  POLY4.ptGeo=new THREE.BufferGeometry();
+  POLY4.ptGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P.V.length*3),3));
+  poly4dGroup.add(new THREE.Points(POLY4.ptGeo,new THREE.PointsMaterial({color:0xfff0c0,size:.1,sizeAttenuation:true,transparent:true,opacity:.95,depthWrite:false})));
+  const lab=mkLabel(`${P.name} · ${P.V.length} vertices · ${P.E.length} edges · R⁴→R³`,'label axis');
+  lab.position.set(0,POLY4.scale*1.75,0); poly4dGroup.add(lab);
+  updatePolytope4D(0);
+}
+function updatePolytope4D(dt){
+  if(!POLY4.lineGeo) return;
+  POLY4.a+=dt*0.35; POLY4.b+=dt*0.21;
+  const P=POLY4.P, ca=Math.cos(POLY4.a),sa=Math.sin(POLY4.a),cb=Math.cos(POLY4.b),sb=Math.sin(POLY4.b), d=3.3, S=POLY4.scale;
+  const proj=P.V.map(v=>{ let x=v[0],y=v[1],z=v[2],w=v[3];
+    const x1=x*ca-w*sa, w1=x*sa+w*ca; x=x1; w=w1;
+    const y1=y*cb-z*sb, z1=y*sb+z*cb; y=y1; z=z1;
+    const s=S*d/(d-w); return [x*s,y*s,z*s]; });
+  const lp=POLY4.lineGeo.attributes.position.array;
+  P.E.forEach((e,i)=>{ const a=proj[e[0]],b=proj[e[1]]; lp[i*6]=a[0];lp[i*6+1]=a[1];lp[i*6+2]=a[2];lp[i*6+3]=b[0];lp[i*6+4]=b[1];lp[i*6+5]=b[2]; });
+  POLY4.lineGeo.attributes.position.needsUpdate=true;
+  const pp=POLY4.ptGeo.attributes.position.array;
+  proj.forEach((p,i)=>{ pp[i*3]=p[0];pp[i*3+1]=p[1];pp[i*3+2]=p[2]; });
+  POLY4.ptGeo.attributes.position.needsUpdate=true;
+}
+const GEO_FRACTALS=new Set(['bifurc3d','polytope4d']);   // fractal "types" rendered as real 3D geometry
 function updateBifurcView(){
-  const on=state.mode==='fractal'&&fractalType==='bifurc3d';
-  if(on) buildBifurcMandelbrot3D();
-  bifurcGroup.visible=on;
-  if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(state.mode==='fractal'&&!on)?'none':'block';
+  const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
+  if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
+  if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
+  bifurcGroup.visible = isFrac&&fractalType==='bifurc3d';
+  poly4dGroup.visible = isFrac&&fractalType==='polytope4d';
+  if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(isFrac&&!geo)?'none':'block';
 }
 const fractalScene = new THREE.Scene();
 {
@@ -7393,7 +7454,7 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
-  evidenceFilter:null, tierFilter:null,
+  evidenceFilter:null, tierFilter:null, poly4d:'tesseract',
 };
 const lastGoodCamera={position:new THREE.Vector3(0,26,52),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
 const finiteVector=v=>v?.isVector3&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);
@@ -8415,7 +8476,7 @@ function buildCtl(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D'}[k]}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes'}[k]}</button>`).join('')}
       </div>
     </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
@@ -8465,6 +8526,13 @@ function buildCtl(){
       <div class="ctlrow"><button class="btn green" id="bifFeig">→ Feigenbaum point r≈3.5699</button></div>
       <div class="ctlrow"><button class="btn" id="bifFull">whole diagram</button></div>
     </div>`:''}
+    ${fractalType==='polytope4d'?`<div class="sect"><b>Regular 4-polytope · R⁴ → R³</b>
+      <div class="note">An exact regular polytope of four-dimensional space, tumbling in R⁴ (double rotation in the XW and YZ planes) and perspective-projected into 3D. Orbit in 3D with the mouse on top of the intrinsic 4D rotation. Geometry only — not a physical claim.</div>
+      <div class="chips">
+        <button class="chip ${state.poly4d==='tesseract'?'on':''}" data-poly4d="tesseract">Tesseract · 8-cell</button>
+        <button class="chip ${state.poly4d==='cell16'?'on':''}" data-poly4d="cell16">16-cell</button>
+        <button class="chip ${state.poly4d==='cell24'?'on':''}" data-poly4d="cell24">24-cell</button></div>
+    </div>`:''}
     ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
       <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
       <div class="note">The logistic map x→r·x·(1−x) is exactly conjugate to z→z²+c via <b>c = r/2 − r²/4</b>, so the whole bifurcation diagram lives on the Mandelbrot real axis. Landmarks (gold = periodic, ember = chaotic):</div>
@@ -8483,6 +8551,7 @@ function buildCtl(){
       φ-Nested overlays logarithmic golden-ratio contour bands as an explicitly
       FBS3R-inspired exploratory layer. Default palette is neutral silver metal; every palette uses the same iteration/density scalar and changes only its visual transfer function.</div>`;
     ctl.querySelectorAll('[data-fractal]').forEach(b=>b.onclick=()=>{setFractalType(b.dataset.fractal);buildCtl();});
+    ctl.querySelectorAll('[data-poly4d]').forEach(b=>b.onclick=()=>{ state.poly4d=b.dataset.poly4d; buildPolytope4D(); buildCtl(); });
     ctl.querySelector('#fpalette').onchange=e=>{setFractalPalette(e.target.value);buildCtl();};
     ctl.querySelector('#pow')?.addEventListener('input',e=>{fractalUniforms.uPower.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr')?.addEventListener('input',e=>{fractalUniforms.uIters.value=+e.target.value|0;updCtlVals();});
@@ -8796,7 +8865,7 @@ info.addEventListener('click', e=>{
 
 /* ---------------- MODE SWITCHING ---------------- */
 function syncControlCapabilities(){
-  const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||fractalType==='bifurc3d');  // true 3D fractal views
+  const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||fractalType==='bifurc3d'||fractalType==='polytope4d');  // true 3D fractal views
   const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&!is3D);
   controls.enabled=!state.landed;
   controls.enableZoom=!semanticZoom;
@@ -8847,6 +8916,7 @@ function setMode(mode){
     setControlDistanceLimits(2,400);
   } else {
     if(fractalType==='bifurc3d'){ camera.position.set(6,6,21); controls.target.set(0,0,0); setControlDistanceLimits(4,160); }
+    else if(fractalType==='polytope4d'){ camera.position.set(4.5,3.5,8.5); controls.target.set(0,0,0); setControlDistanceLimits(2,60); }
     else { camera.position.set(2.2,1.4,2.2); controls.target.set(0,0,0); setControlDistanceLimits(2.25,20); }
   }
   camera.fov = 55;syncControlCapabilities();stabilizeCamera();syncCameraClipping(true);
@@ -9581,9 +9651,15 @@ function tickBody(now, frame){
   if(state.mode==='fractal' && !renderer.xr.isPresenting){
     controls.update();
     stabilizeCamera();
-    if(fractalType==='bifurc3d'){                 // true-3D point cloud rendered with the perspective camera
-      hudBig.textContent='Bifurcation ⊗ Mandelbrot · 3D';
-      hudSub.textContent='Logistic period-doubling (z) rises above the real axis of the Mandelbrot set · drag to orbit · scroll to zoom';
+    if(GEO_FRACTALS.has(fractalType)){            // true-3D geometry rendered with the perspective camera
+      if(fractalType==='bifurc3d'){
+        hudBig.textContent='Bifurcation ⊗ Mandelbrot · 3D';
+        hudSub.textContent='Logistic period-doubling (z) rises above the real axis of the Mandelbrot set · drag to orbit · scroll to zoom';
+      } else {
+        updatePolytope4D(dt);
+        hudBig.textContent=(POLY4.P?POLY4.P.name:'4D Polytope')+' · live 4D rotation';
+        hudSub.textContent='regular 4-polytope tumbling in R⁴, projected to R³ · drag to orbit in 3D · scroll to zoom';
+      }
       renderer.render(scene, camera);
       if(!MOBILE_GPU||++labelRenderFrame%2===0) labelRenderer.render(scene,camera);   // 3D annotations
       if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
