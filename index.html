@@ -1308,6 +1308,14 @@ function runSelfTests(){
       return ORBIT && typeof ORBIT.on==='boolean' && INTERACTION.scientificUnchanged(before, getAtlasEntityContract);
     }catch(e){ return false; } })(),
     'orbit affects camera + autoRotate only');
+  ok('Atlas Coach grand tour enumerates every selectable 3D object and never mutates science',
+    (()=>{ try{ const before=INTERACTION.scientificSnapshot(getAtlasEntityContract);
+      journeyBuildList();
+      const expect=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length;
+      return journey.list.length===expect && journey.list.length>5
+        && journey.list.every(k=>SELECT.has(k))
+        && INTERACTION.scientificUnchanged(before, getAtlasEntityContract); }catch(e){ return false; } })(),
+    'journey covers all objects, read-only');
   ok('Hydrogen orbitals are exact real |ψ| shapes (1s positive · 2p has a nodal plane & phase flip)',
     (()=>{ try{ const f1=ORBITALS['1s'].f, f2=ORBITALS['2p'].f;
       return FRACTAL_TYPES.orbital3d!==undefined
@@ -9076,6 +9084,7 @@ const CMDK = (()=>{
     add('Reset View','re-frame the active mode','↺',()=>setMode(state.mode));
     add('Toggle Public/Expert',state.atlasAudience,'◑',()=>applyAudienceMode(state.atlasAudience==='expert'?'public':'expert'));
     add('Export selected contract',selectedKey?objectName(SELECT.get(selectedKey)):'no selection','⬇',()=>exportSelectedContract(),!!selectedKey);
+    add('Start grand tour (all objects)','auto-travel + orbit every object · Atlas Coach','🎬',()=>{ try{journeyStart();}catch(e){} });
     add('Open Help','keyboard shortcuts (?)','?',()=>HELP.open());
     add('Save current view bookmark','store mode · selection · camera','★',()=>NAV.saveBookmark());
     return c;
@@ -9275,6 +9284,49 @@ const COACH_STEPS=[
   'Open Raw Contract for provenance and coordinates.',
   'Use Related Objects to move through the atlas.',
 ];
+/* Atlas Coach "Grand Tour": auto-travel through EVERY selectable object,
+   opening each description, focusing and orbiting it, with ONE slider for the
+   whole journey time (dwell per object = total / N). Camera/UI only. */
+const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0};
+function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
+function journeyBuildList(){
+  const ord={solar:0,cyc:1,obs:2,s3:3,fbs:4,fractal:9};
+  journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function')
+    .sort((a,b)=>(ord[a[1].mode]-ord[b[1].mode])||objectName(a[1]).localeCompare(objectName(b[1]))).map(([k])=>k);
+}
+function journeyGo(){
+  const k=journey.list[journey.idx]; if(!k||!SELECT.has(k)) return;
+  selectGlobalKey(k,true); ORBIT.on=true; ORBIT.secondaryKey=null; journey.acc=0;
+  try{ AtlasCoach.refresh(); }catch(e){}
+}
+function journeyStart(){ journeyBuildList(); if(!journey.list.length) return;
+  journey.active=true; journey.playing=true; journey.idx=0;
+  try{ AtlasCoach.show(); AtlasCoach.setCollapsed(false); }catch(e){} journeyGo(); }
+function journeyStep(d){ if(!journey.list.length) journeyBuildList(); if(!journey.list.length) return;
+  journey.active=true; journey.idx=(journey.idx+d+journey.list.length)%journey.list.length; journeyGo(); }
+function journeyStop(){ journey.playing=false; journey.active=false; ORBIT.on=false; controls.autoRotate=false; try{AtlasCoach.refresh();}catch(e){} }
+function journeyTogglePlay(){ if(!journey.active){ journeyStart(); return; } journey.playing=!journey.playing; try{AtlasCoach.refresh();}catch(e){} }
+function journeySetMinutes(m){ journey.totalSec=Math.max(30,(+m||8)*60); }
+function journeyTick(dt){
+  if(!journey.playing||!journey.list.length||state.landed||renderer.xr.isPresenting) return;
+  const per=Math.max(2.5, journey.totalSec/journey.list.length);
+  journey.acc+=dt; if(journey.acc>=per){ journey.idx=(journey.idx+1)%journey.list.length; journeyGo(); }
+}
+function journeyHtml(){
+  const N=journey.list.length||journeyCount(), mins=Math.round(journey.totalSec/60), per=N?Math.max(2.5,journey.totalSec/N):0;
+  let h=`<div class="coachMsg" style="border-top:1px solid var(--gold-dim);padding-top:6px;margin-top:4px"><b>🎬 Grand tour · all ${N} objects</b></div>`;
+  if(journey.active){
+    const cs=SELECT.get(journey.list[journey.idx]);
+    h+=`<div class="coachMsg">${journey.idx+1} / ${journey.list.length}${cs?(' · '+esc(objectName(cs))):''}</div>`;
+    h+=`<div class="coachBtns"><button class="btn" data-cj="prev">◀ Prev</button>
+      <button class="btn green" data-cj="play">${journey.playing?'⏸ Pause':'▶ Play'}</button>
+      <button class="btn" data-cj="next">Next ▶</button>
+      <button class="btn" data-cj="stop">⏹ Stop</button></div>`;
+  } else h+=`<div class="coachBtns"><button class="btn green" data-cj="start">▶ Auto-tour every object</button></div>`;
+  h+=`<div class="coachMsg">Whole journey: <span data-cjlabel><b>${mins} min</b>${N?` · ~${per.toFixed(0)} s / object (orbiting)`:''}</span></div>`;
+  h+=`<div class="ctlrow"><input type="range" data-cj="time" min="1" max="40" step="1" value="${mins}" style="width:100%"></div>`;
+  return h;
+}
 const AtlasCoach=(()=>{
   const el=document.getElementById('atlasCoach');
   const LS={dismissed:'atlasCoachDismissed',collapsed:'atlasCoachCollapsed',step:'atlasCoachStep'};
@@ -9299,6 +9351,7 @@ const AtlasCoach=(()=>{
     let h=`<div class="coachHead"><b>Atlas Coach</b>
       <button class="mini" data-c="collapse" title="Collapse / expand">${collapsed()?'▣':'—'}</button></div>
       <div class="coachBody">`;
+    h+=journeyHtml();
     if(desktopTour){
       const st=desktopTour.stops[desktopTourIdx];
       h+=`<div class="coachMsg"><span class="ctxName">${esc(desktopTour.name)}</span> · stop ${desktopTourIdx+1}/${desktopTour.stops.length}</div>`;
@@ -9340,6 +9393,13 @@ const AtlasCoach=(()=>{
     h+=`</div>`;
     el.innerHTML=h;
     el.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{ e.preventDefault(); action(b.dataset.c); });
+    el.querySelectorAll('[data-cj]').forEach(b=>{
+      if(b.tagName==='INPUT') b.oninput=()=>{ journeySetMinutes(b.value); const lbl=el.querySelector('[data-cjlabel]');
+        if(lbl) lbl.innerHTML=`<b>${Math.round(journey.totalSec/60)} min</b>`+(journey.list.length?` · ~${Math.max(2.5,journey.totalSec/journey.list.length).toFixed(0)} s / object (orbiting)`:''); };
+      else b.onclick=e=>{ e.preventDefault(); const c=b.dataset.cj;
+        if(c==='start')journeyStart(); else if(c==='play')journeyTogglePlay();
+        else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1); else if(c==='stop')journeyStop(); };
+    });
   }
   function action(c){
     if(c==='collapse'){ lsSet(LS.collapsed, collapsed()?'0':'1'); refresh(); }
@@ -9670,6 +9730,7 @@ function tick(now, frame){
 }
 function tickBody(now, frame){
   const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (no backward time)
+  if(typeof journeyTick==='function') journeyTick(dt);   // Atlas Coach grand-tour auto-advance
   if(rendererResizePending&&!renderer.xr.isPresenting)syncRendererViewport();
   if(webglContextLost){
     // self-heal: if the GL context is actually alive again, clear the latch and resume rendering
