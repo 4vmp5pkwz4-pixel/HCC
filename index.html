@@ -1940,8 +1940,12 @@ function selectionContext(key,s){
 }
 function selectGlobalKey(key,focus=false){
   const s=SELECT.get(key); if(!s) return;
+  const prevMode=state.mode, prevS3=state.s3view;
   selectionContext(key,s);
-  setMode(s.mode);
+  // Only re-enter the mode when it actually changes — staying in a mode avoids the
+  // jarring camera reset, so the focus fly-to glides smoothly between objects.
+  if(s.mode!==prevMode) setMode(s.mode);
+  else if(s.mode==='s3' && state.s3view!==prevS3) setS3View(state.s3view);
   selectKey(key);
   if(focus&&s.mode!=='fractal') focusOn(s);
 }
@@ -9287,7 +9291,7 @@ const COACH_STEPS=[
 /* Atlas Coach "Grand Tour": auto-travel through EVERY selectable object,
    opening each description, focusing and orbiting it, with ONE slider for the
    whole journey time (dwell per object = total / N). Camera/UI only. */
-const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0,showInfo:true,scope:'all'};
+const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0,showInfo:false,scope:'all'};
 function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
 function journeyBuildList(){
   const ord={solar:0,cyc:1,obs:2,s3:3,fbs:4,fractal:9}, sc=journey.scope||'all';
@@ -9323,8 +9327,11 @@ function journeyHtml(){
   const N=journey.list.length||journeyCount(), mins=Math.round(journey.totalSec/60), per=N?Math.max(2.5,journey.totalSec/N):0;
   let h=`<div class="coachMsg" style="border-top:1px solid var(--gold-dim);padding-top:6px;margin-top:4px"><b>🎬 Grand tour · all ${N} objects</b></div>`;
   if(journey.active){
-    const cs=SELECT.get(journey.list[journey.idx]);
-    h+=`<div class="coachMsg">${journey.idx+1} / ${journey.list.length}${cs?(' · '+esc(objectName(cs))):''}</div>`;
+    const ck=journey.list[journey.idx], cs=ck&&SELECT.get(ck);
+    if(cs){ const ev=atlasEvidenceClass(ck,cs), ti=atlasAccuracyTier(ck,cs);
+      h+=`<div class="coachMsg"><span class="ctxName" style="font-size:13px">${esc(objectName(cs))}</span> <span class="tier">tier ${esc(ti)}</span></div>
+          <div class="coachMsg">${journey.idx+1} / ${journey.list.length} · ${esc(MODE_META[cs.mode]||cs.mode)} · ${esc(ev)}</div>`; }
+    else h+=`<div class="coachMsg">${journey.idx+1} / ${journey.list.length}</div>`;
     h+=`<div class="coachBtns"><button class="btn" data-cj="prev">◀ Prev</button>
       <button class="btn green" data-cj="play">${journey.playing?'⏸ Pause':'▶ Play'}</button>
       <button class="btn" data-cj="next">Next ▶</button>
@@ -9404,20 +9411,24 @@ const AtlasCoach=(()=>{
       h+=`<div class="${isPublic?'cardTip':'coachTip'}">Tip: double-click any object or label to focus.</div>`;
     }
     h+=`</div>`;
-    el.innerHTML=h;
-    el.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{ e.preventDefault(); action(b.dataset.c); });
-    el.querySelectorAll('[data-cj]').forEach(b=>{
-      const c=b.dataset.cj;
-      if(c==='time') b.oninput=()=>{ journeySetMinutes(b.value); const lbl=el.querySelector('[data-cjlabel]');
-        if(lbl) lbl.innerHTML=`<b>${Math.round(journey.totalSec/60)} min</b>`+(journey.list.length?` · ~${Math.max(2.5,journey.totalSec/journey.list.length).toFixed(0)} s / object (orbiting)`:''); };
-      else if(c==='info') b.onchange=()=>{ journey.showInfo=b.checked; journeyShowInfo(); };
-      else if(c==='scope') b.onchange=()=>{ journey.scope=b.value; journeyBuildList(); refresh(); };
-      else b.onclick=e=>{ e.preventDefault();
-        if(c==='start')journeyStart(); else if(c==='play')journeyTogglePlay();
-        else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1);
-        else if(c==='oprev')journeyBrowse(-1); else if(c==='onext')journeyBrowse(1);
-        else if(c==='stop')journeyStop(); };
-    });
+    el.innerHTML=h;   // handlers are delegated once on `el` (see below) so they always work after re-render
+  }
+  function cjAction(c){
+    if(c==='start')journeyStart(); else if(c==='play')journeyTogglePlay();
+    else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1);
+    else if(c==='oprev')journeyBrowse(-1); else if(c==='onext')journeyBrowse(1);
+    else if(c==='stop')journeyStop();
+  }
+  if(el){
+    el.addEventListener('click',e=>{ const t=e.target.closest('[data-c],[data-cj]');
+      if(!t||t.tagName==='INPUT'||t.tagName==='SELECT'){ return; }
+      e.preventDefault();
+      if(t.dataset.c!=null) action(t.dataset.c); else cjAction(t.dataset.cj); });
+    el.addEventListener('input',e=>{ const t=e.target; if(t.dataset&&t.dataset.cj==='time'){ journeySetMinutes(t.value);
+      const lbl=el.querySelector('[data-cjlabel]'); if(lbl) lbl.innerHTML=`<b>${Math.round(journey.totalSec/60)} min</b>`+(journey.list.length?` · ~${Math.max(2.5,journey.totalSec/journey.list.length).toFixed(0)} s / object (orbiting)`:''); } });
+    el.addEventListener('change',e=>{ const t=e.target; if(!t.dataset) return;
+      if(t.dataset.cj==='info'){ journey.showInfo=t.checked; journeyShowInfo(); }
+      else if(t.dataset.cj==='scope'){ journey.scope=t.value; journeyBuildList(); refresh(); } });
   }
   function action(c){
     if(c==='collapse'){ lsSet(LS.collapsed, collapsed()?'0':'1'); refresh(); }
@@ -10039,8 +10050,9 @@ function tickBody(now, frame){
 
   /* focus fly-to animation + follow */
   if(focusAnim){
-    focusAnim.t += dt*1.4;
-    const k = focusAnim.t>=1 ? 1 : 1-Math.pow(1-focusAnim.t,3);
+    focusAnim.t += dt*0.85;                          // gentler, ~1.2 s glide
+    const tt = focusAnim.t>=1 ? 1 : focusAnim.t;
+    const k = tt*tt*tt*(tt*(tt*6-15)+10);            // smootherstep: soft ease-in AND ease-out (no abrupt start/stop)
     controls.target.lerpVectors(focusAnim.fromT, focusAnim.toT, k);
     camera.position.lerpVectors(focusAnim.fromP, focusAnim.toP, k);
     if(focusAnim.t>=1) focusAnim=null;
