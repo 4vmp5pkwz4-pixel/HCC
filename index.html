@@ -1994,11 +1994,14 @@ function selectionContext(key,s){
 }
 function selectGlobalKey(key,focus=false){
   const s=SELECT.get(key); if(!s) return;
+  const sameMode=s.mode===state.mode, prevS3=state.s3view, prevLayer=state.solarScaleLayer;
   selectionContext(key,s);
-  // Always (re)enter the object's mode so its scene is actually visible — otherwise a
-  // cross-mode/scale jump could leave an empty frame. selectionContext already set the
-  // correct solar scale layer; setMode applies it. The smootherstep fly-to keeps it gentle.
-  setMode(s.mode);
+  if(!sameMode){ setMode(s.mode); }   // entering a new mode reframes its scene
+  else {
+    // same mode: DON'T reset to the overview — just glide. Apply submode/scale layer only if it changed.
+    if(s.mode==='solar' && state.solarScaleLayer!==prevLayer){ setSolarScaleLayer(state.solarScaleLayer); updateSolarScaleVisibility(); }
+    else if(s.mode==='s3' && state.s3view!==prevS3){ setS3View(state.s3view); }
+  }
   selectKey(key);
   if(focus&&s.mode!=='fractal') focusOn(s);
 }
@@ -3703,7 +3706,31 @@ const COSMOS = [
       'Do not load FITS cubes directly in browser runtime.'],
     note:'Juodžbalis et al. 2026 (Nature); JWST/NIRSpec IFU; z=7.04; MOKA3D direct dynamical log(MBH/Msun)=7.7±0.3; strongly lensed image A; programme ID 5015'},
 ];
-const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map();
+const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map(), COSMOS_DUST=[];
+// Per-structure "dust" cloud: a realistic galaxy-density profile (denser core; voids = hollow shells),
+// scaled to each structure's true extent. Visualisation only — positions are not new measurements.
+function cosmicDust(s,r){
+  const n=Math.min(2400,Math.max(260,Math.round(r*820))), isVoid=s.type==='void';
+  const flat = s.type==='wall' ? [1,0.5,0.35] : [1,1,1];
+  const pos=new Float32Array(n*3), col=new Float32Array(n*3);
+  const c0=new THREE.Color(s.col), c1=new THREE.Color(0xffffff);
+  const seed=(s.key||'x').split('').reduce((a,c)=>(a*131+c.charCodeAt(0))|0,0x9e37), rng=mulberry(seed);
+  for(let i=0;i<n;i++){
+    const rr = isVoid ? (0.82+0.18*rng()) : Math.pow(rng(),0.62);
+    const v=new THREE.Vector3().randomDirection().multiplyScalar(rr);
+    pos[i*3]=v.x*r*flat[0]; pos[i*3+1]=v.y*r*flat[1]; pos[i*3+2]=v.z*r*flat[2];
+    const cc=c0.clone().lerp(c1, isVoid?0:(1-rr)*0.5*rng());
+    col[i*3]=cc.r; col[i*3+1]=cc.g; col[i*3+2]=cc.b;
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  return new THREE.Points(g,new THREE.PointsMaterial({size:Math.max(r*0.028,0.02),vertexColors:true,sizeAttenuation:true,
+    transparent:true,opacity:isVoid?0.32:0.62,depthWrite:false,blending:THREE.AdditiveBlending}));
+}
+function updateCosmicDust(){ const on=state.showCosmicDust!==false;
+  COSMOS_DUST.forEach(g=>{ if(g.userData.dust) g.userData.dust.visible=on;
+    if(g.userData.body) g.userData.body.visible=!on; }); }   // dust ⇄ wireframe
 for(const s of COSMOS){
   const dist = s.dGly!=null ? s.dGly : comovingGly(s.z);
   const dir = raDecDir(s.ra/15, s.dec), g = new THREE.Group();
@@ -3736,9 +3763,11 @@ for(const s of COSMOS){
       new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.07,depthWrite:false,side:THREE.BackSide}));
     g.add(fog);
   }
-  // bright core + soft additive halo so every structure stays clearly identifiable even when its wireframe is faint
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.19,14,10), new THREE.MeshBasicMaterial({color:s.col})); g.add(dot);
-  const halo=new THREE.Mesh(new THREE.SphereGeometry(0.42,16,12), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.28,depthWrite:false,blending:THREE.AdditiveBlending})); g.add(halo);
+  // bright core marker (always identifiable)
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.17,14,10), new THREE.MeshBasicMaterial({color:s.col})); g.add(dot);
+  // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
+  const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body;
+  COSMOS_DUST.push(g);
   const sight=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(-dist)]),
     new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.16})); g.add(sight);
   const lab=mkLabel(s.name,'label','cosmos_'+s.key); lab.position.set(0, r+0.3, 0); g.add(lab);
@@ -3761,6 +3790,7 @@ for(const s of COSMOS){
       ['Source',s.note] ],
   });
 }
+updateCosmicDust();   // realistic dust clouds on by default (wireframes hidden)
 
 /* ── DYNAMICAL DIPOLE AXIS ──────────────────────────────────────────────
    The Local Group's motion in the CMB frame is shaped not by position alone
@@ -5806,14 +5836,14 @@ const fractalUniforms = {
   uJulia:  {value:new THREE.Vector2(-.835,-.2321)},
   uLevel:  {value:8},
   uGrid:   {value:1},
-  uPalette:{value:0},
+  uPalette:{value:4},   // spectrum by default
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
 const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
-let fractalPalette='silver';
+let fractalPalette='spectrum';   // spectral colours from the very first frame (phase zero)
 const FRACTAL_COORD_ZOOM_MAX=renderer.capabilities.getMaxPrecision('highp')==='highp'
   ? (MOBILE_GPU?2e4:1e5) : 400;
 function fractalZoomMax(){
@@ -7566,7 +7596,7 @@ const state = {
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
-  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18,
+  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:true,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
 };
@@ -8046,6 +8076,10 @@ function buildCtl(){
       <div class="chips">${COSMOS.map(s=>`<button class="chip" data-cosmos="${s.key}" title="${s.name}">${({virgo:'Virgo',coma:'Coma',greatatt:'Great Attractor',laniakea:'Laniakea',shapley:'Shapley',vela:'Vela',sloan:'Sloan Wall',sloanboa:'Sloan BoA',gr:'Giant Ring',ga:'Giant Arc',br:'Big Ring',hcb:'HCB GRB overdensity',perseus:'Perseus-Pisces',hercules:'Hercules SC',bootes:'Boötes SC',pcf:'Pisces-Cetus',dipolerep:'Dipole Repeller',localvoid:'Local Void',bootesvoid:'Boötes Void',spw:'South Pole Wall',saraswati:'Saraswati',quipu:'Quipu ★'})[s.key] || s.name}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Click a chip to fly to that structure; click its marker/label for distance, redshift &amp; size. Catalogue markers use registered sky directions and distance-scaled anchors in this observer-centred comoving atlas. The selection card can add a direction-from-origin reference in compatible Solar/Observable frames; it deliberately refuses incompatible S³/FBS projections. Observed + reconstruction data; not a topology claim.</div>
     </div>
+    <div class="sect"><b>Structure rendering</b>
+      <div class="ctlrow"><label>Dust clouds (realistic)</label><input type="checkbox" id="cosDust" ${state.showCosmicDust!==false?'checked':''}></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each structure as a galaxy-density dust cloud (denser core; voids = hollow shells), scaled to its published extent. Off = schematic wireframes. Visualisation only — not new measurements.</div>
+    </div>
     <div class="sect"><b>Laniakea / Cosmicflows reconstruction</b>
       <div class="ctlrow"><label>Flow streamlines</label><input type="checkbox" id="lanFlows" ${state.showLaniakeaFlows?'checked':''}></div>
       <div class="ctlrow"><label>Line density</label><input type="range" id="lanDens" min="0.08" max="1" step="0.02" value="${state.laniakeaFlowDensity}"></div>
@@ -8064,6 +8098,7 @@ function buildCtl(){
     ctl.querySelector('#sAccel').onchange = e=>sphAccel.visible=e.target.checked;
     ctl.querySelector('#sMReq').onchange = e=>sphMReq.visible=e.target.checked;
     ctl.querySelector('#cosmosShow').onchange = e=>cosmosGroup.visible=e.target.checked;
+    ctl.querySelector('#cosDust').onchange=e=>{state.showCosmicDust=e.target.checked;updateCosmicDust();};
     ctl.querySelector('#lanFlows').onchange=e=>state.showLaniakeaFlows=e.target.checked;
     ctl.querySelector('#lanDens').oninput=e=>state.laniakeaFlowDensity=+e.target.value;
     ctl.querySelector('#lanSpeed').oninput=e=>state.laniakeaFlowSpeed=+e.target.value;
@@ -8998,7 +9033,7 @@ info.addEventListener('click', e=>{
 
 /* ---------------- MODE SWITCHING ---------------- */
 function syncControlCapabilities(){
-  const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||fractalType==='bifurc3d'||fractalType==='polytope4d');  // true 3D fractal views
+  const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||GEO_FRACTALS.has(fractalType));  // true 3D views: mandelbulb + bifurc3d/polytope4d/orbital3d
   const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&!is3D);
   controls.enabled=!state.landed;
   controls.enableZoom=!semanticZoom;
@@ -9061,10 +9096,11 @@ function setMode(mode){
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
-  // clicking a section ALWAYS opens its default view (Solar returns to the planets, not a stale cosmic-scale warp)
-  if(b.dataset.mode==='solar') state.solarScaleLayer='local';
+  const same=b.dataset.mode===state.mode;
+  if(same){ togglePanel('ctl'); return; }              // re-click the active tab hides/shows its Controls
+  if(b.dataset.mode==='solar') state.solarScaleLayer='local';   // Solar returns to the planets, not a stale cosmic warp
   if(b.dataset.mode==='s3') state.s3view='sec';
-  setMode(b.dataset.mode);
+  setMode(b.dataset.mode); openPanel('ctl');           // switch → default view + Controls
 });
 /* compact topbar "More" dropdown + Controls FAB */
 (()=>{
@@ -9289,7 +9325,7 @@ const WIKI={ sun:'Sun', moon:'Moon', oortCloud:'Oort_cloud',
   cosmos_hercules:'Hercules_Superclusters', cosmos_bootes:'Boötes_Supercluster', cosmos_pcf:'Pisces–Cetus_Supercluster_Complex',
   cosmos_dipolerep:'Dipole_Repeller', cosmos_localvoid:'Local_Void', cosmos_bootesvoid:'Boötes_void',
   cosmos_spw:'South_Pole_Wall', cosmos_saraswati:'Saraswati_(supercluster)', cosmos_quipu:'Quipu_(supercluster)',
-  cosmos_gr:'Giant_Arc_(astronomy)', cosmos_ga:'Giant_Arc_(astronomy)', cosmos_br:'Big_Ring_on_the_Sky',
+  cosmos_gr:'Big_Ring_on_the_Sky', cosmos_ga:'Giant_Arc_(astronomy)', cosmos_br:'Big_Ring_on_the_Sky',
   cosmos_hcb:'Hercules–Corona_Borealis_Great_Wall', cosmos_a2744_qso1:'Little_red_dot_(astronomy)' };
 function wikiUrl(key,s){
   const direct=WIKI[key]||WIKI[(key||'').replace(/^solarCosmic_/,'cosmos_')]||WIKI[(key||'').replace(/^ulss_/,'cosmos_').toLowerCase()];
@@ -9366,12 +9402,18 @@ const COACH_STEPS=[
 /* Atlas Coach "Grand Tour": auto-travel through EVERY selectable object,
    opening each description, focusing and orbiting it, with ONE slider for the
    whole journey time (dwell per object = total / N). Camera/UI only. */
-const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0,showInfo:false,scope:'all'};
+const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0,showInfo:false,scope:'all',shuffle:false,loop:true};
+function journeyDist(k){ const s=SELECT.get(k); if(!s) return 0;
+  if(s.coords&&s.coords.z!=null) return COORD.comovingFromZ(s.coords.z);   // Gly from the observer
+  if(s.dGly!=null) return s.dGly;
+  if(/^solarCosmic_|^cosmos_/.test(k)) return 1; return 0; }                // solar/cycles/etc ≈ centre
 function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
 function journeyBuildList(){
-  const ord={solar:0,cyc:1,obs:2,s3:3,fbs:4,fractal:9}, sc=journey.scope||'all';
+  const sc=journey.scope||'all';
   journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function'&&(sc==='all'||s.mode===sc))
-    .sort((a,b)=>(ord[a[1].mode]-ord[b[1].mode])||objectName(a[1]).localeCompare(objectName(b[1]))).map(([k])=>k);
+    .map(([k,s])=>[k,journeyDist(k)])
+    // farthest from the centre of the universe first → travel inward to the central observer
+    .sort((a,b)=>(b[1]-a[1])||objectName(SELECT.get(a[0])).localeCompare(objectName(SELECT.get(b[0])))).map(([k])=>k);
 }
 function journeyShowInfo(){ if(journey.showInfo!==false){ try{openPanel('selCard');}catch(e){} } else { try{closePanel('selCard');}catch(e){} } }
 function journeyGo(){
@@ -9396,7 +9438,12 @@ function journeySetMinutes(m){ journey.totalSec=Math.max(30,(+m||8)*60); }
 function journeyTick(dt){
   if(!journey.playing||!journey.list.length||state.landed||renderer.xr.isPresenting) return;
   const per=Math.max(2.5, journey.totalSec/journey.list.length);
-  journey.acc+=dt; if(journey.acc>=per){ journey.idx=(journey.idx+1)%journey.list.length; journeyGo(); }
+  journey.acc+=dt; if(journey.acc<per) return;
+  if(journey.shuffle){ journey.idx=Math.floor(Math.random()*journey.list.length); }
+  else { const ni=journey.idx+1;
+    if(ni>=journey.list.length){ if(journey.loop!==false) journey.idx=0; else { journeyStop(); return; } }
+    else journey.idx=ni; }
+  journeyGo();
 }
 function journeyHtml(){
   const N=journey.list.length||journeyCount(), mins=Math.round(journey.totalSec/60), per=N?Math.max(2.5,journey.totalSec/N):0;
@@ -9423,6 +9470,9 @@ function journeyHtml(){
     <select data-cj="scope" style="flex:1">
       ${[['all','All objects'],['solar','Solar System'],['cyc','Cycles'],['obs','Observable'],['s3','S³ Carrier'],['fbs','FBS3R']]
         .map(([v,l])=>`<option value="${v}" ${journey.scope===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
+  h+=`<div class="ctlrow"><label style="flex:1"><input type="checkbox" data-cj="shuffle" ${journey.shuffle?'checked':''}> 🔀 Random</label>
+    <label style="flex:1"><input type="checkbox" data-cj="loop" ${journey.loop!==false?'checked':''}> 🔁 Loop</label></div>
+    <div class="coachMsg" style="opacity:.75;font-size:9.5px">Ordered farthest → central (inward through the universe)</div>`;
   h+=`<div class="coachMsg">Whole journey: <span data-cjlabel><b>${mins} min</b>${N?` · ~${per.toFixed(0)} s / object (orbiting)`:''}</span></div>`;
   h+=`<div class="ctlrow"><input type="range" data-cj="time" min="1" max="40" step="1" value="${mins}" style="width:100%"></div>`;
   return h;
@@ -9506,6 +9556,8 @@ const AtlasCoach=(()=>{
       const lbl=el.querySelector('[data-cjlabel]'); if(lbl) lbl.innerHTML=`<b>${Math.round(journey.totalSec/60)} min</b>`+(journey.list.length?` · ~${Math.max(2.5,journey.totalSec/journey.list.length).toFixed(0)} s / object (orbiting)`:''); } });
     el.addEventListener('change',e=>{ const t=e.target; if(!t.dataset) return;
       if(t.dataset.cj==='info'){ journey.showInfo=t.checked; journeyShowInfo(); }
+      else if(t.dataset.cj==='shuffle'){ journey.shuffle=t.checked; }
+      else if(t.dataset.cj==='loop'){ journey.loop=t.checked; }
       else if(t.dataset.cj==='scope'){ journey.scope=t.value; journeyBuildList(); refresh(); } });
   }
   function action(c){
