@@ -166,6 +166,7 @@
   #atlasCoach.collapsed .coachBody{display:none}
   #atlasCoach .coachMsg{color:var(--dim);overflow-wrap:anywhere;margin:3px 0}
   #atlasCoach .coachBtns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  #atlasCoach .coachNow{min-height:36px}   /* reserved slot for the current object name so controls never shift */
   #atlasCoach .playerRow{flex-wrap:nowrap;gap:5px}
   #atlasCoach .playerRow .btn{flex:1;min-width:0;font-size:15px;line-height:1;padding:7px 0;text-align:center}
   #atlasCoach .coachBtns .btn{font-size:10px;padding:3px 7px}
@@ -3735,7 +3736,9 @@ for(const s of COSMOS){
       new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.07,depthWrite:false,side:THREE.BackSide}));
     g.add(fog);
   }
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.13,12,8), new THREE.MeshBasicMaterial({color:s.col})); g.add(dot);
+  // bright core + soft additive halo so every structure stays clearly identifiable even when its wireframe is faint
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.19,14,10), new THREE.MeshBasicMaterial({color:s.col})); g.add(dot);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(0.42,16,12), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.28,depthWrite:false,blending:THREE.AdditiveBlending})); g.add(halo);
   const sight=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(-dist)]),
     new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.16})); g.add(sight);
   const lab=mkLabel(s.name,'label','cosmos_'+s.key); lab.position.set(0, r+0.3, 0); g.add(lab);
@@ -9058,8 +9061,10 @@ function setMode(mode){
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
-  if(b.dataset.mode===state.mode){ togglePanel('ctl'); }   // re-click the active section toggles its Controls
-  else { setMode(b.dataset.mode); }                          // switching sections never force-opens a covering panel
+  // clicking a section ALWAYS opens its default view (Solar returns to the planets, not a stale cosmic-scale warp)
+  if(b.dataset.mode==='solar') state.solarScaleLayer='local';
+  if(b.dataset.mode==='s3') state.s3view='sec';
+  setMode(b.dataset.mode);
 });
 /* compact topbar "More" dropdown + Controls FAB */
 (()=>{
@@ -9397,17 +9402,20 @@ function journeyHtml(){
   const N=journey.list.length||journeyCount(), mins=Math.round(journey.totalSec/60), per=N?Math.max(2.5,journey.totalSec/N):0;
   let h=`<div class="coachMsg" style="border-top:1px solid var(--gold-dim);padding-top:6px;margin-top:4px"><b>🎬 Grand tour · all ${N} objects</b></div>`;
   if(journey.active){
-    const ck=journey.list[journey.idx], cs=ck&&SELECT.get(ck);
-    if(cs){ const ev=atlasEvidenceClass(ck,cs), ti=atlasAccuracyTier(ck,cs);
-      h+=`<div class="coachMsg"><span class="ctxName" style="font-size:13px">${esc(objectName(cs))}</span> <span class="tier">tier ${esc(ti)}</span></div>
-          <div class="coachMsg">${journey.idx+1} / ${journey.list.length} · ${esc(MODE_META[cs.mode]||cs.mode)} · ${esc(ev)}</div>`; }
-    else h+=`<div class="coachMsg">${journey.idx+1} / ${journey.list.length}</div>`;
+    // player controls FIRST so they never move; the variable object name sits below in a fixed-height slot
     h+=`<div class="coachBtns playerRow">
       <button class="btn" data-cj="restart" title="Back to start">⏮</button>
       <button class="btn" data-cj="prev" title="Previous">◀</button>
       <button class="btn green" data-cj="play" title="Play / Pause">${journey.playing?'⏸':'▶'}</button>
       <button class="btn" data-cj="next" title="Next">▶</button>
       <button class="btn" data-cj="stop" title="Stop">⏹</button></div>`;
+    const ck=journey.list[journey.idx], cs=ck&&SELECT.get(ck);
+    h+=`<div class="coachMsg coachNow">`;
+    if(cs){ const ev=atlasEvidenceClass(ck,cs), ti=atlasAccuracyTier(ck,cs);
+      h+=`<span class="ctxName" style="font-size:13px">${esc(objectName(cs))}</span> <span class="tier">tier ${esc(ti)}</span><br>
+          <span style="opacity:.8">${journey.idx+1} / ${journey.list.length} · ${esc(MODE_META[cs.mode]||cs.mode)} · ${esc(ev)}</span>`; }
+    else h+=`${journey.idx+1} / ${journey.list.length}`;
+    h+=`</div>`;
   } else h+=`<div class="coachBtns"><button class="btn green" data-cj="start">▶ Auto-tour every object</button>
       <button class="btn" data-cj="oprev" title="Previous object">◀</button>
       <button class="btn" data-cj="onext" title="Next object">▶</button></div>`;
@@ -9444,7 +9452,9 @@ const AtlasCoach=(()=>{
       <button class="mini" data-c="collapse" title="Collapse / expand">${collapsed()?'▣':'—'}</button></div>
       <div class="coachBody">`;
     h+=journeyHtml();
-    if(desktopTour){
+    if(journey.active){
+      /* during a grand tour the journey block already shows the object — keep the coach a fixed, stable size */
+    } else if(desktopTour){
       const st=desktopTour.stops[desktopTourIdx];
       h+=`<div class="coachMsg"><span class="ctxName">${esc(desktopTour.name)}</span> · stop ${desktopTourIdx+1}/${desktopTour.stops.length}</div>`;
       h+=`<div class="coachMsg">${esc(st?st.say:'')}</div>`;
