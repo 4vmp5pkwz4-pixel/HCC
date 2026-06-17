@@ -112,6 +112,12 @@
   #info td:last-child{text-align:right;color:#fff}
   #info .note{color:var(--dim);font-size:11px;margin:5px 0}
 
+  /* collapsible selection card — tap the name to expand/collapse so it never blankets the view */
+  #selName{cursor:pointer;display:flex;align-items:center;gap:6px;margin:0}
+  #selName::after{content:'▸';margin-left:auto;color:var(--gold-dim);font-size:11px;transition:transform .15s}
+  #selCard:not(.collapsed) #selName::after{transform:rotate(90deg)}
+  #selCard.collapsed{max-height:none;padding-bottom:12px}
+  #selCard.collapsed > :not(h3):not(.panel-collapser){display:none!important}
   #selCard{right:14px;bottom:14px;width:336px;display:none;z-index:35;
     max-height:calc(100vh - var(--topbar-h,64px) - 64px);overflow:auto}
   .prov-f,.prov-s{overflow-wrap:anywhere}
@@ -160,6 +166,8 @@
   #atlasCoach.collapsed .coachBody{display:none}
   #atlasCoach .coachMsg{color:var(--dim);overflow-wrap:anywhere;margin:3px 0}
   #atlasCoach .coachBtns{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  #atlasCoach .playerRow{flex-wrap:nowrap;gap:5px}
+  #atlasCoach .playerRow .btn{flex:1;min-width:0;font-size:15px;line-height:1;padding:7px 0;text-align:center}
   #atlasCoach .coachBtns .btn{font-size:10px;padding:3px 7px}
   #atlasCoach .ctxName{color:var(--gold-2);font-weight:600}
   #atlasCoach .tier{display:inline-block;border:1px solid var(--gold-dim);border-radius:5px;padding:0 5px;font-size:9px}
@@ -453,6 +461,24 @@
   body.day #breadcrumb{color:#4a3a12}
   body.day .note,body.day .relclaim{color:#5a5238}
   body.day .coachMsg,body.day #physDebug{color:#4a4530}
+  /* day-mode panel legibility — force dark ink everywhere, fix faint values/tags/headers */
+  body.day .panel{color:#2a2418}
+  body.day .panel td,body.day .panel th,body.day .panel li,body.day .panel label,
+  body.day .panel .note,body.day .panel .relclaim,body.day .panel .desc,body.day .panel .blurb{color:#3b3422}
+  body.day .panel .btn,body.day .panel .chip,body.day .modebtn,body.day #moreMenu .btn,
+  body.day input,body.day select,body.day textarea{color:#2a2418}
+  body.day .objmode{color:#2f5a86}
+  body.day .navCard b,body.day .scorecard b,body.day .ctxName,body.day .nextActions b,
+  body.day #atlasCoach .coachHead b,body.day .navSecHead{color:#5a4516}
+  body.day .navCard .blurb,body.day .scorecard span{color:#5a5238}
+  body.day .selTab{color:#6e6650}
+  body.day .selTab.on{color:#5a4516;background:rgba(138,109,47,.18)}
+  body.day .atlasBadge{color:#5a4516}
+  body.day .btn:disabled,body.day .chip:disabled,body.day .modebtn:disabled{color:#8a8266;opacity:.65}
+  body.day ::placeholder{color:#8c8468;opacity:1}
+  body.day [style*="#9cc8ff"]{color:#2f5a86!important}
+  body.day [style*="#9ce3c6"]{color:#2e7d57!important}
+  body.day [style*="#5aa8ff"]{color:#2f5a86!important}
   body.day #atlasCoach,body.day #navPanel{box-shadow:0 12px 40px rgba(60,45,15,.28)}
 
   /* floating round controls — help (always) + dock collapser (mobile) */
@@ -488,8 +514,7 @@
     .modebtn{padding:7px 9px;font-size:10.5px;flex:0 0 auto;white-space:nowrap;letter-spacing:.2px}
     /* keep Search · Navigator · More on a single tidy line */
     #cmdkBtn,#navBtn,#moreBtn{padding:7px 9px;font-size:11px;flex:0 0 auto}
-    #themeBtn{position:fixed;right:8px;top:8px;z-index:30;padding:6px 10px}
-    #fsBtn{position:fixed;right:52px;top:8px;z-index:30;padding:6px 10px}
+    #themeBtn,#fsBtn{padding:7px 9px;font-size:13px;flex:0 0 auto}   /* flow inline next to More — no more overlap of the mode row */
     #clock{margin:2px auto 0;flex-basis:100%;display:flex;justify-content:center;
       align-items:baseline;gap:14px;padding:4px 12px}
     #clock .rt{font-size:13.5px;letter-spacing:1.5px}
@@ -1716,6 +1741,9 @@ function updateSelectionLinks(){
 }
 
 const selCard = document.getElementById('selCard');
+let selCardExpanded=false;   // remembers whether the user expanded the selection card
+(()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>{
+  selCardExpanded=!selCardExpanded; selCard.classList.toggle('collapsed',!selCardExpanded); }); })();
 const selMarker = (()=>{   // pulsing ring marker that tracks the selected object
   const g = new THREE.RingGeometry(.85, 1, 48);
   const m = new THREE.MeshBasicMaterial({color:0xf1dda6, side:THREE.DoubleSide, transparent:true, opacity:.9, depthTest:false});
@@ -1748,6 +1776,7 @@ function selectKey(key){
   document.getElementById('selProv').innerHTML = fh + sh;
   renderSelectionContract();
   openPanel('selCard');
+  selCard.classList.toggle('collapsed', !selCardExpanded);   // default to a compact name-only card
   updateSelCard();
   renderSelectionRelations();
   buildSelTabs();
@@ -9000,8 +9029,8 @@ function setMode(mode){
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
-  if(b.dataset.mode===state.mode){ togglePanel('ctl'); }
-  else { setMode(b.dataset.mode); openPanel('ctl'); }
+  if(b.dataset.mode===state.mode){ togglePanel('ctl'); }   // re-click the active section toggles its Controls
+  else { setMode(b.dataset.mode); }                          // switching sections never force-opens a covering panel
 });
 /* compact topbar "More" dropdown + Controls FAB */
 (()=>{
@@ -9344,14 +9373,15 @@ function journeyHtml(){
       h+=`<div class="coachMsg"><span class="ctxName" style="font-size:13px">${esc(objectName(cs))}</span> <span class="tier">tier ${esc(ti)}</span></div>
           <div class="coachMsg">${journey.idx+1} / ${journey.list.length} · ${esc(MODE_META[cs.mode]||cs.mode)} · ${esc(ev)}</div>`; }
     else h+=`<div class="coachMsg">${journey.idx+1} / ${journey.list.length}</div>`;
-    h+=`<div class="coachBtns"><button class="btn" data-cj="prev">◀ Prev</button>
-      <button class="btn green" data-cj="play">${journey.playing?'⏸ Pause':'▶ Play'}</button>
-      <button class="btn" data-cj="next">Next ▶</button>
-      <button class="btn" data-cj="stop">⏹ Stop</button></div>`;
-  } else h+=`<div class="coachBtns"><button class="btn green" data-cj="start">▶ Auto-tour every object</button></div>`;
-  h+=`<div class="coachBtns" style="gap:6px">
-    <button class="btn" data-cj="oprev">◀ Prev object</button>
-    <button class="btn" data-cj="onext">Next object ▶</button></div>`;
+    h+=`<div class="coachBtns playerRow">
+      <button class="btn" data-cj="restart" title="Back to start">⏮</button>
+      <button class="btn" data-cj="prev" title="Previous">◀</button>
+      <button class="btn green" data-cj="play" title="Play / Pause">${journey.playing?'⏸':'▶'}</button>
+      <button class="btn" data-cj="next" title="Next">▶</button>
+      <button class="btn" data-cj="stop" title="Stop">⏹</button></div>`;
+  } else h+=`<div class="coachBtns"><button class="btn green" data-cj="start">▶ Auto-tour every object</button>
+      <button class="btn" data-cj="oprev" title="Previous object">◀</button>
+      <button class="btn" data-cj="onext" title="Next object">▶</button></div>`;
   h+=`<div class="ctlrow"><label style="flex:1"><input type="checkbox" data-cj="info" ${journey.showInfo!==false?'checked':''}> Show object info</label>
     <select data-cj="scope" style="flex:1">
       ${[['all','All objects'],['solar','Solar System'],['cyc','Cycles'],['obs','Observable'],['s3','S³ Carrier'],['fbs','FBS3R']]
@@ -9423,6 +9453,7 @@ const AtlasCoach=(()=>{
   }
   function cjAction(c){
     if(c==='start')journeyStart(); else if(c==='play')journeyTogglePlay();
+    else if(c==='restart'){ if(!journey.list.length)journeyBuildList(); journey.active=true; journey.idx=0; journeyGo(); }
     else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1);
     else if(c==='oprev')journeyBrowse(-1); else if(c==='onext')journeyBrowse(1);
     else if(c==='stop')journeyStop();
