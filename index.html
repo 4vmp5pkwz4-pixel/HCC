@@ -9287,17 +9287,24 @@ const COACH_STEPS=[
 /* Atlas Coach "Grand Tour": auto-travel through EVERY selectable object,
    opening each description, focusing and orbiting it, with ONE slider for the
    whole journey time (dwell per object = total / N). Camera/UI only. */
-const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0};
+const journey={active:false,playing:false,idx:0,list:[],totalSec:480,acc:0,showInfo:true,scope:'all'};
 function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
 function journeyBuildList(){
-  const ord={solar:0,cyc:1,obs:2,s3:3,fbs:4,fractal:9};
-  journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function')
+  const ord={solar:0,cyc:1,obs:2,s3:3,fbs:4,fractal:9}, sc=journey.scope||'all';
+  journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function'&&(sc==='all'||s.mode===sc))
     .sort((a,b)=>(ord[a[1].mode]-ord[b[1].mode])||objectName(a[1]).localeCompare(objectName(b[1]))).map(([k])=>k);
 }
+function journeyShowInfo(){ if(journey.showInfo!==false){ try{openPanel('selCard');}catch(e){} } else { try{closePanel('selCard');}catch(e){} } }
 function journeyGo(){
   const k=journey.list[journey.idx]; if(!k||!SELECT.has(k)) return;
   selectGlobalKey(k,true); ORBIT.on=true; ORBIT.secondaryKey=null; journey.acc=0;
+  journeyShowInfo();
   try{ AtlasCoach.refresh(); }catch(e){}
+}
+function journeyBrowse(d){   // manual step through EVERY object (works regardless of autoplay)
+  if(!journey.list.length) journeyBuildList(); if(!journey.list.length) return;
+  let i=journey.list.indexOf(selectedKey); if(i<0) i=journey.idx;
+  journey.idx=(i+d+journey.list.length)%journey.list.length; journey.active=true; journeyGo();
 }
 function journeyStart(){ journeyBuildList(); if(!journey.list.length) return;
   journey.active=true; journey.playing=true; journey.idx=0;
@@ -9323,6 +9330,13 @@ function journeyHtml(){
       <button class="btn" data-cj="next">Next ▶</button>
       <button class="btn" data-cj="stop">⏹ Stop</button></div>`;
   } else h+=`<div class="coachBtns"><button class="btn green" data-cj="start">▶ Auto-tour every object</button></div>`;
+  h+=`<div class="coachBtns" style="gap:6px">
+    <button class="btn" data-cj="oprev">◀ Prev object</button>
+    <button class="btn" data-cj="onext">Next object ▶</button></div>`;
+  h+=`<div class="ctlrow"><label style="flex:1"><input type="checkbox" data-cj="info" ${journey.showInfo!==false?'checked':''}> Show object info</label>
+    <select data-cj="scope" style="flex:1">
+      ${[['all','All objects'],['solar','Solar System'],['cyc','Cycles'],['obs','Observable'],['s3','S³ Carrier'],['fbs','FBS3R']]
+        .map(([v,l])=>`<option value="${v}" ${journey.scope===v?'selected':''}>${l}</option>`).join('')}</select></div>`;
   h+=`<div class="coachMsg">Whole journey: <span data-cjlabel><b>${mins} min</b>${N?` · ~${per.toFixed(0)} s / object (orbiting)`:''}</span></div>`;
   h+=`<div class="ctlrow"><input type="range" data-cj="time" min="1" max="40" step="1" value="${mins}" style="width:100%"></div>`;
   return h;
@@ -9371,10 +9385,9 @@ const AtlasCoach=(()=>{
         if(relIdx>=rels.length) relIdx=0;
         const rs=SELECT.get(rels[relIdx].target);
         const held=ORBIT.secondaryKey===rels[relIdx].target;
-        h+=`<div class="coachMsg">${esc(objectName(rs))}${rs?(' · '+esc(MODE_META[rs.mode]||rs.mode)):''}${held?' · held in view':''}</div>`;
+        h+=`<div class="coachMsg">related: ${esc(objectName(rs))}${rs?(' · '+esc(MODE_META[rs.mode]||rs.mode)):''}${held?' · held in view':''}</div>`;
         h+=`<div class="coachBtns">
-          <button class="btn" data-c="rprev">← Previous related</button>
-          <button class="btn" data-c="rnext">Next related →</button>
+          ${rels.length>1?`<button class="btn" data-c="rnext">↻ Next related (${relIdx+1}/${rels.length})</button>`:''}
           <button class="btn" data-c="rsel">Select &amp; zoom</button>
           <button class="btn" data-c="rhold">${held?'⊙ Release':'⊙ Hold in view'}</button></div>`;
       } else h+=`<div class="coachMsg">No registered relations yet.</div>`;
@@ -9394,11 +9407,16 @@ const AtlasCoach=(()=>{
     el.innerHTML=h;
     el.querySelectorAll('[data-c]').forEach(b=>b.onclick=e=>{ e.preventDefault(); action(b.dataset.c); });
     el.querySelectorAll('[data-cj]').forEach(b=>{
-      if(b.tagName==='INPUT') b.oninput=()=>{ journeySetMinutes(b.value); const lbl=el.querySelector('[data-cjlabel]');
+      const c=b.dataset.cj;
+      if(c==='time') b.oninput=()=>{ journeySetMinutes(b.value); const lbl=el.querySelector('[data-cjlabel]');
         if(lbl) lbl.innerHTML=`<b>${Math.round(journey.totalSec/60)} min</b>`+(journey.list.length?` · ~${Math.max(2.5,journey.totalSec/journey.list.length).toFixed(0)} s / object (orbiting)`:''); };
-      else b.onclick=e=>{ e.preventDefault(); const c=b.dataset.cj;
+      else if(c==='info') b.onchange=()=>{ journey.showInfo=b.checked; journeyShowInfo(); };
+      else if(c==='scope') b.onchange=()=>{ journey.scope=b.value; journeyBuildList(); refresh(); };
+      else b.onclick=e=>{ e.preventDefault();
         if(c==='start')journeyStart(); else if(c==='play')journeyTogglePlay();
-        else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1); else if(c==='stop')journeyStop(); };
+        else if(c==='prev')journeyStep(-1); else if(c==='next')journeyStep(1);
+        else if(c==='oprev')journeyBrowse(-1); else if(c==='onext')journeyBrowse(1);
+        else if(c==='stop')journeyStop(); };
     });
   }
   function action(c){
