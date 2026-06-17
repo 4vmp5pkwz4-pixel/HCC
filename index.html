@@ -5865,8 +5865,12 @@ function setFractalType(type,reset=true){
   if(state.mode==='fractal' && GEO_FRACTALS.has(type)){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
+    else if(type==='orbital3d'){ camera.position.set(5,4,9); setControlDistanceLimits(2.5,80); }
     else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
     camera.updateProjectionMatrix();
+  } else if(state.mode==='fractal' && type==='mandelbulb'){
+    // restore the raymarch camera — fixes the fractal vanishing when returning from a geometry view
+    camera.fov=55; camera.position.set(2.2,1.4,2.2); controls.target.set(0,0,0); setControlDistanceLimits(2.25,20); camera.updateProjectionMatrix();
   }
   if(typeof updateBifurcView==='function') updateBifurcView();
   syncControlCapabilities(); syncCameraClipping(true);
@@ -6008,6 +6012,14 @@ function buildOrbital3D(){
   orbitalGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending})));
   orbitalGroup.add(new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})));   // nucleus
   const lab=mkLabel(`Hydrogen ${orbitalLabel(n,l,m)} · n=${n} l=${l} m=${m} · |ψ|² (gold +, blue −)`,'label axis'); lab.position.set(0,5.9,0); orbitalGroup.add(lab);
+  // coordinate axes with Bohr-radius scale so the electron-cloud size is readable
+  const aLen=ext*S, aCol=[0xff7a7a,0x7dff9a,0x7db0ff];
+  [[1,0,0],[0,1,0],[0,0,1]].forEach((d,i)=>{
+    orbitalGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(d[0]*aLen,d[1]*aLen,d[2]*aLen)]),
+      new THREE.LineBasicMaterial({color:aCol[i],transparent:true,opacity:.5})));
+    const al=mkLabel(`${'xyz'[i]} · ${Math.round(ext)} a₀`,'label axis'); al.position.set(d[0]*aLen*1.06,d[1]*aLen*1.06,d[2]*aLen*1.06); orbitalGroup.add(al);
+  });
+  const tick=mkLabel(`grid ${(ext/2).toFixed(0)} a₀ ≈ ${(ext/2*0.0529).toFixed(2)} nm · l=${l} angular-momentum state (qubit / SO(3) representation)`,'label dim'); tick.position.set(0,-aLen-0.4,0); orbitalGroup.add(tick);
 }
 const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d']);   // fractal "types" rendered as real 3D geometry
 function updateBifurcView(){
