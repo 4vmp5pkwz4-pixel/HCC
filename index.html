@@ -212,6 +212,17 @@
   .selTab.on{background:rgba(212,175,106,.22);border-color:var(--gold);color:var(--gold-2)}
   .selStab{margin:7px 0;padding:7px 8px;border:1px solid rgba(126,200,255,.25);border-radius:9px;
     background:rgba(8,13,22,.5);font-size:10px;overflow-wrap:anywhere}
+  .passportGrid{display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0}
+  .passportBox,.coordConv,.precisionBox,.filterLegend{border:1px solid rgba(212,175,106,.18);border-radius:9px;
+    background:rgba(8,13,22,.45);padding:7px 8px;font-size:10.5px;overflow-wrap:anywhere}
+  .passportBox b,.coordConv b,.precisionBox b,.filterLegend b{color:var(--gold-2);font:700 10px var(--sans);letter-spacing:.4px}
+  .passportBox .muted,.coordConv .muted,.precisionBox .muted{color:var(--dim);font-size:10px}
+  .coordConv table,.precisionBox table{margin-top:4px}
+  .coordWarn,.precisionWarn{display:inline-block;border:1px solid rgba(232,184,106,.55);border-radius:999px;
+    padding:1px 6px;color:var(--warn);font:700 8px var(--sans);letter-spacing:.35px;text-transform:uppercase}
+  .filterLegend{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .filterLegend .filterPill{border:1px solid rgba(212,175,106,.24);border-radius:999px;padding:2px 7px;color:var(--dim);font-size:9px}
+  .filterLegend .filterPill.on{border-color:var(--gold);color:var(--gold-2);background:rgba(212,175,106,.16)}
   #selPaneRaw pre{white-space:pre-wrap;overflow-wrap:anywhere;font:10px/1.45 ui-monospace,monospace;
     max-height:300px;overflow:auto;color:var(--dim);background:rgba(5,9,16,.5);border-radius:8px;padding:7px}
   .atlasBadges{display:flex;gap:4px;flex-wrap:wrap;margin:4px 0}
@@ -489,6 +500,7 @@
   body.day .panel-collapser,body.day #atlasCoach .mini,body.day .fab,body.day #moreMenu,body.day #atlasCoach{
     background:linear-gradient(165deg,rgba(250,246,235,.96),rgba(238,231,212,.94));color:#5a4516;border-color:var(--gold-dim)}
   body.day .navCard,body.day .nextActions,body.day .selStab,body.day #selContract,body.day .scorecard,
+  body.day .passportBox,body.day .coordConv,body.day .precisionBox,body.day .filterLegend,
   body.day #physDebug,body.day #atlasPanel .navRow,body.day #selCard pre{
     background:rgba(252,248,238,.6)!important;border-color:rgba(138,109,47,.28)}
   body.day .chip,body.day .selTab,body.day #navPanel .navCard .btn{background:rgba(250,246,235,.85)}
@@ -642,8 +654,10 @@
   <h3 id="selName"></h3>
   <div id="selTabs"></div>
   <div class="desc" id="selDesc"></div>
-  <div id="selPaneSummary"><table id="selTable"></table></div>
+  <div id="selPaneSummary"><table id="selTable"></table><div id="selPassportSummary"></div></div>
   <div id="selPaneCoords"></div>
+  <div id="selPaneFormula"></div>
+  <div id="selPaneProvenance"></div>
   <div id="selProv"></div>
   <div id="selContract"></div>
   <div id="selPaneUncert"></div>
@@ -731,6 +745,14 @@ const S3 = {
 };
 const Gamma = chi => (chi - 0.5*Math.sin(2*chi)) / Math.PI;       // exact S³ ball volume fraction
 const screenArea = chi => 4*Math.PI*S3.R*S3.R*Math.sin(chi)**2;  // A(χ) = 4πR²sin²χ
+function computeS3Sensitivity(H0, omegaK){
+  const R = 299792.458/H0/Math.sqrt(Math.abs(omegaK))*3.2615638e-3;
+  const piR=Math.PI*R, circ=2*Math.PI*R, volume=2*Math.PI*Math.PI*R**3;
+  const Ns3=Math.log(R*GLY_M/FBS.lP)/LN_PHI;
+  return {H0,omegaK,R,piR,circ,volume,Ns3,
+    deltaR:R-S3.R,deltaRPercent:(R/S3.R-1)*100,deltaPiR:piR-S3.Dcausal,deltaCirc:circ-S3.Circ,
+    deltaVolumePercent:(volume/S3.V-1)*100,deltaNs3:Ns3-FBS.Ns3};
+}
 /* Geometric–Causal–Spectral layer (Preece & Batenin 2026, S3-GCS):
    S³ kernel K(χ)=2sin²χ/(χ−sinχcosχ) → 3/χ (Euclidean), K(π/2)=4/π, K(π)=0.
    Observable volume measure m(χ)=χ−sinχcosχ=χ−½sin2χ, so V_obs=2πR³·m(χ) and
@@ -1116,6 +1138,33 @@ function runSelfTests(){
   ok('Every visual entity links to a stable runtime semantic ID',
     [...SELECT.values()].filter(s=>s.pick).every(s=>s.entityId?.startsWith('urn:fbs3r:runtime:')),
     `${[...SELECT.values()].filter(s=>s.pick&&s.entityId).length} visual entities linked`);
+  ok('Atlas Data Kernel v2 normalizes every selectable object',
+    (()=>{ const K=buildAtlasDataKernel();
+      const need=['id','name','mode','type','evidence_class','accuracy_tier','coordinate_frame','coordinates','units','formulas','sources','uncertainty','limitations','relations','export_payload','checksum','integrity_marker'];
+      return K.version===ATLAS_DATA_KERNEL_VERSION && K.entities.length===SELECT.size
+        && K.entities.every(e=>need.every(k=>e[k]!==undefined&&e[k]!==null)); })(),
+    'kernel projection covers id/name/mode/type/evidence/tier/frame/coords/sources/relations/checksum');
+  ok('All FORMULA_REGISTRY source ids resolve in SOURCE_MAP',
+    FORMULA_REGISTRY.every(f=>SOURCE_MAP[f.src]),
+    [...new Set(FORMULA_REGISTRY.map(f=>f.src).filter(src=>!SOURCE_MAP[src]))].join(', ')||'all formulas sourced');
+  ok('All SOURCE_MAP entries have tag and label',
+    Object.values(SOURCE_MAP).every(s=>s.tag&&s.label),
+    Object.entries(SOURCE_MAP).filter(([,s])=>!s.tag||!s.label).map(([k])=>k).join(', ')||'all source entries complete');
+  ok('Every mode button maps to a valid mode',
+    [...document.querySelectorAll('#modeRow .modebtn[data-mode]')].every(b=>MODE_META[b.dataset.mode]),
+    [...document.querySelectorAll('#modeRow .modebtn[data-mode]')].map(b=>b.dataset.mode).join(', '));
+  ok('No duplicate object ids exist in SELECT',
+    new Set([...SELECT.keys()]).size===SELECT.size,
+    `${SELECT.size} unique keys`);
+  ok('Physics Chamber formulas round-trip at fiducial values',
+    (()=>{ const p=computeS3Sensitivity(67.4,0.0007);
+      return eps(p.R,S3.R,2e-6)&&eps(p.piR,S3.Dcausal,2e-6)&&eps(p.circ,S3.Circ,2e-6)&&eps(p.volume,S3.V,2e-6)&&Math.abs(p.deltaNs3)<1e-8; })(),
+    'R, piR, 2piR, volume, N_S3 match canonical values');
+  ok('Export payload builders return valid JSON/CSV payloads',
+    (()=>{ try{ JSON.parse(JSON.stringify(buildStatePayload())); JSON.parse(JSON.stringify(buildAtlasManifest()));
+      JSON.parse(JSON.stringify(ringExportPayload())); const csv=buildLadderCSV();
+      return typeof csv==='string'&&csv.startsWith('N,R_m')&&csv.split('\n').length>FBS.Nmax; }catch(e){ return false; } })(),
+    'state JSON, manifest JSON, ring JSON and phi-ladder CSV payloads valid');
   ok('Runtime profile explicitly discloses absent master/data-lake integrations',
     ['authoring','scientific_arrays','sparse_volumes','ml_pipeline','workflow_orchestration','inference_serving']
       .every(k=>ATLAS_RUNTIME_PROFILE[k].status.includes('not')),
@@ -1232,8 +1281,8 @@ function runSelfTests(){
       const noPositive=!/topology (is|was) (detected|proven)|primordial black-hole proof confirmed/.test(txt);
       return forbidsAll && noPositive; })(),
     'no fabricated significance / Bayes / primordial-BH / topology claim');
-  ok('Desktop selCard exposes all seven tabs',
-    ['Summary','Coordinates','Evidence','Uncertainty','Relations','Raw Contract','Export'].every(t=>SEL_TABS.includes(t)) && SEL_TABS.length===7,
+  ok('Desktop selCard exposes Object Passport v2 tabs',
+    ['Summary','Coordinates','Formula / Model','Provenance','Uncertainty','Relations','Raw Contract','Export'].every(t=>SEL_TABS.includes(t)) && SEL_TABS.length===8,
     SEL_TABS.join(' · '));
   ok('Physics Debug (desktop/QA) reports scientificMutation=false / scientificCoordinatesAffected=NO',
     INTERACTION.diagnostics().scientificCoordinatesAffected==='NO'
@@ -1269,6 +1318,9 @@ function runSelfTests(){
   ok('Atlas Navigator panel exists and is registered in the panel deck',
     !!document.getElementById('navPanel') && PANEL_IDS.includes('navPanel'),
     'navPanel present');
+  ok('No missing panel renderers for dock panels that need dynamic rendering',
+    PANEL_IDS.every(id=>PANEL_RENDERERS.has(id)||['ctl','info','selCard'].includes(id)),
+    PANEL_IDS.filter(id=>!PANEL_RENDERERS.has(id)&&!['ctl','info','selCard'].includes(id)).join(', ')||'dynamic panel renderers present');
   ok('Atlas Navigator declares all eight sections',
     NAV_SECTIONS.length===8 && ['Start','Modes','Tours','Layers','Evidence','Bookmarks','History','Help'].every(s=>NAV_SECTIONS.includes(s)),
     NAV_SECTIONS.join(' · '));
@@ -1284,7 +1336,7 @@ function runSelfTests(){
   ok('Command palette includes all new navigation commands',
     (()=>{ try{ const ps=selectedKey; if(!selectedKey){ try{selectKey('sun');}catch(e){} }
       const names=CMDK.commandNames();
-      const need=['Open Navigator','Start JWST Black-Hole Seeds tour','Show only Tier A evidence','Clear evidence filter',
+      const need=['Open Navigator','Start Grand Tour v2','Start JWST Black-Hole Seeds tour','Show only Tier A evidence','Clear evidence filter',
         'Open QA Atlas','Open Physics Debug','Reset View','Toggle Public/Expert','Focus selected object',
         'Export selected contract','Open Help','Save current view bookmark'];
       const ok=need.every(n=>names.includes(n));
@@ -1350,6 +1402,15 @@ function runSelfTests(){
       try{ state.atlasAudience=pa; if(ps) selectKey(ps); else selectKey(null); selTab=pt; }catch(e){}
       return okPub; }catch(e){ return false; } })(),
     'public selection opens Summary tab');
+  ok('Selection card opens Object Passport v2 without throwing',
+    (()=>{ try{ const ps=selectedKey, pt=selTab; selectKey('sun');
+      ['Summary','Coordinates','Formula / Model','Provenance','Uncertainty','Relations','Raw Contract','Export'].forEach(setSelTab);
+      if(ps)selectKey(ps); else selectKey(null); selTab=pt; return true; }catch(e){ return false; } })(),
+    'all desktop passport tabs render');
+  ok('Grand Tour v2 route is staged and uses registered stops where keys are declared',
+    (()=>{ const t=(XRX.TOURS||[]).find(x=>x.id==='grandv2');
+      return !!t&&t.stops.length>=10&&t.stops.every(st=>['solar','obs','s3','fbs','cyc','fractal'].includes(st.mode)&&(!st.key||SELECT.has(st.key))); })(),
+    'grandv2 registered in existing tour system');
   ok('Expert mode keeps QA / Physics-Debug tools available',
     (()=>{ try{ const pa=state.atlasAudience; try{ applyAudienceMode('expert'); }catch(e){}
       const btn=document.getElementById('atlasBtn');
@@ -1404,6 +1465,12 @@ function runSelfTests(){
       dblFocus('__nope__');
       return INTERACTION.scientificUnchanged(before, getAtlasEntityContract); }catch(e){ return false; } })(),
     'RA/Dec/z, contracts, tiers, S³ constants & FBS3R levels unchanged');
+  ok('Milky Way spiral-arm layer is registered as schematic (tier D · source-tagged · forbids exact-boundary claims)',
+    (()=>{ try{ const s=SELECT.get('mwSpiralArms'); if(!s) return false;
+      const c=getAtlasEntityContract('mwSpiralArms');
+      return atlasAccuracyTier('mwSpiralArms',s)==='D' && (s.src||[]).length>0 && MW_ARM_DEFS.length>=6
+        && c.quality.forbidden_claims.some(f=>/spiral-arm boundaries|exact Milky Way shape/i.test(f)); }catch(e){ return false; } })(),
+    'spiral arms are schematic, source-tagged and caveated');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -1820,14 +1887,15 @@ function selectKey(key){
 /* ---------- desktop selCard tabs (read-only over scientific data) ----------
    Summary · Coordinates · Evidence · Uncertainty · Relations · Raw Contract ·
    Export — all reuse existing data/functions; none mutate the contract. */
-const SEL_TABS=['Summary','Coordinates','Evidence','Uncertainty','Relations','Raw Contract','Export'];
+const SEL_TABS=['Summary','Coordinates','Formula / Model','Provenance','Uncertainty','Relations','Raw Contract','Export'];
 const SEL_TAB_PANES={
   'Summary':['selDesc','selPaneSummary'], 'Coordinates':['selPaneCoords'],
-  'Evidence':['selContract','selProv'],   'Uncertainty':['selPaneUncert'],
+  'Formula / Model':['selPaneFormula'],   'Provenance':['selContract','selPaneProvenance'],
+  'Uncertainty':['selPaneUncert'],
   'Relations':['selRelations'],           'Raw Contract':['selPaneRaw'], 'Export':['selPaneExport'],
 };
 const SEL_ALL_PANES=['selDesc','selPaneSummary','selPaneCoords','selContract','selProv',
-  'selPaneUncert','selRelations','selPaneRaw','selPaneExport'];
+  'selPaneFormula','selPaneProvenance','selPaneUncert','selRelations','selPaneRaw','selPaneExport'];
 let selTab='Summary', selTabKey=null;
 function buildSelTabs(){
   const bar=document.getElementById('selTabs'); if(!bar) return;
@@ -1837,13 +1905,71 @@ function buildSelTabs(){
 function setSelTab(tab){
   if(!SEL_TAB_PANES[tab]) tab='Summary';
   selTab=tab;
-  if(tab==='Coordinates') renderSelCoords();
+  if(tab==='Summary') renderSelSummaryPassport();
+  else if(tab==='Coordinates') renderSelCoords();
+  else if(tab==='Formula / Model') renderSelFormula();
+  else if(tab==='Provenance'){ renderSelectionContract(); renderSelProvenance(); }
   else if(tab==='Uncertainty') renderSelUncert();
   else if(tab==='Raw Contract') renderSelRaw();
   else if(tab==='Export') renderSelExport();
   const show=new Set(SEL_TAB_PANES[tab]);
   for(const id of SEL_ALL_PANES){ const el=document.getElementById(id); if(el) el.style.display=show.has(id)?'':'none'; }
   document.querySelectorAll('#selTabs .selTab').forEach(b=>b.classList.toggle('on',b.dataset.tab===tab));
+}
+const unavailable='not available in current contract';
+const srcTagHtml=tags=>(tags&&tags.length)?tags.map(t=>{
+  const src=SOURCE_MAP[t]||{label:'Unregistered source tag',tag:t};
+  return `<span class="srct" title="${esc(src.label)}">${esc(src.tag)}</span>`;
+}).join(' '):unavailable;
+function claimBuckets(c){
+  if(!c)return null;
+  const ev=c.quality.evidence_class, cc=c.space.coordinate_contract;
+  const direct=(ev==='observation'||ev==='reference-model')
+    ? `source-tagged ${ev}; input frame ${cc?.input_frame||unavailable}`
+    : unavailable;
+  const derived=[
+    c.provenance.derivation_rule?.length?`formula path: ${c.provenance.derivation_rule.join(' -> ')}`:null,
+    cc?.derived_coordinates&&cc.derived_coordinates!=='not applicable'?`derived coordinates: ${typeof cc.derived_coordinates==='object'?Object.keys(cc.derived_coordinates).join(', '):cc.derived_coordinates}`:null,
+  ].filter(Boolean).join(' · ')||unavailable;
+  const model=(ev==='conditional-model'||ev==='mathematical-model'||ev==='probabilistic-reconstruction')
+    ? `${ev}; ${c.space.topology_ref}; ${c.physics.boundary_conditions}` : unavailable;
+  return {direct,derived,model,mustNot:c.quality.forbidden_claims?.join(' · ')||unavailable};
+}
+function renderSelSummaryPassport(){
+  const box=document.getElementById('selPassportSummary'); if(!box) return;
+  const c=getAtlasEntityContract(selectedKey); if(!c){ box.innerHTML=''; return; }
+  const b=claimBuckets(c);
+  box.innerHTML=`<div class="passportGrid">
+    <div class="passportBox"><b>Object Passport v2</b>
+      <div class="muted">tier ${esc(c.quality.accuracy_tier)} · ${esc(c.quality.evidence_class)} · ${esc(c.space.coord_frame)}</div></div>
+    <div class="passportBox"><b>directly observed / registered</b><br>${esc(b.direct)}</div>
+    <div class="passportBox"><b>derived inside this runtime</b><br>${esc(b.derived)}</div>
+    <div class="passportBox"><b>model-dependent layer</b><br>${esc(b.model)}</div>
+    <div class="passportBox"><b>must not be claimed</b><br>${esc(b.mustNot)}</div>
+    <div class="passportBox"><b>known limitations</b><br>${esc(c.quality.known_limitations.join(' · ')||unavailable)}</div>
+  </div>`;
+}
+function renderSelFormula(){
+  const box=document.getElementById('selPaneFormula'); if(!box) return;
+  const c=getAtlasEntityContract(selectedKey); if(!c){ box.innerHTML=''; return; }
+  const formulas=c.provenance.derivation_rule||[];
+  box.innerHTML=`<div class="note"><b style="color:var(--gold)">FORMULA / MODEL PATH</b></div>
+    <div class="passportBox"><b>formula path</b><br>${formulas.length?formulas.map(esc).join('<br>'):unavailable}</div>
+    <div class="passportBox"><b>model status</b><br>${esc(c.provenance.source_model||unavailable)} · ${esc(c.physics.boundary_conditions||unavailable)}</div>
+    <div class="passportBox"><b>coordinate frame</b><br>${esc(c.space.coord_frame||unavailable)}</div>
+    <div class="passportBox"><b>precision policy</b><br>${esc(c.quality.precision_policy||unavailable)}</div>`;
+}
+function renderSelProvenance(){
+  const box=document.getElementById('selPaneProvenance'); if(!box) return;
+  const c=getAtlasEntityContract(selectedKey); if(!c){ box.innerHTML=''; return; }
+  const srcRows=(c.provenance.source_dataset||[]).map((tag,i)=>{
+    const src=SOURCE_MAP[tag]||{tag,label:'Unregistered source tag'};
+    return `<div class="relclaim"><b style="color:var(--dim)">${esc(src.tag)}</b> · ${esc(c.provenance.source_classes?.[i]||'unclassified')} · ${esc(src.label)}</div>`;
+  }).join('')||`<div class="relclaim">${unavailable}</div>`;
+  box.innerHTML=`<div class="note"><b style="color:var(--gold)">PROVENANCE</b></div>
+    <div class="passportBox"><b>source tags</b><br>${srcTagHtml(c.provenance.source_dataset)}</div>
+    <div class="passportBox"><b>source registry</b>${srcRows}</div>
+    <div class="passportBox"><b>integrity</b><br>checksum ${esc(c.provenance.checksum||unavailable)} · kernel ${esc(c.kernel_v2?.integrity_marker||unavailable)}</div>`;
 }
 function renderSelCoords(){
   const box=document.getElementById('selPaneCoords'); if(!box) return;
@@ -1856,7 +1982,34 @@ function renderSelCoords(){
   if(dc&&typeof dc==='object'){ h+=`<div class="note">derived (scene / comoving)</div>`+tbl(dc); }
   else if(dc) h+=`<div class="relclaim">derived: ${esc(dc)}</div>`;
   h+=`<div class="note">transformation chain</div>`+(cc.transformation_chain||[]).map(t=>`<div class="relclaim">· ${esc(t)}</div>`).join('');
+  h+=renderCoordinateConverter(c,selectedKey,SELECT.get(selectedKey));
   box.innerHTML=h;
+}
+function renderCoordinateConverter(c,key,s){
+  const cc=c?.space?.coordinate_contract||{}, input=cc.input_coordinates||{}, derived=cc.derived_coordinates||{};
+  const rows=[], warnings=[];
+  const row=(k,v,note='')=>rows.push([k,v,note]);
+  if(derived.scene_xyz_gly) row('Cartesian scene coordinates', JSON.stringify(derived.scene_xyz_gly), 'derived from declared RA/Dec/z');
+  else if(s?.pick) { row('Cartesian scene coordinates', 'visual placement only', 'not a scientific coordinate'); warnings.push('Display positions are not automatically scientific coordinates.'); }
+  if(input.ra_deg!=null&&input.dec_deg!=null){
+    row('Equatorial RA/Dec', `RA ${(input.ra_deg/15).toFixed(5)}h · Dec ${(+input.dec_deg).toFixed(5)}°`, 'declared input');
+    if(COORD.galacticFromRaDec){
+      const g=COORD.galacticFromRaDec(+input.ra_deg,+input.dec_deg);
+      row('Galactic l/b', `l ${g.lDeg.toFixed(4)}° · b ${g.bDeg.toFixed(4)}°`, 'IAU 1958 transform, approximate display precision');
+    }
+  }
+  if(input.z!=null) row('redshift z', String(input.z), 'declared input');
+  const d=derived.comoving_distance_gly??input.distance_gly;
+  if(d!=null){
+    row('distance / comoving distance', `${(+d).toFixed(4)} Gly`, derived.comoving_distance_mpc?`${derived.comoving_distance_mpc} Mpc`:'declared distance');
+    const chi=(+d)/S3.R;
+    row('S³ angular coordinate χ', `${chi.toFixed(5)} rad`, 'approximate radial comparison against fiducial S³ R; not topology evidence');
+    row('φ-level N', levelOf((+d)*GLY_M).toFixed(2), 'approximate scale mapping only');
+  }
+  if(!rows.length) row('converter', unavailable, 'no convertible coordinate fields in current contract');
+  return `<div class="coordConv"><b>Coordinate Converter</b>
+    <table>${rows.map(([k,v,n])=>`<tr><td>${esc(k)}</td><td>${esc(v)}${n?`<br><span class="muted">${esc(n)}</span>`:''}</td></tr>`).join('')}</table>
+    ${warnings.map(w=>`<div class="coordWarn">${esc(w)}</div>`).join('')}</div>`;
 }
 function renderSelUncert(){
   const box=document.getElementById('selPaneUncert'); if(!box) return;
@@ -1867,6 +2020,9 @@ function renderSelUncert(){
   h+=`<div class="relclaim">aleatoric: ${esc(u.aleatoric)}</div>`;
   h+=`<div class="relclaim">calibration: ${esc(u.calibration_status)}</div>`;
   h+=`<div class="relclaim">refs: ${esc((u.uncertainty_refs||[]).join(', ')||'—')}</div>`;
+  if(u.uncertainty_refs?.length){
+    h+=u.uncertainty_refs.map(r=>precisionGuardHtml(r,UNCERTAINTY[r])).join('');
+  }
   if(s.catalogueLoaded && atlasAccuracyTier(selectedKey,s)==='A' && (s.fitStability||s.fitJackknife)){
     const b=s.fitStability, j=s.fitJackknife, f3=a=>Array.isArray(a)?a.map(x=>x.toFixed(4)).join(' / '):'—';
     h+=`<div class="selStab"><b style="color:#9cc8ff">CATALOGUE STABILITY DIAGNOSTIC</b>
@@ -1892,7 +2048,7 @@ function renderSelExport(){
       <button class="btn" id="selExpState">⬇ Runtime state</button>
       <button class="btn" id="selExpValidation">⬇ Validation report</button>
       <button class="btn" id="selExpSources">⬇ Source registry</button></div>
-    <div class="note">Reuses the existing entity-contract / state / validation / source-registry serializers; no scientific data is altered.</div>`;
+    <div class="note">Reuses the existing entity-contract / Atlas Data Kernel v2 / state / validation / source-registry serializers; no scientific data is altered.</div>`;
   box.querySelector('#selExpContract').onclick=()=>exportSelectedContract();
   box.querySelector('#selExpState').onclick=()=>exportStateJSON();
   box.querySelector('#selExpValidation').onclick=()=>XRX.exportValidationReport();
@@ -1926,6 +2082,7 @@ function updateSelCard(){
   const rows = s.rows ? s.rows() : [];
   document.getElementById('selTable').innerHTML =
     rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
+  renderSelSummaryPassport();
 }
 function renderSelectionContract(){
   const box=document.getElementById('selContract'),c=getAtlasEntityContract(selectedKey);
@@ -2069,6 +2226,7 @@ function exportObjectRelations(){
    ================================================================ */
 const ATLAS_SCHEMA_VERSION='fbs3r-runtime-entity-contract/1.0.0';
 const ATLAS_SCHEMA_ASSET='fbs3r_runtime_entity_contract.schema.json';
+const ATLAS_DATA_KERNEL_VERSION='atlas-data-kernel/2.0.0';
 const ATLAS_RUNTIME_PROFILE={
   role:'browser golden-slice scientific visualization runtime',
   contract_schema:{recommended:'JSON Schema 2020-12',status:`integrated as ${ATLAS_SCHEMA_ASSET}`},
@@ -2100,10 +2258,51 @@ const MODE_FRAME={
 };
 const MODE_UNIT={solar:'AU',cyc:'mixed / declared per instrument',obs:'Gly',s3:'Gly or Mpc / declared per submodel',
   fbs:'level N and metres',fractal:'dimensionless'};
+const ATLAS_QUICK_FILTERS=[
+  ['observation','Observation','evidence_class = observation'],
+  ['literature','Literature','accuracy tier B / literature-derived'],
+  ['reconstruction','Reconstruction','probabilistic reconstruction'],
+  ['mathematical-model','Mathematical Model','mathematical-model evidence'],
+  ['conditional-model','Conditional Model','conditional-model evidence'],
+  ['display-anchor','Display Anchor','accuracy tier D / visual field anchor'],
+];
 function atlasHash(v){
   const s=typeof v==='string'?v:JSON.stringify(v);let h=2166136261;
   for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}
   return (h>>>0).toString(16).padStart(8,'0');
+}
+function decimalPlacesForUncertainty(range){
+  if(!Array.isArray(range)||range.length<2||!range.every(Number.isFinite))return null;
+  const half=Math.abs(range[1]-range[0])/2;
+  if(!(half>0))return null;
+  return Math.max(0,Math.min(8,Math.ceil(-Math.log10(half))+1));
+}
+function rawDecimalPlaces(value){
+  const s=String(value);
+  return s.includes('.')?s.split('.')[1].replace(/e.*/i,'').length:0;
+}
+function precisionGuard(value,{unit='',uncertainty=null,label='',digits=null}={}){
+  const raw=Number.isFinite(value)?value:String(value);
+  const dec=digits??decimalPlacesForUncertainty(uncertainty?.range);
+  const recommended=Number.isFinite(value)
+    ? (dec==null?String(value):Number(value).toFixed(dec))+(unit?' '+unit:'')
+    : String(value);
+  let uncertaintyAware=unavailable;
+  if(Array.isArray(uncertainty?.range)&&uncertainty.range.length>=2)
+    uncertaintyAware=`${recommended} (range ${uncertainty.range[0]}–${uncertainty.range[1]}${unit?' '+unit:''})`;
+  else if(uncertainty?.range) uncertaintyAware=`${recommended} (range ${uncertainty.range})`;
+  const warn=Number.isFinite(value)&&dec!=null&&rawDecimalPlaces(value)>dec+1;
+  return {label,raw:String(raw)+(unit?' '+unit:''),recommended,uncertaintyAware,precisionWarning:warn,
+    note:uncertainty?.note||''};
+}
+function precisionGuardHtml(label,u){
+  if(!u)return '';
+  const g=precisionGuard(u.value,{unit:u.unit,uncertainty:u,label});
+  return `<div class="precisionBox"><b>${esc(label)}</b> ${g.precisionWarning?'<span class="precisionWarn">precision warning</span>':''}
+    <table><tr><td>raw internal value</td><td>${esc(g.raw)}</td></tr>
+    <tr><td>recommended display</td><td>${esc(g.recommended)}</td></tr>
+    <tr><td>uncertainty-aware</td><td>${esc(g.uncertaintyAware)}</td></tr></table>
+    <div class="muted">${esc(g.note||'uncertainty metadata not available')}</div></div>`;
 }
 function atlasSemanticType(key,s){
   if(key.endsWith('Atlas')||key.startsWith('fractal_'))return 'analytical_environment';
@@ -2233,6 +2432,40 @@ function atlasKnownLimitations(key,s,evidence){
   if(s?.mode==='fractal')out.push('Palette and iteration view are mathematical transfer functions, not physical evidence.');
   return out;
 }
+function atlasKernelProjection(key,s,c){
+  const coord=c.space.coordinate_contract||{};
+  const flat={
+    version:ATLAS_DATA_KERNEL_VERSION,
+    id:c.identity.entity_id,
+    name:c.identity.label,
+    mode:s.mode,
+    type:c.identity.semantic_type,
+    evidence_class:c.quality.evidence_class,
+    accuracy_tier:c.quality.accuracy_tier,
+    coordinate_frame:c.space.coord_frame,
+    coordinates:{
+      input_frame:coord.input_frame||unavailable,
+      input:coord.input_coordinates??unavailable,
+      derived:coord.derived_coordinates??unavailable,
+      transformation_chain:coord.transformation_chain||[],
+    },
+    units:c.physics.unit,
+    formulas:c.provenance.derivation_rule||[],
+    sources:c.provenance.source_dataset||[],
+    uncertainty:c.uncertainty,
+    limitations:c.quality.known_limitations||[],
+    relations:getObjectRelations(key).map(r=>({target_id:`urn:fbs3r:runtime:${r.target}`,target_key:r.target,kind:r.kind,claim:r.claim})),
+    export_payload:{
+      selected_contract_json:`${key}_runtime_contract.json`,
+      atlas_manifest_json:'fbs3r_runtime_atlas_manifest.json',
+      entity_contract_path:`entities[identity.entity_id="${c.identity.entity_id}"]`,
+    },
+    checksum:c.provenance.checksum,
+  };
+  flat.integrity_marker=atlasHash({id:flat.id,mode:flat.mode,type:flat.type,checksum:flat.checksum,
+    sources:flat.sources,formulas:flat.formulas,relations:flat.relations.map(r=>r.target_key)});
+  return flat;
+}
 function getAtlasEntityContract(key){
   const s=SELECT.get(key);if(!s)return null;
   const evidence=atlasEvidenceClass(key,s),semantic=atlasSemanticType(key,s),sources=s.src||[],formulas=s.formulas||[];
@@ -2265,6 +2498,8 @@ function getAtlasEntityContract(key){
         sources.length?'source-tagged':'source-missing',formulas.length?'derivation-tagged':'derivation-missing'],
       known_limitations:atlasKnownLimitations(key,s,evidence),metadata_completeness_pct:0},
   };
+  contract.identity.mode=s.mode;
+  contract.kernel_v2=atlasKernelProjection(key,s,contract);
   const required=[contract.identity.entity_id,contract.identity.version_id,contract.identity.semantic_type,
     contract.space.coord_frame,contract.physics.unit,contract.time.valid_time,contract.data.missing_value_policy,
     contract.uncertainty.semantics,contract.provenance.checksum,contract.quality.validation_suite_version,
@@ -2281,7 +2516,7 @@ function validateAtlasEntityContract(c){
   const arr=(v,path,min=0)=>{if(!Array.isArray(v))errors.push(`${path}: expected array`);else if(v.length<min)errors.push(`${path}: requires ${min}+ items`);};
   const text=(v,path)=>{need(v,path);if(v!=null&&typeof v!=='string')errors.push(`${path}: expected string`);};
   const sections={
-    identity:['entity_id','version_id','semantic_type','label'],
+    identity:['entity_id','version_id','semantic_type','label','mode'],
     space:['coord_frame','transform_to_world','bounds','topology_ref'],
     time:['valid_time','lead_time','temporal_resolution'],
     physics:['quantity_kind','unit','dimension_vector','boundary_conditions','conservation_targets'],
@@ -2296,7 +2531,7 @@ function validateAtlasEntityContract(c){
     obj(c[section],section);
     for(const field of fields)need(c[section]?.[field],`${section}.${field}`);
   }
-  ['entity_id','version_id','semantic_type','label'].forEach(k=>text(c.identity?.[k],`identity.${k}`));
+  ['entity_id','version_id','semantic_type','label','mode'].forEach(k=>text(c.identity?.[k],`identity.${k}`));
   ['coord_frame','transform_to_world','topology_ref'].forEach(k=>text(c.space?.[k],`space.${k}`));
   ['valid_time','lead_time','temporal_resolution'].forEach(k=>text(c.time?.[k],`time.${k}`));
   ['quantity_kind','unit','dimension_vector','boundary_conditions','conservation_targets'].forEach(k=>text(c.physics?.[k],`physics.${k}`));
@@ -2345,10 +2580,18 @@ function atlasScorecards(){
     operational:{label:'Frame EMA',value:ATLAS_TELEMETRY.frameEmaMs.toFixed(1),unit:'ms',note:`jitter ${ATLAS_TELEMETRY.frameJitterMs.toFixed(1)} ms · init→first render ${ATLAS_TELEMETRY.firstFrameMs?.toFixed(0)??'—'} ms · context losses ${ATLAS_TELEMETRY.contextLosses}`},
   };
 }
+function buildAtlasDataKernel(){
+  const entities=[...SELECT.keys()].map(k=>getAtlasEntityContract(k).kernel_v2);
+  return {version:ATLAS_DATA_KERNEL_VERSION,generated_at:new Date().toISOString(),
+    entity_count:entities.length,entities,
+    by_id:Object.fromEntries(entities.map(e=>[e.id,e])),
+    integrity_marker:atlasHash(entities.map(e=>({id:e.id,checksum:e.checksum,integrity:e.integrity_marker})))};
+}
 function buildAtlasManifest(){
   return {$schema:ATLAS_SCHEMA_ASSET,schema_version:ATLAS_SCHEMA_VERSION,generated_at:new Date().toISOString(),runtime_profile:ATLAS_RUNTIME_PROFILE,
     active_state:{mode:state.mode,audience:state.atlasAudience,quality_overlay:state.showQualityOverlay,selected_entity:selectedKey},
     scorecards:atlasScorecards(),sources:SOURCE_MAP,formula_registry:FORMULA_REGISTRY,uncertainty_registry:UNCERTAINTY,
+    data_kernel_v2:buildAtlasDataKernel(),
     entities:[...SELECT.keys()].map(getAtlasEntityContract),
     relations:[...SELECT.keys()].map(key=>({entity_id:`urn:fbs3r:runtime:${key}`,relations:getObjectRelations(key)})),
     validation:{passed:SELF_TESTS.filter(t=>t.pass).length,total:SELF_TESTS.length,self_tests:SELF_TESTS}};
@@ -2367,6 +2610,7 @@ let atlasExploreTier=null;   // QA Atlas entity-explorer tier filter (UI only)
 function renderAtlasPanel(){
   const p=document.getElementById('atlasPanel');if(!p||!panelIsOpen('atlasPanel'))return;
   const scores=atlasScorecards(),contracts=[...SELECT.keys()].map(getAtlasEntityContract);
+  const kernel=buildAtlasDataKernel();
   const invalid=contracts.filter(c=>validateAtlasEntityContract(c).length);
   const ev=contracts.reduce((a,c)=>{(a[c.quality.evidence_class]??=[]).push(c);return a;},{});
   const tiers=contracts.reduce((a,c)=>{(a[c.quality.accuracy_tier]??=[]).push(c);return a;},{});
@@ -2376,6 +2620,8 @@ function renderAtlasPanel(){
     <div class="scoregrid">${Object.values(scores).map(s=>`<div class="scorecard"><span>${esc(s.label)}</span><b>${esc(s.value)} ${esc(s.unit)}</b><div class="note">${esc(s.note)}</div></div>`).join('')}</div>
     <div class="sect"><b>Contract coverage</b><div class="note">${contracts.length} stable runtime entities · ${invalid.length} invalid contracts · schema ${esc(ATLAS_SCHEMA_VERSION)}</div>
       <div class="atlasBadges">${Object.entries(ev).map(([k,v])=>`<span class="atlasBadge">${esc(k)} · ${v.length}</span>`).join('')}</div></div>
+    <div class="sect"><b>Atlas Data Kernel v2</b>
+      <div class="note">${kernel.entity_count} normalized entities · integrity ${esc(kernel.integrity_marker)} · flat projection over the existing runtime contract, not a second data source.</div></div>
     <div class="sect"><b>Accuracy tiers</b>
       <div class="note">A catalogue-derived · B literature fit · C probabilistic reconstruction · D display anchor · M model-only</div>
       <div class="atlasBadges">${['A','B','C','D','M'].filter(t=>tiers[t]).map(t=>`<span class="atlasBadge tier-${t}">${t} · ${tiers[t].length}</span>`).join('')}</div>
@@ -2397,6 +2643,8 @@ function renderAtlasPanel(){
       <div class="ctlrow"><label>Quality cues on labels</label><input id="atlasOverlay" type="checkbox" ${state.showQualityOverlay?'checked':''}></div>
       <div class="radioRow"><button class="btn ${state.atlasAudience==='expert'?'on':''}" data-audience="expert">Expert</button>
       <button class="btn ${state.atlasAudience==='public'?'on':''}" data-audience="public">Public</button></div>
+      <div class="filterLegend"><b>Evidence filters</b>${ATLAS_QUICK_FILTERS.map(([id,label,hint])=>
+        `<span class="filterPill ${state.evidenceFilter===id?'on':''}" title="${esc(hint)}">${esc(label)}</span>`).join('')}</div>
       <div class="note">Public mode simplifies the surrounding interface; it does not remove the selected object's evidence class or uncertainty disclosure.</div></div>
     <div class="sect"><b>Catalogue loader · Mg II absorbers → tier A</b>
       <div class="note">Load absorber points (JSON or CSV with <b>ra_deg, dec_deg, z_abs</b>) to upgrade a ring field from tier D (field anchor) to tier A (centroid · covariance · PCA computed through the Coordinate Engine). A content hash is recorded; significance / Bayes factor are still not claimed.</div>
@@ -3481,6 +3729,14 @@ const COORD = (()=>{
     return {raH:ra/15, decDeg:Math.asin(THREE.MathUtils.clamp(ze,-1,1))/DEG};
   }
   const comovingFromZ = z=>comovingGly(z);               // D_C(z) in Gly (existing integrator)
+  function galacticFromRaDec(raDeg,decDeg){
+    const ra=raDeg*DEG, dec=decDeg*DEG;
+    const e=[Math.cos(dec)*Math.cos(ra),Math.cos(dec)*Math.sin(ra),Math.sin(dec)];
+    const m=[[-.0548755604,.4941094279,-.8676661490],[-.8734370902,-.4448296300,-.1980763734],[-.4838350155,.7469822445,.4559837762]];
+    const g=[m[0][0]*e[0]+m[1][0]*e[1]+m[2][0]*e[2],m[0][1]*e[0]+m[1][1]*e[1]+m[2][1]*e[2],m[0][2]*e[0]+m[1][2]*e[1]+m[2][2]*e[2]];
+    let l=Math.atan2(g[1],g[0])/DEG; if(l<0)l+=360;
+    return {lDeg:l,bDeg:Math.asin(THREE.MathUtils.clamp(g[2],-1,1))/DEG};
+  }
   function zFromComoving(dGly){                           // numeric inverse (D_C monotonic in z≥0)
     if(dGly<=0) return 0;
     let lo=0, hi=20;
@@ -3502,7 +3758,7 @@ const COORD = (()=>{
     const a=dirFromRaDec(raH,decDeg).normalize(), bk=raDecFromDir(a), b=dirFromRaDec(bk.raH,bk.decDeg).normalize();
     return Math.acos(THREE.MathUtils.clamp(a.dot(b),-1,1))/DEG;
   }
-  return {FRAMES,COSMOLOGY,dirFromRaDec,raDecFromDir,comovingFromZ,zFromComoving,radecZToScene,roundTripResidualDeg};
+  return {FRAMES,COSMOLOGY,dirFromRaDec,raDecFromDir,galacticFromRaDec,comovingFromZ,zFromComoving,radecZToScene,roundTripResidualDeg};
 })();
 
 // === MODULE: Geometry Fitter ===
@@ -4026,6 +4282,42 @@ registerSel('solarGC',{name:GAL_DATA.gc.name,mode:'solar',pick:gcDot,labelEl:gcL
   getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
   rows:()=>[['J2000 centre','RA 17h45m40.04s · Dec −28°56′10.2″'],['Sun–centre distance','26,700 ly'],['Disk reference radius','52,000 ly · schematic'],['Plane normal','IAU NGP RA 192.8595° · Dec +27.1283°'],['Scale','1 scene unit = 1 AU']]});
 
+/* ── Milky Way spiral-arm label layer · SCHEMATIC literature reconstruction ──
+   Logarithmic-spiral arm tracks (pitch ≈12.5°) with labels; NOT exact arm
+   boundaries. Built with NO module-level `state` refs (state is defined later;
+   the toggle is applied at runtime in updateSolarScaleVisibility). */
+const mwArms=new THREE.Group(); milkyWayPhysical.add(mwArms);
+const MW_ARM_DEFS=[
+  {name:'Perseus Arm',             r0:9000,  phi:2.0, col:0x9ab8ff},
+  {name:'Scutum–Centaurus Arm',    r0:8200,  phi:4.7, col:0xffcf8a},
+  {name:'Sagittarius–Carina Arm',  r0:7200,  phi:0.5, col:0x8fe3c0},
+  {name:'Norma Arm',               r0:6600,  phi:3.1, col:0xff9db0},
+  {name:'Orion–Cygnus (Local) Arm',r0:8300,  phi:5.8, col:0xf1dda6, minor:true},
+  {name:'Outer / New Outer Arm',   r0:12500, phi:2.6, col:0x77b7ff, minor:true},
+];
+{ const b=Math.tan(12.5*DEG);
+  MW_ARM_DEFS.forEach(arm=>{ const pts=[], turns=arm.minor?1.1:1.7;
+    for(let i=0;i<=180;i++){ const th=i/180*turns*2*Math.PI, r=arm.r0*Math.exp(b*th); if(r>54000) break;
+      const a=th+arm.phi; pts.push(new THREE.Vector3(Math.cos(a)*r*LY_AU,0,Math.sin(a)*r*LY_AU)); }
+    if(pts.length<2) return;
+    mwArms.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:arm.col,transparent:true,opacity:arm.minor?.45:.62,depthWrite:false})));
+    const mid=pts[Math.floor(pts.length*0.62)];
+    const lab=mkLabel(arm.name+' · schematic',arm.minor?'label dim':'label'); lab.position.copy(mid).add(new THREE.Vector3(0,2600*LY_AU,0)); mwArms.add(lab); });
+}
+// Sun position on the Orion Arm (≈8.2 kpc / 26,700 ly from the centre) — computed in the disk's local frame
+milkyWayPhysical.updateWorldMatrix(true,false);
+const mwSunDot=new THREE.Mesh(new THREE.SphereGeometry(1000*LY_AU,12,8),new THREE.MeshBasicMaterial({color:0xfff2c4}));
+mwSunDot.position.copy(milkyWayPhysical.worldToLocal(new THREE.Vector3(0,0,0))); mwArms.add(mwSunDot);
+{ const sl=mkLabel('☉ Solar System · Orion Arm','label major'); sl.position.copy(mwSunDot.position).add(new THREE.Vector3(0,2400*LY_AU,0)); mwArms.add(sl); }
+registerSel('mwSpiralArms',{name:'Milky Way spiral arms (schematic)',mode:'solar',pick:mwSunDot,
+  src:['ASTRO'],accuracyTier:'D',catalogueStatus:'literature-derived',
+  forbiddenClaims:['exact spiral-arm boundaries','externally observed exact Milky Way shape','precise pitch angle as measured'],
+  desc:'Schematic logarithmic-spiral arm tracks (pitch ≈12.5°) from literature reconstructions of the Milky Way. Arm names and approximate placement are educational orientation aids — NOT exact arm boundaries (the Galaxy cannot be imaged from outside). The Sun sits on the minor Orion–Cygnus (Local) Arm at ~26,700 ly. Solar position and Sgr A* remain source-tagged at their J2000 values.',
+  getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
+  rows:()=>[['Status','schematic literature reconstruction'],['Pitch angle','≈12.5° (approx, log-spiral)'],['Arms shown','Perseus · Scutum–Centaurus · Sagittarius–Carina · Norma · Orion–Cygnus · Outer'],['Sun arm','Orion–Cygnus (Local) Arm · ~26,700 ly'],['Caveat','arm boundaries are reconstruction-dependent; not exact']]});
+
+
 const m31Physical=new THREE.Group(); m31Physical.position.copy(GAL_DATA.m31.pos);
 {
   const north=raDecDir(GAL_DATA.m31.ra/15,GAL_DATA.m31.dec+.05).sub(GAL_DATA.m31.dir).normalize();
@@ -4303,6 +4595,7 @@ function updateSolarScaleVisibility(){
   const layer=state.solarScaleLayer||'local';
   solarGalacticGroup.visible=layer==='galactic'||layer==='andromeda';
   milkyWayPhysical.visible=layer==='galactic'||layer==='andromeda';
+  mwArms.visible = state.showMwArms!==false;   // schematic spiral-arm overlay toggle (parent handles layer visibility)
   m31Physical.visible=layer==='andromeda';
   if(galacticLinks[0]) galacticLinks[0].forEach(o=>o.visible=layer==='galactic'||layer==='andromeda');
   if(galacticLinks[1]) galacticLinks[1].forEach(o=>o.visible=layer==='andromeda');
@@ -5263,9 +5556,9 @@ function downloadFile(name, mime, content){
   document.body.appendChild(a); a.click();
   setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 500);
 }
-function exportStateJSON(){
+function buildStatePayload(){
   const D = state.fbsDepth, Rm = levelR(D);
-  downloadFile('s3-lts-fbs3r-state.json', 'application/json', JSON.stringify({
+  return {
     app:'S³ LIGHT-TRISPHERE / FBS3R Interactive 3D Model',
     exportedAt:new Date().toISOString(),
     mode:state.mode,
@@ -5293,9 +5586,12 @@ function exportStateJSON(){
     },
     sources:Object.fromEntries(Object.entries(SOURCE_MAP).map(([k,v])=>[k, v.label])),
     disclaimer:'Conditional reconstruction and published FBS3R relations — not a topology detection.',
-  }, null, 2));
+  };
 }
-function exportLadderCSV(){
+function exportStateJSON(){
+  downloadFile('s3-lts-fbs3r-state.json', 'application/json', JSON.stringify(buildStatePayload(), null, 2));
+}
+function buildLadderCSV(){
   const rows = ['N,R_m,R_human,log10_rho_over_rhoP,log10_F_N,phase,epoch'];
   for(let n=0; n<=FBS.Nmax; n++){
     const ep = FBS_EPOCHS.find(e=>Math.abs(e.N-n)<0.5);
@@ -5305,7 +5601,10 @@ function exportLadderCSV(){
       n<=FBS.Nrec?'fractal-phi':'exponential-H',
       ep ? '"'+ep.name.replace(/"/g,"'")+'"' : ''].join(','));
   }
-  downloadFile('fbs3r-phi-ladder-benchmark.csv', 'text/csv', rows.join('\n'));
+  return rows.join('\n');
+}
+function exportLadderCSV(){
+  downloadFile('fbs3r-phi-ladder-benchmark.csv', 'text/csv', buildLadderCSV());
 }
 function ringExportPayload(){
   const Reff=ringEffectiveRadius(), assigned=ringAssignments(), fit=ringCurrentFit();
@@ -7226,6 +7525,20 @@ const XRX = (()=>{
 
   /* ---------- XR Guided Tour shell (≥ six tour definitions) ---------- */
   const TOURS=[
+    {id:'grandv2', short:'★ Grand v2', name:'Grand Tour v2 · Planck Seed to Observer', stops:[
+      {mode:'fbs', key:'fbsBindu', say:'Planck seed: the φ-ladder begins at l_P. This is the FBS3R formula layer, not an observed object.'},
+      {mode:'solar', key:'sun', say:'Solar system: the Sun anchors the local JPL/IAU reference display. Local scene positions are ephemeris/display coordinates, not global S³ proof.'},
+      {mode:'solar', key:'planet2', say:'Earth: the Earth-Moon barycenter approximation carries the JPL element chain and its validity limits.'},
+      {mode:'solar', key:'moon', say:'Moon: Meeus-grade lunar geometry drives phases and eclipse diagnostics; precision ephemerides remain external.'},
+      {mode:'solar', key:'solarGC', say:'Milky Way context: the Galactic centre is a registered direction and distance anchor within the Solar hierarchy.'},
+      {mode:'obs', key:'youAreHere', say:'Return to the observer origin: the Milky Way / Local Group is the centre of this comoving atlas.'},
+      {mode:'obs', key:'cosmos_laniakea', say:'Local Group and cosmic web: Laniakea is a reconstruction layer with probabilistic basin boundaries.'},
+      {mode:'obs', key:'scrPH', say:'Observable boundary: the particle-horizon screen is a ΛCDM-derived comoving radius, not an edge of space.'},
+      {mode:'s3', key:'s3cap', say:'Compact S³ / Light-Trisphere: the observable domain is shown as a conditional cap; no topology detection is claimed.'},
+      {mode:'s3', key:'hopfAtlas', say:'Hopf/S³ geometry: linked fibres illustrate the mathematical bundle structure, not a hidden-variable model or new observation.'},
+      {mode:'fbs', key:'fbsEp10', say:'φ FBS3R ladder: the S³ radius level is a cross-model scale bridge and remains a model/formula layer.'},
+      {mode:'obs', key:'youAreHere', say:'Return to observer: all tour stops preserve their own evidence tier and coordinate contract.'},
+    ]},
     {id:'solar', short:'☀ Solar Tour', name:'Solar System Grand Tour', stops:[
       {mode:'solar', key:'sun',     say:'The Sun — G2V gravitational anchor. Local physics here is the quasi-local Euclidean patch of the S³ carrier.'},
       {mode:'solar', key:'planet2', say:'Earth at its true JPL orbital element (Earth–Moon barycenter approximation). Positions are ephemeris-grade, tier A.'},
@@ -7701,7 +8014,7 @@ const state = {
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
-  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:true,
+  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:true, showMwArms:true,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
 };
@@ -8984,13 +9297,15 @@ function updCtlVals(){
     if(q('#sensH0V')) q('#sensH0V').textContent = state.sensH0.toFixed(2);
     if(q('#sensOKV')) q('#sensOKV').textContent = state.sensOK.toFixed(5);
     if(q('#sensOut')){
-      const Rg = 299792.458/state.sensH0/Math.sqrt(state.sensOK)*3.2615638e-3;   // Gly
-      const Ns = Math.log(Rg*GLY_M/FBS.lP)/LN_PHI;
-      const chiP2 = S3.Dparticle/Rg;
+      const sens=computeS3Sensitivity(state.sensH0,state.sensOK);
+      const chiP2 = S3.Dparticle/sens.R;
       q('#sensOut').innerHTML =
-        `R′ = (c/H₀)/√|Ω_K| = <b>${Rg.toFixed(1)} Gly</b><br>`+
-        `N(R′) = ${Ns.toFixed(2)} · Δ from canon ${(Ns-FBS.Ns3).toFixed(2)} levels<br>`+
-        `χ′_particle = ${chiP2.toFixed(4)} rad · Γ′_obs = ${(Gamma(chiP2)*100).toPrecision(3)} %`;
+        `R′ = (c/H₀)/√|Ω_K| = <b>${sens.R.toFixed(1)} Gly</b> · ΔR ${sens.deltaR>=0?'+':''}${sens.deltaR.toFixed(1)} Gly (${sens.deltaRPercent>=0?'+':''}${sens.deltaRPercent.toFixed(2)}%)<br>`+
+        `πR′ = ${sens.piR.toFixed(1)} Gly · 2πR′ = ${sens.circ.toFixed(1)} Gly<br>`+
+        `V′ = 2π²R′³ = ${sens.volume.toExponential(3)} Gly³ · ΔV ${sens.deltaVolumePercent>=0?'+':''}${sens.deltaVolumePercent.toFixed(2)}%<br>`+
+        `N_S3′ = ${sens.Ns3.toFixed(2)} · Δ from canon ${sens.deltaNs3>=0?'+':''}${sens.deltaNs3.toFixed(2)} levels<br>`+
+        `χ′_particle = ${chiP2.toFixed(4)} rad · Γ′_obs = ${(Gamma(chiP2)*100).toPrecision(3)} %<br>`+
+        `<span class="coordWarn">parameter sensitivity only, not a topology proof</span>`;
     }
   } else if(state.mode==='fractal'){
     if(q('#powV')) q('#powV').textContent = 'n = '+fractalUniforms.uPower.value.toFixed(1);
@@ -9293,10 +9608,11 @@ const CMDK = (()=>{
     [['ctl','Controls'],['info','Scientific info'],['objectPanel','Object & relation atlas'],['atlasPanel','QA Atlas'],['oscPanel','Oscillators'],['xrCheck','XR diagnostics'],['motionPanel','Motion control']]
       .forEach(([id,lab])=>add('Open panel · '+lab,'panel','▦',()=>openPanel(id)));
     Object.entries(MODE_META).forEach(([m,lab])=>add('Go to mode · '+lab,'mode','◆',()=>setMode(m)));
-    [['all','show all evidence'],['observation','observation only'],['probabilistic-reconstruction','reconstruction only'],['conditional-model','conditional model only'],['mathematical-model','mathematical model only']]
+    [['all','show all evidence'],...ATLAS_QUICK_FILTERS.map(([id,label])=>[id,label.toLowerCase()+' only'])]
       .forEach(([ev,lab])=>add('Evidence filter · '+lab,'fade labels by evidence class','⛃',()=>setEvidenceFilter(ev)));
     // --- navigation-layer commands (reuse existing entry points) ---
     add('Open Navigator','guided start · tours · layers · bookmarks (N)','🧭',()=>openPanel('navPanel'));
+    add('Start Grand Tour v2','Planck seed → Solar → cosmic web → S³ → φ ladder → observer','★',()=>startDesktopTour('grandv2'));
     add('Start JWST Black-Hole Seeds tour','Abell 2744−QSO1 · z=7.04','●',()=>startDesktopTour('jwstbh'));
     add('Show only Tier A evidence','catalogue-computed objects','Ⓐ',()=>setTierFilter('A'));
     add('Clear evidence filter','show all evidence & tiers','⛶',()=>{setEvidenceFilter('all');setTierFilter(null);});
@@ -9357,17 +9673,31 @@ const CMDK = (()=>{
   });
   return {open:openP,close,isOpen:()=>open,commandNames:()=>commands().map(c=>c.name)};
 })();
-function setEvidenceFilter(ev){ state.evidenceFilter=ev==='all'?null:ev; applyEvidenceFilter(); }
+function atlasFilterLabel(f){
+  if(!f)return 'all evidence';
+  return (ATLAS_QUICK_FILTERS.find(x=>x[0]===f)?.[1])||f;
+}
+function atlasFilterMatches(key,s,filter){
+  if(!filter)return true;
+  const c=getAtlasEntityContract(key);
+  if(filter==='literature')return c.quality.accuracy_tier==='B'||c.quality.catalogue_status==='literature-derived';
+  if(filter==='reconstruction')return c.quality.evidence_class==='probabilistic-reconstruction';
+  if(filter==='display-anchor')return c.quality.accuracy_tier==='D'||c.quality.precision_policy==='display-anchor';
+  return c.quality.evidence_class===filter;
+}
+function setEvidenceFilter(ev){ state.evidenceFilter=ev==='all'?null:ev; applyEvidenceFilter(); updateBreadcrumb(); }
 function applyEvidenceFilter(){
   const ev=state.evidenceFilter;
   document.body.toggleAttribute('data-evfilter',!!ev);
-  for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('ev-pass',!ev||atlasEvidenceClass(key,s)===ev); }
+  if(ev)document.body.setAttribute('data-evfilter',ev); else document.body.removeAttribute('data-evfilter');
+  for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('ev-pass',atlasFilterMatches(key,s,ev)); }
 }
 // UI-only accuracy-tier label filter (mirrors the evidence-class filter; fades non-matching labels)
 function setTierFilter(tier){
   state.tierFilter=tier||null;
   document.body.toggleAttribute('data-tierfilter',!!state.tierFilter);
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
+  updateBreadcrumb();
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
 function updateBreadcrumb(){
@@ -9375,6 +9705,8 @@ function updateBreadcrumb(){
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
   if(state.mode==='s3'&&state.s3view)parts.push('<span>'+esc(state.s3view)+'</span>');
   else if(state.mode==='solar'&&state.solarScaleLayer)parts.push('<span>'+esc(state.solarScaleLayer)+'</span>');
+  if(state.evidenceFilter)parts.push('<span>filter: '+esc(atlasFilterLabel(state.evidenceFilter))+'</span>');
+  if(state.tierFilter)parts.push('<span>tier '+esc(state.tierFilter)+'</span>');
   if(selectedKey&&SELECT.get(selectedKey)){ const s=SELECT.get(selectedKey);
     parts.push('<span class="bc-cur">'+esc(objectName(s))+' · '+atlasAccuracyTier(selectedKey,s)+'</span>'); }
   el.innerHTML=parts.join('<span class="bc-sep">›</span>');
@@ -9699,6 +10031,7 @@ const AtlasCoach=(()=>{
 /* ---- Atlas Navigator panel + bookmarks + history ---- */
 const NAV_SECTIONS=['Start','Modes','Tours','Layers','Evidence','Bookmarks','History','Help'];
 const NAV_START_CARDS=[
+  ['Grand Tour v2','Planck seed through Solar, cosmic web, S³/Hopf and φ-ladder.',()=>startDesktopTour('grandv2')],
   ['Solar System','True-scale planets on JPL ephemerides.',()=>{ setMode('solar'); }],
   ['Observable Universe','Comoving atlas of nearby cosmic structure.',()=>{ setMode('obs'); }],
   ['Cosmic Web','Tour superclusters, attractors and voids.',()=>startDesktopTour('cosmicweb')],
@@ -9776,11 +10109,13 @@ const NAV=(()=>{
       <button class="btn ${state.showHierarchyLocator?'on':''}" data-layer="loc">3D locator</button>
       <button class="btn ${state.showQualityOverlay?'on':''}" data-layer="qual">Uncertainty cues</button>
       <button class="btn ${state.showGuides?'on':''}" data-layer="guides">Spatial guides</button></div>`;
-    const evClasses=[['observation','Observation'],['probabilistic-reconstruction','Reconstruction'],['conditional-model','Conditional model'],['mathematical-model','Mathematical model']];
+    const evClasses=ATLAS_QUICK_FILTERS.map(([id,label])=>[id,label]);
     const evHtml=`<div class="navGrid">
       ${evClasses.map(([e,l])=>`<button class="btn ${state.evidenceFilter===e?'on':''}" data-ev="${e}">${esc(l)}</button>`).join('')}
       <button class="btn ${state.tierFilter==='A'?'on':''}" data-tier="A">Tier A only</button>
-      <button class="btn" data-evclear="1">Clear filter</button></div>`;
+      <button class="btn" data-evclear="1">Clear filter</button></div>
+      <div class="filterLegend">${ATLAS_QUICK_FILTERS.map(([id,label,hint])=>
+        `<span class="filterPill ${state.evidenceFilter===id?'on':''}" title="${esc(hint)}">${esc(label)}</span>`).join('')}</div>`;
     const bms=bmLoad();
     const bmHtml=`<div class="navGrid"><button class="btn green" data-bm="save">★ Save current view</button>
       <button class="btn" data-bm="export" ${bms.length?'':'disabled'}>⬇ Export JSON</button></div>
@@ -10447,6 +10782,7 @@ globalThis.FBS3R_ATLAS=Object.freeze({
   getEntityContract:getAtlasEntityContract,
   validateEntityContract:validateAtlasEntityContract,
   buildManifest:buildAtlasManifest,
+  buildDataKernel:buildAtlasDataKernel,
   scorecards:atlasScorecards,
   interaction:INTERACTION,
   collisionLayers:COLLISION_LAYERS,
