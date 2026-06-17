@@ -277,7 +277,12 @@
     overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 4px rgba(0,0,0,.8)}
   #breadcrumb .bc-sep{color:var(--gold-dim);margin:0 5px}
   #breadcrumb .bc-cur{color:var(--gold-2)}
-  @media (max-width:760px),(pointer:coarse){#breadcrumb{display:none}}
+  /* keep a compact "what am I looking at" chip on phones, centered under the bar */
+  @media (max-width:760px),(pointer:coarse){
+    #breadcrumb{left:50%;transform:translateX(-50%);max-width:88vw;text-align:center;font-size:10.5px;
+      background:rgba(8,11,20,.6);border:1px solid var(--gold-dim);border-radius:999px;padding:3px 12px;backdrop-filter:blur(6px)}
+    body.day #breadcrumb{background:rgba(250,246,235,.8)}
+  }
   body.public #oscBtn,body.public #xrCheckBtn,body.public #motionBtn,
   body.public #panelDock [data-panel="info"],body.public #panelDock [data-panel="oscPanel"],
   body.public #panelDock [data-panel="xrCheck"],body.public #panelDock [data-panel="motionPanel"]{display:none!important}
@@ -529,9 +534,8 @@
     #clock .st{font-size:9.5px;margin-top:0}
     /* dock collapses into a round FAB; expand to a left-pinned vertical pill so the view stays clear */
     #dockFab{display:flex}
-    #ctlFab{display:none}                         /* the dock FAB already exposes Controls on phones */
-    #helpFab,#dockFab{left:14px;right:auto}        /* FABs go bottom-left; selection card stays bottom-right */
-    #helpFab{bottom:16px}#dockFab{bottom:70px}
+    #helpFab,#dockFab,#ctlFab{left:14px;right:auto}   /* FABs go bottom-left; selection card stays bottom-right */
+    #helpFab{bottom:16px}#ctlFab{bottom:70px;display:flex}#dockFab{bottom:124px}   /* ⚙ Controls always one tap away */
     #panelDock{left:8px;right:auto;margin:0;flex-direction:column;width:max-content;max-width:64vw;
       top:auto;bottom:calc(124px + env(safe-area-inset-bottom,0px));max-height:60vh;
       overflow-y:auto;overflow-x:hidden;justify-content:flex-start;scrollbar-width:none;
@@ -1361,13 +1365,13 @@ function runSelfTests(){
         && journey.list.every(k=>SELECT.has(k))
         && INTERACTION.scientificUnchanged(before, getAtlasEntityContract); }catch(e){ return false; } })(),
     'journey covers all objects, read-only');
-  ok('Hydrogen orbitals are exact real |ψ| shapes (1s positive · 2p has a nodal plane & phase flip)',
-    (()=>{ try{ const f1=ORBITALS['1s'].f, f2=ORBITALS['2p'].f;
-      return FRACTAL_TYPES.orbital3d!==undefined
-        && f1({x:1,y:1,z:1,r:Math.sqrt(3)})>0
-        && Math.abs(f2({x:2,y:0,z:0,r:2}))<1e-9
-        && f2({x:0,y:0,z:2,r:2})*f2({x:0,y:0,z:-2,r:2})<0; }catch(e){ return false; } })(),
-    'real hydrogen orbital nodes/phase correct');
+  ok('General hydrogen ψ_nlm is correct (1s positive · 2p_z nodal plane & phase flip · all n,l,m browsable)',
+    (()=>{ try{ return FRACTAL_TYPES.orbital3d!==undefined && typeof psiHydrogen==='function'
+        && psiHydrogen(1,0,0,1,1,1)>0
+        && Math.abs(psiHydrogen(2,1,0,2,0,0))<1e-9
+        && psiHydrogen(2,1,0,0,0,2)*psiHydrogen(2,1,0,0,0,-2)<0
+        && Number.isFinite(psiHydrogen(5,4,2,3,3,3)); }catch(e){ return false; } })(),
+    'real hydrogen orbital nodes/phase correct for arbitrary n,l,m');
   ok('4D regular polytopes have exact vertex/edge counts (tesseract 16/32 · 16-cell 8/24 · 24-cell 24/96)',
     (()=>{ try{ return POLY4D.tesseract.V.length===16&&POLY4D.tesseract.E.length===32
       && POLY4D.cell16.V.length===8&&POLY4D.cell16.E.length===24
@@ -5940,33 +5944,37 @@ function updatePolytope4D(dt){
    gold = positive lobe, blue = negative lobe. Honest physics: the smallest
    structures in the atlas, the quantum end of the scale ladder. */
 const orbitalGroup=new THREE.Group(); orbitalGroup.visible=false; scene.add(orbitalGroup);
-const ORBITALS={
-  '1s':  {f:p=>Math.exp(-p.r),                                   ext:9,  lab:'1s'},
-  '2s':  {f:p=>(2-p.r)*Math.exp(-p.r/2),                         ext:18, lab:'2s · radial node'},
-  '2p':  {f:p=>p.z*Math.exp(-p.r/2),                             ext:18, lab:'2p_z · one angular node'},
-  '3dz2':{f:p=>(3*p.z*p.z-p.r*p.r)*Math.exp(-p.r/3),            ext:30, lab:'3d_z²'},
-  '3dxy':{f:p=>p.x*p.y*Math.exp(-p.r/3),                         ext:30, lab:'3d_xy · four lobes'},
-  '4fz3':{f:p=>p.z*(5*p.z*p.z-3*p.r*p.r)*Math.exp(-p.r/4),      ext:46, lab:'4f_z³'},
-};
-let _orbWhich=null;
+// ── General hydrogen orbital ψ_nlm (real form) for ANY n, l, m ──────────
+function laguerreL(k,a,x){ if(k<0) return 0; let L0=1,L1=1+a-x; if(k===0)return L0; if(k===1)return L1;
+  for(let i=2;i<=k;i++){ const Li=((2*i-1+a-x)*L1-(i-1+a)*L0)/i; L0=L1; L1=Li; } return L1; }
+function realYlm(l,m,x,y,z,r){ const am=Math.abs(m), ct=r>0?z/r:0, P=legendreP(l,am,ct), phi=Math.atan2(y,x);
+  return m===0 ? P : (m>0 ? P*Math.cos(am*phi) : P*Math.sin(am*phi)); }   // relative shape; norm folded into cloud scale
+function psiHydrogen(n,l,m,x,y,z){ const r=Math.hypot(x,y,z); if(r<1e-9) return l===0?1:0;
+  const rho=2*r/n, R=Math.pow(rho,l)*Math.exp(-rho/2)*laguerreL(n-l-1,2*l+1,rho);
+  return R*realYlm(l,m,x,y,z,r); }
+function orbitalLabel(n,l,m){ const L='spdfghi'[l]||('l'+l); return n+L+(l>0?(m>=0?' m=+'+m:' m='+m):''); }
+let _orbKey=null;
 function buildOrbital3D(){
-  const which=state.orbital||'2p';
-  if(_orbWhich===which && orbitalGroup.children.length) return;
-  _orbWhich=which;
+  let n=Math.max(1,Math.min(7,state.orbN||2)); let l=Math.max(0,Math.min(n-1,state.orbL??1)); let m=Math.max(-l,Math.min(l,state.orbM??0));
+  state.orbN=n; state.orbL=l; state.orbM=m;
+  const key=n+'_'+l+'_'+m;
+  if(_orbKey===key && orbitalGroup.children.length) return;
+  _orbKey=key;
   while(orbitalGroup.children.length){ const c=orbitalGroup.children.pop(); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); orbitalGroup.remove(c); }
-  const O=ORBITALS[which]||ORBITALS['2p'], ext=O.ext, S=5.2/ext, N=MOBILE_GPU?9000:26000;
+  const ext=Math.max(9, n*n*2.2+4*n), S=5.4/ext, N=MOBILE_GPU?9000:26000;
+  const f=(x,y,z)=>psiHydrogen(n,l,m,x,y,z);
   let maxd=1e-12;
-  for(let i=0;i<6000;i++){ const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,r=Math.hypot(x,y,z),v=O.f({x,y,z,r}),d=v*v; if(d>maxd)maxd=d; }
+  for(let i=0;i<9000;i++){ const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,v=f(x,y,z),d=v*v; if(d>maxd)maxd=d; }
   const px=[],pc=[], pos=new THREE.Color(0xffcf6a), neg=new THREE.Color(0x5aa8ff); let tries=0;
-  while(px.length<N*3 && tries<N*70){ tries++;
-    const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,r=Math.hypot(x,y,z),v=O.f({x,y,z,r});
+  while(px.length<N*3 && tries<N*90){ tries++;
+    const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,v=f(x,y,z);
     if(Math.random()<v*v/maxd){ px.push(x*S,y*S,z*S); const c=v>=0?pos:neg; pc.push(c.r,c.g,c.b); } }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(px,3));
   g.setAttribute('color',new THREE.Float32BufferAttribute(pc,3));
-  orbitalGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending})));
+  orbitalGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending})));
   orbitalGroup.add(new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})));   // nucleus
-  const lab=mkLabel('Hydrogen '+O.lab+' · |ψ|² electron cloud (gold +, blue −)','label axis'); lab.position.set(0,5.7,0); orbitalGroup.add(lab);
+  const lab=mkLabel(`Hydrogen ${orbitalLabel(n,l,m)} · n=${n} l=${l} m=${m} · |ψ|² (gold +, blue −)`,'label axis'); lab.position.set(0,5.9,0); orbitalGroup.add(lab);
 }
 const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d']);   // fractal "types" rendered as real 3D geometry
 function updateBifurcView(){
@@ -7557,7 +7565,7 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
-  evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbital:'2p',
+  evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
 };
 const lastGoodCamera={position:new THREE.Vector3(0,26,52),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
 const finiteVector=v=>v?.isVector3&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);
@@ -8636,9 +8644,16 @@ function buildCtl(){
         <button class="chip ${state.poly4d==='cell16'?'on':''}" data-poly4d="cell16">16-cell</button>
         <button class="chip ${state.poly4d==='cell24'?'on':''}" data-poly4d="cell24">24-cell</button></div>
     </div>`:''}
-    ${fractalType==='orbital3d'?`<div class="sect"><b>Hydrogen electron orbital · |ψ|²</b>
-      <div class="note">Exact real orbitals of the hydrogen atom rebuilt as a probability cloud (rejection-sampled |ψ|²). Gold = positive lobe, blue = negative lobe; the white dot is the nucleus. Correct nodes, lobes and radial decay — the quantum, smallest-scale end of the atlas.</div>
-      <div class="chips">${['1s','2s','2p','3dz2','3dxy','4fz3'].map(o=>`<button class="chip ${state.orbital===o?'on':''}" data-orbital="${o}">${o}</button>`).join('')}</div>
+    ${fractalType==='orbital3d'?`<div class="sect"><b>Hydrogen orbital · ${orbitalLabel(state.orbN,state.orbL,state.orbM)}</b>
+      <div class="note">Every real hydrogen orbital ψ<sub>n,l,m</sub> as a |ψ|² probability cloud. Gold = +, blue = − lobe; white dot = nucleus. Step n / l / m to browse them all; drag to rotate, scroll/pinch to zoom.</div>
+      <div class="ctlrow"><label>Principal&nbsp;n</label><button class="btn" data-orb="n-">−</button>
+        <span class="val" style="min-width:42px;text-align:center">${state.orbN}</span><button class="btn" data-orb="n+">+</button></div>
+      <div class="ctlrow"><label>Azimuthal&nbsp;l</label><button class="btn" data-orb="l-">−</button>
+        <span class="val" style="min-width:42px;text-align:center">${state.orbL} · ${'spdfghi'[state.orbL]||''}</span><button class="btn" data-orb="l+">+</button></div>
+      <div class="ctlrow"><label>Magnetic&nbsp;m</label><button class="btn" data-orb="m-">−</button>
+        <span class="val" style="min-width:42px;text-align:center">${state.orbM>=0?'+'+state.orbM:state.orbM}</span><button class="btn" data-orb="m+">+</button></div>
+      <div class="chips">${['1,0,0','2,0,0','2,1,0','3,2,0','4,3,0','5,4,0'].map(t=>{const[n,l,m]=t.split(',').map(Number);
+        return `<button class="chip ${state.orbN===n&&state.orbL===l&&state.orbM===m?'on':''}" data-orbpreset="${t}">${orbitalLabel(n,l,m)}</button>`;}).join('')}</div>
     </div>`:''}
     ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
       <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
@@ -8659,7 +8674,14 @@ function buildCtl(){
       FBS3R-inspired exploratory layer. Default palette is neutral silver metal; every palette uses the same iteration/density scalar and changes only its visual transfer function.</div>`;
     ctl.querySelectorAll('[data-fractal]').forEach(b=>b.onclick=()=>{setFractalType(b.dataset.fractal);buildCtl();});
     ctl.querySelectorAll('[data-poly4d]').forEach(b=>b.onclick=()=>{ state.poly4d=b.dataset.poly4d; buildPolytope4D(); buildCtl(); });
-    ctl.querySelectorAll('[data-orbital]').forEach(b=>b.onclick=()=>{ state.orbital=b.dataset.orbital; buildOrbital3D(); buildCtl(); });
+    ctl.querySelectorAll('[data-orb]').forEach(b=>b.onclick=()=>{ const c=b.dataset.orb;
+      if(c==='n+')state.orbN=Math.min(7,state.orbN+1); else if(c==='n-')state.orbN=Math.max(1,state.orbN-1);
+      else if(c==='l+')state.orbL=Math.min(state.orbN-1,state.orbL+1); else if(c==='l-')state.orbL=Math.max(0,state.orbL-1);
+      else if(c==='m+')state.orbM=Math.min(state.orbL,state.orbM+1); else if(c==='m-')state.orbM=Math.max(-state.orbL,state.orbM-1);
+      state.orbL=Math.min(state.orbL,state.orbN-1); state.orbM=Math.max(-state.orbL,Math.min(state.orbL,state.orbM));
+      buildOrbital3D(); buildCtl(); });
+    ctl.querySelectorAll('[data-orbpreset]').forEach(b=>b.onclick=()=>{ const[n,l,m]=b.dataset.orbpreset.split(',').map(Number);
+      state.orbN=n; state.orbL=l; state.orbM=m; buildOrbital3D(); buildCtl(); });
     ctl.querySelector('#fpalette').onchange=e=>{setFractalPalette(e.target.value);buildCtl();};
     ctl.querySelector('#pow')?.addEventListener('input',e=>{fractalUniforms.uPower.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr')?.addEventListener('input',e=>{fractalUniforms.uIters.value=+e.target.value|0;updCtlVals();});
