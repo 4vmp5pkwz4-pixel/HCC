@@ -494,6 +494,15 @@
   body.day .chip,body.day .selTab,body.day #navPanel .navCard .btn{background:rgba(250,246,235,.85)}
   body.day kbd{background:rgba(250,246,235,.9);color:#5a4516}
   body.day #atlasCoach,body.day #navPanel{box-shadow:0 12px 40px rgba(60,45,15,.28)}
+  /* day mode: eliminate ALL remaining dark squares (value boxes, number inputs, reset/collapse buttons, locator) */
+  body.day input[type=number],body.day input[type=text],body.day input[type=datetime-local],body.day select,body.day textarea{
+    background:rgba(250,246,235,.95)!important;color:#2a2418!important;border-color:rgba(138,109,47,.4)!important}
+  body.day .panel-collapser,body.day #atlasCoach .mini{background:rgba(250,246,235,.95)!important;color:#5a4516!important;border-color:var(--gold-dim)!important}
+  body.day .val{background:transparent!important;color:#5a4516!important}
+  body.day .btn,body.day .modebtn{background:rgba(250,246,235,.88)!important}
+  body.day .btn.green{background:rgba(212,175,106,.34)!important;color:#5a4516!important}
+  body.day .modebtn.active,body.day .chip.on,body.day .selTab.on{background:rgba(212,175,106,.3)!important;color:#5a4516!important}
+  body.day #hierarchyLegend{background:rgba(244,238,225,.5);border-color:rgba(138,109,47,.35)}
 
   /* floating round controls — help (always) + dock collapser (mobile) */
   .fab{position:fixed;z-index:60;width:46px;height:46px;border-radius:999px;border:1px solid var(--gold-dim);
@@ -5528,6 +5537,12 @@ antikGroup.add(antikTicks(360,5.55,6.0,6.2,0xc9b48a,.5));   // zodiac 360°
 antikGroup.add(antikTicks(365,5.0,5.25,5.5,0x8fa6cf,.32));  // Egyptian calendar 365 d
 ['♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓'].forEach((z,i)=>{ const a=(i*30+15)*Math.PI/180,l=mkLabel(z,'label major'); l.position.set(Math.cos(a)*5.85,Math.sin(a)*5.85,0); antikGroup.add(l); });
 const antikSun=antikPointer(5.95,0xffd27f), antikMoon=antikPointer(5.4,0xcfe0ff);
+const antikMoonTrue=antikPointer(4.85,0x7fb8ff);   // TRUE Moon — first lunar anomaly (the pin-and-slot device)
+const antikNode=antikPointer(4.3,0xff7a9a);        // Dragon hand — lunar node (eclipse geometry)
+{ const l=mkLabel('mean ☉','label dim'); l.position.set(6.4,0.3,0); antikSun.add(l);
+  const lm=mkLabel('mean ☾','label dim'); lm.position.set(5.7,-0.3,0); antikMoon.add(lm);
+  const lt=mkLabel('true ☾ (anomaly)','label dim'); lt.position.set(5.1,0.3,0); antikMoonTrue.add(lt);
+  const ln=mkLabel('☊ node (eclipse)','label dim'); ln.position.set(4.5,-0.3,0); antikNode.add(ln); }
 const antikPhase=new THREE.Mesh(new THREE.SphereGeometry(.24,18,12),new THREE.MeshBasicMaterial({color:0xffffff})); antikPhase.position.set(5.4,0,0); antikMoon.add(antikPhase);
 const antikMet=new THREE.Group(); antikMet.position.set(-13.5,9.5,0); antikGroup.add(antikMet);
 antikMet.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(antikSpiral(5,1.1,5.4)), new THREE.LineBasicMaterial({color:0x9ce3c6,transparent:true,opacity:.65})));
@@ -5538,13 +5553,25 @@ antikSar.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(antikSpiral
 const antikSarPtr=new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),new THREE.MeshBasicMaterial({color:0xffffff})); antikSar.add(antikSarPtr);
 { const l=mkLabel('Saros · 223 syn. months ≈ 18.03 yr · eclipse cycle','label const'); l.position.set(0,6.2,0); antikSar.add(l); }
 { const t=mkLabel('ANTIKYTHERA MECHANISM · mean Sun & Moon · lunar phase · Metonic & Saros','label const'); t.position.set(0,-7.4,0); antikGroup.add(t); }
+const ANTIK_ANOM=27.554550, ANTIK_DRAC=27.212221, ANTIK_NODECYC=6798.383, ANTIK_ECC=6.289*Math.PI/180;
 function antikUpdate(days){
+  const meanMoon=2*Math.PI*((days/ANTIK.sidMonth)%1);
   antikSun.rotation.z = 2*Math.PI*((days/ANTIK.year)%1);
-  antikMoon.rotation.z = 2*Math.PI*((days/ANTIK.sidMonth)%1);
+  antikMoon.rotation.z = meanMoon;
+  // true Moon = mean + first anomaly (equation of centre), exactly what the pin-and-slot mechanism reproduced
+  const Manom=2*Math.PI*((days/ANTIK_ANOM)%1);
+  antikMoonTrue.rotation.z = meanMoon + ANTIK_ECC*Math.sin(Manom);
+  // ascending node regresses (retrograde) — the dragon hand; eclipses occur when Sun & Moon meet a node
+  antikNode.rotation.z = -2*Math.PI*((days/ANTIK_NODECYC)%1);
   const syn=days/ANTIK.synMonth;
   antikMetPtr.position.copy(antikSpiralPos(5,1.1,5.4,(syn%ANTIK.metonic)/ANTIK.metonic));
   antikSarPtr.position.copy(antikSpiralPos(4,1.1,5.4,(syn%ANTIK.saros)/ANTIK.saros));
   const illum=0.5-0.5*Math.cos(2*Math.PI*(syn%1)); antikPhase.material.color.setRGB(0.18+0.82*illum,0.18+0.82*illum,0.22+0.78*illum);
+  // eclipse possible when the Moon sits near a node at syzygy (new/full) → glow the Saros pointer red
+  const nodeAng=-2*Math.PI*((days/ANTIK_NODECYC)%1), dLon=Math.atan2(Math.sin(meanMoon-nodeAng),Math.cos(meanMoon-nodeAng));
+  const nearNode=Math.abs(dLon)<0.28||Math.abs(Math.abs(dLon)-Math.PI)<0.28, syzygy=Math.abs(Math.sin(Math.PI*(syn%1)))<0.16||((syn%1)<0.04||(syn%1)>0.96);
+  antikSarPtr.material.color.setHex(nearNode&&syzygy?0xff5a5a:0xffffff);
+  antikSarPtr.scale.setScalar(nearNode&&syzygy?1.7:1);
 }
 const cycLinksGroup=new THREE.Group(); cycGroup.add(cycLinksGroup);
 function cycleLink(color){
