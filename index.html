@@ -1392,6 +1392,71 @@
     pointer-events:none!important;
   }
 
+
+  /* === PATCH 2026-06-18: Controls right-dock repair + no empty folded control sheet ===
+     Cause fixed: #ctl had ID-level !important geometry that overrode .panel-folded,
+     so a folded Controls panel became a huge empty rectangle. Controls is now a
+     real right-side auxiliary sheet; folded state is a small title pill. */
+  #ctl:not(.panel-folded){
+    left:auto!important;
+    right:calc(76px + env(safe-area-inset-right,0px))!important;
+    top:auto!important;
+    bottom:calc(132px + env(safe-area-inset-bottom,0px))!important;
+    width:min(312px,calc(100vw - 112px))!important;
+    max-height:min(46vh,420px)!important;
+    min-height:0!important;
+    overflow:auto!important;
+    border-radius:18px!important;
+  }
+  #ctl.panel-folded{
+    left:auto!important;
+    right:calc(76px + env(safe-area-inset-right,0px))!important;
+    top:auto!important;
+    bottom:calc(132px + env(safe-area-inset-bottom,0px))!important;
+    width:fit-content!important;
+    min-width:0!important;
+    max-width:min(222px,calc(100vw - 112px))!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:42px!important;
+    padding:8px 42px 8px 12px!important;
+    overflow:hidden!important;
+    border-radius:999px!important;
+  }
+  #ctl.panel-folded > :not(.panel-collapser):not(.panel-fold-title):not(h3){display:none!important}
+  #ctl.panel-folded h3,
+  #ctl.panel-folded .panel-fold-title{
+    display:block!important;margin:0!important;padding:0!important;
+    max-width:160px!important;white-space:nowrap!important;overflow:hidden!important;
+    text-overflow:ellipsis!important;font-family:var(--serif)!important;
+    font-size:12px!important;letter-spacing:1.35px!important;line-height:1.2!important;
+    color:var(--gold-2)!important;text-transform:uppercase!important;
+  }
+  #ctl.panel-folded .panel-collapser{
+    min-width:28px!important;min-height:28px!important;width:28px!important;height:28px!important;
+    top:6px!important;right:7px!important;padding:0!important;border-radius:999px!important;
+  }
+  body.tour-active #ctl,
+  body.tour-active #modeBriefCard{display:none!important;visibility:hidden!important;pointer-events:none!important}
+  @media (max-width:760px),(pointer:coarse){
+    #ctl:not(.panel-folded){
+      right:calc(74px + env(safe-area-inset-right,0px))!important;
+      bottom:calc(132px + env(safe-area-inset-bottom,0px))!important;
+      width:min(294px,calc(100vw - 104px))!important;
+      max-height:min(42vh,390px)!important;
+    }
+    #ctl.panel-folded{
+      right:calc(74px + env(safe-area-inset-right,0px))!important;
+      bottom:calc(132px + env(safe-area-inset-bottom,0px))!important;
+      max-width:min(204px,calc(100vw - 104px))!important;
+      max-height:40px!important;
+      padding:8px 40px 8px 11px!important;
+    }
+    #ctl.panel-folded h3,
+    #ctl.panel-folded .panel-fold-title{font-size:11.5px!important;max-width:142px!important;letter-spacing:1.15px!important}
+    #ctl.panel-folded .panel-collapser{width:26px!important;height:26px!important;min-width:26px!important;min-height:26px!important;top:7px!important;right:7px!important;font-size:12px!important}
+  }
+
 </style>
 </head>
 <body>
@@ -3899,6 +3964,7 @@ function syncPanelDeck(){
   document.body.classList.toggle('selcard-open',panelIsOpen('selCard'));
   document.body.classList.toggle('ctl-open',panelIsOpen('ctl'));
   document.body.classList.toggle('panel-open',PANEL_IDS.some(id=>id!=='selCard'&&panelIsOpen(id)));
+  try{ document.body.classList.toggle('tour-active', typeof activeTourLike==='function' && activeTourLike()); }catch(e){}
   try{ AtlasCoach.refresh(); }catch(e){}
 }
 function closePanel(id){
@@ -4002,6 +4068,7 @@ function modeBriefSummary(){
   return {title,desc,meta};
 }
 function showModeBrief(){
+  if(typeof activeTourLike==='function' && activeTourLike()) return;
   const c=ensureModeBriefCard(), d=modeBriefSummary();
   closeAllPanels(null);
   c.innerHTML=`<div class="mbExpand">+</div><div class="mbTitle">${esc(d.title)}</div><div class="mbDesc">${esc(d.desc)}</div><div class="mbMeta">${esc(d.meta)}</div>`;
@@ -11872,7 +11939,8 @@ function tourObjectPreview(key){
 let desktopTour=null, desktopTourIdx=0;
 function startDesktopTour(id){
   const t=(typeof XRX!=='undefined' && XRX.TOURS || []).find(x=>x.id===id); if(!t) return;
-  desktopTour=t; desktopTourIdx=0; journey.coachFull=false; closePanel('navPanel'); AtlasCoach.show(); desktopTourGo();
+  try{ hideModeBrief(); closePanel('ctl'); closePanel('navPanel'); }catch(e){}
+  desktopTour=t; desktopTourIdx=0; journey.coachFull=false; AtlasCoach.show(); desktopTourGo();
 }
 function desktopTourGo(){
   const st=desktopTour && desktopTour.stops[desktopTourIdx]; if(!st) return;
@@ -11883,7 +11951,7 @@ function desktopTourGo(){
 function focusReset(){ try{ setMode(state.mode); }catch(e){} }
 function desktopTourNext(){ if(desktopTour && desktopTourIdx<desktopTour.stops.length-1){ desktopTourIdx++; desktopTourGo(); } }
 function desktopTourPrev(){ if(desktopTour && desktopTourIdx>0){ desktopTourIdx--; desktopTourGo(); } }
-function stopDesktopTour(){ desktopTour=null; journey.coachFull=false; if(selCard?.classList.contains('tourSummary')) collapseSelCard(); AtlasCoach.refresh(); }
+function stopDesktopTour(){ desktopTour=null; journey.coachFull=false; document.body.classList.remove('tour-active'); if(selCard?.classList.contains('tourSummary')) collapseSelCard(); AtlasCoach.refresh(); }
 function tourIdForKey(key){
   if(!key) return null;
   if(key==='cosmos_a2744_qso1') return 'jwstbh';
@@ -12040,11 +12108,12 @@ function journeyBrowse(d){   // manual step through EVERY object (works regardle
   journey.idx=(i+d+journey.list.length)%journey.list.length; journey.active=true; journeyGo();
 }
 function journeyStart(){ journeyBuildList(); if(!journey.list.length) return;
+  try{ hideModeBrief(); closePanel('ctl'); closePanel('navPanel'); }catch(e){}
   journey.active=true; journey.playing=true; journey.idx=0;
   journey.coachFull=false; try{ AtlasCoach.show(); AtlasCoach.setCollapsed(false); }catch(e){} journeyGo(); }
 function journeyStep(d){ if(!journey.list.length) journeyBuildList(); if(!journey.list.length) return;
   journey.active=true; journey.idx=(journey.idx+d+journey.list.length)%journey.list.length; journeyGo(); }
-function journeyStop(){ journey.playing=false; journey.active=false; journey.coachFull=false; ORBIT.on=false; controls.autoRotate=false; if(selCard?.classList.contains('tourSummary')) collapseSelCard(); try{AtlasCoach.refresh();}catch(e){} }
+function journeyStop(){ journey.playing=false; journey.active=false; journey.coachFull=false; ORBIT.on=false; controls.autoRotate=false; document.body.classList.remove('tour-active'); if(selCard?.classList.contains('tourSummary')) collapseSelCard(); try{AtlasCoach.refresh();}catch(e){} }
 function journeyTogglePlay(){ if(!journey.active){ journeyStart(); return; } journey.playing=!journey.playing; try{AtlasCoach.refresh();}catch(e){} }
 function journeySetMinutes(m){ journey.totalSec=Math.max(30,(+m||8)*60); }
 function journeyTick(dt){
@@ -12142,7 +12211,15 @@ const AtlasCoach=(()=>{
     el.hidden=false;
     if(lastCtxKey!==selectedKey){ relIdx=0; lastCtxKey=selectedKey; }
     const isPublic=state.atlasAudience==='public';
-    const tourMini = activeTourLike() && !journey.coachFull;
+    const tourActiveNow = activeTourLike();
+    document.body.classList.toggle('tour-active', !!tourActiveNow);
+    if(tourActiveNow){
+      const mb=document.getElementById('modeBriefCard'); if(mb) mb.hidden=true;
+      const ctlPanel=document.getElementById('ctl');
+      if(ctlPanel && getComputedStyle(ctlPanel).display!=='none'){ ctlPanel.style.display='none'; ctlPanel.classList.remove('panel-folded'); if(activePanelId==='ctl') activePanelId=null; }
+      document.body.classList.remove('ctl-open','mode-brief-open');
+    }
+    const tourMini = tourActiveNow && !journey.coachFull;
     el.classList.toggle('tourMini', !!tourMini);
     el.classList.toggle('collapsed',collapsed() && !tourMini);
     let h=`<div class="coachHead"><b>${tourMini?'Tour Player':'Atlas Coach'}</b>
