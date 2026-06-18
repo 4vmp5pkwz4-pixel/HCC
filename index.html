@@ -1332,62 +1332,6 @@
 #selCard.tourSummary{display:block!important;visibility:visible!important;opacity:1!important}
 @media(max-width:760px){#atlasCoach.tourMini.collapsed{width:min(305px,calc(100vw - 94px));padding:7px 9px}}
 
-
-
-  /* === PATCH 2026-06-18AA: premium tour-state ownership ===
-     The running tour owns a dedicated right-center preview card. The Object Passport
-     no longer doubles as a tour preview, preventing the former large empty panel. */
-  #tourObjectPreview{
-    position:fixed!important;
-    right:18px!important;
-    top:50%!important;
-    transform:translateY(-50%)!important;
-    width:min(344px,calc(100vw - 36px))!important;
-    max-height:min(36vh,340px)!important;
-    z-index:64!important;
-    display:block;
-    padding:12px 14px 12px 16px!important;
-    border:1px solid rgba(212,175,106,.48)!important;
-    border-radius:16px!important;
-    background:linear-gradient(135deg,rgba(7,10,18,.88),rgba(13,18,31,.70))!important;
-    box-shadow:0 18px 50px rgba(0,0,0,.54), inset 0 0 28px rgba(212,175,106,.035)!important;
-    backdrop-filter:blur(12px)!important;
-    color:var(--txt)!important;
-    cursor:pointer!important;
-    pointer-events:auto!important;
-    overflow:hidden!important;
-  }
-  #tourObjectPreview[hidden]{display:none!important}
-  #tourObjectPreview .tpKicker{font:700 9.5px var(--sans);letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);opacity:.78;margin-bottom:4px}
-  #tourObjectPreview .tpTitle{font:700 15px var(--serif);letter-spacing:1.25px;color:var(--gold-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:5px}
-  #tourObjectPreview .tpDesc{font:11.5px/1.42 var(--sans);color:rgba(246,239,214,.86);display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
-  #tourObjectPreview .tpMeta{margin-top:7px;font:10px/1.2 var(--sans);color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  #tourObjectPreview .tpHint{margin-top:7px;font:9.5px var(--sans);color:rgba(212,175,106,.72)}
-  body.tour-active #selCard.tourSummary,
-  body.tour-active #selCard:not(.passport-expanded-by-user){display:none!important}
-  body.tour-active #atlasCoach.tourMini.collapsed .coachBody,
-  body.tour-active #atlasCoach.tourMini .coachBody{display:block!important}
-  body.tour-active #atlasCoach.tourMini{max-height:150px!important;overflow:visible!important}
-  body.tour-active #atlasCoach.tourMini .coachHead b{white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;max-width:210px!important}
-  @media (max-width:760px),(pointer:coarse){
-    #tourObjectPreview{
-      right:8px!important;
-      top:52%!important;
-      width:min(278px,calc(100vw - 22px))!important;
-      max-height:30vh!important;
-      padding:10px 12px!important;
-      border-radius:14px!important;
-      backdrop-filter:none!important;
-    }
-    #tourObjectPreview .tpTitle{font-size:13px!important;letter-spacing:1px!important}
-    #tourObjectPreview .tpDesc{font-size:10.6px!important;line-height:1.34!important;-webkit-line-clamp:3}
-    #tourObjectPreview .tpMeta{font-size:9.2px!important}
-    body.tour-active #navPanel.start-compact{opacity:.72!important;max-height:112px!important}
-  }
-  @media (max-width:520px),(pointer:coarse){
-    #tourObjectPreview{top:44%!important;right:8px!important;width:min(252px,calc(100vw - 18px))!important}
-  }
-
 </style>
 </head>
 <body>
@@ -1472,7 +1416,6 @@
     <button class="btn" id="selClear">✕ Deselect</button>
   </div>
 </div>
-<div id="tourObjectPreview" hidden role="button" tabindex="0" aria-label="Current tour object preview"></div>
 <div id="landedBanner">
   <b id="landedName"></b> — surface view · drag to look around · scroll = zoom (FOV)
   <span class="small" id="landedInfo"></span><br>
@@ -2916,7 +2859,7 @@ function selectKey(key, opts={}){
   const s = SELECT.get(key);
   for(const [,d] of SELECT) d.labelEl?.classList.remove('selected');
   if(!s){
-    hideTourObjectPreview(); closePanel('selCard'); selMarker.visible=false; rebuildSelectionLinks();
+    closePanel('selCard'); selMarker.visible=false; rebuildSelectionLinks();
     if(panelIsOpen('objectPanel')) renderObjectPanel();
     syncPanelDeck(); requestHierarchyLayout(); updateBreadcrumb(); updateLabelRelevance(true); return;
   }
@@ -2946,17 +2889,12 @@ function selectKey(key, opts={}){
   if(selTabKey!==key || state.atlasAudience==='public'){ selTab='Summary'; selTabKey=key; }
   setSelTab(selTab);
   try{ renderNextActions(key); }catch(e){}
-  if(selectionPanelMode==='tourPreview' || selectionPanelMode==='tourSummary'){
-    if(selCard){ selCard.classList.remove('tourSummary','passport-expanded-by-user'); }
+  if(selectionPanelMode==='closed' || selectionPanelMode==='hidden'){
     closePanel('selCard');
-    renderTourObjectPreview(key);
-  } else if(selectionPanelMode==='closed' || selectionPanelMode==='hidden'){
-    closePanel('selCard');
-    if(!activeTourLike()) hideTourObjectPreview();
   } else {
-    hideTourObjectPreview();
     openPanel('selCard');
-    if(selectionPanelMode==='compact') collapseSelCard();
+    if(selectionPanelMode==='tourSummary') showSelCardTourSummary();
+    else if(selectionPanelMode==='compact') collapseSelCard();
     else expandSelCard();
   }
   rebuildSelectionLinks();
@@ -8943,7 +8881,7 @@ const XRX = (()=>{
   function xrOpenObject(key){
     const s=SELECT.get(key);if(!s)return;
     selectionContext(key,s);setMode(s.mode);placeRigForMode();
-    selectKey(key,{panel:tour.active?'tourPreview':'compact'});showObjectCard(key);approach(s);refreshMenu();
+    selectKey(key,{panel:tour.active?'tourSummary':'compact'});showObjectCard(key);approach(s);refreshMenu();
     if(tour.active){ try{ AtlasCoach.show(); AtlasCoach.refresh(); }catch(e){} }
   }
   function approach(s){
@@ -11819,38 +11757,10 @@ function dblFocus(key){ if(key && SELECT.has(key)) selectGlobalKey(key,true,{pan
 function activeTourLike(){
   return !!(journey?.active || desktopTour || (typeof XRX!=='undefined' && XRX.activeTour));
 }
-function tourSelectionPanelMode(){ return activeTourLike() ? 'tourPreview' : 'compact'; }
-function hideTourObjectPreview(){
-  const p=document.getElementById('tourObjectPreview'); if(p){ p.hidden=true; p.innerHTML=''; }
-  document.body.classList.remove('tour-active');
+function tourSelectionPanelMode(){ return activeTourLike() ? 'tourSummary' : 'compact'; }
+function tourObjectPreview(key){
+  if(key && SELECT.has(key)){ try{ selectKey(key,{panel:'tourSummary'}); }catch(e){} }
 }
-function renderTourObjectPreview(key){
-  const p=document.getElementById('tourObjectPreview');
-  const s=key&&SELECT.get(key);
-  if(!p||!s||!activeTourLike()){ hideTourObjectPreview(); return; }
-  const name=objectName(s), desc=(s.desc||'Open the full Object Passport for coordinates, provenance, uncertainty and relations.');
-  const ev=atlasEvidenceClass(key,s), tier=atlasAccuracyTier(key,s), mode=MODE_META[s.mode]||s.mode;
-  p.hidden=false;
-  document.body.classList.add('tour-active');
-  p.innerHTML=`<div class="tpKicker">Tour object · tier ${esc(tier)}</div>
-    <div class="tpTitle">${esc(name)}</div>
-    <div class="tpDesc">${esc(desc)}</div>
-    <div class="tpMeta">${esc(mode)} · ${esc(ev)}</div>
-    <div class="tpHint">Tap this card for the full Object Passport</div>`;
-}
-function tourObjectPreview(key){ renderTourObjectPreview(key); }
-function openTourObjectPassport(){
-  if(!selectedKey||!SELECT.has(selectedKey)) return;
-  const p=document.getElementById('tourObjectPreview'); if(p) p.hidden=true;
-  if(selCard){ selCard.classList.add('passport-expanded-by-user'); selCard.classList.remove('tourSummary','collapsed'); }
-  openPanel('selCard'); expandSelCard();
-}
-(()=>{
-  const p=document.getElementById('tourObjectPreview');
-  if(!p) return;
-  p.addEventListener('click',e=>{ e.stopPropagation(); openTourObjectPassport(); });
-  p.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); openTourObjectPassport(); } });
-})();
 
 /* ---- desktop guided-tour driver (UI hook over the existing XRX.TOURS data) ---- */
 let desktopTour=null, desktopTourIdx=0;
@@ -11861,13 +11771,13 @@ function startDesktopTour(id){
 function desktopTourGo(){
   const st=desktopTour && desktopTour.stops[desktopTourIdx]; if(!st) return;
   setMode(st.mode);
-  if(st.key && SELECT.has(st.key)) selectGlobalKey(st.key,true,{panel:'tourPreview'}); else { hideTourObjectPreview(); focusReset(); }
+  if(st.key && SELECT.has(st.key)) selectGlobalKey(st.key,true,{panel:'tourSummary'}); else focusReset();
   AtlasCoach.refresh();
 }
 function focusReset(){ try{ setMode(state.mode); }catch(e){} }
 function desktopTourNext(){ if(desktopTour && desktopTourIdx<desktopTour.stops.length-1){ desktopTourIdx++; desktopTourGo(); } }
 function desktopTourPrev(){ if(desktopTour && desktopTourIdx>0){ desktopTourIdx--; desktopTourGo(); } }
-function stopDesktopTour(){ desktopTour=null; journey.coachFull=false; hideTourObjectPreview(); if(selCard?.classList.contains('tourSummary')) collapseSelCard(); AtlasCoach.refresh(); }
+function stopDesktopTour(){ desktopTour=null; journey.coachFull=false; if(selCard?.classList.contains('tourSummary')) collapseSelCard(); AtlasCoach.refresh(); }
 function tourIdForKey(key){
   if(!key) return null;
   if(key==='cosmos_a2744_qso1') return 'jwstbh';
@@ -12009,12 +11919,12 @@ function journeyBuildList(){
     .sort((a,b)=>(b[1]-a[1])||objectName(SELECT.get(a[0])).localeCompare(objectName(SELECT.get(b[0])))).map(([k])=>k);
 }
 function journeyShowInfo(){
-  if(activeTourLike() && selectedKey) renderTourObjectPreview(selectedKey);
-  else hideTourObjectPreview();
+  if(journey.showInfo!==false){ try{ if(selectedKey){ openPanel('selCard'); collapseSelCard(); } }catch(e){} }
+  else { try{closePanel('selCard');}catch(e){} }
 }
 function journeyGo(){
   const k=journey.list[journey.idx]; if(!k||!SELECT.has(k)) return;
-  selectGlobalKey(k,true,{panel:'tourPreview'}); ORBIT.on=true; ORBIT.secondaryKey=null; journey.acc=0;
+  selectGlobalKey(k,true,{panel: journey.showInfo!==false ? 'tourSummary' : 'closed'}); ORBIT.on=true; ORBIT.secondaryKey=null; journey.acc=0;
   journeyShowInfo();
   try{ AtlasCoach.refresh(); }catch(e){}
 }
@@ -12025,10 +11935,10 @@ function journeyBrowse(d){   // manual step through EVERY object (works regardle
 }
 function journeyStart(){ journeyBuildList(); if(!journey.list.length) return;
   journey.active=true; journey.playing=true; journey.idx=0;
-  journey.coachFull=false; try{ closePanel('navPanel'); AtlasCoach.show(); AtlasCoach.setCollapsed(false); }catch(e){} journeyGo(); }
+  journey.coachFull=false; try{ AtlasCoach.show(); AtlasCoach.setCollapsed(false); }catch(e){} journeyGo(); }
 function journeyStep(d){ if(!journey.list.length) journeyBuildList(); if(!journey.list.length) return;
   journey.active=true; journey.idx=(journey.idx+d+journey.list.length)%journey.list.length; journeyGo(); }
-function journeyStop(){ journey.playing=false; journey.active=false; journey.coachFull=false; ORBIT.on=false; controls.autoRotate=false; hideTourObjectPreview(); if(selCard?.classList.contains('tourSummary')) collapseSelCard(); try{AtlasCoach.refresh();}catch(e){} }
+function journeyStop(){ journey.playing=false; journey.active=false; journey.coachFull=false; ORBIT.on=false; controls.autoRotate=false; if(selCard?.classList.contains('tourSummary')) collapseSelCard(); try{AtlasCoach.refresh();}catch(e){} }
 function journeyTogglePlay(){ if(!journey.active){ journeyStart(); return; } journey.playing=!journey.playing; try{AtlasCoach.refresh();}catch(e){} }
 function journeySetMinutes(m){ journey.totalSec=Math.max(30,(+m||8)*60); }
 function journeyTick(dt){
@@ -12127,7 +12037,6 @@ const AtlasCoach=(()=>{
     if(lastCtxKey!==selectedKey){ relIdx=0; lastCtxKey=selectedKey; }
     const isPublic=state.atlasAudience==='public';
     const tourMini = activeTourLike() && !journey.coachFull;
-    document.body.classList.toggle('tour-active', !!activeTourLike());
     el.classList.toggle('tourMini', !!tourMini);
     el.classList.toggle('collapsed',collapsed() && !tourMini);
     let h=`<div class="coachHead"><b>${tourMini?'Tour Player':'Atlas Coach'}</b>
@@ -12219,9 +12128,6 @@ const AtlasCoach=(()=>{
     else if(c==='tprev') desktopTourPrev();
     else if(c==='tnext') desktopTourNext();
     else if(c==='tend') stopDesktopTour();
-    else if(c==='xprev'){ try{ XRX.tourPrev(); const st=XRX.tourCurrentStop; if(st?.key) renderTourObjectPreview(st.key); }catch(e){} refresh(); }
-    else if(c==='xnext'){ try{ XRX.tourNext(); const st=XRX.tourCurrentStop; if(st?.key) renderTourObjectPreview(st.key); }catch(e){} refresh(); }
-    else if(c==='xend'){ try{ XRX.tourStop(); }catch(e){} hideTourObjectPreview(); refresh(); }
   }
   function init(){
     step=Math.max(0,Math.min(COACH_STEPS.length-1, parseInt(lsGet(LS.step)||'0',10)||0));
