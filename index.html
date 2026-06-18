@@ -371,6 +371,13 @@
   .label.age{font-family:var(--serif);font-size:11px;font-weight:600;letter-spacing:2.5px;
     color:#b9a6e0;text-transform:uppercase;text-shadow:0 0 6px #000}
   .label{transition:opacity .4s}
+
+  /* PATCH 2026-06-18H: mobile smart-label budget + GPU safety */
+  .label[data-lod-hidden="1"]{display:none!important;visibility:hidden!important;opacity:0!important;pointer-events:none!important}
+  body.mobilePerf .label{transition:opacity .12s linear!important;backdrop-filter:none!important;-webkit-backdrop-filter:none!important;box-shadow:0 0 0 1px rgba(241,221,166,.16),0 1px 4px rgba(0,0,0,.35)!important}
+  body.mobilePerf .label.axis,body.mobilePerf .label.beacon,body.mobilePerf .label.cosmic{font-size:10px!important;letter-spacing:.42px!important;padding:1px 5px!important}
+  body.mobilePerf .label.star{font-size:8.5px!important;letter-spacing:.85px!important}
+
   button:disabled{cursor:not-allowed}
   /* parameter-oscillator chip on every slider + its control panel */
   .oscBtn{flex:0 0 auto;width:22px;height:20px;padding:0;margin-left:2px;border-radius:6px;
@@ -1225,6 +1232,74 @@
     }
   }
 
+
+
+  /* === PATCH 2026-06-18Z: stable panels — click outside folds, not closes === */
+  .panel.panel-folded{
+    width:fit-content!important;
+    min-width:0!important;
+    max-width:min(260px,calc(100vw - 28px))!important;
+    max-height:42px!important;
+    min-height:0!important;
+    padding:8px 42px 8px 12px!important;
+    overflow:hidden!important;
+    border-radius:999px!important;
+    cursor:pointer!important;
+  }
+  .panel.panel-folded > :not(.panel-collapser):not(.panel-fold-title):not(h3){display:none!important}
+  .panel.panel-folded h3,
+  .panel.panel-folded .panel-fold-title{
+    display:block!important;
+    margin:0!important;
+    padding:0!important;
+    max-width:190px!important;
+    overflow:hidden!important;
+    white-space:nowrap!important;
+    text-overflow:ellipsis!important;
+    font-family:var(--serif)!important;
+    font-size:12px!important;
+    letter-spacing:1.45px!important;
+    color:var(--gold-2)!important;
+    text-transform:uppercase!important;
+    line-height:1.2!important;
+  }
+  .panel.panel-folded .panel-collapser{
+    min-width:28px!important;
+    min-height:28px!important;
+    width:28px!important;
+    height:28px!important;
+    border-radius:999px!important;
+    top:6px!important;
+    right:7px!important;
+    padding:0!important;
+    line-height:1!important;
+  }
+  @media (max-width:760px),(pointer:coarse){
+    .panel.panel-folded{
+      max-width:min(240px,calc(100vw - 18px))!important;
+      max-height:40px!important;
+      padding:8px 40px 8px 11px!important;
+    }
+    .panel.panel-folded h3,
+    .panel.panel-folded .panel-fold-title{font-size:11.5px!important;max-width:170px!important;letter-spacing:1.2px!important}
+    .panel.panel-folded .panel-collapser{min-width:26px!important;min-height:26px!important;width:26px!important;height:26px!important;top:7px!important;right:7px!important;font-size:12px!important}
+  }
+
+
+
+  /* === PATCH 2026-06-18E: stable scale-return dock + landed light orbit === */
+  #scaleReturnDock{position:fixed;right:68px;bottom:16px;z-index:64;display:flex;gap:6px;align-items:center;
+    padding:5px;border:1px solid rgba(212,175,106,.24);border-radius:999px;background:rgba(4,7,13,.72);
+    backdrop-filter:blur(12px);box-shadow:0 8px 28px rgba(0,0,0,.42)}
+  #scaleReturnDock[hidden]{display:none!important}
+  #scaleReturnDock .btn{min-height:30px;padding:5px 10px;border-radius:999px;font-size:10.5px;white-space:nowrap}
+  body.day #scaleReturnDock{background:rgba(250,246,235,.82);box-shadow:0 8px 24px rgba(60,45,15,.22)}
+  @media (max-width:760px),(pointer:coarse){
+    #scaleReturnDock{right:62px;bottom:74px;flex-direction:column;align-items:stretch;gap:5px;border-radius:14px;padding:5px}
+    #scaleReturnDock .btn{min-height:34px;padding:6px 9px;font-size:10px;text-align:center}
+    body.ui-compact #scaleReturnDock{right:58px;bottom:70px}
+  }
+
 </style>
 </head>
 <body>
@@ -1315,6 +1390,7 @@
   <button class="btn warn" id="leaveBtn" style="margin-top:5px;pointer-events:auto">🚀 Leave surface (Esc)</button>
 </div>
 <div id="hud"><div class="big" id="hudBig"></div><div class="sub" id="hudSub"></div></div>
+<div id="scaleReturnDock" hidden aria-label="Return path controls"></div>
 <div id="physDebug" style="display:none"></div>
 <div id="atlasCoach" hidden></div>
 <div id="helpOverlay" hidden role="dialog" aria-modal="true" aria-label="Keyboard shortcuts and help"></div>
@@ -1694,6 +1770,9 @@ function runSelfTests(){
   ok('Panel deck has one recall control for every managed panel',
     PANEL_IDS.every(id=>document.querySelectorAll(`#panelDock [data-panel="${id}"]`).length===1),
     PANEL_IDS.join(', '));
+  ok('Outside-click panel folding API exists and preserves open panel state',
+    typeof foldOpenPanelsToTitles==='function'&&typeof foldPanelToTitle==='function'&&typeof unfoldPanelFromTitle==='function',
+    'large panels fold to title; dock can reopen/expand; no close-on-scene-click');
   ok('Managed panels preserve CSS fixed positioning',
     PANEL_IDS.every(id=>!document.getElementById(id)?.style.position),
     PANEL_IDS.filter(id=>document.getElementById(id)?.style.position).join(', ')||'no inline position overrides');
@@ -1719,13 +1798,34 @@ function runSelfTests(){
   ok('Buddhabrot compute buffer matches delivered texture resolution',
     buddhaCanvas.width===BUDDHA_RES&&buddhaCanvas.height===BUDDHA_RES,`${buddhaCanvas.width}×${buddhaCanvas.height}`);
   ok('Mobile renderer starts inside the stable DPR budget',
-    !MOBILE_GPU||renderer.getPixelRatio()<=1.45,renderer.getPixelRatio());
+    !MOBILE_GPU||renderer.getPixelRatio()<=1.25,renderer.getPixelRatio());
+  ok('Smart label budget registry covers CSS2D labels',
+    Array.isArray(ALL_LABEL_OBJECTS)&&ALL_LABEL_OBJECTS.length>50,
+    (ALL_LABEL_OBJECTS?.length||0)+' CSS2D labels registered for LOD culling');
+  ok('Smart label renderer can force-hide LOD-hidden labels before CSS2D display reset',
+    typeof setLabelLodState==='function' && typeof labelModeActive==='function',
+    'renderer wrapper respects obj.userData.lodHidden / data-lod-hidden');
   ok('Every registered entity passes the runtime data-contract schema',
     [...SELECT.keys()].every(k=>validateAtlasEntityContract(getAtlasEntityContract(k)).length===0),
     [...SELECT.keys()].filter(k=>validateAtlasEntityContract(getAtlasEntityContract(k)).length).join(', ')||'all contracts valid');
   ok('Coordinate engine RA/Dec round-trips (ICRS↔ecliptic↔scene) within 1e-6°',
     [[0,0],[6,45],[18,-30],[14.667,45],[23.9,-89],[12,12.7]].every(([h,d])=>COORD.roundTripResidualDeg(h,d)<1e-6),
     'max residual '+Math.max(...[[0,0],[6,45],[18,-30],[14.667,45],[23.9,-89],[12,12.7]].map(([h,d])=>COORD.roundTripResidualDeg(h,d))).toExponential(2)+'°');
+  ok('Persistent sky orientation shell keeps constellations and zodiac available across Solar scale layers',
+    (()=>{ try{ const oldLayer=state.solarScaleLayer, oldMode=state.mode; state.mode='solar'; state.solarScaleLayer='cosmic';
+      syncPersistentCelestialSphere(); const okv=skyGroup.visible && constGroup.parent===skyGroup && zodGroup.parent===skyGroup && !!skyGroup.userData.orientationContract;
+      state.solarScaleLayer=oldLayer; state.mode=oldMode; return okv; }catch(e){ return false; } })(),
+    SKY_ORIENTATION_CONTRACT.persistence);
+  ok('Milky-Way backdrop yields before Oort-point visibility to avoid sky/Oort shimmer',
+    (()=>{ const outerAU = OORT.OUTER_AU;
+      const near = (mwMesh.userData?.baseOpacity ?? .85) * (1 - THREE.MathUtils.smoothstep(180, Math.max(220, outerAU*0.004), Math.max(2200, outerAU*0.030)));
+      const far  = (mwMesh.userData?.baseOpacity ?? .85) * (1 - THREE.MathUtils.smoothstep(outerAU*0.08, Math.max(220, outerAU*0.004), Math.max(2200, outerAU*0.030)));
+      return near > 0.6 && far < 0.05; })(),
+    'MW sky fades by early Oort scale while constellations/zodiac stay available');
+  ok('Zodiac/constellation anchors expose J2000 RA/Dec visual centroids without claiming IAU boundary precision',
+    (()=>{ const keys=[...SELECT.keys()].filter(k=>k.startsWith('con'));
+      return keys.length>=12 && keys.every(k=>{ const s=SELECT.get(k); return s.coords?.raDeg!=null && s.coords?.decDeg!=null && /visual centroid/.test(s.coords.frame||''); }); })(),
+    'embedded bright-star anchors; constellation-boundary polygons are not fabricated');
   ok('Coordinate engine redshift↔comoving distance inverts within 1e-3 Gly',
     [0.1,0.802,1.9,3.0].every(z=>Math.abs(COORD.comovingFromZ(COORD.zFromComoving(COORD.comovingFromZ(z)))-COORD.comovingFromZ(z))<1e-3),
     'D_C(z) monotonic numeric inverse');
@@ -1739,6 +1839,13 @@ function runSelfTests(){
   ok('Command palette & universal search are wired (⌘K / "/" reachable)',
     !!document.getElementById('cmdk')&&!!document.getElementById('cmdkInput')&&!!document.getElementById('cmdkBtn')&&typeof setEvidenceFilter==='function',
     'palette overlay + trigger + evidence filter present');
+  ok('Scale return dock exists and exposes stable descent functions',
+    !!document.getElementById('scaleReturnDock') && typeof returnToSolarSystemOverview==='function'
+      && typeof returnToMilkyWayOverview==='function' && typeof enterEarthRealtimeOverview==='function',
+    'Solar ⇄ Milky Way ⇄ Earth return path is local UI navigation');
+  ok('Earth landing can request a landed light-orbit state without changing science',
+    typeof resetSolarTimeToRealNow==='function' && typeof nowEpochDays==='function' && Math.abs(REALTIME_DAYS_PER_SEC - 1/86400)<1e-12,
+    'real-time landing speed is exactly 1/86400 days per second');
   ok('Geometry fitter recovers a known centroid & plane normal (synthetic)',
     (()=>{ const P=[]; for(let i=0;i<200;i++){const a=i/200*6.2832; P.push([Math.cos(a)*5+2,Math.sin(a)*5-3,0.001*((i%7)-3)]);}
       const f=FIT.fit(P); return Math.hypot(f.centroid[0]-2,f.centroid[1]+3,f.centroid[2])<0.2&&Math.abs(Math.abs(f.pcaAxes.minor[2])-1)<0.05&&f.planeRmsResidual<0.05; })(),
@@ -2343,7 +2450,7 @@ const renderer = new THREE.WebGLRenderer({
   antialias:!MOBILE_GPU, logarithmicDepthBuffer:true, alpha:true,
   powerPreference:'high-performance', preserveDrawingBuffer:false,
 });
-renderer.setPixelRatio(Math.min(devicePixelRatio,MOBILE_GPU?1.45:2));
+renderer.setPixelRatio(Math.min(devicePixelRatio,MOBILE_GPU?1.22:1.85));
 renderer.setSize(INITIAL_VIEW_W,INITIAL_VIEW_H);
 app.appendChild(renderer.domElement);
 renderer.domElement.setAttribute('aria-label','Interactive scientific 3D viewport');
@@ -2371,6 +2478,9 @@ app.appendChild(labelRenderer.domElement);
     const forced = [];
     sc.traverse(o => {
       if (!o.isCSS2DObject || o.visible === false) return;
+      if (o.userData?.lodHidden || o.element?.dataset?.lodHidden === '1') {
+        o.visible = false; forced.push(o); return;
+      }
       for (let p = o.parent; p; p = p.parent) {
         if (p.visible === false) { o.visible = false; forced.push(o); break; }
       }
@@ -2431,13 +2541,38 @@ if(window.ResizeObserver)new ResizeObserver(requestRendererResize).observe(app);
    ================================================================ */
 const SELECT = new Map();   // key -> {name,type,desc,getPos,rows,focusDist,planetIdx,labelEl,pick}
 let selectedKey = null;
+const ALL_LABEL_OBJECTS=[];
+const LABEL_PERF={lastVisible:0,lastTotal:0,lastBudget:0,lastCull:0,mode:'auto'};
+const GESTURE_PICK={lastKey:null,lastT:0,lastX:0,lastY:0};
+function previewSelectKey(key){ if(key && SELECT.has(key)) selectKey(key,{panel:'compact'}); }
+function activateFocusedSelection(key){ if(key && SELECT.has(key)) selectGlobalKey(key,true,{panel:'compact'}); }
+function shouldPromoteToDoubleTap(key,x,y,now=performance.now()){
+  const dt=now-(GESTURE_PICK.lastT||0), dx=x-(GESTURE_PICK.lastX||0), dy=y-(GESTURE_PICK.lastY||0);
+  const same = key && key===GESTURE_PICK.lastKey;
+  const near = dx*dx+dy*dy <= 28*28;
+  const ok = same && near && dt>0 && dt<380;
+  GESTURE_PICK.lastKey=key||null; GESTURE_PICK.lastT=now; GESTURE_PICK.lastX=x; GESTURE_PICK.lastY=y;
+  return ok;
+}
 
 function mkLabel(text, cls='label', selKey=null){
   const div = document.createElement('div'); div.className = cls; div.textContent = text;
-  if(selKey){ div.onclick = e=>{ e.stopPropagation(); selectKey(selKey); };
-    div.ondblclick = e=>{ e.stopPropagation(); e.preventDefault(); dblFocus(selKey); }; }
+  if(selKey){ div.onclick = e=>{ e.stopPropagation(); previewSelectKey(selKey); };
+    div.ondblclick = e=>{ e.stopPropagation(); e.preventDefault(); activateFocusedSelection(selKey); };
+    div.addEventListener('pointerup', e=>{
+      if(e.pointerType!=='touch' && e.pointerType!=='pen') return;
+      e.stopPropagation();
+      const now=performance.now();
+      if(shouldPromoteToDoubleTap(selKey,e.clientX||0,e.clientY||0,now)) activateFocusedSelection(selKey);
+      else previewSelectKey(selKey);
+    }, {passive:true}); }
   else div.classList.add('static');
-  return new CSS2DObject(div);
+  const obj = new CSS2DObject(div);
+  obj.userData.labelText = String(text||'');
+  obj.userData.labelKey = selKey || null;
+  obj.userData.lodHidden = false;
+  ALL_LABEL_OBJECTS.push(obj);
+  return obj;
 }
 function registerSel(key, def){
   def.key=key;
@@ -2505,59 +2640,105 @@ function objectChainVisible(o){
   for(let x=o;x;x=x.parent) if(x.visible===false) return false;
   return true;
 }
+function labelModeActive(){ return MOBILE_GPU || innerWidth < 820 || matchMedia('(pointer:coarse)').matches || document.body.classList.contains('ui-compact'); }
+function setLabelLodState(obj, hidden=false, opacity='', cls=''){
+  const el=obj?.element; if(!el) return;
+  obj.userData.lodHidden=!!hidden;
+  if(hidden){ el.dataset.lodHidden='1'; el.style.opacity='0'; }
+  else { delete el.dataset.lodHidden; el.style.opacity=opacity===''?'':String(opacity); }
+  el.classList.remove('lod-focus','lod-dim','lod-quiet');
+  if(cls) el.classList.add(cls);
+}
 function updateLabelRelevance(force=false){
-  const labelCadence=MOBILE_GPU?900:360;
+  const mobileLabelMode = labelModeActive();
+  const labelCadence = mobileLabelMode ? 520 : 240;
   if(!force && updateLabelRelevance._acc && performance.now()-updateLabelRelevance._acc<labelCadence) return;
   updateLabelRelevance._acc=performance.now();
   const selected=selectedKey&&SELECT.has(selectedKey)?selectedKey:null;
   const related=new Set(selected?getObjectRelations(selected).map(r=>r.target):[]);
-  const items=[];
-  for(const [key,s] of SELECT){
-    const el=s.labelEl; if(!el) continue;
-    el.classList.remove('lod-focus','lod-dim','lod-quiet');
-    if(state.smartLabelDimming===false){ el.style.opacity=''; continue; }
-    const p=safeSelectionPos(s);
-    if(!p || (s.mode!==state.mode && !(state.mode==='solar'&&/^solarCosmic_/.test(key)))){ el.style.opacity=.18; el.classList.add('lod-quiet'); continue; }
+  const selectedObj = selected ? SELECT.get(selected) : null;
+  const tracked=new Set(), items=[], tmp=new THREE.Vector3();
+  const addItem=(obj,key=null,s=null,baseBoost=0)=>{
+    if(!obj?.element || tracked.has(obj)) return; tracked.add(obj);
+    const el=obj.element;
+    if(state.smartLabelDimming===false){ setLabelLodState(obj,false,'',''); return; }
+    if(!objectChainVisible(obj)){ setLabelLodState(obj,true); return; }
+    let p=null;
+    if(s) p=safeSelectionPos(s);
+    if(!p){ obj.getWorldPosition(tmp); p=tmp.clone(); }
+    if(!p || ![p.x,p.y,p.z].every(Number.isFinite)){ setLabelLodState(obj,true); return; }
     const ndc=p.clone().project(camera);
-    const onscreen=ndc.z>-1 && ndc.z<1 && Math.abs(ndc.x)<1.18 && Math.abs(ndc.y)<1.18;
-    if(!onscreen){ el.style.opacity=.16; el.classList.add('lod-quiet'); continue; }
+    const margin=mobileLabelMode?1.02:1.16;
+    const onscreen=ndc.z>-1 && ndc.z<1 && Math.abs(ndc.x)<margin && Math.abs(ndc.y)<margin;
+    if(!onscreen){ setLabelLodState(obj,true); return; }
     const center=Math.hypot(ndc.x,ndc.y);
     const dist=Math.max(camera.position.distanceTo(p),1e-9);
-    let priority=center*1.25 + Math.log10(dist+1)*.22;
-    if(key===selected) priority-=9;
-    if(related.has(key)) priority-=3.2;
-    if(el.classList.contains('beacon')||el.classList.contains('cosmic')) priority-=1.4;
-    if(el.classList.contains('major')) priority-=1.0;
-    items.push({key,el,priority,center});
+    const text=(obj.userData?.labelText || el.textContent || '').toLowerCase();
+    const isDirection = /direction|supercluster|filament|wall|void|repeller|concentration|quipu|laniakea|sloan/.test(text);
+    let priority=center*1.72 + Math.log10(dist+1)*.30 + baseBoost;
+    if(key===selected) priority-=16;
+    if(related.has(key)) priority-=4.4;
+    if(selectedObj && s===selectedObj) priority-=16;
+    if(el.classList.contains('selected')) priority-=10;
+    if(el.classList.contains('major')) priority-=2.0;
+    if(el.classList.contains('zod')||el.classList.contains('const')) priority-=1.45;
+    if(el.classList.contains('star')) priority+=mobileLabelMode?2.8:.8;
+    if(el.classList.contains('axis')) priority+=mobileLabelMode?2.2:.75;
+    if(el.classList.contains('beacon')||el.classList.contains('cosmic')) priority+=mobileLabelMode?1.4:.2;
+    if(isDirection) priority+=mobileLabelMode?3.8:1.5;
+    // Direction fields are useful context, but never all at once on phones.
+    items.push({obj,el,key,priority,center,isDirection,dist});
+  };
+
+  // Selectable labels receive semantic priority and mode filtering.
+  for(const [key,s] of SELECT){
+    const el=s.labelEl; if(!el) continue;
+    const obj=ALL_LABEL_OBJECTS.find(o=>o.element===el);
+    if(!obj) continue;
+    const sameMode=s.mode===state.mode || (state.mode==='solar'&&/^solarCosmic_/.test(key));
+    if(!sameMode){ setLabelLodState(obj,true); tracked.add(obj); continue; }
+    addItem(obj,key,s,0);
   }
-  const tmp=new THREE.Vector3();
-  for(const obj of AUX_LABEL_OBJECTS){
-    const el=obj.element; if(!el) continue;
-    if(obj.visible===false){ el.style.opacity=''; el.classList.remove('lod-focus','lod-dim','lod-quiet'); continue; }
-    el.classList.remove('lod-focus','lod-dim','lod-quiet');
-    if(state.smartLabelDimming===false){ el.style.opacity=''; continue; }
-    if(!objectChainVisible(obj)){ el.style.opacity='.14'; el.classList.add('lod-quiet'); continue; }
-    obj.getWorldPosition(tmp);
-    const ndc=tmp.clone().project(camera);
-    const onscreen=ndc.z>-1 && ndc.z<1 && Math.abs(ndc.x)<1.18 && Math.abs(ndc.y)<1.18;
-    if(!onscreen){ el.style.opacity='.14'; el.classList.add('lod-quiet'); continue; }
-    const center=Math.hypot(ndc.x,ndc.y);
-    const dist=Math.max(camera.position.distanceTo(tmp),1e-9);
-    let priority=center*1.35 + Math.log10(dist+1)*.24 + .65;
-    if(el.classList.contains('beacon')) priority-=.6;
-    items.push({key:'aux',el,priority,center});
+  // Auxiliary registered labels.
+  for(const obj of AUX_LABEL_OBJECTS) addItem(obj,null,null,.9);
+  // All other static CSS2D labels: axes, zodiac, star names, instrument titles.
+  for(const obj of ALL_LABEL_OBJECTS){
+    if(tracked.has(obj)) continue;
+    const el=obj.element;
+    const base=el.classList.contains('zod')?-.8:
+      el.classList.contains('const')?-.45:
+      el.classList.contains('star')?2.7:
+      el.classList.contains('axis')?2.2:1.2;
+    addItem(obj,null,null,base);
   }
   items.sort((a,b)=>a.priority-b.priority);
-  const mobileLabelMode = MOBILE_GPU || innerWidth < 760 || matchMedia('(pointer:coarse)').matches;
-  const primary=Math.max(mobileLabelMode?2:4,Math.round((state.labelPrimaryCount||10)*(mobileLabelMode?.42:1)));
-  const secondary=Math.max(primary+(mobileLabelMode?2:5),Math.round(primary*(mobileLabelMode?1.55:2.2)));
+  const rawPrimary = Math.round(state.labelPrimaryCount||6);
+  const maxPrimary = mobileLabelMode ? Math.min(6, Math.max(2, Math.round(rawPrimary*.38))) : Math.min(14, Math.max(4, rawPrimary));
+  const maxSecondary = mobileLabelMode ? maxPrimary + 3 : maxPrimary + 10;
+  let visible=0, directionVisible=0;
   const dim=state.labelDimOpacity??.46;
-  items.forEach((it,i)=>{
-    if(i<primary){it.el.style.opacity='1';it.el.style.display='';it.el.classList.add('lod-focus');}
-    else if(i<secondary){it.el.style.display='';it.el.style.opacity=String(Math.max(dim,mobileLabelMode?.30:.38));it.el.classList.add('lod-dim');}
-    else {it.el.style.opacity=String(Math.max(dim*.45,mobileLabelMode?.08:.22));it.el.style.display=mobileLabelMode?'none':'';it.el.classList.add('lod-quiet');}
-  });
+  const directionCap = mobileLabelMode ? 2 : 6;
+  for(const it of items){
+    if(it.isDirection && directionVisible>=directionCap && it.key!==selected && !related.has(it.key||'')){
+      setLabelLodState(it.obj,true); continue;
+    }
+    if(visible < maxPrimary){
+      setLabelLodState(it.obj,false,'1','lod-focus'); visible++; if(it.isDirection) directionVisible++;
+    }else if(visible < maxSecondary){
+      setLabelLodState(it.obj,false,Math.max(dim,mobileLabelMode?.32:.42),'lod-dim'); visible++; if(it.isDirection) directionVisible++;
+    }else{
+      setLabelLodState(it.obj,true);
+    }
+  }
+  for(const obj of ALL_LABEL_OBJECTS){ if(!tracked.has(obj) && !items.some(i=>i.obj===obj)) setLabelLodState(obj,true); }
+  LABEL_PERF.lastVisible=visible;
+  LABEL_PERF.lastTotal=ALL_LABEL_OBJECTS.length;
+  LABEL_PERF.lastBudget=maxSecondary;
+  LABEL_PERF.lastCull=Math.max(0,ALL_LABEL_OBJECTS.length-visible);
+  LABEL_PERF.mode=mobileLabelMode?'mobile-budget':'desktop-budget';
+  document.body.classList.toggle('mobilePerf', mobileLabelMode);
 }
+
 function rebuildSelectionLinks(){
   selectionLinksGroup.children.forEach(o=>{o.geometry?.dispose?.();o.material?.dispose?.();});
   selectionLinksGroup.clear(); selectionRelationLines=[];
@@ -3618,21 +3799,59 @@ function syncPanelDeck(){
 }
 function closePanel(id){
   const p=document.getElementById(id); if(!p||!panelIsOpen(id)) return;
+  p.classList.remove('panel-folded');
   p.style.display='none';
   if(activePanelId===id) activePanelId=null;
   syncPanelDeck(); requestHierarchyLayout();
 }
 function closeAllPanels(except=null){
   // selCard is a persistent, non-exclusive selection display — never auto-closed by opening another panel
-  PANEL_IDS.forEach(id=>{if(id!==except&&id!=='selCard'){const p=document.getElementById(id);if(p)p.style.display='none';}});
+  PANEL_IDS.forEach(id=>{if(id!==except&&id!=='selCard'){const p=document.getElementById(id);if(p){p.classList.remove('panel-folded');p.style.display='none';}}});
   if(except!=='selCard') activePanelId=except&&panelIsOpen(except)?except:null;
   syncPanelDeck(); requestHierarchyLayout();
+}
+function ensurePanelFoldTitle(id){
+  const p=document.getElementById(id); if(!p||id==='selCard') return;
+  if(p.querySelector('h3,.panel-fold-title')) return;
+  const title=document.createElement('div');
+  title.className='panel-fold-title';
+  title.textContent=PANEL_TITLES[id]||id;
+  p.prepend(title);
+}
+function syncGenericPanelCollapser(id){
+  const p=document.getElementById(id), btn=p?.querySelector('.panel-collapser'); if(!p||!btn||id==='selCard') return;
+  const folded=p.classList.contains('panel-folded');
+  btn.textContent=folded?'+':'−';
+  btn.title=folded?'Expand '+(PANEL_TITLES[id]||id):'Fold '+(PANEL_TITLES[id]||id)+' to title';
+  btn.setAttribute('aria-label',btn.title);
+}
+function foldPanelToTitle(id){
+  if(id==='selCard'){ collapseSelCard(); return; }
+  const p=document.getElementById(id); if(!p||!panelIsOpen(id)) return;
+  ensurePanelFoldTitle(id);
+  p.classList.add('panel-folded');
+  syncGenericPanelCollapser(id); syncPanelDeck(); requestHierarchyLayout();
+}
+function unfoldPanelFromTitle(id){
+  if(id==='selCard'){ expandSelCard(); return; }
+  const p=document.getElementById(id); if(!p||!panelIsOpen(id)) return;
+  p.classList.remove('panel-folded');
+  try{PANEL_RENDERERS.get(id)?.();}catch(e){console.error('[panel unfold render]',id,e);}
+  makePanelCollapsible(id); syncGenericPanelCollapser(id); syncPanelDeck(); requestHierarchyLayout();
+}
+function foldOpenPanelsToTitles(){
+  PANEL_IDS.forEach(id=>{
+    const p=document.getElementById(id); if(!p||!panelIsOpen(id)) return;
+    if(id==='selCard'){ if(!p.classList.contains('collapsed')) collapseSelCard(); }
+    else if(!p.classList.contains('panel-folded')) foldPanelToTitle(id);
+  });
 }
 function openPanel(id){
   const p=document.getElementById(id);
   if(!p||(id==='selCard'&&!selectedKey)) return;
   if(id!=='selCard'){ closeAllPanels(id); activePanelId=id; }   // selCard coexists with the active deck panel so lists don't vanish
   p.style.display='block';
+  p.classList.remove('panel-folded');
   makePanelCollapsible(id);
   try{PANEL_RENDERERS.get(id)?.();}
   catch(e){
@@ -3640,22 +3859,28 @@ function openPanel(id){
     p.innerHTML=`<h3>${esc(PANEL_TITLES[id]||id)}</h3><div class="note" style="color:var(--warn)">Panel render failed: ${esc(e?.message||e)}</div>`;
     makePanelCollapsible(id);
   }
+  makePanelCollapsible(id);
+  syncGenericPanelCollapser(id);
   syncPanelDeck(); requestHierarchyLayout();
 }
-function togglePanel(id){ panelIsOpen(id)?closePanel(id):openPanel(id); }
+function togglePanel(id){ panelIsOpen(id)?(document.getElementById(id)?.classList.contains('panel-folded')?unfoldPanelFromTitle(id):closePanel(id)):openPanel(id); }
 function registerPanelRenderer(id,fn){ PANEL_RENDERERS.set(id,fn); }
 function makePanelCollapsible(id){
-  const p=document.getElementById(id); if(!p||p.querySelector('.panel-collapser')) return;
-  const btn=document.createElement('button');
+  const p=document.getElementById(id); if(!p) return;
+  ensurePanelFoldTitle(id);
+  let btn=p.querySelector('.panel-collapser');
+  if(btn){ if(id==='selCard') syncSelCardCollapser(); else syncGenericPanelCollapser(id); return; }
+  btn=document.createElement('button');
   btn.type='button';btn.className='panel-collapser';btn.textContent='−';
-  btn.title='Hide '+(PANEL_TITLES[id]||id)+'; recall it from the panel dock';
+  btn.title='Fold '+(PANEL_TITLES[id]||id)+' to title';
   btn.setAttribute('aria-label',btn.title);
   btn.onclick=e=>{
     e.stopImmediatePropagation();
     if(id==='selCard'){ toggleSelCardExpansion(); }
-    else closePanel(id);
+    else if(p.classList.contains('panel-folded')) unfoldPanelFromTitle(id);
+    else foldPanelToTitle(id);
   };
-  if(id==='selCard') syncSelCardCollapser();
+  if(id==='selCard') syncSelCardCollapser(); else syncGenericPanelCollapser(id);
   p.appendChild(btn);
 }
 for(const id of PANEL_IDS){
@@ -3670,6 +3895,13 @@ document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>{
 });
 document.getElementById('togglePanels').onclick=()=>activePanelId?closePanel(activePanelId):openPanel('ctl');
 document.getElementById('resetViewBtn').onclick=()=>setMode(state.mode);
+document.addEventListener('pointerdown',e=>{
+  const t=e.target;
+  if(!t || !document.body.contains(t)) return;
+  if(t.closest('.panel,#panelDock,#topbar,#moreMenu,#cmdk,#helpOverlay,.fab,.label,.panel-collapser')) return;
+  // One tap on the scene frees the view without losing panel state: large windows fold to their title bars.
+  foldOpenPanelsToTitles();
+}, {capture:true, passive:true});
 document.getElementById('objectBtn').onclick=()=>togglePanel('objectPanel');
 document.getElementById('atlasBtn').onclick=()=>togglePanel('atlasPanel');
 document.getElementById('mObj').onclick=()=>togglePanel('objectPanel');
@@ -3778,7 +4010,12 @@ renderer.domElement.addEventListener('pointerup', e=>{
   raycaster.setFromCamera(ndc, camera);
   const picks=[]; for(const [key,d] of SELECT){ if(d.mode===state.mode && d.pick){ d.pick.userData.selKey=key; picks.push(d.pick);} }
   const hit = raycaster.intersectObjects(picks, false)[0];
-  if(hit) selectKey(hit.object.userData.selKey);
+  if(hit){
+    const key = hit.object.userData.selKey;
+    const isTapDbl = (e.pointerType==='touch' || e.pointerType==='pen') && shouldPromoteToDoubleTap(key,e.clientX,e.clientY,performance.now());
+    if(isTapDbl) activateFocusedSelection(key);
+    else previewSelectKey(key);
+  }
 });
 renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
 renderer.domElement.addEventListener('dblclick',e=>{
@@ -3788,7 +4025,7 @@ renderer.domElement.addEventListener('dblclick',e=>{
   const picks=[];for(const [key,d] of SELECT){if(d.mode===state.mode&&d.pick){d.pick.userData.selKey=key;picks.push(d.pick);}}
   const hit=raycaster.intersectObjects(picks,false)[0];
   const s=hit&&SELECT.get(hit.object.userData.selKey);
-  if(s){selectKey(hit.object.userData.selKey);focusOn(s);}
+  if(s) activateFocusedSelection(hit.object.userData.selKey);
 });
 
 const STARFIELDS = [];   // registry for quality scaling & MR passthrough hiding
@@ -4055,6 +4292,25 @@ function raDecDir(raH, dec){            // J2000 equatorial → scene (ecliptic,
   const zc = -Math.sin(OBLIQ)*ye + Math.cos(OBLIQ)*ze;
   return new THREE.Vector3(xe, zc, -yc);
 }
+function dirToSkyCoords(dir){                 // scene/ecliptic direction → J2000 RA/Dec + ecliptic λ/β
+  const v=dir.clone().normalize();
+  const xe=v.x, yc=-v.z, zc=v.y;
+  const ye=Math.cos(OBLIQ)*yc - Math.sin(OBLIQ)*zc;
+  const ze=Math.sin(OBLIQ)*yc + Math.cos(OBLIQ)*zc;
+  let ra=Math.atan2(ye,xe)/DEG; if(ra<0) ra+=360;
+  const dec=Math.asin(THREE.MathUtils.clamp(ze,-1,1))/DEG;
+  let lam=Math.atan2(-v.z,v.x)/DEG; if(lam<0) lam+=360;
+  const beta=Math.asin(THREE.MathUtils.clamp(v.y,-1,1))/DEG;
+  return {raDeg:ra,raH:ra/15,decDeg:dec,lambdaDeg:lam,betaDeg:beta};
+}
+function fmtRAH(raH){ const h=Math.floor(raH), m=Math.floor((raH-h)*60), ss=(((raH-h)*60-m)*60); return `${h}h ${String(m).padStart(2,'0')}m ${ss.toFixed(1)}s`; }
+function fmtDegSigned(x){ return `${x>=0?'+':'−'}${Math.abs(x).toFixed(2)}°`; }
+const SKY_ORIENTATION_CONTRACT={
+  frame:'ICRS/J2000 RA-Dec → ecliptic-J2000 scene directions',
+  visual_role:'camera-anchored orientation shell, not a physical boundary or distance shell',
+  persistence:'visible across Solar/Oort/Milky-Way/cosmic scale layers unless user disables the layer or MR passthrough is active',
+  real_anchor:'each constellation figure is built from embedded bright-star RA/Dec anchors; zodiac belt is the J2000 ecliptic plane'
+};
 const SUN_POLE_DIR=raDecDir(SUN.poleRA/15,SUN.poleDec).normalize();
 const SUN_AXIS_Q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),SUN_POLE_DIR);
 function earthAxisQuaternion(Tcenturies){
@@ -4070,6 +4326,17 @@ function mulberry(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0;
 
 const skyGroup = new THREE.Group(); solarGroup.add(skyGroup);
 skyGroup.add(starfield(3200, 660));
+function syncPersistentCelestialSphere(){
+  // Keep the J2000 sky as an orientation reference at every Solar-scale zoom.
+  // It follows the camera position but preserves angular RA/Dec/ecliptic directions,
+  // so the viewer never crosses a finite painted sphere and constellations do not pop out.
+  const inAR = (typeof XRX!=='undefined' && XRX?.diag?.mode==='ar');
+  skyGroup.visible = state.mode==='solar' && !inAR;
+  if(skyGroup.visible){
+    skyGroup.position.copy(camera.position);
+    skyGroup.userData.orientationContract = SKY_ORIENTATION_CONTRACT;
+  }
+}
 
 /* --- Milky Way: procedural equirectangular canvas, galactic-plane aligned --- */
 const mwMesh = (()=>{
@@ -4127,6 +4394,8 @@ const mwMesh = (()=>{
   const Yg=gPole.clone().normalize();
   const Zg=Xg.clone().cross(Yg);
   mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Xg,Yg,Zg));
+  mesh.userData.baseOpacity = .85;
+  mesh.userData.enabled = true;
   skyGroup.add(mesh);
   return mesh;
 })();
@@ -4255,18 +4524,24 @@ function starSpriteTex(){
     (con.z ? zodGroup : constGroup).add(lab);
     SKY_NAME_ELS.push(lab.element);
     const bright = con.s.reduce((m,s)=>s[2]<m[2]?s:m, con.s[0]);
+    const skyCoord = dirToSkyCoords(centroid);
     registerSel('con'+ci, {
       name: con.z ? `${ZGL[con.z]} ${con.n}` : con.n,
-      mode:'solar', labelEl: lab.element,
+      mode:'solar', labelEl: lab.element, accuracyTier:'M',
+      coords:{raDeg:+skyCoord.raDeg.toFixed(5), decDeg:+skyCoord.decDeg.toFixed(5), frame:'ICRS/J2000 visual centroid from embedded bright-star anchors'},
       desc: con.z
-        ? `Zodiac constellation on the ecliptic belt — the road of the Sun, the Moon and the planets across the celestial sphere.`
-        : `One of the principal constellations of the night sky (J2000 positions).`,
-      getPos:()=>centroid.clone().multiplyScalar(RSKY),
+        ? `Zodiac constellation on the J2000 celestial-sphere layer. This is a real sky-direction guide built from bright-star RA/Dec anchors; it is separate from the interpretive Precession Age Wheel.`
+        : `Principal constellation direction guide built from embedded bright-star J2000 RA/Dec anchors. It is an orientation layer, not a finite physical shell.`,
+      getPos:()=>skyGroup.localToWorld(centroid.clone().multiplyScalar(RSKY)),
       focusDist:()=>RSKY*0.35,
       rows:()=>[
+        ['Coordinate frame','ICRS/J2000 RA-Dec → ecliptic-J2000 scene'],
+        ['Visual shell','camera-anchored orientation sphere; not a physical 600-AU wall'],
+        ['Centroid RA/Dec', `${fmtRAH(skyCoord.raH)} · Dec ${fmtDegSigned(skyCoord.decDeg)}`],
+        ['Ecliptic λ/β', `λ ${skyCoord.lambdaDeg.toFixed(2)}° · β ${fmtDegSigned(skyCoord.betaDeg)}`],
         ['Stars charted', String(con.s.length)],
         ['Brightest star', (bright[3]||'α')+`  (mag ${bright[2].toFixed(2)})`],
-        ['Type', con.z ? 'Zodiac — sign '+ZGL[con.z] : 'Principal constellation'],
+        ['Type', con.z ? 'Sky zodiac constellation '+ZGL[con.z] : 'Principal constellation'],
       ],
     });
   });
@@ -5917,6 +6192,22 @@ function autoSolarScale(dt){
     if(typeof buildCtl==='function'){ try{ buildCtl(); }catch(e){} }
     _autoScaleCd=1.6;
     if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ '+({galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'}[order[i+1]]||order[i+1]);
+    updateScaleReturnDock();
+    return;
+  }
+  // Stable return path: when the user zooms back inward, descend the same scale ladder.
+  // This does not alter the sky texture or introduce new large transparent scene shells,
+  // so it avoids the flicker caused by the previous visual-continuity experiment.
+  if(i>0){
+    const inAt={ galactic:90000*LY_AU, andromeda:1.15e6*LY_AU, cosmic:0.08*GLY_AU }[layer];
+    if(inAt!=null && d<inAt){
+      const next=order[i-1];
+      setSolarScaleLayer(next); updateSolarScaleVisibility();
+      if(typeof buildCtl==='function'){ try{ buildCtl(); }catch(e){} }
+      _autoScaleCd=1.6;
+      if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↓ '+({local:'Solar + Oort',galactic:'Milky Way',andromeda:'Local Group'}[next]||next);
+      updateScaleReturnDock();
+    }
   }
 }
 
@@ -9326,11 +9617,11 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.42, laniakeaFlowSpeed:.18, showCosmicDust:false, showObservableFill:false, showMwArms:true,
   showSolarCosmicBeacons:true,
-  showCosmicLocalRefs:true, showCosmicLocalRefLabels:false, cosmicLocalRefScale:1, labelLuxuryContrast:true,
+  showCosmicLocalRefs:true, showCosmicLocalRefLabels:false, cosmicLocalRefScale:1, labelLuxuryContrast:true, smartLabelDimming:true, labelPrimaryCount:6, labelDimOpacity:.38,
   smartLabelDimming:true, labelPrimaryCount:10, labelDimOpacity:.46,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
-  earthOverview:false,
+  earthOverview:false, earthOverviewOrbit:false,
 };
 updateCosmicDust();
 updateCosmicLocalRefs();
@@ -9517,6 +9808,7 @@ function landOn(idx){
     idx, dir, yaw:0, pitch:.12,
     prevTrue: state.trueScale,
     prevCam: camera.position.clone(), prevTgt: controls.target.clone(), prevFov: camera.fov,
+    autoOrbit:false,
   };
   state.trueScale = true;                  // real angular sizes in the sky
   controls.enabled = false;
@@ -9534,7 +9826,7 @@ function leaveSurface(){
   controls.target.copy(state.landed.prevTgt);
   camera.fov = state.landed.prevFov; camera.updateProjectionMatrix();
   camera.up.set(0,1,0);
-  state.landed = null; state.earthOverview=false;
+  state.landed = null; state.earthOverview=false; state.earthOverviewOrbit=false;
   syncControlCapabilities();stabilizeCamera();syncCameraClipping(true);
   landedBanner.style.display='none';
   buildCtl();
@@ -9558,10 +9850,82 @@ function enterEarthRealtimeOverview(){
   frameSolarOverview();
   updateSolarScaleVisibility();
   try{ landOn(2); }catch(e){ console.warn('[earth realtime landing]', e); }
+  state.earthOverviewOrbit=true;
+  if(state.landed) state.landed.autoOrbit=true;
   try{ aimLandedViewAtWorldTarget(GAL_DATA.gc.pos, 35); }catch(e){}
   const inf=document.getElementById('landedInfo');
   if(inf) inf.textContent=' · live UTC · 1× real-time · looking toward Sgr A* / Galactic centre';
 }
+
+function returnToSolarSystemOverview(){
+  if(state.landed) leaveSurface();
+  state.earthOverview=false; state.earthOverviewOrbit=false;
+  ORBIT.on=false; ORBIT.secondaryKey=null; controls.autoRotate=false; followSel=null; focusAnim=null;
+  state.solarScaleLayer='local'; state.trueScale=false;
+  setMode('solar'); setSolarScaleLayer('local'); updateSolarScaleVisibility();
+  try{ buildCtl(); }catch(e){}
+  hudBig.textContent='Return path ↓ Solar System';
+  hudSub.textContent='back inside the Oort-scale Solar atlas · planets and Earth are selectable again';
+}
+function returnToMilkyWayOverview(){
+  if(state.landed) leaveSurface();
+  state.earthOverview=false; state.earthOverviewOrbit=false;
+  ORBIT.on=false; ORBIT.secondaryKey=null; controls.autoRotate=false; followSel=null; focusAnim=null;
+  state.solarScaleLayer='galactic'; state.trueScale=true;
+  setMode('solar'); setSolarScaleLayer('galactic'); updateSolarScaleVisibility();
+  try{ buildCtl(); }catch(e){}
+  hudBig.textContent='Return path ↓ Milky Way';
+  hudSub.textContent='Sgr A* and the galactic plane are framed; use Solar / Earth to descend further';
+}
+function returnToCosmicWebOverview(){
+  if(state.landed) leaveSurface();
+  state.earthOverview=false; state.earthOverviewOrbit=false;
+  ORBIT.on=false; ORBIT.secondaryKey=null; controls.autoRotate=false; followSel=null; focusAnim=null;
+  state.solarScaleLayer='cosmic'; state.trueScale=true;
+  setMode('solar'); setSolarScaleLayer('cosmic'); updateSolarScaleVisibility();
+  try{ buildCtl(); }catch(e){}
+  hudBig.textContent='Scale ↑ Cosmic web';
+  hudSub.textContent='large-scale structures in the Solar-frame atlas; use the return dock to descend';
+}
+const scaleReturnDock = document.getElementById('scaleReturnDock');
+let scaleReturnDockKey='';
+function updateScaleReturnDock(){
+  if(!scaleReturnDock) return;
+  const layer=state.solarScaleLayer||'local';
+  const show=state.mode==='solar' && (state.landed || layer!=='local');
+  if(!show){ scaleReturnDock.hidden=true; scaleReturnDockKey=''; return; }
+  const key=`${layer}|${!!state.landed}|${!!state.earthOverviewOrbit}`;
+  if(key===scaleReturnDockKey) return;
+  scaleReturnDockKey=key; scaleReturnDock.hidden=false;
+  const buttons=[];
+  if(state.landed){
+    buttons.push(['solar','↙ Solar']);
+    buttons.push(['mw','↙ Milky Way']);
+  } else if(layer==='cosmic'){
+    buttons.push(['mw','↙ Milky Way']);
+    buttons.push(['solar','↙ Solar']);
+    buttons.push(['earth','⊕ Earth']);
+  } else if(layer==='andromeda'){
+    buttons.push(['mw','↙ Milky Way']);
+    buttons.push(['solar','↙ Solar']);
+    buttons.push(['earth','⊕ Earth']);
+  } else if(layer==='galactic'){
+    buttons.push(['solar','↙ Solar']);
+    buttons.push(['earth','⊕ Earth']);
+    buttons.push(['cosmic','↗ Cosmic']);
+  }
+  scaleReturnDock.innerHTML=buttons.map(([act,label])=>`<button class="btn green" data-scale-return="${act}">${label}</button>`).join('');
+}
+scaleReturnDock?.addEventListener('click',e=>{
+  const act=e.target?.closest?.('[data-scale-return]')?.dataset?.scaleReturn; if(!act) return;
+  e.preventDefault(); e.stopPropagation();
+  if(act==='earth') enterEarthRealtimeOverview();
+  else if(act==='solar') returnToSolarSystemOverview();
+  else if(act==='mw') returnToMilkyWayOverview();
+  else if(act==='cosmic') returnToCosmicWebOverview();
+  updateScaleReturnDock();
+});
+
 document.getElementById('leaveBtn').onclick = leaveSurface;
 addEventListener('keydown', e=>{
   if(e.key==='Escape'){
@@ -9678,7 +10042,7 @@ function buildCtl(){
     </div>
     <div class="sect"><b>Celestial sphere</b>
       <div class="ctlrow"><label>Milky Way</label>
-        <input type="checkbox" id="skyMW" ${mwMesh.visible?'checked':''}></div>
+        <input type="checkbox" id="skyMW" ${mwMesh.userData?.enabled!==false?'checked':''}></div>
       <div class="ctlrow" title="Celestial-sphere layer: constellation stick figures (J2000)"><label>Constellation figures</label>
         <input type="checkbox" id="skyConst" ${constGroup.visible?'checked':''}></div>
       <div class="ctlrow" title="Celestial-sphere layer: the 12 zodiac constellations on the ecliptic. The Precession Age Wheel in Cycles & Events is a DIFFERENT interpretive layer, not a duplicate."><label>Sky zodiac constellations</label>
@@ -9736,7 +10100,7 @@ function buildCtl(){
     ctl.querySelector('#tsc').onchange = e=>{ state.trueScale = e.target.checked; updCtlVals(); };
     ctl.querySelector('#orb').onchange = e=>{ state.showOrbits = e.target.checked; planetObjs.forEach(o=>o.line.visible=e.target.checked); };
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
-    ctl.querySelector('#skyMW').onchange    = e=>mwMesh.visible=e.target.checked;
+    ctl.querySelector('#skyMW').onchange    = e=>{ mwMesh.userData.enabled = e.target.checked; };
     ctl.querySelector('#skyConst').onchange = e=>constGroup.visible=e.target.checked;
     ctl.querySelector('#skyZod').onchange   = e=>zodGroup.visible=e.target.checked;
     ctl.querySelector('#skyStars').onchange = e=>starsGroup.visible=e.target.checked;
@@ -10648,8 +11012,9 @@ function renderSettingsPanel(){
       <div class="ctlrow"><label>Day theme</label><input type="checkbox" id="setDay" ${document.body.classList.contains('day')?'checked':''}></div>
       <div class="ctlrow"><label>Premium space labels</label><input type="checkbox" id="setLuxuryLabels" ${state.labelLuxuryContrast!==false?'checked':''}></div>
       <div class="ctlrow"><label>Smart label dimming</label><input type="checkbox" id="setSmartLabels" ${state.smartLabelDimming!==false?'checked':''}></div>
-      <div class="ctlrow"><label>Primary label count</label><input type="range" id="setLabelPrimary" min="4" max="28" step="1" value="${state.labelPrimaryCount||10}"><span class="val">${state.labelPrimaryCount||10}</span></div>
-      <div class="ctlrow"><label>Dimmed label opacity</label><input type="range" id="setLabelDim" min="0.18" max="0.78" step="0.02" value="${state.labelDimOpacity||.46}"><span class="val">${(state.labelDimOpacity||.46).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Primary label count</label><input type="range" id="setLabelPrimary" min="2" max="18" step="1" value="${state.labelPrimaryCount||6}"><span class="val">${state.labelPrimaryCount||6}</span></div>
+      <div class="ctlrow"><label>Dimmed label opacity</label><input type="range" id="setLabelDim" min="0.16" max="0.72" step="0.02" value="${state.labelDimOpacity||.38}"><span class="val">${(state.labelDimOpacity||.38).toFixed(2)}</span></div>
+      <div class="note">Smart label budget: ${LABEL_PERF.lastVisible||0}/${LABEL_PERF.lastTotal||0} visible · hidden ${LABEL_PERF.lastCull||0} · ${LABEL_PERF.mode||'auto'}</div>
       <div class="ctlrow"><label>Quality overlay</label><input type="checkbox" id="setQuality" ${state.showQualityOverlay?'checked':''}></div>
       <div class="ctlrow"><label>Spatial guides</label><input type="checkbox" id="setGuides" ${state.showGuides?'checked':''}></div>
       <div class="ctlrow"><label>Guide opacity</label><input type="range" id="setGuideOpacity" min="0" max="2.2" step="0.02" value="${state.guideOpacity}"><span class="val">${state.guideOpacity.toFixed(2)}</span></div>
@@ -10663,7 +11028,7 @@ function renderSettingsPanel(){
       <div class="ctlrow"><label>True scale</label><input type="checkbox" id="setTrueScale" ${state.trueScale?'checked':''}></div>
       <div class="ctlrow"><label>Orbit lines / spin axes</label><input type="checkbox" id="setOrbits" ${state.showOrbits?'checked':''}><input type="checkbox" id="setSpinAxes" ${state.showSpinAxes?'checked':''}></div>
       <div class="ctlrow"><label>Solar scale layer</label><select id="setSolarLayer" style="flex:1">${['local','galactic','andromeda','cosmic'].map(x=>`<option value="${x}" ${state.solarScaleLayer===x?'selected':''}>${x}</option>`).join('')}</select></div>
-      <div class="ctlrow"><label>Milky Way / constellations / zodiac / star names</label><input type="checkbox" id="setSkyMW" ${mwMesh.visible?'checked':''}><input type="checkbox" id="setSkyConst" ${constGroup.visible?'checked':''}><input type="checkbox" id="setSkyZod" ${zodGroup.visible?'checked':''}><input type="checkbox" id="setSkyStars" ${starsGroup.visible?'checked':''}></div>
+      <div class="ctlrow"><label>Milky Way / constellations / zodiac / star names</label><input type="checkbox" id="setSkyMW" ${mwMesh.userData?.enabled!==false?'checked':''}><input type="checkbox" id="setSkyConst" ${constGroup.visible?'checked':''}><input type="checkbox" id="setSkyZod" ${zodGroup.visible?'checked':''}><input type="checkbox" id="setSkyStars" ${starsGroup.visible?'checked':''}></div>
     </div>
     <div class="sect"><b>Oort and cosmic structure references</b>
       <div class="ctlrow"><label>Oort visible</label><input type="checkbox" id="setOort" ${state.showOort?'checked':''}></div>
@@ -10711,7 +11076,7 @@ function renderSettingsPanel(){
   on('setDays','input',e=>state.daysPerSec=10**(+e.target.value)); on('setPlanetScale','input',e=>{state.planetScale=10**(+e.target.value);state.trueScale=false;});
   on('setSunScale','input',e=>state.sunScale=10**(+e.target.value)); on('setTrueScale','change',e=>state.trueScale=e.target.checked);
   on('setOrbits','change',e=>{state.showOrbits=e.target.checked;planetObjs.forEach(o=>o.line.visible=e.target.checked);}); on('setSpinAxes','change',e=>state.showSpinAxes=e.target.checked);
-  on('setSolarLayer','change',e=>{setSolarScaleLayer(e.target.value);updateSolarScaleVisibility();}); on('setSkyMW','change',e=>mwMesh.visible=e.target.checked);
+  on('setSolarLayer','change',e=>{setSolarScaleLayer(e.target.value);updateSolarScaleVisibility();}); on('setSkyMW','change',e=>{ mwMesh.userData.enabled = e.target.checked; });
   on('setSkyConst','change',e=>constGroup.visible=e.target.checked); on('setSkyZod','change',e=>zodGroup.visible=e.target.checked); on('setSkyStars','change',e=>starsGroup.visible=e.target.checked);
   on('setOort','change',e=>{state.showOort=e.target.checked;updateSolarScaleVisibility();}); on('setOortPts','change',e=>state.showOortPoints=e.target.checked);
   on('setOortOrbs','change',e=>state.showOortOrbits=e.target.checked); on('setOortShells','change',e=>state.showOortShells=e.target.checked);
@@ -11099,7 +11464,7 @@ applyAudienceMode(state.atlasAudience);
 /* ---------------- mobile layout ---------------- */
 const isMobile = MOBILE_GPU;
 if(isMobile){
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));  // stable thermal/GPU budget on phones
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.22));  // stable thermal/GPU budget on phones
   requestRendererResize();
   closeAllPanels();
 }else{
@@ -11267,7 +11632,7 @@ function updateBreadcrumb(){
    ================================================================ */
 
 /* ---- shared double-click focus path (reuses selectGlobalKey → focusOn) ---- */
-function dblFocus(key){ if(key && SELECT.has(key)) selectGlobalKey(key,true); }
+function dblFocus(key){ if(key && SELECT.has(key)) selectGlobalKey(key,true,{panel:'compact'}); }
 
 /* ---- desktop guided-tour driver (UI hook over the existing XRX.TOURS data) ---- */
 let desktopTour=null, desktopTourIdx=0;
@@ -11985,6 +12350,7 @@ function tickBody(now, frame){
   updateLaniakeaFlows(dt);
   updateHierarchyLocator();
   updateLabelRelevance();
+  updateScaleReturnDock();
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
@@ -12014,7 +12380,7 @@ function tickBody(now, frame){
         hudSub.textContent='real hydrogen orbital shape (exact nodes & phase) · gold + lobe, blue − lobe · drag to orbit';
       }
       renderer.render(scene, camera);
-      if(!MOBILE_GPU||++labelRenderFrame%2===0) labelRenderer.render(scene,camera);   // 3D annotations
+      if(!labelModeActive()||++labelRenderFrame%4===0) labelRenderer.render(scene,camera);   // throttled 3D annotations
       if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
       renderHierarchyLocator();
       XRX.telemetry(dt);
@@ -12105,6 +12471,17 @@ function tickBody(now, frame){
       const localScale = (state.solarScaleLayer||'local')==='local';
       const overviewFade = THREE.MathUtils.smoothstep(camDist, 350, outerAU*.45);
       const baseDens = state.oortDensity || .55;
+      const mwSkyFadeOut = 1 - THREE.MathUtils.smoothstep(camDist, Math.max(220, outerAU*0.004), Math.max(2200, outerAU*0.030));
+
+      // Fade the decorative Milky-Way image out BEFORE the Oort point cloud becomes visually relevant.
+      // Constellations and zodiac remain as the stable orientation layer, so guidance stays available
+      // while the painted sky backdrop yields cleanly to the sparse Oort points and avoids shimmer.
+      if(mwMesh?.material){
+        const mwEnabled = mwMesh.userData?.enabled !== false;
+        mwMesh.visible = !!mwEnabled && skyGroup.visible && mwSkyFadeOut > 0.01;
+        mwMesh.material.opacity = (mwMesh.userData?.baseOpacity ?? 0.85) * mwSkyFadeOut;
+        mwMesh.material.needsUpdate = true;
+      }
 
       // The inferred reservoir is intentionally invisible from the planetary
       // region and resolves only when the camera moves to the appropriate scale.
@@ -12136,7 +12513,7 @@ function tickBody(now, frame){
         c.scale.setScalar(90+260*near);
       });
       updateSolarScaleVisibility();
-      skyGroup.visible = localScale && camDist < 1200; // visual celestial sphere is not a physical 600-AU shell
+      syncPersistentCelestialSphere();
       spatialGuides.solar.visible = state.showGuides && localScale && camDist < 500;
       const showInnerLabels=localScale && camDist<500;
       sunLabel.visible=moonLabel.visible=showInnerLabels;
@@ -12145,6 +12522,7 @@ function tickBody(now, frame){
 
     if(state.landed){
       const L = state.landed, B = bodyEntry(L.idx);
+      if(L.autoOrbit && !lookDrag){ L.yaw += dt*0.055; }
       const vR = B.visualR();
       const surf = B.mesh.position.clone().add(L.dir.clone().multiplyScalar(vR*1.003));
       // tangent frame at the standing point
@@ -12169,16 +12547,16 @@ function tickBody(now, frame){
       const layer=state.solarScaleLayer||'local';
       if(layer==='local'){
         hudBig.textContent = simDateString();
-        hudSub.textContent = 'Solar + Oort · heliocentric ecliptic J2000 · 1 unit = 1 AU · Earth orbit anchored to Earth–Moon barycenter'+ephWarn;
+        hudSub.textContent = 'Solar + Oort · heliocentric ecliptic J2000 · persistent RA/Dec constellations + zodiac orientation shell · 1 unit = 1 AU'+ephWarn;
       } else if(layer==='galactic'){
         hudBig.textContent = 'Milky Way · Sgr A* centre 26,700 ly from the Sun';
-        hudSub.textContent = 'true AU distances · centre and Galactic plane data-positioned · spiral arms schematic';
+        hudSub.textContent = 'true AU distances · centre and Galactic plane data-positioned · RA/Dec constellations remain as orientation shell';
       } else if(layer==='andromeda'){
         hudBig.textContent = 'Local Group · M31 centre 2.537 million ly from the Sun';
         hudSub.textContent = 'true AU distances · M31 centre/inclination/PA data-positioned · spiral texture schematic';
       } else {
         hudBig.textContent = 'Cosmic web · true-scale comoving atlas from the Solar-system origin';
-        hudSub.textContent = '1 unit = 1 AU · uncertain extended structures use uncertainty volumes, not fabricated exact shapes';
+        hudSub.textContent = '1 unit = 1 AU · J2000 sky directions stay visible for orientation; extended structures use uncertainty volumes';
       }
     }
     // label deconfliction: fade sky names when zoomed into the planetary region
@@ -12308,7 +12686,7 @@ function tickBody(now, frame){
   stabilizeCamera();
   renderer.render(scene, camera);
   if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
-  if(!renderer.xr.isPresenting&&(!MOBILE_GPU||++labelRenderFrame%2===0))labelRenderer.render(scene,camera);
+  if(!renderer.xr.isPresenting&&(!labelModeActive()||++labelRenderFrame%4===0))labelRenderer.render(scene,camera);
   renderHierarchyLocator();
   XRX.telemetry(dt);
 }
