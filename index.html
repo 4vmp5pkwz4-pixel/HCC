@@ -212,6 +212,8 @@
   body.selcard-open #atlasCoach{bottom:14px;left:14px}
   body.ctl-open #atlasCoach{left:14px;top:calc(var(--topbar-h,64px) + 8px);bottom:auto;max-height:34vh;overflow:auto}
   body.ctl-open #atlasCoach:not(.collapsed){width:min(300px,calc(100vw - 28px))}
+  body.panel-open #atlasCoach{left:14px;top:calc(var(--topbar-h,64px) + 8px);bottom:auto;width:min(300px,calc(100vw - 28px));max-height:52px;overflow:hidden}
+  body.panel-open #atlasCoach:not(.collapsed) .coachBody{display:none}
   @media (max-width:900px){ body.ctl-open #atlasCoach:not(.collapsed) .coachBody{display:none} }
   @media (max-width:760px),(pointer:coarse){
     #navPanel{left:0;right:0;margin-inline:auto;width:min(460px,calc(100vw - 20px))}
@@ -1939,7 +1941,8 @@ function objectChainVisible(o){
   return true;
 }
 function updateLabelRelevance(force=false){
-  if(!force && updateLabelRelevance._acc && performance.now()-updateLabelRelevance._acc<280) return;
+  const labelCadence=MOBILE_GPU?620:360;
+  if(!force && updateLabelRelevance._acc && performance.now()-updateLabelRelevance._acc<labelCadence) return;
   updateLabelRelevance._acc=performance.now();
   const selected=selectedKey&&SELECT.has(selectedKey)?selectedKey:null;
   const related=new Set(selected?getObjectRelations(selected).map(r=>r.target):[]);
@@ -1965,6 +1968,7 @@ function updateLabelRelevance(force=false){
   const tmp=new THREE.Vector3();
   for(const obj of AUX_LABEL_OBJECTS){
     const el=obj.element; if(!el) continue;
+    if(obj.visible===false){ el.style.opacity=''; el.classList.remove('lod-focus','lod-dim','lod-quiet'); continue; }
     el.classList.remove('lod-focus','lod-dim','lod-quiet');
     if(state.smartLabelDimming===false){ el.style.opacity=''; continue; }
     if(!objectChainVisible(obj)){ el.style.opacity='.14'; el.classList.add('lod-quiet'); continue; }
@@ -2284,10 +2288,34 @@ function togglePhysDebug(){
 }
 function updateSelCard(){
   const s = SELECT.get(selectedKey); if(!s) return;
-  const rows = s.rows ? s.rows() : [];
+  const rows = (s.rows ? s.rows() : []).concat(selectionDistanceRows(s));
   document.getElementById('selTable').innerHTML =
     rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
   renderSelSummaryPassport();
+}
+function selectionDistanceRows(s){
+  const p=safeSelectionPos(s);
+  if(!p) return [];
+  let glyFromObserver=0, gcGly=null;
+  if(s.mode==='solar'){
+    const auToGly=1.495978707e11/GLY_M;
+    glyFromObserver=p.length()*auToGly;
+    if(typeof GAL_DATA!=='undefined'&&GAL_DATA?.gc?.pos) gcGly=p.distanceTo(GAL_DATA.gc.pos)*auToGly;
+  } else if(s.mode==='obs'){
+    glyFromObserver=p.length();
+    const gc=GALACTIC_CENTRE_DIR.clone().multiplyScalar(0.0000267);
+    gcGly=p.distanceTo(gc);
+  } else {
+    glyFromObserver=p.length()/Math.max(S3.R,1)*S3.Dparticle;
+  }
+  if(gcGly==null) gcGly=0.0000267+glyFromObserver;
+  const particleEdge=Math.max(0,S3.Dparticle-glyFromObserver);
+  const lightSphereEdge=Math.max(0,S3.R-glyFromObserver);
+  return [
+    ['to Galactic centre',fmtLen(gcGly*GLY_M)],
+    ['to observable edge',fmtLen(particleEdge*GLY_M)],
+    ['to S³ light-sphere edge',fmtLen(lightSphereEdge*GLY_M)]
+  ];
 }
 function renderSelectionContract(){
   const box=document.getElementById('selContract'),c=getAtlasEntityContract(selectedKey);
@@ -2975,6 +3003,7 @@ function syncPanelDeck(){
   closer.title=activePanelId?'Close active panel (Esc)':'Open controls panel';
   document.body.classList.toggle('selcard-open',panelIsOpen('selCard'));
   document.body.classList.toggle('ctl-open',panelIsOpen('ctl'));
+  document.body.classList.toggle('panel-open',PANEL_IDS.some(id=>id!=='selCard'&&panelIsOpen(id)));
   try{ AtlasCoach.refresh(); }catch(e){}
 }
 function closePanel(id){
@@ -4460,6 +4489,7 @@ const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map(), COSMOS_DUST=[];
 const COSMIC_LOCAL_REFS=[];
 function makeCosmicLocalRefs(parent, structurePos, radius, unitScale=1){
   const group=new THREE.Group();
+  group.userData.refLabels=[];
   const refLen=Math.max(radius*1.55,unitScale*.22);
   const sunDir=structurePos.clone().multiplyScalar(-1).normalize();
   const gcPos=GALACTIC_CENTRE_DIR.clone().multiplyScalar(unitScale*0.0000267);
@@ -4476,6 +4506,8 @@ function makeCosmicLocalRefs(parent, structurePos, radius, unitScale=1){
     tip.renderOrder=61;
     const lab=mkLabel(name,'label beacon');
     lab.position.copy(dir.clone().multiplyScalar(refLen*1.08)).add(off);
+    lab.visible=false;
+    group.userData.refLabels.push(lab);
     AUX_LABEL_OBJECTS.push(lab);
     group.add(line,tip,lab);
   };
@@ -4492,8 +4524,12 @@ function makeCosmicLocalRefs(parent, structurePos, radius, unitScale=1){
 }
 function updateCosmicLocalRefs(){
   const on=state.showCosmicLocalRefs!==false;
+  const textOn=on&&state.showCosmicLocalRefLabels===true;
   const s=state.cosmicLocalRefScale||1;
-  COSMIC_LOCAL_REFS.forEach(g=>{ g.visible=on; g.scale.setScalar(s); });
+  COSMIC_LOCAL_REFS.forEach(g=>{
+    g.visible=on; g.scale.setScalar(s);
+    (g.userData.refLabels||[]).forEach(l=>l.visible=textOn);
+  });
 }
 // Per-structure "dust" cloud: a realistic galaxy-density profile (denser core; voids = hollow shells),
 // scaled to each structure's true extent. Visualisation only — positions are not new measurements.
@@ -6745,7 +6781,7 @@ function updateCyc(dt){
    3D Mandelbulb + complex-plane Mandelbrot/Julia + a deterministic,
    accumulated Buddhabrot orbit-density texture + φ-nested contours.
    ================================================================ */
-const BUDDHA_RES=MOBILE_GPU?640:1024;
+const BUDDHA_RES=MOBILE_GPU?768:1536;
 const buddhaCanvas=document.createElement('canvas'); buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
 const buddhaCtx=buddhaCanvas.getContext('2d');
 buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
@@ -6754,12 +6790,12 @@ fractalBuddhaTexture.colorSpace=THREE.SRGBColorSpace;
 fractalBuddhaTexture.generateMipmaps=false;
 fractalBuddhaTexture.minFilter=THREE.LinearFilter;
 fractalBuddhaTexture.magFilter=THREE.LinearFilter;
-let buddhaProgress=0, buddhaBuilding=false;
+let buddhaProgress=0, buddhaBuilding=false, buddhaEverBuilt=false;
 function buildBuddhabrotTexture(){
   if(buddhaBuilding) return;
-  buddhaBuilding=true; buddhaProgress=0;
+  buddhaBuilding=true; buddhaEverBuilt=true; buddhaProgress=0;
   const W=buddhaCanvas.width,H=buddhaCanvas.height,N=W*H;
-  const target=MOBILE_GPU?420000:1250000,maxIter=MOBILE_GPU?560:920;
+  const target=MOBILE_GPU?680000:2600000,maxIter=MOBILE_GPU?760:1400;
   const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N);
   const ox=new Float32Array(maxIter),oy=new Float32Array(maxIter),rnd=mulberry(20260430);
   let done=0;
@@ -6778,7 +6814,7 @@ function buildBuddhabrotTexture(){
     buddhaProgress=done/target; updCtlVals();
   };
   const batch=()=>{
-    const end=Math.min(target,done+(MOBILE_GPU?3200:9000));
+    const end=Math.min(target,done+(MOBILE_GPU?2400:7600));
     for(;done<end;done++){
       const cx=-2.15+3.25*rnd(),cy=-1.35+2.7*rnd(); let x=0,y=0,it=0;
       for(;it<maxIter;it++){
@@ -6798,9 +6834,6 @@ function buildBuddhabrotTexture(){
   };
   batch();
 }
-if('requestIdleCallback' in window)requestIdleCallback(buildBuddhabrotTexture,{timeout:3000});
-else setTimeout(buildBuddhabrotTexture,MOBILE_GPU?1200:500);
-
 const fractalUniforms = {
   uRes:    {value:new THREE.Vector2(renderer.domElement.width,renderer.domElement.height)},
   uCamPos: {value:new THREE.Vector3()},
@@ -6816,14 +6849,16 @@ const fractalUniforms = {
   uMode:   {value:0},
   uCenter: {value:new THREE.Vector2(-.5,0)},
   uZoom:   {value:1},
+  uPlaneRot:{value:0},
   uJulia:  {value:new THREE.Vector2(-.835,-.2321)},
+  uMJMix:  {value:.5},
   uLevel:  {value:8},
   uGrid:   {value:1},
   uPalette:{value:4},   // spectrum by default, zero phase
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mandeljulia:9};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
 let fractalPalette='spectrum';   // spectral analytic palette from the first frame, zero phase
@@ -6845,6 +6880,11 @@ function setFractalType(type,reset=true){
     else { setFractalZoom(1); fractalUniforms.uCenter.value.set(type==='julia'?0:-.5,0); }
   }
   setFractalZoom(fractalUniforms.uZoom.value);
+  if(type==='buddhabrot'&&!buddhaEverBuilt){
+    const start=()=>buildBuddhabrotTexture();
+    if('requestIdleCallback' in window) requestIdleCallback(start,{timeout:700});
+    else setTimeout(start,120);
+  }
   if(state.mode==='fractal' && GEO_FRACTALS.has(type)){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
@@ -7024,7 +7064,7 @@ const fractalScene = new THREE.Scene();
     fragmentShader: `
       precision highp float;
       uniform vec2 uRes,uCenter,uJulia; uniform vec3 uCamPos,uCamFwd,uCamRight,uCamUp;
-      uniform float uTanFov,uPower,uHue,uZoom,uLevel,uGrid,uBifOverlay; uniform int uIters,uIters2D,uSteps,uMode,uPalette;
+      uniform float uTanFov,uPower,uHue,uZoom,uLevel,uGrid,uBifOverlay,uPlaneRot,uMJMix; uniform int uIters,uIters2D,uSteps,uMode,uPalette;
       uniform sampler2D uBuddha;
       const int MARCH = 200;
 
@@ -7100,6 +7140,14 @@ const fractalScene = new THREE.Scene();
         float edge=.16+.84*fract(sm*.045+uHue);
         return palette(clamp(edge+(nested ? .34*bands : 0.0),0.0,1.0));
       }
+      vec3 mandelJuliaView(vec2 p, vec2 uv){
+        vec3 m=escapeView(p,false,false), j=escapeView(p,true,false);
+        float split=smoothstep(-0.018,0.018,uv.x);
+        vec3 blended=mix(m,j,clamp(uMJMix,0.0,1.0));
+        vec3 side=mix(m,j,split);
+        float seam=1.0-smoothstep(0.0,0.014,abs(uv.x));
+        return mix(side,blended,0.45)+palette(.95)*seam*.35;
+      }
       // Logistic-map bifurcation diagram x→r·x·(1−x): attractor density + Lyapunov colouring
       vec3 bifurcationView(vec2 p){
         float r=p.x, yv=p.y;
@@ -7122,6 +7170,8 @@ const fractalScene = new THREE.Scene();
         float aspect = uRes.x/uRes.y;
         if(uMode>0){
           vec2 p=uCenter+vec2(uv.x*aspect,uv.y)*(1.5/max(uZoom,.0001));
+          float cr=cos(uPlaneRot), sr=sin(uPlaneRot);
+          p=uCenter+mat2(cr,-sr,sr,cr)*(p-uCenter);
           vec3 col;
           if(uMode==3){
             vec2 buv=vec2((p.x+2.2)/3.4,(p.y+1.5)/3.0);
@@ -7129,10 +7179,11 @@ const fractalScene = new THREE.Scene();
             float lum=max(den.r,max(den.g,den.b));
             col=(buv.x<0.0||buv.x>1.0||buv.y<0.0||buv.y>1.0)?vec3(0.008):palette(pow(lum,.72));
           } else if(uMode==5){ col=bifurcationView(p);
+          } else if(uMode==9){ col=mandelJuliaView(p,uv);
           } else col=escapeView(p,uMode==2,uMode==4);
           col+=palette(.82)*complexGrid(p);
           // Bifurcation ⊂ Mandelbrot: the logistic cascade lives on the real axis via c = r/2 − r²/4
-          if((uMode==1||uMode==2)&&uBifOverlay>0.5){
+          if((uMode==1||uMode==2||uMode==9)&&uBifOverlay>0.5){
             float cx=p.x;
             if(cx<=0.25 && cx>=-2.0){
               float r=1.0+sqrt(max(0.0,1.0-4.0*cx));      // invert c=r/2−r²/4 on r∈[1,4]
@@ -8607,7 +8658,7 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.42, laniakeaFlowSpeed:.18, showCosmicDust:false, showObservableFill:false, showMwArms:true,
   showSolarCosmicBeacons:true,
-  showCosmicLocalRefs:true, cosmicLocalRefScale:1, labelLuxuryContrast:true,
+  showCosmicLocalRefs:true, showCosmicLocalRefLabels:false, cosmicLocalRefScale:1, labelLuxuryContrast:true,
   smartLabelDimming:true, labelPrimaryCount:10, labelDimOpacity:.46,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
@@ -9646,7 +9697,7 @@ function buildCtl(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals'}[k]}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mandeljulia:'Mandelbrot + Julia'}[k]||k}</button>`).join('')}
       </div>
     </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
@@ -9671,6 +9722,9 @@ function buildCtl(){
       <div class="ctlrow"><label>Zoom</label>
         <input type="range" id="fzoom" min="-1" max="${Math.log10(fractalZoomMax())}" step="0.01" value="${Math.log10(fractalUniforms.uZoom.value)}">
         <span class="val" id="fzoomV"></span></div>
+      <div class="ctlrow"><label>Plane rotation</label>
+        <input type="range" id="frot" min="-3.1416" max="3.1416" step="0.001" value="${fractalUniforms.uPlaneRot.value}">
+        <span class="val" id="frotV"></span></div>
       <div class="note">Precision-safe GPU zoom limit: ${fractalZoomMax().toExponential(1)}×.
         The guard prevents single-precision fragment coordinates from collapsing into a blank image.</div>
       <div class="ctlrow"><label>Center Re(c)</label><input type="number" id="fcx" step="0.000001" value="${fractalUniforms.uCenter.value.x}" style="flex:1"></div>
@@ -9678,9 +9732,15 @@ function buildCtl(){
       <div class="ctlrow"><label>Coordinate grid</label><input type="checkbox" id="fgrid" ${fractalUniforms.uGrid.value?'checked':''}></div>
       <div class="ctlrow"><button class="btn" id="freset">Reset view</button><button class="btn green" id="fgolden">Golden-mean region</button></div>
     </div>
-    ${fractalType==='julia'?`<div class="sect"><b>Julia parameter c</b>
+    ${(fractalType==='julia'||fractalType==='mandeljulia')?`<div class="sect"><b>Julia parameter c</b>
       <div class="ctlrow"><label>Re(c)</label><input type="number" id="jre" step="0.0001" value="${fractalUniforms.uJulia.value.x}" style="flex:1"></div>
       <div class="ctlrow"><label>Im(c)</label><input type="number" id="jim" step="0.0001" value="${fractalUniforms.uJulia.value.y}" style="flex:1"></div>
+    </div>`:''}
+    ${fractalType==='mandeljulia'?`<div class="sect"><b>Unified Mandelbrot + Julia</b>
+      <div class="ctlrow"><label>Blend amount</label>
+        <input type="range" id="mjmix" min="0" max="1" step="0.01" value="${fractalUniforms.uMJMix.value}">
+        <span class="val" id="mjmixV"></span></div>
+      <div class="note">Left/right halves preserve the two classic maps; the center blends them into one analytic navigation surface. Rotate the plane, move c, then use the bifurcation overlay for real-axis dynamics.</div>
     </div>`:''}
     ${fractalType==='nested'?`<div class="sect"><b>Nested equipotential atlas</b>
       <div class="ctlrow"><label>φ-level band period</label>
@@ -9705,6 +9765,15 @@ function buildCtl(){
     </div>`:''}
     ${fractalType==='orbital3d'?`<div class="sect"><b>Hydrogen orbital · ${orbitalLabel(state.orbN,state.orbL,state.orbM)}</b>
       <div class="note">Every real hydrogen orbital ψ<sub>n,l,m</sub> as a |ψ|² probability cloud. Gold = +, blue = − lobe; white dot = nucleus. Step n / l / m to browse them all; drag to rotate, scroll/pinch to zoom.</div>
+      <div class="ctlrow"><label>Principal n</label>
+        <input type="range" id="orbN" min="1" max="7" step="1" value="${state.orbN}">
+        <span class="val" id="orbNV">${state.orbN}</span></div>
+      <div class="ctlrow"><label>Azimuthal l</label>
+        <input type="range" id="orbL" min="0" max="${Math.max(0,state.orbN-1)}" step="1" value="${state.orbL}">
+        <span class="val" id="orbLV">${state.orbL}</span></div>
+      <div class="ctlrow"><label>Magnetic m</label>
+        <input type="range" id="orbM" min="${-state.orbL}" max="${state.orbL}" step="1" value="${state.orbM}">
+        <span class="val" id="orbMV">${state.orbM>=0?'+'+state.orbM:state.orbM}</span></div>
       <div class="ctlrow"><label>Principal&nbsp;n</label><button class="btn" data-orb="n-">−</button>
         <span class="val" style="min-width:42px;text-align:center">${state.orbN}</span><button class="btn" data-orb="n+">+</button></div>
       <div class="ctlrow"><label>Azimuthal&nbsp;l</label><button class="btn" data-orb="l-">−</button>
@@ -9714,7 +9783,7 @@ function buildCtl(){
       <div class="chips">${['1,0,0','2,0,0','2,1,0','3,2,0','4,3,0','5,4,0'].map(t=>{const[n,l,m]=t.split(',').map(Number);
         return `<button class="chip ${state.orbN===n&&state.orbL===l&&state.orbM===m?'on':''}" data-orbpreset="${t}">${orbitalLabel(n,l,m)}</button>`;}).join('')}</div>
     </div>`:''}
-    ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
+    ${(fractalType==='mandelbrot'||fractalType==='julia'||fractalType==='mandeljulia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
       <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
       <div class="note">The logistic map x→r·x·(1−x) is exactly conjugate to z→z²+c via <b>c = r/2 − r²/4</b>, so the whole bifurcation diagram lives on the Mandelbrot real axis. Landmarks (gold = periodic, ember = chaotic):</div>
       <div class="chips">
@@ -9741,12 +9810,24 @@ function buildCtl(){
       buildOrbital3D(); buildCtl(); });
     ctl.querySelectorAll('[data-orbpreset]').forEach(b=>b.onclick=()=>{ const[n,l,m]=b.dataset.orbpreset.split(',').map(Number);
       state.orbN=n; state.orbL=l; state.orbM=m; buildOrbital3D(); buildCtl(); });
+    const applyOrbitalSliders=()=>{
+      const vn=Number(ctl.querySelector('#orbN')?.value), vl=Number(ctl.querySelector('#orbL')?.value), vm=Number(ctl.querySelector('#orbM')?.value);
+      state.orbN=THREE.MathUtils.clamp(Number.isFinite(vn)?vn:state.orbN,1,7)|0;
+      state.orbL=THREE.MathUtils.clamp(Number.isFinite(vl)?vl:state.orbL,0,state.orbN-1)|0;
+      state.orbM=THREE.MathUtils.clamp(Number.isFinite(vm)?vm:state.orbM,-state.orbL,state.orbL)|0;
+      buildOrbital3D(); buildCtl();
+    };
+    ctl.querySelector('#orbN')?.addEventListener('input',applyOrbitalSliders);
+    ctl.querySelector('#orbL')?.addEventListener('input',applyOrbitalSliders);
+    ctl.querySelector('#orbM')?.addEventListener('input',applyOrbitalSliders);
     ctl.querySelector('#fpalette').onchange=e=>{setFractalPalette(e.target.value);buildCtl();};
     ctl.querySelector('#pow')?.addEventListener('input',e=>{fractalUniforms.uPower.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr')?.addEventListener('input',e=>{fractalUniforms.uIters.value=+e.target.value|0;updCtlVals();});
     ctl.querySelector('#hue')?.addEventListener('input',e=>{fractalUniforms.uHue.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr2')?.addEventListener('input',e=>{fractalUniforms.uIters2D.value=+e.target.value|0;updCtlVals();});
     ctl.querySelector('#fzoom')?.addEventListener('input',e=>{setFractalZoom(10**(+e.target.value));updCtlVals();});
+    ctl.querySelector('#frot')?.addEventListener('input',e=>{fractalUniforms.uPlaneRot.value=+e.target.value;updCtlVals();});
+    ctl.querySelector('#mjmix')?.addEventListener('input',e=>{fractalUniforms.uMJMix.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#fcx')?.addEventListener('change',e=>{fractalUniforms.uCenter.value.x=+e.target.value||0;});
     ctl.querySelector('#fcy')?.addEventListener('change',e=>{fractalUniforms.uCenter.value.y=+e.target.value||0;});
     ctl.querySelector('#fgrid')?.addEventListener('change',e=>fractalUniforms.uGrid.value=e.target.checked?1:0);
@@ -9833,6 +9914,7 @@ function renderSettingsPanel(){
       <div class="ctlrow"><label>Oort animation speed</label><input type="range" id="setOortSpeed" min="0.05" max="2.5" step="0.05" value="${state.oortSpeed}"><span class="val">${state.oortSpeed.toFixed(2)}</span></div>
       <div class="ctlrow"><label>Solar cosmic beacons</label><input type="checkbox" id="setBeacons" ${state.showSolarCosmicBeacons!==false?'checked':''}></div>
       <div class="ctlrow"><label>Sun + Galactic-centre refs on every structure</label><input type="checkbox" id="setLocalRefs" ${state.showCosmicLocalRefs!==false?'checked':''}></div>
+      <div class="ctlrow"><label>Reference text labels</label><input type="checkbox" id="setLocalRefLabels" ${state.showCosmicLocalRefLabels===true?'checked':''}></div>
       <div class="ctlrow"><label>Reference marker scale</label><input type="range" id="setLocalRefScale" min="0.35" max="2.5" step="0.05" value="${state.cosmicLocalRefScale||1}"><span class="val">${(state.cosmicLocalRefScale||1).toFixed(2)}x</span></div>
       <div class="ctlrow"><label>Milky Way arms / CF4 flows</label><input type="checkbox" id="setMwArms" ${state.showMwArms!==false?'checked':''}><input type="checkbox" id="setFlows" ${state.showLaniakeaFlows?'checked':''}></div>
       <div class="ctlrow"><label>Flow density</label><input type="range" id="setFlowDensity" min="0.08" max="1" step="0.02" value="${state.laniakeaFlowDensity}"><span class="val">${state.laniakeaFlowDensity.toFixed(2)}</span></div>
@@ -9877,6 +9959,7 @@ function renderSettingsPanel(){
   on('setOortOrbs','change',e=>state.showOortOrbits=e.target.checked); on('setOortShells','change',e=>state.showOortShells=e.target.checked);
   on('setOortDensity','input',e=>state.oortDensity=+e.target.value); on('setOortSpeed','input',e=>state.oortSpeed=+e.target.value);
   on('setBeacons','change',e=>{state.showSolarCosmicBeacons=e.target.checked;updateSolarScaleVisibility();}); on('setLocalRefs','change',e=>{state.showCosmicLocalRefs=e.target.checked;updateCosmicLocalRefs();});
+  on('setLocalRefLabels','change',e=>{state.showCosmicLocalRefLabels=e.target.checked;updateCosmicLocalRefs();updateLabelRelevance(true);});
   on('setLocalRefScale','input',e=>{state.cosmicLocalRefScale=+e.target.value;updateCosmicLocalRefs();}); on('setMwArms','change',e=>{state.showMwArms=e.target.checked;updateSolarScaleVisibility();});
   on('setFlows','change',e=>{state.showLaniakeaFlows=e.target.checked;updateSolarScaleVisibility();}); on('setFlowDensity','input',e=>{state.laniakeaFlowDensity=+e.target.value;updateSolarScaleVisibility();});
   on('setFlowSpeed','input',e=>state.laniakeaFlowSpeed=+e.target.value); on('setCosmosShow','change',e=>cosmosGroup.visible=e.target.checked);
@@ -10004,6 +10087,8 @@ function updCtlVals(){
     if(q('#hueV')) q('#hueV').textContent = fractalUniforms.uHue.value.toFixed(2);
     if(q('#itr2V')) q('#itr2V').textContent = fractalUniforms.uIters2D.value;
     if(q('#fzoomV')) q('#fzoomV').textContent = fractalUniforms.uZoom.value.toExponential(2)+'×';
+    if(q('#frotV')) q('#frotV').textContent = (fractalUniforms.uPlaneRot.value/DEG).toFixed(0)+'°';
+    if(q('#mjmixV')) q('#mjmixV').textContent = Math.round(fractalUniforms.uMJMix.value*100)+'%';
     if(q('#flvlV')) q('#flvlV').textContent = fractalUniforms.uLevel.value.toFixed(0);
     if(q('#budProg')) q('#budProg').textContent = (buddhaProgress*100).toFixed(0)+'%';
   }
