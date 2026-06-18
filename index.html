@@ -1138,6 +1138,93 @@
     }
   }
 
+
+
+  /* === PATCH 2026-06-18K: Object Passport selCard state-machine fix ===
+     Prevents the former conflict where a collapsed title-chip could be
+     displayed as a large empty panel. Collapsed = compact title only;
+     expanded = full hydrated Object Passport. */
+  #selCard.collapsed,
+  body.ui-compact #selCard.collapsed,
+  body.panel-open #selCard.collapsed,
+  body.ctl-open #selCard.collapsed,
+  body.selcard-open #selCard.collapsed{
+    left:auto!important;
+    right:10px!important;
+    top:auto!important;
+    bottom:calc(10px + env(safe-area-inset-bottom,0px))!important;
+    width:fit-content!important;
+    min-width:0!important;
+    max-width:calc(100vw - 22px)!important;
+    min-height:0!important;
+    max-height:44px!important;
+    padding:7px 38px 7px 12px!important;
+    border-radius:999px!important;
+    overflow:hidden!important;
+  }
+  #selCard.collapsed > :not(h3):not(.panel-collapser){display:none!important}
+  #selCard.collapsed #selName,
+  body.ui-compact #selCard.collapsed #selName{
+    display:block!important;
+    margin:0!important;
+    max-width:min(300px,calc(100vw - 92px))!important;
+    white-space:nowrap!important;
+    overflow:hidden!important;
+    text-overflow:ellipsis!important;
+    font-size:12px!important;
+    line-height:1.15!important;
+    letter-spacing:1px!important;
+  }
+  #selCard.collapsed #selName::after{display:none!important}
+  #selCard.collapsed .panel-collapser{
+    top:50%!important;
+    right:6px!important;
+    transform:translateY(-50%)!important;
+    min-width:28px!important;
+    min-height:28px!important;
+    width:28px!important;
+    height:28px!important;
+    padding:0!important;
+    border-radius:999px!important;
+    font-size:14px!important;
+    line-height:1!important;
+  }
+  #selCard:not(.collapsed){
+    width:min(420px,calc(100vw - 24px))!important;
+    min-width:min(320px,calc(100vw - 24px))!important;
+    min-height:0!important;
+    max-height:min(70vh,720px)!important;
+    padding:14px 44px 14px 16px!important;
+    border-radius:14px!important;
+    overflow:auto!important;
+  }
+  @media (max-width:760px),(pointer:coarse){
+    #selCard.collapsed,
+    body.ui-compact #selCard.collapsed,
+    body.panel-open #selCard.collapsed,
+    body.ctl-open #selCard.collapsed,
+    body.selcard-open #selCard.collapsed{
+      right:10px!important;
+      bottom:calc(10px + env(safe-area-inset-bottom,0px))!important;
+      max-height:42px!important;
+      padding:7px 38px 7px 12px!important;
+    }
+    #selCard.collapsed #selName,
+    body.ui-compact #selCard.collapsed #selName{
+      font-size:11.2px!important;
+      max-width:min(254px,calc(100vw - 94px))!important;
+    }
+    #selCard:not(.collapsed){
+      left:auto!important;
+      right:8px!important;
+      top:auto!important;
+      bottom:calc(74px + env(safe-area-inset-bottom,0px))!important;
+      width:min(92vw,390px)!important;
+      min-width:min(82vw,320px)!important;
+      max-height:min(62vh,620px)!important;
+    }
+  }
+
 </style>
 </head>
 <body>
@@ -1888,6 +1975,10 @@ function runSelfTests(){
   ok('Desktop selCard exposes Object Passport v2 tabs',
     ['Summary','Coordinates','Formula / Model','Provenance','Uncertainty','Relations','Raw Contract','Export'].every(t=>SEL_TABS.includes(t)) && SEL_TABS.length===8,
     SEL_TABS.join(' · '));
+  ok('Selection card state machine cannot create a large empty collapsed passport',
+    typeof collapseSelCard==='function' && typeof expandSelCard==='function' && typeof hydrateSelCardContent==='function'
+      && !!document.getElementById('selName') && !!document.getElementById('selPaneSummary'),
+    'collapsed title-chip and expanded hydrated Object Passport are separate states');
   ok('Physics Debug (desktop/QA) reports scientificMutation=false / scientificCoordinatesAffected=NO',
     INTERACTION.diagnostics().scientificCoordinatesAffected==='NO'
       && INTERACTION.simulateInteraction({position:{x:0,y:0,z:0}},'grab',{x:1,y:1,z:1}).scientificMutated===false,
@@ -2498,7 +2589,40 @@ function updateSelectionLinks(){
 const selCard = document.getElementById('selCard');
 let selCardExpanded=false;   // remembers whether the user expanded the selection card
 (()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>{
-  selCardExpanded=!selCardExpanded; selCard.classList.toggle('collapsed',!selCardExpanded); }); })();
+  toggleSelCardExpansion();
+}); })();
+function syncSelCardCollapser(){
+  const btn=selCard?.querySelector('.panel-collapser');
+  if(!btn) return;
+  btn.textContent = selCard?.classList.contains('collapsed') ? '+' : '−';
+  btn.title = selCard?.classList.contains('collapsed') ? 'Expand selected object passport' : 'Collapse selected object passport';
+  btn.setAttribute('aria-label',btn.title);
+}
+function hydrateSelCardContent(){
+  if(!selectedKey || !SELECT.has(selectedKey)) return;
+  updateSelCard();
+  renderSelectionRelations();
+  buildSelTabs();
+  if(selTabKey!==selectedKey || state.atlasAudience==='public'){ selTab='Summary'; selTabKey=selectedKey; }
+  setSelTab(selTab);
+  try{ renderNextActions(selectedKey); }catch(e){}
+  syncSelCardCollapser();
+}
+function collapseSelCard(){
+  selCardExpanded=false;
+  if(selCard){ selCard.classList.add('collapsed'); selCard.dataset.passportState='collapsed'; }
+  syncSelCardCollapser();
+}
+function expandSelCard(){
+  if(!selectedKey || !SELECT.has(selectedKey)) return;
+  selCardExpanded=true;
+  if(selCard){ selCard.classList.remove('collapsed'); selCard.dataset.passportState='expanded'; }
+  hydrateSelCardContent();
+}
+function toggleSelCardExpansion(){
+  if(selCard?.classList.contains('collapsed')) expandSelCard();
+  else collapseSelCard();
+}
 const selMarker = (()=>{   // pulsing ring marker that tracks the selected object
   const g = new THREE.RingGeometry(.85, 1, 48);
   const m = new THREE.MeshBasicMaterial({color:0xf1dda6, side:THREE.DoubleSide, transparent:true, opacity:.9, depthTest:false});
@@ -2534,18 +2658,9 @@ function selectKey(key, opts={}){
   }).join(' ')}</div>` : '';
   document.getElementById('selProv').innerHTML = fh + sh;
   renderSelectionContract();
-  if(selectionPanelMode==='closed' || selectionPanelMode==='hidden'){
-    // Navigation/coach-driven travel may update the selected object without throwing a large
-    // empty passport card over the viewport. The selection data still renders off-screen so
-    // the card is ready if the user explicitly opens it.
-    closePanel('selCard');
-  } else {
-    // Direct canvas/object clicks preserve the user's expansion preference. Navigator/Coach
-    // calls pass panel:'compact' so the card stays as a small title chip.
-    if(selectionPanelMode==='compact'){ selCardExpanded=false; }
-    openPanel('selCard');
-    selCard.classList.toggle('collapsed', !selCardExpanded);
-  }
+  // Always hydrate the Object Passport data before changing visual state.
+  // This prevents the old conflict: a collapsed title-chip could be shown
+  // as a large empty panel when recalled from Navigator/Coach/dock.
   updateSelCard();
   renderSelectionRelations();
   buildSelTabs();
@@ -2553,6 +2668,13 @@ function selectKey(key, opts={}){
   if(selTabKey!==key || state.atlasAudience==='public'){ selTab='Summary'; selTabKey=key; }
   setSelTab(selTab);
   try{ renderNextActions(key); }catch(e){}
+  if(selectionPanelMode==='closed' || selectionPanelMode==='hidden'){
+    closePanel('selCard');
+  } else {
+    openPanel('selCard');
+    if(selectionPanelMode==='compact') collapseSelCard();
+    else expandSelCard();
+  }
   rebuildSelectionLinks();
   if(panelIsOpen('objectPanel')) renderObjectPanel();
   requestHierarchyLayout();
@@ -3528,7 +3650,12 @@ function makePanelCollapsible(id){
   btn.type='button';btn.className='panel-collapser';btn.textContent='−';
   btn.title='Hide '+(PANEL_TITLES[id]||id)+'; recall it from the panel dock';
   btn.setAttribute('aria-label',btn.title);
-  btn.onclick=e=>{e.stopImmediatePropagation();closePanel(id);};
+  btn.onclick=e=>{
+    e.stopImmediatePropagation();
+    if(id==='selCard'){ toggleSelCardExpansion(); }
+    else closePanel(id);
+  };
+  if(id==='selCard') syncSelCardCollapser();
   p.appendChild(btn);
 }
 for(const id of PANEL_IDS){
@@ -3536,7 +3663,11 @@ for(const id of PANEL_IDS){
   new MutationObserver(()=>makePanelCollapsible(id)).observe(p,{childList:true});
   makePanelCollapsible(id);
 }
-document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>togglePanel(b.dataset.panel));
+document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>{
+  const id=b.dataset.panel;
+  if(id==='selCard'){ openPanel('selCard'); expandSelCard(); }
+  else togglePanel(id);
+});
 document.getElementById('togglePanels').onclick=()=>activePanelId?closePanel(activePanelId):openPanel('ctl');
 document.getElementById('resetViewBtn').onclick=()=>setMode(state.mode);
 document.getElementById('objectBtn').onclick=()=>togglePanel('objectPanel');
@@ -11294,7 +11425,10 @@ function journeyBuildList(){
     // farthest from the centre of the universe first → travel inward to the central observer
     .sort((a,b)=>(b[1]-a[1])||objectName(SELECT.get(a[0])).localeCompare(objectName(SELECT.get(b[0])))).map(([k])=>k);
 }
-function journeyShowInfo(){ if(journey.showInfo!==false){ try{openPanel('selCard');}catch(e){} } else { try{closePanel('selCard');}catch(e){} } }
+function journeyShowInfo(){
+  if(journey.showInfo!==false){ try{ if(selectedKey){ openPanel('selCard'); collapseSelCard(); } }catch(e){} }
+  else { try{closePanel('selCard');}catch(e){} }
+}
 function journeyGo(){
   const k=journey.list[journey.idx]; if(!k||!SELECT.has(k)) return;
   selectGlobalKey(k,true,{panel: journey.showInfo!==false ? 'compact' : 'closed'}); ORBIT.on=true; ORBIT.secondaryKey=null; journey.acc=0;
