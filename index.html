@@ -8684,20 +8684,23 @@ function buildBuddhabrotTexture(){
   const token=++buddhaBuildToken;
   buddhaBuilding=true; buddhaEverBuilt=true; buddhaProgress=0;
   const W=buddhaCanvas.width,H=buddhaCanvas.height,N=W*H;
-  const target=MOBILE_GPU?(LOW_MEMORY_DEVICE?42000:72000):2600000,maxIter=MOBILE_GPU?(LOW_MEMORY_DEVICE?180:260):1400;
-  const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N);
+  const target=MOBILE_GPU?(LOW_MEMORY_DEVICE?42000:72000):4000000,maxIter=MOBILE_GPU?(LOW_MEMORY_DEVICE?180:260):2200;
+  // four nested density tiers: low(all escapes) → mid → deep → ultra (deepest orbits).
+  // ultra only populates when maxIter is large (desktop); on mobile it stays zero, so
+  // the rendered colour is byte-for-byte unchanged there.
+  const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N),ultra=new Uint32Array(N);
   const ox=new Float32Array(maxIter),oy=new Float32Array(maxIter),rnd=mulberry(20260430);
   let done=0;
   const draw=()=>{
     if(token!==buddhaBuildToken) return;
-    const img=buddhaCtx.createImageData(W,H); let ml=1,mm=1,md=1;
-    for(let i=0;i<N;i++){ml=Math.max(ml,low[i]);mm=Math.max(mm,mid[i]);md=Math.max(md,deep[i]);}
-    const dl=Math.log1p(ml),dm=Math.log1p(mm),dd=Math.log1p(md);
+    const img=buddhaCtx.createImageData(W,H); let ml=1,mm=1,md=1,mu=1;
+    for(let i=0;i<N;i++){ml=Math.max(ml,low[i]);mm=Math.max(mm,mid[i]);md=Math.max(md,deep[i]);mu=Math.max(mu,ultra[i]);}
+    const dl=Math.log1p(ml),dm=Math.log1p(mm),dd=Math.log1p(md),du=Math.log1p(mu);
     for(let i=0;i<N;i++){
-      const a=Math.pow(Math.log1p(low[i])/dl,.72),b=Math.pow(Math.log1p(mid[i])/dm,.62),c=Math.pow(Math.log1p(deep[i])/dd,.52);
-      img.data[i*4]=Math.min(255,255*(.22*a+.68*b+.38*c));
-      img.data[i*4+1]=Math.min(245,232*(.12*a+.52*b+.48*c));
-      img.data[i*4+2]=Math.min(210,170*(.05*a+.18*b+.80*c));
+      const a=Math.pow(Math.log1p(low[i])/dl,.72),b=Math.pow(Math.log1p(mid[i])/dm,.62),c=Math.pow(Math.log1p(deep[i])/dd,.52),d=Math.pow(Math.log1p(ultra[i])/du,.46);
+      img.data[i*4]=Math.min(255,255*(.22*a+.66*b+.36*c+.18*d));
+      img.data[i*4+1]=Math.min(246,232*(.12*a+.50*b+.46*c+.30*d));
+      img.data[i*4+2]=Math.min(220,176*(.05*a+.18*b+.74*c+.55*d));
       img.data[i*4+3]=255;
     }
     buddhaCtx.putImageData(img,0,0); fractalBuddhaTexture.needsUpdate=true;
@@ -8720,7 +8723,7 @@ function buildBuddhabrotTexture(){
       for(let k=0;k<=it;k++){
         const px=((ox[k]+2.15)/3.25*W)|0, py=((1-(oy[k]+1.35)/2.7)*H)|0;
         if(px<0||px>=W||py<0||py>=H) continue;
-        const j=py*W+px; low[j]++; if(it>=70) mid[j]++; if(it>=260) deep[j]++;
+        const j=py*W+px; low[j]++; if(it>=70) mid[j]++; if(it>=260) deep[j]++; if(it>=780) ultra[j]++;
       }
     }
     if(done%(MOBILE_GPU?12000:45000)<(MOBILE_GPU?1200:9000)||done>=target) draw();
