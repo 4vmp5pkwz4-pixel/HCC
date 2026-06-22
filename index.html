@@ -2577,6 +2577,13 @@ function runSelfTests(){
       return atlasAccuracyTier('grbAnisotropyLab',s)==='M' && /look-elsewhere/i.test(f) && /p-value/i.test(f)
         && EXPLICIT_RELATIONS.some(([a,b])=>(a==='cosmos_hcb'&&b==='grbAnisotropyLab')||(b==='cosmos_hcb'&&a==='grbAnisotropyLab')); }catch(e){ return false; } })(),
     'GRB node forbids over-interpreting significance and links to the HCB structure');
+  ok('Survey cone / redshift-slice node is tier-D, source-tagged and forbids reading tracer points as a catalogue',
+    (()=>{ try{ const s=SELECT.get('surveyConeLab'); if(!s) return false;
+      const f=getAtlasEntityContract('surveyConeLab').quality.forbidden_claims.join(' | ');
+      return atlasAccuracyTier('surveyConeLab',s)==='D' && (s.src||[]).length>0
+        && /illustrative|not catalogued/i.test(f) && /projection|redshift-space/i.test(f)
+        && ['cosmos_gr','cosmos_ga','cosmos_br'].every(k=>EXPLICIT_RELATIONS.some(([a,b])=>(a==='surveyConeLab'&&b===k)||(b==='surveyConeLab'&&a===k))); }catch(e){ return false; } })(),
+    'survey cone is illustrative tracer + quantitative slice geometry, caveated, and links to the ring fields');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -3014,6 +3021,9 @@ const EXPLICIT_RELATIONS=[
   ['cosmos_laniakea','cosmos_shapley','flow context','CF4 gives a slight probabilistic preference for Laniakea belonging to the larger Shapley basin.'],
   ['cosmos_bootesvoid','cosmos_bootes','sky-direction context','Boötes Void and Boötes Supercluster overlap in sky direction at different depths; an interface aid, not a physical association.'],
   ['cosmos_hcb','grbAnisotropyLab','statistical context','The HCB GRB overdensity claim is assessed in the GRB anisotropy / 2D K–S statistics laboratory.'],
+  ['surveyConeLab','cosmos_gr','observation context','The Giant Ring field was identified in this z=0.722–0.862 Mg II absorber slice.'],
+  ['surveyConeLab','cosmos_ga','observation context','The Giant Arc field was identified in this z=0.722–0.862 Mg II absorber slice.'],
+  ['surveyConeLab','cosmos_br','observation context','The Big Ring field was identified in this z=0.722–0.862 Mg II absorber slice.'],
 ];
 const relationColor=kind=>kind.includes('physical')?0x7eb7d8:
   kind.includes('identity')?0xffd080:kind.includes('observation')?0xe8b86a:
@@ -6114,6 +6124,68 @@ for(const s of COSMOS){
     const dlab=mkLabel('Shapley pull ⇄ Dipole-Repeller push · Local-Group CMB-dipole drive','label axis');
     dlab.position.copy(drive.clone().multiplyScalar(0.78)); dipoleGroup.add(dlab);
   }
+}
+
+/* ── SURVEY CONE · REDSHIFT SLICE ──────────────────────────────────────────
+   A wedge of the survey volume in the Lopez ring-field direction, between the
+   comoving shells of the z=0.722–0.862 Mg II absorber slice (SDSS quasar
+   spectra) in which the Giant Arc / Big Ring / Giant Ring fields were found.
+   The SLICE GEOMETRY (direction + comoving shells) is quantitative; the tracer
+   points are an illustrative uniform draw inside the declared wedge, NOT a
+   catalogue. Static layer — renders with the observable atlas; no state refs. */
+{
+  const dir=raDecDir(220/15, 45).normalize();
+  const r1=comovingGly(0.722), r2=comovingGly(0.862), rm=(r1+r2)/2;
+  const coneGroup=new THREE.Group(); cosmosGroup.add(coneGroup);
+  let e1=new THREE.Vector3(0,1,0).cross(dir); if(e1.lengthSq()<1e-6)e1.set(1,0,0); e1.normalize();
+  const e2=dir.clone().cross(e1).normalize();
+  const halfAng=0.32;                      // ~18° half-opening of the displayed wedge
+  const n=MOBILE_GPU?(LOW_MEMORY_DEVICE?180:340):760, rng=mulberry(72208620);
+  const pos=new Float32Array(n*3), col=new Float32Array(n*3);
+  const cA=new THREE.Color(0x9fd0ff), cB=new THREE.Color(0xf1dda6);
+  for(let i=0;i<n;i++){
+    const a=2*Math.PI*rng(), t=Math.sqrt(rng())*halfAng, rr=r1+(r2-r1)*rng();
+    const off=e1.clone().multiplyScalar(Math.cos(a)*Math.sin(t)).add(e2.clone().multiplyScalar(Math.sin(a)*Math.sin(t)));
+    const p=dir.clone().multiplyScalar(Math.cos(t)).add(off).multiplyScalar(rr);
+    pos[i*3]=p.x; pos[i*3+1]=p.y; pos[i*3+2]=p.z;
+    const cc=cA.clone().lerp(cB, rng());
+    col[i*3]=cc.r; col[i*3+1]=cc.g; col[i*3+2]=cc.b;
+  }
+  const pg=new THREE.BufferGeometry();
+  pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  pg.setAttribute('color',new THREE.BufferAttribute(col,3));
+  coneGroup.add(new THREE.Points(pg,new THREE.PointsMaterial({size:0.05,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.66,depthWrite:false,blending:THREE.AdditiveBlending})));
+  const shellArc=(rad,colr,op)=>{ const pts=[],N=64; for(let k=0;k<=N;k++){ const a=2*Math.PI*k/N;
+      const off=e1.clone().multiplyScalar(Math.cos(a)*Math.sin(halfAng)).add(e2.clone().multiplyScalar(Math.sin(a)*Math.sin(halfAng)));
+      pts.push(dir.clone().multiplyScalar(Math.cos(halfAng)).add(off).multiplyScalar(rad)); }
+    return new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:colr,transparent:true,opacity:op,depthWrite:false})); };
+  coneGroup.add(shellArc(r1,0x9fd0ff,.5), shellArc(r2,0xf1dda6,.5));
+  for(let k=0;k<4;k++){ const a=k/4*2*Math.PI;
+    const off=e1.clone().multiplyScalar(Math.cos(a)*Math.sin(halfAng)).add(e2.clone().multiplyScalar(Math.sin(a)*Math.sin(halfAng)));
+    const rimDir=dir.clone().multiplyScalar(Math.cos(halfAng)).add(off);
+    coneGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([rimDir.clone().multiplyScalar(r1), rimDir.clone().multiplyScalar(r2)]),
+      new THREE.LineBasicMaterial({color:0x7e9ec8,transparent:true,opacity:.28,depthWrite:false}))); }
+  const clab=mkLabel('Redshift slice z=0.722–0.862 · Mg II absorbers (SDSS quasar spectra)','label cosmic');
+  clab.position.copy(dir.clone().multiplyScalar(r2*1.02)); coneGroup.add(clab);
+  registerSel('surveyConeLab', {
+    name:'Survey cone · z=0.722–0.862 redshift slice', mode:'obs',
+    src:['LOPEZ'], accuracyTier:'D', catalogueStatus:'literature-derived',
+    forbiddenClaims:[
+      'Tracer points are an illustrative uniform draw inside the declared wedge — not catalogued absorbers or galaxies.',
+      'Do not infer a 3-D structure shape from the slice; redshift-space distortions and the 2-D projection are not removed.',
+      'Do not treat the wedge opening or depth as the true survey footprint.'],
+    desc:'The redshift slice in which the Lopez ring-field structures (Giant Arc 2022, Big Ring 2024, Giant Ring 2026) were identified: Mg II absorption systems in SDSS quasar spectra over z=0.722–0.862 (mean z=0.802). This layer shows the SLICE GEOMETRY — the comoving shells at the slice edges in the ring-field direction — plus a uniform illustrative tracer field, NOT the catalogue. Apparent patterns in such a thin slice are strongly shaped by the 2-D projection and redshift-space distortions; significance requires an external likelihood/comparison module.',
+    getPos:()=> dir.clone().multiplyScalar(rm),
+    focusDist:()=> Math.max((r2-r1)*1.5, 0.6),
+    rows:()=>[
+      ['Tracer','Mg II absorbers in SDSS quasar spectra (illustrative field shown)'],
+      ['Redshift slice','z = 0.722 – 0.862 (mean 0.802)'],
+      ['Near shell',r1.toFixed(2)+' Gly  ('+(r1*MPC_PER_GLY).toFixed(0)+' Mpc)'],
+      ['Far shell',r2.toFixed(2)+' Gly  ('+(r2*MPC_PER_GLY).toFixed(0)+' Mpc)'],
+      ['Direction','RA 14.7h · Dec +45° (Lopez ring-field region)'],
+      ['Status','slice geometry is quantitative; tracer positions are illustrative'],
+      ['Caveat','projection + redshift-space distortions dominate apparent patterns']],
+  });
 }
 
 /* Laniakea is a reconstructed peculiar-velocity basin, not a directly observed
