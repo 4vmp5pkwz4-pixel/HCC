@@ -2558,6 +2558,25 @@ function runSelfTests(){
       return atlasAccuracyTier('mwSpiralArms',s)==='D' && (s.src||[]).length>0 && MW_ARM_DEFS.length>=6
         && c.quality.forbidden_claims.some(f=>/spiral-arm boundaries|exact Milky Way shape/i.test(f)); }catch(e){ return false; } })(),
     'spiral arms are schematic, source-tagged and caveated');
+  ok('Coma sub-nodes (NGC 4874/4889/4911) registered as members with the peculiar-velocity caveat & links to Coma',
+    (()=>{ try{ const keys=['cosmos_ngc4874','cosmos_ngc4889','cosmos_ngc4911'];
+      return keys.every(k=>SELECT.has(k))
+        && keys.every(k=>getAtlasEntityContract(k).quality.forbidden_claims.some(f=>/peculiar velocit|line-of-sight distance/i.test(f)))
+        && keys.every(k=>EXPLICIT_RELATIONS.some(([a,b])=>(a==='cosmos_coma'&&b===k)||(b==='cosmos_coma'&&a===k))); }catch(e){ return false; } })(),
+    'three Coma members link to cosmos_coma and forbid reading member z as distance');
+  ok('Nearby Void Atlas: 7 constellation voids are tier-D, centroid-unknown, source-tagged and caveated',
+    (()=>{ try{ const keys=['cosmos_fornaxvoid','cosmos_sculptorvoid','cosmos_capricornusvoid','cosmos_microscopiumvoid','cosmos_coronaborealisvoid','cosmos_canismajorvoid','cosmos_columbavoid'];
+      return keys.length===7 && keys.every(k=>{ const s=SELECT.get(k); if(!s) return false;
+        const c=getAtlasEntityContract(k);
+        return atlasAccuracyTier(k,s)==='D' && s.centroidKnown===false && (s.src||[]).length>0
+          && c.quality.forbidden_claims.some(f=>/hard void boundary|survey- and definition-dependent/i.test(f)); }); }catch(e){ return false; } })(),
+    'void atlas is approximate, source-tagged and forbids hard-boundary claims');
+  ok('GRB anisotropy / 2D K–S node is an expert statistics node (tier M) with look-elsewhere & p-value caveats',
+    (()=>{ try{ const s=SELECT.get('grbAnisotropyLab'); if(!s) return false;
+      const f=getAtlasEntityContract('grbAnisotropyLab').quality.forbidden_claims.join(' | ');
+      return atlasAccuracyTier('grbAnisotropyLab',s)==='M' && /look-elsewhere/i.test(f) && /p-value/i.test(f)
+        && EXPLICIT_RELATIONS.some(([a,b])=>(a==='cosmos_hcb'&&b==='grbAnisotropyLab')||(b==='cosmos_hcb'&&a==='grbAnisotropyLab')); }catch(e){ return false; } })(),
+    'GRB node forbids over-interpreting significance and links to the HCB structure');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -2986,6 +3005,15 @@ const EXPLICIT_RELATIONS=[
   ['fractalAtlas','fractal_mandelbulb','mathematical context','The Mandelbulb is one selectable environment within the multilevel fractal atlas.'],
   ['cycPrec','planet2','mean-reference link','Mean-precession diagnostic references Earth but is not precision IERS Earth orientation.'],
   ['cycGal','solarGC','mean-reference link','Galactic-cycle instrument references the Galactic centre; absolute phase is not inferred.'],
+  // ── cosmographic interlinks: clusters↔members and flow attractor/repeller pairs ──
+  ['cosmos_coma','cosmos_ngc4889','member galaxy','NGC 4889 is the brightest cD galaxy of the Coma Cluster (Abell 1656); same cluster, cross-scale link.'],
+  ['cosmos_coma','cosmos_ngc4874','member galaxy','NGC 4874 is a central cD galaxy of the Coma Cluster (Abell 1656); same cluster, cross-scale link.'],
+  ['cosmos_coma','cosmos_ngc4911','member galaxy','NGC 4911 is a spiral member on the Coma outskirts; same cluster, cross-scale link.'],
+  ['cosmos_dipolerep','cosmos_shapley','dynamical anti-alignment','Repeller push and Shapley pull are nearly anti-aligned through the Local Group; together ~half the CMB-dipole motion (reconstruction-dependent).'],
+  ['cosmos_laniakea','cosmos_greatatt','flow context','The Great Attractor is the focal convergence region of the Laniakea velocity basin.'],
+  ['cosmos_laniakea','cosmos_shapley','flow context','CF4 gives a slight probabilistic preference for Laniakea belonging to the larger Shapley basin.'],
+  ['cosmos_bootesvoid','cosmos_bootes','sky-direction context','Boötes Void and Boötes Supercluster overlap in sky direction at different depths; an interface aid, not a physical association.'],
+  ['cosmos_hcb','grbAnisotropyLab','statistical context','The HCB GRB overdensity claim is assessed in the GRB anisotropy / 2D K–S statistics laboratory.'],
 ];
 const relationColor=kind=>kind.includes('physical')?0x7eb7d8:
   kind.includes('identity')?0xffd080:kind.includes('observation')?0xe8b86a:
@@ -5841,6 +5869,49 @@ const COSMOS = [
     note:'Bagchi et al. 2017 (ApJ 844 25) · Stripe 82 (SDSS), direction of Pisces · wall-like, ≥200 Mpc across, ≥43 clusters, ~2×10¹⁶ M☉, core anchored on Abell 2631 (z=0.277)'},
   {key:'quipu',   name:'Quipu superstructure',       ra:60.0,  dec:-5.0,  z:0.045, size:1.30, type:'wall', col:0xff6a8a, srcTags:['LSS'], centroidKnown:false,
     note:'Böhringer, Chon, Trümper & Kraan-Korteweg 2025 (A&A; arXiv:2501.19236) · CLASSIX X-ray clusters, z=0.028–0.065 · ~428 Mpc long (~1.3 Gly), ~2×10¹⁷ M☉ — the largest local structure known to date. Marker is a display anchor near the filament mid-track (Pictor→Carina→Puppis→Columba→Lepus→Eridanus→Taurus→Triangulum→Perseus); not a 3D centroid'},
+  // ── Coma Cluster (Abell 1656) member galaxies — selectable sub-nodes ──
+  // Placed at the CLUSTER distance, not at each galaxy's individual redshift:
+  // intra-cluster peculiar velocities dominate member redshifts, so converting a
+  // member's z to a line-of-sight distance is invalid ("fingers of God"). The
+  // individual z is still shown, labelled as a velocity, not a depth.
+  {key:'ngc4874', name:'NGC 4874 · Coma cD', ra:194.8988, dec:27.9594, dGly:0.321, z:0.02416, size:0.004, type:'cluster', col:0xa8d4ff, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the member redshift as a line-of-sight distance — intra-cluster peculiar velocities dominate.'],
+    note:'Central dominant (cD) galaxy near the Coma core · cz≈7176 km/s · enormous globular-cluster system · member of Abell 1656'},
+  {key:'ngc4889', name:'NGC 4889 · Coma brightest cD', ra:195.0337, dec:27.9770, dGly:0.321, z:0.02153, size:0.004, type:'cluster', col:0xbfe0ff, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the member redshift as a line-of-sight distance — intra-cluster peculiar velocities dominate.'],
+    note:'Brightest Coma galaxy · cz≈6495 km/s · hosts one of the most massive measured black holes (~2×10¹⁰ M☉, McConnell+ 2011) · member of Abell 1656'},
+  {key:'ngc4911', name:'NGC 4911 · Coma spiral', ra:195.0479, dec:27.7903, dGly:0.321, z:0.02660, size:0.004, type:'cluster', col:0x9ad0c0, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the member redshift as a line-of-sight distance — intra-cluster peculiar velocities dominate.'],
+    note:'Gas-rich grand-design spiral on the Coma outskirts · cz≈7976 km/s · ram-pressure / tidal features · member of Abell 1656'},
+  // ── Nearby Void Atlas — constellation-named underdensities (approximate) ──
+  // Recognised nearby voids from the large-scale-structure atlas tradition.
+  // Directions follow the constellation each void appears in; centroid, distance
+  // and extent are survey- and void-finder-dependent and are NOT precise 3D
+  // boundaries. All are flagged centroidKnown:false / accuracy tier D.
+  {key:'fornaxvoid', name:'Fornax Void', ra:50.0, dec:-32.0, dGly:0.10, size:0.10, type:'void', col:0x5f6a96, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby southern underdensity toward Fornax · approximate atlas anchor; boundary depends on the galaxy survey and void-finder used'},
+  {key:'sculptorvoid', name:'Sculptor Void', ra:8.0, dec:-33.0, dGly:0.13, size:0.11, type:'void', col:0x646f9c, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Sculptor · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'capricornusvoid', name:'Capricornus Void', ra:315.0, dec:-18.0, dGly:0.16, size:0.12, type:'void', col:0x5a6794, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Capricornus · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'microscopiumvoid', name:'Microscopium Void', ra:318.0, dec:-36.0, dGly:0.18, size:0.12, type:'void', col:0x606ca0, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Microscopium · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'coronaborealisvoid', name:'Corona Borealis Void', ra:235.0, dec:30.0, dGly:0.22, size:0.13, type:'void', col:0x687398, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Underdensity toward Corona Borealis · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'canismajorvoid', name:'Canis Major Void', ra:105.0, dec:-22.0, dGly:0.12, size:0.11, type:'void', col:0x5c6896, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Canis Major · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'columbavoid', name:'Columba Void', ra:86.0, dec:-35.0, dGly:0.14, size:0.11, type:'void', col:0x626d9a, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Columba · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'eridanusvoid', name:'Eridanus Supervoid · Cold-Spot region', ra:49.0, dec:-19.0, z:0.16, size:0.55, type:'void', col:0x6a78c0, srcTags:['LSS'], centroidKnown:false,
+    forbiddenClaims:['Do not claim the supervoid definitively explains the CMB Cold Spot — the ISW association is debated.','Do not assert a precise void boundary.'],
+    note:'Szapudi et al. 2015 (MNRAS) · large supervoid toward the CMB Cold Spot (l≈209°, b≈−57°) · z≈0.15–0.25, radius ~100–150 Mpc · proposed (and debated) partial ISW contribution to the Cold Spot'},
   // Nature 2026 JWST little-red-dot black-hole seed — a single high-z AGN, NOT a large-scale structure.
   {key:'a2744_qso1', name:'Abell 2744−QSO1 / Little Red Dot BH Seed', ra:3.5798375, dec:-30.4015733, z:7.04,
     size:0.01, displaySize:0.18, forceCosmicVisible:true, type:'high-z AGN / little red dot / black-hole seed', col:0xff8a5c, srcTags:['JWST_LRD'],
@@ -14852,6 +14923,31 @@ function tickBody(now, frame){
   focusDist:()=>key==='cycPhaseAtlas'?14:8,
   rows:()=>[['Object class','analytical environment'],['Spatial status','interface/model context; not a point-object distance']]
 }));
+/* GRB anisotropy / 2D Kolmogorov–Smirnov expert node — explains HOW angular
+   isotropy of gamma-ray bursts (and claims like the HCB "Great Wall") is tested,
+   and why a small p-value is necessary but NOT sufficient evidence for a physical
+   structure. Caveated, expert-only; asserts no detection of its own. */
+registerSel('grbAnisotropyLab', {
+  name:'GRB anisotropy · 2D K–S statistics lab', mode:'obs',
+  src:['ASTRO'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:[
+    'Do not present a small p-value as proof of a physical wall — it only rejects the specific isotropy null under the chosen test.',
+    'Do not ignore the look-elsewhere effect: scanning many sky patches, redshift bins and scales inflates the chance of a low local p-value.',
+    'Do not quote a Gaussian σ without stating the test, the null model, and whether the trials factor was applied.',
+    'Do not treat GRB selection-function anisotropy (survey exposure) as cosmic anisotropy.'],
+  desc:'How angular anisotropy in a point process (e.g. gamma-ray bursts) is assessed. The 1-D Kolmogorov–Smirnov test compares an empirical CDF to a reference via the maximum deviation D = max|F_emp − F_ref|; on the sphere there is no unique ordering, so 2-D extensions (Peacock 1983; Fasano & Franceschini 1987) compare integrated counts in all four quadrants around each point and take the largest discrepancy. The null hypothesis is statistical isotropy MODULATED BY the survey exposure / selection function — not uniform sky coverage. A p-value is the probability of a discrepancy at least this large UNDER THAT NULL; it is necessary but not sufficient evidence for a physical structure, and must be corrected for the look-elsewhere effect (the number of independent patches, redshift slices and scales scanned). Claims such as the Hercules–Corona Borealis "Great Wall" rest on these tests and remain contested precisely because of trials, selection effects, and the difficulty of inferring a 3-D structure from a 2-D + redshift sample.',
+  getPos:()=> (COSMOS_POS.get('hcb')||new THREE.Vector3(0,0,0)).clone(),
+  focusDist:()=>12,
+  rows:()=>[
+    ['Object class','statistical method node (no detection asserted)'],
+    ['Null hypothesis','isotropy × survey selection function'],
+    ['1-D statistic','D = max|F_emp(x) − F_ref(x)|'],
+    ['2-D extension','Peacock / Fasano–Franceschini quadrant-count maxima on the sphere'],
+    ['p-value meaning','P(discrepancy ≥ observed | null) — necessary, not sufficient'],
+    ['Mandatory correction','look-elsewhere / trials factor across patches, z-bins, scales'],
+    ['Worked example','HCB GRB overdensity (z≈1.6–2.1): significance is trials- and selection-sensitive; contested'],
+    ['Evidence class','method reference · mathematical-model tier (M)']],
+});
 /* ---------------- provenance auto-tagging for every selectable ---------------- */
 for(const [k,d] of SELECT){
   if(k==='sun'){ d.src=['JPL','IAU','ASTRO']; d.formulas=['θ_app = 2·atan(R_sun/d)','Carrington sidereal reference = 25.38 d; physical solar rotation is differential']; }
