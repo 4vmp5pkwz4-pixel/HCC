@@ -2584,6 +2584,14 @@ function runSelfTests(){
         && /illustrative|not catalogued/i.test(f) && /projection|redshift-space/i.test(f)
         && ['cosmos_gr','cosmos_ga','cosmos_br'].every(k=>EXPLICIT_RELATIONS.some(([a,b])=>(a==='surveyConeLab'&&b===k)||(b==='surveyConeLab'&&a===k))); }catch(e){ return false; } })(),
     'survey cone is illustrative tracer + quantitative slice geometry, caveated, and links to the ring fields');
+  ok('Cycle resonance web reproduces the Antikythera ratios (moon:Saros 223:1, year:Metonic 19:1) and is tier-M / non-metric',
+    (()=>{ try{ const s=SELECT.get('cycResonanceWeb'); if(!s) return false;
+      const ms=cycleCommensurability(cycleByKey('moon'),cycleByKey('saros'));
+      const ym=cycleCommensurability(cycleByKey('year'),cycleByKey('metonic'));
+      const f=getAtlasEntityContract('cycResonanceWeb').quality.forbidden_claims.join(' | ');
+      return ms.nA===223 && ms.nB===1 && ym.nA===19 && ym.nB===1
+        && atlasAccuracyTier('cycResonanceWeb',s)==='M' && /non-metric|not a dynamical resonance/i.test(f); }catch(e){ return false; } })(),
+    'resonance web encodes the real Saros/Metonic locks, tier M, caveated as non-metric');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -8241,7 +8249,7 @@ function updateFBS(dt){
    plus the solar-eclipse catalogue and the cycles dashboard.
    ================================================================ */
 const cycGroup = new THREE.Group(); cycGroup.visible=false; scene.add(cycGroup);
-cycGroup.add(starfield(2400, 500));
+cycGroup.add(starfield(MOBILE_GPU?(LOW_MEMORY_DEVICE?700:1100):2400, 500));
 cycGroup.add(new THREE.AmbientLight(0x8090b0,.9));
 { const dl=new THREE.DirectionalLight(0xfff4e0,.8); dl.position.set(5,12,8); cycGroup.add(dl); }
 spatialGuides.cyc=new THREE.Group();
@@ -8258,7 +8266,7 @@ cycGroup.add(spatialGuides.cyc);
    systems. The torus is dimensionless: its two angles are normalized phases of
    selected mean cycles; physical vectors remain inside their own instruments. */
 const cycPhaseInst=new THREE.Group(); cycPhaseInst.position.set(0,0,-24); cycGroup.add(cycPhaseInst);
-const cycPhaseTorus=new THREE.Mesh(new THREE.TorusGeometry(4,1.55,22,120),
+const cycPhaseTorus=new THREE.Mesh(new THREE.TorusGeometry(4,1.55,MOBILE_GPU?14:20,MOBILE_GPU?64:108),
   new THREE.MeshBasicMaterial({color:0x8fa6cf,wireframe:true,transparent:true,opacity:.3,depthWrite:false}));
 cycPhaseTorus.rotation.x=Math.PI/2; cycPhaseInst.add(cycPhaseTorus);
 const cycPhaseTrace=new THREE.Line(new THREE.BufferGeometry(),
@@ -8267,6 +8275,9 @@ const cycPhaseBead=new THREE.Mesh(new THREE.SphereGeometry(.20,16,10),new THREE.
 cycPhaseInst.add(cycPhaseTrace,cycPhaseBead);
 const cycPhaseLab=mkLabel('PHASE TORUS · normalized mean-cycle phases · non-metric · extreme ratios subsampled','label const');
 cycPhaseLab.position.set(0,3.2,0); cycPhaseInst.add(cycPhaseLab);
+// dynamic axis labels naming which two cycles the torus is currently showing
+const cycPhaseLabA=mkLabel('','label dim'); cycPhaseLabA.position.set(6.0,0,0); cycPhaseInst.add(cycPhaseLabA);
+const cycPhaseLabB=mkLabel('','label dim'); cycPhaseLabB.position.set(4.0,1.8,0); cycPhaseInst.add(cycPhaseLabB);
 function phaseTorusPoint(a,b){
   const A=2*Math.PI*a,B=2*Math.PI*b,R=4,r=1.55;
   return new THREE.Vector3((R+r*Math.cos(B))*Math.cos(A),r*Math.sin(B),(R+r*Math.cos(B))*Math.sin(A));
@@ -8275,7 +8286,7 @@ function rebuildCyclePhaseTrace(){
   const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB); if(!a||!b) return;
   const maxP=Math.max(a.days,b.days),minP=Math.min(a.days,b.days),ratio=maxP/minP;
   const span=Math.min(Math.max(maxP,cycleCommensurability(a,b).spanDays),maxP*128);
-  const samples=ratio<=64?960:2048;
+  const samples=MOBILE_GPU?(ratio<=64?360:560):(ratio<=64?960:1600);
   const pts=[];
   for(let i=0;i<=samples;i++){
     const d=state.epochDays+span*i/samples;
@@ -8284,6 +8295,72 @@ function rebuildCyclePhaseTrace(){
   cycPhaseTrace.geometry.setFromPoints(pts);
 }
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
+/* ── CYCLE RESONANCE WEB · the global commensurability map ──────────────────
+   The phase torus shows ONE pair's phase trajectory. This shows ALL of them at
+   once: every finite cycle is a node; every pair is an edge whose brightness/
+   opacity encodes how tightly the two periods lock (best small-integer ratio
+   nA:nB and its residual, from cycleCommensurability). The tight locks light up
+   gold — moon↔Saros (223:1), year↔Metonic (19:1), moon↔year (235:19) — the very
+   ratios the Antikythera gears. Selecting Cycle A/B highlights its edge here AND
+   draws its trajectory on the torus: one relationship, global and local.
+   Commensurability is a mathematical near-coincidence of MEAN periods, not a
+   dynamical resonance lock; the layout is a readable graph, non-metric. */
+const cycResonanceInst=new THREE.Group(); cycResonanceInst.position.set(0,13,-24); cycGroup.add(cycResonanceInst);
+const RESO_KEYS=CYCLE_PHASE_KEYS.slice();   // moon, year, saros, metonic, prec, gal
+const RESO_SHORT={moon:'Synodic month',year:'Tropical year',saros:'Saros',metonic:'Metonic',prec:'Precession',gal:'Galactic year'};
+const resoNodes=RESO_KEYS.map((k,i)=>{
+  const a=i/RESO_KEYS.length*2*Math.PI, R=6;
+  const pos=new THREE.Vector3(Math.cos(a)*R, Math.sin(a)*R, 0);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12), new THREE.MeshBasicMaterial({color:0xd4af6a}));
+  dot.position.copy(pos); cycResonanceInst.add(dot);
+  const lab=mkLabel(RESO_SHORT[k],'label major'); lab.position.copy(pos.clone().multiplyScalar(1.2)); cycResonanceInst.add(lab);
+  return {key:k,pos,dot};
+});
+const resoEdges=[];
+for(let i=0;i<resoNodes.length;i++) for(let j=i+1;j<resoNodes.length;j++){
+  const a=cycleByKey(resoNodes[i].key), b=cycleByKey(resoNodes[j].key), c=cycleCommensurability(a,b);
+  const tight=Math.max(0, 1-Math.min(1, Math.log10(1+c.ppm)/5));            // 0 (no lock) .. 1 (perfect)
+  const col=new THREE.Color().setHSL(0.12, 0.55, 0.30+0.45*tight);          // gold, brighter when tighter
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([resoNodes[i].pos, resoNodes[j].pos]),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.10+0.72*tight,depthWrite:false}));
+  cycResonanceInst.add(line);
+  let elab=null;
+  if(tight>0.55){   // label only the meaningful resonances
+    elab=mkLabel(`${c.nA}:${c.nB}`,'label dim');
+    elab.position.copy(resoNodes[i].pos.clone().lerp(resoNodes[j].pos,0.5)); cycResonanceInst.add(elab);
+  }
+  resoEdges.push({i:resoNodes[i].key,j:resoNodes[j].key,line,col,tight,elab});
+}
+{ const t=mkLabel('CYCLE RESONANCE WEB · commensurability map · gold = tight integer lock (the Antikythera ratios)','label const'); t.position.set(0,7.7,0); cycResonanceInst.add(t); }
+let resoPulse=0;
+function updateCycResonance(dt){
+  resoPulse+=dt;
+  const A=state.cycPairA, B=state.cycPairB, pulse=0.78+0.22*Math.sin(resoPulse*3);
+  resoNodes.forEach(n=>{ const sel=(n.key===A||n.key===B);
+    n.dot.scale.setScalar(sel?1.5:1); n.dot.material.color.setHex(sel?0xffe6a8:0xd4af6a); });
+  for(const e of resoEdges){
+    const sel=(e.i===A&&e.j===B)||(e.i===B&&e.j===A);
+    if(sel){ e.line.material.color.setHex(0xffe6a8); e.line.material.opacity=pulse; }
+    else { e.line.material.color.copy(e.col); e.line.material.opacity=0.10+0.72*e.tight; }
+    if(e.elab) e.elab.element.style.opacity=sel?'1':'';
+  }
+}
+registerSel('cycResonanceWeb',{
+  name:'Cycle resonance web', mode:'cyc', pick:resoNodes[0].dot,
+  src:['IAU'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:[
+    'Layout positions are non-metric — node separations are not physical distances.',
+    'Commensurability is a near-coincidence of mean periods, not a dynamical resonance/phase-lock claim.'],
+  desc:'A commensurability map of the six finite cycles. Each edge is the best small-integer ratio nA:nB between two mean periods (from cycleCommensurability); gold/bright = a tight lock, faint = no useful resonance. The strong locks are the Metonic (235 synodic months ≈ 19 tropical years) and the Saros (223 synodic months) — the very ratios the Antikythera mechanism gears. Selecting Cycle A/B highlights its edge here and draws its trajectory on the phase torus: the same relationship, global and local.',
+  getPos:()=>cycResonanceInst.position.clone(), focusDist:()=>17,
+  rows:()=>{ const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB),c=cycleCommensurability(a,b);
+    return [['Model','global commensurability graph (non-metric)'],
+      ['Nodes','6 finite cycles · month · year · Saros · Metonic · precession · galactic'],
+      ['Selected pair',`${RESO_SHORT[state.cycPairA]} ↔ ${RESO_SHORT[state.cycPairB]}`],
+      ['Best lock',`${c.nA} : ${c.nB} · residual ${c.ppm.toFixed(c.ppm<10?2:0)} ppm`],
+      ['Tightest locks','moon:Saros 223:1 · year:Metonic 19:1 · moon:year 235:19'],
+      ['Status','mathematical relationship map; not a physical configuration']]; },
+});
 function applyCycFrameView(){
   if(state.mode!=='cyc') return;
   if(state.cycFrame==='phase'){
@@ -8295,6 +8372,10 @@ function applyCycFrameView(){
     const p=antikGroup.position;
     controls.target.copy(p).add(new THREE.Vector3(0,2,0)); camera.position.copy(p).add(new THREE.Vector3(0,5,36));
     setControlDistanceLimits(8,140);
+  } else if(state.cycFrame==='resonance'){
+    const p=cycResonanceInst.position;
+    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,0,18));
+    setControlDistanceLimits(4,90);
   } else {
     controls.target.set(0,1,0); camera.position.set(0,26,54); setControlDistanceLimits(4,320);
   }
@@ -8429,6 +8510,10 @@ let galSun, galRadial, galSunAngle0 = Math.PI*0.35;
   galInst.add(galRadial);
   const cl=mkLabel('Sgr A* — Galactic centre','label dim'); cl.position.set(0,.4,0); galInst.add(cl);
   const tl=mkLabel('GALACTIC CLOCK · 1 rev = 230 Myr','label const'); tl.position.set(0,3.4,0); galInst.add(tl);
+  // key galactic elements: the disk, the Sun's orbit and the sense of rotation
+  const dkl=mkLabel('Galactic disk · schematic ~30 kpc','label dim'); dkl.position.set(9.2,0.1,0); galInst.add(dkl);
+  const orl=mkLabel("Sun's orbit · R₀≈8.2 kpc · ~230 km/s","label dim"); orl.position.set(0,0.15,5.95); galInst.add(orl);
+  const rotl=mkLabel('↻ direction of galactic rotation','label axis'); rotl.position.set(-4.0,0.15,-4.0); galInst.add(rotl);
   registerSel('cycGal',{
     name:'Galactic clock', mode:'cyc', pick:disk, labelEl:sl.element,
     desc:'Approximate galactocentric orbit reference: R₀≈8.2 kpc and a representative 230 Myr period. Absolute orbital phase and completed-orbit count are not inferred; the moving azimuth is explicitly relative to an arbitrary J2000 display anchor.',
@@ -8597,10 +8682,12 @@ function updateCyc(dt){
   precInst.visible=frame==='hierarchy'||frame==='geo';
   seaInst.visible=frame==='hierarchy'||frame==='helio'||frame==='geo';
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
+  cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
+  if(cycResonanceInst.visible) updateCycResonance(dt);
   antikGroup.visible = frame==='antikythera';
   if(frame==='antikythera') antikUpdate(state.epochDays);
   // when the Antikythera frame is active, hide the hierarchy clutter so only the mechanism shows
-  if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=false; }
+  if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=cycResonanceInst.visible=false; }
 
   // Galactic orbit: approximate relative phase only; absolute azimuth is not inferred.
   const ga = galSunAngle0 - 2*Math.PI*yrs/(GAL_YEAR_MYR*1e6);
@@ -8647,7 +8734,11 @@ function updateCyc(dt){
   }
 
   const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);
-  if(a&&b) cycPhaseBead.position.copy(phaseTorusPoint(cyclePhase(a),cyclePhase(b)));
+  if(a&&b){ cycPhaseBead.position.copy(phaseTorusPoint(cyclePhase(a),cyclePhase(b)));
+    const pk=state.cycPairA+'|'+state.cycPairB;
+    if(cycPhaseInst.userData.pk!==pk){ cycPhaseInst.userData.pk=pk;
+      cycPhaseLabA.element.textContent='⟳ major: '+(RESO_SHORT[state.cycPairA]||state.cycPairA);
+      cycPhaseLabB.element.textContent='⟳ tube: '+(RESO_SHORT[state.cycPairB]||state.cycPairB); } }
   const phaseOut=ctl.querySelector('#cycPhaseOut'); if(phaseOut) phaseOut.innerHTML=cyclePairSummaryHTML();
 
   hudBig.textContent = `${simDateString()} · engineering cycle laboratory · ${frame.toUpperCase()} frame`;
@@ -11994,6 +12085,7 @@ function buildCtl(){
           <option value="geo" ${state.cycFrame==='geo'?'selected':''}>Geocentric / Earth-axis</option>
           <option value="gal" ${state.cycFrame==='gal'?'selected':''}>Galactocentric reference</option>
           <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
+          <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
           <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
         </select>
       </div>
