@@ -2592,6 +2592,14 @@ function runSelfTests(){
       return ms.nA===223 && ms.nB===1 && ym.nA===19 && ym.nB===1
         && atlasAccuracyTier('cycResonanceWeb',s)==='M' && /non-metric|not a dynamical resonance/i.test(f); }catch(e){ return false; } })(),
     'resonance web encodes the real Saros/Metonic locks, tier M, caveated as non-metric');
+  ok('Earth/Sun/Moon orientation diagram uses real angles (obliquity 23.4393°, galactic 60.19°, Moon 5.145°), tier-M, schematic-caveated',
+    (()=>{ try{ const s=SELECT.get('orientationDiagram'); if(!s) return false;
+      const f=getAtlasEntityContract('orientationDiagram').quality.forbidden_claims.join(' | ');
+      const rows=s.rows().map(r=>r.join(' ')).join(' | ');
+      return atlasAccuracyTier('orientationDiagram',s)==='M'
+        && /23\.4393/.test(rows) && /60\.19/.test(rows) && /5\.145/.test(rows)
+        && /schematic|read only the ANGLES/i.test(f); }catch(e){ return false; } })(),
+    'orientation diagram: real angles, schematic scale, caveated');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -8361,6 +8369,67 @@ registerSel('cycResonanceWeb',{
       ['Tightest locks','moon:Saros 223:1 · year:Metonic 19:1 · moon:year 235:19'],
       ['Status','mathematical relationship map; not a physical configuration']]; },
 });
+/* ── EARTH / SUN / MOON ORIENTATION DIAGRAM · educational, not to scale ─────
+   The reference frames every other instrument quietly assumes, made explicit in
+   one place: the ecliptic (Earth's orbital plane), the celestial equator (tilted
+   by the 23.44° obliquity) and the galactic plane (~60.2° to the ecliptic), each
+   with its north pole (NEP/NCP/NGP); Earth's tilted spin axis; the Moon's orbit
+   inclined 5.14° with its nodes; and the solar apex. Angles are real; sizes and
+   positions are schematic. No state refs at construction. */
+const cycOrientInst=new THREE.Group(); cycOrientInst.position.set(0,-13,-24); cycOrientInst.visible=false; cycGroup.add(cycOrientInst);
+function orientRing(radius,tiltDeg,tiltAxis,col,op){
+  const pts=[]; for(let k=0;k<=128;k++){const a=k/128*2*Math.PI; pts.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));}
+  const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false}));
+  ring.rotateOnAxis(tiltAxis.clone().normalize(), tiltDeg*DEG); return ring;
+}
+function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
+  const dir=new THREE.Vector3(0,1,0).applyAxisAngle(tiltAxis.clone().normalize(), tiltDeg*DEG), g=new THREE.Group();
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),dir.clone().multiplyScalar(len)]),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.8})));
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(.12,.34,10),new THREE.MeshBasicMaterial({color:col}));
+  tip.position.copy(dir.clone().multiplyScalar(len)); tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir); g.add(tip);
+  const lab=mkLabel(label,'label axis'); lab.position.copy(dir.clone().multiplyScalar(len+0.45)); g.add(lab); return g;
+}
+{
+  const X=new THREE.Vector3(1,0,0), Z=new THREE.Vector3(0,0,1);
+  cycOrientInst.add(orientRing(5,0,X,0xf1dda6,.7));           // ecliptic (reference)
+  cycOrientInst.add(orientRing(5,23.4393,X,0x8fb8ff,.6));     // celestial equator (obliquity)
+  cycOrientInst.add(orientRing(5,60.19,Z,0x9ce3c6,.42));      // galactic plane (distinct node line)
+  cycOrientInst.add(orientPole(0,X,0xf1dda6,'NEP · ecliptic pole'));
+  cycOrientInst.add(orientPole(23.4393,X,0x8fb8ff,'NCP · celestial pole (→ Polaris)'));
+  cycOrientInst.add(orientPole(60.19,Z,0x9ce3c6,'NGP · galactic pole'));
+  const oEarth=new THREE.Mesh(new THREE.SphereGeometry(.6,24,16), new THREE.MeshStandardMaterial({color:0x4d7fd0,roughness:.7}));
+  cycOrientInst.add(oEarth);
+  const axisDir=new THREE.Vector3(0,1,0).applyAxisAngle(X,23.4393*DEG);
+  cycOrientInst.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([axisDir.clone().multiplyScalar(-1.4),axisDir.clone().multiplyScalar(1.4)]),
+    new THREE.LineBasicMaterial({color:0xf1dda6})));
+  { const el=mkLabel('Earth · axial tilt 23.44°','label dim'); el.position.set(0,-1.25,0); cycOrientInst.add(el); }
+  { const sun=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),new THREE.MeshBasicMaterial({color:0xfff2c4})); sun.position.set(5,0,0); cycOrientInst.add(sun);
+    const sl=mkLabel('Sun · on the ecliptic','label dim'); sl.position.set(5,.5,0); cycOrientInst.add(sl); }
+  cycOrientInst.add(orientRing(1.5,5.145,X,0xcfe0ff,.85));    // Moon orbit, inclined to ecliptic
+  { const ml=mkLabel('Moon orbit · inclined 5.14° · nodes → eclipses','label dim'); ml.position.set(0,0,2.0); cycOrientInst.add(ml);
+    [[1.5,0,0],[-1.5,0,0]].forEach(p=>{ const nd=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),new THREE.MeshBasicMaterial({color:0xff7a9a})); nd.position.set(p[0],p[1],p[2]); cycOrientInst.add(nd); }); }
+  const apex=new THREE.Vector3(0.2,0.55,-0.81).normalize();   // schematic apex direction
+  const al=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),apex.clone().multiplyScalar(6)]),
+    new THREE.LineDashedMaterial({color:0xffd080,dashSize:.3,gapSize:.2,transparent:true,opacity:.7})); al.computeLineDistances(); cycOrientInst.add(al);
+  { const lab=mkLabel('Solar apex → Sun drifts ~19.4 km/s toward Hercules','label axis'); lab.position.copy(apex.clone().multiplyScalar(6.3)); cycOrientInst.add(lab); }
+  { const t=mkLabel('EARTH / SUN / MOON ORIENTATION · real angles · schematic sizes (NOT to scale)','label const'); t.position.set(0,6.7,0); cycOrientInst.add(t); }
+  registerSel('orientationDiagram',{
+    name:'Earth / Sun / Moon orientation diagram', mode:'cyc', pick:oEarth,
+    src:['IAU'], accuracyTier:'M', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Sizes, distances and orbit radii are schematic — read only the ANGLES.','Not an ephemeris: instantaneous node/apex positions require IAU 2006/2000A + IERS data.'],
+    desc:'The reference frames the rest of the atlas assumes, shown together: the ecliptic (Earth’s orbital plane), the celestial equator tilted by the 23.4393° obliquity, and the galactic plane at ~60.2° to the ecliptic — each with its north pole (NEP / NCP / NGP). Earth’s spin axis carries the obliquity (it precesses over 25,772 yr — see the precession instrument); the Moon’s orbit is inclined 5.145° to the ecliptic and eclipses occur only near its nodes (the Saros). The dashed arrow is the solar apex — the Sun’s ~19.4 km/s drift toward Hercules. Angles are real; sizes and positions are schematic.',
+    getPos:()=>cycOrientInst.position.clone(), focusDist:()=>16,
+    rows:()=>[
+      ['Obliquity (ecliptic↔equator)','23.4393°'],
+      ['Galactic plane ↔ ecliptic','≈60.19°'],
+      ['Moon orbit ↔ ecliptic','5.145° · nodes regress over 18.6 yr'],
+      ['Poles','NEP (ecliptic) · NCP→Polaris · NGP (galactic)'],
+      ['Solar apex','~RA 18h, Dec +30° (Hercules) · ~19.4 km/s'],
+      ['Status','educational diagram · real angles, schematic scale']],
+  });
+}
 function applyCycFrameView(){
   if(state.mode!=='cyc') return;
   if(state.cycFrame==='phase'){
@@ -8375,6 +8444,10 @@ function applyCycFrameView(){
   } else if(state.cycFrame==='resonance'){
     const p=cycResonanceInst.position;
     controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,0,18));
+    setControlDistanceLimits(4,90);
+  } else if(state.cycFrame==='orientation'){
+    const p=cycOrientInst.position;
+    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,6,17));
     setControlDistanceLimits(4,90);
   } else {
     controls.target.set(0,1,0); camera.position.set(0,26,54); setControlDistanceLimits(4,320);
@@ -8684,6 +8757,7 @@ function updateCyc(dt){
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
   cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
   if(cycResonanceInst.visible) updateCycResonance(dt);
+  cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
   if(frame==='antikythera') antikUpdate(state.epochDays);
   // when the Antikythera frame is active, hide the hierarchy clutter so only the mechanism shows
@@ -12086,6 +12160,7 @@ function buildCtl(){
           <option value="gal" ${state.cycFrame==='gal'?'selected':''}>Galactocentric reference</option>
           <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
           <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
+          <option value="orientation" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>
           <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
         </select>
       </div>
