@@ -2794,10 +2794,13 @@ function cappedPixelRatio(cap=MOBILE_PERF.dprCap){
    measured frame-time EMA, so the picture stays sharp when there is headroom
    and sheds pixels — instead of freezing — when there is not. */
 const ADAPT={
-  cap:  MOBILE_GPU ? MOBILE_PERF.dprCap : 1.6,
-  floor:MOBILE_GPU ? Math.min(MOBILE_PERF.dprCap,0.66) : 0.85,
-  dyn:  MOBILE_GPU ? MOBILE_PERF.dprCap : 1.6,
-  acc:0, window:600,
+  // Sharpness first: start at a crisp ceiling and keep a HIGH floor so the image
+  // never visibly softens. The governor is now only a gentle last-resort safety
+  // net (the real per-frame cost was a layout reflow, not pixel fill-rate).
+  cap:  MOBILE_GPU ? MOBILE_PERF.dprCap : 1.9,
+  floor:MOBILE_GPU ? Math.max(MOBILE_PERF.dprCap*0.92, 0.7) : 1.4,
+  dyn:  MOBILE_GPU ? MOBILE_PERF.dprCap : 1.9,
+  acc:0, window:700,
 };
 /* Density of the one-time procedural sky/galaxy textures built at startup.
    Phones pay the full ~16k-iteration canvas cost up front, which is part of the
@@ -2809,7 +2812,10 @@ const TEX_DENSITY = MOBILE_GPU ? (LOW_MEMORY_DEVICE ? 0.42 : 0.6) : 1;
    guesswork. tier 2 = desktop · 1 = phone · 0 = weak / low-memory phone.
    lod(desktop, phone, weak): pick the value for this device (falls back upward). */
 const GPU_TIER = LOW_MEMORY_DEVICE ? 0 : (MOBILE_GPU ? 1 : 2);
-const lod = (hi, phone, weak) => GPU_TIER>=2 ? hi : (GPU_TIER===1 ? (phone??hi) : (weak??phone??hi));
+// Magnificence first: desktop AND normal phones get FULL quality (the original
+// textures/segments were never the bottleneck — a per-frame layout reflow was).
+// Only genuinely weak / low-memory devices (tier 0) step down, as a safety net.
+const lod = (hi, phone, weak) => GPU_TIER>=1 ? hi : (weak??phone??hi);
 const INITIAL_VIEW_W=Math.max(2,Math.round(document.documentElement.clientWidth||innerWidth||2));
 const INITIAL_VIEW_H=Math.max(2,Math.round(innerHeight||document.documentElement.clientHeight||2));
 const renderer = new THREE.WebGLRenderer({
@@ -2834,11 +2840,13 @@ function perfGovern(frameMs){
   const ema=ATLAS_TELEMETRY.frameEmaMs; if(!(ema>0)) return;
   const inFractal=state?.mode==='fractal';
   const capMs=inFractal?MOBILE_PERF.fractalFrameMs:MOBILE_PERF.frameMs;   // active pacing cadence
-  const slow=Math.max(33, capMs*1.5);    // sustained slower than this → shed resolution
-  const fast=Math.max(16, capMs*1.05);   // comfortably faster → restore crispness
+  // Gentle last-resort only: engage at sustained <~22 fps, recover quickly, and
+  // step in small increments so sharpness is preserved in normal use.
+  const slow=Math.max(46, capMs*2.4);    // sustained slower than this → shed a little resolution
+  const fast=Math.max(24, capMs*1.4);    // comfortably faster → restore full crispness
   let d=ADAPT.dyn;
-  if(ema>slow)                              d=Math.max(ADAPT.floor, ADAPT.dyn-0.16);
-  else if(ema<fast && ADAPT.dyn<ADAPT.cap) d=Math.min(ADAPT.cap,  ADAPT.dyn+0.08);
+  if(ema>slow)                              d=Math.max(ADAPT.floor, ADAPT.dyn-0.10);
+  else if(ema<fast && ADAPT.dyn<ADAPT.cap) d=Math.min(ADAPT.cap,  ADAPT.dyn+0.14);
   if(Math.abs(d-ADAPT.dyn)>1e-3){
     ADAPT.dyn=d;
     renderer.setPixelRatio(cappedPixelRatio(d));
@@ -6723,8 +6731,8 @@ const hierarchySelection=new THREE.Mesh(new THREE.RingGeometry(.18,.24,32),
 hierarchyRoot.add(hierarchySelection);hierarchySelection.visible=false;
 const hierarchyRaycaster=new THREE.Raycaster();
 const hierarchyFullSize=new THREE.Vector2();
-let hierarchyLayoutDirty=true,hierarchyLayoutFrame=0,hierarchyRenderFrame=0,hierarchyDrag=null;
-function requestHierarchyLayout(){hierarchyLayoutDirty=true;}
+let hierarchyLayoutDirty=true,hierarchyLayoutFrame=0,hierarchyRenderFrame=0,hierarchyDrag=null,hierarchyRectCache=null;
+function requestHierarchyLayout(){hierarchyLayoutDirty=true;hierarchyRectCache=null;}
 function setHierarchyView(view){
   const pos=view==='x'?new THREE.Vector3(7.4,.25,.25):
     view==='y'?new THREE.Vector3(.25,7.4,.25):
@@ -6799,6 +6807,7 @@ function positionHierarchyLegend(){
   }
   hierarchyLegend.style.left=Math.round(best.x)+'px';hierarchyLegend.style.top=Math.round(best.y)+'px';
   hierarchyLegend.style.right='auto';hierarchyLegend.style.bottom='auto';hierarchyLayoutDirty=false;
+  hierarchyRectCache=hierarchyLegend.getBoundingClientRect();   // cache once per reposition (not per frame)
 }
 function updateHierarchyLocator(){
   const visible=!!state.showHierarchyLocator&&!renderer.xr.isPresenting;
@@ -6823,7 +6832,11 @@ function renderHierarchyLocator(){
   if(!state.showHierarchyLocator||renderer.xr.isPresenting) return;
   // NOTE: must render EVERY frame — the main pass clears the whole framebuffer, so
   // skipping this scissor draw on alternate frames made the navigator blink (flicker).
-  const r=hierarchyLegend.getBoundingClientRect();
+  // CRITICAL: use the CACHED rect — reading getBoundingClientRect here every frame,
+  // right after the CSS2D label layer writes ~130 DOM transforms, forced a full-page
+  // synchronous reflow every frame (the real cause of the section-wide slowdown).
+  if(!hierarchyRectCache) hierarchyRectCache=hierarchyLegend.getBoundingClientRect();
+  const r=hierarchyRectCache;
   const full=renderer.getSize(hierarchyFullSize);
   const x=Math.round(r.left),y=Math.round(full.y-r.bottom),w=Math.round(r.width),h=Math.round(r.height);
   if(w<2||h<2) return;
@@ -8801,7 +8814,8 @@ function updateCyc(dt){
     ? 'JPL APPROXIMATION ACTIVE · EARTH–MOON BARYCENTER · 1800–2050'
     : 'JPL ORBIT / SEASON GEOMETRY INVALID OUTSIDE 1800–2050 · PHASE TOOLS REMAIN MEAN-PERIOD DIAGNOSTICS';
   seaInst.userData.statusLab.element.style.color=ephOK?'':'#e8b86a';
-  if((!state.cycSeasons || Math.abs(state.epochDays-state.cycSeasons.at)>200) && state.cycYrPerSec<5000) refreshSeasons();
+  if((!state.cycSeasons || Math.abs(state.epochDays-state.cycSeasons.at)>200) && state.cycYrPerSec<5000
+     && performance.now()-(seaInst.userData.lastSeasonRefresh||0)>180){ seaInst.userData.lastSeasonRefresh=performance.now(); refreshSeasons(); }   // cap the Newton season-solve to ~5 Hz during fast time
 
   // Non-metric identity links connect representations of the same object.
   cycLinksGroup.visible=!!state.cycLinks&&frame==='hierarchy';
