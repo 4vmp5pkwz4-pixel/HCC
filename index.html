@@ -2771,8 +2771,12 @@ const DEG = Math.PI/180;
 /* ============================== RENDERER ============================== */
 const app = document.getElementById('app');
 const MOBILE_GPU=matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:760px)').matches;
+const IS_IOS=/iPad|iPhone|iPod/.test(navigator.userAgent)||(/Macintosh/.test(navigator.userAgent)&&(navigator.maxTouchPoints||0)>1);
 const DEVICE_MEMORY_GB=Number(navigator.deviceMemory||0);
-const LOW_MEMORY_DEVICE=MOBILE_GPU && (!DEVICE_MEMORY_GB || DEVICE_MEMORY_GB<=4);
+// Only treat a device as low-memory when it ACTUALLY reports ≤4 GB. Safari/iOS
+// never reports deviceMemory, and iPhones are not weak — never misclassify them
+// as the lowest tier (that gave them the ugliest textures AND did not help).
+const LOW_MEMORY_DEVICE=MOBILE_GPU && DEVICE_MEMORY_GB>0 && DEVICE_MEMORY_GB<=4;
 const MOBILE_PERF={
   dprCap: MOBILE_GPU ? (LOW_MEMORY_DEVICE ? .78 : .92) : 1.6,
   // Frame pacing (ms between rendered frames). Desktop is now paced too: on a
@@ -2835,7 +2839,7 @@ function setQualityCap(cap){
   renderer.setPixelRatio(cappedPixelRatio(ADAPT.dyn));
 }
 function perfGovern(frameMs){
-  if(renderer.xr.isPresenting||XRTEST) return;
+  if(MOBILE_GPU||renderer.xr.isPresenting||XRTEST) return;   // phones: fixed pixel ratio (no framebuffer churn — iOS reallocates on setSize)
   ADAPT.acc+=frameMs; if(ADAPT.acc<ADAPT.window) return; ADAPT.acc=0;
   const ema=ATLAS_TELEMETRY.frameEmaMs; if(!(ema>0)) return;
   const inFractal=state?.mode==='fractal';
@@ -4891,7 +4895,7 @@ function syncPersistentCelestialSphere(){
 
 /* --- Milky Way: procedural equirectangular canvas, galactic-plane aligned --- */
 const mwMesh = (()=>{
-  const W=lod(2048,1024,768), H=W>>1;   // device-scaled panorama: ~10MB → ~1.5MB VRAM on weak phones
+  const W=lod(2048,2048,1280), H=W>>1;   // full-beauty panorama on phones too (only the weakest step down)
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const x=c.getContext('2d');
   x.fillStyle='#000'; x.fillRect(0,0,W,H);
@@ -11468,7 +11472,7 @@ const state = {
   cycYrPerSec: 1, cycSeasons: null,
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
-  showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
+  showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:!MOBILE_GPU,
   showLaniakeaFlows:true, laniakeaFlowDensity:.42, laniakeaFlowSpeed:.18, showCosmicDust:false, showObservableFill:false, showMwArms:true,
   showSolarCosmicBeacons:true,
   showCosmicLocalRefs:true, showCosmicLocalRefLabels:false, cosmicLocalRefScale:1, labelLuxuryContrast:true, smartLabelDimming:true, labelPrimaryCount:6, labelDimOpacity:.38,
@@ -11724,7 +11728,7 @@ function enterEarthRealtimeOverview(){
   state.showCosmicLocalRefs=true;
   state.showCosmicLocalRefLabels=false;
   state.showMwArms=true;
-  state.showHierarchyLocator=true;
+  state.showHierarchyLocator=!MOBILE_GPU;   // 2nd render pass — off by default on phones
   state.earthOverview=true;
   ORBIT.on=false; ORBIT.secondaryKey=null; controls.autoRotate=false; followSel=null; focusAnim=null;
   state.trueScale=true;
