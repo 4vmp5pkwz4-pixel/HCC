@@ -2804,6 +2804,12 @@ const ADAPT={
    initial "hang"; at sky-sphere viewing distance a 40-60% star count is visually
    indistinguishable, so reduce the eager build work on mobile / low-memory. */
 const TEX_DENSITY = MOBILE_GPU ? (LOW_MEMORY_DEVICE ? 0.42 : 0.6) : 1;
+/* Device GPU tier → one budget knob for geometry segments, texture sizes and
+   point counts, so every model scales down on weak hardware without per-call
+   guesswork. tier 2 = desktop · 1 = phone · 0 = weak / low-memory phone.
+   lod(desktop, phone, weak): pick the value for this device (falls back upward). */
+const GPU_TIER = LOW_MEMORY_DEVICE ? 0 : (MOBILE_GPU ? 1 : 2);
+const lod = (hi, phone, weak) => GPU_TIER>=2 ? hi : (GPU_TIER===1 ? (phone??hi) : (weak??phone??hi));
 const INITIAL_VIEW_W=Math.max(2,Math.round(document.documentElement.clientWidth||innerWidth||2));
 const INITIAL_VIEW_H=Math.max(2,Math.round(innerHeight||document.documentElement.clientHeight||2));
 const renderer = new THREE.WebGLRenderer({
@@ -4862,7 +4868,7 @@ function mulberry(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0;
   return ((t^t>>>14)>>>0)/4294967296; }; }
 
 const skyGroup = new THREE.Group(); solarGroup.add(skyGroup);
-skyGroup.add(starfield(3200, 660));
+skyGroup.add(starfield(lod(3200,1400,800), 660));
 function syncPersistentCelestialSphere(){
   // Keep the J2000 sky as an orientation reference at every Solar-scale zoom.
   // It follows the camera position but preserves angular RA/Dec/ecliptic directions,
@@ -4877,7 +4883,7 @@ function syncPersistentCelestialSphere(){
 
 /* --- Milky Way: procedural equirectangular canvas, galactic-plane aligned --- */
 const mwMesh = (()=>{
-  const W=2048, H=1024;
+  const W=lod(2048,1024,768), H=W>>1;   // device-scaled panorama: ~10MB → ~1.5MB VRAM on weak phones
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const x=c.getContext('2d');
   x.fillStyle='#000'; x.fillRect(0,0,W,H);
@@ -4919,8 +4925,9 @@ const mwMesh = (()=>{
     x.fillRect(u,v,rnd()<0.93?1:2,rnd()<0.93?1:2);
   }
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+  if(GPU_TIER===0) tex.generateMipmaps=false;   // skip mipmap VRAM/build on weak phones
   const mesh=new THREE.Mesh(
-    new THREE.SphereGeometry(RSKY*1.06, 64, 40),
+    new THREE.SphereGeometry(RSKY*1.06, lod(64,44,32), lod(40,28,20)),
     new THREE.MeshBasicMaterial({map:tex, side:THREE.BackSide, transparent:true,
       opacity:.85, depthWrite:false})
   );
@@ -5103,7 +5110,7 @@ function starSpriteTex(){
   zodGroup.add(ecl);
 }
 
-const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(1,48,32), new THREE.MeshBasicMaterial({color:SUN.col}));
+const sunMesh = new THREE.Mesh(new THREE.SphereGeometry(1,lod(48,32,22),lod(32,22,16)), new THREE.MeshBasicMaterial({color:SUN.col}));
 const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffdf90,transparent:true,opacity:.85,depthWrite:false}));
 sunMesh.add(sunGlow);
 const sunSpinCue=spinReferenceCue(0xffb55e); sunMesh.add(sunSpinCue);
@@ -5325,12 +5332,12 @@ obsGroup.add(spatialGuides.obs);
 function screenSphere(radius, color, opacity, name, selKey, desc, rows){
   const grp = new THREE.Group();
   const mesh = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 64, 40),
+    new THREE.SphereGeometry(radius, lod(64,40,28), lod(40,24,18)),
     new THREE.MeshBasicMaterial({color, transparent:true, opacity, side:THREE.BackSide, depthWrite:false})
   );
   grp.add(mesh);
   const wire = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 36, 22),
+    new THREE.SphereGeometry(radius, lod(36,26,18), lod(22,16,12)),
     new THREE.MeshBasicMaterial({color, wireframe:true, transparent:true, opacity:opacity*2.2, depthWrite:false})
   );
   grp.add(wire);
@@ -6933,18 +6940,18 @@ const sectionGroup = new THREE.Group(); s3Group.add(sectionGroup);
 let s3MainSphere;
 {
   const sph = s3MainSphere = new THREE.Mesh(
-    new THREE.SphereGeometry(RU, 96, 64),
+    new THREE.SphereGeometry(RU, lod(96,56,40), lod(64,36,26)),
     new THREE.MeshPhongMaterial({color:0x16345e, transparent:true, opacity:.32, shininess:18})
   );
   sectionGroup.add(sph);
   const wire = new THREE.Mesh(
-    new THREE.SphereGeometry(RU*1.0005, 48, 30),
+    new THREE.SphereGeometry(RU*1.0005, lod(48,34,24), lod(30,22,16)),
     new THREE.MeshBasicMaterial({color:0x3f6fb6, wireframe:true, transparent:true, opacity:.10})
   );
   sectionGroup.add(wire);
   sectionGroup.add(new THREE.AmbientLight(0x8090b0,.8));
   const dl = new THREE.DirectionalLight(0xffffff,.7); dl.position.set(3,5,4); sectionGroup.add(dl);
-  s3Group.add(starfield(2000, RU*40));
+  s3Group.add(starfield(lod(2000,900,500), RU*40));
 }
 {
   const dot = new THREE.Mesh(new THREE.SphereGeometry(RU*.012,16,12), new THREE.MeshBasicMaterial({color:0xffffff}));
@@ -7220,7 +7227,7 @@ function ylmTexture(l,m){
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
   return tex;
 }
-const eigSphere = new THREE.Mesh(new THREE.SphereGeometry(RU*1.001, 96, 64),
+const eigSphere = new THREE.Mesh(new THREE.SphereGeometry(RU*1.001, lod(96,56,40), lod(64,36,26)),
   new THREE.MeshBasicMaterial({map:null}));
 eigSphere.visible=false; sectionGroup.add(eigSphere);
 function setEigMode(beta, m){
@@ -7526,8 +7533,8 @@ const CLAB = (()=>{
   const P = { A:[1,0,0,0], B:[-1,0,0,0], chiA:0.55, chiB:0.85, arc:true, frames:true };
   const matA=new THREE.MeshBasicMaterial({color:0xd4af6a,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false});
   const matB=new THREE.MeshBasicMaterial({color:0x9bb7e8,transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false});
-  const capA=new THREE.Mesh(new THREE.SphereGeometry(1,48,32), matA);
-  const capB=new THREE.Mesh(new THREE.SphereGeometry(1,48,32), matB);
+  const capA=new THREE.Mesh(new THREE.SphereGeometry(1,lod(48,34,24),lod(32,22,16)), matA);
+  const capB=new THREE.Mesh(new THREE.SphereGeometry(1,lod(48,34,24),lod(32,22,16)), matB);
   const dotA=new THREE.Mesh(new THREE.SphereGeometry(RU*.015,14,10), new THREE.MeshBasicMaterial({color:0xf1dda6}));
   const dotB=new THREE.Mesh(new THREE.SphereGeometry(RU*.015,14,10), new THREE.MeshBasicMaterial({color:0xcfe0ff}));
   const dotAnti=new THREE.Mesh(new THREE.SphereGeometry(RU*.012,12,8), new THREE.MeshBasicMaterial({color:0xff6a6a}));
@@ -7632,7 +7639,7 @@ const bellGroup = new THREE.Group(); bellGroup.visible=false; s3Group.add(bellGr
 const RBELL = RU*0.62;
 let bellAnim = 0;
 {
-  bellGroup.add(new THREE.Mesh(new THREE.SphereGeometry(RBELL,48,32),
+  bellGroup.add(new THREE.Mesh(new THREE.SphereGeometry(RBELL,lod(48,34,24),lod(32,22,16)),
     new THREE.MeshBasicMaterial({color:0x16345e, transparent:true, opacity:.14, depthWrite:false})));
   bellGroup.add(new THREE.Mesh(new THREE.SphereGeometry(RBELL*1.001,36,24),
     new THREE.MeshBasicMaterial({color:0x3f6fb6, wireframe:true, transparent:true, opacity:.10})));
@@ -7745,7 +7752,7 @@ function ricciCirclePoints(radius, plane='xz', y=0, n=160){
 {
   ricciFlowGroup.add(new THREE.AmbientLight(0xdbe7ff,.85));
   const dl=new THREE.DirectionalLight(0xffffff,.85); dl.position.set(3,5,4); ricciFlowGroup.add(dl);
-  const carrier=new THREE.Mesh(new THREE.SphereGeometry(RU*.78,64,40),
+  const carrier=new THREE.Mesh(new THREE.SphereGeometry(RU*.78,lod(64,44,32),lod(40,28,20)),
     new THREE.MeshPhongMaterial({color:0x17385f,transparent:true,opacity:.20,shininess:28,depthWrite:false}));
   const wire=new THREE.Mesh(new THREE.SphereGeometry(RU*.782,36,24),
     new THREE.MeshBasicMaterial({color:0x7eb8ff,wireframe:true,transparent:true,opacity:.11,depthWrite:false}));
@@ -7753,7 +7760,7 @@ function ricciCirclePoints(radius, plane='xz', y=0, n=160){
   ricciFlowGroup.userData.carrier=carrier;
   ricciFlowGroup.userData.wire=wire;
 }
-const ricciDeformShell=new THREE.Mesh(new THREE.SphereGeometry(RU*.802,64,36),
+const ricciDeformShell=new THREE.Mesh(new THREE.SphereGeometry(RU*.802,lod(64,44,32),lod(36,26,18)),
   new THREE.MeshPhongMaterial({color:0xd4af6a,transparent:true,opacity:.19,shininess:65,side:THREE.DoubleSide,depthWrite:false}));
 ricciFlowGroup.add(ricciDeformShell);
 const ricciBandGroup=new THREE.Group(); ricciFlowGroup.add(ricciBandGroup);
@@ -7962,7 +7969,7 @@ function setS3View(v){
    markers, golden spiral, and the re-quantization wave.
    ================================================================ */
 const fbsGroup = new THREE.Group(); fbsGroup.visible=false; scene.add(fbsGroup);
-fbsGroup.add(starfield(1800, 900));
+fbsGroup.add(starfield(lod(1800,800,500), 900));
 spatialGuides.fbs=new THREE.Group();
 spatialGuides.fbs.add(
   orthogonalGrid(54,12,'LOCAL LOG-SCALE PROJECTION · shell radii update as φ^(N−focus)'),
@@ -8547,7 +8554,7 @@ const galInst = new THREE.Group(); cycGroup.add(galInst);
 let galSun, galRadial, galSunAngle0 = Math.PI*0.35;
 {
   // procedural face-on spiral galaxy
-  const W=512, c=document.createElement('canvas'); c.width=c.height=W;
+  const W=lod(512,320,256), c=document.createElement('canvas'); c.width=c.height=W;
   const x=c.getContext('2d'); const rnd=mulberry(424242);
   const g0=x.createRadialGradient(W/2,W/2,2,W/2,W/2,W*0.16);
   g0.addColorStop(0,'rgba(255,240,210,.95)'); g0.addColorStop(1,'rgba(255,220,170,0)');
