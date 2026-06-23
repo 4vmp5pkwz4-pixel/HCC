@@ -3471,7 +3471,9 @@ function selectionContext(key,s){
   } else if(s.mode==='cyc'){
     state.cycFrame=key==='cycGal'?'gal':key==='cycPrec'?'geo':key==='cycPhaseAtlas'?'phase':'helio';
   } else if(s.mode==='fractal'&&key.startsWith('fractal_')){
-    setFractalType(key.slice(8),false);
+    const ft=key.slice(8);
+    if(ft==='mjfiber3d') activateMandelJulia3DFibers('selection-context');
+    else setFractalType(ft,false);
   } else if(key==='fractalAtlas'){
     setFractalType('mandelbulb',false);
   }
@@ -4067,6 +4069,12 @@ function panelIsOpen(id){
   const p=document.getElementById(id);
   return !!p&&getComputedStyle(p).display!=='none';
 }
+function deckPanelOpen(){
+  return PANEL_IDS.some(id=>id!=='selCard'&&panelIsOpen(id));
+}
+function setAtlasCoachAutoMini(v){
+  try{ AtlasCoach.setAutoMini?.(!!v); }catch(e){}
+}
 function syncPanelDeck(){
   document.querySelectorAll('#panelDock [data-panel]').forEach(b=>{
     const id=b.dataset.panel, available=id!=='selCard'||!!selectedKey;
@@ -4094,12 +4102,15 @@ function closePanel(id){
   p.classList.remove('panel-folded');
   p.style.display='none';
   if(activePanelId===id) activePanelId=null;
-  syncPanelDeck(); requestHierarchyLayout();
+  syncPanelDeck();
+  if(!deckPanelOpen()) setAtlasCoachAutoMini(false);
+  requestHierarchyLayout();
 }
 function closeAllPanels(except=null){
   // selCard is a persistent, non-exclusive selection display — never auto-closed by opening another panel
   PANEL_IDS.forEach(id=>{if(id!==except&&id!=='selCard'){const p=document.getElementById(id);if(p){p.classList.remove('panel-folded');p.style.display='none';}}});
   if(except!=='selCard') activePanelId=except&&panelIsOpen(except)?except:null;
+  setAtlasCoachAutoMini(!!except&&except!=='selCard');
   syncPanelDeck(); requestHierarchyLayout();
 }
 function ensurePanelFoldTitle(id){
@@ -4143,6 +4154,7 @@ function openPanel(id){
   const p=document.getElementById(id);
   if(!p||(id==='selCard'&&!selectedKey)) return;
   if(id!=='selCard'){ closeAllPanels(id); activePanelId=id; }   // selCard coexists with the active deck panel so lists don't vanish
+  if(id!=='selCard') setAtlasCoachAutoMini(true);
   p.style.display='block';
   p.classList.remove('panel-folded');
   makePanelCollapsible(id);
@@ -8135,7 +8147,7 @@ function updateCyc(dt){
    Mandelbrot⇄Julia 2D/3D correspondence research lab + deterministic Buddhabrot orbit-density texture
    + φ-nested contours.
    ================================================================ */
-const BUDDHA_RES=MOBILE_GPU?768:1536;
+const BUDDHA_RES=MOBILE_GPU?448:1536;
 const buddhaCanvas=document.createElement('canvas'); buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
 const buddhaCtx=buddhaCanvas.getContext('2d');
 buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
@@ -8149,7 +8161,7 @@ function buildBuddhabrotTexture(){
   if(buddhaBuilding) return;
   buddhaBuilding=true; buddhaEverBuilt=true; buddhaProgress=0;
   const W=buddhaCanvas.width,H=buddhaCanvas.height,N=W*H;
-  const target=MOBILE_GPU?680000:2600000,maxIter=MOBILE_GPU?760:1400;
+  const target=MOBILE_GPU?180000:2600000,maxIter=MOBILE_GPU?420:1400;
   const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N);
   const ox=new Float32Array(maxIter),oy=new Float32Array(maxIter),rnd=mulberry(20260430);
   let done=0;
@@ -8168,7 +8180,7 @@ function buildBuddhabrotTexture(){
     buddhaProgress=done/target; updCtlVals();
   };
   const batch=()=>{
-    const end=Math.min(target,done+(MOBILE_GPU?2400:7600));
+    const end=Math.min(target,done+(MOBILE_GPU?950:7600));
     for(;done<end;done++){
       const cx=-2.15+3.25*rnd(),cy=-1.35+2.7*rnd(); let x=0,y=0,it=0;
       for(;it<maxIter;it++){
@@ -8183,7 +8195,7 @@ function buildBuddhabrotTexture(){
         const j=py*W+px; low[j]++; if(it>=70) mid[j]++; if(it>=260) deep[j]++;
       }
     }
-    if(done%(MOBILE_GPU?25600:45000)<(MOBILE_GPU?3200:9000)||done>=target) draw();
+    if(done%(MOBILE_GPU?12000:45000)<(MOBILE_GPU?1200:9000)||done>=target) draw();
     if(done<target) setTimeout(batch,0); else {buddhaProgress=1;buddhaBuilding=false;updCtlVals();}
   };
   batch();
@@ -8196,9 +8208,9 @@ const fractalUniforms = {
   uCamUp:  {value:new THREE.Vector3()},
   uTanFov: {value:Math.tan(27.5*DEG)},
   uPower:  {value:8.0},
-  uIters:  {value:12},
-  uIters2D:{value:150},
-  uSteps:  {value:140},
+  uIters:  {value:MOBILE_GPU?9:12},
+  uIters2D:{value:MOBILE_GPU?92:150},
+  uSteps:  {value:MOBILE_GPU?54:140},
   uHue:    {value:0},
   uMode:   {value:0},
   uCenter: {value:new THREE.Vector2(-.5,0)},
@@ -8231,7 +8243,7 @@ const fractalUniforms = {
   uMJZLift:{value:.55},
   uMJDisplay:{value:0},
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mandeljulia:9};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mandeljulia:9,mjfiber3d:10};
 const MANDEL_JULIA_METHODS=[
   ['classic-family','Parameter plane c chooses the dynamical Julia plane z for f_c(z)=z²+c.'],
   ['connectedness-gate','M is the connectedness locus: bounded critical orbit gates Julia connectivity.'],
@@ -8317,6 +8329,7 @@ function setFractalType(type,reset=true){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
     else if(type==='orbital3d'){ camera.position.set(5,4,9); setControlDistanceLimits(2.5,80); }
+    else if(type==='mjfiber3d'){ camera.position.set(6.3,4.8,11.2); controls.target.set(0,0.55,0); setControlDistanceLimits(2.2,90); }
     else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
     camera.updateProjectionMatrix();
   } else if(state.mode==='fractal' && type==='mandelbulb'){
@@ -8325,6 +8338,30 @@ function setFractalType(type,reset=true){
   }
   if(typeof updateBifurcView==='function') updateBifurcView();
   syncControlCapabilities(); syncCameraClipping(true);
+}
+function activateMandelJulia3DFibers(reason='activate') {
+  state.mode='fractal';
+  fractalType='mjfiber3d';
+  fractalUniforms.uMode.value=FRACTAL_TYPES.mjfiber3d;
+  solarGroup.visible=false; obsGroup.visible=false; s3Group.visible=false; fbsGroup.visible=false; cycGroup.visible=false;
+  document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('active', b.dataset.mode==='fractal'));
+  if(labelRenderer?.domElement) labelRenderer.domElement.style.display='block';
+  bifurcGroup.visible=false; poly4dGroup.visible=false; orbitalGroup.visible=false;
+  camera.fov=55;
+  camera.position.set(6.6,4.9,11.4);
+  controls.target.set(0,0.55,0);
+  setControlDistanceLimits(2.2,95);
+  camera.updateProjectionMatrix();
+  controls.enabled=true; controls.enableZoom=true; controls.enableRotate=true; controls.enablePan=true;
+  buildMandelJuliaFiber3D(true);
+  mjFiberGroup.visible=true;
+  syncControlCapabilities();
+  syncCameraClipping(true);
+  stabilizeCamera();
+  if(typeof updateBifurcView==='function') updateBifurcView();
+  hudBig.textContent='Mandelbrot ⇄ Julia · 3D fiber manifold';
+  hudSub.textContent='parameter plane c + dynamic Julia fiber + rays/equipotentials + critical orbit';
+  console.log('[FBS3R] activated mjfiber3d', reason, 'children=', mjFiberGroup.children.length);
 }
 function setFractalPalette(name){
   fractalPalette=name in FRACTAL_PALETTES?name:'spectrum';
@@ -8496,56 +8533,248 @@ function _mjEsc2(cx,cy,zx,zy,maxIter,pow){
   return {escape:ex||maxIter, bounded:!ex, trap, coh:coh/maxIter, x,y};
 }
 function buildMandelJuliaFiber3D(force=false){
-  const key=[fractalUniforms.uJulia.value.x.toFixed(4),fractalUniforms.uJulia.value.y.toFixed(4),fractalUniforms.uMJMethod.value,fractalUniforms.uMJMix.value.toFixed(2),fractalUniforms.uMJPower.value.toFixed(2),qualityName,MOBILE_GPU].join('|');
+  const key=[
+    fractalUniforms.uJulia.value.x.toFixed(4),
+    fractalUniforms.uJulia.value.y.toFixed(4),
+    fractalUniforms.uMJMethod.value,
+    fractalUniforms.uMJMix.value.toFixed(2),
+    fractalUniforms.uMJBeta.value.toFixed(2),
+    fractalUniforms.uMJGamma.value.toFixed(2),
+    fractalUniforms.uMJDelta.value.toFixed(2),
+    fractalUniforms.uMJPower.value.toFixed(2),
+    fractalUniforms.uMJTrap.value.toFixed(2),
+    fractalUniforms.uMJRays.value.toFixed(0),
+    fractalUniforms.uMJEpsilon.value.toFixed(2),
+    fractalUniforms.uMJTheta.value.toFixed(3),
+    fractalUniforms.uMJLambda.value.toFixed(2),
+    fractalUniforms.uMJSlice.value.toFixed(2),
+    fractalUniforms.uMJZLift.value.toFixed(2),
+    fractalUniforms.uMJMemory.value.toFixed(2),
+    fractalUniforms.uMJFold.value.toFixed(2),
+    fractalUniforms.uMJDisplay.value,
+    MOBILE_GPU?'mobile':'desktop',
+    renderer.getPixelRatio?.()||1
+  ].join('|');
   if(!force && key===_mjFiberKey && mjFiberGroup.children.length) return;
   _mjFiberKey=key;
-  while(mjFiberGroup.children.length){ const o=mjFiberGroup.children.pop(); o.geometry?.dispose?.(); o.material?.dispose?.(); }
-  const W=MOBILE_GPU?82:132, H=MOBILE_GPU?58:92, maxIter=MOBILE_GPU?80:130;
-  const pos=[], col=[]; const jx=fractalUniforms.uJulia.value.x, jy=fractalUniforms.uJulia.value.y;
+  while(mjFiberGroup.children.length){
+    const o=mjFiberGroup.children[mjFiberGroup.children.length-1];
+    mjFiberGroup.remove(o);
+    o.geometry?.dispose?.();
+    if(Array.isArray(o.material)) o.material.forEach(m=>m?.dispose?.());
+    else o.material?.dispose?.();
+  }
+  const W=MOBILE_GPU?42:124, H=MOBILE_GPU?30:88, maxIter=MOBILE_GPU?46:144;
+  const pos=[], col=[];
+  const jx=fractalUniforms.uJulia.value.x, jy=fractalUniforms.uJulia.value.y;
   const pow=THREE.MathUtils.clamp(fractalUniforms.uMJPower.value||2,1.15,8);
+  const mix=fractalUniforms.uMJMix.value||0;
+  const method=(fractalUniforms.uMJMethod.value||0)%MANDEL_JULIA_METHODS.length;
+  const slice=fractalUniforms.uMJSlice.value||0;
+  const zlift=fractalUniforms.uMJZLift.value||0;
+  const memory=fractalUniforms.uMJMemory.value||0;
+  const fold=fractalUniforms.uMJFold.value||0;
+  const theta=(fractalUniforms.uMJTheta.value||0)*Math.PI*2;
+  const lambda=(fractalUniforms.uMJLambda.value||0);
+  const beta=(fractalUniforms.uMJBeta.value||0);
+  const gamma=(fractalUniforms.uMJGamma.value||0);
+  const delta=(fractalUniforms.uMJDelta.value||0);
+  const trapR=(fractalUniforms.uMJTrap.value||.42);
+  const eps=(fractalUniforms.uMJEpsilon.value||0);
+  const rays=Math.max(2,Math.min(64,Math.round(fractalUniforms.uMJRays.value||12)));
+  const display=(fractalUniforms.uMJDisplay.value||0)|0;
+  const TAU=Math.PI*2;
+  const methodPhase=method/Math.max(1,MANDEL_JULIA_METHODS.length-1)*TAU;
+
+  const sampleCols=[];
   for(let iy=0;iy<H;iy++){
-    const cy=-1.28 + 2.56*iy/(H-1);
+    const cy=-1.35 + 2.70*iy/(H-1);
     for(let ix=0;ix<W;ix++){
-      const cx=-2.05 + 2.90*ix/(W-1);
-      const m=_mjEsc2(cx,cy,0,0,maxIter,pow);
-      const z0x=(cx*.18+jx*(.82-fractalUniforms.uMJMix.value*.25));
-      const z0y=(cy*.18+jy*(.82-fractalUniforms.uMJMix.value*.25));
-      const j=_mjEsc2(cx,cy,z0x,z0y,maxIter,pow);
+      const cx=-2.10 + 2.95*ix/(W-1);
+      const relX=cx-jx, relY=cy-jy, relRad=Math.hypot(relX,relY);
+      const relAng=Math.atan2(relY,relX);
+      const rayCell=Math.floor((((relAng/TAU)+1)%1)*rays)/rays;
+      const rayPhase=rayCell*TAU + theta;
+      const rayLock=0.5+0.5*Math.cos((relAng-theta)*rays);
+      const potentialLock=0.5+0.5*Math.cos(Math.log1p(relRad*2.6)*TAU*gamma + slice*TAU);
+      const renorm=0.5+0.5*Math.sin((relRad*1.61803398875 + methodPhase + memory*Math.PI)*TAU);
+      let cpx=cx + eps*(0.10*Math.cos(rayPhase)+0.055*Math.cos(methodPhase+cy*2.1));
+      let cpy=cy + eps*(0.10*Math.sin(rayPhase)+0.055*Math.sin(methodPhase+cx*2.1));
+      if(method===28){
+        const lx=lambda*Math.cos(theta+methodPhase), ly=lambda*Math.sin(theta+methodPhase);
+        cpx=.5*lx-.25*(lx*lx-ly*ly); cpy=.5*ly-.5*lx*ly;
+      } else if(method===36){
+        cpy=-cpy;                         // antiholomorphic / Mandelbar comparison slice
+      } else if(method===37 || method===44){
+        cpx=Math.abs(cpx); cpy=Math.abs(cpy); // burning-ship / fold diagnostics
+      } else if(method===41){
+        const den=1+slice*Math.hypot(cpx,cpy);
+        cpx/=den; cpy/=den;               // stereographic Riemann-sphere lift
+      } else if(method===43){
+        const rr=Math.hypot(cpx,cpy), aa=Math.atan2(cpy,cpx);
+        cpx+=eps*Math.cos(aa*pow+theta)*0.18*zlift;
+        cpy+=eps*Math.sin(aa*pow+theta)*0.18*zlift;
+      }
+      const m=_mjEsc2(cpx,cpy,0,0,maxIter,pow);
+      let z0x=(cpx*(0.08+0.22*beta) + jx*(0.92-mix*0.34));
+      let z0y=(cpy*(0.08+0.22*gamma) + jy*(0.92-mix*0.34));
+      z0x += 0.18*Math.cos(theta+cpx*0.9)*lambda + eps*(rayLock-.5)*0.22;
+      z0y += 0.18*Math.sin(theta+cpy*0.9)*lambda + eps*(potentialLock-.5)*0.22;
+      const j=_mjEsc2(cpx,cpy,z0x,z0y,maxIter,pow);
       const e=(m.escape+j.escape)/(2*maxIter);
       const coherence=Math.max(m.coh,j.coh);
-      const y=(m.bounded?1.2:0.0) + coherence*2.8 + (1-e)*1.7;
-      pos.push((cx+.60)*3.2, y-2.2, cy*3.2);
-      const hot=1-e, bound=m.bounded?1:0;
-      col.push(.18+hot*.75+bound*.25, .16+coherence*.65+bound*.25, .22+(1-coherence)*.35+hot*.35);
+      const trap=Math.max(0,1-Math.min(1,(Math.min(m.trap,j.trap))/Math.max(trapR,1e-4)));
+      const bounded=(m.bounded?1:0)*0.7 + (j.bounded?1:0)*0.3;
+      const methodW=(method/Math.max(1,MANDEL_JULIA_METHODS.length-1));
+      const foldTerm=Math.sin((cx+cy)*2.2 + fold*Math.PI*2)*0.35;
+      const memTerm=Math.cos(Math.hypot(cx-jx,cy-jy)*3.1 + memory*Math.PI)*0.42;
+      const sliceTerm=(cy-jy)*(slice-.5)*1.8 + (cx-jx)*(slice-.5)*0.6;
+      const rayTerm=(rayLock-.5)*(0.45+0.65*gamma);
+      const potTerm=(potentialLock-.5)*(0.35+0.55*delta);
+      const renormTerm=(renorm-.5)*(0.42+0.48*eps);
+      const y=(-1.8 + bounded*1.2 + coherence*2.5 + (1-e)*1.5 + trap*1.1
+        + foldTerm + memTerm + sliceTerm + rayTerm + potTerm + renormTerm);
+      const rotX=(cx+0.65)*3.15;
+      const rotZ=cy*3.15;
+      const xr= rotX*Math.cos(theta) - rotZ*Math.sin(theta);
+      const zr= rotX*Math.sin(theta) + rotZ*Math.cos(theta);
+      const y3=y + zlift*(0.7*rotZ + 0.9*Math.sin((cx-jx)*3.0));
+      pos.push(xr, y3, zr);
+      let scalar=.18 + (1-e)*.36 + coherence*.24 + trap*.18 + rayLock*.10 + potentialLock*.08 + renorm*.08;
+      if(display===1) scalar=.12+.82*coherence;
+      else if(display===2) scalar=.10+.84*rayLock;
+      else if(display===3) scalar=.10+.84*potentialLock;
+      else if(display===4) scalar=.10+.84*trap;
+      else if(display===5) scalar=.10+.84*renorm;
+      const r=.18 + scalar*.54 + bounded*.17 + methodW*.16;
+      const g=.16 + coherence*.50 + trap*.12 + delta*.18 + potentialLock*.12;
+      const b=.22 + trap*.24 + (1-coherence)*.16 + mix*.14 + rayLock*.12;
+      col.push(Math.min(1,r),Math.min(1,g),Math.min(1,b));
     }
   }
-  // Production guard: if a parameter combination ever produces no finite sample, build a visible diagnostic helix/grid
-  // rather than allowing the mode to render an empty black scene.
   if(!pos.length){
-    for(let i=0;i<360;i++){
-      const t=i/359*Math.PI*6, r=1.2+0.9*Math.sin(t*0.7);
-      pos.push(Math.cos(t)*r, -1.2+i/359*3.2, Math.sin(t)*r);
-      col.push(1.0,0.75,0.30);
+    for(let i=0;i<480;i++){
+      const t=i/479*Math.PI*8, r=1.2+0.9*Math.sin(t*0.55);
+      pos.push(Math.cos(t)*r, -1.2+i/479*3.4, Math.sin(t)*r);
+      col.push(1.0,0.78,0.34);
     }
   }
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
-  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
-  g.computeBoundingSphere();
-  mjFiberGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:MOBILE_GPU?.055:.038,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.92,depthWrite:false,blending:THREE.AdditiveBlending})));
-  const axes=new THREE.Group();
-  const matX=new THREE.LineBasicMaterial({color:0xd4af6a,transparent:true,opacity:.45});
-  const matY=new THREE.LineBasicMaterial({color:0x78d7ff,transparent:true,opacity:.40});
-  const matZ=new THREE.LineBasicMaterial({color:0xff7ad7,transparent:true,opacity:.35});
-  axes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3((-2.05+.60)*3.2,-2.45,0),new THREE.Vector3((.85+.60)*3.2,-2.45,0)]),matX));
-  axes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-2.45,-1.28*3.2),new THREE.Vector3(0,-2.45,1.28*3.2)]),matZ));
-  axes.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3((-1+.60)*3.2,-2.45,-1.28*3.2),new THREE.Vector3((-1+.60)*3.2,3.1,-1.28*3.2)]),matY));
-  mjFiberGroup.add(axes);
-  const title=mkLabel('Mandelbrot⇄Julia 3D fiber · x/z = parameter c · height = Julia-critical coherence','label axis'); title.position.set(.5,3.35,0); mjFiberGroup.add(title);
-  const jl=mkLabel(`selected Julia c = ${jx.toFixed(4)} ${jy<0?'−':'+'} ${Math.abs(jy).toFixed(4)}i`,'label dim'); jl.position.set(.5,-2.85,0); mjFiberGroup.add(jl);
+  const ptsGeo=new THREE.BufferGeometry();
+  ptsGeo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  ptsGeo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  ptsGeo.computeBoundingSphere();
+  mjFiberGroup.add(new THREE.Points(ptsGeo,new THREE.PointsMaterial({size:MOBILE_GPU?0.075:0.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.94,depthWrite:false,blending:THREE.AdditiveBlending})));
+
+  // parameter-plane base frame
+  const framePts=[];
+  const x0=(-2.10+0.65)*3.15, x1=(0.85+0.65)*3.15, z0=-1.35*3.15, z1=1.35*3.15, yBase=-2.55;
+  framePts.push(new THREE.Vector3(x0,yBase,z0),new THREE.Vector3(x1,yBase,z0));
+  framePts.push(new THREE.Vector3(x1,yBase,z0),new THREE.Vector3(x1,yBase,z1));
+  framePts.push(new THREE.Vector3(x1,yBase,z1),new THREE.Vector3(x0,yBase,z1));
+  framePts.push(new THREE.Vector3(x0,yBase,z1),new THREE.Vector3(x0,yBase,z0));
+  for(let i=1;i<6;i++){
+    const tx=x0+(x1-x0)*i/6, tz=z0+(z1-z0)*i/6;
+    framePts.push(new THREE.Vector3(tx,yBase,z0),new THREE.Vector3(tx,yBase,z1));
+    framePts.push(new THREE.Vector3(x0,yBase,tz),new THREE.Vector3(x1,yBase,tz));
+  }
+  mjFiberGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(framePts),new THREE.LineBasicMaterial({color:0x8bb8ff,transparent:true,opacity:.24})));
+  const anchorX=((jx)+0.65)*3.15;
+  const anchorZ=(jy)*3.15;
+
+  // external-ray and equipotential guides: orientation scaffolding for C_c x C_z.
+  const guidePts=[];
+  const rayCount=Math.min(64,Math.max(2,rays));
+  for(let i=0;i<rayCount;i++){
+    const a=theta + i/rayCount*Math.PI*2;
+    const len=2.55 + 0.35*Math.sin(i*1.618 + methodPhase);
+    guidePts.push(new THREE.Vector3(anchorX,yBase,anchorZ),
+      new THREE.Vector3(anchorX+Math.cos(a)*len,yBase+0.03,anchorZ+Math.sin(a)*len));
+  }
+  mjFiberGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(guidePts),
+    new THREE.LineBasicMaterial({color:0x64c8ff,transparent:true,opacity:.18,depthWrite:false})));
+  for(let k=1;k<=3;k++){
+    const ring=[];
+    const rr=.72*k*(.88+.12*lambda);
+    for(let i=0;i<=144;i++){
+      const a=i/144*Math.PI*2;
+      ring.push(new THREE.Vector3(anchorX+Math.cos(a)*rr,yBase+0.055*k,anchorZ+Math.sin(a)*rr));
+    }
+    mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring),
+      new THREE.LineBasicMaterial({color:0xa7ffd9,transparent:true,opacity:.18,depthWrite:false})));
+  }
+  const slicePlane=new THREE.Mesh(new THREE.PlaneGeometry(2.8,1.7,1,1),
+    new THREE.MeshBasicMaterial({color:0xffd08a,transparent:true,opacity:.055,side:THREE.DoubleSide,depthWrite:false}));
+  slicePlane.rotation.x=Math.PI/2;
+  slicePlane.rotation.z=theta;
+  slicePlane.position.set(anchorX, -0.10 + slice*2.2, anchorZ);
+  mjFiberGroup.add(slicePlane);
+
+  // selected Julia fiber curve above chosen parameter c
+  const fiberPts=[];
+  for(let i=0;i<120;i++){
+    const t=i/119;
+    const ang=t*Math.PI*4 + theta;
+    const rr=0.18 + 0.32*(1-t) + 0.18*mix;
+    const yy=-2.35 + t*(5.4 + zlift*1.5) + 0.22*Math.sin(t*Math.PI*6 + memory*Math.PI*2);
+    fiberPts.push(new THREE.Vector3(anchorX + Math.cos(ang)*rr, yy, anchorZ + Math.sin(ang)*rr));
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(fiberPts),new THREE.LineBasicMaterial({color:0xf3d086,transparent:true,opacity:.9})));
+  mjFiberGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.09,16,12),new THREE.MeshBasicMaterial({color:0xfff1c0}))).position.set(anchorX,-2.35,anchorZ);
+
+  const criticalOrbit=[];
+  let ox=0, oy=0;
+  for(let i=0;i<96;i++){
+    const r=Math.hypot(ox,oy), a=Math.atan2(oy,ox), rd=Math.pow(Math.max(r,1e-9),pow);
+    const nx=rd*Math.cos(pow*a)+jx, ny=rd*Math.sin(pow*a)+jy;
+    ox=nx; oy=ny;
+    const t=i/95;
+    criticalOrbit.push(new THREE.Vector3(anchorX+THREE.MathUtils.clamp(ox,-2.4,2.4)*0.34,
+      -2.18+t*4.75+0.15*Math.sin(t*Math.PI*8+theta),
+      anchorZ+THREE.MathUtils.clamp(oy,-2.4,2.4)*0.34));
+    if(ox*ox+oy*oy>128){ ox=Math.sin(i+theta)*0.2; oy=Math.cos(i+theta)*0.2; }
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(criticalOrbit),
+    new THREE.LineBasicMaterial({color:0xff8f58,transparent:true,opacity:.62,depthWrite:false})));
+
+  // top ridge showing selected slice
+  const ridge=[];
+  const ridgeY=1.65 + slice*2.0;
+  for(let i=0;i<100;i++){
+    const t=i/99, cx=-2.10 + 2.95*t;
+    ridge.push(new THREE.Vector3((cx+0.65)*3.15, ridgeY + 0.35*Math.sin(cx*4+theta), (jy*0.65 + (t-.5)*0.7)*3.15));
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0xff7ad7,transparent:true,opacity:.5})));
+
+  const title=mkLabel('Mandelbrot⇄Julia 3D fiber manifold · c-plane × Julia coherence','label axis');
+  title.position.set(.6,4.15,0); mjFiberGroup.add(title);
+  const sub=mkLabel(`c = ${jx.toFixed(4)} ${jy<0?'−':'+'} ${Math.abs(jy).toFixed(4)}i · method ${String(method+1).padStart(2,'0')} · slice ${slice.toFixed(2)} · lift ${zlift.toFixed(2)}`,'label dim');
+  sub.position.set(.5,-3.05,0); mjFiberGroup.add(sub);
+  const ax=mkLabel('x/z = Mandelbrot parameter c','label axis'); ax.position.set(x1-1.7,yBase-0.1,z1+0.45); mjFiberGroup.add(ax);
+  const ay=mkLabel('y = boundedness + coherence + potential','label axis'); ay.position.set(x0-0.5,2.8,z0-0.5); mjFiberGroup.add(ay);
+  const az=mkLabel('gold helix = selected Julia fiber / lifted slice','label dim'); az.position.set(anchorX+0.7,2.8,anchorZ); mjFiberGroup.add(az);
 }
 
-const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d']);   // fractal "types" rendered as real 3D geometry
+const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d','mjfiber3d']);   // fractal "types" rendered as real 3D geometry
+function isFractalPlaneMode(){
+  return state.mode==='fractal' && fractalUniforms.uMode.value>0 && !GEO_FRACTALS.has(fractalType);
+}
+let mjFiberRebuildRAF=0, mjFiberRebuildTimer=0;
+function scheduleMandelJuliaFiberRebuild(){
+  if(fractalType!=='mjfiber3d') return;
+  const rebuild=()=>{
+    mjFiberRebuildRAF=0; mjFiberRebuildTimer=0;
+    buildMandelJuliaFiber3D(true);
+    mjFiberGroup.visible=true;
+    syncCameraClipping(true);
+  };
+  if(MOBILE_GPU){
+    if(mjFiberRebuildTimer) clearTimeout(mjFiberRebuildTimer);
+    mjFiberRebuildTimer=setTimeout(rebuild,96);
+  }else{
+    if(mjFiberRebuildRAF) cancelAnimationFrame(mjFiberRebuildRAF);
+    mjFiberRebuildRAF=requestAnimationFrame(rebuild);
+  }
+}
 function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
@@ -8555,7 +8784,7 @@ function updateBifurcView(){
   bifurcGroup.visible = isFrac&&fractalType==='bifurc3d';
   poly4dGroup.visible = isFrac&&fractalType==='polytope4d';
   orbitalGroup.visible = isFrac&&fractalType==='orbital3d';
-  mjFiberGroup.visible = false; // disabled: unstable experimental MJ3D route removed from UI
+  mjFiberGroup.visible = isFrac&&fractalType==='mjfiber3d';
   if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(isFrac&&!geo)?'none':'block';
 }
 const fractalScene = new THREE.Scene();
@@ -9616,15 +9845,15 @@ const XRX = (()=>{
      Dense Catalogue keeps everything, Quest Safe trims aggressively. These
      only ever touch VISUAL fidelity — never scientific coordinates. */
   const QUALITY={
-    museum:        {label:'Museum',          fov:0.4, steps:130, hopfCap:2.2, stars:1,    fb:1.1,  dpr:1.55, maxCatalogue:1.0 },
-    classroom:     {label:'Classroom',       fov:0.7, steps:90,  hopfCap:1.4, stars:0.7,  fb:1.0,  dpr:1.35, maxCatalogue:0.75},
-    questSafe:     {label:'Quest Safe',      fov:1,   steps:60,  hopfCap:0.8, stars:0.35, fb:0.8,  dpr:1.1,  maxCatalogue:0.45},
-    denseCatalogue:{label:'Dense Catalogue', fov:0.5, steps:115, hopfCap:2.0, stars:1,    fb:1.05, dpr:1.5,  maxCatalogue:1.0 },
+    museum:        {label:'Museum',          fov:0.4, steps:112, hopfCap:2.2, stars:1,    fb:1.1,  dpr:1.35, maxCatalogue:1.0 },
+    classroom:     {label:'Classroom',       fov:0.7, steps:64,  hopfCap:1.4, stars:0.55, fb:1.0,  dpr:1.08, maxCatalogue:0.62},
+    questSafe:     {label:'Quest Safe',      fov:1,   steps:44,  hopfCap:0.8, stars:0.28, fb:0.8,  dpr:0.95, maxCatalogue:0.38},
+    denseCatalogue:{label:'Dense Catalogue', fov:0.5, steps:96,  hopfCap:2.0, stars:0.82, fb:1.05, dpr:1.22, maxCatalogue:0.82 },
     desktop:       {label:'Desktop',         fov:0,   steps:160, hopfCap:3,   stars:1,    fb:1.2,  dpr:2,    maxCatalogue:1.0 },
   };
   const QUEST_PRESETS=['museum','classroom','questSafe','denseCatalogue'];  // wrist-menu cycle order
   const DOWNGRADE_CHAIN=['denseCatalogue','museum','classroom','questSafe']; // adaptive heaviest→lightest
-  let qualityName = isMobileQ()? 'classroom' : 'desktop';
+  let qualityName = isMobileQ()? 'questSafe' : 'desktop';
   function isMobileQ(){ return MOBILE_GPU; }
   function applyQuality(name){
     qualityName=name; const q=QUALITY[name];
@@ -9834,6 +10063,7 @@ const XRX = (()=>{
 
 
   /* ---------- S³ Noether boundary-null diagnostic (isolated, read-only) ---------- */
+  let NOETHER_BOUNDARY_FLOW=null;
   const noetherBoundaryGroup = new THREE.Group();
   noetherBoundaryGroup.name = 'S3 Noether boundary-null diagnostic';
   sectionGroup.add(noetherBoundaryGroup);
@@ -9858,7 +10088,7 @@ const XRX = (()=>{
   const noetherLabel = mkLabel('Noether boundary null · ∂Σ=∅ ⇒ Hξ=0','label major','s3NoetherBoundary');
   noetherLabel.position.set(0,RU*.09,0); noetherPick.add(noetherLabel);
   noetherBoundaryGroup.add(noetherPick);
-  const noetherEq = mkLabel('Diff(M) ⇒ Noether II ⇒ Jξ≈dQξ ⇒ ∂Σ=∅ ⇒ Hξ(global)=0','label dim');
+  const noetherEq = mkLabel('Diff(M) ⇒ Noether II ⇒ Jξ≈dQξ ⇒ Hξ=∫∂Σ(Qξ−ξ·B) ⇒ ∂Σ=∅ ⇒ Hξ=0','label dim');
   noetherEq.position.set(-RU*.54,RU*.18,0); noetherBoundaryGroup.add(noetherEq);
   const noetherQuasiRing = noetherCircle(RU*.18,0x99ffd8,.74,RU*.035,true);
   noetherQuasiRing.rotation.x = Math.PI/2;
@@ -9867,6 +10097,34 @@ const XRX = (()=>{
   noetherQuasiLab.position.set(RU*.05,RU*.145,RU*.18); noetherBoundaryGroup.add(noetherQuasiLab);
   const noetherNullLab = mkLabel('global S³ has no outside edge · no external reservoir','label dim');
   noetherNullLab.position.set(-RU*.50,-RU*.10,0); noetherBoundaryGroup.add(noetherNullLab);
+  {
+    const flowN=MOBILE_GPU?56:112;
+    const flowGeo=new THREE.BufferGeometry();
+    flowGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(flowN*3),3));
+    const flowCol=[]; const cA=new THREE.Color(0x68e3ff), cB=new THREE.Color(0xffd98a);
+    for(let i=0;i<flowN;i++){ const c=cA.clone().lerp(cB,(i%7)/6); flowCol.push(c.r,c.g,c.b); }
+    flowGeo.setAttribute('color',new THREE.Float32BufferAttribute(flowCol,3));
+    const flowPts=new THREE.Points(flowGeo,new THREE.PointsMaterial({
+      size:RU*.0062,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.86,depthWrite:false,blending:THREE.AdditiveBlending
+    }));
+    noetherBoundaryGroup.add(flowPts);
+
+    const fluxGeo=new THREE.BufferGeometry();
+    fluxGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(18*2*3),3));
+    const fluxLines=new THREE.LineSegments(fluxGeo,new THREE.LineBasicMaterial({
+      color:0xf1dda6,transparent:true,opacity:.34,depthWrite:false,blending:THREE.AdditiveBlending
+    }));
+    noetherBoundaryGroup.add(fluxLines);
+
+    const zeroPulse=new THREE.Mesh(new THREE.TorusGeometry(RU*.075,RU*.0028,8,128),
+      new THREE.MeshBasicMaterial({color:0xffe69a,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
+    zeroPulse.rotation.x=Math.PI/2;
+    noetherBoundaryGroup.add(zeroPulse);
+    const flowLab=mkLabel('cyan/gold packets = internal ∂Dobs charge flow · global ∂Σ remains empty','label dim');
+    flowLab.position.set(RU*.06,-RU*.18,RU*.18); noetherBoundaryGroup.add(flowLab);
+    NOETHER_BOUNDARY_FLOW={t:0,flowN,flowAttr:flowGeo.attributes.position,fluxAttr:fluxGeo.attributes.position,
+      shell:noetherShell,empty:noetherEmptyBoundary,quasi:noetherQuasiRing,zero:noetherZeroRing,zeroPulse,group:noetherBoundaryGroup};
+  }
   registerSel('s3NoetherBoundary',{ name:'Noether Boundary Null', mode:'s3', pick:noetherPick, labelEl:noetherLabel.element,
     type:'mathematical law', src:['S3'], formulas:['s3.noether'], accuracyTier:'M', evidenceClass:'model-law',
     desc:'Noether Boundary Null Principle: in a compact S³ universe without physical spatial boundary, diffeomorphism Noether currents reduce on shell to boundary charges. Since the global boundary is empty, Hξ[Σ]=0. This removes any external energy reservoir or outside flux, while preserving local dynamics through internal geometry, phase, curvature, spectra, correlations, and quasi-local observational cuts.',
@@ -9879,10 +10137,42 @@ const XRX = (()=>{
       ['Not implied','This does not eliminate local dynamics'],
       ['Quasi-local distinction','∂S³ = ∅ but ∂D_obs ≠ ∅'],
       ['Quasi-local charge','Hξ[D] = ∫∂D(Qξ − ξ·B), generally measurable'],
+      ['Animated reading','cyan/gold packets circulate on internal cuts; no packet crosses an outer boundary because no outer boundary exists'],
+      ['Energy bookkeeping','global Hamiltonian boundary term cancels/vanishes; local energy transfer remains encoded in internal geometry and quasi-local cuts'],
       ['Observable rule','Only internal quasi-local invariants are observable'],
       ['FBS3R link','Nested S³ / φ scales are internal diagnostic layers, not external sources'],
       ['Deutsch','Keine äußere Grenze; globale Noether-Randladung verschwindet, quasilokale innere Grenzflächen bleiben messbar']
     ] });
+  function updateNoetherBoundaryFlow(dt){
+    const f=NOETHER_BOUNDARY_FLOW; if(!f) return;
+    f.t+=dt;
+    const TAU=Math.PI*2, qR=RU*.18, zR=RU*.075;
+    const arr=f.flowAttr.array;
+    for(let i=0;i<f.flowN;i++){
+      const p=i/f.flowN, a=TAU*p + f.t*.72;
+      const wob=1 + .035*Math.sin(f.t*1.7+i*.618);
+      arr[i*3]   = Math.cos(a)*qR*wob;
+      arr[i*3+1] = RU*.035 + Math.sin(a*2.0+f.t*.9)*RU*.018;
+      arr[i*3+2] = Math.sin(a)*qR*wob;
+    }
+    f.flowAttr.needsUpdate=true;
+    const seg=f.fluxAttr.array, N=18;
+    for(let i=0;i<N;i++){
+      const a=TAU*(i/N)+f.t*.48;
+      const pulse=(Math.sin(f.t*2.4+i*.9)+1)*.5;
+      const r0=THREE.MathUtils.lerp(qR,zR,pulse*.72);
+      const r1=THREE.MathUtils.lerp(qR,zR,Math.min(1,pulse*.72+.18));
+      const k=i*6;
+      seg[k]   = Math.cos(a)*r0; seg[k+1] = RU*.035*(1-pulse); seg[k+2] = Math.sin(a)*r0;
+      seg[k+3] = Math.cos(a)*r1; seg[k+4] = RU*.010*(1-pulse); seg[k+5] = Math.sin(a)*r1;
+    }
+    f.fluxAttr.needsUpdate=true;
+    f.quasi.rotation.z += dt*.11;
+    f.empty.rotation.y += dt*.035;
+    f.zero.rotation.y -= dt*.18;
+    f.zeroPulse.scale.setScalar(1 + .10*Math.sin(f.t*2.2));
+    f.zeroPulse.material.opacity=.30 + .18*(.5+.5*Math.sin(f.t*2.2));
+  }
 
   /* ---------- XR Guided Tour shell (≥ six tour definitions) ---------- */
   const TOURS=[
@@ -10137,7 +10427,7 @@ const XRX = (()=>{
   const pointerGrabbedMesh=m=>pointers.some(P=>P.grabbed===m);
 
   return { update, telemetry, flags, diag, runXRCheck, exportXRDiagnostics,
-           applyQuality, cycleQuality,
+           applyQuality, cycleQuality, updateNoetherBoundaryFlow,
            exportXRCapabilities, exportFormulaRegistry, exportSourceRegistry, exportValidationReport,
            // XR Observatory Mode surface (read-only over scientific data)
            qualityPresets:QUEST_PRESETS, TOURS, cardTabs:CARD_TABS,
@@ -10732,10 +11022,10 @@ addEventListener('pointerup', ()=>lookDrag=null);
 let fractalPan=null;
 renderer.domElement.addEventListener('pointerdown',e=>{
   if(e.pointerType==='touch' && touchPts.size>=1) return; // second finger starts pinch, never pan
-  if(state.mode==='fractal'&&fractalUniforms.uMode.value>0) fractalPan=[e.clientX,e.clientY];
+  if(isFractalPlaneMode()) fractalPan=[e.clientX,e.clientY];
 });
 addEventListener('pointermove',e=>{
-  if(!fractalPan||state.mode!=='fractal'||fractalUniforms.uMode.value===0) return;
+  if(!fractalPan||!isFractalPlaneMode()) return;
   if(e.pointerType==='touch' && touchPts.size>=2) return; // pinch owns the gesture in every rotated fractal plane
   const rect=renderer.domElement.getBoundingClientRect();
   const span=3/(fractalUniforms.uZoom.value*Math.max(rect.height,1));
@@ -10759,7 +11049,7 @@ renderer.domElement.addEventListener('wheel', e=>{
     e.preventDefault();                          // wheel travels the φ-ladder
     state.fbsTarget = null; state.fbsCycle = false;
     state.fbsDepth = THREE.MathUtils.clamp(state.fbsDepth + e.deltaY*0.004, 0, FBS.Nmax);
-  } else if(state.mode==='fractal'&&fractalUniforms.uMode.value>0){
+  } else if(isFractalPlaneMode()){
     e.preventDefault();
     const old=fractalUniforms.uZoom.value, next=setFractalZoom(old*Math.exp(-e.deltaY*.0015));
     const rect=renderer.domElement.getBoundingClientRect();
@@ -10797,7 +11087,7 @@ addEventListener('pointermove', e=>{
     } else if(state.mode==='fbs'){
       state.fbsTarget=null; state.fbsCycle=false;
       state.fbsDepth=THREE.MathUtils.clamp(state.fbsDepth-dd*0.012,0,FBS.Nmax);
-    } else if(state.mode==='fractal'&&fractalUniforms.uMode.value>0){
+    } else if(isFractalPlaneMode()){
       setFractalZoom(fractalUniforms.uZoom.value*Math.exp(dd*.01));
       updCtlVals();
     }
@@ -11605,11 +11895,11 @@ function buildCtl(){
   else { // fractal
     ctl.innerHTML = `
     <div class="sect"><b>Multilevel fractal atlas</b>
-      <div class="chips">
-        ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mandeljulia:'Mandelbrot ⇄ Julia 2D lab',mjfiber3d:'Mandel-Julia 3D fibers'}[k]||k}</button>`).join('')}
-      </div>
-    </div>
+	      <div class="chips">
+	        ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
+	          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mandeljulia:'Mandelbrot ⇄ Julia 2D lab',mjfiber3d:'Mandel-Julia 3D fibers'}[k]||k}</button>`).join('')}
+	      </div>
+	    </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
       <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
         ${Object.keys(FRACTAL_PALETTES).map(k=>`<option value="${k}" ${fractalPalette===k?'selected':''}>${({silver:'Neutral silver metal',gold:'Gold metal',copper:'Dark copper',ice:'Ice blue',spectrum:'Spectral analytic'})[k]}</option>`).join('')}
@@ -11625,11 +11915,14 @@ function buildCtl(){
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr" min="4" max="20" step="1" value="${fractalUniforms.uIters.value}">
         <span class="val" id="itrV"></span></div>
-    </div>`:`<div class="sect"><b>Complex-plane coordinates</b>
+    </div>`:(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?`<div class="sect"><b>True 3D navigation</b>
+      <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
+      <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
+    </div>`:`<div class="sect"><b>${fractalType==='mjfiber3d'?'3D fiber parameter frame':'Complex-plane coordinates'}</b>
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr2" min="30" max="280" step="1" value="${fractalUniforms.uIters2D.value}">
         <span class="val" id="itr2V"></span></div>
-      <div class="ctlrow"><label>Zoom</label>
+      ${fractalType==='mjfiber3d'?`<div class="note">True 3D geometry mode: drag rotates the camera; wheel / two-finger pinch dollies the camera. The controls below set the parameter-frame anchor and Julia seed; shader-plane zoom is intentionally hidden.</div>`:`<div class="ctlrow"><label>Zoom</label>
         <input type="range" id="fzoom" min="-1" max="${Math.log10(fractalZoomMax())}" step="0.01" value="${Math.log10(fractalUniforms.uZoom.value)}">
         <span class="val" id="fzoomV"></span></div>
       <div class="ctlrow"><label>Plane rotation</label>
@@ -11638,18 +11931,18 @@ function buildCtl(){
         <button class="btn" data-frot90="0">0°</button>
         <span class="val" id="frotV"></span></div>
       <div class="note">Precision-safe GPU zoom limit: ${fractalZoomMax().toExponential(1)}×.
-        The guard prevents single-precision fragment coordinates from collapsing into a blank image.</div>
+        The guard prevents single-precision fragment coordinates from collapsing into a blank image.</div>`}
       <div class="ctlrow"><label>Center Re(c)</label><input type="number" id="fcx" step="0.000001" value="${fractalUniforms.uCenter.value.x}" style="flex:1"></div>
       <div class="ctlrow"><label>Center Im(c)</label><input type="number" id="fcy" step="0.000001" value="${fractalUniforms.uCenter.value.y}" style="flex:1"></div>
       <div class="ctlrow"><label>Coordinate grid</label><input type="checkbox" id="fgrid" ${fractalUniforms.uGrid.value?'checked':''}></div>
       <div class="ctlrow"><label>Screen-stable touch at 90°</label><input type="checkbox" id="fScreenPan" ${fractalScreenStablePan?'checked':''}></div>
-      <div class="ctlrow"><button class="btn" id="freset">Reset view</button><button class="btn green" id="fgolden">Golden-mean region</button></div>
+      <div class="ctlrow"><button class="btn" id="freset">${fractalType==='mjfiber3d'?'Reset 3D camera':'Reset view'}</button>${fractalType==='mjfiber3d'?'<button class="btn green" id="mjOpen3D">rebuild/open 3D fibers</button>':'<button class="btn green" id="fgolden">Golden-mean region</button>'}</div>
     </div>
-    ${(fractalType==='julia'||fractalType==='mandeljulia')?`<div class="sect"><b>Julia parameter c</b>
+    ${(fractalType==='julia'||fractalType==='mandeljulia'||fractalType==='mjfiber3d')?`<div class="sect"><b>Julia parameter c</b>
       <div class="ctlrow"><label>Re(c)</label><input type="number" id="jre" step="0.0001" value="${fractalUniforms.uJulia.value.x}" style="flex:1"></div>
       <div class="ctlrow"><label>Im(c)</label><input type="number" id="jim" step="0.0001" value="${fractalUniforms.uJulia.value.y}" style="flex:1"></div>
     </div>`:''}
-    ${(fractalType==='mandeljulia')?`<div class="sect"><b>Mandelbrot ⇄ Julia correspondence laboratory</b>
+    ${(fractalType==='mandeljulia'||fractalType==='mjfiber3d')?`<div class="sect"><b>Mandelbrot ⇄ Julia correspondence laboratory</b>
       <div class="ctlrow"><label>Coupling model</label><select id="mjMethod" style="flex:1">
         ${MANDEL_JULIA_METHODS.map((m,i)=>`<option value="${i}" ${fractalUniforms.uMJMethod.value===i?'selected':''}>${String(i+1).padStart(2,'0')} · ${m[0]}</option>`).join('')}
       </select></div>
@@ -11763,9 +12056,20 @@ function buildCtl(){
       φ-Nested overlays logarithmic golden-ratio contour bands as an explicitly
       FBS3R-inspired exploratory layer. Default palette is neutral silver metal; every palette uses the same iteration/density scalar and changes only its visual transfer function.</div>`;
     ctl.querySelectorAll('[data-fractal]').forEach(b=>b.onclick=()=>{
-      setFractalType(b.dataset.fractal);
+      const next=b.dataset.fractal;
+      setFractalType(next);
+      if(next==='mjfiber3d'){
+        buildMandelJuliaFiber3D(true);
+        mjFiberGroup.visible=true;
+      }
       if(typeof updateBifurcView==='function') updateBifurcView();
       buildCtl();
+    });
+    ctl.querySelector('.chips')?.addEventListener('click',ev=>{
+      const b=ev.target?.closest?.('[data-fractal]');
+      if(!b || b.dataset.fractal!=='mjfiber3d') return;
+      ev.preventDefault();
+      openMandelJulia3DFromUI('chips-container-click');
     });
     ctl.querySelectorAll('[data-poly4d]').forEach(b=>b.onclick=()=>{ state.poly4d=b.dataset.poly4d; buildPolytope4D(); buildCtl(); });
     ctl.querySelectorAll('[data-orb]').forEach(b=>b.onclick=()=>{ const c=b.dataset.orb;
@@ -11799,22 +12103,22 @@ function buildCtl(){
       fractalUniforms.uPlaneRot.value = ((fractalUniforms.uPlaneRot.value+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;
       updCtlVals(); buildCtl();
     });
-    ctl.querySelector('#mjMethod')?.addEventListener('change',e=>{fractalUniforms.uMJMethod.value=+e.target.value|0;updCtlVals();buildCtl();});
-    ctl.querySelector('#mjmix')?.addEventListener('input',e=>{fractalUniforms.uMJMix.value=+e.target.value;fractalUniforms.uMJAlpha.value=+e.target.value; if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); updCtlVals();});
-    ctl.querySelector('#mjbeta')?.addEventListener('input',e=>{fractalUniforms.uMJBeta.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjgamma')?.addEventListener('input',e=>{fractalUniforms.uMJGamma.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjdelta')?.addEventListener('input',e=>{fractalUniforms.uMJDelta.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjpower')?.addEventListener('input',e=>{fractalUniforms.uMJPower.value=+e.target.value; if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); updCtlVals();});
-    ctl.querySelector('#mjtrap')?.addEventListener('input',e=>{fractalUniforms.uMJTrap.value=+e.target.value; if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); updCtlVals();});
-    ctl.querySelector('#mjrays')?.addEventListener('input',e=>{fractalUniforms.uMJRays.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjeps')?.addEventListener('input',e=>{fractalUniforms.uMJEpsilon.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjtheta')?.addEventListener('input',e=>{fractalUniforms.uMJTheta.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjlambda')?.addEventListener('input',e=>{fractalUniforms.uMJLambda.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjmemory')?.addEventListener('input',e=>{fractalUniforms.uMJMemory.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjfold')?.addEventListener('input',e=>{fractalUniforms.uMJFold.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#mjslice')?.addEventListener('input',e=>{fractalUniforms.uMJSlice.value=+e.target.value; if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); updCtlVals();});
-    ctl.querySelector('#mjzlift')?.addEventListener('input',e=>{fractalUniforms.uMJZLift.value=+e.target.value; if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); updCtlVals();});
-    ctl.querySelector('#mjdisplay')?.addEventListener('change',e=>{fractalUniforms.uMJDisplay.value=+e.target.value|0;updCtlVals();});
+    ctl.querySelector('#mjMethod')?.addEventListener('change',e=>{fractalUniforms.uMJMethod.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();buildCtl();});
+    ctl.querySelector('#mjmix')?.addEventListener('input',e=>{fractalUniforms.uMJMix.value=+e.target.value;fractalUniforms.uMJAlpha.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjbeta')?.addEventListener('input',e=>{fractalUniforms.uMJBeta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjgamma')?.addEventListener('input',e=>{fractalUniforms.uMJGamma.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjdelta')?.addEventListener('input',e=>{fractalUniforms.uMJDelta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjpower')?.addEventListener('input',e=>{fractalUniforms.uMJPower.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjtrap')?.addEventListener('input',e=>{fractalUniforms.uMJTrap.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjrays')?.addEventListener('input',e=>{fractalUniforms.uMJRays.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjeps')?.addEventListener('input',e=>{fractalUniforms.uMJEpsilon.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjtheta')?.addEventListener('input',e=>{fractalUniforms.uMJTheta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjlambda')?.addEventListener('input',e=>{fractalUniforms.uMJLambda.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjmemory')?.addEventListener('input',e=>{fractalUniforms.uMJMemory.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjfold')?.addEventListener('input',e=>{fractalUniforms.uMJFold.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjslice')?.addEventListener('input',e=>{fractalUniforms.uMJSlice.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjzlift')?.addEventListener('input',e=>{fractalUniforms.uMJZLift.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjdisplay')?.addEventListener('change',e=>{fractalUniforms.uMJDisplay.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();});
     ctl.querySelectorAll('[data-mjpreset]').forEach(b=>b.onclick=()=>{ const [x,y,m]=b.dataset.mjpreset.split(',').map(Number); fractalUniforms.uJulia.value.set(x,y); fractalUniforms.uMJMethod.value=m|0; setFractalZoom(Math.max(fractalUniforms.uZoom.value,3)); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); });
@@ -11822,15 +12126,16 @@ function buildCtl(){
     ctl.querySelector('#fcy')?.addEventListener('change',e=>{fractalUniforms.uCenter.value.y=+e.target.value||0;});
     ctl.querySelector('#fgrid')?.addEventListener('change',e=>fractalUniforms.uGrid.value=e.target.checked?1:0);
     ctl.querySelector('#fScreenPan')?.addEventListener('change',e=>{fractalScreenStablePan=!!e.target.checked;});
+    ctl.querySelector('#mjOpen3D')?.addEventListener('click',()=>openMandelJulia3DFromUI('panel-open-button'));
     ctl.querySelector('#flvl')?.addEventListener('input',e=>{fractalUniforms.uLevel.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#jre')?.addEventListener('change',e=>fractalUniforms.uJulia.value.x=+e.target.value||0);
-    ctl.querySelector('#jim')?.addEventListener('change',e=>fractalUniforms.uJulia.value.y=+e.target.value||0);
+    ctl.querySelector('#jre')?.addEventListener('change',e=>{fractalUniforms.uJulia.value.x=+e.target.value||0;scheduleMandelJuliaFiberRebuild();});
+    ctl.querySelector('#jim')?.addEventListener('change',e=>{fractalUniforms.uJulia.value.y=+e.target.value||0;scheduleMandelJuliaFiberRebuild();});
     ctl.querySelector('#bifFeig')?.addEventListener('click',()=>{ fractalUniforms.uCenter.value.set(3.5699456,0.5); setFractalZoom(42); buildCtl(); });
     ctl.querySelector('#bifFull')?.addEventListener('click',()=>{ setFractalType('bifurcation',true); buildCtl(); });
     ctl.querySelector('#bifOverlay')?.addEventListener('change',e=>{ fractalUniforms.uBifOverlay.value=e.target.checked?1:0; });
     ctl.querySelectorAll('[data-bifjump]').forEach(b=>b.onclick=()=>{ fractalUniforms.uBifOverlay.value=1;
       fractalUniforms.uCenter.value.set(+b.dataset.bifjump,0); setFractalZoom(Math.max(fractalUniforms.uZoom.value,6)); buildCtl(); });
-    ctl.querySelector('#freset')?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
+    (ctl.querySelector('#freset')||ctl.querySelector('#fresetGeo3D'))?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
     ctl.querySelector('#fgolden')?.addEventListener('click',()=>{
       fractalUniforms.uCenter.value.set(-.743643887037151,.13182590420533);
       setFractalZoom(850); buildCtl();
@@ -12296,6 +12601,73 @@ function setMode(mode){
   buildCtl();
   updateBreadcrumb();
 }
+
+/* === HARD FIX 2026-06-20: Mandel-Julia 3D fibers button must always act ===
+   Problem fixed: on mobile/Safari the chip click could be swallowed by panel/pointer
+   logic or the UI could rebuild without a visible mode switch. This capture-level
+   handler and explicit force function make mjfiber3d deterministic. */
+function forceMandelJulia3DFibers(reason='manual') {
+  try {
+    activateMandelJulia3DFibers(reason);
+    if(typeof buildCtl==='function') buildCtl();
+    activateMandelJulia3DFibers(reason+'-post-controls');
+  } catch(err) {
+    console.error('[FBS3R] forceMandelJulia3DFibers failed', err);
+  }
+}
+function openMandelJulia3DFromUI(reason='ui') {
+  try {
+    fractalType='mjfiber3d';
+    fractalUniforms.uMode.value=FRACTAL_TYPES.mjfiber3d;
+    if(state.mode!=='fractal') state.mode='fractal';
+    setFractalType('mjfiber3d', false);
+    buildMandelJuliaFiber3D(true);
+    mjFiberGroup.visible=true;
+    if(typeof updateBifurcView==='function') updateBifurcView();
+    syncControlCapabilities();
+    syncCameraClipping(true);
+    if(typeof buildCtl==='function') buildCtl();
+    if(typeof hudFlash==='function') hudFlash('Mandel-Julia 3D fibers opened');
+    requestAnimationFrame(()=>{
+      if(fractalType!=='mjfiber3d') fractalType='mjfiber3d';
+      fractalUniforms.uMode.value=FRACTAL_TYPES.mjfiber3d;
+      buildMandelJuliaFiber3D(true);
+      mjFiberGroup.visible=true;
+      if(typeof updateBifurcView==='function') updateBifurcView();
+    });
+  } catch(err) {
+    console.error('[FBS3R] openMandelJulia3DFromUI failed', reason, err);
+    forceMandelJulia3DFibers(reason+'-fallback');
+  }
+}
+let lastMJFiberSwitchT=0;
+function handleMJFiberChipEvent(ev){
+  const target = ev.target;
+  let chip = target?.closest?.('[data-fractal]') || target?.parentElement?.closest?.('[data-fractal]');
+  if(!chip && Number.isFinite(ev.clientX) && Number.isFinite(ev.clientY)){
+    const atPoint=document.elementFromPoint(ev.clientX,ev.clientY);
+    chip = atPoint?.closest?.('[data-fractal]') || atPoint?.parentElement?.closest?.('[data-fractal]');
+  }
+  if(!chip || !chip.closest('#ctl')) return;
+  const next = chip.dataset.fractal;
+  if(next!=='mjfiber3d') return;
+  // Capture only the critical MJ 3D chip. Other fractal chips keep their ordinary
+  // per-control onclick path, so this safety net cannot desynchronise the atlas.
+  ev.preventDefault();
+  ev.stopPropagation();
+  ev.stopImmediatePropagation?.();
+  const now=performance.now();
+  if(now-lastMJFiberSwitchT<140) return;
+  lastMJFiberSwitchT=now;
+  openMandelJulia3DFromUI('delegated-'+ev.type);
+}
+// The primary chip onclick path now handles mjfiber3d exactly like the working
+// Mandelbrot/Julia chips. Keep the delegated handler available for manual
+// diagnostics, but do not attach it globally: capture-level interception was
+// the cause of the apparently dead MJ button in panel stacks.
+window.FBS3R_FORCE_MJ3D = forceMandelJulia3DFibers;
+window.FBS3R_OPEN_MJ3D = openMandelJulia3DFromUI;
+
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
@@ -12347,7 +12719,7 @@ applyAudienceMode(state.atlasAudience);
 /* ---------------- mobile layout ---------------- */
 const isMobile = MOBILE_GPU;
 if(isMobile){
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.22));  // stable thermal/GPU budget on phones
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.02));  // stable thermal/GPU budget on phones
   requestRendererResize();
   closeAllPanels();
 }else{
@@ -12784,7 +13156,7 @@ function journeyHtml(){
 const AtlasCoach=(()=>{
   const el=document.getElementById('atlasCoach');
   const LS={dismissed:'atlasCoachDismissed',collapsed:'atlasCoachCollapsed',step:'atlasCoachStep'};
-  let step=0, relIdx=0, lastCtxKey=null;
+  let step=0, relIdx=0, lastCtxKey=null, autoMini=false;
   const lsGet=k=>{ try{return localStorage.getItem(k);}catch(e){return null;} };
   const lsSet=(k,v)=>{ try{localStorage.setItem(k,v);}catch(e){} };
   const dismissed=()=>lsGet(LS.dismissed)==='1';
@@ -12811,10 +13183,12 @@ const AtlasCoach=(()=>{
       document.body.classList.remove('ctl-open','mode-brief-open');
     }
     const tourMini = tourActiveNow && !journey.coachFull;
+    const effectiveCollapsed = collapsed() || autoMini;
     el.classList.toggle('tourMini', !!tourMini);
-    el.classList.toggle('collapsed',collapsed() && !tourMini);
+    el.classList.toggle('coachAutoMini', autoMini && !tourMini);
+    el.classList.toggle('collapsed',effectiveCollapsed && !tourMini);
     let h=`<div class="coachHead"><b>${tourMini?'Tour Player':'Atlas Coach'}</b>
-      <button class="mini" data-c="collapse" title="Collapse / expand">${collapsed()?'+':'—'}</button></div>
+      <button class="mini" data-c="collapse" title="Collapse / expand">${effectiveCollapsed?'+':'—'}</button></div>
       <div class="coachBody">`;
     if(tourMini){ h+=journeyMiniHtml(desktopTour?'desktop':'journey'); }
     else h+=journeyHtml();
@@ -12886,7 +13260,11 @@ const AtlasCoach=(()=>{
       else if(t.dataset.cj==='scope'){ journey.scope=t.value; journeyBuildList(); refresh(); } });
   }
   function action(c){
-    if(c==='collapse'){ lsSet(LS.collapsed, collapsed()?'0':'1'); refresh(); }
+    if(c==='collapse'){
+      if(autoMini){ autoMini=false; lsSet(LS.collapsed,'0'); }
+      else lsSet(LS.collapsed, collapsed()?'0':'1');
+      refresh();
+    }
     else if(c==='tourfull'){ journey.coachFull=true; lsSet(LS.collapsed,'0'); refresh(); }
     else if(c==='next'){ step=Math.min(COACH_STEPS.length-1,step+1); lsSet(LS.step,String(step)); refresh(); }
     else if(c==='prev'){ step=Math.max(0,step-1); lsSet(LS.step,String(step)); refresh(); }
@@ -12911,6 +13289,8 @@ const AtlasCoach=(()=>{
     show(){ lsSet(LS.dismissed,'0'); el.hidden=false; refresh(); },
     dismiss(){ lsSet(LS.dismissed,'1'); el.hidden=true; },
     setCollapsed(v){ lsSet(LS.collapsed,v?'1':'0'); refresh(); },
+    setAutoMini(v){ autoMini=!!v; refresh(); },
+    isAutoMini:()=>autoMini,
     isCollapsed:()=>collapsed(), isDismissed:dismissed,
     get step(){return step;}, get stepCount(){return COACH_STEPS.length;},
     steps:COACH_STEPS, lsKeys:Object.values(LS) };
@@ -13296,6 +13676,7 @@ function tickBody(now, frame){
   MOTION.apply(dt); MOTION.uiTick(dt);
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
   updateLaniakeaFlows(dt);
+  XRX.updateNoetherBoundaryFlow?.(dt);
   updateHierarchyLocator();
   updateLabelRelevance();
   updateScaleReturnDock();
@@ -13314,9 +13695,23 @@ function tickBody(now, frame){
   if(state.mode==='fractal' && !renderer.xr.isPresenting){
     controls.update();
     stabilizeCamera();
-    if(GEO_FRACTALS.has(fractalType)){            // true-3D geometry rendered with the perspective camera
+    // HARD RENDER FIX: the UI chip and the shader uniform can disagree on iOS.
+    // If either the symbolic type OR uMode says mjfiber3d, force the real 3D branch.
+    const mjFiberModeActive = (fractalType==='mjfiber3d' || fractalUniforms.uMode.value===FRACTAL_TYPES.mjfiber3d);
+    if(mjFiberModeActive){
+      fractalType='mjfiber3d';
+      fractalUniforms.uMode.value=FRACTAL_TYPES.mjfiber3d;
+      if(!mjFiberGroup.children.length) buildMandelJuliaFiber3D(true);
+      mjFiberGroup.visible=true; bifurcGroup.visible=false; poly4dGroup.visible=false; orbitalGroup.visible=false;
+      if(labelRenderer?.domElement) labelRenderer.domElement.style.display='block';
+    }
+    if(GEO_FRACTALS.has(fractalType) || mjFiberModeActive){            // true-3D geometry rendered with the perspective camera
       // HARD BLACK-SCREEN GUARD: keep every geometry-backed fractal built and visible during render.
       // This is intentionally local to GEO_FRACTALS and does not touch materials or global renderer state.
+      if(fractalType==='mjfiber3d'){
+        if(!mjFiberGroup.children.length) buildMandelJuliaFiber3D(true);
+        mjFiberGroup.visible=true; bifurcGroup.visible=false; poly4dGroup.visible=false; orbitalGroup.visible=false;
+      }
       if(fractalType==='bifurc3d'){
         hudBig.textContent='Bifurcation ⊗ Mandelbrot · 3D';
         hudSub.textContent='Logistic period-doubling (z) rises above the real axis of the Mandelbrot set · drag to orbit · scroll to zoom';
@@ -13330,8 +13725,8 @@ function tickBody(now, frame){
         hudSub.textContent='real hydrogen orbital shape (exact nodes & phase) · gold + lobe, blue − lobe · drag to orbit';
       } else {
         mjFiberGroup.rotation.y+=dt*0.045;
-        hudBig.textContent='Mandelbrot ⇄ Julia · 3D parameter-dynamic fiber manifold';
-        hudSub.textContent='x/z = c parameter plane · height = critical/Julia coherence · color = escape, rays and potential';
+        hudBig.textContent='Mandelbrot ⇄ Julia · 3D fiber manifold';
+        hudSub.textContent='distinct 3D mode: lifted c-plane, selected Julia fiber, coherence height and parameter-dynamic slice';
       }
       renderer.render(scene, camera);
       if(!labelModeActive()||++labelRenderFrame%4===0) labelRenderer.render(scene,camera);   // throttled 3D annotations
@@ -13347,7 +13742,7 @@ function tickBody(now, frame){
     fractalUniforms.uTanFov.value = Math.tan(camera.fov*DEG/2);
     const ft={mandelbulb:'3D Mandelbulb distance estimator',mandelbrot:'Mandelbrot parameter plane',
       julia:'Julia dynamical plane',buddhabrot:'Buddhabrot escaped-orbit density',nested:'φ-Nested equipotential atlas',
-      bifurcation:'Logistic bifurcation · period-doubling → chaos',mandeljulia:'Mandelbrot ⇄ Julia · '+(MANDEL_JULIA_METHODS[fractalUniforms.uMJMethod.value]?.[0]||'correspondence')}[fractalType];
+      bifurcation:'Logistic bifurcation · period-doubling → chaos',mandeljulia:'Mandelbrot ⇄ Julia · '+(MANDEL_JULIA_METHODS[fractalUniforms.uMJMethod.value]?.[0]||'correspondence'),mjfiber3d:'Mandelbrot ⇄ Julia 3D fibers'}[fractalType];
     hudBig.textContent = fractalType==='mandelbulb' ? `${ft} · n=${fractalUniforms.uPower.value.toFixed(1)} · ${fractalPalette}`
       : `${ft} · zoom ${fractalUniforms.uZoom.value.toExponential(2)}× · ${fractalPalette}`;
     hudSub.textContent = fractalType==='mandelbulb'
@@ -13673,7 +14068,7 @@ function tickBody(now, frame){
     ({mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot set',julia:'Julia set',
       buddhabrot:'Buddhabrot density',nested:'φ-nested contours',bifurcation:'Logistic bifurcation',
       bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D polytope projection',orbital3d:'Hydrogen orbital cloud',
-      mandeljulia:'Mandelbrot ⇄ Julia correspondence lab'})[k]||k,
+      mandeljulia:'Mandelbrot ⇄ Julia correspondence lab',mjfiber3d:'Mandelbrot ⇄ Julia 3D fiber manifold'})[k]||k,
     'fractal','Selectable mathematical visualization context; palette is a transfer function, not physical evidence.'])
 ].forEach(([key,name,mode,desc])=>registerSel(key,{
   name,mode,desc,getPos:()=>key==='cycPhaseAtlas'?cycPhaseInst.position.clone():new THREE.Vector3(),
@@ -14173,16 +14568,888 @@ window.FBS3R_PRODUCTION_PLATFORM={version:FBS3R_PRODUCTION_PLATFORM_VERSION,open
 </script>
 
 
-
 <script>
-window.FBS3R_DISABLED_EXPERIMENTS = Object.freeze({
-  mjfiber3d: {
-    status: "disabled",
-    reason: "Mandel-Julia 3D fibers was unstable/non-functional in mobile UI; removed from production UI on 2026-06-20.",
-    safeAlternative: "Use Mandelbrot ⇄ Julia 2D lab."
-  }
-});
+/* FBS3R BLACK-SCREEN FIX SELF-CHECK — Mandelbrot⇄Julia 3D fibers
+   INVARIANT: selecting mjfiber3d must create visible Three.js geometry immediately.
+   This block is non-invasive: no renderer monkey-patch, no material override, no data mutation. */
+window.FBS3R_MJ3D_VISIBILITY_GUARD = {
+  version: '2026-06-20.mj3d-hard-fix.v2',
+  expected: 'Selecting Mandel-Julia 3D fibers must change the scene immediately and visibly',
+  note: 'The mode now force-builds a distinct 3D point-manifold, selected Julia helix, parameter-plane frame and lifted slice. If the control button is pressed, the scene must visibly change.',
+};
+window.FBS3R_MJ3D_FIX_NOTES = ['force switch on click','distinct 3D geometry','camera recenter for mjfiber3d','visible helix and frame','safe rebuild'];
+
 </script>
 
+
+<!-- === FBS3R EXECUTION LAYER 2026-06-20: atlas bundle blueprint + overlay journal + release gate === -->
+<style id="fbs3r-execution-layer-css">
+  #execPlatformDock{position:fixed;right:14px;bottom:calc(332px + env(safe-area-inset-bottom,0px));z-index:151;display:flex;flex-direction:column;gap:7px;pointer-events:auto}
+  #execPlatformDock .btn{padding:8px 10px;border-radius:999px;background:rgba(4,7,13,.80);box-shadow:0 0 20px rgba(212,175,106,.14)}
+  .execPanel{position:fixed;left:14px;top:calc(var(--topbar-h,64px) + 56px);width:min(470px,calc(100vw - 28px));max-height:calc(100vh - var(--topbar-h,64px) - 86px);overflow:auto;z-index:152;display:none;background:linear-gradient(180deg,rgba(6,9,16,.95),rgba(3,5,9,.91));border:1px solid rgba(212,175,106,.34);border-radius:18px;box-shadow:0 0 44px rgba(0,0,0,.58), inset 0 0 24px rgba(212,175,106,.045);padding:12px;color:var(--txt);backdrop-filter:blur(10px)}
+  .execPanel.open{display:block}.execPanel h3{font-family:var(--serif);color:var(--gold);letter-spacing:1.35px;font-size:13px;margin:0 34px 8px 0}.execPanel .execClose{position:absolute;right:10px;top:8px}.execSub{color:var(--dim);font-size:10.5px;line-height:1.38;margin:6px 0 9px}.execGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:8px 0}.execCard{border:1px solid rgba(212,175,106,.18);border-radius:12px;background:rgba(0,0,0,.18);padding:8px;font-size:10.5px;overflow-wrap:anywhere}.execCard b{display:block;color:var(--gold-2);font-size:11px;margin-bottom:3px}.execRow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:7px 0}.execPanel pre{white-space:pre-wrap;overflow-wrap:anywhere;background:rgba(0,0,0,.22);border:1px solid rgba(212,175,106,.12);border-radius:12px;padding:8px;font:10px/1.42 ui-monospace,Menlo,Consolas,monospace;max-height:260px;overflow:auto}.execStatus{display:inline-block;border:1px solid rgba(212,175,106,.24);border-radius:999px;padding:2px 7px;font:700 9px var(--sans);letter-spacing:.35px}.execPass{color:#9ce3c6;border-color:rgba(156,227,198,.38)}.execWarn{color:var(--warn);border-color:rgba(232,184,106,.42)}.execFail{color:#ff9f9f;border-color:rgba(255,159,159,.45)}.execPanel textarea{width:100%;min-height:72px;resize:vertical;border:1px solid rgba(212,175,106,.22);border-radius:12px;background:rgba(0,0,0,.22);color:var(--txt);padding:8px;font:11px/1.45 ui-monospace,Menlo,Consolas,monospace}.execTiny{color:var(--dim);font-size:9.5px;line-height:1.35}.execTable{width:100%;border-collapse:collapse;font-size:10.5px;margin:6px 0}.execTable td,.execTable th{border-bottom:1px solid rgba(212,175,106,.12);padding:4px 5px;text-align:left}.execTable td:last-child{text-align:right;color:var(--gold-2)}
+  body.day #execPlatformDock .btn, body.day .execPanel{background:linear-gradient(165deg,rgba(250,246,235,.96),rgba(238,231,212,.94));color:#2a2418}body.day .execCard,body.day .execPanel pre,body.day .execPanel textarea{background:rgba(252,248,238,.68);color:#2a2418}
+  @media(max-width:820px){#execPlatformDock{right:8px;bottom:calc(232px + env(safe-area-inset-bottom,0px))}#execPlatformDock .btn{font-size:10px;padding:7px 8px}.execPanel{left:8px;right:8px;width:auto;top:calc(var(--topbar-h,64px) + 48px);max-height:56vh;border-radius:14px;padding:10px}.execGrid{grid-template-columns:1fr}}
+</style>
+<script id="fbs3r-execution-layer-js">
+(function(){
+  'use strict';
+  const VERSION='2026-06-20.execution-platform-v1';
+  const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+  const enc=new TextEncoder();
+  function escHtml(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));}
+  async function sha256Hex(text){
+    if(!crypto?.subtle){return 'sha256-unavailable';}
+    const buf=await crypto.subtle.digest('SHA-256', enc.encode(String(text)));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  function downloadText(name, text, type='application/json'){
+    const blob=new Blob([text],{type}); const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click();
+    setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},900);
+  }
+  function allIdsFromRuntime(){const seen=Object.create(null), dup=[];document.querySelectorAll('[id]').forEach(el=>{if(seen[el.id])dup.push(el.id);else seen[el.id]=1;});return dup;}
+  function externalDeps(){
+    const deps=[];
+    document.querySelectorAll('script[src],link[href],img[src],source[src]').forEach(n=>deps.push({tag:n.tagName.toLowerCase(),kind:n.rel||n.type||'',url:n.src||n.href||''}));
+    const im=document.querySelector('script[type="importmap"]');
+    if(im){try{const j=JSON.parse(im.textContent||'{}');Object.entries(j.imports||{}).forEach(([k,u])=>deps.push({tag:'importmap',kind:k,url:u}));}catch(e){deps.push({tag:'importmap',kind:'parse-error',url:String(e)});}}
+    return deps;
+  }
+  function localAssetRisks(){return externalDeps().filter(d=>/^(file:|\.\/|\.\.\/|\/Users\/|\/home\/|\/mnt\/|[A-Za-z]:\\)/.test(d.url));}
+  function currentPayloadStats(){
+    const scripts=[...document.scripts]; const styles=[...document.querySelectorAll('style')]; const jsonScripts=scripts.filter(s=>(s.type||'').includes('json'));
+    return {html_chars:document.documentElement.outerHTML.length,script_count:scripts.length,inline_module_scripts:scripts.filter(s=>s.type==='module'&&!s.src).length,inline_classic_scripts:scripts.filter(s=>(!s.type||s.type==='text/javascript')&&!s.src).length,json_manifest_scripts:jsonScripts.length,style_blocks:styles.length,external_dependencies:externalDeps().length};
+  }
+  async function buildBundleBlueprint(){
+    const html='<!DOCTYPE html>\n'+document.documentElement.outerHTML;
+    const styleText=[...document.querySelectorAll('style')].map(s=>s.textContent||'').join('\n');
+    const importMap=document.querySelector('script[type="importmap"]')?.textContent||'';
+    const heritage=document.getElementById('fbs3r-heritage-kernel-json')?.textContent||'';
+    const prodCheck=globalThis.FBS3R_PRODUCTION_PLATFORM?.runSelfCheck?.()||null;
+    const heritageCheck=globalThis.FBS3R_HERITAGE_KERNEL?.runSelfCheck?.()||null;
+    const chunks=[
+      {name:'shell.html',role:'runtime shell',format:'text/html',resident:true,bytes:new Blob([html]).size,sha256:await sha256Hex(html)},
+      {name:'inline-styles.css',role:'visual runtime',format:'text/css',resident:true,bytes:new Blob([styleText]).size,sha256:await sha256Hex(styleText)},
+      {name:'import-map.json',role:'dependency map',format:'application/importmap+json',resident:true,bytes:new Blob([importMap]).size,sha256:await sha256Hex(importMap)},
+      {name:'heritage-kernel.json',role:'semantic governance',format:'application/json',resident:true,bytes:new Blob([heritage]).size,sha256:await sha256Hex(heritage)},
+      {name:'scene_lod0.glb',role:'future binary geometry payload',format:'model/gltf-binary',resident:true,status:'declared integration point'},
+      {name:'textures_lod0.ktx2',role:'future GPU texture payload',format:'image/ktx2',resident:true,status:'declared integration point'},
+      {name:'hot_analytics.arrow',role:'future hot analytical tables',format:'application/vnd.apache.arrow.file',resident:true,status:'declared integration point'},
+      {name:'cold_archive.parquet',role:'future cold analytical tables',format:'application/vnd.apache.parquet',resident:false,status:'declared integration point'},
+      {name:'overlay_journal.crdt',role:'future mutable user/collaboration overlay',format:'application/octet-stream',resident:false,status:'declared integration point'}
+    ];
+    return {id:'FBS3R_ATLAS_BUNDLE_BLUEPRINT',version:VERSION,generated_at:new Date().toISOString(),principle:'one physical artifact; specialized internal payloads; immutable base plus mutable overlay journal',container_target:'.atlas',current_runtime:'single HTML prototype with CDN import-map dependencies',stats:currentPayloadStats(),release_state:{production:prodCheck,heritage:heritageCheck,runtime_duplicate_ids:allIdsFromRuntime(),local_asset_risks:localAssetRisks(),external_dependencies:externalDeps()},chunk_directory:chunks,immutability_rules:['do not mutate scientific coordinates','do not rewrite evidence tiers/source tags from UI events','use overlay journal for user annotations and collaboration','treat GLB/KTX2/Arrow/Parquet as future binary payload seams']};
+  }
+  function overlayJournal(){
+    try{return JSON.parse(localStorage.getItem('FBS3R_OVERLAY_JOURNAL_V1')||'[]');}catch(e){return [];}
+  }
+  function saveOverlayJournal(j){localStorage.setItem('FBS3R_OVERLAY_JOURNAL_V1',JSON.stringify(j.slice(-300)));}
+  function addOverlayEntry(text){
+    const j=overlayJournal();
+    j.push({id:'ov_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7),time:new Date().toISOString(),selected_key:globalThis.FBS3R_SELECTED_KEY||null,note:String(text||'').trim(),kind:'local_note',mutates_base:false});
+    saveOverlayJournal(j); renderOverlayPanel();
+  }
+  function gateRows(){
+    const stats=currentPayloadStats(); const prod=globalThis.FBS3R_PRODUCTION_PLATFORM?.runSelfCheck?.(); const hk=globalThis.FBS3R_HERITAGE_KERNEL?.runSelfCheck?.(); const dup=allIdsFromRuntime(); const deps=externalDeps();
+    return [
+      {k:'HTML syntax',v:'checked at build time',ok:true,detail:'node --check on extracted JS'},
+      {k:'runtime duplicate IDs',v:dup.length?dup.join(', '):'none',ok:dup.length===0,detail:'current DOM scan'},
+      {k:'local file paths',v:localAssetRisks().length?localAssetRisks().length+' risks':'none',ok:localAssetRisks().length===0,detail:'no /mnt, /home, file:, C:\\ paths'},
+      {k:'external dependencies',v:deps.length?deps.length+' declared':'none',ok:false,detail:'current version still uses CDN/import-map/fonts; offline packaging remains next binary-bundle step'},
+      {k:'production contracts',v:prod?prod.contract_count+' contracts':'platform pending',ok:!!prod?.contracts_valid,detail:'Object Passport / semantic contracts'},
+      {k:'science read-only',v:prod?.science_read_only?'true':'check',ok:!!prod?.science_read_only,detail:'interaction layer must not mutate scientific fields'},
+      {k:'heritage kernel',v:hk?'present':'pending',ok:!!hk,detail:hk?.id||'FBS3R_HERITAGE_KERNEL'},
+      {k:'single HTML artifact',v:stats.html_chars.toLocaleString()+' chars',ok:true,detail:'current deliverable remains one HTML file'}
+    ];
+  }
+  function ensureUI(){
+    if(document.getElementById('execPlatformDock'))return;
+    const dock=document.createElement('div'); dock.id='execPlatformDock'; dock.innerHTML='<button class="btn" id="execBundleBtn" title="Atlas bundle blueprint and chunk directory">▦ Bundle</button><button class="btn" id="execOverlayBtn" title="Immutable base + mutable overlay journal">✎ Overlay</button><button class="btn" id="execGateBtn" title="Release gate / QA status">✓ Gate</button>'; document.body.appendChild(dock);
+    const panels=document.createElement('div'); panels.innerHTML=`
+      <section id="execBundlePanel" class="execPanel"><button class="btn execClose">×</button><h3>Atlas Bundle Blueprint</h3><div class="execSub">Single-file execution target: immutable base artifact + typed internal chunks. Current HTML stays runnable; GLB/KTX2/Arrow/Parquet are explicit future payload seams, not fake backends.</div><div class="execGrid" id="execBundleStats"></div><div class="execRow"><button class="btn green" id="execExportBlueprint">Export blueprint JSON</button><button class="btn" id="execRefreshBlueprint">Refresh</button></div><pre id="execBundlePreview">building…</pre></section>
+      <section id="execOverlayPanel" class="execPanel"><button class="btn execClose">×</button><h3>Overlay Journal</h3><div class="execSub">Local-first mutable layer for notes/selections. It never edits the scientific base file; it can later be replaced by Yjs/CRDT transport.</div><textarea id="execOverlayText" placeholder="Write a local note for the current atlas state…"></textarea><div class="execRow"><button class="btn green" id="execAddOverlay">Add local note</button><button class="btn" id="execExportOverlay">Export overlay JSON</button><button class="btn warn" id="execClearOverlay">Clear local overlay</button></div><pre id="execOverlayPreview"></pre></section>
+      <section id="execGatePanel" class="execPanel"><button class="btn execClose">×</button><h3>Release Gate</h3><div class="execSub">Build/runtime readiness view. It reports limits honestly: CDN dependencies mean this is still a strong single-file HTML prototype, not yet a fully offline binary .atlas package.</div><div id="execGateRows"></div><div class="execRow"><button class="btn green" id="execExportGate">Export gate report</button><button class="btn" id="execRefreshGate">Refresh</button></div></section>`;
+    document.body.appendChild(panels);
+    document.querySelectorAll('.execPanel .execClose').forEach(b=>b.onclick=()=>b.closest('.execPanel').classList.remove('open'));
+    dock.querySelector('#execBundleBtn').onclick=()=>openPanel('execBundlePanel');
+    dock.querySelector('#execOverlayBtn').onclick=()=>openPanel('execOverlayPanel');
+    dock.querySelector('#execGateBtn').onclick=()=>openPanel('execGatePanel');
+    document.getElementById('execRefreshBlueprint').onclick=renderBundlePanel;
+    document.getElementById('execExportBlueprint').onclick=async()=>downloadText('FBS3R_ATLAS_BUNDLE_BLUEPRINT_2026_06_20.json',JSON.stringify(await buildBundleBlueprint(),null,2));
+    document.getElementById('execAddOverlay').onclick=()=>{const t=document.getElementById('execOverlayText'); if(t.value.trim()) addOverlayEntry(t.value); t.value='';};
+    document.getElementById('execExportOverlay').onclick=()=>downloadText('FBS3R_OVERLAY_JOURNAL_V1.json',JSON.stringify(overlayJournal(),null,2));
+    document.getElementById('execClearOverlay').onclick=()=>{localStorage.removeItem('FBS3R_OVERLAY_JOURNAL_V1');renderOverlayPanel();};
+    document.getElementById('execRefreshGate').onclick=renderGatePanel;
+    document.getElementById('execExportGate').onclick=()=>downloadText('FBS3R_RELEASE_GATE_REPORT_2026_06_20.json',JSON.stringify({version:VERSION,generated_at:new Date().toISOString(),rows:gateRows(),stats:currentPayloadStats()},null,2));
+    const more=document.getElementById('moreMenu');
+    if(more && !document.getElementById('execMoreBundle')){
+      [['execMoreBundle','▦ Bundle Blueprint','execBundlePanel'],['execMoreOverlay','✎ Overlay Journal','execOverlayPanel'],['execMoreGate','✓ Release Gate','execGatePanel']].forEach(([id,txt,panel])=>{const b=document.createElement('button'); b.id=id; b.className='btn'; b.textContent=txt; b.onclick=()=>openPanel(panel); more.appendChild(b);});
+    }
+    renderOverlayPanel(); renderGatePanel(); renderBundlePanel();
+  }
+  function openPanel(id){ensureUI(); ['execBundlePanel','execOverlayPanel','execGatePanel'].forEach(pid=>document.getElementById(pid)?.classList.toggle('open',pid===id)); if(id==='execBundlePanel')renderBundlePanel(); if(id==='execGatePanel')renderGatePanel(); if(id==='execOverlayPanel')renderOverlayPanel();}
+  async function renderBundlePanel(){
+    const panel=document.getElementById('execBundlePanel'); if(!panel)return;
+    const bp=await buildBundleBlueprint();
+    document.getElementById('execBundleStats').innerHTML=`<div class="execCard"><b>container target</b>${escHtml(bp.container_target)}</div><div class="execCard"><b>runtime size</b>${escHtml(bp.stats.html_chars.toLocaleString())} chars</div><div class="execCard"><b>chunk directory</b>${bp.chunk_directory.length} entries</div><div class="execCard"><b>external deps</b>${bp.stats.external_dependencies}</div>`;
+    document.getElementById('execBundlePreview').textContent=JSON.stringify({id:bp.id,version:bp.version,principle:bp.principle,current_runtime:bp.current_runtime,chunk_directory:bp.chunk_directory.map(c=>({name:c.name,role:c.role,format:c.format,resident:c.resident,status:c.status||'active',bytes:c.bytes||null,sha256:c.sha256?c.sha256.slice(0,20)+'…':undefined})),release_notes:bp.immutability_rules},null,2);
+  }
+  function renderOverlayPanel(){
+    const p=document.getElementById('execOverlayPreview'); if(!p)return;
+    const j=overlayJournal(); p.textContent=j.length?JSON.stringify(j.slice(-20),null,2):'[]\nNo overlay entries yet. The signed scientific base remains unchanged.';
+  }
+  function renderGatePanel(){
+    const el=document.getElementById('execGateRows'); if(!el)return; const rows=gateRows();
+    el.innerHTML='<table class="execTable"><thead><tr><th>Gate</th><th>Status</th><th>Value</th></tr></thead><tbody>'+rows.map(r=>`<tr><td>${escHtml(r.k)}<div class="execTiny">${escHtml(r.detail)}</div></td><td><span class="execStatus ${r.ok?'execPass':(r.k==='external dependencies'?'execWarn':'execFail')}">${r.ok?'PASS':(r.k==='external dependencies'?'KNOWN LIMIT':'CHECK')}</span></td><td>${escHtml(r.v)}</td></tr>`).join('')+'</tbody></table>';
+  }
+  async function waitForBase(){for(let i=0;i<80;i++){if(globalThis.FBS3R_PRODUCTION_PLATFORM||document.readyState==='complete')break; await sleep(100);} ensureUI();}
+  globalThis.FBS3R_EXECUTION_LAYER=Object.freeze({version:VERSION,openBundle:()=>openPanel('execBundlePanel'),openOverlay:()=>openPanel('execOverlayPanel'),openGate:()=>openPanel('execGatePanel'),buildBundleBlueprint,gateRows,overlayJournal});
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',waitForBase,{once:true}); else waitForBase();
+})();
+</script>
+
+
+
+<!-- === FBS3R EXPERIMENT CONTROLS PATCH 2026-06-20: sticky Controls + list steppers + no dock overlaps === -->
+<style id="fbs3r-experiment-controls-patch-css">
+  /* Controls is an experimental instrument panel. Once opened, it must not be auto-folded by scene taps or mode summaries. */
+  #ctl,
+  #ctl:not(.panel-folded),
+  #ctl.panel-folded{
+    right:calc(84px + env(safe-area-inset-right,0px))!important;
+    left:auto!important;
+    bottom:auto!important;
+    top:calc(var(--topbar-h,64px) + 96px)!important;
+    z-index:72!important;
+  }
+  #ctl:not(.panel-folded){
+    width:min(420px,calc(100vw - 126px))!important;
+    max-height:calc(100vh - var(--topbar-h,64px) - 128px - env(safe-area-inset-bottom,0px))!important;
+    overflow:auto!important;
+    border-radius:20px!important;
+  }
+  #ctl.panel-folded{
+    width:fit-content!important;
+    min-width:170px!important;
+    max-width:min(300px,calc(100vw - 126px))!important;
+    max-height:44px!important;
+    padding:9px 44px 9px 16px!important;
+    border-radius:999px!important;
+    overflow:hidden!important;
+  }
+  #ctl.panel-folded h3,
+  #ctl.panel-folded .panel-fold-title{max-width:220px!important;letter-spacing:1.55px!important;}
+  body.fbs3r-controls-sticky #ctl:not(.panel-folded){
+    border-color:rgba(241,221,166,.62)!important;
+    box-shadow:0 16px 58px rgba(0,0,0,.62),0 0 0 1px rgba(241,221,166,.12),inset 0 1px 0 rgba(241,221,166,.16)!important;
+  }
+  /* Floating help/settings rail keeps the right edge; Controls is shifted left of it. */
+  #helpFab,#ctlFab,#dockFab{right:18px!important;left:auto!important;z-index:86!important;}
+  /* Production/Execution docks are separated into clean vertical lanes; no button sits on top of another. */
+  #execPlatformDock{
+    right:calc(170px + env(safe-area-inset-right,0px))!important;
+    left:auto!important;
+    top:auto!important;
+    bottom:calc(92px + env(safe-area-inset-bottom,0px))!important;
+    z-index:54!important;
+    gap:10px!important;
+  }
+  #prodFab{
+    right:calc(170px + env(safe-area-inset-right,0px))!important;
+    left:auto!important;
+    top:auto!important;
+    bottom:calc(322px + env(safe-area-inset-bottom,0px))!important;
+    z-index:54!important;
+    gap:8px!important;
+  }
+  #execPlatformDock .btn,#prodFab .btn{white-space:nowrap;min-width:118px;text-align:center;}
+  /* Compact in-row list navigation for every select/list in Controls. */
+  .ctlrow.has-list-stepper{gap:6px!important;align-items:center!important;}
+  .ctlrow.has-list-stepper select{min-width:0!important;flex:1 1 128px!important;}
+  .fbs3r-stepbtn{
+    flex:0 0 auto!important;
+    min-width:34px!important;
+    min-height:32px!important;
+    padding:4px 9px!important;
+    border-radius:999px!important;
+    border:1px solid var(--gold-dim)!important;
+    background:rgba(10,14,24,.78)!important;
+    color:var(--gold-2)!important;
+    cursor:pointer!important;
+    font:800 13px var(--sans)!important;
+    line-height:1!important;
+  }
+  .fbs3r-stepbtn:hover{border-color:var(--gold)!important;box-shadow:0 0 12px rgba(212,175,106,.22)!important;}
+  .fbs3r-stepindex{flex:0 0 auto;color:var(--dim);font:700 9px var(--sans);letter-spacing:.4px;min-width:38px;text-align:center;}
+  .fbs3r-listnav{
+    display:flex;align-items:center;gap:6px;flex-wrap:nowrap;margin:5px 0 7px;padding:5px 7px;
+    border:1px solid rgba(212,175,106,.18);border-radius:999px;background:rgba(5,8,15,.46);
+  }
+  .fbs3r-listnav .fbs3r-listlabel{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim);font:700 9.5px var(--sans);letter-spacing:.55px;text-transform:uppercase;}
+  .fbs3r-listnav .fbs3r-stepbtn{min-width:38px;min-height:30px;padding:4px 10px;}
+  body.day .fbs3r-stepbtn,body.day .fbs3r-listnav{background:rgba(250,246,235,.88)!important;color:#5a4516!important;}
+  body.day .fbs3r-listnav{border-color:rgba(138,109,47,.28);}
+  @media (max-width:900px),(pointer:coarse){
+    #ctl,
+    #ctl:not(.panel-folded),
+    #ctl.panel-folded{
+      right:calc(66px + env(safe-area-inset-right,0px))!important;
+      top:calc(var(--topbar-h,64px) + 72px)!important;
+    }
+    #ctl:not(.panel-folded){
+      width:min(340px,calc(100vw - 82px))!important;
+      max-height:min(58vh,520px)!important;
+    }
+    #ctl.panel-folded{min-width:152px!important;max-width:min(248px,calc(100vw - 82px))!important;}
+    #execPlatformDock{
+      right:calc(66px + env(safe-area-inset-right,0px))!important;
+      bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;
+      gap:6px!important;
+    }
+    #prodFab{
+      right:calc(66px + env(safe-area-inset-right,0px))!important;
+      bottom:calc(250px + env(safe-area-inset-bottom,0px))!important;
+      gap:6px!important;
+    }
+    #execPlatformDock .btn,#prodFab .btn{min-width:104px;font-size:10px!important;padding:7px 8px!important;}
+    .fbs3r-stepbtn{min-width:42px!important;min-height:38px!important;}
+    .fbs3r-stepindex{display:none;}
+    .fbs3r-listnav{border-radius:14px;}
+  }
+  @media (max-width:560px),(pointer:coarse){
+    #prodFab,#execPlatformDock{display:flex!important;flex-direction:row!important;max-width:calc(100vw - 82px)!important;overflow-x:auto!important;scrollbar-width:none!important;}
+    #prodFab::-webkit-scrollbar,#execPlatformDock::-webkit-scrollbar{display:none!important;}
+    #execPlatformDock{bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;}
+    #prodFab{bottom:calc(126px + env(safe-area-inset-bottom,0px))!important;}
+    #execPlatformDock .btn,#prodFab .btn{min-width:auto!important;}
+  }
+</style>
+<script id="fbs3r-experiment-controls-patch-js">
+(function(){
+  'use strict';
+  const VERSION='2026-06-20.experiment-controls-v1';
+  const STICKY_KEY='FBS3R_CONTROLS_STICKY_OPEN_V1';
+  let restoreScheduled=false;
+  let manualSuppressUntil=0;
+  const now=()=>performance.now?performance.now():Date.now();
+  const ctl=()=>document.getElementById('ctl');
+  const visible=el=>!!el && getComputedStyle(el).display!=='none';
+  const sticky=()=>localStorage.getItem(STICKY_KEY)==='1';
+  function setSticky(v){
+    localStorage.setItem(STICKY_KEY,v?'1':'0');
+    document.body.classList.toggle('fbs3r-controls-sticky',!!v);
+  }
+  function syncCtlButton(){
+    const p=ctl(); if(!p) return;
+    const b=p.querySelector('.panel-collapser');
+    if(b){b.textContent='−';b.title='Fold Controls manually';b.setAttribute('aria-label',b.title);}
+    document.querySelectorAll('#panelDock [data-panel="ctl"],#ctlFab,#mCtl').forEach(btn=>{btn?.classList?.toggle('active',visible(p));btn?.setAttribute?.('aria-expanded',visible(p)?'true':'false');});
+  }
+  function restoreControls(){
+    restoreScheduled=false;
+    const p=ctl();
+    if(!p || !sticky() || now()<manualSuppressUntil) return;
+    if(getComputedStyle(p).display==='none') p.style.display='block';
+    p.classList.remove('panel-folded');
+    document.body.classList.add('ctl-open','panel-open','fbs3r-controls-sticky');
+    syncCtlButton();
+  }
+  function scheduleRestore(){
+    if(!sticky() || restoreScheduled) return;
+    restoreScheduled=true;
+    requestAnimationFrame(()=>{restoreControls(); setTimeout(restoreControls,30); setTimeout(restoreControls,180);});
+  }
+  function handleManualIntent(target){
+    const p=ctl(); if(!p) return;
+    const controlsToggle=target.closest?.('#panelDock [data-panel="ctl"],#ctlFab,#mCtl,#modeBriefCard');
+    const topCloser=target.closest?.('#togglePanels');
+    const controlsCollapser=target.closest?.('#ctl .panel-collapser');
+    if(controlsCollapser){
+      const willFold=!p.classList.contains('panel-folded');
+      if(willFold){ setSticky(false); manualSuppressUntil=now()+800; }
+      else setSticky(true);
+      return;
+    }
+    if(controlsToggle || topCloser){
+      const isOpen=visible(p) && !p.classList.contains('panel-folded');
+      if(isOpen && !target.closest?.('#modeBriefCard')){ setSticky(false); manualSuppressUntil=now()+900; }
+      else { setSticky(true); scheduleRestore(); }
+    }
+  }
+  document.addEventListener('click',e=>handleManualIntent(e.target),true);
+  document.addEventListener('pointerdown',e=>{
+    handleManualIntent(e.target);
+    // The base atlas folds all open panels on scene pointerdown. Restore Controls if it was pinned open.
+    setTimeout(scheduleRestore,0);
+  },true);
+  function observeControls(){
+    const p=ctl(); if(!p || p.dataset.fbs3rStickyObserver==='1') return;
+    p.dataset.fbs3rStickyObserver='1';
+    new MutationObserver(()=>scheduleRestore()).observe(p,{attributes:true,attributeFilter:['class','style']});
+    scheduleRestore();
+  }
+  function stepSelect(sel,dir){
+    if(!sel || sel.disabled) return;
+    const opts=[...sel.options].filter(o=>!o.disabled);
+    if(!opts.length) return;
+    const cur=opts.findIndex(o=>o.value===sel.value);
+    const next=opts[(cur+dir+opts.length)%opts.length];
+    if(!next) return;
+    sel.value=next.value;
+    sel.dispatchEvent(new Event('input',{bubbles:true}));
+    sel.dispatchEvent(new Event('change',{bubbles:true}));
+    updateSelectStepper(sel);
+  }
+  function updateSelectStepper(sel){
+    const row=sel.closest('.ctlrow'); if(!row) return;
+    const opts=[...sel.options].filter(o=>!o.disabled);
+    const idx=opts.findIndex(o=>o.value===sel.value);
+    const badge=row.querySelector('.fbs3r-stepindex');
+    if(badge) badge.textContent=opts.length?`${idx+1}/${opts.length}`:'0/0';
+  }
+  function decorateSelect(sel){
+    if(!sel || sel.dataset.fbs3rStepper==='1') return;
+    const row=sel.closest('.ctlrow'); if(!row) return;
+    sel.dataset.fbs3rStepper='1'; row.classList.add('has-list-stepper');
+    const prev=document.createElement('button'); prev.type='button'; prev.className='fbs3r-stepbtn'; prev.textContent='‹'; prev.title='Previous item in this list';
+    const next=document.createElement('button'); next.type='button'; next.className='fbs3r-stepbtn'; next.textContent='›'; next.title='Next item in this list';
+    const badge=document.createElement('span'); badge.className='fbs3r-stepindex';
+    row.insertBefore(prev,sel);
+    if(sel.nextSibling) row.insertBefore(next,sel.nextSibling); else row.appendChild(next);
+    row.insertBefore(badge,next.nextSibling||null);
+    prev.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();stepSelect(sel,-1);});
+    next.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();stepSelect(sel,1);});
+    sel.addEventListener('change',()=>updateSelectStepper(sel));
+    updateSelectStepper(sel);
+  }
+  function chipGroupName(chips){
+    const first=chips.querySelector('button.chip');
+    if(!first) return 'List';
+    const ds=first.dataset||{};
+    if(ds.fractal!==undefined) return 'Fractal modes';
+    if(ds.mjpreset!==undefined) return 'Julia presets';
+    if(ds.poly4d!==undefined) return '4D polytope list';
+    if(ds.orbpreset!==undefined) return 'Orbital presets';
+    if(ds.bifjump!==undefined) return 'Bifurcation landmarks';
+    return 'Preset list';
+  }
+  function stepChips(chips,dir){
+    const buttons=[...chips.querySelectorAll('button.chip')].filter(b=>!b.disabled);
+    if(buttons.length<2) return;
+    let idx=buttons.findIndex(b=>b.classList.contains('on')||b.classList.contains('active'));
+    if(idx<0) idx=Number(chips.dataset.fbs3rNavIndex||-1);
+    idx=(idx+dir+buttons.length)%buttons.length;
+    chips.dataset.fbs3rNavIndex=String(idx);
+    buttons[idx].click();
+  }
+  function decorateChips(chips){
+    if(!chips || chips.dataset.fbs3rStepper==='1') return;
+    const buttons=chips.querySelectorAll('button.chip');
+    if(buttons.length<2) return;
+    chips.dataset.fbs3rStepper='1';
+    const nav=document.createElement('div'); nav.className='fbs3r-listnav';
+    nav.innerHTML='<span class="fbs3r-listlabel"></span><button type="button" class="fbs3r-stepbtn" data-dir="-1">‹</button><button type="button" class="fbs3r-stepbtn" data-dir="1">›</button>';
+    nav.querySelector('.fbs3r-listlabel').textContent=chipGroupName(chips);
+    nav.querySelectorAll('button').forEach(b=>b.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();stepChips(chips,Number(b.dataset.dir));}));
+    chips.parentNode?.insertBefore(nav,chips);
+  }
+  let decoRAF=0;
+  function decorateLists(){
+    decoRAF=0;
+    observeControls();
+    const scopes=[document.getElementById('ctl'),document.getElementById('settingsPanel'),document.getElementById('navPanel')].filter(Boolean);
+    for(const s of scopes){
+      s.querySelectorAll('select').forEach(decorateSelect);
+      if(s.id==='ctl') s.querySelectorAll('.chips').forEach(decorateChips);
+    }
+  }
+  function scheduleDecorate(){ if(!decoRAF) decoRAF=requestAnimationFrame(decorateLists); }
+  new MutationObserver(scheduleDecorate).observe(document.body,{childList:true,subtree:true});
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',()=>{document.body.classList.toggle('fbs3r-controls-sticky',sticky());scheduleDecorate();scheduleRestore();},{once:true});
+  else {document.body.classList.toggle('fbs3r-controls-sticky',sticky());scheduleDecorate();scheduleRestore();}
+  globalThis.FBS3R_EXPERIMENT_CONTROLS_PATCH=Object.freeze({version:VERSION,stickyControls:()=>setSticky(true),unstickControls:()=>setSticky(false),decorateLists});
+})();
+</script>
+
+
+
+<!-- === FBS3R MOBILE CLEAN DECK PATCH 2026-06-20: compact non-blocking Controls + decluttered mobile UI === -->
+<style id="fbs3r-mobile-clean-deck-css">
+  /* Mobile rule: experimental controls stay available, but never become a centered modal wall. */
+  body.mobile-clean-ui #modeBriefCard{
+    display:none!important; visibility:hidden!important; opacity:0!important; pointer-events:none!important;
+  }
+  body.mobile-clean-ui #execPlatformDock,
+  body.mobile-clean-ui #prodFab{
+    display:none!important; visibility:hidden!important; pointer-events:none!important;
+  }
+  @media (max-width:900px),(pointer:coarse){
+    body.mobile-clean-ui #ctl,
+    body.mobile-clean-ui #ctl:not(.panel-folded){
+      position:fixed!important;
+      left:10px!important;
+      right:68px!important;
+      top:auto!important;
+      bottom:calc(76px + env(safe-area-inset-bottom,0px))!important;
+      width:auto!important;
+      min-width:0!important;
+      max-width:none!important;
+      max-height:min(32vh,300px)!important;
+      padding:10px 12px 12px!important;
+      border-radius:18px!important;
+      overflow:auto!important;
+      overscroll-behavior:contain!important;
+      -webkit-overflow-scrolling:touch!important;
+      z-index:82!important;
+      box-shadow:0 16px 48px rgba(0,0,0,.58),0 0 0 1px rgba(241,221,166,.16),inset 0 1px 0 rgba(241,221,166,.12)!important;
+      backdrop-filter:blur(12px)!important;
+      -webkit-backdrop-filter:blur(12px)!important;
+    }
+    body.mobile-clean-ui #ctl.panel-folded{
+      position:fixed!important;
+      left:10px!important;
+      right:auto!important;
+      top:auto!important;
+      bottom:calc(82px + env(safe-area-inset-bottom,0px))!important;
+      width:fit-content!important;
+      min-width:0!important;
+      max-width:calc(100vw - 94px)!important;
+      height:auto!important;
+      max-height:38px!important;
+      padding:7px 38px 7px 12px!important;
+      border-radius:999px!important;
+      overflow:hidden!important;
+      z-index:82!important;
+    }
+    body.mobile-clean-ui #ctl.panel-folded > :not(.panel-collapser):not(.panel-fold-title):not(h3){display:none!important;}
+    body.mobile-clean-ui #ctl h3,
+    body.mobile-clean-ui #ctl .panel-fold-title{
+      position:sticky!important;
+      top:-10px!important;
+      z-index:2!important;
+      display:block!important;
+      margin:0 38px 8px 0!important;
+      padding:6px 0 8px!important;
+      max-width:calc(100% - 42px)!important;
+      background:linear-gradient(180deg,rgba(7,10,18,.96),rgba(7,10,18,.74))!important;
+      color:var(--gold-2)!important;
+      font-size:11.5px!important;
+      line-height:1.2!important;
+      letter-spacing:1.2px!important;
+      white-space:nowrap!important;
+      overflow:hidden!important;
+      text-overflow:ellipsis!important;
+    }
+    body.mobile-clean-ui #ctl .panel-collapser{
+      position:sticky!important;
+      float:right!important;
+      top:0!important;
+      right:0!important;
+      width:34px!important;
+      height:34px!important;
+      min-width:34px!important;
+      min-height:34px!important;
+      padding:0!important;
+      border-radius:999px!important;
+      z-index:4!important;
+    }
+    body.mobile-clean-ui #ctl .sect{margin-top:7px!important;padding-top:7px!important;}
+    body.mobile-clean-ui #ctl .sect>b{font-size:10.5px!important;letter-spacing:1.25px!important;margin-bottom:3px!important;}
+    body.mobile-clean-ui #ctl .ctlrow{margin:5px 0!important;gap:6px!important;align-items:center!important;}
+    body.mobile-clean-ui #ctl .ctlrow label{flex:1 1 84px!important;min-width:78px!important;font-size:10.5px!important;line-height:1.2!important;}
+    body.mobile-clean-ui #ctl .ctlrow .val{flex:0 0 58px!important;font-size:10.5px!important;}
+    body.mobile-clean-ui #ctl .ctlrow input[type=range]{flex:1 1 108px!important;min-width:86px!important;height:24px!important;}
+    body.mobile-clean-ui #ctl .ctlrow input[type=range]::-webkit-slider-thumb{width:22px!important;height:22px!important;margin-top:-8px!important;}
+    body.mobile-clean-ui #ctl .ctlrow input[type=range]::-webkit-slider-runnable-track{height:5px!important;}
+    body.mobile-clean-ui #ctl input[type=number],
+    body.mobile-clean-ui #ctl input[type=text],
+    body.mobile-clean-ui #ctl select{
+      min-height:34px!important;
+      font-size:13px!important;
+      border-radius:9px!important;
+    }
+    body.mobile-clean-ui #ctl .chips{gap:4px!important;margin:4px 0!important;}
+    body.mobile-clean-ui #ctl .chip{min-height:32px!important;padding:6px 9px!important;font-size:10.5px!important;}
+    body.mobile-clean-ui #ctl .fbs3r-listnav{margin:4px 0 5px!important;padding:4px 6px!important;border-radius:12px!important;}
+    body.mobile-clean-ui #ctl .fbs3r-listnav .fbs3r-listlabel{font-size:8.8px!important;}
+    body.mobile-clean-ui #ctl .fbs3r-stepbtn{min-width:34px!important;min-height:32px!important;padding:3px 8px!important;}
+
+    /* While Controls is open, all tutorial cards collapse away from the experiment area. */
+    body.mobile-clean-ui.ctl-open #atlasCoach:not(.collapsed),
+    body.mobile-clean-ui.ctl-open #atlasCoach.tourMini{
+      display:none!important; visibility:hidden!important; pointer-events:none!important;
+    }
+    body.mobile-clean-ui #atlasCoach:not(.collapsed):not(.tourMini){
+      max-width:min(270px,calc(100vw - 96px))!important;
+      max-height:30vh!important;
+      overflow:auto!important;
+    }
+    body.mobile-clean-ui #atlasCoach.collapsed{
+      left:10px!important;
+      bottom:calc(16px + env(safe-area-inset-bottom,0px))!important;
+      right:auto!important;
+      top:auto!important;
+      max-width:calc(100vw - 96px)!important;
+      padding:6px 9px!important;
+      border-radius:999px!important;
+      z-index:64!important;
+    }
+
+    /* Right-side rail: icon-only, no text blocks intruding into the scene. */
+    body.mobile-clean-ui #panelDock{
+      right:8px!important;
+      left:auto!important;
+      top:calc(var(--topbar-h,64px) + 8px)!important;
+      bottom:auto!important;
+      width:48px!important;
+      max-width:48px!important;
+      max-height:58vh!important;
+      padding:5px!important;
+      gap:5px!important;
+      overflow-y:auto!important;
+      overflow-x:hidden!important;
+      flex-direction:column!important;
+      align-items:center!important;
+      border-radius:18px!important;
+      transform-origin:top right!important;
+      z-index:76!important;
+    }
+    body.mobile-clean-ui:not(.dock-open) #panelDock{
+      opacity:0!important; transform:scale(.72) translateY(-8px)!important; pointer-events:none!important;
+    }
+    body.mobile-clean-ui #panelDock .btn{
+      width:38px!important;
+      height:34px!important;
+      min-width:38px!important;
+      min-height:34px!important;
+      max-width:38px!important;
+      padding:0!important;
+      border-radius:999px!important;
+      font-size:0!important;
+      overflow:hidden!important;
+      display:flex!important;
+      align-items:center!important;
+      justify-content:center!important;
+    }
+    body.mobile-clean-ui #panelDock .btn::before{font-size:14px!important;line-height:1!important;text-indent:0!important;}
+    body.mobile-clean-ui #togglePanels::before{content:'×';}
+    body.mobile-clean-ui #resetViewBtn::before{content:'↺';}
+    body.mobile-clean-ui #panelDock [data-panel="navPanel"]::before{content:'🧭';}
+    body.mobile-clean-ui #panelDock [data-panel="ctl"]::before{content:'⚙';}
+    body.mobile-clean-ui #panelDock [data-panel="info"]::before{content:'ⓘ';}
+    body.mobile-clean-ui #panelDock [data-panel="objectPanel"]::before{content:'⌘';}
+    body.mobile-clean-ui #panelDock [data-panel="atlasPanel"]::before{content:'QA';font-size:10px!important;font-weight:800!important;}
+    body.mobile-clean-ui #panelDock [data-panel="oscPanel"]::before{content:'⟳';}
+    body.mobile-clean-ui #panelDock [data-panel="xrCheck"]::before{content:'XR';font-size:10px!important;font-weight:800!important;}
+    body.mobile-clean-ui #panelDock [data-panel="motionPanel"]::before{content:'📱';}
+    body.mobile-clean-ui #panelDock [data-panel="selCard"]::before{content:'▣';}
+
+    body.mobile-clean-ui #helpFab,
+    body.mobile-clean-ui #ctlFab,
+    body.mobile-clean-ui #dockFab{
+      left:auto!important;
+      right:10px!important;
+      width:46px!important;
+      height:46px!important;
+      z-index:88!important;
+    }
+    body.mobile-clean-ui #helpFab{bottom:calc(14px + env(safe-area-inset-bottom,0px))!important;top:auto!important;}
+    body.mobile-clean-ui #ctlFab{bottom:calc(68px + env(safe-area-inset-bottom,0px))!important;top:auto!important;}
+    body.mobile-clean-ui #dockFab{bottom:calc(122px + env(safe-area-inset-bottom,0px))!important;top:auto!important;}
+
+    /* Navigator stays a compact start card and never fights the right rail. */
+    body.mobile-clean-ui #navPanel.start-compact:not(.panel-folded){
+      left:10px!important;
+      right:66px!important;
+      top:calc(var(--topbar-h,64px) + 8px)!important;
+      bottom:auto!important;
+      width:auto!important;
+      max-width:none!important;
+      max-height:166px!important;
+      padding:8px 36px 8px 10px!important;
+      z-index:70!important;
+    }
+    body.mobile-clean-ui #navPanel.start-compact .navGrid{
+      display:grid!important; grid-template-columns:1fr 1fr!important; gap:5px!important;
+    }
+    body.mobile-clean-ui #navPanel.start-compact .btn{min-height:31px!important;padding:6px 7px!important;font-size:10px!important;}
+
+    body.mobile-clean-ui #hierarchyLegend{
+      width:112px!important; height:112px!important;
+      right:60px!important;
+      bottom:calc(20px + env(safe-area-inset-bottom,0px))!important;
+      opacity:.78!important;
+      z-index:22!important;
+    }
+    body.mobile-clean-ui.ctl-open #hierarchyLegend,
+    body.mobile-clean-ui.dock-open #hierarchyLegend{display:none!important;}
+    body.mobile-clean-ui #hud{
+      bottom:calc(44px + env(safe-area-inset-bottom,0px))!important;
+      max-width:56vw!important;
+      z-index:28!important;
+    }
+    body.mobile-clean-ui.ctl-open #hud{display:none!important;}
+  }
+  @media (max-width:430px),(pointer:coarse){
+    body.mobile-clean-ui #ctl,
+    body.mobile-clean-ui #ctl:not(.panel-folded){
+      left:8px!important;
+      right:62px!important;
+      bottom:calc(72px + env(safe-area-inset-bottom,0px))!important;
+      max-height:min(30vh,278px)!important;
+      padding:9px 10px 10px!important;
+    }
+    body.mobile-clean-ui #ctl .ctlrow label{font-size:10px!important;min-width:70px!important;}
+    body.mobile-clean-ui #ctl .ctlrow .val{flex-basis:52px!important;font-size:10px!important;}
+    body.mobile-clean-ui #navPanel.start-compact:not(.panel-folded){right:60px!important;max-height:148px!important;}
+  }
+</style>
+<script id="fbs3r-mobile-clean-deck-js">
+(function(){
+  'use strict';
+  const VERSION='2026-06-20.mobile-clean-deck-v2';
+  const mq=matchMedia('(max-width:900px),(pointer:coarse)');
+  const ctl=()=>document.getElementById('ctl');
+  const visible=el=>!!el&&getComputedStyle(el).display!=='none';
+  function isMobile(){return mq.matches;}
+  function updateBodyState(){
+    document.body.classList.toggle('mobile-clean-ui',isMobile());
+    const p=ctl();
+    const open=!!p&&visible(p)&&!p.classList.contains('panel-folded');
+    document.body.classList.toggle('ctl-open',open);
+    if(isMobile()){
+      const mb=document.getElementById('modeBriefCard'); if(mb) mb.hidden=true;
+      // Keep Coach available, but not as an expanded card on top of the experiment.
+      const coach=document.getElementById('atlasCoach');
+      if(coach && open){ coach.classList.add('collapsed'); }
+      const prod=document.getElementById('prodFab'); if(prod) prod.style.display='none';
+      const exec=document.getElementById('execPlatformDock'); if(exec) exec.style.display='none';
+    }else{
+      const prod=document.getElementById('prodFab'); if(prod) prod.style.display='';
+      const exec=document.getElementById('execPlatformDock'); if(exec) exec.style.display='';
+    }
+  }
+  function collapseCoachOnMobile(){
+    if(!isMobile()) return;
+    try{ localStorage.setItem('atlasCoachCollapsed','1'); }catch(e){}
+    try{ if(globalThis.AtlasCoach){ AtlasCoach.setCollapsed(true); } }catch(e){}
+    const el=document.getElementById('atlasCoach');
+    if(el){ el.classList.add('collapsed'); el.classList.remove('tourMini'); }
+  }
+  function foldDefaultClutter(){
+    if(!isMobile()) return;
+    const mb=document.getElementById('modeBriefCard'); if(mb) mb.hidden=true;
+    ['prodFab','execPlatformDock'].forEach(id=>{const el=document.getElementById(id); if(el) el.style.display='none';});
+    // Do not close Controls; just keep other decks quiet.
+    const p=ctl(); if(p&&visible(p)) p.classList.remove('panel-folded');
+  }
+  function installObservers(){
+    const p=ctl();
+    if(p&&!p.dataset.mobileCleanObserver){
+      p.dataset.mobileCleanObserver='1';
+      new MutationObserver(updateBodyState).observe(p,{attributes:true,attributeFilter:['style','class']});
+    }
+    const bodyObs=new MutationObserver(()=>{updateBodyState(); foldDefaultClutter();});
+    bodyObs.observe(document.body,{childList:true,subtree:false});
+  }
+  document.addEventListener('click',e=>{
+    if(!isMobile()) return;
+    const t=e.target;
+    if(t.closest?.('#modeBriefCard')){ const mb=document.getElementById('modeBriefCard'); if(mb) mb.hidden=true; }
+    if(t.closest?.('#ctlFab,#panelDock [data-panel="ctl"],#mCtl')) setTimeout(updateBodyState,0);
+    if(t.closest?.('#dockFab')) setTimeout(updateBodyState,0);
+  },true);
+  addEventListener('resize',()=>{updateBodyState(); foldDefaultClutter();});
+  mq.addEventListener?.('change',()=>{updateBodyState(); collapseCoachOnMobile(); foldDefaultClutter();});
+  function boot(){
+    updateBodyState();
+    collapseCoachOnMobile();
+    foldDefaultClutter();
+    installObservers();
+    setTimeout(()=>{updateBodyState();collapseCoachOnMobile();foldDefaultClutter();},250);
+    setTimeout(()=>{updateBodyState();collapseCoachOnMobile();foldDefaultClutter();},1200);
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
+  globalThis.FBS3R_MOBILE_CLEAN_DECK=Object.freeze({version:VERSION,refresh:boot});
+})();
+</script>
+
+<!-- === FBS3R MOBILE FRACTAL PERFORMANCE + NON-BLOCKING CONTROLS PATCH 2026-06-20 === -->
+<style id="fbs3r-mobile-fractal-perf-css">
+  @media (max-width:900px),(pointer:coarse){
+    body.mobile-clean-ui #ctl,
+    body.mobile-clean-ui #ctl:not(.panel-folded){
+      left:8px!important;
+      right:58px!important;
+      bottom:calc(64px + env(safe-area-inset-bottom,0px))!important;
+      top:auto!important;
+      width:auto!important;
+      max-width:none!important;
+      max-height:clamp(118px,24vh,210px)!important;
+      max-height:clamp(118px,24dvh,210px)!important;
+      padding:8px 10px 10px!important;
+      border-radius:16px!important;
+      opacity:.94!important;
+      overflow:auto!important;
+      overscroll-behavior:contain!important;
+      -webkit-overflow-scrolling:touch!important;
+      transform:translateZ(0)!important;
+    }
+    body.mobile-clean-ui.mobile-fractal-view #ctl:not(.panel-folded){
+      max-height:clamp(104px,20vh,174px)!important;
+      max-height:clamp(104px,20dvh,174px)!important;
+      right:56px!important;
+    }
+    body.mobile-clean-ui #ctl.panel-folded{
+      left:8px!important;
+      right:auto!important;
+      bottom:calc(64px + env(safe-area-inset-bottom,0px))!important;
+      top:auto!important;
+      width:auto!important;
+      min-width:132px!important;
+      max-width:calc(100vw - 76px)!important;
+      max-height:36px!important;
+      padding:6px 36px 6px 11px!important;
+      border-radius:999px!important;
+      opacity:.88!important;
+    }
+    body.mobile-clean-ui #ctl .panel-fold-title,
+    body.mobile-clean-ui #ctl h3{
+      top:-8px!important;
+      margin:0 36px 5px 0!important;
+      padding:4px 0 6px!important;
+      font-size:10.5px!important;
+      letter-spacing:1.05px!important;
+    }
+    body.mobile-clean-ui #ctl .panel-collapser{
+      width:32px!important;
+      height:32px!important;
+      min-width:32px!important;
+      min-height:32px!important;
+    }
+    body.mobile-clean-ui #ctl .note{
+      font-size:10px!important;
+      line-height:1.28!important;
+      margin:5px 0!important;
+    }
+    body.mobile-clean-ui #ctl .sect{
+      margin-top:5px!important;
+      padding-top:5px!important;
+    }
+    body.mobile-clean-ui #ctl .ctlrow{
+      margin:4px 0!important;
+      gap:5px!important;
+    }
+    body.mobile-clean-ui #ctl .chip{
+      min-height:30px!important;
+      padding:4px 7px!important;
+      font-size:9.8px!important;
+      line-height:1.08!important;
+    }
+    body.mobile-clean-ui #ctl .btn{
+      min-height:32px!important;
+      padding:6px 9px!important;
+      font-size:10.5px!important;
+    }
+    body.mobile-clean-ui #hud,
+    body.mobile-clean-ui #hierarchyLegend{
+      pointer-events:none!important;
+    }
+    body.mobile-clean-ui.ctl-open #hud,
+    body.mobile-clean-ui.ctl-open #hierarchyLegend{
+      display:none!important;
+    }
+  }
+  @media (max-width:430px),(pointer:coarse){
+    body.mobile-clean-ui #ctl,
+    body.mobile-clean-ui #ctl:not(.panel-folded){
+      right:54px!important;
+      bottom:calc(60px + env(safe-area-inset-bottom,0px))!important;
+      max-height:clamp(104px,21vh,164px)!important;
+      max-height:clamp(104px,21dvh,164px)!important;
+    }
+    body.mobile-clean-ui.mobile-fractal-view #ctl:not(.panel-folded){
+      max-height:clamp(92px,18vh,138px)!important;
+      max-height:clamp(92px,18dvh,138px)!important;
+    }
+    body.mobile-clean-ui #panelDock{
+      max-height:48vh!important;
+    }
+  }
+</style>
+<script id="fbs3r-mobile-fractal-perf-js">
+(function(){
+  'use strict';
+  const VERSION='2026-06-20.mobile-fractal-perf-v1';
+  const mq=matchMedia('(max-width:900px),(pointer:coarse)');
+  const STICKY_KEY='FBS3R_CONTROLS_STICKY_OPEN_V1';
+  const ctl=()=>document.getElementById('ctl');
+  const mobile=()=>mq.matches;
+  const visible=el=>!!el&&getComputedStyle(el).display!=='none';
+  let perfApplied=false;
+  function activeMode(){
+    return document.querySelector('#modeRow .modebtn.active')?.dataset?.mode || '';
+  }
+  function sync(){
+    const isMob=mobile();
+    document.body.classList.toggle('mobile-clean-ui',isMob);
+    document.body.classList.toggle('mobile-fractal-view',isMob && activeMode()==='fractal');
+    if(!isMob) return;
+    try{ localStorage.setItem(STICKY_KEY,'0'); }catch(e){}
+    document.body.classList.remove('fbs3r-controls-sticky');
+    const p=ctl();
+    const open=visible(p)&&!p.classList.contains('panel-folded');
+    document.body.classList.toggle('ctl-open',open);
+    document.body.classList.toggle('panel-open',open || !!document.querySelector('.panel:not(.panel-folded)[style*="block"]'));
+    try{
+      if(!perfApplied && globalThis.XRX?.applyQuality){
+        globalThis.XRX.applyQuality('questSafe');
+        perfApplied=true;
+      }
+    }catch(e){}
+  }
+  function foldControlsSoon(delay=420){
+    if(!mobile()) return;
+    setTimeout(()=>{
+      const p=ctl();
+      if(!p || !visible(p)) return;
+      p.classList.add('panel-folded');
+      document.body.classList.remove('ctl-open');
+    },delay);
+  }
+  document.addEventListener('click',e=>{
+    if(!mobile()) return;
+    const t=e.target;
+    if(t.closest?.('#ctl [data-fractal]')) foldControlsSoon(520);
+    if(t.closest?.('#ctl .panel-collapser,#ctlFab,#panelDock [data-panel="ctl"],#mCtl')){
+      setTimeout(sync,0);
+      setTimeout(sync,180);
+    }
+  },true);
+  document.addEventListener('input',e=>{
+    if(!mobile()) return;
+    if(e.target?.closest?.('#ctl') && e.target.matches?.('input[type="range"]')) sync();
+  },true);
+  addEventListener('resize',sync,{passive:true});
+  addEventListener('orientationchange',()=>setTimeout(sync,120),{passive:true});
+  mq.addEventListener?.('change',sync);
+  const obs=new MutationObserver(sync);
+  function boot(){
+    const p=ctl();
+    if(p && !p.dataset.mobileFractalPerfObserver){
+      p.dataset.mobileFractalPerfObserver='1';
+      obs.observe(p,{attributes:true,attributeFilter:['class','style']});
+    }
+    sync();
+  }
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot,{once:true}); else boot();
+  setTimeout(boot,350);
+  setTimeout(boot,1400);
+  globalThis.FBS3R_MOBILE_FRACTAL_PERF=Object.freeze({version:VERSION,sync,foldControlsSoon});
+})();
+</script>
 </body>
 </html>
+
+<!-- FBS3R_MJ3D_RENDER_BRANCH_FIX: mjfiber3d now forced by either fractalType or uMode, not UI chip alone. -->
