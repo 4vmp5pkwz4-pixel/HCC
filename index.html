@@ -5974,13 +5974,33 @@ const fractalUniforms = {
   uCenter: {value:new THREE.Vector2(-.5,0)},
   uZoom:   {value:1},
   uJulia:  {value:new THREE.Vector2(-.835,-.2321)},
+  uMJMix:  {value:.5},
+  // Mandelbrot–Julia correspondence laboratory: parameter plane C_c and dynamical plane C_z are linked, not overlaid.
+  uMJMethod:{value:1},
+  uMJAlpha:{value:.62},
+  uMJBeta:{value:.34},
+  uMJGamma:{value:.48},
+  uMJDelta:{value:.28},
+  uMJPower:{value:2.0},
+  uMJTrap:{value:.42},
+  uMJRays:{value:12.0},
+  uMJAnim:{value:0.0},
+  // Extended Mandelbrot-Julia research controls: Riemann-sphere, lamination, Ecalle/Lavaurs, fractional-memory and 3D-fiber slices.
+  uMJEpsilon:{value:.18},
+  uMJTheta:{value:.1666667},
+  uMJLambda:{value:.62},
+  uMJMemory:{value:.30},
+  uMJFold:{value:.38},
+  uMJSlice:{value:.50},
+  uMJZLift:{value:.55},
+  uMJDisplay:{value:0},
   uLevel:  {value:8},
   uGrid:   {value:1},
   uPalette:{value:4},   // spectrum by default
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='mandelbulb';
 let fractalPalette='spectrum';   // spectral colours from the very first frame (phase zero)
@@ -6006,6 +6026,7 @@ function setFractalType(type,reset=true){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
     else if(type==='orbital3d'){ camera.position.set(5,4,9); setControlDistanceLimits(2.5,80); }
+    else if(type==='mjfiber3d'){ camera.position.set(6,4,11); setControlDistanceLimits(2.5,90); }
     else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
     camera.updateProjectionMatrix();
   } else if(state.mode==='fractal' && type==='mandelbulb'){
@@ -6161,15 +6182,351 @@ function buildOrbital3D(){
   });
   const tick=mkLabel(`grid ${(ext/2).toFixed(0)} a₀ ≈ ${(ext/2*0.0529).toFixed(2)} nm · l=${l} angular-momentum state (qubit / SO(3) representation)`,'label dim'); tick.position.set(0,-aLen-0.4,0); orbitalGroup.add(tick);
 }
-const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d']);   // fractal "types" rendered as real 3D geometry
+
+/* ── Mandelbrot⇄Julia 3D fiber manifold (ported from the feature lineage) ── */
+function clearThreeGroup(group){ if(!group) return; for(const c of [...group.children]){ group.remove(c); if(c.geometry&&c.geometry.dispose) c.geometry.dispose(); if(Array.isArray(c.material)) c.material.forEach(m=>m&&m.dispose&&m.dispose()); else if(c.material&&c.material.dispose) c.material.dispose(); } }
+const MANDEL_JULIA_METHODS=[
+  ['classic-family','Parameter plane c chooses the dynamical Julia plane z for f_c(z)=z²+c.'],
+  ['connectedness-gate','M is the connectedness locus: bounded critical orbit gates Julia connectivity.'],
+  ['critical-seed','Critical orbit m_n is injected into the Julia initial condition.'],
+  ['critical-value','The dynamic plane is anchored at the critical value z=c.'],
+  ['external-angle-lock','Parameter rays and dynamic rays share the angle-doubling map θ→2θ.'],
+  ['equipotential-lock','Green-potential/equipotential levels synchronize parameter and dynamic escape.'],
+  ['ray-lamination','Angle cells approximate Douady-Hubbard laminations in a joint fiber.'],
+  ['holomorphic-motion','A stable path moves Julia points holomorphically as c changes.'],
+  ['basilica-tuning','Renormalized miniature copy near the Basilica center c=-1.'],
+  ['rabbit-tuning','Douady rabbit period-3 tuning and its dynamic Julia tree.'],
+  ['airplane-tuning','Airplane period-3 real window as a tuned parameter-dynamic model.'],
+  ['seahorse-valley','Seahorse valley around the main cardioid and limb wakes.'],
+  ['misiurewicz-lens','Tan Lei local similarity near preperiodic critical parameters.'],
+  ['parabolic-petal','Parabolic cusp/petal dynamics near neutral multiplier 1.'],
+  ['multibrot-degree','Unicritical family z^d+c, d variable.'],
+  ['fractional-correspondence','Fractional-order/memory perturbation of the quadratic family.'],
+  ['logistic-real-slice','Real logistic map slice c=r/2-r²/4 on the Mandelbrot axis.'],
+  ['shared-orbit-trap','Common orbit traps measure coupled parameter and dynamic orbits.'],
+  ['critical-shadow','Julia pixels are shaded by proximity to the critical orbit.'],
+  ['renormalized-feedback','Small tuned copies inject scaled feedback at repeated periods.'],
+  ['hybrid-product','A point survives if the parameter or dynamic half remains bounded.'],
+  ['buddhabrot-transfer','Escaping critical orbits illuminate the Julia/dynamic plane.'],
+  ['boettcher-radial','Approximate Böttcher radial coordinate couples external potential levels.'],
+  ['parapuzzle-grid','Yoccoz-style parapuzzle cells: ray angle + equipotential rectangular fibers.'],
+  ['kneading-itinerary','Kneading sequence parity from angle doubling modulates the dynamic orbit.'],
+  ['internal-address','Period-doubling internal address drives a cascade of miniature copies.'],
+  ['satellite-wake-pq','p/q satellite wake approximates limb tuning by rotation number.'],
+  ['limb-wake-window','External angle window selects a Mandelbrot limb and its Julia wake.'],
+  ['multiplier-cardioid','Main cardioid multiplier λ parameterizes c=λ/2−λ²/4.'],
+  ['schroeder-linearization','Near-attracting fixed-point linearization transfers multiplier coordinates.'],
+  ['inverse-iteration-ifs','Inverse branches of z²+c approximate Julia preimage fibers.'],
+  ['hubbard-tree-shadow','Postcritical orbit approximates a Hubbard-tree shadow.'],
+  ['eclaire-height','Ecalle-height-like phase through a parabolic gate.'],
+  ['lavaurs-phase','Lavaurs/parabolic-implosion phase parameter moves the dynamic petal.'],
+  ['qc-julia-embedding','Quasiconformal Julia-in-Mandelbrot embedding near small copies.'],
+  ['mating-lamination','Topological mating-inspired lamination between two angle systems.'],
+  ['antiholomorphic-tricorn','Antiholomorphic bridge z→conj(z)²+c, the tricorn/Mandelbar axis.'],
+  ['burning-ship-fold','Non-analytic absolute-value fold, compared against quadratic Julia fibers.'],
+  ['cubic-two-critical','Two-critical-point cubic slice with coupled critical orbits.'],
+  ['rational-two-critical','Rational-map slice where two critical orbits compete.'],
+  ['newton-basin-coupling','Newton-basin style root attraction is used as a dynamic trap layer.'],
+  ['riemann-sphere-stereo','Riemann-sphere stereographic lift of parameter/dynamic coordinates.'],
+  ['quaternion-cross-section','Quaternionic 4D Mandelbrot/Julia cross-section projected to 2D.'],
+  ['mandelbulb-spherical-slice','Mandelbulb spherical-power section tied to Julia parameter c.'],
+  ['mandelbox-fold-coupling','Mandelbox fold + quadratic orbit coupling as a geometric correspondence.'],
+  ['julia-mosaic-field','Julia mosaic: each pixel c selects its own local Julia micro-dynamics.'],
+  ['lyapunov-multiplier-field','Lyapunov/multiplier stability field links bifurcation and Julia escape.'],
+  ['orbit-sum-green-map','Green-function-like orbit sum links escape rate and potential bands.']
+];
+let mjFiberQuality=MOBILE_GPU?'fast':'fast';        // readable default; mobile fast uses bounded memory budgets
+const mjFiberGroup=new THREE.Group(); mjFiberGroup.visible=false; scene.add(mjFiberGroup);
+let _mjFiberKey='';
+function _mjEsc2(cx,cy,zx,zy,maxIter,pow){
+  let x=zx,y=zy, trap=9, coh=0, ex=0;
+  for(let i=0;i<maxIter;i++){
+    const r=Math.hypot(x,y), a=Math.atan2(y,x), rd=Math.pow(Math.max(r,1e-9),pow);
+    const nx=rd*Math.cos(pow*a)+cx, ny=rd*Math.sin(pow*a)+cy;
+    x=nx; y=ny; trap=Math.min(trap,Math.abs(r-(fractalUniforms.uMJTrap.value||.42)));
+    coh += Math.exp(-0.45*Math.hypot(x-zx,y-zy));
+    if(x*x+y*y>64){ex=i+1;break;}
+  }
+  return {escape:ex||maxIter, bounded:!ex, trap, coh:coh/maxIter, x,y};
+}
+function buildMandelJuliaFiber3D(force=false){
+  const key=[
+    fractalUniforms.uJulia.value.x.toFixed(4),
+    fractalUniforms.uJulia.value.y.toFixed(4),
+    fractalUniforms.uMJMethod.value,
+    fractalUniforms.uMJMix.value.toFixed(2),
+    fractalUniforms.uMJBeta.value.toFixed(2),
+    fractalUniforms.uMJGamma.value.toFixed(2),
+    fractalUniforms.uMJDelta.value.toFixed(2),
+    fractalUniforms.uMJPower.value.toFixed(2),
+    fractalUniforms.uMJTrap.value.toFixed(2),
+    fractalUniforms.uMJRays.value.toFixed(0),
+    fractalUniforms.uMJEpsilon.value.toFixed(2),
+    fractalUniforms.uMJTheta.value.toFixed(3),
+    fractalUniforms.uMJLambda.value.toFixed(2),
+    fractalUniforms.uMJSlice.value.toFixed(2),
+    fractalUniforms.uMJZLift.value.toFixed(2),
+    fractalUniforms.uMJMemory.value.toFixed(2),
+    fractalUniforms.uMJFold.value.toFixed(2),
+    fractalUniforms.uMJDisplay.value,
+    mjFiberQuality,
+    MOBILE_GPU?'mobile':'desktop',
+    renderer.getPixelRatio?.()||1
+  ].join('|');
+  if(!force && key===_mjFiberKey && mjFiberGroup.children.length) return;
+  _mjFiberKey=key;
+  clearThreeGroup(mjFiberGroup);
+  const q=mjFiberQuality||'fast';
+  const ultra=q==='ultra';
+  const fast=q==='fast';
+  const W=ultra?(MOBILE_GPU?42:48):(fast?(MOBILE_GPU?(LOW_MEMORY_DEVICE?52:64):76):112);
+  const H=ultra?(MOBILE_GPU?30:34):(fast?(MOBILE_GPU?(LOW_MEMORY_DEVICE?36:44):52):76);
+  const maxIter=ultra?(MOBILE_GPU?28:36):(fast?(MOBILE_GPU?(LOW_MEMORY_DEVICE?38:48):64):96);
+  const pos=[], col=[];
+  const jx=fractalUniforms.uJulia.value.x, jy=fractalUniforms.uJulia.value.y;
+  const pow=THREE.MathUtils.clamp(fractalUniforms.uMJPower.value||2,1.15,8);
+  const mix=fractalUniforms.uMJMix.value||0;
+  const method=(fractalUniforms.uMJMethod.value||0)%MANDEL_JULIA_METHODS.length;
+  const slice=fractalUniforms.uMJSlice.value||0;
+  const zlift=fractalUniforms.uMJZLift.value||0;
+  const memory=fractalUniforms.uMJMemory.value||0;
+  const fold=fractalUniforms.uMJFold.value||0;
+  const theta=(fractalUniforms.uMJTheta.value||0)*Math.PI*2;
+  const lambda=(fractalUniforms.uMJLambda.value||0);
+  const beta=(fractalUniforms.uMJBeta.value||0);
+  const gamma=(fractalUniforms.uMJGamma.value||0);
+  const delta=(fractalUniforms.uMJDelta.value||0);
+  const trapR=(fractalUniforms.uMJTrap.value||.42);
+  const eps=(fractalUniforms.uMJEpsilon.value||0);
+  const rays=Math.max(2,Math.min(64,Math.round(fractalUniforms.uMJRays.value||12)));
+  const display=(fractalUniforms.uMJDisplay.value||0)|0;
+  const TAU=Math.PI*2;
+  const methodPhase=method/Math.max(1,MANDEL_JULIA_METHODS.length-1)*TAU;
+
+  for(let iy=0;iy<H;iy++){
+    const cy=-1.35 + 2.70*iy/(H-1);
+    for(let ix=0;ix<W;ix++){
+      const cx=-2.10 + 2.95*ix/(W-1);
+      const relX=cx-jx, relY=cy-jy, relRad=Math.hypot(relX,relY);
+      const relAng=Math.atan2(relY,relX);
+      const rayCell=Math.floor((((relAng/TAU)+1)%1)*rays)/rays;
+      const rayPhase=rayCell*TAU + theta;
+      const rayLock=0.5+0.5*Math.cos((relAng-theta)*rays);
+      const potentialLock=0.5+0.5*Math.cos(Math.log1p(relRad*2.6)*TAU*gamma + slice*TAU);
+      const renorm=0.5+0.5*Math.sin((relRad*1.61803398875 + methodPhase + memory*Math.PI)*TAU);
+      let cpx=cx + eps*(0.10*Math.cos(rayPhase)+0.055*Math.cos(methodPhase+cy*2.1));
+      let cpy=cy + eps*(0.10*Math.sin(rayPhase)+0.055*Math.sin(methodPhase+cx*2.1));
+      if(method===28){
+        const lx=lambda*Math.cos(theta+methodPhase), ly=lambda*Math.sin(theta+methodPhase);
+        cpx=.5*lx-.25*(lx*lx-ly*ly); cpy=.5*ly-.5*lx*ly;
+      } else if(method===36){
+        cpy=-cpy;                         // antiholomorphic / Mandelbar comparison slice
+      } else if(method===37 || method===44){
+        cpx=Math.abs(cpx); cpy=Math.abs(cpy); // burning-ship / fold diagnostics
+      } else if(method===41){
+        const den=1+slice*Math.hypot(cpx,cpy);
+        cpx/=den; cpy/=den;               // stereographic Riemann-sphere lift
+      } else if(method===43){
+        const rr=Math.hypot(cpx,cpy), aa=Math.atan2(cpy,cpx);
+        cpx+=eps*Math.cos(aa*pow+theta)*0.18*zlift;
+        cpy+=eps*Math.sin(aa*pow+theta)*0.18*zlift;
+      }
+      const m=_mjEsc2(cpx,cpy,0,0,maxIter,pow);
+      let z0x=(cpx*(0.08+0.22*beta) + jx*(0.92-mix*0.34));
+      let z0y=(cpy*(0.08+0.22*gamma) + jy*(0.92-mix*0.34));
+      z0x += 0.18*Math.cos(theta+cpx*0.9)*lambda + eps*(rayLock-.5)*0.22;
+      z0y += 0.18*Math.sin(theta+cpy*0.9)*lambda + eps*(potentialLock-.5)*0.22;
+      const j=_mjEsc2(cpx,cpy,z0x,z0y,maxIter,pow);
+      const e=(m.escape+j.escape)/(2*maxIter);
+      const coherence=Math.max(m.coh,j.coh);
+      const trap=Math.max(0,1-Math.min(1,(Math.min(m.trap,j.trap))/Math.max(trapR,1e-4)));
+      const bounded=(m.bounded?1:0)*0.7 + (j.bounded?1:0)*0.3;
+      const methodW=(method/Math.max(1,MANDEL_JULIA_METHODS.length-1));
+      const foldTerm=Math.sin((cx+cy)*2.2 + fold*Math.PI*2)*0.35;
+      const memTerm=Math.cos(Math.hypot(cx-jx,cy-jy)*3.1 + memory*Math.PI)*0.42;
+      const sliceTerm=(cy-jy)*(slice-.5)*1.8 + (cx-jx)*(slice-.5)*0.6;
+      const rayTerm=(rayLock-.5)*(0.45+0.65*gamma);
+      const potTerm=(potentialLock-.5)*(0.35+0.55*delta);
+      const renormTerm=(renorm-.5)*(0.42+0.48*eps);
+      const y=(-1.8 + bounded*1.2 + coherence*2.5 + (1-e)*1.5 + trap*1.1
+        + foldTerm + memTerm + sliceTerm + rayTerm + potTerm + renormTerm);
+      const rotX=(cx+0.65)*3.15;
+      const rotZ=cy*3.15;
+      const xr= rotX*Math.cos(theta) - rotZ*Math.sin(theta);
+      const zr= rotX*Math.sin(theta) + rotZ*Math.cos(theta);
+      const y3=y + zlift*(0.7*rotZ + 0.9*Math.sin((cx-jx)*3.0));
+      pos.push(xr, y3, zr);
+      let scalar=.18 + (1-e)*.36 + coherence*.24 + trap*.18 + rayLock*.10 + potentialLock*.08 + renorm*.08;
+      if(display===1) scalar=.12+.82*coherence;
+      else if(display===2) scalar=.10+.84*rayLock;
+      else if(display===3) scalar=.10+.84*potentialLock;
+      else if(display===4) scalar=.10+.84*trap;
+      else if(display===5) scalar=.10+.84*renorm;
+      const r=.18 + scalar*.54 + bounded*.17 + methodW*.16;
+      const g=.16 + coherence*.50 + trap*.12 + delta*.18 + potentialLock*.12;
+      const b=.22 + trap*.24 + (1-coherence)*.16 + mix*.14 + rayLock*.12;
+      col.push(Math.min(1,r),Math.min(1,g),Math.min(1,b));
+    }
+  }
+  if(!pos.length){
+    for(let i=0;i<480;i++){
+      const t=i/479*Math.PI*8, r=1.2+0.9*Math.sin(t*0.55);
+      pos.push(Math.cos(t)*r, -1.2+i/479*3.4, Math.sin(t)*r);
+      col.push(1.0,0.78,0.34);
+    }
+  }
+  const ptsGeo=new THREE.BufferGeometry();
+  ptsGeo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  ptsGeo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  ptsGeo.computeBoundingSphere();
+  mjFiberGroup.add(new THREE.Points(ptsGeo,new THREE.PointsMaterial({size:MOBILE_GPU?0.052:0.038,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.94,depthWrite:false,blending:THREE.AdditiveBlending})));
+
+  // parameter-plane base frame
+  const framePts=[];
+  const x0=(-2.10+0.65)*3.15, x1=(0.85+0.65)*3.15, z0=-1.35*3.15, z1=1.35*3.15, yBase=-2.55;
+  framePts.push(new THREE.Vector3(x0,yBase,z0),new THREE.Vector3(x1,yBase,z0));
+  framePts.push(new THREE.Vector3(x1,yBase,z0),new THREE.Vector3(x1,yBase,z1));
+  framePts.push(new THREE.Vector3(x1,yBase,z1),new THREE.Vector3(x0,yBase,z1));
+  framePts.push(new THREE.Vector3(x0,yBase,z1),new THREE.Vector3(x0,yBase,z0));
+  for(let i=1;i<6;i++){
+    const tx=x0+(x1-x0)*i/6, tz=z0+(z1-z0)*i/6;
+    framePts.push(new THREE.Vector3(tx,yBase,z0),new THREE.Vector3(tx,yBase,z1));
+    framePts.push(new THREE.Vector3(x0,yBase,tz),new THREE.Vector3(x1,yBase,tz));
+  }
+  mjFiberGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(framePts),new THREE.LineBasicMaterial({color:0x8bb8ff,transparent:true,opacity:.24})));
+  const anchorX=((jx)+0.65)*3.15;
+  const anchorZ=(jy)*3.15;
+
+  // external-ray and equipotential guides: orientation scaffolding for C_c x C_z.
+  const guidePts=[];
+  const rayCount=Math.min(ultra?24:64,Math.max(2,rays));
+  for(let i=0;i<rayCount;i++){
+    const a=theta + i/rayCount*Math.PI*2;
+    const len=2.55 + 0.35*Math.sin(i*1.618 + methodPhase);
+    guidePts.push(new THREE.Vector3(anchorX,yBase,anchorZ),
+      new THREE.Vector3(anchorX+Math.cos(a)*len,yBase+0.03,anchorZ+Math.sin(a)*len));
+  }
+  mjFiberGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(guidePts),
+    new THREE.LineBasicMaterial({color:0x64c8ff,transparent:true,opacity:.18,depthWrite:false})));
+  for(let k=1;k<=3;k++){
+    const ring=[];
+    const rr=.72*k*(.88+.12*lambda);
+    const ringSeg=ultra?48:(fast?80:128);
+    for(let i=0;i<=ringSeg;i++){
+      const a=i/ringSeg*Math.PI*2;
+      ring.push(new THREE.Vector3(anchorX+Math.cos(a)*rr,yBase+0.055*k,anchorZ+Math.sin(a)*rr));
+    }
+    mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring),
+      new THREE.LineBasicMaterial({color:0xa7ffd9,transparent:true,opacity:.18,depthWrite:false})));
+  }
+  const slicePlane=new THREE.Mesh(new THREE.PlaneGeometry(2.8,1.7,1,1),
+    new THREE.MeshBasicMaterial({color:0xffd08a,transparent:true,opacity:.055,side:THREE.DoubleSide,depthWrite:false}));
+  slicePlane.rotation.x=Math.PI/2;
+  slicePlane.rotation.z=theta;
+  slicePlane.position.set(anchorX, -0.10 + slice*2.2, anchorZ);
+  mjFiberGroup.add(slicePlane);
+
+  // selected Julia fiber curve above chosen parameter c
+  const fiberPts=[];
+  const fiberSeg=ultra?58:(fast?88:132);
+  for(let i=0;i<fiberSeg;i++){
+    const t=i/(fiberSeg-1);
+    const ang=t*Math.PI*4 + theta;
+    const rr=0.18 + 0.32*(1-t) + 0.18*mix;
+    const yy=-2.35 + t*(5.4 + zlift*1.5) + 0.22*Math.sin(t*Math.PI*6 + memory*Math.PI*2);
+    fiberPts.push(new THREE.Vector3(anchorX + Math.cos(ang)*rr, yy, anchorZ + Math.sin(ang)*rr));
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(fiberPts),new THREE.LineBasicMaterial({color:0xf3d086,transparent:true,opacity:.9})));
+  mjFiberGroup.add(new THREE.Mesh(new THREE.SphereGeometry(0.09,16,12),new THREE.MeshBasicMaterial({color:0xfff1c0}))).position.set(anchorX,-2.35,anchorZ);
+
+  const criticalOrbit=[];
+  let ox=0, oy=0;
+  const orbitSeg=ultra?48:(fast?72:112);
+  for(let i=0;i<orbitSeg;i++){
+    const r=Math.hypot(ox,oy), a=Math.atan2(oy,ox), rd=Math.pow(Math.max(r,1e-9),pow);
+    const nx=rd*Math.cos(pow*a)+jx, ny=rd*Math.sin(pow*a)+jy;
+    ox=nx; oy=ny;
+    const t=i/(orbitSeg-1);
+    criticalOrbit.push(new THREE.Vector3(anchorX+THREE.MathUtils.clamp(ox,-2.4,2.4)*0.34,
+      -2.18+t*4.75+0.15*Math.sin(t*Math.PI*8+theta),
+      anchorZ+THREE.MathUtils.clamp(oy,-2.4,2.4)*0.34));
+    if(ox*ox+oy*oy>128){ ox=Math.sin(i+theta)*0.2; oy=Math.cos(i+theta)*0.2; }
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(criticalOrbit),
+    new THREE.LineBasicMaterial({color:0xff8f58,transparent:true,opacity:.62,depthWrite:false})));
+
+  // top ridge showing selected slice
+  const ridge=[];
+  const ridgeY=1.65 + slice*2.0;
+  const ridgeSeg=ultra?48:(fast?76:116);
+  for(let i=0;i<ridgeSeg;i++){
+    const t=i/(ridgeSeg-1), cx=-2.10 + 2.95*t;
+    ridge.push(new THREE.Vector3((cx+0.65)*3.15, ridgeY + 0.35*Math.sin(cx*4+theta), (jy*0.65 + (t-.5)*0.7)*3.15));
+  }
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0xff7ad7,transparent:true,opacity:.5})));
+
+  // Logistic bifurcation lives exactly on the Mandelbrot real axis:
+  // z -> z^2 + c is conjugate to x -> r x(1-x) with c = r/2 - r^2/4.
+  const bifPts=[], bifCols=[];
+  const rSamples=ultra?90:(fast?128:192), tail=ultra?12:(fast?18:30), warm=ultra?38:(fast?58:96);
+  const cToMJFiberScene=(cr,ci,y)=>{
+    const px=(cr+0.65)*3.15, pz=ci*3.15;
+    return new THREE.Vector3(px*Math.cos(theta)-pz*Math.sin(theta), y, px*Math.sin(theta)+pz*Math.cos(theta));
+  };
+  for(let ri=0;ri<rSamples;ri++){
+    const rr=1 + 3*ri/(rSamples-1);
+    let x=0.5;
+    for(let k=0;k<warm;k++) x=rr*x*(1-x);
+    const cReal=rr/2 - rr*rr/4;
+    for(let k=0;k<tail;k++){
+      x=rr*x*(1-x);
+      const p=cToMJFiberScene(cReal,0,yBase + 0.28 + x*1.65);
+      bifPts.push(p.x,p.y,p.z);
+      const chaotic=rr>3.5699456?1:0;
+      bifCols.push(chaotic?1.0:0.92, chaotic?0.48:0.76, chaotic?0.28:0.38);
+    }
+  }
+  const bifGeo=new THREE.BufferGeometry();
+  bifGeo.setAttribute('position',new THREE.Float32BufferAttribute(bifPts,3));
+  bifGeo.setAttribute('color',new THREE.Float32BufferAttribute(bifCols,3));
+  mjFiberGroup.add(new THREE.Points(bifGeo,new THREE.PointsMaterial({size:MOBILE_GPU?0.055:0.038,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.72,depthWrite:false})));
+  const bifLab=mkLabel('bifurcation curve: x→r·x(1−x), c = r/2 − r²/4 on Mandelbrot real axis','label axis');
+  bifLab.position.copy(cToMJFiberScene(-0.75,0,yBase+2.05)).add(new THREE.Vector3(0,.05,0)); mjFiberGroup.add(bifLab);
+  const bifAxisPts=[cToMJFiberScene(.25,0,yBase+.18),cToMJFiberScene(-2,0,yBase+.18)];
+  mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(bifAxisPts),
+    new THREE.LineBasicMaterial({color:0xffd28a,transparent:true,opacity:.58,depthWrite:false})));
+  [
+    {r:3,label:'period-2 r=3 · c=-3/4'},
+    {r:1+Math.sqrt(6),label:'period-4 r=1+√6'},
+    {r:3.569945672,label:'Feigenbaum δ-limit'},
+    {r:1+Math.sqrt(8),label:'period-3 window'}
+  ].forEach((m,i)=>{
+    const cr=m.r/2-m.r*m.r/4, a=cToMJFiberScene(cr,0,yBase+.22), b=cToMJFiberScene(cr,0,yBase+1.95);
+    mjFiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a,b]),
+      new THREE.LineBasicMaterial({color:i===2?0xff6b45:0xf6d68a,transparent:true,opacity:i===2?.72:.46,depthWrite:false})));
+    const lab=mkLabel(m.label,'label dim'); lab.position.copy(b).add(new THREE.Vector3(.10,.05,.10)); mjFiberGroup.add(lab);
+  });
+
+  const title=mkLabel('Mandelbrot⇄Julia 3D fiber manifold · c-plane × Julia coherence','label axis');
+  title.position.set(.6,4.15,0); mjFiberGroup.add(title);
+  const sub=mkLabel(`c = ${jx.toFixed(4)} ${jy<0?'−':'+'} ${Math.abs(jy).toFixed(4)}i · method ${String(method+1).padStart(2,'0')} · slice ${slice.toFixed(2)} · lift ${zlift.toFixed(2)}`,'label dim');
+  sub.position.set(.5,-3.05,0); mjFiberGroup.add(sub);
+  const ax=mkLabel('x/z = Mandelbrot parameter c','label axis'); ax.position.set(x1-1.7,yBase-0.1,z1+0.45); mjFiberGroup.add(ax);
+  const ay=mkLabel('y = boundedness + coherence + potential','label axis'); ay.position.set(x0-0.5,2.8,z0-0.5); mjFiberGroup.add(ay);
+  const az=mkLabel('gold helix = selected Julia fiber / lifted slice','label dim'); az.position.set(anchorX+0.7,2.8,anchorZ); mjFiberGroup.add(az);
+}
+
+const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d','mjfiber3d']);   // fractal "types" rendered as real 3D geometry
 function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
   if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
   if(isFrac&&fractalType==='orbital3d') buildOrbital3D();
+  if(isFrac&&fractalType==='mjfiber3d') buildMandelJuliaFiber3D();
   bifurcGroup.visible = isFrac&&fractalType==='bifurc3d';
   poly4dGroup.visible = isFrac&&fractalType==='polytope4d';
   orbitalGroup.visible = isFrac&&fractalType==='orbital3d';
+  mjFiberGroup.visible = isFrac&&fractalType==='mjfiber3d';
   if(labelRenderer&&labelRenderer.domElement) labelRenderer.domElement.style.display=(isFrac&&!geo)?'none':'block';
 }
 const fractalScene = new THREE.Scene();
@@ -8778,7 +9135,7 @@ function buildCtl(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals'}[k]}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
       </div>
     </div>
     <div class="sect"><b>Metallic / analytic gradient</b>
@@ -10081,6 +10438,10 @@ function tickBody(now, frame){
         updatePolytope4D(dt);
         hudBig.textContent=(POLY4.P?POLY4.P.name:'4D Polytope')+' · live 4D rotation';
         hudSub.textContent='regular 4-polytope tumbling in R⁴, projected to R³ · drag to orbit in 3D · scroll to zoom';
+      } else if(fractalType==='mjfiber3d'){
+        mjFiberGroup.rotation.y+=dt*0.045;
+        hudBig.textContent='Mandelbrot ⇄ Julia · 3D fiber manifold';
+        hudSub.textContent='lifted c-plane + selected Julia fiber + rays & equipotentials + critical orbit · drag to orbit · scroll to zoom';
       } else {
         orbitalGroup.rotation.y+=dt*0.12;
         hudBig.textContent='Hydrogen electron orbital · |ψ|² quantum cloud';
