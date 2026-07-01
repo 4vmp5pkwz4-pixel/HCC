@@ -583,6 +583,11 @@
     #landedBanner{top:auto;bottom:108px;width:92vw}
     .label{font-size:11.5px}.label.major{font-size:12.5px}
     .label.const{font-size:10px;letter-spacing:2px}.label.zod{font-size:11px;letter-spacing:2.5px}
+    /* verbose engineering captions: on a phone a nowrap caption becomes one huge line
+       crossing the whole scene — wrap them into a compact centred block instead */
+    .label.axis{font-size:8px;letter-spacing:.7px;opacity:.62;
+      white-space:normal;max-width:38vw;text-align:center;line-height:1.3}
+    .label.const{white-space:normal;max-width:56vw;text-align:center;line-height:1.35}
     .btn{padding:8px 13px}
     .ctlrow label{flex:1 1 106px;min-width:82px;font-size:11px}
   }
@@ -2096,6 +2101,10 @@ function selectGlobalKey(key,focus=false){
   }
   selectKey(key);
   if(focus&&s.mode!=='fractal') focusOn(s);
+  // On a phone, an explicit "take me there" (search hit, related-object jump, tour stop)
+  // means the user wants to SEE the destination — the Controls sheet would bury it under
+  // a half-screen panel, so close it; it stays one ⚙-tap away. Desktop keeps it open.
+  if(MOBILE_GPU&&focus&&activePanelId==='ctl') closePanel('ctl');
 }
 
 const objectPanel=document.getElementById('objectPanel');
@@ -2690,6 +2699,19 @@ function projectInCurrentView(key){
 
 /* click-pick via raycaster (in addition to clickable labels) */
 const raycaster = new THREE.Raycaster();
+/* three.js raycasting ignores Object3D.visible, so without this filter the picks of
+   HIDDEN sub-views (e.g. the Bell lune or Hopf fibres while the S³ Section view is
+   active, or cosmic mirrors on the local scale layer) sit as invisible tap targets —
+   a stray tap on "empty" space would select a hidden object and yank the camera into
+   another view. Only offer picks whose whole ancestor chain is actually visible.
+   (Deliberately checks Object3D.visible, not material.visible: invisible-material
+   helper spheres like the Moon's enlarged touch target must stay pickable.) */
+function pickWorldVisible(o){ for(let n=o;n;n=n.parent){ if(n.visible===false) return false; } return true; }
+function collectVisiblePicks(){
+  const picks=[];
+  for(const [key,d] of SELECT){ if(d.mode===state.mode&&d.pick&&pickWorldVisible(d.pick)){ d.pick.userData.selKey=key; picks.push(d.pick); } }
+  return picks;
+}
 let downXY = null;
 function canvasNDC(x,y){
   const r=renderer.domElement.getBoundingClientRect();
@@ -2703,8 +2725,7 @@ renderer.domElement.addEventListener('pointerup', e=>{
   if(dx*dx+dy*dy>25) return;
   const ndc=canvasNDC(e.clientX,e.clientY);
   raycaster.setFromCamera(ndc, camera);
-  const picks=[]; for(const [key,d] of SELECT){ if(d.mode===state.mode && d.pick){ d.pick.userData.selKey=key; picks.push(d.pick);} }
-  const hit = raycaster.intersectObjects(picks, false)[0];
+  const hit = raycaster.intersectObjects(collectVisiblePicks(), false)[0];
   if(hit) selectKey(hit.object.userData.selKey);
 });
 renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
@@ -2712,8 +2733,7 @@ renderer.domElement.addEventListener('dblclick',e=>{
   if(state.landed||state.mode==='fractal') return;
   const ndc=canvasNDC(e.clientX,e.clientY);
   raycaster.setFromCamera(ndc,camera);
-  const picks=[];for(const [key,d] of SELECT){if(d.mode===state.mode&&d.pick){d.pick.userData.selKey=key;picks.push(d.pick);}}
-  const hit=raycaster.intersectObjects(picks,false)[0];
+  const hit=raycaster.intersectObjects(collectVisiblePicks(),false)[0];
   const s=hit&&SELECT.get(hit.object.userData.selKey);
   if(s){selectKey(hit.object.userData.selKey);focusOn(s);}
 });
@@ -3862,6 +3882,7 @@ function cosmicDust(s,r){
 function updateCosmicDust(){ const on=state.showCosmicDust!==false;
   COSMOS_DUST.forEach(g=>{ if(g.userData.dust) g.userData.dust.visible=on;
     if(g.userData.body) g.userData.body.visible=!on; }); }   // dust ⇄ wireframe
+const cosmosSightPos=[], cosmosSightCol=[];   // all structure→observer sightlines merged into ONE draw call
 for(const s of COSMOS){
   const dist = s.dGly!=null ? s.dGly : comovingGly(s.z);
   const dir = raDecDir(s.ra/15, s.dec), g = new THREE.Group();
@@ -3907,8 +3928,8 @@ for(const s of COSMOS){
   const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body;
   body.visible=true; dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
   COSMOS_DUST.push(g);
-  const sight=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(-dist)]),
-    new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.16})); g.add(sight);
+  { const p=g.position, c=new THREE.Color(s.col);   // sightline segment: structure → observer (origin)
+    cosmosSightPos.push(p.x,p.y,p.z, 0,0,0); cosmosSightCol.push(c.r,c.g,c.b, c.r,c.g,c.b); }
   const lab=mkLabel(s.name,'label','cosmos_'+s.key); lab.position.set(0, r+0.3, 0); g.add(lab);
   registerSel('cosmos_'+s.key, { name:s.name, mode:'obs', pick:dot, labelEl:lab.element,
     src: s.srcTags ? s.srcTags.slice() : [s.centroidKnown===false?'LOPEZ':s.reconstruction?'FLOW':'ASTRO'],
@@ -3928,6 +3949,14 @@ for(const s of COSMOS){
       ['Status',s.reconstruction?'probabilistic velocity-field reconstruction':s.centroidKnown===false?'field midpoint / uncertain':'approximate extended-object centre'],
       ['Source',s.note] ],
   });
+}
+{ // all structure→observer sightlines in ONE LineSegments draw call (identical look,
+  // ~40 fewer draw calls on the heaviest tab; per-structure colour via vertex colours)
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.Float32BufferAttribute(cosmosSightPos,3));
+  sg.setAttribute('color',new THREE.Float32BufferAttribute(cosmosSightCol,3));
+  cosmosGroup.add(new THREE.LineSegments(sg,
+    new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.16})));
 }
 
 /* GRB anisotropy / 2D Kolmogorov–Smirnov expert node — explains HOW angular
@@ -4317,6 +4346,7 @@ const solarCosmicGrid=new THREE.Group(); solarCosmicGroup.add(solarCosmicGrid);
     new THREE.MeshBasicMaterial({color:0x526785,wireframe:true,transparent:true,opacity:.08,depthWrite:false}));
   const lab=mkLabel(label,'label axis'); lab.position.set(0,r,0); solarCosmicGrid.add(mesh,lab);
 });
+const solarSightPos=[], solarSightCol=[];   // Sun→structure sightlines merged into ONE draw call
 COSMOS.forEach(s=>{
   const dist=s.dGly!=null?s.dGly:comovingGly(s.z), dir=raDecDir(s.ra/15,s.dec), g=new THREE.Group();
   g.position.copy(dir).multiplyScalar(dist*GLY_AU); solarCosmicGroup.add(g);
@@ -4329,14 +4359,21 @@ COSMOS.forEach(s=>{
   const lab=mkLabel(labelText,'label dim','solarCosmic_'+s.key); lab.position.set(0,r*1.1,0);
   // sightline back to the Sun: makes the TRUE DIRECTION from the Solar System to this giant
   // structure explicitly traceable, not just implied by the marker's placement.
-  const sight=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(-dist*GLY_AU)]),
-    new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.14,depthWrite:false}));
-  g.add(body,dot,sight,lab); solarCosmicObjects.push({g,s,lab});
+  { const p=g.position, c=new THREE.Color(s.col);
+    solarSightPos.push(p.x,p.y,p.z, 0,0,0); solarSightCol.push(c.r,c.g,c.b, c.r,c.g,c.b); }
+  g.add(body,dot,lab); solarCosmicObjects.push({g,s,lab});
   registerSel('solarCosmic_'+s.key,{name:s.name,mode:'solar',pick:dot,labelEl:lab.element,
     desc:`True-scale AU placement derived from the same comoving atlas. ${s.note}. ${s.reconstruction?'Marker and flowlines are probabilistic reconstruction/display anchors, not measured trajectories.':s.centroidKnown===false?'Marker is a field midpoint and uncertainty volume, not a measured structure centroid.':'Extended-object centre and shape remain approximate.'}`,
     getPos:()=>g.position.clone(),focusDist:()=>Math.max(r*3,.2*GLY_AU),
     rows:()=>[['Direction',`RA ${(s.ra/15).toFixed(3)}h · Dec ${s.dec.toFixed(2)}°`],...(s.galLon!=null?[['Galactic direction',`l ${s.galLon.toFixed(1)}° · b ${s.galLat.toFixed(1)}°`]]:[]),['Comoving distance',dist.toFixed(3)+' Gly'],['Displayed extent',s.size.toFixed(2)+' Gly'],['Coordinate scale','1 scene unit = 1 AU'],['Status',s.reconstruction?'probabilistic velocity-field reconstruction':s.centroidKnown===false?'field midpoint / uncertain':'approximate extended-object centre']]});
 });
+{ // merged Sun→structure sightlines (one draw call; identical look via vertex colours)
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.Float32BufferAttribute(solarSightPos,3));
+  sg.setAttribute('color',new THREE.Float32BufferAttribute(solarSightCol,3));
+  solarCosmicGroup.add(new THREE.LineSegments(sg,
+    new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.14,depthWrite:false})));
+}
 const solarLaniakeaFlowGroup=new THREE.Group(), solarLaniakeaFlowLines=[]; solarCosmicGroup.add(solarLaniakeaFlowGroup);
 LANIAKEA_PATHS.slice(0,30).forEach((path,i)=>{
   const pts=path.pts.map(p=>p.clone().multiplyScalar(GLY_AU));
@@ -4556,6 +4593,7 @@ function setSolarScaleLayer(layer){
     setControlDistanceLimits(.01*GLY_AU,800*GLY_AU);
   }
   syncCameraClipping(true);
+  updateBreadcrumb();   // the breadcrumb displays the active scale layer
 }
 function updateSolarScaleVisibility(){
   const layer=state.solarScaleLayer||'local';
@@ -5417,6 +5455,7 @@ function setS3View(v){
     stabilizeCamera();syncCameraClipping(true);
   }
   if(v==='bell') updateBell();
+  updateBreadcrumb();   // the breadcrumb displays the active S³ lab view
 }
 
 /* ================================================================
@@ -5897,6 +5936,7 @@ function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
 function applyCycFrameView(){
   if(state.mode!=='cyc') return;
+  applySpatialGuideVisibility();   // layout-plane guides are frame-dependent (hidden on single-instrument stages)
   if(state.cycFrame==='phase'){
     rebuildCyclePhaseTrace();
     const p=cycPhaseInst.position;
@@ -6220,6 +6260,8 @@ function updateCyc(dt){
   if(cycResonanceInst.visible) updateCycResonance(dt);
   cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
+  // layout-plane guides only make sense while the multi-instrument layout is on stage
+  spatialGuides.cyc.visible = state.showGuides && frame!=='antikythera' && frame!=='orientation';
   if(frame==='antikythera') antikUpdate(state.epochDays);
   // when the Antikythera frame is active, hide the hierarchy clutter so only the mechanism shows
   if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=cycResonanceInst.visible=false; }
@@ -8209,8 +8251,8 @@ const XRX = (()=>{
       }
     }
     for(const p of panels) if(p.visible && !pointerGrabbedMesh(p.mesh)) p.mesh.lookAt(getHead());
-    // pointer rays: panels first, then mode picks
-    const picks=[]; for(const [key,d] of SELECT){ if(d.mode===state.mode&&d.pick){ d.pick.userData.selKey=key; picks.push(d.pick);} }
+    // pointer rays: panels first, then mode picks (visible ones only — see collectVisiblePicks)
+    const picks=collectVisiblePicks();
     const panelMeshes=panels.filter(p=>p.visible).map(p=>p.mesh);
     let anyHover=false;
     for(const P of pointers){
@@ -8611,8 +8653,12 @@ function stabilizeCamera(){
   }
 }
 function applySpatialGuideVisibility(){
-  for(const g of Object.values(spatialGuides)){
-    g.visible=state.showGuides;
+  for(const [mode,g] of Object.entries(spatialGuides)){
+    g.visible=state.showGuides
+      // the Cycles guide grid annotates the multi-instrument LAYOUT PLANE; in the
+      // single-instrument stage frames (Antikythera, Earth/Sun/Moon orientation) that
+      // plane does not exist, so its captions would just cut across the mechanism
+      && !(mode==='cyc'&&(state.cycFrame==='antikythera'||state.cycFrame==='orientation'));
     g.traverse(o=>{
       if(o.material?.userData?.guideBaseOpacity!=null)
         o.material.opacity=o.material.userData.guideBaseOpacity*state.guideOpacity;
@@ -10303,10 +10349,11 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
-  if(state.mode==='s3'&&state.s3view)parts.push('<span>'+esc(state.s3view)+'</span>');
+  if(state.mode==='s3'&&state.s3view)parts.push('<span>'+esc(S3_VIEW_NAMES[state.s3view]||state.s3view)+'</span>');
   else if(state.mode==='solar'&&state.solarScaleLayer)parts.push('<span>'+esc(state.solarScaleLayer)+'</span>');
   if(selectedKey&&SELECT.get(selectedKey)){ const s=SELECT.get(selectedKey);
     parts.push('<span class="bc-cur">'+esc(objectName(s))+' · '+atlasAccuracyTier(selectedKey,s)+'</span>'); }
@@ -10449,7 +10496,7 @@ function journeyDist(k){ const s=SELECT.get(k); if(!s) return 0;
   if(s.coords&&s.coords.z!=null) return COORD.comovingFromZ(s.coords.z);   // Gly from the observer
   if(s.dGly!=null) return s.dGly;
   if(/^solarCosmic_|^cosmos_/.test(k)) return 1; return 0; }                // solar/cycles/etc ≈ centre
-function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
+function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&!s.journeyExclude&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
 function journeyBuildList(){
   const sc=journey.scope||'all';
   journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&!s.journeyExclude&&s.mode!=='fractal'&&typeof s.getPos==='function'&&(sc==='all'||s.mode===sc))
@@ -11396,6 +11443,46 @@ globalThis.FBS3R_ATLAS=Object.freeze({
   interaction:INTERACTION,
   collisionLayers:COLLISION_LAYERS,
 });
+/* Read-only navigation QA: enumerates every registered selectable with the health of its
+   navigation contract (finite position, finite framing distance, drawable pick geometry,
+   and whether the pick body actually sits at the advertised position). Never mutates
+   science or UI state — it exists so external harnesses (and curious scientists) can
+   verify that every destination in the atlas is genuinely represented in 3D. */
+globalThis.FBS3R_QA=Object.freeze({
+  renderStats(){ const i=renderer.info; return {
+    calls:i.render.calls, triangles:i.render.triangles, points:i.render.points,
+    lines:i.render.lines, geometries:i.memory.geometries, textures:i.memory.textures,
+    programs:i.programs?i.programs.length:0,
+    labelsInDom:labelRenderer.domElement.querySelectorAll('.label').length }; },
+  auditSelectables(){
+    const out=[];
+    for(const [k,s] of SELECT){
+      const r={key:k,mode:s.mode,name:objectName(s),journeyExclude:!!s.journeyExclude,
+               hasPick:!!s.pick,hasLabel:!!s.labelEl};
+      try{ const p=(typeof s.getPos==='function')?s.getPos():null;
+        r.posOk=!!p&&Number.isFinite(p.x)&&Number.isFinite(p.y)&&Number.isFinite(p.z);
+      }catch(e){ r.posOk=false; r.posErr=String(e&&e.message||e); }
+      try{ const d=(typeof s.focusDist==='function')?s.focusDist():s.focusDist;
+        r.focusOk=Number.isFinite(d)&&d>0;
+      }catch(e){ r.focusOk=false; }
+      let verts=0;
+      try{ if(s.pick&&s.pick.traverse) s.pick.traverse(o=>{
+        const a=o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('position');
+        if(a) verts+=a.count; }); }catch(e){}
+      r.pickVerts=verts;
+      try{ if(s.pick&&s.pick.getWorldPosition&&r.posOk&&r.focusOk){
+        const wp=s.pick.getWorldPosition(new THREE.Vector3());
+        const fd=(typeof s.focusDist==='function')?s.focusDist():s.focusDist;
+        r.pickDrift=+(wp.distanceTo(s.getPos())/Math.max(fd,1e-9)).toFixed(3);
+      } }catch(e){}
+      out.push(r);
+    }
+    return out;
+  },
+});
+updateBell();   // seed the Bell-lune geometry at boot — its pick body must exist (not be an empty
+                // BufferGeometry) before the Bell lab view is first opened, so selection,
+                // focus framing and the navigation QA audit all see a real object immediately
 SELF_TESTS = runSelfTests();
 console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
 SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name, t.detail));
