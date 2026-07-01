@@ -567,7 +567,10 @@
        reach (settings always one tap away). */
     #ctl{
       left:8px;right:8px;width:auto;max-width:none;
-      top:auto;bottom:calc(132px + env(safe-area-inset-bottom,0px));max-height:42vh;
+      /* bottom must clear the topmost stacked FAB (dockFab: bottom 124px + 46px tall = 170px
+         from the viewport bottom) plus a small gap — otherwise the sheet's own bottom edge
+         cuts through the dock FAB button on every mobile viewport. */
+      top:auto;bottom:calc(178px + env(safe-area-inset-bottom,0px));max-height:42vh;
       border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.55)}
     /* the selection card pins to the RIGHT edge so a left list stays visible while you read it */
     #selCard{left:auto;right:8px;margin:0;width:min(86vw,340px);max-height:52vh;overflow:auto;
@@ -1312,8 +1315,15 @@ function runSelfTests(){
     AtlasCoach.steps.length+' steps');
   ok('Atlas Coach can be collapsed without deleting tutorial state',
     (()=>{ try{ const st=AtlasCoach.step, n=AtlasCoach.steps.length;
+      // preserve the real persisted preference (which may be "unset" = null, meaning
+      // "use the device default") rather than clobbering it with a hardcoded value —
+      // otherwise this test would itself overwrite the mobile collapsed-by-default
+      // behavior on every page load, before the user ever touches the UI.
+      const raw=localStorage.getItem('atlasCoachCollapsed');
       AtlasCoach.setCollapsed(true); const kept=AtlasCoach.step===st && AtlasCoach.steps.length===n;
-      AtlasCoach.setCollapsed(false); return kept; }catch(e){ return false; } })(),
+      if(raw===null) localStorage.removeItem('atlasCoachCollapsed'); else localStorage.setItem('atlasCoachCollapsed',raw);
+      AtlasCoach.refresh();
+      return kept; }catch(e){ return false; } })(),
     'collapse preserves steps + position');
   ok('Atlas Coach localStorage keys are UI preferences only',
     AtlasCoach.lsKeys.length>0 && AtlasCoach.lsKeys.every(k=>/^atlasCoach/.test(k))
@@ -4474,7 +4484,13 @@ function positionHierarchyLegend(){
   hierarchyLegend.style.right='auto';hierarchyLegend.style.bottom='auto';hierarchyLayoutDirty=false;
 }
 function updateHierarchyLocator(){
-  const visible=!!state.showHierarchyLocator&&!renderer.xr.isPresenting;
+  // On phones the Controls sheet spans almost the full width and a third of the height,
+  // leaving no gap the obstacle-avoiding placement below can find — so while a panel is
+  // open the minimap would otherwise sit permanently half-buried under it. The minimap
+  // is a supplementary orientation aid, not essential controls, so hide it for that
+  // short window instead of rendering it overlapping and unreadable; it reappears the
+  // moment the panel closes.
+  const visible=!!state.showHierarchyLocator&&!renderer.xr.isPresenting&&!(MOBILE_GPU&&activePanelId);
   hierarchyLegend.style.display=visible?'block':'none';
   if(!visible) return;
   if(hierarchyLayoutDirty||++hierarchyLayoutFrame%45===0) positionHierarchyLegend();
@@ -10510,7 +10526,12 @@ const AtlasCoach=(()=>{
   const lsGet=k=>{ try{return localStorage.getItem(k);}catch(e){return null;} };
   const lsSet=(k,v)=>{ try{localStorage.setItem(k,v);}catch(e){} };
   const dismissed=()=>lsGet(LS.dismissed)==='1';
-  const collapsed=()=>lsGet(LS.collapsed)==='1';
+  // On phones, default to COLLAPSED: every mode-tab tap also auto-opens the Controls
+  // sheet ("switch -> default view + Controls"), so an expanded Coach on top of that
+  // leaves almost no 3D view visible on a small screen. Desktop keeps the fuller
+  // onboarding-expanded default (ample space, no competing auto-opened sheet).
+  // Still fully overridable — the collapse button remembers the user's own choice.
+  const collapsed=()=>{ const v=lsGet(LS.collapsed); return v===null ? MOBILE_GPU : v==='1'; };
   function relatedKeys(){ return selectedKey?getObjectRelations(selectedKey).map(r=>r.target).filter(t=>SELECT.has(t)):[]; }
   function ctxMessage(ev){
     if(ev==='observation') return 'Observed object — source and coordinates available.';
