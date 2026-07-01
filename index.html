@@ -1378,14 +1378,17 @@ function runSelfTests(){
       return ORBIT && typeof ORBIT.on==='boolean' && INTERACTION.scientificUnchanged(before, getAtlasEntityContract);
     }catch(e){ return false; } })(),
     'orbit affects camera + autoRotate only');
-  ok('Atlas Coach grand tour enumerates every selectable 3D object and never mutates science',
+  ok('Atlas Coach grand tour enumerates every properly-navigable selectable 3D object and never mutates science',
     (()=>{ try{ const before=INTERACTION.scientificSnapshot(getAtlasEntityContract);
       journeyBuildList();
-      const expect=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length;
+      // journeyExclude marks entries whose getPos()/focusDist() are relative to the CURRENT
+      // camera state (e.g. the fbsSh* sliding phi-ladder pool) rather than a fixed destination
+      // a tour can fly to from elsewhere; those are deliberately not toured (see registration).
+      const expect=[...SELECT.entries()].filter(([,s])=>s.pick&&!s.journeyExclude&&s.mode!=='fractal'&&typeof s.getPos==='function').length;
       return journey.list.length===expect && journey.list.length>5
         && journey.list.every(k=>SELECT.has(k))
         && INTERACTION.scientificUnchanged(before, getAtlasEntityContract); }catch(e){ return false; } })(),
-    'journey covers all objects, read-only');
+    'journey covers all navigable objects, read-only');
   ok('General hydrogen ψ_nlm is correct (1s positive · 2p_z nodal plane & phase flip · all n,l,m browsable)',
     (()=>{ try{ return FRACTAL_TYPES.orbital3d!==undefined && typeof psiHydrogen==='function'
         && psiHydrogen(1,0,0,1,1,1)>0
@@ -3474,9 +3477,11 @@ const sphMReq = screenSphere(45.77, 0x9fb0ff, .035,    /* comoving distance to z
   [['Redshift z','3419.4'],['Cosmic time','50.46 kyr'],['Comoving radius','45.77 Gly']]);
 obsGroup.add(sphEvent, sphAccel, sphMReq);
 
-// observer (Milky Way)
+// observer (Milky Way) — kept small and translucent: this coincides with the youAreHere
+// marker below (both legitimately sit at the coordinate origin), and a solid opaque sphere
+// here would read as a single flat "white blob" rather than a small, precise anchor point.
 {
-  const dot = new THREE.Mesh(new THREE.SphereGeometry(.25,16,12), new THREE.MeshBasicMaterial({color:0xffffff}));
+  const dot = new THREE.Mesh(new THREE.SphereGeometry(.12,16,12), new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.55,depthWrite:false}));
   const lab = mkLabel('observer p (Milky Way)','label major','obsP0'); dot.add(lab);
   obsGroup.add(dot);
   registerSel('obsP0', { name:'Observer p (Milky Way)', mode:'obs', pick:dot, labelEl:lab.element,
@@ -4070,7 +4075,7 @@ function updateLaniakeaFlows(dt){
 // Observer-origin marker; basin membership is explicitly reconstruction-dependent.
 {
   const here = new THREE.Group();
-  const hereDot = new THREE.Mesh(new THREE.SphereGeometry(0.18,12,8), new THREE.MeshBasicMaterial({color:0xfff2c4}));
+  const hereDot = new THREE.Mesh(new THREE.SphereGeometry(0.10,12,8), new THREE.MeshBasicMaterial({color:0xfff2c4,transparent:true,opacity:.6,depthWrite:false}));
   const hereLab = mkLabel('Milky Way / observer · Laniakea-region flow basin', 'label major');
   hereLab.position.set(0,0.5,0);
   here.add(hereDot, hereLab);
@@ -4308,11 +4313,15 @@ COSMOS.forEach(s=>{
   const r=Math.max(s.size*.5*GLY_AU,.012*GLY_AU);
   const body=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:s.centroidKnown===false?.18:.3,depthWrite:false}));
   body.scale.set(r,s.type==='wall'?r*.45:r,s.type==='wall'?r*.25:r);
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col}));
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.85,depthWrite:false}));
   const labelText=s.key==='gr'?'Lopez GA / GR / BR field midpoint · uncertain'
     :`${s.name}${s.centroidKnown===false?' · field midpoint / uncertain':''}`;
   const lab=mkLabel(labelText,'label dim','solarCosmic_'+s.key); lab.position.set(0,r*1.1,0);
-  g.add(body,dot,lab); solarCosmicObjects.push({g,s,lab});
+  // sightline back to the Sun: makes the TRUE DIRECTION from the Solar System to this giant
+  // structure explicitly traceable, not just implied by the marker's placement.
+  const sight=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), dir.clone().multiplyScalar(-dist*GLY_AU)]),
+    new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.14,depthWrite:false}));
+  g.add(body,dot,sight,lab); solarCosmicObjects.push({g,s,lab});
   registerSel('solarCosmic_'+s.key,{name:s.name,mode:'solar',pick:dot,labelEl:lab.element,
     desc:`True-scale AU placement derived from the same comoving atlas. ${s.note}. ${s.reconstruction?'Marker and flowlines are probabilistic reconstruction/display anchors, not measured trajectories.':s.centroidKnown===false?'Marker is a field midpoint and uncertainty volume, not a measured structure centroid.':'Extended-object centre and shape remain approximate.'}`,
     getPos:()=>g.position.clone(),focusDist:()=>Math.max(r*3,.2*GLY_AU),
@@ -4875,7 +4884,7 @@ function ylmTexture(l,m){
   return tex;
 }
 const eigSphere = new THREE.Mesh(new THREE.SphereGeometry(RU*1.001, 96, 64),
-  new THREE.MeshBasicMaterial({map:null}));
+  new THREE.MeshBasicMaterial({map:null,transparent:true,opacity:.62,depthWrite:false,side:THREE.DoubleSide}));
 eigSphere.visible=false; sectionGroup.add(eigSphere);
 function setEigMode(beta, m){
   const l = beta-1, mm = Math.min(m, l);
@@ -5434,6 +5443,13 @@ for(let i=0;i<20;i++){
   registerSel('fbsSh'+i, {
     name:()=>'φ-shell · level N = '+sh.userData.n, mode:'fbs', pick:sh,
     desc:'One rung of the golden-ratio ladder. “Focus” travels the ladder to this level.',
+    // Excluded from the Grand Tour: this is a SLIDING pool (20 mesh slots reused for
+    // whichever 20 levels currently surround the ladder position), not 20 fixed
+    // destinations — its "position" only makes sense relative to the current camera
+    // state, so a tour cannot fly here from elsewhere. The stable, named rungs of the
+    // ladder (Planck seed, atom, human scale, recombination, particle horizon, S³
+    // radius, ...) are the fbsEp0..fbsEp10 epoch markers, which ARE toured.
+    journeyExclude:true,
     getPos:()=>controls.target.clone(),
     focusDist:()=>camera.position.distanceTo(controls.target),
     onFocus:()=>{ state.fbsTarget = sh.userData.n; state.fbsCycle=false; },
@@ -10420,7 +10436,7 @@ function journeyDist(k){ const s=SELECT.get(k); if(!s) return 0;
 function journeyCount(){ return [...SELECT.values()].filter(s=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function').length; }
 function journeyBuildList(){
   const sc=journey.scope||'all';
-  journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&s.mode!=='fractal'&&typeof s.getPos==='function'&&(sc==='all'||s.mode===sc))
+  journey.list=[...SELECT.entries()].filter(([,s])=>s.pick&&!s.journeyExclude&&s.mode!=='fractal'&&typeof s.getPos==='function'&&(sc==='all'||s.mode===sc))
     .map(([k,s])=>[k,journeyDist(k)])
     // farthest from the centre of the universe first → travel inward to the central observer
     .sort((a,b)=>(b[1]-a[1])||objectName(SELECT.get(a[0])).localeCompare(objectName(SELECT.get(b[0])))).map(([k])=>k);
