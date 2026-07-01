@@ -370,6 +370,16 @@
   .sect:first-child{border:0;margin-top:0;padding-top:0}
   .sect>b{display:block;font-family:var(--serif);color:var(--gold);font-size:11px;
     letter-spacing:1.8px;text-transform:uppercase;margin-bottom:4px;font-weight:600}
+  /* accordion sections: the gold section title doubles as a collapse/expand button, so a
+     settings panel can shrink to a slim stack of headings and stop hiding the 3D scene */
+  .sect>b{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;
+    position:relative;padding-right:20px;min-height:15px}
+  .sect>b::after{content:'▾';position:absolute;right:2px;top:0;font-size:10px;
+    color:var(--gold-dim);font-family:var(--sans)}
+  .sect>b:hover::after{color:var(--gold-2)}
+  .sect.collapsed>b{margin-bottom:0}
+  .sect.collapsed>b::after{content:'▸';color:var(--gold-2)}
+  .sect.collapsed>.sectBody{display:none}
   .btn{background:rgba(10,14,24,.75);border:1px solid var(--gold-dim);color:var(--txt);
     padding:5px 13px;border-radius:8px;cursor:pointer;font:600 12px var(--sans);transition:.2s}
   .btn:hover{border-color:var(--gold);box-shadow:0 0 12px rgba(212,175,106,.25);color:#fff}
@@ -533,19 +543,20 @@
   /* phones can't run in-tab WebXR — hide the XR buttons so the top row stays tidy (Quest's wide viewport keeps them) */
   @media (max-width:760px){ #vrBtn,#mrBtn{display:none!important} }
   @media (max-width:760px), (pointer:coarse){
-    #topbar{padding:6px 8px;gap:5px}
-    #topbar .title{font-size:13px;letter-spacing:2px;flex-basis:100%;text-align:center;margin:0}
-    #topbar .title small{font-size:8px;letter-spacing:1.5px}
+    #topbar{padding:4px 8px;gap:4px}
+    #topbar .title{font-size:12px;letter-spacing:2px;flex-basis:100%;text-align:center;margin:0}
+    /* the long subtitle costs a whole topbar row on a phone — the title alone carries it */
+    #topbar .title small{display:none}
     #modeRow{flex-basis:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
     #modeRow::-webkit-scrollbar{display:none}
     .modebtn{padding:7px 9px;font-size:10.5px;flex:0 0 auto;white-space:nowrap;letter-spacing:.2px}
     /* keep Search · Navigator · More on a single tidy line */
     #cmdkBtn,#navBtn,#moreBtn{padding:7px 9px;font-size:11px;flex:0 0 auto}
     #themeBtn,#fsBtn{padding:7px 9px;font-size:13px;flex:0 0 auto}   /* flow inline next to More — no more overlap of the mode row */
-    #clock{margin:2px auto 0;flex-basis:100%;display:flex;justify-content:center;
-      align-items:baseline;gap:14px;padding:4px 12px}
-    #clock .rt{font-size:13.5px;letter-spacing:1.5px}
-    #clock .st{font-size:9.5px;margin-top:0}
+    #clock{margin:1px auto 0;flex-basis:100%;display:flex;justify-content:center;
+      align-items:baseline;gap:10px;padding:2px 10px}
+    #clock .rt{font-size:11px;letter-spacing:1px;white-space:nowrap}
+    #clock .st{font-size:8.5px;margin-top:0;white-space:nowrap}
     /* dock collapses into a round FAB; expand to a left-pinned vertical pill so the view stays clear */
     #dockFab{display:flex}
     #helpFab,#dockFab,#ctlFab{left:14px;right:auto}   /* FABs go bottom-left; selection card stays bottom-right */
@@ -2601,10 +2612,34 @@ function makePanelCollapsible(id){
   btn.onclick=e=>{e.stopImmediatePropagation();closePanel(id);};
   p.appendChild(btn);
 }
+/* Accordion sections: every panel section's gold title becomes a collapse/expand
+   button. On phones only the FIRST section of a panel starts expanded, so opening
+   "settings" shows a slim stack of headings instead of a scene-burying sheet; the
+   user's own choices are remembered per panel+mode for the session. UI-only. */
+const SECT_STATE=new Map();   // `${panelId}|${mode}|${title}` -> '1' expanded / '0' collapsed
+function enhancePanelSections(id){
+  const p=document.getElementById(id); if(!p) return;
+  let first=true;
+  for(const sect of p.querySelectorAll('.sect')){
+    const head=sect.firstElementChild;
+    if(!head||head.tagName!=='B') continue;
+    if(!sect.querySelector(':scope > .sectBody')){   // wrap once; re-renders rebuild from scratch
+      const body=document.createElement('div'); body.className='sectBody';
+      while(head.nextSibling) body.appendChild(head.nextSibling);
+      sect.appendChild(body);
+    }
+    const key=id+'|'+state.mode+'|'+head.textContent.trim();
+    const saved=SECT_STATE.get(key);
+    const open=saved!=null ? saved==='1' : (!MOBILE_GPU||first);
+    sect.classList.toggle('collapsed',!open);
+    head.onclick=()=>{ SECT_STATE.set(key, sect.classList.toggle('collapsed')?'0':'1'); };
+    first=false;
+  }
+}
 for(const id of PANEL_IDS){
   const p=document.getElementById(id); if(!p) continue;
-  new MutationObserver(()=>makePanelCollapsible(id)).observe(p,{childList:true});
-  makePanelCollapsible(id);
+  new MutationObserver(()=>{ makePanelCollapsible(id); enhancePanelSections(id); }).observe(p,{childList:true});
+  makePanelCollapsible(id); enhancePanelSections(id);
 }
 document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>togglePanel(b.dataset.panel));
 document.getElementById('togglePanels').onclick=()=>activePanelId?closePanel(activePanelId):openPanel('ctl');
