@@ -1411,6 +1411,31 @@ function runSelfTests(){
       dblFocus('__nope__');
       return INTERACTION.scientificUnchanged(before, getAtlasEntityContract); }catch(e){ return false; } })(),
     'RA/Dec/z, contracts, tiers, S³ constants & FBS3R levels unchanged');
+  ok('Milky Way spiral-arm layer is registered as schematic (tier D · source-tagged · forbids exact-boundary claims)',
+    (()=>{ try{ const s=SELECT.get('mwSpiralArms'); if(!s) return false;
+      const c=getAtlasEntityContract('mwSpiralArms');
+      return atlasAccuracyTier('mwSpiralArms',s)==='D' && (s.src||[]).length>0 && MW_ARM_DEFS.length>=6
+        && c.quality.forbidden_claims.some(f=>/spiral-arm boundaries|exact Milky Way shape/i.test(f)); }catch(e){ return false; } })(),
+    'spiral arms are schematic, source-tagged and caveated');
+  ok('Coma sub-nodes (NGC 4874/4889/4911) registered as members with the peculiar-velocity caveat & links to Coma',
+    (()=>{ try{ const keys=['cosmos_ngc4874','cosmos_ngc4889','cosmos_ngc4911'];
+      return keys.every(k=>SELECT.has(k))
+        && keys.every(k=>getAtlasEntityContract(k).quality.forbidden_claims.some(f=>/peculiar velocit|line-of-sight distance/i.test(f)))
+        && keys.every(k=>EXPLICIT_RELATIONS.some(([a,b])=>(a==='cosmos_coma'&&b===k)||(b==='cosmos_coma'&&a===k))); }catch(e){ return false; } })(),
+    'three Coma members link to cosmos_coma and forbid reading member z as distance');
+  ok('Nearby Void Atlas: 7 constellation voids are tier-D, centroid-unknown, source-tagged and caveated',
+    (()=>{ try{ const keys=['cosmos_fornaxvoid','cosmos_sculptorvoid','cosmos_capricornusvoid','cosmos_microscopiumvoid','cosmos_coronaborealisvoid','cosmos_canismajorvoid','cosmos_columbavoid'];
+      return keys.length===7 && keys.every(k=>{ const s=SELECT.get(k); if(!s) return false;
+        const c=getAtlasEntityContract(k);
+        return atlasAccuracyTier(k,s)==='D' && s.centroidKnown===false && (s.src||[]).length>0
+          && c.quality.forbidden_claims.some(f=>/hard void boundary|survey- and definition-dependent/i.test(f)); }); }catch(e){ return false; } })(),
+    'void atlas is approximate, source-tagged and forbids hard-boundary claims');
+  ok('GRB anisotropy / 2D K–S node is an expert statistics node (tier M) with look-elsewhere & p-value caveats',
+    (()=>{ try{ const s=SELECT.get('grbAnisotropyLab'); if(!s) return false;
+      const f=getAtlasEntityContract('grbAnisotropyLab').quality.forbidden_claims.join(' | ');
+      return atlasAccuracyTier('grbAnisotropyLab',s)==='M' && /look-elsewhere/i.test(f) && /p-value/i.test(f)
+        && EXPLICIT_RELATIONS.some(([a,b])=>(a==='cosmos_hcb'&&b==='grbAnisotropyLab')||(b==='cosmos_hcb'&&a==='grbAnisotropyLab')); }catch(e){ return false; } })(),
+    'GRB node forbids over-interpreting significance and links to the HCB structure');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -1714,6 +1739,7 @@ const EXPLICIT_RELATIONS=[
   ['cosmos_coma','cosmos_ngc4889','member galaxy','NGC 4889 is the brightest cD galaxy of the Coma Cluster (Abell 1656); same cluster, cross-scale link.'],
   ['cosmos_coma','cosmos_ngc4874','member galaxy','NGC 4874 is a central cD galaxy of the Coma Cluster (Abell 1656); same cluster, cross-scale link.'],
   ['cosmos_coma','cosmos_ngc4911','member galaxy','NGC 4911 is a spiral member on the Coma outskirts; same cluster, cross-scale link.'],
+  ['cosmos_hcb','grbAnisotropyLab','statistical context','The HCB GRB overdensity claim is assessed in the GRB anisotropy / 2D K–S statistics laboratory.'],
 ];
 const relationColor=kind=>kind.includes('physical')?0x7eb7d8:
   kind.includes('identity')?0xffd080:kind.includes('observation')?0xe8b86a:
@@ -3852,6 +3878,32 @@ for(const s of COSMOS){
   });
 }
 
+/* GRB anisotropy / 2D Kolmogorov–Smirnov expert node — explains HOW angular
+   isotropy of gamma-ray bursts (and claims like the HCB "Great Wall") is tested,
+   and why a small p-value is necessary but NOT sufficient evidence for a physical
+   structure. Caveated, expert-only; asserts no detection of its own. */
+registerSel('grbAnisotropyLab', {
+  name:'GRB anisotropy · 2D K–S statistics lab', mode:'obs',
+  src:['ASTRO'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:[
+    'Do not present a small p-value as proof of a physical wall — it only rejects the specific isotropy null under the chosen test.',
+    'Do not ignore the look-elsewhere effect: scanning many sky patches, redshift bins and scales inflates the chance of a low local p-value.',
+    'Do not quote a Gaussian σ without stating the test, the null model, and whether the trials factor was applied.',
+    'Do not treat GRB selection-function anisotropy (survey exposure) as cosmic anisotropy.'],
+  desc:'How angular anisotropy in a point process (e.g. gamma-ray bursts) is assessed. The 1-D Kolmogorov–Smirnov test compares an empirical CDF to a reference via the maximum deviation D = max|F_emp − F_ref|; on the sphere there is no unique ordering, so 2-D extensions (Peacock 1983; Fasano & Franceschini 1987) compare integrated counts in all four quadrants around each point and take the largest discrepancy. The null hypothesis is statistical isotropy MODULATED BY the survey exposure / selection function — not uniform sky coverage. A p-value is the probability of a discrepancy at least this large UNDER THAT NULL; it is necessary but not sufficient evidence for a physical structure, and must be corrected for the look-elsewhere effect (the number of independent patches, redshift slices and scales scanned). Claims such as the Hercules–Corona Borealis "Great Wall" rest on these tests and remain contested precisely because of trials, selection effects, and the difficulty of inferring a 3-D structure from a 2-D + redshift sample.',
+  getPos:()=> (COSMOS_POS.get('hcb')||new THREE.Vector3(0,0,0)).clone(),
+  focusDist:()=>12,
+  rows:()=>[
+    ['Object class','statistical method node (no detection asserted)'],
+    ['Null hypothesis','isotropy × survey selection function'],
+    ['1-D statistic','D = max|F_emp(x) − F_ref(x)|'],
+    ['2-D extension','Peacock / Fasano–Franceschini quadrant-count maxima on the sphere'],
+    ['p-value meaning','P(discrepancy ≥ observed | null) — necessary, not sufficient'],
+    ['Mandatory correction','look-elsewhere / trials factor across patches, z-bins, scales'],
+    ['Worked example','HCB GRB overdensity (z≈1.6–2.1): significance is trials- and selection-sensitive; contested'],
+    ['Evidence class','method reference · mathematical-model tier (M)']],
+});
+
 /* ── DYNAMICAL DIPOLE AXIS ──────────────────────────────────────────────
    The Local Group's motion in the CMB frame is shaped not by position alone
    but by INTERACTION: a single attractor (Shapley) pulling and a single
@@ -4072,6 +4124,41 @@ registerSel('solarGC',{name:GAL_DATA.gc.name,mode:'solar',pick:gcDot,labelEl:gcL
   desc:'The Galactic centre is placed at the J2000 Sgr A* direction and 26,700 ly from the Sun. The Galactic-plane orientation uses the IAU north Galactic pole. Spiral arms are a schematic orientation aid, not a claim of an externally observed exact Milky Way shape.',
   getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
   rows:()=>[['J2000 centre','RA 17h45m40.04s · Dec −28°56′10.2″'],['Sun–centre distance','26,700 ly'],['Disk reference radius','52,000 ly · schematic'],['Plane normal','IAU NGP RA 192.8595° · Dec +27.1283°'],['Scale','1 scene unit = 1 AU']]});
+
+/* ── Milky Way spiral-arm label layer · SCHEMATIC literature reconstruction ──
+   Logarithmic-spiral arm tracks (pitch ≈12.5°) with labels; NOT exact arm
+   boundaries. Built with NO module-level `state` refs (state is defined later;
+   the toggle is applied at runtime in updateSolarScaleVisibility). */
+const mwArms=new THREE.Group(); milkyWayPhysical.add(mwArms);
+const MW_ARM_DEFS=[
+  {name:'Perseus Arm',             r0:9000,  phi:2.0, col:0x9ab8ff},
+  {name:'Scutum–Centaurus Arm',    r0:8200,  phi:4.7, col:0xffcf8a},
+  {name:'Sagittarius–Carina Arm',  r0:7200,  phi:0.5, col:0x8fe3c0},
+  {name:'Norma Arm',               r0:6600,  phi:3.1, col:0xff9db0},
+  {name:'Orion–Cygnus (Local) Arm',r0:8300,  phi:5.8, col:0xf1dda6, minor:true},
+  {name:'Outer / New Outer Arm',   r0:12500, phi:2.6, col:0x77b7ff, minor:true},
+];
+{ const b=Math.tan(12.5*DEG);
+  MW_ARM_DEFS.forEach(arm=>{ const pts=[], turns=arm.minor?1.1:1.7;
+    for(let i=0;i<=180;i++){ const th=i/180*turns*2*Math.PI, r=arm.r0*Math.exp(b*th); if(r>54000) break;
+      const a=th+arm.phi; pts.push(new THREE.Vector3(Math.cos(a)*r*LY_AU,0,Math.sin(a)*r*LY_AU)); }
+    if(pts.length<2) return;
+    mwArms.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:arm.col,transparent:true,opacity:arm.minor?.45:.62,depthWrite:false})));
+    const mid=pts[Math.floor(pts.length*0.62)];
+    const lab=mkLabel(arm.name+' · schematic',arm.minor?'label dim':'label'); lab.position.copy(mid).add(new THREE.Vector3(0,2600*LY_AU,0)); mwArms.add(lab); });
+}
+// Sun position on the Orion Arm (≈8.2 kpc / 26,700 ly from the centre) — computed in the disk's local frame
+milkyWayPhysical.updateWorldMatrix(true,false);
+const mwSunDot=new THREE.Mesh(new THREE.SphereGeometry(1000*LY_AU,12,8),new THREE.MeshBasicMaterial({color:0xfff2c4}));
+mwSunDot.position.copy(milkyWayPhysical.worldToLocal(new THREE.Vector3(0,0,0))); mwArms.add(mwSunDot);
+{ const sl=mkLabel('☉ Solar System · Orion Arm','label major'); sl.position.copy(mwSunDot.position).add(new THREE.Vector3(0,2400*LY_AU,0)); mwArms.add(sl); }
+registerSel('mwSpiralArms',{name:'Milky Way spiral arms (schematic)',mode:'solar',pick:mwSunDot,
+  src:['ASTRO'],accuracyTier:'D',catalogueStatus:'literature-derived',
+  forbiddenClaims:['exact spiral-arm boundaries','externally observed exact Milky Way shape','precise pitch angle as measured'],
+  desc:'Schematic logarithmic-spiral arm tracks (pitch ≈12.5°) from literature reconstructions of the Milky Way. Arm names and approximate placement are educational orientation aids — NOT exact arm boundaries (the Galaxy cannot be imaged from outside). The Sun sits on the minor Orion–Cygnus (Local) Arm at ~26,700 ly. Solar position and Sgr A* remain source-tagged at their J2000 values.',
+  getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
+  rows:()=>[['Status','schematic literature reconstruction'],['Pitch angle','≈12.5° (approx, log-spiral)'],['Arms shown','Perseus · Scutum–Centaurus · Sagittarius–Carina · Norma · Orion–Cygnus · Outer'],['Sun arm','Orion–Cygnus (Local) Arm · ~26,700 ly'],['Caveat','arm boundaries are reconstruction-dependent; not exact']]});
 
 const m31Physical=new THREE.Group(); m31Physical.position.copy(GAL_DATA.m31.pos);
 {
@@ -4350,6 +4437,7 @@ function updateSolarScaleVisibility(){
   const layer=state.solarScaleLayer||'local';
   solarGalacticGroup.visible=layer==='galactic'||layer==='andromeda';
   milkyWayPhysical.visible=layer==='galactic'||layer==='andromeda';
+  mwArms.visible = state.showMwArms!==false;   // schematic spiral-arm overlay toggle (parent handles layer visibility)
   m31Physical.visible=layer==='andromeda';
   if(galacticLinks[0]) galacticLinks[0].forEach(o=>o.visible=layer==='galactic'||layer==='andromeda');
   if(galacticLinks[1]) galacticLinks[1].forEach(o=>o.visible=layer==='andromeda');
@@ -8105,7 +8193,7 @@ const state = {
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
-  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false,
+  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
 };
