@@ -6373,6 +6373,30 @@ function setFractalPalette(name){
   fractalPalette=name in FRACTAL_PALETTES?name:'silver';
   fractalUniforms.uPalette.value=FRACTAL_PALETTES[fractalPalette];
 }
+function setJuliaParameterFromViewCenter(){
+  fractalUniforms.uJulia.value.copy(fractalUniforms.uCenter.value);
+  return fractalUniforms.uJulia.value;
+}
+// Debounced 3D-fiber rebuild while a Mandelbrot<->Julia lab slider is being
+// dragged — avoids rebuilding the geometry on every intermediate input event.
+let mjFiberRebuildRAF=0, mjFiberRebuildTimer=0;
+function scheduleMandelJuliaFiberRebuild(){
+  if(fractalType!=='mjfiber3d') return;
+  const rebuild=()=>{
+    mjFiberRebuildRAF=0; mjFiberRebuildTimer=0;
+    buildMandelJuliaFiber3D(true);
+    mjFiberGroup.visible=true;
+    syncCameraClipping(true);
+  };
+  if(mjFiberRebuildRAF) cancelAnimationFrame(mjFiberRebuildRAF);
+  if(mjFiberRebuildTimer) clearTimeout(mjFiberRebuildTimer);
+  const q=mjFiberQuality||'fast';
+  const delay=(MOBILE_GPU||q==='ultra')?(LOW_MEMORY_DEVICE?720:560):(q==='fast'?300:190);
+  mjFiberRebuildTimer=setTimeout(()=>{
+    if('requestIdleCallback' in window) requestIdleCallback(rebuild,{timeout:260});
+    else mjFiberRebuildRAF=requestAnimationFrame(rebuild);
+  },delay);
+}
 /* ── Bifurcation ⊗ Mandelbrot in true 3D ─────────────────────────────
    A real Three.js point cloud (no shader): the Mandelbrot set lies in the
    z=0 plane (x=Re c, y=Im c); the logistic/quadratic period-doubling
@@ -9517,23 +9541,81 @@ function buildCtl(){
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr" min="4" max="20" step="1" value="${fractalUniforms.uIters.value}">
         <span class="val" id="itrV"></span></div>
-    </div>`:`<div class="sect"><b>Complex-plane coordinates</b>
+    </div>`:(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?`<div class="sect"><b>True 3D navigation</b>
+      <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
+      <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
+    </div>`:`<div class="sect"><b>${fractalType==='mjfiber3d'?'3D fiber parameter frame':'Complex-plane coordinates'}</b>
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr2" min="30" max="280" step="1" value="${fractalUniforms.uIters2D.value}">
         <span class="val" id="itr2V"></span></div>
-      <div class="ctlrow"><label>Zoom</label>
+      ${fractalType==='mjfiber3d'?`<div class="note">True 3D geometry mode: drag rotates the camera; wheel / two-finger pinch dollies the camera. The controls below set the parameter-frame anchor and Julia seed; shader-plane zoom is intentionally hidden.</div>`:`<div class="ctlrow"><label>Zoom</label>
         <input type="range" id="fzoom" min="-1" max="${Math.log10(fractalZoomMax())}" step="0.01" value="${Math.log10(fractalUniforms.uZoom.value)}">
         <span class="val" id="fzoomV"></span></div>
       <div class="note">Precision-safe GPU zoom limit: ${fractalZoomMax().toExponential(1)}×.
-        The guard prevents single-precision fragment coordinates from collapsing into a blank image.</div>
+        The guard prevents single-precision fragment coordinates from collapsing into a blank image.</div>`}
       <div class="ctlrow"><label>Center Re(c)</label><input type="number" id="fcx" step="0.000001" value="${fractalUniforms.uCenter.value.x}" style="flex:1"></div>
       <div class="ctlrow"><label>Center Im(c)</label><input type="number" id="fcy" step="0.000001" value="${fractalUniforms.uCenter.value.y}" style="flex:1"></div>
       <div class="ctlrow"><label>Coordinate grid</label><input type="checkbox" id="fgrid" ${fractalUniforms.uGrid.value?'checked':''}></div>
-      <div class="ctlrow"><button class="btn" id="freset">Reset view</button><button class="btn green" id="fgolden">Golden-mean region</button></div>
+      <div class="ctlrow"><button class="btn" id="freset">${fractalType==='mjfiber3d'?'Reset 3D camera':'Reset view'}</button>${fractalType==='mjfiber3d'?'':'<button class="btn green" id="fgolden">Golden-mean region</button>'}</div>
     </div>
-    ${fractalType==='julia'?`<div class="sect"><b>Julia parameter c</b>
+    ${(fractalType==='julia'||fractalType==='mjfiber3d')?`<div class="sect"><b>Julia parameter c</b>
       <div class="ctlrow"><label>Re(c)</label><input type="number" id="jre" step="0.0001" value="${fractalUniforms.uJulia.value.x}" style="flex:1"></div>
       <div class="ctlrow"><label>Im(c)</label><input type="number" id="jim" step="0.0001" value="${fractalUniforms.uJulia.value.y}" style="flex:1"></div>
+    </div>`:''}
+    ${fractalType==='mjfiber3d'?`<div class="sect"><b>Mandelbrot ⇄ Julia correspondence laboratory</b>
+      <div class="ctlrow"><label>Coupling model</label><select id="mjMethod" style="flex:1">
+        ${MANDEL_JULIA_METHODS.map((m,i)=>`<option value="${i}" ${fractalUniforms.uMJMethod.value===i?'selected':''}>${String(i+1).padStart(2,'0')} · ${m[0]}</option>`).join('')}
+      </select></div>
+      <div class="note" id="mjMethodNote">${MANDEL_JULIA_METHODS[fractalUniforms.uMJMethod.value]?.[1]||''}</div>
+      <div class="ctlrow"><label>α parameter coupling</label>
+        <input type="range" id="mjmix" min="0" max="1" step="0.01" value="${fractalUniforms.uMJMix.value}">
+        <span class="val" id="mjmixV"></span></div>
+      <div class="ctlrow"><label>β orbit injection</label>
+        <input type="range" id="mjbeta" min="0" max="1" step="0.01" value="${fractalUniforms.uMJBeta.value}">
+        <span class="val" id="mjbetaV"></span></div>
+      <div class="ctlrow"><label>γ ray/potential lock</label>
+        <input type="range" id="mjgamma" min="0" max="1" step="0.01" value="${fractalUniforms.uMJGamma.value}">
+        <span class="val" id="mjgammaV"></span></div>
+      <div class="ctlrow"><label>δ tuning scale</label>
+        <input type="range" id="mjdelta" min="0" max="1" step="0.01" value="${fractalUniforms.uMJDelta.value}">
+        <span class="val" id="mjdeltaV"></span></div>
+      <div class="ctlrow"><label>Degree d</label>
+        <input type="range" id="mjpower" min="1.15" max="8" step="0.01" value="${fractalUniforms.uMJPower.value}">
+        <span class="val" id="mjpowerV"></span></div>
+      <div class="ctlrow"><label>Trap radius</label>
+        <input type="range" id="mjtrap" min="0.02" max="2.2" step="0.01" value="${fractalUniforms.uMJTrap.value}">
+        <span class="val" id="mjtrapV"></span></div>
+      <div class="ctlrow"><label>Ray cells</label>
+        <input type="range" id="mjrays" min="2" max="64" step="1" value="${fractalUniforms.uMJRays.value}">
+        <span class="val" id="mjraysV"></span></div>
+      <details><summary><b>Research parameters</b> · rays, lamination, Ecalle phase, memory, 3D lift</summary>
+        <div class="ctlrow"><label>ε deformation</label><input type="range" id="mjeps" min="0" max="1" step="0.01" value="${fractalUniforms.uMJEpsilon.value}"><span class="val" id="mjepsV"></span></div>
+        <div class="ctlrow"><label>θ external angle</label><input type="range" id="mjtheta" min="0" max="1" step="0.001" value="${fractalUniforms.uMJTheta.value}"><span class="val" id="mjthetaV"></span></div>
+        <div class="ctlrow"><label>λ multiplier</label><input type="range" id="mjlambda" min="0" max="1" step="0.01" value="${fractalUniforms.uMJLambda.value}"><span class="val" id="mjlambdaV"></span></div>
+        <div class="ctlrow"><label>μ memory</label><input type="range" id="mjmemory" min="0" max="1" step="0.01" value="${fractalUniforms.uMJMemory.value}"><span class="val" id="mjmemoryV"></span></div>
+        <div class="ctlrow"><label>fold / surgery</label><input type="range" id="mjfold" min="0" max="1" step="0.01" value="${fractalUniforms.uMJFold.value}"><span class="val" id="mjfoldV"></span></div>
+        <div class="ctlrow"><label>slice / Ecalle height</label><input type="range" id="mjslice" min="0" max="1" step="0.01" value="${fractalUniforms.uMJSlice.value}"><span class="val" id="mjsliceV"></span></div>
+        <div class="ctlrow"><label>3D / sphere lift</label><input type="range" id="mjzlift" min="0" max="1" step="0.01" value="${fractalUniforms.uMJZLift.value}"><span class="val" id="mjzliftV"></span></div>
+        <div class="ctlrow"><label>diagnostic display</label><select id="mjdisplay" style="flex:1">
+          ${['composite','coherence','ray lock','potential','trap','renorm'].map((x,i)=>`<option value="${i}" ${fractalUniforms.uMJDisplay.value===i?'selected':''}>${x}</option>`).join('')}
+        </select></div>
+      </details>
+      <div class="chips">
+        <button class="chip" data-mjpreset="-1,0,8">Basilica</button>
+        <button class="chip" data-mjpreset="-0.122561,0.744862,9">Douady rabbit</button>
+        <button class="chip" data-mjpreset="-1.754878,0,10">Airplane</button>
+        <button class="chip" data-mjpreset="-0.74543,0.11301,11">Seahorse</button>
+        <button class="chip" data-mjpreset="-0.101096,0.956287,12">Misiurewicz</button>
+        <button class="chip" data-mjpreset="0.25,0,13">Parabolic cusp</button>
+        <button class="chip" data-mjpreset="-1.401155,0,25">Feigenbaum</button>
+        <button class="chip" data-mjpreset="-0.75,0,28">Cardioid λ</button>
+        <button class="chip" data-mjpreset="-0.35,0.57,36">Tricorn bridge</button>
+        <button class="chip" data-mjpreset="0.0,0.0,41">Riemann lift</button>
+        <button class="chip" data-mjpreset="0.0,0.0,43">Mandelbulb slice</button>
+        <button class="chip" data-mjpreset="-1.2,0.1,45">Julia mosaic</button>
+      </div>
+      <div class="ctlrow"><button class="btn green" id="mjCenterToJulia">use current Mandelbrot center as Julia c</button><button class="btn" id="mjRebuild3D">rebuild 3D fibers</button></div>
+      <div class="note">This is not a visual overlay. The Mandelbrot plane is the <b>parameter plane</b> c; the Julia plane is the <b>dynamical plane</b> z for f<sub>c</sub>(z)=z<sup>d</sup>+c. Presets and sliders expose connectedness, rays, equipotentials, tuning, renormalization, Misiurewicz/parabolic similarity, Ecalle/Lavaurs phase, kneading/lamination, rational/two-critical slices, fractional memory, quaternion/Mandelbulb sections and 3D parameter-dynamic fibers as one joint C<sub>c</sub>×C<sub>z</sub> laboratory.</div>
     </div>`:''}
     ${fractalType==='nested'?`<div class="sect"><b>Nested equipotential atlas</b>
       <div class="ctlrow"><label>φ-level band period</label>
@@ -9604,14 +9686,33 @@ function buildCtl(){
     ctl.querySelector('#fcy')?.addEventListener('change',e=>{fractalUniforms.uCenter.value.y=+e.target.value||0;});
     ctl.querySelector('#fgrid')?.addEventListener('change',e=>fractalUniforms.uGrid.value=e.target.checked?1:0);
     ctl.querySelector('#flvl')?.addEventListener('input',e=>{fractalUniforms.uLevel.value=+e.target.value;updCtlVals();});
-    ctl.querySelector('#jre')?.addEventListener('change',e=>fractalUniforms.uJulia.value.x=+e.target.value||0);
-    ctl.querySelector('#jim')?.addEventListener('change',e=>fractalUniforms.uJulia.value.y=+e.target.value||0);
+    ctl.querySelector('#jre')?.addEventListener('change',e=>{fractalUniforms.uJulia.value.x=+e.target.value||0; scheduleMandelJuliaFiberRebuild();});
+    ctl.querySelector('#jim')?.addEventListener('change',e=>{fractalUniforms.uJulia.value.y=+e.target.value||0; scheduleMandelJuliaFiberRebuild();});
+    ctl.querySelector('#mjMethod')?.addEventListener('change',e=>{fractalUniforms.uMJMethod.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();buildCtl();});
+    ctl.querySelector('#mjmix')?.addEventListener('input',e=>{fractalUniforms.uMJMix.value=+e.target.value;fractalUniforms.uMJAlpha.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjbeta')?.addEventListener('input',e=>{fractalUniforms.uMJBeta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjgamma')?.addEventListener('input',e=>{fractalUniforms.uMJGamma.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjdelta')?.addEventListener('input',e=>{fractalUniforms.uMJDelta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjpower')?.addEventListener('input',e=>{fractalUniforms.uMJPower.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjtrap')?.addEventListener('input',e=>{fractalUniforms.uMJTrap.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjrays')?.addEventListener('input',e=>{fractalUniforms.uMJRays.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjeps')?.addEventListener('input',e=>{fractalUniforms.uMJEpsilon.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjtheta')?.addEventListener('input',e=>{fractalUniforms.uMJTheta.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjlambda')?.addEventListener('input',e=>{fractalUniforms.uMJLambda.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjmemory')?.addEventListener('input',e=>{fractalUniforms.uMJMemory.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjfold')?.addEventListener('input',e=>{fractalUniforms.uMJFold.value=+e.target.value;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelector('#mjslice')?.addEventListener('input',e=>{fractalUniforms.uMJSlice.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjzlift')?.addEventListener('input',e=>{fractalUniforms.uMJZLift.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
+    ctl.querySelector('#mjdisplay')?.addEventListener('change',e=>{fractalUniforms.uMJDisplay.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();});
+    ctl.querySelectorAll('[data-mjpreset]').forEach(b=>b.onclick=()=>{ const [x,y,m]=b.dataset.mjpreset.split(',').map(Number); fractalUniforms.uJulia.value.set(x,y); fractalUniforms.uMJMethod.value=m|0; setFractalZoom(Math.max(fractalUniforms.uZoom.value,3)); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
+    ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
+    ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); });
     ctl.querySelector('#bifFeig')?.addEventListener('click',()=>{ fractalUniforms.uCenter.value.set(3.5699456,0.5); setFractalZoom(42); buildCtl(); });
     ctl.querySelector('#bifFull')?.addEventListener('click',()=>{ setFractalType('bifurcation',true); buildCtl(); });
     ctl.querySelector('#bifOverlay')?.addEventListener('change',e=>{ fractalUniforms.uBifOverlay.value=e.target.checked?1:0; });
     ctl.querySelectorAll('[data-bifjump]').forEach(b=>b.onclick=()=>{ fractalUniforms.uBifOverlay.value=1;
       fractalUniforms.uCenter.value.set(+b.dataset.bifjump,0); setFractalZoom(Math.max(fractalUniforms.uZoom.value,6)); buildCtl(); });
-    ctl.querySelector('#freset')?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
+    (ctl.querySelector('#freset')||ctl.querySelector('#fresetGeo3D'))?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
     ctl.querySelector('#fgolden')?.addEventListener('click',()=>{
       fractalUniforms.uCenter.value.set(-.743643887037151,.13182590420533);
       setFractalZoom(850); buildCtl();
@@ -9768,6 +9869,20 @@ function updCtlVals(){
     if(q('#fzoomV')) q('#fzoomV').textContent = fractalUniforms.uZoom.value.toExponential(2)+'×';
     if(q('#flvlV')) q('#flvlV').textContent = fractalUniforms.uLevel.value.toFixed(0);
     if(q('#budProg')) q('#budProg').textContent = (buddhaProgress*100).toFixed(0)+'%';
+    if(q('#mjmixV')) q('#mjmixV').textContent = 'α = '+fractalUniforms.uMJMix.value.toFixed(2);
+    if(q('#mjbetaV')) q('#mjbetaV').textContent = 'β = '+fractalUniforms.uMJBeta.value.toFixed(2);
+    if(q('#mjgammaV')) q('#mjgammaV').textContent = 'γ = '+fractalUniforms.uMJGamma.value.toFixed(2);
+    if(q('#mjdeltaV')) q('#mjdeltaV').textContent = 'δ = '+fractalUniforms.uMJDelta.value.toFixed(2);
+    if(q('#mjpowerV')) q('#mjpowerV').textContent = 'd = '+fractalUniforms.uMJPower.value.toFixed(2);
+    if(q('#mjtrapV')) q('#mjtrapV').textContent = 'r = '+fractalUniforms.uMJTrap.value.toFixed(2);
+    if(q('#mjraysV')) q('#mjraysV').textContent = fractalUniforms.uMJRays.value.toFixed(0);
+    if(q('#mjepsV')) q('#mjepsV').textContent = fractalUniforms.uMJEpsilon.value.toFixed(2);
+    if(q('#mjthetaV')) q('#mjthetaV').textContent = fractalUniforms.uMJTheta.value.toFixed(3);
+    if(q('#mjlambdaV')) q('#mjlambdaV').textContent = fractalUniforms.uMJLambda.value.toFixed(2);
+    if(q('#mjmemoryV')) q('#mjmemoryV').textContent = fractalUniforms.uMJMemory.value.toFixed(2);
+    if(q('#mjfoldV')) q('#mjfoldV').textContent = fractalUniforms.uMJFold.value.toFixed(2);
+    if(q('#mjsliceV')) q('#mjsliceV').textContent = fractalUniforms.uMJSlice.value.toFixed(2);
+    if(q('#mjzliftV')) q('#mjzliftV').textContent = fractalUniforms.uMJZLift.value.toFixed(2);
   }
 }
 
