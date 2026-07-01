@@ -1443,6 +1443,22 @@ function runSelfTests(){
         && /illustrative|not catalogued/i.test(f) && /projection|redshift-space/i.test(f)
         && ['cosmos_gr','cosmos_ga','cosmos_br'].every(k=>EXPLICIT_RELATIONS.some(([a,b])=>(a==='surveyConeLab'&&b===k)||(b==='surveyConeLab'&&a===k))); }catch(e){ return false; } })(),
     'survey cone is illustrative tracer + quantitative slice geometry, caveated, and links to the ring fields');
+  ok('Cycle resonance web reproduces the Antikythera ratios (moon:Saros 223:1, year:Metonic 19:1) and is tier-M / non-metric',
+    (()=>{ try{ const s=SELECT.get('cycResonanceWeb'); if(!s) return false;
+      const ms=cycleCommensurability(cycleByKey('moon'),cycleByKey('saros'));
+      const ym=cycleCommensurability(cycleByKey('year'),cycleByKey('metonic'));
+      const f=getAtlasEntityContract('cycResonanceWeb').quality.forbidden_claims.join(' | ');
+      return ms.nA===223 && ms.nB===1 && ym.nA===19 && ym.nB===1
+        && atlasAccuracyTier('cycResonanceWeb',s)==='M' && /non-metric|not a dynamical resonance/i.test(f); }catch(e){ return false; } })(),
+    'resonance web encodes the real Saros/Metonic locks, tier M, caveated as non-metric');
+  ok('Earth/Sun/Moon orientation diagram uses real angles (obliquity 23.4393°, galactic 60.19°, Moon 5.145°), tier-M, schematic-caveated',
+    (()=>{ try{ const s=SELECT.get('orientationDiagram'); if(!s) return false;
+      const f=getAtlasEntityContract('orientationDiagram').quality.forbidden_claims.join(' | ');
+      const rows=s.rows().map(r=>r.join(' ')).join(' | ');
+      return atlasAccuracyTier('orientationDiagram',s)==='M'
+        && /23\.4393/.test(rows) && /60\.19/.test(rows) && /5\.145/.test(rows)
+        && /schematic|read only the ANGLES/i.test(f); }catch(e){ return false; } })(),
+    'orientation diagram: real angles, schematic scale, caveated');
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
@@ -5704,6 +5720,134 @@ function rebuildCyclePhaseTrace(){
   }
   cycPhaseTrace.geometry.setFromPoints(pts);
 }
+
+/* ── CYCLE RESONANCE WEB · the global commensurability map ──────────────────
+   The phase torus shows ONE pair's phase trajectory. This shows ALL of them at
+   once: every finite cycle is a node; every pair is an edge whose brightness/
+   opacity encodes how tightly the two periods lock (best small-integer ratio
+   nA:nB and its residual, from cycleCommensurability). The tight locks light up
+   gold — moon↔Saros (223:1), year↔Metonic (19:1), moon↔year (235:19) — the very
+   ratios the Antikythera gears. Selecting Cycle A/B highlights its edge here AND
+   draws its trajectory on the torus: one relationship, global and local.
+   Commensurability is a mathematical near-coincidence of MEAN periods, not a
+   dynamical resonance lock; the layout is a readable graph, non-metric. */
+const cycResonanceInst=new THREE.Group(); cycResonanceInst.position.set(0,13,-24); cycGroup.add(cycResonanceInst);
+const RESO_KEYS=CYCLE_PHASE_KEYS.slice();   // moon, year, saros, metonic, prec, gal
+const RESO_SHORT={moon:'Synodic month',year:'Tropical year',saros:'Saros',metonic:'Metonic',prec:'Precession',gal:'Galactic year'};
+const resoNodes=RESO_KEYS.map((k,i)=>{
+  const a=i/RESO_KEYS.length*2*Math.PI, R=6;
+  const pos=new THREE.Vector3(Math.cos(a)*R, Math.sin(a)*R, 0);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12), new THREE.MeshBasicMaterial({color:0xd4af6a}));
+  dot.position.copy(pos); cycResonanceInst.add(dot);
+  const lab=mkLabel(RESO_SHORT[k],'label major'); lab.position.copy(pos.clone().multiplyScalar(1.2)); cycResonanceInst.add(lab);
+  return {key:k,pos,dot};
+});
+const resoEdges=[];
+for(let i=0;i<resoNodes.length;i++) for(let j=i+1;j<resoNodes.length;j++){
+  const a=cycleByKey(resoNodes[i].key), b=cycleByKey(resoNodes[j].key), c=cycleCommensurability(a,b);
+  const tight=Math.max(0, 1-Math.min(1, Math.log10(1+c.ppm)/5));            // 0 (no lock) .. 1 (perfect)
+  const col=new THREE.Color().setHSL(0.12, 0.55, 0.30+0.45*tight);          // gold, brighter when tighter
+  const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([resoNodes[i].pos, resoNodes[j].pos]),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.10+0.72*tight,depthWrite:false}));
+  cycResonanceInst.add(line);
+  let elab=null;
+  if(tight>0.55){   // label only the meaningful resonances
+    elab=mkLabel(`${c.nA}:${c.nB}`,'label dim');
+    elab.position.copy(resoNodes[i].pos.clone().lerp(resoNodes[j].pos,0.5)); cycResonanceInst.add(elab);
+  }
+  resoEdges.push({i:resoNodes[i].key,j:resoNodes[j].key,line,col,tight,elab});
+}
+{ const t=mkLabel('CYCLE RESONANCE WEB · commensurability map · gold = tight integer lock (the Antikythera ratios)','label const'); t.position.set(0,7.7,0); cycResonanceInst.add(t); }
+let resoPulse=0;
+function updateCycResonance(dt){
+  resoPulse+=dt;
+  const A=state.cycPairA, B=state.cycPairB, pulse=0.78+0.22*Math.sin(resoPulse*3);
+  resoNodes.forEach(n=>{ const sel=(n.key===A||n.key===B);
+    n.dot.scale.setScalar(sel?1.5:1); n.dot.material.color.setHex(sel?0xffe6a8:0xd4af6a); });
+  for(const e of resoEdges){
+    const sel=(e.i===A&&e.j===B)||(e.i===B&&e.j===A);
+    if(sel){ e.line.material.color.setHex(0xffe6a8); e.line.material.opacity=pulse; }
+    else { e.line.material.color.copy(e.col); e.line.material.opacity=0.10+0.72*e.tight; }
+    if(e.elab) e.elab.element.style.opacity=sel?'1':'';
+  }
+}
+registerSel('cycResonanceWeb',{
+  name:'Cycle resonance web', mode:'cyc', pick:resoNodes[0].dot,
+  src:['IAU'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:[
+    'Layout positions are non-metric — node separations are not physical distances.',
+    'Commensurability is a near-coincidence of mean periods, not a dynamical resonance/phase-lock claim.'],
+  desc:'A commensurability map of the six finite cycles. Each edge is the best small-integer ratio nA:nB between two mean periods (from cycleCommensurability); gold/bright = a tight lock, faint = no useful resonance. The strong locks are the Metonic (235 synodic months ≈ 19 tropical years) and the Saros (223 synodic months) — the very ratios the Antikythera mechanism gears. Selecting Cycle A/B highlights its edge here and draws its trajectory on the phase torus: the same relationship, global and local.',
+  getPos:()=>cycResonanceInst.position.clone(), focusDist:()=>17,
+  rows:()=>{ const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB),c=cycleCommensurability(a,b);
+    return [['Model','global commensurability graph (non-metric)'],
+      ['Nodes','6 finite cycles · month · year · Saros · Metonic · precession · galactic'],
+      ['Selected pair',`${RESO_SHORT[state.cycPairA]} ↔ ${RESO_SHORT[state.cycPairB]}`],
+      ['Best lock',`${c.nA} : ${c.nB} · residual ${c.ppm.toFixed(c.ppm<10?2:0)} ppm`],
+      ['Tightest locks','moon:Saros 223:1 · year:Metonic 19:1 · moon:year 235:19'],
+      ['Status','mathematical relationship map; not a physical configuration']]; },
+});
+/* ── EARTH / SUN / MOON ORIENTATION DIAGRAM · educational, not to scale ─────
+   The reference frames every other instrument quietly assumes, made explicit in
+   one place: the ecliptic (Earth's orbital plane), the celestial equator (tilted
+   by the 23.44° obliquity) and the galactic plane (~60.2° to the ecliptic), each
+   with its north pole (NEP/NCP/NGP); Earth's tilted spin axis; the Moon's orbit
+   inclined 5.14° with its nodes; and the solar apex. Angles are real; sizes and
+   positions are schematic. No state refs at construction. */
+const cycOrientInst=new THREE.Group(); cycOrientInst.position.set(0,-13,-24); cycOrientInst.visible=false; cycGroup.add(cycOrientInst);
+function orientRing(radius,tiltDeg,tiltAxis,col,op){
+  const pts=[]; for(let k=0;k<=128;k++){const a=k/128*2*Math.PI; pts.push(new THREE.Vector3(Math.cos(a)*radius,0,Math.sin(a)*radius));}
+  const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false}));
+  ring.rotateOnAxis(tiltAxis.clone().normalize(), tiltDeg*DEG); return ring;
+}
+function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
+  const dir=new THREE.Vector3(0,1,0).applyAxisAngle(tiltAxis.clone().normalize(), tiltDeg*DEG), g=new THREE.Group();
+  g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),dir.clone().multiplyScalar(len)]),
+    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.8})));
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(.12,.34,10),new THREE.MeshBasicMaterial({color:col}));
+  tip.position.copy(dir.clone().multiplyScalar(len)); tip.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dir); g.add(tip);
+  const lab=mkLabel(label,'label axis'); lab.position.copy(dir.clone().multiplyScalar(len+0.45)); g.add(lab); return g;
+}
+{
+  const X=new THREE.Vector3(1,0,0), Z=new THREE.Vector3(0,0,1);
+  cycOrientInst.add(orientRing(5,0,X,0xf1dda6,.7));           // ecliptic (reference)
+  cycOrientInst.add(orientRing(5,23.4393,X,0x8fb8ff,.6));     // celestial equator (obliquity)
+  cycOrientInst.add(orientRing(5,60.19,Z,0x9ce3c6,.42));      // galactic plane (distinct node line)
+  cycOrientInst.add(orientPole(0,X,0xf1dda6,'NEP · ecliptic pole'));
+  cycOrientInst.add(orientPole(23.4393,X,0x8fb8ff,'NCP · celestial pole (→ Polaris)'));
+  cycOrientInst.add(orientPole(60.19,Z,0x9ce3c6,'NGP · galactic pole'));
+  const oEarth=new THREE.Mesh(new THREE.SphereGeometry(.6,24,16), MOBILE_GPU?new THREE.MeshBasicMaterial({color:0x5a86d6}):new THREE.MeshStandardMaterial({color:0x4d7fd0,roughness:.7}));
+  cycOrientInst.add(oEarth);
+  const axisDir=new THREE.Vector3(0,1,0).applyAxisAngle(X,23.4393*DEG);
+  cycOrientInst.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([axisDir.clone().multiplyScalar(-1.4),axisDir.clone().multiplyScalar(1.4)]),
+    new THREE.LineBasicMaterial({color:0xf1dda6})));
+  { const el=mkLabel('Earth · axial tilt 23.44°','label dim'); el.position.set(0,-1.25,0); cycOrientInst.add(el); }
+  { const sun=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12),new THREE.MeshBasicMaterial({color:0xfff2c4})); sun.position.set(5,0,0); cycOrientInst.add(sun);
+    const sl=mkLabel('Sun · on the ecliptic','label dim'); sl.position.set(5,.5,0); cycOrientInst.add(sl); }
+  cycOrientInst.add(orientRing(1.5,5.145,X,0xcfe0ff,.85));    // Moon orbit, inclined to ecliptic
+  { const ml=mkLabel('Moon orbit · inclined 5.14° · nodes → eclipses','label dim'); ml.position.set(0,0,2.0); cycOrientInst.add(ml);
+    [[1.5,0,0],[-1.5,0,0]].forEach(p=>{ const nd=new THREE.Mesh(new THREE.SphereGeometry(.1,8,6),new THREE.MeshBasicMaterial({color:0xff7a9a})); nd.position.set(p[0],p[1],p[2]); cycOrientInst.add(nd); }); }
+  const apex=new THREE.Vector3(0.2,0.55,-0.81).normalize();   // schematic apex direction
+  const al=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),apex.clone().multiplyScalar(6)]),
+    new THREE.LineDashedMaterial({color:0xffd080,dashSize:.3,gapSize:.2,transparent:true,opacity:.7})); al.computeLineDistances(); cycOrientInst.add(al);
+  { const lab=mkLabel('Solar apex → Sun drifts ~19.4 km/s toward Hercules','label axis'); lab.position.copy(apex.clone().multiplyScalar(6.3)); cycOrientInst.add(lab); }
+  { const t=mkLabel('EARTH / SUN / MOON ORIENTATION · real angles · schematic sizes (NOT to scale)','label const'); t.position.set(0,6.7,0); cycOrientInst.add(t); }
+  registerSel('orientationDiagram',{
+    name:'Earth / Sun / Moon orientation diagram', mode:'cyc', pick:oEarth,
+    src:['IAU'], accuracyTier:'M', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Sizes, distances and orbit radii are schematic — read only the ANGLES.','Not an ephemeris: instantaneous node/apex positions require IAU 2006/2000A + IERS data.'],
+    desc:'The reference frames the rest of the atlas assumes, shown together: the ecliptic (Earth’s orbital plane), the celestial equator tilted by the 23.4393° obliquity, and the galactic plane at ~60.2° to the ecliptic — each with its north pole (NEP / NCP / NGP). Earth’s spin axis carries the obliquity (it precesses over 25,772 yr — see the precession instrument); the Moon’s orbit is inclined 5.145° to the ecliptic and eclipses occur only near its nodes (the Saros). The dashed arrow is the solar apex — the Sun’s ~19.4 km/s drift toward Hercules. Angles are real; sizes and positions are schematic.',
+    getPos:()=>cycOrientInst.position.clone(), focusDist:()=>16,
+    rows:()=>[
+      ['Obliquity (ecliptic↔equator)','23.4393°'],
+      ['Galactic plane ↔ ecliptic','≈60.19°'],
+      ['Moon orbit ↔ ecliptic','5.145° · nodes regress over 18.6 yr'],
+      ['Poles','NEP (ecliptic) · NCP→Polaris · NGP (galactic)'],
+      ['Solar apex','~RA 18h, Dec +30° (Hercules) · ~19.4 km/s'],
+      ['Status','educational diagram · real angles, schematic scale']],
+  });
+}
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
 function applyCycFrameView(){
   if(state.mode!=='cyc') return;
@@ -5716,6 +5860,14 @@ function applyCycFrameView(){
     const p=antikGroup.position;
     controls.target.copy(p).add(new THREE.Vector3(0,2,0)); camera.position.copy(p).add(new THREE.Vector3(0,5,36));
     setControlDistanceLimits(8,140);
+  } else if(state.cycFrame==='resonance'){
+    const p=cycResonanceInst.position;
+    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,0,18));
+    setControlDistanceLimits(4,90);
+  } else if(state.cycFrame==='orientation'){
+    const p=cycOrientInst.position;
+    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,6,17));
+    setControlDistanceLimits(4,90);
   } else {
     controls.target.set(0,1,0); camera.position.set(0,26,54); setControlDistanceLimits(4,320);
   }
@@ -6018,10 +6170,13 @@ function updateCyc(dt){
   precInst.visible=frame==='hierarchy'||frame==='geo';
   seaInst.visible=frame==='hierarchy'||frame==='helio'||frame==='geo';
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
+  cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
+  if(cycResonanceInst.visible) updateCycResonance(dt);
+  cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
   if(frame==='antikythera') antikUpdate(state.epochDays);
   // when the Antikythera frame is active, hide the hierarchy clutter so only the mechanism shows
-  if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=false; }
+  if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=cycResonanceInst.visible=false; }
 
   // Galactic orbit: approximate relative phase only; absolute azimuth is not inferred.
   const ga = galSunAngle0 - 2*Math.PI*yrs/(GAL_YEAR_MYR*1e6);
@@ -8687,6 +8842,8 @@ function buildCtl(){
           <option value="geo" ${state.cycFrame==='geo'?'selected':''}>Geocentric / Earth-axis</option>
           <option value="gal" ${state.cycFrame==='gal'?'selected':''}>Galactocentric reference</option>
           <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
+          <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
+          <option value="orientation" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>
           <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
         </select>
       </div>
@@ -10030,7 +10187,8 @@ const WIKI={ sun:'Sun', moon:'Moon', oortCloud:'Oort_cloud',
   cosmos_gr:'Big_Ring_on_the_Sky', cosmos_ga:'Giant_Arc_(astronomy)', cosmos_br:'Big_Ring_on_the_Sky',
   cosmos_hcb:'Hercules–Corona_Borealis_Great_Wall', cosmos_a2744_qso1:'Little_red_dot_(astronomy)',
   ngc4874:'NGC_4874', ngc4889:'NGC_4889', ngc4911:'NGC_4911', cosmos_eridanusvoid:'CMB_cold_spot',
-  grbAnisotropyLab:'Kolmogorov–Smirnov_test', surveyConeLab:'Redshift_survey' };
+  grbAnisotropyLab:'Kolmogorov–Smirnov_test', surveyConeLab:'Redshift_survey',
+  cycResonanceWeb:'Orbital_resonance', orientationDiagram:'Ecliptic' };
 function wikiUrl(key,s){
   const direct=WIKI[key]||WIKI[(key||'').replace(/^solarCosmic_/,'cosmos_')]||WIKI[(key||'').replace(/^ulss_/,'cosmos_').toLowerCase()];
   if(direct) return 'https://en.wikipedia.org/wiki/'+direct;
