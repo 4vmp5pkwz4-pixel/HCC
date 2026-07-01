@@ -37,7 +37,10 @@
   .label.major{font-size:12px;font-weight:600;letter-spacing:.7px}
   .label.dim{color:#8fa0c0;font-size:10px}
   .label.static{pointer-events:none;cursor:default}
-  .label.selected{color:var(--sel)}
+  .label.selected{color:var(--sel);font-weight:800;font-size:13px;letter-spacing:.6px;
+    background:linear-gradient(180deg,rgba(24,19,9,.88),rgba(10,8,4,.78));
+    border:1px solid rgba(241,221,166,.6);border-radius:7px;padding:2px 8px;
+    box-shadow:0 0 14px rgba(241,221,166,.4),0 2px 6px rgba(0,0,0,.5);z-index:40}
   .label.star{color:#cfd9ee;font-size:9.5px;letter-spacing:1.6px;text-transform:uppercase;opacity:.85}
   .label.const{font-family:var(--serif);font-size:11.5px;font-weight:600;letter-spacing:3px;
     color:#aeb9d6;text-transform:uppercase;opacity:.9}
@@ -461,7 +464,8 @@
   body.day .label.const{color:#3f3552;font-weight:700}
   body.day .label.zod{color:#7a5f24}
   body.day .label.axis{color:#33425f}
-  body.day .label.selected{color:#9a3b12}
+  body.day .label.selected{color:#7a2c0a;background:linear-gradient(180deg,rgba(255,250,238,.95),rgba(244,231,200,.9));
+    border-color:rgba(154,59,18,.5);box-shadow:0 0 12px rgba(154,59,18,.22),0 2px 6px rgba(0,0,0,.15)}
   body.day #hud .big{color:#2a2212;text-shadow:0 0 6px rgba(255,252,244,.9)}
   body.day #hud .sub{color:#5a5238;text-shadow:0 0 5px rgba(255,252,244,.9)}
   body.day #breadcrumb{color:#4a3a12}
@@ -3870,13 +3874,20 @@ for(const s of COSMOS){
   }
   g.add(body);
   if(s.reconstruction){
-    // visual grammar: halo fog = probabilistic basin (a confidence volume, NOT a measured boundary)
-    const fog=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*1.7,0.12),20,14),
-      new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.07,depthWrite:false,side:THREE.BackSide}));
+    // visual grammar: halo fog = probabilistic basin (a confidence volume, NOT a measured boundary).
+    // Kept faint and tight: several reconstruction basins (Laniakea/Great Attractor/Shapley/Dipole
+    // Repeller) sit in the same general sky region, and their halos compound when stacked.
+    const fog=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*1.35,0.10),20,14),
+      new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.045,depthWrite:false,side:THREE.BackSide}));
     g.add(fog);
   }
   // bright core marker (always identifiable)
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(0.17,14,10), new THREE.MeshBasicMaterial({color:s.col})); g.add(dot);
+  // Core marker: scales with the structure's own radius (bounded), so it stays a small
+  // "you are here" pin rather than a fixed-size blob that dwarfs small/distant structures
+  // and visually fuses with neighbouring markers when several giant structures cluster in
+  // the same sky direction (Laniakea / Great Attractor / Shapley / Dipole Repeller region).
+  const dotR=THREE.MathUtils.clamp(r*0.16, 0.03, 0.11);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot);
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
   const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body;
   body.visible=true; dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
@@ -5704,6 +5715,9 @@ const cycPhaseBead=new THREE.Mesh(new THREE.SphereGeometry(.20,16,10),new THREE.
 cycPhaseInst.add(cycPhaseTrace,cycPhaseBead);
 const cycPhaseLab=mkLabel('PHASE TORUS · normalized mean-cycle phases · non-metric · extreme ratios subsampled','label const');
 cycPhaseLab.position.set(0,3.2,0); cycPhaseInst.add(cycPhaseLab);
+// dynamic axis labels naming which two cycles the torus is currently showing
+const cycPhaseLabA=mkLabel('','label dim'); cycPhaseLabA.position.set(6.0,0,0); cycPhaseInst.add(cycPhaseLabA);
+const cycPhaseLabB=mkLabel('','label dim'); cycPhaseLabB.position.set(4.0,1.8,0); cycPhaseInst.add(cycPhaseLabB);
 function phaseTorusPoint(a,b){
   const A=2*Math.PI*a,B=2*Math.PI*b,R=4,r=1.55;
   return new THREE.Vector3((R+r*Math.cos(B))*Math.cos(A),r*Math.sin(B),(R+r*Math.cos(B))*Math.sin(A));
@@ -6223,7 +6237,11 @@ function updateCyc(dt){
   }
 
   const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);
-  if(a&&b) cycPhaseBead.position.copy(phaseTorusPoint(cyclePhase(a),cyclePhase(b)));
+  if(a&&b){ cycPhaseBead.position.copy(phaseTorusPoint(cyclePhase(a),cyclePhase(b)));
+    const pk=state.cycPairA+'|'+state.cycPairB;
+    if(cycPhaseInst.userData.pk!==pk){ cycPhaseInst.userData.pk=pk;
+      cycPhaseLabA.element.textContent='⟳ major: '+(RESO_SHORT[state.cycPairA]||state.cycPairA);
+      cycPhaseLabB.element.textContent='⟳ tube: '+(RESO_SHORT[state.cycPairB]||state.cycPairB); } }
   const phaseOut=ctl.querySelector('#cycPhaseOut'); if(phaseOut) phaseOut.innerHTML=cyclePairSummaryHTML();
 
   hudBig.textContent = `${simDateString()} · engineering cycle laboratory · ${frame.toUpperCase()} frame`;
@@ -8480,7 +8498,7 @@ const state = {
   ringOffset:0.0, ringThickness:0.12, ringProjection:'auto', ringPhase:0, ringRun:false, ringUiAcc:0,
   ringView:'observer', ringShowSpheres:true, ringShowVolume:true, ringShowFits:true,
   ringShowExtents:true, ringShowChord:false, ringShowPredicted:false, ringShowInset:false,
-  cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:false,
+  cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:true,
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
   fovLand: 60,
   fbsDepth: 0, fbsTarget: null, fbsCycle: false, fbsDir: 1, fbsCycleSpeed: 12, fbsPulse: 0,
