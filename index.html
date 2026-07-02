@@ -2627,7 +2627,11 @@ function makePanelCollapsible(id){
 const SECT_STATE=new Map();   // `${panelId}|${mode}|${title}` -> '1' expanded / '0' collapsed
 function enhancePanelSections(id){
   const p=document.getElementById(id); if(!p) return;
-  let first=true;
+  // Mobile default: keep sections expanded from the top until (and including) the first
+  // CONTENT section. A section whose body is only a .radioRow is a view SWITCHER
+  // (e.g. "S³ Laboratory": Section/Hopf/Modes/...) — it must not use up the expansion
+  // budget, or every sub-view's actual settings would boot collapsed and look "gone".
+  let budgetOpen=true;
   for(const sect of p.querySelectorAll('.sect')){
     const head=sect.firstElementChild;
     if(!head||head.tagName!=='B') continue;
@@ -2636,12 +2640,15 @@ function enhancePanelSections(id){
       while(head.nextSibling) body.appendChild(head.nextSibling);
       sect.appendChild(body);
     }
+    const body=sect.querySelector(':scope > .sectBody');
+    const isSwitcher=[...body.children].length>0 &&
+      [...body.children].every(c=>c.classList&&(c.classList.contains('radioRow')||c.classList.contains('chips')));
     const key=id+'|'+state.mode+'|'+head.textContent.trim();
     const saved=SECT_STATE.get(key);
-    const open=saved!=null ? saved==='1' : (!MOBILE_GPU||first);
+    const open=saved!=null ? saved==='1' : (!MOBILE_GPU||budgetOpen);
     sect.classList.toggle('collapsed',!open);
     head.onclick=()=>{ SECT_STATE.set(key, sect.classList.toggle('collapsed')?'0':'1'); };
-    first=false;
+    if(budgetOpen&&!isSwitcher) budgetOpen=false;   // switchers stay free; first content section ends the run
   }
 }
 /* Rubber bottom-sheet grip (phones): drag the gold bar to resize the Controls sheet
