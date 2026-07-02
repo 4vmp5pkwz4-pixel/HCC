@@ -573,16 +573,21 @@
     #ctl,#info,#navPanel,#objectPanel,#xrCheck,#motionPanel,#oscPanel,#atlasPanel{
       left:8px;right:auto;margin:0;width:min(86vw,360px);max-height:58vh;overflow:auto;
       top:calc(var(--topbar-h,64px) + 8px);bottom:auto}
-    /* Controls = a compact LOWER sheet: the 3D subject above stays fully visible
-       and the bottom FABs stay reachable — never a full blanket, never out of
-       reach (settings always one tap away). */
+    /* Controls = a TRUE bottom sheet: flush with the bottom edge, everything inside
+       scrolls, a drag-grip resizes it (flick down closes) — the 3D subject above
+       stays fully open, exactly like a native mobile settings sheet. While it is
+       open the FABs/coach/HUD beneath it fade out (body.panel-open), so nothing
+       stacks and nothing is buried. */
     #ctl{
       left:8px;right:8px;width:auto;max-width:none;
-      /* bottom must clear the topmost stacked FAB (dockFab: bottom 124px + 46px tall = 170px
-         from the viewport bottom) plus a small gap — otherwise the sheet's own bottom edge
-         cuts through the dock FAB button on every mobile viewport. */
-      top:auto;bottom:calc(178px + env(safe-area-inset-bottom,0px));max-height:42vh;
-      border-radius:16px;box-shadow:0 14px 36px rgba(0,0,0,.55)}
+      top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));max-height:34vh;
+      border-radius:18px 18px 14px 14px;box-shadow:0 -12px 44px rgba(0,0,0,.6);z-index:37}
+    #ctl .sheetGrip{display:block;position:sticky;top:-14px;z-index:5;
+      width:52px;height:18px;margin:-10px auto 2px;cursor:ns-resize;touch-action:none}
+    #ctl .sheetGrip::after{content:'';display:block;width:46px;height:5px;margin:7px auto 0;
+      border-radius:999px;background:linear-gradient(90deg,rgba(212,175,106,.25),rgba(241,221,166,.6),rgba(212,175,106,.25))}
+    body.panel-open #helpFab,body.panel-open #dockFab,body.panel-open #ctlFab,
+    body.panel-open #atlasCoach,body.panel-open #hud{opacity:0;pointer-events:none;transition:opacity .18s}
     /* the selection card pins to the RIGHT edge so a left list stays visible while you read it */
     #selCard{left:auto;right:8px;margin:0;width:min(86vw,340px);max-height:52vh;overflow:auto;
       top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
@@ -2573,6 +2578,9 @@ function syncPanelDeck(){
   closer.textContent=activePanelId?'×':'+';
   closer.title=activePanelId?'Close active panel (Esc)':'Open controls panel';
   document.body.classList.toggle('selcard-open',panelIsOpen('selCard'));
+  // phones: while a deck panel is open the FABs / coach / HUD under it fade away,
+  // so the subject + the sheet are the only two things on screen (see mobile CSS)
+  document.body.classList.toggle('panel-open',!!activePanelId&&panelIsOpen(activePanelId));
   try{ AtlasCoach.refresh(); }catch(e){}
 }
 function closePanel(id){
@@ -2636,10 +2644,33 @@ function enhancePanelSections(id){
     first=false;
   }
 }
+/* Rubber bottom-sheet grip (phones): drag the gold bar to resize the Controls sheet
+   between a slim strip and ~70% of the screen; flick it below ~110px to dismiss.
+   The chosen height is remembered for the session and survives panel re-renders. */
+let ctlSheetPx=null;
+function ensureSheetGrip(){
+  if(!MOBILE_GPU) return;
+  const p=document.getElementById('ctl'); if(!p||p.querySelector('.sheetGrip')) return;
+  const g=document.createElement('div'); g.className='sheetGrip';
+  g.title='Drag to resize · flick down to close';
+  p.insertBefore(g,p.firstChild);
+  if(ctlSheetPx) p.style.maxHeight=ctlSheetPx+'px';
+  let drag=null;
+  g.addEventListener('pointerdown',e=>{ drag={y:e.clientY,h:p.getBoundingClientRect().height};
+    try{g.setPointerCapture(e.pointerId);}catch(err){} e.preventDefault(); });
+  g.addEventListener('pointermove',e=>{ if(!drag) return;
+    const h=Math.min(innerHeight*.72,Math.max(90,drag.h+(drag.y-e.clientY)));
+    p.style.maxHeight=h+'px'; });
+  const end=e=>{ if(!drag) return;
+    const h=drag.h+(drag.y-e.clientY); drag=null;
+    if(h<110){ ctlSheetPx=null; p.style.maxHeight=''; closePanel('ctl'); }
+    else ctlSheetPx=Math.min(innerHeight*.72,Math.max(90,h)); };
+  g.addEventListener('pointerup',end); g.addEventListener('pointercancel',()=>{drag=null;});
+}
 for(const id of PANEL_IDS){
   const p=document.getElementById(id); if(!p) continue;
-  new MutationObserver(()=>{ makePanelCollapsible(id); enhancePanelSections(id); }).observe(p,{childList:true});
-  makePanelCollapsible(id); enhancePanelSections(id);
+  new MutationObserver(()=>{ makePanelCollapsible(id); enhancePanelSections(id); if(id==='ctl') ensureSheetGrip(); }).observe(p,{childList:true});
+  makePanelCollapsible(id); enhancePanelSections(id); if(id==='ctl') ensureSheetGrip();
 }
 document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>togglePanel(b.dataset.panel));
 document.getElementById('togglePanels').onclick=()=>activePanelId?closePanel(activePanelId):openPanel('ctl');
@@ -5508,11 +5539,12 @@ spatialGuides.fbs.add(
 fbsGroup.add(spatialGuides.fbs);
 
 // Bindu — the seed point at the centre
+let fbsBinduGlow=null;
 {
   const bindu = new THREE.Mesh(new THREE.SphereGeometry(.06,20,14),
     new THREE.MeshBasicMaterial({color:0xfff0c0}));
   const bGlow = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.9,depthWrite:false}));
-  bGlow.scale.setScalar(6); bindu.add(bGlow);
+  bGlow.scale.setScalar(6); bindu.add(bGlow); fbsBinduGlow=bGlow;
   const lab = mkLabel('Bindu — seed of the ladder','label major','fbsBindu'); lab.position.set(0,.5,0); bindu.add(lab);
   fbsGroup.add(bindu);
   registerSel('fbsBindu',{ name:'Bindu (seed point)', mode:'fbs', pick:bindu, labelEl:lab.element,
@@ -5566,6 +5598,17 @@ const fbsSpiral = (()=>{
 const fbsSpiralDot = new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),
   new THREE.MeshBasicMaterial({color:0xffe98a}));
 fbsSpiral.add(fbsSpiralDot);
+/* Energy-quanta flow: golden points drifting outward along the spiral — a pure
+   VISUALIZATION of the published Fibonacci energy ladder E_n ∝ F_n ≈ φⁿ/√5 (energy
+   flowing rung to rung as the ladder unfolds). Adds no data and asserts nothing. */
+const FBS_FLOW_N=140, fbsFlowPos=new Float32Array(FBS_FLOW_N*3);
+const fbsFlow=new THREE.Points(
+  new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(fbsFlowPos,3)),
+  new THREE.PointsMaterial({color:0xffd98a,size:.14,transparent:true,opacity:.7,
+    blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true}));
+fbsSpiral.add(fbsFlow);
+let fbsFlowPhase=0, fbsAnimT=0;
+const FBS_ARRIVE_COL=new THREE.Color(0xfff2c8);
 
 // re-quantization wave (nonlocal energy-density redistribution pulse)
 const fbsPulse = new THREE.Mesh(new THREE.SphereGeometry(1,40,26),
@@ -5581,7 +5624,7 @@ FBS_EPOCHS.forEach((ep, i)=>{
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1,16,12), new THREE.MeshBasicMaterial({color:col}));
   const lab = mkLabel(ep.name,'label','fbsEp'+i); lab.position.set(0,1.6,0); mesh.add(lab);
   mesh.visible=false; fbsGroup.add(mesh);
-  fbsEpochObjs.push({ep, dir, mesh});
+  fbsEpochObjs.push({ep, dir, mesh, baseCol:col.clone()});
   registerSel('fbsEp'+i, {
     name:ep.name, mode:'fbs', pick:mesh, labelEl:lab.element, desc:ep.desc,
     getPos:()=>mesh.position.clone(), focusDist:()=>Math.max(mesh.scale.x*10, 1.2),
@@ -5727,26 +5770,46 @@ function updateFBS(dt){
     sh.userData.label.visible = rs>0.7 && rs<70;
   });
 
-  // epoch markers ride their shells (canonical anchors hide in Tier-2 exploration)
+  // epoch markers ride their shells (canonical anchors hide in Tier-2 exploration);
+  // when the ladder passes within half a level of a rung, that marker softly pulses
+  // and warms toward white — "you are arriving at this scale" (visual cue only)
+  fbsAnimT += dt;
   for(const eo of fbsEpochObjs){
     const rs = Math.exp((eo.ep.N-D)*LN_PHI);
     eo.mesh.visible = !tier2 && rs>0.05 && rs<400;
     if(eo.mesh.visible){
       eo.mesh.position.copy(eo.dir).multiplyScalar(rs);
-      eo.mesh.scale.setScalar(THREE.MathUtils.clamp(rs*0.028, 0.05, 5));
+      const near=Math.max(0, 1-Math.abs(eo.ep.N-D)/0.6);
+      const pulse=near ? 1+0.28*near*(0.55+0.45*Math.sin(fbsAnimT*4.2)) : 1;
+      eo.mesh.scale.setScalar(THREE.MathUtils.clamp(rs*0.028, 0.05, 5)*pulse);
+      eo.mesh.material.color.copy(eo.baseCol).lerp(FBS_ARRIVE_COL,near*0.55);
     }
   }
 
   // golden spiral: r = φ^(x−D), winding by the golden angle per level
   {
+    const xmin=Math.max(0,D-5.5), xmax=Math.min(FBS.Nmax,D+11);
     const pts = [];
-    for(let x=Math.max(0,D-5.5); x<=Math.min(FBS.Nmax,D+11); x+=0.08){
+    for(let x=xmin; x<=xmax; x+=0.08){
       const r = Math.exp((x-D)*LN_PHI), a = x*GOLDEN_ANGLE;
       pts.push(new THREE.Vector3(r*Math.cos(a), 0, r*Math.sin(a)));
     }
     if(pts.length>1) fbsSpiral.geometry.setFromPoints(pts);
     fbsSpiralDot.position.set(Math.cos(D*GOLDEN_ANGLE), 0, Math.sin(D*GOLDEN_ANGLE));
+    // energy-quanta flow riding the spiral outward (E_n ∝ F_n visualization)
+    fbsFlowPhase=(fbsFlowPhase+dt*0.02)%1;
+    for(let i=0;i<FBS_FLOW_N;i++){
+      const u=(i*0.6180339887+fbsFlowPhase)%1, x=xmin+u*(xmax-xmin);
+      const r=Math.exp((x-D)*LN_PHI), a=x*GOLDEN_ANGLE;
+      fbsFlowPos[i*3]=r*Math.cos(a);
+      fbsFlowPos[i*3+1]=0.02*r*Math.sin(x*2.7+fbsAnimT*1.3);
+      fbsFlowPos[i*3+2]=r*Math.sin(a);
+    }
+    fbsFlow.geometry.attributes.position.needsUpdate=true;
+    fbsFlow.geometry.computeBoundingSphere();
   }
+  // the Bindu glow breathes very slowly — the eternal cyclic seed is alive, never static
+  if(fbsBinduGlow) fbsBinduGlow.scale.setScalar(6+0.7*Math.sin(fbsAnimT*0.9));
 
   // nonlocal re-quantization wave (Density Chamber experience boosts it)
   state.fbsPulse = (state.fbsPulse + dt/(state.fbsDensityFX?3:7))%1;
@@ -10212,7 +10275,23 @@ function setMode(mode){
   if(typeof updateBifurcView==='function') updateBifurcView();
   buildCtl();
   updateBreadcrumb();
+  armIdleDrift();   // every section opens alive: a slow cinematic orbit until the user takes over
 }
+/* Idle cinematic drift — on boot and on every mode switch the scene begins a very slow
+   auto-orbit so the universe is always gently alive; the FIRST user gesture anywhere
+   (drag, tap, wheel, panel touch) hands control back and the drift stays off until the
+   next section switch. Camera-only: never touches simulation time or science state. */
+let idleDrift=false;
+function armIdleDrift(){
+  if(state.landed||renderer.xr.isPresenting||state.mode==='fractal'&&!controls.enableRotate) return;
+  idleDrift=true; controls.autoRotate=true; controls.autoRotateSpeed=0.45;
+}
+function disarmIdleDrift(){
+  if(!idleDrift) return; idleDrift=false;
+  if(!ORBIT.on) controls.autoRotate=false;
+}
+addEventListener('pointerdown',disarmIdleDrift,{capture:true,passive:true});
+addEventListener('wheel',disarmIdleDrift,{capture:true,passive:true});
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
@@ -11488,7 +11567,9 @@ globalThis.FBS3R_QA=Object.freeze({
     calls:i.render.calls, triangles:i.render.triangles, points:i.render.points,
     lines:i.render.lines, geometries:i.memory.geometries, textures:i.memory.textures,
     programs:i.programs?i.programs.length:0,
-    labelsInDom:labelRenderer.domElement.querySelectorAll('.label').length }; },
+    labelsInDom:labelRenderer.domElement.querySelectorAll('.label').length,
+    nav:{autoRotate:controls.autoRotate,autoRotateSpeed:controls.autoRotateSpeed,
+         idleDrift:idleDrift,orbitOn:ORBIT.on,azimuth:+controls.getAzimuthalAngle().toFixed(5)} }; },
   auditSelectables(){
     const out=[];
     for(const [k,s] of SELECT){
