@@ -6942,11 +6942,12 @@ let _orbKey=null;
 function buildOrbital3D(){
   let n=Math.max(1,Math.min(7,state.orbN||2)); let l=Math.max(0,Math.min(n-1,state.orbL??1)); let m=Math.max(-l,Math.min(l,state.orbM??0));
   state.orbN=n; state.orbL=l; state.orbM=m;
-  const key=n+'_'+l+'_'+m;
+  const den=state.orbDen||1;
+  const key=n+'_'+l+'_'+m+'_'+den;
   if(_orbKey===key && orbitalGroup.children.length) return;
   _orbKey=key;
   while(orbitalGroup.children.length){ const c=orbitalGroup.children.pop(); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); orbitalGroup.remove(c); }
-  const ext=Math.max(9, n*n*2.2+4*n), S=5.4/ext, N=MOBILE_GPU?9000:26000;
+  const ext=Math.max(9, n*n*2.2+4*n), S=5.4/ext, N=Math.round((MOBILE_GPU?9000:26000)*den);
   const f=(x,y,z)=>psiHydrogen(n,l,m,x,y,z);
   let maxd=1e-12;
   for(let i=0;i<9000;i++){ const x=(Math.random()*2-1)*ext,y=(Math.random()*2-1)*ext,z=(Math.random()*2-1)*ext,v=f(x,y,z),d=v*v; if(d>maxd)maxd=d; }
@@ -6957,7 +6958,8 @@ function buildOrbital3D(){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(px,3));
   g.setAttribute('color',new THREE.Float32BufferAttribute(pc,3));
-  orbitalGroup.add(new THREE.Points(g,new THREE.PointsMaterial({size:.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending})));
+  const orbPts=new THREE.Points(g,new THREE.PointsMaterial({size:state.orbPt||.045,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:state.orbGlow||.72,depthWrite:false,blending:THREE.AdditiveBlending}));
+  orbitalGroup.add(orbPts); orbitalGroup.userData.pts=orbPts;   // live handles: point size + glow adjust without a rebuild
   orbitalGroup.add(new THREE.Mesh(new THREE.SphereGeometry(.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})));   // nucleus
   const lab=mkLabel(`Hydrogen ${orbitalLabel(n,l,m)} · n=${n} l=${l} m=${m} · |ψ|² (gold +, blue −)`,'label axis'); lab.position.set(0,5.9,0); orbitalGroup.add(lab);
   // coordinate axes with Bohr-radius scale so the electron-cloud size is readable
@@ -8926,6 +8928,7 @@ const state = {
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
+  orbDen:1, orbPt:0.045, orbGlow:0.72,   // hydrogen-orbital cloud: density × / point size / glow
 };
 const lastGoodCamera={position:new THREE.Vector3(0,26,52),target:new THREE.Vector3(),up:new THREE.Vector3(0,1,0)};
 const finiteVector=v=>v?.isVector3&&Number.isFinite(v.x)&&Number.isFinite(v.y)&&Number.isFinite(v.z);
@@ -9995,14 +9998,6 @@ function buildCtl(){
           {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
       </div>
     </div>
-    <div class="sect"><b>Metallic / analytic gradient</b>
-      <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
-        ${Object.keys(FRACTAL_PALETTES).map(k=>`<option value="${k}" ${fractalPalette===k?'selected':''}>${({silver:'Neutral silver metal',gold:'Gold metal',copper:'Dark copper',ice:'Ice blue',spectrum:'Spectral analytic'})[k]}</option>`).join('')}
-      </select></div>
-      ${fractalPalette==='spectrum'?`<div class="ctlrow"><label>Spectrum phase</label>
-        <input type="range" id="hue" min="0" max="1" step="0.01" value="${fractalUniforms.uHue.value}">
-        <span class="val" id="hueV"></span></div>`:''}
-    </div>
     ${fractalType==='mandelbulb'?`<div class="sect"><b>3D distance-estimator parameters</b>
       <div class="ctlrow"><label>Power n</label>
         <input type="range" id="pow" min="2" max="12" step="0.1" value="${fractalUniforms.uPower.value}">
@@ -10010,10 +10005,7 @@ function buildCtl(){
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr" min="4" max="20" step="1" value="${fractalUniforms.uIters.value}">
         <span class="val" id="itrV"></span></div>
-    </div>`:(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?`<div class="sect"><b>True 3D navigation</b>
-      <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
-      <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
-    </div>`:`<div class="sect"><b>${fractalType==='mjfiber3d'?'3D fiber parameter frame':'Complex-plane coordinates'}</b>
+    </div>`:(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?``:`<div class="sect"><b>${fractalType==='mjfiber3d'?'3D fiber parameter frame':'Complex-plane coordinates'}</b>
       <div class="ctlrow"><label>Iterations</label>
         <input type="range" id="itr2" min="30" max="280" step="1" value="${fractalUniforms.uIters2D.value}">
         <span class="val" id="itr2V"></span></div>
@@ -10100,6 +10092,18 @@ function buildCtl(){
       <div class="ctlrow"><button class="btn green" id="bifFeig">→ Feigenbaum point r≈3.5699</button></div>
       <div class="ctlrow"><button class="btn" id="bifFull">whole diagram</button></div>
     </div>`:''}
+    ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
+      <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
+      <div class="note">The logistic map x→r·x·(1−x) is exactly conjugate to z→z²+c via <b>c = r/2 − r²/4</b>, so the whole bifurcation diagram lives on the Mandelbrot real axis. Landmarks (gold = periodic, ember = chaotic):</div>
+      <div class="chips">
+        <button class="chip" data-bifjump="0.25">cardioid cusp r=1 (c=¼)</button>
+        <button class="chip" data-bifjump="-0.75">period-2 r=3 (c=−¾)</button>
+        <button class="chip" data-bifjump="-1.25">period-4 r=3.449</button>
+        <button class="chip" data-bifjump="-1.401155">Feigenbaum c≈−1.401</button>
+        <button class="chip" data-bifjump="-1.75">period-3 window c=−1.75</button>
+        <button class="chip" data-bifjump="-2.0">needle tip r=4 (c=−2)</button>
+      </div>
+    </div>`:''}`}
     ${fractalType==='polytope4d'?`<div class="sect"><b>Regular 4-polytope · R⁴ → R³</b>
       <div class="note">An exact regular polytope of four-dimensional space, tumbling in R⁴ (double rotation in the XW and YZ planes) and perspective-projected into 3D. Orbit in 3D with the mouse on top of the intrinsic 4D rotation. Geometry only — not a physical claim.</div>
       <div class="chips">
@@ -10115,21 +10119,33 @@ function buildCtl(){
         <span class="val" style="min-width:42px;text-align:center">${state.orbL} · ${'spdfghi'[state.orbL]||''}</span><button class="btn" data-orb="l+">+</button></div>
       <div class="ctlrow"><label>Magnetic&nbsp;m</label><button class="btn" data-orb="m-">−</button>
         <span class="val" style="min-width:42px;text-align:center">${state.orbM>=0?'+'+state.orbM:state.orbM}</span><button class="btn" data-orb="m+">+</button></div>
-      <div class="chips">${['1,0,0','2,0,0','2,1,0','3,2,0','4,3,0','5,4,0'].map(t=>{const[n,l,m]=t.split(',').map(Number);
+      <div class="chips">${['1,0,0','2,0,0','2,1,0','2,1,1','3,1,0','3,2,0','3,2,1','3,2,2','4,3,0','4,3,2','5,4,0','6,5,0','7,6,0'].map(t=>{const[n,l,m]=t.split(',').map(Number);
         return `<button class="chip ${state.orbN===n&&state.orbL===l&&state.orbM===m?'on':''}" data-orbpreset="${t}">${orbitalLabel(n,l,m)}</button>`;}).join('')}</div>
+    </div>
+    <div class="sect"><b>Probability-cloud rendering</b>
+      <div class="ctlrow"><label>Cloud density ×</label>
+        <input type="range" id="orbDen" min="0.3" max="3" step="0.1" value="${state.orbDen}">
+        <span class="val" id="orbDenV">×${state.orbDen.toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Point size</label>
+        <input type="range" id="orbPt" min="0.02" max="0.12" step="0.005" value="${state.orbPt}">
+        <span class="val" id="orbPtV">${state.orbPt.toFixed(3)}</span></div>
+      <div class="ctlrow"><label>Glow</label>
+        <input type="range" id="orbGlow" min="0.3" max="1" step="0.02" value="${state.orbGlow}">
+        <span class="val" id="orbGlowV">${Math.round(state.orbGlow*100)}%</span></div>
+      <div class="note">Monte-Carlo rejection sampling of the exact |ψ<sub>n,l,m</sub>|²; density rebuilds the cloud, size and glow adjust it live. Physics is untouched — these are pure rendering controls.</div>
     </div>`:''}
-    ${(fractalType==='mandelbrot'||fractalType==='julia')?`<div class="sect"><b>Bifurcation ⊂ Mandelbrot</b>
-      <div class="ctlrow"><label>Overlay logistic cascade on real axis</label><input type="checkbox" id="bifOverlay" ${fractalUniforms.uBifOverlay.value?'checked':''}></div>
-      <div class="note">The logistic map x→r·x·(1−x) is exactly conjugate to z→z²+c via <b>c = r/2 − r²/4</b>, so the whole bifurcation diagram lives on the Mandelbrot real axis. Landmarks (gold = periodic, ember = chaotic):</div>
-      <div class="chips">
-        <button class="chip" data-bifjump="0.25">cardioid cusp r=1 (c=¼)</button>
-        <button class="chip" data-bifjump="-0.75">period-2 r=3 (c=−¾)</button>
-        <button class="chip" data-bifjump="-1.25">period-4 r=3.449</button>
-        <button class="chip" data-bifjump="-1.401155">Feigenbaum c≈−1.401</button>
-        <button class="chip" data-bifjump="-1.75">period-3 window c=−1.75</button>
-        <button class="chip" data-bifjump="-2.0">needle tip r=4 (c=−2)</button>
-      </div>
-    </div>`:''}`}
+    ${(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?`<div class="sect"><b>True 3D navigation</b>
+      <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
+      <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
+    </div>`:''}
+    <div class="sect"><b>Metallic / analytic gradient</b>
+      <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
+        ${Object.keys(FRACTAL_PALETTES).map(k=>`<option value="${k}" ${fractalPalette===k?'selected':''}>${({silver:'Neutral silver metal',gold:'Gold metal',copper:'Dark copper',ice:'Ice blue',spectrum:'Spectral analytic'})[k]}</option>`).join('')}
+      </select></div>
+      ${fractalPalette==='spectrum'?`<div class="ctlrow"><label>Spectrum phase</label>
+        <input type="range" id="hue" min="0" max="1" step="0.01" value="${fractalUniforms.uHue.value}">
+        <span class="val" id="hueV"></span></div>`:''}
+    </div>
     <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">
       Mandelbrot/Julia/Buddhabrot are mathematical iteration maps. Buddhabrot is an
       actual escaped-orbit density rendering, not a corpus-derived physical claim.
@@ -10145,6 +10161,16 @@ function buildCtl(){
       buildOrbital3D(); buildCtl(); });
     ctl.querySelectorAll('[data-orbpreset]').forEach(b=>b.onclick=()=>{ const[n,l,m]=b.dataset.orbpreset.split(',').map(Number);
       state.orbN=n; state.orbL=l; state.orbM=m; buildOrbital3D(); buildCtl(); });
+    ctl.querySelector('#orbDen')?.addEventListener('change',e=>{ state.orbDen=+e.target.value;
+      const v=ctl.querySelector('#orbDenV'); if(v) v.textContent='×'+state.orbDen.toFixed(1); buildOrbital3D(); });
+    ctl.querySelector('#orbDen')?.addEventListener('input',e=>{
+      const v=ctl.querySelector('#orbDenV'); if(v) v.textContent='×'+(+e.target.value).toFixed(1); });
+    ctl.querySelector('#orbPt')?.addEventListener('input',e=>{ state.orbPt=+e.target.value;
+      const p=orbitalGroup.userData.pts; if(p) p.material.size=state.orbPt;
+      const v=ctl.querySelector('#orbPtV'); if(v) v.textContent=state.orbPt.toFixed(3); });
+    ctl.querySelector('#orbGlow')?.addEventListener('input',e=>{ state.orbGlow=+e.target.value;
+      const p=orbitalGroup.userData.pts; if(p) p.material.opacity=state.orbGlow;
+      const v=ctl.querySelector('#orbGlowV'); if(v) v.textContent=Math.round(state.orbGlow*100)+'%'; });
     ctl.querySelector('#fpalette').onchange=e=>{setFractalPalette(e.target.value);buildCtl();};
     ctl.querySelector('#pow')?.addEventListener('input',e=>{fractalUniforms.uPower.value=+e.target.value;updCtlVals();});
     ctl.querySelector('#itr')?.addEventListener('input',e=>{fractalUniforms.uIters.value=+e.target.value|0;updCtlVals();});
