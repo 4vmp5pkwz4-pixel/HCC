@@ -926,6 +926,51 @@ const FBS_EPOCHS = [
    desc:'Causal co-scaling internal transition index (Preece & Batenin 2026, CoScale): R★ = l_P·φ²⁰⁷ ≈ 2.94×10⁸ m — about one LIGHT-SECOND — with t★ = t_P·φ²⁰⁷ ≈ 0.98 s, so R★/t★ = c exactly (an identity, since t_P = l_P/c; not a derivation of the speed of light). This rung marks where the model may hand over from pure φ-reconstruction to photon-supported expansion. Explicitly NOT recombination and NOT an observed epoch: any identification with a cosmological epoch requires a separately stated matching condition (a light-travel time of ~3.8×10⁵ yr would instead need N ≈ 269.6). The φ-log-periodic signature ω = 2π/ln φ was tested against DESI DR2 BAO and Pantheon+ with null results.'},
 ];
 
+/* ── DRD + Selector shared mathematics (hoisted here: used by Observable, S³ and FBS) ── */
+const DRDMATH={
+  M0:x=>Math.floor(Math.sqrt(1+x*x)),
+  N0(x){const M=this.M0(x);return M*(M+1)*(2*M+1)/6;},
+  MTT:x=>Math.floor(Math.sqrt(x*x+3)-1),
+  NTT(x){const M=this.MTT(x);return M<2?0:M*(M-1)*(2*M+11)/3;},
+  MD:x=>Math.floor(x-1.5),
+  ND(x){const M=this.MD(x);return M<0?0:2*(M+1)*(M+2)*(M+3)/3;},
+  F:u=>u<=0?0:u>=Math.PI?1:(u-0.5*Math.sin(2*u))/Math.PI,   // PIR / Γ volume law, u=cT/R ∈[0,π]
+};
+const SELM={
+  C_MS:2.99792458e8, HBAR:1.054571817e-34, G:6.6743e-11, LN2:Math.LN2,
+  LP:1.616255e-35, GLY_M:9.4607304725808e24,
+  H0:67.4, cOverH0Gly:299792.458/67.4*3.2615638e-3,        // 14.506 Gly
+  Rcurv(OmK){ return this.cOverH0Gly/Math.sqrt(Math.abs(OmK)); },
+  Gamma:u=>DRDMATH.F(u),
+  Bbek(E,r){ return 2*Math.PI*E*r/(this.HBAR*this.C_MS*this.LN2); },
+  Bholo(r){ return Math.PI*r*r/(this.LP*this.LP*this.LN2); },
+  CE(E,r){ return 2*this.G*E/(Math.pow(this.C_MS,4)*r); },
+  tauStar(q){ if(q<=0) return 0; if(q>=1) return Math.PI;   // Γ(τ*)=q, bisection
+    let a=0,b=Math.PI; for(let i=0;i<80;i++){ const m=(a+b)/2; (this.Gamma(m)<q?a=m:b=m); } return (a+b)/2; },
+};
+const SEL_LEDGER=[   // published Ω_K rows (S3-SEL curvature-input ledger; CURV sources)
+  {key:'canon',  OmK:0.0007, R:548.324513026856039, name:'v38 canonical modulus',        status:'illustrative input · SIGN OPEN', closed:null},
+  {key:'cmb',    OmK:-0.044, R:69,  name:'Planck 2018 · CMB alone',                      status:'posterior · closed-preferring',  closed:true},
+  {key:'lens',   OmK:-0.011, R:141, name:'Planck 2018 · +lensing',                       status:'posterior · closed-preferring',  closed:true},
+  {key:'bao',    OmK:0.0007, R:548, name:'Planck 2018 · +lensing+BAO',                   status:'posterior mean · SIGN OPEN',      closed:false},
+  {key:'pr4',    OmK:-0.012, R:132, name:'Planck PR4 · Tristram 2024',                   status:'posterior · closed-preferring',  closed:true},
+  {key:'desi',   OmK:0.065,  R:57,  name:'DESI 2024 BAO+CMB',                            status:'posterior · SIGN OPEN',           closed:false},
+  {key:'zhai',   OmK:0.108,  R:44,  name:'DESI+SNe+chronometers+lensing (Zhai 2024)',    status:'non-CMB posterior · SIGN OPEN',   closed:false},
+];
+const SEL_DOMAINS=[  // worked-calibration domains (E = rest energy, r = circumscribing radius)
+  {key:'hydrogen',name:'Hydrogen (mₑc², a₀)',        E:8.18710565e-14, r:5.29177e-11},
+  {key:'proton',  name:'Proton (m_pc², 0.84 fm)',    E:1.50327762e-10, r:8.414e-16},
+  {key:'earth',   name:'Earth',                       E:5.3675e41,      r:6.371e6},
+  {key:'sun',     name:'Sun',                         E:1.7875e47,      r:6.957e8},
+  {key:'ns',      name:'Neutron star (1.4 M☉, 12 km)',E:2.5025e47,      r:1.2e4},
+  {key:'bh10',    name:'Black hole (10 M☉, r_s)',     E:1.7875e48,      r:2.9532e4},
+  {key:'hubble',  name:'Hubble patch (c/H₀)',         E:8.32e69,        r:1.3724e26},   // E≳critical ⇒ C_E≈1.002, holographic ceiling active — reproduces the paper's 3.268×10¹²² bits
+];
+const SEL_T_CHIPS=[['t₀',13.7877187856],['c/H₀',14.5073029916],['D_p/c',46.1251697652],['½ coh',861.306130954],['t_coh',1722.61226191]];
+const SEL_SCREENS=[  // trisphere-screen transform presets (r in metres)
+  ['Planck ℓ_P',1.616255e-35],['proton λ̄_C',2.103e-16],['electron λ̄_C',3.862e-13],['Bohr a₀',5.292e-11],
+  ['hopfion 90 nm',9.0e-8],['1 cm lab',1e-2],['BH 10 M☉ r_s',2.953e4],['Milky Way',4.73e20],['observable Universe',4.4e26]];
+
 /* ================================================================
    FORMULA_REGISTRY — every load-bearing formula, source-tagged, with
    units; UNCERTAINTY — disclosed input ranges; selfTests — derived-
@@ -3650,6 +3695,51 @@ const sphMReq = screenSphere(45.77, 0x9fb0ff, .035,    /* comoving distance to z
   [['Redshift z','3419.4'],['Cosmic time','50.46 kyr'],['Comoving radius','45.77 Gly']]);
 obsGroup.add(sphEvent, sphAccel, sphMReq);
 
+/* ── CURVATURE-RADIUS FAMILY (S3-SEL curvature-input ledger) — TRUE-SCALE shells ──
+   The trisphere radius is a DATA-DEPENDENT FAMILY, not one number: each published
+   Ω_K constraint implies its own R_curv = c/(H₀√|Ω_K|), and here every candidate
+   carrier is a REAL sphere at 1 unit = 1 Gly around the observer — fly from
+   Laniakea past the particle horizon to the DESI 57-Gly shell and onward to the
+   canonical 548-Gly modulus, and compare the scales directly. Warm = rows whose
+   posterior prefers a CLOSED sign, cool = open-sign rows, gold = canonical.
+   Selecting a shell (or a ledger chip in the S³ Selector lab) highlights the same
+   row everywhere — one ledger, two homes. NO row proves topology. */
+const obsCurvGroup=new THREE.Group(); obsGroup.add(obsCurvGroup);
+const obsCurvShells=[];
+SEL_LEDGER.forEach((L,i)=>{
+  const col=L.closed===true?0xe8956a:L.closed===false?0x7db0e8:0xf1dda6;
+  const grp=new THREE.Group();
+  const wire=new THREE.Mesh(new THREE.SphereGeometry(L.R,48,30),
+    new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:.05,depthWrite:false}));
+  grp.add(wire);
+  const lab=mkLabel(`R_curv ${Math.round(L.R)} Gly · Ω_K=${L.OmK>0?'+':''}${L.OmK} · ${L.key==='canon'?'canonical modulus':L.name}`,
+    'label dim','obsCurv_'+L.key);
+  lab.position.set(0,L.R*0.72,L.R*0.55); grp.add(lab);
+  obsCurvGroup.add(grp); obsCurvShells.push({L,wire,i});
+  registerSel('obsCurv_'+L.key,{ name:'R_curv candidate · '+L.name+' ('+Math.round(L.R)+' Gly)', mode:'obs',
+    pick:wire, labelEl:lab.element,
+    src:['SEL','CURV','DERIVED'], accuracyTier:'C', catalogueStatus:'literature-derived',
+    forbiddenClaims:['this shell is a measured spherical radius (sign and magnitude of Ω_K are dataset-dependent)',
+      'any curvature row proves global S³ topology'],
+    desc:`One member of the curvature-radius family: if ${L.name} (Ω_K=${L.OmK>0?'+':''}${L.OmK}, ${L.status}) is adopted as a closed-curvature input, the conditional carrier radius is R_curv=c/(H₀√|Ω_K|)≈${Math.round(L.R)} Gly — drawn here at TRUE scale (1 unit = 1 Gly) around the observer, alongside the light-age sphere, last-scattering screen, particle horizon and the real giant structures, so the scales can be compared directly by flying between them. ${L.closed===true?'This posterior prefers a CLOSED sign (commonly discussed together with the Planck lensing-smoothing excess).':L.closed===false?'The central sign of this combination is OPEN — the modulus is used only as a scale input.':'The canonical v38 modulus; its source combination has an OPEN central sign.'} Selecting it also selects the same row in the S³ Selector laboratory.`,
+    getPos:()=>new THREE.Vector3(), focusDist:()=>L.R*2.6,
+    onFocus:()=>{ setCurvLedger(i); },
+    rows:()=>[['Ω_K (published)',(L.OmK>0?'+':'')+L.OmK],
+      ['R_curv = c/(H₀√|Ω_K|)', SELM.Rcurv(L.OmK).toFixed(1)+' Gly (formula) · '+L.R+' Gly (published)'],
+      ['t_coh = πR/c',(Math.PI*L.R).toFixed(1)+' Gyr'],
+      ['Γ(t₀) on this carrier', SELM.Gamma(13.7877187856/L.R).toExponential(3)],
+      ['Volume 2π²R³',(2*Math.PI*Math.PI*Math.pow(L.R,3)).toExponential(3)+' Gly³'],
+      ['vs particle horizon', (L.R/46.125).toFixed(2)+'× D_particle'],
+      ['φ-ladder index n_φ',(Math.log(L.R*SELM.GLY_M/SELM.LP)/Math.log(1.6180339887498949)).toFixed(2)],
+      ['Status', L.status],
+      ['Firewall','curvature row ≠ topology theorem']] });
+});
+function setCurvLedger(i){   // one ledger, every home: shells, Selector lab, panels
+  state.selLedger=i; selDirty=true;
+  obsCurvShells.forEach(s=>{ s.wire.material.opacity = s.i===i ? .16 : .05; });
+  if(state.mode==='s3'&&state.s3view==='sel') buildCtl();
+}
+
 // observer (Milky Way) — kept small and translucent: this coincides with the youAreHere
 // marker below (both legitimately sit at the coordinate origin), and a solid opaque sphere
 // here would read as a single flat "white blob" rather than a small, precise anchor point.
@@ -5586,15 +5676,6 @@ function updateBellBead(t){
    selector Σ_grav=B_phys/B_causal is the paper's stated open node;
    the volume–area tension is stated, not resolved.
    ---------------------------------------------------------------- */
-const DRDMATH={
-  M0:x=>Math.floor(Math.sqrt(1+x*x)),
-  N0(x){const M=this.M0(x);return M*(M+1)*(2*M+1)/6;},
-  MTT:x=>Math.floor(Math.sqrt(x*x+3)-1),
-  NTT(x){const M=this.MTT(x);return M<2?0:M*(M-1)*(2*M+11)/3;},
-  MD:x=>Math.floor(x-1.5),
-  ND(x){const M=this.MD(x);return M<0?0:2*(M+1)*(M+2)*(M+3)/3;},
-  F:u=>u<=0?0:u>=Math.PI?1:(u-0.5*Math.sin(2*u))/Math.PI,   // PIR volume law, u=πT/t_coh
-};
 const drdGroup=new THREE.Group(); drdGroup.visible=false; s3Group.add(drdGroup);
 let drdPulse=null, drdChainPts=[], drdBars=null, drdBarLabs=null, drdPirCap=null, drdPirRim=null, drdPirLab=null;
 {
@@ -5774,65 +5855,54 @@ function updateDrd(dt){
    combination whose central SIGN IS OPEN. And the trisphere-screen
    transform T(r) — a comparison language, never a topology theorem.
    ---------------------------------------------------------------- */
-const SELM={
-  C_MS:2.99792458e8, HBAR:1.054571817e-34, G:6.6743e-11, LN2:Math.LN2,
-  LP:1.616255e-35, GLY_M:9.4607304725808e24,
-  H0:67.4, cOverH0Gly:299792.458/67.4*3.2615638e-3,        // 14.506 Gly
-  Rcurv(OmK){ return this.cOverH0Gly/Math.sqrt(Math.abs(OmK)); },
-  Gamma:u=>DRDMATH.F(u),                                    // u=cT/R ∈[0,π]
-  Bbek(E,r){ return 2*Math.PI*E*r/(this.HBAR*this.C_MS*this.LN2); },
-  Bholo(r){ return Math.PI*r*r/(this.LP*this.LP*this.LN2); },
-  CE(E,r){ return 2*this.G*E/(Math.pow(this.C_MS,4)*r); },
-  tauStar(q){ if(q<=0) return 0; if(q>=1) return Math.PI;   // Γ(τ*)=q, bisection
-    let a=0,b=Math.PI; for(let i=0;i<80;i++){ const m=(a+b)/2; (this.Gamma(m)<q?a=m:b=m); } return (a+b)/2; },
-};
-const SEL_LEDGER=[   // published Ω_K rows (S3-SEL curvature-input ledger; CURV sources)
-  {key:'canon',  OmK:0.0007, R:548.324513026856039, name:'v38 canonical modulus',        status:'illustrative input · SIGN OPEN', closed:null},
-  {key:'cmb',    OmK:-0.044, R:69,  name:'Planck 2018 · CMB alone',                      status:'posterior · closed-preferring',  closed:true},
-  {key:'lens',   OmK:-0.011, R:141, name:'Planck 2018 · +lensing',                       status:'posterior · closed-preferring',  closed:true},
-  {key:'bao',    OmK:0.0007, R:548, name:'Planck 2018 · +lensing+BAO',                   status:'posterior mean · SIGN OPEN',      closed:false},
-  {key:'pr4',    OmK:-0.012, R:132, name:'Planck PR4 · Tristram 2024',                   status:'posterior · closed-preferring',  closed:true},
-  {key:'desi',   OmK:0.065,  R:57,  name:'DESI 2024 BAO+CMB',                            status:'posterior · SIGN OPEN',           closed:false},
-  {key:'zhai',   OmK:0.108,  R:44,  name:'DESI+SNe+chronometers+lensing (Zhai 2024)',    status:'non-CMB posterior · SIGN OPEN',   closed:false},
-];
-const SEL_DOMAINS=[  // worked-calibration domains (E = rest energy, r = circumscribing radius)
-  {key:'hydrogen',name:'Hydrogen (mₑc², a₀)',        E:8.18710565e-14, r:5.29177e-11},
-  {key:'proton',  name:'Proton (m_pc², 0.84 fm)',    E:1.50327762e-10, r:8.414e-16},
-  {key:'earth',   name:'Earth',                       E:5.3675e41,      r:6.371e6},
-  {key:'sun',     name:'Sun',                         E:1.7875e47,      r:6.957e8},
-  {key:'ns',      name:'Neutron star (1.4 M☉, 12 km)',E:2.5025e47,      r:1.2e4},
-  {key:'bh10',    name:'Black hole (10 M☉, r_s)',     E:1.7875e48,      r:2.9532e4},
-  {key:'hubble',  name:'Hubble patch (c/H₀)',         E:8.32e69,        r:1.3724e26},   // E≳critical ⇒ C_E≈1.002, holographic ceiling active — reproduces the paper's 3.268×10¹²² bits
-];
-const SEL_T_CHIPS=[['t₀',13.7877187856],['c/H₀',14.5073029916],['D_p/c',46.1251697652],['½ coh',861.306130954],['t_coh',1722.61226191]];
-const SEL_SCREENS=[  // trisphere-screen transform presets (r in metres)
-  ['Planck ℓ_P',1.616255e-35],['proton λ̄_C',2.103e-16],['electron λ̄_C',3.862e-13],['Bohr a₀',5.292e-11],
-  ['hopfion 90 nm',9.0e-8],['1 cm lab',1e-2],['BH 10 M☉ r_s',2.953e4],['Milky Way',4.73e20],['observable Universe',4.4e26]];
 const selGroup=new THREE.Group(); selGroup.visible=false; s3Group.add(selGroup);
-let selRings=[], selBars=null, selBarLabs=null, selSigmaLab=null, selScreenMark=null, selScreenLab=null, selUiAcc=0, selDirty=true;
+let selShells=[], selLight=null, selLightRim=null, selCore=null, selCoreGlow=null,
+    selSigmaLab=null, selLightLab=null, selCoreLab=null, selScreenMark=null, selScreenLab=null,
+    selUiAcc=0, selDirty=true;
 {
-  // — station 1 (top): curvature-input ledger — one observer, MANY data-dependent radii —
-  const led=new THREE.Group(); led.position.set(0,3.4,0); led.rotation.x=.5; selGroup.add(led);
-  const rMin=44, rMax=548.4, rr=R=>1.15+3.1*(Math.log(R/rMin)/Math.log(rMax/rMin));
+  /* One MODEL, not a diagram: the whole ledger as NESTED translucent carriers around
+     one observer. Radii are log-scaled (44→548 Gly ⇒ 2.2→7.4 units) so all seven
+     candidates nest visibly; inside the ACTIVE carrier a gold causal light-ball grows
+     with T at the true geodesic fraction cT/(πR) — the same Γ(T) volume law that the
+     Section view's photon obeys. At the centre sits the chosen physical domain D as a
+     glowing core whose colour says which ceiling is active (amber = Bekenstein,
+     blue = holographic) and whose pulse says the regime is FILTERED (Σ≪1). */
+  const rMin=44, rMax=548.4, rr=R=>2.2+5.2*(Math.log(R/rMin)/Math.log(rMax/rMin));
+  selGroup.userData.rr=rr;
   SEL_LEDGER.forEach((row,i)=>{
-    const col=row.closed===true?0xe8a86a:row.closed===false?0x9db8e8:0xf1dda6;
-    const ring=new THREE.Mesh(new THREE.TorusGeometry(rr(row.R),.028,8,96),
-      new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.5,depthWrite:false}));
-    ring.rotation.x=Math.PI/2; led.add(ring); selRings.push(ring);
-    const a=(i/SEL_LEDGER.length)*Math.PI*2+.35;
-    const lab=mkLabel(`${row.name} · Ω_K=${row.OmK>0?'+':''}${row.OmK} · R≈${Math.round(row.R)} Gly`,'label dim','selx_ledger');
-    lab.position.set(Math.cos(a)*rr(row.R),0,Math.sin(a)*rr(row.R)); led.add(lab);
+    const col=row.closed===true?0xe8956a:row.closed===false?0x7db0e8:0xf1dda6;
+    const sh=new THREE.Mesh(new THREE.SphereGeometry(rr(row.R),40,26),
+      new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:.08,depthWrite:false}));
+    selGroup.add(sh); selShells.push(sh);
+    const a=(i/SEL_LEDGER.length)*Math.PI*2+.4, rl=rr(row.R);
+    const lab=mkLabel(`${Math.round(row.R)} Gly · Ω_K=${row.OmK>0?'+':''}${row.OmK} · ${row.key==='canon'?'canonical':row.name.split('·')[0].trim()}`,'label dim','selx_ledger');
+    lab.position.set(Math.cos(a)*rl*.72, rl*.6, Math.sin(a)*rl*.72); selGroup.add(lab);
   });
-  const obs=new THREE.Mesh(new THREE.SphereGeometry(.1,12,8),new THREE.MeshBasicMaterial({color:0xfff0c0})); led.add(obs);
-  { const t=mkLabel('CURVATURE-INPUT LEDGER · R_curv = c/(H₀√|Ω_K|) · six published constraints · NO row proves topology','label const');
-    t.position.set(0,1.7,0); led.add(t); }
-  const ledLab=mkLabel('Curvature ledger — R_curv family','label major','selx_ledger'); ledLab.position.set(0,-2.1,0); led.add(ledLab);
-  registerSel('selx_ledger',{ name:'Selector · curvature-input ledger (R_curv family)', mode:'s3', pick:selRings[0], labelEl:ledLab.element,
+  // causal light-ball: radius = (cT/πR)·R_active — the actual geodesic reach of light
+  selLight=new THREE.Mesh(new THREE.SphereGeometry(1,32,22),
+    new THREE.MeshBasicMaterial({color:0xffd98a,transparent:true,opacity:.16,depthWrite:false}));
+  selGroup.add(selLight);
+  selLightRim=new THREE.Mesh(new THREE.SphereGeometry(1,32,22),
+    new THREE.MeshBasicMaterial({color:0xffd34d,wireframe:true,transparent:true,opacity:.35,depthWrite:false}));
+  selGroup.add(selLightRim);
+  selLightLab=mkLabel('','label'); selGroup.add(selLightLab);
+  // the physical domain D — the core whose ceilings contract the alphabet
+  selCore=new THREE.Mesh(new THREE.SphereGeometry(.34,18,12),
+    new THREE.MeshBasicMaterial({color:0xf1dda6,transparent:true,opacity:.95}));
+  selGroup.add(selCore);
+  selCoreGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xf1dda6,transparent:true,opacity:.8,depthWrite:false}));
+  selCoreGlow.scale.setScalar(2.4); selGroup.add(selCoreGlow);
+  selCoreLab=mkLabel('','label major','selx_machine'); selCoreLab.position.set(0,-1.15,0); selGroup.add(selCoreLab);
+  selSigmaLab=mkLabel('','label selected'); selSigmaLab.position.set(0,1.35,0); selGroup.add(selSigmaLab);
+  { const t=mkLabel('CURVATURE-RADIUS FAMILY · nested log-scale carriers · gold ball = causal light reach cT · core = domain D · NO row proves topology','label const');
+    t.position.set(0,8.6,0); selGroup.add(t); }
+  const ledLab=mkLabel('R_curv family — nested carriers','label major','selx_ledger'); ledLab.position.set(0,-8.4,0); selGroup.add(ledLab);
+  registerSel('selx_ledger',{ name:'Selector · curvature-input ledger (R_curv family)', mode:'s3', pick:selShells[0], labelEl:ledLab.element,
     src:['SEL','CURV','DERIVED'], accuracyTier:'C', catalogueStatus:'literature-derived',
     forbiddenClaims:['any Ω_K row proves global S³ topology','the canonical 548.3 Gly is a measured spherical radius (it is the modulus of a sign-OPEN combination)',
       'sign or magnitude of Ω_K is settled (dataset-dependent: CMB alone prefers closed, +BAO is flat-consistent)'],
     desc:'The curvature-input ledger of the selector paper: the trisphere radius is NOT one number but a family R_curv=c/(H₀√|Ω_K|) over published curvature constraints — Planck 2018 CMB alone (Ω_K=−0.044→R≈69 Gly, closed-preferring, discussed with the lensing-smoothing excess), +lensing (−0.011→141 Gly), +lensing+BAO (+0.0007→548 Gly, SIGN OPEN — the source of the canonical modulus), Planck PR4 2024 (−0.012→132 Gly), DESI 2024 BAO+CMB (+0.065→57 Gly), and the non-CMB combination (+0.108→44 Gly). Warm rings = closed-preferring rows, cool = open-sign rows, gold = the canonical modulus. Selecting a row recomputes t_coh, Γ(t₀), volume and the φ-ladder index live.',
-    getPos:()=>led.getWorldPosition(new THREE.Vector3()), focusDist:()=>11,
+    getPos:()=>selGroup.getWorldPosition(new THREE.Vector3()), focusDist:()=>17,
     rows:()=>{ const L=SEL_LEDGER[state.selLedger], Rf=SELM.Rcurv(L.OmK);
       return [['Selected row', L.name],['Ω_K (published)', (L.OmK>0?'+':'')+L.OmK],
         ['R_curv = c/(H₀√|Ω_K|)', Rf.toFixed(1)+' Gly (formula) · '+L.R+' Gly (published)'],
@@ -5842,28 +5912,12 @@ let selRings=[], selBars=null, selBarLabs=null, selSigmaLab=null, selScreenMark=
         ['φ-ladder index n_φ(R)', (Math.log(L.R*SELM.GLY_M/SELM.LP)/Math.log((1+Math.sqrt(5))/2)).toFixed(2)],
         ['Status', L.status],['Sources','Planck 2018 VI · PR4/Tristram 2024 · DESI 2024 VI · Zhai 2024']]; } });
 
-  // — station 2 (lower left): the selector machine — three log-bars + Σ badge —
-  const mach=new THREE.Group(); mach.position.set(-7.6,-3.4,0); selGroup.add(mach);
-  const BAR_DEFS=[['B_causal',0x9db8e8],['B_ceiling',0xf1dda6],['B_phys',0x7ef0c2]];
-  selBars=[]; selBarLabs=[];
-  BAR_DEFS.forEach(([nm,col],i)=>{
-    const bar=new THREE.Mesh(new THREE.BoxGeometry(.9,1,.9),
-      new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.55,depthWrite:false}));
-    bar.position.set(i*1.8,0,0); mach.add(bar); selBars.push(bar);
-    const nl=mkLabel(nm,'label dim'); nl.position.set(i*1.8,-.6,0); mach.add(nl);
-    const vl=mkLabel('','label'); vl.position.set(i*1.8,.4,0); mach.add(vl); selBarLabs.push(vl);
-  });
-  selSigmaLab=mkLabel('','label major','selx_machine'); selSigmaLab.position.set(1.8,-1.5,0); mach.add(selSigmaLab);
-  { const t=mkLabel('CLOSED SELECTOR · B_causal = b_P·Γ(T)·N_P(ε) · Σ_grav = min{1, B_ceil/B_causal} ∈ [0,1] · log-scale bars','label const');
-    t.position.set(1.8,5.6,0); mach.add(t); }
-  const machPick=new THREE.Mesh(new THREE.BoxGeometry(6.4,6,1.4),new THREE.MeshBasicMaterial({visible:false}));
-  machPick.position.set(1.8,2.4,0); mach.add(machPick);
-  registerSel('selx_machine',{ name:'Selector · Σ_grav machine (closed theorem)', mode:'s3', pick:machPick, labelEl:selSigmaLab.element,
+  registerSel('selx_machine',{ name:'Selector · Σ_grav machine (closed theorem)', mode:'s3', pick:selCore, labelEl:selCoreLab.element,
     src:['SEL','DERIVED'], accuracyTier:'M', catalogueStatus:'literature-derived',
     forbiddenClaims:['Σ≪1 proves decoherence or classicality (dynamics required)','a mode count is a bit count before a finite alphabet is fixed',
       'the domain radius r_D equals the carrier radius R_curv without an explicit hypothesis'],
     desc:'The closed selector theorem, computed live: pick a carrier row (ledger), a physical domain D (hydrogen … Hubble patch), sector P, grain ε, causal time T and alphabet b_P. Then B_causal=b_P·Γ(T)·N_P(ε) bits are causally accessible; the domain ceilings B_Bek=2πEr/(ħc·ln2) and B_holo=A/(4l_P²·ln2) contract them to B_phys, and Σ_grav=B_phys/B_causal ∈[0,1]. The paper\'s worked calibration — Planck-grain scalar Hubble patch: B_causal=3.718×10¹⁸¹, B_phys=3.268×10¹²², Σ=8.791×10⁻⁶⁰ (deep filtered regime) — is reproduced by this machine and self-tested.',
-    getPos:()=>machPick.getWorldPosition(new THREE.Vector3()), focusDist:()=>9,
+    getPos:()=>selCore.getWorldPosition(new THREE.Vector3()), focusDist:()=>6,
     rows:()=>{ const out=selComputed();
       return [['Carrier R_curv', out.R.toFixed(1)+' Gly'],['Domain', out.dom.name],
         ['Sector · b_P', out.sector+' · '+state.selBP+' bit/mode'],
@@ -5876,23 +5930,14 @@ let selRings=[], selBars=null, selBarLabs=null, selSigmaLab=null, selScreenMark=
         ['Σ_grav', out.S.toExponential(4)+(out.S>=1?' · SATURATED':' · filtered')],
         ['Causal threshold τ*', out.tauStar!=null?out.tauStar.toFixed(4)+' rad':'— (never saturates / always)']]; } });
 
-  // — station 3 (lower right): trisphere-screen transform T(r) —
-  const scr=new THREE.Group(); scr.position.set(3.2,-3.2,0); selGroup.add(scr);
-  const AXIS=8.2, DEC=62.6;   // log10(R_canon/l_P) ≈ 62.5 decades
-  scr.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-    [new THREE.Vector3(0,0,0),new THREE.Vector3(AXIS,0,0)]),
-    new THREE.LineBasicMaterial({color:0xd4af6a,transparent:true,opacity:.7})));
-  SEL_SCREENS.forEach(([nm,r])=>{ const u=Math.log10(r/SELM.LP)/DEC*AXIS;
-    scr.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
-      [new THREE.Vector3(u,-.14,0),new THREE.Vector3(u,.14,0)]),
-      new THREE.LineBasicMaterial({color:0x8fa0c0,transparent:true,opacity:.8})));
-    const tl=mkLabel(nm,'label star'); tl.position.set(u,-.55,0); scr.add(tl); });
-  selScreenMark=new THREE.Mesh(new THREE.SphereGeometry(.13,12,8),new THREE.MeshBasicMaterial({color:0xffe98a}));
-  scr.add(selScreenMark);
-  selScreenLab=mkLabel('','label major','selx_screen'); selScreenLab.position.set(AXIS/2,1.6,0); scr.add(selScreenLab);
-  { const t=mkLabel('TRISPHERE-SCREEN TRANSFORM T(r) · 62 decades ℓ_P → R_curv · a comparison language, NOT a topology theorem','label const');
-    t.position.set(AXIS/2,2.4,0); scr.add(t); }
-  scr.userData.AXIS=AXIS; scr.userData.DEC=DEC; selGroup.userData.scr=scr;
+  // trisphere-screen probe: a small test sphere riding the log-radius ray INSIDE the
+  // nested model — its distance from the observer is log₁₀(r/ℓ_P)/62.6 of the way to
+  // the outermost carrier, so 62 decades of scale live on one geodesic ray
+  const probeDir=new THREE.Vector3(1,0,0);
+  selScreenMark=new THREE.Mesh(new THREE.SphereGeometry(.2,14,10),new THREE.MeshBasicMaterial({color:0xffe98a,transparent:true,opacity:.95}));
+  selGroup.add(selScreenMark);
+  selScreenLab=mkLabel('','label','selx_screen'); selGroup.add(selScreenLab);
+  selGroup.userData.probeDir=probeDir; selGroup.userData.DEC=62.6;
   registerSel('selx_screen',{ name:'Selector · trisphere-screen transform T(r)', mode:'s3', pick:selScreenMark, labelEl:selScreenLab.element,
     src:['SEL','DERIVED'], accuracyTier:'M', catalogueStatus:'literature-derived',
     forbiddenClaims:['T(r) computable ⟹ the object of scale r IS S³ (invalid without an independent topology theorem)',
@@ -5927,25 +5972,33 @@ function selComputed(){
     epsLbl:'10^'+state.selEpsLog.toFixed(1)+'·ℓ_P',T,tau:tau2,G,N,Bc,Bbek,Bholo,Bceil,Bp,S,CE,tauStar};
 }
 function updateSel(dt){
-  // ledger rings: highlight the active row, others breathe dimly
-  selRings.forEach((ring,i)=>{ const on=i===state.selLedger;
-    ring.material.opacity=on?.95:.32+.06*Math.sin(fbsAnimT*1.4+i);
-    ring.scale.setScalar(on?1+0.015*Math.sin(fbsAnimT*2.2):1); });
+  // nested carriers: the active row glows and slowly breathes, the rest stay faint
+  selShells.forEach((sh,i)=>{ const on=i===state.selLedger;
+    sh.material.opacity=on?.22+.04*Math.sin(fbsAnimT*1.6):.06;
+    sh.scale.setScalar(on?1+0.006*Math.sin(fbsAnimT*2.0):1); });
   const out=selComputed();
+  const rr=selGroup.userData.rr, rAct=rr(out.R);
+  // causal light-ball: geodesic reach cT as the TRUE fraction τ/π of the active carrier
+  const reach=Math.max(.02,rAct*out.tau/Math.PI);
+  selLight.scale.setScalar(reach); selLightRim.scale.setScalar(reach*1.001);
+  selLight.material.opacity=.10+.10*out.G;
+  selLightLab.position.set(0,reach+.55,0);
+  selLightLab.element.textContent=`light reach cT · Γ(T) = ${(out.G*100).toPrecision(3)} % of the carrier`;
+  // domain core: colour = active ceiling (amber Bekenstein / blue holographic), pulse = filtered
+  const holoActive=out.Bholo<out.Bbek;
+  selCore.material.color.setHex(holoActive?0x7db0e8:0xe8a86a);
+  selCoreGlow.material.color.setHex(holoActive?0x7db0e8:0xe8a86a);
+  selCoreGlow.scale.setScalar(out.S<1 ? 2.2+.5*Math.sin(fbsAnimT*3.2) : 2.6);
   if(selDirty){ selDirty=false;
-    const H=4.6, ref=190;   // log10 scale: 190 decades of bits ≈ full bar
-    [[out.Bc],[out.Bceil],[out.Bp]].forEach((v,i)=>{
-      const lg=Math.max(0,Math.log10(Math.max(1,v[0])));
-      const h=Math.max(.06,H*lg/ref);
-      selBars[i].scale.y=h; selBars[i].position.y=h/2;
-      selBarLabs[i].position.y=h+.42;
-      selBarLabs[i].element.textContent='10^'+lg.toFixed(1); });
-    selSigmaLab.element.textContent=`Σ_grav = ${out.S.toExponential(3)}${out.S>=1?' · SATURATED':' · filtered'}`;
-    // screen marker rides the log axis
-    const scr=selGroup.userData.scr, u=Math.min(1,Math.max(0,state.selScrLog/scr.userData.DEC))*scr.userData.AXIS;
-    selScreenMark.position.set(u,0,0);
+    selCoreLab.element.textContent=`𝒟 = ${out.dom.name} · ${holoActive?'holographic':'Bekenstein'} ceiling`;
+    selSigmaLab.element.textContent=`Σ_grav = ${out.S.toExponential(3)}${out.S>=1?' · SATURATED':' · FILTERED'}`;
+    // screen probe rides the log-radius ray: 62 decades ℓ_P→R_curv on one geodesic
+    const u=Math.min(1,Math.max(0,state.selScrLog/selGroup.userData.DEC));
+    const pd=selGroup.userData.probeDir, rOuter=rr(548.324513026856039);
+    selScreenMark.position.copy(pd).multiplyScalar(Math.max(.45,u*rOuter));
     const r=Math.pow(10,state.selScrLog)*SELM.LP;
-    selScreenLab.element.textContent=`T(r) · r=${r.toExponential(2)} m · t_coh=${(Math.PI*r/SELM.C_MS).toExponential(2)} s · n_φ=${(Math.log(r/SELM.LP)/Math.log(1.6180339887)).toFixed(1)}`;
+    selScreenLab.position.copy(selScreenMark.position).add(new THREE.Vector3(0,.5,0));
+    selScreenLab.element.textContent=`T(r) probe · r=${r.toExponential(2)} m · n_φ=${(Math.log(r/SELM.LP)/Math.log(1.6180339887)).toFixed(1)}`;
   }
   hudBig.textContent=`Selector · R=${out.R.toFixed(0)} Gly · Γ=${out.G.toExponential(2)} · N_P=${out.N.toExponential(2)} · Σ_grav=${out.S.toExponential(2)}`;
   hudSub.textContent=`B_causal=${out.Bc.toExponential(2)} · B_ceil=min(Bek ${out.Bbek.toExponential(1)}, holo ${out.Bholo.toExponential(1)}) · C_E=${out.CE.toExponential(1)} · 0≤Σ≤1 (closed theorem) · Ω_K sign OPEN`;
@@ -6322,6 +6375,7 @@ function updateFBS(dt){
       `ρ(N)/ρ_P = φ^(−kN), k=${state.fbsDensExp.toFixed(1)} = 10^${rhoLog.toFixed(2)}<br>`+
       fibLine+`<br>`+
       `V(N) = 2π²R(N)³ &nbsp;= ${(2*Math.PI*Math.PI*Rm**3).toExponential(3)} m³`+
+      (tier2?'':`<br>t_coh = πR/c = ${fmtDur(Math.PI*Rm/2.99792458e8)} · Σ_holo^sc ≈ ${Math.min(1,3*Math.PI/Math.LN2*1.616255e-35/Rm).toExponential(2)} <span style="color:var(--dim)">(screen transform, S3-SEL)</span>`)+
       (state.fbsDensityFX?`<br><b style="color:#7ef0c2">Density Chamber: re-quantization wave ×2</b>`:'');
   }
 }
@@ -9660,6 +9714,11 @@ function buildCtl(){
       <div class="ctlrow"><label>Tracer speed</label><input type="range" id="lanSpeed" min="0" max="0.8" step="0.01" value="${state.laniakeaFlowSpeed}"></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">These are reconstruction-inspired orientation streamlines, not measured galaxy paths. CF4 basin membership is probabilistic; convergence changes with smoothing scale, and recent analyses do not support one uniquely dominant Great Attractor.</div>
     </div>
+    <div class="sect"><b>Curvature-radius family R_curv — TRUE scale</b>
+      <div class="ctlrow"><label>Show candidate carriers</label><input type="checkbox" id="curvShow" ${obsCurvGroup.visible?'checked':''}></div>
+      <div class="chips">${SEL_LEDGER.map((L,i)=>`<button class="chip ${state.selLedger===i?'on':''}" data-curvled="${i}">${L.key==='canon'?'★ 548':Math.round(L.R)} Gly</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Every published Ω_K constraint implies its own carrier radius R_curv=c/(H₀√|Ω_K|), drawn here as a REAL sphere at 1 unit = 1 Gly — fly out past the particle horizon and compare: DESI 57 Gly, Planck CMB-alone 69 Gly, PR4 132 Gly, +lensing 141 Gly, canonical 548 Gly. Warm = closed-preferring rows, cool = open sign. A chip highlights the same row in the S³ Selector lab. No row proves topology.</div>
+    </div>
     <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">
       The screen S²_χ(p) = {q : d(p,q)=Rχ} bounds the observer's geodesic ball — an
       SO(3)_p-invariant reconstruction boundary, never a cosmic edge: ∂S³_R = ∅.
@@ -9677,6 +9736,9 @@ function buildCtl(){
     ctl.querySelector('#lanDens').oninput=e=>state.laniakeaFlowDensity=+e.target.value;
     ctl.querySelector('#lanSpeed').oninput=e=>state.laniakeaFlowSpeed=+e.target.value;
     ctl.querySelectorAll('[data-cosmos]').forEach(b=>b.onclick=()=>{ const k='cosmos_'+b.dataset.cosmos, s=SELECT.get(k); if(s){ selectKey(k); focusOn(s); } });
+    ctl.querySelector('#curvShow').onchange=e=>obsCurvGroup.visible=e.target.checked;
+    ctl.querySelectorAll('[data-curvled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.curvled); buildCtl();
+      const k='obsCurv_'+SEL_LEDGER[state.selLedger].key, s=SELECT.get(k); if(s){ selectKey(k); focusOn(s); } });
   }
   else if(state.mode==='s3'){
     const V = state.s3view;
@@ -10011,7 +10073,7 @@ function buildCtl(){
     ctl.querySelector('#v-drd').onclick  = ()=>{ setS3View('drd');  buildCtl(); };
     ctl.querySelector('#v-sel').onclick  = ()=>{ setS3View('sel');  buildCtl(); };
     if(V==='sel'){
-      ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ state.selLedger=+b.dataset.selled; selDirty=true; buildCtl(); });
+      ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
       ctl.querySelector('#selDom').onchange=e=>{ state.selDomain=+e.target.value; selDirty=true; };
       ctl.querySelectorAll('[data-selsec]').forEach(b=>b.onclick=()=>{ state.selSector=b.dataset.selsec; selDirty=true; buildCtl(); });
       ctl.querySelector('#selEps').oninput=e=>{ state.selEpsLog=+e.target.value; selDirty=true;
@@ -10842,7 +10904,7 @@ function setMode(mode){
     }
   } else if(mode==='obs'){
     camera.position.set(0,55,118); controls.target.set(0,0,0);
-    setControlDistanceLimits(1,600);
+    setControlDistanceLimits(1,1600);   // must reach OUTSIDE the 548-Gly curvature shell for the full family fly-through
   } else if(mode==='s3'){
     camera.position.set(0,8,17); controls.target.set(0,0,0);
     setControlDistanceLimits(.5,120);
