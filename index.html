@@ -3740,6 +3740,59 @@ function setCurvLedger(i){   // one ledger, every home: shells, Selector lab, pa
   if(state.mode==='s3'&&state.s3view==='sel') buildCtl();
 }
 
+/* ── LOOKBACK COLOUR-GRADING (technique of Ménard & Shtarkman's "Map of the
+   Observable Universe", JHU 2022): nearby structure reads blue-white, mid-distance
+   turns gold (elliptical-dominated light), the far field reddens with distance —
+   one glance tells HOW FAR each giant structure is. Pure display grading of the
+   existing published colours; positions, sizes and science are untouched. */
+function lookbackColor(z){
+  const stops=[[0,0xaac8ff],[0.06,0xdfe9ff],[0.25,0xffd98a],[0.55,0xff9a5a],[1.0,0xff6a4a],[2.5,0xc04a38]];
+  let a=stops[0], b=stops[stops.length-1];
+  for(let i=0;i<stops.length-1;i++) if(z>=stops[i][0]&&z<=stops[i+1][0]){ a=stops[i]; b=stops[i+1]; break; }
+  const t=b[0]>a[0]?(z-a[0])/(b[0]-a[0]):0;
+  return new THREE.Color(a[1]).lerp(new THREE.Color(b[1]),THREE.MathUtils.clamp(t,0,1));
+}
+function applyLookbackColours(on){
+  for(const g of COSMOS_DUST){
+    const s=g.userData.s; if(!s) continue;
+    const z=s.z!=null?s.z:(s.dGly!=null?COORD.zFromComoving(s.dGly):0);
+    const col=on?lookbackColor(z):new THREE.Color(s.col);
+    g.traverse(o=>{ if(o.userData.noGrade) return;
+      if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); });
+  }
+}
+
+/* ── CMB WALL on the last-scattering screen — the Map of the Universe famously ENDS
+   at the wall of cosmic microwave background light, and Gaia Sky / Planck releases
+   render it as the blue–orange ΔT mottling. Here: a procedural Planck-palette
+   anisotropy texture painted INSIDE the S²_LSS screen. Visualization only — the
+   real fluctuations are ~10⁻⁵ and are exaggerated for visibility; the pattern is
+   procedural, not the measured Planck a_ℓm. */
+function makeCMBTexture(){
+  const S=512, c=document.createElement('canvas'); c.width=S; c.height=S;
+  const x=c.getContext('2d');
+  x.fillStyle='#7a6a52'; x.fillRect(0,0,S,S);
+  const rng=mulberry(0xC3B1);
+  const warm='255,150,80', cold='70,120,235';
+  for(let i=0;i<2600;i++){
+    const r=3+28*Math.pow(rng(),2.2), px=rng()*S, py=rng()*S, hot=rng()<0.5;
+    const g=x.createRadialGradient(px,py,0,px,py,r);
+    g.addColorStop(0,`rgba(${hot?warm:cold},${(0.10+0.16*rng()).toFixed(3)})`);
+    g.addColorStop(1,`rgba(${hot?warm:cold},0)`);
+    x.fillStyle=g; x.beginPath(); x.arc(px,py,r,0,Math.PI*2); x.fill();
+  }
+  const t=new THREE.CanvasTexture(c);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping; t.colorSpace=THREE.SRGBColorSpace;
+  return t;
+}
+function applyCmbWall(on){
+  const mesh=sphLSS.children[0];   // the BackSide fill sphere of the LSS screen
+  if(on){ if(!applyCmbWall.tex) applyCmbWall.tex=makeCMBTexture();
+    mesh.material.map=applyCmbWall.tex; mesh.material.color.set(0xffffff); mesh.material.opacity=.30;
+  } else { mesh.material.map=null; mesh.material.color.set(0xd05ad8); mesh.material.opacity=.04; }
+  mesh.material.needsUpdate=true;
+}
+
 // observer (Milky Way) — kept small and translucent: this coincides with the youAreHere
 // marker below (both legitimately sit at the coordinate origin), and a solid opaque sphere
 // here would read as a single flat "white blob" rather than a small, precise anchor point.
@@ -4137,6 +4190,7 @@ for(const s of COSMOS){
     body=new THREE.Mesh(new THREE.SphereGeometry(r,22,16), new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:.12,depthWrite:false}));
     const hollow=new THREE.Mesh(new THREE.SphereGeometry(r*0.985,22,16),
       new THREE.MeshBasicMaterial({color:0x04050b,transparent:true,opacity:.42,side:THREE.BackSide,depthWrite:false}));
+    hollow.userData.noGrade=true;   // the void's dark interior is the grammar of ABSENCE — never colour-graded
     g.add(hollow);
   } else {
     body=new THREE.Mesh(new THREE.SphereGeometry(r,18,12), new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:(s.size>=0.8?.10:.22),depthWrite:false}));
@@ -4158,7 +4212,7 @@ for(const s of COSMOS){
   const dotR=THREE.MathUtils.clamp(r*0.16, 0.03, 0.11);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot);
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
-  const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body;
+  const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
   body.visible=true; dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
   COSMOS_DUST.push(g);
   { const p=g.position, c=new THREE.Color(s.col);   // sightline segment: structure → observer (origin)
@@ -9206,6 +9260,7 @@ const state = {
   cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:true,
   drdX:10, drdTau:0.35, drdRun:true,   // DRD lab: x=R/ε and the PIR causal sweep
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
+  obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
   fovLand: 60,
   fbsDepth: 0, fbsTarget: null, fbsCycle: false, fbsDir: 1, fbsCycleSpeed: 12, fbsPulse: 0,
@@ -9706,7 +9761,9 @@ function buildCtl(){
     </div>
     <div class="sect"><b>Structure rendering</b>
       <div class="ctlrow"><label>Dust clouds (realistic)</label><input type="checkbox" id="cosDust" ${state.showCosmicDust!==false?'checked':''}></div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Each structure as a galaxy-density dust cloud (denser core; voids = hollow shells), scaled to its published extent. Off = schematic wireframes. Visualisation only — not new measurements.</div>
+      <div class="ctlrow" title="Technique of Ménard & Shtarkman's Map of the Observable Universe (JHU 2022): colour = distance"><label>Lookback colours (Map of the Universe)</label><input type="checkbox" id="lookbackCol" ${state.obsLookback?'checked':''}></div>
+      <div class="ctlrow" title="The map famously ends at the wall of CMB light — Planck-palette ΔT mottling, exaggerated for visibility"><label>CMB wall on S²_LSS</label><input type="checkbox" id="cmbWall" ${state.obsCmbTex?'checked':''}></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each structure as a galaxy-density dust cloud (denser core; voids = hollow shells), scaled to its published extent. Off = schematic wireframes. Lookback grading: blue-white nearby → gold mid-distance → red far field (display only; published colours restore on toggle-off). CMB wall: procedural Planck-palette anisotropies, ~10⁻⁵ fluctuations exaggerated — visualisation, not the measured a_ℓm.</div>
     </div>
     <div class="sect"><b>Laniakea / Cosmicflows reconstruction</b>
       <div class="ctlrow"><label>Flow streamlines</label><input type="checkbox" id="lanFlows" ${state.showLaniakeaFlows?'checked':''}></div>
@@ -9732,6 +9789,8 @@ function buildCtl(){
     ctl.querySelector('#sMReq').onchange = e=>sphMReq.visible=e.target.checked;
     ctl.querySelector('#cosmosShow').onchange = e=>cosmosGroup.visible=e.target.checked;
     ctl.querySelector('#cosDust').onchange=e=>{state.showCosmicDust=e.target.checked;updateCosmicDust();};
+    ctl.querySelector('#lookbackCol').onchange=e=>{state.obsLookback=e.target.checked;applyLookbackColours(state.obsLookback);};
+    ctl.querySelector('#cmbWall').onchange=e=>{state.obsCmbTex=e.target.checked;applyCmbWall(state.obsCmbTex);};
     ctl.querySelector('#lanFlows').onchange=e=>state.showLaniakeaFlows=e.target.checked;
     ctl.querySelector('#lanDens').oninput=e=>state.laniakeaFlowDensity=+e.target.value;
     ctl.querySelector('#lanSpeed').oninput=e=>state.laniakeaFlowSpeed=+e.target.value;
@@ -12251,6 +12310,8 @@ globalThis.FBS3R_QA=Object.freeze({
     return out;
   },
 });
+applyCmbWall(state.obsCmbTex);            // Map-of-the-Universe boot look: the LSS screen carries its CMB wall
+applyLookbackColours(state.obsLookback);
 updateBell();   // seed the Bell-lune geometry at boot — its pick body must exist (not be an empty
                 // BufferGeometry) before the Bell lab view is first opened, so selection,
                 // focus framing and the navigation QA audit all see a real object immediately
