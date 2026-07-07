@@ -7157,22 +7157,44 @@ function updateCyc(dt){
    3D Mandelbulb + complex-plane Mandelbrot/Julia + a deterministic,
    accumulated Buddhabrot orbit-density texture + φ-nested contours.
    ================================================================ */
-const BUDDHA_RES=MOBILE_GPU?384:640;
+/* Buddhabrot resolution presets — chosen CAREFULLY: the compute buffers are three
+   Uint32 planes (12 bytes/px: 960²≈11 MB, 1600²≈31 MB desktop), the build runs in
+   idle-time batches that never block the UI, and sample count scales with AREA so
+   the density stays crisp instead of getting sparser as the texture grows. */
+const BUDDHA_PRESETS={
+  standard:{res:MOBILE_GPU? 512: 960, samples:MOBILE_GPU?260000: 900000, iter:MOBILE_GPU?300:420, label:'Standard'},
+  fine:    {res:MOBILE_GPU? 640:1280, samples:MOBILE_GPU?430000:1600000, iter:MOBILE_GPU?320:460, label:'Fine'},
+  ultra:   {res:MOBILE_GPU? 768:1600, samples:MOBILE_GPU?660000:2600000, iter:MOBILE_GPU?340:520, label:'Ultra'},
+};
+let buddhaPreset='standard';
+let BUDDHA_RES=BUDDHA_PRESETS[buddhaPreset].res;
 const buddhaCanvas=document.createElement('canvas'); buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
 const buddhaCtx=buddhaCanvas.getContext('2d');
 buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
 const fractalBuddhaTexture=new THREE.CanvasTexture(buddhaCanvas);
 fractalBuddhaTexture.colorSpace=THREE.SRGBColorSpace;
-let buddhaProgress=0, buddhaBuilding=false;
+let buddhaProgress=0, buddhaBuilding=false, buddhaToken=0;
+function setBuddhaPreset(p){
+  if(!BUDDHA_PRESETS[p]) return;
+  buddhaPreset=p; BUDDHA_RES=BUDDHA_PRESETS[p].res;
+  buddhaToken++; buddhaBuilding=false;             // cancel any build in flight
+  buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
+  buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
+  fractalBuddhaTexture.needsUpdate=true;
+  buildBuddhabrotTexture();
+}
 function buildBuddhabrotTexture(){
   if(buddhaBuilding) return;
   buddhaBuilding=true; buddhaProgress=0;
+  const token=++buddhaToken;
   const W=buddhaCanvas.width,H=buddhaCanvas.height,N=W*H;
-  const target=MOBILE_GPU?150000:360000,maxIter=MOBILE_GPU?260:380;
+  const P=BUDDHA_PRESETS[buddhaPreset];
+  const target=P.samples,maxIter=P.iter;
   const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N);
   const ox=new Float32Array(maxIter),oy=new Float32Array(maxIter),rnd=mulberry(20260430);
   let done=0;
   const draw=()=>{
+    if(token!==buddhaToken) return;
     const img=buddhaCtx.createImageData(W,H); let ml=1,mm=1,md=1;
     for(let i=0;i<N;i++){ml=Math.max(ml,low[i]);mm=Math.max(mm,mid[i]);md=Math.max(md,deep[i]);}
     const dl=Math.log1p(ml),dm=Math.log1p(mm),dd=Math.log1p(md);
@@ -7186,8 +7208,10 @@ function buildBuddhabrotTexture(){
     buddhaCtx.putImageData(img,0,0); fractalBuddhaTexture.needsUpdate=true;
     buddhaProgress=done/target; updCtlVals();
   };
+  const CHUNK=MOBILE_GPU?4200:11000;
   const batch=()=>{
-    const end=Math.min(target,done+(MOBILE_GPU?3000:7500));
+    if(token!==buddhaToken) return;               // a newer preset build superseded this one
+    const end=Math.min(target,done+CHUNK);
     for(;done<end;done++){
       const cx=-2.2+3.4*rnd(),cy=-1.5+3*rnd(); let x=0,y=0,it=0;
       for(;it<maxIter;it++){
@@ -7202,7 +7226,7 @@ function buildBuddhabrotTexture(){
         const j=py*W+px; low[j]++; if(it>=45) mid[j]++; if(it>=140) deep[j]++;
       }
     }
-    if(done%(MOBILE_GPU?24000:30000)<(MOBILE_GPU?3000:7500)||done>=target) draw();
+    if(done%(CHUNK*4)<CHUNK||done>=target) draw();
     if(done<target) setTimeout(batch,0); else {buddhaProgress=1;buddhaBuilding=false;updCtlVals();}
   };
   batch();
@@ -10732,8 +10756,10 @@ function buildCtl(){
         <span class="val" id="flvlV"></span></div>
     </div>`:''}
     ${fractalType==='buddhabrot'?`<div class="sect"><b>Orbit-density integration</b>
-      <div class="note">Deterministic Buddhabrot: escaped Mandelbrot orbits accumulated in three dwell-time tiers. Build: <b id="budProg">${(buddhaProgress*100).toFixed(0)}%</b>.</div>
+      <div class="note">Deterministic Buddhabrot: escaped Mandelbrot orbits accumulated in three dwell-time tiers. Build: <b id="budProg">${(buddhaProgress*100).toFixed(0)}%</b> · ${BUDDHA_RES}×${BUDDHA_RES}px · ${(BUDDHA_PRESETS[buddhaPreset].samples/1e6).toFixed(1)}M orbits.</div>
+      <div class="chips">${Object.entries(BUDDHA_PRESETS).map(([k,P])=>`<button class="chip ${buddhaPreset===k?'on':''}" data-budres="${k}">${P.label} · ${P.res}px</button>`).join('')}</div>
       <div class="ctlrow"><button class="btn" id="budBuild">${buddhaBuilding?'building…':'rebuild deterministic map'}</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Higher presets sharpen the nebular filaments considerably; the build streams in idle-time batches (UI never blocks) and sample count scales with area, so density stays crisp. Ultra ≈ ${MOBILE_GPU?'7':'31'} MB compute buffer — switch back to Standard to free it.</div>
     </div>`:''}
     ${fractalType==='bifurcation'?`<div class="sect"><b>Logistic map · x → r·x·(1−x)</b>
       <div class="note">x-axis = growth rate r ∈ [0,4]; y-axis = attractor value x. Cool = periodic windows (Lyapunov λ&lt;0), warm = chaos (λ&gt;0). The period-doubling cascade accumulates at the Feigenbaum point r≈3.5699 — drag to pan, zoom to dive into the self-similar nesting. Raise “Iterations” for deeper attractor resolution.</div>
@@ -10861,6 +10887,7 @@ function buildCtl(){
       setFractalZoom(850); buildCtl();
     });
     ctl.querySelector('#budBuild')?.addEventListener('click',buildBuddhabrotTexture);
+    ctl.querySelectorAll('[data-budres]').forEach(b=>b.onclick=()=>{ setBuddhaPreset(b.dataset.budres); buildCtl(); });
   }
   if(state.mode!=='fractal' && spatialGuides[state.mode]){
     ctl.insertAdjacentHTML('beforeend',`
