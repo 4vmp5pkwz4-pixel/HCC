@@ -837,7 +837,7 @@ const SOURCE_MAP = {
   JWST_LRD:{tag:'JWST-LRD', label:'Juodžbalis et al. 2026 (Nature); Abell 2744−QSO1; direct dynamical black-hole mass measurement in a little red dot at z=7.04; JWST/NIRSpec IFU; MOKA3D; MAST; Zenodo reduced products.'},
   DRD:   {tag:'DRD',       label:'Preece & Batenin 2026, "Dependently Reconstructible Distinguishability (DRD): A Functorial Theory of Information Carriers, Graded Spectral Capacities, and Causal Integration on Compact S³ Geometry" — exact graded capacities N₀,N_TT,N_D on S³_R; PIR(T) causal integration with t_coh=πR/c; suspension chain S⁰→S¹→S²→S³. Mode counts are NOT bit counts; the gravitational selector Σ_grav is the stated open problem; the volume–area tension is stated, not resolved.'},
   COSCALE:{tag:'CoScale',  label:'Preece & Batenin 2026, "Causal Co-Scaling of Distance and Reconstruction Time in Fractal S³ Geometry" — axiom R_N=l_P·φᴺ, t_N=t_P·φᴺ ⟹ R_N/t_N=c at every rung. A causal-admissibility IDENTITY (t_P=l_P/c), explicitly NOT a derivation of c; N★=207 is an internal reference index (≈1 light-second), NOT recombination; the φ-log-periodicity signature tested against DESI DR2 BAO + Pantheon+ with null results.'},
-  SEL:   {tag:'S3-SEL',    label:'Preece & Batenin 2026, "Causal–Spectral Distinguishability Selection on a Conditional Round S³ Carrier" (Status-Preserved Full Edition) — closed selector theorem 0≤Σ_grav=B_phys/B_causal≤1 with B_causal=b_P·Γ(T)·N_P(ε) and ceilings B_Bek=2πEr/(ħc·ln2), B_holo=A/(4l_P²·ln2); trisphere-screen transform T(r); curvature-input ledger. R_curv and r_D are DISTINCT; the screen transform is a comparison language, NOT a topology theorem; Σ≪1 does not prove decoherence.'},
+  SEL:   {tag:'S3-SEL',    label:'Preece & Batenin 2026, "Causal–Spectral Distinguishability Selection on a Conditional Round S³ Carrier" (Status-Preserved Full Edition v14) — closed selector theorem 0≤Σ_grav=B_phys/B_causal≤1 with B_causal=b_P·Γ(T)·N_P(ε) and ceilings B_Bek, B_holo; two-phase (τ,χ) portrait with ridge b_P·Γ·N_P=B_ceil and resolution threshold ε_min; algebraic invariant network (ρ_scr=c⁴/4π²Gr², Λ_scr=2/πr², ρ_scr/R₃=c⁴/24π²G, Ω_scr(c/H₀)=2/3π≈0.212 — order-of-magnitude only, NOT a dark-energy derivation); trisphere-screen transform T(r); curvature-input ledger. R_curv≠r_D; T(r) is a comparison language, NOT a topology theorem; Σ≪1 does not prove decoherence; τ* is NOT a universal transition time; ε_min is NOT modified Heisenberg.'},
   CURV:  {tag:'ΩK-obs',    label:'Observational curvature constraints (posterior/model-dependent, sign open): Planck 2018 VI (CMB alone Ω_K=−0.044⁺⁰·⁰¹⁸₋₀.₀₁₅; +lensing −0.011±0.007; +lensing+BAO +0.0007±0.0019), Planck PR4/Tristram et al. 2024 (−0.012±0.010), DESI 2024 VI BAO+CMB (+0.065⁺⁰·⁰⁶⁸₋₀.₀₇₈), Zhai 2024 non-CMB (+0.108±0.056); Di Valentino+ 2020, Handley 2021, Efstathiou & Gratton 2020 on the closed-Universe tension. R_curv=c/(H₀√|Ω_K|). NO row proves global topology.'},
   DERIVED:{tag:'derived',  label:'Derived live inside this app from the tagged formulas — no fitting, no hidden parameters'},
 };
@@ -934,7 +934,11 @@ const DRDMATH={
   NTT(x){const M=this.MTT(x);return M<2?0:M*(M-1)*(2*M+11)/3;},
   MD:x=>Math.floor(x-1.5),
   ND(x){const M=this.MD(x);return M<0?0:2*(M+1)*(M+2)*(M+3)/3;},
-  F:u=>u<=0?0:u>=Math.PI?1:(u-0.5*Math.sin(2*u))/Math.PI,   // PIR / Γ volume law, u=cT/R ∈[0,π]
+  // PIR / Γ volume law, u=cT/R ∈[0,π]. For u≲10⁻³ the direct form u−½sin2u suffers
+  // catastrophic cancellation (the difference sinks below machine ε·u), so we switch
+  // to the paper's own early-time series Γ=(2/3π)u³−(2/15π)u⁵+O(u⁷) — exact there to
+  // double precision, and REQUIRED for phase-threshold bisection at τ*∼10⁻²².
+  F:u=>u<=0?0:u>=Math.PI?1:u<1e-3?(2/(3*Math.PI))*u*u*u*(1-u*u/5):(u-0.5*Math.sin(2*u))/Math.PI,
 };
 const SELM={
   C_MS:2.99792458e8, HBAR:1.054571817e-34, G:6.6743e-11, LN2:Math.LN2,
@@ -947,6 +951,12 @@ const SELM={
   CE(E,r){ return 2*this.G*E/(Math.pow(this.C_MS,4)*r); },
   tauStar(q){ if(q<=0) return 0; if(q>=1) return Math.PI;   // Γ(τ*)=q, bisection
     let a=0,b=Math.PI; for(let i=0;i<80;i++){ const m=(a+b)/2; (this.Gamma(m)<q?a=m:b=m); } return (a+b)/2; },
+  /* v14 algebraic invariant network (screen diagnostics — NOT equations of state) */
+  rhoScrE(r){ return Math.pow(this.C_MS,4)/(4*Math.PI*Math.PI*this.G*r*r); },      // c⁴/4π²Gr²
+  lambdaScr(r){ return 2/(Math.PI*r*r); },                                          // 2/πr²
+  screenInvariant(){ return Math.pow(this.C_MS,4)/(24*Math.PI*Math.PI*this.G); },   // ρ_scr/R₃, r-independent
+  omegaScrRH(){ return 2/(3*Math.PI); },                                            // ≈0.212 at L=c/H₀
+  epsMinHolo(cT,rD,bP,CP){ return cT*Math.cbrt(2*bP*CP*this.LP*this.LP*this.LN2/(3*Math.PI*Math.PI*rD*rD)); },
 };
 const SEL_LEDGER=[   // published Ω_K rows (S3-SEL curvature-input ledger; CURV sources)
   {key:'canon',  OmK:0.0007, R:548.324513026856039, name:'v38 canonical modulus',        status:'illustrative input · SIGN OPEN', closed:null},
@@ -1163,6 +1173,23 @@ function runSelfTests(){
     eps(SELM.Bbek(8.18710565e-14,5.29177e-11)/1242.1,1,2e-3) &&
     eps(SELM.CE(1.7875e48,2.9532e4),1,1e-2),
     'fine-structure identity + Bekenstein–holographic critical equality (S3-SEL)');
+  ok('Selector v14 invariant network: Ω_scr(c/H₀)=2/3π, ρ_scr/R₃=c⁴/24π²G (r-independent), B_Bek(E_crit,r)=B_holo(r)',
+    (()=>{ const H0si=67.4*1000/3.0856775814913673e22, L=SELM.C_MS/H0si;
+      const omega=(SELM.rhoScrE(L)/(SELM.C_MS*SELM.C_MS))/(3*H0si*H0si/(8*Math.PI*SELM.G));
+      const invA=SELM.rhoScrE(1)/(6/1), invB=SELM.rhoScrE(1e20)/(6/1e40);
+      const r=3.7, Ecrit=Math.pow(SELM.C_MS,4)*r/(2*SELM.G);
+      return eps(omega, 2/(3*Math.PI), 1e-12) &&
+             eps(invA/invB, 1, 1e-9) && eps(invA, SELM.screenInvariant(), 1e-9) &&
+             eps(SELM.Bbek(Ecrit,r)/SELM.Bholo(r), 1, 1e-6); })(),   /* CODATA l_P agrees with √(ħG/c³) to ~3×10⁻⁸ */
+    'screen diagnostics, NOT dark-energy or equation-of-state derivations (S3-SEL v14 §19 + App.)');
+  ok('Selector v14 phase portrait: worked τ*≈5.2×10⁻²² from Γ*=Σ(t₀)·Γ(t₀), and Γ(τ*)·N_P = B_ceil/b_P at the ridge',
+    (()=>{ const gStar=8.791e-60*3.373402908291e-6;
+      const tauStar=Math.cbrt(1.5*Math.PI*gStar);
+      const R_m=548.324513026856039*SELM.GLY_M, x=R_m/SELM.LP, N=DRDMATH.N0(x);
+      const q=SELM.Bholo(1.3724e26)/N, ts=SELM.tauStar(q);
+      /* bisection resolves τ to π/2⁸⁰≈2.6e-24; at τ*~5e-22 that is ~0.5%, cubed by Γ∼τ³ → ~1.5% */
+      return eps(tauStar, 5.2e-22, 0.03) && eps(SELM.Gamma(ts)*N/SELM.Bholo(1.3724e26), 1, 0.05); })(),
+    'two-phase min-law taxonomy: the ridge b_P·Γ·N_P=B_ceil is exact (v14 §18, calibration warning honoured)');
   ok('Selector: algebraic null-test suite — Σ_grav∈[0,1] and Γ∈[0,1] over all domains × sectors',
     SEL_DOMAINS.every((d,di)=>['sc','tt','d'].every(sec=>{
       const R_m=548.324513026856039*SELM.GLY_M, x=R_m/SELM.LP;
@@ -6009,7 +6036,93 @@ let selShells=[], selLight=null, selLightRim=null, selCore=null, selCoreGlow=nul
         ['φ-ladder index n_φ(r)', nphi.toFixed(2)],
         ['Σ_holo^sc ≈ 13.60·ℓ_P/r', sig.toExponential(3)],
         ['Critical mass rc²/2G', (r*SELM.C_MS*SELM.C_MS/(2*SELM.G)).toExponential(3)+' kg'],
+        ['Screen density ρ_scr = c⁴/4π²Gr²', SELM.rhoScrE(r).toExponential(3)+' J m⁻³'],
+        ['Λ_scr = 2/πr²', SELM.lambdaScr(r).toExponential(3)+' m⁻²'],
+        ['Invariant ρ_scr/R₃ = c⁴/24π²G', SELM.screenInvariant().toExponential(4)+' (r-independent)'],
+        ['Ω_scr at L=c/H₀','2/3π ≈ 0.212 · order-of-magnitude vs Ω_Λ≈0.685 — NOT a dark-energy derivation'],
         ['Firewall','radius transform ≠ topology theorem']]; } });
+
+  /* ── SELECTOR PHASE PORTRAIT (v14 §18) — the (τ,χ) plane as a walkable landscape ──
+     Height = log₁₀Σ: the flat GOLD PLATEAU is the saturated phase Σ=1; the BLUE SLOPE
+     falls as Σ=B_ceil/D in the filtered phase; the glowing ridge between them is the
+     exact phase boundary b_P·Γ(τ)·N_P(χ)=B_ceil, whose τ-section is the unique causal
+     threshold τ*. A marker rides the landscape at the CURRENT (τ,χ) of the sliders. */
+  const PH={X0:-24,X1:0.6,Z0:-63,Z1:0,W:14.5,D:9.5,H:4.4,SEGX:56,SEGZ:40,DEPTH:120};
+  const phGeo=new THREE.PlaneGeometry(PH.W,PH.D,PH.SEGX,PH.SEGZ); phGeo.rotateX(-Math.PI/2);
+  const phMesh=new THREE.Mesh(phGeo,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.85,side:THREE.DoubleSide,depthWrite:false}));
+  const phGroup=new THREE.Group(); phGroup.position.set(0,-11.6,0); selGroup.add(phGroup); phGroup.add(phMesh);
+  phGeo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(phGeo.attributes.position.count*3),3));
+  const phRidge=new THREE.Line(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({color:0xffe9a0,transparent:true,opacity:.95}));
+  phGroup.add(phRidge);
+  const phMark=new THREE.Mesh(new THREE.SphereGeometry(.17,12,8),new THREE.MeshBasicMaterial({color:0xfff0c0}));
+  phGroup.add(phMark);
+  const phMarkGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.85,depthWrite:false}));
+  phMarkGlow.scale.setScalar(1.15); phGroup.add(phMarkGlow);
+  { const t=mkLabel('SELECTOR PHASE PORTRAIT (τ,χ) · gold plateau = SATURATED Σ=1 · blue slope = FILTERED Σ=B_ceil/D · ridge: b_P·Γ(τ)·N_P(χ)=B_ceil','label const');
+    t.position.set(0,3.4,0); phGroup.add(t);
+    const ax1=mkLabel('log₁₀ τ = cT/R →','label axis'); ax1.position.set(PH.W*.44,.25,PH.D*.58); phGroup.add(ax1);
+    const ax2=mkLabel('log₁₀ χ = ε/R ↑','label axis'); ax2.position.set(-PH.W*.56,.25,-PH.D*.30); phGroup.add(ax2); }
+  const phLab=mkLabel('Phase portrait (τ,χ)','label major','selx_phase'); phLab.position.set(0,-1.5,PH.D*.62); phGroup.add(phLab);
+  const lgT=t=>PH.X0+(PH.X1-PH.X0)*t, lgC=t=>PH.Z0+(PH.Z1-PH.Z0)*t;
+  function selSigmaAt(lgTau,lgChi,bP,Bceil,sector){
+    const tau=Math.min(Math.PI,Math.pow(10,lgTau)), x=Math.pow(10,-lgChi);
+    const N=sector==='sc'?DRDMATH.N0(x):sector==='tt'?DRDMATH.NTT(x):DRDMATH.ND(x);
+    const D=bP*SELM.Gamma(tau)*N;
+    return D>0?Math.min(1,Bceil/D):1;
+  }
+  const PH_SAT=new THREE.Color(0xd4af6a), PH_SAT2=new THREE.Color(0xf1dda6),
+        PH_TOP=new THREE.Color(0x9db8e8), PH_DEEP=new THREE.Color(0x1c2c4e);
+  function rebuildSelPhase(out){
+    const pos=phGeo.attributes.position, col=phGeo.attributes.color;
+    for(let j=0;j<=PH.SEGZ;j++) for(let i=0;i<=PH.SEGX;i++){
+      const k=j*(PH.SEGX+1)+i;
+      const S=selSigmaAt(lgT(i/PH.SEGX), lgC(1-j/PH.SEGZ), state.selBP, out.Bceil, state.selSector);
+      const lg=Math.max(-PH.DEPTH,Math.log10(Math.max(1e-300,S)));
+      pos.setY(k, PH.H*lg/PH.DEPTH);
+      const c=S>=1 ? PH_SAT.clone().lerp(PH_SAT2,.5+.5*Math.sin(i*.31))
+                   : PH_TOP.clone().lerp(PH_DEEP,Math.min(1,-lg/70));
+      col.setXYZ(k,c.r,c.g,c.b);
+    }
+    pos.needsUpdate=true; col.needsUpdate=true; phGeo.computeBoundingSphere();
+    // ridge: for each τ-column find the χ where the phase flips (Σ crosses 1)
+    const ridge=[];
+    for(let i=0;i<=PH.SEGX;i++){
+      let prev=null;
+      for(let j=0;j<=PH.SEGZ;j++){
+        const S=selSigmaAt(lgT(i/PH.SEGX), lgC(1-j/PH.SEGZ), state.selBP, out.Bceil, state.selSector);
+        if(prev!==null && ((prev>=1)!==(S>=1))){
+          ridge.push(new THREE.Vector3(-PH.W/2+PH.W*i/PH.SEGX, .05, -PH.D/2+PH.D*(j-.5)/PH.SEGZ)); break; }
+        prev=S;
+      }
+    }
+    phRidge.geometry.dispose();
+    phRidge.geometry=ridge.length>1?new THREE.BufferGeometry().setFromPoints(ridge):new THREE.BufferGeometry();
+  }
+  selGroup.userData.rebuildSelPhase=rebuildSelPhase;
+  selGroup.userData.phasePos=(tau,chi)=>{
+    const u=THREE.MathUtils.clamp((Math.log10(Math.max(1e-30,tau))-PH.X0)/(PH.X1-PH.X0),0,1);
+    const v=THREE.MathUtils.clamp((Math.log10(Math.max(1e-70,chi))-PH.Z0)/(PH.Z1-PH.Z0),0,1);
+    return {x:-PH.W/2+PH.W*u, z:PH.D/2-PH.D*v};
+  };
+  selGroup.userData.phMark=phMark; selGroup.userData.phMarkGlow=phMarkGlow;
+  registerSel('selx_phase',{ name:'Selector · phase portrait (τ,χ)', mode:'s3', pick:phMesh, labelEl:phLab.element,
+    src:['SEL','DERIVED'], accuracyTier:'M', catalogueStatus:'literature-derived',
+    forbiddenClaims:['the phase threshold τ* is a universal physical transition time (it is a diagnostic of the chosen calibration)',
+      'the resolution threshold ε_min is a modified Heisenberg uncertainty principle'],
+    desc:'The selector phase portrait of the v14 manuscript: in the min-law model the selector has exactly TWO algebraic phases — the gold plateau where D_P=b_P·Γ(τ)·N_P(χ) ≤ B_ceil and Σ=1 (SATURATED), and the blue slope where Σ=B_ceil/D_P<1 (FILTERED). The glowing ridge is the exact phase boundary; its intersection with a fixed χ gives the unique causal threshold τ* with Γ(τ*)=B_ceil/(b_P·N_P). In the joint early-time fine-resolution corner both axes collapse to the similarity law D_P∼(2b_P·C_P/3π)(cT/ε)³ — the curvature radius cancels — giving the resolution threshold ε_min=cT·(2b_P·C_P/3πB_ceil)^{1/3}. Landscape height is log₁₀Σ over 120 decades; the marker rides the CURRENT slider position.',
+    getPos:()=>phGroup.getWorldPosition(new THREE.Vector3()), focusDist:()=>13,
+    rows:()=>{ const out=selComputed();
+      const gStar=out.S<1?out.S*out.G:null;
+      return [['Phase now', out.S>=1?'SATURATED (Σ=1)':'FILTERED (Σ='+out.S.toExponential(3)+')'],
+        ['Current (τ, χ)', out.tau.toExponential(3)+' , '+(out.eps/(out.R*SELM.GLY_M)).toExponential(3)],
+        ['Ridge condition','b_P·Γ(τ)·N_P(χ) = B_ceil'],
+        ['Causal threshold τ*', out.tauStar!=null?out.tauStar.toExponential(4):'—'],
+        ...(gStar!=null?[['Γ* = Σ·Γ(T)', gStar.toExponential(3)+' (worked calibration: 2.97×10⁻⁶⁵ → τ*≈5.2×10⁻²²)']]:[]),
+        ['Similarity corner','D_P ∼ (2b_P·C_P/3π)(cT/ε)³ · R_curv cancels'],
+        ['Resolution threshold ε_min', out.epsMin.toExponential(3)+' m ('+(out.epsMin/SELM.LP).toExponential(2)+' ℓ_P)'],
+        ['Not claimed','universal transition time · modified Heisenberg'],
+        ['Source','S3-SEL v14 §18–19 (self-tested)']]; } });
 }
 function selComputed(){
   const L=SEL_LEDGER[state.selLedger], dom=SEL_DOMAINS[state.selDomain];
@@ -6022,8 +6135,11 @@ function selComputed(){
   const Bp=Math.min(Bc,Bceil), S=Bc>0?Bp/Bc:0, CE=SELM.CE(dom.E,dom.r);
   const q=state.selBP*N>0?Bceil/(state.selBP*N):0;
   const tauStar=(q>0&&q<1)?SELM.tauStar(q):null;
+  // v14 §18: resolution threshold ε_min (holographic form) + sector Weyl coefficient
+  const CP=state.selSector==='sc'?1/3:2/3;
+  const epsMin=SELM.epsMinHolo(T*SELM.GLY_M, dom.r, state.selBP, CP);   // cT in metres (T Gyr → Gly → m)
   return {R:L.R,dom,sector:state.selSector==='sc'?'scalar':state.selSector==='tt'?'TT tensor':'Dirac',
-    epsLbl:'10^'+state.selEpsLog.toFixed(1)+'·ℓ_P',T,tau:tau2,G,N,Bc,Bbek,Bholo,Bceil,Bp,S,CE,tauStar};
+    epsLbl:'10^'+state.selEpsLog.toFixed(1)+'·ℓ_P',T,tau:tau2,G,N,Bc,Bbek,Bholo,Bceil,Bp,S,CE,tauStar,CP,epsMin,eps};
 }
 function updateSel(dt){
   // nested carriers: the active row glows and slowly breathes, the rest stay faint
@@ -6046,6 +6162,7 @@ function updateSel(dt){
   if(selDirty){ selDirty=false;
     selCoreLab.element.textContent=`𝒟 = ${out.dom.name} · ${holoActive?'holographic':'Bekenstein'} ceiling`;
     selSigmaLab.element.textContent=`Σ_grav = ${out.S.toExponential(3)}${out.S>=1?' · SATURATED':' · FILTERED'}`;
+    selGroup.userData.rebuildSelPhase(out);   // phase landscape follows domain/sector/alphabet
     // screen probe rides the log-radius ray: 62 decades ℓ_P→R_curv on one geodesic
     const u=Math.min(1,Math.max(0,state.selScrLog/selGroup.userData.DEC));
     const pd=selGroup.userData.probeDir, rOuter=rr(548.324513026856039);
@@ -6054,6 +6171,11 @@ function updateSel(dt){
     selScreenLab.position.copy(selScreenMark.position).add(new THREE.Vector3(0,.5,0));
     selScreenLab.element.textContent=`T(r) probe · r=${r.toExponential(2)} m · n_φ=${(Math.log(r/SELM.LP)/Math.log(1.6180339887)).toFixed(1)}`;
   }
+  // phase-portrait marker rides the CURRENT (τ,χ) point every frame
+  { const chi=out.eps/(out.R*SELM.GLY_M), p=selGroup.userData.phasePos(out.tau,chi);
+    const mk=selGroup.userData.phMark, gl=selGroup.userData.phMarkGlow;
+    mk.position.set(p.x, .3+.08*Math.sin(fbsAnimT*3.4), p.z);
+    gl.position.copy(mk.position); }
   hudBig.textContent=`Selector · R=${out.R.toFixed(0)} Gly · Γ=${out.G.toExponential(2)} · N_P=${out.N.toExponential(2)} · Σ_grav=${out.S.toExponential(2)}`;
   hudSub.textContent=`B_causal=${out.Bc.toExponential(2)} · B_ceil=min(Bek ${out.Bbek.toExponential(1)}, holo ${out.Bholo.toExponential(1)}) · C_E=${out.CE.toExponential(1)} · 0≤Σ≤1 (closed theorem) · Ω_K sign OPEN`;
   selUiAcc+=dt;
@@ -6067,6 +6189,10 @@ function updateSel(dt){
     const l=ctl.querySelector('#selLedOut'); if(l){ const L=SEL_LEDGER[state.selLedger];
       l.innerHTML=`R_curv = c/(H₀√|Ω_K|) = <b>${SELM.Rcurv(L.OmK).toFixed(1)} Gly</b> (published ≈${L.R} Gly)<br>`+
       `t_coh = ${(Math.PI*L.R).toFixed(1)} Gyr · Γ(t₀) = ${SELM.Gamma(13.7877187856/L.R).toExponential(3)} · ${L.status}`; }
+    const ph=ctl.querySelector('#selPhaseOut'); if(ph) ph.innerHTML=
+      `Phase: <b>${out.S>=1?'SATURATED · Σ=1':'FILTERED · Σ='+out.S.toExponential(3)}</b><br>`+
+      `τ* = ${out.tauStar!=null?out.tauStar.toExponential(3):'—'} · ε_min = ${out.epsMin.toExponential(3)} m (${(out.epsMin/SELM.LP).toExponential(1)} ℓ_P)<br>`+
+      `Invariant ρ_scr/R₃ = ${SELM.screenInvariant().toExponential(4)} · Ω_scr(c/H₀) = 2/3π ≈ 0.212`;
   }
 }
 
@@ -10061,6 +10187,10 @@ function buildCtl(){
         <input type="range" id="selBP" min="1" max="8" step="1" value="${state.selBP}">
         <span class="val" id="selBPV">${state.selBP}</span></div>
       <div id="selOut" class="note" style="font-variant-numeric:tabular-nums;font-size:11.5px"></div>
+    </div>
+    <div class="sect"><b>Phase portrait (τ,χ) — two algebraic phases</b>
+      <div id="selPhaseOut" class="note" style="font-variant-numeric:tabular-nums;font-size:11.5px"></div>
+      <div class="note" style="font-size:10.5px">The landscape below the nested carriers: gold plateau = SATURATED (Σ=1), blue slope = FILTERED (Σ=B_ceil/D), glowing ridge = exact boundary b_P·Γ(τ)·N_P(χ)=B_ceil. The marker rides your current sliders. In the early-time fine-resolution corner R_curv cancels: D∼(2b_P·C_P/3π)(cT/ε)³, giving ε_min=cT·(2b_P·C_P/3πB_ceil)^⅓ — a selector-resolution bound, NOT a modified Heisenberg relation; τ* is a calibration diagnostic, NOT a universal transition time.</div>
     </div>
     <div class="sect"><b>Trisphere-screen transform T(r)</b>
       <div class="ctlrow"><label>r = 10^k·ℓ_P</label>
