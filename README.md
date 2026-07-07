@@ -81,7 +81,13 @@ Balanced / Ultra / Desktop Cinematic) drive foveation, raymarch steps, star
 draw-ranges and Hopf density, with an automatic downgrade guard below ~63 FPS.
 Honesty rule: capabilities WebXR does not expose (raw camera pixels, multiview,
 native SDK) are documented in `XR_VALIDATION.md`, never faked. The Fractal
-Explorer is excluded from XR (fullscreen mono raymarch is not stereo-safe).
+Explorer's TRUE-GEOMETRY types (hydrogen orbitals, 4-polytopes, bifurcation 3D,
+Mandelbrot⇄Julia fibers) are fully XR-enabled; only the fullscreen mono raymarch
+types (Mandelbulb / 2D sets) remain excluded (not stereo-safe) — entering XR on
+one of those switches to the orbitals instead of leaving the Fractal atlas.
+The wrist menu stows/recalls with the Y button (small gold wrist dot while
+stowed); every object card offers ◉ Ride (the object carries your exact
+vantage) and, for planets, ⭑ Stand (surface viewpoint with the sky overhead).
 
 XR docs: `XR_VALIDATION.md` (capability matrix + manual checklist) and
 `QUEST3_TEST_PLAN.md` (device test plan). New exports: `xr_session_capabilities.json`,

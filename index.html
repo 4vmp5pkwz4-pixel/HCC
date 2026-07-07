@@ -7980,7 +7980,7 @@ const XRX = (()=>{
   const RIG_DEFAULTS = {
     solar:{pos:[0,3,40], speed:8},  obs:{pos:[0,1.6,0], speed:12},
     s3:{pos:[0,2,14], speed:4},     fbs:{pos:[0,1.6,18], speed:5},
-    cyc:{pos:[0,8,45], speed:10},   fractal:{pos:[0,3,40], speed:8},
+    cyc:{pos:[0,8,45], speed:10},   fractal:{pos:[0,1.7,9], speed:4},   // geo fractals (orbitals/polytopes) sit ~6 units across
   };
   const flags = {                        // capability snapshot (exported)
     webxr:!!navigator.xr, vr:false, ar:false, handTracking:false, haptics:false,
@@ -8132,7 +8132,11 @@ const XRX = (()=>{
     if(renderer.xr.setFoveation) renderer.xr.setFoveation(QUALITY[qualityName].fov);
     session.addEventListener('end', onEnd);
     refSpace = renderer.xr.getReferenceSpace();
-    if(state.mode==='fractal' && !XRTEST) setMode('solar');   // fullscreen raymarch is not stereo-safe
+    // Fractal mode is XR-welcome for TRUE-GEOMETRY types (orbitals, 4-polytopes,
+    // bifurcation⊗Mandelbrot 3D, MJ fibers) — only the fullscreen mono raymarch
+    // (mandelbulb/2D sets) is not stereo-safe, so those switch to the hydrogen
+    // orbitals instead of dropping the user out of the Fractal atlas entirely.
+    if(state.mode==='fractal' && !GEO_FRACTALS.has(fractalType) && !XRTEST) setFractalType('orbital3d',false);
     labelRenderer.domElement.style.display='none';
     selectKey(null);
     if(xrMode==='ar') enterAR(); else enterVR();
@@ -8343,6 +8347,12 @@ const XRX = (()=>{
   const debugPanel  = new XRPanel(.42, 760);   // physics-debug overlay
   const panels=[menuPanel,cardPanel,statusPanel,measurePanel,tourPanel,debugPanel];
   let tourMenuOpen=false;                       // wrist-menu tour list expander
+  let menuStowed=false;                         // wrist menu stowed to a small gold dot (Y / left squeeze-tap recalls)
+  let xrRide=null;                              // {key, off} — the rig rides an object: saddle anything, view from anywhere
+  let yPrev=false;                              // Y-button edge detector
+  const wristDot=new THREE.Mesh(new THREE.SphereGeometry(.014,10,8),
+    new THREE.MeshBasicMaterial({color:0xf1dda6}));
+  wristDot.visible=false; scene.add(wristDot);
 
   function refreshMenu(){
     const m=state.mode, rows=[];
@@ -8354,7 +8364,7 @@ const XRX = (()=>{
     rows.push([
       {label:'⬡ S³·Hopf', on:m==='s3', cb:()=>xrSetMode('s3')},
       {label:'φ FBS3R', on:m==='fbs', cb:()=>xrSetMode('fbs')},
-      {label:'ℹ Status', on:statusPanel.visible, cb:()=>{statusPanel.visible=!statusPanel.visible; placePanel(statusPanel,-.35);} },
+      {label:'❄ Fractal', on:m==='fractal', cb:()=>xrSetMode('fractal')},
     ]);
     if(m==='solar'||m==='cyc') rows.push([
       {label:'⏸/▶', cb:()=>{state.paused=!state.paused;}},
@@ -8367,6 +8377,19 @@ const XRX = (()=>{
       {label:'Next eclipse', cb:()=>{ const now=state.epochDays;
         const i=ECLIPSES.findIndex(e=>(e.date.getTime()/86400000+2440587.5)-2451545>now);
         if(i>=0) jumpToEclipse(i); refreshMenu(); }},
+    ]);
+    if(m==='cyc'){   // the full engineering-frame family, two wrist rows
+      const CYCF=[['hier','hierarchy'],['helio','helio'],['geo','geo'],['gal','gal'],
+                  ['phase','phase'],['reso','resonance'],['orient','orientation'],['antik','antikythera']];
+      const fbtn=([lbl,f])=>({label:lbl, on:state.cycFrame===f, cb:()=>{state.cycFrame=f; applyCycFrameView(); refreshMenu();}});
+      rows.push(CYCF.slice(0,4).map(fbtn));
+      rows.push(CYCF.slice(4).map(fbtn));
+    }
+    if(m==='obs') rows.push([
+      {label:'Atlas', on:cosmosGroup.visible, cb:()=>{cosmosGroup.visible=!cosmosGroup.visible; refreshMenu();}},
+      {label:'R_curv', on:obsCurvGroup.visible, cb:()=>{obsCurvGroup.visible=!obsCurvGroup.visible; refreshMenu();}},
+      {label:'Lookback', on:state.obsLookback, cb:()=>{state.obsLookback=!state.obsLookback; applyLookbackColours(state.obsLookback); refreshMenu();}},
+      {label:'CMB wall', on:state.obsCmbTex, cb:()=>{state.obsCmbTex=!state.obsCmbTex; applyCmbWall(state.obsCmbTex); refreshMenu();}},
     ]);
     if(m==='s3'){
       rows.push([
@@ -8406,6 +8429,19 @@ const XRX = (()=>{
         {label:'ℓ +', cb:()=>{state.ringL=Math.min(20,state.ringL+1); updateRingLab(); refreshMenu();}},
         {label:'OLS fit', on:state.ringUseFit, cb:()=>{state.ringUseFit=!state.ringUseFit; updateRingLab(); refreshMenu();}},
       ]);
+      if(state.s3view==='sel') rows.push([
+        {label:'Ω_K ▸ '+Math.round(SEL_LEDGER[state.selLedger].R)+'Gly', cb:()=>{setCurvLedger((state.selLedger+1)%SEL_LEDGER.length); refreshMenu();}},
+        {label:'𝒟 ▸ '+SEL_DOMAINS[state.selDomain].key, cb:()=>{state.selDomain=(state.selDomain+1)%SEL_DOMAINS.length; selDirty=true; refreshMenu();}},
+        {label:'T ▸', cb:()=>{ const i=SEL_T_CHIPS.findIndex(([,t])=>Math.abs(t-state.selT)<.01);
+          state.selT=SEL_T_CHIPS[(i+1)%SEL_T_CHIPS.length][1]; selDirty=true; refreshMenu();}},
+        {label:'P ▸ '+state.selSector, cb:()=>{state.selSector=state.selSector==='sc'?'tt':state.selSector==='tt'?'d':'sc'; selDirty=true; refreshMenu();}},
+      ]);
+      if(state.s3view==='drd') rows.push([
+        {label:'x −', cb:()=>{state.drdX=Math.max(1,Math.round(state.drdX/1.6)); }},
+        {label:'x +', cb:()=>{state.drdX=Math.min(200,Math.round(state.drdX*1.6)); }},
+        {label:state.drdRun?'⏸ PIR':'▶ PIR', cb:()=>{state.drdRun=!state.drdRun; refreshMenu();}},
+        {label:'τ=½', cb:()=>{state.drdRun=false; state.drdTau=0.5;}},
+      ]);
     }
     if(m==='fbs') rows.push([
       {label:'N −1', cb:()=>{state.fbsTarget=Math.max(0,Math.round(state.fbsDepth-1)); state.fbsCycle=false;}},
@@ -8416,8 +8452,25 @@ const XRX = (()=>{
     if(m==='fbs') rows.push([
       {label:'⟲ cycle', on:state.fbsCycle, cb:()=>{state.fbsCycle=!state.fbsCycle; state.fbsTarget=null; refreshMenu();}},
       {label:'→ N=266', cb:()=>{state.fbsTarget=266; state.fbsCycle=false;}},
+      {label:'→ N★207', cb:()=>{state.fbsTarget=207; state.fbsCycle=false;}},
       {label:'→ S³ R', cb:()=>{state.fbsTarget=FBS.Ns3; state.fbsCycle=false;}},
     ]);
+    if(m==='fractal'){
+      const FT=[['Orbitals','orbital3d'],['4-polytope','polytope4d'],['Bifurc 3D','bifurc3d'],['MJ 3D','mjfiber3d']];
+      rows.push(FT.map(([lbl,t])=>({label:lbl, on:fractalType===t,
+        cb:()=>{setFractalType(t,false); placeRigForMode(); refreshMenu();}})));
+      if(fractalType==='orbital3d') rows.push([
+        {label:'n −', cb:()=>{state.orbN=Math.max(1,state.orbN-1); state.orbL=Math.min(state.orbL,state.orbN-1); state.orbM=Math.max(-state.orbL,Math.min(state.orbL,state.orbM)); buildOrbital3D(); refreshMenu();}},
+        {label:'n +', cb:()=>{state.orbN=Math.min(7,state.orbN+1); buildOrbital3D(); refreshMenu();}},
+        {label:'l ±', cb:()=>{state.orbL=(state.orbL+1)%state.orbN; state.orbM=Math.max(-state.orbL,Math.min(state.orbL,state.orbM)); buildOrbital3D(); refreshMenu();}},
+        {label:'m ±', cb:()=>{state.orbM=state.orbM>=state.orbL?-state.orbL:state.orbM+1; buildOrbital3D(); refreshMenu();}},
+      ]);
+      if(fractalType==='polytope4d') rows.push([
+        {label:'8-cell', on:state.poly4d==='tesseract', cb:()=>{state.poly4d='tesseract'; buildPolytope4D(); refreshMenu();}},
+        {label:'16-cell', on:state.poly4d==='cell16', cb:()=>{state.poly4d='cell16'; buildPolytope4D(); refreshMenu();}},
+        {label:'24-cell', on:state.poly4d==='cell24', cb:()=>{state.poly4d='cell24'; buildPolytope4D(); refreshMenu();}},
+      ]);
+    }
     // Observatory tools (evidence vision · measure · tours · physics debug)
     rows.push([
       {label:(evidenceVision.on?'◉ Evidence':'○ Evidence'), on:evidenceVision.on, cb:()=>{evidenceVision.toggle(); refreshMenu();}},
@@ -8437,21 +8490,29 @@ const XRX = (()=>{
       {label:'⊞ Table +', cb:()=>tabletopScale(1.4)},
       {label:'⟲ Re-anchor', cb:()=>placeAtReticle()},
     ]);
+    if(xrRide) rows.push([
+      {label:'■ Release ride · '+String(objectName(SELECT.get(xrRide.key))).slice(0,18), cb:()=>{xrRide=null; refreshMenu();}},
+    ]);
     rows.push([
       {label:'Quality: '+(QUALITY[qualityName]?.label||qualityName), cb:()=>{cycleQuality(); refreshMenu();}},
       {label:'Turn '+snapAngle+'°', cb:()=>{snapAngle=snapAngle===15?30:snapAngle===30?45:15; refreshMenu();}},
+      {label:'ℹ Status', on:statusPanel.visible, cb:()=>{statusPanel.visible=!statusPanel.visible; placePanel(statusPanel,-.35);} },
     ]);
     rows.push([
       {label:'⌖ Recenter', cb:()=>placeRigForMode()},
-      {label:xrMode==='ar'?'Place here':'—', cb:()=>{ if(xrMode==='ar') placeAtReticle(); }},
-      {label:'✕ Exit XR', cb:()=>session?.end()},
+      {label:'⤓ Stow menu (Y)', cb:()=>{menuStowed=true;}},
+      {label:xrMode==='ar'?'Place here':'✕ Exit XR', cb:()=>{ if(xrMode==='ar') placeAtReticle(); else session?.end(); }},
     ]);
     menuPanel.render({title:'CONTROL OBSERVATORY', lines:[
       '§'+({solar:'Solar System',cyc:'Cycles & Events',obs:'Observable Universe',
             s3:'S³ Carrier & Hopf',fbs:'FBS3R φ-Ladder'}[m]||m),
     ], rows});
   }
-  function xrSetMode(m){ setMode(m); placeRigForMode(); evidenceVision.refresh(); refreshMenu(); }
+  function xrSetMode(m){
+    xrRide=null;                                             // dismount when changing worlds
+    if(m==='fractal'&&!GEO_FRACTALS.has(fractalType)) setFractalType('orbital3d',false);   // stereo-safe entry
+    setMode(m); placeRigForMode(); evidenceVision.refresh(); refreshMenu();
+  }
   function refreshStatus(){
     const f=k=>flags[k]?'yes':'no';
     statusPanel.render({title:'STATUS · '+new Date().toISOString().slice(11,19)+' UTC', lines:[
@@ -8533,6 +8594,16 @@ const XRX = (()=>{
     const rows=[ CARD_TABS.slice(0,3).map(tabBtn), CARD_TABS.slice(3).map(tabBtn) ];
     rows.push([
       {label:'⤳ Approach', cb:()=>approach(s)},
+      {label:(xrRide&&xrRide.key===key)?'■ Release':'◉ Ride', cb:()=>{
+        if(xrRide&&xrRide.key===key){ xrRide=null; }
+        else { const p=safeSelectionPos(s);
+          if(p) xrRide={key, off:rig.position.clone().sub(p)}; }   // saddle: keep YOUR exact vantage, the object carries you
+        showObjectCard(key); refreshMenu(); }},
+      ...(s.planetIdx!=null?[{label:'⭑ Stand', cb:()=>{
+        const p=safeSelectionPos(s); if(!p) return;
+        const r=new THREE.Box3().setFromObject(s.pick).getSize(new THREE.Vector3()).length()/2;
+        xrRide={key, off:new THREE.Vector3(0, Math.max(r*1.1,.02)+.02, 0)};   // stand on the pole, sky overhead
+        showObjectCard(key); refreshMenu(); }}]:[]),
       {label:'⬇ Export', cb:()=>{ const c=getAtlasEntityContract(key);
         if(c) downloadFile(key+'_runtime_contract.json','application/json',JSON.stringify(c,null,2)); }},
       {label:'✕ Close', cb:()=>{cardPanel.visible=false; selectKey(null);}},
@@ -9049,6 +9120,15 @@ const XRX = (()=>{
   const raycaster2=new THREE.Raycaster();
   function update(dt, frame){
     if(!renderer.xr.isPresenting){ return; }
+    // Y button (left Touch Plus, gamepad button 5) toggles the wrist menu:
+    // stow it to a small gold dot on the wrist, recall it with the same tap —
+    // one thumb press, no reaching, exactly where a watch would be.
+    { let yNow=false;
+      for(const src of (session?.inputSources||[])){
+        if(src.handedness==='left'&&src.gamepad&&src.gamepad.buttons[5]) yNow=yNow||src.gamepad.buttons[5].pressed;
+      }
+      if(yNow&&!yPrev){ menuStowed=!menuStowed; if(!menuStowed) refreshMenu(); }
+      yPrev=yNow; }
     // wrist-follow for the menu panel (left grip or left wrist joint)
     const left=pointers.find(p=>p.handed==='left')||pointers[0];
     {
@@ -9056,10 +9136,19 @@ const XRX = (()=>{
       if(left.usingHand && left.hand.joints?.wrist) left.hand.joints.wrist.getWorldPosition(anchor);
       else anchor.setFromMatrixPosition(left.grip.matrixWorld);
       if(anchor.lengthSq()>1e-8){
-        menuPanel.visible=true;
-        const target=anchor.add(new THREE.Vector3(0,.28,0));
-        menuPanel.mesh.position.lerp(target,.25);
+        menuPanel.visible=!menuStowed;
+        wristDot.visible=menuStowed;
+        if(menuStowed) wristDot.position.copy(anchor).add(new THREE.Vector3(0,.05,0));
+        else { const target=anchor.add(new THREE.Vector3(0,.28,0));
+               menuPanel.mesh.position.lerp(target,.25); }
       }
+    }
+    // ride an object: the rig keeps the exact saddle offset captured at mount,
+    // so a planet, a giant structure or a phi-shell carries the observer with it
+    if(xrRide){
+      const s=SELECT.get(xrRide.key);
+      const p=s&&s.mode===state.mode?safeSelectionPos(s):null;
+      if(p) rig.position.copy(p).add(xrRide.off); else xrRide=null;
     }
     for(const p of panels) if(p.visible && !pointerGrabbedMesh(p.mesh)) p.mesh.lookAt(getHead());
     // pointer rays: panels first, then mode picks (visible ones only — see collectVisiblePicks)
