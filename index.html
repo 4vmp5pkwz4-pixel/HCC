@@ -8521,7 +8521,7 @@ const XRX = (()=>{
       {label:(measure.on?'◉ Measure':'○ Measure'), on:measure.on, cb:()=>{measure.toggleMode(); refreshMenu();}},
       {label:(tourMenuOpen?'▾ Tours':'▸ Tours'), on:!!tour.active, cb:()=>{tourMenuOpen=!tourMenuOpen; refreshMenu();}},
       {label:'⚙ Debug', on:debugPanel.visible, cb:()=>{debugPanel.visible=!debugPanel.visible;
-        if(debugPanel.visible){placePanel(debugPanel,-.55); refreshDebug();} refreshMenu();}},
+        if(debugPanel.visible){placePanel(debugPanel,-1.0); refreshDebug();} refreshMenu();}},
     ]);
     if(tourMenuOpen){
       for(let i=0;i<TOURS.length;i+=2)
@@ -8629,7 +8629,8 @@ const XRX = (()=>{
   }
   function showObjectCard(key){
     const s=SELECT.get(key); if(!s){ cardPanel.visible=false; return; }
-    if(cardPanel.userData.cardKey!==key) cardPanel.userData.tab='Summary';
+    const wasVisible=cardPanel.visible, keyChanged=cardPanel.userData.cardKey!==key;
+    if(keyChanged) cardPanel.userData.tab='Summary';
     cardPanel.userData.cardKey=key;
     const tab=cardPanel.userData.tab||'Summary';
     const {name,lines}=cardTabContent(key,tab);
@@ -8657,7 +8658,10 @@ const XRX = (()=>{
       cb:()=>xrOpenObject(r.target)})));
     cardPanel.render({title:String(name).toUpperCase(), lines, rows});
     cardPanel.visible=true;
-    placePanel(cardPanel, .35);
+    // Anchor ONCE when the card first appears (or the object changes) — a panel that
+    // re-chases the head on every refresh "runs away", drags its ✕ out from under the
+    // ray, and burns a full canvas re-upload each time. World-anchored is calm.
+    if(!wasVisible||keyChanged) placePanel(cardPanel, .5);
   }
   function xrOpenObject(key){
     const s=SELECT.get(key);if(!s)return;
@@ -8974,7 +8978,7 @@ const XRX = (()=>{
     }
     function reset(){ A=B=null; line.visible=false; refreshMeasure(); }
     function toggleMode(){ on=!on;
-      if(on){ A=B=null; line.visible=false; placePanel(measurePanel,-.35); refreshMeasure(); }
+      if(on){ A=B=null; line.visible=false; placePanel(measurePanel,-.75); refreshMeasure(); }   // left of Status — never glued to it
       else { measurePanel.visible=false; line.visible=false; }
       return on;
     }
@@ -9278,11 +9282,17 @@ const XRX = (()=>{
     }
     // periodic panel refresh
     XRX._acc=(XRX._acc||0)+dt;
-    if(XRX._acc>0.5){ XRX._acc=0; if(statusPanel.visible) refreshStatus();
-      if(cardPanel.visible && selectedKey) showObjectCard(selectedKey);
-      if(measure.on) refreshMeasure();
-      if(tour.active) refreshTour();
-      if(debugPanel.visible) refreshDebug(); }
+    // Periodic panel refresh: 1 Hz is plenty for live numbers, and at most ONE canvas
+    // re-render per tick (staggered) — five simultaneous canvas uploads every 0.5 s
+    // was the VR frame-rate killer. Panels are world-anchored; content-only updates.
+    if(XRX._acc>1.0){ XRX._acc=0; XRX._turn=((XRX._turn||0)+1)%5;
+      switch(XRX._turn){
+        case 0: if(statusPanel.visible) refreshStatus(); break;
+        case 1: if(cardPanel.visible && selectedKey) showObjectCard(selectedKey); break;
+        case 2: if(measure.on) refreshMeasure(); break;
+        case 3: if(tour.active) refreshTour(); break;
+        case 4: if(debugPanel.visible) refreshDebug(); break;
+      } }
   }
   const pointerGrabbedMesh=m=>pointers.some(P=>P.grabbed===m);
 
