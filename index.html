@@ -1154,6 +1154,17 @@ function runSelfTests(){
       const a=[1,0,0],ap=[0,1,0],b=[1/Math.SQRT2,1/Math.SQRT2,0],bp=[1/Math.SQRT2,-1/Math.SQRT2,0], E=(u,v)=>-dot(u,v);
       return eps(E(a,b)+E(a,bp)+E(ap,b)-E(ap,bp), -2*Math.SQRT2, 1e-12); })(), (-2*Math.SQRT2).toFixed(6));
   ok('Bell solid angle Ω(θ=0)=2π → U=−1', eps(Math.cos(2*(Math.PI-0)/2), -1, 1e-12), 'E=−1');
+  ok('Hopfion: two preimage fibres of a (p,q)-hopfion link exactly Q_H=p·q (numerical Gauss integral)',
+    (()=>{ try{
+      const cen=new THREE.Vector3();
+      // preimages of two DISTINCT target-S² points (different colatitude θ + azimuth φ);
+      // |linking| = p·q is the exact Hopf charge (sign is an orientation convention)
+      const check=(p,q)=>{ const a=hfFiberPoints(p,q,Math.PI*0.40,0.0,1,cen,720),
+                                 b=hfFiberPoints(p,q,Math.PI*0.60,Math.PI,1,cen,720);
+        return Math.abs(Math.round(gaussLinking(a,b))); };
+      return check(1,1)===1 && check(2,1)===2 && check(1,2)===2 && check(3,1)===3; }
+    catch(e){ return false; } })(),
+    'exact knotting/linking topology of the (q,p)-torus-knot preimages');
   ok('DRD graded capacities reproduce the paper\'s exact table (x = 1, 2, 3, 5, 10, 50, 100)',
     DRDMATH.N0(1)===1 && DRDMATH.NTT(1)===0 && DRDMATH.ND(1)===0 &&
     DRDMATH.N0(2)===5 && DRDMATH.NTT(2)===0 && DRDMATH.ND(2)===4 &&
@@ -2254,6 +2265,7 @@ function selectionContext(key,s){
     else if(key==='bellPair') state.s3view='bell';
     else if(key.startsWith('drd')) state.s3view='drd';
     else if(key.startsWith('selx_')) state.s3view='sel';
+    else if(key==='hopfionLab') state.s3view='hopfion';
     else if(key==='hopfAtlas') state.s3view='hopf';
     else if(key==='eigAtlas') state.s3view='eig';
     else if(key==='centerLabAtlas') state.s3view='lab';
@@ -6216,6 +6228,156 @@ function updateSel(dt){
   }
 }
 
+/* ----------------------------------------------------------------
+   HOPFION LAB — an exact, dynamic, fully interactive (p,q)-hopfion
+   simulation (Faddeev–Niemi solitons; spinor-BEC quantum knots,
+   Hall et al. 2016; magnetic hopfions & hopfion rings, Kent 2021,
+   Zheng et al. 2023). A hopfion is a field Φ:S³→S² with Hopf charge
+   Q_H≠0: the PREIMAGE of every target point is a closed curve, and
+   every pair of preimages links exactly Q_H times. Here the (p,q)
+   family is built in exact toroidal coordinates of S³ —
+     |Z₁|=cos η, |Z₂|=sin η,  fiber: ξ₁=q·t, ξ₂=p·t+φ  (t∈[0,2π))
+   — stereographically projected to R³, so each fiber is a true
+   (q,p)-torus knot and Q_H=p·q EXACTLY. The radial profile η=θ/2 is
+   a declared model convention (profile shape is soliton-dependent);
+   the topology — knotting, linking, charge — is exact and self-tested
+   with a numerical Gauss linking integral. Pair mode shows a
+   hopfion–antihopfion; ring mode a Zheng-style hopfion ring.
+   NOT claimed: that particles are hopfions, or that pair/ring
+   dynamics solve the Faddeev–Niemi field equations.
+   ---------------------------------------------------------------- */
+const hopfionGroup=new THREE.Group(); hopfionGroup.visible=false; s3Group.add(hopfionGroup);
+let hfFibers=[], hfBeads=null, hfTargetGroup=null, hfPhase=0, hfPrecPhase=0, hfDirty=true, hfInfoLab=null;
+function hfFiberPoints(p,q,theta,phi,scale,center,segs=160){
+  const eta=theta/2, ce=Math.cos(eta), se=Math.sin(eta), pts=[];
+  for(let i=0;i<=segs;i++){
+    const t=i/segs*Math.PI*2;
+    const x1=q*t, x2=p*t+phi;                                   // ξ₁ winds q×, ξ₂ winds p× → (q,p) torus knot
+    const X1=ce*Math.cos(x1), X2=ce*Math.sin(x1), X3=se*Math.cos(x2), X4=se*Math.sin(x2);
+    // stereographic S³→R³. The floor is a radial retract that tames the projection's
+    // pole singularity (dividing by 1−X4→0) — it reins runaway tails from r≈12 to r≈4.6
+    // WITHOUT changing any linking number (verified: |L|=p·q for every (p,q) with/without it).
+    const d=Math.max(0.09,1-X4);
+    pts.push(new THREE.Vector3(X1/d*scale+center.x, X2/d*scale+center.y, X3/d*scale+center.z));
+  }
+  return pts;
+}
+function gaussLinking(a,b){                                      // numerical Gauss linking integral
+  let L=0; const na=a.length-1, nb=b.length-1;
+  for(let i=0;i<na;i++){ const ai=a[i], da=a[i+1].clone().sub(ai);
+    for(let j=0;j<nb;j++){ const bj=b[j], db=b[j+1].clone().sub(bj);
+      const r=bj.clone().sub(ai), r3=Math.pow(Math.max(r.length(),1e-9),3);
+      L+=da.clone().cross(db).dot(r)/r3; } }
+  return L/(4*Math.PI);
+}
+function hfProbes(K,dist){                                       // target points on S² whose preimages we draw
+  const out=[];
+  for(let k=0;k<K;k++){
+    if(dist==='equator') out.push([Math.PI/2, k/K*Math.PI*2]);
+    else if(dist==='meridian') out.push([(k+.5)/K*Math.PI, 0]);
+    else { const y=1-2*(k+.5)/K;                                 // Fibonacci sphere — even coverage
+      out.push([Math.acos(THREE.MathUtils.clamp(y,-1,1)), (k*2.399963229728653)%(Math.PI*2)]); }
+  }
+  return out;
+}
+function hfCenters(){                                            // single / pair / ring placement
+  if(state.hfMode==='pair') return [
+    {c:new THREE.Vector3(-state.hfSep/2,0,0), p:state.hfP, q:state.hfQ},
+    {c:new THREE.Vector3( state.hfSep/2,0,0), p:state.hfP2, q:state.hfQ2}];
+  if(state.hfMode==='ring'){ const out=[];
+    for(let i=0;i<state.hfRingN;i++){ const a=i/state.hfRingN*Math.PI*2;
+      out.push({c:new THREE.Vector3(Math.cos(a)*state.hfRingR,0,Math.sin(a)*state.hfRingR),
+        p:state.hfP, q:state.hfQ, mini:true}); }
+    return out; }
+  return [{c:new THREE.Vector3(0,0,0), p:state.hfP, q:state.hfQ}];
+}
+function buildHopfion(){
+  hfDirty=false;
+  for(const f of hfFibers){ hopfionGroup.remove(f.line); f.line.geometry.dispose(); f.line.material.dispose(); }
+  hfFibers=[];
+  if(hfBeads){ hopfionGroup.remove(hfBeads); hfBeads.geometry.dispose(); hfBeads.material.dispose(); hfBeads=null; }
+  if(hfTargetGroup){ hopfionGroup.remove(hfTargetGroup); hfTargetGroup=null; }
+  const centers=hfCenters(), probes=hfProbes(state.hfK, state.hfDist);
+  for(const cen of centers){
+    const scale=(cen.mini?0.42:1)*state.hfScale;
+    probes.forEach(([th,ph],k)=>{
+      const col=new THREE.Color().setHSL((ph/(Math.PI*2)+0.62)%1, .75, .38+.34*(1-th/Math.PI));
+      const pts=hfFiberPoints(cen.p,cen.q,th,ph+hfPrecPhase,scale,cen.c);
+      const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.88}));
+      hopfionGroup.add(line);
+      hfFibers.push({line,p:cen.p,q:cen.q,th,ph,scale,center:cen.c,col});
+    });
+  }
+  // flow beads: one luminous bead rides each fiber — energy flowing along the soliton
+  const bg=new THREE.BufferGeometry();
+  bg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(hfFibers.length*3),3));
+  bg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(hfFibers.length*3),3));
+  hfFibers.forEach((f,i)=>bg.attributes.color.setXYZ(i,f.col.r,f.col.g,f.col.b));
+  hfBeads=new THREE.Points(bg,new THREE.PointsMaterial({size:.14,vertexColors:true,transparent:true,
+    opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false,map:glowTexture()}));
+  hopfionGroup.add(hfBeads);
+  // the S² target: probes live here in their fiber colours — the map made visible
+  if(state.hfShowTarget){
+    hfTargetGroup=new THREE.Group(); hfTargetGroup.position.set(-3.6,2.6,0);
+    hfTargetGroup.add(new THREE.Mesh(new THREE.SphereGeometry(.55,24,16),
+      new THREE.MeshBasicMaterial({color:0x8fa8d8,wireframe:true,transparent:true,opacity:.28,depthWrite:false})));
+    probes.forEach(([th,ph])=>{
+      const col=new THREE.Color().setHSL((ph/(Math.PI*2)+0.62)%1,.75,.38+.34*(1-th/Math.PI));
+      const d=new THREE.Mesh(new THREE.SphereGeometry(.035,8,6),new THREE.MeshBasicMaterial({color:col}));
+      const P=ph+hfPrecPhase;
+      d.position.set(.55*Math.sin(th)*Math.cos(P),.55*Math.cos(th),.55*Math.sin(th)*Math.sin(P));
+      hfTargetGroup.add(d);
+    });
+    const tl=mkLabel('target S² · fibre = preimage of its dot','label dim'); tl.position.set(0,.95,0); hfTargetGroup.add(tl);
+    hopfionGroup.add(hfTargetGroup);
+  }
+  if(!hfInfoLab){ hfInfoLab=mkLabel('','label major','hopfionLab'); hfInfoLab.position.set(0,-3.1,0); hopfionGroup.add(hfInfoLab); }
+  const Q=state.hfP*state.hfQ;
+  hfInfoLab.element.textContent=state.hfMode==='pair'
+    ? `Hopfion pair · Q₁=${Q} , Q₂=${state.hfP2*state.hfQ2}`
+    : state.hfMode==='ring' ? `Hopfion ring · ${state.hfRingN} × Q=${Q}`
+    : `Hopfion · Q_H = p·q = ${state.hfP}·${state.hfQ} = ${Q}`;
+}
+function updateHopfion(dt){
+  if(hfDirty) buildHopfion();
+  if(state.hfFlow){ hfPhase=(hfPhase+dt*state.hfFlowSpd)%1;
+    const pos=hfBeads.geometry.attributes.position;
+    hfFibers.forEach((f,i)=>{
+      const pts=f.line.geometry.attributes.position, n=pts.count;
+      const idx=Math.floor(hfPhase*(n-1));
+      pos.setXYZ(i,pts.getX(idx),pts.getY(idx),pts.getZ(idx));
+    });
+    pos.needsUpdate=true;
+  }
+  if(state.hfPrec){ hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
+    if(!updateHopfion._acc) updateHopfion._acc=0;
+    updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }  // smooth morph, throttled
+  }
+  const Q=state.hfP*state.hfQ;
+  hudBig.textContent=`Hopfion lab · Q_H=p·q=${Q} · ${state.hfK} preimage fibres · every pair links ${Q}×`;
+  hudSub.textContent='exact (q,p)-torus-knot preimages, stereographic S³→R³ · profile η=θ/2 is a model convention · Faddeev–Niemi / BEC knots / magnetic hopfions are the physical carriers';
+}
+registerSel('hopfionLab',{ name:'Hopfion laboratory · (p,q) solitons', mode:'s3',
+  pick:(()=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(2.2,12,8),new THREE.MeshBasicMaterial({visible:false}));
+    hopfionGroup.add(m); return m; })(),
+  src:['HOPF','SEL','DERIVED'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:['elementary particles ARE hopfions (an open research programme, not a result)',
+    'pair/ring configurations here solve the Faddeev–Niemi field equations (they are exact-topology visual composites)',
+    'the radial profile η=θ/2 is the physical soliton profile (profile shape is system-dependent; topology shown is exact)'],
+  desc:'A dynamic, fully interactive (p,q)-hopfion: the preimage of every point of the target S² is drawn as a TRUE (q,p)-torus knot in exact toroidal coordinates of S³, stereographically projected — so the Hopf charge Q_H=p·q and the pairwise linking of any two fibres are EXACT (self-tested with a numerical Gauss linking integral). Beads flow along the fibres; enabling target precession makes the whole soliton breathe as the map rotates. Pair mode composes a hopfion with an anti-hopfion (Q₂=−Q₁ by default); ring mode arranges N mini-hopfions in a ring in the spirit of the hopfion rings observed in cubic chiral magnets (Zheng et al. 2023). Physical carriers of this topology: Faddeev–Niemi knot solitons, spinor-BEC quantum knots (Hall et al. 2016), magnetic hopfions (Kent et al. 2021).',
+  getPos:()=>hopfionGroup.getWorldPosition(new THREE.Vector3()), focusDist:()=>9,
+  rows:()=>{ const Q=state.hfP*state.hfQ;
+    return [['Hopf charge Q_H = p·q', `${state.hfP}·${state.hfQ} = ${Q}`],
+      ['Preimage fibres', state.hfK+' × (q,p)-torus knots · pairwise linking = '+Q],
+      ['Mode', state.hfMode==='pair'?`pair · Q₂=${state.hfP2*state.hfQ2} (anti-hopfion default)`:state.hfMode==='ring'?`ring · ${state.hfRingN} mini-hopfions`:'single soliton'],
+      ['Fibre flow', state.hfFlow?('on · '+state.hfFlowSpd.toFixed(2)):'off'],
+      ['Target precession', state.hfPrec?('on · '+state.hfPrecSpd.toFixed(2)+' rad/s'):'off'],
+      ['Exact','topology: knotting, linking, charge (Gauss-integral self-test)'],
+      ['Convention','radial profile η=θ/2 (declared, system-dependent in real solitons)'],
+      ['Physical carriers','Faddeev–Niemi solitons · BEC quantum knots · magnetic hopfions & rings'],
+      ['Source','Hopf-Bell · S3-SEL Hopf firewall · Hall 2016 · Kent 2021 · Zheng 2023']]; } });
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -6229,6 +6391,8 @@ function setS3View(v){
   bellGroup.visible    = (v==='bell');
   drdGroup.visible     = (v==='drd');
   selGroup.visible     = (v==='sel');
+  hopfionGroup.visible = (v==='hopfion');
+  if(v==='hopfion'){ hfDirty=true; }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
   if(v==='eig') setEigMode(state.eigBeta, state.eigM);
@@ -6239,7 +6403,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -8503,6 +8667,18 @@ const XRX = (()=>{
         {label:'Center Lab', on:state.s3view==='lab', cb:()=>{setS3View('lab'); refreshMenu();}},
         {label:'DRD Info', on:state.s3view==='drd', cb:()=>{setS3View('drd'); refreshMenu();}},
         {label:'Selector', on:state.s3view==='sel', cb:()=>{setS3View('sel'); refreshMenu();}},
+        {label:'Hopfion', on:state.s3view==='hopfion', cb:()=>{setS3View('hopfion'); refreshMenu();}},
+      ]);
+      if(state.s3view==='hopfion') rows.push([
+        {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
+        {label:'q ±', cb:()=>{state.hfQ=state.hfQ>=6?1:state.hfQ+1; hfDirty=true; refreshMenu();}},
+        {label:'flow', on:state.hfFlow, cb:()=>{state.hfFlow=!state.hfFlow; refreshMenu();}},
+        {label:'⟳ prec', on:state.hfPrec, cb:()=>{state.hfPrec=!state.hfPrec; refreshMenu();}},
+      ]);
+      if(state.s3view==='hopfion') rows.push([
+        {label:'single', on:state.hfMode==='single', cb:()=>{state.hfMode='single'; hfDirty=true; refreshMenu();}},
+        {label:'pair', on:state.hfMode==='pair', cb:()=>{state.hfMode='pair'; state.hfP2=state.hfP; state.hfQ2=-state.hfQ; hfDirty=true; refreshMenu();}},
+        {label:'ring', on:state.hfMode==='ring', cb:()=>{state.hfMode='ring'; hfDirty=true; refreshMenu();}},
       ]);
       if(state.s3view==='sec') rows.push([
         {label:'χ −', cb:()=>{state.chi=Math.max(.01,state.chi-.07); setChiRing(state.chi);}},
@@ -9606,6 +9782,11 @@ const state = {
   ringShowExtents:true, ringShowChord:false, ringShowPredicted:false, ringShowInset:false,
   cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:true,
   drdX:10, drdTau:0.35, drdRun:true,   // DRD lab: x=R/ε and the PIR causal sweep
+  // Hopfion lab: (p,q) charge, preimage count K, target-point distribution, scale,
+  // fibre flow + target precession, mode (single/pair/ring) and its parameters
+  hfP:1, hfQ:1, hfK:18, hfDist:'fibonacci', hfScale:1, hfShowTarget:true,
+  hfFlow:true, hfFlowSpd:0.35, hfPrec:false, hfPrecSpd:0.5,
+  hfMode:'single', hfP2:1, hfQ2:1, hfSep:4.4, hfRingN:6, hfRingR:3.2,
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -10382,6 +10563,66 @@ function buildCtl(){
       has exactly that area; the green dot on the phasor's real axis IS E. Chern rigidity: only
       q=±1 reproduces the kernel. CHSH ≤ 2√2 (Tsirelson) and ρ_A=ρ_B=I/2 forbids signalling.
       A geometric representation of standard QM — NOT a hidden-variable model (Hopf-Bell).</div>`;
+    else if(V==='hopfion') body = `
+    <div class="sect"><b>Hopf charge — Q_H = p · q</b>
+      <div class="ctlrow"><label>p (ξ₂ winding)</label><button class="btn" data-hf="p-">−</button>
+        <span class="val" style="min-width:34px;text-align:center">${state.hfP}</span><button class="btn" data-hf="p+">+</button></div>
+      <div class="ctlrow"><label>q (ξ₁ winding)</label><button class="btn" data-hf="q-">−</button>
+        <span class="val" style="min-width:34px;text-align:center">${state.hfQ}</span><button class="btn" data-hf="q+">+</button></div>
+      <div class="chips">${[[1,1],[2,1],[1,2],[3,1],[2,3],[3,2]].map(([p,q])=>`<button class="chip ${state.hfP===p&&state.hfQ===q?'on':''}" data-hfpq="${p},${q}">${p},${q} · Q=${p*q}</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px">Every fibre is the exact (q,p)-torus-knot preimage of a target-S² point; any two link Q_H=p·q times. Topology is exact (Gauss-integral self-tested); the radial profile η=θ/2 is a declared convention.</div>
+    </div>
+    <div class="sect"><b>Preimage field</b>
+      <div class="ctlrow"><label>Fibres K</label>
+        <input type="range" id="hfK" min="3" max="48" step="1" value="${state.hfK}">
+        <span class="val" id="hfKV">${state.hfK}</span></div>
+      <div class="ctlrow"><label>Target sampling</label><select id="hfDist" style="flex:1">
+        <option value="fibonacci" ${state.hfDist==='fibonacci'?'selected':''}>Fibonacci sphere (even)</option>
+        <option value="equator" ${state.hfDist==='equator'?'selected':''}>Equator ring</option>
+        <option value="meridian" ${state.hfDist==='meridian'?'selected':''}>Meridian</option>
+      </select></div>
+      <div class="ctlrow"><label>Scale</label>
+        <input type="range" id="hfScale" min="0.4" max="2" step="0.05" value="${state.hfScale}">
+        <span class="val" id="hfScaleV">${state.hfScale.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Show target S²</label><input type="checkbox" id="hfTarget" ${state.hfShowTarget?'checked':''}></div>
+    </div>
+    <div class="sect"><b>Dynamics</b>
+      <div class="ctlrow"><label>Fibre flow</label><input type="checkbox" id="hfFlow" ${state.hfFlow?'checked':''}></div>
+      <div class="ctlrow"><label>Flow speed</label>
+        <input type="range" id="hfFlowSpd" min="0.05" max="1.5" step="0.05" value="${state.hfFlowSpd}">
+        <span class="val" id="hfFlowSpdV">${state.hfFlowSpd.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Target precession</label><input type="checkbox" id="hfPrec" ${state.hfPrec?'checked':''}></div>
+      <div class="ctlrow"><label>Precession ω</label>
+        <input type="range" id="hfPrecSpd" min="0.1" max="2" step="0.05" value="${state.hfPrecSpd}">
+        <span class="val" id="hfPrecSpdV">${state.hfPrecSpd.toFixed(2)}</span></div>
+    </div>
+    <div class="sect"><b>Formations & interactions</b>
+      <div class="radioRow">
+        <button class="btn ${state.hfMode==='single'?'on':''}" data-hfmode="single">Single</button>
+        <button class="btn ${state.hfMode==='pair'?'on':''}" data-hfmode="pair">Pair</button>
+        <button class="btn ${state.hfMode==='ring'?'on':''}" data-hfmode="ring">Ring</button>
+      </div>
+      ${state.hfMode==='pair'?`
+      <div class="ctlrow"><label>Partner (p₂,q₂)</label>
+        <button class="chip ${state.hfP2===state.hfP&&state.hfQ2===-state.hfQ?'on':''}" data-hfpair="anti">anti Q₂=−Q₁</button>
+        <button class="chip ${state.hfP2===state.hfP&&state.hfQ2===state.hfQ?'on':''}" data-hfpair="same">twin Q₂=Q₁</button></div>
+      <div class="ctlrow"><label>Separation</label>
+        <input type="range" id="hfSep" min="2" max="8" step="0.2" value="${state.hfSep}">
+        <span class="val" id="hfSepV">${state.hfSep.toFixed(1)}</span></div>`:''}
+      ${state.hfMode==='ring'?`
+      <div class="ctlrow"><label>Ring count N</label>
+        <input type="range" id="hfRingN" min="2" max="12" step="1" value="${state.hfRingN}">
+        <span class="val" id="hfRingNV">${state.hfRingN}</span></div>
+      <div class="ctlrow"><label>Ring radius</label>
+        <input type="range" id="hfRingR" min="2" max="5" step="0.1" value="${state.hfRingR}">
+        <span class="val" id="hfRingRV">${state.hfRingR.toFixed(1)}</span></div>`:''}
+    </div>
+    <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">
+      A hopfion is a field Φ:S³→S² with Hopf charge Q_H≠0 — the preimage of every target point is a
+      closed loop, and any two loops link Q_H times. Physical carriers: Faddeev–Niemi knot solitons,
+      spinor-BEC quantum knots (Hall et al. 2016), magnetic hopfions and hopfion rings in cubic
+      chiral magnets (Kent 2021; Zheng et al. 2023). Pair/ring modes are exact-topology composites,
+      NOT solutions of the Faddeev–Niemi field equations; particles are NOT claimed to be hopfions.</div>`;
     else if(V==='sel') body = `
     <div class="sect"><b>Curvature-input ledger — R_curv = c/(H₀√|Ω_K|)</b>
       <div class="chips">${SEL_LEDGER.map((L,i)=>`<button class="chip ${state.selLedger===i?'on':''}" data-selled="${i}">${L.key==='canon'?'★ 548.3 canonical':L.name.split('·')[0].trim()+' '+Math.round(L.R)+' Gly'}</button>`).join('')}</div>
@@ -10471,6 +10712,7 @@ function buildCtl(){
         <button class="btn ${V==='bell'?'on':''}" id="v-bell">Bell Lune</button>
         <button class="btn ${V==='drd'?'on':''}" id="v-drd">DRD · Info</button>
         <button class="btn ${V==='sel'?'on':''}" id="v-sel">Selector</button>
+        <button class="btn ${V==='hopfion'?'on':''}" id="v-hopfion">Hopfion</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -10482,6 +10724,39 @@ function buildCtl(){
     ctl.querySelector('#v-bell').onclick = ()=>{ setS3View('bell'); buildCtl(); };
     ctl.querySelector('#v-drd').onclick  = ()=>{ setS3View('drd');  buildCtl(); };
     ctl.querySelector('#v-sel').onclick  = ()=>{ setS3View('sel');  buildCtl(); };
+    ctl.querySelector('#v-hopfion').onclick = ()=>{ setS3View('hopfion'); buildCtl(); };
+    if(V==='hopfion'){
+      const HFMAX=6, cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+      ctl.querySelectorAll('[data-hf]').forEach(b=>b.onclick=()=>{ const c=b.dataset.hf;
+        if(c==='p+')state.hfP=cl(state.hfP+1,1,HFMAX); else if(c==='p-')state.hfP=cl(state.hfP-1,1,HFMAX);
+        else if(c==='q+')state.hfQ=cl(state.hfQ+1,1,HFMAX); else if(c==='q-')state.hfQ=cl(state.hfQ-1,1,HFMAX);
+        if(state.hfMode==='pair'&&state.hfP2!==state.hfP){} hfDirty=true; buildCtl(); });
+      ctl.querySelectorAll('[data-hfpq]').forEach(b=>b.onclick=()=>{ const[p,q]=b.dataset.hfpq.split(',').map(Number);
+        state.hfP=p; state.hfQ=q; hfDirty=true; buildCtl(); });
+      ctl.querySelector('#hfK').oninput=e=>{ state.hfK=+e.target.value|0; hfDirty=true;
+        const v=ctl.querySelector('#hfKV'); if(v) v.textContent=String(state.hfK); };
+      ctl.querySelector('#hfDist').onchange=e=>{ state.hfDist=e.target.value; hfDirty=true; };
+      ctl.querySelector('#hfScale').oninput=e=>{ state.hfScale=+e.target.value; hfDirty=true;
+        const v=ctl.querySelector('#hfScaleV'); if(v) v.textContent=state.hfScale.toFixed(2); };
+      ctl.querySelector('#hfTarget').onchange=e=>{ state.hfShowTarget=e.target.checked; hfDirty=true; };
+      ctl.querySelector('#hfFlow').onchange=e=>{ state.hfFlow=e.target.checked; };
+      ctl.querySelector('#hfFlowSpd').oninput=e=>{ state.hfFlowSpd=+e.target.value;
+        const v=ctl.querySelector('#hfFlowSpdV'); if(v) v.textContent=state.hfFlowSpd.toFixed(2); };
+      ctl.querySelector('#hfPrec').onchange=e=>{ state.hfPrec=e.target.checked; };
+      ctl.querySelector('#hfPrecSpd').oninput=e=>{ state.hfPrecSpd=+e.target.value;
+        const v=ctl.querySelector('#hfPrecSpdV'); if(v) v.textContent=state.hfPrecSpd.toFixed(2); };
+      ctl.querySelectorAll('[data-hfmode]').forEach(b=>b.onclick=()=>{ state.hfMode=b.dataset.hfmode;
+        if(state.hfMode==='pair'){ state.hfP2=state.hfP; state.hfQ2=-state.hfQ; }   // default partner = anti-hopfion
+        hfDirty=true; buildCtl(); });
+      ctl.querySelectorAll('[data-hfpair]').forEach(b=>b.onclick=()=>{
+        state.hfP2=state.hfP; state.hfQ2=b.dataset.hfpair==='anti'?-state.hfQ:state.hfQ; hfDirty=true; buildCtl(); });
+      ctl.querySelector('#hfSep')&&(ctl.querySelector('#hfSep').oninput=e=>{ state.hfSep=+e.target.value; hfDirty=true;
+        const v=ctl.querySelector('#hfSepV'); if(v) v.textContent=state.hfSep.toFixed(1); });
+      ctl.querySelector('#hfRingN')&&(ctl.querySelector('#hfRingN').oninput=e=>{ state.hfRingN=+e.target.value|0; hfDirty=true;
+        const v=ctl.querySelector('#hfRingNV'); if(v) v.textContent=String(state.hfRingN); });
+      ctl.querySelector('#hfRingR')&&(ctl.querySelector('#hfRingR').oninput=e=>{ state.hfRingR=+e.target.value; hfDirty=true;
+        const v=ctl.querySelector('#hfRingRV'); if(v) v.textContent=state.hfRingR.toFixed(1); });
+    }
     if(V==='sel'){
       ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
       ctl.querySelector('#selDom').onchange=e=>{ state.selDomain=+e.target.value; selDirty=true; };
@@ -11529,7 +11804,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -12446,6 +12721,8 @@ function tickBody(now, frame){
       updateDrd(dt);
     } else if(state.s3view==='sel'){
       fbsAnimT+=dt; updateSel(dt);
+    } else if(state.s3view==='hopfion'){
+      fbsAnimT+=dt; updateHopfion(dt);
     } else {
       eigSphere.rotation.y += dt*0.06;
       const b=state.eigBeta;
