@@ -8692,7 +8692,23 @@ const XRX = (()=>{
   function placePanel(panel){ dockPanel(panel); }   // legacy signature; side offsets retired with the scatter model
   let tourMenuOpen=false;                       // wrist-menu tour list expander
   let menuStowed=false;                         // wrist menu stowed to a small gold dot (Y / left squeeze-tap recalls)
-  let xrRide=null;                              // {key, off} — the rig rides an object: saddle anything, view from anywhere
+  let xrRide=null;                              // {key, off, snap} — the rig rides an object: saddle anything, view from anywhere
+  let rideSavedRate=null;                       // remembers time speed to restore on dismount
+  // Mounting an object = comfort mode: snap once, then damped follow, and if the sim clock
+  // is racing (planet orbiting fast) auto-ease it to a viewable pace so nothing whips past
+  // or shakes the wrist menu. Release restores the previous speed exactly.
+  function rideMount(key, off){
+    xrRide={key, off, snap:true};
+    if(rideSavedRate==null){
+      if(state.mode==='solar' && state.daysPerSec>3){ rideSavedRate={m:'solar',v:state.daysPerSec}; state.daysPerSec=1; }
+      else if(state.mode==='cyc' && state.cycYrPerSec>3){ rideSavedRate={m:'cyc',v:state.cycYrPerSec}; state.cycYrPerSec=1; }
+    }
+  }
+  function rideRelease(){
+    xrRide=null;
+    if(rideSavedRate){ if(rideSavedRate.m==='solar') state.daysPerSec=rideSavedRate.v;
+      else if(rideSavedRate.m==='cyc') state.cycYrPerSec=rideSavedRate.v; rideSavedRate=null; }
+  }
   let yPrev=false, aPrev=false;                 // Y/A button edge detectors
   /* object HALO — the trigger talks to the OBJECT, not to a window: first trigger
      selects and pins a small name·tier tag right at the object; trigger again (or A)
@@ -8872,7 +8888,7 @@ const XRX = (()=>{
       {label:'⟲ Re-anchor', cb:()=>placeAtReticle()},
     ]);
     if(xrRide) rows.push([
-      {label:'■ Release ride · '+String(objectName(SELECT.get(xrRide.key))).slice(0,18), cb:()=>{xrRide=null; refreshMenu();}},
+      {label:'■ Release ride · '+String(objectName(SELECT.get(xrRide.key))).slice(0,18)+(rideSavedRate?' (time eased)':''), cb:()=>{rideRelease(); refreshMenu();}},
     ]);
     rows.push([
       {label:'Quality: '+(QUALITY[qualityName]?.label||qualityName), cb:()=>{cycleQuality(); refreshMenu();}},
@@ -8892,7 +8908,7 @@ const XRX = (()=>{
     ], rows});
   }
   function xrSetMode(m){
-    xrRide=null;                                             // dismount when changing worlds
+    rideRelease();                                           // dismount + restore time when changing worlds
     if(m==='fractal'&&!GEO_FRACTALS.has(fractalType)) setFractalType('orbital3d',false);   // stereo-safe entry
     setMode(m); placeRigForMode(); evidenceVision.refresh(); refreshMenu();
   }
@@ -8979,14 +8995,14 @@ const XRX = (()=>{
     rows.push([
       {label:'⤳ Approach', cb:()=>approach(s)},
       {label:(xrRide&&xrRide.key===key)?'■ Release':'◉ Ride', cb:()=>{
-        if(xrRide&&xrRide.key===key){ xrRide=null; }
+        if(xrRide&&xrRide.key===key){ rideRelease(); }
         else { const p=safeSelectionPos(s);
-          if(p) xrRide={key, off:rig.position.clone().sub(p)}; }   // saddle: keep YOUR exact vantage, the object carries you
+          if(p) rideMount(key, rig.position.clone().sub(p)); }   // saddle: keep YOUR exact vantage, the object carries you
         showObjectCard(key); refreshMenu(); }},
       ...(s.planetIdx!=null?[{label:'⭑ Stand', cb:()=>{
         const p=safeSelectionPos(s); if(!p) return;
         const r=new THREE.Box3().setFromObject(s.pick).getSize(new THREE.Vector3()).length()/2;
-        xrRide={key, off:new THREE.Vector3(0, Math.max(r*1.1,.02)+.02, 0)};   // stand on the pole, sky overhead
+        rideMount(key, new THREE.Vector3(0, Math.max(r*1.1,.02)+.02, 0));   // stand on the pole, sky overhead
         showObjectCard(key); refreshMenu(); }}]:[]),
       {label:'⬇ Export', cb:()=>{ const c=getAtlasEntityContract(key);
         if(c) downloadFile(key+'_runtime_contract.json','application/json',JSON.stringify(c,null,2)); }},
@@ -9529,12 +9545,18 @@ const XRX = (()=>{
                menuPanel.mesh.position.lerp(target,.25); }
       }
     }
-    // ride an object: the rig keeps the exact saddle offset captured at mount,
-    // so a planet, a giant structure or a phi-shell carries the observer with it
+    // ride an object: the player capsule follows the object with CRITICALLY-DAMPED
+    // smoothing (frame-rate independent), never a per-frame hard teleport — so a fast
+    // orbital sweep glides past instead of jumping, and the wrist menu riding the rig
+    // stops shaking/spinning with the planet. On mount we snap once (ride.snap), then
+    // smooth; if the object outruns the follow we ease, never jerk.
     if(xrRide){
       const s=SELECT.get(xrRide.key);
       const p=s&&s.mode===state.mode?safeSelectionPos(s):null;
-      if(p) rig.position.copy(p).add(xrRide.off); else xrRide=null;
+      if(p){ const goal=p.clone().add(xrRide.off);
+        if(xrRide.snap){ rig.position.copy(goal); xrRide.snap=false; }
+        else rig.position.lerp(goal, 1-Math.pow(0.0015, Math.min(dt,0.05)));   // ~critically damped
+      } else rideRelease();
     }
     updateDock();                                 // the single content window glides lazily, never scatters
     // A button (right Touch Plus) opens/closes the card of the selected object
@@ -9570,7 +9592,12 @@ const XRX = (()=>{
         const panel=hitsP.object.userData.panel;
         P.hit={panel, uv:hitsP.uv};
         const idx=panel.uvHit(hitsP.uv);
-        if(panel.hover!==idx){ panel.hover=idx; panel.render(panel.spec); if(idx>=0) pulse(P,.15,8); }
+        // hover highlight is throttled to 90ms: a wrist panel that drifts a hair every
+        // frame otherwise ping-pongs the hover between buttons and re-renders the whole
+        // canvas each frame — a lag storm that swallowed trigger presses. The CLICK path
+        // (onSelect) reads uvHit fresh, so throttling the visual never costs a selection.
+        if(panel.hover!==idx){ const now=performance.now();
+          if(now-(panel._hoverT||0)>90){ panel._hoverT=now; panel.hover=idx; panel.render(panel.spec); if(idx>=0) pulse(P,.15,8); } }
         anyHover=true;
         P.cursor.position.copy(hitsP.point); P.cursor.visible=true;
         P.ray.scale.z=hitsP.distance;
