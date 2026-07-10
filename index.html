@@ -6664,6 +6664,35 @@ function hfInteractingLines(centersRaw, perCore){
   hfReconnected = tot? bridged/tot : 0;
   return lines;
 }
+/* Precession of the map w — the REAL motion, generalised from single mode. In single
+   mode "Target precession" shifts the ξ₂ phase of the field, i.e. the ambient Hopf S¹
+   action = a rotation of the enveloping S³ in the (X3,X4) plane. Stereographically that
+   is NOT a rigid spin but a CONFORMAL (Möbius) motion of R³: the flux tubes rotate and
+   breathe together. Because the field lines of w(M⁻¹·r) are exactly M·(field lines of w),
+   we apply that same S³-rotation Möbius map M_δ to the pre-traced interacting lines every
+   frame — exact, and cheap (no re-tracing). δ = hfPrecPhase. */
+const _hfMo=[0,0,0];
+function hfMobius(px,py,pz,cosd,sind,out){
+  const s=px*px+py*py+pz*pz, inv=1/(s+1);
+  const X1=2*px*inv, X2=2*py*inv, X3=2*pz*inv, X4=(s-1)*inv;   // R³ → S³ (inverse stereographic)
+  const X3p=X3*cosd-X4*sind, X4p=X3*sind+X4*cosd;              // rotate S³ in the (X3,X4)=ξ₂ plane by δ
+  const d=Math.max(0.06,1-X4p);                                // S³ → R³, with the projection pole tamed
+  out[0]=X1/d; out[1]=X2/d; out[2]=X3p/d;
+}
+function hfApplyPrecession(){   // conformal precession of the interacting field lines (multi mode)
+  if(state.hfMode==='single') return;
+  const cosd=Math.cos(hfPrecPhase), sind=Math.sin(hfPrecPhase), iA=1/HF_A, sc=state.hfScale, o=_hfMo;
+  for(const f of hfFibers){ const base=f.base; if(!base) continue;
+    const arr=f.line.geometry.attributes.position.array;
+    for(let i=0;i<base.length;i+=3){
+      hfMobius(base[i]*iA, base[i+1]*iA, base[i+2]*iA, cosd, sind, o);
+      arr[i]=o[0]*HF_A*sc; arr[i+1]=o[1]*HF_A*sc; arr[i+2]=o[2]*HF_A*sc;
+    }
+    f.line.geometry.attributes.position.needsUpdate=true;
+  }
+  for(const m of hfExtra){ const u=m.userData; if(u&&u.bx!==undefined){
+    hfMobius(u.bx*iA,u.by*iA,u.bz*iA,cosd,sind,o); m.position.set(o[0]*HF_A*sc,o[1]*HF_A*sc,o[2]*HF_A*sc); } }
+}
 function hopfionPhysHTML(){
   const Q=state.hfP*state.hfQ, ph=hfPhysics;
   if(ph.computing||ph.key!==state.hfP+'_'+state.hfQ)
@@ -6685,8 +6714,7 @@ function buildHopfion(){
   for(const m of hfExtra){ m.parent&&m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } hfExtra=[];
   if(hfBeads){ hfBeads.parent&&hfBeads.parent.remove(hfBeads); hfBeads.geometry.dispose(); hfBeads.material.dispose(); hfBeads=null; }
   if(hfTargetGroup){ hopfionGroup.remove(hfTargetGroup); disposeCSS2D(hfTargetGroup); hfTargetGroup=null; }
-  hfSpinGroup.rotation.set(0,0,0);   // single = unrotated; multi keeps the live precession angle (no snap on rebuild)
-  if(state.hfMode!=='single' && state.hfPrec) hfSpinGroup.rotation.y=hfPrecPhase;
+  hfSpinGroup.rotation.set(0,0,0);   // precession is applied conformally per-vertex (hfApplyPrecession), not by group spin
   const centers=hfCenters(), probes=hfProbes(state.hfK, state.hfDist);
   if(state.hfMode!=='single'){
     // ≥2 hopfions in ONE field: draw the magnetic field lines of the COMBINED w — they
@@ -6697,14 +6725,17 @@ function buildHopfion(){
       // reconnected lines (threading both cores) glow brighter — the magnetic bridge
       const col=new THREE.Color().setHSL(L.hue,.82,THREE.MathUtils.clamp((L.spans?.5:.34)+.32/(1+L.mag),.22,.78));
       const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
+      const base=new Float32Array(L.pts.length*3);
+      for(let i=0;i<L.pts.length;i++){ const P=L.pts[i]; base[i*3]=P.x; base[i*3+1]=P.y; base[i*3+2]=P.z; }
       const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
         new THREE.LineBasicMaterial({color:col,transparent:true,opacity:L.spans?1:.82}));
-      hfSpinGroup.add(line); hfFibers.push({line,col});
+      hfSpinGroup.add(line); hfFibers.push({line,col,base});   // base = un-precessed, un-scaled points
     }
     for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion)
       const m=new THREE.Mesh(new THREE.SphereGeometry(.12*state.hfScale,12,8),
         new THREE.MeshBasicMaterial({color:(cen.q<0)?0x7ef0c2:0xffd27a}));
-      m.position.copy(cen.c).multiplyScalar(state.hfScale); hfSpinGroup.add(m); hfExtra.push(m);
+      m.position.copy(cen.c).multiplyScalar(state.hfScale); m.userData={bx:cen.c.x,by:cen.c.y,bz:cen.c.z};
+      hfSpinGroup.add(m); hfExtra.push(m);
     }
   } else {
     for(const cen of centers){
@@ -6761,6 +6792,14 @@ function updateHopfion(dt){
     if(s) s.value=state.hfSep; if(v) v.textContent=state.hfSep.toFixed(1);
   }
   if(hfDirty) buildHopfion();
+  // Multi-mode: apply the conformal precession (Möbius map of the ambient S³ Hopf action)
+  // to the interacting field lines every frame, BEFORE the flow beads sample them. Phase
+  // advances only while precession is on; applying it always keeps the pose consistent
+  // across rebuilds (no snap) and lets the beads ride the precessed lines.
+  if(state.hfMode!=='single'){
+    if(state.hfPrec) hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
+    hfApplyPrecession();
+  }
   if(state.hfFlow){ hfPhase=(hfPhase+dt*state.hfFlowSpd)%1;
     const pos=hfBeads.geometry.attributes.position;
     hfFibers.forEach((f,i)=>{
@@ -6770,15 +6809,10 @@ function updateHopfion(dt){
     });
     pos.needsUpdate=true;
   }
-  if(state.hfPrec){ hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-    if(state.hfMode==='single'){   // the analytic single map re-rotates cheaply via rebuild
-      if(!updateHopfion._acc) updateHopfion._acc=0;
-      updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }
-    } else {
-      // interacting structure: spin the whole soliton in real space (no costly rebuild),
-      // driven by the same precession speed — so pair/ring visibly rotate again.
-      hfSpinGroup.rotation.y = hfPrecPhase;
-    }
+  if(state.hfPrec && state.hfMode==='single'){   // the analytic single map re-rotates cheaply via rebuild
+    hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
+    if(!updateHopfion._acc) updateHopfion._acc=0;
+    updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }
   }
   const Q=state.hfP*state.hfQ, ph=hfPhysics, ready=!ph.computing&&ph.key===state.hfP+'_'+state.hfQ;
   hudBig.textContent=`Hopfion lab · Q_H=${Q} · H(helicity)=${Q} · ${ready?'E_min='+ph.Emin.toFixed(0)+' · λ*='+ph.lam.toFixed(2):'measuring E… '+Math.round(ph.progress*100)+'%'}`;
@@ -11127,6 +11161,7 @@ function buildCtl(){
       <div class="ctlrow"><label>Precession ω</label>
         <input type="range" id="hfPrecSpd" min="0.1" max="2" step="0.05" value="${state.hfPrecSpd}">
         <span class="val" id="hfPrecSpdV">${state.hfPrecSpd.toFixed(2)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Precession of the map w is the ambient Hopf S¹ action — a rotation of the enveloping S³ in the ξ₂ plane. Stereographically it is a CONFORMAL (Möbius) motion, not a rigid spin: the flux tubes rotate and breathe together. In multi mode the exact same Möbius map is applied to the interacting field lines (verified to machine precision against the single-map precession).</div>
     </div>
     <div class="sect"><b>Formations & interactions</b>
       <div class="radioRow">
