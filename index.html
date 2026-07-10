@@ -3635,6 +3635,24 @@ function planetOrbitPoints(p,T,segments=256){
   }
   return pts;
 }
+// Geocentric orbit trace: the apparent path of a body with the EARTH at the origin,
+// sampled in time so the retrograde (epicyclic) loops are exact — geo = helio(body) −
+// helio(Earth). The trail length is capped at ~16 yr for legibility on the outer planets
+// (positions stay exact; only how much of the winding path is drawn is limited).
+function geoOrbitPoints(p, T){
+  const periodYr=Math.pow(p.a,1.5), spanYr=Math.min(periodYr,16), spanC=spanYr/100;
+  const segs=Math.min(2000,Math.max(120,Math.round(spanYr*36)));
+  const pts=[];
+  for(let k=0;k<=segs;k++){ const Tk=T-spanC*(1-k/segs);
+    pts.push(planetPos(p,Tk).sub(planetPos(PLANETS[2],Tk))); }
+  return pts;
+}
+// The Sun's geocentric orbit = Earth's heliocentric orbit reflected through the Earth.
+function sunGeoOrbitPoints(T){
+  const segs=200, pts=[];
+  for(let k=0;k<=segs;k++){ const Tk=T-0.01*(1-k/segs); pts.push(planetPos(PLANETS[2],Tk).negate()); }
+  return pts;
+}
 const eclToScene = (x,y,z)=>new THREE.Vector3(x, z, -y);
 // apparent geocentric solar ecliptic longitude in [0,2π)
 function sunEclLon(days){
@@ -3723,7 +3741,7 @@ PLANETS.forEach((p, idx)=>{
     },
   });
 });
-let orbitGeometryT=0, orbitGeometryAcc=1;
+let orbitGeometryT=0, orbitGeometryAcc=1, orbitGeoWasGeo=false;
 
 // asteroid belt 2.1–3.3 AU
 {
@@ -4684,6 +4702,12 @@ function orientDisk(group,xAxis,normal){
 }
 const milkyWayPhysical=new THREE.Group(); milkyWayPhysical.position.copy(GAL_DATA.gc.pos);
 orientDisk(milkyWayPhysical,GAL_DATA.gc.dir.clone().negate(),GAL_DATA.pole.dir);
+// Base orientation captured so the galactic-year animation can rigidly rotate the whole
+// Milky Way about the Sun (world origin): new transform = R(θ)·base. Rotating about the
+// origin keeps the embedded Sun marker fixed at the Sun while Sgr A* and the arms wheel
+// around us — depicting the Sun's 230-Myr galactic orbit AND the disk's rotation at once.
+const mwBaseQuat=milkyWayPhysical.quaternion.clone();
+const _galQ=new THREE.Quaternion(), _galZero=new THREE.Vector3(0,0,0);
 const mwSpiral=galaxySpiral(52000,4,30000,0x8fb9e8,8412); milkyWayPhysical.add(mwSpiral);
 const mwOutline=guideCircle(52000*LY_AU,0x8fb9e8,.28,256); milkyWayPhysical.add(mwOutline);
 const mwCoordGrid=polarGuide([8200,20000,40000,52000].map(x=>x*LY_AU),12,'GALACTIC PLANE · radial grid in light-years');
@@ -10086,6 +10110,7 @@ const hudSub = document.getElementById('hudSub');
 
 const state = {
   mode:'solar', fractalRot:0,   // 0..3 → 90°-step view rotation for the Fractal Explorer
+  geocentric:false,             // Solar System reference frame: false=heliocentric, true=Earth-centred
   daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0,
   planetScale: 600, sunScale: 24, trueScale:false, showOrbits:true,
   chi: S3.chiP, gyrPerSec: 20, photonT: 0, photonRun:true,
@@ -10371,7 +10396,7 @@ function buildCtl(){
     ctl.innerHTML = `
     <div class="sect"><b>Time</b>
       <div class="ctlrow"><label>Speed</label>
-        <input type="range" id="spd" min="-3" max="6.5" step="0.05" value="${Math.log10(Math.max(state.daysPerSec,1e-3))}">
+        <input type="range" id="spd" min="-3" max="8.5" step="0.05" value="${Math.log10(Math.max(state.daysPerSec,1e-3))}">
         <span class="val" id="spdV"></span></div>
       <div class="ctlrow">
         <button class="btn" id="pause">${state.paused?'▶ run':'⏸ pause'}</button>
@@ -10393,6 +10418,15 @@ function buildCtl(){
       <div class="ctlrow"><label>Earth / Sun spin axes</label>
         <input type="checkbox" id="spinAxes" ${state.showSpinAxes?'checked':''}>
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">sidereal references</span></div>
+    </div>
+    <div class="sect"><b>Reference frame</b>
+      <div class="ctlrow" style="gap:4px">
+        <button class="chip ${!state.geocentric?'on':''}" data-frame="helio">☉ Heliocentric</button>
+        <button class="chip ${state.geocentric?'on':''}" data-frame="geo">⊕ Geocentric</button>
+      </div>
+      <div class="note" style="color:var(--dim);font-size:11px">${state.geocentric
+        ? 'Earth at the centre — every orbit recomputed as it appears from Earth. The Sun circles the Earth and the planets trace their true retrograde loops (geo = heliocentric − Earth; positions exact, JPL). A faithful Tychonic/geocentric view, not a claim that Earth is physically central.'
+        : 'Sun at the centre — Keplerian J2000 heliocentric orbits (JPL). Switch to Geocentric to place Earth at the origin and recompute every path around it.'}</div>
     </div>
     <div class="sect"><b>Celestial sphere</b>
       <div class="ctlrow"><label>Milky Way</label>
@@ -10451,6 +10485,14 @@ function buildCtl(){
     ctl.querySelector('#tsc').onchange = e=>{ state.trueScale = e.target.checked; updCtlVals(); };
     ctl.querySelector('#orb').onchange = e=>{ state.showOrbits = e.target.checked; planetObjs.forEach(o=>o.line.visible=e.target.checked); };
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
+    ctl.querySelectorAll('[data-frame]').forEach(b=>b.onclick=()=>{
+      const geo=b.dataset.frame==='geo';
+      if(geo===state.geocentric) return;
+      state.geocentric=geo;
+      orbitGeometryAcc=1; orbitGeometryT=1e9;          // force geocentric/heliocentric orbit paths to rebuild now
+      controls.target.set(0,0,0);                       // re-centre on the new origin (Earth or Sun)
+      clearFocus(); buildCtl();
+    });
     ctl.querySelector('#skyMW').onchange    = e=>mwMesh.visible=e.target.checked;
     ctl.querySelector('#skyConst').onchange = e=>constGroup.visible=e.target.checked;
     ctl.querySelector('#skyZod').onchange   = e=>zodGroup.visible=e.target.checked;
@@ -11624,8 +11666,11 @@ function buildCtl(){
 function updCtlVals(){
   const q = s=>ctl.querySelector(s);
   if(state.mode==='solar'){
-    if(q('#spdV')) q('#spdV').textContent = state.daysPerSec>=365 ?
-      (state.daysPerSec/365.25).toFixed(1)+' yr/s' : state.daysPerSec.toPrecision(3)+' d/s';
+    if(q('#spdV')){ const yps=state.daysPerSec/365.25;
+      q('#spdV').textContent = yps>=1e6?(yps/1e6).toPrecision(3)+' Myr/s'
+        : yps>=1e3?(yps/1e3).toPrecision(3)+' kyr/s'
+        : state.daysPerSec>=365?yps.toFixed(1)+' yr/s'
+        : state.daysPerSec.toPrecision(3)+' d/s'; }
     if(q('#pscV')) q('#pscV').textContent = state.trueScale ? '×1 (1:1)' : '×'+Math.round(state.planetScale);
   } else if(state.mode==='s3'){
     if(q('#chiV')) q('#chiV').textContent = state.chi.toFixed(3)+' rad';
@@ -12870,12 +12915,21 @@ function tickBody(now, frame){
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
     orbitGeometryAcc+=dt;
-    if(orbitGeometryAcc>.35 && Math.abs(T-orbitGeometryT)>.0027){
-      orbitGeometryAcc=0; orbitGeometryT=T;
-      planetObjs.forEach(o=>o.line.geometry.setFromPoints(planetOrbitPoints(o.p,T)));
+    if(orbitGeometryAcc>.35 && (Math.abs(T-orbitGeometryT)>.0027 || orbitGeoWasGeo!==state.geocentric)){
+      orbitGeometryAcc=0; orbitGeometryT=T; orbitGeoWasGeo=state.geocentric;
+      if(state.geocentric)
+        // Earth at the centre: planets trace their true geocentric (retrograde-looping)
+        // paths; the Earth row instead carries the Sun's geocentric orbit.
+        planetObjs.forEach((o,idx)=>o.line.geometry.setFromPoints(idx===2?sunGeoOrbitPoints(T):geoOrbitPoints(o.p,T)));
+      else
+        planetObjs.forEach(o=>o.line.geometry.setFromPoints(planetOrbitPoints(o.p,T)));
     }
+    // Reference-frame origin: heliocentric → Sun at (0,0,0); geocentric → shift every body
+    // by −Earth so the EARTH sits at the origin (Sun and planets recomputed around it).
+    const geoShift = state.geocentric ? planetPos(PLANETS[2], T) : null;
     const pScale = state.trueScale ? 1 : state.planetScale;
     const sScale = state.trueScale ? 1 : state.sunScale;
+    sunMesh.position.copy(geoShift ? geoShift.clone().negate() : _galZero);
     sunMesh.scale.setScalar(SUN.r/KM_PER_AU*sScale);
     sunGlow.scale.setScalar(state.trueScale ? 6 : 4.2);
     sunMesh.quaternion.copy(SUN_AXIS_Q).multiply(
@@ -12883,6 +12937,7 @@ function tickBody(now, frame){
     sunSpinCue.visible=!!state.showSpinAxes;
     for(const o of planetObjs){
       o.mesh.position.copy(planetPos(o.p, T));
+      if(geoShift) o.mesh.position.sub(geoShift);     // Earth-centred frame
       o.mesh.scale.setScalar(o.p.r/KM_PER_AU*pScale);
       if(o.p.spinHours){
         o.mesh.quaternion.copy(earthAxisQuaternion(T)).multiply(
@@ -12909,16 +12964,31 @@ function tickBody(now, frame){
       moonPick.position.copy(moonMesh.position);
       moonPick.scale.setScalar(Math.max(moonMesh.scale.x*1.6,
         moonMesh.position.distanceTo(camera.position)*0.008));
-      // syzygy: New-Moon alignment with the Sun → eclipse geometry line
-      const sunDir = earthP.clone().negate().normalize();
+      // syzygy: New-Moon alignment with the Sun → eclipse geometry line.
+      // Frame-independent: direction from Earth toward the Sun (Sun sits at origin in
+      // heliocentric, at −Earth in geocentric — sunMesh.position tracks either).
+      const sunDir = sunMesh.position.clone().sub(earthP).normalize();
       const moonDir = off.clone().normalize();
       moonElong = sunDir.angleTo(moonDir);
       const nearNode = Math.abs(g.lat/DEG) < 1.6;
       syzygyLine.visible = moonElong/DEG < 2.0 && nearNode;
       if(syzygyLine.visible){
-        syzygyLine.geometry.setFromPoints([new THREE.Vector3(0,0,0),
-          earthP.clone().multiplyScalar(1.25)]);
+        syzygyLine.geometry.setFromPoints([sunMesh.position.clone(),
+          earthP.clone().addScaledVector(sunDir,-earthP.distanceTo(sunMesh.position)*0.25)]);
       }
+    }
+
+    /* Galactic year — the Sun's orbit + the Milky Way's rotation, driven by the SAME
+       simulated clock as the planets, so the two are precisely time-synchronised (one
+       galactic revolution = 230 Myr per the astro-std reference, exactly 230e6 Earth
+       years of the very same epoch). Rigidly rotating the disk about the Sun (origin)
+       keeps the embedded Sun marker on the Sun while Sgr A* and the arms wheel past. */
+    {
+      const galTheta = 2*Math.PI * state.epochDays / (GAL_YEAR_MYR*1e6*365.2425);
+      _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
+      milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
+      milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
+      if(galacticLinks[0]) galacticLinks[0][0].geometry.setFromPoints([_galZero, milkyWayPhysical.position]);
     }
 
     /* === OORT CLOUD + COSMIC OVERLAY === */
@@ -12993,10 +13063,13 @@ function tickBody(now, frame){
       const layer=state.solarScaleLayer||'local';
       if(layer==='local'){
         hudBig.textContent = simDateString();
-        hudSub.textContent = 'Solar + Oort · heliocentric ecliptic J2000 · 1 unit = 1 AU · Earth orbit anchored to Earth–Moon barycenter'+ephWarn;
+        hudSub.textContent = (state.geocentric
+          ? '⊕ Geocentric ecliptic · Earth at origin · Sun & planets recomputed around Earth (retrograde loops exact)'
+          : '☉ Solar + Oort · heliocentric ecliptic J2000 · 1 unit = 1 AU · Earth orbit anchored to Earth–Moon barycenter')+ephWarn;
       } else if(layer==='galactic'){
+        const galRev = state.epochDays/(GAL_YEAR_MYR*1e6*365.2425);
         hudBig.textContent = 'Milky Way · Sgr A* centre 26,700 ly from the Sun';
-        hudSub.textContent = 'true AU distances · centre and Galactic plane data-positioned · spiral arms schematic';
+        hudSub.textContent = `galactic year ${GAL_YEAR_MYR} Myr · Sun's orbit + disk rotation time-synced · revolutions since J2000 ${galRev.toFixed(6)} · spiral arms schematic`;
       } else if(layer==='andromeda'){
         hudBig.textContent = 'Local Group · M31 centre 2.537 million ly from the Sun';
         hudSub.textContent = 'true AU distances · M31 centre/inclination/PA data-positioned · spiral texture schematic';
