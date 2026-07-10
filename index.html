@@ -6475,7 +6475,7 @@ function updateSel(dt){
    dynamics solve the Faddeev–Niemi field equations.
    ---------------------------------------------------------------- */
 const hopfionGroup=new THREE.Group(); hopfionGroup.visible=false; s3Group.add(hopfionGroup);
-let hfFibers=[], hfBeads=null, hfTargetGroup=null, hfPhase=0, hfPrecPhase=0, hfDirty=true, hfInfoLab=null;
+let hfFibers=[], hfBeads=null, hfTargetGroup=null, hfPhase=0, hfPrecPhase=0, hfDirty=true, hfInfoLab=null, hfExtra=[];
 function hfFiberPoints(p,q,theta,phi,scale,center,segs=160){
   const eta=theta/2, ce=Math.cos(eta), se=Math.sin(eta), pts=[];
   for(let i=0;i<=segs;i++){
@@ -6572,6 +6572,94 @@ function hfCenters(){                                            // single / pai
     return out; }
   return [{c:new THREE.Vector3(0,0,0), p:state.hfP, q:state.hfQ}];
 }
+
+/* ── Interacting hopfions: the REAL combined field and its magnetic field lines ──
+   Each hopfion is the CP¹ (complex) field w_i = Z1^{p_i}/Z2^{q_i} on the inverse-
+   stereographic image of R³, with vacuum w=0 at infinity (n→(0,0,−1)). Two (or more)
+   hopfions sharing space superpose in that vacuum chart, w(r)=Σ_i w_i((r−c_i)/a): near
+   each core the field is that hopfion, far away it is the vacuum, and in between the
+   configurations bridge. The VISIBLE field lines are the preimages of w — equivalently
+   the integral curves of the emergent magnetic field B=∇u×∇v (u=Re w, v=Im w), the exact
+   Hopf/Chern–Simons current whose pairwise linking = total Hopf charge = magnetic
+   helicity. As the cores approach, the streamlines of the combined B bend into one
+   another and reconnect — the hopfions magnetise together and merge. Everything below is
+   evaluated with exact integer complex powers (no atan2/pow) so it is fast AND exact. */
+const HF_A = 1.28;            // hopfion core length-scale in scene units
+let _hfInvA = 1/HF_A, _hfWu=0, _hfWv=0;
+function hfWsumUV(x,y,z,C){    // combined complex field w=Σ w_i; writes Re,Im to _hfWu,_hfWv
+  let u=0,v=0;
+  for(let i=0;i<C.length;i++){ const c=C[i];
+    const X=(x-c.cx)*_hfInvA, Y=(y-c.cy)*_hfInvA, Z=(z-c.cz)*_hfInvA;
+    const r2=X*X+Y*Y+Z*Z, den=r2+1;
+    const z1r=2*X/den, z1i=2*Y/den, z2r=2*Z/den, z2i=(r2-1)/den;
+    let ar=1,ai=0; for(let k=0;k<c.p;k++){ const t=ar*z1r-ai*z1i; ai=ar*z1i+ai*z1r; ar=t; }   // Z1^p
+    const qa=c.q<0?-c.q:c.q; let br=1,bi=0; for(let k=0;k<qa;k++){ const t=br*z2r-bi*z2i; bi=br*z2i+bi*z2r; br=t; } // Z2^|q|
+    if(c.q>=0){ const d=br*br+bi*bi||1e-18; u+=(ar*br+ai*bi)/d; v+=(ai*br-ar*bi)/d; }          // w = Z1^p / Z2^q
+    else { u+=ar*br-ai*bi; v+=ar*bi+ai*br; }                                                    // q<0: w = Z1^p · Z2^{|q|}
+  }
+  _hfWu=u; _hfWv=v;
+}
+// Unit tangent to the field line at (x,y,z): B=∇u×∇v (central differences), normalised
+// and signed. Returns false into out if the field is essentially vacuum (|B|→0).
+const _hfB=[0,0,0];
+function hfLineDir(x,y,z,C,sign,out){
+  const h=2.2e-3, i2h=1/(2*h);
+  hfWsumUV(x+h,y,z,C); const upx=_hfWu,vpx=_hfWv; hfWsumUV(x-h,y,z,C); const ux=(upx-_hfWu)*i2h, vx=(vpx-_hfWv)*i2h;
+  hfWsumUV(x,y+h,z,C); const upy=_hfWu,vpy=_hfWv; hfWsumUV(x,y-h,z,C); const uy=(upy-_hfWu)*i2h, vy=(vpy-_hfWv)*i2h;
+  hfWsumUV(x,y,z+h,C); const upz=_hfWu,vpz=_hfWv; hfWsumUV(x,y,z-h,C); const uz=(upz-_hfWu)*i2h, vz=(vpz-_hfWv)*i2h;
+  let Bx=uy*vz-uz*vy, By=uz*vx-ux*vz, Bz=ux*vy-uy*vx;
+  const m=Math.sqrt(Bx*Bx+By*By+Bz*Bz);
+  if(m<1e-7) return false;
+  const s=sign/m; out[0]=Bx*s; out[1]=By*s; out[2]=Bz*s; return true;
+}
+// Trace one closed magnetic field line (RK4 on the unit B field) from a seed. Returns the
+// polyline; closes it when the walk returns near the seed (a genuine preimage loop).
+function hfTraceLine(sx,sy,sz,C,rMax){
+  const ds=0.055*HF_A, Nmax=900, closeEps=1.6*ds, k1=[0,0,0],k2=[0,0,0],k3=[0,0,0],k4=[0,0,0];
+  const pts=[]; let x=sx,y=sy,z=sz, closed=false, escaped=false;
+  for(let i=0;i<Nmax;i++){
+    pts.push(new THREE.Vector3(x,y,z));
+    if(i>26){ const dx=x-sx,dy=y-sy,dz=z-sz; if(dx*dx+dy*dy+dz*dz < closeEps*closeEps){ pts.push(new THREE.Vector3(sx,sy,sz)); closed=true; break; } }
+    if(x*x+y*y+z*z > rMax*rMax){ escaped=true; break; }
+    if(!hfLineDir(x,y,z,C,1,k1)) break;
+    if(!hfLineDir(x+.5*ds*k1[0],y+.5*ds*k1[1],z+.5*ds*k1[2],C,1,k2)) break;
+    if(!hfLineDir(x+.5*ds*k2[0],y+.5*ds*k2[1],z+.5*ds*k2[2],C,1,k3)) break;
+    if(!hfLineDir(x+ds*k3[0],y+ds*k3[1],z+ds*k3[2],C,1,k4)) break;
+    x+=ds/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
+    y+=ds/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
+    z+=ds/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2]);
+  }
+  return {pts, closed, escaped};
+}
+// Build the interacting field lines for the current multi-hopfion configuration. Seeds
+// ring the cores on small Fibonacci spheres; each seed traces a field line of the COMBINED
+// B, so lines bridging the cores appear exactly when the fields overlap.
+let hfReconnected=0;   // fraction of field lines that thread BOTH cores (0=separate, →1=fully merged)
+function hfInteractingLines(centersRaw, perCore){
+  const C=centersRaw.map(c=>({cx:c.c.x,cy:c.c.y,cz:c.c.z,p:c.p,q:c.q}));
+  const maxD=centersRaw.reduce((m,c)=>Math.max(m,c.c.length()),0);
+  const rMax=4.4*HF_A + maxD;                              // trace box; runaway (vacuum) lines are dropped
+  const lines=[]; const GA=2.399963229728653;
+  const ax=maxD>1e-6?centersRaw[0].c.x/maxD:1, ay=maxD>1e-6?centersRaw[0].c.y/maxD:0, az=maxD>1e-6?centersRaw[0].c.z/maxD:0;
+  let bridged=0, tot=0;
+  for(const c of C){
+    for(let k=0;k<perCore;k++){
+      const yy=1-2*(k+.5)/perCore, rad=Math.sqrt(Math.max(0,1-yy*yy)), a=k*GA;
+      const rho=(k%2? .8:.5)*HF_A;                         // two shells for fuller coverage
+      const sx=c.cx+rho*rad*Math.cos(a), sy=c.cy+rho*yy, sz=c.cz+rho*rad*Math.sin(a);
+      hfWsumUV(sx,sy,sz,C); const hue=(Math.atan2(_hfWv,_hfWu)/(2*Math.PI)+0.62), mag=Math.hypot(_hfWu,_hfWv);
+      const tr=hfTraceLine(sx,sy,sz,C,rMax);
+      if(tr.escaped || tr.pts.length<16) continue;         // keep the closed preimage loops only
+      tot++;
+      let mn=1e30,mx=-1e30; for(const P of tr.pts){ const s=P.x*ax+P.y*ay+P.z*az; if(s<mn)mn=s; if(s>mx)mx=s; }
+      const spans = mx>0.35 && mn<-0.35;                   // loop threads BOTH cores → reconnected
+      if(spans) bridged++;
+      lines.push({pts:tr.pts, hue:((hue%1)+1)%1, mag, spans});
+    }
+  }
+  hfReconnected = tot? bridged/tot : 0;
+  return lines;
+}
 function hopfionPhysHTML(){
   const Q=state.hfP*state.hfQ, ph=hfPhysics;
   if(ph.computing||ph.key!==state.hfP+'_'+state.hfQ)
@@ -6581,6 +6669,7 @@ function hopfionPhysHTML(){
     `Derrick-stable size λ* = ${ph.lam.toFixed(3)} · <b>E_min = 2√(E₂E₄) = ${ph.Emin.toFixed(1)}</b><br>`+
     `Vakulenko–Kapitanskii  E_min/Q^¾ = ${(ph.Emin/Math.pow(Q,0.75)).toFixed(1)} (≈const ⇒ E∝Q^¾, sub-linear)<br>`+
     `helicity H = Q_H = ${Q} · unit field |n|=1 · vacuum n→(0,0,−1) at ∞`+
+    (state.hfMode!=='single'?`<br><b style="color:#9fd0ff">field lines = streamlines of emergent B = ∇u×∇v (their linking = Hopf charge) · reconnected across cores: ${Math.round(hfReconnected*100)}%</b> ${hfReconnected>0.5?'→ <b style="color:#ffd27a">MERGED</b>':hfReconnected>0.08?'→ magnetising':'→ separate'}`:'')+
     (state.hfMode==='pair'?`<br><b style="color:${anti?'#7ef0c2':'#e8a86a'}">${anti?'hopfion + ANTI-hopfion · Q_total = 0 → annihilation channel open':'twin pair · Q_total = '+(Q+state.hfP2*state.hfQ2)+' → topological repulsion'}</b>`:'')+
     (state.hfMode==='ring'?`<br><b style="color:#c9a8e8">ring · Q_total = ${state.hfRingN*Q} (charge is additive & conserved)</b>`:'');
 }
@@ -6589,19 +6678,40 @@ function buildHopfion(){
   computeHfPhysics(state.hfP,state.hfQ);   // measure the real Faddeev–Niemi energy of this (p,q)
   for(const f of hfFibers){ hopfionGroup.remove(f.line); f.line.geometry.dispose(); f.line.material.dispose(); }
   hfFibers=[];
+  for(const m of hfExtra){ hopfionGroup.remove(m); m.geometry.dispose(); m.material.dispose(); } hfExtra=[];
   if(hfBeads){ hopfionGroup.remove(hfBeads); hfBeads.geometry.dispose(); hfBeads.material.dispose(); hfBeads=null; }
   if(hfTargetGroup){ hopfionGroup.remove(hfTargetGroup); disposeCSS2D(hfTargetGroup); hfTargetGroup=null; }
   const centers=hfCenters(), probes=hfProbes(state.hfK, state.hfDist);
-  for(const cen of centers){
-    const scale=(cen.mini?0.42:1)*state.hfScale;
-    probes.forEach(([th,ph],k)=>{
-      const col=new THREE.Color().setHSL((ph/(Math.PI*2)+0.62)%1, .75, .38+.34*(1-th/Math.PI));
-      const pts=hfFiberPoints(cen.p,cen.q,th,ph+hfPrecPhase,scale,cen.c);
+  if(state.hfMode!=='single'){
+    // ≥2 hopfions in ONE field: draw the magnetic field lines of the COMBINED w — they
+    // bend into each other and reconnect as the cores overlap (magnetisation & merging).
+    const perCore = state.hfMode==='ring' ? 6 : Math.min(15, Math.max(9, Math.round(state.hfK*0.7)));
+    const sc=state.hfScale;
+    for(const L of hfInteractingLines(centers, perCore)){
+      // reconnected lines (threading both cores) glow brighter — the magnetic bridge
+      const col=new THREE.Color().setHSL(L.hue,.82,THREE.MathUtils.clamp((L.spans?.5:.34)+.32/(1+L.mag),.22,.78));
+      const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
       const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.88}));
-      hopfionGroup.add(line);
-      hfFibers.push({line,p:cen.p,q:cen.q,th,ph,scale,center:cen.c,col});
-    });
+        new THREE.LineBasicMaterial({color:col,transparent:true,opacity:L.spans?1:.82}));
+      hopfionGroup.add(line); hfFibers.push({line,col});
+    }
+    for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion)
+      const m=new THREE.Mesh(new THREE.SphereGeometry(.12*state.hfScale,12,8),
+        new THREE.MeshBasicMaterial({color:(cen.q<0)?0x7ef0c2:0xffd27a}));
+      m.position.copy(cen.c).multiplyScalar(state.hfScale); hopfionGroup.add(m); hfExtra.push(m);
+    }
+  } else {
+    for(const cen of centers){
+      const scale=(cen.mini?0.42:1)*state.hfScale;
+      probes.forEach(([th,ph],k)=>{
+        const col=new THREE.Color().setHSL((ph/(Math.PI*2)+0.62)%1, .75, .38+.34*(1-th/Math.PI));
+        const pts=hfFiberPoints(cen.p,cen.q,th,ph+hfPrecPhase,scale,cen.c);
+        const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+          new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.88}));
+        hopfionGroup.add(line);
+        hfFibers.push({line,p:cen.p,q:cen.q,th,ph,scale,center:cen.c,col});
+      });
+    }
   }
   // flow beads: one luminous bead rides each fiber — energy flowing along the soliton
   const bg=new THREE.BufferGeometry();
@@ -6634,6 +6744,16 @@ function buildHopfion(){
     : `Hopfion · Q_H = p·q = ${state.hfP}·${state.hfQ} = ${Q}`;
 }
 function updateHopfion(dt){
+  // Collide/merge animation: ease the separation toward its target, rebuilding the
+  // interacting field lines in throttled steps so the merge plays out smoothly.
+  if(state.hfSepTarget!=null && state.hfMode==='pair'){
+    const step=(state.hfSepTarget-state.hfSep)*Math.min(1,dt*2.4);
+    if(Math.abs(state.hfSepTarget-state.hfSep)<0.04){ state.hfSep=state.hfSepTarget; state.hfSepTarget=null; hfDirty=true; }
+    else { state.hfSep+=step; updateHopfion._sepAcc=(updateHopfion._sepAcc||0)+Math.abs(step);
+      if(updateHopfion._sepAcc>0.16){ updateHopfion._sepAcc=0; hfDirty=true; } }
+    const s=ctl.querySelector('#hfSep'), v=ctl.querySelector('#hfSepV');
+    if(s) s.value=state.hfSep; if(v) v.textContent=state.hfSep.toFixed(1);
+  }
   if(hfDirty) buildHopfion();
   if(state.hfFlow){ hfPhase=(hfPhase+dt*state.hfFlowSpd)%1;
     const pos=hfBeads.geometry.attributes.position;
@@ -6645,8 +6765,10 @@ function updateHopfion(dt){
     pos.needsUpdate=true;
   }
   if(state.hfPrec){ hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-    if(!updateHopfion._acc) updateHopfion._acc=0;
-    updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }  // smooth morph, throttled
+    if(state.hfMode==='single'){   // the analytic single map re-rotates cheaply; the interacting
+      if(!updateHopfion._acc) updateHopfion._acc=0;   // field-line build is too heavy to redo per frame
+      updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }
+    }
   }
   const Q=state.hfP*state.hfQ, ph=hfPhysics, ready=!ph.computing&&ph.key===state.hfP+'_'+state.hfQ;
   hudBig.textContent=`Hopfion lab · Q_H=${Q} · H(helicity)=${Q} · ${ready?'E_min='+ph.Emin.toFixed(0)+' · λ*='+ph.lam.toFixed(2):'measuring E… '+Math.round(ph.progress*100)+'%'}`;
@@ -10158,7 +10280,7 @@ const state = {
   // fibre flow + target precession, mode (single/pair/ring) and its parameters
   hfP:1, hfQ:1, hfK:18, hfDist:'fibonacci', hfScale:1, hfShowTarget:true,
   hfFlow:true, hfFlowSpd:0.35, hfPrec:false, hfPrecSpd:0.5,
-  hfMode:'single', hfP2:1, hfQ2:1, hfSep:4.4, hfRingN:6, hfRingR:3.2,
+  hfMode:'single', hfP2:1, hfQ2:1, hfSep:4.4, hfSepTarget:null, hfRingN:6, hfRingR:3.2,
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -11007,8 +11129,11 @@ function buildCtl(){
         <button class="chip ${state.hfP2===state.hfP&&state.hfQ2===-state.hfQ?'on':''}" data-hfpair="anti">anti Q₂=−Q₁</button>
         <button class="chip ${state.hfP2===state.hfP&&state.hfQ2===state.hfQ?'on':''}" data-hfpair="same">twin Q₂=Q₁</button></div>
       <div class="ctlrow"><label>Separation</label>
-        <input type="range" id="hfSep" min="2" max="8" step="0.2" value="${state.hfSep}">
-        <span class="val" id="hfSepV">${state.hfSep.toFixed(1)}</span></div>`:''}
+        <input type="range" id="hfSep" min="1.6" max="8" step="0.1" value="${state.hfSep}">
+        <span class="val" id="hfSepV">${state.hfSep.toFixed(1)}</span></div>
+      <div class="ctlrow"><button class="btn green" id="hfCollide">⇄ Collide → merge</button>
+        <button class="btn" id="hfSeparate">↔ Separate</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Two hopfions in one field: the drawn lines are streamlines of the emergent magnetic field B=∇u×∇v (u+iv = combined CP¹ field), i.e. the true preimages whose mutual linking is the total Hopf charge. Bring the cores together and the lines bend into one another and reconnect — the solitons magnetise and merge (twin Q₂=Q₁ → fuse to Q=2; anti Q₂=−Q₁ → annihilate).</div>`:''}
       ${state.hfMode==='ring'?`
       <div class="ctlrow"><label>Ring count N</label>
         <input type="range" id="hfRingN" min="2" max="12" step="1" value="${state.hfRingN}">
@@ -11150,8 +11275,10 @@ function buildCtl(){
         hfDirty=true; buildCtl(); });
       ctl.querySelectorAll('[data-hfpair]').forEach(b=>b.onclick=()=>{
         state.hfP2=state.hfP; state.hfQ2=b.dataset.hfpair==='anti'?-state.hfQ:state.hfQ; hfDirty=true; buildCtl(); });
-      ctl.querySelector('#hfSep')&&(ctl.querySelector('#hfSep').oninput=e=>{ state.hfSep=+e.target.value; hfDirty=true;
+      ctl.querySelector('#hfSep')&&(ctl.querySelector('#hfSep').oninput=e=>{ state.hfSep=+e.target.value; state.hfSepTarget=null; hfDirty=true;
         const v=ctl.querySelector('#hfSepV'); if(v) v.textContent=state.hfSep.toFixed(1); });
+      ctl.querySelector('#hfCollide')&&(ctl.querySelector('#hfCollide').onclick=()=>{ state.hfSepTarget=1.6; });   // animate the merge
+      ctl.querySelector('#hfSeparate')&&(ctl.querySelector('#hfSeparate').onclick=()=>{ state.hfSepTarget=8; });
       ctl.querySelector('#hfRingN')&&(ctl.querySelector('#hfRingN').oninput=e=>{ state.hfRingN=+e.target.value|0; hfDirty=true;
         const v=ctl.querySelector('#hfRingNV'); if(v) v.textContent=String(state.hfRingN); });
       ctl.querySelector('#hfRingR')&&(ctl.querySelector('#hfRingR').oninput=e=>{ state.hfRingR=+e.target.value; hfDirty=true;
