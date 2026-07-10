@@ -1936,7 +1936,29 @@ app.appendChild(labelRenderer.domElement);
 }
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x02040a);
+// Theme-aware sky: night = deep space; day = a soft daylight dome so the SPACE itself
+// (not just the UI) turns bright when the ☀/☾ theme is toggled. A vertical gradient
+// canvas used as scene.background renders as a full-screen backdrop.
+function makeSkyGradient(top,bottom){
+  const c=document.createElement('canvas'); c.width=8; c.height=256;
+  const g=c.getContext('2d'), grad=g.createLinearGradient(0,0,0,256);
+  grad.addColorStop(0,top); grad.addColorStop(1,bottom); g.fillStyle=grad; g.fillRect(0,0,8,256);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
+  t.generateMipmaps=false; t.minFilter=THREE.LinearFilter; t.magFilter=THREE.LinearFilter;
+  t.wrapS=t.wrapT=THREE.ClampToEdgeWrapping; return t;
+}
+const NIGHT_BG=new THREE.Color(0x02040a);
+const DAY_SKY=makeSkyGradient('#aec4e0','#eef1ec');   // soft blue zenith → pale warm horizon
+let themeDay=false;
+function refreshSceneBackground(){
+  if(renderer.xr && renderer.xr.isPresenting && scene.background===null) return;  // MR passthrough
+  scene.background = themeDay ? DAY_SKY : NIGHT_BG;
+}
+scene.background = NIGHT_BG;
+// A soft daylight fill so lit objects read against the bright day sky (off at night,
+// where the per-mode dark-tuned ambients own the look).
+const dayFillLight=new THREE.HemisphereLight(0xfdf6e8,0x9fb0c8,0); scene.add(dayFillLight);
+function applyThemeLighting(day){ dayFillLight.intensity = day ? 0.85 : 0; }
 const camera = new THREE.PerspectiveCamera(55,INITIAL_VIEW_W/INITIAL_VIEW_H,1e-6,1e6);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = .08;
@@ -8705,7 +8727,7 @@ const XRX = (()=>{
   document.getElementById('xrCheckBtn').onclick=()=>togglePanel('xrCheck');
 
   /* ---------- VR / AR environment switches ---------- */
-  function enterVR(){ scene.background = new THREE.Color(0x02040a); }
+  function enterVR(){ scene.background = NIGHT_BG; }   // dark dome for VR immersion regardless of flat theme
   function enterAR(){
     scene.background = null;                      // passthrough shows through
     skyGroup.visible = false;
@@ -8729,7 +8751,7 @@ const XRX = (()=>{
     }
   }
   function exitAR(){
-    scene.background = new THREE.Color(0x02040a);
+    refreshSceneBackground();     // restore the flat theme's sky (day or night)
     skyGroup.visible = true;
     applyQuality(qualityName);                    // restores star draw ranges/visibility
     STARFIELDS.forEach(p=>p.visible=true);
@@ -12594,6 +12616,9 @@ const themeBtn = document.getElementById('themeBtn');
 function applyTheme(day){
   document.body.classList.toggle('day', day);
   themeBtn.textContent = day ? '☾' : '☀';
+  themeDay = day;
+  refreshSceneBackground();     // turn the 3D space itself light/dark, not just the UI
+  if(typeof applyThemeLighting==='function') applyThemeLighting(day);
   try{ localStorage.setItem('lts-theme', day?'day':'night'); }catch(e){}
 }
 themeBtn.onclick = ()=>applyTheme(!document.body.classList.contains('day'));
