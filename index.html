@@ -7554,13 +7554,28 @@ const buddhaCtx=buddhaCanvas.getContext('2d');
 buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
 const fractalBuddhaTexture=new THREE.CanvasTexture(buddhaCanvas);
 fractalBuddhaTexture.colorSpace=THREE.SRGBColorSpace;
+// CRITICAL: the Fine/Ultra presets are NON-power-of-two (640, 768, 960, 1600px).
+// CanvasTexture defaults to mipmapping with LinearMipmapLinearFilter, which is
+// INVALID for non-POT textures in WebGL — the higher-res texture then fails to
+// upload and the shader keeps sampling the stale 512 (POT) map, so raising the
+// preset changed nothing and stayed blurry. Disabling mipmaps with plain linear
+// filtering + clamp makes every resolution upload cleanly and sharply.
+fractalBuddhaTexture.generateMipmaps=false;
+fractalBuddhaTexture.minFilter=THREE.LinearFilter;
+fractalBuddhaTexture.magFilter=THREE.LinearFilter;
+fractalBuddhaTexture.wrapS=fractalBuddhaTexture.wrapT=THREE.ClampToEdgeWrapping;
 let buddhaProgress=0, buddhaBuilding=false, buddhaToken=0;
 function setBuddhaPreset(p){
   if(!BUDDHA_PRESETS[p]) return;
   buddhaPreset=p; BUDDHA_RES=BUDDHA_PRESETS[p].res;
-  buddhaToken++; buddhaBuilding=false;             // cancel any build in flight
+  buddhaBuilding=false;                             // cancel any build in flight (buildBuddhabrotTexture bumps the token)
   buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
   buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
+  // The canvas backing store just changed size. needsUpdate alone re-uploads INTO the
+  // existing (old-size) GPU allocation — for a grown canvas that overflows and the GPU
+  // texture stays at the previous resolution, so higher presets never actually sharpen.
+  // dispose() drops the GPU texture so the next render re-allocates it at the new size.
+  fractalBuddhaTexture.dispose();
   fractalBuddhaTexture.needsUpdate=true;
   buildBuddhabrotTexture();
 }
@@ -7630,6 +7645,7 @@ const fractalUniforms = {
   uMode:   {value:0},
   uCenter: {value:new THREE.Vector2(-.5,0)},
   uZoom:   {value:1},
+  uRot:    {value:0},   // 90°-step view rotation for the 2D fractal planes (radians)
   uJulia:  {value:new THREE.Vector2(-.835,-.2321)},
   uMJMix:  {value:.5},
   // Mandelbrot–Julia correspondence laboratory: parameter plane C_c and dynamical plane C_z are linked, not overlaid.
@@ -7692,6 +7708,20 @@ function setFractalType(type,reset=true){
   }
   if(typeof updateBifurcView==='function') updateBifurcView();
   syncControlCapabilities(); syncCameraClipping(true);
+}
+// 90°-step view rotation for EVERY fractal type. 2D sets + the Mandelbulb raymarch
+// roll in-shader via uRot (uCenter/uZoom/pan/zoom stay in the un-rotated screen frame,
+// so controls never flip with the image); the four true-3D geometry groups roll about
+// the current view axis, leaving OrbitControls' orbit/zoom untouched.
+const GEO_GROUP_FOR={get bifurc3d(){return bifurcGroup;},get polytope4d(){return poly4dGroup;},get orbital3d(){return orbitalGroup;},get mjfiber3d(){return mjFiberGroup;}};
+function rotateFractal90(){
+  state.fractalRot=(state.fractalRot+1)&3;
+  fractalUniforms.uRot.value=state.fractalRot*Math.PI/2;
+  if(GEO_FRACTALS.has(fractalType)){
+    const g=GEO_GROUP_FOR[fractalType];
+    if(g){ const axis=new THREE.Vector3().subVectors(camera.position,controls.target).normalize();
+      if(axis.lengthSq()>1e-9) g.rotateOnWorldAxis(axis,Math.PI/2); }
+  }
 }
 function setFractalPalette(name){
   fractalPalette=name in FRACTAL_PALETTES?name:'silver';
@@ -8221,7 +8251,7 @@ const fractalScene = new THREE.Scene();
     fragmentShader: `
       precision highp float;
       uniform vec2 uRes,uCenter,uJulia; uniform vec3 uCamPos,uCamFwd,uCamRight,uCamUp;
-      uniform float uTanFov,uPower,uHue,uZoom,uLevel,uGrid,uBifOverlay; uniform int uIters,uIters2D,uSteps,uMode,uPalette;
+      uniform float uTanFov,uPower,uHue,uZoom,uLevel,uGrid,uBifOverlay,uRot; uniform int uIters,uIters2D,uSteps,uMode,uPalette;
       uniform sampler2D uBuddha;
       const int MARCH = 200;
 
@@ -8318,7 +8348,12 @@ const fractalScene = new THREE.Scene();
         vec2 uv = (gl_FragCoord.xy/uRes - 0.5)*2.0;
         float aspect = uRes.x/uRes.y;
         if(uMode>0){
-          vec2 p=uCenter+vec2(uv.x*aspect,uv.y)*(1.5/max(uZoom,.0001));
+          // rotate the SAMPLING coords about screen centre by uRot (90° steps) — turns the
+          // fractal image while uCenter/uZoom/pan/zoom stay in the un-rotated screen frame
+          vec2 sc=vec2(uv.x*aspect,uv.y);
+          float cr=cos(uRot), sr=sin(uRot);
+          sc=vec2(sc.x*cr - sc.y*sr, sc.x*sr + sc.y*cr);
+          vec2 p=uCenter+sc*(1.5/max(uZoom,.0001));
           vec3 col;
           if(uMode==3){
             vec2 buv=vec2((p.x+2.2)/3.4,(p.y+1.5)/3.0);
@@ -8345,7 +8380,11 @@ const fractalScene = new THREE.Scene();
           }
           gl_FragColor=vec4(pow(col,vec3(.9)),1.0); return;
         }
-        vec3 rd = normalize(uCamFwd + uv.x*aspect*uTanFov*uCamRight + uv.y*uTanFov*uCamUp);
+        // roll the raymarch screen basis by uRot so the Mandelbulb also honours the 90° view rotation
+        float mcr=cos(uRot), msr=sin(uRot);
+        float rmx=uv.x*aspect, rmy=uv.y;
+        float rrx=rmx*mcr - rmy*msr, rry=rmx*msr + rmy*mcr;
+        vec3 rd = normalize(uCamFwd + rrx*uTanFov*uCamRight + rry*uTanFov*uCamUp);
         vec3 ro = uCamPos;
         float t = 0.0, trap = 0.0, d;
         int steps = 0; bool hit = false;
@@ -10011,7 +10050,7 @@ const hudBig = document.getElementById('hudBig');
 const hudSub = document.getElementById('hudSub');
 
 const state = {
-  mode:'solar',
+  mode:'solar', fractalRot:0,   // 0..3 → 90°-step view rotation for the Fractal Explorer
   daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0,
   planetScale: 600, sunScale: 24, trueScale:false, showOrbits:true,
   chi: S3.chiP, gyrPerSec: 20, photonT: 0, photonRun:true,
@@ -10229,8 +10268,12 @@ addEventListener('pointermove',e=>{
   if(!fractalPan||state.mode!=='fractal'||fractalUniforms.uMode.value===0) return;
   const rect=renderer.domElement.getBoundingClientRect();
   const span=3/(fractalUniforms.uZoom.value*Math.max(rect.height,1));
-  fractalUniforms.uCenter.value.x-=(e.clientX-fractalPan[0])*span;
-  fractalUniforms.uCenter.value.y+=(e.clientY-fractalPan[1])*span;
+  // screen-space drag delta (y flipped to plane orientation), rotated by uRot so the
+  // image follows the finger in SCREEN space regardless of the 90° view rotation
+  const vx=(e.clientX-fractalPan[0])*span, vy=-(e.clientY-fractalPan[1])*span;
+  const cr=Math.cos(fractalUniforms.uRot.value), sr=Math.sin(fractalUniforms.uRot.value);
+  fractalUniforms.uCenter.value.x-=vx*cr - vy*sr;
+  fractalUniforms.uCenter.value.y-=vx*sr + vy*cr;
   fractalPan=[e.clientX,e.clientY];
 });
 addEventListener('pointerup',()=>fractalPan=null);
@@ -10249,8 +10292,11 @@ renderer.domElement.addEventListener('wheel', e=>{
     const aspect=rect.width/Math.max(rect.height,1);
     const ux=((e.clientX-rect.left)/Math.max(rect.width,1)-.5)*2;
     const uy=(.5-(e.clientY-rect.top)/Math.max(rect.height,1))*2;
-    const before=new THREE.Vector2(ux*aspect,uy).multiplyScalar(1.5/old).add(fractalUniforms.uCenter.value);
-    const after=new THREE.Vector2(ux*aspect,uy).multiplyScalar(1.5/next).add(fractalUniforms.uCenter.value);
+    // rotate the cursor's screen coords by uRot so zoom-to-cursor stays anchored under the finger
+    const cr=Math.cos(fractalUniforms.uRot.value), sr=Math.sin(fractalUniforms.uRot.value);
+    const sx=ux*aspect*cr - uy*sr, sy=ux*aspect*sr + uy*cr;
+    const before=new THREE.Vector2(sx,sy).multiplyScalar(1.5/old).add(fractalUniforms.uCenter.value);
+    const after=new THREE.Vector2(sx,sy).multiplyScalar(1.5/next).add(fractalUniforms.uCenter.value);
     fractalUniforms.uCenter.value.add(before.sub(after)); updCtlVals();
   }
 }, {passive:false});
@@ -11280,6 +11326,9 @@ function buildCtl(){
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
           {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
       </div>
+      <div class="ctlrow"><button class="btn" id="fracRot">↻ Rotate view 90°</button>
+        <span class="val" id="fracRotV">${state.fractalRot*90}°</span></div>
+      <div class="note">Turns the fractal itself in 90° steps; zoom &amp; pan stay in the screen frame and never flip with the image.</div>
     </div>
     ${fractalType==='mandelbulb'?`<div class="sect"><b>3D distance-estimator parameters</b>
       <div class="ctlrow"><label>Power n</label>
@@ -11499,6 +11548,7 @@ function buildCtl(){
     });
     ctl.querySelector('#budBuild')?.addEventListener('click',buildBuddhabrotTexture);
     ctl.querySelectorAll('[data-budres]').forEach(b=>b.onclick=()=>{ setBuddhaPreset(b.dataset.budres); buildCtl(); });
+    ctl.querySelector('#fracRot')?.addEventListener('click',()=>{ rotateFractal90(); const v=ctl.querySelector('#fracRotV'); if(v) v.textContent=state.fractalRot*90+'°'; });
   }
   if(state.mode!=='fractal' && spatialGuides[state.mode]){
     ctl.insertAdjacentHTML('beforeend',`
