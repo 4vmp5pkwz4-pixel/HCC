@@ -3642,23 +3642,45 @@ function planetOrbitPoints(p,T,segments=256){
   }
   return pts;
 }
-// Geocentric orbit trace: the apparent path of a body with the EARTH at the origin,
-// sampled in time so the retrograde (epicyclic) loops are exact — geo = helio(body) −
-// helio(Earth). The trail length is capped at ~16 yr for legibility on the outer planets
-// (positions stay exact; only how much of the winding path is drawn is limited).
-function geoOrbitPoints(p, T){
-  const periodYr=Math.pow(p.a,1.5), spanYr=Math.min(periodYr,16), spanC=spanYr/100;
-  const segs=Math.min(2000,Math.max(120,Math.round(spanYr*36)));
+// Geocentric orbit = the apparent path of a body with the EARTH at the origin
+// (geo = helio(body) − helio(Earth)), exact retrograde loops included. The curve is
+// quasi-periodic (planet period T_p vs Earth's 1 yr) and never closes exactly, so we
+// pick the span — an integer number of Earth-years, so Earth returns — that BEST
+// re-closes the whole figure, draw the complete pattern, then snap the ends together.
+// This makes even the outermost orbit a single fully-closed loop instead of a stub.
+// Anchored at J2000 and computed once per toggle (see buildGeoOrbits) → fast & stable.
+function geoOrbitPoints(p, Tend){
+  const periodYr=Math.pow(Math.abs(p.a),1.5);
+  const synodic=Math.abs(periodYr-1)<1e-4?periodYr:1/Math.abs(1/periodYr-1);   // Earth-relative return, yr
+  const minSpan=p.a>=1?periodYr:Math.max(synodic,8);   // outer: one full circuit of the sky; inner: cover the petal rosette
+  // Search integer-year windows around the natural span; floor(minSpan) so a single
+  // circuit (N≈period) is reachable, with headroom for a better multi-circuit closure.
+  const lo=Math.max(1,Math.floor(minSpan)), hi=Math.min(600,Math.max(Math.round(minSpan*2.6)+2, lo+40));
+  const gEnd=planetPos(p,Tend).sub(planetPos(PLANETS[2],Tend));   // the planet's CURRENT geocentric point — the loop passes exactly through it
+  let bestN=lo, bestGap=Infinity;
+  for(let N=lo;N<=hi;N++){                              // integer Earth-years ⇒ Earth auto-returns; find where the planet also nearly returns
+    const g=planetPos(p,Tend-N/100).sub(planetPos(PLANETS[2],Tend-N/100));
+    const gap=g.distanceTo(gEnd); if(gap<bestGap){ bestGap=gap; bestN=N; }
+  }
+  const spanC=bestN/100, loops=Math.max(1,bestN/synodic);
+  const segs=Math.min(6000,Math.max(240,Math.round(loops*34)));
   const pts=[];
-  for(let k=0;k<=segs;k++){ const Tk=T-spanC*(1-k/segs);
-    pts.push(planetPos(p,Tk).sub(planetPos(PLANETS[2],Tk))); }
+  for(let k=0;k<=segs;k++){ const Tk=Tend-spanC+spanC*k/segs; pts.push(planetPos(p,Tk).sub(planetPos(PLANETS[2],Tk))); }
+  pts.push(pts[0].clone());                             // snap the loop closed
   return pts;
 }
-// The Sun's geocentric orbit = Earth's heliocentric orbit reflected through the Earth.
-function sunGeoOrbitPoints(T){
-  const segs=200, pts=[];
-  for(let k=0;k<=segs;k++){ const Tk=T-0.01*(1-k/segs); pts.push(planetPos(PLANETS[2],Tk).negate()); }
+// The Sun's geocentric orbit = Earth's heliocentric orbit reflected through the Earth —
+// a clean closed ellipse over one sidereal year, ending at the current epoch.
+function sunGeoOrbitPoints(Tend){
+  const segs=360, TE=1.0000174/100, pts=[];
+  for(let k=0;k<=segs;k++){ const Tk=Tend-TE+TE*k/segs; pts.push(planetPos(PLANETS[2],Tk).negate()); }
+  pts.push(pts[0].clone());
   return pts;
+}
+// Build every geocentric orbit line once, ending at the current epoch Tend so each moving
+// body sits exactly on its own closed loop. Earth row carries the Sun's geocentric orbit.
+function buildGeoOrbits(Tend){
+  planetObjs.forEach((o,idx)=>o.line.geometry.setFromPoints(idx===2?sunGeoOrbitPoints(Tend):geoOrbitPoints(o.p,Tend)));
 }
 const eclToScene = (x,y,z)=>new THREE.Vector3(x, z, -y);
 // apparent geocentric solar ecliptic longitude in [0,2π)
@@ -3748,7 +3770,7 @@ PLANETS.forEach((p, idx)=>{
     },
   });
 });
-let orbitGeometryT=0, orbitGeometryAcc=1, orbitGeoWasGeo=false;
+let orbitGeometryT=0, orbitGeometryAcc=1, geoOrbitsBuilt=false, geoBuiltT=0;
 
 // asteroid belt 2.1–3.3 AU
 {
@@ -10496,7 +10518,7 @@ function buildCtl(){
       const geo=b.dataset.frame==='geo';
       if(geo===state.geocentric) return;
       state.geocentric=geo;
-      orbitGeometryAcc=1; orbitGeometryT=1e9;          // force geocentric/heliocentric orbit paths to rebuild now
+      geoOrbitsBuilt=false; orbitGeometryAcc=1; orbitGeometryT=1e9;   // rebuild the paths for the new frame now
       controls.target.set(0,0,0);                       // re-centre on the new origin (Earth or Sun)
       clearFocus(); buildCtl();
     });
@@ -12922,14 +12944,19 @@ function tickBody(now, frame){
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
     orbitGeometryAcc+=dt;
-    if(orbitGeometryAcc>.35 && (Math.abs(T-orbitGeometryT)>.0027 || orbitGeoWasGeo!==state.geocentric)){
-      orbitGeometryAcc=0; orbitGeometryT=T; orbitGeoWasGeo=state.geocentric;
-      if(state.geocentric)
-        // Earth at the centre: planets trace their true geocentric (retrograde-looping)
-        // paths; the Earth row instead carries the Sun's geocentric orbit.
-        planetObjs.forEach((o,idx)=>o.line.geometry.setFromPoints(idx===2?sunGeoOrbitPoints(T):geoOrbitPoints(o.p,T)));
-      else
+    if(state.geocentric){
+      // Earth at the centre: complete, closed geocentric loops. Built once when entering
+      // the frame and only re-pinned after the epoch has drifted ~50 yr (throttled), so the
+      // lines stay rock-stable at normal speeds yet still track big time jumps / fast-forward.
+      if(!geoOrbitsBuilt || (orbitGeometryAcc>.5 && Math.abs(T-geoBuiltT)>0.5)){
+        geoOrbitsBuilt=true; geoBuiltT=T; orbitGeometryAcc=0; buildGeoOrbits(T);
+      }
+    } else {
+      geoOrbitsBuilt=false;
+      if(orbitGeometryAcc>.35 && Math.abs(T-orbitGeometryT)>.0027){
+        orbitGeometryAcc=0; orbitGeometryT=T;
         planetObjs.forEach(o=>o.line.geometry.setFromPoints(planetOrbitPoints(o.p,T)));
+      }
     }
     // Reference-frame origin: heliocentric → Sun at (0,0,0); geocentric → shift every body
     // by −Earth so the EARTH sits at the origin (Sun and planets recomputed around it).
