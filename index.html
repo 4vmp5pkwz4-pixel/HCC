@@ -6475,6 +6475,10 @@ function updateSel(dt){
    dynamics solve the Faddeev–Niemi field equations.
    ---------------------------------------------------------------- */
 const hopfionGroup=new THREE.Group(); hopfionGroup.visible=false; s3Group.add(hopfionGroup);
+// The field lines + flow beads + core markers live in this sub-group so precession can
+// spin the whole soliton structure in real space (cheap) — while the target-S² wireframe
+// and the info label stay fixed in hopfionGroup.
+const hfSpinGroup=new THREE.Group(); hopfionGroup.add(hfSpinGroup);
 let hfFibers=[], hfBeads=null, hfTargetGroup=null, hfPhase=0, hfPrecPhase=0, hfDirty=true, hfInfoLab=null, hfExtra=[];
 function hfFiberPoints(p,q,theta,phi,scale,center,segs=160){
   const eta=theta/2, ce=Math.cos(eta), se=Math.sin(eta), pts=[];
@@ -6676,11 +6680,13 @@ function hopfionPhysHTML(){
 function buildHopfion(){
   hfDirty=false;
   computeHfPhysics(state.hfP,state.hfQ);   // measure the real Faddeev–Niemi energy of this (p,q)
-  for(const f of hfFibers){ hopfionGroup.remove(f.line); f.line.geometry.dispose(); f.line.material.dispose(); }
+  for(const f of hfFibers){ f.line.parent&&f.line.parent.remove(f.line); f.line.geometry.dispose(); f.line.material.dispose(); }
   hfFibers=[];
-  for(const m of hfExtra){ hopfionGroup.remove(m); m.geometry.dispose(); m.material.dispose(); } hfExtra=[];
-  if(hfBeads){ hopfionGroup.remove(hfBeads); hfBeads.geometry.dispose(); hfBeads.material.dispose(); hfBeads=null; }
+  for(const m of hfExtra){ m.parent&&m.parent.remove(m); m.geometry.dispose(); m.material.dispose(); } hfExtra=[];
+  if(hfBeads){ hfBeads.parent&&hfBeads.parent.remove(hfBeads); hfBeads.geometry.dispose(); hfBeads.material.dispose(); hfBeads=null; }
   if(hfTargetGroup){ hopfionGroup.remove(hfTargetGroup); disposeCSS2D(hfTargetGroup); hfTargetGroup=null; }
+  hfSpinGroup.rotation.set(0,0,0);   // single = unrotated; multi keeps the live precession angle (no snap on rebuild)
+  if(state.hfMode!=='single' && state.hfPrec) hfSpinGroup.rotation.y=hfPrecPhase;
   const centers=hfCenters(), probes=hfProbes(state.hfK, state.hfDist);
   if(state.hfMode!=='single'){
     // ≥2 hopfions in ONE field: draw the magnetic field lines of the COMBINED w — they
@@ -6693,12 +6699,12 @@ function buildHopfion(){
       const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
       const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
         new THREE.LineBasicMaterial({color:col,transparent:true,opacity:L.spans?1:.82}));
-      hopfionGroup.add(line); hfFibers.push({line,col});
+      hfSpinGroup.add(line); hfFibers.push({line,col});
     }
     for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion)
       const m=new THREE.Mesh(new THREE.SphereGeometry(.12*state.hfScale,12,8),
         new THREE.MeshBasicMaterial({color:(cen.q<0)?0x7ef0c2:0xffd27a}));
-      m.position.copy(cen.c).multiplyScalar(state.hfScale); hopfionGroup.add(m); hfExtra.push(m);
+      m.position.copy(cen.c).multiplyScalar(state.hfScale); hfSpinGroup.add(m); hfExtra.push(m);
     }
   } else {
     for(const cen of centers){
@@ -6708,7 +6714,7 @@ function buildHopfion(){
         const pts=hfFiberPoints(cen.p,cen.q,th,ph+hfPrecPhase,scale,cen.c);
         const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
           new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.88}));
-        hopfionGroup.add(line);
+        hfSpinGroup.add(line);
         hfFibers.push({line,p:cen.p,q:cen.q,th,ph,scale,center:cen.c,col});
       });
     }
@@ -6720,7 +6726,7 @@ function buildHopfion(){
   hfFibers.forEach((f,i)=>bg.attributes.color.setXYZ(i,f.col.r,f.col.g,f.col.b));
   hfBeads=new THREE.Points(bg,new THREE.PointsMaterial({size:.14,vertexColors:true,transparent:true,
     opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false,map:glowTexture()}));
-  hopfionGroup.add(hfBeads);
+  hfSpinGroup.add(hfBeads);
   // the S² target: probes live here in their fiber colours — the map made visible
   if(state.hfShowTarget){
     hfTargetGroup=new THREE.Group(); hfTargetGroup.position.set(-3.6,2.6,0);
@@ -6765,9 +6771,13 @@ function updateHopfion(dt){
     pos.needsUpdate=true;
   }
   if(state.hfPrec){ hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-    if(state.hfMode==='single'){   // the analytic single map re-rotates cheaply; the interacting
-      if(!updateHopfion._acc) updateHopfion._acc=0;   // field-line build is too heavy to redo per frame
+    if(state.hfMode==='single'){   // the analytic single map re-rotates cheaply via rebuild
+      if(!updateHopfion._acc) updateHopfion._acc=0;
       updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }
+    } else {
+      // interacting structure: spin the whole soliton in real space (no costly rebuild),
+      // driven by the same precession speed — so pair/ring visibly rotate again.
+      hfSpinGroup.rotation.y = hfPrecPhase;
     }
   }
   const Q=state.hfP*state.hfQ, ph=hfPhysics, ready=!ph.computing&&ph.key===state.hfP+'_'+state.hfQ;
