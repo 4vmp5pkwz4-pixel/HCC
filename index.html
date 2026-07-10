@@ -3605,8 +3605,14 @@ function keplerE(M, e){
 }
 // heliocentric ecliptic J2000 coordinates in AU; T = Julian centuries since J2000
 function planetEcl(p, T){
-  const a=p.a+(p.da||0)*T, e=p.e+(p.de||0)*T, i=(p.i+(p.di||0)*T)*DEG;
-  const L=(p.L+p.rate*T)*DEG, w=(p.w+(p.dw||0)*T)*DEG, O=(p.O+(p.dO||0)*T)*DEG;
+  // The JPL secular RATES (da,de,di,dw,dO) are a linear fit valid only ~1800–2050;
+  // extrapolated far out they diverge (e→>1 ⇒ √(1−e²)=NaN ⇒ planets/orbits vanish).
+  // Freeze the slowly-varying elements outside that window (Te) while the mean
+  // longitude L keeps advancing at its exact constant mean motion — stable for ANY
+  // epoch and more honest than extrapolating an invalid fit.
+  const Te = T < -2 ? -2 : (T > 0.5 ? 0.5 : T);
+  const a=p.a+(p.da||0)*Te, e=p.e+(p.de||0)*Te, i=(p.i+(p.di||0)*Te)*DEG;
+  const L=(p.L+p.rate*T)*DEG, w=(p.w+(p.dw||0)*Te)*DEG, O=(p.O+(p.dO||0)*Te)*DEG;
   let M = L - w; M = ((M + Math.PI)%(2*Math.PI) + 2*Math.PI)%(2*Math.PI) - Math.PI;
   const E = keplerE(M, e);
   const xp = a*(Math.cos(E)-e), yp = a*Math.sqrt(1-e*e)*Math.sin(E);
@@ -3622,8 +3628,9 @@ function planetPos(p, T){
   return new THREE.Vector3(e.x, e.z, -e.y);  // ecliptic → scene (Y up)
 }
 function planetOrbitPoints(p,T,segments=256){
-  const a=p.a+(p.da||0)*T,e=p.e+(p.de||0)*T,i=(p.i+(p.di||0)*T)*DEG;
-  const w=(p.w+(p.dw||0)*T)*DEG,O=(p.O+(p.dO||0)*T)*DEG,wo=w-O;
+  const Te = T < -2 ? -2 : (T > 0.5 ? 0.5 : T);   // freeze element drift outside JPL 1800–2050 validity (see planetEcl)
+  const a=p.a+(p.da||0)*Te,e=p.e+(p.de||0)*Te,i=(p.i+(p.di||0)*Te)*DEG;
+  const w=(p.w+(p.dw||0)*Te)*DEG,O=(p.O+(p.dO||0)*Te)*DEG,wo=w-O;
   const cw=Math.cos(wo),sw=Math.sin(wo),cO=Math.cos(O),sO=Math.sin(O),ci=Math.cos(i),si=Math.sin(i),pts=[];
   for(let k=0;k<=segments;k++){
     const E=k/segments*2*Math.PI,nu=2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));
