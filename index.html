@@ -3418,40 +3418,49 @@ skyGroup.add(starfield(3200, 660));
 
 /* --- Milky Way: procedural equirectangular canvas, galactic-plane aligned --- */
 const mwMesh = (()=>{
-  const W=2048, H=1024;
+  // Higher-fidelity procedural panorama. Two artefacts made the old sky look "badly
+  // stitched": (1) blobs near the u=0/W edge were clipped — no longitude wrap-around —
+  // leaving a hard vertical seam; (2) the texture clamped horizontally, so mip
+  // filtering drew a visible line at the wrap. Every splat is now painted at
+  // u−W, u, u+W (true cylindrical wrap) and the texture repeats horizontally.
+  const MOBILE_TEX=matchMedia('(max-width:760px)').matches;
+  const W=MOBILE_TEX?2048:4096, H=W/2;
   const c=document.createElement('canvas'); c.width=W; c.height=H;
   const x=c.getContext('2d');
   x.fillStyle='#000'; x.fillRect(0,0,W,H);
   const rnd=mulberry(987654321);
   const gauss=()=>{ const a=Math.max(rnd(),1e-9), b=rnd();
     return Math.sqrt(-2*Math.log(a))*Math.cos(2*Math.PI*b); };
+  const splat=(u,v,r,inner,outer)=>{           // wrap-aware radial splat
+    for(const du of [-W,0,W]){ const uu=u+du;
+      if(uu+r<0 || uu-r>W) continue;
+      const g=x.createRadialGradient(uu,v,0,uu,v,r);
+      g.addColorStop(0,inner); g.addColorStop(1,outer);
+      x.fillStyle=g; x.beginPath(); x.arc(uu,v,r,0,7); x.fill();
+    }
+  };
+  const K=W/2048;                              // density/size scale vs the old base resolution
   // luminous band with the central bulge
-  for(let i=0;i<1100;i++){
+  for(let i=0;i<1500*K;i++){
     const u=rnd()*W;
     const bulge=Math.exp(-((u-W/2)**2)/(2*(W*0.15)**2));
     const sigma=H*0.034*(1+1.7*bulge)+rnd()*H*0.012;
-    const v=H/2+gauss()*sigma+Math.sin(u/W*Math.PI*4.2)*7;
-    const r=26+rnd()*95*(0.6+bulge);
+    const v=H/2+gauss()*sigma+Math.sin(u/W*Math.PI*4.2)*7*K;
+    const r=(26+rnd()*95*(0.6+bulge))*K;
     const warm=Math.min(1,bulge*0.8+rnd()*0.35);
     const cr=205+warm*50|0, cg=196+warm*26|0, cb=178+(1-warm)*62|0;
-    const g=x.createRadialGradient(u,v,0,u,v,r);
-    g.addColorStop(0,`rgba(${cr},${cg},${cb},${0.045+0.105*bulge+rnd()*0.035})`);
-    g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`);
-    x.fillStyle=g; x.beginPath(); x.arc(u,v,r,0,7); x.fill();
+    splat(u,v,r,`rgba(${cr},${cg},${cb},${0.045+0.105*bulge+rnd()*0.035})`,`rgba(${cr},${cg},${cb},0)`);
   }
   // dark dust lanes threading the plane
-  for(let i=0;i<300;i++){
+  for(let i=0;i<430*K;i++){
     const u=rnd()*W;
     const bulge=Math.exp(-((u-W/2)**2)/(2*(W*0.2)**2));
-    const v=H/2+gauss()*H*0.016+(rnd()-0.5)*9;
-    const r=18+rnd()*72;
-    const g=x.createRadialGradient(u,v,0,u,v,r);
-    g.addColorStop(0,`rgba(6,5,9,${0.14+0.22*bulge*rnd()})`);
-    g.addColorStop(1,'rgba(6,5,9,0)');
-    x.fillStyle=g; x.beginPath(); x.arc(u,v,r,0,7); x.fill();
+    const v=H/2+gauss()*H*0.016+(rnd()-0.5)*9*K;
+    const r=(18+rnd()*72)*K;
+    splat(u,v,r,`rgba(6,5,9,${0.14+0.22*bulge*rnd()})`,'rgba(6,5,9,0)');
   }
-  // dense stellar speckle concentrated toward the plane
-  for(let i=0;i<10000;i++){
+  // dense stellar speckle concentrated toward the plane (cheap, already wrap-safe: ≤2 px)
+  for(let i=0;i<10000*K*K;i++){
     const u=rnd()*W;
     const conc=1+1.4*Math.exp(-((u-W/2)**2)/(2*(W*0.18)**2));
     const v=H/2+gauss()*H*0.055*conc;
@@ -3460,6 +3469,8 @@ const mwMesh = (()=>{
     x.fillRect(u,v,rnd()<0.93?1:2,rnd()<0.93?1:2);
   }
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+  tex.wrapS=THREE.RepeatWrapping;              // filtering wraps too — no seam line at u=0
+  tex.anisotropy=Math.min(8,renderer.capabilities.getMaxAnisotropy?renderer.capabilities.getMaxAnisotropy():1);
   const mesh=new THREE.Mesh(
     new THREE.SphereGeometry(RSKY*1.06, 64, 40),
     new THREE.MeshBasicMaterial({map:tex, side:THREE.BackSide, transparent:true,
@@ -13050,6 +13061,13 @@ function updCtlVals(){
 }
 
 /* ---------------- INFO PANEL ---------------- */
+/* Device-local visit counter — privacy-first by construction: a localStorage tally,
+   nothing is ever transmitted anywhere. Incremented once per page load. */
+try{
+  localStorage.setItem('lts-visits', String((+(localStorage.getItem('lts-visits')||0))+1));
+  if(!localStorage.getItem('lts-firstVisit'))
+    localStorage.setItem('lts-firstVisit', new Date().toISOString().slice(0,10));
+}catch(e){}
 function buildInfo(){
   info.innerHTML = `
   <h3>Canonical S³ reconstruction (article benchmark table)</h3>
@@ -13174,7 +13192,19 @@ function buildInfo(){
   ${(299792.458/66.9/Math.sqrt(0.0007)*3.2615638e-3).toFixed(0)}] Gly;
   |Ω_K| ∈ [0.0005, 0.001] → R ∈ [459, 649] Gly;
   N_S3 shifts by ±ln(R-ratio)/ln φ ≈ ∓0.35 levels. Γ_obs ∝ χ³ amplifies D_particle
-  uncertainty three-fold. Ephemeris validity: 1800–2050 AD (JPL approximate).</div>`;
+  uncertainty three-fold. Ephemeris validity: 1800–2050 AD (JPL approximate).</div>
+  <h3>Authors & provenance</h3>
+  <div class="note" style="font-size:11.5px">
+    Scientific corpus: <b style="color:var(--gold-2)">Preece &amp; Batenin</b> — the S³ Light-Trisphere
+    reconstruction (2026, v38 "light sphere screens") and the FB(S³)R golden-ratio fractal ladder (2025).
+    Interactive atlas engineered as a single self-contained research instrument over that corpus;
+    every formula and dataset is source-tagged in the QA Atlas.</div>
+  <div class="note" style="font-size:11px;color:var(--dim)" id="visitCounter"></div>`;
+  { const el=info.querySelector('#visitCounter');
+    if(el){ try{
+      const v=+(localStorage.getItem('lts-visits')||0), first=localStorage.getItem('lts-firstVisit');
+      el.textContent=`Visit № ${v} on this device`+(first?` · first visit ${first}`:'')+' · counted locally, nothing is transmitted';
+    }catch(e){ el.textContent='visit counter unavailable (storage blocked)'; } } }
 }
 buildInfo();
 info.addEventListener('click', e=>{
