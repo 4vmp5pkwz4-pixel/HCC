@@ -1534,6 +1534,14 @@ function runSelfTests(){
     getAtlasEntityContract('cosmos_a2744_qso1').quality.forbidden_claims.includes('Do not load FITS cubes directly in browser runtime.'),
     'in-browser FITS loading remains forbidden');
   // --- Phase: navigation layer (Atlas Navigator · Coach · related nav · double-click focus) ---
+  ok('XR gate buttons are NOT captured by the mode-carousel wiring (regression tripwire)',
+    (()=>{ const vr=document.getElementById('vrBtn'), mr=document.getElementById('mrBtn');
+      // XR entry is wired via addEventListener, so .onclick must stay null; the carousel
+      // sweep must select only [data-mode] buttons. If either breaks, Enter VR/MR dies.
+      return !!vr && !!mr && vr.onclick===null && mr.onclick===null
+        && !vr.dataset.mode && !mr.dataset.mode
+        && document.querySelectorAll('#modeRow .modebtn[data-mode]').length===6; })(),
+    'vrBtn/mrBtn onclick untouched · carousel selects [data-mode] only');
   ok('Atlas Navigator panel exists and is registered in the panel deck',
     !!document.getElementById('navPanel') && PANEL_IDS.includes('navPanel'),
     'navPanel present');
@@ -9286,21 +9294,26 @@ const XRX = (()=>{
   }
   function updateGateButtons(){
     const st=gateState();
-    const set=(b,txt,en)=>{ b.textContent=txt; b.disabled=!en; b.style.opacity=en?'1':'.5'; };
+    // Concise, actionable gate labels (WebXR button UX): the dead-end states stay
+    // compact and carry their full explanation in the tooltip instead of the topbar.
+    const set=(b,txt,en,tip)=>{ b.textContent=txt; b.disabled=!en; b.style.opacity=en?'1':'.55';
+      if(tip) b.title=tip; };
     vrBtn.style.display='inline-block';
-    if(st==='in-vr') set(vrBtn,'✕ Exit VR',true);
-    else if(st==='checking') set(vrBtn,'XR: checking…',false);
-    else if(st==='insecure') set(vrBtn,'XR: HTTPS required',false);
-    else if(st==='no-xr') set(vrBtn,'XR: unsupported browser',false);
-    else if(st==='failed') set(vrBtn,'XR failed — open XR CHECK',true);
-    else if(diag.vrSupported) set(vrBtn,'🥽 Enter VR',true);
-    else set(vrBtn,'XR: VR unsupported',false);
+    if(st==='in-vr') set(vrBtn,'✕ Exit VR',true,'End the immersive session');
+    else if(st==='checking') set(vrBtn,'XR…',false,'Checking WebXR support…');
+    else if(st==='insecure') set(vrBtn,'XR: HTTPS required',false,'WebXR needs a secure (https) origin');
+    else if(st==='no-xr') set(vrBtn,'XR n/a',false,'This browser has no WebXR — open on a headset (e.g. Meta Quest Browser)');
+    else if(st==='failed') set(vrBtn,'XR failed — diagnose',true,'Session start failed — opens on retry; see XR CHECK for details');
+    else if(diag.vrSupported) set(vrBtn,'🥽 Enter VR',true,'Start immersive VR');
+    else set(vrBtn,'XR n/a',false,'immersive-vr is not supported on this device');
     mrBtn.style.display = (diag.arSupported||st==='in-mr') ? 'inline-block':'none';
     if(st==='in-mr') set(mrBtn,'✕ Exit MR',true);
     else set(mrBtn,'◈ Enter MR', !!diag.arSupported && !session);
   }
-  vrBtn.onclick = ()=> session ? session.end() : start('immersive-vr');
-  mrBtn.onclick = ()=> session ? session.end() : start('immersive-ar');
+  // addEventListener (not .onclick): survives any later property assignment sweep —
+  // a bare '#modeRow .modebtn' handler-wiring once silently killed XR entry this way.
+  vrBtn.addEventListener('click', ()=> session ? session.end() : start('immersive-vr'));
+  mrBtn.addEventListener('click', ()=> session ? session.end() : start('immersive-ar'));
   runXRCheck();
 
   async function start(mode){
@@ -13184,7 +13197,9 @@ addEventListener('pointerdown',disarmIdleDrift,{capture:true,passive:true});
 addEventListener('wheel',disarmIdleDrift,{capture:true,passive:true});
 // selecting a section opens its Controls; re-clicking the ALREADY-active section toggles Controls
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
-document.querySelectorAll('#modeRow .modebtn').forEach(b=>b.onclick=()=>{
+/* [data-mode] only: #vrBtn/#mrBtn also live in #modeRow and are .modebtn-styled —
+   the bare selector used to capture them and OVERWRITE their XR-entry handlers. */
+document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=()=>{
   const same=b.dataset.mode===state.mode;
   if(same){ togglePanel('ctl'); return; }              // re-click the active tab hides/shows its Controls
   if(b.dataset.mode==='solar') state.solarScaleLayer='local';   // Solar returns to the planets, not a stale cosmic warp
