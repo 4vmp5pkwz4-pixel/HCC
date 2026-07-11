@@ -6662,87 +6662,174 @@ function hfWsumUV(x,y,z,C){    // combined complex field w=Σ w_i; writes Re,Im 
   }
   _hfWu=u; _hfWv=v;
 }
-// Unit tangent to the field line at (x,y,z): B=∇u×∇v (central differences), normalised
-// and signed. Returns false into out if the field is essentially vacuum (|B|→0).
-const _hfB=[0,0,0];
+/* ── EXACT preimage fibres of the combined field ──
+   A field line of B=∇u×∇v is precisely a LEVEL SET w(r)=w_t (B ⟂ ∇u and B ⟂ ∇v, so
+   u AND v are constant along it): the true preimage of one target point on S² — the
+   same object single mode draws analytically. So multi-hopfion fibres are seeded from
+   the SAME target probes (Fibonacci / equator / meridian — Target sampling now works in
+   every mode), located by Gauss–Newton root-finding w(r)=w_t near each core, and traced
+   with RK4 plus periodic re-projection onto the level set, so a walk can never drift
+   off its preimage. Precession ω advances the target azimuth φ→φ+ωt — IDENTICAL
+   semantics to single mode: every fibre flows as the preimage of its precessing dot,
+   and fibres spanning neighbouring cores deform and reconnect exactly as the combined
+   field dictates (no rigid-body shortcuts anywhere). */
+function hfTargetUV(th,ph){          // stereographic w of the S² target point: w=(n_x+i·n_y)/(1−n_z)
+  const c=Math.cos(th), d=1-c;
+  if(d<2.5e-3) return null;          // n→+z pole: |w|=∞ (that preimage is the core circle itself)
+  const s=Math.sin(th)/d; return [s*Math.cos(ph), s*Math.sin(ph)];
+}
+/* Analytic value AND gradient of the combined w — exact complex-chain-rule derivatives
+   of w_i = Z1^p / Z2^q (or Z1^p·Z2^{|q|} for q<0): no finite-difference error and ~4×
+   fewer field evaluations than central differences. This is what makes live re-tracing
+   of every fibre under precession affordable. */
+const _hfG={u:0,v:0,ux:0,uy:0,uz:0,vx:0,vy:0,vz:0};
+function hfWGrad(x,y,z,C){
+  let U=0,V=0,UX=0,UY=0,UZ=0,VX=0,VY=0,VZ=0;
+  for(let i=0;i<C.length;i++){ const c=C[i];
+    const X=(x-c.cx)*_hfInvA, Y=(y-c.cy)*_hfInvA, Z=(z-c.cz)*_hfInvA;
+    const r2=X*X+Y*Y+Z*Z, id=1/(r2+1);
+    const z1r=2*X*id, z1i=2*Y*id, z2r=2*Z*id, z2i=(r2-1)*id;
+    const ddx=2*X, ddy=2*Y, ddz=2*Z;                                    // ∂(r²+1)/∂ξ
+    // f=g/(r²+1) ⇒ ∂f = (∂g − f·∂(r²+1))/(r²+1)
+    const a1x=id*(2-z1r*ddx), a1y=id*(-z1r*ddy),  a1z=id*(-z1r*ddz);    // ∇Re Z1
+    const b1x=id*(-z1i*ddx),  b1y=id*(2-z1i*ddy), b1z=id*(-z1i*ddz);    // ∇Im Z1
+    const a2x=id*(-z2r*ddx),  a2y=id*(-z2r*ddy),  a2z=id*(2-z2r*ddz);   // ∇Re Z2
+    const b2x=id*ddx*(1-z2i), b2y=id*ddy*(1-z2i), b2z=id*ddz*(1-z2i);   // ∇Im Z2
+    // A=Z1^p with A′=p·Z1^{p−1}; B=Z2^{|q|} with B′=|q|·Z2^{|q|−1}  (holomorphic powers)
+    let Ar=1,Ai=0; for(let k=0;k<c.p-1;k++){ const t=Ar*z1r-Ai*z1i; Ai=Ar*z1i+Ai*z1r; Ar=t; }
+    const Apr=c.p*Ar, Api=c.p*Ai;
+    if(c.p>0){ const t=Ar*z1r-Ai*z1i; Ai=Ar*z1i+Ai*z1r; Ar=t; }
+    const qa=c.q<0?-c.q:c.q;
+    let Br=1,Bi=0; for(let k=0;k<qa-1;k++){ const t=Br*z2r-Bi*z2i; Bi=Br*z2i+Bi*z2r; Br=t; }
+    const Bpr=qa*Br, Bpi=qa*Bi;
+    if(qa>0){ const t=Br*z2r-Bi*z2i; Bi=Br*z2i+Bi*z2r; Br=t; }
+    // dA_ξ = A′·dZ1_ξ ; dB_ξ = B′·dZ2_ξ  (complex products)
+    const dAxr=Apr*a1x-Api*b1x, dAxi=Apr*b1x+Api*a1x;
+    const dAyr=Apr*a1y-Api*b1y, dAyi=Apr*b1y+Api*a1y;
+    const dAzr=Apr*a1z-Api*b1z, dAzi=Apr*b1z+Api*a1z;
+    const dBxr=Bpr*a2x-Bpi*b2x, dBxi=Bpr*b2x+Bpi*a2x;
+    const dByr=Bpr*a2y-Bpi*b2y, dByi=Bpr*b2y+Bpi*a2y;
+    const dBzr=Bpr*a2z-Bpi*b2z, dBzi=Bpr*b2z+Bpi*a2z;
+    let wr,wi,wxr,wxi,wyr,wyi,wzr,wzi;
+    if(c.q>=0){                                     // w=A/B ; dw=(dA − w·dB)/B
+      const d2=Br*Br+Bi*Bi||1e-18, i2=1/d2;
+      wr=(Ar*Br+Ai*Bi)*i2; wi=(Ai*Br-Ar*Bi)*i2;
+      let tr=dAxr-(wr*dBxr-wi*dBxi), ti=dAxi-(wr*dBxi+wi*dBxr);
+      wxr=(tr*Br+ti*Bi)*i2; wxi=(ti*Br-tr*Bi)*i2;
+      tr=dAyr-(wr*dByr-wi*dByi); ti=dAyi-(wr*dByi+wi*dByr);
+      wyr=(tr*Br+ti*Bi)*i2; wyi=(ti*Br-tr*Bi)*i2;
+      tr=dAzr-(wr*dBzr-wi*dBzi); ti=dAzi-(wr*dBzi+wi*dBzr);
+      wzr=(tr*Br+ti*Bi)*i2; wzi=(ti*Br-tr*Bi)*i2;
+    } else {                                        // w=A·B ; dw=dA·B + A·dB
+      wr=Ar*Br-Ai*Bi; wi=Ar*Bi+Ai*Br;
+      wxr=dAxr*Br-dAxi*Bi + Ar*dBxr-Ai*dBxi; wxi=dAxr*Bi+dAxi*Br + Ar*dBxi+Ai*dBxr;
+      wyr=dAyr*Br-dAyi*Bi + Ar*dByr-Ai*dByi; wyi=dAyr*Bi+dAyi*Br + Ar*dByi+Ai*dByr;
+      wzr=dAzr*Br-dAzi*Bi + Ar*dBzr-Ai*dBzi; wzi=dAzr*Bi+dAzi*Br + Ar*dBzi+Ai*dBzr;
+    }
+    U+=wr; V+=wi;
+    UX+=wxr*_hfInvA; UY+=wyr*_hfInvA; UZ+=wzr*_hfInvA;   // chain rule: X=(x−c)/a
+    VX+=wxi*_hfInvA; VY+=wyi*_hfInvA; VZ+=wzi*_hfInvA;
+  }
+  _hfG.u=U; _hfG.v=V; _hfG.ux=UX; _hfG.uy=UY; _hfG.uz=UZ; _hfG.vx=VX; _hfG.vy=VY; _hfG.vz=VZ;
+}
+// Unit tangent to the field line: B=∇u×∇v from the ANALYTIC gradient. false in vacuum.
 function hfLineDir(x,y,z,C,sign,out){
-  const h=2.2e-3, i2h=1/(2*h);
-  hfWsumUV(x+h,y,z,C); const upx=_hfWu,vpx=_hfWv; hfWsumUV(x-h,y,z,C); const ux=(upx-_hfWu)*i2h, vx=(vpx-_hfWv)*i2h;
-  hfWsumUV(x,y+h,z,C); const upy=_hfWu,vpy=_hfWv; hfWsumUV(x,y-h,z,C); const uy=(upy-_hfWu)*i2h, vy=(vpy-_hfWv)*i2h;
-  hfWsumUV(x,y,z+h,C); const upz=_hfWu,vpz=_hfWv; hfWsumUV(x,y,z-h,C); const uz=(upz-_hfWu)*i2h, vz=(vpz-_hfWv)*i2h;
-  let Bx=uy*vz-uz*vy, By=uz*vx-ux*vz, Bz=ux*vy-uy*vx;
+  hfWGrad(x,y,z,C); const g=_hfG;
+  const Bx=g.uy*g.vz-g.uz*g.vy, By=g.uz*g.vx-g.ux*g.vz, Bz=g.ux*g.vy-g.uy*g.vx;
   const m=Math.sqrt(Bx*Bx+By*By+Bz*Bz);
   if(m<1e-7) return false;
   const s=sign/m; out[0]=Bx*s; out[1]=By*s; out[2]=Bz*s; return true;
 }
-// Trace one closed magnetic field line (RK4 on the unit B field) from a seed. Returns the
-// polyline; closes it when the walk returns near the seed (a genuine preimage loop).
-function hfTraceLine(sx,sy,sz,C,rMax){
-  const ds=0.055*HF_A, Nmax=900, closeEps=1.6*ds, k1=[0,0,0],k2=[0,0,0],k3=[0,0,0],k4=[0,0,0];
-  const pts=[]; let x=sx,y=sy,z=sz, closed=false, escaped=false;
-  for(let i=0;i<Nmax;i++){
-    pts.push(new THREE.Vector3(x,y,z));
-    if(i>26){ const dx=x-sx,dy=y-sy,dz=z-sz; if(dx*dx+dy*dy+dz*dz < closeEps*closeEps){ pts.push(new THREE.Vector3(sx,sy,sz)); closed=true; break; } }
-    if(x*x+y*y+z*z > rMax*rMax){ escaped=true; break; }
-    if(!hfLineDir(x,y,z,C,1,k1)) break;
-    if(!hfLineDir(x+.5*ds*k1[0],y+.5*ds*k1[1],z+.5*ds*k1[2],C,1,k2)) break;
-    if(!hfLineDir(x+.5*ds*k2[0],y+.5*ds*k2[1],z+.5*ds*k2[2],C,1,k3)) break;
-    if(!hfLineDir(x+ds*k3[0],y+ds*k3[1],z+ds*k3[2],C,1,k4)) break;
-    x+=ds/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
-    y+=ds/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
-    z+=ds/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2]);
+/* Gauss–Newton projection of a point onto the level set w(r)=w_t (minimum-norm step
+   δ=−Jᵀ(JJᵀ)⁻¹F with the exact Jacobian). Keeps every fibre a genuine preimage. */
+function hfProjectToLevel(P,C,wt,iters){
+  const tol=1e-10*(1+wt[0]*wt[0]+wt[1]*wt[1]);
+  for(let it=0;it<iters;it++){
+    hfWGrad(P[0],P[1],P[2],C); const g=_hfG;
+    const F0=g.u-wt[0], F1=g.v-wt[1];
+    if(F0*F0+F1*F1<tol) return true;
+    const a=g.ux*g.ux+g.uy*g.uy+g.uz*g.uz, b=g.ux*g.vx+g.uy*g.vy+g.uz*g.vz,
+          c=g.vx*g.vx+g.vy*g.vy+g.vz*g.vz, det=a*c-b*b;
+    if(!(det>1e-20)) return false;
+    const l0=(c*F0-b*F1)/det, l1=(a*F1-b*F0)/det;
+    let dx=-(g.ux*l0+g.vx*l1), dy=-(g.uy*l0+g.vy*l1), dz=-(g.uz*l0+g.vz*l1);
+    const sl=Math.sqrt(dx*dx+dy*dy+dz*dz), mx=0.5*HF_A;
+    if(sl>mx){ const k=mx/sl; dx*=k; dy*=k; dz*=k; }
+    P[0]+=dx; P[1]+=dy; P[2]+=dz;
   }
-  return {pts, closed, escaped};
+  hfWGrad(P[0],P[1],P[2],C); const F0=_hfG.u-wt[0], F1=_hfG.v-wt[1];
+  return F0*F0+F1*F1 < 1e-6*(1+wt[0]*wt[0]+wt[1]*wt[1]);
 }
-// Build the interacting field lines for the current multi-hopfion configuration. Seeds
-// ring the cores on small Fibonacci spheres; each seed traces a field line of the COMBINED
-// B, so lines bridging the cores appear exactly when the fields overlap.
-let hfReconnected=0;   // fraction of field lines that thread BOTH cores (0=separate, →1=fully merged)
-function hfInteractingLines(centersRaw, perCore){
-  const C=centersRaw.map(c=>({cx:c.c.x,cy:c.c.y,cz:c.c.z,p:c.p,q:c.q}));
-  const maxD=centersRaw.reduce((m,c)=>Math.max(m,c.c.length()),0);
-  const rMax=4.4*HF_A + maxD;                              // trace box; runaway (vacuum) lines are dropped
-  const lines=[]; const GA=2.399963229728653;
-  const ax=maxD>1e-6?centersRaw[0].c.x/maxD:1, ay=maxD>1e-6?centersRaw[0].c.y/maxD:0, az=maxD>1e-6?centersRaw[0].c.z/maxD:0;
-  let bridged=0, tot=0;
-  for(const c of C){
-    for(let k=0;k<perCore;k++){
-      const yy=1-2*(k+.5)/perCore, rad=Math.sqrt(Math.max(0,1-yy*yy)), a=k*GA;
-      const rho=(k%2? .8:.5)*HF_A;                         // two shells for fuller coverage
-      const sx=c.cx+rho*rad*Math.cos(a), sy=c.cy+rho*yy, sz=c.cz+rho*rad*Math.sin(a);
-      hfWsumUV(sx,sy,sz,C); const hue=(Math.atan2(_hfWv,_hfWu)/(2*Math.PI)+0.62), mag=Math.hypot(_hfWu,_hfWv);
-      const tr=hfTraceLine(sx,sy,sz,C,rMax);
-      if(tr.escaped || tr.pts.length<16) continue;         // keep the closed preimage loops only
-      tot++;
-      let mn=1e30,mx=-1e30; for(const P of tr.pts){ const s=P.x*ax+P.y*ay+P.z*az; if(s<mn)mn=s; if(s>mx)mx=s; }
-      const spans = mx>0.35 && mn<-0.35;                   // loop threads BOTH cores → reconnected
-      if(spans) bridged++;
-      lines.push({pts:tr.pts, hue:((hue%1)+1)%1, mag, spans});
+const _HF_GA=2.399963229728653;
+// Find a point of the preimage w=w_t near a given core: coarse Fibonacci-shell scan
+// minimising the CHORDAL distance on the target S² (robust for any |w|), then refine.
+function hfSeedForTarget(core,C,wt){
+  let bx=0,by=0,bz=0,bd=1e30;
+  for(const rho of [0.4*HF_A,0.72*HF_A,1.1*HF_A]){
+    for(let k=0;k<42;k++){
+      const yy=1-2*(k+.5)/42, rad=Math.sqrt(Math.max(0,1-yy*yy)), a=k*_HF_GA;
+      const x=core.cx+rho*rad*Math.cos(a), y=core.cy+rho*yy, z=core.cz+rho*rad*Math.sin(a);
+      hfWsumUV(x,y,z,C); const du=_hfWu-wt[0], dv=_hfWv-wt[1];
+      const d=(du*du+dv*dv)/(1+_hfWu*_hfWu+_hfWv*_hfWv);
+      if(d<bd){ bd=d; bx=x; by=y; bz=z; }
     }
   }
-  hfReconnected = tot? bridged/tot : 0;
-  return lines;
+  const P=[bx,by,bz];
+  return hfProjectToLevel(P,C,wt,16)? P : null;
 }
-/* Precession ω — the hopfion's internal phase advancing, rendered as the field lines
-   ROTATING about each soliton's own axis while the cores stay put.
-   • SINGLE: the analytic (q,p) knots are recomputed in place (phi → ph+ωt) into the
-     existing buffers — the map re-winds smoothly. Crucially the geometry is UPDATED, not
-     re-allocated every frame, so there is no create/dispose churn (that churn was the
-     GPU-thrashing "flicker" that hung weak cards).
-   • MULTI (pair/ring): each traced field line is rotated about the VERTICAL axis through
-     its nearest core, so every line sweeps/rotates coherently yet the cores never wander.
-   Both are per-vertex only (no re-tracing, no re-allocation) → smooth and cheap. */
-let _hfCores=[];
-function hfApplyPrecession(){   // multi mode: rotate each WHOLE line rigidly about its own fixed pivot
-  const cd=Math.cos(hfPrecPhase), sd=Math.sin(hfPrecPhase);
-  for(const f of hfFibers){ const base=f.base; if(!base) continue;
-    const cx=f.pivotX, cz=f.pivotZ, arr=f.line.geometry.attributes.position.array;
-    // ONE pivot per line (its dominant core) → the line rotates as a rigid unit; a per-vertex
-    // pivot tore lines that span two cores into broken segments (the "ломаные прямые" bug).
-    for(let i=0;i<base.length;i+=3){ const dx=base[i]-cx, dz=base[i+2]-cz;
-      arr[i]=cx+dx*cd-dz*sd; arr[i+1]=base[i+1]; arr[i+2]=cz+dx*sd+dz*cd; }
-    f.line.geometry.attributes.position.needsUpdate=true;
+/* Trace the preimage loop through a seed (RK4 on unit B; re-projected onto w=w_t every
+   8 steps so accumulated drift is impossible). Writes scene-scaled xyz into arr,
+   returns {count,closed,escaped,spans}. */
+const HF_MAXPTS=760;
+let hfReconnected=0;   // fraction of fibres threading BOTH cores (0=separate → 1=merged)
+function hfTraceLevelInto(seed,C,wt,rMax,arr,sc,ax,ay,az){
+  const ds=0.06*HF_A, close2=(1.7*ds)*(1.7*ds);
+  const P=[seed[0],seed[1],seed[2]], k1=[0,0,0],k2=[0,0,0],k3=[0,0,0],k4=[0,0,0];
+  const sx=P[0], sy=P[1], sz=P[2];
+  let n=0, closed=false, escaped=false, mn=1e30, mx=-1e30;
+  for(let i=0;i<HF_MAXPTS-1;i++){
+    arr[n*3]=P[0]*sc; arr[n*3+1]=P[1]*sc; arr[n*3+2]=P[2]*sc; n++;
+    const s=P[0]*ax+P[1]*ay+P[2]*az; if(s<mn)mn=s; if(s>mx)mx=s;
+    if(i>24){ const dx=P[0]-sx, dy=P[1]-sy, dz=P[2]-sz;
+      if(dx*dx+dy*dy+dz*dz<close2){ arr[n*3]=sx*sc; arr[n*3+1]=sy*sc; arr[n*3+2]=sz*sc; n++; closed=true; break; } }
+    if(P[0]*P[0]+P[1]*P[1]+P[2]*P[2]>rMax*rMax){ escaped=true; break; }
+    if(!hfLineDir(P[0],P[1],P[2],C,1,k1)) break;
+    if(!hfLineDir(P[0]+.5*ds*k1[0],P[1]+.5*ds*k1[1],P[2]+.5*ds*k1[2],C,1,k2)) break;
+    if(!hfLineDir(P[0]+.5*ds*k2[0],P[1]+.5*ds*k2[1],P[2]+.5*ds*k2[2],C,1,k3)) break;
+    if(!hfLineDir(P[0]+ds*k3[0],P[1]+ds*k3[1],P[2]+ds*k3[2],C,1,k4)) break;
+    P[0]+=ds/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
+    P[1]+=ds/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
+    P[2]+=ds/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2]);
+    if((i&7)===7) hfProjectToLevel(P,C,wt,1);
   }
+  return {count:n, closed, escaped, spans: mx>0.35 && mn<-0.35};
+}
+/* Precession ω in multi mode: throttled full re-trace of every fibre at the advanced
+   target phase (warm-started from the fibre's previous seed). The throttle adapts to
+   the measured trace cost so heavy rings stay responsive; between re-traces geometry
+   is untouched — no rigid rotation, no approximation, only exact preimages ever drawn. */
+let _hfCores=[], _hfC=null, _hfRMax=6, _hfSpanAxis=[1,0,0], _hfLastPrec=0, _hfRetraceMs=110;
+function hfRetraceMulti(){
+  if(!_hfC || !hfFibers.length) return;
+  const t0=performance.now(), sc=state.hfScale, ax=_hfSpanAxis[0], ay=_hfSpanAxis[1], az=_hfSpanAxis[2];
+  let bridged=0, tot=0;
+  for(const f of hfFibers){
+    if(f.th===undefined || !f.seed) continue;
+    const wt=hfTargetUV(f.th, f.ph+hfPrecPhase); if(!wt) continue;
+    const P=[f.seed[0],f.seed[1],f.seed[2]];
+    let ok=hfProjectToLevel(P,_hfC,wt,5);
+    if(!ok){ const s=hfSeedForTarget(_hfC[f.coreIdx],_hfC,wt);        // fibre lost → full reseed
+      if(s){ P[0]=s[0]; P[1]=s[1]; P[2]=s[2]; ok=true; } }
+    const pos=f.line.geometry.attributes.position;
+    const res=ok? hfTraceLevelInto(P,_hfC,wt,_hfRMax,pos.array,sc,ax,ay,az) : null;
+    if(!res || res.escaped || res.count<16){ f.line.geometry.setDrawRange(0,0); f.count=0; continue; }
+    f.seed=P; f.count=res.count; f.spans=res.spans;
+    f.line.geometry.setDrawRange(0,res.count); pos.needsUpdate=true;
+    f.line.material.opacity=res.spans?1:.85;
+    tot++; if(res.spans) bridged++;
+  }
+  if(tot) hfReconnected=bridged/tot;
+  _hfRetraceMs=Math.max(80, Math.min(420, (performance.now()-t0)*2.6));
 }
 function hfUpdateSingleInPlace(){   // single mode: re-wind the analytic knots into existing buffers (no re-alloc → no flicker)
   for(const f of hfFibers){ if(f.p===undefined) continue;
@@ -6777,29 +6864,48 @@ function buildHopfion(){
   hfSpinGroup.rotation.set(0,0,0);   // geometry never spins; precession is a per-vertex current/hue animation
   const centers=hfCenters(), probes=hfProbes(state.hfK, state.hfDist);
   if(state.hfMode!=='single'){
-    // ≥2 hopfions in ONE field: draw the magnetic field lines of the COMBINED w — they
-    // bend into each other and reconnect as the cores overlap (magnetisation & merging).
-    const perCore = state.hfMode==='ring' ? 6 : Math.min(15, Math.max(9, Math.round(state.hfK*0.7)));
+    // ≥2 hopfions in ONE field: each fibre is the EXACT preimage w(r)=w_t of a chosen
+    // target probe (same probes & colours as single mode → Target sampling works here
+    // too). Fibres of neighbouring cores share one combined field, so they bend into
+    // each other and reconnect as the cores overlap (magnetisation & merging).
     const sc=state.hfScale;
-    for(const L of hfInteractingLines(centers, perCore)){
-      // reconnected lines (threading both cores) glow brighter — the magnetic bridge.
-      // Vertex colours carry the current-glow + hue-cycle of precession (geometry is fixed).
-      const light=THREE.MathUtils.clamp((L.spans?.5:.34)+.32/(1+L.mag),.22,.78);
-      const col=new THREE.Color().setHSL(L.hue,.82,light);
-      const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
-      const geo=new THREE.BufferGeometry().setFromPoints(pts);
-      const carr=new Float32Array(pts.length*3);
-      const base=new Float32Array(pts.length*3); let cxs=0, czs=0;
-      for(let i=0;i<pts.length;i++){ carr[i*3]=col.r; carr[i*3+1]=col.g; carr[i*3+2]=col.b;
-        base[i*3]=pts[i].x; base[i*3+1]=pts[i].y; base[i*3+2]=pts[i].z; cxs+=pts[i].x; czs+=pts[i].z; }
-      cxs/=pts.length; czs/=pts.length;                          // line centroid → dominant core = single rigid pivot
-      let pivotX=0, pivotZ=0, bd=1e30;
-      for(const cen of centers){ const px=cen.c.x*sc, pz=cen.c.z*sc, d=(cxs-px)**2+(czs-pz)**2; if(d<bd){ bd=d; pivotX=px; pivotZ=pz; } }
-      const colorAttr=new THREE.BufferAttribute(carr,3); geo.setAttribute('color',colorAttr);
-      const line=new THREE.Line(geo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:L.spans?1:.82}));
-      hfSpinGroup.add(line); hfFibers.push({line,col,colorAttr,base,pivotX,pivotZ,hue:L.hue,light,mag:L.mag,spans:L.spans});
-    }
-    _hfCores=centers.map(cen=>cen.c.clone().multiplyScalar(state.hfScale));   // scene-space cores (rotation pivots, fixed)
+    const C=centers.map(c=>({cx:c.c.x,cy:c.c.y,cz:c.c.z,p:c.p,q:c.q}));
+    const maxD=centers.reduce((m,c)=>Math.max(m,c.c.length()),0);
+    const rMax=4.4*HF_A+maxD;
+    const ax=maxD>1e-6?centers[0].c.x/maxD:1, ay=maxD>1e-6?centers[0].c.y/maxD:0, az=maxD>1e-6?centers[0].c.z/maxD:0;
+    _hfC=C; _hfRMax=rMax; _hfSpanAxis=[ax,ay,az];
+    const cap=state.hfMode==='ring'?8:14;                       // fibres per core (cost cap)
+    const per=Math.max(3,Math.min(state.hfK,cap));
+    const sel=[]; for(let i=0;i<per;i++) sel.push(probes[Math.floor(i*probes.length/per)]);
+    let bridged=0, tot=0;
+    centers.forEach((cen,ci)=>{
+      for(const [th,ph0] of sel){
+        const wt=hfTargetUV(th,ph0+hfPrecPhase); if(!wt) continue;
+        const seed=hfSeedForTarget(C[ci],C,wt); if(!seed) continue;
+        // one connected preimage loop can be found from BOTH cores it threads — dedup:
+        // skip if an earlier fibre of the same probe already passes through this seed.
+        let dup=false;
+        for(const f of hfFibers){ if(f.th!==th||f.ph!==ph0||!f.count) continue;
+          const a2=f.line.geometry.attributes.position.array;
+          for(let j=0;j<f.count;j+=3){ const dx=a2[j*3]/sc-seed[0], dy=a2[j*3+1]/sc-seed[1], dz=a2[j*3+2]/sc-seed[2];
+            if(dx*dx+dy*dy+dz*dz<0.018){ dup=true; break; } }
+          if(dup) break; }
+        if(dup) continue;
+        const arr=new Float32Array(HF_MAXPTS*3);
+        const res=hfTraceLevelInto(seed,C,wt,rMax,arr,sc,ax,ay,az);
+        if(res.escaped||res.count<16) continue;
+        tot++; if(res.spans) bridged++;
+        const geo=new THREE.BufferGeometry();
+        geo.setAttribute('position',new THREE.BufferAttribute(arr,3));
+        geo.setDrawRange(0,res.count);
+        const col=new THREE.Color().setHSL((ph0/(Math.PI*2)+0.62)%1,.75,.38+.34*(1-th/Math.PI));
+        const line=new THREE.Line(geo,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:res.spans?1:.85}));
+        hfSpinGroup.add(line);
+        hfFibers.push({line,col,th,ph:ph0,coreIdx:ci,seed,count:res.count,spans:res.spans});
+      }
+    });
+    hfReconnected=tot?bridged/tot:0;
+    _hfCores=centers.map(cen=>cen.c.clone().multiplyScalar(state.hfScale));   // scene-space core positions (fixed)
     for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion) — stationary
       const m=new THREE.Mesh(new THREE.SphereGeometry(.12*state.hfScale,12,8),
         new THREE.MeshBasicMaterial({color:(cen.q<0)?0x7ef0c2:0xffd27a}));
@@ -6860,15 +6966,19 @@ function updateHopfion(dt){
     if(s) s.value=state.hfSep; if(v) v.textContent=state.hfSep.toFixed(1);
   }
   if(hfDirty) buildHopfion();
-  // Precession ω — advance the phase, then rotate the field lines about their cores.
-  // In-place geometry update (no re-allocation) → smooth, no flicker/GPU thrash.
-  if(state.hfPrec) hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-  if(state.hfMode==='single'){ if(state.hfPrec) hfUpdateSingleInPlace(); }
-  else hfApplyPrecession();
+  // Precession ω — advance the target phase. Single: analytic in-place re-wind.
+  // Multi: throttled exact re-trace of every preimage fibre (see hfRetraceMulti).
+  if(state.hfPrec){
+    hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
+    if(state.hfMode==='single') hfUpdateSingleInPlace();
+    else { const now=performance.now();
+      if(now-_hfLastPrec>_hfRetraceMs){ _hfLastPrec=now; hfRetraceMulti(); } }
+  }
   if(state.hfFlow){ hfPhase=(hfPhase+dt*state.hfFlowSpd)%1;
     const pos=hfBeads.geometry.attributes.position;
     hfFibers.forEach((f,i)=>{
-      const pts=f.line.geometry.attributes.position, n=pts.count;
+      const pts=f.line.geometry.attributes.position, n=(f.count||pts.count);
+      if(n<2){ pos.setXYZ(i,1e6,1e6,1e6); return; }              // hidden fibre → park its bead
       const idx=Math.floor(hfPhase*(n-1));
       pos.setXYZ(i,pts.getX(idx),pts.getY(idx),pts.getZ(idx));
     });
@@ -11530,7 +11640,7 @@ function buildCtl(){
       <div class="ctlrow"><label>Precession ω</label>
         <input type="range" id="hfPrecSpd" min="0.1" max="2" step="0.05" value="${state.hfPrecSpd}">
         <span class="val" id="hfPrecSpdV">${state.hfPrecSpd.toFixed(2)}</span></div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Precession is a global phase w→e<sup>iα</sup>w (the ξ₂/Hopf S¹ action). The emergent field B=∇u×∇v is invariant under it, so the tubes do NOT move — the hopfions stay put. What advances is the field's phase: an emergent-current glow flows ALONG each stationary fibre and the fibre hues cycle. Fibre-flow beads ride the same lines. Only the fibres flow; the solitons don't wander.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Precession is the ξ₂/Hopf S¹ action: every target dot advances its azimuth φ→φ+ωt on the S², and each fibre continuously re-forms as the EXACT preimage of its precessing dot — in every mode. Single mode re-winds the analytic (q,p) knots; pair/ring re-trace the level sets w(r)=w_t of the combined field (Gauss–Newton re-projection each step), so neighbouring hopfions' fibres deform, bridge and reconnect exactly as the shared field dictates. The cores themselves stay put — fibres flow, solitons don't wander.</div>
     </div>
     <div class="sect"><b>Formations & interactions</b>
       <div class="radioRow">
@@ -13996,6 +14106,38 @@ globalThis.FBS3R_QA=Object.freeze({
         out.push({i,sx:(v.x*.5+.5)*w,sy:(-v.y*.5+.5)*h}); });
     }
     return out; }catch(e){ return {err:String(e)}; } },
+  // hopfion-lab precision probes (read-only): analytic gradient vs central differences,
+  // and worst relative residual |w−w_t| along drawn fibres (preimage exactness).
+  hfGradCheck(){ try{
+    if(!_hfC) return {err:'no multi-hopfion field active'};
+    let worst=0; const h=1e-4;
+    for(const [x,y,z] of [[0.3,0.2,0.1],[1.2,-0.4,0.6],[-0.8,0.5,-1.1],[2.0,0.1,-0.3]]){
+      hfWGrad(x,y,z,_hfC); const g={ux:_hfG.ux,uy:_hfG.uy,uz:_hfG.uz,vx:_hfG.vx,vy:_hfG.vy,vz:_hfG.vz};
+      const D=[[h,0,0],[0,h,0],[0,0,h]];
+      for(let i=0;i<3;i++){ hfWsumUV(x+D[i][0],y+D[i][1],z+D[i][2],_hfC); const up=_hfWu, vp=_hfWv;
+        hfWsumUV(x-D[i][0],y-D[i][1],z-D[i][2],_hfC);
+        const nu=(up-_hfWu)/(2*h), nv=(vp-_hfWv)/(2*h);
+        worst=Math.max(worst, Math.abs(g[['ux','uy','uz'][i]]-nu)/Math.max(1,Math.abs(nu)),
+                              Math.abs(g[['vx','vy','vz'][i]]-nv)/Math.max(1,Math.abs(nv))); } }
+    return {worstRelErr:worst}; }catch(e){ return {err:String(e)}; } },
+  hfLevelResidual(){ try{
+    if(!_hfC) return {err:'no multi-hopfion field active'};
+    let worst=0, n=0; const sc=state.hfScale;
+    for(const f of hfFibers){ if(f.th===undefined||!f.count) continue;
+      const wt=hfTargetUV(f.th,f.ph+hfPrecPhase); if(!wt) continue;
+      const a=f.line.geometry.attributes.position.array;
+      for(const idx of [0,Math.floor(f.count/2),Math.max(0,f.count-2)]){
+        hfWsumUV(a[idx*3]/sc,a[idx*3+1]/sc,a[idx*3+2]/sc,_hfC);
+        const du=_hfWu-wt[0], dv=_hfWv-wt[1];
+        worst=Math.max(worst,Math.sqrt((du*du+dv*dv)/(1+wt[0]*wt[0]+wt[1]*wt[1]))); n++; } }
+    return {fibres:hfFibers.filter(f=>f.count).length, samples:n, worstRelResidual:worst};
+  }catch(e){ return {err:String(e)}; } },
+  hfFiberSnapshot(){ try{
+    return hfFibers.slice(0,80).map(f=>{ const a=f.line.geometry.attributes.position;
+      const n=f.count||a.count, m=Math.floor(n/2);
+      return {n, th:+(f.th??-1).toFixed(3), ph:+(f.ph??-1).toFixed(3), spans:!!f.spans,
+        mid:n>2?[+a.getX(m).toFixed(3),+a.getY(m).toFixed(3),+a.getZ(m).toFixed(3)]:null}; });
+  }catch(e){ return {err:String(e)}; } },
 });
 applyCmbWall(state.obsCmbTex);            // Map-of-the-Universe boot look: the LSS screen carries its CMB wall
 applyLookbackColours(state.obsLookback);
