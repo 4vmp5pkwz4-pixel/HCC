@@ -1330,8 +1330,10 @@ function runSelfTests(){
       profiles.map(p=>`${p.nearMin}:${p.far}`).join(' · ')); }
   ok('GPU fractal zoom is capped before float-coordinate collapse',
     FRACTAL_COORD_ZOOM_MAX<=1e5&&FRACTAL_COORD_ZOOM_MAX>=100,FRACTAL_COORD_ZOOM_MAX);
-  ok('Buddhabrot compute buffer matches delivered texture resolution',
-    buddhaCanvas.width===BUDDHA_RES&&buddhaCanvas.height===BUDDHA_RES,`${buddhaCanvas.width}×${buddhaCanvas.height}`);
+  ok('Buddhabrot display texture matches the preset (capped at 4096; full res lives in the export canvas)',
+    buddhaCanvas.width===Math.min(BUDDHA_RES,BUDDHA_DISPLAY_CAP)
+    && (BUDDHA_RES<=BUDDHA_DISPLAY_CAP || (buddhaExportCanvas&&buddhaExportCanvas.width===BUDDHA_RES)),
+    `${buddhaCanvas.width}×${buddhaCanvas.height} of ${BUDDHA_RES}`);
   ok('Mobile renderer starts inside the stable DPR budget',
     !MOBILE_GPU||renderer.getPixelRatio()<=1.45,renderer.getPixelRatio());
   ok('Every registered entity passes the runtime data-contract schema',
@@ -8366,14 +8368,41 @@ function updateCyc(dt){
    idle-time batches that never block the UI, and sample count scales with AREA so
    the density stays crisp instead of getting sparser as the texture grows. */
 const BUDDHA_PRESETS={
-  standard:{res:MOBILE_GPU? 512: 960, samples:MOBILE_GPU? 260000:  900000, iter:MOBILE_GPU?300:420, label:'Standard'},
-  fine:    {res:MOBILE_GPU? 640:1280, samples:MOBILE_GPU? 430000: 1600000, iter:MOBILE_GPU?320:460, label:'Fine'},
-  ultra:   {res:MOBILE_GPU? 768:1600, samples:MOBILE_GPU? 660000: 2600000, iter:MOBILE_GPU?340:520, label:'Ultra'},
-  max:     {res:MOBILE_GPU?1024:2048, samples:MOBILE_GPU?1000000: 4200000, iter:MOBILE_GPU?360:620, label:'Max'},
-  extreme: {res:MOBILE_GPU?1280:3072, samples:MOBILE_GPU?1400000: 7200000, iter:MOBILE_GPU?400:760, label:'Extreme'},
+  standard:{res:MOBILE_GPU? 512: 960, samples:MOBILE_GPU? 260000:  900000, iter:MOBILE_GPU?300: 420, label:'Standard'},
+  fine:    {res:MOBILE_GPU? 640:1280, samples:MOBILE_GPU? 430000: 1600000, iter:MOBILE_GPU?320: 460, label:'Fine'},
+  ultra:   {res:MOBILE_GPU? 768:1600, samples:MOBILE_GPU? 660000: 2600000, iter:MOBILE_GPU?340: 520, label:'Ultra'},
+  max:     {res:MOBILE_GPU?1024:2048, samples:MOBILE_GPU?1000000: 4200000, iter:MOBILE_GPU?360: 620, label:'Max'},
+  extreme: {res:MOBILE_GPU?1280:3072, samples:MOBILE_GPU?1400000: 7200000, iter:MOBILE_GPU?400: 760, label:'Extreme'},
+  uhd4k:   {res:MOBILE_GPU?1600:4096, samples:MOBILE_GPU?2000000:12000000, iter:MOBILE_GPU?420: 900, label:'4K'},
+  uhd8k:   {res:MOBILE_GPU?2048:8192, samples:MOBILE_GPU?2600000:30000000, iter:MOBILE_GPU?460:1050, label:'8K · long build'},
+  uhd16k:  {res:MOBILE_GPU?2560:16384,samples:MOBILE_GPU?3400000:48000000, iter:MOBILE_GPU?500:1150, label:'16K · marathon'},
 };
+/* Colour palettes — (a,b,c) are the log-normalised low/mid/deep dwell tiers.
+   'celestial' is the famous ethereal violet-blue rendering (the Nebulabrot false-colour
+   family, Melinda Green's technique): deep indigo haze from short orbits, violet mids,
+   white-cyan cores — the DEFAULT for the whole Fractal atlas. */
+function _h2rgb(p,q,t){ t=((t%1)+1)%1; if(t<1/6)return p+(q-p)*6*t; if(t<1/2)return q; if(t<2/3)return p+(q-p)*(2/3-t)*6; return p; }
+function _hsl(h,s,l){ if(s<=0){const v=l*255;return[v,v,v];} const q=l<.5?l*(1+s):l+s-l*s, p=2*l-q;
+  return [_h2rgb(p,q,h+1/3)*255,_h2rgb(p,q,h)*255,_h2rgb(p,q,h-1/3)*255]; }
+const BUDDHA_PALETTES={
+  celestial:{label:'✨ Celestial nebula', map:(a,b,c)=>[
+    255*(0.15*a+0.42*b+0.88*c), 235*(0.09*a+0.26*b+0.82*c), 255*(0.42*a+0.82*b+0.98*c)]},
+  pearl:{label:'Pearl · nacre', map:(a,b,c)=>{ const w=Math.min(1,.58*a+.50*b+.42*c);
+    return _hsl((0.56+0.20*Math.sin(6.2832*(0.32*a+0.50*b-0.42*c)))%1, 0.30+0.22*(1-w), Math.min(0.97,0.16+0.86*w)); }},
+  rainbow:{label:'Rainbow spectrum', map:(a,b,c)=>{ const w=Math.min(1,.64*a+.44*b+.30*c);
+    return _hsl(0.74*(1-w), 0.92, Math.min(0.96,0.06+0.78*w+0.30*c)); }},
+  gold:{label:'Royal gold', map:(a,b,c)=>[
+    255*(.32*a+.78*b), 218*(.18*a+.72*b+.28*c), 118*(.08*a+.18*b+.52*c)]},
+};
+let buddhaPal='celestial';
 let buddhaPreset='standard';
 let BUDDHA_RES=BUDDHA_PRESETS[buddhaPreset].res;
+/* Above 4K the SHADER texture stays capped at 4096 (uploading an 8–16K RGBA texture
+   stalls or fails on many GPUs and adds nothing on screen); the full resolution lives
+   in an offscreen export canvas — that is what 💾 Save writes out, pixel-perfect. */
+const BUDDHA_DISPLAY_CAP=4096, BUDDHA_TILE=8192;
+let buddhaExportCanvas=null, buddhaExportCtx=null;
+let buddhaPlanes=null;                     // retained ≤4K so palette switches redraw instantly
 const buddhaCanvas=document.createElement('canvas'); buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
 const buddhaCtx=buddhaCanvas.getContext('2d');
 buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
@@ -8394,8 +8423,19 @@ function setBuddhaPreset(p){
   if(!BUDDHA_PRESETS[p]) return;
   buddhaPreset=p; BUDDHA_RES=BUDDHA_PRESETS[p].res;
   buddhaBuilding=false;                             // cancel any build in flight (buildBuddhabrotTexture bumps the token)
-  buddhaCanvas.width=buddhaCanvas.height=BUDDHA_RES;
-  buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
+  buddhaPlanes=null;
+  const disp=Math.min(BUDDHA_RES,BUDDHA_DISPLAY_CAP);
+  buddhaCanvas.width=buddhaCanvas.height=disp;
+  buddhaCtx.fillStyle='#050505'; buddhaCtx.fillRect(0,0,disp,disp);
+  if(BUDDHA_RES>BUDDHA_DISPLAY_CAP){
+    try{
+      buddhaExportCanvas=document.createElement('canvas');
+      buddhaExportCanvas.width=buddhaExportCanvas.height=BUDDHA_RES;
+      buddhaExportCtx=buddhaExportCanvas.getContext('2d');
+      buddhaExportCtx.fillStyle='#050505'; buddhaExportCtx.fillRect(0,0,BUDDHA_RES,BUDDHA_RES);
+    }catch(e){ buddhaExportCanvas=buddhaExportCtx=null; }
+    if(!buddhaExportCtx){ console.warn('[buddhabrot] full-res canvas unavailable — falling back'); setBuddhaPreset('uhd4k'); return; }
+  } else { buddhaExportCanvas=null; buddhaExportCtx=null; }
   // The canvas backing store just changed size. needsUpdate alone re-uploads INTO the
   // existing (old-size) GPU allocation — for a grown canvas that overflows and the GPU
   // texture stays at the previous resolution, so higher presets never actually sharpen.
@@ -8404,37 +8444,46 @@ function setBuddhaPreset(p){
   fractalBuddhaTexture.needsUpdate=true;
   buildBuddhabrotTexture();
 }
-function buildBuddhabrotTexture(){
-  if(buddhaBuilding) return;
-  buddhaBuilding=true; buddhaProgress=0;
-  const token=++buddhaToken;
-  const W=buddhaCanvas.width,H=buddhaCanvas.height,N=W*H;
-  const P=BUDDHA_PRESETS[buddhaPreset];
-  const target=P.samples,maxIter=P.iter;
-  const low=new Uint32Array(N),mid=new Uint32Array(N),deep=new Uint32Array(N);
-  const ox=new Float32Array(maxIter),oy=new Float32Array(maxIter),rnd=mulberry(20260430);
+// shared per-pixel colouring of accumulation planes → ImageData at (dx,dy) of ctx2
+function buddhaRenderPlanes(low,mid,deep,W,H,ml,mm,md,ctx2,dx,dy){
+  const dl=Math.log1p(Math.max(1,ml)), dm=Math.log1p(Math.max(1,mm)), dd=Math.log1p(Math.max(1,md));
+  const img=ctx2.createImageData(W,H), map=BUDDHA_PALETTES[buddhaPal].map, N=W*H;
+  for(let i=0;i<N;i++){
+    const a=Math.log1p(low[i])/dl, b=Math.log1p(mid[i])/dm, c=Math.log1p(deep[i])/dd;
+    const rgb=map(a,b,c);
+    img.data[i*4]=Math.min(255,rgb[0]); img.data[i*4+1]=Math.min(255,rgb[1]);
+    img.data[i*4+2]=Math.min(255,rgb[2]); img.data[i*4+3]=255;
+  }
+  ctx2.putImageData(img,dx,dy);
+}
+function buddhaBlitDisplay(){          // display canvas mirrors the full-res export canvas
+  if(buddhaExportCanvas) buddhaCtx.drawImage(buddhaExportCanvas,0,0,buddhaCanvas.width,buddhaCanvas.height);
+  fractalBuddhaTexture.needsUpdate=true;
+}
+function buddhaRepaint(){              // instant palette switch when the planes are retained (≤4K)
+  if(!buddhaPlanes) return false;
+  const {low,mid,deep,W,H}=buddhaPlanes; let ml=1,mm=1,md=1;
+  for(let i=0;i<W*H;i++){ if(low[i]>ml)ml=low[i]; if(mid[i]>mm)mm=mid[i]; if(deep[i]>md)md=deep[i]; }
+  buddhaRenderPlanes(low,mid,deep,W,H,ml,mm,md,buddhaCtx,0,0);
+  fractalBuddhaTexture.needsUpdate=true; return true;
+}
+/* One orbit-accumulation pass over a window [wx0,wy0)+[W,H) of the FULL image.
+   res≥8192 tiers use Uint16 planes (half the memory; counts saturate at 65535,
+   far above the sparse per-pixel dwell at those resolutions). */
+function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
+  const N=W*H, U16=FULL>=8192;
+  const low=U16?new Uint16Array(N):new Uint32Array(N),
+        mid=U16?new Uint16Array(N):new Uint32Array(N),
+        deep=U16?new Uint16Array(N):new Uint32Array(N);
+  const maxIter=P.iter, target=P.samples;
+  const ox=new Float32Array(maxIter), oy=new Float32Array(maxIter), rnd=mulberry(20260430);
   let done=0;
-  const draw=()=>{
-    if(token!==buddhaToken) return;
-    const img=buddhaCtx.createImageData(W,H); let ml=1,mm=1,md=1;
-    for(let i=0;i<N;i++){ml=Math.max(ml,low[i]);mm=Math.max(mm,mid[i]);md=Math.max(md,deep[i]);}
-    const dl=Math.log1p(ml),dm=Math.log1p(mm),dd=Math.log1p(md);
-    for(let i=0;i<N;i++){
-      const a=Math.log1p(low[i])/dl,b=Math.log1p(mid[i])/dm,c=Math.log1p(deep[i])/dd;
-      img.data[i*4]=Math.min(255,255*(.32*a+.78*b));
-      img.data[i*4+1]=Math.min(235,218*(.18*a+.72*b+.28*c));
-      img.data[i*4+2]=Math.min(150,118*(.08*a+.18*b+.52*c));
-      img.data[i*4+3]=255;
-    }
-    buddhaCtx.putImageData(img,0,0); fractalBuddhaTexture.needsUpdate=true;
-    buddhaProgress=done/target; updCtlVals();
-  };
   const CHUNK=MOBILE_GPU?4200:11000;
   const batch=()=>{
-    if(token!==buddhaToken) return;               // a newer preset build superseded this one
+    if(token!==buddhaToken) return;
     const end=Math.min(target,done+CHUNK);
     for(;done<end;done++){
-      const cx=-2.2+3.4*rnd(),cy=-1.5+3*rnd(); let x=0,y=0,it=0;
+      const cx=-2.2+3.4*rnd(), cy=-1.5+3*rnd(); let x=0,y=0,it=0;
       for(;it<maxIter;it++){
         ox[it]=x; oy[it]=y;
         const xx=x*x-y*y+cx; y=2*x*y+cy; x=xx;
@@ -8442,15 +8491,113 @@ function buildBuddhabrotTexture(){
       }
       if(it===maxIter||it<8) continue;
       for(let k=0;k<=it;k++){
-        const px=((ox[k]+2.2)/3.4*W)|0, py=((1-(oy[k]+1.5)/3)*H)|0;
+        const px=(((ox[k]+2.2)/3.4*FULL)|0)-wx0, py=(((1-(oy[k]+1.5)/3)*FULL)|0)-wy0;
         if(px<0||px>=W||py<0||py>=H) continue;
-        const j=py*W+px; low[j]++; if(it>=45) mid[j]++; if(it>=140) deep[j]++;
+        const j=py*W+px;
+        if(!U16||low[j]<65535) low[j]++;
+        if(it>=45 &&(!U16||mid[j]<65535)) mid[j]++;
+        if(it>=140&&(!U16||deep[j]<65535)) deep[j]++;
       }
     }
-    if(done%(CHUNK*4)<CHUNK||done>=target) draw();
-    if(done<target) setTimeout(batch,0); else {buddhaProgress=1;buddhaBuilding=false;updCtlVals();}
+    if(done%(CHUNK*4)<CHUNK||done>=target) onDraw(low,mid,deep,done/target);
+    if(done<target) setTimeout(batch,0); else onDone(low,mid,deep);
   };
   batch();
+}
+function buildBuddhabrotTexture(){
+  if(buddhaBuilding) return;
+  buddhaBuilding=true; buddhaProgress=0;
+  const token=++buddhaToken;
+  const P=BUDDHA_PRESETS[buddhaPreset], FULL=BUDDHA_RES;
+  const targetCtx=buddhaExportCtx||buddhaCtx;
+  if(FULL<=BUDDHA_TILE){
+    // ── direct build (up to 8K): one full-frame accumulation ──
+    buddhaAccumulate(token,P,FULL,0,0,FULL,FULL,
+      (low,mid,deep,prog)=>{ if(token!==buddhaToken) return;
+        let ml=1,mm=1,md=1; const N=FULL*FULL;
+        for(let i=0;i<N;i++){ if(low[i]>ml)ml=low[i]; if(mid[i]>mm)mm=mid[i]; if(deep[i]>md)md=deep[i]; }
+        buddhaRenderPlanes(low,mid,deep,FULL,FULL,ml,mm,md,targetCtx,0,0);
+        buddhaBlitDisplay(); buddhaProgress=prog; updCtlVals(); },
+      (low,mid,deep)=>{ if(token!==buddhaToken) return;
+        if(FULL<=BUDDHA_DISPLAY_CAP) buddhaPlanes={low,mid,deep,W:FULL,H:FULL};
+        buddhaProgress=1; buddhaBuilding=false; updCtlVals(); });
+  } else {
+    // ── 16K: seam-free TILED build. A fast low-res proxy pass estimates the GLOBAL
+    // per-tier maxima (per-pixel dwell scales with samples × pixel-area, so
+    // max_full ≈ max_proxy · (S_full/S_proxy) · (proxyRes/FULL)²); every tile is then
+    // normalised with the SAME constants — uniform exposure, no tile seams. ──
+    const PR=1024, PSAMP=Math.min(1500000,P.samples), TILES=FULL/BUDDHA_TILE;
+    const proxyP={samples:PSAMP, iter:P.iter};
+    buddhaAccumulate(token,proxyP,PR,0,0,PR,PR,()=>{},(plow,pmid,pdeep)=>{
+      if(token!==buddhaToken) return;
+      let ml=1,mm=1,md=1; for(let i=0;i<PR*PR;i++){ if(plow[i]>ml)ml=plow[i]; if(pmid[i]>mm)mm=pmid[i]; if(pdeep[i]>md)md=pdeep[i]; }
+      const k=(P.samples/PSAMP)*(PR/FULL)*(PR/FULL);
+      const gml=Math.max(1,ml*k), gmm=Math.max(1,mm*k), gmd=Math.max(1,md*k);
+      let tile=0; const total=TILES*TILES;
+      const nextTile=()=>{
+        if(token!==buddhaToken) return;
+        if(tile>=total){ buddhaProgress=1; buddhaBuilding=false; updCtlVals(); return; }
+        const tx=tile%TILES, ty=(tile/TILES)|0;
+        buddhaAccumulate(token,P,FULL,tx*BUDDHA_TILE,ty*BUDDHA_TILE,BUDDHA_TILE,BUDDHA_TILE,
+          (low,mid,deep,prog)=>{ if(token!==buddhaToken) return;
+            buddhaProgress=(tile+prog)/total; updCtlVals(); },
+          (low,mid,deep)=>{ if(token!==buddhaToken) return;
+            buddhaRenderPlanes(low,mid,deep,BUDDHA_TILE,BUDDHA_TILE,gml,gmm,gmd,targetCtx,tx*BUDDHA_TILE,ty*BUDDHA_TILE);
+            buddhaBlitDisplay(); tile++; setTimeout(nextTile,0); });
+      };
+      nextTile();
+    });
+  }
+}
+/* 💾 Save — the full-resolution render in a museum-grade frame: obsidian passe-partout,
+   double gold hairlines, the instrument's name and the object's full provenance line.
+   When the framed size would exceed the 16384-px canvas ceiling, the frame is drawn AS
+   AN OVERLAY on the full-bleed art instead, so not a single pixel is downscaled. */
+function saveBuddhabrot(){
+  const src=buddhaExportCanvas||buddhaCanvas, S=src.width;
+  const P=BUDDHA_PRESETS[buddhaPreset];
+  const overlay=Math.round(S*1.14)>16384;
+  const F=overlay?S:Math.round(S*1.14);
+  const c=document.createElement('canvas'); c.width=c.height=F;
+  const x=c.getContext('2d');
+  x.fillStyle='#06070c'; x.fillRect(0,0,F,F);
+  const pad=Math.round(F*0.052), capH=Math.round(F*0.062);
+  let ax,ay,as;
+  if(overlay){ ax=0; ay=0; as=F; }
+  else { as=F-2*pad-capH; ax=(F-as)/2; ay=pad; }
+  x.drawImage(src,ax,ay,as,as);
+  if(overlay){ const g=x.createLinearGradient(0,F-capH*2.2,0,F);   // caption legibility veil
+    g.addColorStop(0,'rgba(6,7,12,0)'); g.addColorStop(1,'rgba(6,7,12,.88)');
+    x.fillStyle=g; x.fillRect(0,F-capH*2.2,F,capH*2.2); }
+  // double gold hairlines + corner ticks
+  const gold='rgba(212,175,106,.92)', dim='rgba(212,175,106,.45)';
+  x.lineWidth=Math.max(2,F*0.0016); x.strokeStyle=gold;
+  x.strokeRect(pad*.45,pad*.45,F-pad*.9,F-pad*.9);
+  x.lineWidth=Math.max(1,F*0.0008); x.strokeStyle=dim;
+  x.strokeRect(pad*.62,pad*.62,F-pad*1.24,F-pad*1.24);
+  const tick=pad*.9;
+  x.lineWidth=Math.max(2,F*0.002); x.strokeStyle=gold;
+  [[pad*.45,pad*.45,1,1],[F-pad*.45,pad*.45,-1,1],[pad*.45,F-pad*.45,1,-1],[F-pad*.45,F-pad*.45,-1,-1]]
+    .forEach(([cx,cy,sx,sy])=>{ x.beginPath(); x.moveTo(cx+sx*tick,cy); x.lineTo(cx,cy); x.lineTo(cx,cy+sy*tick); x.stroke(); });
+  // caption
+  const cy=F-(overlay?capH*1.3:pad*.46+capH*.78);   // caption block sits fully INSIDE the inner hairline
+  x.textAlign='center';
+  x.fillStyle='#f1dda6'; x.font=`700 ${Math.round(F*0.021)}px Cinzel, Georgia, serif`;
+  x.fillText('S³  L I G H T - T R I S P H E R E',F/2,cy);
+  x.fillStyle='#c9b48a'; x.font=`600 ${Math.round(F*0.0115)}px Manrope, sans-serif`;
+  const date=new Date().toISOString().slice(0,10);
+  x.fillText(`BUDDHABROT · ${BUDDHA_PALETTES[buddhaPal].label.replace('✨ ','').toUpperCase()} · ${S} × ${S} px · ${(P.samples/1e6).toFixed(1)}M ORBITS · ${date}`,F/2,cy+Math.round(F*0.017));
+  x.fillStyle='rgba(157,176,208,.75)'; x.font=`500 ${Math.round(F*0.0085)}px Manrope, sans-serif`;
+  x.fillText('deterministic Mandelbrot orbit accumulation · three dwell-time tiers · interactive scientific atlas',F/2,cy+Math.round(F*0.0295));
+  const note=document.getElementById('budSaveNote'); if(note) note.textContent='encoding PNG…';
+  c.toBlob(blob=>{
+    if(!blob){ if(note) note.textContent='export failed (canvas too large for this browser)'; return; }
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`S3-Light-Trisphere_Buddhabrot_${buddhaPal}_${S}px_${date}.png`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    if(note) note.textContent=`saved · ${(blob.size/1048576).toFixed(1)} MB`;
+  },'image/png');
 }
 if('requestIdleCallback' in window)requestIdleCallback(buildBuddhabrotTexture,{timeout:3000});
 else setTimeout(buildBuddhabrotTexture,MOBILE_GPU?1200:500);
@@ -9183,8 +9330,9 @@ const fractalScene = new THREE.Scene();
           if(uMode==3){
             vec2 buv=vec2((p.x+2.2)/3.4,(p.y+1.5)/3.0);
             vec3 den=texture2D(uBuddha,buv).rgb;
-            float lum=max(den.r,max(den.g,den.b));
-            col=(buv.x<0.0||buv.x>1.0||buv.y<0.0||buv.y>1.0)?vec3(0.008):palette(pow(lum,.72));
+            // the accumulation canvas carries its OWN palette (celestial/pearl/rainbow/gold)
+            // — display it faithfully instead of collapsing to luminance + shader palette
+            col=(buv.x<0.0||buv.x>1.0||buv.y<0.0||buv.y>1.0)?vec3(0.008):den;
           } else if(uMode==5){ col=bifurcationView(p);
           } else col=escapeView(p,uMode==2,uMode==4);
           col+=palette(.82)*complexGrid(p);
@@ -12758,8 +12906,12 @@ function buildCtlBody(){
     ${fractalType==='buddhabrot'?`<div class="sect"><b>Orbit-density integration</b>
       <div class="note">Deterministic Buddhabrot: escaped Mandelbrot orbits accumulated in three dwell-time tiers. Build: <b id="budProg">${(buddhaProgress*100).toFixed(0)}%</b> · ${BUDDHA_RES}×${BUDDHA_RES}px · ${(BUDDHA_PRESETS[buddhaPreset].samples/1e6).toFixed(1)}M orbits.</div>
       <div class="chips fracModes">${Object.entries(BUDDHA_PRESETS).map(([k,P])=>`<button class="chip ${buddhaPreset===k?'on':''}" data-budres="${k}">${P.label} · ${P.res}px</button>`).join('')}</div>
-      <div class="ctlrow"><button class="btn" id="budBuild">${buddhaBuilding?'building…':'rebuild deterministic map'}</button></div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Higher presets sharpen the nebular filaments considerably; the build streams in idle-time batches (UI never blocks) and sample count scales with area, so density stays crisp. Ultra ≈ ${MOBILE_GPU?'7':'31'} MB compute buffer — switch back to Standard to free it.</div>
+      <div class="ctlrow"><label>Palette</label></div>
+      <div class="chips">${Object.entries(BUDDHA_PALETTES).map(([k,P])=>`<button class="chip ${buddhaPal===k?'on':''}" data-budpal="${k}">${P.label}</button>`).join('')}</div>
+      <div class="ctlrow"><button class="btn" id="budBuild">${buddhaBuilding?'building…':'rebuild deterministic map'}</button>
+        <button class="btn green" id="budSave">💾 Save framed PNG</button></div>
+      <div class="note" id="budSaveNote" style="font-size:10.5px;color:var(--gold-2)"></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Higher presets sharpen the nebular filaments considerably; the build streams in idle-time batches (UI never blocks). Above 4K the on-screen texture stays at 4096 while the FULL resolution accumulates offscreen — 💾 Save writes it out pixel-perfect in a museum frame (obsidian passe-partout, gold hairlines, full provenance caption). 16K builds tile 2×2 with one global normalisation — seam-free — and are a deliberate marathon: leave the tab open.</div>
     </div>`:''}
     ${fractalType==='bifurcation'?`<div class="sect"><b>Logistic map · x → r·x·(1−x)</b>
       <div class="note">x-axis = growth rate r ∈ [0,4]; y-axis = attractor value x. Cool = periodic windows (Lyapunov λ&lt;0), warm = chaos (λ&gt;0). The period-doubling cascade accumulates at the Feigenbaum point r≈3.5699 — drag to pan, zoom to dive into the self-similar nesting. Raise “Iterations” for deeper attractor resolution.</div>
@@ -12887,7 +13039,11 @@ function buildCtlBody(){
       setFractalZoom(850); buildCtl();
     });
     ctl.querySelector('#budBuild')?.addEventListener('click',buildBuddhabrotTexture);
+    ctl.querySelector('#budSave')?.addEventListener('click',saveBuddhabrot);
     ctl.querySelectorAll('[data-budres]').forEach(b=>b.onclick=()=>{ setBuddhaPreset(b.dataset.budres); buildCtl(); });
+    ctl.querySelectorAll('[data-budpal]').forEach(b=>b.onclick=()=>{ buddhaPal=b.dataset.budpal;
+      if(!buddhaRepaint()){ buddhaBuilding=false; buildBuddhabrotTexture(); }   // planes retained ≤4K → instant; else re-run
+      buildCtl(); });
     ctl.querySelector('#fracRot')?.addEventListener('click',()=>{ rotateFractal90(); const v=ctl.querySelector('#fracRotV'); if(v) v.textContent=state.fractalRot*90+'°'; });
   }
   if(state.mode!=='fractal' && spatialGuides[state.mode]){
@@ -13287,8 +13443,18 @@ function armIdleDrift(){
   if(state.landed||renderer.xr.isPresenting||state.mode==='fractal'&&!controls.enableRotate) return;
   idleDrift=true; controls.autoRotate=true; controls.autoRotateSpeed=0.45;
 }
-function disarmIdleDrift(){
-  if(!idleDrift) return; idleDrift=false;
+function disarmIdleDrift(e){
+  if(!idleDrift) return;
+  // UI never kills the drift — panels, chips and buttons are browsing, not steering.
+  // Only a gesture ON THE 3D VIEW hands control back… (the view is reached through
+  // the CSS2D label overlay too, so we detect "UI" rather than "canvas")
+  if(e && e.target && e.target.closest &&
+     e.target.closest('.panel,#topbar,#panelDock,#moreMenu,#mBtns,#hud,#selCard,#atlasCoach,#breadcrumb,.fab,button,select,input,a')) return;
+  // …and in the Solar System the gentle orbiting is PERMANENT: it keeps breathing
+  // while options are explored, and simply blends through manual drags (the scene
+  // must always feel alive — presence over stillness).
+  if(state.mode==='solar') return;
+  idleDrift=false;
   if(!ORBIT.on) controls.autoRotate=false;
 }
 addEventListener('pointerdown',disarmIdleDrift,{capture:true,passive:true});
