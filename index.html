@@ -105,7 +105,7 @@
     .panel { padding-top: calc(14px + env(safe-area-inset-top, 0px)); }
     #mBtns { bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 10px); }
   }
-  #ctl{left:14px;bottom:14px;width:336px;max-height:58vh;overflow:auto}
+  #ctl{left:14px;bottom:14px;width:336px;max-height:58vh;overflow:auto;z-index:40}
   #info{right:14px;top:calc(var(--topbar-h,64px) + 46px);width:336px;
     max-height:calc(100vh - var(--topbar-h,64px) - 64px);overflow:auto;font-size:12px; z-index:15}
   #info h3{font-family:var(--serif);font-size:12.5px;letter-spacing:1.6px;color:var(--gold);
@@ -158,7 +158,7 @@
   .navRow{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--txt)}
   .navRow .nm{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   /* --- Atlas Coach --- */
-  #atlasCoach{position:fixed;left:14px;bottom:14px;width:300px;z-index:36;
+  #atlasCoach{position:fixed;left:14px;bottom:14px;width:300px;z-index:18;
     border:1px solid rgba(212,175,106,.34);border-radius:12px;background:var(--panel);
     backdrop-filter:blur(14px);box-shadow:0 12px 40px rgba(0,0,0,.5);padding:10px 12px;
     font:11px/1.5 var(--sans);color:var(--txt)}
@@ -731,7 +731,7 @@
 <div id="helpOverlay" hidden role="dialog" aria-modal="true" aria-label="Keyboard shortcuts and help"></div>
 <button id="dockFab" class="fab" title="Show / hide panels" aria-label="Show or hide panels">☰</button>
 <button id="ctlFab" class="fab" title="Controls for the current section" aria-label="Open controls">⚙</button>
-<button id="helpFab" class="fab" title="Guide & tutorial — tap for the Atlas Coach (?)" aria-label="Open guide and tutorial">?</button>
+<button id="helpFab" class="fab" title="Atlas Coach — show / hide the guided-tour player" aria-label="Toggle the Atlas Coach guided tour">▶</button>
 <div id="hierarchyLegend">
   <div class="ht">3D hierarchy locator</div>
   <div class="hq">
@@ -6517,7 +6517,8 @@ const hopfionGroup=new THREE.Group(); hopfionGroup.visible=false; s3Group.add(ho
 // and the info label stay fixed in hopfionGroup.
 const hfSpinGroup=new THREE.Group(); hopfionGroup.add(hfSpinGroup);
 let hfFibers=[], hfBeads=null, hfTargetGroup=null, hfPhase=0, hfPrecPhase=0, hfDirty=true, hfInfoLab=null, hfExtra=[];
-function hfFiberPoints(p,q,theta,phi,scale,center,segs=160){
+function hfFiberPoints(p,q,theta,phi,scale,center,segs){
+  if(segs===undefined) segs=Math.min(600, 140+64*(p+q));   // more samples for higher-winding (q,p) knots → smooth arcs, no polygonal "broken" look
   const eta=theta/2, ce=Math.cos(eta), se=Math.sin(eta), pts=[];
   for(let i=0;i<=segs;i++){
     const t=i/segs*Math.PI*2;
@@ -7000,9 +7001,10 @@ function skThiele(dt){
       const f=same*state.skRep*Math.exp(-r/2.0)/(r*r); Fx+=f*dx/r; Fy+=f*dy/r; }
     for(const p of skPinSites){ const dx=c.x-p.x, dy=c.y-p.y, r2=dx*dx+dy*dy;   // pinning wells (disorder)
       const g=state.skPin*Math.exp(-r2/1.2); Fx-=g*dx; Fy-=g*dy; }
-    const edge=SKHALF-0.8, ke=0.9;
-    if(c.x> edge)Fx-=ke*(c.x-edge); if(c.x<-edge)Fx-=ke*(c.x+edge);
-    if(c.y> edge)Fy-=ke*(c.y-edge); if(c.y<-edge)Fy-=ke*(c.y+edge);
+    // radial confinement bowl → holds the solitons inside the field so they keep
+    // interacting instead of rolling to the boundary and sticking there.
+    const r=Math.hypot(c.x,c.y), Rc=SKHALF-1.0;
+    if(r>0.01){ const fc=state.skConfine*(Math.pow(r/Rc,3)+0.28*r/Rc); Fx-=fc*c.x/r; Fy-=fc*c.y/r; }
     if(state.skTemp>0){ Fx+=(Math.random()-.5)*state.skTemp*40; Fy+=(Math.random()-.5)*state.skTemp*40; }
     // Thiele with spin-transfer torque: (G× + αd)v = (G× + βd)v_s + F, G=4πs
     const G=4*Math.PI*c.s, Rx=G*(-vsy)+be*d0*vsx+Fx, Ry=G*(vsx)+be*d0*vsy+Fy, det=ad*ad*d0*d0+G*G;
@@ -10581,7 +10583,7 @@ const state = {
   skMode:'single', skType:'neel', skR:1.6, skW:0.7, skHel:0, skSep:3.4, skN:7, skLatType:'hex',   // Skyrmion lab
   skArrow:1.0, skGridSel:41, skRelief:0, skColormap:'both', skShowPlane:true, skAutoRot:true, skRotSpd:0.06,
   skExch:1.0, skDMI:1.0, skAniso:0.7, skBfield:0.35,
-  skRun:false, skDrive:0, skDriveAng:0, skDamp:0.35, skBeta:0.0, skRep:3.2, skPin:0, skTemp:0, skSpeed:1.3,
+  skRun:false, skDrive:0, skDriveAng:0, skDamp:0.35, skBeta:0.0, skRep:3.2, skPin:0, skTemp:0, skSpeed:1.3, skConfine:5,
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -11417,7 +11419,8 @@ function buildCtl(){
       <div class="ctlrow"><label>Field B</label><input type="range" id="skBfield" min="0" max="1.5" step="0.05" value="${state.skBfield}"><span class="val" id="skBfieldV">${state.skBfield.toFixed(2)}</span></div>
     </div>
     <div class="sect"><b>Dynamics — Thiele &amp; skyrmion Hall</b>
-      <div class="ctlrow"><button class="btn green" id="skRun">${state.skRun?'⏸ pause':'▶ drive'}</button><button class="btn" id="skReset">⟲ reset</button></div>
+      <div class="ctlrow"><button class="btn green" id="skRun">${state.skRun?'⏸ pause':'▶ run physics'}</button><button class="btn" id="skReset">⟲ reset</button></div>
+      <div class="ctlrow"><label>Confinement</label><input type="range" id="skConfine" min="0" max="14" step="0.5" value="${state.skConfine}"><span class="val" id="skConfineV">${state.skConfine.toFixed(1)}</span></div>
       <div class="ctlrow"><label>Current j</label><input type="range" id="skDrive" min="0" max="30" step="0.5" value="${state.skDrive}"><span class="val" id="skDriveV">${state.skDrive.toFixed(0)}</span></div>
       <div class="ctlrow"><label>Current angle ψ</label><input type="range" id="skDriveAng" min="0" max="360" step="5" value="${state.skDriveAng}"><span class="val" id="skDriveAngV">${state.skDriveAng}°</span></div>
       <div class="ctlrow"><label>Damping α</label><input type="range" id="skDamp" min="0.05" max="1.5" step="0.05" value="${state.skDamp}"><span class="val" id="skDampV">${state.skDamp.toFixed(2)}</span></div>
@@ -11638,12 +11641,12 @@ function buildCtl(){
       sv('skBfield', v=>state.skBfield=v, v=>v.toFixed(2));
       sv('skArrow', v=>state.skArrow=v, v=>v.toFixed(2));
       sv('skRelief', v=>state.skRelief=v, v=>v.toFixed(2));
-      ['skDrive|0','skDriveAng|0','skDamp|2','skBeta|2','skRep|1','skPin|1','skTemp|2','skSpeed|1'].forEach(s=>{
+      ['skDrive|0','skDriveAng|0','skDamp|2','skBeta|2','skRep|1','skPin|1','skTemp|2','skSpeed|1','skConfine|1'].forEach(s=>{
         const [id,dp]=s.split('|'); const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ state[id]=+e.target.value;
           const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(id==='skDriveAng'?state[id]+'°':state[id].toFixed(+dp)); }; });
       ctl.querySelector('#skShowPlane').onchange=e=>{ state.skShowPlane=e.target.checked; skDirty=true; };
       ctl.querySelector('#skAutoRot').onchange=e=>{ state.skAutoRot=e.target.checked; };
-      ctl.querySelector('#skRun').onclick=()=>{ state.skRun=!state.skRun; if(state.skRun&&state.skDrive===0)state.skDrive=12; buildCtl(); };
+      ctl.querySelector('#skRun').onclick=()=>{ state.skRun=!state.skRun; buildCtl(); };   // run the physics (repulsion+confinement); add a current with the slider for the Hall demo
       ctl.querySelector('#skReset').onclick=()=>{ state.skRun=false; state.skDrive=0; skSetup(); buildCtl(); };
       ctl.querySelector('#skToHopf').onclick=()=>{ const Q=Math.abs(Math.round(skCenters.reduce((s,c)=>s+c.s,0)))||1;
         state.hfMode='single'; state.hfP=1; state.hfQ=Math.max(1,Math.min(6,Q)); hfDirty=true; setS3View('hopfion'); buildCtl(); };
@@ -13202,7 +13205,7 @@ AtlasCoach.init();
 /* round Help FAB → bring the Atlas Coach forward (un-dismiss + expand); dock FAB → collapse/expand the mobile dock */
 (()=>{
   const help=document.getElementById('helpFab'), dock=document.getElementById('dockFab');
-  if(help) help.onclick=()=>{ try{ AtlasCoach.show(); AtlasCoach.setCollapsed(false); }catch(e){} };
+  if(help) help.onclick=()=>{ try{ if(AtlasCoach.isDismissed()){ AtlasCoach.show(); AtlasCoach.setCollapsed(false); } else AtlasCoach.dismiss(); }catch(e){} };
   if(dock) dock.onclick=()=>{ document.body.classList.toggle('dock-open'); };
   // tapping a dock button auto-closes the collapsed mobile dock again
   document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.addEventListener('click',()=>{
