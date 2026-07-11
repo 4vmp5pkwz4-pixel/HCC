@@ -8079,25 +8079,70 @@ cycLinksGroup.add(cycSunLinkLab,cycEarthLinkLab);
 const galInst = new THREE.Group(); cycGroup.add(galInst);
 let galSun, galRadial, galSunAngle0 = Math.PI*0.35;
 {
-  // procedural face-on spiral galaxy
-  const W=512, c=document.createElement('canvas'); c.width=c.height=W;
+  /* Face-on MILKY WAY (not a generic spiral): the four major arms are drawn as
+     log-spirals (pitch ≈ 12.5°) pinned to their tabulated galactocentric radii AT THE
+     SUN'S AZIMUTH (maser-parallax spiral structure, Reid et al. 2019): Scutum–Centaurus
+     ≈5.0 kpc, Sagittarius–Carina ≈6.7 kpc, Perseus ≈9.7 kpc, Norma/Outer ≈13.2 kpc —
+     plus the central bar (~4.3 kpc half-length) and the LOCAL (ORION) SPUR at
+     R₀=8.2 kpc, the minor arm the Sun actually rides, between Sagittarius–Carina and
+     Perseus. Every arm is NAMED on the disk itself. Disk scale: 10 units ↔ 15 kpc.
+     Canvas angle = scene angle (u/v→x/−y→x/z mapping verified), so the Sun marker,
+     painted spur and labels stay geometrically consistent. */
+  const W=1024, c=document.createElement('canvas'); c.width=c.height=W;
   const x=c.getContext('2d'); const rnd=mulberry(424242);
-  const g0=x.createRadialGradient(W/2,W/2,2,W/2,W/2,W*0.16);
+  const KPC=W/2/15;                                       // px per kpc (15 kpc → disk edge)
+  const THS=Math.PI*0.35;                                 // Sun's scene/canvas azimuth (= galSunAngle0)
+  const g0=x.createRadialGradient(W/2,W/2,2,W/2,W/2,2.6*KPC);
   g0.addColorStop(0,'rgba(255,240,210,.95)'); g0.addColorStop(1,'rgba(255,220,170,0)');
   x.fillStyle=g0; x.fillRect(0,0,W,W);
-  for(let arm=0;arm<2;arm++){
-    for(let i=0;i<2600;i++){
-      const t=rnd()*3.1+0.35;
-      const r=W*0.052*Math.exp(t*0.75);
-      if(r>W*0.48) continue;
-      const a=t*2.2+arm*Math.PI+(rnd()-0.5)*0.5;
-      const px=W/2+r*Math.cos(a), py=W/2+r*Math.sin(a);
-      const warm=rnd();
-      x.fillStyle=`rgba(${170+warm*85|0},${185+warm*55|0},${235-warm*40|0},${0.05+rnd()*0.3})`;
-      const s=rnd()<0.9?1.6:3;
-      x.fillRect(px,py,s,s);
+  // central bar (half-length ≈4.3 kpc, ~28° to the Sun–centre line)
+  { const thBar=THS+Math.PI-0.49;
+    for(let i=0;i<2600;i++){ const t=(rnd()*2-1), w=(rnd()*2-1);
+      const r=Math.abs(t)*4.3*KPC, along=t*4.3*KPC, across=w*w*w*1.1*KPC;
+      const px=W/2+along*Math.cos(thBar)-across*Math.sin(thBar);
+      const py=W/2+along*Math.sin(thBar)+across*Math.cos(thBar);
+      x.fillStyle=`rgba(255,${215+rnd()*30|0},${165+rnd()*40|0},${0.10+0.16*(1-Math.abs(t))*rnd()})`;
+      x.fillRect(px,py,2,2); } }
+  const K=Math.tan(12.5*Math.PI/180);                     // log-spiral pitch
+  const ARMS=[
+    {name:'Scutum–Centaurus', Rs:5.0,  col:[255,176,120]},
+    {name:'Sagittarius–Carina', Rs:6.7, col:[255,224,168]},
+    {name:'Perseus', Rs:9.7,  col:[150,196,255]},
+    {name:'Norma · Outer', Rs:13.2, col:[196,170,255]},
+  ];
+  for(const A of ARMS){
+    for(let i=0;i<3400;i++){
+      const dth=(rnd()*2-1)*4.6;                          // wind ±4.6 rad about the Sun azimuth
+      const r=A.Rs*Math.exp(K*dth); if(r<3.4||r>14.7) continue;
+      const th=THS+dth+(rnd()-0.5)*0.10;
+      const rr=(r+(rnd()-0.5)*0.55)*KPC;                  // gaussian-ish arm width ≈0.5 kpc
+      const px=W/2+rr*Math.cos(th), py=W/2+rr*Math.sin(th);
+      const f=rnd();
+      x.fillStyle=`rgba(${A.col[0]},${A.col[1]},${A.col[2]},${0.05+0.22*f})`;
+      x.fillRect(px,py,f<0.88?2:3.4,f<0.88?2:3.4);
     }
+    // arm name ON the arm, at a clear stretch away from the Sun sector
+    const dthL=A.Rs<9?1.9:0.9, rL=A.Rs*Math.exp(K*dthL)*KPC, thL=THS+dthL;
+    x.save(); x.translate(W/2+rL*Math.cos(thL),W/2+rL*Math.sin(thL));
+    x.fillStyle=`rgba(${A.col[0]},${A.col[1]},${A.col[2]},.95)`;
+    x.font='700 25px Manrope, sans-serif'; x.textAlign='center';
+    x.strokeStyle='rgba(0,0,0,.75)'; x.lineWidth=5; x.strokeText(A.name,0,0); x.fillText(A.name,0,0);
+    x.restore();
   }
+  // LOCAL (ORION) SPUR — the Sun's own minor arm at R₀=8.2 kpc, pitch ~11.5°
+  { const Ks=Math.tan(11.5*Math.PI/180);
+    for(let i=0;i<900;i++){
+      const dth=(rnd()*2-1)*0.55;
+      const r=(8.2*Math.exp(Ks*dth)+(rnd()-0.5)*0.34)*KPC;
+      const th=THS+dth+(rnd()-0.5)*0.05;
+      x.fillStyle=`rgba(241,221,166,${0.10+0.24*rnd()})`;
+      x.fillRect(W/2+r*Math.cos(th),W/2+r*Math.sin(th),2,2);
+    }
+    const rL=8.2*KPC, thL=THS-0.78;
+    x.save(); x.translate(W/2+rL*Math.cos(thL),W/2+rL*Math.sin(thL));
+    x.fillStyle='rgba(241,221,166,.95)'; x.font='700 23px Manrope, sans-serif'; x.textAlign='center';
+    x.strokeStyle='rgba(0,0,0,.75)'; x.lineWidth=5; x.strokeText('Local (Orion) Spur',0,0); x.fillText('Local (Orion) Spur',0,0);
+    x.restore(); }
   const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
   const disk=new THREE.Mesh(new THREE.CircleGeometry(10,72),
     new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.95,depthWrite:false,side:THREE.DoubleSide}));
@@ -8115,7 +8160,9 @@ let galSun, galRadial, galSunAngle0 = Math.PI*0.35;
   galRadial=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd080,transparent:true,opacity:.72}));
   galInst.add(galRadial);
   const cl=mkLabel('Sgr A* — Galactic centre','label dim'); cl.position.set(0,.4,0); galInst.add(cl);
-  const tl=mkLabel('GALACTIC CLOCK · 1 rev = 230 Myr','label const'); tl.position.set(0,3.4,0); galInst.add(tl);
+  const tl=mkLabel('GALACTIC CLOCK · MILKY WAY · 1 rev = 230 Myr','label const'); tl.position.set(0,3.4,0); galInst.add(tl);
+  const al=mkLabel('Sun rides the Local (Orion) Spur · between Sagittarius–Carina & Perseus · R₀ = 8.2 kpc · arm radii at solar azimuth: 5.0 / 6.7 / 9.7 / 13.2 kpc (maser parallaxes, Reid et al. 2019) · pattern drawn static in the clock frame','label dim');
+  al.position.set(0,-3.2,0); galInst.add(al);
   registerSel('cycGal',{
     name:'Galactic clock', mode:'cyc', pick:disk, labelEl:sl.element,
     desc:'Approximate galactocentric orbit reference: R₀≈8.2 kpc and a representative 230 Myr period. Absolute orbital phase and completed-orbit count are not inferred; the moving azimuth is explicitly relative to an arbitrary J2000 display anchor.',
