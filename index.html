@@ -9401,9 +9401,14 @@ const XRX = (()=>{
     selectKey(null);
     if(xrMode==='ar') enterAR(); else enterVR();
     placeRigForMode();
-    menuPanel.visible = cardPanel.visible = false;
-    statusPanel.visible = true;
-    refreshMenu(); refreshStatus();
+    // clean slate: release every grab and re-seat every panel in the scene at the
+    // origin (the dock re-seeds fresh in front of the user). The status panel does
+    // NOT auto-open — immersion first; it lives behind ℹ Status on the wrist menu.
+    pointers.forEach(P=>{ P.grabbed=null; P.coreDrag=null; P.squeezing=false; });
+    panels.forEach(p=>{ if(p.mesh.parent!==scene) scene.attach(p.mesh);
+      p.visible=false; p.mesh.position.set(0,0,0); });
+    dockKey=-1; dockFollow=true;
+    refreshMenu();
     updateGateButtons(); renderXRCheck();
   }
   function onEnd(){
@@ -9417,7 +9422,9 @@ const XRX = (()=>{
     xrMode=null; diag.mode='flat'; diag.enabledFeatures=[];
     rig.position.set(0,0,0); rig.rotation.set(0,0,0); rig.scale.setScalar(1);
     labelRenderer.domElement.style.display = state.mode==='fractal'?'none':'block';
-    panels.forEach(p=>p.visible=false);
+    pointers.forEach(P=>{ P.grabbed=null; P.coreDrag=null; P.squeezing=false; });
+    panels.forEach(p=>{ if(p.mesh.parent!==scene) scene.attach(p.mesh);
+      p.visible=false; p.mesh.position.set(0,0,0); });
     if(reticle) reticle.visible=false;
     setMode(state.mode);   // restore flat camera framing
     updateGateButtons(); renderXRCheck();
@@ -9702,7 +9709,7 @@ const XRX = (()=>{
     x.strokeStyle='rgba(241,221,166,.75)'; x.lineWidth=2.5; roundRect(x,6,10,500,76,18); x.stroke();
     x.textAlign='center';
     x.fillStyle='#f1dda6'; x.font='700 34px Georgia'; x.fillText(name,256,46);
-    x.fillStyle='#9db0d0'; x.font='600 21px sans-serif'; x.fillText('tier '+tier+' · trigger again / A = card',256,76);
+    x.fillStyle='#9db0d0'; x.font='600 21px sans-serif'; x.fillText('tier '+tier+' · trigger = approach · A = card',256,76);
     const tex=new THREE.CanvasTexture(c);
     if(halo.sprite){ halo.sprite.material.map?.dispose(); halo.sprite.material.map=tex; halo.sprite.material.needsUpdate=true; }
     else { halo.sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false}));
@@ -10033,7 +10040,8 @@ const XRX = (()=>{
       'Conditional reconstruction — model visualization.',
       'Not a topology detection. Not a ΛCDM replacement',
       'unless explicitly tested. All formulas source-tagged.',
-    ], rows:[[{label:'Export capabilities JSON', cb:exportXRCapabilities}]]});
+    ], rows:[[{label:'Export capabilities JSON', cb:exportXRCapabilities},
+      {label:'✓ OK', cb:()=>{ statusPanel.visible=false; refreshMenu(); }}]]});
   }
   /* World-space object card with tabs. Every tab is READ-ONLY over the
      scientific contract — it reads getAtlasEntityContract(key) / SELECT and
@@ -10187,8 +10195,11 @@ const XRX = (()=>{
       if(measure.on){ measure.pick(P.hit.selKey); }
       else {
         const k=P.hit.selKey;
-        if(selectedKey===k && !cardPanel.visible){ dockPanel(cardPanel); showObjectCard(k); }   // 2nd trigger → card
-        else if(selectedKey===k){ cardPanel.visible=false; }                                     // 3rd trigger → tuck card away
+        // XR input convention: the PRIMARY trigger talks to OBJECTS, never to windows.
+        // 1st trigger selects (halo at the object); trigger again flies you to it.
+        // The data card is a deliberate act: A button or the wrist menu — not a side
+        // effect of selection.
+        if(selectedKey===k){ approach(SELECT.get(k)); pulse(P,.5,40); }                          // 2nd trigger → approach
         else { selectKey(k); objectHalo(k);                                                      // 1st trigger → select AT the object
                if(cardPanel.visible) showObjectCard(k); }                                        // (card already open? keep it live)
       }
@@ -10203,8 +10214,18 @@ const XRX = (()=>{
   /* two-hand grab: scale & rotate the active mode group; one-hand on panel: grab panel */
   const grabState={active:false, d0:0, s0:1, mid0:new THREE.Vector3(), g0:new THREE.Vector3(), ang0:0, rot0:0};
   function onSqueezeStart(P){
-    if(P.hit?.panel){ P.grabbed=P.hit.panel.mesh; P.grabbed.userData.prevParent=scene;
+    // one grab per hand, ALWAYS released first: a second squeezestart without its end
+    // (hand-pinch jitter, session pause) used to orphan the previous panel as a child
+    // of the controller — it then rode the hand forever, the dock wrote world coords
+    // into its controller-local transform, lookAt flattened it edge-on, and copies
+    // piled up "slipped together" while the ray, hitting them at ~0 m, vanished.
+    if(P.grabbed){ scene.attach(P.grabbed); P.grabbed=null; }
+    // the wrist menu is wrist-anchored by design — grabbing it would fight the
+    // follow logic (double transform), so it is not grabbable; dock panels are.
+    if(P.hit?.panel && P.hit.panel!==menuPanel){
+      P.grabbed=P.hit.panel.mesh; P.grabbed.userData.prevParent=scene;
       P.ctrl.attach(P.grabbed); pulse(P,.5,40); return; }
+    if(P.hit?.panel===menuPanel) return;
     // squeeze a soliton core → grab it: each controller can hold its OWN core, so two
     // hands move two skyrmions/hopfions at once (the XR twin of desktop multitouch).
     if(state.mode==='s3' && (state.s3view==='skyrmion'||state.s3view==='hopfion') && pointerRay(P,raycaster2)){
@@ -10704,7 +10725,15 @@ const XRX = (()=>{
         halo.sprite.position.copy(hp).add(new THREE.Vector3(0,d*.075,0));
         const sc=d*.16; halo.sprite.scale.set(sc,sc*.1875,1); }
     }
-    for(const p of panels) if(p.visible && !pointerGrabbedMesh(p.mesh)) p.mesh.lookAt(getHead());
+    for(const p of panels){
+      // self-healing: a panel whose parent is not the scene and which no hand is
+      // actually holding is an orphan of a lost squeeze — return it to the scene
+      // (world transform preserved) so the dock can lay it out again.
+      if(p.mesh.parent!==scene && !pointerGrabbedMesh(p.mesh)) scene.attach(p.mesh);
+      // billboard only scene-parented panels: lookAt under a controller parent
+      // produced the edge-on "squashed" ghosts.
+      if(p.visible && p.mesh.parent===scene && !pointerGrabbedMesh(p.mesh)) p.mesh.lookAt(getHead());
+    }
     // pointer rays: panels first, then mode picks (visible ones only — see collectVisiblePicks)
     const picks=collectVisiblePicks();
     const panelMeshes=panels.filter(p=>p.visible).map(p=>p.mesh);
@@ -10726,11 +10755,11 @@ const XRX = (()=>{
           if(now-(panel._hoverT||0)>55){ panel._hoverT=now; panel.hover=idx; panel.render(panel.spec); if(idx>=0) pulse(P,.15,8); } }
         anyHover=true;
         P.cursor.position.copy(hitsP.point); P.cursor.visible=true;
-        P.ray.scale.z=hitsP.distance;
+        P.ray.scale.z=Math.max(hitsP.distance,0.3);   // never collapse to invisible (panel at the hand)
       } else if(hitsO){
         P.hit={selKey:hitsO.object.userData.selKey};
         P.cursor.position.copy(hitsO.point); P.cursor.visible=true;
-        P.ray.scale.z=hitsO.distance;
+        P.ray.scale.z=Math.max(hitsO.distance,0.3);
       } else {
         P.ray.scale.z=4;
         P.cursor.position.copy(raycaster2.ray.origin).addScaledVector(raycaster2.ray.direction,4);
