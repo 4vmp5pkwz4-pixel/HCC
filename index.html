@@ -6719,17 +6719,14 @@ function hfInteractingLines(centersRaw, perCore){
      its nearest core, so every line sweeps/rotates coherently yet the cores never wander.
    Both are per-vertex only (no re-tracing, no re-allocation) → smooth and cheap. */
 let _hfCores=[];
-function hfApplyPrecession(){   // multi mode: rotate each line about its nearest core's vertical axis
+function hfApplyPrecession(){   // multi mode: rotate each WHOLE line rigidly about its own fixed pivot
   const cd=Math.cos(hfPrecPhase), sd=Math.sin(hfPrecPhase);
   for(const f of hfFibers){ const base=f.base; if(!base) continue;
-    const arr=f.line.geometry.attributes.position.array;
-    for(let i=0;i<base.length;i+=3){
-      const vx=base[i],vy=base[i+1],vz=base[i+2];
-      let cx=0,cz=0,bd=1e30;
-      for(const c of _hfCores){ const dx=vx-c.x,dz=vz-c.z,dy=vy-c.y,d=dx*dx+dz*dz+dy*dy; if(d<bd){bd=d;cx=c.x;cz=c.z;} }
-      const dx=vx-cx, dz=vz-cz;
-      arr[i]=cx+dx*cd-dz*sd; arr[i+1]=vy; arr[i+2]=cz+dx*sd+dz*cd;
-    }
+    const cx=f.pivotX, cz=f.pivotZ, arr=f.line.geometry.attributes.position.array;
+    // ONE pivot per line (its dominant core) → the line rotates as a rigid unit; a per-vertex
+    // pivot tore lines that span two cores into broken segments (the "ломаные прямые" bug).
+    for(let i=0;i<base.length;i+=3){ const dx=base[i]-cx, dz=base[i+2]-cz;
+      arr[i]=cx+dx*cd-dz*sd; arr[i+1]=base[i+1]; arr[i+2]=cz+dx*sd+dz*cd; }
     f.line.geometry.attributes.position.needsUpdate=true;
   }
 }
@@ -6778,12 +6775,15 @@ function buildHopfion(){
       const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
       const geo=new THREE.BufferGeometry().setFromPoints(pts);
       const carr=new Float32Array(pts.length*3);
-      const base=new Float32Array(pts.length*3);
+      const base=new Float32Array(pts.length*3); let cxs=0, czs=0;
       for(let i=0;i<pts.length;i++){ carr[i*3]=col.r; carr[i*3+1]=col.g; carr[i*3+2]=col.b;
-        base[i*3]=pts[i].x; base[i*3+1]=pts[i].y; base[i*3+2]=pts[i].z; }
+        base[i*3]=pts[i].x; base[i*3+1]=pts[i].y; base[i*3+2]=pts[i].z; cxs+=pts[i].x; czs+=pts[i].z; }
+      cxs/=pts.length; czs/=pts.length;                          // line centroid → dominant core = single rigid pivot
+      let pivotX=0, pivotZ=0, bd=1e30;
+      for(const cen of centers){ const px=cen.c.x*sc, pz=cen.c.z*sc, d=(cxs-px)**2+(czs-pz)**2; if(d<bd){ bd=d; pivotX=px; pivotZ=pz; } }
       const colorAttr=new THREE.BufferAttribute(carr,3); geo.setAttribute('color',colorAttr);
       const line=new THREE.Line(geo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:L.spans?1:.82}));
-      hfSpinGroup.add(line); hfFibers.push({line,col,colorAttr,base,hue:L.hue,light,mag:L.mag,spans:L.spans});
+      hfSpinGroup.add(line); hfFibers.push({line,col,colorAttr,base,pivotX,pivotZ,hue:L.hue,light,mag:L.mag,spans:L.spans});
     }
     _hfCores=centers.map(cen=>cen.c.clone().multiplyScalar(state.hfScale));   // scene-space cores (rotation pivots, fixed)
     for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion) — stationary
