@@ -9592,7 +9592,8 @@ const XRX = (()=>{
   const measurePanel= new XRPanel(.44, 780);   // measurement tool readout
   const tourPanel   = new XRPanel(.46, 800);   // guided tour narration
   const debugPanel  = new XRPanel(.42, 760);   // physics-debug overlay
-  const panels=[menuPanel,cardPanel,statusPanel,measurePanel,tourPanel,debugPanel];
+  const ctrlPanel   = new XRPanel(.52, 880);   // ⚙ full Controls (per-view settings, esp. soliton labs)
+  const panels=[menuPanel,cardPanel,statusPanel,measurePanel,tourPanel,debugPanel,ctrlPanel];
 
   /* ---------- THE DOCK — one content window, lazy-follow, never scattered ----------
      VR windows re-thought as a single system: the wrist menu is the only persistent
@@ -9601,22 +9602,31 @@ const XRX = (()=>{
      or be left behind in the scene. The dock follows the head LAZILY with hysteresis
      (Horizon-OS convention): it sits still while you read, and only glides back when
      you look >28° away or fly >0.6 m from it — no chasing, no jitter, no runaways. */
-  const DOCK_SET=[cardPanel,statusPanel,measurePanel,tourPanel,debugPanel];
+  const DOCK_SET=[cardPanel,statusPanel,measurePanel,tourPanel,debugPanel,ctrlPanel];
   let dockFollow=false, dockKey=-1;
   // Content panels COEXIST in a readable horizontal arc in front of the user — never
   // stacked coplanar. Opening one adds it to the fan (it does not hide the others), so
   // every open panel's options stay reachable. The fan lazy-follows the head with comfort
   // hysteresis: it sits still while you read, re-centres only when you turn away or a
   // panel opens/closes. A grabbed panel drops out of the auto-layout until released.
-  function dockSlot(p, cx, head, fwd, right){
+  function dockSlot(p, cx, cy, head, fwd, right){
     const depth=1.18 + Math.min(Math.abs(cx),0.7)*0.26;         // side panels pushed back → gentle arc facing the user
-    return head.clone().addScaledVector(fwd,depth).addScaledVector(right,cx).add(new THREE.Vector3(0,-.06,0));
+    return head.clone().addScaledVector(fwd,depth).addScaledVector(right,cx).add(new THREE.Vector3(0,-.06+cy,0));
   }
   function dockLayout(vis){
-    const gap=0.05; let total=0;
-    for(const p of vis) total += (p.mesh.geometry.parameters.width||p.wM)+gap;
-    total-=gap; let x=-total/2; const slots=[];
-    for(const p of vis){ const w=(p.mesh.geometry.parameters.width||p.wM); slots.push({p,cx:x+w/2}); x+=w+gap; }
+    // ≤3 panels: one arc row. More: two stacked arc rows (grid), so panels can NEVER
+    // pile up coplanar or wrap behind the shoulders. Draw order is per-slot, so even a
+    // momentary overlap while gliding resolves crisply instead of z-fighting.
+    const gap=0.05, slots=[];
+    const rows = vis.length<=3 ? [vis] : [vis.slice(0,Math.ceil(vis.length/2)), vis.slice(Math.ceil(vis.length/2))];
+    rows.forEach((row,ri)=>{
+      let total=0; for(const p of row) total+=(p.mesh.geometry.parameters.width||p.wM)+gap;
+      total-=gap; let x=-total/2;
+      const cy = rows.length>1 ? (ri===0? 0.24 : -0.24) : 0;
+      for(const p of row){ const w=(p.mesh.geometry.parameters.width||p.wM);
+        slots.push({p,cx:x+w/2,cy}); x+=w+gap; }
+    });
+    slots.forEach((s,i)=>{ s.p.mesh.renderOrder=996+i; });
     return slots;
   }
   function dockPanel(panel){
@@ -9637,9 +9647,9 @@ const XRX = (()=>{
     const first=slots[0].p, toC=first.mesh.position.clone().sub(head);
     if(Math.acos(THREE.MathUtils.clamp(toC.normalize().dot(fwd),-1,1))>0.5) dockFollow=true;   // turned away → follow
     let settled=true;
-    for(const {p,cx} of slots){
+    for(const {p,cx,cy} of slots){
       if(pointerGrabbedMesh(p.mesh)) continue;                   // grabbed = yours; rejoin on release
-      const ideal=dockSlot(p,cx,head,fwd,right);
+      const ideal=dockSlot(p,cx,cy,head,fwd,right);
       if(p.mesh.position.lengthSq()<1e-6){ p.mesh.position.copy(ideal); }
       else if(dockFollow){ p.mesh.position.lerp(ideal,0.12); if(p.mesh.position.distanceTo(ideal)>0.05) settled=false; }
     }
@@ -9742,8 +9752,11 @@ const XRX = (()=>{
         {label:'Projected Rings', on:state.s3view==='ring', cb:()=>{setS3View('ring'); refreshMenu();}},
         {label:'Center Lab', on:state.s3view==='lab', cb:()=>{setS3View('lab'); refreshMenu();}},
         {label:'DRD Info', on:state.s3view==='drd', cb:()=>{setS3View('drd'); refreshMenu();}},
+      ]);
+      rows.push([
         {label:'Selector', on:state.s3view==='sel', cb:()=>{setS3View('sel'); refreshMenu();}},
         {label:'Hopfion', on:state.s3view==='hopfion', cb:()=>{setS3View('hopfion'); refreshMenu();}},
+        {label:'Skyrmion', on:state.s3view==='skyrmion', cb:()=>{setS3View('skyrmion'); refreshMenu();}},
       ]);
       if(state.s3view==='hopfion') rows.push([
         {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
@@ -9752,9 +9765,18 @@ const XRX = (()=>{
         {label:'⟳ prec', on:state.hfPrec, cb:()=>{state.hfPrec=!state.hfPrec; refreshMenu();}},
       ]);
       if(state.s3view==='hopfion') rows.push([
-        {label:'single', on:state.hfMode==='single', cb:()=>{state.hfMode='single'; hfDirty=true; refreshMenu();}},
-        {label:'pair', on:state.hfMode==='pair', cb:()=>{state.hfMode='pair'; state.hfP2=state.hfP; state.hfQ2=-state.hfQ; hfDirty=true; refreshMenu();}},
-        {label:'ring', on:state.hfMode==='ring', cb:()=>{state.hfMode='ring'; hfDirty=true; refreshMenu();}},
+        {label:'single', on:state.hfMode==='single', cb:()=>{state.hfMode='single'; state.hfCustom=null; hfDragPos=[]; hfDirty=true; refreshMenu();}},
+        {label:'pair', on:state.hfMode==='pair', cb:()=>{state.hfMode='pair'; state.hfP2=state.hfP; state.hfQ2=-state.hfQ; state.hfCustom=null; hfDragPos=[]; hfDirty=true; refreshMenu();}},
+        {label:'ring', on:state.hfMode==='ring', cb:()=>{state.hfMode='ring'; state.hfCustom=null; hfDragPos=[]; hfDirty=true; refreshMenu();}},
+      ]);
+      if(state.s3view==='skyrmion') rows.push([
+        {label:'type ▸', cb:()=>{const T=['neel','bloch','anti','skyrmionium','bimeron','antibimeron','bubble','stick'];
+          state.skDim='2d'; state.skType=T[(T.indexOf(state.skType)+1)%T.length]; state.skAnim=null; skSetup(); refreshMenu();}},
+        {label:'2D/3D', on:state.skDim==='3d', cb:()=>{state.skDim=state.skDim==='2d'?'3d':'2d'; skDirty=true; refreshMenu();}},
+        {label:'▶ nucleate', on:!!state.skAnim, cb:()=>{Object.assign(state,
+          {skDim:'2d',skMode:'single',skType:'neel',skHel:0,skAnim:'skyrmionium',skAnimRun:true,skAnimT:0});
+          skNucl.R1=-1.2; skSetup(); refreshMenu();}},
+        {label:'physics', on:state.skRun, cb:()=>{state.skRun=!state.skRun; refreshMenu();}},
       ]);
       if(state.s3view==='sec') rows.push([
         {label:'χ −', cb:()=>{state.chi=Math.max(.01,state.chi-.07); setChiRing(state.chi);}},
@@ -9847,6 +9869,9 @@ const XRX = (()=>{
       {label:'■ Release ride · '+String(objectName(SELECT.get(xrRide.key))).slice(0,18)+(rideSavedRate?' (time eased)':''), cb:()=>{rideRelease(); refreshMenu();}},
     ]);
     rows.push([
+      {label:'⚙ Controls', on:ctrlPanel.visible, cb:()=>{
+        if(ctrlPanel.visible) ctrlPanel.visible=false;
+        else { dockPanel(ctrlPanel); refreshXRControls(); } refreshMenu(); }},
       {label:'Quality: '+(QUALITY[qualityName]?.label||qualityName), cb:()=>{cycleQuality(); refreshMenu();}},
       {label:'Turn '+snapAngle+'°', cb:()=>{snapAngle=snapAngle===15?30:snapAngle===30?45:15; refreshMenu();}},
       {label:'ℹ Status', on:statusPanel.visible, cb:()=>{
@@ -9862,6 +9887,123 @@ const XRX = (()=>{
       '§'+({solar:'Solar System',cyc:'Cycles & Events',obs:'Observable Universe',
             s3:'S³ Carrier & Hopf',fbs:'FBS3R φ-Ladder'}[m]||m),
     ], rows});
+  }
+  /* ⚙ VR CONTROLS — the full settings deck as a dockable panel, so every important
+     parameter (especially the soliton labs) is reachable in-headset, logically grouped,
+     never buried. Buttons mutate the same state the desktop Controls panel does. */
+  function refreshXRControls(){
+    if(!ctrlPanel.visible) return;
+    const rows=[], lines=[], R=refreshXRControls;
+    if(state.mode==='s3' && state.s3view==='skyrmion'){
+      lines.push('§N_sk='+skQ.toFixed(2)+' · '+(state.skDim==='3d'?('3D '+state.sk3dType):state.skType)+
+                 ' · γ='+(state.skHel/Math.PI).toFixed(2)+'π · E='+skE.tot.toFixed(1));
+      rows.push([
+        {label:'2D film', on:state.skDim==='2d', cb:()=>{state.skDim='2d'; skDirty=true; R();}},
+        {label:'3D volume', on:state.skDim==='3d', cb:()=>{state.skDim='3d'; skDirty=true; R();}},
+      ]);
+      if(state.skDim==='2d'){
+        const T=['neel','bloch','anti','skyrmionium','bimeron','antibimeron','bubble','stick'], ti=Math.max(0,T.indexOf(state.skType));
+        rows.push([
+          {label:'◂ type', cb:()=>{state.skType=T[(ti+T.length-1)%T.length]; state.skAnim=null; skSetup(); R();}},
+          {label:state.skType.toUpperCase().slice(0,14), on:true, cb:()=>{}},
+          {label:'type ▸', cb:()=>{state.skType=T[(ti+1)%T.length]; state.skAnim=null; skSetup(); R();}},
+        ]);
+        rows.push([
+          {label:'R −', cb:()=>{state.skR=Math.max(.6,+(state.skR-.2).toFixed(2)); skDirty=true; R();}},
+          {label:'R +', cb:()=>{state.skR=Math.min(3,+(state.skR+.2).toFixed(2)); skDirty=true; R();}},
+          {label:'w −', cb:()=>{state.skW=Math.max(.25,+(state.skW-.1).toFixed(2)); skDirty=true; R();}},
+          {label:'w +', cb:()=>{state.skW=Math.min(1.6,+(state.skW+.1).toFixed(2)); skDirty=true; R();}},
+        ]);
+        rows.push([
+          {label:'γ −', cb:()=>{state.skHel=(state.skHel+2*Math.PI-Math.PI/4)%(2*Math.PI); skDirty=true; R();}},
+          {label:'γ +', cb:()=>{state.skHel=(state.skHel+Math.PI/4)%(2*Math.PI); skDirty=true; R();}},
+          {label:'mode ▸ '+state.skMode, cb:()=>{const M=['single','pair','annih','lattice'];
+            state.skMode=M[(M.indexOf(state.skMode)+1)%M.length]; skSetup(); R();}},
+          {label:state.skRun?'⏸ physics':'▶ physics', on:state.skRun, cb:()=>{state.skRun=!state.skRun; R();}},
+        ]);
+        rows.push([
+          {label:'▶ skyrmionium', on:state.skAnim==='skyrmionium', cb:()=>{Object.assign(state,
+            {skDim:'2d',skMode:'single',skType:'neel',skHel:0,skAnim:'skyrmionium',skAnimRun:true,skAnimT:0});
+            skNucl.R1=-1.2; skSetup(); R();}},
+          {label:'▶ stick', on:state.skAnim==='stick', cb:()=>{Object.assign(state,
+            {skDim:'2d',skMode:'single',skType:'neel',skHel:0,skAnim:'stick',skAnimRun:true,skAnimT:0});
+            skNucl.L=0; skSetup(); R();}},
+          {label:'magnon', on:state.skMagnon, cb:()=>{state.skMagnon=!state.skMagnon; skDirty=true; R();}},
+          {label:'⟲ reset', cb:()=>{state.skRun=false; state.skAnim=null; state.skAnimRun=false; state.skMagnon=false; skSetup(); R();}},
+        ]);
+      } else {
+        lines.push('Q(top)='+sk3dQtop.toFixed(2)+' · Q(bottom)='+sk3dQbot.toFixed(2)+' · per-slice Berg–Lüscher');
+        rows.push([
+          {label:'tube', on:state.sk3dType==='tube', cb:()=>{state.sk3dType='tube'; skDirty=true; R();}},
+          {label:'bobber', on:state.sk3dType==='bobber', cb:()=>{state.sk3dType='bobber'; skDirty=true; R();}},
+          {label:'Bloch pt', on:state.sk3dType==='bloch', cb:()=>{state.sk3dType='bloch'; skDirty=true; R();}},
+          {label:'globule', on:state.sk3dType==='globule', cb:()=>{state.sk3dType='globule'; skDirty=true; R();}},
+        ]);
+        rows.push([
+          {label:'λ −', cb:()=>{state.skBpLambda=Math.max(.12,+(state.skBpLambda-.1).toFixed(2)); skDirty=true; R();}},
+          {label:'λ +', cb:()=>{state.skBpLambda=Math.min(1.4,+(state.skBpLambda+.1).toFixed(2)); skDirty=true; R();}},
+          {label:'polarity ±', cb:()=>{state.skBpPol*=-1; skDirty=true; R();}},
+          {label:'R ±', cb:()=>{state.skR=state.skR>=3?0.8:+(state.skR+.3).toFixed(2); skDirty=true; R();}},
+        ]);
+      }
+      const np=SK_PRESETS.length, pi=(((ctrlPanel.userData.skP||0)%np)+np)%np;
+      rows.push([
+        {label:'◂', cb:()=>{ctrlPanel.userData.skP=pi-1; R();}},
+        {label:'★ '+SK_PRESETS[pi].label.slice(0,24), cb:()=>{Object.assign(state,
+          {skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false}); SK_PRESETS[pi].a(); skSetup(); R();}},
+        {label:'▸', cb:()=>{ctrlPanel.userData.skP=pi+1; R();}},
+      ]);
+    } else if(state.mode==='s3' && state.s3view==='hopfion'){
+      lines.push('§Q_H = p·q = '+state.hfP+'·'+state.hfQ+' = '+(state.hfP*state.hfQ)+' · mode '+state.hfMode+
+                 (state.hfMode==='custom'&&state.hfCustom?' ('+state.hfCustom.length+' strings)':''));
+      rows.push([
+        {label:'p −', cb:()=>{state.hfP=Math.max(1,state.hfP-1); hfDirty=true; R();}},
+        {label:'p +', cb:()=>{state.hfP=Math.min(6,state.hfP+1); hfDirty=true; R();}},
+        {label:'q −', cb:()=>{state.hfQ=Math.max(1,state.hfQ-1); hfDirty=true; R();}},
+        {label:'q +', cb:()=>{state.hfQ=Math.min(6,state.hfQ+1); hfDirty=true; R();}},
+      ]);
+      rows.push([
+        {label:'K −', cb:()=>{state.hfK=Math.max(3,state.hfK-3); hfDirty=true; R();}},
+        {label:'K +', cb:()=>{state.hfK=Math.min(48,state.hfK+3); hfDirty=true; R();}},
+        {label:'sampling ▸ '+state.hfDist, cb:()=>{const D=['fibonacci','equator','meridian'];
+          state.hfDist=D[(D.indexOf(state.hfDist)+1)%D.length]; hfDirty=true; R();}},
+      ]);
+      rows.push([
+        {label:'flow', on:state.hfFlow, cb:()=>{state.hfFlow=!state.hfFlow; R();}},
+        {label:'⟳ precession', on:state.hfPrec, cb:()=>{state.hfPrec=!state.hfPrec; R();}},
+        {label:'ω −', cb:()=>{state.hfPrecSpd=Math.max(.1,+(state.hfPrecSpd-.2).toFixed(2)); R();}},
+        {label:'ω +', cb:()=>{state.hfPrecSpd=Math.min(2,+(state.hfPrecSpd+.2).toFixed(2)); R();}},
+      ]);
+      rows.push([
+        {label:'single', on:state.hfMode==='single', cb:()=>{state.hfMode='single'; state.hfCustom=null; hfDragPos=[]; hfDirty=true; R();}},
+        {label:'pair', on:state.hfMode==='pair', cb:()=>{state.hfMode='pair'; state.hfP2=state.hfP; state.hfQ2=-state.hfQ; state.hfCustom=null; hfDragPos=[]; hfDirty=true; R();}},
+        {label:'ring', on:state.hfMode==='ring', cb:()=>{state.hfMode='ring'; state.hfCustom=null; hfDragPos=[]; hfDirty=true; R();}},
+      ]);
+      if(state.hfMode==='pair') rows.push([
+        {label:'anti Q₂=−Q₁', on:state.hfQ2===-state.hfQ, cb:()=>{state.hfP2=state.hfP; state.hfQ2=-state.hfQ; hfDirty=true; R();}},
+        {label:'twin Q₂=Q₁', on:state.hfQ2===state.hfQ, cb:()=>{state.hfP2=state.hfP; state.hfQ2=state.hfQ; hfDirty=true; R();}},
+        {label:'⇄ collide', cb:()=>{state.hfSepTarget=1.6;}},
+        {label:'↔ separate', cb:()=>{state.hfSepTarget=8;}},
+      ]);
+      const np=HF_PRESETS.length, pi=(((ctrlPanel.userData.hfP||0)%np)+np)%np;
+      rows.push([
+        {label:'◂', cb:()=>{ctrlPanel.userData.hfP=pi-1; R();}},
+        {label:'★ '+HF_PRESETS[pi].label.slice(0,24), cb:()=>{HF_PRESETS[pi].a();
+          hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; R();}},
+        {label:'▸', cb:()=>{ctrlPanel.userData.hfP=pi+1; R();}},
+      ]);
+    } else {
+      lines.push('Quick actions for this view are on the wrist menu.');
+      lines.push('The soliton labs carry the full control deck in VR:');
+      rows.push([
+        {label:'⬡ Hopfion lab', on:state.mode==='s3'&&state.s3view==='hopfion',
+          cb:()=>{ if(state.mode!=='s3') xrSetMode('s3'); setS3View('hopfion'); refreshMenu(); R();}},
+        {label:'◉ Skyrmion lab', on:state.mode==='s3'&&state.s3view==='skyrmion',
+          cb:()=>{ if(state.mode!=='s3') xrSetMode('s3'); setS3View('skyrmion'); refreshMenu(); R();}},
+      ]);
+    }
+    rows.push([{label:'✕ close', cb:()=>{ctrlPanel.visible=false; refreshMenu();}}]);
+    ctrlPanel.render({title:'⚙ CONTROLS', lines, rows});
   }
   function xrSetMode(m){
     rideRelease();                                           // dismount + restore time when changing worlds
@@ -10050,6 +10192,18 @@ const XRX = (()=>{
   function onSqueezeStart(P){
     if(P.hit?.panel){ P.grabbed=P.hit.panel.mesh; P.grabbed.userData.prevParent=scene;
       P.ctrl.attach(P.grabbed); pulse(P,.5,40); return; }
+    // squeeze a soliton core → grab it: each controller can hold its OWN core, so two
+    // hands move two skyrmions/hopfions at once (the XR twin of desktop multitouch).
+    if(state.mode==='s3' && (state.s3view==='skyrmion'||state.s3view==='hopfion') && pointerRay(P,raycaster2)){
+      if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp.children.length){
+        const hit=raycaster2.intersectObjects(skCoreGrp.children,false)[0];
+        if(hit){ const idx=skCoreGrp.children.indexOf(hit.object);
+          if(skCenters[idx]){ P.coreDrag={kind:'sk', idx}; pulse(P,.6,50); return; } }
+      } else if(state.s3view==='hopfion' && hfExtra.length){
+        const hit=raycaster2.intersectObjects(hfExtra.filter(m=>m.isMesh),false)[0];
+        if(hit){ P.coreDrag={kind:'hf', idx:hfExtra.indexOf(hit.object), dist:hit.distance}; pulse(P,.6,50); return; }
+      }
+    }
     P.squeezing=true;
     const both=pointers.every(q=>q.squeezing);
     if(both){
@@ -10060,7 +10214,7 @@ const XRX = (()=>{
     }
   }
   function onSqueezeEnd(P){
-    P.squeezing=false;
+    P.squeezing=false; P.coreDrag=null;
     if(P.grabbed){ scene.attach(P.grabbed); P.grabbed=null; }
     grabState.active=false;
   }
@@ -10515,6 +10669,9 @@ const XRX = (()=>{
       } else rideRelease();
     }
     updateDock();                                 // the single content window glides lazily, never scatters
+    // ⚙ Controls live readouts (N_sk, Q(z), Q_H…) refresh on a gentle cadence
+    { const now=performance.now();
+      if(ctrlPanel.visible && now-(ctrlPanel._rt||0)>900){ ctrlPanel._rt=now; refreshXRControls(); } }
     // A button (right Touch Plus) opens/closes the card of the selected object
     { let aNow=false;
       for(const src of (session?.inputSources||[])){
@@ -10566,6 +10723,26 @@ const XRX = (()=>{
         P.cursor.position.copy(raycaster2.ray.origin).addScaledVector(raycaster2.ray.direction,4);
         P.cursor.visible=true;
       }
+      // squeeze-held soliton core rides this controller's ray (per-pointer → two-hand multigrab)
+      if(P.coreDrag){
+        const d=P.coreDrag;
+        if(d.kind==='sk' && skCenters[d.idx]){
+          skyrmionGroup.getWorldQuaternion(_dragQ);
+          _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ),
+            skyrmionGroup.getWorldPosition(new THREE.Vector3()));
+          if(raycaster2.ray.intersectPlane(_dragPlane,_dragHit)){
+            const loc=skyrmionGroup.worldToLocal(_dragHit.clone()), c=skCenters[d.idx];
+            c.x=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.x));
+            c.y=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.z));
+            c.vx=c.vy=0; skDirty=true;
+          }
+        } else if(d.kind==='hf'){
+          const wp=raycaster2.ray.origin.clone().addScaledVector(raycaster2.ray.direction,d.dist);
+          const loc=hfSpinGroup.worldToLocal(wp).multiplyScalar(1/Math.max(1e-3,state.hfScale));
+          if(!hfDragPos[d.idx]) hfDragPos[d.idx]=new THREE.Vector3();
+          hfDragPos[d.idx].copy(loc); hfDirty=true;
+        }
+      }
     }
     // Graceful de-hover: the wrist menu rides the moving left hand, so the pointing ray
     // grazes off it for a frame or two constantly. Clearing the highlight instantly made
@@ -10578,7 +10755,7 @@ const XRX = (()=>{
     INTERACTION.runtime.colliders    = picks.length + panelMeshes.length;
     INTERACTION.runtime.raycastHits  = pointers.reduce((n,P)=>n+(P.hit?1:0),0);
     INTERACTION.runtime.stepMs       = fps.ms;
-    INTERACTION.runtime.xrGrabActive = grabState.active || pointers.some(P=>!!P.grabbed);
+    INTERACTION.runtime.xrGrabActive = grabState.active || pointers.some(P=>!!P.grabbed||!!P.coreDrag);
     if(measure.on) measure.drawLine();
     // locomotion: left stick fly, right stick snap turn + vertical; scale-aware
     let moving=false;
