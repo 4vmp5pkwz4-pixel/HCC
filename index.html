@@ -2373,7 +2373,14 @@ function selectionContext(key,s){
     else if(key==='centerLabAtlas') state.s3view='lab';
     else state.s3view='sec';
   } else if(s.mode==='cyc'){
-    state.cycFrame=key==='cycGal'?'gal':key==='cycPrec'?'geo':key==='cycPhaseAtlas'?'phase':'helio';
+    // Selecting an instrument must NOT collapse the stage: if the CURRENT frame already
+    // shows it (the hierarchy shows everything), keep the frame and just focus — clicking
+    // the Seasons dial used to force 'helio' and everything else vanished.
+    const want = key==='cycGal'?'gal' : key==='cycPrec'?'geo' : key==='cycPhaseAtlas'?'phase'
+               : key==='cycResonanceWeb'?'resonance' : 'helio';
+    const shows = { gal:['hierarchy','gal'], geo:['hierarchy','geo'], phase:['hierarchy','phase'],
+                    resonance:['hierarchy','resonance'], helio:['hierarchy','helio','geo'] }[want];
+    if(!shows.includes(state.cycFrame)) state.cycFrame=want;
   } else if(s.mode==='fractal'&&key.startsWith('fractal_')){
     setFractalType(key.slice(8),false);
   } else if(key==='fractalAtlas'){
@@ -7954,9 +7961,17 @@ function applyCycFrameView(){
     const p=cycOrientInst.position;
     controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,6,17));
     setControlDistanceLimits(4,90);
+  } else if(state.cycFrame==='helio'||state.cycFrame==='gal'){
+    // single-instrument stages centre their instrument (updateCyc stages it at the
+    // origin) and come in close — previously the lone dial sat 27 units off-axis
+    // with an empty centre, reading as a broken, unlabelled mode.
+    controls.target.set(0,1,0); camera.position.set(0,11,26); setControlDistanceLimits(4,160);
+  } else if(state.cycFrame==='geo'){
+    controls.target.set(0,1.5,0); camera.position.set(0,13,34); setControlDistanceLimits(4,200);
   } else {
     controls.target.set(0,1,0); camera.position.set(0,26,54); setControlDistanceLimits(4,320);
   }
+  armIdleDrift();   // a frame switch is a scene change — the cinematic drift resumes, as on mode switches
 }
 /* ── ANTIKYTHERA MECHANISM · scientifically-calibrated 3D dials ──────
    Front dial: zodiac (360°) + Egyptian calendar (365 d), with mean-Sun and
@@ -8250,7 +8265,12 @@ function updateCyc(dt){
   const frame=state.cycFrame||'hierarchy';
 
   // Every physical instrument retains its own labelled center and display scale.
-  galInst.position.set(0,0,0); precInst.position.set(27,0,0); seaInst.position.set(-27,0,0);
+  // Single-instrument frames STAGE their instrument at the origin (the hierarchy
+  // layout spreads them ±27 units apart, which left a lone dial off-screen).
+  galInst.position.set(0,0,0);
+  if(frame==='helio'){ precInst.position.set(27,0,0); seaInst.position.set(0,0,0); }
+  else if(frame==='geo'){ precInst.position.set(10,0,0); seaInst.position.set(-10,0,0); }
+  else { precInst.position.set(27,0,0); seaInst.position.set(-27,0,0); }
   galInst.scale.setScalar(1); precInst.scale.setScalar(.96); seaInst.scale.setScalar(1);
   galInst.visible=frame==='hierarchy'||frame==='gal';
   precInst.visible=frame==='hierarchy'||frame==='geo';
@@ -11522,6 +11542,7 @@ function buildCtlBody(){
       geoOrbitsBuilt=false; orbitGeometryAcc=1; orbitGeometryT=1e9;   // rebuild the paths for the new frame now
       controls.target.set(0,0,0);                       // re-centre on the new origin (Earth or Sun)
       clearFocus(); buildCtl();
+      armIdleDrift();   // frame change = scene change: the gentle cosmic orbiting resumes
     });
     ctl.querySelector('#skyMW').onchange    = e=>mwMesh.visible=e.target.checked;
     ctl.querySelector('#skyConst').onchange = e=>constGroup.visible=e.target.checked;
