@@ -535,7 +535,7 @@
   body.day #hierarchyLegend{background:rgba(244,238,225,.5);border-color:rgba(138,109,47,.35)}
 
   /* floating round controls — help (always) + dock collapser (mobile) */
-  .fab{position:fixed;z-index:60;width:46px;height:46px;border-radius:999px;border:1px solid var(--gold-dim);
+  .fab{position:fixed;z-index:120;width:46px;height:46px;border-radius:999px;border:1px solid var(--gold-dim);
     background:var(--panel);color:var(--gold-2);font-size:20px;line-height:1;cursor:pointer;display:flex;
     align-items:center;justify-content:center;backdrop-filter:blur(12px);box-shadow:0 8px 26px rgba(0,0,0,.45);
     transition:transform .15s ease, background .15s ease}
@@ -577,8 +577,10 @@
     #dockFab{display:flex}
     #helpFab,#dockFab,#ctlFab{left:14px;right:auto}   /* FABs go bottom-left; selection card stays bottom-right */
     #helpFab{bottom:16px}#ctlFab{bottom:70px;display:flex}#dockFab{bottom:124px}   /* ⚙ Controls always one tap away */
+    /* the deck opens ABOVE its ☰ button (not on top of it) so the same tap always
+       closes it again; the FAB also outranks it in z-order as a guarantee */
     #panelDock{left:8px;right:auto;margin:0;flex-direction:column;width:max-content;max-width:64vw;
-      top:auto;bottom:calc(124px + env(safe-area-inset-bottom,0px));max-height:60vh;
+      top:auto;bottom:calc(178px + env(safe-area-inset-bottom,0px));max-height:56vh;
       overflow-y:auto;overflow-x:hidden;justify-content:flex-start;scrollbar-width:none;
       align-items:stretch;gap:6px;transform-origin:bottom left;transition:opacity .15s ease, transform .15s ease}
     #panelDock::-webkit-scrollbar{display:none}
@@ -605,8 +607,9 @@
     body.panel-open #helpFab,body.panel-open #dockFab,body.panel-open #ctlFab,
     body.panel-open #atlasCoach,body.panel-open #hud{opacity:0;pointer-events:none;transition:opacity .18s}
     /* the selection card pins to the RIGHT edge so a left list stays visible while you read it */
-    #selCard{left:auto;right:8px;margin:0;width:min(86vw,340px);max-height:52vh;overflow:auto;
-      top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+    /* compact on phones: the card must never blanket the 3D subject it describes */
+    #selCard{left:auto;right:8px;margin:0;width:min(80vw,320px);max-height:32vh;overflow:auto;
+      top:auto;bottom:calc(12px + env(safe-area-inset-bottom,0px));font-size:11.5px}
     #hud{bottom:calc(62px + env(safe-area-inset-bottom,0px));max-width:94vw}
     /* whisper-HUD: numbers stay readable, the scene stays sovereign */
     #hud .big{font-size:11px;letter-spacing:.7px;line-height:1.3;opacity:.94}
@@ -11108,6 +11111,7 @@ const state = {
   skMagnon:false, skMagAmp:0.22, skMagK:2.2, skMagAng:0, skMagOm:5,   // spin-wave (magnon) overlay
   skAnim:null, skAnimRun:false, skAnimT:0,                            // nucleation animations
   skStickL:2.2, skStickAng:0,                                         // stick-skyrmion tail half-length & axis angle
+  skPresetId:null, hfPresetId:null,                                   // last applied one-tap preset (chip highlight)
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -11404,6 +11408,20 @@ const HF_PRESETS=[
   {id:'ring',label:'Hopfion ring (Zheng 2023)',a:()=>Object.assign(state,{hfMode:'ring',hfP:1,hfQ:1,hfRingN:6,hfRingR:3.2})},
 ];
 function buildCtl(){
+  // Re-render preserving scroll state: on phones the chip rows scroll horizontally,
+  // and a full innerHTML rebuild used to snap every row (and the sheet itself) back
+  // to the start — tapping any preset visually "reset to the first button".
+  const _st=ctl.scrollTop, _rows=[...ctl.querySelectorAll('.chips,.radioRow')].map(r=>r.scrollLeft);
+  buildCtlBody();
+  const _restore=()=>{ ctl.scrollTop=_st;
+    [...ctl.querySelectorAll('.chips,.radioRow')].forEach((r,i)=>{ if(_rows[i]) r.scrollLeft=_rows[i]; }); };
+  _restore();
+  // the panel-enhance MutationObservers (collapsible sections, sheet grip) MOVE nodes
+  // right after this task — moving a scrolled element zeroes its scroll, so restore
+  // again after they have run (and once more a frame later for safety).
+  requestAnimationFrame(()=>{ _restore(); requestAnimationFrame(_restore); });
+}
+function buildCtlBody(){
   if(state.mode==='solar'){
     ctl.innerHTML = `
     <div class="sect"><b>Time</b>
@@ -11944,7 +11962,7 @@ function buildCtl(){
       A geometric representation of standard QM — NOT a hidden-variable model (Hopf-Bell).</div>`;
     else if(V==='skyrmion') body = `
     <div class="sect"><b>Ready configurations — one tap</b>
-      <div class="chips">${SK_PRESETS.map(p=>`<button class="chip" data-skpreset="${p.id}">${p.label}</button>`).join('')}</div>
+      <div class="chips">${SK_PRESETS.map(p=>`<button class="chip ${state.skPresetId===p.id?'on':''}" data-skpreset="${p.id}">${p.label}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Classical, experimental &amp; phenomenological states — static and ▶ animated, single &amp; many-body. Each loads the full parameter set instantly.</div>
     </div>
     <div class="sect"><b>Dimension</b>
@@ -12061,7 +12079,7 @@ function buildCtl(){
     </div>`:''}` + '';
     else if(V==='hopfion') body = `
     <div class="sect"><b>Ready configurations — one tap</b>
-      <div class="chips">${HF_PRESETS.map(p=>`<button class="chip" data-hfpreset="${p.id}">${p.label}</button>`).join('')}</div>
+      <div class="chips">${HF_PRESETS.map(p=>`<button class="chip ${state.hfPresetId===p.id?'on':''}" data-hfpreset="${p.id}">${p.label}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Classical &amp; experimental hopfions — static and ▶ animated, single, pair &amp; ring. Each loads the full parameter set instantly.</div>
     </div>
     <div class="sect"><b>Hopf charge — Q_H = p · q</b>
@@ -12241,7 +12259,7 @@ function buildCtl(){
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
         Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
-        p.a(); skSetup(); buildCtl(); } });
+        p.a(); state.skPresetId=p.id; skSetup(); buildCtl(); } });
       const sv=(id,f,fmt,resetup)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value); const v=ctl.querySelector('#'+id+'V'); if(v&&fmt)v.textContent=fmt(+e.target.value); if(resetup)skSetup(); else skDirty=true; }; };
       ctl.querySelectorAll('[data-sktype]').forEach(b=>b.onclick=()=>{ state.skType=b.dataset.sktype;
         if(state.skType==='bloch')state.skHel=Math.PI/2; else if(state.skType==='neel')state.skHel=0;
@@ -12307,7 +12325,7 @@ function buildCtl(){
     }
     if(V==='hopfion'){
       const HFMAX=6, cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-      ctl.querySelectorAll('[data-hfpreset]').forEach(b=>b.onclick=()=>{ const p=HF_PRESETS.find(x=>x.id===b.dataset.hfpreset); if(p){ p.a(); hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; buildCtl(); } });
+      ctl.querySelectorAll('[data-hfpreset]').forEach(b=>b.onclick=()=>{ const p=HF_PRESETS.find(x=>x.id===b.dataset.hfpreset); if(p){ p.a(); state.hfPresetId=p.id; hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; buildCtl(); } });
       ctl.querySelectorAll('[data-hf]').forEach(b=>b.onclick=()=>{ const c=b.dataset.hf;
         if(c==='p+')state.hfP=cl(state.hfP+1,1,HFMAX); else if(c==='p-')state.hfP=cl(state.hfP-1,1,HFMAX);
         else if(c==='q+')state.hfQ=cl(state.hfQ+1,1,HFMAX); else if(c==='q-')state.hfQ=cl(state.hfQ-1,1,HFMAX);
@@ -13865,6 +13883,15 @@ AtlasCoach.init();
   const help=document.getElementById('helpFab'), dock=document.getElementById('dockFab');
   if(help) help.onclick=()=>{ try{ if(AtlasCoach.isDismissed()){ AtlasCoach.show(); AtlasCoach.setCollapsed(false); } else AtlasCoach.dismiss(); }catch(e){} };
   if(dock) dock.onclick=()=>{ document.body.classList.toggle('dock-open'); };
+  // mobile: a tap anywhere OUTSIDE the deck (and not on its ☰ button) dismisses it —
+  // standard sheet/popover behaviour, so the deck can never trap itself open.
+  addEventListener('pointerdown', e=>{
+    if(!document.body.classList.contains('dock-open')) return;
+    if(!matchMedia('(max-width:760px),(pointer:coarse)').matches) return;
+    const pd=document.getElementById('panelDock');
+    if(pd && !pd.contains(e.target) && !(dock && dock.contains(e.target)))
+      document.body.classList.remove('dock-open');
+  }, true);
   // tapping a dock button auto-closes the collapsed mobile dock again
   document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.addEventListener('click',()=>{
     if(matchMedia('(max-width:760px),(pointer:coarse)').matches) document.body.classList.remove('dock-open');
