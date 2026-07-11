@@ -7014,7 +7014,32 @@ let skGridN=41, skDirty=true, skCenters=[], skInst=null, skDisc=null, skQ=0, skH
 const skE={ex:0,dm:0,an:0,ze:0,tot:0};
 const skCoreGrp=new THREE.Group(); skyrmionGroup.add(skCoreGrp);
 const _skM=new Float32Array(SKGMAX*SKGMAX*3), _skTmp=[0,0,0], _skDummy=new THREE.Object3D(), _skCol=new THREE.Color(), _skUp=new THREE.Vector3(0,1,0), _skDir=new THREE.Vector3();
-function skField(x,y,out){   // out=[mx,my,mz] — the real unit magnetisation at (x,y)
+/* Nucleation live parameters (driven by updateSkyrmion when a ▶ nucleation runs):
+   R1 = inner reversed-core radius of the growing skyrmionium (R1<0 ⇒ not yet injected —
+   the inner wall enters through a Bloch-point traversal of the film, the rate-limiting
+   step of skyrmionium formation: Kern et al. 2025; Kuchkin et al., arXiv:2405.20798);
+   L = growing tail half-length of the stick-skyrmion (tailed skyrmions: Kuchkin et al.). */
+const skNucl={R1:-1.2, L:0};
+let skMagT=0;                                                    // magnon phase clock
+function skFieldBase(x,y,out){   // out=[mx,my,mz] — the real unit magnetisation at (x,y)
+  if(state.skAnim==='skyrmionium' && skCenters.length){          // ▶ nucleation: outer wall + growing inner wall
+    const c=skCenters[0], dx=x-c.x, dy=y-c.y, r=Math.hypot(dx,dy), w=Math.max(0.2,state.skW);
+    const th=2*(Math.atan(Math.exp(-(r-state.skR)/w)) + Math.atan(Math.exp(-(r-skNucl.R1)/w)));
+    const st=Math.sin(th), Ph=Math.atan2(dy,dx)+state.skHel;
+    out[0]=st*Math.cos(Ph); out[1]=st*Math.sin(Ph); out[2]=Math.cos(th); return;
+  }
+  if(state.skType==='stick' || state.skAnim==='stick'){          // stick-skyrmion: 2π wall around a segment
+    const c=skCenters[0]||{x:0,y:0,s:1};
+    const L=state.skAnim==='stick'? skNucl.L : state.skStickL;
+    const ca=Math.cos(state.skStickAng), sa=Math.sin(state.skStickAng);
+    const rx=(x-c.x)*ca+(y-c.y)*sa, ry=-(x-c.x)*sa+(y-c.y)*ca;   // stick frame
+    const px=Math.max(-L,Math.min(L,rx)), dx=rx-px, dy=ry;       // distance to the core segment
+    const d=Math.hypot(dx,dy), R=Math.max(0.3,state.skR)*0.8, w=Math.max(0.15,state.skW);
+    const th=2*Math.atan(Math.exp(-(d-R)/w)), st=Math.sin(th);
+    const Ph=(c.s<0?-Math.atan2(dy,dx):Math.atan2(dy,dx))+state.skHel;   // capsule-normal winding ⇒ N_sk=±1 exactly
+    const mx=st*Math.cos(Ph), my=st*Math.sin(Ph);
+    out[0]=mx*ca-my*sa; out[1]=mx*sa+my*ca; out[2]=Math.cos(th); return;
+  }
   if(state.skType==='skyrmionium' && skCenters.length){          // Q=0 target skyrmion: θ winds 0→2π
     const c=skCenters[0], dx=x-c.x, dy=y-c.y, r=Math.hypot(dx,dy);
     const th=2*Math.PI*(0.5+0.5*Math.tanh((state.skR-r)/Math.max(0.25,state.skW)));
@@ -7036,6 +7061,29 @@ function skField(x,y,out){   // out=[mx,my,mz] — the real unit magnetisation a
   const uu=Math.hypot(ur,ui), sc= uu>1e-6? Math.pow(uu,1/Math.max(0.35,state.skW)-1) : 0;   // wall-width reshape (radial ⇒ charge unchanged)
   ur*=sc; ui*=sc; const V2=ur*ur+ui*ui, inv=1/(1+V2);
   out[0]=2*ur*inv; out[1]=2*ui*inv; out[2]=(V2-1)*inv;
+}
+function skField(x,y,out){
+  skFieldBase(x,y,out);
+  // Bimeron / antibimeron: the exact in-plane counterpart — a GLOBAL spin rotation
+  // R_y(π/2) of the (anti)skyrmion texture (m_x,m_y,m_z)→(m_z,m_y,−m_x). A global
+  // rotation of the target sphere preserves N_sk exactly; the easy axis becomes
+  // in-plane (+x vacuum) and the core splits into the vortex–antivortex meron pair.
+  if(state.skType==='bimeron'||state.skType==='antibimeron'){
+    const mx=out[0]; out[0]=out[2]; out[2]=-mx;
+  }
+  // Magnon: a linearised spin wave riding the texture — a small transverse precession
+  // δm = A[ê₁cos(k·x−ωt)+ê₂sin(k·x−ωt)] with ê₁,ê₂ ⊥ m, then renormalised to |m|=1.
+  if(state.skMagnon && state.skDim==='2d'){
+    const A=state.skMagAmp, kx=Math.cos(state.skMagAng*DEG)*state.skMagK, ky=Math.sin(state.skMagAng*DEG)*state.skMagK;
+    const phse=kx*x+ky*y-skMagT;
+    let e1x=-out[1], e1y=out[0], e1z=0, n=Math.hypot(e1x,e1y);   // ẑ×m (fallback x̂ at the poles of m)
+    if(n<0.08){ e1x=1; e1y=0; n=1; }
+    e1x/=n; e1y/=n;
+    const e2x=out[1]*e1z-out[2]*e1y, e2y=out[2]*e1x-out[0]*e1z, e2z=out[0]*e1y-out[1]*e1x;   // m×ê₁
+    const ca=Math.cos(phse)*A, sa=Math.sin(phse)*A;
+    out[0]+=e1x*ca+e2x*sa; out[1]+=e1y*ca+e2y*sa; out[2]+=e1z*ca+e2z*sa;
+    const nn=Math.hypot(out[0],out[1],out[2])||1; out[0]/=nn; out[1]/=nn; out[2]/=nn;
+  }
 }
 function ensureSkInst(){
   if(skInst && skInst.userData.g===skGridN) return;
@@ -7104,8 +7152,94 @@ function skRenderField(){
   }
   if(skDisc) skDisc.visible=state.skShowPlane;
 }
+/* ═══ 3D chiral structures — volumetric magnetisation m(x,y,z) ═══
+   • Skyrmion TUBE: the 2D soliton extruded along z (a skyrmion string).
+   • Chiral BOBBER: a tube that pinches off as √(z−z_BP) and terminates INSIDE the
+     film at a Bloch point (Rybakov et al. 2015); below the point: uniform vacuum.
+   • BLOCH POINT: the 3D hedgehog singularity itself. Following the quantum result of
+     arXiv:2405.20798 (Kuchkin, Haller et al., "Quantum and classical magnetic Bloch
+     points"), the spin LENGTH varies smoothly to zero at the singularity,
+     |m| = tanh(r/λ) — drawn as arrow length, the third degree of freedom that classical
+     fixed-length micromagnetics lacks. Helicity γ rotates hedgehog → circulating BP.
+   • GLOBULE: a closed reversed droplet (3D magnetic bubble) bounded by a 2π wall shell.
+   Q(z) is measured per z-slice (Berg–Lüscher): a tube carries N_sk on every slice, a
+   bobber only above its Bloch point — the measured jump locates the singularity. */
+const SK3DH=2.6, SK3DN=17, SK3DNZ=11;
+let sk3dInst=null, sk3dQtop=0, sk3dQbot=0;
+function sk3dField(x,y,z,out){                                   // returns spin LENGTH |m|
+  const T=state.sk3dType, R=Math.max(0.3,state.skR), w=Math.max(0.15,state.skW), lam=Math.max(0.12,state.skBpLambda);
+  if(T==='bloch'){
+    const r=Math.hypot(x,y,z)||1e-9, P=state.skBpPol;
+    const g=state.skHel, cg=Math.cos(g), sg=Math.sin(g), ux=x/r, uy=y/r;
+    out[0]=P*(ux*cg-uy*sg); out[1]=P*(ux*sg+uy*cg); out[2]=P*z/r;   // hedgehog (γ→circulating)
+    return Math.tanh(r/lam);                                        // quantum core: |m|→0 at the BP
+  }
+  if(T==='tube'||T==='bobber'){
+    let Rz=R; const zbp=-SK3DH*0.35;
+    if(T==='bobber'){
+      if(z<zbp){ out[0]=0; out[1]=0; out[2]=1; return 1; }          // below the Bloch point: vacuum
+      Rz=Math.max(0.05, R*Math.sqrt((z-zbp)/(SK3DH-zbp)));          // pinches off as √(z−z_BP)
+    }
+    const r=Math.hypot(x,y), th=2*Math.atan(Math.exp(-(r-Rz)/w)), st=Math.sin(th);
+    const Ph=(state.skType==='anti'?-Math.atan2(y,x):Math.atan2(y,x))+state.skHel;
+    out[0]=st*Math.cos(Ph); out[1]=st*Math.sin(Ph); out[2]=Math.cos(th);
+    return T==='bobber'? Math.tanh(Math.hypot(x,y,z-zbp)/lam) : 1;  // |m|→0 at the bobber's BP
+  }
+  const a=R*1.35, cz=R*0.85;                                        // globule (closed 3D bubble)
+  const d=Math.sqrt((x*x+y*y)/(a*a)+(z*z)/(cz*cz));
+  const th=2*Math.atan(Math.exp(-(d-1)*a/w)), st=Math.sin(th);
+  const Ph=Math.atan2(y,x)+state.skHel;
+  out[0]=st*Math.cos(Ph); out[1]=st*Math.sin(Ph); out[2]=Math.cos(th);
+  return 1;
+}
+function sk3dSliceQ(zs){                                          // Berg–Lüscher charge of one z-slice
+  const G=25, D=2*SKHALF*0.72/(G-1), M=new Float32Array(G*G*3), t=[0,0,0];
+  for(let j=0;j<G;j++)for(let i=0;i<G;i++){
+    sk3dField(-SKHALF*0.72+i*D, -SKHALF*0.72+j*D, zs, t);
+    const n=Math.hypot(t[0],t[1],t[2])||1, k=(j*G+i)*3; M[k]=t[0]/n; M[k+1]=t[1]/n; M[k+2]=t[2]/n; }
+  const MM=(i,j,k)=>M[(j*G+i)*3+k];
+  const solid=(ax,ay,az,bx,by,bz,cx,cy,cz)=>{
+    const crx=by*cz-bz*cy, cry=bz*cx-bx*cz, crz=bx*cy-by*cx, num=ax*crx+ay*cry+az*crz;
+    const den=1+(ax*bx+ay*by+az*bz)+(bx*cx+by*cy+bz*cz)+(cx*ax+cy*ay+cz*az);
+    return 2*Math.atan2(num,den); };
+  let Qs=0;
+  for(let j=0;j<G-1;j++)for(let i=0;i<G-1;i++)
+    Qs+=solid(MM(i,j,0),MM(i,j,1),MM(i,j,2),MM(i+1,j,0),MM(i+1,j,1),MM(i+1,j,2),MM(i+1,j+1,0),MM(i+1,j+1,1),MM(i+1,j+1,2))
+       +solid(MM(i,j,0),MM(i,j,1),MM(i,j,2),MM(i+1,j+1,0),MM(i+1,j+1,1),MM(i+1,j+1,2),MM(i,j+1,0),MM(i,j+1,1),MM(i,j+1,2));
+  return Qs/(4*Math.PI);
+}
+function ensureSk3d(){
+  if(sk3dInst) return;
+  const cone=new THREE.ConeGeometry(0.075,0.34,10); cone.translate(0,0.17,0);
+  sk3dInst=new THREE.InstancedMesh(cone,new THREE.MeshBasicMaterial({color:0xffffff}),SK3DN*SK3DN*SK3DNZ);
+  sk3dInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  sk3dInst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(SK3DN*SK3DN*SK3DNZ*3),3);
+  skyrmionGroup.add(sk3dInst);
+}
+function sk3dRender(){
+  ensureSk3d();
+  const G=SK3DN, NZ=SK3DNZ, half=SKHALF*0.72, D=2*half/(G-1), DZ=2*SK3DH/(NZ-1), asc=state.skArrow;
+  let idx=0;
+  for(let k=0;k<NZ;k++)for(let j=0;j<G;j++)for(let i=0;i<G;i++){
+    const x=-half+i*D, y=-half+j*D, z=-SK3DH+k*DZ;
+    const len=sk3dField(x,y,z,_skTmp);
+    _skDir.set(_skTmp[0],_skTmp[2],_skTmp[1]);
+    if(_skDir.lengthSq()<1e-9)_skDir.set(0,1,0); else _skDir.normalize();
+    // arrows fade/shrink in the vacuum so the structure reads; length also carries |m|
+    const wgt=0.16+0.84*Math.sqrt(Math.max(0,(1-_skTmp[2])/2));
+    _skDummy.position.set(x, z, y);                                // film normal = scene up
+    _skDummy.quaternion.setFromUnitVectors(_skUp,_skDir);
+    _skDummy.scale.setScalar(Math.max(0.02,asc*wgt*len));
+    _skDummy.updateMatrix(); sk3dInst.setMatrixAt(idx,_skDummy.matrix);
+    skColor(_skTmp[0],_skTmp[1],_skTmp[2],_skCol);
+    if(state.sk3dType!=='globule'&&len<0.55) _skCol.lerp(new THREE.Color(0xffd27a),0.65);   // glow near the Bloch point
+    sk3dInst.setColorAt(idx,_skCol); idx++;
+  }
+  sk3dInst.count=idx; sk3dInst.instanceMatrix.needsUpdate=true; sk3dInst.instanceColor.needsUpdate=true;
+  sk3dQtop=sk3dSliceQ(SK3DH*0.7); sk3dQbot=sk3dSliceQ(-SK3DH*0.7);
+}
 function skSetup(){
-  skCenters=[]; const s0=state.skType==='anti'?-1:1;
+  skCenters=[]; const s0=(state.skType==='anti'||state.skType==='antibimeron')?-1:1;
   if(state.skMode==='single' || state.skType==='skyrmionium'){ skCenters.push({x:0,y:0,s:s0,vx:0,vy:0}); }
   else if(state.skMode==='pair'){
     skCenters.push({x:-state.skSep/2,y:0,s:s0,vx:0,vy:0}); skCenters.push({x:state.skSep/2,y:0,s:s0,vx:0,vy:0}); }
@@ -7149,20 +7283,56 @@ function skThiele(dt){
   skHall=Math.atan2(4*Math.PI, Math.max(0.02,(state.skDamp-state.skBeta)))/DEG * (skCenters[0]?skCenters[0].s:1);
 }
 function skyrmionPhysHTML(){
+  if(state.skDim==='3d'){
+    const names={tube:'skyrmion tube', bobber:'chiral bobber', bloch:'Bloch point', globule:'magnetic globule'};
+    const bp=state.sk3dType==='bloch'||state.sk3dType==='bobber';
+    return `<b>${names[state.sk3dType]}</b> · volumetric m(x,y,z), ${SK3DN}²×${SK3DNZ} grid<br>`+
+      `<b>Q(z=+0.7H) = ${sk3dQtop.toFixed(3)} · Q(z=−0.7H) = ${sk3dQbot.toFixed(3)}</b> (per-slice Berg–Lüscher)<br>`+
+      (state.sk3dType==='bobber'?`charge jump between slices ⇒ interior <b>Bloch point</b> (tube pinches off as √(z−z_BP))<br>`:'')+
+      (bp?`spin length |m| = tanh(r/λ), λ=${state.skBpLambda.toFixed(2)} — |m|→0 AT the singularity (quantum Bloch point, arXiv:2405.20798)`:'')+
+      (state.sk3dType==='tube'?`every slice carries the same N_sk — a hopfion is this tube closed into a ring with a twist`:'')+
+      (state.sk3dType==='globule'?`closed reversed droplet bounded by a 2π wall shell · every slice Q≈0 — dipolar-stabilised bubble analogue`:'');
+  }
   const Nsk=skCenters.reduce((s,c)=>s+c.s,0);
+  const nucl=state.skAnim&&state.skAnimRun?
+    (state.skAnim==='skyrmionium'
+      ? `<br><b style="color:#ffd27a">▶ skyrmionium nucleation: inner core R₁=${skNucl.R1.toFixed(2)} — watch N_sk jump −1→0 as the Bloch point traverses the film (Kern 2025; arXiv:2405.20798)</b>`
+      : `<br><b style="color:#ffd27a">▶ stick-skyrmion nucleation: tail half-length L=${skNucl.L.toFixed(2)} — N_sk stays −1, the tails are non-topological 2π-wall strips (tailed skyrmions, Kuchkin et al.)</b>`) :'';
   return `<b>N_sk (Berg–Lüscher) = ${skQ.toFixed(3)}</b> · Σ sₖ (exact) = ${Nsk}<br>`+
     `E_exch ${skE.ex.toFixed(2)} · E_DMI ${skE.dm.toFixed(2)} · E_aniso ${skE.an.toFixed(2)} · E_Zeeman ${skE.ze.toFixed(2)}<br>`+
     `<b>E_total = ${skE.tot.toFixed(2)}</b> · θ_SkH ≈ ${skHall.toFixed(1)}° (∝ N_sk; →0 when β=α)<br>`+
-    `type ${state.skType} · γ=${(state.skHel/Math.PI).toFixed(2)}π · ${skCenters.length} soliton(s) · grid ${skGridN}²`;
+    `type ${state.skType} · γ=${(state.skHel/Math.PI).toFixed(2)}π · ${skCenters.length} soliton(s) · grid ${skGridN}²`+nucl;
 }
 function updateSkyrmion(dt){
   ensureSkInst();
   if(!skCenters.length) skSetup();
-  if(state.skRun){ skThiele(dt); skDirty=true; }
-  if(skDirty){ skDirty=false; skRenderField(); }
+  const is3d=state.skDim==='3d';
+  skInst.visible=!is3d; skCoreGrp.visible=!is3d; if(skDisc) skDisc.visible=!is3d&&state.skShowPlane;
+  if(sk3dInst) sk3dInst.visible=is3d;
+  if(is3d){
+    if(skDirty){ skDirty=false; sk3dRender(); }
+  } else {
+    // ▶ nucleation animations: drive the live parameter, re-render every frame, loop
+    if(state.skAnim && state.skAnimRun){
+      state.skAnimT+=dt*state.skSpeed*0.35; skDirty=true;
+      const u=Math.min(1,(state.skAnimT%1.7)/1.15);                 // grow, hold, replay
+      if(state.skAnim==='skyrmionium') skNucl.R1=-1.2+u*(0.55*state.skR+1.2);
+      else if(state.skAnim==='stick')  skNucl.L=u*state.skStickL;
+    }
+    if(state.skMagnon){ skMagT+=dt*state.skMagOm; skDirty=true; }   // spin-wave clock
+    if(state.skRun){ skThiele(dt); skDirty=true; }
+    if(skDirty){ skDirty=false; skRenderField(); }
+  }
   if(state.skAutoRot && !hfDragActive()) skyrmionGroup.rotation.y += dt*state.skRotSpd;   // hold still while dragging a core
-  hudBig.textContent=`Skyrmion lab · N_sk=${skQ.toFixed(2)} · ${skCenters.length} soliton(s) · E=${skE.tot.toFixed(1)}`;
-  hudSub.textContent='REAL magnetisation m:R²→S² · Belavin–Polyakov / domain-wall profile · Néel/Bloch/anti/skyrmionium · Thiele skyrmion-Hall (β) + repulsion + pinning + temperature · hopfion = closed twisted skyrmion string';
+  if(is3d){
+    const names={tube:'Skyrmion tube', bobber:'Chiral bobber', bloch:'Bloch point', globule:'Magnetic globule'};
+    hudBig.textContent=`Skyrmion lab 3D · ${names[state.sk3dType]} · Q(top)=${sk3dQtop.toFixed(2)} · Q(bottom)=${sk3dQbot.toFixed(2)}`;
+    hudSub.textContent='volumetric m(x,y,z) · per-slice Berg–Lüscher charge · Bloch-point spin length |m|=tanh(r/λ)→0 (quantum: arXiv:2405.20798) · bobber terminates at an interior Bloch point (Rybakov 2015)';
+  } else {
+  hudBig.textContent=`Skyrmion lab · N_sk=${skQ.toFixed(2)} · ${skCenters.length} soliton(s) · E=${skE.tot.toFixed(1)}`+
+    (state.skAnim&&state.skAnimRun?` · nucleating ${state.skAnim}…`:'');
+  hudSub.textContent='REAL magnetisation m:R²→S² · Belavin–Polyakov / domain-wall profile · Néel/Bloch/anti/skyrmionium/bimeron/bubble/stick · Thiele skyrmion-Hall (β) + repulsion + pinning + temperature · hopfion = closed twisted skyrmion string';
+  }
   if(state.mode==='s3'){ const o=ctl.querySelector('#skPhysOut'); if(o){ const html=skyrmionPhysHTML();
     if(o.dataset.h!==html){ o.dataset.h=html; o.innerHTML=html; } } }
 }
@@ -10714,6 +10884,11 @@ const state = {
   skArrow:1.0, skGridSel:41, skRelief:0, skColormap:'both', skShowPlane:true, skAutoRot:true, skRotSpd:0.06,
   skExch:1.0, skDMI:1.0, skAniso:0.7, skBfield:0.35,
   skRun:false, skDrive:0, skDriveAng:0, skDamp:0.35, skBeta:0.0, skRep:3.2, skPin:0, skTemp:0, skSpeed:1.3, skConfine:5,
+  skDim:'2d', sk3dType:'tube',           // 3D chiral structures: tube | bobber | bloch | globule
+  skBpLambda:0.55, skBpPol:1,            // Bloch-point quantum core scale λ (|m|→0) & polarity (arXiv:2405.20798)
+  skMagnon:false, skMagAmp:0.22, skMagK:2.2, skMagAng:0, skMagOm:5,   // spin-wave (magnon) overlay
+  skAnim:null, skAnimRun:false, skAnimT:0,                            // nucleation animations
+  skStickL:2.2, skStickAng:0,                                         // stick-skyrmion tail half-length & axis angle
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -10986,6 +11161,17 @@ const SK_PRESETS=[
   {id:'annih', label:'▶ Sk + anti annihilate',a:()=>Object.assign(state,{skMode:'annih',skType:'neel',skRun:true,skDrive:0,skRep:2,skSep:3.4,skConfine:5,skR:1.4})},
   {id:'lattice',label:'Hexagonal lattice',   a:()=>Object.assign(state,{skMode:'lattice',skLatType:'hex',skN:19,skType:'bloch',skHel:Math.PI/2,skR:1.1,skSep:2.4,skRun:false})},
   {id:'cluster',label:'▶ Self-organise',     a:()=>Object.assign(state,{skMode:'lattice',skLatType:'square',skN:12,skType:'neel',skR:1.2,skSep:2.2,skRun:true,skDrive:0,skRep:5,skConfine:6})},
+  {id:'bimeron', label:'Bimeron (in-plane)', a:()=>Object.assign(state,{skDim:'2d',skMode:'single',skType:'bimeron',skHel:0,skR:1.6,skW:0.7,skRun:false,skAnim:null,skAnimRun:false})},
+  {id:'abimeron',label:'Antibimeron',        a:()=>Object.assign(state,{skDim:'2d',skMode:'single',skType:'antibimeron',skHel:0,skR:1.6,skW:0.7,skRun:false,skAnim:null,skAnimRun:false})},
+  {id:'bubble',  label:'Magnetic bubble',    a:()=>Object.assign(state,{skDim:'2d',skMode:'single',skType:'bubble',skHel:1.1,skR:2.6,skW:0.42,skRun:false,skAnim:null,skAnimRun:false})},
+  {id:'stick',   label:'Stick-skyrmion',     a:()=>Object.assign(state,{skDim:'2d',skMode:'single',skType:'stick',skHel:0,skR:1.5,skW:0.55,skStickL:2.2,skStickAng:0,skRun:false,skAnim:null,skAnimRun:false})},
+  {id:'nskm',    label:'▶ Nucleate skyrmionium', a:()=>{ Object.assign(state,{skDim:'2d',skMode:'single',skType:'neel',skHel:0,skR:1.9,skW:0.55,skRun:false,skAnim:'skyrmionium',skAnimRun:true,skAnimT:0}); skNucl.R1=-1.2; }},
+  {id:'nstick',  label:'▶ Nucleate stick-skyrmion', a:()=>{ Object.assign(state,{skDim:'2d',skMode:'single',skType:'neel',skHel:0,skR:1.5,skW:0.55,skStickL:2.6,skStickAng:0,skRun:false,skAnim:'stick',skAnimRun:true,skAnimT:0}); skNucl.L=0; }},
+  {id:'magnon',  label:'▶ Magnons on a skyrmion', a:()=>Object.assign(state,{skDim:'2d',skMode:'single',skType:'neel',skHel:0,skR:1.6,skW:0.7,skRun:false,skAnim:null,skAnimRun:false,skMagnon:true,skMagAmp:0.22,skMagK:2.2,skMagOm:5})},
+  {id:'tube',    label:'3D · Skyrmion tube', a:()=>Object.assign(state,{skDim:'3d',sk3dType:'tube',skType:'neel',skHel:0,skR:1.5,skW:0.6})},
+  {id:'bobber',  label:'3D · Chiral bobber', a:()=>Object.assign(state,{skDim:'3d',sk3dType:'bobber',skType:'neel',skHel:0,skR:1.6,skW:0.6,skBpLambda:0.55})},
+  {id:'blochpt', label:'3D · Bloch point',   a:()=>Object.assign(state,{skDim:'3d',sk3dType:'bloch',skHel:0,skBpPol:1,skBpLambda:0.55})},
+  {id:'globule', label:'3D · Magnetic globule', a:()=>Object.assign(state,{skDim:'3d',sk3dType:'globule',skHel:0,skR:1.7,skW:0.5})},
 ];
 const HF_PRESETS=[
   {id:'q1',  label:'Unit hopfion Q=1',   a:()=>Object.assign(state,{hfMode:'single',hfP:1,hfQ:1,hfPrec:false,hfFlow:true})},
@@ -11542,18 +11728,65 @@ function buildCtl(){
       <div class="chips">${SK_PRESETS.map(p=>`<button class="chip" data-skpreset="${p.id}">${p.label}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Classical, experimental &amp; phenomenological states — static and ▶ animated, single &amp; many-body. Each loads the full parameter set instantly.</div>
     </div>
+    <div class="sect"><b>Dimension</b>
+      <div class="chips">
+        <button class="chip ${state.skDim==='2d'?'on':''}" data-skdim="2d">2D film</button>
+        <button class="chip ${state.skDim==='3d'?'on':''}" data-skdim="3d">3D volume — tubes · bobbers · Bloch points</button>
+      </div>
+    </div>
+    ${state.skDim==='3d'?`
+    <div class="sect"><b>3D chiral structure</b>
+      <div class="chips">
+        <button class="chip ${state.sk3dType==='tube'?'on':''}" data-sk3d="tube">Skyrmion tube</button>
+        <button class="chip ${state.sk3dType==='bobber'?'on':''}" data-sk3d="bobber">Chiral bobber</button>
+        <button class="chip ${state.sk3dType==='bloch'?'on':''}" data-sk3d="bloch">Bloch point</button>
+        <button class="chip ${state.sk3dType==='globule'?'on':''}" data-sk3d="globule">Magnetic globule</button>
+      </div>
+      <div class="ctlrow"><label>Quantum core λ</label><input type="range" id="skBpLambda" min="0.12" max="1.4" step="0.02" value="${state.skBpLambda}"><span class="val" id="skBpLambdaV">${state.skBpLambda.toFixed(2)}</span></div>
+      ${state.sk3dType==='bloch'?`<div class="ctlrow"><label>Polarity</label>
+        <button class="chip ${state.skBpPol>0?'on':''}" data-skbppol="1">head-to-head (+1)</button>
+        <button class="chip ${state.skBpPol<0?'on':''}" data-skbppol="-1">tail-to-tail (−1)</button></div>`:''}
+      <div class="ctlrow"><label>Helicity γ</label><input type="range" id="skHel" min="0" max="6.283" step="0.02" value="${state.skHel}"><span class="val" id="skHelV">${(state.skHel/Math.PI).toFixed(2)}π</span></div>
+      <div class="ctlrow"><label>Core radius R</label><input type="range" id="skR" min="0.6" max="3" step="0.05" value="${state.skR}"><span class="val" id="skRV">${state.skR.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Wall width w</label><input type="range" id="skW" min="0.25" max="1.6" step="0.05" value="${state.skW}"><span class="val" id="skWV">${state.skW.toFixed(2)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Bloch point is the 3D hedgehog singularity where the magnetisation VANISHES: the quantum treatment (Kuchkin, Haller et al., arXiv:2405.20798) shows the spin length falling smoothly to zero, |m|=tanh(r/λ) — drawn here as arrow length, the third degree of freedom classical fixed-length micromagnetics lacks. A chiral bobber (Rybakov 2015) is a skyrmion tube pinching off √(z−z_BP) at an interior Bloch point; per-slice Q(z) below locates it. γ rotates hedgehog ↔ circulating.</div>
+    </div>`:`
     <div class="sect"><b>Skyrmion type — vorticity &amp; helicity</b>
       <div class="chips">
         <button class="chip ${state.skType==='neel'?'on':''}" data-sktype="neel">Néel</button>
         <button class="chip ${state.skType==='bloch'?'on':''}" data-sktype="bloch">Bloch</button>
         <button class="chip ${state.skType==='anti'?'on':''}" data-sktype="anti">Antiskyrmion</button>
         <button class="chip ${state.skType==='skyrmionium'?'on':''}" data-sktype="skyrmionium">Skyrmionium</button>
+        <button class="chip ${state.skType==='bimeron'?'on':''}" data-sktype="bimeron">Bimeron</button>
+        <button class="chip ${state.skType==='antibimeron'?'on':''}" data-sktype="antibimeron">Antibimeron</button>
+        <button class="chip ${state.skType==='bubble'?'on':''}" data-sktype="bubble">Bubble</button>
+        <button class="chip ${state.skType==='stick'?'on':''}" data-sktype="stick">Stick-skyrmion</button>
       </div>
       <div class="ctlrow"><label>Helicity γ</label><input type="range" id="skHel" min="0" max="6.283" step="0.02" value="${state.skHel}"><span class="val" id="skHelV">${(state.skHel/Math.PI).toFixed(2)}π</span></div>
       <div class="ctlrow"><label>Core radius R</label><input type="range" id="skR" min="0.6" max="3" step="0.05" value="${state.skR}"><span class="val" id="skRV">${state.skR.toFixed(2)}</span></div>
       <div class="ctlrow"><label>Wall width w</label><input type="range" id="skW" min="0.25" max="1.6" step="0.05" value="${state.skW}"><span class="val" id="skWV">${state.skW.toFixed(2)}</span></div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Néel spins tilt radially, Bloch swirl — set by DMI (interfacial vs bulk). Antiskyrmion has opposite vorticity (N_sk=−1); skyrmionium is nested (N_sk=0).</div>
+      ${state.skType==='stick'?`
+      <div class="ctlrow"><label>Tail length L</label><input type="range" id="skStickL" min="0" max="3.6" step="0.05" value="${state.skStickL}"><span class="val" id="skStickLV">${state.skStickL.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Stick axis</label><input type="range" id="skStickAng" min="0" max="3.1416" step="0.02" value="${state.skStickAng}"><span class="val" id="skStickAngV">${(state.skStickAng/Math.PI*180).toFixed(0)}°</span></div>`:''}
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Néel spins tilt radially, Bloch swirl — set by DMI (interfacial vs bulk). Antiskyrmion: opposite vorticity. Skyrmionium: nested, N_sk=0. Bimeron/antibimeron: the exact in-plane counterpart — a global spin rotation R_y(π/2) of the texture (N_sk preserved), vacuum in-plane, core = vortex–antivortex meron pair. Bubble: large dipolar-stabilised domain, helicity free. Stick-skyrmion: a 2π wall around a core segment — an elongated tailed skyrmion (Kuchkin et al.), N_sk=±1 exactly, tails carry no charge.</div>
     </div>
+    <div class="sect"><b>Nucleation — watch topology change</b>
+      <div class="ctlrow">
+        <button class="btn ${state.skAnim==='skyrmionium'&&state.skAnimRun?'on':''}" id="skNuclSkm">▶ Nucleate skyrmionium</button>
+        <button class="btn ${state.skAnim==='stick'&&state.skAnimRun?'on':''}" id="skNuclStick">▶ Nucleate stick-skyrmion</button>
+        ${state.skAnim?`<button class="btn" id="skNuclStop">⏹ stop</button>`:''}
+      </div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Skyrmionium nucleation: an inner reversed core is injected into a skyrmion and grows — the measured N_sk jumps −1→0 the instant the inner wall enters: that is the <b>Bloch point traversing the film</b>, the rate-limiting step of skyrmionium formation (Kern et al. 2025; quantum BP: arXiv:2405.20798). Stick-skyrmion nucleation: the core stretches into a stick with two 2π-wall tails while N_sk stays −1 (tails are non-topological).</div>
+    </div>
+    <div class="sect"><b>Magnons — spin waves on the texture</b>
+      <div class="ctlrow"><label>Excite magnons</label><input type="checkbox" id="skMagnon" ${state.skMagnon?'checked':''}></div>
+      <div class="ctlrow"><label>Amplitude A</label><input type="range" id="skMagAmp" min="0.04" max="0.6" step="0.02" value="${state.skMagAmp}"><span class="val" id="skMagAmpV">${state.skMagAmp.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Wavevector k</label><input type="range" id="skMagK" min="0.5" max="6" step="0.1" value="${state.skMagK}"><span class="val" id="skMagKV">${state.skMagK.toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Direction</label><input type="range" id="skMagAng" min="0" max="360" step="5" value="${state.skMagAng}"><span class="val" id="skMagAngV">${state.skMagAng}°</span></div>
+      <div class="ctlrow"><label>Frequency ω</label><input type="range" id="skMagOm" min="1" max="14" step="0.5" value="${state.skMagOm}"><span class="val" id="skMagOmV">${state.skMagOm.toFixed(1)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Linearised spin wave δm = A[ê₁cos(k·x−ωt)+ê₂sin(k·x−ωt)], ê₁,ê₂ ⊥ m, renormalised to |m|=1 — the transverse precession magnons really are. On a texture this is the linear-response picture (exact magnon spectra on skyrmions are system-specific).</div>
+    </div>`}
+    ${state.skDim==='2d'?`
     <div class="sect"><b>Configuration</b>
       <div class="chips">
         <button class="chip ${state.skMode==='single'?'on':''}" data-skmode="single">Single</button>
@@ -11587,7 +11820,7 @@ function buildCtl(){
       <div class="ctlrow"><label>Temperature</label><input type="range" id="skTemp" min="0" max="1" step="0.02" value="${state.skTemp}"><span class="val" id="skTempV">${state.skTemp.toFixed(2)}</span></div>
       <div class="ctlrow"><label>Time rate</label><input type="range" id="skSpeed" min="0.2" max="4" step="0.1" value="${state.skSpeed}"><span class="val" id="skSpeedV">${state.skSpeed.toFixed(1)}</span></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">G×v + αDv = (G×+βD)v_s + F → motion at the skyrmion Hall angle (∝ N_sk; vanishes when β=α). Like skyrmions repel into a lattice; a skyrmion meeting an antiskyrmion annihilates; pinning and temperature add disorder and creep.</div>
-    </div>
+    </div>`:''}
     <div class="sect"><b>Field display &amp; immersion</b>
       <div class="ctlrow"><label>Arrow length</label><input type="range" id="skArrow" min="0.4" max="2" step="0.05" value="${state.skArrow}"><span class="val" id="skArrowV">${state.skArrow.toFixed(2)}</span></div>
       <div class="ctlrow"><label>Density</label>
@@ -11602,10 +11835,11 @@ function buildCtl(){
       <div class="ctlrow"><label>Base plate</label><input type="checkbox" id="skShowPlane" ${state.skShowPlane?'checked':''}>
         <label style="margin-left:12px">Auto-rotate</label><input type="checkbox" id="skAutoRot" ${state.skAutoRot?'checked':''}></div>
     </div>
+    ${state.skDim==='2d'?`
     <div class="sect"><b>Bridge → Hopfion</b>
-      <div class="note" style="font-size:11px">A 3D <b>hopfion</b> is a closed, twisted <b>skyrmion string</b>: extrude this 2D skyrmion (N_sk) into a tube along z with a helical in-plane twist and close it into a torus — the Hopf charge Q_H = N_sk × twist (Kent 2021; Sutcliffe 2017).</div>
-      <div class="ctlrow"><button class="btn" id="skToHopf">⟲ Close this skyrmion into a Hopfion →</button></div>
-    </div>` + '';
+      <div class="note" style="font-size:11px">A 3D <b>hopfion</b> is a closed, twisted <b>skyrmion string</b>: extrude this 2D skyrmion (N_sk) into a tube along z with a helical in-plane twist and close it into a torus — the Hopf charge Q_H = N_sk × twist (Kent 2021; Sutcliffe 2017). The transfer is EXACT: every core keeps its position and charge.</div>
+      <div class="ctlrow"><button class="btn" id="skToHopf">⟲ Close this configuration into Hopfions →</button></div>
+    </div>`:''}` + '';
     else if(V==='hopfion') body = `
     <div class="sect"><b>Ready configurations — one tap</b>
       <div class="chips">${HF_PRESETS.map(p=>`<button class="chip" data-hfpreset="${p.id}">${p.label}</button>`).join('')}</div>
@@ -11786,10 +12020,34 @@ function buildCtl(){
     ctl.querySelector('#v-hopfion').onclick = ()=>{ setS3View('hopfion'); buildCtl(); };
     ctl.querySelector('#v-skyrmion').onclick = ()=>{ setS3View('skyrmion'); buildCtl(); };
     if(V==='skyrmion'){
-      ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){ p.a(); skSetup(); buildCtl(); } });
+      ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
+        Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
+        p.a(); skSetup(); buildCtl(); } });
       const sv=(id,f,fmt,resetup)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value); const v=ctl.querySelector('#'+id+'V'); if(v&&fmt)v.textContent=fmt(+e.target.value); if(resetup)skSetup(); else skDirty=true; }; };
       ctl.querySelectorAll('[data-sktype]').forEach(b=>b.onclick=()=>{ state.skType=b.dataset.sktype;
-        if(state.skType==='bloch')state.skHel=Math.PI/2; else if(state.skType==='neel')state.skHel=0; skSetup(); buildCtl(); });
+        if(state.skType==='bloch')state.skHel=Math.PI/2; else if(state.skType==='neel')state.skHel=0;
+        else if(state.skType==='bubble'&&state.skR<2.2)state.skR=2.4;                        // bubbles are large
+        if(state.skType==='stick'||state.skType==='bimeron'||state.skType==='antibimeron'||state.skType==='bubble') state.skMode='single';
+        state.skAnim=null; state.skAnimRun=false; skSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-skdim]').forEach(b=>b.onclick=()=>{ state.skDim=b.dataset.skdim; state.skAnim=null; state.skAnimRun=false; skDirty=true; buildCtl(); });
+      ctl.querySelectorAll('[data-sk3d]').forEach(b=>b.onclick=()=>{ state.sk3dType=b.dataset.sk3d; skDirty=true; buildCtl(); });
+      ctl.querySelectorAll('[data-skbppol]').forEach(b=>b.onclick=()=>{ state.skBpPol=+b.dataset.skbppol; skDirty=true; buildCtl(); });
+      sv('skBpLambda', v=>state.skBpLambda=v, v=>v.toFixed(2));
+      sv('skStickL', v=>state.skStickL=v, v=>v.toFixed(2));
+      sv('skStickAng', v=>state.skStickAng=v, v=>(v/Math.PI*180).toFixed(0)+'°');
+      const mg=ctl.querySelector('#skMagnon'); if(mg) mg.onchange=e=>{ state.skMagnon=e.target.checked; skDirty=true; };
+      sv('skMagAmp', v=>state.skMagAmp=v, v=>v.toFixed(2));
+      sv('skMagK', v=>state.skMagK=v, v=>v.toFixed(1));
+      ctl.querySelector('#skMagAng')&&(ctl.querySelector('#skMagAng').oninput=e=>{ state.skMagAng=+e.target.value;
+        const v=ctl.querySelector('#skMagAngV'); if(v)v.textContent=state.skMagAng+'°'; skDirty=true; });
+      sv('skMagOm', v=>state.skMagOm=v, v=>v.toFixed(1));
+      const nucl=(kind)=>{ state.skDim='2d'; state.skAnim=kind; state.skAnimRun=true; state.skAnimT=0;
+        state.skMode='single'; skNucl.R1=-1.2; skNucl.L=0;
+        if(kind==='skyrmionium'){ state.skType='neel'; state.skHel=0; }
+        skSetup(); buildCtl(); };
+      ctl.querySelector('#skNuclSkm')&&(ctl.querySelector('#skNuclSkm').onclick=()=>nucl('skyrmionium'));
+      ctl.querySelector('#skNuclStick')&&(ctl.querySelector('#skNuclStick').onclick=()=>nucl('stick'));
+      ctl.querySelector('#skNuclStop')&&(ctl.querySelector('#skNuclStop').onclick=()=>{ state.skAnim=null; state.skAnimRun=false; skDirty=true; buildCtl(); });
       ctl.querySelectorAll('[data-skmode]').forEach(b=>b.onclick=()=>{ state.skMode=b.dataset.skmode; skSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-sklat]').forEach(b=>b.onclick=()=>{ state.skLatType=b.dataset.sklat; skSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-skcmap]').forEach(b=>b.onclick=()=>{ state.skColormap=b.dataset.skcmap; skDirty=true; buildCtl(); });
@@ -11810,9 +12068,9 @@ function buildCtl(){
           const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(id==='skDriveAng'?state[id]+'°':state[id].toFixed(+dp)); }; });
       ctl.querySelector('#skShowPlane').onchange=e=>{ state.skShowPlane=e.target.checked; skDirty=true; };
       ctl.querySelector('#skAutoRot').onchange=e=>{ state.skAutoRot=e.target.checked; };
-      ctl.querySelector('#skRun').onclick=()=>{ state.skRun=!state.skRun; buildCtl(); };   // run the physics (repulsion+confinement); add a current with the slider for the Hall demo
-      ctl.querySelector('#skReset').onclick=()=>{ state.skRun=false; state.skDrive=0; skSetup(); buildCtl(); };
-      ctl.querySelector('#skToHopf').onclick=()=>{
+      ctl.querySelector('#skRun')&&(ctl.querySelector('#skRun').onclick=()=>{ state.skRun=!state.skRun; buildCtl(); });   // run the physics (repulsion+confinement); add a current with the slider for the Hall demo
+      ctl.querySelector('#skReset')&&(ctl.querySelector('#skReset').onclick=()=>{ state.skRun=false; state.skDrive=0; state.skAnim=null; state.skAnimRun=false; skSetup(); buildCtl(); });
+      ctl.querySelector('#skToHopf')&&(ctl.querySelector('#skToHopf').onclick=()=>{
         // EXACT transfer: every skyrmion core becomes a closed skyrmion string (hopfion)
         // at the SAME position, with q = its vorticity (antiskyrmion → anti-hopfion) and
         // twist p=1, so Q_H,i = N_sk,i exactly. Helicity γ becomes the ξ₂ phase.
@@ -11826,7 +12084,7 @@ function buildCtl(){
         } else {
           state.hfMode='custom'; state.hfCustom=cores; state.hfP=1; state.hfQ=1;
         }
-        hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; setS3View('hopfion'); buildCtl(); };
+        hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; setS3View('hopfion'); buildCtl(); });
     }
     if(V==='hopfion'){
       const HFMAX=6, cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
@@ -14115,6 +14373,11 @@ globalThis.FBS3R_QA=Object.freeze({
   solitonStats(){ try{ return {
     view:state.s3view,
     skCount:(typeof skCenters!=='undefined'&&skCenters)?skCenters.length:0,
+    skQ:(typeof skQ!=='undefined')?+skQ.toFixed(4):null,
+    sk3dQtop:(typeof sk3dQtop!=='undefined')?+sk3dQtop.toFixed(4):null,
+    sk3dQbot:(typeof sk3dQbot!=='undefined')?+sk3dQbot.toFixed(4):null,
+    skNuclR1:(typeof skNucl!=='undefined')?+skNucl.R1.toFixed(3):null,
+    skNuclL:(typeof skNucl!=='undefined')?+skNucl.L.toFixed(3):null,
     hfFibers:(typeof hfFibers!=='undefined'&&hfFibers)?hfFibers.length:0,
     hfExtra:(typeof hfExtra!=='undefined'&&hfExtra)?hfExtra.length:0 }; }catch(e){ return {err:String(e)}; } },
   // draggable core positions (field-space + projected screen px) so harnesses can verify multitouch
