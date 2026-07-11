@@ -6486,11 +6486,14 @@ function hfFiberPoints(p,q,theta,phi,scale,center,segs=160){
     const t=i/segs*Math.PI*2;
     const x1=q*t, x2=p*t+phi;                                   // ξ₁ winds q×, ξ₂ winds p× → (q,p) torus knot
     const X1=ce*Math.cos(x1), X2=ce*Math.sin(x1), X3=se*Math.cos(x2), X4=se*Math.sin(x2);
-    // stereographic S³→R³. The floor is a radial retract that tames the projection's
-    // pole singularity (dividing by 1−X4→0) — it reins runaway tails from r≈12 to r≈4.6
-    // WITHOUT changing any linking number (verified: |L|=p·q for every (p,q) with/without it).
-    const d=Math.max(0.09,1-X4);
-    pts.push(new THREE.Vector3(X1/d*scale+center.x, X2/d*scale+center.y, X3/d*scale+center.z));
+    // stereographic S³→R³, then a SMOOTH radius cap. The old hard floor max(0.09,1−X4)
+    // collapsed fibres near the projection pole into a straight radial spike; this smooth
+    // saturating cap r' = r/(1+(r/Rmax)⁴)^¼ keeps every fibre curved and bounded (≈identity
+    // for the core, gently reining the runaway tail) — a radial homeomorphism, so the
+    // linking number |L|=p·q is unchanged.
+    const d=Math.max(1e-3,1-X4), px=X1/d, py=X2/d, pz=X3/d;
+    const r=Math.hypot(px,py,pz), Rmax=4.8, k=(r>1e-9?1/Math.pow(1+Math.pow(r/Rmax,4),0.25):1)*scale;
+    pts.push(new THREE.Vector3(px*k+center.x, py*k+center.y, pz*k+center.z));
   }
   return pts;
 }
@@ -6664,27 +6667,36 @@ function hfInteractingLines(centersRaw, perCore){
   hfReconnected = tot? bridged/tot : 0;
   return lines;
 }
-/* Precession of the map w and fibre flow — the PHYSICALLY EXACT motion. "Target
-   precession" is a global phase w→e^{iα}w (the ξ₂/Hopf S¹ action). The field lines are
-   the streamlines of B=∇u×∇v, and B is INVARIANT under a global phase — so the tube
-   GEOMETRY must not move at all (an earlier Möbius vertex-warp made the cores wander,
-   which was unphysical). What the phase advance actually does: (i) it advances the phase
-   OF THE FIELD, seen as an emergent-current glow flowing ALONG each stationary fibre, and
-   (ii) it rotates arg(w), i.e. cycles which target-S² point each fibre represents → its
-   hue cycles. So we keep the lines fixed and animate per-vertex colour: a travelling
-   bright band = the Hopf current running along the fibres, plus a slow hue cycle. Cheap,
-   exact, and the hopfions stay put (only the fibres flow), matching single mode. */
-function hfAnimateFibers(){
-  if(state.hfMode==='single') return;
-  const on=state.hfPrec, p2=hfPrecPhase/(2*Math.PI), bands=2.4, c=_hfTmpCol;
-  for(const f of hfFibers){ if(!f.colorAttr) continue;
-    c.setHSL(((f.hue+(on?p2:0))%1+1)%1, .82, f.light);       // (ii) hue cycles with the phase
-    const arr=f.colorAttr.array, n=arr.length/3;
-    for(let i=0;i<n;i++){ const fr=i/(n-1);
-      const b= on ? 0.32+1.05*Math.pow(0.5+0.5*Math.cos(2*Math.PI*(bands*fr - p2)),3) : 1;  // (i) current glow travels along the fibre
-      arr[i*3]=Math.min(1,c.r*b); arr[i*3+1]=Math.min(1,c.g*b); arr[i*3+2]=Math.min(1,c.b*b);
+/* Precession ω — the hopfion's internal phase advancing, rendered as the field lines
+   ROTATING about each soliton's own axis while the cores stay put.
+   • SINGLE: the analytic (q,p) knots are recomputed in place (phi → ph+ωt) into the
+     existing buffers — the map re-winds smoothly. Crucially the geometry is UPDATED, not
+     re-allocated every frame, so there is no create/dispose churn (that churn was the
+     GPU-thrashing "flicker" that hung weak cards).
+   • MULTI (pair/ring): each traced field line is rotated about the VERTICAL axis through
+     its nearest core, so every line sweeps/rotates coherently yet the cores never wander.
+   Both are per-vertex only (no re-tracing, no re-allocation) → smooth and cheap. */
+let _hfCores=[];
+function hfApplyPrecession(){   // multi mode: rotate each line about its nearest core's vertical axis
+  const cd=Math.cos(hfPrecPhase), sd=Math.sin(hfPrecPhase);
+  for(const f of hfFibers){ const base=f.base; if(!base) continue;
+    const arr=f.line.geometry.attributes.position.array;
+    for(let i=0;i<base.length;i+=3){
+      const vx=base[i],vy=base[i+1],vz=base[i+2];
+      let cx=0,cz=0,bd=1e30;
+      for(const c of _hfCores){ const dx=vx-c.x,dz=vz-c.z,dy=vy-c.y,d=dx*dx+dz*dz+dy*dy; if(d<bd){bd=d;cx=c.x;cz=c.z;} }
+      const dx=vx-cx, dz=vz-cz;
+      arr[i]=cx+dx*cd-dz*sd; arr[i+1]=vy; arr[i+2]=cz+dx*sd+dz*cd;
     }
-    f.colorAttr.needsUpdate=true;
+    f.line.geometry.attributes.position.needsUpdate=true;
+  }
+}
+function hfUpdateSingleInPlace(){   // single mode: re-wind the analytic knots into existing buffers (no re-alloc → no flicker)
+  for(const f of hfFibers){ if(f.p===undefined) continue;
+    const pts=hfFiberPoints(f.p,f.q,f.th,f.ph+hfPrecPhase,f.scale,f.center);
+    const arr=f.line.geometry.attributes.position.array, n=Math.min(pts.length,arr.length/3);
+    for(let i=0;i<n;i++){ arr[i*3]=pts[i].x; arr[i*3+1]=pts[i].y; arr[i*3+2]=pts[i].z; }
+    f.line.geometry.attributes.position.needsUpdate=true;
   }
 }
 const _hfTmpCol=new THREE.Color();
@@ -6724,11 +6736,14 @@ function buildHopfion(){
       const pts=sc===1?L.pts:L.pts.map(v=>v.clone().multiplyScalar(sc));
       const geo=new THREE.BufferGeometry().setFromPoints(pts);
       const carr=new Float32Array(pts.length*3);
-      for(let i=0;i<pts.length;i++){ carr[i*3]=col.r; carr[i*3+1]=col.g; carr[i*3+2]=col.b; }
+      const base=new Float32Array(pts.length*3);
+      for(let i=0;i<pts.length;i++){ carr[i*3]=col.r; carr[i*3+1]=col.g; carr[i*3+2]=col.b;
+        base[i*3]=pts[i].x; base[i*3+1]=pts[i].y; base[i*3+2]=pts[i].z; }
       const colorAttr=new THREE.BufferAttribute(carr,3); geo.setAttribute('color',colorAttr);
       const line=new THREE.Line(geo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:L.spans?1:.82}));
-      hfSpinGroup.add(line); hfFibers.push({line,col,colorAttr,hue:L.hue,light,mag:L.mag,spans:L.spans});
+      hfSpinGroup.add(line); hfFibers.push({line,col,colorAttr,base,hue:L.hue,light,mag:L.mag,spans:L.spans});
     }
+    _hfCores=centers.map(cen=>cen.c.clone().multiplyScalar(state.hfScale));   // scene-space cores (rotation pivots, fixed)
     for(const cen of centers){   // luminous core markers (gold = hopfion, teal = anti-hopfion) — stationary
       const m=new THREE.Mesh(new THREE.SphereGeometry(.12*state.hfScale,12,8),
         new THREE.MeshBasicMaterial({color:(cen.q<0)?0x7ef0c2:0xffd27a}));
@@ -6789,12 +6804,11 @@ function updateHopfion(dt){
     if(s) s.value=state.hfSep; if(v) v.textContent=state.hfSep.toFixed(1);
   }
   if(hfDirty) buildHopfion();
-  // Multi-mode precession: geometry is fixed (global-phase-invariant); we animate the
-  // emergent-current glow flowing along each fibre + the hue cycle. The hopfions stay put.
-  if(state.hfMode!=='single'){
-    if(state.hfPrec) hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-    hfAnimateFibers();
-  }
+  // Precession ω — advance the phase, then rotate the field lines about their cores.
+  // In-place geometry update (no re-allocation) → smooth, no flicker/GPU thrash.
+  if(state.hfPrec) hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
+  if(state.hfMode==='single'){ if(state.hfPrec) hfUpdateSingleInPlace(); }
+  else hfApplyPrecession();
   if(state.hfFlow){ hfPhase=(hfPhase+dt*state.hfFlowSpd)%1;
     const pos=hfBeads.geometry.attributes.position;
     hfFibers.forEach((f,i)=>{
@@ -6803,11 +6817,6 @@ function updateHopfion(dt){
       pos.setXYZ(i,pts.getX(idx),pts.getY(idx),pts.getZ(idx));
     });
     pos.needsUpdate=true;
-  }
-  if(state.hfPrec && state.hfMode==='single'){   // the analytic single map re-rotates cheaply via rebuild
-    hfPrecPhase=(hfPrecPhase+dt*state.hfPrecSpd)%(Math.PI*2);
-    if(!updateHopfion._acc) updateHopfion._acc=0;
-    updateHopfion._acc+=dt; if(updateHopfion._acc>0.05){ updateHopfion._acc=0; buildHopfion(); }
   }
   const Q=state.hfP*state.hfQ, ph=hfPhysics, ready=!ph.computing&&ph.key===state.hfP+'_'+state.hfQ;
   hudBig.textContent=`Hopfion lab · Q_H=${Q} · H(helicity)=${Q} · ${ready?'E_min='+ph.Emin.toFixed(0)+' · λ*='+ph.lam.toFixed(2):'measuring E… '+Math.round(ph.progress*100)+'%'}`;
