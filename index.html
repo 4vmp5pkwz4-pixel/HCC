@@ -432,7 +432,15 @@
   #landedBanner .small{color:var(--dim);font-size:11px}
 
   /* ---------- mode row, chips, cycle bars, day theme ---------- */
-  #modeRow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  /* one compact strip: mode carousel + Search·Navigator·More·theme·fs·VR·MR all share this row,
+     scrolling horizontally if the viewport is narrow; the clock is pushed to the far right */
+  #modeRow{display:flex;gap:8px;flex-wrap:nowrap;align-items:center;flex:1 1 auto;min-width:0;
+    overflow-x:auto;overflow-y:hidden;scrollbar-width:none;padding-bottom:1px}
+  #modeRow::-webkit-scrollbar{display:none}
+  #modeRow .tbsep{flex:0 0 auto;width:1px;align-self:stretch;margin:3px 4px;
+    background:linear-gradient(180deg,transparent,rgba(212,175,106,.4),transparent)}
+  #modeRow .btn,#modeRow .modebtn{flex:0 0 auto}
+  #topbar #clock{flex:0 0 auto;margin-left:auto}
   #themeBtn{border-radius:999px;padding:7px 12px}
   .chips{display:flex;flex-wrap:wrap;gap:5px;margin:5px 0}
   .chip{background:rgba(10,14,24,.55);border:1px solid rgba(212,175,106,.22);color:var(--txt);
@@ -652,14 +660,15 @@
     <button class="modebtn" data-mode="s3">⬡ S³·Hopf</button>
     <button class="modebtn" data-mode="fbs">φ FBS3R</button>
     <button class="modebtn" data-mode="fractal">❄ Fractal</button>
+    <span class="tbsep" aria-hidden="true"></span>
+    <button class="btn" id="cmdkBtn" title="Universal search & command palette (⌘K or /)">⌕ Search</button>
+    <button class="btn" id="navBtn" title="Atlas Navigator — guided start, tours, layers, bookmarks (N)">🧭 Navigator</button>
+    <button class="btn" id="moreBtn" title="More tools & panels" aria-haspopup="true" aria-expanded="false">⋯ More</button>
+    <button class="btn icon" id="themeBtn" title="Day / Night theme">☀</button>
+    <button class="btn icon" id="fsBtn" title="Toggle fullscreen (F)">⛶</button>
+    <button class="modebtn" id="vrBtn" title="Enter immersive VR (Meta Quest Browser)">XR: checking…</button>
+    <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ Enter MR</button>
   </nav>
-  <button class="btn" id="cmdkBtn" title="Universal search & command palette (⌘K or /)">⌕ Search</button>
-  <button class="btn" id="navBtn" title="Atlas Navigator — guided start, tours, layers, bookmarks (N)">🧭 Navigator</button>
-  <button class="btn" id="moreBtn" title="More tools & panels" aria-haspopup="true" aria-expanded="false">⋯ More</button>
-  <button class="btn icon" id="themeBtn" title="Day / Night theme">☀</button>
-  <button class="btn icon" id="fsBtn" title="Toggle fullscreen (F)">⛶</button>
-  <button class="modebtn" id="vrBtn" title="Enter immersive VR (Meta Quest Browser)">XR: checking…</button>
-  <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ Enter MR</button>
   <div id="clock"><div class="rt" id="clockReal">—</div><div class="st" id="clockSim">—</div></div>
 </div>
 <div id="moreMenu" hidden role="menu" aria-label="More tools">
@@ -3061,40 +3070,45 @@ renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
 /* ── Hand-drag skyrmion & hopfion cores to see how they interact (capture phase so it
    pre-empts OrbitControls). Skyrmions move on their field plane; hopfions move on a
    screen-facing plane; the field/lines recompute live. ── */
-let hfSkDrag=null; const _dragPlane=new THREE.Plane(), _dragHit=new THREE.Vector3(), _dragQ=new THREE.Quaternion(), _dragV=new THREE.Vector3();
+/* MULTITOUCH: a Map of pointerId → drag target, so several fingers (or two Quest
+   controllers) can grab and move several cores at once. */
+const hfDrags=new Map(); const _dragPlane=new THREE.Plane(), _dragHit=new THREE.Vector3(), _dragQ=new THREE.Quaternion(), _dragV=new THREE.Vector3();
+function hfDragActive(){ return hfDrags.size>0; }
 renderer.domElement.addEventListener('pointerdown', e=>{
-  if(state.mode!=='s3' || e.button!==0) return;
+  if(state.mode!=='s3' || (e.pointerType==='mouse'&&e.button!==0)) return;
   const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
   if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp.children.length){
     const hit=raycaster.intersectObjects(skCoreGrp.children,false)[0];
-    if(hit){ const idx=skCoreGrp.children.indexOf(hit.object); if(skCenters[idx]){ hfSkDrag={kind:'sk',idx}; controls.enabled=false; e.stopPropagation(); } }
+    if(hit){ const idx=skCoreGrp.children.indexOf(hit.object); if(skCenters[idx]){ hfDrags.set(e.pointerId,{kind:'sk',idx}); controls.enabled=false; e.stopPropagation(); } }
   } else if(state.s3view==='hopfion' && hfExtra.length){
     const hit=raycaster.intersectObjects(hfExtra.filter(m=>m.isMesh),false)[0];
-    if(hit){ hfSkDrag={kind:'hf',idx:hfExtra.indexOf(hit.object)}; controls.enabled=false; e.stopPropagation(); }
+    if(hit){ hfDrags.set(e.pointerId,{kind:'hf',idx:hfExtra.indexOf(hit.object)}); controls.enabled=false; e.stopPropagation(); }
   }
 }, true);
 addEventListener('pointermove', e=>{
-  if(!hfSkDrag) return;
+  const d=hfDrags.get(e.pointerId); if(!d) return;
   const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
-  if(hfSkDrag.kind==='sk'){
+  if(d.kind==='sk'){
     skyrmionGroup.getWorldQuaternion(_dragQ);
     _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), skyrmionGroup.getWorldPosition(new THREE.Vector3()));
     if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
-      const loc=skyrmionGroup.worldToLocal(_dragHit.clone()), c=skCenters[hfSkDrag.idx];
+      const loc=skyrmionGroup.worldToLocal(_dragHit.clone()), c=skCenters[d.idx];
       if(c){ c.x=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.x)); c.y=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.z)); c.vx=c.vy=0; skDirty=true; }
     }
   } else {
-    const core=hfExtra[hfSkDrag.idx]; if(!core||!core.isMesh) return;
+    const core=hfExtra[d.idx]; if(!core||!core.isMesh) return;
     camera.getWorldDirection(_dragV);
     _dragPlane.setFromNormalAndCoplanarPoint(_dragV.clone(), core.getWorldPosition(new THREE.Vector3()));
     if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
       const loc=hfSpinGroup.worldToLocal(_dragHit.clone()).multiplyScalar(1/Math.max(1e-3,state.hfScale));
-      if(!hfDragPos[hfSkDrag.idx]) hfDragPos[hfSkDrag.idx]=new THREE.Vector3();
-      hfDragPos[hfSkDrag.idx].copy(loc); hfDirty=true;
+      if(!hfDragPos[d.idx]) hfDragPos[d.idx]=new THREE.Vector3();
+      hfDragPos[d.idx].copy(loc); hfDirty=true;
     }
   }
 }, true);
-addEventListener('pointerup', ()=>{ if(hfSkDrag){ hfSkDrag=null; controls.enabled=!state.landed; } }, true);
+function _endDrag(e){ if(hfDrags.has(e.pointerId)){ hfDrags.delete(e.pointerId); if(hfDrags.size===0) controls.enabled=!state.landed; } }
+addEventListener('pointerup', _endDrag, true);
+addEventListener('pointercancel', _endDrag, true);
 renderer.domElement.addEventListener('dblclick',e=>{
   if(state.landed||state.mode==='fractal') return;
   const ndc=canvasNDC(e.clientX,e.clientY);
@@ -7030,7 +7044,7 @@ function updateSkyrmion(dt){
   if(!skCenters.length) skSetup();
   if(state.skRun){ skThiele(dt); skDirty=true; }
   if(skDirty){ skDirty=false; skRenderField(); }
-  if(state.skAutoRot && !hfSkDrag) skyrmionGroup.rotation.y += dt*state.skRotSpd;   // hold still while dragging a core
+  if(state.skAutoRot && !hfDragActive()) skyrmionGroup.rotation.y += dt*state.skRotSpd;   // hold still while dragging a core
   hudBig.textContent=`Skyrmion lab · N_sk=${skQ.toFixed(2)} · ${skCenters.length} soliton(s) · E=${skE.tot.toFixed(1)}`;
   hudSub.textContent='REAL magnetisation m:R²→S² · Belavin–Polyakov / domain-wall profile · Néel/Bloch/anti/skyrmionium · Thiele skyrmion-Hall (β) + repulsion + pinning + temperature · hopfion = closed twisted skyrmion string';
   if(state.mode==='s3'){ const o=ctl.querySelector('#skPhysOut'); if(o){ const html=skyrmionPhysHTML();
@@ -10845,6 +10859,29 @@ addEventListener('pointerup', e=>touchPts.delete(e.pointerId));
 addEventListener('pointercancel', e=>touchPts.delete(e.pointerId));
 
 /* ---------------- CONTROL PANEL (per mode) ---------------- */
+/* Built-in configurations — classical, experimental & phenomenological, static & animated.
+   Each preset writes the full parameter set; the handler then rebuilds the field. */
+const SK_PRESETS=[
+  {id:'neel',  label:'Néel skyrmion',        a:()=>Object.assign(state,{skMode:'single',skType:'neel', skHel:0,        skR:1.6,skW:0.7,skRun:false,skDrive:0})},
+  {id:'bloch', label:'Bloch skyrmion',       a:()=>Object.assign(state,{skMode:'single',skType:'bloch',skHel:Math.PI/2,skR:1.6,skW:0.7,skRun:false,skDrive:0})},
+  {id:'anti',  label:'Antiskyrmion',         a:()=>Object.assign(state,{skMode:'single',skType:'anti', skHel:0,        skR:1.6,skW:0.7,skRun:false,skDrive:0})},
+  {id:'target',label:'Skyrmionium Q=0',      a:()=>Object.assign(state,{skMode:'single',skType:'skyrmionium',skR:1.9,skW:0.7,skRun:false,skDrive:0})},
+  {id:'hall',  label:'▶ Skyrmion-Hall race', a:()=>Object.assign(state,{skMode:'single',skType:'neel', skRun:true,skDrive:16,skDriveAng:0,skDamp:0.3,skBeta:0.1,skConfine:2.5,skR:1.4})},
+  {id:'annih', label:'▶ Sk + anti annihilate',a:()=>Object.assign(state,{skMode:'annih',skType:'neel',skRun:true,skDrive:0,skRep:2,skSep:3.4,skConfine:5,skR:1.4})},
+  {id:'lattice',label:'Hexagonal lattice',   a:()=>Object.assign(state,{skMode:'lattice',skLatType:'hex',skN:19,skType:'bloch',skHel:Math.PI/2,skR:1.1,skSep:2.4,skRun:false})},
+  {id:'cluster',label:'▶ Self-organise',     a:()=>Object.assign(state,{skMode:'lattice',skLatType:'square',skN:12,skType:'neel',skR:1.2,skSep:2.2,skRun:true,skDrive:0,skRep:5,skConfine:6})},
+];
+const HF_PRESETS=[
+  {id:'q1',  label:'Unit hopfion Q=1',   a:()=>Object.assign(state,{hfMode:'single',hfP:1,hfQ:1,hfPrec:false,hfFlow:true})},
+  {id:'q2a', label:'Q=2 (2,1)',          a:()=>Object.assign(state,{hfMode:'single',hfP:2,hfQ:1,hfPrec:false})},
+  {id:'q2b', label:'Q=2 (1,2)',          a:()=>Object.assign(state,{hfMode:'single',hfP:1,hfQ:2,hfPrec:false})},
+  {id:'q3',  label:'Q=3 (3,1)',          a:()=>Object.assign(state,{hfMode:'single',hfP:3,hfQ:1,hfPrec:false})},
+  {id:'q4',  label:'Q=4 (2,2)',          a:()=>Object.assign(state,{hfMode:'single',hfP:2,hfQ:2,hfPrec:false})},
+  {id:'prec',label:'▶ Precessing hopfion',a:()=>Object.assign(state,{hfMode:'single',hfP:2,hfQ:1,hfPrec:true,hfPrecSpd:1.0})},
+  {id:'twin',label:'Twin pair',          a:()=>Object.assign(state,{hfMode:'pair',hfP:1,hfQ:1,hfP2:1,hfQ2:1,hfSep:4.4})},
+  {id:'anti',label:'Hopfion + anti',     a:()=>Object.assign(state,{hfMode:'pair',hfP:1,hfQ:1,hfP2:1,hfQ2:-1,hfSep:4.4})},
+  {id:'ring',label:'Hopfion ring (Zheng 2023)',a:()=>Object.assign(state,{hfMode:'ring',hfP:1,hfQ:1,hfRingN:6,hfRingR:3.2})},
+];
 function buildCtl(){
   if(state.mode==='solar'){
     ctl.innerHTML = `
@@ -11385,6 +11422,10 @@ function buildCtl(){
       q=±1 reproduces the kernel. CHSH ≤ 2√2 (Tsirelson) and ρ_A=ρ_B=I/2 forbids signalling.
       A geometric representation of standard QM — NOT a hidden-variable model (Hopf-Bell).</div>`;
     else if(V==='skyrmion') body = `
+    <div class="sect"><b>Ready configurations — one tap</b>
+      <div class="chips">${SK_PRESETS.map(p=>`<button class="chip" data-skpreset="${p.id}">${p.label}</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Classical, experimental &amp; phenomenological states — static and ▶ animated, single &amp; many-body. Each loads the full parameter set instantly.</div>
+    </div>
     <div class="sect"><b>Skyrmion type — vorticity &amp; helicity</b>
       <div class="chips">
         <button class="chip ${state.skType==='neel'?'on':''}" data-sktype="neel">Néel</button>
@@ -11450,6 +11491,10 @@ function buildCtl(){
       <div class="ctlrow"><button class="btn" id="skToHopf">⟲ Close this skyrmion into a Hopfion →</button></div>
     </div>` + '';
     else if(V==='hopfion') body = `
+    <div class="sect"><b>Ready configurations — one tap</b>
+      <div class="chips">${HF_PRESETS.map(p=>`<button class="chip" data-hfpreset="${p.id}">${p.label}</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Classical &amp; experimental hopfions — static and ▶ animated, single, pair &amp; ring. Each loads the full parameter set instantly.</div>
+    </div>
     <div class="sect"><b>Hopf charge — Q_H = p · q</b>
       <div class="ctlrow"><label>p (ξ₂ winding)</label><button class="btn" data-hf="p-">−</button>
         <span class="val" style="min-width:34px;text-align:center">${state.hfP}</span><button class="btn" data-hf="p+">+</button></div>
@@ -11623,6 +11668,7 @@ function buildCtl(){
     ctl.querySelector('#v-hopfion').onclick = ()=>{ setS3View('hopfion'); buildCtl(); };
     ctl.querySelector('#v-skyrmion').onclick = ()=>{ setS3View('skyrmion'); buildCtl(); };
     if(V==='skyrmion'){
+      ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){ p.a(); skSetup(); buildCtl(); } });
       const sv=(id,f,fmt,resetup)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value); const v=ctl.querySelector('#'+id+'V'); if(v&&fmt)v.textContent=fmt(+e.target.value); if(resetup)skSetup(); else skDirty=true; }; };
       ctl.querySelectorAll('[data-sktype]').forEach(b=>b.onclick=()=>{ state.skType=b.dataset.sktype;
         if(state.skType==='bloch')state.skHel=Math.PI/2; else if(state.skType==='neel')state.skHel=0; skSetup(); buildCtl(); });
@@ -11653,6 +11699,7 @@ function buildCtl(){
     }
     if(V==='hopfion'){
       const HFMAX=6, cl=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+      ctl.querySelectorAll('[data-hfpreset]').forEach(b=>b.onclick=()=>{ const p=HF_PRESETS.find(x=>x.id===b.dataset.hfpreset); if(p){ p.a(); hfDragPos=[]; state.hfSepTarget=null; hfDirty=true; buildCtl(); } });
       ctl.querySelectorAll('[data-hf]').forEach(b=>b.onclick=()=>{ const c=b.dataset.hf;
         if(c==='p+')state.hfP=cl(state.hfP+1,1,HFMAX); else if(c==='p-')state.hfP=cl(state.hfP-1,1,HFMAX);
         else if(c==='q+')state.hfQ=cl(state.hfQ+1,1,HFMAX); else if(c==='q-')state.hfQ=cl(state.hfQ-1,1,HFMAX);
@@ -13931,6 +13978,24 @@ globalThis.FBS3R_QA=Object.freeze({
     }
     return out;
   },
+  // read-only snapshots for external harnesses (never mutate)
+  state(){ try{ return JSON.parse(JSON.stringify(state)); }catch(e){ return {err:String(e)}; } },
+  solitonStats(){ try{ return {
+    view:state.s3view,
+    skCount:(typeof skCenters!=='undefined'&&skCenters)?skCenters.length:0,
+    hfFibers:(typeof hfFibers!=='undefined'&&hfFibers)?hfFibers.length:0,
+    hfExtra:(typeof hfExtra!=='undefined'&&hfExtra)?hfExtra.length:0 }; }catch(e){ return {err:String(e)}; } },
+  // draggable core positions (field-space + projected screen px) so harnesses can verify multitouch
+  coreScreenPositions(){ try{
+    const w=renderer.domElement.clientWidth, h=renderer.domElement.clientHeight, out=[];
+    if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp){
+      skCoreGrp.children.forEach((m,i)=>{ const v=m.getWorldPosition(new THREE.Vector3()).project(camera);
+        out.push({i,sx:(v.x*.5+.5)*w,sy:(-v.y*.5+.5)*h,fx:skCenters[i]?.x,fy:skCenters[i]?.y}); });
+    } else if(state.s3view==='hopfion' && typeof hfExtra!=='undefined'){
+      hfExtra.filter(m=>m.isMesh).forEach((m,i)=>{ const v=m.getWorldPosition(new THREE.Vector3()).project(camera);
+        out.push({i,sx:(v.x*.5+.5)*w,sy:(-v.y*.5+.5)*h}); });
+    }
+    return out; }catch(e){ return {err:String(e)}; } },
 });
 applyCmbWall(state.obsCmbTex);            // Map-of-the-Universe boot look: the LSS screen carries its CMB wall
 applyLookbackColours(state.obsLookback);
