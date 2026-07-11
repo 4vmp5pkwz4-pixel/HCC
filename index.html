@@ -3058,6 +3058,43 @@ renderer.domElement.addEventListener('pointerup', e=>{
   if(hit) selectKey(hit.object.userData.selKey);
 });
 renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
+/* ── Hand-drag skyrmion & hopfion cores to see how they interact (capture phase so it
+   pre-empts OrbitControls). Skyrmions move on their field plane; hopfions move on a
+   screen-facing plane; the field/lines recompute live. ── */
+let hfSkDrag=null; const _dragPlane=new THREE.Plane(), _dragHit=new THREE.Vector3(), _dragQ=new THREE.Quaternion(), _dragV=new THREE.Vector3();
+renderer.domElement.addEventListener('pointerdown', e=>{
+  if(state.mode!=='s3' || e.button!==0) return;
+  const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
+  if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp.children.length){
+    const hit=raycaster.intersectObjects(skCoreGrp.children,false)[0];
+    if(hit){ const idx=skCoreGrp.children.indexOf(hit.object); if(skCenters[idx]){ hfSkDrag={kind:'sk',idx}; controls.enabled=false; e.stopPropagation(); } }
+  } else if(state.s3view==='hopfion' && hfExtra.length){
+    const hit=raycaster.intersectObjects(hfExtra.filter(m=>m.isMesh),false)[0];
+    if(hit){ hfSkDrag={kind:'hf',idx:hfExtra.indexOf(hit.object)}; controls.enabled=false; e.stopPropagation(); }
+  }
+}, true);
+addEventListener('pointermove', e=>{
+  if(!hfSkDrag) return;
+  const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
+  if(hfSkDrag.kind==='sk'){
+    skyrmionGroup.getWorldQuaternion(_dragQ);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), skyrmionGroup.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=skyrmionGroup.worldToLocal(_dragHit.clone()), c=skCenters[hfSkDrag.idx];
+      if(c){ c.x=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.x)); c.y=Math.max(-SKHALF+0.3,Math.min(SKHALF-0.3,loc.z)); c.vx=c.vy=0; skDirty=true; }
+    }
+  } else {
+    const core=hfExtra[hfSkDrag.idx]; if(!core||!core.isMesh) return;
+    camera.getWorldDirection(_dragV);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.clone(), core.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=hfSpinGroup.worldToLocal(_dragHit.clone()).multiplyScalar(1/Math.max(1e-3,state.hfScale));
+      if(!hfDragPos[hfSkDrag.idx]) hfDragPos[hfSkDrag.idx]=new THREE.Vector3();
+      hfDragPos[hfSkDrag.idx].copy(loc); hfDirty=true;
+    }
+  }
+}, true);
+addEventListener('pointerup', ()=>{ if(hfSkDrag){ hfSkDrag=null; controls.enabled=!state.landed; } }, true);
 renderer.domElement.addEventListener('dblclick',e=>{
   if(state.landed||state.mode==='fractal') return;
   const ndc=canvasNDC(e.clientX,e.clientY);
@@ -6568,16 +6605,20 @@ function hfProbes(K,dist){                                       // target point
   }
   return out;
 }
+let hfDragPos=[];                                               // hand-drag overrides (per centre, scene→field coords)
 function hfCenters(){                                            // single / pair / ring placement
-  if(state.hfMode==='pair') return [
+  let base;
+  if(state.hfMode==='pair') base=[
     {c:new THREE.Vector3(-state.hfSep/2,0,0), p:state.hfP, q:state.hfQ},
     {c:new THREE.Vector3( state.hfSep/2,0,0), p:state.hfP2, q:state.hfQ2}];
-  if(state.hfMode==='ring'){ const out=[];
+  else if(state.hfMode==='ring'){ base=[];
     for(let i=0;i<state.hfRingN;i++){ const a=i/state.hfRingN*Math.PI*2;
-      out.push({c:new THREE.Vector3(Math.cos(a)*state.hfRingR,0,Math.sin(a)*state.hfRingR),
-        p:state.hfP, q:state.hfQ, mini:true}); }
-    return out; }
-  return [{c:new THREE.Vector3(0,0,0), p:state.hfP, q:state.hfQ}];
+      base.push({c:new THREE.Vector3(Math.cos(a)*state.hfRingR,0,Math.sin(a)*state.hfRingR),
+        p:state.hfP, q:state.hfQ, mini:true}); } }
+  else base=[{c:new THREE.Vector3(0,0,0), p:state.hfP, q:state.hfQ}];
+  if(hfDragPos.length===base.length){ for(let i=0;i<base.length;i++) if(hfDragPos[i]) base[i].c.copy(hfDragPos[i]); }
+  else hfDragPos=[];                                             // count changed (mode/ring) → drop stale drags
+  return base;
 }
 
 /* ── Interacting hopfions: the REAL combined field and its magnetic field lines ──
@@ -6987,7 +7028,7 @@ function updateSkyrmion(dt){
   if(!skCenters.length) skSetup();
   if(state.skRun){ skThiele(dt); skDirty=true; }
   if(skDirty){ skDirty=false; skRenderField(); }
-  if(state.skAutoRot) skyrmionGroup.rotation.y += dt*state.skRotSpd;
+  if(state.skAutoRot && !hfSkDrag) skyrmionGroup.rotation.y += dt*state.skRotSpd;   // hold still while dragging a core
   hudBig.textContent=`Skyrmion lab · N_sk=${skQ.toFixed(2)} · ${skCenters.length} soliton(s) · E=${skE.tot.toFixed(1)}`;
   hudSub.textContent='REAL magnetisation m:R²→S² · Belavin–Polyakov / domain-wall profile · Néel/Bloch/anti/skyrmionium · Thiele skyrmion-Hall (β) + repulsion + pinning + temperature · hopfion = closed twisted skyrmion string';
   if(state.mode==='s3'){ const o=ctl.querySelector('#skPhysOut'); if(o){ const html=skyrmionPhysHTML();
@@ -11630,7 +11671,7 @@ function buildCtl(){
         hfDirty=true; buildCtl(); });
       ctl.querySelectorAll('[data-hfpair]').forEach(b=>b.onclick=()=>{
         state.hfP2=state.hfP; state.hfQ2=b.dataset.hfpair==='anti'?-state.hfQ:state.hfQ; hfDirty=true; buildCtl(); });
-      ctl.querySelector('#hfSep')&&(ctl.querySelector('#hfSep').oninput=e=>{ state.hfSep=+e.target.value; state.hfSepTarget=null; hfDirty=true;
+      ctl.querySelector('#hfSep')&&(ctl.querySelector('#hfSep').oninput=e=>{ state.hfSep=+e.target.value; state.hfSepTarget=null; hfDragPos=[]; hfDirty=true;
         const v=ctl.querySelector('#hfSepV'); if(v) v.textContent=state.hfSep.toFixed(1); });
       ctl.querySelector('#hfCollide')&&(ctl.querySelector('#hfCollide').onclick=()=>{ state.hfSepTarget=1.6; });   // animate the merge
       ctl.querySelector('#hfSeparate')&&(ctl.querySelector('#hfSeparate').onclick=()=>{ state.hfSepTarget=8; });
