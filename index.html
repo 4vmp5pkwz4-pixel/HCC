@@ -561,11 +561,28 @@
     background:linear-gradient(165deg,rgba(10,14,24,.88),rgba(6,8,14,.82));
     border:1px solid rgba(212,175,106,.4);backdrop-filter:blur(14px);
     box-shadow:0 10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(241,221,166,.12)}
-  body.zen #zenBar{display:flex}
-  #zenBar #zenTimeWrap{display:flex;align-items:center;gap:8px}
-  #zenBar input[type=range]{width:min(46vw,300px)}
-  #zenBar #zenSpdV{min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
-  #zenBar #zenDate{color:var(--dim);font-size:10.5px;letter-spacing:.6px;white-space:nowrap}
+  body.zen #zenBar{display:flex;max-width:96vw;flex-wrap:nowrap}
+  #zenBar #zenTimeWrap{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  /* the regulator is a PRECISION LUXE instrument — gold on obsidian, never browser-blue */
+  #zenBar input[type=range]{flex:1;min-width:70px;max-width:300px;-webkit-appearance:none;appearance:none;
+    height:4px;border-radius:999px;background:linear-gradient(90deg,rgba(212,175,106,.18),rgba(212,175,106,.55));
+    outline:none;accent-color:#d4af6a}
+  #zenBar input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:17px;height:17px;
+    border-radius:999px;background:radial-gradient(circle at 35% 30%,#f6e7b8,#c29c52);
+    border:1px solid rgba(241,221,166,.85);box-shadow:0 1px 7px rgba(0,0,0,.6)}
+  #zenBar input[type=range]::-moz-range-thumb{width:17px;height:17px;border-radius:999px;
+    background:radial-gradient(circle at 35% 30%,#f6e7b8,#c29c52);border:1px solid rgba(241,221,166,.85)}
+  #zenBar input[type=range]::-moz-range-track{height:4px;border-radius:999px;
+    background:linear-gradient(90deg,rgba(212,175,106,.18),rgba(212,175,106,.55))}
+  #zenBar #zenSpdV{min-width:58px;text-align:right;font-variant-numeric:tabular-nums;color:var(--gold-2);
+    font-weight:700;font-size:12px;white-space:nowrap}
+  #zenBar #zenDate{color:var(--dim);font-size:10px;letter-spacing:.5px;white-space:nowrap}
+  #zenBar #zenScale{color:#9db0d0;font-size:10px;letter-spacing:.5px;white-space:nowrap}
+  @media (max-width:520px){                            /* the whole instrument must FIT small phones */
+    body.zen #zenBar{gap:7px;padding:7px 10px;bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+    #zenBar #zenDate{display:none}
+    #zenBar input[type=range]{min-width:56px}
+    #zenBar #zenSpdV{min-width:50px;font-size:11px} }
   body.zen #topbar,body.zen #panelDock,body.zen .panel,body.zen #mBtns,body.zen .fab,
   body.zen #atlasCoach,body.zen #hud,body.zen #selCard,body.zen #breadcrumb,
   body.zen #moreMenu,body.zen #landedBanner,body.zen #hierarchyLegend{display:none!important}
@@ -706,6 +723,7 @@
   <button class="btn icon" id="zenPause" title="Pause / run time">⏸</button>
   <span id="zenTimeWrap"><input type="range" id="zenSpd" min="-3" max="8.5" step="0.02" value="0">
   <span id="zenSpdV" class="val">1.0 d/s</span></span>
+  <span id="zenScale"></span>
   <span id="zenDate"></span>
   <button class="btn icon" id="zenExit" title="Exit zen view (Esc)">✕</button>
 </div>
@@ -3193,6 +3211,12 @@ renderer.domElement.addEventListener('dblclick',e=>{
   }
   const ndc=canvasNDC(e.clientX,e.clientY);
   raycaster.setFromCamera(ndc,camera);
+  // axis⊗sphere WAYPOINTS: any crossing of a cosmic axis with an orientation shell is
+  // a legitimate camera centre — double-click one to pivot the whole scene around it
+  if(state.mode==='solar' && typeof _cfWaypoints!=='undefined' && _cfWaypoints.length){
+    const hitW=raycaster.intersectObjects(_cfWaypoints.filter(w=>w.visible),false)[0];
+    if(hitW){ controls.target.copy(hitW.object.position); syncCameraClipping(true); return; }
+  }
   const hit=raycaster.intersectObjects(collectVisiblePicks(),false)[0];
   const s=hit&&SELECT.get(hit.object.userData.selKey);
   if(s){selectKey(hit.object.userData.selKey);focusOn(s);}
@@ -4946,6 +4970,7 @@ function buildSolarVectors(){
     dot.position.copy(D.dir).multiplyScalar(RSKY*0.985); dot.renderOrder=30;
     const slab=mkLabel(D.label,'label axis'); slab.position.copy(D.dir).multiplyScalar(RSKY*0.93);
     solarVectorsGroup.add(dot,slab);
+    _svSun[_svSun.length-1].dot=dot; _svSun[_svSun.length-1].slab=slab;
   }
   for(const o of planetObjs){
     const a=mkVecArrow(o.p.col,.85); solarVectorsGroup.add(a);
@@ -4969,16 +4994,25 @@ function buildSolarVectors(){
 }
 const _svTmpA=new THREE.Vector3(), _svTmpB=new THREE.Vector3();
 function updateSolarVectors(T,geoShift){
-  const on=!!state.showMotionVectors && (state.solarScaleLayer||'local')==='local' && !state.landed;
+  const local=(state.solarScaleLayer||'local')==='local';
+  const d=camera.position.distanceTo(controls.target);
+  // the arrow set lives at PLANETARY zoom (arrows are a few AU long); past ~3500 AU its
+  // constant-size CSS2D labels would pile into one unreadable knot at the Sun — the
+  // stitched cosmic axes (updateCosmicFrame) carry the directions from there outward
+  const on=!!state.showMotionVectors && local && !state.landed && d<3500;
   solarVectorsGroup.visible=on;
-  if(_svPrec) _svPrec.visible=!!state.showSpinAxes;
-  for(const o of planetObjs) if(o.axisCue) o.axisCue.visible=!!state.showSpinAxes;
+  // planet-attached cues are LOCAL-frame objects: CSS2D labels never shrink with zoom,
+  // so an un-gated precession cone label would float gigantically over the cosmic web
+  if(_svPrec) _svPrec.visible=!!state.showSpinAxes && local;
+  for(const o of planetObjs) if(o.axisCue) o.axisCue.visible=!!state.showSpinAxes && local;
   if(!on) return;
   buildSolarVectors();
+  const pinOn=d<RSKY*0.72;                             // sky pins read only from INSIDE the sky sphere
   const sunP=(geoShift?geoShift.clone().negate():new THREE.Vector3());
   for(const s of _svSun){
     s.a.position.copy(sunP); s.a.userData.set(s.D.dir,_vecLen(s.D.v));
     s.lab.position.copy(sunP).addScaledVector(s.D.dir,_vecLen(s.D.v)+0.35);
+    if(s.dot){ s.dot.visible=pinOn; s.slab.visible=pinOn; }
   }
   const h=0.5;                                        // half-day derivative step
   for(const e of _svPl){
@@ -5002,6 +5036,133 @@ function updateSolarVectors(T,geoShift){
       if(_svEarthTotLab.element.textContent!==t2) _svEarthTotLab.element.textContent=t2;
     }
   }
+}
+
+/* ── COSMIC AXES & ORIENTATION-SPHERE LADDER ────────────────────────────────────
+   The scales are STITCHED: the key axes of every level — Earth's spin axis, the
+   Solar-System (ecliptic) axis, the Sun's motion axis (ℓ=90°, the one the planet
+   helices wind around), the GALACTIC axis through Sgr A*, and the CMB-dipole axis —
+   are drawn as self-scaling lines whose length follows the camera distance, each
+   cross-fading in and out over its own log-distance band. Concentric labelled
+   ORIENTATION SPHERES (Oort 1.6 ly · 50 kly galactic scale · 5 Mly Local Group ·
+   260 Mly Laniakea · 46.5 Gly observable radius) do the same, so slow zooming is a
+   continuous chain of nested reference shells — no gaps, no pops, orientation
+   preserved relative to every axis at every level, up to the largest sphere.
+   NEW: the Sun's GALACTIC ORBIT ring (R₀=8.2 kpc around Sgr A*, T≈230 Myr) rides the
+   galactic band, and every axis⊗sphere crossing is a focusable waypoint. */
+const cosmicFrameGroup=new THREE.Group(); solarGroup.add(cosmicFrameGroup);
+const _cfSmooth=(a,b,x)=>{ const t=Math.min(1,Math.max(0,(x-a)/(b-a))); return t*t*(3-2*t); };
+const _cfBand=(x,a,b,w)=>_cfSmooth(a,a+w,x)*(1-_cfSmooth(b-w,b,x));
+function fmtDist(dAU){
+  const ly=dAU/63241.077;
+  if(dAU<1e4) return dAU.toFixed(dAU<10?2:0)+' AU';
+  if(ly<1e3) return ly.toFixed(ly<10?2:1)+' ly';
+  if(ly<1e6) return (ly/1e3).toFixed(1)+' kly';
+  if(ly<1e9) return (ly/1e6).toFixed(1)+' Mly';
+  return (ly/1e9).toFixed(2)+' Gly';
+}
+let _cfBuilt=false, _cfAxes=[], _cfSpheres=[], _cfWaypoints=[], _cfSunOrbit=null;
+function buildCosmicFrame(){
+  if(_cfBuilt) return; _cfBuilt=true;
+  const mkAxis=(col,label,band)=>{
+    const mat=new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0,depthTest:false});
+    const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(0,-1,0),new THREE.Vector3(0,1,0)]),mat);
+    line.renderOrder=26; cosmicFrameGroup.add(line);
+    const lab=mkLabel(label,'label axis'); cosmicFrameGroup.add(lab);
+    const o={line,lab,mat,band,dir:new THREE.Vector3(0,1,0),anchor:new THREE.Vector3()};
+    _cfAxes.push(o); return o;
+  };
+  // bands are log10(camera distance in AU): [appear .. disappear]
+  mkAxis(0x9fd8ff,'EARTH SPIN AXIS · 23.44° · precesses 25,772 yr',[-2.5,3.4]).kind='earth';
+  mkAxis(0xf1dda6,'SOLAR-SYSTEM AXIS · ecliptic north',[-0.5,8.6]).kind='ecl';
+  mkAxis(0xffd27f,'SOLAR MOTION AXIS · ℓ=90° Cygnus · 232 km/s — the helix axis',[0.0,11.5]).kind='sunv';
+  mkAxis(0xc9a8e8,'GALACTIC AXIS · through Sgr A* → north galactic pole',[7.6,14.8]).kind='gal';
+  mkAxis(0xff9fb0,'CMB DIPOLE AXIS · 369.8 km/s · rest frame of the Universe',[10.5,19.2]).kind='cmb';
+  const mkSphere=(rAU,col,label)=>{
+    const g=new THREE.Group();
+    const wire=new THREE.Mesh(new THREE.SphereGeometry(rAU,30,18),
+      new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:0,depthWrite:false}));
+    const eq=guideCircle(rAU,col,0,128); eq.material.transparent=true;
+    g.add(wire,eq);
+    const lab=mkLabel(label,'label axis'); lab.position.set(0,rAU*1.02,0); g.add(lab);
+    cosmicFrameGroup.add(g);
+    const o={g,wire,eq,lab,rAU}; _cfSpheres.push(o); return o;
+  };
+  mkSphere(1e5,            0xf1dda6,'OORT SPHERE · 100 kAU ≈ 1.6 ly');
+  mkSphere(50e3*63241.077, 0x8fb9e8,'GALACTIC SCALE · 50 kly (Milky Way disk radius)');
+  mkSphere(5e6*63241.077,  0xaecbff,'LOCAL GROUP · 5 Mly');
+  mkSphere(2.6e8*63241.077,0xc9a8e8,'LANIAKEA SCALE · 260 Mly');
+  mkSphere(46.5*GLY_AU,    0x9fe8d8,'OBSERVABLE UNIVERSE · 46.5 Gly comoving radius');
+  // Sun's galactic orbit: R₀=8.2 kpc ring around Sgr A*, in the galactic plane
+  { const R0=8.2*3261.56*63241.077;                    // kpc → ly → AU  (26 700 ly)
+    const zg=GAL_DATA.pole.dir, xg=GAL_DATA.gc.dir.clone().negate();   // Sun sits at −x̂_GC from the centre
+    const yg=zg.clone().cross(xg).normalize();
+    const pts=[]; for(let i=0;i<=180;i++){ const a=i/180*Math.PI*2;
+      pts.push(GAL_DATA.gc.pos.clone().addScaledVector(xg,Math.cos(a)*R0).addScaledVector(yg,Math.sin(a)*R0)); }
+    _cfSunOrbit={};
+    _cfSunOrbit.line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineDashedMaterial({color:0xffd27f,transparent:true,opacity:0,dashSize:R0*0.05,gapSize:R0*0.03,depthTest:false}));
+    _cfSunOrbit.line.computeLineDistances(); _cfSunOrbit.line.renderOrder=25;
+    cosmicFrameGroup.add(_cfSunOrbit.line);
+    _cfSunOrbit.lab=mkLabel('SUN’S GALACTIC ORBIT · R₀ = 8.2 kpc · T ≈ 230 Myr','label axis');
+    _cfSunOrbit.lab.position.copy(GAL_DATA.gc.pos).addScaledVector(xg,R0*1.04);
+    cosmicFrameGroup.add(_cfSunOrbit.lab);
+  }
+  // FOCUSABLE WAYPOINTS: every crossing of a Sun-anchored axis with an orientation
+  // sphere becomes a small gold node — double-click (existing pick flow) frames it,
+  // so any boundary intersection on any shell can hold the camera's centre.
+  { const dirs=[{d:new THREE.Vector3(0,1,0),n:'ecliptic axis'},{d:SUN_V_DIR.clone(),n:'solar motion axis'}];
+    for(const S of _cfSpheres){ for(const A of dirs){ for(const sgn of [1,-1]){
+      const m=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),
+        new THREE.MeshBasicMaterial({color:0xf1dda6,transparent:true,opacity:.85,depthTest:false}));
+      m.position.copy(A.d).multiplyScalar(sgn*S.rAU); m.renderOrder=31;
+      m.userData.waypoint={r:S.rAU,label:A.n+' ⊗ '+S.lab.element.textContent};
+      cosmicFrameGroup.add(m); _cfWaypoints.push(m);
+    } } } }
+}
+const _cfQ=new THREE.Quaternion(), _cfV=new THREE.Vector3();
+function updateCosmicFrame(d,T,geoShift){
+  buildCosmicFrame();
+  cosmicFrameGroup.visible=state.mode==='solar' && !state.landed && state.showMotionVectors!==false;
+  if(!cosmicFrameGroup.visible) return;
+  const x=Math.log10(Math.max(1e-3,d));
+  for(const a of _cfAxes){
+    const f=_cfBand(x,a.band[0],a.band[1],0.45);
+    a.mat.opacity=0.62*f; a.line.visible=f>0.02; a.lab.visible=f>0.25;
+    if(f<=0.02) continue;
+    if(a.kind==='earth'){ const eo=planetObjs.find(o=>o.p.name==='Earth');
+      if(eo){ a.anchor.copy(eo.mesh.position); _cfV.set(0,1,0).applyQuaternion(earthAxisQuaternion(T)); a.dir.copy(_cfV); } }
+    else if(a.kind==='ecl'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.set(0,1,0); }
+    else if(a.kind==='sunv'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.copy(SUN_V_DIR); }
+    else if(a.kind==='gal'){ a.anchor.copy(GAL_DATA.gc.pos); a.dir.copy(GAL_DATA.pole.dir); }
+    else { a.anchor.set(0,0,0); a.dir.copy(VEC_DEFS[2].dir); }
+    const L=d*1.15;
+    a.line.position.copy(a.anchor);
+    a.line.quaternion.setFromUnitVectors(_cfV.set(0,1,0),a.dir);
+    a.line.scale.set(1,L,1);
+    a.lab.position.copy(a.anchor).addScaledVector(a.dir,Math.min(L*0.55,d*0.62));
+  }
+  for(const s of _cfSpheres){
+    const rx=Math.log10(s.rAU);
+    const f=_cfBand(x,rx-0.9,rx+1.15,0.35);              // readable while the camera brackets its shell
+    s.wire.material.opacity=0.14*f; s.eq.material.opacity=0.45*f;
+    s.g.visible=f>0.02; s.lab.visible=f>0.3;
+  }
+  if(_cfSunOrbit){ const f=_cfBand(x,8.0,11.4,0.45);     // galactic band
+    _cfSunOrbit.line.material.opacity=0.75*f; _cfSunOrbit.line.visible=f>0.02; _cfSunOrbit.lab.visible=f>0.3; }
+  for(const w of _cfWaypoints){                          // waypoint size ∝ its shell, visible with it
+    const rx=Math.log10(w.userData.waypoint.r);
+    const f=_cfBand(x,rx-0.9,rx+1.15,0.35);
+    w.visible=f>0.1; if(w.visible) w.scale.setScalar(Math.max(w.userData.waypoint.r*0.012, d*0.006));
+  }
+  // FOLLOW THE SOLAR VECTOR: hold the Sun's own motion axis centred at any distance —
+  // the camera rides behind the apex direction until the user takes the view back.
+  if(state.solarApexLock){
+    controls.target.set(0,0,0);
+    camera.position.copy(SUN_V_DIR).multiplyScalar(-d);
+  }
+  const zs=document.getElementById('zenScale'); if(zs&&document.body.classList.contains('zen')) zs.textContent='R '+fmtDist(d);
 }
 
 function galaxySpiral(radiusLy,arms,count,col,seed){
@@ -5415,7 +5576,7 @@ function updateSolarScaleVisibility(){
   solarLaniakeaFlowGroup.visible=layer==='cosmic'&&!!state.showLaniakeaFlows;
   solarLaniakeaFlowLines.forEach((line,i)=>line.visible=i<Math.max(1,Math.round(solarLaniakeaFlowLines.length*(state.laniakeaFlowDensity||.68))));
   solarCosmicObjects.forEach(o=>{
-    o.g.visible=layer==='cosmic'&&(o.s.size>=.2||['greatatt','laniakea','virgo'].includes(o.s.key));
+    o.g.visible=(layer==='cosmic'||layer==='andromeda')&&(o.s.size>=.2||['greatatt','laniakea','virgo'].includes(o.s.key));
     o.lab.visible=!!o.s.reconstruction||o.s.centroidKnown!==false||o.s.key==='gr';
   });
   // the Oort cloud is the CONNECTIVE TISSUE of the zoom chain: it stays visible from
@@ -5426,6 +5587,19 @@ function updateSolarScaleVisibility(){
   // they guide from afar yet never white-out the view when the camera closes in
   if(typeof oortFarMarker!=='undefined') oortFarMarker.userData.lv=(layer==='galactic'||layer==='andromeda');
   if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.userData.lv=(layer==='cosmic');
+  // GIANT STRUCTURES visible already at the two-galaxy (Local Group) level: the cosmic
+  // web, superclusters and curvature spheres provide full orientation from there up
+  solarCosmicGroup.visible=layer==='cosmic'||layer==='andromeda';
+  // LABEL HYGIENE across scales: fine-grained captions belong to their own level only —
+  // Oort reservoir/ring labels to the local frame, arm schematics to the galactic frame;
+  // at the Local Group level they collided into one unreadable pile at the MW point.
+  { const oortLbl=layer==='local';
+    oortGroup.traverse(o=>{ if(o.isCSS2DObject) o.visible=oortLbl; });
+    const armLbl=layer==='galactic';
+    if(typeof mwArms!=='undefined') mwArms.traverse(o=>{ if(o.isCSS2DObject) o.visible=armLbl; });
+    if(typeof milkyWayPhysical!=='undefined') milkyWayPhysical.traverse(o=>{
+      if(o.isCSS2DObject&&!mwArms.getObjectById(o.id)) o.visible=(layer==='galactic'||layer==='andromeda'); });
+  }
 }
 /* Zooming far past the Oort cloud no longer hits an empty wall: the scale layer
    advances outward (Solar → Milky Way → Local Group → Cosmic web) so larger
@@ -5468,9 +5642,10 @@ function autoSolarScale(dt){
     // points would bloat into screen-filling attenuated quads: while the camera is
     // near the Sun every Points material switches to FIXED-PIXEL sizing (subtle star
     // dust), returning to attenuated sizing only at true galactic viewing distances.
-    { if(!autoSolarScale._mwMats){ autoSolarScale._mwMats=[];
+    { if(!autoSolarScale._mwMats){ autoSolarScale._mwMats=[]; autoSolarScale._mwSprites=[];
         milkyWayPhysical.traverse(o=>{ if(o.isPoints&&o.material){ const m=o.material;
-          autoSolarScale._mwMats.push({m,size0:m.size,att0:m.sizeAttenuation,op0:m.opacity}); } }); }
+          autoSolarScale._mwMats.push({m,size0:m.size,att0:m.sizeAttenuation,op0:m.opacity}); }
+          else if(o.isSprite&&o.material){ autoSolarScale._mwSprites.push({s:o,op0:o.material.opacity}); } }); }
       const layer=state.solarScaleLayer||'local';
       if(layer==='local'){
         const f=THREE.MathUtils.clamp((d-2.5e4)/(1.8e5-2.5e4),0,1);   // 0 → 1 across the Oort span
@@ -5481,12 +5656,20 @@ function autoSolarScale(dt){
           e.m.size=2.2; e.m.opacity=e.op0*f; e.m.transparent=true;
         }
       } else {
-        const nearSun=d<1e8;                                          // still flying the inner chain
+        const nearSun=d<6e8;                                          // inside/near the disk: fixed-pixel star dust
         for(const e of autoSolarScale._mwMats){
           const wantAtt=!nearSun&&e.att0;
           if(e.m.sizeAttenuation!==wantAtt){ e.m.sizeAttenuation=wantAtt; e.m.needsUpdate=true; }
           e.m.size=wantAtt?e.size0:2.2; e.m.opacity=e.op0;
         }
+      }
+      // glow SPRITES (galactic bulge, halo…): pure angular-size gate — a glow whose
+      // billboard would swallow the screen from inside the disk fades away and only
+      // returns when the whole structure fits the view. No layer special-casing.
+      for(const e of (autoSolarScale._mwSprites||[])){
+        const wp=e.s.getWorldPosition(new THREE.Vector3()), ds=camera.position.distanceTo(wp);
+        const ang=e.s.scale.x/Math.max(ds,1e-6);                      // ≈ screen fraction
+        e.s.material.opacity=e.op0*THREE.MathUtils.clamp(1.45-ang*1.6,0,1);
       }
     }
   }
@@ -12190,7 +12373,7 @@ const state = {
   fbsDensExp: 3, fbsFibExact: false, fbsPhiX: PHI, fbsLPX: FBS.lP, fbsOpacityK: 1, fbsDensityFX: false,
   sensH0: 67.4, sensOK: 0.0007,
   cycYrPerSec: 1, cycSeasons: null,
-  oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false,
+  oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
@@ -12521,6 +12704,8 @@ function buildCtlBody(){
       ${state.solarJourney?`<div class="note" style="font-size:10.5px;color:var(--dim)">The Sun really travels its galactic orbit at 232 km/s toward ℓ≈90° (Cygnus) — true scale, 48.9 AU per year — so the planets trace genuine helices chasing it. Speed time up and the spirals stretch out. Direction is computed from the same J2000 frame as everything else (ŷ_gal = ẑ_NGP×x̂_GC).</div>`:''}
       <div class="ctlrow"><label>Motion vectors · velocity &amp; axes atlas</label>
         <input type="checkbox" id="motionVecs" ${state.showMotionVectors?'checked':''}></div>
+      <div class="ctlrow"><button class="btn ${state.solarApexLock?'on':''}" id="apexLock">${state.solarApexLock?'◉ Following the solar vector':'○ Follow the solar vector'}</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Follow: the camera holds the Sun's own motion axis (ℓ=90°, Cygnus) centred at ANY zoom — from the planets to the observable sphere — so our true direction of travel stays in focus across every scale. Any drag hands the view back. Double-click the gold axis⊗sphere waypoints to pivot around any shell crossing.</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Every significant motion as a labelled first-class object in one J2000 frame: per-planet orbital velocity arrows (live km/s from the exact ephemeris derivative) and IAU spin axes on ALL planets; the Sun's set — peculiar vs LSR (Schönrich U,V,W → Hercules, 18.0 km/s), galactic orbit (232 km/s → Cygnus), Milky Way→Andromeda (≈110 km/s) and the TOTAL Sun-vs-CMB vector (369.8 km/s, Planck dipole); EARTH's grand total (dipole + live orbital velocity, annual ±29.8 km/s); each direction pinned as a marker on the celestial sphere; Earth carries its 25,772-yr precession cone.</div>
       <div class="ctlrow"><label>Earth / Sun spin axes</label>
         <input type="checkbox" id="spinAxes" ${state.showSpinAxes?'checked':''}>
@@ -12594,6 +12779,7 @@ function buildCtlBody(){
     ctl.querySelector('#solarJourney')&&(ctl.querySelector('#solarJourney').onchange=e=>{ state.solarJourney=e.target.checked; buildCtl(); });
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
     ctl.querySelector('#motionVecs')&&(ctl.querySelector('#motionVecs').onchange=e=>state.showMotionVectors=e.target.checked);
+    ctl.querySelector('#apexLock')&&(ctl.querySelector('#apexLock').onclick=()=>{ state.solarApexLock=!state.solarApexLock; buildCtl(); });
     ctl.querySelectorAll('[data-frame]').forEach(b=>b.onclick=()=>{
       const geo=b.dataset.frame==='geo';
       if(geo===state.geocentric) return;
@@ -14514,6 +14700,7 @@ function disarmIdleDrift(e){
   // the CSS2D label overlay too, so we detect "UI" rather than "canvas")
   if(e && e.target && e.target.closest &&
      e.target.closest('.panel,#topbar,#panelDock,#moreMenu,#mBtns,#hud,#selCard,#atlasCoach,#breadcrumb,.fab,button,select,input,a')) return;
+  if(state.solarApexLock){ state.solarApexLock=false; }   // a gesture takes the view back from the apex lock
   // …and in the Solar System the gentle orbiting is PERMANENT: it keeps breathing
   // while options are explored, and simply blends through manual drags (the scene
   // must always feel alive — presence over stillness).
@@ -15506,7 +15693,7 @@ function tickBody(now, frame){
     sunGlow.scale.setScalar(state.trueScale ? 6 : 4.2);
     sunMesh.quaternion.copy(SUN_AXIS_Q).multiply(
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(SUN.spinW0+SUN.spinRateDegDay*state.epochDays)*DEG));
-    sunSpinCue.visible=!!state.showSpinAxes;
+    sunSpinCue.visible=!!state.showSpinAxes && (state.solarScaleLayer||'local')==='local';
     for(const o of planetObjs){
       o.mesh.position.copy(planetPos(o.p, T));
       if(geoShift) o.mesh.position.sub(geoShift);     // Earth-centred frame
@@ -15514,7 +15701,7 @@ function tickBody(now, frame){
       if(o.p.spinHours){
         o.mesh.quaternion.copy(earthAxisQuaternion(T)).multiply(
           new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(o.p.spinW0+o.p.spinRateDegDay*state.epochDays)*DEG));
-        o.spinCue.visible=!!state.showSpinAxes;
+        o.spinCue.visible=!!state.showSpinAxes && (state.solarScaleLayer||'local')==='local';
       } else if(PLANET_POLE_Q[o.p.name]){
         o.mesh.quaternion.copy(PLANET_POLE_Q[o.p.name]);   // IAU pole orientation for every planet
       }
@@ -15524,6 +15711,7 @@ function tickBody(now, frame){
       o.pick.scale.setScalar(Math.max(o.mesh.scale.x*1.6, dCam*0.012));
     }
     updateSolarVectors(T, geoShift);   // the motion-vector & axes atlas rides the same frame data
+    updateCosmicFrame(camera.position.distanceTo(controls.target), T, geoShift);   // stitched axes + orientation spheres
 
     /* the Moon rides Earth's orbit (orbit exaggerated unless true scale) */
     {
