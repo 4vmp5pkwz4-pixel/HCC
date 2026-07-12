@@ -3097,6 +3097,11 @@ function hfDragActive(){ return hfDrags.size>0; }
 renderer.domElement.addEventListener('pointerdown', e=>{
   if(state.mode!=='s3' || (e.pointerType==='mouse'&&e.button!==0)) return;
   const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
+  // Element constructor: tap an element on the spherical periodic table to build it
+  if(state.s3view==='atom' && typeof atomTableDots!=='undefined' && atomTableDots && atomTableDots.userData.grp?.visible){
+    const hit=raycaster.intersectObject(atomTableDots,false)[0];
+    if(hit && hit.instanceId!=null){ state.atZ=hit.instanceId+1; buildAtom(); buildCtl(); e.stopPropagation(); return; }
+  }
   if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp.children.length){
     const hit=raycaster.intersectObjects(skCoreGrp.children,false)[0];
     if(hit){ const idx=skCoreGrp.children.indexOf(hit.object); if(skCenters[idx]){ hfDrags.set(e.pointerId,{kind:'sk',idx}); controls.enabled=false; e.stopPropagation(); } }
@@ -7535,6 +7540,308 @@ registerSel('hopfionLab',{ name:'Hopfion laboratory · (p,q) solitons', mode:'s3
       ['Not claimed','particles are hopfions · pair/ring solve the field equations'],
       ['Source','Hopf-Bell · S3-SEL Hopf firewall · Faddeev–Niemi · Vakulenko–Kapitanskii']]; } });
 
+/* ═══════════════ QUASIPARTICLE LABORATORY — the wider family ═══════════════
+   Interactive 3D models of the canonical quasiparticles beyond skyrmions/hopfions,
+   each with its REAL defining relation rendered live and its parameters on sliders.
+   All units declared: lattice models run in reduced units (a=1, K=1, S=1, ħ=1) with
+   the literature formula shown; the exciton runs in REAL units (hydrogenic scaling).
+   Models are textbook-exact ansätze — declared as such, never material-fitted. */
+const quasiGroup=new THREE.Group(); quasiGroup.visible=false; s3Group.add(quasiGroup);
+let qpInst=null, qpExtra=[], qpTime=0, qpBuiltType='';
+function qpClear(){
+  if(qpInst){ quasiGroup.remove(qpInst); qpInst.geometry.dispose(); qpInst.material.dispose(); qpInst=null; }
+  for(const o of qpExtra){ quasiGroup.remove(o); disposeCSS2D?.(o); o.geometry&&o.geometry.dispose&&o.geometry.dispose(); o.material&&o.material.dispose&&o.material.dispose(); }
+  qpExtra=[];
+}
+function qpLabel(txt,cls,x,y,z){ const l=mkLabel(txt,cls||'label dim'); l.position.set(x,y,z); quasiGroup.add(l); qpExtra.push(l); return l; }
+function buildQuasi(){
+  qpClear(); qpBuiltType=state.qpType; qpTime=0;
+  const T=state.qpType;
+  if(T==='phonon'){
+    // diatomic chain ⊗ 3D lattice: ω±²(k) = K(1/m₁+1/m₂)[1 ± √(1 − 4m₁m₂ sin²(ka/2)/(m₁+m₂)²)]
+    const NX=13,NY=5,NZ=5,a=1.15;
+    const g=new THREE.SphereGeometry(.16,10,8);
+    qpInst=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0xffffff}),NX*NY*NZ);
+    qpInst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(NX*NY*NZ*3),3);
+    quasiGroup.add(qpInst);
+    qpInst.userData={NX,NY,NZ,a};
+    qpLabel('PHONON · quantised lattice vibration','label const',0,3.4,0);
+    qpLabel('diatomic chain: gold m₁ / steel m₂ · branch '+state.qpBranch,'label dim',0,-3.2,0);
+  } else if(T==='magnon'){
+    const NX=15,NY=3,NZ=3,a=1.15;
+    const cone=new THREE.ConeGeometry(.09,.42,10); cone.translate(0,.21,0);
+    qpInst=new THREE.InstancedMesh(cone,new THREE.MeshBasicMaterial({color:0xffffff}),NX*NY*NZ);
+    qpInst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(NX*NY*NZ*3),3);
+    quasiGroup.add(qpInst);
+    qpInst.userData={NX,NY,NZ,a};
+    qpLabel('MAGNON · quantised spin wave','label const',0,3.4,0);
+    qpLabel('Heisenberg chain: ω(k)=4JS(1−cos ka) · one flipped spin shared coherently','label dim',0,-3.0,0);
+  } else if(T==='exciton'){
+    const mu=state.qpMu, eps=state.qpEps;
+    const aB=0.0529*eps/mu;                                        // nm — REAL hydrogenic scaling
+    const Eb=13.606*mu/(eps*eps)*1000;                             // meV
+    const R=2.6;                                                   // scene radius ↔ a_B*
+    const N=4200, pos=new Float32Array(N*3), rnd=mulberry(4242);
+    for(let i=0;i<N;i++){ // sample 1s density r²e^{−2r/a}: Gamma(3) via sum of 3 exponentials
+      const r=-Math.log(Math.max(rnd(),1e-9))-Math.log(Math.max(rnd(),1e-9))-Math.log(Math.max(rnd(),1e-9));
+      const u=rnd()*2-1, ph=rnd()*Math.PI*2, s=Math.sqrt(1-u*u), rr=r/2*R*0.55;
+      pos[i*3]=rr*s*Math.cos(ph); pos[i*3+1]=rr*u; pos[i*3+2]=rr*s*Math.sin(ph); }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:.06,color:0x8fd0ff,transparent:true,opacity:.55,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+    quasiGroup.add(pts); qpExtra.push(pts);
+    const hole=new THREE.Mesh(new THREE.SphereGeometry(.16,14,10),new THREE.MeshBasicMaterial({color:0xff8a6a}));
+    quasiGroup.add(hole); qpExtra.push(hole);
+    qpLabel('EXCITON · bound electron–hole pair (Wannier–Mott)','label const',0,3.4,0);
+    qpLabel(`a*_B = a₀·ε/μ = ${aB.toFixed(1)} nm · E_b = 13.6 eV·μ/ε² = ${Eb.toFixed(1)} meV`,'label axis',0,-3.0,0);
+    qpLabel('hole','label dim',0.35,0.2,0);
+  } else if(T==='polaron'){
+    const NX=9,NY=9,NZ=9,a=1.05;
+    qpInst=new THREE.InstancedMesh(new THREE.SphereGeometry(.11,8,6),
+      new THREE.MeshBasicMaterial({color:0xc9d4e8}),NX*NY*NZ);
+    quasiGroup.add(qpInst); qpInst.userData={NX,NY,NZ,a};
+    const N=2600, pos=new Float32Array(N*3), rnd=mulberry(777);
+    const sig=1.15/(1+state.qpAlpha/12);
+    for(let i=0;i<N;i++){ const r=-Math.log(Math.max(rnd(),1e-9))*sig, u=rnd()*2-1, ph=rnd()*Math.PI*2, s=Math.sqrt(1-u*u);
+      pos[i*3]=r*s*Math.cos(ph); pos[i*3+1]=r*u; pos[i*3+2]=r*s*Math.sin(ph); }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const cloud=new THREE.Points(pg,new THREE.PointsMaterial({size:.07,color:0xffd27f,transparent:true,opacity:.6,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+    quasiGroup.add(cloud); qpExtra.push(cloud);
+    qpLabel('POLARON · electron dressed by its own lattice distortion (Fröhlich)','label const',0,3.6,0);
+    qpLabel(`α = ${state.qpAlpha.toFixed(1)} · m*/m ≈ 1+α/6 = ${(1+state.qpAlpha/6).toFixed(2)} (weak-coupling) · ions relax toward the carrier`,'label dim',0,-3.4,0);
+  } else if(T==='vortex'){
+    // superfluid vortex: v_θ = nħ/(m r), circulation κ = n·h/m — for ⁴He κ₀ = 9.97×10⁻⁸ m²/s
+    const rings=[], NR=7;
+    for(let ri=0;ri<NR;ri++){
+      const r=0.55+ri*0.42, N=90, pos=new Float32Array(N*3);
+      for(let i=0;i<N;i++){ const aa=i/N*Math.PI*2; pos[i*3]=r*Math.cos(aa); pos[i*3+1]=(mulberry(ri*31+i)()*2-1)*1.4; pos[i*3+2]=r*Math.sin(aa); }
+      const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      const p=new THREE.Points(pg,new THREE.PointsMaterial({size:.075,color:0x9fe8d8,transparent:true,opacity:.75,
+        blending:THREE.AdditiveBlending,depthWrite:false}));
+      p.userData={r}; quasiGroup.add(p); qpExtra.push(p); rings.push(p);
+    }
+    const core=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,3.0,16,1,true),
+      new THREE.MeshBasicMaterial({color:0x30506e,transparent:true,opacity:.5,side:THREE.DoubleSide}));
+    quasiGroup.add(core); qpExtra.push(core);
+    qpLabel('QUANTISED VORTEX · superfluid ⁴He','label const',0,3.4,0);
+    qpLabel(`v_θ = nħ/(m r) · κ = n·h/m₄ = ${(state.qpWind*9.97).toFixed(1)}×10⁻⁸ m²/s · density dips in the healing-length core`,'label dim',0,-3.2,0);
+  }
+}
+const _qpD=new THREE.Object3D(), _qpCol=new THREE.Color(), _qpUp=new THREE.Vector3(0,1,0), _qpDir=new THREE.Vector3();
+function updateQuasi(dt){
+  if(state.qpType!==qpBuiltType) buildQuasi();
+  if(state.qpRun) qpTime+=dt*state.qpSpeed;
+  const T=state.qpType, t=qpTime;
+  if(T==='phonon'&&qpInst){
+    const {NX,NY,NZ,a}=qpInst.userData, k=state.qpK, m1=1, m2=Math.max(0.2,state.qpMassRatio);
+    const s2=Math.pow(Math.sin(k/2),2), mm=4*m1*m2/((m1+m2)*(m1+m2));
+    const disc=Math.sqrt(Math.max(0,1-mm*s2));
+    const w=Math.sqrt((1/m1+1/m2)*(state.qpBranch==='optical'?1+disc:1-disc));
+    const A=state.qpAmp*0.42; let i=0;
+    for(let x=0;x<NX;x++)for(let y=0;y<NY;y++)for(let z=0;z<NZ;z++){
+      const heavy=(x%2===1), ph=k*x-w*t;
+      const amp=heavy?(state.qpBranch==='optical'?-A*m1/m2:A):A;
+      _qpD.position.set((x-(NX-1)/2)*a+amp*Math.cos(ph),(y-(NY-1)/2)*a,(z-(NZ-1)/2)*a);
+      _qpD.quaternion.identity(); _qpD.scale.setScalar(heavy?1.35:1);
+      _qpD.updateMatrix(); qpInst.setMatrixAt(i,_qpD.matrix);
+      _qpCol.setHex(heavy?0xaebbd0:0xf1dda6); qpInst.setColorAt(i,_qpCol); i++;
+    }
+    qpInst.instanceMatrix.needsUpdate=true; if(qpInst.instanceColor) qpInst.instanceColor.needsUpdate=true;
+    hudBig.textContent=`Quasiparticle lab · PHONON · ω(k)=${w.toFixed(3)} √(K/m̄) at k=${k.toFixed(2)}/a · ${state.qpBranch}`;
+    hudSub.textContent='diatomic-chain dispersion ω±²=K(1/m₁+1/m₂)[1±√(1−4m₁m₂sin²(ka/2)/(m₁+m₂)²)] · reduced units a=K=1';
+  } else if(T==='magnon'&&qpInst){
+    const {NX,NY,NZ,a}=qpInst.userData, k=state.qpK, w=4*state.qpJ*(1-Math.cos(k)), cone=state.qpCone; let i=0;
+    for(let x=0;x<NX;x++)for(let y=0;y<NY;y++)for(let z=0;z<NZ;z++){
+      const ph=k*x-w*t, sc=Math.sin(cone);
+      _qpDir.set(sc*Math.cos(ph),Math.cos(cone),sc*Math.sin(ph)).normalize();
+      _qpD.position.set((x-(NX-1)/2)*a,(y-(NY-1)/2)*a*1.6,(z-(NZ-1)/2)*a*1.6);
+      _qpD.quaternion.setFromUnitVectors(_qpUp,_qpDir); _qpD.scale.setScalar(1);
+      _qpD.updateMatrix(); qpInst.setMatrixAt(i,_qpD.matrix);
+      _qpCol.setHSL((ph/(2*Math.PI)%1+1)%1,.7,.6); qpInst.setColorAt(i,_qpCol); i++;
+    }
+    qpInst.instanceMatrix.needsUpdate=true; if(qpInst.instanceColor) qpInst.instanceColor.needsUpdate=true;
+    hudBig.textContent=`Quasiparticle lab · MAGNON · ω(k)=4JS(1−cos ka)=${w.toFixed(3)} J/ħ at k=${state.qpK.toFixed(2)}/a`;
+    hudSub.textContent='one spin flip delocalised over the lattice — the spins precess on a cone with phase k·x−ωt · S=1, reduced units';
+  } else if(T==='polaron'&&qpInst){
+    const {NX,NY,NZ,a}=qpInst.userData, pull=0.34*Math.min(3,state.qpAlpha)/3; let i=0;
+    for(let x=0;x<NX;x++)for(let y=0;y<NY;y++)for(let z=0;z<NZ;z++){
+      const px=(x-(NX-1)/2)*a, py=(y-(NY-1)/2)*a, pz=(z-(NZ-1)/2)*a;
+      const r=Math.max(0.4,Math.hypot(px,py,pz));
+      const f=pull*Math.exp(-r/2.4)*(1+0.12*Math.sin(3*t-r*1.4));   // breathing polaron cloud
+      _qpD.position.set(px*(1-f/r),py*(1-f/r),pz*(1-f/r));
+      _qpD.quaternion.identity(); _qpD.scale.setScalar(1); _qpD.updateMatrix();
+      qpInst.setMatrixAt(i,_qpD.matrix); i++;
+    }
+    qpInst.instanceMatrix.needsUpdate=true;
+    hudBig.textContent=`Quasiparticle lab · POLARON · α=${state.qpAlpha.toFixed(1)} · m*/m≈${(1+state.qpAlpha/6).toFixed(2)}`;
+    hudSub.textContent='Fröhlich coupling: weak α≲1 (light dressing) → strong α≳6 (self-trapped) · m*≈m(1+α/6) weak-coupling result';
+  } else if(T==='vortex'){
+    for(const p of qpExtra){ if(p.isPoints&&p.userData.r) p.rotation.y += dt*state.qpSpeed*state.qpWind*0.9/(p.userData.r*p.userData.r); }
+    hudBig.textContent=`Quasiparticle lab · QUANTISED VORTEX · n=${state.qpWind} · κ=${(state.qpWind*9.97).toFixed(1)}×10⁻⁸ m²/s`;
+    hudSub.textContent='v_θ=nħ/(m r): inner rings sweep faster exactly as 1/r² in angle · circulation is quantised in units of h/m₄ (Onsager–Feynman)';
+  } else if(T==='exciton'){
+    hudBig.textContent=`Quasiparticle lab · EXCITON · a*_B=${(0.0529*state.qpEps/state.qpMu).toFixed(1)} nm · E_b=${(13606*state.qpMu/(state.qpEps*state.qpEps)).toFixed(1)} meV`;
+    hudSub.textContent='Wannier–Mott hydrogenic scaling: a*=a₀ε/μ, E_b=Ry·μ/ε² — real units; cloud = exact 1s density r²e^(−2r/a*)';
+  }
+}
+
+/* ═══════════════ ELEMENT CONSTRUCTOR — the atom, on a sphere ═══════════════
+   Any element Z=1…118: nucleus (protons+neutrons, R=1.2·A^{1/3} fm) + electron
+   shells built from the Aufbau configuration (with ALL known ground-state
+   exceptions), shell radii from Slater screening (declared model estimates).
+   The PICKER is a spherical periodic table: all 118 elements on a globe —
+   latitude = period, longitude = group, colour = block. Unsöld's theorem is
+   honoured: filled subshells are drawn spherical. */
+const atomGroup=new THREE.Group(); atomGroup.visible=false; s3Group.add(atomGroup);
+const ELEM_SYMS=('H He Li Be B C N O F Ne Na Mg Al Si P S Cl Ar K Ca Sc Ti V Cr Mn Fe Co Ni Cu Zn Ga Ge As Se Br Kr '+
+ 'Rb Sr Y Zr Nb Mo Tc Ru Rh Pd Ag Cd In Sn Sb Te I Xe Cs Ba La Ce Pr Nd Pm Sm Eu Gd Tb Dy Ho Er Tm Yb Lu '+
+ 'Hf Ta W Re Os Ir Pt Au Hg Tl Pb Bi Po At Rn Fr Ra Ac Th Pa U Np Pu Am Cm Bk Cf Es Fm Md No Lr '+
+ 'Rf Db Sg Bh Hs Mt Ds Rg Cn Nh Fl Mc Lv Ts Og').split(' ');
+const ELEM_A=[1,4,7,9,11,12,14,16,19,20,23,24,27,28,31,32,35,40,39,40,45,48,51,52,55,56,59,59,64,65,70,73,75,79,80,84,
+ 85,88,89,91,93,96,98,101,103,106,108,112,115,119,122,128,127,131,133,137,139,140,141,144,145,150,152,157,159,163,165,167,169,173,175,
+ 178,181,184,186,190,192,195,197,201,204,207,209,209,210,222,223,226,227,232,231,238,237,244,243,247,247,251,252,257,258,259,262,
+ 267,268,269,270,269,278,281,282,285,286,289,290,293,294,294];
+// Madelung order + every known ground-state exception
+const AUFBAU=[[1,0],[2,0],[2,1],[3,0],[3,1],[4,0],[3,2],[4,1],[5,0],[4,2],[5,1],[6,0],[4,3],[5,2],[6,1],[7,0],[5,3],[6,2],[7,1]];
+const CONF_EXC={24:'[Ar] 3d5 4s1',29:'[Ar] 3d10 4s1',41:'[Kr] 4d4 5s1',42:'[Kr] 4d5 5s1',44:'[Kr] 4d7 5s1',45:'[Kr] 4d8 5s1',
+ 46:'[Kr] 4d10',47:'[Kr] 4d10 5s1',57:'[Xe] 5d1 6s2',58:'[Xe] 4f1 5d1 6s2',64:'[Xe] 4f7 5d1 6s2',78:'[Xe] 4f14 5d9 6s1',
+ 79:'[Xe] 4f14 5d10 6s1',89:'[Rn] 6d1 7s2',90:'[Rn] 6d2 7s2',91:'[Rn] 5f2 6d1 7s2',92:'[Rn] 5f3 6d1 7s2',93:'[Rn] 5f4 6d1 7s2',
+ 96:'[Rn] 5f7 6d1 7s2',103:'[Rn] 5f14 7s2 7p1'};
+function atomConfig(Z){                                           // → [{n,l,c}] ground state
+  const exc=CONF_EXC[Z];
+  if(exc){ // parse the exception string beyond its noble core
+    const CORE={'[Ar]':18,'[Kr]':36,'[Xe]':54,'[Rn]':86};
+    const m=exc.match(/^\[(?:Ar|Kr|Xe|Rn)\]/)[0];
+    const shells=atomConfig(CORE[m]);
+    for(const tok of exc.slice(m.length).trim().split(/\s+/)){
+      const mm=tok.match(/^(\d)([spdf])(\d+)$/);
+      shells.push({n:+mm[1], l:'spdf'.indexOf(mm[2]), c:+mm[3]});
+    }
+    return shells;
+  }
+  const shells=[]; let left=Z;
+  for(const [n,l] of AUFBAU){ if(left<=0) break;
+    const cap=2*(2*l+1), c=Math.min(cap,left); shells.push({n,l,c}); left-=c; }
+  return shells;
+}
+function slaterZeff(Z,shells,idx){                                // Slater's rules for shell idx
+  const {n,l}=shells[idx]; let s=0;
+  for(let j=0;j<shells.length;j++){ const o=shells[j];
+    const cnt=o.c-(j===idx?1:0); if(cnt<=0) continue;
+    if(o.n>n) continue;                                           // outer shells don't screen
+    const sameGroup=(o.n===n)&&((l<=1&&o.l<=1)||(o.l===l&&l>=2)); // (ns,np) form one group; d,f their own
+    if(o.n===n&&!sameGroup){ if(o.l>l) continue;                  // same-n higher-l doesn't screen s,p
+      s+=cnt*(l>=2?1.0:0.35); continue; }                         // d/f: same-n s,p screen fully
+    if(sameGroup) s+=cnt*(n===1?0.30:0.35);
+    else if(o.n===n-1) s+=cnt*(l<=1?0.85:1.0);
+    else s+=cnt*1.0;
+  }
+  return Math.max(0.6, Z-s);
+}
+let atomBuiltZ=0, atomInst=[], atomTableDots=null, atomSelDot=null, atomSelLab=null;
+function atomClear(){
+  for(const o of atomInst){ atomGroup.remove(o); disposeCSS2D?.(o);
+    o.geometry&&o.geometry.dispose&&o.geometry.dispose(); o.material&&o.material.dispose&&o.material.dispose(); }
+  atomInst=[];
+}
+const ATOM_LCOL=[0xf1dda6,0x8fb9ff,0xc9a8e8,0x7fe0c8];            // s p d f
+function buildAtom(){
+  atomClear(); atomBuiltZ=state.atZ;
+  const Z=state.atZ, A=ELEM_A[Z-1], Nn=Math.max(0,A-Z);
+  const shells=atomConfig(Z);
+  // ── nucleus: R = 1.2·A^{1/3} fm; didactic scale sets it visible, true scale honest
+  const trueScale=state.atScale==='true';
+  const Rnuc=(trueScale?0.012:0.5)*Math.pow(A,1/3)/Math.pow(56,1/3)*(trueScale?1:1);
+  const nuc=new THREE.InstancedMesh(new THREE.SphereGeometry(trueScale?0.006:0.085,8,6),
+    new THREE.MeshBasicMaterial({color:0xffffff}),A);
+  nuc.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(A*3),3);
+  const rndN=mulberry(Z*77+1);
+  for(let i=0;i<A;i++){ // packed ball
+    const u=rndN()*2-1, ph=rndN()*Math.PI*2, rr=Rnuc*Math.cbrt(rndN()), s=Math.sqrt(1-u*u);
+    _qpD.position.set(rr*s*Math.cos(ph),rr*u,rr*s*Math.sin(ph));
+    _qpD.quaternion.identity(); _qpD.scale.setScalar(1); _qpD.updateMatrix();
+    nuc.setMatrixAt(i,_qpD.matrix);
+    _qpCol.setHex(i<Z?0xf1c27a:0x9fb0c8); nuc.setColorAt(i,_qpCol);
+  }
+  atomGroup.add(nuc); atomInst.push(nuc);
+  // ── electron shells: r_peak ∝ n²/Z_eff (Slater) — declared model estimate
+  const rends=[]; let rMax=0;
+  shells.forEach((sh,i)=>{ const zeff=slaterZeff(Z,shells,i); const r=sh.n*sh.n/zeff; rends.push(r); rMax=Math.max(rMax,r); });
+  const SC=3.1/Math.max(rMax,1e-6);
+  shells.forEach((sh,i)=>{
+    const r=rends[i]*SC, npts=Math.round(90*sh.c*state.atDensity);
+    const pos=new Float32Array(npts*3), rr2=mulberry(Z*131+i*17);
+    for(let p=0;p<npts;p++){
+      const spread=r*0.16, rad=Math.max(0.05,r+(rr2()*2-1)*spread+(rr2()*2-1)*spread);
+      const u=rr2()*2-1, ph=rr2()*Math.PI*2, s=Math.sqrt(1-u*u);
+      pos[p*3]=rad*s*Math.cos(ph); pos[p*3+1]=rad*u; pos[p*3+2]=rad*s*Math.sin(ph);
+    }
+    const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:i===shells.length-1?.08:.055,
+      color:ATOM_LCOL[sh.l],transparent:true,opacity:i===shells.length-1?.85:.5,
+      blending:THREE.AdditiveBlending,depthWrite:false}));
+    atomGroup.add(pts); atomInst.push(pts);
+  });
+  const sym=ELEM_SYMS[Z-1];
+  const t1=mkLabel(`${sym} · Z=${Z} · A≈${A} · ${Z} p⁺ (gold) + ${Nn} n⁰ (steel)`,'label const'); t1.position.set(0,4.0,0); atomGroup.add(t1); atomInst.push(t1);
+  const cfg=shells.map(s=>`${s.n}${'spdf'[s.l]}${s.c}`).join(' ');
+  const t2=mkLabel(cfg,'label axis'); t2.position.set(0,-3.7,0); atomGroup.add(t2); atomInst.push(t2);
+  const t3=mkLabel(trueScale?'TRUE SCALE: the nucleus is ~10⁻⁵ of the atom — the dot at the centre is already oversized'
+    :'didactic scale · shell radii = Slater n²/Z_eff estimates (model, not measurement) · filled subshells drawn spherical (Unsöld)','label dim');
+  t3.position.set(0,-4.3,0); atomGroup.add(t3); atomInst.push(t3);
+  atomSelLab&&atomSelLab.element&&(atomSelLab.element.textContent=sym+' · '+cfg);
+}
+// ── spherical periodic table (the picker): latitude=period, longitude=group ──
+function buildAtomTable(){
+  if(atomTableDots) return;
+  const R=5.6, grp=new THREE.Group(); grp.position.set(-10.5,0,0); atomGroup.add(grp);
+  const geo=new THREE.SphereGeometry(.14,8,6);
+  atomTableDots=new THREE.InstancedMesh(geo,new THREE.MeshBasicMaterial({color:0xffffff}),118);
+  atomTableDots.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(118*3),3);
+  const BLOCK_COL={s:0xf1dda6,p:0x8fb9ff,d:0xc9a8e8,f:0x7fe0c8};
+  const PERIOD_OF=Z=>Z<=2?1:Z<=10?2:Z<=18?3:Z<=36?4:Z<=54?5:Z<=86?6:7;
+  atomTableDots.userData.positions=[];
+  for(let Z=1;Z<=118;Z++){
+    // block by table position (always exact): f-rows, d-ranges, s-columns, else p
+    const isFb=(Z>=57&&Z<=70)||(Z>=89&&Z<=102);
+    const isDb=(Z>=21&&Z<=30)||(Z>=39&&Z<=48)||(Z>=71&&Z<=80)||(Z>=103&&Z<=112);
+    const isSb=(Z<=2)||[3,4,11,12,19,20,37,38,55,56,87,88].includes(Z);
+    const block=isFb?'f':isDb?'d':isSb?'s':'p';
+    const period=PERIOD_OF(Z);
+    const isF=(Z>=57&&Z<=70)||(Z>=89&&Z<=102);
+    const lat=Math.PI*(0.12+0.76*((period-1)/6))+(isFb?0.09:0);
+    const inPeriod={1:[1,2],2:[3,10],3:[11,18],4:[19,36],5:[37,54],6:[55,86],7:[87,118]}[period];
+    const frac=(Z-inPeriod[0])/Math.max(1,(inPeriod[1]-inPeriod[0]));
+    const lon=frac*Math.PI*1.86+0.1;
+    const p=new THREE.Vector3(R*Math.sin(lat)*Math.cos(lon),R*Math.cos(lat),R*Math.sin(lat)*Math.sin(lon));
+    _qpD.position.copy(p); _qpD.quaternion.identity(); _qpD.scale.setScalar(1); _qpD.updateMatrix();
+    atomTableDots.setMatrixAt(Z-1,_qpD.matrix);
+    _qpCol.setHex(BLOCK_COL[block]??0xffffff); atomTableDots.setColorAt(Z-1,_qpCol);
+    atomTableDots.userData.positions.push(p.clone());
+  }
+  grp.add(atomTableDots);
+  const wire=new THREE.Mesh(new THREE.SphereGeometry(R*0.985,28,18),
+    new THREE.MeshBasicMaterial({color:0x3f5f96,wireframe:true,transparent:true,opacity:.10}));
+  grp.add(wire);
+  atomSelDot=new THREE.Mesh(new THREE.SphereGeometry(.22,10,8),
+    new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.95}));
+  grp.add(atomSelDot);
+  atomSelLab=mkLabel('','label major'); atomSelLab.position.set(0,R+0.9,0); grp.add(atomSelLab);
+  const tl=mkLabel('SPHERICAL PERIODIC TABLE · tap an element · latitude=period · longitude=group · colour=block','label dim');
+  tl.position.set(0,-R-0.8,0); grp.add(tl);
+  atomTableDots.userData.grp=grp;
+}
+function updateAtom(dt){
+  if(state.atZ!==atomBuiltZ) buildAtom();
+  buildAtomTable();
+  atomTableDots.userData.grp.visible=!!state.atShowTable;
+  if(atomSelDot&&atomTableDots.userData.positions[state.atZ-1]) atomSelDot.position.copy(atomTableDots.userData.positions[state.atZ-1]);
+  const sym=ELEM_SYMS[state.atZ-1];
+  hudBig.textContent=`Element constructor · ${sym} (Z=${state.atZ}) · A≈${ELEM_A[state.atZ-1]}`;
+  hudSub.textContent='nucleus R=1.2·A^⅓ fm · shells = Aufbau configuration with all known ground-state exceptions · radii = Slater n²/Z_eff model estimates · Unsöld: filled subshells are spherical';
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -7550,8 +7857,12 @@ function setS3View(v){
   selGroup.visible     = (v==='sel');
   hopfionGroup.visible = (v==='hopfion');
   skyrmionGroup.visible = (v==='skyrmion');
+  quasiGroup.visible   = (v==='quasi');
+  atomGroup.visible    = (v==='atom');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
+  if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
+  if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
   if(v==='eig') setEigMode(state.eigBeta, state.eigM);
@@ -10274,6 +10585,10 @@ const XRX = (()=>{
         {label:'Hopfion', on:state.s3view==='hopfion', cb:()=>{setS3View('hopfion'); refreshMenu();}},
         {label:'Skyrmion', on:state.s3view==='skyrmion', cb:()=>{setS3View('skyrmion'); refreshMenu();}},
       ]);
+      rows.push([
+        {label:'Quasiparticles', on:state.s3view==='quasi', cb:()=>{setS3View('quasi'); refreshMenu();}},
+        {label:'Elements', on:state.s3view==='atom', cb:()=>{setS3View('atom'); refreshMenu();}},
+      ]);
       if(state.s3view==='hopfion') rows.push([
         {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
         {label:'q ±', cb:()=>{state.hfQ=state.hfQ>=6?1:state.hfQ+1; hfDirty=true; refreshMenu();}},
@@ -11605,6 +11920,9 @@ const state = {
   skAnim:null, skAnimRun:false, skAnimT:0,                            // nucleation animations
   skStickL:2.2, skStickAng:0,                                         // stick-skyrmion tail half-length & axis angle
   skPresetId:null, hfPresetId:null,                                   // last applied one-tap preset (chip highlight)
+  qpType:'phonon', qpK:1.2, qpAmp:0.5, qpBranch:'acoustic', qpMassRatio:2,   // Quasiparticle lab
+  qpJ:1, qpCone:0.35, qpEps:12.9, qpMu:0.058, qpAlpha:2, qpWind:1, qpRun:true, qpSpeed:1,
+  atZ:26, atScale:'didactic', atDensity:1, atShowTable:true,          // Element constructor (Fe default)
   selLedger:0, selDomain:6, selSector:'sc', selEpsLog:0, selT:13.7877187856, selBP:1, selScrLog:31.3,   // Selector lab
   obsCmbTex:true, obsLookback:false,   // Map-of-the-Universe display techniques (CMB wall · lookback grading)
   landed: null,            // {idx, dir, yaw, pitch, prevTrue, prevCam, prevTgt, prevFov}
@@ -12663,6 +12981,65 @@ function buildCtlBody(){
       spinor-BEC quantum knots (Hall et al. 2016), magnetic hopfions and hopfion rings in cubic
       chiral magnets (Kent 2021; Zheng et al. 2023). Pair/ring modes are exact-topology composites,
       NOT solutions of the Faddeev–Niemi field equations; particles are NOT claimed to be hopfions.</div>`;
+    else if(V==='quasi') body = `
+    <div class="sect"><b>Quasiparticle — pick a model</b>
+      <div class="chips">
+        ${[['phonon','Phonon · lattice wave'],['magnon','Magnon · spin wave'],['exciton','Exciton · e–h pair'],
+           ['polaron','Polaron · dressed electron'],['vortex','Quantised vortex']].map(([k,l])=>
+          `<button class="chip ${state.qpType===k?'on':''}" data-qptype="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><button class="btn green" id="qpRun">${state.qpRun?'⏸ pause':'▶ run'}</button>
+        <label style="margin-left:10px">Speed</label>
+        <input type="range" id="qpSpeed" min="0.2" max="4" step="0.1" value="${state.qpSpeed}"><span class="val" id="qpSpeedV">${state.qpSpeed.toFixed(1)}</span></div>
+    </div>
+    ${state.qpType==='phonon'?`<div class="sect"><b>Phonon — diatomic lattice</b>
+      <div class="ctlrow"><label>Wavevector k·a</label><input type="range" id="qpK" min="0.1" max="3.04" step="0.02" value="${state.qpK}"><span class="val" id="qpKV">${state.qpK.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Amplitude</label><input type="range" id="qpAmp" min="0.1" max="1" step="0.05" value="${state.qpAmp}"><span class="val" id="qpAmpV">${state.qpAmp.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Mass ratio m₂/m₁</label><input type="range" id="qpMassRatio" min="1" max="5" step="0.1" value="${state.qpMassRatio}"><span class="val" id="qpMassRatioV">${state.qpMassRatio.toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Branch</label>
+        <button class="chip ${state.qpBranch==='acoustic'?'on':''}" data-qpbranch="acoustic">acoustic (in phase)</button>
+        <button class="chip ${state.qpBranch==='optical'?'on':''}" data-qpbranch="optical">optical (anti-phase)</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Exact diatomic-chain dispersion ω±²=K(1/m₁+1/m₂)[1±√(1−4m₁m₂sin²(ka/2)/(m₁+m₂)²)], reduced units a=K=1. Acoustic: both sublattices move together (sound). Optical: they beat against each other — the branch light couples to.</div>
+    </div>`:''}
+    ${state.qpType==='magnon'?`<div class="sect"><b>Magnon — Heisenberg chain</b>
+      <div class="ctlrow"><label>Wavevector k·a</label><input type="range" id="qpK" min="0.1" max="3.04" step="0.02" value="${state.qpK}"><span class="val" id="qpKV">${state.qpK.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Cone angle</label><input type="range" id="qpCone" min="0.08" max="0.8" step="0.02" value="${state.qpCone}"><span class="val" id="qpConeV">${state.qpCone.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Exchange J</label><input type="range" id="qpJ" min="0.3" max="3" step="0.1" value="${state.qpJ}"><span class="val" id="qpJV">${state.qpJ.toFixed(1)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">ω(k)=4JS(1−cos ka), S=1: one flipped spin shared coherently by the whole lattice — every spin precesses on a small cone with phase k·x−ωt. Quadratic ω∝k² at small k (ferromagnet), unlike the linear phonon.</div>
+    </div>`:''}
+    ${state.qpType==='exciton'?`<div class="sect"><b>Exciton — Wannier–Mott (real units)</b>
+      <div class="ctlrow"><label>Dielectric ε</label><input type="range" id="qpEps" min="2" max="14" step="0.1" value="${state.qpEps}"><span class="val" id="qpEpsV">${state.qpEps.toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Reduced mass μ/mₑ</label><input type="range" id="qpMu" min="0.03" max="0.6" step="0.005" value="${state.qpMu}"><span class="val" id="qpMuV">${state.qpMu.toFixed(3)}</span></div>
+      <div class="chips">
+        <button class="chip" data-qpmat="12.9,0.058">GaAs</button>
+        <button class="chip" data-qpmat="11.7,0.15">Si (approx.)</button>
+        <button class="chip" data-qpmat="7.5,0.4">Cu₂O</button>
+        <button class="chip" data-qpmat="4.5,0.25">MoS₂ (bulk approx.)</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Hydrogenic scaling with REAL units: a*_B=a₀ε/μ, E_b=13.6 eV·μ/ε². GaAs: ε=12.9, μ=0.058mₑ → a*≈11.8 nm, E_b≈4.7 meV — the textbook numbers. Cloud = exact 1s radial density r²e^(−2r/a*).</div>
+    </div>`:''}
+    ${state.qpType==='polaron'?`<div class="sect"><b>Polaron — Fröhlich coupling</b>
+      <div class="ctlrow"><label>Coupling α</label><input type="range" id="qpAlpha" min="0.1" max="10" step="0.1" value="${state.qpAlpha}"><span class="val" id="qpAlphaV">${state.qpAlpha.toFixed(1)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The carrier drags a lattice-polarisation cloud. Weak coupling m*≈m(1+α/6); strong coupling (α≳6) self-traps. Real α: GaAs 0.068 · CdTe 0.29 · KCl 3.44 · SrTiO₃ ~4.</div>
+    </div>`:''}
+    ${state.qpType==='vortex'?`<div class="sect"><b>Quantised vortex — superfluid ⁴He</b>
+      <div class="ctlrow"><label>Winding n</label><input type="range" id="qpWind" min="1" max="4" step="1" value="${state.qpWind}"><span class="val" id="qpWindV">${state.qpWind}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Onsager–Feynman quantisation: κ=∮v·dl=n·h/m₄=n·9.97×10⁻⁸ m²/s. v_θ=nħ/(mr): watch the inner rings sweep as 1/r². The core is a healing-length (ξ≈0.1 nm in He-II) density hole; n≥2 vortices are unstable and split.</div>
+    </div>`:''}
+    <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">Textbook-exact model ansätze in declared units — never material fits. Skyrmions & hopfions (topological quasiparticles) have their own dedicated labs.</div>`;
+    else if(V==='atom') body = `
+    <div class="sect"><b>Element constructor — Z = ${state.atZ} · ${ELEM_SYMS[state.atZ-1]}</b>
+      <div class="ctlrow">
+        <button class="btn" id="atPrev">◂ prev</button>
+        <input type="range" id="atZ" min="1" max="118" step="1" value="${state.atZ}" style="flex:1">
+        <button class="btn" id="atNext">next ▸</button></div>
+      <div class="ctlrow"><label>Electron cloud density</label><input type="range" id="atDensity" min="0.3" max="2.5" step="0.1" value="${state.atDensity}"><span class="val" id="atDensityV">${state.atDensity.toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Scale</label>
+        <button class="chip ${state.atScale==='didactic'?'on':''}" data-atscale="didactic">didactic</button>
+        <button class="chip ${state.atScale==='true'?'on':''}" data-atscale="true">TRUE (nucleus 10⁻⁵)</button></div>
+      <div class="ctlrow"><label>Spherical table</label><input type="checkbox" id="atShowTable" ${state.atShowTable?'checked':''}></div>
+      <div class="note" style="font-size:11px" id="atInfo"></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Tap any element on the SPHERICAL PERIODIC TABLE (latitude = period, longitude = group, colour = block: s gold · p blue · d violet · f teal). Nucleus R=1.2·A^⅓ fm with Z protons + (A−Z) neutrons; shells from the Aufbau configuration incl. every known ground-state exception (Cr, Cu, Nb–Pd, Ag, La–Ce, Gd, Pt, Au, Ac–Np, Cm, Lr); shell radii are Slater n²/Z_eff estimates — a declared model, not measurements. Filled subshells are drawn spherical (Unsöld's theorem). True scale is honest: the atom is ~10⁵ nuclei wide.</div>
+    </div>`;
     else if(V==='sel') body = `
     <div class="sect"><b>Curvature-input ledger — R_curv = c/(H₀√|Ω_K|)</b>
       <div class="chips">${SEL_LEDGER.map((L,i)=>`<button class="chip ${state.selLedger===i?'on':''}" data-selled="${i}">${L.key==='canon'?'★ 548.3 canonical':L.name.split('·')[0].trim()+' '+Math.round(L.R)+' Gly'}</button>`).join('')}</div>
@@ -12754,6 +13131,8 @@ function buildCtlBody(){
         <button class="btn ${V==='sel'?'on':''}" id="v-sel">Selector</button>
         <button class="btn ${V==='hopfion'?'on':''}" id="v-hopfion">Hopfion</button>
         <button class="btn ${V==='skyrmion'?'on':''}" id="v-skyrmion">Skyrmion</button>
+        <button class="btn ${V==='quasi'?'on':''}" id="v-quasi">Quasiparticles</button>
+        <button class="btn ${V==='atom'?'on':''}" id="v-atom">Elements</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -12767,6 +13146,8 @@ function buildCtlBody(){
     ctl.querySelector('#v-sel').onclick  = ()=>{ setS3View('sel');  buildCtl(); };
     ctl.querySelector('#v-hopfion').onclick = ()=>{ setS3View('hopfion'); buildCtl(); };
     ctl.querySelector('#v-skyrmion').onclick = ()=>{ setS3View('skyrmion'); buildCtl(); };
+    ctl.querySelector('#v-quasi').onclick = ()=>{ setS3View('quasi'); buildCtl(); };
+    ctl.querySelector('#v-atom').onclick = ()=>{ setS3View('atom'); buildCtl(); };
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
         Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
@@ -12886,6 +13267,40 @@ function buildCtlBody(){
         state.skHel=((hfPrecPhase%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
         state.skDim='2d'; state.skRun=false; state.skAnim=null; state.skAnimRun=false; state.skMagnon=false;
         skSetup(); setS3View('skyrmion'); buildCtl(); });
+    }
+    if(V==='quasi'){
+      ctl.querySelectorAll('[data-qptype]').forEach(b=>b.onclick=()=>{ state.qpType=b.dataset.qptype; buildQuasi(); buildCtl(); });
+      ctl.querySelectorAll('[data-qpbranch]').forEach(b=>b.onclick=()=>{ state.qpBranch=b.dataset.qpbranch; buildQuasi(); buildCtl(); });
+      ctl.querySelectorAll('[data-qpmat]').forEach(b=>b.onclick=()=>{ const [e,m]=b.dataset.qpmat.split(',').map(Number);
+        state.qpEps=e; state.qpMu=m; buildQuasi(); buildCtl(); });
+      ctl.querySelector('#qpRun')&&(ctl.querySelector('#qpRun').onclick=()=>{ state.qpRun=!state.qpRun; buildCtl(); });
+      const qs=(id,f,fmt,rebuild)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v&&fmt)v.textContent=fmt(+e.target.value); if(rebuild)buildQuasi(); }; };
+      qs('qpSpeed',v=>state.qpSpeed=v,v=>v.toFixed(1));
+      qs('qpK',v=>state.qpK=v,v=>v.toFixed(2));
+      qs('qpAmp',v=>state.qpAmp=v,v=>v.toFixed(2));
+      qs('qpMassRatio',v=>state.qpMassRatio=v,v=>v.toFixed(1));
+      qs('qpCone',v=>state.qpCone=v,v=>v.toFixed(2));
+      qs('qpJ',v=>state.qpJ=v,v=>v.toFixed(1));
+      qs('qpEps',v=>state.qpEps=v,v=>v.toFixed(1),true);
+      qs('qpMu',v=>state.qpMu=v,v=>v.toFixed(3),true);
+      qs('qpAlpha',v=>state.qpAlpha=v,v=>v.toFixed(1),true);
+      qs('qpWind',v=>state.qpWind=v|0,v=>String(v|0),true);
+    }
+    if(V==='atom'){
+      const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
+      ctl.querySelector('#atPrev')&&(ctl.querySelector('#atPrev').onclick=()=>setZ(state.atZ-1));
+      ctl.querySelector('#atNext')&&(ctl.querySelector('#atNext').onclick=()=>setZ(state.atZ+1));
+      ctl.querySelector('#atZ')&&(ctl.querySelector('#atZ').oninput=e=>setZ(+e.target.value));
+      ctl.querySelector('#atDensity')&&(ctl.querySelector('#atDensity').oninput=e=>{ state.atDensity=+e.target.value;
+        const v=ctl.querySelector('#atDensityV'); if(v)v.textContent=state.atDensity.toFixed(1); buildAtom(); });
+      ctl.querySelectorAll('[data-atscale]').forEach(b=>b.onclick=()=>{ state.atScale=b.dataset.atscale; buildAtom(); buildCtl(); });
+      ctl.querySelector('#atShowTable')&&(ctl.querySelector('#atShowTable').onchange=e=>{ state.atShowTable=e.target.checked; });
+      const info=ctl.querySelector('#atInfo');
+      if(info){ const sh=atomConfig(state.atZ);
+        info.innerHTML=`<b style="color:var(--gold-2)">${ELEM_SYMS[state.atZ-1]}</b> · A≈${ELEM_A[state.atZ-1]} · configuration: `+
+          sh.map(s=>`${s.n}${'spdf'[s.l]}<sup>${s.c}</sup>`).join(' ')+
+          ` · shells: ${sh.length} · valence subshell ${(x=>x.n+'spdf'[x.l])(sh[sh.length-1])}`; }
     }
     if(V==='sel'){
       ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
@@ -14990,6 +15405,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateHopfion(dt);
     } else if(state.s3view==='skyrmion'){
       fbsAnimT+=dt; updateSkyrmion(dt);
+    } else if(state.s3view==='quasi'){
+      fbsAnimT+=dt; updateQuasi(dt);
+    } else if(state.s3view==='atom'){
+      fbsAnimT+=dt; updateAtom(dt);
     } else {
       eigSphere.rotation.y += dt*0.06;
       const b=state.eigBeta;
