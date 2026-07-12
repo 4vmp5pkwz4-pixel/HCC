@@ -4898,6 +4898,29 @@ const galacticLinks=[];
 });
 
 const solarCosmicObjects=[];
+/* Anchors that keep every scale layer CONNECTED through the Sun-at-origin frame:
+   • oortFarMarker — from the Milky Way / Local Group frames the physical Oort points
+     are sub-pixel, so a soft gold mote + label marks where the Solar System (and its
+     Oort cloud) sits in the Galaxy; zooming toward it steps the layer back down.
+   • homeGalaxyMarker — the Cosmic-web frame no longer converges on an empty spot: the
+     HOME MILKY WAY is marked at the origin, so the innermost end of the cosmic zoom
+     is always a real structure (zoom in → Local Group → Milky Way → Oort → planets). */
+const oortFarMarker=new THREE.Group();
+{ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xf1dda6,
+    transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  sp.scale.setScalar(9e5); oortFarMarker.add(sp);
+  const l=mkLabel('Solar System · Oort cloud (~1.6 ly)','label major'); l.position.set(0,1.3e6,0);
+  oortFarMarker.add(l); oortFarMarker.visible=false; solarGalacticGroup.add(oortFarMarker); }
+const homeGalaxyMarker=new THREE.Group();
+{ const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xcfe0ff,
+    transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false}));
+  sp.scale.setScalar(.05*GLY_AU); homeGalaxyMarker.add(sp);
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff2d0,
+    transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  core.scale.setScalar(.012*GLY_AU); homeGalaxyMarker.add(core);
+  const l=mkLabel('Milky Way · home galaxy → zoom in for the Local Group, the Galaxy and the Oort cloud','label major');
+  l.position.set(0,.045*GLY_AU,0); homeGalaxyMarker.add(l);
+  homeGalaxyMarker.visible=false; solarCosmicGroup.add(homeGalaxyMarker); }
 const solarCosmicGrid=new THREE.Group(); solarCosmicGroup.add(solarCosmicGrid);
 [
   [.22,'Great Attractor distance · 0.22 Gly'],
@@ -5173,25 +5196,66 @@ function updateSolarScaleVisibility(){
     o.g.visible=layer==='cosmic'&&(o.s.size>=.2||['greatatt','laniakea','virgo'].includes(o.s.key));
     o.lab.visible=!!o.s.reconstruction||o.s.centroidKnown!==false||o.s.key==='gr';
   });
-  oortGroup.visible=layer==='local'&&!!state.showOort;
+  // the Oort cloud is the CONNECTIVE TISSUE of the zoom chain: it stays visible from
+  // the galactic frames too (shrinking naturally to a mote as the Galaxy emerges),
+  // so leaving the Solar System is a continuous nesting — never a light-switch.
+  oortGroup.visible=(layer==='local'||layer==='galactic'||layer==='andromeda')&&!!state.showOort;
+  // markers are layer-scoped here and distance-gated per-frame (autoSolarScale), so
+  // they guide from afar yet never white-out the view when the camera closes in
+  if(typeof oortFarMarker!=='undefined') oortFarMarker.userData.lv=(layer==='galactic'||layer==='andromeda');
+  if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.userData.lv=(layer==='cosmic');
 }
 /* Zooming far past the Oort cloud no longer hits an empty wall: the scale layer
    advances outward (Solar → Milky Way → Local Group → Cosmic web) so larger
-   structures appear instead of the view abruptly cutting off. Outward-only and
-   cooldown-gated; the scale chips / selecting a planet return inward. */
-let _autoScaleCd=0;
+   structures appear instead of the view abruptly cutting off — and the hand-off is
+   now SEAMLESS in BOTH directions: the camera is never teleported (every layer keeps
+   the Sun-at-origin frame), the decorative in-galaxy sky FADES across the last
+   stretch of its 600 AU shell instead of switching off like a light, the Oort cloud
+   stays visible and shrinks naturally while the physical Milky Way emerges around
+   it, and zooming back IN steps the layers down again with hysteresis. The scale
+   chips / selecting a planet still reframe deliberately (setSolarScaleLayer). */
+let _autoScaleCd=0, _skyFadeMats=null;
+function advanceScaleLayer(layer){
+  state.solarScaleLayer=layer;
+  // seamless variant: visibility, clipping and zoom limits only — camera & target stay
+  if(layer==='local') setControlDistanceLimits(.0001,300000);
+  else if(layer==='galactic') setControlDistanceLimits(1,5e6*LY_AU);
+  else if(layer==='andromeda') setControlDistanceLimits(1,8e6*LY_AU);
+  else setControlDistanceLimits(1,800*GLY_AU);
+  updateSolarScaleVisibility(); syncCameraClipping(true); updateBreadcrumb();
+  if(typeof buildCtl==='function'){ try{ buildCtl(); }catch(e){} }
+}
 function autoSolarScale(dt){
-  if(state.landed || renderer.xr.isPresenting || focusAnim) return;
+  if(state.landed || renderer.xr.isPresenting) return;
+  // in-galaxy sky (Milky Way band, catalogue stars, constellation art) fades out
+  // smoothly as the camera approaches its shell — never a hard cut
+  { const d=camera.position.distanceTo(controls.target);
+    if(!_skyFadeMats){ _skyFadeMats=[];
+      skyGroup.traverse(o=>{ if(o.material&&o.material.opacity!==undefined){
+        o.material.userData.skyBase=o.material.opacity; _skyFadeMats.push(o.material); } });
+      if(mwMesh.material&&!_skyFadeMats.includes(mwMesh.material)){
+        mwMesh.material.userData.skyBase=mwMesh.material.opacity; _skyFadeMats.push(mwMesh.material); } }
+    const f=THREE.MathUtils.clamp(1-(d-RSKY*0.5)/(RSKY*0.45),0,1);
+    if(Math.abs((autoSolarScale._f??-1)-f)>0.01){ autoSolarScale._f=f;
+      for(const m of _skyFadeMats){ m.opacity=(m.userData.skyBase??1)*f; m.transparent=true; } }
+    // scale-anchor markers: shown only from far enough away that they read as motes
+    if(typeof oortFarMarker!=='undefined') oortFarMarker.visible=!!oortFarMarker.userData.lv && d>4e6;
+    if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.visible=!!homeGalaxyMarker.userData.lv && d>0.15*GLY_AU;
+  }
+  if(focusAnim) return;
   _autoScaleCd-=dt; if(_autoScaleCd>0) return;
   const order=['local','galactic','andromeda','cosmic'], layer=state.solarScaleLayer||'local', i=order.indexOf(layer);
-  if(i<0 || i>=order.length-1) return;
+  if(i<0) return;
   const d=camera.position.distanceTo(controls.target);
-  const outAt={ local:220000, galactic:3.2e6*LY_AU, andromeda:6.5e6*LY_AU }[layer];   // AU; safely beyond the Oort cloud
-  if(outAt!=null && d>outAt){
-    setSolarScaleLayer(order[i+1]); updateSolarScaleVisibility();
-    if(typeof buildCtl==='function'){ try{ buildCtl(); }catch(e){} }
-    _autoScaleCd=1.6;
-    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ '+({galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'}[order[i+1]]||order[i+1]);
+  const outAt={ local:220000, galactic:3.2e6*LY_AU, andromeda:6.5e6*LY_AU }[layer];    // AU
+  const inAt ={ galactic:120000, andromeda:2.4e6*LY_AU, cosmic:5.2e6*LY_AU }[layer];   // hysteresis vs outAt
+  const NAMES={local:'Solar System · Oort cloud',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'};
+  if(outAt!=null && i<order.length-1 && d>outAt){
+    advanceScaleLayer(order[i+1]); _autoScaleCd=1.2;
+    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ '+NAMES[order[i+1]];
+  } else if(inAt!=null && i>0 && d<inAt){
+    advanceScaleLayer(order[i-1]); _autoScaleCd=1.2;
+    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↓ '+NAMES[order[i-1]];
   }
 }
 
@@ -11850,7 +11914,12 @@ function buildCtlBody(){
     const oortSpd = ctl.querySelector('#oortSpd'); if (oortSpd) oortSpd.oninput = e => { state.oortSpeed = +e.target.value; };
     ctl.querySelector('#solarFlows').onchange=e=>{state.showLaniakeaFlows=e.target.checked;updateSolarScaleVisibility();};
     ctl.querySelector('#solarFlowDens').oninput=e=>{state.laniakeaFlowDensity=+e.target.value;updateSolarScaleVisibility();};
-    ctl.querySelector('#oortFocus').onclick = ()=>{ selectKey('oortCloud'); focusOn(SELECT.get('oortCloud')); };
+    ctl.querySelector('#oortFocus').onclick = ()=>{
+      // works from EVERY scale layer: step home to the local frame first (no white-out
+      // inside the galactic glow), then frame the full cloud; zooming back out from
+      // here walks the seamless chain Oort → Milky Way → Local Group → Cosmic web.
+      if(state.solarScaleLayer!=='local'){ advanceScaleLayer('local'); }
+      selectKey('oortCloud'); focusOn(SELECT.get('oortCloud')); };
 
     ctl.querySelectorAll('[data-solar-scale]').forEach(b=>b.onclick=()=>{
       setSolarScaleLayer(b.dataset.solarScale); updateSolarScaleVisibility(); buildCtl();
