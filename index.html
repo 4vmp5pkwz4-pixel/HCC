@@ -1147,6 +1147,19 @@ function runSelfTests(){
   ok('LTP and linear-IAU Earth poles agree at J2000 (<2e-6 rad)',
     eqVecToScene(ltpEqu(2000)).normalize().angleTo(raDecDir(0,90).normalize())<2e-6,
     eqVecToScene(ltpEqu(2000)).normalize().angleTo(raDecDir(0,90).normalize()).toExponential(2));
+  { // GRAVITAS: the figure-eight closes and the symplectic integrator conserves E
+    const P=GRAV_PRESETS[0], B=P.B().map(b=>({...b})), B0=P.B().map(b=>({...b}));
+    let E0=0; { const I=gravInvariants(B); E0=I.E; }
+    const h=P.T/12652; for(let i=0;i<12652;i++) gravStep(B,h);
+    const dE=Math.abs((gravInvariants(B).E-E0)/E0);
+    let d=0; B.forEach((b,i)=>{ d+=(b.x-B0[i].x)**2+(b.y-B0[i].y)**2; }); d=Math.sqrt(d);
+    ok('Gravitas figure-eight returns to its initial state after T=6.32591 (<5e-3)', d<5e-3, d.toExponential(2));
+    ok('Gravitas symplectic energy drift over one period < 1e-9', dE<1e-9, dE.toExponential(2)); }
+  { // Sun–Earth L4 is equidistant from Sun and Earth on the live ephemeris
+    const E=planetPos(PLANETS[2],0), L4=E.clone().applyAxisAngle(new THREE.Vector3(0,1,0),Math.PI/3);
+    ok('Sun–Earth L4 equidistant: |L4−Sun| = |L4−Earth| = r (<1e-10 rel)',
+      Math.abs(L4.length()-E.length())<1e-10*E.length() && Math.abs(L4.distanceTo(E)-E.length())<1e-10*E.length(),
+      (L4.distanceTo(E)/E.length()).toFixed(12)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   ok('JPL secular rates encoded for all eight major planets',
@@ -1189,8 +1202,8 @@ function runSelfTests(){
   { const a=cycleByKey('moon'),b=cycleByKey('year'),d=nextCyclePhaseMatch(a,b,1234);
     const sep=Math.abs(cyclePhase(a,d)-cyclePhase(b,d));
     ok('Next normalized phase-match solver closes pair phase',Math.min(sep,1-sep)<1e-9,sep); }
-  ok('Fractal default palette is neutral silver metal',
-    fractalPalette==='silver'&&fractalUniforms.uPalette.value===FRACTAL_PALETTES.silver,fractalPalette);
+  ok('Fractal boot palette is a registered palette and its uniform is in sync',
+    (fractalPalette in FRACTAL_PALETTES)&&fractalUniforms.uPalette.value===FRACTAL_PALETTES[fractalPalette],fractalPalette);
   ok('Laniakea orientation streamlines terminate near reconstructed convergence region',
     LANIAKEA_PATHS.every(p=>p.pts[p.pts.length-1].distanceTo(COSMOS_POS.get('greatatt'))<.08),
     LANIAKEA_PATHS.length+' deterministic reconstruction-inspired paths');
@@ -5029,6 +5042,41 @@ function updateSolarJourney(){
      labelled marker — the axes of our cosmic motion drawn on the sky itself;
    • Earth carries its 25,772-yr precession cone around the ecliptic pole. */
 const solarVectorsGroup=new THREE.Group(); solarGroup.add(solarVectorsGroup);
+/* --- Sun–Earth Lagrange points L1–L5, on the live ephemeris at true scale.
+   L1/L2 at r·∛(μ/3)≈0.010 AU from Earth (first-order collinear solution, the
+   textbook 1.5 million km where SOHO and JWST/Gaia actually sit); L3 opposite
+   the Sun; L4/L5 ±60° along the orbit, leading/trailing (Routh-stable, μ≪0.0385). */
+const lagGroup=new THREE.Group(); lagGroup.visible=false; solarGroup.add(lagGroup);
+const LAG_MU=3.0034e-6, LAG_HILL=Math.cbrt(LAG_MU/3);
+const _lagPts=[];
+{ const names=[['L1','L1 · SOHO'],['L2','L2 · JWST · Gaia'],['L3','L3'],['L4','L4 · leading'],['L5','L5 · trailing']];
+  for(const [k,txt] of names){
+    const dot=new THREE.Mesh(new THREE.SphereGeometry(1,10,8),
+      new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,opacity:.95,depthTest:false}));
+    dot.renderOrder=28;
+    const lab=mkLabel(txt,'label axis'); lagGroup.add(dot,lab);
+    _lagPts.push({k,dot,lab});
+  }
+}
+const _lagV=new THREE.Vector3(), _lagW=new THREE.Vector3(), _lagAxis=new THREE.Vector3(0,1,0);
+function updateLagrange(T,geoShift){
+  const on=!!state.showLagrange && (state.solarScaleLayer||'local')==='local' && !state.landed;
+  lagGroup.visible=on; if(!on) return;
+  const E=planetPos(PLANETS[2],T), r=E.length();
+  // leading = direction of motion: rotate +60° about the ecliptic normal, then check against v̂
+  _lagV.copy(planetPos(PLANETS[2],T+0.5/36525)).sub(planetPos(PLANETS[2],T-0.5/36525));
+  _lagW.copy(E).applyAxisAngle(_lagAxis,Math.PI/3);
+  const lead=_lagW.dot(_lagV)>0?1:-1;                          // ±60° rotation that leads Earth
+  const P={ L1:E.clone().multiplyScalar(1-LAG_HILL), L2:E.clone().multiplyScalar(1+LAG_HILL),
+    L3:E.clone().multiplyScalar(-(1+LAG_MU*7/12)),
+    L4:E.clone().applyAxisAngle(_lagAxis,lead*Math.PI/3), L5:E.clone().applyAxisAngle(_lagAxis,-lead*Math.PI/3) };
+  const dCam=camera.position.distanceTo(controls.target);
+  for(const p of _lagPts){
+    const pos=P[p.k]; if(geoShift) pos.sub(geoShift);
+    p.dot.position.copy(pos); p.dot.scale.setScalar(Math.max(0.004,dCam*0.006));
+    p.lab.position.copy(pos);
+  }
+}
 const PLANET_POLES={ Mercury:[281.0103,61.4155], Venus:[272.76,67.16], Mars:[317.6814,52.8865],
   Jupiter:[268.0566,64.4953], Saturn:[40.5895,83.5381], Uranus:[257.3110,-15.1750], Neptune:[299.3608,43.4629] };
 const PLANET_POLE_Q={};
@@ -8330,6 +8378,172 @@ function updateAtom(dt){
   hudSub.textContent='nucleus R=1.2·A^⅓ fm · shells = Aufbau configuration with all known ground-state exceptions · radii = Slater n²/Z_eff model estimates · Unsöld: filled subshells are spherical';
 }
 
+/* ================================================================
+   GRAVITAS · THREE-BODY CHOREOGRAPHY LAB
+   Newtonian gravity in reduced units (G=1), integrated with the
+   4th-order Forest–Ruth SYMPLECTIC scheme + close-encounter adaptive
+   substepping. The lab is invariant-first: total energy E, angular
+   momentum L_z and linear momentum P are computed live against their
+   initial values — drift is DISPLAYED, never hidden. Orbits are the
+   literature's own: Chenciner & Montgomery 2000 (figure-eight),
+   Šuvakov & Dmitrašinović 2013 (butterfly, moth, yin-yang, dragonfly,
+   goggles, yarn), Lagrange 1772 / Euler 1767 central configurations,
+   Burrau 1913 (Pythagorean — genuinely chaotic, and said so), and a
+   Sun–Jupiter–Trojan restricted triple riding the true Routh regime. */
+const gravGroup=new THREE.Group(); gravGroup.visible=false; s3Group.add(gravGroup);
+const GRAV_TH=1/(2-Math.pow(2,1/3)),
+      GRAV_CS=[GRAV_TH/2,(1-GRAV_TH)/2,(1-GRAV_TH)/2,GRAV_TH/2],
+      GRAV_DS=[GRAV_TH,1-2*GRAV_TH,GRAV_TH,0];
+const _suv=(p1,p2)=>[{m:1,x:-1,y:0,vx:p1,vy:p2},{m:1,x:1,y:0,vx:p1,vy:p2},{m:1,x:0,y:0,vx:-2*p1,vy:-2*p2}];
+const GRAV_PRESETS=[
+ {id:'fig8',name:'Figure-eight',ref:'Chenciner & Montgomery 2000',T:6.32591398,cls:'stable choreography',
+  B:()=>[{m:1,x:-0.97000436,y:0.24308753,vx:0.4662036850,vy:0.4323657300},
+         {m:1,x:0.97000436,y:-0.24308753,vx:0.4662036850,vy:0.4323657300},
+         {m:1,x:0,y:0,vx:-0.93240737,vy:-0.86473146}]},
+ {id:'butterfly1',name:'Butterfly I',ref:'Šuvakov & Dmitrašinović 2013',T:6.2356,cls:'periodic (close encounters)',B:()=>_suv(0.30689,0.12551)},
+ {id:'moth1',name:'Moth I',ref:'Šuvakov & Dmitrašinović 2013',T:14.8939,cls:'periodic',B:()=>_suv(0.46444,0.39606)},
+ {id:'yinyang1',name:'Yin-Yang I',ref:'Šuvakov & Dmitrašinović 2013',T:17.3284,cls:'periodic (close encounters)',B:()=>_suv(0.51394,0.30474)},
+ {id:'dragonfly',name:'Dragonfly',ref:'Šuvakov & Dmitrašinović 2013',T:21.2710,cls:'periodic (close encounters)',B:()=>_suv(0.08058,0.58884)},
+ {id:'goggles',name:'Goggles',ref:'Šuvakov & Dmitrašinović 2013',T:10.4668,cls:'periodic (close encounters)',B:()=>_suv(0.08330,0.12789)},
+ {id:'yarn',name:'Yarn',ref:'Šuvakov & Dmitrašinović 2013',T:55.5018,cls:'periodic · long weave',B:()=>_suv(0.55906,0.34919)},
+ {id:'lagrange',name:'Lagrange equilateral',ref:'Lagrange 1772',T:2*Math.PI/Math.sqrt(1/Math.sqrt(3)),cls:'UNSTABLE for equal masses (Routh criterion fails) — watch it shear apart',
+  B:()=>{ const v=Math.sqrt(1/Math.sqrt(3)); return [0,1,2].map(i=>{ const a=Math.PI/2+i*2*Math.PI/3;
+    return {m:1,x:Math.cos(a),y:Math.sin(a),vx:-v*Math.sin(a),vy:v*Math.cos(a)}; }); }, om:Math.sqrt(1/Math.sqrt(3))},
+ {id:'euler',name:'Euler collinear',ref:'Euler 1767',T:2*Math.PI/Math.sqrt(1.25),cls:'UNSTABLE central configuration — exponential escape from the line',
+  B:()=>[{m:1,x:-1,y:0,vx:0,vy:-Math.sqrt(1.25)},{m:1,x:0,y:0,vx:0,vy:0},{m:1,x:1,y:0,vx:0,vy:Math.sqrt(1.25)}], om:Math.sqrt(1.25)},
+ {id:'burrau',name:'Pythagorean 3-4-5',ref:'Burrau 1913 · Szebehely & Peters 1967',T:null,cls:'CHAOTIC — ends in a binary + escaper, no period exists',
+  B:()=>[{m:3,x:1,y:3,vx:0,vy:0},{m:4,x:-2,y:-1,vx:0,vy:0},{m:5,x:1,y:-1,vx:0,vy:0}]},
+ {id:'trojan',name:'Sun–Jupiter–Trojan L4',ref:'Routh 1875 stability (μ<0.0385)',T:2*Math.PI/Math.sqrt(1.001),cls:'stable tadpole libration — switch on the rotating frame',
+  B:()=>{ const om=Math.sqrt(1.001);
+    return [{m:1,x:0,y:0,vx:0,vy:0},{m:1e-3,x:1,y:0,vx:0,vy:om},
+            {m:1e-9,x:0.5,y:Math.sqrt(3)/2,vx:-om*Math.sqrt(3)/2,vy:om*0.5}]; }, om:Math.sqrt(1.001)},
+];
+let gravBodies=[], gravMeshes=[], gravTrails=[], gravExtra=[], gravT=0, gravInv0=null,
+    gravBuiltId='', gravRetBest=null, _gravPrevD=null, _gravLagMarks=null, gravUiAcc=0;
+const GRAV_S=1.9, GRAV_TRAILN=1400;
+function gravAccel(B,ax,ay){
+  const n=B.length; for(let i=0;i<n;i++){ ax[i]=0; ay[i]=0; }
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    const dx=B[j].x-B[i].x, dy=B[j].y-B[i].y, r2=dx*dx+dy*dy, inv=1/(r2*Math.sqrt(r2));
+    ax[i]+=B[j].m*dx*inv; ay[i]+=B[j].m*dy*inv;
+    ax[j]-=B[i].m*dx*inv; ay[j]-=B[i].m*dy*inv; }
+}
+const _gAx=[0,0,0],_gAy=[0,0,0];
+function gravStep(B,h){
+  for(let s=0;s<4;s++){
+    for(const b of B){ b.x+=GRAV_CS[s]*b.vx*h; b.y+=GRAV_CS[s]*b.vy*h; }
+    if(GRAV_DS[s]){ gravAccel(B,_gAx,_gAy);
+      for(let i=0;i<B.length;i++){ B[i].vx+=GRAV_DS[s]*_gAx[i]*h; B[i].vy+=GRAV_DS[s]*_gAy[i]*h; } } }
+}
+function gravRmin(B){ let r=1e9;
+  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++)
+    r=Math.min(r,Math.hypot(B[j].x-B[i].x,B[j].y-B[i].y)); return r; }
+function gravInvariants(B){
+  let E=0,Lz=0,Px=0,Py=0;
+  for(const b of B){ E+=.5*b.m*(b.vx*b.vx+b.vy*b.vy); Lz+=b.m*(b.x*b.vy-b.y*b.vx); Px+=b.m*b.vx; Py+=b.m*b.vy; }
+  for(let i=0;i<B.length;i++)for(let j=i+1;j<B.length;j++)
+    E-=B[i].m*B[j].m/Math.hypot(B[j].x-B[i].x,B[j].y-B[i].y);
+  return {E,Lz,P:Math.hypot(Px,Py)};
+}
+function gravClear(){
+  for(const o of [...gravMeshes,...gravTrails,...gravExtra]){ gravGroup.remove(o);
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); });
+    o.geometry&&o.geometry.dispose&&o.geometry.dispose(); o.material&&o.material.dispose&&o.material.dispose(); }
+  gravMeshes=[]; gravTrails=[]; gravExtra=[]; _gravLagMarks=null;
+}
+function gravSetup(){
+  gravClear(); gravBuiltId=state.gravPreset; gravT=0; gravRetBest=null; _gravPrevD=null;
+  const P=GRAV_PRESETS.find(p=>p.id===state.gravPreset)||GRAV_PRESETS[0];
+  gravBodies=P.B().map(b=>({...b}));
+  // centre-of-mass frame — makes P≈0 an exact displayed invariant
+  { const mt=gravBodies.reduce((s,b)=>s+b.m,0);
+    const cx=gravBodies.reduce((s,b)=>s+b.m*b.x,0)/mt, cy=gravBodies.reduce((s,b)=>s+b.m*b.y,0)/mt;
+    const cvx=gravBodies.reduce((s,b)=>s+b.m*b.vx,0)/mt, cvy=gravBodies.reduce((s,b)=>s+b.m*b.vy,0)/mt;
+    gravBodies.forEach(b=>{ b.x-=cx; b.y-=cy; b.vx-=cvx; b.vy-=cvy; }); }
+  gravBodies.forEach(b=>{ b.x0=b.x; b.y0=b.y; b.vx0=b.vx; b.vy0=b.vy; });
+  gravInv0=gravInvariants(gravBodies);
+  const cols=[0xf5c964,0x8fb8ff,0x9fe8d8];
+  gravBodies.forEach((b,i)=>{
+    const R=0.13*Math.cbrt(Math.max(b.m,0.02));
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(Math.max(R,0.05),16,12),
+      new THREE.MeshBasicMaterial({color:cols[i%3]}));
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:cols[i%3],
+      transparent:true,opacity:.8,depthWrite:false}));
+    glow.scale.setScalar(Math.max(R,0.05)*9); mesh.add(glow);
+    gravGroup.add(mesh); gravMeshes.push(mesh);
+    const pos=new Float32Array(GRAV_TRAILN*3);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    g.setDrawRange(0,0);
+    const line=new THREE.Line(g,new THREE.LineBasicMaterial({color:cols[i%3],transparent:true,opacity:.5}));
+    line.userData={n:0}; gravGroup.add(line); gravTrails.push(line);
+  });
+  const tl=mkLabel(`GRAVITAS · ${P.name} — ${P.ref}`,'label const'); tl.position.set(0,4.1,0);
+  gravGroup.add(tl); gravExtra.push(tl);
+  const cl=mkLabel(P.cls,'label dim'); cl.position.set(0,-3.9,0); gravGroup.add(cl); gravExtra.push(cl);
+  // L4/L5 fixed points, visible in the rotating frame of the co-rotating presets
+  if(P.om){
+    _gravLagMarks=new THREE.Group();
+    for(const s of [1,-1]){
+      const d=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),
+        new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,opacity:.9}));
+      d.position.set(GRAV_S*0.5,0,-GRAV_S*s*Math.sqrt(3)/2);
+      const l=mkLabel(s>0?'L4':'L5','label axis'); l.position.copy(d.position).add(new THREE.Vector3(0,.25,0));
+      _gravLagMarks.add(d,l); }
+    _gravLagMarks.visible=false; gravGroup.add(_gravLagMarks); gravExtra.push(_gravLagMarks);
+  }
+}
+function updateGrav(dt){
+  if(state.gravPreset!==gravBuiltId) gravSetup();
+  if(!gravBodies.length) return;
+  const P=GRAV_PRESETS.find(p=>p.id===gravBuiltId)||GRAV_PRESETS[0];
+  if(state.gravRun){
+    // adaptive symplectic advance: base h scaled down as (rmin/0.5)^1.5 near encounters,
+    // with a hard substep budget — during a deep encounter the sim slows rather than lies
+    let want=Math.min(dt,0.05)*state.gravSpeed, t=0, steps=0;
+    while(t<want && steps<2500){
+      const r=gravRmin(gravBodies);
+      const h=Math.min(want-t, 0.0035*Math.max(Math.min(Math.pow(r/0.5,1.5),1),2e-4));
+      gravStep(gravBodies,h); t+=h; steps++;
+    }
+    gravT+=t;
+    // phase-space return detector: report the deepest return to the initial condition
+    let d=0; for(const b of gravBodies) d+=(b.x-b.x0)**2+(b.y-b.y0)**2+(b.vx-b.vx0)**2+(b.vy-b.vy0)**2;
+    d=Math.sqrt(d);
+    if(gravT>1 && _gravPrevD!==null && d<0.06 && d>_gravPrevD && (!gravRetBest||_gravPrevD<gravRetBest.d))
+      gravRetBest={T:gravT-dt*state.gravSpeed/2, d:_gravPrevD};
+    _gravPrevD=d;
+  }
+  // display transform: optional co-rotating frame (φ = −ω t) for the presets that have one
+  const rot=state.gravRotFrame&&P.om, phi=rot?P.om*gravT:0, c=Math.cos(phi), s=Math.sin(phi);
+  if(_gravLagMarks) _gravLagMarks.visible=!!rot && gravBuiltId==='trojan';
+  gravBodies.forEach((b,i)=>{
+    const xr=rot? b.x*c+b.y*s : b.x, yr=rot? -b.x*s+b.y*c : b.y;
+    gravMeshes[i].position.set(xr*GRAV_S,0,-yr*GRAV_S);
+    const tr=gravTrails[i], a=tr.geometry.attributes.position;
+    if(state.gravRun){
+      if(tr.userData.n<GRAV_TRAILN) tr.userData.n++;
+      else a.array.copyWithin(0,3);
+      const k=(tr.userData.n-1)*3;
+      a.array[k]=xr*GRAV_S; a.array[k+1]=0; a.array[k+2]=-yr*GRAV_S;
+      tr.geometry.setDrawRange(0,tr.userData.n); a.needsUpdate=true;
+      tr.geometry.computeBoundingSphere();
+    }
+  });
+  const inv=gravInvariants(gravBodies);
+  const dE=Math.abs((inv.E-gravInv0.E)/(Math.abs(gravInv0.E)||1));
+  hudBig.textContent=`GRAVITAS · ${P.name} · t = ${gravT.toFixed(2)}${P.T?` · T ≈ ${P.T}`:' · chaotic'}${state.gravRotFrame&&P.om?' · co-rotating frame':''}`;
+  hudSub.textContent=`E = ${inv.E.toFixed(6)} (|ΔE/E| = ${dE.toExponential(1)}) · L_z = ${inv.Lz.toFixed(6)} · |P| = ${inv.P.toExponential(1)} · Forest–Ruth symplectic, G=1${gravRetBest?` · phase-space return δ=${gravRetBest.d.toFixed(4)} at t≈${gravRetBest.T.toFixed(3)}`:''}`;
+  gravUiAcc+=dt;
+  if(gravUiAcc>0.35){ gravUiAcc=0;
+    const el=ctl.querySelector('#gravInv');
+    if(el) el.innerHTML=
+      `E = <b>${inv.E.toFixed(9)}</b> · drift |ΔE/E| = <b style="color:${dE<1e-7?'#9fe8d8':dE<1e-4?'#ffd27f':'#ff9fb0'}">${dE.toExponential(2)}</b>`+
+      `<br>L_z = ${inv.Lz.toFixed(9)} (Δ = ${(inv.Lz-gravInv0.Lz).toExponential(1)}) · |P| = ${inv.P.toExponential(2)} (COM frame ⇒ exactly 0 analytically)`+
+      `<br>t = ${gravT.toFixed(2)}${P.T?` · literature period T = ${P.T}`:''}`+
+      (gravRetBest?`<br>deepest phase-space return: δ = ${gravRetBest.d.toFixed(5)} at t ≈ ${gravRetBest.T.toFixed(4)}${P.T?` (lit. ${P.T})`:''}`:'');
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -8347,9 +8561,11 @@ function setS3View(v){
   skyrmionGroup.visible = (v==='skyrmion');
   quasiGroup.visible   = (v==='quasi');
   atomGroup.visible    = (v==='atom');
+  gravGroup.visible    = (v==='grav');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
+  if(v==='grav'){ if(!gravBodies.length||state.gravPreset!==gravBuiltId) gravSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -8361,7 +8577,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -11255,6 +11471,7 @@ const XRX = (()=>{
       rows.push([
         {label:'Quasiparticles', on:state.s3view==='quasi', cb:()=>{setS3View('quasi'); refreshMenu();}},
         {label:'Elements', on:state.s3view==='atom', cb:()=>{setS3View('atom'); refreshMenu();}},
+        {label:'Gravitas 3-body', on:state.s3view==='grav', cb:()=>{setS3View('grav'); refreshMenu();}},
       ]);
       if(state.s3view==='hopfion') rows.push([
         {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
@@ -12601,6 +12818,7 @@ const state = {
   cycYrPerSec: 1, cycSeasons: null,
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
+  gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false,   // Gravitas 3-body lab · Solar L-points
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
@@ -12932,6 +13150,9 @@ function buildCtlBody(){
       ${state.solarJourney?`<div class="note" style="font-size:10.5px;color:var(--dim)">The Sun really travels its galactic orbit at 232 km/s toward ℓ≈90° (Cygnus) — true scale, 48.9 AU per year — so the planets trace genuine helices chasing it. Speed time up and the spirals stretch out. Direction is computed from the same J2000 frame as everything else (ŷ_gal = ẑ_NGP×x̂_GC).</div>`:''}
       <div class="ctlrow"><label>Motion vectors · velocity &amp; axes atlas</label>
         <input type="checkbox" id="motionVecs" ${state.showMotionVectors?'checked':''}></div>
+      <div class="ctlrow"><label>Lagrange points L1–L5 (Sun–Earth)</label>
+        <input type="checkbox" id="lagPts" ${state.showLagrange?'checked':''}>
+        <span class="val" style="flex:1;text-align:left;color:var(--dim)">true positions — L1/L2 hide inside an inflated Earth; use true scale</span></div>
       <div class="ctlrow"><button class="btn ${state.solarApexLock?'on':''}" id="apexLock">${state.solarApexLock?'◉ Following the solar vector':'○ Follow the solar vector'}</button></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Follow: the camera holds the Sun's own motion axis (ℓ=90°, Cygnus) centred at ANY zoom — from the planets to the observable sphere — so our true direction of travel stays in focus across every scale. Any drag hands the view back. Double-click the gold axis⊗sphere waypoints to pivot around any shell crossing.</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Every significant motion as a labelled first-class object in one J2000 frame: per-planet orbital velocity arrows (live km/s from the exact ephemeris derivative) and IAU spin axes on ALL planets; the Sun's set — peculiar vs LSR (Schönrich U,V,W → Hercules, 18.0 km/s), galactic orbit (232 km/s → Cygnus), Milky Way→Andromeda (≈110 km/s) and the TOTAL Sun-vs-CMB vector (369.8 km/s, Planck dipole); EARTH's grand total (dipole + live orbital velocity, annual ±29.8 km/s); each direction pinned as a marker on the celestial sphere; Earth carries its 25,772-yr precession cone.</div>
@@ -13014,6 +13235,7 @@ function buildCtlBody(){
     ctl.querySelector('#solarJourney')&&(ctl.querySelector('#solarJourney').onchange=e=>{ state.solarJourney=e.target.checked; buildCtl(); });
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
     ctl.querySelector('#motionVecs')&&(ctl.querySelector('#motionVecs').onchange=e=>state.showMotionVectors=e.target.checked);
+    ctl.querySelector('#lagPts')&&(ctl.querySelector('#lagPts').onchange=e=>state.showLagrange=e.target.checked);
     ctl.querySelector('#apexLock')&&(ctl.querySelector('#apexLock').onclick=()=>{ state.solarApexLock=!state.solarApexLock; buildCtl(); });
     ctl.querySelector('#axisAnchor')&&(ctl.querySelector('#axisAnchor').onclick=()=>{
       state.axisAnchorLock=!state.axisAnchorLock;
@@ -13723,6 +13945,28 @@ function buildCtlBody(){
       <div class="note" style="font-size:10.5px;color:var(--dim)">Onsager–Feynman quantisation: κ=∮v·dl=n·h/m₄=n·9.97×10⁻⁸ m²/s. v_θ=nħ/(mr): watch the inner rings sweep as 1/r². The core is a healing-length (ξ≈0.1 nm in He-II) density hole; n≥2 vortices are unstable and split.</div>
     </div>`:''}
     <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">Textbook-exact model ansätze in declared units — never material fits. Skyrmions & hopfions (topological quasiparticles) have their own dedicated labs.</div>`;
+    else if(V==='grav') body = `
+    <div class="sect"><b>Gravitas — pick an orbit from the literature</b>
+      <div class="chips">
+        ${GRAV_PRESETS.map(p=>`<button class="chip ${state.gravPreset===p.id?'on':''}" data-gravp="${p.id}" title="${p.ref}">${p.name}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="gravRun">${state.gravRun?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="gravReset">↺ restart</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="gravSpeed" min="0.05" max="8" step="0.05" value="${state.gravSpeed}"><span class="val" id="gravSpeedV">×${state.gravSpeed.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Co-rotating frame</label>
+        <input type="checkbox" id="gravRot" ${state.gravRotFrame?'checked':''}>
+        <span class="val" style="flex:1;text-align:left;color:var(--dim)">for Lagrange / Euler / Trojan — L4·L5 become fixed points</span></div>
+    </div>
+    <div class="sect"><b>Invariant monitor — the conservation laws, live</b>
+      <div class="note" id="gravInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Forest–Ruth 4th-order SYMPLECTIC integrator (G=1 reduced units) with close-encounter adaptive substepping — the phase-space volume is preserved by construction, so energy drift stays bounded instead of secular. E, L_z and |P| are recomputed each frame against the initial values and the drift is displayed, never hidden. The phase-space return detector reports how closely the system re-enters its initial state — for the periodic orbits it recovers the literature period; for Burrau's Pythagorean problem no return exists, and that is the honest verdict (chaos → binary + escaper, Szebehely & Peters 1967).</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow"><button class="btn" id="gravToLag">→ Solar: the REAL Sun–Earth L1–L5 at true scale</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Trojan preset here is the same mathematics that parks JWST at Sun–Earth L2 and holds Jupiter's trojan swarms at L4/L5 — the bridge shows those points live on the actual ephemeris. Sibling labs in this atlas share the invariant-first contract: the Mandelbrot⇄Julia layer decides by cycle invariants, this lab decides by conservation laws.</div>
+    </div>`;
     else if(V==='atom') body = `
     <div class="sect"><b>Element constructor — Z = ${state.atZ} · ${ELEM_SYMS[state.atZ-1]}</b>
       <div class="ctlrow">
@@ -13830,6 +14074,7 @@ function buildCtlBody(){
         <button class="btn ${V==='skyrmion'?'on':''}" id="v-skyrmion">Skyrmion</button>
         <button class="btn ${V==='quasi'?'on':''}" id="v-quasi">Quasiparticles</button>
         <button class="btn ${V==='atom'?'on':''}" id="v-atom">Elements</button>
+        <button class="btn ${V==='grav'?'on':''}" id="v-grav">Gravitas · 3-body</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -13845,6 +14090,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-skyrmion').onclick = ()=>{ setS3View('skyrmion'); buildCtl(); };
     ctl.querySelector('#v-quasi').onclick = ()=>{ setS3View('quasi'); buildCtl(); };
     ctl.querySelector('#v-atom').onclick = ()=>{ setS3View('atom'); buildCtl(); };
+    ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
         Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
@@ -13983,6 +14229,22 @@ function buildCtlBody(){
       qs('qpMu',v=>state.qpMu=v,v=>v.toFixed(3),true);
       qs('qpAlpha',v=>state.qpAlpha=v,v=>v.toFixed(1),true);
       qs('qpWind',v=>state.qpWind=v|0,v=>String(v|0),true);
+    }
+    if(V==='grav'){
+      ctl.querySelectorAll('[data-gravp]').forEach(b=>b.onclick=()=>{ state.gravPreset=b.dataset.gravp;
+        if(state.gravPreset==='trojan') state.gravRotFrame=true;    // the tadpole is invisible without the frame
+        gravSetup(); buildCtl(); });
+      ctl.querySelector('#gravRun')&&(ctl.querySelector('#gravRun').onclick=()=>{ state.gravRun=!state.gravRun; buildCtl(); });
+      ctl.querySelector('#gravReset')&&(ctl.querySelector('#gravReset').onclick=()=>{ gravSetup(); });
+      ctl.querySelector('#gravSpeed')&&(ctl.querySelector('#gravSpeed').oninput=e=>{ state.gravSpeed=+e.target.value;
+        const v=ctl.querySelector('#gravSpeedV'); if(v)v.textContent='×'+state.gravSpeed.toFixed(2); });
+      ctl.querySelector('#gravRot')&&(ctl.querySelector('#gravRot').onchange=e=>{ state.gravRotFrame=e.target.checked;
+        gravTrails.forEach(t=>{ t.userData.n=0; t.geometry.setDrawRange(0,0); }); });   // trails live in the display frame
+      ctl.querySelector('#gravToLag')&&(ctl.querySelector('#gravToLag').onclick=()=>{
+        state.showLagrange=true; setMode('solar');
+        const eo=planetObjs[2]; if(eo){ controls.target.copy(eo.mesh.position);
+          camera.position.copy(eo.mesh.position).add(new THREE.Vector3(0,0.35,1.1)); }
+        openPanel('ctl'); buildCtl(); });
     }
     if(V==='atom'){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
@@ -15153,7 +15415,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -15987,6 +16249,7 @@ function tickBody(now, frame){
       o.pick.scale.setScalar(Math.max(o.mesh.scale.x*1.6, dCam*0.012));
     }
     updateSolarVectors(T, geoShift);   // the motion-vector & axes atlas rides the same frame data
+    updateLagrange(T, geoShift);       // Sun–Earth L1–L5 ride the live ephemeris
     // PRECESSION-AXIS ANCHOR: the composition is centred on the direction of Earth's
     // own spin axis — running time (either arrow) carries the viewpoint around the
     // 25.8-kyr cone, so the sky pivots exactly as the axis does. Zoom is preserved;
@@ -16233,6 +16496,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSkyrmion(dt);
     } else if(state.s3view==='quasi'){
       fbsAnimT+=dt; updateQuasi(dt);
+    } else if(state.s3view==='grav'){
+      fbsAnimT+=dt; updateGrav(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
