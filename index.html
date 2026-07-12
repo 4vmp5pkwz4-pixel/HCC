@@ -4423,6 +4423,13 @@ const COSMOS = [
   {key:'hcb',     name:'Hercules–Corona Borealis GRB overdensity', ra:240.0, dec:40.0, z:1.9, size:10, type:'wall',col:0xff9de0, centroidKnown:false, note:'putative northern GRB overdensity · z≈1.6–2.1 · extent/physical-wall interpretation unresolved'},
   // Additional well-known structures between local galaxies/clusters and the z≈0.802 giant complex (inter-galactic to supercluster scales)
   {key:'perseus', name:'Perseus-Pisces Supercluster', ra:25.0, dec:35.0, dGly:0.23, size:0.18, type:'supercluster', col:0x9ad8ff, note:'major nearby filamentary supercluster · ~70 h⁻¹ Mpc'},
+  {key:'norma',   name:'Norma Cluster (ACO 3627)',   ra:243.9, dec:-60.9, dGly:0.22, size:0.02, type:'cluster', col:0xffa080, note:'the massive cluster at the heart of the Great Attractor region · ~68 Mpc, behind the Galactic plane'},
+  {key:'centaurus',name:'Centaurus Cluster (A3526)', ra:192.2, dec:-41.3, dGly:0.17, size:0.016, type:'cluster', col:0xbfe0ff, note:'nearest large cluster after Virgo · anchor of the Hydra–Centaurus complex'},
+  {key:'pavoindus',name:'Pavo–Indus Supercluster',   ra:315.0, dec:-60.0, dGly:0.235, size:0.10, type:'supercluster', col:0x9ad8a6, note:'southern neighbour supercluster · one wall of the Local Void'},
+  {key:'ophsc',   name:'Ophiuchus Supercluster',     ra:258.1, dec:-23.4, dGly:0.37, size:0.08, type:'supercluster', col:0xffc890, note:'hidden behind the Galactic bulge · hosts the Ophiuchus cluster (site of the most energetic known AGN outburst)'},
+  {key:'horret',  name:'Horologium–Reticulum Supercluster', ra:49.0, dec:-50.0, dGly:0.9, size:0.55, type:'supercluster', col:0xd0c0ff, note:'one of the most massive structures within 1 Gly · dozens of rich clusters'},
+  {key:'crbsc',   name:'Corona Borealis Supercluster', ra:232.0, dec:28.9, dGly:1.0, size:0.13, type:'supercluster', col:0xffd0b0, note:'compact, likely collapsing supercluster at z≈0.07'},
+  {key:'kbc',     name:'KBC / Local Hole (debated)', ra:0, dec:0, dGly:0.001, size:2.0, type:'void', col:0x6a78c0, reconstruction:true, centroidKnown:false, note:'Keenan–Barger–Cowie 2013: a proposed ~2 Gly-diameter local underdensity CENTRED NEAR US (drawn as the sphere around the observer) · amplitude and tension with ΛCDM remain debated'},
   {key:'hercules',name:'Hercules Supercluster',     ra:240.0, dec:30.0, dGly:0.48, size:0.15, type:'supercluster', col:0xffb070, note:'rich supercluster complex · bridges toward the Sloan region'},
   {key:'bootes',  name:'Bootes Supercluster',       ra:215.0, dec:25.0, dGly:0.31, size:0.12, type:'supercluster', col:0xd0b0ff, note:'prominent supercluster in the direction of the giant ring field'},
   {key:'pcf',     name:'Pisces-Cetus Filament',     ra:30.0,  dec:-10.0, dGly:0.09, size:0.35, type:'wall',        col:0x8fb4d8, note:'one of the longest known nearby filaments · connects several superclusters'},
@@ -5685,6 +5692,13 @@ function autoSolarScale(dt){
   const outAt={ local:220000, galactic:3.2e6*LY_AU, andromeda:6.5e6*LY_AU }[layer];    // AU
   const inAt ={ galactic:120000, andromeda:2.4e6*LY_AU, cosmic:5.2e6*LY_AU }[layer];   // hysteresis vs outAt
   const NAMES={local:'Solar System · Oort cloud',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'};
+  // beyond the cosmic layer the chain continues INTO the Observable Universe mode:
+  // the same structures, same directions — one continuous instrument
+  if(layer==='cosmic' && d>26*GLY_AU){
+    _autoScaleCd=2.0; setMode('obs');
+    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ Observable Universe (mode hand-off — same sky, 1 unit = 1 Gly)';
+    return;
+  }
   if(outAt!=null && i<order.length-1 && d>outAt){
     advanceScaleLayer(order[i+1]); _autoScaleCd=1.2;
     if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ '+NAMES[order[i+1]];
@@ -9427,7 +9441,11 @@ function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
   const tMid =Math.max(45, Math.round(minDwell*3)), tDeep=Math.max(140, Math.round(minDwell*10));
   const target=P.samples;
   const ox=new Float32Array(maxIter), oy=new Float32Array(maxIter), rnd=mulberry(20260430);
-  let done=0, mcx=0, mcy=0, hasM=false;                 // Metropolis walker state (deep technique)
+  // Metropolis WALKER POOL (deep technique): one walker gets trapped in a single
+  // filament basin and the Buddha's face never fills in — 24 independent walkers
+  // visited round-robin keep every region of the boundary populated at once.
+  const POOL=24, poolC=new Float64Array(POOL*2), poolHas=new Uint8Array(POOL);
+  let done=0, pi=0;
   const CHUNK=Math.max(300,Math.round((MOBILE_GPU?4200:11000)*(420/Math.min(maxIter,20000))));
   const bin=(bx,by,it)=>{                               // one orbit point → tiers
     const px=(((bx+2.2)/3.4*FULL)|0)-wx0, py=(((1-(by+1.5)/3)*FULL)|0)-wy0;
@@ -9442,9 +9460,10 @@ function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
     const end=Math.min(target,done+CHUNK);
     for(;done<end;done++){
       let cx,cy;
-      if(deepT && hasM && rnd()<0.86){                  // Metropolis move: mutate the last survivor
-        const s=0.004+0.20*rnd()*rnd()*rnd();           // mixed step sizes: fine detail ↔ escape
-        cx=mcx+(rnd()*2-1)*s; cy=mcy+(rnd()*2-1)*s;
+      if(deepT){ pi=(pi+1)%POOL; }
+      if(deepT && poolHas[pi] && rnd()<0.80){           // Metropolis move: mutate THIS walker's survivor
+        const st=0.004+0.22*rnd()*rnd()*rnd();          // mixed step sizes: fine detail ↔ escape
+        cx=poolC[pi*2]+(rnd()*2-1)*st; cy=poolC[pi*2+1]+(rnd()*2-1)*st;
       } else { cx=-2.2+3.4*rnd(); cy=-1.5+3*rnd(); }    // fresh restart (ergodicity)
       if(!anti){
         // guaranteed-interior regions (main cardioid, period-2 bulb) never escape —
@@ -9472,7 +9491,7 @@ function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
         continue;
       }
       if(it===maxIter||it<8||it<minDwell) continue;     // (deep) min-dwell floor ⇒ razor filaments
-      if(deepT){ mcx=cx; mcy=cy; hasM=true; }           // accept: the walker stays on the filament
+      if(deepT){ poolC[pi*2]=cx; poolC[pi*2+1]=cy; poolHas[pi]=1; }   // accept into this walker's slot
       for(let k=0;k<=it;k++){
         bin(ox[k],oy[k],it);
         if(deepT) bin(ox[k],-oy[k],it);                 // exact conjugation symmetry: full figure
@@ -9677,7 +9696,7 @@ const fractalUniforms = {
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9,buddha3d:10};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='bifurc3d';   // the atlas opens on the bifurcation⊗Mandelbrot bridge — its signature 3D structure
 let fractalPalette='spectrum';   // spectral colours from the very first frame (phase zero)
@@ -9702,6 +9721,7 @@ function setFractalType(type,reset=true){
   if(state.mode==='fractal' && GEO_FRACTALS.has(type)){
     camera.fov=55; controls.target.set(0,0,0);
     if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
+    if(type==='buddha3d'){ camera.position.set(4.5,3.2,10.5); controls.target.set(0,0,0); setControlDistanceLimits(2,60); }
     else if(type==='orbital3d'){ camera.position.set(5,4,9); setControlDistanceLimits(2.5,80); }
     else if(type==='mjfiber3d'){ camera.position.set(6,4,11); setControlDistanceLimits(2.5,90); }
     else { camera.position.set(4.5,3.5,8.5); setControlDistanceLimits(2,60); }
@@ -9717,7 +9737,7 @@ function setFractalType(type,reset=true){
 // roll in-shader via uRot (uCenter/uZoom/pan/zoom stay in the un-rotated screen frame,
 // so controls never flip with the image); the four true-3D geometry groups roll about
 // the current view axis, leaving OrbitControls' orbit/zoom untouched.
-const GEO_GROUP_FOR={get bifurc3d(){return bifurcGroup;},get polytope4d(){return poly4dGroup;},get orbital3d(){return orbitalGroup;},get mjfiber3d(){return mjFiberGroup;}};
+const GEO_GROUP_FOR={get bifurc3d(){return bifurcGroup;},get buddha3d(){return buddha3dGroup;},get polytope4d(){return poly4dGroup;},get orbital3d(){return orbitalGroup;},get mjfiber3d(){return mjFiberGroup;}};
 function rotateFractal90(){
   state.fractalRot=(state.fractalRot+1)&3;
   fractalUniforms.uRot.value=state.fractalRot*Math.PI/2;
@@ -10267,14 +10287,65 @@ function buildMandelJuliaFiber3D(force=false){
   const az=mkLabel('gold helix = selected Julia fiber / lifted slice','label dim'); az.position.set(anchorX+0.7,2.8,anchorZ); mjFiberGroup.add(az);
 }
 
-const GEO_FRACTALS=new Set(['bifurc3d','polytope4d','orbital3d','mjfiber3d']);   // fractal "types" rendered as real 3D geometry
+const GEO_FRACTALS=new Set(['bifurc3d','buddha3d','polytope4d','orbital3d','mjfiber3d']);   // fractal "types" rendered as real 3D geometry
+/* ── BUDDHABROT LAYERS IN 3D ──────────────────────────────────────────────────
+   The three dwell-time tiers of the last ≤4K build (its accumulation planes are
+   retained) become three translucent PLANES floating in depth — short-dwell haze in
+   front, mid-dwell body, deep-dwell skeleton behind — so the layered anatomy of the
+   Buddhabrot can be orbited like sheets of a physical specimen. */
+const buddha3dGroup=new THREE.Group(); buddha3dGroup.visible=false; scene.add(buddha3dGroup);
+let _b3Built=0;
+function buildBuddha3D(){
+  if(!buddhaPlanes){ if(_b3Built!==-1){ _b3Built=-1;
+      while(buddha3dGroup.children.length){ const c=buddha3dGroup.children.pop(); disposeCSS2D?.(c); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); }
+      const l=mkLabel('Build a Buddhabrot at 4K or below first — its tier planes are kept for this view','label major');
+      buddha3dGroup.add(l); }
+    return; }
+  const stamp=buddhaPlanes.W*7919+buddhaPlanes.H+(buddhaPal.length<<16);
+  if(_b3Built===stamp) return; _b3Built=stamp;
+  while(buddha3dGroup.children.length){ const c=buddha3dGroup.children.pop(); disposeCSS2D?.(c); c.geometry&&c.geometry.dispose&&c.geometry.dispose(); c.material&&c.material.dispose&&c.material.dispose(); }
+  const {low,mid,deep,W,H}=buddhaPlanes;
+  let ml=1,mm=1,md=1;
+  for(let i=0;i<W*H;i++){ if(low[i]>ml)ml=low[i]; if(mid[i]>mm)mm=mid[i]; if(deep[i]>md)md=deep[i]; }
+  const tiers=[
+    {name:'short dwell · haze',    pick:(a,b,c)=>[a,0,0], z: 1.5},
+    {name:'mid dwell · body',      pick:(a,b,c)=>[0,b,0], z: 0.0},
+    {name:'deep dwell · skeleton', pick:(a,b,c)=>[0,0,c], z:-1.5},
+  ];
+  const dl=Math.log1p(ml), dm=Math.log1p(mm), dd=Math.log1p(md);
+  const map=BUDDHA_PALETTES[buddhaPal].map;
+  for(const T of tiers){
+    const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+    const cx=cv.getContext('2d'), img=cx.createImageData(W,H);
+    for(let i=0;i<W*H;i++){
+      const a=Math.log1p(low[i])/dl, b=Math.log1p(mid[i])/dm, c=Math.log1p(deep[i])/dd;
+      const [ta,tb,tc]=T.pick(a,b,c);
+      const rgb=map(ta,tb,tc);
+      const lum=Math.max(ta,tb,tc);
+      img.data[i*4]=Math.min(255,rgb[0]); img.data[i*4+1]=Math.min(255,rgb[1]);
+      img.data[i*4+2]=Math.min(255,rgb[2]); img.data[i*4+3]=Math.min(255,255*Math.pow(lum,0.85));
+    }
+    cx.putImageData(img,0,0);
+    const tex=new THREE.CanvasTexture(cv); tex.colorSpace=THREE.SRGBColorSpace;
+    tex.generateMipmaps=false; tex.minFilter=THREE.LinearFilter; tex.magFilter=THREE.LinearFilter;
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(7,7),
+      new THREE.MeshBasicMaterial({map:tex,transparent:true,opacity:.92,side:THREE.DoubleSide,
+        depthWrite:false,blending:THREE.AdditiveBlending}));
+    m.position.z=T.z; buddha3dGroup.add(m);
+    const lab=mkLabel(T.name,'label dim'); lab.position.set(0,-3.9,T.z); buddha3dGroup.add(lab);
+  }
+  const t=mkLabel('BUDDHABROT · THE THREE DWELL TIERS AS SHEETS IN SPACE · drag to orbit','label const');
+  t.position.set(0,4.1,0); buddha3dGroup.add(t);
+}
 function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
+  if(isFrac&&fractalType==='buddha3d') buildBuddha3D();
   if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
   if(isFrac&&fractalType==='orbital3d') buildOrbital3D();
   if(isFrac&&fractalType==='mjfiber3d') buildMandelJuliaFiber3D();
   bifurcGroup.visible = isFrac&&fractalType==='bifurc3d';
+  buddha3dGroup.visible = isFrac&&fractalType==='buddha3d';
   poly4dGroup.visible = isFrac&&fractalType==='polytope4d';
   orbitalGroup.visible = isFrac&&fractalType==='orbital3d';
   mjFiberGroup.visible = isFrac&&fractalType==='mjfiber3d';
@@ -12397,7 +12468,7 @@ function cameraClipProfile(){
   if(state.mode==='s3')return {nearMin:1e-4,far:state.s3view==='ring'?5000:1600};
   if(state.mode==='cyc')return {nearMin:1e-4,far:3000};
   if(state.mode==='fbs')return {nearMin:1e-4,far:3000};
-  if(state.mode==='fractal'&&fractalType==='bifurc3d')return {nearMin:1e-4,far:400};
+  if(state.mode==='fractal'&&(fractalType==='bifurc3d'||fractalType==='buddha3d'))return {nearMin:1e-4,far:400};
   return {nearMin:1e-4,far:40};
 }
 function syncCameraClipping(force=false){
@@ -14030,7 +14101,7 @@ function buildCtlBody(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips fracModes">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',buddha3d:'Buddhabrot · layers 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
       </div>
       <div class="ctlrow"><button class="btn" id="fracRot">↻ Rotate view 90°</button>
         <span class="val" id="fracRotV">${state.fractalRot*90}°</span></div>
@@ -14137,7 +14208,8 @@ function buildCtlBody(){
       <div class="chips">${Object.entries(BUDDHA_PALETTES).map(([k,P])=>`<button class="chip ${buddhaPal===k?'on':''}" data-budpal="${k}">${P.label}</button>`).join('')}</div>
       <div class="ctlrow"><label>Hue shift</label><input type="range" id="budHue" min="-180" max="180" step="2" value="${buddhaHue}"><span class="val" id="budHueV">${buddhaHue}°</span></div>
       <div class="ctlrow"><button class="btn" id="budBuild">${buddhaBuilding?'building…':'rebuild deterministic map'}</button>
-        <button class="btn green" id="budSave">💾 Save framed PNG</button></div>
+        <button class="btn green" id="budSave">💾 Save framed PNG</button>
+        <button class="btn" id="bud3D">🧊 Layers in 3D</button></div>
       ${(state.fractalRot||0)%4!==0?`<div class="ctlrow"><label>✔ apply view rotation (${((state.fractalRot||0)%4)*90}°) to the export</label>
         <input type="checkbox" id="budRotSave" checked></div>`:''}
       <div class="note" id="budSaveNote" style="font-size:10.5px;color:var(--gold-2)"></div>
@@ -14193,6 +14265,10 @@ function buildCtlBody(){
     ${(GEO_FRACTALS.has(fractalType)&&fractalType!=='mjfiber3d')?`<div class="sect"><b>True 3D navigation</b>
       <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
       <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
+    </div>`:''}
+    ${fractalType==='buddha3d'?`<div class="sect"><b>Buddhabrot — dwell tiers in space</b>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The last ≤4K build's accumulation planes, split by dwell tier and floated as translucent sheets: short-dwell haze in front, mid-dwell body, deep-dwell skeleton behind. Orbit to see how the layers assemble the figure; the palette follows the 2D view.</div>
+      <div class="ctlrow"><button class="btn" id="bud3Dback">← back to the 2D Buddhabrot</button></div>
     </div>`:''}
     ${fractalType==='bifurc3d'?`<div class="sect"><b>Key points — fly the structure</b>
       <div class="chips">${BIF_KEYPTS.map((p,i)=>`<button class="chip" data-bifpt="${i}">${p.label}</button>`).join('')}</div>
@@ -14280,6 +14356,8 @@ function buildCtlBody(){
     });
     ctl.querySelector('#budBuild')?.addEventListener('click',buildBuddhabrotTexture);
     ctl.querySelector('#budSave')?.addEventListener('click',saveBuddhabrot);
+    ctl.querySelector('#bud3D')?.addEventListener('click',()=>{ setFractalType('buddha3d',false); buildCtl(); });
+    ctl.querySelector('#bud3Dback')?.addEventListener('click',()=>{ setFractalType('buddhabrot',false); buildCtl(); });
     ctl.querySelectorAll('[data-budres]').forEach(b=>b.onclick=()=>{ setBuddhaPreset(b.dataset.budres); buildCtl(); });
     ctl.querySelectorAll('[data-budpal]').forEach(b=>b.onclick=()=>{ buddhaPal=b.dataset.budpal;
       if(!buddhaRepaint()){ buddhaBuilding=false; buildBuddhabrotTexture(); }   // planes retained ≤4K → instant; else re-run
@@ -15630,6 +15708,9 @@ function tickBody(now, frame){
         mjFiberGroup.rotation.y+=dt*0.045;
         hudBig.textContent='Mandelbrot ⇄ Julia · 3D fiber manifold';
         hudSub.textContent='lifted c-plane + selected Julia fiber + rays & equipotentials + critical orbit · drag to orbit · scroll to zoom';
+      } else if(fractalType==='buddha3d'){
+        hudBig.textContent='Buddhabrot · the three dwell tiers as sheets in space';
+        hudSub.textContent='short-dwell haze → mid-dwell body → deep-dwell skeleton · the layered anatomy of the last ≤4K build · drag to orbit';
       } else {
         orbitalGroup.rotation.y+=dt*0.12;
         hudBig.textContent='Hydrogen electron orbital · |ψ|² quantum cloud';
@@ -15853,6 +15934,21 @@ function tickBody(now, frame){
   else if(state.mode==='obs'){
     hudBig.textContent = `Γ_obs = 0.0126 % of the S³ volume · θ_particle = 4.82°`;
     hudSub.textContent = '1 unit = 1 Gly · domain D_obs(p,T) ⊂ S³_R · screens are reconstruction boundaries';
+    // approaching the HOME GALAXY continues INTO the Solar mode's nested layers —
+    // Observable and Solar are one permeable instrument: same directions, same sky
+    if(!state.landed && !renderer.xr.isPresenting && !focusAnim){
+      if(_autoScaleCd>0) _autoScaleCd-=dt;
+      else { const dObs=camera.position.distanceTo(controls.target);
+        if(controls.target.length()<0.05 && dObs<0.02){
+          const dir=camera.position.clone().normalize();
+          _autoScaleCd=2.0;
+          setMode('solar'); state.solarScaleLayer='cosmic'; advanceScaleLayer('cosmic');
+          controls.target.set(0,0,0);
+          camera.position.copy(dir.multiplyScalar(Math.max(dObs,0.008)*GLY_AU));
+          syncCameraClipping(true);
+          hudBig.textContent='Scale ↓ Cosmic web — continuing inward to the Milky Way, the Oort cloud, the planets';
+        } }
+    }
   }
   else if(state.mode==='s3'){
     if(state.s3view==='sec'){
