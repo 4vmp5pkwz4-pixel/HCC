@@ -4782,6 +4782,54 @@ GAL_DATA.pole.dir=raDecDir(GAL_DATA.pole.ra/15,GAL_DATA.pole.dec).normalize();
 GAL_DATA.m31.dir=raDecDir(GAL_DATA.m31.ra/15,GAL_DATA.m31.dec).normalize();
 GAL_DATA.m31.pos=GAL_DATA.m31.dir.clone().multiplyScalar(GAL_DATA.m31.distLy*LY_AU);
 
+/* ── THE SUN'S REAL JOURNEY — helical planetary paths ─────────────────────────
+   The Sun orbits the Galaxy at ~232 km/s toward ℓ≈90° (Cygnus). The direction is
+   built EXACTLY from the same J2000 frame the rest of the scene uses:
+   ŷ_gal = ẑ_NGP × x̂_GC (right-handed galactic basis, evaluated in equatorial
+   coordinates and carried through the scene transform). 232 km/s = 48.93 AU/yr =
+   0.13403 AU/day — TRUE scale, so within one year the system travels ~49 AU and
+   the planetary orbits really do wind into helices chasing the Sun. The trail
+   window grows with time acceleration (speed time up → the spirals stretch out).
+   Pure rendering: planet physics and positions are untouched. */
+const solarJourneyGroup=new THREE.Group(); solarJourneyGroup.visible=false; solarGroup.add(solarJourneyGroup);
+const SUN_V_DIR=GAL_DATA.pole.dir.clone().cross(GAL_DATA.gc.dir).normalize();
+const SUN_V_AU_DAY=232*86400/1.495978707e8;                       // 0.134 AU/day
+let _sjLines=null,_sjSun=null,_sjLab=null;
+function ensureSolarJourney(){
+  if(_sjLines) return; _sjLines=[];
+  const cols=[0xc9b48a,0xf6e0b0,0x7fb8ff,0xff8a6a,0xe8c89a,0xd8c79a,0x9fd8e8,0x7fa8ff];
+  for(let i=0;i<Math.min(8,PLANETS.length);i++){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(241*3),3));
+    const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:cols[i%cols.length],transparent:true,opacity:.75,depthWrite:false}));
+    solarJourneyGroup.add(l); _sjLines.push(l);
+  }
+  _sjSun=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,0,1)]),
+    new THREE.LineBasicMaterial({color:0xffd27f,transparent:true,opacity:.9}));
+  solarJourneyGroup.add(_sjSun);
+  _sjLab=mkLabel('Solar apex of the galactic orbit · toward ℓ≈90° (Cygnus) · 232 km/s = 48.9 AU/yr','label axis');
+  solarJourneyGroup.add(_sjLab);
+}
+function updateSolarJourney(){
+  solarJourneyGroup.visible=!!state.solarJourney && (state.solarScaleLayer||'local')==='local' && !state.landed;
+  if(!solarJourneyGroup.visible) return;
+  ensureSolarJourney();
+  const now=state.epochDays, K=240;
+  const W=Math.min(36500,Math.max(40,(state.daysPerSec||1)*38));   // trail window in days
+  for(let p=0;p<_sjLines.length;p++){
+    const pos=_sjLines[p].geometry.attributes.position;
+    for(let k=0;k<=K;k++){
+      const t=now-W*(1-k/K), off=(t-now)*SUN_V_AU_DAY;
+      const pp=planetPos(PLANETS[p],t/36525);
+      pos.setXYZ(k, pp.x+SUN_V_DIR.x*off, pp.y+SUN_V_DIR.y*off, pp.z+SUN_V_DIR.z*off);
+    }
+    pos.needsUpdate=true; _sjLines[p].geometry.computeBoundingSphere();
+  }
+  const back=W*SUN_V_AU_DAY;
+  _sjSun.geometry.setFromPoints([SUN_V_DIR.clone().multiplyScalar(-back),SUN_V_DIR.clone().multiplyScalar(back*0.25)]);
+  _sjLab.position.copy(SUN_V_DIR).multiplyScalar(back*0.28);
+}
+
 function galaxySpiral(radiusLy,arms,count,col,seed){
   const rnd=mulberry(seed), R=radiusLy*LY_AU;
   const bulge=Math.round(count*0.26);                 // central bulge: older/warmer stars concentrated in the core
@@ -5241,12 +5289,23 @@ function autoSolarScale(dt){
     // scale-anchor markers: shown only from far enough away that they read as motes
     if(typeof oortFarMarker!=='undefined') oortFarMarker.visible=!!oortFarMarker.userData.lv && d>4e6;
     if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.visible=!!homeGalaxyMarker.userData.lv && d>0.15*GLY_AU;
+    // in the LOCAL frame the physical Milky Way (star speckle, arms, GC) fades in as
+    // soon as the decorative sky has faded — the void between the sky shell and the
+    // Oort reveal is now filled with the real star outlines of the Galaxy
+    if((state.solarScaleLayer||'local')==='local'){
+      const on=d>RSKY*0.35;
+      if(solarGalacticGroup.visible!==on){ solarGalacticGroup.visible=on; milkyWayPhysical.visible=on; }
+    }
   }
   if(focusAnim) return;
   _autoScaleCd-=dt; if(_autoScaleCd>0) return;
   const order=['local','galactic','andromeda','cosmic'], layer=state.solarScaleLayer||'local', i=order.indexOf(layer);
   if(i<0) return;
   const d=camera.position.distanceTo(controls.target);
+  // auto-stepping belongs to the Sun-anchored zoom chain ONLY: when the target sits
+  // far from the origin (a deliberate M31 / GC framing), stepping layers underneath
+  // the user swapped the visible set and read as a black flash + jump — never again.
+  if(controls.target.length() > Math.max(1e5, d*0.25)) return;
   const outAt={ local:220000, galactic:3.2e6*LY_AU, andromeda:6.5e6*LY_AU }[layer];    // AU
   const inAt ={ galactic:120000, andromeda:2.4e6*LY_AU, cosmic:5.2e6*LY_AU }[layer];   // hysteresis vs outAt
   const NAMES={local:'Solar System · Oort cloud',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'};
@@ -11555,7 +11614,7 @@ const state = {
   fbsDensExp: 3, fbsFibExact: false, fbsPhiX: PHI, fbsLPX: FBS.lP, fbsOpacityK: 1, fbsDensityFX: false,
   sensH0: 67.4, sensOK: 0.0007,
   cycYrPerSec: 1, cycSeasons: null,
-  oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7,
+  oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false,
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
@@ -11571,7 +11630,9 @@ function cameraClipProfile(){
     if(layer==='galactic')return {nearMin:1,far:6e6*LY_AU};
     if(layer==='andromeda')return {nearMin:1,far:8e6*LY_AU};
     if(layer==='cosmic')return {nearMin:1e-7*GLY_AU,far:1200*GLY_AU};
-    return {nearMin:1e-7,far:4e5};
+    // local far reaches the physical Milky Way (logarithmic depth keeps precision):
+    // its star/arm outlines must already be visible while the Oort cloud emerges
+    return {nearMin:1e-7,far:5e9};
   }
   if(state.mode==='obs')return {nearMin:1e-4,far:3000};
   if(state.mode==='s3')return {nearMin:1e-4,far:state.s3view==='ring'?5000:1600};
@@ -11879,6 +11940,9 @@ function buildCtlBody(){
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">bodies 1:1 with orbits</span></div>
       <div class="ctlrow"><label>Orbit lines</label>
         <input type="checkbox" id="orb" ${state.showOrbits?'checked':''}></div>
+      <div class="ctlrow"><label>Galactic journey · helices</label>
+        <input type="checkbox" id="solarJourney" ${state.solarJourney?'checked':''}></div>
+      ${state.solarJourney?`<div class="note" style="font-size:10.5px;color:var(--dim)">The Sun really travels its galactic orbit at 232 km/s toward ℓ≈90° (Cygnus) — true scale, 48.9 AU per year — so the planets trace genuine helices chasing it. Speed time up and the spirals stretch out. Direction is computed from the same J2000 frame as everything else (ŷ_gal = ẑ_NGP×x̂_GC).</div>`:''}
       <div class="ctlrow"><label>Earth / Sun spin axes</label>
         <input type="checkbox" id="spinAxes" ${state.showSpinAxes?'checked':''}>
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">sidereal references</span></div>
@@ -11948,6 +12012,7 @@ function buildCtlBody(){
     ctl.querySelector('#psc').oninput = e=>{ state.planetScale = 10**(+e.target.value); state.trueScale=false; ctl.querySelector('#tsc').checked=false; updCtlVals(); };
     ctl.querySelector('#tsc').onchange = e=>{ state.trueScale = e.target.checked; updCtlVals(); };
     ctl.querySelector('#orb').onchange = e=>{ state.showOrbits = e.target.checked; planetObjs.forEach(o=>o.line.visible=e.target.checked); };
+    ctl.querySelector('#solarJourney')&&(ctl.querySelector('#solarJourney').onchange=e=>{ state.solarJourney=e.target.checked; buildCtl(); });
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
     ctl.querySelectorAll('[data-frame]').forEach(b=>b.onclick=()=>{
       const geo=b.dataset.frame==='geo';
@@ -11983,6 +12048,7 @@ function buildCtlBody(){
 
     ctl.querySelectorAll('[data-solar-scale]').forEach(b=>b.onclick=()=>{
       setSolarScaleLayer(b.dataset.solarScale); updateSolarScaleVisibility(); buildCtl();
+      _autoScaleCd=2.2;   // a deliberate chip framing must never be auto-stepped away from
     });
 
     // Initial visibility
@@ -14679,6 +14745,7 @@ function tickBody(now, frame){
 
   if(state.mode==='solar'){
     autoSolarScale(dt);
+    updateSolarJourney();
     if(!state.paused) state.epochDays += state.daysPerSec*dt;
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
