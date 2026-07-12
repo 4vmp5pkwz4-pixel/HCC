@@ -3204,7 +3204,8 @@ renderer.domElement.addEventListener('dblclick',e=>{
           if(t>0){ const q=o.clone().addScaledVector(dr,t);
             if(q.x>bifCx(-2.15)&&q.x<bifCx(0.65)&&Math.abs(q.y)<1.35*BIF_S) pt=q; } } }
       if(pt){ controls.target.copy(pt); syncCameraClipping(true);
-        const msg='orbit centre: c ≈ '+((pt.x/BIF_S)-0.875).toFixed(4)+(Math.abs(pt.y)>0.02?((pt.y/BIF_S)<0?' − ':' + ')+Math.abs(pt.y/BIF_S).toFixed(4)+'i':'')+' · z = '+(pt.z/1.5).toFixed(3);
+        state.bifPickC={re:(pt.x/BIF_S)-0.875, im:pt.y/BIF_S};
+        const msg='orbit centre: c ≈ '+state.bifPickC.re.toFixed(4)+(Math.abs(pt.y)>0.02?((state.bifPickC.im<0)?' − ':' + ')+Math.abs(state.bifPickC.im).toFixed(4)+'i':'')+' · z = '+(pt.z/1.5).toFixed(3);
         const el=ctl.querySelector('#bifCentreV'); if(el) el.textContent=msg; }
     }
     return;
@@ -10020,6 +10021,58 @@ function _mjEsc2(cx,cy,zx,zy,maxIter,pow){
   }
   return {escape:ex||maxIter, bounded:!ex, trap, coh:coh/maxIter, x,y};
 }
+/* ── INVARIANTS OF THE CORRESPONDENCE — the decision layer ──────────────────────
+   For the current parameter c the CLASSICAL core map f_c(z)=z²+c is decided live:
+   • Fatou–Julia dichotomy: c∈M ⇔ J_c connected, else Cantor dust — THE invariant
+     that binds parameter plane and dynamical plane;
+   • the attracting cycle: period p (cycle detection), multiplier λ=∏2z_i, |λ|<1,
+     internal angle arg λ/2π — the coordinates INSIDE a hyperbolic component;
+   • for real c: the logistic parameter r=1+√(1−4c) — the literal bridge to the
+     bifurcation⊗Mandelbrot 3D structure and, through it, to the Anti-Buddhabrot;
+   • escape time when outside. Everything is computed, never guessed. */
+function mjInvariants(cx,cy){
+  const MAX=3000, BAIL=4;
+  let x=0,y=0,i=0;
+  for(;i<MAX;i++){ const xx=x*x-y*y+cx; y=2*x*y+cy; x=xx; if(x*x+y*y>BAIL) break; }
+  if(i<MAX) return {inM:false, esc:i+1};
+  // bounded: settle, then detect the cycle period by closest return
+  for(let k=0;k<2600;k++){ const xx=x*x-y*y+cx; y=2*x*y+cy; x=xx; }
+  const px=x, py=y; let period=0, cx2=x, cy2=y;
+  for(let k=1;k<=64;k++){ const xx=cx2*cx2-cy2*cy2+cx; cy2=2*cx2*cy2+cy; cx2=xx;
+    if((cx2-px)*(cx2-px)+(cy2-py)*(cy2-py)<1e-18){ period=k; break; } }
+  if(!period) return {inM:true, period:0};                       // chaotic / parabolic / Siegel — no attracting cycle found
+  let lr=1, li=0, zx=px, zy=py;                                  // λ = ∏ f'(z_i) = ∏ 2z_i over the cycle
+  for(let k=0;k<period;k++){ const nr=lr*2*zx-li*2*zy, ni=lr*2*zy+li*2*zx; lr=nr; li=ni;
+    const xx=zx*zx-zy*zy+cx; zy=2*zx*zy+cy; zx=xx; }
+  const lam=Math.hypot(lr,li), ang=((Math.atan2(li,lr)/(2*Math.PI))%1+1)%1;
+  return {inM:true, period, lam, ang};
+}
+function mjInvHTML(){
+  const c=fractalUniforms.uJulia.value, inv=mjInvariants(c.x,c.y);
+  const cs=`c = ${c.x.toFixed(6)} ${c.y<0?'−':'+'} ${Math.abs(c.y).toFixed(6)}i`;
+  let core;
+  if(!inv.inM) core = inv.esc>50
+    ? `<b style="color:#ffd27f">c within numerical distance of ∂M</b> — slow escape (${inv.esc} steps). Boundary-class points (Misiurewicz, parabolic) are REPELLING: float noise eventually escapes even when the true orbit is bounded — J_c is a dendrite/boundary fiber, decided up to numerical precision.`
+    : `<b style="color:#ff9fb0">c ∉ M ⇒ J_c is CANTOR DUST</b> — totally disconnected (critical orbit escapes in ${inv.esc} steps). The Fatou–Julia dichotomy DECIDES the fiber from the base point alone.`;
+  else if(!inv.period) core=`<b style="color:#c9a8e8">c ∈ M ⇒ J_c CONNECTED</b> · no attracting cycle detected — boundary-class dynamics (parabolic, Siegel rotation or chaotic real slice).`;
+  else core=`<b style="color:#9fe8c8">c ∈ M ⇒ J_c CONNECTED</b> · attracting cycle of <b>period ${inv.period}</b> · multiplier |λ| = ${inv.lam.toFixed(4)} · internal angle ${inv.ang.toFixed(4)}·2π — the exact coordinates of c inside its period-${inv.period} hyperbolic component.`;
+  let bridges='';
+  if(Math.abs(c.y)<1e-6 && c.x<=0.25 && c.x>=-2){
+    const r=1+Math.sqrt(1-4*c.x);
+    bridges=`<br>real-axis c: logistic parameter <b>r = 1+√(1−4c) = ${r.toFixed(6)}</b> — this very point on the bifurcation⊗Mandelbrot 3D real axis.`;
+  }
+  const lab=(typeof mjVerdictSet==='function')&&mjVerdictSet(inv);
+  return `<div class="note" style="font-variant-numeric:tabular-nums;font-size:11.5px">${cs}<br>${core}${bridges}</div>`;
+}
+let _mjVerdictLab=null;
+function mjVerdictSet(inv){
+  if(typeof mjFiberGroup==='undefined') return;
+  if(!_mjVerdictLab){ _mjVerdictLab=mkLabel('','label axis'); _mjVerdictLab.position.set(0,3.4,0); mjFiberGroup.add(_mjVerdictLab); }
+  _mjVerdictLab.element.textContent = !inv.inM
+    ? 'c ∉ M ⇒ Julia fiber = Cantor dust (disconnected)'
+    : inv.period ? `c ∈ M ⇒ fiber connected · period ${inv.period} · |λ|=${inv.lam.toFixed(3)}`
+    : 'c ∈ M ⇒ fiber connected · boundary-class dynamics';
+}
 function buildMandelJuliaFiber3D(force=false){
   const key=[
     fractalUniforms.uJulia.value.x.toFixed(4),
@@ -14184,6 +14237,15 @@ function buildCtlBody(){
         <button class="chip" data-mjpreset="0.0,0.0,43">Mandelbulb slice</button>
         <button class="chip" data-mjpreset="-1.2,0.1,45">Julia mosaic</button>
       </div>
+      <div class="sect" style="margin:8px 0 0"><b>Invariant readout — the correspondence decided</b>
+        <div id="mjInvOut">${mjInvHTML()}</div>
+        <div class="note" style="font-size:10.5px;color:var(--dim)">The SAME structural idea runs through the whole atlas: a BASE space whose every point decides a FIBER — c-plane ⇒ Julia sets here; S² target points ⇒ linked preimage circles in the Hopf lab; c real axis ⇒ attractor columns in the bifurcation bridge; density over ALL c at once ⇒ the Buddhabrot. The bridges below jump between these views of one invariant system.</div>
+        <div class="chips">
+          <button class="chip" id="mjToBif">→ Bifurcation⊗Mandelbrot 3D at this c</button>
+          <button class="chip" id="mjToBud">→ Buddhabrot · density over all c</button>
+          <button class="chip" id="mjToHopf">→ Hopf fibration · the S³ analogue</button>
+        </div>
+      </div>
       <div class="ctlrow"><button class="btn green" id="mjCenterToJulia">use current Mandelbrot center as Julia c</button><button class="btn" id="mjRebuild3D">rebuild 3D fibers</button></div>
       <div class="note">This is not a visual overlay. The Mandelbrot plane is the <b>parameter plane</b> c; the Julia plane is the <b>dynamical plane</b> z for f<sub>c</sub>(z)=z<sup>d</sup>+c. Presets and sliders expose connectedness, rays, equipotentials, tuning, renormalization, Misiurewicz/parabolic similarity, Ecalle/Lavaurs phase, kneading/lamination, rational/two-critical slices, fractional memory, quaternion/Mandelbulb sections and 3D parameter-dynamic fibers as one joint C<sub>c</sub>×C<sub>z</sub> laboratory.</div>
     </div>`:''}
@@ -14274,6 +14336,7 @@ function buildCtlBody(){
       <div class="chips">${BIF_KEYPTS.map((p,i)=>`<button class="chip" data-bifpt="${i}">${p.label}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Each landmark flies the camera to the exact 3D locus: the cardioid cusp, every period-doubling junction where the attractor sheets SPLIT (c=−¾: the period-1 sheet meets the period-2 pair exactly where the Mandelbrot circle touches the cardioid), the Feigenbaum accumulation point c=−1.4011552, the period-3 window inside chaos, the needle tip c=−2, and off-axis loci where the sheets leave the real plane (Seahorse valley, the period-3 midget). <b style="color:var(--gold-2)">Double-click any point of the structure to set the ORBIT CENTRE</b> — rotation and zoom pivot around it, exactly like a modelling app.</div>
       <div class="note" id="bifCentreV" style="font-size:11px;color:var(--gold-2)">orbit centre: c = −0.875 (view default)</div>
+      <div class="ctlrow"><button class="btn" id="bifToMJ">→ open the Julia FIBER of the picked c (MJ 3D)</button></div>
     </div>`:''}
     <div class="sect"><b>Metallic / analytic gradient</b>
       <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
@@ -14337,6 +14400,13 @@ function buildCtlBody(){
     ctl.querySelector('#mjzlift')?.addEventListener('input',e=>{fractalUniforms.uMJZLift.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
     ctl.querySelector('#mjdisplay')?.addEventListener('change',e=>{fractalUniforms.uMJDisplay.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();});
     ctl.querySelectorAll('[data-mjpreset]').forEach(b=>b.onclick=()=>{ const [x,y,m]=b.dataset.mjpreset.split(',').map(Number); fractalUniforms.uJulia.value.set(x,y); fractalUniforms.uMJMethod.value=m|0; setFractalZoom(Math.max(fractalUniforms.uZoom.value,3)); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
+    ctl.querySelector('#mjToBif')?.addEventListener('click',()=>{ const c=fractalUniforms.uJulia.value;
+      setFractalType('bifurc3d',false);
+      controls.target.set(bifCx(Math.max(-2.1,Math.min(0.6,c.x))), c.y*BIF_S, 0);
+      camera.position.copy(controls.target).add(new THREE.Vector3(1.6,1.2,2.4));
+      syncCameraClipping(true); buildCtl(); });
+    ctl.querySelector('#mjToBud')?.addEventListener('click',()=>{ setFractalType('buddhabrot',false); buildCtl(); });
+    ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ setMode('s3'); setS3View('hopf'); openPanel('ctl'); buildCtl(); });
     ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); });
     ctl.querySelector('#bifFeig')?.addEventListener('click',()=>{ fractalUniforms.uCenter.value.set(3.5699456,0.5); setFractalZoom(42); buildCtl(); });
@@ -14345,6 +14415,9 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-bifjump]').forEach(b=>b.onclick=()=>{ fractalUniforms.uBifOverlay.value=1;
       fractalUniforms.uCenter.value.set(+b.dataset.bifjump,0); setFractalZoom(Math.max(fractalUniforms.uZoom.value,6)); buildCtl(); });
     (ctl.querySelector('#freset')||ctl.querySelector('#fresetGeo3D'))?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
+    ctl.querySelector('#bifToMJ')?.addEventListener('click',()=>{ const c=state.bifPickC||{re:-0.875,im:0};
+      fractalUniforms.uJulia.value.set(c.re,c.im);
+      setFractalType('mjfiber3d',false); buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelectorAll('[data-bifpt]').forEach(b=>b.onclick=()=>{ const p=BIF_KEYPTS[+b.dataset.bifpt]; if(!p) return;
       const t=new THREE.Vector3(bifCx(p.cx!==undefined?p.cx:p.c),(p.cy||0)*BIF_S,(p.z||0)*1.5);
       controls.target.copy(t);
