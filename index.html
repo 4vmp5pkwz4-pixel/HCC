@@ -554,6 +554,24 @@
   #moreMenu[hidden]{display:none}
   #moreMenu .btn{width:100%;text-align:left;justify-content:flex-start}
   body.day #moreMenu{box-shadow:0 14px 44px rgba(60,45,15,.3)}
+  /* ── ZEN VIEW: everything melts away except the view + one precision time control ── */
+  #zenBar{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:130;display:none;
+    align-items:center;gap:10px;padding:8px 14px;border-radius:999px;
+    background:linear-gradient(165deg,rgba(10,14,24,.88),rgba(6,8,14,.82));
+    border:1px solid rgba(212,175,106,.4);backdrop-filter:blur(14px);
+    box-shadow:0 10px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(241,221,166,.12)}
+  body.zen #zenBar{display:flex}
+  #zenBar #zenTimeWrap{display:flex;align-items:center;gap:8px}
+  #zenBar input[type=range]{width:min(46vw,300px)}
+  #zenBar #zenSpdV{min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+  #zenBar #zenDate{color:var(--dim);font-size:10.5px;letter-spacing:.6px;white-space:nowrap}
+  body.zen #topbar,body.zen #panelDock,body.zen .panel,body.zen #mBtns,body.zen .fab,
+  body.zen #atlasCoach,body.zen #hud,body.zen #selCard,body.zen #breadcrumb,
+  body.zen #moreMenu,body.zen #landedBanner{display:none!important}
+  /* collapsed Controls sheet = a slim TIME REGULATOR: only the head section remains */
+  #ctl.mini .sect:not(:first-of-type){display:none}
+  #ctl.mini{overflow:hidden}
   #mBtns{display:none;position:fixed;left:10px;bottom:10px;z-index:26;gap:8px}
   #mBtns .btn{padding:10px 15px;font-size:13px;border-radius:12px}
   /* phones can't run in-tab WebXR — hide the XR buttons so the top row stays tidy (Quest's wide viewport keeps them) */
@@ -678,14 +696,23 @@
   <button class="btn" id="objectBtn" title="Global atlas of selectable research objects and relations">⌘ Objects</button>
   <button class="btn" id="atlasBtn" title="Runtime data contracts, provenance, uncertainty and scorecards">📊 QA Atlas</button>
   <button class="btn" id="oscBtn" title="Parameter oscillators — animate any slider in time">⟳ Oscillators</button>
+  <button class="btn" id="shotBtn2" title="Save a framed render of the current view (max quality)">📸 Framed render</button>
   <button class="btn" id="audienceBtn" title="Switch Expert / Public interface">Expert</button>
   <button class="btn" id="xrCheckBtn" title="WebXR launch diagnostics">🥽 XR CHECK</button>
   <button class="btn" id="motionBtn" style="display:none" title="Phone accelerometer / gyroscope control">📱 Motion</button>
 </div>
 <div id="breadcrumb" aria-hidden="true"></div>
+<div id="zenBar" role="toolbar" aria-label="Zen time regulator">
+  <button class="btn icon" id="zenPause" title="Pause / run time">⏸</button>
+  <span id="zenTimeWrap"><input type="range" id="zenSpd" min="-3" max="8.5" step="0.02" value="0">
+  <span id="zenSpdV" class="val">1.0 d/s</span></span>
+  <span id="zenDate"></span>
+  <button class="btn icon" id="zenExit" title="Exit zen view (Esc)">✕</button>
+</div>
 <div id="panelDock" aria-label="Panel dock">
   <button id="togglePanels" class="btn panel-close-all" title="Close active panel (Esc)">×</button>
   <button id="resetViewBtn" class="btn" title="Recover and reset the active 3D view">↺ View</button>
+  <button id="shotBtn" class="btn" title="Save a framed render of the current view (max quality)">📸 Shot</button>
   <button class="btn" data-panel="navPanel" title="Atlas Navigator · N">🧭 Navigator</button>
   <button class="btn" data-panel="ctl" title="Controls · C">⚙ Controls</button>
   <button class="btn" data-panel="info" title="Scientific information · I">ⓘ Info</button>
@@ -2951,12 +2978,15 @@ function ensureSheetGrip(){
   g.addEventListener('pointerdown',e=>{ drag={y:e.clientY,h:p.getBoundingClientRect().height};
     try{g.setPointerCapture(e.pointerId);}catch(err){} e.preventDefault(); });
   g.addEventListener('pointermove',e=>{ if(!drag) return;
-    const h=Math.min(innerHeight*.72,Math.max(90,drag.h+(drag.y-e.clientY)));
-    p.style.maxHeight=h+'px'; });
+    const h=Math.min(innerHeight*.72,Math.max(64,drag.h+(drag.y-e.clientY)));
+    p.style.maxHeight=h+'px';
+    p.classList.toggle('mini',h<150); });
   const end=e=>{ if(!drag) return;
     const h=drag.h+(drag.y-e.clientY); drag=null;
-    if(h<110){ ctlSheetPx=null; p.style.maxHeight=''; closePanel('ctl'); }
-    else ctlSheetPx=Math.min(innerHeight*.72,Math.max(90,h)); };
+    // three-stop sheet: full ↕ MINI (the head section = the TIME REGULATOR strip) ↕ closed
+    if(h<64){ ctlSheetPx=null; p.style.maxHeight=''; p.classList.remove('mini'); closePanel('ctl'); }
+    else if(h<150){ ctlSheetPx=100; p.style.maxHeight='100px'; p.classList.add('mini'); }
+    else { p.classList.remove('mini'); ctlSheetPx=Math.min(innerHeight*.72,Math.max(150,h)); p.style.maxHeight=ctlSheetPx+'px'; } };
   g.addEventListener('pointerup',end); g.addEventListener('pointercancel',()=>{drag=null;});
 }
 for(const id of PANEL_IDS){
@@ -2967,6 +2997,8 @@ for(const id of PANEL_IDS){
 document.querySelectorAll('#panelDock [data-panel]').forEach(b=>b.onclick=()=>togglePanel(b.dataset.panel));
 document.getElementById('togglePanels').onclick=()=>activePanelId?closePanel(activePanelId):openPanel('ctl');
 document.getElementById('resetViewBtn').onclick=()=>setMode(state.mode);
+document.getElementById('shotBtn').onclick=()=>saveSceneShot();
+document.getElementById('shotBtn2')&&(document.getElementById('shotBtn2').onclick=()=>saveSceneShot());
 document.getElementById('objectBtn').onclick=()=>togglePanel('objectPanel');
 document.getElementById('atlasBtn').onclick=()=>togglePanel('atlasPanel');
 document.getElementById('mObj').onclick=()=>togglePanel('objectPanel');
@@ -3135,7 +3167,30 @@ function _endDrag(e){ if(hfDrags.has(e.pointerId)){ hfDrags.delete(e.pointerId);
 addEventListener('pointerup', _endDrag, true);
 addEventListener('pointercancel', _endDrag, true);
 renderer.domElement.addEventListener('dblclick',e=>{
-  if(state.landed||state.mode==='fractal') return;
+  if(state.landed) return;
+  if(state.mode==='fractal'){
+    // modeling-app navigation for the 3D bifurcation bridge: double-click any point of
+    // the structure to make it the ORBIT CENTRE — rotation/zoom then pivot around it.
+    if(fractalType==='bifurc3d' && typeof bifurcGroup!=='undefined'){
+      const ndc=canvasNDC(e.clientX,e.clientY);
+      raycaster.setFromCamera(ndc,camera);
+      const oldP=raycaster.params.Points.threshold, oldL=raycaster.params.Line.threshold;
+      raycaster.params.Points.threshold=0.22; raycaster.params.Line.threshold=0.22;
+      let hit=raycaster.intersectObjects(bifurcGroup.children,false)
+        .filter(h=>h.object.isPoints||h.object.isLine)[0];
+      raycaster.params.Points.threshold=oldP; raycaster.params.Line.threshold=oldL;
+      let pt=hit&&hit.point;
+      if(!pt){ // fallback: the structure's base plane (the Mandelbrot z=0 sheet)
+        const o=raycaster.ray.origin, dr=raycaster.ray.direction;
+        if(Math.abs(dr.z)>1e-6){ const t=-o.z/dr.z;
+          if(t>0){ const q=o.clone().addScaledVector(dr,t);
+            if(q.x>bifCx(-2.15)&&q.x<bifCx(0.65)&&Math.abs(q.y)<1.35*BIF_S) pt=q; } } }
+      if(pt){ controls.target.copy(pt); syncCameraClipping(true);
+        const msg='orbit centre: c ≈ '+((pt.x/BIF_S)-0.875).toFixed(4)+(Math.abs(pt.y)>0.02?((pt.y/BIF_S)<0?' − ':' + ')+Math.abs(pt.y/BIF_S).toFixed(4)+'i':'')+' · z = '+(pt.z/1.5).toFixed(3);
+        const el=ctl.querySelector('#bifCentreV'); if(el) el.textContent=msg; }
+    }
+    return;
+  }
   const ndc=canvasNDC(e.clientX,e.clientY);
   raycaster.setFromCamera(ndc,camera);
   const hit=raycaster.intersectObjects(collectVisiblePicks(),false)[0];
@@ -5294,12 +5349,31 @@ function autoSolarScale(dt){
     // scale-anchor markers: shown only from far enough away that they read as motes
     if(typeof oortFarMarker!=='undefined') oortFarMarker.visible=!!oortFarMarker.userData.lv && d>4e6;
     if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.visible=!!homeGalaxyMarker.userData.lv && d>0.15*GLY_AU;
-    // in the LOCAL frame the physical Milky Way (star speckle, arms, GC) fades in as
-    // soon as the decorative sky has faded — the void between the sky shell and the
-    // Oort reveal is now filled with the real star outlines of the Galaxy
-    if((state.solarScaleLayer||'local')==='local'){
-      const on=d>RSKY*0.35;
-      if(solarGalacticGroup.visible!==on){ solarGalacticGroup.visible=on; milkyWayPhysical.visible=on; }
+    // In the LOCAL frame the physical Milky Way fades in AFTER the Oort cloud starts
+    // to read (2.5e4 AU) — and, because the Sun sits INSIDE the disk, nearby speckle
+    // points would bloat into screen-filling attenuated quads: while the camera is
+    // near the Sun every Points material switches to FIXED-PIXEL sizing (subtle star
+    // dust), returning to attenuated sizing only at true galactic viewing distances.
+    { if(!autoSolarScale._mwMats){ autoSolarScale._mwMats=[];
+        milkyWayPhysical.traverse(o=>{ if(o.isPoints&&o.material){ const m=o.material;
+          autoSolarScale._mwMats.push({m,size0:m.size,att0:m.sizeAttenuation,op0:m.opacity}); } }); }
+      const layer=state.solarScaleLayer||'local';
+      if(layer==='local'){
+        const f=THREE.MathUtils.clamp((d-2.5e4)/(1.8e5-2.5e4),0,1);   // 0 → 1 across the Oort span
+        const on=f>0.02;
+        if(solarGalacticGroup.visible!==on){ solarGalacticGroup.visible=on; milkyWayPhysical.visible=on; }
+        if(on) for(const e of autoSolarScale._mwMats){
+          if(e.m.sizeAttenuation){ e.m.sizeAttenuation=false; e.m.needsUpdate=true; }
+          e.m.size=2.2; e.m.opacity=e.op0*f; e.m.transparent=true;
+        }
+      } else {
+        const nearSun=d<1e8;                                          // still flying the inner chain
+        for(const e of autoSolarScale._mwMats){
+          const wantAtt=!nearSun&&e.att0;
+          if(e.m.sizeAttenuation!==wantAtt){ e.m.sizeAttenuation=wantAtt; e.m.needsUpdate=true; }
+          e.m.size=wantAtt?e.size0:2.2; e.m.opacity=e.op0;
+        }
+      }
     }
   }
   if(focusAnim) return;
@@ -8944,15 +9018,22 @@ let buddhaPal='celestial';
    ceiling stays computable: only boundary-hugging samples burn deep. */
 const BUDDHA_TECHS={
   classic:{label:'Buddhabrot · escaping orbits'},
+  deep:{label:'Deep Buddhabrot · Metropolis'},
   anti:{label:'Anti-Buddhabrot · interior orbits'},
 };
+/* DEEP technique (a full third technique, not a filter on the classic one): orbits that
+   survive a large minimum dwell are astronomically rare under uniform sampling — a naive
+   min-dwell filter starves the histogram and renders a half-empty figure. The documented
+   remedy is METROPOLIS-GUIDED importance sampling (Boswell-style): mutate the last
+   qualifying c to find its neighbours on the boundary filaments, with periodic random
+   restarts for ergodicity; every plotted orbit is also mirrored across the real axis
+   (exact conjugation symmetry of z→z²+c). Unweighted variant — declared as such. */
 const BUDDHA_DEPTHS={
-  preset:{label:'Preset dwell',      iter:0,       min:0},        // per-resolution defaults
   deep:  {label:'Deep 20k',          iter:20000,   min:1000},
   ultra: {label:'Ultra 200k',        iter:200000,  min:10000},
   razor: {label:'1M · razor edges',  iter:1000000, min:100000},
 };
-let buddhaTech='classic', buddhaDepth='preset', buddhaHue=0;
+let buddhaTech='classic', buddhaDepth='deep', buddhaHue=0;
 let buddhaPreset='standard';
 let BUDDHA_RES=BUDDHA_PRESETS[buddhaPreset].res;
 /* Above 4K the SHADER texture stays capped at 4096 (uploading an 8–16K RGBA texture
@@ -9039,21 +9120,35 @@ function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
   const low=U16?new Uint16Array(N):new Uint32Array(N),
         mid=U16?new Uint16Array(N):new Uint32Array(N),
         deep=U16?new Uint16Array(N):new Uint32Array(N);
-  const anti=buddhaTech==='anti', D=BUDDHA_DEPTHS[buddhaDepth]||BUDDHA_DEPTHS.preset;
+  const anti=buddhaTech==='anti', deepT=buddhaTech==='deep';
+  const D=deepT?(BUDDHA_DEPTHS[buddhaDepth]||BUDDHA_DEPTHS.deep):null;
   // anti-buddhabrot plots the FULL path of every interior sample — cap its depth so a
-  // single sample cannot burn 10⁶ iterations; classic honours the chosen ceiling.
-  const maxIter=anti?Math.min(3000,Math.max(P.iter,1200)):(D.iter||P.iter);
-  const minDwell=anti?0:D.min;
+  // single sample cannot burn 10⁶ iterations; classic uses the per-resolution preset;
+  // deep honours the chosen Metropolis depth ceiling.
+  const maxIter=anti?Math.min(3000,Math.max(P.iter,1200)):deepT?D.iter:P.iter;
+  const minDwell=deepT?D.min:0;
   const tMid =Math.max(45, Math.round(minDwell*3)), tDeep=Math.max(140, Math.round(minDwell*10));
   const target=P.samples;
   const ox=new Float32Array(maxIter), oy=new Float32Array(maxIter), rnd=mulberry(20260430);
-  let done=0;
+  let done=0, mcx=0, mcy=0, hasM=false;                 // Metropolis walker state (deep technique)
   const CHUNK=Math.max(300,Math.round((MOBILE_GPU?4200:11000)*(420/Math.min(maxIter,20000))));
+  const bin=(bx,by,it)=>{                               // one orbit point → tiers
+    const px=(((bx+2.2)/3.4*FULL)|0)-wx0, py=(((1-(by+1.5)/3)*FULL)|0)-wy0;
+    if(px<0||px>=W||py<0||py>=H) return;
+    const j=py*W+px;
+    if(!U16||low[j]<65535) low[j]++;
+    if(it>=tMid &&(!U16||mid[j]<65535)) mid[j]++;
+    if(it>=tDeep&&(!U16||deep[j]<65535)) deep[j]++;
+  };
   const batch=()=>{
     if(token!==buddhaToken) return;
     const end=Math.min(target,done+CHUNK);
     for(;done<end;done++){
-      const cx=-2.2+3.4*rnd(), cy=-1.5+3*rnd();
+      let cx,cy;
+      if(deepT && hasM && rnd()<0.86){                  // Metropolis move: mutate the last survivor
+        const s=0.004+0.20*rnd()*rnd()*rnd();           // mixed step sizes: fine detail ↔ escape
+        cx=mcx+(rnd()*2-1)*s; cy=mcy+(rnd()*2-1)*s;
+      } else { cx=-2.2+3.4*rnd(); cy=-1.5+3*rnd(); }    // fresh restart (ergodicity)
       if(!anti){
         // guaranteed-interior regions (main cardioid, period-2 bulb) never escape —
         // skipping them analytically is what keeps 10⁶-iteration ceilings computable
@@ -9079,14 +9174,11 @@ function buddhaAccumulate(token,P,FULL,wx0,wy0,W,H,onDraw,onDone){
         }
         continue;
       }
-      if(it===maxIter||it<8||it<minDwell) continue;     // min-dwell floor ⇒ razor-sharp filaments
+      if(it===maxIter||it<8||it<minDwell) continue;     // (deep) min-dwell floor ⇒ razor filaments
+      if(deepT){ mcx=cx; mcy=cy; hasM=true; }           // accept: the walker stays on the filament
       for(let k=0;k<=it;k++){
-        const px=(((ox[k]+2.2)/3.4*FULL)|0)-wx0, py=(((1-(oy[k]+1.5)/3)*FULL)|0)-wy0;
-        if(px<0||px>=W||py<0||py>=H) continue;
-        const j=py*W+px;
-        if(!U16||low[j]<65535) low[j]++;
-        if(it>=tMid &&(!U16||mid[j]<65535)) mid[j]++;
-        if(it>=tDeep&&(!U16||deep[j]<65535)) deep[j]++;
+        bin(ox[k],oy[k],it);
+        if(deepT) bin(ox[k],-oy[k],it);                 // exact conjugation symmetry: full figure
       }
     }
     if(done%(CHUNK*4)<CHUNK||done>=target) onDraw(low,mid,deep,done/target);
@@ -9139,56 +9231,108 @@ function buildBuddhabrotTexture(){
     });
   }
 }
-/* 💾 Save — the full-resolution render in a museum-grade frame: obsidian passe-partout,
-   double gold hairlines, the instrument's name and the object's full provenance line.
-   When the framed size would exceed the 16384-px canvas ceiling, the frame is drawn AS
-   AN OVERLAY on the full-bleed art instead, so not a single pixel is downscaled. */
+/* 💾 Framed export — ONE museum-grade framer for the whole atlas: obsidian
+   passe-partout, double gold hairlines with corner ticks, serif instrument title and a
+   full provenance caption. Works for any rectangular source, honours a 90°-step view
+   rotation, and when the framed size would exceed the 16384-px canvas ceiling the frame
+   draws AS AN OVERLAY on the full-bleed art so not a single pixel is downscaled. */
+function frameShot(src,opts){
+  const rot=((opts.rotDeg||0)%360+360)%360;
+  let art=src;
+  if(rot){ const swap=rot===90||rot===270;
+    const rc=document.createElement('canvas');
+    rc.width=swap?src.height:src.width; rc.height=swap?src.width:src.height;
+    const rx=rc.getContext('2d');
+    rx.translate(rc.width/2,rc.height/2); rx.rotate(rot*Math.PI/180);
+    rx.drawImage(src,-src.width/2,-src.height/2); art=rc; }
+  const AW=art.width, AH=art.height;
+  const base=Math.max(AW,AH);
+  const overlay=Math.round(base*1.14)>16384;
+  const padF=overlay?0:Math.round(base*0.052), capF=Math.round(base*0.062);
+  const FW=overlay?AW:AW+2*padF, FH=overlay?AH:AH+2*padF+capF;
+  const c=document.createElement('canvas'); c.width=FW; c.height=FH;
+  const x=c.getContext('2d');
+  x.fillStyle='#06070c'; x.fillRect(0,0,FW,FH);
+  x.drawImage(art,overlay?0:padF,overlay?0:padF,AW,AH);
+  const capH=capF;
+  if(overlay){ const g=x.createLinearGradient(0,FH-capH*2.2,0,FH);
+    g.addColorStop(0,'rgba(6,7,12,0)'); g.addColorStop(1,'rgba(6,7,12,.9)');
+    x.fillStyle=g; x.fillRect(0,FH-capH*2.2,FW,capH*2.2); }
+  const pad=Math.round(base*0.052);
+  const gold='rgba(212,175,106,.92)', dimc='rgba(212,175,106,.45)';
+  x.lineWidth=Math.max(2,base*0.0016); x.strokeStyle=gold;
+  x.strokeRect(pad*.45,pad*.45,FW-pad*.9,FH-pad*.9);
+  x.lineWidth=Math.max(1,base*0.0008); x.strokeStyle=dimc;
+  x.strokeRect(pad*.62,pad*.62,FW-pad*1.24,FH-pad*1.24);
+  const tick=pad*.9;
+  x.lineWidth=Math.max(2,base*0.002); x.strokeStyle=gold;
+  [[pad*.45,pad*.45,1,1],[FW-pad*.45,pad*.45,-1,1],[pad*.45,FH-pad*.45,1,-1],[FW-pad*.45,FH-pad*.45,-1,-1]]
+    .forEach(([cx,cy,sx,sy])=>{ x.beginPath(); x.moveTo(cx+sx*tick,cy); x.lineTo(cx,cy); x.lineTo(cx,cy+sy*tick); x.stroke(); });
+  const cy=FH-(overlay?capH*1.3:pad*.46+capH*.78);
+  x.textAlign='center';
+  x.fillStyle='#f1dda6'; x.font=`700 ${Math.round(base*0.021)}px Cinzel, Georgia, serif`;
+  x.fillText('S³  L I G H T - T R I S P H E R E',FW/2,cy);
+  x.fillStyle='#c9b48a'; x.font=`600 ${Math.round(base*0.0115)}px Manrope, sans-serif`;
+  x.fillText(opts.line2||'',FW/2,cy+Math.round(base*0.017));
+  x.fillStyle='rgba(157,176,208,.75)'; x.font=`500 ${Math.round(base*0.0085)}px Manrope, sans-serif`;
+  x.fillText(opts.line3||'',FW/2,cy+Math.round(base*0.0295));
+  const note=opts.noteEl||null; if(note) note.textContent='encoding PNG…';
+  c.toBlob(blob=>{
+    if(!blob){ if(note) note.textContent='export failed (canvas too large for this browser)'; opts.done&&opts.done(false); return; }
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=opts.file||'S3-Light-Trisphere.png';
+    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    if(note) note.textContent=`saved · ${(blob.size/1048576).toFixed(1)} MB`;
+    opts.done&&opts.done(true);
+  },'image/png');
+}
 function saveBuddhabrot(){
   const src=buddhaExportCanvas||buddhaCanvas, S=src.width;
   const P=BUDDHA_PRESETS[buddhaPreset];
-  const overlay=Math.round(S*1.14)>16384;
-  const F=overlay?S:Math.round(S*1.14);
-  const c=document.createElement('canvas'); c.width=c.height=F;
-  const x=c.getContext('2d');
-  x.fillStyle='#06070c'; x.fillRect(0,0,F,F);
-  const pad=Math.round(F*0.052), capH=Math.round(F*0.062);
-  let ax,ay,as;
-  if(overlay){ ax=0; ay=0; as=F; }
-  else { as=F-2*pad-capH; ax=(F-as)/2; ay=pad; }
-  x.drawImage(src,ax,ay,as,as);
-  if(overlay){ const g=x.createLinearGradient(0,F-capH*2.2,0,F);   // caption legibility veil
-    g.addColorStop(0,'rgba(6,7,12,0)'); g.addColorStop(1,'rgba(6,7,12,.88)');
-    x.fillStyle=g; x.fillRect(0,F-capH*2.2,F,capH*2.2); }
-  // double gold hairlines + corner ticks
-  const gold='rgba(212,175,106,.92)', dim='rgba(212,175,106,.45)';
-  x.lineWidth=Math.max(2,F*0.0016); x.strokeStyle=gold;
-  x.strokeRect(pad*.45,pad*.45,F-pad*.9,F-pad*.9);
-  x.lineWidth=Math.max(1,F*0.0008); x.strokeStyle=dim;
-  x.strokeRect(pad*.62,pad*.62,F-pad*1.24,F-pad*1.24);
-  const tick=pad*.9;
-  x.lineWidth=Math.max(2,F*0.002); x.strokeStyle=gold;
-  [[pad*.45,pad*.45,1,1],[F-pad*.45,pad*.45,-1,1],[pad*.45,F-pad*.45,1,-1],[F-pad*.45,F-pad*.45,-1,-1]]
-    .forEach(([cx,cy,sx,sy])=>{ x.beginPath(); x.moveTo(cx+sx*tick,cy); x.lineTo(cx,cy); x.lineTo(cx,cy+sy*tick); x.stroke(); });
-  // caption
-  const cy=F-(overlay?capH*1.3:pad*.46+capH*.78);   // caption block sits fully INSIDE the inner hairline
-  x.textAlign='center';
-  x.fillStyle='#f1dda6'; x.font=`700 ${Math.round(F*0.021)}px Cinzel, Georgia, serif`;
-  x.fillText('S³  L I G H T - T R I S P H E R E',F/2,cy);
-  x.fillStyle='#c9b48a'; x.font=`600 ${Math.round(F*0.0115)}px Manrope, sans-serif`;
   const date=new Date().toISOString().slice(0,10);
-  const techName=(buddhaTech==='anti'?'ANTI-BUDDHABROT':'BUDDHABROT')+(buddhaTech!=='anti'&&buddhaDepth!=='preset'?' · '+BUDDHA_DEPTHS[buddhaDepth].label.toUpperCase():'');
-  x.fillText(`${techName} · ${BUDDHA_PALETTES[buddhaPal].label.replace('✨ ','').toUpperCase()} · ${S} × ${S} px · ${(P.samples/1e6).toFixed(1)}M ORBITS · ${date}`,F/2,cy+Math.round(F*0.017));
-  x.fillStyle='rgba(157,176,208,.75)'; x.font=`500 ${Math.round(F*0.0085)}px Manrope, sans-serif`;
-  x.fillText('deterministic Mandelbrot orbit accumulation · three dwell-time tiers · interactive scientific atlas',F/2,cy+Math.round(F*0.0295));
-  const note=document.getElementById('budSaveNote'); if(note) note.textContent='encoding PNG…';
-  c.toBlob(blob=>{
-    if(!blob){ if(note) note.textContent='export failed (canvas too large for this browser)'; return; }
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob);
-    a.download=`S3-Light-Trisphere_Buddhabrot_${buddhaPal}_${S}px_${date}.png`;
-    a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
-    if(note) note.textContent=`saved · ${(blob.size/1048576).toFixed(1)} MB`;
-  },'image/png');
+  const techName=buddhaTech==='anti'?'ANTI-BUDDHABROT'
+    :buddhaTech==='deep'?'DEEP BUDDHABROT · METROPOLIS · '+(BUDDHA_DEPTHS[buddhaDepth]||BUDDHA_DEPTHS.deep).label.toUpperCase()
+    :'BUDDHABROT';
+  const rotOn=document.getElementById('budRotSave')?.checked!==false;
+  const rotDeg=rotOn?((state.fractalRot||0)*90):0;
+  frameShot(src,{
+    rotDeg,
+    line2:`${techName} · ${BUDDHA_PALETTES[buddhaPal].label.replace('✨ ','').toUpperCase()} · ${S} × ${S} px · ${(P.samples/1e6).toFixed(1)}M ORBITS · ${date}`,
+    line3:'deterministic Mandelbrot orbit accumulation · three dwell-time tiers · interactive scientific atlas',
+    file:`S3-Light-Trisphere_Buddhabrot_${buddhaTech}_${buddhaPal}_${S}px_${date}.png`,
+    noteEl:document.getElementById('budSaveNote'),
+  });
+}
+/* 📸 Universal framed render — available on EVERY tab: re-renders one frame at boosted
+   pixel density (long side up to ~4K), captures the WebGL canvas synchronously, and
+   passes it through the same museum framer with the live HUD line as provenance. */
+let _shotBusy=false;
+function saveSceneShot(){
+  if(_shotBusy||renderer.xr.isPresenting) return;
+  _shotBusy=true;
+  const cv=renderer.domElement, pr0=renderer.getPixelRatio();
+  const long0=Math.max(cv.clientWidth,cv.clientHeight);
+  const target=Math.min(3, Math.max(pr0, 4096/long0));   // boost so the long side reaches ~4K
+  try{
+    if(target>pr0){ renderer.setPixelRatio(target); renderer.setSize(cv.clientWidth,cv.clientHeight,false); }
+    renderer.render(scene,camera);                       // fresh frame in the drawing buffer
+    const snap=document.createElement('canvas');
+    snap.width=cv.width; snap.height=cv.height;
+    snap.getContext('2d').drawImage(cv,0,0);
+    const date=new Date().toISOString().slice(0,10);
+    const modeName={solar:'SOLAR SYSTEM',cyc:'CYCLES & EVENTS',obs:'OBSERVABLE UNIVERSE',
+      s3:'S³ CARRIER · '+String(state.s3view||'').toUpperCase(),fbs:'FBS3R φ-LADDER',fractal:'FRACTAL ATLAS · '+String(fractalType||'').toUpperCase()}[state.mode]||String(state.mode).toUpperCase();
+    const line=(typeof hudBig!=='undefined'&&hudBig&&hudBig.textContent?hudBig.textContent:'').slice(0,110);
+    frameShot(snap,{
+      line2:`${modeName} · ${snap.width} × ${snap.height} px · ${date}`,
+      line3:line||'interactive scientific atlas · rendered live',
+      file:`S3-Light-Trisphere_${state.mode}_${date}.png`,
+    });
+  } finally {
+    if(target>pr0){ renderer.setPixelRatio(pr0); renderer.setSize(cv.clientWidth,cv.clientHeight,false); }
+    _shotBusy=false;
+  }
 }
 if('requestIdleCallback' in window)requestIdleCallback(buildBuddhabrotTexture,{timeout:3000});
 else setTimeout(buildBuddhabrotTexture,MOBILE_GPU?1200:500);
@@ -12358,11 +12502,18 @@ function buildCtlBody(){
     ctl.querySelector('#solarFlows').onchange=e=>{state.showLaniakeaFlows=e.target.checked;updateSolarScaleVisibility();};
     ctl.querySelector('#solarFlowDens').oninput=e=>{state.laniakeaFlowDensity=+e.target.value;updateSolarScaleVisibility();};
     ctl.querySelector('#oortFocus').onclick = ()=>{
-      // works from EVERY scale layer: step home to the local frame first (no white-out
-      // inside the galactic glow), then frame the full cloud; zooming back out from
-      // here walks the seamless chain Oort → Milky Way → Local Group → Cosmic web.
-      if(state.solarScaleLayer!=='local'){ advanceScaleLayer('local'); }
-      selectKey('oortCloud'); focusOn(SELECT.get('oortCloud')); };
+      // scale-consistent: the button NEVER changes the active layer. In the local frame
+      // it frames the full cloud; in every larger frame it glides to the Solar System's
+      // locus at a distance where its transitional form reads — the gold Oort mote in
+      // the galactic/Local-Group frames, the home-galaxy beacon in the cosmic web.
+      const layer=state.solarScaleLayer||'local';
+      _autoScaleCd=2.2;
+      if(layer==='local'){ selectKey('oortCloud'); focusOn(SELECT.get('oortCloud')); return; }
+      clearFocus(); selectKey(null);
+      const dist = layer==='galactic'?1.6e7 : layer==='andromeda'?9e8 : 0.5*GLY_AU;
+      controls.target.set(0,0,0);
+      const dir=camera.position.clone(); if(dir.lengthSq()<1e-9) dir.set(0.4,0.3,1); dir.normalize();
+      camera.position.copy(dir.multiplyScalar(dist)); syncCameraClipping(true); };
 
     ctl.querySelectorAll('[data-solar-scale]').forEach(b=>b.onclick=()=>{
       setSolarScaleLayer(b.dataset.solarScale); updateSolarScaleVisibility(); buildCtl();
@@ -13671,16 +13822,20 @@ function buildCtlBody(){
       <div class="chips fracModes">${Object.entries(BUDDHA_PRESETS).map(([k,P])=>`<button class="chip ${buddhaPreset===k?'on':''}" data-budres="${k}">${P.label} · ${P.res}px</button>`).join('')}</div>
       <div class="ctlrow"><label>Technique</label></div>
       <div class="chips">${Object.entries(BUDDHA_TECHS).map(([k,T])=>`<button class="chip ${buddhaTech===k?'on':''}" data-budtech="${k}">${T.label}</button>`).join('')}</div>
-      <div class="ctlrow"><label>Iteration depth</label></div>
-      <div class="chips">${Object.entries(BUDDHA_DEPTHS).map(([k,D])=>`<button class="chip ${buddhaDepth===k?'on':''}" data-buddepth="${k}" ${buddhaTech==='anti'?'disabled style="opacity:.45"':''}>${D.label}</button>`).join('')}</div>
+      ${buddhaTech==='deep'?`<div class="ctlrow"><label>Metropolis depth</label></div>
+      <div class="chips">${Object.entries(BUDDHA_DEPTHS).map(([k,D])=>`<button class="chip ${buddhaDepth===k?'on':''}" data-buddepth="${k}">${D.label}</button>`).join('')}</div>`:''}
       <div class="note" style="font-size:10.5px;color:var(--dim)">${buddhaTech==='anti'
         ?'Anti-Buddhabrot (Melinda Green): the FULL orbits of points that never escape — its real-axis skeleton is exactly the logistic bifurcation diagram. Depth is capped per-sample; tiers = orbit phase.'
-        :'Sharp-edge recipe (per the literature): plot only orbits that survive a large MINIMUM dwell — 1M · razor keeps orbits ≥100 000 iterations for razor-thin filaments. The main cardioid & period-2 bulb are skipped analytically, so deep ceilings stay computable. Deeper = sparser: give it time.'}</div>
+        :buddhaTech==='deep'
+        ?'THIRD technique — Metropolis-guided deep Buddhabrot (Boswell-style importance sampling): orbits surviving a large MINIMUM dwell are astronomically rare, so each survivor is MUTATED to find its neighbours on the boundary filaments (86% mutation / 14% random restart for ergodicity), and every orbit is mirrored across the real axis (exact conjugation symmetry) — the full razor-sharp figure, not a starved half. Unweighted variant, declared.'
+        :'Classic Melinda Green technique: uniformly sampled escaping orbits accumulated in three dwell tiers, per-resolution iteration presets. The main cardioid & period-2 bulb are skipped analytically.'}</div>
       <div class="ctlrow"><label>Palette</label></div>
       <div class="chips">${Object.entries(BUDDHA_PALETTES).map(([k,P])=>`<button class="chip ${buddhaPal===k?'on':''}" data-budpal="${k}">${P.label}</button>`).join('')}</div>
       <div class="ctlrow"><label>Hue shift</label><input type="range" id="budHue" min="-180" max="180" step="2" value="${buddhaHue}"><span class="val" id="budHueV">${buddhaHue}°</span></div>
       <div class="ctlrow"><button class="btn" id="budBuild">${buddhaBuilding?'building…':'rebuild deterministic map'}</button>
         <button class="btn green" id="budSave">💾 Save framed PNG</button></div>
+      ${(state.fractalRot||0)%4!==0?`<div class="ctlrow"><label>✔ apply view rotation (${((state.fractalRot||0)%4)*90}°) to the export</label>
+        <input type="checkbox" id="budRotSave" checked></div>`:''}
       <div class="note" id="budSaveNote" style="font-size:10.5px;color:var(--gold-2)"></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Higher presets sharpen the nebular filaments considerably; the build streams in idle-time batches (UI never blocks). Above 4K the on-screen texture stays at 4096 while the FULL resolution accumulates offscreen — 💾 Save writes it out pixel-perfect in a museum frame (obsidian passe-partout, gold hairlines, full provenance caption). 16K builds tile 2×2 with one global normalisation — seam-free — and are a deliberate marathon: leave the tab open.</div>
     </div>`:''}
@@ -13737,7 +13892,8 @@ function buildCtlBody(){
     </div>`:''}
     ${fractalType==='bifurc3d'?`<div class="sect"><b>Key points — fly the structure</b>
       <div class="chips">${BIF_KEYPTS.map((p,i)=>`<button class="chip" data-bifpt="${i}">${p.label}</button>`).join('')}</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Each landmark flies the camera to the exact 3D locus: the cardioid cusp, every period-doubling junction where the attractor sheets SPLIT (c=−¾: the period-1 sheet meets the period-2 pair exactly where the Mandelbrot circle touches the cardioid), the Feigenbaum accumulation point c=−1.4011552, the period-3 window inside chaos, the needle tip c=−2, and off-axis loci where the sheets leave the real plane (Seahorse valley, the period-3 midget).</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each landmark flies the camera to the exact 3D locus: the cardioid cusp, every period-doubling junction where the attractor sheets SPLIT (c=−¾: the period-1 sheet meets the period-2 pair exactly where the Mandelbrot circle touches the cardioid), the Feigenbaum accumulation point c=−1.4011552, the period-3 window inside chaos, the needle tip c=−2, and off-axis loci where the sheets leave the real plane (Seahorse valley, the period-3 midget). <b style="color:var(--gold-2)">Double-click any point of the structure to set the ORBIT CENTRE</b> — rotation and zoom pivot around it, exactly like a modelling app.</div>
+      <div class="note" id="bifCentreV" style="font-size:11px;color:var(--gold-2)">orbit centre: c = −0.875 (view default)</div>
     </div>`:''}
     <div class="sect"><b>Metallic / analytic gradient</b>
       <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
@@ -13829,8 +13985,8 @@ function buildCtlBody(){
       if(buddhaTech==='anti') buddhaPal='silver';                                // Green's canonical silvery interior
       else if(buddhaPal==='silver') buddhaPal='celestial';
       buddhaPlanes=null; buddhaBuilding=false; buildBuddhabrotTexture(); buildCtl(); });
-    ctl.querySelectorAll('[data-buddepth]').forEach(b=>b.onclick=()=>{ if(buddhaDepth===b.dataset.buddepth||buddhaTech==='anti') return;
-      buddhaDepth=b.dataset.buddepth;
+    ctl.querySelectorAll('[data-buddepth]').forEach(b=>b.onclick=()=>{ if(buddhaDepth===b.dataset.buddepth) return;
+      buddhaDepth=b.dataset.buddepth; buddhaTech='deep';                       // depth belongs to the deep technique
       buddhaPlanes=null; buddhaBuilding=false; buildBuddhabrotTexture(); buildCtl(); });
     ctl.querySelector('#budHue')&&(ctl.querySelector('#budHue').oninput=e=>{ buddhaHue=+e.target.value;
       const v=ctl.querySelector('#budHueV'); if(v)v.textContent=buddhaHue+'°'; buddhaRepaint(); });
@@ -14934,26 +15090,69 @@ function applyTheme(mode){
 themeBtn.onclick=()=>applyTheme(THEME_ORDER[(THEME_ORDER.indexOf(themeMode)+1)%THEME_ORDER.length]);
 try{ const s=localStorage.getItem('lts-theme'); applyTheme(THEME_ORDER.indexOf(s)>=0?s:'night'); }catch(e){ applyTheme('night'); }
 
-/* ---------------- fullscreen (always-available button + F key) ---------------- */
+/* ---------------- fullscreen / ZEN view ----------------
+   In-app mobile browsers (Telegram, Instagram, some WebViews) expose NO usable
+   Fullscreen API — there the ⛶ button becomes 👁 ZEN VIEW: every panel, FAB and HUD
+   melts away to open the whole view, leaving only one elegant precision instrument —
+   the time-flow regulator — plus a quiet exit. Available via the same button. */
 const fsBtn = document.getElementById('fsBtn');
 const fsActive = ()=> !!(document.fullscreenElement || document.webkitFullscreenElement);
+const FS_OK = !!((document.fullscreenEnabled??true) &&
+  (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen));
+function zenRate(){ return state.mode==='cyc'?{get:()=>state.cycYrPerSec,set:v=>state.cycYrPerSec=v,min:-2,max:7,unit:'yr/s'}
+  :{get:()=>state.daysPerSec,set:v=>state.daysPerSec=v,min:-3,max:8.5,unit:'d/s'}; }
+function zenFmt(v,unit){ return (v>=1e5?v.toExponential(1):v>=100?Math.round(v):v>=1?v.toFixed(1):v.toPrecision(2))+' '+unit; }
+function zenSync(){
+  const bar=document.getElementById('zenBar'); if(!bar) return;
+  const R=zenRate(), s=bar.querySelector('#zenSpd'), v=bar.querySelector('#zenSpdV'), d=bar.querySelector('#zenDate');
+  const timey=state.mode==='solar'||state.mode==='cyc';
+  bar.querySelector('#zenTimeWrap').style.display=timey?'flex':'none';
+  if(timey){ s.min=R.min; s.max=R.max; s.value=Math.log10(Math.max(R.get(),Math.pow(10,R.min)));
+    v.textContent=zenFmt(R.get(),R.unit); }
+  if(d && typeof clockSim!=='undefined') d.textContent=document.getElementById('clockSim')?.textContent||'';
+}
+function toggleZen(force){
+  const on=force!==undefined?force:!document.body.classList.contains('zen');
+  document.body.classList.toggle('zen',on);
+  if(on) zenSync();
+  fsSync();
+}
 function toggleFS(){
+  if(!FS_OK){ toggleZen(); return; }                     // in-app browser → zen view
   const el = document.documentElement;
   const req = el.requestFullscreen || el.webkitRequestFullscreen;
   const exit = document.exitFullscreen || document.webkitExitFullscreen;
   try{
     if(fsActive() && exit){ exit.call(document); }
     else if(req){ const p = req.call(el); if(p && p.catch) p.catch(()=>{}); }
-    else { hudBig.textContent = 'Fullscreen API unavailable — on iPhone use Share → “Add to Home Screen” to run full-screen'; }
-  }catch(e){ hudBig.textContent = 'Fullscreen unavailable on this device'; }
+    else { toggleZen(); }
+  }catch(e){ toggleZen(true); }
 }
 fsBtn.onclick = toggleFS;
-function fsSync(){ fsBtn.textContent = fsActive() ? '⛶ exit' : '⛶'; }
+function fsSync(){
+  fsBtn.textContent = !FS_OK ? (document.body.classList.contains('zen')?'👁 exit':'👁')
+                             : (fsActive() ? '⛶ exit' : '⛶');
+  fsBtn.title = FS_OK ? 'Toggle fullscreen (F)' : 'Zen view — clear every panel, keep the time regulator';
+}
+fsSync();
 document.addEventListener('fullscreenchange', fsSync);
 document.addEventListener('webkitfullscreenchange', fsSync);
 addEventListener('keydown', e=>{
   if((e.key==='f' || e.key==='F') && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName||'')) toggleFS();
+  if(e.key==='Escape' && document.body.classList.contains('zen')) toggleZen(false);
 });
+{ // zen bar wiring
+  const bar=document.getElementById('zenBar');
+  if(bar){
+    bar.querySelector('#zenSpd').addEventListener('input',e=>{ const R=zenRate();
+      R.set(Math.pow(10,+e.target.value)); bar.querySelector('#zenSpdV').textContent=zenFmt(R.get(),R.unit); });
+    bar.querySelector('#zenPause').addEventListener('click',()=>{ state.paused=!state.paused;
+      bar.querySelector('#zenPause').textContent=state.paused?'▶':'⏸'; });
+    bar.querySelector('#zenExit').addEventListener('click',()=>toggleZen(false));
+    setInterval(()=>{ if(document.body.classList.contains('zen')){ const d=bar.querySelector('#zenDate');
+      if(d) d.textContent=document.getElementById('clockSim')?.textContent||''; } },1000);
+  }
+}
 
 /* ---------------- dynamic top-bar height ----------------
    The header wraps into a variable number of rows depending on width.
