@@ -7141,7 +7141,10 @@ function skFieldBase(x,y,out){   // out=[mx,my,mz] — the real unit magnetisati
     const st=Math.sin(th), Ph=Math.atan2(dy,dx)+state.skHel;
     out[0]=st*Math.cos(Ph); out[1]=st*Math.sin(Ph); out[2]=Math.cos(th); return;
   }
-  if(state.skMode==='lattice' && skCenters.length){              // smooth resolved lattice: weighted blend
+  // ≥3 separated cores: the BP product ∏(z−a_k)/R is exact for 1–2 solitons but its
+  // cross terms shrink every core to a sub-grid speck as N grows (radius ∝ R^N/∏d_jk),
+  // so many-core configurations — lattices AND imports — use the resolved blend.
+  if((state.skMode==='lattice'||(state.skMode==='custom'&&skCenters.length>2)) && skCenters.length){
     let ax=0,ay=0,az=0.06; const R=Math.max(0.3,state.skR), w=Math.max(0.15,state.skW);
     for(const c of skCenters){ const dx=x-c.x,dy=y-c.y,r=Math.hypot(dx,dy);
       const th=2*Math.atan(Math.exp(-(r-R)/w)), st=Math.sin(th), Phi=c.s*Math.atan2(dy,dx)+state.skHel;
@@ -7335,7 +7338,11 @@ function sk3dRender(){
 }
 function skSetup(){
   skCenters=[]; const s0=(state.skType==='anti'||state.skType==='antibimeron')?-1:1;
-  if(state.skMode==='single' || state.skType==='skyrmionium'){ skCenters.push({x:0,y:0,s:s0,vx:0,vy:0}); }
+  if(state.skMode==='custom' && Array.isArray(state.skCustom) && state.skCustom.length){
+    // exact import (e.g. from the Hopfion lab): arbitrary positions AND per-core vorticity
+    for(const c of state.skCustom) skCenters.push({x:c.x,y:c.y,s:c.s<0?-1:1,vx:0,vy:0});
+  }
+  else if(state.skMode==='single' || state.skType==='skyrmionium'){ skCenters.push({x:0,y:0,s:s0,vx:0,vy:0}); }
   else if(state.skMode==='pair'){
     skCenters.push({x:-state.skSep/2,y:0,s:s0,vx:0,vy:0}); skCenters.push({x:state.skSep/2,y:0,s:s0,vx:0,vy:0}); }
   else if(state.skMode==='annih'){
@@ -8820,7 +8827,7 @@ const fractalUniforms = {
 };
 const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
-let fractalType='mandelbulb';
+let fractalType='bifurc3d';   // the atlas opens on the bifurcation⊗Mandelbrot bridge — its signature 3D structure
 let fractalPalette='spectrum';   // spectral colours from the very first frame (phase zero)
 const FRACTAL_COORD_ZOOM_MAX=renderer.capabilities.getMaxPrecision('highp')==='highp'
   ? (MOBILE_GPU?2e4:1e5) : 400;
@@ -8902,6 +8909,18 @@ function scheduleMandelJuliaFiberRebuild(){
    cascade rises along +Z exactly above the real axis — because the logistic
    map is the real-axis dynamics of z→z²+c. Fully orbit-rotatable. */
 const bifurcGroup=new THREE.Group(); bifurcGroup.visible=false; scene.add(bifurcGroup);
+/* Landmark loci of the bifurcation⊗Mandelbrot structure — exact literature values.
+   Camera fly-to targets in the 3D space (c-plane × attractor axis). */
+const BIF_KEYPTS=[
+  {label:'Cardioid cusp c=¼',              c: 0.25,  z: 0.33, camx:1.4, camy:1.0, camz:2.0},
+  {label:'Period 1→2 · c=−¾',              c:-0.75,  z: 0.0,  camx:1.6, camy:1.2, camz:2.4},
+  {label:'Period 2→4 · c=−1¼',             c:-1.25,  z: 0.0,  camx:1.4, camy:1.0, camz:2.2},
+  {label:'Feigenbaum pt · c=−1.4011552',   c:-1.4011551890, z:0, camx:1.0, camy:0.8, camz:1.7},
+  {label:'Period-3 window · c=−1.7549',    c:-1.754877666,  z:0, camx:0.9, camy:0.7, camz:1.5},
+  {label:'Needle tip · c=−2',              c:-2.0,   z: 0.0,  camx:1.2, camy:0.9, camz:1.8},
+  {label:'Seahorse valley · −0.75+0.1i',   cx:-0.75, cy:0.1,  z:0, camx:1.2, camy:1.1, camz:1.9},
+  {label:'Period-3 midget · −0.1226+0.7449i', cx:-0.122561, cy:0.744862, z:0, camx:1.1, camy:1.0, camz:1.8},
+];
 let _bifurcBuilt=false;
 const BIF_S=4.0, bifCx=c=>(c+0.875)*BIF_S;       // complex coord → centred scene units
 function buildBifurcMandelbrot3D(){
@@ -11476,7 +11495,7 @@ const state = {
   hfP:1, hfQ:1, hfK:18, hfDist:'fibonacci', hfScale:1, hfShowTarget:true,
   hfFlow:true, hfFlowSpd:0.35, hfPrec:false, hfPrecSpd:0.5,
   hfMode:'single', hfP2:1, hfQ2:1, hfSep:4.4, hfSepTarget:null, hfRingN:6, hfRingR:3.2, hfCustom:null,
-  skMode:'single', skType:'neel', skR:1.6, skW:0.7, skHel:0, skSep:3.4, skN:7, skLatType:'hex',   // Skyrmion lab
+  skMode:'single', skType:'neel', skR:1.6, skW:0.7, skHel:0, skSep:3.4, skN:7, skLatType:'hex', skCustom:null,   // Skyrmion lab
   skArrow:1.0, skGridSel:41, skRelief:0, skColormap:'both', skShowPlane:true, skAutoRot:true, skRotSpd:0.06,
   skExch:1.0, skDMI:1.0, skAniso:0.7, skBfield:0.35,
   skRun:false, skDrive:0, skDriveAng:0, skDamp:0.35, skBeta:0.0, skRep:3.2, skPin:0, skTemp:0, skSpeed:1.3, skConfine:5,
@@ -12410,6 +12429,7 @@ function buildCtlBody(){
         <button class="chip ${state.skMode==='pair'?'on':''}" data-skmode="pair">Two (repel)</button>
         <button class="chip ${state.skMode==='annih'?'on':''}" data-skmode="annih">Sk + anti</button>
         <button class="chip ${state.skMode==='lattice'?'on':''}" data-skmode="lattice">Lattice</button>
+        ${state.skMode==='custom'?`<button class="chip on" data-skmode="custom">⟲ Imported (${(state.skCustom||[]).length} from Hopfion lab)</button>`:''}
       </div>
       <div class="note" style="font-size:10.5px;color:var(--gold-2)">✋ Drag any core (the gold/teal dot) to move that skyrmion — multitouch: several fingers (or two Quest controllers) move several cores at once. Watch them repel, merge or annihilate live.</div>
       ${state.skMode!=='single'?`<div class="ctlrow"><label>Separation / spacing</label><input type="range" id="skSep" min="1.6" max="5" step="0.1" value="${state.skSep}"><span class="val" id="skSepV">${state.skSep.toFixed(1)}</span></div>`:''}
@@ -12525,6 +12545,10 @@ function buildCtlBody(){
       <div class="ctlrow"><label>Ring radius</label>
         <input type="range" id="hfRingR" min="2" max="5" step="0.1" value="${state.hfRingR}">
         <span class="val" id="hfRingRV">${state.hfRingR.toFixed(1)}</span></div>`:''}
+    </div>
+    <div class="sect"><b>Bridge → Skyrmion</b>
+      <div class="note" style="font-size:11px">The inverse of the skyrmion bridge: SLICE every closed skyrmion string back open. Each hopfion becomes the 2D skyrmion of its cross-section — same position, vorticity s = sign(q) (N_sk = q for twist p), and the ξ₂ phase returns as helicity γ. The two labs stay one exact topology, viewed from either side.</div>
+      <div class="ctlrow"><button class="btn" id="hfToSk">⟲ Slice this configuration into Skyrmions →</button></div>
     </div>
     <div class="note" style="color:var(--dim);font-size:11px;margin-top:6px">
       A hopfion is a field Φ:S³→S² with Hopf charge Q_H≠0 — the preimage of every target point is a
@@ -12665,7 +12689,9 @@ function buildCtlBody(){
       ctl.querySelector('#skNuclSkm')&&(ctl.querySelector('#skNuclSkm').onclick=()=>nucl('skyrmionium'));
       ctl.querySelector('#skNuclStick')&&(ctl.querySelector('#skNuclStick').onclick=()=>nucl('stick'));
       ctl.querySelector('#skNuclStop')&&(ctl.querySelector('#skNuclStop').onclick=()=>{ state.skAnim=null; state.skAnimRun=false; skDirty=true; buildCtl(); });
-      ctl.querySelectorAll('[data-skmode]').forEach(b=>b.onclick=()=>{ state.skMode=b.dataset.skmode; skSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-skmode]').forEach(b=>b.onclick=()=>{ state.skMode=b.dataset.skmode;
+        if(state.skMode!=='custom') state.skCustom=null;                    // leaving the imported configuration
+        skSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-sklat]').forEach(b=>b.onclick=()=>{ state.skLatType=b.dataset.sklat; skSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-skcmap]').forEach(b=>b.onclick=()=>{ state.skColormap=b.dataset.skcmap; skDirty=true; buildCtl(); });
       ctl.querySelectorAll('[data-skgrid]').forEach(b=>b.onclick=()=>{ state.skGridSel=+b.dataset.skgrid; skGridN=state.skGridSel; skDirty=true; buildCtl(); });
@@ -12738,6 +12764,21 @@ function buildCtlBody(){
         const v=ctl.querySelector('#hfRingNV'); if(v) v.textContent=String(state.hfRingN); });
       ctl.querySelector('#hfRingR')&&(ctl.querySelector('#hfRingR').oninput=e=>{ state.hfRingR=+e.target.value; hfDirty=true;
         const v=ctl.querySelector('#hfRingRV'); if(v) v.textContent=state.hfRingR.toFixed(1); });
+      ctl.querySelector('#hfToSk')&&(ctl.querySelector('#hfToSk').onclick=()=>{
+        // EXACT inverse transfer: every hopfion becomes the skyrmion of its string
+        // cross-section at the SAME position; s = sign(q) (N_sk = q per twist p);
+        // the ξ₂ phase returns as the helicity it came from.
+        const K=SKHALF/3.4, raw=hfCenters().map(c=>({x:c.c.x*K, y:c.c.z*K, s:(c.q<0?-1:1)}));
+        // compress uniformly (never clamp): the whole configuration must sit well inside
+        // the charge-integration grid or Berg–Lüscher loses the boundary flux
+        const maxR=raw.reduce((m,c)=>Math.max(m,Math.hypot(c.x,c.y)),0);
+        const sc=maxR>SKHALF-1.4 ? (SKHALF-1.4)/maxR : 1;
+        const cores=raw.map(c=>({x:c.x*sc, y:c.y*sc, s:c.s}));
+        state.skCustom=cores; state.skMode=cores.length===1?'single':'custom';
+        state.skType=cores.length===1&&cores[0].s<0?'anti':'neel';
+        state.skHel=((hfPrecPhase%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+        state.skDim='2d'; state.skRun=false; state.skAnim=null; state.skAnimRun=false; state.skMagnon=false;
+        skSetup(); setS3View('skyrmion'); buildCtl(); });
     }
     if(V==='sel'){
       ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
@@ -13172,6 +13213,10 @@ function buildCtlBody(){
       <div class="note">This mode is rendered as real Three.js geometry. Drag rotates the camera; wheel / two-finger pinch dollies the camera. Shader-plane zoom is intentionally disabled here so the model cannot vanish from a 2D coordinate zoom.</div>
       <div class="ctlrow"><button class="btn" id="fresetGeo3D">Reset 3D camera</button></div>
     </div>`:''}
+    ${fractalType==='bifurc3d'?`<div class="sect"><b>Key points — fly the structure</b>
+      <div class="chips">${BIF_KEYPTS.map((p,i)=>`<button class="chip" data-bifpt="${i}">${p.label}</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each landmark flies the camera to the exact 3D locus: the cardioid cusp, every period-doubling junction where the attractor sheets SPLIT (c=−¾: the period-1 sheet meets the period-2 pair exactly where the Mandelbrot circle touches the cardioid), the Feigenbaum accumulation point c=−1.4011552, the period-3 window inside chaos, the needle tip c=−2, and off-axis loci where the sheets leave the real plane (Seahorse valley, the period-3 midget).</div>
+    </div>`:''}
     <div class="sect"><b>Metallic / analytic gradient</b>
       <div class="ctlrow"><label>Palette</label><select id="fpalette" style="flex:1">
         ${Object.keys(FRACTAL_PALETTES).map(k=>`<option value="${k}" ${fractalPalette===k?'selected':''}>${({silver:'Neutral silver metal',gold:'Gold metal',copper:'Dark copper',ice:'Ice blue',spectrum:'Spectral analytic'})[k]}</option>`).join('')}
@@ -13242,6 +13287,11 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-bifjump]').forEach(b=>b.onclick=()=>{ fractalUniforms.uBifOverlay.value=1;
       fractalUniforms.uCenter.value.set(+b.dataset.bifjump,0); setFractalZoom(Math.max(fractalUniforms.uZoom.value,6)); buildCtl(); });
     (ctl.querySelector('#freset')||ctl.querySelector('#fresetGeo3D'))?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
+    ctl.querySelectorAll('[data-bifpt]').forEach(b=>b.onclick=()=>{ const p=BIF_KEYPTS[+b.dataset.bifpt]; if(!p) return;
+      const t=new THREE.Vector3(bifCx(p.cx!==undefined?p.cx:p.c),(p.cy||0)*BIF_S,(p.z||0)*1.5);
+      controls.target.copy(t);
+      camera.position.copy(t).add(new THREE.Vector3(p.camx??2.1,p.camy??1.5,p.camz??3.0));
+      syncCameraClipping(true); });
     ctl.querySelector('#fgolden')?.addEventListener('click',()=>{
       fractalUniforms.uCenter.value.set(-.743643887037151,.13182590420533);
       setFractalZoom(850); buildCtl();
