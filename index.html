@@ -1268,6 +1268,16 @@ function runSelfTests(){
     ok('Deep time: planetEcl phase continuity — |r(T)−r(T+1h)| < 0.02 AU at +1 Myr',
       (()=>{ const a=planetEcl(PLANETS[2],T), b=planetEcl(PLANETS[2],T+1/24/36525);
         return Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<0.02; })()); }
+  { // STROBOSCOPIC PHASE LOCK: whole-period subtraction is exact and phase-continuous
+    const P=686.98, anchor=1234.5;
+    const lock=e=>e-Math.round((e-anchor)/P)*P;
+    const e1=1e9+0.37*P, e2=e1+3712*P+0.0625;          // jump thousands of periods + a fraction
+    const ok1=Math.abs(lock(e1)-anchor)<=P/2+1e-6;
+    const ok2=Math.abs(lock(e2)-lock(e1)-0.0625)<1e-6; // only the FRACTIONAL advance survives
+    const ok3=Math.abs(((e2-lock(e2))/P)%1)<1e-9;      // subtracted amount is an exact whole number of P
+    ok('Phase lock: display epoch stays within P/2 of the anchor', ok1, (lock(e1)-anchor).toFixed(3));
+    ok('Phase lock: a 3712-period time jump advances the locked phase by exactly the fraction', ok2, (lock(e2)-lock(e1)).toFixed(6));
+    ok('Phase lock: subtraction is an exact integer number of periods', ok3); }
   ok('JPL secular rates encoded for all eight major planets',
     PLANETS.slice(0,8).every(p=>['da','de','di','dw','dO'].every(k=>Number.isFinite(p[k]))),
     PLANETS.slice(0,8).map(p=>p.name).join(', '));
@@ -5516,8 +5526,12 @@ function updateSolarVectors(T,geoShift){
   }
   const h=0.5;                                        // half-day derivative step
   for(const e of _svPl){
-    e.a.visible=e.lab.visible=state.vectorMain!==false;
     const p=e.o.p;
+    // per-planet visibility, DEFAULT OFF — nine simultaneous arrows swamp the view;
+    // enable each planet individually in the panel (Earth also gates the CMB total)
+    const pOn=state.vectorMain!==false && !!(state.vecPlanetOn&&state.vecPlanetOn[p.name]);
+    e.a.visible=e.lab.visible=pOn;
+    if(!pOn){ if(p.name==='Earth'&&_svEarthTot){ _svEarthTot.visible=_svEarthTotLab.visible=false; } continue; }
     _svTmpA.copy(planetPos(p,(state.epochDays+h)/36525)); _svTmpB.copy(planetPos(p,(state.epochDays-h)/36525));
     _svTmpA.sub(_svTmpB).multiplyScalar(1/(2*h));      // AU/day
     const kms=_svTmpA.length()*KM_PER_AU/86400;
@@ -5535,9 +5549,42 @@ function updateSolarVectors(T,geoShift){
       _svEarthTotLab.position.copy(e.o.mesh.position).addScaledVector(tdir,_vecLen(tkms)+0.4);
       const t2='EARTH vs CMB · '+tkms.toFixed(1)+' km/s · the total of all motions';
       if(_svEarthTotLab.element.textContent!==t2) _svEarthTotLab.element.textContent=t2;
-      _svEarthTot.visible=_svEarthTotLab.visible=state.vectorMain!==false;
+      _svEarthTot.visible=_svEarthTotLab.visible=pOn;
     }
   }
+}
+/* ── STROBOSCOPIC PHASE LOCK ──────────────────────────────────────────────────
+   At Myr/s time rates a planet's rendered phase aliases — it teleports randomly
+   around its orbit every frame. The lock keeps ONE body (or one PAIR, via the
+   synodic period) phase-smooth at ANY global speed by subtracting a WHOLE number
+   of its periods from the display epoch each frame (integer subtraction: exact in
+   doubles — an instantaneous recomputation, not a filter). The phase-rate slider
+   then drives the locked body's own phase forward/backward independently, while
+   the rest of the system streams past at full speed. Physically identical to a
+   stroboscope flashing at the body's orbital frequency. */
+let _phAnchor=null, _phKey='';
+function phaseLockPeriodDays(){
+  const L=state.phaseLock; if(!L) return null;
+  const P=i=>365.25*Math.pow(PLANETS[i].a,1.5);        // Kepler: P² = a³ (years→days)
+  if(L.mode==='single') return P(L.a);
+  if(L.b==='moon') return 29.530588853;                // Earth–Moon synodic month
+  const Pa=P(2), Pb=P(L.b);                            // Earth–planet synodic period
+  return 1/Math.abs(1/Pa-1/Pb);
+}
+function phaseLockEpoch(dt){
+  const L=state.phaseLock; if(!L){ _phAnchor=null; _phKey=''; return null; }
+  const P=phaseLockPeriodDays(); if(!P||!isFinite(P)) return null;
+  const key=L.mode+':'+L.a+':'+(L.b??'');
+  if(_phAnchor===null||_phKey!==key){ _phAnchor=state.epochDays; _phKey=key; }
+  _phAnchor += dt*(state.phaseRate||0)*P;              // the phase-control: ±periods per second
+  const k=Math.round((state.epochDays-_phAnchor)/P);   // whole periods — exact integer arithmetic
+  return state.epochDays - k*P;
+}
+function phaseLockBodies(){
+  const L=state.phaseLock; if(!L) return null;
+  if(L.mode==='single') return {planets:new Set([L.a]), moon:false};
+  if(L.b==='moon') return {planets:new Set([2]), moon:true};
+  return {planets:new Set([2,L.b]), moon:false};
 }
 
 /* ── COSMIC AXES & ORIENTATION-SPHERE LADDER ────────────────────────────────────
@@ -14436,6 +14483,7 @@ const state = {
   cycYrPerSec: 1, cycSeasons: null,
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
+  phaseLock:null, phaseRate:0, vecPlanetOn:{},        // stroboscopic phase lock · per-planet velocity arrows (default OFF)
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5,        // Quantum wave lab
   qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab
@@ -14813,6 +14861,23 @@ function buildCtlBody(){
         <button class="btn green" id="dateGo">Set</button></div>
       <div class="note" style="font-size:10px;color:var(--dim)">Text deep-time input: <b>2026-07-13 12:00</b> · <b>-100000-01-01</b> · <b>100000 BCE</b> · <b>1.5 Myr ago</b> · <b>J2000+250000y</b>. Press Enter or Set.</div>
     </div>
+    <div class="sect"><b>Phase synchronisation — stroboscope</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>Mode</label>
+        <button class="chip ${!state.phaseLock?'on':''}" data-phmode="off">Off</button>
+        <button class="chip ${state.phaseLock&&state.phaseLock.mode==='single'?'on':''}" data-phmode="single">One planet</button>
+        <button class="chip ${state.phaseLock&&state.phaseLock.b==='moon'?'on':''}" data-phmode="moon">Earth–Moon</button>
+        <button class="chip ${state.phaseLock&&state.phaseLock.mode==='pair'&&state.phaseLock.b!=='moon'?'on':''}" data-phmode="pair">Earth–planet</button></div>
+      ${state.phaseLock&&(state.phaseLock.mode==='single'||(state.phaseLock.mode==='pair'&&state.phaseLock.b!=='moon'))?`
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>${state.phaseLock.mode==='single'?'Body':'Partner of Earth'}</label>
+        ${PLANETS.map((p,i)=>(state.phaseLock.mode==='pair'&&i===2)?'':`<button class="chip ${(state.phaseLock.mode==='single'?state.phaseLock.a:state.phaseLock.b)===i?'on':''}" data-phbody="${i}">${p.name}</button>`).join('')}</div>`:''}
+      ${state.phaseLock?`
+      <div class="ctlrow"><label>Phase drive</label>
+        <input type="range" id="phRate" min="-0.25" max="0.25" step="0.005" value="${state.phaseRate||0}">
+        <span class="val" id="phRateV">${(state.phaseRate||0).toFixed(3)} P/s</span>
+        <button class="btn" id="phZero" style="padding:2px 8px">0</button></div>
+      <div class="note" id="phOut" style="font-variant-numeric:tabular-nums;font-size:11px"></div>`:''}
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A stroboscope for orbits: at extreme time speeds a body's rendered phase aliases — it teleports around its orbit every frame. The lock renders the chosen body (or PAIR, via their true synodic period — Earth–Moon 29.53 d, Earth–Mars 780 d…) at a display epoch shifted by an EXACT whole number of periods, recomputed every frame: instantly phase-smooth at ANY global speed, while everything else streams past. The Phase drive slider then accelerates or reverses the locked body's own phase (±periods per second) independently of the global clock. Exact integer-period arithmetic — no smoothing, no filtering.</div>
+    </div>
     <div class="sect"><b>Scale</b>
       <div class="ctlrow"><label>Planet size ×</label>
         <input type="range" id="psc" min="0" max="3.3" step="0.05" value="${Math.log10(state.planetScale)}">
@@ -14827,6 +14892,9 @@ function buildCtlBody(){
       ${state.solarJourney?`<div class="note" style="font-size:10.5px;color:var(--dim)">The Sun really travels its galactic orbit at 232 km/s toward ℓ≈90° (Cygnus) — true scale, 48.9 AU per year — so the planets trace genuine helices chasing it. Speed time up and the spirals stretch out. Direction is computed from the same J2000 frame as everything else (ŷ_gal = ẑ_NGP×x̂_GC).</div>`:''}
       <div class="ctlrow"><label>Motion vectors · velocity &amp; axes atlas</label>
         <input type="checkbox" id="motionVecs" ${state.showMotionVectors?'checked':''}></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>Planet velocity arrows</label>
+        ${PLANETS.map(p=>`<button class="chip ${state.vecPlanetOn&&state.vecPlanetOn[p.name]?'on':''}" data-vecpl="${p.name}">${p.name}</button>`).join('')}</div>
+      <div class="note" style="font-size:10px;color:var(--dim)">Per-planet arrows are OFF by default — nine at once swamp the view. Enable exactly the ones your experiment needs; Earth also carries the EARTH-vs-CMB grand total.</div>
       <div class="ctlrow"><label>Lagrange points L1–L5 (Sun–Earth)</label>
         <input type="checkbox" id="lagPts" ${state.showLagrange?'checked':''}>
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">true positions — L1/L2 hide inside an inflated Earth; use true scale</span></div>
@@ -14917,6 +14985,28 @@ function buildCtlBody(){
     ctl.querySelector('#spinAxes').onchange = e=>state.showSpinAxes=e.target.checked;
     ctl.querySelector('#motionVecs')&&(ctl.querySelector('#motionVecs').onchange=e=>state.showMotionVectors=e.target.checked);
     ctl.querySelector('#lagPts')&&(ctl.querySelector('#lagPts').onchange=e=>state.showLagrange=e.target.checked);
+    ctl.querySelectorAll('[data-vecpl]').forEach(b=>b.onclick=()=>{
+      state.vecPlanetOn=state.vecPlanetOn||{};
+      state.vecPlanetOn[b.dataset.vecpl]=!state.vecPlanetOn[b.dataset.vecpl];
+      b.classList.toggle('on',!!state.vecPlanetOn[b.dataset.vecpl]); });
+    /* phase-lock stroboscope */
+    ctl.querySelectorAll('[data-phmode]').forEach(b=>b.onclick=()=>{
+      const m=b.dataset.phmode;
+      if(m==='off') state.phaseLock=null;
+      else if(m==='single') state.phaseLock={mode:'single',a:(state.phaseLock&&state.phaseLock.mode==='single')?state.phaseLock.a:3};
+      else if(m==='moon') state.phaseLock={mode:'pair',a:2,b:'moon'};
+      else state.phaseLock={mode:'pair',a:2,b:(state.phaseLock&&typeof state.phaseLock.b==='number')?state.phaseLock.b:3};
+      state.phaseRate=0; buildCtl(); });
+    ctl.querySelectorAll('[data-phbody]').forEach(b=>b.onclick=()=>{
+      const i=+b.dataset.phbody;
+      if(state.phaseLock.mode==='single') state.phaseLock={mode:'single',a:i};
+      else state.phaseLock={mode:'pair',a:2,b:i};
+      buildCtl(); });
+    ctl.querySelector('#phRate')&&(ctl.querySelector('#phRate').oninput=e=>{ state.phaseRate=+e.target.value;
+      const v=ctl.querySelector('#phRateV'); if(v)v.textContent=state.phaseRate.toFixed(3)+' P/s'; });
+    ctl.querySelector('#phZero')&&(ctl.querySelector('#phZero').onclick=()=>{ state.phaseRate=0;
+      const s=ctl.querySelector('#phRate'); if(s)s.value=0;
+      const v=ctl.querySelector('#phRateV'); if(v)v.textContent='0.000 P/s'; });
     ctl.querySelector('#apexLock')&&(ctl.querySelector('#apexLock').onclick=()=>{ state.solarApexLock=!state.solarApexLock; buildCtl(); });
     ctl.querySelector('#axisAnchor')&&(ctl.querySelector('#axisAnchor').onclick=()=>{
       state.axisAnchorLock=!state.axisAnchorLock;
@@ -18284,7 +18374,14 @@ function tickBody(now, frame){
     }
     // Reference-frame origin: heliocentric → Sun at (0,0,0); geocentric → shift every body
     // by −Earth so the EARTH sits at the origin (Sun and planets recomputed around it).
-    const geoShift = state.geocentric ? planetPos(PLANETS[2], T) : null;
+    // STROBOSCOPIC PHASE LOCK: the chosen body (or pair) is rendered at a display
+    // epoch that differs from the raw one by an EXACT whole number of its periods,
+    // recomputed every frame — phase-smooth at any global time speed
+    const phEpoch=phaseLockEpoch(dt), phBodies=phEpoch!==null?phaseLockBodies():null;
+    const phT=phEpoch!==null?phEpoch/36525:null;
+    // geocentric frame follows the LOCKED Earth when Earth is in the locked set,
+    // so the origin stays glued to the rendered Earth
+    const geoShift = state.geocentric ? planetPos(PLANETS[2], (phBodies&&phBodies.planets.has(2))?phT:T) : null;
     const pScale = state.trueScale ? 1 : state.planetScale;
     const sScale = state.trueScale ? 1 : state.sunScale;
     sunMesh.position.copy(geoShift ? geoShift.clone().negate() : _galZero);
@@ -18293,13 +18390,15 @@ function tickBody(now, frame){
     sunMesh.quaternion.copy(SUN_AXIS_Q).multiply(
       new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((SUN.spinW0+SUN.spinRateDegDay*state.epochDays)%360+360)%360)*DEG));
     sunSpinCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false && (state.solarScaleLayer||'local')==='local';
-    for(const o of planetObjs){
-      o.mesh.position.copy(planetPos(o.p, T));
+    for(let oi=0;oi<planetObjs.length;oi++){ const o=planetObjs[oi];
+      const locked=!!(phBodies&&phBodies.planets.has(oi));
+      const Tb=locked?phT:T, eDaysB=locked?phEpoch:state.epochDays;
+      o.mesh.position.copy(planetPos(o.p, Tb));
       if(geoShift) o.mesh.position.sub(geoShift);     // Earth-centred frame
       o.mesh.scale.setScalar(o.p.r/KM_PER_AU*pScale);
       if(o.p.spinHours){
-        o.mesh.quaternion.copy(earthAxisQuaternionActive(T)).multiply(
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((o.p.spinW0+o.p.spinRateDegDay*state.epochDays)%360+360)%360)*DEG));
+        o.mesh.quaternion.copy(earthAxisQuaternionActive(Tb)).multiply(
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((o.p.spinW0+o.p.spinRateDegDay*eDaysB)%360+360)%360)*DEG));
         o.spinCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false && (state.solarScaleLayer||'local')==='local';
       } else if(PLANET_POLE_Q[o.p.name]){
         o.mesh.quaternion.copy(PLANET_POLE_Q[o.p.name]);   // IAU pole orientation for every planet
@@ -18319,6 +18418,16 @@ function tickBody(now, frame){
       const eo=planetObjs[2], dA=Math.max(camera.position.distanceTo(controls.target),0.05);
       controls.target.copy(eo.mesh.position);
       camera.position.copy(eo.mesh.position).addScaledVector(earthPoleDir(T),dA);
+    }
+    // live phase-lock readout: period, skipped whole periods, current phase
+    if(phEpoch!==null){ state._phUiAcc=(state._phUiAcc||0)+dt;
+      if(state._phUiAcc>0.3){ state._phUiAcc=0;
+        const pho=ctl.querySelector('#phOut');
+        if(pho){ const P=phaseLockPeriodDays(), k=Math.round((state.epochDays-phEpoch)/P);
+          const phase=((((phEpoch-_phAnchor)/P)%1)+1)%1;
+          pho.innerHTML=`P = <b>${P>=365?(P/365.25).toFixed(3)+' yr':P.toFixed(3)+' d'}</b> · skipping <b>${Math.abs(k).toLocaleString()}</b> whole periods this frame · locked phase φ = ${phase.toFixed(4)} · drive ${(state.phaseRate||0).toFixed(3)} P/s`;
+          ATLAS_BUS.pub('phase.P',+P.toFixed(3),'days'); ATLAS_BUS.pub('phase.skipped',Math.abs(k),'periods'); }
+      }
     }
     // live precession-engine readout (¼-s cadence): pole of date, ε(t), equinox drift
     state._precUiAcc=(state._precUiAcc||0)+dt;
@@ -18347,7 +18456,9 @@ function tickBody(now, frame){
 
     /* the Moon rides Earth's orbit (orbit exaggerated unless true scale) */
     {
-      const g = moonGeo(T);
+      // Earth–Moon phase lock: BOTH bodies render at the locked epoch → the pair
+      // stays mutually coherent (true synodic phase) while the rest streams past
+      const g = moonGeo((phBodies&&phBodies.moon)?phT:T);
       const exag = state.trueScale ? 1 : Math.max(8, state.planetScale*0.07);
       const earthP = planetObjs[2].mesh.position;
       const off = eclToScene(
