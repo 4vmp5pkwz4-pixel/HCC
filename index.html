@@ -5453,14 +5453,17 @@ function updateCosmicFrame(d,T,geoShift){
   const zs=document.getElementById('zenScale'); if(zs&&document.body.classList.contains('zen')) zs.textContent='R '+fmtDist(d);
 }
 
-function galaxySpiral(radiusLy,arms,count,col,seed){
+function galaxySpiral(radiusLy,arms,count,col,seed,wind=5.2){
+  // wind = total winding (radians) across the disk radius. The old 2.7 left the
+  // 4 arms nearly radial — the Galaxy read as a CROSS; ≥5 winds them into true
+  // sweeping spiral arms that wrap most of half a turn each.
   const rnd=mulberry(seed), R=radiusLy*LY_AU;
   const bulge=Math.round(count*0.26);                 // central bulge: older/warmer stars concentrated in the core
   const total=count+bulge, pos=new Float32Array(total*3), colors=new Float32Array(total*3);
   const c0=new THREE.Color(col), c1=new THREE.Color(0xffe1ae), cb=new THREE.Color(0xffcf99);
   for(let i=0;i<count;i++){
     const r=R*Math.sqrt(rnd()), arm=i%arms;
-    const a=arm/arms*Math.PI*2+2.7*r/R+(rnd()-.5)*.42;
+    const a=arm/arms*Math.PI*2+wind*Math.pow(r/R,0.82)+(rnd()-.5)*.36;
     const thickness=(.012+.045*r/R)*R;
     const y=(rnd()-.5)*thickness, rr=r+(rnd()-.5)*R*.025;
     pos.set([rr*Math.cos(a),y,rr*Math.sin(a)],i*3);
@@ -5490,7 +5493,7 @@ orientDisk(milkyWayPhysical,GAL_DATA.gc.dir.clone().negate(),GAL_DATA.pole.dir);
 // around us — depicting the Sun's 230-Myr galactic orbit AND the disk's rotation at once.
 const mwBaseQuat=milkyWayPhysical.quaternion.clone();
 const _galQ=new THREE.Quaternion(), _galZero=new THREE.Vector3(0,0,0);
-const mwSpiral=galaxySpiral(52000,4,30000,0x8fb9e8,8412); milkyWayPhysical.add(mwSpiral);
+const mwSpiral=galaxySpiral(52000,4,34000,0x8fb9e8,8412,5.6); milkyWayPhysical.add(mwSpiral);
 const mwOutline=guideCircle(52000*LY_AU,0x8fb9e8,.28,256); milkyWayPhysical.add(mwOutline);
 const mwCoordGrid=polarGuide([8200,20000,40000,52000].map(x=>x*LY_AU),12,'GALACTIC PLANE · radial grid in light-years');
 milkyWayPhysical.add(mwCoordGrid);
@@ -5547,7 +5550,7 @@ const m31Physical=new THREE.Group(); m31Physical.position.copy(GAL_DATA.m31.pos)
     .addScaledVector(minorSky,Math.sin(GAL_DATA.m31.inclination*DEG)).normalize();
   orientDisk(m31Physical,major,normal);
 }
-const m31Spiral=galaxySpiral(76000,2,13000,0x9db8e8,3101); m31Physical.add(m31Spiral,guideCircle(76000*LY_AU,0x9db8e8,.25,256));
+const m31Spiral=galaxySpiral(76000,2,13000,0x9db8e8,3101,4.8); m31Physical.add(m31Spiral,guideCircle(76000*LY_AU,0x9db8e8,.25,256));
 const m31Dot=new THREE.Mesh(new THREE.SphereGeometry(1800*LY_AU,16,10),new THREE.MeshBasicMaterial({color:GAL_DATA.m31.col}));
 const m31Lab=mkLabel('M31 centre · 2.537 million ly','label major','solarM31'); m31Lab.position.set(0,18000*LY_AU,0);
 m31Physical.add(m31Dot,m31Lab); solarGalacticGroup.add(m31Physical);
@@ -5923,7 +5926,18 @@ function autoSolarScale(dt){
     if(Math.abs((autoSolarScale._f??-1)-f)>0.01){ autoSolarScale._f=f;
       for(const m of _skyFadeMats){ m.opacity=(m.userData.skyBase??1)*f; m.transparent=true; } }
     // scale-anchor markers: shown only from far enough away that they read as motes
-    if(typeof oortFarMarker!=='undefined') oortFarMarker.visible=!!oortFarMarker.userData.lv && d>4e6;
+    if(typeof oortFarMarker!=='undefined'){
+      // the Solar-System mote seen from the Galaxy fades IN over a distance band —
+      // no more hard pop when the scale layer flips
+      const fm=THREE.MathUtils.clamp((d-3.5e6)/9e6,0,1);
+      const onM=!!oortFarMarker.userData.lv && fm>0.02;
+      oortFarMarker.visible=onM;
+      if(onM) oortFarMarker.traverse(o=>{
+        if(o.material&&o.material.opacity!==undefined){
+          o.material.userData.base??(o.material.userData.base=o.material.opacity);
+          o.material.opacity=o.material.userData.base*fm; }
+        if(o.isCSS2DObject&&o.element) o.element.style.opacity=fm.toFixed(2); });
+    }
     if(typeof homeGalaxyMarker!=='undefined') homeGalaxyMarker.visible=!!homeGalaxyMarker.userData.lv && d>0.15*GLY_AU;
     // In the LOCAL frame the physical Milky Way fades in AFTER the Oort cloud starts
     // to read (2.5e4 AU) — and, because the Sun sits INSIDE the disk, nearby speckle
@@ -16655,7 +16669,12 @@ function tickBody(now, frame){
        years of the very same epoch). Rigidly rotating the disk about the Sun (origin)
        keeps the embedded Sun marker on the Sun while Sgr A* and the arms wheel past. */
     {
-      const galTheta = 2*Math.PI * state.epochDays / (GAL_YEAR_MYR*1e6*365.2425);
+      // modulo FIRST, then scale: at extreme epochs (Gyr-deep, Myr/s time rates) the
+      // raw angle reaches ~1e9 rad where double-precision trig loses the phase — the
+      // disk would visibly desynchronise from the vector atlas. epochDays%period is
+      // exact in doubles, so the rotation stays phase-locked at ANY epoch.
+      const galDays = GAL_YEAR_MYR*1e6*365.2425;
+      const galTheta = 2*Math.PI * (((state.epochDays%galDays)+galDays)%galDays) / galDays;
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
