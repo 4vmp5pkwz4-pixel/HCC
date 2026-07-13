@@ -1177,6 +1177,11 @@ function runSelfTests(){
     ok('Computed great conjunction Jupiter–Saturn 2020-12-21: sep ≈ 0.1°, within 1.5 d',
       !!c&&Math.abs(c.d-dJS)<1.5&&c.sep<0.2,
       c?`sep=${(c.sep*60).toFixed(1)}′ Δt=${(c.d-dJS).toFixed(2)}d`:'none found'); }
+  { // GW inspiral: numeric Peters merger time matches the e=0 closed form (a⁴−a_isco⁴)/(4β)
+    const c=3.75, c5=Math.pow(c,5), M=2, beta=(64/5)*M/c5, isco=12/(c*c);
+    const Tnum=gwMergerTime(2.4,0,M,c5), Tcf=(Math.pow(2.4,4)-Math.pow(isco,4))/(4*beta);
+    ok('Peters e=0 merger time: numeric integration = closed form within 2%',
+      Math.abs(Tnum-Tcf)/Tcf<0.02, `num=${Tnum.toFixed(2)} closed=${Tcf.toFixed(2)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   ok('JPL secular rates encoded for all eight major planets',
@@ -4381,10 +4386,10 @@ function applyCmbWall(on){
 // here would read as a single flat "white blob" rather than a small, precise anchor point.
 {
   const dot = new THREE.Mesh(new THREE.SphereGeometry(.12,16,12), new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.55,depthWrite:false}));
-  const lab = mkLabel('observer p (Milky Way)','label major','obsP0'); dot.add(lab);
+  const lab = mkLabel('observer p (Milky Way) ⤵ zoom in — continues into the Solar scale chain','label major','obsP0'); dot.add(lab);
   obsGroup.add(dot);
   registerSel('obsP0', { name:'Observer p (Milky Way)', mode:'obs', pick:dot, labelEl:lab.element,
-    desc:'The quasi-local observer. Every screen S²_χ(p) is invariant under the stabilizer SO(3)_p — an observer-relative invariant, not a global SO(4) selection.',
+    desc:'The quasi-local observer. Every screen S²_χ(p) is invariant under the stabilizer SO(3)_p — an observer-relative invariant, not a global SO(4) selection. The scale chain is TWO-WAY here: zooming in past 20 Mly hands off seamlessly (same direction, radius mapped 1:1) into the Solar mode\'s cosmic-web layer, and from there to the Local Group, the Galaxy, the Oort cloud, the planets. Zooming out of the Solar chain past 26 Gly returns to this view.',
     getPos:()=>new THREE.Vector3(), focusDist:()=>6,
     rows:()=>[['Domain','D_obs(p,T) ⊂ S³_R, D_obs ≠ S³_R'],['Γ_obs','1.2614×10⁻⁴'],['Γ_ST joint diagnostic','4.255×10⁻¹⁰']] });
 }
@@ -5971,8 +5976,15 @@ function autoSolarScale(dt){
   // beyond the cosmic layer the chain continues INTO the Observable Universe mode:
   // the same structures, same directions — one continuous instrument
   if(layer==='cosmic' && d>26*GLY_AU){
-    _autoScaleCd=2.0; setMode('obs');
-    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ Observable Universe (mode hand-off — same sky, 1 unit = 1 Gly)';
+    _autoScaleCd=2.0;
+    // STRICT position/scale continuity across the mode seam: keep the view direction
+    // and map the radius 1:1 (solar AU → obs units of 1 Gly). No teleport, no reframe.
+    const dir=camera.position.clone().sub(controls.target).normalize();
+    setMode('obs');
+    controls.target.set(0,0,0);
+    camera.position.copy(dir).multiplyScalar(d/GLY_AU);
+    syncCameraClipping(true);
+    if(typeof hudBig!=='undefined' && hudBig) hudBig.textContent='Scale ↑ Observable Universe (mode hand-off — same sky, same direction, 1 unit = 1 Gly)';
     return;
   }
   if(outAt!=null && i<order.length-1 && d>outAt){
@@ -8542,7 +8554,30 @@ const GRAV_PRESETS=[
   B:()=>{ const om=Math.sqrt(1.001);
     return [{m:1,x:0,y:0,vx:0,vy:0},{m:1e-3,x:1,y:0,vx:0,vy:om},
             {m:1e-9,x:0.5,y:Math.sqrt(3)/2,vx:-om*Math.sqrt(3)/2,vy:om*0.5}]; }, om:Math.sqrt(1.001)},
+ {id:'gw',name:'GW inspiral · wave space',ref:'Peters 1964 quadrupole radiation + 1PN periapsis precession',T:null,gw:true,
+  cls:'the orbit RADIATES — energy leaves as gravitational waves, the ellipse shrinks, circularises and chirps to merger',
+  B:()=>{ const a=2.4,e=Math.min(0.9,Math.max(0,state.gwE0??0.55)),r=a*(1+e),v=Math.sqrt(2*(2/r-1/a))/2;
+    return [{m:1,x:-r/2,y:0,vx:0,vy:-v},{m:1,x:r/2,y:0,vx:0,vy:v}]; }},
 ];
+/* GW inspiral secular state — Peters (1964) orbit-averaged evolution of (a,e) plus the
+   1PN periapsis advance. c is COMPRESSED to 3.75 code units so a full chirp fits a
+   session — declared cinematic units; the EQUATIONS are the literature's own. */
+let gwSt=null;
+function gwPetersRates(a,e,M,c5){
+  const e2=e*e, om2=1-e2;
+  const da=-(64/5)*(M/c5)/(a*a*a*Math.pow(om2,3.5))*(1+73/24*e2+37/96*e2*e2);
+  const de=-(304/15)*e*(M/c5)/(a*a*a*a*Math.pow(om2,2.5))*(1+121/304*e2);
+  return [da,de];
+}
+function gwMergerTime(a0,e0,M,c5){          // numeric — the honest general-e answer
+  let a=a0,e=e0,t=0;
+  for(let i=0;i<20000&&a>12/Math.pow(c5,0.4);i++){
+    const [da,de]=gwPetersRates(a,e,M,c5);
+    const h=Math.min(0.5,-0.004*a/da); a+=da*h; e=Math.max(0,e+de*h); t+=h;
+    if(a<=0.09) break;
+  }
+  return t;
+}
 let gravBodies=[], gravMeshes=[], gravTrails=[], gravExtra=[], gravT=0, gravInv0=null,
     gravBuiltId='', gravRetBest=null, _gravPrevD=null, _gravLagMarks=null, gravUiAcc=0,
     gravShadow=null, gravLamSum=0, gravLam=null, gravLamSamples=[];   // Benettin twin trajectory → finite-time Lyapunov λ
@@ -8609,6 +8644,17 @@ function gravSetup(){
   const tl=mkLabel(`GRAVITAS · ${P.name} — ${P.ref}`,'label const'); tl.position.set(0,4.1,0);
   gravGroup.add(tl); gravExtra.push(tl);
   const cl=mkLabel(P.cls,'label dim'); cl.position.set(0,-3.9,0); gravGroup.add(cl); gravExtra.push(cl);
+  // GW inspiral: secular Peters state + a recycled pool of expanding wave rings
+  gwSt=null;
+  if(P.gw){
+    gravShadow=null;                                   // the Benettin twin is meaningless for secular dynamics
+    const c=3.75;
+    gwSt={a:2.4,e:Math.min(0.9,Math.max(0,state.gwE0??0.55)),M:2,c,c5:Math.pow(c,5),
+          isco:12/(c*c),ph:Math.PI,w:0,merged:false,emit:0,rings:[]};
+    for(let i=0;i<22;i++){ const ring=guideCircle(1,0x9fd8ff,0,72);
+      ring.userData={on:false,r:0}; ring.visible=false;
+      gravGroup.add(ring); gravExtra.push(ring); gwSt.rings.push(ring); }
+  }
   // L4/L5 fixed points, visible in the rotating frame of the co-rotating presets
   if(P.om){
     _gravLagMarks=new THREE.Group();
@@ -8621,11 +8667,56 @@ function gravSetup(){
     _gravLagMarks.visible=false; gravGroup.add(_gravLagMarks); gravExtra.push(_gravLagMarks);
   }
 }
+/* GW inspiral frame advance: Peters secular (a,e) + 1PN periapsis + Kepler osculation.
+   Writes positions AND velocities into gravBodies so the shared display, trails and
+   the invariant monitor all work unchanged — E_orb now honestly DECREASES: the deficit
+   is the energy carried away by the wave rings. */
+function gwAdvance(dt){
+  const s=gwSt; if(!s) return;
+  let dtS=Math.min(dt,0.05)*state.gravSpeed;
+  if(!s.merged){
+    const k=Math.max(1,Math.ceil(dtS/0.01)), h=dtS/k;
+    for(let i=0;i<k;i++){
+      const n=Math.sqrt(s.M/(s.a*s.a*s.a));
+      s.ph+=n*h;
+      s.w+=3*s.M*n/((s.c*s.c)*s.a*(1-s.e*s.e))*h;       // 1PN periapsis advance rate
+      const [da,de]=gwPetersRates(s.a,s.e,s.M,s.c5);
+      s.a+=da*h; s.e=Math.max(0,s.e+de*h); s.emit+=h;
+      if(s.a<=s.isco){ s.merged=true; break; }
+    }
+  }
+  const B=gravBodies;
+  if(s.merged){ B[0].x=B[0].y=B[1].x=B[1].y=0; B[0].vx=B[0].vy=B[1].vx=B[1].vy=0; }
+  else {
+    const n=Math.sqrt(s.M/(s.a*s.a*s.a));
+    let Mm=s.ph%(2*Math.PI); if(Mm>Math.PI)Mm-=2*Math.PI; if(Mm<-Math.PI)Mm+=2*Math.PI;
+    const E=keplerE(Mm,s.e), ce=Math.cos(E), se=Math.sin(E), b=Math.sqrt(1-s.e*s.e);
+    let x=s.a*(ce-s.e), y=s.a*b*se;
+    let vx=-s.a*n*se/(1-s.e*ce), vy=s.a*n*b*ce/(1-s.e*ce);
+    const cw=Math.cos(s.w), sw=Math.sin(s.w);
+    const xr=x*cw-y*sw, yr=x*sw+y*cw, vxr=vx*cw-vy*sw, vyr=vx*sw+vy*cw;
+    B[0].x=-xr/2; B[0].y=-yr/2; B[0].vx=-vxr/2; B[0].vy=-vyr/2;
+    B[1].x= xr/2; B[1].y= yr/2; B[1].vx= vxr/2; B[1].vy= vyr/2;
+    // one wave ring per half-orbit: f_GW = 2 f_orb (quadrupole)
+    if(s.emit>Math.PI/n){ s.emit=0;
+      const ring=s.rings.find(r=>!r.userData.on);
+      if(ring){ ring.userData.on=true; ring.userData.r=0.18; } }
+  }
+  for(const ring of s.rings){
+    if(!ring.userData.on){ ring.visible=false; continue; }
+    ring.userData.r+=s.c*0.55*dtS; const R=ring.userData.r;
+    ring.visible=true; ring.scale.setScalar(R*GRAV_S);
+    ring.material.opacity=Math.min(0.6,1.1/Math.max(R,1.0));
+    if(R>9){ ring.userData.on=false; ring.visible=false; }
+  }
+  gravT+=dtS;
+}
 function updateGrav(dt){
   if(state.gravPreset!==gravBuiltId) gravSetup();
   if(!gravBodies.length) return;
   const P=GRAV_PRESETS.find(p=>p.id===gravBuiltId)||GRAV_PRESETS[0];
-  if(state.gravRun){
+  if(state.gravRun && P.gw){ gwAdvance(dt); }
+  else if(state.gravRun){
     // adaptive symplectic advance: base h scaled down as (rmin/0.5)^1.5 near encounters,
     // with a hard substep budget — during a deep encounter the sim slows rather than lies
     let want=Math.min(dt,0.05)*state.gravSpeed, t=0, steps=0;
@@ -8680,6 +8771,27 @@ function updateGrav(dt){
       tr.geometry.computeBoundingSphere();
     }
   });
+  if(P.gw&&gwSt){
+    const s=gwSt;
+    if(s.merged){
+      hudBig.textContent=`GRAVITAS · GW inspiral · MERGER at t = ${gravT.toFixed(1)} τ`;
+      hudSub.textContent='chirp complete — ringdown & merger waveform need numerical relativity (NOT modelled, and said so) · Peters 1964 quadrupole inspiral, cinematic c = 3.75';
+    } else {
+      const n=Math.sqrt(s.M/(s.a*s.a*s.a)), fgw=n/Math.PI, vc=Math.sqrt(s.M/s.a)/s.c;
+      hudBig.textContent=`GRAVITAS · GW inspiral · a = ${s.a.toFixed(3)} · e = ${s.e.toFixed(3)} · f_GW = ${fgw.toFixed(2)}/τ ↑chirp`;
+      hudSub.textContent=`E_orb = −m₁m₂/2a = ${(-1/(2*s.a)).toFixed(4)} — falling: the deficit is RADIATED wave energy (Peters flux) · v/c ≈ ${vc.toFixed(2)} · periapsis ω = ${((s.w/DEG)%360).toFixed(0)}° (1PN advance) · merger in ≈ ${gwMergerTime(s.a,s.e,s.M,s.c5).toFixed(1)} τ`;
+    }
+    gravUiAcc+=dt;
+    if(gravUiAcc>0.35){ gravUiAcc=0;
+      const el=ctl.querySelector('#gravInv');
+      if(el) el.innerHTML= s.merged
+        ? `<b style="color:#ffd27f">MERGER</b> at t = ${gravT.toFixed(2)} τ — the binary crossed the ISCO (a ≤ 6·G(m₁+m₂)/c² = ${s.isco.toFixed(3)}).<br>Beyond this point the quadrupole approximation fails; ringdown requires numerical relativity — declared, not faked.`
+        : `a = <b>${s.a.toFixed(4)}</b> → ISCO ${s.isco.toFixed(3)} · e = <b>${s.e.toFixed(4)}</b> (circularising — GW damps eccentricity first)`+
+          `<br>E_orb = ${(-1/(2*s.a)).toFixed(5)} · dE/dt = Peters flux · f_GW = 2·f_orb = ${(Math.sqrt(s.M/(s.a*s.a*s.a))/Math.PI).toFixed(3)}/τ (chirping up)`+
+          `<br><b>predicted merger in ≈ ${gwMergerTime(s.a,s.e,s.M,s.c5).toFixed(2)} τ</b> — a falsifiable forecast: watch it come true`;
+    }
+    return;
+  }
   const inv=gravInvariants(gravBodies);
   const dE=Math.abs((inv.E-gravInv0.E)/(Math.abs(gravInv0.E)||1));
   hudBig.textContent=`GRAVITAS · ${P.name} · t = ${gravT.toFixed(2)}${P.T?` · T ≈ ${P.T}`:' · chaotic'}${state.gravRotFrame&&P.om?' · co-rotating frame':''}`;
@@ -12973,7 +13085,7 @@ const state = {
   cycYrPerSec: 1, cycSeasons: null,
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
-  gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false,   // Gravitas 3-body lab · Solar L-points
+  gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,   // Gravitas 3-body lab · GW inspiral · Solar L-points
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -14179,6 +14291,9 @@ function buildCtlBody(){
       <div class="ctlrow"><label>Co-rotating frame</label>
         <input type="checkbox" id="gravRot" ${state.gravRotFrame?'checked':''}>
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">for Lagrange / Euler / Trojan — L4·L5 become fixed points</span></div>
+      ${state.gravPreset==='gw'?`<div class="ctlrow"><label>Initial eccentricity e₀</label>
+        <input type="range" id="gwE0" min="0" max="0.9" step="0.01" value="${state.gwE0??0.55}"><span class="val" id="gwE0V">${(state.gwE0??0.55).toFixed(2)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">WAVE SPACE: the binary loses energy and angular momentum to gravitational radiation at the Peters (1964) orbit-averaged rates — da/dt ∝ −a⁻³(1−e²)^(−7/2)(1+73e²/24+37e⁴/96), de/dt &lt; 0, so the orbit shrinks AND circularises, exactly like real LIGO progenitors. Rings mark each wave crest (f_GW = 2f_orb — quadrupole), the rosette is the 1PN periapsis advance (Mercury's effect, amplified), and the monitor's falling E_orb IS the outgoing wave energy. Honesty: c is compressed to 3.75 code units so the chirp fits a session; the equations are the literature's own; ringdown past the ISCO needs numerical relativity and is not faked.</div>`:''}
     </div>
     <div class="sect"><b>Invariant monitor — the conservation laws, live</b>
       <div class="note" id="gravInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
@@ -14461,6 +14576,10 @@ function buildCtlBody(){
         const v=ctl.querySelector('#gravSpeedV'); if(v)v.textContent='×'+state.gravSpeed.toFixed(2); });
       ctl.querySelector('#gravRot')&&(ctl.querySelector('#gravRot').onchange=e=>{ state.gravRotFrame=e.target.checked;
         gravTrails.forEach(t=>{ t.userData.n=0; t.geometry.setDrawRange(0,0); }); });   // trails live in the display frame
+      { const s=ctl.querySelector('#gwE0');
+        if(s){ s.oninput=e=>{ state.gwE0=+e.target.value;
+                 const v=ctl.querySelector('#gwE0V'); if(v)v.textContent=state.gwE0.toFixed(2); };
+               s.onchange=()=>{ gravSetup(); }; } }
       ctl.querySelector('#gravToLag')&&(ctl.querySelector('#gravToLag').onclick=()=>{
         state.showLagrange=true; setMode('solar');
         const eo=planetObjs[2]; if(eo){ controls.target.copy(eo.mesh.position);
@@ -15410,7 +15529,9 @@ function setMode(mode){
     }
   } else if(mode==='obs'){
     camera.position.set(0,55,118); controls.target.set(0,0,0);
-    setControlDistanceLimits(1,1600);   // must reach OUTSIDE the 548-Gly curvature shell for the full family fly-through
+    // near limit must dive BELOW the 0.02-Gly Solar hand-off radius, or the
+    // return leg of the Observable↔Solar chain is unreachable (one-way trap)
+    setControlDistanceLimits(0.012,1600);   // 12 Mly … outside the 548-Gly curvature shell
   } else if(mode==='s3'){
     camera.position.set(0,8,17); controls.target.set(0,0,0);
     setControlDistanceLimits(.5,120);
@@ -16645,9 +16766,14 @@ function tickBody(now, frame){
     if(!state.landed && !renderer.xr.isPresenting && !focusAnim){
       if(_autoScaleCd>0) _autoScaleCd-=dt;
       else { const dObs=camera.position.distanceTo(controls.target);
-        if(controls.target.length()<0.05 && dObs<0.02){
-          const dir=camera.position.clone().normalize();
+        const homeAim=controls.target.length()<0.08;
+        // breadcrumb for the return leg: the chain is two-way and says so while you dive
+        if(homeAim && dObs<0.8 && dObs>=0.02)
+          hudBig.textContent=`→ home galaxy ${ (dObs*1000).toFixed(0) } Mly — keep zooming: hand-off to the Solar scale chain at 20 Mly`;
+        if(homeAim && dObs<0.02){
+          const dir=camera.position.clone().sub(controls.target).normalize();
           _autoScaleCd=2.0;
+          // STRICT continuity: same direction, radius mapped 1:1 (obs Gly → solar AU)
           setMode('solar'); state.solarScaleLayer='cosmic'; advanceScaleLayer('cosmic');
           controls.target.set(0,0,0);
           camera.position.copy(dir.multiplyScalar(Math.max(dObs,0.008)*GLY_AU));
@@ -16942,6 +17068,9 @@ globalThis.FBS3R_QA=Object.freeze({
   },
   // read-only snapshots for external harnesses (never mutate)
   state(){ try{ return JSON.parse(JSON.stringify(state)); }catch(e){ return {err:String(e)}; } },
+  cam(){ try{ return { d:camera.position.distanceTo(controls.target),
+    target:controls.target.toArray(), pos:camera.position.toArray(),
+    mode:state.mode, layer:state.solarScaleLayer||null }; }catch(e){ return {err:String(e)}; } },
   solitonStats(){ try{ return {
     view:state.s3view,
     skCount:(typeof skCenters!=='undefined'&&skCenters)?skCenters.length:0,
