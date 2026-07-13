@@ -1222,6 +1222,37 @@ function runSelfTests(){
     const th=e=>2*Math.PI*(((e%galDays)+galDays)%galDays)/galDays;
     ok('Galactic rotation phase identical at epoch e and e+1190 galactic years (<1e-9 rad)',
       Math.abs(th(7.25)-th(7.25+1190*galDays))<1e-9, Math.abs(th(7.25)-th(7.25+1190*galDays)).toExponential(1)); }
+  { // TOPOLOGY: the Gauss integral lands on the exact integers
+    const A=topoHopfFibre(1.2,0,110), B=topoHopfFibre(2.1,1.5,110);
+    const lk=topoGaussLink(A,B);
+    ok('Gauss linking of two Hopf fibres = 1 within 1e-2', Math.abs(lk-1)<0.01, lk.toFixed(5));
+    const C=[],D2=[];
+    for(let k=0;k<110;k++){ const t=k/110*2*Math.PI;
+      C.push(new THREE.Vector3(Math.cos(t)*1.2-2.2,Math.sin(t)*1.2,0));
+      D2.push(new THREE.Vector3(Math.cos(t)*1.2+2.2,0,Math.sin(t)*1.2)); }
+    ok('Gauss linking of separated loops = 0 within 1e-3', Math.abs(topoGaussLink(C,D2))<1e-3, topoGaussLink(C,D2).toExponential(1)); }
+  { // TAUB-NUT: J = r×v − N r̂ conserved and J·r̂ = −N at machine precision (RK4)
+    const N=0.6; let p=new THREE.Vector3(2.2,0,0), v=new THREE.Vector3(0,0.28,0.52);
+    const J0=p.clone().cross(v).sub(p.clone().normalize().multiplyScalar(N));
+    const h=0.004;
+    for(let s=0;s<2500;s++){
+      const k1v=tnAcc(p,v,N), k1p=v.clone();
+      const k2v=tnAcc(p.clone().addScaledVector(k1p,h/2), v.clone().addScaledVector(k1v,h/2),N), k2p=v.clone().addScaledVector(k1v,h/2);
+      const k3v=tnAcc(p.clone().addScaledVector(k2p,h/2), v.clone().addScaledVector(k2v,h/2),N), k3p=v.clone().addScaledVector(k2v,h/2);
+      const k4v=tnAcc(p.clone().addScaledVector(k3p,h),   v.clone().addScaledVector(k3v,h),N),   k4p=v.clone().addScaledVector(k3v,h);
+      p.addScaledVector(k1p.add(k2p.multiplyScalar(2)).add(k3p.multiplyScalar(2)).add(k4p),h/6);
+      v.addScaledVector(k1v.add(k2v.multiplyScalar(2)).add(k3v.multiplyScalar(2)).add(k4v),h/6);
+    }
+    const J=p.clone().cross(v).sub(p.clone().normalize().multiplyScalar(N));
+    ok('Taub-NUT cone law: J·r̂ = −N after 2500 RK4 steps (<1e-7)',
+      Math.abs(J.dot(p.clone().normalize())+N)<1e-7, (J.dot(p.clone().normalize())+N).toExponential(1));
+    ok('Taub-NUT |J| conserved (<1e-7 rel)', Math.abs(J.length()-J0.length())/J0.length()<1e-7,
+      (Math.abs(J.length()-J0.length())/J0.length()).toExponential(1)); }
+  ok('SI consistency: K_J = 1/Φ₀ exactly (2019 SI): 483597.8484 GHz/V vs 1e-9/Φ₀',
+    Math.abs(SC_KJ-1e-9/SC_PHI0)/SC_KJ<1e-9, (1e-9/SC_PHI0).toFixed(4));
+  { const l1=eotLamRes(600,1,0), l2=eotLamRes(700,1,0);
+    ok('EOT: SPP(1,0) resonance is REDSHIFTED past a₀ and grows with the period',
+      !!l1&&!!l2&&l1>600&&l2>l1, `λ(600)=${l1&&l1.toFixed(0)} λ(700)=${l2&&l2.toFixed(0)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   ok('JPL secular rates encoded for all eight major planets',
@@ -5420,6 +5451,36 @@ function updateSolarVectors(T,geoShift){
       _svPrec.userData.ring.position.y=Math.cos(eps)*1.9;
       const txt=(ltp?'Vondrák':'25,772-yr')+' precession cone · ε(t) = '+(eps/DEG).toFixed(2)+'°';
       if(_svPrec.userData.lab.element.textContent!==txt) _svPrec.userData.lab.element.textContent=txt;
+      // PROTRACTOR ARC: J2000 pole reference line + a measured arc from the pole of
+      // date to it, graduated in degrees — the precession angle as an instrument
+      if(!_svPrec.userData.prot){
+        const P=new THREE.Group();
+        const refLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(0,2.3,0)]),
+          new THREE.LineBasicMaterial({color:0x9db0d0,transparent:true,opacity:.7}));
+        const arc=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',
+          new THREE.BufferAttribute(new Float32Array(25*3),3)),
+          new THREE.LineBasicMaterial({color:0xffd27f,transparent:true,opacity:.95}));
+        const pl=mkLabel('','label axis'); P.add(refLine,arc,pl);
+        P.traverse(x=>{ if(x.material){x.material.depthTest=false;x.renderOrder=23;} });
+        _svPrec.add(P); _svPrec.userData.prot={grp:P,refLine,arc,lab:pl};
+      }
+      { const pr=_svPrec.userData.prot;
+        const eoM=_svPrec.parent;                       // Earth mesh: local +Y = pole of date
+        const qInv=eoM.getWorldQuaternion(new THREE.Quaternion()).invert();
+        const j2k=earthPoleDir(0).applyQuaternion(qInv).normalize();   // J2000 pole in local frame
+        pr.refLine.geometry.setFromPoints([new THREE.Vector3(),j2k.clone().multiplyScalar(2.3)]);
+        const ang=j2k.angleTo(new THREE.Vector3(0,1,0));
+        const axis=new THREE.Vector3(0,1,0).cross(j2k).normalize();
+        const a=pr.arc.geometry.attributes.position.array;
+        for(let i=0;i<25;i++){ const v=new THREE.Vector3(0,1,0).applyAxisAngle(axis.lengthSq()>0.5?axis:new THREE.Vector3(1,0,0),ang*i/24).multiplyScalar(1.9);
+          a[i*3]=v.x; a[i*3+1]=v.y; a[i*3+2]=v.z; }
+        pr.arc.geometry.attributes.position.needsUpdate=true;
+        const mid=new THREE.Vector3(0,1,0).applyAxisAngle(axis.lengthSq()>0.5?axis:new THREE.Vector3(1,0,0),ang/2).multiplyScalar(2.05);
+        pr.lab.position.copy(mid);
+        const ptxt='Δ = '+(ang/DEG).toFixed(2)+'° from J2000 pole';
+        if(pr.lab.element.textContent!==ptxt) pr.lab.element.textContent=ptxt;
+        pr.grp.visible=ang>0.0004;                      // hide the instrument at the J2000 epoch itself
+      }
     }
   }
   for(const o of planetObjs) if(o.axisCue) o.axisCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false&&local;
@@ -8947,6 +9008,9 @@ function updateGrav(dt){
   hudSub.textContent=`E = ${inv.E.toFixed(6)} (|ΔE/E| = ${dE.toExponential(1)}) · L_z = ${inv.Lz.toFixed(6)} · |P| = ${inv.P.toExponential(1)}${lamTxt} · Forest–Ruth symplectic, G=1${gravRetBest?` · phase-space return δ=${gravRetBest.d.toFixed(4)} at t≈${gravRetBest.T.toFixed(3)}`:''}`;
   gravUiAcc+=dt;
   if(gravUiAcc>0.35){ gravUiAcc=0;
+    ATLAS_BUS.pub('grav.E',+inv.E.toFixed(6),'code units');
+    ATLAS_BUS.pub('grav.Lz',+inv.Lz.toFixed(6),'');
+    if(gravLam!==null) ATLAS_BUS.pub('grav.lambda',+gravLam.toFixed(3),'/τ');
     const el=ctl.querySelector('#gravInv');
     if(el) el.innerHTML=
       `E = <b>${inv.E.toFixed(9)}</b> · drift |ΔE/E| = <b style="color:${dE<1e-7?'#9fe8d8':dE<1e-4?'#ffd27f':'#ff9fb0'}">${dE.toExponential(2)}</b>`+
@@ -9056,6 +9120,8 @@ function updateQm(dt){
       const k0=state.qmK0??1.4, E=k0*k0/2, V0=state.qmV0??1.5;
       let an='—'; if(E<V0){ const kap=Math.sqrt(2*(V0-E)); an=(1/(1+(V0*V0*Math.sinh(kap*1.0)**2)/(4*E*(V0-E)))).toFixed(3); }
       extra=` · transmitted ∫|ψ|² = ${Tt.toFixed(3)} (plane-wave T = ${an}; packet has energy spread — declared)`; }
+    ATLAS_BUS.pub('qm.E',+(ke+pe).toFixed(5),'ħω units');
+    ATLAS_BUS.pub('qm.normDrift',+(nrm-1).toExponential(1),'');
     const el=ctl.querySelector('#qmInv');
     if(el) el.innerHTML=`t = ${qmT.toFixed(2)} · ⟨E⟩ = ${(ke+pe).toFixed(5)} (conserved) · ‖ψ‖² = 1 ${(nrm-1)>=0?'+':'−'} ${Math.abs(nrm-1).toExponential(1)}${extra}`;
     hudBig.textContent=`QUANTUM WAVE LAB · ${({harmonic:'coherent state — the quantum pendulum',free:'free packet — dispersion',barrier:'tunnelling through a barrier',well:'double well — coherent tunnelling'})[qmBuilt]}`;
@@ -9149,6 +9215,8 @@ function updateQcd(dt){
   }
   qcdUiAcc+=dt;
   if(qcdUiAcc>0.3){ qcdUiAcc=0;
+    ATLAS_BUS.pub('qcd.V',+qcdV(r).toFixed(3),'GeV at '+r.toFixed(2)+' fm');
+    ATLAS_BUS.pub('qcd.alphaS_MZ',+qcdAlphaS(91.19).toFixed(4),'1-loop');
     const el=ctl.querySelector('#qcdInv');
     if(O.mode==='running'){ const Q=state.qcdQ??10;
       hudBig.textContent=`CHROMODYNAMICS · running coupling · αs(${Q.toFixed(1)} GeV) = ${qcdAlphaS(Q).toFixed(4)}`;
@@ -9167,6 +9235,484 @@ function updateQcd(dt){
       if(el) el.innerHTML='Colour charge is exact SU(3), not a metaphor: only colour-singlets (q q̄ mesons, qqq baryons) exist free. The permuting RGB is the schematic of the gluon field continually re-labelling the quarks while the total remains neutral.';
     }
   }
+}
+
+/* ================================================================
+   ATLAS BUS · the invariant network. Every laboratory PUBLISHES its
+   live invariants here (energies, charges, exponents, verdicts,
+   sensor streams) and any module may read any other's — dynamic
+   cross-module data flow with one strict rule: values are published
+   with units and read-only. The Topology lab's Invariant-Map station
+   renders the whole live network. */
+const ATLAS_BUS={ _d:new Map(), _t:new Map(),
+  pub(k,v,unit){ this._d.set(k,{v,unit:unit||''}); this._t.set(k,performance.now()); },
+  get(k){ const e=this._d.get(k); return e?e.v:null; },
+  age(k){ const t=this._t.get(k); return t===undefined?Infinity:(performance.now()-t)/1000; },
+  all(){ const o={}; for(const [k,e] of this._d) o[k]={...e,age:+this.age(k).toFixed(1)}; return o; } };
+globalThis.ATLAS_BUS=ATLAS_BUS;
+
+/* ================================================================
+   TOPOLOGY ATLAS · the invariants that hold the whole model together,
+   demonstrated ON the trisphere: the live Gauss linking integral
+   (converges to an INTEGER before your eyes), Poincaré–Hopf on S²
+   vs the parallelisable S³, and the invariant map of every lab. */
+const topoGroup=new THREE.Group(); topoGroup.visible=false; s3Group.add(topoGroup);
+function topoHopfFibre(th,ph,N=160,R=1.9){
+  const pts=[];
+  for(let k=0;k<N;k++){ const t=k/N*2*Math.PI;
+    const z1r=Math.cos(th/2)*Math.cos(t+ph), z1i=Math.cos(th/2)*Math.sin(t+ph);
+    const z2r=Math.sin(th/2)*Math.cos(t),   z2i=Math.sin(th/2)*Math.sin(t);
+    const w=1-z2i;
+    pts.push(new THREE.Vector3(z1r/w*R, z2r/w*R, z1i/w*R));
+  }
+  return pts;
+}
+function topoGaussLink(A,B){                          // (1/4π)∮∮ (dr₁×dr₂)·r̂/|r|²
+  let s=0; const va=new THREE.Vector3(), vb=new THREE.Vector3(), r=new THREE.Vector3(), c=new THREE.Vector3();
+  for(let i=0;i<A.length;i++){
+    const a=A[i], a2=A[(i+1)%A.length]; va.subVectors(a2,a);
+    const amx=(a.x+a2.x)/2, amy=(a.y+a2.y)/2, amz=(a.z+a2.z)/2;
+    for(let j=0;j<B.length;j++){
+      const b=B[j], b2=B[(j+1)%B.length]; vb.subVectors(b2,b);
+      r.set(amx-(b.x+b2.x)/2, amy-(b.y+b2.y)/2, amz-(b.z+b2.z)/2);
+      const rl=r.length(); c.crossVectors(va,vb);
+      s+=c.dot(r)/(rl*rl*rl);
+    }
+  }
+  return s/(4*Math.PI);
+}
+let topoObjs=null, topoT=0, topoDirty=true, topoLk=null;
+function topoClear(){
+  while(topoGroup.children.length){ const o=topoGroup.children.pop();
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  topoObjs=null; topoLk=null; topoDirty=true;
+}
+function topoSetup(){
+  topoClear(); topoT=0;
+  const st=state.topoStation||'link';
+  const mkLine=(pts,col,op=.9)=>{ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([...pts,pts[0]]),
+      new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));
+    topoGroup.add(l); return l; };
+  if(st==='link'){
+    const mode=state.topoLinkMode||'hopf';
+    let A,B;
+    if(mode==='coil'){
+      const m=Math.round(state.topoM??2); A=[];
+      for(let k=0;k<320;k++){ const t=k/320*2*Math.PI, R=1.9+0.6*Math.cos(m*t);
+        A.push(new THREE.Vector3(R*Math.cos(-t),0.6*Math.sin(-m*t),R*Math.sin(-t))); }
+      B=[]; for(let k=0;k<160;k++){ const t=k/160*2*Math.PI; B.push(new THREE.Vector3(1.9*Math.cos(t),0,1.9*Math.sin(t))); }
+    } else if(mode==='unlink'){
+      A=[]; B=[];
+      for(let k=0;k<160;k++){ const t=k/160*2*Math.PI;
+        A.push(new THREE.Vector3(Math.cos(t)*1.2-2.2,Math.sin(t)*1.2,0));
+        B.push(new THREE.Vector3(Math.cos(t)*1.2+2.2,0,Math.sin(t)*1.2)); }
+    } else {
+      A=topoHopfFibre(1.2,0); B=topoHopfFibre(state.topoThB??2.1,state.topoPhB??1.5);
+    }
+    mkLine(A,0xf5c964); mkLine(B,0x8fb8ff);
+    const tl=mkLabel('GAUSS LINKING INTEGRAL · Lk = (1/4π)∮∮ (dr₁×dr₂)·r̂/|r|²','label const'); tl.position.set(0,4.2,0); topoGroup.add(tl);
+    const lk=mkLabel('computing…','label major'); lk.position.set(0,3.3,0); topoGroup.add(lk);
+    topoObjs={st,A,B,lkLab:lk}; topoDirty=true;
+  } else if(st==='hairy'){
+    const R=2.3, field=state.topoField||'dipole';
+    topoGroup.add(new THREE.Mesh(new THREE.SphereGeometry(R,48,32),
+      new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.16})));
+    const g=new THREE.ConeGeometry(.045,.24,7); g.translate(0,.12,0);
+    const inst=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0x9fd8ff}),420);
+    topoGroup.add(inst);
+    const zs = field==='index2' ? [{p:new THREE.Vector3(0,R,0),idx:2}]
+             : [{p:new THREE.Vector3(0,R,0),idx:1},{p:new THREE.Vector3(0,-R,0),idx:1}];
+    for(const z of zs){
+      const ring=guideCircle(.34,0xffd27f,.9,40); ring.position.copy(z.p.clone().multiplyScalar(1.01)); topoGroup.add(ring);
+      const zl=mkLabel('zero · index +'+z.idx,'label axis'); zl.position.copy(z.p.clone().multiplyScalar(1.16)); topoGroup.add(zl); }
+    const tl=mkLabel(`POINCARÉ–HOPF ON S² · Σ indices = ${zs.reduce((s,z)=>s+z.idx,0)} = χ(S²) — no combing allowed`,'label const');
+    tl.position.set(0,3.9,0); topoGroup.add(tl);
+    const bl=mkLabel('…but the TRISPHERE escapes: χ(S³)=0, S³ ≅ SU(2) is parallelisable — the gold Hopf flow combs it with NO bald spot','label dim');
+    bl.position.set(0,-3.6,0); topoGroup.add(bl);
+    const flows=[];
+    for(const [th,ph] of [[0.9,0],[1.5,2.1],[2.2,4.0]]){
+      const pts=topoHopfFibre(th,ph,160,1.05); mkLine(pts,0xf5c964,.35);
+      const mote=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),new THREE.MeshBasicMaterial({color:0xffe9a0}));
+      topoGroup.add(mote); flows.push({pts,mote,off:(th*53|0)%160});
+    }
+    topoObjs={st,inst,field,R,flows};
+  } else {
+    const tl=mkLabel('INVARIANT MAP · every lab pinned to its topological home · live network below in the panel','label const');
+    tl.position.set(0,3.4,0); topoGroup.add(tl);
+    const rows=[
+      ['Skyrmion lab','π₂(S²) = ℤ · Berg–Lüscher degree Q',0xf5c964],
+      ['Hopfion lab','π₃(S²) = ℤ · Hopf charge Q_H = p·q',0x8fb8ff],
+      ['Hopf fibration','the generator: fibres link once (station 1 measures it)',0x9fe8d8],
+      ['Bell lune','U(1) holonomy e^{i(π−θ)} · Chern ±1',0xd9a2ff],
+      ['Mandelbrot⇄Julia','connectedness dichotomy of J_c',0xff9fb0],
+      ['Superconductor vortices','π₁(U(1)) = ℤ · each carries EXACTLY Φ₀ = h/2e',0xffe9a0],
+      ['FBS3R / DRD','suspension chain S⁰→S¹→S²→S³ carrying one ℤ',0xffcf8a],
+    ];
+    rows.forEach(([name,inv,col],i)=>{
+      const d=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),new THREE.MeshBasicMaterial({color:col}));
+      d.position.set(-3.4,2.2-i*0.78,0); topoGroup.add(d);
+      const l=mkLabel(name+' — '+inv,'label'); l.position.set(0.4,2.2-i*0.78,0); topoGroup.add(l); });
+    topoObjs={st};
+  }
+}
+const _tpD=new THREE.Object3D(), _tpV=new THREE.Vector3(), _tpU=new THREE.Vector3(0,1,0);
+function updateTopo(dt){
+  if(!topoObjs||topoObjs.st!==(state.topoStation||'link')) topoSetup();
+  topoT+=dt; const O=topoObjs;
+  if(O.st==='link'){
+    if(topoDirty){ topoDirty=false; topoLk=topoGaussLink(O.A,O.B);
+      const near=Math.round(topoLk), err=Math.abs(topoLk-near);
+      O.lkLab.element.textContent=`Lk = ${topoLk.toFixed(4)} → ${near} (numeric gap ${err.toExponential(1)}) — an INTEGER, as topology demands`;
+      ATLAS_BUS.pub('topo.Lk',+topoLk.toFixed(4),'ℤ');
+    }
+    hudBig.textContent=`TOPOLOGY · Gauss linking · Lk ≈ ${topoLk===null?'…':topoLk.toFixed(4)}`;
+    hudSub.textContent='the double line integral must land on an integer — invariance under ANY crossing-free deformation is the prediction, and the numerics confirm it live';
+  } else if(O.st==='hairy'){
+    let i=0; const R=O.R;
+    for(let a=1;a<14;a++)for(let b=0;b<30;b++){
+      if(i>=420) break;
+      const th=a/14*Math.PI, ph=b/30*2*Math.PI+topoT*0.15;
+      _tpV.set(R*Math.sin(th)*Math.cos(ph),R*Math.cos(th),R*Math.sin(th)*Math.sin(ph));
+      _tpD.position.copy(_tpV);
+      let dir;
+      const e1=new THREE.Vector3(Math.cos(th)*Math.cos(ph),-Math.sin(th),Math.cos(th)*Math.sin(ph));
+      const e2=new THREE.Vector3(-Math.sin(ph),0,Math.cos(ph));
+      if(O.field==='index2') dir=e1.clone().multiplyScalar(Math.cos(ph)).addScaledVector(e2,Math.sin(ph)).multiplyScalar(Math.sin(th));
+      else if(O.field==='rotation') dir=e2.clone().multiplyScalar(Math.sin(th));
+      else dir=e1.clone().multiplyScalar(Math.sin(th));
+      const L=dir.length();
+      if(L<1e-4){ _tpD.scale.setScalar(1e-4); } else {
+        _tpD.quaternion.setFromUnitVectors(_tpU,dir.normalize());
+        _tpD.scale.setScalar(0.4+1.1*L); }
+      _tpD.updateMatrix(); O.inst.setMatrixAt(i++,_tpD.matrix);
+    }
+    O.inst.count=i; O.inst.instanceMatrix.needsUpdate=true;
+    for(const f of O.flows){ const k=(Math.floor(topoT*26)+f.off)%f.pts.length; f.mote.position.copy(f.pts[k]); }
+    hudBig.textContent='TOPOLOGY · Poincaré–Hopf: Σ indices = χ(S²) = 2 — the hairy ball cannot be combed';
+    hudSub.textContent='the trisphere escapes: χ(S³)=0, S³ ≅ SU(2) is parallelisable — the gold Hopf flow never stops, never vanishes. That is why the atlas\'s carrier supports global frames.';
+  } else {
+    hudBig.textContent='TOPOLOGY · invariant map — the atlas\'s phenomena and their topological homes';
+    hudSub.textContent='π₂ skyrmions · π₃ hopfions · Hopf generator · U(1) holonomy · Julia connectedness · vortex flux quanta · suspension chain — one ℤ-language across every lab; live network in the panel';
+  }
+}
+
+/* ================================================================
+   SUPERCONDUCTIVITY LAB · Meissner expulsion, Josephson metrology,
+   Abrikosov vortex matter. Real numbers: λ_L per material, BCS gap
+   Δ(0)=1.764·k_B·T_c, the EXACT SI flux quantum Φ₀=h/2e and Josephson
+   constant K_J=483 597.848 4 GHz/V (the 2019 SI VOLT is defined by it). */
+const scGroup=new THREE.Group(); scGroup.visible=false; s3Group.add(scGroup);
+const SC_MATS=[
+  {id:'Al', name:'Aluminium', Tc:1.18, lam:50,  type:'I'},
+  {id:'Pb', name:'Lead',      Tc:7.19, lam:37,  type:'I'},
+  {id:'Nb', name:'Niobium',   Tc:9.25, lam:39,  type:'II'},
+  {id:'MgB2',name:'MgB₂',     Tc:39,   lam:85,  type:'II'},
+  {id:'YBCO',name:'YBa₂Cu₃O₇',Tc:92,   lam:150, type:'II'},
+];
+const SC_PHI0=2.067833848e-15, SC_KJ=483597.8484;   // Wb (exact) · GHz/V (exact SI)
+let scObjs=null, scT=0, scUiAcc=0;
+function scClear(){
+  while(scGroup.children.length){ const o=scGroup.children.pop();
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  scObjs=null;
+}
+function scSetupLab(){
+  scClear(); scT=0;
+  const st=state.scStation||'meissner';
+  if(st==='meissner'){
+    const R=1.7;
+    scGroup.add(new THREE.Mesh(new THREE.SphereGeometry(R,40,28),
+      new THREE.MeshPhongMaterial({color:0x24344e,transparent:true,opacity:.85,shininess:60})));
+    scGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+    const dl=new THREE.DirectionalLight(0xffffff,.6); dl.position.set(3,5,4); scGroup.add(dl);
+    // exterior field lines: uniform B ẑ + image dipole m=−B R³/2 (exact perfect-diamagnet solution)
+    for(let li=0;li<14;li++){
+      const x0=-3.6+(li/13)*7.2; if(Math.abs(x0)<0.28) continue;
+      const pts=[]; let p=new THREE.Vector3(x0,-4.2,0);
+      for(let s=0;s<420;s++){
+        const r=p.length(), r3=r*r*r;
+        // B = ẑ + dipole(−R³/2 ẑ): Bd = (3(m·r̂)r̂−m)/r³
+        const mz=-R*R*R/2, ur=p.clone().divideScalar(r||1e-9);
+        const B=new THREE.Vector3(0,1,0).addScaledVector(ur,3*mz*ur.y/r3).add(new THREE.Vector3(0,-mz/r3,0).multiplyScalar(-1));
+        B.y+= -mz/r3*0; // (kept explicit: uniform + full dipole term below)
+        const Bd=new THREE.Vector3(3*mz*ur.y*ur.x, 3*mz*ur.y*ur.y-mz, 3*mz*ur.y*ur.z).divideScalar(r3);
+        const Bt=new THREE.Vector3(0,1,0).add(Bd);
+        p=p.clone().addScaledVector(Bt.normalize(),0.022);
+        if(p.length()>R*1.002) pts.push(p.clone());
+        if(p.y>4.2) break;
+      }
+      if(pts.length>2) scGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.75})));
+    }
+    const tl=mkLabel('MEISSNER–OCHSENFELD · B is EXPELLED: exterior = uniform field + exact image dipole','label const'); tl.position.set(0,4.4,0); scGroup.add(tl);
+    const pl=mkLabel('','label dim'); pl.position.set(0,-4.0,0); scGroup.add(pl);
+    scObjs={st,penLab:pl};
+  } else if(st==='josephson'){
+    for(const s of [-1,1]){
+      const b=new THREE.Mesh(new THREE.BoxGeometry(2.4,2.2,2.2),
+        new THREE.MeshPhongMaterial({color:0x24344e,transparent:true,opacity:.9,shininess:50}));
+      b.position.x=s*1.5; scGroup.add(b); }
+    scGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+    const dl=new THREE.DirectionalLight(0xffffff,.55); dl.position.set(2,5,4); scGroup.add(dl);
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(0.36,2.2,2.2),
+      new THREE.MeshBasicMaterial({color:0x101826,transparent:true,opacity:.9}));
+    scGroup.add(bar);
+    const g=new THREE.ConeGeometry(.09,.4,8); g.rotateZ(-Math.PI/2); g.translate(.2,0,0);
+    const inst=new THREE.InstancedMesh(g,new THREE.MeshBasicMaterial({color:0xf5c964}),60);
+    scGroup.add(inst);
+    const tl=mkLabel('JOSEPHSON JUNCTION · I = I_c sin φ · dφ/dt = 2eV/ħ','label const'); tl.position.set(0,3.6,0); scGroup.add(tl);
+    const rl=mkLabel('','label major'); rl.position.set(0,2.7,0); scGroup.add(rl);
+    scObjs={st,inst,phase:0,readLab:rl};
+  } else {
+    // Abrikosov triangular vortex lattice; each tube carries EXACTLY Φ₀
+    const B=state.scB??0.05;                          // tesla
+    const aNM=Math.sqrt(2*SC_PHI0/(Math.sqrt(3)*B))*1e9;   // spacing in nm
+    const aScene=1.05, tubes=[];
+    for(let iy=-3;iy<=3;iy++)for(let ix=-3;ix<=3;ix++){
+      const x=(ix+(iy&1?0.5:0))*aScene, z=iy*aScene*Math.sqrt(3)/2;
+      if(Math.hypot(x,z)>3.4) continue;
+      const t=new THREE.Mesh(new THREE.CylinderGeometry(.1,.1,2.6,10,1,true),
+        new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
+      t.position.set(x,0,z); scGroup.add(t); tubes.push(t);
+    }
+    const slab=new THREE.Mesh(new THREE.BoxGeometry(7.6,2.2,7.2),
+      new THREE.MeshPhongMaterial({color:0x24344e,transparent:true,opacity:.35,shininess:40}));
+    scGroup.add(slab); scGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+    const tl=mkLabel('ABRIKOSOV VORTEX LATTICE · type-II · each tube carries EXACTLY Φ₀ = h/2e','label const'); tl.position.set(0,3.4,0); scGroup.add(tl);
+    const rl=mkLabel(`B = ${B.toFixed(3)} T → lattice constant a = √(2Φ₀/√3B) = ${aNM.toFixed(0)} nm · ${tubes.length} vortices shown`,'label dim');
+    rl.position.set(0,-2.9,0); scGroup.add(rl);
+    scObjs={st,tubes,count:tubes.length};
+    ATLAS_BUS.pub('sc.vortices',tubes.length,'× Φ₀');
+    ATLAS_BUS.pub('sc.Phi0',SC_PHI0,'Wb (exact)');
+  }
+}
+function updateSc(dt){
+  if(!scObjs||scObjs.st!==(state.scStation||'meissner')) scSetupLab();
+  scT+=dt; const O=scObjs;
+  const M=SC_MATS.find(m=>m.id===(state.scMat||'Nb'))||SC_MATS[2];
+  const gap=1.764*8.617333e-5*M.Tc*1000;              // Δ(0) in meV
+  if(O.st==='meissner'){
+    O.penLab.element.textContent=`${M.name}: T_c = ${M.Tc} K · λ_L = ${M.lam} nm (B decays e^(−x/λ_L) inside) · BCS gap Δ(0) = 1.764·k_B·T_c = ${gap.toFixed(2)} meV · type ${M.type}`;
+    hudBig.textContent=`SUPERCONDUCTIVITY · Meissner expulsion · ${M.name} (T_c ${M.Tc} K)`;
+    hudSub.textContent=`perfect diamagnetism is not perfect conduction — it is a thermodynamic STATE: London λ_L = ${M.lam} nm, gap Δ(0) = ${gap.toFixed(2)} meV`;
+  } else if(O.st==='josephson'){
+    const V=state.scV??1;                              // µV
+    const fGHz=SC_KJ*V*1e-6;                           // GHz at V µV
+    O.phase+=dt*2*Math.PI*Math.max(V,0.02)*0.7;        // display-rate phase (declared scaled)
+    const I=Math.sin(O.phase);
+    for(let i=0;i<60;i++){
+      _tpD.position.set(-0.1+((i%12)-5.5)*0.0,-0.9+(i%12)*0.165,-0.9+Math.floor(i/12)*0.45);
+      _tpD.position.x=-0.15;
+      _tpD.scale.setScalar(Math.max(Math.abs(I),0.05)*(I>0?1:1));
+      _tpD.quaternion.identity(); if(I<0) _tpD.quaternion.setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI);
+      _tpD.updateMatrix(); O.inst.setMatrixAt(i,_tpD.matrix);
+    }
+    O.inst.instanceMatrix.needsUpdate=true;
+    O.readLab.element.textContent=`V = ${V.toFixed(2)} µV → f_J = K_J·V = ${fGHz.toFixed(3)} GHz (K_J = 483 597.848 4 GHz/V, EXACT — the SI volt is defined by this)`;
+    hudBig.textContent=`SUPERCONDUCTIVITY · Josephson · f_J = ${fGHz.toFixed(3)} GHz at ${V.toFixed(2)} µV`;
+    hudSub.textContent='phase-coherent tunnelling of Cooper pairs: supercurrent with ZERO voltage (DC), and under bias the EXACT metrological clock f = 2eV/h — displayed oscillation rate is scaled for the eye (declared)';
+    ATLAS_BUS.pub('sc.fJ',+fGHz.toFixed(4),'GHz');
+  } else {
+    for(const t of O.tubes) t.material.opacity=.55+.25*Math.sin(scT*2+t.position.x*3+t.position.z*2);
+    hudBig.textContent=`SUPERCONDUCTIVITY · Abrikosov lattice · ${O.count} vortices × Φ₀`;
+    hudSub.textContent=`flux quantisation is TOPOLOGY: the order-parameter phase winds by 2π around each tube (π₁(U(1))=ℤ) — see the Topology lab; Φ₀ = h/2e = 2.067 833 848×10⁻¹⁵ Wb exactly`;
+  }
+  scUiAcc+=dt;
+  if(scUiAcc>0.4){ scUiAcc=0;
+    const el=ctl.querySelector('#scInv');
+    if(el) el.innerHTML=`${M.name}: T_c = <b>${M.Tc} K</b> · λ_L = <b>${M.lam} nm</b> · Δ(0) = <b>${gap.toFixed(2)} meV</b> · type ${M.type}`+
+      `<br>Φ₀ = h/2e = 2.067 833 848×10⁻¹⁵ Wb (exact) · K_J = 483 597.848 4 GHz/V (exact)`+
+      (O.st==='vortex'?`<br>lattice a(B) = √(2Φ₀/√3B) — engineering scale live above`:'');
+  }
+}
+
+/* ================================================================
+   TAUB-NUT LAB · gravitomagnetic monopole — resonant cone orbits.
+   Fixed-radius slices of the Euclidean Taub-NUT instanton are BERGER
+   SPHERES (squashed trispheres): this lab shows the squash family and
+   integrates orbits around a gravitomagnetic (NUT) charge — the exact
+   Poincaré 1896 result: every orbit lies ON A CONE about J, and the
+   conserved J·r̂ = −N is verified live at machine precision. Closed
+   (resonant) orbits are detected by phase-space return. */
+const tnGroup=new THREE.Group(); tnGroup.visible=false; s3Group.add(tnGroup);
+let tnObjs=null, tnT=0, tnUiAcc=0;
+function tnClear(){
+  while(tnGroup.children.length){ const o=tnGroup.children.pop();
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  tnObjs=null;
+}
+function tnAcc(p,v,N){                                 // a = −r̂/r² + N (v×r̂)/r²   (μ=1)
+  const r=p.length(), r2=r*r, ur=p.clone().divideScalar(r);
+  return ur.clone().multiplyScalar(-1/r2).add(v.clone().cross(ur).multiplyScalar(N/r2));
+}
+function tnSetupLab(){
+  tnClear(); tnT=0;
+  const st=state.tnStation||'orbit';
+  if(st==='squash'){
+    const s=state.tnSquash??0.55;
+    for(let i=0;i<10;i++){
+      const th=0.35+i/10*2.4, pts=topoHopfFibre(th,i*0.63,120,1.7);
+      const c=new THREE.Vector3(); pts.forEach(p=>c.add(p)); c.divideScalar(pts.length);
+      const sq=pts.map(p=>c.clone().add(p.clone().sub(c).multiplyScalar(s)));   // shrink fibre circles → squash
+      tnGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([...sq,sq[0]]),
+        new THREE.LineBasicMaterial({color:0xf5c964,transparent:true,opacity:.8})));
+    }
+    tnGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.7,40,26),
+      new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.12})));
+    const tl=mkLabel('BERGER SPHERE · the Hopf-fibre circles rescaled by s — the fixed-r slices of Euclidean Taub-NUT','label const');
+    tl.position.set(0,3.9,0); tnGroup.add(tl);
+    const bl=mkLabel(`ds² = V(dr² + r²dΩ²) + V⁻¹(2N)²(dψ + cosθ dφ)²,  V = 1 + 2N/r · squash s = ${(state.tnSquash??0.55).toFixed(2)} · s→1 far from the NUT, s→0 at its core`,'label dim');
+    bl.position.set(0,-3.4,0); tnGroup.add(bl);
+    tnObjs={st};
+  } else {
+    const N=state.tnN??0.6;
+    const p=new THREE.Vector3(2.2,0,0), v=new THREE.Vector3(0,0.28,0.52);
+    const J=p.clone().cross(v).sub(p.clone().normalize().multiplyScalar(N));  // J = r×v − N r̂ (conserved)
+    const coneCos=-N/J.length(), coneAng=Math.acos(Math.max(-1,Math.min(1,coneCos)));
+    // draw the PREDICTED cone about J before the orbit is run
+    const Jn=J.clone().normalize(), cone=new THREE.Group();
+    const cg=new THREE.ConeGeometry(Math.tan(Math.min(coneAng,Math.PI-coneAng))*3.2,3.2,48,1,true);
+    cg.translate(0,-1.6,0); cg.rotateX(Math.PI);
+    const cm=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false}));
+    cone.add(cm);
+    cone.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),coneAng<Math.PI/2?Jn:Jn.clone().negate());
+    tnGroup.add(cone);
+    const ja=mkVecArrow?null:null;
+    const jl=new THREE.ArrowHelper(Jn,new THREE.Vector3(0,0,0),2.6,0xffd27f,.3,.14); tnGroup.add(jl);
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.11,12,9),new THREE.MeshBasicMaterial({color:0xf5c964}));
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xf5c964,transparent:true,opacity:.8,depthWrite:false}));
+    glow.scale.setScalar(.7); body.add(glow); tnGroup.add(body);
+    const nut=new THREE.Mesh(new THREE.SphereGeometry(.16,14,10),new THREE.MeshBasicMaterial({color:0xff9fb0}));
+    tnGroup.add(nut);
+    const trail=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',
+      new THREE.BufferAttribute(new Float32Array(2400*3),3)),
+      new THREE.LineBasicMaterial({color:0xf5c964,transparent:true,opacity:.6}));
+    trail.geometry.setDrawRange(0,0); tnGroup.add(trail);
+    const tl=mkLabel('TAUB-NUT ORBIT · a = −r̂/r² + N(v×r̂)/r² · the PREDICTED cone is drawn first — the orbit must stay on it','label const');
+    tl.position.set(0,4.1,0); tnGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.7,0); tnGroup.add(rl);
+    tnObjs={st,p,v,N,J0:J.clone(),body,trail,n:0,readLab:rl,ret:null,p0:p.clone(),v0:v.clone()};
+  }
+}
+function updateTn(dt){
+  if(!tnObjs||tnObjs.st!==(state.tnStation||'orbit')) tnSetupLab();
+  tnT+=dt; const O=tnObjs;
+  if(O.st==='orbit'){
+    const h=0.004, steps=Math.min(120,Math.round((state.tnSpeed??1)*40));
+    for(let s=0;s<steps;s++){                          // RK4
+      const {p,v,N}=O;
+      const k1v=tnAcc(p,v,N),                    k1p=v;
+      const k2v=tnAcc(p.clone().addScaledVector(k1p,h/2), v.clone().addScaledVector(k1v,h/2),N), k2p=v.clone().addScaledVector(k1v,h/2);
+      const k3v=tnAcc(p.clone().addScaledVector(k2p,h/2), v.clone().addScaledVector(k2v,h/2),N), k3p=v.clone().addScaledVector(k2v,h/2);
+      const k4v=tnAcc(p.clone().addScaledVector(k3p,h),   v.clone().addScaledVector(k3v,h),N),   k4p=v.clone().addScaledVector(k3v,h);
+      p.addScaledVector(k1p.add(k2p.multiplyScalar(2)).add(k3p.multiplyScalar(2)).add(k4p),h/6);
+      v.addScaledVector(k1v.add(k2v.multiplyScalar(2)).add(k3v.multiplyScalar(2)).add(k4v),h/6);
+    }
+    O.body.position.copy(O.p).multiplyScalar(1);
+    const a=O.trail.geometry.attributes.position;
+    if(O.n<2400){ O.n++; } else a.array.copyWithin(0,3);
+    const k=(O.n-1)*3; a.array[k]=O.p.x; a.array[k+1]=O.p.y; a.array[k+2]=O.p.z;
+    O.trail.geometry.setDrawRange(0,O.n); a.needsUpdate=true; O.trail.geometry.computeBoundingSphere();
+    // live invariants: J and J·r̂ must both be constant — measured, not assumed
+    const J=O.p.clone().cross(O.v).sub(O.p.clone().normalize().multiplyScalar(O.N));
+    const drJ=J.clone().sub(O.J0).length()/O.J0.length();
+    const cosNow=J.dot(O.p.clone().normalize())/J.length(), cos0=-O.N/O.J0.length();
+    const dRet=O.p.distanceTo(O.p0)+O.v.distanceTo(O.v0);
+    if(tnT>2&&dRet<0.05&&(!O.ret||dRet<O.ret.d)) O.ret={t:tnT,d:dRet};
+    O.readLab.element.textContent=`|ΔJ|/|J| = ${drJ.toExponential(1)} · J·r̂ = ${ (J.dot(O.p.clone().normalize())).toFixed(6) } (must equal −N = ${(-O.N).toFixed(6)}) · cone semi-angle ${(Math.acos(Math.max(-1,Math.min(1,cos0)))/DEG).toFixed(1)}°${O.ret?` · RESONANT return δ=${O.ret.d.toFixed(3)} at t≈${O.ret.t.toFixed(1)}`:''}`;
+    hudBig.textContent=`TAUB-NUT · NUT charge N = ${O.N.toFixed(2)} · the orbit RIDES THE PREDICTED CONE`;
+    hudSub.textContent='gravitomagnetic monopole (Poincaré 1896 ⇄ Taub-NUT geodesics): J = r×v − N r̂ is conserved, so J·r̂ = −N pins every orbit to a cone about J — drawn BEFORE integration; the numbers above are measured live';
+    ATLAS_BUS.pub('taub.JdotR',+(J.dot(O.p.clone().normalize())).toFixed(6),'= −N');
+  } else {
+    hudBig.textContent=`TAUB-NUT · Berger squash s = ${(state.tnSquash??0.55).toFixed(2)} — the trisphere family of the instanton`;
+    hudSub.textContent='fixed-r slices of Euclidean Taub-NUT are squashed 3-spheres: the Hopf circle carries the squash while the base S² stays round — at r→∞ the squash → 1 and the round trisphere returns';
+  }
+}
+
+/* ================================================================
+   EXTRAORDINARY TRANSMISSION LAB · Ebbesen 1998. A subwavelength
+   hole array transmits far MORE light than the geometric open area —
+   surface-plasmon resonance funnels the field through. Resonance
+   positions come from the real SPP dispersion λ(i,j)=a₀/√(i²+j²)·
+   √(ε_m ε_d/(ε_m+ε_d)) with a Drude metal (declared fit); the peak
+   SHAPES are schematic Fano profiles (declared). */
+const eotGroup=new THREE.Group(); eotGroup.visible=false; s3Group.add(eotGroup);
+const eotEpsM=l=>5-Math.pow(l/134,2);                  // Drude fit, λ in nm (silver-like, declared)
+function eotLamRes(a0,i,j){ const em=eotEpsM(a0), ed=1;  // solve iteratively: λ≈a0/√(i²+j²)·√(em ed/(em+ed))
+  let lam=a0/Math.sqrt(i*i+j*j)*1.05;
+  for(let k=0;k<24;k++){ const e=eotEpsM(lam); if(e>=-1.01) return null;
+    lam=a0/Math.sqrt(i*i+j*j)*Math.sqrt(e*1/(e+1)); }
+  return lam; }
+let eotObjs=null, eotT=0;
+function eotClear(){
+  while(eotGroup.children.length){ const o=eotGroup.children.pop();
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  eotObjs=null;
+}
+function eotSetup(){
+  eotClear(); eotT=0;
+  const film=new THREE.Mesh(new THREE.BoxGeometry(6.4,.22,4.6),
+    new THREE.MeshPhongMaterial({color:0x9aa4b8,shininess:90,specular:0x666677}));
+  eotGroup.add(film,new THREE.AmbientLight(0x8090b0,.8));
+  const dl=new THREE.DirectionalLight(0xffffff,.7); dl.position.set(2,6,3); eotGroup.add(dl);
+  const holes=[];
+  for(let ix=-3;ix<=3;ix++)for(let iz=-2;iz<=2;iz++){
+    const h=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.26,14),
+      new THREE.MeshBasicMaterial({color:0x0a0e16}));
+    h.position.set(ix*.86,0,iz*.86); eotGroup.add(h); holes.push(h);
+  }
+  // transmitted beams (below) + incident wavefronts (above)
+  const beams=[];
+  for(const h of holes){
+    const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.14,2.6,10,1,true),
+      new THREE.MeshBasicMaterial({color:0xf5c964,transparent:true,opacity:.0,blending:THREE.AdditiveBlending,depthWrite:false}));
+    b.position.copy(h.position).add(new THREE.Vector3(0,-1.45,0)); eotGroup.add(b); beams.push(b);
+  }
+  const fronts=[];
+  for(let i=0;i<5;i++){
+    const f=new THREE.Mesh(new THREE.PlaneGeometry(6.4,4.6),
+      new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.14,side:THREE.DoubleSide,depthWrite:false}));
+    f.rotation.x=Math.PI/2; eotGroup.add(f); fronts.push(f);
+  }
+  // live spectrum curve T(λ) drawn as a 3D graph beside the film
+  const NP=180, arr=new Float32Array(NP*3), sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.BufferAttribute(arr,3));
+  const spec=new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xf5c964}));
+  spec.position.set(0,2.9,0); eotGroup.add(spec);
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),new THREE.MeshBasicMaterial({color:0xffffff}));
+  marker.position.set(0,2.9,0); eotGroup.add(marker);
+  const tl=mkLabel('EXTRAORDINARY OPTICAL TRANSMISSION · Ebbesen 1998 · plasmons beat geometric optics','label const');
+  tl.position.set(0,4.5,0); eotGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); eotGroup.add(rl);
+  eotObjs={beams,fronts,spec,marker,readLab:rl,NP};
+}
+function eotTof(lam,a0){
+  let T=0.04;                                          // geometric baseline (declared schematic amplitude)
+  for(const [i,j,amp] of [[1,0,.62],[1,1,.34],[2,0,.18]]){
+    const lr=eotLamRes(a0,i,j); if(!lr) continue;
+    const w=14+lam*0.012;
+    T+=amp*(w*w)/((lam-lr)*(lam-lr)+w*w);
+  }
+  return Math.min(T,1);
+}
+function updateEot(dt){
+  if(!eotObjs) eotSetup();
+  eotT+=dt; const O=eotObjs;
+  const a0=state.eotA0??600, lam=state.eotLam??700;
+  const T=eotTof(lam,a0), fOpen=Math.PI*0.16*0.16/(0.86*0.86);
+  for(const f of O.fronts){ const y=1.4+((eotT*0.9+f.position.y*0)%1); }
+  O.fronts.forEach((f,i)=>{ f.position.y=0.5+((eotT*0.8+i*0.5)%2.5); f.material.opacity=.16*(1-f.position.y/3); });
+  O.beams.forEach(b=>{ b.material.opacity=.55*T*(0.8+0.2*Math.sin(eotT*3+b.position.x)); });
+  const arr=O.spec.geometry.attributes.position.array;
+  for(let i=0;i<O.NP;i++){ const l=420+i/(O.NP-1)*(1000-420);
+    arr[i*3]=-3.1+i/(O.NP-1)*6.2; arr[i*3+1]=eotTof(l,a0)*1.5; arr[i*3+2]=0; }
+  O.spec.geometry.attributes.position.needsUpdate=true;
+  O.marker.position.set(-3.1+(lam-420)/(1000-420)*6.2, 2.9+T*1.5, 0);
+  const l10=eotLamRes(a0,1,0);
+  O.readLab.element.textContent=`period a₀ = ${a0} nm · hole open fraction = ${(fOpen*100).toFixed(1)}% · T(${lam} nm) = ${(T*100).toFixed(0)}% ${T>fOpen?'— EXTRAORDINARY: '+(T/fOpen).toFixed(1)+'× the geometric limit':''} · SPP(1,0) predicted at ${l10?l10.toFixed(0)+' nm':'—'}`;
+  hudBig.textContent=`EXTRAORDINARY TRANSMISSION · T = ${(T*100).toFixed(0)}% through ${(fOpen*100).toFixed(1)}% open area`;
+  hudSub.textContent='surface plasmons collect light from the FULL surface and funnel it through subwavelength holes — resonance positions from the real SPP dispersion (Drude fit declared); tune λ to the predicted peak and watch the beams ignite';
+  ATLAS_BUS.pub('eot.T',+(T*100).toFixed(1),'%');
 }
 
 function setS3View(v){
@@ -9189,12 +9735,20 @@ function setS3View(v){
   gravGroup.visible    = (v==='grav');
   qmGroup.visible      = (v==='qm');
   qcdGroup.visible     = (v==='qcd');
+  topoGroup.visible    = (v==='topo');
+  scGroup.visible      = (v==='sc');
+  tnGroup.visible      = (v==='taub');
+  eotGroup.visible     = (v==='eot');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
   if(v==='grav'){ if(!gravBodies.length||state.gravPreset!==gravBuiltId) gravSetup(); }
   if(v==='qm'){ if(!qmRe||state.qmMode!==qmBuilt) qmSetup(); }
   if(v==='qcd'){ if(!qcdObjs||qcdObjs.mode!==(state.qcdMode||'meson')) qcdSetup(); }
+  if(v==='topo'){ topoSetup(); }
+  if(v==='sc'){ scSetupLab(); }
+  if(v==='taub'){ tnSetupLab(); }
+  if(v==='eot'){ if(!eotObjs) eotSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -9206,7 +9760,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -12426,6 +12980,9 @@ const XRX = (()=>{
         {label:'Gravitas 3-body', on:state.s3view==='grav', cb:()=>{setS3View('grav'); refreshMenu();}},
         {label:'Quantum wave', on:state.s3view==='qm', cb:()=>{setS3View('qm'); refreshMenu();}},
         {label:'Chromodynamics', on:state.s3view==='qcd', cb:()=>{setS3View('qcd'); refreshMenu();}},
+        {label:'Topology', on:state.s3view==='topo', cb:()=>{setS3View('topo'); refreshMenu();}},
+        {label:'Superconductivity', on:state.s3view==='sc', cb:()=>{setS3View('sc'); refreshMenu();}},
+        {label:'Taub-NUT', on:state.s3view==='taub', cb:()=>{setS3View('taub'); refreshMenu();}},
       ]);
       if(state.s3view==='hopfion') rows.push([
         {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
@@ -13861,7 +14418,11 @@ const state = {
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5,        // Quantum wave lab
-  qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
+  qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab
+  topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
+  scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
+  tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
+  eotA0:600, eotLam:700,                                                // Extraordinary transmission   // Gravitas 3-body lab · GW inspiral · Solar L-points
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -15164,6 +15725,93 @@ function buildCtlBody(){
         <button class="btn" id="qcdToAtom">→ Element constructor: these baryons build every nucleus</button>
         <button class="btn" id="qcdToQuasi">→ Quasiparticles: collective modes, same field-theory language</button></div>
     </div>`;
+    else if(V==='topo') body = `
+    <div class="sect"><b>Topology atlas — pick a station</b>
+      <div class="chips">
+        ${[['link','Gauss linking · live integral'],['hairy','Poincaré–Hopf · hairy ball'],['map','Invariant map · live network']].map(([k,l])=>
+          `<button class="chip ${(state.topoStation||'link')===k?'on':''}" data-topost="${k}">${l}</button>`).join('')}
+      </div>
+      ${(state.topoStation||'link')==='link'?`
+      <div class="ctlrow"><label>Configuration</label>
+        ${[['hopf','two Hopf fibres'],['coil','m-coil'],['unlink','separated']].map(([k,l])=>
+          `<button class="chip ${(state.topoLinkMode||'hopf')===k?'on':''}" data-topolm="${k}">${l}</button>`).join('')}</div>
+      ${(state.topoLinkMode||'hopf')==='coil'?`
+      <div class="ctlrow"><label>Winding m</label>
+        <input type="range" id="topoM" min="1" max="5" step="1" value="${state.topoM}"><span class="val" id="topoMV">${state.topoM}</span></div>`:''}
+      ${(state.topoLinkMode||'hopf')==='hopf'?`
+      <div class="ctlrow"><label>Fibre B latitude θ</label>
+        <input type="range" id="topoThB" min="0.3" max="2.8" step="0.02" value="${state.topoThB}"><span class="val" id="topoThBV">${state.topoThB.toFixed(2)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Move fibre B anywhere — the integral must stay EXACTLY 1: two distinct Hopf fibres always link once. That single integer generates π₃(S²) and underwrites the hopfion lab.</div>`:''}`:''}
+      ${(state.topoStation||'link')==='hairy'?`
+      <div class="ctlrow"><label>Field on S²</label>
+        ${[['dipole','∂/∂θ · two +1 zeros'],['rotation','rotation · two +1'],['index2','one +2 zero']].map(([k,l])=>
+          `<button class="chip ${(state.topoField||'dipole')===k?'on':''}" data-topofd="${k}">${l}</button>`).join('')}</div>`:''}
+    </div>
+    ${(state.topoStation||'link')==='map'?`
+    <div class="sect"><b>Invariant network — LIVE cross-module data (ATLAS BUS)</b>
+      <div class="note" id="topoBus" style="font-variant-numeric:tabular-nums;font-size:11.5px">visit any lab — its invariants appear here and stay live</div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" data-topojump="hopfion">→ Hopfion π₃</button>
+        <button class="btn" data-topojump="skyrmion">→ Skyrmion π₂</button>
+        <button class="btn" data-topojump="hopf">→ Hopf fibres</button>
+        <button class="btn" data-topojump="bell">→ Bell holonomy</button>
+        <button class="btn" data-topojump="sc">→ SC vortices π₁(U(1))</button>
+        <button class="btn" data-topojump="grav">→ Gravitas invariants</button>
+        <button class="btn" data-topojump="qm">→ Quantum unitarity</button></div>
+    </div>`:''}
+    <div class="note" style="font-size:10.5px;color:var(--dim)">Topology is the atlas's common language: quantities that CANNOT drift, computed live and checked against their integer duty. The Gauss integral is evaluated numerically over ${160}×${160} segment pairs — watch a double integral land on an integer.</div>`;
+    else if(V==='sc') body = `
+    <div class="sect"><b>Superconductivity — pick a station</b>
+      <div class="chips">
+        ${[['meissner','Meissner expulsion'],['josephson','Josephson metrology'],['vortex','Abrikosov vortices']].map(([k,l])=>
+          `<button class="chip ${(state.scStation||'meissner')===k?'on':''}" data-scst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Material</label>
+        ${SC_MATS.map(m=>`<button class="chip ${(state.scMat||'Nb')===m.id?'on':''}" data-scmat="${m.id}">${m.id} · ${m.Tc}K</button>`).join('')}</div>
+      ${(state.scStation||'meissner')==='josephson'?`
+      <div class="ctlrow"><label>Bias V (µV)</label>
+        <input type="range" id="scV" min="0" max="4" step="0.05" value="${state.scV}"><span class="val" id="scVV">${state.scV.toFixed(2)} µV</span></div>`:''}
+      ${(state.scStation||'meissner')==='vortex'?`
+      <div class="ctlrow"><label>Field B (T)</label>
+        <input type="range" id="scB" min="0.005" max="0.4" step="0.005" value="${state.scB}"><span class="val" id="scBV">${state.scB.toFixed(3)} T</span></div>`:''}
+    </div>
+    <div class="sect"><b>Engineering readout</b>
+      <div class="note" id="scInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Real constants, exact where the SI says so: Φ₀ = h/2e and K_J = 483 597.848 4 GHz/V are EXACT since 2019 — every volt on Earth is calibrated against the Josephson effect shown here. λ_L and T_c per material from the literature; Δ(0)=1.764k_BT_c is weak-coupling BCS (declared). Vortex flux quantisation is π₁(U(1))=ℤ — the Topology lab's language in a real material.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="scToTopo">→ Topology: why the flux is quantised</button>
+        <button class="btn" id="scToQm">→ Quantum wave: the pair wavefunction</button>
+        <button class="btn" id="scToQuasi">→ Quasiparticles: the phonon glue of BCS</button></div>
+    </div>`;
+    else if(V==='taub') body = `
+    <div class="sect"><b>Taub-NUT — pick a station</b>
+      <div class="chips">
+        ${[['orbit','Cone orbits · resonances'],['squash','Berger squash · trisphere family']].map(([k,l])=>
+          `<button class="chip ${(state.tnStation||'orbit')===k?'on':''}" data-tnst="${k}">${l}</button>`).join('')}
+      </div>
+      ${(state.tnStation||'orbit')==='orbit'?`
+      <div class="ctlrow"><label>NUT charge N</label>
+        <input type="range" id="tnN" min="0" max="1.4" step="0.02" value="${state.tnN}"><span class="val" id="tnNV">${state.tnN.toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Speed</label>
+        <input type="range" id="tnSpeed" min="0.1" max="4" step="0.1" value="${state.tnSpeed}"><span class="val" id="tnSpeedV">×${state.tnSpeed.toFixed(1)}</span></div>
+      <div class="ctlrow"><button class="btn" id="tnReset">↺ restart orbit</button></div>`:`
+      <div class="ctlrow"><label>Squash s</label>
+        <input type="range" id="tnSquash" min="0.1" max="1" step="0.01" value="${state.tnSquash}"><span class="val" id="tnSquashV">${state.tnSquash.toFixed(2)}</span></div>`}
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The NUT charge is a gravitomagnetic MONOPOLE. Its exact signature (Poincaré 1896 ⇄ Taub-NUT geodesics): J = r×v − N r̂ is conserved, forcing J·r̂ = −N — every orbit is pinned to a cone about J. The lab draws the predicted cone BEFORE integrating and then measures |ΔJ|/|J| and J·r̂ live at ~10⁻¹⁰. Fixed-radius slices of the Euclidean instanton are BERGER-SQUASHED trispheres — the second station shows the squash family carried by the Hopf circles: this exotic space and the atlas's carrier are one geometry.</div>
+    </div>`;
+    else if(V==='eot') body = `
+    <div class="sect"><b>Extraordinary optical transmission — Ebbesen 1998</b>
+      <div class="ctlrow"><label>Array period a₀ (nm)</label>
+        <input type="range" id="eotA0" min="350" max="850" step="5" value="${state.eotA0}"><span class="val" id="eotA0V">${state.eotA0} nm</span></div>
+      <div class="ctlrow"><label>Wavelength λ (nm)</label>
+        <input type="range" id="eotLam" min="420" max="1000" step="2" value="${state.eotLam}"><span class="val" id="eotLamV">${state.eotLam} nm</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Subwavelength holes should transmit almost nothing — yet at the surface-plasmon resonance the array transmits MANY times its open area: the metal surface itself collects the light and funnels it through. Peak POSITIONS come from the real SPP dispersion λ(i,j)=a₀/√(i²+j²)·√(ε_mε_d/(ε_m+ε_d)) with a Drude silver fit (declared); peak SHAPES are schematic Fano profiles (declared). Tune λ onto the predicted resonance — the beams ignite exactly there. Bridges: the funnelling is evanescent TUNNELLING (Quantum lab) by PLASMONS (Quasiparticle lab).</div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
+        <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
+    </div>`;
     else if(V==='atom') body = `
     <div class="sect"><b>Element constructor — Z = ${state.atZ} · ${ELEM_SYMS[state.atZ-1]}</b>
       <div class="ctlrow">
@@ -15275,6 +15923,10 @@ function buildCtlBody(){
         <button class="btn ${V==='grav'?'on':''}" id="v-grav">Gravitas · 3-body</button>
         <button class="btn ${V==='qm'?'on':''}" id="v-qm">Quantum wave</button>
         <button class="btn ${V==='qcd'?'on':''}" id="v-qcd">Chromodynamics</button>
+        <button class="btn ${V==='topo'?'on':''}" id="v-topo">Topology</button>
+        <button class="btn ${V==='sc'?'on':''}" id="v-sc">Superconductivity</button>
+        <button class="btn ${V==='taub'?'on':''}" id="v-taub">Taub-NUT</button>
+        <button class="btn ${V==='eot'?'on':''}" id="v-eot">Extraordinary transmission</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -15293,6 +15945,8 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
+    for(const vv of ['topo','sc','taub','eot']){
+      const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
         Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
@@ -15473,6 +16127,55 @@ function buildCtlBody(){
         const v=ctl.querySelector('#qcdQV'); if(v)v.textContent=state.qcdQ.toFixed(1)+' GeV'; });
       ctl.querySelector('#qcdToAtom')&&(ctl.querySelector('#qcdToAtom').onclick=()=>{ setS3View('atom'); buildCtl(); });
       ctl.querySelector('#qcdToQuasi')&&(ctl.querySelector('#qcdToQuasi').onclick=()=>{ setS3View('quasi'); buildCtl(); });
+    }
+    if(V==='topo'){
+      ctl.querySelectorAll('[data-topost]').forEach(b=>b.onclick=()=>{ state.topoStation=b.dataset.topost; topoSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-topolm]').forEach(b=>b.onclick=()=>{ state.topoLinkMode=b.dataset.topolm; topoSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-topofd]').forEach(b=>b.onclick=()=>{ state.topoField=b.dataset.topofd; topoSetup(); buildCtl(); });
+      ctl.querySelector('#topoM')&&(ctl.querySelector('#topoM').oninput=e=>{ state.topoM=+e.target.value;
+        const v=ctl.querySelector('#topoMV'); if(v)v.textContent=state.topoM; topoSetup(); });
+      ctl.querySelector('#topoThB')&&(ctl.querySelector('#topoThB').oninput=e=>{ state.topoThB=+e.target.value;
+        const v=ctl.querySelector('#topoThBV'); if(v)v.textContent=state.topoThB.toFixed(2); topoSetup(); });
+      ctl.querySelectorAll('[data-topojump]').forEach(b=>b.onclick=()=>{ setS3View(b.dataset.topojump); buildCtl(); });
+      const busEl=ctl.querySelector('#topoBus');
+      if(busEl && !busEl._timer){
+        const render=()=>{ const all=ATLAS_BUS.all(), ks=Object.keys(all);
+          busEl.innerHTML=ks.length?ks.sort().map(k=>`<b style="color:var(--gold-2)">${k}</b> = ${typeof all[k].v==='number'?all[k].v:String(all[k].v)} ${all[k].unit} <span style="color:var(--dim)">(${all[k].age}s ago)</span>`).join('<br>')
+            :'visit any lab — its invariants appear here and stay live';
+        };
+        render(); busEl._timer=setInterval(()=>{ if(!document.body.contains(busEl)){ clearInterval(busEl._timer); return; } render(); },700);
+      }
+    }
+    if(V==='sc'){
+      ctl.querySelectorAll('[data-scst]').forEach(b=>b.onclick=()=>{ state.scStation=b.dataset.scst; scSetupLab(); buildCtl(); });
+      ctl.querySelectorAll('[data-scmat]').forEach(b=>b.onclick=()=>{ state.scMat=b.dataset.scmat; buildCtl(); });
+      ctl.querySelector('#scV')&&(ctl.querySelector('#scV').oninput=e=>{ state.scV=+e.target.value;
+        const v=ctl.querySelector('#scVV'); if(v)v.textContent=state.scV.toFixed(2)+' µV'; });
+      ctl.querySelector('#scB')&&(ctl.querySelector('#scB').oninput=e=>{ state.scB=+e.target.value;
+        const v=ctl.querySelector('#scBV'); if(v)v.textContent=state.scB.toFixed(3)+' T'; },
+        ctl.querySelector('#scB').onchange=()=>{ scSetupLab(); });
+      ctl.querySelector('#scToTopo')&&(ctl.querySelector('#scToTopo').onclick=()=>{ state.topoStation='map'; setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#scToQm')&&(ctl.querySelector('#scToQm').onclick=()=>{ setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#scToQuasi')&&(ctl.querySelector('#scToQuasi').onclick=()=>{ state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
+    }
+    if(V==='taub'){
+      ctl.querySelectorAll('[data-tnst]').forEach(b=>b.onclick=()=>{ state.tnStation=b.dataset.tnst; tnSetupLab(); buildCtl(); });
+      ctl.querySelector('#tnN')&&(ctl.querySelector('#tnN').oninput=e=>{ state.tnN=+e.target.value;
+        const v=ctl.querySelector('#tnNV'); if(v)v.textContent=state.tnN.toFixed(2); },
+        ctl.querySelector('#tnN').onchange=()=>{ tnSetupLab(); });
+      ctl.querySelector('#tnSpeed')&&(ctl.querySelector('#tnSpeed').oninput=e=>{ state.tnSpeed=+e.target.value;
+        const v=ctl.querySelector('#tnSpeedV'); if(v)v.textContent='×'+state.tnSpeed.toFixed(1); });
+      ctl.querySelector('#tnSquash')&&(ctl.querySelector('#tnSquash').oninput=e=>{ state.tnSquash=+e.target.value;
+        const v=ctl.querySelector('#tnSquashV'); if(v)v.textContent=state.tnSquash.toFixed(2); tnSetupLab(); });
+      ctl.querySelector('#tnReset')&&(ctl.querySelector('#tnReset').onclick=()=>{ tnSetupLab(); });
+    }
+    if(V==='eot'){
+      ctl.querySelector('#eotA0')&&(ctl.querySelector('#eotA0').oninput=e=>{ state.eotA0=+e.target.value;
+        const v=ctl.querySelector('#eotA0V'); if(v)v.textContent=state.eotA0+' nm'; });
+      ctl.querySelector('#eotLam')&&(ctl.querySelector('#eotLam').oninput=e=>{ state.eotLam=+e.target.value;
+        const v=ctl.querySelector('#eotLamV'); if(v)v.textContent=state.eotLam+' nm'; });
+      ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#eotToQuasi')&&(ctl.querySelector('#eotToQuasi').onclick=()=>{ setS3View('quasi'); buildCtl(); });
     }
     if(V==='atom'){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
@@ -16743,7 +17446,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -17609,8 +18312,13 @@ function tickBody(now, frame){
         const eps=ltp?ltpObliquityRad(epj)/DEG:23.4393;
         const gam=ltp?ltpEquinoxLonDeg(epj):null;
         const far=Math.abs(epj-2000)>200000;
+        // PRECESSION PROTRACTOR: the measured angle between the pole of date and the
+        // J2000 pole — the axis's own arc, in degrees, live (works with either engine)
+        const dPole=earthPoleDir(T).angleTo(earthPoleDir(0))/DEG;
+        ATLAS_BUS.pub('earth.eps',+eps.toFixed(4),'°');
+        ATLAS_BUS.pub('earth.poleShift',+dPole.toFixed(3),'° from J2000');
         po.innerHTML=`epoch J${epj.toFixed(1)} · pole of date RA ${raD.toFixed(3)}° Dec ${dec.toFixed(3)}° (J2000 frame)`+
-          `<br>ε(t) = ${eps.toFixed(4)}°${gam!==null?` · equinox drift γ = ${gam.toFixed(3)}° on the J2000 ecliptic`:''}`+
+          `<br><b>protractor: pole moved ${dPole.toFixed(3)}° from J2000</b> · ε(t) = ${eps.toFixed(4)}°${gam!==null?` · equinox drift γ = ${gam.toFixed(3)}° on the J2000 ecliptic`:''}`+
           (far&&ltp?`<br><b style="color:#ffd27f">beyond the ±200 kyr fit — bounded quasi-periodic EXTRAPOLATION</b>`:'')+
           (!ltp&&Math.abs(T)>3?`<br><b style="color:#ffd27f">linear model ${Math.abs(T).toFixed(0)} centuries from J2000 — switch to Vondrák for honesty</b>`:'');
       }
@@ -17850,6 +18558,14 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateQm(dt);
     } else if(state.s3view==='qcd'){
       fbsAnimT+=dt; updateQcd(dt);
+    } else if(state.s3view==='topo'){
+      fbsAnimT+=dt; updateTopo(dt);
+    } else if(state.s3view==='sc'){
+      fbsAnimT+=dt; updateSc(dt);
+    } else if(state.s3view==='taub'){
+      fbsAnimT+=dt; updateTn(dt);
+    } else if(state.s3view==='eot'){
+      fbsAnimT+=dt; updateEot(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
