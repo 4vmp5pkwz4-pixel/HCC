@@ -12667,6 +12667,7 @@ const XRX = (()=>{
     panels.forEach(p=>{ if(p.mesh.parent!==scene) scene.attach(p.mesh);
       p.visible=false; p.mesh.position.set(0,0,0); });
     dockKey=-1; dockFollow=true;
+    menuStowed=false; boostT=0;   // every session starts with the wrist menu PRESENT — never inherit a stowed state
     refreshMenu();
     updateGateButtons(); renderXRCheck();
   }
@@ -13426,7 +13427,7 @@ const XRX = (()=>{
   /* ---------- controllers ---------- */
   const cmFactory=new XRControllerModelFactory(), hmFactory=new XRHandModelFactory();
   const rayGeom=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,-1)]);
-  const pointers=[]; let lastSelectCtrl=null, moveSpeed=8, snapAngle=30, snapReady=true;
+  const pointers=[]; let lastSelectCtrl=null, moveSpeed=8, snapAngle=30, snapReady=true, boostT=0;
   function mkPointer(i){
     const ctrl=renderer.xr.getController(i);
     const grip=renderer.xr.getControllerGrip(i);
@@ -14080,16 +14081,29 @@ const XRX = (()=>{
     INTERACTION.runtime.stepMs       = fps.ms;
     INTERACTION.runtime.xrGrabActive = grabState.active || pointers.some(P=>!!P.grabbed||!!P.coreDrag);
     if(measure.on) measure.drawLine();
-    // locomotion: left stick fly, right stick snap turn + vertical; scale-aware
-    let moving=false;
+    // FLIGHT locomotion — full 6-DOF, universe-scale:
+    //  · left stick: fly along the HEAD's true gaze (pitch included) + strafe
+    //  · right stick: snap turn (x) + vertical (y)
+    //  · right THUMBSTICK CLICK held: sprint boost, ramping 12× → 60× over 2 s
+    //  · speed is SCALE-ADAPTIVE: grows with the rig's distance from the scene
+    //    heart, so one stick crosses metres in a lab and megaparsecs in the web —
+    //    without this, 8 units/s was a standstill beyond the Oort cloud
+    let moving=false, boostHeld=false;
+    for(const P of pointers){
+      if(P.handed==='right'&&P.gamepad&&P.gamepad.buttons[3]&&P.gamepad.buttons[3].pressed) boostHeld=true;
+    }
+    boostT = boostHeld ? Math.min(boostT+dt,2) : 0;
+    const boost = boostT>0 ? 12+24*boostT : 1;                      // 12× → 60×
+    const dynSpeed = Math.max(moveSpeed, rig.position.length()*0.55) * boost;
     for(const P of pointers){
       const a=P.gamepad?.axes; if(!a||a.length<4) continue;
       const head=camera;
       if(P.handed==='left'){
-        const f=new THREE.Vector3(); head.getWorldDirection(f); f.y=0; f.normalize();
-        const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0)).negate();
+        const f=new THREE.Vector3(); head.getWorldDirection(f); f.normalize();   // TRUE gaze — fly where you look
+        const r=new THREE.Vector3().crossVectors(f,new THREE.Vector3(0,1,0));
+        if(r.lengthSq()<1e-4) r.set(1,0,0); r.normalize().negate();
         const v=new THREE.Vector3().addScaledVector(f,-a[3]).addScaledVector(r,-a[2]);
-        if(v.lengthSq()>.01){ rig.position.addScaledVector(v, moveSpeed*dt); moving=true; }
+        if(v.lengthSq()>.01){ rig.position.addScaledVector(v, dynSpeed*dt); moving=true; }
       } else {
         if(Math.abs(a[2])>.7 && snapReady){
           const headPos=getHead();
@@ -14100,10 +14114,10 @@ const XRX = (()=>{
           snapReady=false; pulse(P,.2,20);
         }
         if(Math.abs(a[2])<.3) snapReady=true;
-        if(Math.abs(a[3])>.2){ rig.position.y -= a[3]*moveSpeed*.6*dt; moving=true; }
+        if(Math.abs(a[3])>.2){ rig.position.y -= a[3]*dynSpeed*.6*dt; moving=true; }
       }
     }
-    vignette.visible = moving;
+    vignette.visible = moving && boost>1;   // comfort vignette only during sprint — gentle cruising stays clear
     // two-hand universe grab: translate / scale / rotate the active group
     if(grabState.active && pointers[0].squeezing && pointers[1].squeezing){
       const g=modeGroup(), A=ctrlPos(pointers[0]), B=ctrlPos(pointers[1]);
@@ -14149,7 +14163,14 @@ const XRX = (()=>{
            qualityPresets:QUEST_PRESETS, TOURS, cardTabs:CARD_TABS,
            evidenceTierStyle:t=>EVIDENCE_TIER_STYLE[t], evidenceLegend:evidenceVision.legend,
            computeMeasurement, observatoryDiagnostics, tabletopFallback:TABLETOP_FALLBACK,
-           get qualityName(){ return qualityName; }, rig };
+           get qualityName(){ return qualityName; }, rig,
+           // read-only in-session probe for external test harnesses (emulated headsets)
+           _qa(){ try{ return { session:!!session, mode:xrMode,
+             rig:rig.position.toArray().map(v=>+v.toFixed(4)),
+             moveSpeed, menu:{ visible:!!menuPanel.mesh.visible, stowed:menuStowed,
+               pos:menuPanel.mesh.position.toArray().map(v=>+v.toFixed(3)) },
+             pointers:pointers.map(P=>({handed:P.handed,gamepad:!!P.gamepad})) };
+           }catch(e){ return {err:String(e&&e.message||e)}; } } };
 })();
 
 /* ================================================================
@@ -18966,6 +18987,7 @@ globalThis.FBS3R_QA=Object.freeze({
   },
   // read-only snapshots for external harnesses (never mutate)
   state(){ try{ return JSON.parse(JSON.stringify(state)); }catch(e){ return {err:String(e)}; } },
+  xr(){ try{ return XRX._qa(); }catch(e){ return {err:String(e&&e.message||e)}; } },
   cam(){ try{ return { d:camera.position.distanceTo(controls.target),
     target:controls.target.toArray(), pos:camera.position.toArray(),
     mode:state.mode, layer:state.solarScaleLayer||null }; }catch(e){ return {err:String(e)}; } },
