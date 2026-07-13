@@ -1225,7 +1225,8 @@ function runSelfTests(){
   { // TOPOLOGY: the Gauss integral lands on the exact integers
     const A=topoHopfFibre(1.2,0,110), B=topoHopfFibre(2.1,1.5,110);
     const lk=topoGaussLink(A,B);
-    ok('Gauss linking of two Hopf fibres = 1 within 1e-2', Math.abs(lk-1)<0.01, lk.toFixed(5));
+    ok('Gauss linking of two Hopf fibres: |Lk| = 1 within 1e-2 (sign = orientation)',
+      Math.abs(Math.abs(lk)-1)<0.01, lk.toFixed(5));
     const C=[],D2=[];
     for(let k=0;k<110;k++){ const t=k/110*2*Math.PI;
       C.push(new THREE.Vector3(Math.cos(t)*1.2-2.2,Math.sin(t)*1.2,0));
@@ -9362,8 +9363,8 @@ function updateTopo(dt){
   if(O.st==='link'){
     if(topoDirty){ topoDirty=false; topoLk=topoGaussLink(O.A,O.B);
       const near=Math.round(topoLk), err=Math.abs(topoLk-near);
-      O.lkLab.element.textContent=`Lk = ${topoLk.toFixed(4)} → ${near} (numeric gap ${err.toExponential(1)}) — an INTEGER, as topology demands`;
-      ATLAS_BUS.pub('topo.Lk',+topoLk.toFixed(4),'ℤ');
+      O.lkLab.element.textContent=`Lk = ${topoLk.toFixed(4)} → ${near} (numeric gap ${err.toExponential(1)}) — an INTEGER, as topology demands · sign = mutual orientation`;
+      ATLAS_BUS.pub('topo.Lk',+topoLk.toFixed(4),'ℤ (signed by orientation)');
     }
     hudBig.textContent=`TOPOLOGY · Gauss linking · Lk ≈ ${topoLk===null?'…':topoLk.toFixed(4)}`;
     hudSub.textContent='the double line integral must land on an integer — invariance under ANY crossing-free deformation is the prediction, and the numerics confirm it live';
@@ -9599,9 +9600,9 @@ function updateTn(dt){
   tnT+=dt; const O=tnObjs;
   if(O.st==='orbit'){
     const h=0.004, steps=Math.min(120,Math.round((state.tnSpeed??1)*40));
-    for(let s=0;s<steps;s++){                          // RK4
+    for(let s=0;s<steps;s++){                          // RK4 (k1p MUST be a clone — an alias of v corrupts the state)
       const {p,v,N}=O;
-      const k1v=tnAcc(p,v,N),                    k1p=v;
+      const k1v=tnAcc(p,v,N),                    k1p=v.clone();
       const k2v=tnAcc(p.clone().addScaledVector(k1p,h/2), v.clone().addScaledVector(k1v,h/2),N), k2p=v.clone().addScaledVector(k1v,h/2);
       const k3v=tnAcc(p.clone().addScaledVector(k2p,h/2), v.clone().addScaledVector(k2v,h/2),N), k3p=v.clone().addScaledVector(k2v,h/2);
       const k4v=tnAcc(p.clone().addScaledVector(k3p,h),   v.clone().addScaledVector(k3v,h),N),   k4p=v.clone().addScaledVector(k3v,h);
@@ -9619,7 +9620,8 @@ function updateTn(dt){
     const cosNow=J.dot(O.p.clone().normalize())/J.length(), cos0=-O.N/O.J0.length();
     const dRet=O.p.distanceTo(O.p0)+O.v.distanceTo(O.v0);
     if(tnT>2&&dRet<0.05&&(!O.ret||dRet<O.ret.d)) O.ret={t:tnT,d:dRet};
-    O.readLab.element.textContent=`|ΔJ|/|J| = ${drJ.toExponential(1)} · J·r̂ = ${ (J.dot(O.p.clone().normalize())).toFixed(6) } (must equal −N = ${(-O.N).toFixed(6)}) · cone semi-angle ${(Math.acos(Math.max(-1,Math.min(1,cos0)))/DEG).toFixed(1)}°${O.ret?` · RESONANT return δ=${O.ret.d.toFixed(3)} at t≈${O.ret.t.toFixed(1)}`:''}`;
+    { const cAng=Math.acos(Math.max(-1,Math.min(1,cos0)))/DEG;
+      O.readLab.element.textContent=`|ΔJ|/|J| = ${drJ.toExponential(1)} · J·r̂ = ${ (J.dot(O.p.clone().normalize())).toFixed(6) } (must equal −N = ${(-O.N).toFixed(6)}) · cone semi-angle ${Math.min(cAng,180-cAng).toFixed(1)}°${O.ret?` · RESONANT return δ=${O.ret.d.toFixed(3)} at t≈${O.ret.t.toFixed(1)}`:''}`; }
     hudBig.textContent=`TAUB-NUT · NUT charge N = ${O.N.toFixed(2)} · the orbit RIDES THE PREDICTED CONE`;
     hudSub.textContent='gravitomagnetic monopole (Poincaré 1896 ⇄ Taub-NUT geodesics): J = r×v − N r̂ is conserved, so J·r̂ = −N pins every orbit to a cone about J — drawn BEFORE integration; the numbers above are measured live';
     ATLAS_BUS.pub('taub.JdotR',+(J.dot(O.p.clone().normalize())).toFixed(6),'= −N');
