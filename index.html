@@ -1870,6 +1870,114 @@ const ECLIPSES = [
  ['2035-09-02T01:56Z','Total','China · Korea · Japan · Pacific'],
 ].map(([iso,type,region])=>({date:new Date(iso), type, region}));
 
+/* ================================================================
+   PREDICTION ENGINE · eclipses & sky events, COMPUTED for any epoch
+   Self-consistent with the atlas's own ephemerides: geocentric Sun from
+   the JPL Kepler elements, Moon from the truncated Meeus/ELP series,
+   both reduced to the same J2000 ecliptic frame via the Vondrák
+   long-term precession (so the engine works far outside ±century).
+   Solar eclipses: exact shadow-CONE geometry — the umbra/penumbra axis
+   distance from Earth's centre is minimised around each new moon and
+   the type read off the cone radii (total/annular/hybrid/partial).
+   Lunar eclipses: classical umbral/penumbral angular radii with the
+   2% Danjon enlargement.
+   DECLARED ACCURACY: truncated lunar series ⇒ timing ±~15 min and
+   |γ| to a few 0.01 near the present (verified against the published
+   2024–2035 catalogue above); errors grow to hours over ±3 kyr; ΔT
+   (UTC↔TT) is NOT modelled — a few minutes today, hours by ±2 kyr.
+   Grazing edge cases (γ≈1, hybrids) may shift class — flagged '≈'. */
+const ECL_SYN=29.530588853, ECL_RS=696000, ECL_RM=1737.4, ECL_RE=6378.137, ECL_AUKM=1.495978707e8;
+function eclPrecLon(T){ return -ltpEquinoxLonDeg(2000+T*100)*DEG; }   // general precession in longitude, rad
+function eclSunGeo(T){ const e=planetEcl(PLANETS[2],T);
+  const r=Math.hypot(e.x,e.y,e.z);
+  return {lon:Math.atan2(-e.y,-e.x), lat:Math.asin(-e.z/r), rKM:r*ECL_AUKM}; }
+function eclMoonJ2000(T){ const g=moonGeo(T); return {lon:g.lon-eclPrecLon(T), lat:g.lat, rKM:g.rAU*ECL_AUKM}; }
+const eclWrapPi=a=>{ a=a%(2*Math.PI); if(a>Math.PI)a-=2*Math.PI; if(a<-Math.PI)a+=2*Math.PI; return a; };
+function eclElong(d){ const T=d/36525; return eclWrapPi(eclMoonJ2000(T).lon-eclSunGeo(T).lon); }
+function eclFindSyzygy(dGuess,target){ let d=dGuess;
+  for(let i=0;i<8;i++){ const f=eclWrapPi(eclElong(d)-target);
+    const fp=(eclWrapPi(eclElong(d+0.02)-target)-eclWrapPi(eclElong(d-0.02)-target))/0.04;
+    if(!Number.isFinite(fp)||Math.abs(fp)<1e-9) break; d-=f/fp; }
+  return d; }
+const _eclVec=(lon,lat,r)=>[r*Math.cos(lat)*Math.cos(lon), r*Math.cos(lat)*Math.sin(lon), r*Math.sin(lat)];
+function eclSolarGeom(d){ const T=d/36525, S=eclSunGeo(T), M=eclMoonJ2000(T);
+  const s=_eclVec(S.lon,S.lat,S.rKM), m=_eclVec(M.lon,M.lat,M.rKM);
+  const u=[m[0]-s[0],m[1]-s[1],m[2]-s[2]]; const Du=Math.hypot(u[0],u[1],u[2]);
+  u[0]/=Du; u[1]/=Du; u[2]/=Du;
+  const t0=-(m[0]*u[0]+m[1]*u[1]+m[2]*u[2]);
+  const q=[m[0]+t0*u[0],m[1]+t0*u[1],m[2]+t0*u[2]];
+  return {ax:Math.hypot(q[0],q[1],q[2]), l:t0, Dsm:Du}; }
+function eclClassifySolar(d){
+  if(Math.abs(moonGeo(d/36525).lat/DEG)>1.75) return null;           // quick node prefilter
+  let best=null;
+  for(let x=-0.9;x<=0.9;x+=0.004){ const g=eclSolarGeom(d+x); if(!best||g.ax<best.ax) best={...g,d:d+x}; }
+  const g=best, sinf1=(ECL_RS+ECL_RM)/g.Dsm, sinf2=(ECL_RS-ECL_RM)/g.Dsm;
+  const tanf1=sinf1/Math.sqrt(1-sinf1*sinf1), tanf2=sinf2/Math.sqrt(1-sinf2*sinf2);
+  const rPen=tanf1*(g.l+ECL_RM/sinf1), Lu=ECL_RM/sinf2;
+  if(g.ax>ECL_RE+rPen) return null;
+  const chord=Math.sqrt(Math.max(ECL_RE*ECL_RE-g.ax*g.ax,0));
+  const uNear=tanf2*(Lu-(g.l-chord)), uCtr=tanf2*(Lu-g.l);
+  let type='Partial', edge=g.ax>0.93*(ECL_RE+rPen);
+  if(g.ax<ECL_RE){ type = uNear>0&&uCtr<0 ? 'Hybrid' : (uCtr>0?'Total':'Annular');
+    edge = Math.abs(uCtr)<40 || g.ax>0.93*ECL_RE; }
+  return {d:g.d, kind:'solar', type, gamma:g.ax/ECL_RE, edge}; }
+function eclClassifyLunar(d){
+  if(Math.abs(moonGeo(d/36525).lat/DEG)>1.65) return null;
+  let best=null;
+  for(let x=-0.9;x<=0.9;x+=0.004){ const T=(d+x)/36525, S=eclSunGeo(T), M=eclMoonJ2000(T);
+    const as=[-Math.cos(S.lat)*Math.cos(S.lon),-Math.cos(S.lat)*Math.sin(S.lon),-Math.sin(S.lat)];
+    const mv=_eclVec(M.lon,M.lat,1);
+    const sep=Math.acos(Math.max(-1,Math.min(1,as[0]*mv[0]+as[1]*mv[1]+as[2]*mv[2])));
+    if(!best||sep<best.sep) best={sep,d:d+x,T}; }
+  const T=best.T, S=eclSunGeo(T), M=eclMoonJ2000(T);
+  const pim=Math.asin(ECL_RE/M.rKM), pis=Math.asin(ECL_RE/S.rKM),
+        ss=Math.asin(ECL_RS/S.rKM), sm=Math.asin(ECL_RM/M.rKM);
+  const su=1.02*(pim+pis-ss), sp=1.02*(pim+pis+ss), th=best.sep;
+  if(th>=sp+sm) return null;
+  const mag=(su+sm-th)/(2*sm);
+  const type= th<su-sm?'Total': th<su+sm?'Partial':'Penumbral';
+  return {d:best.d, kind:'lunar', type, mag, edge:Math.abs(mag)<0.06||Math.abs(mag-1)<0.06}; }
+/* scan for the next (dir=+1) or previous (dir=−1) events from day d0; n = max count */
+function eclScan(d0, n, dir=1, kinds={solar:true,lunar:true}){
+  const out=[]; let k=Math.round((d0-5.09766)/ECL_SYN)+(dir>0?0:1);
+  for(let guard=0; guard<600 && out.length<n; guard++, k+=dir){
+    if(kinds.solar){ const d=eclFindSyzygy(5.09766+ECL_SYN*k,0);
+      if((dir>0?d>d0:d<d0)){ const e=eclClassifySolar(d); if(e) out.push(e); } }
+    if(kinds.lunar){ const d=eclFindSyzygy(5.09766+ECL_SYN*(k+(dir>0?0.5:-0.5)),Math.PI);
+      if((dir>0?d>d0:d<d0)){ const e=eclClassifyLunar(d); if(e) out.push(e); } }
+  }
+  out.sort((a,b)=>dir*(a.d-b.d));
+  return out.slice(0,n);
+}
+/* --- conjunctions & oppositions: geocentric angular separations, minimised --- */
+function geoDirOf(idx,T){ // geocentric unit direction of planet idx (or the Sun for idx=-1), J2000 ecliptic
+  const E=planetEcl(PLANETS[2],T);
+  let v; if(idx<0) v=[-E.x,-E.y,-E.z];
+  else { const p=planetEcl(PLANETS[idx],T); v=[p.x-E.x,p.y-E.y,p.z-E.z]; }
+  const r=Math.hypot(v[0],v[1],v[2]); return [v[0]/r,v[1]/r,v[2]/r];
+}
+function skySep(a,b,d){ const T=d/36525, u=geoDirOf(a,T), v=geoDirOf(b,T);
+  return Math.acos(Math.max(-1,Math.min(1,u[0]*v[0]+u[1]*v[1]+u[2]*v[2]))); }
+/* next n local minima of the separation between bodies a,b after day d0 (dir=±1).
+   For oppositions pass opp=true: minimises 180°−elongation of planet a from the Sun. */
+function skyEventScan(a,b,d0,n,dir=1,opp=false){
+  const f=opp? d=>Math.PI-skySep(a,-1,d) : d=>skySep(a,b,d);
+  const out=[]; const step=dir*2; let d=d0+step, prev=f(d0), cur=f(d);
+  for(let guard=0; guard<9000 && out.length<n; guard++){
+    const nx=f(d+step);
+    if(cur<prev && cur<nx){                      // bracketed minimum → golden-section refine
+      let lo=d-step, hi=d+step;
+      for(let i=0;i<40;i++){ const m1=lo+(hi-lo)*0.382, m2=lo+(hi-lo)*0.618;
+        if(f(m1)<f(m2)) hi=m2; else lo=m1; }
+      const dm=(lo+hi)/2; out.push({d:dm, sep:f(dm)/DEG, opp});
+    }
+    prev=cur; cur=nx; d+=step;
+  }
+  return out;
+}
+const eclDateStr=d=>{ const t=new Date((d+2451545-2440587.5)*86400000);
+  return isNaN(t)?'J2000 '+d.toFixed(1)+'d':t.toISOString().slice(0,16).replace('T',' ')+' UT'; };
+
 /* Cosmological cycles dashboard — period in days, phase reference (days from J2000) */
 const CYCLES = [
  {key:'moon', name:'Synodic month (New Moon → New Moon)', days:29.530588853, ref:5.26,
