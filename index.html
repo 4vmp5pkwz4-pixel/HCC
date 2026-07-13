@@ -1256,6 +1256,18 @@ function runSelfTests(){
       !!l1&&!!l2&&l1>600&&l2>l1, `λ(600)=${l1&&l1.toFixed(0)} λ(700)=${l2&&l2.toFixed(0)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
+  { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
+    // the Moon stays on its true radius band, spin angles stay wrapped
+    const T=1e4;   // +1,000,000 years in Julian centuries
+    const okAll=[T,-T].every(Ts=>PLANETS.every(p=>{ const e=planetEcl(p,Ts);
+      const r=Math.hypot(e.x,e.y,e.z); return Number.isFinite(r)&&r>0.2&&r<80; }));
+    const mg=moonGeo(T);
+    ok('Deep time ±1 Myr: every planet finite and inside 0.2–80 AU (no fly-apart)', okAll, String(okAll));
+    ok('Deep time +1 Myr: Moon radius in the true 0.0024–0.0027 AU band and finite angles',
+      Number.isFinite(mg.lon)&&mg.rAU>0.0024&&mg.rAU<0.0027, mg.rAU.toFixed(6)+' AU');
+    ok('Deep time: planetEcl phase continuity — |r(T)−r(T+1h)| < 0.02 AU at +1 Myr',
+      (()=>{ const a=planetEcl(PLANETS[2],T), b=planetEcl(PLANETS[2],T+1/24/36525);
+        return Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z)<0.02; })()); }
   ok('JPL secular rates encoded for all eight major planets',
     PLANETS.slice(0,8).every(p=>['da','de','di','dw','dO'].every(k=>Number.isFinite(p[k]))),
     PLANETS.slice(0,8).map(p=>p.name).join(', '));
@@ -1953,11 +1965,13 @@ const AGES_ORDER = ['Pisces','Aquarius','Capricornus','Sagittarius','Scorpius','
 /* Low-precision lunar ephemeris (Meeus, principal terms; ~0.1° / good for visualization) */
 function moonGeo(T){
   const d=DEG;
-  const Lp=218.3164477+481267.88123421*T;
-  const D =297.8501921+445267.1114034*T;
-  const M =357.5291092+35999.0502909*T;
-  const Mp=134.9633964+477198.8675055*T;
-  const F =93.2720950+483202.0175233*T;
+  const w3=x=>((x%360)+360)%360;   // wrap in DEGREES before trig: raw arguments reach
+  // ~1e10° at deep epochs, where double-precision trig loses the lunar phase entirely
+  const Lp=w3(218.3164477+481267.88123421*T);
+  const D =w3(297.8501921+445267.1114034*T);
+  const M =w3(357.5291092+35999.0502909*T);
+  const Mp=w3(134.9633964+477198.8675055*T);
+  const F =w3(93.2720950+483202.0175233*T);
   const lon=(Lp
     +6.288774*Math.sin(Mp*d)+1.274027*Math.sin((2*D-Mp)*d)+0.658314*Math.sin(2*D*d)
     +0.213618*Math.sin(2*Mp*d)-0.185116*Math.sin(M*d)-0.114332*Math.sin(2*F*d)
@@ -4176,8 +4190,12 @@ function planetEcl(p, T){
   // epoch and more honest than extrapolating an invalid fit.
   const Te = T < -2 ? -2 : (T > 0.5 ? 0.5 : T);
   const a=p.a+(p.da||0)*Te, e=p.e+(p.de||0)*Te, i=(p.i+(p.di||0)*Te)*DEG;
-  const L=(p.L+p.rate*T)*DEG, w=(p.w+(p.dw||0)*Te)*DEG, O=(p.O+(p.dO||0)*Te)*DEG;
-  let M = L - w; M = ((M + Math.PI)%(2*Math.PI) + 2*Math.PI)%(2*Math.PI) - Math.PI;
+  const wd=p.w+(p.dw||0)*Te, Od=p.O+(p.dO||0)*Te;
+  // mean anomaly modulo 360° IN DEGREES first: at Myr/s time rates the raw angle
+  // reaches ~1e14° where radian-space wrapping has already lost the phase — the
+  // planets would visibly jitter and desynchronise from their own orbit lines
+  let Md=(p.L - wd + p.rate*T)%360; if(Md>180)Md-=360; if(Md<-180)Md+=360;
+  const M=Md*DEG, w=wd*DEG, O=Od*DEG;
   const E = keplerE(M, e);
   const xp = a*(Math.cos(E)-e), yp = a*Math.sqrt(1-e*e)*Math.sin(E);
   const wo = w - O, cw=Math.cos(wo), sw=Math.sin(wo), cO=Math.cos(O), sO=Math.sin(O), ci=Math.cos(i), si=Math.sin(i);
@@ -5989,8 +6007,8 @@ function updateHierarchyLocator(){
   if(hierarchyLayoutDirty||++hierarchyLayoutFrame%45===0) positionHierarchyLegend();
   const T=state.epochDays/36525, ep=planetPos(PLANETS[2],T).normalize().multiplyScalar(.72);
   locatorEarth.position.copy(ep);
-  const sunSpin=(SUN.spinW0+SUN.spinRateDegDay*state.epochDays)*DEG;
-  const earthSpin=(PLANETS[2].spinW0+PLANETS[2].spinRateDegDay*state.epochDays)*DEG;
+  const sunSpin=(((SUN.spinW0+SUN.spinRateDegDay*state.epochDays)%360+360)%360)*DEG;
+  const earthSpin=(((PLANETS[2].spinW0+PLANETS[2].spinRateDegDay*state.epochDays)%360+360)%360)*DEG;
   locatorSunSpin.quaternion.copy(SUN_AXIS_Q).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),sunSpin));
   locatorEarthSpin.position.copy(ep);
   locatorEarthSpin.quaternion.copy(earthAxisQuaternionActive(T)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),earthSpin));
@@ -10711,7 +10729,7 @@ function updateCyc(dt){
   if(frame==='antikythera'){ galInst.visible=precInst.visible=seaInst.visible=cycResonanceInst.visible=false; }
 
   // Galactic orbit: approximate relative phase only; absolute azimuth is not inferred.
-  const ga = galSunAngle0 - 2*Math.PI*yrs/(GAL_YEAR_MYR*1e6);
+  const ga = galSunAngle0 - 2*Math.PI*((yrs%(GAL_YEAR_MYR*1e6))/(GAL_YEAR_MYR*1e6));   // modulo first: phase-exact at any epoch
   galSun.position.set(Math.cos(ga)*5.6, .05, Math.sin(ga)*5.6);
   galRadial.geometry.setFromPoints([new THREE.Vector3(),galSun.position.clone()]);
   // the ARM PATTERN itself rotates (density wave, Ω_p≈28 km/s/kpc → T≈218 Myr, same
@@ -18273,7 +18291,7 @@ function tickBody(now, frame){
     sunMesh.scale.setScalar(SUN.r/KM_PER_AU*sScale);
     sunGlow.scale.setScalar(state.trueScale ? 6 : 4.2);
     sunMesh.quaternion.copy(SUN_AXIS_Q).multiply(
-      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(SUN.spinW0+SUN.spinRateDegDay*state.epochDays)*DEG));
+      new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((SUN.spinW0+SUN.spinRateDegDay*state.epochDays)%360+360)%360)*DEG));
     sunSpinCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false && (state.solarScaleLayer||'local')==='local';
     for(const o of planetObjs){
       o.mesh.position.copy(planetPos(o.p, T));
@@ -18281,7 +18299,7 @@ function tickBody(now, frame){
       o.mesh.scale.setScalar(o.p.r/KM_PER_AU*pScale);
       if(o.p.spinHours){
         o.mesh.quaternion.copy(earthAxisQuaternionActive(T)).multiply(
-          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(o.p.spinW0+o.p.spinRateDegDay*state.epochDays)*DEG));
+          new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),(((o.p.spinW0+o.p.spinRateDegDay*state.epochDays)%360+360)%360)*DEG));
         o.spinCue.visible=!!state.showSpinAxes&&state.vectorAxes!==false && (state.solarScaleLayer||'local')==='local';
       } else if(PLANET_POLE_Q[o.p.name]){
         o.mesh.quaternion.copy(PLANET_POLE_Q[o.p.name]);   // IAU pole orientation for every planet
