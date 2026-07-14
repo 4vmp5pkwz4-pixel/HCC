@@ -6300,14 +6300,15 @@ function setSolarScaleLayer(layer){
   } else if(layer==='galactic'){
     controls.target.copy(GAL_DATA.gc.pos.clone().multiplyScalar(.5));
     camera.position.copy(controls.target).addScaledVector(GAL_DATA.pole.dir,120000*LY_AU);
-    setControlDistanceLimits(1000*LY_AU,5e6*LY_AU);
+    setControlDistanceLimits(1,5e6*LY_AU);          // min=1 AU: the reverse zoom must reach the down-step thresholds
   } else if(layer==='andromeda'){
     controls.target.copy(GAL_DATA.m31.pos);
     camera.position.copy(GAL_DATA.m31.pos).addScaledVector(GAL_DATA.m31.dir,-230000*LY_AU);
-    setControlDistanceLimits(1000*LY_AU,8e6*LY_AU);
+    setControlDistanceLimits(1,8e6*LY_AU);
   } else {
     controls.target.set(0,0,0); camera.position.set(0,10*GLY_AU,22*GLY_AU);
-    setControlDistanceLimits(.01*GLY_AU,800*GLY_AU);
+    setControlDistanceLimits(1,800*GLY_AU);         // was .01·GLY_AU (6.3e11 AU) — LARGER than the
+    // cosmic→andromeda step (3.3e11 AU), so you could never zoom back in. min=1 AU restores the return path.
   }
   syncCameraClipping(true);
   updateBreadcrumb();   // the breadcrumb displays the active scale layer
@@ -6437,10 +6438,21 @@ function autoSolarScale(dt){
   const order=['local','galactic','andromeda','cosmic'], layer=state.solarScaleLayer||'local', i=order.indexOf(layer);
   if(i<0) return;
   const d=camera.position.distanceTo(controls.target);
-  // auto-stepping belongs to the Sun-anchored zoom chain ONLY: when the target sits
-  // far from the origin (a deliberate M31 / GC framing), stepping layers underneath
-  // the user swapped the visible set and read as a black flash + jump — never again.
-  if(controls.target.length() > Math.max(1e5, d*0.25)) return;
+  // The zoom chain is Sun-anchored (target≈origin). A deliberate M31/GC framing, or a
+  // scale chip, can leave the target far from the Sun. Rather than freeze the chain
+  // there (which used to TRAP the user — no way back to the Solar System), detect the
+  // return gesture: while zooming IN on an off-origin target, PAN camera+target together
+  // toward the Sun (a pure translation → zero view-jump) so target.length() shrinks and
+  // the Sun-anchored down-steps resume smoothly. Zooming out / holding keeps the framing.
+  const tlen=controls.target.length(), framed=tlen>Math.max(1e5,d*0.25);
+  const zoomingIn=autoSolarScale._prevD!=null && d<autoSolarScale._prevD-Math.max(1,d*1e-4);
+  autoSolarScale._prevD=d;
+  if(framed){
+    if(!zoomingIn) return;                              // outward / static on a framed object: don't auto-step
+    const shift=controls.target.clone().multiplyScalar(-0.16);   // gentle re-home toward the Sun
+    controls.target.add(shift); camera.position.add(shift);
+    // fall through so down-steps can fire the moment the target is home enough
+  }
   const outAt={ local:220000, galactic:3.2e6*LY_AU, andromeda:6.5e6*LY_AU }[layer];    // AU
   const inAt ={ galactic:120000, andromeda:2.4e6*LY_AU, cosmic:5.2e6*LY_AU }[layer];   // hysteresis vs outAt
   const NAMES={local:'Solar System · Oort cloud',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'};
@@ -15690,18 +15702,25 @@ function buildCtlBody(){
     ctl.querySelector('#solarFlows').onchange=e=>{state.showLaniakeaFlows=e.target.checked;updateSolarScaleVisibility();};
     ctl.querySelector('#solarFlowDens').oninput=e=>{state.laniakeaFlowDensity=+e.target.value;updateSolarScaleVisibility();};
     ctl.querySelector('#oortFocus').onclick = ()=>{
-      // scale-consistent: the button NEVER changes the active layer. In the local frame
-      // it frames the full cloud; in every larger frame it glides to the Solar System's
-      // locus at a distance where its transitional form reads — the gold Oort mote in
-      // the galactic/Local-Group frames, the home-galaxy beacon in the cosmic web.
+      // "View the full Oort cloud" — always returns you to the Solar System's own scale
+      // and frames the whole cloud. From a larger frame it steps the layer back down to
+      // local (Sun-anchored, generous limits) and glides to the cloud — never parking the
+      // camera inside the galactic bulge glow, always a clean road home to the planets.
+      _autoScaleCd=2.4; clearFocus(); selectKey(null);
       const layer=state.solarScaleLayer||'local';
-      _autoScaleCd=2.2;
-      if(layer==='local'){ selectKey('oortCloud'); focusOn(SELECT.get('oortCloud')); return; }
-      clearFocus(); selectKey(null);
-      const dist = layer==='galactic'?1.6e7 : layer==='andromeda'?9e8 : 0.5*GLY_AU;
-      controls.target.set(0,0,0);
-      const dir=camera.position.clone(); if(dir.lengthSq()<1e-9) dir.set(0.4,0.3,1); dir.normalize();
-      camera.position.copy(dir.multiplyScalar(dist)); syncCameraClipping(true); };
+      if(layer!=='local'){
+        state.solarScaleLayer='local';
+        // keep the current view direction; drop the camera to an Oort-framing distance so
+        // the focus glide is short and the giant structures fade out behind you smoothly
+        const dir=camera.position.clone().sub(controls.target);
+        if(dir.lengthSq()<1e-9) dir.set(0.4,0.3,1);
+        dir.normalize();
+        controls.target.set(0,0,0);
+        camera.position.copy(dir).multiplyScalar(1.7*OORT.OUTER_AU);   // ~1.7× the cloud radius
+        advanceScaleLayer('local');                                   // local visibility + limits
+        updateSolarScaleVisibility(); syncCameraClipping(true);
+      }
+      const oc=SELECT.get('oortCloud'); if(oc){ selectKey('oortCloud'); focusOn(oc); } };
 
     ctl.querySelectorAll('[data-solar-scale]').forEach(b=>b.onclick=()=>{
       setSolarScaleLayer(b.dataset.solarScale); updateSolarScaleVisibility(); buildCtl();
