@@ -8709,6 +8709,8 @@ function buildQuasi(){
 const _qpD=new THREE.Object3D(), _qpCol=new THREE.Color(), _qpUp=new THREE.Vector3(0,1,0), _qpDir=new THREE.Vector3();
 function updateQuasi(dt){
   if(state.qpType!==qpBuiltType) buildQuasi();
+  { const s=labSensor(); if(s&&(state.qpType==='phonon'||state.qpType==='magnon'))
+      state.qpK=THREE.MathUtils.clamp(1.57+s.x*1.45,0.1,3.04); }   // tilt sweeps the dispersion k·a
   if(state.qpRun) qpTime+=dt*state.qpSpeed;
   const T=state.qpType, t=qpTime;
   if(T==='phonon'&&qpInst){
@@ -8824,6 +8826,127 @@ function atomClear(){
   atomInst=[];
 }
 const ATOM_LCOL=[0xf1dda6,0x8fb9ff,0xc9a8e8,0x7fe0c8];            // s p d f
+/* one honest line per element — origin, character, place in the world */
+const ELEM_FACTS=[
+'Hydrogen — born in the Big Bang; 74% of ordinary matter; fuel of every star.',
+'Helium — Big Bang + stellar fusion; discovered on the Sun before Earth; never freezes at 1 atm.',
+'Lithium — one of only three primordial elements; heart of modern batteries.',
+'Beryllium — forged by cosmic-ray spallation; stiff, light, X-ray transparent.',
+'Boron — spallation-born; the basis of borosilicate glass and neutron capture.',
+'Carbon — made in triple-α stellar fusion; four bonds; the scaffold of all life.',
+'Nitrogen — CNO-cycle product; 78% of the air; inert until fixed.',
+'Oxygen — most abundant element in Earth\'s crust; the breath of aerobic life.',
+'Fluorine — most electronegative element of all; reacts with nearly everything.',
+'Neon — noble glow of discharge signs; fifth most abundant element in the cosmos.',
+'Sodium — soft alkali metal; the yellow doublet of street lamps; nerve signalling.',
+'Magnesium — centre of every chlorophyll molecule; burns blinding white.',
+'Aluminium — most common metal in the crust; was once dearer than gold.',
+'Silicon — the semiconductor age is named after it; backbone of rock.',
+'Phosphorus — carrier of energy (ATP) and heredity (DNA backbone); glows in air.',
+'Sulfur — brimstone of volcanoes; bridges that hold proteins in shape.',
+'Chlorine — pool disinfectant and table-salt partner; a WWI weapon, honestly noted.',
+'Argon — 1% of the air; so noble it was named "the lazy one".',
+'Potassium — its radioactive isotope ⁴⁰K helps heat Earth\'s interior.',
+'Calcium — bones, shells, chalk cliffs; the sculptor of skeletons.',
+'Scandium — lightweight aluminium alloys for aerospace and bicycles.',
+'Titanium — strong as steel at half the weight; hips, jets, white paint.',
+'Vanadium — hardens tool steel; five oxidation-state colours in one flask.',
+'Chromium — mirror-bright plating; the exception 3d⁵4s¹ configuration.',
+'Manganese — deep-sea nodules; essential for photosynthetic oxygen release.',
+'Iron — endpoint of exothermic fusion; core of our planet; carrier of our blood.',
+'Cobalt — blue of medieval glass; heart of vitamin B₁₂.',
+'Nickel — meteoric iron\'s partner; coins and stainless alloys.',
+'Copper — first metal smelted by humans; the conductor of civilisation.',
+'Zinc — galvanic armour of steel; the finger that folds DNA-reading proteins.',
+'Gallium — melts in the palm of your hand; GaAs powers lasers and LEDs.',
+'Germanium — the first transistor was germanium; fibre-optic dopant.',
+'Arsenic — notorious poison, yet a dopant that made electronics possible.',
+'Selenium — light-sensitive; the first xerographic photocopier used it.',
+'Bromine — one of two elements liquid at room temperature; flame retardants.',
+'Krypton — "the hidden one"; defined the metre from 1960 to 1983.',
+'Rubidium — atomic-clock workhorse; ⁸⁷Rb dates ancient rocks.',
+'Strontium — crimson of fireworks; ⁹⁰Sr fallout taught us test-ban treaties.',
+'Yttrium — YBCO superconductor and white LED phosphors carry it.',
+'Zirconium — nearly transparent to neutrons: cladding of reactor fuel.',
+'Niobium — the superconducting magnets of the LHC and MRI are niobium.',
+'Molybdenum — nitrogen-fixing enzymes put one Mo atom at their core.',
+'Technetium — first artificial element; no stable isotope; medical imaging staple.',
+'Ruthenium — hardens platinum; catalyses green ammonia routes.',
+'Rhodium — the most precious common metal; car-exhaust catalyst.',
+'Palladium — soaks up 900× its volume of hydrogen; catalysis royalty.',
+'Silver — best electrical conductor of all elements; mirrors and photography.',
+'Cadmium — reactor control rods and the yellow of Monet\'s palette; toxic.',
+'Indium — soft enough to cry ("tin cry"); ITO touchscreens run on it.',
+'Tin — bronze made history; whiskers and pest plague electronics.',
+'Antimony — ancient eye-paint kohl; flame-proofing and semiconductors.',
+'Tellurium — rarer than gold in the crust; CdTe solar panels.',
+'Iodine — thyroid\'s essential halogen; sublimes in violet vapour.',
+'Xenon — ion-drive propellant; anaesthetic; first noble gas ever to form a compound.',
+'Caesium — defines the SI second (9,192,631,770 oscillations); melts at 28 °C.',
+'Barium — swallowed for X-ray contrast; green in fireworks.',
+'Lanthanum — opens the lanthanide series; camera lenses and battery alloys.',
+'Cerium — most abundant rare earth; lighter flints and self-cleaning ovens.',
+'Praseodymium — green salts; didymium glass protects glassblowers\' eyes.',
+'Neodymium — the strongest permanent magnets ever made.',
+'Promethium — no stable isotope; glow-in-the-dark exit signs once used it.',
+'Samarium — SmCo magnets keep working red-hot; cancer radiotherapy.',
+'Europium — red and blue phosphors of screens; anti-counterfeit euros.',
+'Gadolinium — MRI contrast agent; huge neutron appetite; exception 4f⁷5d¹.',
+'Terbium — green phosphors; magnetostrictive Terfenol-D sounds flat panels.',
+'Dysprosium — "hard to get at"; keeps wind-turbine magnets cool-headed.',
+'Holmium — highest magnetic moment of any element; laser surgery.',
+'Erbium — amplifies every long-haul fibre-optic signal on Earth.',
+'Thulium — rarest stable rare earth; portable X-ray sources.',
+'Ytterbium — optical-lattice clocks of 10⁻¹⁸ precision tick on Yb.',
+'Lutetium — densest, hardest rare earth; PET-scanner crystals.',
+'Hafnium — twin of zirconium; reactor rods and 5-nm chip gates.',
+'Tantalum — capacitors of every phone; conflict-mineral awareness matters.',
+'Tungsten — highest melting point of any metal (3422 °C); lightbulb heritage.',
+'Rhenium — last stable element discovered (1925); jet-engine superalloys.',
+'Osmium — densest naturally occurring element (22.59 g/cm³).',
+'Iridium — meteorite fingerprint in the dinosaur-extinction clay layer.',
+'Platinum — catalyst prince; the old kilogram cylinder was Pt-Ir.',
+'Gold — forged in neutron-star mergers; the exception 5d¹⁰6s¹; incorruptible.',
+'Mercury — liquid metal of thermometers past; Minamata taught its dangers.',
+'Thallium — "the poisoner\'s poison"; also heart-imaging isotope ²⁰¹Tl.',
+'Lead — end of three natural decay chains; Roman pipes, modern shielding.',
+'Bismuth — rainbow hopper crystals; barely radioactive (t½ ≈ 2×10¹⁹ yr).',
+'Polonium — discovered by Marie Curie, named for her homeland; α emitter.',
+'Astatine — rarest natural element: under 1 g in Earth\'s crust at any moment.',
+'Radon — radioactive gas seeping from granite; the silent dose in basements.',
+'Francium — most unstable natural element; 22-minute half-life at best.',
+'Radium — once painted watch dials; the Radium Girls changed labour law.',
+'Actinium — glows faint blue in the dark; opens the actinide series.',
+'Thorium — proposed molten-salt reactor fuel; monazite sands hold it.',
+'Protactinium — "parent of actinium"; one of the rarest natural elements.',
+'Uranium — heaviest primordial element; fission changed the world twice.',
+'Neptunium — first transuranic; named beyond Uranus as the planet is.',
+'Plutonium — reactor-bred; warmth of deep-space probes (RTGs) and of history\'s shadow.',
+'Americium — in nearly every smoke detector on Earth (²⁴¹Am).',
+'Curium — named for Marie and Pierre; powered Mars rovers\' spectrometers.',
+'Berkelium — made by the atom, for the atom: a stepping stone to heavier elements.',
+'Californium — strongest neutron emitter in use; starts up reactors.',
+'Einsteinium — found in the debris of the first hydrogen bomb.',
+'Fermium — heaviest element makeable in a reactor; honours Enrico Fermi.',
+'Mendelevium — made one atom at a time; honours the table\'s architect.',
+'Nobelium — Dubna–Berkeley naming dispute; honours Alfred Nobel.',
+'Lawrencium — closes the actinides; its 7p electron puzzles theorists.',
+'Rutherfordium — first transactinide; chemistry done atom-by-atom.',
+'Dubnium — named for the Dubna laboratory; seconds-long half-lives.',
+'Seaborgium — Glenn Seaborg saw his own element named — a first.',
+'Bohrium — honours Niels Bohr; behaves as a heavier rhenium.',
+'Hassium — named for Hesse, Germany; densest element predicted.',
+'Meitnerium — honours Lise Meitner, co-discoverer of fission denied the Nobel.',
+'Darmstadtium — GSI Darmstadt\'s own; milliseconds of existence.',
+'Roentgenium — honours Röntgen and his X-rays.',
+'Copernicium — honours Copernicus; possibly a volatile, mercury-like metal.',
+'Nihonium — first element discovered in Asia (RIKEN, Japan).',
+'Flerovium — Flerov Laboratory\'s flag on the island of stability\'s shore.',
+'Moscovium — named for Moscow oblast; five atoms announced discovery.',
+'Livermorium — Livermore\'s handshake with Dubna.',
+'Tennessine — second-newest halogen-column member; Oak Ridge\'s berkelium made it possible.',
+'Oganesson — heaviest known element; named for living physicist Yuri Oganessian; a noble gas that may not be noble.',
+];
 function buildAtom(){
   atomClear(); atomBuiltZ=state.atZ;
   const Z=state.atZ, A=ELEM_A[Z-1], Nn=Math.max(0,A-Z);
@@ -9120,6 +9243,7 @@ function gwAdvance(dt){
 function updateGrav(dt){
   if(state.gravPreset!==gravBuiltId) gravSetup();
   if(!gravBodies.length) return;
+  { const s=labSensor(); if(s) state.gravSpeed=THREE.MathUtils.clamp(1+s.x*3.4,0.05,8); }   // tilt throttles the sim
   const P=GRAV_PRESETS.find(p=>p.id===gravBuiltId)||GRAV_PRESETS[0];
   if(state.gravRun && P.gw){ gwAdvance(dt); }
   else if(state.gravRun){
@@ -9288,6 +9412,7 @@ function qmStepN(n){
 }
 function updateQm(dt){
   if(state.qmMode!==qmBuilt||!qmRe) qmSetup();
+  { const s=labSensor(); if(s) state.qmSpeed=THREE.MathUtils.clamp(1+s.x*2.2,0.1,5); }   // tilt throttles evolution
   if(state.qmRun) qmStepN(Math.max(1,Math.min(40,Math.round((state.qmSpeed??1)*8))));
   const S=12.6/QM_L, A=6.5, A2=11;
   const hp=qmLines.helix.geometry.attributes.position.array,
@@ -9376,6 +9501,8 @@ function qcdSetup(){
 }
 function updateQcd(dt){
   if(!qcdObjs||qcdObjs.mode!==(state.qcdMode||'meson')) qcdSetup();
+  { const s=labSensor(); if(s&&(state.qcdMode||'meson')==='meson')
+      state.qcdR=THREE.MathUtils.clamp(1.175+s.x*1.02,0.15,2.2); }   // tilt stretches the string
   qcdT+=dt; const O=qcdObjs, r=state.qcdR??0.8;
   const cols=[0xff5f6a,0x62e87c,0x6f9dff];
   if(O.mode==='meson'){
@@ -9704,6 +9831,7 @@ function updateSc(dt){
     hudBig.textContent=`SUPERCONDUCTIVITY · Meissner expulsion · ${M.name} (T_c ${M.Tc} K)`;
     hudSub.textContent=`perfect diamagnetism is not perfect conduction — it is a thermodynamic STATE: London λ_L = ${M.lam} nm, gap Δ(0) = ${gap.toFixed(2)} meV`;
   } else if(O.st==='josephson'){
+    { const s=labSensor(); if(s) state.scV=THREE.MathUtils.clamp(2+s.x*2,0,4); }   // tilt biases the junction
     const V=state.scV??1;                              // µV
     const fGHz=SC_KJ*V*1e-6;                           // GHz at V µV
     O.phase+=dt*2*Math.PI*Math.max(V,0.02)*0.7;        // display-rate phase (declared scaled)
@@ -9805,6 +9933,7 @@ function updateTn(dt){
   if(!tnObjs||tnObjs.st!==(state.tnStation||'orbit')) tnSetupLab();
   tnT+=dt; const O=tnObjs;
   if(O.st==='orbit'){
+    { const s=labSensor(); if(s) state.tnSpeed=THREE.MathUtils.clamp(1+s.x*1.8,0.1,4); }   // tilt throttles the orbit
     const h=0.004, steps=Math.min(120,Math.round((state.tnSpeed??1)*40));
     for(let s=0;s<steps;s++){                          // RK4 (k1p MUST be a clone — an alias of v corrupts the state)
       const {p,v,N}=O;
@@ -9905,6 +10034,7 @@ function eotTof(lam,a0){
 function updateEot(dt){
   if(!eotObjs) eotSetup();
   eotT+=dt; const O=eotObjs;
+  { const s=labSensor(); if(s) state.eotLam=Math.round(THREE.MathUtils.clamp(710+s.x*290,420,1000)); }   // tilt tunes λ
   const a0=state.eotA0??600, lam=state.eotLam??700;
   const T=eotTof(lam,a0), fOpen=Math.PI*0.16*0.16/(0.86*0.86);
   for(const f of O.fronts){ const y=1.4+((eotT*0.9+f.position.y*0)%1); }
@@ -9920,6 +10050,13 @@ function updateEot(dt){
   hudBig.textContent=`EXTRAORDINARY TRANSMISSION · T = ${(T*100).toFixed(0)}% through ${(fOpen*100).toFixed(1)}% open area`;
   hudSub.textContent='surface plasmons collect light from the FULL surface and funnel it through subwavelength holes — resonance positions from the real SPP dispersion (Drude fit declared); tune λ to the predicted peak and watch the beams ignite';
   ATLAS_BUS.pub('eot.T',+(T*100).toFixed(1),'%');
+}
+
+/* sensor → laboratory drive: one normalized tilt sample (γ→x, β→y in [−1,1]),
+   consumed by whichever lab is active when Laboratory drive is enabled */
+function labSensor(){
+  if(!state.motionLabDrive) return null;
+  try{ const s=MOTION.scientificSample?.(); return (s&&s.active)?s:null; }catch(e){ return null; }
 }
 
 function setS3View(v){
@@ -14530,6 +14667,10 @@ const MOTION = (()=>{
              ['chi','S³ Chi Tilt'],['fly','Fractal Flight']]
             .map(([v,l])=>`<option value="${v}" ${st.mode===v?'selected':''}>${l}</option>`).join('')}
         </select></div>
+      <div class="ctlrow"><label>Laboratory drive</label>
+        <input type="checkbox" id="moLabDrive" ${state.motionLabDrive?'checked':''}>
+        <span class="val" style="flex:1;text-align:left;color:var(--dim)">tilt drives the ACTIVE lab's main parameter</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">With Laboratory drive on, tilting the phone (γ axis) becomes a physical control knob: it stretches the QCD string (r), sweeps the phonon/magnon wavevector k, biases the Josephson junction (µV), tunes the plasmonic wavelength λ, and throttles the Gravitas / Quantum / Taub-NUT simulation speeds — hands-on experiments no mouse can match.</div>
       <div class="ctlrow"><label>Sensitivity</label>
         <input type="range" id="moSens" min="0.2" max="3" step="0.1" value="${st.sens}">
         <span class="val">${st.sens.toFixed(1)}×</span></div>
@@ -14559,6 +14700,7 @@ const MOTION = (()=>{
       if(st.mode!=='off' && !st.enabled) enable();
     };
     panel.querySelector('#moSens').oninput = e=>{ st.sens=+e.target.value; render(); };
+    panel.querySelector('#moLabDrive')&&(panel.querySelector('#moLabDrive').onchange=e=>{ state.motionLabDrive=e.target.checked; });
     panel.querySelector('#moDead').oninput = e=>{ st.dead=+e.target.value; render(); };
     panel.querySelector('#moSm').oninput   = e=>{ st.smooth=+e.target.value; render(); };
     panel.querySelector('#moInv').onchange = e=>st.invert=e.target.checked;
@@ -14645,6 +14787,7 @@ const state = {
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
   phaseLock:null, phaseRate:0, vecPlanetOn:{},        // stroboscopic phase lock · per-planet velocity arrows (default OFF)
+  motionLabDrive:false,                               // phone tilt drives the active laboratory's main parameter
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5,        // Quantum wave lab
   qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab
@@ -16469,7 +16612,8 @@ function buildCtlBody(){
       if(info){ const sh=atomConfig(state.atZ);
         info.innerHTML=`<b style="color:var(--gold-2)">${ELEM_SYMS[state.atZ-1]}</b> · A≈${ELEM_A[state.atZ-1]} · configuration: `+
           sh.map(s=>`${s.n}${'spdf'[s.l]}<sup>${s.c}</sup>`).join(' ')+
-          ` · shells: ${sh.length} · valence subshell ${(x=>x.n+'spdf'[x.l])(sh[sh.length-1])}`; }
+          ` · shells: ${sh.length} · valence subshell ${(x=>x.n+'spdf'[x.l])(sh[sh.length-1])}`+
+          (ELEM_FACTS[state.atZ-1]?`<br><span style="color:var(--dim)">${ELEM_FACTS[state.atZ-1]}</span>`:''); }
     }
     if(V==='sel'){
       ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
