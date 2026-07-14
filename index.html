@@ -10133,83 +10133,166 @@ function labSensor(){
    curve. The measured fringe spacing on the screen is compared LIVE with
    the textbook Δy = λL/d — the law emerges from raw superposition. */
 const waveGroup=new THREE.Group(); waveGroup.visible=false; s3Group.add(waveGroup);
-const WAVE_NX=96, WAVE_NY=64, WAVE_W=10.4, WAVE_H=7.0;
+const WAVE_NX=150, WAVE_NY=104, WAVE_W=11.0, WAVE_H=7.4, WAVE_X0=-WAVE_W/2+1.15;   // barrier x-position
 let waveObjs=null, waveT=0, waveUiAcc=0;
+// luxe gold→blue intensity ramp (premium black-gold aesthetic)
+function waveColorAt(t,out){   // t in [0,1]
+  t=Math.max(0,Math.min(1,t));
+  // dark navy → royal blue → cyan → gold → white-gold
+  const stops=[[0.05,0.06,0.12],[0.10,0.30,0.62],[0.36,0.72,0.92],[0.96,0.80,0.36],[1.0,0.97,0.85]];
+  const f=t*(stops.length-1), i=Math.min(stops.length-2,Math.floor(f)), u=f-i;
+  out.setRGB(stops[i][0]+(stops[i+1][0]-stops[i][0])*u,
+             stops[i][1]+(stops[i+1][1]-stops[i][1])*u,
+             stops[i][2]+(stops[i+1][2]-stops[i][2])*u);
+}
+function waveSlitCenters(Nsl,d){ const a=[]; for(let s=0;s<Nsl;s++) a.push((s-(Nsl-1)/2)*d); return a; }
+function waveBuildBarrier(O,Nsl,d,a){
+  // literal barrier: opaque wall segments with real GAPS at every slit — you SEE the slits
+  if(O.barrier){ waveGroup.remove(O.barrier); O.barrier.traverse(x=>{x.geometry&&x.geometry.dispose();x.material&&x.material.dispose&&x.material.dispose();}); }
+  const grp=new THREE.Group(); grp.position.x=WAVE_X0;
+  const centers=waveSlitCenters(Nsl,d);
+  // edges of opaque segments: from −H/2, skipping each [c−a/2, c+a/2] opening
+  const cuts=[-WAVE_H/2]; centers.forEach(c=>{ cuts.push(c-a/2, c+a/2); }); cuts.push(WAVE_H/2);
+  const wallMat=new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.55,roughness:.35,
+    emissive:0x0a1220,emissiveIntensity:.4});
+  for(let s=0;s<cuts.length;s+=2){ const z0=cuts[s], z1=cuts[s+1], h=z1-z0; if(h<=1e-3) continue;
+    const seg=new THREE.Mesh(new THREE.BoxGeometry(0.26,2.6,h,1,1,1), wallMat);
+    seg.position.set(0,0,(z0+z1)/2); grp.add(seg);
+    // gilded slit edges — thin bright rails framing every opening (premium detail)
+  }
+  // glowing slit apertures + edge rails
+  centers.forEach(c=>{
+    const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,
+      transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    glow.scale.set(0.7,Math.max(a*1.4,0.5),1); glow.position.set(0.02,0,c); grp.add(glow);
+    for(const e of [c-a/2,c+a/2]){
+      const rail=new THREE.Mesh(new THREE.BoxGeometry(0.30,2.62,0.035),
+        new THREE.MeshBasicMaterial({color:0xf5c964})); rail.position.set(0,0,e); grp.add(rail);
+    }
+  });
+  waveGroup.add(grp); O.barrier=grp; O.barSig=Nsl+'|'+d.toFixed(3)+'|'+a.toFixed(3);
+}
 function waveSetup(){
   labWipe(waveGroup); waveT=0;
+  // luxe lighting for the metallic barrier
+  waveGroup.add(new THREE.AmbientLight(0x8090b0,.75));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.85); dl.position.set(-3,6,4); waveGroup.add(dl);
+  // ── solid, colour-mapped intensity surface (the star of the show) ──
   const g=new THREE.PlaneGeometry(WAVE_W,WAVE_H,WAVE_NX-1,WAVE_NY-1);
   g.rotateX(-Math.PI/2);
-  const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x8fb8ff,wireframe:true,transparent:true,opacity:.5}));
+  const nv=g.attributes.position.count;
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(nv*3),3));
+  const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.96,
+    side:THREE.DoubleSide}));
   waveGroup.add(surf);
-  const wall=new THREE.Mesh(new THREE.BoxGeometry(.14,1.1,WAVE_H),
-    new THREE.MeshBasicMaterial({color:0x24344e}));
-  wall.position.set(-WAVE_W/2+0.4,0.28,0); waveGroup.add(wall);
+  // faint gilded wireframe overlay for the "engineered" premium read
+  const wire=new THREE.Mesh(g.clone(),new THREE.MeshBasicMaterial({color:0xf1dda6,wireframe:true,
+    transparent:true,opacity:.10,depthWrite:false}));
+  waveGroup.add(wire);
+  // incident plane wavefronts sweeping toward the barrier (source side)
+  const fronts=[];
+  for(let i=0;i<6;i++){ const ln=new THREE.Mesh(new THREE.BoxGeometry(0.04,0.9,WAVE_H*0.98),
+      new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.35,blending:THREE.AdditiveBlending,depthWrite:false}));
+    waveGroup.add(ln); fronts.push(ln); }
+  // detector screen — glowing vertical strip painted by the fringe pattern (canvas texture)
+  const scv=document.createElement('canvas'); scv.width=16; scv.height=256;
+  const sctex=new THREE.CanvasTexture(scv); sctex.colorSpace=THREE.SRGBColorSpace;
+  const screen=new THREE.Mesh(new THREE.PlaneGeometry(0.55,WAVE_H),
+    new THREE.MeshBasicMaterial({map:sctex,transparent:true,side:THREE.DoubleSide}));
+  screen.position.set(WAVE_W/2-0.05,0.9,0); screen.rotation.y=-Math.PI/2; waveGroup.add(screen);
+  // fringe profile curve floating in front of the screen
   const sg=new THREE.BufferGeometry();
   sg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(WAVE_NY*3),3));
-  const screen=new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xf5c964}));
-  waveGroup.add(screen);
-  const tl=mkLabel('WAVE OPTICS · I = |Σ e^{ikr}/√r|² — pure Huygens superposition, nothing pre-drawn','label const');
-  tl.position.set(0,3.4,0); waveGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-2.8,0); waveGroup.add(rl);
-  waveObjs={surf,screen,readLab:rl,slitMarks:[]};
+  const scurve=new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xf5c964}));
+  waveGroup.add(scurve);
+  const tl=mkLabel('WAVE OPTICS · I = |Σ e^{ikr}/√r|² — pure Huygens superposition','label const');
+  tl.position.set(0,3.7,0); waveGroup.add(tl);
+  const sl=mkLabel('barrier + slits','label dim'); sl.position.set(WAVE_X0,-2.9,0); waveGroup.add(sl);
+  const dl2=mkLabel('detector screen','label dim'); dl2.position.set(WAVE_W/2-0.05,-2.9,0); waveGroup.add(dl2);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); waveGroup.add(rl);
+  waveObjs={surf,wire,fronts,screen,sctex,scv,scurve,readLab:rl,barrier:null,barSig:''};
 }
 function updateWave(dt){
   if(!waveObjs) waveSetup();
   waveT+=dt; const O=waveObjs;
   const mode=state.waveMode||'double';
   const Nsl=mode==='single'?1:mode==='grating'?(state.waveN??5):2;
-  const lam=(state.waveLam??0.62), d=(state.waveD??1.7), a=(state.waveA??0.5);
-  const k=2*Math.PI/lam, x0=-WAVE_W/2+0.47;
-  // three coherent sub-sources per slit ⇒ finite slit width (single-slit diffraction included)
+  const lam=(state.waveLam??0.45), d=(state.waveD??2.4), a=(state.waveA??0.3);
+  const k=2*Math.PI/lam, x0=WAVE_X0;
+  // rebuild the physical barrier only when the slit geometry changes
+  const sig=Nsl+'|'+d.toFixed(3)+'|'+a.toFixed(3);
+  if(O.barSig!==sig) waveBuildBarrier(O,Nsl,d,a);
+  // Huygens sub-sources: 3 per slit → real slit width (single-slit diffraction included)
   const srcs=[];
-  for(let s=0;s<Nsl;s++){ const zc=(s-(Nsl-1)/2)*d;
-    for(let q=-1;q<=1;q++) srcs.push(zc+q*a/2); }
-  const pos=O.surf.geometry.attributes.position;
-  const phase=waveT*3.2;
-  let i=0;
+  for(let s=0;s<Nsl;s++){ const zc=(s-(Nsl-1)/2)*d; for(let q=-1;q<=1;q++) srcs.push(zc+q*a/2); }
+  const pos=O.surf.geometry.attributes.position, col=O.surf.geometry.attributes.color;
+  const phase=waveT*3.2, _c=_waveCol;
+  let i=0, peakI=1e-6;
+  // first pass: field amplitude (and running max for the colour normalisation)
   for(let iy=0;iy<WAVE_NY;iy++)for(let ix=0;ix<WAVE_NX;ix++,i++){
-    const x=pos.array[i*3], z=pos.array[i*3+2];
+    const x=pos.array[i*3], z=pos.array[i*3+2], dx=x-x0;
+    if(dx<=0.02){ pos.array[i*3+1]=0; _wI[i]=0; continue; }
     let re=0,im=0;
-    const dx=x-x0;
-    if(dx<=0.02){ pos.array[i*3+1]=0; continue; }
     for(const sz of srcs){ const r=Math.hypot(dx,z-sz), amp=1/Math.sqrt(Math.max(r,0.2));
       re+=amp*Math.cos(k*r-phase); im+=amp*Math.sin(k*r-phase); }
-    pos.array[i*3+1]=(re*re+im*im)/srcs.length*0.13;
+    const I=(re*re+im*im)/srcs.length; _wI[i]=I; if(I>peakI)peakI=I;
   }
-  pos.needsUpdate=true;
-  // detector screen: TIME-AVERAGED intensity column at the far edge + peak metrology
-  const sp=O.screen.geometry.attributes.position, L=(WAVE_W/2-0.05)-x0;   // exact slit→screen distance
-  const prof=[];
-  for(let iy=0;iy<WAVE_NY;iy++){
-    const z=-WAVE_H/2+iy/(WAVE_NY-1)*WAVE_H;
-    let re=0,im=0;
-    for(const sz of srcs){ const r=Math.hypot(L,z-sz), amp=1/Math.sqrt(r);
+  const inv=1/peakI;
+  i=0;
+  for(let iy=0;iy<WAVE_NY;iy++)for(let ix=0;ix<WAVE_NX;ix++,i++){
+    const t=_wI[i]*inv;
+    pos.array[i*3+1]=t*1.7;
+    waveColorAt(Math.pow(t,0.75),_c);
+    col.array[i*3]=_c.r; col.array[i*3+1]=_c.g; col.array[i*3+2]=_c.b;
+  }
+  pos.needsUpdate=true; col.needsUpdate=true;
+  O.surf.geometry.computeVertexNormals?.();
+  O.wire.geometry.attributes.position.array.set(pos.array); O.wire.geometry.attributes.position.needsUpdate=true;
+  // incident wavefronts march toward the barrier
+  for(let f=0;f<O.fronts.length;f++){ const span=x0-(-WAVE_W/2);
+    const xf=-WAVE_W/2+((waveT*lam*3.2/(2*Math.PI)+f/O.fronts.length)%1)*span;
+    O.fronts[f].position.set(xf,0.05,0);
+    O.fronts[f].material.opacity=.30*(0.4+0.6*(xf+WAVE_W/2)/span); }
+  // detector screen: time-independent |Σ|² fringe pattern → canvas + curve
+  const L=(WAVE_W/2-0.05)-x0, prof=[];
+  let smax=1e-6;
+  for(let iy=0;iy<WAVE_NY;iy++){ const z=-WAVE_H/2+iy/(WAVE_NY-1)*WAVE_H;
+    let re=0,im=0; for(const sz of srcs){ const r=Math.hypot(L,z-sz), amp=1/Math.sqrt(r);
       re+=amp*Math.cos(k*r); im+=amp*Math.sin(k*r); }
-    const I=(re*re+im*im)/srcs.length; prof.push({z,I});
-    sp.array[iy*3]=WAVE_W/2-0.05; sp.array[iy*3+1]=I*0.5; sp.array[iy*3+2]=z;
-  }
-  sp.needsUpdate=true; O.screen.geometry.computeBoundingSphere();
+    const I=(re*re+im*im)/srcs.length; prof.push({z,I}); if(I>smax)smax=I; }
+  // paint the screen strip (bright fringes on black — a real interferogram)
+  const ctx=O.scv.getContext('2d'), H=O.scv.height;
+  const img=ctx.createImageData(O.scv.width,H);
+  for(let py=0;py<H;py++){ const fy=(H-1-py)/(H-1)*(WAVE_NY-1), j=Math.floor(fy), u=fy-j;
+    const I=((prof[j]?.I||0)*(1-u)+(prof[Math.min(j+1,WAVE_NY-1)]?.I||0)*u)/smax;
+    waveColorAt(Math.pow(I,0.7),_c);
+    for(let px=0;px<O.scv.width;px++){ const o=(py*O.scv.width+px)*4;
+      img.data[o]=_c.r*255; img.data[o+1]=_c.g*255; img.data[o+2]=_c.b*255; img.data[o+3]=255; } }
+  ctx.putImageData(img,0,0); O.sctex.needsUpdate=true;
+  const sp=O.scurve.geometry.attributes.position;
+  for(let iy=0;iy<WAVE_NY;iy++){ sp.array[iy*3]=WAVE_W/2+0.05+prof[iy].I/smax*0.9;
+    sp.array[iy*3+1]=0.9; sp.array[iy*3+2]=prof[iy].z; }
+  sp.needsUpdate=true; O.scurve.geometry.computeBoundingSphere();
   waveUiAcc+=dt;
   if(waveUiAcc>0.4){ waveUiAcc=0;
-    // fringe metrology: mean spacing of local maxima near the axis vs Δy = λL/d
     const peaks=[];
-    for(let j=2;j<prof.length-2;j++) if(prof[j].I>prof[j-1].I&&prof[j].I>prof[j+1].I&&prof[j].I>0.25) peaks.push(prof[j].z);
+    for(let j=2;j<prof.length-2;j++) if(prof[j].I>prof[j-1].I&&prof[j].I>prof[j+1].I&&prof[j].I>0.25*smax) peaks.push(prof[j].z);
     let meas=null;
     if(peaks.length>1){ let s=0,n=0; for(let j=1;j<peaks.length;j++){ const g2=peaks[j]-peaks[j-1]; if(g2<3*lam*L/d){ s+=g2; n++; } }
       if(n) meas=s/n; }
-    const an=lam*L/(Nsl>1?d:a);
     O.readLab.element.textContent=(Nsl>1
       ?`measured fringe spacing Δy = ${meas?meas.toFixed(3):'—'} vs analytic λL/d = ${(lam*L/d).toFixed(3)} — the law emerges from raw superposition`
       :`single slit: central lobe half-width λL/a = ${(lam*L/a).toFixed(3)} · minima at sinθ = mλ/a`);
     hudBig.textContent=`WAVE OPTICS · ${mode==='single'?'single-slit diffraction':mode==='grating'?Nsl+'-slit grating':'Young double slit'} · λ = ${lam.toFixed(2)} · d = ${d.toFixed(2)}`;
-    hudSub.textContent='every point of the surface is |Σ e^{ikr}/√r|² over '+srcs.length+' Huygens sources (3 per slit → real slit width): interference, diffraction and superposition are one phenomenon — coherent addition. Point-source model, declared.';
+    hudSub.textContent='the coloured surface is |Σ e^{ikr}/√r|² over '+srcs.length+' Huygens sources (3 per real-width slit) — interference, diffraction and superposition are ONE phenomenon: coherent addition. See the real slits in the metal barrier and the fringes cast on the detector screen.';
     ATLAS_BUS.pub('wave.dy',meas?+meas.toFixed(3):null,'vs λL/d='+(lam*L/d).toFixed(3));
     const el=ctl.querySelector('#waveInv');
-    if(el) el.innerHTML=`sources = ${srcs.length} (3/slit) · k = 2π/λ = ${k.toFixed(2)}`+
+    if(el) el.innerHTML=`sources = ${srcs.length} (3/slit) · slits = ${Nsl} · k = 2π/λ = ${k.toFixed(2)}`+
       (Nsl>1?`<br>Δy measured = <b>${meas?meas.toFixed(4):'—'}</b> · analytic λL/d = <b>${(lam*L/d).toFixed(4)}</b> · agreement ${meas?((100*meas/(lam*L/d)).toFixed(1)+'%'):'—'}`:'')+
       `<br>grating sharpening: peak width ∝ 1/N — raise N and watch the orders crystallise`;
   }
 }
+const _waveCol=new THREE.Color(); const _wI=new Float32Array(WAVE_NX*WAVE_NY);
 
 function setS3View(v){
   state.s3view = v;
@@ -12139,9 +12222,10 @@ function buildMandelJuliaFiber3D(force=false){
   const q=mjFiberQuality||'fast';
   const ultra=q==='ultra';
   const fast=q==='fast';
-  const W=ultra?(MOBILE_GPU?42:48):(fast?(MOBILE_GPU?64:76):112);
-  const H=ultra?(MOBILE_GPU?30:34):(fast?(MOBILE_GPU?44:52):76);
-  const maxIter=ultra?(MOBILE_GPU?28:36):(fast?(MOBILE_GPU?48:64):96);
+  const razor=q==='razor';                                   // NEW top tier: true instrument resolution
+  const W=razor?(MOBILE_GPU?150:260):ultra?(MOBILE_GPU?42:48):(fast?(MOBILE_GPU?96:128):176);
+  const H=razor?(MOBILE_GPU?104:180):ultra?(MOBILE_GPU?30:34):(fast?(MOBILE_GPU?66:88):120);
+  const maxIter=razor?(MOBILE_GPU?96:200):ultra?(MOBILE_GPU?28:36):(fast?(MOBILE_GPU?72:110):150);
   const pos=[], col=[];
   const jx=fractalUniforms.uJulia.value.x, jy=fractalUniforms.uJulia.value.y;
   const pow=THREE.MathUtils.clamp(fractalUniforms.uMJPower.value||2,1.15,8);
@@ -12236,10 +12320,34 @@ function buildMandelJuliaFiber3D(force=false){
     }
   }
   const ptsGeo=new THREE.BufferGeometry();
-  ptsGeo.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
-  ptsGeo.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  const posArr=new Float32Array(pos), colArr=new Float32Array(col);
+  ptsGeo.setAttribute('position',new THREE.Float32BufferAttribute(posArr,3));
+  ptsGeo.setAttribute('color',new THREE.Float32BufferAttribute(colArr,3));
   ptsGeo.computeBoundingSphere();
-  mjFiberGroup.add(new THREE.Points(ptsGeo,new THREE.PointsMaterial({size:MOBILE_GPU?0.052:0.038,vertexColors:true,sizeAttenuation:true,transparent:true,opacity:.94,depthWrite:false,blending:THREE.AdditiveBlending})));
+  // SOLID INVARIANT LANDSCAPE — the grid triangulated into a continuous surface (the
+  // real instrument: a readable relief of the Mandelbrot⇄Julia decision field), with
+  // the point cloud kept as a luminous sparkle overlay. Only when the full grid is present.
+  const gridOK = posArr.length===W*H*3;
+  if(gridOK){
+    const idx=new Uint32Array((W-1)*(H-1)*6); let t=0;
+    for(let iy=0;iy<H-1;iy++)for(let ix=0;ix<W-1;ix++){
+      const a=iy*W+ix, b=a+1, c2=a+W, d=c2+1;
+      idx[t++]=a; idx[t++]=c2; idx[t++]=b; idx[t++]=b; idx[t++]=c2; idx[t++]=d;
+    }
+    const surfGeo=new THREE.BufferGeometry();
+    surfGeo.setAttribute('position',new THREE.BufferAttribute(posArr,3));
+    surfGeo.setAttribute('color',new THREE.BufferAttribute(colArr,3));
+    surfGeo.setIndex(new THREE.BufferAttribute(idx,1));
+    surfGeo.computeBoundingSphere();
+    const _msurf=new THREE.Mesh(surfGeo,new THREE.MeshBasicMaterial({
+      vertexColors:true,transparent:true,opacity:.9,side:THREE.DoubleSide}));
+    _msurf.frustumCulled=false; mjFiberGroup.add(_msurf);
+    // faint gilded wireframe for the engineered read
+    const _mwire=new THREE.Mesh(surfGeo,new THREE.MeshBasicMaterial({
+      color:0xf1dda6,wireframe:true,transparent:true,opacity:razor?.06:.10,depthWrite:false}));
+    _mwire.frustumCulled=false; mjFiberGroup.add(_mwire);
+  }
+  mjFiberGroup.add(new THREE.Points(ptsGeo,new THREE.PointsMaterial({size:MOBILE_GPU?0.05:(razor?0.026:0.036),vertexColors:true,sizeAttenuation:true,transparent:true,opacity:gridOK?.55:.94,depthWrite:false,blending:THREE.AdditiveBlending})));
 
   // parameter-plane base frame
   const framePts=[];
@@ -17297,6 +17405,13 @@ function buildCtlBody(){
           <button class="chip" id="mjToHopf">→ Hopf fibration · the S³ analogue</button>
         </div>
       </div>
+      <div class="sect" style="margin:8px 0 0"><b>Surface resolution</b>
+        <div class="chips">
+          ${[['fast','Fast'],['ultra','Light'],['razor','RAZOR · instrument grade']].map(([k,l])=>
+            `<button class="chip ${mjFiberQuality===k?'on':''}" data-mjq="${k}">${l}</button>`).join('')}
+        </div>
+        <div class="note" style="font-size:10.5px;color:var(--dim)">The parameter grid is triangulated into a continuous SOLID relief — the invariant-decision landscape of C<sub>c</sub>×C<sub>z</sub> — with the point cloud kept as a luminous sparkle. RAZOR renders up to 260×180 samples at 200 iterations: a true research surface.</div>
+      </div>
       <div class="ctlrow"><button class="btn green" id="mjCenterToJulia">use current Mandelbrot center as Julia c</button><button class="btn" id="mjRebuild3D">rebuild 3D fibers</button></div>
       <div class="note">This is not a visual overlay. The Mandelbrot plane is the <b>parameter plane</b> c; the Julia plane is the <b>dynamical plane</b> z for f<sub>c</sub>(z)=z<sup>d</sup>+c. Presets and sliders expose connectedness, rays, equipotentials, tuning, renormalization, Misiurewicz/parabolic similarity, Ecalle/Lavaurs phase, kneading/lamination, rational/two-critical slices, fractional memory, quaternion/Mandelbulb sections and 3D parameter-dynamic fibers as one joint C<sub>c</sub>×C<sub>z</sub> laboratory.</div>
     </div>`:''}
@@ -17459,7 +17574,8 @@ function buildCtlBody(){
     ctl.querySelector('#mjToBud')?.addEventListener('click',()=>{ navPush(); setFractalType('buddhabrot',false); buildCtl(); });
     ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ navPush(); setMode('s3'); setS3View('hopf'); openPanel('ctl'); buildCtl(); });
     ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
-    ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); });
+    ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); mjFiberGroup.visible=true; });
+    ctl.querySelectorAll('[data-mjq]').forEach(b=>b.addEventListener('click',()=>{ mjFiberQuality=b.dataset.mjq; buildMandelJuliaFiber3D(true); mjFiberGroup.visible=true; buildCtl(); }));
     ctl.querySelector('#bifFeig')?.addEventListener('click',()=>{ fractalUniforms.uCenter.value.set(3.5699456,0.5); setFractalZoom(42); buildCtl(); });
     ctl.querySelector('#bifFull')?.addEventListener('click',()=>{ setFractalType('bifurcation',true); buildCtl(); });
     ctl.querySelector('#bifOverlay')?.addEventListener('change',e=>{ fractalUniforms.uBifOverlay.value=e.target.checked?1:0; });
