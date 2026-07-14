@@ -10125,6 +10125,92 @@ function labSensor(){
   try{ const s=MOTION.scientificSample?.(); return (s&&s.active)?s:null; }catch(e){ return null; }
 }
 
+/* ================================================================
+   WAVE OPTICS LAB · interference, superposition, diffraction — live.
+   The field is the EXACT superposition of Huygens point sources (three
+   per slit to give each slit width): I(x,y) = |Σ e^{ikr}/√r|², animated
+   in phase and rendered as a 3D intensity surface plus a detector-screen
+   curve. The measured fringe spacing on the screen is compared LIVE with
+   the textbook Δy = λL/d — the law emerges from raw superposition. */
+const waveGroup=new THREE.Group(); waveGroup.visible=false; s3Group.add(waveGroup);
+const WAVE_NX=96, WAVE_NY=64, WAVE_W=10.4, WAVE_H=7.0;
+let waveObjs=null, waveT=0, waveUiAcc=0;
+function waveSetup(){
+  labWipe(waveGroup); waveT=0;
+  const g=new THREE.PlaneGeometry(WAVE_W,WAVE_H,WAVE_NX-1,WAVE_NY-1);
+  g.rotateX(-Math.PI/2);
+  const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x8fb8ff,wireframe:true,transparent:true,opacity:.5}));
+  waveGroup.add(surf);
+  const wall=new THREE.Mesh(new THREE.BoxGeometry(.14,1.1,WAVE_H),
+    new THREE.MeshBasicMaterial({color:0x24344e}));
+  wall.position.set(-WAVE_W/2+0.4,0.28,0); waveGroup.add(wall);
+  const sg=new THREE.BufferGeometry();
+  sg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(WAVE_NY*3),3));
+  const screen=new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xf5c964}));
+  waveGroup.add(screen);
+  const tl=mkLabel('WAVE OPTICS · I = |Σ e^{ikr}/√r|² — pure Huygens superposition, nothing pre-drawn','label const');
+  tl.position.set(0,3.4,0); waveGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-2.8,0); waveGroup.add(rl);
+  waveObjs={surf,screen,readLab:rl,slitMarks:[]};
+}
+function updateWave(dt){
+  if(!waveObjs) waveSetup();
+  waveT+=dt; const O=waveObjs;
+  const mode=state.waveMode||'double';
+  const Nsl=mode==='single'?1:mode==='grating'?(state.waveN??5):2;
+  const lam=(state.waveLam??0.62), d=(state.waveD??1.7), a=(state.waveA??0.5);
+  const k=2*Math.PI/lam, x0=-WAVE_W/2+0.47;
+  // three coherent sub-sources per slit ⇒ finite slit width (single-slit diffraction included)
+  const srcs=[];
+  for(let s=0;s<Nsl;s++){ const zc=(s-(Nsl-1)/2)*d;
+    for(let q=-1;q<=1;q++) srcs.push(zc+q*a/2); }
+  const pos=O.surf.geometry.attributes.position;
+  const phase=waveT*3.2;
+  let i=0;
+  for(let iy=0;iy<WAVE_NY;iy++)for(let ix=0;ix<WAVE_NX;ix++,i++){
+    const x=pos.array[i*3], z=pos.array[i*3+2];
+    let re=0,im=0;
+    const dx=x-x0;
+    if(dx<=0.02){ pos.array[i*3+1]=0; continue; }
+    for(const sz of srcs){ const r=Math.hypot(dx,z-sz), amp=1/Math.sqrt(Math.max(r,0.2));
+      re+=amp*Math.cos(k*r-phase); im+=amp*Math.sin(k*r-phase); }
+    pos.array[i*3+1]=(re*re+im*im)/srcs.length*0.13;
+  }
+  pos.needsUpdate=true;
+  // detector screen: TIME-AVERAGED intensity column at the far edge + peak metrology
+  const sp=O.screen.geometry.attributes.position, L=(WAVE_W/2-0.05)-x0;   // exact slit→screen distance
+  const prof=[];
+  for(let iy=0;iy<WAVE_NY;iy++){
+    const z=-WAVE_H/2+iy/(WAVE_NY-1)*WAVE_H;
+    let re=0,im=0;
+    for(const sz of srcs){ const r=Math.hypot(L,z-sz), amp=1/Math.sqrt(r);
+      re+=amp*Math.cos(k*r); im+=amp*Math.sin(k*r); }
+    const I=(re*re+im*im)/srcs.length; prof.push({z,I});
+    sp.array[iy*3]=WAVE_W/2-0.05; sp.array[iy*3+1]=I*0.5; sp.array[iy*3+2]=z;
+  }
+  sp.needsUpdate=true; O.screen.geometry.computeBoundingSphere();
+  waveUiAcc+=dt;
+  if(waveUiAcc>0.4){ waveUiAcc=0;
+    // fringe metrology: mean spacing of local maxima near the axis vs Δy = λL/d
+    const peaks=[];
+    for(let j=2;j<prof.length-2;j++) if(prof[j].I>prof[j-1].I&&prof[j].I>prof[j+1].I&&prof[j].I>0.25) peaks.push(prof[j].z);
+    let meas=null;
+    if(peaks.length>1){ let s=0,n=0; for(let j=1;j<peaks.length;j++){ const g2=peaks[j]-peaks[j-1]; if(g2<3*lam*L/d){ s+=g2; n++; } }
+      if(n) meas=s/n; }
+    const an=lam*L/(Nsl>1?d:a);
+    O.readLab.element.textContent=(Nsl>1
+      ?`measured fringe spacing Δy = ${meas?meas.toFixed(3):'—'} vs analytic λL/d = ${(lam*L/d).toFixed(3)} — the law emerges from raw superposition`
+      :`single slit: central lobe half-width λL/a = ${(lam*L/a).toFixed(3)} · minima at sinθ = mλ/a`);
+    hudBig.textContent=`WAVE OPTICS · ${mode==='single'?'single-slit diffraction':mode==='grating'?Nsl+'-slit grating':'Young double slit'} · λ = ${lam.toFixed(2)} · d = ${d.toFixed(2)}`;
+    hudSub.textContent='every point of the surface is |Σ e^{ikr}/√r|² over '+srcs.length+' Huygens sources (3 per slit → real slit width): interference, diffraction and superposition are one phenomenon — coherent addition. Point-source model, declared.';
+    ATLAS_BUS.pub('wave.dy',meas?+meas.toFixed(3):null,'vs λL/d='+(lam*L/d).toFixed(3));
+    const el=ctl.querySelector('#waveInv');
+    if(el) el.innerHTML=`sources = ${srcs.length} (3/slit) · k = 2π/λ = ${k.toFixed(2)}`+
+      (Nsl>1?`<br>Δy measured = <b>${meas?meas.toFixed(4):'—'}</b> · analytic λL/d = <b>${(lam*L/d).toFixed(4)}</b> · agreement ${meas?((100*meas/(lam*L/d)).toFixed(1)+'%'):'—'}`:'')+
+      `<br>grating sharpening: peak width ∝ 1/N — raise N and watch the orders crystallise`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10149,6 +10235,7 @@ function setS3View(v){
   scGroup.visible      = (v==='sc');
   tnGroup.visible      = (v==='taub');
   eotGroup.visible     = (v==='eot');
+  waveGroup.visible    = (v==='wave');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10159,6 +10246,7 @@ function setS3View(v){
   if(v==='sc'){ scSetupLab(); }
   if(v==='taub'){ tnSetupLab(); }
   if(v==='eot'){ if(!eotObjs) eotSetup(); }
+  if(v==='wave'){ if(!waveObjs) waveSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10170,7 +10258,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -14896,7 +14984,8 @@ const state = {
   topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
   scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
-  eotA0:600, eotLam:700,                                                // Extraordinary transmission   // Gravitas 3-body lab · GW inspiral · Solar L-points
+  eotA0:600, eotLam:700,                                                // Extraordinary transmission
+  waveMode:'double', waveLam:0.45, waveD:2.4, waveA:0.3, waveN:5,       // Wave optics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -16328,6 +16417,32 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='wave') body = `
+    <div class="sect"><b>Wave optics — pick an experiment</b>
+      <div class="chips">
+        ${[['double','Young double slit'],['single','Single-slit diffraction'],['grating','N-slit grating']].map(([k,l])=>
+          `<button class="chip ${(state.waveMode||'double')===k?'on':''}" data-wavemode="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Wavelength λ</label>
+        <input type="range" id="waveLam" min="0.3" max="1.2" step="0.01" value="${state.waveLam}"><span class="val" id="waveLamV">${state.waveLam.toFixed(2)}</span></div>
+      ${(state.waveMode||'double')!=='single'?`
+      <div class="ctlrow"><label>Slit separation d</label>
+        <input type="range" id="waveD" min="0.8" max="3.2" step="0.02" value="${state.waveD}"><span class="val" id="waveDV">${state.waveD.toFixed(2)}</span></div>`:''}
+      <div class="ctlrow"><label>Slit width a</label>
+        <input type="range" id="waveA" min="0.15" max="1.4" step="0.01" value="${state.waveA}"><span class="val" id="waveAV">${state.waveA.toFixed(2)}</span></div>
+      ${(state.waveMode||'double')==='grating'?`
+      <div class="ctlrow"><label>Slits N</label>
+        <input type="range" id="waveN" min="3" max="8" step="1" value="${state.waveN}"><span class="val" id="waveNV">${state.waveN}</span></div>`:''}
+    </div>
+    <div class="sect"><b>Live metrology — the law from raw superposition</b>
+      <div class="note" id="waveInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">No fringes are drawn: every point of the surface is the coherent sum |Σ e^{ikr}/√r|² over Huygens point sources (three per slit, so slits have real width). The detector line measures its own fringe spacing and compares it LIVE with the textbook Δy = λL/d; the single slit shows minima at sinθ = mλ/a; the grating's orders sharpen as 1/N. Interference, diffraction and superposition revealed as ONE phenomenon — coherent addition. Point-source Huygens model, declared.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="waveToQm">→ Quantum: the same superposition for matter waves</button>
+        <button class="btn" id="waveToEot">→ Extraordinary transmission: subwavelength holes cheat this limit</button></div>
+    </div>`;
     else if(V==='atom') body = `
     <div class="sect"><b>Element constructor — Z = ${state.atZ} · ${ELEM_SYMS[state.atZ-1]}</b>
       <div class="ctlrow">
@@ -16443,6 +16558,7 @@ function buildCtlBody(){
         <button class="btn ${V==='sc'?'on':''}" id="v-sc">Superconductivity</button>
         <button class="btn ${V==='taub'?'on':''}" id="v-taub">Taub-NUT</button>
         <button class="btn ${V==='eot'?'on':''}" id="v-eot">Extraordinary transmission</button>
+        <button class="btn ${V==='wave'?'on':''}" id="v-wave">Wave optics</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -16461,7 +16577,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot']){
+    for(const vv of ['topo','sc','taub','eot','wave']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -16692,6 +16808,15 @@ function buildCtlBody(){
         const v=ctl.querySelector('#eotLamV'); if(v)v.textContent=state.eotLam+' nm'; });
       ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
       ctl.querySelector('#eotToQuasi')&&(ctl.querySelector('#eotToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
+    }
+    if(V==='wave'){
+      ctl.querySelectorAll('[data-wavemode]').forEach(b=>b.onclick=()=>{ state.waveMode=b.dataset.wavemode; buildCtl(); });
+      const ws=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(2); }; };
+      ws('waveLam',v=>state.waveLam=v); ws('waveD',v=>state.waveD=v); ws('waveA',v=>state.waveA=v);
+      ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
+      ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
     }
     if(V==='atom'){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
@@ -17984,7 +18109,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -19125,6 +19250,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateTn(dt);
     } else if(state.s3view==='eot'){
       fbsAnimT+=dt; updateEot(dt);
+    } else if(state.s3view==='wave'){
+      fbsAnimT+=dt; updateWave(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
