@@ -792,6 +792,7 @@
   <span class="small" id="landedInfo"></span><br>
   <button class="btn warn" id="leaveBtn" style="margin-top:5px;pointer-events:auto">🚀 Leave surface (Esc)</button>
 </div>
+<button id="navBackBtn" class="btn" title="Return exactly to where you jumped from (view, section and camera restored)" style="display:none;position:fixed;top:58px;left:12px;z-index:32;box-shadow:0 6px 22px rgba(0,0,0,.45)">← Back</button>
 <div id="hud"><div class="big" id="hudBig"></div><div class="sub" id="hudSub"></div></div>
 <div id="physDebug" style="display:none"></div>
 <div id="atlasCoach" hidden></div>
@@ -1045,7 +1046,38 @@ const PHI_ATLAS=[
   ['Full S³ circumference 2πR',3.259e28,'s3','the whole closed universe'],
  ]],
 ];
+/* ── NAV BACK ── every cross-section jump pushes the FULL location (mode, lab
+   view, scale layer, ladder level, fractal type, camera & target) onto a stack;
+   the floating ← Back button restores it exactly — you can never get lost. */
+const NAV_STACK=[];
+function navSnapshot(){
+  return { mode:state.mode, s3view:state.s3view, layer:state.solarScaleLayer,
+    fbsDepth:state.fbsDepth, ft:(typeof fractalType!=='undefined')?fractalType:null,
+    cam:camera.position.toArray(), tgt:controls.target.toArray() };
+}
+function navPush(){
+  try{ NAV_STACK.push(navSnapshot()); if(NAV_STACK.length>60) NAV_STACK.shift();
+    const b=document.getElementById('navBackBtn'); if(b) b.style.display='block';
+  }catch(e){}
+}
+function navBack(){
+  const s=NAV_STACK.pop();
+  const b=document.getElementById('navBackBtn');
+  if(b&&!NAV_STACK.length) b.style.display='none';
+  if(!s) return;
+  try{
+    if(state.mode!==s.mode) setMode(s.mode);
+    if(s.mode==='s3'&&s.s3view) setS3View(s.s3view);
+    if(s.mode==='solar'&&s.layer){ setSolarScaleLayer(s.layer); updateSolarScaleVisibility(); }
+    if(s.mode==='fbs'){ state.fbsDepth=s.fbsDepth; state.fbsTarget=null; state.fbsCycle=false; }
+    if(s.mode==='fractal'&&s.ft&&typeof setFractalType==='function') setFractalType(s.ft,false);
+    camera.position.fromArray(s.cam); controls.target.fromArray(s.tgt);
+    syncCameraClipping(true); buildCtl();
+  }catch(e){ console.warn('[navBack]',e); }
+}
+{ const b=document.getElementById('navBackBtn'); if(b) b.onclick=()=>navBack(); }
 function phiAtlasJump(code){
+  navPush();
   const V=v=>{ setMode('s3'); setS3View(v); };
   switch(code){
     case 'qcd': V('qcd'); break;
@@ -15330,7 +15362,7 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-precm]').forEach(b=>b.onclick=()=>{ state.precModel=b.dataset.precm; buildCtl(); });
     /* --- Prediction observatory: computed events; list + handlers survive panel rebuilds --- */
     const eclBind=()=>ctl.querySelectorAll('[data-eclgo]').forEach(b=>b.onclick=()=>{
-      const e=(window._eclEvents||[])[+b.dataset.eclgo]; if(!e) return;
+      const e=(window._eclEvents||[])[+b.dataset.eclgo]; if(!e) return; navPush();
       state.epochDays=e.d-0.06; state.paused=false; state.daysPerSec=0.02; state.timeDir=1;
       const s=SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
       updCtlVals(); });
@@ -15367,7 +15399,7 @@ function buildCtlBody(){
         }
         window._skyEvents=evs;
         ctl.querySelectorAll('[data-skygo]').forEach(b=>b.onclick=()=>{
-          const e=window._skyEvents[+b.dataset.skygo]; if(!e) return;
+          const e=window._skyEvents[+b.dataset.skygo]; if(!e) return; navPush();
           state.epochDays=e.d; state.paused=true; state.timeDir=1;
           const a=state.skyPair.startsWith('opp')?+state.skyPair.slice(3):+state.skyPair.split(',')[0];
           const s=SELECT.get('planet'+a); if(s){ selectKey('planet'+a); focusOn(s); }
@@ -15533,7 +15565,7 @@ function buildCtlBody(){
       ecInfo.textContent=`${e.type} eclipse · greatest at ${e.date.toISOString().slice(11,16)} UT · visible: ${e.region}`; };
     ecSel.onchange=showEc; showEc();
     ctl.querySelector('#ecGo').onclick=()=>jumpToEclipse(+ecSel.value);
-    ctl.querySelector('#ecPredict')&&(ctl.querySelector('#ecPredict').onclick=()=>{ setMode('solar'); openPanel('ctl'); buildCtl();
+    ctl.querySelector('#ecPredict')&&(ctl.querySelector('#ecPredict').onclick=()=>{ navPush(); setMode('solar'); openPanel('ctl'); buildCtl();
       setTimeout(()=>{ const b=ctl.querySelector('#eclNextB'); if(b){ b.click(); b.scrollIntoView({block:'center'}); } },80); });
     ctl.querySelectorAll('[data-cyc]').forEach(b=>b.onclick=()=>observeCycle(b.dataset.cyc));
     refreshSeasons();
@@ -16510,7 +16542,7 @@ function buildCtlBody(){
       qs('qpMu',v=>state.qpMu=v,v=>v.toFixed(3),true);
       qs('qpAlpha',v=>state.qpAlpha=v,v=>v.toFixed(1),true);
       qs('qpWind',v=>state.qpWind=v|0,v=>String(v|0),true);
-      ctl.querySelector('#qpToQm')&&(ctl.querySelector('#qpToQm').onclick=()=>{ setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#qpToQm')&&(ctl.querySelector('#qpToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
     }
     if(V==='grav'){
       ctl.querySelectorAll('[data-gravp]').forEach(b=>b.onclick=()=>{ state.gravPreset=b.dataset.gravp;
@@ -16527,7 +16559,7 @@ function buildCtlBody(){
                  const v=ctl.querySelector('#gwE0V'); if(v)v.textContent=state.gwE0.toFixed(2); };
                s.onchange=()=>{ gravSetup(); }; } }
       ctl.querySelector('#gravToLag')&&(ctl.querySelector('#gravToLag').onclick=()=>{
-        state.showLagrange=true; setMode('solar');
+        navPush(); state.showLagrange=true; setMode('solar');
         const eo=planetObjs[2]; if(eo){ controls.target.copy(eo.mesh.position);
           camera.position.copy(eo.mesh.position).add(new THREE.Vector3(0,0.35,1.1)); }
         openPanel('ctl'); buildCtl(); });
@@ -16541,8 +16573,8 @@ function buildCtlBody(){
       const qs2=(id,f)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(2); }; el.onchange=()=>qmSetup(); } };
       qs2('qmK0',v=>state.qmK0=v); qs2('qmV0',v=>state.qmV0=v);
-      ctl.querySelector('#qmToQuasi')&&(ctl.querySelector('#qmToQuasi').onclick=()=>{ setS3View('quasi'); buildCtl(); });
-      ctl.querySelector('#qmToEig')&&(ctl.querySelector('#qmToEig').onclick=()=>{ setS3View('eig'); buildCtl(); });
+      ctl.querySelector('#qmToQuasi')&&(ctl.querySelector('#qmToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#qmToEig')&&(ctl.querySelector('#qmToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
     }
     if(V==='qcd'){
       ctl.querySelectorAll('[data-qcdmode]').forEach(b=>b.onclick=()=>{ state.qcdMode=b.dataset.qcdmode; qcdSetup(); buildCtl(); });
@@ -16550,8 +16582,8 @@ function buildCtlBody(){
         const v=ctl.querySelector('#qcdRV'); if(v)v.textContent=state.qcdR.toFixed(2)+' fm'; });
       ctl.querySelector('#qcdQ')&&(ctl.querySelector('#qcdQ').oninput=e=>{ state.qcdQ=Math.pow(10,+e.target.value);
         const v=ctl.querySelector('#qcdQV'); if(v)v.textContent=state.qcdQ.toFixed(1)+' GeV'; });
-      ctl.querySelector('#qcdToAtom')&&(ctl.querySelector('#qcdToAtom').onclick=()=>{ setS3View('atom'); buildCtl(); });
-      ctl.querySelector('#qcdToQuasi')&&(ctl.querySelector('#qcdToQuasi').onclick=()=>{ setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#qcdToAtom')&&(ctl.querySelector('#qcdToAtom').onclick=()=>{ navPush(); setS3View('atom'); buildCtl(); });
+      ctl.querySelector('#qcdToQuasi')&&(ctl.querySelector('#qcdToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
     }
     if(V==='topo'){
       ctl.querySelectorAll('[data-topost]').forEach(b=>b.onclick=()=>{ state.topoStation=b.dataset.topost; topoSetup(); buildCtl(); });
@@ -16561,7 +16593,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#topoMV'); if(v)v.textContent=state.topoM; topoSetup(); });
       ctl.querySelector('#topoThB')&&(ctl.querySelector('#topoThB').oninput=e=>{ state.topoThB=+e.target.value;
         const v=ctl.querySelector('#topoThBV'); if(v)v.textContent=state.topoThB.toFixed(2); topoSetup(); });
-      ctl.querySelectorAll('[data-topojump]').forEach(b=>b.onclick=()=>{ setS3View(b.dataset.topojump); buildCtl(); });
+      ctl.querySelectorAll('[data-topojump]').forEach(b=>b.onclick=()=>{ navPush(); setS3View(b.dataset.topojump); buildCtl(); });
       const busEl=ctl.querySelector('#topoBus');
       if(busEl && !busEl._timer){
         const render=()=>{ const all=ATLAS_BUS.all(), ks=Object.keys(all);
@@ -16579,9 +16611,9 @@ function buildCtlBody(){
       ctl.querySelector('#scB')&&(ctl.querySelector('#scB').oninput=e=>{ state.scB=+e.target.value;
         const v=ctl.querySelector('#scBV'); if(v)v.textContent=state.scB.toFixed(3)+' T'; },
         ctl.querySelector('#scB').onchange=()=>{ scSetupLab(); });
-      ctl.querySelector('#scToTopo')&&(ctl.querySelector('#scToTopo').onclick=()=>{ state.topoStation='map'; setS3View('topo'); buildCtl(); });
-      ctl.querySelector('#scToQm')&&(ctl.querySelector('#scToQm').onclick=()=>{ setS3View('qm'); buildCtl(); });
-      ctl.querySelector('#scToQuasi')&&(ctl.querySelector('#scToQuasi').onclick=()=>{ state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#scToTopo')&&(ctl.querySelector('#scToTopo').onclick=()=>{ navPush(); state.topoStation='map'; setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#scToQm')&&(ctl.querySelector('#scToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#scToQuasi')&&(ctl.querySelector('#scToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
     }
     if(V==='taub'){
       ctl.querySelectorAll('[data-tnst]').forEach(b=>b.onclick=()=>{ state.tnStation=b.dataset.tnst; tnSetupLab(); buildCtl(); });
@@ -16599,8 +16631,8 @@ function buildCtlBody(){
         const v=ctl.querySelector('#eotA0V'); if(v)v.textContent=state.eotA0+' nm'; });
       ctl.querySelector('#eotLam')&&(ctl.querySelector('#eotLam').oninput=e=>{ state.eotLam=+e.target.value;
         const v=ctl.querySelector('#eotLamV'); if(v)v.textContent=state.eotLam+' nm'; });
-      ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
-      ctl.querySelector('#eotToQuasi')&&(ctl.querySelector('#eotToQuasi').onclick=()=>{ setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#eotToQm')&&(ctl.querySelector('#eotToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#eotToQuasi')&&(ctl.querySelector('#eotToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
     }
     if(V==='atom'){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
@@ -16618,7 +16650,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#atDensityV'); if(v)v.textContent=state.atDensity.toFixed(1); buildAtom(); });
       ctl.querySelectorAll('[data-atscale]').forEach(b=>b.onclick=()=>{ state.atScale=b.dataset.atscale; buildAtom(); buildCtl(); });
       ctl.querySelector('#atShowTable')&&(ctl.querySelector('#atShowTable').onchange=e=>{ state.atShowTable=e.target.checked; });
-      ctl.querySelector('#atToQcd')&&(ctl.querySelector('#atToQcd').onclick=()=>{ setS3View('qcd'); buildCtl(); });
+      ctl.querySelector('#atToQcd')&&(ctl.querySelector('#atToQcd').onclick=()=>{ navPush(); setS3View('qcd'); buildCtl(); });
       const info=ctl.querySelector('#atInfo');
       if(info){ const sh=atomConfig(state.atZ);
         info.innerHTML=`<b style="color:var(--gold-2)">${ELEM_SYMS[state.atZ-1]}</b> · A≈${ELEM_A[state.atZ-1]} · configuration: `+
@@ -17235,13 +17267,13 @@ function buildCtlBody(){
     ctl.querySelector('#mjzlift')?.addEventListener('input',e=>{fractalUniforms.uMJZLift.value=+e.target.value; scheduleMandelJuliaFiberRebuild(); updCtlVals();});
     ctl.querySelector('#mjdisplay')?.addEventListener('change',e=>{fractalUniforms.uMJDisplay.value=+e.target.value|0;scheduleMandelJuliaFiberRebuild();updCtlVals();});
     ctl.querySelectorAll('[data-mjpreset]').forEach(b=>b.onclick=()=>{ const [x,y,m]=b.dataset.mjpreset.split(',').map(Number); fractalUniforms.uJulia.value.set(x,y); fractalUniforms.uMJMethod.value=m|0; setFractalZoom(Math.max(fractalUniforms.uZoom.value,3)); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
-    ctl.querySelector('#mjToBif')?.addEventListener('click',()=>{ const c=fractalUniforms.uJulia.value;
+    ctl.querySelector('#mjToBif')?.addEventListener('click',()=>{ navPush(); const c=fractalUniforms.uJulia.value;
       setFractalType('bifurc3d',false);
       controls.target.set(bifCx(Math.max(-2.1,Math.min(0.6,c.x))), c.y*BIF_S, 0);
       camera.position.copy(controls.target).add(new THREE.Vector3(1.6,1.2,2.4));
       syncCameraClipping(true); buildCtl(); });
-    ctl.querySelector('#mjToBud')?.addEventListener('click',()=>{ setFractalType('buddhabrot',false); buildCtl(); });
-    ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ setMode('s3'); setS3View('hopf'); openPanel('ctl'); buildCtl(); });
+    ctl.querySelector('#mjToBud')?.addEventListener('click',()=>{ navPush(); setFractalType('buddhabrot',false); buildCtl(); });
+    ctl.querySelector('#mjToHopf')?.addEventListener('click',()=>{ navPush(); setMode('s3'); setS3View('hopf'); openPanel('ctl'); buildCtl(); });
     ctl.querySelector('#mjCenterToJulia')?.addEventListener('click',()=>{ setJuliaParameterFromViewCenter(); if(fractalType==='mjfiber3d') buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelector('#mjRebuild3D')?.addEventListener('click',()=>{ buildMandelJuliaFiber3D(true); });
     ctl.querySelector('#bifFeig')?.addEventListener('click',()=>{ fractalUniforms.uCenter.value.set(3.5699456,0.5); setFractalZoom(42); buildCtl(); });
@@ -17250,7 +17282,7 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-bifjump]').forEach(b=>b.onclick=()=>{ fractalUniforms.uBifOverlay.value=1;
       fractalUniforms.uCenter.value.set(+b.dataset.bifjump,0); setFractalZoom(Math.max(fractalUniforms.uZoom.value,6)); buildCtl(); });
     (ctl.querySelector('#freset')||ctl.querySelector('#fresetGeo3D'))?.addEventListener('click',()=>{setFractalType(fractalType,true);buildCtl();});
-    ctl.querySelector('#bifToMJ')?.addEventListener('click',()=>{ const c=state.bifPickC||{re:-0.875,im:0};
+    ctl.querySelector('#bifToMJ')?.addEventListener('click',()=>{ navPush(); const c=state.bifPickC||{re:-0.875,im:0};
       fractalUniforms.uJulia.value.set(c.re,c.im);
       setFractalType('mjfiber3d',false); buildMandelJuliaFiber3D(true); buildCtl(); });
     ctl.querySelectorAll('[data-bifpt]').forEach(b=>b.onclick=()=>{ const p=BIF_KEYPTS[+b.dataset.bifpt]; if(!p) return;
