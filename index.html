@@ -1398,16 +1398,19 @@ function runSelfTests(){
       levelOf(5.2918e-11).toFixed(2)+' · '+levelOf(4.40e26).toFixed(2));
     ok('φ-atlas: levels strictly increase with scale in every group',
       PHI_ATLAS.every(([g,rows])=>rows.every((r,i)=>i===0||levelOf(r[1])>=levelOf(rows[i-1][1])-0.01))); }
-  { // STROBOSCOPIC PHASE LOCK: whole-period subtraction is exact and phase-continuous
-    const P=686.98, anchor=1234.5;
-    const lock=e=>e-Math.round((e-anchor)/P)*P;
-    const e1=1e9+0.37*P, e2=e1+3712*P+0.0625;          // jump thousands of periods + a fraction
-    const ok1=Math.abs(lock(e1)-anchor)<=P/2+1e-6;
-    const ok2=Math.abs(lock(e2)-lock(e1)-0.0625)<1e-6; // only the FRACTIONAL advance survives
-    const ok3=Math.abs(((e2-lock(e2))/P)%1)<1e-9;      // subtracted amount is an exact whole number of P
-    ok('Phase lock: display epoch stays within P/2 of the anchor', ok1, (lock(e1)-anchor).toFixed(3));
-    ok('Phase lock: a 3712-period time jump advances the locked phase by exactly the fraction', ok2, (lock(e2)-lock(e1)).toFixed(6));
-    ok('Phase lock: subtraction is an exact integer number of periods', ok3); }
+  { // STROBOSCOPIC PHASE LOCK (incremental, frame-rate aware): below Nyquist the body
+    // follows real time exactly; above it the aliased residual is DISCARDED (no jitter)
+    // and only the drive moves the phase
+    const P=686.98; let anchor=1234.5;
+    const stepFn=(D,driveDt)=>{ anchor += (Math.abs(D)<=P/2 ? D : 0) + driveDt*0.1*P; };
+    const a0=anchor; stepFn(3.7,0); stepFn(-1.2,0);
+    ok('Phase lock: sub-Nyquist frames follow real time exactly', Math.abs(anchor-(a0+2.5))<1e-9, (anchor-a0).toFixed(4));
+    const a1=anchor; stepFn(3712*P+0.0625,0);
+    ok('Phase lock: a 3712-period frame jump leaves the locked phase UNMOVED (aliasing discarded — no monitor-rate jitter)',
+      Math.abs(anchor-a1)<1e-9, (anchor-a1).toExponential(1));
+    const a2=anchor; stepFn(9999*P,1/120); stepFn(9999*P,1/120);   // two 120 Hz frames of pure drive
+    ok('Phase lock: at any display rate the Drive slider alone advances the phase (2 frames @120 Hz → 0.1P·2/120)',
+      Math.abs(anchor-a2-0.1*P*2/120)<1e-9, (anchor-a2).toFixed(6)); }
   ok('JPL secular rates encoded for all eight major planets',
     PLANETS.slice(0,8).every(p=>['da','de','di','dw','dO'].every(k=>Number.isFinite(p[k]))),
     PLANETS.slice(0,8).map(p=>p.name).join(', '));
@@ -5692,7 +5695,7 @@ function updateSolarVectors(T,geoShift){
    then drives the locked body's own phase forward/backward independently, while
    the rest of the system streams past at full speed. Physically identical to a
    stroboscope flashing at the body's orbital frequency. */
-let _phAnchor=null, _phKey='';
+let _phAnchor=null, _phKey='', _phLastRaw=0;
 function phaseLockPeriodDays(){
   const L=state.phaseLock; if(!L) return null;
   const P=i=>365.25*Math.pow(PLANETS[i].a,1.5);        // Kepler: P² = a³ (years→days)
@@ -5705,10 +5708,18 @@ function phaseLockEpoch(dt){
   const L=state.phaseLock; if(!L){ _phAnchor=null; _phKey=''; return null; }
   const P=phaseLockPeriodDays(); if(!P||!isFinite(P)) return null;
   const key=L.mode+':'+L.a+':'+(L.b??'');
-  if(_phAnchor===null||_phKey!==key){ _phAnchor=state.epochDays; _phKey=key; }
-  _phAnchor += dt*(state.phaseRate||0)*P;              // the phase-control: ±periods per second
-  const k=Math.round((state.epochDays-_phAnchor)/P);   // whole periods — exact integer arithmetic
-  return state.epochDays - k*P;
+  if(_phAnchor===null||_phKey!==key){ _phAnchor=state.epochDays; _phKey=key; _phLastRaw=state.epochDays; }
+  // TRUE STROBOSCOPE, frame-rate aware (60/120 Hz alike — real dt per frame):
+  // the raw clock advances by Δ this frame. While |Δ| ≤ P/2 the locked body follows
+  // real time faithfully. Beyond that (Nyquist of the DISPLAY, not of the monitor
+  // spec) the sampled phase is genuinely aliased — the old absolute-difference
+  // formula landed at a pseudo-random point of the window every frame and the
+  // body JITTERED at monitor rate. Now the aliased residual is discarded: the
+  // body HOLDS phase, and the Drive slider alone owns its motion — silky-smooth
+  // on a 60 Hz display, an iPhone Pro at 120 Hz, or a MacBook Pro ProMotion.
+  const D=state.epochDays-_phLastRaw; _phLastRaw=state.epochDays;
+  _phAnchor += (Math.abs(D)<=P/2 ? D : 0) + dt*(state.phaseRate||0)*P;
+  return _phAnchor;
 }
 function phaseLockBodies(){
   const L=state.phaseLock; if(!L) return null;
@@ -15180,7 +15191,7 @@ function buildCtlBody(){
         <span class="val" id="phRateV">${(state.phaseRate||0).toFixed(3)} P/s</span>
         <button class="btn" id="phZero" style="padding:2px 8px">0</button></div>
       <div class="note" id="phOut" style="font-variant-numeric:tabular-nums;font-size:11px"></div>`:''}
-      <div class="note" style="font-size:10.5px;color:var(--dim)">A stroboscope for orbits: at extreme time speeds a body's rendered phase aliases — it teleports around its orbit every frame. The lock renders the chosen body (or PAIR, via their true synodic period — Earth–Moon 29.53 d, Earth–Mars 780 d…) at a display epoch shifted by an EXACT whole number of periods, recomputed every frame: instantly phase-smooth at ANY global speed, while everything else streams past. The Phase drive slider then accelerates or reverses the locked body's own phase (±periods per second) independently of the global clock. Exact integer-period arithmetic — no smoothing, no filtering.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A stroboscope for orbits, frame-rate aware (60 Hz, iPhone Pro 120 Hz, MacBook ProMotion — the REAL per-frame Δt is used): while the clock's per-frame advance stays under HALF the body's period, the locked body (or PAIR, via the true synodic period — Earth–Moon 29.53 d, Earth–Mars 780 d…) follows real time exactly. Beyond that Nyquist limit the sampled phase is physically aliased — so the lock HOLDS the body's phase rock-steady (zero monitor-rate jitter; you can click and select it mid-hyperspeed) and the Phase drive slider alone turns its orbit forward or backward (±periods per second). Exact incremental arithmetic — no smoothing, no filtering, and the aliasing is declared, not hidden.</div>
     </div>
     <div class="sect"><b>Scale</b>
       <div class="ctlrow"><label>Planet size ×</label>
@@ -18750,7 +18761,7 @@ function tickBody(now, frame){
       if(state._phUiAcc>0.3){ state._phUiAcc=0;
         const pho=ctl.querySelector('#phOut');
         if(pho){ const P=phaseLockPeriodDays(), k=Math.round((state.epochDays-phEpoch)/P);
-          const phase=((((phEpoch-_phAnchor)/P)%1)+1)%1;
+          const phase=(((phEpoch/P)%1)+1)%1;
           pho.innerHTML=`P = <b>${P>=365?(P/365.25).toFixed(3)+' yr':P.toFixed(3)+' d'}</b> · skipping <b>${Math.abs(k).toLocaleString()}</b> whole periods this frame · locked phase φ = ${phase.toFixed(4)} · drive ${(state.phaseRate||0).toFixed(3)} P/s`;
           ATLAS_BUS.pub('phase.P',+P.toFixed(3),'days'); ATLAS_BUS.pub('phase.skipped',Math.abs(k),'periods'); }
       }
