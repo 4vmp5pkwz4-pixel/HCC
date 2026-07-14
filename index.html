@@ -328,6 +328,10 @@
     border-color:var(--gold);color:var(--gold-2);box-shadow:0 0 8px rgba(212,175,106,.4);
     animation:oscpulse 1.2s ease-in-out infinite}
   @keyframes oscpulse{0%,100%{opacity:.65}50%{opacity:1}}
+  /* the vector-layers panel must never swallow the screen: cap and scroll */
+  #vectorPanel{right:12px;top:64px;width:min(370px,calc(100vw - 24px));
+    max-height:min(72vh,calc(100vh - 150px));overflow-y:auto;overscroll-behavior:contain}
+  @media (max-width:600px){ #vectorPanel{top:auto;bottom:12px;max-height:56vh} }
   #oscPanel{left:14px;top:calc(var(--topbar-h,64px) + 8px);width:332px;
     max-height:calc(100vh - var(--topbar-h,64px) - 24px);overflow:auto;z-index:31}
   #oscPanel h3{margin-bottom:4px}
@@ -8883,6 +8887,7 @@ function gravInvariants(B){
 }
 function gravClear(){
   for(const o of [...gravMeshes,...gravTrails,...gravExtra]){ gravGroup.remove(o);
+    disposeCSS2D?.(o);
     o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); });
     o.geometry&&o.geometry.dispose&&o.geometry.dispose(); o.material&&o.material.dispose&&o.material.dispose(); }
   gravMeshes=[]; gravTrails=[]; gravExtra=[]; _gravLagMarks=null;
@@ -9209,8 +9214,7 @@ const qcdAlphaS=Q=>{ const nf=Q<1.27?3:Q<4.18?4:5, L=0.21;                 // 1-
   return 12*Math.PI/((33-2*nf)*Math.log((Q*Q)/(L*L))); };
 let qcdObjs=null, qcdT=0, qcdBroken=false, qcdUiAcc=0;
 function qcdSetup(){
-  while(qcdGroup.children.length){ const o=qcdGroup.children.pop();
-    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  labWipe(qcdGroup);
   qcdT=0; qcdBroken=false;
   const mode=state.qcdMode||'meson';
   const mkQuark=(col)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(.22,18,14),
@@ -9347,10 +9351,19 @@ function topoGaussLink(A,B){                          // (1/4π)∮∮ (dr₁×d
   }
   return s/(4*Math.PI);
 }
+/* shared lab-group wipe: geometries, materials AND CSS2D label DOM nodes —
+   forgetting the labels leaked hundreds of DOM elements per slider scrub and
+   read as a GPU freeze (the CSS2D renderer composites every orphan each frame) */
+function labWipe(group){
+  while(group.children.length){ const o=group.children.pop();
+    disposeCSS2D?.(o);
+    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose();
+      if(x.material){ (Array.isArray(x.material)?x.material:[x.material]).forEach(m=>m.dispose&&m.dispose()); } });
+  }
+}
 let topoObjs=null, topoT=0, topoDirty=true, topoLk=null;
 function topoClear(){
-  while(topoGroup.children.length){ const o=topoGroup.children.pop();
-    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  labWipe(topoGroup);
   topoObjs=null; topoLk=null; topoDirty=true;
 }
 function topoSetup(){
@@ -9421,7 +9434,8 @@ function topoSetup(){
     topoObjs={st};
   }
 }
-const _tpD=new THREE.Object3D(), _tpV=new THREE.Vector3(), _tpU=new THREE.Vector3(0,1,0);
+const _tpD=new THREE.Object3D(), _tpV=new THREE.Vector3(), _tpU=new THREE.Vector3(0,1,0),
+      _tpE1=new THREE.Vector3(), _tpE2=new THREE.Vector3(), _tpDir=new THREE.Vector3();
 function updateTopo(dt){
   if(!topoObjs||topoObjs.st!==(state.topoStation||'link')) topoSetup();
   topoT+=dt; const O=topoObjs;
@@ -9434,18 +9448,20 @@ function updateTopo(dt){
     hudBig.textContent=`TOPOLOGY · Gauss linking · Lk ≈ ${topoLk===null?'…':topoLk.toFixed(4)}`;
     hudSub.textContent='the double line integral must land on an integer — invariance under ANY crossing-free deformation is the prediction, and the numerics confirm it live';
   } else if(O.st==='hairy'){
-    let i=0; const R=O.R;
+    // allocation-free & throttled to 30 Hz: 420 cones × several fresh Vector3s per
+    // frame churned the GC hard enough to stutter weaker GPUs/compositors
+    O._acc=(O._acc||0)+dt;
+    if(O._acc>=1/30){ O._acc=0;
+    let i=0; const R=O.R, e1=_tpE1, e2=_tpE2, dir=_tpDir;
     for(let a=1;a<14;a++)for(let b=0;b<30;b++){
       if(i>=420) break;
       const th=a/14*Math.PI, ph=b/30*2*Math.PI+topoT*0.15;
-      _tpV.set(R*Math.sin(th)*Math.cos(ph),R*Math.cos(th),R*Math.sin(th)*Math.sin(ph));
-      _tpD.position.copy(_tpV);
-      let dir;
-      const e1=new THREE.Vector3(Math.cos(th)*Math.cos(ph),-Math.sin(th),Math.cos(th)*Math.sin(ph));
-      const e2=new THREE.Vector3(-Math.sin(ph),0,Math.cos(ph));
-      if(O.field==='index2') dir=e1.clone().multiplyScalar(Math.cos(ph)).addScaledVector(e2,Math.sin(ph)).multiplyScalar(Math.sin(th));
-      else if(O.field==='rotation') dir=e2.clone().multiplyScalar(Math.sin(th));
-      else dir=e1.clone().multiplyScalar(Math.sin(th));
+      const sth=Math.sin(th), cth=Math.cos(th), sph=Math.sin(ph), cph=Math.cos(ph);
+      _tpD.position.set(R*sth*cph,R*cth,R*sth*sph);
+      e1.set(cth*cph,-sth,cth*sph); e2.set(-sph,0,cph);
+      if(O.field==='index2') dir.copy(e1).multiplyScalar(cph).addScaledVector(e2,sph).multiplyScalar(sth);
+      else if(O.field==='rotation') dir.copy(e2).multiplyScalar(sth);
+      else dir.copy(e1).multiplyScalar(sth);
       const L=dir.length();
       if(L<1e-4){ _tpD.scale.setScalar(1e-4); } else {
         _tpD.quaternion.setFromUnitVectors(_tpU,dir.normalize());
@@ -9453,6 +9469,7 @@ function updateTopo(dt){
       _tpD.updateMatrix(); O.inst.setMatrixAt(i++,_tpD.matrix);
     }
     O.inst.count=i; O.inst.instanceMatrix.needsUpdate=true;
+    }
     for(const f of O.flows){ const k=(Math.floor(topoT*26)+f.off)%f.pts.length; f.mote.position.copy(f.pts[k]); }
     hudBig.textContent='TOPOLOGY · Poincaré–Hopf: Σ indices = χ(S²) = 2 — the hairy ball cannot be combed';
     hudSub.textContent='the trisphere escapes: χ(S³)=0, S³ ≅ SU(2) is parallelisable — the gold Hopf flow never stops, never vanishes. That is why the atlas\'s carrier supports global frames.';
@@ -9478,8 +9495,7 @@ const SC_MATS=[
 const SC_PHI0=2.067833848e-15, SC_KJ=483597.8484;   // Wb (exact) · GHz/V (exact SI)
 let scObjs=null, scT=0, scUiAcc=0;
 function scClear(){
-  while(scGroup.children.length){ const o=scGroup.children.pop();
-    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  labWipe(scGroup);
   scObjs=null;
 }
 function scSetupLab(){
@@ -9603,8 +9619,7 @@ function updateSc(dt){
 const tnGroup=new THREE.Group(); tnGroup.visible=false; s3Group.add(tnGroup);
 let tnObjs=null, tnT=0, tnUiAcc=0;
 function tnClear(){
-  while(tnGroup.children.length){ const o=tnGroup.children.pop();
-    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  labWipe(tnGroup);
   tnObjs=null;
 }
 function tnAcc(p,v,N){                                 // a = −r̂/r² + N (v×r̂)/r²   (μ=1)
@@ -9712,8 +9727,7 @@ function eotLamRes(a0,i,j){ const em=eotEpsM(a0), ed=1;  // solve iteratively: �
   return lam; }
 let eotObjs=null, eotT=0;
 function eotClear(){
-  while(eotGroup.children.length){ const o=eotGroup.children.pop();
-    o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose(); x.material&&x.material.dispose&&x.material.dispose(); }); }
+  labWipe(eotGroup);
   eotObjs=null;
 }
 function eotSetup(){
@@ -16312,7 +16326,14 @@ function buildCtlBody(){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
       ctl.querySelector('#atPrev')&&(ctl.querySelector('#atPrev').onclick=()=>setZ(state.atZ-1));
       ctl.querySelector('#atNext')&&(ctl.querySelector('#atNext').onclick=()=>setZ(state.atZ+1));
-      ctl.querySelector('#atZ')&&(ctl.querySelector('#atZ').oninput=e=>setZ(+e.target.value));
+      // slider drag: rebuild the ATOM at most once per frame and do NOT rebuild the
+      // panel mid-drag (a full innerHTML rebuild per input event froze the section);
+      // the panel refreshes once on release
+      { const s=ctl.querySelector('#atZ');
+        if(s){ let pend=false;
+          s.oninput=e=>{ state.atZ=Math.max(1,Math.min(118,+e.target.value|0));
+            if(!pend){ pend=true; requestAnimationFrame(()=>{ pend=false; buildAtom(); }); } };
+          s.onchange=()=>buildCtl(); } }
       ctl.querySelector('#atDensity')&&(ctl.querySelector('#atDensity').oninput=e=>{ state.atDensity=+e.target.value;
         const v=ctl.querySelector('#atDensityV'); if(v)v.textContent=state.atDensity.toFixed(1); buildAtom(); });
       ctl.querySelectorAll('[data-atscale]').forEach(b=>b.onclick=()=>{ state.atScale=b.dataset.atscale; buildAtom(); buildCtl(); });
