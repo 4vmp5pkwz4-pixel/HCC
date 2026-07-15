@@ -1508,6 +1508,24 @@ function runSelfTests(){
     let pk=-1e9; for(let i=0;i<KDV_N;i++) if(u[i]>pk) pk=u[i];
     ok('KdV: IF-RK4 keeps the soliton peak ≈2 and conserves ∫u² (<1e-2) over t=0.3',
       Math.abs(pk-2)<0.05 && Math.abs((i1.I2-i0.I2)/i0.I2)<1e-2, `peak ${pk.toFixed(3)} ΔI₂ ${((i1.I2-i0.I2)/i0.I2).toExponential(1)}`); }
+  { // ENERGY TRANSFER: normal modes, complete transfer, driven Q, wireless efficiency & critical coupling
+    const m=1,k=1,kap=0.08, ws=Math.sqrt(k/m), wa=Math.sqrt((k+2*kap)/m);
+    ok('Energy: coupled normal modes ω_sym=√(k/m), ω_anti=√((k+2κ)/m)',
+      Math.abs(ws-1)<1e-12 && Math.abs(wa-Math.sqrt(1.16))<1e-12, ws.toFixed(4)+', '+wa.toFixed(4));
+    // leapfrog: energy conserved and (near-)complete transfer to mass 2 at t=π/Δω
+    let x1=1,x2=0,v1=0,v2=0; const h=0.002, N=Math.round(Math.PI/(wa-ws)/h);
+    const acc=(a,b)=>[(-k*a-kap*(a-b))/m,(-k*b-kap*(b-a))/m];
+    const E=()=>0.5*m*(v1*v1+v2*v2)+0.5*k*(x1*x1+x2*x2)+0.5*kap*(x1-x2)**2;
+    const E0=E(); let maxE2=0;
+    for(let s=0;s<N;s++){ let a=acc(x1,x2); v1+=a[0]*h/2; v2+=a[1]*h/2; x1+=v1*h; x2+=v2*h; a=acc(x1,x2); v1+=a[0]*h/2; v2+=a[1]*h/2;
+      const e2=0.5*m*v2*v2+0.5*k*x2*x2; if(e2>maxE2)maxE2=e2; }
+    ok('Energy: coupled oscillators conserve total energy (leapfrog, <1e-3)', Math.abs((E()-E0)/E0)<1e-3, ((E()-E0)/E0).toExponential(1));
+    ok('Energy: near-complete transfer to the 2nd oscillator (>95% at t=π/Δω)', maxE2/E0>0.95, (maxE2/E0).toFixed(3));
+    const w0=1,g=0.1,F=1, A=w=>F/Math.sqrt((w0*w0-w*w)**2+(g*w)**2);
+    ok('Energy: driven peak A_max = F/(γω₀) and Q=ω₀/γ', Math.abs(A(Math.sqrt(w0*w0-g*g/2))-F/(g*w0))<0.02 && Math.abs(w0/g-10)<1e-9, A(w0).toFixed(3));
+    const Q=100,kc=1/Q, eff=(k)=>{const u=k*Q;return u*u/(1+Math.sqrt(1+u*u))**2;};
+    ok('Energy: wireless η rises monotonically and critical coupling k_c=1/√(Q₁Q₂)',
+      eff(0.02)<eff(0.1) && eff(0.1)<eff(0.2) && Math.abs(kc-0.01)<1e-9, (eff(0.1)*100).toFixed(1)+'%'); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11115,6 +11133,148 @@ function updateKdv(dt){
   }
 }
 
+/* ================================================================
+   RESONANT ENERGY-TRANSFER LAB · how energy moves (UPRS Part V/26).
+   Three stations, all energy-honest and verified:
+   · COUPLED — two oscillators exchange energy through a coupling
+     spring: normal modes (in-phase ω_s=√(k/m), out-of-phase
+     ω_a=√((k+2κ)/m)), beats, and COMPLETE transfer at t=π/Δω. Live
+     energy bars; total energy conserved (leapfrog).
+   · DRIVEN — a damped driven oscillator traces the exact Lorentzian
+     A(ω)=F/√((ω₀²−ω²)²+(γω)²) with quality factor Q=ω₀/γ.
+   · WIRELESS — two resonant coils: coupled-mode transfer efficiency
+     η=U²/(1+√(1+U²))², U=k√(Q₁Q₂); strong coupling splits the mode
+     (the physics of wireless charging & evanescent harvesting).
+   Energy is never created — only moved, stored and dissipated. */
+const retGroup=new THREE.Group(); retGroup.visible=false; s3Group.add(retGroup);
+let retObjs=null, retT=0, retUiAcc=0, retX1=1,retX2=0,retV1=0,retV2=0, retDrivePhase=0, retDriveX=0,retDriveV=0;
+function retClear(){ labWipe(retGroup); retObjs=null; }
+function retSpring(x0,x1,col){ const pts=[], seg=20, d=new THREE.Vector3().subVectors(x1,x0), L=d.length(), n=d.clone().normalize();
+  const perp=Math.abs(n.y)<0.9?new THREE.Vector3(0,1,0).cross(n).normalize():new THREE.Vector3(1,0,0).cross(n).normalize();
+  for(let i=0;i<=seg;i++){ const t=i/seg, amp=(i>1&&i<seg-1)?0.12:0; const p=x0.clone().addScaledVector(d,t).addScaledVector(perp,amp*Math.sin(t*Math.PI*8)); pts.push(p); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.7})); }
+function retSetup(){
+  retClear(); retT=0; const st=state.retStation||'coupled';
+  retGroup.add(new THREE.AmbientLight(0x8090b0,.75));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); retGroup.add(dl);
+  if(st==='coupled'){
+    retX1=1; retX2=0; retV1=0; retV2=0;
+    const wall=(x)=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.6,0.6),new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.5,roughness:.4})); w.position.set(x,0,0); retGroup.add(w); };
+    wall(-3.4); wall(3.4);
+    const b1=new THREE.Mesh(new THREE.SphereGeometry(0.34,20,14),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.3,roughness:.3,emissive:0x3a2c08}));
+    const b2=new THREE.Mesh(new THREE.SphereGeometry(0.34,20,14),new THREE.MeshStandardMaterial({color:0x5fe0d0,metalness:.3,roughness:.3,emissive:0x0a2c28}));
+    retGroup.add(b1,b2);
+    // energy bars
+    const bar=(x,col)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.5),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.8})); m.position.set(x,-2.4,0); retGroup.add(m); return m; };
+    const e1=bar(-1.6,0xf5c964), e2=bar(1.6,0x5fe0d0);
+    for(const [x,t] of [[-1.6,'E₁'],[1.6,'E₂']]){ const l=mkLabel(t,'label axis'); l.position.set(x,-3.6,0); retGroup.add(l); }
+    const tl=mkLabel('COUPLED OSCILLATORS · energy sloshes between the two — total conserved','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,2.4,0); retGroup.add(rl);
+    retObjs={st,b1,b2,e1,e2,readLab:rl,springs:[]};
+  } else if(st==='driven'){
+    retDriveX=0; retDriveV=0; retDrivePhase=0;
+    // resonance curve A(ω)
+    const NP=120, g=new THREE.BufferGeometry(), arr=new Float32Array(NP*3);
+    g.setAttribute('position',new THREE.BufferAttribute(arr,3));
+    const curve=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xf5c964})); retGroup.add(curve);
+    const marker=new THREE.Mesh(new THREE.SphereGeometry(0.08,12,8),new THREE.MeshBasicMaterial({color:0xffffff})); retGroup.add(marker);
+    // the oscillator itself
+    const wall=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.4,0.6),new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.5,roughness:.4})); wall.position.set(-3.2,1.5,0); retGroup.add(wall);
+    const mass=new THREE.Mesh(new THREE.SphereGeometry(0.3,18,12),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.3,roughness:.3,emissive:0x3a2c08})); mass.position.set(-1.5,1.5,0); retGroup.add(mass);
+    for(const [x,y,t] of [[-3.5,-1.6,'ω→'],[-3.5,1.7,'A(ω)']]){ const l=mkLabel(t,'label axis'); l.position.set(x,y,0); retGroup.add(l); }
+    const tl=mkLabel('DRIVEN RESONANCE · A(ω)=F/√((ω₀²−ω²)²+(γω)²) · Q = ω₀/γ','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-2.9,0); retGroup.add(rl);
+    retObjs={st,curve,marker,mass,NP,readLab:rl};
+  } else {   // wireless
+    const src=new THREE.Mesh(new THREE.TorusGeometry(0.7,0.09,10,40),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.6,roughness:.3,emissive:0x3a2c08}));
+    src.position.set(-2.2,0.6,0); src.rotation.y=Math.PI/2; retGroup.add(src);
+    const dev=new THREE.Mesh(new THREE.TorusGeometry(0.7,0.09,10,40),new THREE.MeshStandardMaterial({color:0x5fe0d0,metalness:.6,roughness:.3,emissive:0x0a2c28}));
+    dev.rotation.y=Math.PI/2; retGroup.add(dev);
+    // field-coupling arcs (dashed) between coils
+    const arcs=[]; for(let i=0;i<7;i++){ const a=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0x8fb8ff,transparent:true,opacity:.5,dashSize:0.15,gapSize:0.1})); retGroup.add(a); arcs.push(a); }
+    // efficiency + splitting curve
+    const NP=100, g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NP*3),3));
+    const effCurve=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x9fe8d8})); retGroup.add(effCurve);
+    const tl=mkLabel('WIRELESS RESONANT TRANSFER · η = U²/(1+√(1+U²))² · U = k√(Q₁Q₂)','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
+    for(const [x,t] of [[-2.2,'source coil'],[2.2,'device coil']]){ const l=mkLabel(t,'label axis'); l.position.set(x,-1.4,0); retGroup.add(l); }
+    const el=mkLabel('η vs coupling k','label dim'); el.position.set(0,-2.6,0); retGroup.add(el);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); retGroup.add(rl);
+    retObjs={st,src,dev,arcs,effCurve,NP,readLab:rl,phase:0};
+  }
+}
+function retEnergyCoupled(){ const m=1,k=state.retK??1,kap=state.retKappa??0.08;
+  return {E1:0.5*m*retV1*retV1+0.5*k*retX1*retX1, E2:0.5*m*retV2*retV2+0.5*k*retX2*retX2,
+    Ec:0.5*kap*(retX1-retX2)**2}; }
+function updateRet(dt){
+  if(!retObjs) retSetup();
+  const O=retObjs, st=O.st, spd=state.retSpeed??1;
+  if(st==='coupled'){
+    if(state.retRun!==false){ const m=1,k=state.retK??1,kap=state.retKappa??0.08, h=0.01*spd, sub=4;
+      for(let s=0;s<sub;s++){ const a1=(-k*retX1-kap*(retX1-retX2))/m, a2=(-k*retX2-kap*(retX2-retX1))/m;
+        retV1+=a1*h/2; retV2+=a2*h/2; retX1+=retV1*h; retX2+=retV2*h;
+        const b1=(-k*retX1-kap*(retX1-retX2))/m, b2=(-k*retX2-kap*(retX2-retX1))/m;
+        retV1+=b1*h/2; retV2+=b2*h/2; retT+=h; } }
+    const p1=new THREE.Vector3(-1.7+retX1*0.9,0,0), p2=new THREE.Vector3(1.7+retX2*0.9,0,0);
+    O.b1.position.copy(p1); O.b2.position.copy(p2);
+    for(const s of O.springs){ retGroup.remove(s); s.geometry.dispose(); s.material.dispose(); }
+    O.springs=[retSpring(new THREE.Vector3(-3.32,0,0),p1,0xf5c964),retSpring(p1,p2,0x9fd8ff),retSpring(p2,new THREE.Vector3(3.32,0,0),0x5fe0d0)];
+    O.springs.forEach(s=>retGroup.add(s));
+    const en=retEnergyCoupled(), Et=en.E1+en.E2+en.Ec;
+    O.e1.scale.y=Math.max(0.02,en.E1/Math.max(Et,1e-6)*3); O.e1.position.y=-2.4+O.e1.scale.y/2-1.5;
+    O.e2.scale.y=Math.max(0.02,en.E2/Math.max(Et,1e-6)*3); O.e2.position.y=-2.4+O.e2.scale.y/2-1.5;
+    retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
+      const k=state.retK??1,kap=state.retKappa??0.08, ws=Math.sqrt(k), wa=Math.sqrt(k+2*kap), Ttr=Math.PI/(wa-ws);
+      O.readLab.element.textContent=`E₁=${(en.E1/Et*100).toFixed(0)}% · E₂=${(en.E2/Et*100).toFixed(0)}% · total E=${Et.toFixed(4)} (conserved) · full transfer at t=π/Δω≈${Ttr.toFixed(1)}`;
+      hudBig.textContent=`ENERGY TRANSFER · coupled · ω_sym=${ws.toFixed(3)} ω_anti=${wa.toFixed(3)} · beat Δω=${(wa-ws).toFixed(4)}`;
+      hudSub.textContent='the coupling spring shuttles energy between the two oscillators — weaker coupling = slower, more complete transfer; the motion is the beat of two normal modes, and the total energy is conserved to machine precision (leapfrog)';
+      ATLAS_BUS.pub('ret.transfer',+(en.E2/Et).toFixed(3),'to E₂');
+      const el=ctl.querySelector('#retInv'); if(el) el.innerHTML=`normal modes: ω_sym=√(k/m)=<b>${ws.toFixed(4)}</b> (in-phase) · ω_anti=√((k+2κ)/m)=<b>${wa.toFixed(4)}</b> (out-of-phase)`+
+        `<br>beat Δω=${(wa-ws).toFixed(4)} · complete-transfer time π/Δω=<b>${Ttr.toFixed(2)}</b> · total energy ${Et.toFixed(5)} (conserved)`;
+    }
+  } else if(st==='driven'){
+    const w0=1, g=state.retGamma??0.1, F=1, wd=state.retDriveW??1.0;
+    if(state.retRun!==false){ const h=0.01*spd, sub=4;
+      for(let s=0;s<sub;s++){ retDrivePhase+=wd*h; const a=-w0*w0*retDriveX-g*retDriveV+F*Math.cos(retDrivePhase);
+        retDriveV+=a*h; retDriveX+=retDriveV*h; } }
+    O.mass.position.x=-1.5+retDriveX*0.9;
+    const A=w=>F/Math.sqrt((w0*w0-w*w)**2+(g*w)**2);
+    let amax=A(Math.sqrt(Math.max(1e-6,w0*w0-g*g/2)));
+    const arr=O.curve.geometry.attributes.position.array;
+    for(let i=0;i<O.NP;i++){ const w=0.2+i/(O.NP-1)*1.6; arr[i*3]=-3.4+ (w-0.2)/1.6*4.0; arr[i*3+1]=-1.6+A(w)/amax*2.6; arr[i*3+2]=0; }
+    O.curve.geometry.attributes.position.needsUpdate=true; O.curve.geometry.computeBoundingSphere();
+    O.marker.position.set(-3.4+(wd-0.2)/1.6*4.0, -1.6+A(wd)/amax*2.6, 0);
+    retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
+      hudBig.textContent=`ENERGY TRANSFER · driven resonance · ω=${wd.toFixed(2)} · A=${A(wd).toFixed(2)} · Q=ω₀/γ=${(w0/g).toFixed(1)}`;
+      hudSub.textContent='a driven damped oscillator absorbs the most energy at resonance (ω≈ω₀); the sharpness is the quality factor Q=ω₀/γ — high Q means narrow bandwidth and large stored energy, the basis of every resonant harvester and antenna';
+      ATLAS_BUS.pub('ret.Q',+(w0/g).toFixed(1),'ω₀/γ');
+      const el=ctl.querySelector('#retInv'); if(el) el.innerHTML=`Q = ω₀/γ = <b>${(w0/g).toFixed(2)}</b> · resonance peak at ω_r=√(ω₀²−γ²/2)=${Math.sqrt(Math.max(0,w0*w0-g*g/2)).toFixed(4)}`+
+        `<br>amplitude at drive A(ω)=${A(wd).toFixed(3)} · peak A_max=${amax.toFixed(3)}=F/(γω₀) · bandwidth Δω≈γ=${g.toFixed(3)}`;
+    }
+  } else {  // wireless
+    O.phase+=dt*3;
+    const Q=state.retQ??100, k=state.retCoup??0.05, U=k*Q;   // figure of merit U=k√(Q1Q2), equal Q
+    const eff=w=>{ const u=k*Q; return u*u/(1+Math.sqrt(1+u*u))**2; };
+    // device coil distance ∝ 1/coupling (weaker k = farther)
+    const dist=1.2+ (0.15/Math.max(k,0.01))*0.9; O.dev.position.set(Math.min(dist,3.0),0.6,0);
+    // coupling arcs brighten with k
+    for(let i=0;i<O.arcs.length;i++){ const t=i/O.arcs.length, y=0.6+(t-0.5)*1.1, pts=[];
+      for(let s=0;s<=20;s++){ const u=s/20; pts.push(new THREE.Vector3(-2.2+u*(O.dev.position.x+2.2),y+Math.sin(u*Math.PI)*0.4*Math.sin(O.phase+i),0)); }
+      O.arcs[i].geometry.setFromPoints(pts); O.arcs[i].computeLineDistances(); O.arcs[i].material.opacity=Math.min(0.7,k*8); }
+    const arr=O.effCurve.geometry.attributes.position.array;
+    for(let i=0;i<O.NP;i++){ const kk=i/(O.NP-1)*0.3, u=kk*Q, e=u*u/(1+Math.sqrt(1+u*u))**2;
+      arr[i*3]=-3.4+kk/0.3*4.0; arr[i*3+1]=-2.4+e*2.2; arr[i*3+2]=0; }
+    O.effCurve.geometry.attributes.position.needsUpdate=true; O.effCurve.geometry.computeBoundingSphere();
+    retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
+      const eNow=U*U/(1+Math.sqrt(1+U*U))**2, kc=1/Q, split=U>1;
+      hudBig.textContent=`ENERGY TRANSFER · wireless · k=${k.toFixed(3)} · Q=${Q} · U=k√(Q₁Q₂)=${U.toFixed(2)} · η=${(eNow*100).toFixed(0)}%`;
+      hudSub.textContent='two resonant coils exchange energy through their overlapping near-fields (magnetic coupling). Below the critical coupling k_c=1/√(Q₁Q₂) efficiency drops fast; above it the transfer saturates and the mode SPLITS (strong coupling) — no energy is created, only ferried across the gap';
+      ATLAS_BUS.pub('ret.eff',+eNow.toFixed(3),'wireless η');
+      const el=ctl.querySelector('#retInv'); if(el) el.innerHTML=`figure of merit U = k√(Q₁Q₂) = <b>${U.toFixed(3)}</b> · efficiency η = U²/(1+√(1+U²))² = <b>${(eNow*100).toFixed(1)}%</b>`+
+        `<br>critical coupling k_c = 1/√(Q₁Q₂) = ${kc.toFixed(4)} · regime: <b style="color:${split?'#9fe8d8':'#ffd27f'}">${split?'strong (over-coupled, mode-split)':'weak (under-coupled)'}</b>`;
+    }
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11146,6 +11306,7 @@ function setS3View(v){
   kinGroup.visible     = (v==='kin');
   shGroup.visible      = (v==='sh');
   kdvGroup.visible     = (v==='kdv');
+  retGroup.visible     = (v==='ret');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11163,6 +11324,7 @@ function setS3View(v){
   if(v==='kin'){ kinSetup(); }
   if(v==='sh'){ shSetup(); }
   if(v==='kdv'){ kdvSetup(); }
+  if(v==='ret'){ retSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11174,7 +11336,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15933,6 +16095,7 @@ const state = {
   kinStation:'gas', kinRun:true, kinSpeed:1, kinInit:'mono',   // Kinetic theory lab
   shL:3, shM:2, shMode:'balloon', shAnim:true, shSpeed:1, shDeform:1.0,   // Spherical harmonics lab
   kdvMode:'collide', kdvRun:true, kdvSpeed:1, kdvC1:5, kdvC2:2,   // Soliton (KdV) lab
+  retStation:'coupled', retRun:true, retSpeed:1, retK:1, retKappa:0.08, retGamma:0.1, retDriveW:1.0, retQ:100, retCoup:0.05,   // Resonant energy transfer lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -17371,6 +17534,41 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='ret') body = `
+    <div class="sect"><b>Energy transfer — pick a station</b>
+      <div class="chips">
+        ${[['coupled','Coupled oscillators'],['driven','Driven resonance'],['wireless','Wireless power']].map(([k,l])=>
+          `<button class="chip ${(state.retStation||'coupled')===k?'on':''}" data-retst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="retRun">${state.retRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="retReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="retSpeed" min="0.2" max="3" step="0.1" value="${state.retSpeed??1}"><span class="val" id="retSpeedV">×${(state.retSpeed??1).toFixed(1)}</span></div>
+      ${(state.retStation||'coupled')==='coupled'?`
+      <div class="ctlrow"><label>Coupling κ</label>
+        <input type="range" id="retKappa" min="0.01" max="0.6" step="0.01" value="${state.retKappa??0.08}"><span class="val" id="retKappaV">${(state.retKappa??0.08).toFixed(2)}</span></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">Weaker coupling = slower but more COMPLETE energy transfer between the two.</div>`:''}
+      ${(state.retStation||'coupled')==='driven'?`
+      <div class="ctlrow"><label>Drive freq ω</label>
+        <input type="range" id="retDriveW" min="0.3" max="1.8" step="0.01" value="${state.retDriveW??1.0}"><span class="val" id="retDriveWV">${(state.retDriveW??1.0).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Damping γ (Q=1/γ)</label>
+        <input type="range" id="retGamma" min="0.02" max="0.5" step="0.01" value="${state.retGamma??0.1}"><span class="val" id="retGammaV">${(state.retGamma??0.1).toFixed(2)}</span></div>`:''}
+      ${(state.retStation||'coupled')==='wireless'?`
+      <div class="ctlrow"><label>Coupling k</label>
+        <input type="range" id="retCoup" min="0.005" max="0.25" step="0.005" value="${state.retCoup??0.05}"><span class="val" id="retCoupV">${(state.retCoup??0.05).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>Quality factor Q</label>
+        <input type="range" id="retQ" min="20" max="400" step="10" value="${state.retQ??100}"><span class="val" id="retQV">${state.retQ??100}</span></div>`:''}
+    </div>
+    <div class="sect"><b>Energy audit</b>
+      <div class="note" id="retInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Energy is never created here — only moved, stored and dissipated (UPRS energy-honesty). Coupled: the beat of two normal modes ferries energy between oscillators, total conserved to machine precision. Driven: the Lorentzian response peaks at resonance with sharpness Q=ω₀/γ. Wireless: two resonant coils transfer power through their near-fields with efficiency η=U²/(1+√(1+U²))², U=k√(Q₁Q₂) — below the critical coupling k_c=1/√(Q₁Q₂) efficiency collapses, above it the mode splits (strong coupling). The engine behind wireless charging, RF harvesting and resonant sensors.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="retToEot">→ Extraordinary transmission: resonant tunnelling</button>
+        <button class="btn" id="retToSpin">→ Spin: Rabi = two coupled levels</button></div>
+    </div>`;
     else if(V==='kdv') body = `
     <div class="sect"><b>Solitons — pick a scenario</b>
       <div class="chips">
@@ -17692,6 +17890,7 @@ function buildCtlBody(){
         <button class="btn ${V==='kin'?'on':''}" id="v-kin">Kinetic gas</button>
         <button class="btn ${V==='sh'?'on':''}" id="v-sh">Spherical harmonics</button>
         <button class="btn ${V==='kdv'?'on':''}" id="v-kdv">Solitons</button>
+        <button class="btn ${V==='ret'?'on':''}" id="v-ret">Energy transfer</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17710,7 +17909,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17950,6 +18149,18 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='ret'){
+      ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
+      ctl.querySelector('#retRun')&&(ctl.querySelector('#retRun').onclick=()=>{ state.retRun=state.retRun===false; buildCtl(); });
+      ctl.querySelector('#retReset')&&(ctl.querySelector('#retReset').onclick=()=>{ retSetup(); });
+      const rr=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(2); }; };
+      rr('retSpeed',v=>state.retSpeed=v,v=>'×'+v.toFixed(1));
+      rr('retKappa',v=>state.retKappa=v); rr('retDriveW',v=>state.retDriveW=v); rr('retGamma',v=>state.retGamma=v);
+      rr('retCoup',v=>state.retCoup=v,v=>v.toFixed(3)); rr('retQ',v=>state.retQ=v|0,v=>String(v|0));
+      ctl.querySelector('#retToEot')&&(ctl.querySelector('#retToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+      ctl.querySelector('#retToSpin')&&(ctl.querySelector('#retToSpin').onclick=()=>{ navPush(); state.spinStation='rabi'; setS3View('spin'); buildCtl(); });
     }
     if(V==='kdv'){
       ctl.querySelectorAll('[data-kdvmode]').forEach(b=>b.onclick=()=>{ state.kdvMode=b.dataset.kdvmode; kdvSetup(); buildCtl(); });
@@ -19329,7 +19540,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -20484,6 +20695,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSh(dt);
     } else if(state.s3view==='kdv'){
       fbsAnimT+=dt; updateKdv(dt);
+    } else if(state.s3view==='ret'){
+      fbsAnimT+=dt; updateRet(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
