@@ -1581,6 +1581,22 @@ function runSelfTests(){
       pA>=50&&pA<=65&&Math.abs(pB-8.8)<0.3, `A=${pA}, B/A=${pB.toFixed(3)}`);
     ok('Nuclear: fusion He-4>D and fission Fe-56>U-238 in B/A (both climb to iron)',
       BE(4,2)/4>BE(2,1)/2 && BE(56,26)/56>BE(238,92)/238, `He4 ${(BE(4,2)/4).toFixed(2)} > D ${(BE(2,1)/2).toFixed(2)}`); }
+  { // GRAVITATIONAL LENSING: weak deflection → 2Rs/b; capture below b_crit=(3√3/2)Rs
+    const Rs=1, bcrit=3*Math.sqrt(3)/2;
+    const trace=b=>{ const B=Math.abs(b),RMAX=40; let u=1/RMAX,phi=Math.asin(Math.min(0.999,B/RMAX)),up=Math.cos(phi)/B,n=0;
+      while(n<200000){ const upp=1.5*Rs*u*u-u; up+=upp*0.002; u+=up*0.002; phi+=0.002; n++;
+        if(1/u<=Rs*1.03) return {captured:true}; if(up<0&&1/u>RMAX) break; } return {captured:false,alpha:phi-Math.PI}; };
+    const r1=trace(20);
+    ok('Gravitational lensing: weak deflection ≈ 2Rs/b (Einstein factor 2, within 15%)',
+      !r1.captured && Math.abs(r1.alpha-2*Rs/20)/(2*Rs/20)<0.15, r1.alpha.toFixed(4)+' vs '+(2/20).toFixed(4));
+    ok('Gravitational lensing: photon captured below b_crit=(3√3/2)Rs≈2.598, escapes above',
+      trace(2.5).captured && !trace(2.7).captured, 'bcrit='+bcrit.toFixed(4)); }
+  { // THERMOELECTRIC: Thomson Π=S·T; generator η→Carnot as ZT→∞, never exceeds it
+    const S=2e-4,Th=500,Tc=300,Tm=(Th+Tc)/2, carnot=1-Tc/Th;
+    const Pi=S*Tm; ok('Thermoelectric: Thomson relation Π = S·T holds', Math.abs(Pi-S*Tm)<1e-12, Pi.toFixed(4));
+    const eta=ZT=>{ const M=Math.sqrt(1+ZT); return carnot*(M-1)/(M+Tc/Th); };
+    ok('Thermoelectric: η rises with ZT, →Carnot as ZT→∞ but never exceeds it',
+      eta(4)>eta(1) && eta(1e7)<carnot && eta(1e7)/carnot>0.99, `η(∞)/Carnot=${(eta(1e7)/carnot).toFixed(4)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11810,6 +11826,143 @@ function updateNuc(dt){
   }
 }
 
+/* ================================================================
+   GRAVITATIONAL-LENSING LAB · light bending in Schwarzschild spacetime
+   (UPRS Part 17). A parallel beam of photons streams past a black hole;
+   each ray is an actual NULL GEODESIC, integrated from the exact orbit
+   equation d²u/dφ² + u = (3/2) R_s u²  (u = 1/r). Weak rays bend by
+   Einstein’s α = 2R_s/b — twice the Newtonian value, the 1919 eclipse
+   test. As the impact parameter approaches b_crit = (3√3/2)R_s ≈ 2.598 R_s
+   the deflection diverges and rays wind around the photon sphere at
+   r = 1.5 R_s; inside b_crit they are captured — the black-hole shadow.
+   Energy honesty: gravity does no work on a photon’s energy here; it
+   only bends the path (and, elsewhere, shifts frequency). */
+const lensGroup=new THREE.Group(); lensGroup.visible=false; s3Group.add(lensGroup);
+const LENS_RS=1, LENS_BCRIT=3*Math.sqrt(3)/2;
+let lensObjs=null, lensUiAcc=0, lensPhase=0;
+function lensTrace(b){   // integrate one null geodesic; returns {pts, captured, alpha}
+  const sign=b<0?-1:1, B=Math.abs(b)||1e-3, RMAX=34;
+  let u=1/RMAX, phi=Math.asin(Math.min(0.999,B/RMAX)), up=Math.cos(phi)/B;
+  const pts=[]; let captured=false, n=0; const dphi=0.004;
+  while(n<4000){ const r=1/u; const x=r*Math.cos(phi), y=sign*r*Math.sin(phi);
+    if(r<=RMAX+0.5) pts.push(x,y,0);
+    const upp=1.5*LENS_RS*u*u-u; up+=upp*dphi; u+=up*dphi; phi+=dphi; n++;
+    if(1/u<=LENS_RS*1.03){ captured=true; break; }
+    if(up<0 && 1/u>RMAX) break;   // escaped back to infinity
+  }
+  return {pts, captured, alpha:phi-Math.PI};
+}
+function lensClear(){ labWipe(lensGroup); lensObjs=null; }
+function lensSetup(){
+  lensClear();
+  lensGroup.add(new THREE.AmbientLight(0x8090b0,.5));
+  const S=0.42;   // scene units per R_s
+  // black hole + shadow + photon sphere
+  const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*S,48,32),new THREE.MeshBasicMaterial({color:0x05070c}));
+  lensGroup.add(bh);
+  const shadow=new THREE.Mesh(new THREE.RingGeometry(LENS_RS*S,LENS_BCRIT*S,64),new THREE.MeshBasicMaterial({color:0x120a18,transparent:true,opacity:.45,side:THREE.DoubleSide,depthWrite:false}));
+  shadow.rotation.x=0; lensGroup.add(shadow);
+  const pring=new THREE.Mesh(new THREE.RingGeometry(1.5*S*0.985,1.5*S*1.015,96),new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));
+  lensGroup.add(pring);
+  const bcircle=new THREE.Mesh(new THREE.RingGeometry(LENS_BCRIT*S*0.995,LENS_BCRIT*S*1.02,96),new THREE.MeshBasicMaterial({color:0xff7a6a,transparent:true,opacity:.5,side:THREE.DoubleSide,depthWrite:false}));
+  lensGroup.add(bcircle);
+  // ray fan
+  const nb=state.lensRays??22, bmax=6.5, rayLines=[]; const _c=new THREE.Color();
+  for(let i=0;i<nb;i++){ const b=-bmax+2*bmax*i/(nb-1); if(Math.abs(b)<0.05) continue;
+    const T=lensTrace(b); if(T.pts.length<2) continue;
+    const arr=new Float32Array(T.pts.map(v=>v*S));
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(arr,3));
+    const captured=T.captured; _c.setHSL(captured?0.02:0.55, .9, captured?0.5:0.62);
+    const line=new THREE.Line(g,new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:captured?.85:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
+    lensGroup.add(line); rayLines.push(line);
+  }
+  // movable probe ray
+  const probe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,depthWrite:false}));
+  lensGroup.add(probe);
+  const tl=mkLabel('GRAVITATIONAL LENSING · null geodesics · d²u/dφ²+u=(3/2)R_s u²','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
+  const psl=mkLabel('photon sphere 1.5 R_s','label axis'); psl.position.set(0,1.5*S+0.3,0); lensGroup.add(psl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); lensGroup.add(rl);
+  lensObjs={bh,probe,readLab:rl,S};
+}
+function updateLens(dt){
+  const O=lensObjs; if(!O) return; const S=O.S;
+  const b=state.lensB??4;
+  const T=lensTrace(b); const arr=new Float32Array(T.pts.map(v=>v*S));
+  O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3)); O.probe.geometry.computeBoundingSphere();
+  O.probe.material.color.setHex(T.captured?0xff6a5a:0xffe27a);
+  lensUiAcc+=dt; if(lensUiAcc>0.2){ lensUiAcc=0;
+    const weak=2*LENS_RS/Math.abs(b);
+    hudBig.textContent=T.captured?`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s < b_crit=2.598 → CAPTURED (inside the shadow)`
+      :`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s · deflection α=${(T.alpha*180/Math.PI).toFixed(2)}° · weak 2R_s/b=${(weak*180/Math.PI).toFixed(2)}°`;
+    hudSub.textContent='each ray is a real null geodesic of Schwarzschild spacetime. Far out, light bends by exactly α=2R_s/b — twice Newton’s value, confirmed at the 1919 eclipse. As b→b_crit=(3√3/2)R_s the bending runs away and photons loop the photon sphere at r=1.5R_s; closer in they fall past the horizon. Gravity here does no work on the photon energy — it curves the path, not the joule count.';
+    ATLAS_BUS.pub('lens.alpha',+(T.captured?999:T.alpha*180/Math.PI).toFixed(2),'deg');
+    const el=ctl.querySelector('#lensInv'); if(el) el.innerHTML=T.captured
+      ? `probe b=<b>${b.toFixed(2)}</b> R_s is below b_crit=<b>2.598</b> R_s → the photon spirals through the horizon. This disk is the black-hole shadow (apparent radius b_crit).`
+      : `probe b=<b>${b.toFixed(2)}</b> R_s · exact deflection α=<b>${(T.alpha*180/Math.PI).toFixed(2)}°</b> · weak-field 2R_s/b=<b>${(weak*180/Math.PI).toFixed(2)}°</b><br>photon sphere r=1.5 R_s · shadow radius b_crit=(3√3/2)R_s=<b>2.598</b> R_s · deflection diverges as b→b_crit`;
+  }
+}
+
+/* ================================================================
+   THERMOELECTRIC LAB · heat ⇄ electricity with no moving parts (UPRS Part 9).
+   Seebeck: a temperature difference across a couple drives an EMF
+   V = S·ΔT (a generator). Peltier: a current pumps heat Q = Π·I across
+   a junction (a solid-state fridge), with Π = S·T (Thomson’s relation).
+   The material’s quality is the dimensionless figure of merit
+   ZT = S²σT/κ; the generator efficiency
+   η = (1−Tc/Th)·(√(1+ZT)−1)/(√(1+ZT)+Tc/Th) climbs toward the Carnot
+   limit only as ZT→∞. Energy honesty: still bounded by Carnot — no
+   free lunch; today’s best materials sit near ZT≈2. */
+const teGroup=new THREE.Group(); teGroup.visible=false; s3Group.add(teGroup);
+let teObjs=null, teUiAcc=0, tePhase=0;
+function teClear(){ labWipe(teGroup); teObjs=null; }
+function teSetup(){
+  teClear(); teGroup.add(new THREE.AmbientLight(0x9098b8,.9));
+  const Th=state.teTh??500, Tc=state.teTc??300;
+  // hot & cold plates
+  const hot=new THREE.Mesh(new THREE.BoxGeometry(3.2,.35,1.2),new THREE.MeshStandardMaterial({color:0xd8412f,emissive:0x501008,roughness:.6})); hot.position.set(0,1.9,0); teGroup.add(hot);
+  const cold=new THREE.Mesh(new THREE.BoxGeometry(3.2,.35,1.2),new THREE.MeshStandardMaterial({color:0x3f7fe0,emissive:0x081840,roughness:.6})); cold.position.set(0,-1.9,0); teGroup.add(cold);
+  const dl=new THREE.DirectionalLight(0xffffff,.7); dl.position.set(2,3,5); teGroup.add(dl);
+  // two legs (n and p)
+  const legGeo=new THREE.BoxGeometry(.8,3.2,.8);
+  const nleg=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x4a6a9a,metalness:.3,roughness:.5})); nleg.position.set(-1.0,0,0); teGroup.add(nleg);
+  const pleg=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x9a6a4a,metalness:.3,roughness:.5})); pleg.position.set(1.0,0,0); teGroup.add(pleg);
+  // carriers
+  const carriers=[]; const cg=new THREE.SphereGeometry(.11,10,8);
+  for(let i=0;i<10;i++){ const e=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0x8fd0ff})); e.userData={leg:-1,t:i/10}; teGroup.add(e); carriers.push(e);
+    const hh=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0xffb060})); hh.userData={leg:1,t:i/10}; teGroup.add(hh); carriers.push(hh); }
+  const nlab=mkLabel('n','label axis'); nlab.position.set(-1.0,0,.6); teGroup.add(nlab);
+  const plab=mkLabel('p','label axis'); plab.position.set(1.0,0,.6); teGroup.add(plab);
+  const hlab=mkLabel('hot Tₕ','label axis'); hlab.position.set(0,2.35,0); teGroup.add(hlab);
+  const clab=mkLabel('cold T_c','label axis'); clab.position.set(0,-2.35,0); teGroup.add(clab);
+  const tl=mkLabel('THERMOELECTRIC · Seebeck V=S·ΔT · Peltier Q=Π·I · ZT=S²σT/κ','label const'); tl.position.set(0,3.4,0); teGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); teGroup.add(rl);
+  teObjs={hot,cold,nleg,pleg,carriers,readLab:rl};
+}
+function updateTe(dt){
+  const O=teObjs; if(!O) return;
+  const mode=state.teMode||'seebeck', Th=state.teTh??500, Tc=state.teTc??300, ZT=state.teZT??1;
+  const drive=mode==='peltier'?(state.teI??1):(Th-Tc)/200;
+  tePhase+=dt*(0.4+0.6*Math.abs(drive))*(mode==='peltier'&&drive<0?-1:1);
+  for(const c of O.carriers){ let t=(c.userData.t + tePhase*0.25*c.userData.leg*-1)%1; if(t<0)t+=1;
+    const y=1.7-3.4*t; c.position.set(c.userData.leg*1.0 + (c.userData.leg<0?-0.001:0.001), y, 0.42); }
+  teUiAcc+=dt; if(teUiAcc>0.25){ teUiAcc=0;
+    const S=2e-4, dT=Th-Tc, V=S*dT, Tm=(Th+Tc)/2, Pi=S*Tm;
+    const M=Math.sqrt(1+ZT), etaTEG=(1-Tc/Th)*(M-1)/(M+Tc/Th), carnot=1-Tc/Th;
+    const COP = Tc/dT * (M - Th/Tc)/(M+1);   // Peltier cooler COP (ideal)
+    if(mode==='seebeck'){
+      hudBig.textContent=`THERMOELECTRIC · Seebeck generator · V=S·ΔT=${(V*1000).toFixed(1)} mV · η=${(etaTEG*100).toFixed(1)}% of Carnot ${(carnot*100).toFixed(0)}%`;
+      hudSub.textContent='a temperature drop drives charge from hot to cold — electrons in the n-leg, holes in the p-leg — producing an EMF with no moving parts (Voyager’s RTG runs this way). Efficiency rises with the figure of merit ZT but stays under the Carnot ceiling; real materials sit near ZT≈2.';
+    } else {
+      hudBig.textContent=`THERMOELECTRIC · Peltier cooler · Π=S·T=${(Pi*1000).toFixed(0)} mV · I=${(state.teI??1).toFixed(1)} A · pumps heat cold→hot`;
+      hudSub.textContent='run current the other way and the couple PUMPS heat against the gradient (Q=Π·I), a solid-state fridge with Π=S·T. It still obeys the second law — the coefficient of performance falls as the temperature lift grows.';
+    }
+    ATLAS_BUS.pub('te.eta', +(mode==='seebeck'?etaTEG:COP).toFixed(4), mode==='seebeck'?'η/1':'COP');
+    const el=ctl.querySelector('#teInv'); if(el) el.innerHTML=mode==='seebeck'
+      ? `Seebeck coefficient S=200 µV/K · ΔT=<b>${dT.toFixed(0)}</b> K → V=S·ΔT=<b>${(V*1000).toFixed(1)}</b> mV<br>ZT=<b>${ZT.toFixed(2)}</b> → η=<b>${(etaTEG*100).toFixed(2)}%</b> = ${(etaTEG/carnot*100).toFixed(0)}% of Carnot (${(carnot*100).toFixed(1)}%); ZT→∞ ⇒ η→Carnot`
+      : `Peltier coefficient Π=S·T=<b>${(Pi*1000).toFixed(0)}</b> mV (Thomson Π=S·T) · current I=<b>${(state.teI??1).toFixed(1)}</b> A<br>heat pumped Q≈Π·I=<b>${(Pi*(state.teI??1)*1000).toFixed(0)}</b> mW cold→hot · bounded by the second law (COP falls with the lift)`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11848,6 +12001,8 @@ function setS3View(v){
   heGroup.visible      = (v==='he');
   bbGroup.visible      = (v==='bb');
   nucGroup.visible     = (v==='nuc');
+  lensGroup.visible    = (v==='lens');
+  teGroup.visible      = (v==='te');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11872,6 +12027,8 @@ function setS3View(v){
   if(v==='he'){ heSetup(); }
   if(v==='bb'){ bbSetup(); }
   if(v==='nuc'){ nucSetup(); }
+  if(v==='lens'){ lensSetup(); }
+  if(v==='te'){ teSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11883,7 +12040,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16649,6 +16806,8 @@ const state = {
   heTh:500, heTc:300, heRun:true, heSpeed:1,   // Heat-engine lab
   bbT:5772,   // Blackbody lab
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
+  lensB:4, lensRays:22,   // Gravitational-lensing lab
+  teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -18220,6 +18379,53 @@ function buildCtlBody(){
         <button class="btn" id="nucToSolar">→ Solar: fusion powering the Sun</button>
         <button class="btn" id="nucToHe">→ Heat engine: turning the heat into work</button></div>
     </div>`;
+    else if(V==='lens') body = `
+    <div class="sect"><b>Gravitational lensing — probe ray</b>
+      <div class="ctlrow"><label>Impact param b</label>
+        <input type="range" id="lensB" min="-8" max="8" step="0.05" value="${state.lensB??4}"><span class="val" id="lensBV">${(state.lensB??4).toFixed(2)} R_s</span></div>
+      <div class="ctlrow"><label>Beam rays</label>
+        <input type="range" id="lensRays" min="8" max="40" step="2" value="${state.lensRays??22}"><span class="val" id="lensRaysV">${state.lensRays??22}</span></div>
+      <div class="chips">
+        <button class="chip" data-lensb="6">weak bend</button>
+        <button class="chip" data-lensb="2.7">near photon sphere</button>
+        <button class="chip" data-lensb="2.598">critical b</button>
+        <button class="chip" data-lensb="2">captured</button>
+      </div>
+    </div>
+    <div class="sect"><b>Deflection readout</b>
+      <div class="note" id="lensInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Every ray is a true null geodesic integrated from d²u/dφ²+u=(3/2)R_s u² (u=1/r). Far out, light bends by α=2R_s/b — exactly twice the Newtonian prediction, the measurement that made Einstein famous in 1919. As b→b_crit=(3√3/2)R_s≈2.598 R_s the deflection diverges and photons wind around the photon sphere at r=1.5 R_s; inside b_crit they cross the horizon — the dark disk is the black-hole shadow. Gravity does no work on the photon’s energy here; it only curves the path.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="lensToGrav">→ Gravitas: Newtonian 3-body orbits</button>
+        <button class="btn" id="lensToTaub">→ Taub-NUT: exotic spacetime geodesics</button></div>
+    </div>`;
+    else if(V==='te') body = `
+    <div class="sect"><b>Thermoelectric — mode</b>
+      <div class="chips">
+        <button class="chip ${(state.teMode||'seebeck')==='seebeck'?'on':''}" data-tem="seebeck">Seebeck (generate)</button>
+        <button class="chip ${(state.teMode||'seebeck')==='peltier'?'on':''}" data-tem="peltier">Peltier (cool)</button>
+      </div>
+      <div class="ctlrow"><label>Hot Tₕ</label>
+        <input type="range" id="teTh" min="320" max="900" step="10" value="${state.teTh??500}"><span class="val" id="teThV">${(state.teTh??500).toFixed(0)} K</span></div>
+      <div class="ctlrow"><label>Cold T_c</label>
+        <input type="range" id="teTc" min="200" max="310" step="10" value="${state.teTc??300}"><span class="val" id="teTcV">${(state.teTc??300).toFixed(0)} K</span></div>
+      <div class="ctlrow"><label>Figure ZT</label>
+        <input type="range" id="teZT" min="0.2" max="6" step="0.1" value="${state.teZT??1}"><span class="val" id="teZTV">${(state.teZT??1).toFixed(1)}</span></div>
+      ${(state.teMode||'seebeck')==='peltier'?`
+      <div class="ctlrow"><label>Current I</label>
+        <input type="range" id="teI" min="-3" max="3" step="0.1" value="${state.teI??1}"><span class="val" id="teIV">${(state.teI??1).toFixed(1)} A</span></div>`:''}
+    </div>
+    <div class="sect"><b>Conversion readout</b>
+      <div class="note" id="teInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A thermoelectric couple turns heat straight into electricity with no moving parts. Seebeck: ΔT drives V=S·ΔT (a generator — how a Voyager RTG powers itself). Peltier: a current pumps heat Q=Π·I with Π=S·T (Thomson’s relation) — a solid-state fridge. Quality is the figure of merit ZT=S²σT/κ; efficiency η=(1−Tc/Th)(√(1+ZT)−1)/(√(1+ZT)+Tc/Th) approaches the Carnot limit only as ZT→∞. It never beats Carnot — real materials sit near ZT≈2.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="teToHe">→ Heat engine: the Carnot ceiling</button>
+        <button class="btn" id="teToCp">→ Charged particle: the carriers themselves</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -18583,6 +18789,8 @@ function buildCtlBody(){
         <button class="btn ${V==='he'?'on':''}" id="v-he">Heat engine</button>
         <button class="btn ${V==='bb'?'on':''}" id="v-bb">Blackbody</button>
         <button class="btn ${V==='nuc'?'on':''}" id="v-nuc">Nuclear binding</button>
+        <button class="btn ${V==='lens'?'on':''}" id="v-lens">Gravitational lensing</button>
+        <button class="btn ${V==='te'?'on':''}" id="v-te">Thermoelectric</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -18601,7 +18809,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -18899,6 +19107,24 @@ function buildCtlBody(){
         const v=ctl.querySelector('#nucZV'); if(v)v.textContent=state.nucZ; });
       ctl.querySelector('#nucToSolar')&&(ctl.querySelector('#nucToSolar').onclick=()=>{ navPush(); setMode('solar'); });
       ctl.querySelector('#nucToHe')&&(ctl.querySelector('#nucToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
+    }
+    if(V==='lens'){
+      ctl.querySelector('#lensB')&&(ctl.querySelector('#lensB').oninput=e=>{ state.lensB=+e.target.value;
+        const v=ctl.querySelector('#lensBV'); if(v)v.textContent=(+e.target.value).toFixed(2)+' R_s'; });
+      ctl.querySelector('#lensRays')&&(ctl.querySelector('#lensRays').oninput=e=>{ state.lensRays=+e.target.value;
+        const v=ctl.querySelector('#lensRaysV'); if(v)v.textContent=state.lensRays; }, ctl.querySelector('#lensRays').onchange=()=>lensSetup());
+      ctl.querySelectorAll('[data-lensb]').forEach(b=>b.onclick=()=>{ state.lensB=+b.dataset.lensb; buildCtl(); });
+      ctl.querySelector('#lensToGrav')&&(ctl.querySelector('#lensToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#lensToTaub')&&(ctl.querySelector('#lensToTaub').onclick=()=>{ navPush(); setS3View('taub'); buildCtl(); });
+    }
+    if(V==='te'){
+      ctl.querySelectorAll('[data-tem]').forEach(b=>b.onclick=()=>{ state.teMode=b.dataset.tem; buildCtl(); });
+      const tc=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      tc('teTh',v=>state.teTh=v,v=>v.toFixed(0)+' K'); tc('teTc',v=>state.teTc=v,v=>v.toFixed(0)+' K');
+      tc('teZT',v=>state.teZT=v,v=>v.toFixed(1)); tc('teI',v=>state.teI=v,v=>v.toFixed(1)+' A');
+      ctl.querySelector('#teToHe')&&(ctl.querySelector('#teToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
+      ctl.querySelector('#teToCp')&&(ctl.querySelector('#teToCp').onclick=()=>{ navPush(); setS3View('cp'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -20290,7 +20516,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -21459,6 +21685,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateBb(dt);
     } else if(state.s3view==='nuc'){
       fbsAnimT+=dt; updateNuc(dt);
+    } else if(state.s3view==='lens'){
+      fbsAnimT+=dt; updateLens(dt);
+    } else if(state.s3view==='te'){
+      fbsAnimT+=dt; updateTe(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
