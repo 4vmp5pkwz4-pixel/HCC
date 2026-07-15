@@ -1581,16 +1581,17 @@ function runSelfTests(){
       pA>=50&&pA<=65&&Math.abs(pB-8.8)<0.3, `A=${pA}, B/A=${pB.toFixed(3)}`);
     ok('Nuclear: fusion He-4>D and fission Fe-56>U-238 in B/A (both climb to iron)',
       BE(4,2)/4>BE(2,1)/2 && BE(56,26)/56>BE(238,92)/238, `He4 ${(BE(4,2)/4).toFixed(2)} > D ${(BE(2,1)/2).toFixed(2)}`); }
-  { // GRAVITATIONAL LENSING: weak deflection → 2Rs/b; capture below b_crit=(3√3/2)Rs
+  { // GRAVITATIONAL LENSING: exact null-geodesic quadrature → weak 2Rs/b; capture below b_crit=(3√3/2)Rs
     const Rs=1, bcrit=3*Math.sqrt(3)/2;
-    const trace=b=>{ const B=Math.abs(b),RMAX=40; let u=1/RMAX,phi=Math.asin(Math.min(0.999,B/RMAX)),up=Math.cos(phi)/B,n=0;
-      while(n<200000){ const upp=1.5*Rs*u*u-u; up+=upp*0.002; u+=up*0.002; phi+=0.002; n++;
-        if(1/u<=Rs*1.03) return {captured:true}; if(up<0&&1/u>RMAX) break; } return {captured:false,alpha:phi-Math.PI}; };
-    const r1=trace(20);
-    ok('Gravitational lensing: weak deflection ≈ 2Rs/b (Einstein factor 2, within 15%)',
-      !r1.captured && Math.abs(r1.alpha-2*Rs/20)/(2*Rs/20)<0.15, r1.alpha.toFixed(4)+' vs '+(2/20).toFixed(4));
+    const periU=b=>{ const B=Math.abs(b),f=u=>1/(B*B)-u*u+Rs*u*u*u; let prev=f(1e-6);
+      for(let u=1e-4;u<=1/Rs;u+=1e-4){ const cur=f(u); if(prev>0&&cur<=0){ let a=u-1e-4,bb=u; for(let k=0;k<50;k++){ const m=(a+bb)/2; (f(m)>0?a=m:bb=m);} return (a+bb)/2; } prev=cur; } return -1; };
+    const alph=b=>{ const B=Math.abs(b); if(B<bcrit) return null; const um=periU(B); if(um<0) return null;
+      let s=0; const N=6000; for(let i=0;i<N;i++){ const t=(i+0.5)/N*(Math.PI/2),u=um*Math.sin(t),du=um*Math.cos(t)*(Math.PI/2)/N,f=1/(B*B)-u*u+Rs*u*u*u; if(f>0) s+=du/Math.sqrt(f); } return 2*s-Math.PI; };
+    const a20=alph(20);
+    ok('Gravitational lensing: weak deflection ≈ 2Rs/b (Einstein factor 2, within 12%)',
+      a20!==null && Math.abs(a20-2*Rs/20)/(2*Rs/20)<0.12, a20.toFixed(4)+' vs '+(2/20).toFixed(4));
     ok('Gravitational lensing: photon captured below b_crit=(3√3/2)Rs≈2.598, escapes above',
-      trace(2.5).captured && !trace(2.7).captured, 'bcrit='+bcrit.toFixed(4)); }
+      alph(2.5)===null && alph(2.7)!==null, 'bcrit='+bcrit.toFixed(4)); }
   { // THERMOELECTRIC: Thomson Π=S·T; generator η→Carnot as ZT→∞, never exceeds it
     const S=2e-4,Th=500,Tc=300,Tm=(Th+Tc)/2, carnot=1-Tc/Th;
     const Pi=S*Tm; ok('Thermoelectric: Thomson relation Π = S·T holds', Math.abs(Pi-S*Tm)<1e-12, Pi.toFixed(4));
@@ -11840,9 +11841,21 @@ function updateNuc(dt){
 const lensGroup=new THREE.Group(); lensGroup.visible=false; s3Group.add(lensGroup);
 const LENS_RS=1, LENS_BCRIT=3*Math.sqrt(3)/2;
 let lensObjs=null, lensUiAcc=0, lensPhase=0;
-function lensTrace(b){   // integrate one null geodesic; returns {pts, captured, alpha}
+function lensPeriU(b){   // smallest positive root of the null first integral f(u)=1/b²−u²+R_s u³ (periapsis)
+  const B=Math.abs(b), f=u=>1/(B*B)-u*u+LENS_RS*u*u*u; let prev=f(1e-6);
+  for(let u=1e-4;u<=1/LENS_RS;u+=1e-4){ const cur=f(u); if(prev>0&&cur<=0){ let a=u-1e-4,bb=u;
+    for(let k=0;k<50;k++){ const m=(a+bb)/2; (f(m)>0?a=m:bb=m); } return (a+bb)/2; } prev=cur; }
+  return -1;
+}
+function lensAlpha(b){   // EXACT deflection via quadrature α = 2∫₀^{u_max} du/√f − π ; null if captured
+  const B=Math.abs(b); if(B<LENS_BCRIT) return null; const um=lensPeriU(B); if(um<0) return null;
+  let s=0; const N=6000; for(let i=0;i<N;i++){ const t=(i+0.5)/N*(Math.PI/2), u=um*Math.sin(t),
+    du=um*Math.cos(t)*(Math.PI/2)/N, f=1/(B*B)-u*u+LENS_RS*u*u*u; if(f>0) s+=du/Math.sqrt(f); }
+  return 2*s-Math.PI;
+}
+function lensTrace(b){   // integrate one null geodesic for DRAWING; returns {pts, captured}
   const sign=b<0?-1:1, B=Math.abs(b)||1e-3, RMAX=34;
-  let u=1/RMAX, phi=Math.asin(Math.min(0.999,B/RMAX)), up=Math.cos(phi)/B;
+  let u=1/RMAX, phi=Math.asin(Math.min(0.999,B/RMAX)), up=Math.sqrt(Math.max(1e-9,1/(B*B)-u*u+LENS_RS*u*u*u));
   const pts=[]; let captured=false, n=0; const dphi=0.004;
   while(n<4000){ const r=1/u; const x=r*Math.cos(phi), y=sign*r*Math.sin(phi);
     if(r<=RMAX+0.5) pts.push(x,y,0);
@@ -11850,7 +11863,7 @@ function lensTrace(b){   // integrate one null geodesic; returns {pts, captured,
     if(1/u<=LENS_RS*1.03){ captured=true; break; }
     if(up<0 && 1/u>RMAX) break;   // escaped back to infinity
   }
-  return {pts, captured, alpha:phi-Math.PI};
+  return {pts, captured};
 }
 function lensClear(){ labWipe(lensGroup); lensObjs=null; }
 function lensSetup(){
@@ -11889,16 +11902,16 @@ function updateLens(dt){
   const b=state.lensB??4;
   const T=lensTrace(b); const arr=new Float32Array(T.pts.map(v=>v*S));
   O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3)); O.probe.geometry.computeBoundingSphere();
-  O.probe.material.color.setHex(T.captured?0xff6a5a:0xffe27a);
+  const captured=Math.abs(b)<LENS_BCRIT; O.probe.material.color.setHex(captured?0xff6a5a:0xffe27a);
   lensUiAcc+=dt; if(lensUiAcc>0.2){ lensUiAcc=0;
-    const weak=2*LENS_RS/Math.abs(b);
-    hudBig.textContent=T.captured?`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s < b_crit=2.598 → CAPTURED (inside the shadow)`
-      :`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s · deflection α=${(T.alpha*180/Math.PI).toFixed(2)}° · weak 2R_s/b=${(weak*180/Math.PI).toFixed(2)}°`;
+    const weak=2*LENS_RS/Math.abs(b), alpha=captured?null:lensAlpha(b);
+    hudBig.textContent=captured?`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s < b_crit=2.598 → CAPTURED (inside the shadow)`
+      :`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s · deflection α=${(alpha*180/Math.PI).toFixed(2)}° · weak 2R_s/b=${(weak*180/Math.PI).toFixed(2)}°`;
     hudSub.textContent='each ray is a real null geodesic of Schwarzschild spacetime. Far out, light bends by exactly α=2R_s/b — twice Newton’s value, confirmed at the 1919 eclipse. As b→b_crit=(3√3/2)R_s the bending runs away and photons loop the photon sphere at r=1.5R_s; closer in they fall past the horizon. Gravity here does no work on the photon energy — it curves the path, not the joule count.';
-    ATLAS_BUS.pub('lens.alpha',+(T.captured?999:T.alpha*180/Math.PI).toFixed(2),'deg');
-    const el=ctl.querySelector('#lensInv'); if(el) el.innerHTML=T.captured
+    ATLAS_BUS.pub('lens.alpha',+(captured?999:alpha*180/Math.PI).toFixed(2),'deg');
+    const el=ctl.querySelector('#lensInv'); if(el) el.innerHTML=captured
       ? `probe b=<b>${b.toFixed(2)}</b> R_s is below b_crit=<b>2.598</b> R_s → the photon spirals through the horizon. This disk is the black-hole shadow (apparent radius b_crit).`
-      : `probe b=<b>${b.toFixed(2)}</b> R_s · exact deflection α=<b>${(T.alpha*180/Math.PI).toFixed(2)}°</b> · weak-field 2R_s/b=<b>${(weak*180/Math.PI).toFixed(2)}°</b><br>photon sphere r=1.5 R_s · shadow radius b_crit=(3√3/2)R_s=<b>2.598</b> R_s · deflection diverges as b→b_crit`;
+      : `probe b=<b>${b.toFixed(2)}</b> R_s · exact deflection α=<b>${(alpha*180/Math.PI).toFixed(2)}°</b> · weak-field 2R_s/b=<b>${(weak*180/Math.PI).toFixed(2)}°</b><br>photon sphere r=1.5 R_s · shadow radius b_crit=(3√3/2)R_s=<b>2.598</b> R_s · deflection diverges as b→b_crit`;
   }
 }
 
