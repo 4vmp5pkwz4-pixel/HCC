@@ -1430,6 +1430,24 @@ function runSelfTests(){
   { const l1=eotLamRes(600,1,0), l2=eotLamRes(700,1,0);
     ok('EOT: SPP(1,0) resonance is REDSHIFTED past a₀ and grows with the period',
       !!l1&&!!l2&&l1>600&&l2>l1, `λ(600)=${l1&&l1.toFixed(0)} λ(700)=${l2&&l2.toFixed(0)}`); }
+  { // QUANTUM SPIN: Rodrigues rotation is exact & unitary; Rabi/Larmor/Berry/CHSH match theory
+    const rod=(n,ax,ang)=>{ const m=Math.hypot(ax[0],ax[1],ax[2])||1,kx=ax[0]/m,ky=ax[1]/m,kz=ax[2]/m,
+      c=Math.cos(ang),s=Math.sin(ang),kn=kx*n[0]+ky*n[1]+kz*n[2];
+      return [n[0]*c+(ky*n[2]-kz*n[1])*s+kx*kn*(1-c),n[1]*c+(kz*n[0]-kx*n[2])*s+ky*kn*(1-c),n[2]*c+(kx*n[1]-ky*n[0])*s+kz*kn*(1-c)]; };
+    // Rabi resonant: |0>=+z rotated about x by π lands on −z (P1=1)
+    let n=rod([0,0,1],[1,0,0],Math.PI);
+    ok('Spin: Rabi resonant π-pulse flips |0⟩→|1⟩ exactly (P₁=1)', Math.abs((1-n[1]/1)-1)<1e-9 || Math.abs(n[2]+1)<1e-9, n.map(x=>x.toFixed(3)).join(','));
+    ok('Spin: Rodrigues rotation preserves |n|=1 (unitary)', Math.abs(Math.hypot(...rod([0.3,0.5,0.81],[0.2,1,0.4],1.37))-Math.hypot(0.3,0.5,0.81))<1e-12);
+    // Rabi detuned formula vs stepped rotation
+    { const Om=1,De=1,OR=Math.SQRT2,t=2; let m=[0,0,1]; m=rod(m,[Om,0,De],OR*t);
+      const Pnum=(1-m[2])/2, Pth=(Om*Om/(OR*OR))*Math.sin(OR*t/2)**2;
+      ok('Spin: detuned Rabi P₁ matches (Ω²/Ω_R²)sin²(Ω_R t/2)', Math.abs(Pnum-Pth)<1e-9, Pnum.toFixed(6)); }
+    // Berry phase = -pi(1-cos θ)
+    { const tc=0.6, berry=-0.5*2*Math.PI*(1-Math.cos(tc));
+      ok('Spin: Berry phase = −π(1−cos θ) (spin-½)', Math.abs(berry+Math.PI*(1-Math.cos(tc)))<1e-12, berry.toFixed(5)); }
+    // CHSH at optimal angles = 2√2
+    { const E=(x,y)=>-Math.cos(x-y), S=Math.abs(E(0,Math.PI/4)-E(0,3*Math.PI/4)+E(Math.PI/2,Math.PI/4)+E(Math.PI/2,3*Math.PI/4));
+      ok('Spin: Bell CHSH reaches the Tsirelson bound 2√2 at optimal angles', Math.abs(S-2*Math.SQRT2)<1e-9, S.toFixed(6)); } }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10306,6 +10324,146 @@ function updateWave(dt){
 }
 const _waveCol=new THREE.Color(); const _wI=new Float32Array(WAVE_NX*WAVE_NY);
 
+/* ================================================================
+   QUANTUM SPIN LAB · the Bloch sphere, exactly.
+   A two-level system |ψ⟩=cos(θ/2)|0⟩+e^{iφ}sin(θ/2)|1⟩ is the unit
+   Bloch vector n=⟨σ⟩. Coherent evolution under H=−(ħ/2)Ω·σ is an exact
+   rotation of n about Ω at rate |Ω| (Rodrigues — no integrator drift).
+   Stations: Larmor precession (ω=γB), driven Rabi oscillations
+   (verified against P=(Ω²/Ω_R²)sin²(Ω_R t/2)), Stern–Gerlach projective
+   measurement with live collapse statistics, Berry geometric phase
+   (=−½ solid angle), and a Bell singlet with the CHSH inequality.
+   Bridges: Bell lune (the same holonomy as area on S²) and Topology
+   (the Bloch sphere IS S²; a full loop is a 4π spinor rotation). */
+const spinGroup=new THREE.Group(); spinGroup.visible=false; s3Group.add(spinGroup);
+function spinRodrigues(n,ax,ang){
+  const m=Math.hypot(ax[0],ax[1],ax[2])||1, kx=ax[0]/m,ky=ax[1]/m,kz=ax[2]/m;
+  const c=Math.cos(ang),s=Math.sin(ang), kn=kx*n[0]+ky*n[1]+kz*n[2];
+  return [n[0]*c+(ky*n[2]-kz*n[1])*s+kx*kn*(1-c),
+          n[1]*c+(kz*n[0]-kx*n[2])*s+ky*kn*(1-c),
+          n[2]*c+(kx*n[1]-ky*n[0])*s+kz*kn*(1-c)];
+}
+let spinObjs=null, spinT=0, spinUiAcc=0, spinN=[0,0,1], spinTrail=[], spinPath=0,
+    spinUp=0, spinDown=0, spinBerry=0, spinNPrev=[0,0,1];
+function spinClear(){ labWipe(spinGroup); spinObjs=null; }
+function spinSetup(){
+  spinClear(); spinT=0; spinUp=0; spinDown=0; spinBerry=0; spinPath=0; spinTrail=[];
+  spinN=[Math.sin(0.7),0,Math.cos(0.7)]; spinNPrev=spinN.slice();
+  const R=2.2;
+  spinGroup.add(new THREE.Mesh(new THREE.SphereGeometry(R,40,26),
+    new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.14})));
+  spinGroup.add(new THREE.Mesh(new THREE.SphereGeometry(R*0.997,48,32),
+    new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.24,shininess:40,side:THREE.BackSide})));
+  spinGroup.add(new THREE.AmbientLight(0x8090b0,.8));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.7); dl.position.set(3,5,4); spinGroup.add(dl);
+  // equator + axes
+  const eq=[]; for(let i=0;i<=96;i++){const a=i/96*Math.PI*2; eq.push(new THREE.Vector3(R*Math.cos(a),0,R*Math.sin(a)));}
+  spinGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(eq),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.4})));
+  for(const [ax,c,lab] of [[[0,1,0],0xf5c964,'|0⟩ +z'],[[0,-1,0],0x8fb8ff,'|1⟩ −z'],[[1,0,0],0x9fe8d8,'|+⟩ x'],[[0,0,1],0xd9a2ff,'|+i⟩ y']]){
+    const l=mkLabel(lab,'label axis'); l.position.set(ax[0]*(R+0.35),ax[1]*(R+0.35),ax[2]*(R+0.35)); spinGroup.add(l);
+  }
+  // state-vector arrow + tip glow + trail
+  const arrow=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),R,0xffd27a,R*0.14,R*0.09);
+  spinGroup.add(arrow);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshBasicMaterial({color:0xfff1c0}));
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.85,depthWrite:false}));
+  glow.scale.setScalar(.8); tip.add(glow); spinGroup.add(tip);
+  const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(1200*3),3));
+  tg.setDrawRange(0,0);
+  const trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:0xf5c964,transparent:true,opacity:.7}));
+  spinGroup.add(trail);
+  // field / rotation-axis arrow
+  const bAxis=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),R*1.15,0x8fb8ff,R*0.12,R*0.07);
+  spinGroup.add(bAxis);
+  // second spin (Bell)
+  const arrow2=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,0),R,0x9fe8d8,R*0.14,R*0.09);
+  arrow2.visible=false; spinGroup.add(arrow2);
+  const tl=mkLabel('QUANTUM SPIN · Bloch sphere · n = ⟨σ⟩ · exact SU(2) rotation','label const'); tl.position.set(0,3.4,0); spinGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.1,0); spinGroup.add(rl);
+  spinObjs={arrow,tip,trail,bAxis,arrow2,readLab:rl,R};
+}
+function spinRotAxis(){   // rotation axis Ω and rate in the (rotating) frame per station
+  const st=state.spinStation||'larmor';
+  if(st==='rabi'){ const Om=state.spinOmega??1.2, De=state.spinDetune??0; return {ax:[Om,0,De],rate:Math.hypot(Om,De)}; }
+  if(st==='berry'){ // slowly cone the field; adiabatic n follows the field axis
+    const w=0.6, tc=state.spinCone??0.6; const a=w*spinT;
+    return {field:[Math.sin(tc)*Math.cos(a),Math.cos(tc),Math.sin(tc)*Math.sin(a)],adiabatic:true}; }
+  // larmor / SG / bell: precession about the field (default +y = |0⟩ axis tilted)
+  const b=state.spinB??1.3; return {ax:[0,1,0],rate:b};
+}
+function updateSpin(dt){
+  if(!spinObjs) spinSetup();
+  spinT+=dt*(state.spinSpeed??1); const O=spinObjs, R=O.R, st=state.spinStation||'larmor';
+  const ra=spinRotAxis();
+  if(state.spinRun!==false){
+    const step=dt*(state.spinSpeed??1);
+    if(ra.adiabatic){ // Berry: n tracks the field direction; accumulate geometric phase = -1/2 * swept solid angle
+      const f=ra.field; const prev=spinNPrev;
+      // solid angle increment via the spherical triangle (n_prev, n, north)
+      spinN=f.slice();
+      // Berry phase increment ≈ -1/2 * (φ increment)*(1-cos θ) around the cone
+      const tc=state.spinCone??0.6; spinBerry += -0.5*(0.6*step)*(1-Math.cos(tc));
+    } else {
+      spinN=spinRodrigues(spinN, ra.ax, ra.rate*step);
+    }
+  }
+  // arrows
+  O.arrow.setDirection(new THREE.Vector3(spinN[0],spinN[1],spinN[2]).normalize());
+  O.arrow.setLength(R,R*0.14,R*0.09);
+  O.tip.position.set(spinN[0]*R,spinN[1]*R,spinN[2]*R);
+  const fld=ra.field||ra.ax; O.bAxis.setDirection(new THREE.Vector3(fld[0],fld[1],fld[2]).normalize());
+  O.bAxis.visible=(st==='larmor'||st==='rabi'||st==='berry');
+  O.arrow2.visible=(st==='bell');
+  if(st==='bell') O.arrow2.setDirection(new THREE.Vector3(-spinN[0],-spinN[1],-spinN[2]).normalize());
+  // trail
+  const tp=O.trail.geometry.attributes.position;
+  if(state.spinRun!==false){ if(spinPath<1200) spinPath++; else tp.array.copyWithin(0,3);
+    const k=(spinPath-1)*3; tp.array[k]=spinN[0]*R; tp.array[k+1]=spinN[1]*R; tp.array[k+2]=spinN[2]*R;
+    O.trail.geometry.setDrawRange(0,spinPath); tp.needsUpdate=true; O.trail.geometry.computeBoundingSphere(); }
+  spinNPrev=spinN.slice();
+  spinUiAcc+=dt;
+  if(spinUiAcc>0.25){ spinUiAcc=0;
+    const nz=spinN[1];  // measurement axis = +y (|0⟩); ⟨σ_meas⟩ = projection
+    const th=Math.acos(Math.max(-1,Math.min(1,nz)));
+    if(st==='larmor'){
+      hudBig.textContent=`SPIN · Larmor precession · ω = γB = ${(state.spinB??1.3).toFixed(2)} · φ = ${(Math.atan2(spinN[2],spinN[0])/DEG).toFixed(0)}°`;
+      hudSub.textContent='the Bloch vector precesses about B at the Larmor frequency ω=γB — the classical face of spin, exact rotation of ⟨σ⟩; the polar angle to B is conserved';
+      ATLAS_BUS.pub('spin.omega',+(state.spinB??1.3).toFixed(3),'γB');
+    } else if(st==='rabi'){
+      const Om=state.spinOmega??1.2, De=state.spinDetune??0, OR=Math.hypot(Om,De);
+      const Pnum=(1-spinN[1])/2, Pth=(Om*Om/(OR*OR))*Math.sin(OR*spinT/2)**2;
+      hudBig.textContent=`SPIN · Rabi oscillation · Ω = ${Om.toFixed(2)} · Δ = ${De.toFixed(2)} · Ω_R = √(Ω²+Δ²) = ${OR.toFixed(2)}`;
+      hudSub.textContent=`driven two-level flopping: P₁(t)=(Ω²/Ω_R²)sin²(Ω_R t/2) — measured ${Pnum.toFixed(3)} vs formula ${Pth.toFixed(3)}; on resonance (Δ=0) it reaches unity, detuning caps the amplitude`;
+      ATLAS_BUS.pub('spin.P1',+Pnum.toFixed(3),'excited pop');
+    } else if(st==='sg'){
+      hudBig.textContent=`SPIN · Stern–Gerlach · ⟨σ_z⟩ = ${nz.toFixed(3)} · P↑ = ${((1+nz)/2*100).toFixed(0)}%`;
+      hudSub.textContent=`projective measurement along +z: each shot collapses to ↑ (prob (1+⟨σ_z⟩)/2) or ↓ — the Born rule. Press MEASURE to accumulate the histogram: ↑ ${spinUp} · ↓ ${spinDown}${spinUp+spinDown>0?` (P↑ empirical ${(spinUp/(spinUp+spinDown)*100).toFixed(0)}%)`:''}`;
+    } else if(st==='berry'){
+      const tc=state.spinCone??0.6, solid=2*Math.PI*(1-Math.cos(tc));
+      hudBig.textContent=`SPIN · Berry phase · cone θ = ${(tc/DEG).toFixed(0)}° · γ = −½·Ω_solid = ${(-0.5*solid).toFixed(3)}`;
+      hudSub.textContent=`adiabatic transport: the geometric phase equals −½ the solid angle swept (spin-½). Accumulated γ = ${spinBerry.toFixed(3)}; a full cone loop gives −π(1−cos θ). This is the same holonomy as the Bell-lune area and a Foucault pendulum's angle.`;
+      ATLAS_BUS.pub('spin.berry',+(-0.5*solid).toFixed(3),'rad');
+    } else {
+      const a=state.spinBellA??0, ap=state.spinBellAp??Math.PI/2, b=state.spinBellB??Math.PI/4, bp=state.spinBellBp??3*Math.PI/4;
+      const E=(x,y)=>-Math.cos(x-y);
+      const S=Math.abs(E(a,b)-E(a,bp)+E(ap,b)+E(ap,bp));
+      hudBig.textContent=`SPIN · Bell singlet · CHSH S = ${S.toFixed(3)} ${S>2.001?'> 2 — QUANTUM (violates local realism)':''}`;
+      hudSub.textContent=`entangled pair (total spin 0): whatever Alice measures, Bob's opposite anti-correlates. Correlation E(a,b)=−cos(a−b); the CHSH combination reaches 2√2=${(2*Math.SQRT2).toFixed(3)} (Tsirelson bound) at the optimal angles — no local hidden variable can exceed 2.`;
+      ATLAS_BUS.pub('spin.CHSH',+S.toFixed(3),'≤2√2');
+    }
+    const el=ctl.querySelector('#spinInv');
+    if(el) el.innerHTML=`Bloch vector n = (${spinN[0].toFixed(2)}, ${spinN[1].toFixed(2)}, ${spinN[2].toFixed(2)}) · |n| = ${Math.hypot(...spinN).toFixed(4)} (pure state)`+
+      (st==='rabi'?`<br>Ω_R = ${Math.hypot(state.spinOmega??1.2,state.spinDetune??0).toFixed(3)} · period 2π/Ω_R = ${(2*Math.PI/Math.hypot(state.spinOmega??1.2,state.spinDetune??0)).toFixed(2)}`:'')+
+      (st==='sg'?`<br>histogram: ↑ <b>${spinUp}</b> · ↓ <b>${spinDown}</b>${spinUp+spinDown>0?` · empirical P↑ = ${(spinUp/(spinUp+spinDown)).toFixed(3)} vs Born (1+⟨σ_z⟩)/2 = ${((1+spinN[2])/2).toFixed(3)}`:''}`:'')+
+      (st==='bell'?`<br>CHSH S = <b>${(()=>{const E=(x,y)=>-Math.cos(x-y),a=state.spinBellA??0,ap=state.spinBellAp??Math.PI/2,b=state.spinBellB??Math.PI/4,bp=state.spinBellBp??3*Math.PI/4;return Math.abs(E(a,b)-E(a,bp)+E(ap,b)+E(ap,bp)).toFixed(4);})()}</b> · classical ≤ 2 · Tsirelson 2√2 ≈ 2.828`:'');
+  }
+}
+function spinMeasureSG(){   // collapse ⟨σ_z⟩ → ±z with the Born rule (deterministic-seeded via time)
+  const pUp=(1+spinN[2])/2; const r=((Math.sin(spinT*997.13)*43758.5453)%1+1)%1;
+  if(r<pUp){ spinN=[0,0,1]; spinUp++; } else { spinN=[0,0,-1]; spinDown++; }
+  spinNPrev=spinN.slice();
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10331,6 +10489,7 @@ function setS3View(v){
   tnGroup.visible      = (v==='taub');
   eotGroup.visible     = (v==='eot');
   waveGroup.visible    = (v==='wave');
+  spinGroup.visible    = (v==='spin');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10342,6 +10501,7 @@ function setS3View(v){
   if(v==='taub'){ tnSetupLab(); }
   if(v==='eot'){ if(!eotObjs) eotSetup(); }
   if(v==='wave'){ if(!waveObjs) waveSetup(); }
+  if(v==='spin'){ if(!spinObjs) spinSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10353,7 +10513,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15106,6 +15266,7 @@ const state = {
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
   eotA0:600, eotLam:700,                                                // Extraordinary transmission
   waveMode:'double', waveLam:0.45, waveD:2.4, waveA:0.3, waveN:5,       // Wave optics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
+  spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4,   // Quantum spin lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -16544,6 +16705,49 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='spin') body = `
+    <div class="sect"><b>Quantum spin — pick a station</b>
+      <div class="chips">
+        ${[['larmor','Larmor precession'],['rabi','Rabi oscillation'],['sg','Stern–Gerlach'],['berry','Berry phase'],['bell','Bell · CHSH']].map(([k,l])=>
+          `<button class="chip ${(state.spinStation||'larmor')===k?'on':''}" data-spinst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="spinRun">${state.spinRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="spinReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="spinSpeed" min="0.1" max="4" step="0.1" value="${state.spinSpeed??1}"><span class="val" id="spinSpeedV">×${(state.spinSpeed??1).toFixed(1)}</span></div>
+      ${(state.spinStation||'larmor')==='larmor'?`
+      <div class="ctlrow"><label>Field ω = γB</label>
+        <input type="range" id="spinB" min="0.1" max="3" step="0.05" value="${state.spinB??1.3}"><span class="val" id="spinBV">${(state.spinB??1.3).toFixed(2)}</span></div>`:''}
+      ${(state.spinStation||'larmor')==='rabi'?`
+      <div class="ctlrow"><label>Drive Ω</label>
+        <input type="range" id="spinOmega" min="0.2" max="3" step="0.05" value="${state.spinOmega??1.2}"><span class="val" id="spinOmegaV">${(state.spinOmega??1.2).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Detuning Δ</label>
+        <input type="range" id="spinDetune" min="-2" max="2" step="0.05" value="${state.spinDetune??0}"><span class="val" id="spinDetuneV">${(state.spinDetune??0).toFixed(2)}</span></div>`:''}
+      ${(state.spinStation||'larmor')==='sg'?`
+      <div class="ctlrow"><button class="btn green" id="spinMeasure">⤓ MEASURE (collapse along +z)</button><button class="btn" id="spinClearHist">clear</button></div>`:''}
+      ${(state.spinStation||'larmor')==='berry'?`
+      <div class="ctlrow"><label>Cone half-angle θ</label>
+        <input type="range" id="spinCone" min="0.15" max="1.5" step="0.02" value="${state.spinCone??0.6}"><span class="val" id="spinConeV">${((state.spinCone??0.6)/DEG).toFixed(0)}°</span></div>`:''}
+      ${(state.spinStation||'larmor')==='bell'?`
+      <div class="ctlrow"><label>Alice a / a′</label>
+        <input type="range" id="spinBellA" min="0" max="3.14" step="0.01" value="${state.spinBellA??0}">
+        <input type="range" id="spinBellAp" min="0" max="3.14" step="0.01" value="${state.spinBellAp??Math.PI/2}"></div>
+      <div class="ctlrow"><label>Bob b / b′</label>
+        <input type="range" id="spinBellB" min="0" max="3.14" step="0.01" value="${state.spinBellB??Math.PI/4}">
+        <input type="range" id="spinBellBp" min="0" max="3.14" step="0.01" value="${state.spinBellBp??3*Math.PI/4}"></div>
+      <div class="ctlrow"><button class="btn" id="spinBellOpt">→ optimal angles (S = 2√2)</button></div>`:''}
+    </div>
+    <div class="sect"><b>Quantum readout</b>
+      <div class="note" id="spinInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Bloch sphere is exact: |ψ⟩=cos(θ/2)|0⟩+e^{iφ}sin(θ/2)|1⟩ maps to the unit vector ⟨σ⟩, and coherent evolution H=−(ħ/2)Ω·σ is a rigid SU(2) rotation (Rodrigues — zero integrator drift). Rabi flopping is checked live against P₁=(Ω²/Ω_R²)sin²(Ω_R t/2); Stern–Gerlach collapses by the Born rule and the histogram converges to it; the Berry phase equals −½ the swept solid angle; the Bell singlet's CHSH reaches the Tsirelson bound 2√2 — impossible for any local hidden variable.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="spinToBell">→ Bell lune: holonomy as area on S²</button>
+        <button class="btn" id="spinToTopo">→ Topology: the sphere is S², a loop is a 4π spinor</button>
+        <button class="btn" id="spinToQm">→ Quantum wave: the spatial wavefunction</button></div>
+    </div>`;
     else if(V==='wave') body = `
     <div class="sect"><b>Wave optics — pick an experiment</b>
       <div class="chips">
@@ -16686,6 +16890,7 @@ function buildCtlBody(){
         <button class="btn ${V==='taub'?'on':''}" id="v-taub">Taub-NUT</button>
         <button class="btn ${V==='eot'?'on':''}" id="v-eot">Extraordinary transmission</button>
         <button class="btn ${V==='wave'?'on':''}" id="v-wave">Wave optics</button>
+        <button class="btn ${V==='spin'?'on':''}" id="v-spin">Quantum spin</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -16704,7 +16909,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -16944,6 +17149,25 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='spin'){
+      ctl.querySelectorAll('[data-spinst]').forEach(b=>b.onclick=()=>{ state.spinStation=b.dataset.spinst; spinSetup(); buildCtl(); });
+      ctl.querySelector('#spinRun')&&(ctl.querySelector('#spinRun').onclick=()=>{ state.spinRun=state.spinRun===false; buildCtl(); });
+      ctl.querySelector('#spinReset')&&(ctl.querySelector('#spinReset').onclick=()=>{ spinSetup(); });
+      const ss=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(2); }; };
+      ss('spinSpeed',v=>state.spinSpeed=v,v=>'×'+v.toFixed(1));
+      ss('spinB',v=>state.spinB=v); ss('spinOmega',v=>state.spinOmega=v); ss('spinDetune',v=>state.spinDetune=v);
+      ss('spinCone',v=>state.spinCone=v,v=>(v/DEG).toFixed(0)+'°');
+      ['spinBellA','spinBellAp','spinBellB','spinBellBp'].forEach(id=>{ const el=ctl.querySelector('#'+id);
+        if(el) el.oninput=e=>{ state[id]=+e.target.value; }; });
+      ctl.querySelector('#spinMeasure')&&(ctl.querySelector('#spinMeasure').onclick=()=>{ spinMeasureSG(); });
+      ctl.querySelector('#spinClearHist')&&(ctl.querySelector('#spinClearHist').onclick=()=>{ spinUp=0; spinDown=0; });
+      ctl.querySelector('#spinBellOpt')&&(ctl.querySelector('#spinBellOpt').onclick=()=>{
+        state.spinBellA=0; state.spinBellAp=Math.PI/2; state.spinBellB=Math.PI/4; state.spinBellBp=3*Math.PI/4; buildCtl(); });
+      ctl.querySelector('#spinToBell')&&(ctl.querySelector('#spinToBell').onclick=()=>{ navPush(); setS3View('bell'); buildCtl(); });
+      ctl.querySelector('#spinToTopo')&&(ctl.querySelector('#spinToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#spinToQm')&&(ctl.querySelector('#spinToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
     }
     if(V==='atom'){
       const setZ=z=>{ state.atZ=Math.max(1,Math.min(118,z|0)); buildAtom(); buildCtl(); };
@@ -18244,7 +18468,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -19387,6 +19611,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateEot(dt);
     } else if(state.s3view==='wave'){
       fbsAnimT+=dt; updateWave(dt);
+    } else if(state.s3view==='spin'){
+      fbsAnimT+=dt; updateSpin(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
