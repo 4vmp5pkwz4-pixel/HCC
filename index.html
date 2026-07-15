@@ -1546,6 +1546,22 @@ function runSelfTests(){
     let x2=[0,0,0],v2=[0,0,0]; for(let i=0;i<30000;i++)[x2,v2]=boris(x2,v2,0.001,'exb');
     ok('Charged particle: E×B guiding-centre drift = E/B in −y (universal, |Δ|<10%)',
       Math.abs(Math.abs(x2[1]/30)-0.3)<0.03 && x2[1]<0, (x2[1]/30).toFixed(4)); }
+  { // REACTION–DIFFUSION: the blank state (u,v)=(1,0) is an exact Gray–Scott fixed point; a seed grows
+    const gs=(u,v,F,k)=>[u+(-u*v*v+F*(1-u)), v+(u*v*v-(F+k)*v)];
+    const [uf,vf]=gs(1,0,0.037,0.06);
+    ok('Reaction–diffusion: blank state (u,v)=(1,0) is a Gray–Scott fixed point',
+      Math.abs(uf-1)<1e-12 && Math.abs(vf-0)<1e-12, `(${uf.toFixed(6)},${vf.toFixed(6)})`);
+    let U=0.5,W=0.25; for(let i=0;i<20;i++)[U,W]=gs(U,W,0.037,0.06);
+    ok('Reaction–diffusion: a seeded blob sustains the activator v>0 (self-catalysis)',
+      W>0.01 && W<1, W.toFixed(4)); }
+  { // HEAT ENGINE: Carnot η=1−Tc/Th equals W/Qh, and Clausius V3/V4=V2/V1 for the ideal-gas cycle
+    const Th=500,Tc=300,g=1.4,V1=1,V2=2.5;
+    const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
+    const Qh=Th*Math.log(V2/V1), Qc=Tc*Math.log(V3/V4), Wnet=Qh-Qc, eta=1-Tc/Th;
+    ok('Heat engine: Carnot efficiency η=1−Tc/Th equals net work over heat in W/Qh',
+      Math.abs(eta-Wnet/Qh)<1e-9 && Math.abs(eta-0.4)<1e-9, eta.toFixed(6));
+    ok('Heat engine: Clausius adiabat identity V3/V4 = V2/V1 (entropy closes the cycle)',
+      Math.abs(V3/V4 - V2/V1)<1e-9, (V3/V4).toFixed(6)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11459,6 +11475,177 @@ function updateCp(dt){
   }
 }
 
+/* ================================================================
+   REACTION–DIFFUSION LAB · morphogenesis on a sphere (UPRS Part 12).
+   The Gray–Scott model u̇=Du∇²u−uv²+F(1−u), v̇=Dv∇²v+uv²−(F+k)v
+   solved on S² with the true Laplace–Beltrami operator (metric on a
+   lat–lon grid). Two chemicals — a fed substrate u and a self-
+   catalysing activator v — spontaneously break symmetry into the
+   Turing patterns Nature paints on leopards, corals and seashells.
+   Energy honesty: F feeds u and drains v; the pattern is a dissipative
+   steady state, not stored energy. */
+const rdGroup=new THREE.Group(); rdGroup.visible=false; s3Group.add(rdGroup);
+const RD_NLAT=64, RD_NLON=128;
+let rdObjs=null, rdU=null, rdV=null, rdT=0, rdUiAcc=0;
+const RD_PRESETS={
+  spots :{F:0.037,k:0.060,name:'Leopard spots'},
+  stripes:{F:0.037,k:0.061,name:'Zebra stripes'},
+  maze  :{F:0.029,k:0.057,name:'Coral maze'},
+  waves :{F:0.014,k:0.045,name:'Travelling waves'},
+  holes :{F:0.039,k:0.058,name:'Inverse spots'},
+  chaos :{F:0.026,k:0.051,name:'Turbulent mitosis'}
+};
+function rdClear(){ labWipe(rdGroup); rdObjs=null; }
+function rdSeed(){
+  const N=RD_NLAT*RD_NLON; rdU=new Float32Array(N); rdV=new Float32Array(N);
+  for(let i=0;i<N;i++){ rdU[i]=1; rdV[i]=0; }
+  for(let s=0;s<24;s++){ const ci=2+((s*613)%(RD_NLAT-4)), cj=(s*971)%RD_NLON;
+    for(let di=-2;di<=2;di++) for(let dj=-2;dj<=2;dj++){
+      const i=ci+di, j=((cj+dj)%RD_NLON+RD_NLON)%RD_NLON;
+      if(i<0||i>=RD_NLAT) continue; const idx=i*RD_NLON+j; rdU[idx]=0.5; rdV[idx]=0.25; }
+  }
+  rdT=0;
+}
+function rdSetup(){
+  rdClear(); if(!rdU) rdSeed();
+  rdGroup.add(new THREE.AmbientLight(0x8a94b4,.75));
+  const dir=new THREE.DirectionalLight(0xfff3da,.85); dir.position.set(4,6,7); rdGroup.add(dir);
+  const geo=new THREE.SphereGeometry(2.2,RD_NLON,RD_NLAT);
+  geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3),3));
+  const mesh=new THREE.Mesh(geo,new THREE.MeshPhongMaterial({vertexColors:true,shininess:38,specular:0x20242e}));
+  rdGroup.add(mesh);
+  const tl=mkLabel('REACTION–DIFFUSION · Gray–Scott on S² · Turing morphogenesis','label const'); tl.position.set(0,3.5,0); rdGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); rdGroup.add(rl);
+  rdObjs={mesh,geo,readLab:rl,_c:new THREE.Color()};
+}
+function rdLap(a,i,j){   // metric Laplace–Beltrami on the lat–lon grid
+  const jm=(j-1+RD_NLON)%RD_NLON, jp=(j+1)%RD_NLON;
+  const im=Math.max(0,i-1), ip=Math.min(RD_NLAT-1,i+1);
+  const th=(i+0.5)/RD_NLAT*Math.PI, s=Math.max(0.08,Math.sin(th));
+  const dth=Math.PI/RD_NLAT, dph=2*Math.PI/RD_NLON;
+  const c=a[i*RD_NLON+j];
+  const d2ph=(a[i*RD_NLON+jp]-2*c+a[i*RD_NLON+jm])/(dph*dph*s*s);
+  const thp=((i+1)+0.5)/RD_NLAT*Math.PI, sm=Math.max(0.08,Math.sin(((i)+0.0)/RD_NLAT*Math.PI));
+  const d2th=(a[ip*RD_NLON+j]-2*c+a[im*RD_NLON+j])/(dth*dth);
+  const cotTerm=(a[ip*RD_NLON+j]-a[im*RD_NLON+j])/(2*dth)*(Math.cos(th)/s);
+  return (d2th+cotTerm+d2ph)*0.02;
+}
+function updateRd(dt){
+  const O=rdObjs; if(!O) return;
+  const P=RD_PRESETS[state.rdPreset||'spots'], F=P.F, k=P.k, Du=state.rdDu??0.16, Dv=state.rdDv??0.08;
+  if(state.rdRun!==false){
+    const iters=Math.max(1,Math.round((state.rdSpeed??1)*6));
+    for(let it=0;it<iters;it++){
+      const un=new Float32Array(rdU.length), vn=new Float32Array(rdV.length);
+      for(let i=0;i<RD_NLAT;i++) for(let j=0;j<RD_NLON;j++){
+        const idx=i*RD_NLON+j, u=rdU[idx], v=rdV[idx], uvv=u*v*v;
+        let nu=u+(Du*rdLap(rdU,i,j)-uvv+F*(1-u));
+        let nv=v+(Dv*rdLap(rdV,i,j)+uvv-(F+k)*v);
+        un[idx]=nu<0?0:nu>1?1:nu; vn[idx]=nv<0?0:nv>1?1:nv;
+      }
+      rdU=un; rdV=vn; rdT++;
+    }
+  }
+  const col=O.geo.attributes.color.array, pos=O.geo.attributes.position.count, _c=O._c;
+  // SphereGeometry vertex grid is (RD_NLON+1) x (RD_NLAT+1); map by rounding
+  const W=RD_NLON+1, H=RD_NLAT+1;
+  for(let vi=0;vi<pos;vi++){ const gx=vi%W, gy=(vi/W)|0;
+    const i=Math.min(RD_NLAT-1,Math.max(0,Math.round(gy/H*RD_NLAT)));
+    const j=(Math.round(gx/W*RD_NLON))%RD_NLON;
+    const val=rdV[i*RD_NLON+j]||0; _c.setHSL(0.62-0.62*Math.min(1,val*3.2),0.72,0.12+0.5*Math.min(1,val*3.0));
+    col[vi*3]=_c.r; col[vi*3+1]=_c.g; col[vi*3+2]=_c.b;
+  }
+  O.geo.attributes.color.needsUpdate=true;
+  rdUiAcc+=dt; if(rdUiAcc>0.3){ rdUiAcc=0;
+    let sv=0,mx=0; for(let n=0;n<rdV.length;n++){ sv+=rdV[n]; if(rdV[n]>mx)mx=rdV[n]; }
+    const meanV=sv/rdV.length;
+    hudBig.textContent=`REACTION–DIFFUSION · ${P.name} · F=${F.toFixed(3)} k=${k.toFixed(3)} · steps ${rdT}`;
+    hudSub.textContent='two chemicals, one feed rate F and one kill rate k, self-organise into a Turing pattern — the same instability that sets a leopard’s spots and a pufferfish’s stripes. The pattern is a DISSIPATIVE steady state held up by the feed; switch the feed off and it decays to the uniform u=1, v=0.';
+    ATLAS_BUS.pub('rd.meanV',+meanV.toFixed(4),'⟨v⟩');
+    const el=ctl.querySelector('#rdInv'); if(el) el.innerHTML=`preset <b>${P.name}</b> · feed F=<b>${F.toFixed(3)}</b> · kill k=<b>${k.toFixed(3)}</b> · Du=${Du.toFixed(2)} Dv=${Dv.toFixed(2)}<br>mean activator ⟨v⟩=<b>${meanV.toFixed(4)}</b> · peak v=${mx.toFixed(3)} · ratio Du/Dv=${(Du/Dv).toFixed(2)} (Turing needs Dv&lt;Du)`;
+  }
+}
+
+/* ================================================================
+   HEAT-ENGINE LAB · the Carnot cycle in the P–V plane (UPRS Part 9).
+   An ideal gas is walked around two isotherms (Th, Tc) and two
+   adiabats. The enclosed area is the work W; the second law caps the
+   efficiency at η = 1 − Tc/Th = W/Qh, reached ONLY by this reversible
+   cycle. Energy honesty: no engine beats Carnot; Qh in = W out + Qc
+   dumped, always. Heat flows hot→cold and a fraction is skimmed as
+   work — energy is moved and degraded, never created. */
+const heGroup=new THREE.Group(); heGroup.visible=false; s3Group.add(heGroup);
+let heObjs=null, heT=0, heUiAcc=0, hePhase=0, heFrac=0;
+function heClear(){ labWipe(heGroup); heObjs=null; }
+function heCyclePts(){
+  const Th=state.heTh??500, Tc=state.heTc??300, g=1.4, nR=1;
+  const V1=1, V2=2.5;
+  const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
+  const P=(V,T)=>nR*T/V;
+  const pts=[]; const seg=(Va,Vb,Tf)=>{ const M=40; for(let m=0;m<=M;m++){ const V=Va+(Vb-Va)*m/M; pts.push([V,P(V,Tf(V))]); } };
+  seg(V1,V2,()=>Th);                                   // 1→2 isothermal expansion @Th
+  seg(V2,V3,V=>Th*Math.pow(V2/V,g-1));                 // 2→3 adiabatic expansion
+  seg(V3,V4,()=>Tc);                                   // 3→4 isothermal compression @Tc
+  seg(V4,V1,V=>Tc*Math.pow(V4/V,g-1));                 // 4→1 adiabatic compression
+  return {pts,Th,Tc,nR,V1,V2,V3,V4};
+}
+function heSetup(){
+  heClear(); heGroup.add(new THREE.AmbientLight(0x9098b8,.85));
+  const C=heCyclePts(); const pts=C.pts;
+  let pmin=1e9,pmax=-1e9,vmin=1e9,vmax=-1e9;
+  for(const[V,P]of pts){ if(P<pmin)pmin=P; if(P>pmax)pmax=P; if(V<vmin)vmin=V; if(V>vmax)vmax=V; }
+  const SX=4.6/(vmax-vmin), SY=4.6/(pmax-pmin), ox=-2.3, oy=-2.3;
+  const map=(V,P)=>[ox+(V-vmin)*SX, oy+(P-pmin)*SY, 0];
+  const v3=pts.map(([V,P])=>{ const m=map(V,P); return new THREE.Vector3(m[0],m[1],0); });
+  const loop=new THREE.Line(new THREE.BufferGeometry().setFromPoints(v3.concat([v3[0]])),
+    new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95}));
+  heGroup.add(loop);
+  // shaded enclosed area (triangle fan from centroid)
+  const cx=v3.reduce((a,p)=>a+p.x,0)/v3.length, cy=v3.reduce((a,p)=>a+p.y,0)/v3.length;
+  const fg=new THREE.BufferGeometry(); const fa=[]; for(let i=0;i<v3.length;i++){ const a=v3[i], b=v3[(i+1)%v3.length]; fa.push(cx,cy,-0.01,a.x,a.y,-0.01,b.x,b.y,-0.01); }
+  fg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fa),3));
+  const fill=new THREE.Mesh(fg,new THREE.MeshBasicMaterial({color:0x3a5a86,transparent:true,opacity:.32,side:THREE.DoubleSide,depthWrite:false}));
+  heGroup.add(fill);
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); mglow.scale.setScalar(.8); marker.add(mglow); heGroup.add(marker);
+  // axes
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-2.5,-2.5,0),new THREE.Vector3(2.6,-2.5,0),
+    new THREE.Vector3(-2.5,-2.5,0),new THREE.Vector3(-2.5,2.6,0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); heGroup.add(ax);
+  const vlb=mkLabel('V →','label axis'); vlb.position.set(2.7,-2.5,0); heGroup.add(vlb);
+  const plb=mkLabel('P ↑','label axis'); plb.position.set(-2.5,2.8,0); heGroup.add(plb);
+  // reservoirs
+  const hot=new THREE.Mesh(new THREE.BoxGeometry(1.1,.5,.3),new THREE.MeshBasicMaterial({color:0xd8412f,transparent:true,opacity:.85})); hot.position.set(1.4,3.0,0); heGroup.add(hot);
+  const cold=new THREE.Mesh(new THREE.BoxGeometry(1.1,.5,.3),new THREE.MeshBasicMaterial({color:0x3f7fe0,transparent:true,opacity:.85})); cold.position.set(-1.4,-3.15,0); heGroup.add(cold);
+  const hl=mkLabel('Tₕ (hot)','label axis'); hl.position.set(1.4,3.42,0); heGroup.add(hl);
+  const cl=mkLabel('T_c (cold)','label axis'); cl.position.set(-1.4,-3.5,0); heGroup.add(cl);
+  const tl=mkLabel('HEAT ENGINE · Carnot cycle · η = 1 − T_c/Tₕ = W/Qₕ','label const'); tl.position.set(0,3.9,0); heGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.9,0); heGroup.add(rl);
+  heObjs={loop,fill,marker,map,pts,C,readLab:rl,Th:C.Th,Tc:C.Tc};
+}
+function updateHe(dt){
+  let O=heObjs; if(!O) return;
+  if(O.Th!==(state.heTh??500)||O.Tc!==(state.heTc??300)){ heSetup(); O=heObjs; if(!O) return; }
+  const pts=O.pts, n=pts.length;
+  if(state.heRun!==false){ hePhase+=dt*(state.heSpeed??1)*0.28; if(hePhase>=1)hePhase-=1; }
+  const fi=hePhase*n, i0=Math.floor(fi)%n, i1=(i0+1)%n, fr=fi-Math.floor(fi);
+  const a=O.map(...pts[i0]), b=O.map(...pts[i1]);
+  O.marker.position.set(a[0]+(b[0]-a[0])*fr,a[1]+(b[1]-a[1])*fr,0);
+  heUiAcc+=dt; if(heUiAcc>0.25){ heUiAcc=0;
+    const Th=O.C.Th, Tc=O.C.Tc, nR=O.C.nR, {V1,V2,V3,V4}=O.C;
+    const eta=1-Tc/Th, Qh=nR*Th*Math.log(V2/V1), Qc=nR*Tc*Math.log(V3/V4), W=Qh-Qc;
+    const stage=hePhase<0.25?'isothermal expansion @Tₕ — gas absorbs Qₕ, pushes piston':
+      hePhase<0.5?'adiabatic expansion — no heat, gas cools Tₕ→T_c doing work':
+      hePhase<0.75?'isothermal compression @T_c — gas rejects Q_c to the cold sink':
+      'adiabatic compression — no heat, gas heats T_c→Tₕ, work in';
+    hudBig.textContent=`HEAT ENGINE · η = 1 − T_c/Tₕ = ${(eta*100).toFixed(1)}% · W/Qₕ = ${(W/Qh*100).toFixed(1)}%`;
+    hudSub.textContent='the enclosed P–V area is the net work W; the Carnot bound η=1−T_c/Tₕ is the MOST any heat engine can extract between two reservoirs. Every joule of Qₕ splits into W out plus Q_c dumped cold — you cannot skim more without violating the second law. Current stroke: '+stage+'.';
+    ATLAS_BUS.pub('he.eta',+eta.toFixed(4),'1−Tc/Th');
+    const el=ctl.querySelector('#heInv'); if(el) el.innerHTML=`Tₕ=<b>${Th.toFixed(0)}</b> K · T_c=<b>${Tc.toFixed(0)}</b> K · η=1−T_c/Tₕ=<b>${(eta*100).toFixed(1)}%</b><br>Qₕ=${Qh.toFixed(3)} · Q_c=${Qc.toFixed(3)} · W=Qₕ−Q_c=<b>${W.toFixed(3)}</b> · check W/Qₕ=${(W/Qh).toFixed(4)} = η ✓`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11493,6 +11680,8 @@ function setS3View(v){
   retGroup.visible     = (v==='ret');
   dipGroup.visible     = (v==='dip');
   cpGroup.visible      = (v==='cp');
+  rdGroup.visible      = (v==='rd');
+  heGroup.visible      = (v==='he');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11513,6 +11702,8 @@ function setS3View(v){
   if(v==='ret'){ retSetup(); }
   if(v==='dip'){ dipSetup(); }
   if(v==='cp'){ cpSetup(); }
+  if(v==='rd'){ rdSetup(); }
+  if(v==='he'){ heSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11524,7 +11715,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16286,6 +16477,8 @@ const state = {
   retStation:'coupled', retRun:true, retSpeed:1, retK:1, retKappa:0.08, retGamma:0.1, retDriveW:1.0, retQ:100, retCoup:0.05,   // Resonant energy transfer lab
   dipOmega:1.5, dipRun:true,   // Dipole radiation lab
   cpStation:'cyclo', cpRun:true, cpSpeed:1, cpB:1, cpE:0.3, cpCharge:1, cpVperp:1, cpVpar:0.4,   // Charged-particle lab
+  rdPreset:'spots', rdRun:true, rdSpeed:1, rdDu:0.16, rdDv:0.08,   // Reaction–diffusion lab
+  heTh:500, heTc:300, heRun:true, heSpeed:1,   // Heat-engine lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -17772,6 +17965,51 @@ function buildCtlBody(){
         <button class="btn" id="cpToTaub">→ Taub-NUT: gravitomagnetic cousin</button>
         <button class="btn" id="cpToSolar">→ Solar: the magnetosphere & aurorae</button></div>
     </div>`;
+    else if(V==='rd') body = `
+    <div class="sect"><b>Reaction–diffusion — pick a pattern</b>
+      <div class="chips">
+        ${[['spots','Leopard spots'],['stripes','Zebra stripes'],['maze','Coral maze'],['waves','Travelling waves'],['holes','Inverse spots'],['chaos','Turbulent mitosis']].map(([k,l])=>
+          `<button class="chip ${(state.rdPreset||'spots')===k?'on':''}" data-rdp="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="rdRun">${state.rdRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="rdReseed">↺ reseed</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="rdSpeed" min="0.2" max="3" step="0.1" value="${state.rdSpeed??1}"><span class="val" id="rdSpeedV">×${(state.rdSpeed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Diffuse u (Du)</label>
+        <input type="range" id="rdDu" min="0.08" max="0.24" step="0.005" value="${state.rdDu??0.16}"><span class="val" id="rdDuV">${(state.rdDu??0.16).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>Diffuse v (Dv)</label>
+        <input type="range" id="rdDv" min="0.04" max="0.12" step="0.005" value="${state.rdDv??0.08}"><span class="val" id="rdDvV">${(state.rdDv??0.08).toFixed(3)}</span></div>
+    </div>
+    <div class="sect"><b>Morphogen readout</b>
+      <div class="note" id="rdInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Gray–Scott model on a true sphere (Laplace–Beltrami on the lat–lon metric). A fed substrate u and a self-catalysing activator v: u̇=Du∇²u−uv²+F(1−u), v̇=Dv∇²v+uv²−(F+k)v. Turing’s instability needs the inhibitor to diffuse faster than the activator (Du&gt;Dv); tiny changes in the feed F and kill k tip the same chemistry between spots, stripes and mazes — the maths behind a leopard’s coat. The pattern is a DISSIPATIVE steady state: cut the feed and it relaxes to the blank u=1, v=0. No energy is stored in the pattern.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="rdToKdv">→ Soliton: the other face of nonlinearity</button>
+        <button class="btn" id="rdToSh">→ Harmonics: linear modes on the sphere</button></div>
+    </div>`;
+    else if(V==='he') body = `
+    <div class="sect"><b>Heat engine — Carnot cycle</b>
+      <div class="ctlrow">
+        <button class="btn green" id="heRun">${state.heRun!==false?'⏸ pause':'▶ run'}</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="heSpeed" min="0.2" max="3" step="0.1" value="${state.heSpeed??1}"><span class="val" id="heSpeedV">×${(state.heSpeed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Hot Tₕ</label>
+        <input type="range" id="heTh" min="360" max="900" step="10" value="${state.heTh??500}"><span class="val" id="heThV">${(state.heTh??500).toFixed(0)} K</span></div>
+      <div class="ctlrow"><label>Cold T_c</label>
+        <input type="range" id="heTc" min="200" max="340" step="10" value="${state.heTc??300}"><span class="val" id="heTcV">${(state.heTc??300).toFixed(0)} K</span></div>
+    </div>
+    <div class="sect"><b>Thermodynamic readout</b>
+      <div class="note" id="heInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">An ideal gas walked around two isotherms (Tₕ, T_c) and two adiabats. The enclosed P–V area is the net work W; the second law caps efficiency at η=1−T_c/Tₕ, reached only by this reversible cycle. Every joule taken from the hot reservoir splits: Qₕ = W + Q_c. You cannot skim more work without cooling below T_c or heating above Tₕ. Energy is moved hot→cold and partly degraded into work — never created.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="heToKin">→ Kinetic theory: the gas microscopically</button>
+        <button class="btn" id="heToRet">→ Energy transfer: work out of resonance</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -18131,6 +18369,8 @@ function buildCtlBody(){
         <button class="btn ${V==='ret'?'on':''}" id="v-ret">Energy transfer</button>
         <button class="btn ${V==='dip'?'on':''}" id="v-dip">Dipole radiation</button>
         <button class="btn ${V==='cp'?'on':''}" id="v-cp">Charged particle</button>
+        <button class="btn ${V==='rd'?'on':''}" id="v-rd">Reaction–diffusion</button>
+        <button class="btn ${V==='he'?'on':''}" id="v-he">Heat engine</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -18149,7 +18389,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -18410,6 +18650,26 @@ function buildCtlBody(){
       ctl.querySelector('#cpVpar')&&(ctl.querySelector('#cpVpar').onchange=e=>{ state.cpVpar=+e.target.value; cpSetup(); });
       ctl.querySelector('#cpToTaub')&&(ctl.querySelector('#cpToTaub').onclick=()=>{ navPush(); setS3View('taub'); buildCtl(); });
       ctl.querySelector('#cpToSolar')&&(ctl.querySelector('#cpToSolar').onclick=()=>{ navPush(); setMode('solar'); });
+    }
+    if(V==='rd'){
+      ctl.querySelectorAll('[data-rdp]').forEach(b=>b.onclick=()=>{ state.rdPreset=b.dataset.rdp; rdSeed(); buildCtl(); });
+      ctl.querySelector('#rdRun')&&(ctl.querySelector('#rdRun').onclick=()=>{ state.rdRun=state.rdRun===false; buildCtl(); });
+      ctl.querySelector('#rdReseed')&&(ctl.querySelector('#rdReseed').onclick=()=>{ rdSeed(); });
+      const rc=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(3); }; };
+      rc('rdSpeed',v=>state.rdSpeed=v,v=>'×'+v.toFixed(1)); rc('rdDu',v=>state.rdDu=v); rc('rdDv',v=>state.rdDv=v);
+      ctl.querySelector('#rdToKdv')&&(ctl.querySelector('#rdToKdv').onclick=()=>{ navPush(); setS3View('kdv'); buildCtl(); });
+      ctl.querySelector('#rdToSh')&&(ctl.querySelector('#rdToSh').onclick=()=>{ navPush(); setS3View('sh'); buildCtl(); });
+    }
+    if(V==='he'){
+      ctl.querySelector('#heRun')&&(ctl.querySelector('#heRun').onclick=()=>{ state.heRun=state.heRun===false; buildCtl(); });
+      ctl.querySelector('#heSpeed')&&(ctl.querySelector('#heSpeed').oninput=e=>{ state.heSpeed=+e.target.value;
+        const v=ctl.querySelector('#heSpeedV'); if(v)v.textContent='×'+state.heSpeed.toFixed(1); });
+      const ht=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; el.onchange=()=>heSetup(); } };
+      ht('heTh',v=>state.heTh=v,v=>v.toFixed(0)+' K'); ht('heTc',v=>state.heTc=v,v=>v.toFixed(0)+' K');
+      ctl.querySelector('#heToKin')&&(ctl.querySelector('#heToKin').onclick=()=>{ navPush(); setS3View('kin'); buildCtl(); });
+      ctl.querySelector('#heToRet')&&(ctl.querySelector('#heToRet').onclick=()=>{ navPush(); setS3View('ret'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -19801,7 +20061,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -20962,6 +21222,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateDip(dt);
     } else if(state.s3view==='cp'){
       fbsAnimT+=dt; updateCp(dt);
+    } else if(state.s3view==='rd'){
+      fbsAnimT+=dt; updateRd(dt);
+    } else if(state.s3view==='he'){
+      fbsAnimT+=dt; updateHe(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
