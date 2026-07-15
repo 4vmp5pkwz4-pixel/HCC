@@ -1483,6 +1483,19 @@ function runSelfTests(){
       P0.every((x,i)=>Math.abs(x-P1[i])<1e-12), P1.map(x=>x.toFixed(3)).join(','));
     ok('Kinetic: Maxwell–Boltzmann speed ratios v_mean/v_mp=√(4/π), v_rms/v_mp=√(3/2)',
       Math.abs(Math.sqrt(4/Math.PI)-1.1284)<1e-3 && Math.abs(Math.sqrt(1.5)-1.2247)<1e-3); }
+  { // SPHERICAL HARMONICS: known values, orthonormality, addition theorem = (2l+1)/4π
+    ok('SphHarm: Y₀₀ = 1/(2√π) exactly', Math.abs(shY(0,0,1,0)-1/(2*Math.sqrt(Math.PI)))<1e-12, shY(0,0,1,0).toFixed(6));
+    ok('SphHarm: Y₁₀(θ=0) = √(3/4π) exactly', Math.abs(shY(1,0,0,0)-Math.sqrt(3/(4*Math.PI)))<1e-12, shY(1,0,0,0).toFixed(6));
+    // orthonormality by grid quadrature
+    const inner=(l1,m1,l2,m2)=>{ let s=0; const Nt=64,Np=64;
+      for(let i=0;i<Nt;i++){ const th=(i+0.5)/Nt*Math.PI, w=Math.sin(th)*(Math.PI/Nt)*(2*Math.PI/Np);
+        for(let j=0;j<Np;j++){ const ph=(j+0.5)/Np*2*Math.PI; s+=shY(l1,m1,th,ph)*shY(l2,m2,th,ph)*w; } } return s; };
+    ok('SphHarm: ⟨Y₂₁,Y₂₁⟩=1 and ⟨Y₂₁,Y₂,₋₁⟩=0 (orthonormal, <2e-2)',
+      Math.abs(inner(2,1,2,1)-1)<2e-2 && Math.abs(inner(2,1,2,-1))<2e-2, inner(2,1,2,1).toFixed(4));
+    // addition theorem constant over the sphere
+    const add=(l,th,ph)=>{ let s=0; for(let m=-l;m<=l;m++) s+=shY(l,m,th,ph)**2; return s; };
+    ok('SphHarm: addition theorem Σ_m|Y_lm|² = (2l+1)/4π constant (l=4, <1e-9)',
+      Math.abs(add(4,0.7,1.1)-9/(4*Math.PI))<1e-9 && Math.abs(add(4,2.0,4.0)-9/(4*Math.PI))<1e-9, add(4,0.7,1.1).toFixed(6)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10887,6 +10900,97 @@ function updateKin(dt){
   }
 }
 
+/* ================================================================
+   SPHERICAL HARMONICS LAB · the eigenmodes of S² (UPRS Part 22/on S²).
+   Real Y_lm(θ,φ) — the exact solutions of −∇²_{S²}Y = l(l+1)Y — the
+   shared alphabet of atomic orbitals (|Y|²), CMB multipoles, drumhead
+   and antenna modes and the S³ ladder. Rendered two ways: the classic
+   balloon-lobe surface (radius = |Y|, colour = sign) and a painted
+   sphere (colour = value). Time animation e^{iωt} rotates the phase;
+   superpositions and the |Y|² orbital view are one slider away. */
+const shGroup=new THREE.Group(); shGroup.visible=false; s3Group.add(shGroup);
+function shPlm(l,m,x){   // associated Legendre P_l^m, m≥0 (Condon–Shortley)
+  let pmm=1; if(m>0){ const s=Math.sqrt(Math.max(0,1-x*x)); let f=1; for(let i=1;i<=m;i++){ pmm*=-f*s; f+=2; } }
+  if(l===m) return pmm;
+  let pmm1=x*(2*m+1)*pmm; if(l===m+1) return pmm1;
+  let pll=0;
+  for(let ll=m+2;ll<=l;ll++){ pll=((2*ll-1)*x*pmm1-(ll+m-1)*pmm)/(ll-m); pmm=pmm1; pmm1=pll; }
+  return pll;
+}
+const _shFact=(n=>{ const a=[1]; for(let i=1;i<=40;i++) a[i]=a[i-1]*i; return a; })();
+function shNlm(l,m){ return Math.sqrt((2*l+1)/(4*Math.PI)*_shFact[l-m]/_shFact[l+m]); }
+function shY(l,m,th,ph){ const am=Math.abs(m), N=shNlm(l,am)*shPlm(l,am,Math.cos(th));
+  if(m>0) return Math.SQRT2*N*Math.cos(m*ph);
+  if(m<0) return Math.SQRT2*N*Math.sin(am*ph);
+  return N; }
+let shObjs=null, shT=0, shUiAcc=0;
+function shClear(){ labWipe(shGroup); shObjs=null; }
+function shSetup(){
+  shClear(); shT=0;
+  const NLAT=72, NLON=144;
+  const nv=(NLAT+1)*(NLON+1);
+  const g=new THREE.BufferGeometry();
+  const pos=new Float32Array(nv*3), col=new Float32Array(nv*3);
+  const idx=[];
+  for(let i=0;i<NLAT;i++)for(let j=0;j<NLON;j++){ const a=i*(NLON+1)+j,b=a+1,c=a+NLON+1,d=c+1;
+    idx.push(a,c,b,b,c,d); }
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  g.setIndex(idx);
+  const mesh=new THREE.Mesh(g,new THREE.MeshPhongMaterial({vertexColors:true,shininess:44,specular:0x333340,side:THREE.DoubleSide,transparent:true,opacity:.97}));
+  shGroup.add(mesh);
+  const wire=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xf1dda6,wireframe:true,transparent:true,opacity:.07,depthWrite:false}));
+  shGroup.add(wire);
+  shGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.75); dl.position.set(3,5,4); shGroup.add(dl);
+  const dl2=new THREE.DirectionalLight(0x88aaff,.35); dl2.position.set(-4,-2,-3); shGroup.add(dl2);
+  const tl=mkLabel('SPHERICAL HARMONICS · −∇²Y_lm = l(l+1) Y_lm · the eigenmodes of the sphere','label const'); tl.position.set(0,3.6,0); shGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); shGroup.add(rl);
+  shObjs={mesh,wire,g,NLAT,NLON,readLab:rl,_c:new THREE.Color()};
+}
+function updateSh(dt){
+  if(!shObjs) shSetup();
+  shT+=dt*(state.shSpeed??1); const O=shObjs, {NLAT,NLON,g}=O, _c=O._c;
+  const l=Math.max(0,Math.min(8,state.shL??3)), m=Math.max(-l,Math.min(l,state.shM??2));
+  const mode=state.shMode||'balloon';   // balloon | paint | orbital
+  const anim=(state.shAnim!==false)&&mode!=='orbital';
+  const phase=anim?shT*1.4:0;            // e^{iωt}: rotate m-phase → travelling wave around the axis
+  const pos=g.attributes.position.array, col=g.attributes.color.array;
+  const R=2.0, defAmp=state.shDeform??1.0;
+  let k=0;
+  for(let i=0;i<=NLAT;i++){ const th=i/NLAT*Math.PI;
+    for(let j=0;j<=NLON;j++){ const ph=j/NLON*2*Math.PI;
+      // travelling combination: Y with rotated azimuth (physically the real part of Y_l^{|m|} e^{i(mφ−ωt)})
+      const v=shY(l,m,th,ph - (m!==0?phase/Math.max(1,Math.abs(m)):0));
+      const val = mode==='orbital' ? v*v : v;      // orbital: probability density |Y|²
+      const rad = mode==='paint' ? R
+        : mode==='orbital' ? R*(0.35+1.9*val)
+        : R*(0.28+Math.abs(v)*2.0*defAmp);
+      const st=Math.sin(th);
+      pos[k*3]=rad*st*Math.cos(ph); pos[k*3+1]=rad*Math.cos(th); pos[k*3+2]=rad*st*Math.sin(ph);
+      // colour: sign (gold + / blue −) with luminance ∝ magnitude; orbital uses a single warm ramp
+      if(mode==='orbital'){ const t=Math.min(1,val*3.2); _c.setHSL(0.11-0.02*t,0.85,0.28+0.5*t); }
+      else { const mag=Math.min(1,Math.abs(v)*2.2); if(v>=0) _c.setHSL(0.11,0.85,0.30+0.45*mag); else _c.setHSL(0.58,0.8,0.30+0.42*mag); }
+      col[k*3]=_c.r; col[k*3+1]=_c.g; col[k*3+2]=_c.b; k++;
+    }
+  }
+  g.attributes.position.needsUpdate=true; g.attributes.color.needsUpdate=true;
+  g.computeVertexNormals(); g.computeBoundingSphere();
+  O.wire.geometry=g;
+  shUiAcc+=dt;
+  if(shUiAcc>0.3){ shUiAcc=0;
+    const eig=l*(l+1), nodes=l-Math.abs(m);   // polar nodal circles; |m| azimuthal nodal meridians
+    O.readLab.element.textContent=`l=${l} · m=${m} · eigenvalue l(l+1)=${eig} · ${l-Math.abs(m)} polar nodal circles · ${Math.abs(m)} azimuthal nodal lines`;
+    hudBig.textContent=`SPHERICAL HARMONICS · Y_${l}^${m} · −∇²Y = ${eig}·Y · ${mode==='orbital'?'|Y|² orbital':mode==='paint'?'painted value':'balloon lobes'}`;
+    hudSub.textContent='the exact eigenfunctions of the Laplace–Beltrami operator on S²: they set atomic-orbital shapes (|Y|²), CMB multipole patterns, drumhead and antenna modes, and the l-ladder of the S³ eigenspectrum. Real form, Condon–Shortley; addition theorem Σ_m|Y_lm|²=(2l+1)/4π holds exactly.';
+    ATLAS_BUS.pub('sh.eig',eig,'l(l+1)');
+    const el=ctl.querySelector('#shInv');
+    if(el) el.innerHTML=`Y_${l}^${m} · eigenvalue −∇² = <b>l(l+1) = ${eig}</b> · degeneracy of level l = 2l+1 = <b>${2*l+1}</b>`+
+      `<br>nodal structure: ${l-Math.abs(m)} circles of latitude + ${Math.abs(m)} meridians (total l nodal lines)`+
+      (mode==='orbital'?`<br>|Y|² is the angular probability density of the hydrogen orbital with this (l,m)`:'');
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10916,6 +11020,7 @@ function setS3View(v){
   relGroup.visible     = (v==='rel');
   chaosGroup.visible   = (v==='chaos');
   kinGroup.visible     = (v==='kin');
+  shGroup.visible      = (v==='sh');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10931,6 +11036,7 @@ function setS3View(v){
   if(v==='rel'){ relSetup(); }
   if(v==='chaos'){ chaosSetup(); }
   if(v==='kin'){ kinSetup(); }
+  if(v==='sh'){ shSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10942,7 +11048,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15699,6 +15805,7 @@ const state = {
   relStation:'cone', relBeta:0.6, relSpeed:1, relU:0.7, relV:0.7,   // Relativity lab
   chaosSys:'lorenz', chaosRun:true, chaosSpeed:1,   // Strange attractors lab
   kinStation:'gas', kinRun:true, kinSpeed:1, kinInit:'mono',   // Kinetic theory lab
+  shL:3, shM:2, shMode:'balloon', shAnim:true, shSpeed:1, shDeform:1.0,   // Spherical harmonics lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -17137,6 +17244,33 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='sh') body = `
+    <div class="sect"><b>Spherical harmonics Y_lm</b>
+      <div class="ctlrow"><label>Degree l</label>
+        <input type="range" id="shL" min="0" max="8" step="1" value="${state.shL??3}"><span class="val" id="shLV">${state.shL??3}</span></div>
+      <div class="ctlrow"><label>Order m</label>
+        <input type="range" id="shM" min="${-(state.shL??3)}" max="${state.shL??3}" step="1" value="${Math.max(-(state.shL??3),Math.min(state.shL??3,state.shM??2))}"><span class="val" id="shMV">${Math.max(-(state.shL??3),Math.min(state.shL??3,state.shM??2))}</span></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>Render</label>
+        ${[['balloon','Balloon lobes'],['paint','Painted sphere'],['orbital','|Y|² orbital']].map(([k,l])=>
+          `<button class="chip ${(state.shMode||'balloon')===k?'on':''}" data-shmode="${k}">${l}</button>`).join('')}</div>
+      ${(state.shMode||'balloon')==='balloon'?`
+      <div class="ctlrow"><label>Lobe deformation</label>
+        <input type="range" id="shDeform" min="0.3" max="1.8" step="0.05" value="${state.shDeform??1}"><span class="val" id="shDeformV">×${(state.shDeform??1).toFixed(2)}</span></div>`:''}
+      <div class="ctlrow"><label>Phase animation e^{iωt}</label>
+        <input type="checkbox" id="shAnim" ${state.shAnim!==false?'checked':''}>
+        <input type="range" id="shSpeed" min="0.2" max="3" step="0.1" value="${state.shSpeed??1}" style="flex:1"></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:3px"><label>Presets</label>
+        ${[['0,0','s'],['1,0','p_z'],['2,0','d_z²'],['3,2','f'],['4,3',''],['6,0','']].map(([lm,nm])=>{const [L,M]=lm.split(',');return `<button class="chip" data-shpreset="${lm}">Y${L}${M<0?'₋':''}${Math.abs(M)}${nm?' '+nm:''}</button>`;}).join('')}</div>
+    </div>
+    <div class="sect"><b>Eigenvalue readout</b>
+      <div class="note" id="shInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The exact real Y_lm (Condon–Shortley), the eigenfunctions of −∇²_{S²} with eigenvalue l(l+1) and degeneracy 2l+1. Balloon lobes: radius=|Y|, gold=+, blue=−; painted: colour=value; orbital: radius/colour=|Y|². The phase animation shows the travelling wave e^{i(mφ−ωt)}. These are the shared alphabet of hydrogen orbitals, CMB multipoles, and the S³ l-ladder — the same modes, one sphere. Verified: values, orthonormality, and the addition theorem Σ_m|Y_lm|²=(2l+1)/4π.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="shToAtom">→ Elements: |Y|² builds the electron cloud</button>
+        <button class="btn" id="shToEig">→ S³ modes: the l-ladder on the 3-sphere</button></div>
+    </div>`;
     else if(V==='kin') body = `
     <div class="sect"><b>Kinetic theory — pick a station</b>
       <div class="chips">
@@ -17400,6 +17534,7 @@ function buildCtlBody(){
         <button class="btn ${V==='rel'?'on':''}" id="v-rel">Relativity</button>
         <button class="btn ${V==='chaos'?'on':''}" id="v-chaos">Strange attractors</button>
         <button class="btn ${V==='kin'?'on':''}" id="v-kin">Kinetic gas</button>
+        <button class="btn ${V==='sh'?'on':''}" id="v-sh">Spherical harmonics</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17418,7 +17553,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17658,6 +17793,21 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='sh'){
+      ctl.querySelector('#shL')&&(ctl.querySelector('#shL').oninput=e=>{ state.shL=+e.target.value;
+        if(Math.abs(state.shM??0)>state.shL) state.shM=Math.sign(state.shM||0)*state.shL; buildCtl(); });
+      ctl.querySelector('#shM')&&(ctl.querySelector('#shM').oninput=e=>{ state.shM=+e.target.value;
+        const v=ctl.querySelector('#shMV'); if(v)v.textContent=state.shM; });
+      ctl.querySelectorAll('[data-shmode]').forEach(b=>b.onclick=()=>{ state.shMode=b.dataset.shmode; buildCtl(); });
+      ctl.querySelector('#shDeform')&&(ctl.querySelector('#shDeform').oninput=e=>{ state.shDeform=+e.target.value;
+        const v=ctl.querySelector('#shDeformV'); if(v)v.textContent='×'+state.shDeform.toFixed(2); });
+      ctl.querySelector('#shAnim')&&(ctl.querySelector('#shAnim').onchange=e=>{ state.shAnim=e.target.checked; });
+      ctl.querySelector('#shSpeed')&&(ctl.querySelector('#shSpeed').oninput=e=>{ state.shSpeed=+e.target.value; });
+      ctl.querySelectorAll('[data-shpreset]').forEach(b=>b.onclick=()=>{ const [L,M]=b.dataset.shpreset.split(',').map(Number);
+        state.shL=L; state.shM=M; buildCtl(); });
+      ctl.querySelector('#shToAtom')&&(ctl.querySelector('#shToAtom').onclick=()=>{ navPush(); setS3View('atom'); buildCtl(); });
+      ctl.querySelector('#shToEig')&&(ctl.querySelector('#shToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
     }
     if(V==='kin'){
       ctl.querySelectorAll('[data-kinst]').forEach(b=>b.onclick=()=>{ state.kinStation=b.dataset.kinst; kinSetup(); buildCtl(); });
@@ -19010,7 +19160,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -20161,6 +20311,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateChaos(dt);
     } else if(state.s3view==='kin'){
       fbsAnimT+=dt; updateKin(dt);
+    } else if(state.s3view==='sh'){
+      fbsAnimT+=dt; updateSh(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
