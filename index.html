@@ -1459,6 +1459,17 @@ function runSelfTests(){
       Math.abs((1+0.5)/(1+0.5)-1)<1e-12 && (0.9+0.9)/(1+0.81)<1, ((0.9+0.9)/(1.81)).toFixed(6));
     ok('Relativity: rapidity is additive atanh(u)+atanh(v)=atanh(u⊕v)',
       Math.abs(Math.atanh(0.6)+Math.atanh(0.5)-Math.atanh((0.6+0.5)/(1+0.3)))<1e-12); }
+  { // CHAOS: Lorenz fixed points exact; RK4 flow bounded; the flow field is what we render
+    const L=CHAOS_SYS.lorenz, p=L.params, fp=L.fixed(p), c=Math.sqrt(p.β*(p.ρ-1));
+    ok('Chaos: Lorenz fixed points C± = (±√(β(ρ−1)), ±√(β(ρ−1)), ρ−1) exact',
+      Math.abs(fp[0][0]-c)<1e-12 && Math.abs(fp[0][2]-(p.ρ-1))<1e-12, '±'+c.toFixed(4));
+    // fixed points are stationary: f(C±) = 0
+    const fv=L.f(p,fp[0][0],fp[0][1],fp[0][2]);
+    ok('Chaos: Lorenz flow vanishes at its fixed point (|f(C+)| < 1e-9)', Math.hypot(...fv)<1e-9, Math.hypot(...fv).toExponential(1));
+    // RK4 stays bounded over 4000 steps on the attractor
+    let s=[1,1,1]; for(let i=0;i<4000;i++) s=chaosRK4(L,p,s,L.dt);
+    ok('Chaos: Lorenz RK4 orbit bounded on the attractor (|r|<60) after 4000 steps',
+      s.every(Number.isFinite)&&Math.hypot(...s)<60, s.map(x=>x.toFixed(1)).join(',')); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10628,6 +10639,110 @@ function updateRel(dt){
   }
 }
 
+/* ================================================================
+   STRANGE ATTRACTORS LAB · deterministic chaos in 3D (UPRS Part VI).
+   Six classic dissipative flows integrated with RK4, drawn as a
+   growing luminous ribbon; a live Benettin twin-trajectory measures
+   the largest Lyapunov exponent λ and the predictability horizon —
+   the model declaring the limit of its own forecast. Full parameter
+   control per system; fixed points marked where known. */
+const chaosGroup=new THREE.Group(); chaosGroup.visible=false; s3Group.add(chaosGroup);
+const CHAOS_SYS={
+  lorenz:{ name:'Lorenz', params:{σ:10,ρ:28,β:8/3}, ranges:{σ:[1,20],ρ:[1,60],β:[0.5,5]}, dt:0.006, scale:0.09, seed:[1,1,1], off:[0,0,-27],
+    f:(p,x,y,z)=>[p.σ*(y-x), x*(p.ρ-z)-y, x*y-p.β*z],
+    fixed:p=>{ const c=Math.sqrt(Math.max(0,p.β*(p.ρ-1))); return [[c,c,p.ρ-1],[-c,-c,p.ρ-1],[0,0,0]]; },
+    note:'the butterfly — E. Lorenz 1963, weather\'s unpredictability made visible' },
+  rossler:{ name:'Rössler', params:{a:0.2,b:0.2,c:5.7}, ranges:{a:[0.05,0.4],b:[0.05,2],c:[2,18]}, dt:0.02, scale:0.5, off:[0,0,0], seed:[1,1,1],
+    f:(p,x,y,z)=>[-y-z, x+p.a*y, p.b+z*(x-p.c)], note:'a single fold-and-reinject spiral (Rössler 1976)' },
+  aizawa:{ name:'Aizawa', params:{a:0.95,b:0.7,c:0.6,d:3.5}, ranges:{a:[0.5,1.2],b:[0.3,1],c:[0.3,1],d:[2,5]}, dt:0.01, scale:3.4, off:[0,0,0], seed:[0.1,0,0],
+    f:(p,x,y,z)=>[(z-p.b)*x-p.d*y, p.d*x+(z-p.b)*y, p.c+p.a*z-z*z*z/3-(x*x+y*y)*(1+0.25*z)+0.1*z*x*x*x],
+    note:'a spherical shell with a piercing spindle (Aizawa)' },
+  thomas:{ name:'Thomas', params:{b:0.19}, ranges:{b:[0.1,0.33]}, dt:0.03, scale:1.6, off:[0,0,0], seed:[1.1,1.1,-0.01],
+    f:(p,x,y,z)=>[Math.sin(y)-p.b*x, Math.sin(z)-p.b*y, Math.sin(x)-p.b*z], note:'cyclically symmetric — labyrinthine walk (Thomas)' },
+  halvorsen:{ name:'Halvorsen', params:{a:1.4}, ranges:{a:[1.0,1.9]}, dt:0.008, scale:0.55, off:[0,0,0], seed:[-1.48,-1.51,2.04],
+    f:(p,x,y,z)=>[-p.a*x-4*y-4*z-y*y, -p.a*y-4*z-4*x-z*z, -p.a*z-4*x-4*y-x*x], note:'three-fold symmetric knot (Halvorsen)' },
+  chen:{ name:'Chen', params:{a:35,b:3,c:28}, ranges:{a:[20,45],b:[1,6],c:[15,35]}, dt:0.003, scale:0.12, off:[0,0,-22], seed:[-0.1,0.5,-0.6],
+    f:(p,x,y,z)=>[p.a*(y-x), (p.c-p.a)*x-x*z+p.c*y, x*y-p.b*z], note:'a doubly-wound Lorenz cousin (Chen–Ueta 1999)' },
+};
+let chaosObjs=null, chaosT=0, chaosUiAcc=0, chaosState=[1,1,1], chaosShadow=null, chaosLamSum=0, chaosLam=null, chaosN=0, chaosSamples=[];
+const CHAOS_MAXPTS=9000;
+function chaosClear(){ labWipe(chaosGroup); chaosObjs=null; }
+function chaosRK4(sys,p,s,h){ const f=sys.f;
+  const k1=f(p,s[0],s[1],s[2]);
+  const k2=f(p,s[0]+h/2*k1[0],s[1]+h/2*k1[1],s[2]+h/2*k1[2]);
+  const k3=f(p,s[0]+h/2*k2[0],s[1]+h/2*k2[1],s[2]+h/2*k2[2]);
+  const k4=f(p,s[0]+h*k3[0],s[1]+h*k3[1],s[2]+h*k3[2]);
+  return [s[0]+h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]),
+          s[1]+h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]),
+          s[2]+h/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2])]; }
+function chaosSysKey(){ return state.chaosSys||'lorenz'; }
+function chaosSetup(){
+  chaosClear(); chaosT=0; chaosN=0; chaosLamSum=0; chaosLam=null; chaosSamples=[];
+  const sys=CHAOS_SYS[chaosSysKey()];
+  chaosState=sys.seed.slice(); chaosShadow=[chaosState[0]+1e-8,chaosState[1],chaosState[2]];
+  const pos=new Float32Array(CHAOS_MAXPTS*3), col=new Float32Array(CHAOS_MAXPTS*3);
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  g.setDrawRange(0,0);
+  const line=new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false}));
+  chaosGroup.add(line);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xfff1c0}));
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.9,depthWrite:false}));
+  glow.scale.setScalar(.8); head.add(glow); chaosGroup.add(head);
+  chaosGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+  const fps=(sys.fixed?sys.fixed(sys.params):[]).map(fp=>{
+    const m=new THREE.Mesh(new THREE.SphereGeometry(.12,12,8),new THREE.MeshBasicMaterial({color:0xff9fb0,transparent:true,opacity:.9}));
+    const P=chaosMap(sys,fp); m.position.set(P[0],P[1],P[2]); chaosGroup.add(m); return m; });
+  const tl=mkLabel('STRANGE ATTRACTOR · '+sys.name+' · RK4 · '+sys.note,'label const'); tl.position.set(0,3.9,0); chaosGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); chaosGroup.add(rl);
+  chaosObjs={line,head,readLab:rl,sys,fps};
+}
+function chaosMap(sys,s){ const sc=sys.scale, o=sys.off||[0,0,0];
+  return [(s[0]+o[0])*sc, (s[2]+o[2])*sc, (s[1]+o[1])*sc]; }   // z→up for the classic upright butterfly
+function updateChaos(dt){
+  if(!chaosObjs||chaosObjs.sys!==CHAOS_SYS[chaosSysKey()]) chaosSetup();
+  const O=chaosObjs, sys=O.sys, p=sys.params;
+  if(state.chaosRun!==false){
+    const steps=Math.max(1,Math.min(60,Math.round((state.chaosSpeed??1)*10)));
+    const a=O.line.geometry.attributes.position, c=O.line.geometry.attributes.color, _c=_chaosCol;
+    for(let i=0;i<steps;i++){
+      chaosState=chaosRK4(sys,p,chaosState,sys.dt);
+      chaosShadow=chaosRK4(sys,p,chaosShadow,sys.dt);
+      chaosT+=sys.dt;
+      // Benettin largest Lyapunov (renormalised twin)
+      const d=Math.hypot(chaosState[0]-chaosShadow[0],chaosState[1]-chaosShadow[1],chaosState[2]-chaosShadow[2]);
+      let part=Math.log(Math.max(d,1e-14)/1e-8);
+      if(d>1e-6){ chaosLamSum+=part; part=0; const k=1e-8/d;
+        chaosShadow=[chaosState[0]+(chaosShadow[0]-chaosState[0])*k,chaosState[1]+(chaosShadow[1]-chaosState[1])*k,chaosState[2]+(chaosShadow[2]-chaosState[2])*k]; }
+      // windowed slope estimator (converges to λ; robust to transients)
+      if(!chaosSamples.length||chaosT-chaosSamples[chaosSamples.length-1].t>0.5) chaosSamples.push({t:chaosT,A:chaosLamSum+part});
+      if(chaosT>8){ let half=chaosSamples[0]; for(const s of chaosSamples) if(s.t<=chaosT/2) half=s;
+        if(chaosT-half.t>3) chaosLam=(chaosLamSum+part-half.A)/(chaosT-half.t); }
+      const P=chaosMap(sys,chaosState);
+      let idx; if(chaosN<CHAOS_MAXPTS){ idx=chaosN; chaosN++; } else { a.array.copyWithin(0,3); c.array.copyWithin(0,3); idx=CHAOS_MAXPTS-1; }
+      a.array[idx*3]=P[0]; a.array[idx*3+1]=P[1]; a.array[idx*3+2]=P[2];
+      const spd=Math.min(1,Math.hypot(...sys.f(p,chaosState[0],chaosState[1],chaosState[2]))*sys.dt*8);
+      _c.setHSL(0.58-0.44*spd,0.8,0.35+0.35*spd); c.array[idx*3]=_c.r; c.array[idx*3+1]=_c.g; c.array[idx*3+2]=_c.b;
+    }
+    O.line.geometry.setDrawRange(0,chaosN); a.needsUpdate=true; c.needsUpdate=true; O.line.geometry.computeBoundingSphere();
+    const HP=chaosMap(sys,chaosState); O.head.position.set(HP[0],HP[1],HP[2]);
+  }
+  chaosUiAcc+=dt;
+  if(chaosUiAcc>0.3){ chaosUiAcc=0;
+    const lamTxt=chaosLam===null?'measuring…':chaosLam<0.02?`λ ≈ 0 (regular/periodic)`:`λ = ${chaosLam.toFixed(3)} → horizon ≈ ${(16.1/chaosLam).toFixed(1)} time-units`;
+    hudBig.textContent=`CHAOS · ${sys.name} attractor · t = ${chaosT.toFixed(1)} · ${lamTxt}`;
+    hudSub.textContent='a deterministic flow with no randomness, yet no long-term predictability: the Benettin twin measures the largest Lyapunov exponent live — the sensitive dependence on initial conditions quantified, not just asserted';
+    ATLAS_BUS.pub('chaos.lambda',chaosLam===null?null:+chaosLam.toFixed(3),'/t · '+sys.name);
+    const el=ctl.querySelector('#chaosInv');
+    if(el) el.innerHTML=`state = (${chaosState.map(v=>v.toFixed(2)).join(', ')}) · t = ${chaosT.toFixed(2)}`+
+      (chaosLam===null?'<br>Lyapunov λ: measuring (Benettin twin, δ₀=10⁻⁸)…'
+        : chaosLam<0.02?`<br>Lyapunov λ ≈ 0 — <b style="color:#9fe8d8">regular orbit: long-term predictable</b>`
+        : `<br>largest Lyapunov λ = <b style="color:#ffd27f">${chaosLam.toFixed(3)}</b> · e-fold ${(1/chaosLam).toFixed(2)} t-units · <b>predictability horizon ≈ ${(16.1/chaosLam).toFixed(1)}</b> (δ: 10⁻⁸→0.1)`);
+  }
+}
+const _chaosCol=new THREE.Color();
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10655,6 +10770,7 @@ function setS3View(v){
   waveGroup.visible    = (v==='wave');
   spinGroup.visible    = (v==='spin');
   relGroup.visible     = (v==='rel');
+  chaosGroup.visible   = (v==='chaos');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10668,6 +10784,7 @@ function setS3View(v){
   if(v==='wave'){ if(!waveObjs) waveSetup(); }
   if(v==='spin'){ if(!spinObjs) spinSetup(); }
   if(v==='rel'){ relSetup(); }
+  if(v==='chaos'){ chaosSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10679,7 +10796,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15434,6 +15551,7 @@ const state = {
   waveMode:'double', waveLam:0.45, waveD:2.4, waveA:0.3, waveN:5,       // Wave optics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
   spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4,   // Quantum spin lab
   relStation:'cone', relBeta:0.6, relSpeed:1, relU:0.7, relV:0.7,   // Relativity lab
+  chaosSys:'lorenz', chaosRun:true, chaosSpeed:1,   // Strange attractors lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -16872,6 +16990,30 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='chaos') body = (()=>{ const sys=CHAOS_SYS[state.chaosSys||'lorenz']; return `
+    <div class="sect"><b>Strange attractor — pick a system</b>
+      <div class="chips">
+        ${Object.entries(CHAOS_SYS).map(([k,s])=>`<button class="chip ${(state.chaosSys||'lorenz')===k?'on':''}" data-chaossys="${k}">${s.name}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="chaosRun">${state.chaosRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="chaosReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="chaosSpeed" min="0.2" max="4" step="0.1" value="${state.chaosSpeed??1}"><span class="val" id="chaosSpeedV">×${(state.chaosSpeed??1).toFixed(1)}</span></div>
+      ${Object.keys(sys.params).map(k=>{ const rg=sys.ranges[k]||[sys.params[k]*0.5,sys.params[k]*1.5];
+        return `<div class="ctlrow"><label>${k}</label>
+          <input type="range" data-chaosp="${k}" min="${rg[0]}" max="${rg[1]}" step="${(rg[1]-rg[0])/200}" value="${sys.params[k]}">
+          <span class="val" data-chaospv="${k}">${(+sys.params[k]).toFixed(3)}</span></div>`; }).join('')}
+    </div>
+    <div class="sect"><b>Predictability — the model measures its own limit</b>
+      <div class="note" id="chaosInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each flow is fully deterministic (RK4, no randomness) yet — above λ=0 — has NO long-term forecast: the Benettin twin trajectory measures the largest Lyapunov exponent live, and the predictability horizon ln(0.1/δ₀)/λ is the model quantifying how far it can predict before a 10⁻⁸ error grows to 0.1. Fixed points (pink) are marked where known; tune the parameters to watch bifurcations into and out of chaos. Sibling of the Gravitas Lyapunov meter — chaos as a measured number, never an excuse.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="chaosToGrav">→ Gravitas: the 3-body Lyapunov meter</button>
+        <button class="btn" id="chaosToBif">→ Bifurcation⊗Mandelbrot: the route to chaos</button></div>
+    </div>`; })();
     else if(V==='rel') body = `
     <div class="sect"><b>Relativity — pick a station</b>
       <div class="chips">
@@ -17084,6 +17226,7 @@ function buildCtlBody(){
         <button class="btn ${V==='wave'?'on':''}" id="v-wave">Wave optics</button>
         <button class="btn ${V==='spin'?'on':''}" id="v-spin">Quantum spin</button>
         <button class="btn ${V==='rel'?'on':''}" id="v-rel">Relativity</button>
+        <button class="btn ${V==='chaos'?'on':''}" id="v-chaos">Strange attractors</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17102,7 +17245,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17342,6 +17485,19 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='chaos'){
+      ctl.querySelectorAll('[data-chaossys]').forEach(b=>b.onclick=()=>{ state.chaosSys=b.dataset.chaossys; chaosSetup(); buildCtl(); });
+      ctl.querySelector('#chaosRun')&&(ctl.querySelector('#chaosRun').onclick=()=>{ state.chaosRun=state.chaosRun===false; buildCtl(); });
+      ctl.querySelector('#chaosReset')&&(ctl.querySelector('#chaosReset').onclick=()=>{ chaosSetup(); });
+      ctl.querySelector('#chaosSpeed')&&(ctl.querySelector('#chaosSpeed').oninput=e=>{ state.chaosSpeed=+e.target.value;
+        const v=ctl.querySelector('#chaosSpeedV'); if(v)v.textContent='×'+state.chaosSpeed.toFixed(1); });
+      ctl.querySelectorAll('[data-chaosp]').forEach(el=>el.oninput=e=>{ const k=el.dataset.chaosp;
+        CHAOS_SYS[state.chaosSys||'lorenz'].params[k]=+e.target.value;
+        const v=ctl.querySelector(`[data-chaospv="${k}"]`); if(v)v.textContent=(+e.target.value).toFixed(3);
+        chaosSetup(); });   // reseed on a parameter change (a new attractor)
+      ctl.querySelector('#chaosToGrav')&&(ctl.querySelector('#chaosToGrav').onclick=()=>{ navPush(); state.gravPreset='burrau'; setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#chaosToBif')&&(ctl.querySelector('#chaosToBif').onclick=()=>{ navPush(); setMode('fractal'); if(typeof setFractalType==='function') setFractalType('bifurc3d',false); buildCtl(); });
     }
     if(V==='rel'){
       ctl.querySelectorAll('[data-relst]').forEach(b=>b.onclick=()=>{ state.relStation=b.dataset.relst; relSetup(); buildCtl(); });
@@ -18671,7 +18827,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -19818,6 +19974,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSpin(dt);
     } else if(state.s3view==='rel'){
       fbsAnimT+=dt; updateRel(dt);
+    } else if(state.s3view==='chaos'){
+      fbsAnimT+=dt; updateChaos(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
