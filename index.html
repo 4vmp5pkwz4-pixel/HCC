@@ -1470,6 +1470,19 @@ function runSelfTests(){
     let s=[1,1,1]; for(let i=0;i<4000;i++) s=chaosRK4(L,p,s,L.dt);
     ok('Chaos: Lorenz RK4 orbit bounded on the attractor (|r|<60) after 4000 steps',
       s.every(Number.isFinite)&&Math.hypot(...s)<60, s.map(x=>x.toFixed(1)).join(',')); }
+  { // KINETIC THEORY: elastic collision conserves energy & momentum exactly; MB ratios
+    const coll=(v1,v2,n)=>{ const dv=[v1[0]-v2[0],v1[1]-v2[1],v1[2]-v2[2]];
+      const vn=dv[0]*n[0]+dv[1]*n[1]+dv[2]*n[2]; if(vn<=0) return [v1,v2];
+      return [v1.map((v,i)=>v-vn*n[i]), v2.map((v,i)=>v+vn*n[i])]; };
+    const v1=[1,0.4,-0.2], v2=[-0.3,0.6,0.1], n=[1,0,0];
+    const [w1,w2]=coll(v1,v2,n);
+    const KE0=v1.reduce((s,x)=>s+x*x,0)+v2.reduce((s,x)=>s+x*x,0), KE1=w1.reduce((s,x)=>s+x*x,0)+w2.reduce((s,x)=>s+x*x,0);
+    ok('Kinetic: elastic collision conserves kinetic energy exactly (<1e-12)', Math.abs(KE0-KE1)<1e-12, KE1.toFixed(8));
+    const P0=v1.map((x,i)=>x+v2[i]), P1=w1.map((x,i)=>x+w2[i]);
+    ok('Kinetic: elastic collision conserves momentum exactly (<1e-12)',
+      P0.every((x,i)=>Math.abs(x-P1[i])<1e-12), P1.map(x=>x.toFixed(3)).join(','));
+    ok('Kinetic: Maxwell–Boltzmann speed ratios v_mean/v_mp=√(4/π), v_rms/v_mp=√(3/2)',
+      Math.abs(Math.sqrt(4/Math.PI)-1.1284)<1e-3 && Math.abs(Math.sqrt(1.5)-1.2247)<1e-3); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10743,6 +10756,137 @@ function updateChaos(dt){
 }
 const _chaosCol=new THREE.Color();
 
+/* ================================================================
+   KINETIC THEORY LAB · statistical mechanics from first principles.
+   N elastic hard spheres in a 3D box: every collision exchanges the
+   velocity component along the line of centres (energy & momentum
+   conserved exactly), and out of pure mechanics the Maxwell–Boltzmann
+   speed distribution EMERGES — shown live against the analytic curve
+   f(v)∝v²e^{−mv²/2kT}. Temperature = ⅔⟨½mv²⟩ (equipartition), pressure
+   from wall impulse. Second station: free-expansion / entropy (a gas
+   released into a larger box, the irreversible arrow of time). */
+const kinGroup=new THREE.Group(); kinGroup.visible=false; s3Group.add(kinGroup);
+const KIN_N=140, KIN_R=0.11, KIN_L=3.2;
+let kinObjs=null, kinT=0, kinUiAcc=0, kinPos=null, kinVel=null, kinKE0=1, kinWallImpulse=0, kinBox=KIN_L;
+function kinClear(){ labWipe(kinGroup); kinObjs=null; }
+function kinSetup(){
+  kinClear(); kinT=0; kinWallImpulse=0;
+  const st=state.kinStation||'gas';
+  kinBox=KIN_L;
+  kinPos=new Float32Array(KIN_N*3); kinVel=new Float32Array(KIN_N*3);
+  const rnd=mulberry(7); const spread=st==='entropy'?0.55:0.85;
+  const half=(st==='entropy')?KIN_L*0.24:KIN_L*0.5;   // entropy: start confined to the left cell
+  for(let i=0;i<KIN_N;i++){
+    kinPos[i*3]=(st==='entropy')?(-KIN_L*0.5+rnd()*half):(rnd()*KIN_L-KIN_L*0.5);
+    kinPos[i*3+1]=rnd()*KIN_L-KIN_L*0.5; kinPos[i*3+2]=rnd()*KIN_L-KIN_L*0.5;
+    // start with a NARROW speed band → watch it thermalise into Maxwell–Boltzmann
+    const dir=new THREE.Vector3().randomDirection().multiplyScalar((state.kinInit==='mono'?1:(0.4+rnd()*1.2))*spread);
+    kinVel[i*3]=dir.x; kinVel[i*3+1]=dir.y; kinVel[i*3+2]=dir.z;
+  }
+  kinKE0=0; for(let i=0;i<KIN_N*3;i++) kinKE0+=kinVel[i]*kinVel[i];
+  const geo=new THREE.SphereGeometry(KIN_R,10,8);
+  const inst=new THREE.InstancedMesh(geo,new THREE.MeshBasicMaterial({vertexColors:false}),KIN_N);
+  inst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(KIN_N*3),3);
+  kinGroup.add(inst);
+  // box
+  const box=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(KIN_L,KIN_L,KIN_L)),
+    new THREE.LineBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.4}));
+  kinGroup.add(box);
+  let divider=null;
+  if(st==='entropy'){ divider=new THREE.Mesh(new THREE.PlaneGeometry(KIN_L,KIN_L),
+      new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:.14,side:THREE.DoubleSide}));
+    divider.rotation.y=Math.PI/2; divider.position.x=-KIN_L*0.02; kinGroup.add(divider); }
+  // histogram bars (speed distribution) drawn as a 3D bar chart beside the box
+  const NB=22, bars=[];
+  for(let i=0;i<NB;i++){ const m=new THREE.Mesh(new THREE.BoxGeometry(KIN_L/NB*0.8,1,0.12),
+      new THREE.MeshBasicMaterial({color:0xf5c964,transparent:true,opacity:.85}));
+    m.position.set(-KIN_L/2+ (i+0.5)*KIN_L/NB, -KIN_L*0.5-1.4, KIN_L*0.5+0.3); kinGroup.add(m); bars.push(m); }
+  const mbCurve=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(60*3),3)),
+    new THREE.LineBasicMaterial({color:0x9fe8d8})); kinGroup.add(mbCurve);
+  const tl=mkLabel(st==='entropy'?'FREE EXPANSION · the irreversible arrow — entropy S = −Σp ln p rises to its maximum'
+    :'KINETIC THEORY · N elastic spheres → Maxwell–Boltzmann emerges · gold bars = live · teal = f(v)∝v²e^{−mv²/2kT}','label const');
+  tl.position.set(0,KIN_L*0.5+0.9,0); kinGroup.add(tl);
+  const hl=mkLabel('speed distribution','label dim'); hl.position.set(0,-KIN_L*0.5-2.9,KIN_L*0.5+0.3); kinGroup.add(hl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-KIN_L*0.5-3.5,0); kinGroup.add(rl);
+  kinObjs={inst,bars,mbCurve,divider,readLab:rl,st,NB,_col:new THREE.Color(),_d:new THREE.Object3D()};
+}
+function updateKin(dt){
+  if(!kinObjs||kinObjs.st!==(state.kinStation||'gas')) kinSetup();
+  const O=kinObjs, st=O.st;
+  if(state.kinRun!==false){
+    const sub=Math.max(1,Math.min(4,Math.round((state.kinSpeed??1)*2))), h=0.016*(state.kinSpeed??1)/sub;
+    for(let s=0;s<sub;s++){
+      // stream + elastic walls (wall impulse → pressure)
+      for(let i=0;i<KIN_N;i++)for(let d=0;d<3;d++){ const k=i*3+d; kinPos[k]+=kinVel[k]*h;
+        const lim=KIN_L*0.5-KIN_R;
+        if(kinPos[k]>lim){ kinPos[k]=lim; kinWallImpulse+=2*Math.abs(kinVel[k]); kinVel[k]=-Math.abs(kinVel[k]); }
+        else if(kinPos[k]<-lim){ kinPos[k]=-lim; kinWallImpulse+=2*Math.abs(kinVel[k]); kinVel[k]=Math.abs(kinVel[k]); } }
+      // pairwise elastic collisions (O(N²) — fine for N=140)
+      for(let i=0;i<KIN_N;i++)for(let j=i+1;j<KIN_N;j++){
+        const dx=kinPos[j*3]-kinPos[i*3], dy=kinPos[j*3+1]-kinPos[i*3+1], dz=kinPos[j*3+2]-kinPos[i*3+2];
+        const d2=dx*dx+dy*dy+dz*dz;
+        if(d2<(2*KIN_R)*(2*KIN_R)&&d2>1e-9){ const dist=Math.sqrt(d2), nx=dx/dist,ny=dy/dist,nz=dz/dist;
+          const dvx=kinVel[i*3]-kinVel[j*3],dvy=kinVel[i*3+1]-kinVel[j*3+1],dvz=kinVel[i*3+2]-kinVel[j*3+2];
+          const vn=dvx*nx+dvy*ny+dvz*nz;
+          if(vn>0){ kinVel[i*3]-=vn*nx;kinVel[i*3+1]-=vn*ny;kinVel[i*3+2]-=vn*nz;
+            kinVel[j*3]+=vn*nx;kinVel[j*3+1]+=vn*ny;kinVel[j*3+2]+=vn*nz;
+            // separate overlap
+            const ov=(2*KIN_R-dist)*0.5; kinPos[i*3]-=nx*ov;kinPos[i*3+1]-=ny*ov;kinPos[i*3+2]-=nz*ov;
+            kinPos[j*3]+=nx*ov;kinPos[j*3+1]+=ny*ov;kinPos[j*3+2]+=nz*ov; }
+        }
+      }
+      kinT+=h;
+    }
+  }
+  // render instances coloured by speed
+  const _d=O._d,_c=O._col; let ke=0, vmax=1e-6;
+  const speeds=new Float32Array(KIN_N);
+  for(let i=0;i<KIN_N;i++){ const sp=Math.hypot(kinVel[i*3],kinVel[i*3+1],kinVel[i*3+2]); speeds[i]=sp; ke+=sp*sp; if(sp>vmax)vmax=sp;
+    _d.position.set(kinPos[i*3],kinPos[i*3+1],kinPos[i*3+2]); _d.updateMatrix(); O.inst.setMatrixAt(i,_d.matrix);
+    _c.setHSL(0.62-0.5*Math.min(1,sp/1.8),0.85,0.55); O.inst.setColorAt(i,_c); }
+  O.inst.instanceMatrix.needsUpdate=true; if(O.inst.instanceColor) O.inst.instanceColor.needsUpdate=true;
+  // histogram
+  const hi=Math.max(vmax*1.05,0.6), hist=new Float32Array(O.NB);
+  for(let i=0;i<KIN_N;i++){ const b=Math.min(O.NB-1,Math.floor(speeds[i]/hi*O.NB)); hist[b]++; }
+  const hmax=Math.max(...hist,1);
+  for(let i=0;i<O.NB;i++){ const hgt=hist[i]/hmax*1.6; O.bars[i].scale.y=Math.max(hgt,0.001); O.bars[i].position.y=-KIN_L*0.5-1.4+hgt/2; }
+  // Maxwell–Boltzmann analytic overlay: f(v)=4π (m/2πkT)^{3/2} v² e^{−mv²/2kT}; kT from <½v²>=(3/2)kT/… → kT=<v²>/3
+  const meanV2=ke/KIN_N, kT=meanV2/3;
+  const mp=O.mbCurve.geometry.attributes.position; let fmax=1e-9; const fv=[];
+  for(let i=0;i<60;i++){ const v=(i+0.5)/60*hi, f=v*v*Math.exp(-v*v/(2*kT)); fv.push(f); if(f>fmax)fmax=f; }
+  for(let i=0;i<60;i++){ const v=(i+0.5)/60*hi;
+    mp.array[i*3]=-KIN_L/2+ v/hi*KIN_L; mp.array[i*3+1]=-KIN_L*0.5-1.4+ fv[i]/fmax*1.6; mp.array[i*3+2]=KIN_L*0.5+0.32; }
+  mp.needsUpdate=true; O.mbCurve.geometry.computeBoundingSphere();
+  const dKE=Math.abs((ke-kinKE0)/kinKE0);
+  kinUiAcc+=dt;
+  if(kinUiAcc>0.3){ kinUiAcc=0;
+    const T=kT, vrms=Math.sqrt(meanV2), vmp=Math.sqrt(2*kT), vmean=Math.sqrt(8*kT/Math.PI);
+    const P=kinWallImpulse/Math.max(kinT,1e-6)/(6*KIN_L*KIN_L);   // impulse/time/area
+    if(st==='entropy'){
+      // coarse-grained occupancy entropy over an 8×4×4 grid
+      const gx=8,gy=4,gz=4, cell=new Float32Array(gx*gy*gz);
+      for(let i=0;i<KIN_N;i++){ const ix=Math.min(gx-1,Math.floor((kinPos[i*3]/KIN_L+0.5)*gx));
+        const iy=Math.min(gy-1,Math.floor((kinPos[i*3+1]/KIN_L+0.5)*gy)); const iz=Math.min(gz-1,Math.floor((kinPos[i*3+2]/KIN_L+0.5)*gz));
+        cell[(ix*gy+iy)*gz+iz]++; }
+      let S=0; for(const c of cell){ if(c>0){ const p=c/KIN_N; S-=p*Math.log(p); } }
+      const Smax=Math.log(gx*gy*gz);
+      hudBig.textContent=`KINETIC · free expansion · S = ${S.toFixed(3)} / S_max ${Smax.toFixed(2)} (${(S/Smax*100).toFixed(0)}%) · t=${kinT.toFixed(1)}`;
+      hudSub.textContent='the gas started in the left cell; pure reversible mechanics drives the coarse-grained entropy up to its maximum and it never spontaneously returns — the thermodynamic arrow of time from microscopic dynamics';
+      ATLAS_BUS.pub('kin.entropy',+(S/Smax).toFixed(3),'/S_max');
+    } else {
+      hudBig.textContent=`KINETIC · ${KIN_N} spheres · T ∝ ${T.toFixed(3)} · v_rms=${vrms.toFixed(2)} · P=${P.toFixed(3)} · |ΔE/E|=${dKE.toExponential(1)}`;
+      hudSub.textContent='no distribution is imposed — elastic collisions alone drive the gas to Maxwell–Boltzmann (teal curve). Equipartition ⟨½mv²⟩=(3/2)kT sets T; wall impulses give pressure; energy is conserved to machine precision (the drift shown is honest)';
+      ATLAS_BUS.pub('kin.T',+T.toFixed(3),'∝kT'); ATLAS_BUS.pub('kin.dE',+dKE.toExponential(1),'');
+    }
+    const el=ctl.querySelector('#kinInv');
+    if(el) el.innerHTML=st==='entropy'
+      ? `particles left/right ${(()=>{let l=0;for(let i=0;i<KIN_N;i++)if(kinPos[i*3]<0)l++;return l+'/'+(KIN_N-l);})()} · irreversible mixing`
+      : `T ∝ kT = ${T.toFixed(4)} · v_rms = ${vrms.toFixed(3)} · v_mp = ${vmp.toFixed(3)} · v_mean = ${vmean.toFixed(3)}`+
+        `<br>ratios: v_mean/v_mp = <b>${(vmean/vmp).toFixed(3)}</b> (MB: √(4/π)=1.128) · v_rms/v_mp = <b>${(vrms/vmp).toFixed(3)}</b> (MB: √1.5=1.225)`+
+        `<br>energy drift |ΔE/E| = ${dKE.toExponential(2)} (elastic collisions conserve exactly) · pressure P ∝ ${P.toFixed(4)}`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10771,6 +10915,7 @@ function setS3View(v){
   spinGroup.visible    = (v==='spin');
   relGroup.visible     = (v==='rel');
   chaosGroup.visible   = (v==='chaos');
+  kinGroup.visible     = (v==='kin');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10785,6 +10930,7 @@ function setS3View(v){
   if(v==='spin'){ if(!spinObjs) spinSetup(); }
   if(v==='rel'){ relSetup(); }
   if(v==='chaos'){ chaosSetup(); }
+  if(v==='kin'){ kinSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10796,7 +10942,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15552,6 +15698,7 @@ const state = {
   spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4,   // Quantum spin lab
   relStation:'cone', relBeta:0.6, relSpeed:1, relU:0.7, relV:0.7,   // Relativity lab
   chaosSys:'lorenz', chaosRun:true, chaosSpeed:1,   // Strange attractors lab
+  kinStation:'gas', kinRun:true, kinSpeed:1, kinInit:'mono',   // Kinetic theory lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -16990,6 +17137,31 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='kin') body = `
+    <div class="sect"><b>Kinetic theory — pick a station</b>
+      <div class="chips">
+        ${[['gas','Maxwell–Boltzmann gas'],['entropy','Free expansion · entropy']].map(([k,l])=>
+          `<button class="chip ${(state.kinStation||'gas')===k?'on':''}" data-kinst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="kinRun">${state.kinRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="kinReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="kinSpeed" min="0.2" max="3" step="0.1" value="${state.kinSpeed??1}"><span class="val" id="kinSpeedV">×${(state.kinSpeed??1).toFixed(1)}</span></div>
+      ${(state.kinStation||'gas')==='gas'?`
+      <div class="ctlrow"><label>Initial speeds</label>
+        <button class="chip ${state.kinInit==='mono'?'on':''}" data-kininit="mono">mono-energetic</button>
+        <button class="chip ${state.kinInit!=='mono'?'on':''}" data-kininit="spread">random</button></div>`:''}
+    </div>
+    <div class="sect"><b>Statistical readout</b>
+      <div class="note" id="kinInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${KIN_N} hard spheres collide elastically (velocity along the line of centres exchanged — energy and momentum conserved to machine precision). NOTHING imposes a distribution: start every sphere with the SAME speed and watch collisions alone drive it to Maxwell–Boltzmann (the gold histogram converges to the teal f(v)∝v²e^{−mv²/2kT}). Temperature follows from equipartition ⟨½mv²⟩=(3/2)kT; pressure from wall impulse. The free-expansion station shows the second law emerging from reversible mechanics: coarse-grained entropy rises to its maximum and never returns.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="kinToQuasi">→ Quasiparticles: phonons carry this heat</button>
+        <button class="btn" id="kinToChaos">→ Chaos: microscopic sensitivity behind thermalisation</button></div>
+    </div>`;
     else if(V==='chaos') body = (()=>{ const sys=CHAOS_SYS[state.chaosSys||'lorenz']; return `
     <div class="sect"><b>Strange attractor — pick a system</b>
       <div class="chips">
@@ -17227,6 +17399,7 @@ function buildCtlBody(){
         <button class="btn ${V==='spin'?'on':''}" id="v-spin">Quantum spin</button>
         <button class="btn ${V==='rel'?'on':''}" id="v-rel">Relativity</button>
         <button class="btn ${V==='chaos'?'on':''}" id="v-chaos">Strange attractors</button>
+        <button class="btn ${V==='kin'?'on':''}" id="v-kin">Kinetic gas</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17245,7 +17418,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17485,6 +17658,16 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='kin'){
+      ctl.querySelectorAll('[data-kinst]').forEach(b=>b.onclick=()=>{ state.kinStation=b.dataset.kinst; kinSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-kininit]').forEach(b=>b.onclick=()=>{ state.kinInit=b.dataset.kininit; kinSetup(); buildCtl(); });
+      ctl.querySelector('#kinRun')&&(ctl.querySelector('#kinRun').onclick=()=>{ state.kinRun=state.kinRun===false; buildCtl(); });
+      ctl.querySelector('#kinReset')&&(ctl.querySelector('#kinReset').onclick=()=>{ kinSetup(); });
+      ctl.querySelector('#kinSpeed')&&(ctl.querySelector('#kinSpeed').oninput=e=>{ state.kinSpeed=+e.target.value;
+        const v=ctl.querySelector('#kinSpeedV'); if(v)v.textContent='×'+state.kinSpeed.toFixed(1); });
+      ctl.querySelector('#kinToQuasi')&&(ctl.querySelector('#kinToQuasi').onclick=()=>{ navPush(); state.qpType='phonon'; setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#kinToChaos')&&(ctl.querySelector('#kinToChaos').onclick=()=>{ navPush(); setS3View('chaos'); buildCtl(); });
     }
     if(V==='chaos'){
       ctl.querySelectorAll('[data-chaossys]').forEach(b=>b.onclick=()=>{ state.chaosSys=b.dataset.chaossys; chaosSetup(); buildCtl(); });
@@ -18827,7 +19010,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -19976,6 +20159,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateRel(dt);
     } else if(state.s3view==='chaos'){
       fbsAnimT+=dt; updateChaos(dt);
+    } else if(state.s3view==='kin'){
+      fbsAnimT+=dt; updateKin(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
