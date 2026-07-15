@@ -1496,6 +1496,18 @@ function runSelfTests(){
     const add=(l,th,ph)=>{ let s=0; for(let m=-l;m<=l;m++) s+=shY(l,m,th,ph)**2; return s; };
     ok('SphHarm: addition theorem Σ_m|Y_lm|² = (2l+1)/4π constant (l=4, <1e-9)',
       Math.abs(add(4,0.7,1.1)-9/(4*Math.PI))<1e-9 && Math.abs(add(4,2.0,4.0)-9/(4*Math.PI))<1e-9, add(4,0.7,1.1).toFixed(6)); }
+  { // KdV SOLITON: analytic mass 2√c, amplitude-speed a=c/2, and a short IF-RK4 evolution
+    // conserves the invariants and translates the soliton at speed c keeping its peak
+    const c=4, dx=KDV_L/KDV_N, X=i=>i*dx-KDV_L/2;
+    let m=0; for(let i=0;i<KDV_N;i++) m+=kdvSoliton(c,X(i),0)*dx;
+    ok('KdV: single-soliton mass ∫u dx = 2√c exactly', Math.abs(m-2*Math.sqrt(c))<1e-3, m.toFixed(4));
+    ok('KdV: amplitude = c/2 (peak of a c-soliton)', Math.abs(kdvSoliton(4,0,0)-2)<1e-9 && Math.abs(kdvSoliton(6,0,0)-3)<1e-9, kdvSoliton(4,0,0).toFixed(4));
+    let u=new Float64Array(KDV_N); for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(4,X(i),-16);
+    const i0=kdvInvariants(u); u=kdvEvolve(u,0.001,300);   // t=0.3
+    const i1=kdvInvariants(u);
+    let pk=-1e9; for(let i=0;i<KDV_N;i++) if(u[i]>pk) pk=u[i];
+    ok('KdV: IF-RK4 keeps the soliton peak ≈2 and conserves ∫u² (<1e-2) over t=0.3',
+      Math.abs(pk-2)<0.05 && Math.abs((i1.I2-i0.I2)/i0.I2)<1e-2, `peak ${pk.toFixed(3)} ΔI₂ ${((i1.I2-i0.I2)/i0.I2).toExponential(1)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10991,6 +11003,118 @@ function updateSh(dt){
   }
 }
 
+/* ================================================================
+   SOLITON LAB · nonlinear waves that keep their shape (UPRS Part 11/15).
+   The Korteweg–de Vries equation u_t + 6u u_x + u_xxx = 0 — dispersion
+   (u_xxx spreads) exactly balances nonlinearity (6u u_x steepens), so a
+   localised pulse travels forever unchanged: a SOLITON, taller = faster
+   (amplitude c/2, speed c). Two solitons COLLIDE and pass through each
+   other, re-emerging with their amplitudes intact (only a phase shift) —
+   the hallmark of integrability. Integrating-factor RK4 (the linear
+   u_xxx solved exactly in Fourier space → unconditionally stable);
+   the three KdV invariants ∫u, ∫u², ∫(u³−½u_x²) monitored live. */
+const kdvGroup=new THREE.Group(); kdvGroup.visible=false; s3Group.add(kdvGroup);
+const KDV_N=256, KDV_L=60;
+let kdvObjs=null, kdvT=0, kdvUiAcc=0, kdvU=null;
+const kdvSech=x=>1/Math.cosh(x);
+const kdvSoliton=(c,x,x0)=>0.5*c*kdvSech(0.5*Math.sqrt(c)*(x-x0))**2;
+const _kdvK=(()=>{ const k=new Float64Array(KDV_N); for(let i=0;i<KDV_N;i++) k[i]=(i<KDV_N/2?i:i-KDV_N)*2*Math.PI/KDV_L; return k; })();
+function kdvNonlin(hr,hi){   // N(û) = −3ik·FFT(u²), computed in the real frame
+  const ur=Float64Array.from(hr), ui=Float64Array.from(hi); qmFFT(ur,ui,true);
+  for(let i=0;i<KDV_N;i++){ ur[i]=ur[i]*ur[i]; ui[i]=0; }   // u² (real)
+  qmFFT(ur,ui,false);
+  const nr=new Float64Array(KDV_N), ni=new Float64Array(KDV_N);
+  for(let i=0;i<KDV_N;i++){ nr[i]=3*_kdvK[i]*ui[i]; ni[i]=-3*_kdvK[i]*ur[i]; }
+  return [nr,ni];
+}
+function kdvEvolve(u,dt,nsteps){   // integrating-factor RK4, rebased each call (t=0) → no large-t precision loss
+  let vr=Float64Array.from(u), vi=new Float64Array(KDV_N); qmFFT(vr,vi,false);
+  const applyE=(r,im,tt,sg)=>{ const or=new Float64Array(KDV_N),oi=new Float64Array(KDV_N);
+    for(let i=0;i<KDV_N;i++){ const ang=sg*_kdvK[i]**3*tt, c=Math.cos(ang),s=Math.sin(ang);
+      or[i]=r[i]*c-im[i]*s; oi[i]=r[i]*s+im[i]*c; } return [or,oi]; };
+  const F=(r,im,tt)=>{ const [hr,hi]=applyE(r,im,tt,1); const [nr,ni]=kdvNonlin(hr,hi); return applyE(nr,ni,tt,-1); };
+  let t=0;
+  for(let s=0;s<nsteps;s++){
+    const [k1r,k1i]=F(vr,vi,t);
+    const [k2r,k2i]=F(vr.map((v,i)=>v+dt/2*k1r[i]),vi.map((v,i)=>v+dt/2*k1i[i]),t+dt/2);
+    const [k3r,k3i]=F(vr.map((v,i)=>v+dt/2*k2r[i]),vi.map((v,i)=>v+dt/2*k2i[i]),t+dt/2);
+    const [k4r,k4i]=F(vr.map((v,i)=>v+dt*k3r[i]),vi.map((v,i)=>v+dt*k3i[i]),t+dt);
+    for(let i=0;i<KDV_N;i++){ vr[i]+=dt/6*(k1r[i]+2*k2r[i]+2*k3r[i]+k4r[i]); vi[i]+=dt/6*(k1i[i]+2*k2i[i]+2*k3i[i]+k4i[i]); }
+    t+=dt;
+  }
+  const [fr,fi]=applyE(vr,vi,t,1); qmFFT(fr,fi,true);
+  return fr;
+}
+function kdvInit(){
+  const u=new Float64Array(KDV_N), M=state.kdvMode||'collide';
+  const X=i=>i*(KDV_L/KDV_N)-KDV_L/2;
+  if(M==='single'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(state.kdvC1??3,X(i),-16); }
+  else if(M==='collide'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(state.kdvC1??5,X(i),-20)+kdvSoliton(state.kdvC2??2,X(i),-8); }
+  else if(M==='triple'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(6,X(i),-22)+kdvSoliton(3,X(i),-14)+kdvSoliton(1.5,X(i),-7); }
+  else { for(let i=0;i<KDV_N;i++){ const x=X(i); u[i]=1.6*Math.exp(-(x+18)*(x+18)/6); } }   // dispersive: a hump shatters into a soliton train
+  return u;
+}
+function kdvClear(){ labWipe(kdvGroup); kdvObjs=null; }
+function kdvSetup(){
+  kdvClear(); kdvT=0; kdvU=kdvInit();
+  kdvGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(KDV_N*3),3));
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(KDV_N*3),3));
+  const line=new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95}));
+  kdvGroup.add(line);
+  // filled ribbon under the curve for the premium relief
+  const rg=new THREE.BufferGeometry();
+  rg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(KDV_N*2*3),3));
+  rg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(KDV_N*2*3),3));
+  const ridx=[]; for(let i=0;i<KDV_N-1;i++){ const a=i*2,b=a+1,c=a+2,d=a+3; ridx.push(a,b,c,b,d,c); }
+  rg.setIndex(ridx);
+  const ribbon=new THREE.Mesh(rg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.35,side:THREE.DoubleSide,depthWrite:false}));
+  kdvGroup.add(ribbon);
+  // base line + grid
+  for(let gx=-4;gx<=4;gx++){ const x=gx/4*5.4; kdvGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0,-0.4),new THREE.Vector3(x,0,0.4)]),new THREE.LineBasicMaterial({color:0x40516d,transparent:true,opacity:.3}))); }
+  kdvGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5.6,0,0),new THREE.Vector3(5.6,0,0)]),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.5})));
+  const tl=mkLabel('SOLITON · KdV  u_t + 6u u_x + u_xxx = 0 · dispersion ⚖ nonlinearity','label const'); tl.position.set(0,3.3,0); kdvGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-2.4,0); kdvGroup.add(rl);
+  kdvObjs={line,ribbon,g,rg,readLab:rl,inv0:kdvInvariants(kdvU),_c:new THREE.Color()};
+}
+function kdvInvariants(u){ const dx=KDV_L/KDV_N; let I1=0,I2=0,I3=0;
+  for(let i=0;i<KDV_N;i++){ const ux=(u[(i+1)%KDV_N]-u[(i-1+KDV_N)%KDV_N])/(2*dx);
+    I1+=u[i]*dx; I2+=u[i]*u[i]*dx; I3+=(u[i]**3-0.5*ux*ux)*dx; }
+  return {I1,I2,I3}; }
+function updateKdv(dt){
+  if(!kdvObjs) kdvSetup();
+  const O=kdvObjs;
+  if(state.kdvRun!==false){
+    const nsteps=Math.max(1,Math.round((state.kdvSpeed??1)*6));
+    kdvU=kdvEvolve(kdvU,0.0016,nsteps); kdvT+=0.0016*nsteps;
+  }
+  const pos=O.g.attributes.position.array, col=O.g.attributes.color.array, _c=O._c;
+  const SX=11.0/KDV_L, SY=0.9;
+  const rp=O.rg.attributes.position.array, rc=O.rg.attributes.color.array;
+  let peak=1e-6; for(let i=0;i<KDV_N;i++) if(kdvU[i]>peak) peak=kdvU[i];
+  for(let i=0;i<KDV_N;i++){ const x=(i*(KDV_L/KDV_N)-KDV_L/2)*SX, y=kdvU[i]*SY;
+    pos[i*3]=x; pos[i*3+1]=y; pos[i*3+2]=0;
+    const t=Math.min(1,kdvU[i]/peak); _c.setHSL(0.58-0.46*t,0.85,0.4+0.3*t);
+    col[i*3]=_c.r; col[i*3+1]=_c.g; col[i*3+2]=_c.b;
+    rp[i*6]=x; rp[i*6+1]=0; rp[i*6+2]=0; rp[i*6+3]=x; rp[i*6+4]=y; rp[i*6+5]=0;
+    for(let q=0;q<2;q++){ rc[i*6+q*3]=_c.r; rc[i*6+q*3+1]=_c.g; rc[i*6+q*3+2]=_c.b; }
+  }
+  O.g.attributes.position.needsUpdate=true; O.g.attributes.color.needsUpdate=true; O.g.computeBoundingSphere();
+  O.rg.attributes.position.needsUpdate=true; O.rg.attributes.color.needsUpdate=true;
+  kdvUiAcc+=dt;
+  if(kdvUiAcc>0.3){ kdvUiAcc=0;
+    const inv=kdvInvariants(kdvU), d1=Math.abs((inv.I1-O.inv0.I1)/(O.inv0.I1||1)), d2=Math.abs((inv.I2-O.inv0.I2)/(O.inv0.I2||1));
+    O.readLab.element.textContent=`peak amplitude ${peak.toFixed(3)} (soliton speed = 2×amplitude) · ∫u dx = ${inv.I1.toFixed(3)} · ∫u² dx = ${inv.I2.toFixed(3)} · t = ${kdvT.toFixed(1)}`;
+    hudBig.textContent=`SOLITON · KdV · ${({single:'single soliton',collide:'two-soliton collision',triple:'three solitons',disperse:'hump → soliton train'})[state.kdvMode||'collide']} · t=${kdvT.toFixed(1)}`;
+    hudSub.textContent='a taller soliton overtakes a shorter one, they merge and SEPARATE with amplitudes intact (integrability — only a phase shift remains). Integrating-factor RK4 keeps the linear u_xxx exact; the KdV invariants ∫u, ∫u² are conserved to '+d2.toExponential(1)+' — the numerics honour the conservation laws';
+    ATLAS_BUS.pub('kdv.I2',+inv.I2.toFixed(3),'∫u² · drift '+d2.toExponential(1));
+    const el=ctl.querySelector('#kdvInv');
+    if(el) el.innerHTML=`peak = <b>${peak.toFixed(3)}</b> · KdV invariants: I₁=∫u = ${inv.I1.toFixed(4)} (drift ${d1.toExponential(1)}) · I₂=∫u² = ${inv.I2.toFixed(4)} (drift ${d2.toExponential(1)})`+
+      `<br>I₃=∫(u³−½u_x²) = ${inv.I3.toFixed(4)} · a soliton of amplitude a=c/2 travels at speed c=2a — taller is faster, so the tall one catches the short one and passes through`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11021,6 +11145,7 @@ function setS3View(v){
   chaosGroup.visible   = (v==='chaos');
   kinGroup.visible     = (v==='kin');
   shGroup.visible      = (v==='sh');
+  kdvGroup.visible     = (v==='kdv');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11037,6 +11162,7 @@ function setS3View(v){
   if(v==='chaos'){ chaosSetup(); }
   if(v==='kin'){ kinSetup(); }
   if(v==='sh'){ shSetup(); }
+  if(v==='kdv'){ kdvSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11048,7 +11174,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15806,6 +15932,7 @@ const state = {
   chaosSys:'lorenz', chaosRun:true, chaosSpeed:1,   // Strange attractors lab
   kinStation:'gas', kinRun:true, kinSpeed:1, kinInit:'mono',   // Kinetic theory lab
   shL:3, shM:2, shMode:'balloon', shAnim:true, shSpeed:1, shDeform:1.0,   // Spherical harmonics lab
+  kdvMode:'collide', kdvRun:true, kdvSpeed:1, kdvC1:5, kdvC2:2,   // Soliton (KdV) lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -17244,6 +17371,35 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='kdv') body = `
+    <div class="sect"><b>Solitons — pick a scenario</b>
+      <div class="chips">
+        ${[['single','Single soliton'],['collide','Two-soliton collision'],['triple','Three solitons'],['disperse','Hump → soliton train']].map(([k,l])=>
+          `<button class="chip ${(state.kdvMode||'collide')===k?'on':''}" data-kdvmode="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="kdvRun">${state.kdvRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="kdvReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="kdvSpeed" min="0.2" max="3" step="0.1" value="${state.kdvSpeed??1}"><span class="val" id="kdvSpeedV">×${(state.kdvSpeed??1).toFixed(1)}</span></div>
+      ${(state.kdvMode||'collide')==='collide'?`
+      <div class="ctlrow"><label>Tall soliton c₁</label>
+        <input type="range" id="kdvC1" min="2" max="8" step="0.1" value="${state.kdvC1??5}"><span class="val" id="kdvC1V">${(state.kdvC1??5).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Short soliton c₂</label>
+        <input type="range" id="kdvC2" min="0.5" max="4" step="0.1" value="${state.kdvC2??2}"><span class="val" id="kdvC2V">${(state.kdvC2??2).toFixed(1)}</span></div>`:''}
+      ${(state.kdvMode||'collide')==='single'?`
+      <div class="ctlrow"><label>Speed c (amp=c/2)</label>
+        <input type="range" id="kdvC1" min="1" max="8" step="0.1" value="${state.kdvC1??3}"><span class="val" id="kdvC1V">${(state.kdvC1??3).toFixed(1)}</span></div>`:''}
+    </div>
+    <div class="sect"><b>Conservation monitor</b>
+      <div class="note" id="kdvInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The KdV equation is INTEGRABLE: dispersion (u_xxx spreads waves) exactly cancels nonlinearity (6u u_x steepens them), so a pulse of amplitude a=c/2 travels forever at speed c=2a without changing shape. Set the collision and watch the tall soliton overtake the short one, merge, and re-emerge with BOTH amplitudes intact — only a phase shift betrays the encounter. Integrating-factor RK4 solves the stiff u_xxx exactly in Fourier space (unconditionally stable); the invariants ∫u, ∫u², ∫(u³−½u_x²) are conserved live — the numerics honour the physics.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="kdvToWave">→ Wave optics: linear waves (no solitons)</button>
+        <button class="btn" id="kdvToHopf">→ Hopfions: 3D topological solitons</button></div>
+    </div>`;
     else if(V==='sh') body = `
     <div class="sect"><b>Spherical harmonics Y_lm</b>
       <div class="ctlrow"><label>Degree l</label>
@@ -17535,6 +17691,7 @@ function buildCtlBody(){
         <button class="btn ${V==='chaos'?'on':''}" id="v-chaos">Strange attractors</button>
         <button class="btn ${V==='kin'?'on':''}" id="v-kin">Kinetic gas</button>
         <button class="btn ${V==='sh'?'on':''}" id="v-sh">Spherical harmonics</button>
+        <button class="btn ${V==='kdv'?'on':''}" id="v-kdv">Solitons</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17553,7 +17710,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17793,6 +17950,18 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='kdv'){
+      ctl.querySelectorAll('[data-kdvmode]').forEach(b=>b.onclick=()=>{ state.kdvMode=b.dataset.kdvmode; kdvSetup(); buildCtl(); });
+      ctl.querySelector('#kdvRun')&&(ctl.querySelector('#kdvRun').onclick=()=>{ state.kdvRun=state.kdvRun===false; buildCtl(); });
+      ctl.querySelector('#kdvReset')&&(ctl.querySelector('#kdvReset').onclick=()=>{ kdvSetup(); });
+      ctl.querySelector('#kdvSpeed')&&(ctl.querySelector('#kdvSpeed').oninput=e=>{ state.kdvSpeed=+e.target.value;
+        const v=ctl.querySelector('#kdvSpeedV'); if(v)v.textContent='×'+state.kdvSpeed.toFixed(1); });
+      const kc=(id,f)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(1); }; el.onchange=()=>kdvSetup(); } };
+      kc('kdvC1',v=>state.kdvC1=v); kc('kdvC2',v=>state.kdvC2=v);
+      ctl.querySelector('#kdvToWave')&&(ctl.querySelector('#kdvToWave').onclick=()=>{ navPush(); setS3View('wave'); buildCtl(); });
+      ctl.querySelector('#kdvToHopf')&&(ctl.querySelector('#kdvToHopf').onclick=()=>{ navPush(); setS3View('hopfion'); buildCtl(); });
     }
     if(V==='sh'){
       ctl.querySelector('#shL')&&(ctl.querySelector('#shL').oninput=e=>{ state.shL=+e.target.value;
@@ -19160,7 +19329,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -20313,6 +20482,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateKin(dt);
     } else if(state.s3view==='sh'){
       fbsAnimT+=dt; updateSh(dt);
+    } else if(state.s3view==='kdv'){
+      fbsAnimT+=dt; updateKdv(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
