@@ -1562,6 +1562,25 @@ function runSelfTests(){
       Math.abs(eta-Wnet/Qh)<1e-9 && Math.abs(eta-0.4)<1e-9, eta.toFixed(6));
     ok('Heat engine: Clausius adiabat identity V3/V4 = V2/V1 (entropy closes the cycle)',
       Math.abs(V3/V4 - V2/V1)<1e-9, (V3/V4).toFixed(6)); }
+  { // BLACKBODY: Wien peak λ_max·T = b and Stefan–Boltzmann M = σT⁴
+    const h=6.62607015e-34,c=2.99792458e8,kB=1.380649e-23,sig=5.670374419e-8,C2=1.438776877e-2;
+    const Bl=(lam,T)=>(2*h*c*c/Math.pow(lam,5))/(Math.exp(C2/(lam*T))-1);
+    const T=5772; let best=0,bv=-1; for(let nm=200;nm<2000;nm+=1){ const lam=nm*1e-9,v=Bl(lam,T); if(v>bv){bv=v;best=lam;} }
+    ok('Blackbody: Wien peak λ_max·T ≈ 2.898 mm·K (within 0.5%)',
+      Math.abs(best*T-2.897771955e-3)/2.897771955e-3<0.005, (best*T*1e3).toFixed(5)+' mm·K');
+    let s=0; const N=40000,lmax=50e-6,dl=lmax/N; for(let i=1;i<=N;i++) s+=Bl(i*dl,T)*dl; const M=Math.PI*s;
+    ok('Blackbody: Stefan–Boltzmann ∫ B dλ · π = σT⁴ (within 0.5%)',
+      Math.abs(M-sig*T**4)/(sig*T**4)<0.005, (M/(sig*T**4)).toFixed(4)); }
+  { // NUCLEAR: B/A peaks near iron and both fusion & fission release toward it
+    const aV=15.75,aS=17.8,aC=0.711,aA=23.7,aP=11.18;
+    const BE=(A,Z)=>{ let d=0; if(A%2===0) d=(Z%2===0)?aP/Math.sqrt(A):-aP/Math.sqrt(A);
+      return aV*A-aS*Math.pow(A,2/3)-aC*Z*(Z-1)/Math.pow(A,1/3)-aA*(A-2*Z)*(A-2*Z)/A+d; };
+    const bZ=A=>{ let z=1,b=-1e9; for(let Z=1;Z<A;Z++){ const v=BE(A,Z)/A; if(v>b){b=v;z=Z;} } return z; };
+    let pA=2,pB=-1; for(let A=2;A<=250;A++){ const v=BE(A,bZ(A))/A; if(v>pB){pB=v;pA=A;} }
+    ok('Nuclear: liquid-drop B/A peaks in the iron region A≈50–65 at ≈8.8 MeV',
+      pA>=50&&pA<=65&&Math.abs(pB-8.8)<0.3, `A=${pA}, B/A=${pB.toFixed(3)}`);
+    ok('Nuclear: fusion He-4>D and fission Fe-56>U-238 in B/A (both climb to iron)',
+      BE(4,2)/4>BE(2,1)/2 && BE(56,26)/56>BE(238,92)/238, `He4 ${(BE(4,2)/4).toFixed(2)} > D ${(BE(2,1)/2).toFixed(2)}`); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11646,6 +11665,151 @@ function updateHe(dt){
   }
 }
 
+/* ================================================================
+   BLACKBODY-RADIATION LAB · Planck’s law & the colour of heat (UPRS Part 15).
+   Every warm body glows with the universal spectrum B_λ(T) =
+   (2hc²/λ⁵)/(e^{hc/λkT}−1). The peak obeys Wien (λ_max·T = 2.898 mm·K)
+   and the total emitted power obeys Stefan–Boltzmann (M = σT⁴). The
+   sphere is painted with the TRUE Planckian colour (Planck spectrum
+   integrated against the CIE colour-matching functions → sRGB), so a
+   dial from ember to blue giant reproduces the real colour of stars.
+   Energy honesty: raising T pours in energy that leaves as radiation
+   growing like T⁴ — the runaway that sets a star’s luminosity. */
+const bbGroup=new THREE.Group(); bbGroup.visible=false; s3Group.add(bbGroup);
+const BB_H=6.62607015e-34, BB_C=2.99792458e8, BB_KB=1.380649e-23, BB_SIG=5.670374419e-8, BB_C2=1.438776877e-2;
+let bbObjs=null, bbUiAcc=0, bbT=0;
+const BB_PRESETS={ ember:1000, incand:2700, sun:5772, sirius:9940, bluegiant:15000 };
+function bbPlanck(lam,T){ return (2*BB_H*BB_C*BB_C/Math.pow(lam,5))/(Math.exp(BB_C2/(lam*T))-1); }
+function bbCMF(nm){ const g=(x,mu,s1,s2)=>{ const s=x<mu?s1:s2; return Math.exp(-0.5*(x-mu)*(x-mu)/(s*s)); };
+  const xb=1.056*g(nm,599.8,37.9,31.0)+0.362*g(nm,442.0,16.0,26.7)-0.065*g(nm,501.1,20.4,26.2);
+  const yb=0.821*g(nm,568.8,46.9,40.5)+0.286*g(nm,530.9,16.3,31.1);
+  const zb=1.217*g(nm,437.0,11.8,36.0)+0.681*g(nm,459.0,26.0,13.8); return [xb,yb,zb]; }
+function bbColor(T){ let X=0,Y=0,Z=0; for(let nm=380;nm<=750;nm+=5){ const lam=nm*1e-9, B=bbPlanck(lam,T), cm=bbCMF(nm); X+=B*cm[0]; Y+=B*cm[1]; Z+=B*cm[2]; }
+  let r=3.2406*X-1.5372*Y-0.4986*Z, gg=-0.9689*X+1.8758*Y+0.0415*Z, b=0.0557*X-0.2040*Y+1.0570*Z;
+  r=Math.max(0,r); gg=Math.max(0,gg); b=Math.max(0,b); const m=Math.max(r,gg,b)||1; r/=m; gg/=m; b/=m;
+  const gam=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055; return [gam(r),gam(gg),gam(b)]; }
+function bbWienNm(T){ return 2.897771955e-3/T*1e9; }
+function bbClear(){ labWipe(bbGroup); bbObjs=null; }
+function bbSetup(){
+  bbClear(); const T=state.bbT??5772;
+  bbGroup.add(new THREE.AmbientLight(0x8890b0,.55));
+  // the glowing body
+  const col=bbColor(T), c3=new THREE.Color(col[0],col[1],col[2]);
+  const body=new THREE.Mesh(new THREE.SphereGeometry(1.35,64,48),new THREE.MeshBasicMaterial({color:c3}));
+  body.position.set(-2.4,1.1,0); bbGroup.add(body);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:c3,transparent:true,opacity:.9,depthWrite:false})); glow.scale.setScalar(5.2); body.add(glow);
+  // spectral curve axes region (right side)
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-0.2,-2.4,0),new THREE.Vector3(4.4,-2.4,0),
+    new THREE.Vector3(-0.2,-2.4,0),new THREE.Vector3(-0.2,2.6,0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); bbGroup.add(ax);
+  // visible-band shaded strip 380–750nm within the 0–3000nm axis
+  const geoS=new THREE.BufferGeometry(); const NB=40, band=[]; const lamAx=3000;
+  for(let i=0;i<NB;i++){ const nm0=380+(750-380)*i/NB, nm1=380+(750-380)*(i+1)/NB;
+    const x0=-0.2+4.6*(nm0/lamAx), x1=-0.2+4.6*(nm1/lamAx); band.push(x0,-2.4,-.02,x1,-2.4,-.02,x1,2.5,-.02, x0,-2.4,-.02,x1,2.5,-.02,x0,2.5,-.02); }
+  geoS.setAttribute('position',new THREE.BufferAttribute(new Float32Array(band),3));
+  const bcol=[]; for(let i=0;i<NB;i++){ const nm=380+(750-380)*(i+0.5)/NB; const rc=bbSpectralRGB(nm); for(let k=0;k<6;k++) bcol.push(rc[0],rc[1],rc[2]); }
+  geoS.setAttribute('color',new THREE.BufferAttribute(new Float32Array(bcol),3));
+  const strip=new THREE.Mesh(geoS,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide})); bbGroup.add(strip);
+  const curve=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe6a0,transparent:true,opacity:.95}));
+  bbGroup.add(curve);
+  const peak=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); bbGroup.add(peak);
+  const wl=mkLabel('λ (nm) →','label axis'); wl.position.set(4.5,-2.4,0); bbGroup.add(wl);
+  const bl=mkLabel('B_λ ↑','label axis'); bl.position.set(-0.2,2.8,0); bbGroup.add(bl);
+  const tl=mkLabel('BLACKBODY · B_λ(T) · Wien λ_max·T=2.898 mm·K · Stefan–Boltzmann M=σT⁴','label const'); tl.position.set(0.9,3.3,0); bbGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0.9,-3.2,0); bbGroup.add(rl);
+  bbObjs={body,glow,curve,peak,readLab:rl,lamAx};
+}
+function bbSpectralRGB(nm){ // approximate spectral colour for the band swatch
+  let r=0,g=0,b=0;
+  if(nm<440){ r=-(nm-440)/(440-380); b=1; } else if(nm<490){ g=(nm-440)/(490-440); b=1; }
+  else if(nm<510){ g=1; b=-(nm-510)/(510-490); } else if(nm<580){ r=(nm-510)/(580-510); g=1; }
+  else if(nm<645){ r=1; g=-(nm-645)/(645-580); } else { r=1; }
+  return [r,g,b];
+}
+function updateBb(dt){
+  const O=bbObjs; if(!O) return; const T=state.bbT??5772;
+  bbT+=dt; if(O.body){ const s=1+0.012*Math.sin(bbT*2.2); O.glow.scale.setScalar(5.2*s); }
+  bbUiAcc+=dt; if(bbUiAcc>0.2){ bbUiAcc=0;
+    // rebuild curve + colour to reflect current T
+    const col=bbColor(T), c3=new THREE.Color(col[0],col[1],col[2]);
+    O.body.material.color.copy(c3); O.glow.material.color.copy(c3);
+    const N=160, pts=[]; let pmax=0; const samp=[];
+    for(let i=0;i<=N;i++){ const nm=20+O.lamAx*i/N, lam=nm*1e-9, B=bbPlanck(lam,T); samp.push([nm,B]); if(B>pmax)pmax=B; }
+    for(const [nm,B] of samp){ const x=-0.2+4.6*(nm/O.lamAx), y=-2.4+4.7*(B/pmax); pts.push(new THREE.Vector3(x,y,0)); }
+    O.curve.geometry.setFromPoints(pts); O.curve.geometry.computeBoundingSphere();
+    const lamMax=bbWienNm(T), xp=-0.2+4.6*(lamMax/O.lamAx); O.peak.position.set(xp,2.3,0);
+    const M=BB_SIG*Math.pow(T,4);
+    hudBig.textContent=`BLACKBODY · T=${T.toFixed(0)} K · λ_max=${lamMax.toFixed(0)} nm (Wien) · M=σT⁴=${M.toExponential(2)} W/m²`;
+    hudSub.textContent='a single number — the temperature — fixes the whole spectrum, its peak colour (Wien) and its total power (Stefan–Boltzmann, ∝T⁴). This is the curve whose "ultraviolet catastrophe" forced Planck to quantise energy in 1900 and began quantum theory. The sphere shows the true colour a body of this temperature radiates.';
+    ATLAS_BUS.pub('bb.lamMax',+lamMax.toFixed(1),'nm');
+    const band=lamMax<400?'ultraviolet':lamMax<750?'visible':lamMax<2500?'near-infrared':'infrared';
+    const el=ctl.querySelector('#bbInv'); if(el) el.innerHTML=`T=<b>${T.toFixed(0)}</b> K · λ_max=<b>${lamMax.toFixed(0)}</b> nm (${band}) · check λ_max·T=${(lamMax*T/1e6).toFixed(4)} mm·K = 2.8978 ✓<br>total exitance M=σT⁴=<b>${M.toExponential(3)}</b> W/m² · double T → 16× power · sRGB colour (${(col[0]*255|0)},${(col[1]*255|0)},${(col[2]*255|0)})`;
+  }
+}
+
+/* ================================================================
+   NUCLEAR BINDING-ENERGY LAB · the curve that powers stars & reactors
+   (UPRS Part 18). The binding energy per nucleon B/A, from the
+   Bethe–Weizsäcker liquid-drop model, rises to a peak near iron
+   (A≈56–62, ≈8.8 MeV) then falls. Climbing TOWARD the peak releases
+   energy: light nuclei FUSE (H→He in the Sun), heavy nuclei FISSION
+   (U→fragments in a reactor). The height you drop is the energy out,
+   E=Δm·c². Honesty: the liquid-drop formula is a smooth fit — it fails
+   for the lightest nuclei and misses shell "magic numbers"; declared. */
+const nucGroup=new THREE.Group(); nucGroup.visible=false; s3Group.add(nucGroup);
+const NUC_aV=15.75, NUC_aS=17.8, NUC_aC=0.711, NUC_aA=23.7, NUC_aP=11.18;
+let nucObjs=null, nucUiAcc=0;
+const NUC_PRESETS={ H2:{A:2,Z:1,n:'Deuterium'}, He4:{A:4,Z:2,n:'Helium-4'}, Fe56:{A:56,Z:26,n:'Iron-56'}, U235:{A:235,Z:92,n:'Uranium-235'}, U238:{A:238,Z:92,n:'Uranium-238'} };
+function nucBE(A,Z){ const N=A-Z; let d=0; if(A%2===0) d=(Z%2===0)?NUC_aP/Math.sqrt(A):-NUC_aP/Math.sqrt(A);
+  return NUC_aV*A - NUC_aS*Math.pow(A,2/3) - NUC_aC*Z*(Z-1)/Math.pow(A,1/3) - NUC_aA*(A-2*Z)*(A-2*Z)/A + d; }
+function nucBperA(A,Z){ return nucBE(A,Z)/A; }
+function nucBestZ(A){ let bz=1,bb=-1e9; for(let Z=1;Z<A;Z++){ const b=nucBperA(A,Z); if(b>bb){bb=b;bz=Z;} } return bz; }
+function nucClear(){ labWipe(nucGroup); nucObjs=null; }
+function nucSetup(){
+  nucClear(); nucGroup.add(new THREE.AmbientLight(0x9098b8,.85));
+  // B/A curve over A=2..250 along most-stable Z
+  const pts=[], Amax=250, Bmax=9.5; const mapx=A=>-2.6+5.2*(A/Amax), mapy=b=>-2.4+4.8*(b/Bmax);
+  for(let A=2;A<=Amax;A++){ const b=Math.max(0,nucBperA(A,nucBestZ(A))); pts.push(new THREE.Vector3(mapx(A),mapy(b),0)); }
+  const curve=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0x8fd0ff,transparent:true,opacity:.95})); nucGroup.add(curve);
+  // peak marker (iron)
+  let peakA=2,peakB=-1; for(let A=2;A<=Amax;A++){ const b=nucBperA(A,nucBestZ(A)); if(b>peakB){peakB=b;peakA=A;} }
+  const fe=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xffe08a})); fe.position.set(mapx(peakA),mapy(peakB),0); nucGroup.add(fe);
+  const fel=mkLabel('Fe/Ni peak ≈8.8 MeV','label axis'); fel.position.set(mapx(peakA),mapy(peakB)+0.45,0); nucGroup.add(fel);
+  // selected-nucleus marker
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); mglow.scale.setScalar(.9); marker.add(mglow); nucGroup.add(marker);
+  // fusion/fission direction arrows
+  const fus=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(-2.4,2.9,0),1.3,0xffb04a,.22,.13); nucGroup.add(fus);
+  const fis=new THREE.ArrowHelper(new THREE.Vector3(-1,0,0),new THREE.Vector3(2.4,2.9,0),1.3,0x9fe0ff,.22,.13); nucGroup.add(fis);
+  const ful=mkLabel('◀ FUSION (light → Fe)','label axis'); ful.position.set(-1.2,3.2,0); nucGroup.add(ful);
+  const fil=mkLabel('FISSION (heavy → Fe) ▶','label axis'); fil.position.set(1.2,3.2,0); nucGroup.add(fil);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-2.6,-2.4,0),new THREE.Vector3(2.8,-2.4,0),
+    new THREE.Vector3(-2.6,-2.4,0),new THREE.Vector3(-2.6,2.7,0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); nucGroup.add(ax);
+  const axl=mkLabel('mass number A →','label axis'); axl.position.set(2.9,-2.4,0); nucGroup.add(axl);
+  const ayl=mkLabel('B/A (MeV) ↑','label axis'); ayl.position.set(-2.6,2.9,0); nucGroup.add(ayl);
+  const tl=mkLabel('NUCLEAR BINDING · B/A vs A (Bethe–Weizsäcker) · fusion & fission both climb to iron','label const'); tl.position.set(0,3.7,0); nucGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); nucGroup.add(rl);
+  nucObjs={curve,marker,fe,readLab:rl,mapx,mapy,Amax,Bmax,peakA,peakB};
+}
+function updateNuc(dt){
+  const O=nucObjs; if(!O) return;
+  const A=state.nucA??56, Z=(state.nucZmode==='manual'?(state.nucZ??Math.round(A*0.45)):nucBestZ(A));
+  const bpa=Math.max(0,nucBperA(A,Z));
+  O.marker.position.set(O.mapx(A),O.mapy(bpa),0);
+  nucUiAcc+=dt; if(nucUiAcc>0.25){ nucUiAcc=0;
+    const be=nucBE(A,Z), peak=O.peakB, drop=peak-bpa;
+    const regime=A<O.peakA?'FUSION region — merging toward iron releases energy':A>O.peakA?'FISSION region — splitting toward iron releases energy':'the iron peak — the most tightly bound matter, the ash of stellar burning';
+    hudBig.textContent=`NUCLEAR BINDING · A=${A} Z=${Z} · B/A=${bpa.toFixed(3)} MeV · total B=${be.toFixed(1)} MeV`;
+    hudSub.textContent='the single most important curve in energy science: B/A peaks at iron, so BOTH fusion of light nuclei and fission of heavy nuclei walk energy downhill toward the peak. The gap to the peak (Δ(B/A)·A) is the energy released as E=Δm·c². '+regime+'. The liquid-drop model is a smooth fit — it omits the shell "magic numbers" and fails for the lightest nuclei.';
+    ATLAS_BUS.pub('nuc.BperA',+bpa.toFixed(3),'MeV');
+    const el=ctl.querySelector('#nucInv'); if(el) el.innerHTML=`A=<b>${A}</b> · Z=<b>${Z}</b> (${state.nucZmode==='manual'?'manual':'most stable'}) · B/A=<b>${bpa.toFixed(3)}</b> MeV · total binding B=<b>${be.toFixed(1)}</b> MeV<br>distance below the iron peak Δ(B/A)=<b>${drop.toFixed(3)}</b> MeV/nucleon → ${(drop*A).toFixed(0)} MeV would be freed reaching Fe · ${regime.split(' —')[0]}`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11682,6 +11846,8 @@ function setS3View(v){
   cpGroup.visible      = (v==='cp');
   rdGroup.visible      = (v==='rd');
   heGroup.visible      = (v==='he');
+  bbGroup.visible      = (v==='bb');
+  nucGroup.visible     = (v==='nuc');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11704,6 +11870,8 @@ function setS3View(v){
   if(v==='cp'){ cpSetup(); }
   if(v==='rd'){ rdSetup(); }
   if(v==='he'){ heSetup(); }
+  if(v==='bb'){ bbSetup(); }
+  if(v==='nuc'){ nucSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11715,7 +11883,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16479,6 +16647,8 @@ const state = {
   cpStation:'cyclo', cpRun:true, cpSpeed:1, cpB:1, cpE:0.3, cpCharge:1, cpVperp:1, cpVpar:0.4,   // Charged-particle lab
   rdPreset:'spots', rdRun:true, rdSpeed:1, rdDu:0.16, rdDv:0.08,   // Reaction–diffusion lab
   heTh:500, heTc:300, heRun:true, heSpeed:1,   // Heat-engine lab
+  bbT:5772,   // Blackbody lab
+  nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -18010,6 +18180,46 @@ function buildCtlBody(){
         <button class="btn" id="heToKin">→ Kinetic theory: the gas microscopically</button>
         <button class="btn" id="heToRet">→ Energy transfer: work out of resonance</button></div>
     </div>`;
+    else if(V==='bb') body = `
+    <div class="sect"><b>Blackbody — pick a source</b>
+      <div class="chips">
+        ${[['ember','Ember 1000 K'],['incand','Bulb 2700 K'],['sun','Sun 5772 K'],['sirius','Sirius 9940 K'],['bluegiant','Blue giant 15000 K']].map(([k,l])=>
+          `<button class="chip" data-bbp="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Temperature</label>
+        <input type="range" id="bbT" min="800" max="20000" step="50" value="${state.bbT??5772}"><span class="val" id="bbTV">${(state.bbT??5772).toFixed(0)} K</span></div>
+    </div>
+    <div class="sect"><b>Spectrum readout</b>
+      <div class="note" id="bbInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Planck’s law B_λ(T)=(2hc²/λ⁵)/(e^{hc/λkT}−1). One temperature sets the whole spectrum: its peak wavelength (Wien: λ_max·T=2.898 mm·K) and its total power (Stefan–Boltzmann: M=σT⁴, so doubling T radiates 16× more). The sphere is painted the TRUE colour — the Planck spectrum integrated against the CIE colour-matching functions into sRGB — so the dial walks the real Planckian locus from a red ember through the white Sun to a blue giant. This is the curve whose ultraviolet catastrophe forced Planck to quantise energy in 1900.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="bbToRed">→ Redshift: the spectrum stretched by expansion</button>
+        <button class="btn" id="bbToKin">→ Kinetic theory: temperature is motion</button></div>
+    </div>`;
+    else if(V==='nuc') body = `
+    <div class="sect"><b>Nuclear binding — pick a nucleus</b>
+      <div class="chips">
+        ${[['H2','Deuterium'],['He4','Helium-4'],['Fe56','Iron-56'],['U235','Uranium-235'],['U238','Uranium-238']].map(([k,l])=>
+          `<button class="chip" data-nucp="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Mass number A</label>
+        <input type="range" id="nucA" min="2" max="250" step="1" value="${state.nucA??56}"><span class="val" id="nucAV">${state.nucA??56}</span></div>
+      <div class="ctlrow"><label>Proton number Z</label>
+        <button class="chip ${(state.nucZmode||'stable')==='stable'?'on':''}" data-nuczm="stable">most stable</button>
+        <button class="chip ${(state.nucZmode||'stable')==='manual'?'on':''}" data-nuczm="manual">manual</button>
+        ${(state.nucZmode||'stable')==='manual'?`<input type="range" id="nucZ" min="1" max="${(state.nucA??56)-1}" step="1" value="${state.nucZ??26}"><span class="val" id="nucZV">${state.nucZ??26}</span>`:''}</div>
+    </div>
+    <div class="sect"><b>Binding readout</b>
+      <div class="note" id="nucInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Bethe–Weizsäcker liquid-drop model B = a_V·A − a_S·A^{2/3} − a_C·Z(Z−1)/A^{1/3} − a_A·(A−2Z)²/A ± δ. Binding per nucleon B/A peaks near iron (A≈56–62, ≈8.8 MeV), so energy is released by climbing TOWARD the peak: light nuclei fuse (the Sun), heavy nuclei fission (a reactor). The energy out is the height dropped, E = Δm·c². The model is a smooth fit — it omits the shell “magic numbers” and is unreliable for the very lightest nuclei; both are declared, not hidden.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="nucToSolar">→ Solar: fusion powering the Sun</button>
+        <button class="btn" id="nucToHe">→ Heat engine: turning the heat into work</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -18371,6 +18581,8 @@ function buildCtlBody(){
         <button class="btn ${V==='cp'?'on':''}" id="v-cp">Charged particle</button>
         <button class="btn ${V==='rd'?'on':''}" id="v-rd">Reaction–diffusion</button>
         <button class="btn ${V==='he'?'on':''}" id="v-he">Heat engine</button>
+        <button class="btn ${V==='bb'?'on':''}" id="v-bb">Blackbody</button>
+        <button class="btn ${V==='nuc'?'on':''}" id="v-nuc">Nuclear binding</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -18389,7 +18601,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -18670,6 +18882,23 @@ function buildCtlBody(){
       ht('heTh',v=>state.heTh=v,v=>v.toFixed(0)+' K'); ht('heTc',v=>state.heTc=v,v=>v.toFixed(0)+' K');
       ctl.querySelector('#heToKin')&&(ctl.querySelector('#heToKin').onclick=()=>{ navPush(); setS3View('kin'); buildCtl(); });
       ctl.querySelector('#heToRet')&&(ctl.querySelector('#heToRet').onclick=()=>{ navPush(); setS3View('ret'); buildCtl(); });
+    }
+    if(V==='bb'){
+      ctl.querySelectorAll('[data-bbp]').forEach(b=>b.onclick=()=>{ state.bbT=BB_PRESETS[b.dataset.bbp]; bbSetup(); buildCtl(); });
+      ctl.querySelector('#bbT')&&(ctl.querySelector('#bbT').oninput=e=>{ state.bbT=+e.target.value;
+        const v=ctl.querySelector('#bbTV'); if(v)v.textContent=(+e.target.value).toFixed(0)+' K'; });
+      ctl.querySelector('#bbToRed')&&(ctl.querySelector('#bbToRed').onclick=()=>{ navPush(); setS3View('red'); buildCtl(); });
+      ctl.querySelector('#bbToKin')&&(ctl.querySelector('#bbToKin').onclick=()=>{ navPush(); setS3View('kin'); buildCtl(); });
+    }
+    if(V==='nuc'){
+      ctl.querySelectorAll('[data-nucp]').forEach(b=>b.onclick=()=>{ const P=NUC_PRESETS[b.dataset.nucp]; state.nucA=P.A; state.nucZ=P.Z; state.nucZmode='manual'; buildCtl(); });
+      ctl.querySelectorAll('[data-nuczm]').forEach(b=>b.onclick=()=>{ state.nucZmode=b.dataset.nuczm; buildCtl(); });
+      ctl.querySelector('#nucA')&&(ctl.querySelector('#nucA').oninput=e=>{ state.nucA=+e.target.value;
+        const v=ctl.querySelector('#nucAV'); if(v)v.textContent=state.nucA; if(state.nucZmode==='manual'&&(state.nucZ??26)>state.nucA-1){ state.nucZ=state.nucA-1; buildCtl(); } });
+      ctl.querySelector('#nucZ')&&(ctl.querySelector('#nucZ').oninput=e=>{ state.nucZ=+e.target.value;
+        const v=ctl.querySelector('#nucZV'); if(v)v.textContent=state.nucZ; });
+      ctl.querySelector('#nucToSolar')&&(ctl.querySelector('#nucToSolar').onclick=()=>{ navPush(); setMode('solar'); });
+      ctl.querySelector('#nucToHe')&&(ctl.querySelector('#nucToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -20061,7 +20290,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -21226,6 +21455,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateRd(dt);
     } else if(state.s3view==='he'){
       fbsAnimT+=dt; updateHe(dt);
+    } else if(state.s3view==='bb'){
+      fbsAnimT+=dt; updateBb(dt);
+    } else if(state.s3view==='nuc'){
+      fbsAnimT+=dt; updateNuc(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
