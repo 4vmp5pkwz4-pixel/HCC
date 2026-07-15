@@ -1448,6 +1448,17 @@ function runSelfTests(){
     // CHSH at optimal angles = 2√2
     { const E=(x,y)=>-Math.cos(x-y), S=Math.abs(E(0,Math.PI/4)-E(0,3*Math.PI/4)+E(Math.PI/2,Math.PI/4)+E(Math.PI/2,3*Math.PI/4));
       ok('Spin: Bell CHSH reaches the Tsirelson bound 2√2 at optimal angles', Math.abs(S-2*Math.SQRT2)<1e-9, S.toFixed(6)); } }
+  { // RELATIVITY: invariant interval, γ, Doppler, velocity addition, additive rapidity
+    const G=b=>1/Math.sqrt(1-b*b), boost=(t,x,b)=>{const g=G(b);return [g*(t-b*x),g*(x-b*t)];};
+    const [tp,xp]=boost(1.3,0.4,0.6);
+    ok('Relativity: interval s²=−t²+x² is boost-invariant (<1e-12)',
+      Math.abs((-1.3*1.3+0.4*0.4)-(-tp*tp+xp*xp))<1e-12, (-tp*tp+xp*xp).toFixed(8));
+    ok('Relativity: γ(0.8) = 5/3 exactly', Math.abs(G(0.8)-5/3)<1e-12, G(0.8).toFixed(8));
+    ok('Relativity: Doppler redshift z(β=0.6) = 1 exactly', Math.abs((Math.sqrt((1+0.6)/(1-0.6))-1)-1)<1e-12, (Math.sqrt(1.6/0.4)-1).toFixed(8));
+    ok('Relativity: velocity addition caps at c (1⊕0.5 = 1) and 0.9⊕0.9 < 1',
+      Math.abs((1+0.5)/(1+0.5)-1)<1e-12 && (0.9+0.9)/(1+0.81)<1, ((0.9+0.9)/(1.81)).toFixed(6));
+    ok('Relativity: rapidity is additive atanh(u)+atanh(v)=atanh(u⊕v)',
+      Math.abs(Math.atanh(0.6)+Math.atanh(0.5)-Math.atanh((0.6+0.5)/(1+0.3)))<1e-12); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -10464,6 +10475,159 @@ function spinMeasureSG(){   // collapse ⟨σ_z⟩ → ±z with the Born rule (d
   spinNPrev=spinN.slice();
 }
 
+/* ================================================================
+   RELATIVITY LAB · special relativity, exactly (c = 1).
+   Minkowski spacetime with the invariant interval s²=−t²+x²+y².
+   A Lorentz boost is a hyperbolic rotation that preserves it; the
+   light cone is the fixed structure everything respects. Stations:
+   Minkowski light-cone (worldlines + tilting simultaneity), time
+   dilation & length contraction (γ=1/√(1−β²)), relativistic Doppler
+   (√((1−β)/(1+β))), velocity addition (u⊕v never exceeds c), and the
+   twin paradox (proper time = ∫dt/γ). Bridges: Gravitas GW (compact
+   binaries), Cosmology redshift, and the S³ causal cap. */
+const relGroup=new THREE.Group(); relGroup.visible=false; s3Group.add(relGroup);
+const REL_S=2.0;   // scene units per light-second
+let relObjs=null, relT=0, relUiAcc=0;
+const relGamma=b=>1/Math.sqrt(Math.max(1e-9,1-b*b));
+function relClear(){ labWipe(relGroup); relObjs=null; }
+function relBoostPts(pts,b){ const G=relGamma(b);   // boost each (t,x) → observer frame
+  return pts.map(([t,x])=>[G*(t-b*x),G*(x-b*t)]); }
+function relSetup(){
+  relClear(); relT=0;
+  relGroup.add(new THREE.AmbientLight(0x8090b0,.8));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); relGroup.add(dl);
+  const st=state.relStation||'cone';
+  // axes: x horizontal, t (ct) vertical, y depth
+  const A=3.2;
+  const axcol=0x6f86b8;
+  const mkAx=(a,b,c)=>relGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a),new THREE.Vector3(...b)]),new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.5})));
+  mkAx([-A,0,0],[A,0,0],axcol); mkAx([0,-A,0],[0,A,0],axcol);
+  relGroup.add((()=>{const l=mkLabel('x','label axis');l.position.set(A+0.2,0,0);return l;})());
+  relGroup.add((()=>{const l=mkLabel('ct','label axis');l.position.set(0,A+0.2,0);return l;})());
+  if(st==='cone'||st==='twin'){
+    // light cone (45°): future & past, as a translucent double cone in (x,y,t)
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(A,A,40,1,true),
+      new THREE.MeshBasicMaterial({color:0xf5c964,transparent:true,opacity:.10,side:THREE.DoubleSide,depthWrite:false}));
+    cone.position.y=A/2; relGroup.add(cone);
+    const cone2=cone.clone(); cone2.rotation.z=Math.PI; cone2.position.y=-A/2;
+    cone2.material=cone.material.clone(); cone2.material.color.setHex(0x8fb8ff); relGroup.add(cone2);
+    // 45° light rays in the x–t plane
+    for(const s of [-1,1]){ mkAx([0,0,0],[s*A,A,0],0xf5c964); mkAx([0,0,0],[s*A,-A,0],0x8fb8ff); }
+    const tl=mkLabel('MINKOWSKI · light cone · s² = −t² + x² + y² (invariant)','label const'); tl.position.set(0,3.5,0); relGroup.add(tl);
+    // worldline of the moving observer + its tilted simultaneity line
+    const wl=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({color:0x9fe8d8})); relGroup.add(wl);
+    const sim=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+      new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.7})); relGroup.add(sim);
+    const body=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:0x9fe8d8}));
+    relGroup.add(body);
+    // hyperbola of constant proper time τ=1 (all clocks reading 1 s) — the invariant "circle"
+    const hyp=[]; for(let i=-40;i<=40;i++){ const x=i/40*A*0.9; hyp.push(new THREE.Vector3(x,Math.sqrt(1*REL_S*REL_S+x*x),0)); }
+    relGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(hyp),new THREE.LineBasicMaterial({color:0xd9a2ff,transparent:true,opacity:.5})));
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); relGroup.add(rl);
+    relObjs={st,wl,sim,body,readLab:rl,A};
+  } else if(st==='dilation'){
+    // two clocks: rest (left) and moving (right), as rotating dials; rod contraction bar
+    const restDial=new THREE.Group(); restDial.position.set(-1.7,0.4,0);
+    const movDial=new THREE.Group(); movDial.position.set(1.7,0.4,0);
+    for(const D of [restDial,movDial]){ D.add(new THREE.Mesh(new THREE.TorusGeometry(0.7,0.03,8,40),new THREE.MeshBasicMaterial({color:0x6f86b8})));
+      const hand=new THREE.Mesh(new THREE.BoxGeometry(0.05,0.6,0.05),new THREE.MeshBasicMaterial({color:0xffd27a})); hand.position.y=0.3; D.add(hand); D.userData.hand=hand; relGroup.add(D); }
+    const rodRest=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.14,0.14),new THREE.MeshBasicMaterial({color:0x8fb8ff})); rodRest.position.set(-1.7,-1.4,0); relGroup.add(rodRest);
+    const rodMov=new THREE.Mesh(new THREE.BoxGeometry(2.0,0.14,0.14),new THREE.MeshBasicMaterial({color:0xf5c964})); rodMov.position.set(1.7,-1.4,0); relGroup.add(rodMov);
+    for(const [x,t] of [[-1.7,'rest frame · proper'],[1.7,'moving · β']]){ const l=mkLabel(t,'label axis'); l.position.set(x,1.5,0); relGroup.add(l); }
+    const tl=mkLabel('TIME DILATION & LENGTH CONTRACTION · γ = 1/√(1−β²)','label const'); tl.position.set(0,3.2,0); relGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-2.6,0); relGroup.add(rl);
+    relObjs={st,restDial,movDial,rodRest,rodMov,readLab:rl};
+  } else if(st==='doppler'){
+    const src=new THREE.Mesh(new THREE.SphereGeometry(.22,20,14),new THREE.MeshBasicMaterial({color:0xffe9a0}));
+    relGroup.add(src);
+    const obs=new THREE.Mesh(new THREE.ConeGeometry(.2,.5,12),new THREE.MeshBasicMaterial({color:0x9fe8d8}));
+    obs.position.set(-2.6,0,0); obs.rotation.z=-Math.PI/2; relGroup.add(obs);
+    const rings=[]; for(let i=0;i<14;i++){ const r=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({transparent:true})); relGroup.add(r); rings.push(r); }
+    const tl=mkLabel('RELATIVISTIC DOPPLER · f_obs/f_src = √((1−β)/(1+β))','label const'); tl.position.set(0,3.2,0); relGroup.add(tl);
+    const obl=mkLabel('observer','label axis'); obl.position.set(-2.6,0.5,0); relGroup.add(obl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-2.8,0); relGroup.add(rl);
+    relObjs={st,src,rings,readLab:rl,phase:0};
+  } else {  // velocity addition
+    const track=(y,col,lab)=>{ mkAx([-3,y,0],[3,y,0],0x40516d);
+      const m=new THREE.Mesh(new THREE.SphereGeometry(.14,14,10),new THREE.MeshBasicMaterial({color:col})); m.position.set(-3,y,0); relGroup.add(m);
+      const l=mkLabel(lab,'label axis'); l.position.set(-3.3,y,0); relGroup.add(l); return m; };
+    const mU=track(1.1,0x8fb8ff,'frame u');
+    const mV=track(0,0xf5c964,'object in u: v');
+    const mW=track(-1.1,0x9fe8d8,'lab: w = u⊕v');
+    // the c limit line
+    mkAx([3,-1.6,0],[3,1.6,0],0xff9fb0);
+    relGroup.add((()=>{const l=mkLabel('c','label axis');l.position.set(3.2,0,0);return l;})());
+    const tl=mkLabel('VELOCITY ADDITION · w = (u+v)/(1+uv/c²) — never reaches c','label const'); tl.position.set(0,3.2,0); relGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-2.6,0); relGroup.add(rl);
+    relObjs={st,mU,mV,mW,readLab:rl};
+  }
+}
+function updateRel(dt){
+  if(!relObjs) relSetup();
+  relT+=dt*(state.relSpeed??1); const O=relObjs, A=O.A||3.2, st=O.st;
+  const b=THREE.MathUtils.clamp(state.relBeta??0.6,0,0.995), G=relGamma(b);
+  if(st==='cone'||st==='twin'){
+    // moving observer worldline: x = β·ct, drawn to the cone edge
+    const tp=(relT*0.4)%1.6, tmax=A;
+    O.wl.geometry.setFromPoints([new THREE.Vector3(-b*A,-A,0),new THREE.Vector3(b*A,A,0)]);
+    // body rides its worldline
+    const ty=(-A)+((relT*0.5)%1)*2*A, tx=b*ty;
+    O.body.position.set(tx,ty,0);
+    // line of simultaneity (tilts by the same angle): t = β·x through the body
+    O.sim.geometry.setFromPoints([new THREE.Vector3(-A,ty-b*(A+tx),0).clampLength(0,9),new THREE.Vector3(A,ty+b*(A-tx),0)]);
+    O.sim.geometry.setFromPoints([new THREE.Vector3(tx-A*0.8,ty-b*A*0.8,0),new THREE.Vector3(tx+A*0.8,ty+b*A*0.8,0)]);
+    O.readLab.element.textContent=st==='twin'
+      ? `twin paradox · β=${b.toFixed(2)} · γ=${G.toFixed(3)} · traveler ages ${(1/G).toFixed(3)}× the stay-at-home; the bent worldline has LESS proper time ∫dt/γ`
+      : `β=${b.toFixed(2)} · γ=${G.toFixed(3)} · the worldline (teal) tilts toward the light cone; its simultaneity line (gold) tilts by the same angle — invariant interval s² preserved`;
+    hudBig.textContent=`RELATIVITY · Minkowski · β=${b.toFixed(2)} · γ=${G.toFixed(3)}`;
+    hudSub.textContent='the light cone is the fixed causal structure; a boost is a hyperbolic rotation that slides worldlines toward the 45° rays but never past them — nothing crosses the cone';
+    ATLAS_BUS.pub('rel.gamma',+G.toFixed(3),'β='+b.toFixed(2));
+  } else if(st==='dilation'){
+    O.restDial.userData.hand.parent.rotation.z=-relT*1.4;             // proper clock
+    O.movDial.userData.hand.parent.rotation.z=-relT*1.4/G;            // dilated (slower) clock
+    O.rodMov.scale.x=1/G;                                             // length contraction
+    O.readLab.element.textContent=`β=${b.toFixed(2)} · γ=${G.toFixed(3)} · moving clock runs at 1/γ = ${(1/G).toFixed(3)}× · rod contracts to L₀/γ = ${(1/G).toFixed(3)} L₀ (along motion only)`;
+    hudBig.textContent=`RELATIVITY · time dilation γ=${G.toFixed(3)} · length ×${(1/G).toFixed(3)}`;
+    hudSub.textContent='moving clocks tick slow and moving rods contract by the SAME γ — the two faces of one geometry; both frames see the OTHER as dilated (reciprocity), resolved by relativity of simultaneity';
+    ATLAS_BUS.pub('rel.gamma',+G.toFixed(3),'β='+b.toFixed(2));
+  } else if(st==='doppler'){
+    // emitted wavefronts from the moving source; observer at left sees stretched/compressed spacing
+    O.phase=(O.phase||0)+dt*0.6;
+    const sx=Math.sin(relT*0.5)*2.2; O.src.position.set(sx,0,0);       // source oscillates (approach/recede)
+    const vrad=Math.cos(relT*0.5)*b;                                   // radial velocity toward observer(−x)
+    const factor=Math.sqrt((1-(-vrad))/(1+(-vrad)));                   // toward observer: blueshift when moving −x
+    for(let i=0;i<O.rings.length;i++){ const age=((O.phase - i*0.18)%(O.rings.length*0.18));
+      if(age<0){ O.rings[i].visible=false; continue; }
+      const rr=age*1.4, seg=48, pts=[];
+      for(let k=0;k<=seg;k++){ const a=k/seg*Math.PI*2; pts.push(new THREE.Vector3(sx+rr*Math.cos(a),rr*Math.sin(a),0)); }
+      O.rings[i].geometry.setFromPoints(pts); O.rings[i].visible=true;
+      const blue=vrad<0; O.rings[i].material.color.setHex(blue?0x8fb8ff:0xff9fb0);
+      O.rings[i].material.opacity=Math.max(0,0.6-rr*0.12); }
+    const zR=Math.sqrt((1+b)/(1-b))-1;
+    O.readLab.element.textContent=`β=${b.toFixed(2)} · receding: f_obs/f_src=√((1−β)/(1+β))=${Math.sqrt((1-b)/(1+b)).toFixed(3)}, redshift z=${zR.toFixed(3)} · approaching: blueshift ×${Math.sqrt((1+b)/(1-b)).toFixed(3)}`;
+    hudBig.textContent=`RELATIVITY · Doppler · z(recede)=${zR.toFixed(3)} at β=${b.toFixed(2)}`;
+    hudSub.textContent='the relativistic Doppler factor combines classical Doppler with time dilation — even a purely transverse source is redshifted by γ; this is the engine behind cosmological redshift and the GW chirp\'s observed frequency';
+    ATLAS_BUS.pub('rel.z',+zR.toFixed(3),'recede');
+  } else {  // velocity addition
+    const u=THREE.MathUtils.clamp(state.relU??0.7,0,0.99), v=THREE.MathUtils.clamp(state.relV??0.7,0,0.99);
+    const w=(u+v)/(1+u*v);
+    const ph=(relT*0.3)%1;
+    O.mU.position.x=-3+ph*u*6; O.mV.position.x=-3+ph*v*6; O.mW.position.x=-3+ph*w*6;
+    O.readLab.element.textContent=`u=${u.toFixed(2)}c ⊕ v=${v.toFixed(2)}c = ${w.toFixed(4)}c · Galilean would give ${(u+v).toFixed(2)}c (>c, forbidden). Rapidities ADD: atanh(u)+atanh(v)=atanh(w)=${(Math.atanh(u)+Math.atanh(v)).toFixed(3)}`;
+    hudBig.textContent=`RELATIVITY · velocity addition · ${u.toFixed(2)}⊕${v.toFixed(2)} = ${w.toFixed(3)}c`;
+    hudSub.textContent='velocities do not simply add — the correct law keeps every result below c, and light (1⊕anything) stays exactly light; rapidity is the additive quantity, so boosts form a group';
+    ATLAS_BUS.pub('rel.vadd',+w.toFixed(4),'c');
+  }
+  relUiAcc+=dt;
+  if(relUiAcc>0.3){ relUiAcc=0; const el=ctl.querySelector('#relInv');
+    if(el) el.innerHTML=`β = <b>${b.toFixed(3)}</b> · γ = <b>${G.toFixed(4)}</b> · β·γ = ${(b*G).toFixed(3)} · rapidity φ = atanh β = ${Math.atanh(b).toFixed(3)}`+
+      (st==='dilation'?`<br>moving clock ${(1/G).toFixed(4)}× · rod ${(1/G).toFixed(4)} L₀`:'')+
+      (st==='doppler'?`<br>recede z = ${(Math.sqrt((1+b)/(1-b))-1).toFixed(4)} · approach blueshift ${(Math.sqrt((1-b)/(1+b))).toFixed(4)}`:'')+
+      (st==='veladd'?`<br>u⊕v = ${(((state.relU??0.7)+(state.relV??0.7))/(1+(state.relU??0.7)*(state.relV??0.7))).toFixed(4)}c`:'');
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -10490,6 +10654,7 @@ function setS3View(v){
   eotGroup.visible     = (v==='eot');
   waveGroup.visible    = (v==='wave');
   spinGroup.visible    = (v==='spin');
+  relGroup.visible     = (v==='rel');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -10502,6 +10667,7 @@ function setS3View(v){
   if(v==='eot'){ if(!eotObjs) eotSetup(); }
   if(v==='wave'){ if(!waveObjs) waveSetup(); }
   if(v==='spin'){ if(!spinObjs) spinSetup(); }
+  if(v==='rel'){ relSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -10513,7 +10679,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -15267,6 +15433,7 @@ const state = {
   eotA0:600, eotLam:700,                                                // Extraordinary transmission
   waveMode:'double', waveLam:0.45, waveD:2.4, waveA:0.3, waveN:5,       // Wave optics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
   spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4,   // Quantum spin lab
+  relStation:'cone', relBeta:0.6, relSpeed:1, relU:0.7, relV:0.7,   // Relativity lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -16705,6 +16872,31 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='rel') body = `
+    <div class="sect"><b>Relativity — pick a station</b>
+      <div class="chips">
+        ${[['cone','Minkowski light cone'],['dilation','Time dilation & contraction'],['doppler','Relativistic Doppler'],['veladd','Velocity addition'],['twin','Twin paradox']].map(([k,l])=>
+          `<button class="chip ${(state.relStation||'cone')===k?'on':''}" data-relst="${k}">${l}</button>`).join('')}
+      </div>
+      ${(state.relStation||'cone')==='veladd'?`
+      <div class="ctlrow"><label>Frame speed u</label>
+        <input type="range" id="relU" min="0" max="0.99" step="0.01" value="${state.relU??0.7}"><span class="val" id="relUV">${(state.relU??0.7).toFixed(2)}c</span></div>
+      <div class="ctlrow"><label>Object speed v</label>
+        <input type="range" id="relV" min="0" max="0.99" step="0.01" value="${state.relV??0.7}"><span class="val" id="relVV">${(state.relV??0.7).toFixed(2)}c</span></div>`:`
+      <div class="ctlrow"><label>Speed β = v/c</label>
+        <input type="range" id="relBeta" min="0" max="0.99" step="0.005" value="${state.relBeta??0.6}"><span class="val" id="relBetaV">${(state.relBeta??0.6).toFixed(3)}c</span></div>`}
+      <div class="ctlrow"><label>Animation speed</label>
+        <input type="range" id="relSpeed" min="0.1" max="3" step="0.1" value="${state.relSpeed??1}"><span class="val" id="relSpeedV">×${(state.relSpeed??1).toFixed(1)}</span></div>
+    </div>
+    <div class="sect"><b>Invariant readout</b>
+      <div class="note" id="relInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Everything follows from one invariant, the interval s²=−t²+x²+y² (c=1). A Lorentz boost is the hyperbolic rotation preserving it, so γ=1/√(1−β²) governs time dilation AND length contraction together; the relativistic Doppler factor √((1−β)/(1+β)) folds in time dilation; velocities add as (u+v)/(1+uv/c²) so nothing outpaces light; and the twin who accelerates traces the shorter proper time ∫dt/γ. All verified against the exact formulae.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="relToGw">→ Gravitas: GW chirp of a compact binary</button>
+        <button class="btn" id="relToObs">→ Observable: cosmological redshift</button></div>
+    </div>`;
     else if(V==='spin') body = `
     <div class="sect"><b>Quantum spin — pick a station</b>
       <div class="chips">
@@ -16891,6 +17083,7 @@ function buildCtlBody(){
         <button class="btn ${V==='eot'?'on':''}" id="v-eot">Extraordinary transmission</button>
         <button class="btn ${V==='wave'?'on':''}" id="v-wave">Wave optics</button>
         <button class="btn ${V==='spin'?'on':''}" id="v-spin">Quantum spin</button>
+        <button class="btn ${V==='rel'?'on':''}" id="v-rel">Relativity</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -16909,7 +17102,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -17149,6 +17342,16 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='rel'){
+      ctl.querySelectorAll('[data-relst]').forEach(b=>b.onclick=()=>{ state.relStation=b.dataset.relst; relSetup(); buildCtl(); });
+      const rs=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(2); }; };
+      rs('relBeta',v=>state.relBeta=v,v=>v.toFixed(3)+'c');
+      rs('relSpeed',v=>state.relSpeed=v,v=>'×'+v.toFixed(1));
+      rs('relU',v=>state.relU=v,v=>v.toFixed(2)+'c'); rs('relV',v=>state.relV=v,v=>v.toFixed(2)+'c');
+      ctl.querySelector('#relToGw')&&(ctl.querySelector('#relToGw').onclick=()=>{ navPush(); state.gravPreset='gw'; setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#relToObs')&&(ctl.querySelector('#relToObs').onclick=()=>{ navPush(); setMode('obs'); });
     }
     if(V==='spin'){
       ctl.querySelectorAll('[data-spinst]').forEach(b=>b.onclick=()=>{ state.spinStation=b.dataset.spinst; spinSetup(); buildCtl(); });
@@ -18468,7 +18671,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -19613,6 +19816,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateWave(dt);
     } else if(state.s3view==='spin'){
       fbsAnimT+=dt; updateSpin(dt);
+    } else if(state.s3view==='rel'){
+      fbsAnimT+=dt; updateRel(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
