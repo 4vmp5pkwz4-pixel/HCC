@@ -1526,6 +1526,26 @@ function runSelfTests(){
     const Q=100,kc=1/Q, eff=(k)=>{const u=k*Q;return u*u/(1+Math.sqrt(1+u*u))**2;};
     ok('Energy: wireless η rises monotonically and critical coupling k_c=1/√(Q₁Q₂)',
       eff(0.02)<eff(0.1) && eff(0.1)<eff(0.2) && Math.abs(kc-0.01)<1e-9, (eff(0.1)*100).toFixed(1)+'%'); }
+  { // DIPOLE RADIATION: sin²θ pattern integrates to 8π/3; peak broadside, null on axis
+    let s=0; const Nt=180; for(let i=0;i<Nt;i++){ const th=(i+0.5)/Nt*Math.PI; s+=Math.sin(th)**2*Math.sin(th)*(Math.PI/Nt)*2*Math.PI; }
+    ok('Dipole: ∫sin²θ dΩ = 8π/3 (radiation pattern normalisation, <1e-3)', Math.abs(s-8*Math.PI/3)<1e-3, s.toFixed(4));
+    ok('Dipole: pattern peaks broadside (θ=90°) and nulls on axis (θ=0)',
+      Math.sin(Math.PI/2)**2===1 && Math.sin(0)**2===0); }
+  { // CHARGED PARTICLE: Boris pusher conserves |v| in pure B, cyclotron returns after 2π, E×B drift = E/B
+    const field=(x,st)=>st==='exb'?[[0.3,0,0],[0,0,1]]:[[0,0,0],[0,0,1]];
+    const boris=(x,v,dt,st)=>{ const qm=1,[E,B]=field(x,st); const t=[qm*B[0]*dt/2,qm*B[1]*dt/2,qm*B[2]*dt/2],t2=t[0]*t[0]+t[1]*t[1]+t[2]*t[2],s=t.map(a=>2*a/(1+t2));
+      const vm=[v[0]+qm*E[0]*dt/2,v[1]+qm*E[1]*dt/2,v[2]+qm*E[2]*dt/2];
+      const vp=[vm[0]+(vm[1]*t[2]-vm[2]*t[1]),vm[1]+(vm[2]*t[0]-vm[0]*t[2]),vm[2]+(vm[0]*t[1]-vm[1]*t[0])];
+      const vpp=[vm[0]+(vp[1]*s[2]-vp[2]*s[1]),vm[1]+(vp[2]*s[0]-vp[0]*s[2]),vm[2]+(vp[0]*s[1]-vp[1]*s[0])];
+      const vn=[vpp[0]+qm*E[0]*dt/2,vpp[1]+qm*E[1]*dt/2,vpp[2]+qm*E[2]*dt/2];
+      return [[x[0]+vn[0]*dt,x[1]+vn[1]*dt,x[2]+vn[2]*dt],vn]; };
+    let x=[1,0,0],v=[0,1,0]; const v0=Math.hypot(...v); const dt=0.001;
+    for(let i=0;i<Math.round(2*Math.PI/dt);i++) [x,v]=boris(x,v,dt,'cyclo');
+    ok('Charged particle: Boris keeps |v| exactly and returns after one cyclotron period 2π',
+      Math.abs(Math.hypot(...v)-v0)<1e-9 && Math.hypot(x[0]-1,x[1],x[2])<0.01, Math.hypot(...v).toFixed(6));
+    let x2=[0,0,0],v2=[0,0,0]; for(let i=0;i<30000;i++)[x2,v2]=boris(x2,v2,0.001,'exb');
+    ok('Charged particle: E×B guiding-centre drift = E/B in −y (universal, |Δ|<10%)',
+      Math.abs(Math.abs(x2[1]/30)-0.3)<0.03 && x2[1]<0, (x2[1]/30).toFixed(4)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11275,6 +11295,170 @@ function updateRet(dt){
   }
 }
 
+/* ================================================================
+   DIPOLE RADIATION LAB · energy carried away by light (UPRS Part 14).
+   An oscillating electric dipole radiates: the far-field power pattern
+   is exactly sin²θ (a torus, null along the axis, peak broadside), the
+   total ∫sin²θ dΩ = 8π/3, and Larmor power scales as ω⁴ — the reason
+   the sky is blue. Expanding phase wavefronts propagate at c, coloured
+   by the retarded dipole sign and brightened by the sin²θ pattern; the
+   glowing lobe surface is r(θ)=sin²θ itself. Energy leaves and never
+   returns — the antenna/harvester balance in one picture. */
+const dipGroup=new THREE.Group(); dipGroup.visible=false; s3Group.add(dipGroup);
+let dipObjs=null, dipT=0, dipUiAcc=0;
+function dipClear(){ labWipe(dipGroup); dipObjs=null; }
+function dipSetup(){
+  dipClear(); dipT=0;
+  dipGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); dipGroup.add(dl);
+  // the radiation-pattern lobe surface r(θ)=sin²θ (revolved about the z/dipole axis)
+  const NLAT=48,NLON=72, g=new THREE.BufferGeometry();
+  const pos=new Float32Array((NLAT+1)*(NLON+1)*3), col=new Float32Array((NLAT+1)*(NLON+1)*3), idx=[];
+  for(let i=0;i<=NLAT;i++){ const th=i/NLAT*Math.PI, rr=Math.sin(th)**2*2.4;
+    for(let j=0;j<=NLON;j++){ const ph=j/NLON*2*Math.PI, k=(i*(NLON+1)+j);
+      pos[k*3]=rr*Math.sin(th)*Math.cos(ph); pos[k*3+1]=rr*Math.cos(th); pos[k*3+2]=rr*Math.sin(th)*Math.sin(ph);
+      const t=Math.sin(th)**2; col[k*3]=0.95*t+0.1; col[k*3+1]=0.7*t+0.08; col[k*3+2]=0.3*t+0.12; } }
+  for(let i=0;i<NLAT;i++)for(let j=0;j<NLON;j++){ const a=i*(NLON+1)+j,b=a+1,c=a+NLON+1,d=c+1; idx.push(a,c,b,b,c,d); }
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.setIndex(idx); g.computeVertexNormals();
+  const lobe=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.32,side:THREE.DoubleSide,depthWrite:false}));
+  dipGroup.add(lobe);
+  // dipole axis + oscillating charges
+  dipGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,-0.9,0),new THREE.Vector3(0,0.9,0)]),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.5})));
+  const qp=new THREE.Mesh(new THREE.SphereGeometry(0.13,14,10),new THREE.MeshBasicMaterial({color:0xff9fb0}));
+  const qm=new THREE.Mesh(new THREE.SphereGeometry(0.13,14,10),new THREE.MeshBasicMaterial({color:0x8fb8ff}));
+  dipGroup.add(qp,qm);
+  // recycled expanding wavefront shells (sphere meshes, vertex-coloured by sin²θ · phase sign)
+  const shells=[]; const SLAT=20,SLON=36;
+  for(let s=0;s<7;s++){ const sg=new THREE.BufferGeometry();
+    const sp=new Float32Array((SLAT+1)*(SLON+1)*3), sc=new Float32Array((SLAT+1)*(SLON+1)*3), si=[], dir=[];
+    for(let i=0;i<=SLAT;i++){ const th=i/SLAT*Math.PI; for(let j=0;j<=SLON;j++){ const ph=j/SLON*2*Math.PI, k=i*(SLON+1)+j;
+      dir.push([Math.sin(th)*Math.cos(ph),Math.cos(th),Math.sin(th)*Math.sin(ph),Math.sin(th)**2]); } }
+    for(let i=0;i<SLAT;i++)for(let j=0;j<SLON;j++){ const a=i*(SLON+1)+j,b=a+1,c=a+SLON+1,d=c+1; si.push(a,c,b,b,c,d); }
+    sg.setAttribute('position',new THREE.BufferAttribute(sp,3)); sg.setAttribute('color',new THREE.BufferAttribute(sc,3)); sg.setIndex(si);
+    const sh=new THREE.Mesh(sg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.5,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    sh.visible=false; dipGroup.add(sh); shells.push({mesh:sh,dir,emit:-1,sign:1});
+  }
+  const tl=mkLabel('DIPOLE RADIATION · power pattern ∝ sin²θ · P ∝ ω⁴ (Larmor) · why the sky is blue','label const'); tl.position.set(0,3.4,0); dipGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.1,0); dipGroup.add(rl);
+  dipObjs={lobe,qp,qm,shells,readLab:rl,nextEmit:0,_c:new THREE.Color()};
+}
+function updateDip(dt){
+  if(!dipObjs) dipSetup();
+  const O=dipObjs, w=state.dipOmega??1.5, c=2.2;   // wavefront speed (scene units/s)
+  if(state.dipRun!==false) dipT+=dt;
+  const ph=Math.sin(w*dipT);
+  O.qp.position.set(0,0.45+0.28*ph,0); O.qm.position.set(0,-0.45-0.28*ph,0);
+  // emit a wavefront every half period
+  const period=Math.PI/w;
+  if(state.dipRun!==false && dipT>=O.nextEmit){ O.nextEmit=dipT+period;
+    const sh=O.shells.find(s=>s.emit<0)||O.shells.reduce((a,b)=>a.emit<b.emit?a:b);
+    sh.emit=dipT; sh.sign=Math.sign(Math.cos(w*dipT))||1;
+  }
+  for(const s of O.shells){ if(s.emit<0){ s.mesh.visible=false; continue; }
+    const age=dipT-s.emit, r=age*c;
+    if(r>6){ s.emit=-1; s.mesh.visible=false; continue; }
+    s.mesh.visible=true;
+    const sp=s.mesh.geometry.attributes.position.array, sc=s.mesh.geometry.attributes.color.array, _c=O._c;
+    for(let i=0;i<s.dir.length;i++){ const d=s.dir[i];
+      sp[i*3]=d[0]*r; sp[i*3+1]=d[1]*r; sp[i*3+2]=d[2]*r;
+      const bright=d[3]*Math.max(0,1-r/6);   // sin²θ pattern × fade
+      if(s.sign>0) _c.setRGB(0.95*bright,0.72*bright,0.30*bright); else _c.setRGB(0.30*bright,0.55*bright,0.95*bright);
+      sc[i*3]=_c.r; sc[i*3+1]=_c.g; sc[i*3+2]=_c.b;
+    }
+    s.mesh.geometry.attributes.position.needsUpdate=true; s.mesh.geometry.attributes.color.needsUpdate=true;
+    s.mesh.geometry.computeBoundingSphere();
+  }
+  dipUiAcc+=dt; if(dipUiAcc>0.3){ dipUiAcc=0;
+    O.readLab.element.textContent=`ω=${w.toFixed(2)} · radiated power ∝ ω⁴ = ${(w**4).toFixed(2)} (relative) · pattern sin²θ: null along axis, peak broadside · ∫sin²θ dΩ = 8π/3`;
+    hudBig.textContent=`DIPOLE RADIATION · ω=${w.toFixed(2)} · P ∝ ω⁴ = ${(w**4).toFixed(1)} (rel.)`;
+    hudSub.textContent='the accelerating charges shed energy as expanding wavefronts travelling at c; the donut-shaped lobe is the exact sin²θ power pattern (no radiation along the oscillation axis). Power ∝ ω⁴ (Rayleigh) is why short-wavelength blue scatters most — the colour of the sky. Energy leaves and never returns.';
+    ATLAS_BUS.pub('dip.Prel',+(w**4).toFixed(2),'∝ω⁴');
+    const el=ctl.querySelector('#dipInv'); if(el) el.innerHTML=`angular pattern P(θ) ∝ <b>sin²θ</b> · total ∫P dΩ ∝ 8π/3 · Larmor P = μ₀ p₀²ω⁴/12πc`+
+      `<br>relative radiated power (∝ω⁴) = <b>${(w**4).toFixed(3)}</b> · wavefronts propagate at c, spacing = λ = 2πc/ω`;
+  }
+}
+
+/* ================================================================
+   CHARGED-PARTICLE LAB · the Lorentz force in fields (UPRS Part 16).
+   m dv/dt = q(E + v×B), integrated with the BORIS pusher (exact
+   gyration, energy-conserving in a magnetic field). Stations reveal
+   the guiding-centre picture: cyclotron gyration (ω_c=qB/m, radius
+   r=mv⊥/qB), the universal E×B drift v=E×B/B² (independent of charge
+   AND mass), grad-B drift, and the magnetic mirror (μ=mv⊥²/2B adiabatic
+   invariant reflects particles from strong field). Beautiful helices. */
+const cpGroup=new THREE.Group(); cpGroup.visible=false; s3Group.add(cpGroup);
+const CP_MAXPTS=5000;
+let cpObjs=null, cpT=0, cpUiAcc=0, cpX=[0,0,0], cpV=[0,0,0], cpN=0;
+function cpField(x){   // returns [E, B] at position x per station
+  const st=state.cpStation||'cyclo', B0=state.cpB??1, E0=state.cpE??0.3;
+  if(st==='exb') return [[E0,0,0],[0,0,B0]];
+  if(st==='gradB'){ const b=B0*(1+0.25*x[0]); return [[0,0,0],[0,0,b]]; }   // B increases with x → grad-B drift
+  if(st==='mirror'){ const z=x[2], bz=B0*(1+0.5*z*z), br=-B0*0.5*z;          // converging bottle (∇·B=0 approx)
+    const r=Math.hypot(x[0],x[1])||1e-9; return [[0,0,0],[br*x[0]/r,br*x[1]/r,bz]]; }
+  return [[0,0,0],[0,0,B0]];   // cyclotron: pure uniform B
+}
+function cpBoris(x,v,dt){ const qm=state.cpCharge??1; const [E,B]=cpField(x);
+  const t=[qm*B[0]*dt/2,qm*B[1]*dt/2,qm*B[2]*dt/2], t2=t[0]*t[0]+t[1]*t[1]+t[2]*t[2], s=t.map(a=>2*a/(1+t2));
+  const vm=[v[0]+qm*E[0]*dt/2,v[1]+qm*E[1]*dt/2,v[2]+qm*E[2]*dt/2];
+  const vpr=[vm[0]+(vm[1]*t[2]-vm[2]*t[1]),vm[1]+(vm[2]*t[0]-vm[0]*t[2]),vm[2]+(vm[0]*t[1]-vm[1]*t[0])];
+  const vp=[vm[0]+(vpr[1]*s[2]-vpr[2]*s[1]),vm[1]+(vpr[2]*s[0]-vpr[0]*s[2]),vm[2]+(vpr[0]*s[1]-vpr[1]*s[0])];
+  const vn=[vp[0]+qm*E[0]*dt/2,vp[1]+qm*E[1]*dt/2,vp[2]+qm*E[2]*dt/2];
+  return [[x[0]+vn[0]*dt,x[1]+vn[1]*dt,x[2]+vn[2]*dt],vn];
+}
+function cpClear(){ labWipe(cpGroup); cpObjs=null; }
+function cpSetup(){
+  cpClear(); cpT=0; cpN=0;
+  const st=state.cpStation||'cyclo', vperp=state.cpVperp??1, vpar=state.cpVpar??0.4;
+  cpX=[1.4,0,st==='mirror'?-1.6:0]; cpV=[0,vperp, st==='mirror'?vpar*2.2:(st==='exb'||st==='gradB'?vpar:0)];
+  if(st==='cyclo') cpV=[0,vperp,vpar];
+  cpGroup.add(new THREE.AmbientLight(0x8090b0,.7));
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(CP_MAXPTS*3),3));
+  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(CP_MAXPTS*3),3));
+  g.setDrawRange(0,0);
+  const line=new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  cpGroup.add(line);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:(state.cpCharge??1)>=0?0xffd27a:0x8fb8ff}));
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.85,depthWrite:false})); glow.scale.setScalar(.7); head.add(glow);
+  cpGroup.add(head);
+  // field arrows (B blue along z, E gold along x if present)
+  const barr=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,-2.4,-2.4),3.0,0x5f8fff,.28,.16); cpGroup.add(barr);
+  const bl=mkLabel('B','label axis'); bl.position.set(0,-2.4,0.8); cpGroup.add(bl);
+  if(st==='exb'){ const earr=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(-2.6,-2.4,0),1.6,0xf5c964,.24,.14); cpGroup.add(earr);
+    const el=mkLabel('E','label axis'); el.position.set(-0.9,-2.4,0); cpGroup.add(el); }
+  const tl=mkLabel('CHARGED PARTICLE · m dv/dt = q(E + v×B) · Boris pusher','label const'); tl.position.set(0,3.4,0); cpGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); cpGroup.add(rl);
+  cpObjs={line,head,g,readLab:rl,st,_c:new THREE.Color(),gc:[0,0,0]};
+}
+function updateCp(dt){
+  if(!cpObjs||cpObjs.st!==(state.cpStation||'cyclo')) cpSetup();
+  const O=cpObjs, S=0.9;
+  if(state.cpRun!==false){ const steps=Math.max(1,Math.round((state.cpSpeed??1)*8)), h=0.02;
+    const a=O.g.attributes.position.array, c=O.g.attributes.color.array, _c=O._c;
+    for(let i=0;i<steps;i++){ [cpX,cpV]=cpBoris(cpX,cpV,h); cpT+=h;
+      let idx; if(cpN<CP_MAXPTS){ idx=cpN; cpN++; } else { a.copyWithin(0,3); c.copyWithin(0,3); idx=CP_MAXPTS-1; }
+      a[idx*3]=cpX[0]*S; a[idx*3+1]=cpX[2]*S; a[idx*3+2]=cpX[1]*S;   // z→up
+      const sp=Math.min(1,Math.hypot(...cpV)/2); _c.setHSL(0.6-0.5*sp,0.85,0.55); c[idx*3]=_c.r; c[idx*3+1]=_c.g; c[idx*3+2]=_c.b;
+    }
+    O.g.setDrawRange(0,cpN); O.g.attributes.position.needsUpdate=true; O.g.attributes.color.needsUpdate=true; O.g.computeBoundingSphere();
+    O.head.position.set(cpX[0]*S,cpX[2]*S,cpX[1]*S);
+  }
+  cpUiAcc+=dt; if(cpUiAcc>0.25){ cpUiAcc=0;
+    const B0=state.cpB??1, qm=state.cpCharge??1, wc=Math.abs(qm*B0), vperp=state.cpVperp??1, rg=vperp/Math.max(wc,1e-6);
+    const st=O.st;
+    const names={cyclo:'cyclotron gyration',exb:'E×B drift',gradB:'grad-B drift',mirror:'magnetic mirror'};
+    hudBig.textContent=`CHARGED PARTICLE · ${names[st]} · ω_c=|q|B/m=${wc.toFixed(2)} · r_g=v⊥/ω_c=${rg.toFixed(2)}`;
+    hudSub.textContent=st==='exb'?'the guiding centre drifts at v=E×B/B² — the SAME speed and direction for every charge and mass (positrons and electrons drift together), so E×B transport carries no net current from the drift itself'
+      :st==='mirror'?'as the field converges, v⊥ grows and v∥ shrinks (μ=mv⊥²/2B is an adiabatic invariant) until the particle REFLECTS — the magnetic bottle that traps the Van Allen belts and fusion plasmas'
+      :st==='gradB'?'a non-uniform field bends the gyro-orbit unevenly, so the guiding centre drifts perpendicular to both B and ∇B — charge-dependent, the origin of ring currents'
+      :'a uniform B bends velocity into a circle at the cyclotron frequency ω_c=|q|B/m; the parallel velocity is untouched, so the path is a helix. |v| and energy are exactly conserved (Boris pusher).';
+    ATLAS_BUS.pub('cp.wc',+wc.toFixed(3),'|q|B/m');
+    const el=ctl.querySelector('#cpInv'); if(el) el.innerHTML=`cyclotron frequency ω_c=|q|B/m = <b>${wc.toFixed(3)}</b> · gyroradius r_g=v⊥/ω_c = <b>${rg.toFixed(3)}</b> · speed |v| = ${Math.hypot(...cpV).toFixed(3)} (conserved in B)`+
+      (st==='exb'?`<br>E×B drift speed = E/B = <b>${((state.cpE??0.3)/B0).toFixed(3)}</b> (charge- and mass-independent)`:'')+
+      (st==='mirror'?`<br>μ = mv⊥²/2B (adiabatic invariant) sets the mirror point — the bottle reflects the particle`:'');
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -11307,6 +11491,8 @@ function setS3View(v){
   shGroup.visible      = (v==='sh');
   kdvGroup.visible     = (v==='kdv');
   retGroup.visible     = (v==='ret');
+  dipGroup.visible     = (v==='dip');
+  cpGroup.visible      = (v==='cp');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -11325,6 +11511,8 @@ function setS3View(v){
   if(v==='sh'){ shSetup(); }
   if(v==='kdv'){ kdvSetup(); }
   if(v==='ret'){ retSetup(); }
+  if(v==='dip'){ dipSetup(); }
+  if(v==='cp'){ cpSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -11336,7 +11524,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16096,6 +16284,8 @@ const state = {
   shL:3, shM:2, shMode:'balloon', shAnim:true, shSpeed:1, shDeform:1.0,   // Spherical harmonics lab
   kdvMode:'collide', kdvRun:true, kdvSpeed:1, kdvC1:5, kdvC2:2,   // Soliton (KdV) lab
   retStation:'coupled', retRun:true, retSpeed:1, retK:1, retKappa:0.08, retGamma:0.1, retDriveW:1.0, retQ:100, retCoup:0.05,   // Resonant energy transfer lab
+  dipOmega:1.5, dipRun:true,   // Dipole radiation lab
+  cpStation:'cyclo', cpRun:true, cpSpeed:1, cpB:1, cpE:0.3, cpCharge:1, cpVperp:1, cpVpar:0.4,   // Charged-particle lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -17534,6 +17724,54 @@ function buildCtlBody(){
         <button class="btn" id="eotToQm">→ Quantum: tunnelling</button>
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
+    else if(V==='dip') body = `
+    <div class="sect"><b>Dipole radiation</b>
+      <div class="ctlrow">
+        <button class="btn green" id="dipRun">${state.dipRun!==false?'⏸ pause':'▶ run'}</button>
+        <label style="margin-left:8px">Frequency ω</label>
+        <input type="range" id="dipOmega" min="0.6" max="3" step="0.05" value="${state.dipOmega??1.5}"><span class="val" id="dipOmegaV">${(state.dipOmega??1.5).toFixed(2)}</span></div>
+    </div>
+    <div class="sect"><b>Radiation readout</b>
+      <div class="note" id="dipInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">An oscillating dipole sheds energy as wavefronts travelling at c. The glowing donut is the EXACT power pattern P(θ)∝sin²θ — zero along the oscillation axis, maximum broadside — and the total is ∫sin²θ dΩ=8π/3. Larmor's law P∝ω⁴ (raise ω and watch the power soar) is why blue scatters far more than red: the colour of the sky and of sunsets. Energy leaves and never returns — the fundamental antenna/harvester budget.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="dipToWave">→ Wave optics: the far-field interference</button>
+        <button class="btn" id="dipToEot">→ Extraordinary transmission: antennas & plasmons</button></div>
+    </div>`;
+    else if(V==='cp') body = `
+    <div class="sect"><b>Charged particle — pick a station</b>
+      <div class="chips">
+        ${[['cyclo','Cyclotron helix'],['exb','E×B drift'],['gradB','Grad-B drift'],['mirror','Magnetic mirror']].map(([k,l])=>
+          `<button class="chip ${(state.cpStation||'cyclo')===k?'on':''}" data-cpst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="cpRun">${state.cpRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="cpReset">↺ reset</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="cpSpeed" min="0.2" max="3" step="0.1" value="${state.cpSpeed??1}"><span class="val" id="cpSpeedV">×${(state.cpSpeed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Field B</label>
+        <input type="range" id="cpB" min="0.3" max="2.5" step="0.05" value="${state.cpB??1}"><span class="val" id="cpBV">${(state.cpB??1).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Charge sign</label>
+        <button class="chip ${(state.cpCharge??1)>=0?'on':''}" data-cpq="1">+ positive</button>
+        <button class="chip ${(state.cpCharge??1)<0?'on':''}" data-cpq="-1">− negative</button></div>
+      ${(state.cpStation||'cyclo')==='exb'?`
+      <div class="ctlrow"><label>Field E</label>
+        <input type="range" id="cpE" min="0" max="0.8" step="0.02" value="${state.cpE??0.3}"><span class="val" id="cpEV">${(state.cpE??0.3).toFixed(2)}</span></div>`:''}
+      <div class="ctlrow"><label>v⊥ / v∥</label>
+        <input type="range" id="cpVperp" min="0.3" max="2" step="0.05" value="${state.cpVperp??1}"><span class="val" id="cpVperpV">${(state.cpVperp??1).toFixed(2)}</span>
+        <input type="range" id="cpVpar" min="0" max="1.5" step="0.05" value="${state.cpVpar??0.4}"></div>
+    </div>
+    <div class="sect"><b>Guiding-centre readout</b>
+      <div class="note" id="cpInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Lorentz force integrated with the BORIS pusher (exact gyration, energy-conserving in B). Cyclotron: a uniform B curls velocity into a helix at ω_c=|q|B/m. E×B: the guiding centre drifts at v=E×B/B² — identical for every charge and mass. Grad-B: a non-uniform field makes the centre drift ⊥ to B and ∇B (charge-dependent). Magnetic mirror: as B converges, μ=mv⊥²/2B is conserved so v⊥ rises until the particle reflects — the bottle that traps the Van Allen belts and fusion plasmas.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="cpToTaub">→ Taub-NUT: gravitomagnetic cousin</button>
+        <button class="btn" id="cpToSolar">→ Solar: the magnetosphere & aurorae</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -17891,6 +18129,8 @@ function buildCtlBody(){
         <button class="btn ${V==='sh'?'on':''}" id="v-sh">Spherical harmonics</button>
         <button class="btn ${V==='kdv'?'on':''}" id="v-kdv">Solitons</button>
         <button class="btn ${V==='ret'?'on':''}" id="v-ret">Energy transfer</button>
+        <button class="btn ${V==='dip'?'on':''}" id="v-dip">Dipole radiation</button>
+        <button class="btn ${V==='cp'?'on':''}" id="v-cp">Charged particle</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -17909,7 +18149,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -18149,6 +18389,27 @@ function buildCtlBody(){
       ws('waveN',v=>state.waveN=v|0,v=>String(v|0));
       ctl.querySelector('#waveToQm')&&(ctl.querySelector('#waveToQm').onclick=()=>{ navPush(); setS3View('qm'); buildCtl(); });
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='dip'){
+      ctl.querySelector('#dipRun')&&(ctl.querySelector('#dipRun').onclick=()=>{ state.dipRun=state.dipRun===false; buildCtl(); });
+      ctl.querySelector('#dipOmega')&&(ctl.querySelector('#dipOmega').oninput=e=>{ state.dipOmega=+e.target.value;
+        const v=ctl.querySelector('#dipOmegaV'); if(v)v.textContent=state.dipOmega.toFixed(2); });
+      ctl.querySelector('#dipToWave')&&(ctl.querySelector('#dipToWave').onclick=()=>{ navPush(); setS3View('wave'); buildCtl(); });
+      ctl.querySelector('#dipToEot')&&(ctl.querySelector('#dipToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
+    if(V==='cp'){
+      ctl.querySelectorAll('[data-cpst]').forEach(b=>b.onclick=()=>{ state.cpStation=b.dataset.cpst; cpSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-cpq]').forEach(b=>b.onclick=()=>{ state.cpCharge=+b.dataset.cpq; cpSetup(); buildCtl(); });
+      ctl.querySelector('#cpRun')&&(ctl.querySelector('#cpRun').onclick=()=>{ state.cpRun=state.cpRun===false; buildCtl(); });
+      ctl.querySelector('#cpReset')&&(ctl.querySelector('#cpReset').onclick=()=>{ cpSetup(); });
+      const cs=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx?fx(+e.target.value):(+e.target.value).toFixed(2); }; } };
+      cs('cpSpeed',v=>state.cpSpeed=v,v=>'×'+v.toFixed(1)); cs('cpE',v=>state.cpE=v);
+      const csr=(id,f)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value); const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(2); }; el.onchange=()=>cpSetup(); } };
+      csr('cpB',v=>state.cpB=v); csr('cpVperp',v=>state.cpVperp=v);
+      ctl.querySelector('#cpVpar')&&(ctl.querySelector('#cpVpar').onchange=e=>{ state.cpVpar=+e.target.value; cpSetup(); });
+      ctl.querySelector('#cpToTaub')&&(ctl.querySelector('#cpToTaub').onclick=()=>{ navPush(); setS3View('taub'); buildCtl(); });
+      ctl.querySelector('#cpToSolar')&&(ctl.querySelector('#cpToSolar').onclick=()=>{ navPush(); setMode('solar'); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -19540,7 +19801,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -20697,6 +20958,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateKdv(dt);
     } else if(state.s3view==='ret'){
       fbsAnimT+=dt; updateRet(dt);
+    } else if(state.s3view==='dip'){
+      fbsAnimT+=dt; updateDip(dt);
+    } else if(state.s3view==='cp'){
+      fbsAnimT+=dt; updateCp(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
