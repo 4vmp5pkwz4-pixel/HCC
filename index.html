@@ -11660,39 +11660,50 @@ function heCyclePts(){
   return {pts,Th,Tc,nR,V1,V2,V3,V4};
 }
 function heSetup(){
-  heClear(); heGroup.add(new THREE.AmbientLight(0x9098b8,.85));
-  const C=heCyclePts(); const pts=C.pts;
-  let pmin=1e9,pmax=-1e9,vmin=1e9,vmax=-1e9;
-  for(const[V,P]of pts){ if(P<pmin)pmin=P; if(P>pmax)pmax=P; if(V<vmin)vmin=V; if(V>vmax)vmax=V; }
-  const SX=4.6/(vmax-vmin), SY=4.6/(pmax-pmin), ox=-2.3, oy=-2.3;
-  const map=(V,P)=>[ox+(V-vmin)*SX, oy+(P-pmin)*SY, 0];
-  const v3=pts.map(([V,P])=>{ const m=map(V,P); return new THREE.Vector3(m[0],m[1],0); });
+  heClear(); heGroup.add(new THREE.AmbientLight(0x9098b8,.7));
+  const dir=new THREE.DirectionalLight(0xfff2dc,.55); dir.position.set(5,7,6); heGroup.add(dir);
+  const C=heCyclePts(); const pts=C.pts, nR=C.nR;
+  // 3-D P–V–T ideal-gas surface P=nRT/V ; the Carnot cycle rides it.
+  const Vmin=C.V1*0.82, Vmax=C.V3*1.12, Tmin=C.Tc*0.86, Tmax=C.Th*1.14;
+  let Pmin=1e9,Pmax=-1e9; for(let iv=0;iv<=1;iv++)for(let it=0;it<=1;it++){ const P=nR*(it?Tmax:Tmin)/(iv?Vmin:Vmax); if(P<Pmin)Pmin=P; if(P>Pmax)Pmax=P; }
+  const map=(V,P,T)=>[ -2.5+5.0*(V-Vmin)/(Vmax-Vmin), -2.3+4.6*(P-Pmin)/(Pmax-Pmin), -2.0+4.0*(T-Tmin)/(Tmax-Tmin) ];
+  // surface mesh
+  const NV=44, NT=26, sgeo=new THREE.PlaneGeometry(1,1,NV-1,NT-1);
+  const pos=sgeo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NT;j++)for(let i=0;i<NV;i++){ const idx=j*NV+i;
+    const V=Vmin+(Vmax-Vmin)*i/(NV-1), T=Tmin+(Tmax-Tmin)*j/(NT-1), P=nR*T/V, m=map(V,P,T);
+    pos.setXYZ(idx,m[0],m[1],m[2]);
+    _c.setHSL(0.62-0.62*(T-Tmin)/(Tmax-Tmin),0.7,0.16+0.10*(P-Pmin)/(Pmax-Pmin)); col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+  sgeo.setAttribute('color',new THREE.BufferAttribute(col,3)); sgeo.computeVertexNormals();
+  const surf=new THREE.Mesh(sgeo,new THREE.MeshStandardMaterial({vertexColors:true,transparent:true,opacity:.5,roughness:.65,metalness:.1,side:THREE.DoubleSide,depthWrite:false}));
+  heGroup.add(surf);
+  const wire=new THREE.Mesh(sgeo,new THREE.MeshBasicMaterial({color:0x3a4664,wireframe:true,transparent:true,opacity:.16,depthWrite:false})); heGroup.add(wire);
+  // the Carnot loop as a glowing 3-D path on the surface
+  const v3=pts.map(([V,P])=>{ const m=map(V,P,P*V/nR); return new THREE.Vector3(m[0],m[1],m[2]); });
   const loop=new THREE.Line(new THREE.BufferGeometry().setFromPoints(v3.concat([v3[0]])),
-    new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95}));
+    new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
   heGroup.add(loop);
-  // shaded enclosed area (triangle fan from centroid)
-  const cx=v3.reduce((a,p)=>a+p.x,0)/v3.length, cy=v3.reduce((a,p)=>a+p.y,0)/v3.length;
-  const fg=new THREE.BufferGeometry(); const fa=[]; for(let i=0;i<v3.length;i++){ const a=v3[i], b=v3[(i+1)%v3.length]; fa.push(cx,cy,-0.01,a.x,a.y,-0.01,b.x,b.y,-0.01); }
-  fg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(fa),3));
-  const fill=new THREE.Mesh(fg,new THREE.MeshBasicMaterial({color:0x3a5a86,transparent:true,opacity:.32,side:THREE.DoubleSide,depthWrite:false}));
-  heGroup.add(fill);
-  const marker=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
-  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); mglow.scale.setScalar(.8); marker.add(mglow); heGroup.add(marker);
-  // axes
+  // translucent isothermal reservoir planes at Th (red) & Tc (blue)
+  const planeAt=(T,color)=>{ const g=new THREE.PlaneGeometry(5.0,4.6); const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false}));
+    m.position.set(0,0,map(Vmin,0,T)[2]); heGroup.add(m); return m; };
+  planeAt(C.Th,0xd8412f); planeAt(C.Tc,0x3f7fe0);
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); mglow.scale.setScalar(.9); marker.add(mglow); heGroup.add(marker);
+  // axes V (x), P (y), T (z)
+  const o=map(Vmin,Pmin,Tmin);
   const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-2.5,-2.5,0),new THREE.Vector3(2.6,-2.5,0),
-    new THREE.Vector3(-2.5,-2.5,0),new THREE.Vector3(-2.5,2.6,0)]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(2.7,o[1],o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],2.6,o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],o[1],2.2)]),
     new THREE.LineBasicMaterial({color:0x55607a})); heGroup.add(ax);
-  const vlb=mkLabel('V →','label axis'); vlb.position.set(2.7,-2.5,0); heGroup.add(vlb);
-  const plb=mkLabel('P ↑','label axis'); plb.position.set(-2.5,2.8,0); heGroup.add(plb);
-  // reservoirs
-  const hot=new THREE.Mesh(new THREE.BoxGeometry(1.1,.5,.3),new THREE.MeshBasicMaterial({color:0xd8412f,transparent:true,opacity:.85})); hot.position.set(1.4,3.0,0); heGroup.add(hot);
-  const cold=new THREE.Mesh(new THREE.BoxGeometry(1.1,.5,.3),new THREE.MeshBasicMaterial({color:0x3f7fe0,transparent:true,opacity:.85})); cold.position.set(-1.4,-3.15,0); heGroup.add(cold);
-  const hl=mkLabel('Tₕ (hot)','label axis'); hl.position.set(1.4,3.42,0); heGroup.add(hl);
-  const cl=mkLabel('T_c (cold)','label axis'); cl.position.set(-1.4,-3.5,0); heGroup.add(cl);
-  const tl=mkLabel('HEAT ENGINE · Carnot cycle · η = 1 − T_c/Tₕ = W/Qₕ','label const'); tl.position.set(0,3.9,0); heGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.9,0); heGroup.add(rl);
-  heObjs={loop,fill,marker,map,pts,C,readLab:rl,Th:C.Th,Tc:C.Tc};
+  const vlb=mkLabel('V →','label axis'); vlb.position.set(2.85,o[1],o[2]); heGroup.add(vlb);
+  const plb=mkLabel('P ↑','label axis'); plb.position.set(o[0],2.8,o[2]); heGroup.add(plb);
+  const tlb=mkLabel('T ↗','label axis'); tlb.position.set(o[0],o[1],2.4); heGroup.add(tlb);
+  const hl=mkLabel('Tₕ isotherm','label axis'); hl.position.set(2.2,2.2,map(Vmin,0,C.Th)[2]); heGroup.add(hl);
+  const cl=mkLabel('T_c isotherm','label axis'); cl.position.set(-2.2,-2.5,map(Vmin,0,C.Tc)[2]); heGroup.add(cl);
+  const tl=mkLabel('HEAT ENGINE · Carnot cycle on the P–V–T surface · η = 1 − T_c/Tₕ = W/Qₕ','label const'); tl.position.set(0,3.6,0); heGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.6,0); heGroup.add(rl);
+  heObjs={loop,marker,map,pts,C,nR,readLab:rl,Th:C.Th,Tc:C.Tc};
 }
 function updateHe(dt){
   let O=heObjs; if(!O) return;
@@ -11700,8 +11711,8 @@ function updateHe(dt){
   const pts=O.pts, n=pts.length;
   if(state.heRun!==false){ hePhase+=dt*(state.heSpeed??1)*0.28; if(hePhase>=1)hePhase-=1; }
   const fi=hePhase*n, i0=Math.floor(fi)%n, i1=(i0+1)%n, fr=fi-Math.floor(fi);
-  const a=O.map(...pts[i0]), b=O.map(...pts[i1]);
-  O.marker.position.set(a[0]+(b[0]-a[0])*fr,a[1]+(b[1]-a[1])*fr,0);
+  const a=O.map(pts[i0][0],pts[i0][1],pts[i0][1]*pts[i0][0]/O.nR), b=O.map(pts[i1][0],pts[i1][1],pts[i1][1]*pts[i1][0]/O.nR);
+  O.marker.position.set(a[0]+(b[0]-a[0])*fr,a[1]+(b[1]-a[1])*fr,a[2]+(b[2]-a[2])*fr);
   heUiAcc+=dt; if(heUiAcc>0.25){ heUiAcc=0;
     const Th=O.C.Th, Tc=O.C.Tc, nR=O.C.nR, {V1,V2,V3,V4}=O.C;
     const eta=1-Tc/Th, Qh=nR*Th*Math.log(V2/V1), Qc=nR*Tc*Math.log(V3/V4), W=Qh-Qc;
@@ -11710,7 +11721,7 @@ function updateHe(dt){
       hePhase<0.75?'isothermal compression @T_c — gas rejects Q_c to the cold sink':
       'adiabatic compression — no heat, gas heats T_c→Tₕ, work in';
     hudBig.textContent=`HEAT ENGINE · η = 1 − T_c/Tₕ = ${(eta*100).toFixed(1)}% · W/Qₕ = ${(W/Qh*100).toFixed(1)}%`;
-    hudSub.textContent='the enclosed P–V area is the net work W; the Carnot bound η=1−T_c/Tₕ is the MOST any heat engine can extract between two reservoirs. Every joule of Qₕ splits into W out plus Q_c dumped cold — you cannot skim more without violating the second law. Current stroke: '+stage+'.';
+    hudSub.textContent='the gas state lives on the P–V–T surface P=nRT/V; the Carnot cycle is the glowing loop woven across it between the two isothermal reservoir planes. Its projected P–V area is the net work W, and the Carnot bound η=1−T_c/Tₕ is the MOST any engine can extract between two reservoirs — every joule of Qₕ splits into W out plus Q_c dumped cold. Current stroke: '+stage+'.';
     ATLAS_BUS.pub('he.eta',+eta.toFixed(4),'1−Tc/Th');
     const el=ctl.querySelector('#heInv'); if(el) el.innerHTML=`Tₕ=<b>${Th.toFixed(0)}</b> K · T_c=<b>${Tc.toFixed(0)}</b> K · η=1−T_c/Tₕ=<b>${(eta*100).toFixed(1)}%</b><br>Qₕ=${Qh.toFixed(3)} · Q_c=${Qc.toFixed(3)} · W=Qₕ−Q_c=<b>${W.toFixed(3)}</b> · check W/Qₕ=${(W/Qh).toFixed(4)} = η ✓`;
   }
@@ -12346,7 +12357,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
