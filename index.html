@@ -1305,6 +1305,10 @@ const FORMULA_REGISTRY = [
  {id:'bh.luminosity',expr:'L_ideal = hbar c^6 / (15360 pi G^2 M^2)',units:'W',  src:'BHTREF'},
  {id:'bh.evap',     expr:'t_ideal = 5120 pi G^2 M^3 / (hbar c^4); M(t)=M0(1-t/t_ideal)^{1/3}', units:'s', src:'BHTREF'},
  {id:'qft.unruh',   expr:'T_U = hbar a / (2 pi c k_B)',            units:'K',   src:'BHTREF'},
+ {id:'tov.pressure', expr:'dP/dr = -(eps+P)(m+4 pi r^3 P) / (r(r-2m))', units:'geometrized', src:'DERIVED'},
+ {id:'tov.mass',    expr:'dm/dr = 4 pi r^2 eps',                   units:'geometrized', src:'DERIVED'},
+ {id:'tov.eos',     expr:'P = K rho0^Gamma; eps = rho0 + P/(Gamma-1)  (Gamma=2, K=100 benchmark)', units:'geometrized', src:'DERIVED'},
+ {id:'tov.buchdahl',expr:'2GM/(R c^2) < 8/9 for any static star',   units:'1',   src:'DERIVED'},
  {id:'cmb.harmonics',expr:'Delta T(n) = sum_lm a_lm Y_lm(n); D_l=l(l+1)C_l/(2 pi)',units:'microK / microK^2',src:'CMBREF'},
  {id:'topo.s3paths',expr:'ell_short=chi R; ell_complement=(2 pi-chi)R; sum=2 pi R',units:'length',src:'TOPOREF'},
 ];
@@ -1623,6 +1627,18 @@ function runSelfTests(){
     const ok2=Math.abs(r2.pos[0]-1)<1e-6 && Math.abs(Math.hypot(r2.pos[0],r2.pos[1],r2.pos[2])-1)<1e-6;
     ok('Catalogue CSV parser: x/y/z and ra/dec/dGly schemas parse; bad rows dropped; sky rows land on the unit sphere',
       r1.n===3 && r1.pos[3]===4 && r2.n===1 && ok2, `xyz n=${r1.n}, sky |p|=${Math.hypot(r2.pos[0],r2.pos[1],r2.pos[2]).toFixed(6)}`); }
+  { // TOV NEUTRON STAR: literature benchmark, maximum-mass turnover, Buchdahl bound, Newtonian limit
+    const c1=tovSolve(1.28e-3,3e-3,false);
+    ok('TOV: benchmark polytrope ρ_c=1.28e-3 gives the literature star M=1.400 M☉, R=14.15 km (±1%)',
+      Math.abs(c1.M-1.400)<0.014 && Math.abs(c1.Rkm-14.15)<0.15, `M=${c1.M.toFixed(4)}, R=${c1.Rkm.toFixed(2)} km`);
+    const C=nsGetCurve();
+    ok('TOV: the mass–radius sequence has a MAXIMUM ≈1.637 M☉ (the TOV limit; turnover verified)',
+      Math.abs(C.mx.M-1.637)<0.017 && C.pts[C.pts.length-1].M<C.mx.M && C.pts[0].M<C.mx.M, `M_max=${C.mx.M.toFixed(3)} @ ρ_c=${C.mx.rc.toExponential(2)}`);
+    ok('TOV: Buchdahl bound 2GM/Rc² < 8/9 holds on the ENTIRE computed sequence',
+      C.pts.every(p=>2*p.M/p.Rcode<8/9), 'max='+Math.max(...C.pts.map(p=>2*p.M/p.Rcode)).toFixed(3));
+    const lo=tovSolve(1e-5,3e-3,false), RN=Math.PI*Math.sqrt(NS_K/(2*Math.PI));
+    ok('TOV: low-density limit converges to the Newtonian Γ=2 Lane–Emden radius π√(K/2π) (±1%)',
+      Math.abs(lo.Rcode-RN)/RN<0.01, `${lo.Rcode.toFixed(2)} vs ${RN.toFixed(2)}`); }
   { // HEAT ENGINE: Carnot η=1−Tc/Th equals W/Qh, and Clausius V3/V4=V2/V1 for the ideal-gas cycle
     const Th=500,Tc=300,g=1.4,V1=1,V2=2.5;
     const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
@@ -13286,6 +13302,121 @@ function updateBhr(dt){
   }
 }
 
+/* ================================================================
+   NEUTRON-STAR INTERIOR LAB · the TOV equations solved live (UPRS 17/18).
+   General-relativistic hydrostatic equilibrium:
+     dP/dr = −(ε+P)(m+4πr³P) / (r(r−2m)),   dm/dr = 4πr²ε
+   with the standard numerical-relativity test EOS — a relativistic
+   polytrope P=Kρ₀^Γ (Γ=2, K=100; ε=ρ₀+P/(Γ−1); G=c=M☉=1). Verified to
+   the literature: ρ_c=1.28×10⁻³ → M=1.4002 M☉, R=14.15 km; maximum mass
+   M_max=1.637 M☉ at ρ_c=3.16×10⁻³; Buchdahl bound 2GM/Rc²<8/9 holds on
+   the whole sequence; the low-density limit converges to the Newtonian
+   Γ=2 Lane–Emden radius. DECLARED: this is the pedagogical benchmark
+   EOS, not tabulated nuclear matter — real 2.1 M☉ pulsars (PSR J0740)
+   require stiffer EOS; densities above the M–R peak are the UNSTABLE
+   branch (collapse to a black hole). */
+const nsGroup=new THREE.Group(); nsGroup.visible=false; s3Group.add(nsGroup);
+const NS_K=100, NS_GAM=2, NS_KM=1.4766250385;
+let nsObjs=null, nsUiAcc=0, nsCurve=null, nsCache=new Map(), nsT=0;
+function tovSolve(rhoc,h,wantProf){
+  h=h||2e-3;
+  let r=1e-6, P=NS_K*Math.pow(rhoc,NS_GAM), m=0;
+  const prof=wantProf?[]:null;
+  const f=(r,P,m)=>{ if(P<=0) return [0,0];
+    const rho0=Math.pow(P/NS_K,1/NS_GAM), eps=rho0+P/(NS_GAM-1);
+    const dP=(r<=0||r-2*m<=0)?0:-(eps+P)*(m+4*Math.PI*r*r*r*P)/(r*(r-2*m));
+    return [dP,4*Math.PI*r*r*eps]; };
+  for(let i=0;i<40000;i++){
+    if(P<=1e-14) break;
+    if(prof&&i%40===0){ const rho0=Math.pow(P/NS_K,1/NS_GAM); prof.push([r,rho0+P/(NS_GAM-1),P,m]); }
+    const k1=f(r,P,m), k2=f(r+h/2,P+h/2*k1[0],m+h/2*k1[1]),
+          k3=f(r+h/2,P+h/2*k2[0],m+h/2*k2[1]), k4=f(r+h,P+h*k3[0],m+h*k3[1]);
+    P+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]); m+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]); r+=h;
+  }
+  return {M:m,Rcode:r,Rkm:r*NS_KM,prof};
+}
+function nsGetCurve(){
+  if(nsCurve) return nsCurve;
+  const pts=[]; let mx={M:0};
+  for(let lg=-3.4;lg<=-1.9;lg+=0.035){ const rc=Math.pow(10,lg), s=tovSolve(rc,3e-3,false);
+    const p={rc,M:s.M,Rkm:s.Rkm,Rcode:s.Rcode}; pts.push(p); if(s.M>mx.M) mx=p; }
+  nsCurve={pts,mx}; return nsCurve;
+}
+function nsStar(rhoc){
+  const key=rhoc.toExponential(3);
+  if(!nsCache.has(key)) nsCache.set(key,tovSolve(rhoc,2e-3,true));
+  return nsCache.get(key);
+}
+function nsClear(){ labWipe(nsGroup); nsObjs=null; }
+function nsSetup(){
+  nsClear(); nsGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dir=new THREE.DirectionalLight(0xeef2ff,.55); dir.position.set(4,6,7); nsGroup.add(dir);
+  // interior: nested density shells rebuilt per star in updateNs
+  const shellGrp=new THREE.Group(); shellGrp.position.set(-2.1,0.6,0); nsGroup.add(shellGrp);
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff2d0,transparent:true,opacity:.85,depthWrite:false}));
+  shellGrp.add(core);
+  // M–R diagram: x = R 9→20 km, y = M 0→1.9 Msun
+  const mrGrp=new THREE.Group(); mrGrp.position.set(1.6,-0.4,0); nsGroup.add(mrGrp);
+  const mx=R=>-1.4+2.8*(R-9)/11, my=M=>-1.5+3.0*(M/1.9);
+  const C=nsGetCurve();
+  mrGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(C.pts.map(p=>new THREE.Vector3(mx(p.Rkm),my(p.M),0))),
+    new THREE.LineBasicMaterial({color:0x8fd0ff,transparent:true,opacity:.95})));
+  // Buchdahl exclusion M = (4/9)(R/KM) and Schwarzschild M = R/(2 KM)
+  for(const [fac,col,nm,yy] of [[4/9,0xff8a6a,'Buchdahl 8/9',1],[0.5,0x9a5a5a,'R=2GM/c² (BH)',0.8]]){
+    const pts2=[]; for(let R=9;R<=20;R+=0.5){ const M=fac*R/NS_KM; if(M<=1.95) pts2.push(new THREE.Vector3(mx(R),my(Math.min(M,1.9)),0)); }
+    if(pts2.length>1){ mrGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2),
+      new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.5})));
+      const l=mkLabel(nm,'label dim'); l.position.copy(pts2[Math.min(2,pts2.length-1)]).add(new THREE.Vector3(0,.22,0)); mrGrp.add(l); } }
+  const mxMk=new THREE.Mesh(new THREE.SphereGeometry(.07,12,9),new THREE.MeshBasicMaterial({color:0xffe08a}));
+  mxMk.position.set(mx(C.mx.Rkm),my(C.mx.M),0); mrGrp.add(mxMk);
+  const mxl=mkLabel(`TOV maximum ${C.mx.M.toFixed(3)} M☉`,'label axis'); mxl.position.set(mx(C.mx.Rkm),my(C.mx.M)+0.28,0); mrGrp.add(mxl);
+  const cur=new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const cg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); cg.scale.setScalar(.7); cur.add(cg); mrGrp.add(cur);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(mx(9),my(0),0),new THREE.Vector3(mx(20),my(0),0),
+    new THREE.Vector3(mx(9),my(0),0),new THREE.Vector3(mx(9),my(1.9),0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); mrGrp.add(ax);
+  const xl=mkLabel('R (km) →','label axis'); xl.position.set(mx(20)+0.35,my(0),0); mrGrp.add(xl);
+  const yl=mkLabel('M (M☉) ↑','label axis'); yl.position.set(mx(9),my(1.9)+0.25,0); mrGrp.add(yl);
+  const tl=mkLabel('NEUTRON STAR · TOV interior · dP/dr=−(ε+P)(m+4πr³P)/r(r−2m)','label const','nsAtlas'); tl.position.set(0,3.5,0); nsGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); nsGroup.add(rl);
+  nsObjs={shellGrp,core,cur,mx,my,readLab:rl,builtFor:null,shells:[]};
+}
+function updateNs(dt){
+  const O=nsObjs; if(!O) return; nsT+=dt;
+  const rhoc=state.nsRhoc??1.28e-3, S=nsStar(rhoc);
+  if(O.builtFor!==rhoc){
+    O.builtFor=rhoc;
+    for(const sh of O.shells){ O.shellGrp.remove(sh); sh.geometry.dispose(); sh.material.dispose(); }
+    O.shells=[];
+    const scale=1.55/9.6, prof=S.prof, epsC=prof[0]?prof[0][1]:1e-3, _c=new THREE.Color();
+    const NSH=9;
+    for(let k=NSH-1;k>=0;k--){
+      const fr=(k+1)/NSH, idx=Math.min(prof.length-1,Math.round(fr*(prof.length-1)));
+      const rr=prof[idx][0]*scale, eps=prof[idx][1], t=Math.pow(eps/epsC,0.42);
+      _c.setHSL(0.085*t+0.0,0.85,0.18+0.55*t);
+      const m=new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.04,rr),40,26),
+        new THREE.MeshPhongMaterial({color:_c.getHex(),transparent:true,opacity:k===NSH-1?0.35:0.16+0.5*t,
+          emissive:_c.getHex(),emissiveIntensity:0.35*t,depthWrite:false}));
+      O.shellGrp.add(m); O.shells.push(m);
+    }
+    O.core.scale.setScalar(S.Rcode*scale*1.7);
+    O.cur.position.set(O.mx(S.Rkm),O.my(S.M),0);
+  }
+  O.core.material.opacity=0.7+0.15*Math.sin(nsT*2.4);
+  nsUiAcc+=dt; if(nsUiAcc>0.25){ nsUiAcc=0;
+    const comp=2*S.M/S.Rcode, z=1/Math.sqrt(Math.max(1e-9,1-comp))-1, C=nsGetCurve();
+    const unstable=rhoc>C.mx.rc*1.02;
+    hudBig.textContent=`NEUTRON STAR · M=${S.M.toFixed(3)} M☉ · R=${S.Rkm.toFixed(2)} km · 2GM/Rc²=${comp.toFixed(3)} · z_surf=${z.toFixed(3)}${unstable?' · UNSTABLE branch':''}`;
+    hudSub.textContent='the TOV equations — general-relativistic hydrostatic equilibrium — integrated live from your central density. Pressure must fight not just weight but the gravity OF pressure itself ((ε+P) and 4πr³P terms), which is why the sequence has a MAXIMUM mass: beyond the peak (the TOV limit) no equilibrium exists and collapse to a black hole follows. Benchmark Γ=2 polytrope EOS (declared pedagogical): real 2.1 M☉ pulsars require stiffer nuclear matter. The Buchdahl line 2GM/Rc²=8/9 is the GR bound for ANY static star.';
+    ATLAS_BUS.pub('ns.M',+S.M.toFixed(4),'M☉');
+    const el=ctl.querySelector('#nsInv'); if(el) el.innerHTML=
+      `ρ_c=<b>${rhoc.toExponential(2)}</b> (G=c=M☉=1) · M=<b>${S.M.toFixed(4)}</b> M☉ · R=<b>${S.Rkm.toFixed(2)}</b> km · compactness 2GM/Rc²=<b>${comp.toFixed(4)}</b> (Buchdahl < 0.889)<br>`+
+      `surface redshift z=1/√(1−2GM/Rc²)−1=<b>${z.toFixed(4)}</b> · TOV maximum on this EOS: <b>${C.mx.M.toFixed(3)} M☉</b> at ρ_c=${C.mx.rc.toExponential(2)} (R=${C.mx.Rkm.toFixed(1)} km)`+
+      (unstable?`<br><b>UNSTABLE branch</b>: dM/dρ_c&lt;0 — a star here collapses to a black hole`:``);
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -13333,6 +13464,7 @@ function setS3View(v){
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
+  nsGroup.visible      = (v==='ns');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -13366,6 +13498,7 @@ function setS3View(v){
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
+  if(v==='ns'){ nsSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -13377,7 +13510,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -18152,6 +18285,7 @@ const state = {
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab
+  nsRhoc:1.28e-3,   // Neutron-star TOV lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -19968,6 +20102,25 @@ function buildCtlBody(){
         <button class="btn" id="bhrToLens">→ Lensing: the geodesics as curves</button>
         <button class="btn" id="bhrToGw">→ Gravitational waves: two of these merging</button></div>
     </div>`;
+    else if(V==='ns') body = `
+    <div class="sect"><b>Neutron star — central density</b>
+      <div class="chips">
+        ${[['canon','Canonical 1.40 M☉',-2.8928],['heavy','Near maximum',-2.55],['max','TOV maximum 1.637',-2.5],['unstable','Unstable branch',-2.15],['light','Low-mass',-3.3]].map(([k,l,lg])=>
+          `<button class="chip" data-nsp="${lg}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>log₁₀ ρ_c</label>
+        <input type="range" id="nsRho" min="-3.4" max="-1.9" step="0.01" value="${Math.log10(state.nsRhoc??1.28e-3).toFixed(2)}"><span class="val" id="nsRhoV">${Math.log10(state.nsRhoc??1.28e-3).toFixed(2)}</span></div>
+    </div>
+    <div class="sect"><b>TOV readout</b>
+      <div class="note" id="nsInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The Tolman–Oppenheimer–Volkoff equations — hydrostatic equilibrium in full general relativity — integrated live (RK4) from your chosen central density. In GR, pressure gravitates: the (ε+P) and 4πr³P terms mean squeezing harder eventually makes gravity win, so the mass–radius sequence has a MAXIMUM (the TOV limit) and beyond it lies collapse. EOS: the standard numerical-relativity benchmark polytrope (Γ=2, K=100), verified against the literature (1.4002 M☉ / 14.15 km; M_max=1.637). DECLARED pedagogical — real 2.1 M☉ pulsars (PSR J0740+6620) require stiffer tabulated nuclear EOS. Buchdahl's theorem (2GM/Rc²&lt;8/9) bounds ANY static star; the Schwarzschild line marks the black-hole region.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="nsToBht">→ Past the maximum: black-hole thermodynamics</button>
+        <button class="btn" id="nsToNuc">→ Nuclear binding: the matter inside</button>
+        <button class="btn" id="nsToGw">→ Binary NS mergers: gravitational waves</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -20343,6 +20496,7 @@ function buildCtlBody(){
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
+        <button class="btn ${V==='ns'?'on':''}" id="v-ns">Neutron star</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -20361,7 +20515,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr','ns']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -20751,6 +20905,14 @@ function buildCtlBody(){
       ctl.querySelector('#bhrToBht')&&(ctl.querySelector('#bhrToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
       ctl.querySelector('#bhrToLens')&&(ctl.querySelector('#bhrToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#bhrToGw')&&(ctl.querySelector('#bhrToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
+    }
+    if(V==='ns'){
+      ctl.querySelectorAll('[data-nsp]').forEach(b=>b.onclick=()=>{ state.nsRhoc=Math.pow(10,+b.dataset.nsp); buildCtl(); });
+      ctl.querySelector('#nsRho')&&(ctl.querySelector('#nsRho').oninput=e=>{ state.nsRhoc=Math.pow(10,+e.target.value);
+        const v=ctl.querySelector('#nsRhoV'); if(v)v.textContent=(+e.target.value).toFixed(2); });
+      ctl.querySelector('#nsToBht')&&(ctl.querySelector('#nsToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
+      ctl.querySelector('#nsToNuc')&&(ctl.querySelector('#nsToNuc').onclick=()=>{ navPush(); setS3View('nuc'); buildCtl(); });
+      ctl.querySelector('#nsToGw')&&(ctl.querySelector('#nsToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -22148,7 +22310,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -23505,6 +23667,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateMimg(dt);
     } else if(state.s3view==='bhr'){
       fbsAnimT+=dt; updateBhr(dt);
+    } else if(state.s3view==='ns'){
+      fbsAnimT+=dt; updateNs(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
