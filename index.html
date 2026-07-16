@@ -834,6 +834,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { XRControllerModelFactory } from 'three/addons/webxr/XRControllerModelFactory.js';
 import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 const ATLAS_BOOT_T0=performance.now();
 const ATLAS_TELEMETRY={firstFrameMs:null,frameEmaMs:0,frameJitterMs:0,frames:0,contextLosses:0};
@@ -2786,6 +2790,28 @@ renderer.domElement.addEventListener('webglcontextlost',e=>{
   e.preventDefault();webglContextLost=true;ATLAS_TELEMETRY.contextLosses++;
   const h=document.getElementById('hudBig');if(h)h.textContent='WebGL context paused · restoring renderer';
 },{passive:false});
+/* HDR bloom post-chain: RenderPass -> UnrealBloomPass -> OutputPass on half-float
+   buffers, so additive glows above 1.0 bleed physically (energy-conserving mip
+   kernel). PERCEPTUAL, not radiometric: intensities are display-relative, no SI
+   luminance is claimed. Bypassed while an XR session presents (composer paths
+   are not stereo-safe) and falls back to the direct render on any failure. */
+let bloomComposer=null, bloomPass=null, bloomFailed=false;
+function ensureBloom(){
+  if(bloomComposer||bloomFailed) return bloomComposer;
+  try{
+    bloomComposer=new EffectComposer(renderer);
+    bloomComposer.addPass(new RenderPass(scene,camera));
+    bloomPass=new UnrealBloomPass(new THREE.Vector2(renderer.domElement.width,renderer.domElement.height),0.55,0.5,0.85);
+    bloomComposer.addPass(bloomPass);
+    bloomComposer.addPass(new OutputPass());
+  }catch(e){ bloomFailed=true; bloomComposer=null; }
+  return bloomComposer;
+}
+function bloomResize(w,h){ if(bloomComposer){ bloomComposer.setPixelRatio(renderer.getPixelRatio()); bloomComposer.setSize(w,h); } }
+function renderMain(){
+  if(state.bloomOn!==false && !renderer.xr.isPresenting && !webglContextLost && ensureBloom()) bloomComposer.render();
+  else renderer.render(scene,camera);
+}
 renderer.domElement.addEventListener('webglcontextrestored',()=>{
   webglContextLost=false;requestRendererResize();requestHierarchyLayout();
 });
@@ -2871,7 +2897,7 @@ function rendererViewportSize(){
 function syncRendererViewport(){
   const {w,h}=rendererViewportSize();
   camera.aspect=w/h;camera.updateProjectionMatrix();
-  renderer.setSize(w,h,true);labelRenderer.setSize(w,h);
+  renderer.setSize(w,h,true);labelRenderer.setSize(w,h);bloomResize(w,h);
   fractalUniforms.uRes.value.set(w*renderer.getPixelRatio(),h*renderer.getPixelRatio());
   rendererResizePending=false;requestHierarchyLayout();
 }
@@ -17890,7 +17916,7 @@ const state = {
   vectorMain:true,vectorAdditional:true,vectorAxes:true,vectorFields:true,
   vectorRelations:true,vectorFlows:true,vectorGuides:true,
   geocentric:false,             // Solar System reference frame: false=heliocentric, true=Earth-centred
-  daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0, astOn:true,
+  daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0, astOn:true, bloomOn:true,
   planetScale: 600, sunScale: 24, trueScale:false, showOrbits:true,
   chi: S3.chiP, gyrPerSec: 20, photonT: 0, photonRun:true,
   s3view:'sec', hopfDensity:1, hopfFlow:true, hopfFlowSpd:1,
@@ -21356,12 +21382,17 @@ function buildCtlBody(){
   }
   ctl.insertAdjacentHTML('beforeend',`
     <div class="sect"><b>Persistent 3D orientation</b>
+      <div class="ctlrow"><label>HDR bloom</label>
+        <input type="checkbox" id="bloomOn" ${state.bloomOn!==false?'checked':''}>
+        <span class="val" style="flex:1;text-align:left;color:var(--dim)">half-float post-chain · perceptual, not radiometric · off in XR</span>
+      </div>
       <div class="ctlrow"><label>Hierarchy locator</label>
         <input type="checkbox" id="hierarchyLocator" ${state.showHierarchyLocator?'checked':''}>
         <span class="val" style="flex:1;text-align:left;color:var(--dim)">true directions · semantic scale</span>
       </div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">The inset keeps Earth, Sun, Galactic plane/centre, M31, the Laniakea-flow direction and an S³ reference visible in every tab. Drag to rotate, use X/Y/Z for standard views, or tap a major marker for global selection. It automatically moves away from open panels. Distances are intentionally not to scale so nested systems remain legible.</div>
     </div>`);
+  ctl.querySelector('#bloomOn')&&(ctl.querySelector('#bloomOn').onchange=e=>{ state.bloomOn=e.target.checked; });
   ctl.querySelector('#hierarchyLocator').onchange=e=>{
     state.showHierarchyLocator=e.target.checked; hierarchyLegend.style.display=e.target.checked?'block':'none';
     requestHierarchyLayout();
@@ -22881,7 +22912,7 @@ function tickBody(now, frame){
         hudBig.textContent='Hydrogen electron orbital · |ψ|² quantum cloud';
         hudSub.textContent='real hydrogen orbital shape (exact nodes & phase) · gold + lobe, blue − lobe · drag to orbit';
       }
-      renderer.render(scene, camera);
+      renderMain();
       if(!MOBILE_GPU||++labelRenderFrame%2===0) labelRenderer.render(scene,camera);   // 3D annotations
       if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
       renderHierarchyLocator();
@@ -23373,7 +23404,7 @@ function tickBody(now, frame){
 
   if(!state.landed && !renderer.xr.isPresenting) controls.update();
   stabilizeCamera();
-  renderer.render(scene, camera);
+  renderMain();
   if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
   if(!renderer.xr.isPresenting&&(!MOBILE_GPU||++labelRenderFrame%2===0))labelRenderer.render(scene,camera);
   renderHierarchyLocator();
