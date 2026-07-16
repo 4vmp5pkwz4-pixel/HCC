@@ -12212,9 +12212,16 @@ function gwSetup(){
     new THREE.Vector3(-3.2,-2.6,0),new THREE.Vector3(3.2,-2.6,0)]),
     new THREE.LineBasicMaterial({color:0x445}) ); gwGroup.add(ax);
   const wl=mkLabel('strain h(t) — the chirp','label axis'); wl.position.set(0,-3.05,0); gwGroup.add(wl);
+  // detector test-mass ring — how the wave physically stretches space (h₊ polarisation)
+  const ringC=new THREE.Vector3(3.15,0.35,0), RR=0.72, NR=16, ringMasses=[];
+  for(let i=0;i<NR;i++){ const m=new THREE.Mesh(new THREE.SphereGeometry(.075,10,8),new THREE.MeshBasicMaterial({color:0x9fe8d8})); gwGroup.add(m); ringMasses.push(m); }
+  const rest=[]; for(let i=0;i<=64;i++){ const a=i/64*2*Math.PI; rest.push(new THREE.Vector3(ringC.x+RR*Math.cos(a),ringC.y+RR*Math.sin(a),0)); }
+  gwGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rest),new THREE.LineBasicMaterial({color:0x44506e,transparent:true,opacity:.4})));
+  const defLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7ff0d0,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})); gwGroup.add(defLine);
+  const rlab=mkLabel('test masses · h₊ stretches space','label axis'); rlab.position.set(3.15,1.35,0); gwGroup.add(rlab);
   const tl=mkLabel('GRAVITATIONAL WAVES · binary inspiral · chirp mass M_c drives df/dt ∝ f^{11/3}','label const'); tl.position.set(0,3.5,0); gwGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); gwGroup.add(rl);
-  gwObjs={b1,b2,flash,wave,wg,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
+  gwObjs={b1,b2,flash,wave,wg,ringMasses,defLine,ringC,RR,NR,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
 }
 function updateGw(dt){
   const O=gwObjs; if(!O) return; const Mc=O.Mc, M=O.M;
@@ -12238,10 +12245,15 @@ function updateGw(dt){
   const pa=O.wg.attributes.position.array;
   for(let i=0;i<GW_NW;i++){ const idx=(gwWi+i)%GW_NW; pa[i*3]=-3.1+6.2*i/(GW_NW-1); pa[i*3+1]=-2.6+gwWave[idx]; pa[i*3+2]=0; }
   O.wg.attributes.position.needsUpdate=true; O.wg.computeBoundingSphere();
+  // deform the detector ring: plus polarisation x→x(1+½h), y→y(1−½h), h growing toward merger
+  const hstr=Math.min(0.4,0.5*Math.pow(gwF/O.fisco,2/3))*Math.cos(2*gwAngle), dpts=[];
+  for(let i=0;i<=O.NR;i++){ const a=i/O.NR*2*Math.PI, x=O.ringC.x+O.RR*Math.cos(a)*(1+0.5*hstr), y=O.ringC.y+O.RR*Math.sin(a)*(1-0.5*hstr);
+    if(i<O.NR) O.ringMasses[i].position.set(x,y,0); dpts.push(new THREE.Vector3(x,y,0)); }
+  O.defLine.geometry.setFromPoints(dpts); O.defLine.geometry.computeBoundingSphere();
   gwUiAcc+=dt; if(gwUiAcc>0.2){ gwUiAcc=0;
     const tau=gwTau(gwF,Mc);
     hudBig.textContent=`GRAVITATIONAL WAVES · M_c=${(Mc/GW_MSUN).toFixed(1)} M☉ · f_gw=${gwF.toFixed(1)} Hz · τ→merge=${tau.toFixed(3)} s`;
-    hudSub.textContent='the binary’s orbital energy leaks away as gravitational waves, so the orbit shrinks and the wave frequency and amplitude "chirp" upward to merger. One number — the chirp mass M_c — fixes the whole sweep; LIGO reads M_c straight off df/dt. The energy is not lost, it is carried off by ripples in spacetime itself.';
+    hudSub.textContent='the binary’s orbital energy leaks away as gravitational waves, so the orbit shrinks and the wave frequency and amplitude "chirp" upward to merger. One number — the chirp mass M_c — fixes the whole sweep; LIGO reads M_c straight off df/dt. The ring of test masses shows what the wave DOES: it stretches space one way and squeezes the other (the h₊ polarisation), the deformation growing with the strain. The energy is not lost, it is carried off by ripples in spacetime itself.';
     ATLAS_BUS.pub('gw.Mc',+(Mc/GW_MSUN).toFixed(2),'M☉');
     const el=ctl.querySelector('#gwInv'); if(el) el.innerHTML=`m₁=<b>${m1}</b> m₂=<b>${m2}</b> M☉ → chirp mass M_c=<b>${(Mc/GW_MSUN).toFixed(2)}</b> M☉ · total M=${Mt} M☉<br>f_gw=<b>${gwF.toFixed(1)}</b> Hz · df/dt=${gwDfdt(gwF,Mc).toFixed(1)} Hz/s · time to merge τ=<b>${tau.toFixed(3)}</b> s · ISCO f_gw=${O.fisco.toFixed(0)} Hz`;
   }
