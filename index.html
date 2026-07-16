@@ -12128,26 +12128,44 @@ function pvCell(Eg,T,conc){ const Jsc=PV_q*pvFlux(Eg,PV_TSUN,PV_DIL*conc), J0=PV
   return {Jsc,J0,Voc,Pmax,Vmp,Imp,FF,eff:Pmax/Pin}; }
 function pvClear(){ labWipe(pvGroup); pvObjs=null; }
 function pvSetup(){
-  pvClear(); pvGroup.add(new THREE.AmbientLight(0x9098b8,.9));
-  // SQ efficiency-vs-Eg reference curve (precomputed)
-  const sq=[]; for(let Eg=0.5;Eg<=2.6;Eg+=0.05) sq.push([Eg,pvCell(Eg,state.pvT??300,1).eff]);
-  const sxmap=Eg=>-2.7+4.9*(Eg-0.5)/2.1, symap=e=>0.6+e*7.0;
-  const sqLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sq.map(([Eg,e])=>new THREE.Vector3(sxmap(Eg),symap(e),0))),
-    new THREE.LineBasicMaterial({color:0x6ad0a0,transparent:true,opacity:.7})); pvGroup.add(sqLine);
-  const sqMk=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); pvGroup.add(sqMk);
-  const sqlb=mkLabel('detailed-balance limit η(E_g)','label axis'); sqlb.position.set(0,2.85,0); pvGroup.add(sqlb);
-  // I–V & P–V curves (rebuilt each UI tick) placeholders
-  const iv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95})); pvGroup.add(iv);
-  const pv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff8f6a,transparent:true,opacity:.9})); pvGroup.add(pv);
-  const mpp=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:0x9fe0ff})); pvGroup.add(mpp);
+  pvClear(); pvGroup.add(new THREE.AmbientLight(0x9098b8,.7));
+  const dir=new THREE.DirectionalLight(0xfff2dc,.6); dir.position.set(5,8,6); pvGroup.add(dir);
+  const T=state.pvT??300, Xexp=3;
+  const gx=Eg=>-2.6+4.6*(Eg-0.5)/1.9, gz=lx=>-2.0+4.0*(lx/Xexp), gy=e=>-1.7+e*10;
+  // 3-D efficiency landscape η(E_g, log₁₀ illumination)
+  const NE=28, NX=14, geo=new THREE.PlaneGeometry(1,1,NE-1,NX-1);
+  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NX;j++)for(let i=0;i<NE;i++){ const idx=j*NE+i, Eg=0.5+1.9*i/(NE-1), lx=Xexp*j/(NX-1), e=pvCell(Eg,T,Math.pow(10,lx)).eff;
+    pos.setXYZ(idx,gx(Eg),gy(e),gz(lx)); const t=Math.min(1,e/0.42); _c.setHSL(0.6-0.5*t,0.72,0.1+0.42*t); col[idx*3]=_c.r;col[idx*3+1]=_c.g;col[idx*3+2]=_c.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+  const surf=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.68,metalness:.1,transparent:true,opacity:.94,side:THREE.DoubleSide})); pvGroup.add(surf);
+  const wire=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2f5a48,wireframe:true,transparent:true,opacity:.13,depthWrite:false})); pvGroup.add(wire);
+  // ridge of optimal gap per illumination
+  const ridge=[]; for(let j=0;j<NX;j++){ const lx=Xexp*j/(NX-1); let be=0,bEg=1.3; for(let Eg=0.7;Eg<=2.0;Eg+=0.02){ const e=pvCell(Eg,T,Math.pow(10,lx)).eff; if(e>be){be=e;bEg=Eg;} } ridge.push(new THREE.Vector3(gx(bEg),gy(be)+0.02,gz(lx))); }
+  const rcrest=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); pvGroup.add(rcrest);
+  const opMk=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const og=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); og.scale.setScalar(.9); opMk.add(og); pvGroup.add(opMk);
+  const o=[gx(0.5),gy(0),gz(0)];
   const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(2.9,-2.5,0),
-    new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(-2.7,2.7,0)]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(gx(2.4),o[1],o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],o[1],gz(Xexp)),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],2.2,o[2])]),
     new THREE.LineBasicMaterial({color:0x55607a})); pvGroup.add(ax);
-  const vlb=mkLabel('V (or E_g) →','label axis'); vlb.position.set(3.0,-2.5,0); pvGroup.add(vlb);
-  const tl=mkLabel('PHOTOVOLTAIC · J(V)=J_sc−J₀(e^{qV/kT}−1) · Shockley–Queisser limit','label const'); tl.position.set(0,3.5,0); pvGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); pvGroup.add(rl);
-  pvObjs={iv,pv,mpp,sqMk,sxmap,symap,readLab:rl};
+  const egl=mkLabel('band gap E_g →','label axis'); egl.position.set(gx(2.4)+0.3,o[1],o[2]); pvGroup.add(egl);
+  const xl=mkLabel('illumination (×, log) →','label axis'); xl.position.set(o[0],o[1],gz(Xexp)+0.35); pvGroup.add(xl);
+  const yl=mkLabel('η ↑','label axis'); yl.position.set(o[0],2.4,o[2]); pvGroup.add(yl);
+  // I–V / P–V inset (compact, floating)
+  const ivGroup=new THREE.Group(); ivGroup.scale.setScalar(0.42); ivGroup.position.set(-2.7,1.6,-1.1); pvGroup.add(ivGroup);
+  const iv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95})); ivGroup.add(iv);
+  const pv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff8f6a,transparent:true,opacity:.9})); ivGroup.add(pv);
+  const mpp=new THREE.Mesh(new THREE.SphereGeometry(.14,12,9),new THREE.MeshBasicMaterial({color:0x9fe0ff})); ivGroup.add(mpp);
+  const ivax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(2.9,-2.5,0), new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(-2.7,2.7,0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); ivGroup.add(ivax);
+  const ivlb=mkLabel('I–V · P–V (this cell)','label axis'); ivlb.position.set(-2.7,2.4,-1.1); pvGroup.add(ivlb);
+  const tl=mkLabel('PHOTOVOLTAIC · efficiency landscape η(E_g, illumination) · Shockley–Queisser','label const'); tl.position.set(0,3.4,0); pvGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); pvGroup.add(rl);
+  pvObjs={iv,pv,mpp,opMk,gx,gy,gz,readLab:rl};
 }
 function updatePv(dt){
   const O=pvObjs; if(!O) return;
@@ -12161,9 +12179,9 @@ function updatePv(dt){
     O.iv.geometry.setFromPoints(ivp); O.iv.geometry.computeBoundingSphere();
     O.pv.geometry.setFromPoints(pvp); O.pv.geometry.computeBoundingSphere();
     O.mpp.position.set(xv(C.Vmp),yj(C.Imp),0);
-    O.sqMk.position.set(O.sxmap(Eg),O.symap(C.eff),0);
+    const lx=Math.log10(Math.max(1,conc)); O.opMk.position.set(O.gx(Eg),O.gy(C.eff),O.gz(lx));
     hudBig.textContent=`PHOTOVOLTAIC · E_g=${Eg.toFixed(2)} eV · V_oc=${C.Voc.toFixed(3)} V · FF=${(C.FF*100).toFixed(1)}% · η=${(C.eff*100).toFixed(1)}%`;
-    hudSub.textContent='a solar cell is a diode in the light: illumination lifts the whole I–V curve into the power quadrant, and the largest rectangle under it (the maximum-power point) is what you harvest. Below the band gap photons are not absorbed; above it their excess energy becomes heat. Those two unavoidable losses set the Shockley–Queisser ceiling near 33% for a single junction.';
+    hudSub.textContent='the surface is the detailed-balance efficiency η over band gap E_g (across) and illumination (into the page, log scale); the glowing point is this cell, riding toward the golden ridge of optimal gap. The inset shows its I–V/P–V curves. Below the gap photons are not absorbed; above it their excess becomes heat — the two losses that set the Shockley–Queisser ceiling near 33% for a single junction (concentration nudges it up by lifting V_oc).';
     ATLAS_BUS.pub('pv.eff',+(C.eff*100).toFixed(2),'%');
     const el=ctl.querySelector('#pvInv'); if(el) el.innerHTML=`E_g=<b>${Eg.toFixed(2)}</b> eV · illumination ×<b>${conc.toFixed(0)}</b> · T=${T.toFixed(0)} K<br>V_oc=<b>${C.Voc.toFixed(3)}</b> V · J_sc=<b>${(C.Jsc*0.1).toFixed(1)}</b> mA/cm² · fill factor FF=<b>${(C.FF*100).toFixed(1)}%</b> · efficiency η=<b>${(C.eff*100).toFixed(1)}%</b><br>detailed-balance (blackbody Sun); canonical AM1.5 Shockley–Queisser peak is 33.7% at E_g=1.34 eV`;
   }
@@ -12367,7 +12385,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
