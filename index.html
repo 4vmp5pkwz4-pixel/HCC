@@ -10535,6 +10535,14 @@ function spinRodrigues(n,ax,ang){
 }
 let spinObjs=null, spinT=0, spinUiAcc=0, spinN=[0,0,1], spinTrail=[], spinPath=0,
     spinUp=0, spinDown=0, spinBerry=0, spinNPrev=[0,0,1];
+function spinHopfFibre(th0,ph0){   // points of the Hopf fibre over Bloch point (th0,ph0): {e^{iα}|ψ⟩} on S³, stereographic
+  const p=[]; let prev=null;
+  for(let i=0;i<=100;i++){ const t=i/100*2*Math.PI;
+    const q=[Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)];
+    const d=1-q[3], k=Math.abs(d)<2e-2?(d<0?-2e-2:2e-2):d, r=Math.hypot(q[0]/k,q[1]/k,q[2]/k); if(r>4.2){prev=null;continue;}
+    const v=new THREE.Vector3(q[0]/k,q[1]/k,q[2]/k); if(prev)p.push(prev,v); prev=v; }
+  return p;
+}
 function spinClear(){ labWipe(spinGroup); spinObjs=null; }
 function spinSetup(){
   spinClear(); spinT=0; spinUp=0; spinDown=0; spinBerry=0; spinPath=0; spinTrail=[];
@@ -10568,9 +10576,21 @@ function spinSetup(){
   // second spin (Bell)
   const arrow2=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,0,0),R,0x9fe8d8,R*0.14,R*0.09);
   arrow2.visible=false; spinGroup.add(arrow2);
-  const tl=mkLabel('QUANTUM SPIN · Bloch sphere · n = ⟨σ⟩ · exact SU(2) rotation','label const'); tl.position.set(0,3.4,0); spinGroup.add(tl);
+  // Hopf-fibration companion — the Bloch point (θ,φ) IS the base of the Hopf map S³→S²,
+  // and the spinor's global phase is its fibre {e^{iα}|ψ⟩}; Berry phase = the fibre's holonomy.
+  let hopfCur=null;
+  if(state.spinHopf!==false){
+    const hg=new THREE.Group(); hg.scale.setScalar(0.5); hg.position.set(3.7,0.55,0); spinGroup.add(hg);
+    const _c=new THREE.Color();
+    for(let a=1;a<=4;a++){ const th0=Math.PI*a/5; for(let bb=0;bb<4;bb++){ const ph0=2*Math.PI*bb/4;
+      const seg=spinHopfFibre(th0,ph0); if(!seg.length) continue; _c.setHSL(0.58-0.4*(th0/Math.PI),0.6,0.5);
+      hg.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.15,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+    hopfCur=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); hg.add(hopfCur);
+    const hl=mkLabel('Hopf fibre of |ψ⟩ · S³→S²','label axis'); hl.position.set(3.7,1.9,0); spinGroup.add(hl);
+  }
+  const tl=mkLabel('QUANTUM SPIN · Bloch sphere (base of the Hopf map) · n = ⟨σ⟩ · exact SU(2)','label const'); tl.position.set(0,3.4,0); spinGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.1,0); spinGroup.add(rl);
-  spinObjs={arrow,tip,trail,bAxis,arrow2,readLab:rl,R};
+  spinObjs={arrow,tip,trail,bAxis,arrow2,hopfCur,readLab:rl,R};
 }
 function spinRotAxis(){   // rotation axis Ω and rate in the (rotating) frame per station
   const st=state.spinStation||'larmor';
@@ -10610,6 +10630,8 @@ function updateSpin(dt){
   if(state.spinRun!==false){ if(spinPath<1200) spinPath++; else tp.array.copyWithin(0,3);
     const k=(spinPath-1)*3; tp.array[k]=spinN[0]*R; tp.array[k+1]=spinN[1]*R; tp.array[k+2]=spinN[2]*R;
     O.trail.geometry.setDrawRange(0,spinPath); tp.needsUpdate=true; O.trail.geometry.computeBoundingSphere(); }
+  if(O.hopfCur){ const ny=Math.max(-1,Math.min(1,spinN[1])), th0=Math.acos(ny), ph0=Math.atan2(spinN[2],spinN[0]);
+    O.hopfCur.geometry.setFromPoints(spinHopfFibre(th0,ph0)); O.hopfCur.geometry.computeBoundingSphere(); }
   spinNPrev=spinN.slice();
   spinUiAcc+=dt;
   if(spinUiAcc>0.25){ spinUiAcc=0;
@@ -17226,7 +17248,7 @@ const state = {
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
   eotA0:600, eotLam:700,                                                // Extraordinary transmission
   waveMode:'double', waveLam:0.45, waveD:2.4, waveA:0.3, waveN:5,       // Wave optics lab   // Gravitas 3-body lab · GW inspiral · Solar L-points
-  spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4,   // Quantum spin lab
+  spinStation:'larmor', spinRun:true, spinSpeed:1, spinB:1.3, spinOmega:1.2, spinDetune:0, spinCone:0.6, spinBellA:0, spinBellAp:Math.PI/2, spinBellB:Math.PI/4, spinBellBp:3*Math.PI/4, spinHopf:true,   // Quantum spin lab
   relStation:'cone', relBeta:0.6, relSpeed:1, relU:0.7, relV:0.7,   // Relativity lab
   chaosSys:'lorenz', chaosRun:true, chaosSpeed:1,   // Strange attractors lab
   kinStation:'gas', kinRun:true, kinSpeed:1, kinInit:'mono',   // Kinetic theory lab
@@ -19147,6 +19169,9 @@ function buildCtlBody(){
         <input type="range" id="spinBellB" min="0" max="3.14" step="0.01" value="${state.spinBellB??Math.PI/4}">
         <input type="range" id="spinBellBp" min="0" max="3.14" step="0.01" value="${state.spinBellBp??3*Math.PI/4}"></div>
       <div class="ctlrow"><button class="btn" id="spinBellOpt">→ optimal angles (S = 2√2)</button></div>`:''}
+      <div class="ctlrow"><label>Hopf fibre</label>
+        <button class="chip ${state.spinHopf!==false?'on':''}" id="spinHopf">${state.spinHopf!==false?'shown':'hidden'}</button>
+        <span style="font-size:10px;color:var(--dim)">the state as a point of S³</span></div>
     </div>
     <div class="sect"><b>Quantum readout</b>
       <div class="note" id="spinInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
@@ -19772,6 +19797,7 @@ function buildCtlBody(){
       ss('spinCone',v=>state.spinCone=v,v=>(v/DEG).toFixed(0)+'°');
       ['spinBellA','spinBellAp','spinBellB','spinBellBp'].forEach(id=>{ const el=ctl.querySelector('#'+id);
         if(el) el.oninput=e=>{ state[id]=+e.target.value; }; });
+      ctl.querySelector('#spinHopf')&&(ctl.querySelector('#spinHopf').onclick=()=>{ state.spinHopf=state.spinHopf===false; spinSetup(); buildCtl(); });
       ctl.querySelector('#spinMeasure')&&(ctl.querySelector('#spinMeasure').onclick=()=>{ spinMeasureSG(); });
       ctl.querySelector('#spinClearHist')&&(ctl.querySelector('#spinClearHist').onclick=()=>{ spinUp=0; spinDown=0; });
       ctl.querySelector('#spinBellOpt')&&(ctl.querySelector('#spinBellOpt').onclick=()=>{
