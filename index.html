@@ -11296,18 +11296,29 @@ function retSetup(){
   const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); retGroup.add(dl);
   if(st==='coupled'){
     retX1=1; retX2=0; retV1=0; retV2=0;
-    const wall=(x)=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.6,0.6),new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.5,roughness:.4})); w.position.set(x,0,0); retGroup.add(w); };
+    const wall=(x)=>{ const w=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.1,0.6),new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.5,roughness:.4})); w.position.set(x,1.5,0); retGroup.add(w); };
     wall(-3.4); wall(3.4);
-    const b1=new THREE.Mesh(new THREE.SphereGeometry(0.34,20,14),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.3,roughness:.3,emissive:0x3a2c08}));
-    const b2=new THREE.Mesh(new THREE.SphereGeometry(0.34,20,14),new THREE.MeshStandardMaterial({color:0x5fe0d0,metalness:.3,roughness:.3,emissive:0x0a2c28}));
+    const b1=new THREE.Mesh(new THREE.SphereGeometry(0.32,20,14),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.3,roughness:.3,emissive:0x3a2c08}));
+    const b2=new THREE.Mesh(new THREE.SphereGeometry(0.32,20,14),new THREE.MeshStandardMaterial({color:0x5fe0d0,metalness:.3,roughness:.3,emissive:0x0a2c28}));
     retGroup.add(b1,b2);
-    // energy bars
-    const bar=(x,col)=>{ const m=new THREE.Mesh(new THREE.BoxGeometry(0.5,1,0.5),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.8})); m.position.set(x,-2.4,0); retGroup.add(m); return m; };
-    const e1=bar(-1.6,0xf5c964), e2=bar(1.6,0x5fe0d0);
-    for(const [x,t] of [[-1.6,'E₁'],[1.6,'E₂']]){ const l=mkLabel(t,'label axis'); l.position.set(x,-3.6,0); retGroup.add(l); }
-    const tl=mkLabel('COUPLED OSCILLATORS · energy sloshes between the two — total conserved','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
-    const rl=mkLabel('','label dim'); rl.position.set(0,2.4,0); retGroup.add(rl);
-    retObjs={st,b1,b2,e1,e2,readLab:rl,springs:[]};
+    // Poincaré (Bloch) sphere — the coupled state as a point of S² (base of the Hopf map);
+    // S_z = energy imbalance (E₁−E₂), so the poles are "all energy in one oscillator" and the
+    // sloshing is a precession. Symmetric coupling → full pole-to-pole swing (complete transfer).
+    const PR=1.2, pg=new THREE.Group(); pg.position.set(0,-1.35,0); retGroup.add(pg);
+    pg.add(new THREE.Mesh(new THREE.SphereGeometry(PR,32,22),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.13})));
+    pg.add(new THREE.Mesh(new THREE.SphereGeometry(PR*0.997,40,26),new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.2,shininess:36,side:THREE.BackSide})));
+    const eq=[]; for(let i=0;i<=80;i++){const a=i/80*2*Math.PI; eq.push(new THREE.Vector3(PR*Math.cos(a),0,PR*Math.sin(a)));}
+    pg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(eq),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.35})));
+    const sArrow=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),PR,0xffd27a,PR*0.16,PR*0.1); pg.add(sArrow);
+    const sTip=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xfff1c0}));
+    const sg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.8,depthWrite:false})); sg.scale.setScalar(.7); sTip.add(sg); pg.add(sTip);
+    const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(700*3),3)); tg.setDrawRange(0,0);
+    const sTrail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:0xf5c964,transparent:true,opacity:.6})); pg.add(sTrail);
+    const pu=mkLabel('all in E₁ (osc 1)','label axis'); pu.position.set(0,-1.35+PR+0.32,0); retGroup.add(pu);
+    const pd=mkLabel('all in E₂ (osc 2)','label axis'); pd.position.set(0,-1.35-PR-0.34,0); retGroup.add(pd);
+    const tl=mkLabel('COUPLED OSCILLATORS · energy transfer as precession on the Poincaré sphere','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,2.55,0); retGroup.add(rl);
+    retObjs={st,b1,b2,sArrow,sTip,sTrail,PR,trailN:0,readLab:rl,springs:[]};
   } else if(st==='driven'){
     retDriveX=0; retDriveV=0; retDrivePhase=0;
     // resonance curve A(ω)
@@ -11351,19 +11362,27 @@ function updateRet(dt){
         retV1+=a1*h/2; retV2+=a2*h/2; retX1+=retV1*h; retX2+=retV2*h;
         const b1=(-k*retX1-kap*(retX1-retX2))/m, b2=(-k*retX2-kap*(retX2-retX1))/m;
         retV1+=b1*h/2; retV2+=b2*h/2; retT+=h; } }
-    const p1=new THREE.Vector3(-1.7+retX1*0.9,0,0), p2=new THREE.Vector3(1.7+retX2*0.9,0,0);
+    const YB=1.5;
+    const p1=new THREE.Vector3(-1.7+retX1*0.9,YB,0), p2=new THREE.Vector3(1.7+retX2*0.9,YB,0);
     O.b1.position.copy(p1); O.b2.position.copy(p2);
     for(const s of O.springs){ retGroup.remove(s); s.geometry.dispose(); s.material.dispose(); }
-    O.springs=[retSpring(new THREE.Vector3(-3.32,0,0),p1,0xf5c964),retSpring(p1,p2,0x9fd8ff),retSpring(p2,new THREE.Vector3(3.32,0,0),0x5fe0d0)];
+    O.springs=[retSpring(new THREE.Vector3(-3.32,YB,0),p1,0xf5c964),retSpring(p1,p2,0x9fd8ff),retSpring(p2,new THREE.Vector3(3.32,YB,0),0x5fe0d0)];
     O.springs.forEach(s=>retGroup.add(s));
     const en=retEnergyCoupled(), Et=en.E1+en.E2+en.Ec;
-    O.e1.scale.y=Math.max(0.02,en.E1/Math.max(Et,1e-6)*3); O.e1.position.y=-2.4+O.e1.scale.y/2-1.5;
-    O.e2.scale.y=Math.max(0.02,en.E2/Math.max(Et,1e-6)*3); O.e2.position.y=-2.4+O.e2.scale.y/2-1.5;
+    // Poincaré vector from the two complex mode amplitudes a_i = x_i + i·v_i/ω
+    const w=Math.sqrt(state.retK??1), a1i=retV1/w, a2i=retV2/w;
+    const n1=retX1*retX1+a1i*a1i, n2=retX2*retX2+a2i*a2i, N=n1+n2||1e-9;
+    const Sx=2*(retX1*retX2+a1i*a2i)/N, Sy=2*(retX1*a2i-a1i*retX2)/N, Sz=(n1-n2)/N, PR=O.PR;
+    O.sArrow.setDirection(new THREE.Vector3(Sx,Sz,Sy).normalize());
+    O.sTip.position.set(Sx*PR,Sz*PR,Sy*PR);
+    if(state.retRun!==false){ const tp=O.sTrail.geometry.attributes.position; if(O.trailN<700)O.trailN++; else tp.array.copyWithin(0,3);
+      const kk=(O.trailN-1)*3; tp.array[kk]=Sx*PR; tp.array[kk+1]=Sz*PR; tp.array[kk+2]=Sy*PR;
+      O.sTrail.geometry.setDrawRange(0,O.trailN); tp.needsUpdate=true; O.sTrail.geometry.computeBoundingSphere(); }
     retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
       const k=state.retK??1,kap=state.retKappa??0.08, ws=Math.sqrt(k), wa=Math.sqrt(k+2*kap), Ttr=Math.PI/(wa-ws);
       O.readLab.element.textContent=`E₁=${(en.E1/Et*100).toFixed(0)}% · E₂=${(en.E2/Et*100).toFixed(0)}% · total E=${Et.toFixed(4)} (conserved) · full transfer at t=π/Δω≈${Ttr.toFixed(1)}`;
       hudBig.textContent=`ENERGY TRANSFER · coupled · ω_sym=${ws.toFixed(3)} ω_anti=${wa.toFixed(3)} · beat Δω=${(wa-ws).toFixed(4)}`;
-      hudSub.textContent='the coupling spring shuttles energy between the two oscillators — weaker coupling = slower, more complete transfer; the motion is the beat of two normal modes, and the total energy is conserved to machine precision (leapfrog)';
+      hudSub.textContent='the coupling spring shuttles energy between the two oscillators — weaker coupling = slower, more complete transfer; the motion is the beat of two normal modes. Below, the two-mode state rides the Poincaré sphere (the base of the Hopf map): S_z is the energy imbalance E₁−E₂, so the poles are all-in-one-oscillator and the sloshing is a rigid precession. Total energy conserved to machine precision (leapfrog).';
       ATLAS_BUS.pub('ret.transfer',+(en.E2/Et).toFixed(3),'to E₂');
       const el=ctl.querySelector('#retInv'); if(el) el.innerHTML=`normal modes: ω_sym=√(k/m)=<b>${ws.toFixed(4)}</b> (in-phase) · ω_anti=√((k+2κ)/m)=<b>${wa.toFixed(4)}</b> (out-of-phase)`+
         `<br>beat Δω=${(wa-ws).toFixed(4)} · complete-transfer time π/Δω=<b>${Ttr.toFixed(2)}</b> · total energy ${Et.toFixed(5)} (conserved)`;
@@ -12495,7 +12514,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
