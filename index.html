@@ -1682,6 +1682,13 @@ function runSelfTests(){
       Math.abs(direct+ghost-2*Math.PI)<1e-12, ((direct+ghost)/Math.PI).toFixed(4)+'π');
     ok('S³ imaging: all geodesics from the observer reconverge at the antipode χ=π',
       Math.abs(P(Math.PI,0)[1]-(-1))<1e-12 && Math.abs(P(Math.PI,2)[1]-(-1))<1e-12, 'antipode y=−1'); }
+  { // GR RAYMARCHER: the shader's per-pixel integrator (JS twin) matches the exact deflection quadrature
+    const r4=bhrTraceJS(4,600);
+    const a4=r4.captured?NaN:Math.acos(Math.max(-1,Math.min(1,r4.dir[0]/Math.hypot(...r4.dir))))*180/Math.PI;
+    ok('GR raymarcher: per-pixel geodesic integrator reproduces exact deflection α(b=4)=49.20° (within 0.6°)',
+      Math.abs(a4-49.20)<0.6, a4.toFixed(2)+'°');
+    ok('GR raymarcher: shader integrator captures below b_crit=2.598 Rs and escapes above (photon ring)',
+      bhrTraceJS(2.5,700).captured===true && bhrTraceJS(2.7,900).captured===false, 'b=2.5 in, b=2.7 out'); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -12800,6 +12807,137 @@ function updateMimg(dt){
   }
 }
 
+/* ================================================================
+   RELATIVISTIC BLACK-HOLE RAYMARCHER · per-pixel GR raytracing (UPRS 17).
+   A custom WebGL2 fragment shader integrates EVERY screen ray as a
+   Schwarzschild null geodesic (Cartesian leapfrog of a = −(3/2)h²x/r⁵,
+   the exact Binet equation u″+u=(3/2)u², Rs=1), with adaptive step near
+   the horizon. What emerges is not painted on: the photon ring at
+   b_crit=(3√3/2)Rs, the lensed double image of the accretion disk (the
+   far side appears above and below the hole), Einstein-ring smearing of
+   the background starfield, and Doppler beaming (approaching disk limb
+   brighter/bluer by δ³, receding dimmer/redder) with gravitational
+   redshift √(1−1/r). The JS twin of the shader integrator is asserted
+   against the exact deflection quadrature in the self-tests.
+   Declared: Schwarzschild (non-rotating) — a Kerr upgrade would add
+   frame dragging; the thin disk (ISCO 3Rs → 9Rs) is phenomenological. */
+const bhrGroup=new THREE.Group(); bhrGroup.visible=false; s3Group.add(bhrGroup);
+let bhrObjs=null, bhrUiAcc=0, bhrTime=0;
+const BHR_VERT=`varying vec3 vPos;
+void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
+const BHR_FRAG=`
+precision highp float;
+uniform vec3 uCam; uniform float uTime; uniform int uSteps; uniform float uDisk;
+varying vec3 vPos;
+float hash13(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
+vec3 starBG(vec3 d){
+  vec3 col=vec3(0.0);
+  // two star layers from direction-space cells
+  for(int L=0;L<2;L++){
+    float sc=(L==0)?56.0:23.0;
+    vec3 cell=floor(d*sc);
+    float h=hash13(cell);
+    vec3 centre=(cell+0.5+0.6*(vec3(hash13(cell+7.1),hash13(cell+3.7),hash13(cell+9.3))-0.5))/sc;
+    float dist=length(d-normalize(centre));
+    float b=smoothstep(0.008,0.0,dist)*step(0.984,h);
+    col+=b*mix(vec3(0.7,0.8,1.0),vec3(1.0,0.85,0.6),hash13(cell+1.7))*(L==0?1.0:1.8);
+  }
+  // faint galactic band
+  col+=exp(-pow(d.y*3.2,2.0))*vec3(0.05,0.055,0.09);
+  return col;
+}
+vec3 diskEmit(float rc,float doppler,float phi){
+  // thin-disk temperature falloff T ~ r^-3/4 shifted by the total Doppler/redshift factor
+  float t=clamp(doppler*pow(3.0/rc,0.75),0.0,2.2);
+  vec3 base=mix(vec3(1.0,0.36,0.08),vec3(1.0,0.93,0.78),clamp(t-0.35,0.0,1.0));
+  base=mix(base,vec3(0.72,0.82,1.0),clamp((t-1.25)*1.4,0.0,1.0));   // blue-shifted limb
+  float streak=0.75+0.25*sin(phi*9.0-uTime*1.4+rc*3.0)*sin(phi*4.0+rc*1.7);
+  float emiss=9.0/(rc*rc)*streak;
+  return base*emiss*pow(doppler,3.0);                                // relativistic beaming ~ delta^3
+}
+void main(){
+  vec3 ro=uCam, rd=normalize(vPos-uCam);
+  vec3 x=ro, v=rd;
+  vec3 hv=cross(x,v); float h2=dot(hv,hv);
+  vec3 acc=vec3(0.0); float captured=0.0;
+  float prevY=x.y; vec3 prevX=x;
+  for(int i=0;i<520;i++){
+    if(i>=uSteps) break;
+    float r2=dot(x,x); float r=sqrt(r2);
+    if(r<1.0){ captured=1.0; break; }
+    if(r>36.0 && dot(x,v)>0.0) break;
+    float dl=clamp(0.12*(r-0.9),0.03,0.55);
+    float k=-1.5*h2/(r2*r2*r);
+    v+=0.5*dl*k*x; x+=dl*v; prevX=x-dl*v;   // (prevX = pre-drift position)
+    float r2b=dot(x,x); float rb=sqrt(r2b); float kb=-1.5*h2/(r2b*r2b*rb);
+    v+=0.5*dl*kb*x;
+    // accretion-disk crossing (equatorial plane y=0, ISCO 3Rs to 9Rs)
+    if(uDisk>0.5 && prevY*x.y<0.0){
+      float t=prevY/(prevY-x.y);
+      vec3 hit=mix(prevX,x,t);
+      float rc=length(vec2(hit.x,hit.z));
+      if(rc>3.0 && rc<9.0){
+        float beta=1.0/sqrt(2.0*(rc-1.0));                       // Schwarzschild circular-orbit speed
+        vec3 tang=normalize(vec3(-hit.z,0.0,hit.x));             // orbital direction
+        float gam=1.0/sqrt(max(1e-4,1.0-beta*beta));
+        float dopp=1.0/(gam*(1.0-beta*dot(tang,normalize(v))));  // relativistic Doppler
+        float gred=sqrt(max(0.0,1.0-1.0/rc));                    // gravitational redshift
+        float phi=atan(hit.z,hit.x);
+        float edge=smoothstep(3.0,3.35,rc)*smoothstep(9.0,8.2,rc);
+        acc+=diskEmit(rc,dopp*gred,phi)*edge*0.55;
+      }
+    }
+    prevY=x.y;
+  }
+  vec3 col=acc;
+  if(captured<0.5) col+=starBG(normalize(v));
+  // filmic-ish tonemap for the HDR disk
+  col=col/(1.0+col);
+  col=pow(col,vec3(0.4545));
+  gl_FragColor=vec4(col,1.0);
+}`;
+function bhrTraceJS(b,nSteps){   // JS twin of the shader integrator — asserted vs the exact quadrature
+  let x=[-30,b,0], v=[1,0,0];
+  const hx=x[1]*v[2]-x[2]*v[1], hy=x[2]*v[0]-x[0]*v[2], hz=x[0]*v[1]-x[1]*v[0];
+  const h2=hx*hx+hy*hy+hz*hz;
+  for(let i=0;i<nSteps;i++){
+    const r2=x[0]*x[0]+x[1]*x[1]+x[2]*x[2], r=Math.sqrt(r2);
+    if(r<1.0) return {captured:true};
+    if(r>40&&(x[0]*v[0]+x[1]*v[1]+x[2]*v[2])>0) return {captured:false,dir:v.slice()};
+    const dl=Math.min(0.55,Math.max(0.03,0.12*(r-0.9))), k=-1.5*h2/(r2*r2*r);
+    v=[v[0]+0.5*dl*k*x[0],v[1]+0.5*dl*k*x[1],v[2]+0.5*dl*k*x[2]];
+    x=[x[0]+dl*v[0],x[1]+dl*v[1],x[2]+dl*v[2]];
+    const r2b=x[0]*x[0]+x[1]*x[1]+x[2]*x[2],rb=Math.sqrt(r2b),kb=-1.5*h2/(r2b*r2b*rb);
+    v=[v[0]+0.5*dl*kb*x[0],v[1]+0.5*dl*kb*x[1],v[2]+0.5*dl*kb*x[2]];
+  }
+  return {captured:false,dir:v.slice()};
+}
+function bhrClear(){ labWipe(bhrGroup); bhrObjs=null; }
+function bhrSetup(){
+  bhrClear(); bhrTime=0;
+  const steps={fast:180,balanced:300,fine:480}[state.bhrQuality||'balanced']??300;
+  const mat=new THREE.ShaderMaterial({
+    vertexShader:BHR_VERT, fragmentShader:BHR_FRAG, side:THREE.BackSide, depthWrite:false,
+    uniforms:{ uCam:{value:new THREE.Vector3(0,1.5,10)}, uTime:{value:0}, uSteps:{value:steps}, uDisk:{value:state.bhrDisk===false?0:1} }
+  });
+  const dome=new THREE.Mesh(new THREE.SphereGeometry(34,48,32),mat); dome.name='GR raymarch dome'; bhrGroup.add(dome);
+  const tl=mkLabel('RELATIVISTIC BLACK HOLE · every pixel is an integrated Schwarzschild null geodesic','label const','bhrAtlas'); tl.position.set(0,4.2,0); bhrGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-4.2,0); bhrGroup.add(rl);
+  bhrObjs={mat,dome,readLab:rl};
+}
+function updateBhr(dt){
+  const O=bhrObjs; if(!O) return;
+  if(state.bhrRun!==false) bhrTime+=dt*(state.bhrSpeed??1);
+  O.mat.uniforms.uTime.value=bhrTime;
+  O.mat.uniforms.uCam.value.copy(bhrGroup.worldToLocal(camera.position.clone()));
+  bhrUiAcc+=dt; if(bhrUiAcc>0.25){ bhrUiAcc=0;
+    hudBig.textContent='RELATIVISTIC BLACK HOLE · photon ring b=(3√3/2)Rs≈2.6 · disk ISCO 3Rs · β(ISCO)=0.5';
+    hudSub.textContent='a real-time general-relativistic raytrace: each screen pixel fires a ray integrated through Schwarzschild spacetime (a=−3/2 h²x/r⁵, the exact null-geodesic equation). The photon ring, the doubled disk image arcing over and under the hole, the Einstein smearing of background stars and the bright approaching limb (Doppler beaming δ³ with gravitational redshift) all EMERGE from the integration — nothing is painted. Orbit the camera: the lensing follows you. Non-rotating Schwarzschild; a Kerr spin upgrade adds frame dragging; the thin disk is phenomenological.';
+    ATLAS_BUS.pub('bhr.steps',O.mat.uniforms.uSteps.value,'geodesic steps/px');
+    const el=ctl.querySelector('#bhrInv'); if(el) el.innerHTML=`per-pixel integrator: adaptive leapfrog of a=−(3/2)h²x/r⁵ (Rs=1) · <b>${O.mat.uniforms.uSteps.value}</b> steps/px<br>photon ring b_crit=<b>2.598 Rs</b> · disk ISCO→9Rs, orbital β=1/√(2(r−1)) → <b>0.5c</b> at ISCO · beaming ∝δ³ · redshift √(1−1/r)<br>JS twin of this integrator is asserted against the exact deflection quadrature in the self-tests (α(b=4)=49.2°).`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -12846,6 +12984,7 @@ function setS3View(v){
   bhtGroup.visible     = (v==='bht');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
+  bhrGroup.visible     = (v==='bhr');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -12878,6 +13017,7 @@ function setS3View(v){
   if(v==='bht'){ bhtSetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
+  if(v==='bhr'){ bhrSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -12889,7 +13029,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,1.5,10]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -17663,6 +17803,7 @@ const state = {
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
+  bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -19439,6 +19580,27 @@ function buildCtlBody(){
         <button class="btn" id="mimgToCmb">→ CMB: the finite-universe signal</button>
         <button class="btn" id="mimgToHopf">→ Hopf fibres: the S³ it lives on</button></div>
     </div>`;
+    else if(V==='bhr') body = `
+    <div class="sect"><b>GR raymarcher — quality & scene</b>
+      <div class="chips">
+        ${[['fast','Fast · 180 steps'],['balanced','Balanced · 300'],['fine','Fine · 480']].map(([k,l])=>
+          `<button class="chip ${(state.bhrQuality||'balanced')===k?'on':''}" data-bhrq="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="chip ${state.bhrDisk!==false?'on':''}" id="bhrDisk">${state.bhrDisk!==false?'disk shown':'disk hidden'}</button>
+        <button class="chip ${state.bhrRun!==false?'on':''}" id="bhrRun">${state.bhrRun!==false?'⏸ pause flow':'▶ flow'}</button>
+        <span style="font-size:10px;color:var(--dim)">orbit the camera — the lensing tracks you</span></div>
+    </div>
+    <div class="sect"><b>Relativistic readout</b>
+      <div class="note" id="bhrInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Every screen pixel fires a ray that is integrated as a true Schwarzschild null geodesic in the fragment shader (adaptive leapfrog of a=−(3/2)h²x/r⁵ — the exact Binet equation u″+u=(3/2)u²). The photon ring at b_crit=(3√3/2)Rs, the doubled disk image over and under the hole, the Einstein smearing of the starfield and the bright approaching limb (Doppler beaming δ³ + gravitational redshift √(1−1/r)) all EMERGE from the integration. Declared limits: non-rotating Schwarzschild (Kerr frame-dragging is a planned upgrade); the thin disk (ISCO 3Rs→9Rs, β=1/√(2(r−1))) is phenomenological, not a radiative-transfer solution.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="bhrToBht">→ Thermodynamics of this horizon</button>
+        <button class="btn" id="bhrToLens">→ Lensing: the geodesics as curves</button>
+        <button class="btn" id="bhrToGw">→ Gravitational waves: two of these merging</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -19813,6 +19975,7 @@ function buildCtlBody(){
         <button class="btn ${V==='bht'?'on':''}" id="v-bht">Black-hole thermo</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
+        <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -19831,7 +19994,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -20211,6 +20374,14 @@ function buildCtlBody(){
       ctl.querySelector('#mimgToLens')&&(ctl.querySelector('#mimgToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#mimgToCmb')&&(ctl.querySelector('#mimgToCmb').onclick=()=>{ navPush(); setS3View('cmb'); buildCtl(); });
       ctl.querySelector('#mimgToHopf')&&(ctl.querySelector('#mimgToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='bhr'){
+      ctl.querySelectorAll('[data-bhrq]').forEach(b=>b.onclick=()=>{ state.bhrQuality=b.dataset.bhrq; bhrSetup(); buildCtl(); });
+      ctl.querySelector('#bhrDisk')&&(ctl.querySelector('#bhrDisk').onclick=()=>{ state.bhrDisk=state.bhrDisk===false; if(bhrObjs)bhrObjs.mat.uniforms.uDisk.value=state.bhrDisk===false?0:1; buildCtl(); });
+      ctl.querySelector('#bhrRun')&&(ctl.querySelector('#bhrRun').onclick=()=>{ state.bhrRun=state.bhrRun===false; buildCtl(); });
+      ctl.querySelector('#bhrToBht')&&(ctl.querySelector('#bhrToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
+      ctl.querySelector('#bhrToLens')&&(ctl.querySelector('#bhrToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
+      ctl.querySelector('#bhrToGw')&&(ctl.querySelector('#bhrToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -21603,7 +21774,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -22788,6 +22959,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCmb(dt);
     } else if(state.s3view==='mimg'){
       fbsAnimT+=dt; updateMimg(dt);
+    } else if(state.s3view==='bhr'){
+      fbsAnimT+=dt; updateBhr(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
