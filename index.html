@@ -1591,7 +1591,13 @@ function runSelfTests(){
     ok('Gravitational lensing: weak deflection ≈ 2Rs/b (Einstein factor 2, within 12%)',
       a20!==null && Math.abs(a20-2*Rs/20)/(2*Rs/20)<0.12, a20.toFixed(4)+' vs '+(2/20).toFixed(4));
     ok('Gravitational lensing: photon captured below b_crit=(3√3/2)Rs≈2.598, escapes above',
-      alph(2.5)===null && alph(2.7)!==null, 'bcrit='+bcrit.toFixed(4)); }
+      alph(2.5)===null && alph(2.7)!==null, 'bcrit='+bcrit.toFixed(4));
+    // Shapiro delay Δt=(Rs/c)ln(4 r_s r_o/b²): grows as b shrinks; solar grazing ≈250μs round trip
+    const shap=(b,D)=>Math.log(4*D*D/(b*b));
+    ok('Shapiro delay: Δt=(Rs/c)ln(4D²/b²) increases as impact parameter b shrinks',
+      shap(2,1000)>shap(6,1000) && Math.abs(shap(3,1000)-13.005)<0.01, 'Δt(b=3)='+shap(3,1000).toFixed(3)+' Rs/c');
+    ok('Shapiro delay: solar-mass grazing round trip ≈ 250 μs (Viking/Cassini test)',
+      Math.abs(2*9.85*shap(6.957e8/2954,1.496e11/2954)-250)/250<0.10, (2*9.85*shap(6.957e8/2954,1.496e11/2954)).toFixed(0)+' μs'); }
   { // THERMOELECTRIC: Thomson Π=S·T; generator η→Carnot as ZT→∞, never exceeds it
     const S=2e-4,Th=500,Tc=300,Tm=(Th+Tc)/2, carnot=1-Tc/Th;
     const Pi=S*Tm; ok('Thermoelectric: Thomson relation Π = S·T holds', Math.abs(Pi-S*Tm)<1e-12, Pi.toFixed(4));
@@ -11920,64 +11926,131 @@ function lensTrace(b){   // integrate one null geodesic for DRAWING; returns {pt
   }
   return {pts, captured};
 }
-const LENS_SS=0.42, LENS_HK=0.16, LENS_HOFF=4.9;
-function lensLift(x,y){   // drape flat (x,y) onto Flamm's paraboloid (or flat plane)
-  if(state.lensFlamm===false) return [x*LENS_SS,0,y*LENS_SS];
+const LENS_SS=0.42, LENS_HK=0.16, LENS_HOFF=4.9, LENS_RSCUS=9.85; // Rs/c for a solar-mass lens, μs
+function lensLift(x,y){   // drape flat (x,y) onto Flamm's paraboloid
   const r=Math.hypot(x,y), h=2*Math.sqrt(LENS_RS*Math.max(0,r-LENS_RS));
   return [x*LENS_SS,(h-LENS_HOFF)*LENS_HK,y*LENS_SS];
 }
 function lensLiftArr(pts){ const a=new Float32Array(pts.length); for(let k=0;k<pts.length;k+=3){ const L=lensLift(pts[k],pts[k+1]); a[k]=L[0];a[k+1]=L[1];a[k+2]=L[2]; } return a; }
-function lensRing(rad,color,op){ const p=[]; for(let i=0;i<=96;i++){ const a=i/96*2*Math.PI; p.push(new THREE.Vector3(...lensLift(rad*Math.cos(a),rad*Math.sin(a)))); }
+function lensRingLift(rad,color,op){ const p=[]; for(let i=0;i<=96;i++){ const a=i/96*2*Math.PI; p.push(new THREE.Vector3(...lensLift(rad*Math.cos(a),rad*Math.sin(a)))); }
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),new THREE.LineBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false})); }
+function lensRay3D(b,psi){   // a planar null geodesic embedded in 3-D: propagation along Z, impact offset along ψ
+  const T=lensTrace(b), out=[]; for(let k=0;k<T.pts.length;k+=3){ const X=T.pts[k], Y=T.pts[k+1];
+    out.push(new THREE.Vector3(Y*Math.cos(psi)*LENS_SS, Y*Math.sin(psi)*LENS_SS, X*LENS_SS)); }
+  return {v:out,captured:T.captured}; }
+function lensShapiro(b,D){ return Math.log(4*D*D/(b*b)); }   // excess coordinate time in units of R_s/c
+function lensHopfSky(){   // Hopf-fibration celestial backdrop — the trisphere behind the lens
+  if(state.lensHopf===false) return; const _c=new THREE.Color(), K=1.7;
+  for(let a=1;a<=5;a++){ const th0=Math.PI*a/6;
+    for(let bb=0;bb<4;bb++){ const ph0=2*Math.PI*bb/4, p=[]; let prev=null;
+      for(let i=0;i<=90;i++){ const t=i/90*2*Math.PI;
+        const q=[Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)];
+        const d=1-q[3], k=Math.abs(d)<1e-2?1e-2:d, r=Math.hypot(q[0]/k,q[1]/k,q[2]/k); if(r>6){prev=null;continue;}
+        const v=new THREE.Vector3(q[0]/k*K,q[1]/k*K,q[2]/k*K); if(prev)p.push(prev,v); prev=v; }
+      if(p.length){ _c.setHSL(0.58-0.4*(th0/Math.PI),0.6,0.5);
+        lensGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(p),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.09,blending:THREE.AdditiveBlending,depthWrite:false}))); } } }
+}
+function lensBH3D(){
+  const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*LENS_SS,44,30),new THREE.MeshBasicMaterial({color:0x05070c})); lensGroup.add(bh);
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(1.5*LENS_RS*LENS_SS,32,24),new THREE.MeshBasicMaterial({color:0xffcf6a,wireframe:true,transparent:true,opacity:.16,depthWrite:false})); lensGroup.add(shell);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x33244f,transparent:true,opacity:.6,depthWrite:false})); glow.scale.setScalar(2.6); lensGroup.add(glow);
+  return bh;
+}
 function lensClear(){ labWipe(lensGroup); lensObjs=null; }
 function lensSetup(){
-  lensClear();
-  lensGroup.add(new THREE.AmbientLight(0x8090b0,.5));
-  const flamm=state.lensFlamm!==false;
-  // Flamm paraboloid — the curved geometry of space itself (equatorial slice, embedded)
-  if(flamm){ const dir=new THREE.DirectionalLight(0xdfe6ff,.5); dir.position.set(3,8,5); lensGroup.add(dir);
+  lensClear(); lensGroup.add(new THREE.AmbientLight(0x8090b0,.5));
+  const st=state.lensStation||'bundle'; lensHopfSky();
+  let probe=null, obj={};
+  if(st==='shapiro'){
+    const dir=new THREE.DirectionalLight(0xffffff,.5); dir.position.set(2,5,6); lensGroup.add(dir);
+    const mass=new THREE.Mesh(new THREE.SphereGeometry(.55,32,24),new THREE.MeshStandardMaterial({color:0x2a2f48,emissive:0x0e1636,roughness:.5})); mass.position.set(0,-1.05,0); lensGroup.add(mass);
+    const mg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x6a7fd0,transparent:true,opacity:.55,depthWrite:false})); mg.scale.setScalar(2.4); mass.add(mg);
+    const trackA=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-4.2,1.35,0),new THREE.Vector3(4.2,1.35,0)]),new THREE.LineBasicMaterial({color:0x556, transparent:true,opacity:.5})); lensGroup.add(trackA);
+    const bfn=x=>-0.35-0.62*Math.exp(-(x*x)/1.6); const bp=[]; for(let i=0;i<=70;i++){ const x=-4.2+8.4*i/70; bp.push(new THREE.Vector3(x,bfn(x),0)); }
+    lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(bp),new THREE.LineBasicMaterial({color:0x8ab,transparent:true,opacity:.6})));
+    const pA=new THREE.Mesh(new THREE.SphereGeometry(.14,14,10),new THREE.MeshBasicMaterial({color:0xfff0c0})); pA.add(new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.9,depthWrite:false}))); pA.children[0].scale.setScalar(.7); lensGroup.add(pA);
+    const pB=new THREE.Mesh(new THREE.SphereGeometry(.14,14,10),new THREE.MeshBasicMaterial({color:0x9fe0ff})); pB.add(new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x9fe0ff,transparent:true,opacity:.9,depthWrite:false}))); pB.children[0].scale.setScalar(.7); lensGroup.add(pB);
+    const la=mkLabel('reference photon (far)','label axis'); la.position.set(-2.2,1.7,0); lensGroup.add(la);
+    const lb=mkLabel('grazing photon (delayed)','label axis'); lb.position.set(-2.0,-1.9,0); lensGroup.add(lb);
+    const finish=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(4.2,-2.2,0),new THREE.Vector3(4.2,2.0,0)]),new THREE.LineBasicMaterial({color:0x445,transparent:true,opacity:.5})); lensGroup.add(finish);
+    const tl=mkLabel('GRAVITATIONAL LENSING · Shapiro time delay · Δt=(R_s/c)·ln(4 r_s r_o / b²)','label const'); tl.position.set(0,3.5,0); lensGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); lensGroup.add(rl);
+    obj={pA,pB,bfn,readLab:rl};
+  } else if(st==='flamm'){
+    const dir=new THREE.DirectionalLight(0xdfe6ff,.5); dir.position.set(3,8,5); lensGroup.add(dir);
     const NR=46, NP=72, geo=new THREE.PlaneGeometry(1,1,NR-1,NP-1), pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
     for(let j=0;j<NP;j++)for(let i=0;i<NR;i++){ const idx=j*NR+i, r=LENS_RS*1.02+(14-LENS_RS*1.02)*i/(NR-1), a=2*Math.PI*j/(NP-1), L=lensLift(r*Math.cos(a),r*Math.sin(a));
-      pos.setXYZ(idx,L[0],L[1],L[2]); const t=1-(i/(NR-1)); _c.setHSL(0.62,0.5,0.10+0.10*(1-t)); col[idx*3]=_c.r;col[idx*3+1]=_c.g;col[idx*3+2]=_c.b; }
+      pos.setXYZ(idx,L[0],L[1],L[2]); _c.setHSL(0.62,0.5,0.10+0.10*(i/(NR-1))); col[idx*3]=_c.r;col[idx*3+1]=_c.g;col[idx*3+2]=_c.b; }
     geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
     lensGroup.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:.05,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false})));
     lensGroup.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x39435f,wireframe:true,transparent:true,opacity:.13,depthWrite:false})));
+    const thr=lensLift(0,0); const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*LENS_SS*0.98,40,28),new THREE.MeshBasicMaterial({color:0x05070c})); bh.position.set(thr[0],thr[1],thr[2]); lensGroup.add(bh);
+    lensGroup.add(lensRingLift(1.5,0xffcf6a,.85)); lensGroup.add(lensRingLift(LENS_BCRIT,0xff7a6a,.55));
+    const nb=state.lensRays??22, bmax=6.5, _c2=new THREE.Color();
+    for(let i=0;i<nb;i++){ const b=-bmax+2*bmax*i/(nb-1); if(Math.abs(b)<0.05) continue; const T=lensTrace(b); if(T.pts.length<2) continue;
+      _c2.setHSL(T.captured?0.02:0.55,.9,T.captured?0.5:0.62);
+      lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(lensLiftArr(T.pts),3)),new THREE.LineBasicMaterial({color:_c2.getHex(),transparent:true,opacity:T.captured?.85:.7,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+    probe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,depthWrite:false})); lensGroup.add(probe);
+    const tl=mkLabel('GRAVITATIONAL LENSING · geodesics on Flamm’s paraboloid (curved space itself)','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); lensGroup.add(rl); obj={readLab:rl};
+  } else {   // 'bundle' or 'ring' — full 3-D congruence
+    const dir=new THREE.DirectionalLight(0xdfe6ff,.4); dir.position.set(3,6,8); lensGroup.add(dir); lensBH3D();
+    if(st==='ring'){
+      const bE=Math.max(LENS_BCRIT+0.05,state.lensB??4), _c=new THREE.Color(), NPP=48;
+      for(let j=0;j<NPP;j++){ const R=lensRay3D(bE,2*Math.PI*j/NPP);
+        lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(R.v),new THREE.LineBasicMaterial({color:0x7fd0ff,transparent:true,opacity:.38,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+      const ring=[]; for(let i=0;i<=96;i++){ const a=i/96*2*Math.PI; ring.push(new THREE.Vector3(bE*Math.cos(a)*LENS_SS,bE*Math.sin(a)*LENS_SS,0)); }
+      lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ring),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})));
+      const src=new THREE.Mesh(new THREE.SphereGeometry(.17,16,12),new THREE.MeshBasicMaterial({color:0xffd27a})); src.position.set(0,0,14.4*LENS_SS); src.add(new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.9,depthWrite:false}))); src.children[0].scale.setScalar(1.1); lensGroup.add(src);
+      const obs=new THREE.Mesh(new THREE.SphereGeometry(.13,16,12),new THREE.MeshBasicMaterial({color:0x9fe0ff})); obs.position.set(0,0,-14.4*LENS_SS); lensGroup.add(obs);
+      const sl=mkLabel('source','label axis'); sl.position.set(0,.42,14.4*LENS_SS); lensGroup.add(sl);
+      const ol=mkLabel('observer','label axis'); ol.position.set(0,.42,-14.4*LENS_SS); lensGroup.add(ol);
+      const erl=mkLabel('Einstein ring','label axis'); erl.position.set(0,bE*LENS_SS+0.35,0); lensGroup.add(erl);
+    } else {
+      const bs=[3,4,5.5,8], caps=[2.2,2.5], _c=new THREE.Color(), NPP=Math.max(8,Math.round((state.lensRays??22)/2));
+      for(const b of bs){ for(let j=0;j<NPP;j++){ const R=lensRay3D(b,2*Math.PI*j/NPP);
+        lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(R.v),new THREE.LineBasicMaterial({color:0x6fc8ff,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+      for(const b of caps){ for(let j=0;j<NPP;j++){ const R=lensRay3D(b,2*Math.PI*j/NPP);
+        lensGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(R.v),new THREE.LineBasicMaterial({color:0xff5a4a,transparent:true,opacity:.42,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+    }
+    probe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,depthWrite:false})); lensGroup.add(probe);
+    const photon=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); lensGroup.add(photon); obj.photon=photon;
+    const tl=mkLabel(st==='ring'?'GRAVITATIONAL LENSING · the Einstein ring · a source lensed into a full circle':'GRAVITATIONAL LENSING · 3-D null-geodesic congruence bending around the black hole','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
+    const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); lensGroup.add(rl); obj.readLab=rl;
   }
-  // black hole at the throat + photon sphere & shadow rings draped on the geometry
-  const thr=lensLift(0,0);
-  const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*LENS_SS*0.98,40,28),new THREE.MeshBasicMaterial({color:0x05070c}));
-  bh.position.set(thr[0],thr[1],thr[2]); lensGroup.add(bh);
-  lensGroup.add(lensRing(1.5,0xffcf6a,.85));           // photon sphere r=1.5 R_s
-  lensGroup.add(lensRing(LENS_BCRIT,0xff7a6a,.55));     // shadow radius b_crit
-  // ray fan
-  const nb=state.lensRays??22, bmax=6.5; const _c=new THREE.Color();
-  for(let i=0;i<nb;i++){ const b=-bmax+2*bmax*i/(nb-1); if(Math.abs(b)<0.05) continue;
-    const T=lensTrace(b); if(T.pts.length<2) continue;
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(lensLiftArr(T.pts),3));
-    const captured=T.captured; _c.setHSL(captured?0.02:0.55,.9,captured?0.5:0.62);
-    lensGroup.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:captured?.85:.7,blending:THREE.AdditiveBlending,depthWrite:false})));
-  }
-  const probe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,depthWrite:false}));
-  lensGroup.add(probe);
-  const tl=mkLabel('GRAVITATIONAL LENSING · null geodesics on Flamm’s paraboloid · d²u/dφ²+u=(3/2)R_s u²','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
-  const psl=mkLabel('photon sphere 1.5 R_s',flamm?'label axis':'label axis'); const pp=lensLift(1.5,0); psl.position.set(pp[0],pp[1]+0.3,pp[2]); lensGroup.add(psl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); lensGroup.add(rl);
-  lensObjs={bh,probe,readLab:rl,S:LENS_SS};
+  lensObjs=Object.assign({probe,st,S:LENS_SS},obj);
 }
 function updateLens(dt){
-  const O=lensObjs; if(!O) return;
-  const b=state.lensB??4;
-  const T=lensTrace(b);
-  O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(lensLiftArr(T.pts),3)); O.probe.geometry.computeBoundingSphere();
-  const captured=Math.abs(b)<LENS_BCRIT; O.probe.material.color.setHex(captured?0xff6a5a:0xffe27a);
+  const O=lensObjs; if(!O) return; const st=O.st;
+  if(st==='shapiro'){
+    lensPhase+=dt*0.22; if(lensPhase>=1) lensPhase-=1; const s=lensPhase;
+    const b=state.lensShapB??2.5, D=state.lensShapD??1000, dtg=lensShapiro(b,D);
+    const lag=Math.min(1.7,0.13*dtg)*(0.5-0.5*Math.cos(Math.min(1,s*1.6)*Math.PI))*(s>0.05?1:0);
+    const ax=-4.2+8.4*s, bx=-4.2+8.4*Math.max(0,s-lag*0.12*(s>0.5?1:2*s));
+    O.pA.position.set(ax,1.35,0); O.pB.position.set(bx,O.bfn(bx),0);
+    lensUiAcc+=dt; if(lensUiAcc>0.2){ lensUiAcc=0;
+      const usSolar=LENS_RSCUS*dtg;
+      hudBig.textContent=`SHAPIRO DELAY · b=${b.toFixed(2)} R_s · Δt=(R_s/c)·ln(4r_s r_o/b²)=${dtg.toFixed(2)} R_s/c ≈ ${usSolar.toFixed(0)} μs (solar-mass lens)`;
+      hudSub.textContent='light passing a mass takes measurably LONGER — not because it slows locally, but because space and time near the mass are curved, adding coordinate time. Both photons start together; the grazing one arrives late. This is GR’s "fourth test": radar echoes off Venus past the Sun run ~250 μs late (Shapiro 1964; Viking, Cassini). Smaller impact parameter b ⇒ more delay.';
+      ATLAS_BUS.pub('lens.shapiro',+dtg.toFixed(3),'Rs/c');
+      const el=ctl.querySelector('#lensInv'); if(el) el.innerHTML=`impact parameter b=<b>${b.toFixed(2)}</b> R_s · source & observer distance D=<b>${D.toFixed(0)}</b> R_s<br>excess time Δt=(R_s/c)·ln(4D²/b²)=<b>${dtg.toFixed(3)}</b> R_s/c → for a solar-mass lens ≈ <b>${usSolar.toFixed(1)} μs</b>; the Sun-grazing radar test is ~250 μs round trip`;
+    }
+    return;
+  }
+  const b=state.lensB??4, captured=Math.abs(b)<LENS_BCRIT;
+  if(O.probe){ let arr; if(st==='flamm'){ arr=lensLiftArr(lensTrace(b).pts); } else { const R=lensRay3D(b,0); arr=new Float32Array(R.v.length*3); R.v.forEach((v,i)=>{arr[i*3]=v.x;arr[i*3+1]=v.y;arr[i*3+2]=v.z;}); }
+    O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3)); O.probe.geometry.computeBoundingSphere(); O.probe.material.color.setHex(captured?0xff6a5a:0xffe27a);
+    if(O.photon && arr.length>=3){ lensPhase+=dt*0.15; if(lensPhase>=1)lensPhase-=1; const n=arr.length/3, i=Math.min(n-1,Math.floor(lensPhase*n)); O.photon.position.set(arr[i*3],arr[i*3+1],arr[i*3+2]); } }
   lensUiAcc+=dt; if(lensUiAcc>0.2){ lensUiAcc=0;
     const weak=2*LENS_RS/Math.abs(b), alpha=captured?null:lensAlpha(b);
-    hudBig.textContent=captured?`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s < b_crit=2.598 → CAPTURED (inside the shadow)`
+    hudBig.textContent=captured?`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s < b_crit=2.598 → CAPTURED (through the horizon)`
       :`GRAVITATIONAL LENSING · b=${b.toFixed(2)} R_s · deflection α=${(alpha*180/Math.PI).toFixed(2)}° · weak 2R_s/b=${(weak*180/Math.PI).toFixed(2)}°`;
-    hudSub.textContent='each ray is a real null geodesic of Schwarzschild spacetime. Far out, light bends by exactly α=2R_s/b — twice Newton’s value, confirmed at the 1919 eclipse. As b→b_crit=(3√3/2)R_s the bending runs away and photons loop the photon sphere at r=1.5R_s; closer in they fall past the horizon. Gravity here does no work on the photon energy — it curves the path, not the joule count.';
+    hudSub.textContent=st==='ring'
+      ? 'when a source sits directly behind the lens, symmetry sends its light to the observer from EVERY azimuth at once — the images merge into a full Einstein ring at the deflection-matched radius. Off-axis it breaks into an arc plus a fainter counter-image. Every strand here is an exact null geodesic.'
+      : 'a full 3-D bundle of null geodesics streams past the black hole, each an exact Schwarzschild solution. Far out they bend by α=2R_s/b (twice Newton, the 1919 eclipse); as b→b_crit=(3√3/2)R_s the bending diverges and light loops the photon sphere at r=1.5R_s (gold shell); inside b_crit (red strands) it is swallowed. Gravity does no work on the photon energy — it curves the path.';
     ATLAS_BUS.pub('lens.alpha',+(captured?999:alpha*180/Math.PI).toFixed(2),'deg');
     const el=ctl.querySelector('#lensInv'); if(el) el.innerHTML=captured
-      ? `probe b=<b>${b.toFixed(2)}</b> R_s is below b_crit=<b>2.598</b> R_s → the photon spirals through the horizon. This disk is the black-hole shadow (apparent radius b_crit).`
+      ? `probe b=<b>${b.toFixed(2)}</b> R_s is below b_crit=<b>2.598</b> R_s → the photon spirals through the horizon (black-hole shadow radius = b_crit).`
       : `probe b=<b>${b.toFixed(2)}</b> R_s · exact deflection α=<b>${(alpha*180/Math.PI).toFixed(2)}°</b> · weak-field 2R_s/b=<b>${(weak*180/Math.PI).toFixed(2)}°</b><br>photon sphere r=1.5 R_s · shadow radius b_crit=(3√3/2)R_s=<b>2.598</b> R_s · deflection diverges as b→b_crit`;
   }
 }
@@ -12397,7 +12470,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,4.5,7.5]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -17163,7 +17236,7 @@ const state = {
   heTh:500, heTc:300, heRun:true, heSpeed:1,   // Heat-engine lab
   bbT:5772,   // Blackbody lab
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
-  lensB:4, lensRays:22, lensFlamm:true,   // Gravitational-lensing lab
+  lensB:4, lensRays:22, lensStation:'bundle', lensHopf:true, lensShapB:2.5, lensShapD:1000,   // Gravitational-lensing lab
   teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
   gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
@@ -18740,29 +18813,39 @@ function buildCtlBody(){
         <button class="btn" id="nucToHe">→ Heat engine: turning the heat into work</button></div>
     </div>`;
     else if(V==='lens') body = `
-    <div class="sect"><b>Gravitational lensing — probe ray</b>
-      <div class="ctlrow"><label>Impact param b</label>
+    <div class="sect"><b>Gravitational lensing — station</b>
+      <div class="chips">
+        ${[['bundle','3-D ray bundle'],['ring','Einstein ring'],['shapiro','Shapiro delay'],['flamm','Flamm funnel']].map(([k,l])=>
+          `<button class="chip ${(state.lensStation||'bundle')===k?'on':''}" data-lensst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Hopf sky</label>
+        <button class="chip ${state.lensHopf!==false?'on':''}" id="lensHopf">${state.lensHopf!==false?'shown':'hidden'}</button>
+        <span style="font-size:10px;color:var(--dim)">the trisphere behind the lens</span></div>
+      ${(state.lensStation||'bundle')==='shapiro'?`
+      <div class="ctlrow"><label>Impact b</label>
+        <input type="range" id="lensShapB" min="0.5" max="8" step="0.05" value="${state.lensShapB??2.5}"><span class="val" id="lensShapBV">${(state.lensShapB??2.5).toFixed(2)} R_s</span></div>
+      <div class="ctlrow"><label>Distance D</label>
+        <input type="range" id="lensShapD" min="50" max="5000" step="50" value="${state.lensShapD??1000}"><span class="val" id="lensShapDV">${(state.lensShapD??1000).toFixed(0)} R_s</span></div>`:`
+      <div class="ctlrow"><label>Probe b</label>
         <input type="range" id="lensB" min="-8" max="8" step="0.05" value="${state.lensB??4}"><span class="val" id="lensBV">${(state.lensB??4).toFixed(2)} R_s</span></div>
-      <div class="ctlrow"><label>Beam rays</label>
+      <div class="ctlrow"><label>Bundle rays</label>
         <input type="range" id="lensRays" min="8" max="40" step="2" value="${state.lensRays??22}"><span class="val" id="lensRaysV">${state.lensRays??22}</span></div>
       <div class="chips">
         <button class="chip" data-lensb="6">weak bend</button>
         <button class="chip" data-lensb="2.7">near photon sphere</button>
         <button class="chip" data-lensb="2.598">critical b</button>
         <button class="chip" data-lensb="2">captured</button>
-      </div>
-      <div class="ctlrow"><label>Curved space</label>
-        <button class="chip ${state.lensFlamm!==false?'on':''}" id="lensFlamm">${state.lensFlamm!==false?'Flamm funnel':'flat plane'}</button>
-        <span style="font-size:10px;color:var(--dim)">drape the rays on the embedded geometry</span></div>
+      </div>`}
     </div>
-    <div class="sect"><b>Deflection readout</b>
+    <div class="sect"><b>${(state.lensStation||'bundle')==='shapiro'?'Time-delay':'Deflection'} readout</b>
       <div class="note" id="lensInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Every ray is a true null geodesic integrated from d²u/dφ²+u=(3/2)R_s u² (u=1/r). Far out, light bends by α=2R_s/b — exactly twice the Newtonian prediction, the measurement that made Einstein famous in 1919. As b→b_crit=(3√3/2)R_s≈2.598 R_s the deflection diverges and photons wind around the photon sphere at r=1.5 R_s; inside b_crit they cross the horizon — the dark disk is the black-hole shadow. Gravity does no work on the photon’s energy here; it only curves the path.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Every strand is a true null geodesic of Schwarzschild spacetime, integrated from d²u/dφ²+u=(3/2)R_s u². <b>3-D bundle</b>: a full congruence bends around the hole; far out α=2R_s/b (twice Newton, the 1919 eclipse), at b_crit=(3√3/2)R_s≈2.598 it loops the photon sphere at 1.5 R_s and inside is swallowed. <b>Einstein ring</b>: a source directly behind is lensed into a full circle. <b>Shapiro delay</b>: light past a mass gains coordinate time Δt=(R_s/c)ln(4r_s r_o/b²) — GR’s fourth test (~250 μs Sun-grazing radar). <b>Flamm</b>: the rays draped on the curved geometry itself. The Hopf sky ties the source to the trisphere.</div>
     </div>
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="lensToGw">→ Gravitational waves: the merger it can host</button>
         <button class="btn" id="lensToGrav">→ Gravitas: Newtonian 3-body orbits</button>
-        <button class="btn" id="lensToTaub">→ Taub-NUT: exotic spacetime geodesics</button></div>
+        <button class="btn" id="lensToHopf">→ Hopf fibres in the atlas core</button></div>
     </div>`;
     else if(V==='te') body = `
     <div class="sect"><b>Thermoelectric — mode</b>
@@ -19550,14 +19633,20 @@ function buildCtlBody(){
       ctl.querySelector('#nucToHe')&&(ctl.querySelector('#nucToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
     }
     if(V==='lens'){
+      ctl.querySelectorAll('[data-lensst]').forEach(b=>b.onclick=()=>{ state.lensStation=b.dataset.lensst; lensSetup(); buildCtl(); });
+      ctl.querySelector('#lensHopf')&&(ctl.querySelector('#lensHopf').onclick=()=>{ state.lensHopf=state.lensHopf===false; lensSetup(); buildCtl(); });
       ctl.querySelector('#lensB')&&(ctl.querySelector('#lensB').oninput=e=>{ state.lensB=+e.target.value;
-        const v=ctl.querySelector('#lensBV'); if(v)v.textContent=(+e.target.value).toFixed(2)+' R_s'; });
+        const v=ctl.querySelector('#lensBV'); if(v)v.textContent=(+e.target.value).toFixed(2)+' R_s'; if((state.lensStation||'bundle')==='ring') lensSetup(); });
       ctl.querySelector('#lensRays')&&(ctl.querySelector('#lensRays').oninput=e=>{ state.lensRays=+e.target.value;
         const v=ctl.querySelector('#lensRaysV'); if(v)v.textContent=state.lensRays; }, ctl.querySelector('#lensRays').onchange=()=>lensSetup());
-      ctl.querySelectorAll('[data-lensb]').forEach(b=>b.onclick=()=>{ state.lensB=+b.dataset.lensb; buildCtl(); });
+      ctl.querySelectorAll('[data-lensb]').forEach(b=>b.onclick=()=>{ state.lensB=+b.dataset.lensb; if((state.lensStation||'bundle')==='ring') lensSetup(); buildCtl(); });
+      ctl.querySelector('#lensShapB')&&(ctl.querySelector('#lensShapB').oninput=e=>{ state.lensShapB=+e.target.value;
+        const v=ctl.querySelector('#lensShapBV'); if(v)v.textContent=(+e.target.value).toFixed(2)+' R_s'; });
+      ctl.querySelector('#lensShapD')&&(ctl.querySelector('#lensShapD').oninput=e=>{ state.lensShapD=+e.target.value;
+        const v=ctl.querySelector('#lensShapDV'); if(v)v.textContent=(+e.target.value).toFixed(0)+' R_s'; });
+      ctl.querySelector('#lensToGw')&&(ctl.querySelector('#lensToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
       ctl.querySelector('#lensToGrav')&&(ctl.querySelector('#lensToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
-      ctl.querySelector('#lensFlamm')&&(ctl.querySelector('#lensFlamm').onclick=()=>{ state.lensFlamm=state.lensFlamm===false; lensSetup(); buildCtl(); });
-      ctl.querySelector('#lensToTaub')&&(ctl.querySelector('#lensToTaub').onclick=()=>{ navPush(); setS3View('taub'); buildCtl(); });
+      ctl.querySelector('#lensToHopf')&&(ctl.querySelector('#lensToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='te'){
       ctl.querySelectorAll('[data-tem]').forEach(b=>b.onclick=()=>{ state.teMode=b.dataset.tem; buildCtl(); });
