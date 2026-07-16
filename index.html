@@ -11920,43 +11920,55 @@ function lensTrace(b){   // integrate one null geodesic for DRAWING; returns {pt
   }
   return {pts, captured};
 }
+const LENS_SS=0.42, LENS_HK=0.16, LENS_HOFF=4.9;
+function lensLift(x,y){   // drape flat (x,y) onto Flamm's paraboloid (or flat plane)
+  if(state.lensFlamm===false) return [x*LENS_SS,0,y*LENS_SS];
+  const r=Math.hypot(x,y), h=2*Math.sqrt(LENS_RS*Math.max(0,r-LENS_RS));
+  return [x*LENS_SS,(h-LENS_HOFF)*LENS_HK,y*LENS_SS];
+}
+function lensLiftArr(pts){ const a=new Float32Array(pts.length); for(let k=0;k<pts.length;k+=3){ const L=lensLift(pts[k],pts[k+1]); a[k]=L[0];a[k+1]=L[1];a[k+2]=L[2]; } return a; }
+function lensRing(rad,color,op){ const p=[]; for(let i=0;i<=96;i++){ const a=i/96*2*Math.PI; p.push(new THREE.Vector3(...lensLift(rad*Math.cos(a),rad*Math.sin(a)))); }
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),new THREE.LineBasicMaterial({color,transparent:true,opacity:op,blending:THREE.AdditiveBlending,depthWrite:false})); }
 function lensClear(){ labWipe(lensGroup); lensObjs=null; }
 function lensSetup(){
   lensClear();
   lensGroup.add(new THREE.AmbientLight(0x8090b0,.5));
-  const S=0.42;   // scene units per R_s
-  // black hole + shadow + photon sphere
-  const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*S,48,32),new THREE.MeshBasicMaterial({color:0x05070c}));
-  lensGroup.add(bh);
-  const shadow=new THREE.Mesh(new THREE.RingGeometry(LENS_RS*S,LENS_BCRIT*S,64),new THREE.MeshBasicMaterial({color:0x120a18,transparent:true,opacity:.45,side:THREE.DoubleSide,depthWrite:false}));
-  shadow.rotation.x=0; lensGroup.add(shadow);
-  const pring=new THREE.Mesh(new THREE.RingGeometry(1.5*S*0.985,1.5*S*1.015,96),new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.8,side:THREE.DoubleSide,depthWrite:false}));
-  lensGroup.add(pring);
-  const bcircle=new THREE.Mesh(new THREE.RingGeometry(LENS_BCRIT*S*0.995,LENS_BCRIT*S*1.02,96),new THREE.MeshBasicMaterial({color:0xff7a6a,transparent:true,opacity:.5,side:THREE.DoubleSide,depthWrite:false}));
-  lensGroup.add(bcircle);
+  const flamm=state.lensFlamm!==false;
+  // Flamm paraboloid — the curved geometry of space itself (equatorial slice, embedded)
+  if(flamm){ const dir=new THREE.DirectionalLight(0xdfe6ff,.5); dir.position.set(3,8,5); lensGroup.add(dir);
+    const NR=46, NP=72, geo=new THREE.PlaneGeometry(1,1,NR-1,NP-1), pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+    for(let j=0;j<NP;j++)for(let i=0;i<NR;i++){ const idx=j*NR+i, r=LENS_RS*1.02+(14-LENS_RS*1.02)*i/(NR-1), a=2*Math.PI*j/(NP-1), L=lensLift(r*Math.cos(a),r*Math.sin(a));
+      pos.setXYZ(idx,L[0],L[1],L[2]); const t=1-(i/(NR-1)); _c.setHSL(0.62,0.5,0.10+0.10*(1-t)); col[idx*3]=_c.r;col[idx*3+1]=_c.g;col[idx*3+2]=_c.b; }
+    geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+    lensGroup.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.85,metalness:.05,transparent:true,opacity:.6,side:THREE.DoubleSide,depthWrite:false})));
+    lensGroup.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x39435f,wireframe:true,transparent:true,opacity:.13,depthWrite:false})));
+  }
+  // black hole at the throat + photon sphere & shadow rings draped on the geometry
+  const thr=lensLift(0,0);
+  const bh=new THREE.Mesh(new THREE.SphereGeometry(LENS_RS*LENS_SS*0.98,40,28),new THREE.MeshBasicMaterial({color:0x05070c}));
+  bh.position.set(thr[0],thr[1],thr[2]); lensGroup.add(bh);
+  lensGroup.add(lensRing(1.5,0xffcf6a,.85));           // photon sphere r=1.5 R_s
+  lensGroup.add(lensRing(LENS_BCRIT,0xff7a6a,.55));     // shadow radius b_crit
   // ray fan
-  const nb=state.lensRays??22, bmax=6.5, rayLines=[]; const _c=new THREE.Color();
+  const nb=state.lensRays??22, bmax=6.5; const _c=new THREE.Color();
   for(let i=0;i<nb;i++){ const b=-bmax+2*bmax*i/(nb-1); if(Math.abs(b)<0.05) continue;
     const T=lensTrace(b); if(T.pts.length<2) continue;
-    const arr=new Float32Array(T.pts.map(v=>v*S));
-    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(arr,3));
-    const captured=T.captured; _c.setHSL(captured?0.02:0.55, .9, captured?0.5:0.62);
-    const line=new THREE.Line(g,new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:captured?.85:.7,blending:THREE.AdditiveBlending,depthWrite:false}));
-    lensGroup.add(line); rayLines.push(line);
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(lensLiftArr(T.pts),3));
+    const captured=T.captured; _c.setHSL(captured?0.02:0.55,.9,captured?0.5:0.62);
+    lensGroup.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:captured?.85:.7,blending:THREE.AdditiveBlending,depthWrite:false})));
   }
-  // movable probe ray
   const probe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,depthWrite:false}));
   lensGroup.add(probe);
-  const tl=mkLabel('GRAVITATIONAL LENSING · null geodesics · d²u/dφ²+u=(3/2)R_s u²','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
-  const psl=mkLabel('photon sphere 1.5 R_s','label axis'); psl.position.set(0,1.5*S+0.3,0); lensGroup.add(psl);
+  const tl=mkLabel('GRAVITATIONAL LENSING · null geodesics on Flamm’s paraboloid · d²u/dφ²+u=(3/2)R_s u²','label const'); tl.position.set(0,3.6,0); lensGroup.add(tl);
+  const psl=mkLabel('photon sphere 1.5 R_s',flamm?'label axis':'label axis'); const pp=lensLift(1.5,0); psl.position.set(pp[0],pp[1]+0.3,pp[2]); lensGroup.add(psl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); lensGroup.add(rl);
-  lensObjs={bh,probe,readLab:rl,S};
+  lensObjs={bh,probe,readLab:rl,S:LENS_SS};
 }
 function updateLens(dt){
-  const O=lensObjs; if(!O) return; const S=O.S;
+  const O=lensObjs; if(!O) return;
   const b=state.lensB??4;
-  const T=lensTrace(b); const arr=new Float32Array(T.pts.map(v=>v*S));
-  O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3)); O.probe.geometry.computeBoundingSphere();
+  const T=lensTrace(b);
+  O.probe.geometry.setAttribute('position',new THREE.BufferAttribute(lensLiftArr(T.pts),3)); O.probe.geometry.computeBoundingSphere();
   const captured=Math.abs(b)<LENS_BCRIT; O.probe.material.color.setHex(captured?0xff6a5a:0xffe27a);
   lensUiAcc+=dt; if(lensUiAcc>0.2){ lensUiAcc=0;
     const weak=2*LENS_RS/Math.abs(b), alpha=captured?null:lensAlpha(b);
@@ -12385,7 +12397,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,4.5,7.5]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -17151,7 +17163,7 @@ const state = {
   heTh:500, heTc:300, heRun:true, heSpeed:1,   // Heat-engine lab
   bbT:5772,   // Blackbody lab
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
-  lensB:4, lensRays:22,   // Gravitational-lensing lab
+  lensB:4, lensRays:22, lensFlamm:true,   // Gravitational-lensing lab
   teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
   gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
@@ -18739,6 +18751,9 @@ function buildCtlBody(){
         <button class="chip" data-lensb="2.598">critical b</button>
         <button class="chip" data-lensb="2">captured</button>
       </div>
+      <div class="ctlrow"><label>Curved space</label>
+        <button class="chip ${state.lensFlamm!==false?'on':''}" id="lensFlamm">${state.lensFlamm!==false?'Flamm funnel':'flat plane'}</button>
+        <span style="font-size:10px;color:var(--dim)">drape the rays on the embedded geometry</span></div>
     </div>
     <div class="sect"><b>Deflection readout</b>
       <div class="note" id="lensInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
@@ -19541,6 +19556,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#lensRaysV'); if(v)v.textContent=state.lensRays; }, ctl.querySelector('#lensRays').onchange=()=>lensSetup());
       ctl.querySelectorAll('[data-lensb]').forEach(b=>b.onclick=()=>{ state.lensB=+b.dataset.lensb; buildCtl(); });
       ctl.querySelector('#lensToGrav')&&(ctl.querySelector('#lensToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#lensFlamm')&&(ctl.querySelector('#lensFlamm').onclick=()=>{ state.lensFlamm=state.lensFlamm===false; lensSetup(); buildCtl(); });
       ctl.querySelector('#lensToTaub')&&(ctl.querySelector('#lensToTaub').onclick=()=>{ navPush(); setS3View('taub'); buildCtl(); });
     }
     if(V==='te'){
