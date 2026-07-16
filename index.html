@@ -1605,6 +1605,24 @@ function runSelfTests(){
       if(dph<lo)lo=dph; if(dph>hi)hi=dph; }
     ok('N-body swarm: a Trojan test particle LIBRATES about Jupiter L4 (lead angle stays in 40°–80° over 30 yr)',
       lo*180/Math.PI>40 && hi*180/Math.PI<80, `[${(lo*180/Math.PI).toFixed(1)}°,${(hi*180/Math.PI).toFixed(1)}°]`); }
+  { // CATALOGUE ENGINE: octree exact-NN equals brute force; CSV parser handles both column schemas
+    let sd=99; const rnd=()=>{ sd=(sd*1664525+1013904223)>>>0; return sd/4294967296; };
+    const N=600, P=new Float32Array(N*3); for(let i=0;i<N*3;i++) P[i]=(rnd()-0.5)*8;
+    const savedNodes=CAT.octNodes, savedDepth=CAT.octDepth;
+    const root=catOctBuild(P,N); let allAgree=true;
+    for(let q=0;q<25;q++){ const qx=(rnd()-0.5)*9,qy=(rnd()-0.5)*9,qz=(rnd()-0.5)*9;
+      const best={d2:Infinity,i:-1}; catOctNearest(root,qx,qy,qz,P,best);
+      let bd=Infinity,bi=-1; for(let i=0;i<N;i++){ const ax=P[i*3]-qx,ay=P[i*3+1]-qy,az=P[i*3+2]-qz,d2=ax*ax+ay*ay+az*az; if(d2<bd){bd=d2;bi=i;} }
+      if(bi!==best.i&&Math.abs(bd-best.d2)>1e-12){ allAgree=false; break; } }
+    CAT.octNodes=savedNodes; CAT.octDepth=savedDepth;
+    ok('Catalogue octree: pruned nearest-neighbour query EXACTLY matches brute force (25 random queries, 600 pts)',
+      allAgree, allAgree?'all agree':'mismatch');
+    const OB=23.4392911*Math.PI/180;
+    const r1=catParseCSV('x,y,z\n1,2,3\n4,5,6\nbad,row,x\n7,8,9',OB);
+    const r2=catParseCSV('ra,dec,dGly\n0,0,1',OB);
+    const ok2=Math.abs(r2.pos[0]-1)<1e-6 && Math.abs(Math.hypot(r2.pos[0],r2.pos[1],r2.pos[2])-1)<1e-6;
+    ok('Catalogue CSV parser: x/y/z and ra/dec/dGly schemas parse; bad rows dropped; sky rows land on the unit sphere',
+      r1.n===3 && r1.pos[3]===4 && r2.n===1 && ok2, `xyz n=${r1.n}, sky |p|=${Math.hypot(r2.pos[0],r2.pos[1],r2.pos[2]).toFixed(6)}`); }
   { // HEAT ENGINE: Carnot η=1−Tc/Th equals W/Qh, and Clausius V3/V4=V2/V1 for the ideal-gas cycle
     const Th=500,Tc=300,g=1.4,V1=1,V2=2.5;
     const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
@@ -5295,6 +5313,147 @@ const FIT = (()=>{
   }
   return {weightedCentroid,covariance,jacobiEig,fit,bootstrap,jackknife};
 })();
+
+/* ================================================================
+   CAT · scalable catalogue engine (streaming architecture, phase 5).
+   Three pieces, all single-file compliant:
+   · a WebWorker built from a Blob URL parses catalogues OFF the main
+     thread and returns positions as a transferable Float32Array
+     (zero-copy) — the ingestion hook for Gaia/SDSS-class subsets;
+   · an octree spatial index (bucket 24, depth ≤9) built over the
+     ingested cloud, with an exact pruned nearest-neighbour query that
+     the self-tests assert against brute force;
+   · a GPU points cloud rendered in the Observable atlas (1 unit=1 Gly).
+   The bundled demo catalogue is DECLARED SYNTHETIC: 200,000 points
+   sampled around the registered COSMOS structures (density profiles
+   like the dust clouds) purely to exercise the pipeline at scale —
+   never survey data. CSV ingestion accepts x,y,z (Gly, scene frame) or
+   ra,dec (deg) + dGly columns; sky coordinates use the same J2000→scene
+   obliquity rotation as every registered marker. PCA of each ingested
+   cloud runs through the atlas's own FIT.jacobiEig. */
+function catParseCSV(text,obliq){
+  const lines=text.split(/\r?\n/).filter(l=>l.trim()&&l[0]!=='#');
+  if(!lines.length) return {n:0,pos:new Float32Array(0),mode:'empty'};
+  const head=lines[0].toLowerCase().split(/[,;\t]/).map(s=>s.trim());
+  let ix=head.indexOf('x'),iy=head.indexOf('y'),iz=head.indexOf('z');
+  const ira=head.findIndex(h=>h==='ra'||h==='ra_deg'), idec=head.findIndex(h=>h==='dec'||h==='dec_deg');
+  const idd=head.findIndex(h=>h==='dgly'||h==='dist_gly'||h==='d_gly');
+  const hasXYZ=ix>=0&&iy>=0&&iz>=0, hasSky=ira>=0&&idec>=0&&idd>=0;
+  const start=(hasXYZ||hasSky)?1:0;
+  if(!hasXYZ&&!hasSky){ ix=0;iy=1;iz=2; }
+  const out=new Float32Array((lines.length-start)*3); let n=0;
+  for(let li=start;li<lines.length;li++){
+    const c=lines[li].split(/[,;\t]/); let X,Y,Z;
+    if(hasSky){ const ra=parseFloat(c[ira])*Math.PI/180, de=parseFloat(c[idec])*Math.PI/180, d=parseFloat(c[idd]);
+      const xe=Math.cos(de)*Math.cos(ra), ye=Math.cos(de)*Math.sin(ra), ze=Math.sin(de);
+      const yc=Math.cos(obliq)*ye+Math.sin(obliq)*ze, zc=-Math.sin(obliq)*ye+Math.cos(obliq)*ze;
+      X=xe*d; Y=zc*d; Z=-yc*d;
+    } else { X=parseFloat(c[ix]); Y=parseFloat(c[iy]); Z=parseFloat(c[iz]); }
+    if(Number.isFinite(X)&&Number.isFinite(Y)&&Number.isFinite(Z)){ out[n*3]=X;out[n*3+1]=Y;out[n*3+2]=Z; n++; }
+  }
+  return {n,pos:out.slice(0,n*3),mode:hasSky?'ra/dec/dGly':'x/y/z'};
+}
+function catSynth(spec,count,seed){
+  let s=(seed>>>0)||1; const rnd=()=>{ s=(s*1664525+1013904223)>>>0; return s/4294967296; };
+  const totalW=spec.reduce((a,e)=>a+e.w,0), pos=new Float32Array(count*3); let k=0;
+  for(let ei=0;ei<spec.length;ei++){ const e=spec[ei];
+    const m=(ei===spec.length-1)?(count-k):Math.round(count*e.w/totalW);
+    for(let i=0;i<m&&k<count;i++,k++){
+      const u1=Math.max(1e-9,rnd()),u2=rnd(), g=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2);
+      const rr=e.hollow?(0.85+0.15*rnd()):Math.min(1.4,Math.abs(g)*0.45);
+      const z=2*rnd()-1, ph=2*Math.PI*rnd(), sq=Math.sqrt(1-z*z);
+      pos[k*3]  =e.x+sq*Math.cos(ph)*rr*e.r*e.fx;
+      pos[k*3+1]=e.y+z*rr*e.r*e.fy;
+      pos[k*3+2]=e.z+sq*Math.sin(ph)*rr*e.r*e.fz;
+    } }
+  return pos;
+}
+const CAT={n:0,pts:null,octRoot:null,octNodes:0,octDepth:0,buildMs:0,parseMs:0,pca:null,src:'none',cloud:null,nnAgree:null,worker:null};
+function catOctNode(cx,cy,cz,hs,d){ CAT.octNodes++; if(d>CAT.octDepth)CAT.octDepth=d; return {cx,cy,cz,hs,d,idx:[],kids:null}; }
+function catOctInsert(nd,i,P){
+  const x=P[i*3],y=P[i*3+1],z=P[i*3+2];
+  while(nd.kids){ const o=(x>nd.cx?1:0)|(y>nd.cy?2:0)|(z>nd.cz?4:0); nd=nd.kids[o]; }
+  nd.idx.push(i);
+  if(nd.idx.length>24&&nd.d<9){ const h=nd.hs/2; nd.kids=[];
+    for(let o=0;o<8;o++) nd.kids.push(catOctNode(nd.cx+((o&1)?h:-h),nd.cy+((o&2)?h:-h),nd.cz+((o&4)?h:-h),h,nd.d+1));
+    const old=nd.idx; nd.idx=[];
+    for(const j of old){ const ox=P[j*3],oy=P[j*3+1],oz=P[j*3+2], oo=(ox>nd.cx?1:0)|(oy>nd.cy?2:0)|(oz>nd.cz?4:0); catOctInsert(nd.kids[oo],j,P); }
+  }
+}
+function catOctNearest(nd,x,y,z,P,best){
+  const dx=Math.max(Math.abs(x-nd.cx)-nd.hs,0),dy=Math.max(Math.abs(y-nd.cy)-nd.hs,0),dz=Math.max(Math.abs(z-nd.cz)-nd.hs,0);
+  if(dx*dx+dy*dy+dz*dz>=best.d2) return;
+  if(nd.kids){ const ord=[0,1,2,3,4,5,6,7].map(q=>{ const K=nd.kids[q];
+      return [(K.cx-x)*(K.cx-x)+(K.cy-y)*(K.cy-y)+(K.cz-z)*(K.cz-z),q]; }).sort((a,b)=>a[0]-b[0]);
+    for(const [,q] of ord) catOctNearest(nd.kids[q],x,y,z,P,best); return; }
+  for(const i of nd.idx){ const ax=P[i*3]-x,ay=P[i*3+1]-y,az=P[i*3+2]-z, d2=ax*ax+ay*ay+az*az;
+    if(d2<best.d2){ best.d2=d2; best.i=i; } }
+}
+function catOctBuild(P,n){
+  CAT.octNodes=0; CAT.octDepth=0;
+  let m=0.1; for(let i=0;i<n*3;i++){ const a=Math.abs(P[i]); if(a>m)m=a; }
+  const root=catOctNode(0,0,0,m*1.01,0);
+  for(let i=0;i<n;i++) catOctInsert(root,i,P);
+  return root;
+}
+function catWorkerGet(){
+  if(CAT.worker) return CAT.worker;
+  const src="'use strict';\nconst OBLIQ=23.4392911*Math.PI/180;\n"+catParseCSV.toString()+"\n"+catSynth.toString()+"\n"+
+    "onmessage=e=>{ const m=e.data, t0=Date.now();\n"+
+    "  if(m.type==='csv'){ const r=catParseCSV(m.text,OBLIQ); postMessage({type:'points',n:r.n,mode:r.mode,label:m.label,ms:Date.now()-t0,pos:r.pos},[r.pos.buffer]); }\n"+
+    "  else if(m.type==='synth'){ const p=catSynth(m.spec,m.count,m.seed); postMessage({type:'points',n:m.count,mode:'synthetic',label:m.label,ms:Date.now()-t0,pos:p},[p.buffer]); } };";
+  CAT.worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'})));
+  CAT.worker.onmessage=e=>{ const m=e.data; if(m.type==='points'){ CAT.parseMs=m.ms; catIngest(m.pos,m.n,m.label,m.mode); } };
+  return CAT.worker;
+}
+function catLoadDemo(){
+  const spec=[];
+  for(const s of COSMOS){ const p=COSMOS_POS.get(s.key); if(!p) continue;
+    const flat=s.type==='wall'?[1,0.5,0.35]:[1,1,1];
+    spec.push({x:p.x,y:p.y,z:p.z,r:Math.max(s.size/2,0.06),fx:flat[0],fy:flat[1],fz:flat[2],
+      hollow:s.type==='void',w:Math.max(s.size,0.05)}); }
+  catWorkerGet().postMessage({type:'synth',spec,count:200000,seed:20260716,label:'synthetic demo (COSMOS-sampled)'});
+}
+function catLoadFile(file){
+  const rd=new FileReader();
+  rd.onload=()=>{ catWorkerGet().postMessage({type:'csv',text:rd.result,label:file.name}); };
+  rd.readAsText(file);
+}
+function catClearCloud(){
+  if(CAT.cloud){ cosmosGroup.remove(CAT.cloud); CAT.cloud.geometry.dispose(); CAT.cloud.material.dispose(); }
+  CAT.cloud=null; CAT.n=0; CAT.pts=null; CAT.octRoot=null; CAT.octNodes=0; CAT.octDepth=0; CAT.pca=null; CAT.src='none'; CAT.nnAgree=null;
+  const el=ctl.querySelector('#catInv'); if(el) el.textContent='—';
+}
+function catIngest(pos,n,label,mode){
+  catClearCloud(); if(!n) return;
+  CAT.pts=pos; CAT.n=n; CAT.src=label+' ('+mode+')';
+  const col=new Float32Array(n*3), _c=new THREE.Color();
+  for(let i=0;i<n;i++){ const d=Math.hypot(pos[i*3],pos[i*3+1],pos[i*3+2]);
+    _c.setHSL(Math.max(0.02,0.6-0.6*Math.min(1,d/3.2)),0.7,0.6);
+    col[i*3]=_c.r; col[i*3+1]=_c.g; col[i*3+2]=_c.b; }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.012,vertexColors:true,sizeAttenuation:true,
+    transparent:true,opacity:0.5,depthWrite:false,blending:THREE.AdditiveBlending}));
+  cloud.name='CAT catalogue cloud'; cosmosGroup.add(cloud); CAT.cloud=cloud;
+  const t0=performance.now(); CAT.octRoot=catOctBuild(pos,n); CAT.buildMs=performance.now()-t0;
+  // exact-NN spot check vs brute force (octree must agree perfectly)
+  let agree=true;
+  for(let q=0;q<6;q++){ const qi=(q*2654435761)%n, qx=pos[qi*3]+0.01,qy=pos[qi*3+1]-0.02,qz=pos[qi*3+2]+0.015;
+    const best={d2:Infinity,i:-1}; catOctNearest(CAT.octRoot,qx,qy,qz,pos,best);
+    let bd=Infinity,bi=-1; for(let i=0;i<n;i++){ const ax=pos[i*3]-qx,ay=pos[i*3+1]-qy,az=pos[i*3+2]-qz,d2=ax*ax+ay*ay+az*az; if(d2<bd){bd=d2;bi=i;} }
+    if(bi!==best.i&&Math.abs(bd-best.d2)>1e-12){ agree=false; break; } }
+  CAT.nnAgree=agree;
+  const step=Math.max(1,Math.floor(n/4000)), sub=[];
+  for(let i=0;i<n;i+=step) sub.push([pos[i*3],pos[i*3+1],pos[i*3+2]]);
+  const f=FIT.fit(sub,null); CAT.pca={sigma:f.eigenvalues.map(v=>Math.sqrt(Math.max(0,v))),axis:f.eigenvectors[0]};
+  ATLAS_BUS.pub('cat.n',n,'catalogue points');
+  const el=ctl.querySelector('#catInv'); if(el) el.innerHTML=
+    `<b>${CAT.src}</b> · ${n.toLocaleString()} points · worker parse ${CAT.parseMs} ms (off-thread, zero-copy)<br>`+
+    `octree: <b>${CAT.octNodes.toLocaleString()}</b> nodes · depth ${CAT.octDepth} · built in ${CAT.buildMs.toFixed(0)} ms · exact-NN check vs brute force: <b>${agree?'PASS':'FAIL'}</b><br>`+
+    `PCA (FIT.jacobiEig, ${sub.length}-pt subsample): σ = ${CAT.pca.sigma.map(s=>s.toFixed(2)).join(' / ')} Gly`;
+}
 
 /* ================================================================
    INTERACTION PHYSICS LAYER — interaction only, never cosmology.
@@ -18766,6 +18925,15 @@ function buildCtlBody(){
       <div class="ctlrow"><label>Tracer speed</label><input type="range" id="lanSpeed" min="0" max="0.8" step="0.01" value="${state.laniakeaFlowSpeed}"></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">These are reconstruction-inspired orientation streamlines, not measured galaxy paths. CF4 basin membership is probabilistic; convergence changes with smoothing scale, and recent analyses do not support one uniquely dominant Great Attractor.</div>
     </div>
+    <div class="sect"><b>Catalogue engine · streaming architecture</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn green" id="catDemo">⇓ Load demo catalogue · 200,000 pts (synthetic)</button>
+        <button class="btn" id="catClear">✕ clear</button></div>
+      <div class="ctlrow"><label>Ingest CSV</label>
+        <input type="file" id="catFile" accept=".csv,.txt" style="max-width:180px"></div>
+      <div class="note" id="catInv" style="font-variant-numeric:tabular-nums;font-size:11px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A Blob-URL WebWorker parses catalogues OFF the main thread and transfers positions zero-copy; an octree (bucket 24, ≤9 levels) indexes the cloud with an exact nearest-neighbour query self-checked against brute force; PCA runs through the atlas's FIT.jacobiEig. The demo cloud is SYNTHETIC — 200k points sampled around the registered COSMOS structures to exercise the pipeline at scale, never survey data. CSV columns: x,y,z (Gly, scene frame) or ra,dec (deg) + dGly (J2000 → scene via the same obliquity rotation as every registered marker; no cosmological conversion is applied).</div>
+    </div>
     <div class="sect"><b>Curvature-radius family R_curv — TRUE scale</b>
       <div class="ctlrow"><label>Show candidate carriers</label><input type="checkbox" id="curvShow" ${obsCurvGroup.visible?'checked':''}></div>
       <div class="chips">${SEL_LEDGER.map((L,i)=>`<button class="chip ${state.selLedger===i?'on':''}" data-curvled="${i}">${L.key==='canon'?'★ 548':Math.round(L.R)} Gly</button>`).join('')}</div>
@@ -18790,6 +18958,9 @@ function buildCtlBody(){
     ctl.querySelector('#lanDens').oninput=e=>state.laniakeaFlowDensity=+e.target.value;
     ctl.querySelector('#lanSpeed').oninput=e=>state.laniakeaFlowSpeed=+e.target.value;
     ctl.querySelectorAll('[data-cosmos]').forEach(b=>b.onclick=()=>{ const k='cosmos_'+b.dataset.cosmos, s=SELECT.get(k); if(s){ selectKey(k); focusOn(s); } });
+    ctl.querySelector('#catDemo')&&(ctl.querySelector('#catDemo').onclick=()=>{ catLoadDemo(); const el=ctl.querySelector('#catInv'); if(el)el.textContent='parsing in worker…'; });
+    ctl.querySelector('#catClear')&&(ctl.querySelector('#catClear').onclick=()=>catClearCloud());
+    ctl.querySelector('#catFile')&&(ctl.querySelector('#catFile').onchange=e=>{ if(e.target.files&&e.target.files[0]) catLoadFile(e.target.files[0]); });
     ctl.querySelector('#curvShow').onchange=e=>obsCurvGroup.visible=e.target.checked;
     ctl.querySelectorAll('[data-curvled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.curvled); buildCtl();
       const k='obsCurv_'+SEL_LEDGER[state.selLedger].key, s=SELECT.get(k); if(s){ selectKey(k); focusOn(s); } });
@@ -23634,6 +23805,10 @@ globalThis.FBS3R_QA=Object.freeze({
       if(ty<0.5){ beltN++; if(r>1.6&&r<4.3)beltIn++; } else { troN++; if(r>4.4&&r<6.1)troIn++; }
     }
     return {n:AST_TEX*AST_TEX,beltN,beltInBand:beltIn,trojanN:troN,trojanInBand:troIn,nonFinite:bad};
+  },
+  catalogue(){   // read-only catalogue-engine diagnostic
+    return {n:CAT.n,src:CAT.src,octNodes:CAT.octNodes,octDepth:CAT.octDepth,buildMs:+CAT.buildMs.toFixed(1),
+      parseMs:CAT.parseMs,nnAgree:CAT.nnAgree,pcaSigma:CAT.pca?CAT.pca.sigma.map(v=>+v.toFixed(3)):null};
   },
   selectableScreen(key){try{const s=SELECT.get(key),p=safeSelectionPos(s);if(!p)return null;const q=p.clone().project(camera),r=renderer.domElement.getBoundingClientRect();
     return {x:r.left+(q.x*.5+.5)*r.width,y:r.top+(-q.y*.5+.5)*r.height,ndc:[q.x,q.y,q.z],visible:pickWorldVisible(s.pick)};}catch(e){return null;}},
