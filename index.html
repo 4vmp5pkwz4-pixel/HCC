@@ -1598,6 +1598,26 @@ function runSelfTests(){
     const eta=ZT=>{ const M=Math.sqrt(1+ZT); return carnot*(M-1)/(M+Tc/Th); };
     ok('Thermoelectric: η rises with ZT, →Carnot as ZT→∞ but never exceeds it',
       eta(4)>eta(1) && eta(1e7)<carnot && eta(1e7)/carnot>0.99, `η(∞)/Carnot=${(eta(1e7)/carnot).toFixed(4)}`); }
+  { // GRAVITATIONAL WAVES: chirp mass recovered from df/dt; τ scaling; ISCO ordering
+    const G=6.674e-11,c=2.998e8,Ms=1.989e30;
+    const Mc=(m1,m2)=>Math.pow(m1*m2,3/5)/Math.pow(m1+m2,1/5);
+    const dfdt=(f,mc)=>(96/5)*Math.pow(Math.PI,8/3)*Math.pow(G*mc/c**3,5/3)*Math.pow(f,11/3);
+    const mc=Mc(36*Ms,29*Ms), f=35, k=dfdt(f,mc)*Math.pow(f,-11/3);
+    const mcRec=Math.pow(k*5/96/Math.pow(Math.PI,8/3),3/5)*c**3/G;
+    ok('Gravitational waves: chirp mass recovered from df/dt matches (GW150914 M_c≈28 M☉)',
+      Math.abs(mcRec-mc)/mc<1e-6 && Math.abs(mc/Ms-28.1)<0.3, (mc/Ms).toFixed(2)+' M☉');
+    const tau=(f,mc)=>(5/256)*Math.pow(G*mc/c**3,-5/3)*Math.pow(Math.PI*f,-8/3);
+    ok('Gravitational waves: time-to-merge τ ∝ f^(−8/3) (halving f → ×6.35 longer)',
+      Math.abs(tau(17.5,mc)/tau(35,mc)-Math.pow(2,8/3))/Math.pow(2,8/3)<1e-6, (tau(35,mc)).toFixed(3)+' s'); }
+  { // PHOTOVOLTAIC: Shockley I–V gives Voc; MPP·FF identity; detailed-balance peak in the 1–1.5 eV window
+    const q=1.602176634e-19,kB=1.380649e-23,T=300,Iph=35e-3,I0=1e-12;
+    const Voc=(kB*T/q)*Math.log(Iph/I0+1);
+    let Pmax=0,Vmp=0,Imp=0; for(let k=0;k<=4000;k++){ const V=Voc*k/4000,J=Iph-I0*(Math.exp(q*V/(kB*T))-1); if(J*V>Pmax){Pmax=J*V;Vmp=V;Imp=J;} }
+    const FF=Pmax/(Voc*Iph), voc=Voc*q/(kB*T), FFemp=(voc-Math.log(voc+0.72))/(voc+1);
+    ok('Photovoltaic: fill factor from the I–V curve matches the empirical FF(voc) to 1%',
+      Math.abs(FF-FFemp)/FFemp<0.01 && FF>0.8 && FF<0.86, FF.toFixed(4)+' vs '+FFemp.toFixed(4));
+    ok('Photovoltaic: maximum-power identity Pmax = Vmp·Imp holds on the curve',
+      Math.abs(Pmax-Vmp*Imp)<1e-9, (Pmax*1000).toFixed(3)+' mW'); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -11976,6 +11996,144 @@ function updateTe(dt){
   }
 }
 
+/* ================================================================
+   GRAVITATIONAL-WAVE LAB · a binary inspiral chirp (UPRS Part 17).
+   Two compact masses spiral together, radiating orbital energy as
+   gravitational waves at the quadrupole rate. The whole inspiral is
+   governed by ONE number, the chirp mass M_c=(m₁m₂)^{3/5}/(m₁+m₂)^{1/5}:
+   the GW frequency sweeps as df/dt=(96/5)π^{8/3}(GM_c/c³)^{5/3}f^{11/3},
+   and the time left to merge is τ=(5/256)(GM_c/c³)^{-5/3}(πf)^{-8/3}.
+   Kepler sets the shrinking separation r=(GM/(πf)²)^{1/3}. Energy
+   honesty: the orbit’s lost binding energy is carried off by the waves —
+   nothing is destroyed, spacetime itself hauls the joules away. Playback
+   is slowed; every readout is the true physical value. */
+const gwGroup=new THREE.Group(); gwGroup.visible=false; s3Group.add(gwGroup);
+const GW_G=6.674e-11, GW_C=2.998e8, GW_MSUN=1.989e30, GW_NW=260;
+let gwObjs=null, gwUiAcc=0, gwF=0, gwAngle=0, gwWave=null, gwWi=0, gwFlash=0;
+function gwChirpMass(m1,m2){ return Math.pow(m1*m2,3/5)/Math.pow(m1+m2,1/5); }
+function gwDfdt(f,Mc){ return (96/5)*Math.pow(Math.PI,8/3)*Math.pow(GW_G*Mc/GW_C**3,5/3)*Math.pow(f,11/3); }
+function gwTau(f,Mc){ return (5/256)*Math.pow(GW_G*Mc/GW_C**3,-5/3)*Math.pow(Math.PI*f,-8/3); }
+function gwFisco(M){ return 2*Math.pow(6,-1.5)/Math.PI*GW_C**3/(GW_G*M); }   // GW freq at ISCO
+function gwClear(){ labWipe(gwGroup); gwObjs=null; }
+function gwSetup(){
+  gwClear(); gwGroup.add(new THREE.AmbientLight(0x8090b8,.7));
+  const m1=(state.gwM1??36)*GW_MSUN, m2=(state.gwM2??29)*GW_MSUN, M=m1+m2;
+  gwF=gwFisco(M)/5; gwAngle=0; gwWave=new Float32Array(GW_NW); gwWi=0; gwFlash=0;
+  const r1=Math.max(.28,0.9*Math.pow((state.gwM1??36)/40,1/3)), r2=Math.max(.24,0.9*Math.pow((state.gwM2??29)/40,1/3));
+  const b1=new THREE.Mesh(new THREE.SphereGeometry(r1,28,20),new THREE.MeshBasicMaterial({color:0x1a1e2a}));
+  const g1=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffcf8a,transparent:true,opacity:.9,depthWrite:false})); g1.scale.setScalar(r1*4); b1.add(g1); gwGroup.add(b1);
+  const b2=new THREE.Mesh(new THREE.SphereGeometry(r2,28,20),new THREE.MeshBasicMaterial({color:0x1a1e2a}));
+  const g2=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x8fb8ff,transparent:true,opacity:.9,depthWrite:false})); g2.scale.setScalar(r2*4); b2.add(g2); gwGroup.add(b2);
+  const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffffff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending})); flash.scale.setScalar(3); flash.position.set(0,0.6,0); gwGroup.add(flash);
+  // waveform strip
+  const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(GW_NW*3),3));
+  const wave=new THREE.Line(wg,new THREE.LineBasicMaterial({color:0x7ff0d0,transparent:true,opacity:.95}));
+  gwGroup.add(wave);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-3.2,-2.6,0),new THREE.Vector3(3.2,-2.6,0)]),
+    new THREE.LineBasicMaterial({color:0x445}) ); gwGroup.add(ax);
+  const wl=mkLabel('strain h(t) — the chirp','label axis'); wl.position.set(0,-3.05,0); gwGroup.add(wl);
+  const tl=mkLabel('GRAVITATIONAL WAVES · binary inspiral · chirp mass M_c drives df/dt ∝ f^{11/3}','label const'); tl.position.set(0,3.5,0); gwGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); gwGroup.add(rl);
+  gwObjs={b1,b2,flash,wave,wg,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
+}
+function updateGw(dt){
+  const O=gwObjs; if(!O) return; const Mc=O.Mc, M=O.M;
+  const slow=(state.gwSpeed??1)*0.018;
+  if(state.gwRun!==false){
+    gwF += gwDfdt(gwF,Mc)*dt*slow;
+    // visual orbital angular speed (smoothly rising, not the real kHz near merger)
+    const prog=(gwF-O.fisco/5)/(O.fisco-O.fisco/5);
+    gwAngle += (0.6+7*Math.max(0,prog))*dt*(state.gwSpeed??1);
+    if(gwF>=O.fisco){ gwFlash=1; gwF=O.fisco/5; gwAngle=0; }
+  }
+  if(gwFlash>0){ gwFlash=Math.max(0,gwFlash-dt*1.6); O.flash.material.opacity=gwFlash; O.flash.scale.setScalar(3+6*(1-gwFlash)); }
+  // Kepler separation, mapped to scene (starts at ~2.4)
+  const r=Math.pow(GW_G*M/Math.pow(Math.PI*gwF,2),1/3), sc=2.4*r/O.r0;
+  const m1=(state.gwM1??36), m2=(state.gwM2??29), Mt=m1+m2;
+  const cx=Math.cos(gwAngle)*sc, cy=Math.sin(gwAngle)*sc;
+  O.b1.position.set(-(m2/Mt)*cx,0.6-(m2/Mt)*cy*0.55,-(m2/Mt)*cy*0.85);
+  O.b2.position.set((m1/Mt)*cx,0.6+(m1/Mt)*cy*0.55,(m1/Mt)*cy*0.85);
+  // strain waveform: amplitude ∝ f^{2/3}, phase = 2×orbital
+  const amp=0.9*Math.pow(gwF/O.fisco,2/3); gwWave[gwWi]=amp*Math.cos(2*gwAngle); gwWi=(gwWi+1)%GW_NW;
+  const pa=O.wg.attributes.position.array;
+  for(let i=0;i<GW_NW;i++){ const idx=(gwWi+i)%GW_NW; pa[i*3]=-3.1+6.2*i/(GW_NW-1); pa[i*3+1]=-2.6+gwWave[idx]; pa[i*3+2]=0; }
+  O.wg.attributes.position.needsUpdate=true; O.wg.computeBoundingSphere();
+  gwUiAcc+=dt; if(gwUiAcc>0.2){ gwUiAcc=0;
+    const tau=gwTau(gwF,Mc);
+    hudBig.textContent=`GRAVITATIONAL WAVES · M_c=${(Mc/GW_MSUN).toFixed(1)} M☉ · f_gw=${gwF.toFixed(1)} Hz · τ→merge=${tau.toFixed(3)} s`;
+    hudSub.textContent='the binary’s orbital energy leaks away as gravitational waves, so the orbit shrinks and the wave frequency and amplitude "chirp" upward to merger. One number — the chirp mass M_c — fixes the whole sweep; LIGO reads M_c straight off df/dt. The energy is not lost, it is carried off by ripples in spacetime itself.';
+    ATLAS_BUS.pub('gw.Mc',+(Mc/GW_MSUN).toFixed(2),'M☉');
+    const el=ctl.querySelector('#gwInv'); if(el) el.innerHTML=`m₁=<b>${m1}</b> m₂=<b>${m2}</b> M☉ → chirp mass M_c=<b>${(Mc/GW_MSUN).toFixed(2)}</b> M☉ · total M=${Mt} M☉<br>f_gw=<b>${gwF.toFixed(1)}</b> Hz · df/dt=${gwDfdt(gwF,Mc).toFixed(1)} Hz/s · time to merge τ=<b>${tau.toFixed(3)}</b> s · ISCO f_gw=${O.fisco.toFixed(0)} Hz`;
+  }
+}
+
+/* ================================================================
+   PHOTOVOLTAIC LAB · sunlight into current (UPRS Part 15/16). A solar
+   cell is a Shockley diode under illumination: J(V)=J_sc−J₀(e^{qV/kT}−1).
+   Its open-circuit voltage V_oc, fill factor FF and the maximum-power
+   point fall straight out. Only photons above the band gap E_g are
+   absorbed; their excess energy thermalises to E_g — the two losses that
+   cap efficiency. Using detailed balance against a blackbody Sun this
+   reproduces the Shockley–Queisser efficiency-vs-gap curve (peak near the
+   canonical 33% at E_g≈1.34 eV). Energy honesty: sub-gap photons pass
+   straight through, above-gap excess becomes heat — declared, not hidden. */
+const pvGroup=new THREE.Group(); pvGroup.visible=false; s3Group.add(pvGroup);
+const PV_q=1.602176634e-19, PV_kB=1.380649e-23, PV_h=6.62607015e-34, PV_c=2.99792458e8, PV_SIG=5.670374419e-8;
+const PV_TSUN=5778, PV_DIL=Math.pow(6.957e8/1.496e11,2);
+let pvObjs=null, pvUiAcc=0;
+function pvFlux(EgeV,T,dil){ let s=0; const N=1200, Emax=4.5, dE=(Emax-EgeV)/N; if(dE<=0) return 0;
+  for(let i=0;i<N;i++){ const E=(EgeV+(i+0.5)*dE)*PV_q, nu=E/PV_h;
+    const n=(2*Math.PI*nu*nu/(PV_c*PV_c))/(Math.exp(E/(PV_kB*T))-1); s+=dil*n*(dE*PV_q/PV_h); }
+  return s; }
+function pvCell(Eg,T,conc){ const Jsc=PV_q*pvFlux(Eg,PV_TSUN,PV_DIL*conc), J0=PV_q*pvFlux(Eg,T,1);
+  const Voc=(PV_kB*T/PV_q)*Math.log(Jsc/J0+1);
+  let Pmax=0,Vmp=0,Imp=0; for(let k=0;k<=600;k++){ const V=Voc*k/600, J=Jsc-J0*(Math.exp(PV_q*V/(PV_kB*T))-1); if(J*V>Pmax){Pmax=J*V;Vmp=V;Imp=J;} }
+  const Pin=PV_SIG*Math.pow(PV_TSUN,4)*PV_DIL*conc, FF=Pmax/(Voc*Jsc);
+  return {Jsc,J0,Voc,Pmax,Vmp,Imp,FF,eff:Pmax/Pin}; }
+function pvClear(){ labWipe(pvGroup); pvObjs=null; }
+function pvSetup(){
+  pvClear(); pvGroup.add(new THREE.AmbientLight(0x9098b8,.9));
+  // SQ efficiency-vs-Eg reference curve (precomputed)
+  const sq=[]; for(let Eg=0.5;Eg<=2.6;Eg+=0.05) sq.push([Eg,pvCell(Eg,state.pvT??300,1).eff]);
+  const sxmap=Eg=>-2.7+4.9*(Eg-0.5)/2.1, symap=e=>0.6+e*7.0;
+  const sqLine=new THREE.Line(new THREE.BufferGeometry().setFromPoints(sq.map(([Eg,e])=>new THREE.Vector3(sxmap(Eg),symap(e),0))),
+    new THREE.LineBasicMaterial({color:0x6ad0a0,transparent:true,opacity:.7})); pvGroup.add(sqLine);
+  const sqMk=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); pvGroup.add(sqMk);
+  const sqlb=mkLabel('detailed-balance limit η(E_g)','label axis'); sqlb.position.set(0,2.85,0); pvGroup.add(sqlb);
+  // I–V & P–V curves (rebuilt each UI tick) placeholders
+  const iv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95})); pvGroup.add(iv);
+  const pv=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff8f6a,transparent:true,opacity:.9})); pvGroup.add(pv);
+  const mpp=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:0x9fe0ff})); pvGroup.add(mpp);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(2.9,-2.5,0),
+    new THREE.Vector3(-2.7,-2.5,0),new THREE.Vector3(-2.7,2.7,0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); pvGroup.add(ax);
+  const vlb=mkLabel('V (or E_g) →','label axis'); vlb.position.set(3.0,-2.5,0); pvGroup.add(vlb);
+  const tl=mkLabel('PHOTOVOLTAIC · J(V)=J_sc−J₀(e^{qV/kT}−1) · Shockley–Queisser limit','label const'); tl.position.set(0,3.5,0); pvGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); pvGroup.add(rl);
+  pvObjs={iv,pv,mpp,sqMk,sxmap,symap,readLab:rl};
+}
+function updatePv(dt){
+  const O=pvObjs; if(!O) return;
+  pvUiAcc+=dt; if(pvUiAcc>0.25){ pvUiAcc=0;
+    const Eg=state.pvEg??1.34, T=state.pvT??300, conc=state.pvConc??1;
+    const C=pvCell(Eg,T,conc);
+    // I–V and P–V mapped: V in [0,Voc]→x[-2.7,2.7], J/Jsc→y, P/Pmax→y
+    const ivp=[], pvp=[]; const xv=V=>-2.7+5.4*(V/C.Voc), yj=J=>-2.5+4.6*(J/C.Jsc), yp=P=>-2.5+4.6*(P/C.Pmax);
+    for(let k=0;k<=120;k++){ const V=C.Voc*k/120, J=Math.max(0,C.Jsc-C.J0*(Math.exp(PV_q*V/(PV_kB*T))-1));
+      ivp.push(new THREE.Vector3(xv(V),yj(J),0)); pvp.push(new THREE.Vector3(xv(V),yp(J*V),0)); }
+    O.iv.geometry.setFromPoints(ivp); O.iv.geometry.computeBoundingSphere();
+    O.pv.geometry.setFromPoints(pvp); O.pv.geometry.computeBoundingSphere();
+    O.mpp.position.set(xv(C.Vmp),yj(C.Imp),0);
+    O.sqMk.position.set(O.sxmap(Eg),O.symap(C.eff),0);
+    hudBig.textContent=`PHOTOVOLTAIC · E_g=${Eg.toFixed(2)} eV · V_oc=${C.Voc.toFixed(3)} V · FF=${(C.FF*100).toFixed(1)}% · η=${(C.eff*100).toFixed(1)}%`;
+    hudSub.textContent='a solar cell is a diode in the light: illumination lifts the whole I–V curve into the power quadrant, and the largest rectangle under it (the maximum-power point) is what you harvest. Below the band gap photons are not absorbed; above it their excess energy becomes heat. Those two unavoidable losses set the Shockley–Queisser ceiling near 33% for a single junction.';
+    ATLAS_BUS.pub('pv.eff',+(C.eff*100).toFixed(2),'%');
+    const el=ctl.querySelector('#pvInv'); if(el) el.innerHTML=`E_g=<b>${Eg.toFixed(2)}</b> eV · illumination ×<b>${conc.toFixed(0)}</b> · T=${T.toFixed(0)} K<br>V_oc=<b>${C.Voc.toFixed(3)}</b> V · J_sc=<b>${(C.Jsc*0.1).toFixed(1)}</b> mA/cm² · fill factor FF=<b>${(C.FF*100).toFixed(1)}%</b> · efficiency η=<b>${(C.eff*100).toFixed(1)}%</b><br>detailed-balance (blackbody Sun); canonical AM1.5 Shockley–Queisser peak is 33.7% at E_g=1.34 eV`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -12016,6 +12174,8 @@ function setS3View(v){
   nucGroup.visible     = (v==='nuc');
   lensGroup.visible    = (v==='lens');
   teGroup.visible      = (v==='te');
+  gwGroup.visible      = (v==='gw');
+  pvGroup.visible      = (v==='pv');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -12042,6 +12202,8 @@ function setS3View(v){
   if(v==='nuc'){ nucSetup(); }
   if(v==='lens'){ lensSetup(); }
   if(v==='te'){ teSetup(); }
+  if(v==='gw'){ gwSetup(); }
+  if(v==='pv'){ pvSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -12053,7 +12215,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16821,6 +16983,8 @@ const state = {
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
   lensB:4, lensRays:22,   // Gravitational-lensing lab
   teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
+  gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
+  pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -18439,6 +18603,56 @@ function buildCtlBody(){
         <button class="btn" id="teToHe">→ Heat engine: the Carnot ceiling</button>
         <button class="btn" id="teToCp">→ Charged particle: the carriers themselves</button></div>
     </div>`;
+    else if(V==='gw') body = `
+    <div class="sect"><b>Gravitational waves — binary masses</b>
+      <div class="chips">
+        <button class="chip" data-gwp="36,29">GW150914 (36+29)</button>
+        <button class="chip" data-gwp="1.4,1.3">neutron stars</button>
+        <button class="chip" data-gwp="10,10">equal 10+10</button>
+        <button class="chip" data-gwp="60,8">extreme ratio</button>
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="gwRun">${state.gwRun!==false?'⏸ pause':'▶ run'}</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="gwSpeed" min="0.2" max="3" step="0.1" value="${state.gwSpeed??1}"><span class="val" id="gwSpeedV">×${(state.gwSpeed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Mass m₁</label>
+        <input type="range" id="gwM1" min="1" max="80" step="1" value="${state.gwM1??36}"><span class="val" id="gwM1V">${state.gwM1??36} M☉</span></div>
+      <div class="ctlrow"><label>Mass m₂</label>
+        <input type="range" id="gwM2" min="1" max="80" step="1" value="${state.gwM2??29}"><span class="val" id="gwM2V">${state.gwM2??29} M☉</span></div>
+    </div>
+    <div class="sect"><b>Inspiral readout</b>
+      <div class="note" id="gwInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Two masses lose orbital energy to gravitational radiation, so they spiral in and the wave frequency "chirps" upward. The entire inspiral is set by one number — the chirp mass M_c=(m₁m₂)^{3/5}/(m₁+m₂)^{1/5} — through df/dt=(96/5)π^{8/3}(GM_c/c³)^{5/3}f^{11/3}; the time left to merge is τ=(5/256)(GM_c/c³)^{−5/3}(πf)^{−8/3}. LIGO reads M_c straight off the chirp. Playback is slowed for the eye; the readouts are the true values. Energy is not destroyed — spacetime carries it away.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="gwToLens">→ Lensing: light around a black hole</button>
+        <button class="btn" id="gwToGrav">→ Gravitas: Newtonian 3-body</button></div>
+    </div>`;
+    else if(V==='pv') body = `
+    <div class="sect"><b>Photovoltaic — solar cell</b>
+      <div class="chips">
+        <button class="chip" data-pveg="1.12">Silicon 1.12 eV</button>
+        <button class="chip" data-pveg="1.34">optimum 1.34 eV</button>
+        <button class="chip" data-pveg="1.42">GaAs 1.42 eV</button>
+        <button class="chip" data-pveg="1.7">a-Si 1.7 eV</button>
+      </div>
+      <div class="ctlrow"><label>Band gap E_g</label>
+        <input type="range" id="pvEg" min="0.6" max="2.4" step="0.02" value="${state.pvEg??1.34}"><span class="val" id="pvEgV">${(state.pvEg??1.34).toFixed(2)} eV</span></div>
+      <div class="ctlrow"><label>Illumination</label>
+        <input type="range" id="pvConc" min="1" max="1000" step="1" value="${state.pvConc??1}"><span class="val" id="pvConcV">×${state.pvConc??1}</span></div>
+      <div class="ctlrow"><label>Cell temp</label>
+        <input type="range" id="pvT" min="250" max="400" step="5" value="${state.pvT??300}"><span class="val" id="pvTV">${state.pvT??300} K</span></div>
+    </div>
+    <div class="sect"><b>Cell readout</b>
+      <div class="note" id="pvInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A solar cell is a diode in the light: J(V)=J_sc−J₀(e^{qV/kT}−1). Illumination lifts the curve into the power quadrant; the biggest rectangle under it — the maximum-power point — is the harvest, and its ratio to V_oc·J_sc is the fill factor. Only photons above the band gap E_g are absorbed, and their excess energy thermalises down to E_g. Those two losses are why detailed balance caps a single junction near 33% (canonical AM1.5 Shockley–Queisser: 33.7% at E_g=1.34 eV). The green curve is the detailed-balance limit vs gap.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="pvToBb">→ Blackbody: the solar spectrum</button>
+        <button class="btn" id="pvToTe">→ Thermoelectric: the other solid-state converter</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -18804,6 +19018,8 @@ function buildCtlBody(){
         <button class="btn ${V==='nuc'?'on':''}" id="v-nuc">Nuclear binding</button>
         <button class="btn ${V==='lens'?'on':''}" id="v-lens">Gravitational lensing</button>
         <button class="btn ${V==='te'?'on':''}" id="v-te">Thermoelectric</button>
+        <button class="btn ${V==='gw'?'on':''}" id="v-gw">Gravitational waves</button>
+        <button class="btn ${V==='pv'?'on':''}" id="v-pv">Photovoltaic</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -18822,7 +19038,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -19138,6 +19354,25 @@ function buildCtlBody(){
       tc('teZT',v=>state.teZT=v,v=>v.toFixed(1)); tc('teI',v=>state.teI=v,v=>v.toFixed(1)+' A');
       ctl.querySelector('#teToHe')&&(ctl.querySelector('#teToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
       ctl.querySelector('#teToCp')&&(ctl.querySelector('#teToCp').onclick=()=>{ navPush(); setS3View('cp'); buildCtl(); });
+    }
+    if(V==='gw'){
+      ctl.querySelectorAll('[data-gwp]').forEach(b=>b.onclick=()=>{ const [a,c]=b.dataset.gwp.split(',').map(Number); state.gwM1=a; state.gwM2=c; gwSetup(); buildCtl(); });
+      ctl.querySelector('#gwRun')&&(ctl.querySelector('#gwRun').onclick=()=>{ state.gwRun=state.gwRun===false; buildCtl(); });
+      ctl.querySelector('#gwSpeed')&&(ctl.querySelector('#gwSpeed').oninput=e=>{ state.gwSpeed=+e.target.value;
+        const v=ctl.querySelector('#gwSpeedV'); if(v)v.textContent='×'+state.gwSpeed.toFixed(1); });
+      const gm=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; el.onchange=()=>gwSetup(); } };
+      gm('gwM1',v=>state.gwM1=v,v=>v+' M☉'); gm('gwM2',v=>state.gwM2=v,v=>v+' M☉');
+      ctl.querySelector('#gwToLens')&&(ctl.querySelector('#gwToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
+      ctl.querySelector('#gwToGrav')&&(ctl.querySelector('#gwToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
+    }
+    if(V==='pv'){
+      ctl.querySelectorAll('[data-pveg]').forEach(b=>b.onclick=()=>{ state.pvEg=+b.dataset.pveg; buildCtl(); });
+      const pc=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      pc('pvEg',v=>state.pvEg=v,v=>v.toFixed(2)+' eV'); pc('pvConc',v=>state.pvConc=v,v=>'×'+(v|0)); pc('pvT',v=>state.pvT=v,v=>(v|0)+' K');
+      ctl.querySelector('#pvToBb')&&(ctl.querySelector('#pvToBb').onclick=()=>{ navPush(); setS3View('bb'); buildCtl(); });
+      ctl.querySelector('#pvToTe')&&(ctl.querySelector('#pvToTe').onclick=()=>{ navPush(); setS3View('te'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -20529,7 +20764,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -21702,6 +21937,10 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateLens(dt);
     } else if(state.s3view==='te'){
       fbsAnimT+=dt; updateTe(dt);
+    } else if(state.s3view==='gw'){
+      fbsAnimT+=dt; updateGw(dt);
+    } else if(state.s3view==='pv'){
+      fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
