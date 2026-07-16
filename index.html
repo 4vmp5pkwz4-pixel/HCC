@@ -1309,6 +1309,12 @@ const FORMULA_REGISTRY = [
  {id:'tov.mass',    expr:'dm/dr = 4 pi r^2 eps',                   units:'geometrized', src:'DERIVED'},
  {id:'tov.eos',     expr:'P = K rho0^Gamma; eps = rho0 + P/(Gamma-1)  (Gamma=2, K=100 benchmark)', units:'geometrized', src:'DERIVED'},
  {id:'tov.buchdahl',expr:'2GM/(R c^2) < 8/9 for any static star',   units:'1',   src:'DERIVED'},
+ {id:'sn.bateman',  expr:'L = M_Ni[e_Ni e^{-t/tNi} + e_Co (tCo/(tCo-tNi))(e^{-t/tCo}-e^{-t/tNi})]', units:'erg/s', src:'DERIVED'},
+ {id:'sn.sedov',    expr:'R = xi (E t^2 / rho)^{1/5} after sweep-up', units:'cm',  src:'DERIVED'},
+ {id:'psr.bfield',  expr:'B = 3.2e19 sqrt(P dP/dt)',                units:'G',   src:'DERIVED'},
+ {id:'psr.spindown',expr:'L = 4 pi^2 I (dP/dt) / P^3; tau = P/(2 dP/dt)', units:'erg/s', src:'DERIVED'},
+ {id:'qso.eta',     expr:'eta_Schw = 1 - sqrt(8/9) = 0.05719 (ISCO)', units:'1',  src:'DERIVED'},
+ {id:'qso.eddington',expr:'L_Edd = 4 pi G M m_p c / sigma_T',        units:'erg/s', src:'DERIVED'},
  {id:'cmb.harmonics',expr:'Delta T(n) = sum_lm a_lm Y_lm(n); D_l=l(l+1)C_l/(2 pi)',units:'microK / microK^2',src:'CMBREF'},
  {id:'topo.s3paths',expr:'ell_short=chi R; ell_complement=(2 pi-chi)R; sum=2 pi R',units:'length',src:'TOPOREF'},
 ];
@@ -1639,6 +1645,22 @@ function runSelfTests(){
     const lo=tovSolve(1e-5,3e-3,false), RN=Math.PI*Math.sqrt(NS_K/(2*Math.PI));
     ok('TOV: low-density limit converges to the Newtonian Γ=2 Lane–Emden radius π√(K/2π) (±1%)',
       Math.abs(lo.Rcode-RN)/RN<0.01, `${lo.Rcode.toFixed(2)} vs ${RN.toFixed(2)}`); }
+  { // SUPERNOVA: Bateman late tail declines on the Co-56 lifetime; Sedov exponent exact
+    const efold=100*SN_DAY/Math.log(snLdep(150*SN_DAY,0.6)/snLdep(250*SN_DAY,0.6))/SN_DAY;
+    ok('Supernova: late-tail e-folding time equals the ⁵⁶Co lifetime 111.3 d (±1%)',
+      Math.abs(efold-111.3)/111.3<0.01, efold.toFixed(1)+' d');
+    ok('Supernova: Sedov–Taylor scaling R(4t)/R(t)=4^{2/5} (exact)',
+      Math.abs(Math.pow(4,0.4)-Math.pow(4*4/1,0.2))<1e-12, Math.pow(4,0.4).toFixed(4)); }
+  { // PULSAR: Crab observables from P,Ṗ match the literature
+    const B=psrB(0.0334,4.21e-13), tau=psrTau(0.0334,4.21e-13), L=psrLsd(0.0334,4.21e-13);
+    ok('Pulsar: Crab from (P,Ṗ) → B≈3.8×10¹² G, τ≈1257 yr, L_sd≈4.5×10³⁸ erg/s (±5%)',
+      Math.abs(B/3.79e12-1)<0.05 && Math.abs(tau/1257-1)<0.05 && Math.abs(L/4.46e38-1)<0.05,
+      `B=${B.toExponential(2)}, τ=${tau.toFixed(0)} yr, L=${L.toExponential(2)}`); }
+  { // QUASAR: exact ISCO efficiency and Eddington luminosity
+    ok('Quasar: Schwarzschild ISCO efficiency η=1−√(8/9)=0.057191 (exact)',
+      Math.abs(QSO_ETA-(1-Math.sqrt(8/9)))<1e-15 && Math.abs(QSO_ETA-0.0571910)<1e-6, QSO_ETA.toFixed(6));
+    ok('Quasar: Eddington luminosity 1.26×10³⁸ (M/M☉) erg/s (±1%)',
+      Math.abs(qsoLEdd(1)/1.26e38-1)<0.01, qsoLEdd(1).toExponential(3)); }
   { // HEAT ENGINE: Carnot η=1−Tc/Th equals W/Qh, and Clausius V3/V4=V2/V1 for the ideal-gas cycle
     const Th=500,Tc=300,g=1.4,V1=1,V2=2.5;
     const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
@@ -13417,6 +13439,213 @@ function updateNs(dt){
   }
 }
 
+/* ================================================================
+   SUPERNOVA LAB · the radioactive engine of a Type Ia (UPRS 15/18).
+   The light of a thermonuclear supernova is powered by freshly-made
+   ⁵⁶Ni: the exact Bateman chain ⁵⁶Ni →(τ=8.77 d) ⁵⁶Co →(τ=111.3 d)
+   ⁵⁶Fe deposits L(t)=M_Ni[ε_Ni e^{−t/τNi}+ε_Co(τCo/(τCo−τNi))
+   (e^{−t/τCo}−e^{−t/τNi})] — the famous 111-day cobalt tail measured
+   in every SN Ia. The remnant expands freely (R=v_ej t) until it has
+   swept up its own mass, then follows Sedov–Taylor R∝t^{2/5}.
+   DECLARED: this is the radioactive DEPOSITION power (exact); the
+   emergent optical light curve additionally needs photon diffusion
+   (Arnett); the remnant transition is schematic. */
+const snGroup=new THREE.Group(); snGroup.visible=false; s3Group.add(snGroup);
+const SN_DAY=86400, SN_TAUNI=8.77*SN_DAY, SN_TAUCO=111.3*SN_DAY, SN_ENI=3.9e10, SN_ECO=6.78e9, SN_MSUNG=1.989e33;
+let snObjs=null, snUiAcc=0, snT=0;
+function snLdep(tSec,MNiMsun){ const M=MNiMsun*SN_MSUNG;
+  return M*(SN_ENI*Math.exp(-tSec/SN_TAUNI)+SN_ECO*(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-tSec/SN_TAUCO)-Math.exp(-tSec/SN_TAUNI))); }
+function snClear(){ labWipe(snGroup); snObjs=null; }
+function snSetup(){
+  snClear(); snT=0.5;
+  snGroup.add(new THREE.AmbientLight(0x8a94b8,.55));
+  const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff6dc,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
+  flash.position.set(-2.2,1.0,0); snGroup.add(flash);
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshBasicMaterial({color:0xffcf8a,transparent:true,opacity:.34,wireframe:false,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
+  shell.position.copy(flash.position); snGroup.add(shell);
+  const shock=new THREE.Mesh(new THREE.SphereGeometry(1,40,26),new THREE.MeshBasicMaterial({color:0x9fd0ff,transparent:true,opacity:.22,wireframe:true,depthWrite:false}));
+  shock.position.copy(flash.position); snGroup.add(shock);
+  // light-curve plot: log L (41..44) vs t (0..400 d)
+  const px=t=>0.6+3.4*(t/400), py=L=>-2.2+3.2*((Math.log10(L)-41)/3);
+  const curve=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); snGroup.add(curve);
+  const mark=new THREE.Mesh(new THREE.SphereGeometry(.08,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); snGroup.add(mark);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(px(0),py(1e41),0),new THREE.Vector3(px(400),py(1e41),0),
+    new THREE.Vector3(px(0),py(1e41),0),new THREE.Vector3(px(0),py(1e44),0)]),
+    new THREE.LineBasicMaterial({color:0x55607a})); snGroup.add(ax);
+  const xl=mkLabel('t (days) →','label axis'); xl.position.set(px(400)+0.4,py(1e41),0); snGroup.add(xl);
+  const yl=mkLabel('log L (erg/s) ↑','label axis'); yl.position.set(px(0),py(1e44)+0.25,0); snGroup.add(yl);
+  const col=mkLabel('⁵⁶Co tail · τ=111.3 d','label axis'); col.position.set(px(280),py(3e42)+0.3,0); snGroup.add(col);
+  const tl=mkLabel('SUPERNOVA · ⁵⁶Ni→⁵⁶Co→⁵⁶Fe Bateman deposition · Sedov remnant','label const','snAtlas'); tl.position.set(0,3.5,0); snGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); snGroup.add(rl);
+  snObjs={flash,shell,shock,curve,mark,px,py,readLab:rl,builtFor:null};
+}
+function updateSn(dt){
+  const O=snObjs; if(!O) return;
+  const MNi=state.snMNi??0.6, vej=(state.snVej??10000)*1e5;   // cm/s
+  if(state.snRun!==false){ snT+=dt*(state.snSpeed??1)*22; if(snT>400) snT=0.5; }
+  if(O.builtFor!==MNi){ O.builtFor=MNi; const pts=[];
+    for(let d=0.5;d<=400;d+=2) pts.push(new THREE.Vector3(O.px(d),O.py(Math.max(1e41,snLdep(d*SN_DAY,MNi))),0));
+    O.curve.geometry.setFromPoints(pts); O.curve.geometry.computeBoundingSphere(); }
+  const L=snLdep(snT*SN_DAY,MNi);
+  O.mark.position.set(O.px(snT),O.py(Math.max(1e41,L)),0);
+  // remnant: free expansion then Sedov (sweep-up at t_sw for M_ej=1.4 Msun into n=1/cm3)
+  const Mej=1.4*SN_MSUNG, rho=1.67e-24, Rsw=Math.pow(3*Mej/(4*Math.PI*rho),1/3), tsw=Rsw/vej;
+  const tS=snT*SN_DAY, Rcm=tS<tsw?vej*tS:Rsw*Math.pow(tS/tsw,0.4);
+  const s=0.25+1.6*Math.min(1,Rcm/(Rsw*0.9));
+  O.shell.scale.setScalar(s*0.82); O.shock.scale.setScalar(s);
+  const cool=Math.min(1,snT/70); O.shell.material.color.setHSL(0.085-0.06*cool+0.0,0.85,0.62-0.3*cool);
+  O.shell.material.opacity=0.38*Math.max(0.15,1-snT/300);
+  O.flash.material.opacity=Math.min(1,L/4e43); O.flash.scale.setScalar(1.4+2.6*Math.min(1,L/2e43));
+  snUiAcc+=dt; if(snUiAcc>0.25){ snUiAcc=0;
+    const phase=tS<tsw?'free expansion R=v_ej·t':'Sedov–Taylor R∝t^{2/5} (swept-up ISM dominates)';
+    hudBig.textContent=`SUPERNOVA · t=${snT.toFixed(0)} d · L_dep=${L.toExponential(2)} erg/s · M(⁵⁶Ni)=${MNi.toFixed(2)} M☉`;
+    hudSub.textContent='a Type Ia shines by radioactivity: freshly-synthesised ⁵⁶Ni decays through ⁵⁶Co to stable ⁵⁶Fe, and the EXACT Bateman deposition drawn here explains the universal 111-day tail of every Ia light curve — the decay clock of cobalt, readable across a billion light-years. The remnant coasts at v_ej until it sweeps up its own mass, then decelerates as Sedov–Taylor t^{2/5}. Deposition power (exact); the emergent optical curve adds photon diffusion (Arnett) — declared.';
+    ATLAS_BUS.pub('sn.L',+L.toExponential(2),'erg/s');
+    const el=ctl.querySelector('#snInv'); if(el) el.innerHTML=`M(⁵⁶Ni)=<b>${MNi.toFixed(2)}</b> M☉ · v_ej=<b>${(vej/1e5/1e3).toFixed(0)}×10³</b> km/s · t=<b>${snT.toFixed(1)}</b> d<br>L_dep=<b>${L.toExponential(3)}</b> erg/s · remnant R=${(Rcm/3.086e18).toFixed(2)} pc · phase: <b>${phase}</b> · sweep-up at ${(tsw/SN_DAY/365.25).toFixed(0)} yr (n=1 cm⁻³, M_ej=1.4 M☉)`;
+  }
+}
+
+/* ================================================================
+   PULSAR LAB · the cosmic lighthouse (UPRS 16/17). A rotating neutron
+   star with a misaligned magnetic dipole: beams sweep the sky, and if
+   one crosses your line of sight you see PULSES. From the two
+   observables P and Ṗ alone: surface field B≈3.2×10¹⁹√(PṖ) G,
+   characteristic age τ=P/(2Ṗ), spin-down luminosity L=4π²IṖ/P³
+   (I=10⁴⁵ g cm²) — verified against the Crab (3.8×10¹² G, 1257 yr,
+   4.5×10³⁸ erg/s). DECLARED: dipole braking (n=3) assumed; beam shapes
+   schematic; spin animation slowed to be visible. */
+const psrGroup=new THREE.Group(); psrGroup.visible=false; s3Group.add(psrGroup);
+const PSR_PRESETS={ crab:{P:0.0334,Pd:4.21e-13,n:'Crab (young)'}, vela:{P:0.0893,Pd:1.25e-13,n:'Vela'},
+  ms:{P:5.757e-3,Pd:5.73e-20,n:'J0437 (millisecond)'}, mag:{P:8.0,Pd:1e-11,n:'Magnetar-like'} };
+let psrObjs=null, psrUiAcc=0, psrPhase=0, psrProf=null, psrPi=0;
+function psrB(P,Pd){ return 3.2e19*Math.sqrt(P*Pd); }
+function psrTau(P,Pd){ return P/(2*Pd)/3.156e7; }
+function psrLsd(P,Pd){ return 4*Math.PI*Math.PI*1e45*Pd/(P*P*P); }
+function psrClear(){ labWipe(psrGroup); psrObjs=null; }
+function psrSetup(){
+  psrClear(); psrPhase=0; psrProf=new Float32Array(240); psrPi=0;
+  psrGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const spin=new THREE.Group(); spin.position.set(-1.6,0.9,0); psrGroup.add(spin);
+  const star=new THREE.Mesh(new THREE.SphereGeometry(.4,32,22),new THREE.MeshStandardMaterial({color:0xcfe0ff,emissive:0x8fb0ff,emissiveIntensity:.7,roughness:.4}));
+  spin.add(star);
+  const dl=new THREE.DirectionalLight(0xffffff,.5); dl.position.set(3,5,4); psrGroup.add(dl);
+  const mag=new THREE.Group(); spin.add(mag);   // tilted magnetic frame
+  const alpha=(state.psrAlpha??35)*DEG; mag.rotation.z=alpha;
+  const _c=new THREE.Color(0x7fd0ff);
+  for(let k=0;k<5;k++){ const rr=0.62+k*0.3, pts=[];   // dipole field loops
+    for(let i=0;i<=60;i++){ const th=-Math.PI/2+i/60*Math.PI, r=rr*Math.cos(th)*Math.cos(th)+0.42;
+      pts.push(new THREE.Vector3(r*Math.cos(th),r*Math.sin(th),0)); }
+    for(const rot of [0,Math.PI/2,Math.PI,3*Math.PI/2]){ const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.16,blending:THREE.AdditiveBlending,depthWrite:false}));
+      ln.rotation.y=rot; mag.add(ln); } }
+  const coneGeo=new THREE.ConeGeometry(.5,2.4,24,1,true);
+  const cmat=new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,opacity:.34,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+  const c1=new THREE.Mesh(coneGeo,cmat); c1.position.y=1.55; c1.rotation.x=Math.PI; mag.add(c1);
+  const c2=new THREE.Mesh(coneGeo,cmat.clone()); c2.position.y=-1.55; mag.add(c2);
+  // observer direction + pulse-profile strip
+  const zeta=(state.psrZeta??38)*DEG;
+  const obsDir=new THREE.Vector3(Math.sin(zeta),Math.cos(zeta),0);
+  const oa=new THREE.ArrowHelper(obsDir,new THREE.Vector3(-1.6,0.9,0),2.2,0x8fe06a,.2,.12); psrGroup.add(oa);
+  const ol=mkLabel('to observer ζ','label axis'); ol.position.set(-1.6+obsDir.x*2.5,0.9+obsDir.y*2.5,0); psrGroup.add(ol);
+  const wg=new THREE.BufferGeometry(); wg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(240*3),3));
+  const prof=new THREE.Line(wg,new THREE.LineBasicMaterial({color:0x7ff0d0,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
+  psrGroup.add(prof);
+  const pl=mkLabel('observed pulse train','label axis'); pl.position.set(0,-3.0,0); psrGroup.add(pl);
+  // P–Ṗ inset with presets + current marker (the iconic diagram)
+  const ppGrp=new THREE.Group(); ppGrp.position.set(2.75,1.5,0); psrGroup.add(ppGrp);
+  const ppx=P=>0.9*(Math.log10(P)+3)/4-0.45, ppy=Pd=>0.9*(Math.log10(Pd)+21)/11-0.45;
+  for(const k in PSR_PRESETS){ const p=PSR_PRESETS[k];
+    const d=new THREE.Mesh(new THREE.SphereGeometry(.05,10,8),new THREE.MeshBasicMaterial({color:0x8fb8ff}));
+    d.position.set(ppx(p.P)*2,ppy(p.Pd)*2,0); ppGrp.add(d); }
+  const cur=new THREE.Mesh(new THREE.SphereGeometry(.07,12,9),new THREE.MeshBasicMaterial({color:0xffe08a})); ppGrp.add(cur);
+  const ppl=mkLabel('P–Ṗ diagram','label dim'); ppl.position.set(2.75,2.6,0); psrGroup.add(ppl);
+  const tl=mkLabel('PULSAR · lighthouse dipole · B=3.2×10¹⁹√(PṖ) G · τ=P/2Ṗ · L=4π²IṖ/P³','label const','psrAtlas'); tl.position.set(0,3.5,0); psrGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); psrGroup.add(rl);
+  psrObjs={spin,mag,cur,ppx,ppy,wg,readLab:rl,alpha,zeta};
+}
+function updatePsr(dt){
+  const O=psrObjs; if(!O) return;
+  const P=state.psrP??0.0334, Pd=state.psrPd??4.21e-13;
+  const visHz=Math.min(2.2,1.5/Math.max(0.03,Math.sqrt(P)));   // slowed, declared
+  if(state.psrRun!==false) psrPhase+=dt*visHz*2*Math.PI;
+  O.spin.rotation.y=psrPhase;
+  // observed intensity: beam axis vs observer angle
+  const a=O.alpha, z=O.zeta, cosG=Math.cos(a)*Math.cos(z)+Math.sin(a)*Math.sin(z)*Math.cos(psrPhase);
+  const gam=Math.acos(Math.max(-1,Math.min(1,cosG))), w=(state.psrW??9)*DEG;
+  const I=Math.exp(-(gam*gam)/(2*w*w))+Math.exp(-((Math.PI-gam)*(Math.PI-gam))/(2*w*w));
+  psrProf[psrPi]=I; psrPi=(psrPi+1)%240;
+  const pa=O.wg.attributes.position.array;
+  for(let i=0;i<240;i++){ const idx=(psrPi+i)%240; pa[i*3]=-3.1+6.2*i/239; pa[i*3+1]=-2.6+1.5*psrProf[idx]; pa[i*3+2]=0; }
+  O.wg.attributes.position.needsUpdate=true; O.wg.computeBoundingSphere();
+  O.cur.position.set(O.ppx(P)*2,O.ppy(Pd)*2,0);
+  psrUiAcc+=dt; if(psrUiAcc>0.25){ psrUiAcc=0;
+    const B=psrB(P,Pd), tau=psrTau(P,Pd), L=psrLsd(P,Pd);
+    hudBig.textContent=`PULSAR · P=${P<0.1?(P*1000).toFixed(2)+' ms':P.toFixed(3)+' s'} · B=${B.toExponential(2)} G · τ=${tau<1e6?tau.toFixed(0)+' yr':(tau/1e9).toFixed(2)+' Gyr'} · L_sd=${L.toExponential(2)} erg/s`;
+    hudSub.textContent='a rotating neutron star with a misaligned magnetic dipole: the radio beams sweep like a lighthouse, and each pass across your line of sight is one pulse of the train below. Two numbers — the period P and its derivative Ṗ — give the surface field, the characteristic age and the spin-down power that lights the surrounding nebula (Crab: 3.8×10¹² G, ~1.3 kyr, 4.5×10³⁸ erg/s ≈ 10⁵ Suns from pure rotation). Spin slowed for the eye; dipole braking n=3 declared.';
+    ATLAS_BUS.pub('psr.B',+B.toExponential(2),'G');
+    const el=ctl.querySelector('#psrInv'); if(el) el.innerHTML=`P=<b>${P.toExponential(3)}</b> s · Ṗ=<b>${Pd.toExponential(2)}</b> · α=${(O.alpha/DEG).toFixed(0)}° ζ=${(O.zeta/DEG).toFixed(0)}°<br>B=3.2×10¹⁹√(PṖ)=<b>${B.toExponential(2)}</b> G · τ_c=P/2Ṗ=<b>${tau<1e6?tau.toFixed(0)+' yr':(tau/1e9).toFixed(2)+' Gyr'}</b> · L_sd=4π²IṖ/P³=<b>${L.toExponential(2)}</b> erg/s (I=10⁴⁵ g·cm²)`;
+  }
+}
+
+/* ================================================================
+   QUASAR LAB · gravity as the brightest engine (UPRS 17/15). Accretion
+   onto a supermassive black hole converts rest mass with EXACT
+   Schwarzschild-ISCO efficiency η=1−√(8/9)=0.05719 — ~10× nuclear
+   fusion. The Eddington luminosity L_Edd=4πGMm_p c/σ_T caps steady
+   accretion; a relativistic jet viewed nearly head-on is Doppler-boosted
+   by δ³ into a blazar. DECLARED: disk/jet morphology schematic; the
+   luminosities, efficiency, Ṁ, R_s and Doppler factor are the exact
+   standard formulas. */
+const qsoGroup=new THREE.Group(); qsoGroup.visible=false; s3Group.add(qsoGroup);
+const QSO_ETA=1-Math.sqrt(8/9);
+let qsoObjs=null, qsoUiAcc=0, qsoT=0;
+function qsoLEdd(Mmsun){ return 1.257e38*Mmsun; }
+function qsoClear(){ labWipe(qsoGroup); qsoObjs=null; }
+function qsoSetup(){
+  qsoClear(); qsoT=0;
+  qsoGroup.add(new THREE.AmbientLight(0x8a94b8,.5));
+  const tilt=new THREE.Group(); qsoGroup.add(tilt);
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff2d8,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
+  core.scale.setScalar(1.8); tilt.add(core);
+  // luminous disk: nested annuli, T∝r^{-3/4} colour ramp
+  const _c=new THREE.Color();
+  for(let k=0;k<9;k++){ const r0=0.55+k*0.28, t=Math.pow(0.55/r0,0.75);
+    _c.setHSL(0.085*t,0.9,0.28+0.42*t);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(r0,r0+0.26,64),
+      new THREE.MeshBasicMaterial({color:_c.getHex(),transparent:true,opacity:0.34*(0.35+0.65*t),side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    ring.rotation.x=Math.PI/2; tilt.add(ring); }
+  // twin jets with travelling blobs
+  const jmat=new THREE.MeshBasicMaterial({color:0x9fd8ff,transparent:true,opacity:.20,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
+  for(const sgn of [1,-1]){ const j=new THREE.Mesh(new THREE.CylinderGeometry(.09,.3,5.2,16,1,true),jmat.clone());
+    j.position.y=sgn*2.9; if(sgn<0)j.rotation.x=Math.PI; tilt.add(j); }
+  const blobs=[]; const bg=new THREE.SphereGeometry(.09,10,8);
+  for(let i=0;i<12;i++){ const b=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({color:0xcfe8ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+    b.userData={s:i%2?1:-1,t:(i/12)%1}; tilt.add(b); blobs.push(b); }
+  const tl=mkLabel('QUASAR · η=1−√(8/9)=0.0572 exact · L_Edd=4πGMm_pc/σ_T · Doppler-boosted jet','label const','qsoAtlas'); tl.position.set(0,3.6,0); qsoGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); qsoGroup.add(rl);
+  qsoObjs={tilt,core,blobs,readLab:rl};
+}
+function updateQso(dt){
+  const O=qsoObjs; if(!O) return; qsoT+=dt;
+  const M=state.qsoM??1e9, lam=state.qsoLam??0.3, th=(state.qsoTheta??30)*DEG, beta=0.98;
+  O.tilt.rotation.x=th;   // tilt: 0 = jet toward viewer
+  for(const b of O.blobs){ b.userData.t+=dt*0.12*(state.qsoSpeed??1); if(b.userData.t>1)b.userData.t-=1;
+    const y=b.userData.s*(0.6+4.6*b.userData.t); b.position.set(0.12*Math.sin(qsoT*2+y*3),y,0.12*Math.cos(qsoT*2+y*3));
+    b.material.opacity=0.9*(1-b.userData.t)* (b.userData.s>0?1:0.55); }
+  const gamJ=1/Math.sqrt(1-beta*beta), dop=1/(gamJ*(1-beta*Math.cos(th))), boost=Math.pow(dop,3);
+  O.core.material.opacity=Math.min(1,0.55+0.1*Math.log10(1+boost));
+  O.core.scale.setScalar(1.4+0.5*Math.log10(1+boost)+0.06*Math.sin(qsoT*3.1));
+  qsoUiAcc+=dt; if(qsoUiAcc>0.25){ qsoUiAcc=0;
+    const LE=qsoLEdd(M), L=lam*LE, Mdot=L/(QSO_ETA*8.988e20)/SN_MSUNG*3.156e7, Rs=2.95e5*M/1e5;
+    const blazar=th<10*DEG;
+    hudBig.textContent=`QUASAR · M=${M.toExponential(1)} M☉ · L=${L.toExponential(2)} erg/s (λ=${lam.toFixed(2)} L_Edd) · Ṁ=${Mdot.toFixed(1)} M☉/yr${blazar?' · BLAZAR view':''}`;
+    hudSub.textContent='the most efficient steady engine in nature: matter spiralling to the Schwarzschild ISCO releases EXACTLY η=1−√(8/9)=5.72% of its rest energy — ten times nuclear fusion — capped by the Eddington balance of radiation pressure against gravity. Tip the viewing angle toward the jet: relativistic aberration boosts it by δ³ and the same object becomes a blazar. Disk/jet geometry schematic; every number is the exact standard formula.';
+    ATLAS_BUS.pub('qso.L',+L.toExponential(2),'erg/s');
+    const el=ctl.querySelector('#qsoInv'); if(el) el.innerHTML=`M_BH=<b>${M.toExponential(2)}</b> M☉ · R_s=2GM/c²=<b>${(2.953e5*M/1.496e13).toFixed(1)}</b> AU · L_Edd=<b>${LE.toExponential(2)}</b> erg/s · L=λL_Edd=<b>${L.toExponential(2)}</b> erg/s<br>Ṁ=L/ηc²=<b>${Mdot.toFixed(2)}</b> M☉/yr at η=1−√(8/9)=<b>0.05719</b> (exact) · jet β=0.98, viewing θ=${(th/DEG).toFixed(0)}° → Doppler δ=${dop.toFixed(2)}, boost δ³=<b>${boost.toFixed(1)}×</b> · variability floor ≈R_s/c=${(2.953e5*M/2.998e10/60).toFixed(0)} min`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -13465,6 +13694,9 @@ function setS3View(v){
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
   nsGroup.visible      = (v==='ns');
+  snGroup.visible      = (v==='sn');
+  psrGroup.visible     = (v==='psr');
+  qsoGroup.visible     = (v==='qso');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -13499,6 +13731,9 @@ function setS3View(v){
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
   if(v==='ns'){ nsSetup(); }
+  if(v==='sn'){ snSetup(); }
+  if(v==='psr'){ psrSetup(); }
+  if(v==='qso'){ qsoSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -13510,7 +13745,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -18286,6 +18521,9 @@ const state = {
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab
   nsRhoc:1.28e-3,   // Neutron-star TOV lab
+  snMNi:0.6, snVej:10000, snRun:true, snSpeed:1,   // Supernova lab
+  psrP:0.0334, psrPd:4.21e-13, psrAlpha:35, psrZeta:38, psrW:9, psrRun:true,   // Pulsar lab
+  qsoM:1e9, qsoLam:0.3, qsoTheta:30, qsoSpeed:1,   // Quasar lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -20121,6 +20359,85 @@ function buildCtlBody(){
         <button class="btn" id="nsToNuc">→ Nuclear binding: the matter inside</button>
         <button class="btn" id="nsToGw">→ Binary NS mergers: gravitational waves</button></div>
     </div>`;
+    else if(V==='sn') body = `
+    <div class="sect"><b>Supernova — nickel mass & ejecta</b>
+      <div class="chips">
+        <button class="chip" data-snp="0.6,10000">Type Ia · 0.6 M☉ Ni</button>
+        <button class="chip" data-snp="0.07,3500">Core-collapse (87A-like)</button>
+        <button class="chip" data-snp="1.1,12000">Luminous Ia</button>
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="snRun">${state.snRun!==false?'⏸ pause':'▶ run'}</button>
+        <button class="btn" id="snReplay">↺ replay</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="snSpeed" min="0.2" max="3" step="0.1" value="${state.snSpeed??1}"><span class="val" id="snSpeedV">×${(state.snSpeed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>M(⁵⁶Ni)</label>
+        <input type="range" id="snMNi" min="0.05" max="1.2" step="0.01" value="${state.snMNi??0.6}"><span class="val" id="snMNiV">${(state.snMNi??0.6).toFixed(2)} M☉</span></div>
+      <div class="ctlrow"><label>v_ejecta</label>
+        <input type="range" id="snVej" min="3000" max="15000" step="250" value="${state.snVej??10000}"><span class="val" id="snVejV">${((state.snVej??10000)/1000).toFixed(1)}×10³ km/s</span></div>
+    </div>
+    <div class="sect"><b>Radioactive readout</b>
+      <div class="note" id="snInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The EXACT Bateman chain ⁵⁶Ni→(τ 8.77 d)⁵⁶Co→(τ 111.3 d)⁵⁶Fe. The late tail of every Type Ia light curve declines on the cobalt lifetime — a radioactive clock readable across the Universe, and the reason Ia are standardisable candles. Deposition power shown (exact); the emergent optical curve adds photon diffusion (Arnett's rule) — declared. Remnant: free expansion R=v_ej·t → Sedov–Taylor R∝t^{2/5} after sweep-up (schematic transition).</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="snToNuc">→ Nuclear binding: why ⁵⁶Ni is the ash</button>
+        <button class="btn" id="snToNs">→ The neutron star it can leave</button>
+        <button class="btn" id="snToBb">→ Blackbody: the photosphere's colour</button></div>
+    </div>`;
+    else if(V==='psr') body = `
+    <div class="sect"><b>Pulsar — pick a star</b>
+      <div class="chips">
+        ${Object.entries(PSR_PRESETS).map(([k,p])=>`<button class="chip" data-psrp="${k}">${p.n}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="psrRun">${state.psrRun!==false?'⏸ pause':'▶ spin'}</button>
+        <label style="margin-left:8px">log₁₀P (s)</label>
+        <input type="range" id="psrP" min="-3" max="1" step="0.02" value="${Math.log10(state.psrP??0.0334).toFixed(2)}"><span class="val" id="psrPV">${(state.psrP??0.0334).toExponential(2)}</span></div>
+      <div class="ctlrow"><label>log₁₀Ṗ</label>
+        <input type="range" id="psrPd" min="-21" max="-10" step="0.1" value="${Math.log10(state.psrPd??4.21e-13).toFixed(1)}"><span class="val" id="psrPdV">${(state.psrPd??4.21e-13).toExponential(1)}</span></div>
+      <div class="ctlrow"><label>Tilt α / view ζ</label>
+        <input type="range" id="psrAlpha" min="5" max="85" step="1" value="${state.psrAlpha??35}">
+        <input type="range" id="psrZeta" min="5" max="85" step="1" value="${state.psrZeta??38}"></div>
+      <div class="ctlrow"><label>Beam width</label>
+        <input type="range" id="psrW" min="3" max="25" step="1" value="${state.psrW??9}"><span class="val" id="psrWV">${state.psrW??9}°</span></div>
+    </div>
+    <div class="sect"><b>Spin-down readout</b>
+      <div class="note" id="psrInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Two observables — P and Ṗ — unlock the star: surface dipole field B≈3.2×10¹⁹√(PṖ) G, characteristic age τ=P/(2Ṗ), spin-down luminosity L=4π²IṖ/P³ (I=10⁴⁵ g·cm²). Verified against the Crab: 3.79×10¹² G, 1257 yr, 4.46×10³⁸ erg/s — one spinning star outshining 10⁵ Suns from rotation alone. Tune α and ζ: pulses vanish when the beam misses you (the pulsar is still there — selection, not absence). Interpulse appears when both poles sweep past. Spin slowed for the eye; dipole braking n=3 declared.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="psrToNs">→ TOV interior of this star</button>
+        <button class="btn" id="psrToDip">→ Dipole radiation: the braking torque</button>
+        <button class="btn" id="psrToCp">→ Charged particles in its magnetosphere</button></div>
+    </div>`;
+    else if(V==='qso') body = `
+    <div class="sect"><b>Quasar — engine parameters</b>
+      <div class="chips">
+        <button class="chip" data-qsop="1e7,0.1,45">Seyfert core</button>
+        <button class="chip" data-qsop="1e9,0.3,30">Luminous quasar</button>
+        <button class="chip" data-qsop="1e9,0.9,4">Blazar view</button>
+        <button class="chip" data-qsop="6.6e10,0.4,35">Ton 618 scale</button>
+      </div>
+      <div class="ctlrow"><label>log₁₀ M_BH</label>
+        <input type="range" id="qsoM" min="6" max="10.9" step="0.1" value="${Math.log10(state.qsoM??1e9).toFixed(1)}"><span class="val" id="qsoMV">${(state.qsoM??1e9).toExponential(1)} M☉</span></div>
+      <div class="ctlrow"><label>Eddington λ</label>
+        <input type="range" id="qsoLam" min="0.01" max="1" step="0.01" value="${state.qsoLam??0.3}"><span class="val" id="qsoLamV">${(state.qsoLam??0.3).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Viewing angle θ</label>
+        <input type="range" id="qsoTheta" min="2" max="80" step="1" value="${state.qsoTheta??30}"><span class="val" id="qsoThetaV">${state.qsoTheta??30}°</span></div>
+    </div>
+    <div class="sect"><b>Engine readout</b>
+      <div class="note" id="qsoInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Accretion is the most efficient steady engine in nature: infall to the Schwarzschild ISCO releases EXACTLY η=1−√(8/9)=5.72% of rest energy (~10× fusion). The Eddington luminosity L_Edd=4πGMm_pc/σ_T is where radiation pressure balances gravity on infalling plasma. Tilt the view under ~10°: relativistic aberration Doppler-boosts the approaching jet by δ³ and the object becomes a blazar — same engine, different angle (AGN unification). Variability faster than R_s/c is impossible for the accretion flow. Morphology schematic; every readout number is the exact standard formula.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="qsoToBhr">→ Ray-traced view of this horizon</button>
+        <button class="btn" id="qsoToBht">→ Thermodynamics of the hole</button>
+        <button class="btn" id="qsoToLens">→ Its gravitational lensing</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -20497,6 +20814,9 @@ function buildCtlBody(){
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
         <button class="btn ${V==='ns'?'on':''}" id="v-ns">Neutron star</button>
+        <button class="btn ${V==='sn'?'on':''}" id="v-sn">Supernova</button>
+        <button class="btn ${V==='psr'?'on':''}" id="v-psr">Pulsar</button>
+        <button class="btn ${V==='qso'?'on':''}" id="v-qso">Quasar</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -20515,7 +20835,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr','ns']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -20913,6 +21233,38 @@ function buildCtlBody(){
       ctl.querySelector('#nsToBht')&&(ctl.querySelector('#nsToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
       ctl.querySelector('#nsToNuc')&&(ctl.querySelector('#nsToNuc').onclick=()=>{ navPush(); setS3View('nuc'); buildCtl(); });
       ctl.querySelector('#nsToGw')&&(ctl.querySelector('#nsToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
+    }
+    if(V==='sn'){
+      ctl.querySelectorAll('[data-snp]').forEach(b=>b.onclick=()=>{ const [m,v]=b.dataset.snp.split(',').map(Number); state.snMNi=m; state.snVej=v; snT=0.5; buildCtl(); });
+      ctl.querySelector('#snRun')&&(ctl.querySelector('#snRun').onclick=()=>{ state.snRun=state.snRun===false; buildCtl(); });
+      ctl.querySelector('#snReplay')&&(ctl.querySelector('#snReplay').onclick=()=>{ snT=0.5; });
+      ctl.querySelector('#snSpeed')&&(ctl.querySelector('#snSpeed').oninput=e=>{ state.snSpeed=+e.target.value; const v=ctl.querySelector('#snSpeedV'); if(v)v.textContent='×'+state.snSpeed.toFixed(1); });
+      ctl.querySelector('#snMNi')&&(ctl.querySelector('#snMNi').oninput=e=>{ state.snMNi=+e.target.value; const v=ctl.querySelector('#snMNiV'); if(v)v.textContent=state.snMNi.toFixed(2)+' M☉'; });
+      ctl.querySelector('#snVej')&&(ctl.querySelector('#snVej').oninput=e=>{ state.snVej=+e.target.value; const v=ctl.querySelector('#snVejV'); if(v)v.textContent=(state.snVej/1000).toFixed(1)+'×10³ km/s'; });
+      ctl.querySelector('#snToNuc')&&(ctl.querySelector('#snToNuc').onclick=()=>{ navPush(); setS3View('nuc'); buildCtl(); });
+      ctl.querySelector('#snToNs')&&(ctl.querySelector('#snToNs').onclick=()=>{ navPush(); setS3View('ns'); buildCtl(); });
+      ctl.querySelector('#snToBb')&&(ctl.querySelector('#snToBb').onclick=()=>{ navPush(); setS3View('bb'); buildCtl(); });
+    }
+    if(V==='psr'){
+      ctl.querySelectorAll('[data-psrp]').forEach(b=>b.onclick=()=>{ const p=PSR_PRESETS[b.dataset.psrp]; state.psrP=p.P; state.psrPd=p.Pd; buildCtl(); });
+      ctl.querySelector('#psrRun')&&(ctl.querySelector('#psrRun').onclick=()=>{ state.psrRun=state.psrRun===false; buildCtl(); });
+      ctl.querySelector('#psrP')&&(ctl.querySelector('#psrP').oninput=e=>{ state.psrP=Math.pow(10,+e.target.value); const v=ctl.querySelector('#psrPV'); if(v)v.textContent=state.psrP.toExponential(2); });
+      ctl.querySelector('#psrPd')&&(ctl.querySelector('#psrPd').oninput=e=>{ state.psrPd=Math.pow(10,+e.target.value); const v=ctl.querySelector('#psrPdV'); if(v)v.textContent=state.psrPd.toExponential(1); });
+      ctl.querySelector('#psrAlpha')&&(ctl.querySelector('#psrAlpha').oninput=e=>{ state.psrAlpha=+e.target.value; psrSetup(); });
+      ctl.querySelector('#psrZeta')&&(ctl.querySelector('#psrZeta').oninput=e=>{ state.psrZeta=+e.target.value; psrSetup(); });
+      ctl.querySelector('#psrW')&&(ctl.querySelector('#psrW').oninput=e=>{ state.psrW=+e.target.value; const v=ctl.querySelector('#psrWV'); if(v)v.textContent=state.psrW+'°'; });
+      ctl.querySelector('#psrToNs')&&(ctl.querySelector('#psrToNs').onclick=()=>{ navPush(); setS3View('ns'); buildCtl(); });
+      ctl.querySelector('#psrToDip')&&(ctl.querySelector('#psrToDip').onclick=()=>{ navPush(); setS3View('dip'); buildCtl(); });
+      ctl.querySelector('#psrToCp')&&(ctl.querySelector('#psrToCp').onclick=()=>{ navPush(); setS3View('cp'); buildCtl(); });
+    }
+    if(V==='qso'){
+      ctl.querySelectorAll('[data-qsop]').forEach(b=>b.onclick=()=>{ const [m,l,t]=b.dataset.qsop.split(',').map(Number); state.qsoM=m; state.qsoLam=l; state.qsoTheta=t; buildCtl(); });
+      ctl.querySelector('#qsoM')&&(ctl.querySelector('#qsoM').oninput=e=>{ state.qsoM=Math.pow(10,+e.target.value); const v=ctl.querySelector('#qsoMV'); if(v)v.textContent=state.qsoM.toExponential(1)+' M☉'; });
+      ctl.querySelector('#qsoLam')&&(ctl.querySelector('#qsoLam').oninput=e=>{ state.qsoLam=+e.target.value; const v=ctl.querySelector('#qsoLamV'); if(v)v.textContent=state.qsoLam.toFixed(2); });
+      ctl.querySelector('#qsoTheta')&&(ctl.querySelector('#qsoTheta').oninput=e=>{ state.qsoTheta=+e.target.value; const v=ctl.querySelector('#qsoThetaV'); if(v)v.textContent=state.qsoTheta+'°'; });
+      ctl.querySelector('#qsoToBhr')&&(ctl.querySelector('#qsoToBhr').onclick=()=>{ navPush(); setS3View('bhr'); buildCtl(); });
+      ctl.querySelector('#qsoToBht')&&(ctl.querySelector('#qsoToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
+      ctl.querySelector('#qsoToLens')&&(ctl.querySelector('#qsoToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -22310,7 +22662,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -23669,6 +24021,12 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateBhr(dt);
     } else if(state.s3view==='ns'){
       fbsAnimT+=dt; updateNs(dt);
+    } else if(state.s3view==='sn'){
+      fbsAnimT+=dt; updateSn(dt);
+    } else if(state.s3view==='psr'){
+      fbsAnimT+=dt; updatePsr(dt);
+    } else if(state.s3view==='qso'){
+      fbsAnimT+=dt; updateQso(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
