@@ -1652,6 +1652,14 @@ function runSelfTests(){
       Math.abs(S(2*Ms)/S(Ms)-4)<1e-9 && Math.abs(TH(2*Ms)*2-TH(Ms))<1e-30, (S(2*Ms)/S(Ms)).toFixed(4));
     ok('Black hole: evaporation time ∝ M³ (halving mass → 1/8 the lifetime); solar ≈ 2×10⁶⁷ yr',
       Math.abs(tev(Ms/2)/tev(Ms)-0.125)<1e-9 && Math.abs(tev(Ms)/3.15576e7/2.1e67-1)<0.05, (tev(Ms)/3.15576e7).toExponential(2)+' yr'); }
+  { // CMB harmonics: the real Y_lm the sky map is built from are orthonormal and obey the addition theorem
+    const inner=(l1,m1,l2,m2)=>{ let s=0; const Nt=90,Np=180; for(let i=0;i<Nt;i++){ const th=(i+0.5)/Nt*Math.PI, w=Math.sin(th)*(Math.PI/Nt)*(2*Math.PI/Np);
+      for(let j=0;j<Np;j++){ const ph=j/Np*2*Math.PI; s+=shY(l1,m1,th,ph)*shY(l2,m2,th,ph)*w; } } return s; };
+    ok('CMB harmonics: real Y_lm are orthonormal (⟨Y₂₀,Y₂₀⟩=1, ⟨Y₂₁,Y₃₁⟩=0)',
+      Math.abs(inner(2,0,2,0)-1)<0.01 && Math.abs(inner(2,1,3,1))<0.01, inner(2,0,2,0).toFixed(4));
+    let s2=0; for(let m=-2;m<=2;m++) s2+=shY(2,m,0.7,1.3)**2;
+    ok('CMB harmonics: addition theorem Σ_m Y₂ₘ² = (2·2+1)/4π (isotropic multipole variance)',
+      Math.abs(s2-5/(4*Math.PI))<1e-6, s2.toFixed(4)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -12541,6 +12549,72 @@ function updateBht(dt){
   }
 }
 
+/* ================================================================
+   CMB LOW-MULTIPOLE LAB · the large-angle anomalies (UPRS Part 15/S³).
+   The microwave sky is a temperature field on the 2-sphere,
+   ΔT(n̂)=Σ_lm a_lm Y_lm. The lowest multipoles carry the biggest angles:
+   the quadrupole (l=2) and octopole (l=3). Real data show (i) SUPPRESSED
+   power at l=2,3 relative to ΛCDM, and (ii) an unexpected ALIGNMENT of
+   the quadrupole and octopole planes (the "axis of evil"). Both are of
+   DEBATED significance (cosmic variance is huge at low l, and these are a
+   posteriori statistics) — but a FINITE / compact universe caps the
+   largest wavelength that fits, which is one physical way to suppress
+   large-angle power. That is the S³ connection this whole atlas explores;
+   nothing here claims a detection. */
+const cmbGroup=new THREE.Group(); cmbGroup.visible=false; s3Group.add(cmbGroup);
+const CMB_NLAT=72, CMB_NLON=144;
+let cmbObjs=null, cmbUiAcc=0, cmbRot=0;
+// representative large-angle spectrum D_l=l(l+1)C_l/2π in μK² — [l, observed, ΛCDM plateau]
+const CMB_DL=[[2,200,1150],[3,1050,1080],[4,910,1015],[5,1050,985],[6,1160,1000],[7,1210,1040],[8,1260,1080]];
+function cmbAlm(l,m){ return Math.sin((l*127.1+m*311.7))*Math.cos((l*269.5-m*183.3)); }   // deterministic pseudo-random coefficients
+function cmbField(th,ph,mode){   // ΔT(n̂) for the selected multipole content
+  if(mode==='quad'){ return 0.6*shY(2,0,th,ph)+0.5*shY(2,1,th,ph)+0.42*shY(2,2,th,ph); }
+  if(mode==='oct'){ return 0.55*shY(3,0,th,ph)+0.4*shY(3,1,th,ph)+0.32*shY(3,3,th,ph); }
+  if(mode==='align'){ return shY(2,0,th,ph)+0.85*shY(3,0,th,ph); }   // quad & octopole share the same (z) axis → the "axis of evil"
+  let s=0; for(let l=2;l<=8;l++){ const supp=(l<=3)?0.42:1.0; for(let m=-l;m<=l;m++) s+=supp*0.5*cmbAlm(l,m)*shY(l,m,th,ph); } return s;   // 'low' full map with l=2,3 suppressed
+}
+function cmbColor(t,_c){ const x=Math.max(-1,Math.min(1,t)); _c.setHSL(0.66*(1-x)/2,0.8,0.5); return _c; }
+function cmbClear(){ labWipe(cmbGroup); cmbObjs=null; }
+function cmbSetup(){
+  cmbClear(); const mode=state.cmbMode||'align';
+  cmbGroup.add(new THREE.AmbientLight(0xffffff,1));
+  const geo=new THREE.SphereGeometry(2.2,CMB_NLON,CMB_NLAT);
+  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  let mx=1e-9; const vals=new Float32Array(pos.count);
+  for(let i=0;i<pos.count;i++){ const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i), r=Math.hypot(x,y,z), th=Math.acos(z/r), ph=Math.atan2(y,x);
+    const v=cmbField(th,ph,mode); vals[i]=v; if(Math.abs(v)>mx)mx=Math.abs(v); }
+  for(let i=0;i<pos.count;i++){ cmbColor(vals[i]/mx,_c); col[i*3]=_c.r; col[i*3+1]=_c.g; col[i*3+2]=_c.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+  const sky=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({vertexColors:true})); cmbGroup.add(sky);
+  // shared quad–octopole axis (only meaningful in 'align')
+  if(mode==='align'){ const ax=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-2.9),5.8,0xffe27a,.3,.18); cmbGroup.add(ax);
+    const al=mkLabel('shared quad–octopole axis ("axis of evil")','label axis'); al.position.set(0,0,3.1); cmbGroup.add(al); }
+  // low-l power spectrum bars below the sky
+  const bars=[]; const bx=l=>-2.2+ (l-2)*0.62, byBase=-3.0, sc=1.6/1300;
+  for(const [l,obs,ref] of CMB_DL){
+    const bar=new THREE.Mesh(new THREE.BoxGeometry(0.4,Math.max(0.02,obs*sc),0.3),new THREE.MeshBasicMaterial({color:l<=3?0xff7a6a:0x7fb0ff,transparent:true,opacity:.9}));
+    bar.position.set(bx(l),byBase+obs*sc/2,0); cmbGroup.add(bar); bars.push(bar);
+    const tick=new THREE.Mesh(new THREE.BoxGeometry(0.46,0.03,0.34),new THREE.MeshBasicMaterial({color:0xf1dda6})); tick.position.set(bx(l),byBase+ref*sc,0); cmbGroup.add(tick);
+    const ll=mkLabel('l='+l,'label dim'); ll.position.set(bx(l),byBase-0.25,0); cmbGroup.add(ll);
+  }
+  const spl=mkLabel('large-angle power D_l=l(l+1)C_l/2π  ·  bars=observed  ·  ticks=ΛCDM','label dim'); spl.position.set(0.6,-3.55,0); cmbGroup.add(spl);
+  const tl=mkLabel('CMB LOW MULTIPOLES · ΔT=Σ a_lm Y_lm · suppressed & aligned large angles','label const'); tl.position.set(0,3.5,0); cmbGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.7,0); cmbGroup.add(rl);
+  cmbObjs={sky,readLab:rl};
+}
+function updateCmb(dt){
+  const O=cmbObjs; if(!O) return; const mode=state.cmbMode||'align';
+  if(state.cmbRun!==false){ cmbRot+=dt*0.12; O.sky.rotation.y=cmbRot; }
+  cmbUiAcc+=dt; if(cmbUiAcc>0.3){ cmbUiAcc=0;
+    const ratio=(CMB_DL[0][1]/CMB_DL[0][2]);   // observed/ΛCDM quadrupole
+    const names={quad:'quadrupole (l=2) only',oct:'octopole (l=3) only',align:'quadrupole + octopole, shared axis',low:'l=2…8 map, low-l suppressed'};
+    hudBig.textContent=`CMB LOW MULTIPOLES · ${names[mode]} · quadrupole power ≈ ${(ratio*100).toFixed(0)}% of ΛCDM`;
+    hudSub.textContent='the largest-angle features of the microwave sky. The quadrupole and octopole are anomalously WEAK (bars below the ΛCDM ticks) and their planes are unexpectedly ALIGNED. Both are of debated significance — at l=2,3 cosmic variance is enormous and these are a-posteriori statistics — but a finite universe caps the longest wavelength that fits, one physical route to large-angle suppression. This is a motivation for compact-topology (S³) models, NOT a detection of one.';
+    ATLAS_BUS.pub('cmb.q_ratio',+ratio.toFixed(3),'C2_obs/ΛCDM');
+    const el=ctl.querySelector('#cmbInv'); if(el) el.innerHTML=`mode: <b>${names[mode]}</b><br>quadrupole D₂=<b>${CMB_DL[0][1]}</b> µK² vs ΛCDM ≈ ${CMB_DL[0][2]} µK² → <b>${(ratio*100).toFixed(0)}%</b> (the "missing power"). Octopole D₃=${CMB_DL[1][1]} µK². Quad–octopole alignment ≈ few degrees (obs) vs ~60° expected by chance. Significance debated (cosmic variance, look-elsewhere); a compact S³ universe suppresses wavelengths above ~2πR.`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -12585,6 +12659,7 @@ function setS3View(v){
   pvGroup.visible      = (v==='pv');
   su2Group.visible     = (v==='su2');
   bhtGroup.visible     = (v==='bht');
+  cmbGroup.visible     = (v==='cmb');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -12615,6 +12690,7 @@ function setS3View(v){
   if(v==='pv'){ pvSetup(); }
   if(v==='su2'){ su2Setup(); }
   if(v==='bht'){ bhtSetup(); }
+  if(v==='cmb'){ cmbSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -12626,7 +12702,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -17398,6 +17474,7 @@ const state = {
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
+  cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -19132,6 +19209,25 @@ function buildCtlBody(){
         <button class="btn" id="bhtToGw">→ Gravitational waves: when two merge</button>
         <button class="btn" id="bhtToHe">→ Heat engine: the other thermodynamics</button></div>
     </div>`;
+    else if(V==='cmb') body = `
+    <div class="sect"><b>CMB sky — which multipoles</b>
+      <div class="chips">
+        ${[['align','Quad + octopole (axis)'],['quad','Quadrupole l=2'],['oct','Octopole l=3'],['low','Low-l map (2…8)']].map(([k,l])=>
+          `<button class="chip ${(state.cmbMode||'align')===k?'on':''}" data-cmbm="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow">
+        <button class="chip ${state.cmbRun!==false?'on':''}" id="cmbRun">${state.cmbRun!==false?'⏸ stop spin':'▶ spin'}</button>
+        <span style="font-size:10px;color:var(--dim)">bars = observed D_l · ticks = ΛCDM</span></div>
+    </div>
+    <div class="sect"><b>Anomaly readout</b>
+      <div class="note" id="cmbInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The microwave sky is a temperature field on the 2-sphere, ΔT(n̂)=Σ a_lm Y_lm (real harmonics, exact). Its largest angles are the quadrupole (l=2) and octopole (l=3). Planck & WMAP find their power SUPPRESSED versus ΛCDM and their planes oddly ALIGNED (the "axis of evil"). Significance is genuinely debated — cosmic variance is huge at l=2,3 and these are a-posteriori statistics — but a finite/compact universe caps the longest wavelength that fits (≈2πR), one physical way to remove large-angle power. This is the S³ motivation the atlas explores; NO topology is claimed detected.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="cmbToSh">→ Spherical harmonics: the Y_lm modes</button>
+        <button class="btn" id="cmbToEig">→ S³ modes β: harmonics of a finite universe</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -19504,6 +19600,7 @@ function buildCtlBody(){
         <button class="btn ${V==='pv'?'on':''}" id="v-pv">Photovoltaic</button>
         <button class="btn ${V==='su2'?'on':''}" id="v-su2">SU(2) spinor</button>
         <button class="btn ${V==='bht'?'on':''}" id="v-bht">Black-hole thermo</button>
+        <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -19522,7 +19619,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -19885,6 +19982,12 @@ function buildCtlBody(){
       ctl.querySelector('#bhtToLens')&&(ctl.querySelector('#bhtToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#bhtToGw')&&(ctl.querySelector('#bhtToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
       ctl.querySelector('#bhtToHe')&&(ctl.querySelector('#bhtToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
+    }
+    if(V==='cmb'){
+      ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
+      ctl.querySelector('#cmbRun')&&(ctl.querySelector('#cmbRun').onclick=()=>{ state.cmbRun=state.cmbRun===false; buildCtl(); });
+      ctl.querySelector('#cmbToSh')&&(ctl.querySelector('#cmbToSh').onclick=()=>{ navPush(); setS3View('sh'); buildCtl(); });
+      ctl.querySelector('#cmbToEig')&&(ctl.querySelector('#cmbToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -21277,7 +21380,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -22458,6 +22561,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSu2(dt);
     } else if(state.s3view==='bht'){
       fbsAnimT+=dt; updateBht(dt);
+    } else if(state.s3view==='cmb'){
+      fbsAnimT+=dt; updateCmb(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
