@@ -11829,39 +11829,49 @@ function nucBperA(A,Z){ return nucBE(A,Z)/A; }
 function nucBestZ(A){ let bz=1,bb=-1e9; for(let Z=1;Z<A;Z++){ const b=nucBperA(A,Z); if(b>bb){bb=b;bz=Z;} } return bz; }
 function nucClear(){ labWipe(nucGroup); nucObjs=null; }
 function nucSetup(){
-  nucClear(); nucGroup.add(new THREE.AmbientLight(0x9098b8,.85));
-  // B/A curve over A=2..250 along most-stable Z
-  const pts=[], Amax=250, Bmax=9.5; const mapx=A=>-2.6+5.2*(A/Amax), mapy=b=>-2.4+4.8*(b/Bmax);
-  for(let A=2;A<=Amax;A++){ const b=Math.max(0,nucBperA(A,nucBestZ(A))); pts.push(new THREE.Vector3(mapx(A),mapy(b),0)); }
-  const curve=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-    new THREE.LineBasicMaterial({color:0x8fd0ff,transparent:true,opacity:.95})); nucGroup.add(curve);
-  // peak marker (iron)
-  let peakA=2,peakB=-1; for(let A=2;A<=Amax;A++){ const b=nucBperA(A,nucBestZ(A)); if(b>peakB){peakB=b;peakA=A;} }
-  const fe=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xffe08a})); fe.position.set(mapx(peakA),mapy(peakB),0); nucGroup.add(fe);
-  const fel=mkLabel('Fe/Ni peak ≈8.8 MeV','label axis'); fel.position.set(mapx(peakA),mapy(peakB)+0.45,0); nucGroup.add(fel);
+  nucClear(); nucGroup.add(new THREE.AmbientLight(0x9098b8,.68));
+  const dir=new THREE.DirectionalLight(0xfff2dc,.62); dir.position.set(5,9,6); nucGroup.add(dir);
+  // 3-D binding landscape: B/A as height over the (N,Z) Segrè chart
+  const Nmax=172, Zmax=118, Bmax=9.2;
+  const mapN=N=>-3+6*(N/Nmax), mapZ=Z=>-3+6*(Z/Zmax), mapB=b=>-1.7+3.6*(b/Bmax);
+  const bAt=(N,Z)=>{ const A=N+Z; if(Z<1||N<0||A<2||A>262) return 0; return Math.max(0,nucBperA(A,Z)); };
+  const NN=64, NZ=46, geo=new THREE.PlaneGeometry(1,1,NN-1,NZ-1);
+  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NZ;j++)for(let i=0;i<NN;i++){ const idx=j*NN+i, N=Nmax*i/(NN-1), Z=Zmax*j/(NZ-1), b=bAt(N,Z);
+    pos.setXYZ(idx,mapN(N),mapB(b),mapZ(Z)); const t=b/Bmax; _c.setHSL(0.63-0.56*t,0.72,0.09+0.44*t);
+    col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+  const surf=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.72,metalness:.08,transparent:true,opacity:.95,side:THREE.DoubleSide})); nucGroup.add(surf);
+  // valley-of-stability ridge (most-stable Z per A) as a glowing crest
+  const ridge=[]; let peakA=2,peakB=-1,peakN=0,peakZ=0;
+  for(let A=2;A<=258;A++){ const Z=nucBestZ(A), N=A-Z, b=Math.max(0,nucBperA(A,Z));
+    ridge.push(new THREE.Vector3(mapN(N),mapB(b)+0.03,mapZ(Z))); if(b>peakB){peakB=b;peakA=A;peakN=N;peakZ=Z;} }
+  const rcrest=new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); nucGroup.add(rcrest);
+  const fe=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshBasicMaterial({color:0xffe08a})); fe.position.set(mapN(peakN),mapB(peakB)+0.06,mapZ(peakZ)); nucGroup.add(fe);
+  const fel=mkLabel('Fe/Ni summit ≈8.8 MeV','label axis'); fel.position.set(mapN(peakN),mapB(peakB)+0.42,mapZ(peakZ)); nucGroup.add(fel);
   // selected-nucleus marker
-  const marker=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
-  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); mglow.scale.setScalar(.9); marker.add(mglow); nucGroup.add(marker);
-  // fusion/fission direction arrows
-  const fus=new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(-2.4,2.9,0),1.3,0xffb04a,.22,.13); nucGroup.add(fus);
-  const fis=new THREE.ArrowHelper(new THREE.Vector3(-1,0,0),new THREE.Vector3(2.4,2.9,0),1.3,0x9fe0ff,.22,.13); nucGroup.add(fis);
-  const ful=mkLabel('◀ FUSION (light → Fe)','label axis'); ful.position.set(-1.2,3.2,0); nucGroup.add(ful);
-  const fil=mkLabel('FISSION (heavy → Fe) ▶','label axis'); fil.position.set(1.2,3.2,0); nucGroup.add(fil);
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.13,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); mglow.scale.setScalar(.95); marker.add(mglow); nucGroup.add(marker);
+  const o=[mapN(0),mapB(0),mapZ(0)];
   const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-2.6,-2.4,0),new THREE.Vector3(2.8,-2.4,0),
-    new THREE.Vector3(-2.6,-2.4,0),new THREE.Vector3(-2.6,2.7,0)]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(mapN(Nmax),o[1],o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],o[1],mapZ(Zmax)),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],2.0,o[2])]),
     new THREE.LineBasicMaterial({color:0x55607a})); nucGroup.add(ax);
-  const axl=mkLabel('mass number A →','label axis'); axl.position.set(2.9,-2.4,0); nucGroup.add(axl);
-  const ayl=mkLabel('B/A (MeV) ↑','label axis'); ayl.position.set(-2.6,2.9,0); nucGroup.add(ayl);
-  const tl=mkLabel('NUCLEAR BINDING · B/A vs A (Bethe–Weizsäcker) · fusion & fission both climb to iron','label const'); tl.position.set(0,3.7,0); nucGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); nucGroup.add(rl);
-  nucObjs={curve,marker,fe,readLab:rl,mapx,mapy,Amax,Bmax,peakA,peakB};
+  const nl=mkLabel('N (neutrons) →','label axis'); nl.position.set(mapN(Nmax)+0.35,o[1],o[2]); nucGroup.add(nl);
+  const zl=mkLabel('Z (protons) →','label axis'); zl.position.set(o[0],o[1],mapZ(Zmax)+0.35); nucGroup.add(zl);
+  const bl=mkLabel('B/A ↑','label axis'); bl.position.set(o[0],2.2,o[2]); nucGroup.add(bl);
+  const ful=mkLabel('◀ fusion','label axis'); ful.position.set(mapN(10),mapB(peakB)+0.3,mapZ(8)); nucGroup.add(ful);
+  const fil=mkLabel('fission ▶','label axis'); fil.position.set(mapN(peakN+70),mapB(6)+0.3,mapZ(peakZ+45)); nucGroup.add(fil);
+  const tl=mkLabel('NUCLEAR BINDING · B/A landscape over the N–Z chart · the valley of stability climbs to iron','label const'); tl.position.set(0,3.4,0); nucGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); nucGroup.add(rl);
+  nucObjs={surf,marker,fe,readLab:rl,mapN,mapZ,mapB,peakA,peakB};
 }
 function updateNuc(dt){
   const O=nucObjs; if(!O) return;
   const A=state.nucA??56, Z=(state.nucZmode==='manual'?(state.nucZ??Math.round(A*0.45)):nucBestZ(A));
-  const bpa=Math.max(0,nucBperA(A,Z));
-  O.marker.position.set(O.mapx(A),O.mapy(bpa),0);
+  const bpa=Math.max(0,nucBperA(A,Z)), N=A-Z;
+  O.marker.position.set(O.mapN(N),O.mapB(bpa)+0.06,O.mapZ(Z));
   nucUiAcc+=dt; if(nucUiAcc>0.25){ nucUiAcc=0;
     const be=nucBE(A,Z), peak=O.peakB, drop=peak-bpa;
     const regime=A<O.peakA?'FUSION region — merging toward iron releases energy':A>O.peakA?'FISSION region — splitting toward iron releases energy':'the iron peak — the most tightly bound matter, the ash of stellar burning';
@@ -12357,7 +12367,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
