@@ -11144,8 +11144,8 @@ function updateSh(dt){
    u_xxx solved exactly in Fourier space → unconditionally stable);
    the three KdV invariants ∫u, ∫u², ∫(u³−½u_x²) monitored live. */
 const kdvGroup=new THREE.Group(); kdvGroup.visible=false; s3Group.add(kdvGroup);
-const KDV_N=256, KDV_L=60;
-let kdvObjs=null, kdvT=0, kdvUiAcc=0, kdvU=null;
+const KDV_N=256, KDV_L=60, KDV_NX=96, KDV_HW=84;
+let kdvObjs=null, kdvT=0, kdvUiAcc=0, kdvU=null, kdvHist=null, kdvHistFill=0;
 const kdvSech=x=>1/Math.cosh(x);
 const kdvSoliton=(c,x,x0)=>0.5*c*kdvSech(0.5*Math.sqrt(c)*(x-x0))**2;
 const _kdvK=(()=>{ const k=new Float64Array(KDV_N); for(let i=0;i<KDV_N;i++) k[i]=(i<KDV_N/2?i:i-KDV_N)*2*Math.PI/KDV_L; return k; })();
@@ -11186,27 +11186,28 @@ function kdvInit(){
 }
 function kdvClear(){ labWipe(kdvGroup); kdvObjs=null; }
 function kdvSetup(){
-  kdvClear(); kdvT=0; kdvU=kdvInit();
-  kdvGroup.add(new THREE.AmbientLight(0x8090b0,.7));
-  const g=new THREE.BufferGeometry();
-  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(KDV_N*3),3));
-  g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(KDV_N*3),3));
-  const line=new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95}));
-  kdvGroup.add(line);
-  // filled ribbon under the curve for the premium relief
-  const rg=new THREE.BufferGeometry();
-  rg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(KDV_N*2*3),3));
-  rg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(KDV_N*2*3),3));
-  const ridx=[]; for(let i=0;i<KDV_N-1;i++){ const a=i*2,b=a+1,c=a+2,d=a+3; ridx.push(a,b,c,b,d,c); }
-  rg.setIndex(ridx);
-  const ribbon=new THREE.Mesh(rg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.35,side:THREE.DoubleSide,depthWrite:false}));
-  kdvGroup.add(ribbon);
-  // base line + grid
-  for(let gx=-4;gx<=4;gx++){ const x=gx/4*5.4; kdvGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x,0,-0.4),new THREE.Vector3(x,0,0.4)]),new THREE.LineBasicMaterial({color:0x40516d,transparent:true,opacity:.3}))); }
-  kdvGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-5.6,0,0),new THREE.Vector3(5.6,0,0)]),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.5})));
-  const tl=mkLabel('SOLITON · KdV  u_t + 6u u_x + u_xxx = 0 · dispersion ⚖ nonlinearity','label const'); tl.position.set(0,3.3,0); kdvGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-2.4,0); kdvGroup.add(rl);
-  kdvObjs={line,ribbon,g,rg,readLab:rl,inv0:kdvInvariants(kdvU),_c:new THREE.Color()};
+  kdvClear(); kdvT=0; kdvU=kdvInit(); kdvHist=new Float32Array(KDV_HW*KDV_NX); kdvHistFill=0;
+  // seed the whole history with the initial profile so the sheet starts full
+  for(let r=0;r<KDV_HW;r++)for(let i=0;i<KDV_NX;i++){ const si=Math.round(i/(KDV_NX-1)*(KDV_N-1)); kdvHist[r*KDV_NX+i]=kdvU[si]; }
+  kdvGroup.add(new THREE.AmbientLight(0x8a94b4,.6));
+  const dir=new THREE.DirectionalLight(0xdfe6ff,.55); dir.position.set(3,8,6); kdvGroup.add(dir);
+  // 3-D space–time waterfall: u(x,t) as a surface (x across, t into depth, u up)
+  const geo=new THREE.PlaneGeometry(1,1,KDV_NX-1,KDV_HW-1);
+  geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3),3));
+  const surf=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.55,metalness:.18,transparent:true,opacity:.96,side:THREE.DoubleSide}));
+  kdvGroup.add(surf);
+  const wire=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.09,depthWrite:false})); kdvGroup.add(wire);
+  const front=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',new THREE.BufferAttribute(new Float32Array(KDV_NX*3),3)),
+    new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); kdvGroup.add(front);
+  const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(-5.5,0,2.4),new THREE.Vector3(5.5,0,2.4),
+    new THREE.Vector3(-5.5,0,2.4),new THREE.Vector3(-5.5,0,-3.2)]),
+    new THREE.LineBasicMaterial({color:0x45526e,transparent:true,opacity:.5})); kdvGroup.add(ax);
+  const xl=mkLabel('space x →','label axis'); xl.position.set(5.8,0,2.4); kdvGroup.add(xl);
+  const tt=mkLabel('time t ↘','label axis'); tt.position.set(-5.7,0,-3.4); kdvGroup.add(tt);
+  const tl=mkLabel('SOLITON · KdV space–time sheet · u_t+6uu_x+u_xxx=0 · dispersion ⚖ nonlinearity','label const'); tl.position.set(0,3.4,0); kdvGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); kdvGroup.add(rl);
+  kdvObjs={surf,geo,front,readLab:rl,inv0:kdvInvariants(kdvU),_c:new THREE.Color()};
 }
 function kdvInvariants(u){ const dx=KDV_L/KDV_N; let I1=0,I2=0,I3=0;
   for(let i=0;i<KDV_N;i++){ const ux=(u[(i+1)%KDV_N]-u[(i-1+KDV_N)%KDV_N])/(2*dx);
@@ -11218,20 +11219,22 @@ function updateKdv(dt){
   if(state.kdvRun!==false){
     const nsteps=Math.max(1,Math.round((state.kdvSpeed??1)*6));
     kdvU=kdvEvolve(kdvU,0.0016,nsteps); kdvT+=0.0016*nsteps;
+    kdvHist.copyWithin(0,KDV_NX);   // scroll history back one row
+    for(let i=0;i<KDV_NX;i++){ const si=Math.round(i/(KDV_NX-1)*(KDV_N-1)); kdvHist[(KDV_HW-1)*KDV_NX+i]=kdvU[si]; }
+    if(kdvHistFill<KDV_HW) kdvHistFill++;
   }
-  const pos=O.g.attributes.position.array, col=O.g.attributes.color.array, _c=O._c;
-  const SX=11.0/KDV_L, SY=0.9;
-  const rp=O.rg.attributes.position.array, rc=O.rg.attributes.color.array;
+  const pos=O.geo.attributes.position, col=O.geo.attributes.color.array, _c=O._c;
+  const mapx=i=>-5.5+11*(i/(KDV_NX-1)), mapz=r=>-3.0+5.4*(r/(KDV_HW-1)), SY=0.8;
   let peak=1e-6; for(let i=0;i<KDV_N;i++) if(kdvU[i]>peak) peak=kdvU[i];
-  for(let i=0;i<KDV_N;i++){ const x=(i*(KDV_L/KDV_N)-KDV_L/2)*SX, y=kdvU[i]*SY;
-    pos[i*3]=x; pos[i*3+1]=y; pos[i*3+2]=0;
-    const t=Math.min(1,kdvU[i]/peak); _c.setHSL(0.58-0.46*t,0.85,0.4+0.3*t);
-    col[i*3]=_c.r; col[i*3+1]=_c.g; col[i*3+2]=_c.b;
-    rp[i*6]=x; rp[i*6+1]=0; rp[i*6+2]=0; rp[i*6+3]=x; rp[i*6+4]=y; rp[i*6+5]=0;
-    for(let q=0;q<2;q++){ rc[i*6+q*3]=_c.r; rc[i*6+q*3+1]=_c.g; rc[i*6+q*3+2]=_c.b; }
+  for(let r=0;r<KDV_HW;r++)for(let i=0;i<KDV_NX;i++){ const idx=r*KDV_NX+i, u=kdvHist[idx];
+    pos.setXYZ(idx,mapx(i),u*SY,mapz(r));
+    const t=Math.min(1,u/peak), fade=0.34+0.66*(r/(KDV_HW-1)); _c.setHSL(0.60-0.5*t,0.85,(0.26+0.34*t)*fade);
+    col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b;
   }
-  O.g.attributes.position.needsUpdate=true; O.g.attributes.color.needsUpdate=true; O.g.computeBoundingSphere();
-  O.rg.attributes.position.needsUpdate=true; O.rg.attributes.color.needsUpdate=true;
+  pos.needsUpdate=true; O.geo.attributes.color.needsUpdate=true; O.geo.computeVertexNormals(); O.geo.computeBoundingSphere();
+  const fa=O.front.geometry.attributes.position.array;
+  for(let i=0;i<KDV_NX;i++){ fa[i*3]=mapx(i); fa[i*3+1]=kdvHist[(KDV_HW-1)*KDV_NX+i]*SY; fa[i*3+2]=mapz(KDV_HW-1); }
+  O.front.geometry.attributes.position.needsUpdate=true; O.front.geometry.computeBoundingSphere();
   kdvUiAcc+=dt;
   if(kdvUiAcc>0.3){ kdvUiAcc=0;
     const inv=kdvInvariants(kdvU), d1=Math.abs((inv.I1-O.inv0.I1)/(O.inv0.I1||1)), d2=Math.abs((inv.I2-O.inv0.I2)/(O.inv0.I2||1));
@@ -12470,7 +12473,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
