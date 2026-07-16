@@ -11802,35 +11802,51 @@ function bbColor(T){ let X=0,Y=0,Z=0; for(let nm=380;nm<=750;nm+=5){ const lam=n
   const gam=v=>v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055; return [gam(r),gam(gg),gam(b)]; }
 function bbWienNm(T){ return 2.897771955e-3/T*1e9; }
 function bbClear(){ labWipe(bbGroup); bbObjs=null; }
+const BB_LAMAX=3000, BB_TMIN=1000, BB_TMAX=20000;
+function bbMapX(nm){ return -2.7+5.4*(nm/BB_LAMAX); }
+function bbMapZ(T){ return -2.5+5.0*((Math.min(BB_TMAX,Math.max(BB_TMIN,T))-BB_TMIN)/(BB_TMAX-BB_TMIN)); }
+function bbMapY(v){ return -1.9+3.3*v; }
+function bbRowPeak(T){ return bbPlanck(bbWienNm(T)*1e-9,T); }
 function bbSetup(){
   bbClear(); const T=state.bbT??5772;
   bbGroup.add(new THREE.AmbientLight(0x8890b0,.55));
-  // the glowing body
+  const dir=new THREE.DirectionalLight(0xdfe6ff,.5); dir.position.set(4,8,6); bbGroup.add(dir);
+  // the glowing body — true Planckian colour
   const col=bbColor(T), c3=new THREE.Color(col[0],col[1],col[2]);
-  const body=new THREE.Mesh(new THREE.SphereGeometry(1.35,64,48),new THREE.MeshBasicMaterial({color:c3}));
-  body.position.set(-2.4,1.1,0); bbGroup.add(body);
-  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:c3,transparent:true,opacity:.9,depthWrite:false})); glow.scale.setScalar(5.2); body.add(glow);
-  // spectral curve axes region (right side)
+  const body=new THREE.Mesh(new THREE.SphereGeometry(1.05,64,48),new THREE.MeshBasicMaterial({color:c3}));
+  body.position.set(-3.1,2.1,0.4); bbGroup.add(body);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:c3,transparent:true,opacity:.9,depthWrite:false})); glow.scale.setScalar(4.2); body.add(glow);
+  // 3-D Planck landscape: B_λ(λ,T), each temperature row normalised to its own peak so the Wien shift is the crest
+  const NL=64, NT=46, geo=new THREE.PlaneGeometry(1,1,NL-1,NT-1);
+  const pos=geo.attributes.position, cAttr=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NT;j++){ const Tr=BB_TMIN+(BB_TMAX-BB_TMIN)*j/(NT-1), pk=bbRowPeak(Tr);
+    for(let i=0;i<NL;i++){ const idx=j*NL+i, nm=20+(BB_LAMAX-20)*i/(NL-1), v=Math.min(1,bbPlanck(nm*1e-9,Tr)/pk);
+      pos.setXYZ(idx,bbMapX(nm),bbMapY(v),bbMapZ(Tr));
+      if(nm>=380&&nm<=750){ const rc=bbSpectralRGB(nm); const s=0.2+0.8*v; _c.setRGB(rc[0]*s,rc[1]*s,rc[2]*s); }
+      else _c.setHSL(0.6-0.14*v,0.5,0.08+0.28*v);
+      cAttr[idx*3]=_c.r; cAttr[idx*3+1]=_c.g; cAttr[idx*3+2]=_c.b; } }
+  geo.setAttribute('color',new THREE.BufferAttribute(cAttr,3)); geo.computeVertexNormals();
+  bbGroup.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:.12,transparent:true,opacity:.95,side:THREE.DoubleSide})));
+  bbGroup.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.08,depthWrite:false})));
+  // Wien ridge (peak locus) sweeping across the family
+  const ridge=[]; for(let j=0;j<NT;j++){ const Tr=BB_TMIN+(BB_TMAX-BB_TMIN)*j/(NT-1); ridge.push(new THREE.Vector3(bbMapX(bbWienNm(Tr)),bbMapY(1)+0.02,bbMapZ(Tr))); }
+  bbGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false})));
+  // current-temperature highlighted curve + peak marker
+  const curve=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe6a0,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); bbGroup.add(curve);
+  const peak=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xffffff})); bbGroup.add(peak);
+  const o=[bbMapX(0),bbMapY(0),bbMapZ(BB_TMIN)];
   const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(-0.2,-2.4,0),new THREE.Vector3(4.4,-2.4,0),
-    new THREE.Vector3(-0.2,-2.4,0),new THREE.Vector3(-0.2,2.6,0)]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(bbMapX(BB_LAMAX),o[1],o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],o[1],bbMapZ(BB_TMAX)),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],2.0,o[2])]),
     new THREE.LineBasicMaterial({color:0x55607a})); bbGroup.add(ax);
-  // visible-band shaded strip 380–750nm within the 0–3000nm axis
-  const geoS=new THREE.BufferGeometry(); const NB=40, band=[]; const lamAx=3000;
-  for(let i=0;i<NB;i++){ const nm0=380+(750-380)*i/NB, nm1=380+(750-380)*(i+1)/NB;
-    const x0=-0.2+4.6*(nm0/lamAx), x1=-0.2+4.6*(nm1/lamAx); band.push(x0,-2.4,-.02,x1,-2.4,-.02,x1,2.5,-.02, x0,-2.4,-.02,x1,2.5,-.02,x0,2.5,-.02); }
-  geoS.setAttribute('position',new THREE.BufferAttribute(new Float32Array(band),3));
-  const bcol=[]; for(let i=0;i<NB;i++){ const nm=380+(750-380)*(i+0.5)/NB; const rc=bbSpectralRGB(nm); for(let k=0;k<6;k++) bcol.push(rc[0],rc[1],rc[2]); }
-  geoS.setAttribute('color',new THREE.BufferAttribute(new Float32Array(bcol),3));
-  const strip=new THREE.Mesh(geoS,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.16,depthWrite:false,side:THREE.DoubleSide})); bbGroup.add(strip);
-  const curve=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe6a0,transparent:true,opacity:.95}));
-  bbGroup.add(curve);
-  const peak=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); bbGroup.add(peak);
-  const wl=mkLabel('λ (nm) →','label axis'); wl.position.set(4.5,-2.4,0); bbGroup.add(wl);
-  const bl=mkLabel('B_λ ↑','label axis'); bl.position.set(-0.2,2.8,0); bbGroup.add(bl);
-  const tl=mkLabel('BLACKBODY · B_λ(T) · Wien λ_max·T=2.898 mm·K · Stefan–Boltzmann M=σT⁴','label const'); tl.position.set(0.9,3.3,0); bbGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0.9,-3.2,0); bbGroup.add(rl);
-  bbObjs={body,glow,curve,peak,readLab:rl,lamAx};
+  const wl=mkLabel('λ (nm) →','label axis'); wl.position.set(bbMapX(BB_LAMAX)+0.3,o[1],o[2]); bbGroup.add(wl);
+  const zl=mkLabel('T (K) →','label axis'); zl.position.set(o[0],o[1],bbMapZ(BB_TMAX)+0.35); bbGroup.add(zl);
+  const yl=mkLabel('B_λ ↑','label axis'); yl.position.set(o[0],2.2,o[2]); bbGroup.add(yl);
+  const wrl=mkLabel('Wien ridge','label axis'); wrl.position.set(bbMapX(bbWienNm(BB_TMAX))-0.2,bbMapY(1)+0.35,bbMapZ(BB_TMAX)); bbGroup.add(wrl);
+  const tl=mkLabel('BLACKBODY · Planck landscape B_λ(λ,T) · Wien λ_max·T=2.898 mm·K · M=σT⁴','label const'); tl.position.set(0,3.5,0); bbGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); bbGroup.add(rl);
+  bbObjs={body,glow,curve,peak,readLab:rl};
 }
 function bbSpectralRGB(nm){ // approximate spectral colour for the band swatch
   let r=0,g=0,b=0;
@@ -11843,14 +11859,13 @@ function updateBb(dt){
   const O=bbObjs; if(!O) return; const T=state.bbT??5772;
   bbT+=dt; if(O.body){ const s=1+0.012*Math.sin(bbT*2.2); O.glow.scale.setScalar(5.2*s); }
   bbUiAcc+=dt; if(bbUiAcc>0.2){ bbUiAcc=0;
-    // rebuild curve + colour to reflect current T
     const col=bbColor(T), c3=new THREE.Color(col[0],col[1],col[2]);
     O.body.material.color.copy(c3); O.glow.material.color.copy(c3);
-    const N=160, pts=[]; let pmax=0; const samp=[];
-    for(let i=0;i<=N;i++){ const nm=20+O.lamAx*i/N, lam=nm*1e-9, B=bbPlanck(lam,T); samp.push([nm,B]); if(B>pmax)pmax=B; }
-    for(const [nm,B] of samp){ const x=-0.2+4.6*(nm/O.lamAx), y=-2.4+4.7*(B/pmax); pts.push(new THREE.Vector3(x,y,0)); }
+    // highlight the current-temperature curve on the landscape (row normalised to its own peak)
+    const N=120, pk=bbRowPeak(T), pts=[];
+    for(let i=0;i<=N;i++){ const nm=20+(BB_LAMAX-20)*i/N, v=Math.min(1,bbPlanck(nm*1e-9,T)/pk); pts.push(new THREE.Vector3(bbMapX(nm),bbMapY(v)+0.03,bbMapZ(T))); }
     O.curve.geometry.setFromPoints(pts); O.curve.geometry.computeBoundingSphere();
-    const lamMax=bbWienNm(T), xp=-0.2+4.6*(lamMax/O.lamAx); O.peak.position.set(xp,2.3,0);
+    const lamMax=bbWienNm(T); O.peak.position.set(bbMapX(lamMax),bbMapY(1)+0.05,bbMapZ(T));
     const M=BB_SIG*Math.pow(T,4);
     hudBig.textContent=`BLACKBODY · T=${T.toFixed(0)} K · λ_max=${lamMax.toFixed(0)} nm (Wien) · M=σT⁴=${M.toExponential(2)} W/m²`;
     hudSub.textContent='a single number — the temperature — fixes the whole spectrum, its peak colour (Wien) and its total power (Stefan–Boltzmann, ∝T⁴). This is the curve whose "ultraviolet catastrophe" forced Planck to quantise energy in 1900 and began quantum theory. The sphere shows the true colour a body of this temperature radiates.';
@@ -12514,7 +12529,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
