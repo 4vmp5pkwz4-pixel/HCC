@@ -22701,7 +22701,7 @@ attribute vec2 aRef; varying float vType;
 void main(){
   vec4 pw=texture2D(uPos,aRef); vType=pw.w;
   vec4 mv=modelViewMatrix*vec4(pw.xyz+uShift,1.0);
-  gl_PointSize=clamp(uPx*140.0/max(1.0,-mv.z),1.0,4.0);
+  gl_PointSize=clamp(uPx*46.0/max(1.0,-mv.z),0.75,2.6);
   gl_Position=projectionMatrix*mv;
 }`;
 const AST_PTS_FRAG=`
@@ -22709,7 +22709,7 @@ precision highp float; varying float vType;
 void main(){
   vec2 q=gl_PointCoord-0.5; float d=length(q); if(d>0.5) discard;
   vec3 col=vType<0.5?vec3(0.55,0.66,0.78):(vType<1.5?vec3(1.0,0.84,0.45):vec3(1.0,0.68,0.38));
-  float a=(1.0-d*2.0)*(vType<0.5?0.5:0.85);
+  float a=(1.0-d*2.0)*(vType<0.5?0.30:0.75);
   gl_FragColor=vec4(col,a);
 }`;
 function astElemToStateEcl(a,e,inc,Om,w,M){   // verified converter (AU, years, GM=4pi^2)
@@ -23590,6 +23590,18 @@ globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
 globalThis.FBS3R_QA=Object.freeze({
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
   selection(){return selectedKey;},
+  asteroids(){   // read-only GPU-swarm diagnostic: live position-texture readback statistics
+    if(!astState||astState==='unsupported') return null;
+    const buf=new Float32Array(AST_TEX*AST_TEX*4);
+    try{ renderer.readRenderTargetPixels(astState.rtPA,0,0,AST_TEX,AST_TEX,buf); }catch(e){ return {error:String(e)}; }
+    let beltN=0,beltIn=0,troN=0,troIn=0,bad=0;
+    for(let i=0;i<AST_TEX*AST_TEX;i++){
+      const r=Math.hypot(buf[i*4],buf[i*4+1],buf[i*4+2]), ty=buf[i*4+3];
+      if(!isFinite(r)||r>60||r<0.1){ bad++; continue; }
+      if(ty<0.5){ beltN++; if(r>1.6&&r<4.3)beltIn++; } else { troN++; if(r>4.4&&r<6.1)troIn++; }
+    }
+    return {n:AST_TEX*AST_TEX,beltN,beltInBand:beltIn,trojanN:troN,trojanInBand:troIn,nonFinite:bad};
+  },
   selectableScreen(key){try{const s=SELECT.get(key),p=safeSelectionPos(s);if(!p)return null;const q=p.clone().project(camera),r=renderer.domElement.getBoundingClientRect();
     return {x:r.left+(q.x*.5+.5)*r.width,y:r.top+(-q.y*.5+.5)*r.height,ndc:[q.x,q.y,q.z],visible:pickWorldVisible(s.pick)};}catch(e){return null;}},
   geometryAudit(){const bad=[];scene.traverse(o=>{const a=o.geometry?.attributes?.position?.array;if(!a)return;let n=0;for(const v of a)if(!Number.isFinite(v))n++;if(n)bad.push({name:o.name||o.type,selKey:o.userData?.selKey||null,nonFinite:n,count:a.length});});return bad;},
