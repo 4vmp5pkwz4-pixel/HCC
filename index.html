@@ -1660,6 +1660,14 @@ function runSelfTests(){
     let s2=0; for(let m=-2;m<=2;m++) s2+=shY(2,m,0.7,1.3)**2;
     ok('CMB harmonics: addition theorem Σ_m Y₂ₘ² = (2·2+1)/4π (isotropic multipole variance)',
       Math.abs(s2-5/(4*Math.PI))<1e-6, s2.toFixed(4)); }
+  { // S³ IMAGING: direct + ghost geodesic lengths sum to 2π; on the great 2-sphere the two arcs meet at the pole
+    const chi=0.4*Math.PI, direct=chi, ghost=2*Math.PI-chi;
+    const P=(colat,phi)=>[Math.sin(colat)*Math.cos(phi),Math.cos(colat),Math.sin(colat)*Math.sin(phi)];
+    const pole=P(0,0), gal=P(chi,0.6);
+    ok('S³ imaging: direct + antipodal-ghost path lengths sum to 2π (once around the closed universe)',
+      Math.abs(direct+ghost-2*Math.PI)<1e-12, ((direct+ghost)/Math.PI).toFixed(4)+'π');
+    ok('S³ imaging: all geodesics from the observer reconverge at the antipode χ=π',
+      Math.abs(P(Math.PI,0)[1]-(-1))<1e-12 && Math.abs(P(Math.PI,2)[1]-(-1))<1e-12, 'antipode y=−1'); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -12615,6 +12623,75 @@ function updateCmb(dt){
   }
 }
 
+/* ================================================================
+   S³ MULTIPLE-IMAGING LAB · antipodal ghosts in a closed universe
+   (UPRS Part S³/17). In a round S³ every geodesic from the observer
+   reconverges at the ANTIPODE (comoving distance χ=π). So a galaxy is
+   reached by light along TWO arcs — the short way (length χ) and the
+   long way round the universe (length 2π−χ) — and is seen in TWO
+   OPPOSITE directions on the sky: the real image and its antipodal
+   ghost. A source sitting exactly at the antipode focuses light from
+   EVERY direction at once and images as the whole sky (a full ring).
+   Shown on the great 2-sphere of S³ (a totally geodesic slice through
+   observer and source). Honesty: no such ghost has been detected; this
+   is the geometry a compact S³ would produce, the effect surveys search
+   for and bound. */
+const mimgGroup=new THREE.Group(); mimgGroup.visible=false; s3Group.add(mimgGroup);
+const MIMG_R=2.3;
+let mimgObjs=null, mimgUiAcc=0;
+function mimgPt(colat,phi){ return new THREE.Vector3(MIMG_R*Math.sin(colat)*Math.cos(phi), MIMG_R*Math.cos(colat), MIMG_R*Math.sin(colat)*Math.sin(phi)); }
+function mimgArc(c0,p0,c1,p1,n){ const pts=[]; for(let i=0;i<=n;i++){ const t=i/n; pts.push(mimgPt(c0+(c1-c0)*t,p0+(p1-p0)*t)); } return pts; }
+function mimgClear(){ labWipe(mimgGroup); mimgObjs=null; }
+function mimgSetup(){
+  mimgClear();
+  mimgGroup.add(new THREE.AmbientLight(0x8a94b8,.7));
+  const dir=new THREE.DirectionalLight(0xdfe6ff,.5); dir.position.set(4,6,7); mimgGroup.add(dir);
+  // the great 2-sphere of S³ (a geodesic slice); observer at the north pole
+  mimgGroup.add(new THREE.Mesh(new THREE.SphereGeometry(MIMG_R,48,32),new THREE.MeshPhongMaterial({color:0x16233e,transparent:true,opacity:.22,shininess:30,side:THREE.DoubleSide})));
+  mimgGroup.add(new THREE.Mesh(new THREE.SphereGeometry(MIMG_R*1.001,36,24),new THREE.MeshBasicMaterial({color:0x2f4a72,wireframe:true,transparent:true,opacity:.12})));
+  const obs=new THREE.Mesh(new THREE.SphereGeometry(.13,16,12),new THREE.MeshBasicMaterial({color:0x8fe06a})); obs.position.copy(mimgPt(0,0)); mimgGroup.add(obs);
+  const ol=mkLabel('observer','label axis'); ol.position.copy(mimgPt(0,0)).add(new THREE.Vector3(0,.35,0)); mimgGroup.add(ol);
+  const anti=new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),new THREE.MeshBasicMaterial({color:0x556}) ); anti.position.copy(mimgPt(Math.PI,0)); mimgGroup.add(anti);
+  const al=mkLabel('antipode χ=π','label dim'); al.position.copy(mimgPt(Math.PI,0)).add(new THREE.Vector3(0,-.35,0)); mimgGroup.add(al);
+  // galaxy + its ghost image marker
+  const gal=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffd27a}));
+  const gg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.85,depthWrite:false})); gg.scale.setScalar(.9); gal.add(gg); mimgGroup.add(gal);
+  const ghost=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.85})); mimgGroup.add(ghost);
+  const gl=mkLabel('galaxy','label axis'); mimgGroup.add(gl);
+  const ghl=mkLabel('antipodal ghost','label axis'); mimgGroup.add(ghl);
+  // light-path arcs (short + long) rebuilt each UI tick, plus antipodal focusing ring
+  const shortArc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); mimgGroup.add(shortArc);
+  const longArc=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})); mimgGroup.add(longArc);
+  const ring=new THREE.Group(); mimgGroup.add(ring);
+  const tl=mkLabel('S³ MULTIPLE IMAGING · light reconverges at the antipode → every galaxy has a ghost','label const'); tl.position.set(0,3.5,0); mimgGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); mimgGroup.add(rl);
+  mimgObjs={gal,ghost,gl,ghl,shortArc,longArc,ring,readLab:rl};
+}
+function updateMimg(dt){
+  const O=mimgObjs; if(!O) return;
+  if(state.mimgAnim){ state.mimgChi=(state.mimgChi??0.4*Math.PI)+dt*0.25*(state.mimgSpeed??1); if(state.mimgChi>=Math.PI){ state.mimgChi=0.12*Math.PI; } }
+  const chi=Math.min(Math.PI-1e-3,Math.max(0.05,state.mimgChi??0.4*Math.PI)), phi=0.6;
+  O.gal.position.copy(mimgPt(chi,phi));
+  O.ghost.position.copy(mimgPt(chi,phi));   // same physical galaxy; the ghost is a second IMAGE, marked at the source too
+  O.gl.position.copy(mimgPt(chi,phi)).add(new THREE.Vector3(0,.32,0));
+  // short arc: straight along the meridian to the pole; long arc: down to south pole then up the antipodal meridian
+  O.shortArc.geometry.setFromPoints(mimgArc(chi,phi,0,phi,40)); O.shortArc.geometry.computeBoundingSphere();
+  O.longArc.geometry.setFromPoints(mimgArc(chi,phi,Math.PI,phi,30).concat(mimgArc(Math.PI,phi,0,phi+Math.PI,30))); O.longArc.geometry.computeBoundingSphere();
+  O.ghl.position.copy(mimgPt(0.35,phi+Math.PI)).add(new THREE.Vector3(0,0,0));   // the ghost appears in the OPPOSITE sky direction at the observer
+  // antipodal focusing ring: as χ→π, draw meridian arcs from many azimuths converging at the pole
+  labWipe(O.ring);
+  if(chi>0.86*Math.PI){ const nR=10; for(let k=0;k<nR;k++){ const pk=k/nR*2*Math.PI;
+    const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(mimgArc(chi,pk,0,pk,26)),new THREE.LineBasicMaterial({color:0xff9a5a,transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false})); O.ring.add(ln); } }
+  mimgUiAcc+=dt; if(mimgUiAcc>0.2){ mimgUiAcc=0;
+    const near=chi>0.94*Math.PI;
+    hudBig.textContent=near?`S³ IMAGING · χ=${(chi/Math.PI).toFixed(2)}π ≈ antipode → the galaxy images as a FULL RING across the whole sky`
+      :`S³ IMAGING · χ=${(chi/Math.PI).toFixed(2)}π · seen twice: direct (arc ${(chi/Math.PI).toFixed(2)}π) + ghost the long way (arc ${((2-chi/Math.PI)).toFixed(2)}π), opposite directions`;
+    hudSub.textContent='a closed S³ universe is like the surface of a 3-sphere: from the observer, geodesics fan out and ALL reconverge at the antipode (χ=π). A galaxy is therefore reached by light two ways — the short arc and the long way around — so it appears in two OPPOSITE directions, the real image and its fainter, older, more-redshifted antipodal ghost. A source exactly at the antipode is imaged from every direction at once: a full ring. No such ghost or matched-circle pair has been confirmed; this is precisely the signature searches for cosmic topology look for and bound.';
+    ATLAS_BUS.pub('mimg.chi',+(chi/Math.PI).toFixed(3),'π');
+    const el=ctl.querySelector('#mimgInv'); if(el) el.innerHTML=`comoving distance χ=<b>${(chi/Math.PI).toFixed(3)}π</b> · direct light path = χ·R, ghost path = (2π−χ)·R = <b>${((2-chi/Math.PI)).toFixed(3)}π</b>·R<br>the two images sit in OPPOSITE sky directions; the ghost is dimmer, older and more redshifted (it travelled farther). At χ=π the antipode focuses the whole sky into one ring — the strongest topological signature.`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -12660,6 +12737,7 @@ function setS3View(v){
   su2Group.visible     = (v==='su2');
   bhtGroup.visible     = (v==='bht');
   cmbGroup.visible     = (v==='cmb');
+  mimgGroup.visible    = (v==='mimg');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -12691,6 +12769,7 @@ function setS3View(v){
   if(v==='su2'){ su2Setup(); }
   if(v==='bht'){ bhtSetup(); }
   if(v==='cmb'){ cmbSetup(); }
+  if(v==='mimg'){ mimgSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -12702,7 +12781,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -17475,6 +17554,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
+  mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -19228,6 +19308,28 @@ function buildCtlBody(){
         <button class="btn" id="cmbToSh">→ Spherical harmonics: the Y_lm modes</button>
         <button class="btn" id="cmbToEig">→ S³ modes β: harmonics of a finite universe</button></div>
     </div>`;
+    else if(V==='mimg') body = `
+    <div class="sect"><b>Source distance — where is the galaxy?</b>
+      <div class="chips">
+        ${[['near','Nearby 0.3π'],['far','Far 0.7π'],['deep','Near antipode 0.95π'],['anti','At antipode π']].map(([k,l])=>
+          `<button class="chip" data-mimgp="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>χ / π</label>
+        <input type="range" id="mimgChi" min="0.05" max="1" step="0.01" value="${((state.mimgChi??1.2566)/Math.PI).toFixed(2)}"><span class="val" id="mimgChiV">${((state.mimgChi??1.2566)/Math.PI).toFixed(2)}π</span></div>
+      <div class="ctlrow">
+        <button class="chip ${state.mimgAnim?'on':''}" id="mimgAnim">${state.mimgAnim?'⏹ stop':'▶ approach antipode'}</button>
+        <span style="font-size:10px;color:var(--dim)">watch the two images fuse into a ring</span></div>
+    </div>
+    <div class="sect"><b>Imaging readout</b>
+      <div class="note" id="mimgInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">A round S³ is the 3-D analogue of a sphere’s surface: geodesics from any point all reconverge at the antipode (comoving distance χ=π). So light from a galaxy reaches the observer BOTH the short way (arc χ) and the long way round the universe (arc 2π−χ), and it is seen in two OPPOSITE directions — the real image and a fainter, older, more-redshifted antipodal ghost. A source exactly at the antipode focuses light from every direction into a full ring. Shown on the great 2-sphere of S³ (a totally geodesic slice). No ghost or matched-circle pair is confirmed; this is the topology signature that CMB circle-searches and lensing bound.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="mimgToLens">→ Lensing: single-mass image splitting</button>
+        <button class="btn" id="mimgToCmb">→ CMB: the finite-universe signal</button>
+        <button class="btn" id="mimgToHopf">→ Hopf fibres: the S³ it lives on</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -19601,6 +19703,7 @@ function buildCtlBody(){
         <button class="btn ${V==='su2'?'on':''}" id="v-su2">SU(2) spinor</button>
         <button class="btn ${V==='bht'?'on':''}" id="v-bht">Black-hole thermo</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
+        <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -19619,7 +19722,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -19988,6 +20091,15 @@ function buildCtlBody(){
       ctl.querySelector('#cmbRun')&&(ctl.querySelector('#cmbRun').onclick=()=>{ state.cmbRun=state.cmbRun===false; buildCtl(); });
       ctl.querySelector('#cmbToSh')&&(ctl.querySelector('#cmbToSh').onclick=()=>{ navPush(); setS3View('sh'); buildCtl(); });
       ctl.querySelector('#cmbToEig')&&(ctl.querySelector('#cmbToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
+    }
+    if(V==='mimg'){
+      const P={near:0.3,far:0.7,deep:0.95,anti:0.999};
+      ctl.querySelectorAll('[data-mimgp]').forEach(b=>b.onclick=()=>{ state.mimgChi=P[b.dataset.mimgp]*Math.PI; state.mimgAnim=false; buildCtl(); });
+      ctl.querySelector('#mimgChi')&&(ctl.querySelector('#mimgChi').oninput=e=>{ state.mimgChi=(+e.target.value)*Math.PI; state.mimgAnim=false; const v=ctl.querySelector('#mimgChiV'); if(v)v.textContent=(+e.target.value).toFixed(2)+'π'; });
+      ctl.querySelector('#mimgAnim')&&(ctl.querySelector('#mimgAnim').onclick=()=>{ state.mimgAnim=!state.mimgAnim; buildCtl(); });
+      ctl.querySelector('#mimgToLens')&&(ctl.querySelector('#mimgToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
+      ctl.querySelector('#mimgToCmb')&&(ctl.querySelector('#mimgToCmb').onclick=()=>{ navPush(); setS3View('cmb'); buildCtl(); });
+      ctl.querySelector('#mimgToHopf')&&(ctl.querySelector('#mimgToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -21380,7 +21492,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -22563,6 +22675,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateBht(dt);
     } else if(state.s3view==='cmb'){
       fbsAnimT+=dt; updateCmb(dt);
+    } else if(state.s3view==='mimg'){
+      fbsAnimT+=dt; updateMimg(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
