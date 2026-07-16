@@ -13014,7 +13014,7 @@ const BHR_VERT=`varying vec3 vPos;
 void main(){ vPos=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`;
 const BHR_FRAG=`
 precision highp float;
-uniform vec3 uCam; uniform float uTime; uniform int uSteps; uniform float uDisk;
+uniform vec3 uCam; uniform float uTime; uniform int uSteps; uniform float uDisk; uniform float uEncode;
 varying vec3 vPos;
 float hash13(vec3 p){ p=fract(p*0.1031); p+=dot(p,p.yzx+33.33); return fract((p.x+p.y)*p.z); }
 vec3 starBG(vec3 d){
@@ -13078,9 +13078,10 @@ void main(){
   }
   vec3 col=acc;
   if(captured<0.5) col+=starBG(normalize(v));
-  // filmic-ish tonemap for the HDR disk
+  // Reinhard tonemap; gamma-encode ONLY when rendering direct to canvas
+  // (uEncode=0 under the HDR composer, whose OutputPass applies sRGB once)
   col=col/(1.0+col);
-  col=pow(col,vec3(0.4545));
+  if(uEncode>0.5) col=pow(col,vec3(0.4545));
   gl_FragColor=vec4(col,1.0);
 }`;
 function bhrTraceJS(b,nSteps){   // JS twin of the shader integrator — asserted vs the exact quadrature
@@ -13105,7 +13106,7 @@ function bhrSetup(){
   const steps={fast:180,balanced:300,fine:480}[state.bhrQuality||'balanced']??300;
   const mat=new THREE.ShaderMaterial({
     vertexShader:BHR_VERT, fragmentShader:BHR_FRAG, side:THREE.BackSide, depthWrite:false,
-    uniforms:{ uCam:{value:new THREE.Vector3(0,1.5,10)}, uTime:{value:0}, uSteps:{value:steps}, uDisk:{value:state.bhrDisk===false?0:1} }
+    uniforms:{ uCam:{value:new THREE.Vector3(0,1.5,10)}, uTime:{value:0}, uSteps:{value:steps}, uDisk:{value:state.bhrDisk===false?0:1}, uEncode:{value:1} }
   });
   const dome=new THREE.Mesh(new THREE.SphereGeometry(34,48,32),mat); dome.name='GR raymarch dome'; bhrGroup.add(dome);
   const tl=mkLabel('RELATIVISTIC BLACK HOLE · every pixel is an integrated Schwarzschild null geodesic','label const','bhrAtlas'); tl.position.set(0,4.2,0); bhrGroup.add(tl);
@@ -13116,6 +13117,7 @@ function updateBhr(dt){
   const O=bhrObjs; if(!O) return;
   if(state.bhrRun!==false) bhrTime+=dt*(state.bhrSpeed??1);
   O.mat.uniforms.uTime.value=bhrTime;
+  O.mat.uniforms.uEncode.value=(state.bloomOn!==false&&!renderer.xr.isPresenting&&!bloomFailed)?0:1;
   O.mat.uniforms.uCam.value.copy(bhrGroup.worldToLocal(camera.position.clone()));
   bhrUiAcc+=dt; if(bhrUiAcc>0.25){ bhrUiAcc=0;
     hudBig.textContent='RELATIVISTIC BLACK HOLE · photon ring b=(3√3/2)Rs≈2.6 · disk ISCO 3Rs · β(ISCO)=0.5';
