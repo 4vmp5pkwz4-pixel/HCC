@@ -1618,6 +1618,20 @@ function runSelfTests(){
       Math.abs(FF-FFemp)/FFemp<0.01 && FF>0.8 && FF<0.86, FF.toFixed(4)+' vs '+FFemp.toFixed(4));
     ok('Photovoltaic: maximum-power identity Pmax = Vmp·Imp holds on the curve',
       Math.abs(Pmax-Vmp*Imp)<1e-9, (Pmax*1000).toFixed(3)+' mW'); }
+  { // SU(2)=S³: double cover (q,−q same rotation), spinor 360°→−1 / 720°→+1, SLERP geodesic
+    const mul=(a,b)=>[a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];
+    const cj=q=>[q[0],-q[1],-q[2],-q[3]], aa=(ax,th)=>{const s=Math.sin(th/2);return [Math.cos(th/2),s*ax[0],s*ax[1],s*ax[2]];};
+    const rv=(q,v)=>{const r=mul(mul(q,[0,...v]),cj(q));return [r[1],r[2],r[3]];};
+    const q=aa([0,0,1],1.2), qn=q.map(x=>-x), a=rv(q,[1,0,0]), b=rv(qn,[1,0,0]);
+    ok('SU(2)=S³ double cover: q and −q give the identical SO(3) rotation',
+      Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2])<1e-12, 'Δ='+Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]).toExponential(1));
+    const r360=aa([1,0,0],2*Math.PI), r720=aa([1,0,0],4*Math.PI);
+    ok('SU(2) spinor: 360° → −1 (not identity) but 720° → +1 (identity)',
+      Math.abs(r360[0]+1)<1e-9 && Math.abs(r720[0]-1)<1e-9, `w(360°)=${r360[0].toFixed(3)}, w(720°)=${r720[0].toFixed(3)}`);
+    const slerp=(q0,q1,t)=>{let d=q0[0]*q1[0]+q0[1]*q1[1]+q0[2]*q1[2]+q0[3]*q1[3],b1=q1.slice();if(d<0){b1=b1.map(x=>-x);d=-d;}const Om=Math.acos(Math.min(1,d)),s=Math.sin(Om);return q0.map((x,i)=>Math.sin((1-t)*Om)/s*x+Math.sin(t*Om)/s*b1[i]);};
+    const h=slerp(aa([0,0,1],0),aa([0,1,0],2.0),0.5);
+    ok('SU(2) SLERP: geodesic midpoint stays a unit quaternion on S³',
+      Math.abs(Math.hypot(h[0],h[1],h[2],h[3])-1)<1e-9, '|q|='+Math.hypot(h[0],h[1],h[2],h[3]).toFixed(8)); }
   { const e=planetEcl(PLANETS[2],0); const r=Math.hypot(e.x,e.y,e.z);
     ok('Earth |r| at J2000 ≈ 0.983 AU (perihelion season)', r>0.975&&r<0.995, r.toFixed(5)); }
   { // DEEP-TIME STABILITY: nothing flies apart at ±1 Myr — all bodies finite & in range,
@@ -12134,6 +12148,121 @@ function updatePv(dt){
   }
 }
 
+/* ================================================================
+   SU(2) SPINOR LAB · the trisphere IS the space of rotations (UPRS Part 8).
+   Every unit quaternion is a point of S³, and S³ = SU(2) double-covers the
+   rotation group SO(3): q and −q turn space the same way, so a spinor
+   needs a FULL 720° to come home while the object it carries looks the
+   same after 360°. We render the actual 3-sphere by stereographic
+   projection — the Hopf fibration’s linked circles fill it — and let a
+   rotating triad RIDE its own quaternion through S³. Stations: the double
+   cover (q vs −q), the 720° belt trick (the spinor traces a full great
+   circle), and SLERP (the geodesic between two orientations). Energy
+   honesty: this is pure geometry/topology — no dynamics, no energy claim;
+   the phenomenon is the shape of rotation space itself. */
+const su2Group=new THREE.Group(); su2Group.visible=false; s3Group.add(su2Group);
+const SU2_S=1.35;
+let su2Objs=null, su2UiAcc=0, su2Ang=0, su2T=0;
+function su2mul(a,b){ return [ a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],
+  a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+  a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],
+  a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0] ]; }
+function su2conj(q){ return [q[0],-q[1],-q[2],-q[3]]; }
+function su2axang(ax,th){ const n=Math.hypot(ax[0],ax[1],ax[2])||1, s=Math.sin(th/2); return [Math.cos(th/2),s*ax[0]/n,s*ax[1]/n,s*ax[2]/n]; }
+function su2slerp(q0,q1,t){ let d=q0[0]*q1[0]+q0[1]*q1[1]+q0[2]*q1[2]+q0[3]*q1[3]; let b=q1.slice(); if(d<0){b=b.map(x=>-x);d=-d;}
+  const Om=Math.acos(Math.min(1,d)); if(Om<1e-5) return q0.slice(); const s=Math.sin(Om), a=Math.sin((1-t)*Om)/s, c=Math.sin(t*Om)/s;
+  return q0.map((x,i)=>a*x+c*b[i]); }
+function su2stereo(q){ const d=1-q[3], k=Math.abs(d)<1e-3?(d<0?-1e-3:1e-3):d; return [q[0]/k,q[1]/k,q[2]/k]; }
+function su2quatVec(q){ // scene position of a quaternion on the projected S³
+  const p=su2stereo(q), r=Math.hypot(p[0],p[1],p[2]);
+  const f=r>9?9/r:1; return new THREE.Vector3(p[0]*SU2_S*f,p[1]*SU2_S*f,p[2]*SU2_S*f); }
+function su2Fibre(th0,ph0){ const pts=[]; let prev=null;
+  for(let i=0;i<=96;i++){ const t=i/96*2*Math.PI;
+    const q=[Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)];
+    const p=su2stereo(q), r=Math.hypot(p[0],p[1],p[2]);
+    if(r>10){ prev=null; continue; } const v=new THREE.Vector3(p[0]*SU2_S,p[1]*SU2_S,p[2]*SU2_S);
+    if(prev) pts.push(prev,v); prev=v; }
+  return pts; }
+function su2CurQ(){
+  const st=state.su2Station||'belt';
+  if(st==='slerp'){ const t=0.5-0.5*Math.cos(su2T); const q0=su2axang([0,0,1],0), q1=su2axang([0.3,1,0.2],2.4); return su2slerp(q0,q1,t); }
+  const ax=(st==='double')?[0.4,0.5,0.75]:[1,0,0]; return su2axang(ax,su2Ang);
+}
+function su2Clear(){ labWipe(su2Group); su2Objs=null; }
+function su2Setup(){
+  su2Clear(); su2Group.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dir=new THREE.DirectionalLight(0xfff2dc,.6); dir.position.set(4,6,8); su2Group.add(dir);
+  // Hopf-fibration backdrop — linked circles filling the projected 3-sphere
+  const _c=new THREE.Color();
+  if(state.su2Fibres!==false){
+    const NLAT=6, NLON=5;
+    for(let a=1;a<=NLAT;a++){ const th0=Math.PI*(a/(NLAT+1));
+      for(let b=0;b<NLON;b++){ const ph0=2*Math.PI*b/NLON;
+        const seg=su2Fibre(th0,ph0); if(!seg.length) continue;
+        _c.setHSL(0.58-0.42*(th0/Math.PI),0.75,0.55);
+        const line=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),
+          new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.20,blending:THREE.AdditiveBlending,depthWrite:false}));
+        su2Group.add(line);
+      } }
+  }
+  // traced path (belt circle / slerp arc)
+  const path=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.95,depthWrite:false}));
+  su2Group.add(path);
+  // the rotating object triad, riding its quaternion point
+  const triad=new THREE.Group();
+  triad.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(0,0,0),.62,0xff6b6b,.16,.10));
+  triad.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),.62,0x8fe06a,.16,.10));
+  triad.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,0),.62,0x6ba8ff,.16,.10));
+  const core=new THREE.Mesh(new THREE.BoxGeometry(.34,.22,.5),new THREE.MeshStandardMaterial({color:0xf4f6ff,metalness:.4,roughness:.35})); triad.add(core);
+  su2Group.add(triad);
+  // primary point q (glow) and the double-cover partner −q
+  const pMk=new THREE.Mesh(new THREE.SphereGeometry(.13,16,12),new THREE.MeshBasicMaterial({color:0xffe27a}));
+  const pGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.9,depthWrite:false})); pGlow.scale.setScalar(1.0); pMk.add(pGlow); su2Group.add(pMk);
+  const nMk=new THREE.Mesh(new THREE.SphereGeometry(.11,16,12),new THREE.MeshBasicMaterial({color:0x8fb8ff}));
+  const nGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x8fb8ff,transparent:true,opacity:.8,depthWrite:false})); nGlow.scale.setScalar(.9); nMk.add(nGlow); su2Group.add(nMk);
+  const oneL=mkLabel('1 (identity)','label axis'); oneL.position.copy(su2quatVec([1,0,0,0])).add(new THREE.Vector3(0,.32,0)); su2Group.add(oneL);
+  const negL=mkLabel('−1 (spinor at 360°)','label axis'); negL.position.copy(su2quatVec([-1,0,0,0])).add(new THREE.Vector3(0,.32,0)); su2Group.add(negL);
+  const tl=mkLabel('SU(2) SPINOR · S³ = unit quaternions double-cover SO(3) · q and −q ⇒ same rotation','label const'); tl.position.set(0,3.7,0); su2Group.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.6,0); su2Group.add(rl);
+  su2Objs={triad,pMk,nMk,path,negL,readLab:rl};
+  su2Ang=0; su2T=0;
+}
+function updateSu2(dt){
+  const O=su2Objs; if(!O) return; const st=state.su2Station||'belt';
+  if(state.su2Run!==false){ const sp=(state.su2Speed??1);
+    if(st==='slerp') su2T+=dt*sp*0.7; else su2Ang+=dt*sp*1.2; }
+  const q=su2CurQ();
+  // place & orient the triad on its quaternion point
+  O.triad.position.copy(su2quatVec(q));
+  O.triad.quaternion.set(q[1],q[2],q[3],q[0]);   // three.js (x,y,z,w)
+  O.pMk.position.copy(O.triad.position);
+  O.nMk.position.copy(su2quatVec(q.map(x=>-x))); O.nMk.visible=(st==='double');
+  O.negL.visible=(st!=='slerp');
+  // traced path
+  const pts=[];
+  if(st==='belt'||st==='double'){ const ax=st==='double'?[0.4,0.5,0.75]:[1,0,0];
+    for(let i=0;i<=160;i++){ pts.push(su2quatVec(su2axang(ax,i/160*4*Math.PI))); } }
+  else { const q0=su2axang([0,0,1],0), q1=su2axang([0.3,1,0.2],2.4);
+    for(let i=0;i<=100;i++){ pts.push(su2quatVec(su2slerp(q0,q1,i/100))); } }
+  O.path.geometry.setFromPoints(pts); O.path.geometry.computeBoundingSphere();
+  su2UiAcc+=dt; if(su2UiAcc>0.2){ su2UiAcc=0;
+    const deg=st==='slerp'?null:((su2Ang*180/Math.PI)%720);
+    const spinor=q[0]>=0?'+':'−';
+    if(st==='belt') hudBig.textContent=`SU(2) SPINOR · belt trick · object turned ${(deg).toFixed(0)}° · spinor = (${q[0].toFixed(3)}, …) → sign ${spinor}`;
+    else if(st==='double') hudBig.textContent=`SU(2) SPINOR · double cover · q and −q (gold & blue) are ANTIPODAL on S³ yet the SAME SO(3) rotation`;
+    else hudBig.textContent=`SU(2) SPINOR · SLERP · the geodesic (great-circle) interpolation between two orientations on S³`;
+    hudSub.textContent=st==='belt'
+      ? 'the object (triad) looks identical after 360°, but the spinor quaternion has only reached −1 — the antipode. It must ride the FULL great circle, 720°, before the state truly returns. This is why electrons, protons and neutrons are spin-½: their wavefunction changes sign under one full turn.'
+      : st==='double'
+      ? 'S³ wraps SO(3) twice: the gold point q and the blue point −q sit on opposite sides of the 3-sphere but rotate space identically. Rotation space is really RP³ = S³/±, and forgetting the sign is exactly forgetting the spinor.'
+      : 'spherical linear interpolation moves along the shortest great-circle arc of S³ at constant angular speed — the natural, torque-minimal way to blend two orientations (used in every animation and spacecraft attitude system). Straight-line blends leave the sphere and speed up unevenly.';
+    ATLAS_BUS.pub('su2.w',+q[0].toFixed(3),'cos(θ/2)');
+    const el=ctl.querySelector('#su2Inv'); if(el) el.innerHTML=st==='slerp'
+      ? `quaternion q=(<b>${q[0].toFixed(3)}</b>, ${q[1].toFixed(3)}, ${q[2].toFixed(3)}, ${q[3].toFixed(3)}) · |q|=${Math.hypot(...q).toFixed(4)} (unit) · geodesic on S³, constant angular speed`
+      : `object rotation = <b>${deg.toFixed(0)}°</b> · quaternion q=(<b>${q[0].toFixed(3)}</b>, ${q[1].toFixed(3)}, ${q[2].toFixed(3)}, ${q[3].toFixed(3)}) · spinor sign <b>${spinor}</b><br>q returns to +1 only after <b>720°</b>; at 360° it is at −1 (antipode). q and −q give one and the same SO(3) rotation — the double cover.`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -12176,6 +12305,7 @@ function setS3View(v){
   teGroup.visible      = (v==='te');
   gwGroup.visible      = (v==='gw');
   pvGroup.visible      = (v==='pv');
+  su2Group.visible     = (v==='su2');
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -12204,6 +12334,7 @@ function setS3View(v){
   if(v==='te'){ teSetup(); }
   if(v==='gw'){ gwSetup(); }
   if(v==='pv'){ pvSetup(); }
+  if(v==='su2'){ su2Setup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
@@ -12215,7 +12346,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[0,1.5,9]:v==='ret'?[0,0.5,9]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[0,0,8.5]:v==='bb'?[0.9,0,9]:v==='nuc'?[0,0.5,9.5]:v==='lens'?[0,0,8]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[0,0.5,9]:v==='su2'?[0,0,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -16985,6 +17116,7 @@ const state = {
   teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
   gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
+  su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
@@ -18653,6 +18785,31 @@ function buildCtlBody(){
         <button class="btn" id="pvToBb">→ Blackbody: the solar spectrum</button>
         <button class="btn" id="pvToTe">→ Thermoelectric: the other solid-state converter</button></div>
     </div>`;
+    else if(V==='su2') body = `
+    <div class="sect"><b>SU(2) spinor — station</b>
+      <div class="chips">
+        <button class="chip ${(state.su2Station||'belt')==='belt'?'on':''}" data-su2st="belt">720° belt trick</button>
+        <button class="chip ${(state.su2Station||'belt')==='double'?'on':''}" data-su2st="double">double cover q, −q</button>
+        <button class="chip ${(state.su2Station||'belt')==='slerp'?'on':''}" data-su2st="slerp">SLERP geodesic</button>
+      </div>
+      <div class="ctlrow">
+        <button class="btn green" id="su2Run">${state.su2Run!==false?'⏸ pause':'▶ run'}</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="su2Speed" min="0.2" max="3" step="0.1" value="${state.su2Speed??1}"><span class="val" id="su2SpeedV">×${(state.su2Speed??1).toFixed(1)}</span></div>
+      <div class="ctlrow"><label>Hopf fibres</label>
+        <button class="chip ${state.su2Fibres!==false?'on':''}" id="su2Fib">${state.su2Fibres!==false?'shown':'hidden'}</button>
+        <span style="font-size:10px;color:var(--dim)">the linked circles that fill S³</span></div>
+    </div>
+    <div class="sect"><b>Quaternion readout</b>
+      <div class="note" id="su2Inv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The unit quaternions form the 3-sphere S³ = SU(2), which double-covers the rotation group SO(3): q and −q are antipodal on S³ yet turn space identically. So a spinor’s state returns only after 720°, while the object it carries looks the same after 360° — the reason electrons, protons and neutrons are spin-½. The 3-sphere is drawn by stereographic projection, filled with the linked circles of the Hopf fibration, and the triad rides its own quaternion through it. Pure geometry — no energy claim; the phenomenon is the shape of rotation space.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="su2ToSpin">→ Quantum spin: the Bloch sphere it covers</button>
+        <button class="btn" id="su2ToHopfion">→ Hopfion: knotted fields on S³</button>
+        <button class="btn" id="su2ToHopf">→ Hopf fibres in the atlas core</button></div>
+    </div>`;
     else if(V==='ret') body = `
     <div class="sect"><b>Energy transfer — pick a station</b>
       <div class="chips">
@@ -19020,6 +19177,7 @@ function buildCtlBody(){
         <button class="btn ${V==='te'?'on':''}" id="v-te">Thermoelectric</button>
         <button class="btn ${V==='gw'?'on':''}" id="v-gw">Gravitational waves</button>
         <button class="btn ${V==='pv'?'on':''}" id="v-pv">Photovoltaic</button>
+        <button class="btn ${V==='su2'?'on':''}" id="v-su2">SU(2) spinor</button>
       </div>
     </div>` + body;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
@@ -19038,7 +19196,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -19373,6 +19531,16 @@ function buildCtlBody(){
       pc('pvEg',v=>state.pvEg=v,v=>v.toFixed(2)+' eV'); pc('pvConc',v=>state.pvConc=v,v=>'×'+(v|0)); pc('pvT',v=>state.pvT=v,v=>(v|0)+' K');
       ctl.querySelector('#pvToBb')&&(ctl.querySelector('#pvToBb').onclick=()=>{ navPush(); setS3View('bb'); buildCtl(); });
       ctl.querySelector('#pvToTe')&&(ctl.querySelector('#pvToTe').onclick=()=>{ navPush(); setS3View('te'); buildCtl(); });
+    }
+    if(V==='su2'){
+      ctl.querySelectorAll('[data-su2st]').forEach(b=>b.onclick=()=>{ state.su2Station=b.dataset.su2st; su2Setup(); buildCtl(); });
+      ctl.querySelector('#su2Run')&&(ctl.querySelector('#su2Run').onclick=()=>{ state.su2Run=state.su2Run===false; buildCtl(); });
+      ctl.querySelector('#su2Speed')&&(ctl.querySelector('#su2Speed').oninput=e=>{ state.su2Speed=+e.target.value;
+        const v=ctl.querySelector('#su2SpeedV'); if(v)v.textContent='×'+state.su2Speed.toFixed(1); });
+      ctl.querySelector('#su2Fib')&&(ctl.querySelector('#su2Fib').onclick=()=>{ state.su2Fibres=state.su2Fibres===false; su2Setup(); buildCtl(); });
+      ctl.querySelector('#su2ToSpin')&&(ctl.querySelector('#su2ToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
+      ctl.querySelector('#su2ToHopfion')&&(ctl.querySelector('#su2ToHopfion').onclick=()=>{ navPush(); setS3View('hopfion'); buildCtl(); });
+      ctl.querySelector('#su2ToHopf')&&(ctl.querySelector('#su2ToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='ret'){
       ctl.querySelectorAll('[data-retst]').forEach(b=>b.onclick=()=>{ state.retStation=b.dataset.retst; retSetup(); buildCtl(); });
@@ -20764,7 +20932,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -21941,6 +22109,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateGw(dt);
     } else if(state.s3view==='pv'){
       fbsAnimT+=dt; updatePv(dt);
+    } else if(state.s3view==='su2'){
+      fbsAnimT+=dt; updateSu2(dt);
     } else if(state.s3view==='atom'){
       fbsAnimT+=dt; updateAtom(dt);
     } else {
