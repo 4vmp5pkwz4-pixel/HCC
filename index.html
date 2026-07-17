@@ -11774,15 +11774,37 @@ function retSetup(){
     // resonance curve A(ω)
     const NP=120, g=new THREE.BufferGeometry(), arr=new Float32Array(NP*3);
     g.setAttribute('position',new THREE.BufferAttribute(arr,3));
-    const curve=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xf5c964})); retGroup.add(curve);
+    const curve=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xf5c964,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); retGroup.add(curve);
     const marker=new THREE.Mesh(new THREE.SphereGeometry(0.08,12,8),new THREE.MeshBasicMaterial({color:0xffffff})); retGroup.add(marker);
+    // 3-D resonance LANDSCAPE A(ω,γ): drive frequency across, damping into depth, amplitude up.
+    // The ridge is the resonance locus ω_r=√(ω₀²−γ²/2); its height F/(γω_r) is the 1/γ blow-up —
+    // the whole Q story as one surface. The live gold curve rides its own γ-slice.
+    const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(4,7,6); retGroup.add(dl);
+    const AG=1/0.06, NW=48, NG=26, sgeo=new THREE.PlaneGeometry(1,1,NW-1,NG-1);
+    const spos=sgeo.attributes.position, scol=new Float32Array(spos.count*3), _sc=new THREE.Color();
+    const zOf=gm=>0.3-2.7*(gm-0.06)/0.74;
+    for(let j=0;j<NG;j++){ const gm=0.06+0.74*j/(NG-1);
+      for(let i=0;i<NW;i++){ const idx=j*NW+i, w=0.2+1.6*i/(NW-1);
+        const Av=1/Math.sqrt((1-w*w)**2+(gm*w)**2), t=Math.min(1,Av/AG);
+        spos.setXYZ(idx,-3.4+(w-0.2)/1.6*4.0,-1.6+Math.min(1,Av/AG)*2.6,zOf(gm));
+        _sc.setHSL(0.62-0.58*Math.pow(t,0.5),0.75,0.14+0.42*Math.pow(t,0.6));
+        scol[idx*3]=_sc.r; scol[idx*3+1]=_sc.g; scol[idx*3+2]=_sc.b; } }
+    sgeo.setAttribute('color',new THREE.BufferAttribute(scol,3)); sgeo.computeVertexNormals();
+    retGroup.add(new THREE.Mesh(sgeo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.12,transparent:true,opacity:.92,side:THREE.DoubleSide})));
+    retGroup.add(new THREE.Mesh(sgeo,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.08,depthWrite:false})));
+    const ridge=[]; for(let j=0;j<NG;j++){ const gm=0.06+0.74*j/(NG-1), wr=Math.sqrt(Math.max(1e-6,1-gm*gm/2)), Ar=1/(gm*wr);
+      ridge.push(new THREE.Vector3(-3.4+(wr-0.2)/1.6*4.0,-1.6+Math.min(1,Ar/AG)*2.6+0.02,zOf(gm))); }
+    retGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),
+      new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})));
+    const gl2=mkLabel('damping γ ↘ (Q=ω₀/γ)','label axis'); gl2.position.set(-3.7,-1.5,-2.2); retGroup.add(gl2);
+    const rcl=mkLabel('resonance ridge ω_r(γ) · height ∝ 1/γ','label axis'); rcl.position.set(-1.2,1.35,-2.5); retGroup.add(rcl);
     // the oscillator itself
     const wall=new THREE.Mesh(new THREE.BoxGeometry(0.15,1.4,0.6),new THREE.MeshStandardMaterial({color:0x2a3a56,metalness:.5,roughness:.4})); wall.position.set(-3.2,1.5,0); retGroup.add(wall);
     const mass=new THREE.Mesh(new THREE.SphereGeometry(0.3,18,12),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.3,roughness:.3,emissive:0x3a2c08})); mass.position.set(-1.5,1.5,0); retGroup.add(mass);
     for(const [x,y,t] of [[-3.5,-1.6,'ω→'],[-3.5,1.7,'A(ω)']]){ const l=mkLabel(t,'label axis'); l.position.set(x,y,0); retGroup.add(l); }
     const tl=mkLabel('DRIVEN RESONANCE · A(ω)=F/√((ω₀²−ω²)²+(γω)²) · Q = ω₀/γ','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
     const rl=mkLabel('','label dim'); rl.position.set(0,-2.9,0); retGroup.add(rl);
-    retObjs={st,curve,marker,mass,NP,readLab:rl};
+    retObjs={st,curve,marker,mass,NP,readLab:rl,zOf,AG};
   } else {   // wireless
     const src=new THREE.Mesh(new THREE.TorusGeometry(0.7,0.09,10,40),new THREE.MeshStandardMaterial({color:0xf5c964,metalness:.6,roughness:.3,emissive:0x3a2c08}));
     src.position.set(-2.2,0.6,0); src.rotation.y=Math.PI/2; retGroup.add(src);
@@ -11845,10 +11867,11 @@ function updateRet(dt){
     O.mass.position.x=-1.5+retDriveX*0.9;
     const A=w=>F/Math.sqrt((w0*w0-w*w)**2+(g*w)**2);
     let amax=A(Math.sqrt(Math.max(1e-6,w0*w0-g*g/2)));
+    const zg=O.zOf(Math.min(0.8,Math.max(0.06,g)));
     const arr=O.curve.geometry.attributes.position.array;
-    for(let i=0;i<O.NP;i++){ const w=0.2+i/(O.NP-1)*1.6; arr[i*3]=-3.4+ (w-0.2)/1.6*4.0; arr[i*3+1]=-1.6+A(w)/amax*2.6; arr[i*3+2]=0; }
+    for(let i=0;i<O.NP;i++){ const w=0.2+i/(O.NP-1)*1.6; arr[i*3]=-3.4+ (w-0.2)/1.6*4.0; arr[i*3+1]=-1.6+Math.min(1,A(w)/O.AG)*2.6+0.03; arr[i*3+2]=zg; }
     O.curve.geometry.attributes.position.needsUpdate=true; O.curve.geometry.computeBoundingSphere();
-    O.marker.position.set(-3.4+(wd-0.2)/1.6*4.0, -1.6+A(wd)/amax*2.6, 0);
+    O.marker.position.set(-3.4+(wd-0.2)/1.6*4.0, -1.6+Math.min(1,A(wd)/O.AG)*2.6+0.03, zg);
     retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
       hudBig.textContent=`ENERGY TRANSFER · driven resonance · ω=${wd.toFixed(2)} · A=${A(wd).toFixed(2)} · Q=ω₀/γ=${(w0/g).toFixed(1)}`;
       hudSub.textContent='a driven damped oscillator absorbs the most energy at resonance (ω≈ω₀); the sharpness is the quality factor Q=ω₀/γ — high Q means narrow bandwidth and large stored energy, the basis of every resonant harvester and antenna';
