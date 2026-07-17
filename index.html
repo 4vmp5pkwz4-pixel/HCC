@@ -1417,6 +1417,28 @@ function runSelfTests(){
     let mx=0,n1=0; for(let i=0;i<QM_N;i++){ const d2=(pr[i]*pr[i]+pi[i]*pi[i])*QM_DX; n1+=d2; mx+=qmX(i)*d2; }
     ok('Schrödinger coherent state: ⟨x⟩(π/ω) = −x₀ within 1e-3 and ‖ψ‖ conserved <1e-9',
       Math.abs(mx+6)<1e-3 && Math.abs(n1-1)<1e-9, `⟨x⟩=${mx.toFixed(5)} ‖ψ‖²−1=${(n1-1).toExponential(1)}`); }
+  { // TWO-LEVEL HOPF LENS: the harmonic {|0⟩,|1⟩} qubit — Bloch = base of the Hopf map, precessing at ω
+    const om=0.5, c0=Math.pow(om/Math.PI,0.25);
+    const p0=new Float64Array(QM_N), p1=new Float64Array(QM_N);
+    for(let i=0;i<QM_N;i++){ const x=qmX(i); p0[i]=c0*Math.exp(-om*x*x/2); p1[i]=c0*Math.sqrt(2*om)*x*Math.exp(-om*x*x/2); }
+    let o00=0,o11=0,o01=0; for(let i=0;i<QM_N;i++){ o00+=p0[i]*p0[i]*QM_DX; o11+=p1[i]*p1[i]*QM_DX; o01+=p0[i]*p1[i]*QM_DX; }
+    ok('QM two-level: harmonic φ₀,φ₁ orthonormal (⟨0|0⟩=⟨1|1⟩=1, ⟨0|1⟩=0)',
+      Math.abs(o00-1)<1e-6 && Math.abs(o11-1)<1e-6 && Math.abs(o01)<1e-9, `${o00.toFixed(4)},${o11.toFixed(4)},${o01.toExponential(1)}`);
+    const bloch=(re,im)=>{ let a0r=0,a0i=0,a1r=0,a1i=0; for(let i=0;i<QM_N;i++){ a0r+=p0[i]*re[i]*QM_DX;a0i+=p0[i]*im[i]*QM_DX;a1r+=p1[i]*re[i]*QM_DX;a1i+=p1[i]*im[i]*QM_DX; }
+      const P0=a0r*a0r+a0i*a0i,P1=a1r*a1r+a1i*a1i,N=P0+P1||1e-12; return {nx:2*(a0r*a1r+a0i*a1i)/N,ny:2*(a0r*a1i-a0i*a1r)/N,nz:(P0-P1)/N,N}; };
+    const th=1.15, a=Math.cos(th/2), b=Math.sin(th/2);
+    const re=new Float64Array(QM_N), im=new Float64Array(QM_N); for(let i=0;i<QM_N;i++) re[i]=a*p0[i]+b*p1[i];
+    const b0=bloch(re,im);
+    ok('QM two-level: initial Bloch vector lies on S² (|n|=1) with n_z=cos θ₀',
+      Math.abs(Math.hypot(b0.nx,b0.ny,b0.nz)-1)<1e-9 && Math.abs(b0.nz-Math.cos(th))<1e-6, `|n|=${Math.hypot(b0.nx,b0.ny,b0.nz).toFixed(6)} n_z=${b0.nz.toFixed(4)}`);
+    const V=new Float64Array(QM_N); for(let i=0;i<QM_N;i++) V[i]=0.5*om*om*qmX(i)**2;
+    const dtq=0.008, T=2.0, ns=Math.round(T/dtq), az0=Math.atan2(b0.ny,b0.nx);
+    for(let s=0;s<ns;s++){ for(let i=0;i<QM_N;i++){ const ph=-V[i]*dtq/2,c=Math.cos(ph),si=Math.sin(ph); const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+      qmFFT(re,im,false); for(let i=0;i<QM_N;i++){ const k=qmK(i),ph=-k*k/2*dtq,c=Math.cos(ph),si=Math.sin(ph); const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; } qmFFT(re,im,true);
+      for(let i=0;i<QM_N;i++){ const ph=-V[i]*dtq/2,c=Math.cos(ph),si=Math.sin(ph); const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; } }
+    const b1=bloch(re,im); let daz=Math.atan2(b1.ny,b1.nx)-az0+om*T; daz=Math.atan2(Math.sin(daz),Math.cos(daz));
+    ok('QM two-level: Bloch precesses at ω=E₁−E₀ (azimuth −ωt) with fidelity 1 and n_z fixed',
+      Math.abs(daz)<0.02 && Math.abs(b1.N-1)<1e-6 && Math.abs(b1.nz-Math.cos(th))<1e-4, `Δaz_err=${daz.toFixed(4)} fid=${b1.N.toFixed(5)}`); }
   { const re=new Float64Array(QM_N),im=new Float64Array(QM_N);let nn=0;
     for(let i=0;i<QM_N;i++){re[i]=Math.exp(-qmX(i)*qmX(i)/4);nn+=re[i]*re[i]*QM_DX;}
     for(let i=0;i<QM_N;i++)re[i]/=Math.sqrt(nn);
@@ -10202,7 +10224,32 @@ function qmFFT(re,im,inv){
 }
 const QM_WX=52, QM_WP=42;
 let qmRe=null,qmIm=null,qmV=null,qmT=0,qmBuilt='',qmLines=null,qmUiAcc=0,qmX0=6,qmS0=2,
-    qmWignerPts=null,qmWignerMetric='Wigner sampling pending';
+    qmWignerPts=null,qmWignerMetric='Wigner sampling pending',qmPhi0=null,qmPhi1=null;
+const QM_TL_OM=0.5, QM_TL_THETA=1.15;   // two-level lab: harmonic ω and initial Bloch polar angle θ₀
+function qmSetTwoLevel(){
+  // Exact lowest two harmonic eigenstates φ0,φ1 (ħ=m=1). Initial state cos(θ/2)|0⟩+sin(θ/2)|1⟩ is a
+  // genuine qubit: it sloshes in the well while its Bloch vector precesses on the base S² of the Hopf
+  // map at ω=E₁−E₀, the U(1) global phase being the S¹ fibre. Fidelity stays 1 (H diagonal here).
+  const om=QM_TL_OM, c0=Math.pow(om/Math.PI,0.25);
+  qmPhi0=new Float64Array(QM_N); qmPhi1=new Float64Array(QM_N); qmV=new Float64Array(QM_N);
+  for(let i=0;i<QM_N;i++){ const x=qmX(i); qmV[i]=0.5*om*om*x*x;
+    qmPhi0[i]=c0*Math.exp(-om*x*x/2); qmPhi1[i]=c0*Math.sqrt(2*om)*x*Math.exp(-om*x*x/2); }
+  const a=Math.cos(QM_TL_THETA/2), b=Math.sin(QM_TL_THETA/2);
+  qmRe=new Float64Array(QM_N); qmIm=new Float64Array(QM_N); let nrm=0;
+  for(let i=0;i<QM_N;i++){ qmRe[i]=a*qmPhi0[i]+b*qmPhi1[i]; nrm+=qmRe[i]*qmRe[i]*QM_DX; }
+  const f=1/Math.sqrt(nrm); for(let i=0;i<QM_N;i++){ qmRe[i]*=f; qmIm[i]*=f; }
+  qmX0=0; qmS0=1;
+}
+function qmBlochVec(){
+  // Project the live ψ onto {φ0,φ1}; return the Bloch vector of the normalised two-level state.
+  // |n|=1 exactly; fid = ‖P₂ψ‖² is the fraction of ψ inside the two-level span (1 in this lab).
+  let a0r=0,a0i=0,a1r=0,a1i=0;
+  for(let i=0;i<QM_N;i++){ a0r+=qmPhi0[i]*qmRe[i]*QM_DX; a0i+=qmPhi0[i]*qmIm[i]*QM_DX;
+    a1r+=qmPhi1[i]*qmRe[i]*QM_DX; a1i+=qmPhi1[i]*qmIm[i]*QM_DX; }
+  const p0=a0r*a0r+a0i*a0i, p1=a1r*a1r+a1i*a1i, N=p0+p1||1e-12;
+  const reC=a0r*a1r+a0i*a1i, imC=a0r*a1i-a0i*a1r;    // a0* · a1
+  return {nx:2*reC/N, ny:2*imC/N, nz:(p0-p1)/N, fid:N};
+}
 function qmSetPsi(x0,k0,s){
   qmRe=new Float64Array(QM_N); qmIm=new Float64Array(QM_N); let nrm=0;
   for(let i=0;i<QM_N;i++){ const g=Math.exp(-((qmX(i)-x0)**2)/(4*s*s));
@@ -10252,6 +10299,7 @@ function qmSetup(){
   if(M==='harmonic'){ const om=0.5; for(let i=0;i<QM_N;i++) qmV[i]=0.5*om*om*qmX(i)**2; qmSetPsi(6,0,1/Math.sqrt(2*om)); }
   else if(M==='barrier'){ const V0=state.qmV0??1.5; for(let i=0;i<QM_N;i++) qmV[i]=Math.abs(qmX(i))<0.5?V0:0; qmSetPsi(-16,state.qmK0??1.4,3); }
   else if(M==='well'){ for(let i=0;i<QM_N;i++){ const u=qmX(i)/7; qmV[i]=0.9*(u*u-1)*(u*u-1); } qmSetPsi(-7,0,1.6); }
+  else if(M==='twolevel'){ qmSetTwoLevel(); }                    // exact two-level qubit — the Hopf lens
   else { qmSetPsi(-15,state.qmK0??1.0,2); }                       // free
   if(!qmLines){
     const mk=(col,op)=>{ const g=new THREE.BufferGeometry();
@@ -10265,10 +10313,36 @@ function qmSetup(){
     qmWignerPts=new THREE.Points(wg,new THREE.PointsMaterial({size:MOBILE_GPU ? .055 : .04,vertexColors:true,
       transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));
     qmWignerPts.name='Wigner phase-space tomography';qmGroup.add(qmWignerPts);
+    // ── Hopf lens: the two-level state as a point on the Bloch sphere (base of S³→S²) with its live fibre ──
+    const HP=new THREE.Group(); qmGroup.add(HP);
+    const Rb=1.5, cen=new THREE.Vector3(3.9,0.7,0);
+    const bloch=new THREE.Group(); bloch.position.copy(cen); HP.add(bloch);
+    bloch.add(new THREE.Mesh(new THREE.SphereGeometry(Rb,36,24),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.13})));
+    bloch.add(new THREE.Mesh(new THREE.SphereGeometry(Rb*0.995,40,28),new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.2,shininess:40,side:THREE.BackSide})));
+    bloch.add(new THREE.AmbientLight(0x8090b0,.7)); { const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); bloch.add(dl); }
+    const eq=[]; for(let i=0;i<=90;i++){const a=i/90*2*Math.PI; eq.push(new THREE.Vector3(Rb*Math.cos(a),0,Rb*Math.sin(a)));}
+    bloch.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(eq),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.35})));
+    for(const [ax,lab] of [[[0,1,0],'|0⟩'],[[0,-1,0],'|1⟩'],[[1,0,0],'|+⟩'],[[0,0,1],'|+i⟩']]){ const l=mkLabel(lab,'label axis'); l.position.set(ax[0]*(Rb+0.32),ax[1]*(Rb+0.32),ax[2]*(Rb+0.32)); bloch.add(l); }
+    const bArrow=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),Rb,0xffd27a,Rb*0.13,Rb*0.08); bloch.add(bArrow);
+    const bTip=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xfff1c0}));
+    const bGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.85,depthWrite:false})); bGlow.scale.setScalar(.7); bTip.add(bGlow); bloch.add(bTip);
+    const trg=new THREE.BufferGeometry(); trg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(500*3),3)); trg.setDrawRange(0,0);
+    const bTrail=new THREE.Line(trg,new THREE.LineBasicMaterial({color:0x9fe8d8,transparent:true,opacity:.7})); bloch.add(bTrail);
+    // Hopf-fibre companion (the S³ total space, stereographic): faint family + the live fibre over the state
+    const fib=new THREE.Group(); fib.position.set(cen.x,cen.y-3.15,0); fib.scale.setScalar(0.42); HP.add(fib);
+    const _c=new THREE.Color();
+    for(let aa=1;aa<=4;aa++){ const th0=Math.PI*aa/5; for(let bb=0;bb<4;bb++){ const ph0=2*Math.PI*bb/4;
+      const seg=spinHopfFibre(th0,ph0); if(!seg.length) continue; _c.setHSL(0.58-0.4*(th0/Math.PI),0.6,0.5);
+      fib.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.13,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+    const liveFib=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); fib.add(liveFib);
+    const hl1=mkLabel('which-level qubit · Bloch = base of the Hopf map S³→S²','label axis'); hl1.position.set(cen.x,cen.y+2.35,0); HP.add(hl1);
+    const hl2=mkLabel('Hopf fibre of |ψ⟩ · winds with the U(1) phase','label dim'); hl2.position.set(cen.x,cen.y-4.55,0); HP.add(hl2);
+    qmLines.hopf={grp:HP,arrow:bArrow,tip:bTip,trail:bTrail,liveFib,Rb,trailPts:[]};
     const t1=mkLabel('QUANTUM WAVE LAB · iψ̇ = −½ψ″ + Vψ · split-step Fourier','label const','qmAtlas'); t1.position.set(0,4.6,0); qmGroup.add(t1);
     const t2=mkLabel('blue helix: (Re ψ, Im ψ) · gold: |ψ|² · silver: V(x) · ħ = m = 1','label dim'); t2.position.set(0,-3.6,0); qmGroup.add(t2);
     const t3=mkLabel('WIGNER TOMOGRAPHY · x × p × signed W(x,p) · gold positive · cyan negative','label dim','qmWigner'); t3.position.set(0,-3.15,-3.4); qmGroup.add(t3);
   }
+  if(qmLines.hopf) qmLines.hopf.grp.visible=(M==='twolevel'&&state.qmHopf!==false);
   qmUpdateWigner();
 }
 function qmStepN(n){
@@ -10299,7 +10373,21 @@ function updateQm(dt){
     const d2=(qmRe[i]*qmRe[i]+qmIm[i]*qmIm[i]);
     dp[i*3]=x; dp[i*3+1]=d2*A2; dp[i*3+2]=0;
     pp[i*3]=x; pp[i*3+1]=Math.min(qmV[i],3.2)*0.85; pp[i*3+2]=0; }
-  for(const l of Object.values(qmLines)) l.geometry.attributes.position.needsUpdate=true;
+  for(const l of [qmLines.helix,qmLines.dens,qmLines.pot]) l.geometry.attributes.position.needsUpdate=true;
+  // Hopf lens: drive the Bloch vector + live fibre from the live two-level projection of ψ
+  if(qmLines.hopf && qmLines.hopf.grp.visible && qmPhi0){
+    const H=qmLines.hopf, b=qmBlochVec(), Rb=H.Rb;
+    const dir=new THREE.Vector3(b.nx,b.nz,b.ny);                 // Bloch→scene (z-up → y-up), matches bellMap
+    if(dir.lengthSq()>1e-9){ dir.normalize();
+      H.arrow.setDirection(dir); H.tip.position.copy(dir).multiplyScalar(Rb);
+      H.trailPts.push(dir.x*Rb,dir.y*Rb,dir.z*Rb); if(H.trailPts.length>750) H.trailPts.splice(0,H.trailPts.length-750);
+      const tp=H.trail.geometry.attributes.position.array, m=Math.min(250,H.trailPts.length/3);
+      for(let i=0;i<m;i++){ const s=H.trailPts.length-3*m+3*i; tp[i*3]=H.trailPts[s]; tp[i*3+1]=H.trailPts[s+1]; tp[i*3+2]=H.trailPts[s+2]; }
+      H.trail.geometry.setDrawRange(0,m); H.trail.geometry.attributes.position.needsUpdate=true;
+      const th0=Math.acos(Math.max(-1,Math.min(1,b.nz))), ph0=Math.atan2(b.ny,b.nx);
+      H.liveFib.geometry.setFromPoints(spinHopfFibre(th0,ph0)); H.liveFib.geometry.computeBoundingSphere();
+    }
+  }
   // invariants + mode-specific closed-form comparison at UI cadence
   qmUiAcc+=dt;
   if(qmUiAcc>0.3){ qmUiAcc=0;if(state.qmWigner!==false)qmUpdateWigner();
@@ -10318,12 +10406,14 @@ function updateQm(dt){
       const k0=state.qmK0??1.4, E=k0*k0/2, V0=state.qmV0??1.5;
       let an='—'; if(E<V0){ const kap=Math.sqrt(2*(V0-E)); an=(1/(1+(V0*V0*Math.sinh(kap*1.0)**2)/(4*E*(V0-E)))).toFixed(3); }
       extra=` · transmitted ∫|ψ|² = ${Tt.toFixed(3)} (plane-wave T = ${an}; packet has energy spread — declared)`; }
+    else if(qmBuilt==='twolevel'){ const b=qmBlochVec();
+      extra=` · ⟨σ_z⟩ = ${b.nz.toFixed(3)} · Bloch (${b.nx.toFixed(2)},${b.ny.toFixed(2)},${b.nz.toFixed(2)}) |n|=${Math.hypot(b.nx,b.ny,b.nz).toFixed(3)} · precession ω=E₁−E₀=${QM_TL_OM} · two-level fidelity ${b.fid.toFixed(4)}`; }
     ATLAS_BUS.pub('qm.E',+(ke+pe).toFixed(5),'ħω units');
     ATLAS_BUS.pub('qm.normDrift',+(nrm-1).toExponential(1),'');
     const el=ctl.querySelector('#qmInv');
     if(el) el.innerHTML=`t = ${qmT.toFixed(2)} · ⟨E⟩ = ${(ke+pe).toFixed(5)} (monitored) · ‖ψ‖² = 1 ${(nrm-1)>=0?'+':'−'} ${Math.abs(nrm-1).toExponential(1)}${extra}`+
       (state.qmWigner!==false?`<br>${qmWignerMetric} · sampled phase-space visualization, not a continuum integral`:``);
-    hudBig.textContent=`QUANTUM WAVE LAB · ${({harmonic:'coherent state — the quantum pendulum',free:'free packet — dispersion',barrier:'tunnelling through a barrier',well:'double well — coherent tunnelling'})[qmBuilt]}`;
+    hudBig.textContent=`QUANTUM WAVE LAB · ${({harmonic:'coherent state — the quantum pendulum',free:'free packet — dispersion',barrier:'tunnelling through a barrier',well:'double well — coherent tunnelling',twolevel:'two-level qubit — the Hopf lens'})[qmBuilt]}`;
     hudSub.textContent=`split-step Fourier (512 pts, dt=0.008) · norm drift ${Math.abs(nrm-1).toExponential(1)} · ⟨E⟩ = ${(ke+pe).toFixed(4)} · ħ=m=1${extra}`;
   }
 }
@@ -18728,7 +18818,7 @@ const state = {
   phaseLock:null, phaseRate:0, vecPlanetOn:{},        // stroboscopic phase lock · per-planet velocity arrows (default OFF)
   motionLabDrive:false,                               // phone tilt drives the active laboratory's main parameter
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
-  qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, // Quantum wave lab
+  qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, qmHopf:true, // Quantum wave lab
   qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab
   topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
   scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
@@ -20094,9 +20184,13 @@ function buildCtlBody(){
     <div class="sect"><b>Quantum wave — pick a scenario</b>
       <div class="chips">
         ${[['harmonic','Coherent state · quantum pendulum'],['free','Free packet · dispersion'],
-           ['barrier','Tunnelling · barrier'],['well','Double well']].map(([k,l])=>
+           ['barrier','Tunnelling · barrier'],['well','Double well'],['twolevel','Two-level qubit · Hopf lens']].map(([k,l])=>
           `<button class="chip ${state.qmMode===k?'on':''}" data-qmmode="${k}">${l}</button>`).join('')}
       </div>
+      ${state.qmMode==='twolevel'?`
+      <div class="ctlrow"><label>Hopf lens</label>
+        <button class="chip ${state.qmHopf!==false?'on':''}" id="qmHopf">${state.qmHopf!==false?'Bloch + fibre shown':'hidden'}</button>
+        <span style="font-size:10px;color:var(--dim)">ψ=(|0⟩+|1⟩)/√2 sloshes ⇒ the Bloch point precesses on the base S² at ω</span></div>`:''}
       <div class="ctlrow">
         <button class="btn green" id="qmRun">${state.qmRun?'⏸ pause':'▶ run'}</button>
         <button class="btn" id="qmReset">↺ restart</button>
@@ -21254,6 +21348,8 @@ function buildCtlBody(){
         const v=ctl.querySelector('#qmSpeedV'); if(v)v.textContent='×'+state.qmSpeed.toFixed(1); });
       ctl.querySelector('#qmWigner')&&(ctl.querySelector('#qmWigner').onchange=e=>{state.qmWigner=e.target.checked;
         if(qmWignerPts)qmWignerPts.visible=state.qmWigner;});
+      ctl.querySelector('#qmHopf')&&(ctl.querySelector('#qmHopf').onclick=()=>{ state.qmHopf=state.qmHopf===false;
+        if(qmLines&&qmLines.hopf) qmLines.hopf.grp.visible=(state.qmMode==='twolevel'&&state.qmHopf!==false); buildCtl(); });
       const qs2=(id,f)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(2); }; el.onchange=()=>qmSetup(); } };
       qs2('qmK0',v=>state.qmK0=v); qs2('qmV0',v=>state.qmV0=v);
