@@ -738,6 +738,7 @@
 <div id="panelDock" aria-label="Panel dock">
   <button id="togglePanels" class="btn panel-close-all" title="Close active panel (Esc)">×</button>
   <button id="resetViewBtn" class="btn" title="Recover and reset the active 3D view">↺ View</button>
+  <button id="modelReturnBtn" class="btn" style="display:none" title="Return to the exact camera, scale and epoch before opening the laboratory">↩ Return to atlas</button>
   <button id="shotBtn" class="btn" title="Save a framed render of the current view (max quality)">📸 Shot</button>
   <button class="btn" data-panel="navPanel" title="Atlas Navigator · N">🧭 Navigator</button>
   <button class="btn" data-panel="ctl" title="Controls · C">⚙ Controls</button>
@@ -751,6 +752,7 @@
   <button class="btn" data-panel="selCard" title="Current selection · S" style="display:none">Selection</button>
 </div>
 <div id="mBtns">
+  <button class="btn" id="modelReturnMobileBtn" style="display:none">↩ Return</button>
   <button class="btn" id="mCtl">⚙ Controls</button>
   <button class="btn" id="mInfo">ⓘ Info</button>
   <button class="btn" id="mObj">⌘ Objects</button>
@@ -1875,6 +1877,18 @@ function runSelfTests(){
   ok('M31 centre is ~1.60 million Oort outer radii away',
     eps(GAL_DATA.m31.pos.length()/OORT.OUTER_AU,1.604e6,3e-3),
     (GAL_DATA.m31.pos.length()/OORT.OUTER_AU).toExponential(4));
+  ok('Milky Way and Andromeda centres contain dual-scale black-hole models',
+    GALACTIC_BH_MODELS.length===2&&gcBHModel.parent===milkyWayPhysical&&m31BHModel.parent===m31Physical&&
+      GALACTIC_BH_MODELS.every(m=>m.userData.physicalRoot&&m.userData.semanticRoot&&m.userData.axes),
+    GALACTIC_BH_MODELS.map(m=>m.userData.id).join(', '));
+  ok('Embedded galactic horizons preserve the exact Schwarzschild AU scale',
+    GALACTIC_BH_MODELS.every(m=>eps(m.userData.rsAU,
+      2*GAL_BH_G*(m.userData.massSolar*GAL_BH_MSUN)/(GAL_BH_C*GAL_BH_C)/GAL_BH_AU,1e-12)),
+    GALACTIC_BH_MODELS.map(m=>`${m.userData.id}:${m.userData.rsAU.toPrecision(6)} AU`).join(' · '));
+  ok('Galactic black-hole disk phases are deterministic functions of the deep-time epoch',
+    GALACTIC_BH_MODELS.every(m=>{const p=m.userData.iscoPeriodDays,a=galacticBHPhase(m,123.456),b=galacticBHPhase(m,123.456+p);
+      return Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(Math.sin(a)-Math.sin(b))<1e-9;}),
+    'phase = 2π mod(epoch,T_ISCO)/T_ISCO; no frame-rate drift');
   { const gc=galacticRaDec(0,0);
     ok('Galactic→equatorial transform recovers Galactic centre',
       Math.abs(gc.ra-266.4051)<.001&&Math.abs(gc.dec+28.9362)<.001,
@@ -2415,6 +2429,13 @@ function runSelfTests(){
     (()=>{ try{ return [...SELECT.keys()].every(k=>{ const u=wikiUrl(k,SELECT.get(k));
       return typeof u==='string' && /^https:\/\/[a-z.]*wikipedia\.org\//.test(u); }); }catch(e){ return false; } })(),
     'wikiUrl resolves for all objects, no exception');
+  ok('Every selectable object exposes a rich scientific passport (12+ distinct fields)',
+    (()=>{ try{ return [...SELECT].every(([k,s])=>objectDetailRows(k,s).length>=12); }catch(e){ return false; } })(),
+    'identity, evidence, accuracy, coordinates, domain, uncertainty, predictive scope, equations, sources, relations, limitations and Wikipedia');
+  ok('Every coordinate-bound compact-object portal resolves to a registered 3D laboratory',
+    (()=>{ try{ return Object.entries(MODEL_PORTALS).every(([base,p])=>SELECT.has(p.labKey)&&(!p.secondary||SELECT.has(p.secondary[0]))&&
+      (SELECT.has(base)||SELECT.has('cosmos_'+base)||SELECT.has('solarCosmic_'+base))); }catch(e){ return false; } })(),
+    'catalogue coordinates remain observational; explicit model actions open reversible parameter-initialized laboratories');
   ok('Dual-focus cinematic orbit is camera/UI-only and never mutates scientific data',
     (()=>{ try{ const before=INTERACTION.scientificSnapshot(getAtlasEntityContract);
       toggleOrbit(); toggleOrbit();   // net no-op toggle of the orbit state
@@ -3164,7 +3185,7 @@ function updateSelectionLinks(){
 }
 
 const selCard = document.getElementById('selCard');
-let selCardExpanded=false;   // remembers whether the user expanded the selection card
+let selCardExpanded=true;    // scientific passport is visible on first selection; user may collapse it
 (()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>{
   selCardExpanded=!selCardExpanded; selCard.classList.toggle('collapsed',!selCardExpanded); }); })();
 const selMarker = (()=>{   // pulsing ring marker that tracks the selected object
@@ -3319,9 +3340,39 @@ function togglePhysDebug(){
   else { if(el) el.style.display='none'; if(_physDebugTimer){ clearInterval(_physDebugTimer); _physDebugTimer=null; } }
   if(panelIsOpen('atlasPanel')) renderAtlasPanel();
 }
+function objectDetailRows(key,s){
+  if(!s)return [];
+  let base=[];try{base=s.rows?s.rows():[];}catch(e){base=[['Runtime readout','temporarily unavailable: '+String(e?.message||e)]];}
+  const c=getAtlasEntityContract(key), q=c.quality, rels=getObjectRelations(key);
+  const predictive=q.evidence_class==='observation'?'literature-constrained object; prediction requires an explicit fitted model':
+    q.evidence_class==='reference-model'?'deterministic inside the declared equations, inputs and validity domain':
+    q.evidence_class==='probabilistic-reconstruction'?'probabilistic reconstruction; propagate catalogue and model uncertainty':
+    'explanatory/reference simulation; not calibrated for predictive use';
+  const src=(s.src||[]).map(t=>(SOURCE_MAP[t]?.label||t)).join(' · ')||'No external dataset assigned';
+  const formulas=(s.formulas||[]).slice(0,4).join(' · ')||'See active laboratory equations and runtime contract';
+  const extra=[
+    ['Registry ID',key],['Scientific object class',c.identity.semantic_type],
+    ['Evidence class',q.evidence_class],['Accuracy tier',`${q.accuracy_tier} — ${q.accuracy_tier_meaning}`],
+    ['Coordinate frame',c.space.coord_frame],['Quantity / unit',`${c.physics.quantity_kind} · ${c.physics.unit}`],
+    ['Valid time / domain',c.time.valid_time],['Catalogue status',q.catalogue_status],
+    ['Uncertainty status',c.uncertainty.semantics],['Predictive scope',predictive],
+    ['Governing relations',formulas],['Primary references',src],
+    ['Typed connections',`${rels.length} registered relation${rels.length===1?'':'s'}`],
+    ['Known limitations',(q.known_limitations||[]).slice(0,3).join(' · ')],
+    ['Wikipedia reference',wikiUrl(key,s).includes('/Special:Search?')?'curated Wikipedia search link below':'direct article link below']
+  ];
+  const portal=typeof portalForKey==='function'?portalForKey(key):null;
+  if(portal)extra.push(['Coordinate-bound 3D model',`${portal.label}; double-click/tap only approaches, while the explicit model action opens a reversible laboratory view`]);
+  const originPortal=state.modelPortalOrigin&&portalForKey(state.modelPortalOrigin);
+  if(originPortal&&(originPortal.labKey===key||originPortal.secondary?.[0]===key))
+    extra.push(['Opened from atlas coordinate',`${state.modelPortalOrigin}; observational coordinates preserved in the source object contract`]);
+  const out=[],seen=new Set();
+  for(const row of [...base,...extra]){const label=String(row?.[0]??'').trim().toLowerCase();if(!label||seen.has(label))continue;seen.add(label);out.push(row);}
+  return out;
+}
 function updateSelCard(){
   const s = SELECT.get(selectedKey); if(!s) return;
-  const rows = s.rows ? s.rows() : [];
+  const rows = objectDetailRows(selectedKey,s);
   document.getElementById('selTable').innerHTML =
     rows.map(([k,v])=>`<tr><td>${esc(k)}</td><td>${esc(v)}</td></tr>`).join('');
 }
@@ -3370,7 +3421,7 @@ function renderSelectionRelations(){
   lb.classList.toggle('green',selectionLinksEnabled);
 }
 document.getElementById('selClear').onclick = ()=>selectKey(null);
-document.getElementById('selFocus').onclick = ()=>{ const s=SELECT.get(selectedKey); if(s) focusOn(s); };
+document.getElementById('selFocus').onclick = ()=>{ const s=SELECT.get(selectedKey); if(s){ if(portalForKey(selectedKey))dblFocus(selectedKey);else focusOn(s); } };
 document.getElementById('selLand').onclick  = ()=>{ const s=SELECT.get(selectedKey); if(s?.planetIdx!==undefined) landOn(s.planetIdx); };
 document.getElementById('selLinks').onclick=()=>{
   selectionLinksEnabled=!selectionLinksEnabled; rebuildSelectionLinks(); renderSelectionRelations();
@@ -4012,7 +4063,7 @@ registerPanelRenderer('objectPanel',renderObjectPanel);
 registerPanelRenderer('atlasPanel',renderAtlasPanel);
 
 /* camera focus: smooth fly-to + continuous follow */
-let focusAnim = null, followSel = null;
+let focusAnim = null, followSel = null, pendingModelPortalKey = null;
 function focusOn(s){
   const target=safeSelectionPos(s); if(!target) return;
   const rawDist=typeof s.focusDist==='function'?s.focusDist():(s.focusDist??1);
@@ -4181,7 +4232,7 @@ function canvasDoubleActivate(e){
   if(state.landed) return;
   const ndc=canvasNDC(e.clientX,e.clientY);raycaster.setFromCamera(ndc,camera);
   const registeredHit=raycaster.intersectObjects(collectVisiblePicks(),true)[0],registeredKey=selectionKeyFromHit(registeredHit);
-  if(registeredKey){const s=SELECT.get(registeredKey);selectKey(registeredKey);focusOn(s);return;}
+  if(registeredKey){dblFocus(registeredKey);return;}
   if(state.mode==='fractal'){
     // modeling-app navigation for the 3D bifurcation bridge: double-click any point of
     // the structure to make it the ORBIT CENTRE — rotation/zoom then pivot around it.
@@ -4724,20 +4775,37 @@ function starSpriteTex(){
   const bins = [[1.0,10],[1.8,7.5],[2.6,5.6],[3.4,4.2],[9,3.1]];
   const binPos = bins.map(()=>[]), binCol = bins.map(()=>[]);
   const defCol = new THREE.Color('#e9eeff');
-  for(const con of CONSTELLATIONS){
+  CONSTELLATIONS.forEach((con,ci)=>{
     con.dirs = con.s.map(st=>raDecDir(st[0],st[1]));
     con.s.forEach((st,i)=>{
       const d = con.dirs[i], b = bins.findIndex(bb=>st[2]<bb[0]);
       const col = st[4] ? new THREE.Color(st[4]) : defCol;
       binPos[b].push(d.x*RSKY, d.y*RSKY, d.z*RSKY);
       binCol[b].push(col.r, col.g, col.b);
+      let lab=null;
       if(st[3] && st[2]<1.7){
-        const lab = mkLabel(st[3], 'label star');
+        lab = mkLabel(st[3], 'label star');
         lab.position.copy(d).multiplyScalar(RSKY*1.012);
         starsGroup.add(lab);
       }
+      if(st[3]){
+        const key='star_'+st[3].toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+        const pick=new THREE.Mesh(new THREE.SphereGeometry(RSKY*.012,10,7),
+          new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
+        pick.position.copy(d).multiplyScalar(RSKY);starsGroup.add(pick);
+        registerSel(key,{name:st[3],mode:'solar',pick,labelEl:lab?.element,wiki:st[3],src:['IAU','DERIVED'],
+          accuracyTier:'B',catalogueStatus:'embedded-sky-chart',coords:{frame:'ICRS_J2000_RA_DEC',raDeg:st[0]*15,decDeg:st[1]},
+          desc:`Named star in ${con.n}, selectable at its embedded J2000 sky direction. The celestial sphere preserves direction; distance and stellar radius are not encoded by this directional layer.`,
+          formulas:['ICRS direction = (cos δ cos α, sin δ, cos δ sin α)','apparent magnitude is a logarithmic flux indicator; it is not distance'],
+          forbiddenClaims:['the celestial-sphere radius is the star distance','marker size is stellar radius','a blackbody reference model is a full stellar-atmosphere solution'],
+          getPos:()=>d.clone().multiplyScalar(RSKY),focusDist:()=>RSKY*.12,
+          rows:()=>[['Constellation',con.n],['ICRS J2000',`RA ${st[0].toFixed(3)} h · Dec ${st[1].toFixed(2)}°`],['Apparent magnitude',st[2].toFixed(2)],['Sky-layer radius','directional / non-metric']]});
+        EXPLICIT_RELATIONS.push([key,'con'+ci,'constellation membership',`${st[3]} is drawn at its J2000 direction inside the ${con.n} figure; the relation is angular, not a distance measurement.`]);
+        if(['star_sirius','star_betelgeuse','star_rigel'].includes(key))
+          EXPLICIT_RELATIONS.push([key,'bbAtlas','star → spectral reference model','The measured sky direction opens a temperature-initialized ideal blackbody reference; real stellar atmospheres contain spectral lines and departures from an ideal Planck emitter.']);
+      }
     });
-  }
+  });
   bins.forEach((bb,i)=>{
     if(!binPos[i].length) return;
     const g = new THREE.BufferGeometry();
@@ -5756,15 +5824,19 @@ function cosmicDust(s,r){
     transparent:true,opacity:isVoid?0.32:0.62,depthWrite:false,blending:THREE.AdditiveBlending}));
 }
 function updateCosmicDust(){ const on=state.showCosmicDust!==false;
-  COSMOS_DUST.forEach(g=>{ if(g.userData.dust) g.userData.dust.visible=on;
-    if(g.userData.body) g.userData.body.visible=!on; }); }   // dust ⇄ wireframe
+  COSMOS_DUST.forEach(g=>{ if(g.userData.dust){ g.userData.dust.visible=on;
+      if(g.userData.body) g.userData.body.visible=!on; }
+    else if(g.userData.body) g.userData.body.visible=true; }); }   // dust ⇄ wireframe
 const cosmosSightPos=[], cosmosSightCol=[];   // all structure→observer sightlines merged into ONE draw call
 for(const s of COSMOS){
   const dist = s.dGly!=null ? s.dGly : comovingGly(s.z);
   const dir = raDecDir(s.ra/15, s.dec), g = new THREE.Group();
   g.position.copy(dir).multiplyScalar(dist); cosmosGroup.add(g);
   COSMOS_GROUPS.set(s.key,g); COSMOS_POS.set(s.key,g.position.clone());
-  const r = Math.max(s.size/2, 0.06);
+  const isCompact=s.type==='compact'||/black-hole|AGN|little red dot/i.test(s.type||'');
+  // Compact objects use a bounded semantic marker tied to distance. Their physical
+  // horizon is many orders below this atlas resolution and is never drawn to scale here.
+  const r = isCompact?THREE.MathUtils.clamp(dist*.006,2e-6,.018):Math.max(s.size/2,0.06);
   let body;
   if(s.type==='ring'){
     body=new THREE.Mesh(new THREE.TorusGeometry(r, Math.max(r*0.04,0.02), 8, 64), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.9}));
@@ -5782,7 +5854,7 @@ for(const s of COSMOS){
       new THREE.MeshBasicMaterial({color:0x04050b,transparent:true,opacity:.42,side:THREE.BackSide,depthWrite:false}));
     hollow.userData.noGrade=true;   // the void's dark interior is the grammar of ABSENCE — never colour-graded
     g.add(hollow);
-  } else if(s.type==='compact'){
+  } else if(isCompact){
     body=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*0.45,0.028),12,9), new THREE.MeshBasicMaterial({color:s.col}));
     const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:s.col,transparent:true,opacity:.85,depthWrite:false}));
     glow.scale.setScalar(Math.max(r*4.5,0.24)); glow.userData.noGrade=true; g.add(glow);
@@ -5803,11 +5875,11 @@ for(const s of COSMOS){
   // "you are here" pin rather than a fixed-size blob that dwarfs small/distant structures
   // and visually fuses with neighbouring markers when several giant structures cluster in
   // the same sky direction (Laniakea / Great Attractor / Shapley / Dipole Repeller region).
-  const dotR=THREE.MathUtils.clamp(r*0.16, 0.03, 0.11);
+  const dotR=isCompact?Math.max(r*.55,1.2e-6):THREE.MathUtils.clamp(r*0.16,0.03,0.11);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot);
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
-  const dust=cosmicDust(s,r); g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
-  body.visible=true; dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
+  const dust=isCompact?null:cosmicDust(s,r); if(dust)g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
+  body.visible=true; if(dust)dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
   COSMOS_DUST.push(g);
   { const p=g.position, c=new THREE.Color(s.col);   // sightline segment: structure → observer (origin)
     cosmosSightPos.push(p.x,p.y,p.z, 0,0,0); cosmosSightCol.push(c.r,c.g,c.b, c.r,c.g,c.b); }
@@ -5821,7 +5893,7 @@ for(const s of COSMOS){
     ...(s.dataProvenance?{dataProvenance:{...s.dataProvenance}}:{}),
     coords:{frame:'ICRS_J2000_RA_DEC',raDeg:s.ra,decDeg:s.dec,z:s.z},
     desc:`${s.name} — ${s.note}. Placed at ΛCDM comoving distance ${dist.toFixed(2)} Gly (flat, H0=67.4, Ωm=0.315). ${s.reconstruction?'The marker is a reconstruction/display anchor: basin boundary and flow convergence are probabilistic and scale-dependent.':s.centroidKnown===false?'The direction is an explicitly labelled field midpoint, not a structure centroid; no precise 3D ring is asserted.':'Direction is the cited approximate centre of this extended structure.'} Observational context only; not a topology claim.`,
-    getPos:()=>g.position.clone(), focusDist:()=>Math.max(r*3,1.2),
+    getPos:()=>g.position.clone(), focusDist:()=>isCompact?Math.max(r*7,dist*.0015,2e-6):Math.max(r*3,1.2),
     rows:()=>[ ['Type',s.type], ['Sky direction','RA '+(s.ra/15).toFixed(2)+'h · Dec '+s.dec.toFixed(1)+'°'],
       ...(s.galLon!=null?[['Galactic direction',`l ${s.galLon.toFixed(1)}° · b ${s.galLat.toFixed(1)}°`]]:[]),
       ...(s.z!=null?[['Redshift z',s.z.toFixed(3)]]:[]),
@@ -6096,9 +6168,9 @@ const solarDeepGroup=new THREE.Group(); solarGroup.add(solarDeepGroup);
 const solarGalacticGroup=new THREE.Group(), solarCosmicGroup=new THREE.Group();
 solarDeepGroup.add(solarGalacticGroup,solarCosmicGroup);
 const GAL_DATA={
-  gc:{name:'Milky Way centre · Sgr A*',ra:266.4051,dec:-28.936175,distLy:26700,col:0xffd48a},
+  gc:{name:'Milky Way centre · Sgr A*',ra:266.4051,dec:-28.936175,distLy:26700,col:0xffd48a,bhMassSolar:4.15e6},
   pole:{ra:192.8595,dec:27.1283},
-  m31:{name:'Andromeda centre · M31',ra:10.684708,dec:41.26875,distLy:2.537e6,col:0xaecbff,inclination:77.5,pa:37.7},
+  m31:{name:'Andromeda centre · M31*',ra:10.684708,dec:41.26875,distLy:2.537e6,col:0xaecbff,inclination:77.5,pa:37.7,bhMassSolar:1.4e8},
 };
 GAL_DATA.gc.dir=raDecDir(GAL_DATA.gc.ra/15,GAL_DATA.gc.dec).normalize();
 GAL_DATA.gc.pos=GAL_DATA.gc.dir.clone().multiplyScalar(GAL_DATA.gc.distLy*LY_AU);
@@ -6280,6 +6352,7 @@ function updateSolarVectors(T,geoShift){
   // planet-attached cues are LOCAL-frame objects: CSS2D labels never shrink with zoom,
   // so an un-gated precession cone label would float gigantically over the cosmic web
   if(_svPrec){ _svPrec.visible=!!state.showSpinAxes && state.vectorAxes!==false&&state.vectorAdditional!==false&&local;
+    if(_svPrec.userData.lab) _svPrec.userData.lab.visible=!MOBILE_GPU;
     if(_svPrec.visible && _svPrec.userData.ring){
       // the cone breathes with the engine: Vondrák ε(t) varies ≈22.9°–24.4° over ±200 kyr
       const ltp=(state.precModel||'ltp')==='ltp';
@@ -6318,6 +6391,7 @@ function updateSolarVectors(T,geoShift){
         const ptxt='Δ = '+(ang/DEG).toFixed(2)+'° from J2000 pole';
         if(pr.lab.element.textContent!==ptxt) pr.lab.element.textContent=ptxt;
         pr.grp.visible=ang>0.0004;                      // hide the instrument at the J2000 epoch itself
+        pr.lab.visible=pr.grp.visible&&!MOBILE_GPU;
       }
     }
   }
@@ -6328,10 +6402,12 @@ function updateSolarVectors(T,geoShift){
   const sunP=(geoShift?geoShift.clone().negate():new THREE.Vector3());
   for(const s of _svSun){
     const primary=/TOTAL solar vector/.test(s.D.label),show=primary?state.vectorMain!==false:state.vectorAdditional!==false;
-    s.a.visible=s.lab.visible=show;
+    // Compact-view semantic LOD: keep every vector in 3D while moving verbose
+    // captions into the vector contract/panel on phones. They return on wide/XR layouts.
+    s.a.visible=show; s.lab.visible=show&&!MOBILE_GPU;
     s.a.position.copy(sunP); s.a.userData.set(s.D.dir,_vecLen(s.D.v));
     s.lab.position.copy(sunP).addScaledVector(s.D.dir,_vecLen(s.D.v)+0.35);
-    if(s.dot){ s.dot.visible=pinOn&&state.vectorAdditional!==false; s.slab.visible=pinOn&&state.vectorAdditional!==false; }
+    if(s.dot){ s.dot.visible=pinOn&&state.vectorAdditional!==false; s.slab.visible=pinOn&&state.vectorAdditional!==false&&!MOBILE_GPU; }
   }
   const h=0.5;                                        // half-day derivative step
   for(const e of _svPl){
@@ -6563,6 +6639,64 @@ function orientDisk(group,xAxis,normal){
   const x=xAxis.clone().normalize(), y=normal.clone().normalize(), z=x.clone().cross(y).normalize();
   group.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x,y,z));
 }
+/* Dual-scale galactic black-hole core.
+   - physicalRoot is expressed in true AU: R_s=2GM/c² and r_ph=1.5 R_s;
+   - semanticRoot is the resolvable galactic-scale gateway to the same laboratory model.
+   The large gateway is explicitly metadata-labelled and must never be read as a horizon
+   diameter. Its disk/axis phase is derived from the global epoch at the Schwarzschild
+   ISCO period, so even the maximum time rate stays phase-locked instead of accumulating
+   frame-rate drift. Schwarzschild has no measured spin axis: the displayed normal is the
+   host/nuclear-disk reference axis, not an invented Kerr-spin determination. */
+const GAL_BH_G=6.67430e-11,GAL_BH_C=299792458,GAL_BH_MSUN=1.98892e30,GAL_BH_AU=1.495978707e11;
+const GALACTIC_BH_MODELS=[];
+function makeGalacticBlackHoleModel(id,massSolar,visualRly,col){
+  const root=new THREE.Group(),R=visualRly*LY_AU,M=massSolar*GAL_BH_MSUN;
+  const rsAU=(2*GAL_BH_G*M/(GAL_BH_C*GAL_BH_C))/GAL_BH_AU;
+  const iscoPeriodDays=(2*Math.PI*Math.pow(6,1.5)*GAL_BH_G*M/Math.pow(GAL_BH_C,3))/86400;
+  const physicalRoot=new THREE.Group();
+  const horizonPhysical=new THREE.Mesh(new THREE.SphereGeometry(rsAU,28,18),new THREE.MeshBasicMaterial({color:0x010205}));
+  const photonPhysical=new THREE.Mesh(new THREE.TorusGeometry(1.5*rsAU,.055*rsAU,8,48),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.8,depthWrite:false}));
+  photonPhysical.rotation.x=Math.PI/2;physicalRoot.add(horizonPhysical,photonPhysical);root.add(physicalRoot);
+  const semanticRoot=new THREE.Group();semanticRoot.userData.scaleStatus='semantic gateway; not physical horizon scale';
+  const shadow=new THREE.Mesh(new THREE.SphereGeometry(R*.42,32,22),new THREE.MeshBasicMaterial({color:0x000003,transparent:true,opacity:1,depthTest:false,depthWrite:false}));
+  const photonRing=new THREE.Mesh(new THREE.TorusGeometry(R*.50,R*.045,12,96),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.96,depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending}));
+  photonRing.rotation.x=Math.PI/2;
+  const shell=new THREE.Mesh(new THREE.SphereGeometry(R*.46,24,16),
+    new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:.18,depthTest:false,depthWrite:false}));
+  const diskRotor=new THREE.Group();
+  const disk=new THREE.Mesh(new THREE.RingGeometry(R*.57,R*1.25,112,4),
+    new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.34,side:THREE.DoubleSide,depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending}));
+  disk.rotation.x=-Math.PI/2;disk.scale.z=.32;diskRotor.add(disk);
+  const knots=[];
+  for(let i=0;i<12;i++){
+    const a=i/12*Math.PI*2,r=R*(.66+.055*(i%4));
+    const k=new THREE.Mesh(new THREE.SphereGeometry(R*.026,7,5),new THREE.MeshBasicMaterial({color:i%3?col:0xfff0bd,transparent:true,opacity:.82,depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending}));
+    k.position.set(Math.cos(a)*r,0,Math.sin(a)*r*.32);diskRotor.add(k);knots.push(k);
+  }
+  const axes=new THREE.Group();
+  axes.add(new THREE.ArrowHelper(new THREE.Vector3(1,0,0),new THREE.Vector3(),R*1.7,0xd98b65,R*.12,R*.06));
+  axes.add(new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(),R*2.0,0x82c8ff,R*.12,R*.06));
+  axes.add(new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(),R*1.7,0x9de0bd,R*.12,R*.06));
+  diskRotor.add(axes);semanticRoot.add(shadow,shell,photonRing,diskRotor);
+  semanticRoot.traverse((o)=>{o.renderOrder=9000+(o===shadow?0:o===disk?1:2);if(o.material){o.material.depthTest=false;o.material.depthWrite=false;}});
+  root.add(semanticRoot);
+  root.userData={id,massSolar,rsAU,photonSphereAU:1.5*rsAU,iscoPeriodDays,physicalRoot,semanticRoot,diskRotor,axes,knots};
+  GALACTIC_BH_MODELS.push(root);return root;
+}
+function galacticBHPhase(model,epochDays){
+  const p=model.userData.iscoPeriodDays,r=((epochDays%p)+p)%p;
+  return 2*Math.PI*r/p;
+}
+function updateGalacticBlackHoleModels(){
+  for(const model of GALACTIC_BH_MODELS){
+    const ph=galacticBHPhase(model,state.epochDays);
+    model.userData.diskRotor.rotation.y=ph;
+    model.userData.axes.visible=state.vectorAxes!==false&&state.vectorAdditional!==false;
+    model.userData.knots.forEach((k,i)=>k.scale.setScalar(.78+.35*(.5+.5*Math.sin(ph+i*.91))));
+  }
+}
 const milkyWayPhysical=new THREE.Group(); milkyWayPhysical.position.copy(GAL_DATA.gc.pos);
 orientDisk(milkyWayPhysical,GAL_DATA.gc.dir.clone().negate(),GAL_DATA.pole.dir);
 // Base orientation captured so the galactic-year animation can rigidly rotate the whole
@@ -6575,13 +6709,17 @@ const mwSpiral=galaxySpiral(52000,4,34000,0x8fb9e8,8412,5.6); milkyWayPhysical.a
 const mwOutline=guideCircle(52000*LY_AU,0x8fb9e8,.28,256); milkyWayPhysical.add(mwOutline);
 const mwCoordGrid=polarGuide([8200,20000,40000,52000].map(x=>x*LY_AU),12,'GALACTIC PLANE · radial grid in light-years');
 milkyWayPhysical.add(mwCoordGrid);
-const gcDot=new THREE.Mesh(new THREE.SphereGeometry(1100*LY_AU,16,10),new THREE.MeshBasicMaterial({color:GAL_DATA.gc.col,transparent:true,opacity:.9}));
+const gcBHModel=makeGalacticBlackHoleModel('solarGC',GAL_DATA.gc.bhMassSolar,4500,GAL_DATA.gc.col);milkyWayPhysical.add(gcBHModel);
+const gcDot=new THREE.Mesh(new THREE.SphereGeometry(1800*LY_AU,16,10),new THREE.MeshBasicMaterial({color:GAL_DATA.gc.col,wireframe:true,transparent:true,opacity:.24,depthWrite:false}));
 const gcLab=mkLabel('Sgr A* · Galactic centre · 26,700 ly','label major','solarGC'); gcLab.position.set(0,3500*LY_AU,0);
 milkyWayPhysical.add(gcDot,gcLab); solarGalacticGroup.add(milkyWayPhysical);
 registerSel('solarGC',{name:GAL_DATA.gc.name,mode:'solar',pick:gcDot,labelEl:gcLab.element,
-  desc:'The Galactic centre is placed at the J2000 Sgr A* direction and 26,700 ly from the Sun. The Galactic-plane orientation uses the IAU north Galactic pole. Spiral arms are a schematic orientation aid, not a claim of an externally observed exact Milky Way shape.',
-  getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
-  rows:()=>[['J2000 centre','RA 17h45m40.04s · Dec −28°56′10.2″'],['Sun–centre distance','26,700 ly'],['Disk reference radius','52,000 ly · schematic'],['Plane normal','IAU NGP RA 192.8595° · Dec +27.1283°'],['Scale','1 scene unit = 1 AU']]});
+  src:['IAU','ASTRO','BHTREF'],accuracyTier:'B',catalogueStatus:'literature-constrained-model-portal',
+  forbiddenClaims:['the semantic gateway radius is the event-horizon radius','the host Galactic-plane normal is a measured black-hole spin axis','the Schwarzschild reference includes spin, charge, plasma radiative transfer or a fitted EHT image'],
+  desc:'Sgr A* is embedded at the time-evolved Galactic-centre position in the Solar atlas. A dual-scale core contains a true-AU Schwarzschild horizon and photon sphere plus a resolvable semantic gateway. The gateway opens the same mass-initialized black-hole laboratory; its axis is the IAU Galactic-plane reference, not an invented spin measurement.',
+  formulas:['R_s=2GM/c²','r_ph=1.5 R_s','T_ISCO=2π·6^(3/2)GM/c³ (Schwarzschild reference)','phase = 2π·mod(epoch,T_ISCO)/T_ISCO'],
+  getPos:()=>milkyWayPhysical.getWorldPosition(new THREE.Vector3()),focusDist:()=>6500*LY_AU,
+  rows:()=>[['J2000 centre','RA 17h45m40.04s · Dec −28°56′10.2″'],['Sun–centre distance','26,700 ly'],['Black-hole mass',`${GAL_DATA.gc.bhMassSolar.toExponential(3)} M☉`],['Schwarzschild radius',`${gcBHModel.userData.rsAU.toFixed(5)} AU`],['Photon-sphere radius',`${gcBHModel.userData.photonSphereAU.toFixed(5)} AU`],['ISCO clock',`${(gcBHModel.userData.iscoPeriodDays*24*60).toFixed(2)} min · global epoch locked`],['Axis semantics','IAU Galactic-plane normal; BH spin axis not asserted'],['Gateway scale','4500 ly semantic locator; physical core remains true AU scale'],['Scale','1 scene unit = 1 AU']]});
 
 /* ── Milky Way spiral-arm label layer · SCHEMATIC literature reconstruction ──
    Logarithmic-spiral arm tracks (pitch ≈12.5°) with labels; NOT exact arm
@@ -6628,14 +6766,19 @@ const m31Physical=new THREE.Group(); m31Physical.position.copy(GAL_DATA.m31.pos)
     .addScaledVector(minorSky,Math.sin(GAL_DATA.m31.inclination*DEG)).normalize();
   orientDisk(m31Physical,major,normal);
 }
+const m31BaseQuat=m31Physical.quaternion.clone(),_m31SpinQ=new THREE.Quaternion(),_localY=new THREE.Vector3(0,1,0);
 const m31Spiral=galaxySpiral(76000,2,13000,0x9db8e8,3101,4.8); m31Physical.add(m31Spiral,guideCircle(76000*LY_AU,0x9db8e8,.25,256));
-const m31Dot=new THREE.Mesh(new THREE.SphereGeometry(1800*LY_AU,16,10),new THREE.MeshBasicMaterial({color:GAL_DATA.m31.col}));
-const m31Lab=mkLabel('M31 centre · 2.537 million ly','label major','solarM31'); m31Lab.position.set(0,18000*LY_AU,0);
+const m31BHModel=makeGalacticBlackHoleModel('solarM31',GAL_DATA.m31.bhMassSolar,6500,GAL_DATA.m31.col);m31Physical.add(m31BHModel);
+const m31Dot=new THREE.Mesh(new THREE.SphereGeometry(3000*LY_AU,16,10),new THREE.MeshBasicMaterial({color:GAL_DATA.m31.col,wireframe:true,transparent:true,opacity:.24,depthWrite:false}));
+const m31Lab=mkLabel('M31* · central SMBH · 2.537 million ly','label major','solarM31'); m31Lab.position.set(0,18000*LY_AU,0);
 m31Physical.add(m31Dot,m31Lab); solarGalacticGroup.add(m31Physical);
 registerSel('solarM31',{name:GAL_DATA.m31.name,mode:'solar',pick:m31Dot,labelEl:m31Lab.element,
-  desc:'M31 is placed at its J2000 centre and 2.537 million ly distance. Its disk uses the commonly adopted inclination 77.5° and major-axis position angle 37.7°; spiral texture is schematic.',
-  getPos:()=>GAL_DATA.m31.pos.clone(),focusDist:()=>180000*LY_AU,
-  rows:()=>[['J2000 centre','RA 00h42m44.33s · Dec +41°16′07.5″'],['Distance','2.537 million ly'],['Disk orientation','inclination 77.5° · PA 37.7°'],['Spiral morphology','schematic orientation aid'],['Scale','1 scene unit = 1 AU']]});
+  src:['ASTRO','BHTREF'],accuracyTier:'B',catalogueStatus:'literature-constrained-model-portal',
+  forbiddenClaims:['the semantic gateway radius is the event-horizon radius','the M31 disk normal is a measured black-hole spin axis','the Schwarzschild reference includes the observed triple nucleus or plasma radiative transfer'],
+  desc:'M31* is embedded at the registered J2000 centre of Andromeda. Its dual-scale core contains a true-AU Schwarzschild horizon/photon sphere and a resolvable galactic gateway. The model is initialized to the HST/STIS dynamical mass estimate; the displayed axis follows the adopted M31 disk orientation and is not asserted as the black-hole spin.',
+  formulas:['R_s=2GM/c²','r_ph=1.5 R_s','T_ISCO=2π·6^(3/2)GM/c³ (Schwarzschild reference)','phase = 2π·mod(epoch,T_ISCO)/T_ISCO'],
+  getPos:()=>m31Physical.getWorldPosition(new THREE.Vector3()),focusDist:()=>10000*LY_AU,
+  rows:()=>[['J2000 centre','RA 00h42m44.33s · Dec +41°16′07.5″'],['Distance','2.537 million ly'],['Black-hole mass',`${GAL_DATA.m31.bhMassSolar.toExponential(2)} M☉ · HST/STIS dynamical estimate`],['Schwarzschild radius',`${m31BHModel.userData.rsAU.toFixed(3)} AU`],['Photon-sphere radius',`${m31BHModel.userData.photonSphereAU.toFixed(3)} AU`],['ISCO clock',`${(m31BHModel.userData.iscoPeriodDays*24).toFixed(2)} h · global epoch locked`],['Disk orientation','inclination 77.5° · PA 37.7°'],['Axis semantics','host/nuclear-disk reference; BH spin axis not asserted'],['Gateway scale','6500 ly semantic locator; physical core remains true AU scale'],['Scale','1 scene unit = 1 AU']]});
 
 // Observer-to-centre vectors remain visible in the corresponding scale views.
 const galacticLinks=[];
@@ -6688,10 +6831,11 @@ const solarSightPos=[], solarSightCol=[];   // Sun→structure sightlines merged
 COSMOS.forEach(s=>{
   const dist=s.dGly!=null?s.dGly:comovingGly(s.z), dir=raDecDir(s.ra/15,s.dec), g=new THREE.Group();
   g.position.copy(dir).multiplyScalar(dist*GLY_AU); solarCosmicGroup.add(g);
-  const r=Math.max(s.size*.5*GLY_AU,.012*GLY_AU);
+  const isCompact=s.type==='compact'||/black-hole|AGN|little red dot/i.test(s.type||'');
+  const r=(isCompact?THREE.MathUtils.clamp(dist*.006,2e-6,.018):Math.max(s.size*.5,.012))*GLY_AU;
   const body=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:s.centroidKnown===false?.18:.3,depthWrite:false}));
   body.scale.set(r,s.type==='wall'?r*.45:r,s.type==='wall'?r*.25:r);
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.85,depthWrite:false}));
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(isCompact?Math.max(r*.55,1.2e-6*GLY_AU):Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.85,depthWrite:false}));
   const labelText=s.key==='gr'?'Lopez GA / GR / BR field midpoint · uncertain'
     :`${s.name}${s.centroidKnown===false?' · field midpoint / uncertain':''}`;
   const lab=mkLabel(labelText,'label dim','solarCosmic_'+s.key); lab.position.set(0,r*1.1,0);
@@ -6702,7 +6846,7 @@ COSMOS.forEach(s=>{
   g.add(body,dot,lab); solarCosmicObjects.push({g,s,lab});
   registerSel('solarCosmic_'+s.key,{name:s.name,mode:'solar',pick:dot,labelEl:lab.element,
     desc:`True-scale AU placement derived from the same comoving atlas. ${s.note}. ${s.reconstruction?'Marker and flowlines are probabilistic reconstruction/display anchors, not measured trajectories.':s.centroidKnown===false?'Marker is a field midpoint and uncertainty volume, not a measured structure centroid.':'Extended-object centre and shape remain approximate.'}`,
-    getPos:()=>g.position.clone(),focusDist:()=>Math.max(r*3,.2*GLY_AU),
+    getPos:()=>g.position.clone(),focusDist:()=>isCompact?Math.max(r*7,dist*.0015*GLY_AU,2e-6*GLY_AU):Math.max(r*3,.2*GLY_AU),
     rows:()=>[['Direction',`RA ${(s.ra/15).toFixed(3)}h · Dec ${s.dec.toFixed(2)}°`],...(s.galLon!=null?[['Galactic direction',`l ${s.galLon.toFixed(1)}° · b ${s.galLat.toFixed(1)}°`]]:[]),['Comoving distance',dist.toFixed(3)+' Gly'],['Displayed extent',s.size.toFixed(2)+' Gly'],['Coordinate scale','1 scene unit = 1 AU'],['Status',s.reconstruction?'probabilistic velocity-field reconstruction':s.centroidKnown===false?'field midpoint / uncertain':'approximate extended-object centre']]});
 });
 { // merged Sun→structure sightlines (one draw call; identical look via vertex colours)
@@ -6919,7 +7063,7 @@ function setSolarScaleLayer(layer){
   if(layer==='local'){
     frameSolarOverview(); setControlDistanceLimits(.0001,300000);
   } else if(layer==='galactic'){
-    controls.target.copy(GAL_DATA.gc.pos.clone().multiplyScalar(.5));
+    controls.target.copy(milkyWayPhysical.position.clone().multiplyScalar(.5));
     camera.position.copy(controls.target).addScaledVector(GAL_DATA.pole.dir,120000*LY_AU);
     setControlDistanceLimits(1,5e6*LY_AU);          // min=1 AU: the reverse zoom must reach the down-step thresholds
   } else if(layer==='andromeda'){
@@ -13102,7 +13246,7 @@ function bhtArea(M){ return 4*Math.PI*bhtRs(M)**2; }
 function bhtS(M){ return BHT_kB*BHT_c**3*bhtArea(M)/(4*BHT_G*BHT_hbar); }
 function bhtLum(M){ return BHT_hbar*BHT_c**6/(15360*Math.PI*BHT_G*BHT_G*M*M); }
 function bhtEvapYr(M){ return 5120*Math.PI*BHT_G*BHT_G*M**3/(BHT_hbar*BHT_c**4)/BHT_YR; }
-const BHT_PRESETS={ primordial:1e12, asteroid:1e20, solar:BHT_MSUN, sgra:4.15e6*BHT_MSUN, m87:6.5e9*BHT_MSUN, ton618:66e9*BHT_MSUN };
+const BHT_PRESETS={ primordial:1e12, asteroid:1e20, solar:BHT_MSUN, sgra:4.15e6*BHT_MSUN, m31:1.4e8*BHT_MSUN, m87:6.5e9*BHT_MSUN, ton618:66e9*BHT_MSUN };
 function bhtRadius(M){ return 0.42+1.5*Math.min(1,Math.max(0,(Math.log10(M)-11)/31)); }
 function bhtColor(TH){ const lt=Math.log10(Math.max(1e-20,TH)), t=Math.min(1,Math.max(0,(lt+20)/32)); const c=new THREE.Color(); c.setHSL(0.62-0.62*t,0.82,0.32+0.28*t); return c; }
 function bhtClear(){ labWipe(bhtGroup); bhtObjs=null; bhtPairs=[]; }
@@ -19127,6 +19271,13 @@ function buildCtlBody(){
         <button class="chip ${state.solarScaleLayer==='andromeda'?'on':''}" data-solar-scale="andromeda">Andromeda</button>
         <button class="chip ${state.solarScaleLayer==='cosmic'?'on':''}" data-solar-scale="cosmic">Cosmic web</button>
       </div>
+      <div class="ctlrow" style="gap:4px;flex-wrap:wrap"><label>Galactic black-hole cores</label>
+        <button class="chip" data-galcore="solarGC">Sgr A* → horizon</button>
+        <button class="chip" data-galray="solarGC">Sgr A* → rays</button>
+        <button class="chip" data-galcore="solarM31">M31* → horizon</button>
+        <button class="chip" data-galray="solarM31">M31* → rays</button>
+        <button class="chip" id="galTimeMax">⏩ maximum atlas time</button></div>
+      <div class="note" style="font-size:10.5px">Both galaxy centres contain dual-scale 3D cores: the hidden physical horizon/photon sphere is true AU scale, while the visible gateway is explicitly semantic. Disk/axis phase uses the same deep-time epoch at every speed up to 10^8.5 days/s. Axis normals follow the adopted host-disk frames; black-hole spin is not fabricated.</div>
       <div class="ctlrow"><label>Oort visible</label><input type="checkbox" id="oortShow" ${state.showOort?'checked':''}></div>
       <div class="ctlrow"><label>Layers: reservoirs / comets / scale grid</label>
         <input type="checkbox" id="oortPts" ${state.showOortPoints?'checked':''}>
@@ -19252,6 +19403,11 @@ function buildCtlBody(){
     ctl.querySelector('#skyStars').onchange = e=>starsGroup.visible=e.target.checked;
 
     // Oort Cloud and optional cosmic-overlay controls
+    ctl.querySelectorAll('[data-galcore]').forEach(b=>b.onclick=()=>dblFocus(b.dataset.galcore));
+    ctl.querySelectorAll('[data-galray]').forEach(b=>b.onclick=()=>enterModelPortal(b.dataset.galray,true));
+    ctl.querySelector('#galTimeMax')&&(ctl.querySelector('#galTimeMax').onclick=()=>{
+      state.daysPerSec=Math.pow(10,8.5);state.paused=false;state.timeDir=1;buildCtl();
+    });
     const oortShow = ctl.querySelector('#oortShow');
     if (oortShow) oortShow.onchange = e => { state.showOort = e.target.checked; updateSolarScaleVisibility(); };
     const oortPts = ctl.querySelector('#oortPts'); if (oortPts) oortPts.onchange = e => state.showOortPoints = e.target.checked;
@@ -20397,7 +20553,7 @@ function buildCtlBody(){
     else if(V==='bht') body = `
     <div class="sect"><b>Black hole — pick a mass</b>
       <div class="chips">
-        ${[['primordial','Primordial 10¹² kg'],['asteroid','Asteroid-mass'],['solar','Solar mass'],['sgra','Sgr A* (4×10⁶)'],['m87','M87* (6.5×10⁹)'],['ton618','Ton 618 (66×10⁹)']].map(([k,l])=>
+        ${[['primordial','Primordial 10¹² kg'],['asteroid','Asteroid-mass'],['solar','Solar mass'],['sgra','Sgr A* (4.15×10⁶)'],['m31','M31* (1.4×10⁸)'],['m87','M87* (6.5×10⁹)'],['ton618','Ton 618 (66×10⁹)']].map(([k,l])=>
           `<button class="chip" data-bhtp="${k}">${l}</button>`).join('')}
       </div>
       <div class="ctlrow">
@@ -22837,7 +22993,86 @@ function updateBreadcrumb(){
    ================================================================ */
 
 /* ---- shared double-click focus path (reuses selectGlobalKey → focusOn) ---- */
-function dblFocus(key){ if(key && SELECT.has(key)) selectGlobalKey(key,true); }
+const MODEL_PORTALS={
+  sun:{labKey:'bbAtlas',view:'bb',label:'Open solar-spectrum model',preset:()=>{state.bbT=5772;}},
+  solarGC:{labKey:'bhtAtlas',view:'bht',label:'Open exact Sgr A* mass model',secondary:['bhrAtlas','bhr','Open relativistic ray model'],preset:()=>{state.bhtM=GAL_DATA.gc.bhMassSolar*BHT_MSUN;state.bhtEvap=false;}},
+  solarM31:{labKey:'bhtAtlas',view:'bht',label:'Open exact M31* mass model',secondary:['bhrAtlas','bhr','Open relativistic ray model'],preset:()=>{state.bhtM=GAL_DATA.m31.bhMassSolar*BHT_MSUN;state.bhtEvap=false;}},
+  star_sirius:{labKey:'bbAtlas',view:'bb',label:'Open Sirius temperature model',preset:()=>{state.bbT=9940;}},
+  star_betelgeuse:{labKey:'bbAtlas',view:'bb',label:'Open Betelgeuse temperature model',preset:()=>{state.bbT=3600;}},
+  star_rigel:{labKey:'bbAtlas',view:'bb',label:'Open Rigel temperature model',preset:()=>{state.bbT=12100;}},
+  sgrabh:{labKey:'bhtAtlas',view:'bht',label:'Open Sgr A* horizon model',secondary:['bhrAtlas','bhr','Open ray-tracing model'],preset:()=>{state.bhtM=4.15e6*BHT_MSUN;state.bhtEvap=false;}},
+  m87bh:{labKey:'bhtAtlas',view:'bht',label:'Open M87* horizon model',secondary:['bhrAtlas','bhr','Open ray-tracing model'],preset:()=>{state.bhtM=6.5e9*BHT_MSUN;state.bhtEvap=false;}},
+  ton618bh:{labKey:'qsoAtlas',view:'qso',label:'Open TON 618 accretion model',secondary:['bhtAtlas','bht','Open horizon thermodynamics'],preset:()=>{state.qsoM=6.6e10;state.qsoLam=.4;state.qsoTheta=35;state.bhtM=6.6e10*BHT_MSUN;state.bhtEvap=false;}},
+  cygx1:{labKey:'bhtAtlas',view:'bht',label:'Open Cygnus X-1 horizon model',secondary:['bhrAtlas','bhr','Open ray-tracing model'],preset:()=>{state.bhtM=21.2*BHT_MSUN;state.bhtEvap=false;}},
+  crabpsr:{labKey:'psrAtlas',view:'psr',label:'Open Crab pulsar model',preset:()=>{state.psrP=.0334;state.psrPd=4.21e-13;}},
+  sn1987a:{labKey:'snAtlas',view:'sn',label:'Open SN 1987A-like model',preset:()=>{state.snMNi=.07;state.snVej=3500;}},
+  j0740ns:{labKey:'nsAtlas',view:'ns',label:'Open massive neutron-star model',preset:()=>{state.nsRhoc=Math.pow(10,-2.15);}},
+  a2744_qso1:{labKey:'qsoAtlas',view:'qso',label:'Open A2744-QSO1 model',secondary:['bhtAtlas','bht','Open horizon thermodynamics'],preset:()=>{state.qsoM=Math.pow(10,7.7);state.qsoLam=.3;state.qsoTheta=35;state.bhtM=Math.pow(10,7.7)*BHT_MSUN;state.bhtEvap=false;}}
+};
+function portalBaseKey(key){return String(key||'').replace(/^(cosmos_|solarCosmic_)/,'');}
+function portalForKey(key){return MODEL_PORTALS[portalBaseKey(key)]||null;}
+let modelPortalSnapshot=null;
+const modelReturnBtn=document.getElementById('modelReturnBtn');
+const modelReturnMobileBtn=document.getElementById('modelReturnMobileBtn');
+function showModelReturn(on){[modelReturnBtn,modelReturnMobileBtn].forEach(b=>{if(b)b.style.display=on?'inline-flex':'none';});}
+function captureModelPortalSnapshot(){
+  return {
+    mode:state.mode,selectedKey,activePanelId,
+    state:{epochDays:state.epochDays,daysPerSec:state.daysPerSec,paused:state.paused,timeDir:state.timeDir,
+      solarScaleLayer:state.solarScaleLayer,s3view:state.s3view,cycFrame:state.cycFrame,
+      fieldView:state.fieldView,fractalType:typeof fractalType==='string'?fractalType:null},
+    camera:{position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),up:camera.up.toArray(),
+      target:controls.target.toArray(),fov:camera.fov,minDistance:controls.minDistance,maxDistance:controls.maxDistance,
+      autoRotate:controls.autoRotate,autoRotateSpeed:controls.autoRotateSpeed,idleDrift}
+  };
+}
+function returnFromModelPortal(){
+  const snap=modelPortalSnapshot;if(!snap)return false;
+  modelPortalSnapshot=null;pendingModelPortalKey=null;state.modelPortalOrigin=null;
+  setMode(snap.mode);Object.assign(state,snap.state);
+  if(snap.mode==='solar'){setSolarScaleLayer(snap.state.solarScaleLayer||'local');updateSolarScaleVisibility();}
+  else if(snap.mode==='s3')setS3View(snap.state.s3view||'sec');
+  else if(snap.mode==='fractal'&&snap.state.fractalType)setFractalType(snap.state.fractalType,false);
+  camera.position.fromArray(snap.camera.position);camera.quaternion.fromArray(snap.camera.quaternion);
+  camera.up.fromArray(snap.camera.up);camera.fov=snap.camera.fov;camera.updateProjectionMatrix();
+  controls.target.fromArray(snap.camera.target);controls.minDistance=snap.camera.minDistance;controls.maxDistance=snap.camera.maxDistance;
+  clearFocus();controls.update();
+  camera.position.fromArray(snap.camera.position);camera.quaternion.fromArray(snap.camera.quaternion);camera.up.fromArray(snap.camera.up);
+  controls.target.fromArray(snap.camera.target);controls.autoRotate=snap.camera.autoRotate;controls.autoRotateSpeed=snap.camera.autoRotateSpeed;idleDrift=snap.camera.idleDrift;
+  syncCameraClipping(true);
+  if(snap.selectedKey&&SELECT.has(snap.selectedKey))selectKey(snap.selectedKey);else selectKey(null);
+  followSel=null;
+  if(snap.activePanelId&&document.getElementById(snap.activePanelId))openPanel(snap.activePanelId);
+  else if(activePanelId)closePanel(activePanelId);
+  showModelReturn(false);buildCtl();return true;
+}
+function enterModelPortal(key,secondary=false){
+  const p=portalForKey(key);if(!p)return false;
+  if(!modelPortalSnapshot)modelPortalSnapshot=captureModelPortalSnapshot();
+  try{p.preset?.();}catch(e){console.warn('model portal preset',e);}
+  const target=secondary&&p.secondary?{labKey:p.secondary[0],view:p.secondary[1]}:p;
+  state.modelPortalOrigin=key;
+  setMode('s3');setS3View(target.view);selectKey(target.labKey);buildCtl();
+  showModelReturn(true);
+  if(MOBILE_GPU&&activePanelId==='ctl')closePanel('ctl');
+  return true;
+}
+function dblFocus(key){
+  if(!key||!SELECT.has(key))return;
+  pendingModelPortalKey=null;
+  selectGlobalKey(key,true);
+}
+modelReturnBtn.onclick=()=>returnFromModelPortal();
+modelReturnMobileBtn.onclick=()=>returnFromModelPortal();
+globalThis.FBS3R_MODELS=Object.freeze({
+  list:()=>Object.entries(MODEL_PORTALS).map(([object,p])=>({object,labKey:p.labKey,view:p.view,secondary:p.secondary?.[0]||null,autoApproach:false})),
+  approach:key=>dblFocus(key),
+  open:(key,secondary=false)=>enterModelPortal(key,secondary),
+  back:()=>returnFromModelPortal(),
+  status:()=>({mode:state.mode,layer:state.solarScaleLayer,view:state.s3view,selected:selectedKey,
+    origin:state.modelPortalOrigin||null,canReturn:!!modelPortalSnapshot,
+    camera:camera.position.toArray(),target:controls.target.toArray(),epochDays:state.epochDays,daysPerSec:state.daysPerSec})
+});
 
 /* ---- desktop guided-tour driver (UI hook over the existing XRX.TOURS data) ---- */
 let desktopTour=null, desktopTourIdx=0;
@@ -22879,12 +23114,39 @@ const WIKI={ sun:'Sun', moon:'Moon', oortCloud:'Oort_cloud',
   cosmos_hcb:'Hercules–Corona_Borealis_Great_Wall', cosmos_a2744_qso1:'Little_red_dot_(astronomy)',
   ngc4874:'NGC_4874', ngc4889:'NGC_4889', ngc4911:'NGC_4911', cosmos_eridanusvoid:'CMB_cold_spot',
   grbAnisotropyLab:'Kolmogorov–Smirnov_test', surveyConeLab:'Redshift_survey',
-  cycResonanceWeb:'Orbital_resonance', orientationDiagram:'Ecliptic' };
+  cycResonanceWeb:'Orbital_resonance', orientationDiagram:'Ecliptic',
+  cosmos_sgrabh:'Sagittarius_A*', cosmos_m87bh:'Messier_87', cosmos_ton618bh:'TON_618',
+  cosmos_cygx1:'Cygnus_X-1', cosmos_crabpsr:'Crab_Pulsar', cosmos_sn1987a:'SN_1987A',
+  cosmos_j0740ns:'PSR_J0740%2B6620',
+  bbAtlas:'Black-body_radiation', bhtAtlas:'Black_hole_thermodynamics', bhrAtlas:'Black_hole',
+  nsAtlas:'Tolman%E2%80%93Oppenheimer%E2%80%93Volkoff_equation', snAtlas:'Supernova',
+  psrAtlas:'Pulsar', qsoAtlas:'Quasar', gravAtlas:'Three-body_problem', qmAtlas:'Schr%C3%B6dinger_equation',
+  qcdAtlas:'Quantum_chromodynamics', topoAtlas:'Topology', scAtlas:'Superconductivity',
+  quasiAtlas:'Quasiparticle', atomAtlas:'Periodic_table', taubAtlas:'Taub%E2%80%93NUT_space',
+  eotAtlas:'Extraordinary_optical_transmission', waveAtlas:'Huygens%E2%80%93Fresnel_principle',
+  spinAtlas:'Bloch_sphere', relAtlas:'Special_relativity', chaosAtlas:'Strange_attractor',
+  kinAtlas:'Kinetic_theory_of_gases', shAtlas:'Spherical_harmonics', kdvAtlas:'Korteweg%E2%80%93De_Vries_equation',
+  retAtlas:'Resonance_energy_transfer', dipAtlas:'Dipole', cpAtlas:'Charged_particle',
+  rdAtlas:'Reaction%E2%80%93diffusion_system', heAtlas:'Carnot_cycle', nucAtlas:'Semi-empirical_mass_formula',
+  lensAtlas:'Gravitational_lens', teAtlas:'Thermoelectric_effect', gwAtlas:'Gravitational_wave',
+  pvAtlas:'Solar_cell', su2Atlas:'Special_unitary_group', cmbAtlas:'Cosmic_microwave_background',
+  mimgAtlas:'Shape_of_the_universe', hopfAtlas:'Hopf_fibration', eigAtlas:'Eigenvalues_and_eigenvectors',
+  centerLabAtlas:'Geodesic', fieldAtlas:'Field_(physics)', qmWigner:'Wigner_quasiprobability_distribution',
+  field_spacetime:'Spacetime',field_causality:'Causality_(physics)',field_energy:'Energy',field_symmetry:'Symmetry_(physics)',
+  field_quantum:'Quantum_field_theory',field_matter:'Matter',field_entropy:'Entropy',field_information:'Information_theory',
+  field_observation:'Observation',field_scale:'Renormalization_group',field_emergence:'Emergence',
+  fractal_mandelbulb:'Mandelbulb', fractal_mandelbrot:'Mandelbrot_set', fractal_julia:'Julia_set',
+  fractal_buddhabrot:'Buddhabrot', fractal_bifurcation:'Bifurcation_diagram', fractal_bifurc3d:'Bifurcation_diagram',
+  fractal_polytope4d:'Regular_4-polytope', fractal_orbital3d:'Orbit_trap', fractal_mjfiber3d:'Julia_set', fractal_buddha3d:'Buddhabrot' };
 function wikiUrl(key,s){
   const direct=WIKI[key]||WIKI[(key||'').replace(/^solarCosmic_/,'cosmos_')]||WIKI[(key||'').replace(/^ulss_/,'cosmos_').toLowerCase()];
   if(direct) return 'https://en.wikipedia.org/wiki/'+direct;
   if(s&&s.wiki) return /^https?:/.test(s.wiki)?s.wiki:'https://en.wikipedia.org/wiki/'+encodeURIComponent(s.wiki);
   const nm=objectName(s)||key||'';
+  if(/^con\d+$/.test(key||'')){
+    const constellation=nm.replace(/^[^A-Za-z]+/,'').trim();
+    return 'https://en.wikipedia.org/wiki/'+encodeURIComponent(constellation+'_(constellation)');
+  }
   const clean=nm.replace(/\s*[·•|].*$/,'').replace(/\s*[–-]\s.*$/,'').replace(/\s*\(.*?\)\s*/g,'').trim();
   return 'https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(clean||nm);
 }
@@ -22895,7 +23157,15 @@ function renderNextActions(key){
   if(!s){ box.innerHTML=''; if(tip) tip.textContent=''; return; }
   const ev=atlasEvidenceClass(key,s), tourId=tourIdForKey(key), isA2744=(key==='cosmos_a2744_qso1');
   const acts=[];
-  acts.push(['◎ Focus',()=>focusOn(s)]);
+  const portal=portalForKey(key);
+  if(portal){
+    acts.push(['✦ '+portal.label,()=>enterModelPortal(key,false)]);
+    if(portal.secondary)acts.push(['◇ '+portal.secondary[2],()=>enterModelPortal(key,true)]);
+  }
+  const origin=state.modelPortalOrigin,originPortal=origin&&portalForKey(origin);
+  if(originPortal&&(key===originPortal.labKey||key===originPortal.secondary?.[0]))
+    acts.push(['↩ Return to exact atlas view',()=>returnFromModelPortal()]);
+  acts.push([portal?'◎ Approach → 3D model':'◎ Focus',()=>portal?dblFocus(key):focusOn(s)]);
   acts.push([ORBIT.on&&followSel===s?'⏹ Stop orbit':'↻ Orbit',()=>{ focusOn(s); toggleOrbit(); }]);
   acts.push(['▭ Raw Contract',()=>setSelTab('Raw Contract')]);
   acts.push([isA2744?'⬇ Export Provenance':'⬇ Export Contract',()=>exportSelectedContract()]);
@@ -22910,7 +23180,7 @@ function renderNextActions(key){
     acts.map((a,i)=>`<button class="btn" data-na="${i}">${esc(a[0])}</button>`).join('')}</div>
     <div class="relclaim"><a href="${esc(wikiUrl(key,s))}" target="_blank" rel="noopener" style="color:var(--gold-2)">📖 ${esc(objectName(s))} on Wikipedia ↗</a></div></div>`;
   box.querySelectorAll('[data-na]').forEach(b=>b.onclick=()=>{ try{ acts[+b.dataset.na][1](); }catch(e){console.error(e);} });
-  if(tip) tip.textContent='Tip: double-click any object or label to focus · pick a Related object → “Hold in view” for dual focus.';
+  if(tip) tip.textContent=portal?'Tip: double-click/tap stays in this atlas and approaches the object. Open the model only with the explicit model button; Return restores the exact prior view.':'Tip: double-click any object or label to focus · pick a Related object → “Hold in view” for dual focus.';
 }
 
 /* ---- Help / Shortcuts overlay (?) ---- */
@@ -23683,13 +23953,21 @@ function astInit(T){
       const a=2.1+1.2*rnd(), e=Math.min(0.3,0.07*Math.sqrt(-2*Math.log(Math.max(1e-9,rnd()))));
       const inc=Math.min(0.42,0.10*Math.sqrt(-2*Math.log(Math.max(1e-9,rnd()))));
       [pe,ve]=astElemToStateEcl(a,e,inc,rnd()*2*Math.PI,rnd()*2*Math.PI,rnd()*2*Math.PI);
-    } else {      // Jupiter Trojans, L4 leads (+60°), L5 trails (−60°)
+    } else {      // 3D osculating Trojan clouds; L4 leads (+60°), L5 trails (−60°)
       const lead=f<0.92; type=lead?1:2;
-      const ang=lamJ+(lead?1:-1)*Math.PI/3+(rnd()-0.5)*0.42;
-      const r=aJ*(1+0.045*(rnd()-0.5)), vc=Math.sqrt(AST_GM/r);
-      const zi=(rnd()-0.5)*0.22*r;
-      pe=[r*Math.cos(ang),r*Math.sin(ang),zi];
-      ve=[-vc*Math.sin(ang)*(1+0.01*(rnd()-0.5)),vc*Math.cos(ang)*(1+0.01*(rnd()-0.5)),(rnd()-0.5)*0.02*vc];
+      // Initialising xyz directly made two rectangular-looking phase walls. Real Trojan
+      // populations occupy a volume in orbital-element space: distribute node, periapsis,
+      // eccentricity, inclination and resonant longitude, then convert consistently to
+      // Cartesian position AND velocity. The ±60° concentration is still dynamically
+      // maintained/librated by the Sun+Jupiter+Saturn integrator, not pinned by rendering.
+      const a=aJ*(1+0.018*(rnd()+rnd()-1));
+      const e=Math.min(.18,.045*Math.sqrt(-2*Math.log(Math.max(1e-9,rnd()))));
+      const inc=Math.min(.48,.13*Math.sqrt(-2*Math.log(Math.max(1e-9,rnd()))));
+      const Om=rnd()*2*Math.PI, w=rnd()*2*Math.PI;
+      const libr=(rnd()+rnd()+rnd()+rnd()-2)*.24;
+      const lambda=lamJ+(lead?1:-1)*Math.PI/3+libr;
+      const M=lambda-Om-w;
+      [pe,ve]=astElemToStateEcl(a,e,inc,Om,w,M);
     }
     // ecliptic → scene (x, z, −y), same mapping as planetPos
     posArr[i*4]=pe[0]; posArr[i*4+1]=pe[2]; posArr[i*4+2]=-pe[1]; posArr[i*4+3]=type;
@@ -23723,7 +24001,8 @@ function astInit(T){
     uniforms:{uPos:{value:rtPA.texture},uShift:{value:new THREE.Vector3()},uPx:{value:1.6}}});
   const points=new THREE.Points(g,ptsMat); points.name='GPU asteroid swarm'; points.frustumCulled=false;
   solarGroup.add(points);
-  astState={rtPA,rtPB,rtVA,rtVB,simScene,simCam,quad,velMat,posMat,copyMat,points,ptsMat};
+  astState={rtPA,rtPB,rtVA,rtVB,simScene,simCam,quad,velMat,posMat,copyMat,points,ptsMat,
+    initModel:'osculating-volume',trojanPhaseSpace:'a,e,i,Omega,omega,lambda'};
   astPrevEpoch=state.epochDays;
 }
 function updateAsteroids(T,geoShift){
@@ -23995,6 +24274,12 @@ function tickBody(now, frame){
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
       if(galacticLinks[0]) galacticLinks[0][0].geometry.setFromPoints([_galZero, milkyWayPhysical.position]);
+      // M31 has differential rotation, so 250 Myr is only an explicit display-phase
+      // reference for the embedded disk/axes—not a rigid-body claim for the galaxy.
+      const m31Days=250e6*365.2425;
+      const m31Theta=2*Math.PI*(((state.epochDays%m31Days)+m31Days)%m31Days)/m31Days;
+      m31Physical.quaternion.copy(m31BaseQuat).multiply(_m31SpinQ.setFromAxisAngle(_localY,m31Theta));
+      updateGalacticBlackHoleModels();
     }
 
     /* === OORT CLOUD + COSMIC OVERLAY === */
@@ -24039,8 +24324,12 @@ function tickBody(now, frame){
       skyGroup.visible = localScale && camDist < 1200; // visual celestial sphere is not a physical 600-AU shell
       spatialGuides.solar.visible = state.showGuides&&state.vectorGuides!==false && localScale && camDist < 500;
       const showInnerLabels=localScale && camDist<500;
-      sunLabel.visible=moonLabel.visible=showInnerLabels;
-      planetObjs.forEach(o=>o.lab.visible=showInnerLabels);
+      sunLabel.visible=showInnerLabels;
+      moonLabel.visible=showInnerLabels&&(!MOBILE_GPU||camDist<6);
+      // At mobile overview scale the four inner-planet captions occupy the same
+      // pixels. Their selectable 3D bodies remain active; labels return on zoom-in.
+      const compactOverview=MOBILE_GPU&&camDist>=6;
+      planetObjs.forEach(o=>o.lab.visible=showInnerLabels&&(!compactOverview||(o.p.a??0)>=4));
     }
 
     if(state.landed){
@@ -24074,11 +24363,11 @@ function tickBody(now, frame){
           : '☉ Solar + Oort · heliocentric ecliptic J2000 · 1 unit = 1 AU · Earth orbit anchored to Earth–Moon barycenter')+ephWarn;
       } else if(layer==='galactic'){
         const galRev = state.epochDays/(GAL_YEAR_MYR*1e6*365.2425);
-        hudBig.textContent = 'Milky Way · Sgr A* centre 26,700 ly from the Sun';
-        hudSub.textContent = `galactic year ${GAL_YEAR_MYR} Myr · Sun's orbit + disk rotation time-synced · revolutions since J2000 ${galRev.toFixed(6)} · spiral arms schematic`;
+        hudBig.textContent = 'Milky Way · Sgr A* 3D core · 4.15×10⁶ M☉ · 26,700 ly';
+        hudSub.textContent = `global epoch locked · rate ${state.daysPerSec.toExponential(2)} d/s · ISCO phase ${(galacticBHPhase(gcBHModel,state.epochDays)/DEG).toFixed(1)}° · galactic revolutions ${galRev.toFixed(6)} · host-plane axis, not asserted BH spin`;
       } else if(layer==='andromeda'){
-        hudBig.textContent = 'Local Group · M31 centre 2.537 million ly from the Sun';
-        hudSub.textContent = 'true AU distances · M31 centre/inclination/PA data-positioned · spiral texture schematic';
+        hudBig.textContent = 'Local Group · M31* 3D core · 1.4×10⁸ M☉ · 2.537 million ly';
+        hudSub.textContent = `global epoch locked · rate ${state.daysPerSec.toExponential(2)} d/s · ISCO phase ${(galacticBHPhase(m31BHModel,state.epochDays)/DEG).toFixed(1)}° · M31 inclination/PA data-positioned · host-disk axis, not asserted BH spin`;
       } else {
         hudBig.textContent = 'Cosmic web · true-scale comoving atlas from the Solar-system origin';
         hudSub.textContent = '1 unit = 1 AU · uncertain extended structures use uncertainty volumes, not fabricated exact shapes';
@@ -24278,7 +24567,7 @@ function tickBody(now, frame){
     const k = tt*tt*tt*(tt*(tt*6-15)+10);            // smootherstep: soft ease-in AND ease-out (no abrupt start/stop)
     controls.target.lerpVectors(focusAnim.fromT, focusAnim.toT, k);
     camera.position.lerpVectors(focusAnim.fromP, focusAnim.toP, k);
-    if(focusAnim.t>=1) focusAnim=null;
+    if(focusAnim.t>=1)focusAnim=null;
   } else if(followSel && !state.landed){
     const pos=safeSelectionPos(followSel);
     if(pos){
@@ -24336,7 +24625,10 @@ function tickBody(now, frame){
   ['fractalAtlas','Fractal iteration atlas','fractal','Mathematical iteration and density-rendering environment.'],
   ...Object.keys(FRACTAL_TYPES).map(k=>['fractal_'+k,
     ({mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot set',julia:'Julia set',
-      buddhabrot:'Buddhabrot density',nested:'φ-nested contours',bifurcation:'Logistic bifurcation'})[k],
+      buddhabrot:'Buddhabrot density',nested:'φ-nested contours',bifurcation:'Logistic bifurcation',
+      bifurc3d:'3D bifurcation–Mandelbrot bridge',polytope4d:'4D regular-polytope projection',
+      orbital3d:'3D orbital-fractal field',mjfiber3d:'Mandelbrot–Julia fibre bundle',
+      buddha3d:'3D Buddhabrot orbit-density volume'})[k],
     'fractal','Selectable mathematical visualization context; palette is a transfer function, not physical evidence.'])
 ].forEach(([key,name,mode,desc])=>registerSel(key,{
   name,mode,desc,getPos:()=>key==='cycPhaseAtlas'?cycPhaseInst.position.clone():new THREE.Vector3(),
@@ -24380,7 +24672,12 @@ const LAB_ATLAS_DEFS=[
   ['su2Atlas','su2',su2Group,'SU(2) spinor laboratory','unit-quaternion double cover, belt trick and SLERP'],
   ['bhtAtlas','bht',bhtGroup,'Black-hole thermodynamics laboratory','Schwarzschild horizon temperature, entropy and idealized evaporation scaling'],
   ['cmbAtlas','cmb',cmbGroup,'CMB low-multipole laboratory','illustrative real-Y_lm sky and large-angle anomaly context'],
-  ['mimgAtlas','mimg',mimgGroup,'S³ multiple-path laboratory','conditional round-S³ geodesic paths and observable-topology caveats']
+  ['mimgAtlas','mimg',mimgGroup,'S³ multiple-path laboratory','conditional round-S³ geodesic paths and observable-topology caveats'],
+  ['bhrAtlas','bhr',bhrGroup,'Relativistic black-hole ray laboratory','pixelwise Schwarzschild null-geodesic integration with explicit capture and step diagnostics'],
+  ['nsAtlas','ns',nsGroup,'Neutron-star TOV laboratory','reduced Tolman–Oppenheimer–Volkoff interior with declared equation-of-state dependence'],
+  ['snAtlas','sn',snGroup,'Supernova and remnant laboratory','Ni-56 to Co-56 to Fe-56 Bateman deposition coupled to an idealized Sedov remnant'],
+  ['psrAtlas','psr',psrGroup,'Pulsar lighthouse laboratory','magnetic-dipole lighthouse geometry and spin-down reference relations'],
+  ['qsoAtlas','qso',qsoGroup,'Quasar accretion and jet laboratory','Eddington scaling, thin-disk efficiency and relativistic Doppler-beaming reference model']
 ];
 const LAB_ATLAS_PICKS=new Map(LAB_ATLAS_DEFS.map(d=>{const p=makeLabPick(d[2],d[1]==='atom'?3.2:d[1]==='qm'?.75:d[1]==='cmb'?2.3:2.6);
   if(d[1]==='qm')p.position.set(0,2.7,0);return [d[0],p];}));
@@ -24388,7 +24685,9 @@ if(!qmRe)qmSetup();
 for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
   const src=key==='qmAtlas'?['QMNUM','DERIVED']:key==='qcdAtlas'?['QCD','DERIVED']:
     key==='bhtAtlas'?['BHTREF','DERIVED']:key==='cmbAtlas'?['CMBREF','DERIVED']:
-    key==='mimgAtlas'?['TOPOREF','DERIVED']:['LABREF','DERIVED'];
+    key==='mimgAtlas'?['TOPOREF','DERIVED']:
+    key==='bhrAtlas'?['BHTREF','ASTRO','DERIVED']:
+    /^(ns|sn|psr|qso)Atlas$/.test(key)?['ASTRO','DERIVED']:['LABREF','DERIVED'];
   registerSel(key,{name,mode:'s3',pick:LAB_ATLAS_PICKS.get(key),src,accuracyTier:'M',catalogueStatus:'reference-model',
     forbiddenClaims:['the reduced demonstrator is a calibrated material, engineering or clinical prediction','visual similarity proves physical identity across linked laboratories','a conditional topology or anomaly visualization is observational proof'],
     desc:`${scope}. Interactive reference laboratory with explicit equations, assumptions and live diagnostics; rendering is not measurement evidence.`,
@@ -24396,6 +24695,37 @@ for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
     getPos:()=>group.getWorldPosition(new THREE.Vector3()),focusDist:()=>view==='atom'?11:9,
     onSelect:()=>setS3View(view),rows:()=>[['Active laboratory',name],['View/station',view],['Model status','reference/reduced demonstrator; inspect controls for assumptions']]});
 }
+[
+  ['bhrAtlas','lensAtlas','shared null-geodesic geometry','The ray tracer and lensing lab expose complementary Schwarzschild null-geodesic observables.'],
+  ['bhrAtlas','bhtAtlas','horizon geometry to thermodynamics','The same Schwarzschild mass fixes the ray-capture geometry and the idealized horizon thermodynamic scales.'],
+  ['nsAtlas','nucAtlas','equation-of-state bridge','Nuclear binding and dense-matter assumptions constrain the reduced stellar-structure closure.'],
+  ['nsAtlas','gwAtlas','compact-binary source bridge','Neutron-star structure conditions the source parameters used by compact-binary chirp models.'],
+  ['snAtlas','nucAtlas','radioactive-decay energy source','The transient light-curve model uses declared nuclear decay chains as an energy-deposition source.'],
+  ['psrAtlas','dipAtlas','magnetic-dipole radiation limit','The lighthouse model specializes the dipole-radiation geometry to a rotating compact object.'],
+  ['qsoAtlas','lensAtlas','high-redshift beacon relation','Quasars can act as background beacons while the lensing laboratory models intervening deflection.'],
+  ['qsoAtlas','bhrAtlas','compact-object environment','The accretion/jet and null-geodesic laboratories describe distinct observables around an idealized black-hole environment.']
+].forEach(r=>EXPLICIT_RELATIONS.push(r));
+[
+  ['sgrabh','bhtAtlas','catalogue coordinate → mass-initialized model','Sgr A* keeps its ICRS/distance atlas coordinate; the linked Schwarzschild thermodynamics model is initialized to 4.15 million solar masses.'],
+  ['sgrabh','bhrAtlas','catalogue coordinate → normalized ray model','The ray laboratory resolves normalized Schwarzschild null geodesics; it does not pretend to render the Galactic-centre horizon at atlas scale.'],
+  ['m87bh','bhtAtlas','catalogue coordinate → mass-initialized model','M87* keeps its host-galaxy direction and distance while the linked horizon model uses 6.5 billion solar masses.'],
+  ['ton618bh','qsoAtlas','catalogue coordinate → accretion model','TON 618 is linked to the quasar station initialized at 6.6×10^10 solar masses.'],
+  ['cygx1','bhtAtlas','catalogue coordinate → stellar black-hole model','Cygnus X-1 is linked to a 21.2-solar-mass Schwarzschild reference calculation.'],
+  ['crabpsr','psrAtlas','catalogue coordinate → timing model','The Crab marker opens the lighthouse model at P=33.4 ms and Pdot=4.21×10^-13.'],
+  ['sn1987a','snAtlas','catalogue coordinate → transient model','The SN 1987A marker opens the core-collapse preset with declared Ni mass and ejecta velocity.'],
+  ['j0740ns','nsAtlas','catalogue coordinate → dense-star model','The massive-pulsar marker opens the equation-of-state-dependent TOV reference laboratory.'],
+  ['a2744_qso1','qsoAtlas','catalogue coordinate → high-redshift accretion model','The z=7.04 source retains its lensed observational contract and opens a log(M/Msun)=7.7 accretion reference model.'],
+  ['sun','bbAtlas','measured star → spectrum model','The Solar atlas body opens Planck/Wien/Stefan–Boltzmann relations without replacing the Sun by an ideal blackbody.']
+].forEach(([base,lab,kind,claim])=>{
+  const keys=base==='sun'?['sun']:[`cosmos_${base}`,`solarCosmic_${base}`];
+  keys.forEach(key=>{if(SELECT.has(key)&&SELECT.has(lab))EXPLICIT_RELATIONS.push([key,lab,kind,claim]);});
+});
+[
+  ['solarGC','bhtAtlas','embedded galactic core → mass model','The Solar/Milky-Way layer contains a true-AU Sgr A* core and opens the Schwarzschild thermodynamics station at 4.15×10^6 solar masses.'],
+  ['solarGC','bhrAtlas','embedded galactic core → ray model','The same Sgr A* gateway opens the normalized relativistic null-geodesic renderer; the host-plane axis is not claimed as measured black-hole spin.'],
+  ['solarM31','bhtAtlas','embedded galactic core → mass model','The Andromeda centre contains a true-AU M31* core and opens the mass model at the 1.4×10^8-solar-mass HST/STIS estimate.'],
+  ['solarM31','bhrAtlas','embedded galactic core → ray model','The M31* gateway opens the normalized relativistic ray station while retaining its independent J2000 atlas coordinate.']
+].forEach(r=>EXPLICIT_RELATIONS.push(r));
 registerSel('qmWigner',{name:'Wigner x–p phase-space tomography',mode:'s3',pick:qmWignerPts,src:['QMNUM','DERIVED'],
   accuracyTier:'M',catalogueStatus:'sampled-derived-visualization',
   forbiddenClaims:['Wigner values are ordinary probabilities','the displayed negative share is a continuum-normalised negativity measure'],
@@ -24500,7 +24830,7 @@ function buildDevelopmentAudit(){
       explicitTypedRelations:EXPLICIT_RELATIONS.length,resolvedRelationEndpoints:EXPLICIT_RELATIONS.length-unresolved.length,
       unresolvedRelations:unresolved.length,unlinkedObjects:unlinked.length,objectsWithoutExplicitRelation:withoutExplicitRelation.length,fieldSolverFamilies:Object.keys(FIELD.equations).length,
       experimentPresets:Object.values(FIELD.presets).reduce((n,p)=>n+p.length,0),referenceLaboratories:LAB_ATLAS_DEFS.length,
-      quantumScenarios:4,quantumPhaseSpaceSamples:QM_WX*QM_WP,qcdScenarios:3,newFoundationalLaboratories:3,
+      quantumScenarios:4,quantumPhaseSpaceSamples:QM_WX*QM_WP,qcdScenarios:3,newFoundationalLaboratories:3,newCompactObjectLaboratories:5,
       causalWorkspace:CAUSAL.diagnostics(),vectorLayers:vectorDiagnostics()},
     sections:modeStats,relationKinds,unresolved,unlinked,withoutExplicitRelation,explicitObjectDegree:Object.fromEntries([...degree].sort((a,b)=>b[1]-a[1])),
     improvementBacklog:[
@@ -24546,8 +24876,16 @@ globalThis.FBS3R_QA=Object.freeze({
       if(!isFinite(r)||r>60||r<0.1){ bad++; continue; }
       if(ty<0.5){ beltN++; if(r>1.6&&r<4.3)beltIn++; } else { troN++; if(r>4.4&&r<6.1)troIn++; }
     }
-    return {n:AST_TEX*AST_TEX,beltN,beltInBand:beltIn,trojanN:troN,trojanInBand:troIn,nonFinite:bad};
+    return {n:AST_TEX*AST_TEX,beltN,beltInBand:beltIn,trojanN:troN,trojanInBand:troIn,nonFinite:bad,
+      initModel:astState.initModel||'legacy-cartesian',trojanPhaseSpace:astState.trojanPhaseSpace||null};
   },
+  galacticBlackHoles(){return GALACTIC_BH_MODELS.map(m=>({
+    key:m.userData.id,massSolar:m.userData.massSolar,schwarzschildRadiusAU:m.userData.rsAU,
+    photonSphereRadiusAU:m.userData.photonSphereAU,iscoPeriodDays:m.userData.iscoPeriodDays,
+    phase:galacticBHPhase(m,state.epochDays),physicalScale:'true AU',semanticGateway:m.userData.semanticRoot.userData.scaleStatus,
+    axesVisible:m.userData.axes.visible,timeRateDaysPerSec:state.daysPerSec,portal:portalForKey(m.userData.id)?.labKey||null,
+    secondaryPortal:portalForKey(m.userData.id)?.secondary?.[0]||null
+  }));},
   catalogue(){   // read-only catalogue-engine diagnostic
     return {n:CAT.n,src:CAT.src,octNodes:CAT.octNodes,octDepth:CAT.octDepth,buildMs:+CAT.buildMs.toFixed(1),
       parseMs:CAT.parseMs,nnAgree:CAT.nnAgree,pcaSigma:CAT.pca?CAT.pca.sigma.map(v=>+v.toFixed(3)):null};
@@ -24566,6 +24904,10 @@ globalThis.FBS3R_QA=Object.freeze({
     stringBreakingTriggerFm:QCD_BRK,triggerStatus:'illustrative/model-dependent',alphaSAtQ:qcdAlphaS(state.qcdQ??10)};}catch(e){return {err:String(e)};}},
   laboratories(){return LAB_ATLAS_DEFS.map(([key,view,group,name])=>({key,view,name,registered:SELECT.has(key),
     pickPresent:!!LAB_ATLAS_PICKS.get(key)?.parent,visible:group.visible,relations:getObjectRelations(key).length}));},
+  cards(){return [...SELECT.entries()].map(([key,s])=>{let rows=[];try{rows=objectDetailRows(key,s);}catch(e){}
+    const wiki=wikiUrl(key,s);return {key,mode:s.mode,name:objectName(s),rows:rows.length,desc:(s.desc||'').length,
+      sources:(s.src||[]).length,formulas:(s.formulas||[]).length,wikipedia:wiki,
+      wikipediaSearch:wiki.includes('/Special:Search?'),hasPick:!!s.pick};});},
   blackHole(){try{const M=bhtM||state.bhtM||BHT_MSUN;return {massKg:M,schwarzschildRadiusM:bhtRs(M),temperatureK:bhtTH(M),entropyOverKb:bhtS(M)/BHT_kB,
     idealizedLuminosityW:bhtLum(M),idealizedLifetimeYears:bhtEvapYr(M),assumptions:'Schwarzschild; isolated; simplified coefficient; no greybody/species/accretion/final quantum gravity'};}catch(e){return {err:String(e)};}},
   cmb(){try{return {mode:state.cmbMode,quadrupoleIllustrative:CMB_DL[0],skyVertices:cmbObjs?.sky?.geometry?.attributes?.position?.count||0,
