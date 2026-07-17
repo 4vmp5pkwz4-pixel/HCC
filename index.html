@@ -18342,6 +18342,7 @@ const XRX = (()=>{
     INTERACTION.runtime.raycastHits  = pointers.reduce((n,P)=>n+(P.hit?1:0),0);
     INTERACTION.runtime.stepMs       = fps.ms;
     INTERACTION.runtime.xrGrabActive = grabState.active || pointers.some(P=>!!P.grabbed||!!P.coreDrag);
+    INTERACTION.runtime.xrObjectGrab = pointers.some(P=>!!P.grabbed||!!P.coreDrag);   // object/core grabs only — the universe grab is excluded (it yields under the Hopf chord lock)
     if(measure.on) measure.drawLine();
     // FLIGHT locomotion — full 6-DOF, universe-scale:
     //  · left stick: fly along the HEAD's true gaze (pitch included) + strafe
@@ -18376,12 +18377,12 @@ const XRX = (()=>{
           snapReady=false; pulse(P,.2,20);
         }
         if(Math.abs(a[2])<.3) snapReady=true;
-        if(Math.abs(a[3])>.2){ rig.position.y -= a[3]*dynSpeed*.6*dt; moving=true; }
+        if(Math.abs(a[3])>.2 && !globalThis.__xrHopfLock){ rig.position.y -= a[3]*dynSpeed*.6*dt; moving=true; }
       }
     }
     vignette.visible = moving && boost>1;   // comfort vignette only during sprint — gentle cruising stays clear
     // two-hand universe grab: translate / scale / rotate the active group
-    if(grabState.active && pointers[0].squeezing && pointers[1].squeezing){
+    if(grabState.active && pointers[0].squeezing && pointers[1].squeezing && !globalThis.__xrHopfLock){
       const g=modeGroup(), A=ctrlPos(pointers[0]), B=ctrlPos(pointers[1]);
       const d=A.distanceTo(B), mid=A.clone().add(B).multiplyScalar(.5);
       const k=THREE.MathUtils.clamp(d/Math.max(grabState.d0,1e-4), .05, 20);
@@ -23802,7 +23803,13 @@ registerPanelRenderer('oscPanel',renderOscPanel);
      gimbal lock by construction; a full α=2π returns the rig exactly.
      The flow is asserted in the self-tests to slide points along the
      SAME curves hopfPoint() draws (fibre-exact locomotion).
-   · PINCH-TO-CURVE: squeeze BOTH controllers and pull them apart to
+   INPUT CONTRACT (audited): XRX owns left-stick fly, right-stick snap/vertical,
+   squeeze-grab and the two-hand universe grab. This layer therefore engages ONLY
+   while the LEFT THUMBSTICK CLICK is held (the one free binding); during the chord
+   a cooperative lock (__xrHopfLock) makes XRX's right-stick vertical and two-hand
+   grab yield, so the same gestures become fibre flow and the R_curv explorer with
+   zero double-binding. The lock clears on chord release, mode change and session end.
+   · PINCH-TO-CURVE: with the chord held, squeeze BOTH controllers and pull them apart to
      dial a HYPOTHETICAL curvature radius R (20–600 Gly, log map) and
      read the observable volume fraction Γ(χ)=(χ−sinχcosχ)/π at
      χ=D_ph/R live. DECLARED an exploratory what-if: the published
@@ -23822,15 +23829,21 @@ function hopfFlowXYZ(p,dAlpha,S){   // exact isoclinic Hopf flow through the ste
 function xrGammaOfR(Rgly){ const chi=Math.min(Math.PI,46.13/Math.max(1e-3,Rgly));
   return (chi-Math.sin(chi)*Math.cos(chi))/Math.PI; }
 function xrHopfDrive(dt){
-  if(!renderer.xr.isPresenting||state.mode!=='s3') return;
-  const rig=camera.parent; if(!rig||rig.name!=='xrRig') return;
-  const sess=renderer.xr.getSession(); if(!sess) return;
-  let stickY=0, squeezeL=null, squeezeR=null;
+  if(!renderer.xr.isPresenting||state.mode!=='s3'){ globalThis.__xrHopfLock=false; return; }
+  const rig=camera.parent; if(!rig||rig.name!=='xrRig'){ globalThis.__xrHopfLock=false; return; }
+  const sess=renderer.xr.getSession(); if(!sess){ globalThis.__xrHopfLock=false; return; }
+  let stickY=0, squeezeL=null, squeezeR=null, chord=false;
   for(const src of sess.inputSources||[]){
     const gp=src.gamepad; if(!gp) continue;
+    if(src.handedness==='left'&&gp.buttons&&gp.buttons[3]&&gp.buttons[3].pressed) chord=true;   // LEFT stick-click = S³ physics layer modifier
     if(src.handedness==='right'&&gp.axes.length>=4&&Math.abs(gp.axes[3])>0.15) stickY=gp.axes[3];
     if(gp.buttons&&gp.buttons[1]&&gp.buttons[1].pressed){ if(src.handedness==='left')squeezeL=true; if(src.handedness==='right')squeezeR=true; }
   }
+  // cooperative lock: while the chord is held, XRX's right-stick vertical and the
+  // two-hand universe grab YIELD, so the same inputs become fibre flow / R_curv.
+  globalThis.__xrHopfLock=chord;
+  const grabBusy=(typeof INTERACTION!=='undefined')&&INTERACTION.runtime&&INTERACTION.runtime.xrObjectGrab;
+  if(!chord||grabBusy){ if(xrPinch.active) xrPinch.active=false; return; }
   // fibre locomotion: exact Hopf flow of the rig position in s3Group-local coordinates
   if(stickY!==0){
     const dA=-stickY*0.55*dt; xrHopfAlpha+=dA;
@@ -23840,7 +23853,7 @@ function xrHopfDrive(dt){
     if(moved.length()<RU*6){                            // comfort clamp near the projection pole
       const nw=s3Group.localToWorld(moved.clone());
       rig.position.add(nw.sub(wp));
-      hudBig.textContent=`XR · Hopf-fibre locomotion · α=${(xrHopfAlpha%(2*Math.PI)).toFixed(2)} rad (2π returns you exactly)`;
+      hudBig.textContent=`XR · Hopf-fibre locomotion (hold LEFT stick-click + right stick) · α=${(xrHopfAlpha%(2*Math.PI)).toFixed(2)} rad (2π returns exactly)`;
       hudSub.textContent='you are translating along the Hopf fibre through your own position — the exact isoclinic flow of S³ in this stereographic chart. Pure quaternion action: no Euler angles, no gimbal lock; the path is one of the drawn linked circles.';
       ATLAS_BUS.pub('xr.hopfAlpha',+xrHopfAlpha.toFixed(3),'rad');
     }
@@ -23852,7 +23865,7 @@ function xrHopfDrive(dt){
       const t=Math.min(1,Math.max(0,(d-0.12)/1.0));
       const R=20*Math.pow(600/20,t), G=xrGammaOfR(R);
       xrPinch={active:true,R};
-      hudBig.textContent=`XR · what-if curvature · R=${R.toFixed(0)} Gly → Γ(t₀)=${(G*100).toFixed(1)}% of the S³ volume observable`;
+      hudBig.textContent=`XR · what-if curvature (chord + both grips) · R=${R.toFixed(0)} Gly → Γ(t₀)=${(G*100).toFixed(1)}% of the S³ volume observable`;
       hudSub.textContent='hands apart = flatter (larger R, smaller observable fraction); hands together = more curved. Γ(χ)=(χ−sinχ·cosχ)/π with χ=D_ph/R, D_ph=46.13 Gly. A HYPOTHETICAL explorer — the published Ω_K ledger rows are untouched.';
       ATLAS_BUS.pub('xr.Rcurv',+R.toFixed(1),'Gly (what-if)');
     }
