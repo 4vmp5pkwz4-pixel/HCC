@@ -13334,6 +13334,12 @@ float ksPhi(vec3 p, vec3 pv){
 }
 float ksR(vec3 p){ vec3 q=p.xzy; float a=uSpin; float R2=dot(q,q);
   float r2=0.5*((R2-a*a)+sqrt((R2-a*a)*(R2-a*a)+4.0*a*a*q.z*q.z)); return sqrt(max(1e-12,r2)); }
+vec4 ksFK(vec3 p){ vec3 q=p.xzy; float a=uSpin; float M=0.5; float R2=dot(q,q);
+  float r2=0.5*((R2-a*a)+sqrt((R2-a*a)*(R2-a*a)+4.0*a*a*q.z*q.z));
+  float r=sqrt(max(1e-12,r2)); float den=r2+a*a;
+  vec3 kstd=vec3((r*q.x+a*q.y)/den,(r*q.y-a*q.x)/den,q.z/r);
+  return vec4(2.0*M*r2*r/(r2*r2+a*a*q.z*q.z), kstd.xzy);
+}
 void main(){
   vec3 ro=uCam, rd=normalize(vPos-uCam);
   vec3 x=ro, v=rd;
@@ -13352,7 +13358,9 @@ void main(){
       ksPhi(x+vec3(0.,H,0.),v)-ksPhi(x-vec3(0.,H,0.),v),
       ksPhi(x+vec3(0.,0.,H),v)-ksPhi(x-vec3(0.,0.,H),v))/(2.0*H);
     v-=dl*g;
-    prevX=x; x+=dl*v;
+    vec4 FK=ksFK(x); float kpd=1.0+dot(FK.yzw,v);
+    vec3 vd=v-FK.x*kpd*FK.yzw;          // correct Hamiltonian drift dx/dl = dH/dp = p - f (k.p) k
+    prevX=x; x+=dl*vd;
     // accretion disk in the coordinate equatorial plane, inner edge = Bardeen ISCO(a)
     if(uDisk>0.5 && prevY*x.y<0.0){
       float t=prevY/(prevY-x.y);
@@ -13420,7 +13428,9 @@ function bhrKerrTraceJS(b,a,cap){   // JS twin of the Kerr-Schild shader integra
     const gx=(Phi(x+h,y,z,px,py,pz)-Phi(x-h,y,z,px,py,pz))/(2*h);
     const gy=(Phi(x,y+h,z,px,py,pz)-Phi(x,y-h,z,px,py,pz))/(2*h);
     const gz=(Phi(x,y,z+h,px,py,pz)-Phi(x,y,z-h,px,py,pz))/(2*h);
-    px-=dl*gx; py-=dl*gy; pz-=dl*gz; x+=dl*px; y+=dl*py; z+=dl*pz;
+    px-=dl*gx; py-=dl*gy; pz-=dl*gz;
+    const K2=KS(x,y,z), kp2=1+K2.kx*px+K2.ky*py+K2.kz*pz;
+    x+=dl*(px-K2.f*kp2*K2.kx); y+=dl*(py-K2.f*kp2*K2.ky); z+=dl*(pz-K2.f*kp2*K2.kz);   // dH/dp drift
   }
   return {captured:false,dir:[px,py,pz]};
 }
