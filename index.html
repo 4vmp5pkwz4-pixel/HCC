@@ -1552,7 +1552,14 @@ function runSelfTests(){
     // addition theorem constant over the sphere
     const add=(l,th,ph)=>{ let s=0; for(let m=-l;m<=l;m++) s+=shY(l,m,th,ph)**2; return s; };
     ok('SphHarm: addition theorem Σ_m|Y_lm|² = (2l+1)/4π constant (l=4, <1e-9)',
-      Math.abs(add(4,0.7,1.1)-9/(4*Math.PI))<1e-9 && Math.abs(add(4,2.0,4.0)-9/(4*Math.PI))<1e-9, add(4,0.7,1.1).toFixed(6)); }
+      Math.abs(add(4,0.7,1.1)-9/(4*Math.PI))<1e-9 && Math.abs(add(4,2.0,4.0)-9/(4*Math.PI))<1e-9, add(4,0.7,1.1).toFixed(6));
+    // Atom valence orbitals: Hund occupation ρ=Σ nᵢ|Y|² — half/full subshells spherical, partial lobed
+    const arho=(l,c,th,ph)=>{ const M=2*l+1,o=new Array(M).fill(0); for(let e=0;e<c;e++)o[e%M]++;
+      let s=0; for(let mi=0;mi<M;mi++) s+=o[mi]*shY(l,mi-l,th,ph)**2; return s; };
+    const half=(l,c)=>{ let mn=1e9,mx=-1e9; for(let a=0;a<7;a++)for(let b=0;b<7;b++){ const v=arho(l,c,0.3+a*0.4,b*0.9); mn=Math.min(mn,v);mx=Math.max(mx,v);} return mx/(mn+1e-12); };
+    ok('Atom orbitals: half-filled p³/d⁵ and full p⁶ subshells are spherical; partial p¹/d¹ are lobed',
+      Math.abs(half(1,3)-1)<1e-6 && Math.abs(half(2,5)-1)<1e-6 && Math.abs(half(1,6)-1)<1e-6 && half(1,1)>3 && half(2,1)>3,
+      `p³=${half(1,3).toFixed(3)} p¹=${half(1,1).toFixed(1)}`); }
   { // KdV SOLITON: analytic mass 2√c, amplitude-speed a=c/2, and a short IF-RK4 evolution
     // conserves the invariants and translates the soliton at speed c keeping its peak
     const c=4, dx=KDV_L/KDV_N, X=i=>i*dx-KDV_L/2;
@@ -9823,16 +9830,29 @@ function buildAtom(){
   shells.forEach((sh,i)=>{ const zeff=slaterZeff(Z,shells,i); const r=sh.n*sh.n/zeff; rends.push(r); rMax=Math.max(rMax,r); });
   const SC=3.1/Math.max(rMax,1e-6);
   shells.forEach((sh,i)=>{
-    const r=rends[i]*SC, npts=Math.round(90*sh.c*state.atDensity);
+    const r=rends[i]*SC, isVal=(i===shells.length-1), l=sh.l;
+    const npts=Math.round(90*sh.c*state.atDensity);
     const pos=new Float32Array(npts*3), rr2=mulberry(Z*131+i*17);
+    // Valence subshell: shape the ANGULAR density by the real orbitals actually occupied
+    // (Hund's rule) — ρ(θ,φ)=Σ nᵢ|Y_{l,mᵢ}|² gives the true p/d/f lobes, while a half- or
+    // fully-filled subshell stays spherical automatically (harmonic addition theorem). Inner
+    // filled subshells remain isotropic (Unsöld). Direction drawn by rejection sampling.
+    let rhoDir=null, rmax=1;
+    if(isVal && l>0 && sh.c<2*(2*l+1)){ const Mm=2*l+1, occ=new Array(Mm).fill(0);
+      for(let e=0;e<sh.c;e++) occ[e%Mm]++;
+      rhoDir=(th,ph)=>{ let s=0; for(let mi=0;mi<Mm;mi++){ const yv=shY(l,mi-l,th,ph); s+=occ[mi]*yv*yv; } return s; };
+      rmax=1e-6; for(let t=0;t<200;t++){ const th=Math.acos(rr2()*2-1); rmax=Math.max(rmax,rhoDir(th,rr2()*2*Math.PI)); }
+      rmax*=1.02; }
     for(let p=0;p<npts;p++){
       const spread=r*0.16, rad=Math.max(0.05,r+(rr2()*2-1)*spread+(rr2()*2-1)*spread);
-      const u=rr2()*2-1, ph=rr2()*Math.PI*2, s=Math.sqrt(1-u*u);
+      let u=rr2()*2-1, ph=rr2()*Math.PI*2;
+      if(rhoDir){ let t=0; while(t++<48 && rhoDir(Math.acos(u),ph)<rr2()*rmax){ u=rr2()*2-1; ph=rr2()*Math.PI*2; } }
+      const s=Math.sqrt(1-u*u);
       pos[p*3]=rad*s*Math.cos(ph); pos[p*3+1]=rad*u; pos[p*3+2]=rad*s*Math.sin(ph);
     }
     const pg=new THREE.BufferGeometry(); pg.setAttribute('position',new THREE.BufferAttribute(pos,3));
-    const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:i===shells.length-1?.08:.055,
-      color:ATOM_LCOL[sh.l],transparent:true,opacity:i===shells.length-1?.85:.5,
+    const pts=new THREE.Points(pg,new THREE.PointsMaterial({size:isVal?.08:.055,
+      color:ATOM_LCOL[sh.l],transparent:true,opacity:isVal?.9:.5,
       blending:THREE.AdditiveBlending,depthWrite:false}));
     atomGroup.add(pts); atomInst.push(pts);
   });
@@ -9841,7 +9861,7 @@ function buildAtom(){
   const cfg=shells.map(s=>`${s.n}${'spdf'[s.l]}${s.c}`).join(' ');
   const t2=mkLabel(cfg,'label axis'); t2.position.set(0,-3.7,0); atomGroup.add(t2); atomInst.push(t2);
   const t3=mkLabel(trueScale?'TRUE SCALE: the nucleus is ~10⁻⁵ of the atom — the dot at the centre is already oversized'
-    :'didactic scale · shell radii = Slater n²/Z_eff estimates (model, not measurement) · filled subshells drawn spherical (Unsöld)','label dim');
+    :'didactic scale · shell radii = Slater n²/Z_eff estimates (model) · filled subshells spherical (Unsöld); the valence subshell shows its real p/d/f orbital lobes ρ=Σ|Y_lm|² (Hund)','label dim');
   t3.position.set(0,-4.3,0); atomGroup.add(t3); atomInst.push(t3);
   atomSelLab&&atomSelLab.element&&(atomSelLab.element.textContent=sym+' · '+cfg);
 }
