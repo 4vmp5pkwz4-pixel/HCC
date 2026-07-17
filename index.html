@@ -11969,14 +11969,37 @@ function retSetup(){
     dev.rotation.y=Math.PI/2; retGroup.add(dev);
     // field-coupling arcs (dashed) between coils
     const arcs=[]; for(let i=0;i<7;i++){ const a=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({color:0x8fb8ff,transparent:true,opacity:.5,dashSize:0.15,gapSize:0.1})); retGroup.add(a); arcs.push(a); }
-    // efficiency + splitting curve
-    const NP=100, g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NP*3),3));
-    const effCurve=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x9fe8d8})); retGroup.add(effCurve);
+    // 3-D efficiency LANDSCAPE η(k,Q): coupling (log) across, quality (log) into depth,
+    // efficiency up — the whole resonant-power story as one surface. The golden frontier
+    // is the critical coupling U=k√(Q₁Q₂)=1 separating under- from over-coupled transfer.
+    const dl2=new THREE.DirectionalLight(0xeef2ff,.5); dl2.position.set(4,7,6); retGroup.add(dl2);
+    const eta=u=>u*u/Math.pow(1+Math.sqrt(1+u*u),2);
+    const WX=lk=>-3.3+4.0*(lk+2.5)/2.0, WZ=lq=>0.5-2.9*(lq-1)/2.5, WY=e=>-2.4+e*2.4;
+    const NK=42, NQ=26, sg=new THREE.PlaneGeometry(1,1,NK-1,NQ-1);
+    const sp=sg.attributes.position, sc=new Float32Array(sp.count*3), _wc=new THREE.Color();
+    for(let j=0;j<NQ;j++){ const lq=1+2.5*j/(NQ-1);
+      for(let i=0;i<NK;i++){ const idx=j*NK+i, lk=-2.5+2.0*i/(NK-1);
+        const e=eta(Math.pow(10,lk)*Math.pow(10,lq));
+        sp.setXYZ(idx,WX(lk),WY(e),WZ(lq));
+        _wc.setHSL(0.52-0.47*e,0.75,0.14+0.44*e);
+        sc[idx*3]=_wc.r; sc[idx*3+1]=_wc.g; sc[idx*3+2]=_wc.b; } }
+    sg.setAttribute('color',new THREE.BufferAttribute(sc,3)); sg.computeVertexNormals();
+    retGroup.add(new THREE.Mesh(sg,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.12,transparent:true,opacity:.92,side:THREE.DoubleSide})));
+    retGroup.add(new THREE.Mesh(sg,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.08,depthWrite:false})));
+    const front=[]; for(let j=0;j<NQ;j++){ const lq=1+2.5*j/(NQ-1), lk=-lq;   // U=1 ⇒ log k = −log Q
+      if(lk>=-2.5&&lk<=-0.5) front.push(new THREE.Vector3(WX(lk),WY(eta(1))+0.02,WZ(lq))); }
+    retGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(front),
+      new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})));
+    const frl=mkLabel('critical coupling U=1','label axis'); frl.position.set(WX(-1.9),WY(eta(1))+0.34,WZ(1.9)); retGroup.add(frl);
+    const wMk=new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+    const wg2=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); wg2.scale.setScalar(.7); wMk.add(wg2); retGroup.add(wMk);
+    const kxl=mkLabel('coupling k (log) →','label axis'); kxl.position.set(1.1,-2.4,0.7); retGroup.add(kxl);
+    const qzl=mkLabel('quality Q (log) ↘','label axis'); qzl.position.set(-3.6,-2.4,-1.6); retGroup.add(qzl);
     const tl=mkLabel('WIRELESS RESONANT TRANSFER · η = U²/(1+√(1+U²))² · U = k√(Q₁Q₂)','label const'); tl.position.set(0,3.3,0); retGroup.add(tl);
     for(const [x,t] of [[-2.2,'source coil'],[2.2,'device coil']]){ const l=mkLabel(t,'label axis'); l.position.set(x,-1.4,0); retGroup.add(l); }
     const el=mkLabel('η vs coupling k','label dim'); el.position.set(0,-2.6,0); retGroup.add(el);
     const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); retGroup.add(rl);
-    retObjs={st,src,dev,arcs,effCurve,NP,readLab:rl,phase:0};
+    retObjs={st,src,dev,arcs,wMk,WX,WZ,WY,eta,readLab:rl,phase:0};
   }
 }
 function retEnergyCoupled(){ const m=1,k=state.retK??1,kap=state.retKappa??0.08;
@@ -12038,6 +12061,9 @@ function updateRet(dt){
     }
   } else {  // wireless
     O.phase+=dt*3;
+    if(state.retPull){ state.retPullT=(state.retPullT??0)+dt*0.35;      // pull-away sweep: k glides log-wise 0.3 → 0.003 and back
+      const ph=0.5-0.5*Math.cos(state.retPullT*2*Math.PI*0.5);
+      state.retCoup=Math.pow(10,-0.52-2.0*ph); }
     const Q=state.retQ??100, k=state.retCoup??0.05, U=k*Q;   // figure of merit U=k√(Q1Q2), equal Q
     const eff=w=>{ const u=k*Q; return u*u/(1+Math.sqrt(1+u*u))**2; };
     // device coil distance ∝ 1/coupling (weaker k = farther)
@@ -12046,10 +12072,8 @@ function updateRet(dt){
     for(let i=0;i<O.arcs.length;i++){ const t=i/O.arcs.length, y=0.6+(t-0.5)*1.1, pts=[];
       for(let s=0;s<=20;s++){ const u=s/20; pts.push(new THREE.Vector3(-2.2+u*(O.dev.position.x+2.2),y+Math.sin(u*Math.PI)*0.4*Math.sin(O.phase+i),0)); }
       O.arcs[i].geometry.setFromPoints(pts); O.arcs[i].computeLineDistances(); O.arcs[i].material.opacity=Math.min(0.7,k*8); }
-    const arr=O.effCurve.geometry.attributes.position.array;
-    for(let i=0;i<O.NP;i++){ const kk=i/(O.NP-1)*0.3, u=kk*Q, e=u*u/(1+Math.sqrt(1+u*u))**2;
-      arr[i*3]=-3.4+kk/0.3*4.0; arr[i*3+1]=-2.4+e*2.2; arr[i*3+2]=0; }
-    O.effCurve.geometry.attributes.position.needsUpdate=true; O.effCurve.geometry.computeBoundingSphere();
+    const lkNow=Math.min(-0.5,Math.max(-2.5,Math.log10(Math.max(1e-4,k)))), lqNow=Math.min(3.5,Math.max(1,Math.log10(Q)));
+    O.wMk.position.set(O.WX(lkNow),O.WY(O.eta(k*Q))+0.03,O.WZ(lqNow));
     retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
       const eNow=U*U/(1+Math.sqrt(1+U*U))**2, kc=1/Q, split=U>1;
       hudBig.textContent=`ENERGY TRANSFER · wireless · k=${k.toFixed(3)} · Q=${Q} · U=k√(Q₁Q₂)=${U.toFixed(2)} · η=${(eNow*100).toFixed(0)}%`;
