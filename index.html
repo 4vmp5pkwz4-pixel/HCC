@@ -1797,7 +1797,14 @@ function runSelfTests(){
     // quadrupole emission lobe: phase-averaged ⟨ḣ₊²+ḣ×²⟩ = the pattern 1+6cos²ι+cos⁴ι, beamed 8:1 along L
     const patt=ci=>1+6*ci*ci+ci*ci*ci*ci, numAvg=ci=>{ let s=0,N=400; for(let k=0;k<N;k++){ const P=k/N*2*Math.PI, dhp=-(1+ci*ci)*Math.sin(2*P), dhx=2*ci*Math.cos(2*P); s+=dhp*dhp+dhx*dhx; } return s/N; };
     ok('Gravitational waves: quadrupole radiation lobe ∝ 1+6cos²θ+cos⁴θ (8:1 pole-to-equator, beamed along L)',
-      Math.abs(numAvg(1)/numAvg(0)-8)<1e-9 && Math.abs(patt(1)/patt(0)-8)<1e-12, patt(1)/patt(0)+':1'); }
+      Math.abs(numAvg(1)/numAvg(0)-8)<1e-9 && Math.abs(patt(1)/patt(0)-8)<1e-12, patt(1)/patt(0)+':1');
+    // tensor-polarization Stokes on the Poincaré sphere: pure state, face-on circular ↔ edge-on linear
+    const stk=iota=>{ const ci=Math.cos(iota),a=(1+ci*ci)/2,b=ci,I=a*a+b*b; return {q:(a*a-b*b)/I,u:0,v:2*a*b/I}; };
+    let purMax=0; for(let i=0;i<=180;i++){ const s=stk(i/180*Math.PI); purMax=Math.max(purMax,Math.abs(s.q*s.q+s.u*s.u+s.v*s.v-1)); }
+    const s0=stk(0),s90=stk(Math.PI/2),s180=stk(Math.PI);
+    ok('Gravitational waves: polarization is a PURE state on the Poincaré sphere — face-on circular (v=±1), edge-on linear (q=1)',
+      purMax<1e-12 && Math.abs(s0.v-1)<1e-12 && Math.abs(s90.q-1)<1e-12 && Math.abs(s90.v)<1e-12 && Math.abs(s180.v+1)<1e-12,
+      `|P|²−1<${purMax.toExponential(1)}, v(0)=${s0.v.toFixed(2)}, q(90)=${s90.q.toFixed(2)}`); }
   { // PHOTOVOLTAIC: Shockley I–V gives Voc; MPP·FF identity; detailed-balance peak in the 1–1.5 eV window
     const q=1.602176634e-19,kB=1.380649e-23,T=300,Iph=35e-3,I0=1e-12;
     const Voc=(kB*T/q)*Math.log(Iph/I0+1);
@@ -13277,6 +13284,10 @@ function gwChirpMass(m1,m2){ return Math.pow(m1*m2,3/5)/Math.pow(m1+m2,1/5); }
 function gwDfdt(f,Mc){ return (96/5)*Math.pow(Math.PI,8/3)*Math.pow(GW_G*Mc/GW_C**3,5/3)*Math.pow(f,11/3); }
 function gwTau(f,Mc){ return (5/256)*Math.pow(GW_G*Mc/GW_C**3,-5/3)*Math.pow(Math.PI*f,-8/3); }
 function gwFisco(M){ return 2*Math.pow(6,-1.5)/Math.PI*GW_C**3/(GW_G*M); }   // GW freq at ISCO
+function gwStokes(iota){   // tensor-polarization Stokes of a circular binary at inclination ι (pure state, |P|=1)
+  const ci=Math.cos(iota), a=(1+ci*ci)/2, b=ci, I=a*a+b*b;
+  return {q:(a*a-b*b)/I, u:0, v:2*a*b/I, a, b};             // q=+/× linear, v=circular (R/L poles)
+}
 function gwClear(){ labWipe(gwGroup); gwObjs=null; }
 function gwSetup(){
   gwClear(); gwGroup.add(new THREE.AmbientLight(0x8090b8,.7));
@@ -13317,9 +13328,24 @@ function gwSetup(){
   const lobe=new THREE.Mesh(lg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
   lobe.position.set(0,0.6,0); lobe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),Lax); gwGroup.add(lobe);
   const Llab=mkLabel('GW emission ∝ 1+6cos²θ+cos⁴θ (beamed 8:1 along L)','label axis'); Llab.position.set(0,0.6,0).addScaledVector(Lax,2.15); gwGroup.add(Llab);
+  // ── polarization Poincaré sphere: the tensor-polarization state (the base of the Hopf map S³→S²) ──
+  const PC=new THREE.Group(); PC.position.set(-3.75,0.7,0); gwGroup.add(PC);
+  const PR=1.05;
+  PC.add(new THREE.Mesh(new THREE.SphereGeometry(PR,32,22),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.13})));
+  PC.add(new THREE.Mesh(new THREE.SphereGeometry(PR*0.996,36,24),new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.2,shininess:36,side:THREE.BackSide})));
+  { const eq=[]; for(let i=0;i<=80;i++){const A=i/80*2*Math.PI; eq.push(new THREE.Vector3(PR*Math.cos(A),0,PR*Math.sin(A)));}
+    PC.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(eq),new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.35}))); }
+  for(const [ax,lab] of [[[0,1,0],'R circular (face-on)'],[[0,-1,0],'L'],[[1,0,0],'h₊ linear'],[[0,0,1],'h× 45°']]){ const l=mkLabel(lab,'label axis'); l.position.set(ax[0]*(PR+0.32),ax[1]*(PR+0.32),ax[2]*(PR+0.32)); PC.add(l); }
+  const pArrow=new THREE.ArrowHelper(new THREE.Vector3(0,1,0),new THREE.Vector3(0,0,0),PR,0xffd27a,PR*0.15,PR*0.09); PC.add(pArrow);
+  const pTip=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xfff1c0}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.8,depthWrite:false})); g.scale.setScalar(.6); pTip.add(g); } PC.add(pTip);
+  const pcl=mkLabel('POLARIZATION · Poincaré sphere (base of S³→S²)','label dim'); pcl.position.set(-3.75,2.15,0); gwGroup.add(pcl);
+  const ellG=new THREE.BufferGeometry(); ellG.setAttribute('position',new THREE.BufferAttribute(new Float32Array(65*3),3));
+  const ell=new THREE.Line(ellG,new THREE.LineBasicMaterial({color:0x9fe8d8,transparent:true,opacity:.9})); ell.position.set(-3.75,-2.15,0); gwGroup.add(ell);
+  const ellL=mkLabel('(h₊,h×) polarization ellipse','label dim'); ellL.position.set(-3.75,-3.25,0); gwGroup.add(ellL);
   const tl=mkLabel('GRAVITATIONAL WAVES · binary inspiral · chirp mass M_c drives df/dt ∝ f^{11/3}','label const'); tl.position.set(0,3.5,0); gwGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); gwGroup.add(rl);
-  gwObjs={b1,b2,flash,wave,wg,ringMasses,defLine,ringC,RR,NR,lobe,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
+  gwObjs={b1,b2,flash,wave,wg,ringMasses,defLine,ringC,RR,NR,lobe,pArrow,pTip,ell,PR,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
 }
 function updateGw(dt){
   const O=gwObjs; if(!O) return; const Mc=O.Mc, M=O.M;
@@ -13333,6 +13359,11 @@ function updateGw(dt){
   }
   if(gwFlash>0){ gwFlash=Math.max(0,gwFlash-dt*1.6); O.flash.material.opacity=gwFlash; O.flash.scale.setScalar(3+6*(1-gwFlash)); }
   if(O.lobe){ O.lobe.scale.setScalar(0.7+1.0*Math.pow(gwF/O.fisco,2/3)); O.lobe.material.opacity=0.16+0.16*Math.pow(gwF/O.fisco,2/3); }  // lobe swells with the strain
+  if(O.pArrow){ const io=(state.gwIota??60)*DEG, S=gwStokes(io);   // polarization state on the Poincaré sphere
+    const dir=new THREE.Vector3(S.q,S.v,S.u); if(dir.lengthSq()<1e-9)dir.set(1,0,0); dir.normalize();
+    O.pArrow.setDirection(dir); O.pTip.position.copy(dir).multiplyScalar(O.PR);
+    const ep=O.ell.geometry.attributes.position.array; for(let i=0;i<=64;i++){ const ph=i/64*2*Math.PI; ep[i*3]=S.a*Math.cos(ph)*0.95; ep[i*3+1]=S.b*Math.sin(ph)*0.95; ep[i*3+2]=0; }
+    O.ell.geometry.attributes.position.needsUpdate=true; O.ell.geometry.computeBoundingSphere(); }
   // Kepler separation, mapped to scene (starts at ~2.4)
   const r=Math.pow(GW_G*M/Math.pow(Math.PI*gwF,2),1/3), sc=2.4*r/O.r0;
   const m1=(state.gwM1??36), m2=(state.gwM2??29), Mt=m1+m2;
@@ -19151,7 +19182,7 @@ const state = {
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
   lensB:4, lensRays:22, lensStation:'bundle', lensHopf:true, lensShapB:2.5, lensShapD:1000,   // Gravitational-lensing lab
   teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1, teSweep:false,   // Thermoelectric lab
-  gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
+  gwM1:36, gwM2:29, gwRun:true, gwSpeed:1, gwIota:60,   // Gravitational-wave lab (+ polarization Poincaré sphere)
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
@@ -20865,6 +20896,8 @@ function buildCtlBody(){
         <input type="range" id="gwM1" min="1" max="80" step="1" value="${state.gwM1??36}"><span class="val" id="gwM1V">${state.gwM1??36} M☉</span></div>
       <div class="ctlrow"><label>Mass m₂</label>
         <input type="range" id="gwM2" min="1" max="80" step="1" value="${state.gwM2??29}"><span class="val" id="gwM2V">${state.gwM2??29} M☉</span></div>
+      <div class="ctlrow"><label>Inclination ι</label>
+        <input type="range" id="gwIota" min="0" max="180" step="1" value="${state.gwIota??60}"><span class="val" id="gwIotaV">${state.gwIota??60}° — ${(state.gwIota??60)<20||(state.gwIota??60)>160?'circular':(state.gwIota??60)>70&&(state.gwIota??60)<110?'linear':'elliptical'}</span></div>
     </div>
     <div class="sect"><b>Inspiral readout</b>
       <div class="note" id="gwInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
@@ -21848,6 +21881,8 @@ function buildCtlBody(){
       const gm=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el){ el.oninput=e=>{ f(+e.target.value);
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; el.onchange=()=>gwSetup(); } };
       gm('gwM1',v=>state.gwM1=v,v=>v+' M☉'); gm('gwM2',v=>state.gwM2=v,v=>v+' M☉');
+      ctl.querySelector('#gwIota')&&(ctl.querySelector('#gwIota').oninput=e=>{ state.gwIota=+e.target.value;
+        const v=ctl.querySelector('#gwIotaV'); if(v)v.textContent=state.gwIota+'° — '+(state.gwIota<20||state.gwIota>160?'circular':state.gwIota>70&&state.gwIota<110?'linear':'elliptical'); });
       ctl.querySelector('#gwToLens')&&(ctl.querySelector('#gwToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#gwToGrav')&&(ctl.querySelector('#gwToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
     }
