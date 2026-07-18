@@ -1771,9 +1771,11 @@ function runSelfTests(){
   { // THERMOELECTRIC: Thomson Π=S·T; generator η→Carnot as ZT→∞, never exceeds it
     const S=2e-4,Th=500,Tc=300,Tm=(Th+Tc)/2, carnot=1-Tc/Th;
     const Pi=S*Tm; ok('Thermoelectric: Thomson relation Π = S·T holds', Math.abs(Pi-S*Tm)<1e-12, Pi.toFixed(4));
-    const eta=ZT=>{ const M=Math.sqrt(1+ZT); return carnot*(M-1)/(M+Tc/Th); };
+    const tau=Tc/Th;   // teEta/teCOP are the exact functions the landscape surface is built from
     ok('Thermoelectric: η rises with ZT, →Carnot as ZT→∞ but never exceeds it',
-      eta(4)>eta(1) && eta(1e7)<carnot && eta(1e7)/carnot>0.99, `η(∞)/Carnot=${(eta(1e7)/carnot).toFixed(4)}`); }
+      teEta(4,tau)>teEta(1,tau) && teEta(1e7,tau)<carnot && teEta(1e7,tau)/carnot>0.99, `η(∞)/Carnot=${(teEta(1e7,tau)/carnot).toFixed(4)}`);
+    let viol=0; for(let a=0;a<40;a++)for(let b=1;b<40;b++){ const e=teEta(a*0.25,0.05+b*0.022); const c=1-(0.05+b*0.022); if(e>c+1e-12)viol++; }
+    ok('Thermoelectric: efficiency landscape never beats Carnot anywhere on the (ZT,Tc/Th) grid', viol===0, viol+' violations'); }
   { // GRAVITATIONAL WAVES: chirp mass recovered from df/dt; τ scaling; ISCO ordering
     const G=6.674e-11,c=2.998e8,Ms=1.989e30;
     const Mc=(m1,m2)=>Math.pow(m1*m2,3/5)/Math.pow(m1+m2,1/5);
@@ -13103,38 +13105,91 @@ function updateLens(dt){
    limit only as ZT→∞. Energy honesty: still bounded by Carnot — no
    free lunch; today’s best materials sit near ZT≈2. */
 const teGroup=new THREE.Group(); teGroup.visible=false; s3Group.add(teGroup);
-let teObjs=null, teUiAcc=0, tePhase=0;
+let teObjs=null, teUiAcc=0, tePhase=0, teSweepT=0;
 function teClear(){ labWipe(teGroup); teObjs=null; }
+const teMroot=ZT=>Math.sqrt(1+ZT);
+function teEta(ZT,tau){ const M=teMroot(ZT); return (1-tau)*(M-1)/(M+tau); }         // TEG generator efficiency
+function teCOP(ZT,tau){ const M=teMroot(ZT); return tau/(1-tau)*(M-1/tau)/(M+1); }   // Peltier cooler COP
+const TE_ZTMAX=6, TE_TMIN=0.1, TE_TMAX=0.9;
+const teMapX=ZT=>-2.7+5.4*(ZT/TE_ZTMAX);
+const teMapZ=tau=>-2.3+4.6*((tau-TE_TMIN)/(TE_TMAX-TE_TMIN));
 function teSetup(){
-  teClear(); teGroup.add(new THREE.AmbientLight(0x9098b8,.9));
-  const Th=state.teTh??500, Tc=state.teTc??300;
-  // hot & cold plates
-  const hot=new THREE.Mesh(new THREE.BoxGeometry(3.2,.35,1.2),new THREE.MeshStandardMaterial({color:0xd8412f,emissive:0x501008,roughness:.6})); hot.position.set(0,1.9,0); teGroup.add(hot);
-  const cold=new THREE.Mesh(new THREE.BoxGeometry(3.2,.35,1.2),new THREE.MeshStandardMaterial({color:0x3f7fe0,emissive:0x081840,roughness:.6})); cold.position.set(0,-1.9,0); teGroup.add(cold);
-  const dl=new THREE.DirectionalLight(0xffffff,.7); dl.position.set(2,3,5); teGroup.add(dl);
-  // two legs (n and p)
+  teClear(); teGroup.add(new THREE.AmbientLight(0x9098b8,.85));
+  const dl=new THREE.DirectionalLight(0xfff2dc,.6); dl.position.set(4,7,6); teGroup.add(dl);
+  const peltier=(state.teMode||'seebeck')==='peltier';
+  const valFn=peltier?((z,t)=>Math.max(0,Math.min(8,teCOP(z,t)))):teEta;
+  const ceilFn=peltier?(t=>Math.min(8,t/(1-t))):(t=>1-t);          // Carnot ceiling (COP or η)
+  const vmax=peltier?8:0.55, YS=2.6/vmax, teMapY=v=>v*YS;
+  // ── efficiency / COP landscape η(ZT, Tc/Th) ─────────────────────────────
+  const NX=46,NZ=32, geo=new THREE.PlaneGeometry(1,1,NX-1,NZ-1);
+  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){ const idx=j*NX+i;
+    const ZT=TE_ZTMAX*i/(NX-1), tau=TE_TMIN+(TE_TMAX-TE_TMIN)*j/(NZ-1), v=valFn(ZT,tau);
+    pos.setXYZ(idx, teMapX(ZT), teMapY(v), teMapZ(tau));
+    const frac=peltier? v/vmax : v/(ceilFn(tau)+1e-6);            // seebeck: fraction of the Carnot ceiling
+    _c.setHSL(0.62-0.52*Math.min(1,frac), 0.72, 0.15+0.34*Math.min(1,v/vmax));
+    col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+  teGroup.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.62,metalness:.12,transparent:true,opacity:.92,side:THREE.DoubleSide})));
+  teGroup.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.09,depthWrite:false})));
+  // Carnot ceiling — the thermodynamic limit reached only as ZT→∞ (independent of ZT): a golden roof
+  const cgeo=new THREE.PlaneGeometry(1,1,1,NZ-1), cpos=cgeo.attributes.position;
+  for(let j=0;j<NZ;j++)for(let i=0;i<2;i++){ const idx=j*2+i, tau=TE_TMIN+(TE_TMAX-TE_TMIN)*j/(NZ-1);
+    cpos.setXYZ(idx, teMapX(i?TE_ZTMAX:0), teMapY(ceilFn(tau)), teMapZ(tau)); }
+  cgeo.computeVertexNormals();
+  teGroup.add(new THREE.Mesh(cgeo,new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.12,side:THREE.DoubleSide,depthWrite:false})));
+  const cedge=[]; for(let j=0;j<NZ;j++){ const tau=TE_TMIN+(TE_TMAX-TE_TMIN)*j/(NZ-1); cedge.push(new THREE.Vector3(teMapX(TE_ZTMAX),teMapY(ceilFn(tau)),teMapZ(tau))); }
+  teGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cedge),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false})));
+  // ridge: the ZT=ZTMAX frontier of the achievable surface (best materials → approach Carnot)
+  const ridge=[]; for(let j=0;j<NZ;j++){ const tau=TE_TMIN+(TE_TMAX-TE_TMIN)*j/(NZ-1); ridge.push(new THREE.Vector3(teMapX(TE_ZTMAX),teMapY(valFn(TE_ZTMAX,tau))+0.02,teMapZ(tau))); }
+  teGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(ridge),new THREE.LineBasicMaterial({color:0x9fe8d8,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false})));
+  // axes
+  const o=[teMapX(0),0,teMapZ(TE_TMIN)];
+  teGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(teMapX(TE_ZTMAX),o[1],o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],2.7,o[2]),
+    new THREE.Vector3(o[0],o[1],o[2]),new THREE.Vector3(o[0],o[1],teMapZ(TE_TMAX))]),
+    new THREE.LineBasicMaterial({color:0x55607a})));
+  const xl=mkLabel('ZT →','label axis'); xl.position.set(teMapX(TE_ZTMAX)+0.3,o[1],o[2]); teGroup.add(xl);
+  const yl=mkLabel(peltier?'COP ↑':'η ↑','label axis'); yl.position.set(o[0],2.9,o[2]); teGroup.add(yl);
+  const zl=mkLabel('Tc/Th →','label axis'); zl.position.set(o[0],o[1],teMapZ(TE_TMAX)+0.35); teGroup.add(zl);
+  const cl=mkLabel(peltier?'Carnot COP ceiling':'Carnot ceiling η=1−Tc/Th','label axis'); cl.position.set(teMapX(TE_ZTMAX)+0.1,teMapY(ceilFn(0.5))+0.3,teMapZ(0.5)); teGroup.add(cl);
+  // live operating-point marker + drop line + the gap up to Carnot
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mglow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); mglow.scale.setScalar(.85); marker.add(mglow); teGroup.add(marker);
+  const drop=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.6})); teGroup.add(drop);
+  const gap=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0xff8a6a,transparent:true,opacity:.7,blending:THREE.AdditiveBlending,depthWrite:false})); teGroup.add(gap);
+  // small thermoelectric couple inset (keeps the device intuition) — hot/cold plates, n/p legs, carriers
+  const cw=new THREE.Group(); cw.scale.setScalar(0.42); cw.position.set(-4.4,0.2,0); teGroup.add(cw);
+  const hot=new THREE.Mesh(new THREE.BoxGeometry(3.0,.35,1.1),new THREE.MeshStandardMaterial({color:0xd8412f,emissive:0x501008,roughness:.6})); hot.position.set(0,1.9,0); cw.add(hot);
+  const cold=new THREE.Mesh(new THREE.BoxGeometry(3.0,.35,1.1),new THREE.MeshStandardMaterial({color:0x3f7fe0,emissive:0x081840,roughness:.6})); cold.position.set(0,-1.9,0); cw.add(cold);
   const legGeo=new THREE.BoxGeometry(.8,3.2,.8);
-  const nleg=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x4a6a9a,metalness:.3,roughness:.5})); nleg.position.set(-1.0,0,0); teGroup.add(nleg);
-  const pleg=new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x9a6a4a,metalness:.3,roughness:.5})); pleg.position.set(1.0,0,0); teGroup.add(pleg);
-  // carriers
-  const carriers=[]; const cg=new THREE.SphereGeometry(.11,10,8);
-  for(let i=0;i<10;i++){ const e=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0x8fd0ff})); e.userData={leg:-1,t:i/10}; teGroup.add(e); carriers.push(e);
-    const hh=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0xffb060})); hh.userData={leg:1,t:i/10}; teGroup.add(hh); carriers.push(hh); }
-  const nlab=mkLabel('n','label axis'); nlab.position.set(-1.0,0,.6); teGroup.add(nlab);
-  const plab=mkLabel('p','label axis'); plab.position.set(1.0,0,.6); teGroup.add(plab);
-  const hlab=mkLabel('hot Tₕ','label axis'); hlab.position.set(0,2.35,0); teGroup.add(hlab);
-  const clab=mkLabel('cold T_c','label axis'); clab.position.set(0,-2.35,0); teGroup.add(clab);
-  const tl=mkLabel('THERMOELECTRIC · Seebeck V=S·ΔT · Peltier Q=Π·I · ZT=S²σT/κ','label const'); tl.position.set(0,3.4,0); teGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); teGroup.add(rl);
-  teObjs={hot,cold,nleg,pleg,carriers,readLab:rl};
+  cw.add(new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x4a6a9a,metalness:.3,roughness:.5})).translateX(-1.0));
+  cw.add(new THREE.Mesh(legGeo,new THREE.MeshStandardMaterial({color:0x9a6a4a,metalness:.3,roughness:.5})).translateX(1.0));
+  const carriers=[]; const cg=new THREE.SphereGeometry(.14,10,8);
+  for(let i=0;i<8;i++){ const e=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0x8fd0ff})); e.userData={leg:-1,t:i/8}; cw.add(e); carriers.push(e);
+    const hh=new THREE.Mesh(cg,new THREE.MeshBasicMaterial({color:0xffb060})); hh.userData={leg:1,t:i/8}; cw.add(hh); carriers.push(hh); }
+  const il=mkLabel('the couple','label dim'); il.position.set(-4.4,2.05,0); teGroup.add(il);
+  const tl=mkLabel('THERMOELECTRIC · efficiency landscape η(ZT, Tc/Th) → the Carnot ceiling only as ZT→∞','label const'); tl.position.set(0,3.5,0); teGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); teGroup.add(rl);
+  teObjs={marker,drop,gap,carriers,readLab:rl,valFn,ceilFn,teMapY,peltier};
 }
 function updateTe(dt){
   const O=teObjs; if(!O) return;
   const mode=state.teMode||'seebeck', Th=state.teTh??500, Tc=state.teTc??300, ZT=state.teZT??1;
+  if((mode==='peltier')!==O.peltier){ teSetup(); return; }        // mode switched → rebuild the landscape
+  if(state.teSweep){ teSweepT+=dt*0.7; state.teZT=0.2+5.8*(0.5-0.5*Math.cos(teSweepT));   // sweep ZT to trace the climb toward Carnot
+    const zv=ctl.querySelector('#teZTV'); if(zv) zv.textContent=state.teZT.toFixed(1); }
+  // live operating point on the landscape + the irreversibility gap up to Carnot
+  const tau=Math.max(TE_TMIN,Math.min(TE_TMAX,Tc/Th)), v=O.valFn(ZT,tau);
+  const mx=teMapX(Math.min(TE_ZTMAX,ZT)), mz=teMapZ(tau), my=O.teMapY(v), cy=O.teMapY(O.ceilFn(tau));
+  O.marker.position.set(mx,my,mz);
+  O.drop.geometry.setFromPoints([new THREE.Vector3(mx,0,mz),new THREE.Vector3(mx,my,mz)]); O.drop.geometry.computeBoundingSphere();
+  O.gap.geometry.setFromPoints([new THREE.Vector3(mx,my,mz),new THREE.Vector3(mx,cy,mz)]); O.gap.geometry.computeBoundingSphere();
   const drive=mode==='peltier'?(state.teI??1):(Th-Tc)/200;
   tePhase+=dt*(0.4+0.6*Math.abs(drive))*(mode==='peltier'&&drive<0?-1:1);
   for(const c of O.carriers){ let t=(c.userData.t + tePhase*0.25*c.userData.leg*-1)%1; if(t<0)t+=1;
-    const y=1.7-3.4*t; c.position.set(c.userData.leg*1.0 + (c.userData.leg<0?-0.001:0.001), y, 0.42); }
+    const y=1.7-3.4*t; c.position.set(c.userData.leg*1.0, y, 0.42); }
   teUiAcc+=dt; if(teUiAcc>0.25){ teUiAcc=0;
     const S=2e-4, dT=Th-Tc, V=S*dT, Tm=(Th+Tc)/2, Pi=S*Tm;
     const M=Math.sqrt(1+ZT), etaTEG=(1-Tc/Th)*(M-1)/(M+Tc/Th), carnot=1-Tc/Th;
@@ -18946,7 +19001,7 @@ const state = {
   bbT:5772,   // Blackbody lab
   nucA:56, nucZmode:'stable', nucZ:26,   // Nuclear binding lab
   lensB:4, lensRays:22, lensStation:'bundle', lensHopf:true, lensShapB:2.5, lensShapD:1000,   // Gravitational-lensing lab
-  teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1,   // Thermoelectric lab
+  teMode:'seebeck', teTh:500, teTc:300, teZT:1, teI:1, teSweep:false,   // Thermoelectric lab
   gwM1:36, gwM2:29, gwRun:true, gwSpeed:1,   // Gravitational-wave lab
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
@@ -20623,6 +20678,11 @@ function buildCtlBody(){
         <input type="range" id="teTc" min="200" max="310" step="10" value="${state.teTc??300}"><span class="val" id="teTcV">${(state.teTc??300).toFixed(0)} K</span></div>
       <div class="ctlrow"><label>Figure ZT</label>
         <input type="range" id="teZT" min="0.2" max="6" step="0.1" value="${state.teZT??1}"><span class="val" id="teZTV">${(state.teZT??1).toFixed(1)}</span></div>
+      <div class="chips">
+        ${[['Bi₂Te₃',1.0],['PbTe',1.5],['SnSe',2.6],['lab record',3.5],['ZT dream',6]].map(([l,z])=>
+          `<button class="chip ${Math.abs((state.teZT??1)-z)<0.05?'on':''}" data-tezt="${z}">${l} ${z}</button>`).join('')}
+        <button class="chip ${state.teSweep?'on':''}" id="teSweep">${state.teSweep?'◼ stop sweep':'▶ sweep ZT'}</button>
+      </div>
       ${(state.teMode||'seebeck')==='peltier'?`
       <div class="ctlrow"><label>Current I</label>
         <input type="range" id="teI" min="-3" max="3" step="0.1" value="${state.teI??1}"><span class="val" id="teIV">${(state.teI??1).toFixed(1)} A</span></div>`:''}
@@ -21616,11 +21676,13 @@ function buildCtlBody(){
       ctl.querySelector('#lensToHopf')&&(ctl.querySelector('#lensToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='te'){
-      ctl.querySelectorAll('[data-tem]').forEach(b=>b.onclick=()=>{ state.teMode=b.dataset.tem; buildCtl(); });
+      ctl.querySelectorAll('[data-tem]').forEach(b=>b.onclick=()=>{ state.teMode=b.dataset.tem; teSetup(); buildCtl(); });
       const tc=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
       tc('teTh',v=>state.teTh=v,v=>v.toFixed(0)+' K'); tc('teTc',v=>state.teTc=v,v=>v.toFixed(0)+' K');
       tc('teZT',v=>state.teZT=v,v=>v.toFixed(1)); tc('teI',v=>state.teI=v,v=>v.toFixed(1)+' A');
+      ctl.querySelectorAll('[data-tezt]').forEach(b=>b.onclick=()=>{ state.teZT=+b.dataset.tezt; state.teSweep=false; buildCtl(); });
+      ctl.querySelector('#teSweep')&&(ctl.querySelector('#teSweep').onclick=()=>{ state.teSweep=!state.teSweep; buildCtl(); });
       ctl.querySelector('#teToHe')&&(ctl.querySelector('#teToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
       ctl.querySelector('#teToCp')&&(ctl.querySelector('#teToCp').onclick=()=>{ navPush(); setS3View('cp'); buildCtl(); });
     }
