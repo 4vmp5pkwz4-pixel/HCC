@@ -1465,6 +1465,14 @@ function runSelfTests(){
       C.push(new THREE.Vector3(Math.cos(t)*1.2-2.2,Math.sin(t)*1.2,0));
       D2.push(new THREE.Vector3(Math.cos(t)*1.2+2.2,0,Math.sin(t)*1.2)); }
     ok('Gauss linking of separated loops = 0 within 1e-3', Math.abs(topoGaussLink(C,D2))<1e-3, topoGaussLink(C,D2).toExponential(1)); }
+  { // ELECTROMAGNETIC HOPFION: E & B field lines are orthogonal Hopf fibrations, each self-linked once
+    const mk=(th,ph,ax)=>{ const q=emBaseQ(th,ph),L=[]; for(let k=0;k<120;k++) L.push(emHopfPt(q,ax,k/120*2*Math.PI,1,new THREE.Vector3()).clone()); return L; };
+    const lkE=topoGaussLink(mk(0.9,0,'i'), mk(1.4,2.0,'i'));
+    ok('EM Hopfion: two electric field lines are Hopf-linked (Gauss |Lk|=1 within 1e-2)', Math.abs(Math.abs(lkE)-1)<0.01, lkE.toFixed(4));
+    const q0=emBaseQ(1.0,0.7);
+    const te=emHopfPt(q0,'i',1e-4,1,new THREE.Vector3()).clone().sub(emHopfPt(q0,'i',-1e-4,1,new THREE.Vector3())).normalize();
+    const tb=emHopfPt(q0,'j',1e-4,1,new THREE.Vector3()).clone().sub(emHopfPt(q0,'j',-1e-4,1,new THREE.Vector3())).normalize();
+    ok('EM Hopfion: E ⟂ B everywhere (null field) — |Ê·B̂|<1e-3 at the shared base point', Math.abs(te.dot(tb))<1e-3, te.dot(tb).toExponential(1)); }
   { // TAUB-NUT: J = r×v − N r̂ conserved and J·r̂ = −N at machine precision (RK4)
     const N=0.6; let p=new THREE.Vector3(2.2,0,0), v=new THREE.Vector3(0,0.28,0.52);
     const J0=p.clone().cross(v).sub(p.clone().normalize().multiplyScalar(N));
@@ -12205,8 +12213,57 @@ function updateRet(dt){
 const dipGroup=new THREE.Group(); dipGroup.visible=false; s3Group.add(dipGroup);
 let dipObjs=null, dipT=0, dipUiAcc=0;
 function dipClear(){ labWipe(dipGroup); dipObjs=null; }
+// ── ELECTROMAGNETIC HOPFION (Rañada light knot) ─────────────────────────────
+// Exact null vacuum solution of Maxwell's equations whose E, B (and Poynting) field
+// lines are the fibres of the Hopf map S³→S². We realise the field lines as quaternion
+// right-multiplication orbits: e^{t·i} gives the E-fibration, e^{t·j} the orthogonal
+// B-fibration (i⊥j ⇒ E⊥B everywhere, since stereographic projection is conformal).
+// Each fibration self-links with Hopf linking number 1 (verified: Gauss integral = ±1).
+function emHopfPt(q0,axis,t,S,out){
+  const c=Math.cos(t), s=Math.sin(t);
+  const e = axis==='i'?[c,s,0,0]:[c,0,s,0];                       // e^{t·i} or e^{t·j}
+  const w=q0[0]*e[0]-q0[1]*e[1]-q0[2]*e[2]-q0[3]*e[3];            // Hamilton product q0·e
+  const x=q0[0]*e[1]+q0[1]*e[0]+q0[2]*e[3]-q0[3]*e[2];
+  const y=q0[0]*e[2]-q0[1]*e[3]+q0[2]*e[0]+q0[3]*e[1];
+  const z=q0[0]*e[3]+q0[1]*e[2]-q0[2]*e[1]+q0[3]*e[0];
+  const d=1-z+1e-9;                                               // stereographic S³→R³ from (0,0,0,1)
+  return out.set(w/d*S, x/d*S, y/d*S);
+}
+function emBaseQ(theta,phi){ const ch=Math.cos(theta/2), sh=Math.sin(theta/2); return [ch*Math.cos(phi),ch*Math.sin(phi),sh,0]; }
+function emHopfSeg(theta,phi,axis,N,S,cap){   // capped LineSegments pairs (drops the near-pole blow-up)
+  const q0=emBaseQ(theta,phi), pts=[]; let prev=null, v=new THREE.Vector3();
+  for(let k=0;k<=N;k++){ const p=emHopfPt(q0,axis,k/N*2*Math.PI,S,v).clone();
+    if(p.length()>cap){ prev=null; continue; } if(prev) pts.push(prev,p); prev=p; }
+  return pts;
+}
+function dipBuildHopfion(){
+  const S=0.95, cap=4.2;
+  const rings=[[0.62,6],[1.02,9],[1.5,9],[1.96,6]];
+  const basePts=[]; for(const [th,c] of rings) for(let j=0;j<c;j++) basePts.push([th, 2*Math.PI*j/c + th*0.7]);
+  const holder=new THREE.Group(); dipGroup.add(holder);
+  const eMat=new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.72,blending:THREE.AdditiveBlending,depthWrite:false});
+  const bMat=new THREE.LineBasicMaterial({color:0x6fd0ff,transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false});
+  const eFib=[];                                             // continuous E-fibre point lists (for beads)
+  const _v=new THREE.Vector3();
+  for(const [th,ph] of basePts){
+    const eSeg=emHopfSeg(th,ph,'i',200,S,cap); if(eSeg.length) holder.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(eSeg),eMat));
+    const bSeg=emHopfSeg(th,ph,'j',160,S,cap); if(bSeg.length) holder.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(bSeg),bMat));
+    const q0=emBaseQ(th,ph), cont=[]; for(let k=0;k<=64;k++){ const p=emHopfPt(q0,'i',k/64*2*Math.PI,S,_v).clone(); cont.push(p.length()>cap?null:p); }
+    eFib.push(cont);
+  }
+  // luminous energy beads streaming along the E field-lines (the light circulation)
+  const bg=new THREE.BufferGeometry(); bg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(eFib.length*3),3));
+  const beads=new THREE.Points(bg,new THREE.PointsMaterial({size:0.15,map:glowTexture(),color:0xfff2c0,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending}));
+  holder.add(beads);
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0d0,transparent:true,opacity:.6,depthWrite:false})); core.scale.setScalar(1.4); holder.add(core);
+  const tl=mkLabel('ELECTROMAGNETIC HOPFION · a knot of light — E & B field lines ARE Hopf fibres (S³→S²)','label const'); tl.position.set(0,3.7,0); dipGroup.add(tl);
+  const t2=mkLabel('gold = E lines · cyan = B lines · orthogonal & each self-linked (Hopf link = 1)','label dim'); t2.position.set(0,-3.5,0); dipGroup.add(t2);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-4.0,0); dipGroup.add(rl);
+  dipObjs={station:'hopfion',holder,beads,eFib,core,readLab:rl,_c:new THREE.Color()};
+}
 function dipSetup(){
   dipClear(); dipT=0;
+  if((state.dipStation||'radiation')==='hopfion'){ dipBuildHopfion(); return; }
   dipGroup.add(new THREE.AmbientLight(0x8090b0,.7));
   const dl=new THREE.DirectionalLight(0xfff0d0,.6); dl.position.set(3,5,4); dipGroup.add(dl);
   // the radiation-pattern lobe surface r(θ)=sin²θ (revolved about the z/dipole axis)
@@ -12242,6 +12299,25 @@ function dipSetup(){
 }
 function updateDip(dt){
   if(!dipObjs) dipSetup();
+  if(dipObjs.station==='hopfion'){ const O=dipObjs;
+    if(state.dipRun!==false) dipT+=dt;
+    // rigid evolution: the light-knot propagates by spinning about its axis (declared visualization
+    // of the conformal rigid motion) while energy streams along the E field-lines at c
+    O.holder.rotation.y = 0.35*dipT;
+    const bp=O.beads.geometry.attributes.position.array;
+    for(let i=0;i<O.eFib.length;i++){ const f=O.eFib[i], n=f.length-1;
+      const idx=Math.floor(((dipT*0.9+i*0.618)%1)*n), p=f[idx]||f[0]||{x:0,y:0,z:0};
+      bp[i*3]=p.x; bp[i*3+1]=p.y; bp[i*3+2]=p.z; }
+    O.beads.geometry.attributes.position.needsUpdate=true;
+    O.core.material.opacity=0.5+0.18*Math.sin(dipT*2.2);
+    dipUiAcc+=dt; if(dipUiAcc>0.3){ dipUiAcc=0;
+      O.readLab.element.textContent='null field: E·B=0 and |E|=|B| · field lines are Hopf fibres (linking 1) · helicity ∫A·B & ∫C·E conserved · propagates at c undistorted';
+      hudBig.textContent='ELECTROMAGNETIC HOPFION · a knot of light (Rañada 1989 · Irvine–Bouwmeester 2008 · Kedia 2013)';
+      hudSub.textContent='An EXACT source-free solution of Maxwell’s equations in which every electric field line and every magnetic field line is a closed circle, and any two of them are linked exactly once — the Hopf fibration made of light. E ⟂ B everywhere (a null field, |E|=|B|), the two fibrations are mutually orthogonal, and the electromagnetic helicity ∫A·B is a conserved topological charge. The whole knot glides at c without changing shape. Realised in the lab as tightly focused structured light.';
+      ATLAS_BUS.pub('dip.hopfLink',1,'E-line self-linking');
+      const el=ctl.querySelector('#dipInv'); if(el) el.innerHTML=`null EM field: <b>E·B=0</b>, <b>|E|=|B|</b> · field lines = Hopf fibres, pairwise linking <b>1</b>`+
+        `<br>E ⟂ B everywhere (mutually orthogonal fibrations) · helicity ∫A·B conserved · rigid propagation at c`; }
+    return; }
   const O=dipObjs, w=state.dipOmega??1.5, c=2.2;   // wavefront speed (scene units/s)
   if(state.dipRun!==false) dipT+=dt;
   const ph=Math.sin(w*dipT);
@@ -18863,7 +18939,7 @@ const state = {
   shL:3, shM:2, shMode:'balloon', shAnim:true, shSpeed:1, shDeform:1.0,   // Spherical harmonics lab
   kdvMode:'collide', kdvRun:true, kdvSpeed:1, kdvC1:5, kdvC2:2,   // Soliton (KdV) lab
   retStation:'coupled', retRun:true, retSpeed:1, retK:1, retKappa:0.08, retGamma:0.1, retDriveW:1.0, retQ:100, retCoup:0.05,   // Resonant energy transfer lab
-  dipOmega:1.5, dipRun:true,   // Dipole radiation lab
+  dipOmega:1.5, dipRun:true, dipStation:'radiation',   // Dipole radiation lab (+ EM Hopfion station)
   cpStation:'cyclo', cpRun:true, cpSpeed:1, cpB:1, cpE:0.3, cpCharge:1, cpVperp:1, cpVpar:0.4,   // Charged-particle lab
   rdPreset:'spots', rdRun:true, rdSpeed:1, rdDu:0.16, rdDv:0.08, rdGpu:true,   // Reaction–diffusion lab
   heTh:800, heTc:300, heRun:true, heSpeed:1, heSweep:false,   // Heat-engine lab
@@ -20354,15 +20430,21 @@ function buildCtlBody(){
         <button class="btn" id="eotToQuasi">→ Quasiparticles: plasmons</button></div>
     </div>`;
     else if(V==='dip') body = `
-    <div class="sect"><b>Dipole radiation</b>
+    <div class="sect"><b>Radiating fields — pick a station</b>
+      <div class="chips">
+        ${[['radiation','Dipole radiation · sin²θ'],['hopfion','EM Hopfion · knot of light']].map(([k,l])=>
+          `<button class="chip ${(state.dipStation||'radiation')===k?'on':''}" data-dipst="${k}">${l}</button>`).join('')}
+      </div>
       <div class="ctlrow">
         <button class="btn green" id="dipRun">${state.dipRun!==false?'⏸ pause':'▶ run'}</button>
-        <label style="margin-left:8px">Frequency ω</label>
-        <input type="range" id="dipOmega" min="0.6" max="3" step="0.05" value="${state.dipOmega??1.5}"><span class="val" id="dipOmegaV">${(state.dipOmega??1.5).toFixed(2)}</span></div>
+        ${(state.dipStation||'radiation')==='radiation'?`<label style="margin-left:8px">Frequency ω</label>
+        <input type="range" id="dipOmega" min="0.6" max="3" step="0.05" value="${state.dipOmega??1.5}"><span class="val" id="dipOmegaV">${(state.dipOmega??1.5).toFixed(2)}</span>`:''}</div>
     </div>
-    <div class="sect"><b>Radiation readout</b>
+    <div class="sect"><b>${(state.dipStation||'radiation')==='hopfion'?'Light-knot readout':'Radiation readout'}</b>
       <div class="note" id="dipInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">An oscillating dipole sheds energy as wavefronts travelling at c. The glowing donut is the EXACT power pattern P(θ)∝sin²θ — zero along the oscillation axis, maximum broadside — and the total is ∫sin²θ dΩ=8π/3. Larmor's law P∝ω⁴ (raise ω and watch the power soar) is why blue scatters far more than red: the colour of the sky and of sunsets. Energy leaves and never returns — the fundamental antenna/harvester budget.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${(state.dipStation||'radiation')==='hopfion'
+        ?'The electromagnetic Hopfion — an EXACT null solution of the source-free Maxwell equations (Rañada 1989; realised as knotted light by Irvine &amp; Bouwmeester 2008, Kedia et al. 2013). Every E field line and every B field line is a closed circle, and any two are linked exactly once: the Hopf fibration S³→S² built out of light. E⟂B everywhere with |E|=|B| (a null field); the two fibrations are mutually orthogonal; the electromagnetic helicity ∫A·B is a conserved topological charge; the whole knot propagates at c without changing shape. gold = E, cyan = B.'
+        :'An oscillating dipole sheds energy as wavefronts travelling at c. The glowing donut is the EXACT power pattern P(θ)∝sin²θ — zero along the oscillation axis, maximum broadside — and the total is ∫sin²θ dΩ=8π/3. Larmor\'s law P∝ω⁴ (raise ω and watch the power soar) is why blue scatters far more than red: the colour of the sky and of sunsets. Energy leaves and never returns — the fundamental antenna/harvester budget.'}</div>
     </div>
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
@@ -21455,6 +21537,7 @@ function buildCtlBody(){
       ctl.querySelector('#waveToEot')&&(ctl.querySelector('#waveToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
     }
     if(V==='dip'){
+      ctl.querySelectorAll('[data-dipst]').forEach(b=>b.onclick=()=>{ state.dipStation=b.dataset.dipst; dipSetup(); buildCtl(); });
       ctl.querySelector('#dipRun')&&(ctl.querySelector('#dipRun').onclick=()=>{ state.dipRun=state.dipRun===false; buildCtl(); });
       ctl.querySelector('#dipOmega')&&(ctl.querySelector('#dipOmega').oninput=e=>{ state.dipOmega=+e.target.value;
         const v=ctl.querySelector('#dipOmegaV'); if(v)v.textContent=state.dipOmega.toFixed(2); });
