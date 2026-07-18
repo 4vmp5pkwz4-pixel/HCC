@@ -14154,17 +14154,39 @@ function psrSetup(){
   const prof=new THREE.Line(wg,new THREE.LineBasicMaterial({color:0x7ff0d0,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false}));
   psrGroup.add(prof);
   const pl=mkLabel('observed pulse train','label axis'); pl.position.set(0,-3.0,0); psrGroup.add(pl);
-  // P–Ṗ inset with presets + current marker (the iconic diagram)
-  const ppGrp=new THREE.Group(); ppGrp.position.set(2.75,1.5,0); psrGroup.add(ppGrp);
+  // P–Ṗ diagram as a lit field landscape: height & colour = surface field B=3.2×10¹⁹√(PṖ),
+  // with constant-B diagonal ridges and the (declared, model-dependent) pair-production death line
+  const ppGrp=new THREE.Group(); ppGrp.position.set(2.9,1.4,0); ppGrp.scale.setScalar(0.9); psrGroup.add(ppGrp);
   const ppx=P=>0.9*(Math.log10(P)+3)/4-0.45, ppy=Pd=>0.9*(Math.log10(Pd)+21)/11-0.45;
-  for(const k in PSR_PRESETS){ const p=PSR_PRESETS[k];
+  const logB=(lp,ld)=>Math.log10(3.2e19)+0.5*(lp+ld);
+  const bMin=logB(-3,-21), bMax=logB(1,-10), zB=lb=>0.9*(lb-bMin)/(bMax-bMin);
+  const NX=22,NY=18, geo=new THREE.PlaneGeometry(1,1,NX-1,NY-1), pos=geo.attributes.position, col=new Float32Array(pos.count*3), _pc=new THREE.Color();
+  for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){ const idx=j*NX+i, lp=-3+4*i/(NX-1), ld=-21+11*j/(NY-1), t=(logB(lp,ld)-bMin)/(bMax-bMin);
+    pos.setXYZ(idx, ppx(Math.pow(10,lp))*2, ppy(Math.pow(10,ld))*2, zB(logB(lp,ld)));
+    _pc.setHSL(0.62-0.5*t,0.68,0.14+0.4*t); col[idx*3]=_pc.r; col[idx*3+1]=_pc.g; col[idx*3+2]=_pc.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+  ppGrp.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:.12,transparent:true,opacity:.9,side:THREE.DoubleSide})));
+  for(const B of [1e10,1e12,1e14]){ const lB=Math.log10(B), pts=[];
+    for(let i=0;i<=24;i++){ const lp=-3+4*i/24, ld=2*(lB-Math.log10(3.2e19))-lp; if(ld<-21||ld>-10)continue; pts.push(new THREE.Vector3(ppx(Math.pow(10,lp))*2,ppy(Math.pow(10,ld))*2,zB(lB)+0.015)); }
+    if(pts.length>1){ ppGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false})));
+      const bl=mkLabel('10^'+lB.toFixed(0)+' G','label dim'); bl.position.copy(pts[pts.length-1]); ppGrp.add(bl); } }
+  { const pts=[]; for(let i=0;i<=24;i++){ const lp=-3+4*i/24, ld=3*lp-16.1; if(ld<-21||ld>-10)continue; pts.push(new THREE.Vector3(ppx(Math.pow(10,lp))*2,ppy(Math.pow(10,ld))*2,zB(logB(lp,ld))+0.015)); }
+    if(pts.length>1){ ppGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xff6a6a,transparent:true,opacity:.5})));
+      const dl=mkLabel('death line (approx)','label dim'); dl.position.copy(pts[0]).add(new THREE.Vector3(0,-0.15,0)); ppGrp.add(dl); } }
+  for(const k in PSR_PRESETS){ const p=PSR_PRESETS[k], lp=Math.log10(p.P), ld=Math.log10(p.Pd);
     const d=new THREE.Mesh(new THREE.SphereGeometry(.05,10,8),new THREE.MeshBasicMaterial({color:0x8fb8ff}));
-    d.position.set(ppx(p.P)*2,ppy(p.Pd)*2,0); ppGrp.add(d); }
-  const cur=new THREE.Mesh(new THREE.SphereGeometry(.07,12,9),new THREE.MeshBasicMaterial({color:0xffe08a})); ppGrp.add(cur);
-  const ppl=mkLabel('P–Ṗ diagram','label dim'); ppl.position.set(2.75,2.6,0); psrGroup.add(ppl);
+    d.position.set(ppx(p.P)*2,ppy(p.Pd)*2,zB(logB(lp,ld))+0.03); ppGrp.add(d); }
+  const cur=new THREE.Mesh(new THREE.SphereGeometry(.08,12,9),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const cg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); cg.scale.setScalar(.55); cur.add(cg); ppGrp.add(cur);
+  { const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(ppx(1e-3)*2,ppy(1e-21)*2,0),new THREE.Vector3(ppx(10)*2,ppy(1e-21)*2,0),
+      new THREE.Vector3(ppx(1e-3)*2,ppy(1e-21)*2,0),new THREE.Vector3(ppx(1e-3)*2,ppy(1e-10)*2,0)]),new THREE.LineBasicMaterial({color:0x55607a})); ppGrp.add(ax);
+    const xl=mkLabel('log P →','label dim'); xl.position.set(ppx(10)*2+0.2,ppy(1e-21)*2,0); ppGrp.add(xl);
+    const yl=mkLabel('log Ṗ ↑','label dim'); yl.position.set(ppx(1e-3)*2,ppy(1e-10)*2+0.15,0); ppGrp.add(yl); }
+  const ppl=mkLabel('P–Ṗ diagram · height = B','label dim'); ppl.position.set(2.9,3.0,0); psrGroup.add(ppl);
   const tl=mkLabel('PULSAR · lighthouse dipole · B=3.2×10¹⁹√(PṖ) G · τ=P/2Ṗ · L=4π²IṖ/P³','label const','psrAtlas'); tl.position.set(0,3.5,0); psrGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); psrGroup.add(rl);
-  psrObjs={spin,mag,cur,ppx,ppy,wg,readLab:rl,alpha,zeta};
+  psrObjs={spin,mag,cur,ppx,ppy,zB,logB,wg,readLab:rl,alpha,zeta};
 }
 function updatePsr(dt){
   const O=psrObjs; if(!O) return;
@@ -14180,7 +14202,7 @@ function updatePsr(dt){
   const pa=O.wg.attributes.position.array;
   for(let i=0;i<240;i++){ const idx=(psrPi+i)%240; pa[i*3]=-3.1+6.2*i/239; pa[i*3+1]=-2.6+1.5*psrProf[idx]; pa[i*3+2]=0; }
   O.wg.attributes.position.needsUpdate=true; O.wg.computeBoundingSphere();
-  O.cur.position.set(O.ppx(P)*2,O.ppy(Pd)*2,0);
+  O.cur.position.set(O.ppx(P)*2,O.ppy(Pd)*2,O.zB(O.logB(Math.log10(P),Math.log10(Pd)))+0.05);
   psrUiAcc+=dt; if(psrUiAcc>0.25){ psrUiAcc=0;
     const B=psrB(P,Pd), tau=psrTau(P,Pd), L=psrLsd(P,Pd);
     hudBig.textContent=`PULSAR · P=${P<0.1?(P*1000).toFixed(2)+' ms':P.toFixed(3)+' s'} · B=${B.toExponential(2)} G · τ=${tau<1e6?tau.toFixed(0)+' yr':(tau/1e9).toFixed(2)+' Gyr'} · L_sd=${L.toExponential(2)} erg/s`;
