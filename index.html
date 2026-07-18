@@ -13966,28 +13966,40 @@ function nsSetup(){
   const mrGrp=new THREE.Group(); mrGrp.position.set(1.6,-0.4,0); nsGroup.add(mrGrp);
   const mx=R=>-1.4+2.8*(R-9)/11, my=M=>-1.5+3.0*(M/1.9);
   const C=nsGetCurve();
-  mrGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(C.pts.map(p=>new THREE.Vector3(mx(p.Rkm),my(p.M),0))),
-    new THREE.LineBasicMaterial({color:0x8fd0ff,transparent:true,opacity:.95})));
+  // M–R sequence as a lit 3-D curve: depth = central density ρc, so the stable branch and the
+  // (dM/dρc<0) UNSTABLE branch beyond the TOV maximum separate in z; coloured green→red by stability
+  const zc=lg=>(lg+2.65)*1.05;
+  const seqPts=[], stab=[]; let prevM=-1;
+  for(const p of C.pts){ seqPts.push(new THREE.Vector3(mx(p.Rkm),my(p.M),zc(Math.log10(p.rc)))); stab.push(p.M>=prevM-1e-9); prevM=p.M; }
+  const tube=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(seqPts),seqPts.length*2,0.05,9,false);
+  const tp=tube.attributes.position, tcol=new Float32Array(tp.count*3), _sc=new THREE.Color(), RAD=10;
+  for(let i=0;i<tp.count;i++){ const seg=Math.floor(i/RAD), si=Math.min(stab.length-1,Math.round(seg/(seqPts.length*2)*(stab.length-1)));
+    _sc.setHex(stab[si]?0x6fe0a0:0xff6a6a); tcol[i*3]=_sc.r; tcol[i*3+1]=_sc.g; tcol[i*3+2]=_sc.b; }
+  tube.setAttribute('color',new THREE.BufferAttribute(tcol,3));
+  mrGrp.add(new THREE.Mesh(tube,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.2})));
   // Buchdahl exclusion M = (4/9)(R/KM) and Schwarzschild M = R/(2 KM)
   for(const [fac,col,nm,yy] of [[4/9,0xff8a6a,'Buchdahl 8/9',1],[0.5,0x9a5a5a,'R=2GM/c² (BH)',0.8]]){
     const pts2=[]; for(let R=9;R<=20;R+=0.5){ const M=fac*R/NS_KM; if(M<=1.95) pts2.push(new THREE.Vector3(mx(R),my(Math.min(M,1.9)),0)); }
     if(pts2.length>1){ mrGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2),
       new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.5})));
       const l=mkLabel(nm,'label dim'); l.position.copy(pts2[Math.min(2,pts2.length-1)]).add(new THREE.Vector3(0,.22,0)); mrGrp.add(l); } }
-  const mxMk=new THREE.Mesh(new THREE.SphereGeometry(.07,12,9),new THREE.MeshBasicMaterial({color:0xffe08a}));
-  mxMk.position.set(mx(C.mx.Rkm),my(C.mx.M),0); mrGrp.add(mxMk);
+  const mxMk=new THREE.Mesh(new THREE.SphereGeometry(.08,12,9),new THREE.MeshBasicMaterial({color:0xffe08a}));
+  mxMk.position.set(mx(C.mx.Rkm),my(C.mx.M),zc(Math.log10(C.mx.rc))); mrGrp.add(mxMk);
   const mxl=mkLabel(`TOV maximum ${C.mx.M.toFixed(3)} M☉`,'label axis'); mxl.position.set(mx(C.mx.Rkm),my(C.mx.M)+0.28,0); mrGrp.add(mxl);
   const cur=new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
   const cg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); cg.scale.setScalar(.7); cur.add(cg); mrGrp.add(cur);
   const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
     new THREE.Vector3(mx(9),my(0),0),new THREE.Vector3(mx(20),my(0),0),
-    new THREE.Vector3(mx(9),my(0),0),new THREE.Vector3(mx(9),my(1.9),0)]),
+    new THREE.Vector3(mx(9),my(0),0),new THREE.Vector3(mx(9),my(1.9),0),
+    new THREE.Vector3(mx(9),my(0),zc(-3.4)),new THREE.Vector3(mx(9),my(0),zc(-1.9))]),
     new THREE.LineBasicMaterial({color:0x55607a})); mrGrp.add(ax);
   const xl=mkLabel('R (km) →','label axis'); xl.position.set(mx(20)+0.35,my(0),0); mrGrp.add(xl);
   const yl=mkLabel('M (M☉) ↑','label axis'); yl.position.set(mx(9),my(1.9)+0.25,0); mrGrp.add(yl);
+  const zl=mkLabel('ρc →','label axis'); zl.position.set(mx(9),my(0)-0.1,zc(-1.9)+0.3); mrGrp.add(zl);
+  { const gl=mkLabel('stable ● / unstable ●','label dim'); gl.position.set(mx(20)-0.2,my(1.7),0); mrGrp.add(gl); }
   const tl=mkLabel('NEUTRON STAR · TOV interior · dP/dr=−(ε+P)(m+4πr³P)/r(r−2m)','label const','nsAtlas'); tl.position.set(0,3.5,0); nsGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); nsGroup.add(rl);
-  nsObjs={shellGrp,core,cur,mx,my,readLab:rl,builtFor:null,shells:[]};
+  nsObjs={shellGrp,core,cur,mx,my,zc,readLab:rl,builtFor:null,shells:[]};
 }
 function updateNs(dt){
   const O=nsObjs; if(!O) return; nsT+=dt;
@@ -14008,7 +14020,7 @@ function updateNs(dt){
       O.shellGrp.add(m); O.shells.push(m);
     }
     O.core.scale.setScalar(S.Rcode*scale*1.7);
-    O.cur.position.set(O.mx(S.Rkm),O.my(S.M),0);
+    O.cur.position.set(O.mx(S.Rkm),O.my(S.M),O.zc(Math.log10(rhoc)));
   }
   O.core.material.opacity=0.7+0.15*Math.sin(nsT*2.4);
   nsUiAcc+=dt; if(nsUiAcc>0.25){ nsUiAcc=0;
