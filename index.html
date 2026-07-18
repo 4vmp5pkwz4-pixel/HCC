@@ -11024,42 +11024,52 @@ function eotClear(){
   labWipe(eotGroup);
   eotObjs=null;
 }
+const EOT_LMIN=420,EOT_LMAX=1000,EOT_AMIN=350,EOT_AMAX=850;
+const eotMapX=l=>-2.7+5.4*((l-EOT_LMIN)/(EOT_LMAX-EOT_LMIN));
+const eotMapZ=a=>-2.3+4.6*((a-EOT_AMIN)/(EOT_AMAX-EOT_AMIN));
+const eotMapY=T=>T*2.6;
 function eotSetup(){
   eotClear(); eotT=0;
-  const film=new THREE.Mesh(new THREE.BoxGeometry(6.4,.22,4.6),
-    new THREE.MeshPhongMaterial({color:0x9aa4b8,shininess:90,specular:0x666677}));
-  eotGroup.add(film,new THREE.AmbientLight(0x8090b0,.8));
-  const dl=new THREE.DirectionalLight(0xffffff,.7); dl.position.set(2,6,3); eotGroup.add(dl);
-  const holes=[];
-  for(let ix=-3;ix<=3;ix++)for(let iz=-2;iz<=2;iz++){
-    const h=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.26,14),
-      new THREE.MeshBasicMaterial({color:0x0a0e16}));
-    h.position.set(ix*.86,0,iz*.86); eotGroup.add(h); holes.push(h);
-  }
-  // transmitted beams (below) + incident wavefronts (above)
-  const beams=[];
-  for(const h of holes){
-    const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.14,2.6,10,1,true),
-      new THREE.MeshBasicMaterial({color:0xf5c964,transparent:true,opacity:.0,blending:THREE.AdditiveBlending,depthWrite:false}));
-    b.position.copy(h.position).add(new THREE.Vector3(0,-1.45,0)); eotGroup.add(b); beams.push(b);
-  }
-  const fronts=[];
-  for(let i=0;i<5;i++){
-    const f=new THREE.Mesh(new THREE.PlaneGeometry(6.4,4.6),
-      new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.14,side:THREE.DoubleSide,depthWrite:false}));
-    f.rotation.x=Math.PI/2; eotGroup.add(f); fronts.push(f);
-  }
-  // live spectrum curve T(λ) drawn as a 3D graph beside the film
-  const NP=180, arr=new Float32Array(NP*3), sg=new THREE.BufferGeometry();
-  sg.setAttribute('position',new THREE.BufferAttribute(arr,3));
-  const spec=new THREE.Line(sg,new THREE.LineBasicMaterial({color:0xf5c964}));
-  spec.position.set(0,2.9,0); eotGroup.add(spec);
-  const marker=new THREE.Mesh(new THREE.SphereGeometry(.06,8,6),new THREE.MeshBasicMaterial({color:0xffffff}));
-  marker.position.set(0,2.9,0); eotGroup.add(marker);
-  const tl=mkLabel('EXTRAORDINARY OPTICAL TRANSMISSION · Ebbesen 1998 · plasmons beat geometric optics','label const');
-  tl.position.set(0,4.5,0); eotGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.2,0); eotGroup.add(rl);
-  eotObjs={beams,fronts,spec,marker,readLab:rl,NP};
+  eotGroup.add(new THREE.AmbientLight(0x8090b0,.8));
+  const dl=new THREE.DirectionalLight(0xfff2dc,.6); dl.position.set(4,7,6); eotGroup.add(dl);
+  // ── device inset: the perforated silver film with plasmon-funnelled beams ──
+  const dev=new THREE.Group(); dev.scale.setScalar(0.4); dev.position.set(-4.5,0.4,0); eotGroup.add(dev);
+  dev.add(new THREE.Mesh(new THREE.BoxGeometry(6.4,.22,4.6),new THREE.MeshStandardMaterial({color:0x9aa4b8,metalness:.6,roughness:.32})));
+  const holes=[]; for(let ix=-3;ix<=3;ix++)for(let iz=-2;iz<=2;iz++){ const h=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.26,14),new THREE.MeshBasicMaterial({color:0x0a0e16})); h.position.set(ix*.86,0,iz*.86); dev.add(h); holes.push(h); }
+  const beams=[]; for(const h of holes){ const b=new THREE.Mesh(new THREE.CylinderGeometry(.05,.14,2.6,10,1,true),new THREE.MeshBasicMaterial({color:0xf5c964,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false})); b.position.copy(h.position).add(new THREE.Vector3(0,-1.45,0)); dev.add(b); beams.push(b); }
+  const fronts=[]; for(let i=0;i<5;i++){ const f=new THREE.Mesh(new THREE.PlaneGeometry(6.4,4.6),new THREE.MeshBasicMaterial({color:0x8fb8ff,transparent:true,opacity:.14,side:THREE.DoubleSide,depthWrite:false})); f.rotation.x=Math.PI/2; dev.add(f); fronts.push(f); }
+  const il=mkLabel('the hole array','label dim'); il.position.set(-4.5,1.9,0); eotGroup.add(il);
+  // ── transmission landscape T(λ, a₀) ──
+  const NX=52,NZ=34, geo=new THREE.PlaneGeometry(1,1,NX-1,NZ-1);
+  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
+  for(let j=0;j<NZ;j++)for(let i=0;i<NX;i++){ const idx=j*NX+i;
+    const lam=EOT_LMIN+(EOT_LMAX-EOT_LMIN)*i/(NX-1), a0=EOT_AMIN+(EOT_AMAX-EOT_AMIN)*j/(NZ-1), T=eotTof(lam,a0);
+    pos.setXYZ(idx, eotMapX(lam), eotMapY(T), eotMapZ(a0));
+    _c.setHSL(0.75-0.75*Math.min(1,(lam-420)/430), 0.62, 0.12+0.42*T);   // hue = wavelength, brightness = T
+    col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+  geo.setAttribute('color',new THREE.BufferAttribute(col,3)); geo.computeVertexNormals();
+  eotGroup.add(new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.6,metalness:.14,transparent:true,opacity:.93,side:THREE.DoubleSide})));
+  eotGroup.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:0x2a3550,wireframe:true,transparent:true,opacity:.08,depthWrite:false})));
+  // SPP resonance ridges (i,j): λ = a₀/√(i²+j²)·√(ε_m ε_d/(ε_m+ε_d)) — where the transmission peaks live
+  for(const [i,j,c] of [[1,0,0xffcf6a],[1,1,0x9fe8d8],[2,0,0xff8ac0]]){ const pts=[];
+    for(let k=0;k<NZ;k++){ const a0=EOT_AMIN+(EOT_AMAX-EOT_AMIN)*k/(NZ-1), lr=eotLamRes(a0,i,j); if(lr&&lr>=EOT_LMIN&&lr<=EOT_LMAX) pts.push(new THREE.Vector3(eotMapX(lr),eotMapY(eotTof(lr,a0))+0.02,eotMapZ(a0))); }
+    if(pts.length>1) eotGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  // axes
+  const o=[eotMapX(EOT_LMIN),0,eotMapZ(EOT_AMIN)];
+  eotGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(o[0],0,o[2]),new THREE.Vector3(eotMapX(EOT_LMAX),0,o[2]),
+    new THREE.Vector3(o[0],0,o[2]),new THREE.Vector3(o[0],2.9,o[2]),
+    new THREE.Vector3(o[0],0,o[2]),new THREE.Vector3(o[0],0,eotMapZ(EOT_AMAX))]),new THREE.LineBasicMaterial({color:0x55607a})));
+  const xl=mkLabel('λ (nm) →','label axis'); xl.position.set(eotMapX(EOT_LMAX)+0.3,0,o[2]); eotGroup.add(xl);
+  const yl=mkLabel('T ↑','label axis'); yl.position.set(o[0],3.1,o[2]); eotGroup.add(yl);
+  const zl=mkLabel('a₀ (nm) →','label axis'); zl.position.set(o[0],0,eotMapZ(EOT_AMAX)+0.35); eotGroup.add(zl);
+  { const a0=EOT_AMAX,lr=eotLamRes(a0,1,0); const sl=mkLabel('SPP(1,0) ridge','label axis'); if(lr){ sl.position.set(eotMapX(lr),eotMapY(eotTof(lr,a0))+0.32,eotMapZ(a0)); eotGroup.add(sl); } }
+  const marker=new THREE.Mesh(new THREE.SphereGeometry(.12,16,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+  const mg=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); mg.scale.setScalar(.8); marker.add(mg); eotGroup.add(marker);
+  const drop=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.6})); eotGroup.add(drop);
+  const tl=mkLabel('EXTRAORDINARY OPTICAL TRANSMISSION · Ebbesen 1998 · transmission landscape T(λ, a₀)','label const'); tl.position.set(0,3.7,0); eotGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); eotGroup.add(rl);
+  eotObjs={beams,fronts,marker,drop,readLab:rl};
 }
 function eotTof(lam,a0){
   let T=0.04;                                          // geometric baseline (declared schematic amplitude)
@@ -11076,14 +11086,12 @@ function updateEot(dt){
   { const s=labSensor(); if(s) state.eotLam=Math.round(THREE.MathUtils.clamp(710+s.x*290,420,1000)); }   // tilt tunes λ
   const a0=state.eotA0??600, lam=state.eotLam??700;
   const T=eotTof(lam,a0), fOpen=Math.PI*0.16*0.16/(0.86*0.86);
-  for(const f of O.fronts){ const y=1.4+((eotT*0.9+f.position.y*0)%1); }
   O.fronts.forEach((f,i)=>{ f.position.y=0.5+((eotT*0.8+i*0.5)%2.5); f.material.opacity=.16*(1-f.position.y/3); });
   O.beams.forEach(b=>{ b.material.opacity=.55*T*(0.8+0.2*Math.sin(eotT*3+b.position.x)); });
-  const arr=O.spec.geometry.attributes.position.array;
-  for(let i=0;i<O.NP;i++){ const l=420+i/(O.NP-1)*(1000-420);
-    arr[i*3]=-3.1+i/(O.NP-1)*6.2; arr[i*3+1]=eotTof(l,a0)*1.5; arr[i*3+2]=0; }
-  O.spec.geometry.attributes.position.needsUpdate=true;
-  O.marker.position.set(-3.1+(lam-420)/(1000-420)*6.2, 2.9+T*1.5, 0);
+  // live operating point on the transmission landscape
+  const mx=eotMapX(lam), mz=eotMapZ(a0), my=eotMapY(T);
+  O.marker.position.set(mx,my,mz);
+  O.drop.geometry.setFromPoints([new THREE.Vector3(mx,0,mz),new THREE.Vector3(mx,my,mz)]); O.drop.geometry.computeBoundingSphere();
   const l10=eotLamRes(a0,1,0);
   O.readLab.element.textContent=`period a₀ = ${a0} nm · hole open fraction = ${(fOpen*100).toFixed(1)}% · T(${lam} nm) = ${(T*100).toFixed(0)}% ${T>fOpen?'— EXTRAORDINARY: '+(T/fOpen).toFixed(1)+'× the geometric limit':''} · SPP(1,0) predicted at ${l10?l10.toFixed(0)+' nm':'—'}`;
   hudBig.textContent=`EXTRAORDINARY TRANSMISSION · T = ${(T*100).toFixed(0)}% through ${(fOpen*100).toFixed(1)}% open area`;
