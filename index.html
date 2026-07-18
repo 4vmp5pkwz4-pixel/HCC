@@ -1473,6 +1473,13 @@ function runSelfTests(){
     const te=emHopfPt(q0,'i',1e-4,1,new THREE.Vector3()).clone().sub(emHopfPt(q0,'i',-1e-4,1,new THREE.Vector3())).normalize();
     const tb=emHopfPt(q0,'j',1e-4,1,new THREE.Vector3()).clone().sub(emHopfPt(q0,'j',-1e-4,1,new THREE.Vector3())).normalize();
     ok('EM Hopfion: E ⟂ B everywhere (null field) — |Ê·B̂|<1e-3 at the shared base point', Math.abs(te.dot(tb))<1e-3, te.dot(tb).toExponential(1)); }
+  { // QCD INSTANTON: q↦q^Q is the degree-Q boundary map S³→SU(2)≅S³ (topological charge = π₃(SU(2))=ℤ)
+    const qp=(q,n)=>{ let r=[1,0,0,0]; for(let k=0;k<Math.abs(n);k++){ const w=r[0]*q[0]-r[1]*q[1]-r[2]*q[2]-r[3]*q[3],x=r[0]*q[1]+r[1]*q[0]+r[2]*q[3]-r[3]*q[2],y=r[0]*q[2]-r[1]*q[3]+r[2]*q[0]+r[3]*q[1],z=r[0]*q[3]+r[1]*q[2]-r[2]*q[1]+r[3]*q[0]; r=[w,x,y,z]; } if(n<0)r=[r[0],-r[1],-r[2],-r[3]]; return r; };
+    let uErr=0; for(let i=0;i<200;i++){ const a=i*0.5,b=i*1.1,c=i*0.7, q=[Math.cos(a)*Math.cos(b),Math.cos(a)*Math.sin(b),Math.sin(a)*Math.cos(c),Math.sin(a)*Math.sin(c)], nn=Math.hypot(...q), qu=q.map(x=>x/nn); for(const n of [1,2,3]) uErr=Math.max(uErr,Math.abs(Math.hypot(...qp(qu,n))-1)); }
+    ok('QCD instanton: q↦q^Q maps S³→S³ (unit quaternion preserved)', uErr<1e-9, uErr.toExponential(1));
+    const wind=Q=>{ let prev=null,tot=0; for(let i=0;i<=360;i++){ const ph=i/360*2*Math.PI, t=qp([Math.cos(ph),Math.sin(ph),0,0],Q), ang=Math.atan2(t[1],t[0]); if(prev!==null){ let d=ang-prev; if(d>Math.PI)d-=2*Math.PI; if(d<-Math.PI)d+=2*Math.PI; tot+=d; } prev=ang; } return tot/(2*Math.PI); };
+    ok('QCD instanton: U(1) winding phase wraps exactly Q times (π₃(SU(2))=ℤ)',
+      Math.abs(wind(1)-1)<1e-6 && Math.abs(wind(2)-2)<1e-6 && Math.abs(wind(3)-3)<1e-6 && Math.abs(wind(-1)+1)<1e-6, `w(1)=${wind(1).toFixed(2)} w(3)=${wind(3).toFixed(2)}`); }
   { // TAUB-NUT: J = r×v − N r̂ conserved and J·r̂ = −N at machine precision (RK4)
     const N=0.6; let p=new THREE.Vector3(2.2,0,0), v=new THREE.Vector3(0,0.28,0.52);
     const J0=p.clone().cross(v).sub(p.clone().normalize().multiplyScalar(N));
@@ -10461,6 +10468,24 @@ const qcdV=r=>-(4/3)*QCD_AS*QCD_HC/r+QCD_SIG*r;                            // Ge
 const qcdAlphaS=Q=>{ const nf=Q<1.27?3:Q<4.18?4:5, L=0.21;                 // 1-loop, threshold-crude (declared)
   return 12*Math.PI/((33-2*nf)*Math.log((Q*Q)/(L*L))); };
 let qcdObjs=null, qcdT=0, qcdBroken=false, qcdUiAcc=0;
+function qcdInstanton(Q){
+  // A QCD instanton is a tunnelling event between adjacent θ-vacua; its topological charge is the
+  // winding number of the boundary gauge map g:S³→SU(2)≅S³, an element of π₃(SU(2))=ℤ. We show the
+  // trisphere as the Hopf fibration, coloured so the winding U(1) phase wraps |Q| times (= the charge),
+  // around a glowing self-dual action-density core. Action S = 8π²|Q|/g² (self-dual F=*F).
+  qcdGroup.add(new THREE.AmbientLight(0x9098b8,.6)); { const dl=new THREE.DirectionalLight(0xfff0d0,.5); dl.position.set(3,5,4); qcdGroup.add(dl); }
+  const core=new THREE.Mesh(new THREE.SphereGeometry(0.42,24,18),new THREE.MeshStandardMaterial({color:0xffe4a0,emissive:0x6a4410,roughness:.4,metalness:.2}));
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffdca0,transparent:true,opacity:.85,depthWrite:false})); glow.scale.setScalar(2.4); core.add(glow); qcdGroup.add(core);
+  const holder=new THREE.Group(); holder.scale.setScalar(0.5); qcdGroup.add(holder);
+  const rings=[[0.4,7],[0.8,11],[1.15,13],[1.5,11],[1.85,7]], _c=new THREE.Color(), v=new THREE.Vector3();
+  for(const [th,cnt] of rings) for(let j=0;j<cnt;j++){ const ph=2*Math.PI*j/cnt;
+    const pts=[]; for(let k=0;k<=120;k++) pts.push(hopfPoint(th,ph,k/120*2*Math.PI,v).clone());
+    _c.setHSL(((Q*ph/(2*Math.PI))%1+1)%1,0.72,0.56);
+    holder.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.5,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  const tl=mkLabel('QCD INSTANTON · topological charge Q — the boundary map g:S³→SU(2)≅S³ (π₃(SU(2))=ℤ)','label const','qcdAtlas'); tl.position.set(0,3.6,0); qcdGroup.add(tl);
+  const bl=mkLabel('trisphere Hopf fibration · the winding phase wraps |Q| times · action S=8π²|Q|/g² · self-dual F=*F','label dim','qcdAtlas'); bl.position.set(0,-3.4,0); qcdGroup.add(bl);
+  qcdObjs={mode:'instanton',core,holder,Q};
+}
 function qcdSetup(){
   labWipe(qcdGroup);
   qcdT=0; qcdBroken=false;
@@ -10487,6 +10512,7 @@ function qcdSetup(){
       d.position.set((lq-1.15)*5.2,qcdAlphaS(Q)*7-1.4,0); qcdGroup.add(d);
       const l=mkLabel(`${txt} · αs(${Q})=${qcdAlphaS(Q).toFixed(3)}`,'label dim'); l.position.copy(d.position).add(new THREE.Vector3(0,.42,0)); qcdGroup.add(l); }
     qcdObjs={mode};
+  } else if(mode==='instanton'){ qcdInstanton(state.qcdInstQ??1);
   } else {
     qcdObjs={mode:'meson',q:[mkQuark(0xff5f6a),mkQuark(0x5fe8e0)],tube:[mkTube()],
       glu:new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffffff,transparent:true,opacity:.85,depthWrite:false})),
@@ -10502,6 +10528,15 @@ function updateQcd(dt){
       state.qcdR=THREE.MathUtils.clamp(1.175+s.x*1.02,0.15,2.2); }   // tilt stretches the string
   qcdT+=dt; const O=qcdObjs, r=state.qcdR??0.8;
   const cols=[0xff5f6a,0x62e87c,0x6f9dff];
+  if(O.mode==='instanton'){
+    O.holder.rotation.y=0.3*qcdT; O.holder.rotation.x=0.12*qcdT;
+    const s=0.9+0.12*Math.sin(qcdT*2.4); O.core.scale.setScalar(s);
+    qcdUiAcc+=dt; if(qcdUiAcc>0.3){ qcdUiAcc=0; const Q=O.Q, g2=1.5, S=8*Math.PI*Math.PI*Math.abs(Q)/g2;
+      hudBig.textContent=`QCD INSTANTON · topological charge Q=${Q} · action S=8π²|Q|/g²=${S.toFixed(1)}/g² · self-dual F=*F`;
+      hudSub.textContent='An instanton is a finite-action tunnelling event of the gluon field between neighbouring θ-vacua. Its integer topological charge Q is the winding number of the boundary gauge map g:S³→SU(2)≅S³ — an element of π₃(SU(2))=ℤ, the same trisphere the whole atlas is built on. Here S³ is drawn as its Hopf fibration, coloured so the winding U(1) phase wraps |Q| times. Instantons resolve the U(1)_A problem and, through the θ-term, would source a neutron electric dipole moment (the strong-CP puzzle). Self-dual F=*F minimises the action at S=8π²|Q|/g².';
+      ATLAS_BUS.pub('qcd.Q',Q,'winding');
+      const el=ctl.querySelector('#qcdInv'); if(el) el.innerHTML=`topological charge Q=<b>${Q}</b> = winding of g:S³→SU(2)≅S³ (π₃=ℤ)<br>action S=8π²|Q|/g²=<b>${S.toFixed(1)}</b>/g² (self-dual) · tunnels between θ-vacua n → n+Q`; }
+    return; }
   if(O.mode==='meson'){
     const half=r*QCD_FM/2;
     if(!qcdBroken && r>QCD_BRK){ qcdBroken=true;
@@ -18981,7 +19016,7 @@ const state = {
   motionLabDrive:false,                               // phone tilt drives the active laboratory's main parameter
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, qmHopf:true, // Quantum wave lab
-  qcdMode:'meson', qcdR:0.8, qcdQ:10,                                   // Chromodynamics lab
+  qcdMode:'meson', qcdR:0.8, qcdQ:10, qcdInstQ:1,                        // Chromodynamics lab (+ instanton station)
   topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
   scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
@@ -20378,9 +20413,13 @@ function buildCtlBody(){
     else if(V==='qcd') body = `
     <div class="sect"><b>Chromodynamics — pick a system</b>
       <div class="chips">
-        ${[['meson','Meson · q q̄ string'],['baryon','Baryon · RGB junction'],['running','Running αs(Q)']].map(([k,l])=>
+        ${[['meson','Meson · q q̄ string'],['baryon','Baryon · RGB junction'],['running','Running αs(Q)'],['instanton','Instanton · trisphere winding']].map(([k,l])=>
           `<button class="chip ${(state.qcdMode||'meson')===k?'on':''}" data-qcdmode="${k}">${l}</button>`).join('')}
       </div>
+      ${(state.qcdMode||'meson')==='instanton'?`
+      <div class="chips">
+        ${[1,2,3,-1].map(q=>`<button class="chip ${(state.qcdInstQ??1)===q?'on':''}" data-qcdinstq="${q}">Q=${q}</button>`).join('')}
+      </div>`:''}
       ${(state.qcdMode||'meson')==='meson'?`
       <div class="ctlrow"><label>Separation r (fm)</label>
         <input type="range" id="qcdR" min="0.15" max="2.2" step="0.01" value="${state.qcdR}"><span class="val" id="qcdRV">${state.qcdR.toFixed(2)} fm</span></div>`:''}
@@ -21531,6 +21570,7 @@ function buildCtlBody(){
     }
     if(V==='qcd'){
       ctl.querySelectorAll('[data-qcdmode]').forEach(b=>b.onclick=()=>{ state.qcdMode=b.dataset.qcdmode; qcdSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-qcdinstq]').forEach(b=>b.onclick=()=>{ state.qcdInstQ=+b.dataset.qcdinstq; qcdSetup(); buildCtl(); });
       ctl.querySelector('#qcdR')&&(ctl.querySelector('#qcdR').oninput=e=>{ state.qcdR=+e.target.value;
         const v=ctl.querySelector('#qcdRV'); if(v)v.textContent=state.qcdR.toFixed(2)+' fm'; });
       ctl.querySelector('#qcdQ')&&(ctl.querySelector('#qcdQ').oninput=e=>{ state.qcdQ=Math.pow(10,+e.target.value);
