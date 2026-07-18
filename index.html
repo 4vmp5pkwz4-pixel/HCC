@@ -13584,9 +13584,31 @@ function bhtSetup(){
   const pg=new THREE.SphereGeometry(.045,8,6);
   for(let i=0;i<64;i++){ const m=new THREE.Mesh(pg,new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false})); m.visible=false; bhtGroup.add(m); bhtPairs.push({mesh:m,life:0,dir:new THREE.Vector3()}); }
   const el=mkLabel('event horizon · S = A/4','label axis'); el.position.set(0,0,0); bhtGroup.add(el); el.visible=false;
+  // ── thermodynamic scaling ladder: T_H(M) & t_evap(M) across 40+ decades of mass ──
+  const lmMin=12, lmMax=Math.log10(66e9*BHT_MSUN), NM=64;
+  const tx=lm=>-2.3+4.6*((lm-lmMin)/(lmMax-lmMin));
+  const ms=[]; for(let i=0;i<=NM;i++) ms.push(lmMin+(lmMax-lmMin)*i/NM);
+  const thL=ms.map(lm=>Math.log10(bhtTH(Math.pow(10,lm)))), teL=ms.map(lm=>Math.log10(Math.max(1e-30,bhtEvapYr(Math.pow(10,lm)))));
+  const thMin=Math.min.apply(0,thL),thMax=Math.max.apply(0,thL),teMin=Math.min.apply(0,teL),teMax=Math.max.apply(0,teL);
+  const nYt=v=>0.5-1.9+3.6*((v-thMin)/(thMax-thMin)), nYe=v=>-1.7-1.9+3.6*((v-teMin)/(teMax-teMin));
+  const lad=new THREE.Group(); lad.position.set(3.8,0.4,0); bhtGroup.add(lad);
+  { const pos=new Float32Array((NM+1)*3), cA=new Float32Array((NM+1)*3), _c=new THREE.Color();
+    for(let i=0;i<=NM;i++){ pos[i*3]=tx(ms[i]); pos[i*3+1]=nYt(thL[i]); pos[i*3+2]=0; _c.copy(bhtColor(Math.pow(10,thL[i]))); cA[i*3]=_c.r;cA[i*3+1]=_c.g;cA[i*3+2]=_c.b; }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(cA,3));
+    lad.add(new THREE.Line(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  { const pts=[]; for(let i=0;i<=NM;i++) pts.push(new THREE.Vector3(tx(ms[i]),nYe(teL[i]),0));
+    lad.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  for(const M of Object.values(BHT_PRESETS)){ const lm=Math.log10(M); if(lm<lmMin||lm>lmMax)continue;
+    const d=new THREE.Mesh(new THREE.SphereGeometry(.05,8,6),new THREE.MeshBasicMaterial({color:0xbfe0ff,transparent:true,opacity:.8})); d.position.set(tx(lm),nYt(Math.log10(bhtTH(M))),0); lad.add(d); }
+  const thMk=new THREE.Mesh(new THREE.SphereGeometry(.1,12,9),new THREE.MeshBasicMaterial({color:0xffffff})); lad.add(thMk);
+  const teMk=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffe27a})); lad.add(teMk);
+  lad.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(tx(lmMin),-2.5,0),new THREE.Vector3(tx(lmMax),-2.5,0)]),new THREE.LineBasicMaterial({color:0x55607a})));
+  { const a=mkLabel('log₁₀ M (kg) →','label axis'); a.position.set(tx(lmMax)+0.35,-2.5,0); lad.add(a);
+    const b=mkLabel('T_H (hot ↔ cold)','label axis'); b.position.set(tx(lmMin)+0.2,2.1,0); lad.add(b);
+    const c=mkLabel('t_evap','label axis'); c.position.set(tx(lmMax)-0.4,-3.5,0); lad.add(c); }
   const tl=mkLabel('BLACK-HOLE THERMODYNAMICS · Hawking T_H · Bekenstein–Hawking S=A/4 · idealized evaporation','label const','bhtAtlas'); tl.position.set(0,3.5,0); bhtGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); bhtGroup.add(rl);
-  bhtObjs={bh,shell,halo,readLab:rl}; bhtApplyScale();
+  bhtObjs={bh,shell,halo,readLab:rl,lad:{tx,nYt,nYe,thMk,teMk,lmMin,lmMax}}; bhtApplyScale();
 }
 function bhtApplyScale(){ const O=bhtObjs; if(!O) return; const R=bhtRadius(bhtM), col=bhtColor(bhtTH(bhtM));
   O.bh.scale.setScalar(R); O.shell.scale.setScalar(R); O.halo.scale.setScalar(R*4.6); O.halo.material.color.copy(col); O.shell.material.color.copy(col); }
@@ -13598,6 +13620,9 @@ function updateBht(dt){
     bhtApplyScale();
   }
   const TH=bhtTH(bhtM), R=bhtRadius(bhtM), col=bhtColor(TH);
+  if(O.lad){ const lm=Math.min(O.lad.lmMax,Math.max(O.lad.lmMin,Math.log10(bhtM)));
+    O.lad.thMk.position.set(O.lad.tx(lm), O.lad.nYt(Math.log10(TH)), 0);
+    O.lad.teMk.position.set(O.lad.tx(lm), O.lad.nYe(Math.log10(Math.max(1e-30,bhtEvapYr(bhtM)))), 0); }
   const rate=Math.min(1,Math.max(0.03,(Math.log10(TH)+20)/34));
   for(const p of bhtPairs){ const mm=p.mesh;
     if(!mm.visible){ if(Math.random()<rate*dt*10){ p.dir.copy(new THREE.Vector3().randomDirection()); mm.position.copy(p.dir).multiplyScalar(R); mm.material.color.copy(col); mm.material.opacity=1; mm.visible=true; p.life=0; } }
