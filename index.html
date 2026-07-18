@@ -14151,6 +14151,12 @@ const qsoGroup=new THREE.Group(); qsoGroup.visible=false; s3Group.add(qsoGroup);
 const QSO_ETA=1-Math.sqrt(8/9);
 let qsoObjs=null, qsoUiAcc=0, qsoT=0;
 function qsoLEdd(Mmsun){ return 1.257e38*Mmsun; }
+function qsoTempColor(t,out){   // t in [0,1] → blackbody-ish ramp: deep red → orange → gold → blue-white
+  t=Math.max(0,Math.min(1,t));
+  const stops=[[0.42,0.05,0.02],[0.95,0.35,0.06],[1.0,0.80,0.40],[0.85,0.92,1.0]];
+  const f=t*(stops.length-1), i=Math.min(stops.length-2,Math.floor(f)), u=f-i;
+  out.setRGB(stops[i][0]+(stops[i+1][0]-stops[i][0])*u, stops[i][1]+(stops[i+1][1]-stops[i][1])*u, stops[i][2]+(stops[i+1][2]-stops[i][2])*u);
+}
 function qsoClear(){ labWipe(qsoGroup); qsoObjs=null; }
 function qsoSetup(){
   qsoClear(); qsoT=0;
@@ -14158,13 +14164,20 @@ function qsoSetup(){
   const tilt=new THREE.Group(); qsoGroup.add(tilt);
   const core=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff2d8,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
   core.scale.setScalar(1.8); tilt.add(core);
-  // luminous disk: nested annuli, T∝r^{-3/4} colour ramp
-  const _c=new THREE.Color();
-  for(let k=0;k<9;k++){ const r0=0.55+k*0.28, t=Math.pow(0.55/r0,0.75);
-    _c.setHSL(0.085*t,0.9,0.28+0.42*t);
-    const ring=new THREE.Mesh(new THREE.RingGeometry(r0,r0+0.26,64),
-      new THREE.MeshBasicMaterial({color:_c.getHex(),transparent:true,opacity:0.34*(0.35+0.65*t),side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
-    ring.rotation.x=Math.PI/2; tilt.add(ring); }
+  // Shakura–Sunyaev disk: one lit annular surface with T(r)∝[(r_in/r)³(1−√(r_in/r))]^{1/4},
+  // coloured by the local blackbody temperature and Doppler-brightened on the approaching limb
+  const rin=0.55, rout=3.15, NR=28, NA=76;
+  const ssT=r=>{ const x=rin/r, f=x*x*x*(1-Math.sqrt(x)); return f>0?Math.pow(f,0.25):0; };
+  let Tpk=0; for(let i=0;i<NR;i++){ Tpk=Math.max(Tpk,ssT(rin+(rout-rin)*i/(NR-1))); }
+  const dgeo=new THREE.BufferGeometry(), dpos=new Float32Array(NR*NA*3), dcol=new Float32Array(NR*NA*3), didx=[], _dc=new THREE.Color();
+  for(let i=0;i<NR;i++){ const r=rin+(rout-rin)*i/(NR-1), Tn=ssT(r)/(Tpk||1);
+    for(let j=0;j<NA;j++){ const a=j/NA*2*Math.PI, idx=i*NA+j;
+      dpos[idx*3]=r*Math.cos(a); dpos[idx*3+1]=0; dpos[idx*3+2]=r*Math.sin(a);
+      qsoTempColor(Tn,_dc); const dop=0.55+0.7*(0.5+0.5*Math.cos(a-Math.PI*0.5));   // approaching-limb Doppler (declared visualization)
+      dcol[idx*3]=_dc.r*dop; dcol[idx*3+1]=_dc.g*dop; dcol[idx*3+2]=_dc.b*dop; } }
+  for(let i=0;i<NR-1;i++)for(let j=0;j<NA;j++){ const a=i*NA+j,b=i*NA+(j+1)%NA,c=(i+1)*NA+j,d=(i+1)*NA+(j+1)%NA; didx.push(a,c,b,b,c,d); }
+  dgeo.setAttribute('position',new THREE.BufferAttribute(dpos,3)); dgeo.setAttribute('color',new THREE.BufferAttribute(dcol,3)); dgeo.setIndex(didx); dgeo.computeVertexNormals();
+  tilt.add(new THREE.Mesh(dgeo,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.9,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending})));
   // twin jets with travelling blobs
   const jmat=new THREE.MeshBasicMaterial({color:0x9fd8ff,transparent:true,opacity:.20,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
   for(const sgn of [1,-1]){ const j=new THREE.Mesh(new THREE.CylinderGeometry(.09,.3,5.2,16,1,true),jmat.clone());
