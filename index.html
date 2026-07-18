@@ -14011,8 +14011,11 @@ function snSetup(){
   snGroup.add(new THREE.AmbientLight(0x8a94b8,.55));
   const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff6dc,transparent:true,opacity:1,depthWrite:false,blending:THREE.AdditiveBlending}));
   flash.position.set(-2.2,1.0,0); snGroup.add(flash);
-  const shell=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.MeshBasicMaterial({color:0xffcf8a,transparent:true,opacity:.34,wireframe:false,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide}));
-  shell.position.copy(flash.position); snGroup.add(shell);
+  // expanding ejecta: homologous velocity shells with a radial density (ρ∝R⁻³) and temperature gradient
+  const ejecta=[], vf=[0.34,0.52,0.70,0.85,1.0], _ec=new THREE.Color();
+  for(let i=0;i<vf.length;i++){ const baseT=0.25+0.75*(1-i/(vf.length-1)); qsoTempColor(baseT,_ec);
+    const sh=new THREE.Mesh(new THREE.SphereGeometry(1,40,28),new THREE.MeshBasicMaterial({color:_ec.getHex(),transparent:true,opacity:.3,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    sh.position.copy(flash.position); snGroup.add(sh); ejecta.push({m:sh,vf:vf[i],baseT}); }
   const shock=new THREE.Mesh(new THREE.SphereGeometry(1,40,26),new THREE.MeshBasicMaterial({color:0x9fd0ff,transparent:true,opacity:.22,wireframe:true,depthWrite:false}));
   shock.position.copy(flash.position); snGroup.add(shock);
   // light-curve plot: log L (41..44) vs t (0..400 d)
@@ -14028,7 +14031,7 @@ function snSetup(){
   const col=mkLabel('⁵⁶Co tail · τ=111.3 d','label axis'); col.position.set(px(280),py(3e42)+0.3,0); snGroup.add(col);
   const tl=mkLabel('SUPERNOVA · ⁵⁶Ni→⁵⁶Co→⁵⁶Fe Bateman deposition · Sedov remnant','label const','snAtlas'); tl.position.set(0,3.5,0); snGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); snGroup.add(rl);
-  snObjs={flash,shell,shock,curve,mark,px,py,readLab:rl,builtFor:null};
+  snObjs={flash,ejecta,shock,curve,mark,px,py,readLab:rl,builtFor:null,_col:new THREE.Color()};
 }
 function updateSn(dt){
   const O=snObjs; if(!O) return;
@@ -14043,9 +14046,11 @@ function updateSn(dt){
   const Mej=1.4*SN_MSUNG, rho=1.67e-24, Rsw=Math.pow(3*Mej/(4*Math.PI*rho),1/3), tsw=Rsw/vej;
   const tS=snT*SN_DAY, Rcm=tS<tsw?vej*tS:Rsw*Math.pow(tS/tsw,0.4);
   const s=0.25+1.6*Math.min(1,Rcm/(Rsw*0.9));
-  O.shell.scale.setScalar(s*0.82); O.shock.scale.setScalar(s);
-  const cool=Math.min(1,snT/70); O.shell.material.color.setHSL(0.085-0.06*cool+0.0,0.85,0.62-0.3*cool);
-  O.shell.material.opacity=0.38*Math.max(0.15,1-snT/300);
+  O.shock.scale.setScalar(s);
+  const cool=Math.min(1,snT/100);
+  for(const e of O.ejecta){ e.m.scale.setScalar(s*e.vf*0.92);
+    qsoTempColor(e.baseT*(1-0.55*cool),O._col); e.m.material.color.copy(O._col);
+    const dens=1/(e.vf*e.vf*e.vf); e.m.material.opacity=Math.min(0.42,0.08*dens)*Math.max(0.12,1-snT/320); }
   O.flash.material.opacity=Math.min(1,L/4e43); O.flash.scale.setScalar(1.4+2.6*Math.min(1,L/2e43));
   snUiAcc+=dt; if(snUiAcc>0.25){ snUiAcc=0;
     const phase=tS<tsw?'free expansion R=v_ej·t':'Sedov–Taylor R∝t^{2/5} (swept-up ISM dominates)';
