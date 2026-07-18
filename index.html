@@ -1793,7 +1793,11 @@ function runSelfTests(){
       Math.abs(mcRec-mc)/mc<1e-6 && Math.abs(mc/Ms-28.1)<0.3, (mc/Ms).toFixed(2)+' M☉');
     const tau=(f,mc)=>(5/256)*Math.pow(G*mc/c**3,-5/3)*Math.pow(Math.PI*f,-8/3);
     ok('Gravitational waves: time-to-merge τ ∝ f^(−8/3) (halving f → ×6.35 longer)',
-      Math.abs(tau(17.5,mc)/tau(35,mc)-Math.pow(2,8/3))/Math.pow(2,8/3)<1e-6, (tau(35,mc)).toFixed(3)+' s'); }
+      Math.abs(tau(17.5,mc)/tau(35,mc)-Math.pow(2,8/3))/Math.pow(2,8/3)<1e-6, (tau(35,mc)).toFixed(3)+' s');
+    // quadrupole emission lobe: phase-averaged ⟨ḣ₊²+ḣ×²⟩ = the pattern 1+6cos²ι+cos⁴ι, beamed 8:1 along L
+    const patt=ci=>1+6*ci*ci+ci*ci*ci*ci, numAvg=ci=>{ let s=0,N=400; for(let k=0;k<N;k++){ const P=k/N*2*Math.PI, dhp=-(1+ci*ci)*Math.sin(2*P), dhx=2*ci*Math.cos(2*P); s+=dhp*dhp+dhx*dhx; } return s/N; };
+    ok('Gravitational waves: quadrupole radiation lobe ∝ 1+6cos²θ+cos⁴θ (8:1 pole-to-equator, beamed along L)',
+      Math.abs(numAvg(1)/numAvg(0)-8)<1e-9 && Math.abs(patt(1)/patt(0)-8)<1e-12, patt(1)/patt(0)+':1'); }
   { // PHOTOVOLTAIC: Shockley I–V gives Voc; MPP·FF identity; detailed-balance peak in the 1–1.5 eV window
     const q=1.602176634e-19,kB=1.380649e-23,T=300,Iph=35e-3,I0=1e-12;
     const Voc=(kB*T/q)*Math.log(Iph/I0+1);
@@ -13287,9 +13291,23 @@ function gwSetup(){
   gwGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rest),new THREE.LineBasicMaterial({color:0x44506e,transparent:true,opacity:.4})));
   const defLine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7ff0d0,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false})); gwGroup.add(defLine);
   const rlab=mkLabel('test masses · h₊ stretches space','label axis'); rlab.position.set(3.15,1.35,0); gwGroup.add(rlab);
+  // quadrupole GW emission pattern (phase-averaged): dP/dΩ ∝ 1+6cos²θ+cos⁴θ, beamed 8:1 along the
+  // orbital angular momentum L (the spin-weight −2 quadrupole radiation lobe) — verified analytically
+  const Lax=new THREE.Vector3(0,-0.844,0.546).normalize();
+  const NLAT=40,NLON=60, lg=new THREE.BufferGeometry();
+  const lp=new Float32Array((NLAT+1)*(NLON+1)*3), lc=new Float32Array((NLAT+1)*(NLON+1)*3), li=[];
+  for(let i=0;i<=NLAT;i++){ const th=i/NLAT*Math.PI, ct=Math.cos(th), P=1+6*ct*ct+ct*ct*ct*ct, R=P*0.2, t=P/8;
+    for(let j=0;j<=NLON;j++){ const ph=j/NLON*2*Math.PI, k=i*(NLON+1)+j;
+      lp[k*3]=R*Math.sin(th)*Math.cos(ph); lp[k*3+1]=R*ct; lp[k*3+2]=R*Math.sin(th)*Math.sin(ph);
+      lc[k*3]=0.30+0.55*t; lc[k*3+1]=0.55+0.35*t; lc[k*3+2]=0.78+0.18*t; } }
+  for(let i=0;i<NLAT;i++)for(let j=0;j<NLON;j++){ const a=i*(NLON+1)+j,b=a+1,c=a+NLON+1,d=c+1; li.push(a,c,b,b,c,d); }
+  lg.setAttribute('position',new THREE.BufferAttribute(lp,3)); lg.setAttribute('color',new THREE.BufferAttribute(lc,3)); lg.setIndex(li); lg.computeVertexNormals();
+  const lobe=new THREE.Mesh(lg,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.2,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+  lobe.position.set(0,0.6,0); lobe.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),Lax); gwGroup.add(lobe);
+  const Llab=mkLabel('GW emission ∝ 1+6cos²θ+cos⁴θ (beamed 8:1 along L)','label axis'); Llab.position.set(0,0.6,0).addScaledVector(Lax,2.15); gwGroup.add(Llab);
   const tl=mkLabel('GRAVITATIONAL WAVES · binary inspiral · chirp mass M_c drives df/dt ∝ f^{11/3}','label const'); tl.position.set(0,3.5,0); gwGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); gwGroup.add(rl);
-  gwObjs={b1,b2,flash,wave,wg,ringMasses,defLine,ringC,RR,NR,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
+  gwObjs={b1,b2,flash,wave,wg,ringMasses,defLine,ringC,RR,NR,lobe,readLab:rl,M,Mc:gwChirpMass(m1,m2),fisco:gwFisco(M),r0:Math.pow(GW_G*M/Math.pow(Math.PI*(gwFisco(M)/5),2),1/3)};
 }
 function updateGw(dt){
   const O=gwObjs; if(!O) return; const Mc=O.Mc, M=O.M;
@@ -13302,6 +13320,7 @@ function updateGw(dt){
     if(gwF>=O.fisco){ gwFlash=1; gwF=O.fisco/5; gwAngle=0; }
   }
   if(gwFlash>0){ gwFlash=Math.max(0,gwFlash-dt*1.6); O.flash.material.opacity=gwFlash; O.flash.scale.setScalar(3+6*(1-gwFlash)); }
+  if(O.lobe){ O.lobe.scale.setScalar(0.7+1.0*Math.pow(gwF/O.fisco,2/3)); O.lobe.material.opacity=0.16+0.16*Math.pow(gwF/O.fisco,2/3); }  // lobe swells with the strain
   // Kepler separation, mapped to scene (starts at ~2.4)
   const r=Math.pow(GW_G*M/Math.pow(Math.PI*gwF,2),1/3), sc=2.4*r/O.r0;
   const m1=(state.gwM1??36), m2=(state.gwM2??29), Mt=m1+m2;
