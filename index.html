@@ -2127,6 +2127,26 @@ function runSelfTests(){
       (()=>{ const c0=rpdCounts(0), c1=rpdCounts(1), cp=rpdCounts(0.4);
         return c0.acc===RPD_N && (c1.acc+c1.re)===RPD_N && c1.hid===0 && cp.acc<RPD_N && rpdIext(0.4)<rpdIext(0)-0.5 && Math.abs(rpdIext(1)-rpdIext(0))<1e-12; })(),
       `I(0)=I(1)=${Math.log2(RPD_N).toFixed(2)} bit · dip at peak to ${rpdIext(0.4).toFixed(2)} bit`); }
+  { // MÖBIUS–SMITH LAB: Cayley anchors, round-trip, Riemann-lift + stereographic-ray identity, quantum R+T, λ/4
+    const [gS]=impGamma(0,0), [gM]=impGamma(1,0), [gjr,gji]=impGamma(0,1);
+    ok('Möbius–Smith: anchors exact — Γ(0)=−1 (short), Γ(1)=0 (match), Γ(j)=j, |Γ(jx)|=1 (lossless)',
+      Math.abs(gS+1)<1e-12 && Math.abs(gM)<1e-12 && Math.abs(gjr)<1e-12 && Math.abs(gji-1)<1e-12 &&
+      Math.abs(Math.hypot(...impGamma(0,2.7))-1)<1e-12, 'Cayley map on the imaginary axis = unit circle');
+    let rt=0,lift=0,ray=0; for(let i=0;i<200;i++){ const zr=0.02+i*0.031, zi=(i%2?1:-1)*(0.05+i*0.017);
+      const [gr,gi]=impGamma(zr,zi), [zr2,zi2]=impZof(gr,gi); rt=Math.max(rt,Math.hypot(zr2-zr,zi2-zi));
+      const L=impLift(gr,gi); lift=Math.max(lift,Math.abs(L[0]*L[0]+L[1]*L[1]+L[2]*L[2]-1));
+      ray=Math.max(ray,Math.hypot(L[0]/(1+L[1])-gr, L[2]/(1+L[1])-gi)); }
+    ok('Möbius–Smith: z↔Γ round-trip, Riemann lift on S², and the stereographic-ray identity — machine precision',
+      rt<1e-10 && lift<1e-12 && ray<1e-9, `rt=${rt.toExponential(1)} lift=${lift.toExponential(1)} ray=${ray.toExponential(1)}`);
+    let q=0; for(let i=1;i<=60;i++){ const k1=0.3+i*0.05, k2=2.9-i*0.03;
+      const [g]=impGamma(k1/k2,0); q=Math.max(q,Math.abs(g*g+4*k1*k2/((k1+k2)*(k1+k2))-1),Math.abs(g-(k1-k2)/(k1+k2))); }
+    ok('Möbius–Smith: quantum step — Γ=(k₁−k₂)/(k₁+k₂) and R+T=1 are exact identities of the same map', q<1e-12, q.toExponential(1));
+    { const z=4.31, zt=Math.sqrt(z), [zr,zi]=impZin4(z,zt,Math.PI/2-1e-8);
+      ok('Möbius–Smith: λ/4 transformer z_t=√z lands exactly on match (z_in→1), |Γ| invariant on a lossless line',
+        Math.abs(zr-1)<1e-6 && Math.abs(zi)<1e-6 &&
+        (()=>{ const [gr,gi]=impGamma(2.4,1.1), m0=Math.hypot(gr,gi), th=1.7;
+          return Math.abs(Math.hypot(gr*Math.cos(th)+gi*Math.sin(th),-gr*Math.sin(th)+gi*Math.cos(th))-m0)<1e-12; })(),
+        `z_in=${zr.toFixed(8)}${zi>=0?'+':''}${zi.toExponential(1)}j`); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14328,6 +14348,120 @@ function updateQso(dt){
 }
 
 /* ================================================================
+   IMPEDANCE · MÖBIUS · SMITH LAB — the reflection atlas (borrowed from the
+   UPRS Möbius–Hopf OmniAtlas v3.3.2 and rebuilt native to the trisphere).
+   ONE exact map runs four physical domains: normalized impedance z=Z/Z₀
+   → Cayley/Möbius Γ=(z−1)/(z+1) (the Smith chart, |Γ|≤1 = passive)
+   → Riemann sphere (2ReΓ, 1−|Γ|², 2ImΓ)/(1+|Γ|²), stereographic from the
+   ACTIVE pole so the passive dome rises above the chart with MATCH at the
+   zenith; |Γ|=1 is the equator ON the chart rim (the sphere's equator
+   coincides with the disk boundary — the projection ray identity is exact)
+   → Hopf lift ψ=e^{iα}(Γ,1)/√(1+|Γ|²): the U(1) fibre over the reflection
+   state; a LOSSLESS LINE moves the state by exactly that fibre rotation
+   Γ→Γe^{−2jβℓ}. Domains (same algebra, exact): RF load · quantum step
+   z=k₁/k₂ (R+T=1 identity) · Fresnel interface z=n₁/n₂ · acoustic
+   interface z=Z₂/Z₁ (pressure). Two-step auto-match: rotate along the
+   line to the real axis, then a λ/4 transformer z_t=√z — exact to 0. */
+const impGroup=new THREE.Group(); impGroup.visible=false; s3Group.add(impGroup);
+const IMP_DS=2.2;   // scene radius of |Γ|=1
+let impObjs=null, impUiAcc=0, impBl=0, impMatchA=null, impTrail=[];
+function impGamma(zr,zi){ const cr=zr+1, ci=zi, D=cr*cr+ci*ci||1e-300; return [((zr-1)*cr+zi*ci)/D,(zi*cr-(zr-1)*ci)/D]; }
+function impZof(gr,gi){ const cr=1-gr, ci=-gi, D=cr*cr+ci*ci||1e-300; return [((1+gr)*cr+gi*ci)/D,(gi*cr-(1+gr)*ci)/D]; }
+function impLift(gr,gi){ const m2=gr*gr+gi*gi; return [2*gr/(1+m2),(1-m2)/(1+m2),2*gi/(1+m2)]; }   // on S², match at zenith
+function impZin4(zL,zt,bl){ const t=Math.tan(bl);   // λ/4-transformer input impedance (real load): z_in = zt(zL+j zt t)/(zt+j zL t)
+  const nr=zL*zt, ni=zt*zt*t, dr=zt, di=zL*t, D=dr*dr+di*di||1e-300;
+  return [(nr*dr+ni*di)/D,(ni*dr-nr*di)/D]; }
+const IMP_DOMS={
+  rf:{n:'RF нагрузка · z=Z/Z₀',set:[2.4,1.1],leg:'общий случай: r+jx · согласование = доставка мощности'},
+  quantum:{n:'Квантовая ступенька · z=k₁/k₂',set:[Math.SQRT2,0],leg:'E=2V₀ ⇒ k₂/k₁=1/√2 · Γ=(k₁−k₂)/(k₁+k₂) · R+T=1 (точно)'},
+  fresnel:{n:'Оптика Френеля · z=n₁/n₂',set:[1/1.5,0],leg:'воздух→стекло (n=1.5) · R=|Γ|²=4.00% (точно)'},
+  acoustic:{n:'Акустический стык · z=Z₂/Z₁',set:[3583,0],leg:'воздух→вода: |Γ|=0.99944 — почему звук не проходит в воду'}};
+function impClear(){ labWipe(impGroup); impObjs=null; impTrail=[]; impBl=0; impMatchA=null; }
+function impSetup(){
+  impClear();
+  impGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(4,7,6); impGroup.add(dl);
+  const toDisk=(a,b,y=0.012)=>new THREE.Vector3(IMP_DS*a,y,IMP_DS*b);
+  const toSph=(a,b)=>{ const L=impLift(a,b); return new THREE.Vector3(IMP_DS*L[0],IMP_DS*L[1],IMP_DS*L[2]); };
+  // ── Smith chart on the equatorial plane: gold const-r circles · ice const-x arcs (exact circle laws) ──
+  const gridSegsD=[], gridSegsS=[];
+  const pushCirc=(cx,cy,R,clip)=>{ let prevD=null,prevS=null;
+    for(let k=0;k<=220;k++){ const t=k/220*2*Math.PI, a=cx+R*Math.cos(t), b=cy+R*Math.sin(t);
+      const ok=a*a+b*b<=1.0004; const d=ok?toDisk(a,b):null, s=ok?toSph(a,b):null;
+      if(d&&prevD){ gridSegsD.push(prevD,d); gridSegsS.push(prevS,s); } prevD=d; prevS=s; } };
+  for(const r of [0,1/3,1,3]) pushCirc(r/(1+r),0,1/(1+r));
+  for(const x of [0.5,1,2,-0.5,-1,-2]) pushCirc(1,1/x,1/Math.abs(x));
+  gridSegsD.push(toDisk(-1,0),toDisk(1,0)); gridSegsS.push(toSph(-1,0),toSph(1,0));   // real axis + its lifted meridian
+  impGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridSegsD),new THREE.LineBasicMaterial({color:0xd7b76e,transparent:true,opacity:.5})));
+  impGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(gridSegsS),new THREE.LineBasicMaterial({color:0x86d8f0,transparent:true,opacity:.38,blending:THREE.AdditiveBlending,depthWrite:false})));
+  // ── the Riemann sphere: equator = chart rim, passive dome above, MATCH at the zenith ──
+  impGroup.add(new THREE.Mesh(new THREE.SphereGeometry(IMP_DS,44,30),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.07})));
+  impGroup.add(new THREE.Mesh(new THREE.SphereGeometry(IMP_DS*0.998,44,30),new THREE.MeshPhongMaterial({color:0x18294a,transparent:true,opacity:.13,shininess:40,side:THREE.BackSide})));
+  { const zen=new THREE.Mesh(new THREE.SphereGeometry(.075,12,9),new THREE.MeshBasicMaterial({color:0x9fe8c0})); zen.position.set(0,IMP_DS,0); impGroup.add(zen); }
+  { const l1=mkLabel('СОГЛАСОВАНИЕ z=1 · Γ=0 · зенит','label axis'); l1.position.set(0,IMP_DS+0.32,0); impGroup.add(l1);
+    const l2=mkLabel('КЗ z=0 · Γ=−1','label axis'); l2.position.copy(toDisk(-1,0,0.05)).add(new THREE.Vector3(-0.55,0.18,0)); impGroup.add(l2);
+    const l3=mkLabel('РАЗРЫВ z=∞ · Γ=+1','label axis'); l3.position.copy(toDisk(1,0,0.05)).add(new THREE.Vector3(0.6,0.18,0)); impGroup.add(l3);
+    const l4=mkLabel('|Γ|=1 · пассивная граница = экватор','label dim'); l4.position.copy(toDisk(0,1,0.05)).add(new THREE.Vector3(0,0.15,0.45)); impGroup.add(l4); }
+  // working point (disk + sphere) · the TRUE stereographic ray from the active pole · |Γ| trail
+  const mkGlow=(col,s)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(.095,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+    const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:col,transparent:true,opacity:.9,depthWrite:false})); g.scale.setScalar(s); m.add(g); return m; };
+  const ptD=mkGlow(0xffe9a0,.7), ptS=mkGlow(0x9fe8ff,.7); impGroup.add(ptD,ptS);
+  const ray=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3(),new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false})); impGroup.add(ray);
+  const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(400*3),3)); tg.setDrawRange(0,0);
+  const trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:0x9fe8d8,transparent:true,opacity:.7})); impGroup.add(trail);
+  // live Hopf fibre over the sphere point — ψ=e^{iα}(Γ,1)/√(1+|Γ|²), the U(1) the lossless line rotates
+  const fib=new THREE.Group(); fib.position.set(4.6,0.9,0); fib.scale.setScalar(0.38); impGroup.add(fib);
+  const _c=new THREE.Color();
+  for(let aa=1;aa<=4;aa++){ const th0=Math.PI*aa/5; for(let bb=0;bb<4;bb++){ const seg=spinHopfFibre(th0,2*Math.PI*bb/4); if(!seg.length) continue;
+    _c.setHSL(0.58-0.4*(th0/Math.PI),0.6,0.5);
+    fib.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+  const liveFib=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); fib.add(liveFib);
+  { const l=mkLabel('фибра Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · линия = вращение U(1)','label dim'); l.position.set(4.6,2.5,0); impGroup.add(l); }
+  const tl=mkLabel('ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
+  impObjs={ptD,ptS,ray,trail,liveFib,toDisk,toSph,readLab:rl};
+}
+function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
+  const [gr0,gi0]=impGamma(state.impR??2.4,state.impX??1.1);
+  if(impMatchA){ const A=impMatchA;
+    if(A.phase===1){ const th=A.t; return [A.g0[0]*Math.cos(th)+A.g0[1]*Math.sin(th), -A.g0[0]*Math.sin(th)+A.g0[1]*Math.cos(th)]; }
+    const [zr,zi]=impZin4(A.zReal,A.zt,A.t); return impGamma(zr,zi); }
+  const th=2*impBl, c=Math.cos(th), s=Math.sin(th);
+  return [gr0*c+gi0*s, -gr0*s+gi0*c];
+}
+function updateImp(dt){
+  const O=impObjs; if(!O) return;
+  if(impMatchA){ const A=impMatchA;
+    if(A.phase===1){ A.t+=dt*1.1*(state.impSpeed??1); if(A.t>=A.delta){ A.t=0; A.phase=2; } }
+    else { A.t+=dt*0.75*(state.impSpeed??1); if(A.t>=Math.PI/2-0.02){ impMatchA=null; state.impR=1; state.impX=0; impBl=0; impTrail=[]; } } }
+  else if(state.impRun!==false){ impBl+=dt*0.35*(state.impSpeed??1); }
+  const [gr,gi]=impDispGamma(), m=Math.hypot(gr,gi);
+  const pd=O.toDisk(gr,gi,0.03), ps=O.toSph(gr,gi);
+  O.ptD.position.copy(pd); O.ptS.position.copy(ps);
+  O.ray.geometry.setFromPoints([new THREE.Vector3(0,-IMP_DS,0),ps,pd]); O.ray.geometry.computeBoundingSphere();
+  if(m<=1.02){ impTrail.push(pd.x,pd.y,pd.z); if(impTrail.length>360) impTrail.splice(0,impTrail.length-360);
+    const tp=O.trail.geometry.attributes.position.array, n=impTrail.length/3;
+    for(let i=0;i<n;i++){ tp[i*3]=impTrail[i*3]; tp[i*3+1]=impTrail[i*3+1]; tp[i*3+2]=impTrail[i*3+2]; }
+    O.trail.geometry.setDrawRange(0,n); O.trail.geometry.attributes.position.needsUpdate=true; O.trail.geometry.computeBoundingSphere(); }
+  { const L=impLift(gr,gi), th0=Math.acos(Math.max(-1,Math.min(1,L[1]))), ph0=Math.atan2(L[2],L[0]);
+    O.liveFib.geometry.setFromPoints(spinHopfFibre(th0,ph0)); O.liveFib.geometry.computeBoundingSphere(); }
+  impUiAcc+=dt; if(impUiAcc>0.25){ impUiAcc=0;
+    const dom=IMP_DOMS[state.impDomain||'rf'], zr=state.impR??2.4, zi=state.impX??1.1;
+    const vswr=m<0.9999?(1+m)/(1-m):Infinity, rl=m>1e-9?-20*Math.log10(m):Infinity, P=Math.max(0,1-m*m);
+    O.readLab.element.textContent=`${dom.n} · ${dom.leg}`;
+    hudBig.textContent=`МЁБИУС–СМИТ · |Γ|=${m.toFixed(4)} · ∠Γ=${(Math.atan2(gi,gr)*180/Math.PI).toFixed(1)}° · VSWR=${Number.isFinite(vswr)?vswr.toFixed(3):'∞'} · ${state.impDomain==='quantum'?'T':'P'}=${(P*100).toFixed(2)}%`;
+    hudSub.textContent='одна точная карта Мёбиуса Γ=(z−1)/(z+1) сворачивает ЛЮБОЙ пассивный импеданс в единичный диск (карту Смита), стереографически поднимается на сферу Римана — экватор сферы СОВПАДАЕТ с ободом карты (|Γ|=1), а согласование z=1 сидит в зените — и далее в S³ лифтом Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²): движение вдоль линии без потерь — В ТОЧНОСТИ вращение U(1)-фибры Γ→Γe^{−2jβℓ}. Та же алгебра точно решает квантовую ступеньку (R+T=1), френелевскую границу и акустический стык. Золотой луч — истинный стереографический луч из активного полюса.';
+    ATLAS_BUS.pub('imp.gamma',+m.toFixed(4),'|Γ|');
+    const el=ctl.querySelector('#impInv'); if(el) el.innerHTML=
+      `z=<b>${zr>99?zr.toExponential(2):zr.toFixed(3)}</b>${zi>=0?'+':'−'}j<b>${Math.abs(zi).toFixed(3)}</b> → Γ=<b>${gr.toFixed(4)}</b>${gi>=0?'+':'−'}j<b>${Math.abs(gi).toFixed(4)}</b> · |Γ|=<b>${m.toFixed(5)}</b> ∠<b>${(Math.atan2(gi,gr)*180/Math.PI).toFixed(2)}°</b><br>`+
+      `VSWR=<b>${Number.isFinite(vswr)?vswr.toFixed(4):'∞'}</b> · обратные потери=<b>${Number.isFinite(rl)?rl.toFixed(2):'∞'}</b> dB · ${state.impDomain==='quantum'?'прохождение T':'доставлено'}=<b>${(P*100).toFixed(3)}%</b> · R=|Γ|²=<b>${(m*m*100).toFixed(3)}%</b><br>`+
+      (impMatchA?`<b style="color:#9fe8c0">▶ согласование: ${impMatchA.phase===1?'шаг 1 — вращение к вещественной оси (линия βℓ)':'шаг 2 — λ/4-трансформер z_t=√z → центр'}</b>`:
+       `βℓ=${(impBl%(Math.PI)).toFixed(3)} рад · λ/2-период (Γ·e^{−2jβℓ}) · |Γ| инвариантен на линии без потерь`);
+  }
+}
+
+/* ================================================================
    RPD TRANSFORMER LAB · the black hole as a horizon-mediated transformer
    of Realised Physical Distinguishability (Preece & Batenin 2026, "Black
    Holes as Horizon-Mediated Transformers of RPD in Compact S³ Geometry").
@@ -14514,6 +14648,7 @@ function setS3View(v){
   su2Group.visible     = (v==='su2');
   bhtGroup.visible     = (v==='bht');
   rpdGroup.visible     = (v==='rpd');
+  impGroup.visible     = (v==='imp');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
@@ -14552,6 +14687,7 @@ function setS3View(v){
   if(v==='su2'){ su2Setup(); }
   if(v==='bht'){ bhtSetup(); }
   if(v==='rpd'){ rpdSetup(); }
+  if(v==='imp'){ impSetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
@@ -14570,7 +14706,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -19344,6 +19480,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
+  impR:2.4, impX:1.1, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab (Schwarzschild)
@@ -21169,6 +21306,32 @@ function buildCtlBody(){
         <button class="btn" id="rpdToHopfion">→ Hopfion lab: the Q_H sectors themselves</button>
         <button class="btn" id="rpdToBell">→ Bell lune: holonomy as distinguishability</button></div>
     </div>`;
+    else if(V==='imp') body = `
+    <div class="sect"><b>Мёбиус–Смит — выбери физику (одна карта)</b>
+      <div class="chips">
+        ${Object.entries(IMP_DOMS).map(([k,d])=>`<button class="chip ${(state.impDomain||'rf')===k?'on':''}" data-impdom="${k}">${d.n.split('·')[0].trim()}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>r = Re z</label>
+        <input type="range" id="impR" min="0" max="6" step="0.01" value="${Math.min(6,state.impR??2.4)}"><span class="val" id="impRV">${(state.impR??2.4)>99?(state.impR).toExponential(1):(state.impR??2.4).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>x = Im z</label>
+        <input type="range" id="impX" min="-6" max="6" step="0.01" value="${Math.max(-6,Math.min(6,state.impX??1.1))}"><span class="val" id="impXV">${(state.impX??1.1).toFixed(2)}</span></div>
+      <div class="ctlrow">
+        <button class="btn green" id="impRun">${state.impRun!==false?'⏸ линия βℓ':'▶ вдоль линии'}</button>
+        <button class="btn" id="impMatch">◎ согласовать (2 шага, точно)</button>
+        <label style="margin-left:6px">Скорость</label>
+        <input type="range" id="impSpeed" min="0.2" max="3" step="0.1" value="${state.impSpeed??1}"><span class="val" id="impSpeedV">×${(state.impSpeed??1).toFixed(1)}</span></div>
+    </div>
+    <div class="sect"><b>Отражательный паспорт</b>
+      <div class="note" id="impInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Заимствовано из UPRS Möbius–Hopf OmniAtlas и перестроено на трисфере. Точная цепочка: z=Z/Z₀ → Γ=(z−1)/(z+1) (Мёбиус/Кэли; |Γ|≤1 — пассивность) → сфера Римана (2ReΓ, 1−|Γ|², 2ImΓ)/(1+|Γ|²), где экватор совпадает с ободом карты, согласование — зенит, а золотой луч — истинный стереографический луч из активного полюса → лифт Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²). Движение вдоль линии без потерь — точное U(1)-вращение Γ·e^{−2jβℓ} (|Γ| инвариантен, период λ/2). Согласование: поворот к вещественной оси + λ/4-трансформер z_t=√z (точно в 0). Та же алгебра: квантовая ступенька z=k₁/k₂ (R+T=1 — тождество), Френель z=n₁/n₂ (стекло: 4.000%), акустика z=Z₂/Z₁ (воздух→вода: |Γ|=0.99944).</div>
+    </div>
+    <div class="sect"><b>Мосты</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="impToRet">→ Резонансная передача: согласование = критическая связь</button>
+        <button class="btn" id="impToQm">→ Квантовая ступенька: та же алгебра отражения</button>
+        <button class="btn" id="impToWave">→ Волновая оптика: границы Френеля</button>
+        <button class="btn" id="impToEot">→ Плазмонное туннелирование</button></div>
+    </div>`;
     else if(V==='cmb') body = `
     <div class="sect"><b>CMB sky — which multipoles</b>
       <div class="chips">
@@ -21363,7 +21526,8 @@ function buildCtlBody(){
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="retToEot">→ Extraordinary transmission: resonant tunnelling</button>
-        <button class="btn" id="retToSpin">→ Spin: Rabi = two coupled levels</button></div>
+        <button class="btn" id="retToSpin">→ Spin: Rabi = two coupled levels</button>
+        <button class="btn" id="retToImp">→ Мёбиус–Смит: согласование импеданса = критическая связь</button></div>
     </div>`;
     else if(V==='kdv') body = `
     <div class="sect"><b>Solitons — pick a scenario</b>
@@ -21707,6 +21871,7 @@ function buildCtlBody(){
         <button class="btn ${V==='su2'?'on':''}" id="v-su2">SU(2) spinor</button>
         <button class="btn ${V==='bht'?'on':''}" id="v-bht">Black-hole thermo</button>
         <button class="btn ${V==='rpd'?'on':''}" id="v-rpd">RPD transformer</button>
+        <button class="btn ${V==='imp'?'on':''}" id="v-imp">Möbius · Smith</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -21732,7 +21897,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -22125,6 +22290,27 @@ function buildCtlBody(){
       ctl.querySelector('#rpdToHopfion')&&(ctl.querySelector('#rpdToHopfion').onclick=()=>{ navPush(); setS3View('hopfion'); buildCtl(); });
       ctl.querySelector('#rpdToBell')&&(ctl.querySelector('#rpdToBell').onclick=()=>{ navPush(); setS3View('bell'); buildCtl(); });
     }
+    if(V==='imp'){
+      ctl.querySelectorAll('[data-impdom]').forEach(b=>b.onclick=()=>{ const d=IMP_DOMS[b.dataset.impdom];
+        state.impDomain=b.dataset.impdom; state.impR=d.set[0]; state.impX=d.set[1]; impBl=0; impMatchA=null; impTrail=[]; buildCtl(); });
+      ctl.querySelector('#impR')&&(ctl.querySelector('#impR').oninput=e=>{ state.impR=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impRV'); if(v)v.textContent=state.impR.toFixed(2); });
+      ctl.querySelector('#impX')&&(ctl.querySelector('#impX').oninput=e=>{ state.impX=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impXV'); if(v)v.textContent=state.impX.toFixed(2); });
+      ctl.querySelector('#impRun')&&(ctl.querySelector('#impRun').onclick=()=>{ state.impRun=state.impRun===false; buildCtl(); });
+      ctl.querySelector('#impSpeed')&&(ctl.querySelector('#impSpeed').oninput=e=>{ state.impSpeed=+e.target.value;
+        const v=ctl.querySelector('#impSpeedV'); if(v)v.textContent='×'+state.impSpeed.toFixed(1); });
+      ctl.querySelector('#impMatch')&&(ctl.querySelector('#impMatch').onclick=()=>{
+        const [gr,gi]=impGamma(state.impR??2.4,state.impX??1.1), m=Math.hypot(gr,gi);
+        if(m<1e-6||m>0.9995) return;                                    // already matched, or |Γ|≥1: unmatchable
+        state.impRun=false; impBl=0; impTrail=[];
+        const delta=((Math.atan2(gi,gr)%(2*Math.PI))+2*Math.PI)%(2*Math.PI);   // rotate Γ e^{−iθ} onto the +real axis
+        impMatchA={phase:1,t:0,delta,g0:[gr,gi],zReal:(1+m)/(1-m),zt:Math.sqrt((1+m)/(1-m))}; buildCtl(); });
+      ctl.querySelector('#impToRet')&&(ctl.querySelector('#impToRet').onclick=()=>{ navPush(); setS3View('ret'); buildCtl(); });
+      ctl.querySelector('#impToQm')&&(ctl.querySelector('#impToQm').onclick=()=>{ navPush(); state.qmMode='barrier'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#impToWave')&&(ctl.querySelector('#impToWave').onclick=()=>{ navPush(); setS3View('wave'); buildCtl(); });
+      ctl.querySelector('#impToEot')&&(ctl.querySelector('#impToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
+    }
     if(V==='cmb'){
       ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
       ctl.querySelector('#cmbRun')&&(ctl.querySelector('#cmbRun').onclick=()=>{ state.cmbRun=state.cmbRun===false; buildCtl(); });
@@ -22200,6 +22386,7 @@ function buildCtlBody(){
       rr('retCoup',v=>state.retCoup=v,v=>v.toFixed(3)); rr('retQ',v=>state.retQ=v|0,v=>String(v|0));
       ctl.querySelector('#retToEot')&&(ctl.querySelector('#retToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
       ctl.querySelector('#retToSpin')&&(ctl.querySelector('#retToSpin').onclick=()=>{ navPush(); state.spinStation='rabi'; setS3View('spin'); buildCtl(); });
+      ctl.querySelector('#retToImp')&&(ctl.querySelector('#retToImp').onclick=()=>{ navPush(); setS3View('imp'); buildCtl(); });
     }
     if(V==='kdv'){
       ctl.querySelectorAll('[data-kdvmode]').forEach(b=>b.onclick=()=>{ state.kdvMode=b.dataset.kdvmode; kdvSetup(); buildCtl(); });
@@ -23586,7 +23773,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -25148,6 +25335,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='imp'){
+      fbsAnimT+=dt; updateImp(dt);
     } else if(state.s3view==='rpd'){
       fbsAnimT+=dt; updateRpd(dt);
     } else if(state.s3view==='bht'){
