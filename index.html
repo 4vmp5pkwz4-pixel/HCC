@@ -2114,6 +2114,19 @@ function runSelfTests(){
       const S=Bc>0?Math.min(Bc,Bceil)/Bc:0;
       return G>=0&&G<=1&&N>=0&&S>=0&&S<=1; })),
     '0 ≤ Σ ≤ 1 is the closed theorem, checked over 7 domains × 3 sectors');
+  { // RPD TRANSFORMER (Preece & Batenin 2026): horizon shape, class bookkeeping, exterior-count equivalence
+    ok('RPD: horizon area A(p) — 0 at start, peak 1 at p=0.4, 0 at full evaporation, unimodal',
+      (()=>{ if(Math.abs(rpdArea(0))>1e-12||Math.abs(rpdArea(0.4)-1)>1e-12||Math.abs(rpdArea(1))>1e-12) return false;
+        let up=true, prev=-1; for(let i=0;i<=100;i++){ const a=rpdArea(i/100);
+          if(up){ if(a<prev-1e-12) up=false; } else if(a>prev+1e-9) return false; prev=a; } return true; })(),
+      'A(0)=0 · A(0.4)=1 · A(1)=0');
+    ok('RPD: classes are transformed, never destroyed — accessible+hidden+re-expressed = 48 at EVERY instant',
+      (()=>{ for(let i=0;i<=60;i++){ const c=rpdCounts(i/60); if(c.acc+c.hid+c.re!==RPD_N||c.hid<0||c.re<0) return false; } return true; })(),
+      'invariant total over the full cycle');
+    ok('RPD: exterior distinguishability I_ext dips at the horizon peak and the FINAL count equals the initial (equivalence, not restored form)',
+      (()=>{ const c0=rpdCounts(0), c1=rpdCounts(1), cp=rpdCounts(0.4);
+        return c0.acc===RPD_N && (c1.acc+c1.re)===RPD_N && c1.hid===0 && cp.acc<RPD_N && rpdIext(0.4)<rpdIext(0)-0.5 && Math.abs(rpdIext(1)-rpdIext(0))<1e-12; })(),
+      `I(0)=I(1)=${Math.log2(RPD_N).toFixed(2)} bit · dip at peak to ${rpdIext(0.4).toFixed(2)} bit`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14314,6 +14327,148 @@ function updateQso(dt){
   }
 }
 
+/* ================================================================
+   RPD TRANSFORMER LAB · the black hole as a horizon-mediated transformer
+   of Realised Physical Distinguishability (Preece & Batenin 2026, "Black
+   Holes as Horizon-Mediated Transformers of RPD in Compact S³ Geometry").
+   DECLARED: a research FRAMEWORK, not a completed theory — no information-
+   recovery claim. What is exact here: the selector proof-core numbers
+   (Γ_R(T), N₀(ε), B_holo, Σ_grav = min-law — the app's own self-tested
+   SELM/DRDMATH), the class-count bookkeeping (accessible+hidden+re-expressed
+   = const: transformed, NOT destroyed), and the horizon-area shape. The
+   ensemble of distinguishability classes, the three redistribution channels
+   and the Page-style exterior-RPD curve are a faithful SCHEMATIC of the
+   paper's §5–§12 structure. Hopf Q_H sector: conjectural (open problem 10). */
+const rpdGroup=new THREE.Group(); rpdGroup.visible=false; s3Group.add(rpdGroup);
+const RPD_N=48, RPD_RCAR=2.7, RPD_RHMAX=1.9;
+let rpdObjs=null, rpdUiAcc=0, rpdP=0, rpdPrevRe=0;
+function rpdArea(p){ if(p<=0) return 0; if(p<0.4) return Math.pow(p/0.4,2); const q=(p-0.4)/0.6; return Math.pow(Math.max(0,1-q),4/3); }
+function rpdRh(p){ return RPD_RHMAX*Math.sqrt(rpdArea(p)); }
+function rpdBeadDef(i){   // deterministic Fibonacci-sphere directions + golden-ratio radial layers
+  const ga=Math.PI*(3-Math.sqrt(5)), y=1-2*(i+0.5)/RPD_N, r=Math.sqrt(1-y*y), th=ga*i;
+  return {dir:new THREE.Vector3(r*Math.cos(th),y,r*Math.sin(th)), layer:0.18+0.75*((i*0.6180339887)%1)};
+}
+function rpdCounts(p){   // exact bookkeeping: swallowed set = horizon-history max (no un-swallowing);
+  // during evaporation, hidden classes are RE-EXPRESSED one by one through the three channels.
+  const rhPeak=rpdRh(Math.min(p,0.4)), sw=[];
+  for(let i=0;i<RPD_N;i++){ if(rpdBeadDef(i).layer*RPD_RCAR < rhPeak) sw.push(i); }
+  const q=p<=0.4?0:Math.min(1,(p-0.4)/0.6);
+  const nRe=Math.min(sw.length,Math.floor(q*sw.length+1e-9));
+  const reSet=sw.slice(0,nRe);   // deterministic order of re-expression
+  return {swallowed:sw, reSet, acc:RPD_N-sw.length, hid:sw.length-nRe, re:nRe};
+}
+function rpdIext(p){ const c=rpdCounts(p); return Math.log2(Math.max(1,c.acc+c.re)); }
+function rpdClear(){ labWipe(rpdGroup); rpdObjs=null; }
+function rpdSetup(){
+  rpdClear(); rpdP=0; rpdPrevRe=0;
+  rpdGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(4,6,7); rpdGroup.add(dl);
+  // the compact S³ carrier (stereographic stand-in) — wireframe globe + faint great-circle triad
+  rpdGroup.add(new THREE.Mesh(new THREE.SphereGeometry(RPD_RCAR,40,26),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.10})));
+  for(const rot of [[0,0],[Math.PI/2,0],[0,Math.PI/2]]){ const eq=[]; for(let i=0;i<=90;i++){const a=i/90*2*Math.PI; eq.push(new THREE.Vector3(RPD_RCAR*Math.cos(a),0,RPD_RCAR*Math.sin(a)));}
+    const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(eq),new THREE.LineBasicMaterial({color:0x35507a,transparent:true,opacity:.25})); ln.rotation.set(rot[0],0,rot[1]); rpdGroup.add(ln); }
+  // the horizon (grows through collapse, shrinks through evaporation)
+  const hor=new THREE.Mesh(new THREE.SphereGeometry(1,40,26),new THREE.MeshBasicMaterial({color:0x05070c}));
+  const horShell=new THREE.Mesh(new THREE.SphereGeometry(1.02,32,20),new THREE.MeshBasicMaterial({color:0xffcf6a,wireframe:true,transparent:true,opacity:.14,depthWrite:false}));
+  const horGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xff9050,transparent:true,opacity:.4,depthWrite:false})); rpdGroup.add(hor,horShell,horGlow);
+  // distinguishability-class beads (the RPD ensemble)
+  const beads=new THREE.InstancedMesh(new THREE.SphereGeometry(.085,10,8),new THREE.MeshBasicMaterial({}),RPD_N);
+  beads.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(RPD_N*3),3); rpdGroup.add(beads);
+  // three-channel quanta pool: 0=null-wave shells (cyan) · 1=geometric rings (green) · 2=radiative beads (gold)
+  const quanta=[];
+  for(let i=0;i<18;i++){ const ch=i%3; let m;
+    if(ch===0) m=new THREE.Mesh(new THREE.SphereGeometry(1,24,16),new THREE.MeshBasicMaterial({color:0x7fd8ff,transparent:true,opacity:0,wireframe:false,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    else if(ch===1) m=new THREE.Mesh(new THREE.TorusGeometry(1,0.025,8,64),new THREE.MeshBasicMaterial({color:0x8fe0a0,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending}));
+    else { m=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),new THREE.MeshBasicMaterial({color:0xffe9a0,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false}));
+      const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffe9a0,transparent:true,opacity:.8,depthWrite:false})); g.scale.setScalar(.6); m.add(g); }
+    if(ch===1) m.rotation.x=Math.PI/2;
+    m.visible=false; rpdGroup.add(m); quanta.push({ch,mesh:m,t:0,live:false,dir:new THREE.Vector3(0,1,0)}); }
+  // Page-style exterior-RPD curve I_ext(p) + hidden load S∝A/4, precomputed from the exact bookkeeping
+  const pg=new THREE.Group(); pg.position.set(4.35,0.2,0); rpdGroup.add(pg);
+  const PX=p=>-1.55+3.1*p, IY=v=>-1.35+2.7*(v/Math.log2(RPD_N)), AY=a=>-1.35+2.7*a;
+  { const pts=[]; for(let i=0;i<=96;i++){ const p=i/96; pts.push(new THREE.Vector3(PX(p),IY(rpdIext(p)),0)); }
+    pg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  { const pts=[]; for(let i=0;i<=96;i++){ const p=i/96; pts.push(new THREE.Vector3(PX(p),AY(rpdArea(p)*0.85),0.01)); }
+    pg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0xff7a6a,transparent:true,opacity:.55}))); }
+  pg.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(PX(0),IY(0),0),new THREE.Vector3(PX(1),IY(0),0),
+    new THREE.Vector3(PX(0),IY(0),0),new THREE.Vector3(PX(0),IY(Math.log2(RPD_N))+0.1,0)]),new THREE.LineBasicMaterial({color:0x55607a})));
+  const pMark=new THREE.Mesh(new THREE.SphereGeometry(.09,12,9),new THREE.MeshBasicMaterial({color:0xffffff}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); g.scale.setScalar(.6); pMark.add(g); } pg.add(pMark);
+  { const a=mkLabel('I_ext = log₂|RPD_ext| — dips at the horizon peak, re-expressed by the channels','label axis'); a.position.set(4.35,1.85,0); rpdGroup.add(a);
+    const b=mkLabel('collapse → evaporation →','label dim'); b.position.set(4.35,-1.5,0); rpdGroup.add(b);
+    const c=mkLabel('S ∝ A/4 (hidden load)','label dim'); c.position.set(5.4,-0.6,0); rpdGroup.add(c); }
+  // selector gauge (left): exact min-law B_phys = min(B_causal, B_holo) on a toy 1 m carrier — log₁₀ bars
+  const sg=new THREE.Group(); sg.position.set(-4.45,0.55,0); rpdGroup.add(sg);
+  const barC=new THREE.Mesh(new THREE.BoxGeometry(.3,1,.3),new THREE.MeshStandardMaterial({color:0x7fb0ff,roughness:.5,metalness:.2}));
+  const barP=new THREE.Mesh(new THREE.BoxGeometry(.3,1,.3),new THREE.MeshStandardMaterial({color:0xffd27a,roughness:.5,metalness:.2}));
+  barC.position.x=-0.34; barP.position.x=0.34; sg.add(barC,barP);
+  const ceil=new THREE.Mesh(new THREE.BoxGeometry(1.15,.03,.42),new THREE.MeshBasicMaterial({color:0xff8a6a,transparent:true,opacity:.9})); sg.add(ceil);
+  { const a=mkLabel('B_causal','label dim'); a.position.set(-4.79,-1.55,0); rpdGroup.add(a);
+    const b=mkLabel('B_phys','label dim'); b.position.set(-4.11,-1.55,0); rpdGroup.add(b);
+    const c=mkLabel('SELECTOR Σ_grav = min(1, B_holo/B_causal) · exact proof-core','label axis'); c.position.set(-4.45,2.35,0); rpdGroup.add(c);
+    const d=mkLabel('holographic ceiling','label dim'); d.position.set(-4.45,1.95,0); rpdGroup.add(d); }
+  // Hopf-protected sector (conjectural): two linked fibres, Q_H=1, persist through the whole cycle
+  const hopfSec=new THREE.Group(); hopfSec.position.set(-4.35,-2.55,0); hopfSec.scale.setScalar(0.3); rpdGroup.add(hopfSec);
+  for(const [th,ph,col] of [[0.9,0,0xffcf6a],[1.45,2.1,0x7fd8ff]]){
+    const seg=spinHopfFibre(th,ph); if(seg.length) hopfSec.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+  { const l=mkLabel('Q_H=1 · conjectural protected RPD sector (open problem 10)','label dim'); l.position.set(-4.35,-3.45,0); rpdGroup.add(l); }
+  const tl=mkLabel('BLACK HOLE AS RPD TRANSFORMER · distinguishability is transformed, not destroyed','label const'); tl.position.set(0,3.7,0); rpdGroup.add(tl);
+  const t2=mkLabel('gold = exterior-accessible classes · red = horizon-hidden · channels: cyan null-wave · green geometric · gold radiative','label dim'); t2.position.set(0,-3.6,0); rpdGroup.add(t2);
+  const rl=mkLabel('','label dim'); rl.position.set(0,3.0,0); rpdGroup.add(rl);
+  rpdObjs={hor,horShell,horGlow,beads,quanta,pMark,PX,IY,barC,barP,ceil,hopfSec,readLab:rl,_d:new THREE.Object3D(),_c:new THREE.Color()};
+}
+function updateRpd(dt){
+  const O=rpdObjs; if(!O) return;
+  if(state.rpdRun!==false){ rpdP+=dt*0.055*(state.rpdSpeed??1); if(rpdP>1.12){ rpdP=0; rpdPrevRe=0; for(const q of O.quanta){ q.live=false; q.mesh.visible=false; } } }
+  const p=Math.min(1,rpdP), C=rpdCounts(p), rh=rpdRh(p);
+  // horizon
+  const showH=rh>0.02; O.hor.visible=O.horShell.visible=showH; O.horGlow.visible=showH;
+  if(showH){ O.hor.scale.setScalar(rh); O.horShell.scale.setScalar(rh); O.horGlow.scale.setScalar(rh*3.4); }
+  // beads: gold accessible · dim red hidden · dark husk once re-expressed (form NOT restored — the count moves to the channels)
+  const reSet=new Set(C.reSet), swSet=new Set(C.swallowed);
+  for(let i=0;i<RPD_N;i++){ const B=rpdBeadDef(i), r=B.layer*RPD_RCAR;
+    O._d.position.copy(B.dir).multiplyScalar(r); O._d.scale.setScalar(reSet.has(i)?0.55:1); O._d.quaternion.identity(); O._d.updateMatrix();
+    O.beads.setMatrixAt(i,O._d.matrix);
+    if(reSet.has(i)) O._c.setHex(0x2a3040); else if(swSet.has(i)) O._c.setHex(0xb04038); else O._c.setHex(0xffd27a);
+    O.beads.setColorAt(i,O._c); }
+  O.beads.instanceMatrix.needsUpdate=true; if(O.beads.instanceColor) O.beads.instanceColor.needsUpdate=true;
+  // spawn channel quanta as classes re-express (one per new re-expression, channel = i mod 3)
+  if(C.re>rpdPrevRe){ for(let k=rpdPrevRe;k<C.re;k++){ const bi=C.swallowed[k], ch=bi%3;
+      const q=O.quanta.find(x=>!x.live&&x.ch===ch)||O.quanta.find(x=>!x.live); if(!q) break;
+      q.live=true; q.t=0; q.mesh.visible=true; q.dir.copy(rpdBeadDef(bi).dir); } rpdPrevRe=C.re; }
+  if(C.re<rpdPrevRe) rpdPrevRe=C.re;
+  for(const q of O.quanta){ if(!q.live) continue; q.t+=dt; const life=2.4, u=q.t/life;
+    if(u>=1){ q.live=false; q.mesh.visible=false; continue; }
+    if(q.ch===0){ const R=rh+ (RPD_RCAR*1.15-rh)*u; q.mesh.scale.setScalar(Math.max(0.05,R)); q.mesh.material.opacity=0.16*(1-u); }
+    else if(q.ch===1){ const R=rh+(RPD_RCAR*1.2-rh)*u; q.mesh.scale.setScalar(Math.max(0.05,R)); q.mesh.material.opacity=0.5*(1-u); }
+    else { q.mesh.position.copy(q.dir).multiplyScalar(rh+ (RPD_RCAR*1.25-rh)*u); q.mesh.material.opacity=0.95*(1-u*0.7); } }
+  // Page-curve marker (local coords of the curve group)
+  O.pMark.position.set(O.PX(p),O.IY(rpdIext(p)),0.02);
+  // selector gauge: exact SELM/DRDMATH numbers on the toy 1 m carrier
+  const tau=state.rpdTau??1.2, lx=state.rpdLogX??20, x=Math.pow(10,lx);
+  const G=SELM.Gamma(tau), N=x<1e7?DRDMATH.N0(x):x*x*x/3;      // exact count; Weyl form beyond safe float range (declared)
+  const logBc=Math.log10(Math.max(1e-30,G))+Math.log10(N), logBh=Math.log10(SELM.Bholo(1));
+  const logBp=Math.min(logBc,logBh), SIG=Math.min(1,Math.pow(10,logBh-logBc));
+  const HS=2.2/78;   // log₁₀-bar scale
+  O.barC.scale.y=Math.max(0.02,logBc*HS); O.barC.position.y=-1.3+O.barC.scale.y/2;
+  O.barP.scale.y=Math.max(0.02,logBp*HS); O.barP.position.y=-1.3+O.barP.scale.y/2;
+  O.ceil.position.y=-1.3+logBh*HS;
+  O.hopfSec.rotation.y+=dt*0.4;
+  rpdUiAcc+=dt; if(rpdUiAcc>0.25){ rpdUiAcc=0;
+    const phase=p<0.4?'COLLAPSE — the horizon coarsens RPD_ext':p<1?'EVAPORATION — the three channels re-express distinguishability':'FINAL — count recovered, form not restored';
+    O.readLab.element.textContent=`p=${p.toFixed(2)} · ${phase}`;
+    hudBig.textContent=`RPD TRANSFORMER · accessible ${C.acc} · hidden ${C.hid} · re-expressed ${C.re} · Σ(sum)=${C.acc+C.hid+C.re}=${RPD_N} · I_ext=${rpdIext(p).toFixed(2)} bit`;
+    hudSub.textContent='the black-hole information problem, reframed (Preece & Batenin 2026): information is NOT a primitive substance — it is the derived measure I=log₂|RPD| of the classes an observer can operationally distinguish. The horizon does not destroy classes; it coarsens the EXTERIOR equivalence relation (gold→red). Evaporation re-expresses hidden distinguishability through three channels — null-wave delocalisation (cyan), gravitational-geometric traces (green), quantum radiation (gold) — until the final state is distinguishability-EQUIVALENT to the initial one, though no original form returns (a burned book does not un-burn). Research framework — no recovery theorem claimed; selector numbers are the exact S³ proof-core.';
+    ATLAS_BUS.pub('rpd.Iext',+rpdIext(p).toFixed(3),'bit');
+    ATLAS_BUS.pub('rpd.sigma',+SIG.toExponential(2),'Σ_grav');
+    const el=ctl.querySelector('#rpdInv'); if(el) el.innerHTML=
+      `classes: accessible <b>${C.acc}</b> · hidden <b>${C.hid}</b> · re-expressed <b>${C.re}</b> — invariant total <b>${RPD_N}</b> (transformed, not destroyed)<br>`+
+      `I_ext=log₂|RPD_ext|=<b>${rpdIext(p).toFixed(3)}</b> bit · horizon A/A_max=<b>${rpdArea(p).toFixed(3)}</b> · S∝A/4<br>`+
+      `selector (1 m carrier): Γ(τ=${tau.toFixed(2)})=<b>${G.toExponential(3)}</b> · N₀(R/ε=10^${lx.toFixed(1)})≈<b>10^${(Math.log10(N)).toFixed(1)}</b> · log₁₀B_causal=<b>${logBc.toFixed(1)}</b> vs log₁₀B_holo=<b>${logBh.toFixed(1)}</b> → Σ_grav=<b>${SIG>=1?'1 (unfiltered)':SIG.toExponential(2)}</b>`;
+  }
+}
+
 function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
@@ -14358,6 +14513,7 @@ function setS3View(v){
   pvGroup.visible      = (v==='pv');
   su2Group.visible     = (v==='su2');
   bhtGroup.visible     = (v==='bht');
+  rpdGroup.visible     = (v==='rpd');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
@@ -14395,6 +14551,7 @@ function setS3View(v){
   if(v==='pv'){ pvSetup(); }
   if(v==='su2'){ su2Setup(); }
   if(v==='bht'){ bhtSetup(); }
+  if(v==='rpd'){ rpdSetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
@@ -14413,7 +14570,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -19186,6 +19343,7 @@ const state = {
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
+  rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab (Schwarzschild)
@@ -20982,7 +21140,34 @@ function buildCtlBody(){
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="bhtToLens">→ Lensing: light around this horizon</button>
         <button class="btn" id="bhtToGw">→ Gravitational waves: when two merge</button>
-        <button class="btn" id="bhtToHe">→ Heat engine: the other thermodynamics</button></div>
+        <button class="btn" id="bhtToHe">→ Heat engine: the other thermodynamics</button>
+        <button class="btn" id="bhtToRpd">→ RPD: is S=A/4 stored bits — or realised distinguishability?</button></div>
+    </div>`;
+    else if(V==='rpd') body = `
+    <div class="sect"><b>RPD transformer — collapse → evaporation cycle</b>
+      <div class="ctlrow">
+        <button class="btn green" id="rpdRun">${state.rpdRun!==false?'⏸ pause cycle':'▶ run cycle'}</button>
+        <label style="margin-left:8px">Speed</label>
+        <input type="range" id="rpdSpeed" min="0.2" max="3" step="0.1" value="${state.rpdSpeed??1}"><span class="val" id="rpdSpeedV">×${(state.rpdSpeed??1).toFixed(1)}</span></div>
+      <div class="chips">
+        ${[['0','initial · no horizon'],['0.39','horizon peak'],['0.7','mid-evaporation'],['0.999','final · re-expressed']].map(([v,l])=>
+          `<button class="chip" data-rpdp="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Causal window τ=cT/R</label>
+        <input type="range" id="rpdTau" min="0.05" max="3.14" step="0.01" value="${state.rpdTau??1.2}"><span class="val" id="rpdTauV">${(state.rpdTau??1.2).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>Resolution log₁₀(R/ε)</label>
+        <input type="range" id="rpdLogX" min="15" max="25" step="0.1" value="${state.rpdLogX??20}"><span class="val" id="rpdLogXV">10^${(state.rpdLogX??20).toFixed(1)}</span></div>
+    </div>
+    <div class="sect"><b>Distinguishability readout</b>
+      <div class="note" id="rpdInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Preece &amp; Batenin 2026: information is not primitive — it is I=log₂|RPD|, the derived count of classes an observer can operationally distinguish (finite energy, time, resolution). The horizon coarsens the EXTERIOR relation (~_H): gold classes turn red — hidden, not destroyed. Evaporation re-expresses them through three channels (null-wave delocalisation, gravitational-geometric traces, quantum radiation); the class TOTAL is invariant at every instant, and the final exterior count equals the initial one while no original form returns — unitarity as continuity of distinguishability, not restoration of form. The selector gauge runs the EXACT S³ proof-core (Γ_R(T), Weyl N₀, holographic ceiling, Σ=min-law) on a declared 1 m toy carrier. Research framework: no information-recovery theorem is claimed; the Q_H Hopf sector is open problem 10.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="rpdToBht">→ Thermodynamics: T_H and S=A/4 as comparison structure</button>
+        <button class="btn" id="rpdToSel">→ Selector calculus: the full Σ_grav portrait</button>
+        <button class="btn" id="rpdToHopfion">→ Hopfion lab: the Q_H sectors themselves</button>
+        <button class="btn" id="rpdToBell">→ Bell lune: holonomy as distinguishability</button></div>
     </div>`;
     else if(V==='cmb') body = `
     <div class="sect"><b>CMB sky — which multipoles</b>
@@ -21044,7 +21229,8 @@ function buildCtlBody(){
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="bhrToBht">→ Thermodynamics of this horizon</button>
         <button class="btn" id="bhrToLens">→ Lensing: the geodesics as curves</button>
-        <button class="btn" id="bhrToGw">→ Gravitational waves: two of these merging</button></div>
+        <button class="btn" id="bhrToGw">→ Gravitational waves: two of these merging</button>
+        <button class="btn" id="bhrToRpd">→ RPD: what the horizon does to distinguishability</button></div>
     </div>`;
     else if(V==='ns') body = `
     <div class="sect"><b>Neutron star — central density</b>
@@ -21433,6 +21619,10 @@ function buildCtlBody(){
         <span class="val" id="selScrV"></span></div>
       <div class="chips">${SEL_SCREENS.map(([n,r])=>`<button class="chip" data-selscr="${(Math.log10(r/1.616255e-35)).toFixed(2)}">${n}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px">T(r) = (πr, 2πr, 2π²r³, r⁻², πr/c, n_φ) for ANY positive length — a common comparison language across 62 decades. FIREWALL: computability of T(r) never implies S³ topology of the object; Σ≪1 never by itself proves decoherence; finite-volume thresholds prove no infinite-volume mass gap.</div>
+    </div>
+    <div class="sect"><b>Bridges</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="selToRpd">→ RPD transformer: the selector filtering a black-hole cycle</button></div>
     </div>`;
     else if(V==='drd') body = `
     <div class="sect"><b>Graded spectral capacity on S³_R — N₀ · N_TT · N_D</b>
@@ -21516,6 +21706,7 @@ function buildCtlBody(){
         <button class="btn ${V==='pv'?'on':''}" id="v-pv">Photovoltaic</button>
         <button class="btn ${V==='su2'?'on':''}" id="v-su2">SU(2) spinor</button>
         <button class="btn ${V==='bht'?'on':''}" id="v-bht">Black-hole thermo</button>
+        <button class="btn ${V==='rpd'?'on':''}" id="v-rpd">RPD transformer</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -21541,7 +21732,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -21917,6 +22108,22 @@ function buildCtlBody(){
       ctl.querySelector('#bhtToLens')&&(ctl.querySelector('#bhtToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#bhtToGw')&&(ctl.querySelector('#bhtToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
       ctl.querySelector('#bhtToHe')&&(ctl.querySelector('#bhtToHe').onclick=()=>{ navPush(); setS3View('he'); buildCtl(); });
+      ctl.querySelector('#bhtToRpd')&&(ctl.querySelector('#bhtToRpd').onclick=()=>{ navPush(); setS3View('rpd'); buildCtl(); });
+    }
+    if(V==='rpd'){
+      ctl.querySelector('#rpdRun')&&(ctl.querySelector('#rpdRun').onclick=()=>{ state.rpdRun=state.rpdRun===false; buildCtl(); });
+      ctl.querySelector('#rpdSpeed')&&(ctl.querySelector('#rpdSpeed').oninput=e=>{ state.rpdSpeed=+e.target.value;
+        const v=ctl.querySelector('#rpdSpeedV'); if(v)v.textContent='×'+state.rpdSpeed.toFixed(1); });
+      ctl.querySelectorAll('[data-rpdp]').forEach(b=>b.onclick=()=>{ rpdP=+b.dataset.rpdp; rpdPrevRe=0; state.rpdRun=false;
+        if(rpdObjs) for(const q of rpdObjs.quanta){ q.live=false; q.mesh.visible=false; } buildCtl(); });
+      ctl.querySelector('#rpdTau')&&(ctl.querySelector('#rpdTau').oninput=e=>{ state.rpdTau=+e.target.value;
+        const v=ctl.querySelector('#rpdTauV'); if(v)v.textContent=state.rpdTau.toFixed(2); });
+      ctl.querySelector('#rpdLogX')&&(ctl.querySelector('#rpdLogX').oninput=e=>{ state.rpdLogX=+e.target.value;
+        const v=ctl.querySelector('#rpdLogXV'); if(v)v.textContent='10^'+state.rpdLogX.toFixed(1); });
+      ctl.querySelector('#rpdToBht')&&(ctl.querySelector('#rpdToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
+      ctl.querySelector('#rpdToSel')&&(ctl.querySelector('#rpdToSel').onclick=()=>{ navPush(); setS3View('sel'); buildCtl(); });
+      ctl.querySelector('#rpdToHopfion')&&(ctl.querySelector('#rpdToHopfion').onclick=()=>{ navPush(); setS3View('hopfion'); buildCtl(); });
+      ctl.querySelector('#rpdToBell')&&(ctl.querySelector('#rpdToBell').onclick=()=>{ navPush(); setS3View('bell'); buildCtl(); });
     }
     if(V==='cmb'){
       ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
@@ -21940,6 +22147,7 @@ function buildCtlBody(){
       ctl.querySelector('#bhrToBht')&&(ctl.querySelector('#bhrToBht').onclick=()=>{ navPush(); setS3View('bht'); buildCtl(); });
       ctl.querySelector('#bhrToLens')&&(ctl.querySelector('#bhrToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
       ctl.querySelector('#bhrToGw')&&(ctl.querySelector('#bhrToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
+      ctl.querySelector('#bhrToRpd')&&(ctl.querySelector('#bhrToRpd').onclick=()=>{ navPush(); setS3View('rpd'); buildCtl(); });
     }
     if(V==='ns'){
       ctl.querySelectorAll('[data-nsp]').forEach(b=>b.onclick=()=>{ state.nsRhoc=Math.pow(10,+b.dataset.nsp); buildCtl(); });
@@ -22111,6 +22319,7 @@ function buildCtlBody(){
       ctl.querySelector('#selScr').oninput=e=>{ state.selScrLog=+e.target.value; selDirty=true;
         const v=ctl.querySelector('#selScrV'); if(v) v.textContent='r = '+(Math.pow(10,state.selScrLog)*1.616255e-35).toExponential(2)+' m'; };
       ctl.querySelectorAll('[data-selscr]').forEach(b=>b.onclick=()=>{ state.selScrLog=+b.dataset.selscr; selDirty=true; buildCtl(); });
+      ctl.querySelector('#selToRpd')&&(ctl.querySelector('#selToRpd').onclick=()=>{ navPush(); setS3View('rpd'); buildCtl(); });
     }
     if(V==='drd'){
       ctl.querySelector('#drdX').oninput=e=>{ state.drdX=Math.max(1,Math.round(Math.pow(10,+e.target.value)));
@@ -23377,7 +23586,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
   const parts=['<span>'+esc(MODE_META[state.mode]||state.mode)+'</span>'];
@@ -24939,6 +25148,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='rpd'){
+      fbsAnimT+=dt; updateRpd(dt);
     } else if(state.s3view==='bht'){
       fbsAnimT+=dt; updateBht(dt);
     } else if(state.s3view==='cmb'){
