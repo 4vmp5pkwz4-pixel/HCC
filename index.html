@@ -2159,7 +2159,12 @@ function runSelfTests(){
     let loss0=0, mono=true, prev=1e9; const m0w=Math.hypot(...impGamma(2.4,1.1));
     for(let i=0;i<=300;i++){ const l=i/300*3*Math.PI; loss0=Math.max(loss0,Math.abs(win(0,l)-m0w)); const w=win(0.5,l); if(w>prev+1e-12)mono=false; prev=w; }
     ok('Möbius–Smith: lossless line keeps |Γ| exact; a lossy line (α>0) spirals it monotonically inward to match',
-      loss0<1e-12 && mono && win(0.5,3*Math.PI)<0.02, `|Γ| dev(α=0)=${loss0.toExponential(1)} · end(α=0.5)=${win(0.5,3*Math.PI).toExponential(1)}`); }
+      loss0<1e-12 && mono && win(0.5,3*Math.PI)<0.02, `|Γ| dev(α=0)=${loss0.toExponential(1)} · end(α=0.5)=${win(0.5,3*Math.PI).toExponential(1)}`);
+    // standing wave: |V(x)|=|1+Γe^{2jβx}| peaks at 1+|Γ|, dips to 1−|Γ|, VSWR exact, nodes every λ/2
+    const [sgr,sgi]=impGamma(0.4,-1.3), sm=Math.hypot(sgr,sgi); let smx=-1,smn=1e9;
+    for(let i=0;i<=4000;i++){ const bx=i/4000*4*Math.PI, rr=sgr*Math.cos(2*bx)-sgi*Math.sin(2*bx), ri=sgr*Math.sin(2*bx)+sgi*Math.cos(2*bx), v=Math.hypot(1+rr,ri); smx=Math.max(smx,v); smn=Math.min(smn,v); }
+    ok('Möbius–Smith: standing-wave pattern peaks at 1+|Γ| and dips to 1−|Γ| (VSWR exact), physical meaning of Γ in every domain',
+      Math.abs(smx-(1+sm))<1e-3 && Math.abs(smn-(1-sm))<1e-3, `max=${smx.toFixed(4)} (1+|Γ|=${(1+sm).toFixed(4)}) · min=${smn.toFixed(4)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14443,9 +14448,22 @@ function impSetup(){
     fib.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
   const liveFib=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); fib.add(liveFib);
   { const l=mkLabel(TT('Hopf fibre ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · line = U(1) rotation','фибра Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · линия = вращение U(1)','Hopf-Faser ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · Leitung = U(1)-Drehung'),'label dim'); l.position.set(4.6,2.5,0); impGroup.add(l); }
+  // ── standing-wave (VSWR) pattern: the PHYSICAL meaning of Γ, exact in every domain — |V(x)|=|1+Γe^{−2(α+jβ)x}| ──
+  const swGrp=new THREE.Group(); swGrp.position.set(0,-3.35,0.15); impGroup.add(swGrp);
+  const SWx=bx=>-3.2+6.4*(bx/(3*Math.PI)), SWy=v=>v*0.62;
+  const SWN=200, swg=new THREE.BufferGeometry();
+  swg.setAttribute('position',new THREE.BufferAttribute(new Float32Array((SWN+1)*3),3));
+  swg.setAttribute('color',new THREE.BufferAttribute(new Float32Array((SWN+1)*3),3));
+  const swCurve=new THREE.Line(swg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})); swGrp.add(swCurve);
+  const swMax=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(SWx(0),0,0),new THREE.Vector3(SWx(3*Math.PI),0,0)]),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.4})); swGrp.add(swMax);
+  const swMin=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(SWx(0),0,0),new THREE.Vector3(SWx(3*Math.PI),0,0)]),new THREE.LineBasicMaterial({color:0x7fd8ff,transparent:true,opacity:.4})); swGrp.add(swMin);
+  swGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(SWx(0),0,0),new THREE.Vector3(SWx(3*Math.PI),0,0)]),new THREE.LineBasicMaterial({color:0x445068,transparent:true,opacity:.5})));
+  const swMark=new THREE.Mesh(new THREE.SphereGeometry(.075,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.85,depthWrite:false})); g.scale.setScalar(.5); swMark.add(g); } swGrp.add(swMark);
+  { const l=mkLabel(TT('standing wave |V(x)| · gold = 1+|Γ| max, ice = 1−|Γ| min · VSWR = max/min · nodes every λ/2','стоячая волна |V(x)| · золото = 1+|Γ| макс, лёд = 1−|Γ| мин · VSWR = макс/мин · узлы через λ/2','stehende Welle |V(x)| · Gold = 1+|Γ| Max, Eis = 1−|Γ| Min · VSWR = Max/Min · Knoten alle λ/2'),'label dim'); l.position.set(0,-4.2,0.15); impGroup.add(l); }
   const tl=mkLabel(TT('IMPEDANCE · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · one map, four physics','ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','IMPEDANZ · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · eine Karte, vier Physiken'),'label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
-  impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,toDisk,toSph,readLab:rl};
+  impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,toDisk,toSph,readLab:rl};
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
   const [gr0,gi0]=impGamma(state.impR??2.4,state.impX??1.1);
@@ -14482,6 +14500,20 @@ function updateImp(dt){
     O.spiralD.geometry.setDrawRange(0,N+1); O.spiralD.geometry.attributes.position.needsUpdate=true; O.spiralD.geometry.computeBoundingSphere();
     O.spiralS.visible=O.spiralD.visible=true; if(impBl>9*Math.PI) impBl=0;
   } else { O.spiralS.visible=O.spiralD.visible=false; }
+  // standing-wave (VSWR) pattern from the LOAD reflection Γ_L; the marker rides the current line position βx=βℓ
+  { const [gbr,gbi]=impGamma(state.impR??2.4,state.impX??1.1), a=state.impAlpha??0, mL=Math.hypot(gbr,gbi);
+    const pp=O.swCurve.geometry.attributes.position.array, cc=O.swCurve.geometry.attributes.color.array, _sc=O._sc||(O._sc=new THREE.Color());
+    for(let i=0;i<=O.SWN;i++){ const bx=i/O.SWN*3*Math.PI, at=Math.exp(-2*a*bx);
+      const rr=at*(gbr*Math.cos(2*bx)-gbi*Math.sin(2*bx)), ri=at*(gbr*Math.sin(2*bx)+gbi*Math.cos(2*bx)), v=Math.hypot(1+rr,ri);
+      pp[i*3]=O.SWx(bx); pp[i*3+1]=O.SWy(v); pp[i*3+2]=0;
+      const t=Math.min(1,v/2); _sc.setHSL(0.6-0.5*t,0.72,0.32+0.28*t); cc[i*3]=_sc.r; cc[i*3+1]=_sc.g; cc[i*3+2]=_sc.b; }
+    O.swCurve.geometry.attributes.position.needsUpdate=true; O.swCurve.geometry.attributes.color.needsUpdate=true; O.swCurve.geometry.computeBoundingSphere();
+    O.swMax.geometry.setFromPoints([new THREE.Vector3(O.SWx(0),O.SWy(1+mL),0),new THREE.Vector3(O.SWx(3*Math.PI),O.SWy(1+mL),0)]); O.swMax.geometry.computeBoundingSphere();
+    O.swMin.geometry.setFromPoints([new THREE.Vector3(O.SWx(0),O.SWy(Math.max(0,1-mL)),0),new THREE.Vector3(O.SWx(3*Math.PI),O.SWy(Math.max(0,1-mL)),0)]); O.swMin.geometry.computeBoundingSphere();
+    const bxm=(impMatchA? (impMatchA.phase===1?0:0) : impBl)%(3*Math.PI), atm=Math.exp(-2*a*bxm);
+    const rrm=atm*(gbr*Math.cos(2*bxm)-gbi*Math.sin(2*bxm)), rim=atm*(gbr*Math.sin(2*bxm)+gbi*Math.cos(2*bxm));
+    O.swMark.position.set(O.SWx(bxm),O.SWy(Math.hypot(1+rrm,rim)),0.02);
+  }
   impUiAcc+=dt; if(impUiAcc>0.25){ impUiAcc=0;
     const dom=IMP_DOMS[state.impDomain||'rf'], zr=state.impR??2.4, zi=state.impX??1.1;
     const vswr=m<0.9999?(1+m)/(1-m):Infinity, rl=m>1e-9?-20*Math.log10(m):Infinity, P=Math.max(0,1-m*m);
