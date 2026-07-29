@@ -2164,7 +2164,16 @@ function runSelfTests(){
     const [sgr,sgi]=impGamma(0.4,-1.3), sm=Math.hypot(sgr,sgi); let smx=-1,smn=1e9;
     for(let i=0;i<=4000;i++){ const bx=i/4000*4*Math.PI, rr=sgr*Math.cos(2*bx)-sgi*Math.sin(2*bx), ri=sgr*Math.sin(2*bx)+sgi*Math.cos(2*bx), v=Math.hypot(1+rr,ri); smx=Math.max(smx,v); smn=Math.min(smn,v); }
     ok('Möbius–Smith: standing-wave pattern peaks at 1+|Γ| and dips to 1−|Γ| (VSWR exact), physical meaning of Γ in every domain',
-      Math.abs(smx-(1+sm))<1e-3 && Math.abs(smn-(1-sm))<1e-3, `max=${smx.toFixed(4)} (1+|Γ|=${(1+sm).toFixed(4)}) · min=${smn.toFixed(4)}`); }
+      Math.abs(smx-(1+sm))<1e-3 && Math.abs(smn-(1-sm))<1e-3, `max=${smx.toFixed(4)} (1+|Γ|=${(1+sm).toFixed(4)}) · min=${smn.toFixed(4)}`);
+    // CROSS-MODEL CLOSURE: the qm-lab barrier's exact complex r lives on the same Riemann sphere, |r|²+|t|²=1
+    let umax=0, rmax=0; for(let i=1;i<=90;i++){ const k=0.3+i*0.03, V=0.4+((i*7)%23)*0.14;
+      const R=Math.hypot(...qmBarrierR(k,V,1.0))**2, T=qmBarrierT(k,V,1.0); umax=Math.max(umax,Math.abs(R+T-1)); rmax=Math.max(rmax,Math.hypot(...qmBarrierR(k,V,1.0))); }
+    ok('Möbius–Smith ⇄ Quantum: the barrier’s exact complex r sits on the SAME sphere — |r|²+|t|²=1 (unitarity) and |r|≤1 (passive)',
+      umax<1e-9 && rmax<=1+1e-12, `max |R+T−1|=${umax.toExponential(1)} · max|r|=${rmax.toFixed(6)}`);
+    { // resonance: over-barrier qa=π ⇒ perfect transmission, r=0 exactly (the point touches the zenith)
+      const V=1.0, q=Math.PI, k=Math.sqrt(q*q+2*V);   // E=q²/2+V ⇒ k²=q²+2V
+      ok('Möbius–Smith ⇄ Quantum: at the transmission resonance qa=π the barrier reflection is EXACTLY zero — the state sits at the zenith (match)',
+        Math.hypot(...qmBarrierR(k,V,1.0))<1e-9 && Math.abs(qmBarrierT(k,V,1.0)-1)<1e-9, `|r|=${Math.hypot(...qmBarrierR(k,V,1.0)).toExponential(1)} T=${qmBarrierT(k,V,1.0).toFixed(9)}`); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14398,9 +14407,25 @@ const IMP_DOMS={
       leg:{en:'air→glass (n=1.5) · R=|Γ|²=4.00% (exact)',ru:'воздух→стекло (n=1.5) · R=|Γ|²=4.00% (точно)',de:'Luft→Glas (n=1.5) · R=|Γ|²=4.00% (exakt)'}},
   acoustic:{set:[3583,0], n:{en:'Acoustic interface · z=Z₂/Z₁',ru:'Акустический стык · z=Z₂/Z₁',de:'Akustischer Übergang · z=Z₂/Z₁'},
       leg:{en:'air→water: |Γ|=0.99944 — why sound will not enter water',ru:'воздух→вода: |Γ|=0.99944 — почему звук не проходит в воду',de:'Luft→Wasser: |Γ|=0.99944 — warum Schall nicht ins Wasser dringt'}},
+  qmbarrier:{set:[2.4,1.1], live:true, n:{en:'Quantum BARRIER · exact r(k,V₀)',ru:'Квантовый БАРЬЕР · точное r(k,V₀)',de:'Quanten-BARRIERE · exaktes r(k,V₀)'},
+      leg:{en:'the real qm-lab barrier lives on THIS sphere · |r|²+|t|²=1 · resonances touch the zenith',ru:'реальный барьер из qm-лаборатории живёт на ЭТОЙ сфере · |r|²+|t|²=1 · резонансы касаются зенита',de:'die echte Barriere des qm-Labors lebt auf DIESER Kugel · |r|²+|t|²=1 · Resonanzen berühren den Zenit'}},
   mechanical:{set:[2,0], n:{en:'Mechanical junction · z=Z₂/Z₁',ru:'Механический стык · z=Z₂/Z₁',de:'Mechanischer Übergang · z=Z₂/Z₁'},
       leg:{en:'string junction light→heavy (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',ru:'стык струн лёгкая→тяжёлая (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',de:'Saiten-Übergang leicht→schwer (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3'}}};
 function impL(o){ const L=(state&&state.lang)||'en'; return (o&&(o[L]||o.en))||''; }
+// EXACT complex reflection amplitude of a rectangular barrier [0,a] (ħ=m=1): the SAME Riemann sphere
+// hosts a quantum barrier's reflection — cross-model closure. |r|≤1 (passive), |r|²+|t|²=1 (derived).
+function qmBarrierR(k,V0,a){ const E=0.5*k*k; if(Math.abs(E-V0)<1e-9) V0=E-1e-6;
+  if(E>V0){ const q=Math.sqrt(2*(E-V0)), s=Math.sin(q*a), c=Math.cos(q*a);   // over-barrier: q real
+    const ni=-(k*k-q*q)*s, dr=2*q*k*c, di=-(k*k+q*q)*s, D=dr*dr+di*di||1e-300;
+    return [(ni*di)/D,(ni*dr)/D]; }
+  const kp=Math.sqrt(2*(V0-E)), sh=Math.sinh(kp*a), ch=Math.cosh(kp*a);       // tunnelling: q=iκ
+  const nr=(k*k+kp*kp)*sh, dr=(k*k-kp*kp)*sh, di=2*kp*k*ch, D=dr*dr+di*di||1e-300;
+  return [(nr*dr)/D,(-nr*di)/D]; }
+function qmBarrierT(k,V0,a){ const E=0.5*k*k;                                  // transmission probability (for the passport)
+  if(E>V0){ const q=Math.sqrt(2*(E-V0)); return 1/(1+Math.pow((k*k-q*q)/(2*k*q),2)*Math.sin(q*a)**2); }
+  const kp=Math.sqrt(2*Math.max(1e-12,V0-E)); return 1/(1+Math.pow((k*k+kp*kp)/(2*k*kp),2)*Math.sinh(kp*a)**2); }
+function impBaseGamma(){ if((state.impDomain||'rf')==='qmbarrier') return qmBarrierR(state.qmK0??1.4,state.qmV0??1.5,1.0);
+  return impGamma(state.impR??2.4,state.impX??1.1); }
 function impClear(){ labWipe(impGroup); impObjs=null; impTrail=[]; impBl=0; impMatchA=null; }
 function impSetup(){
   impClear();
@@ -14466,7 +14491,7 @@ function impSetup(){
   impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,toDisk,toSph,readLab:rl};
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
-  const [gr0,gi0]=impGamma(state.impR??2.4,state.impX??1.1);
+  const [gr0,gi0]=impBaseGamma();
   if(impMatchA){ const A=impMatchA;
     if(A.phase===1){ const th=A.t; return [A.g0[0]*Math.cos(th)+A.g0[1]*Math.sin(th), -A.g0[0]*Math.sin(th)+A.g0[1]*Math.cos(th)]; }
     const [zr,zi]=impZin4(A.zReal,A.zt,A.t); return impGamma(zr,zi); }
@@ -14491,7 +14516,7 @@ function updateImp(dt){
     O.liveFib.geometry.setFromPoints(spinHopfFibre(th0,ph0)); O.liveFib.geometry.computeBoundingSphere(); }
   // lossy de-embedding spiral: Γ(ℓ)=Γ_L·e^{−2(α+jβ)ℓ} over [0, βℓ], winding inward to match
   const alpha=state.impAlpha??0;
-  if(alpha>1e-4 && !impMatchA){ const [gbr,gbi]=impGamma(state.impR??2.4,state.impX??1.1), N=240, span=Math.min(impBl,8*Math.PI), l0=impBl-span;
+  if(alpha>1e-4 && !impMatchA){ const [gbr,gbi]=impBaseGamma(), N=240, span=Math.min(impBl,8*Math.PI), l0=impBl-span;
     const as=O.spiralS.geometry.attributes.position.array, ad=O.spiralD.geometry.attributes.position.array;
     for(let i=0;i<=N;i++){ const l=l0+span*i/N, at=Math.exp(-2*alpha*l), th=2*l, c=Math.cos(th), s=Math.sin(th);
       const grr=at*(gbr*c+gbi*s), gii=at*(-gbr*s+gbi*c), ps=O.toSph(grr,gii), pd=O.toDisk(grr,gii,0.02);
@@ -14501,7 +14526,7 @@ function updateImp(dt){
     O.spiralS.visible=O.spiralD.visible=true; if(impBl>9*Math.PI) impBl=0;
   } else { O.spiralS.visible=O.spiralD.visible=false; }
   // standing-wave (VSWR) pattern from the LOAD reflection Γ_L; the marker rides the current line position βx=βℓ
-  { const [gbr,gbi]=impGamma(state.impR??2.4,state.impX??1.1), a=state.impAlpha??0, mL=Math.hypot(gbr,gbi);
+  { const [gbr,gbi]=impBaseGamma(), a=state.impAlpha??0, mL=Math.hypot(gbr,gbi);
     const pp=O.swCurve.geometry.attributes.position.array, cc=O.swCurve.geometry.attributes.color.array, _sc=O._sc||(O._sc=new THREE.Color());
     for(let i=0;i<=O.SWN;i++){ const bx=i/O.SWN*3*Math.PI, at=Math.exp(-2*a*bx);
       const rr=at*(gbr*Math.cos(2*bx)-gbi*Math.sin(2*bx)), ri=at*(gbr*Math.sin(2*bx)+gbi*Math.cos(2*bx)), v=Math.hypot(1+rr,ri);
@@ -14526,6 +14551,8 @@ function updateImp(dt){
     ATLAS_BUS.pub('imp.gamma',+m.toFixed(4),'|Γ|');
     const el=ctl.querySelector('#impInv'); if(el) el.innerHTML=
       `z=<b>${zr>99?zr.toExponential(2):zr.toFixed(3)}</b>${zi>=0?'+':'−'}j<b>${Math.abs(zi).toFixed(3)}</b> → Γ=<b>${gr.toFixed(4)}</b>${gi>=0?'+':'−'}j<b>${Math.abs(gi).toFixed(4)}</b> · |Γ|=<b>${m.toFixed(5)}</b> ∠<b>${(Math.atan2(gi,gr)*180/Math.PI).toFixed(2)}°</b><br>`+
+      ((state.impDomain||'rf')==='qmbarrier'?(()=>{ const k=state.qmK0??1.4,V=state.qmV0??1.5,T=qmBarrierT(k,V,1.0),R=m*m;
+        return `<b style="color:#9fe8c0">${TT('barrier','барьер','Barriere')} k=${k.toFixed(2)} (E=${(0.5*k*k).toFixed(3)}) V₀=${V.toFixed(2)} a=1 · ${0.5*k*k<V?TT('TUNNELLING','ТУННЕЛИРОВАНИЕ','TUNNELN'):TT('over-barrier','надбарьерное','über der Barriere')}</b> · T=<b>${(T*100).toFixed(3)}%</b> · R=<b>${(R*100).toFixed(3)}%</b> · R+T=<b>${((R+T)).toFixed(9)}</b> (${TT('unitarity','унитарность','Unitarität')})<br>`; })():'')+
       `VSWR=<b>${Number.isFinite(vswr)?vswr.toFixed(4):'∞'}</b> · ${TT('return loss','обратные потери','Rückflussdämpfung')}=<b>${Number.isFinite(rl)?rl.toFixed(2):'∞'}</b> dB · ${state.impDomain==='quantum'?TT('transmission T','прохождение T','Transmission T'):TT('delivered','доставлено','übertragen')}=<b>${(P*100).toFixed(3)}%</b> · R=|Γ|²=<b>${(m*m*100).toFixed(3)}%</b><br>`+
       (impMatchA?`<b style="color:#9fe8c0">▶ ${TT('matching','согласование','Anpassung')}: ${impMatchA.phase===1?TT('step 1 — rotate to the real axis (line βℓ)','шаг 1 — вращение к вещественной оси (линия βℓ)','Schritt 1 — Drehung zur reellen Achse (Leitung βℓ)'):TT('step 2 — λ/4 transformer z_t=√z → centre','шаг 2 — λ/4-трансформер z_t=√z → центр','Schritt 2 — λ/4-Transformator z_t=√z → Zentrum')}</b>`:
        alpha>1e-4?`<b style="color:#ffb0e0">${TT('lossy line α='+alpha.toFixed(3)+' Np/rad — |Γ| SPIRALS inward to match (real cable / absorbing medium; matched at ∞)','линия с потерями α='+alpha.toFixed(3)+' Нп/рад — |Γ| спиралит внутрь к согласованию (реальный кабель / поглощающая среда; согласовано на ∞)','verlustbehaftete Leitung α='+alpha.toFixed(3)+' Np/rad — |Γ| spiralt nach innen zur Anpassung (reales Kabel / absorbierendes Medium; angepasst bei ∞)')}</b>`:
@@ -20926,6 +20953,7 @@ function buildCtlBody(){
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="qmToQuasi">→ Quasiparticles: quantised lattice waves</button>
+        <button class="btn" id="qmToImp">${TT('→ Möbius·Smith: this barrier’s reflection r on the Riemann sphere','→ Мёбиус·Смит: отражение r этого барьера на сфере Римана','→ Möbius·Smith: die Reflexion r dieser Barriere auf der Riemann-Kugel')}</button>
         <button class="btn" id="qmToEig">→ S³ eigenmodes: related compact-space spectrum</button></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">This line solver, quasiparticle dispersions and the compact S³ Laplacian share spectral language but use different state spaces, geometry, boundaries and physical interpretations. The bridge is mathematical context, not identity.</div>
     </div>`;
@@ -21390,10 +21418,16 @@ function buildCtlBody(){
       <div class="chips">
         ${Object.entries(IMP_DOMS).map(([k,d])=>`<button class="chip ${(state.impDomain||'rf')===k?'on':''}" data-impdom="${k}">${impL(d.n).split('·')[0].trim()}</button>`).join('')}
       </div>
+      ${(state.impDomain||'rf')==='qmbarrier'?`
+      <div class="ctlrow"><label>${TT('wavenumber k','волновое число k','Wellenzahl k')}</label>
+        <input type="range" id="impK" min="0.3" max="3" step="0.01" value="${state.qmK0??1.4}"><span class="val" id="impKV">${(state.qmK0??1.4).toFixed(2)} · E=${(0.5*(state.qmK0??1.4)**2).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>${TT('barrier V₀','барьер V₀','Barriere V₀')}</label>
+        <input type="range" id="impV0" min="0.1" max="4" step="0.01" value="${state.qmV0??1.5}"><span class="val" id="impV0V">${(state.qmV0??1.5).toFixed(2)}</span></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">${TT('the SAME barrier as the Quantum-wave lab (k₀, V₀ shared) — sweep k through a resonance and watch the point touch the zenith (perfect transmission)','ТОТ ЖЕ барьер, что в квантовой лаборатории (общие k₀, V₀) — проведи k через резонанс и точка коснётся зенита (полное прохождение)','DIESELBE Barriere wie im Quantenwellen-Labor (k₀, V₀ geteilt) — fahre k durch eine Resonanz und der Punkt berührt den Zenit (perfekte Transmission)')}</div>`:`
       <div class="ctlrow"><label>r = Re z</label>
         <input type="range" id="impR" min="0" max="6" step="0.01" value="${Math.min(6,state.impR??2.4)}"><span class="val" id="impRV">${(state.impR??2.4)>99?(state.impR).toExponential(1):(state.impR??2.4).toFixed(2)}</span></div>
       <div class="ctlrow"><label>x = Im z</label>
-        <input type="range" id="impX" min="-6" max="6" step="0.01" value="${Math.max(-6,Math.min(6,state.impX??1.1))}"><span class="val" id="impXV">${(state.impX??1.1).toFixed(2)}</span></div>
+        <input type="range" id="impX" min="-6" max="6" step="0.01" value="${Math.max(-6,Math.min(6,state.impX??1.1))}"><span class="val" id="impXV">${(state.impX??1.1).toFixed(2)}</span></div>`}
       <div class="ctlrow"><label>${TT('Line loss α','Потери линии α','Leitungsverlust α')}</label>
         <input type="range" id="impAlpha" min="0" max="0.5" step="0.005" value="${state.impAlpha??0}"><span class="val" id="impAlphaV">${(state.impAlpha??0).toFixed(3)} Np/rad</span></div>
       <div class="ctlrow">
@@ -22157,6 +22191,7 @@ function buildCtlBody(){
         const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=(+e.target.value).toFixed(2); }; el.onchange=()=>qmSetup(); } };
       qs2('qmK0',v=>state.qmK0=v); qs2('qmV0',v=>state.qmV0=v);
       ctl.querySelector('#qmToQuasi')&&(ctl.querySelector('#qmToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#qmToImp')&&(ctl.querySelector('#qmToImp').onclick=()=>{ navPush(); state.impDomain='qmbarrier'; setS3View('imp'); buildCtl(); });
       ctl.querySelector('#qmToEig')&&(ctl.querySelector('#qmToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
     }
     if(V==='qcd'){
@@ -22381,13 +22416,17 @@ function buildCtlBody(){
         const v=ctl.querySelector('#impRV'); if(v)v.textContent=state.impR.toFixed(2); });
       ctl.querySelector('#impX')&&(ctl.querySelector('#impX').oninput=e=>{ state.impX=+e.target.value; impMatchA=null; impTrail=[];
         const v=ctl.querySelector('#impXV'); if(v)v.textContent=state.impX.toFixed(2); });
+      ctl.querySelector('#impK')&&(ctl.querySelector('#impK').oninput=e=>{ state.qmK0=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impKV'); if(v)v.textContent=state.qmK0.toFixed(2)+' · E='+(0.5*state.qmK0*state.qmK0).toFixed(3); });
+      ctl.querySelector('#impV0')&&(ctl.querySelector('#impV0').oninput=e=>{ state.qmV0=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impV0V'); if(v)v.textContent=state.qmV0.toFixed(2); });
       ctl.querySelector('#impAlpha')&&(ctl.querySelector('#impAlpha').oninput=e=>{ state.impAlpha=+e.target.value;
         const v=ctl.querySelector('#impAlphaV'); if(v)v.textContent=state.impAlpha.toFixed(3)+' Np/rad'; });
       ctl.querySelector('#impRun')&&(ctl.querySelector('#impRun').onclick=()=>{ state.impRun=state.impRun===false; buildCtl(); });
       ctl.querySelector('#impSpeed')&&(ctl.querySelector('#impSpeed').oninput=e=>{ state.impSpeed=+e.target.value;
         const v=ctl.querySelector('#impSpeedV'); if(v)v.textContent='×'+state.impSpeed.toFixed(1); });
       ctl.querySelector('#impMatch')&&(ctl.querySelector('#impMatch').onclick=()=>{
-        const [gr,gi]=impGamma(state.impR??2.4,state.impX??1.1), m=Math.hypot(gr,gi);
+        const [gr,gi]=impBaseGamma(), m=Math.hypot(gr,gi);
         if(m<1e-6||m>0.9995) return;                                    // already matched, or |Γ|≥1: unmatchable
         state.impRun=false; impBl=0; impTrail=[];
         const delta=((Math.atan2(gi,gr)%(2*Math.PI))+2*Math.PI)%(2*Math.PI);   // rotate Γ e^{−iθ} onto the +real axis
