@@ -2147,7 +2147,19 @@ function runSelfTests(){
         Math.abs(zr-1)<1e-6 && Math.abs(zi)<1e-6 &&
         (()=>{ const [gr,gi]=impGamma(2.4,1.1), m0=Math.hypot(gr,gi), th=1.7;
           return Math.abs(Math.hypot(gr*Math.cos(th)+gi*Math.sin(th),-gr*Math.sin(th)+gi*Math.cos(th))-m0)<1e-12; })(),
-        `z_in=${zr.toFixed(8)}${zi>=0?'+':''}${zi.toExponential(1)}j`); } }
+        `z_in=${zr.toFixed(8)}${zi>=0?'+':''}${zi.toExponential(1)}j`); }
+    // CROSS-DOMAIN CONSISTENCY: the ONE map Γ=(z−1)/(z+1) reproduces every textbook reflection coefficient
+    const cross=[['RF',3,(3-1)/(3+1)],['quantum k₁/k₂',2,(2-1)/(2+1)],['Fresnel n₁/n₂',1/1.5,(1-1.5)/(1+1.5)],
+      ['acoustic Z₂/Z₁',1.48e6/413,(1.48e6-413)/(1.48e6+413)],['mechanical Z₂/Z₁',2,(2-1)/(2+1)]];
+    let cmax=0; for(const [nm,z,txt] of cross){ cmax=Math.max(cmax,Math.abs(impGamma(z,0)[0]-txt)); }
+    ok('Möbius–Smith: ONE map Γ=(z−1)/(z+1) reproduces the textbook reflection coefficient in ALL domains (RF · quantum · Fresnel · acoustic · mechanical)',
+      cmax<1e-12, `max cross-domain Δ=${cmax.toExponential(1)}`);
+    // lossy line: |Γ| invariant at α=0, monotone-inward (→match) at α>0
+    const win=(a,l)=>{ const [g0r,g0i]=impGamma(2.4,1.1), at=Math.exp(-2*a*l), th=2*l; return at*Math.hypot(g0r*Math.cos(th)+g0i*Math.sin(th), -g0r*Math.sin(th)+g0i*Math.cos(th)); };
+    let loss0=0, mono=true, prev=1e9; const m0w=Math.hypot(...impGamma(2.4,1.1));
+    for(let i=0;i<=300;i++){ const l=i/300*3*Math.PI; loss0=Math.max(loss0,Math.abs(win(0,l)-m0w)); const w=win(0.5,l); if(w>prev+1e-12)mono=false; prev=w; }
+    ok('Möbius–Smith: lossless line keeps |Γ| exact; a lossy line (α>0) spirals it monotonically inward to match',
+      loss0<1e-12 && mono && win(0.5,3*Math.PI)<0.02, `|Γ| dev(α=0)=${loss0.toExponential(1)} · end(α=0.5)=${win(0.5,3*Math.PI).toExponential(1)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14380,7 +14392,9 @@ const IMP_DOMS={
   fresnel:{set:[1/1.5,0], n:{en:'Fresnel optics · z=n₁/n₂',ru:'Оптика Френеля · z=n₁/n₂',de:'Fresnel-Optik · z=n₁/n₂'},
       leg:{en:'air→glass (n=1.5) · R=|Γ|²=4.00% (exact)',ru:'воздух→стекло (n=1.5) · R=|Γ|²=4.00% (точно)',de:'Luft→Glas (n=1.5) · R=|Γ|²=4.00% (exakt)'}},
   acoustic:{set:[3583,0], n:{en:'Acoustic interface · z=Z₂/Z₁',ru:'Акустический стык · z=Z₂/Z₁',de:'Akustischer Übergang · z=Z₂/Z₁'},
-      leg:{en:'air→water: |Γ|=0.99944 — why sound will not enter water',ru:'воздух→вода: |Γ|=0.99944 — почему звук не проходит в воду',de:'Luft→Wasser: |Γ|=0.99944 — warum Schall nicht ins Wasser dringt'}}};
+      leg:{en:'air→water: |Γ|=0.99944 — why sound will not enter water',ru:'воздух→вода: |Γ|=0.99944 — почему звук не проходит в воду',de:'Luft→Wasser: |Γ|=0.99944 — warum Schall nicht ins Wasser dringt'}},
+  mechanical:{set:[2,0], n:{en:'Mechanical junction · z=Z₂/Z₁',ru:'Механический стык · z=Z₂/Z₁',de:'Mechanischer Übergang · z=Z₂/Z₁'},
+      leg:{en:'string junction light→heavy (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',ru:'стык струн лёгкая→тяжёлая (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',de:'Saiten-Übergang leicht→schwer (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3'}}};
 function impL(o){ const L=(state&&state.lang)||'en'; return (o&&(o[L]||o.en))||''; }
 function impClear(){ labWipe(impGroup); impObjs=null; impTrail=[]; impBl=0; impMatchA=null; }
 function impSetup(){
@@ -14416,6 +14430,11 @@ function impSetup(){
     new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false})); impGroup.add(ray);
   const tg=new THREE.BufferGeometry(); tg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(400*3),3)); tg.setDrawRange(0,0);
   const trail=new THREE.Line(tg,new THREE.LineBasicMaterial({color:0x9fe8d8,transparent:true,opacity:.7})); impGroup.add(trail);
+  // lossy-line de-embedding spiral (α>0): the state winds INWARD toward match — a true 3-D spiral on the sphere
+  const sp=new THREE.BufferGeometry(); sp.setAttribute('position',new THREE.BufferAttribute(new Float32Array(242*3),3)); sp.setDrawRange(0,0);
+  const spiralS=new THREE.Line(sp,new THREE.LineBasicMaterial({color:0xffb0e0,transparent:true,opacity:.8,blending:THREE.AdditiveBlending,depthWrite:false})); spiralS.visible=false; impGroup.add(spiralS);
+  const spd=new THREE.BufferGeometry(); spd.setAttribute('position',new THREE.BufferAttribute(new Float32Array(242*3),3)); spd.setDrawRange(0,0);
+  const spiralD=new THREE.Line(spd,new THREE.LineBasicMaterial({color:0xffb0e0,transparent:true,opacity:.35,depthWrite:false})); spiralD.visible=false; impGroup.add(spiralD);
   // live Hopf fibre over the sphere point — ψ=e^{iα}(Γ,1)/√(1+|Γ|²), the U(1) the lossless line rotates
   const fib=new THREE.Group(); fib.position.set(4.6,0.9,0); fib.scale.setScalar(0.38); impGroup.add(fib);
   const _c=new THREE.Color();
@@ -14426,15 +14445,15 @@ function impSetup(){
   { const l=mkLabel(TT('Hopf fibre ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · line = U(1) rotation','фибра Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · линия = вращение U(1)','Hopf-Faser ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · Leitung = U(1)-Drehung'),'label dim'); l.position.set(4.6,2.5,0); impGroup.add(l); }
   const tl=mkLabel(TT('IMPEDANCE · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · one map, four physics','ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','IMPEDANZ · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · eine Karte, vier Physiken'),'label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
-  impObjs={ptD,ptS,ray,trail,liveFib,toDisk,toSph,readLab:rl};
+  impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,toDisk,toSph,readLab:rl};
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
   const [gr0,gi0]=impGamma(state.impR??2.4,state.impX??1.1);
   if(impMatchA){ const A=impMatchA;
     if(A.phase===1){ const th=A.t; return [A.g0[0]*Math.cos(th)+A.g0[1]*Math.sin(th), -A.g0[0]*Math.sin(th)+A.g0[1]*Math.cos(th)]; }
     const [zr,zi]=impZin4(A.zReal,A.zt,A.t); return impGamma(zr,zi); }
-  const th=2*impBl, c=Math.cos(th), s=Math.sin(th);
-  return [gr0*c+gi0*s, -gr0*s+gi0*c];
+  const a=state.impAlpha??0, at=Math.exp(-2*a*impBl), th=2*impBl, c=Math.cos(th), s=Math.sin(th);
+  return [at*(gr0*c+gi0*s), at*(-gr0*s+gi0*c)];   // lossy line: Γ_L·e^{−2(α+jβ)ℓ}
 }
 function updateImp(dt){
   const O=impObjs; if(!O) return;
@@ -14452,6 +14471,17 @@ function updateImp(dt){
     O.trail.geometry.setDrawRange(0,n); O.trail.geometry.attributes.position.needsUpdate=true; O.trail.geometry.computeBoundingSphere(); }
   { const L=impLift(gr,gi), th0=Math.acos(Math.max(-1,Math.min(1,L[1]))), ph0=Math.atan2(L[2],L[0]);
     O.liveFib.geometry.setFromPoints(spinHopfFibre(th0,ph0)); O.liveFib.geometry.computeBoundingSphere(); }
+  // lossy de-embedding spiral: Γ(ℓ)=Γ_L·e^{−2(α+jβ)ℓ} over [0, βℓ], winding inward to match
+  const alpha=state.impAlpha??0;
+  if(alpha>1e-4 && !impMatchA){ const [gbr,gbi]=impGamma(state.impR??2.4,state.impX??1.1), N=240, span=Math.min(impBl,8*Math.PI), l0=impBl-span;
+    const as=O.spiralS.geometry.attributes.position.array, ad=O.spiralD.geometry.attributes.position.array;
+    for(let i=0;i<=N;i++){ const l=l0+span*i/N, at=Math.exp(-2*alpha*l), th=2*l, c=Math.cos(th), s=Math.sin(th);
+      const grr=at*(gbr*c+gbi*s), gii=at*(-gbr*s+gbi*c), ps=O.toSph(grr,gii), pd=O.toDisk(grr,gii,0.02);
+      as[i*3]=ps.x;as[i*3+1]=ps.y;as[i*3+2]=ps.z; ad[i*3]=pd.x;ad[i*3+1]=pd.y;ad[i*3+2]=pd.z; }
+    O.spiralS.geometry.setDrawRange(0,N+1); O.spiralS.geometry.attributes.position.needsUpdate=true; O.spiralS.geometry.computeBoundingSphere();
+    O.spiralD.geometry.setDrawRange(0,N+1); O.spiralD.geometry.attributes.position.needsUpdate=true; O.spiralD.geometry.computeBoundingSphere();
+    O.spiralS.visible=O.spiralD.visible=true; if(impBl>9*Math.PI) impBl=0;
+  } else { O.spiralS.visible=O.spiralD.visible=false; }
   impUiAcc+=dt; if(impUiAcc>0.25){ impUiAcc=0;
     const dom=IMP_DOMS[state.impDomain||'rf'], zr=state.impR??2.4, zi=state.impX??1.1;
     const vswr=m<0.9999?(1+m)/(1-m):Infinity, rl=m>1e-9?-20*Math.log10(m):Infinity, P=Math.max(0,1-m*m);
@@ -14466,6 +14496,7 @@ function updateImp(dt){
       `z=<b>${zr>99?zr.toExponential(2):zr.toFixed(3)}</b>${zi>=0?'+':'−'}j<b>${Math.abs(zi).toFixed(3)}</b> → Γ=<b>${gr.toFixed(4)}</b>${gi>=0?'+':'−'}j<b>${Math.abs(gi).toFixed(4)}</b> · |Γ|=<b>${m.toFixed(5)}</b> ∠<b>${(Math.atan2(gi,gr)*180/Math.PI).toFixed(2)}°</b><br>`+
       `VSWR=<b>${Number.isFinite(vswr)?vswr.toFixed(4):'∞'}</b> · ${TT('return loss','обратные потери','Rückflussdämpfung')}=<b>${Number.isFinite(rl)?rl.toFixed(2):'∞'}</b> dB · ${state.impDomain==='quantum'?TT('transmission T','прохождение T','Transmission T'):TT('delivered','доставлено','übertragen')}=<b>${(P*100).toFixed(3)}%</b> · R=|Γ|²=<b>${(m*m*100).toFixed(3)}%</b><br>`+
       (impMatchA?`<b style="color:#9fe8c0">▶ ${TT('matching','согласование','Anpassung')}: ${impMatchA.phase===1?TT('step 1 — rotate to the real axis (line βℓ)','шаг 1 — вращение к вещественной оси (линия βℓ)','Schritt 1 — Drehung zur reellen Achse (Leitung βℓ)'):TT('step 2 — λ/4 transformer z_t=√z → centre','шаг 2 — λ/4-трансформер z_t=√z → центр','Schritt 2 — λ/4-Transformator z_t=√z → Zentrum')}</b>`:
+       alpha>1e-4?`<b style="color:#ffb0e0">${TT('lossy line α='+alpha.toFixed(3)+' Np/rad — |Γ| SPIRALS inward to match (real cable / absorbing medium; matched at ∞)','линия с потерями α='+alpha.toFixed(3)+' Нп/рад — |Γ| спиралит внутрь к согласованию (реальный кабель / поглощающая среда; согласовано на ∞)','verlustbehaftete Leitung α='+alpha.toFixed(3)+' Np/rad — |Γ| spiralt nach innen zur Anpassung (reales Kabel / absorbierendes Medium; angepasst bei ∞)')}</b>`:
        `βℓ=${(impBl%(Math.PI)).toFixed(3)} ${TT('rad','рад','rad')} · ${TT('λ/2 period (Γ·e^{−2jβℓ}) · |Γ| invariant on a lossless line','λ/2-период (Γ·e^{−2jβℓ}) · |Γ| инвариантен на линии без потерь','λ/2-Periode (Γ·e^{−2jβℓ}) · |Γ| invariant auf verlustloser Leitung')}`);
   }
 }
@@ -19496,7 +19527,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
-  impR:2.4, impX:1.1, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
+  impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab (Schwarzschild)
@@ -21331,6 +21362,8 @@ function buildCtlBody(){
         <input type="range" id="impR" min="0" max="6" step="0.01" value="${Math.min(6,state.impR??2.4)}"><span class="val" id="impRV">${(state.impR??2.4)>99?(state.impR).toExponential(1):(state.impR??2.4).toFixed(2)}</span></div>
       <div class="ctlrow"><label>x = Im z</label>
         <input type="range" id="impX" min="-6" max="6" step="0.01" value="${Math.max(-6,Math.min(6,state.impX??1.1))}"><span class="val" id="impXV">${(state.impX??1.1).toFixed(2)}</span></div>
+      <div class="ctlrow"><label>${TT('Line loss α','Потери линии α','Leitungsverlust α')}</label>
+        <input type="range" id="impAlpha" min="0" max="0.5" step="0.005" value="${state.impAlpha??0}"><span class="val" id="impAlphaV">${(state.impAlpha??0).toFixed(3)} Np/rad</span></div>
       <div class="ctlrow">
         <button class="btn green" id="impRun">${state.impRun!==false?TT('⏸ line βℓ','⏸ линия βℓ','⏸ Leitung βℓ'):TT('▶ along the line','▶ вдоль линии','▶ entlang der Leitung')}</button>
         <button class="btn" id="impMatch">${TT('◎ match (2 steps, exact)','◎ согласовать (2 шага, точно)','◎ anpassen (2 Schritte, exakt)')}</button>
@@ -22316,6 +22349,8 @@ function buildCtlBody(){
         const v=ctl.querySelector('#impRV'); if(v)v.textContent=state.impR.toFixed(2); });
       ctl.querySelector('#impX')&&(ctl.querySelector('#impX').oninput=e=>{ state.impX=+e.target.value; impMatchA=null; impTrail=[];
         const v=ctl.querySelector('#impXV'); if(v)v.textContent=state.impX.toFixed(2); });
+      ctl.querySelector('#impAlpha')&&(ctl.querySelector('#impAlpha').oninput=e=>{ state.impAlpha=+e.target.value;
+        const v=ctl.querySelector('#impAlphaV'); if(v)v.textContent=state.impAlpha.toFixed(3)+' Np/rad'; });
       ctl.querySelector('#impRun')&&(ctl.querySelector('#impRun').onclick=()=>{ state.impRun=state.impRun===false; buildCtl(); });
       ctl.querySelector('#impSpeed')&&(ctl.querySelector('#impSpeed').oninput=e=>{ state.impSpeed=+e.target.value;
         const v=ctl.querySelector('#impSpeedV'); if(v)v.textContent='×'+state.impSpeed.toFixed(1); });
