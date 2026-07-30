@@ -3986,6 +3986,46 @@ function applyAtlasContracts(){
   }
 }
 let atlasExploreTier=null;   // QA Atlas entity-explorer tier filter (UI only)
+/* INVARIANT THREAD — the atlas's cross-scale spine. Each family is ONE invariant that
+   several independent models measure; the rows read the LIVE published values, so the
+   thread is a measurement, never a restatement. Jumping pushes the nav stack, so the
+   ↩ Back button always returns to exactly where you were. */
+const INVARIANT_THREAD=[
+ {id:'q', t:{en:'Quality factor Q = ω₀/γ — resonance sharpness = ringdown length',ru:'Добротность Q = ω₀/γ — острота резонанса = длительность звона',de:'Güte Q = ω₀/γ — Resonanzschärfe = Ringdown-Dauer'},
+  rows:[{k:'pole.Q',lab:'pole',n:{en:'pole atlas (canonical)',ru:'атлас полюсов (каноника)',de:'Polatlas (kanonisch)'}},
+        {k:'imp.gamma',lab:'imp',n:{en:'reflection |Γ| → VSWR ladder',ru:'отражение |Γ| → лестница КСВ',de:'Reflexion |Γ| → SWR-Leiter'}},
+        {k:['ret.eff','ret.transfer'],lab:'ret',n:{en:'resonant transfer η(U)',ru:'резонансная передача η(U)',de:'resonante Übertragung η(U)'}}]},
+ {id:'topo', t:{en:'Topological integers — protected, cannot change continuously',ru:'Топологические целые — защищены, непрерывно не меняются',de:'Topologische Ganzzahlen — geschützt, nicht stetig änderbar'},
+  rows:[{k:'sc.vortices',lab:'sc',n:{en:'Abrikosov vortices × Φ₀ (π₁)',ru:'вихри Абрикосова × Φ₀ (π₁)',de:'Abrikosov-Wirbel × Φ₀ (π₁)'}},
+        {k:'su2.w',lab:'su2',n:{en:'SU(2) winding (π₃)',ru:'намотка SU(2) (π₃)',de:'SU(2)-Windung (π₃)'}},
+        {k:'spin.berry',lab:'spin',n:{en:'Berry holonomy on the Hopf bundle',ru:'голономия Берри на расслоении Хопфа',de:'Berry-Holonomie am Hopf-Bündel'}}]},
+ {id:'chaos', t:{en:'Lyapunov λ — the inverse predictability horizon',ru:'Ляпунов λ — обратный горизонт предсказуемости',de:'Lyapunov λ — inverser Vorhersagehorizont'},
+  rows:[{k:'chaos.lambda',lab:'chaos',n:{en:'strange attractor (dissipative)',ru:'странный аттрактор (диссипативный)',de:'seltsamer Attraktor (dissipativ)'}},
+        {k:'grav.lambda',lab:'grav',n:{en:'3-body gravity (conservative)',ru:'гравитация 3 тел (консервативная)',de:'Drei-Körper-Gravitation (konservativ)'}}]},
+ {id:'rel', t:{en:'Relativistic factors — one hyperbolic distance',ru:'Релятивистские факторы — одно гиперболическое расстояние',de:'Relativistische Faktoren — ein hyperbolischer Abstand'},
+  rows:[{k:'rel.gamma',lab:'rel',n:{en:'Lorentz γ(β)',ru:'лоренцев γ(β)',de:'Lorentz γ(β)'}},
+        {k:'rel.z',lab:'rel',n:{en:'redshift z',ru:'красное смещение z',de:'Rotverschiebung z'}},
+        {k:'lens.alpha',lab:'lens',n:{en:'light deflection α',ru:'отклонение света α',de:'Lichtablenkung α'}}]},
+ {id:'eff', t:{en:'Efficiency ceilings — how close to the thermodynamic limit',ru:'Потолки КПД — насколько близко к термодинамическому пределу',de:'Wirkungsgrad-Grenzen — Abstand zum thermodynamischen Limit'},
+  rows:[{k:'he.eta',lab:'he',n:{en:'Carnot heat engine',ru:'тепловая машина Карно',de:'Carnot-Wärmekraftmaschine'}},
+        {k:'te.eta',lab:'te',n:{en:'thermoelectric η(ZT)',ru:'термоэлектрический η(ZT)',de:'thermoelektrisch η(ZT)'}},
+        {k:'pv.eff',lab:'pv',n:{en:'photovoltaic (Shockley–Queisser)',ru:'фотоэлемент (Шокли–Квайссер)',de:'Photovoltaik (Shockley–Queisser)'}}]},
+ {id:'cap', t:{en:'Distinguishability capacity — what is knowable at all',ru:'Ёмкость различимости — что вообще познаваемо',de:'Unterscheidbarkeits-Kapazität — was überhaupt erkennbar ist'},
+  rows:[{k:'rpd.sigma',lab:'rpd',n:{en:'RPD selector Σ_grav',ru:'селектор RPD Σ_grav',de:'RPD-Selektor Σ_grav'}},
+        {k:'kin.entropy',lab:'kin',n:{en:'kinetic entropy S',ru:'кинетическая энтропия S',de:'kinetische Entropie S'}},
+        {k:'sh.eig',lab:'sh',n:{en:'spectral mode count',ru:'число спектральных мод',de:'Anzahl Spektralmoden'}}]}
+];
+function invariantThreadHTML(){
+  const L=(state&&state.lang)||'en', T=o=>o[L]||o.en;
+  return INVARIANT_THREAD.map(F=>{
+    const rows=F.rows.map(r=>{ const keys=Array.isArray(r.k)?r.k:[r.k];
+      let v=null, age=Infinity, used=keys[0];
+      for(const k of keys){ const x=ATLAS_BUS.get(k); if(x!==null&&x!==undefined){ v=x; age=ATLAS_BUS.age(k); used=k; break; } }
+      const val=(v!==null)?`<b>${esc(String(v))}</b>${age>3?` <span style="opacity:.5">(${age.toFixed(0)}s)</span>`:''}`
+                    :`<span style="opacity:.45">${T({en:'open the lab to measure',ru:'откройте лабораторию для измерения',de:'Labor öffnen zum Messen'})}</span>`;
+      return `<div class="navRow" data-invjump="${esc(r.lab)}" title="${esc(used)}">▸ ${esc(T(r.n))} — ${val}</div>`; }).join('');
+    return `<div class="sect"><b>${esc(T(F.t))}</b>${rows}</div>`; }).join('');
+}
 function renderAtlasPanel(){
   const p=document.getElementById('atlasPanel');if(!p||!panelIsOpen('atlasPanel'))return;
   const scores=atlasScorecards(),contracts=[...SELECT.keys()].map(getAtlasEntityContract);
@@ -3996,6 +4036,9 @@ function renderAtlasPanel(){
   p.innerHTML=`<h3>ATLAS QA · GOLDEN-SLICE RUNTIME</h3>
     <div class="note">This browser file exposes a traceable runtime contract. OpenUSD, Zarr, OpenVDB, DVC, MLflow and Triton are target architecture only and are <b style="color:var(--warn)">not integrated</b> here.</div>
     <div class="scoregrid">${Object.values(scores).map(s=>`<div class="scorecard"><span>${esc(s.label)}</span><b>${esc(s.value)} ${esc(s.unit)}</b><div class="note">${esc(s.note)}</div></div>`).join('')}</div>
+    <div class="sect" style="border-color:rgba(212,175,106,.35)"><b>${(state.lang||'en')==='ru'?'ИНВАРИАНТНАЯ НИТЬ · одно число, измеренное в разных масштабах':(state.lang||'en')==='de'?'INVARIANTEN-FADEN · eine Zahl, über Skalen hinweg gemessen':'INVARIANT THREAD · one number, measured across scales'}</b>
+      <div class="note">${(state.lang||'en')==='ru'?'Каждая строка — ЖИВОЕ измерение из своей лаборатории, а не пересказ. Клик переносит в эту модель; кнопка ↩ Назад возвращает точно сюда.':(state.lang||'en')==='de'?'Jede Zeile ist eine LIVE-Messung aus ihrem Labor, keine Wiederholung. Klick springt ins Modell; ↩ Zurück kehrt exakt hierher zurück.':'Every row is a LIVE measurement from its own lab, not a restatement. Click to jump into that model; ↩ Back returns you exactly here.'}</div>
+      ${invariantThreadHTML()}</div>
     <div class="sect"><b>Contract coverage</b><div class="note">${contracts.length} stable runtime entities · ${invalid.length} invalid contracts · schema ${esc(ATLAS_SCHEMA_VERSION)}</div>
       <div class="atlasBadges">${Object.entries(ev).map(([k,v])=>`<span class="atlasBadge">${esc(k)} · ${v.length}</span>`).join('')}</div></div>
     <div class="sect"><b>Accuracy tiers</b>
@@ -4045,6 +4088,8 @@ function renderAtlasPanel(){
   p.querySelector('#atlasEntityExport').onclick=exportSelectedContract;
   p.querySelector('#atlasValidation').onclick=XRX.exportValidationReport;
   p.querySelector('#atlasRefresh').onclick=renderAtlasPanel;
+  p.querySelectorAll('[data-invjump]').forEach(b=>b.onclick=()=>{ const v=b.dataset.invjump;
+    navPush(); if(state.mode!=='s3') setMode('s3'); setS3View(v); openPanel('ctl'); buildCtl(); });
   p.querySelector('#atlasPhysDebug').onclick=togglePhysDebug;
   const catTgt=()=>p.querySelector('#catTarget').value;
   const reportCat=(r,name)=>{ catLoadStatus = r.ok
