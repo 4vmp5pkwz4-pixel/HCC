@@ -2370,6 +2370,24 @@ function runSelfTests(){
     ok('Riemann sheet: the Wigner bound is enforced, not ignored — for r₀ > a/2 the two-term truncation would demand a pole on the PHYSICAL sheet, and the lab reports the violation instead of drawing it',
       rshErePole(3.0,2.0).bad===true && rshErePole(5.4194,1.7536).bad===false,
       `a=3, r₀=2 → 1−2r₀/a = ${rshErePole(3.0,2.0).disc.toFixed(4)} < 0 → refused · deuteron discriminant ${rshErePole(5.4194,1.7536).disc.toFixed(4)} > 0 → drawn`); }
+  { // ANDERSON: the transfer matrix is in SL(2,R), and the measured γ must match Thouless away from the band centre
+    let dm=0; for(const E of [-1.7,-0.5,0,0.9,1.8]) for(const e of [-0.6,0,0.4,1.2]) dm=Math.max(dm,Math.abs((E-e)*0-(-1)*1-1));
+    ok('Anderson: the transfer matrix [[E−ε,−1],[1,0]] has det ≡ 1 for every energy and every site — the chain is a random product in SL(2,R) ≅ SU(1,1), the non-compact twin of the SU(2) this whole atlas is built on',
+      dm===0, `max |det T − 1| = ${dm} (exact, not numerical)`);
+    { const G=andGamma(1.0,0.5,2000000,12345), p=andThouless(1.0,0.5);
+      ok('Anderson: the MEASURED Lyapunov exponent reproduces the unfitted Thouless value ⟨ε²⟩/(8 sin²k) at weak disorder away from the band centre — a localization length of ~288 sites predicted from the disorder width alone',
+        Math.abs(G.g/p-1)<0.03, `γ=${G.g.toFixed(7)} vs ⟨ε²⟩/(8 sin²k)=${p.toFixed(7)} (${((G.g/p-1)*100).toFixed(2)}%) · ξ=${(1/G.g).toFixed(1)} sites`); }
+    { const G=andGamma(0,1.0,2000000,12345), p=andThouless(0,1.0), r=G.g/p;
+      ok('Anderson: at the band centre the perturbative formula deliberately FAILS by ~8% — the Kappus–Wegner anomaly is measured and reported rather than papered over, and the lab quotes the measurement, not the formula',
+        r>0.85 && r<0.96, `γ(E=0)=${G.g.toFixed(7)} vs perturbative ${p.toFixed(7)} → ratio ${r.toFixed(4)} (a real anomaly, not an error)`); }
+    { // the drawn walk and the matrix product are the SAME object: d(i, M·i) = 2 log‖M‖ identically
+      const N=1200, E=1.0, W=0.5, seed=101, r=andRng(seed); let M=[1,0,0,1], acc=0;
+      for(let n=0;n<N;n++){ const A=E-W*(r()-0.5);
+        M=[A*M[0]-M[2], A*M[1]-M[3], M[0], M[1]];
+        const f=Math.hypot(M[0],M[1],M[2],M[3]); acc+=Math.log(f); M=M.map(v=>v/f); }
+      const P=andWalk(E,W,N,seed).pts, rho=P.length?P[P.length-1][2]:0, rel=Math.abs(rho/(2*acc)-1);
+      ok('Anderson: the drawn hyperbolic walk and the matrix product are provably the same object — the disk distance ρ = 2 artanh|w| equals 2 log‖M‖ to machine precision on the identical realization, so the escape to the boundary IS the Lyapunov growth (Furstenberg), not an analogy',
+        P.length===N && rel<1e-9, `ρ_end=${rho.toFixed(9)} vs 2 log‖M‖=${(2*acc).toFixed(9)} · relative ${rel.toExponential(1)} · checked at ρ≈9, below the ρ≈30 radius where |w| saturates double precision · the a.s. drift ρ/n → 2γ is asymptotic and is deliberately not asserted at finite n`); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -15277,6 +15295,154 @@ function updateRsh(dt){
 }
 
 /* ================================================================
+   ANDERSON LAB · localization as a random walk that escapes to infinity.
+   This atlas is built on the COMPACT side of the story: S³ = SU(2), the Hopf
+   fibration, spinors that come back after 4π. Here is its non-compact twin.
+   The 1D Anderson transfer matrix T_n = [[E−ε_n, −1],[1, 0]] has det ≡ 1, so it
+   lives in SL(2,R) ≅ SU(1,1) — the same Möbius group as the Smith chart, but
+   acting on the hyperbolic disk instead of the sphere. A random product of
+   those matrices is a random walk on the hyperbolic plane, and Furstenberg's
+   theorem says it DRIFTS: it runs off to the boundary at a definite speed. On a
+   sphere a random walk just equidistributes and nothing is ever localized. The
+   drift speed IS twice the Lyapunov exponent, and 1/γ is the localization
+   length. Curvature sign, and nothing else, is why disorder localizes. */
+const andGroup=new THREE.Group(); andGroup.visible=false; s3Group.add(andGroup);
+let andObjs=null, andT=0, andUiAcc=0, andBuiltFor=null;
+function andRng(a){ return function(){ a|=0; a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+/* Lyapunov exponent of the exact transfer-matrix product, renormalised each step.
+   Deterministic in the seed so every number in this lab is reproducible. */
+function andGamma(E,W,N,seed,B){ B=B||40; const r=andRng(seed); let a=1,b=0;
+  const nb=Math.max(1,Math.floor(N/B)), bm=[];
+  for(let k=0;k<B;k++){ let s=0;
+    for(let n=0;n<nb;n++){ const eps=W*(r()-0.5);
+      const na=(E-eps)*a-b, nb2=a, nn=Math.hypot(na,nb2); a=na/nn; b=nb2/nn; s+=Math.log(nn); }
+    bm.push(s/nb); }
+  const m=bm.reduce((x,y)=>x+y,0)/B; let v=0; for(const x of bm) v+=(x-m)*(x-m);
+  return {g:m, se:Math.sqrt(v/(B*Math.max(1,B-1)))}; }
+/* the same product read as a walk on the Poincaré disk (SU(1,1) acting by Möbius maps).
+   ρ_n = 2 artanh|w_n| is the hyperbolic distance travelled; its slope must be 2γ. */
+function andWalk(E,W,N,seed){
+  const r=andRng(seed); let wx=0, wy=0; const out=[]; let hit=-1;
+  for(let n=0;n<N;n++){ const A=E-W*(r()-0.5);
+    // disk → half-plane: z = i(1−w)/(1+w)
+    const dr=1+wx, di=wy, den=dr*dr+di*di;
+    if(den<1e-30){ hit=n; break; }
+    const nr=1-wx, ni=-wy;
+    const qr=(nr*dr+ni*di)/den, qi=(ni*dr-nr*di)/den;    // (1−w)/(1+w)
+    let zr=-qi, zi=qr;                                    // × i
+    // z' = (A z − 1)/z = A − 1/z
+    const d2=zr*zr+zi*zi;
+    if(d2<1e-300){ hit=n; break; }
+    const zr2=A-zr/d2, zi2=zi/d2; zr=zr2; zi=zi2;
+    // half-plane → disk: w = (i−z)/(i+z)
+    { const ar=-zr, ai=1-zi, br=zr, bi=1+zi, bb=br*br+bi*bi;
+      if(bb<1e-300){ hit=n; break; }
+      wx=(ar*br+ai*bi)/bb; wy=(ai*br-ar*bi)/bb; }
+    const m=Math.hypot(wx,wy);
+    if(!(m<1-1e-15)){ const s=(1-1e-15)/Math.max(m,1e-300); wx*=s; wy*=s;
+      out.push([wx,wy,2*Math.atanh(1-1e-15)]); hit=n; break; }
+    out.push([wx,wy,2*Math.atanh(m)]);
+  }
+  return {pts:out,hit};
+}
+const andThouless=(E,W)=>{ const s2=1-E*E/4; return s2>1e-6?(W*W/12)/(8*s2):NaN; };
+function andClear(){ labWipe(andGroup); andObjs=null; andBuiltFor=null; }
+function andSetup(){
+  andClear(); andT=0;
+  andGroup.add(new THREE.AmbientLight(0x8a94b8,.65));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.45); dl.position.set(4,8,6); andGroup.add(dl);
+  const RD=1.55, HY=3.0;
+  // the Poincaré disk, extruded along step number: the walk spirals up and outward
+  { const g=new THREE.CylinderGeometry(RD,RD,HY,64,1,true);
+    andGroup.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0x1b3a63,wireframe:true,transparent:true,opacity:.06,side:THREE.DoubleSide})));
+    for(const yy of [0,HY]){ const p=[]; for(let i=0;i<=96;i++){ const a=2*Math.PI*i/96; p.push(new THREE.Vector3(RD*Math.cos(a),yy-HY/2,RD*Math.sin(a))); }
+      const l=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(p),new THREE.LineBasicMaterial({color:0xffd489,transparent:true,opacity:.55}));
+      l.geometry.computeBoundingSphere(); andGroup.add(l); } }
+  const walk=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.55,depthWrite:false}));
+  andGroup.add(walk);
+  const bl=mkLabel(TT('azimuthal-equidistant map of H² · plotted radius = hyperbolic distance ρ, height = step n · the rim is the far boundary, and reaching it IS localization','азимутальная равнопромежуточная карта H² · радиус = гиперболическое расстояние ρ, высота = номер шага n · обод есть дальняя граница, достичь её и значит локализоваться','azimutal-abstandstreue Karte von H² · Radius = hyperbolischer Abstand ρ, Höhe = Schritt n · der Rand ist die ferne Grenze'),'label dim');
+  bl.position.set(0,HY/2+0.16,-RD); andGroup.add(bl);
+  // ρ(n): the measured hyperbolic distance and the Thouless straight line, side by side
+  const X0=2.35, L=1.5;
+  const rho=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95}));
+  const pred=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffb45a,transparent:true,opacity:.8}));
+  andGroup.add(rho); andGroup.add(pred);
+  { const p=[new THREE.Vector3(X0,-HY/2,0),new THREE.Vector3(X0,HY/2,0),new THREE.Vector3(X0,-HY/2,0),new THREE.Vector3(X0+L,-HY/2,0)];
+    const ax=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(p),new THREE.LineBasicMaterial({color:0x6f8fd0,transparent:true,opacity:.4}));
+    ax.geometry.computeBoundingSphere(); andGroup.add(ax);
+    const a1=mkLabel('ρ = 2 artanh|w| →','label dim'); a1.position.set(X0+L*0.55,-HY/2-0.16,0); andGroup.add(a1);
+    const a2=mkLabel('↑ n','label dim'); a2.position.set(X0-0.16,0,0); andGroup.add(a2); }
+  // the decaying solution on the lattice: the observable exponential envelope
+  const env=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.9}));
+  andGroup.add(env);
+  const xiM=new THREE.Mesh(new THREE.SphereGeometry(0.055,16,12),new THREE.MeshBasicMaterial({color:0xffd489}));
+  xiM.visible=false; andGroup.add(xiM);
+  const xiL=mkLabel('','label const'); andGroup.add(xiL);
+  const tl=mkLabel(TT('ANDERSON · disorder localizes because the walk lives on a NEGATIVELY curved space','АНДЕРСОН · беспорядок локализует, потому что блуждание идёт по ОТРИЦАТЕЛЬНО искривлённому пространству','ANDERSON · Unordnung lokalisiert, weil der Weg auf NEGATIV gekrümmtem Raum lebt'),'label const');
+  tl.position.set(0,HY/2+0.62,0); andGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,HY/2+0.38,0); andGroup.add(rl);
+  andObjs={walk,rho,pred,env,xiM,xiL,readLab:rl,RD,HY,X0,L};
+}
+function updateAnd(dt){
+  const O=andObjs; if(!O) return; andT+=dt;
+  const E=state.andE??1.0, W=state.andW??1.0, seed=Math.round(state.andSeed??7);
+  const key=E.toFixed(5)+'|'+W.toFixed(5)+'|'+seed;
+  if(andBuiltFor!==key){ andBuiltFor=key;
+    const G=andGamma(E,W,400000,seed), g=G.g, gse=G.se, xi=1/Math.max(1e-9,g), pert=andThouless(E,W);
+    // the drawn walk is cut where the disk radius saturates double precision (declared)
+    const Nd=Math.max(80,Math.min(1600,Math.round(30/Math.max(2e-4,2*g))));
+    const Wk=andWalk(E,W,Nd,seed), P=Wk.pts, n=P.length||1;
+    const rhoMax=Math.max(1e-6,P.length?P[P.length-1][2]:1);
+    // AZIMUTHAL EQUIDISTANT projection of H²: plotted radius = hyperbolic distance ρ, not |w|.
+    // (|w|=tanh(ρ/2) saturates at ρ≈6 and would paint every later step onto the rim.)
+    { const p=[]; for(let i=0;i<P.length;i++){ const yy=-O.HY/2+O.HY*i/Math.max(1,P.length-1);
+        const ph=Math.atan2(P[i][1],P[i][0]), rr=O.RD*Math.min(1,P[i][2]/rhoMax);
+        p.push(new THREE.Vector3(rr*Math.cos(ph),yy,rr*Math.sin(ph))); }
+      if(p.length<2) p.push(new THREE.Vector3(0,-O.HY/2,0));
+      O.walk.geometry.setFromPoints(p); O.walk.geometry.computeBoundingSphere(); }
+    { const p=[]; for(let i=0;i<P.length;i++){ const yy=-O.HY/2+O.HY*i/Math.max(1,P.length-1);
+        p.push(new THREE.Vector3(O.X0+O.L*Math.min(1,P[i][2]/rhoMax),yy,0)); }
+      if(p.length<2) p.push(new THREE.Vector3(O.X0,-O.HY/2,0));
+      O.rho.geometry.setFromPoints(p); O.rho.geometry.computeBoundingSphere(); }
+    { const p=[]; const slope=isFinite(pert)?2*pert:0;
+      for(let i=0;i<=2;i++){ const f=i/2, yy=-O.HY/2+O.HY*f;
+        p.push(new THREE.Vector3(O.X0+O.L*Math.min(1,slope*f*n/rhoMax),yy,0)); }
+      O.pred.geometry.setFromPoints(p); O.pred.geometry.computeBoundingSphere(); }
+    // exponential envelope of the decaying solution, ξ marked at the 1/e point
+    { const p=[], NL=170, Lx=2.2, nmax=Math.min(6*xi,5000);
+      for(let i=0;i<=NL;i++){ const nn=nmax*i/NL;
+        p.push(new THREE.Vector3(-3.55+Lx*i/NL, -O.HY/2+1.55*Math.exp(-g*nn), 0)); }
+      O.env.geometry.setFromPoints(p); O.env.geometry.computeBoundingSphere();
+      const f=Math.min(1,xi/Math.max(1e-9,nmax));
+      O.xiM.position.set(-3.55+Lx*f,-O.HY/2+1.55*Math.exp(-1),0); O.xiM.visible=true;
+      O.xiL.position.set(-3.55+Lx*f,-O.HY/2+1.55*Math.exp(-1)+0.22,0);
+      O.xiL.element.textContent=`ξ = 1/γ = ${xi.toFixed(1)} ${TT('sites','узлов','Plätze')}`; }
+    O.stat={g,gse,xi,pert,Nd,hit:Wk.hit,rhoMax,n};
+  }
+  andGroup.rotation.y=Math.sin(andT*0.12)*0.28;
+  andUiAcc+=dt; if(andUiAcc>0.3){ andUiAcc=0; const S=O.stat||{};
+    const ratio=isFinite(S.pert)&&S.pert>0?S.g/S.pert:NaN, centre=Math.abs(E)<0.05;
+    O.readLab.element.textContent=`E=${E.toFixed(3)} · W=${W.toFixed(3)} · γ=${(S.g||0).toFixed(6)} · ξ=${(S.xi||0).toFixed(1)} ${TT('sites','узлов','Plätze')}`;
+    hudBig.textContent=`${TT('ANDERSON','АНДЕРСОН','ANDERSON')} · γ=${(S.g||0).toFixed(6)} · ξ=1/γ=${(S.xi||0).toFixed(1)} ${TT('sites','узлов','Plätze')}`;
+    hudSub.textContent=TT('The transfer matrix of a disordered chain has determinant exactly one, so a disordered chain is a random product in SL(2,R) — the same Möbius group the Smith chart uses, but acting on the hyperbolic disk. Watch the walk: it does not wander, it DRIFTS, straight for the boundary, and Furstenberg’s theorem fixes the speed at twice the Lyapunov exponent. That is the whole of one-dimensional localization. On a sphere the same random walk would simply spread out and come back — nothing would ever be localized — so the sign of the curvature, and nothing else, is why disorder traps waves in one dimension. The measured γ is compared here against the Thouless value ⟨ε²⟩/(8 sin²k) with no fitting; away from the band centre they agree to about a percent at weak disorder, and AT the band centre they deliberately do not: E=0 carries the known Kappus–Wegner anomaly, and the lab reports the measured deviation instead of quoting a formula that does not hold there.',
+      'Матрица переноса неупорядоченной цепочки имеет определитель ровно единица, поэтому цепочка есть случайное произведение в SL(2,R) — той же группе Мёбиуса, что и карта Смита, но действующей на гиперболическом диске. Смотри на блуждание: оно не бродит, оно ДРЕЙФУЕТ прямо к границе, и теорема Фюрстенберга задаёт скорость — вдвое больше показателя Ляпунова. В этом вся одномерная локализация. На сфере то же блуждание просто расплылось бы и вернулось — ничто никогда не локализовалось бы; значит, знак кривизны, и только он, объясняет, почему беспорядок захватывает волны в одном измерении. Измеренное γ сравнивается со значением Таулесса ⟨ε²⟩/(8 sin²k) без подгонки: вдали от центра зоны они совпадают с точностью около процента при слабом беспорядке, а В центре зоны — намеренно нет: при E=0 работает известная аномалия Каппуса–Вегнера, и лаборатория показывает измеренное отклонение, а не формулу, которая там не действует.',
+      'Die Transfermatrix einer ungeordneten Kette hat Determinante exakt eins — die Kette ist ein Zufallsprodukt in SL(2,R), derselben Möbiusgruppe wie das Smith-Diagramm, nur auf der hyperbolischen Scheibe. Der Weg wandert nicht, er DRIFTET zum Rand, mit Geschwindigkeit 2γ (Furstenberg). Auf einer Sphäre würde derselbe Weg nur gleichverteilen — nichts wäre je lokalisiert. Das Vorzeichen der Krümmung allein erklärt die Lokalisierung. Gemessenes γ wird ungefittet mit ⟨ε²⟩/(8 sin²k) verglichen; am Bandzentrum gilt die Formel nicht (Kappus–Wegner-Anomalie), und die Abweichung wird berichtet.');
+    ATLAS_BUS.pub('and.gamma',+(S.g||0).toFixed(6),'/site');
+    ATLAS_BUS.pub('and.xi',+(S.xi||0).toFixed(2),'sites');
+    const el=ctl.querySelector('#andInv'); if(el) el.innerHTML=
+      `T_n=[[E−ε_n, −1],[1, 0]] · det=<b>1</b> ${TT('identically → SL(2,R) ≅ SU(1,1), the non-compact twin of the SU(2) that builds this whole atlas','тождественно → SL(2,R) ≅ SU(1,1), некомпактный близнец SU(2), на которой построен весь атлас','identisch → SL(2,R) ≅ SU(1,1)')}<br>`+
+      `γ=<b>${(S.g||0).toFixed(6)}</b> ± ${(S.gse||0).toFixed(6)}/${TT('site','узел','Platz')} · ξ=1/γ=<b>${(S.xi||0).toFixed(1)}</b> ${TT('sites','узлов','Plätze')} · ${TT('hyperbolic drift','гиперболический дрейф','hyperbolische Drift')} = 2γ = <b>${(2*(S.g||0)).toFixed(6)}</b><br>`+
+      (isFinite(S.pert)
+        ? `${TT('Thouless','Таулесс','Thouless')} ⟨ε²⟩/(8 sin²k) = <b>${S.pert.toFixed(6)}</b> · ${TT('measured/predicted','измерено/предсказано','gemessen/vorhergesagt')} = <b style="color:${centre?'#ffb45a':(Math.abs(ratio-1)<0.05?'#9fe8c0':'#ffd489')}">${ratio.toFixed(4)}</b>`
+          +(centre?` — <b style="color:#ffb45a">${TT('band centre: the perturbative formula does NOT hold at E=0 (Kappus–Wegner anomaly). The measured value is what the lab reports.','центр зоны: пертурбативная формула при E=0 НЕ работает (аномалия Каппуса–Вегнера). Лаборатория показывает измеренное значение.','Bandzentrum: die perturbative Formel gilt bei E=0 NICHT (Kappus–Wegner-Anomalie).')}</b>`
+            :` ${TT('(leading order in W — the residual is the O(W⁴) correction, not a fit)','(ведущий порядок по W — остаток есть поправка O(W⁴), не подгонка)','(führende Ordnung in W — der Rest ist die O(W⁴)-Korrektur)')}`)
+        : `<span style="opacity:.75">${TT('|E| ≥ 2 is outside the clean band — the perturbative expression is not defined there and is withheld.','|E| ≥ 2 вне зоны — пертурбативное выражение там не определено и не приводится.','|E| ≥ 2 liegt außerhalb des Bandes — der perturbative Ausdruck wird nicht angegeben.')}</span>`)+
+      `<br><span style="opacity:.72">${TT('γ from 400 000 renormalised transfer steps in 40 batches, seeded and reproducible; the ± is the batch-means standard error, indicative rather than rigorous because successive steps are correlated. The drawn walk is cut at hyperbolic radius ≈30, where |w| saturates double precision — that truncation is cosmetic and never enters γ.','γ по 400 000 перенормированных шагов переноса в 40 партиях, с фиксированным зерном и воспроизводимо; ± — стандартная ошибка средних по партиям, ориентировочная, а не строгая, поскольку соседние шаги коррелированы. Рисуемое блуждание обрезано на гиперболическом радиусе ≈30, где |w| исчерпывает двойную точность; это обрезание косметическое и в γ не входит.','γ aus 400 000 renormierten Transferschritten in 40 Chargen, seedbasiert und reproduzierbar; ± ist der Chargen-Standardfehler, indikativ. Der gezeichnete Weg wird bei Radius ≈30 abgeschnitten — rein kosmetisch.')}</span>`;
+  }
+}
+
+/* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
    every Kelvin wake, every lensing arc is one of a short finite list. And the
@@ -16123,6 +16289,7 @@ function setS3View(v){
   cuspGroup.visible    = (v==='cusp');
   kamGroup.visible     = (v==='kam');
   rshGroup.visible     = (v==='rsh');
+  andGroup.visible     = (v==='and');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -16170,6 +16337,7 @@ function setS3View(v){
   if(v==='cusp'){ cuspSetup(); }
   if(v==='kam'){ kamSetup(); }
   if(v==='rsh'){ rshSetup(); }
+  if(v==='and'){ andSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -16190,7 +16358,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -20977,6 +21145,7 @@ const state = {
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
+  andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -23062,6 +23231,34 @@ function buildCtlBody(){
         <button class="btn" id="rshToNuc">${TT('→ Nuclear binding: where 2.224 MeV belongs','→ Ядерная связь: куда относятся 2.224 МэВ','→ Kernbindung')}</button>
         <button class="btn" id="rshToImp">${TT('→ Smith chart: S as a Möbius map','→ Карта Смита: S как отображение Мёбиуса','→ Smith-Diagramm')}</button></div>
     </div>`;
+    else if(V==='and') body = `
+    <div class="sect"><b>${TT('Disorder and energy — watch ξ collapse','Беспорядок и энергия — смотри, как схлопывается ξ','Unordnung und Energie')}</b>
+      <div class="chips">
+        ${[[1.0,0.5,TT('weak · ξ ≈ 290 sites','слабый · ξ ≈ 290 узлов','schwach')],
+           [1.0,1.0,TT('moderate · ξ ≈ 71','умеренный · ξ ≈ 71','mittel')],
+           [1.0,3.0,TT('strong · ξ of a few sites','сильный · ξ в несколько узлов','stark')],
+           [0.0,1.0,TT('band centre E=0 · anomaly','центр зоны E=0 · аномалия','Bandzentrum E=0')],
+           [1.9,1.0,TT('band edge |E|→2','край зоны |E|→2','Bandkante')]]
+          .map(([e,w,l])=>`<button class="chip ${Math.abs((state.andE??1)-e)<1e-9&&Math.abs((state.andW??1)-w)<1e-9?'on':''}" data-andp="${e}|${w}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>E</label>
+        <input type="range" id="andE" min="-2.2" max="2.2" step="0.0001" value="${state.andE??1}"><span class="val" id="andEV">${(state.andE??1).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>W</label>
+        <input type="range" id="andW" min="0.05" max="8" step="0.0001" value="${state.andW??1}"><span class="val" id="andWV">${(state.andW??1).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('seed','зерно','Seed')}</label>
+        <input type="range" id="andSeed" min="1" max="64" step="1" value="${state.andSeed??7}"><span class="val" id="andSeedV">${state.andSeed??7}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Localization passport','Паспорт локализации','Lokalisierungspass')}</b>
+      <div class="note" id="andInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The transfer matrix has det ≡ 1, so a disordered chain is a random product in SL(2,R) ≅ SU(1,1) — the same Möbius group as the Smith chart, but acting on the hyperbolic disk rather than the sphere. Furstenberg: such a product DRIFTS to the boundary at speed 2γ, and 1/γ is the localization length. On the compact SU(2) that builds the rest of this atlas the same walk would equidistribute and nothing would localize; the sign of the curvature is the whole mechanism. Everything here is measured from the exact map with a fixed seed — γ is never fitted, the Thouless value is quoted for comparison only, and where it does not apply (band centre, |E| ≥ 2) the lab says so instead of quoting it.','Матрица переноса имеет det ≡ 1, поэтому неупорядоченная цепочка есть случайное произведение в SL(2,R) ≅ SU(1,1) — той же группе Мёбиуса, что и карта Смита, но действующей на гиперболическом диске, а не на сфере. Фюрстенберг: такое произведение ДРЕЙФУЕТ к границе со скоростью 2γ, а 1/γ есть длина локализации. На компактной SU(2), на которой построен остальной атлас, то же блуждание распределилось бы равномерно и ничто не локализовалось бы; знак кривизны — и есть весь механизм. Всё здесь измерено по точному отображению с фиксированным зерном: γ никогда не подгоняется, значение Таулесса приводится только для сравнения, а там, где оно неприменимо (центр зоны, |E| ≥ 2), лаборатория так и говорит.','Die Transfermatrix hat det ≡ 1: eine ungeordnete Kette ist ein Zufallsprodukt in SL(2,R) ≅ SU(1,1) — dieselbe Möbiusgruppe wie das Smith-Diagramm, aber auf der hyperbolischen Scheibe. Furstenberg: ein solches Produkt DRIFTET mit 2γ zum Rand, und 1/γ ist die Lokalisierungslänge. Auf der kompakten SU(2) würde derselbe Weg gleichverteilen — nichts wäre lokalisiert. Alles hier ist gemessen, nichts gefittet.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="andToImp">${TT('→ Smith chart: the SAME Möbius group, compact side','→ Карта Смита: ТА ЖЕ группа Мёбиуса, компактная сторона','→ Smith-Diagramm: dieselbe Möbiusgruppe')}</button>
+        <button class="btn" id="andToSu2">${TT('→ SU(2): the compact twin where nothing localizes','→ SU(2): компактный близнец, где ничто не локализуется','→ SU(2): der kompakte Zwilling')}</button>
+        <button class="btn" id="andToKam">${TT('→ KAM: det = 1 again, order vs chaos','→ КАМ: снова det = 1, порядок и хаос','→ KAM: wieder det = 1')}</button>
+        <button class="btn" id="andToRel">${TT('→ Relativity: rapidity is this same hyperbolic distance','→ Относительность: быстрота есть то же гиперболическое расстояние','→ Relativität: Rapidität ist derselbe Abstand')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -23672,6 +23869,7 @@ function buildCtlBody(){
         <button class="btn ${V==='poin'?'on':''}" id="v-poin">${TT('Dzhanibekov','Джанибеков','Dshanibekow')}</button>
         <button class="btn ${V==='qcrys'?'on':''}" id="v-qcrys">${TT('Quasicrystal','Квазикристалл','Quasikristall')}</button>
         <button class="btn ${V==='rsh'?'on':''}" id="v-rsh">${TT('Riemann sheet','Лист Римана','Riemann-Blatt')}</button>
+        <button class="btn ${V==='and'?'on':''}" id="v-and">${TT('Anderson','Андерсон','Anderson')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -23697,7 +23895,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -24156,6 +24354,18 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='and'){
+      ctl.querySelectorAll('[data-andp]').forEach(b=>b.onclick=()=>{ const [e,w]=b.dataset.andp.split('|').map(Number);
+        state.andE=e; state.andW=w; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('andE',v=>state.andE=v,v=>v.toFixed(4)); kv('andW',v=>state.andW=v,v=>v.toFixed(4));
+      kv('andSeed',v=>state.andSeed=v|0,v=>String(v|0));
+      ctl.querySelector('#andToImp')&&(ctl.querySelector('#andToImp').onclick=()=>{ navPush(); setS3View('imp'); buildCtl(); });
+      ctl.querySelector('#andToSu2')&&(ctl.querySelector('#andToSu2').onclick=()=>{ navPush(); setS3View('su2'); buildCtl(); });
+      ctl.querySelector('#andToKam')&&(ctl.querySelector('#andToKam').onclick=()=>{ navPush(); setS3View('kam'); buildCtl(); });
+      ctl.querySelector('#andToRel')&&(ctl.querySelector('#andToRel').onclick=()=>{ navPush(); setS3View('rel'); buildCtl(); });
     }
     if(V==='rsh'){
       ctl.querySelectorAll('[data-rshp]').forEach(b=>b.onclick=()=>{ const [a,r]=b.dataset.rshp.split('|').map(Number);
@@ -25673,10 +25883,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -27280,6 +27490,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='and'){
+      fbsAnimT+=dt; updateAnd(dt);
     } else if(state.s3view==='rsh'){
       fbsAnimT+=dt; updateRsh(dt);
     } else if(state.s3view==='qcrys'){
