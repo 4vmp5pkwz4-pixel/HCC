@@ -413,6 +413,14 @@
   #hud .big{font-family:var(--serif);font-size:15.5px;font-weight:600;letter-spacing:1.6px;
     color:var(--gold-2);text-shadow:0 0 8px #000,0 0 18px rgba(212,175,106,.3)}
   #hud .sub{font-size:11px;color:var(--dim);letter-spacing:.8px;text-shadow:0 0 6px #000;margin-top:2px}
+  /* MULTIVIEW · the scene caption describes the ACTIVE tile only (enforced in the
+     update loop). Clamp it so a longer or shorter laboratory prose cannot move the
+     line, and narrow it so it stops covering the two lower tiles. */
+  body.mv-on #hud{max-width:min(1020px,66vw);bottom:10px}
+  body.mv-on #hud .big{font-size:13.5px;letter-spacing:1.1px}
+  body.mv-on #hud .sub{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;
+    overflow:hidden;min-height:3.9em;line-height:1.3;opacity:.92;cursor:pointer}
+  body.mv-on #hud.expand .sub{-webkit-line-clamp:unset;display:block;max-height:34vh;overflow:auto}
   #hierarchyLegend{position:fixed;right:14px;bottom:14px;width:212px;height:212px;z-index:10;
     pointer-events:auto;touch-action:none;cursor:grab;user-select:none;border:1px solid rgba(212,175,106,.22);border-radius:16px;
     background:radial-gradient(circle at 50% 50%,rgba(8,12,22,.12),rgba(2,4,10,.76));
@@ -568,6 +576,13 @@
     backdrop-filter:blur(14px);box-shadow:0 14px 44px rgba(0,0,0,.5)}
   #moreMenu[hidden]{display:none}
   #moreMenu .btn{width:100%;text-align:left;justify-content:flex-start}
+  #moreMenu .mm-h{font:700 8.5px var(--sans);letter-spacing:.15em;text-transform:uppercase;
+    color:var(--gold-dim);margin:6px 2px 0;opacity:.9}
+  #moreMenu .mm-h:first-child{margin-top:0}
+  #moreMenu .mm-row{display:flex;flex-direction:column;gap:4px}
+  /* the dock keeps what changes HOW you look; the rest folds behind one expander */
+  #panelDock:not(.expanded) [data-sec]{display:none}
+  #dockMore{border-color:rgba(212,175,106,.45)!important;color:var(--gold-2);font-variant-numeric:tabular-nums}
   body.day #moreMenu{box-shadow:0 14px 44px rgba(60,45,15,.3)}
   /* ── ZEN VIEW: everything melts away except the view + one precision time control ── */
   #zenBar{position:fixed;left:50%;transform:translateX(-50%);
@@ -718,8 +733,8 @@
     <button class="btn" id="cmdkBtn" title="Universal search & command palette (⌘K or /)">⌕ Search</button>
     <button class="btn" id="navBtn" title="Atlas Navigator — guided start, tours, layers, bookmarks (N)">🧭 Navigator</button>
     <button class="btn" id="moreBtn" title="More tools & panels" aria-haspopup="true" aria-expanded="false">⋯ More</button>
-    <button class="btn" id="langBtn" title="Language · Язык · Sprache — EN / RU / DE">🌐 EN</button>
-    <button class="btn icon" id="themeBtn" title="Day / Night theme">☀</button>
+    <button class="btn" id="langBtn" data-keepopen title="Language · Язык · Sprache — EN / RU / DE">🌐 EN</button>
+    <button class="btn icon" id="themeBtn" data-keepopen title="Day / Night theme">☀</button>
     <button class="btn icon" id="fsBtn" title="Toggle fullscreen (F)">⛶</button>
     <button class="modebtn" id="vrBtn" title="Enter immersive VR (Meta Quest Browser)">XR: checking…</button>
     <button class="modebtn" id="mrBtn" style="display:none" title="Enter mixed reality / passthrough">◈ Enter MR</button>
@@ -2395,6 +2410,28 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // MULTIVIEW CAPTION OWNERSHIP + CHROME CONSOLIDATION
+    const savedOn=MV.on, savedN=MV.n, savedA=MV.active, savedV=MV.views.slice();
+    let owner=null;
+    MV.on=true;
+    for(const P of MV_PRESETS){ MV.n=Math.min(4,P.views.length);
+      for(let i=0;i<MV.n;i++) MV.views[i]=P.views[i];
+      for(let a=0;a<MV.n;a++){ MV.active=a;
+        const o=mvHudOwner();
+        const claimants=MV.views.slice(0,MV.n).filter(v=>v===o).length;
+        if(o!==P.views[a] || claimants<1) owner=`${P.id}#${a}`; } }
+    MV.on=savedOn; MV.n=savedN; MV.active=savedA; for(let i=0;i<savedV.length;i++) MV.views[i]=savedV[i];
+    ok('Multiview: the scene caption has exactly ONE owner in every configuration — the active tile. Background tiles are still stepped, but their caption writes are reverted in the same frame, so the line cannot flicker between four laboratories running on four different throttle phases',
+      !owner, owner?('ownership broke at '+owner):`${MV_PRESETS.length} quartets × every active index · owner is always the focused tile`);
+    { const need=['cmdkBtn','navBtn','moreBtn','langBtn','themeBtn','fsBtn','vrBtn','mrBtn','objectBtn','atlasBtn',
+                  'oscBtn','shotBtn2','audienceBtn','xrCheckBtn','motionBtn','vectorBtn','togglePanels','resetViewBtn',
+                  'modelReturnBtn','shotBtn'];
+      const missing=need.filter(id=>!document.getElementById(id));
+      const dockAll=document.querySelectorAll('#panelDock button').length;
+      const dockFolded=[...document.querySelectorAll('#panelDock button')].filter(b=>!b.hasAttribute('data-sec')).length;
+      ok('Chrome: consolidating the head into one grouped overflow surface MOVED controls, it never removed them — every original control is still in the document and still carries its handler, while the folded dock shows seven or fewer',
+        missing.length===0 && dockFolded<=7 && dockAll>dockFolded,
+        missing.length?('missing: '+missing.join(', ')):`${need.length} controls all present · dock ${dockFolded} shown / ${dockAll} total`); } }
   { // ANDERSON: the transfer matrix is in SL(2,R), and the measured γ must match Thouless away from the band centre
     let dm=0; for(const E of [-1.7,-0.5,0,0.9,1.8]) for(const e of [-0.6,0,0.4,1.2]) dm=Math.max(dm,Math.abs((E-e)*0-(-1)*1-1));
     ok('Anderson: the transfer matrix [[E−ε,−1],[1,0]] has det ≡ 1 for every energy and every site — the chain is a random product in SL(2,R) ≅ SU(1,1), the non-compact twin of the SU(2) this whole atlas is built on',
@@ -16484,6 +16521,10 @@ const MV_PRESETS=[
      de:'Eine Fläche als Linse, als Temperatur, als Unterscheidbarkeitsgrenze und als entkommene Welle.'}}
 ];
 function mvPreset(id){ return MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0]; }
+/* Which laboratory is allowed to write the scene caption. Exactly one, always:
+   in multiview the active tile, otherwise the single current view. Every other
+   tile's write is reverted in the same frame it is made. */
+function mvHudOwner(){ return (MV.on&&!renderer.xr.isPresenting)?MV.views[MV.active]:state.s3view; }
 /* Tile rectangles in CSS pixels, origin BOTTOM-LEFT (WebGL convention).
    Guaranteed to partition the viewport exactly — asserted in the self-tests. */
 function mvRects(n,W,H){
@@ -16586,12 +16627,14 @@ function mvEnter(){
   if(renderer.xr.isPresenting) return;
   mvEnsure(); MV.on=true;
   MV.dom.style.display='block';
+  document.body.classList.add('mv-on');
   labelRenderer.domElement.style.display='none';   // CSS2D is single-camera; tiles use DOM captions
   mvApplyPreset(MV.presetId);
 }
 function mvExit(){
   if(!MV.on) return;
   MV.on=false;
+  document.body.classList.remove('mv-on');
   if(MV.dom) MV.dom.style.display='none';
   labelRenderer.domElement.style.display='';
   const v=MV.views[MV.active];
@@ -26059,7 +26102,11 @@ document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=(
   function openMenu(){ placeMenu(); moreMenu.hidden=false; moreBtn.setAttribute('aria-expanded','true'); }
   function closeMenu(){ moreMenu.hidden=true; moreBtn.setAttribute('aria-expanded','false'); }
   if(moreBtn) moreBtn.onclick=e=>{ e.stopPropagation(); moreMenu.hidden?openMenu():closeMenu(); };
-  if(moreMenu) moreMenu.querySelectorAll('.btn').forEach(b=>b.addEventListener('click',()=>closeMenu()));
+  /* delegated: the overflow surface is regrouped at boot and its children are moved
+     in from the head band, so per-node listeners would miss them. Toggles that you
+     press repeatedly (language, theme) keep the surface open. */
+  if(moreMenu) moreMenu.addEventListener('click',e=>{ const b=e.target.closest&&e.target.closest('.btn');
+    if(b&&!b.hasAttribute('data-keepopen')) closeMenu(); });
   addEventListener('click',e=>{ if(moreMenu&&!moreMenu.hidden&&!moreMenu.contains(e.target)&&e.target!==moreBtn) closeMenu(); });
   addEventListener('resize',()=>{ if(moreMenu&&!moreMenu.hidden) placeMenu(); });
   addEventListener('keydown',e=>{ if(e.key==='Escape'&&moreMenu&&!moreMenu.hidden) closeMenu(); });
@@ -26850,6 +26897,7 @@ function applyLangChrome(){ const L=state.lang||'en';
 function setLang(L){ if(!ATLAS_LANG_ORDER.includes(L)) L='en'; state.lang=L;
   try{ localStorage.setItem('atlasLang',L); }catch(e){}
   applyLangChrome();
+  try{ if(typeof chromeRelabel==='function') chromeRelabel(); }catch(e){}
   try{ if(typeof buildCtl==='function') buildCtl(); }catch(e){}       // panel re-renders through TT()
   try{ if(typeof buildInfo==='function') buildInfo(); }catch(e){}
 }
@@ -27705,9 +27753,11 @@ function tickBody(now, frame){
     /* MULTIVIEW: step every visible laboratory in the SAME frame with the SAME dt,
        active tile LAST so its HUD text is the one left standing. */
     const _mvSaved=state.s3view;
-    const _mvList=(MV.on&&!renderer.xr.isPresenting)
+    const _mvMulti=(MV.on&&!renderer.xr.isPresenting);
+    const _mvList=_mvMulti
       ? MV.views.slice(0,MV.n).map((v,i)=>[v,i]).sort((a,b)=>(a[1]===MV.active)-(b[1]===MV.active)).map(p=>p[0])
       : [state.s3view];
+    const _hudB=_mvMulti?hudBig.textContent:null, _hudS=_mvMulti?hudSub.textContent:null;
     for(let _mi=0;_mi<_mvList.length;_mi++){ state.s3view=_mvList[_mi];
     if(state.s3view==='sec'){
       if(state.photonRun){
@@ -27867,6 +27917,10 @@ function tickBody(now, frame){
       hudBig.textContent = `Eigenmode β = ${b} · λ_β = (β²−1)/R² · g_β = ${b*b}`;
       hudSub.textContent = `discrete compact-mode ladder k_β = √(β²−1)/R — the article's replacement for the flat k-continuum`;
     }
+      /* the scene caption is owned by the active tile alone — revert any write a
+         background tile made, so the line cannot flicker between four laboratories
+         running on four different throttle phases. */
+      if(_mvMulti&&_mvList[_mi]!==mvHudOwner()){ hudBig.textContent=_hudB; hudSub.textContent=_hudS; }
     }
     state.s3view=_mvSaved;
   }
@@ -28193,7 +28247,7 @@ globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
 globalThis.FBS3R_QA=Object.freeze({
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
   telemetry(){return {...ATLAS_TELEMETRY};},
-  multiview(){return {on:MV.on,n:MV.n,active:MV.active,sync:MV.sync,preset:MV.presetId,
+  multiview(){return {on:MV.on,n:MV.n,active:MV.active,sync:MV.sync,preset:MV.presetId,hudOwner:mvHudOwner(),
     views:MV.views.slice(0,MV.n),rects:MV.rects.map(r=>({...r}))};},
   selection(){return selectedKey;},
   asteroids(){   // read-only GPU-swarm diagnostic: live position-texture readback statistics
@@ -28343,6 +28397,86 @@ updateBell();   // seed the Bell-lune geometry at boot — its pick body must ex
                 // BufferGeometry) before the Bell lab view is first opened, so selection,
                 // focus framing and the navigation QA audit all see a real object immediately
 applyVectorSettings();                    // enforce the global vector contract consistently from the first frame
+
+/* ================================================================
+   CHROME CONSOLIDATION · the desktop head had grown to twenty-four always-visible
+   controls spread over two bands, with three of them (Navigator, Shot, XR) present
+   twice, and no grouping to say which belonged with which. This does not delete a
+   single control or rebind a single handler: it MOVES the existing nodes — listeners
+   travel with the node — into one labelled overflow surface, and marks the second
+   band's secondary half so CSS can fold it behind one expander.
+
+   Kept in the head band, because they change what you are looking at:
+     the seven modes · ⌕ Search · 🧭 Navigator · ⋯ More
+   Kept in the dock band, because they change how you look at it:
+     × close · ↺ View · ↩ Return · 📸 Shot · ⚙ Controls · ⓘ Info · ⋯
+   Everything else lives in ⋯ More under a heading that says what it is for.
+   The fold state is remembered; on a narrow window the dock starts folded. */
+const CHROME={ key:'s3.chrome.dock', groups:[
+  {t:{en:'Interface',ru:'Интерфейс',de:'Oberfläche'}, ids:['langBtn','themeBtn','fsBtn','audienceBtn']},
+  {t:{en:'Immersive',ru:'Погружение',de:'Immersiv'},  ids:['vrBtn','mrBtn','xrCheckBtn','motionBtn']},
+  {t:{en:'Data & provenance',ru:'Данные и происхождение',de:'Daten & Herkunft'}, ids:['objectBtn','atlasBtn','vectorBtn']},
+  {t:{en:'Instruments',ru:'Инструменты',de:'Instrumente'}, ids:['oscBtn','shotBtn2']}
+]};
+const CHROME_DOCK_SECONDARY=['navPanel','objectPanel','atlasPanel','oscPanel','xrCheck','motionPanel','vectorPanel','selCard'];
+function chromeBuild(){
+  const more=document.getElementById('moreMenu'), dock=document.getElementById('panelDock');
+  if(!more||!dock||more.dataset.grouped==='1') return;
+  /* 1 · one labelled overflow surface. Nodes are MOVED, so every existing click
+        handler, tooltip and dynamic label keeps working exactly as before. */
+  const frag=document.createDocumentFragment();
+  for(const g of CHROME.groups){
+    const present=g.ids.map(id=>document.getElementById(id)).filter(Boolean);
+    if(!present.length) continue;
+    const h=document.createElement('div'); h.className='mm-h'; h.dataset.mmh=JSON.stringify(g.t);
+    h.textContent=(g.t[(state&&state.lang)||'en']||g.t.en);
+    frag.appendChild(h);
+    const row=document.createElement('div'); row.className='mm-row';
+    for(const el of present) row.appendChild(el);
+    frag.appendChild(row);
+  }
+  // anything already in More that no group claimed keeps its place at the end
+  const leftovers=[...more.children].filter(c=>c.tagName==='BUTTON');
+  if(leftovers.length){ const h=document.createElement('div'); h.className='mm-h';
+    h.dataset.mmh=JSON.stringify({en:'Other',ru:'Прочее',de:'Sonstiges'}); h.textContent='Other'; frag.appendChild(h);
+    const row=document.createElement('div'); row.className='mm-row';
+    for(const el of leftovers) row.appendChild(el); frag.appendChild(row); }
+  more.innerHTML=''; more.appendChild(frag); more.dataset.grouped='1';
+  /* 2 · fold the dock's secondary half behind one expander */
+  for(const p of CHROME_DOCK_SECONDARY){ const b=dock.querySelector(`[data-panel="${p}"]`); if(b) b.dataset.sec='1'; }
+  const ret=dock.querySelector('#modelReturnBtn'); if(ret) ret.dataset.prim='1';
+  let exp=document.getElementById('dockMore');
+  if(!exp){ exp=document.createElement('button'); exp.id='dockMore'; exp.className='btn';
+    exp.setAttribute('aria-expanded','false');
+    dock.appendChild(exp);
+    exp.onclick=()=>chromeDock(!dock.classList.contains('expanded')); }
+  let want=null; try{ want=localStorage.getItem(CHROME.key); }catch(e){}
+  chromeDock(want==='1');   // folded by default; the choice is remembered
+  chromeRelabel();
+}
+function chromeDock(open){
+  const dock=document.getElementById('panelDock'), exp=document.getElementById('dockMore');
+  if(!dock||!exp) return;
+  dock.classList.toggle('expanded',!!open);
+  exp.setAttribute('aria-expanded',open?'true':'false');
+  const n=dock.querySelectorAll('[data-sec]').length;
+  exp.textContent=open?'⋯ ‹':'⋯ +'+n;
+  exp.title=open?TT('Fold the secondary panel buttons away','Свернуть второстепенные кнопки панелей','Sekundäre Panel-Schalter einklappen')
+                :TT('Show the remaining panel buttons','Показать остальные кнопки панелей','Weitere Panel-Schalter zeigen');
+  try{ localStorage.setItem(CHROME.key,open?'1':'0'); }catch(e){}
+}
+/* headings follow the language switch like everything else in the atlas */
+function chromeRelabel(){
+  const L=(state&&state.lang)||'en';
+  document.querySelectorAll('#moreMenu .mm-h').forEach(h=>{
+    try{ const t=JSON.parse(h.dataset.mmh||'{}'); h.textContent=t[L]||t.en||h.textContent; }catch(e){}
+  });
+  const dock=document.getElementById('panelDock');
+  if(dock) chromeDock(dock.classList.contains('expanded'));
+}
+
+try{ chromeBuild(); }catch(e){ console.warn('[chrome]',e); }
+
 SELF_TESTS = runSelfTests();
 console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
 SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name, t.detail));
