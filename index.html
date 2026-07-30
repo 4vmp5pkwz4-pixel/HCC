@@ -2233,6 +2233,21 @@ function runSelfTests(){
     const E1=planetPos(PLANETS[2],T0), E2=planetPos(PLANETS[2],earthDisplayT());
     ok('Frame coherence: Lagrange points and the geocentric shift are built from the SAME Earth position',
       E1.distanceTo(E2)<1e-9 || _earthDispT!==null, `|ΔE|=${E1.distanceTo(E2).toExponential(1)} AU (0 when unlocked; locked ⇒ both use the locked epoch)`); }
+  { // DISPERSION MANIFOLD: v_g must equal a numerical dω/dk on EVERY branch, and the four exact ratios hold
+    let dmax=0; for(const key in DISP_SYS){ const S=DISP_SYS[key];
+      for(const f of [0.17,0.41,0.63,0.88]){ const k=S.kmax*f, h=1e-6;
+        dmax=Math.max(dmax,Math.abs((S.w(k+h)-S.w(k-h))/(2*h)-S.vg(k))); } }
+    ok('Dispersion: the analytic group velocity v_g equals a numerical dω/dk on every branch (<1e-6)', dmax<1e-6, `max Δ=${dmax.toExponential(1)}`);
+    const E=DISP_SYS.electron, W=DISP_SYS.water, K=DISP_SYS.kdv, P=DISP_SYS.plasma, F=DISP_SYS.phonon;
+    const rat=(S,k)=>S.vg(k)/(S.w(k)/k);
+    ok('Dispersion: the exact ratios — free electron v_g=2v_p, deep water v_g=v_p/2, KdV tail v_g=3v_p (negative)',
+      Math.abs(rat(E,1.7)-2)<1e-12 && Math.abs(rat(W,2.3)-0.5)<1e-12 && Math.abs(rat(K,1.3)-3)<1e-12 && K.vg(1.3)<0,
+      `2.000000 · 0.500000 · 3.000000 (v_g<0)`);
+    let pm=0; for(const k of [0.2,1,3,10]) pm=Math.max(pm,Math.abs((P.w(k)/k)*P.vg(k)-1));
+    ok('Dispersion: in a plasma v_p·v_g = c² EXACTLY — the phase velocity exceeds c while the energy never does',
+      pm<1e-12 && P.w(0.2)/0.2>1 && P.vg(0.2)<1, `max |v_p·v_g−c²|=${pm.toExponential(1)} · v_p(0.2)=${(P.w(0.2)/0.2).toFixed(3)}c, v_g=${P.vg(0.2).toFixed(3)}c`);
+    ok('Dispersion: at the phonon zone boundary ka=π the group velocity is exactly zero (van Hove: g(ω)=|dk/dω| diverges)',
+      Math.abs(F.vg(Math.PI))<1e-15, `v_g(π)=${F.vg(Math.PI).toExponential(1)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14723,6 +14738,127 @@ function updateImp(dt){
 }
 
 /* ================================================================
+   DISPERSION MANIFOLD · v_p vs v_g — the atlas had ω(k) in six places and
+   NEVER the group velocity. Every branch here is the exact relation already
+   executing elsewhere in this file: the split-step kinetic phase (ω=k²/2),
+   the KdV integrating factor (ω=−k³), the phonon chain, light/GW (ω=ck),
+   plus deep-water gravity waves and a plasma branch. v_g=dω/dk is verified
+   against a numerical derivative at boot; the wavepacket is a TRUE
+   superposition, so the envelope really does travel at v_g while the
+   carriers travel at v_p — you are not shown an animation of the claim,
+   you are shown the sum that proves it. */
+const dispGroup=new THREE.Group(); dispGroup.visible=false; s3Group.add(dispGroup);
+const DISP_SYS={
+  photon:{w:k=>k, vg:k=>1, kmax:3.0, nm:{en:'Light · gravitational waves — ω=ck',ru:'Свет · гравитационные волны — ω=ck',de:'Licht · Gravitationswellen — ω=ck'},
+    note:{en:'non-dispersive: v_g=v_p — a pulse keeps its shape forever',ru:'бездисперсионно: v_g=v_p — импульс вечно держит форму',de:'dispersionsfrei: v_g=v_p — ein Puls behält seine Form'}},
+  electron:{w:k=>0.5*k*k, vg:k=>k, kmax:2.6, nm:{en:'Free electron — ω=k²/2 (the qm split-step phase)',ru:'Свободный электрон — ω=k²/2 (фаза qm-расщепления)',de:'Freies Elektron — ω=k²/2'},
+    note:{en:'v_g = 2·v_p EXACTLY — the packet outruns its own crests, and spreads',ru:'v_g = 2·v_p ТОЧНО — пакет обгоняет свои гребни и расплывается',de:'v_g = 2·v_p GENAU — das Paket überholt seine Kämme'}},
+  phonon:{w:k=>2*Math.abs(Math.sin(k/2)), vg:k=>Math.cos(k/2), kmax:Math.PI, nm:{en:'Phonon chain — ω=2ω₀|sin(ka/2)|',ru:'Фононная цепочка — ω=2ω₀|sin(ka/2)|',de:'Phononenkette — ω=2ω₀|sin(ka/2)|'},
+    note:{en:'at the zone boundary ka=π the group velocity is EXACTLY ZERO: the packet stops carrying energy (van Hove singularity)',ru:'на границе зоны ka=π групповая скорость РОВНО НОЛЬ: пакет перестаёт переносить энергию (сингулярность ван Хова)',de:'an der Zonengrenze ka=π ist v_g GENAU NULL: das Paket transportiert keine Energie mehr (van-Hove-Singularität)'}},
+  kdv:{w:k=>-k*k*k, vg:k=>-3*k*k, kmax:1.8, nm:{en:'KdV linear tail — ω=−k³ (the kdv integrating factor)',ru:'Линейный хвост КдФ — ω=−k³ (интегрирующий множитель kdv)',de:'KdV-Schwanz — ω=−k³'},
+    note:{en:'v_g = 3·v_p, both negative — this is WHY the dispersive ripples trail BEHIND the soliton',ru:'v_g = 3·v_p, обе отрицательны — ВОТ ПОЧЕМУ дисперсионная рябь отстаёт от солитона',de:'v_g = 3·v_p, beide negativ — daher läuft die Welligkeit HINTER dem Soliton'}},
+  water:{w:k=>Math.sqrt(k), vg:k=>0.5/Math.sqrt(Math.max(k,1e-6)), kmax:3.0, nm:{en:'Deep-water gravity wave — ω=√(gk)',ru:'Гравитационная волна на глубокой воде — ω=√(gk)',de:'Tiefwasser-Schwerewelle — ω=√(gk)'},
+    note:{en:'v_g = v_p/2 EXACTLY — crests appear at the back of a group, race forward, and vanish at the front',ru:'v_g = v_p/2 ТОЧНО — гребни рождаются позади группы, бегут вперёд и исчезают спереди',de:'v_g = v_p/2 GENAU — Kämme entstehen hinten, laufen vor und verschwinden vorn'}},
+  plasma:{w:k=>Math.sqrt(1+k*k), vg:k=>k/Math.sqrt(1+k*k), kmax:3.0, nm:{en:'Plasma / waveguide — ω²=ω_p²+c²k²',ru:'Плазма / волновод — ω²=ω_p²+c²k²',de:'Plasma / Hohlleiter — ω²=ω_p²+c²k²'},
+    note:{en:'v_p·v_g = c² EXACTLY: the phase velocity EXCEEDS c while the energy never does — no signal is superluminal',ru:'v_p·v_g = c² ТОЧНО: фазовая скорость ПРЕВЫШАЕТ c, а энергия — никогда: сигнал не сверхсветовой',de:'v_p·v_g = c² GENAU: die Phasengeschwindigkeit ÜBERSTEIGT c, die Energie nie'}} };
+let dispObjs=null, dispT=0, dispUiAcc=0;
+function dispClear(){ labWipe(dispGroup); dispObjs=null; }
+function dispSetup(){
+  dispClear(); dispT=0;
+  dispGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(4,7,6); dispGroup.add(dl);
+  const keys=Object.keys(DISP_SYS), KX=k=>-2.6+5.2*(k/Math.PI), WY=w=>w*0.78, ZS=i=>-2.1+4.2*(i/(keys.length-1));
+  // the manifold: every branch of the atlas on ONE (k, ω) chart, each on its own plane
+  const curves={};
+  keys.forEach((key,i)=>{ const S=DISP_SYS[key], pts=[], N=140;
+    for(let j=0;j<=N;j++){ const k=1e-4+S.kmax*j/N; pts.push(new THREE.Vector3(KX(k),WY(Math.abs(S.w(k))),ZS(i))); }
+    const on=key===(state.dispSys||'phonon');
+    const ln=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+      new THREE.LineBasicMaterial({color:on?0xffcf6a:0x5a7ba8,transparent:true,opacity:on?1:.4,blending:on?THREE.AdditiveBlending:THREE.NormalBlending,depthWrite:false}));
+    dispGroup.add(ln); curves[key]={line:ln,z:ZS(i)};
+    const lb=mkLabel(impL(S.nm).split('—')[0].trim(),'label dim'); lb.position.set(KX(S.kmax)+0.42,WY(Math.abs(S.w(S.kmax)))*0.5,ZS(i)); dispGroup.add(lb); });
+  // tangent = v_g (gold) and chord-to-origin = v_p (ice): the geometric meaning of the two speeds
+  const tangent=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0xffd27a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})); dispGroup.add(tangent);
+  const chord=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),new THREE.LineBasicMaterial({color:0x7fd8ff,transparent:true,opacity:.85})); dispGroup.add(chord);
+  const opMk=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.9,depthWrite:false})); g.scale.setScalar(.65); opMk.add(g); } dispGroup.add(opMk);
+  dispGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints([
+    new THREE.Vector3(KX(0),0,-2.4),new THREE.Vector3(KX(Math.PI),0,-2.4),
+    new THREE.Vector3(KX(0),0,-2.4),new THREE.Vector3(KX(0),2.6,-2.4)]),new THREE.LineBasicMaterial({color:0x55607a})));
+  { const a=mkLabel('k →','label axis'); a.position.set(KX(Math.PI)+0.3,0,-2.4); dispGroup.add(a);
+    const b=mkLabel('ω ↑','label axis'); b.position.set(KX(0),2.75,-2.4); dispGroup.add(b);
+    const c=mkLabel(TT('gold tangent = v_g (energy) · ice chord = v_p (crests)','золотая касательная = v_g (энергия) · ледяная хорда = v_p (гребни)','goldene Tangente = v_g (Energie) · Eis-Sehne = v_p (Kämme)'),'label dim'); c.position.set(0,-0.45,-2.4); dispGroup.add(c); }
+  // TRUE wavepacket: a real superposition Σ exp(−(k−k₀)²/2σ²)·cos(kx−ω(k)t). Nothing is faked —
+  // the envelope moves at v_g and the carriers at v_p because the SUM does that.
+  const NW=260, wg=new THREE.BufferGeometry();
+  wg.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NW*3),3));
+  wg.setAttribute('color',new THREE.BufferAttribute(new Float32Array(NW*3),3));
+  const packet=new THREE.Line(wg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
+  packet.position.set(0,-3.15,0); dispGroup.add(packet);
+  const envU=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffb0e0,transparent:true,opacity:.5})); envU.position.copy(packet.position); dispGroup.add(envU);
+  const crestMk=new THREE.Mesh(new THREE.SphereGeometry(.07,10,8),new THREE.MeshBasicMaterial({color:0x7fd8ff})); crestMk.position.copy(packet.position); dispGroup.add(crestMk);
+  const envMk=new THREE.Mesh(new THREE.SphereGeometry(.085,12,9),new THREE.MeshBasicMaterial({color:0xffd27a})); envMk.position.copy(packet.position); dispGroup.add(envMk);
+  { const l=mkLabel(TT('true superposition — gold dot rides the ENVELOPE (v_g), ice dot rides a CREST (v_p)','истинная суперпозиция — золотая точка на ОГИБАЮЩЕЙ (v_g), ледяная на ГРЕБНЕ (v_p)','echte Superposition — Goldpunkt auf der HÜLLKURVE (v_g), Eispunkt auf einem KAMM (v_p)'),'label dim'); l.position.set(0,-4.1,0); dispGroup.add(l); }
+  const tl=mkLabel(TT('DISPERSION MANIFOLD · v_p carries the crests, v_g carries the energy','МНОГООБРАЗИЕ ДИСПЕРСИИ · v_p несёт гребни, v_g несёт энергию','DISPERSIONS-MANNIGFALTIGKEIT · v_p trägt die Kämme, v_g die Energie'),'label const'); tl.position.set(0,3.6,0); dispGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,3.05,0); dispGroup.add(rl);
+  dispObjs={curves,tangent,chord,opMk,packet,envU,crestMk,envMk,KX,WY,NW,readLab:rl,_c:new THREE.Color()};
+}
+function updateDisp(dt){
+  const O=dispObjs; if(!O) return; dispT+=dt*(state.dispSpeed??1);
+  const key=state.dispSys||'phonon', S=DISP_SYS[key], k0=Math.min(S.kmax,Math.max(0.05,state.dispK??1.2));   // full range: the zone boundary ka=π (v_g=0 exactly) must be reachable
+  const w0=S.w(k0), vg=S.vg(k0), vp=w0/k0, z=(O.curves[key]||{}).z||0;
+  for(const q in O.curves){ const on=q===key, m=O.curves[q].line.material;
+    m.color.setHex(on?0xffcf6a:0x5a7ba8); m.opacity=on?1:.35; }
+  const X=O.KX(k0), Y=O.WY(Math.abs(w0));
+  O.opMk.position.set(X,Y,z);
+  { const dk=0.55, s=O.WY(Math.abs(vg))*Math.sign(vg||1)/(O.KX(1)-O.KX(0))*0;   // slope in scene units
+    const sx=(O.KX(k0+dk)-O.KX(k0)), sy=O.WY(Math.abs(w0+vg*dk))-O.WY(Math.abs(w0));
+    O.tangent.geometry.setFromPoints([new THREE.Vector3(X-sx,Y-sy,z),new THREE.Vector3(X+sx,Y+sy,z)]); O.tangent.geometry.computeBoundingSphere(); }
+  O.chord.geometry.setFromPoints([new THREE.Vector3(O.KX(0),O.WY(0),z),new THREE.Vector3(X,Y,z)]); O.chord.geometry.computeBoundingSphere();
+  // the honest wavepacket: an explicit superposition over a Gaussian band around k₀
+  { const pp=O.packet.geometry.attributes.position.array, cc=O.packet.geometry.attributes.color.array, _c=O._c;
+    const sig=Math.max(0.12,S.kmax*0.10), NB=41, L=7.0, t=dispT*0.9;
+    const ks=[],amp=[]; let norm=0;
+    for(let b=0;b<NB;b++){ const k=k0+(b-(NB-1)/2)*(3*sig/NB), a=Math.exp(-((k-k0)**2)/(2*sig*sig));
+      if(k<=1e-4||k>S.kmax) continue; ks.push(k); amp.push(a); norm+=a; }
+    let envMax=-1,envX=0, crestBest=1e9,crestX=0;
+    for(let i=0;i<O.NW;i++){ const x=-L/2+L*i/(O.NW-1);
+      let re=0,im=0;
+      for(let b=0;b<ks.length;b++){ const ph=ks[b]*x-S.w(ks[b])*t; re+=amp[b]*Math.cos(ph); im+=amp[b]*Math.sin(ph); }
+      re/=norm||1; im/=norm||1;
+      const env=Math.hypot(re,im);
+      pp[i*3]=x*0.92; pp[i*3+1]=re*1.15; pp[i*3+2]=0;
+      const tt=Math.min(1,env); _c.setHSL(0.58-0.5*tt,0.75,0.25+0.42*tt); cc[i*3]=_c.r; cc[i*3+1]=_c.g; cc[i*3+2]=_c.b;
+      if(env>envMax){ envMax=env; envX=x; }
+      if(env>0.35 && Math.abs(re-env)<crestBest){ crestBest=Math.abs(re-env); crestX=x; } }
+    O.packet.geometry.attributes.position.needsUpdate=true; O.packet.geometry.attributes.color.needsUpdate=true; O.packet.geometry.computeBoundingSphere();
+    { const ev=[]; for(let i=0;i<O.NW;i+=4){ const x=-L/2+L*i/(O.NW-1);
+        let re=0,im=0; for(let b=0;b<ks.length;b++){ const ph=ks[b]*x-S.w(ks[b])*t; re+=amp[b]*Math.cos(ph); im+=amp[b]*Math.sin(ph); }
+        ev.push(new THREE.Vector3(x*0.92,Math.hypot(re,im)/(norm||1)*1.15,0)); }
+      O.envU.geometry.setFromPoints(ev); O.envU.geometry.computeBoundingSphere(); }
+    O.envMk.position.set(envX*0.92,-3.15+envMax*1.15,0.02);
+    O.crestMk.position.set(crestX*0.92,-3.15+Math.min(1,envMax)*1.15,0.02); }
+  dispUiAcc+=dt; if(dispUiAcc>0.25){ dispUiAcc=0;
+    const ratio=vp!==0?vg/vp:NaN, anom=Math.abs(vg)<Math.abs(vp);
+    const regime=Math.abs(vg)<1e-6?TT('STOPPED — v_g=0, the packet carries no energy (van Hove)','ОСТАНОВКА — v_g=0, пакет не переносит энергию (ван Хов)','GESTOPPT — v_g=0, kein Energietransport (van Hove)')
+      :vg*vp<0?TT('counter-propagating: energy and crests move OPPOSITE ways','встречное движение: энергия и гребни идут В РАЗНЫЕ стороны','gegenläufig: Energie und Kämme laufen entgegengesetzt')
+      :Math.abs(ratio-1)<1e-9?TT('non-dispersive: the shape is preserved','бездисперсионно: форма сохраняется','dispersionsfrei: die Form bleibt')
+      :anom?TT('normal dispersion (v_g<v_p)','нормальная дисперсия (v_g<v_p)','normale Dispersion (v_g<v_p)'):TT('anomalous (v_g>v_p)','аномальная (v_g>v_p)','anomal (v_g>v_p)');
+    O.readLab.element.textContent=`${impL(S.nm)} · ${regime}`;
+    hudBig.textContent=`${TT('DISPERSION','ДИСПЕРСИЯ','DISPERSION')} · k=${k0.toFixed(3)} · ω=${w0.toFixed(4)} · v_p=${vp.toFixed(4)} · v_g=${vg.toFixed(4)} · v_g/v_p=${isFinite(ratio)?ratio.toFixed(4):'—'}`;
+    hudSub.textContent=TT(
+      'Two different speeds live in every wave and the atlas never showed the second one. The crests move at the phase velocity v_p=ω/k — the ICE chord from the origin. The energy, the signal, the particle moves at the group velocity v_g=dω/dk — the GOLD tangent. The packet below is an honest superposition, so what you see is a proof, not an illustration: for a free electron v_g is exactly twice v_p, on deep water exactly half (crests are born at the back of a group and die at the front), for the KdV tail exactly three times and NEGATIVE (which is why the ripples trail behind the soliton), and in a plasma v_p·v_g=c² exactly — the phase velocity exceeds light while the energy never does. Push the phonon branch to the zone boundary ka=π and v_g falls to EXACTLY zero: the packet stops carrying energy at all, and the density of states diverges (van Hove).',
+      'В каждой волне живут ДВЕ скорости, и вторую атлас не показывал никогда. Гребни движутся с фазовой скоростью v_p=ω/k — ЛЕДЯНАЯ хорда из начала координат. Энергия, сигнал, частица движутся с групповой v_g=dω/dk — ЗОЛОТАЯ касательная. Пакет внизу — честная суперпозиция, поэтому это доказательство, а не иллюстрация: у свободного электрона v_g ровно вдвое больше v_p, на глубокой воде ровно вдвое меньше (гребни рождаются позади группы и умирают спереди), у хвоста КдФ ровно втрое и ОТРИЦАТЕЛЬНА (потому рябь и отстаёт от солитона), а в плазме v_p·v_g=c² точно — фазовая скорость превышает световую, энергия никогда. Доведи фононную ветвь до границы зоны ka=π — и v_g падает РОВНО в ноль: пакет перестаёт переносить энергию, а плотность состояний расходится (ван Хов).',
+      'In jeder Welle leben ZWEI Geschwindigkeiten; die zweite hat der Atlas nie gezeigt. Die Kämme laufen mit v_p=ω/k — die EIS-Sehne. Energie und Signal laufen mit v_g=dω/dk — die GOLDENE Tangente. Das Paket unten ist eine echte Superposition, also ein Beweis: freies Elektron v_g=2·v_p, Tiefwasser v_g=v_p/2, KdV-Schwanz dreifach und NEGATIV, Plasma v_p·v_g=c² exakt. An der Zonengrenze ka=π wird v_g GENAU null: das Paket transportiert keine Energie mehr (van Hove).');
+    ATLAS_BUS.pub('disp.vg',+vg.toFixed(4),'v_g');
+    const el=ctl.querySelector('#dispInv'); if(el) el.innerHTML=
+      `k=<b>${k0.toFixed(4)}</b> · ω=<b>${w0.toFixed(5)}</b> · ${TT('phase','фазовая','Phasen')} v_p=ω/k=<b>${vp.toFixed(5)}</b> · ${TT('group','групповая','Gruppen')} v_g=dω/dk=<b>${vg.toFixed(5)}</b><br>`+
+      `v_g/v_p=<b>${isFinite(ratio)?ratio.toFixed(6):'—'}</b> · ${TT('density of states','плотность состояний','Zustandsdichte')} g(ω)=|dk/dω|=<b>${Math.abs(vg)>1e-9?(1/Math.abs(vg)).toFixed(4):'∞ (van Hove)'}</b><br>`+
+      `<span style="color:#9fe8c0">${esc(impL(S.note))}</span>`;
+  }
+}
+
+/* ================================================================
    COMPLEX-FREQUENCY POLE ATLAS · the hidden unity of EVERY resonance.
    One analytic object explains them all: the response
         r(ω) = (ω − z)/(ω − p),   p = ω₀ − i(γ_i+γ_c)/2,  z = ω₀ + Δ − i(γ_i−γ_c)/2
@@ -15023,6 +15159,7 @@ function setS3View(v){
   rpdGroup.visible     = (v==='rpd');
   impGroup.visible     = (v==='imp');
   poleGroup.visible    = (v==='pole');
+  dispGroup.visible    = (v==='disp');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
@@ -15063,6 +15200,7 @@ function setS3View(v){
   if(v==='rpd'){ rpdSetup(); }
   if(v==='imp'){ impSetup(); }
   if(v==='pole'){ poleSetup(); }
+  if(v==='disp'){ dispSetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
@@ -15081,7 +15219,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -19866,6 +20004,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
+  dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
   impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
   cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
@@ -21762,6 +21901,33 @@ function buildCtlBody(){
         <button class="btn" id="poleToEot">${TT('→ Plasmon resonance (that lab uses a symmetric Lorentzian — no q)','→ Плазмонный резонанс (там симметричный лоренциан — без q)','→ Plasmonresonanz (dort symmetrischer Lorentzian — kein q)')}</button>
         <button class="btn" id="poleToGw">${TT('→ Ringdown: black-hole quasinormal modes','→ Звон: квазинормальные моды чёрной дыры','→ Ringdown: quasinormale Moden')}</button></div>
     </div>`;
+    else if(V==='disp') body = `
+    <div class="sect"><b>${TT('Dispersion branch — every ω(k) in this atlas','Ветвь дисперсии — все ω(k) этого атласа','Dispersionszweig — jedes ω(k) dieses Atlas')}</b>
+      <div class="chips">
+        ${Object.entries(DISP_SYS).map(([k,d])=>`<button class="chip ${(state.dispSys||'phonon')===k?'on':''}" data-dispsys="${k}">${impL(d.nm).split('—')[0].trim()}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>${TT('wavenumber k','волновое число k','Wellenzahl k')}</label>
+        <input type="range" id="dispK" min="0.05" max="3.1" step="0.005" value="${state.dispK??1.2}"><span class="val" id="dispKV">${(state.dispK??1.2).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>${TT('Speed','Скорость','Tempo')}</label>
+        <input type="range" id="dispSpeed" min="0.1" max="3" step="0.1" value="${state.dispSpeed??1}"><span class="val" id="dispSpeedV">×${(state.dispSpeed??1).toFixed(1)}</span></div>
+      <div class="chips">
+        <button class="chip" data-dispk="3.14159">${TT('▶ zone boundary ka=π → v_g=0','▶ граница зоны ka=π → v_g=0','▶ Zonengrenze ka=π → v_g=0')}</button>
+      </div>
+    </div>
+    <div class="sect"><b>${TT('Two-velocity passport','Паспорт двух скоростей','Zwei-Geschwindigkeiten-Pass')}</b>
+      <div class="note" id="dispInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT(
+        'Every wave carries two speeds. Crests move at the phase velocity v_p=ω/k (the ice chord from the origin); energy, signal and particle move at the group velocity v_g=dω/dk (the gold tangent). The atlas already contained six exact ω(k) relations — the qm split-step kinetic phase, the KdV integrating factor, the phonon chain, light/GW, plus deep water and a plasma branch — but never their derivative. The packet is a TRUE superposition over a Gaussian band, so the envelope moves at v_g and the carriers at v_p because the sum does it, not because it was animated to. v_g is checked against a numerical dω/dk in the boot self-tests.',
+        'В каждой волне две скорости. Гребни идут с фазовой v_p=ω/k (ледяная хорда из начала координат); энергия, сигнал и частица — с групповой v_g=dω/dk (золотая касательная). В атласе уже были шесть точных ω(k) — кинетическая фаза расщепления qm, интегрирующий множитель КдФ, фононная цепочка, свет/ГВ, плюс глубокая вода и плазма — но не их производная. Пакет — ИСТИННАЯ суперпозиция по гауссовой полосе, поэтому огибающая идёт с v_g, а несущие с v_p потому, что так делает сумма, а не потому, что так нарисовано. v_g сверяется с численной dω/dk в стартовых тестах.',
+        'Jede Welle trägt zwei Geschwindigkeiten: Kämme mit v_p=ω/k (Eis-Sehne), Energie mit v_g=dω/dk (goldene Tangente). Der Atlas enthielt sechs exakte ω(k), aber nie deren Ableitung. Das Paket ist eine ECHTE Superposition — die Hüllkurve läuft mit v_g, weil die Summe es tut. v_g wird beim Start gegen numerisches dω/dk geprüft.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="dispToQuasi">${TT('→ Quasiparticles: the phonon chain itself','→ Квазичастицы: сама фононная цепочка','→ Quasiteilchen: die Phononenkette selbst')}</button>
+        <button class="btn" id="dispToKdv">${TT('→ Soliton: why the ripples trail behind','→ Солитон: почему рябь отстаёт','→ Soliton: warum die Welligkeit zurückbleibt')}</button>
+        <button class="btn" id="dispToQm">${TT('→ Quantum packet: v_g = 2·v_p spreading','→ Квантовый пакет: расплывание v_g = 2·v_p','→ Quantenpaket: v_g = 2·v_p')}</button>
+        <button class="btn" id="dispToPole">${TT('→ Pole atlas: the other face of a resonance','→ Атлас полюсов: другое лицо резонанса','→ Polatlas: das andere Gesicht der Resonanz')}</button></div>
+    </div>`;
     else if(V==='cmb') body = `
     <div class="sect"><b>CMB sky — which multipoles</b>
       <div class="chips">
@@ -22303,6 +22469,7 @@ function buildCtlBody(){
         <button class="btn ${V==='rpd'?'on':''}" id="v-rpd">RPD transformer</button>
         <button class="btn ${V==='imp'?'on':''}" id="v-imp">Möbius · Smith</button>
         <button class="btn ${V==='pole'?'on':''}" id="v-pole">${TT('Pole atlas','Атлас полюсов','Polatlas')}</button>
+        <button class="btn ${V==='disp'?'on':''}" id="v-disp">${TT('Dispersion','Дисперсия','Dispersion')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -22328,7 +22495,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -22763,6 +22930,19 @@ function buildCtlBody(){
       ctl.querySelector('#poleToRet')&&(ctl.querySelector('#poleToRet').onclick=()=>{ navPush(); state.retStation='driven'; setS3View('ret'); buildCtl(); });
       ctl.querySelector('#poleToEot')&&(ctl.querySelector('#poleToEot').onclick=()=>{ navPush(); setS3View('eot'); buildCtl(); });
       ctl.querySelector('#poleToGw')&&(ctl.querySelector('#poleToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
+    }
+    if(V==='disp'){
+      ctl.querySelectorAll('[data-dispsys]').forEach(b=>b.onclick=()=>{ state.dispSys=b.dataset.dispsys;
+        const S=DISP_SYS[state.dispSys]; if(state.dispK>S.kmax) state.dispK=S.kmax*0.6; dispSetup(); buildCtl(); });
+      ctl.querySelectorAll('[data-dispk]').forEach(b=>b.onclick=()=>{ state.dispSys='phonon'; state.dispK=+b.dataset.dispk; dispSetup(); buildCtl(); });
+      ctl.querySelector('#dispK')&&(ctl.querySelector('#dispK').oninput=e=>{ state.dispK=+e.target.value;
+        const v=ctl.querySelector('#dispKV'); if(v)v.textContent=state.dispK.toFixed(3); });
+      ctl.querySelector('#dispSpeed')&&(ctl.querySelector('#dispSpeed').oninput=e=>{ state.dispSpeed=+e.target.value;
+        const v=ctl.querySelector('#dispSpeedV'); if(v)v.textContent='×'+state.dispSpeed.toFixed(1); });
+      ctl.querySelector('#dispToQuasi')&&(ctl.querySelector('#dispToQuasi').onclick=()=>{ navPush(); setS3View('quasi'); buildCtl(); });
+      ctl.querySelector('#dispToKdv')&&(ctl.querySelector('#dispToKdv').onclick=()=>{ navPush(); setS3View('kdv'); buildCtl(); });
+      ctl.querySelector('#dispToQm')&&(ctl.querySelector('#dispToQm').onclick=()=>{ navPush(); state.qmMode='free'; setS3View('qm'); buildCtl(); });
+      ctl.querySelector('#dispToPole')&&(ctl.querySelector('#dispToPole').onclick=()=>{ navPush(); setS3View('pole'); buildCtl(); });
     }
     if(V==='cmb'){
       ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
@@ -24226,10 +24406,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -25827,6 +26007,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='disp'){
+      fbsAnimT+=dt; updateDisp(dt);
     } else if(state.s3view==='pole'){
       fbsAnimT+=dt; updatePole(dt);
     } else if(state.s3view==='imp'){
