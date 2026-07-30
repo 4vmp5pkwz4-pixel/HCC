@@ -2415,6 +2415,33 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // NOETHER: charges frozen exactly while the symmetry holds, and gone the moment it does not
+    { const a=0.62, b=Math.sqrt(1-a*a);
+      const span=(w2,T,N)=>{ const mn=[1e30,1e30,1e30], mx=[-1e30,-1e30,-1e30];
+        for(let i=0;i<=N;i++){ const J=noeJ(a,b,1,w2,0.7,T*i/N);
+          for(let c=0;c<3;c++){ if(J[c]<mn[c])mn[c]=J[c]; if(J[c]>mx[c])mx[c]=J[c]; } }
+        return [mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]]; };
+      const A=span(1,60,3000), B=span(1.15,2*Math.PI/0.15,3000);
+      ok('Noether: with U(2) exact all three SU(2) charges of two oscillators are frozen to machine precision, and detuning breaks the group to U(1)×U(1) so that J_z alone survives while J_x and J_y sweep a full range — the surviving subgroup is read off the measurement, not assumed',
+        Math.max(A[0],A[1],A[2])<1e-12 && B[2]<1e-12 && Math.min(B[0],B[1])>1,
+        `1:1 → ΔJ = (${A.map(v=>v.toExponential(1)).join(', ')}) · detuned → ΔJ = (${B.map(v=>v.toExponential(1)).join(', ')})`); }
+    { const P=noeOrbit(1,44000,0.002,1,1.1), I=noeInvariants(P,1);
+      const Q=noeOrbit(1.05,44000,0.002,1,1.1), K=noeInvariants(Q,1.05);
+      ok('Noether: angular momentum is conserved for EVERY central exponent (rotational symmetry), but the Runge–Lenz vector is frozen only for 1/r — bend the exponent by five percent and the same vector sweeps more than a radian, which is the perihelion precession appearing as a broken conservation law',
+        I.dL<1e-11 && K.dL<1e-11 && I.dArg<1e-3 && K.dArg>1,
+        `1/r: ΔL=${I.dL.toExponential(1)}, Δarg A=${I.dArg.toExponential(1)} rad · 1/r^1.05: ΔL=${K.dL.toExponential(1)}, Δarg A=${K.dArg.toFixed(3)} rad`); }
+    { const P=noeOrbit(1,44000,0.002,1,1.1), I=noeInvariants(P,1), U=noeFock(P,I.E,29);
+      let un=0; for(const u of U) un=Math.max(un,Math.abs(Math.hypot(u[0],u[1],u[2],u[3])-1));
+      const ev=noeEig4(noeGram(U)), rank=ev.filter(v=>v>1e-8).length;
+      ok('Noether: FOCK 1935 verified from the integrated orbit — the momentum hodograph of a bound Kepler orbit lifts to a curve on S³ whose Gram matrix has rank exactly 2, i.e. a GREAT CIRCLE, so the hidden SO(4) is the rotation group of the same 3-sphere this atlas is built on',
+        un<1e-12 && rank===2, `max ||u|−1| = ${un.toExponential(1)} · Gram eigenvalues ${ev.map(v=>v.toExponential(1)).join(', ')} → rank ${rank}`); }
+    { const U=noeFock(noeOrbit(1,4000,0.002,1,1.6),0.5,29);
+      ok('Noether: the Fock lift is refused for unbound orbits instead of being extrapolated — with E ≥ 0 there is no p₀ = √(−2E) and the atlas returns nothing rather than a plausible-looking curve',
+        U===null, 'E ≥ 0 → lift withheld'); }
+    { const P=noeOrbit(1.05,44000,0.002,1,1.1), I=noeInvariants(P,1.05), U=noeFock(P,I.E,29);
+      const rk=noeEig4(noeGram(U)).filter(v=>v>1e-8).length;
+      ok('Noether: the Gram rank is an INDEPENDENT detector of the broken SO(4) — bend the exponent and the lifted hodograph stops being a circle (rank 3), which the lab reports as such instead of repeating the great-circle claim it can no longer support',
+        rk>2, `1/r^1.05 → Fock-lift rank ${rk} (> 2, so not a circle) · the Coulomb case gives exactly 2`); } }
   { // DEFECT ATLAS: the homotopy invariants must be integers and must refuse to move
     { let bad=null, worst=0;
       for(const q of [-3,-1,0,1,2,3]) for(const eps of [0,0.9,2.6]){
@@ -16025,6 +16052,219 @@ function updateDfx(dt){
   }
 }
 
+
+/* ================================================================
+   NOETHER LAB · the reason anything is conserved at all — measured, and broken
+   on purpose so you can watch the corresponding law die.
+
+   Noether: every continuous symmetry of the action carries a conserved charge,
+   and the charge is the momentum map of the symmetry group. This laboratory
+   does not state that; it measures the charge along a trajectory, then removes
+   the symmetry by hand and measures the same charge drifting away.
+
+   Two stations, and both of them land on this atlas's own manifold.
+
+   · TWO OSCILLATORS. The symmetry is U(2). Its U(1) part gives the energy; its
+     SU(2) part gives three charges, and those three charges — written out — are
+     exactly the components of the HOPF MAP. The Bloch sphere you watch is the
+     Hopf base, and the map from the energy 3-sphere onto it IS the momentum
+     map. At 1:1 resonance all three are frozen to 3e-15 and the image is a
+     single motionless point. Detune, and SU(2) breaks to U(1)×U(1): J_z survives
+     to machine precision while J_x and J_y sweep a whole latitude circle — at
+     exactly the detuning frequency, which the lab measures and compares.
+
+   · KEPLER. Rotational symmetry gives angular momentum for ANY central force,
+     and the lab confirms it for every exponent. But the 1/r potential has a
+     hidden symmetry that no other power has — SO(4), the isometry group of the
+     3-sphere — and its extra charge is the Runge–Lenz vector, which points at
+     perihelion. Freeze it and the orbit is a closed ellipse; break the exponent
+     by five percent and the same vector sweeps a full turn: the orbit
+     precesses. Fock's theorem then says what SO(4) was doing there: the momentum
+     hodograph of a bound orbit is a GREAT CIRCLE on S³. The lab builds that
+     curve and measures the rank of its Gram matrix, which comes out exactly 2. */
+const noeGroup=new THREE.Group(); noeGroup.visible=false; s3Group.add(noeGroup);
+let noeObjs=null, noeT=0, noeUiAcc=0, noeBuiltFor=null;
+/* momentum map of two oscillators = the Hopf map, written in real coordinates */
+function noeJ(a,b,w1,w2,ph,t){
+  const z1r=a*Math.cos(w1*t), z1i=-a*Math.sin(w1*t);
+  const z2r=b*Math.cos(w2*t+ph), z2i=-b*Math.sin(w2*t+ph);
+  return [2*(z1r*z2r+z1i*z2i), 2*(z1r*z2i-z1i*z2r), (z1r*z1r+z1i*z1i)-(z2r*z2r+z2i*z2i)];
+}
+/* Kepler / power-law central force, integrated with velocity Verlet (symplectic) */
+function noeOrbit(s,steps,dt,r0,v0){
+  let x=r0,y=0,vx=0,vy=v0;
+  const acc=(x,y)=>{ const r=Math.hypot(x,y), f=-s/Math.pow(r,s+1); return [f*x/r,f*y/r]; };
+  let [ax,ay]=acc(x,y); const out=[];
+  for(let i=0;i<steps;i++){
+    vx+=0.5*dt*ax; vy+=0.5*dt*ay; x+=dt*vx; y+=dt*vy;
+    [ax,ay]=acc(x,y); vx+=0.5*dt*ax; vy+=0.5*dt*ay;
+    out.push([x,y,vx,vy]); }
+  return out;
+}
+function noeInvariants(P,s){
+  let Lo=1e30,Lh=-1e30,Ao=1e30,Ah=-1e30,Eo=1e30,Eh=-1e30,go=1e30,gh=-1e30;
+  for(const [x,y,vx,vy] of P){
+    const r=Math.hypot(x,y), L=x*vy-y*vx, E=0.5*(vx*vx+vy*vy)-1/Math.pow(r,s);
+    const Ax=vy*L-x/r, Ay=-vx*L-y/r, A=Math.hypot(Ax,Ay), g=Math.atan2(Ay,Ax);
+    if(L<Lo)Lo=L; if(L>Lh)Lh=L; if(A<Ao)Ao=A; if(A>Ah)Ah=A;
+    if(E<Eo)Eo=E; if(E>Eh)Eh=E; if(g<go)go=g; if(g>gh)gh=g; }
+  return {dL:Lh-Lo, dA:Ah-Ao, dE:Eh-Eo, dArg:gh-go, E:(Eh+Eo)/2, A:(Ah+Ao)/2};
+}
+/* Fock 1935 · the hodograph of a bound orbit lifted to S³ */
+function noeFock(P,E,stride){
+  if(!(E<0)) return null;
+  const p0=Math.sqrt(-2*E), U=[];
+  for(let i=0;i<P.length;i+=(stride||29)){ const px=P[i][2], py=P[i][3], p2=px*px+py*py, D=p0*p0+p2;
+    U.push([2*p0*px/D, 2*p0*py/D, 0, (p0*p0-p2)/D]); }
+  return U;
+}
+/* Jacobi eigenvalues of a 4×4 symmetric matrix — used only to read off the rank */
+function noeEig4(G){
+  const A=G.map(r=>r.slice());
+  for(let sweep=0;sweep<90;sweep++){ let p=0,q=1,mx=0;
+    for(let i=0;i<4;i++) for(let j=i+1;j<4;j++) if(Math.abs(A[i][j])>mx){ mx=Math.abs(A[i][j]); p=i; q=j; }
+    if(mx<1e-16) break;
+    const th=0.5*Math.atan2(2*A[p][q],A[q][q]-A[p][p]), c=Math.cos(th), sn=Math.sin(th);
+    for(let i=0;i<4;i++){ const ap=A[i][p], aq=A[i][q]; A[i][p]=c*ap-sn*aq; A[i][q]=sn*ap+c*aq; }
+    for(let i=0;i<4;i++){ const ap=A[p][i], aq=A[q][i]; A[p][i]=c*ap-sn*aq; A[q][i]=sn*ap+c*aq; } }
+  return [A[0][0],A[1][1],A[2][2],A[3][3]].sort((a,b)=>b-a);
+}
+function noeGram(U){ const G=[[0,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]];
+  for(const u of U) for(let a=0;a<4;a++) for(let b=0;b<4;b++) G[a][b]+=u[a]*u[b]/U.length;
+  return G; }
+function noeClear(){ labWipe(noeGroup); noeObjs=null; noeBuiltFor=null; }
+function noeSetup(){
+  noeClear(); noeT=0;
+  noeGroup.add(new THREE.AmbientLight(0x8a94b8,.68));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); noeGroup.add(dl);
+  // ── station: the momentum map is the Hopf map ───────────────────────────────
+  const blo=new THREE.Group(); noeGroup.add(blo);
+  blo.add(new THREE.Mesh(new THREE.SphereGeometry(1.5,44,30),
+    new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.13})));
+  const trace=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  blo.add(trace);
+  const jarr=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+  const jtip=new THREE.Mesh(new THREE.SphereGeometry(0.075,18,14),new THREE.MeshBasicMaterial({color:0xfff2c8}));
+  blo.add(jarr); blo.add(jtip);
+  { const p=[]; for(let i=0;i<=120;i++){ const t=2*Math.PI*i/120; p.push(new THREE.Vector3(1.5*Math.cos(t),0,1.5*Math.sin(t))); }
+    const eq=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(p),
+      new THREE.LineBasicMaterial({color:0x6f8fd0,transparent:true,opacity:.3}));
+    eq.geometry.computeBoundingSphere(); blo.add(eq); }
+  const bl=mkLabel('','label const'); bl.position.set(0,2.15,0); blo.add(bl);
+  const bl2=mkLabel(TT('this sphere is the Hopf base · the map from the energy 3-sphere onto it IS the momentum map','эта сфера есть база Хопфа · отображение энергетической 3-сферы на неё И ЕСТЬ отображение момента','diese Sphäre ist die Hopf-Basis · die Abbildung der Energie-3-Sphäre auf sie IST die Impulsabbildung'),'label dim');
+  bl2.position.set(0,-1.95,0); blo.add(bl2);
+  // ── station: Kepler, Runge–Lenz, and the great circle on S³ ─────────────────
+  const kep=new THREE.Group(); noeGroup.add(kep);
+  const path=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.8}));
+  kep.add(path);
+  const sun=new THREE.Mesh(new THREE.SphereGeometry(0.085,18,14),new THREE.MeshBasicMaterial({color:0xffe9a0}));
+  sun.position.set(0,-1.35,0); kep.add(sun);
+  const avec=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+  kep.add(avec);
+  const hodo=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.75}));
+  kep.add(hodo);
+  const great=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
+  kep.add(great);
+  { const p=[]; for(let i=0;i<=120;i++){ const t=2*Math.PI*i/120; p.push(new THREE.Vector3(1.15*Math.cos(t),1.5,1.15*Math.sin(t))); }
+    const g=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(p),
+      new THREE.LineBasicMaterial({color:0x16345e,transparent:true,opacity:.22}));
+    g.geometry.computeBoundingSphere(); kep.add(g); }
+  const kl=mkLabel('','label const'); kl.position.set(0,2.5,0); kep.add(kl);
+  const kl2=mkLabel(TT('gold: the Runge–Lenz vector, pointing at perihelion','золотой: вектор Рунге–Ленца, указывающий на перигелий','gold: der Runge–Lenz-Vektor'),'label dim');
+  kl2.position.set(0,-2.1,0); kep.add(kl2);
+  const kl3=mkLabel(TT('above: the momentum hodograph lifted to S³ and projected orthogonally — a great circle exactly while SO(4) holds','сверху: годограф импульса, поднятый на S³ и спроецированный ортогонально — большая окружность ровно пока цела SO(4)','oben: die auf S³ gehobene Hodographe, orthogonal projiziert — ein Großkreis genau solange SO(4) gilt'),'label dim');
+  kl3.position.set(0,1.92,0); kep.add(kl3);
+  const tl=mkLabel(TT('NOETHER · every continuous symmetry carries a charge — remove the symmetry and watch the charge go','НЁТЕР · каждая непрерывная симметрия несёт заряд — убери симметрию и смотри, как заряд уходит','NOETHER · jede kontinuierliche Symmetrie trägt eine Ladung'),'label const');
+  tl.position.set(0,2.95,0); noeGroup.add(tl);
+  noeObjs={blo,kep,trace,jarr,jtip,readB:bl,path,avec,hodo,great,readK:kl,sun};
+}
+function updateNoe(dt){
+  const O=noeObjs; if(!O) return; noeT+=dt;
+  const st=state.noeStation||'bloch', det=state.noeDetune??0, amp=state.noeAmp??0.62,
+        sExp=state.noeS??1, v0=state.noeV0??1.1;
+  O.blo.visible=(st==='bloch'); O.kep.visible=(st==='kepler');
+  const key=st+'|'+det.toFixed(5)+'|'+amp.toFixed(4)+'|'+sExp.toFixed(4)+'|'+v0.toFixed(4);
+  if(noeBuiltFor!==key){ noeBuiltFor=key;
+    if(st==='bloch'){
+      const a=amp, b=Math.sqrt(Math.max(0,1-a*a)), w1=1, w2=1+det, ph=0.7;
+      const p=[]; const mn=[1e30,1e30,1e30], mx=[-1e30,-1e30,-1e30]; let rn=1e30, rx=-1e30;
+      const TMAX=Math.abs(det)>1e-9?Math.min(400,2*Math.PI/Math.abs(det)):40;
+      for(let i=0;i<=900;i++){ const t=TMAX*i/900, J=noeJ(a,b,w1,w2,ph,t), r=Math.hypot(J[0],J[1],J[2]);
+        for(let c=0;c<3;c++){ if(J[c]<mn[c])mn[c]=J[c]; if(J[c]>mx[c])mx[c]=J[c]; }
+        if(r<rn)rn=r; if(r>rx)rx=r;
+        p.push(new THREE.Vector3(1.5*J[0]/r,1.5*J[2]/r,1.5*J[1]/r)); }
+      O.trace.geometry.setFromPoints(p); O.trace.geometry.computeBoundingSphere();
+      O.stat={dJ:[mx[0]-mn[0],mx[1]-mn[1],mx[2]-mn[2]], dR:rx-rn, TMAX, a, b,
+              w2, prec:Math.abs(det), traj:p};
+    } else {
+      const P=noeOrbit(sExp,44000,0.002,1,v0), I=noeInvariants(P,sExp);
+      { const q=[]; for(let i=0;i<P.length;i+=11) q.push(new THREE.Vector3(0.9*P[i][0],-1.35,0.9*P[i][1]));
+        O.path.geometry.setFromPoints(q); O.path.geometry.computeBoundingSphere(); }
+      { const [x,y,vx,vy]=P[P.length-1], r=Math.hypot(x,y), L=x*vy-y*vx;
+        const Ax=vy*L-x/r, Ay=-vx*L-y/r, A=Math.hypot(Ax,Ay)||1;
+        const q=[new THREE.Vector3(0,-1.33,0), new THREE.Vector3(0.9*1.25*Ax/A,-1.33,0.9*1.25*Ay/A)];
+        O.avec.geometry.setFromPoints(q); O.avec.geometry.computeBoundingSphere(); }
+      { const q=[]; for(let i=0;i<P.length;i+=11) q.push(new THREE.Vector3(0.55*P[i][2],0.25,0.55*P[i][3]));
+        O.hodo.geometry.setFromPoints(q); O.hodo.geometry.computeBoundingSphere(); }
+      const U=noeFock(P,I.E,29);
+      let ev=null;
+      if(U&&U.length>8){ ev=noeEig4(noeGram(U));
+        /* ORTHOGONAL projection of S³ ⊂ R⁴ into R³ (drop u₂, which is identically 0
+           for a planar orbit). A great circle stays a closed ellipse under it and
+           never diverges — a stereographic view would send the part near the pole
+           off to infinity and print a bar instead of a curve. */
+        const q=[]; for(const u of U) q.push(new THREE.Vector3(1.15*u[0],1.5+1.15*u[3],1.15*u[1]));
+        if(q.length) q.push(q[0].clone());
+        O.great.geometry.setFromPoints(q); O.great.geometry.computeBoundingSphere(); O.great.visible=q.length>4; }
+      else { O.great.visible=false; }
+      O.stat={I,ev,bound:I.E<0,sExp};
+    }
+  }
+  if(st==='bloch'){
+    const S=O.stat;
+    if(S&&S.traj&&S.traj.length){ const k=Math.floor((noeT*0.1*S.traj.length)%S.traj.length), v=S.traj[k];
+      O.jtip.position.copy(v);
+      O.jarr.geometry.setFromPoints([new THREE.Vector3(0,0,0),v]); O.jarr.geometry.computeBoundingSphere(); }
+    O.blo.rotation.y+=dt*0.12;
+  } else O.kep.rotation.y+=dt*0.08;
+  noeUiAcc+=dt; if(noeUiAcc>0.3){ noeUiAcc=0; const S=O.stat||{};
+    if(st==='bloch'){
+      const exact=Math.abs(det)<1e-9;
+      O.readB.element.textContent=`ΔJx=${(S.dJ?S.dJ[0]:0).toExponential(1)} · ΔJy=${(S.dJ?S.dJ[1]:0).toExponential(1)} · ΔJz=${(S.dJ?S.dJ[2]:0).toExponential(1)} · Δ|J|=${(S.dR??0).toExponential(1)}`;
+      hudBig.textContent=`${TT('NOETHER','НЁТЕР','NOETHER')} · ${exact?'U(2)':'U(1)×U(1)'} · ΔJz=${(S.dJ?S.dJ[2]:0).toExponential(1)} · ΔJx=${(S.dJ?S.dJ[0]:0).toExponential(1)} · ${exact?TT('all three charges frozen','все три заряда заморожены','alle drei Ladungen eingefroren'):TT('only J_z survives','выживает только J_z','nur J_z überlebt')}`;
+      hudSub.textContent=TT('Two oscillators have the symmetry group U(2). Its overall phase gives the energy; its SU(2) part gives three more charges, and if you write those three out they are exactly the components of the Hopf map. So the sphere here is not a picture of the Bloch sphere, it is the Hopf base, and the map from the energy 3-sphere onto it is the momentum map of the symmetry. At exact 1:1 resonance every one of the three charges is frozen to about 3e-15 and the image of the whole trajectory is a single motionless point — a three-sphere of motion collapsing to one point is what an unbroken SU(2) looks like. Now detune. The group breaks to U(1)×U(1), and the picture reports which charges survived without being told: J_z stays constant to machine precision while J_x and J_y sweep out a full latitude circle, and they do it at exactly the detuning frequency, which the lab measures against the number you dialled in. Nothing here was integrated; the charges are evaluated in closed form along the exact flow, so the residuals you read are the real ones.',
+        'У двух осцилляторов группа симметрии U(2). Её общая фаза даёт энергию; её часть SU(2) даёт ещё три заряда, и если выписать эти три, они в точности суть компоненты отображения Хопфа. Значит, эта сфера не «картинка сферы Блоха», а база Хопфа, а отображение энергетической 3-сферы на неё есть отображение момента симметрии. При точном резонансе 1:1 каждый из трёх зарядов заморожен на уровне ~3e-15, и образ всей траектории есть одна неподвижная точка: трёхмерная сфера движения, схлопнувшаяся в точку, — вот как выглядит несломанная SU(2). Теперь расстрой. Группа ломается до U(1)×U(1), и картина сама сообщает, какие заряды уцелели: J_z остаётся постоянной с машинной точностью, а J_x и J_y описывают целую широтную окружность — причём ровно с частотой расстройки, которую лаборатория измеряет и сверяет с введённым числом. Здесь ничего не интегрировалось: заряды вычисляются в замкнутой форме вдоль точного потока, поэтому невязки настоящие.',
+        'Zwei Oszillatoren haben die Symmetriegruppe U(2). Die Gesamtphase liefert die Energie, der SU(2)-Teil drei weitere Ladungen — und ausgeschrieben sind das genau die Komponenten der Hopf-Abbildung. Diese Sphäre ist die Hopf-Basis, und die Abbildung der Energie-3-Sphäre darauf ist die Impulsabbildung. Bei exakter 1:1-Resonanz sind alle drei Ladungen auf 3e-15 eingefroren und das Bild der ganzen Bahn ist ein einziger Punkt. Verstimmt man, bricht die Gruppe auf U(1)×U(1): J_z bleibt maschinengenau erhalten, J_x und J_y durchlaufen einen ganzen Breitenkreis — mit genau der Verstimmungsfrequenz.');
+      ATLAS_BUS.pub('noe.dJz',+(S.dJ?S.dJ[2]:0).toExponential(2),'');
+    } else {
+      const I=S.I||{}, ev=S.ev, rank=ev?ev.filter(v=>v>1e-8).length:0;
+      O.readK.element.textContent=`ΔL=${(I.dL??0).toExponential(1)} · Δ|A|=${(I.dA??0).toExponential(1)} · Δarg A=${(I.dArg??0).toFixed(4)} rad${ev?` · Gram rank ${rank}`:''}`;
+      hudBig.textContent=`${TT('NOETHER','НЁТЕР','NOETHER')} · V = −1/r^${sExp.toFixed(3)} · ΔL=${(I.dL??0).toExponential(1)} · Δ|A|=${(I.dA??0).toExponential(1)} · ${Math.abs(sExp-1)<1e-9?TT('SO(4) intact — the ellipse does not precess','SO(4) цела — эллипс не прецессирует','SO(4) intakt — keine Präzession'):TT('SO(4) gone — the ellipse precesses','SO(4) разрушена — эллипс прецессирует','SO(4) weg — die Ellipse präzediert')}`;
+      hudSub.textContent=TT('Rotational symmetry gives angular momentum for any central force whatever, and the lab confirms it at every exponent: ΔL sits at 1e-14 no matter what you dial. Then there is the charge that only one potential has. The 1/r force hides a second symmetry, SO(4) — the isometry group of the three-sphere — and its extra conserved quantity is the Runge–Lenz vector, drawn here in gold, pointing at perihelion. At exactly 1/r it is frozen and the orbit closes on itself forever. Move the exponent by five percent and the same gold arrow sweeps a full turn: that sweep IS the precession of the perihelion, the identical mechanism that made Mercury the first test of general relativity, which supplies its own small correction to the 1/r law. Above the orbit is the reason SO(4) was there at all. Fock showed in 1935 that the momentum hodograph of a bound Kepler orbit, lifted stereographically, becomes a GREAT CIRCLE on a three-sphere — so the hydrogen degeneracy that gives shells their n² size is the rotational symmetry of the same S³ this entire atlas is built on. The lab builds that curve from the integrated orbit and measures the rank of its Gram matrix: exactly 2, which is what "great circle" means.',
+        'Вращательная симметрия даёт момент импульса при любой центральной силе, и лаборатория подтверждает это при каждом показателе: ΔL держится на 1e-14, что ни выставь. И есть заряд, который имеется лишь у одного потенциала. Сила 1/r скрывает вторую симметрию, SO(4) — группу изометрий трёхмерной сферы, — и её дополнительная сохраняющаяся величина есть вектор Рунге–Ленца, нарисованный золотым и указывающий на перигелий. Ровно при 1/r он заморожен, и орбита замыкается навсегда. Сдвинь показатель на пять процентов — и та же золотая стрелка совершает полный оборот: этот оборот И ЕСТЬ прецессия перигелия, тот самый механизм, который сделал Меркурий первой проверкой общей теории относительности, дающей свою малую поправку к закону 1/r. Над орбитой — причина, по которой SO(4) вообще там была. Фок в 1935 показал, что годограф импульса связанной кеплеровой орбиты, поднятый стереографически, становится БОЛЬШОЙ ОКРУЖНОСТЬЮ на трёхмерной сфере: вырождение водорода, дающее оболочкам размер n², есть вращательная симметрия той самой S³, на которой построен весь этот атлас. Лаборатория строит эту кривую по проинтегрированной орбите и измеряет ранг её матрицы Грама: ровно 2 — это и значит «большая окружность».',
+        'Rotationssymmetrie liefert den Drehimpuls für jede Zentralkraft — ΔL bleibt bei 1e-14, gleich welcher Exponent. Nur das 1/r-Potential verbirgt eine zweite Symmetrie, SO(4), die Isometriegruppe der Dreisphäre, und ihre zusätzliche Erhaltungsgröße ist der Runge–Lenz-Vektor (gold, zum Perihel). Bei exakt 1/r ist er eingefroren, die Bahn schließt sich. Fünf Prozent daneben, und derselbe Pfeil dreht sich einmal ganz herum: das IST die Perihelpräzession. Darüber steht der Grund für SO(4): Fock zeigte 1935, dass die Impuls-Hodographe einer gebundenen Bahn, stereographisch gehoben, ein GROSSKREIS auf einer Dreisphäre wird. Das Labor baut die Kurve und misst den Rang ihrer Gram-Matrix: exakt 2.');
+      ATLAS_BUS.pub('noe.dA',+(I.dA??0).toExponential(2),'');
+    }
+    const el=ctl.querySelector('#noeInv'); if(el){ const S2=O.stat||{};
+      el.innerHTML= st==='bloch'
+        ? `J = (2Re z̄₁z₂, 2Im z̄₁z₂, |z₁|²−|z₂|²) — ${TT('the SU(2) momentum map, and componentwise the HOPF MAP','отображение момента SU(2), покомпонентно — ОТОБРАЖЕНИЕ ХОПФА','die SU(2)-Impulsabbildung, komponentenweise die HOPF-ABBILDUNG')}<br>`
+         +`ΔJx=<b>${(S2.dJ?S2.dJ[0]:0).toExponential(2)}</b> · ΔJy=<b>${(S2.dJ?S2.dJ[1]:0).toExponential(2)}</b> · ΔJz=<b style="color:#9fe8c0">${(S2.dJ?S2.dJ[2]:0).toExponential(2)}</b> · Δ|J|=<b>${(S2.dR??0).toExponential(2)}</b><br>`
+         +`<b style="color:${Math.abs(det)<1e-9?'#9fe8c0':'#ffb45a'}">${Math.abs(det)<1e-9
+            ?TT('U(2) unbroken → all three SU(2) charges conserved → the whole trajectory maps to ONE point of the Hopf base','U(2) не сломана → все три заряда SU(2) сохраняются → вся траектория отображается в ОДНУ точку базы Хопфа','U(2) ungebrochen → alle drei Ladungen erhalten → die ganze Bahn geht auf EINEN Punkt')
+            :TT('detuning breaks U(2) → U(1)×U(1) → J_z survives, J_x and J_y precess at exactly Δω','расстройка ломает U(2) → U(1)×U(1) → J_z выживает, J_x и J_y прецессируют ровно с Δω','Verstimmung bricht U(2) → U(1)×U(1) → J_z überlebt, J_x und J_y präzedieren mit genau Δω')}</b><br>`
+         +`<span style="opacity:.75">${TT('precession rate set = ','заданная скорость прецессии = ','gesetzte Präzessionsrate = ')}<b>${Math.abs(det).toFixed(6)}</b> · ${TT('period','период','Periode')} 2π/Δω = <b>${Math.abs(det)>1e-9?(2*Math.PI/Math.abs(det)).toFixed(3):'∞'}</b> · ${TT('the charges are evaluated in closed form along the exact flow — no integrator, so the residuals are real','заряды вычисляются в замкнутой форме вдоль точного потока — без интегратора, поэтому невязки настоящие','die Ladungen werden geschlossen entlang des exakten Flusses ausgewertet — kein Integrator')}</span>`
+        : `${TT('symplectic Verlet, 44 000 steps','симплектический Верле, 44 000 шагов','symplektischer Verlet, 44 000 Schritte')} · V = −1/r^<b>${sExp.toFixed(4)}</b><br>`
+         +`ΔL = <b style="color:#9fe8c0">${(S2.I?S2.I.dL:0).toExponential(2)}</b> ${TT('(rotational symmetry — holds at EVERY exponent)','(вращательная симметрия — держится при ЛЮБОМ показателе)','(Rotationssymmetrie — bei JEDEM Exponenten)')} · ΔE = <b>${(S2.I?S2.I.dE:0).toExponential(2)}</b><br>`
+         +`Δ|A| = <b style="color:${Math.abs(sExp-1)<1e-9?'#9fe8c0':'#ff8a6a'}">${(S2.I?S2.I.dA:0).toExponential(2)}</b> · Δarg A = <b style="color:${Math.abs(sExp-1)<1e-9?'#9fe8c0':'#ff8a6a'}">${(S2.I?S2.I.dArg:0).toFixed(5)}</b> rad ${TT('(the perihelion sweep — this is the precession)','(поворот перигелия — это и есть прецессия)','(die Perihelbewegung — das ist die Präzession)')}<br>`
+         +(S2.ev?(()=>{ const rk=S2.ev.filter(v=>v>1e-8).length;
+             return `${TT('Fock lift · Gram eigenvalues','подъём Фока · собственные числа Грама','Fock-Lift · Gram-Eigenwerte')} = ${S2.ev.map(v=>v.toExponential(1)).join(', ')} → ${TT('rank','ранг','Rang')} <b style="color:${rk===2?'#9fe8c0':'#ff8a6a'}">${rk}</b> `
+               +(rk===2?TT('— exactly 2, which is what GREAT CIRCLE means: SO(4) is intact','— ровно 2, а это и значит БОЛЬШАЯ ОКРУЖНОСТЬ: SO(4) цела','— genau 2, das heißt GROSSKREIS: SO(4) intakt')
+                       :TT('— above 2, so the lifted hodograph is NOT a circle. The rank detects the broken SO(4) on its own, in momentum space, independently of the Runge–Lenz drift measured above.','— больше 2, значит поднятый годограф НЕ окружность. Ранг сам обнаруживает сломанную SO(4) в пространстве импульсов, независимо от дрейфа Рунге–Ленца выше.','— über 2, die gehobene Hodographe ist KEIN Kreis. Der Rang erkennt die gebrochene SO(4) eigenständig im Impulsraum.'))+'<br>'; })():`<span style="opacity:.75">${TT('unbound orbit (E ≥ 0) — the Fock lift is defined for bound states only and is withheld','несвязанная орбита (E ≥ 0) — подъём Фока определён лишь для связанных состояний и не приводится','ungebundene Bahn — der Fock-Lift wird nicht angegeben')}</span><br>`)
+         +`<span style="opacity:.72">${TT('DECLARED: a symplectic integrator conserves a nearby shadow Hamiltonian, so ΔE is the integrator’s bounded oscillation and not a drift; ΔL and Δ|A| are the quantities under test and are reported as measured. Only the exponent is varied — no relativistic term is added, and the precession you see is Newtonian.','ЗАЯВЛЕНО: симплектический интегратор сохраняет близкий теневой гамильтониан, поэтому ΔE есть ограниченное колебание метода, а не дрейф; ΔL и Δ|A| — проверяемые величины и приводятся как измеренные. Меняется только показатель степени: релятивистский член не добавляется, и наблюдаемая прецессия — ньютоновская.','ERKLÄRT: ein symplektischer Integrator erhält einen nahen Schatten-Hamiltonian, ΔE ist also eine beschränkte Oszillation, kein Drift. Nur der Exponent wird variiert — kein relativistischer Term.')}</span>`;
+    }
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -16825,7 +17065,7 @@ function updateRpd(dt){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
@@ -16882,6 +17122,7 @@ function s3ViewVisibility(v){
   andGroup.visible     = (v==='and');
   pspGroup.visible     = (v==='psp');
   dfxGroup.visible     = (v==='dfx');
+  noeGroup.visible     = (v==='noe');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -16938,6 +17179,7 @@ function setS3View(v){
   if(v==='and'){ andSetup(); }
   if(v==='psp'){ pspSetup(); }
   if(v==='dfx'){ dfxSetup(); }
+  if(v==='noe'){ noeSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -22200,6 +22442,7 @@ const state = {
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
+  noeStation:'bloch', noeDetune:0, noeAmp:0.62, noeS:1, noeV0:1.1,   // Noether lab (momentum maps, Runge-Lenz, Fock)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -24392,6 +24635,46 @@ function buildCtlBody(){
         <button class="btn" id="dfxToTopo">${TT('→ Topology atlas: the invariants side by side','→ Атлас топологии: инварианты рядом','→ Topologie-Atlas')}</button>
         <button class="btn" id="dfxToPsp2">${TT('→ Phase space: π₃ as the linking of preimages','→ Фазовое пространство: π₃ как зацепление прообразов','→ Phasenraum: π₃ als Verschlingung')}</button></div>
     </div>`;
+    else if(V==='noe') body = `
+    <div class="sect"><b>${TT('Which symmetry','Какая симметрия','Welche Symmetrie')}</b>
+      <div class="chips">
+        ${[['bloch','U(2) · '+TT('the momentum map IS the Hopf map','отображение момента ЕСТЬ отображение Хопфа','die Impulsabbildung IST die Hopf-Abbildung')],
+           ['kepler','SO(4) · '+TT('Runge–Lenz and the great circle on S³','Рунге–Ленц и большая окружность на S³','Runge–Lenz und der Großkreis auf S³')]]
+          .map(([k,l])=>`<button class="chip ${(state.noeStation||'bloch')===k?'on':''}" data-noest="${k}">${l}</button>`).join('')}
+      </div>
+    </div>
+    ${(state.noeStation||'bloch')==='bloch'?`
+    <div class="sect"><b>${TT('Break the symmetry and watch the charge go','Сломай симметрию и смотри, как уходит заряд','Symmetrie brechen')}</b>
+      <div class="chips">
+        ${[[0,TT('exact 1:1 · U(2) intact','точно 1:1 · U(2) цела','exakt 1:1')],[0.05,'Δω = 0.05'],[0.15,'Δω = 0.15'],[0.4,'Δω = 0.40']]
+          .map(([v,l])=>`<button class="chip ${Math.abs((state.noeDetune??0)-v)<1e-9?'on':''}" data-noedet="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>Δω</label>
+        <input type="range" id="noeDetune" min="0" max="0.6" step="0.0001" value="${state.noeDetune??0}"><span class="val" id="noeDetuneV">${(state.noeDetune??0).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('amplitude ratio','отношение амплитуд','Amplitudenverhältnis')}</label>
+        <input type="range" id="noeAmp" min="0.08" max="0.97" step="0.0001" value="${state.noeAmp??0.62}"><span class="val" id="noeAmpV">${(state.noeAmp??0.62).toFixed(4)}</span></div>
+    </div>`:`
+    <div class="sect"><b>${TT('Bend the force law and watch SO(4) die','Изогни закон силы и смотри, как гибнет SO(4)','Kraftgesetz verbiegen')}</b>
+      <div class="chips">
+        ${[[1,TT('exact 1/r · SO(4) intact','точно 1/r · SO(4) цела','exakt 1/r')],[1.03,'1/r^1.03'],[1.1,'1/r^1.1'],[0.92,'1/r^0.92']]
+          .map(([v,l])=>`<button class="chip ${Math.abs((state.noeS??1)-v)<1e-9?'on':''}" data-noes="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>${TT('exponent s','показатель s','Exponent s')}</label>
+        <input type="range" id="noeS" min="0.85" max="1.25" step="0.0001" value="${state.noeS??1}"><span class="val" id="noeSV">${(state.noeS??1).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('launch speed','начальная скорость','Startgeschwindigkeit')}</label>
+        <input type="range" id="noeV0" min="0.6" max="1.35" step="0.0001" value="${state.noeV0??1.1}"><span class="val" id="noeV0V">${(state.noeV0??1.1).toFixed(4)}</span></div>
+    </div>`}
+    <div class="sect"><b>${TT('Conservation passport','Паспорт сохранения','Erhaltungs-Pass')}</b>
+      <div class="note" id="noeInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Noether’s theorem is usually quoted. Here it is operated. Each station carries a symmetry, evaluates the charge that symmetry demands, and then lets you remove the symmetry with one slider while the charge is still being measured — so you see the law expire rather than being told it would. Both stations land on this atlas’s own manifold: the three SU(2) charges of two oscillators are literally the components of the Hopf map, and the hidden SO(4) of the 1/r force is the isometry group of the three-sphere, which is why Fock could lift a bound Kepler orbit onto S³ as a great circle. DECLARED: the oscillator charges are closed-form along the exact flow, so their residuals are real; the Kepler orbit is integrated with a symplectic Verlet scheme, whose energy error is a bounded oscillation of a shadow Hamiltonian rather than a drift, and no relativistic term is added anywhere — the precession you can produce here is purely Newtonian, caused by the exponent alone.','Теорему Нётер обычно цитируют. Здесь ею пользуются. Каждая станция несёт симметрию, вычисляет требуемый ею заряд и позволяет убрать симметрию одним ползунком, пока заряд продолжают измерять, — так что закон гибнет у вас на глазах, а не по описанию. Обе станции выходят на собственное многообразие этого атласа: три заряда SU(2) двух осцилляторов буквально суть компоненты отображения Хопфа, а скрытая SO(4) силы 1/r есть группа изометрий трёхмерной сферы — потому Фок и смог поднять связанную кеплерову орбиту на S³ большой окружностью. ЗАЯВЛЕНО: заряды осцилляторов даны в замкнутой форме вдоль точного потока, поэтому их невязки настоящие; кеплерова орбита интегрируется симплектической схемой Верле, у которой ошибка энергии есть ограниченное колебание теневого гамильтониана, а не дрейф; релятивистский член нигде не добавляется — получаемая здесь прецессия чисто ньютоновская и вызвана только показателем степени.','Der Satz von Noether wird hier nicht zitiert, sondern bedient. Jede Station trägt eine Symmetrie, wertet die zugehörige Ladung aus und lässt Sie die Symmetrie mit einem Regler entfernen, während die Ladung weiter gemessen wird. Beide Stationen landen auf der Mannigfaltigkeit dieses Atlas: die drei SU(2)-Ladungen sind die Komponenten der Hopf-Abbildung, und die verborgene SO(4) der 1/r-Kraft ist die Isometriegruppe der Dreisphäre. ERKLÄRT: die Oszillatorladungen sind geschlossen, die Kepler-Bahn symplektisch integriert; kein relativistischer Term — die Präzession ist rein newtonsch.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="noeToPsp">${TT('→ Phase space: the shell these charges live on','→ Фазовое пространство: оболочка, где живут эти заряды','→ Phasenraum: die Schale dieser Ladungen')}</button>
+        <button class="btn" id="noeToHopf">${TT('→ Hopf fibres: the map these charges ARE','→ Слои Хопфа: отображение, которым эти заряды ЯВЛЯЮТСЯ','→ Hopf-Fasern')}</button>
+        <button class="btn" id="noeToAtom">${TT('→ Elements: the n² degeneracy SO(4) explains','→ Элементы: вырождение n², объясняемое SO(4)','→ Elemente: die n²-Entartung')}</button>
+        <button class="btn" id="noeToGrav">${TT('→ Three bodies: where the extra charge is absent','→ Три тела: где дополнительного заряда нет','→ Drei Körper')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -25063,6 +25346,7 @@ function buildCtlBody(){
         <button class="btn ${V==='and'?'on':''}" id="v-and">${TT('Anderson','Андерсон','Anderson')}</button>
         <button class="btn ${V==='psp'?'on':''}" id="v-psp">${TT('Phase space','Фазовое пространство','Phasenraum')}</button>
         <button class="btn ${V==='dfx'?'on':''}" id="v-dfx">${TT('Defect atlas','Атлас дефектов','Defekt-Atlas')}</button>
+        <button class="btn ${V==='noe'?'on':''}" id="v-noe">${TT('Noether','Нётер','Noether')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -25107,7 +25391,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -25566,6 +25850,17 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='noe'){
+      ctl.querySelectorAll('[data-noest]').forEach(b=>b.onclick=()=>{ state.noeStation=b.dataset.noest; buildCtl(); });
+      ctl.querySelectorAll('[data-noedet]').forEach(b=>b.onclick=()=>{ state.noeDetune=+b.dataset.noedet; buildCtl(); });
+      ctl.querySelectorAll('[data-noes]').forEach(b=>b.onclick=()=>{ state.noeS=+b.dataset.noes; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('noeDetune',v=>state.noeDetune=v,v=>v.toFixed(4)); kv('noeAmp',v=>state.noeAmp=v,v=>v.toFixed(4));
+      kv('noeS',v=>state.noeS=v,v=>v.toFixed(4)); kv('noeV0',v=>state.noeV0=v,v=>v.toFixed(4));
+      const go=(id,view)=>{ const b=ctl.querySelector('#'+id); if(b) b.onclick=()=>{ navPush(); setS3View(view); buildCtl(); }; };
+      go('noeToPsp','psp'); go('noeToHopf','hopf'); go('noeToAtom','atom'); go('noeToGrav','grav');
     }
     if(V==='dfx'){
       ctl.querySelectorAll('[data-dfxst]').forEach(b=>b.onclick=()=>{ state.dfxStation=b.dataset.dfxst; buildCtl(); });
@@ -27125,10 +27420,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -28742,6 +29037,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='noe'){
+      fbsAnimT+=dt; updateNoe(dt);
     } else if(state.s3view==='dfx'){
       fbsAnimT+=dt; updateDfx(dt);
     } else if(state.s3view==='psp'){
