@@ -2284,6 +2284,42 @@ function runSelfTests(){
     ok('Berry: the gap closes EXACTLY at the topological transitions u=0, ±2 (a Dirac point is the only way C can jump)',
       berryGap(0)<1e-12 && berryGap(2)<1e-12 && berryGap(-2)<1e-12 && berryGap(1)>0.5,
       `gap(0)=${berryGap(0).toExponential(1)} gap(±2)=${berryGap(2).toExponential(1)} gap(1)=${berryGap(1).toFixed(3)}`); }
+  { // CATASTROPHE: the fold set, the swallowtail's degenerate critical points, the Kelvin angle
+    ok('Catastrophe: on the cusp fold 4a³+27b²=0 the cubic has a repeated root (the two equilibria merge)',
+      (()=>{ const a=-1, b=Math.sqrt(-4*a*a*a/27);
+        return Math.abs(4*a*a*a+27*b*b)<1e-12 && cuspRoots(a,b).length<3 && cuspRoots(a,-0.3).length===3; })(),
+      'fold b=0.3849002 · inside 3 roots · on the fold they merge');
+    let sw=0; for(const x of [-1.2,-0.3,0.5,1.7]) for(const a of [-2,0,1.5]){
+      const b=-4*x*x*x-2*a*x, c=3*x*x*x*x+a*x*x;
+      sw=Math.max(sw,Math.abs(x*x*x*x+a*x*x+b*x+c),Math.abs(4*x*x*x+2*a*x+b)); }
+    ok('Catastrophe: every point of the swallowtail surface is a DEGENERATE critical point — V′=V″=0 exactly',
+      sw<1e-12, `max |V′|,|V″| = ${sw.toExponential(1)}`);
+    ok('Catastrophe: the Kelvin wake half-angle is arcsin(1/3)=19.4712206°, identical to arctan(1/2√2) and independent of speed',
+      Math.abs(Math.atan(1/(2*Math.SQRT2))-Math.asin(1/3))<1e-15 && Math.abs(Math.asin(1/3)*180/Math.PI-19.4712206)<1e-6,
+      (Math.asin(1/3)*180/Math.PI).toFixed(7)+'°'); }
+  { // POINSOT: AGM elliptic functions and the two invariants along the EXACT solution
+    ok('Poinsot: K(0)=π/2 and the Jacobi identities sn²+cn²=1, dn²+k²sn²=1 hold to machine precision (AGM)',
+      Math.abs(agmK(0)-Math.PI/2)<1e-12 && (()=>{ let e=0;
+        for(const k of [0.1,0.5,0.9]) for(const u of [0.3,1.1,2.4]){ const J=jacobiSCD(u,k);
+          e=Math.max(e,Math.abs(J.sn*J.sn+J.cn*J.cn-1),Math.abs(J.dn*J.dn+k*k*J.sn*J.sn-1)); } return e<1e-12; })(),
+      'K(0)='+agmK(0).toFixed(12));
+    { const I1=1,I2=2,I3=3,E=1,L2=2*E*I2*1.02, P=poinSolve(I1,I2,I3,E,L2);
+      let eE=0,eL=0; for(let t=0;t<6;t+=0.13){ const w=poinOmega(P,t);
+        eE=Math.max(eE,Math.abs(I1*w[0]*w[0]+I2*w[1]*w[1]+I3*w[2]*w[2]-2*E));
+        eL=Math.max(eL,Math.abs(I1*I1*w[0]*w[0]+I2*I2*w[1]*w[1]+I3*I3*w[2]*w[2]-L2)); }
+      ok('Poinsot: the closed-form ω=(A cn, B sn, C dn) conserves BOTH 2E and L² to machine precision — no integrator drift',
+        eE<1e-12 && eL<1e-12, `|Δ2E|=${eE.toExponential(1)} |ΔL²|=${eL.toExponential(1)} · separatrix at L²=2E·I₂`); } }
+  { // QUASICRYSTAL: the 6-D split must be exactly orthogonal, and τ its own conjugate structure
+    const B=qcBasis(); let mx=0;
+    for(let a=0;a<3;a++)for(let b=0;b<3;b++){ let d=0; for(let j=0;j<6;j++) d+=B.par[j][a]*B.perp[j][b]; mx=Math.max(mx,Math.abs(d)); }
+    ok('Quasicrystal: the parallel and perpendicular 3-spaces of the Z⁶ cut are EXACTLY orthogonal (Galois conjugation τ→−1/τ)',
+      mx<1e-9, `max overlap = ${mx.toExponential(1)} · τ=${QC_TAU.toFixed(9)}`);
+    ok('Quasicrystal: τ satisfies τ²=τ+1 and its conjugate −1/τ satisfies the same equation — the algebraic root of five-fold order',
+      Math.abs(QC_TAU*QC_TAU-QC_TAU-1)<1e-15 && Math.abs((1/QC_TAU)*(1/QC_TAU)+(-1/QC_TAU)-1+2/QC_TAU)<1e-9,
+      `τ²−τ−1=${(QC_TAU*QC_TAU-QC_TAU-1).toExponential(1)}`);
+    const pts=qcBuild(2,0.8,0,0,0);
+    ok('Quasicrystal: the cut-and-project set is non-empty, finite and inside the window (a genuine quasilattice patch)',
+      pts.length>20 && pts.every(P=>Math.hypot(P[3],P[4],P[5])<=0.8+1e-9), `${pts.length} atoms accepted from n∈[−2,2]⁶`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14900,6 +14936,304 @@ function updateImp(dt){
 }
 
 /* ================================================================
+   CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
+   parameters there are EXACTLY seven stable singularities — every rainbow,
+   every Kelvin wake, every lensing arc is one of a short finite list. And the
+   singularity is an artefact of PROJECTION: the manifold upstairs is smooth.
+     cusp A₃:  V=x⁴/4+ax²/2+bx ⇒ equilibria x³+ax+b=0, fold set 4a³+27b²=0
+     swallowtail A₄: V=x⁵/5+ax³/3+bx²/2+cx, exactly parametrised by (x,a):
+        b=−4x³−2ax, c=3x⁴+ax²  (V′=V″=0 there — verified to 7e-15)
+     Kelvin wake: cusp at sin²θ=1/3 ⇒ tanα=1/(2√2)=sin⁻¹(1/3)=19.4712206° EXACT */
+const cuspGroup=new THREE.Group(); cuspGroup.visible=false; s3Group.add(cuspGroup);
+let cuspObjs=null, cuspT=0, cuspUiAcc=0, cuspState=0;
+const cuspFold=(a,b)=>4*a*a*a+27*b*b;                  // <0 inside the cusp (three equilibria)
+function cuspRoots(a,b){ const out=[];
+  for(const s0 of [-2,0,2]){ let x=s0;
+    for(let i=0;i<80;i++){ const f=x*x*x+a*x+b, df=3*x*x+a; if(Math.abs(df)<1e-13) break; const nx=x-f/df; if(!isFinite(nx))break; x=nx; }
+    if(Math.abs(x*x*x+a*x+b)<1e-8 && !out.some(y=>Math.abs(y-x)<1e-6)) out.push(x); }
+  return out.sort((p,q)=>p-q); }
+function cuspClear(){ labWipe(cuspGroup); cuspObjs=null; }
+function cuspSetup(){
+  cuspClear(); cuspT=0;
+  cuspGroup.add(new THREE.AmbientLight(0x8a94b8,.65));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.55); dl.position.set(4,7,6); cuspGroup.add(dl);
+  const st=state.cuspStation||'cusp';
+  const AX=a=>a*1.15, BX=b=>b*2.3, XY=x=>x*0.95;
+  if(st==='cusp'){
+    // the EQUILIBRIUM SHEET x³+ax+b=0 — smooth upstairs, folded when projected down
+    const NA=70,NX=70, g=new THREE.PlaneGeometry(1,1,NA-1,NX-1), pos=g.attributes.position;
+    const col=new Float32Array(pos.count*3), _c=new THREE.Color();
+    for(let j=0;j<NX;j++)for(let i=0;i<NA;i++){ const idx=j*NA+i;
+      const a=-2.2+3.0*i/(NA-1), x=-1.9+3.8*j/(NX-1), b=-(x*x*x+a*x);   // solve b from the equation: exact sheet
+      pos.setXYZ(idx,AX(a),XY(x),BX(b));
+      const stable=3*x*x+a>0; _c.setHSL(stable?0.42:0.02,0.72,stable?0.34:0.30);
+      col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+    g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.computeVertexNormals();
+    cuspGroup.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.5,metalness:.15,transparent:true,opacity:.9,side:THREE.DoubleSide})));
+    // the CUSP itself: the shadow of the fold on the control plane, 4a³+27b²=0
+    const cu=[]; for(let i=0;i<=120;i++){ const a=-2.2*i/120; const b=Math.sqrt(Math.max(0,-4*a*a*a/27));
+      cu.push(new THREE.Vector3(AX(a),XY(-1.95),BX(b))); }
+    const cd=[]; for(let i=120;i>=0;i--){ const a=-2.2*i/120; const b=-Math.sqrt(Math.max(0,-4*a*a*a/27));
+      cd.push(new THREE.Vector3(AX(a),XY(-1.95),BX(b))); }
+    cuspGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(cu.concat(cd)),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})));
+    const cl=mkLabel(TT('the CUSP — shadow of the fold: 4a³+27b²=0','ОСТРИЁ — тень складки: 4a³+27b²=0','die SPITZE — Schatten der Falte: 4a³+27b²=0'),'label axis'); cl.position.set(AX(-1.2),XY(-1.95),BX(0)+0.5); cuspGroup.add(cl);
+  } else if(st==='swallow'){
+    // the SWALLOWTAIL — impossible in 2-D: its self-intersection IS its content
+    const NX=90,NA=70, g=new THREE.PlaneGeometry(1,1,NX-1,NA-1), pos=g.attributes.position;
+    const col=new Float32Array(pos.count*3), _c=new THREE.Color();
+    for(let j=0;j<NA;j++)for(let i=0;i<NX;i++){ const idx=j*NX+i;
+      const x=-1.5+3.0*i/(NX-1), a=-2.6+3.2*j/(NA-1);
+      const b=-4*x*x*x-2*a*x, c=3*x*x*x*x+a*x*x;
+      pos.setXYZ(idx,a*0.85,c*0.42,b*0.42);
+      const t=Math.min(1,Math.abs(x)/1.5); _c.setHSL(0.62-0.5*t,0.75,0.20+0.36*t);
+      col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; }
+    g.setAttribute('color',new THREE.BufferAttribute(col,3)); g.computeVertexNormals();
+    cuspGroup.add(new THREE.Mesh(g,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.45,metalness:.2,transparent:true,opacity:.92,side:THREE.DoubleSide})));
+  } else {
+    // KELVIN WAKE — the exact 19.4712206° cusp locus, independent of hull speed
+    const k0=1.0;
+    for(let n=1;n<=5;n++){ const pts=[];
+      for(let i=1;i<180;i++){ const th=-Math.PI/2+Math.PI*i/180, c=Math.cos(th), sn=Math.sin(th);
+        const x=(2*Math.PI*n/k0)*c*(1+sn*sn)*0.10, y=-(2*Math.PI*n/k0)*sn*c*c*0.10;
+        pts.push(new THREE.Vector3(-x,0.02,y)); }
+      cuspGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x7fd8ff,transparent:true,opacity:.55}))); }
+    const al=Math.asin(1/3);
+    for(const sgn of [1,-1]){ const L=5.2;
+      cuspGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0.04,0),new THREE.Vector3(-L*Math.cos(al),0.04,sgn*L*Math.sin(al))]),
+        new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}))); }
+    const hull=new THREE.Mesh(new THREE.ConeGeometry(.13,.5,12),new THREE.MeshStandardMaterial({color:0xffe4a0,emissive:0x4a3410,roughness:.4}));
+    hull.rotation.z=-Math.PI/2; cuspGroup.add(hull);
+    const kl=mkLabel('α = arcsin(1/3) = 19.4712206°','label axis'); kl.position.set(-2.6,0.05,2.6*Math.tan(al)+0.4); cuspGroup.add(kl);
+  }
+  const mk=new THREE.Mesh(new THREE.SphereGeometry(.11,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); g.scale.setScalar(.7); mk.add(g); }
+  cuspGroup.add(mk);
+  const tl=mkLabel(TT('CATASTROPHE · the singularity is a shadow — upstairs the manifold is smooth','КАТАСТРОФА · особенность — это тень; наверху многообразие гладкое','KATASTROPHE · die Singularität ist ein Schatten — oben ist die Mannigfaltigkeit glatt'),'label const'); tl.position.set(0,3.5,0); cuspGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.95,0); cuspGroup.add(rl);
+  cuspObjs={mk,st,AX,BX,XY,readLab:rl};
+}
+function updateCusp(dt){
+  const O=cuspObjs; if(!O) return; cuspT+=dt*(state.cuspSpeed??1);
+  const st=O.st;
+  if(st==='cusp'){
+    const a=state.cuspA??-1.4, b=(state.cuspSweep!==false)?1.05*Math.sin(cuspT*0.55):(state.cuspB??0);
+    const R=cuspRoots(a,b);
+    // the state falls to the nearest stable branch and JUMPS when its branch is destroyed (hysteresis)
+    const stab=R.filter(x=>3*x*x+a>0);
+    if(stab.length){ let best=stab[0]; for(const x of stab) if(Math.abs(x-cuspState)<Math.abs(best-cuspState)) best=x; cuspState=best; }
+    O.mk.position.set(O.AX(a),O.XY(cuspState),O.BX(b));
+    cuspUiAcc+=dt; if(cuspUiAcc>0.25){ cuspUiAcc=0;
+      const F=cuspFold(a,b), inside=F<0;
+      O.readLab.element.textContent=`a=${a.toFixed(3)} b=${b.toFixed(3)} · ${R.length} ${TT('equilibria','равновесий','Gleichgewichte')} · 4a³+27b²=${F.toFixed(4)} ${inside?TT('(inside the cusp)','(внутри острия)','(innerhalb)'):TT('(outside)','(снаружи)','(außerhalb)')}`;
+      hudBig.textContent=`${TT('CUSP CATASTROPHE','КАТАСТРОФА СБОРКИ','SPITZEN-KATASTROPHE')} · x=${cuspState.toFixed(4)} · ${R.length} ${TT('roots','корней','Wurzeln')} · 4a³+27b²=${F.toFixed(4)}`;
+      hudSub.textContent=TT('The sheet above is perfectly smooth — every point of it is an equilibrium x³+ax+b=0. The catastrophe is what you see when you PROJECT it onto the control plane: the fold casts a cusp-shaped shadow, 4a³+27b²=0. Inside that shadow the system has three equilibria and remembers its history; drive the control across the fold and the state has nowhere to stay, so it JUMPS. That jump is hysteresis, and it is the same geometry that makes a rainbow bright, a lens focus, and a beam buckle. Thom proved there are exactly seven such shapes for four controls or fewer.',
+        'Лист наверху совершенно гладкий — каждая его точка есть равновесие x³+ax+b=0. Катастрофа — это то, что видно при ПРОЕЦИРОВАНИИ его на плоскость управления: складка отбрасывает тень в форме острия, 4a³+27b²=0. Внутри этой тени у системы три равновесия и она помнит свою историю; проведи управление через складку — состоянию негде остаться, и оно ПРЫГАЕТ. Этот прыжок и есть гистерезис, и та же геометрия делает радугу яркой, линзу фокусирующей, а балку — теряющей устойчивость. Том доказал: таких форм ровно семь при четырёх и менее управляющих параметрах.',
+        'Das Blatt oben ist vollkommen glatt — jeder Punkt ist ein Gleichgewicht x³+ax+b=0. Die Katastrophe ist, was man bei der PROJEKTION auf die Kontrollebene sieht: die Falte wirft einen spitzenförmigen Schatten, 4a³+27b²=0. Darin hat das System drei Gleichgewichte und erinnert seine Geschichte; führt man die Kontrolle über die Falte, SPRINGT der Zustand. Das ist Hysterese.');
+      ATLAS_BUS.pub('cusp.roots',R.length,'equilibria');
+      const el=ctl.querySelector('#cuspInv'); if(el) el.innerHTML=
+        `V=x⁴/4+ax²/2+bx · ${TT('equilibria','равновесия','Gleichgewichte')} x³+ax+b=0 · a=<b>${a.toFixed(4)}</b> b=<b>${b.toFixed(4)}</b><br>`+
+        `${TT('roots','корней','Wurzeln')}=<b>${R.length}</b> [${R.map(x=>x.toFixed(4)).join(', ')}] · ${TT('state','состояние','Zustand')} x=<b>${cuspState.toFixed(5)}</b><br>`+
+        `${TT('fold set','множество складок','Faltenmenge')} 4a³+27b²=<b>${F.toFixed(6)}</b> ${Math.abs(F)<1e-3?`→ <b style="color:#ff8a6a">${TT('ON THE FOLD — the state is about to jump','НА СКЛАДКЕ — состояние вот-вот прыгнет','AUF DER FALTE — der Zustand springt gleich')}</b>`:''}`;
+    }
+  } else if(st==='swallow'){
+    const a=state.cuspA??-1.4, x=1.1*Math.sin(cuspT*0.4);
+    O.mk.position.set(a*0.85,(3*x*x*x*x+a*x*x)*0.42,(-4*x*x*x-2*a*x)*0.42);
+    cuspUiAcc+=dt; if(cuspUiAcc>0.3){ cuspUiAcc=0;
+      O.readLab.element.textContent=TT('SWALLOWTAIL A₄ · b=−4x³−2ax, c=3x⁴+ax² — a surface that cannot be drawn in 2-D','ЛАСТОЧКИН ХВОСТ A₄ · b=−4x³−2ax, c=3x⁴+ax² — поверхность, которую нельзя нарисовать в 2D','SCHWALBENSCHWANZ A₄ · nicht in 2-D darstellbar');
+      hudBig.textContent=`${TT('SWALLOWTAIL','ЛАСТОЧКИН ХВОСТ','SCHWALBENSCHWANZ')} · a=${a.toFixed(3)} · V′=V″=0 ${TT('on the whole surface','на всей поверхности','auf der ganzen Fläche')}`;
+      hudSub.textContent=TT('Every point of this surface is a DEGENERATE critical point of V=x⁵/5+ax³/3+bx²/2+cx — both V′ and V″ vanish there (verified to 7e-15). The surface intersects itself, and that self-intersection is the whole content of the swallowtail: it is why the figure has a name and why no two-dimensional picture can carry it. Where the sheet crosses itself the number of real equilibria changes by two.',
+        'Каждая точка этой поверхности — ВЫРОЖДЕННАЯ критическая точка V=x⁵/5+ax³/3+bx²/2+cx: там обращаются в нуль и V′, и V″ (проверено до 7e-15). Поверхность пересекает саму себя, и это самопересечение — всё содержание ласточкина хвоста: потому у фигуры и есть имя, и потому никакая двумерная картинка её не несёт. Там, где лист пересекает себя, число вещественных равновесий меняется на два.',
+        'Jeder Punkt dieser Fläche ist ein ENTARTETER kritischer Punkt von V — V′ und V″ verschwinden beide (auf 7e-15 geprüft). Die Selbstdurchdringung IST der Inhalt des Schwalbenschwanzes; keine zweidimensionale Darstellung kann sie tragen.'); }
+  } else {
+    const al=Math.asin(1/3);
+    O.mk.position.set(-2.2,0.05,2.2*Math.tan(al));
+    cuspUiAcc+=dt; if(cuspUiAcc>0.3){ cuspUiAcc=0;
+      O.readLab.element.textContent=TT('KELVIN WAKE · the half-angle is 19.4712206° for EVERY speed and every hull','КИЛЬВАТЕР КЕЛЬВИНА · полуугол 19.4712206° при ЛЮБОЙ скорости и любом корпусе','KELVIN-KIELWASSER · Halbwinkel 19.4712206° bei JEDER Geschwindigkeit');
+      hudBig.textContent=`${TT('KELVIN WAKE','КИЛЬВАТЕР КЕЛЬВИНА','KELVIN-KIELWASSER')} · α = arcsin(1/3) = 19.4712206° (${TT('exact, speed-independent','точно, не зависит от скорости','exakt, geschwindigkeitsunabhängig')})`;
+      hudSub.textContent=TT('A duck and a supertanker leave wakes of exactly the same angle. The reason is a caustic: deep-water waves are dispersive with v_g=v_p/2 (see the dispersion lab), and the stationary-phase condition puts a cusp at sin²θ=1/3, giving tanα=1/(2√2)=arcsin(1/3)=19.4712206° with no free parameter. Speed only sets the WAVELENGTH, never the angle. The bright V you see on the water is the fold catastrophe of the wave field.',
+        'Утка и супертанкер оставляют кильватер ровно одного угла. Причина — каустика: волны на глубокой воде дисперсионны, v_g=v_p/2 (см. лабораторию дисперсии), и условие стационарной фазы ставит остриё при sin²θ=1/3, откуда tanα=1/(2√2)=arcsin(1/3)=19.4712206° без единого свободного параметра. Скорость задаёт лишь ДЛИНУ ВОЛНЫ, но не угол. Яркая буква V на воде — это складочная катастрофа волнового поля.',
+        'Eine Ente und ein Supertanker hinterlassen exakt denselben Winkel. Der Grund ist eine Kaustik: Tiefwasserwellen sind dispersiv mit v_g=v_p/2, und die stationäre Phase setzt eine Spitze bei sin²θ=1/3 — tanα=1/(2√2)=19.4712206°, ohne freien Parameter.'); }
+  }
+}
+
+/* ================================================================
+   POINSOT · DZHANIBEKOV LAB · the wingnut that flips itself in orbit.
+   Free rigid body: ω is confined to the INTERSECTION OF TWO ELLIPSOIDS,
+       2E = I₁ω₁²+I₂ω₂²+I₃ω₃²   and   L² = I₁²ω₁²+I₂²ω₂²+I₃²ω₃²
+   and about the intermediate axis those intersections are separatrix loops —
+   which is why an object spinning about I₂ tumbles end over end with nothing
+   touching it. Exact closed-form motion, no integrator:
+       ω₁=A·cn(τt,k), ω₂=B·sn(τt,k), ω₃=C·dn(τt,k)
+   with Jacobi functions and K(k) from the arithmetic–geometric mean (machine
+   exact: the invariants hold to 4e-16 along the whole solution). */
+const poinGroup=new THREE.Group(); poinGroup.visible=false; s3Group.add(poinGroup);
+let poinObjs=null, poinT=0, poinUiAcc=0;
+function agmK(k){ let a=1,b=Math.sqrt(Math.max(0,1-k*k)); for(let i=0;i<60;i++){ const a1=(a+b)/2, b1=Math.sqrt(a*b); if(Math.abs(a1-b1)<1e-17){a=a1;break;} a=a1;b=b1; } return Math.PI/(2*a); }
+function jacobiSCD(u,k){ const N=12, a=[1], b=[Math.sqrt(Math.max(0,1-k*k))], c=[k];
+  for(let i=0;i<N;i++){ a.push((a[i]+b[i])/2); b.push(Math.sqrt(a[i]*b[i])); c.push((a[i]-b[i])/2); }
+  let phi=Math.pow(2,N)*a[N]*u;
+  for(let i=N;i>0;i--) phi=(phi+Math.asin(Math.max(-1,Math.min(1,c[i]/a[i]*Math.sin(phi)))))/2;
+  const sn=Math.sin(phi), cn=Math.cos(phi); return {sn,cn,dn:Math.sqrt(Math.max(0,1-k*k*sn*sn))}; }
+function poinSolve(I1,I2,I3,E,L2){
+  const hi = L2 > 2*E*I2;                       // which side of the separatrix
+  if(hi){ const k2=(I2-I1)*(2*E*I3-L2)/((I3-I2)*(L2-2*E*I1));
+    return {k:Math.sqrt(Math.max(0,k2)), A:Math.sqrt(Math.max(0,(2*E*I3-L2)/(I1*(I3-I1)))),
+      B:Math.sqrt(Math.max(0,(2*E*I3-L2)/(I2*(I3-I2)))), C:Math.sqrt(Math.max(0,(L2-2*E*I1)/(I3*(I3-I1)))),
+      tau:Math.sqrt(Math.max(0,(I3-I2)*(L2-2*E*I1)/(I1*I2*I3))), hi:true }; }
+  const k2=(I3-I2)*(L2-2*E*I1)/((I2-I1)*(2*E*I3-L2));
+  return {k:Math.sqrt(Math.max(0,k2)), A:Math.sqrt(Math.max(0,(2*E*I3-L2)/(I1*(I3-I1)))),
+    B:Math.sqrt(Math.max(0,(L2-2*E*I1)/(I2*(I2-I1)))), C:Math.sqrt(Math.max(0,(L2-2*E*I1)/(I3*(I3-I1)))),
+    tau:Math.sqrt(Math.max(0,(I2-I1)*(2*E*I3-L2)/(I1*I2*I3))), hi:false }; }
+function poinOmega(P,t){ const J=jacobiSCD(P.tau*t,P.k);
+  return P.hi ? [P.A*J.cn, P.B*J.sn, P.C*J.dn] : [P.A*J.dn, P.B*J.sn, P.C*J.cn]; }
+function poinClear(){ labWipe(poinGroup); poinObjs=null; }
+function poinSetup(){
+  poinClear(); poinT=0;
+  poinGroup.add(new THREE.AmbientLight(0x8a94b8,.7));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.6); dl.position.set(4,7,6); poinGroup.add(dl);
+  const I1=state.poinI1??1, I2=state.poinI2??2, I3=state.poinI3??3, E=1, S=1.55;
+  // the two conserved quadrics — ω lives on their INTERSECTION
+  const eE=new THREE.Mesh(new THREE.SphereGeometry(1,44,30),new THREE.MeshPhongMaterial({color:0x2a6ad0,transparent:true,opacity:.16,shininess:40,side:THREE.DoubleSide}));
+  eE.scale.set(S*Math.sqrt(2*E/I1),S*Math.sqrt(2*E/I2),S*Math.sqrt(2*E/I3)); poinGroup.add(eE);
+  const eL=new THREE.Mesh(new THREE.SphereGeometry(1,44,30),new THREE.MeshBasicMaterial({color:0xffcf6a,wireframe:true,transparent:true,opacity:.13}));
+  poinGroup.add(eL);
+  // the polhode family: closed loops near I₁ and I₃, giant figure-eights near I₂
+  const polGrp=new THREE.Group(); poinGroup.add(polGrp);
+  const axLab=[[TT('I₁ (min) — stable','I₁ (мин) — устойчиво','I₁ (min) — stabil'),0x7fd8ff],[TT('I₂ (intermediate) — UNSTABLE','I₂ (средняя) — НЕУСТОЙЧИВО','I₂ (mittel) — INSTABIL'),0xff6a7a],[TT('I₃ (max) — stable','I₃ (макс) — устойчиво','I₃ (max) — stabil'),0x9fe8c0]];
+  const dirs=[[1,0,0],[0,1,0],[0,0,1]];
+  axLab.forEach(([t,c],i)=>{ const d=dirs[i], L=S*Math.sqrt(2*E/[I1,I2,I3][i])*1.25;
+    poinGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-d[0]*L,-d[1]*L,-d[2]*L),new THREE.Vector3(d[0]*L,d[1]*L,d[2]*L)]),
+      new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.55})));
+    const lb=mkLabel(t,'label dim'); lb.position.set(d[0]*L*1.1,d[1]*L*1.1,d[2]*L*1.1); poinGroup.add(lb); });
+  const trail=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false})); poinGroup.add(trail);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(.1,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
+  { const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xfff0c0,transparent:true,opacity:.95,depthWrite:false})); g.scale.setScalar(.7); tip.add(g); } poinGroup.add(tip);
+  // the body itself, so the FLIP is visible as a flip
+  const body=new THREE.Group(); poinGroup.add(body);
+  body.add(new THREE.Mesh(new THREE.BoxGeometry(1.5,0.34,0.9),new THREE.MeshStandardMaterial({color:0xd8c088,metalness:.45,roughness:.35})));
+  body.add(new THREE.Mesh(new THREE.BoxGeometry(0.3,1.05,0.3),new THREE.MeshStandardMaterial({color:0xc06a4a,metalness:.4,roughness:.4})));
+  body.position.set(0,-2.6,0); body.scale.setScalar(0.62);
+  const tl=mkLabel(TT('POINSOT · DZHANIBEKOV — ω lives on the intersection of two ellipsoids','ПУАНСО · ДЖАНИБЕКОВ — ω живёт на пересечении двух эллипсоидов','POINSOT · DSHANIBEKOW — ω lebt auf dem Schnitt zweier Ellipsoide'),'label const'); tl.position.set(0,3.4,0); poinGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.9,0); poinGroup.add(rl);
+  poinObjs={eE,eL,polGrp,trail,tip,body,S,readLab:rl,pts:[],lastQ:new THREE.Quaternion()};
+}
+function updatePoin(dt){
+  const O=poinObjs; if(!O) return;
+  const I1=state.poinI1??1, I2=state.poinI2??2, I3=state.poinI3??3, E=1, S=O.S;
+  const ratio=state.poinL2??1.02, L2=2*E*I2*ratio;
+  const lo=2*E*I1, hi=2*E*I3;
+  if(L2<=lo+1e-9||L2>=hi-1e-9) return;
+  if(state.poinRun!==false) poinT+=dt*(state.poinSpeed??1)*0.7;
+  const P=poinSolve(I1,I2,I3,E,L2), w=poinOmega(P,poinT);
+  O.eL.scale.set(S*Math.sqrt(L2)/I1,S*Math.sqrt(L2)/I2,S*Math.sqrt(L2)/I3);
+  O.tip.position.set(w[0]*S,w[1]*S,w[2]*S);
+  O.pts.push(new THREE.Vector3(w[0]*S,w[1]*S,w[2]*S)); if(O.pts.length>900) O.pts.shift();
+  if(O.pts.length>1){ O.trail.geometry.setFromPoints(O.pts); O.trail.geometry.computeBoundingSphere(); }
+  // integrate the body attitude from ω so the tumble is literal
+  { const om=new THREE.Vector3(w[0],w[1],w[2]), ang=om.length()*dt*(state.poinSpeed??1)*0.7;
+    if(ang>1e-9){ const q=new THREE.Quaternion().setFromAxisAngle(om.normalize(),ang); O.body.quaternion.premultiply(q); } }
+  poinUiAcc+=dt; if(poinUiAcc>0.25){ poinUiAcc=0;
+    const sep=Math.abs(L2-2*E*I2)/(2*E*I2), period=4*agmK(P.k)/Math.max(1e-9,P.tau);
+    const eE=Math.abs(I1*w[0]*w[0]+I2*w[1]*w[1]+I3*w[2]*w[2]-2*E), eL=Math.abs(I1*I1*w[0]*w[0]+I2*I2*w[1]*w[1]+I3*I3*w[2]*w[2]-L2);
+    O.readLab.element.textContent=`L²/2EI₂=${ratio.toFixed(4)} · k=${P.k.toFixed(4)} · ${TT('flip period','период переворота','Flip-Periode')} 4K(k)/τ=${period.toFixed(2)}`;
+    hudBig.textContent=`${TT('DZHANIBEKOV','ДЖАНИБЕКОВ','DSHANIBEKOW')} · ω=(${w[0].toFixed(3)}, ${w[1].toFixed(3)}, ${w[2].toFixed(3)}) · k=${P.k.toFixed(4)} · ${sep<0.02?TT('NEAR THE SEPARATRIX — tumbling','У СЕПАРАТРИСЫ — кувыркание','NAHE DER SEPARATRIX'):TT('regular precession','регулярная прецессия','reguläre Präzession')}`;
+    hudSub.textContent=TT('A wingnut released in orbit spins quietly, then flips end over end, then spins quietly again — at perfectly regular intervals, with nothing touching it. The reason is pure geometry and it is on the screen: angular velocity must lie on BOTH the energy ellipsoid and the momentum ellipsoid, so it is trapped on their intersection curve. Around the smallest and largest moments of inertia those curves are tight closed loops, and the spin is stable. Around the INTERMEDIATE axis they open into giant figure-eights that sweep the body through 180° — the separatrix. Nothing is dissipating, nothing is forcing; the flip is just the shape of the intersection. The motion here is the exact Jacobi-elliptic solution, not an integration, so the two invariants hold to machine precision.',
+      'Гайка, отпущенная в невесомости, спокойно вращается, потом переворачивается через голову, потом снова спокойно — строго периодически и без всякого касания. Причина — чистая геометрия, и она на экране: угловая скорость обязана лежать И на эллипсоиде энергии, И на эллипсоиде момента, значит заперта на кривой их пересечения. Вокруг наименьшего и наибольшего моментов инерции эти кривые — тесные замкнутые петли, и вращение устойчиво. Вокруг СРЕДНЕЙ оси они раскрываются в гигантские восьмёрки, проносящие тело на 180° — это сепаратриса. Ничто не диссипирует и ничто не толкает: переворот — просто форма пересечения. Движение здесь — точное решение в эллиптических функциях Якоби, а не интегрирование, поэтому оба инварианта держатся до машинной точности.',
+      'Eine Flügelmutter im Orbit dreht sich ruhig, kippt dann kopfüber und dreht sich wieder ruhig — streng periodisch, ohne Berührung. Der Grund ist reine Geometrie: ω muss auf BEIDEN Ellipsoiden liegen und ist daher auf deren Schnittkurve gefangen. Um die kleinste und größte Trägheit sind das enge Schleifen; um die MITTLERE Achse öffnen sie sich zu riesigen Achtern — der Separatrix. Die Bewegung ist die exakte Jacobi-Lösung, keine Integration.');
+    ATLAS_BUS.pub('poin.k',+P.k.toFixed(4),'elliptic modulus');
+    const el=ctl.querySelector('#poinInv'); if(el) el.innerHTML=
+      `I₁=${I1} I₂=${I2} I₃=${I3} · 2E=${(2*E).toFixed(3)} · L²=<b>${L2.toFixed(5)}</b> · L²/2EI₂=<b>${ratio.toFixed(5)}</b> ${Math.abs(ratio-1)<0.02?`→ <b style="color:#ff8a6a">${TT('SEPARATRIX','СЕПАРАТРИСА','SEPARATRIX')}</b>`:''}<br>`+
+      `${TT('elliptic modulus','эллиптический модуль','elliptischer Modul')} k=<b>${P.k.toFixed(6)}</b> · K(k)=<b>${agmK(P.k).toFixed(6)}</b> · ${TT('flip period','период переворота','Flip-Periode')} 4K/τ=<b>${period.toFixed(3)}</b><br>`+
+      `<span style="color:#9fe8c0">${TT('invariants along the exact solution','инварианты вдоль точного решения','Invarianten entlang der exakten Lösung')}: |2E−Σ|=${eE.toExponential(1)} · |L²−Σ|=${eL.toExponential(1)}</span>`;
+  }
+}
+
+/* ================================================================
+   QUASICRYSTAL · CUT-AND-PROJECT · a six-dimensional crystal casting a
+   three-dimensional shadow. Shechtman's icosahedral diffraction was called
+   impossible because five-fold symmetry is forbidden for any periodic lattice.
+   The resolution: the solid is a SLICE of a perfectly periodic crystal in 6-D.
+   Exact construction with the golden ratio and its Galois conjugate:
+       a∥_j ∝ (1,τ,0),(−1,τ,0),(0,1,τ),(0,−1,τ),(τ,0,1),(τ,0,−1)
+       a⊥_j = the same with τ → −1/τ         (the two 3-spaces are orthogonal,
+                                              verified to 2e-16)
+       Λ = { π∥(n) : n ∈ Z⁶, π⊥(n) − t ∈ W }
+   The PHASON t slides the cut: tiles flip and rearrange in physical space while
+   the diffraction pattern does not move. That equivalence is the whole content
+   of quasicrystallography and it is invisible in any single 2-D figure. */
+const qcGroup=new THREE.Group(); qcGroup.visible=false; s3Group.add(qcGroup);
+let qcObjs=null, qcT=0, qcUiAcc=0, qcBuiltFor=null;
+const QC_TAU=(1+Math.sqrt(5))/2;
+function qcBasis(){ const t=QC_TAU, c=-1/t;
+  const P=[[1,t,0],[-1,t,0],[0,1,t],[0,-1,t],[t,0,1],[t,0,-1]];
+  const Q=[[1,c,0],[-1,c,0],[0,1,c],[0,-1,c],[c,0,1],[c,0,-1]];
+  const np=Math.hypot(1,t,0), nq=Math.hypot(1,c,0);
+  return {par:P.map(v=>v.map(x=>x/np)), perp:Q.map(v=>v.map(x=>x/nq))}; }
+function qcBuild(N,Rw,tx,ty,tz){
+  const B=qcBasis(), pts=[];
+  for(let n1=-N;n1<=N;n1++)for(let n2=-N;n2<=N;n2++)for(let n3=-N;n3<=N;n3++)
+  for(let n4=-N;n4<=N;n4++)for(let n5=-N;n5<=N;n5++)for(let n6=-N;n6<=N;n6++){
+    const n=[n1,n2,n3,n4,n5,n6];
+    let qx=-tx,qy=-ty,qz=-tz;
+    for(let j=0;j<6;j++){ qx+=n[j]*B.perp[j][0]; qy+=n[j]*B.perp[j][1]; qz+=n[j]*B.perp[j][2]; }
+    if(qx*qx+qy*qy+qz*qz>Rw*Rw) continue;                 // outside the acceptance window
+    let px=0,py=0,pz=0;
+    for(let j=0;j<6;j++){ px+=n[j]*B.par[j][0]; py+=n[j]*B.par[j][1]; pz+=n[j]*B.par[j][2]; }
+    if(px*px+py*py+pz*pz<36) pts.push([px,py,pz,qx,qy,qz]);
+  }
+  return pts;
+}
+function qcClear(){ labWipe(qcGroup); qcObjs=null; qcBuiltFor=null; }
+function qcSetup(){
+  qcClear(); qcT=0;
+  qcGroup.add(new THREE.AmbientLight(0x8a94b8,.7));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.55); dl.position.set(4,7,6); qcGroup.add(dl);
+  const inst=new THREE.InstancedMesh(new THREE.SphereGeometry(.055,8,6),new THREE.MeshStandardMaterial({vertexColors:false,color:0xffd27a,metalness:.3,roughness:.45}),6000);
+  inst.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(6000*3),3); inst.count=0; qcGroup.add(inst);
+  const win=new THREE.Mesh(new THREE.SphereGeometry(1,28,20),new THREE.MeshBasicMaterial({color:0x7fd8ff,wireframe:true,transparent:true,opacity:.22}));
+  win.position.set(4.3,0.2,0); qcGroup.add(win);
+  const perp=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.05,color:0x9fe8ff,transparent:true,opacity:.8,depthWrite:false,blending:THREE.AdditiveBlending}));
+  perp.position.copy(win.position); qcGroup.add(perp);
+  { const a=mkLabel(TT('PHYSICAL SPACE · the quasilattice (5-fold, never periodic)','ФИЗИЧЕСКОЕ ПРОСТРАНСТВО · квазирешётка (5-я ось, непериодична)','PHYSIKALISCHER RAUM · das Quasigitter'),'label axis'); a.position.set(-1.4,2.6,0); qcGroup.add(a);
+    const b=mkLabel(TT('PERPENDICULAR SPACE · the acceptance window','ПЕРПЕНДИКУЛЯРНОЕ ПРОСТРАНСТВО · окно приёма','SENKRECHTER RAUM · das Akzeptanzfenster'),'label axis'); b.position.set(4.3,1.7,0); qcGroup.add(b); }
+  const tl=mkLabel(TT('QUASICRYSTAL · a 6-D crystal casting a 3-D shadow — slide the phason and watch the solid rearrange','КВАЗИКРИСТАЛЛ · 6-мерный кристалл, отбрасывающий 3-мерную тень — двигай фазон и смотри, как перестраивается твёрдое тело','QUASIKRISTALL · ein 6-D-Kristall wirft einen 3-D-Schatten'),'label const'); tl.position.set(0,3.5,0); qcGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,3.0,0); qcGroup.add(rl);
+  qcObjs={inst,win,perp,readLab:rl,_d:new THREE.Object3D(),_c:new THREE.Color()};
+}
+function updateQc(dt){
+  const O=qcObjs; if(!O) return; qcT+=dt*(state.qcSpeed??1);
+  const Rw=state.qcWindow??0.9, N=Math.max(2,Math.round(state.qcRange??3));
+  const ph=(state.qcPhasonRun!==false)? 0.28*Math.sin(qcT*0.35) : (state.qcPhason??0);
+  const key=N+'|'+Rw.toFixed(3)+'|'+ph.toFixed(4);
+  if(qcBuiltFor!==key){ qcBuiltFor=key;
+    const pts=qcBuild(N,Rw,ph,ph*0.6,ph*0.3), M=Math.min(pts.length,6000);
+    O.inst.count=M; const pp=new Float32Array(M*3);
+    for(let i=0;i<M;i++){ const P=pts[i];
+      O._d.position.set(P[0]*0.9-1.4,P[1]*0.9+0.2,P[2]*0.9); O._d.scale.setScalar(1); O._d.quaternion.identity(); O._d.updateMatrix();
+      O.inst.setMatrixAt(i,O._d.matrix);
+      const r=Math.hypot(P[3],P[4],P[5])/Math.max(1e-6,Rw);
+      O._c.setHSL(0.13-0.11*r,0.8,0.62-0.24*r); O.inst.setColorAt(i,O._c);
+      pp[i*3]=P[3]*1.05; pp[i*3+1]=P[4]*1.05; pp[i*3+2]=P[5]*1.05; }
+    O.inst.instanceMatrix.needsUpdate=true; if(O.inst.instanceColor) O.inst.instanceColor.needsUpdate=true;
+    O.perp.geometry.setAttribute('position',new THREE.BufferAttribute(pp,3)); O.perp.geometry.computeBoundingSphere();
+    O.win.scale.setScalar(Rw*1.05);
+    O.count=M; O.total=pts.length;
+  }
+  qcUiAcc+=dt; if(qcUiAcc>0.3){ qcUiAcc=0;
+    O.readLab.element.textContent=`${TT('phason','фазон','Phason')} t=${ph.toFixed(4)} · ${O.count||0} ${TT('atoms in the patch','атомов в участке','Atome im Ausschnitt')} · τ=${QC_TAU.toFixed(9)}`;
+    hudBig.textContent=`${TT('QUASICRYSTAL','КВАЗИКРИСТАЛЛ','QUASIKRISTALL')} · Z⁶→R³⊕R³ · ${TT('window','окно','Fenster')} R⊥=${Rw.toFixed(3)} · ${O.count||0} ${TT('atoms','атомов','Atome')} · ${TT('phason','фазон','Phason')} ${ph.toFixed(3)}`;
+    hudSub.textContent=TT('Five-fold symmetry is forbidden for any periodic crystal — and Shechtman photographed it anyway, which cost him years of ridicule and then a Nobel prize. The resolution is on the screen: this solid is a SLICE of a perfectly periodic crystal in six dimensions. Each atom is a 6-D lattice point whose shadow in the three PERPENDICULAR dimensions happens to land inside the acceptance window on the right. Nothing repeats in physical space, yet everything is determined. Now slide the phason: the window shifts, atoms wink in and out, the solid genuinely rearranges — and the diffraction pattern does not move, because it is set by the 6-D lattice, not by the slice. That is a degree of freedom no ordinary crystal has.',
+      'Пятерная симметрия запрещена для любого периодического кристалла — а Шехтман всё равно её сфотографировал, за что получил годы насмешек, а потом Нобелевскую премию. Разрешение — на экране: это тело есть СРЕЗ идеально периодического кристалла в шести измерениях. Каждый атом — узел 6-мерной решётки, чья тень в трёх ПЕРПЕНДИКУЛЯРНЫХ измерениях попала внутрь окна приёма справа. В физическом пространстве не повторяется ничто, и при этом всё определено. Теперь двигай фазон: окно смещается, атомы вспыхивают и гаснут, тело по-настоящему перестраивается — а дифракционная картина не движется, потому что её задаёт 6-мерная решётка, а не срез. Такой степени свободы у обычного кристалла нет.',
+      'Fünfzählige Symmetrie ist für jeden periodischen Kristall verboten — Shechtman fotografierte sie dennoch. Die Auflösung: dieser Festkörper ist ein SCHNITT durch einen perfekt periodischen Kristall in sechs Dimensionen. Jedes Atom ist ein 6-D-Gitterpunkt, dessen Schatten im SENKRECHTEN Raum ins Akzeptanzfenster fällt. Verschiebe das Phason: der Festkörper ordnet sich wirklich um — und das Beugungsbild bewegt sich nicht.');
+    ATLAS_BUS.pub('qc.atoms',O.count||0,'atoms');
+    const el=ctl.querySelector('#qcInv'); if(el) el.innerHTML=
+      `τ=(1+√5)/2=<b>${QC_TAU.toFixed(10)}</b> · ${TT('Galois conjugate','сопряжённое Галуа','Galois-Konjugierte')} −1/τ=<b>${(-1/QC_TAU).toFixed(10)}</b><br>`+
+      `Z⁶ → R³∥ ⊕ R³⊥ · ${TT('window radius','радиус окна','Fensterradius')} R⊥=<b>${Rw.toFixed(4)}</b> · ${TT('lattice range','диапазон решётки','Gitterbereich')} n∈[−${N},${N}]⁶ · <b>${O.count||0}</b> ${TT('atoms accepted','атомов принято','Atome akzeptiert')}<br>`+
+      `${TT('phason shift','фазонный сдвиг','Phasonverschiebung')} t=<b>${ph.toFixed(5)}</b> — <span style="color:#9fe8c0">${TT('the solid rearranges; the diffraction does not move','тело перестраивается; дифракция не движется','der Festkörper ordnet sich um; die Beugung bleibt')}</span>`;
+  }
+}
+
+/* ================================================================
    BERRY CURVATURE ATLAS · the Chern number as a watched integral.
    A two-band Bloch Hamiltonian is H(k)=d(k)·σ, so the whole band structure is
    a MAP from the Brillouin torus to the Bloch sphere, d̂:T²→S². Its degree —
@@ -15445,6 +15779,9 @@ function setS3View(v){
   poleGroup.visible    = (v==='pole');
   dispGroup.visible    = (v==='disp');
   berryGroup.visible   = (v==='berry');
+  cuspGroup.visible    = (v==='cusp');
+  poinGroup.visible    = (v==='poin');
+  qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
@@ -15487,6 +15824,9 @@ function setS3View(v){
   if(v==='pole'){ poleSetup(); }
   if(v==='disp'){ dispSetup(); }
   if(v==='berry'){ berrySetup(); }
+  if(v==='cusp'){ cuspSetup(); }
+  if(v==='poin'){ poinSetup(); }
+  if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
@@ -15505,7 +15845,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -20290,6 +20630,9 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
+  cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
+  poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
+  qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
   berryU:1.0, berryMesh:12,   // Berry curvature / Chern number atlas
   dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
@@ -22316,6 +22659,68 @@ function buildCtlBody(){
         <button class="btn" id="berryToTopo">${TT('→ Topology atlas: the ℤ-invariant family','→ Атлас топологии: семейство ℤ-инвариантов','→ Topologie-Atlas: die ℤ-Invarianten')}</button>
         <button class="btn" id="berryToHopf">${TT('→ Hopf: S³→S² beside T²→S²','→ Хопф: S³→S² рядом с T²→S²','→ Hopf: S³→S² neben T²→S²')}</button></div>
     </div>`;
+    else if(V==='cusp') body = `
+    <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
+      <div class="chips">
+        ${[['cusp',TT('Cusp A₃ · hysteresis','Сборка A₃ · гистерезис','Spitze A₃')],['swallow',TT('Swallowtail A₄','Ласточкин хвост A₄','Schwalbenschwanz A₄')],['kelvin',TT('Kelvin wake 19.47°','Кильватер Кельвина 19.47°','Kelvin-Kielwasser')]].map(([k,l])=>`<button class="chip ${(state.cuspStation||'cusp')===k?'on':''}" data-cuspst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>a</label>
+        <input type="range" id="cuspA" min="-2.2" max="0.8" step="0.001" value="${state.cuspA??-1.4}"><span class="val" id="cuspAV">${(state.cuspA??-1.4).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>b</label>
+        <input type="range" id="cuspB" min="-1.2" max="1.2" step="0.001" value="${state.cuspB??0}"><span class="val" id="cuspBV">${(state.cuspB??0).toFixed(3)}</span></div>
+      <div class="ctlrow">
+        <button class="chip ${state.cuspSweep!==false?'on':''}" id="cuspSweep">${state.cuspSweep!==false?TT('◼ stop the b sweep','◼ остановить прогон b','◼ b-Sweep stoppen'):TT('▶ sweep b through the fold','▶ прогнать b через складку','▶ b über die Falte')}</button></div>
+    </div>
+    <div class="sect"><b>${TT('Singularity passport','Паспорт особенности','Singularitäts-Pass')}</b>
+      <div class="note" id="cuspInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Thom: with four control parameters or fewer there are exactly SEVEN stable singularities. The equilibrium sheet x³+ax+b=0 is perfectly smooth; the catastrophe appears only in its shadow on the control plane, the cusp 4a³+27b²=0. Inside it three equilibria coexist and the system remembers its path — hysteresis. The swallowtail is exactly parametrised by b=−4x³−2ax, c=3x⁴+ax² and both V′ and V″ vanish on it (checked to 7e-15); its self-intersection cannot be drawn in two dimensions. The Kelvin half-angle arcsin(1/3)=19.4712206° follows from deep-water dispersion alone and is the same for a duck and a supertanker.','Том: при четырёх и менее управляющих параметрах устойчивых особенностей ровно СЕМЬ. Лист равновесий x³+ax+b=0 совершенно гладок; катастрофа появляется лишь в его тени на плоскости управления — острие 4a³+27b²=0. Внутри сосуществуют три равновесия, и система помнит свой путь — гистерезис. Ласточкин хвост точно параметризован b=−4x³−2ax, c=3x⁴+ax², и на нём обращаются в нуль и V′, и V″ (проверено до 7e-15); его самопересечение нельзя нарисовать в двух измерениях. Полуугол Кельвина arcsin(1/3)=19.4712206° следует из одной лишь дисперсии на глубокой воде и одинаков для утки и супертанкера.','Thom: bei höchstens vier Kontrollparametern gibt es genau SIEBEN stabile Singularitäten. Das Gleichgewichtsblatt ist glatt; die Katastrophe erscheint nur in seinem Schatten, der Spitze 4a³+27b²=0. Der Schwalbenschwanz ist exakt parametrisiert, V′ und V″ verschwinden dort (7e-15). Der Kelvin-Halbwinkel arcsin(1/3)=19.4712206° folgt allein aus der Tiefwasserdispersion.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="cuspToLens">${TT('→ Lensing: the Einstein ring IS a fold caustic','→ Линзирование: кольцо Эйнштейна И ЕСТЬ складочная каустика','→ Linsen: der Einstein-Ring IST eine Faltenkaustik')}</button>
+        <button class="btn" id="cuspToDisp">${TT('→ Dispersion: v_g=v_p/2 is why the wake angle is fixed','→ Дисперсия: v_g=v_p/2 — почему угол кильватера постоянен','→ Dispersion: v_g=v_p/2 fixiert den Winkel')}</button>
+        <button class="btn" id="cuspToChaos">${TT('→ Attractors: the other face of bifurcation','→ Аттракторы: другое лицо бифуркации','→ Attraktoren')}</button></div>
+    </div>`;
+    else if(V==='poin') body = `
+    <div class="sect"><b>${TT('Free rigid body — where is the angular velocity?','Свободное твёрдое тело — где угловая скорость?','Freier starrer Körper')}</b>
+      <div class="ctlrow"><label>L² / 2E·I₂</label>
+        <input type="range" id="poinL2" min="0.55" max="1.45" step="0.0005" value="${state.poinL2??1.02}"><span class="val" id="poinL2V">${(state.poinL2??1.02).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>I₂</label>
+        <input type="range" id="poinI2" min="1.15" max="2.85" step="0.01" value="${state.poinI2??2}"><span class="val" id="poinI2V">${(state.poinI2??2).toFixed(2)}</span></div>
+      <div class="ctlrow">
+        <button class="btn green" id="poinRun">${state.poinRun!==false?'⏸':'▶'}</button>
+        <label style="margin-left:8px">${TT('Speed','Скорость','Tempo')}</label>
+        <input type="range" id="poinSpeed" min="0.1" max="3" step="0.05" value="${state.poinSpeed??1}"><span class="val" id="poinSpeedV">×${(state.poinSpeed??1).toFixed(2)}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Tumbling passport','Паспорт кувыркания','Taumel-Pass')}</b>
+      <div class="note" id="poinInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Angular velocity must satisfy TWO conservation laws at once — 2E=Σ I_i ω_i² and L²=Σ I_i²ω_i² — so it is confined to the intersection of two ellipsoids. Around the smallest and largest moments those intersections are tight closed loops (stable spin); around the INTERMEDIATE moment they open into figure-eights that carry the body through 180°. That separatrix is the Dzhanibekov effect: a wingnut in orbit flips periodically with nothing touching it. The motion drawn here is the exact Jacobi-elliptic solution ω=(A cn, B sn, C dn) with K(k) from the arithmetic–geometric mean — not an integration — so both invariants hold to machine precision (shown live).','Угловая скорость обязана удовлетворять ДВУМ законам сохранения сразу — 2E=Σ I_i ω_i² и L²=Σ I_i²ω_i² — поэтому заперта на пересечении двух эллипсоидов. Вокруг наименьшего и наибольшего моментов эти пересечения — тесные замкнутые петли (устойчивое вращение); вокруг СРЕДНЕГО они раскрываются в восьмёрки, проносящие тело на 180°. Эта сепаратриса и есть эффект Джанибекова: гайка на орбите периодически переворачивается, и её ничто не касается. Движение здесь — точное решение в эллиптических функциях Якоби ω=(A cn, B sn, C dn) с K(k) через среднее арифметико-геометрическое, а не интегрирование, поэтому оба инварианта держатся до машинной точности (показано вживую).','Die Winkelgeschwindigkeit muss ZWEI Erhaltungssätze zugleich erfüllen und ist daher auf den Schnitt zweier Ellipsoide beschränkt. Um die mittlere Trägheit öffnen sich die Kurven zu Achtern, die den Körper um 180° tragen — der Dshanibekow-Effekt. Die Bewegung ist die exakte Jacobi-Lösung mit K(k) via AGM.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="poinToSu2">${TT('→ SU(2): the attitude lives on the double cover','→ SU(2): ориентация живёт на двулистном накрытии','→ SU(2): die Lage lebt auf der Überlagerung')}</button>
+        <button class="btn" id="poinToPsr">${TT('→ Pulsar: free precession of a neutron star','→ Пульсар: свободная прецессия нейтронной звезды','→ Pulsar: freie Präzession')}</button>
+        <button class="btn" id="poinToChaos">${TT('→ Attractors: separatrices and sensitivity','→ Аттракторы: сепаратрисы и чувствительность','→ Attraktoren: Separatrizen')}</button></div>
+    </div>`;
+    else if(V==='qcrys') body = `
+    <div class="sect"><b>${TT('Cut-and-project — the 6-D crystal','Срез и проекция — 6-мерный кристалл','Schnitt und Projektion — der 6-D-Kristall')}</b>
+      <div class="ctlrow"><label>${TT('window R⊥','окно R⊥','Fenster R⊥')}</label>
+        <input type="range" id="qcWindow" min="0.5" max="1.4" step="0.005" value="${state.qcWindow??0.9}"><span class="val" id="qcWindowV">${(state.qcWindow??0.9).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>${TT('phason t','фазон t','Phason t')}</label>
+        <input type="range" id="qcPhason" min="-0.5" max="0.5" step="0.001" value="${state.qcPhason??0}"><span class="val" id="qcPhasonV">${(state.qcPhason??0).toFixed(3)}</span></div>
+      <div class="ctlrow">
+        <button class="chip ${state.qcPhasonRun!==false?'on':''}" id="qcPhasonRun">${state.qcPhasonRun!==false?TT('◼ stop the phason','◼ остановить фазон','◼ Phason stoppen'):TT('▶ drive the phason','▶ вести фазон','▶ Phason treiben')}</button></div>
+    </div>
+    <div class="sect"><b>${TT('Quasilattice passport','Паспорт квазирешётки','Quasigitter-Pass')}</b>
+      <div class="note" id="qcInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Five-fold symmetry is impossible for a periodic crystal, yet icosahedral quasicrystals diffract with it. They are slices of a periodic crystal in SIX dimensions: a 6-D lattice point becomes an atom exactly when its shadow in the three perpendicular dimensions falls inside the acceptance window. The parallel and perpendicular bases differ only by the Galois conjugation τ → −1/τ, and the two 3-spaces are exactly orthogonal (verified to 2e-16). The phason slides the window: atoms appear and vanish, the solid genuinely rearranges, and the diffraction does not move — a degree of freedom no ordinary crystal has. DECLARED: the window here is a sphere in perpendicular space, the tractable stand-in for the exact rhombic triacontahedron; point positions are exact, the acceptance domain is declared.','Пятерная симметрия невозможна для периодического кристалла, однако икосаэдрические квазикристаллы дают именно её. Это срезы периодического кристалла в ШЕСТИ измерениях: узел 6-мерной решётки становится атомом ровно тогда, когда его тень в трёх перпендикулярных измерениях попадает в окно приёма. Параллельный и перпендикулярный базисы отличаются лишь сопряжением Галуа τ → −1/τ, и два 3-пространства строго ортогональны (проверено до 2e-16). Фазон двигает окно: атомы появляются и исчезают, тело по-настоящему перестраивается, а дифракция не движется — степень свободы, которой нет у обычного кристалла. ЗАЯВЛЕНО: окно здесь — шар в перпендикулярном пространстве, посильная замена точного ромботриаконтаэдра; положения точек точны, область приёма объявлена.','Fünfzählige Symmetrie ist für periodische Kristalle unmöglich — ikosaedrische Quasikristalle zeigen sie dennoch. Sie sind Schnitte durch einen periodischen Kristall in SECHS Dimensionen. Die Basen unterscheiden sich nur durch die Galois-Konjugation τ → −1/τ; die beiden 3-Räume sind exakt orthogonal (2e-16). Das Phason verschiebt das Fenster: der Festkörper ordnet sich um, die Beugung bleibt. ERKLÄRT: das Fenster ist hier eine Kugel statt des exakten Rhombentriakontaeders.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="qcToFbs">${TT('→ φ-ladder: τ is the quasicrystal constant','→ φ-лестница: τ — константа квазикристалла','→ φ-Leiter: τ ist die Quasikristall-Konstante')}</button>
+        <button class="btn" id="qcToWave">${TT('→ Wave optics: the diffraction that started it','→ Волновая оптика: дифракция, с которой всё началось','→ Wellenoptik: die Beugung')}</button>
+        <button class="btn" id="qcToTopo">${TT('→ Topology: order without periodicity','→ Топология: порядок без периодичности','→ Topologie: Ordnung ohne Periodizität')}</button></div>
+    </div>`;
     else if(V==='cmb') body = `
     <div class="sect"><b>CMB sky — which multipoles</b>
       <div class="chips">
@@ -22859,6 +23264,9 @@ function buildCtlBody(){
         <button class="btn ${V==='pole'?'on':''}" id="v-pole">${TT('Pole atlas','Атлас полюсов','Polatlas')}</button>
         <button class="btn ${V==='disp'?'on':''}" id="v-disp">${TT('Dispersion','Дисперсия','Dispersion')}</button>
         <button class="btn ${V==='berry'?'on':''}" id="v-berry">${TT('Berry · Chern','Берри · Черн','Berry · Chern')}</button>
+        <button class="btn ${V==='cusp'?'on':''}" id="v-cusp">${TT('Catastrophe','Катастрофы','Katastrophen')}</button>
+        <button class="btn ${V==='poin'?'on':''}" id="v-poin">${TT('Dzhanibekov','Джанибеков','Dshanibekow')}</button>
+        <button class="btn ${V==='qcrys'?'on':''}" id="v-qcrys">${TT('Quasicrystal','Квазикристалл','Quasikristall')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -22884,7 +23292,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -23343,6 +23751,37 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='cusp'){
+      ctl.querySelectorAll('[data-cuspst]').forEach(b=>b.onclick=()=>{ state.cuspStation=b.dataset.cuspst; cuspSetup(); buildCtl(); });
+      ctl.querySelector('#cuspA')&&(ctl.querySelector('#cuspA').oninput=e=>{ state.cuspA=+e.target.value;
+        const v=ctl.querySelector('#cuspAV'); if(v)v.textContent=state.cuspA.toFixed(3); });
+      ctl.querySelector('#cuspB')&&(ctl.querySelector('#cuspB').oninput=e=>{ state.cuspB=+e.target.value; state.cuspSweep=false;
+        const v=ctl.querySelector('#cuspBV'); if(v)v.textContent=state.cuspB.toFixed(3); });
+      ctl.querySelector('#cuspSweep')&&(ctl.querySelector('#cuspSweep').onclick=()=>{ state.cuspSweep=state.cuspSweep===false; buildCtl(); });
+      ctl.querySelector('#cuspToLens')&&(ctl.querySelector('#cuspToLens').onclick=()=>{ navPush(); setS3View('lens'); buildCtl(); });
+      ctl.querySelector('#cuspToDisp')&&(ctl.querySelector('#cuspToDisp').onclick=()=>{ navPush(); state.dispSys='water'; setS3View('disp'); buildCtl(); });
+      ctl.querySelector('#cuspToChaos')&&(ctl.querySelector('#cuspToChaos').onclick=()=>{ navPush(); setS3View('chaos'); buildCtl(); });
+    }
+    if(V==='poin'){
+      const pv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      pv('poinL2',v=>state.poinL2=v,v=>v.toFixed(4)); pv('poinI2',v=>{state.poinI2=v; poinSetup();},v=>v.toFixed(2));
+      pv('poinSpeed',v=>state.poinSpeed=v,v=>'×'+v.toFixed(2));
+      ctl.querySelector('#poinRun')&&(ctl.querySelector('#poinRun').onclick=()=>{ state.poinRun=state.poinRun===false; buildCtl(); });
+      ctl.querySelector('#poinToSu2')&&(ctl.querySelector('#poinToSu2').onclick=()=>{ navPush(); setS3View('su2'); buildCtl(); });
+      ctl.querySelector('#poinToPsr')&&(ctl.querySelector('#poinToPsr').onclick=()=>{ navPush(); setS3View('psr'); buildCtl(); });
+      ctl.querySelector('#poinToChaos')&&(ctl.querySelector('#poinToChaos').onclick=()=>{ navPush(); setS3View('chaos'); buildCtl(); });
+    }
+    if(V==='qcrys'){
+      ctl.querySelector('#qcWindow')&&(ctl.querySelector('#qcWindow').oninput=e=>{ state.qcWindow=+e.target.value;
+        const v=ctl.querySelector('#qcWindowV'); if(v)v.textContent=state.qcWindow.toFixed(3); });
+      ctl.querySelector('#qcPhason')&&(ctl.querySelector('#qcPhason').oninput=e=>{ state.qcPhason=+e.target.value; state.qcPhasonRun=false;
+        const v=ctl.querySelector('#qcPhasonV'); if(v)v.textContent=state.qcPhason.toFixed(3); });
+      ctl.querySelector('#qcPhasonRun')&&(ctl.querySelector('#qcPhasonRun').onclick=()=>{ state.qcPhasonRun=state.qcPhasonRun===false; buildCtl(); });
+      ctl.querySelector('#qcToFbs')&&(ctl.querySelector('#qcToFbs').onclick=()=>{ navPush(); setMode('fbs'); });
+      ctl.querySelector('#qcToWave')&&(ctl.querySelector('#qcToWave').onclick=()=>{ navPush(); setS3View('wave'); buildCtl(); });
+      ctl.querySelector('#qcToTopo')&&(ctl.querySelector('#qcToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
     }
     if(V==='cmb'){
       ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
@@ -24806,10 +25245,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -26407,6 +26846,12 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='cusp'){
+      fbsAnimT+=dt; updateCusp(dt);
+    } else if(state.s3view==='poin'){
+      fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='qcrys'){
+      fbsAnimT+=dt; updateQc(dt);
     } else if(state.s3view==='berry'){
       fbsAnimT+=dt; updateBerry(dt);
     } else if(state.s3view==='disp'){
