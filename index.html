@@ -2248,6 +2248,20 @@ function runSelfTests(){
       pm<1e-12 && P.w(0.2)/0.2>1 && P.vg(0.2)<1, `max |v_p·v_g−c²|=${pm.toExponential(1)} · v_p(0.2)=${(P.w(0.2)/0.2).toFixed(3)}c, v_g=${P.vg(0.2).toFixed(3)}c`);
     ok('Dispersion: at the phonon zone boundary ka=π the group velocity is exactly zero (van Hove: g(ω)=|dk/dω| diverges)',
       Math.abs(F.vg(Math.PI))<1e-15, `v_g(π)=${F.vg(Math.PI).toExponential(1)}`); }
+  { // GRAY–SCOTT LINEAR ANALYSIS: the trivial-state theorem, the existence criterion, and q_c
+    let worstTriv=-Infinity;
+    for(const [F,k] of [[0.035,0.065],[0.030,0.060],[0.014,0.054],[0.055,0.062],[0.09,0.058]])
+      for(let q=0;q<=8;q+=0.05) worstTriv=Math.max(worstTriv,-F-0.16*q*q,-(F+k)-0.08*q*q);
+    ok('Gray–Scott: the uniform state (1,0) is stable at EVERY wavenumber — it can never Turing-bifurcate (patterns are finite-amplitude)',
+      worstTriv<0, `max growth over all q and presets = ${worstTriv.toExponential(2)}`);
+    const ex=(F,k)=>F>=4*(F+k)*(F+k);
+    ok('Gray–Scott: a nontrivial homogeneous state exists iff F ≥ 4(F+k)² — the classic spots/stripes/maze presets do NOT satisfy it',
+      !ex(0.035,0.065) && !ex(0.030,0.060) && !ex(0.029,0.057) && ex(0.055,0.062),
+      'spots/stripes/maze: none · F=0.055,k=0.062: exists');
+    { const T=rdTuring(0.055,0.062,0.16,0.08), b=T.active;
+      ok('Gray–Scott: where the nontrivial branch IS Turing-unstable the critical wavenumber matches the closed form q_c=√(B/2DuDv)',
+        !!b && b.turing && Math.abs(b.qc-0.6025)<1e-3 && b.lam>10 && b.lam<11 && b.rate>0,
+        b?`q_c=${b.qc.toFixed(4)} λ_c=${b.lam.toFixed(2)} fastest λ=${b.lamMax.toFixed(2)} rate=${b.rate.toExponential(2)}`:'no branch'); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -12698,6 +12712,57 @@ function updateCp(dt){
    steady state, not stored energy. */
 const rdGroup=new THREE.Group(); rdGroup.visible=false; s3Group.add(rdGroup);
 const RD_NLAT=64, RD_NLON=128;
+/* ── EXACT LINEAR (TURING) ANALYSIS of Gray–Scott ─────────────────────────────────────
+   u̇=Du∇²u−uv²+F(1−u), v̇=Dv∇²v+uv²−(F+k)v.
+   TRIVIAL state (1,0): the Jacobian is DIAGONAL — fu=−F, fv=0, gu=0, gv=−(F+k) — so with
+   diffusion the eigenvalues are −F−Du q² and −(F+k)−Dv q²: BOTH negative at EVERY q. The
+   uniform Gray–Scott state therefore can NEVER Turing-bifurcate; its patterns are
+   finite-amplitude (self-replicating) structures that need a seed. This corrects the common
+   "Dv<Du ⇒ Turing" shorthand, which is the criterion for a DIFFERENT (nontrivial) state.
+   NONTRIVIAL states exist only when F ≥ 4(F+k)², from (F+k)v²−Fv+F(F+k)=0 with u=(F+k)/v.
+   There the classical machinery applies: tr, det, the cross term B=Dv·fu+Du·gv, the critical
+   wavenumber q_c=√(B/2DuDv) (the det-minimiser — exact AT onset) and the unstable band.
+   Beyond onset the FASTEST-GROWING mode differs from q_c, so both are reported. */
+function rdTuring(F,k,Du,Dv){
+  const A=F+k, disc=F*F-4*F*A*A, out={F,k,Du,Dv,A,disc,exists:disc>=0,branches:[]};
+  // the trivial state is exact and always stable — state it as a theorem, at every q
+  out.trivial={eig1:q=>-F-Du*q*q, eig2:q=>-(F+k)-Dv*q*q, alwaysStable:true};
+  if(!out.exists) return out;
+  const sq=Math.sqrt(disc);
+  for(const v of [(F+sq)/(2*A),(F-sq)/(2*A)]){
+    if(!(v>1e-12)) continue;
+    const u=A/v, fu=-v*v-F, fv=-2*A, gu=v*v, gv=A;
+    const tr=fu+gv, det0=fu*gv-fv*gu, B=Dv*fu+Du*gv, d=B*B-4*Du*Dv*det0;
+    const homStable=tr<0&&det0>0, turing=homStable&&B>0&&d>0;
+    const br={u,v,tr,det0,B,homStable,turing,qc:NaN,lam:NaN,band:null,qMax:NaN,lamMax:NaN,rate:NaN};
+    if(turing){ br.qc=Math.sqrt(B/(2*Du*Dv)); br.lam=2*Math.PI/br.qc;
+      const s2=Math.sqrt(d); br.band=[Math.sqrt(Math.max(0,(B-s2)/(2*Du*Dv))),Math.sqrt((B+s2)/(2*Du*Dv))];
+      // the mode that actually grows fastest (q_c only coincides with it AT threshold)
+      let best=-Infinity,qb=0; const lo=br.band[0]*0.5, hi=br.band[1]*1.5;
+      for(let i=1;i<=1200;i++){ const q=lo+(hi-lo)*i/1200;
+        const trq=tr-(Du+Dv)*q*q, detq=Du*Dv*q**4-B*q*q+det0, dd=trq*trq-4*detq;
+        const g=dd>=0?(trq+Math.sqrt(dd))/2:trq/2; if(g>best){best=g;qb=q;} }
+      br.qMax=qb; br.lamMax=2*Math.PI/qb; br.rate=best; }
+    out.branches.push(br); }
+  out.active=out.branches.find(b=>b.turing)||out.branches.find(b=>b.homStable)||out.branches[0];
+  return out;
+}
+/* Measured wavelength of the LIVE field: mean spacing of local maxima along each row of the
+   activator, in grid cells (a declared estimator, not a Fourier fit). */
+function rdMeasuredLambda(){
+  try{
+    let W,H,get;
+    if(state.rdGpu!==false && typeof rdGpuState!=='undefined' && rdGpuState && rdGpuState.readBuf){
+      W=RD_GW; H=RD_GH; const B=rdGpuState.readBuf; get=(x,y)=>B[(y*W+x)*4+1];
+    } else if(typeof rdV!=='undefined' && rdV){ W=RD_NLON; H=RD_NLAT; get=(x,y)=>rdV[y*W+x]; }
+    else return null;
+    let gaps=0, cnt=0;
+    for(let y=2;y<H-2;y+=2){ let last=-1;
+      for(let x=1;x<W-1;x++){ const c=get(x,y);
+        if(c>0.12 && c>=get(x-1,y) && c>get(x+1,y)){ if(last>=0){ gaps+=x-last; cnt++; } last=x; } } }
+    return cnt>=40 ? {lam:gaps/cnt, n:cnt} : null;   // refuse to report a wavelength from an immature field
+  }catch(e){ return null; }
+}
 let rdObjs=null, rdU=null, rdV=null, rdT=0, rdUiAcc=0;
 const RD_PRESETS={
   spots :{F:0.037,k:0.060,name:'Leopard spots'},
@@ -12906,7 +12971,15 @@ function updateRd(dt){
     hudBig.textContent=`REACTION–DIFFUSION · ${P.name} · F=${F.toFixed(3)} k=${k.toFixed(3)} · steps ${rdT}`;
     hudSub.textContent='two chemicals, one feed rate F and one kill rate k, self-organise into a Turing pattern — the same instability that sets a leopard’s spots and a pufferfish’s stripes. The pattern is a DISSIPATIVE steady state held up by the feed; switch the feed off and it decays to the uniform u=1, v=0.';
     ATLAS_BUS.pub('rd.meanV',+meanV.toFixed(4),'⟨v⟩');
-    const el=ctl.querySelector('#rdInv'); if(el) el.innerHTML=`preset <b>${P.name}</b> · feed F=<b>${F.toFixed(3)}</b> · kill k=<b>${k.toFixed(3)}</b> · Du=${Du.toFixed(2)} Dv=${Dv.toFixed(2)}<br>mean activator ⟨v⟩=<b>${meanV.toFixed(4)}</b> · peak v=${mx.toFixed(3)} · ratio Du/Dv=${(Du/Dv).toFixed(2)} (Turing needs Dv&lt;Du)`+
+    const TA=rdTuring(F,k,Du,Dv), measR=rdMeasuredLambda(), meas=measR?measR.lam:null;
+    const el=ctl.querySelector('#rdInv'); if(el) el.innerHTML=`preset <b>${P.name}</b> · feed F=<b>${F.toFixed(3)}</b> · kill k=<b>${k.toFixed(3)}</b> · Du=${Du.toFixed(2)} Dv=${Dv.toFixed(2)}<br>mean activator ⟨v⟩=<b>${meanV.toFixed(4)}</b> · peak v=${mx.toFixed(3)} · ratio Du/Dv=${(Du/Dv).toFixed(2)}`+
+      `<br><b style="color:var(--gold-2)">${TT('LINEAR ANALYSIS','ЛИНЕЙНЫЙ АНАЛИЗ','LINEARANALYSE')}</b> · ${TT('nontrivial state exists iff','нетривиальное состояние существует ⟺','nichttrivialer Zustand existiert gdw')} F ≥ 4(F+k)² = <b>${(4*(F+k)*(F+k)).toFixed(5)}</b> → <b>${TA.exists?TT('EXISTS','ЕСТЬ','EXISTIERT'):TT('none — only the uniform state','нет — только однородное','keiner — nur der uniforme')}</b>`+
+      (TA.exists&&TA.active?(TA.active.turing
+        ? `<br>v*=<b>${TA.active.v.toFixed(4)}</b> tr=${TA.active.tr.toFixed(5)} det=${TA.active.det0.toFixed(6)} → <b style="color:#9fe8c0">${TT('TURING-UNSTABLE','ТЬЮРИНГ-НЕУСТОЙЧИВО','TURING-INSTABIL')}</b>`+
+          `<br>${TT('critical','критическое','kritisch')} q_c=<b>${TA.active.qc.toFixed(4)}</b> (λ_c=<b>${TA.active.lam.toFixed(2)}</b>) · ${TT('fastest-growing','быстрее всего растёт','am schnellsten wachsend')} q=<b>${TA.active.qMax.toFixed(4)}</b> → <b>${TT('PREDICTED λ','ПРЕДСКАЗАННАЯ λ','VORHERGESAGTE λ')}=${TA.active.lamMax.toFixed(2)}</b> ${TT('cells','ячеек','Zellen')}`
+        : `<br>v*=<b>${TA.active.v.toFixed(4)}</b> tr=${TA.active.tr.toFixed(5)} det=${TA.active.det0.toFixed(6)} → ${TA.active.homStable?TT('stable, but NOT Turing-unstable (B≤0 or no band)','устойчиво, но НЕ тьюринг-неустойчиво (B≤0 или нет полосы)','stabil, aber NICHT Turing-instabil'):TT('the homogeneous state is already unstable','однородное состояние уже неустойчиво','der homogene Zustand ist bereits instabil')}`):'')+
+      `<br><b>${TT('THEOREM','ТЕОРЕМА','THEOREM')}:</b> ${TT('the uniform state (1,0) has eigenvalues −F−Du q² and −(F+k)−Dv q² — negative at EVERY q, so it can never Turing-bifurcate. Patterns here are finite-amplitude: they need a seed.','однородное состояние (1,0) имеет собственные значения −F−Du q² и −(F+k)−Dv q² — отрицательны при ЛЮБОМ q, поэтому тьюринговской бифуркации быть не может. Узоры здесь конечноамплитудные: нужен затравочный импульс.','der uniforme Zustand (1,0) hat Eigenwerte −F−Du q² und −(F+k)−Dv q² — bei JEDEM q negativ, also keine Turing-Bifurkation möglich. Die Muster sind endlich-amplitudig.')}`+
+      (meas!=null?`<br><b>${TT('MEASURED on the live field','ИЗМЕРЕНО на живом поле','GEMESSEN am Live-Feld')}: λ≈${meas.toFixed(2)} ${TT('cells','ячеек','Zellen')}</b> <span style="opacity:.6">(${measR.n} ${TT('spacings','промежутков','Abstände')})</span>${(TA.exists&&TA.active&&TA.active.turing)?` · ${TT('vs predicted','против предсказанной','vs vorhergesagt')} ${TA.active.lamMax.toFixed(2)}`:` · ${TT('(no Turing prediction applies here — finite-amplitude regime)','(тьюринговское предсказание здесь неприменимо — конечноамплитудный режим)','(keine Turing-Vorhersage — endlich-amplitudiges Regime)')}`}`:`<br><span style="opacity:.55">${TT('measuring… the pattern has not developed enough to read a wavelength','измеряю… узор ещё не развился, длину волны читать рано','messe… das Muster ist noch zu unreif')}</span>`)+
       (O.gpu?`<br>engine: <b>GPGPU</b> ping-pong float textures · ${RD_GW}×${RD_GH} = <b>${(RD_GW*RD_GH).toLocaleString()}</b> cells (${Math.round(RD_GW*RD_GH/(RD_NLAT*RD_NLON))}× the CPU grid) · statistics from a true GPU readback every 3 s · metric-weighted kernel, polar caps regularised (declared)`:`<br>engine: CPU fallback ${RD_NLON}×${RD_NLAT}`);
   }
 }
