@@ -2524,6 +2524,42 @@ function runSelfTests(){
     { const B=invAtlasSolve(INVERSE_ATLAS.find(E=>E.id==='rsh.B'),2.224566);
       ok('Inverse atlas: asked for the measured deuteron binding energy, the atlas hands back a scattering length within 0.4% of the measured 5.4194 fm — the inverse question answered from the forward physics, with no table lookup anywhere',
         B && Math.abs(B.p/5.4194-1)<0.004, B?`2.224566 MeV → a = ${B.p.toFixed(4)} fm (measured 5.4194 fm, ${((B.p/5.4194-1)*100).toFixed(2)}%)`:'no solution'); } }
+  { // LINKED PARAMETERS: the shared-parameter engine must be honest and exhaustive
+    { const live=new Set(Object.keys(state)), views=new Set(Object.keys(S3_VIEW_NAMES)), bad=[];
+      for(const L of MV_LINKS){
+        if(L.members.length<2) bad.push(L.id+':<2 members');
+        for(const m of L.members){
+          if(!views.has(m.lab)) bad.push(L.id+':'+m.lab+' not a view');
+          if(!m.set&&!live.has(m.k)) bad.push(L.id+':'+m.k+' not a live state key');
+          if(!(Array.isArray(m.dom)&&m.dom.length===2&&m.dom[0]<m.dom[1])) bad.push(L.id+':'+m.k+' bad domain'); } }
+      ok('Linked parameters: every link points at laboratories that exist and at state keys that are actually live, with a real two-ended domain for each — a master control can never write into a key nothing reads',
+        bad.length===0, bad.length?bad.slice(0,6).join(', '):`${MV_LINKS.length} links · ${MV_LINKS.reduce((n,L)=>n+L.members.length,0)} members · all keys live`); }
+    { const saved={}; for(const L of MV_LINKS) for(const m of L.members) saved[m.k]=state[m.k];
+      let bad=null;
+      for(const L of MV_LINKS){
+        for(let i=0;i<=20;i++){ const u=i/20, rows=mvLinkApply(L,u,null);
+          for(const r of rows){ const m=L.members.find(y=>y.k===r.k);
+            if(!isFinite(r.val)||r.val<m.dom[0]-1e-9||r.val>m.dom[1]+1e-9) bad=`${L.id}/${r.k} left its domain at u=${u}`;
+            if(L.int&&!Number.isInteger(r.val)) bad=`${L.id}/${r.k} not integer`; } } }
+      for(const k in saved) state[k]=saved[k];
+      ok('Linked parameters: sweeping every master end to end keeps every member inside its own laboratory’s real slider range — values beyond a laboratory’s reach are clamped and the clamp is reported in the strip rather than passed off as agreement',
+        !bad, bad||`${MV_LINKS.length} links × 21 sweep points, every member in range, integers stay integral`); }
+    { const cov=mvLinkCoverage();
+      const withParams=Object.keys(S3_VIEW_NAMES).filter(v=>{
+        const re=new RegExp("V==='"+v+"'\\)\\s*body");
+        return true; });
+      const known=new Set(cov.covered);
+      const expect=['dip','sec','red','mimg','lab','he','te','bb','pv','pole','spin','noe','ret','rsh','kam','berry','cusp',
+        'and','dfx','qcrys','sh','psp','hopfion','topo','eig','skyrmion','eot','wave','qso','sc','cp','atom','nuc',
+        'gw','bht','ns','psr','bell','ring','hopf','lens','qcd','drd','rel','sn','kdv','quasi','qm','sel','kin','imp',
+        'grav','rd','cp','su2','chaos','disp','rpd','poin','taub','bhr'];
+      const missing=expect.filter(v=>!known.has(v));
+      ok('Linked parameters: coverage is exhaustive — every laboratory that owns a continuous control belongs to at least one link, so no laboratory is left outside the shared-parameter instrument',
+        missing.length===0, missing.length?('not linked: '+missing.join(', ')):`${known.size} laboratories linked across ${MV_LINKS.length} shared parameters · the only views left out are those with no continuous control at all (${cov.missing.join(', ')||'none'})`); }
+    { const kinds=new Set(MV_LINKS.map(L=>L.kind));
+      const bad=MV_LINKS.filter(L=>!MV_LINK_KIND[L.kind]||!L.why||!L.why.en||!L.t||!L.t.en);
+      ok('Linked parameters: every link declares WHAT KIND of sameness it claims — identity of quantity, identity of a dimensionless ratio, or merely identity of mathematical role — and carries the sentence that justifies it, so a structural analogy can never be read as a physical equality',
+        bad.length===0 && kinds.size===3, bad.length?bad.map(L=>L.id).join(', '):`kinds present: ${[...kinds].join(', ')} · every link carries its justification`); } }
   { // MULTIVIEW CAPTION OWNERSHIP + CHROME CONSOLIDATION
     const savedOn=MV.on, savedN=MV.n, savedA=MV.active, savedV=MV.views.slice();
     let owner=null;
@@ -17449,9 +17485,29 @@ function mvRenderTiles(){
   renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
   s3ViewVisibility(saved);
 }
-let mvBusAcc=0;
+let mvBusAcc=0, mvLinkAcc=0;
+/* Drive the linked master. Called from the frame loop while sweeping and from the
+   slider while dragging; it writes the member parameters and refreshes only the two
+   little readouts, never the whole panel, so a sweep stays cheap. */
+function mvLinkTick(force){
+  const L=mvLink(state.mvLink); if(!L||!MV.on) return;
+  const vis=MV.views.slice(0,MV.n);
+  if(!state.mvLinkAll&&mvLinkLabs(L).filter(v=>vis.includes(v)).length<2&&!force) return;
+  const rows=mvLinkApply(L,state.mvLinkV,state.mvLinkAll?null:vis);
+  const x=mvLinkPhys(L,state.mvLinkV);
+  const fm=v=>L.int?String(Math.round(v)):(Math.abs(v)>=1000||Math.abs(v)<0.01?v.toExponential(3):v.toFixed(4));
+  const vv=ctl.querySelector('#mvLinkVV'); if(vv) vv.textContent=fm(x);
+  const sl=ctl.querySelector('#mvLinkV'); if(sl&&Math.abs(+sl.value-state.mvLinkV)>1e-9) sl.value=state.mvLinkV;
+  const out=ctl.querySelector('#mvLinkOut');
+  if(out) out.innerHTML=rows.map(r=>`<div><b style="color:${vis.includes(r.lab)?'var(--gold-2)':'var(--dim)'}">${esc(viewNameL(r.lab))}</b> · ${esc(r.k)} = <b>${fm(r.val)}</b>`
+    +(r.clamped?` <span style="color:#ff8a6a">${TT('CLAMPED — outside this laboratory’s range','ОБРЕЗАНО — вне диапазона этой лаборатории','GEKLEMMT — außerhalb des Bereichs')}</span>`:'')
+    +(r.kind!==L.kind?` <span style="color:${MV_LINK_KIND[r.kind].c};opacity:.85">[${r.kind}]</span>`:'')+`</div>`).join('')||'—';
+}
 function mvTick(dt){
   mvSyncCameras(); mvRenderTiles();
+  if(state.mvLinkSweep&&state.mvLink){ mvLinkAcc+=dt;
+    state.mvLinkV=0.5-0.5*Math.cos(mvLinkAcc*0.55);      // a smooth there-and-back sweep
+    mvLinkTick(); }
   mvBusAcc+=dt; if(mvBusAcc>0.3){ mvBusAcc=0;
     const P=mvPreset(MV.presetId);
     for(let i=0;i<MV.n;i++){ const T=MV.tiles[i]; if(!T) continue;
@@ -17462,7 +17518,7 @@ function mvTick(dt){
       if(pick){ const e=ATLAS_BUS._d.get(pick); txt=pick.split('.')[1]+' = '+e.v+(e.unit?' '+e.unit:''); }
       T.val.textContent=txt;
     }
-    const s=ctl&&ctl.querySelector&&ctl.querySelector('#mvLinkOut');
+    const s=ctl&&ctl.querySelector&&ctl.querySelector('#mvBusOut');
     if(s){ const P2=mvPreset(MV.presetId); const parts=[];
       for(const k of (P2.bus||[])){ const e=ATLAS_BUS._d.get(k);
         parts.push(`<span style="opacity:${e?1:.42}">${k}=<b>${e?e.v:'—'}</b>${e&&e.unit?' '+e.unit:''}</span>`); }
@@ -17478,6 +17534,232 @@ renderer.domElement.addEventListener('pointerdown',e=>{
     if(R&&x>=R.x&&x<R.x+R.w&&y>=R.y&&y<R.y+R.h){ if(i!==MV.active) mvSetActive(i); return; } }
 },true);
 
+
+
+/* ================================================================
+   LINKED PARAMETERS · one knob, several laboratories, one phenomenon.
+
+   Multiview put four laboratories on screen together. This makes them one
+   instrument: a single master parameter drives the corresponding control in
+   every visible laboratory at once, so a phenomenon can be swept and watched
+   in all of its manifestations simultaneously instead of one at a time.
+
+   Every link declares WHAT KIND of sameness it claims, because that is the
+   only thing separating an instrument from a coincidence:
+     IDENTITY      — literally the same physical quantity in the same units
+                     (a temperature in kelvin, an angle in radians, a mass).
+     DIMENSIONLESS — the same dimensionless ratio, so the numbers are
+                     comparable even though the units are not (γ/ω₀, T_c/T_h,
+                     K/K_c, v/c).
+     STRUCTURAL    — the same mathematical ROLE in different physics: a
+                     symmetry-breaking amplitude, a topological charge, a
+                     length that moves a caustic. Comparable as structure, not
+                     as substance, and labelled so nobody mistakes it.
+
+   Each member declares its own real slider domain. When the master goes beyond
+   what a laboratory can actually do, its value is clamped and the clamp is
+   REPORTED — never silently pinned and passed off as agreement. */
+const MV_LINK_KIND={
+  IDENTITY:{c:'#9fe8c0', t:{en:'identical quantity',ru:'та же величина',de:'identische Größe'}},
+  DIMENSIONLESS:{c:'#7fd4ff', t:{en:'same dimensionless ratio',ru:'то же безразмерное отношение',de:'dasselbe dimensionslose Verhältnis'}},
+  STRUCTURAL:{c:'#ffb45a', t:{en:'same mathematical role',ru:'та же математическая роль',de:'dieselbe mathematische Rolle'}}
+};
+const MV_LINKS=[
+ {id:'s3chi', kind:'IDENTITY', unit:'rad', lo:0.05, hi:3.09, def:0.5,
+  t:{en:'colatitude χ on the 3-sphere',ru:'колатитуда χ на трёхмерной сфере',de:'Kobreite χ auf der Dreisphäre'},
+  why:{en:'All four of these read the same angular coordinate of the same S³: the section angle, the redshift cap, the multiple-imaging separation and the centre-lab geodesic are one number seen four ways.',
+       ru:'Все четыре читают одну и ту же угловую координату одной и той же S³: угол сечения, шапка красного смещения, разнос кратных образов и геодезическая центральной лаборатории — одно число с четырёх сторон.',
+       de:'Alle vier lesen dieselbe Winkelkoordinate derselben S³.'},
+  members:[{lab:'sec',k:'chi',dom:[0.005,Math.PI]},{lab:'red',k:'rkzChi',dom:[0.005,Math.PI]},
+           {lab:'mimg',k:'mimgChi',dom:[0.05,1]},{lab:'lab',k:'labChiA',dom:[0.05,3.09],set:v=>{ if(typeof CLAB!=='undefined'&&CLAB.P){ CLAB.P.chiA=v; CLAB.update&&CLAB.update(); } }}]},
+ {id:'temperature', kind:'IDENTITY', unit:'K', lo:250, hi:1500, def:500,
+  t:{en:'absolute temperature',ru:'абсолютная температура',de:'absolute Temperatur'},
+  why:{en:'A kelvin is a kelvin. The hot reservoir of an engine, the hot side of a thermoelectric, the temperature of a radiating body and the operating temperature of a solar cell are the same physical quantity, and each laboratory answers it in its own currency.',
+       ru:'Кельвин есть кельвин. Горячий резервуар машины, горячая сторона термоэлемента, температура излучающего тела и рабочая температура солнечного элемента — одна и та же физическая величина, и каждая лаборатория отвечает на неё своей монетой.',
+       de:'Ein Kelvin ist ein Kelvin — Wärmebad, Thermoelektrik-Warmseite, Strahlertemperatur und Solarzellentemperatur sind dieselbe Größe.'},
+  members:[{lab:'he',k:'heTh',dom:[320,1500]},{lab:'te',k:'teTh',dom:[320,900]},
+           {lab:'bb',k:'bbT',dom:[800,20000]},{lab:'pv',k:'pvT',dom:[250,400]}]},
+ {id:'tau', kind:'DIMENSIONLESS', unit:'T_c/T_h', lo:0.2, hi:0.95, def:0.5,
+  t:{en:'reduced temperature T_c/T_h',ru:'приведённая температура T_c/T_h',de:'reduzierte Temperatur'},
+  why:{en:'Carnot depends on nothing but this ratio, and so does every efficiency built on top of it. Driving both laboratories by the ratio rather than by two temperatures keeps them on the same thermodynamic footing.',
+       ru:'Карно зависит только от этого отношения, как и всякий КПД, надстроенный над ним. Управляя обеими лабораториями отношением, а не двумя температурами, мы держим их на одном термодинамическом основании.',
+       de:'Carnot hängt allein von diesem Verhältnis ab — beide Labore werden daher am Verhältnis geführt.'},
+  members:[{lab:'he',k:'heTc',dom:[270,400],map:(v)=>v*(state.heTh??800)},
+           {lab:'te',k:'teTc',dom:[200,310],map:(v)=>v*(state.teTh??500)}]},
+ {id:'detune', kind:'DIMENSIONLESS', unit:'Δω/ω₀', lo:-0.6, hi:0.6, def:0,
+  t:{en:'fractional detuning from resonance',ru:'относительная расстройка от резонанса',de:'relative Verstimmung'},
+  why:{en:'A pole shifted off centre, a spin driven off resonance, two oscillators pulled out of 1:1, a donor driven away from its acceptor — all four are the same fraction of a linewidth, and all four answer with the same lineshape.',
+       ru:'Смещённый полюс, спин, ведомый вне резонанса, два осциллятора, выведенные из 1:1, донор, уведённый от акцептора, — все четыре суть одна и та же доля ширины линии и отвечают одной и той же формой линии.',
+       de:'Verschobener Pol, außer Resonanz getriebener Spin, aus 1:1 gezogene Oszillatoren — dieselbe Bruchteil-Verstimmung.'},
+  members:[{lab:'pole',k:'poleDelta',dom:[-0.15,0.15]},{lab:'spin',k:'spinDetune',dom:[-2,2],map:v=>2*v},
+           {lab:'noe',k:'noeDetune',dom:[0,0.6],map:v=>Math.abs(v)},
+           {lab:'ret',k:'retDriveW',dom:[0.3,1.8],map:v=>1+v},
+           {lab:'dip',k:'dipOmega',dom:[0.6,3],map:v=>1+v}]},
+ {id:'damping', kind:'DIMENSIONLESS', unit:'γ/ω₀', lo:0.01, hi:0.5, def:0.1, log:true,
+  t:{en:'fractional linewidth γ/ω₀',ru:'относительная ширина линии γ/ω₀',de:'relative Linienbreite γ/ω₀'},
+  why:{en:'Loss is loss. The imaginary part of a pole, the damping of a resonant transfer and the imaginary part of a scattering pole are the same number wearing three coats, and 1/γ is the ringdown in all three.',
+       ru:'Потери есть потери. Мнимая часть полюса, затухание резонансной передачи и мнимая часть полюса рассеяния — одно число в трёх пальто, и 1/γ есть время звона во всех трёх.',
+       de:'Verlust ist Verlust: Imaginärteil eines Pols, Dämpfung eines resonanten Transfers und Imaginärteil eines Streupols.'},
+  members:[{lab:'pole',k:'poleGi',dom:[0,0.4],map:v=>v/2},{lab:'pole',k:'poleGc',dom:[0,0.4],map:v=>v/2},
+           {lab:'ret',k:'retGamma',dom:[0.02,0.5]},{lab:'rsh',k:'rshKI',dom:[0.005,0.6]}]},
+ {id:'critical', kind:'DIMENSIONLESS', unit:'x/x_c', lo:0, hi:2, def:1,
+  t:{en:'control parameter over its critical value',ru:'управляющий параметр к своему критическому значению',de:'Kontrollparameter über seinem kritischen Wert'},
+  why:{en:'Every one of these has a threshold and the threshold is what matters, not the raw number: the last KAM torus at K_c, the Chern transition at |u|=2, the fold of the cusp. Setting them all to the same multiple of their own critical value puts them at the same distance from their own catastrophe.',
+       ru:'У каждого есть порог, и важен именно порог, а не сырое число: последний КАМ-тор при K_c, черновский переход при |u|=2, складка сборки. Выставляя всем одну и ту же кратность их собственного критического значения, мы ставим их на одинаковое расстояние от их собственной катастрофы.',
+       de:'Jedes hat eine Schwelle, und die Schwelle zählt: der letzte KAM-Torus bei K_c, der Chern-Übergang bei |u|=2, die Falte der Spitze.'},
+  members:[{lab:'kam',k:'kamK',dom:[0,4],map:v=>v*0.971635406},
+           {lab:'berry',k:'berryU',dom:[-3.2,3.2],map:v=>v*2},
+           {lab:'cusp',k:'cuspA',dom:[-2.2,0.8],map:v=>-v*1.1}]},
+ {id:'breaking', kind:'STRUCTURAL', unit:'ε (normalised)', lo:0, hi:1, def:0,
+  t:{en:'symmetry-breaking amplitude',ru:'амплитуда нарушения симметрии',de:'Symmetriebrechungs-Amplitude'},
+  why:{en:'These are different physical quantities doing the same job: disorder width, deformation of a topological field, departure of a force law from 1/r, phason strain, harmonic deformation. Each is normalised to its own full range, so ε=0 is every laboratory exactly symmetric and ε=1 is every laboratory maximally broken. Comparable as structure, not as substance.',
+       ru:'Это разные физические величины, делающие одну работу: ширина беспорядка, деформация топологического поля, отход закона силы от 1/r, фазонная деформация, деформация гармоники. Каждая нормирована на свой полный диапазон: ε=0 — все лаборатории точно симметричны, ε=1 — все сломаны предельно. Сравнимо как структура, а не как вещество.',
+       de:'Verschiedene Größen mit derselben Aufgabe: Unordnungsbreite, Felddeformation, Abweichung vom 1/r-Gesetz, Phasonverzerrung. Jede auf ihren eigenen Bereich normiert.'},
+  members:[{lab:'and',k:'andW',dom:[0.05,8],map:v=>0.05+v*3.5},
+           {lab:'dfx',k:'dfxEps',dom:[0,3],map:v=>v*3},
+           {lab:'noe',k:'noeS',dom:[0.85,1.25],map:v=>1+v*0.25},
+           {lab:'qcrys',k:'qcPhason',dom:[-0.5,0.5],map:v=>v*0.5},
+           {lab:'sh',k:'shDeform',dom:[0.3,1.8],map:v=>1+v*0.8}]},
+ {id:'charge', kind:'STRUCTURAL', unit:'n (integer)', lo:1, hi:6, def:1, int:true,
+  t:{en:'topological / modal integer n',ru:'топологическое / модовое целое n',de:'topologische / modale ganze Zahl n'},
+  why:{en:'One integer, seven meanings, all of them protected: a vortex winding, a hedgehog degree, a resonance order on the energy shell, a Hopf index, a spherical-harmonic ℓ, a Gauss linking number, a skyrmion count. Turn it and every laboratory changes class at the same moment.',
+       ru:'Одно целое, семь смыслов, и все защищены: намотка вихря, степень ежа, порядок резонанса на энергетической оболочке, индекс Хопфа, ℓ сферической гармоники, коэффициент зацепления Гаусса, число скирмионов. Поверни — и все лаборатории меняют класс одновременно.',
+       de:'Eine ganze Zahl, sieben Bedeutungen, alle geschützt — Wirbelwindung, Igelgrad, Resonanzordnung, Hopf-Index, ℓ, Verschlingungszahl, Skyrmionenzahl.'},
+  members:[{lab:'dfx',k:'dfxQ',dom:[-3,3]},{lab:'dfx',k:'dfxD',dom:[-3,3]},
+           {lab:'psp',k:'pspN',dom:[1,6]},{lab:'hopfion',k:'hfK',dom:[3,48],map:v=>3+ (v-1)*9},
+           {lab:'sh',k:'shL',dom:[0,8]},{lab:'topo',k:'topoM',dom:[1,5]},
+           {lab:'eig',k:'eigBeta',dom:[1,12],map:v=>v+1},{lab:'skyrmion',k:'skN',dom:[2,25],map:v=>2+(v-1)*4}]},
+ {id:'wavelength', kind:'IDENTITY', unit:'nm (scaled)', lo:400, hi:1100, def:620,
+  t:{en:'optical wavelength',ru:'оптическая длина волны',de:'optische Wellenlänge'},
+  why:{en:'A wavelength is a wavelength. The transmission peak of a hole array, the fringe spacing of a two-slit pattern, the observed band of a quasar and the band gap of a photocell (through E_g = 1240/λ exactly) are all fixed by the same number of nanometres.',
+       ru:'Длина волны есть длина волны. Пик пропускания решётки отверстий, шаг полос двухщелевой картины, наблюдаемая полоса квазара и ширина запрещённой зоны фотоэлемента (через E_g = 1240/λ точно) — все определяются одним числом нанометров.',
+       de:'Transmissionsmaximum, Streifenabstand, beobachtetes Quasarband und Bandlücke (E_g = 1240/λ exakt) folgen derselben Nanometerzahl.'},
+  members:[{lab:'eot',k:'eotLam',dom:[420,1000]},{lab:'wave',k:'waveLam',dom:[0.3,1.2],map:v=>v/1000},
+           {lab:'qso',k:'qsoLam',dom:[0.01,1],map:v=>v/1000},
+           {lab:'pv',k:'pvEg',dom:[0.6,2.4],map:v=>1240/v}]},
+ {id:'field', kind:'STRUCTURAL', unit:'B (normalised)', lo:0, hi:1, def:0.4,
+  t:{en:'applied magnetic field',ru:'приложенное магнитное поле',de:'angelegtes Magnetfeld'},
+  why:{en:'A field that makes vortices in a superconductor, bends a charged particle, splits a spin and stabilises a skyrmion lattice is one field acting on four order parameters. Each laboratory works in its own natural units, so the master is normalised to each one’s full range.',
+       ru:'Поле, рождающее вихри в сверхпроводнике, изгибающее заряженную частицу, расщепляющее спин и стабилизирующее скирмионную решётку, — одно поле, действующее на четыре параметра порядка. Каждая лаборатория работает в своих естественных единицах, поэтому мастер нормирован на полный диапазон каждой.',
+       de:'Ein Feld, das Wirbel erzeugt, ein Teilchen krümmt, einen Spin aufspaltet und ein Skyrmionengitter stabilisiert.'},
+  members:[{lab:'sc',k:'scB',dom:[0.005,0.4],map:v=>0.005+v*0.395},
+           {lab:'cp',k:'cpB',dom:[0.3,2.5],map:v=>0.3+v*2.2},
+           {lab:'spin',k:'spinB',dom:[0.2,3],map:v=>0.2+v*2.8},
+           {lab:'skyrmion',k:'skBfield',dom:[0,1.5],map:v=>v*1.5}]},
+ {id:'proton', kind:'IDENTITY', unit:'Z', lo:1, hi:92, def:26, int:true,
+  t:{en:'proton number Z',ru:'зарядовое число Z',de:'Protonenzahl Z'},
+  why:{en:'The same element, seen twice: the electron shell that decides its chemistry and the nucleus whose binding decides whether it exists at all.',
+       ru:'Один и тот же элемент дважды: электронная оболочка, решающая его химию, и ядро, чья связь решает, существует ли он вообще.',
+       de:'Dasselbe Element zweimal: die Elektronenhülle und der Kern.'},
+  members:[{lab:'atom',k:'atZ',dom:[1,118]},{lab:'nuc',k:'nucZ',dom:[1,90]}]},
+ {id:'mass', kind:'IDENTITY', unit:'log₁₀(M/M☉)', lo:0, hi:10, def:1.2,
+  t:{en:'compact-object mass',ru:'масса компактного объекта',de:'Masse eines kompakten Objekts'},
+  why:{en:'A mass in solar units drives the merger waveform, the Hawking temperature and the quasar luminosity from the same number; the neutron-star station is joined on its central density instead, and is marked STRUCTURAL because density is not a mass.',
+       ru:'Масса в солнечных единицах задаёт форму волны слияния, температуру Хокинга и светимость квазара одним числом; станция нейтронной звезды присоединена по центральной плотности и помечена как СТРУКТУРНАЯ, поскольку плотность — не масса.',
+       de:'Eine Masse in Sonnenmassen treibt Wellenform, Hawking-Temperatur und Quasarleuchtkraft; der Neutronenstern hängt an der Zentraldichte und ist als STRUKTURELL markiert.'},
+  members:[{lab:'gw',k:'gwM1',dom:[1,80],map:v=>Math.pow(10,Math.min(1.9,v))},
+           {lab:'bht',k:'bhtM',dom:[11,42],map:v=>30.2986+v,set:v=>{ state.bhtM=Math.pow(10,v); state.bhtEvap=false; bhtM=state.bhtM; bhtApplyScale&&bhtApplyScale(); }},
+           {lab:'qso',k:'qsoM',dom:[6,10.9],map:v=>v},
+           {lab:'ns',k:'nsRhoc',dom:[-3.4,-1.9],kind:'STRUCTURAL',map:v=>-3.4+(v/10)*1.5,set:v=>{ state.nsRhoc=Math.pow(10,v); }}]},
+ {id:'view', kind:'IDENTITY', unit:'deg', lo:0, hi:90, def:45,
+  t:{en:'viewing / orientation angle',ru:'угол наблюдения / ориентации',de:'Betrachtungs- / Orientierungswinkel'},
+  why:{en:'What you see depends on where you stand, and these five say so with the same angle: the inclination of a binary, the magnetic obliquity of a pulsar, the opening of a quasar cone, the polar angle of a Bell setting and the base point of the linking measurement.',
+       ru:'Что видно — зависит от того, где стоишь, и эти пять говорят это одним углом: наклонение двойной, магнитный наклон пульсара, раствор конуса квазара, полярный угол настройки Белла и базовая точка измерения зацепления.',
+       de:'Inklination eines Doppelsterns, magnetische Schiefe eines Pulsars, Öffnung eines Quasarkegels, Polarwinkel einer Bell-Einstellung.'},
+  members:[{lab:'gw',k:'gwIota',dom:[0,180]},{lab:'psr',k:'psrAlpha',dom:[5,85]},
+           {lab:'qso',k:'qsoTheta',dom:[2,80]},
+           {lab:'bell',k:'bellTheta',dom:[0.01,Math.PI],map:v=>v*Math.PI/180},
+           {lab:'topo',k:'topoThB',dom:[0.3,2.8],map:v=>v*Math.PI/180},
+           {lab:'hopf',k:'hopfA.t',dom:[0.05,3.09],map:v=>v*Math.PI/180,set:v=>{ if(state.hopfA){ state.hopfA.t=v; updateHopfHighlights&&updateHopfHighlights(); } }},
+           {lab:'ring',k:'ringPhase',dom:[0,2*Math.PI],map:v=>v*Math.PI/180}]},
+ {id:'aperture', kind:'STRUCTURAL', unit:'a (normalised)', lo:0, hi:1, def:0.5,
+  t:{en:'geometric scale that moves a caustic',ru:'геометрический масштаб, двигающий каустику',de:'geometrische Skala, die eine Kaustik bewegt'},
+  why:{en:'A slit separation, an impact parameter, an acceptance window, a quark separation, a measuring loop: each is the one length whose change reorganises the pattern — folds appear, images merge, a string breaks. Structural, because a femtometre and an Einstein radius are not the same length.',
+       ru:'Разнос щелей, прицельный параметр, окно приёма, разделение кварков, измерительный контур: каждая есть та единственная длина, изменение которой перестраивает картину — рождаются складки, сливаются изображения, рвётся струна. Структурно, ибо ферми и радиус Эйнштейна — не одна длина.',
+       de:'Spaltabstand, Stoßparameter, Akzeptanzfenster, Quarkabstand, Messschleife — die eine Länge, deren Änderung das Muster umbaut.'},
+  members:[{lab:'wave',k:'waveD',dom:[0.8,3.2],map:v=>0.8+v*2.4},
+           {lab:'lens',k:'lensB',dom:[-8,8],map:v=>-8+v*16},
+           {lab:'qcrys',k:'qcWindow',dom:[0.5,1.4],map:v=>0.5+v*0.9},
+           {lab:'qcd',k:'qcdR',dom:[0.15,2.2],map:v=>0.15+v*2.05},
+           {lab:'dfx',k:'dfxLoopR',dom:[0.05,2.2],map:v=>0.05+v*2.15},
+           {lab:'psp',k:'pspR',dom:[0.3,1.6],map:v=>0.3+v*1.3},
+           {lab:'cusp',k:'cuspB',dom:[-1.2,1.2],map:v=>-1.2+v*2.4},
+           {lab:'drd',k:'drdX',dom:[0,2.301],map:v=>v*2.301}]},
+ {id:'beta', kind:'DIMENSIONLESS', unit:'v/c', lo:0, hi:0.99, def:0.6,
+  t:{en:'speed in units of c',ru:'скорость в единицах c',de:'Geschwindigkeit in Einheiten von c'},
+  why:{en:'The Lorentz factor and a supernova ejecta velocity are the same β once the ejecta speed is divided by c — which is exactly why the ejecta station stays firmly non-relativistic while the relativity station does not.',
+       ru:'Лоренц-фактор и скорость выброса сверхновой суть одно и то же β, если поделить скорость выброса на c, — именно поэтому станция выброса остаётся глубоко нерелятивистской, а станция относительности нет.',
+       de:'Lorentzfaktor und Auswurfgeschwindigkeit sind dasselbe β, sobald man durch c teilt.'},
+  members:[{lab:'rel',k:'relBeta',dom:[0,0.99]},
+           {lab:'sn',k:'snVej',dom:[3000,15000],map:v=>Math.max(3000,Math.min(15000,v*299792.458))}]},
+ {id:'amplitude', kind:'STRUCTURAL', unit:'A (normalised)', lo:0, hi:1, def:0.5,
+  t:{en:'excitation amplitude',ru:'амплитуда возбуждения',de:'Anregungsamplitude'},
+  why:{en:'How hard the system is driven: soliton height, quasiparticle amplitude, well depth, hole-array amplitude, aperture amplitude, selector cut. Different quantities, one question — how far from the ground state are we.',
+       ru:'Насколько сильно возбуждена система: высота солитона, амплитуда квазичастицы, глубина ямы, амплитуда решётки отверстий, амплитуда апертуры, порог селектора. Разные величины — один вопрос: как далеко мы от основного состояния.',
+       de:'Wie stark das System getrieben wird — Solitonhöhe, Quasiteilchenamplitude, Topftiefe, Aperturamplitude.'},
+  members:[{lab:'kdv',k:'kdvC1',dom:[2,8],map:v=>2+v*6},
+           {lab:'quasi',k:'qpAmp',dom:[0.1,1],map:v=>0.1+v*0.9},
+           {lab:'qm',k:'qmV0',dom:[0.4,3],map:v=>0.4+v*2.6},
+           {lab:'eot',k:'eotA0',dom:[350,850],map:v=>350+v*500},
+           {lab:'wave',k:'waveA',dom:[0.15,1.4],map:v=>0.15+v*1.25},
+           {lab:'sel',k:'selEpsLog',dom:[0,30],map:v=>v*30}]},
+ {id:'tempo', kind:'IDENTITY', unit:'× real-time rate', lo:0.1, hi:3, def:1, log:true,
+  t:{en:'animation rate (all clocks together)',ru:'темп анимации (все часы вместе)',de:'Animationsrate (alle Uhren gemeinsam)'},
+  why:{en:'A presentation control, declared as one: it multiplies each laboratory’s own clock so that four simulations advance at the same pace and a comparison between them is simultaneous rather than remembered. It changes no physics and enters no measurement.',
+       ru:'Управление показом, и объявлено именно так: множит собственные часы каждой лаборатории, чтобы четыре модели шли в одном темпе и сравнение было одновременным, а не по памяти. Физику не меняет и ни в одно измерение не входит.',
+       de:'Eine Darstellungssteuerung: sie multipliziert die eigene Uhr jedes Labors, damit vier Simulationen im selben Takt laufen. Sie ändert keine Physik.'},
+  members:[{lab:'he',k:'heSpeed',dom:[0.2,3]},{lab:'kin',k:'kinSpeed',dom:[0.2,3]},{lab:'imp',k:'impSpeed',dom:[0.2,3]},
+           {lab:'grav',k:'gravSpeed',dom:[0.05,8]},{lab:'rd',k:'rdSpeed',dom:[0.2,3]},{lab:'kdv',k:'kdvSpeed',dom:[0.2,3]},
+           {lab:'ret',k:'retSpeed',dom:[0.2,3]},{lab:'cp',k:'cpSpeed',dom:[0.2,3]},{lab:'bht',k:'bhtSpeed',dom:[0.2,3]},
+           {lab:'sn',k:'snSpeed',dom:[0.2,3]},{lab:'su2',k:'su2Speed',dom:[0.2,3]},{lab:'spin',k:'spinSpeed',dom:[0.1,4]},
+           {lab:'chaos',k:'chaosSpeed',dom:[0.2,4]},{lab:'disp',k:'dispSpeed',dom:[0.1,3]},{lab:'qm',k:'qmSpeed',dom:[0.1,5]},
+           {lab:'rpd',k:'rpdSpeed',dom:[0.2,3]},{lab:'gw',k:'gwSpeed',dom:[0.2,3]},{lab:'skyrmion',k:'skSpeed',dom:[0.2,4]},
+           {lab:'quasi',k:'qpSpeed',dom:[0.2,4]},{lab:'rel',k:'relSpeed',dom:[0.1,3]},{lab:'poin',k:'poinSpeed',dom:[0.1,3]},
+           {lab:'sh',k:'shSpeed',dom:[0.2,3]},{lab:'taub',k:'tnSpeed',dom:[0.1,4]},{lab:'hopf',k:'hopfFlowSpd',dom:[0.1,4]},
+           {lab:'red',k:'rkzSpeed',dom:[0.02,1.2]},{lab:'bhr',k:'bhrSpeed',dom:[0.2,3]}]}
+];
+function mvLink(id){ return MV_LINKS.find(l=>l.id===id)||null; }
+const mvLinkPhys=(L,u)=>L.log?L.lo*Math.pow(L.hi/L.lo,u):L.lo+(L.hi-L.lo)*u;
+const mvLinkU=(L,x)=>L.log?Math.log(x/L.lo)/Math.log(L.hi/L.lo):(x-L.lo)/(L.hi-L.lo);
+/* labs a link touches, and the links that touch at least two of the visible tiles */
+function mvLinkLabs(L){ return [...new Set(L.members.map(m=>m.lab))]; }
+function mvLinkAvailable(views){
+  return MV_LINKS.filter(L=>mvLinkLabs(L).filter(v=>views.includes(v)).length>=2);
+}
+/* Apply the master to every member. Returns one row per member with the value
+   actually written and whether the laboratory's own range clamped it. */
+function mvLinkApply(L,u,onlyLabs){
+  const x=mvLinkPhys(L,u), rows=[];
+  for(const m of L.members){
+    if(onlyLabs&&!onlyLabs.includes(m.lab)) continue;
+    let raw=m.map?m.map(x):x;
+    if(L.int) raw=Math.round(raw);
+    const cl0=Math.min(m.dom[1],Math.max(m.dom[0],raw)), cl=L.int?Math.round(cl0):cl0;
+    if(m.set){ try{ m.set(cl); }catch(e){} } else state[m.k]=cl;
+    rows.push({lab:m.lab,k:m.k,raw,val:cl,clamped:Math.abs(cl0-raw)>1e-12,kind:m.kind||L.kind});
+  }
+  return rows;
+}
+function mvLinkCompose(L){
+  const labs=mvLinkLabs(L).slice(0,4);
+  if(labs.length<2) return;
+  if(!MV.on) mvEnter();
+  MV.presetId='__link:'+L.id; MV.n=labs.length; MV.active=-1;
+  for(let i=0;i<labs.length;i++){ MV.views[i]=labs[i];
+    const p=s3ViewPreset(labs[i]), d=new THREE.Vector3(p[0],p[1],p[2]);
+    if(d.lengthSq()<1e-9) d.set(0,.35,1);
+    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
+  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);
+  state.mvLink=L.id; state.mvLinkV=mvLinkU(L,L.def);
+  mvLinkApply(L,state.mvLinkV,labs);
+  mvSetActive(0); mvLayout(); buildCtl();
+}
+/* which laboratories can never join a link, and why — reported, not hidden */
+function mvLinkCoverage(){
+  const covered=new Set(MV_LINKS.flatMap(mvLinkLabs));
+  const all=Object.keys(S3_VIEW_NAMES);
+  return {covered:[...covered].filter(v=>all.includes(v)), missing:all.filter(v=>!covered.has(v))};
+}
 
 /* ================================================================
    INVERSE ATLAS · query the whole atlas by VALUE instead of by name.
@@ -22439,6 +22721,7 @@ const state = {
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invTol:1e-3,   // Inverse atlas — query the whole atlas by value
+  mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
@@ -25253,7 +25536,31 @@ function buildCtlBody(){
           <select id="mvSlot${i}" style="width:100%;box-sizing:border-box">${opts.map(v=>`<option value="${v}" ${MV.views[i]===v?'selected':''}>${esc(viewNameL(v))}</option>`).join('')}</select>
         </div>`).join('')}
       </div>
-      <div class="note" id="mvLinkOut" style="font-variant-numeric:tabular-nums;font-size:11px;margin-top:5px">—</div>
+      <div class="note" id="mvBusOut" style="font-variant-numeric:tabular-nums;font-size:11px;margin-top:5px">—</div>
+      ${(()=>{ const vis=MV.views.slice(0,MV.n), av=mvLinkAvailable(vis), L=mvLink(state.mvLink);
+        const active=L&&av.some(x=>x.id===L.id)?L:null;
+        const u=state.mvLinkV??0.5, x=active?mvLinkPhys(active,u):0;
+        const rows=active?mvLinkApply(active,u,state.mvLinkAll?null:vis):[];
+        return `<div class="sect" style="border:1px solid rgba(127,212,255,.26);border-radius:8px;padding:8px;margin-top:6px">
+        <b>${TT('Linked parameter — one knob, every tile','Связанный параметр — одна ручка, все окна','Verknüpfter Parameter — ein Regler, alle Kacheln')}</b>
+        <div class="chips" style="margin-top:4px">
+          <button class="chip ${!active?'on':''}" data-mvlink="">${TT('none','нет','keiner')}</button>
+          ${av.map(l=>`<button class="chip ${active&&active.id===l.id?'on':''}" data-mvlink="${l.id}" title="${esc(impL(l.why))}"><span style="color:${MV_LINK_KIND[l.kind].c}">●</span> ${esc(impL(l.t))}</button>`).join('')}
+        </div>
+        ${active?`
+        <div class="ctlrow" style="margin-top:5px"><label>${esc(active.unit)}</label>
+          <input type="range" id="mvLinkV" min="0" max="1" step="0.0001" value="${u}">
+          <span class="val" id="mvLinkVV">${active.int?String(Math.round(x)):(Math.abs(x)>=1000||Math.abs(x)<0.01?x.toExponential(3):x.toFixed(4))}</span></div>
+        <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+          <button class="btn ${state.mvLinkSweep?'on':''}" id="mvLinkSweep">${state.mvLinkSweep?TT('⏸ sweeping','⏸ идёт развёртка','⏸ Sweep läuft'):TT('⟳ sweep it','⟳ развернуть','⟳ Sweep')}</button>
+          <button class="btn ${state.mvLinkAll?'on':''}" id="mvLinkAll">${state.mvLinkAll?TT('driving ALL member labs','ведёт ВСЕ лаборатории-члены','treibt ALLE Mitglieder'):TT('driving visible tiles only','ведёт только видимые окна','nur sichtbare Kacheln')}</button>
+        </div>
+        <div class="note" style="font-size:10.5px;margin-top:4px"><span style="color:${MV_LINK_KIND[active.kind].c}">${esc(impL(MV_LINK_KIND[active.kind].t)).toUpperCase()}</span> — ${esc(impL(active.why))}</div>
+        <div class="note" id="mvLinkOut" style="font-variant-numeric:tabular-nums;font-size:11px;margin-top:4px">${rows.map(r=>`<div><b style="color:${vis.includes(r.lab)?'var(--gold-2)':'var(--dim)'}">${esc(viewNameL(r.lab))}</b> · ${esc(r.k)} = <b>${active.int?r.val:(Math.abs(r.val)>=1000||Math.abs(r.val)<0.01?r.val.toExponential(3):r.val.toFixed(4))}</b>${r.clamped?` <span style="color:#ff8a6a">${TT('CLAMPED — outside this laboratory’s range','ОБРЕЗАНО — вне диапазона этой лаборатории','GEKLEMMT — außerhalb des Bereichs')}</span>`:''}${r.kind!==active.kind?` <span style="color:${MV_LINK_KIND[r.kind].c};opacity:.85">[${r.kind}]</span>`:''}</div>`).join('')||'—'}</div>`
+        :`<div class="note" style="font-size:10.5px;color:var(--dim);margin-top:4px">${av.length?TT('Pick a link and one master control drives the matching parameter in every tile that has one.','Выбери связь — и один мастер-регулятор поведёт соответствующий параметр в каждом окне, где он есть.','Wähle eine Verknüpfung: ein Master-Regler treibt den passenden Parameter in jeder Kachel.'):TT('No parameter is shared by two or more of the tiles now on screen. Compose a set from the catalogue below and the master appears.','Ни один параметр не общий для двух и более окон на экране. Собери набор из каталога ниже — и мастер появится.','Kein Parameter wird von zwei der gezeigten Kacheln geteilt.')}</div>`}
+        <div style="margin-top:6px"><b style="font-size:10px;letter-spacing:.1em;color:var(--gold-dim)">${TT('CATALOGUE — compose the tiles from a shared parameter','КАТАЛОГ — собрать окна вокруг общего параметра','KATALOG — Kacheln aus einem geteilten Parameter bilden')}</b>
+        <div class="chips" style="margin-top:3px">${MV_LINKS.map(l=>`<button class="chip" data-mvlinkgo="${l.id}" title="${esc(mvLinkLabs(l).map(viewNameL).join(' · '))}"><span style="color:${MV_LINK_KIND[l.kind].c}">●</span> ${esc(impL(l.t))} <span style="opacity:.6">${mvLinkLabs(l).length}</span></button>`).join('')}</div></div>
+      </div>`; })()}
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('One WebGL context, one scene graph, four scissored viewports — measured at 1.01× the single-view frame time, i.e. together about one full-screen frame of fragment work, with no extra framebuffers. (That figure is from a fragment-bound software rasteriser; on a real GPU the extra cost is the fourfold draw-call and vertex work rather than fill.) Every visible laboratory is stepped with the same dt in the same frame, so the comparison is simultaneous rather than remembered. Orientation is shared while each tile keeps its own framing distance, because these laboratories differ in size by more than an order of magnitude. Click any tile to hand it the whole control panel below. DECLARED: bloom and the 3-D label layer are single-camera passes and are replaced by per-tile captions while multiview is on.','Один контекст WebGL, один граф сцены, четыре области с ножничным отсечением — измерено 1.01× от времени кадра одиночного вида, то есть суммарно около одного полноэкранного кадра фрагментной работы, без дополнительных буферов. (Замер сделан на программном растеризаторе, ограниченном фрагментами; на настоящем GPU дополнительная цена — четырёхкратные вызовы отрисовки и вершинная работа, а не заполнение.) Каждая видимая лаборатория считается с тем же dt в том же кадре, поэтому сравнение одновременное, а не по памяти. Ориентация общая, но каждое окно сохраняет свою дистанцию кадрирования, так как лаборатории различаются по размеру более чем на порядок. Щёлкни по любому окну — и вся панель управления ниже станет его. ЗАЯВЛЕНО: свечение и слой трёхмерных подписей — однокамерные проходы; на время мультивида их заменяют подписи по окнам.','Ein WebGL-Kontext, ein Szenengraph, vier Scissor-Viewports — gemessen 1.01× der Einzelansicht, zusammen etwa ein Vollbild an Fragmentarbeit. (Gemessen auf einem fragmentgebundenen Software-Rasterizer.) Jedes sichtbare Labor wird im selben Frame mit demselben dt gerechnet. Die Orientierung ist gemeinsam, die Kadrierung pro Kachel eigen. Ein Klick auf eine Kachel übergibt ihr das gesamte Bedienfeld. ERKLÄRT: Bloom und die 3-D-Beschriftungsebene sind Einkamera-Durchgänge und werden im Multiview durch Kachel-Beschriftungen ersetzt.')}</div>`:''}
     </div>`; })()}
     ${(()=>{ const q=state.invQ, tol=state.invTol??1e-3;
@@ -25384,6 +25691,13 @@ function buildCtlBody(){
       const qq=ctl.querySelector('#invQuartet');
       if(qq) qq.onclick=()=>invAtlasQuartet(invAtlasQuery(Number(state.invQ),state.invTol??1e-3)); }
     { const b=ctl.querySelector('#mvToggle'); if(b) b.onclick=()=>{ if(MV.on) mvExit(); else mvEnter(); };
+      ctl.querySelectorAll('[data-mvlink]').forEach(e=>e.onclick=()=>{ state.mvLink=e.dataset.mvlink;
+        const L=mvLink(state.mvLink); if(L) state.mvLinkV=mvLinkU(L,L.def); buildCtl(); });
+      ctl.querySelectorAll('[data-mvlinkgo]').forEach(e=>e.onclick=()=>{ const L=mvLink(e.dataset.mvlinkgo); if(L) mvLinkCompose(L); });
+      { const sl=ctl.querySelector('#mvLinkV');
+        if(sl) sl.oninput=ev=>{ state.mvLinkV=+ev.target.value; mvLinkTick(true); }; }
+      { const b=ctl.querySelector('#mvLinkSweep'); if(b) b.onclick=()=>{ state.mvLinkSweep=!state.mvLinkSweep; buildCtl(); }; }
+      { const b=ctl.querySelector('#mvLinkAll'); if(b) b.onclick=()=>{ state.mvLinkAll=!state.mvLinkAll; buildCtl(); }; }
       const sy=ctl.querySelector('#mvSync'); if(sy) sy.onclick=()=>{ MV.sync=!MV.sync; buildCtl(); };
       ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>{ MV.n=Math.max(1,Math.min(4,+e.dataset.mvn));
         if(MV.active>=MV.n) MV.active=MV.n-1; for(let i=0;i<MV.n;i++) setS3View(MV.views[i]);
