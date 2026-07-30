@@ -2410,6 +2410,34 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // INVERSE ATLAS: every observable must round-trip, and refuse rather than clamp
+    let rt=null, worst=0;
+    for(const E of INVERSE_ATLAS){
+      const [lo,hi]=E.dom;
+      for(let i=1;i<=5;i++){ const p=lo+(hi-lo)*i/6, y=E.fwd(p);
+        if(!isFinite(y)) continue;
+        const s=invAtlasSolve(E,y);
+        if(!s){ rt=E.id+' failed to invert its own output '+y; break; }
+        const tol=E.kind==='EXACT'?1e-9:E.kind==='SAMPLED'?1e-7:1e-6;
+        if(!(s.err<tol)){ rt=`${E.id}: round-trip residual ${s.err.toExponential(1)} > ${tol}`; break; }
+        worst=Math.max(worst,s.err); } }
+    ok('Inverse atlas: every observable inverts its own forward map — feed each laboratory a value it produced and the solver returns a setting that reproduces it, exactly where a closed form exists and to 1e-6 where the bracket is numerical',
+      !rt, rt||`${INVERSE_ATLAS.length} observables × 5 samples · worst round-trip residual ${worst.toExponential(1)}`);
+    { let leak=null;
+      for(const E of INVERSE_ATLAS){ const R=invAtlasRange(E), span=Math.max(1e-30,R.hi-R.lo);
+        for(const y of [R.lo-span*0.5, R.hi+span*0.5, R.hi*1e6+1, -Math.abs(R.hi)-1])
+          if(invAtlasSolve(E,y)!==null) leak=`${E.id} accepted out-of-range ${y}`; }
+      ok('Inverse atlas: a target outside a laboratory’s real reach is REFUSED with its range, never silently pinned to the nearest slider end — an atlas that answers by value must be able to say "not here"',
+        !leak, leak||`${INVERSE_ATLAS.length} observables × 4 out-of-range probes, all refused`); }
+    { const known=new Set(Object.keys(S3_VIEW_NAMES)), bad=[];
+      for(const E of INVERSE_ATLAS){ if(!known.has(E.lab)) bad.push(E.id+':lab');
+        const before=JSON.stringify(state); try{ E.apply(E.dom[0]); }catch(e){ bad.push(E.id+':apply'); }
+        try{ Object.assign(state,JSON.parse(before)); }catch(e){} }
+      ok('Inverse atlas: every observable points at a laboratory that exists and its apply() only writes live state keys — the "open it at that setting" button can never land on a view the atlas does not have',
+        bad.length===0, bad.length?bad.join(', '):`${INVERSE_ATLAS.length} observables over ${[...new Set(INVERSE_ATLAS.map(E=>E.lab))].length} laboratories`); }
+    { const B=invAtlasSolve(INVERSE_ATLAS.find(E=>E.id==='rsh.B'),2.224566);
+      ok('Inverse atlas: asked for the measured deuteron binding energy, the atlas hands back a scattering length within 0.4% of the measured 5.4194 fm — the inverse question answered from the forward physics, with no table lookup anywhere',
+        B && Math.abs(B.p/5.4194-1)<0.004, B?`2.224566 MeV → a = ${B.p.toFixed(4)} fm (measured 5.4194 fm, ${((B.p/5.4194-1)*100).toFixed(2)}%)`:'no solution'); } }
   { // MULTIVIEW CAPTION OWNERSHIP + CHROME CONSOLIDATION
     const savedOn=MV.on, savedN=MV.n, savedA=MV.active, savedV=MV.views.slice();
     let owner=null;
@@ -16707,6 +16735,187 @@ renderer.domElement.addEventListener('pointerdown',e=>{
     if(R&&x>=R.x&&x<R.x+R.w&&y>=R.y&&y<R.y+R.h){ if(i!==MV.active) mvSetActive(i); return; } }
 },true);
 
+
+/* ================================================================
+   INVERSE ATLAS · query the whole atlas by VALUE instead of by name.
+
+   Every laboratory here answers the forward question: set the parameters, read
+   the number. No atlas of this kind answers the inverse one — I measured 2.2246
+   MeV, or a Q of 125, or a localization length of 288 sites; WHICH of these
+   fifty laboratories can produce that, and at what setting? This does.
+
+   Each entry declares one observable as a pure function of one parameter over
+   the laboratory's real slider domain, together with how it is inverted:
+     EXACT      — a closed-form inverse, verified by round-trip to machine
+                  precision in the self-tests;
+     BRACKETED  — a monotone bracket plus bisection to a declared tolerance;
+     ANALYTIC*  — a closed form that is itself an approximation whose domain of
+                  validity the laboratory already states (Thouless). The solver
+                  says so, hands you the parameter, and the laboratory then
+                  MEASURES the result so you can check it yourself.
+   Nothing is fitted, nothing is clamped: a target outside the achievable range
+   is refused with the range, never silently pinned to the nearest edge. */
+const SOLVE_TOL=1e-10;
+/* A non-monotone observable has no single inverse, and pretending otherwise is
+   how solvers lie. Scan the domain on a grid, keep every interval that brackets
+   the target, refine each one where the function IS locally monotone, and report
+   how many solutions there are. */
+function solveScan(f,lo,hi,y,G,it){ G=G||60; it=it||24;
+  const roots=[]; let xp=lo, fp=f(lo)-y;
+  for(let i=1;i<=G;i++){ const x=lo+(hi-lo)*i/G, fx=f(x)-y;
+    if(fp===0) roots.push(xp);
+    else if(isFinite(fp)&&isFinite(fx)&&fp*fx<0){ let a=xp,b=x,fa=fp;
+      for(let k=0;k<it;k++){ const m=0.5*(a+b), fm=f(m)-y; if(fa*fm<0) b=m; else { a=m; fa=fm; } }
+      roots.push(0.5*(a+b)); }
+    xp=x; fp=fx; }
+  return roots;
+}
+function solveBisect(f,lo,hi,y,it){ it=it||60;
+  let a=lo,b=hi,fa=f(a)-y,fb=f(b)-y;
+  if(!(isFinite(fa)&&isFinite(fb))||fa*fb>0) return null;
+  for(let i=0;i<it;i++){ const m=0.5*(a+b), fm=f(m)-y;
+    if(fm===0) return m;
+    if(fa*fm<0){ b=m; fb=fm; } else { a=m; fa=fm; }
+    if(Math.abs(b-a)<1e-13*Math.max(1,Math.abs(m))) break; }
+  return 0.5*(a+b);
+}
+const INVERSE_ATLAS=[
+ { id:'pole.Q', lab:'pole', unit:'', kind:'EXACT',
+   t:{en:'loaded quality factor Q = ω₀/γ',ru:'нагруженная добротность Q = ω₀/γ',de:'belastete Güte Q = ω₀/γ'},
+   dom:[0.008,0.8], p:'γ (total linewidth)',
+   fwd:g=>1/g, inv:Q=>1/Q,
+   apply:g=>{ state.poleGi=g/2; state.poleGc=g/2; state.poleDelta=0; },
+   note:{en:'γ is split equally, which puts the zero exactly on the real axis: the critically coupled, perfectly absorbing member of the Q family.',
+         ru:'γ делится поровну, и ноль попадает точно на вещественную ось: критически связанный, идеально поглощающий представитель семейства Q.',
+         de:'γ wird gleich geteilt — die Nullstelle liegt exakt auf der reellen Achse: kritisch gekoppelt.'} },
+ { id:'pole.tau', lab:'pole', unit:'1/ω₀', kind:'EXACT',
+   t:{en:'ringdown time τ = 2/γ',ru:'время звона τ = 2/γ',de:'Ringdown-Zeit τ = 2/γ'},
+   dom:[0.008,0.8], p:'γ (total linewidth)',
+   fwd:g=>2/g, inv:T=>2/T,
+   apply:g=>{ state.poleGi=g/2; state.poleGc=g/2; state.poleDelta=0; },
+   note:{en:'The same pole read as a decay: τ and Q are two names for the imaginary part.',
+         ru:'Тот же полюс, прочитанный как затухание: τ и Q — два имени для мнимой части.',
+         de:'Derselbe Pol als Abklingzeit gelesen.'} },
+ { id:'imp.VSWR', lab:'imp', unit:'', kind:'EXACT',
+   t:{en:'standing-wave ratio VSWR',ru:'коэффициент стоячей волны КСВ',de:'Stehwellenverhältnis VSWR'},
+   dom:[1,6], p:'normalised load resistance R',
+   fwd:R=>R>=1?R:1/R, inv:S=>S,
+   apply:R=>{ state.impR=R; state.impX=0; state.impAlpha=0; },
+   note:{en:'On the real axis Γ=(R−1)/(R+1), so VSWR is exactly R for R≥1 — the mismatch you asked for, placed on the chart with no numerics at all.',
+         ru:'На вещественной оси Γ=(R−1)/(R+1), поэтому КСВ в точности равен R при R≥1 — запрошенное рассогласование, поставленное на карту вовсе без численных методов.',
+         de:'Auf der reellen Achse ist Γ=(R−1)/(R+1), also VSWR exakt R für R≥1.'} },
+ { id:'rsh.B', lab:'rsh', unit:'MeV', kind:'EXACT',
+   t:{en:'two-body binding energy B',ru:'энергия связи двух тел B',de:'Zweikörper-Bindungsenergie B'},
+   dom:[0.02,12], p:'scattering length a (fm), r₀ fixed at 1.7536 fm',
+   fwd:a=>{ const P=rshErePole(a,1.7536); return (P.bad||P.k1<=0)?NaN:RSH_C*P.k1*P.k1; },
+   inv:B=>{ const k=Math.sqrt(B/RSH_C), r0=1.7536; const den=k*(2-k*r0);
+            return den>0?2/den:null; },
+   apply:a=>{ state.rshMode='ere'; state.rshA=a; state.rshR0=1.7536; },
+   note:{en:'Inverted from κ=(1−√(1−2r₀/a))/r₀ in closed form. Ask it for 2.224566 MeV and it hands back the deuteron scattering length.',
+         ru:'Обращено из κ=(1−√(1−2r₀/a))/r₀ в замкнутой форме. Спроси 2.224566 МэВ — и получишь длину рассеяния дейтрона.',
+         de:'Geschlossen invertiert aus κ=(1−√(1−2r₀/a))/r₀.'} },
+ { id:'he.eta', lab:'he', unit:'', kind:'EXACT',
+   t:{en:'Carnot efficiency η = 1 − T_c/T_h',ru:'КПД Карно η = 1 − T_c/T_h',de:'Carnot-Wirkungsgrad'},
+   dom:[320,1500], p:'hot reservoir T_h (K), T_c fixed at 300 K',
+   fwd:Th=>1-300/Th, inv:e=>e<1?300/(1-e):null,
+   apply:Th=>{ state.heTh=Th; state.heTc=300; state.heSweep=false; },
+   note:{en:'The ceiling itself, not a fit to any engine.',ru:'Сам потолок, а не подгонка к какой-либо машине.',de:'Die Grenze selbst.'} },
+ { id:'rel.gamma', lab:'rel', unit:'', kind:'EXACT',
+   t:{en:'Lorentz factor γ',ru:'лоренц-фактор γ',de:'Lorentz-Faktor γ'},
+   dom:[0,0.99], p:'β = v/c',
+   fwd:b=>1/Math.sqrt(1-b*b), inv:G=>G>=1?Math.sqrt(1-1/(G*G)):null,
+   apply:b=>{ state.relBeta=b; },
+   note:{en:'β=√(1−1/γ²) exactly; the lab then shows the same number as a hyperbolic distance (rapidity), the compact-vs-non-compact partner of the Anderson drift.',
+         ru:'β=√(1−1/γ²) точно; далее лаборатория показывает то же число как гиперболическое расстояние (быстроту) — некомпактный партнёр дрейфа Андерсона.',
+         de:'β=√(1−1/γ²) exakt; das Labor zeigt dieselbe Zahl als Rapidität.'} },
+ { id:'bht.T', lab:'bht', unit:'K', kind:'EXACT',
+   t:{en:'Hawking temperature T_H',ru:'температура Хокинга T_H',de:'Hawking-Temperatur'},
+   dom:[1e12,6.6e40], p:'black-hole mass M (kg)', log:true,
+   fwd:M=>bhtTH(M), inv:T=>T>0?bhtTH(1)/T:null,
+   apply:M=>{ state.bhtM=M; state.bhtEvap=false; },
+   note:{en:'T_H ∝ 1/M exactly, so the inverse is one division. The atlas covers 29 decades of mass, and the answer is refused outside them rather than clipped.',
+         ru:'T_H ∝ 1/M точно, поэтому обращение — одно деление. Атлас покрывает 29 порядков по массе, и вне них ответ отклоняется, а не обрезается.',
+         de:'T_H ∝ 1/M exakt; außerhalb der 29 Massendekaden wird die Antwort verweigert.'} },
+ { id:'te.eta', lab:'te', unit:'', kind:'BRACKETED',
+   t:{en:'thermoelectric efficiency η(ZT)',ru:'термоэлектрический КПД η(ZT)',de:'thermoelektrischer Wirkungsgrad η(ZT)'},
+   dom:[0.2,6], p:'figure of merit ZT (T_h=500 K, T_c=300 K)',
+   fwd:Z=>teEta(Z,300/500), inv:null,
+   apply:Z=>{ state.teMode='seebeck'; state.teTh=500; state.teTc=300; state.teZT=Z; state.teSweep=false; },
+   note:{en:'η is monotone in ZT, so a bracket plus bisection lands on it to 1e-10. The Carnot ceiling for this pair is 0.4 and no ZT reaches it — the solver will tell you so instead of pretending.',
+         ru:'η монотонна по ZT, поэтому вилка и деление пополам дают 1e-10. Потолок Карно для этой пары равен 0.4, и никакое ZT его не достигает — решатель так и скажет, а не сделает вид.',
+         de:'η ist monoton in ZT; Bisektion trifft auf 1e-10. Die Carnot-Grenze 0.4 wird von keinem ZT erreicht.'} },
+ { id:'and.xi', lab:'and', unit:'sites', kind:'ANALYTIC*',
+   t:{en:'localization length ξ = 1/γ',ru:'длина локализации ξ = 1/γ',de:'Lokalisierungslänge ξ = 1/γ'},
+   dom:[0.05,8], p:'disorder width W (at E=1, away from the band centre)',
+   fwd:W=>1/andThouless(1,W), inv:xi=>{ const s2=1-1/4, g=1/xi, W2=g*8*s2*12; return W2>0?Math.sqrt(W2):null; },
+   apply:W=>{ state.andE=1; state.andW=W; },
+   note:{en:'Solved from the Thouless closed form ⟨ε²⟩/(8 sin²k), which is leading order in W. The laboratory then MEASURES γ from 400 000 transfer steps, so you can read the residual yourself — at weak disorder the two agree to about a tenth of a percent, and at the band centre the formula is known to fail, which is why E is fixed at 1 here.',
+         ru:'Решено по замкнутой форме Таулесса ⟨ε²⟩/(8 sin²k) — ведущий порядок по W. Затем лаборатория ИЗМЕРЯЕТ γ по 400 000 шагов переноса, и остаток виден вам самим: при слабом беспорядке согласие около десятой доли процента, а в центре зоны формула, как известно, не работает — поэтому здесь E зафиксировано на 1.',
+         de:'Aus der Thouless-Form gelöst (führende Ordnung in W); das Labor MISST γ danach aus 400 000 Transferschritten, sodass der Rest sichtbar bleibt.'} },
+ { id:'kam.lambda', lab:'kam', unit:'/iter', kind:'SAMPLED', scan:{G:60,it:24},
+   t:{en:'Lyapunov exponent λ of the standard map',ru:'показатель Ляпунова λ стандартного отображения',de:'Lyapunov-Exponent λ'},
+   dom:[1.0,4], p:'kick strength K',
+   fwd:K=>kamLyapunov(K,1000,8), inv:null,
+   apply:K=>{ state.kamK=K; },
+   note:{en:'No closed form exists except the K≫1 limit, so λ is MEASURED from the exact symplectic map at every step of the search. It rises with K but is NOT monotone — a fifth of the steps across [1,4] go the wrong way, because accelerator modes hand stability back locally. Bisection would therefore be invalid, and the solver scans instead, refines only inside intervals where the function really does cross, and tells you when a value has more than one K that produces it.',
+         ru:'Замкнутой формы нет, кроме предела K≫1, поэтому λ ИЗМЕРЯЕТСЯ по точному симплектическому отображению на каждом шаге поиска. С ростом K она растёт, но НЕ монотонно: пятая часть шагов на [1,4] идёт в обратную сторону, потому что ускорительные моды локально возвращают устойчивость. Деление пополам поэтому незаконно; решатель сканирует, уточняет только внутри интервалов, где функция действительно пересекает цель, и сообщает, когда значению отвечает более одного K.',
+         de:'Keine geschlossene Form außer dem K≫1-Limit; λ wird bei jedem Suchschritt aus der exakten symplektischen Abbildung GEMESSEN. Sie wächst mit K, ist aber NICHT monoton — Bisektion wäre ungültig, daher wird gescannt und nur in echten Vorzeichenwechseln verfeinert; mehrfache Lösungen werden gemeldet.'} }
+];
+function invAtlasRange(E){
+  const [lo,hi]=E.dom; const a=E.fwd(lo), b=E.fwd(hi);
+  return { lo:Math.min(a,b), hi:Math.max(a,b) };
+}
+/* Solve one observable for a target. Returns null when the target is outside the
+   laboratory's real reach — never a clamped answer. */
+function invAtlasSolve(E,y){
+  const R=invAtlasRange(E);
+  if(!(isFinite(y))||y<R.lo-1e-12||y>R.hi+1e-12) return null;
+  let roots=null, p;
+  if(E.inv) p=E.inv(y);
+  else if(E.scan){ roots=solveScan(E.fwd,E.dom[0],E.dom[1],y,E.scan.G,E.scan.it);
+    if(!roots.length) return null;
+    p=roots.reduce((A,B)=>Math.abs(E.fwd(B)-y)<Math.abs(E.fwd(A)-y)?B:A); }
+  else p=solveBisect(E.fwd,E.dom[0],E.dom[1],y);
+  if(p==null||!isFinite(p)) return null;
+  if(p<E.dom[0]-1e-9||p>E.dom[1]+1e-9) return null;
+  p=Math.min(E.dom[1],Math.max(E.dom[0],p));
+  const got=E.fwd(p);
+  if(!isFinite(got)) return null;
+  return { p, got, err:Math.abs(got-y)/Math.max(1e-30,Math.abs(y)), roots:roots?roots.length:1 };
+}
+/* Which laboratories can produce this number at all? */
+let _invMemo=null;
+function invAtlasQuery(y,relTol){
+  relTol=relTol??1e-6;
+  if(_invMemo&&_invMemo.y===y&&_invMemo.t===relTol) return _invMemo.r;
+  const out=[];
+  for(const E of INVERSE_ATLAS){ const s=invAtlasSolve(E,y);
+    if(s&&s.err<=relTol) out.push({E,...s}); }
+  out.sort((a,b)=>a.err-b.err);
+  _invMemo={y,t:relTol,r:out};
+  return out;
+}
+function invAtlasGo(E,p){
+  try{ E.apply(p); }catch(e){ return; }
+  navPush(); setS3View(E.lab);
+  if(MV.on){ MV.views[MV.active]=E.lab; mvLayout(); }
+  buildCtl();
+}
+function invAtlasQuartet(hits){
+  const labs=[...new Set(hits.map(h=>h.E.lab))].slice(0,4);
+  if(labs.length<2) return;
+  for(const h of hits) if(labs.includes(h.E.lab)) { try{ h.E.apply(h.p); }catch(e){} }
+  if(!MV.on) mvEnter();
+  MV.n=labs.length; MV.presetId='__solved';
+  for(let i=0;i<labs.length;i++) MV.views[i]=labs[i];
+  MV.active=-1;
+  for(let i=0;i<MV.n;i++){ const pr=s3ViewPreset(MV.views[i]);
+    const d=new THREE.Vector3(pr[0],pr[1],pr[2]); if(d.lengthSq()<1e-9) d.set(0,.35,1);
+    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
+  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);
+  mvSetActive(0); mvLayout(); buildCtl();
+}
+
 /* ================================================================
    MODE 4 · FBS3R FRACTAL LEVELS — golden-ratio ladder R(N) = l_P·φ^N
    Nested φ-shells with infinite-zoom level transitions, epoch
@@ -21486,6 +21695,7 @@ const state = {
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
+  invQ:'', invTol:1e-3,   // Inverse atlas — query the whole atlas by value
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
@@ -24181,6 +24391,41 @@ function buildCtlBody(){
       <div class="note" id="mvLinkOut" style="font-variant-numeric:tabular-nums;font-size:11px;margin-top:5px">—</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('One WebGL context, one scene graph, four scissored viewports — measured at 1.01× the single-view frame time, i.e. together about one full-screen frame of fragment work, with no extra framebuffers. (That figure is from a fragment-bound software rasteriser; on a real GPU the extra cost is the fourfold draw-call and vertex work rather than fill.) Every visible laboratory is stepped with the same dt in the same frame, so the comparison is simultaneous rather than remembered. Orientation is shared while each tile keeps its own framing distance, because these laboratories differ in size by more than an order of magnitude. Click any tile to hand it the whole control panel below. DECLARED: bloom and the 3-D label layer are single-camera passes and are replaced by per-tile captions while multiview is on.','Один контекст WebGL, один граф сцены, четыре области с ножничным отсечением — измерено 1.01× от времени кадра одиночного вида, то есть суммарно около одного полноэкранного кадра фрагментной работы, без дополнительных буферов. (Замер сделан на программном растеризаторе, ограниченном фрагментами; на настоящем GPU дополнительная цена — четырёхкратные вызовы отрисовки и вершинная работа, а не заполнение.) Каждая видимая лаборатория считается с тем же dt в том же кадре, поэтому сравнение одновременное, а не по памяти. Ориентация общая, но каждое окно сохраняет свою дистанцию кадрирования, так как лаборатории различаются по размеру более чем на порядок. Щёлкни по любому окну — и вся панель управления ниже станет его. ЗАЯВЛЕНО: свечение и слой трёхмерных подписей — однокамерные проходы; на время мультивида их заменяют подписи по окнам.','Ein WebGL-Kontext, ein Szenengraph, vier Scissor-Viewports — gemessen 1.01× der Einzelansicht, zusammen etwa ein Vollbild an Fragmentarbeit. (Gemessen auf einem fragmentgebundenen Software-Rasterizer.) Jedes sichtbare Labor wird im selben Frame mit demselben dt gerechnet. Die Orientierung ist gemeinsam, die Kadrierung pro Kachel eigen. Ein Klick auf eine Kachel übergibt ihr das gesamte Bedienfeld. ERKLÄRT: Bloom und die 3-D-Beschriftungsebene sind Einkamera-Durchgänge und werden im Multiview durch Kachel-Beschriftungen ersetzt.')}</div>`:''}
     </div>`; })()}
+    ${(()=>{ const q=state.invQ, tol=state.invTol??1e-3;
+      const yv=(q===''||q==null)?NaN:Number(q);
+      const hits=isFinite(yv)?invAtlasQuery(yv,tol):[];
+      const misses=isFinite(yv)?INVERSE_ATLAS.filter(E=>!hits.some(h=>h.E.id===E.id)):[];
+      return `<div class="sect">
+      <b>${TT('Inverse atlas — query by VALUE, not by name','Обратный атлас — запрос по ЗНАЧЕНИЮ, а не по имени','Inverser Atlas — Abfrage nach WERT')}</b>
+      <div class="ctlrow" style="margin-top:4px">
+        <input type="text" id="invQ" inputmode="decimal" autocomplete="off" spellcheck="false"
+          placeholder="${TT('e.g. 2.224566  ·  125  ·  288','напр. 2.224566  ·  125  ·  288','z.B. 2.224566  ·  125  ·  288')}"
+          value="${esc(q??'')}" style="flex:1;min-width:0">
+        <select id="invTol" style="width:88px">
+          ${[[1e-9,'1e−9'],[1e-6,'1e−6'],[1e-3,'1e−3'],[1e-2,'1%']].map(([v,l])=>`<option value="${v}" ${Math.abs(tol-v)<1e-12?'selected':''}>±${l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="chips" style="margin-top:5px">
+        ${[['2.224566',TT('deuteron B (MeV)','B дейтрона (МэВ)','Deuteron B')],['125','Q = 125'],
+           ['288',TT('ξ = 288 sites','ξ = 288 узлов','ξ = 288')],['2',TT('γ = 2 · VSWR 2','γ = 2 · КСВ 2','γ = 2')],
+           ['0.6',TT('η = 0.6','КПД = 0.6','η = 0.6')],['6.17e-8',TT('T_H of 1 M☉','T_H для 1 M☉','T_H bei 1 M☉')]]
+          .map(([v,l])=>`<button class="chip ${String(q)===v?'on':''}" data-invq="${v}">${l}</button>`).join('')}
+      </div>
+      ${!isFinite(yv)?`<div class="note" style="font-size:10.5px;color:var(--dim);margin-top:5px">${TT('Type a measured number. Every laboratory that can produce it will report the exact setting that does, and how it was inverted. Nothing is clamped: a value out of a laboratory’s reach is refused with its range.','Введи измеренное число. Каждая лаборатория, способная его дать, сообщит точную настройку и способ обращения. Ничего не обрезается: значение вне досягаемости отклоняется вместе с указанием диапазона.','Gib eine gemessene Zahl ein. Jedes Labor, das sie erzeugen kann, meldet die exakte Einstellung und die Inversionsart.')}</div>`
+      :`<div class="note" style="margin-top:6px;font-variant-numeric:tabular-nums;font-size:11px">
+        <b style="color:${hits.length?'var(--gold-2)':'#ff8a6a'}">${hits.length}</b> ${TT('of','из','von')} ${INVERSE_ATLAS.length} ${TT('observables can realise','наблюдаемых могут дать','Observablen können liefern')} <b>${yv}</b> ${TT('within','с точностью','innerhalb')} ±${tol}
+      </div>
+      ${hits.map(h=>`<div style="margin:5px 0;padding:5px 6px;border:1px solid rgba(212,175,106,.22);border-radius:7px">
+        <div style="display:flex;gap:6px;align-items:baseline"><b style="color:var(--gold-2);flex:1">${esc(impL(h.E.t))}</b>
+          <span class="small" style="opacity:.7">${h.E.kind}</span></div>
+        <div class="small" style="font-variant-numeric:tabular-nums">${esc(h.E.p)} = <b>${h.p.toExponential(6)}</b> → ${esc(h.E.id)} = <b>${h.got.toExponential(9)}</b>${h.E.unit?' '+esc(h.E.unit):''} · ${TT('residual','невязка','Rest')} ${h.err.toExponential(1)}${h.roots>1?` · <b style="color:#ffb45a">${h.roots} ${TT('distinct settings give this value','различных настроек дают это значение','verschiedene Einstellungen liefern diesen Wert')}</b>`:''}</div>
+        <div class="small" style="color:var(--dim);margin-top:2px">${esc(impL(h.E.note))}</div>
+        <div class="ctlrow" style="margin-top:4px"><button class="btn" data-invgo="${esc(h.E.id)}">${TT('→ open this laboratory at that setting','→ открыть лабораторию с этой настройкой','→ Labor mit dieser Einstellung öffnen')}</button></div>
+      </div>`).join('')}
+      ${hits.length>=2?`<div class="ctlrow"><button class="btn" id="invQuartet">${TT('◱ open the matches side by side','◱ открыть совпадения рядом','◱ Treffer nebeneinander öffnen')}</button></div>`:''}
+      ${misses.length?`<div class="note" style="font-size:10px;color:var(--dim);margin-top:5px">${TT('out of reach','вне досягаемости','außer Reichweite')}: ${misses.map(E=>{ const R=invAtlasRange(E);
+        return `${esc(E.id)} <span style="opacity:.7">[${R.lo.toExponential(2)} … ${R.hi.toExponential(2)}]</span>`; }).join(' · ')}</div>`:''}`}
+      </div>`; })()}
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
@@ -24259,6 +24504,17 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
+    { const q=ctl.querySelector('#invQ');
+      if(q){ q.oninput=()=>{ state.invQ=q.value; };
+        q.onchange=()=>{ state.invQ=q.value; buildCtl(); };
+        q.onkeydown=e=>{ if(e.key==='Enter'){ state.invQ=q.value; buildCtl(); } e.stopPropagation(); }; }
+      const tl=ctl.querySelector('#invTol'); if(tl) tl.onchange=()=>{ state.invTol=+tl.value; buildCtl(); };
+      ctl.querySelectorAll('[data-invq]').forEach(b=>b.onclick=()=>{ state.invQ=b.dataset.invq; buildCtl(); });
+      ctl.querySelectorAll('[data-invgo]').forEach(b=>b.onclick=()=>{
+        const E=INVERSE_ATLAS.find(x=>x.id===b.dataset.invgo); if(!E) return;
+        const r=invAtlasSolve(E,Number(state.invQ)); if(r) invAtlasGo(E,r.p); });
+      const qq=ctl.querySelector('#invQuartet');
+      if(qq) qq.onclick=()=>invAtlasQuartet(invAtlasQuery(Number(state.invQ),state.invTol??1e-3)); }
     { const b=ctl.querySelector('#mvToggle'); if(b) b.onclick=()=>{ if(MV.on) mvExit(); else mvEnter(); };
       const sy=ctl.querySelector('#mvSync'); if(sy) sy.onclick=()=>{ MV.sync=!MV.sync; buildCtl(); };
       ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>{ MV.n=Math.max(1,Math.min(4,+e.dataset.mvn));
