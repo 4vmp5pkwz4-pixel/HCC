@@ -4443,6 +4443,27 @@ renderer.domElement.addEventListener('pointerdown', e=>{
     const hit=raycaster.intersectObject(atomTableDots,false)[0];
     if(hit && hit.instanceId!=null){ state.atZ=hit.instanceId+1; buildAtom(); buildCtl(); e.stopPropagation(); return; }
   }
+  // grab the working point ITSELF: the Smith disk (imp), the complex-ω plane (pole),
+  // the dispersion branch (disp). Dragging is the direct-manipulation twin of the numeric
+  // field, and it SNAPS to the same decisive values, so precision survives the gesture.
+  if(state.s3view==='imp' && impObjs){
+    impGroup.getWorldQuaternion(_dragQ);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), impGroup.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=impGroup.worldToLocal(_dragHit.clone());
+      if(Math.hypot(loc.x,loc.z)<=IMP_DS*1.02){       // inside the passive disk ⇒ this is a chart gesture
+        hfDrags.set(e.pointerId,{kind:'imp'}); controls.enabled=false;
+        _dragMoved(e); e.stopPropagation(); return; }
+    }
+  }
+  if(state.s3view==='disp' && dispObjs && dispObjs.opMk){
+    const hit=raycaster.intersectObject(dispObjs.opMk,false)[0];
+    if(hit){ hfDrags.set(e.pointerId,{kind:'disp'}); controls.enabled=false; e.stopPropagation(); return; }
+  }
+  if(state.s3view==='pole' && poleObjs && poleObjs.poleMk){
+    const hit=raycaster.intersectObjects([poleObjs.poleMk,poleObjs.zeroMk].filter(Boolean),false)[0];
+    if(hit){ hfDrags.set(e.pointerId,{kind:'pole',zero:hit.object===poleObjs.zeroMk}); controls.enabled=false; e.stopPropagation(); return; }
+  }
   if(state.s3view==='skyrmion' && typeof skCoreGrp!=='undefined' && skCoreGrp.children.length){
     const hit=raycaster.intersectObjects(skCoreGrp.children,false)[0];
     if(hit){ const idx=skCoreGrp.children.indexOf(hit.object); if(skCenters[idx]){ hfDrags.set(e.pointerId,{kind:'sk',idx}); controls.enabled=false; e.stopPropagation(); } }
@@ -4451,10 +4472,55 @@ renderer.domElement.addEventListener('pointerdown', e=>{
     if(hit){ hfDrags.set(e.pointerId,{kind:'hf',idx:hfExtra.indexOf(hit.object)}); controls.enabled=false; e.stopPropagation(); }
   }
 }, true);
-addEventListener('pointermove', e=>{
+function _dragMoved(e){
   const d=hfDrags.get(e.pointerId); if(!d) return;
   const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
-  if(d.kind==='sk'){
+  /* snap-in-gesture: within ~2.5% of the plane's span the drag locks EXACTLY onto a decisive
+     value, so direct manipulation can reach a singular point, not merely approach it. */
+  const _snap=(v,keys,tol)=>{ for(const k of keys){ if(Math.abs(v-k)<tol) return k; } return v; };
+  if(d.kind==='imp'){
+    impGroup.getWorldQuaternion(_dragQ);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), impGroup.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=impGroup.worldToLocal(_dragHit.clone());
+      let gr=loc.x/IMP_DS, gi=loc.z/IMP_DS;                 // the disk IS the Γ plane
+      const m=Math.hypot(gr,gi); if(m>0.995){ gr*=0.995/m; gi*=0.995/m; }   // stay inside the passive disk
+      gr=_snap(gr,[0,1,-1,0.5,-0.5],0.028); gi=_snap(gi,[0,1,-1,0.5,-0.5],0.028);
+      const z=impZof(gr,gi);
+      if(isFinite(z[0])&&isFinite(z[1])){
+        state.impR=Math.max(0,Math.min(6,_snap(z[0],[0,1,Math.SQRT2,2,3],0.05)));
+        state.impX=Math.max(-6,Math.min(6,_snap(z[1],[0,1,-1,2,-2],0.05)));
+        impMatchA=null; impTrail=[]; if(state.impDomain!=='rf'&&state.impDomain!=='mechanical') state.impDomain='rf';
+        if(panelIsOpen('ctl')) buildCtl();
+      }
+    }
+  } else if(d.kind==='pole'){
+    poleGroup.getWorldQuaternion(_dragQ);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), poleGroup.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=poleGroup.worldToLocal(_dragHit.clone());
+      const wr=0.55+(loc.x+2.9)/5.8*0.9, wi=-0.32+(loc.z+1.9)/3.8*0.42;   // inverse of PX / PZ
+      const P=poleParams();
+      if(d.zero){ // the zero carries the Fano shift AND the loss balance
+        state.poleDelta=Math.max(-0.15,Math.min(0.15,_snap(wr-POLE_W0,[0],0.006)));
+        const gi=Math.max(0,Math.min(0.4, P.gc + 2*_snap(wi,[0],0.006)));   // z_im=−(γ_i−γ_c)/2
+        state.poleGi=gi;
+      } else {    // the pole carries the total linewidth
+        state.poleGc=Math.max(0,Math.min(0.4, Math.max(0,-2*wi) - (state.poleGi??0.05)));
+      }
+      if(panelIsOpen('ctl')) buildCtl();
+    }
+  } else if(d.kind==='disp'){
+    dispGroup.getWorldQuaternion(_dragQ);
+    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,0,1).applyQuaternion(_dragQ), dispObjs.opMk.getWorldPosition(new THREE.Vector3()));
+    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
+      const loc=dispGroup.worldToLocal(_dragHit.clone());
+      const k=(loc.x+2.6)/5.2*Math.PI;                      // inverse of KX
+      const S=DISP_SYS[state.dispSys||'phonon'];
+      state.dispK=Math.max(0.05,Math.min(S.kmax,_snap(k,[Math.PI,Math.PI/2,1],0.05)));
+      if(panelIsOpen('ctl')) buildCtl();
+    }
+  } else if(d.kind==='sk'){
     skyrmionGroup.getWorldQuaternion(_dragQ);
     _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), skyrmionGroup.getWorldPosition(new THREE.Vector3()));
     if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
@@ -4471,7 +4537,8 @@ addEventListener('pointermove', e=>{
       hfDragPos[d.idx].copy(loc); hfDirty=true;
     }
   }
-}, true);
+}
+addEventListener('pointermove', _dragMoved, true);
 function _endDrag(e){ if(hfDrags.has(e.pointerId)){ hfDrags.delete(e.pointerId); if(hfDrags.size===0) controls.enabled=!state.landed; } }
 addEventListener('pointerup', _endDrag, true);
 addEventListener('pointercancel', _endDrag, true);
