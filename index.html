@@ -2340,10 +2340,36 @@ function runSelfTests(){
     ok('KAM: the golden mean is the last rotation number to break because φ²=φ+1 and 1/φ=φ−1 exactly — the worst-approximable irrational, hence the most robust torus',
       Math.abs(KAM_PHI*KAM_PHI-KAM_PHI-1)<1e-15 && Math.abs(1/KAM_PHI-(KAM_PHI-1))<1e-15,
       `φ=${KAM_PHI.toFixed(12)} · φ²−φ−1=${(KAM_PHI*KAM_PHI-KAM_PHI-1).toExponential(1)}`);
+    { const l0=kamLyapunov(0.5,1600,24), l1=kamLyapunov(12,1600,24), asy=Math.log(6);
+      ok('KAM: the MEASURED Lyapunov exponent collapses towards zero below K_c and converges on the analytic random-phase value ln(K/2) for K≫1 — the map is exact, so this is the true λ of the true dynamics, not of an integrator',
+        l0<0.02 && Math.abs(l1/asy-1)<0.03,
+        `λ(K=0.5)=${l0.toFixed(5)} · λ(K=12)=${l1.toFixed(5)} vs ln(6)=${asy.toFixed(5)} (${((l1/asy-1)*100).toFixed(2)}%)`); }
     { const lo=kamTransport(0.5,2000,48), hi=kamTransport(2.0,2000,48);
       ok('KAM: measured momentum transport is BOUNDED below K_c and unbounded above — max|Δp|/2π < 0.15 at K=0.5, > 5 at K=2, and the measured D approaches the unfitted quasilinear K²/4 only at large K',
         lo.max<0.15 && hi.max>5 && hi.D/(4/4)>0.1,
         `K=0.5: max|Δp|/2π=${lo.max.toFixed(3)}, D=${lo.D.toExponential(1)} · K=2: max=${hi.max.toFixed(2)}, D=${hi.D.toExponential(2)}, D/D_QL=${(hi.D/1).toFixed(3)}`); } }
+  { // RIEMANN SHEET: the pole of the effective-range amplitude must reproduce measured nuclear data
+    const P=rshErePole(5.4194,1.7536), B=RSH_C*P.k1*P.k1;
+    ok('Riemann sheet: the deuteron binding energy comes out of the scattering length and effective range alone — κ from (r₀/2)k²−ik−1/a=0 gives B=2.2229 MeV against the measured 2.224566 MeV (0.07%), from two numbers that say nothing about binding',
+      !P.bad && P.k1>0 && Math.abs(B/2.224566-1)<0.002,
+      `κ=${P.k1.toFixed(6)} fm⁻¹ · B=${B.toFixed(5)} MeV · error ${((B/2.224566-1)*100).toFixed(3)}% · ħ²/2μ=${RSH_C.toFixed(3)} MeV·fm²`);
+    { const V=rshErePole(-23.740,2.77), Ev=RSH_C*V.k1*V.k1*1000;
+      ok('Riemann sheet: the np ¹S₀ pole falls THROUGH the cut onto sheet II — κ<0, a virtual state 66 keV above threshold, at a negative energy where a bound state would look identical on any flat plot',
+        !V.bad && V.k1<0 && Math.abs(Ev-66)<8, `κ=${V.k1.toFixed(6)} fm⁻¹ (sheet II) · |E|=${Ev.toFixed(1)} keV (literature ≈66 keV)`); }
+    { let um=0; for(let k=0.02;k<1.5;k+=0.01){ const S=rshS(k,0.55,0.09); um=Math.max(um,Math.abs(Math.hypot(S[0],S[1])-1)); }
+      let best=-1,bE=0; for(let E=0.05;E<40;E+=0.01){ const s=rshSigma(E,{mode:'pole',kR:0.55,kI:0.09}); if(s>best){best=s;bE=E;} }
+      const ER=RSH_C*(0.55*0.55-0.09*0.09);
+      ok('Riemann sheet: the two-pole S-matrix is EXACTLY unitary on the real axis, and the bump it produces there peaks at the real part of the sheet-II pole — the measured resonance really is the pole’s shadow',
+        um<1e-12 && Math.abs(bE-ER)<0.05, `max ||S|−1| = ${um.toExponential(1)} · σ peaks at ${bE.toFixed(3)} MeV vs E_R=${ER.toFixed(3)} MeV · Γ=${(4*RSH_C*0.55*0.09).toFixed(3)} MeV`); }
+    { let last=[1,0];
+      for(let i=1;i<=4000;i++){ const t=2*Math.PI*i/4000, m=1, th=Math.atan2(Math.sin(t),Math.cos(t))/2;
+        let sr=m*Math.cos(th), si=m*Math.sin(th);
+        if(sr*last[0]+si*last[1]<0){ sr=-sr; si=-si; } last=[sr,si]; }
+      ok('Riemann sheet: continuing √z once around the branch point returns −1 exactly — the ℤ₂ monodromy of the double cover, the identical group element that makes a spinor need 4π in the SU(2) lab',
+        Math.abs(last[0]+1)<1e-12 && Math.abs(last[1])<1e-12, `w → ${last[0].toFixed(15)} ${last[1]>=0?'+':'−'} i${Math.abs(last[1]).toExponential(1)} after one loop`); }
+    ok('Riemann sheet: the Wigner bound is enforced, not ignored — for r₀ > a/2 the two-term truncation would demand a pole on the PHYSICAL sheet, and the lab reports the violation instead of drawing it',
+      rshErePole(3.0,2.0).bad===true && rshErePole(5.4194,1.7536).bad===false,
+      `a=3, r₀=2 → 1−2r₀/a = ${rshErePole(3.0,2.0).disc.toFixed(4)} < 0 → refused · deuteron discriminant ${rshErePole(5.4194,1.7536).disc.toFixed(4)} > 0 → drawn`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -4126,7 +4152,8 @@ const INVARIANT_THREAD=[
         {k:'spin.berry',lab:'spin',n:{en:'Berry holonomy on the Hopf bundle',ru:'голономия Берри на расслоении Хопфа',de:'Berry-Holonomie am Hopf-Bündel'}}]},
  {id:'chaos', t:{en:'Lyapunov λ — the inverse predictability horizon',ru:'Ляпунов λ — обратный горизонт предсказуемости',de:'Lyapunov λ — inverser Vorhersagehorizont'},
   rows:[{k:'chaos.lambda',lab:'chaos',n:{en:'strange attractor (dissipative)',ru:'странный аттрактор (диссипативный)',de:'seltsamer Attraktor (dissipativ)'}},
-        {k:'grav.lambda',lab:'grav',n:{en:'3-body gravity (conservative)',ru:'гравитация 3 тел (консервативная)',de:'Drei-Körper-Gravitation (konservativ)'}}]},
+        {k:'grav.lambda',lab:'grav',n:{en:'3-body gravity (conservative)',ru:'гравитация 3 тел (консервативная)',de:'Drei-Körper-Gravitation (konservativ)'}},
+        {k:'kam.lambda',lab:'kam',n:{en:'standard map (exactly symplectic)',ru:'стандартное отображение (точно симплектично)',de:'Standardabbildung (exakt symplektisch)'}}]},
  {id:'rel', t:{en:'Relativistic factors — one hyperbolic distance',ru:'Релятивистские факторы — одно гиперболическое расстояние',de:'Relativistische Faktoren — ein hyperbolischer Abstand'},
   rows:[{k:'rel.gamma',lab:'rel',n:{en:'Lorentz γ(β)',ru:'лоренцев γ(β)',de:'Lorentz γ(β)'}},
         {k:'rel.z',lab:'rel',n:{en:'redshift z',ru:'красное смещение z',de:'Rotverschiebung z'}},
@@ -14999,6 +15026,19 @@ function kamTransport(K,N,M){
     s2+=(p-p0)*(p-p0); }
   return {max:mx/(2*Math.PI), rms:Math.sqrt(s2/M)/(2*Math.PI), D:(s2/M)/(2*N)};
 }
+/* MEASURED Lyapunov exponent — transported tangent vector, renormalised every step
+   (the map is exact, so this is the true λ of the true dynamics, not of an integrator).
+   For K ≫ 1 it must approach the analytic random-phase value ln(K/2); below K_c it must
+   collapse towards zero. Both are reported side by side, unfitted. */
+function kamLyapunov(K,N,M){ let acc=0;
+  for(let m=0;m<M;m++){ let th=2*Math.PI*(m+0.37)/M, p=2*Math.PI*(m+0.11)/M, vx=1, vy=0, s=0;
+    for(let i=0;i<N;i++){ const c=Math.cos(th), a=1+K*c;
+      const nx=a*vx+vy, ny=K*c*vx+vy, n=Math.hypot(nx,ny);
+      vx=nx/n; vy=ny/n; s+=Math.log(n);
+      const p2=p+K*Math.sin(th); th+=p2; p=p2; }
+    acc+=s/N; }
+  return acc/M;
+}
 function kamClear(){ labWipe(kamGroup); kamObjs=null; kamBuiltFor=null; }
 function kamSetup(){
   kamClear(); kamT=0;
@@ -15036,7 +15076,7 @@ function updateKam(dt){
     O.pts.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));
     O.pts.geometry.computeBoundingSphere();
     // the golden orbit, and the MEASURED verdict on whether it is still a curve
-    { const tr=kamTransport(K,2000,48); O.tr=tr;
+    { const tr=kamTransport(K,2000,48); O.tr=tr; O.lam=kamLyapunov(K,1600,24);
       const curve=tr.max<0.5;                     // bounded drift ⇒ trapped between surviving circles
       let th=0.0, p=2*Math.PI*(1-1/KAM_PHI); const samp=[];
       for(let i=0;i<1400;i++){ const r=kamStep(th,p,K); th=r[0]; p=r[1];
@@ -15060,14 +15100,179 @@ function updateKam(dt){
     ATLAS_BUS.pub('kam.K',+K.toFixed(6),'K');
     const tr=O.tr, dql=K*K/4;
     if(tr) ATLAS_BUS.pub('kam.D',+tr.D.toFixed(6),'2π²/iter');
+    if(O.lam!=null) ATLAS_BUS.pub('kam.lambda',+O.lam.toFixed(5),'/iter');
     const el=ctl.querySelector('#kamInv'); if(el) el.innerHTML=
       `p′=p+K sin θ · θ′=θ+p′ · ${TT('Jacobian','якобиан','Jacobi-Determinante')} det=<b>1</b> ${TT('identically — exactly symplectic, zero integrator error','тождественно — точно симплектично, нулевая ошибка интегрирования','identisch — exakt symplektisch')}<br>`+
       `K=<b>${K.toFixed(6)}</b> · K_c=<b>${KAM_KC}</b> · K/K_c=<b>${(K/KAM_KC).toFixed(5)}</b> → <b style="color:${broken?'#ff8a6a':'#9fe8c0'}">${broken?TT('GOLDEN TORUS BROKEN — global transport','ЗОЛОТОЙ ТОР РАЗРУШЕН — глобальный перенос','GOLDENER TORUS ZERSTÖRT'):TT('golden torus intact — motion confined','золотой тор цел — движение заперто','goldener Torus intakt')}</b><br>`+
+      (O.lam!=null?`${TT('MEASURED Lyapunov','ИЗМЕРЕННЫЙ ляпунов','GEMESSENER Lyapunov')} λ=<b>${O.lam.toFixed(5)}</b>/${TT('iter','итер','Iter')} · ${TT('random-phase limit','предел случайной фазы','Zufallsphasen-Limit')} ln(K/2)=<b>${K>2?Math.log(K/2).toFixed(5):'—'}</b> ${K>6?TT('(agreeing, as it must for K≫1)','(совпадает, как и должно при K≫1)','(stimmt überein, wie es für K≫1 muss)'):TT('(K is not ≫1 — the random-phase limit does not apply here and is withheld rather than quoted)','(K не ≫1 — предел случайной фазы здесь неприменим и не приводится)','(K nicht ≫1 — der Zufallsphasen-Grenzwert gilt hier nicht und wird nicht angegeben)')}<br>`:'')+
       (tr?`<span style="opacity:.9">${TT('MEASURED transport','ИЗМЕРЕННЫЙ перенос','GEMESSENER Transport')} (48 × 2000 ${TT('iterations, p unwrapped','итераций, p без свёртки','Iterationen, p entfaltet')}): max|Δp|/2π=<b>${tr.max.toFixed(3)}</b> · rms=<b>${tr.rms.toFixed(3)}</b> · D=⟨Δp²⟩/2N=<b>${tr.D.toExponential(2)}</b> · D/D_QL=<b>${(tr.D/dql).toFixed(3)}</b> (D_QL=K²/4)<br>`+
         `<b style="color:${tr.max<0.5?'#9fe8c0':'#ff8a6a'}">${tr.max<0.5?TT('drift BOUNDED — a barrier still encloses the orbit, so the gold curve is drawn as a curve','дрейф ОГРАНИЧЕН — барьер ещё держит орбиту, поэтому золотая кривая рисуется кривой','Drift BESCHRÄNKT — eine Barriere hält die Bahn'):TT('drift UNBOUNDED — p random-walks, so the gold orbit is drawn as the scatter it has become','дрейф НЕОГРАНИЧЕН — p блуждает, поэтому золотая орбита рисуется как рассеяние','Drift UNBESCHRÄNKT — p wandert')}</b></span><br>`:'')+
       `<span style="opacity:.72">${TT('K_c is a converged numerical constant (Greene residue / MacKay), not a closed form — declared. The measured one-period escape sets in near K≈1.03, ABOVE K_c: once the golden circle is gone its remnant cantorus is still a partial barrier that throttles transport. D_QL=K²/4 is asymptotic in K≫1 only, and the measured ratio oscillates about 1 because of accelerator modes — both are shown unfitted.',
         'K_c — сошедшаяся численная константа (вычет Грина / Маккей), не замкнутая форма — заявлено. Измеренный выход за период наступает около K≈1.03, ВЫШЕ K_c: после разрушения золотой окружности её канторов остаток остаётся частичным барьером, тормозящим перенос. D_QL=K²/4 — асимптотика только при K≫1, а измеренное отношение колеблется около 1 из-за ускорительных мод; оба числа показаны без подгонки.',
         'K_c ist eine konvergierte numerische Konstante, keine geschlossene Form. Der gemessene Austritt setzt bei K≈1.03 ein, ÜBER K_c: der verbliebene Cantorus bremst den Transport weiter. D_QL=K²/4 gilt nur asymptotisch für K≫1.')}</span>`;
+  }
+}
+
+/* ================================================================
+   RIEMANN-SHEET LAB · where resonances actually live. A scattering amplitude
+   is a function of the complex energy, and √(E−E_th) makes that energy plane
+   TWO-SHEETED. Every textbook draws one sheet and then says "the pole is on
+   the second sheet" — a sentence with no picture. Here the second sheet is a
+   place: the double cover of the punctured plane, immersed in R³ with the two
+   sheets joined along the unitarity cut, height = Im k. A bound state is a
+   pole on the upper sheet at negative real energy; a VIRTUAL state is a pole
+   at the SAME energy on the lower sheet; a resonance is a pole in the fourth
+   k-quadrant. Only the third dimension separates the first two.
+   The ℤ₂ monodromy of √z here is literally the SU(2) belt trick of the spinor
+   lab: circle the branch point once and the amplitude changes sign; twice and
+   it returns. Same group, two different universes of phenomena. */
+const rshGroup=new THREE.Group(); rshGroup.visible=false; s3Group.add(rshGroup);
+const RSH_HBARC=197.3269804, RSH_MN=938.91852;          // MeV·fm, nucleon mass MeV (PDG)
+const RSH_C=RSH_HBARC*RSH_HBARC/RSH_MN;                  // ħ²/2μ for μ=m_N/2 → 41.471 MeV·fm²
+let rshObjs=null, rshT=0, rshUiAcc=0, rshBuiltFor=null;
+/* effective-range pole: (r₀/2)k² − ik − 1/a = 0 ⇒ k = i[1 ∓ √(1−2r₀/a)]/r₀.
+   Returns κ with k = iκ (κ>0 bound, κ<0 virtual) or null when the discriminant
+   goes negative — there the 2-term truncation puts a pole on the PHYSICAL sheet,
+   which causality forbids (Wigner bound). We flag that instead of drawing it. */
+function rshErePole(a,r0){
+  const disc=1-2*r0/a;
+  if(disc<0) return {bad:true,disc};
+  const s=Math.sqrt(disc);
+  return {bad:false,disc,k1:(1-s)/r0,k2:(1+s)/r0};
+}
+const rshCmul=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+const rshCdiv=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1];return [(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+/* unitary two-pole S-matrix for a resonance at k_p=k_R−ik_I: analyticity+unitarity
+   force the mirror pole at −k_p*, and then |S|=1 on the real axis identically. */
+function rshS(k,kR,kI){ const kp=[kR,-kI],kps=[kR,kI],K=[k,0];
+  return rshCdiv(rshCmul([K[0]+kp[0],K[1]+kp[1]],[K[0]-kps[0],K[1]-kps[1]]),
+                 rshCmul([K[0]-kp[0],K[1]-kp[1]],[K[0]+kps[0],K[1]+kps[1]])); }
+function rshSigma(E,S){                                  // 4π|f|², f=(S−1)/2ik
+  const k=Math.sqrt(Math.max(1e-12,E/RSH_C));
+  if(S.mode==='pole'){ const s=rshS(k,S.kR,S.kI), fr=s[1]/(2*k), fi=-(s[0]-1)/(2*k);
+    return 4*Math.PI*(fr*fr+fi*fi); }
+  const dr=-1/S.a+S.r0*k*k/2, di=-k, d=dr*dr+di*di;      // f = 1/(−1/a + r₀k²/2 − ik)
+  return 4*Math.PI/Math.max(1e-12,d);
+}
+function rshClear(){ labWipe(rshGroup); rshObjs=null; rshBuiltFor=null; }
+function rshSetup(){
+  rshClear(); rshT=0;
+  rshGroup.add(new THREE.AmbientLight(0x8a94b8,.65));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); rshGroup.add(dl);
+  const NR=34, NP=176, RAD=3.15, HT=1.55;
+  // the double cover of the punctured E-plane: φ runs 0→4π, height = Im k
+  const g=new THREE.BufferGeometry(), pos=new Float32Array((NR+1)*(NP+1)*3), col=new Float32Array((NR+1)*(NP+1)*3);
+  const idx=[]; const c=new THREE.Color();
+  for(let i=0;i<=NR;i++){ const fr=i/NR;
+    for(let j=0;j<=NP;j++){ const ph=4*Math.PI*j/NP, n=i*(NP+1)+j;
+      const rr=RAD*fr;
+      pos[n*3]=rr*Math.cos(ph); pos[n*3+1]=HT*Math.sqrt(fr)*Math.sin(ph/2); pos[n*3+2]=rr*Math.sin(ph);
+      const sheetII=ph>2*Math.PI;
+      c.setHSL(sheetII?0.07:0.57, 0.72, 0.16+0.30*fr);
+      col[n*3]=c.r; col[n*3+1]=c.g; col[n*3+2]=c.b; } }
+  for(let i=0;i<NR;i++) for(let j=0;j<NP;j++){ const a=i*(NP+1)+j,b=a+1,d=a+NP+1,e=d+1;
+    idx.push(a,d,b, b,d,e); }
+  g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.BufferAttribute(col,3));
+  g.setIndex(idx); g.computeVertexNormals(); g.computeBoundingSphere();
+  const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.42,side:THREE.DoubleSide,depthWrite:false}));
+  rshGroup.add(surf);
+  const wire=new THREE.LineSegments(new THREE.WireframeGeometry(g),new THREE.LineBasicMaterial({color:0x6f8fd0,transparent:true,opacity:.05,depthWrite:false}));
+  rshGroup.add(wire);
+  // the unitarity cut — where the two sheets are welded together
+  { const p=[]; for(let i=0;i<=60;i++) p.push(new THREE.Vector3(RAD*i/60,0,0));
+    const cut=new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),
+      new THREE.LineBasicMaterial({color:0xffd489,transparent:true,opacity:.95,depthWrite:false}));
+    cut.geometry.computeBoundingSphere(); rshGroup.add(cut);
+    const cl=mkLabel(TT('unitarity cut · E ≥ E_th · the weld between the sheets','разрез унитарности · E ≥ E_пор · шов между листами','Unitaritätsschnitt · die Naht zwischen den Blättern'),'label dim');
+    cl.position.set(RAD*0.72,0.13,0); rshGroup.add(cl); }
+  // measured cross-section, drawn as a ridge standing on the cut
+  const sig=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending}));
+  rshGroup.add(sig);
+  const mk=(hex,sz)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(sz,18,14),
+    new THREE.MeshBasicMaterial({color:hex,transparent:true,opacity:.95})); m.visible=false; rshGroup.add(m); return m; };
+  const poleA=mk(0x8affc0,0.085), poleB=mk(0xff9a6a,0.085), poleC=mk(0xff9a6a,0.062);
+  const pLab=mkLabel('','label const'); rshGroup.add(pLab);
+  const tl=mkLabel(TT('RIEMANN SHEET · the second sheet is a PLACE, not a phrase','ЛИСТ РИМАНА · второй лист — это МЕСТО, а не оборот речи','RIEMANN-BLATT · das zweite Blatt ist ein ORT'),'label const');
+  tl.position.set(0,2.55,0); rshGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.15,0); rshGroup.add(rl);
+  // ℤ₂ monodromy witness: a loop on the surface that must be traversed twice to close
+  const mono=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.9,depthWrite:false}));
+  rshGroup.add(mono);
+  { const p=[], rr=RAD*0.55;
+    for(let j=0;j<=360;j++){ const ph=4*Math.PI*j/360;
+      p.push(new THREE.Vector3(rr*Math.cos(ph),1.55*Math.sqrt(0.55)*Math.sin(ph/2)+0.012,rr*Math.sin(ph))); }
+    mono.geometry.setFromPoints(p); mono.geometry.computeBoundingSphere(); }
+  const ml=mkLabel(TT('ℤ₂ monodromy · one loop flips the sign, two loops return — the SU(2) belt trick','ℤ₂-монодромия · один обход меняет знак, два возвращают — трюк с ремнём SU(2)','ℤ₂-Monodromie · eine Schleife kippt das Vorzeichen'),'label dim');
+  ml.position.set(0,-1.55,RAD*0.55); rshGroup.add(ml);
+  rshObjs={surf,sig,poleA,poleB,poleC,pLab,readLab:rl,mono,RAD,HT};
+}
+function updateRsh(dt){
+  const O=rshObjs; if(!O) return; rshT+=dt;
+  const mode=state.rshMode||'ere', a=state.rshA??5.4194, r0=state.rshR0??1.7536,
+        kR=state.rshKR??0.55, kI=state.rshKI??0.09, Emax=state.rshEmax??40;
+  const key=mode+'|'+a.toFixed(5)+'|'+r0.toFixed(5)+'|'+kR.toFixed(5)+'|'+kI.toFixed(5)+'|'+Emax.toFixed(2);
+  let verdict='';
+  if(rshBuiltFor!==key){ rshBuiltFor=key;
+    const S=mode==='pole'?{mode:'pole',kR,kI}:{mode:'ere',a,r0};
+    // cross-section ridge on the cut
+    { const p=[]; let mx=1e-9;
+      const vals=[]; for(let i=0;i<=200;i++){ const E=Emax*i/200; const s=rshSigma(Math.max(1e-6,E),S); vals.push(s); if(s>mx)mx=s; }
+      for(let i=0;i<=200;i++){ const E=Emax*i/200;
+        p.push(new THREE.Vector3(O.RAD*E/Emax,0.02+1.15*vals[i]/mx,0)); }
+      O.sig.geometry.setFromPoints(p); O.sig.geometry.computeBoundingSphere(); }
+    // pole placement on the double cover
+    const place=(m,kx,ky)=>{ const kk=Math.hypot(kx,ky); if(!(kk>0)){ m.visible=false; return null; }
+      let ph=2*Math.atan2(ky,kx); if(ph<0) ph+=4*Math.PI;
+      const Ep=RSH_C*kk*kk, fr=Math.min(1,Ep/Emax);
+      m.position.set(O.RAD*fr*Math.cos(ph), O.HT*Math.sqrt(fr)*Math.sin(ph/2), O.RAD*fr*Math.sin(ph));
+      m.visible=Ep<=Emax*1.02; return {Ep,ph}; };
+    if(mode==='pole'){
+      place(O.poleA,kR,-kI); place(O.poleB,-kR,-kI); O.poleC.visible=false;
+      const ER=RSH_C*(kR*kR-kI*kI), G=4*RSH_C*kR*kI;
+      O.pLab.position.copy(O.poleA.position).add(new THREE.Vector3(0,0.22,0));
+      O.pLab.element.textContent=`E_R=${ER.toFixed(3)} MeV · Γ=${G.toFixed(3)} MeV · ${TT('SHEET II — a resonance','ЛИСТ II — резонанс','BLATT II — Resonanz')}`;
+      verdict=`resonance · E_R=${ER.toFixed(3)} MeV · Γ=${G.toFixed(3)} MeV`;
+    } else {
+      const P=rshErePole(a,r0);
+      if(P.bad){ O.poleA.visible=O.poleB.visible=O.poleC.visible=false;
+        O.pLab.position.set(0,1.9,0);
+        O.pLab.element.textContent=TT('r₀ > a/2 — the 2-term expansion would put a pole on the PHYSICAL sheet. Causality forbids it (Wigner bound): nothing drawn.','r₀ > a/2 — двухчленное разложение поставило бы полюс на ФИЗИЧЕСКИЙ лист. Причинность это запрещает (граница Вигнера): ничего не рисуем.','r₀ > a/2 — der Pol läge auf dem PHYSIKALISCHEN Blatt. Kausalität verbietet das (Wigner-Schranke).');
+        verdict='Wigner-bound violation — no pole drawn';
+      } else {
+        place(O.poleA,0,P.k1); place(O.poleC,0,P.k2); O.poleB.visible=false;
+        O.poleA.material.color.setHex(P.k1>0?0x8affc0:0xff9a6a);
+        const B=RSH_C*P.k1*P.k1;
+        O.pLab.position.copy(O.poleA.position).add(new THREE.Vector3(0,0.22,0));
+        O.pLab.element.textContent=P.k1>0
+          ?`κ=${P.k1.toFixed(6)} fm⁻¹ · B=${B.toFixed(4)} MeV · ${TT('SHEET I — a BOUND state','ЛИСТ I — СВЯЗАННОЕ состояние','BLATT I — GEBUNDEN')}`
+          :`κ=${P.k1.toFixed(6)} fm⁻¹ · |E|=${(B*1000).toFixed(1)} keV · ${TT('SHEET II — a VIRTUAL state','ЛИСТ II — ВИРТУАЛЬНОЕ состояние','BLATT II — VIRTUELL')}`;
+        verdict=(P.k1>0?'bound':'virtual')+` · κ=${P.k1.toFixed(6)} fm⁻¹`;
+      }
+    }
+    O.verdict=verdict;
+  }
+  rshGroup.rotation.y+=dt*0.1;
+  rshUiAcc+=dt; if(rshUiAcc>0.3){ rshUiAcc=0;
+    const P=mode==='ere'?rshErePole(a,r0):null;
+    const kap=P&&!P.bad?P.k1:null, B=kap!=null?RSH_C*kap*kap:null;
+    O.readLab.element.textContent=(O.verdict||'')+` · ħ²/2μ=${RSH_C.toFixed(3)} MeV·fm²`;
+    hudBig.textContent=`${TT('RIEMANN SHEET','ЛИСТ РИМАНА','RIEMANN-BLATT')} · ${O.verdict||''}`;
+    hudSub.textContent=TT('The energy plane of a scattering amplitude is two-sheeted, because k=√((E−E_th)·2μ/ħ²) is. This is that surface, immersed: two copies of the plane welded along the unitarity cut, with height = Im k. Now the textbook sentences become positions. A bound state is a pole at negative real energy on the UPPER sheet. A virtual state is a pole at the SAME negative energy on the LOWER sheet — the two are indistinguishable in any 2-D plot and obviously different here. A resonance is a pole in the fourth k-quadrant, under the cut, and the bump you measure on the real axis is nothing but its shadow. Feed the lab a scattering length and an effective range and it reports the pole: 5.4194 fm and 1.7536 fm give the deuteron at 2.223 MeV, within 0.08% of the measured 2.224566 MeV, from two numbers that say nothing about binding. Feed it −23.74 fm and 2.77 fm and the pole drops through the cut to the lower sheet: the ¹S₀ nucleon pair is unbound by 66 keV. Circle the branch point once and the amplitude changes sign; circle it twice and it comes back — the same ℤ₂ that makes a spinor need 4π, and the same one drawn in the SU(2) lab as a belt.',
+      'Энергетическая плоскость амплитуды рассеяния двулистна, потому что двулистна k=√((E−E_пор)·2μ/ħ²). Здесь эта поверхность вложена: два экземпляра плоскости, сваренные вдоль разреза унитарности, высота = Im k. Фразы из учебника становятся положениями. Связанное состояние — полюс при отрицательной вещественной энергии на ВЕРХНЕМ листе. Виртуальное — полюс при ТОЙ ЖЕ энергии на НИЖНЕМ листе; на любом плоском графике их не различить, а здесь разница очевидна. Резонанс — полюс в четвёртом квадранте k, под разрезом, и измеряемый горб на вещественной оси есть лишь его тень. Дай лаборатории длину рассеяния и эффективный радиус — она вернёт полюс: 5.4194 фм и 1.7536 фм дают дейтрон при 2.223 МэВ, в пределах 0.08% от измеренных 2.224566 МэВ, из двух чисел, ничего не говорящих о связи. Дай −23.74 фм и 2.77 фм — полюс проваливается сквозь разрез на нижний лист: пара ¹S₀ не связана на 66 кэВ. Обойди точку ветвления один раз — амплитуда меняет знак, дважды — возвращается: та же ℤ₂, из-за которой спинору нужно 4π, и та же, что нарисована ремнём в лаборатории SU(2).',
+      'Die Energieebene einer Streuamplitude ist zweiblättrig, weil k=√((E−E_th)·2μ/ħ²) es ist. Hier ist diese Fläche eingebettet: zwei Ebenen, entlang des Unitaritätsschnitts verschweißt, Höhe = Im k. Ein gebundener Zustand ist ein Pol bei negativer reeller Energie auf dem OBEREN Blatt; ein virtueller Zustand ein Pol bei DERSELBEN Energie auf dem UNTEREN. Eine Resonanz ist ein Pol im vierten k-Quadranten, und der gemessene Buckel ist nur ihr Schatten. 5.4194 fm und 1.7536 fm liefern das Deuteron bei 2.223 MeV — 0.08% vom Messwert. Eine Umrundung des Verzweigungspunkts kippt das Vorzeichen, zwei bringen zurück: dieselbe ℤ₂ wie beim Spinor.');
+    ATLAS_BUS.pub('rsh.sheet',mode==='pole'?2:(kap!=null&&kap>0?1:2),'');
+    if(B!=null) ATLAS_BUS.pub('rsh.B',+B.toFixed(4),'MeV');
+    const el=ctl.querySelector('#rshInv'); if(el) el.innerHTML=
+      `k=√((E−E_th)·2μ/ħ²) · ħ²/2μ=<b>${RSH_C.toFixed(3)}</b> MeV·fm² (μ=m_N/2) · ${TT('sheet I = Im k>0, sheet II = Im k<0','лист I = Im k>0, лист II = Im k<0','Blatt I = Im k>0, Blatt II = Im k<0')}<br>`+
+      (mode==='ere'
+        ? (P.bad
+          ? `<b style="color:#ff8a6a">${TT('r₀ > a/2 → discriminant 1−2r₀/a =','r₀ > a/2 → дискриминант 1−2r₀/a =','r₀ > a/2 → Diskriminante 1−2r₀/a =')} ${P.disc.toFixed(4)} &lt; 0 → ${TT('the truncation demands a physical-sheet pole, which causality forbids (Wigner bound). Nothing is drawn — the model is outside its domain.','усечение требует полюса на физическом листе, что запрещено причинностью (граница Вигнера). Ничего не рисуем — модель вне области применимости.','die Trunkierung verlangt einen Pol auf dem physikalischen Blatt — kausal verboten.')}</b>`
+          : `k cot δ = −1/a + (r₀/2)k² → (r₀/2)k²−ik−1/a=0 → κ=<b>${P.k1.toFixed(6)}</b> fm⁻¹ ${P.k1>0?'(k=+iκ · <b style="color:#9fe8c0">sheet I · BOUND</b>)':'(k=−i|κ| · <b style="color:#ff8a6a">sheet II · VIRTUAL</b>)'}<br>`+
+            `|E_pole| = (ħκ)²/2μ = <b>${(RSH_C*P.k1*P.k1).toFixed(5)}</b> MeV${Math.abs(a-5.4194)<1e-3&&Math.abs(r0-1.7536)<1e-3?` · ${TT('measured deuteron B = 2.224566 MeV → error','измеренная энергия связи дейтрона B = 2.224566 МэВ → ошибка','gemessen B = 2.224566 MeV → Fehler')} <b>${((RSH_C*P.k1*P.k1/2.224566-1)*100).toFixed(3)}%</b>`:''}<br>`+
+            `<span style="opacity:.72">${TT('the second root κ₂=','второй корень κ₂=','die zweite Wurzel κ₂=')}${P.k2.toFixed(4)} fm⁻¹ ${TT('is an artefact of truncating at two terms (|k|r₀ ≈ 1, outside the expansion’s domain) — shown small and declared, never used.','— артефакт усечения на двух членах (|k|r₀ ≈ 1, вне области разложения); показан мелким и объявлен, не используется.','ist ein Trunkierungsartefakt und wird nur deklariert.')}</span>`)
+        : `${TT('S(k)=(k+k_p)(k−k_p*)/((k−k_p)(k+k_p*)) with k_p=k_R−ik_I and its mirror −k_p* — unitary on the real axis by construction (|S|−1 = 0 to machine precision)','S(k)=(k+k_p)(k−k_p*)/((k−k_p)(k+k_p*)), k_p=k_R−ik_I и зеркальный −k_p* — унитарна на вещественной оси по построению','S(k) unitär auf der reellen Achse per Konstruktion')}<br>`+
+          `E_R = (ħ²/2μ)(k_R²−k_I²) = <b>${(RSH_C*(kR*kR-kI*kI)).toFixed(4)}</b> MeV · Γ = 4(ħ²/2μ)k_Rk_I = <b>${(4*RSH_C*kR*kI).toFixed(4)}</b> MeV · Q = E_R/Γ = <b>${(RSH_C*(kR*kR-kI*kI)/Math.max(1e-9,4*RSH_C*kR*kI)).toFixed(3)}</b>`);
   }
 }
 
@@ -15917,6 +16122,7 @@ function setS3View(v){
   berryGroup.visible   = (v==='berry');
   cuspGroup.visible    = (v==='cusp');
   kamGroup.visible     = (v==='kam');
+  rshGroup.visible     = (v==='rsh');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -15963,6 +16169,7 @@ function setS3View(v){
   if(v==='berry'){ berrySetup(); }
   if(v==='cusp'){ cuspSetup(); }
   if(v==='kam'){ kamSetup(); }
+  if(v==='rsh'){ rshSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -15983,7 +16190,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -20769,6 +20976,7 @@ const state = {
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
+  rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -22820,6 +23028,40 @@ function buildCtlBody(){
         <button class="btn" id="kamToGrav">${TT('→ Three bodies: the same coexistence in the sky','→ Три тела: то же сосуществование на небе','→ Drei Körper: dieselbe Koexistenz')}</button>
         <button class="btn" id="kamToPoin">${TT('→ Dzhanibekov: separatrices in a rigid body','→ Джанибеков: сепаратрисы в твёрдом теле','→ Dshanibekow: Separatrizen')}</button></div>
     </div>`;
+    else if(V==='rsh') body = `
+    <div class="sect"><b>${TT('Real systems — two numbers predict a binding energy','Реальные системы — два числа предсказывают энергию связи','Reale Systeme')}</b>
+      <div class="chips">
+        ${[['d',5.4194,1.7536,TT('deuteron ³S₁ · BOUND','дейтрон ³S₁ · СВЯЗАН','Deuteron ³S₁')],
+           ['nn',-23.740,2.77,TT('np ¹S₀ · VIRTUAL','np ¹S₀ · ВИРТУАЛЬНОЕ','np ¹S₀ · virtuell')],
+           ['w',-18.9,2.75,TT('nn ¹S₀ · barely unbound','nn ¹S₀ · едва несвязано','nn ¹S₀')],
+           ['x',7.0,1.5,TT('deeper bound','глубже связано','tiefer gebunden')]]
+          .map(([k,a,r,l])=>`<button class="chip ${(state.rshMode||'ere')==='ere'&&Math.abs((state.rshA??5.4194)-a)<1e-6?'on':''}" data-rshp="${a}|${r}">${l}</button>`).join('')}
+        <button class="chip ${(state.rshMode||'ere')==='pole'?'on':''}" data-rshmode="pole">${TT('place a resonance pole','поставить полюс резонанса','Resonanzpol setzen')}</button>
+      </div>
+      ${(state.rshMode||'ere')==='ere'?`
+      <div class="ctlrow"><label>a (fm)</label>
+        <input type="range" id="rshA" min="-40" max="40" step="0.0001" value="${state.rshA??5.4194}"><span class="val" id="rshAV">${(state.rshA??5.4194).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>r₀ (fm)</label>
+        <input type="range" id="rshR0" min="0.2" max="6" step="0.0001" value="${state.rshR0??1.7536}"><span class="val" id="rshR0V">${(state.rshR0??1.7536).toFixed(4)}</span></div>`:`
+      <div class="ctlrow"><label>Re k (fm⁻¹)</label>
+        <input type="range" id="rshKR" min="0.02" max="1.2" step="0.0001" value="${state.rshKR??0.55}"><span class="val" id="rshKRV">${(state.rshKR??0.55).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>−Im k (fm⁻¹)</label>
+        <input type="range" id="rshKI" min="0.005" max="0.6" step="0.0001" value="${state.rshKI??0.09}"><span class="val" id="rshKIV">${(state.rshKI??0.09).toFixed(4)}</span></div>`}
+      <div class="ctlrow"><label>E_max (MeV)</label>
+        <input type="range" id="rshEmax" min="5" max="120" step="0.5" value="${state.rshEmax??40}"><span class="val" id="rshEmaxV">${(state.rshEmax??40).toFixed(1)}</span></div>
+      ${(state.rshMode||'ere')==='pole'?`<div class="ctlrow"><button class="btn" data-rshmode="ere">${TT('← back to effective range','← назад к эффективному радиусу','← zurück')}</button></div>`:''}
+    </div>
+    <div class="sect"><b>${TT('Pole passport','Паспорт полюса','Polpass')}</b>
+      <div class="note" id="rshInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Height on this surface is Im k, so the two sheets are separated by the one dimension a flat plot does not have. Bound and virtual states sit at the SAME energy and are told apart only by which sheet they are on. The effective-range expansion k cot δ = −1/a + (r₀/2)k² is a two-term low-energy truncation and is used only as such: the second root κ₂ is an artefact and is labelled one, and when r₀ > a/2 the truncation demands a pole on the physical sheet, which causality forbids — the lab refuses to draw it rather than showing a wrong picture. Inputs are measured low-energy constants; μ = m_N/2 with the PDG nucleon mass, and ħ²/2μ = 41.471 MeV·fm² follows.','Высота на этой поверхности — Im k, поэтому листы разделены именно тем измерением, которого нет у плоского графика. Связанное и виртуальное состояния лежат при ОДНОЙ энергии и различаются только листом. Разложение по эффективному радиусу k ctg δ = −1/a + (r₀/2)k² — двухчленное низкоэнергетическое усечение и используется только так: второй корень κ₂ — артефакт и помечен как артефакт, а при r₀ > a/2 усечение требует полюса на физическом листе, что запрещено причинностью, — лаборатория отказывается его рисовать. Входные данные — измеренные низкоэнергетические константы; μ = m_N/2 с массой нуклона по PDG, откуда ħ²/2μ = 41.471 МэВ·фм².','Die Höhe ist Im k — die Blätter trennt genau jene Dimension, die ein flacher Plot nicht hat. Gebundene und virtuelle Zustände liegen bei DERSELBEN Energie. Die Effektivreichweiten-Entwicklung ist eine Zweiterm-Näherung: die zweite Wurzel ist ein Artefakt, und für r₀ > a/2 verlangt sie einen kausal verbotenen Pol — dann wird nichts gezeichnet.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="rshToPole">${TT('→ Complex-frequency poles: the same pole in ω','→ Полюсы комплексной частоты: тот же полюс в ω','→ Komplexfrequenz-Pole')}</button>
+        <button class="btn" id="rshToSu2">${TT('→ SU(2) belt trick: the same ℤ₂ monodromy','→ Трюк с ремнём SU(2): та же ℤ₂-монодромия','→ SU(2)-Gürteltrick')}</button>
+        <button class="btn" id="rshToNuc">${TT('→ Nuclear binding: where 2.224 MeV belongs','→ Ядерная связь: куда относятся 2.224 МэВ','→ Kernbindung')}</button>
+        <button class="btn" id="rshToImp">${TT('→ Smith chart: S as a Möbius map','→ Карта Смита: S как отображение Мёбиуса','→ Smith-Diagramm')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -23429,6 +23671,7 @@ function buildCtlBody(){
         <button class="btn ${V==='kam'?'on':''}" id="v-kam">${TT('KAM torus','КАМ-тор','KAM-Torus')}</button>
         <button class="btn ${V==='poin'?'on':''}" id="v-poin">${TT('Dzhanibekov','Джанибеков','Dshanibekow')}</button>
         <button class="btn ${V==='qcrys'?'on':''}" id="v-qcrys">${TT('Quasicrystal','Квазикристалл','Quasikristall')}</button>
+        <button class="btn ${V==='rsh'?'on':''}" id="v-rsh">${TT('Riemann sheet','Лист Римана','Riemann-Blatt')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -23454,7 +23697,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -23913,6 +24156,20 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='rsh'){
+      ctl.querySelectorAll('[data-rshp]').forEach(b=>b.onclick=()=>{ const [a,r]=b.dataset.rshp.split('|').map(Number);
+        state.rshMode='ere'; state.rshA=a; state.rshR0=r; buildCtl(); });
+      ctl.querySelectorAll('[data-rshmode]').forEach(b=>b.onclick=()=>{ state.rshMode=b.dataset.rshmode; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('rshA',v=>state.rshA=v,v=>v.toFixed(4)); kv('rshR0',v=>state.rshR0=v,v=>v.toFixed(4));
+      kv('rshKR',v=>state.rshKR=v,v=>v.toFixed(4)); kv('rshKI',v=>state.rshKI=v,v=>v.toFixed(4));
+      kv('rshEmax',v=>state.rshEmax=v,v=>v.toFixed(1));
+      ctl.querySelector('#rshToPole')&&(ctl.querySelector('#rshToPole').onclick=()=>{ navPush(); setS3View('pole'); buildCtl(); });
+      ctl.querySelector('#rshToSu2')&&(ctl.querySelector('#rshToSu2').onclick=()=>{ navPush(); setS3View('su2'); buildCtl(); });
+      ctl.querySelector('#rshToNuc')&&(ctl.querySelector('#rshToNuc').onclick=()=>{ navPush(); setS3View('nuc'); buildCtl(); });
+      ctl.querySelector('#rshToImp')&&(ctl.querySelector('#rshToImp').onclick=()=>{ navPush(); setS3View('imp'); buildCtl(); });
     }
     if(V==='kam'){
       ctl.querySelectorAll('[data-kamk]').forEach(b=>b.onclick=()=>{ state.kamK=+b.dataset.kamk; buildCtl(); });
@@ -25416,10 +25673,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -27023,6 +27280,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='rsh'){
+      fbsAnimT+=dt; updateRsh(dt);
     } else if(state.s3view==='qcrys'){
       fbsAnimT+=dt; updateQc(dt);
     } else if(state.s3view==='berry'){
