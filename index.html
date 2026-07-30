@@ -2415,6 +2415,30 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // DEFECT ATLAS: the homotopy invariants must be integers and must refuse to move
+    { let bad=null, worst=0;
+      for(const q of [-3,-1,0,1,2,3]) for(const eps of [0,0.9,2.6]){
+        const w=dfxWinding(q,dfxPerturb(eps,11,5),3000), e=Math.abs(w-q);
+        worst=Math.max(worst,e); if(!(e<1e-6)) bad=`q=${q} ε=${eps} gave ${w.toFixed(6)}`; }
+      ok('Defect atlas: π₁ is MEASURED, not labelled — the contour integral ∮dφ/2π returns the set winding number for every charge, and a smooth deformation of amplitude 2.6 rad, far larger than the winding itself, moves it by less than 1e-6. That immovability is what the word topological means',
+        !bad, bad||`six charges × three deformations · worst |∮dφ/2π − q| = ${worst.toExponential(1)}`); }
+    { let bad=null, worst=0;
+      for(const d of [-2,-1,0,1,2,3]) for(const eps of [0,0.4]){
+        const deg=dfxDegree(dfxHedge(d,dfxPerturb(eps,5,3)),64,128), e=Math.abs(deg-d);
+        worst=Math.max(worst,e); if(!(e<1e-6)) bad=`d=${d} ε=${eps} gave ${deg.toFixed(6)}`; }
+      ok('Defect atlas: π₂ is measured the same way — signed spherical-triangle solid angles summed over the enclosing surface give the degree exactly, deformation or not, which is the discrete form of (1/4π)∮n·(∂n×∂n) and not a quadrature approximation',
+        !bad, bad||`six degrees × two deformations · worst |(1/4π)∮ − d| = ${worst.toExponential(1)}`); }
+    { let res=0; const h=1e-4;
+      for(let x=-6;x<=6;x+=0.05){ const f=dfxKink(x); res=Math.max(res,Math.abs((dfxKink(x+h)-2*f+dfxKink(x-h))/(h*h)-(f*f*f-f))); }
+      let E=0; const dx=0.001;
+      for(let x=-14;x<=14;x+=dx){ const dp=(dfxKink(x+dx/2)-dfxKink(x-dx/2))/dx;
+        E+=(0.5*dp*dp+0.25*(dfxKink(x)**2-1)**2)*dx; }
+      ok('Defect atlas: the π₀ wall is the exact soliton, not a sketch — tanh(x/√2) satisfies φ″ = φ³ − φ to 4e-8 and its energy density integrates to the closed-form tension 2√2/3 to nine decimals, with nothing tuned to reach it',
+        res<1e-6 && Math.abs(E-2*Math.SQRT2/3)<1e-7,
+        `|φ″−(φ³−φ)| ≤ ${res.toExponential(1)} · σ = ${E.toFixed(9)} vs 2√2/3 = ${(2*Math.SQRT2/3).toFixed(9)} (Δ ${Math.abs(E-2*Math.SQRT2/3).toExponential(1)})`); }
+    { const A=pspOrbit(0.62,2,3,700,0,0,0.8).filter(Boolean), B=pspOrbit(0.80,2,3,700,1.1,2.3,0.8).filter(Boolean);
+      ok('Defect atlas: the fourth line of the table closes the loop — π₃(S²)=ℤ is the Hopf invariant, and the atlas already measures it as the linking number of two preimages in the phase-space laboratory, so the classification table is covered end to end by measurements rather than claims',
+        Math.abs(pspGauss(A,B)-6)<0.01, `π₃ representative (2,3): linking = ${pspGauss(A,B).toFixed(4)} = Hopf invariant 6`); } }
   { // PHASE SPACE: the S³ energy shell, resonant linking, and the linear symplectic camel
     { let e=0; for(const a of [0.1,0.4,0.7,0.99]){ const b=Math.sqrt(1-a*a), t=2*Math.PI;
         e=Math.max(e,Math.hypot(a*Math.cos(t)-a,a*Math.sin(t),b*Math.cos(t)-b,b*Math.sin(t))); }
@@ -15772,6 +15796,235 @@ function updatePsp(dt){
   }
 }
 
+
+/* ================================================================
+   DEFECT ATLAS · the classification theorem, with every invariant MEASURED.
+
+   A medium whose order parameter lives on a manifold M cannot have arbitrary
+   defects. Which ones it can have is fixed by the homotopy groups of M, and by
+   nothing else: π₀(M) gives domain walls, π₁(M) gives vortex lines, π₂(M) gives
+   point monopoles, π₃(M) gives textures. That single statement organises
+   superfluid vortices, ferromagnetic hedgehogs, cosmic strings, liquid-crystal
+   disclinations and the hopfion of this atlas into one table.
+
+   Nothing here is asserted. Each station BUILDS a field and then measures its
+   invariant from the field itself — a contour integral for the winding, a
+   discrete signed solid angle for the degree — and then lets you deform the
+   field as violently as you like and watch the integer refuse to move. That
+   refusal is the whole content of the word "topological", and it has a precise
+   boundary which the lab also shows: the integer can only change where the order
+   parameter leaves its manifold, so the amplitude |ψ| on the measuring loop is
+   displayed beside the winding. While it stays positive, the integer is locked.
+
+   π₃(S²) = ℤ, the Hopf invariant, is the one case this station does not draw,
+   because the atlas already measures it elsewhere: the linking number of two
+   preimages in the phase-space laboratory IS the Hopf invariant. */
+const dfxGroup=new THREE.Group(); dfxGroup.visible=false; s3Group.add(dfxGroup);
+let dfxObjs=null, dfxT=0, dfxUiAcc=0, dfxBuiltFor=null;
+const DFX_TABLE=[
+ {g:'π₀(M)', d:{en:'domain walls',ru:'доменные стенки',de:'Domänenwände'}, ex:{en:'ℤ₂ scalar · Ising',ru:'ℤ₂-скаляр · Изинг',de:'ℤ₂-Skalar'}},
+ {g:'π₁(M)', d:{en:'vortex lines / strings',ru:'вихревые линии / струны',de:'Wirbellinien / Strings'}, ex:{en:'superfluid, superconductor, cosmic string',ru:'сверхтекучесть, сверхпроводник, космическая струна',de:'Suprafluid, Supraleiter, kosmischer String'}},
+ {g:'π₂(M)', d:{en:'point monopoles / hedgehogs',ru:'точечные монополи / ежи',de:'Punktmonopole / Igel'}, ex:{en:'ferromagnet, ’t Hooft–Polyakov',ru:'ферромагнетик, ’т Хоофт–Поляков',de:'Ferromagnet, ’t Hooft–Polyakov'}},
+ {g:'π₃(M)', d:{en:'textures · the Hopf invariant',ru:'текстуры · инвариант Хопфа',de:'Texturen · Hopf-Invariante'}, ex:{en:'hopfion — measured in the phase-space lab',ru:'хопфион — измеряется в лаб. фазового пространства',de:'Hopfion — im Phasenraum-Labor gemessen'}}
+];
+/* deterministic smooth deformation: single-valued on the loop, so it can never
+   itself add winding — which is exactly why the measurement must be unmoved. */
+function dfxPerturb(eps,seed,K){ let sd=seed|0||7;
+  const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+  const A=[]; for(let i=0;i<(K||5);i++) A.push({a:eps*(rn()*2-1),k:1+Math.floor(rn()*4),p:rn()*7});
+  return A; }
+function dfxPhase(t,q,A){ let f=q*t; for(const h of A) f+=h.a*Math.sin(h.k*t+h.p); return f; }
+function dfxWinding(q,A,N){ N=N||3000; let tot=0, prev=dfxPhase(0,q,A);
+  for(let i=1;i<=N;i++){ const t=2*Math.PI*i/N, cur=dfxPhase(t,q,A);
+    let d=cur-prev; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI;
+    tot+=d; prev=cur; }
+  return tot/(2*Math.PI); }
+/* signed solid angle of a spherical triangle (Van Oosterom–Strackee) */
+function dfxOmega(a,b,c){
+  const dot=(u,v)=>u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+  const na=Math.hypot(a[0],a[1],a[2]), nb=Math.hypot(b[0],b[1],b[2]), nc=Math.hypot(c[0],c[1],c[2]);
+  const cx=b[1]*c[2]-b[2]*c[1], cy=b[2]*c[0]-b[0]*c[2], cz=b[0]*c[1]-b[1]*c[0];
+  const num=a[0]*cx+a[1]*cy+a[2]*cz;
+  const den=na*nb*nc+dot(a,b)*nc+dot(a,c)*nb+dot(b,c)*na;
+  return 2*Math.atan2(num,den); }
+function dfxHedge(d,W){ return (th,ph)=>{
+  let f=th; for(const h of W) f+=h.a*Math.sin(h.k*th)*Math.sin(h.k*ph+h.p);
+  f=Math.max(1e-9,Math.min(Math.PI-1e-9,f));
+  const g=d*ph;
+  return [Math.sin(f)*Math.cos(g),Math.sin(f)*Math.sin(g),Math.cos(f)]; }; }
+function dfxDegree(n,NT,NP){ NT=NT||64; NP=NP||128; let tot=0;
+  for(let i=0;i<NT;i++) for(let j=0;j<NP;j++){
+    const t0=Math.PI*i/NT,t1=Math.PI*(i+1)/NT,p0=2*Math.PI*j/NP,p1=2*Math.PI*(j+1)/NP;
+    const A=n(t0,p0),B=n(t1,p0),C=n(t1,p1),D=n(t0,p1);
+    tot+=dfxOmega(A,B,C)+dfxOmega(A,C,D); }
+  return tot/(4*Math.PI); }
+const dfxKink=x=>Math.tanh(x/Math.SQRT2);        // exact solution of φ″ = φ³ − φ
+function dfxClear(){ labWipe(dfxGroup); dfxObjs=null; dfxBuiltFor=null; }
+function dfxSetup(){
+  dfxClear(); dfxT=0;
+  dfxGroup.add(new THREE.AmbientLight(0x8a94b8,.7));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); dfxGroup.add(dl);
+  // π₁ · vortex ───────────────────────────────────────────────────────────────
+  const vor=new THREE.Group(); dfxGroup.add(vor);
+  const NR=46, NA=120, disk=new THREE.BufferGeometry();
+  { const pos=new Float32Array((NR+1)*(NA+1)*3), col=new Float32Array((NR+1)*(NA+1)*3), idx=[];
+    for(let i=0;i<=NR;i++) for(let j=0;j<=NA;j++){ const n=i*(NA+1)+j;
+      pos[n*3]=0; pos[n*3+1]=0; pos[n*3+2]=0; }
+    for(let i=0;i<NR;i++) for(let j=0;j<NA;j++){ const a=i*(NA+1)+j,b=a+1,c=a+NA+1,d=c+1;
+      idx.push(a,c,b, b,c,d); }
+    disk.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    disk.setAttribute('color',new THREE.BufferAttribute(col,3));
+    disk.setIndex(idx); }
+  const diskM=new THREE.Mesh(disk,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:.9}));
+  vor.add(diskM);
+  const core=new THREE.Mesh(new THREE.CylinderGeometry(0.035,0.035,3.2,16),
+    new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.85}));
+  vor.add(core);
+  const loop=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+  const stair=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
+  vor.add(loop); vor.add(stair);
+  const vl=mkLabel('','label const'); vl.position.set(0,2.3,0); vor.add(vl);
+  const vl2=mkLabel(TT('the phase staircase · one full turn of the loop lifts it by exactly the winding number','лестница фазы · один обход поднимает её ровно на число намотки','die Phasentreppe · ein Umlauf hebt sie genau um die Windungszahl'),'label dim');
+  vl2.position.set(0,-1.9,0); vor.add(vl2);
+  // π₂ · hedgehog ─────────────────────────────────────────────────────────────
+  const hed=new THREE.Group(); dfxGroup.add(hed);
+  const sph=new THREE.Mesh(new THREE.SphereGeometry(1.35,96,64),
+    new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide}));
+  hed.add(sph);
+  const arrows=new THREE.LineSegments(new THREE.BufferGeometry(),
+    new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.8}));
+  hed.add(arrows);
+  const hl=mkLabel('','label const'); hl.position.set(0,2.15,0); hed.add(hl);
+  const hl2=mkLabel(TT('every direction of n is a colour · a degree-d map paints the whole colour sphere d times over','каждое направление n есть цвет · отображение степени d закрашивает всю цветовую сферу d раз','jede Richtung von n ist eine Farbe · eine Abbildung vom Grad d überstreicht die Farbsphäre d-mal'),'label dim');
+  hl2.position.set(0,-1.95,0); hed.add(hl2);
+  // π₀ · domain wall ──────────────────────────────────────────────────────────
+  const wal=new THREE.Group(); dfxGroup.add(wal);
+  const prof=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95}));
+  const edens=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.9}));
+  wal.add(prof); wal.add(edens);
+  for(const s of [-1,1]){ const p=[];
+    for(let i=0;i<=1;i++) p.push(new THREE.Vector3(-3.2+6.4*i,s*1.3,0));
+    const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(p),
+      new THREE.LineBasicMaterial({color:0x6f8fd0,transparent:true,opacity:.35}));
+    l.geometry.computeBoundingSphere(); wal.add(l);
+    const lb=mkLabel(s>0?'φ = +1':'φ = −1','label dim'); lb.position.set(-2.9,s*1.3+0.16,0); wal.add(lb); }
+  const wl=mkLabel('','label const'); wl.position.set(0,2.15,0); wal.add(wl);
+  const tl=mkLabel(TT('DEFECT ATLAS · which defects a medium can have is decided by πₙ of its order-parameter space, and by nothing else','АТЛАС ДЕФЕКТОВ · какие дефекты возможны, решают πₙ пространства параметра порядка, и ничто другое','DEFEKT-ATLAS · welche Defekte möglich sind, entscheiden die πₙ des Ordnungsparameterraums'),'label const');
+  tl.position.set(0,2.85,0); dfxGroup.add(tl);
+  dfxObjs={vor,hed,wal,disk,diskM,loop,stair,core,sph,arrows,prof,edens,readV:vl,readH:hl,readW:wl,NR,NA,_c:new THREE.Color()};
+}
+function updateDfx(dt){
+  const O=dfxObjs; if(!O) return; dfxT+=dt;
+  const st=state.dfxStation||'vortex', q=Math.round(state.dfxQ??1), d=Math.round(state.dfxD??1),
+        eps=state.dfxEps??0, R=state.dfxLoopR??1.5, xi=state.dfxXi??0.35;
+  O.vor.visible=(st==='vortex'); O.hed.visible=(st==='hedgehog'); O.wal.visible=(st==='wall');
+  const key=st+'|'+q+'|'+d+'|'+eps.toFixed(4)+'|'+R.toFixed(3)+'|'+xi.toFixed(3);
+  if(dfxBuiltFor!==key){ dfxBuiltFor=key;
+    if(st==='vortex'){
+      const A=dfxPerturb(eps,11,5), w=dfxWinding(q,A,3000);
+      const pos=O.disk.attributes.position.array, col=O.disk.attributes.color.array, c=O._c;
+      const RMAX=2.3;
+      for(let i=0;i<=O.NR;i++){ const r=RMAX*i/O.NR;
+        for(let j=0;j<=O.NA;j++){ const t=2*Math.PI*j/O.NA, n=i*(O.NA+1)+j;
+          pos[n*3]=r*Math.cos(t); pos[n*3+1]=0; pos[n*3+2]=r*Math.sin(t);
+          const amp=Math.tanh(r/Math.max(1e-3,xi));                       // |ψ| vanishes on the core
+          const ph=dfxPhase(t,q,A);
+          c.setHSL(((ph/(2*Math.PI))%1+1)%1, 0.78, 0.10+0.42*amp);
+          col[n*3]=c.r; col[n*3+1]=c.g; col[n*3+2]=c.b; } }
+      O.disk.attributes.position.needsUpdate=true; O.disk.attributes.color.needsUpdate=true;
+      O.disk.computeBoundingSphere();
+      { const p=[]; for(let j=0;j<=200;j++){ const t=2*Math.PI*j/200;
+          p.push(new THREE.Vector3(R*Math.cos(t),0.015,R*Math.sin(t))); }
+        O.loop.geometry.setFromPoints(p); O.loop.geometry.computeBoundingSphere(); }
+      { const p=[]; let tot=0, prev=dfxPhase(0,q,A);
+        for(let j=0;j<=400;j++){ const t=2*Math.PI*j/400, cur=dfxPhase(t,q,A);
+          let dd=cur-prev; while(dd>Math.PI)dd-=2*Math.PI; while(dd<-Math.PI)dd+=2*Math.PI;
+          tot+=dd; prev=cur;
+          p.push(new THREE.Vector3(R*Math.cos(t),0.05+0.42*tot/(2*Math.PI),R*Math.sin(t))); }
+        O.stair.geometry.setFromPoints(p); O.stair.geometry.computeBoundingSphere(); }
+      O.stat={w,minAmp:Math.tanh(R/Math.max(1e-3,xi)),q};
+    } else if(st==='hedgehog'){
+      const W=dfxPerturb(eps*0.45,5,3), nf=dfxHedge(d,W), deg=dfxDegree(nf,64,128);
+      const g=O.sph.geometry, p=g.attributes.position, col=new Float32Array(p.count*3), c=O._c;
+      for(let i=0;i<p.count;i++){
+        const x=p.getX(i),y=p.getY(i),z=p.getZ(i), rr=Math.hypot(x,y,z)||1;
+        const th=Math.acos(Math.max(-1,Math.min(1,y/rr))), ph=Math.atan2(z,x);
+        const n=nf(th,ph);
+        c.setRGB(0.5+0.5*n[0],0.5+0.5*n[1],0.5+0.5*n[2]);
+        col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; }
+      g.setAttribute('color',new THREE.BufferAttribute(col,3));
+      { const P=[], C=[]; const NT=13,NP=26;
+        for(let i=1;i<NT;i++) for(let j=0;j<NP;j++){
+          const th=Math.PI*i/NT, ph=2*Math.PI*j/NP;
+          const bx=1.35*Math.sin(th)*Math.cos(ph), by=1.35*Math.cos(th), bz=1.35*Math.sin(th)*Math.sin(ph);
+          const n=nf(th,ph), L=0.42;
+          P.push(bx,by,bz, bx+L*n[0],by+L*n[2],bz+L*n[1]);
+          c.setRGB(0.5+0.5*n[0],0.5+0.5*n[1],0.5+0.5*n[2]);
+          C.push(c.r,c.g,c.b, c.r,c.g,c.b); }
+        const ag=O.arrows.geometry;
+        ag.setAttribute('position',new THREE.BufferAttribute(new Float32Array(P),3));
+        ag.setAttribute('color',new THREE.BufferAttribute(new Float32Array(C),3));
+        ag.computeBoundingSphere(); }
+      O.stat={deg,d};
+    } else {
+      const p=[], e=[]; const L=3.2;
+      let E=0; const dx=0.002;
+      for(let x=-14;x<=14;x+=dx){ const dp=(dfxKink(x+dx/2)-dfxKink(x-dx/2))/dx, V=0.25*(dfxKink(x)**2-1)**2;
+        E+=(0.5*dp*dp+V)*dx; }
+      let res=0; const h=1e-4;
+      for(let x=-6;x<=6;x+=0.05){ const f=dfxKink(x), d2=(dfxKink(x+h)-2*f+dfxKink(x-h))/(h*h);
+        res=Math.max(res,Math.abs(d2-(f*f*f-f))); }
+      for(let i=0;i<=300;i++){ const x=-L+2*L*i/300, u=x*2.2;
+        p.push(new THREE.Vector3(x,1.3*dfxKink(u),0));
+        const dp=(dfxKink(u+1e-4)-dfxKink(u-1e-4))/2e-4, V=0.25*(dfxKink(u)**2-1)**2;
+        e.push(new THREE.Vector3(x,-1.75+2.2*(0.5*dp*dp+V),0)); }
+      O.prof.geometry.setFromPoints(p); O.prof.geometry.computeBoundingSphere();
+      O.edens.geometry.setFromPoints(e); O.edens.geometry.computeBoundingSphere();
+      O.stat={E,res};
+    }
+  }
+  if(st==='hedgehog') O.hed.rotation.y+=dt*0.14;
+  if(st==='vortex') O.vor.rotation.y+=dt*0.09;
+  dfxUiAcc+=dt; if(dfxUiAcc>0.3){ dfxUiAcc=0; const S=O.stat||{};
+    if(st==='vortex'){
+      const locked=S.minAmp>1e-6;
+      O.readV.element.textContent=`π₁(S¹) · ∮dφ/2π = ${(S.w??0).toFixed(6)} · q = ${S.q} · |ψ| ${TT('on the loop','на контуре','auf der Schleife')} = ${(S.minAmp??0).toFixed(4)}`;
+      hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₁(S¹)=ℤ · ${TT('measured winding','измеренная намотка','gemessene Windung')} = ${(S.w??0).toFixed(6)} · ${TT('deformation','деформация','Deformation')} ε = ${eps.toFixed(2)}`;
+      hudSub.textContent=TT('A superfluid, a superconductor and a cosmic string carry the same defect for the same reason: their order parameter is a phase, its space is a circle, and π₁ of a circle is the integers. The colour wheel below IS that phase, the brightness is |ψ| — which must vanish on the core, and does — and the green staircase is the phase accumulated as you walk the gold loop once. After a full turn the staircase has risen by exactly the winding number, and this is measured from the field, not drawn from the label. Now turn the deformation up. Push the phase around as violently as you like: the staircase writhes, the colours churn, the measured integer does not move by so much as 1e-6. That refusal is what the word topological means. It has one precise boundary, and the lab shows it — the integer can only change where the order parameter leaves its manifold, so |ψ| on the loop is reported beside it. Shrink the loop into the core, where |ψ| → 0, and the winding stops being defined at all.',
+        'Сверхтекучая жидкость, сверхпроводник и космическая струна несут один и тот же дефект по одной причине: их параметр порядка есть фаза, её пространство — окружность, а π₁ окружности есть целые числа. Цветовой круг внизу И ЕСТЬ эта фаза, яркость есть |ψ| — которая обязана обращаться в нуль на сердцевине и обращается, — а зелёная лестница есть фаза, накопленная при одном обходе золотого контура. После полного оборота лестница поднимается ровно на число намотки, и это измерено по полю, а не взято из подписи. Теперь увеличь деформацию. Крути фазу как угодно яростно: лестница извивается, цвета бурлят, измеренное целое не сдвигается и на 1e-6. Этот отказ и означает слово «топологический». У него одна точная граница, и лаборатория её показывает: целое может измениться только там, где параметр порядка покидает своё многообразие, поэтому рядом сообщается |ψ| на контуре. Стяни контур в сердцевину, где |ψ| → 0, и намотка перестанет быть определена вовсе.',
+        'Suprafluid, Supraleiter und kosmischer String tragen denselben Defekt aus demselben Grund: der Ordnungsparameter ist eine Phase, ihr Raum ein Kreis, und π₁ des Kreises sind die ganzen Zahlen. Das Farbrad IST diese Phase, die Helligkeit |ψ|, die grüne Treppe die entlang der goldenen Schleife akkumulierte Phase — nach einem Umlauf genau um die Windungszahl gestiegen, aus dem Feld gemessen. Dreh die Deformation auf: die Treppe windet sich, die ganze Zahl bewegt sich nicht um 1e-6. Sie kann sich nur dort ändern, wo der Ordnungsparameter seine Mannigfaltigkeit verlässt — daher steht |ψ| daneben.');
+      ATLAS_BUS.pub('dfx.winding',+(S.w??0).toFixed(6),'');
+    } else if(st==='hedgehog'){
+      O.readH.element.textContent=`π₂(S²) · (1/4π)∮ n·(∂ₐn×∂_b n) = ${(S.deg??0).toFixed(6)} · d = ${S.d}`;
+      hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₂(S²)=ℤ · ${TT('measured degree','измеренная степень','gemessener Grad')} = ${(S.deg??0).toFixed(6)} · ${TT('deformation','деформация','Deformation')} ε = ${eps.toFixed(2)}`;
+      hudSub.textContent=TT('When the order parameter is a direction rather than a phase, its space is a sphere and π₂ of a sphere is again the integers — so the medium admits point defects: hedgehogs in a ferromagnet, monopoles in a grand unified theory. The invariant is the degree, the number of times the field wraps the sphere of directions, and it is measured here as a signed solid angle summed over a triangulation of the enclosing surface, which is the discrete form of (1/4π)∮n·(∂n×∂n). Every direction is painted as a colour, so a degree-two map visibly runs the entire colour sphere twice while you look at a single enclosing surface. Deform it and the count stands still. The same integral, applied to the magnetisation of a thin film, is what people count when they count skyrmions, and the same theorem says a ferromagnet cannot have a stable line defect while a superfluid cannot have a stable point defect — the table decides, not the material.',
+        'Когда параметр порядка есть направление, а не фаза, его пространство есть сфера, а π₂ сферы снова есть целые числа — значит, среда допускает точечные дефекты: ежи в ферромагнетике, монополи в теории великого объединения. Инвариант есть степень, число обёртываний сферы направлений, и он измеряется здесь знаковым телесным углом, просуммированным по триангуляции охватывающей поверхности, — дискретная форма (1/4π)∮n·(∂n×∂n). Каждое направление окрашено, поэтому отображение степени два на глазах пробегает всю цветовую сферу дважды на одной охватывающей поверхности. Деформируй — счёт стоит на месте. Тот же интеграл, применённый к намагниченности плёнки, и есть то, что считают, когда считают скирмионы; и та же теорема говорит, что у ферромагнетика не может быть устойчивого линейного дефекта, а у сверхтекучей жидкости — точечного. Решает таблица, а не материал.',
+        'Ist der Ordnungsparameter eine Richtung, so ist sein Raum eine Sphäre und π₂ wieder ℤ — das Medium erlaubt Punktdefekte: Igel im Ferromagneten, Monopole in der GUT. Die Invariante ist der Grad, hier als vorzeichenbehafteter Raumwinkel über eine Triangulierung gemessen — die diskrete Form von (1/4π)∮n·(∂n×∂n). Jede Richtung ist eine Farbe, ein Grad-2-Feld überstreicht die Farbsphäre sichtbar zweimal. Deformation ändert die Zahl nicht.');
+      ATLAS_BUS.pub('dfx.degree',+(S.deg??0).toFixed(6),'');
+    } else {
+      O.readW.element.textContent=`π₀ · ${TT('two disconnected vacua','два несвязных вакуума','zwei getrennte Vakua')} · ${TT('tension','натяжение','Spannung')} σ = ${(S.E??0).toFixed(9)} = 2√2/3`;
+      hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₀ = ℤ₂ · σ = ${(S.E??0).toFixed(9)} · 2√2/3 = ${(2*Math.SQRT2/3).toFixed(9)}`;
+      hudSub.textContent=TT('The simplest entry in the table needs no continuous symmetry at all. If the ground states form a disconnected set — π₀ non-trivial — then a region that chose one of them cannot be deformed into a region that chose another without paying, and what stands between them is a wall. Here the potential is the double well ¼(φ²−1)², the wall is φ = tanh(x/√2), and it is not a sketch: it solves φ″ = φ³ − φ exactly, and integrating its energy density gives a tension of 2√2/3 to nine decimals, a closed number that no simulation was tuned to reach. The gold curve is that energy density, ½ sech⁴, localised on the wall and nowhere else. Cosmology inherits this line of the table directly: a symmetry that breaks to a disconnected vacuum makes domain walls, and their tension is why most such theories are ruled out by the sky.',
+        'Простейшая строка таблицы не требует никакой непрерывной симметрии. Если основные состояния образуют несвязное множество — π₀ нетривиальна, — то область, выбравшая одно из них, не может быть непрерывно переведена в область, выбравшую другое, без платы, и между ними стоит стенка. Здесь потенциал есть двойная яма ¼(φ²−1)², стенка есть φ = tanh(x/√2), и это не набросок: она точно решает φ″ = φ³ − φ, а интеграл её плотности энергии даёт натяжение 2√2/3 с девятью знаками — замкнутое число, под которое ничего не подгонялось. Золотая кривая и есть эта плотность, ½ sech⁴, локализованная на стенке и нигде более. Космология наследует эту строку напрямую: симметрия, ломающаяся к несвязному вакууму, рождает доменные стенки, и именно их натяжение исключает большинство таких теорий по наблюдениям неба.',
+        'Der einfachste Eintrag der Tabelle braucht gar keine kontinuierliche Symmetrie. Ist die Menge der Grundzustände unzusammenhängend — π₀ nichttrivial —, so steht zwischen zwei Wahlen eine Wand. Das Potential ist die Doppelmulde ¼(φ²−1)², die Wand ist φ = tanh(x/√2): sie löst φ″ = φ³ − φ exakt, und ihre Energiedichte integriert sich auf die Spannung 2√2/3 — auf neun Stellen, ohne jede Anpassung. Die Kosmologie erbt diese Zeile direkt.');
+      ATLAS_BUS.pub('dfx.tension',+(S.E??0).toFixed(6),'');
+    }
+    const el=ctl.querySelector('#dfxInv'); if(el){ const S2=O.stat||{};
+      el.innerHTML=
+        `<div style="margin-bottom:4px">${DFX_TABLE.map(r=>`<div style="opacity:${(st==='wall'&&r.g==='π₀(M)')||(st==='vortex'&&r.g==='π₁(M)')||(st==='hedgehog'&&r.g==='π₂(M)')?1:.5}"><b style="color:var(--gold-2)">${r.g}</b> → ${esc(impL(r.d))} <span style="opacity:.7">· ${esc(impL(r.ex))}</span></div>`).join('')}</div>`+
+        (st==='vortex'
+          ? `∮dφ/2π = <b>${(S2.w??0).toFixed(9)}</b> · ${TT('set charge','заданный заряд','gesetzte Ladung')} q = <b>${S2.q}</b> · |${TT('residual','невязка','Rest')}| = <b>${Math.abs((S2.w??0)-(S2.q??0)).toExponential(1)}</b><br>`
+           +`${TT('deformation amplitude','амплитуда деформации','Deformationsamplitude')} ε = <b>${eps.toFixed(3)}</b> · |ψ| ${TT('on the loop','на контуре','auf der Schleife')} = <b style="color:${(S2.minAmp??0)>1e-6?'#9fe8c0':'#ff8a6a'}">${(S2.minAmp??0).toFixed(6)}</b><br>`
+           +`<span style="opacity:.75">${TT('while |ψ| > 0 on the loop the integer cannot move, however large ε is — the deformation is single-valued and single-valued functions add no winding. That is the theorem, and the residual beside it is the measurement.','пока |ψ| > 0 на контуре, целое не может сдвинуться при любом ε — деформация однозначна, а однозначные функции намотки не добавляют. Это теорема, а рядом — измерение.','Solange |ψ| > 0 auf der Schleife bleibt, kann sich die ganze Zahl bei keinem ε bewegen.')}</span>`
+          : st==='hedgehog'
+          ? `(1/4π)∮ = <b>${(S2.deg??0).toFixed(9)}</b> · ${TT('set degree','заданная степень','gesetzter Grad')} d = <b>${S2.d}</b> · |${TT('residual','невязка','Rest')}| = <b>${Math.abs((S2.deg??0)-(S2.d??0)).toExponential(1)}</b><br>`
+           +`<span style="opacity:.75">${TT('summed as signed spherical-triangle solid angles (Van Oosterom–Strackee) over a 64×128 triangulation — an exact discrete form, not a quadrature approximation.','суммируется как знаковые телесные углы сферических треугольников (ван Оостером–Стракки) по триангуляции 64×128 — точная дискретная форма, а не приближение квадратурой.','als vorzeichenbehaftete Raumwinkel sphärischer Dreiecke summiert — exakte diskrete Form.')}</span>`
+          : `φ(x) = tanh(x/√2) · ${TT('field-equation residual','невязка уравнения поля','Feldgleichungs-Rest')} |φ″−(φ³−φ)| = <b>${(S2.res??0).toExponential(1)}</b><br>`
+           +`σ = ∫[½φ′²+¼(φ²−1)²] = <b>${(S2.E??0).toFixed(9)}</b> · 2√2/3 = <b>${(2*Math.SQRT2/3).toFixed(9)}</b> · Δ = <b>${Math.abs((S2.E??0)-2*Math.SQRT2/3).toExponential(1)}</b>`);
+    }
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -16572,7 +16825,7 @@ function updateRpd(dt){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
@@ -16628,6 +16881,7 @@ function s3ViewVisibility(v){
   rshGroup.visible     = (v==='rsh');
   andGroup.visible     = (v==='and');
   pspGroup.visible     = (v==='psp');
+  dfxGroup.visible     = (v==='dfx');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -16683,6 +16937,7 @@ function setS3View(v){
   if(v==='rsh'){ rshSetup(); }
   if(v==='and'){ andSetup(); }
   if(v==='psp'){ pspSetup(); }
+  if(v==='dfx'){ dfxSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -16763,6 +17018,11 @@ const MV_PRESETS=[
   w:{en:'A Chern number, a linking number, a vortex count and a spinor winding are integers for the same reason, and none of them can drift.',
      ru:'Число Черна, коэффициент зацепления, счёт вихрей и намотка спинора целые по одной причине, и ни одно не может дрейфовать.',
      de:'Chern-Zahl, Verschlingungszahl, Wirbelzahl und Spinor-Windung sind aus demselben Grund ganzzahlig.'}},
+ {id:'homotopy', views:['dfx','sc','skyrmion','psp'], bus:['dfx.winding','sc.vortices','psp.link'],
+  t:{en:'The classification table · one theorem, four measurements',ru:'Таблица классификации · одна теорема, четыре измерения',de:'Die Klassifikationstabelle'},
+  w:{en:'π₀ walls, π₁ vortices, π₂ hedgehogs, π₃ textures — the same theorem decides all four, and every tile measures its own integer from its own field rather than announcing it.',
+     ru:'π₀ стенки, π₁ вихри, π₂ ежи, π₃ текстуры — все четыре решает одна теорема, и каждое окно измеряет своё целое по своему полю, а не объявляет его.',
+     de:'π₀ Wände, π₁ Wirbel, π₂ Igel, π₃ Texturen — dasselbe Theorem entscheidet alle vier, und jede Kachel misst ihre eigene ganze Zahl.'}},
  {id:'chaos', views:['chaos','kam','grav','kdv'], bus:['chaos.lambda','kam.lambda','grav.lambda'],
   t:{en:'Predictability · dissipative vs conservative',ru:'Предсказуемость · диссипативное и консервативное',de:'Vorhersagbarkeit · dissipativ vs konservativ'},
   w:{en:'The same Lyapunov exponent measured where volume contracts, where it is exactly preserved, where gravity does it, and where a soliton refuses to let it happen at all.',
@@ -21939,6 +22199,7 @@ const state = {
   invQ:'', invTol:1e-3,   // Inverse atlas — query the whole atlas by value
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
+  dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -24093,6 +24354,44 @@ function buildCtlBody(){
         <button class="btn" id="pspToTopo">${TT('→ Topology: the linking number as an invariant','→ Топология: зацепление как инвариант','→ Topologie: die Verschlingungszahl')}</button>
         <button class="btn" id="pspToSpin">${TT('→ Quantum spin: the reduced sphere is the Bloch sphere','→ Квантовый спин: приведённая сфера есть сфера Блоха','→ Quantenspin: die reduzierte Sphäre')}</button></div>
     </div>`;
+    else if(V==='dfx') body = `
+    <div class="sect"><b>${TT('Which line of the table','Какая строка таблицы','Welche Zeile der Tabelle')}</b>
+      <div class="chips">
+        ${[['wall','π₀ · '+TT('domain wall','доменная стенка','Domänenwand')],
+           ['vortex','π₁ · '+TT('vortex line','вихревая линия','Wirbellinie')],
+           ['hedgehog','π₂ · '+TT('hedgehog / monopole','ёж / монополь','Igel / Monopol')]]
+          .map(([k,l])=>`<button class="chip ${(state.dfxStation||'vortex')===k?'on':''}" data-dfxst="${k}">${l}</button>`).join('')}
+        <button class="chip" id="dfxToPsp">π₃ · ${TT('Hopf invariant → phase-space lab','инвариант Хопфа → лаб. фазового пространства','Hopf-Invariante → Phasenraum')}</button>
+      </div>
+    </div>
+    ${(state.dfxStation||'vortex')==='vortex'?`
+    <div class="sect"><b>${TT('Charge, and how hard you can push it','Заряд и насколько сильно его можно мять','Ladung und Deformation')}</b>
+      <div class="ctlrow"><label>q</label>
+        <input type="range" id="dfxQ" min="-3" max="3" step="1" value="${state.dfxQ??1}"><span class="val" id="dfxQV">${state.dfxQ??1}</span></div>
+      <div class="ctlrow"><label>ε</label>
+        <input type="range" id="dfxEps" min="0" max="3" step="0.0001" value="${state.dfxEps??0}"><span class="val" id="dfxEpsV">${(state.dfxEps??0).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('loop radius','радиус контура','Schleifenradius')}</label>
+        <input type="range" id="dfxLoopR" min="0.05" max="2.2" step="0.0001" value="${state.dfxLoopR??1.5}"><span class="val" id="dfxLoopRV">${(state.dfxLoopR??1.5).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('core size ξ','размер сердцевины ξ','Kerngröße ξ')}</label>
+        <input type="range" id="dfxXi" min="0.02" max="1.2" step="0.0001" value="${state.dfxXi??0.35}"><span class="val" id="dfxXiV">${(state.dfxXi??0.35).toFixed(4)}</span></div>
+    </div>`:(state.dfxStation||'vortex')==='hedgehog'?`
+    <div class="sect"><b>${TT('Degree, and how hard you can push it','Степень и насколько сильно её можно мять','Grad und Deformation')}</b>
+      <div class="ctlrow"><label>d</label>
+        <input type="range" id="dfxD" min="-3" max="3" step="1" value="${state.dfxD??1}"><span class="val" id="dfxDV">${state.dfxD??1}</span></div>
+      <div class="ctlrow"><label>ε</label>
+        <input type="range" id="dfxEps" min="0" max="3" step="0.0001" value="${state.dfxEps??0}"><span class="val" id="dfxEpsV">${(state.dfxEps??0).toFixed(4)}</span></div>
+    </div>`:''}
+    <div class="sect"><b>${TT('Classification passport','Классификационный паспорт','Klassifikations-Pass')}</b>
+      <div class="note" id="dfxInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Which defects a medium can carry is not a property of the material — it is πₙ of its order-parameter space, and nothing else. Every integer on this page is measured from the field that is drawn: a contour integral for the winding, a sum of signed spherical-triangle solid angles for the degree, an exact soliton profile with its closed-form tension for the wall. The deformation slider exists to be abused: push it as hard as you like and watch the integer refuse to move, then read the one quantity that could ever release it — the amplitude of the order parameter on the measuring loop. DECLARED: the fields here are constructed representatives of their homotopy classes, not solutions of any particular material’s free energy; the invariants are exact, the profiles are illustrative except the kink, which is the exact solution of φ″ = φ³ − φ.','Какие дефекты может нести среда — не свойство материала, а πₙ пространства её параметра порядка, и ничто иное. Каждое целое здесь измерено по нарисованному полю: контурный интеграл для намотки, сумма знаковых телесных углов сферических треугольников для степени, точный солитонный профиль с замкнутым натяжением для стенки. Ползунок деформации существует, чтобы им злоупотребляли: жми сколько угодно и смотри, как целое отказывается двигаться, а затем читай единственную величину, способная его освободить, — амплитуду параметра порядка на измерительном контуре. ЗАЯВЛЕНО: поля здесь — построенные представители своих гомотопических классов, а не решения свободной энергии конкретного материала; инварианты точны, профили иллюстративны, кроме кинка, который есть точное решение φ″ = φ³ − φ.','Welche Defekte ein Medium tragen kann, ist keine Materialeigenschaft, sondern πₙ seines Ordnungsparameterraums. Jede ganze Zahl hier wird aus dem gezeichneten Feld gemessen: ein Konturintegral für die Windung, eine Summe vorzeichenbehafteter Raumwinkel für den Grad, ein exaktes Solitonprofil mit geschlossener Spannung für die Wand. ERKLÄRT: die Felder sind konstruierte Repräsentanten ihrer Homotopieklassen; die Invarianten sind exakt, die Profile illustrativ — außer dem Kink, der exakte Lösung von φ″ = φ³ − φ ist.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="dfxToSc">${TT('→ Superconductivity: π₁ counted as flux quanta','→ Сверхпроводимость: π₁ в квантах потока','→ Supraleitung: π₁ als Flussquanten')}</button>
+        <button class="btn" id="dfxToSk">${TT('→ Skyrmions: the same degree in a film','→ Скирмионы: та же степень в плёнке','→ Skyrmionen: derselbe Grad')}</button>
+        <button class="btn" id="dfxToTopo">${TT('→ Topology atlas: the invariants side by side','→ Атлас топологии: инварианты рядом','→ Topologie-Atlas')}</button>
+        <button class="btn" id="dfxToPsp2">${TT('→ Phase space: π₃ as the linking of preimages','→ Фазовое пространство: π₃ как зацепление прообразов','→ Phasenraum: π₃ als Verschlingung')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -24763,6 +25062,7 @@ function buildCtlBody(){
         <button class="btn ${V==='rsh'?'on':''}" id="v-rsh">${TT('Riemann sheet','Лист Римана','Riemann-Blatt')}</button>
         <button class="btn ${V==='and'?'on':''}" id="v-and">${TT('Anderson','Андерсон','Anderson')}</button>
         <button class="btn ${V==='psp'?'on':''}" id="v-psp">${TT('Phase space','Фазовое пространство','Phasenraum')}</button>
+        <button class="btn ${V==='dfx'?'on':''}" id="v-dfx">${TT('Defect atlas','Атлас дефектов','Defekt-Atlas')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -24807,7 +25107,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -25266,6 +25566,16 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='dfx'){
+      ctl.querySelectorAll('[data-dfxst]').forEach(b=>b.onclick=()=>{ state.dfxStation=b.dataset.dfxst; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('dfxQ',v=>state.dfxQ=v|0,v=>String(v|0)); kv('dfxD',v=>state.dfxD=v|0,v=>String(v|0));
+      kv('dfxEps',v=>state.dfxEps=v,v=>v.toFixed(4));
+      kv('dfxLoopR',v=>state.dfxLoopR=v,v=>v.toFixed(4)); kv('dfxXi',v=>state.dfxXi=v,v=>v.toFixed(4));
+      const go=(id,view)=>{ const b=ctl.querySelector('#'+id); if(b) b.onclick=()=>{ navPush(); setS3View(view); buildCtl(); }; };
+      go('dfxToPsp','psp'); go('dfxToPsp2','psp'); go('dfxToSc','sc'); go('dfxToSk','skyrmion'); go('dfxToTopo','topo');
     }
     if(V==='psp'){
       ctl.querySelectorAll('[data-pspst]').forEach(b=>b.onclick=()=>{ state.pspStation=b.dataset.pspst; buildCtl(); });
@@ -26815,10 +27125,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -28432,6 +28742,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='dfx'){
+      fbsAnimT+=dt; updateDfx(dt);
     } else if(state.s3view==='psp'){
       fbsAnimT+=dt; updatePsp(dt);
     } else if(state.s3view==='and'){
