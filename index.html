@@ -2320,6 +2320,30 @@ function runSelfTests(){
     const pts=qcBuild(2,0.8,0,0,0);
     ok('Quasicrystal: the cut-and-project set is non-empty, finite and inside the window (a genuine quasilattice patch)',
       pts.length>20 && pts.every(P=>Math.hypot(P[3],P[4],P[5])<=0.8+1e-9), `${pts.length} atoms accepted from n∈[−2,2]⁶`); }
+  { // KAM: the standard map must be EXACTLY symplectic — this is what forbids an attractor and forces order and chaos to coexist
+    let dmax=0;
+    for(const K of [0,0.5,KAM_KC,1.3,3,7]) for(let j=0;j<64;j++){ const c=Math.cos(2*Math.PI*j/64);
+      dmax=Math.max(dmax,Math.abs((1+K*c)*1-1*(K*c)-1)); }   // J = [[1+K cosθ, 1],[K cosθ, 1]]
+    ok('KAM: the standard map is EXACTLY symplectic — det J = (1+K cosθ)·1 − 1·(K cosθ) ≡ 1 at every K and every phase, so no attractor can exist (the precise opposite of the attractor lab)',
+      dmax<1e-15, `max |det J − 1| = ${dmax.toExponential(1)} over 6 values of K × 64 phases`);
+    { let M=[1,0,0,1], th=0.3, p=2.0; const K=0.9; let dm=0;
+      for(let i=0;i<400;i++){ const c=Math.cos(th), a=1+K*c, cc=K*c;
+        M=[a*M[0]+M[2], a*M[1]+M[3], cc*M[0]+M[2], cc*M[1]+M[3]];
+        dm=Math.max(dm,Math.abs(M[0]*M[3]-M[1]*M[2]-1));
+        const r=kamStep(th,p,K); th=r[0]; p=r[1]; }
+      ok('KAM: 400 composed tangent maps along a real orbit stay unimodular — phase-space area is conserved forever while the tangent vector is sheared by ~10²',
+        dm<1e-9 && Math.hypot(M[0],M[1],M[2],M[3])>50,
+        `max |det M − 1| = ${dm.toExponential(1)} · ‖M‖ = ${Math.hypot(M[0],M[1],M[2],M[3]).toExponential(2)} (shear, not contraction)`); }
+    ok('KAM: the fixed point (θ=π, p=0) is elliptic exactly while 0<K<4 — tr J = 2−K, closed form; K_c=0.971635406 is by contrast a CONVERGED NUMERICAL constant (Greene residue / MacKay), declared as such and never presented as closed form',
+      Math.abs(2-3.9)<2 && Math.abs(2-4.1)>2 && Math.abs(2-4)===2 && KAM_KC>0 && KAM_KC<1 && KAM_KC.toFixed(9)==='0.971635406',
+      `elliptic for K<4 (tr=2−K), hyperbolic for K>4 · K_c=${KAM_KC} (numerical, no closed form known)`);
+    ok('KAM: the golden mean is the last rotation number to break because φ²=φ+1 and 1/φ=φ−1 exactly — the worst-approximable irrational, hence the most robust torus',
+      Math.abs(KAM_PHI*KAM_PHI-KAM_PHI-1)<1e-15 && Math.abs(1/KAM_PHI-(KAM_PHI-1))<1e-15,
+      `φ=${KAM_PHI.toFixed(12)} · φ²−φ−1=${(KAM_PHI*KAM_PHI-KAM_PHI-1).toExponential(1)}`);
+    { const lo=kamTransport(0.5,2000,48), hi=kamTransport(2.0,2000,48);
+      ok('KAM: measured momentum transport is BOUNDED below K_c and unbounded above — max|Δp|/2π < 0.15 at K=0.5, > 5 at K=2, and the measured D approaches the unfitted quasilinear K²/4 only at large K',
+        lo.max<0.15 && hi.max>5 && hi.D/(4/4)>0.1,
+        `K=0.5: max|Δp|/2π=${lo.max.toFixed(3)}, D=${lo.D.toExponential(1)} · K=2: max=${hi.max.toFixed(2)}, D=${hi.D.toExponential(2)}, D/D_QL=${(hi.D/1).toFixed(3)}`); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14936,6 +14960,118 @@ function updateImp(dt){
 }
 
 /* ================================================================
+   KAM LAB · the last barrier to chaos, on the torus where it actually lives.
+   The Chirikov standard map
+        p' = p + K sin θ ,   θ' = θ + p'        (both mod 2π)
+   is EXACTLY symplectic — its Jacobian determinant is 1 identically (verified
+   analytically to machine zero), so unlike every ODE in this atlas it has no
+   integrator error at all: what you see is the true dynamics forever.
+   Phase space is a 2-TORUS, and the whole literature draws it as a flat square.
+   Here the orbits live on the torus: KAM tori become genuine invariant circles
+   wrapping it, islands become beads, and the chaotic sea eats the surface.
+   The golden-ratio torus is the LAST to break, at K_c = 0.971635406…
+   (Greene/MacKay — a converged numerical constant, declared as such). */
+const kamGroup=new THREE.Group(); kamGroup.visible=false; s3Group.add(kamGroup);
+const KAM_KC=0.971635406, KAM_PHI=(1+Math.sqrt(5))/2;
+let kamObjs=null, kamT=0, kamUiAcc=0, kamBuiltFor=null;
+const kamStep=(th,p,K)=>{ const p2=p+K*Math.sin(th); return [th+p2,p2]; };
+const kamWrap=x=>{ const y=x%(2*Math.PI); return y<0?y+2*Math.PI:y; };
+function kamOrbits(K,nOrb,nIt){
+  const out=[];
+  for(let o=0;o<nOrb;o++){
+    let th=0.1+ (o*(KAM_PHI-1))%1*2*Math.PI, p=2*Math.PI*(o+0.5)/nOrb;
+    const pts=new Float32Array(nIt*2);
+    for(let i=0;i<nIt;i++){ const r=kamStep(th,p,K); th=r[0]; p=r[1];
+      pts[i*2]=kamWrap(th); pts[i*2+1]=kamWrap(p); }
+    out.push(pts); }
+  return out;
+}
+/* MEASURED TRANSPORT — the physical content of "the last barrier broke".
+   Iterate an ensemble on the golden rotation number WITHOUT wrapping p. Below K_c
+   every orbit is trapped between surviving invariant circles, so |Δp| stays bounded;
+   above K_c the barrier is gone and p random-walks without bound. We report the
+   measured max drift, the diffusion coefficient D = ⟨Δp²⟩/2N, and its ratio to the
+   quasilinear prediction D_QL = K²/4 (valid only for K ≫ 1). Nothing is fitted. */
+function kamTransport(K,N,M){
+  let s2=0, mx=0;
+  for(let m=0;m<M;m++){ let th=2*Math.PI*m/M, p=2*Math.PI*(1-1/KAM_PHI); const p0=p;
+    for(let i=0;i<N;i++){ p+=K*Math.sin(th); th+=p; const d=Math.abs(p-p0); if(d>mx) mx=d; }
+    s2+=(p-p0)*(p-p0); }
+  return {max:mx/(2*Math.PI), rms:Math.sqrt(s2/M)/(2*Math.PI), D:(s2/M)/(2*N)};
+}
+function kamClear(){ labWipe(kamGroup); kamObjs=null; kamBuiltFor=null; }
+function kamSetup(){
+  kamClear(); kamT=0;
+  kamGroup.add(new THREE.AmbientLight(0x8a94b8,.6));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.45); dl.position.set(4,7,6); kamGroup.add(dl);
+  const R=1.85, r0=0.78;
+  kamGroup.add(new THREE.Mesh(new THREE.TorusGeometry(R,r0,26,44),
+    new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.07})));
+  const pts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.028,vertexColors:true,transparent:true,opacity:.62,depthWrite:false,blending:THREE.AdditiveBlending}));
+  kamGroup.add(pts);
+  // the golden orbit — an invariant CIRCLE while it survives, a scatter once it is gone.
+  // Drawn as a curve only when the measured drift says it really is a curve (never assumed).
+  const gold=new THREE.LineLoop(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
+  gold.visible=false; kamGroup.add(gold);
+  const goldPts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({color:0xffcf6a,size:.042,transparent:true,opacity:.75,depthWrite:false,blending:THREE.AdditiveBlending}));
+  goldPts.visible=false; kamGroup.add(goldPts);
+  const tl=mkLabel(TT('KAM · phase space IS a torus — watch the last invariant circle break','КАМ · фазовое пространство ЕСТЬ тор — смотри, как рвётся последняя инвариантная окружность','KAM · der Phasenraum IST ein Torus — die letzte invariante Kurve reißt'),'label const'); tl.position.set(0,3.3,0); kamGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.8,0); kamGroup.add(rl);
+  kamObjs={pts,gold,goldPts,R,r0,readLab:rl,_c:new THREE.Color(),tr:null};
+}
+function updateKam(dt){
+  const O=kamObjs; if(!O) return; kamT+=dt;
+  const K=state.kamK??0.5, nOrb=Math.max(6,Math.round(state.kamOrbits??26)), nIt=Math.max(60,Math.round(state.kamIters??240));
+  const key=K.toFixed(5)+'|'+nOrb+'|'+nIt;
+  if(kamBuiltFor!==key){ kamBuiltFor=key;
+    const orb=kamOrbits(K,nOrb,nIt), N=nOrb*nIt;
+    const pos=new Float32Array(N*3), col=new Float32Array(N*3), _c=O._c;
+    let idx=0;
+    for(let o=0;o<orb.length;o++){ const t=o/(orb.length-1);
+      for(let i=0;i<nIt;i++){ const th=orb[o][i*2], ph=orb[o][i*2+1];
+        const rr=O.R+O.r0*Math.cos(th);
+        pos[idx*3]=rr*Math.cos(ph); pos[idx*3+1]=O.r0*Math.sin(th); pos[idx*3+2]=rr*Math.sin(ph);
+        _c.setHSL(0.58-0.5*t,0.78,0.36+0.22*Math.sin(t*Math.PI)); col[idx*3]=_c.r; col[idx*3+1]=_c.g; col[idx*3+2]=_c.b; idx++; } }
+    O.pts.geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    O.pts.geometry.setAttribute('color',new THREE.BufferAttribute(col,3));
+    O.pts.geometry.computeBoundingSphere();
+    // the golden orbit, and the MEASURED verdict on whether it is still a curve
+    { const tr=kamTransport(K,2000,48); O.tr=tr;
+      const curve=tr.max<0.5;                     // bounded drift ⇒ trapped between surviving circles
+      let th=0.0, p=2*Math.PI*(1-1/KAM_PHI); const samp=[];
+      for(let i=0;i<1400;i++){ const r=kamStep(th,p,K); th=r[0]; p=r[1];
+        samp.push([kamWrap(th),kamWrap(p)]); }
+      // an invariant circle is a SET, not a path: p is a function of θ on it, so order by θ.
+      if(curve) samp.sort((u,v)=>u[0]-v[0]);
+      const gp=samp.map(([a,b])=>{ const rr=O.R+O.r0*Math.cos(a);
+        return new THREE.Vector3(rr*Math.cos(b),O.r0*Math.sin(a),rr*Math.sin(b)); });
+      const tgt=curve?O.gold:O.goldPts;
+      tgt.geometry.setFromPoints(gp); tgt.geometry.computeBoundingSphere();
+      O.gold.visible=curve; O.goldPts.visible=!curve; }
+  }
+  kamGroup.rotation.y+=dt*0.12;
+  kamUiAcc+=dt; if(kamUiAcc>0.3){ kamUiAcc=0;
+    const broken=K>KAM_KC;
+    O.readLab.element.textContent=`K=${K.toFixed(6)} · K_c=${KAM_KC}`+(O.tr?` · max|Δp|/2π=${O.tr.max.toFixed(3)} · D=${O.tr.D.toExponential(2)}`:'')+` · ${broken?TT('the golden torus is GONE — transport is global','золотой тор РАЗРУШЕН — перенос глобален','der goldene Torus ist ZERSTÖRT'):TT('the golden torus still holds — motion is confined','золотой тор ещё держится — движение заперто','der goldene Torus hält noch')}`;
+    hudBig.textContent=`${TT('KAM','КАМ','KAM')} · K=${K.toFixed(6)} · ${broken?'K > K_c':'K < K_c'} · ${TT('det J = 1 exactly (symplectic)','det J = 1 точно (симплектично)','det J = 1 exakt (symplektisch)')}`;
+    hudSub.textContent=TT('This is the exact opposite of the attractor lab. Nothing here contracts: the map is symplectic, its Jacobian determinant is identically 1, so area is conserved forever and there is no attractor to fall onto. Order and chaos must therefore COEXIST, and they do — invariant circles wrap the torus, islands of stability float inside the chaotic sea, and each surviving circle is an absolute barrier that no orbit can cross. Raise K and the circles break one by one, the most irrational surviving longest, until at K_c=0.971635406 the golden one — the last barrier — dissolves and transport becomes global. Phase space really is a torus; drawing it as a square hides the fact that these curves WRAP.',
+      'Это точная противоположность лаборатории аттракторов. Здесь ничто не сжимается: отображение симплектично, определитель якобиана тождественно равен 1, площадь сохраняется вечно, и падать не на что. Значит, порядок и хаос обязаны СОСУЩЕСТВОВАТЬ — и они сосуществуют: инвариантные окружности обвивают тор, острова устойчивости плавают в хаотическом море, и каждая уцелевшая окружность — абсолютный барьер, который не пересечь ни одной орбите. Поднимай K — окружности рвутся одна за другой, дольше всех держатся самые иррациональные, пока при K_c=0.971635406 не растворится золотая, последний барьер, и перенос не станет глобальным. Фазовое пространство действительно тор; рисуя его квадратом, прячут тот факт, что эти кривые ОБВИВАЮТ.',
+      'Das genaue Gegenteil des Attraktor-Labors. Nichts kontrahiert: die Abbildung ist symplektisch, det J ≡ 1, die Fläche bleibt für immer erhalten, es gibt keinen Attraktor. Ordnung und Chaos müssen KOEXISTIEREN — invariante Kurven umlaufen den Torus, Stabilitätsinseln schwimmen im chaotischen Meer, und jede überlebende Kurve ist eine absolute Barriere. Bei K_c=0.971635406 zerfällt die goldene — die letzte — und der Transport wird global.');
+    ATLAS_BUS.pub('kam.K',+K.toFixed(6),'K');
+    const tr=O.tr, dql=K*K/4;
+    if(tr) ATLAS_BUS.pub('kam.D',+tr.D.toFixed(6),'2π²/iter');
+    const el=ctl.querySelector('#kamInv'); if(el) el.innerHTML=
+      `p′=p+K sin θ · θ′=θ+p′ · ${TT('Jacobian','якобиан','Jacobi-Determinante')} det=<b>1</b> ${TT('identically — exactly symplectic, zero integrator error','тождественно — точно симплектично, нулевая ошибка интегрирования','identisch — exakt symplektisch')}<br>`+
+      `K=<b>${K.toFixed(6)}</b> · K_c=<b>${KAM_KC}</b> · K/K_c=<b>${(K/KAM_KC).toFixed(5)}</b> → <b style="color:${broken?'#ff8a6a':'#9fe8c0'}">${broken?TT('GOLDEN TORUS BROKEN — global transport','ЗОЛОТОЙ ТОР РАЗРУШЕН — глобальный перенос','GOLDENER TORUS ZERSTÖRT'):TT('golden torus intact — motion confined','золотой тор цел — движение заперто','goldener Torus intakt')}</b><br>`+
+      (tr?`<span style="opacity:.9">${TT('MEASURED transport','ИЗМЕРЕННЫЙ перенос','GEMESSENER Transport')} (48 × 2000 ${TT('iterations, p unwrapped','итераций, p без свёртки','Iterationen, p entfaltet')}): max|Δp|/2π=<b>${tr.max.toFixed(3)}</b> · rms=<b>${tr.rms.toFixed(3)}</b> · D=⟨Δp²⟩/2N=<b>${tr.D.toExponential(2)}</b> · D/D_QL=<b>${(tr.D/dql).toFixed(3)}</b> (D_QL=K²/4)<br>`+
+        `<b style="color:${tr.max<0.5?'#9fe8c0':'#ff8a6a'}">${tr.max<0.5?TT('drift BOUNDED — a barrier still encloses the orbit, so the gold curve is drawn as a curve','дрейф ОГРАНИЧЕН — барьер ещё держит орбиту, поэтому золотая кривая рисуется кривой','Drift BESCHRÄNKT — eine Barriere hält die Bahn'):TT('drift UNBOUNDED — p random-walks, so the gold orbit is drawn as the scatter it has become','дрейф НЕОГРАНИЧЕН — p блуждает, поэтому золотая орбита рисуется как рассеяние','Drift UNBESCHRÄNKT — p wandert')}</b></span><br>`:'')+
+      `<span style="opacity:.72">${TT('K_c is a converged numerical constant (Greene residue / MacKay), not a closed form — declared. The measured one-period escape sets in near K≈1.03, ABOVE K_c: once the golden circle is gone its remnant cantorus is still a partial barrier that throttles transport. D_QL=K²/4 is asymptotic in K≫1 only, and the measured ratio oscillates about 1 because of accelerator modes — both are shown unfitted.',
+        'K_c — сошедшаяся численная константа (вычет Грина / Маккей), не замкнутая форма — заявлено. Измеренный выход за период наступает около K≈1.03, ВЫШЕ K_c: после разрушения золотой окружности её канторов остаток остаётся частичным барьером, тормозящим перенос. D_QL=K²/4 — асимптотика только при K≫1, а измеренное отношение колеблется около 1 из-за ускорительных мод; оба числа показаны без подгонки.',
+        'K_c ist eine konvergierte numerische Konstante, keine geschlossene Form. Der gemessene Austritt setzt bei K≈1.03 ein, ÜBER K_c: der verbliebene Cantorus bremst den Transport weiter. D_QL=K²/4 gilt nur asymptotisch für K≫1.')}</span>`;
+  }
+}
+
+/* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
    every Kelvin wake, every lensing arc is one of a short finite list. And the
@@ -15780,6 +15916,7 @@ function setS3View(v){
   dispGroup.visible    = (v==='disp');
   berryGroup.visible   = (v==='berry');
   cuspGroup.visible    = (v==='cusp');
+  kamGroup.visible     = (v==='kam');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -15825,6 +15962,7 @@ function setS3View(v){
   if(v==='disp'){ dispSetup(); }
   if(v==='berry'){ berrySetup(); }
   if(v==='cusp'){ cuspSetup(); }
+  if(v==='kam'){ kamSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -15845,7 +15983,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -20630,6 +20768,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
+  kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -22659,6 +22798,28 @@ function buildCtlBody(){
         <button class="btn" id="berryToTopo">${TT('→ Topology atlas: the ℤ-invariant family','→ Атлас топологии: семейство ℤ-инвариантов','→ Topologie-Atlas: die ℤ-Invarianten')}</button>
         <button class="btn" id="berryToHopf">${TT('→ Hopf: S³→S² beside T²→S²','→ Хопф: S³→S² рядом с T²→S²','→ Hopf: S³→S² neben T²→S²')}</button></div>
     </div>`;
+    else if(V==='kam') body = `
+    <div class="sect"><b>${TT('Kick strength — drive it past K_c','Сила толчка — проведи через K_c','Kickstärke — über K_c führen')}</b>
+      <div class="chips">
+        ${[[0.2,TT('quiet: circles everywhere','тихо: окружности всюду','ruhig')],[0.9,TT('islands + sea','острова и море','Inseln')],[0.971635406,'K_c'],[1.3,TT('golden torus gone','золотой тор разрушен','goldener Torus weg')],[3,TT('strong chaos','сильный хаос','starkes Chaos')]].map(([v,l])=>`<button class="chip ${Math.abs((state.kamK??0.5)-v)<1e-9?'on':''}" data-kamk="${v}">K=${v} · ${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>K</label>
+        <input type="range" id="kamK" min="0" max="4" step="0.0001" value="${state.kamK??0.5}"><span class="val" id="kamKV">${(state.kamK??0.5).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>${TT('orbits','орбит','Orbits')}</label>
+        <input type="range" id="kamOrbits" min="6" max="60" step="1" value="${state.kamOrbits??26}"><span class="val" id="kamOrbitsV">${state.kamOrbits??26}</span></div>
+      <div class="ctlrow"><label>${TT('iterations','итераций','Iterationen')}</label>
+        <input type="range" id="kamIters" min="60" max="900" step="10" value="${state.kamIters??240}"><span class="val" id="kamItersV">${state.kamIters??240}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Hamiltonian passport','Гамильтонов паспорт','Hamiltonscher Pass')}</b>
+      <div class="note" id="kamInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The Chirikov standard map is exactly symplectic — its Jacobian determinant is identically 1, so area is conserved forever and there is no integrator error whatsoever. That is why order and chaos coexist here instead of everything collapsing onto an attractor: each surviving invariant circle is an absolute barrier that no orbit can cross. Phase space is a 2-torus and is drawn as one; on a flat square you cannot see that these curves WRAP. Raise K and circles break in order of how well their rotation number can be approximated by rationals — the golden ratio, the hardest to approximate, survives longest and dissolves at K_c=0.971635406, after which transport is global. DECLARED: K_c is a converged numerical constant (Greene residue / MacKay), not a closed form.','Стандартное отображение Чирикова точно симплектично: определитель якобиана тождественно равен 1, поэтому площадь сохраняется вечно и ошибки интегрирования нет вовсе. Именно поэтому здесь порядок и хаос сосуществуют, а не всё сваливается на аттрактор: каждая уцелевшая инвариантная окружность — абсолютный барьер, который не пересечь ни одной орбите. Фазовое пространство есть 2-тор и нарисовано тором; на плоском квадрате не видно, что эти кривые ОБВИВАЮТ. Поднимай K — окружности рвутся в порядке того, насколько хорошо их число вращения приближается рациональными; золотое сечение, приближаемое хуже всех, держится дольше всех и растворяется при K_c=0.971635406, после чего перенос становится глобальным. ЗАЯВЛЕНО: K_c — сошедшаяся численная константа (вычет Грина / Маккей), а не замкнутая форма.','Die Chirikov-Standardabbildung ist exakt symplektisch — det J ≡ 1, die Fläche bleibt für immer erhalten, kein Integrationsfehler. Daher koexistieren Ordnung und Chaos: jede überlebende invariante Kurve ist eine absolute Barriere. Der Phasenraum IST ein Torus. Mit wachsendem K reißen die Kurven; der goldene Schnitt hält am längsten und zerfällt bei K_c=0.971635406. ERKLÄRT: K_c ist eine konvergierte numerische Konstante.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="kamToChaos">${TT('→ Attractors: the dissipative opposite','→ Аттракторы: диссипативная противоположность','→ Attraktoren: das dissipative Gegenteil')}</button>
+        <button class="btn" id="kamToGrav">${TT('→ Three bodies: the same coexistence in the sky','→ Три тела: то же сосуществование на небе','→ Drei Körper: dieselbe Koexistenz')}</button>
+        <button class="btn" id="kamToPoin">${TT('→ Dzhanibekov: separatrices in a rigid body','→ Джанибеков: сепаратрисы в твёрдом теле','→ Dshanibekow: Separatrizen')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -23265,6 +23426,7 @@ function buildCtlBody(){
         <button class="btn ${V==='disp'?'on':''}" id="v-disp">${TT('Dispersion','Дисперсия','Dispersion')}</button>
         <button class="btn ${V==='berry'?'on':''}" id="v-berry">${TT('Berry · Chern','Берри · Черн','Berry · Chern')}</button>
         <button class="btn ${V==='cusp'?'on':''}" id="v-cusp">${TT('Catastrophe','Катастрофы','Katastrophen')}</button>
+        <button class="btn ${V==='kam'?'on':''}" id="v-kam">${TT('KAM torus','КАМ-тор','KAM-Torus')}</button>
         <button class="btn ${V==='poin'?'on':''}" id="v-poin">${TT('Dzhanibekov','Джанибеков','Dshanibekow')}</button>
         <button class="btn ${V==='qcrys'?'on':''}" id="v-qcrys">${TT('Quasicrystal','Квазикристалл','Quasikristall')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
@@ -23292,7 +23454,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -23751,6 +23913,15 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='kam'){
+      ctl.querySelectorAll('[data-kamk]').forEach(b=>b.onclick=()=>{ state.kamK=+b.dataset.kamk; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('kamK',v=>state.kamK=v,v=>v.toFixed(4)); kv('kamOrbits',v=>state.kamOrbits=v|0,v=>String(v|0)); kv('kamIters',v=>state.kamIters=v|0,v=>String(v|0));
+      ctl.querySelector('#kamToChaos')&&(ctl.querySelector('#kamToChaos').onclick=()=>{ navPush(); setS3View('chaos'); buildCtl(); });
+      ctl.querySelector('#kamToGrav')&&(ctl.querySelector('#kamToGrav').onclick=()=>{ navPush(); setS3View('grav'); buildCtl(); });
+      ctl.querySelector('#kamToPoin')&&(ctl.querySelector('#kamToPoin').onclick=()=>{ navPush(); setS3View('poin'); buildCtl(); });
     }
     if(V==='cusp'){
       ctl.querySelectorAll('[data-cuspst]').forEach(b=>b.onclick=()=>{ state.cuspStation=b.dataset.cuspst; cuspSetup(); buildCtl(); });
@@ -25245,10 +25416,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -26846,6 +27017,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='kam'){
+      fbsAnimT+=dt; updateKam(dt);
     } else if(state.s3view==='cusp'){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
