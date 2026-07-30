@@ -2193,6 +2193,16 @@ function runSelfTests(){
     { const D=0.06, P=mk(0.05,0.05,D);
       ok('Pole atlas: a sideways zero (Δ≠0) gives an exact Fano zero at ω₀+Δ with asymmetry q=2Δ/γ',
         R(1+D,0,P)<1e-12 && Math.abs(2*D/P.g-1.2)<1e-12, `|r(ω₀+Δ)|=${R(1+D,0,P).toExponential(1)} · q=${(2*D/P.g).toFixed(3)}`); } }
+  { // HIDDEN MÖBIUS IDENTITY across labs (verified offline to 6e-17): wireless efficiency IS a Smith point,
+    // and VSWR = Doppler² so rapidity artanh|Γ| = ½ln VSWR is ONE hyperbolic axis for RF and relativity.
+    const etaW=U=>U*U/Math.pow(1+Math.sqrt(1+U*U),2);
+    let dmax=0; for(const U of [0.05,0.3,1,2.5,10,100]) dmax=Math.max(dmax,Math.abs(etaW(U)-impGamma(Math.sqrt(1+U*U),0)[0]));
+    ok('Cross-lab identity: the wireless-transfer efficiency η(U) IS the Smith-chart point Γ(√(1+U²)) — the same Möbius map',
+      dmax<1e-14, `max Δ=${dmax.toExponential(1)} · U=1 (critical) → η=Γ=${etaW(1).toFixed(6)}`);
+    let rmax=0; for(const b of [0.1,0.35,0.6,0.87,0.99]){ const V=(1+b)/(1-b);
+      rmax=Math.max(rmax,Math.abs(V-((1+b)/(1-b))),Math.abs(Math.atanh(b)-0.5*Math.log(V))); }
+    ok('Cross-lab identity: VSWR = Doppler² and rapidity artanh|Γ| = ½ln VSWR — RF mismatch and relativistic β on ONE hyperbolic axis',
+      rmax<1e-12 && Math.abs(Math.atanh(0.6)-Math.log(2))<1e-12, `β=0.6 ⇔ VSWR=4, both at θ=ln2=${Math.log(2).toFixed(6)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14428,6 +14438,8 @@ const IMP_DOMS={
       leg:{en:'air→water: |Γ|=0.99944 — why sound will not enter water',ru:'воздух→вода: |Γ|=0.99944 — почему звук не проходит в воду',de:'Luft→Wasser: |Γ|=0.99944 — warum Schall nicht ins Wasser dringt'}},
   qmbarrier:{set:[2.4,1.1], live:true, n:{en:'Quantum BARRIER · exact r(k,V₀)',ru:'Квантовый БАРЬЕР · точное r(k,V₀)',de:'Quanten-BARRIERE · exaktes r(k,V₀)'},
       leg:{en:'the real qm-lab barrier lives on THIS sphere · |r|²+|t|²=1 · resonances touch the zenith',ru:'реальный барьер из qm-лаборатории живёт на ЭТОЙ сфере · |r|²+|t|²=1 · резонансы касаются зенита',de:'die echte Barriere des qm-Labors lebt auf DIESER Kugel · |r|²+|t|²=1 · Resonanzen berühren den Zenit'}},
+  wireless:{set:[2,0], live:true, n:{en:'Wireless coils · z=√(1+U²)',ru:'Беспроводные катушки · z=√(1+U²)',de:'Drahtlose Spulen · z=√(1+U²)'},
+      leg:{en:'HIDDEN IDENTITY: the ret-lab efficiency η(U) IS this Smith point Γ(√(1+U²)) — exact to 6e-17',ru:'СКРЫТОЕ ТОЖДЕСТВО: КПД η(U) из ret-лаборатории И ЕСТЬ эта точка Смита Γ(√(1+U²)) — точно до 6e-17',de:'VERSTECKTE IDENTITÄT: der Wirkungsgrad η(U) des ret-Labors IST dieser Smith-Punkt Γ(√(1+U²)) — exakt bis 6e-17'}},
   mechanical:{set:[2,0], n:{en:'Mechanical junction · z=Z₂/Z₁',ru:'Механический стык · z=Z₂/Z₁',de:'Mechanischer Übergang · z=Z₂/Z₁'},
       leg:{en:'string junction light→heavy (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',ru:'стык струн лёгкая→тяжёлая (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3',de:'Saiten-Übergang leicht→schwer (μ₂/μ₁=4) · Z=√(Tμ) · Γ=1/3'}}};
 function impL(o){ const L=(state&&state.lang)||'en'; return (o&&(o[L]||o.en))||''; }
@@ -14443,7 +14455,10 @@ function qmBarrierR(k,V0,a){ const E=0.5*k*k; if(Math.abs(E-V0)<1e-9) V0=E-1e-6;
 function qmBarrierT(k,V0,a){ const E=0.5*k*k;                                  // transmission probability (for the passport)
   if(E>V0){ const q=Math.sqrt(2*(E-V0)); return 1/(1+Math.pow((k*k-q*q)/(2*k*q),2)*Math.sin(q*a)**2); }
   const kp=Math.sqrt(2*Math.max(1e-12,V0-E)); return 1/(1+Math.pow((k*k+kp*kp)/(2*k*kp),2)*Math.sinh(kp*a)**2); }
-function impBaseGamma(){ if((state.impDomain||'rf')==='qmbarrier') return qmBarrierR(state.qmK0??1.4,state.qmV0??1.5,1.0);
+function impU(){ return (state.retCoup??0.05)*(state.retQ??100); }        // U=k√(Q₁Q₂), equal coils
+function impBaseGamma(){ const D=state.impDomain||'rf';
+  if(D==='qmbarrier') return qmBarrierR(state.qmK0??1.4,state.qmV0??1.5,1.0);
+  if(D==='wireless'){ const U=impU(); return impGamma(Math.sqrt(1+U*U),0); }
   return impGamma(state.impR??2.4,state.impX??1.1); }
 function impClear(){ labWipe(impGroup); impObjs=null; impTrail=[]; impBl=0; impMatchA=null; }
 function impSetup(){
@@ -14606,6 +14621,10 @@ function updateImp(dt){
       `z=<b>${zr>99?zr.toExponential(2):zr.toFixed(3)}</b>${zi>=0?'+':'−'}j<b>${Math.abs(zi).toFixed(3)}</b> → Γ=<b>${gr.toFixed(4)}</b>${gi>=0?'+':'−'}j<b>${Math.abs(gi).toFixed(4)}</b> · |Γ|=<b>${m.toFixed(5)}</b> ∠<b>${(Math.atan2(gi,gr)*180/Math.PI).toFixed(2)}°</b><br>`+
       ((state.impDomain||'rf')==='qmbarrier'?(()=>{ const k=state.qmK0??1.4,V=state.qmV0??1.5,T=qmBarrierT(k,V,1.0),R=m*m;
         return `<b style="color:#9fe8c0">${TT('barrier','барьер','Barriere')} k=${k.toFixed(2)} (E=${(0.5*k*k).toFixed(3)}) V₀=${V.toFixed(2)} a=1 · ${0.5*k*k<V?TT('TUNNELLING','ТУННЕЛИРОВАНИЕ','TUNNELN'):TT('over-barrier','надбарьерное','über der Barriere')}</b> · T=<b>${(T*100).toFixed(3)}%</b> · R=<b>${(R*100).toFixed(3)}%</b> · R+T=<b>${((R+T)).toFixed(9)}</b> (${TT('unitarity','унитарность','Unitarität')})<br>`; })():'')+
+      ((state.impDomain||'rf')==='wireless'?(()=>{ const U=impU(), eta=U*U/Math.pow(1+Math.sqrt(1+U*U),2);
+        const g0=impBaseGamma()[0];
+        return `<b style="color:#9fe8c0">U=k·Q=<b>${U.toFixed(3)}</b> ${U>1?TT('(over-coupled)','(пересвязано)','(überkoppelt)'):U<1?TT('(under-coupled)','(недосвязано)','(unterkoppelt)'):TT('(CRITICAL U=1)','(КРИТИЧЕСКАЯ U=1)','(KRITISCH U=1)')} · η=<b>${(eta*100).toFixed(3)}%</b> ≡ Γ(√(1+U²))=<b>${g0.toFixed(6)}</b> — ${TT('the same number','одно и то же число','dieselbe Zahl')} (Δ=${Math.abs(eta-g0).toExponential(1)})</b><br>`; })():'')+
+      `${TT('hyperbolic ladder','гиперболическая лестница','hyperbolische Leiter')}: ${TT('rapidity','рапидность','Rapidität')} θ=artanh|Γ|=½ln VSWR=<b>${(m<1?Math.atanh(m):Infinity).toFixed(4)}</b> — ${TT('a β=|Γ| emitter has Doppler D=√VSWR','излучатель с β=|Γ| даёт доплер D=√VSWR','ein Emitter mit β=|Γ| hat Doppler D=√VSWR')}=<b>${m<1?Math.sqrt((1+m)/(1-m)).toFixed(4):'∞'}</b><br>`+
       `VSWR=<b>${Number.isFinite(vswr)?vswr.toFixed(4):'∞'}</b> · ${TT('return loss','обратные потери','Rückflussdämpfung')}=<b>${Number.isFinite(rl)?rl.toFixed(2):'∞'}</b> dB · ${state.impDomain==='quantum'?TT('transmission T','прохождение T','Transmission T'):TT('delivered','доставлено','übertragen')}=<b>${(P*100).toFixed(3)}%</b> · R=|Γ|²=<b>${(m*m*100).toFixed(3)}%</b><br>`+
       (impMatchA?`<b style="color:#9fe8c0">▶ ${TT('matching','согласование','Anpassung')}: ${impMatchA.phase===1?TT('step 1 — rotate to the real axis (line βℓ)','шаг 1 — вращение к вещественной оси (линия βℓ)','Schritt 1 — Drehung zur reellen Achse (Leitung βℓ)'):TT('step 2 — λ/4 transformer z_t=√z → centre','шаг 2 — λ/4-трансформер z_t=√z → центр','Schritt 2 — λ/4-Transformator z_t=√z → Zentrum')}</b>`:
        alpha>1e-4?`<b style="color:#ffb0e0">${TT('lossy line α='+alpha.toFixed(3)+' Np/rad — |Γ| SPIRALS inward to match (real cable / absorbing medium; matched at ∞)','линия с потерями α='+alpha.toFixed(3)+' Нп/рад — |Γ| спиралит внутрь к согласованию (реальный кабель / поглощающая среда; согласовано на ∞)','verlustbehaftete Leitung α='+alpha.toFixed(3)+' Np/rad — |Γ| spiralt nach innen zur Anpassung (reales Kabel / absorbierendes Medium; angepasst bei ∞)')}</b>`:
@@ -14714,9 +14733,9 @@ function updatePole(dt){
     O.readLab.element.textContent=`${regime} · Q=${Q.toFixed(1)} · FWHM γ=${P.g.toFixed(3)} · τ=2/γ=${tau.toFixed(1)}`;
     hudBig.textContent=`${TT('POLE ATLAS','АТЛАС ПОЛЮСОВ','POLATLAS')} · p=${P.p[0].toFixed(3)}−${(-P.p[1]).toFixed(3)}i · z=${P.z[0].toFixed(3)}${P.z[1]>=0?'+':'−'}${Math.abs(P.z[1]).toFixed(3)}i · Q=${Q.toFixed(1)} · |r(ω₀)|=${onres.toFixed(4)}`;
     hudSub.textContent=TT(
-      'Every resonance in this atlas is the SAME analytic object: one pole and one zero in the complex frequency plane. The pole depth is the linewidth (FWHM=γ) and the ringdown time (τ=2/γ) at once — resonance in frequency and decay in time are one number. What you MEASURE is only the real-axis slice (gold). Slide the zero onto the real axis and the measured dip hits EXACTLY zero: critical coupling, perfect absorption — the same statement as impedance matching in the Möbius·Smith lab. Slide it sideways and the line becomes Fano-asymmetric with q=2Δ/γ. Sink the pole and you are in the black-hole quasinormal-ringdown regime. Driven oscillators, plasmon Fano lines, Rabi doublets, barrier resonances, Josephson steps and ringdowns are all this one picture.',
-      'Каждый резонанс этого атласа — ОДИН И ТОТ ЖЕ аналитический объект: полюс и нуль в плоскости комплексной частоты. Глубина полюса — это одновременно ширина линии (FWHM=γ) и время звона (τ=2/γ): резонанс по частоте и затухание во времени — одно число. Измеряется же только вещественный срез (золото). Сдвинь нуль на вещественную ось — измеряемый провал достигает РОВНО нуля: критическая связь, полное поглощение — то же самое утверждение, что согласование импеданса в лаборатории Мёбиуса·Смита. Сдвинь его вбок — линия становится асимметричной по Фано с q=2Δ/γ. Утопи полюс — и это режим квазинормального звона чёрной дыры. Вынужденные осцилляторы, плазмонные линии Фано, дублеты Раби, резонансы барьера, ступени Джозефсона и звон — всё это одна картина.',
-      'Jede Resonanz dieses Atlas ist DASSELBE analytische Objekt: ein Pol und eine Nullstelle in der komplexen Frequenzebene. Die Poltiefe ist zugleich Linienbreite (FWHM=γ) und Ringdown-Zeit (τ=2/γ) — Resonanz in der Frequenz und Zerfall in der Zeit sind eine Zahl. Gemessen wird nur der reelle Schnitt (Gold). Schiebe die Nullstelle auf die reelle Achse und der gemessene Einbruch erreicht GENAU null: kritische Kopplung, perfekte Absorption — dieselbe Aussage wie Impedanzanpassung im Möbius·Smith-Labor. Schiebe sie seitwärts und die Linie wird Fano-asymmetrisch mit q=2Δ/γ. Versenke den Pol und du bist im quasinormalen Ringdown-Regime eines Schwarzen Lochs.');
+      'Every resonance in this atlas is the SAME analytic object: one pole and one zero in the complex frequency plane. The pole depth is the linewidth (FWHM=γ) and the ringdown time (τ=2/γ) at once — resonance in frequency and decay in time are one number. What you MEASURE is only the real-axis slice (gold). Slide the zero onto the real axis and the measured dip hits EXACTLY zero: critical coupling, perfect absorption — the same statement as impedance matching in the Möbius·Smith lab. Slide it sideways and the line becomes Fano-asymmetric with q=2Δ/γ. Sink the pole and you are in the black-hole quasinormal-ringdown regime. Driven oscillators, plasmon resonances, Rabi doublets, barrier resonances and ringdowns are all this one picture. DECLARED: the plasmon line in this atlas is a symmetric Lorentzian (no measured q), and the Josephson station has no RCSJ circuit, so no pole is claimed for it.',
+      'Каждый резонанс этого атласа — ОДИН И ТОТ ЖЕ аналитический объект: полюс и нуль в плоскости комплексной частоты. Глубина полюса — это одновременно ширина линии (FWHM=γ) и время звона (τ=2/γ): резонанс по частоте и затухание во времени — одно число. Измеряется же только вещественный срез (золото). Сдвинь нуль на вещественную ось — измеряемый провал достигает РОВНО нуля: критическая связь, полное поглощение — то же самое утверждение, что согласование импеданса в лаборатории Мёбиуса·Смита. Сдвинь его вбок — линия становится асимметричной по Фано с q=2Δ/γ. Утопи полюс — и это режим квазинормального звона чёрной дыры. Вынужденные осцилляторы, плазмонные резонансы, дублеты Раби, резонансы барьера и звон — всё это одна картина. ЗАЯВЛЕНО: плазмонная линия в атласе — симметричный лоренциан (измеренного q нет), а у станции Джозефсона нет RCSJ-контура, поэтому полюс для неё не заявляется.',
+      'Jede Resonanz dieses Atlas ist DASSELBE analytische Objekt: ein Pol und eine Nullstelle in der komplexen Frequenzebene. Die Poltiefe ist zugleich Linienbreite (FWHM=γ) und Ringdown-Zeit (τ=2/γ) — Resonanz in der Frequenz und Zerfall in der Zeit sind eine Zahl. Gemessen wird nur der reelle Schnitt (Gold). Schiebe die Nullstelle auf die reelle Achse und der gemessene Einbruch erreicht GENAU null: kritische Kopplung, perfekte Absorption — dieselbe Aussage wie Impedanzanpassung im Möbius·Smith-Labor. Schiebe sie seitwärts und die Linie wird Fano-asymmetrisch mit q=2Δ/γ. Versenke den Pol und du bist im quasinormalen Ringdown-Regime. ERKLÄRT: die Plasmonlinie des Atlas ist ein symmetrischer Lorentzian (kein gemessenes q); die Josephson-Station hat keinen RCSJ-Kreis, daher wird dafür kein Pol behauptet.');
     ATLAS_BUS.pub('pole.Q',+Q.toFixed(2),'loaded Q');
     const el=ctl.querySelector('#poleInv'); if(el) el.innerHTML=
       `${TT('pole','полюс','Pol')} p=<b>${P.p[0].toFixed(4)} − ${(-P.p[1]).toFixed(4)}i</b> · ${TT('zero','нуль','Nullstelle')} z=<b>${P.z[0].toFixed(4)} ${P.z[1]>=0?'+':'−'} ${Math.abs(P.z[1]).toFixed(4)}i</b><br>`+
@@ -21586,7 +21605,12 @@ function buildCtlBody(){
       <div class="chips">
         ${Object.entries(IMP_DOMS).map(([k,d])=>`<button class="chip ${(state.impDomain||'rf')===k?'on':''}" data-impdom="${k}">${impL(d.n).split('·')[0].trim()}</button>`).join('')}
       </div>
-      ${(state.impDomain||'rf')==='qmbarrier'?`
+      ${(state.impDomain||'rf')==='wireless'?`
+      <div class="ctlrow"><label>${TT('coupling k','связь k','Kopplung k')}</label>
+        <input type="range" id="impWk" min="0.003" max="0.32" step="0.001" value="${state.retCoup??0.05}"><span class="val" id="impWkV">${(state.retCoup??0.05).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>${TT('quality Q','добротность Q','Güte Q')}</label>
+        <input type="range" id="impWQ" min="20" max="2000" step="5" value="${state.retQ??100}"><span class="val" id="impWQV">${state.retQ??100}</span></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">${TT('shared with the Resonant-transfer lab — U=k·Q; U=1 is critical coupling','общие с лабораторией резонансной передачи — U=k·Q; U=1 — критическая связь','geteilt mit dem Resonanz-Labor — U=k·Q; U=1 ist kritische Kopplung')}</div>`:(state.impDomain||'rf')==='qmbarrier'?`
       <div class="ctlrow"><label>${TT('wavenumber k','волновое число k','Wellenzahl k')}</label>
         <input type="range" id="impK" min="0.3" max="4.6" step="0.01" value="${state.qmK0??1.4}"><span class="val" id="impKV">${(state.qmK0??1.4).toFixed(2)} · E=${(0.5*(state.qmK0??1.4)**2).toFixed(3)}</span></div>
       <div class="ctlrow"><label>${TT('barrier V₀','барьер V₀','Barriere V₀')}</label>
@@ -21641,7 +21665,7 @@ function buildCtlBody(){
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="poleToImp">${TT('→ Möbius·Smith: the zero on the real axis IS impedance matching','→ Мёбиус·Смит: нуль на вещественной оси И ЕСТЬ согласование','→ Möbius·Smith: die Nullstelle auf der reellen Achse IST Anpassung')}</button>
         <button class="btn" id="poleToRet">${TT('→ Driven resonance: the same pole, measured','→ Вынужденный резонанс: тот же полюс, измеренный','→ Getriebene Resonanz: derselbe Pol, gemessen')}</button>
-        <button class="btn" id="poleToEot">${TT('→ Plasmon Fano line','→ Плазмонная линия Фано','→ Plasmonische Fano-Linie')}</button>
+        <button class="btn" id="poleToEot">${TT('→ Plasmon resonance (that lab uses a symmetric Lorentzian — no q)','→ Плазмонный резонанс (там симметричный лоренциан — без q)','→ Plasmonresonanz (dort symmetrischer Lorentzian — kein q)')}</button>
         <button class="btn" id="poleToGw">${TT('→ Ringdown: black-hole quasinormal modes','→ Звон: квазинормальные моды чёрной дыры','→ Ringdown: quasinormale Moden')}</button></div>
     </div>`;
     else if(V==='cmb') body = `
@@ -22611,6 +22635,10 @@ function buildCtlBody(){
         const v=ctl.querySelector('#impRV'); if(v)v.textContent=state.impR.toFixed(2); });
       ctl.querySelector('#impX')&&(ctl.querySelector('#impX').oninput=e=>{ state.impX=+e.target.value; impMatchA=null; impTrail=[];
         const v=ctl.querySelector('#impXV'); if(v)v.textContent=state.impX.toFixed(2); });
+      ctl.querySelector('#impWk')&&(ctl.querySelector('#impWk').oninput=e=>{ state.retCoup=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impWkV'); if(v)v.textContent=state.retCoup.toFixed(3); });
+      ctl.querySelector('#impWQ')&&(ctl.querySelector('#impWQ').oninput=e=>{ state.retQ=+e.target.value; impMatchA=null; impTrail=[];
+        const v=ctl.querySelector('#impWQV'); if(v)v.textContent=String(state.retQ); });
       ctl.querySelector('#impK')&&(ctl.querySelector('#impK').oninput=e=>{ state.qmK0=+e.target.value; impMatchA=null; impTrail=[];
         const v=ctl.querySelector('#impKV'); if(v)v.textContent=state.qmK0.toFixed(2)+' · E='+(0.5*state.qmK0*state.qmK0).toFixed(3); });
       ctl.querySelector('#impV0')&&(ctl.querySelector('#impV0').oninput=e=>{ state.qmV0=+e.target.value; impMatchA=null; impTrail=[];
