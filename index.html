@@ -2370,6 +2370,31 @@ function runSelfTests(){
     ok('Riemann sheet: the Wigner bound is enforced, not ignored — for r₀ > a/2 the two-term truncation would demand a pole on the PHYSICAL sheet, and the lab reports the violation instead of drawing it',
       rshErePole(3.0,2.0).bad===true && rshErePole(5.4194,1.7536).bad===false,
       `a=3, r₀=2 → 1−2r₀/a = ${rshErePole(3.0,2.0).disc.toFixed(4)} < 0 → refused · deuteron discriminant ${rshErePole(5.4194,1.7536).disc.toFixed(4)} > 0 → drawn`); }
+  { // MULTIVIEW: the tiling must partition the viewport exactly, and every quartet must be real
+    let bad=null, gapMax=0;
+    for(const n of [1,2,3,4]) for(const [W,H] of [[1920,1080],[1101,777],[800,1280],[3,5]]){
+      const R=mvRects(n,W,H); let area=0;
+      for(const r of R){ area+=r.w*r.h;
+        if(r.x<0||r.y<0||r.x+r.w>W||r.y+r.h>H||r.w<=0||r.h<=0) bad=`n=${n} ${W}×${H} out of bounds`; }
+      for(let i=0;i<R.length;i++) for(let j=i+1;j<R.length;j++){ const a=R[i],b=R[j];
+        const ov=Math.max(0,Math.min(a.x+a.w,b.x+b.w)-Math.max(a.x,b.x))*Math.max(0,Math.min(a.y+a.h,b.y+b.h)-Math.max(a.y,b.y));
+        if(ov>0) bad=`n=${n} ${W}×${H} tiles ${i},${j} overlap`; }
+      gapMax=Math.max(gapMax,Math.abs(area-W*H));
+      if(R.length!==n) bad=`n=${n} produced ${R.length} rects`; }
+    ok('Multiview: the scissored tiling partitions the viewport EXACTLY at every tile count and every aspect — no overlap, no gap, no out-of-bounds rectangle, so nothing is rendered twice and no pixel is left unclaimed',
+      !bad && gapMax===0, bad||`1–4 tiles × 4 viewports (incl. 3×5 px) · Σ tile area − W·H = ${gapMax} px² · disjoint`);
+    { const known=new Set(Object.keys(S3_VIEW_NAMES));
+      const badP=MV_PRESETS.filter(p=>p.views.length<2||p.views.length>4||p.views.some(v=>!known.has(v)));
+      ok('Multiview: every phenomenal quartet names only laboratories that actually exist and holds 2–4 of them — the combinations are the invariant threads and lab bridges already asserted in this file, not decoration',
+        badP.length===0, badP.length?badP.map(p=>p.id).join(', '):`${MV_PRESETS.length} quartets · ${[...new Set(MV_PRESETS.flatMap(p=>p.views))].length} distinct laboratories covered`); }
+    { const badB=MV_PRESETS.filter(p=>(p.bus||[]).some(k=>!p.views.includes(k.split('.')[0])));
+      ok('Multiview: the linked-invariant strip only reads bus keys published by laboratories that are actually on screen — a quartet can never display a number from a tile it is not showing',
+        badB.length===0, badB.length?badB.map(p=>p.id).join(', '):`${MV_PRESETS.reduce((n,p)=>n+(p.bus||[]).length,0)} linked keys, all owned by a visible tile`); }
+    { let mism=null;
+      for(const p of MV_PRESETS) for(const v of p.views){ const pr=s3ViewPreset(v);
+        if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
+      ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
+        !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
   { // ANDERSON: the transfer matrix is in SL(2,R), and the measured γ must match Thouless away from the band centre
     let dm=0; for(const E of [-1.7,-0.5,0,0.9,1.8]) for(const e of [-0.6,0,0.4,1.2]) dm=Math.max(dm,Math.abs((E-e)*0-(-1)*1-1));
     ok('Anderson: the transfer matrix [[E−ε,−1],[1,0]] has det ≡ 1 for every energy and every site — the chain is a random product in SL(2,R) ≅ SU(1,1), the non-compact twin of the SU(2) this whole atlas is built on',
@@ -3332,6 +3357,7 @@ function syncRendererViewport(){
   renderer.setSize(w,h,true);labelRenderer.setSize(w,h);bloomResize(w,h);
   fractalUniforms.uRes.value.set(w*renderer.getPixelRatio(),h*renderer.getPixelRatio());
   rendererResizePending=false;requestHierarchyLayout();
+  if(typeof MV!=='undefined'&&MV.on) mvLayout();
 }
 addEventListener('resize',requestRendererResize,{passive:true});
 addEventListener('orientationchange',()=>setTimeout(requestRendererResize,80),{passive:true});
@@ -15732,7 +15758,7 @@ function updateQc(dt){
     hudSub.textContent=TT('Five-fold symmetry is forbidden for any periodic crystal — and Shechtman photographed it anyway, which cost him years of ridicule and then a Nobel prize. The resolution is on the screen: this solid is a SLICE of a perfectly periodic crystal in six dimensions. Each atom is a 6-D lattice point whose shadow in the three PERPENDICULAR dimensions happens to land inside the acceptance window on the right. Nothing repeats in physical space, yet everything is determined. Now slide the phason: the window shifts, atoms wink in and out, the solid genuinely rearranges — and the diffraction pattern does not move, because it is set by the 6-D lattice, not by the slice. That is a degree of freedom no ordinary crystal has.',
       'Пятерная симметрия запрещена для любого периодического кристалла — а Шехтман всё равно её сфотографировал, за что получил годы насмешек, а потом Нобелевскую премию. Разрешение — на экране: это тело есть СРЕЗ идеально периодического кристалла в шести измерениях. Каждый атом — узел 6-мерной решётки, чья тень в трёх ПЕРПЕНДИКУЛЯРНЫХ измерениях попала внутрь окна приёма справа. В физическом пространстве не повторяется ничто, и при этом всё определено. Теперь двигай фазон: окно смещается, атомы вспыхивают и гаснут, тело по-настоящему перестраивается — а дифракционная картина не движется, потому что её задаёт 6-мерная решётка, а не срез. Такой степени свободы у обычного кристалла нет.',
       'Fünfzählige Symmetrie ist für jeden periodischen Kristall verboten — Shechtman fotografierte sie dennoch. Die Auflösung: dieser Festkörper ist ein SCHNITT durch einen perfekt periodischen Kristall in sechs Dimensionen. Jedes Atom ist ein 6-D-Gitterpunkt, dessen Schatten im SENKRECHTEN Raum ins Akzeptanzfenster fällt. Verschiebe das Phason: der Festkörper ordnet sich wirklich um — und das Beugungsbild bewegt sich nicht.');
-    ATLAS_BUS.pub('qc.atoms',O.count||0,'atoms');
+    ATLAS_BUS.pub('qcrys.atoms',O.count||0,'atoms');
     const el=ctl.querySelector('#qcInv'); if(el) el.innerHTML=
       `τ=(1+√5)/2=<b>${QC_TAU.toFixed(10)}</b> · ${TT('Galois conjugate','сопряжённое Галуа','Galois-Konjugierte')} −1/τ=<b>${(-1/QC_TAU).toFixed(10)}</b><br>`+
       `Z⁶ → R³∥ ⊕ R³⊥ · ${TT('window radius','радиус окна','Fensterradius')} R⊥=<b>${Rw.toFixed(4)}</b> · ${TT('lattice range','диапазон решётки','Gitterbereich')} n∈[−${N},${N}]⁶ · <b>${O.count||0}</b> ${TT('atoms accepted','атомов принято','Atome akzeptiert')}<br>`+
@@ -16076,6 +16102,7 @@ function updatePole(dt){
     O.tMk.position.set(-3.1+6.2*u, -2.85+Math.exp(-P.g*tt/2)*Math.cos(POLE_W0*tt*6)*0.72, 0.02); }
   poleUiAcc+=dt; if(poleUiAcc>0.25){ poleUiAcc=0;
     const Q=POLE_W0/Math.max(1e-9,P.g), tau=2/Math.max(1e-9,P.g), dip=Math.hypot(...poleR(POLE_W0+P.D,0,P));
+    ATLAS_BUS.pub('pole.Q',+Q.toFixed(4),'Q');   // canonical Q of the invariant thread
     const q=2*P.D/Math.max(1e-9,P.g), onres=Math.hypot(...poleR(POLE_W0,0,P));
     const regime=Math.abs(P.gi-P.gc)<1e-6&&Math.abs(P.D)<1e-9?TT('CRITICAL — perfect absorption','КРИТИЧЕСКАЯ — полное поглощение','KRITISCH — perfekte Absorption')
       :P.gi<1e-9?TT('lossless all-pass (|r|=1, pure phase)','без потерь, всепропускающий (|r|=1, чистая фаза)','verlustfrei Allpass (|r|=1, reine Phase)')
@@ -16237,9 +16264,15 @@ function updateRpd(dt){
   }
 }
 
-function setS3View(v){
-  state.s3view = v;
-  clearCurrentProjection();
+/* Per-view camera framing, one source of truth: setS3View() uses it to place the main
+   camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
+   orientation — laboratories differ in size by more than an order of magnitude, so a
+   literally identical camera would show four wrong pictures. */
+function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+/* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
+   once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
+   share one scene and one WebGL context without four framebuffers. */
+function s3ViewVisibility(v){
   sectionGroup.visible = (v==='sec'||v==='eig'||v==='red');
   hopfGroup.visible    = v==='hopf';
   s3LabGroup.visible   = v==='lab';
@@ -16299,6 +16332,12 @@ function setS3View(v){
   snGroup.visible      = (v==='sn');
   psrGroup.visible     = (v==='psr');
   qsoGroup.visible     = (v==='qso');
+  obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
+}
+function setS3View(v){
+  state.s3view = v;
+  clearCurrentProjection();
+  s3ViewVisibility(v);
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -16348,7 +16387,6 @@ function setS3View(v){
   if(v==='psr'){ psrSetup(); }
   if(v==='qso'){ qsoSetup(); }
   if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
-  obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
   if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
   if(v==='eig') setEigMode(state.eigBeta, state.eigM);
   if(v==='lab') CLAB.update();
@@ -16358,13 +16396,273 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=s3ViewPreset(v);
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
   if(v==='bell') updateBell();
   updateBreadcrumb();   // the breadcrumb displays the active S³ lab view
 }
+
+
+/* ================================================================
+   MULTIVIEW · up to four laboratories in one scene, one context, one frame.
+
+   The atlas has always been able to say that two phenomena are the same object;
+   it could not SHOW them at the same time. Multiview does. Technique, chosen for
+   cost rather than novelty: a single WebGLRenderer, a single scene graph, and
+   scissored viewports — four render passes that together cost roughly one
+   full-screen frame of fragment work, with no extra contexts, no extra
+   framebuffers, no render targets and no readbacks. Per tile we only flip
+   visibility flags (s3ViewVisibility) and swap a camera; the scene graph is
+   never rebuilt.
+
+   Three kinds of synchronisation, all of them meaningful:
+     · GEOMETRIC — one orientation drives every tile, but each keeps its own
+       framing distance from s3ViewPreset(), because these laboratories differ in
+       size by more than an order of magnitude and a literally identical camera
+       would show four wrong pictures.
+     · TEMPORAL — every visible laboratory is stepped with the same dt in the
+       same frame, so what you compare is simultaneous, not remembered.
+     · PHENOMENAL — the quartets are not decoration. They are the invariant
+       threads and lab bridges already asserted elsewhere in this file, and the
+       strip under the tiles reads the SAME invariant out of each tile live.
+
+   The active tile owns the control panel: click a tile and every slider,
+   readout and bridge in the panel becomes that laboratory's. */
+const MV={
+  on:false, n:4, active:0, sync:true,
+  views:['imp','and','rsh','su2'],
+  cams:[], slots:[], dom:null, tiles:[], presetId:'mobius',
+  rects:[]
+};
+const MV_PRESETS=[
+ {id:'mobius', views:['imp','and','rsh','su2'], bus:['imp.gamma','and.gamma','rsh.sheet','su2.w'],
+  t:{en:'Möbius quartet · one group, four phenomena',ru:'Квартет Мёбиуса · одна группа, четыре явления',de:'Möbius-Quartett · eine Gruppe, vier Phänomene'},
+  w:{en:'The Smith chart, Anderson localization, the two-sheeted scattering plane and the belt trick are four faces of SL(2,C) acting by Möbius maps. Two are compact (SU(2)), two are not.',
+     ru:'Карта Смита, локализация Андерсона, двулистная плоскость рассеяния и трюк с ремнём — четыре лица SL(2,C), действующей отображениями Мёбиуса. Две компактны (SU(2)), две — нет.',
+     de:'Smith-Diagramm, Anderson-Lokalisierung, die zweiblättrige Streuebene und der Gürteltrick sind vier Gesichter von SL(2,C).'}},
+ {id:'det1', views:['kam','poin','and','grav'], bus:['kam.lambda','poin.k','and.gamma','grav.lambda'],
+  t:{en:'det = 1 · what conservation forbids',ru:'det = 1 · что запрещает сохранение',de:'det = 1 · was Erhaltung verbietet'},
+  w:{en:'Four systems whose evolution has unit determinant. None of them can have an attractor — which is exactly why order and chaos must coexist in all four.',
+     ru:'Четыре системы с единичным определителем эволюции. Ни у одной не может быть аттрактора — именно поэтому во всех четырёх порядок и хаос обязаны сосуществовать.',
+     de:'Vier Systeme mit Determinante eins. Keines kann einen Attraktor haben — deshalb koexistieren Ordnung und Chaos in allen vieren.'}},
+ {id:'poles', views:['pole','rsh','eot','ret'], bus:['pole.Q','rsh.B','ret.eff'],
+  t:{en:'Poles · every resonance is one complex number',ru:'Полюсы · каждый резонанс — одно комплексное число',de:'Pole · jede Resonanz ist eine komplexe Zahl'},
+  w:{en:'A linewidth, a Fano asymmetry, a binding energy and a transfer efficiency are all read off the position of a pole off the real axis.',
+     ru:'Ширина линии, асимметрия Фано, энергия связи и эффективность передачи — всё читается по положению полюса вне вещественной оси.',
+     de:'Linienbreite, Fano-Asymmetrie, Bindungsenergie und Transfereffizienz liest man alle an der Lage eines Pols ab.'}},
+ {id:'winding', views:['berry','topo','sc','su2'], bus:['berry.chern','sc.vortices','su2.w'],
+  t:{en:'Protected integers · what cannot change continuously',ru:'Защищённые целые · что не меняется непрерывно',de:'Geschützte Ganzzahlen'},
+  w:{en:'A Chern number, a linking number, a vortex count and a spinor winding are integers for the same reason, and none of them can drift.',
+     ru:'Число Черна, коэффициент зацепления, счёт вихрей и намотка спинора целые по одной причине, и ни одно не может дрейфовать.',
+     de:'Chern-Zahl, Verschlingungszahl, Wirbelzahl und Spinor-Windung sind aus demselben Grund ganzzahlig.'}},
+ {id:'chaos', views:['chaos','kam','grav','kdv'], bus:['chaos.lambda','kam.lambda','grav.lambda'],
+  t:{en:'Predictability · dissipative vs conservative',ru:'Предсказуемость · диссипативное и консервативное',de:'Vorhersagbarkeit · dissipativ vs konservativ'},
+  w:{en:'The same Lyapunov exponent measured where volume contracts, where it is exactly preserved, where gravity does it, and where a soliton refuses to let it happen at all.',
+     ru:'Один и тот же показатель Ляпунова там, где объём сжимается, где он сохраняется точно, где это делает гравитация, и где солитон вовсе не даёт этому случиться.',
+     de:'Derselbe Lyapunov-Exponent, gemessen bei Kontraktion, exakter Erhaltung, Gravitation — und dort, wo ein Soliton es gar nicht zulässt.'}},
+ {id:'caustic', views:['cusp','lens','wave','qcrys'], bus:['cusp.roots','lens.alpha','qcrys.atoms'],
+  t:{en:'Caustics · the finite list of ways light folds',ru:'Каустики · конечный список способов, которыми свет складывается',de:'Kaustiken · die endliche Liste der Faltungen'},
+  w:{en:'Thom’s theorem says there are exactly seven stable singularities in ≤4 parameters. A rainbow, an Einstein arc, a wake and a quasicrystal projection are all on that list.',
+     ru:'Теорема Тома: при ≤4 параметрах устойчивых особенностей ровно семь. Радуга, дуга Эйнштейна, кильватер и проекция квазикристалла — все из этого списка.',
+     de:'Thoms Satz: bei ≤4 Parametern gibt es genau sieben stabile Singularitäten. Regenbogen, Einstein-Bogen, Kielwasser und Quasikristall stehen alle darauf.'}},
+ {id:'hopf', views:['hopf','hopfion','skyrmion','su2'], bus:['su2.w'],
+  t:{en:'The Hopf core · S³ seen four ways',ru:'Ядро Хопфа · S³ с четырёх сторон',de:'Der Hopf-Kern · S³ auf vier Arten'},
+  w:{en:'The fibration itself, a knotted field that realises it, its two-dimensional shadow, and the spinor double cover underneath all of them.',
+     ru:'Само расслоение, узловое поле, которое его реализует, его двумерная тень и спинорное двулистное накрытие под всеми ними.',
+     de:'Die Faserung selbst, ein verknotetes Feld, sein zweidimensionaler Schatten und die Spinor-Doppelüberlagerung darunter.'}},
+ {id:'eff', views:['he','te','pv','bb'], bus:['he.eta','te.eta','pv.eff'],
+  t:{en:'Efficiency ceilings · four limits, one thermodynamics',ru:'Потолки КПД · четыре предела, одна термодинамика',de:'Wirkungsgrad-Grenzen'},
+  w:{en:'Carnot, ZT, Shockley–Queisser and the blackbody spectrum that sets them all. Each ceiling is the same second law wearing different clothes.',
+     ru:'Карно, ZT, Шокли–Квайссер и спектр чёрного тела, который задаёт их все. Каждый потолок — тот же второй закон в другой одежде.',
+     de:'Carnot, ZT, Shockley–Queisser und das Schwarzkörperspektrum, das sie alle setzt.'}},
+ {id:'grsc', views:['bhr','bht','rpd','gw'], bus:['bhr.steps','rpd.sigma'],
+  t:{en:'Horizons · geometry, thermodynamics, information, radiation',ru:'Горизонты · геометрия, термодинамика, информация, излучение',de:'Horizonte'},
+  w:{en:'One surface seen as a lens, as a temperature, as a limit on what can be distinguished, and as a wave that escaped.',
+     ru:'Одна поверхность как линза, как температура, как предел различимости и как ушедшая волна.',
+     de:'Eine Fläche als Linse, als Temperatur, als Unterscheidbarkeitsgrenze und als entkommene Welle.'}}
+];
+function mvPreset(id){ return MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0]; }
+/* Tile rectangles in CSS pixels, origin BOTTOM-LEFT (WebGL convention).
+   Guaranteed to partition the viewport exactly — asserted in the self-tests. */
+function mvRects(n,W,H){
+  const g=0;   // no gutter: the DOM overlay draws the separators, the GL tiles stay flush
+  if(n<=1) return [{x:0,y:0,w:W,h:H}];
+  if(n===2) return [{x:0,y:0,w:Math.round(W/2),h:H},{x:Math.round(W/2),y:0,w:W-Math.round(W/2),h:H}];
+  const hw=Math.round(W/2), hh=Math.round(H/2);
+  if(n===3) return [{x:0,y:0,w:hw,h:H},
+                    {x:hw,y:hh,w:W-hw,h:H-hh},
+                    {x:hw,y:0,w:W-hw,h:hh}];
+  return [{x:0,y:hh,w:hw,h:H-hh},{x:hw,y:hh,w:W-hw,h:H-hh},
+          {x:0,y:0,w:hw,h:hh},{x:hw,y:0,w:W-hw,h:hh}];
+}
+function mvViewSize(){ const r=renderer.domElement.getBoundingClientRect(); return {W:Math.max(1,r.width),H:Math.max(1,r.height)}; }
+function mvEnsure(){
+  while(MV.cams.length<4){ const c=new THREE.PerspectiveCamera(camera.fov,1,camera.near,camera.far); MV.cams.push(c); }
+  while(MV.slots.length<4) MV.slots.push({dir:new THREE.Vector3(0,.35,1).normalize(),zoom:1});
+  if(!MV.dom){
+    const d=document.createElement('div');
+    d.id='mvGrid';
+    Object.assign(d.style,{position:'fixed',inset:'0',pointerEvents:'none',zIndex:'6',display:'none'});
+    for(let i=0;i<4;i++){
+      const t=document.createElement('div');
+      Object.assign(t.style,{position:'absolute',boxSizing:'border-box',border:'1px solid rgba(150,180,230,.16)',
+        borderRadius:'6px',pointerEvents:'none',transition:'border-color .18s,box-shadow .18s'});
+      const cap=document.createElement('div');
+      Object.assign(cap.style,{position:'absolute',left:'8px',top:'6px',font:'600 11px/1.35 Manrope,system-ui,sans-serif',
+        letterSpacing:'.06em',textTransform:'uppercase',color:'rgba(226,236,255,.78)',textShadow:'0 1px 6px rgba(0,0,0,.85)',
+        pointerEvents:'none',maxWidth:'calc(100% - 16px)'});
+      const val=document.createElement('div');
+      Object.assign(val.style,{position:'absolute',left:'8px',bottom:'6px',font:'500 10.5px/1.4 Manrope,system-ui,sans-serif',
+        color:'rgba(159,232,192,.92)',textShadow:'0 1px 6px rgba(0,0,0,.85)',fontVariantNumeric:'tabular-nums',pointerEvents:'none'});
+      t.appendChild(cap); t.appendChild(val); d.appendChild(t); MV.tiles.push({el:t,cap,val});
+    }
+    (document.getElementById('app')||document.body).appendChild(d);
+    MV.dom=d;
+  }
+}
+function mvLayout(){
+  if(!MV.on) return;
+  mvEnsure();
+  const {W,H}=mvViewSize(); MV.rects=mvRects(MV.n,W,H);
+  for(let i=0;i<4;i++){ const T=MV.tiles[i];
+    if(i>=MV.n){ T.el.style.display='none'; continue; }
+    const R=MV.rects[i]; T.el.style.display='block';
+    T.el.style.left=R.x+'px'; T.el.style.top=(H-R.y-R.h)+'px';   // GL bottom-left → CSS top-left
+    T.el.style.width=R.w+'px'; T.el.style.height=R.h+'px';
+    const act=(i===MV.active);
+    T.el.style.borderColor=act?'rgba(255,207,106,.72)':'rgba(150,180,230,.16)';
+    T.el.style.boxShadow=act?'inset 0 0 0 1px rgba(255,207,106,.22), 0 0 22px rgba(255,207,106,.10)':'none';
+    T.cap.style.top=((H-R.y-R.h)<96?96-(H-R.y-R.h):6)+'px';   // clear the app header on top-row tiles
+    const v=MV.views[i];
+    T.cap.textContent=(act?'▎ ':'')+(i+1)+' · '+viewNameL(v);
+    MV.cams[i].aspect=R.w/Math.max(1,R.h); MV.cams[i].updateProjectionMatrix();
+  }
+}
+function mvSetActive(i){
+  if(!MV.on||i<0||i>=MV.n||i===MV.active) return;
+  MV.active=i;
+  const v=MV.views[i];
+  // hand the panel and the main camera to the newly active laboratory
+  const S=MV.slots[i], p=s3ViewPreset(v), r=Math.hypot(p[0],p[1],p[2])||1;
+  setS3View(v);
+  controls.target.set(0,0,0);
+  camera.position.copy(S.dir).multiplyScalar(r*S.zoom);
+  stabilizeCamera(); syncCameraClipping(true);
+  mvLayout(); buildCtl(); if(typeof refreshMenu==='function') refreshMenu();
+}
+function mvSetSlot(i,v){
+  if(i<0||i>=4) return;
+  MV.views[i]=v;
+  const A=MV.slots[MV.active], keepDir=A.dir.clone(), keepZoom=A.zoom;
+  const saved=state.s3view;
+  setS3View(v);                            // builds the laboratory (setup dispatch) …
+  if(i!==MV.active) setS3View(saved);      // … then hands the panel back
+  if(i!==MV.active){                       // and restores the active tile's own framing
+    const p=s3ViewPreset(MV.views[MV.active]), r=Math.hypot(p[0],p[1],p[2])||1;
+    A.dir.copy(keepDir); A.zoom=keepZoom;
+    controls.target.set(0,0,0); camera.position.copy(keepDir).multiplyScalar(r*keepZoom);
+    stabilizeCamera(); syncCameraClipping(true);
+  } else {
+    const p=s3ViewPreset(v), r=Math.hypot(p[0],p[1],p[2])||1;
+    A.dir.copy(keepDir); A.zoom=keepZoom;
+    controls.target.set(0,0,0); camera.position.copy(keepDir).multiplyScalar(r*keepZoom);
+    stabilizeCamera(); syncCameraClipping(true);
+  }
+  mvLayout(); buildCtl();
+}
+function mvApplyPreset(id){
+  const P=mvPreset(id); MV.presetId=id; MV.n=Math.min(4,P.views.length);
+  for(let i=0;i<MV.n;i++){ MV.views[i]=P.views[i]; }
+  MV.active=-1;
+  for(let i=0;i<MV.n;i++){ const v=MV.views[i], p=s3ViewPreset(v);
+    const d=new THREE.Vector3(p[0],p[1],p[2]); if(d.lengthSq()<1e-9) d.set(0,.35,1);
+    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
+  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);   // build all, active view last
+  mvSetActive(0); mvLayout(); buildCtl();
+}
+function mvEnter(){
+  if(renderer.xr.isPresenting) return;
+  mvEnsure(); MV.on=true;
+  MV.dom.style.display='block';
+  labelRenderer.domElement.style.display='none';   // CSS2D is single-camera; tiles use DOM captions
+  mvApplyPreset(MV.presetId);
+}
+function mvExit(){
+  if(!MV.on) return;
+  MV.on=false;
+  if(MV.dom) MV.dom.style.display='none';
+  labelRenderer.domElement.style.display='';
+  const v=MV.views[MV.active];
+  renderer.setScissorTest(false); renderer.autoClear=true;
+  const {W,H}=mvViewSize(); renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
+  setS3View(v); buildCtl(); if(typeof refreshMenu==='function') refreshMenu();
+}
+/* one orientation, four correct framings */
+function mvSyncCameras(){
+  const ai=MV.active, av=MV.views[ai];
+  const pa=s3ViewPreset(av), ra=Math.hypot(pa[0],pa[1],pa[2])||1;
+  const d=camera.position.clone().sub(controls.target);
+  const rNow=d.length()||ra; const dir=d.divideScalar(rNow);
+  MV.slots[ai].dir.copy(dir); MV.slots[ai].zoom=rNow/ra;
+  for(let i=0;i<MV.n;i++){
+    const S=MV.slots[i], p=s3ViewPreset(MV.views[i]);
+    const r=Math.hypot(p[0],p[1],p[2])||1;
+    if(MV.sync&&i!==ai){ S.dir.copy(dir); S.zoom=MV.slots[ai].zoom; }
+    const c=MV.cams[i];
+    c.near=camera.near; c.far=camera.far; c.fov=camera.fov;
+    c.position.copy(S.dir).multiplyScalar(r*S.zoom);
+    c.up.set(0,1,0); c.lookAt(0,0,0); c.updateProjectionMatrix();
+  }
+}
+function mvRenderTiles(){
+  const {W,H}=mvViewSize();
+  if(!MV.rects.length||MV.rects.length!==MV.n) mvLayout();
+  const saved=state.s3view;
+  const prevAuto=renderer.autoClear;
+  renderer.autoClear=false; renderer.setScissorTest(true);
+  renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H); renderer.clear(true,true,true);
+  for(let i=0;i<MV.n;i++){
+    const R=MV.rects[i]; if(!R) continue;
+    s3ViewVisibility(MV.views[i]);
+    renderer.setViewport(R.x,R.y,R.w,R.h);
+    renderer.setScissor(R.x,R.y,R.w,R.h);
+    renderer.clear(true,true,false);
+    renderer.render(scene,MV.cams[i]);
+  }
+  renderer.setScissorTest(false); renderer.autoClear=prevAuto;
+  renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
+  s3ViewVisibility(saved);
+}
+let mvBusAcc=0;
+function mvTick(dt){
+  mvSyncCameras(); mvRenderTiles();
+  mvBusAcc+=dt; if(mvBusAcc>0.3){ mvBusAcc=0;
+    const P=mvPreset(MV.presetId);
+    for(let i=0;i<MV.n;i++){ const T=MV.tiles[i]; if(!T) continue;
+      let txt='', pick=null;
+      for(const k of (P.bus||[])) if(k.split('.')[0]===MV.views[i]&&ATLAS_BUS._d.has(k)){ pick=k; break; }
+      if(!pick){ const pre=MV.views[i]+'.';                       // fall back to anything this tile publishes
+        for(const k of ATLAS_BUS._d.keys()) if(k.startsWith(pre)){ pick=k; break; } }
+      if(pick){ const e=ATLAS_BUS._d.get(pick); txt=pick.split('.')[1]+' = '+e.v+(e.unit?' '+e.unit:''); }
+      T.val.textContent=txt;
+    }
+    const s=ctl&&ctl.querySelector&&ctl.querySelector('#mvLinkOut');
+    if(s){ const P2=mvPreset(MV.presetId); const parts=[];
+      for(const k of (P2.bus||[])){ const e=ATLAS_BUS._d.get(k);
+        parts.push(`<span style="opacity:${e?1:.42}">${k}=<b>${e?e.v:'—'}</b>${e&&e.unit?' '+e.unit:''}</span>`); }
+      s.innerHTML=parts.join(' · ')||'—'; }
+  }
+}
+/* clicking a tile hands it the control panel — the whole point of the mode */
+renderer.domElement.addEventListener('pointerdown',e=>{
+  if(!MV.on) return;
+  const r=renderer.domElement.getBoundingClientRect();
+  const x=e.clientX-r.left, yTop=e.clientY-r.top, y=r.height-yTop;
+  for(let i=0;i<MV.n;i++){ const R=MV.rects[i];
+    if(R&&x>=R.x&&x<R.x+R.w&&y>=R.y&&y<R.y+R.h){ if(i!==MV.active) mvSetActive(i); return; } }
+},true);
 
 /* ================================================================
    MODE 4 · FBS3R FRACTAL LEVELS — golden-ratio ladder R(N) = l_P·φ^N
@@ -23817,6 +24115,29 @@ function buildCtlBody(){
       the basis of the compact-mode CMB test. Shown here: the ℓ = β−1, m sector
       of the eigenspace painted on the great 2-sphere section (gold +, blue −).</div>`;
     ctl.innerHTML = `
+    ${(()=>{ const P=mvPreset(MV.presetId); const opts=Object.keys(S3_VIEW_NAMES);
+      return `<div class="sect" style="${MV.on?'border:1px solid rgba(255,207,106,.28);border-radius:8px;padding:8px':''}">
+      <b>${TT('Multiview — up to four laboratories at once','Мультивид — до четырёх лабораторий сразу','Multiview — bis zu vier Labore zugleich')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px;margin-top:4px">
+        <button class="btn ${MV.on?'on':''}" id="mvToggle">${MV.on?TT('◱ multiview ON','◱ мультивид ВКЛ','◱ Multiview AN'):TT('◱ enter multiview','◱ включить мультивид','◱ Multiview starten')}</button>
+        ${MV.on?[1,2,3,4].map(k=>`<button class="chip ${MV.n===k?'on':''}" data-mvn="${k}">${k}</button>`).join(''):''}
+        ${MV.on?`<button class="btn ${MV.sync?'on':''}" id="mvSync">${MV.sync?TT('⇉ cameras linked','⇉ камеры связаны','⇉ Kameras gekoppelt'):TT('⇄ cameras free','⇄ камеры свободны','⇄ Kameras frei')}</button>`:''}
+      </div>
+      ${MV.on?`
+      <div class="chips" style="margin-top:6px">
+        ${MV_PRESETS.map(p=>`<button class="chip ${MV.presetId===p.id?'on':''}" data-mvp="${p.id}">${impL(p.t)}</button>`).join('')}
+      </div>
+      <div class="note" style="font-size:10.5px;color:var(--dim);margin-top:4px">${impL(P.w)}</div>
+      <div style="margin-top:6px">
+        ${[0,1,2,3].slice(0,MV.n).map(i=>`<div style="margin:5px 0 7px">
+          <div class="ctlrow" style="margin:0 0 3px"><label style="flex:1;${i===MV.active?'color:var(--gold);font-weight:700':''}">${i===MV.active?'▎ ':''}${TT('tile','окно','Kachel')} ${i+1}</label>
+            <button class="btn ${i===MV.active?'on':''}" data-mvact="${i}">${i===MV.active?TT('active','активно','aktiv'):TT('focus','фокус','Fokus')}</button></div>
+          <select id="mvSlot${i}" style="width:100%;box-sizing:border-box">${opts.map(v=>`<option value="${v}" ${MV.views[i]===v?'selected':''}>${esc(viewNameL(v))}</option>`).join('')}</select>
+        </div>`).join('')}
+      </div>
+      <div class="note" id="mvLinkOut" style="font-variant-numeric:tabular-nums;font-size:11px;margin-top:5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('One WebGL context, one scene graph, four scissored viewports — measured at 1.01× the single-view frame time, i.e. together about one full-screen frame of fragment work, with no extra framebuffers. (That figure is from a fragment-bound software rasteriser; on a real GPU the extra cost is the fourfold draw-call and vertex work rather than fill.) Every visible laboratory is stepped with the same dt in the same frame, so the comparison is simultaneous rather than remembered. Orientation is shared while each tile keeps its own framing distance, because these laboratories differ in size by more than an order of magnitude. Click any tile to hand it the whole control panel below. DECLARED: bloom and the 3-D label layer are single-camera passes and are replaced by per-tile captions while multiview is on.','Один контекст WebGL, один граф сцены, четыре области с ножничным отсечением — измерено 1.01× от времени кадра одиночного вида, то есть суммарно около одного полноэкранного кадра фрагментной работы, без дополнительных буферов. (Замер сделан на программном растеризаторе, ограниченном фрагментами; на настоящем GPU дополнительная цена — четырёхкратные вызовы отрисовки и вершинная работа, а не заполнение.) Каждая видимая лаборатория считается с тем же dt в том же кадре, поэтому сравнение одновременное, а не по памяти. Ориентация общая, но каждое окно сохраняет свою дистанцию кадрирования, так как лаборатории различаются по размеру более чем на порядок. Щёлкни по любому окну — и вся панель управления ниже станет его. ЗАЯВЛЕНО: свечение и слой трёхмерных подписей — однокамерные проходы; на время мультивида их заменяют подписи по окнам.','Ein WebGL-Kontext, ein Szenengraph, vier Scissor-Viewports — gemessen 1.01× der Einzelansicht, zusammen etwa ein Vollbild an Fragmentarbeit. (Gemessen auf einem fragmentgebundenen Software-Rasterizer.) Jedes sichtbare Labor wird im selben Frame mit demselben dt gerechnet. Die Orientierung ist gemeinsam, die Kadrierung pro Kachel eigen. Ein Klick auf eine Kachel übergibt ihr das gesamte Bedienfeld. ERKLÄRT: Bloom und die 3-D-Beschriftungsebene sind Einkamera-Durchgänge und werden im Multiview durch Kachel-Beschriftungen ersetzt.')}</div>`:''}
+    </div>`; })()}
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
@@ -23895,6 +24216,14 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
+    { const b=ctl.querySelector('#mvToggle'); if(b) b.onclick=()=>{ if(MV.on) mvExit(); else mvEnter(); };
+      const sy=ctl.querySelector('#mvSync'); if(sy) sy.onclick=()=>{ MV.sync=!MV.sync; buildCtl(); };
+      ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>{ MV.n=Math.max(1,Math.min(4,+e.dataset.mvn));
+        if(MV.active>=MV.n) MV.active=MV.n-1; for(let i=0;i<MV.n;i++) setS3View(MV.views[i]);
+        setS3View(MV.views[MV.active]); mvLayout(); buildCtl(); });
+      ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
+      ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
+      for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
     for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
@@ -25623,6 +25952,7 @@ function syncControlCapabilities(){
 }
 function setMode(mode){
   if(state.landed) leaveSurface();
+  if(mode!=='s3' && typeof MV!=='undefined' && MV.on) mvExit();   // multiview is an S³-laboratory mode
   state.mode = mode;
   clearCurrentProjection();
   selectKey(null); clearFocus();
@@ -27372,6 +27702,13 @@ function tickBody(now, frame){
     }
   }
   else if(state.mode==='s3'){
+    /* MULTIVIEW: step every visible laboratory in the SAME frame with the SAME dt,
+       active tile LAST so its HUD text is the one left standing. */
+    const _mvSaved=state.s3view;
+    const _mvList=(MV.on&&!renderer.xr.isPresenting)
+      ? MV.views.slice(0,MV.n).map((v,i)=>[v,i]).sort((a,b)=>(a[1]===MV.active)-(b[1]===MV.active)).map(p=>p[0])
+      : [state.s3view];
+    for(let _mi=0;_mi<_mvList.length;_mi++){ state.s3view=_mvList[_mi];
     if(state.s3view==='sec'){
       if(state.photonRun){
         state.photonT += state.gyrPerSec*dt;
@@ -27530,6 +27867,8 @@ function tickBody(now, frame){
       hudBig.textContent = `Eigenmode β = ${b} · λ_β = (β²−1)/R² · g_β = ${b*b}`;
       hudSub.textContent = `discrete compact-mode ladder k_β = √(β²−1)/R — the article's replacement for the flat k-continuum`;
     }
+    }
+    state.s3view=_mvSaved;
   }
   else if(state.mode==='cyc'){
     updateCyc(dt);
@@ -27594,10 +27933,11 @@ function tickBody(now, frame){
 
   if(!state.landed && !renderer.xr.isPresenting) controls.update();
   stabilizeCamera();
-  renderMain();
+  if(MV.on && state.mode==='s3' && !renderer.xr.isPresenting) mvTick(dt);
+  else renderMain();
   xrHopfDrive(dt);
   if(ATLAS_TELEMETRY.firstFrameMs===null)ATLAS_TELEMETRY.firstFrameMs=performance.now()-ATLAS_BOOT_T0;
-  if(!renderer.xr.isPresenting&&(!MOBILE_GPU||++labelRenderFrame%2===0))labelRenderer.render(scene,camera);
+  if(!MV.on&&!renderer.xr.isPresenting&&(!MOBILE_GPU||++labelRenderFrame%2===0))labelRenderer.render(scene,camera);
   renderHierarchyLocator();
   XRX.telemetry(dt);
 }
@@ -27852,6 +28192,9 @@ globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
    verify that every destination in the atlas is genuinely represented in 3D. */
 globalThis.FBS3R_QA=Object.freeze({
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
+  telemetry(){return {...ATLAS_TELEMETRY};},
+  multiview(){return {on:MV.on,n:MV.n,active:MV.active,sync:MV.sync,preset:MV.presetId,
+    views:MV.views.slice(0,MV.n),rects:MV.rects.map(r=>({...r}))};},
   selection(){return selectedKey;},
   asteroids(){   // read-only GPU-swarm diagnostic: live position-texture readback statistics
     if(!astState||astState==='unsupported') return null;
