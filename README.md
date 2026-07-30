@@ -101,7 +101,7 @@ selectable and opens a live data card with **Focus** (fly-and-follow camera),
 **formula provenance + source tags** (hover for full citation), and for
 planets/Moon **Land** (first-person surface view with true-scale sky).
 
-## The six modes
+## The seven modes
 
 ### ☀ Solar System (1 unit = 1 AU)
 Keplerian J2000 orbits (JPL approximate ephemerides; Kepler's equation by Newton
@@ -153,6 +153,13 @@ The published golden-ratio ladder with full navigation:
   exponential H-phase), familiar-scale comparator;
 - **live formula matrix** and **exports**: app-state **JSON** and the full
   313-row φ-ladder benchmark **CSV**.
+
+### ∇ Field Lab
+Eight reproducible reduced-unit solvers—heat, damped waves, Gray–Scott,
+Poisson electrostatics/gravity, Schrödinger packets, FitzHugh–Nagumo and a 3D
+Ising Monte Carlo—publish their live invariants onto the shared atlas bus. Grid,
+boundary and calibration limits remain visible: these are reference models, not
+unsupported material, engineering or clinical forecasts.
 
 ### ❄ Fractal Explorer
 GPU distance-estimator raymarching of the Mandelbulb z → zⁿ + c (power,
