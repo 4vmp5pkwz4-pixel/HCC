@@ -27,13 +27,14 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
   }
 }
 
-/* 2 · No Cyrillic anywhere (UI must be fully English) */
-check(!/[Ѐ-ӿ]/.test(html), 'no Cyrillic characters anywhere in index.html');
+/* 2 · The current UI intentionally ships complete EN/RU/DE localization. */
+check(html.includes("ru:") && html.includes("de:") && html.includes("en:"),
+  'English, Russian and German localization dictionaries are present');
 
-/* 3 · All six modes present and handled */
+/* 3 · All seven modes present and handled */
 {
   const modes = [...html.matchAll(/data-mode="(\w+)"/g)].map(x => x[1]);
-  check(new Set(modes).size === 6, 'six mode buttons declared (' + modes.join(', ') + ')');
+  check(new Set(modes).size === 7, 'seven mode buttons declared (' + modes.join(', ') + ')');
   for (const m of modes) {
     const handled = html.includes(`mode==='${m}'`) || html.includes(`state.mode==='${m}'`)
       || m === 'fractal'; // fractal is the final else-branch of setMode/buildCtl
@@ -48,7 +49,8 @@ check(!/[Ѐ-ӿ]/.test(html), 'no Cyrillic characters anywhere in index.html');
       .concat([...html.matchAll(/getElementById\('([\w-]+)'\)/g)].map(x => x[1]))
   );
   for (const id of queried)
-    check(html.includes(`id="${id}"`), `element id "${id}" is created`);
+    check(html.includes(`id="${id}"`) || html.includes(`id='${id}'`) || html.includes(`.id='${id}'`),
+      `element id "${id}" is created`);
 }
 
 /* 5 · Selection system: registered cards have name + getPos + rows-or-desc */
@@ -67,6 +69,12 @@ check(html.includes('env(safe-area-inset'), 'iOS safe-area insets used');
 check(html.includes('viewport-fit=cover'), 'viewport-fit=cover declared');
 check(html.includes('touchPts'), 'pinch-gesture handler present');
 check(html.includes('#mBtns'), 'mobile bottom-sheet toggles present');
+check(/#topbar\{[^}]*display:grid;[^}]*grid-template-columns:/s.test(html)
+  && /#clock\{grid-column:3;grid-row:1;position:relative/.test(html),
+  'desktop header uses non-overlapping grid tracks with the clock at upper-right');
+check(/@media \(max-width:1100px\)[\s\S]*?#modeRow\{grid-column:1 \/ -1;grid-row:2/.test(html)
+  && /#clock\{grid-column:2;grid-row:1;position:relative/.test(html),
+  'compact header promotes navigation to row two without overlaying the clock');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
@@ -129,12 +137,12 @@ check(html.includes('XR: HTTPS required') && html.includes('XR: checking'),
 /* 12 · iPhone / mobile motion layer */
 check(html.includes('DeviceOrientationEvent.requestPermission'), 'iOS DeviceOrientation permission code exists');
 check(html.includes('DeviceMotionEvent.requestPermission'), 'iOS DeviceMotion permission code exists');
-check(html.includes('Enable Motion Control'), 'Enable Motion Control button exists');
+check(html.includes('Enable sensors &amp; request permissions'), 'permission-gated sensor enable button exists');
 check(html.includes('Calibrate Neutral Pose') && html.includes('Reset Motion'), 'calibrate/reset controls exist');
 check(html.includes("'deviceorientationabsolute'"), 'absolute compass mode handled');
-check(html.includes('Inside Sphere Look') && html.includes('FBS3R Ladder Tilt')
+check(html.includes('Sensor-assisted Look') && html.includes('FBS3R Ladder Tilt')
   && html.includes('Fractal Flight'), 'all motion modes present');
-check(html.includes('sensors are unavailable') || html.includes('sensors unavailable'),
+check(html.includes('events are unavailable') || html.includes('sensors unavailable'),
   'motion-sensor fallback message exists');
 
 /* 13 · S³ multi-center lab */
@@ -153,7 +161,7 @@ check(html.includes('fbsDensExp'), 'density exponent control exists');
 check(html.includes('Tier 2'), 'tier labelling for speculative exploration exists');
 check(html.includes('Sensitivity Observatory'), 'Sensitivity Observatory exists');
 check(html.includes('φ-Ladder Walk') && html.includes('Density Chamber'), 'FBS3R experiences wired');
-check(html.includes('Sky zodiac constellations') && html.includes('PRECESSION AGE WHEEL'),
+check(html.includes('Sky zodiac constellations') && /Precession Age Wheel/i.test(html),
   'zodiac layers renamed & separated (sky vs age wheel)');
 check(html.includes('not a duplicate'), 'layer-distinction tooltips exist');
 check(html.includes('SKY_NAME_ELS') && html.includes('label deconfliction'),
