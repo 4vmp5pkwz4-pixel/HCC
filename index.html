@@ -295,6 +295,12 @@
   #breadcrumb{position:fixed;left:14px;top:calc(var(--topbar-h,64px) + 8px);z-index:9;pointer-events:none;
     font:600 10px var(--sans);color:var(--dim);letter-spacing:.5px;max-width:42vw;white-space:nowrap;
     overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 4px rgba(0,0,0,.8)}
+  /* Back and the trail belong together: one left cluster answering "where am I
+     and how do I get out", opposite the dock which answers "which panels". */
+  #navCluster{position:fixed;left:14px;top:calc(var(--topbar-h,64px) + 8px);z-index:32;
+    display:flex;align-items:center;gap:8px;max-width:46vw;pointer-events:none}
+  #navCluster>#navBackBtn{pointer-events:auto;flex:0 0 auto;padding:3px 9px;min-height:24px;font-size:10.5px}
+  #navCluster>#breadcrumb{position:static;left:auto;top:auto;max-width:100%;flex:1 1 auto}
   #breadcrumb .bc-sep{color:var(--gold-dim);margin:0 5px}
   #breadcrumb .bc-cur{color:var(--gold-2)}
   /* keep a compact "what am I looking at" chip on phones, centered under the bar */
@@ -770,6 +776,7 @@
   <button id="togglePanels" class="btn panel-close-all" title="Close active panel (Esc)">×</button>
   <button id="resetViewBtn" class="btn" title="Recover and reset the active 3D view">↺ View</button>
   <button id="modelReturnBtn" class="btn" style="display:none" title="Return to the exact camera, scale and epoch before opening the laboratory">↩ Return to atlas</button>
+  <button id="resetAnimBtn" class="btn" title="Reset every animated parameter in the atlas — all clocks, flows, sweeps and slider oscillators — to their startup values">⟲ Motion</button>
   <button id="shotBtn" class="btn" title="Save a framed render of the current view (max quality)">📸 Shot</button>
   <button class="btn" data-panel="navPanel" title="Atlas Navigator · N">🧭 Navigator</button>
   <button class="btn" data-panel="ctl" title="Controls · C">⚙ Controls</button>
@@ -2556,7 +2563,7 @@ function runSelfTests(){
       for(const L of MV_LINKS){
         if(L.members.length<2) bad.push(L.id+':<2 members');
         for(const m of L.members){
-          if(!views.has(m.lab)) bad.push(L.id+':'+m.lab+' not a view');
+          if(!views.has(m.lab)&&!m.mode) bad.push(L.id+':'+m.lab+' is neither an S³ view nor a declared mode member');
           if(!m.set&&!live.has(m.k)) bad.push(L.id+':'+m.k+' not a live state key');
           if(!(Array.isArray(m.dom)&&m.dom.length===2&&m.dom[0]<m.dom[1])) bad.push(L.id+':'+m.k+' bad domain'); } }
       ok('Linked parameters: every link points at laboratories that exist and at state keys that are actually live, with a real two-ended domain for each — a master control can never write into a key nothing reads',
@@ -2587,6 +2594,38 @@ function runSelfTests(){
       const bad=MV_LINKS.filter(L=>!MV_LINK_KIND[L.kind]||!L.why||!L.why.en||!L.t||!L.t.en);
       ok('Linked parameters: every link declares WHAT KIND of sameness it claims — identity of quantity, identity of a dimensionless ratio, or merely identity of mathematical role — and carries the sentence that justifies it, so a structural analogy can never be read as a physical equality',
         bad.length===0 && kinds.size===3, bad.length?bad.map(L=>L.id).join(', '):`kinds present: ${[...kinds].join(', ')} · every link carries its justification`); } }
+  { // MOTION RESET, NAV CLUSTER, LAB PASSPORT and the cross-mode reach of tempo
+    { const keys=animKeys(), miss=keys.filter(k=>!(k in STATE0));
+      ok('Motion reset: the registry of animated parameters is derived from the live startup snapshot, so every key it restores has a real recorded default and the reset can never invent a value',
+        miss.length===0 && keys.length>40, miss.length?('no default for: '+miss.join(', ')):`${keys.length} animated keys, every one with a snapshot default`); }
+    { const keys=animKeys(), saved={};
+      for(const k of keys) saved[k]=state[k];
+      for(const k of keys) state[k]=(typeof STATE0[k]==='number')?STATE0[k]+1:!STATE0[k];
+      const r=resetAnimated();
+      let bad=null; for(const k of keys) if(state[k]!==STATE0[k]) bad=k;
+      for(const k of keys) state[k]=saved[k];
+      ok('Motion reset: disturbing every animated key at once and pressing reset restores all of them exactly — one button really does stop every clock, flow, sweep and oscillator in the atlas',
+        !bad && r.n===keys.length, bad?('left disturbed: '+bad):`${r.n} of ${r.keys} keys restored in one call`); }
+    { const tempo=MV_LINKS.find(L=>L.id==='tempo');
+      const modes=mvLinkModeLabs(tempo), tiles=mvLinkLabs(tempo);
+      const bad=tempo.members.filter(m=>m.mode&&tiles.includes(m.lab));
+      ok('Linked parameters: tempo now reaches outside the S³ mode — the solar clock, the cycles clock, the φ-ladder, the Laniakea flow, the Oort shell and the field lab are paced with the laboratories, and those mode-level members are excluded from tile composition so a link can never build a dead tile',
+        modes.length>=5 && bad.length===0 && tiles.length>20,
+        `${tiles.length} tileable laboratories + ${modes.length} mode-level clocks (${modes.join(', ')}) · none of the mode members can be composed as a tile`); }
+    { const saved=state.s3view, savedMode=state.mode, seen=[]; let bad=null;
+      state.mode='s3';                                  // the passport is mode-gated by design
+      for(const v of Object.keys(S3_VIEW_NAMES)){ state.s3view=v;
+        const h=labPassportHTML();
+        if(!h||h.indexOf('laboratory passport')<0&&h.indexOf('паспорт')<0&&h.indexOf('Laborpass')<0) bad=v;
+        seen.push(v); }
+      state.s3view=saved; state.mode=savedMode;
+      ok('Lab passport: every laboratory in the atlas generates its own connection map — what it publishes, which shared parameters can drive it, which prepared sets contain it and where it can jump — all read out of live registries, so nothing can go stale',
+        !bad, bad?('no passport for '+bad):`${seen.length} laboratories, each with a generated passport`); }
+    { const back=document.getElementById('navBackBtn'), crumb=document.getElementById('breadcrumb'),
+            box=document.getElementById('navCluster');
+      ok('Interface: Back sits with the breadcrumb in one left cluster — the head band answers what you are looking at, this cluster answers where you are and how to leave, and the dock answers which panels are open',
+        !!box && back&&back.parentNode===box && crumb&&crumb.parentNode===box,
+        box?'navCluster holds Back + breadcrumb':'nav cluster missing'); } }
   { // MULTIVIEW CAPTION OWNERSHIP + CHROME CONSOLIDATION
     const savedOn=MV.on, savedN=MV.n, savedA=MV.active, savedV=MV.views.slice();
     let owner=null;
@@ -2606,8 +2645,8 @@ function runSelfTests(){
       const missing=need.filter(id=>!document.getElementById(id));
       const dockAll=document.querySelectorAll('#panelDock button').length;
       const dockFolded=[...document.querySelectorAll('#panelDock button')].filter(b=>!b.hasAttribute('data-sec')).length;
-      ok('Chrome: consolidating the head into one grouped overflow surface MOVED controls, it never removed them — every original control is still in the document and still carries its handler, while the folded dock shows seven or fewer',
-        missing.length===0 && dockFolded<=7 && dockAll>dockFolded,
+      ok('Chrome: consolidating the head into one grouped overflow surface MOVED controls, it never removed them — every original control is still in the document and still carries its handler, while the folded dock keeps only the primary half on screen',
+        missing.length===0 && dockFolded<=8 && dockAll>=dockFolded+6,
         missing.length?('missing: '+missing.join(', ')):`${need.length} controls all present · dock ${dockFolded} shown / ${dockAll} total`); } }
   { // ANDERSON: the transfer matrix is in SL(2,R), and the measured γ must match Thouless away from the band centre
     let dm=0; for(const E of [-1.7,-0.5,0,0.9,1.8]) for(const e of [-0.6,0,0.4,1.2]) dm=Math.max(dm,Math.abs((E-e)*0-(-1)*1-1));
@@ -17465,6 +17504,7 @@ function setS3View(v){
   }
   if(v==='bell') updateBell();
   updateBreadcrumb();   // the breadcrumb displays the active S³ lab view
+  try{ if(typeof buildInfo==='function') buildInfo(); }catch(e){}   // the passport follows the view
 }
 
 
@@ -17946,13 +17986,25 @@ const MV_LINKS=[
            {lab:'rpd',k:'rpdSpeed',dom:[0.2,3]},{lab:'gw',k:'gwSpeed',dom:[0.2,3]},{lab:'skyrmion',k:'skSpeed',dom:[0.2,4]},
            {lab:'quasi',k:'qpSpeed',dom:[0.2,4]},{lab:'rel',k:'relSpeed',dom:[0.1,3]},{lab:'poin',k:'poinSpeed',dom:[0.1,3]},
            {lab:'sh',k:'shSpeed',dom:[0.2,3]},{lab:'taub',k:'tnSpeed',dom:[0.1,4]},{lab:'hopf',k:'hopfFlowSpd',dom:[0.1,4]},
-           {lab:'red',k:'rkzSpeed',dom:[0.02,1.2]},{lab:'bhr',k:'bhrSpeed',dom:[0.2,3]}]}
+           {lab:'red',k:'rkzSpeed',dom:[0.02,1.2]},{lab:'bhr',k:'bhrSpeed',dom:[0.2,3]},
+           /* other modes keep their own clocks; tempo scales each about its own default,
+              so one control paces the solar system, the cycles, the φ-ladder, the Oort
+              shell, the Laniakea flow and the field lab together with the laboratories */
+           {lab:'solar',k:'daysPerSec',dom:[0.001,3e8],map:v=>10*v,mode:'solar'},
+           {lab:'cyc',k:'cycYrPerSec',dom:[0.1,3e9],map:v=>1*v,mode:'cyc'},
+           {lab:'fbs',k:'fbsCycleSpeed',dom:[2,40],map:v=>12*v,mode:'fbs'},
+           {lab:'obs',k:'laniakeaFlowSpeed',dom:[0,0.8],map:v=>0.18*v,mode:'obs'},
+           {lab:'field',k:'fieldSpeed',dom:[0.1,4],map:v=>1*v,mode:'field'},
+           {lab:'oort',k:'oortSpeed',dom:[0.05,2.5],map:v=>0.75*v,mode:'solar'}]}
 ];
 function mvLink(id){ return MV_LINKS.find(l=>l.id===id)||null; }
 const mvLinkPhys=(L,u)=>L.log?L.lo*Math.pow(L.hi/L.lo,u):L.lo+(L.hi-L.lo)*u;
 const mvLinkU=(L,x)=>L.log?Math.log(x/L.lo)/Math.log(L.hi/L.lo):(x-L.lo)/(L.hi-L.lo);
 /* labs a link touches, and the links that touch at least two of the visible tiles */
-function mvLinkLabs(L){ return [...new Set(L.members.map(m=>m.lab))]; }
+/* only S³ views can be TILES; mode-level members are driven but never tiled, and
+   are excluded from tile composition rather than silently producing a dead tile */
+function mvLinkLabs(L){ return [...new Set(L.members.filter(m=>!m.mode).map(m=>m.lab))]; }
+function mvLinkModeLabs(L){ return [...new Set(L.members.filter(m=>m.mode).map(m=>m.lab))]; }
 function mvLinkAvailable(views){
   return MV_LINKS.filter(L=>mvLinkLabs(L).filter(v=>views.includes(v)).length>=2);
 }
@@ -25816,6 +25868,7 @@ function buildCtlBody(){
           <span class="val" id="mvLinkVV">${active.int?String(Math.round(x)):(Math.abs(x)>=1000||Math.abs(x)<0.01?x.toExponential(3):x.toFixed(4))}</span></div>
         <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
           <button class="btn ${state.mvLinkSweep?'on':''}" id="mvLinkSweep">${state.mvLinkSweep?TT('⏸ sweeping','⏸ идёт развёртка','⏸ Sweep läuft'):TT('⟳ sweep it','⟳ развернуть','⟳ Sweep')}</button>
+          <button class="btn" id="mvResetAnim">${TT('⟲ reset all animated','⟲ сбросить анимацию','⟲ Animation zurücksetzen')}</button>
           <button class="btn ${state.mvLinkAll?'on':''}" id="mvLinkAll">${state.mvLinkAll?TT('driving ALL member labs','ведёт ВСЕ лаборатории-члены','treibt ALLE Mitglieder'):TT('driving visible tiles only','ведёт только видимые окна','nur sichtbare Kacheln')}</button>
         </div>
         <div class="note" style="font-size:10.5px;margin-top:4px"><span style="color:${MV_LINK_KIND[active.kind].c}">${esc(impL(MV_LINK_KIND[active.kind].t)).toUpperCase()}</span> — ${esc(impL(active.why))}</div>
@@ -25962,6 +26015,8 @@ function buildCtlBody(){
         if(sl) sl.oninput=ev=>{ state.mvLinkV=+ev.target.value; mvLinkTick(true); }; }
       { const b=ctl.querySelector('#mvLinkSweep'); if(b) b.onclick=()=>{ state.mvLinkSweep=!state.mvLinkSweep; buildCtl(); }; }
       { const b=ctl.querySelector('#mvLinkAll'); if(b) b.onclick=()=>{ state.mvLinkAll=!state.mvLinkAll; buildCtl(); }; }
+      { const b=ctl.querySelector('#mvResetAnim'); if(b) b.onclick=()=>{ const r=resetAnimated();
+          if(typeof buildInfo==='function') try{ buildInfo(); }catch(e){} }; }
       const sy=ctl.querySelector('#mvSync'); if(sy) sy.onclick=()=>{ MV.sync=!MV.sync; buildCtl(); };
       ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>{ MV.n=Math.max(1,Math.min(4,+e.dataset.mvn));
         if(MV.active>=MV.n) MV.active=MV.n-1; for(let i=0;i<MV.n;i++) setS3View(MV.views[i]);
@@ -27586,7 +27641,7 @@ try{
     localStorage.setItem('lts-firstVisit', new Date().toISOString().slice(0,10));
 }catch(e){}
 function buildInfo(){
-  info.innerHTML = `
+  info.innerHTML = labPassportHTML() + `
   <h3>Canonical S³ reconstruction (article benchmark table)</h3>
   <table>
     <tr><td>|Ω<sub>K</sub>| (curvature modulus)</td><td>0.0007</td></tr>
@@ -27745,6 +27800,7 @@ function setMode(mode){
   if(state.landed) leaveSurface();
   if(mode!=='s3' && typeof MV!=='undefined' && MV.on) mvExit();   // multiview is an S³-laboratory mode
   state.mode = mode;
+  try{ if(typeof buildInfo==='function') buildInfo(); }catch(e){}
   clearCurrentProjection();
   selectKey(null); clearFocus();
   solarGroup.visible = mode==='solar';
@@ -29150,6 +29206,7 @@ function tickBody(now, frame){
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
   updateLaniakeaFlows(dt);
   updateHierarchyLocator();
+  try{ labPassportTick(dt); }catch(e){}
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
@@ -30154,6 +30211,133 @@ updateBell();   // seed the Bell-lune geometry at boot — its pick body must ex
                 // focus framing and the navigation QA audit all see a real object immediately
 applyVectorSettings();                    // enforce the global vector contract consistently from the first frame
 
+
+/* ================================================================
+   MOTION RESET · one button that stops every clock in the atlas.
+
+   With four laboratories running, several of them driven by a linked master and
+   any number of sliders under oscillator control, "put it back the way it was"
+   stops being a small request. STATE0 is a snapshot of every scalar in the
+   initial state taken before anything has been touched, so the reset restores
+   real defaults rather than hard-coded guesses that would drift out of date the
+   moment a lab's default changes. The registry is derived from the key names
+   themselves and then extended by hand with the ones that do not follow the
+   convention — cross-mode clocks, flow rates, the linked sweep. */
+const STATE0=(()=>{ const o={}; for(const k in state){ const v=state[k];
+  if(typeof v==='number'||typeof v==='boolean'||typeof v==='string') o[k]=v; } return o; })();
+const ANIM_EXTRA=['daysPerSec','cycYrPerSec','fbsCycleSpeed','oortSpeed','laniakeaFlowSpeed',
+  'phaseRate','hopfFlowSpd','hopfPrecSpd','rkzSpeed','tnSpeed','mvLinkSweep','mvLinkV',
+  'heSweep','teSweep','bhtEvap','skSpeed','qpSpeed','fieldSpeed','gravRotFrame'];
+function animKeys(){
+  const auto=Object.keys(STATE0).filter(k=>/(Speed|Spd|Rate|PerSec|Run|Sweep|Anim)$/.test(k));
+  return [...new Set([...auto,...ANIM_EXTRA.filter(k=>k in STATE0)])].sort();
+}
+/* Returns what it actually changed, so the button can report rather than assert. */
+function resetAnimated(){
+  const keys=animKeys(); let n=0; const changed=[];
+  for(const k of keys){ if(state[k]!==STATE0[k]){ state[k]=STATE0[k]; n++; changed.push(k); } }
+  let osc=0; if(typeof OSC!=='undefined'&&OSC.size){ osc=OSC.size; OSC.clear(); }
+  if(typeof MV!=='undefined'&&MV.on){ state.mvLinkSweep=false; }
+  try{ if(typeof updCtlVals==='function') updCtlVals(); }catch(e){}
+  try{ buildCtl(); }catch(e){}
+  return {n,osc,keys:keys.length,changed};
+}
+/* ================================================================
+   NAV CLUSTER · Back belongs beside the breadcrumb, not floating over the scene.
+
+   The head band answers "what am I looking at", the dock answers "how am I
+   looking at it". Return-to-previous is the first question, not the second, and
+   it only makes sense next to the trail that says where you are — so the two are
+   moved into one left-aligned cluster. The nodes are MOVED, so the existing
+   handler, tooltip and show/hide logic all continue to work untouched. */
+function navClusterBuild(){
+  const back=document.getElementById('navBackBtn'), crumb=document.getElementById('breadcrumb');
+  if(!back||!crumb||document.getElementById('navCluster')) return;
+  const box=document.createElement('div'); box.id='navCluster';
+  crumb.parentNode.insertBefore(box,crumb);
+  box.appendChild(back); box.appendChild(crumb);
+  back.style.position=''; back.style.top=''; back.style.left=''; back.style.zIndex='';
+}
+/* ================================================================
+   LAB PASSPORT · every laboratory's own connections, generated from live data.
+
+   The information panel used to show the same canonical table whatever you were
+   looking at. This puts the current laboratory's own map at the top of it, and
+   every line of that map is read out of a registry that is already load-bearing
+   somewhere else: what it publishes on the bus, which shared parameters it can
+   be driven by and who else answers them, which prepared quartets contain it,
+   and which invariant threads it appears in. Nothing is written by hand here, so
+   nothing can go stale — add a laboratory to a link and its passport grows. */
+/* the live half of the passport, refreshed on its own cadence so that "measures
+   now" is not a snapshot taken before the laboratory had published anything */
+function labPassportBusHTML(v){
+  const bus=[...ATLAS_BUS._d.keys()].filter(k=>k.split('.')[0]===v);
+  if(!bus.length) return `<span style="opacity:.65">${TT('nothing published yet — open the station and it will report here','пока ничего не опубликовано — откройте станцию, и здесь появится отчёт','noch nichts veröffentlicht')}</span>`;
+  return bus.map(k=>{ const e=ATLAS_BUS._d.get(k), age=ATLAS_BUS.age(k);
+    return `${esc(k.split('.')[1])} = <b>${esc(String(e.v))}</b>${e.unit?' '+esc(e.unit):''}<span style="opacity:.5">${age>3?' ('+age.toFixed(0)+'s)':''}</span>`; }).join(' · ');
+}
+let passBusAcc=0;
+function labPassportTick(dt){
+  const el=document.getElementById('passBus'); if(!el) return;
+  passBusAcc+=dt; if(passBusAcc<0.6) return; passBusAcc=0;
+  if(state.mode==='s3'&&state.s3view) el.innerHTML=labPassportBusHTML(state.s3view);
+}
+function labPassportHTML(){
+  if(state.mode!=='s3') return '';
+  const v=state.s3view; if(!v) return '';
+  const name=viewNameL(v);
+  const bus=[...ATLAS_BUS._d.keys()].filter(k=>k.split('.')[0]===v);
+  const links=(typeof MV_LINKS!=='undefined')?MV_LINKS.filter(L=>mvLinkLabs(L).includes(v)):[];
+  const quads=(typeof MV_PRESETS!=='undefined')?MV_PRESETS.filter(p=>p.views.includes(v)):[];
+  const threads=(typeof INVARIANT_THREAD!=='undefined')?INVARIANT_THREAD.filter(T=>T.rows.some(r=>r.lab===v)):[];
+  const peers=[...new Set([...links.flatMap(mvLinkLabs),...quads.flatMap(p=>p.views)])].filter(x=>x!==v);
+  const T=(a,b,c)=>TT(a,b,c);
+  return `<div id="labPassport" style="border:1px solid rgba(212,175,106,.3);border-radius:9px;padding:9px;margin-bottom:10px">
+    <h3 style="margin:0 0 4px">${esc(name)} — ${T('laboratory passport','паспорт лаборатории','Laborpass')}</h3>
+    <div class="note" style="font-size:11px;font-variant-numeric:tabular-nums">
+      <b style="color:var(--gold-2)">${T('measures now','измеряет сейчас','misst jetzt')}:</b> <span id="passBus">${labPassportBusHTML(v)}</span>
+    </div>
+    <div class="note" style="font-size:11px;margin-top:5px">
+      <b style="color:var(--gold-2)">${T('shared parameters','общие параметры','geteilte Parameter')} (${links.length}):</b>
+      ${links.length?links.map(L=>`<button class="chip" data-passlink="${L.id}" title="${esc(impL(L.why))}"><span style="color:${MV_LINK_KIND[L.kind].c}">●</span> ${esc(impL(L.t))} <span style="opacity:.65">${mvLinkLabs(L).length}</span></button>`).join(' ')
+        :`<span style="opacity:.65">${T('none — this station has no control another laboratory shares','нет — у этой станции нет управления, общего с другой лабораторией','keine')}</span>`}
+    </div>
+    <div class="note" style="font-size:11px;margin-top:5px">
+      <b style="color:var(--gold-2)">${T('prepared side-by-side sets','готовые наборы для сравнения','vorbereitete Vergleichssätze')} (${quads.length}):</b>
+      ${quads.length?quads.map(p=>`<button class="chip" data-passquad="${p.id}" title="${esc(impL(p.w))}">${esc(impL(p.t))}</button>`).join(' ')
+        :`<span style="opacity:.65">${T('none yet','пока нет','noch keine')}</span>`}
+    </div>
+    ${threads.length?`<div class="note" style="font-size:11px;margin-top:5px">
+      <b style="color:var(--gold-2)">${T('invariant threads','нити инвариантов','Invarianten-Fäden')}:</b>
+      ${threads.map(t=>esc(impL(t.t))).join(' · ')}</div>`:''}
+    <div class="note" style="font-size:11px;margin-top:5px">
+      <b style="color:var(--gold-2)">${T('reachable from here','достижимо отсюда','von hier erreichbar')} (${peers.length}):</b>
+      ${peers.slice(0,18).map(p=>`<button class="chip" data-passgo="${p}">${esc(viewNameL(p))}</button>`).join(' ')}${peers.length>18?` <span style="opacity:.6">+${peers.length-18}</span>`:''}
+    </div>
+    <div class="ctlrow" style="margin-top:6px;flex-wrap:wrap;gap:4px">
+      <button class="btn" data-passreset="1">${T('⟲ reset every animated parameter','⟲ сбросить все анимированные параметры','⟲ alle animierten Parameter zurücksetzen')}</button>
+      <span class="small" id="passResetOut" style="opacity:.75"></span>
+    </div>
+  </div>`;
+}
+function labPassportBind(){
+  const root=document.getElementById('info'); if(!root||root.dataset.passBound==='1') return;
+  root.dataset.passBound='1';
+  root.addEventListener('click',e=>{
+    const t=e.target.closest&&e.target.closest('[data-passlink],[data-passquad],[data-passgo],[data-passreset]');
+    if(!t) return;
+    if(t.dataset.passgo){ navPush(); setS3View(t.dataset.passgo); buildCtl(); buildInfo(); return; }
+    if(t.dataset.passlink){ const L=mvLink(t.dataset.passlink); if(L) mvLinkCompose(L); buildInfo(); return; }
+    if(t.dataset.passquad){ if(!MV.on) mvEnter(); mvApplyPreset(t.dataset.passquad); buildInfo(); return; }
+    if(t.dataset.passreset){ const r=resetAnimated();
+      const o=document.getElementById('passResetOut');
+      if(o) o.textContent=TT(`${r.n} of ${r.keys} restored${r.osc?`, ${r.osc} oscillators cleared`:''}`,
+        `восстановлено ${r.n} из ${r.keys}${r.osc?`, снято осцилляторов: ${r.osc}`:''}`,
+        `${r.n} von ${r.keys} zurückgesetzt${r.osc?`, ${r.osc} Oszillatoren gelöscht`:''}`);
+      buildInfo(); }
+  });
+}
+
 /* ================================================================
    CHROME CONSOLIDATION · the desktop head had grown to twenty-four always-visible
    controls spread over two bands, with three of them (Navigator, Shot, XR) present
@@ -30232,6 +30416,12 @@ function chromeRelabel(){
 }
 
 try{ chromeBuild(); }catch(e){ console.warn('[chrome]',e); }
+try{ navClusterBuild(); labPassportBind(); }catch(e){ console.warn('[nav]',e); }
+try{ const rb=document.getElementById('resetAnimBtn');
+  if(rb) rb.onclick=()=>{ const r=resetAnimated();
+    rb.textContent='⟲ '+r.n+'/'+r.keys;
+    setTimeout(()=>{ rb.textContent='⟲ Motion'; },1600);
+    try{ buildInfo(); }catch(e){} }; }catch(e){ console.warn('[reset]',e); }
 
 SELF_TESTS = runSelfTests();
 console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
