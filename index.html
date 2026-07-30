@@ -238,6 +238,16 @@
   .scorecard span{color:var(--dim);font-size:9px;letter-spacing:.5px;text-transform:uppercase}
   .atlasExpTier{cursor:pointer;user-select:none}
   .atlasExpTier.on{outline:2px solid var(--gold);outline-offset:1px}
+.precWrap{display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex-basis:100%;margin-top:3px}
+  .precBox{width:118px;background:rgba(8,12,20,.82);border:1px solid rgba(212,175,106,.42);color:var(--gold-2);
+    font-family:var(--mono,ui-monospace,monospace);font-size:10.5px;padding:2px 6px;border-radius:6px;
+    font-variant-numeric:tabular-nums;letter-spacing:.2px}
+  .precBox:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(212,175,106,.18);color:#fff}
+  .snapChip{background:rgba(212,175,106,.10);border:1px solid rgba(212,175,106,.30);color:var(--txt);
+    font-size:9.5px;padding:2px 6px;border-radius:999px;cursor:pointer;white-space:nowrap;opacity:.9}
+  .snapChip:hover{background:rgba(212,175,106,.24);border-color:var(--gold);color:#fff;opacity:1}
+  body.day .precBox{background:rgba(255,252,244,.9);color:#6b5518}
+  body.day .snapChip{background:rgba(212,175,106,.16);color:#5a4516}
   #atlasPanel .navRow{cursor:pointer;padding:3px 5px;border-radius:7px}
   #atlasPanel .navRow:hover{background:rgba(212,175,106,.12)}
   #atlasPanel .navRow.on{background:rgba(212,175,106,.2)}
@@ -20426,6 +20436,82 @@ const HF_PRESETS=[
   {id:'anti',label:'Hopfion + anti',     a:()=>Object.assign(state,{hfMode:'pair',hfP:1,hfQ:1,hfP2:1,hfQ2:-1,hfSep:4.4})},
   {id:'ring',label:'Hopfion ring (Zheng 2023)',a:()=>Object.assign(state,{hfMode:'ring',hfP:1,hfQ:1,hfRingN:6,hfRingR:3.2})},
 ];
+/* ═══ SCIENTIFIC PRECISION LAYER ═══════════════════════════════════════════════════
+   A slider is a 2–3 significant-figure instrument; research needs exact values. This
+   upgrades EVERY range control in EVERY laboratory at once, with no per-lab work:
+     · an exact numeric field beside each slider — type any value, full double precision
+       (programmatic assignment is NOT quantised by the `step` attribute, so 1.6180339887
+       really is set), applied on Enter/blur and echoed straight back into the lab's own
+       handler, so nothing else has to change;
+     · ⇱ SNAP chips for the physically decisive values of that control (zone boundary,
+       critical coupling, matched impedance, resonance, golden ratio …) — one click puts
+       the model EXACTLY on the singular point instead of near it;
+     · keyboard: ↑/↓ = one step, Shift = ×10, Alt = ÷10 for fine approach.
+   SNAP_KEYS is declarative: a key is the slider id, the value is the list of decisive
+   points with a short label. Everything is exact — no value here is invented. */
+const SNAP_KEYS={
+  dispK:[[Math.PI,'ka=π · v_g=0 (van Hove)'],[Math.PI/2,'ka=π/2'],[1,'k=1']],
+  impR:[[1,'z=1 · matched'],[0,'z=0 · short'],[Math.SQRT2,'√2 · U=1 critical'],[3583,'air→water']],
+  impX:[[0,'x=0 · real axis'],[1,'+j1'],[-1,'−j1']],
+  impAlpha:[[0,'lossless']],
+  poleGi:[[0,'lossless all-pass']],
+  poleGc:[[0.06,'= γ_i · critical coupling']],
+  poleDelta:[[0,'symmetric (no Fano)']],
+  qmK0:[[Math.sqrt(2*1.5),'E=V₀ · barrier top'],[Math.sqrt(Math.PI*Math.PI+2*1.5),'qa=π · perfect transmission']],
+  impK:[[Math.sqrt(Math.PI*Math.PI+2),'qa=π at V₀=1 · r≡0']],
+
+  teZT:[[1,'Bi₂Te₃'],[2.6,'SnSe'],[3,'ZT=3']],
+  relBeta:[[0.5,'β=0.5'],[Math.sqrt(3)/2,'γ=2'],[0.99,'β=0.99']],
+  chi:[[Math.PI/2,'χ=π/2 · equator'],[Math.PI,'χ=π · antipode']],
+  gwIota:[[0,'face-on · circular'],[90,'edge-on · linear'],[180,'face-off']],
+  hfScale:[[1,'unit scale']], hfSep:[[2,'2 radii']],
+  rdDu:[[0.16,'canonical Du'],[0.08,'= Dv (no Turing separation)']],
+  rdDv:[[0.08,'canonical Dv']],
+  spinCone:[[Math.PI/3,'θ=60°'],[Math.PI/2,'θ=90°']],
+  atZ:[[6,'carbon'],[26,'iron'],[79,'gold'],[92,'uranium']] };
+const _fmtPrec=v=>{ const a=Math.abs(v);
+  if(v===0) return '0';
+  if(a>=1e6||a<1e-4) return v.toExponential(6);
+  return String(+v.toPrecision(10)); };
+function enhancePrecision(root){
+  if(!root) return;
+  root.querySelectorAll('input[type=range]').forEach(r=>{
+    if(r.dataset.precOn) return; r.dataset.precOn='1';
+    // a range input quantises ANY assigned value to its `step`; keep the step for nudging
+    // but free the control itself so full double precision can actually be stored
+    r.dataset.baseStep=r.step||'0.01'; r.step='any';
+    const wrap=document.createElement('span'); wrap.className='precWrap';
+    const box=document.createElement('input');
+    box.type='text'; box.className='precBox'; box.value=_fmtPrec(+r.value);
+    box.title='Exact value · type any number, Enter to apply · ↑/↓ step, Shift ×10, Alt ÷10';
+    box.setAttribute('inputmode','decimal'); box.setAttribute('spellcheck','false');
+    const apply=(raw)=>{ let v=parseFloat(String(raw).replace(',','.'));
+      if(!isFinite(v)) { box.value=_fmtPrec(+r.value); return; }
+      const lo=r.min===''?-Infinity:+r.min, hi=r.max===''?Infinity:+r.max;
+      v=Math.min(hi,Math.max(lo,v));
+      if(Math.abs(v-Math.round(v))<1e-12) v=Math.round(v);   // keep integers exactly integral
+      r.value=String(v);                                   // NOT quantised by `step`
+      r.dispatchEvent(new Event('input',{bubbles:true}));   // the lab's own handler runs
+      r.dispatchEvent(new Event('change',{bubbles:true}));
+      box.value=_fmtPrec(+r.value); };
+    box.addEventListener('keydown',e=>{ e.stopPropagation();
+      if(e.key==='Enter'){ e.preventDefault(); apply(box.value); box.blur(); }
+      else if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault();
+        const st=(+r.dataset.baseStep||0.01)*(e.shiftKey?10:e.altKey?0.1:1);
+        apply((+r.value)+(e.key==='ArrowUp'?st:-st)); } });
+    box.addEventListener('blur',()=>apply(box.value));
+    box.addEventListener('focus',()=>box.select());
+    r.addEventListener('input',()=>{ if(document.activeElement!==box) box.value=_fmtPrec(+r.value); });
+    wrap.appendChild(box);
+    const keys=SNAP_KEYS[r.id];
+    if(keys){ const lo=r.min===''?-Infinity:+r.min, hi=r.max===''?Infinity:+r.max;
+      for(const [v,lab] of keys){ if(v<lo-1e-12||v>hi+1e-12) continue;
+        const c=document.createElement('button'); c.className='snapChip'; c.type='button';
+        c.textContent='⇱ '+lab; c.title='Snap EXACTLY to '+_fmtPrec(v);
+        c.onclick=()=>apply(v); wrap.appendChild(c); } }
+    const host=r.parentElement; if(host) host.appendChild(wrap);
+  });
+}
 function buildCtl(){
   // Re-render preserving scroll state: on phones the chip rows scroll horizontally,
   // and a full innerHTML rebuild used to snap every row (and the sheet itself) back
@@ -20434,6 +20520,7 @@ function buildCtl(){
   buildCtlBody();
   const _restore=()=>{ ctl.scrollTop=_st;
     [...ctl.querySelectorAll('.chips,.radioRow')].forEach((r,i)=>{ if(_rows[i]) r.scrollLeft=_rows[i]; }); };
+  try{ enhancePrecision(ctl); }catch(e){}     // exact numeric entry + snap for every slider
   _restore();
   // the panel-enhance MutationObservers (collapsible sections, sheet grip) MOVE nodes
   // right after this task — moving a scrolled element zeroes its scroll, so restore
@@ -21980,7 +22067,7 @@ function buildCtlBody(){
         ${Object.entries(DISP_SYS).map(([k,d])=>`<button class="chip ${(state.dispSys||'phonon')===k?'on':''}" data-dispsys="${k}">${impL(d.nm).split('—')[0].trim()}</button>`).join('')}
       </div>
       <div class="ctlrow"><label>${TT('wavenumber k','волновое число k','Wellenzahl k')}</label>
-        <input type="range" id="dispK" min="0.05" max="3.1" step="0.005" value="${state.dispK??1.2}"><span class="val" id="dispKV">${(state.dispK??1.2).toFixed(3)}</span></div>
+        <input type="range" id="dispK" min="0.05" max="3.15" step="0.005" value="${state.dispK??1.2}"><span class="val" id="dispKV">${(state.dispK??1.2).toFixed(3)}</span></div>
       <div class="ctlrow"><label>${TT('Speed','Скорость','Tempo')}</label>
         <input type="range" id="dispSpeed" min="0.1" max="3" step="0.1" value="${state.dispSpeed??1}"><span class="val" id="dispSpeedV">×${(state.dispSpeed??1).toFixed(1)}</span></div>
       <div class="chips">
