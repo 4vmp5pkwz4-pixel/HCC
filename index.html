@@ -2219,6 +2219,20 @@ function runSelfTests(){
     }
     ok('Galactic scale: the axis anchor, the disk and the Sun→GC link stay phase-locked at every epoch (no detachment at high time rates)',
       worst<1e-12 && poleDrift<1e-12, `max relative detachment=${worst.toExponential(1)} · pole invariance=${poleDrift.toExponential(1)}`); }
+  { // FRAME COHERENCE: everything that annotates the Earth must use the epoch the Earth is DRAWN at,
+    // and everything drawn in the geocentric frame must carry the same shift (the audited bug class).
+    const T0=state.epochDays/36525;
+    const dispOK = (typeof earthDisplayT==='function') && isFinite(earthDisplayT());
+    // the axis direction and the pole direction must agree at the SAME epoch, for any epoch
+    let axErr=0; for(const T of [T0, T0+1e-3, T0+5, T0-12.7]){
+      const q=earthAxisQuaternionActive(T), v=new THREE.Vector3(0,1,0).applyQuaternion(q);
+      axErr=Math.max(axErr, v.distanceTo(earthPoleDir(T))); }
+    ok('Frame coherence: the Earth axis overlay, the pole direction and the axis-anchor camera all read ONE displayed epoch',
+      dispOK && axErr<1e-9, `earthDisplayT live · max axis↔pole mismatch=${axErr.toExponential(1)}`);
+    // Lagrange points must be built from the same Earth the geocentric shift subtracts
+    const E1=planetPos(PLANETS[2],T0), E2=planetPos(PLANETS[2],earthDisplayT());
+    ok('Frame coherence: Lagrange points and the geocentric shift are built from the SAME Earth position',
+      E1.distanceTo(E2)<1e-9 || _earthDispT!==null, `|ΔE|=${E1.distanceTo(E2).toExponential(1)} AU (0 when unlocked; locked ⇒ both use the locked epoch)`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -3328,7 +3342,7 @@ function updateSelectionLinks(){
     if(b){
       const span=Math.max(a.distanceTo(b),1e-6);
       line.material.dashSize=span*.035;line.material.gapSize=span*.018;
-      line.geometry.setFromPoints([a,b]);line.computeLineDistances();
+      line.geometry.setFromPoints([a,b]);line.computeLineDistances();line.geometry.computeBoundingSphere();
     }
   }
 }
@@ -6400,7 +6414,7 @@ function ensureSolarJourney(){
   _sjLab=mkLabel('Solar apex of the galactic orbit · toward ℓ≈90° (Cygnus) · 232 km/s = 48.9 AU/yr','label axis');
   solarJourneyGroup.add(_sjLab);
 }
-function updateSolarJourney(){
+function updateSolarJourney(geoShift){   // MUST carry the same frame shift as the planets, or every helix head detaches
   solarJourneyGroup.visible=!!state.solarJourney && (state.solarScaleLayer||'local')==='local' && !state.landed;
   if(!solarJourneyGroup.visible) return;
   ensureSolarJourney();
@@ -6411,13 +6425,16 @@ function updateSolarJourney(){
     for(let k=0;k<=K;k++){
       const t=now-W*(1-k/K), off=(t-now)*SUN_V_AU_DAY;
       const pp=planetPos(PLANETS[p],t/36525);
-      pos.setXYZ(k, pp.x+SUN_V_DIR.x*off, pp.y+SUN_V_DIR.y*off, pp.z+SUN_V_DIR.z*off);
+      pos.setXYZ(k, pp.x+SUN_V_DIR.x*off-(geoShift?geoShift.x:0), pp.y+SUN_V_DIR.y*off-(geoShift?geoShift.y:0), pp.z+SUN_V_DIR.z*off-(geoShift?geoShift.z:0));
     }
     pos.needsUpdate=true; _sjLines[p].geometry.computeBoundingSphere();
   }
-  const back=W*SUN_V_AU_DAY;
-  _sjSun.geometry.setFromPoints([SUN_V_DIR.clone().multiplyScalar(-back),SUN_V_DIR.clone().multiplyScalar(back*0.25)]);
-  _sjLab.position.copy(SUN_V_DIR).multiplyScalar(back*0.28);
+  const back=W*SUN_V_AU_DAY, gsx=geoShift?geoShift.x:0, gsy=geoShift?geoShift.y:0, gsz=geoShift?geoShift.z:0;
+  _sjSun.geometry.setFromPoints([
+    SUN_V_DIR.clone().multiplyScalar(-back).sub(new THREE.Vector3(gsx,gsy,gsz)),
+    SUN_V_DIR.clone().multiplyScalar(back*0.25).sub(new THREE.Vector3(gsx,gsy,gsz))]);
+  _sjSun.geometry.computeBoundingSphere();          // the apex axis reaches thousands of AU: without this it is culled
+  _sjLab.position.copy(SUN_V_DIR).multiplyScalar(back*0.28).sub(new THREE.Vector3(gsx,gsy,gsz));
 }
 
 /* ── MOTION-VECTOR & AXES ATLAS ─────────────────────────────────────────────────
@@ -6457,7 +6474,7 @@ const _lagV=new THREE.Vector3(), _lagW=new THREE.Vector3(), _lagAxis=new THREE.V
 function updateLagrange(T,geoShift){
   const on=!!state.showLagrange && (state.solarScaleLayer||'local')==='local' && !state.landed;
   lagGroup.visible=on; if(!on) return;
-  const E=planetPos(PLANETS[2],T), r=E.length();
+  const E=planetPos(PLANETS[2],earthDisplayT()), r=E.length();   // same epoch as the rendered Earth & geoShift
   // leading = direction of motion: rotate +60° about the ecliptic normal, then check against v̂
   _lagV.copy(planetPos(PLANETS[2],T+0.5/36525)).sub(planetPos(PLANETS[2],T-0.5/36525));
   _lagW.copy(E).applyAxisAngle(_lagAxis,Math.PI/3);
@@ -6762,6 +6779,8 @@ const _cfQ=new THREE.Quaternion(), _cfV=new THREE.Vector3();
 /* The Milky Way is drawn rigidly rotating about the Sun (origin) to depict the Sun's galactic
    orbit, so EVERY galaxy-attached overlay must carry the same rotation or it visibly detaches
    at high time rates. modulo-FIRST keeps the phase exact at Gyr-deep epochs (see the animate loop). */
+let _earthDispT=null;                    // set each frame by the animate loop to the epoch the Earth MESH uses
+function earthDisplayT(){ return _earthDispT!=null?_earthDispT:(state.epochDays/36525); }
 function galSpinQuat(out){ const galDays=GAL_YEAR_MYR*1e6*365.2425;
   const th=2*Math.PI*(((state.epochDays%galDays)+galDays)%galDays)/galDays;
   return (out||new THREE.Quaternion()).setFromAxisAngle(GAL_DATA.pole.dir,th); }
@@ -6775,7 +6794,7 @@ function updateCosmicFrame(d,T,geoShift){
     a.mat.opacity=0.62*f; a.line.visible=f>0.02; a.lab.visible=f>0.25;
     if(f<=0.02) continue;
     if(a.kind==='earth'){ const eo=planetObjs.find(o=>o.p.name==='Earth');
-      if(eo){ a.anchor.copy(eo.mesh.position); _cfV.set(0,1,0).applyQuaternion(earthAxisQuaternionActive(T)); a.dir.copy(_cfV); } }
+      if(eo){ a.anchor.copy(eo.mesh.position); _cfV.set(0,1,0).applyQuaternion(earthAxisQuaternionActive(earthDisplayT())); a.dir.copy(_cfV); } }   // displayed epoch, not the raw one
     else if(a.kind==='ecl'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.set(0,1,0); }
     else if(a.kind==='sunv'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.copy(SUN_V_DIR); }
     else if(a.kind==='gal'){ a.anchor.copy(GAL_DATA.gc.pos).applyQuaternion(galSpinQuat(_cfQ)); a.dir.copy(GAL_DATA.pole.dir); }   // anchor MUST follow the wheeling disk; dir is the spin axis ⇒ invariant
@@ -6957,7 +6976,7 @@ registerSel('mwSpiralArms',{name:'Milky Way spiral arms (schematic)',mode:'solar
   src:['ASTRO'],accuracyTier:'D',catalogueStatus:'literature-derived',
   forbiddenClaims:['exact spiral-arm boundaries','externally observed exact Milky Way shape','precise pitch angle as measured'],
   desc:'Schematic logarithmic-spiral arm tracks (pitch ≈12.5°) from literature reconstructions of the Milky Way. Arm names and approximate placement are educational orientation aids — NOT exact arm boundaries (the Galaxy cannot be imaged from outside). The Sun sits on the minor Orion–Cygnus (Local) Arm at ~26,700 ly. Solar position and Sgr A* remain source-tagged at their J2000 values.',
-  getPos:()=>GAL_DATA.gc.pos.clone(),focusDist:()=>90000*LY_AU,
+  getPos:()=>milkyWayPhysical.getWorldPosition(new THREE.Vector3()),focusDist:()=>90000*LY_AU,   // follow the wheeling disk
   rows:()=>[['Status','schematic literature reconstruction'],['Pitch angle','≈12.5° (approx, log-spiral)'],['Arms shown','Perseus · Scutum–Centaurus · Sagittarius–Carina · Norma · Orion–Cygnus · Outer'],['Sun arm','Orion–Cygnus (Local) Arm · ~26,700 ly'],['Caveat','arm boundaries are reconstruction-dependent; not exact']]});
 
 const m31Physical=new THREE.Group(); m31Physical.position.copy(GAL_DATA.m31.pos);
@@ -7223,7 +7242,7 @@ function updateHierarchyLocator(){
   const earthSpin=(((PLANETS[2].spinW0+PLANETS[2].spinRateDegDay*state.epochDays)%360+360)%360)*DEG;
   locatorSunSpin.quaternion.copy(SUN_AXIS_Q).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),sunSpin));
   locatorEarthSpin.position.copy(ep);
-  locatorEarthSpin.quaternion.copy(earthAxisQuaternionActive(T)).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),earthSpin));
+  locatorEarthSpin.quaternion.copy(earthAxisQuaternionActive(earthDisplayT())).multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),earthSpin));
   const ga=state.epochDays/(GAL_YEAR_MYR*1e6*365.2425)*Math.PI*2;
   locatorGalacticPhase.position.set(Math.cos(ga)*1.9,0,Math.sin(ga)*1.9).applyQuaternion(locatorGalPlane.quaternion);
   const hp=hierarchyPickMeshes.find(p=>p.userData.selKey===selectedKey);
@@ -15380,7 +15399,7 @@ function updateFBS(dt){
       const r = Math.exp((x-D)*LN_PHI), a = x*GOLDEN_ANGLE;
       pts.push(new THREE.Vector3(r*Math.cos(a), 0, r*Math.sin(a)));
     }
-    if(pts.length>1) fbsSpiral.geometry.setFromPoints(pts);
+    if(pts.length>1){ fbsSpiral.geometry.setFromPoints(pts); fbsSpiral.geometry.computeBoundingSphere(); }
     fbsSpiralDot.position.set(Math.cos(D*GOLDEN_ANGLE), 0, Math.sin(D*GOLDEN_ANGLE));
     // energy-quanta flow riding the spiral outward (E_n ∝ F_n visualization)
     fbsFlowPhase=(fbsFlowPhase+dt*0.02)%1;
@@ -16084,7 +16103,11 @@ function updateCyc(dt){
     ? 'JPL APPROXIMATION ACTIVE · EARTH–MOON BARYCENTER · 1800–2050'
     : 'JPL ORBIT / SEASON GEOMETRY INVALID OUTSIDE 1800–2050 · PHASE TOOLS REMAIN MEAN-PERIOD DIAGNOSTICS';
   seaInst.userData.statusLab.element.style.color=ephOK?'':'#e8b86a';
-  if((!state.cycSeasons || Math.abs(state.epochDays-state.cycSeasons.at)>200) && state.cycYrPerSec<5000) refreshSeasons();
+  const seasonsLive = state.cycYrPerSec<5000;
+  if((!state.cycSeasons || Math.abs(state.epochDays-state.cycSeasons.at)>200) && seasonsLive) refreshSeasons();
+  // above the solver's rate ceiling the markers would sit at a stale epoch on a freshly rebuilt
+  // ellipse — hide them rather than show a wrong position (they return when the rate drops)
+  if(typeof seaMarkers!=='undefined'&&seaMarkers) seaMarkers.forEach(m=>{ if(!seasonsLive) m.visible=false; });
 
   // Non-metric identity links connect representations of the same object.
   cycLinksGroup.visible=!!state.cycLinks&&state.vectorRelations!==false&&state.vectorAdditional!==false&&frame==='hierarchy';
@@ -25408,7 +25431,6 @@ function tickBody(now, frame){
 
   if(state.mode==='solar'){
     autoSolarScale(dt);
-    updateSolarJourney();
     if(!state.paused) state.epochDays += state.daysPerSec*dt*(state.timeDir||1);
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
@@ -25437,6 +25459,7 @@ function tickBody(now, frame){
     // geocentric frame follows the LOCKED Earth when Earth is in the locked set,
     // so the origin stays glued to the rendered Earth
     const geoShift = state.geocentric ? planetPos(PLANETS[2], (phBodies&&phBodies.planets.has(2))?phT:T) : null;
+    updateSolarJourney(geoShift);        // after geoShift exists — the helices share the planets' frame
     const pScale = state.trueScale ? 1 : state.planetScale;
     const sScale = state.trueScale ? 1 : state.sunScale;
     sunMesh.position.copy(geoShift ? geoShift.clone().negate() : _galZero);
@@ -25448,6 +25471,7 @@ function tickBody(now, frame){
     for(let oi=0;oi<planetObjs.length;oi++){ const o=planetObjs[oi];
       const locked=!!(phBodies&&phBodies.planets.has(oi));
       const Tb=locked?phT:T, eDaysB=locked?phEpoch:state.epochDays;
+      _earthDispT=Tb;                       // publish it so every Earth overlay uses the SAME epoch
       o.mesh.position.copy(planetPos(o.p, Tb));
       if(geoShift) o.mesh.position.sub(geoShift);     // Earth-centred frame
       o.mesh.scale.setScalar(o.p.r/KM_PER_AU*pScale);
@@ -25473,7 +25497,7 @@ function tickBody(now, frame){
     if(state.axisAnchorLock && !state.landed){
       const eo=planetObjs[2], dA=Math.max(camera.position.distanceTo(controls.target),0.05);
       controls.target.copy(eo.mesh.position);
-      camera.position.copy(eo.mesh.position).addScaledVector(earthPoleDir(T),dA);
+      camera.position.copy(eo.mesh.position).addScaledVector(earthPoleDir(earthDisplayT()),dA);
     }
     // live phase-lock readout: period, skipped whole periods, current phase
     if(phEpoch!==null){ state._phUiAcc=(state._phUiAcc||0)+dt;
@@ -25704,7 +25728,7 @@ function tickBody(now, frame){
         const aa = k/(n-1)*a;
         tp.push(new THREE.Vector3(RU*1.003*Math.sin(aa), RU*1.003*Math.cos(aa), 0));
       }
-      photonTrail.geometry.setFromPoints(tp);
+      photonTrail.geometry.setFromPoints(tp); photonTrail.geometry.computeBoundingSphere();
       const GT = Gamma(Math.min(a, Math.PI));
       hudBig.textContent = `t = ${state.photonT.toFixed(1)} Gyr · arc ${(a/DEG).toFixed(1)}° · Γ(T) = ${(GT*100).toFixed(2)} % ${a>=Math.PI?'· FULL CAUSAL ACCESSIBILITY (t ≥ t_coh)':''}`;
       hudSub.textContent = '1 unit = 100 Gly · R = 548.32 Gly · t_coh = πR/c = 1722.6 Gyr · ∂S³_R = ∅';
