@@ -2203,6 +2203,22 @@ function runSelfTests(){
       rmax=Math.max(rmax,Math.abs(V-((1+b)/(1-b))),Math.abs(Math.atanh(b)-0.5*Math.log(V))); }
     ok('Cross-lab identity: VSWR = Doppler² and rapidity artanh|Γ| = ½ln VSWR — RF mismatch and relativistic β on ONE hyperbolic axis',
       rmax<1e-12 && Math.abs(Math.atanh(0.6)-Math.log(2))<1e-12, `β=0.6 ⇔ VSWR=4, both at θ=ln2=${Math.log(2).toFixed(6)}`); }
+  { // GALACTIC-SCALE ANCHORING: every galaxy-attached overlay must carry the SAME spin as the disk,
+    // else it detaches visibly at high time rates (the reported galactic-axis bug).
+    const gd=GAL_YEAR_MYR*1e6*365.2425, q=new THREE.Quaternion(), v=new THREE.Vector3();
+    let worst=0, poleDrift=0;
+    for(const ep of [0, gd*0.13, gd*0.5, gd*2.7, gd*1234.567, 4.7e12]){
+      const th=2*Math.PI*(((ep%gd)+gd)%gd)/gd; q.setFromAxisAngle(GAL_DATA.pole.dir,th);
+      const disk=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the disk actually is
+      const axis=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the axis anchor now goes
+      worst=Math.max(worst,axis.distanceTo(disk)/GAL_DATA.gc.pos.length());
+      poleDrift=Math.max(poleDrift,v.copy(GAL_DATA.pole.dir).applyQuaternion(q).distanceTo(GAL_DATA.pole.dir));
+      // the Sun (origin) must stay ON its own galactic-orbit ring at every epoch
+      const R0=8.2*3261.56*63241.077;
+      worst=Math.max(worst,Math.abs(disk.length()-GAL_DATA.gc.pos.length())/GAL_DATA.gc.pos.length());
+    }
+    ok('Galactic scale: the axis anchor, the disk and the Sun→GC link stay phase-locked at every epoch (no detachment at high time rates)',
+      worst<1e-12 && poleDrift<1e-12, `max relative detachment=${worst.toExponential(1)} · pole invariance=${poleDrift.toExponential(1)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -6682,6 +6698,7 @@ function buildCosmicFrame(){
     cosmicFrameGroup.add(_cfSunOrbit.line);
     _cfSunOrbit.lab=mkLabel('SUN’S GALACTIC ORBIT · R₀ = 8.2 kpc · T ≈ 230 Myr','label axis');
     _cfSunOrbit.lab.position.copy(GAL_DATA.gc.pos).addScaledVector(xg,R0*1.04);
+    _cfSunOrbit.labBase=_cfSunOrbit.lab.position.clone();
     cosmicFrameGroup.add(_cfSunOrbit.lab);
   }
   // FOCUSABLE WAYPOINTS: every crossing of a Sun-anchored axis with an orientation
@@ -6697,6 +6714,12 @@ function buildCosmicFrame(){
     } } } }
 }
 const _cfQ=new THREE.Quaternion(), _cfV=new THREE.Vector3();
+/* The Milky Way is drawn rigidly rotating about the Sun (origin) to depict the Sun's galactic
+   orbit, so EVERY galaxy-attached overlay must carry the same rotation or it visibly detaches
+   at high time rates. modulo-FIRST keeps the phase exact at Gyr-deep epochs (see the animate loop). */
+function galSpinQuat(out){ const galDays=GAL_YEAR_MYR*1e6*365.2425;
+  const th=2*Math.PI*(((state.epochDays%galDays)+galDays)%galDays)/galDays;
+  return (out||new THREE.Quaternion()).setFromAxisAngle(GAL_DATA.pole.dir,th); }
 function updateCosmicFrame(d,T,geoShift){
   buildCosmicFrame();
   cosmicFrameGroup.visible=state.mode==='solar' && !state.landed && state.showMotionVectors!==false&&state.vectorAxes!==false&&state.vectorMain!==false;
@@ -6710,7 +6733,7 @@ function updateCosmicFrame(d,T,geoShift){
       if(eo){ a.anchor.copy(eo.mesh.position); _cfV.set(0,1,0).applyQuaternion(earthAxisQuaternionActive(T)); a.dir.copy(_cfV); } }
     else if(a.kind==='ecl'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.set(0,1,0); }
     else if(a.kind==='sunv'){ a.anchor.set(0,0,0); if(geoShift)a.anchor.copy(geoShift).negate(); a.dir.copy(SUN_V_DIR); }
-    else if(a.kind==='gal'){ a.anchor.copy(GAL_DATA.gc.pos); a.dir.copy(GAL_DATA.pole.dir); }
+    else if(a.kind==='gal'){ a.anchor.copy(GAL_DATA.gc.pos).applyQuaternion(galSpinQuat(_cfQ)); a.dir.copy(GAL_DATA.pole.dir); }   // anchor MUST follow the wheeling disk; dir is the spin axis ⇒ invariant
     else { a.anchor.set(0,0,0); a.dir.copy(VEC_DEFS[2].dir); }
     const L=d*1.15;
     a.line.position.copy(a.anchor);
@@ -6725,7 +6748,10 @@ function updateCosmicFrame(d,T,geoShift){
     s.g.visible=f>0.02; s.lab.visible=f>0.3;
   }
   if(_cfSunOrbit){ const f=_cfBand(x,8.0,11.4,0.45);     // galactic band
-    _cfSunOrbit.line.material.opacity=0.75*f; _cfSunOrbit.line.visible=f>0.02; _cfSunOrbit.lab.visible=f>0.3; }
+    _cfSunOrbit.line.material.opacity=0.75*f; _cfSunOrbit.line.visible=f>0.02; _cfSunOrbit.lab.visible=f>0.3;
+    // the ring is a rigid rotation of itself about the Sun, so spinning the OBJECT is exact
+    const q=galSpinQuat(_cfQ); _cfSunOrbit.line.quaternion.copy(q);
+    if(_cfSunOrbit.labBase) _cfSunOrbit.lab.position.copy(_cfSunOrbit.labBase).applyQuaternion(q); }
   for(const w of _cfWaypoints){                          // waypoint size ∝ its shell, visible with it
     const rx=Math.log10(w.userData.waypoint.r);
     const f=_cfBand(x,rx-0.9,rx+1.15,0.35);
@@ -25484,7 +25510,9 @@ function tickBody(now, frame){
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
-      if(galacticLinks[0]) galacticLinks[0][0].geometry.setFromPoints([_galZero, milkyWayPhysical.position]);
+      if(galacticLinks[0]){ galacticLinks[0][0].geometry.setFromPoints([_galZero, milkyWayPhysical.position]);
+        galacticLinks[0][0].geometry.computeBoundingSphere();
+        galacticLinks[0][1].position.copy(milkyWayPhysical.position).multiplyScalar(.5); }   // the label must ride the moving link too
       // M31 has differential rotation, so 250 Myr is only an explicit display-phase
       // reference for the embedded disk/axes—not a rigid-body claim for the galaxy.
       const m31Days=250e6*365.2425;
