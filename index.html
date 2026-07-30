@@ -2415,6 +2415,36 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // PHASE SPACE: the S³ energy shell, resonant linking, and the linear symplectic camel
+    { let e=0; for(const a of [0.1,0.4,0.7,0.99]){ const b=Math.sqrt(1-a*a), t=2*Math.PI;
+        e=Math.max(e,Math.hypot(a*Math.cos(t)-a,a*Math.sin(t),b*Math.cos(t)-b,b*Math.sin(t))); }
+      let r=0; for(let k=0;k<400;k++){ const t=k*0.017, a=0.62, b=Math.sqrt(1-a*a);
+        r=Math.max(r,Math.abs(Math.hypot(a*Math.cos(2*t),a*Math.sin(2*t),b*Math.cos(3*t),b*Math.sin(3*t))-1)); }
+      ok('Phase space: the energy shell of two oscillators IS a 3-sphere and the 1:1 flow IS the Hopf circle action — every orbit closes after exactly 2π at every amplitude (isochrony) and never leaves the shell, both to machine precision',
+        e<1e-14 && r<1e-14, `max closure error ${e.toExponential(1)} over four amplitudes · max |‖z‖−1| along a 2:3 orbit ${r.toExponential(1)}`); }
+    { let bad=null, worst=0;
+      for(const [n,m] of [[1,1],[1,2],[2,3],[1,3]]){
+        const A=pspOrbit(0.62,n,m,760,0,0,1).filter(Boolean), B=pspOrbit(0.80,n,m,760,1.1,2.3,1).filter(Boolean);
+        const L=pspGauss(A,B), d=Math.abs(L-n*m);
+        worst=Math.max(worst,d); if(!(d<0.01)) bad=`(${n},${m}) gave ${L.toFixed(4)}`; }
+      ok('Phase space: the Gauss integral MEASURES the linking number of two resonant orbits as exactly n·m — the Hopf fibres link once, the 2:3 trefoils link six times, and the integer is integrated from the curves rather than asserted',
+        !bad, bad||`four resonances · worst |∮∮ − n·m| = ${worst.toExponential(1)}`); }
+    { // linear non-squeezing over random words in Sp(4,R)
+      let sd=987654321; const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+      let minCap=Infinity, maxDef=0;
+      for(let t=0;t<1200;t++){ let S=pspI4();
+        const nk=3+Math.floor(rn()*4);
+        for(let k=0;k<nk;k++){ const u=rn();
+          const g=u<0.3?PSP_MAPS.squeeze.f(0.25+rn()*3):u<0.6?PSP_MAPS.shear.f(0.2+rn()*2.6):PSP_MAPS.mix.f(0.2+rn()*2.6);
+          S=pspMul(g,S); }
+        maxDef=Math.max(maxDef,pspSympDefect(S));
+        minCap=Math.min(minCap,pspShadow(S,1).A/Math.PI); }
+      ok('Phase space: GROMOV NON-SQUEEZING holds exactly in the linear case — over 1200 random words in Sp(4,R) the shadow of the unit ball on a conjugate plane never falls below πr², however violently the ball is deformed in every other direction',
+        maxDef<1e-11 && minCap>=1-1e-9, `max |SᵀJS−J| = ${maxDef.toExponential(1)} · min shadow/πr² = ${minCap.toFixed(9)} (never < 1)`); }
+    { const B=PSP_MAPS.bad.f(0.5), sh=pspShadow(B,1);
+      ok('Phase space: and the law has real content — a map that preserves volume but is NOT canonical has determinant exactly 1 and still squeezes the ball to a quarter of the forbidden area, so it is the symplectic form and not the volume that blocks the others',
+        Math.abs(pspDet(B)-1)<1e-12 && pspSympDefect(B)>0.1 && sh.A/Math.PI<0.3,
+        `det = ${pspDet(B).toFixed(12)} · |SᵀJS−J| = ${pspSympDefect(B).toFixed(3)} · shadow/πr² = ${(sh.A/Math.PI).toFixed(6)} → through the eye`); } }
   { // INVERSE ATLAS: every observable must round-trip, and refuse rather than clamp
     let rt=null, worst=0;
     for(const E of INVERSE_ATLAS){
@@ -15538,6 +15568,210 @@ function updateAnd(dt){
   }
 }
 
+
+/* ================================================================
+   PHASE-SPACE LAB · why this atlas is built on a 3-sphere, and the one law
+   that is stronger than conservation of volume.
+
+   Two harmonic oscillators have phase space R⁴ with coordinates (q₁,q₂,p₁,p₂),
+   and their energy shell H = ½(q₁²+p₁²+q₂²+p₂²) = E is a 3-SPHERE of radius
+   √(2E). That is not an analogy. The S³ this whole atlas lives on IS an energy
+   shell, and at 1:1 resonance the time evolution z ↦ e^{−it}z is EXACTLY the
+   Hopf circle action: every trajectory is a Hopf fibre, every fibre closes after
+   2π no matter its amplitude, and two of them are linked exactly once. Detune to
+   n:m and the orbit closes into the (n,m) TORUS KNOT, with linking number n·m.
+   The Hopf fibration is the dynamics of two oscillators in resonance.
+
+   The second half is the symplectic camel. Liouville says phase-space volume is
+   conserved. Gromov says something far stronger: a ball of radius r can never be
+   squeezed by ANY canonical transformation through a hole of radius < r in a
+   conjugate plane, even though volume would happily allow it. The area of the
+   shadow on a conjugate plane is a symplectic invariant — a capacity — and it is
+   the classical skeleton of Δq·Δp ≥ ħ/2. Here you can attempt the squeeze: the
+   symplectic maps never get through, and a volume-preserving map that is NOT
+   canonical goes through immediately, which is what proves the law has content. */
+const pspGroup=new THREE.Group(); pspGroup.visible=false; s3Group.add(pspGroup);
+let pspObjs=null, pspT=0, pspUiAcc=0, pspBuiltFor=null;
+/* coordinates ordered (q₁,q₂,p₁,p₂); J = [[0,I],[−I,0]] */
+const PSP_J=[[0,0,1,0],[0,0,0,1],[-1,0,0,0],[0,-1,0,0]];
+const pspI4=()=>[[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]];
+const pspMul=(A,B)=>A.map(r=>[0,1,2,3].map(j=>r.reduce((s,v,k)=>s+v*B[k][j],0)));
+const pspT4=A=>[0,1,2,3].map(j=>A.map(r=>r[j]));
+function pspSympDefect(S){ const M=pspMul(pspMul(pspT4(S),PSP_J),S); let e=0;
+  for(let i=0;i<4;i++) for(let j=0;j<4;j++) e=Math.max(e,Math.abs(M[i][j]-PSP_J[i][j])); return e; }
+function pspDet(A){ const d3=B=>B[0][0]*(B[1][1]*B[2][2]-B[1][2]*B[2][1])-B[0][1]*(B[1][0]*B[2][2]-B[1][2]*B[2][0])+B[0][2]*(B[1][0]*B[2][1]-B[1][1]*B[2][0]);
+  let d=0; for(let j=0;j<4;j++){ const m=A.slice(1).map(r=>r.filter((_,c)=>c!==j)); d+=((j%2)?-1:1)*A[0][j]*d3(m); } return d; }
+const PSP_MAPS={
+  squeeze:{ f:l=>{ const S=pspI4(); S[0][0]=l; S[2][2]=1/l; return S; }, symp:true,
+    t:{en:'canonical squeeze · q₁→λq₁, p₁→p₁/λ',ru:'каноническое сжатие · q₁→λq₁, p₁→p₁/λ',de:'kanonische Stauchung'} },
+  shear:{ f:l=>{ const S=pspI4(); S[2][0]=4*(l-1); return S; }, symp:true,
+    t:{en:'canonical shear · p₁→p₁+aq₁',ru:'канонический сдвиг · p₁→p₁+aq₁',de:'kanonische Scherung'} },
+  mix:{ f:l=>{ const S=pspI4(), t=(l-1)*2, c=Math.cos(t), s=Math.sin(t);
+      S[0][0]=c; S[0][1]=s; S[1][0]=-s; S[1][1]=c; S[2][2]=c; S[2][3]=s; S[3][2]=-s; S[3][3]=c; return S; }, symp:true,
+    t:{en:'canonical mixing of the two degrees of freedom',ru:'каноническое смешивание двух степеней свободы',de:'kanonische Mischung'} },
+  bad:{ f:l=>{ const S=pspI4(); S[0][0]=l; S[2][2]=l; S[1][1]=1/l; S[3][3]=1/l; return S; }, symp:false,
+    t:{en:'volume-preserving but NOT canonical · det = 1 all the same',ru:'сохраняет объём, но НЕ каноническое · det = 1 всё равно',de:'volumenerhaltend, aber NICHT kanonisch'} }
+};
+/* exact shadow of the image ball on the conjugate (q₁,p₁) plane:
+   semi-axes are r·√eig(M₂M₂ᵀ) with M₂ the (q₁,p₁) rows of S. Area = πr²√det(M₂M₂ᵀ). */
+function pspShadow(S,r){
+  const M=[S[0],S[2]];
+  const a=M[0].reduce((s,v)=>s+v*v,0), b=M[0].reduce((s,v,k)=>s+v*M[1][k],0), d=M[1].reduce((s,v)=>s+v*v,0);
+  const tr=a+d, dt=a*d-b*b, disc=Math.sqrt(Math.max(0,tr*tr/4-dt));
+  const l1=tr/2+disc, l2=tr/2-disc;
+  const th=Math.abs(b)<1e-14?(a>=d?0:Math.PI/2):0.5*Math.atan2(2*b,a-d);
+  return { A:Math.PI*r*r*Math.sqrt(Math.max(0,dt)), s1:r*Math.sqrt(Math.max(0,l1)), s2:r*Math.sqrt(Math.max(0,l2)), th, det:dt };
+}
+/* n:m resonant orbit on the unit S³, stereographically projected from (0,0,0,1) */
+function pspOrbit(a,n,m,N,ph1,ph2,R){
+  const b=Math.sqrt(Math.max(0,1-a*a)), P=[];
+  for(let k=0;k<=N;k++){ const t=2*Math.PI*k/N;
+    const z1r=a*Math.cos(n*t+ph1), z1i=a*Math.sin(n*t+ph1),
+          z2r=b*Math.cos(m*t+ph2), z2i=b*Math.sin(m*t+ph2);
+    const dd=1-z2i;
+    if(dd<0.18){ P.push(null); continue; }   // clip near the projection pole so no branch flies off frame
+    /* (q₁,p₁,q₂) → (x,y,z) by a CYCLIC permutation: an even permutation preserves
+       orientation, so the measured Gauss linking comes out +n·m and not −n·m. */
+    P.push(new THREE.Vector3(R*z1i/dd, R*z2r/dd, R*z1r/dd)); }
+  return P;
+}
+/* A curve clipped near the projection pole is no longer one polyline. Drawing it
+   as one would stitch a straight chord across the gap; these are the honest pairs.
+   (The two orbits actually MEASURED for the linking integral are chosen at
+   amplitudes that never reach the clip, so the integral runs on closed curves.) */
+function pspSegs(P){ const out=[];
+  for(let i=0;i<P.length-1;i++) if(P[i]&&P[i+1]){ out.push(P[i],P[i+1]); }
+  return out; }
+function pspGauss(A,B){ let s=0; const nA=A.length-1, nB=B.length-1;
+  for(let i=0;i<nA;i++){ const a0=A[i],a1=A[i+1]; if(!a0||!a1) continue;
+    const dx=a1.x-a0.x, dy=a1.y-a0.y, dz=a1.z-a0.z;
+    const ax=(a0.x+a1.x)/2, ay=(a0.y+a1.y)/2, az=(a0.z+a1.z)/2;
+    for(let j=0;j<nB;j++){ const b0=B[j],b1=B[j+1]; if(!b0||!b1) continue;
+      const ex=b1.x-b0.x, ey=b1.y-b0.y, ez=b1.z-b0.z;
+      const rx=ax-(b0.x+b1.x)/2, ry=ay-(b0.y+b1.y)/2, rz=az-(b0.z+b1.z)/2;
+      const rl=Math.hypot(rx,ry,rz); if(rl<1e-7) continue;
+      const cx=dy*ez-dz*ey, cy=dz*ex-dx*ez, cz=dx*ey-dy*ex;
+      s+=(rx*cx+ry*cy+rz*cz)/(rl*rl*rl); } }
+  return s/(4*Math.PI); }
+let PSP_S3=null;                                     // one fixed uniform sample of S³, reused every rebuild
+function pspSample(){ if(PSP_S3) return PSP_S3;
+  let sd=20250730; const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+  const g=()=>{ const u=Math.max(1e-12,rn()), v=rn(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); };
+  const N=2600, a=new Float64Array(N*4);
+  for(let i=0;i<N;i++){ const x=[g(),g(),g(),g()], n=Math.hypot(x[0],x[1],x[2],x[3])||1;
+    for(let k=0;k<4;k++) a[i*4+k]=x[k]/n; }
+  PSP_S3=a; return a; }
+function pspClear(){ labWipe(pspGroup); pspObjs=null; pspBuiltFor=null; }
+function pspSetup(){
+  pspClear(); pspT=0;
+  pspGroup.add(new THREE.AmbientLight(0x8a94b8,.66));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); pspGroup.add(dl);
+  // ── camel station ────────────────────────────────────────────────────────────
+  const camel=new THREE.Group(); pspGroup.add(camel);
+  const cloud=new THREE.Points(new THREE.BufferGeometry(),
+    new THREE.PointsMaterial({size:.03,color:0x7fd4ff,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
+  camel.add(cloud);
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(7,7,1,1),
+    new THREE.MeshBasicMaterial({color:0x0d1c33,transparent:true,opacity:.28,side:THREE.DoubleSide}));
+  floor.rotation.x=-Math.PI/2; floor.position.y=-2.05; camel.add(floor);
+  const shadow=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95}));
+  const eye=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+  camel.add(shadow); camel.add(eye);
+  const cyl=new THREE.Mesh(new THREE.CylinderGeometry(1,1,2.6,54,1,true),
+    new THREE.MeshBasicMaterial({color:0xffcf6a,wireframe:true,transparent:true,opacity:.10,side:THREE.DoubleSide}));
+  camel.add(cyl);
+  const cl1=mkLabel(TT('the eye of the needle · radius r in the conjugate (q₁,p₁) plane','игольное ушко · радиус r в сопряжённой плоскости (q₁,p₁)','das Nadelöhr · Radius r in der konjugierten Ebene'),'label dim');
+  cl1.position.set(0,-2.35,0); camel.add(cl1);
+  const cl2=mkLabel('','label const'); cl2.position.set(0,2.35,0); camel.add(cl2);
+  // ── S³ shell station ─────────────────────────────────────────────────────────
+  const shell=new THREE.Group(); pspGroup.add(shell);
+  const orbits=new THREE.Group(); shell.add(orbits);
+  const hi1=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const hi2=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x8affc0,transparent:true,opacity:.95,blending:THREE.AdditiveBlending,depthWrite:false}));
+  shell.add(hi1); shell.add(hi2);
+  const walker=new THREE.Mesh(new THREE.SphereGeometry(0.062,16,12),new THREE.MeshBasicMaterial({color:0xfff2c8}));
+  shell.add(walker);
+  const sl=mkLabel('','label const'); sl.position.set(0,2.5,0); shell.add(sl);
+  const tl=mkLabel(TT('PHASE SPACE · the S³ of this atlas IS an energy shell, and volume is not the only thing conserved','ФАЗОВОЕ ПРОСТРАНСТВО · S³ этого атласа ЕСТЬ энергетическая поверхность, и сохраняется не только объём','PHASENRAUM · das S³ dieses Atlas IST eine Energiefläche'),'label const');
+  tl.position.set(0,3.05,0); pspGroup.add(tl);
+  pspObjs={camel,shell,cloud,shadow,eye,cyl,readCamel:cl2,readShell:sl,orbits,hi1,hi2,walker};
+}
+function updatePsp(dt){
+  const O=pspObjs; if(!O) return; pspT+=dt;
+  const st=state.pspStation||'shell', mp=state.pspMap||'squeeze', lam=state.pspLambda??0.5,
+        r=state.pspR??1.0, n=Math.max(1,Math.round(state.pspN??1)), m=Math.max(1,Math.round(state.pspM??1)),
+        nOrb=Math.max(3,Math.round(state.pspOrbits??14));
+  O.camel.visible=(st==='camel'); O.shell.visible=(st==='shell');
+  const key=st+'|'+mp+'|'+lam.toFixed(5)+'|'+r.toFixed(4)+'|'+n+'|'+m+'|'+nOrb;
+  if(pspBuiltFor!==key){ pspBuiltFor=key;
+    if(st==='camel'){
+      const S=PSP_MAPS[mp].f(lam), sh=pspShadow(S,r);
+      const smp=pspSample(), N=smp.length/4, pos=new Float32Array(N*3), SC=1.25;
+      for(let i=0;i<N;i++){ const x=[r*smp[i*4],r*smp[i*4+1],r*smp[i*4+2],r*smp[i*4+3]];
+        const y=[0,0,0,0]; for(let a=0;a<4;a++){ let s=0; for(let b=0;b<4;b++) s+=S[a][b]*x[b]; y[a]=s; }
+        pos[i*3]=SC*y[0]; pos[i*3+1]=SC*y[1]*0.8; pos[i*3+2]=SC*y[2]; }   // shown in (q₁,q₂,p₁)
+      O.cloud.geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));
+      O.cloud.geometry.computeBoundingSphere();
+      { const p=[]; for(let k=0;k<=180;k++){ const t=2*Math.PI*k/180;
+          const u=sh.s1*Math.cos(t), v=sh.s2*Math.sin(t);
+          p.push(new THREE.Vector3(SC*(u*Math.cos(sh.th)-v*Math.sin(sh.th)),-2.03,SC*(u*Math.sin(sh.th)+v*Math.cos(sh.th)))); }
+        O.shadow.geometry.setFromPoints(p); O.shadow.geometry.computeBoundingSphere(); }
+      { const p=[]; for(let k=0;k<=120;k++){ const t=2*Math.PI*k/120;
+          p.push(new THREE.Vector3(SC*r*Math.cos(t),-2.02,SC*r*Math.sin(t))); }
+        O.eye.geometry.setFromPoints(p); O.eye.geometry.computeBoundingSphere(); }
+      O.cyl.scale.set(SC*r,1,SC*r);
+      O.stat={S,sh,defect:pspSympDefect(S),det:pspDet(S),cap:sh.A/(Math.PI*r*r)};
+    } else {
+      labWipe(O.orbits);
+      for(let i=0;i<nOrb;i++){ const a=0.34+0.58*(i+0.5)/nOrb;
+        const P=pspSegs(pspOrbit(a,n,m,420,0.7*i,1.9*i,0.8));
+        if(P.length<8) continue;
+        const c=new THREE.Color().setHSL(0.56-0.42*(i/(nOrb-1||1)),0.72,0.5);
+        const L=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(P),
+          new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
+        L.geometry.computeBoundingSphere(); O.orbits.add(L); }
+      const A=pspOrbit(0.62,n,m,700,0,0,0.8), B=pspOrbit(0.80,n,m,700,1.1,2.3,0.8);
+      const Af=A.filter(Boolean), Bf=B.filter(Boolean);
+      O.hi1.geometry.setFromPoints(pspSegs(A)); O.hi1.geometry.computeBoundingSphere();
+      O.hi2.geometry.setFromPoints(pspSegs(B)); O.hi2.geometry.computeBoundingSphere();
+      O.stat={link:pspGauss(Af,Bf), nm:n*m, walk:Af, closed:(Af.length===A.length&&Bf.length===B.length)};
+    }
+  }
+  if(st==='shell'&&O.stat&&O.stat.walk&&O.stat.walk.length){
+    const W=O.stat.walk, k=Math.floor((pspT*0.16*W.length)%W.length);
+    O.walker.position.copy(W[k]); O.walker.visible=true;
+    O.shell.rotation.y+=dt*0.1;
+  } else O.walker.visible=false;
+  if(st==='camel') O.camel.rotation.y=Math.sin(pspT*0.13)*0.4;
+  pspUiAcc+=dt; if(pspUiAcc>0.3){ pspUiAcc=0; const S=O.stat||{};
+    if(st==='camel'){
+      const passes=S.cap<1-1e-9;
+      O.readCamel.element.textContent=`|SᵀJS−J| = ${(S.defect??0).toExponential(1)} · det S = ${(S.det??1).toFixed(9)} · shadow/πr² = ${(S.cap??1).toFixed(6)}`;
+      hudBig.textContent=`${TT('SYMPLECTIC CAMEL','СИМПЛЕКТИЧЕСКИЙ ВЕРБЛЮД','SYMPLEKTISCHES KAMEL')} · det S = ${(S.det??1).toFixed(6)} · ${TT('shadow','тень','Schatten')}/πr² = ${(S.cap??1).toFixed(6)} · ${passes?TT('SQUEEZED THROUGH — so the map is not canonical','ПРОШЁЛ — значит отображение не каноническое','DURCH — also nicht kanonisch'):TT('cannot pass','пройти не может','kommt nicht durch')}`;
+      hudSub.textContent=TT('Liouville says a canonical transformation preserves phase-space volume. Gromov says something much stronger, and this is it: a ball of radius r can never be squeezed through a hole of radius smaller than r in a CONJUGATE plane — one where a coordinate meets its own momentum — no matter how the volume is redistributed. Try it. Every canonical map on offer leaves the shadow area exactly πr², to the last digit, however violently it deforms the ball in every other direction. Then choose the map that preserves volume but is not canonical: its determinant is still exactly 1, and it goes straight through the eye. That is the content of the theorem — volume is not the obstruction, the symplectic form is. The conserved shadow is a capacity, and the smallest capacity a quantum state can have is Planck’s constant itself, which is why Δq·Δp ≥ ħ/2 has a purely classical skeleton standing underneath it.',
+        'Лиувилль говорит, что каноническое преобразование сохраняет фазовый объём. Громов говорит гораздо больше, и вот оно: шар радиуса r никогда не протиснуть в отверстие радиуса меньше r в СОПРЯЖЁННОЙ плоскости — той, где координата встречается со своим импульсом, — как бы ни перераспределяли объём. Попробуй. Любое каноническое отображение оставляет площадь тени в точности πr², до последней цифры, как бы яростно оно ни деформировало шар по всем прочим направлениям. Затем выбери отображение, сохраняющее объём, но не каноническое: его определитель по-прежнему ровно 1 — и оно проходит сквозь ушко насквозь. В этом и содержание теоремы: препятствие не объём, а симплектическая форма. Сохраняющаяся тень есть ёмкость, а наименьшая ёмкость квантового состояния — сама постоянная Планка; поэтому у Δq·Δp ≥ ħ/2 есть чисто классический скелет.',
+        'Liouville: eine kanonische Transformation erhält das Phasenraumvolumen. Gromov sagt weit mehr: eine Kugel vom Radius r lässt sich durch kein kanonisches Abbild durch ein Loch kleineren Radius in einer KONJUGIERTEN Ebene pressen. Jede kanonische Abbildung hier lässt die Schattenfläche exakt πr². Die volumenerhaltende, aber nicht kanonische Abbildung hat ebenfalls Determinante 1 — und geht sofort hindurch. Nicht das Volumen ist das Hindernis, sondern die symplektische Form. Der erhaltene Schatten ist eine Kapazität, und die kleinste Kapazität eines Quantenzustands ist das Plancksche Wirkungsquantum.');
+      ATLAS_BUS.pub('psp.capacity',+(S.cap??1).toFixed(6),'/πr²');
+    } else {
+      O.readShell.element.textContent=`${n}:${m} · ${TT('linking','зацепление','Verschlingung')} = ${(S.link??0).toFixed(4)} · n·m = ${S.nm} · S³ ${TT('radius','радиус','Radius')} √(2E)`;
+      hudBig.textContent=`${TT('PHASE SPACE','ФАЗОВОЕ ПРОСТРАНСТВО','PHASENRAUM')} · ${n}:${m} ${TT('resonance','резонанс','Resonanz')} · ${TT('linking number','коэффициент зацепления','Verschlingungszahl')} = ${(S.link??0).toFixed(4)} = n·m = ${S.nm}`;
+      hudSub.textContent=TT('Two harmonic oscillators have phase space R⁴, and their energy shell H = ½(q₁²+p₁²+q₂²+p₂²) = E is a 3-sphere of radius √(2E). That is not a metaphor: the S³ this entire atlas is built on IS an energy shell, and the fibration it is famous for IS the dynamics. At 1:1 resonance the flow is exactly z ↦ e^{−it}z, the Hopf circle action, so every trajectory is a Hopf fibre, every one of them closes after 2π no matter its amplitude — perfect isochrony — and any two are linked exactly once. Detune to n:m and the orbit closes into the (n,m) torus knot instead, with linking number n·m, measured here by the Gauss integral on the projected curves rather than asserted. The knots in the hopfion laboratory and the fibres in the Hopf laboratory are the same objects seen as mechanics: resonance is what ties them.',
+        'У двух гармонических осцилляторов фазовое пространство R⁴, а их энергетическая поверхность H = ½(q₁²+p₁²+q₂²+p₂²) = E есть трёхмерная сфера радиуса √(2E). Это не метафора: S³, на которой построен весь атлас, ЕСТЬ энергетическая поверхность, а знаменитое расслоение ЕСТЬ динамика. При резонансе 1:1 поток — в точности z ↦ e^{−it}z, круговое действие Хопфа: каждая траектория есть слой Хопфа, каждая замыкается через 2π независимо от амплитуды (совершенная изохронность), а любые две зацеплены ровно один раз. Расстрой до n:m — и орбита замкнётся в торический узел (n,m) с коэффициентом зацепления n·m, измеренным здесь интегралом Гаусса по спроецированным кривым, а не постулированным. Узлы в лаборатории хопфионов и слои в лаборатории Хопфа — одни и те же объекты, увиденные как механика: их связывает резонанс.',
+        'Zwei harmonische Oszillatoren haben den Phasenraum R⁴, und ihre Energiefläche H = E ist eine 3-Sphäre vom Radius √(2E). Das S³ dieses Atlas IST eine Energiefläche, und die Hopf-Faserung IST die Dynamik: bei 1:1-Resonanz ist der Fluss genau die Hopf-Kreiswirkung, jede Bahn schließt nach 2π unabhängig von der Amplitude, je zwei sind genau einmal verschlungen. Bei n:m entsteht der (n,m)-Torusknoten mit Verschlingungszahl n·m — hier per Gauß-Integral gemessen, nicht behauptet.');
+      ATLAS_BUS.pub('psp.link',+(S.link??0).toFixed(4),'');
+    }
+    const el=ctl.querySelector('#pspInv'); if(el) el.innerHTML= st==='camel'
+      ? `S ∈ ${TT('4×4 real matrix','вещественная 4×4','reelle 4×4')} · ${TT('canonical ⇔','каноническое ⇔','kanonisch ⇔')} SᵀJS = J · |SᵀJS−J| = <b style="color:${(S.defect??0)<1e-12?'#9fe8c0':'#ff8a6a'}">${(S.defect??0).toExponential(2)}</b> · det S = <b>${(S.det??1).toFixed(9)}</b><br>`
+       +`${TT('shadow on the conjugate (q₁,p₁) plane','тень на сопряжённой плоскости (q₁,p₁)','Schatten auf der konjugierten Ebene')} = <b>${(S.sh?S.sh.A:0).toFixed(6)}</b> · πr² = <b>${(Math.PI*r*r).toFixed(6)}</b> → <b style="color:${(S.cap??1)<1-1e-9?'#ff8a6a':'#9fe8c0'}">${(S.cap??1).toFixed(9)}</b><br>`
+       +`<b style="color:${(S.cap??1)<1-1e-9?'#ff8a6a':'#9fe8c0'}">${(S.cap??1)<1-1e-9?TT('the ball passed the eye — and the determinant proves volume was NOT what stopped the others','шар прошёл ушко — и определитель доказывает, что других останавливал НЕ объём','die Kugel ging durch — nicht das Volumen war die Schranke'):TT('the shadow is exactly πr² — no canonical map can shrink it, this is the capacity','тень в точности πr² — никакое каноническое отображение её не уменьшит, это и есть ёмкость','der Schatten ist exakt πr² — das ist die Kapazität')}</b><br>`
+       +`<span style="opacity:.72">${TT('DECLARED: this is the LINEAR case of Gromov’s theorem, which is where it can be checked exactly; the nonlinear statement is the same inequality and is not re-derived here. The bridge to ħ (a minimum-uncertainty state occupies capacity h) is quoted, not proved.','ЗАЯВЛЕНО: это ЛИНЕЙНЫЙ случай теоремы Громова, где её можно проверить точно; нелинейное утверждение — то же неравенство и здесь не выводится. Связь с ħ (состояние минимальной неопределённости занимает ёмкость h) приводится, а не доказывается.','ERKLÄRT: der LINEARE Fall des Satzes von Gromov, exakt prüfbar; die nichtlineare Aussage wird nicht neu hergeleitet.')}</span>`
+      : `H = ½(q₁²+p₁²+q₂²+p₂²) = E → S³ ${TT('of radius','радиуса','vom Radius')} √(2E) · ${TT('flow','поток','Fluss')} z ↦ (e^{−int}z₁, e^{−imt}z₂)<br>`
+       +`${TT('measured Gauss linking of two orbits','измеренное зацепление Гаусса двух орбит','gemessene Gauß-Verschlingung')} = <b>${(S.link??0).toFixed(5)}</b> · n·m = <b>${S.nm}</b> · ${TT('residual','невязка','Rest')} <b>${Math.abs((S.link??0)-(S.nm??0)).toExponential(1)}</b>${S.closed?` · <span style="opacity:.8">${TT('both measured orbits are closed curves, so the integral is the genuine linking number','обе измеряемые орбиты замкнуты, поэтому интеграл даёт настоящее зацепление','beide gemessenen Bahnen sind geschlossen')}</span>`:''}<br>`
+       +`<span style="color:#9fe8c0">${n===1&&m===1?TT('1:1 — every orbit is a HOPF FIBRE and closes after exactly 2π at any amplitude (isochrony); the fibration of this atlas is this flow','1:1 — каждая орбита есть СЛОЙ ХОПФА и замыкается ровно через 2π при любой амплитуде (изохронность); расслоение этого атласа и есть этот поток','1:1 — jede Bahn ist eine HOPF-FASER'):TT('a closed (n,m) TORUS KNOT on the energy 3-sphere','замкнутый ТОРИЧЕСКИЙ УЗЕЛ (n,m) на энергетической 3-сфере','ein geschlossener (n,m)-TORUSKNOTEN')}</span><br>`
+       +`<span style="opacity:.72">${TT('The linking number is integrated from the projected curves with the Gauss integral, so the integer you read is measured, not asserted; its residual is shown beside it.','Коэффициент зацепления интегрируется по спроецированным кривым интегралом Гаусса, поэтому целое число измерено, а не постулировано; рядом показана невязка.','Die Verschlingungszahl wird per Gauß-Integral aus den projizierten Kurven gemessen; der Rest steht daneben.')}</span>`;
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -16338,7 +16572,7 @@ function updateRpd(dt){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
@@ -16393,6 +16627,7 @@ function s3ViewVisibility(v){
   kamGroup.visible     = (v==='kam');
   rshGroup.visible     = (v==='rsh');
   andGroup.visible     = (v==='and');
+  pspGroup.visible     = (v==='psp');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -16447,6 +16682,7 @@ function setS3View(v){
   if(v==='kam'){ kamSetup(); }
   if(v==='rsh'){ rshSetup(); }
   if(v==='and'){ andSetup(); }
+  if(v==='psp'){ pspSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -21702,6 +21938,7 @@ const state = {
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invTol:1e-3,   // Inverse atlas — query the whole atlas by value
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
+  pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -23815,6 +24052,47 @@ function buildCtlBody(){
         <button class="btn" id="andToKam">${TT('→ KAM: det = 1 again, order vs chaos','→ КАМ: снова det = 1, порядок и хаос','→ KAM: wieder det = 1')}</button>
         <button class="btn" id="andToRel">${TT('→ Relativity: rapidity is this same hyperbolic distance','→ Относительность: быстрота есть то же гиперболическое расстояние','→ Relativität: Rapidität ist derselbe Abstand')}</button></div>
     </div>`;
+    else if(V==='psp') body = `
+    <div class="sect"><b>${TT('Station','Станция','Station')}</b>
+      <div class="chips">
+        ${[['shell',TT('S³ energy shell · Hopf flow · torus knots','Энергетическая S³ · поток Хопфа · торические узлы','S³-Energiefläche · Hopf-Fluss')],
+           ['camel',TT('Symplectic camel · non-squeezing','Симплектический верблюд · непротискиваемость','Symplektisches Kamel')]]
+          .map(([k,l])=>`<button class="chip ${(state.pspStation||'shell')===k?'on':''}" data-pspst="${k}">${l}</button>`).join('')}
+      </div>
+    </div>
+    ${(state.pspStation||'shell')==='shell'?`
+    <div class="sect"><b>${TT('Resonance n:m — the orbit is a torus knot','Резонанс n:m — орбита есть торический узел','Resonanz n:m')}</b>
+      <div class="chips">
+        ${[[1,1,TT('1:1 · Hopf fibres','1:1 · слои Хопфа','1:1 · Hopf-Fasern')],[1,2,'1:2'],[2,3,TT('2:3 · trefoil','2:3 · трилистник','2:3 · Kleeblatt')],[3,4,'3:4'],[2,5,'2:5']]
+          .map(([a,b,l])=>`<button class="chip ${(state.pspN??1)===a&&(state.pspM??1)===b?'on':''}" data-pspnm="${a}|${b}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>n</label>
+        <input type="range" id="pspN" min="1" max="6" step="1" value="${state.pspN??1}"><span class="val" id="pspNV">${state.pspN??1}</span></div>
+      <div class="ctlrow"><label>m</label>
+        <input type="range" id="pspM" min="1" max="6" step="1" value="${state.pspM??1}"><span class="val" id="pspMV">${state.pspM??1}</span></div>
+      <div class="ctlrow"><label>${TT('orbits','орбит','Bahnen')}</label>
+        <input type="range" id="pspOrbits" min="3" max="34" step="1" value="${state.pspOrbits??14}"><span class="val" id="pspOrbitsV">${state.pspOrbits??14}</span></div>
+    </div>`:`
+    <div class="sect"><b>${TT('Attempt the squeeze','Попытка протиснуть','Versuch der Stauchung')}</b>
+      <div class="chips">
+        ${Object.entries(PSP_MAPS).map(([k,M])=>`<button class="chip ${(state.pspMap||'squeeze')===k?'on':''}" data-pspmap="${k}">${(M.symp?'✓ ':'✗ ')+impL(M.t)}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>λ</label>
+        <input type="range" id="pspLambda" min="0.16" max="3" step="0.0001" value="${state.pspLambda??0.5}"><span class="val" id="pspLambdaV">${(state.pspLambda??0.5).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>r</label>
+        <input type="range" id="pspR" min="0.3" max="1.6" step="0.0001" value="${state.pspR??1}"><span class="val" id="pspRV">${(state.pspR??1).toFixed(4)}</span></div>
+    </div>`}
+    <div class="sect"><b>${TT('Invariant passport','Паспорт инварианта','Invarianten-Pass')}</b>
+      <div class="note" id="pspInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The S³ of this atlas is the energy shell of two harmonic oscillators, and the Hopf fibration is their 1:1 resonant flow — not an analogy but the same object, which is why every fibre closes after 2π at any amplitude and any two are linked once. Detuning to n:m turns the orbit into the (n,m) torus knot with linking number n·m, and the integer is MEASURED by the Gauss integral on the projected curves. On the other station, Liouville is shown to be the weaker statement: the shadow of a ball on a conjugate plane is a symplectic capacity that no canonical map can shrink, while a map that merely preserves volume passes straight through. DECLARED: the linear case of Gromov’s theorem is what is checked here — exactly, over random symplectic words — and the link to ħ is quoted rather than derived.','S³ этого атласа есть энергетическая поверхность двух гармонических осцилляторов, а расслоение Хопфа — их резонансный поток 1:1; не аналогия, а тот же объект, поэтому каждый слой замыкается через 2π при любой амплитуде, а любые два зацеплены однажды. Расстройка до n:m превращает орбиту в торический узел (n,m) с зацеплением n·m, и это целое ИЗМЕРЯЕТСЯ интегралом Гаусса по спроецированным кривым. На другой станции показано, что Лиувилль — более слабое утверждение: тень шара на сопряжённой плоскости есть симплектическая ёмкость, которую не уменьшит никакое каноническое отображение, тогда как просто сохраняющее объём проходит насквозь. ЗАЯВЛЕНО: проверяется линейный случай теоремы Громова — точно, на случайных симплектических словах, — а связь с ħ приводится, а не выводится.','Das S³ dieses Atlas ist die Energiefläche zweier harmonischer Oszillatoren, und die Hopf-Faserung ist ihr 1:1-resonanter Fluss. Bei n:m entsteht der (n,m)-Torusknoten mit Verschlingungszahl n·m, per Gauß-Integral GEMESSEN. An der anderen Station erweist sich Liouville als die schwächere Aussage: der Schatten auf einer konjugierten Ebene ist eine symplektische Kapazität. ERKLÄRT: geprüft wird der lineare Fall des Satzes von Gromov; die ħ-Brücke wird zitiert, nicht hergeleitet.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="pspToHopf">${TT('→ Hopf fibres: the same flow, drawn as geometry','→ Слои Хопфа: тот же поток как геометрия','→ Hopf-Fasern: derselbe Fluss')}</button>
+        <button class="btn" id="pspToKam">${TT('→ KAM: det = 1 is the two-dimensional shadow of this','→ КАМ: det = 1 есть двумерная тень этого','→ KAM: det = 1 ist der 2-D-Schatten')}</button>
+        <button class="btn" id="pspToTopo">${TT('→ Topology: the linking number as an invariant','→ Топология: зацепление как инвариант','→ Topologie: die Verschlingungszahl')}</button>
+        <button class="btn" id="pspToSpin">${TT('→ Quantum spin: the reduced sphere is the Bloch sphere','→ Квантовый спин: приведённая сфера есть сфера Блоха','→ Quantenspin: die reduzierte Sphäre')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -24484,6 +24762,7 @@ function buildCtlBody(){
         <button class="btn ${V==='qcrys'?'on':''}" id="v-qcrys">${TT('Quasicrystal','Квазикристалл','Quasikristall')}</button>
         <button class="btn ${V==='rsh'?'on':''}" id="v-rsh">${TT('Riemann sheet','Лист Римана','Riemann-Blatt')}</button>
         <button class="btn ${V==='and'?'on':''}" id="v-and">${TT('Anderson','Андерсон','Anderson')}</button>
+        <button class="btn ${V==='psp'?'on':''}" id="v-psp">${TT('Phase space','Фазовое пространство','Phasenraum')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -24528,7 +24807,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -24987,6 +25266,21 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='psp'){
+      ctl.querySelectorAll('[data-pspst]').forEach(b=>b.onclick=()=>{ state.pspStation=b.dataset.pspst; buildCtl(); });
+      ctl.querySelectorAll('[data-pspnm]').forEach(b=>b.onclick=()=>{ const [a,c]=b.dataset.pspnm.split('|').map(Number);
+        state.pspN=a; state.pspM=c; buildCtl(); });
+      ctl.querySelectorAll('[data-pspmap]').forEach(b=>b.onclick=()=>{ state.pspMap=b.dataset.pspmap; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('pspN',v=>state.pspN=v|0,v=>String(v|0)); kv('pspM',v=>state.pspM=v|0,v=>String(v|0));
+      kv('pspOrbits',v=>state.pspOrbits=v|0,v=>String(v|0));
+      kv('pspLambda',v=>state.pspLambda=v,v=>v.toFixed(4)); kv('pspR',v=>state.pspR=v,v=>v.toFixed(4));
+      ctl.querySelector('#pspToHopf')&&(ctl.querySelector('#pspToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+      ctl.querySelector('#pspToKam')&&(ctl.querySelector('#pspToKam').onclick=()=>{ navPush(); setS3View('kam'); buildCtl(); });
+      ctl.querySelector('#pspToTopo')&&(ctl.querySelector('#pspToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#pspToSpin')&&(ctl.querySelector('#pspToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
     }
     if(V==='and'){
       ctl.querySelectorAll('[data-andp]').forEach(b=>b.onclick=()=>{ const [e,w]=b.dataset.andp.split('|').map(Number);
@@ -26521,10 +26815,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -28138,6 +28432,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='psp'){
+      fbsAnimT+=dt; updatePsp(dt);
     } else if(state.s3view==='and'){
       fbsAnimT+=dt; updateAnd(dt);
     } else if(state.s3view==='rsh'){
