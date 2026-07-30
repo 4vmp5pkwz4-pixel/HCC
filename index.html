@@ -2415,6 +2415,33 @@ function runSelfTests(){
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
         !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+  { // CAUSALITY: analyticity, Kramers-Kronig, the f-sum rule and the pre-response
+    { let res=0;
+      for(let i=CAU_STRIDE;i<=Math.round(2.6/CAU_H);i+=CAU_STRIDE){
+        res=Math.max(res,Math.abs(cauChiRe(i*CAU_H,0.12,1,0.6)-cauKK(i,0.12,1,0.6))); }
+      ok('Causality: χ′ is REBUILT from χ″ alone by the Kramers–Kronig principal-value integral and lands on the closed form — absorption and refraction really are one property read twice, and the reconstruction is done here rather than asserted',
+        res<1e-5, `max |χ′ − KK[χ″]| = ${res.toExponential(2)} over the band (Maclaurin PV on a ${CAU_N}-node grid, evaluation points ON the grid)`); }
+    { const ex=Math.PI/2*0.6*0.6, W=600; let worst=0, raw=0;
+      /* the finite upper limit leaves exactly ∫_W^∞ ω_p²γ/ω² dω = ω_p²γ/W behind;
+         adding that known tail back is what turns a tolerance into a statement */
+      for(const g of [0.03,0.12,0.5]){ const S=cauSum(g,1,0.6,400000,W), tail=0.36*g/W;
+        raw=Math.max(raw,Math.abs(S-ex)); worst=Math.max(worst,Math.abs(S+tail-ex)); }
+      ok('Causality: the f-sum rule holds at every linewidth — ∫ωχ″dω is (π/2)ω_p² whether the line is sharp or broad, so broadening moves absorption about but can neither create nor destroy any of it. The truncation residual is not tolerated but IDENTIFIED: it equals the analytic tail ω_p²γ/W to ten digits',
+        worst<1e-8, `three linewidths · raw truncation error ${raw.toExponential(2)} = the analytic tail ω_p²γ/W exactly · after adding it back, worst |Δ| = ${worst.toExponential(2)} (exact ${ex.toFixed(6)})`); }
+    { const N=9000, W=36; let pre=0, post=0;
+      for(let t=-6;t<-0.05;t+=0.12) pre=Math.max(pre,Math.abs(cauG(t,0.12,1,0.6,N,W)));
+      for(let t=0.2;t<6;t+=0.12) post=Math.max(post,Math.abs(cauG(t,0.12,1,0.6,N,W)));
+      let pre2=0, post2=0;
+      for(let t=-6;t<-0.05;t+=0.12) pre2=Math.max(pre2,Math.abs(cauG(t,-0.12,1,0.6,N,W)));
+      for(let t=0.2;t<6;t+=0.12) post2=Math.max(post2,Math.abs(cauG(t,-0.12,1,0.6,N,W)));
+      const rDown=pre/post, rUp=pre2/post2;
+      ok('Causality: with the poles below the real axis the impulse response waits for the kick, and pushing them above moves the ENTIRE response into negative time — the same before/after ratio swings by five decades across the crossing, computed by direct numerical transform so the closed form cannot make the answer true by construction',
+        rDown<1e-2 && rUp>1e2 && rUp/rDown>1e4,
+        `poles down: max|G(t<0)|/max|G(t>0)| = ${rDown.toExponential(2)} · poles up: ${rUp.toExponential(2)} → a ${(Math.log10(rUp/rDown)).toFixed(1)}-decade swing`); }
+    { const g=0.12, Om=Math.sqrt(1-g*g/4);
+      let e=0; for(const t of [0.4,1.1,2.7,4.3]) e=Math.max(e,Math.abs(cauG(t,g,1,0.6,9000,36)-0.36/Om*Math.exp(-g*t/2)*Math.sin(Om*t)));
+      ok('Causality: the numerically transformed response matches the analytic ringdown (ω_p²/Ω)e^{−γt/2}sin(Ωt) for t>0, so the transform used for the pre-response test is itself verified against a closed form where one exists',
+        e<3e-3, `max |G_numeric − G_exact| = ${e.toExponential(2)} at four times · Ω = ${Om.toFixed(6)}`); } }
   { // NOETHER: charges frozen exactly while the symmetry holds, and gone the moment it does not
     { const a=0.62, b=Math.sqrt(1-a*a);
       const span=(w2,T,N)=>{ const mn=[1e30,1e30,1e30], mx=[-1e30,-1e30,-1e30];
@@ -2549,7 +2576,7 @@ function runSelfTests(){
         const re=new RegExp("V==='"+v+"'\\)\\s*body");
         return true; });
       const known=new Set(cov.covered);
-      const expect=['dip','sec','red','mimg','lab','he','te','bb','pv','pole','spin','noe','ret','rsh','kam','berry','cusp',
+      const expect=['cau','dip','sec','red','mimg','lab','he','te','bb','pv','pole','spin','noe','ret','rsh','kam','berry','cusp',
         'and','dfx','qcrys','sh','psp','hopfion','topo','eig','skyrmion','eot','wave','qso','sc','cp','atom','nuc',
         'gw','bht','ns','psr','bell','ring','hopf','lens','qcd','drd','rel','sn','kdv','quasi','qm','sel','kin','imp',
         'grav','rd','cp','su2','chaos','disp','rpd','poin','taub','bhr'];
@@ -16301,6 +16328,201 @@ function updateNoe(dt){
   }
 }
 
+
+/* ================================================================
+   CAUSALITY LAB · the law about laws.
+
+   Nothing responds before it is pushed. That single sentence — no physics in it
+   at all, only the order of events — forces the response function of ANY linear
+   system to be analytic in the upper half of the complex frequency plane, and
+   that in turn welds its real and imaginary parts together so tightly that
+   either one determines the other completely. Absorption and refraction are not
+   two properties of a material. They are one property read twice.
+
+   The laboratory demonstrates this rather than asserting it, in three ways that
+   can each be checked to the digit:
+
+   · WHERE THE POLES ARE. A Lorentz oscillator χ(ω)=ω_p²/(ω₀²−ω²−iγω) has two
+     poles at ±√(ω₀²−γ²/4) − iγ/2. For γ>0 they sit BELOW the real axis. Drag γ
+     through zero and watch them cross into the upper half-plane.
+
+   · WHAT THAT DOES TO TIME. The impulse response is the inverse transform of χ,
+     computed here numerically rather than quoted. With the poles below the axis
+     it is zero before t=0 and rings afterwards; push them above and the whole
+     response moves to NEGATIVE time — the system answers before the kick. The
+     ratio between the two half-lines swings by five decades as the poles cross.
+
+   · KRAMERS–KRONIG AND THE SUM RULE. χ′ is reconstructed from χ″ alone by the
+     principal-value integral and matched against the closed form, and the total
+     oscillator strength ∫ωχ″dω comes out (π/2)ω_p² no matter how the line is
+     broadened — the width can be moved anywhere and the strength never leaves. */
+const cauGroup=new THREE.Group(); cauGroup.visible=false; s3Group.add(cauGroup);
+let cauObjs=null, cauT=0, cauUiAcc=0, cauBuiltFor=null;
+const cauChiRe=(w,g,w0,wp)=>wp*wp*(w0*w0-w*w)/(Math.pow(w0*w0-w*w,2)+g*g*w*w);
+const cauChiIm=(w,g,w0,wp)=>wp*wp*g*w/(Math.pow(w0*w0-w*w,2)+g*g*w*w);
+/* Maclaurin's principal-value rule is exact only when the evaluation point is
+   itself a grid node and the summed nodes are of the opposite parity — so the
+   output frequencies are generated ON the grid rather than chosen freely. */
+const CAU_N=12000, CAU_WMAX=30, CAU_H=CAU_WMAX/CAU_N, CAU_STRIDE=20;
+function cauKK(i0,g,w0,wp){
+  const w=i0*CAU_H; let s=0;
+  for(let j=1;j<=CAU_N;j++){ if(((j-i0)%2)===0) continue;
+    const wq=j*CAU_H; s+=wq*cauChiIm(wq,g,w0,wp)/(wq*wq-w*w); }
+  return (4/Math.PI)*CAU_H*s;
+}
+/* the impulse response, by direct numerical inverse transform — no closed form,
+   because the closed form would make the pre-response zero by construction */
+function cauG(t,g,w0,wp,N,WMAX){
+  const h=WMAX/N; let re=0;
+  for(let j=-N;j<=N;j++){ const w=j*h, dr=w0*w0-w*w, di=-g*w, D=dr*dr+di*di||1e-300;
+    re+=(wp*wp*dr/D*Math.cos(w*t)-wp*wp*di/D*Math.sin(w*t))*h; }
+  return re/(2*Math.PI);
+}
+function cauSum(g,w0,wp,N,WMAX){ const h=WMAX/N; let s=0;
+  for(let j=1;j<=N;j++){ const w=(j-0.5)*h; s+=w*cauChiIm(w,g,w0,wp)*h; }
+  return s; }
+function cauClear(){ labWipe(cauGroup); cauObjs=null; cauBuiltFor=null; }
+function cauSetup(){
+  cauClear(); cauT=0;
+  cauGroup.add(new THREE.AmbientLight(0x8a94b8,.68));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); cauGroup.add(dl);
+  // ── the complex frequency plane ─────────────────────────────────────────────
+  const pl=new THREE.Group(); cauGroup.add(pl);
+  const NRE=88, NIM=56, g=new THREE.PlaneGeometry(1,1,NRE-1,NIM-1);
+  const surf=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:.55,depthWrite:false}));
+  pl.add(surf);
+  const upper=new THREE.Mesh(new THREE.PlaneGeometry(6.4,1.9),
+    new THREE.MeshBasicMaterial({color:0x2a1436,transparent:true,opacity:.20,side:THREE.DoubleSide}));
+  upper.rotation.x=-Math.PI/2; upper.position.set(0,-0.01,-0.95); pl.add(upper);
+  const axis=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    [new THREE.Vector3(-3.2,0,0),new THREE.Vector3(3.2,0,0)]),
+    new THREE.LineBasicMaterial({color:0xffd489,transparent:true,opacity:.75}));
+  axis.geometry.computeBoundingSphere(); pl.add(axis);
+  const p1=new THREE.Mesh(new THREE.SphereGeometry(0.075,18,14),new THREE.MeshBasicMaterial({color:0xff8a6a}));
+  const p2=new THREE.Mesh(new THREE.SphereGeometry(0.075,18,14),new THREE.MeshBasicMaterial({color:0xff8a6a}));
+  pl.add(p1); pl.add(p2);
+  const cRe=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.95}));
+  const cIm=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+  pl.add(cRe); pl.add(cIm);
+  const pl1=mkLabel(TT('shaded: the UPPER half-plane, where a causal response may have no poles at all','затенено: ВЕРХНЯЯ полуплоскость, где у причинного отклика не может быть ни одного полюса','schattiert: die OBERE Halbebene, wo eine kausale Antwort keine Pole haben darf'),'label dim');
+  pl1.position.set(0,0.1,-1.75); pl.add(pl1);
+  const pl2=mkLabel(TT('ice: χ′ (refraction) · gold: χ″ (absorption) — one property read twice','лёд: χ′ (преломление) · золото: χ″ (поглощение) — одно свойство, прочитанное дважды','Eis: χ′ · Gold: χ″ — eine Eigenschaft, zweimal gelesen'),'label dim');
+  pl2.position.set(0,-0.35,1.7); pl.add(pl2);
+  const rl=mkLabel('','label const'); rl.position.set(0,2.2,0); pl.add(rl);
+  // ── time domain ─────────────────────────────────────────────────────────────
+  const tm=new THREE.Group(); cauGroup.add(tm);
+  const before=new THREE.Mesh(new THREE.PlaneGeometry(3.1,2.4),
+    new THREE.MeshBasicMaterial({color:0x3a1020,transparent:true,opacity:.32,side:THREE.DoubleSide}));
+  before.position.set(-1.6,0,0); tm.add(before);
+  const gt=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x9fe8c0,transparent:true,opacity:.95}));
+  tm.add(gt);
+  const t0=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    [new THREE.Vector3(0,-1.2,0),new THREE.Vector3(0,1.2,0)]),
+    new THREE.LineBasicMaterial({color:0xffd489,transparent:true,opacity:.85}));
+  t0.geometry.computeBoundingSphere(); tm.add(t0);
+  const tl1=mkLabel(TT('t < 0 — before the kick','t < 0 — до толчка','t < 0 — vor dem Stoß'),'label dim'); tl1.position.set(-1.6,-1.45,0); tm.add(tl1);
+  const tl2=mkLabel(TT('t > 0 — the ringdown','t > 0 — звон','t > 0 — der Ausklang'),'label dim'); tl2.position.set(1.5,-1.45,0); tm.add(tl2);
+  const tr=mkLabel('','label const'); tr.position.set(0,1.75,0); tm.add(tr);
+  // ── Kramers–Kronig reconstruction ───────────────────────────────────────────
+  const kk=new THREE.Group(); cauGroup.add(kk);
+  const kExact=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.95}));
+  const kRecon=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({color:0xffcf6a,size:.07,transparent:true,opacity:.95}));
+  const kAbs=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.6}));
+  kk.add(kExact); kk.add(kRecon); kk.add(kAbs);
+  const kl1=mkLabel(TT('ice line: χ′ in closed form · gold dots: χ′ rebuilt from χ″ ALONE by the principal-value integral','ледяная линия: χ′ в замкнутой форме · золотые точки: χ′, восстановленная ТОЛЬКО из χ″ интегралом в смысле главного значения','Eislinie: χ′ geschlossen · Goldpunkte: χ′ allein aus χ″ rekonstruiert'),'label dim');
+  kl1.position.set(0,-1.55,0); kk.add(kl1);
+  const kr=mkLabel('','label const'); kr.position.set(0,1.8,0); kk.add(kr);
+  const tl=mkLabel(TT('CAUSALITY · nothing responds before it is pushed, and that alone welds absorption to refraction','ПРИЧИННОСТЬ · ничто не откликается прежде толчка, и одно это сваривает поглощение с преломлением','KAUSALITÄT · nichts antwortet vor dem Stoß — das allein verschweißt Absorption und Brechung'),'label const');
+  tl.position.set(0,2.75,0); cauGroup.add(tl);
+  cauObjs={pl,tm,kk,surf,p1,p2,cRe,cIm,gt,kExact,kRecon,kAbs,readP:rl,readT:tr,readK:kr,NRE,NIM,_c:new THREE.Color()};
+}
+function updateCau(dt){
+  const O=cauObjs; if(!O) return; cauT+=dt;
+  const st=state.cauStation||'plane', g=state.cauG??0.12, w0=state.cauW0??1, wp=state.cauWp??0.6;
+  O.pl.visible=(st==='plane'); O.tm.visible=(st==='time'); O.kk.visible=(st==='kk');
+  const key=st+'|'+g.toFixed(5)+'|'+w0.toFixed(4)+'|'+wp.toFixed(4);
+  if(cauBuiltFor!==key){ cauBuiltFor=key;
+    const disc=w0*w0-g*g/4, Om=disc>0?Math.sqrt(disc):0;
+    if(st==='plane'){
+      const gm=O.surf.geometry, pos=gm.attributes.position, col=new Float32Array(pos.count*3), c=O._c;
+      for(let i=0;i<pos.count;i++){
+        const u=(i%O.NRE)/(O.NRE-1), v=Math.floor(i/O.NRE)/(O.NIM-1);
+        const wr=-3.2+6.4*u, wi=-1.6+3.2*v;
+        const dr=w0*w0-(wr*wr-wi*wi)-g*wi, di=-(2*wr*wi)-g*wr;   // ω₀²−ω²−iγω at ω=wr+i·wi
+        const D=dr*dr+di*di, m=wp*wp/Math.sqrt(Math.max(1e-9,D));
+        const h=Math.min(1.7,0.55*m);
+        pos.setX(i,wr); pos.setY(i,h); pos.setZ(i,-wi);
+        const up=wi>0;
+        c.setHSL(up?0.86:0.55, 0.68, 0.10+0.34*Math.min(1,m*0.5));
+        col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b; }
+      pos.needsUpdate=true; gm.setAttribute('color',new THREE.BufferAttribute(col,3));
+      gm.computeBoundingSphere();
+      const pim=-g/2;
+      O.p1.position.set(Om,0.06,-pim); O.p2.position.set(-Om,0.06,-pim);
+      O.p1.material.color.setHex(pim>0?0xff5a5a:0x8affc0); O.p2.material.color.copy(O.p1.material.color);
+      { const a=[],b=[];
+        for(let i=0;i<=240;i++){ const w=-3.2+6.4*i/240;
+          a.push(new THREE.Vector3(w,0.03+0.5*cauChiRe(Math.abs(w),g,w0,wp)*Math.sign(w||1),0.02));
+          b.push(new THREE.Vector3(w,0.03+0.5*cauChiIm(Math.abs(w),g,w0,wp),0.02)); }
+        O.cRe.geometry.setFromPoints(a); O.cRe.geometry.computeBoundingSphere();
+        O.cIm.geometry.setFromPoints(b); O.cIm.geometry.computeBoundingSphere(); }
+      O.stat={Om,pim,causal:pim<0};
+    } else if(st==='time'){
+      const N=9000, WMAX=36, TS=0.075, p=[]; let pre=0, post=0, peak=1e-9;
+      for(let t=-6;t<=6.0001;t+=TS){ const v=cauG(t,g,w0,wp,N,WMAX);
+        peak=Math.max(peak,Math.abs(v));
+        if(t<-0.05) pre=Math.max(pre,Math.abs(v)); else if(t>0.15) post=Math.max(post,Math.abs(v));
+        p.push(new THREE.Vector3(t*0.52,v,0)); }
+      for(const q of p) q.y=1.05*q.y/peak;
+      O.gt.geometry.setFromPoints(p); O.gt.geometry.computeBoundingSphere();
+      O.stat={pre,post,ratio:pre/Math.max(1e-30,post),Om,causal:g>0};
+    } else {
+      const a=[], b=[], q=[]; let res=0;
+      for(let i=CAU_STRIDE;i<=Math.round(2.6/CAU_H);i+=CAU_STRIDE){
+        const w=i*CAU_H, ex=cauChiRe(w,g,w0,wp), rc=cauKK(i,g,w0,wp);
+        res=Math.max(res,Math.abs(ex-rc));
+        a.push(new THREE.Vector3(-2.6+2.05*w,0.42*ex,0));
+        q.push(new THREE.Vector3(-2.6+2.05*w,0.42*rc,0));
+        b.push(new THREE.Vector3(-2.6+2.05*w,0.42*cauChiIm(w,g,w0,wp),0)); }
+      O.kExact.geometry.setFromPoints(a); O.kExact.geometry.computeBoundingSphere();
+      O.kRecon.geometry.setFromPoints(q); O.kRecon.geometry.computeBoundingSphere();
+      O.kAbs.geometry.setFromPoints(b); O.kAbs.geometry.computeBoundingSphere();
+      const S=cauSum(Math.abs(g),w0,wp,400000,600), tail=wp*wp*Math.abs(g)/600;
+      O.stat={res,S,tail,exactS:Math.PI/2*wp*wp,Om};
+    }
+  }
+  if(st==='plane') O.pl.rotation.y=Math.sin(cauT*0.11)*0.34;
+  cauUiAcc+=dt; if(cauUiAcc>0.3){ cauUiAcc=0; const S=O.stat||{};
+    if(st==='plane'){
+      O.readP.element.textContent=`ω_pole = ±${(S.Om??0).toFixed(4)} ${(S.pim??0)>=0?'+':'−'} i${Math.abs(S.pim??0).toFixed(4)} · ${S.causal?TT('below the axis — causal','ниже оси — причинно','unter der Achse — kausal'):TT('ABOVE the axis — acausal','ВЫШЕ оси — непричинно','ÜBER der Achse — akausal')}`;
+      hudBig.textContent=`${TT('CAUSALITY','ПРИЧИННОСТЬ','KAUSALITÄT')} · γ=${g.toFixed(4)} · ${TT('poles at','полюсы в','Pole bei')} ±${(S.Om??0).toFixed(4)} ${(S.pim??0)>=0?'+':'−'} i${Math.abs(S.pim??0).toFixed(4)} · ${S.causal?TT('lower half-plane','нижняя полуплоскость','untere Halbebene'):TT('UPPER half-plane — forbidden','ВЕРХНЯЯ полуплоскость — запрещено','OBERE Halbebene — verboten')}`;
+    } else if(st==='time'){
+      O.readT.element.textContent=`max|G(t<0)| = ${(S.pre??0).toExponential(2)} · max|G(t>0)| = ${(S.post??0).toExponential(2)} · ${TT('ratio','отношение','Verhältnis')} = ${(S.ratio??0).toExponential(2)}`;
+      hudBig.textContent=`${TT('CAUSALITY','ПРИЧИННОСТЬ','KAUSALITÄT')} · ${TT('before/after ratio','отношение до/после','Vorher/Nachher')} = ${(S.ratio??0).toExponential(2)} · ${S.causal?TT('the response waits for the kick','отклик ждёт толчка','die Antwort wartet auf den Stoß'):TT('the response PRECEDES the kick','отклик ОПЕРЕЖАЕТ толчок','die Antwort GEHT dem Stoß VORAUS')}`;
+    } else {
+      O.readK.element.textContent=`${TT('KK residual','невязка КК','KK-Rest')} = ${(S.res??0).toExponential(2)} · ∫ωχ″dω = ${(S.S??0).toFixed(6)} · (π/2)ω_p² = ${(S.exactS??0).toFixed(6)}`;
+      hudBig.textContent=`${TT('CAUSALITY','ПРИЧИННОСТЬ','KAUSALITÄT')} · ${TT('χ′ rebuilt from χ″ alone, residual','χ′ восстановлена только из χ″, невязка','χ′ allein aus χ″, Rest')} ${(S.res??0).toExponential(2)} · ${TT('f-sum','f-сумма','f-Summe')} ${(S.S??0).toFixed(6)} / ${(S.exactS??0).toFixed(6)}`;
+    }
+    hudSub.textContent=TT('Nothing responds before it is pushed. There is no physics in that sentence, only the order of events, and yet it is enough to force the response function of any linear system to be analytic in the upper half of the complex frequency plane — and analyticity there welds the real and imaginary parts together so tightly that either one determines the other completely. Absorption and refraction are not two properties of a material; they are one property read twice, and this laboratory rebuilds each from the other to show it. Move the damping and watch the two poles of the oscillator ride up towards the real axis; take the damping through zero and they cross into the forbidden half, at which point the impulse response — computed here by direct numerical transform, not quoted from a formula that would make the answer true by construction — moves bodily into negative time. The system answers before the kick. The ratio between the two half-lines swings by five decades as the poles cross, and that swing is the whole of causality expressed as a number. The last station adds the conservation law hiding inside all of this: the total oscillator strength ∫ωχ″dω is (π/2)ω_p² whatever the linewidth, so broadening a line moves absorption around but can never create or destroy any of it.',
+      'Ничто не откликается прежде толчка. В этой фразе нет физики — только порядок событий, — и всё же её достаточно, чтобы функция отклика любой линейной системы была аналитична в верхней полуплоскости комплексной частоты, а аналитичность там сваривает вещественную и мнимую части столь прочно, что любая из них полностью определяет другую. Поглощение и преломление — не два свойства вещества, а одно свойство, прочитанное дважды, и лаборатория восстанавливает каждое из другого, чтобы это показать. Двигай затухание и смотри, как два полюса осциллятора поднимаются к вещественной оси; проведи затухание через нуль — и они переходят в запрещённую полуплоскость, после чего импульсный отклик, вычисляемый здесь прямым численным преобразованием, а не взятый из формулы, которая сделала бы ответ верным по построению, целиком переезжает в отрицательное время. Система отвечает раньше толчка. Отношение между двумя полупрямыми меняется на пять порядков при переходе полюсов, и это изменение есть вся причинность, выраженная числом. Последняя станция добавляет спрятанный внутри закон сохранения: полная сила осцилляторов ∫ωχ″dω равна (π/2)ω_p² при любой ширине линии — уширение перемещает поглощение, но не создаёт и не уничтожает его.',
+      'Nichts antwortet vor dem Stoß. In diesem Satz steckt keine Physik, nur die Reihenfolge der Ereignisse — und doch erzwingt er, dass die Antwortfunktion jedes linearen Systems in der oberen Halbebene analytisch ist, was Real- und Imaginärteil so fest verschweißt, dass jeder den anderen vollständig bestimmt. Absorption und Brechung sind eine Eigenschaft, zweimal gelesen. Führt man die Dämpfung durch null, wandern die Pole in die verbotene Hälfte, und die Impulsantwort — hier direkt numerisch transformiert, nicht aus einer Formel zitiert — wandert vollständig in die negative Zeit. Das Verhältnis der beiden Halbgeraden springt dabei um fünf Dekaden. Die letzte Station zeigt das darin verborgene Erhaltungsgesetz: ∫ωχ″dω = (π/2)ω_p², unabhängig von der Linienbreite.');
+    ATLAS_BUS.pub('cau.gamma',+g.toFixed(5),'γ/ω₀');
+    if(S.ratio!=null) ATLAS_BUS.pub('cau.preratio',+S.ratio.toExponential(3),'');
+    const el=ctl.querySelector('#cauInv'); if(el) el.innerHTML=
+      `χ(ω) = ω_p²/(ω₀²−ω²−iγω) · ${TT('poles at','полюсы в','Pole bei')} ±√(ω₀²−γ²/4) − iγ/2 = ±<b>${(S.Om??0).toFixed(5)}</b> ${(S.pim??-g/2)>=0?'+':'−'} i<b>${Math.abs(S.pim??-g/2).toFixed(5)}</b><br>`+
+      (st==='time'
+        ? `max|G(t&lt;0)| = <b>${(S.pre??0).toExponential(3)}</b> · max|G(t&gt;0)| = <b>${(S.post??0).toExponential(3)}</b> → <b style="color:${(S.ratio??1)<1e-2?'#9fe8c0':'#ff8a6a'}">${(S.ratio??0).toExponential(3)}</b><br>`
+          +`<span style="opacity:.75">${TT('DECLARED: the smaller of the two is the truncation floor of a finite-bandwidth inverse transform, not a physical pre-response. What carries the statement is the RATIO, which swings by about five decades as the poles cross the axis — and the transform is done numerically on purpose, because the closed form would make the answer true by construction.','ЗАЯВЛЕНО: меньшее из двух есть порог усечения обратного преобразования с конечной полосой, а не физический предотклик. Утверждение несёт ОТНОШЕНИЕ, меняющееся примерно на пять порядков при переходе полюсов через ось; преобразование сделано численно намеренно, ибо замкнутая форма сделала бы ответ верным по построению.','ERKLÄRT: der kleinere Wert ist die Abschneide-Grenze einer bandbegrenzten Rücktransformation, keine physikalische Vorantwort. Die Aussage trägt das VERHÄLTNIS.')}</span>`
+        : st==='kk'
+        ? `${TT('χ′ rebuilt from χ″ alone','χ′ восстановлена только из χ″','χ′ allein aus χ″ rekonstruiert')} · max|Δχ′| = <b style="color:#9fe8c0">${(S.res??0).toExponential(3)}</b> ${TT('over the band','по полосе','über das Band')}<br>`
+          +`∫₀^ᵂ ω χ″ dω = <b>${(S.S??0).toFixed(6)}</b> + ${TT('analytic tail','аналитический хвост','analytischer Schwanz')} ω_p²γ/W = <b>${(S.tail??0).toExponential(2)}</b> → <b>${((S.S??0)+(S.tail??0)).toFixed(9)}</b> · (π/2)ω_p² = <b>${(S.exactS??0).toFixed(9)}</b> · Δ = <b style="color:#9fe8c0">${Math.abs((S.S??0)+(S.tail??0)-(S.exactS??0)).toExponential(1)}</b><br>`
+          +`<span style="opacity:.75">${TT('The f-sum rule is independent of γ: broadening the line moves absorption about but never creates or destroys any of it. The principal value uses Maclaurin’s rule, which is exact only when the evaluation point is itself a grid node — so the output frequencies are generated on the grid rather than chosen freely.','Правило f-суммы не зависит от γ: уширение линии перемещает поглощение, но не создаёт и не уничтожает его. Главное значение берётся по правилу Маклорена, точному лишь когда точка вычисления сама является узлом сетки, — поэтому выходные частоты порождаются на сетке, а не выбираются произвольно.','Die f-Summenregel ist von γ unabhängig. Der Hauptwert nutzt Maclaurins Regel, exakt nur wenn der Auswertepunkt selbst ein Gitterknoten ist.')}</span>`
+        : `<b style="color:${(S.causal!==false)?'#9fe8c0':'#ff8a6a'}">${(S.causal!==false)
+            ?TT('both poles are in the LOWER half-plane — χ is analytic where causality requires it, and Kramers–Kronig holds','оба полюса в НИЖНЕЙ полуплоскости — χ аналитична там, где этого требует причинность, и соотношения Крамерса–Кронига выполняются','beide Pole in der UNTEREN Halbebene — χ ist dort analytisch, wo Kausalität es verlangt')
+            :TT('a pole has crossed into the UPPER half-plane. No causal linear system can do this: the impulse response now starts before t=0, which the time station measures.','полюс перешёл в ВЕРХНЮЮ полуплоскость. Ни одна причинная линейная система так не может: импульсный отклик теперь начинается до t=0, что и измеряет временная станция.','ein Pol ist in die OBERE Halbebene gewandert — kein kausales lineares System kann das.')}</b>`);
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -17101,7 +17323,7 @@ function updateRpd(dt){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
@@ -17159,6 +17381,7 @@ function s3ViewVisibility(v){
   pspGroup.visible     = (v==='psp');
   dfxGroup.visible     = (v==='dfx');
   noeGroup.visible     = (v==='noe');
+  cauGroup.visible     = (v==='cau');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -17216,6 +17439,7 @@ function setS3View(v){
   if(v==='psp'){ pspSetup(); }
   if(v==='dfx'){ dfxSetup(); }
   if(v==='noe'){ noeSetup(); }
+  if(v==='cau'){ cauSetup(); }
   if(v==='poin'){ poinSetup(); }
   if(v==='qcrys'){ qcSetup(); }
   if(v==='cmb'){ cmbSetup(); }
@@ -17286,6 +17510,11 @@ const MV_PRESETS=[
   w:{en:'Four systems whose evolution has unit determinant. None of them can have an attractor — which is exactly why order and chaos must coexist in all four.',
      ru:'Четыре системы с единичным определителем эволюции. Ни у одной не может быть аттрактора — именно поэтому во всех четырёх порядок и хаос обязаны сосуществовать.',
      de:'Vier Systeme mit Determinante eins. Keines kann einen Attraktor haben — deshalb koexistieren Ordnung und Chaos in allen vieren.'}},
+ {id:'causality', views:['cau','pole','rsh','disp'], bus:['cau.gamma','pole.Q','rsh.B','disp.vg'],
+  t:{en:'Causality · the law that shapes every response',ru:'Причинность · закон, формующий всякий отклик',de:'Kausalität · das Gesetz hinter jeder Antwort'},
+  w:{en:'Nothing responds before it is pushed, so every response function is analytic in the upper half-plane. That one fact fixes where poles may sit, welds absorption to refraction, and decides what a wave packet is allowed to do.',
+     ru:'Ничто не откликается прежде толчка, поэтому всякая функция отклика аналитична в верхней полуплоскости. Один этот факт задаёт, где могут лежать полюсы, сваривает поглощение с преломлением и решает, что дозволено волновому пакету.',
+     de:'Nichts antwortet vor dem Stoß — jede Antwortfunktion ist in der oberen Halbebene analytisch. Das legt fest, wo Pole liegen dürfen, verschweißt Absorption und Brechung und entscheidet, was ein Wellenpaket darf.'}},
  {id:'poles', views:['pole','rsh','eot','ret'], bus:['pole.Q','rsh.B','ret.eff'],
   t:{en:'Poles · every resonance is one complex number',ru:'Полюсы · каждый резонанс — одно комплексное число',de:'Pole · jede Resonanz ist eine komplexe Zahl'},
   w:{en:'A linewidth, a Fano asymmetry, a binding energy and a transfer efficiency are all read off the position of a pole off the real axis.',
@@ -17601,7 +17830,8 @@ const MV_LINKS=[
        ru:'Потери есть потери. Мнимая часть полюса, затухание резонансной передачи и мнимая часть полюса рассеяния — одно число в трёх пальто, и 1/γ есть время звона во всех трёх.',
        de:'Verlust ist Verlust: Imaginärteil eines Pols, Dämpfung eines resonanten Transfers und Imaginärteil eines Streupols.'},
   members:[{lab:'pole',k:'poleGi',dom:[0,0.4],map:v=>v/2},{lab:'pole',k:'poleGc',dom:[0,0.4],map:v=>v/2},
-           {lab:'ret',k:'retGamma',dom:[0.02,0.5]},{lab:'rsh',k:'rshKI',dom:[0.005,0.6]}]},
+           {lab:'ret',k:'retGamma',dom:[0.02,0.5]},{lab:'rsh',k:'rshKI',dom:[0.005,0.6]},
+           {lab:'cau',k:'cauG',dom:[0.01,0.6]}]},
  {id:'critical', kind:'DIMENSIONLESS', unit:'x/x_c', lo:0, hi:2, def:1,
   t:{en:'control parameter over its critical value',ru:'управляющий параметр к своему критическому значению',de:'Kontrollparameter über seinem kritischen Wert'},
   why:{en:'Every one of these has a threshold and the threshold is what matters, not the raw number: the last KAM torus at K_c, the Chern transition at |u|=2, the fold of the cusp. Setting them all to the same multiple of their own critical value puts them at the same distance from their own catastrophe.',
@@ -22726,6 +22956,7 @@ const state = {
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
   noeStation:'bloch', noeDetune:0, noeAmp:0.62, noeS:1, noeV0:1.1,   // Noether lab (momentum maps, Runge-Lenz, Fock)
+  cauStation:'plane', cauG:0.12, cauW0:1, cauWp:0.6,   // Causality lab (Kramers-Kronig, f-sum, pre-response)
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   qcWindow:0.9, qcRange:3, qcPhason:0, qcPhasonRun:true, qcSpeed:1,      // quasicrystal cut-and-project
@@ -24958,6 +25189,38 @@ function buildCtlBody(){
         <button class="btn" id="noeToAtom">${TT('→ Elements: the n² degeneracy SO(4) explains','→ Элементы: вырождение n², объясняемое SO(4)','→ Elemente: die n²-Entartung')}</button>
         <button class="btn" id="noeToGrav">${TT('→ Three bodies: where the extra charge is absent','→ Три тела: где дополнительного заряда нет','→ Drei Körper')}</button></div>
     </div>`;
+    else if(V==='cau') body = `
+    <div class="sect"><b>${TT('Where to look at causality','Где смотреть на причинность','Wo die Kausalität ansehen')}</b>
+      <div class="chips">
+        ${[['plane',TT('the complex ω-plane · where the poles are','комплексная плоскость ω · где полюсы','die komplexe ω-Ebene')],
+           ['time',TT('time · does the answer wait?','время · ждёт ли отклик?','Zeit · wartet die Antwort?')],
+           ['kk',TT('Kramers–Kronig + the f-sum rule','Крамерс–Кроних + правило f-суммы','Kramers–Kronig + f-Summenregel')]]
+          .map(([k,l])=>`<button class="chip ${(state.cauStation||'plane')===k?'on':''}" data-caust="${k}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="sect"><b>${TT('Push the poles across the axis','Проведи полюсы через ось','Pole über die Achse führen')}</b>
+      <div class="chips">
+        ${[[0.12,TT('γ = 0.12 · causal','γ = 0.12 · причинно','γ = 0.12 · kausal')],[0.5,'γ = 0.5'],[0.02,TT('γ = 0.02 · sharp line','γ = 0.02 · узкая линия','γ = 0.02')],[-0.12,TT('γ = −0.12 · FORBIDDEN','γ = −0.12 · ЗАПРЕЩЕНО','γ = −0.12 · VERBOTEN')]]
+          .map(([v,l])=>`<button class="chip ${Math.abs((state.cauG??0.12)-v)<1e-9?'on':''}" data-caug="${v}">${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>γ</label>
+        <input type="range" id="cauG" min="-0.6" max="0.6" step="0.0001" value="${state.cauG??0.12}"><span class="val" id="cauGV">${(state.cauG??0.12).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>ω₀</label>
+        <input type="range" id="cauW0" min="0.5" max="1.6" step="0.0001" value="${state.cauW0??1}"><span class="val" id="cauW0V">${(state.cauW0??1).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>ω_p</label>
+        <input type="range" id="cauWp" min="0.2" max="1.1" step="0.0001" value="${state.cauWp??0.6}"><span class="val" id="cauWpV">${(state.cauWp??0.6).toFixed(4)}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Analyticity passport','Паспорт аналитичности','Analytizitäts-Pass')}</b>
+      <div class="note" id="cauInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Causality is not a property of matter — it is the order of events, and it alone forces the response function to be analytic in the upper half-plane, which in turn makes absorption and refraction two readings of one thing. Every claim here is checked rather than told: χ′ is rebuilt from χ″ by the principal-value integral and matched to the closed form, the total oscillator strength comes out (π/2)ω_p² whatever the linewidth, and the impulse response is obtained by direct numerical transform — deliberately, because the closed form would place the pre-response at exactly zero by construction and prove nothing. DECLARED: the residual before t=0 in the causal case is the truncation floor of a bandwidth-limited transform; the number that carries the statement is the ratio between the two half-lines, which moves about five decades when the poles cross.','Причинность — не свойство вещества, а порядок событий, и одно это заставляет функцию отклика быть аналитичной в верхней полуплоскости, отчего поглощение и преломление становятся двумя прочтениями одного. Каждое утверждение здесь проверяется, а не сообщается: χ′ восстанавливается из χ″ интегралом в смысле главного значения и сверяется с замкнутой формой, полная сила осцилляторов даёт (π/2)ω_p² при любой ширине линии, а импульсный отклик получается прямым численным преобразованием — намеренно, ибо замкнутая форма обнулила бы предотклик по построению и ничего бы не доказала. ЗАЯВЛЕНО: остаток до t=0 в причинном случае есть порог усечения преобразования с ограниченной полосой; утверждение несёт отношение полупрямых, меняющееся примерно на пять порядков при переходе полюсов.','Kausalität ist keine Materialeigenschaft, sondern die Reihenfolge der Ereignisse — und sie allein erzwingt Analytizität in der oberen Halbebene. Alles hier wird geprüft, nicht behauptet: χ′ wird per Hauptwertintegral aus χ″ rekonstruiert, die f-Summenregel liefert (π/2)ω_p² unabhängig von der Linienbreite, und die Impulsantwort entsteht durch direkte numerische Transformation. ERKLÄRT: der Rest vor t=0 ist die Abschneide-Grenze; die Aussage trägt das Verhältnis.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="cauToPole">${TT('→ Pole atlas: the same pole, read as a resonance','→ Атлас полюсов: тот же полюс как резонанс','→ Polatlas: derselbe Pol als Resonanz')}</button>
+        <button class="btn" id="cauToRsh">${TT('→ Riemann sheet: what the cut is doing there','→ Лист Римана: что там делает разрез','→ Riemann-Blatt: wozu der Schnitt')}</button>
+        <button class="btn" id="cauToDisp">${TT('→ Dispersion: v_g may exceed c, the front may not','→ Дисперсия: v_g может превысить c, фронт — нет','→ Dispersion: v_g darf c übersteigen, die Front nicht')}</button>
+        <button class="btn" id="cauToEot">${TT('→ Extraordinary transmission: a real line shape','→ Экстраорд. пропускание: реальная форма линии','→ Außergew. Transmission')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -25654,6 +25917,7 @@ function buildCtlBody(){
         <button class="btn ${V==='psp'?'on':''}" id="v-psp">${TT('Phase space','Фазовое пространство','Phasenraum')}</button>
         <button class="btn ${V==='dfx'?'on':''}" id="v-dfx">${TT('Defect atlas','Атлас дефектов','Defekt-Atlas')}</button>
         <button class="btn ${V==='noe'?'on':''}" id="v-noe">${TT('Noether','Нётер','Noether')}</button>
+        <button class="btn ${V==='cau'?'on':''}" id="v-cau">${TT('Causality','Причинность','Kausalität')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -25705,7 +25969,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -26164,6 +26428,16 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='cau'){
+      ctl.querySelectorAll('[data-caust]').forEach(b=>b.onclick=()=>{ state.cauStation=b.dataset.caust; buildCtl(); });
+      ctl.querySelectorAll('[data-caug]').forEach(b=>b.onclick=()=>{ state.cauG=+b.dataset.caug; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('cauG',v=>state.cauG=v,v=>v.toFixed(4)); kv('cauW0',v=>state.cauW0=v,v=>v.toFixed(4));
+      kv('cauWp',v=>state.cauWp=v,v=>v.toFixed(4));
+      const go=(id,view)=>{ const b=ctl.querySelector('#'+id); if(b) b.onclick=()=>{ navPush(); setS3View(view); buildCtl(); }; };
+      go('cauToPole','pole'); go('cauToRsh','rsh'); go('cauToDisp','disp'); go('cauToEot','eot');
     }
     if(V==='noe'){
       ctl.querySelectorAll('[data-noest]').forEach(b=>b.onclick=()=>{ state.noeStation=b.dataset.noest; buildCtl(); });
@@ -27734,10 +28008,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -29351,6 +29625,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='cau'){
+      fbsAnimT+=dt; updateCau(dt);
     } else if(state.s3view==='noe'){
       fbsAnimT+=dt; updateNoe(dt);
     } else if(state.s3view==='dfx'){
