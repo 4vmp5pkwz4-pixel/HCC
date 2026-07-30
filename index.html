@@ -2272,6 +2272,18 @@ function runSelfTests(){
       ok('Gray–Scott: where the nontrivial branch IS Turing-unstable the critical wavenumber matches the closed form q_c=√(B/2DuDv)',
         !!b && b.turing && Math.abs(b.qc-0.6025)<1e-3 && b.lam>10 && b.lam<11 && b.rate>0,
         b?`q_c=${b.qc.toFixed(4)} λ_c=${b.lam.toFixed(2)} fastest λ=${b.lamMax.toFixed(2)} rate=${b.rate.toExponential(2)}`:'no branch'); } }
+  { // BERRY / CHERN: a topological integer must come out EXACTLY, even on a coarse mesh
+    let bad=[];
+    for(const [u,C] of [[-3,0],[-1,1],[-0.5,1],[0.5,-1],[1,-1],[1.9,-1],[3,0]]){
+      const c=berryChernFHS(u,12); if(Math.abs(c-C)>1e-6) bad.push(`u=${u}:${c.toFixed(4)}≠${C}`); }
+    ok('Berry: the Chern number is the EXACT integer of the Qi–Wu–Zhang phase diagram (C=0 for |u|>2, ∓1 for 0<±u<2) on a 12×12 mesh',
+      bad.length===0, bad.length?bad.join(' '):'all seven phase points exact');
+    const c6=berryChernFHS(1,6), c30=berryChernFHS(1,30);
+    ok('Berry: the lattice (Fukui–Hatsugai–Suzuki) Chern number is mesh-independent — 6×6 and 30×30 give the same integer',
+      Math.abs(c6-c30)<1e-6 && Math.abs(c6+1)<1e-6, `6×6=${c6.toFixed(9)} · 30×30=${c30.toFixed(9)}`);
+    ok('Berry: the gap closes EXACTLY at the topological transitions u=0, ±2 (a Dirac point is the only way C can jump)',
+      berryGap(0)<1e-12 && berryGap(2)<1e-12 && berryGap(-2)<1e-12 && berryGap(1)>0.5,
+      `gap(0)=${berryGap(0).toExponential(1)} gap(±2)=${berryGap(2).toExponential(1)} gap(1)=${berryGap(1).toFixed(3)}`); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -14888,6 +14900,128 @@ function updateImp(dt){
 }
 
 /* ================================================================
+   BERRY CURVATURE ATLAS · the Chern number as a watched integral.
+   A two-band Bloch Hamiltonian is H(k)=d(k)·σ, so the whole band structure is
+   a MAP from the Brillouin torus to the Bloch sphere, d̂:T²→S². Its degree —
+   how many times the torus wraps the sphere — is the Chern number, an INTEGER
+   no local perturbation can change, and the integer measured to nine digits in
+   the quantum Hall effect. Qi–Wu–Zhang model, exact and closed form:
+       d(k) = ( sin kx , sin ky , u + cos kx + cos ky )
+       Berry curvature (lower band)  F = −½ d̂·(∂x d̂ × ∂y d̂)
+       C = (1/2π)∬ F d²k = 0 for |u|>2, ∓1 for 0<±u<2
+   The live number uses Fukui–Hatsugai–Suzuki plaquette holonomy, which is gauge
+   invariant and returns the EXACT integer even on a coarse mesh (verified: ±1 to
+   9 decimals on 12×12). Watch it snap as the mesh refines, and watch the gap
+   close at u=0,±2 where a Dirac point punches through and C jumps. */
+const berryGroup=new THREE.Group(); berryGroup.visible=false; s3Group.add(berryGroup);
+let berryObjs=null, berryT=0, berryUiAcc=0;
+const berryD=(kx,ky,u)=>[Math.sin(kx),Math.sin(ky),u+Math.cos(kx)+Math.cos(ky)];
+const berryN=v=>{ const n=Math.hypot(v[0],v[1],v[2])||1e-300; return [v[0]/n,v[1]/n,v[2]/n]; };
+function berryF(kx,ky,u){                       // exact Berry curvature of the lower band
+  const e=1e-5, d=berryN(berryD(kx,ky,u));
+  const a=berryN(berryD(kx+e,ky,u)), b=berryN(berryD(kx-e,ky,u));
+  const c=berryN(berryD(kx,ky+e,u)), g=berryN(berryD(kx,ky-e,u));
+  const px=[(a[0]-b[0])/(2*e),(a[1]-b[1])/(2*e),(a[2]-b[2])/(2*e)];
+  const py=[(c[0]-g[0])/(2*e),(c[1]-g[1])/(2*e),(c[2]-g[2])/(2*e)];
+  const cr=[px[1]*py[2]-px[2]*py[1],px[2]*py[0]-px[0]*py[2],px[0]*py[1]-px[1]*py[0]];
+  return -0.5*(d[0]*cr[0]+d[1]*cr[1]+d[2]*cr[2]);
+}
+function berryChernFHS(u,N){                    // gauge-invariant lattice Chern number — exact integer
+  const eig=(kx,ky)=>{ const D=berryD(kx,ky,u), n=Math.hypot(D[0],D[1],D[2])||1e-300;
+    const c=Math.sqrt(Math.max(0,(1+D[2]/n)/2)), s=Math.sqrt(Math.max(0,(1-D[2]/n)/2)), ph=Math.atan2(D[1],D[0]);
+    return [[-s*Math.cos(ph),-s*Math.sin(ph)],[c,0]]; };
+  const inner=(A,B)=>{ let re=0,im=0; for(let m=0;m<2;m++){ const ar=A[m][0],ai=-A[m][1],br=B[m][0],bi=B[m][1];
+    re+=ar*br-ai*bi; im+=ar*bi+ai*br; } return [re,im]; };
+  const U=(A,B)=>{ const r=inner(A,B), n=Math.hypot(r[0],r[1])||1e-300; return [r[0]/n,r[1]/n]; };
+  const mul=(p,q)=>[p[0]*q[0]-p[1]*q[1],p[0]*q[1]+p[1]*q[0]];
+  const h=2*Math.PI/N; let tot=0;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    const k=(a,b)=>eig(-Math.PI+a*h,-Math.PI+b*h);
+    const P=mul(mul(U(k(i,j),k(i+1,j)),U(k(i+1,j),k(i+1,j+1))),mul(U(k(i+1,j+1),k(i,j+1)),U(k(i,j+1),k(i,j))));
+    tot+=Math.atan2(P[1],P[0]); }
+  return tot/(2*Math.PI);
+}
+const berryGap=u=>{ let g=Infinity;             // the direct gap 2|d| — closes exactly at u=0,±2
+  for(const [kx,ky] of [[0,0],[Math.PI,0],[0,Math.PI],[Math.PI,Math.PI]]){
+    const D=berryD(kx,ky,u); g=Math.min(g,2*Math.hypot(D[0],D[1],D[2])); } return g; };
+function berryClear(){ labWipe(berryGroup); berryObjs=null; }
+function berrySetup(){
+  berryClear(); berryT=0;
+  berryGroup.add(new THREE.AmbientLight(0x8a94b8,.65));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.55); dl.position.set(4,7,6); berryGroup.add(dl);
+  // ── the Brillouin zone AS A TORUS (kx, ky are periodic — this is its true topology) ──
+  const NU=72, NV=48, R=1.55, r0=0.62;
+  const geo=new THREE.TorusGeometry(R,r0,NV,NU);
+  geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(geo.attributes.position.count*3),3));
+  const torus=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.52,metalness:.18,side:THREE.DoubleSide}));
+  torus.position.set(-2.6,0.2,0); torus.rotation.x=Math.PI/2*0.82; berryGroup.add(torus);
+  // ── the Bloch sphere the torus maps ONTO, with the image of d̂ painted on it ──
+  const sph=new THREE.Mesh(new THREE.SphereGeometry(1.15,40,28),new THREE.MeshPhongMaterial({color:0x1a2c48,transparent:true,opacity:.22,shininess:40,side:THREE.BackSide}));
+  sph.position.set(3.0,0.2,0); berryGroup.add(sph);
+  berryGroup.add(new THREE.Mesh(new THREE.SphereGeometry(1.152,32,22),new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.12})).translateX(3.0).translateY(0.2));
+  const IMG=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending}));
+  IMG.position.set(3.0,0.2,0); berryGroup.add(IMG);
+  // the live (kx,ky) probe, on both objects at once
+  const mkDot=(col,sc)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(.085,12,9),new THREE.MeshBasicMaterial({color:0xffffff}));
+    const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:col,transparent:true,opacity:.95,depthWrite:false})); g.scale.setScalar(sc); m.add(g); berryGroup.add(m); return m; };
+  const probeT=mkDot(0xffe9a0,.6), probeS=mkDot(0x9fe8ff,.6);
+  const link=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(),new THREE.Vector3()]),
+    new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.55,blending:THREE.AdditiveBlending,depthWrite:false})); berryGroup.add(link);
+  { const a=mkLabel(TT('BRILLOUIN TORUS T² · colour = Berry curvature F(k)','ТОР БРИЛЛЮЭНА T² · цвет = кривизна Берри F(k)','BRILLOUIN-TORUS T² · Farbe = Berry-Krümmung F(k)'),'label axis'); a.position.set(-2.6,1.75,0); berryGroup.add(a);
+    const b=mkLabel(TT('BLOCH SPHERE S² · the image of d̂ — it wraps C times','СФЕРА БЛОХА S² · образ d̂ — обёрнут C раз','BLOCH-KUGEL S² · das Bild von d̂ — C-fach umlaufen'),'label axis'); b.position.set(3.0,1.75,0); berryGroup.add(b); }
+  const tl=mkLabel(TT('BERRY CURVATURE ATLAS · the Chern number is how many times the torus wraps the sphere','АТЛАС КРИВИЗНЫ БЕРРИ · число Черна — сколько раз тор обёртывает сферу','BERRY-KRÜMMUNGS-ATLAS · die Chern-Zahl ist die Umlaufzahl des Torus um die Kugel'),'label const'); tl.position.set(0,3.4,0); berryGroup.add(tl);
+  const rl=mkLabel('','label dim'); rl.position.set(0,2.85,0); berryGroup.add(rl);
+  berryObjs={torus,geo,IMG,probeT,probeS,link,readLab:rl,NU,NV,R,r0,_c:new THREE.Color()};
+}
+function updateBerry(dt){
+  const O=berryObjs; if(!O) return; berryT+=dt;
+  const u=state.berryU??1.0, N=Math.max(4,Math.round(state.berryMesh??12));
+  // paint the torus by Berry curvature, and build the image of d̂ on the sphere
+  const pos=O.geo.attributes.position, col=O.geo.attributes.color, _c=O._c;
+  let Fmax=1e-9; const Fs=new Float32Array(pos.count);
+  for(let i=0;i<pos.count;i++){ const x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i);
+    const ky=Math.atan2(y,x);                                   // around the tube axis
+    const rr=Math.hypot(x,y)-O.R, kx=Math.atan2(z,rr);
+    const F=berryF(kx,ky,u); Fs[i]=F; Fmax=Math.max(Fmax,Math.abs(F)); }
+  for(let i=0;i<pos.count;i++){ const t=Math.max(-1,Math.min(1,Fs[i]/Fmax));
+    _c.setHSL(t>0?0.09:0.58,0.78,0.16+0.42*Math.abs(t)); col.setXYZ(i,_c.r,_c.g,_c.b); }
+  col.needsUpdate=true;
+  { const M=48, arr=new Float32Array(M*M*3), ca=new Float32Array(M*M*3);
+    for(let a=0;a<M;a++)for(let b=0;b<M;b++){ const kx=-Math.PI+2*Math.PI*a/M, ky=-Math.PI+2*Math.PI*b/M;
+      const d=berryN(berryD(kx,ky,u)), idx=a*M+b;
+      arr[idx*3]=d[0]*1.16; arr[idx*3+1]=d[1]*1.16; arr[idx*3+2]=d[2]*1.16;
+      const t=Math.max(-1,Math.min(1,berryF(kx,ky,u)/Fmax));
+      _c.setHSL(t>0?0.09:0.58,0.8,0.30+0.34*Math.abs(t)); ca[idx*3]=_c.r; ca[idx*3+1]=_c.g; ca[idx*3+2]=_c.b; }
+    O.IMG.geometry.setAttribute('position',new THREE.BufferAttribute(arr,3));
+    O.IMG.geometry.setAttribute('color',new THREE.BufferAttribute(ca,3));
+    O.IMG.geometry.computeBoundingSphere(); }
+  // the probe walks the torus, and its image walks the sphere — the map made visible
+  const kx=Math.sin(berryT*0.31)*Math.PI, ky=Math.cos(berryT*0.23)*Math.PI;
+  { const rr=O.R+O.r0*Math.cos(kx), px=rr*Math.cos(ky), py=rr*Math.sin(ky), pz=O.r0*Math.sin(kx);
+    const v=new THREE.Vector3(px,py,pz).applyEuler(O.torus.rotation).add(O.torus.position);
+    O.probeT.position.copy(v);
+    const d=berryN(berryD(kx,ky,u));
+    const w=new THREE.Vector3(d[0],d[1],d[2]).multiplyScalar(1.16).add(new THREE.Vector3(3.0,0.2,0));
+    O.probeS.position.copy(w);
+    O.link.geometry.setFromPoints([v,w]); O.link.geometry.computeBoundingSphere(); }
+  berryUiAcc+=dt; if(berryUiAcc>0.3){ berryUiAcc=0;
+    const C=berryChernFHS(u,N), Cn=Math.round(C), gap=berryGap(u), phase=Math.abs(u)>2?0:(u>0?-1:1);
+    O.readLab.element.textContent=`u=${u.toFixed(3)} · C=${C.toFixed(6)} → ${Cn} · ${TT('gap','щель','Lücke')}=${gap.toFixed(4)}`;
+    hudBig.textContent=`${TT('BERRY','БЕРРИ','BERRY')} · u=${u.toFixed(3)} · ${TT('Chern','Черн','Chern')} C=${Cn} · ${TT('mesh','сетка','Gitter')} ${N}×${N} → ${C.toFixed(9)} · ${TT('gap','щель','Lücke')} ${gap.toFixed(4)}`;
+    hudSub.textContent=TT(
+      'A two-band crystal is a MAP: H(k)=d(k)·σ sends the Brillouin torus to the Bloch sphere. The Chern number is simply how many times the torus wraps the sphere — and being a wrapping number it is an INTEGER that no smooth perturbation can change. That is why the quantum Hall conductance is quantised to nine digits in a dirty sample. Left: the torus painted by the Berry curvature. Right: the image of d̂ on the sphere. Slide u across 0 or ±2 and the gap closes at a Dirac point — the only way the wrapping can tear and C can jump. The live number uses gauge-invariant plaquette holonomy (Fukui–Hatsugai–Suzuki), which returns the exact integer even on a coarse mesh: try 6×6.',
+      'Двухзонный кристалл — это ОТОБРАЖЕНИЕ: H(k)=d(k)·σ переводит тор Бриллюэна в сферу Блоха. Число Черна — просто сколько раз тор обёртывает сферу, а раз это число обёртываний, оно ЦЕЛОЕ, и никакое гладкое возмущение его не изменит. Потому холловская проводимость и квантуется до девяти знаков в грязном образце. Слева тор, окрашенный кривизной Берри. Справа образ d̂ на сфере. Проведи u через 0 или ±2 — щель закрывается в дираковской точке: единственный способ порвать обёртку и заставить C прыгнуть. Живое число считается калибровочно-инвариантной плакетной голономией (Фукуи–Хацугай–Судзуки), дающей точное целое даже на грубой сетке: попробуй 6×6.',
+      'Ein Zweiband-Kristall ist eine ABBILDUNG: H(k)=d(k)·σ schickt den Brillouin-Torus auf die Bloch-Kugel. Die Chern-Zahl ist die Umlaufzahl — und als solche eine GANZE Zahl, die keine glatte Störung ändern kann. Daher ist der Quanten-Hall-Leitwert auf neun Stellen quantisiert. Links der Torus, gefärbt durch die Berry-Krümmung; rechts das Bild von d̂. Führe u über 0 oder ±2 und die Lücke schließt an einem Dirac-Punkt — die einzige Art, wie C springen kann. Die Zahl nutzt eichinvariante Plakettenholonomie (Fukui–Hatsugai–Suzuki) und liefert die exakte Ganzzahl selbst auf grobem Gitter.');
+    ATLAS_BUS.pub('berry.chern',Cn,'Chern');
+    const el=ctl.querySelector('#berryInv'); if(el) el.innerHTML=
+      `d(k)=(sin k_x, sin k_y, u+cos k_x+cos k_y) · u=<b>${u.toFixed(4)}</b><br>`+
+      `${TT('Chern number','Число Черна','Chern-Zahl')} C = <b style="color:#9fe8c0;font-size:14px">${Cn}</b> · ${TT('raw plaquette sum','сырая плакетная сумма','rohe Plakettensumme')} = <b>${C.toFixed(9)}</b> (${N}×${N} ${TT('mesh','сетка','Gitter')}) · |C−round|=${Math.abs(C-Cn).toExponential(1)}<br>`+
+      `${TT('direct gap','прямая щель','direkte Lücke')} 2|d| = <b>${gap.toFixed(5)}</b> ${gap<1e-6?`→ <b style="color:#ff8a6a">${TT('DIRAC POINT — the gap is closed, C is undefined','ДИРАКОВСКАЯ ТОЧКА — щель закрыта, C не определено','DIRAC-PUNKT — Lücke geschlossen, C undefiniert')}</b>`:''}<br>`+
+      `<span style="color:#9fe8c0">${TT('exact phase diagram','точная фазовая диаграмма','exaktes Phasendiagramm')}: C=0 ${TT('for','при','für')} |u|>2 · C=−1 ${TT('for','при','für')} 0<u<2 · C=+1 ${TT('for','при','für')} −2<u<0 — ${TT('and the live sum agrees','и живая сумма совпадает','und die Live-Summe stimmt überein')} ${Cn===phase?'✓':'…'}</span>`;
+  }
+}
+
+/* ================================================================
    DISPERSION MANIFOLD · v_p vs v_g — the atlas had ω(k) in six places and
    NEVER the group velocity. Every branch here is the exact relation already
    executing elsewhere in this file: the split-step kinetic phase (ω=k²/2),
@@ -15310,6 +15444,7 @@ function setS3View(v){
   impGroup.visible     = (v==='imp');
   poleGroup.visible    = (v==='pole');
   dispGroup.visible    = (v==='disp');
+  berryGroup.visible   = (v==='berry');
   cmbGroup.visible     = (v==='cmb');
   mimgGroup.visible    = (v==='mimg');
   bhrGroup.visible     = (v==='bhr');
@@ -15351,6 +15486,7 @@ function setS3View(v){
   if(v==='imp'){ impSetup(); }
   if(v==='pole'){ poleSetup(); }
   if(v==='disp'){ dispSetup(); }
+  if(v==='berry'){ berrySetup(); }
   if(v==='cmb'){ cmbSetup(); }
   if(v==='mimg'){ mimgSetup(); }
   if(v==='bhr'){ bhrSetup(); }
@@ -15369,7 +15505,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
+    const preset=v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17];
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
@@ -20154,6 +20290,7 @@ const state = {
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
   bhtM:1.98892e30, bhtEvap:false, bhtSpeed:1,   // Black-hole thermodynamics lab
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
+  berryU:1.0, berryMesh:12,   // Berry curvature / Chern number atlas
   dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
   impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
@@ -22155,6 +22292,30 @@ function buildCtlBody(){
         <button class="btn" id="dispToQm">${TT('→ Quantum packet: v_g = 2·v_p spreading','→ Квантовый пакет: расплывание v_g = 2·v_p','→ Quantenpaket: v_g = 2·v_p')}</button>
         <button class="btn" id="dispToPole">${TT('→ Pole atlas: the other face of a resonance','→ Атлас полюсов: другое лицо резонанса','→ Polatlas: das andere Gesicht der Resonanz')}</button></div>
     </div>`;
+    else if(V==='berry') body = `
+    <div class="sect"><b>${TT('Topological phase — drive the mass term','Топологическая фаза — веди массовый член','Topologische Phase — Massenterm')}</b>
+      <div class="chips">
+        ${[[-3,'C=0'],[-1,'C=+1'],[0,'Dirac'],[1,'C=−1'],[3,'C=0']].map(([v,l])=>`<button class="chip ${Math.abs((state.berryU??1)-v)<1e-9?'on':''}" data-berryu="${v}">u=${v} · ${l}</button>`).join('')}
+      </div>
+      <div class="ctlrow"><label>u</label>
+        <input type="range" id="berryU" min="-3.2" max="3.2" step="0.001" value="${state.berryU??1}"><span class="val" id="berryUV">${(state.berryU??1).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>${TT('mesh N×N','сетка N×N','Gitter N×N')}</label>
+        <input type="range" id="berryMesh" min="4" max="40" step="1" value="${state.berryMesh??12}"><span class="val" id="berryMeshV">${state.berryMesh??12}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Topological passport','Топологический паспорт','Topologischer Pass')}</b>
+      <div class="note" id="berryInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT(
+        'Qi–Wu–Zhang two-band model, exact and closed form: d(k)=(sin k_x, sin k_y, u+cos k_x+cos k_y), H=d·σ. The Chern number is the degree of d̂:T²→S² — the number of times the Brillouin torus wraps the Bloch sphere — so it is an integer protected against every smooth deformation. The live value uses gauge-invariant plaquette holonomy (Fukui–Hatsugai–Suzuki), which returns the exact integer even on a coarse mesh; drop the mesh to 6×6 and it is still ±1. C can only change where the gap closes, at u=0 and u=±2. DECLARED: surface Fermi arcs would need a Hermitian eigensolver this atlas does not have, and are not shown.',
+        'Двухзонная модель Ци–Ву–Чжана, точная и замкнутая: d(k)=(sin k_x, sin k_y, u+cos k_x+cos k_y), H=d·σ. Число Черна — степень отображения d̂:T²→S², то есть сколько раз тор Бриллюэна обёртывает сферу Блоха, поэтому это целое, защищённое от любой гладкой деформации. Живое значение считается калибровочно-инвариантной плакетной голономией (Фукуи–Хацугай–Судзуки) и даёт точное целое даже на грубой сетке: поставь 6×6 — всё равно ±1. C меняется только там, где закрывается щель: при u=0 и u=±2. ЗАЯВЛЕНО: поверхностные дуги Ферми потребовали бы эрмитова решателя, которого в атласе нет, и не показаны.',
+        'Qi–Wu–Zhang-Zweibandmodell, exakt: d(k)=(sin k_x, sin k_y, u+cos k_x+cos k_y), H=d·σ. Die Chern-Zahl ist der Abbildungsgrad d̂:T²→S² — wie oft der Brillouin-Torus die Bloch-Kugel umläuft — also eine gegen jede glatte Deformation geschützte Ganzzahl. Der Live-Wert nutzt eichinvariante Plakettenholonomie (Fukui–Hatsugai–Suzuki) und liefert die exakte Ganzzahl selbst bei 6×6. C ändert sich nur bei geschlossener Lücke, u=0 und u=±2.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="berryToSk">${TT('→ Skyrmion: the same integer as a real-space texture','→ Скирмион: то же целое как текстура в реальном пространстве','→ Skyrmion: dieselbe Ganzzahl als Realraum-Textur')}</button>
+        <button class="btn" id="berryToSpin">${TT('→ Spin: the Bloch sphere and its Berry phase','→ Спин: сфера Блоха и фаза Берри','→ Spin: Bloch-Kugel und Berry-Phase')}</button>
+        <button class="btn" id="berryToTopo">${TT('→ Topology atlas: the ℤ-invariant family','→ Атлас топологии: семейство ℤ-инвариантов','→ Topologie-Atlas: die ℤ-Invarianten')}</button>
+        <button class="btn" id="berryToHopf">${TT('→ Hopf: S³→S² beside T²→S²','→ Хопф: S³→S² рядом с T²→S²','→ Hopf: S³→S² neben T²→S²')}</button></div>
+    </div>`;
     else if(V==='cmb') body = `
     <div class="sect"><b>CMB sky — which multipoles</b>
       <div class="chips">
@@ -22697,6 +22858,7 @@ function buildCtlBody(){
         <button class="btn ${V==='imp'?'on':''}" id="v-imp">Möbius · Smith</button>
         <button class="btn ${V==='pole'?'on':''}" id="v-pole">${TT('Pole atlas','Атлас полюсов','Polatlas')}</button>
         <button class="btn ${V==='disp'?'on':''}" id="v-disp">${TT('Dispersion','Дисперсия','Dispersion')}</button>
+        <button class="btn ${V==='berry'?'on':''}" id="v-berry">${TT('Berry · Chern','Берри · Черн','Berry · Chern')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -22722,7 +22884,7 @@ function buildCtlBody(){
     ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
     ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
     ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -23170,6 +23332,17 @@ function buildCtlBody(){
       ctl.querySelector('#dispToKdv')&&(ctl.querySelector('#dispToKdv').onclick=()=>{ navPush(); setS3View('kdv'); buildCtl(); });
       ctl.querySelector('#dispToQm')&&(ctl.querySelector('#dispToQm').onclick=()=>{ navPush(); state.qmMode='free'; setS3View('qm'); buildCtl(); });
       ctl.querySelector('#dispToPole')&&(ctl.querySelector('#dispToPole').onclick=()=>{ navPush(); setS3View('pole'); buildCtl(); });
+    }
+    if(V==='berry'){
+      ctl.querySelectorAll('[data-berryu]').forEach(b=>b.onclick=()=>{ state.berryU=+b.dataset.berryu; buildCtl(); });
+      ctl.querySelector('#berryU')&&(ctl.querySelector('#berryU').oninput=e=>{ state.berryU=+e.target.value;
+        const v=ctl.querySelector('#berryUV'); if(v)v.textContent=state.berryU.toFixed(3); });
+      ctl.querySelector('#berryMesh')&&(ctl.querySelector('#berryMesh').oninput=e=>{ state.berryMesh=+e.target.value|0;
+        const v=ctl.querySelector('#berryMeshV'); if(v)v.textContent=String(state.berryMesh); });
+      ctl.querySelector('#berryToSk')&&(ctl.querySelector('#berryToSk').onclick=()=>{ navPush(); setS3View('skyrmion'); buildCtl(); });
+      ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
+      ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
+      ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='cmb'){
       ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
@@ -24633,10 +24806,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -26234,6 +26407,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updatePv(dt);
     } else if(state.s3view==='su2'){
       fbsAnimT+=dt; updateSu2(dt);
+    } else if(state.s3view==='berry'){
+      fbsAnimT+=dt; updateBerry(dt);
     } else if(state.s3view==='disp'){
       fbsAnimT+=dt; updateDisp(dt);
     } else if(state.s3view==='pole'){
