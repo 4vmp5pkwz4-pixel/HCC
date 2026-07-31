@@ -47,6 +47,7 @@ tunnel or local cert). Companion docs: `XR_VALIDATION.md`, `VALIDATION.md`.
 - [ ] Observable: stand inside the 46 Gly ball (rig at centre); screens selectable.
 - [ ] S³: χ ± live A(χ)/Γ(χ) on the card; Hopf flow beads at 72+ FPS at default density; eigenmode β/m repaint <150 ms.
 - [ ] S³ Holonomy: all five stations render in stereo; ray/pinch selection opens the scope contract; moving marker, invariant core and phase dial remain finite; no Multiview button is offered inside XR.
+- [ ] S³ Contact & Action: all five stations render in stereo; ray/pinch selection opens the native-dimension scope contract; both projected paths, moving marker, invariant core and action/phase dial remain finite; no Multiview button is offered inside XR.
 - [ ] FBS3R: walk the ladder with N ±1 (each step ×φ — "φ-Ladder Walk"); N=266 chip = Recombination Gate; S³ R chip = Light-Trisphere Closure (N≈299.1); re-quantization wave visible; shells selectable with density/Fibonacci rows.
 - [ ] Fractal Explorer: hidden from XR menu; entering VR while in fractal auto-switches to Solar with a clear reason in docs.
 

@@ -64,7 +64,7 @@ separate labelled layers with deconflicted labels.
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
-65 scientific laboratory views around it through 110 declared relations. Its edges distinguish
+66 scientific laboratory views around it through 120 declared relations. Its edges distinguish
 eight operational classes: exact identity, representation, shared invariant,
 limit/reduction, coupling/input, causal succession, structural analogy and
 contrast/hypothesis test. Every edge carries a plain-language claim and model
@@ -113,6 +113,38 @@ are [Simon’s holonomy formulation of Berry phase](https://journals.aps.org/prl
 [Berry & Visser on boost composition](https://arxiv.org/abs/2101.05971),
 [spherical spin holonomy](https://arxiv.org/abs/2408.01169), and
 [non-Abelian Wilson-loop control](https://journals.aps.org/pra/accepted/10.1103/wk9v-xp4l).
+
+## Contact & Action Observatory — dynamics written on an S³ shell
+
+**Contact & Action Observatory** exposes the extra structure carried by a
+three-dimensional energy hypersurface inside four-dimensional phase space. Its
+five exact, deliberately bounded stations are:
+
+- the standard contact form on unit S³, where the Reeb vector field is the
+  common-phase Hopf flow; the native R⁴ contact equations, constant Hopf image,
+  period/action and a finite Gauss linking check are shown together;
+- the integrable ellipsoid Reeb flow, with exact frequencies, axis actions and
+  a Poincaré-disk return rotation; rational and irrational frequency ratios are
+  never conflated;
+- a coprime family of Legendrian torus knots whose tangent satisfies
+  `λ₀(γ̇)=0` around the full curve;
+- the Kustaanheimo–Stiefel/Hopf spinor map, displaying its U(1) gauge fibre,
+  `|X(u)|=|u|²`, collision blow-up and the regular-time law
+  `dt=|u|² ds`;
+- the harmonic-oscillator action loop, Maslov index `μ=2`, EBK half-quantum
+  shift and metaplectic double return: a classical `2π` return lifts to `−1`,
+  while `4π` returns to `+1`.
+
+Every invariant is evaluated in its native dimension before stereographic or
+phase-plane projection. Each station has live parameters, an analytic anchor,
+an independently evaluated residual, an explicit validity boundary, exact
+Multiview bridges and a reproducible `fbs3r_contact_action_observatory.json`
+export. The module is grounded in
+[finite-energy foliations and Reeb dynamics on S³](https://annals.math.princeton.edu/2003/157-1/p04),
+[global disk-like sections on convex energy surfaces](https://annals.math.princeton.edu/articles/12987),
+the [original KS transformation](https://www.degruyter.com/document/doi/10.1515/crll.1965.218.204/html),
+[Moser’s regularization](https://onlinelibrary.wiley.com/doi/10.1002/cpa.3160230406),
+and [Arnol’d’s Maslov-class formulation](https://www.mathnet.ru/eng/faa2802).
 
 ## Symmetry Discovery Chamber — invariants under stress
 
@@ -207,12 +239,16 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-- **Invariant Nexus** — 65 laboratory nodes, 110 typed relations, six disciplinary domains, eight
+- **Invariant Nexus** — 66 laboratory nodes, 120 typed relations, six disciplinary domains, eight
   epistemic edge classes, a disciplinary↔invariant layout morph, typed
   pathfinding, Multiview comparison and JSON export;
 - **Holonomy Observatory** — five closed-path stations for spherical transport,
   Berry phase, SU(2) Wilson commutators, Thomas–Wigner rotation and SL(2,R)
   monodromy, each with an analytic anchor, numerical closure, Multiview and JSON;
+- **Contact & Action Observatory** — five exact stations joining the standard
+  Reeb–Hopf flow, ellipsoid return maps, Legendrian knots, KS collision
+  regularization and Maslov/EBK phase, with native-dimensional residuals,
+  Multiview bridges and JSON export;
 - **Symmetry Discovery Chamber** — five transformation spaces, twenty candidate
   observables, nine exact benchmark invariants, finite-orbit residual pillars,
   a controlled symmetry-break perturbation, Multiview anchors and JSON export;

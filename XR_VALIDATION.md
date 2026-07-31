@@ -47,7 +47,10 @@ honest capability matrix.
    hand pinch selects individual laboratory nodes and opens their typed,
    non-metric contract. Holonomy Observatory renders its ordered closed path,
    transported marker, invariant core and return-phase dial in stereo; its
-   persistent laboratory volume opens the five-station scope contract. Symmetry
+   persistent laboratory volume opens the five-station scope contract. Contact
+   & Action renders its Reeb/return/Legendrian/KS/Maslov paths, moving marker,
+   native-invariant core and phase/action dial in stereo; the persistent
+   laboratory volume opens the five-station native-dimension contract. Symmetry
    Discovery renders exact/broken orbits and four
    finite residual pillars; the laboratory volume is ray/pinch selectable and
    its card states the non-theorem, non-exhaustive contract. Multiview comparison

@@ -112,6 +112,35 @@ raw path/group data, sample counts, analytic and numerical return values,
 residual and tolerance, station contract, caveat, deterministic-gauge formula
 and the cross-domain epistemic firewall.
 
+### Contact & Action Observatory operational contract
+
+Contact & Action Observatory is a family of five **native-dimensional model
+experiments** joining symplectic phase space to dynamics on an S³ energy shell.
+Their shared visual grammar does not assert that contact action, knot type,
+collision regularization and quantum phase are one physical observable.
+
+| Station | Exact anchor | Independent check | Validity boundary |
+|---|---|---|---|
+| standard S³ Reeb flow | `λ₀=1/2 Σ(x dy−y dx)`, `R=2Jz`, `λ₀(R)=1`, `ι_Rdλ₀=0` | explicit contact-plane contraction, constant Hopf image, period/action `π`, finite projected `|Lk|≈1` | unit round S³ and this standard contact form; projected lengths and angles are not contact invariants |
+| ellipsoid return | `φ_R^t=(e^{2it/a}z₁,e^{2it/b}z₂)` and section rotation `2πb/a` | surface/contact normalization, determinant-one return matrix and bounded rational-closure test | displayed integrable ellipsoid only; no arbitrary global surface-of-section claim |
+| Legendrian torus knot | `γ_(p,q)=(sqrt(q/(p+q))e^{ipt},sqrt(p/(p+q))e^{-iqt})` | full-curve norm, closure and sampled `max |λ₀(γ̇)|` | one primitive coprime family; no complete Legendrian classification or contact-homology computation |
+| KS collision chart | `X:R⁴→R³`, `|X(u)|=|u|²`, `X(e^{iθ}u)=X(u)` and `dt=|u|²ds` | gauge sweep, norm identity and independently recovered radial exponent `r∝|t|^(2/3)` | radial collision coordinate model; not a perturbed general N-body integrator or global regularization theorem |
+| Maslov/EBK lift | `I=(1/2π)∮p dq=(n+μ/4)ħ`, `μ=2` for the 1D oscillator | 2,048-edge phase-loop quadrature, caustic count and metaplectic phases `2π→−1`, `4π→+1` | harmonic oscillator benchmark; generic potentials require their own actions, caustics and semiclassical error analysis |
+
+Contact and KS identities must be computed in R⁴ before any 3D projection.
+The Gauss integral and polygonal action are deterministic convergence checks,
+not experimental uncertainties. A rational approximation with bounded
+denominator is a report about that finite search, never proof that an arbitrary
+real ratio is rational or irrational.
+
+Every Contact & Action export must preserve station contracts and caveats,
+normalized and physical controls, native coordinates, paths, sample counts,
+analytic values, independent residuals, tolerances and an epistemic firewall.
+Passing a station means only that its implementation agrees with its named
+model identity at binary64 tolerance; it does not prove a theorem for arbitrary
+contact or Hamiltonian systems, classify all knots, solve the N-body problem,
+or establish a new observed effect.
+
 ### Symmetry Discovery operational contract
 
 Symmetry Discovery Chamber is a deterministic finite-orbit **candidate test**,
