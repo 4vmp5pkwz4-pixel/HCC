@@ -64,7 +64,7 @@ separate labelled layers with deconflicted labels.
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
-64 scientific laboratory views around it through 102 declared relations. Its edges distinguish
+65 scientific laboratory views around it through 110 declared relations. Its edges distinguish
 eight operational classes: exact identity, representation, shared invariant,
 limit/reduction, coupling/input, causal succession, structural analogy and
 contrast/hypothesis test. Every edge carries a plain-language claim and model
@@ -85,6 +85,34 @@ path nodes in Multiview, or export the complete graph as
 `fbs3r_invariant_nexus.json`. Graph distance and embedding coordinates are
 explicitly non-metric: they are not physical distance, evidence strength,
 similarity magnitude or causal effect size.
+
+## Holonomy Observatory — what a closed journey remembers
+
+**Holonomy Observatory** makes five manifestations of path-dependent return
+directly comparable without collapsing their physical meanings:
+
+- round-S² Levi-Civita transport, independently propagated along a 1,024-edge
+  geodesic polygon and closed against `∫K dA = Ω`;
+- spin-½ Berry phase, evaluated both as `γ_B = −Ω/2` and as a normalized
+  257-vertex Pancharatnam/Wilson product, then repeated after a non-constant
+  local U(1) gauge transformation;
+- a genuinely non-Abelian SU(2) group commutator with unit-quaternion closure,
+  conjugacy-invariant `½Tr C`, and an exactly commuting U(1) control;
+- two orthogonal Lorentz boosts in both orders, preserving the Minkowski
+  interval and determinant while producing the exact Thomas–Wigner angle;
+- an SL(2,R) elliptic/hyperbolic Möbius commutator, with determinant-one and
+  conjugacy-trace checks plus a visible complex probe orbit.
+
+The 3D instrument combines the ordered path, moving transported marker,
+return-phase dial and invariant core. Every station provides two live controls,
+an analytic anchor, an independently computed closure residual, a declared
+validity scope, one-click Multiview anchors and a reproducible
+`fbs3r_holonomy_observatory.json` export. It is a mathematical observatory, not
+a physical measurement or an exhaustive classification. Its primary anchors
+are [Simon’s holonomy formulation of Berry phase](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.51.2167),
+[Berry & Visser on boost composition](https://arxiv.org/abs/2101.05971),
+[spherical spin holonomy](https://arxiv.org/abs/2408.01169), and
+[non-Abelian Wilson-loop control](https://journals.aps.org/pra/accepted/10.1103/wk9v-xp4l).
 
 ## Symmetry Discovery Chamber — invariants under stress
 
@@ -179,9 +207,12 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-- **Invariant Nexus** — 64 laboratory nodes, 102 typed relations, six disciplinary domains, eight
+- **Invariant Nexus** — 65 laboratory nodes, 110 typed relations, six disciplinary domains, eight
   epistemic edge classes, a disciplinary↔invariant layout morph, typed
   pathfinding, Multiview comparison and JSON export;
+- **Holonomy Observatory** — five closed-path stations for spherical transport,
+  Berry phase, SU(2) Wilson commutators, Thomas–Wigner rotation and SL(2,R)
+  monodromy, each with an analytic anchor, numerical closure, Multiview and JSON;
 - **Symmetry Discovery Chamber** — five transformation spaces, twenty candidate
   observables, nine exact benchmark invariants, finite-orbit residual pillars,
   a controlled symmetry-break perturbation, Multiview anchors and JSON export;
@@ -234,6 +265,8 @@ A(χ) = 4πR²·sin²χ      Γ(χ) = (χ − ½sin 2χ)/π
 R(N) = l_P·φᴺ          N(L) = ln(L/l_P)/ln φ
 ρ(N)/ρ_P = φ⁻³ᴺ        F_N ≈ φᴺ/√5             published N_rec = 266
 t(N) = t_P·φᴺ          R(N)/t(N) = c             [CoScale identity]
+Δα = ∫K dA = Ω         γ_B = −Ω/2                 [closed-path holonomy]
+W = ½Tr(UₓUᵧUₓ⁻¹Uᵧ⁻¹)  Ω_W = −2 atan[tanh(α/2)tanh(β/2)]
 ```
 
 ## Source / provenance policy

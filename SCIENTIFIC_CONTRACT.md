@@ -86,6 +86,32 @@ causal chain unless every edge is explicitly causal, correctly oriented and
 valid under one compatible scenario. JSON exports must preserve the edge type,
 claim, status, direction flag and this non-metric disclaimer.
 
+### Holonomy Observatory operational contract
+
+Holonomy Observatory is a family of five **declared mathematical return-map
+experiments**. A common closed-path interface does not make their physical
+systems identical.
+
+| Station | Exact anchor | Independent check | Validity boundary |
+|---|---|---|---|
+| round S² | `Δα = ∫K dA = Ω (mod 2π)` | exact edge transport on a 1,024-edge geodesic polygon | one latitude on a round sphere; finite polygon error remains |
+| spin-½ Berry | `γ_B = −Ω/2` | normalized 257-link Pancharatnam product before/after deterministic local U(1) rephasing | ideal adiabatic two-level eigenstate geometry; no device dynamics |
+| SU(2) Wilson loop | `C=UₓUᵧUₓ⁻¹Uᵧ⁻¹`, `W=½Tr C` | quaternion unit norm, conjugated trace and commuting U(1) control | finite SU(2) rotations; `αβ` is only a small-loop BCH limit |
+| Thomas–Wigner | `Ω_W=−2 atan[tanh(α/2)tanh(β/2)]` for orthogonal boosts | equivalent `atan2` form plus determinant and Minkowski-interval closure in both orders | special-relativistic 2+1 kinematics; not arbitrary acceleration or gravity |
+| SL(2,R) Möbius | `det C=1`, `Tr(HCH⁻¹)=Tr C` | direct matrix commutator and complex probe orbit | displayed real elliptic/hyperbolic family only |
+
+The exported residual is a numerical implementation diagnostic, not an
+experimental uncertainty. Passing means that the independent computation agrees
+with the named analytic anchor within the declared binary64 tolerance. It does
+not detect global topology, establish a new physical effect, classify every
+connection or holonomy group, or turn an analogy between stations into an exact
+physical equivalence.
+
+Every Holonomy export must preserve normalized controls, physical parameters,
+raw path/group data, sample counts, analytic and numerical return values,
+residual and tolerance, station contract, caveat, deterministic-gauge formula
+and the cross-domain epistemic firewall.
+
 ### Symmetry Discovery operational contract
 
 Symmetry Discovery Chamber is a deterministic finite-orbit **candidate test**,

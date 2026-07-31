@@ -243,6 +243,31 @@ check(html.includes('symmetryDiscovery(world=state.sydWorld') && html.includes('
   && html.includes('finite sampled stability proves a theorem') && html.includes('not a theorem · not exhaustive'),
   'Symmetry Discovery diagnostics, manifest payload and epistemic firewall are exposed');
 
+/* 19 · Holonomy Observatory: closed-path return maps across five exact stations */
+check(html.includes('const HOL_STATIONS=') && html.includes('function holDiagnostics(')
+  && html.includes('function holExportData(') && html.includes('function holSphereTransport(')
+  && html.includes('function holBerryWilson('),
+  'Holonomy Observatory exposes station registry, analytic diagnostics, finite transport and reproducible export');
+for (const station of ['sphere','berry','su2','wigner','mobius'])
+  check(new RegExp(`\\n  ${station}:\\{t:`).test(html), `Holonomy closed-journey station present: ${station}`);
+check(html.includes('gamma_B = -Omega/2') && html.includes('C=U_x U_y U_x^-1 U_y^-1')
+  && html.includes('Omega_W = -2 atan') && html.includes('Tr(H C H^-1)=Tr C'),
+  'Holonomy formula registry covers curvature flux, Berry phase, Wilson loop, Wigner rotation and Möbius trace');
+check(html.includes('id="holA"') && html.includes('id="holB"') && html.includes('id="holCompare"')
+  && html.includes('fbs3r_holonomy_observatory.json') && html.includes('257-vertex Pancharatnam'),
+  'Holonomy controls expose two parameters, finite polygon semantics, Multiview and JSON export');
+check(html.includes('id="v-hol"') && html.includes("state.s3view==='hol'")
+  && html.includes("holGroup.visible     = v==='hol'") && html.includes('updateHol(dt)'),
+  'Holonomy Observatory is reachable, rendered and stepped as a full S³ laboratory');
+check(html.includes("['holAtlas','hol',holGroup") && html.includes("['holAtlas','sydAtlas'")
+  && html.includes("['holAtlas','su2Atlas'") && html.includes("['holAtlas','relAtlas'")
+  && html.includes("['holAtlas','impAtlas'"),
+  'Holonomy Observatory is registered in Atlas with method, quantum, relativistic and Möbius bridges');
+check(html.includes('holonomy(station=state.holStation') && html.includes('holonomy_observatory:holExportData()')
+  && html.includes('structurally similar holonomies prove') && html.includes('not a physical measurement')
+  && html.includes('exhaustive holonomy classification'),
+  'Holonomy diagnostics, manifest payload and cross-domain epistemic firewall are exposed');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));
