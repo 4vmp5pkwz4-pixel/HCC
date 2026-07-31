@@ -198,6 +198,26 @@ check(readFileSync('QUEST3_START_HERE.md','utf8').includes('xrtest=1'),
     check(html.includes(`id="${id}"`), `handler target "${id}" exists in a template`);
 }
 
+/* 17 · Invariant Nexus: typed relation graph, dual embedding and export contract */
+check(html.includes('const NEXUS_TYPES=') && html.includes('const NEXUS_RELATIONS='),
+  'Invariant Nexus typed graph registry exists');
+for (const kind of ['exact','representation','invariant','limit','coupling','causal','analogy','contrast'])
+  check(html.includes(`${kind}:{color:`), `Invariant Nexus epistemic type present: ${kind}`);
+check(html.includes('nexusMorph:0') && html.includes('function nexusLayout(')
+  && html.includes('disciplinary_position') && html.includes('invariant_position'),
+  'Invariant Nexus morphs between disciplinary and invariant embeddings and exports both coordinates');
+check(html.includes('function nexusFindPath(') && html.includes('function nexusComparePath('),
+  'Invariant Nexus typed pathfinding and Multiview comparison are wired');
+check(html.includes('fbs3r_invariant_nexus.json') && html.includes('function nexusExportData('),
+  'Invariant Nexus JSON export is wired');
+check(html.includes('Graph distance is not physical distance') && html.includes('It is not equivalence, proof, physical distance'),
+  'Invariant Nexus exposes a non-metric, non-equivalence epistemic firewall');
+check(html.includes('id="v-nexus"') && html.includes("state.s3view==='nexus'")
+  && html.includes("nexusGroup.visible   = v==='nexus'"),
+  'Invariant Nexus is reachable, rendered and stepped as a full S³ laboratory');
+check(html.includes('nexus(){return nexusDiagnostics();}') && html.includes('invariant_nexus:nexusExportData(false)'),
+  'Invariant Nexus diagnostics are exposed through QA and the atlas manifest');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));

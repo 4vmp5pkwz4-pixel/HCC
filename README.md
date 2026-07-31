@@ -4,7 +4,7 @@ A rigorous, source-auditable, fully interactive 3D explorer for the **Solar Syst
 the **compact S³ Light-Trisphere universe** (Preece & Batenin 2026, v38
 "light sphere screens") and the **FB(S³)R golden-ratio fractal ladder**
 (Preece & Batenin 2025). One self-contained `index.html`, desktop **and**
-smartphone, fully in English, with per-object formula provenance.
+smartphone, localized in English/Russian/German, with per-object formula provenance.
 
 > Discipline: everything here is a **conditional reconstruction** of the cited
 > publications — never a claim of topology detection. Light-sphere screens are
@@ -60,6 +60,31 @@ Published N_rec Gate 266, Particle Horizon Gate, Light-Trisphere Closure,
 Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
 Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
 separate labelled layers with deconflicted labels.
+
+## Invariant Nexus — the atlas of relationships
+
+The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
+63 scientific laboratory views that preceded it. Its declared edges distinguish
+eight operational classes: exact identity, representation, shared invariant,
+limit/reduction, coupling/input, causal succession, structural analogy and
+contrast/hypothesis test. Every edge carries a plain-language claim and model
+status; color or proximity can never silently turn an analogy into an identity.
+
+The same graph has two continuously morphable embeddings:
+
+- **disciplinary geography** groups laboratories into geometry/topology,
+  quantum/matter, waves/materials, dynamics/phase space, thermodynamics/dense
+  matter and astrophysics/observation;
+- **invariant geography** is deterministically projected from each node's
+  eight-component relation signature.
+
+Click/tap/XR-select a luminous node to inspect its scientific contract,
+double-activate to approach it, filter the graph by relation class, trace a
+shortest typed path between any two laboratories, open up to four consecutive
+path nodes in Multiview, or export the complete graph as
+`fbs3r_invariant_nexus.json`. Graph distance and embedding coordinates are
+explicitly non-metric: they are not physical distance, evidence strength,
+similarity magnitude or causal effect size.
 
 ## WebXR — Meta Quest 3 VR & MR
 
@@ -131,7 +156,10 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-Three sub-laboratories:
+- **Invariant Nexus** — 63 laboratory nodes, six disciplinary domains, eight
+  epistemic edge classes, a disciplinary↔invariant layout morph, typed
+  pathfinding, Multiview comparison and JSON export;
+- the foundational sub-laboratories include:
 - **Section** — R = 548.3245 Gly great 2-sphere; observable cap θ = 4.82°
   (Γ_obs = 0.0126 %); interactive screen S²_χ with live A(χ), Γ(χ); photon on
   the great circle with Γ(T) and t_coh = πR/c = 1722.6 Gyr;
@@ -187,7 +215,7 @@ t(N) = t_P·φᴺ          R(N)/t(N) = c             [CoScale identity]
 All constants live in tagged blocks (`S3`, `FBS`, `SOURCE_MAP`, planetary
 elements, lunar theory, eclipse catalogue) and every selection card shows its
 source tags — hover for the full citation: **S3-v38**, **FBS3R**, **JPL-approx**,
-**Meeus**, **CODATA**, **IAU**, **NASA-Canon**, **astro-std**, **derived**.
+**Meeus**, **CODATA**, **IAU**, **NASA-Canon**, **astro-std**, **INV-NEXUS**, **derived**.
 Accuracy envelopes are disclosed in `VALIDATION.md`. The app never presents the
 S³ topology or the FBS3R ladder as detected facts.
 

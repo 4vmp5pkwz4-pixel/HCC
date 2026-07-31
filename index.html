@@ -983,6 +983,7 @@ const SOURCE_MAP = {
   BHTREF:{tag:'BH-THERMO', label:'Hawking and Bekenstein–Hawking relations for an isolated, non-rotating, uncharged Schwarzschild black hole. The displayed luminosity/lifetime use a simplified idealized coefficient; greybody factors, particle degrees of freedom, accretion, spin, charge and the final quantum-gravity phase are not solved.'},
   CMBREF:{tag:'PLANCK-CMB',label:'Planck 2018 VII large-angle isotropy/statistics context. The displayed low-ℓ coefficients and maps are illustrative deterministic summaries, not a likelihood re-analysis or evidence for topology; cosmic variance, masking, foregrounds and look-elsewhere choices matter.'},
   TOPOREF:{tag:'COSMIC-TOPO',label:'Round-S³ geodesic and cosmic-topology reference model. Multiple observable images require sufficient conformal lookback time and a detectable compact topology; no ghost image or matched-circle topology is claimed as observed.'},
+  NEXUS: {tag:'INV-NEXUS',  label:'Invariant Nexus — curated, typed cross-laboratory relation layer derived from the atlas contracts. Edge classes keep theorem/identity, representation, shared invariant, limiting relation, coupling, causal succession, analogy and contrast distinct. The 3D embedding and graph distance are interface coordinates, never physical distance, evidence strength or causal effect size.'},
   DERIVED:{tag:'derived',  label:'Derived live inside this app from the tagged formulas — no fitting, no hidden parameters'},
 };
 
@@ -3175,6 +3176,27 @@ function runSelfTests(){
       EXPLICIT_RELATIONS.filter(r=>String(r[0]).startsWith('field_')||String(r[1]).startsWith('field_')).every(([a,b])=>SELECT.has(a)&&SELECT.has(b)),
       'field and cross-mode endpoints resolve');
   }
+  { // INVARIANT NEXUS: topology, taxonomy, path integrity and epistemic firewall
+    const known=Object.keys(S3_VIEW_NAMES).filter(v=>v!=='nexus').sort(),declared=[...NEXUS_VIEWS].sort();
+    ok('Invariant Nexus covers every pre-existing S³ laboratory exactly once across six disciplinary clusters',
+      known.length===declared.length&&known.every((v,i)=>v===declared[i])&&new Set(NEXUS_VIEWS).size===NEXUS_VIEWS.length,
+      `${declared.length}/${known.length} laboratories · ${Object.keys(NEXUS_CLUSTERS).length} clusters · no duplicate nodes`);
+    const d=nexusDiagnostics();
+    ok('Invariant Nexus is one connected typed universe with no isolated node, unresolved endpoint or duplicate typed edge',
+      d.components===1&&d.isolated.length===0&&d.unresolved===0&&d.duplicates.length===0,
+      `${d.nodes} nodes · ${d.relations} edges · components ${d.components} · isolated ${d.isolated.length} · unresolved ${d.unresolved}`);
+    ok('Every Nexus edge declares one of eight epistemic classes, a human claim and a status; identity, analogy and causality can never collapse into an untyped line',
+      Object.keys(NEXUS_TYPES).length===8&&NEXUS_RELATIONS.every(e=>NEXUS_TYPES[e.type]&&e.label&&e.claim&&e.status&&e.directed===(e.type==='causal')),
+      Object.entries(d.types).map(([k,n])=>`${k}:${n}`).join(' · '));
+    const p=nexusFindPath('spin','bht','all');let valid=p.nodes[0]==='spin'&&p.nodes.at(-1)==='bht'&&p.edges.length===p.nodes.length-1;
+    for(let i=0;i<p.edges.length;i++)valid=valid&&((p.edges[i].a===p.nodes[i]&&p.edges[i].b===p.nodes[i+1])||(p.edges[i].b===p.nodes[i]&&p.edges[i].a===p.nodes[i+1]));
+    ok('Invariant Nexus shortest-path trace is endpoint-correct and every consecutive hop is backed by the exact exported edge object',valid,
+      p.nodes.join(' → '));
+    const ex=nexusExportData(false),sem=ex.semantics?.claim||'';
+    ok('Invariant Nexus export carries the complete typed graph and an explicit non-metric, non-equivalence, non-causality contract',
+      ex.nodes.length===NEXUS_VIEWS.length&&ex.edges.length===NEXUS_RELATIONS.length&&/not equivalence/i.test(sem)&&/physical distance/i.test(sem)&&/causal/i.test(sem),
+      `${ex.schema} · ${ex.nodes.length} nodes · ${ex.edges.length} edges · epistemic firewall present`);
+  }
   ok('Global vector manager exposes seven independent layers',VECTOR_LAYER_KEYS.length===7,VECTOR_LAYER_KEYS.join(', '));
   ok('Global vector panel is registered in the managed panel deck',PANEL_IDS.includes('vectorPanel')&&!!document.getElementById('vectorPanel'),'vectorPanel');
   { const d=deepDateToEpochDays(-100000,7,2,13,45),s=formatDeepDate(d),r=parseDeepDate(s);
@@ -4071,7 +4093,8 @@ function selectionContext(key,s){
   } else if(s.mode==='s3'){
     // open rings in the spatial "observer" view so they are immediately seen nested inside the
     // last-scattering / particle-horizon / S³ carrier shells (not the flat project-plane view)
-    if(key.startsWith('ulss_')||key==='ringInset'){ state.s3view='ring'; state.ringView='observer'; state.ringShowSpheres=true; }
+    if(key==='nexusAtlas'||key.startsWith('nexus_')) state.s3view='nexus';
+    else if(key.startsWith('ulss_')||key==='ringInset'){ state.s3view='ring'; state.ringView='observer'; state.ringShowSpheres=true; }
     else if(key==='rkzFront') state.s3view='red';
     else if(key==='bellPair') state.s3view='bell';
     else if(key.startsWith('drd')) state.s3view='drd';
@@ -4184,7 +4207,7 @@ const SOURCE_CLASS={
   IAU:'reference-model',IERS:'reference-model',CANON:'catalogue',ASTRO:'reference-model',CODATA:'reference-standard',
   S3:'conditional-model',FBS:'conditional-model',GCS:'conditional-model',RING:'conditional-model',
   HOPF:'mathematical-model',DRD:'mathematical-model',COSCALE:'mathematical-model',
-  SEL:'mathematical-model',CURV:'observation',DERIVED:'derived-runtime',
+  SEL:'mathematical-model',CURV:'observation',NEXUS:'derived-runtime',DERIVED:'derived-runtime',
   PDE:'mathematical-model',QMNUM:'mathematical-model',QCD:'reference-model',LABREF:'reference-model',
   BHTREF:'reference-model',CMBREF:'observation',TOPOREF:'conditional-model',
   CATALOGUE:'observation',     // points loaded from a real absorber catalogue
@@ -4456,6 +4479,7 @@ function buildAtlasManifest(){
     scorecards:atlasScorecards(),sources:SOURCE_MAP,formula_registry:FORMULA_REGISTRY,uncertainty_registry:UNCERTAINTY,
     entities:[...SELECT.keys()].map(getAtlasEntityContract),
     relations:[...SELECT.keys()].map(key=>({entity_id:`urn:fbs3r:runtime:${key}`,relations:getObjectRelations(key)})),
+    invariant_nexus:nexusExportData(false),
     validation:{passed:SELF_TESTS.filter(t=>t.pass).length,total:SELF_TESTS.length,self_tests:SELF_TESTS}};
 }
 function exportAtlasManifest(){downloadFile('fbs3r_runtime_atlas_manifest.json','application/json',JSON.stringify(buildAtlasManifest(),null,2));}
@@ -17574,15 +17598,359 @@ function updateRpd(dt){
   }
 }
 
+/* ================================================================
+   INVARIANT NEXUS — a typed, non-metric atlas of relationships.
+
+   The scene deliberately supports TWO embeddings of the same graph:
+     0 · disciplinary geography — laboratories orbit six familiar domains;
+     1 · invariant geography — positions are rebuilt from each node's vector
+         of relation types.  The morph between them is an interface lens, not
+         a physical interpolation, evidence score or claim of unification.
+
+   Every edge carries an explicit epistemic class.  Graph paths are paths
+   through declared relations only; they are not causal chains unless every
+   traversed edge is itself labelled causal.
+   ================================================================ */
+const NEXUS_TYPES={
+  exact:{color:0xffd36a,t:{en:'exact identity',ru:'точное тождество',de:'exakte Identität'},epistemic:'theorem or exact identity inside the declared mathematical model'},
+  representation:{color:0xb88cff,t:{en:'representation',ru:'представление',de:'Darstellung'},epistemic:'two representations or bases of a stated structure; not necessarily the same physical system'},
+  invariant:{color:0x55e8c4,t:{en:'shared invariant',ru:'общий инвариант',de:'gemeinsame Invariante'},epistemic:'the same typed invariant is measured or conserved in distinct models'},
+  limit:{color:0x65a8ff,t:{en:'limit / reduction',ru:'предел / редукция',de:'Grenze / Reduktion'},epistemic:'one model is a stated limit or effective reduction of another under explicit assumptions'},
+  coupling:{color:0xffa45d,t:{en:'coupling / input',ru:'связь / вход',de:'Kopplung / Eingang'},epistemic:'an output, parameter or physical context can feed another model; no automatic unit-safe solver coupling is implied'},
+  causal:{color:0xff5e88,t:{en:'causal succession',ru:'причинная последовательность',de:'kausale Folge'},epistemic:'a directed physical succession under the stated scenario; graph traversal remains bidirectional for comparison'},
+  analogy:{color:0x8fd5ff,t:{en:'structural analogy',ru:'структурная аналогия',de:'strukturelle Analogie'},epistemic:'shared mathematics or morphology without physical identity'},
+  contrast:{color:0xff7a63,t:{en:'contrast / hypothesis test',ru:'контраст / проверка гипотез',de:'Kontrast / Hypothesentest'},epistemic:'distinguishable explanations, regimes or observables that must not be conflated'}
+};
+const NEXUS_CLUSTERS={
+  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh']},
+  quantum:{color:0xc28dff,center:[-5.1,1.5,2.0],t:{en:'quantum · fields · matter',ru:'кванты · поля · материя',de:'Quanten · Felder · Materie'},views:['hopfion','skyrmion','quasi','atom','qm','qcd','spin','sc','berry','rsh','and','imp','pole']},
+  waves:{color:0x5ce2cf,center:[5.2,1.4,1.5],t:{en:'waves · response · materials',ru:'волны · отклик · материалы',de:'Wellen · Antwort · Materialien'},views:['eot','wave','kdv','ret','dip','rd','bb','te','pv','disp','cau','cusp','qcrys']},
+  dynamics:{color:0xff7898,center:[-3.3,-4.2,-3.0],t:{en:'dynamics · chaos · phase space',ru:'динамика · хаос · фазовое пространство',de:'Dynamik · Chaos · Phasenraum'},views:['grav','rel','chaos','kin','cp','kam','psp','poin']},
+  thermo:{color:0xffca63,center:[3.5,-4.0,-2.3],t:{en:'energy · thermodynamics · dense matter',ru:'энергия · термодинамика · плотная материя',de:'Energie · Thermodynamik · dichte Materie'},views:['he','nuc','bht','rpd','ns','sn']},
+  astro:{color:0x739cff,center:[0,-1.7,-6.0],t:{en:'relativity · astrophysics · observation',ru:'относительность · астрофизика · наблюдение',de:'Relativität · Astrophysik · Beobachtung'},views:['lens','gw','cmb','bhr','psr','qso']}
+};
+const NEXUS_RELATIONS=[
+  /* geometry, topology and representation */
+  ['sec','hopf','representation','S³ chart ↔ Hopf chart','Two coordinate instruments describe structures on the same conditional round S³ carrier.','exact-representation'],
+  ['sec','red','representation','geodesic cap ↔ redshift integral','The conditional redshift station integrates along the same S³ radial coordinate used by the section view.','model'],
+  ['sec','ring','representation','carrier ↔ projected shells','Ring fits are projected-shell consistency overlays inside the conditional carrier, not topology detections.','model'],
+  ['sec','lab','representation','global carrier ↔ basepoints','The centre laboratory changes mathematical basepoint without changing the declared round-S³ model.','exact-representation'],
+  ['lab','eig','representation','basepoint ↔ compact modes','Scalar S³ eigenmodes are evaluated on the same compact carrier used by the centre laboratory.','exact-representation'],
+  ['bell','hopf','representation','Bell loop ↔ Hopf holonomy','The Bell station represents the standard singlet correlation through a Hopf-bundle holonomy; it is not a hidden-variable theory.','model-representation'],
+  ['bell','spin','representation','singlet ↔ Bloch measurements','The Bell settings are measurement directions of the two-level spin laboratory.','exact-representation'],
+  ['drd','sel','invariant','graded capacity ↔ selector','The selector consumes the declared DRD capacity while preserving its distinction from bit count.','framework'],
+  ['drd','rpd','representation','distinguishability ↔ equivalence classes','Both instruments count operational distinctions, with different observer and horizon contracts.','framework'],
+  ['sel','rpd','coupling','causal ceiling ↔ horizon transform','The RPD transformer reads the selector ceiling as a declared input; no information-recovery theorem follows.','framework'],
+  ['hopf','su2','exact','S³ ≅ SU(2)','The unit three-sphere and SU(2) unit quaternions are the same manifold with the stated group structure.','theorem'],
+  ['hopf','wil','exact','equator preimage ↔ Clifford torus','The Hopf preimage of the S² equator is the Clifford torus used by the Willmore station.','theorem'],
+  ['hopf','mimg','representation','shared round-S³ geometry','Hopf fibres and photon geodesics inhabit the same model carrier but are different curves with different physics.','exact-geometry'],
+  ['eig','sh','representation','S³ modes ↔ S² harmonics','Compact S³ eigenmodes and S² spherical harmonics are related spectral bases with different domains and degeneracies.','theorem-context'],
+  ['eig','cmb','coupling','compact spectrum ↔ low-ℓ sky','A detectable compact topology could alter allowed long modes; the illustrative CMB map is not evidence for it.','conditional-model'],
+  ['topo','dfx','representation','homotopy theorem ↔ defect table','The defect atlas instantiates π₀, π₁, π₂ and π₃ classifications measured in its fields.','theorem'],
+  ['topo','sc','invariant','π₁ ↔ flux winding','Abrikosov vortex number is a topological integer; material energetics remain separate.','theorem-context'],
+  ['topo','hopfion','invariant','π₃ ↔ Hopf charge','The Hopfion station measures a linking/Hopf invariant under its declared field map.','theorem-context'],
+  ['topo','skyrmion','invariant','π₂ ↔ skyrmion number','The two-dimensional texture carries an integer degree while the magnetic energy model remains material-dependent.','theorem-context'],
+  ['dfx','sc','representation','vortex classifier ↔ flux lattice','The π₁ row classifies superconducting vortices without equating the generic defect field to a calibrated superconductor.','model-bridge'],
+  ['dfx','skyrmion','representation','degree classifier ↔ spin texture','The π₂ row supplies the degree language used by the skyrmion texture.','model-bridge'],
+  ['wil','su2','representation','Clifford torus inside SU(2)','The minimal torus is an exact subset of the unit-quaternion three-sphere.','theorem'],
+  ['mimg','cmb','coupling','repeated paths ↔ matched patterns','Repeated-source and matched-circle searches are complementary conditional topology tests; neither is a detection here.','conditional-hypothesis'],
+  ['mimg','lens','contrast','topological multiplicity ≠ lensing','Both can yield multiple images, but one changes global path classes while the other bends null geodesics locally.','hypothesis-test'],
+  ['taub','rel','representation','curved solution ↔ local Lorentz frame','Taub–NUT geometry is relativistic; the special-relativity station supplies only its local kinematic language.','regime-bridge'],
+  ['taub','bhr','contrast','distinct relativistic geometries','Taub–NUT and Schwarzschild ray stations are different metrics and must not share inferred parameters.','model-contrast'],
+  ['ring','cmb','coupling','large-scale shells ↔ topology probes','Ring fields and low-ℓ statistics are separate observational channels under a conditional compact-topology hypothesis.','conditional-hypothesis'],
+  ['red','rel','contrast','density-gradient redshift ≠ SR Doppler','The conditional GCS redshift integral and special-relativistic Doppler shift are different models with distinct tests.','model-contrast'],
+  ['red','bb','representation','frequency scale ↔ Planck spectrum','Ideal cosmological frequency scaling preserves the Planck spectral form while changing its temperature parameter.','limiting-model'],
+
+  /* quantum, fields and matter */
+  ['spin','su2','representation','spinor ↔ double cover','SU(2) unit quaternions provide the exact double-cover geometry of Bloch-sphere rotations.','theorem'],
+  ['spin','berry','invariant','holonomy ↔ Berry phase','The same loop holonomy is read as a geometric phase; integer Chern data requires a closed parameter manifold.','theorem-context'],
+  ['qm','spin','limit','wave mechanics → two levels','Bloch/Rabi dynamics is a controlled two-level reduction of quantum evolution, not the whole wavefunction.','effective-model'],
+  ['qm','berry','coupling','eigenstates ↔ parameter curvature','Berry curvature is built from parameter-dependent quantum eigenstates under an adiabatic contract.','theorem-context'],
+  ['qm','atom','limit','wave equation → orbital model','Atomic orbitals are bound-state solutions under the declared Coulomb/effective-charge approximations.','effective-model'],
+  ['qm','quasi','representation','quantum state ↔ quasiparticle mode','Quasiparticles are effective excitations described with quantum spectral language, not elementary-particle identities.','effective-model'],
+  ['qm','and','analogy','transfer matrices ↔ wave localization','Anderson localization and wave propagation share amplitude-transfer mathematics in a reduced model.','model-analogy'],
+  ['qcd','nuc','limit','QCD → nuclear effective model','Nuclear binding is a low-energy effective description; the semi-empirical formula is not derived from the QCD station.','effective-hierarchy'],
+  ['nuc','atom','coupling','nucleus → electronic structure','Nuclear charge and mass feed atomic structure while the two binding scales remain distinct.','scale-hierarchy'],
+  ['qcd','ns','coupling','strong matter → dense-star closure','Strong-interaction microphysics conditions the neutron-star equation of state; this atlas does not derive that closure from QCD.','model-input'],
+  ['rsh','pole','representation','Riemann sheet ↔ resonance pole','A resonance is located by analytic continuation to a nonphysical sheet; a flat spectrum shows only its shadow.','theorem-context'],
+  ['rsh','nuc','representation','scattering pole ↔ bound state','The effective-range pole reconstructs the deuteron binding scale from declared scattering data.','validated-model'],
+  ['imp','pole','representation','response map ↔ complex pole','A Smith/Möbius response and its pole-zero representation encode the same linear response under a specified normalization.','model-representation'],
+  ['imp','and','analogy','Möbius transfer ↔ hyperbolic drift','Both use fractional-linear transfer maps; compactness and physical interpretation differ.','mathematical-analogy'],
+  ['imp','eot','coupling','impedance match ↔ transmission','Extraordinary transmission can be read through a resonant effective impedance, with material calibration explicitly absent.','phenomenological-model'],
+  ['pole','ret','invariant','pole width ↔ quality factor','The pole imaginary part and oscillator ringdown encode the same typed quality-factor relation in their reduced models.','model-invariant'],
+  ['pole','eot','representation','Fano response ↔ pole-zero pair','The phenomenological Fano line can be represented by nearby pole/zero structure without claiming a microscopic derivation.','phenomenological-model'],
+  ['berry','skyrmion','invariant','curvature integral ↔ integer charge','Both integrate oriented curvature/texture over a closed domain to obtain an integer under their stated boundary conditions.','theorem-context'],
+  ['sc','spin','coupling','phase coherence ↔ two-level devices','Superconducting phase degrees of freedom can realize effective two-level systems; the displayed labs are not a device simulation.','engineering-context'],
+
+  /* waves, response and materials */
+  ['cau','pole','representation','causality ↔ pole half-plane','A retarded stable response places its poles in the causal half-plane under the declared Fourier convention.','theorem'],
+  ['cau','disp','representation','Kramers–Kronig ↔ dispersion','Causality links absorption and refraction, constraining group and phase response.','theorem'],
+  ['wave','disp','coupling','spectrum ↔ group velocity','A wave packet consumes the dispersion relation to separate phase and envelope transport.','model-input'],
+  ['wave','dip','representation','source field ↔ radiation wave','The dipole station supplies a retarded electromagnetic source pattern to the broader wave language.','model-bridge'],
+  ['wave','qcrys','analogy','diffraction ↔ reciprocal module','Quasicrystal cut-and-project order generates sharp diffraction without periodic translation symmetry.','mathematical-physics'],
+  ['wave','eot','coupling','incident field ↔ aperture resonance','The EOT demonstrator adds a phenomenological aperture/plasmon response to wave propagation.','phenomenological-model'],
+  ['kdv','disp','coupling','nonlinearity ↔ dispersion balance','KdV solitons exist through a specific balance of nonlinearity and dispersion.','theorem-context'],
+  ['kdv','wave','limit','wave equation → KdV regime','KdV is a long-wave weakly nonlinear asymptotic model under restrictive scaling assumptions.','asymptotic-limit'],
+  ['ret','eot','coupling','coupled resonance ↔ transmission','Coupled-mode energy transfer supplies a reduced language for resonant transmission; no microscopic equality is implied.','model-bridge'],
+  ['dip','cp','causal','accelerated charge → radiation','A prescribed accelerating charge produces retarded radiation; the particle lab does not solve Maxwell fields self-consistently.','model-causal'],
+  ['rd','chaos','analogy','pattern bifurcation ↔ nonlinear dynamics','Reaction–diffusion patterns and low-dimensional attractors share nonlinear bifurcation language but not phase-space dimension.','structural-analogy'],
+  ['rd','cusp','contrast','distributed instability ≠ local catastrophe','A PDE pattern transition and a Thom catastrophe organize different state spaces despite similar folds.','model-contrast'],
+  ['bb','pv','coupling','photon spectrum → photovoltaic input','The blackbody spectrum supplies an idealized photon source for the photovoltaic response.','model-input'],
+  ['bb','he','coupling','thermal radiation ↔ reservoirs','Radiative exchange can feed a heat reservoir while the engine cycle remains a separate idealization.','model-input'],
+  ['te','he','limit','finite-ZT efficiency ≤ Carnot','Thermoelectric conversion inherits the Carnot ceiling and adds a material figure-of-merit penalty.','theorem-bound'],
+  ['pv','he','invariant','conversion ceilings ↔ second law','Carnot and detailed-balance ceilings are distinct expressions of thermodynamic constraints, not equal efficiencies.','principle-context'],
+  ['te','cp','coupling','carrier transport ↔ Lorentz dynamics','Charge carriers respond to fields, while thermoelectric constitutive transport is not reconstructed from single-particle motion here.','scale-bridge'],
+  ['cusp','lens','representation','catastrophe map ↔ optical caustic','Lens caustics instantiate stable singularity geometry under a local mapping; the mass model supplies the physics.','theorem-context'],
+
+  /* thermodynamics, dynamics and astrophysics */
+  ['kin','he','limit','microscopic gas → thermodynamics','Kinetic distributions provide a microscopic limit for ideal-gas reservoir variables.','effective-limit'],
+  ['kin','bb','analogy','thermal ensembles ↔ photon gas','Both use thermal statistics, but photons have zero chemical potential and distinct state counting.','physics-contrast'],
+  ['he','bht','analogy','ordinary thermo ↔ horizon thermo','Temperature and entropy form a precise thermodynamic analogy; a Schwarzschild horizon is not an ordinary material reservoir.','semiclassical-analogy'],
+  ['bht','bhr','representation','same mass ↔ horizon observables','The Schwarzschild mass fixes both idealized thermodynamic scales and null-geodesic capture geometry.','model-identity'],
+  ['bht','rpd','contrast','entropy law ↔ distinguishability framework','The RPD station reframes operational distinctions around a horizon but proves no recovery theorem.','research-framework'],
+  ['bhr','lens','representation','null geodesics ↔ lens observables','Both integrate Schwarzschild null geometry at different visualization and approximation levels.','model-bridge'],
+  ['bhr','qso','coupling','black-hole environment ↔ accretion source','The quasar station adds accretion and beaming around an idealized compact-object environment.','model-context'],
+  ['qso','bht','coupling','mass scale ↔ horizon thermodynamics','A quasar mass parameter can initialize the idealized horizon relations without making the accretion flow Schwarzschild-isolated.','parameter-bridge'],
+  ['qso','lens','coupling','background beacon ↔ intervening lens','Quasars can be lensed background beacons; source and lens remain distinct catalogue roles.','observation-context'],
+  ['ns','sn','causal','core collapse → compact remnant','A core-collapse scenario can produce a neutron-star remnant under progenitor-dependent conditions.','scenario-causal'],
+  ['ns','psr','representation','neutron star ↔ lighthouse class','A pulsar is represented as a rotating magnetized neutron star; not every neutron star is observed as a pulsar.','object-class'],
+  ['sn','psr','causal','supernova → young pulsar','Some core-collapse remnants produce pulsars; the edge is conditional, not universal.','scenario-causal'],
+  ['nuc','ns','coupling','nuclear matter → TOV equation of state','Dense-matter assumptions close the TOV system; the displayed nuclear formula is not that equation of state.','model-input'],
+  ['gw','ns','coupling','compact structure → waveform','Neutron-star structure can imprint a binary waveform beyond the point-mass chirp used here.','physics-context'],
+  ['gw','bhr','coupling','merger source ↔ remnant geometry','Binary dynamics can produce a black-hole remnant; the ray station is a separate stationary spacetime model.','scenario-context'],
+  ['gw','grav','limit','few-body dynamics → quadrupole radiation','The chirp station is a relativistic radiation model; the Newtonian three-body lab supplies only a weak-field dynamical comparison.','regime-bridge'],
+  ['gw','rel','representation','wave propagation ↔ relativistic causality','Gravitational waves propagate within relativistic causal structure; the SR lab is a kinematic benchmark, not a GR solver.','regime-context'],
+  ['psr','dip','representation','rotating magnetic dipole ↔ lighthouse beam','The pulsar station specializes dipole-radiation geometry to a rotating compact object.','model-reduction'],
+  ['psr','cp','coupling','magnetosphere ↔ charged particles','Pulsar emission involves charged particles in strong fields; the Boris lab is only a prescribed-field reference.','scale-bridge'],
+  ['chaos','grav','invariant','Lyapunov exponent across dynamics','Both stations estimate a typed Lyapunov exponent while one is a few-body Hamiltonian model and the other includes dissipative flows.','measured-invariant'],
+  ['chaos','kam','invariant','predictability ↔ phase-space structure','The Lyapunov diagnostic separates regular tori from chaotic regions; dissipation remains a distinct axis.','measured-invariant'],
+  ['kam','psp','representation','area-preserving map ↔ symplectic shell','The standard map is an exact symplectic map; the phase-space lab exposes the wider symplectic geometry.','theorem-context'],
+  ['psp','poin','representation','energy shell ↔ rigid-body motion','Both are Hamiltonian phase-space instruments with different conserved manifolds.','model-bridge'],
+  ['poin','noe','invariant','angular momentum ↔ symmetry charge','Free rigid-body motion conserves angular momentum as a Noether charge.','theorem'],
+  ['poin','psr','analogy','free precession ↔ rotating star','Rigid-body instability is a structural comparison only; a neutron star needs elasticity, superfluidity and torque physics absent here.','structural-analogy'],
+  ['noe','cp','invariant','symmetry ↔ conserved momentum','Prescribed-field particle motion inherits conserved quantities only when the field respects the corresponding symmetry.','theorem-context'],
+  ['noe','grav','invariant','central symmetry ↔ orbital charges','Rotational symmetry gives angular momentum conservation; Runge–Lenz requires the special inverse-square form.','theorem'],
+  ['grav','rel','limit','Newtonian ↔ weak-field low-speed regime','Newtonian gravity is a weak-field low-speed limit of GR; the SR station alone does not derive gravity.','regime-limit'],
+  ['grav','lens','contrast','Newtonian trajectories ≠ null geodesics','Few-body trajectories and Schwarzschild light deflection answer different dynamical questions.','regime-contrast']
+].map(([a,b,type,label,claim,status],i)=>({id:`nx-e${String(i+1).padStart(3,'0')}`,a,b,type,label,claim,status,directed:type==='causal'}));
+const NEXUS_VIEWS=Object.values(NEXUS_CLUSTERS).flatMap(c=>c.views);
+const NEXUS_VIEW_CLUSTER=new Map(Object.entries(NEXUS_CLUSTERS).flatMap(([k,c])=>c.views.map(v=>[v,k])));
+const NEXUS_TYPE_AXES={
+  exact:new THREE.Vector3(1,.18,-.25),representation:new THREE.Vector3(.35,.85,-.45),
+  invariant:new THREE.Vector3(-.65,.55,.62),limit:new THREE.Vector3(-.85,-.12,.52),
+  coupling:new THREE.Vector3(.62,-.58,.58),causal:new THREE.Vector3(.12,-.95,-.42),
+  analogy:new THREE.Vector3(-.48,.12,-.88),contrast:new THREE.Vector3(.82,.38,.62)
+};
+Object.values(NEXUS_TYPE_AXES).forEach(v=>v.normalize());
+const nexusGroup=new THREE.Group();nexusGroup.name='Invariant Nexus · typed relation space';nexusGroup.visible=false;scene.add(nexusGroup);
+const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),core:null,coreRings:[],pathEdges:[],time:0};
+const nexusLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
+const nexusHash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0)/4294967295;};
+function nexusGlowTexture(){
+  const c=document.createElement('canvas');c.width=c.height=64;const x=c.getContext('2d');
+  const g=x.createRadialGradient(32,32,0,32,32,32);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.18,'rgba(180,225,255,.62)');g.addColorStop(.55,'rgba(90,150,255,.18)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,64,64);
+  const t=new THREE.CanvasTexture(c);if('colorSpace' in t)t.colorSpace=THREE.SRGBColorSpace;return t;
+}
+function nexusCurve(a,b,i=0){
+  const mid=a.clone().add(b).multiplyScalar(.5),span=a.distanceTo(b),cross=a.clone().cross(b);
+  if(cross.lengthSq()<1e-6)cross.set(Math.sin(i*2.17),Math.cos(i*1.31),Math.sin(i*.73+.4));
+  cross.normalize().multiplyScalar(.22+Math.min(1.25,span*.055));
+  const radial=mid.lengthSq()>1e-6?mid.clone().normalize().multiplyScalar(.35+span*.035):new THREE.Vector3();
+  return new THREE.QuadraticBezierCurve3(a.clone(),mid.multiplyScalar(.76).add(radial).add(cross),b.clone());
+}
+function nexusSetup(){
+  if(NEXUS.built){
+    for(const [v,n] of NEXUS.nodes)n.label.element.textContent=viewNameL(v);
+    for(const [k,c] of NEXUS.clusterVisuals)c.label.element.textContent=nexusLang(NEXUS_CLUSTERS[k].t);
+    nexusApplyStyles();return;
+  }
+  NEXUS.built=true;
+  const glowTex=nexusGlowTexture();
+  const edgeLayer=new THREE.Group(),nodeLayer=new THREE.Group(),decorLayer=new THREE.Group();
+  edgeLayer.name='typed relation arcs';nodeLayer.name='laboratory nodes';decorLayer.name='coordinate lenses';
+  nexusGroup.add(decorLayer,edgeLayer,nodeLayer);NEXUS.edgeLayer=edgeLayer;NEXUS.nodeLayer=nodeLayer;
+
+  const core=new THREE.Group();
+  const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(.86,2),new THREE.MeshStandardMaterial({color:0x6cc8ff,emissive:0x17496f,emissiveIntensity:1.4,metalness:.55,roughness:.18,wireframe:true,transparent:true,opacity:.8,depthWrite:false}));
+  const inner=new THREE.Mesh(new THREE.OctahedronGeometry(.43,2),new THREE.MeshBasicMaterial({color:0xffd36a,wireframe:true,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));
+  core.add(shell,inner);core.userData.shell=shell;core.userData.inner=inner;
+  for(let i=0;i<3;i++){
+    const pts=[];for(let j=0;j<96;j++){const a=2*Math.PI*j/96,r=1.2+i*.37;pts.push(new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),0));}
+    const line=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:i===1?0x8ea8ff:0xffd36a,transparent:true,opacity:.24-i*.035,depthWrite:false,blending:THREE.AdditiveBlending}));
+    line.rotation.set(i*.73,(i+1)*.47,i*.31);core.add(line);NEXUS.coreRings.push(line);
+  }
+  const coreLabel=mkLabel('INVARIANT NEXUS','label gold');coreLabel.position.set(0,1.35,0);core.add(coreLabel);
+  decorLayer.add(core);NEXUS.core=core;
+
+  for(const [key,C] of Object.entries(NEXUS_CLUSTERS)){
+    const center=new THREE.Vector3(...C.center),normal=center.clone().normalize();
+    let u=new THREE.Vector3(0,1,0).cross(normal);if(u.lengthSq()<.01)u.set(1,0,0);u.normalize();const v=normal.clone().cross(u).normalize();
+    const radius=1.48+Math.sqrt(C.views.length)*.14,pts=[];
+    for(let i=0;i<128;i++){const a=2*Math.PI*i/128;pts.push(center.clone().addScaledVector(u,Math.cos(a)*radius).addScaledVector(v,Math.sin(a)*radius));}
+    const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:C.color,transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending}));
+    const label=mkLabel(nexusLang(C.t),'label dim');label.position.copy(center.clone().addScaledVector(normal,.55));decorLayer.add(ring,label);
+    NEXUS.clusterVisuals.set(key,{ring,label,center,normal,u,v,radius});
+    C.views.forEach((lab,i)=>{
+      const th=2*Math.PI*(i/C.views.length)+GOLDEN_ANGLE*(C.views.length%5)*.09;
+      const discipline=center.clone().addScaledVector(u,Math.cos(th)*radius).addScaledVector(v,Math.sin(th)*radius).addScaledVector(normal,.28*Math.sin(3*th));
+      const root=new THREE.Group();root.position.copy(discipline);root.userData.nexusLab=lab;
+      const mat=new THREE.MeshStandardMaterial({color:C.color,emissive:C.color,emissiveIntensity:.72,metalness:.38,roughness:.26,transparent:true,opacity:.92});
+      const visual=new THREE.Mesh(new THREE.SphereGeometry(.17,18,12),mat);
+      const cage=new THREE.Mesh(new THREE.IcosahedronGeometry(.25,1),new THREE.MeshBasicMaterial({color:C.color,wireframe:true,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
+      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:C.color,transparent:true,opacity:.38,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}));glow.scale.set(.92,.92,1);
+      const pick=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));pick.name=`Nexus pick · ${lab}`;
+      const label=mkLabel(viewNameL(lab),'label dim',`nexus_${lab}`);label.position.set(0,.38,0);label.visible=false;
+      root.add(glow,cage,visual,pick,label);nodeLayer.add(root);
+      NEXUS.nodes.set(lab,{lab,cluster:key,root,visual,cage,glow,pick,label,discipline,invariant:discipline.clone(),baseScale:1});
+    });
+  }
+
+  const beadGeom=new THREE.SphereGeometry(.045,8,6);
+  NEXUS_RELATIONS.forEach((r,i)=>{
+    const T=NEXUS_TYPES[r.type],line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:T.color,transparent:true,opacity:.2,depthWrite:false,blending:THREE.AdditiveBlending}));
+    const bead=new THREE.Mesh(beadGeom,new THREE.MeshBasicMaterial({color:T.color,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));bead.renderOrder=4;
+    edgeLayer.add(line,bead);NEXUS.edges.push({...r,i,line,bead,curve:null});
+  });
+
+  /* A deterministic eight-dimensional relation signature projected to 3D.  It is a
+     visual analytic embedding, not PCA over evidence and not a physical coordinate. */
+  for(const [lab,n] of NEXUS.nodes){
+    const incident=NEXUS_RELATIONS.filter(e=>e.a===lab||e.b===lab),q=new THREE.Vector3();
+    incident.forEach(e=>q.add(NEXUS_TYPE_AXES[e.type]));
+    const h=nexusHash(lab),j=new THREE.Vector3(Math.sin(h*37.1),Math.cos(h*53.7),Math.sin(h*91.3+.8)).multiplyScalar(.48);
+    q.add(j);if(q.lengthSq()<1e-6)q.set(1,0,0);q.normalize().multiplyScalar(4.55+Math.min(1.8,incident.length*.11));q.y+=(incident.length-3)*.085;
+    n.invariant.copy(q);
+  }
+  nexusLayout(state.nexusMorph??0);
+  nexusTrace(false);
+  nexusApplyStyles();
+}
+function nexusLayout(morph=state.nexusMorph??0){
+  if(!NEXUS.built)return;const t=THREE.MathUtils.clamp(+morph||0,0,1);state.nexusMorph=t;
+  for(const n of NEXUS.nodes.values())n.root.position.lerpVectors(n.discipline,n.invariant,t);
+  for(const [k,c] of NEXUS.clusterVisuals){c.ring.material.opacity=.22*(1-t)+.025;c.label.visible=t<.82;c.label.element.style.opacity=String(Math.max(.18,1-t));}
+  for(const e of NEXUS.edges){
+    const a=NEXUS.nodes.get(e.a)?.root.position,b=NEXUS.nodes.get(e.b)?.root.position;if(!a||!b)continue;
+    e.curve=nexusCurve(a,b,e.i);e.line.geometry.setFromPoints(e.curve.getPoints(28));e.line.geometry.computeBoundingSphere();
+  }
+  nexusApplyStyles();
+}
+function nexusFindPath(source,target,kind=state.nexusKind||'all'){
+  if(!NEXUS_VIEW_CLUSTER.has(source)||!NEXUS_VIEW_CLUSTER.has(target))return {nodes:[],edges:[]};
+  if(source===target)return {nodes:[source],edges:[]};
+  const adj=new Map(NEXUS_VIEWS.map(v=>[v,[]]));
+  for(const e of NEXUS_RELATIONS){if(kind!=='all'&&e.type!==kind)continue;adj.get(e.a)?.push([e.b,e]);adj.get(e.b)?.push([e.a,e]);}
+  const q=[source],prev=new Map([[source,null]]),via=new Map();
+  for(let h=0;h<q.length&&!prev.has(target);h++)for(const [v,e] of adj.get(q[h])||[])if(!prev.has(v)){prev.set(v,q[h]);via.set(v,e);q.push(v);}
+  if(!prev.has(target))return {nodes:[],edges:[]};
+  const nodes=[],edges=[];for(let v=target;v!=null;v=prev.get(v)){nodes.push(v);if(via.has(v))edges.push(via.get(v));}
+  nodes.reverse();edges.reverse();return {nodes,edges};
+}
+function nexusTrace(rebuild=true){
+  const p=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all');
+  state.nexusPath=p.nodes.slice();NEXUS.pathEdges=p.edges.slice();nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();return p;
+}
+function nexusFocus(lab,rebuild=true){
+  if(!NEXUS_VIEW_CLUSTER.has(lab))return;state.nexusFocus=lab;nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();
+}
+function nexusOpenLab(lab=state.nexusFocus||state.nexusSource){if(!NEXUS_VIEW_CLUSTER.has(lab))return;navPush();setS3View(lab);buildCtl();}
+function nexusApplyStyles(){
+  if(!NEXUS.built)return;const kind=state.nexusKind||'all',focus=state.nexusFocus||'',path=new Set(state.nexusPath||[]),pathEdgeIds=new Set((NEXUS.pathEdges||[]).map(e=>e.id));
+  const enabledNode=new Set();for(const e of NEXUS.edges)if(kind==='all'||e.type===kind){enabledNode.add(e.a);enabledNode.add(e.b);}
+  for(const e of NEXUS.edges){
+    const active=kind==='all'||e.type===kind,inPath=pathEdgeIds.has(e.id),incident=focus&&(e.a===focus||e.b===focus);
+    e.line.visible=active;e.line.material.opacity=inPath?.96:incident?.62:kind==='all'?.105:.31;e.line.material.linewidth=inPath?2:1;
+    e.bead.visible=!!(active&&state.nexusPulse&&(inPath||incident||e.i%4===0));e.bead.material.opacity=inPath?1:incident?.9:.48;
+  }
+  for(const [lab,n] of NEXUS.nodes){
+    const selected=lab===focus||selectedKey===`nexus_${lab}`,inPath=path.has(lab),active=kind==='all'||enabledNode.has(lab),endpoint=lab===(state.nexusSource||'')||lab===(state.nexusTarget||'');
+    n.visual.material.opacity=active?(selected||inPath?1:.88):.12;n.visual.material.emissiveIntensity=selected?2.1:inPath?1.35:.62;
+    n.cage.material.opacity=selected?.95:inPath?.72:active?.34:.08;n.glow.material.opacity=selected?.88:inPath?.62:active?.26:.035;
+    n.label.visible=selected||endpoint||(inPath&&path.size<=4);n.label.element.style.color=selected?'#ffd36a':inPath?'#dff7ff':'';n.baseScale=selected?1.52:inPath?1.24:1;
+  }
+}
+function nexusComponents(kind='all'){
+  const unseen=new Set(NEXUS_VIEWS),out=[];while(unseen.size){const seed=unseen.values().next().value,p=[seed],comp=[];unseen.delete(seed);
+    for(let i=0;i<p.length;i++){const u=p[i];comp.push(u);for(const e of NEXUS_RELATIONS){if(kind!=='all'&&e.type!==kind)continue;const v=e.a===u?e.b:e.b===u?e.a:null;if(v&&unseen.delete(v))p.push(v);}}out.push(comp);}return out;
+}
+function nexusDiagnostics(){
+  const degree=new Map(NEXUS_VIEWS.map(v=>[v,0])),types={};let unresolved=0;const pairs=new Set(),duplicates=[];
+  for(const e of NEXUS_RELATIONS){if(!degree.has(e.a)||!degree.has(e.b))unresolved++;else{degree.set(e.a,degree.get(e.a)+1);degree.set(e.b,degree.get(e.b)+1);}types[e.type]=(types[e.type]||0)+1;const k=[e.a,e.b].sort().join('|')+'|'+e.type;if(pairs.has(k))duplicates.push(k);pairs.add(k);}
+  return {schema:'fbs3r-invariant-nexus-diagnostics-v1',nodes:NEXUS_VIEWS.length,relations:NEXUS_RELATIONS.length,types,clusters:Object.fromEntries(Object.entries(NEXUS_CLUSTERS).map(([k,c])=>[k,c.views.length])),isolated:[...degree].filter(([,d])=>d===0).map(([v])=>v),unresolved,duplicates,components:nexusComponents().length,filteredKind:state.nexusKind||'all',layoutMorph:state.nexusMorph??0,pathNodes:(state.nexusPath||[]).length,pathEdges:Math.max(0,(state.nexusPath||[]).length-1),nonMetric:true};
+}
+function nexusExportData(includePositions=true){
+  const p=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all');
+  return {schema:'fbs3r-invariant-nexus-v1',generated_at:new Date().toISOString(),semantics:{claim:'A path means a sequence of declared typed relations. It is not equivalence, proof, physical distance, evidence strength or causal effect unless every relevant edge explicitly says so.',layout:'The 3D embedding morphs between disciplinary grouping and a deterministic projection of eight relation-type counts. Coordinates are interface-only and non-metric.',causal_direction:'causal edges carry directed=true; comparison pathfinding traverses them in either direction and never upgrades them to universal causation.'},taxonomy:Object.fromEntries(Object.entries(NEXUS_TYPES).map(([k,t])=>[k,{label:t.t.en,color:'#'+t.color.toString(16).padStart(6,'0'),epistemic:t.epistemic}])),nodes:NEXUS_VIEWS.map(v=>{const n=NEXUS.nodes.get(v),base={id:v,name:S3_VIEW_NAMES[v]||v,cluster:NEXUS_VIEW_CLUSTER.get(v),degree:NEXUS_RELATIONS.filter(e=>e.a===v||e.b===v).length};return includePositions&&n?{...base,disciplinary_position:n.discipline.toArray(),invariant_position:n.invariant.toArray()}:base;}),edges:NEXUS_RELATIONS.map(e=>({...e})),active:{filter:state.nexusKind||'all',layout_morph:state.nexusMorph??0,focus:state.nexusFocus||null,source:state.nexusSource||null,target:state.nexusTarget||null},path:{nodes:p.nodes,edge_ids:p.edges.map(e=>e.id),found:p.nodes.length>0}};
+}
+function nexusPanelHTML(){
+  nexusSetup();const D=nexusDiagnostics(),P=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all'),focus=state.nexusFocus||'',counts=D.types;
+  const opts=NEXUS_VIEWS.map(v=>`<option value="${v}" ${(state.nexusSource===v)?'selected':''}>${esc(viewNameL(v))}</option>`).join('');
+  const optsT=NEXUS_VIEWS.map(v=>`<option value="${v}" ${(state.nexusTarget===v)?'selected':''}>${esc(viewNameL(v))}</option>`).join('');
+  const pathRows=P.edges.map((e,i)=>`<button class="btn" data-nx-node="${e.b===P.nodes[i]?e.a:e.b}" style="display:block;width:100%;text-align:left;margin:4px 0;border-color:#${NEXUS_TYPES[e.type].color.toString(16).padStart(6,'0')}55"><span style="color:#${NEXUS_TYPES[e.type].color.toString(16).padStart(6,'0')}">● ${esc(nexusLang(NEXUS_TYPES[e.type].t))}</span> · ${esc(viewNameL(P.nodes[i]))} → ${esc(viewNameL(P.nodes[i+1]))}<br><span class="small" style="color:var(--dim)">${esc(e.label)} · ${esc(e.claim)}</span></button>`).join('');
+  return `<div class="sect" style="border-color:rgba(120,217,255,.42);background:linear-gradient(135deg,rgba(43,82,125,.22),rgba(128,72,170,.12))">
+    <b style="color:#bdefff">✦ ${TT('INVARIANT NEXUS','ИНВАРИАНТНЫЙ НЕКСУС','INVARIANTEN-NEXUS')}</b>
+    <div class="small" style="margin-top:4px">${TT('A navigable universe of typed relations:','Навигационная вселенная типизированных связей:','Ein navigierbares Universum typisierter Beziehungen:')} <b>${D.nodes}</b> ${TT('laboratories','лаборатории','Labore')} · <b>${D.relations}</b> ${TT('declared links','заявленных связей','deklarierte Verbindungen')} · <b>${Object.keys(D.types).length}</b> ${TT('epistemic classes','эпистемических классов','epistemische Klassen')}.</div>
+    <div class="note" style="margin-top:6px;color:#ffd58a">${TT('Graph distance is not physical distance, similarity strength, evidence, or causation. Every edge says exactly what kind of sameness—or difference—it claims.','Расстояние графа — не физическое расстояние, не сила сходства, не доказательность и не причинность. Каждое ребро точно сообщает, какой вид сходства — или различия — оно утверждает.','Graphabstand ist weder physikalische Distanz noch Ähnlichkeitsstärke, Evidenz oder Kausalität. Jede Kante nennt ihre genaue Aussageklasse.')}</div>
+  </div>
+  <div class="sect"><b>${TT('RELATION LENS','ЛИНЗА СВЯЗЕЙ','BEZIEHUNGSLINSE')}</b><div class="radioRow" style="margin-top:5px">
+    <button class="btn ${(state.nexusKind||'all')==='all'?'on':''}" data-nx-kind="all">${TT('all','все','alle')} · ${D.relations}</button>
+    ${Object.entries(NEXUS_TYPES).map(([k,t])=>`<button class="btn ${(state.nexusKind||'all')===k?'on':''}" data-nx-kind="${k}" style="border-color:#${t.color.toString(16).padStart(6,'0')}66"><span style="color:#${t.color.toString(16).padStart(6,'0')}">●</span> ${esc(nexusLang(t.t))} · ${counts[k]||0}</button>`).join('')}
+  </div></div>
+  <div class="sect"><b>${TT('DIMENSIONAL MORPH','МОРФИНГ ИЗМЕРЕНИЙ','DIMENSIONS-MORPHING')}</b>
+    <div class="small">${TT('disciplinary geography','география дисциплин','Disziplingeografie')} <input id="nxMorph" type="range" min="0" max="1" step="0.01" value="${state.nexusMorph??0}" data-no-osc> <span id="nxMorphV">${(state.nexusMorph??0).toFixed(2)}</span> ${TT('invariant geography','география инвариантов','Invariantengeografie')}</div>
+    <div class="note">${TT('The right-hand embedding is computed from each node’s eight-component relation signature; it is a visual analytic projection, not an evidence ranking.','Правая конфигурация вычисляется из восьмикомпонентной сигнатуры связей каждого узла; это аналитическая визуальная проекция, а не рейтинг доказательности.','Die rechte Einbettung wird aus der achtkomponentigen Beziehungssignatur jedes Knotens berechnet; sie ist keine Evidenzrangfolge.')}</div>
+    <div class="ctlrow"><button class="btn ${state.nexusRotate?'on':''}" id="nxRotate">↻ ${TT('orbit','вращение','Rotation')}</button><button class="btn ${state.nexusPulse?'on':''}" id="nxPulse">⌁ ${TT('relation flow','поток связей','Beziehungsfluss')}</button></div>
+  </div>
+  <div class="sect"><b>${TT('TRACE A CONNECTION','ПРОЛОЖИТЬ СВЯЗЬ','VERBINDUNG VERFOLGEN')}</b>
+    <div class="small">${TT('from','от','von')}</div><select id="nxSource" style="width:100%">${opts}</select>
+    <div class="small" style="margin-top:4px">${TT('to','до','nach')}</div><select id="nxTarget" style="width:100%">${optsT}</select>
+    <div class="ctlrow"><button class="btn" id="nxTrace">⌁ ${TT('shortest typed path','кратчайший типизированный путь','kürzester typisierter Pfad')}</button><button class="btn" id="nxSwap">⇄</button></div>
+    ${P.nodes.length?`<div class="note" style="color:#bdefff"><b>${P.edges.length}</b> ${TT('edges','рёбер','Kanten')} · ${P.nodes.map(v=>esc(viewNameL(v))).join(' → ')}</div>${pathRows}`:`<div class="note" style="color:#ff9d7d">${TT('No path exists under this relation filter. Choose “all” or another epistemic class.','При этом фильтре пути нет. Выберите «все» или другой эпистемический класс.','Unter diesem Filter existiert kein Pfad. Wählen Sie „alle“ oder eine andere Klasse.')}</div>`}
+    <div class="ctlrow"><button class="btn" id="nxCompare" ${P.nodes.length<2?'disabled':''}>◱ ${TT('compare path in Multiview','сравнить путь в Multiview','Pfad in Multiview vergleichen')}</button></div>
+  </div>
+  <div class="sect"><b>${TT('FOCUS & EXPORT','ФОКУС И ЭКСПОРТ','FOKUS & EXPORT')}</b>
+    <input id="nxFind" list="nxLabs" placeholder="${TT('type a lab id or name…','введите код или имя лаборатории…','Labor-ID oder Name…')}" style="width:100%"><datalist id="nxLabs">${NEXUS_VIEWS.map(v=>`<option value="${v} · ${esc(viewNameL(v))}"></option>`).join('')}</datalist>
+    <div class="small" style="margin-top:5px">${focus?`${TT('focused','в фокусе','fokussiert')}: <b style="color:#ffd36a">${esc(viewNameL(focus))}</b>`:TT('Click any luminous node to inspect it; double-click to fly to it.','Нажмите светящийся узел, чтобы исследовать; двойной щелчок приблизит камеру.','Leuchtenden Knoten anklicken; Doppelklick fliegt dorthin.')}</div>
+    <div class="ctlrow"><button class="btn" id="nxOpen" ${!focus?'disabled':''}>→ ${TT('open focused laboratory','открыть лабораторию в фокусе','fokussiertes Labor öffnen')}</button><button class="btn" id="nxClear">× ${TT('clear','очистить','leeren')}</button></div>
+    <div class="ctlrow"><button class="btn" id="nxExport">⬇ ${TT('export typed graph JSON','экспорт типизированного графа JSON','typisierten Graph als JSON exportieren')}</button></div>
+  </div>`;
+}
+function bindNexusControls(root=ctl){
+  root.querySelectorAll('[data-nx-kind]').forEach(b=>b.onclick=()=>{state.nexusKind=b.dataset.nxKind;nexusTrace(false);nexusApplyStyles();buildCtl();});
+  const morph=root.querySelector('#nxMorph');if(morph)morph.oninput=e=>{state.nexusMorph=+e.target.value;nexusLayout(state.nexusMorph);const v=root.querySelector('#nxMorphV');if(v)v.textContent=state.nexusMorph.toFixed(2);};
+  const src=root.querySelector('#nxSource'),dst=root.querySelector('#nxTarget');if(src)src.onchange=e=>{state.nexusSource=e.target.value;nexusTrace();};if(dst)dst.onchange=e=>{state.nexusTarget=e.target.value;nexusTrace();};
+  const trace=root.querySelector('#nxTrace');if(trace)trace.onclick=()=>nexusTrace();
+  const swap=root.querySelector('#nxSwap');if(swap)swap.onclick=()=>{const a=state.nexusSource;state.nexusSource=state.nexusTarget;state.nexusTarget=a;nexusTrace();};
+  const rot=root.querySelector('#nxRotate');if(rot)rot.onclick=()=>{state.nexusRotate=!state.nexusRotate;buildCtl();};
+  const pulse=root.querySelector('#nxPulse');if(pulse)pulse.onclick=()=>{state.nexusPulse=!state.nexusPulse;nexusApplyStyles();buildCtl();};
+  root.querySelectorAll('[data-nx-node]').forEach(b=>b.onclick=()=>{const lab=b.dataset.nxNode;nexusFocus(lab,false);selectKey(`nexus_${lab}`);});
+  const open=root.querySelector('#nxOpen');if(open)open.onclick=()=>nexusOpenLab();
+  const cmp=root.querySelector('#nxCompare');if(cmp)cmp.onclick=()=>nexusComparePath();
+  const clear=root.querySelector('#nxClear');if(clear)clear.onclick=()=>{state.nexusFocus='';state.nexusPath=[];NEXUS.pathEdges=[];selectKey(null);nexusApplyStyles();buildCtl();};
+  const find=root.querySelector('#nxFind');if(find)find.onkeydown=e=>{if(e.key!=='Enter')return;e.preventDefault();const q=e.target.value.toLowerCase().trim(),lab=NEXUS_VIEWS.find(v=>v===q||q.startsWith(v+' ·')||viewNameL(v).toLowerCase().includes(q));if(lab){nexusFocus(lab,false);selectKey(`nexus_${lab}`);}};
+  const exp=root.querySelector('#nxExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_invariant_nexus.json','application/json',JSON.stringify(nexusExportData(),null,2));
+}
+function updateNexus(dt){
+  if(!NEXUS.built)return;NEXUS.time+=dt;const t=NEXUS.time;
+  if(state.nexusRotate&&!PREFERS_REDUCED_MOTION&&!renderer.xr.isPresenting)nexusGroup.rotation.y+=dt*.026;
+  NEXUS.core.userData.shell.rotation.y+=dt*.18;NEXUS.core.userData.shell.rotation.x+=dt*.07;NEXUS.core.userData.inner.rotation.y-=dt*.31;NEXUS.core.userData.inner.rotation.z+=dt*.11;
+  NEXUS.coreRings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.09:-.07));
+  for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
+  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
+  const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
+  hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'invariant'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
+}
+
 /* Per-view camera framing, one source of truth: setS3View() uses it to place the main
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,2.4,22]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
 function s3ViewVisibility(v){
+  nexusGroup.visible   = v==='nexus';
   sectionGroup.visible = (v==='sec'||v==='eig'||v==='red');
   hopfGroup.visible    = v==='hopf';
   s3LabGroup.visible   = v==='lab';
@@ -17653,6 +18021,7 @@ function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
   s3ViewVisibility(v);
+  if(v==='nexus'){ nexusSetup(); }
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
   if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
@@ -17940,6 +18309,16 @@ function mvExit(){
   renderer.setScissorTest(false); renderer.autoClear=true;
   const {W,H}=mvViewSize(); renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
   setS3View(v); buildCtl(); if(typeof refreshMenu==='function') refreshMenu();
+}
+/* Project the currently traced Nexus path into the existing scissored Multiview.
+   This is a comparison surface only: ordering follows graph traversal and does not
+   turn a mixed relation path into a causal chain. */
+function nexusComparePath(){
+  const P=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all'),views=P.nodes.slice(0,4);
+  if(views.length<2||renderer.xr.isPresenting)return;
+  mvEnsure();MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';
+  MV.n=views.length;for(let i=0;i<MV.n;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
+  MV.active=-1;for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();
 }
 /* one orientation, four correct framings */
 function mvSyncCameras(){
@@ -23249,6 +23628,8 @@ const state = {
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invQuantity:'', invTol:1e-3,   // Inverse atlas — a value is meaningless until its quantity kind is selected
+  nexusKind:'all', nexusMorph:0, nexusRotate:true, nexusPulse:true,
+  nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas
   mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
@@ -25757,6 +26138,7 @@ function buildCtlBody(){
         <button class="btn" id="psrToDip">→ Dipole radiation: the braking torque</button>
         <button class="btn" id="psrToCp">→ Charged particles in its magnetosphere</button></div>
     </div>`;
+    else if(V==='nexus') body = nexusPanelHTML();
     else if(V==='qso') body = `
     <div class="sect"><b>Quasar — engine parameters</b>
       <div class="chips">
@@ -26212,6 +26594,7 @@ function buildCtlBody(){
       </div>`; })()}
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
+        <button class="btn ${V==='nexus'?'on':''}" id="v-nexus">✦ ${TT('Invariant Nexus','Инвариантный Нексус','Invariant Nexus')}</button>
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
         <button class="btn ${V==='hopf'?'on':''}" id="v-hopf">Hopf</button>
         <button class="btn ${V==='eig'?'on':''}" id="v-eig">Modes</button>
@@ -26322,8 +26705,9 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['nexus','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
+    if(V==='nexus') bindNexusControls(ctl);
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
         Object.assign(state,{skDim:'2d',skMagnon:false,skAnim:null,skAnimRun:false});   // clean slate, then the preset
@@ -28376,10 +28760,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={nexus:'Invariant Nexus',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{nexus:'Инвариантный Нексус',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{nexus:'Invariant Nexus',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -30034,6 +30418,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSn(dt);
     } else if(state.s3view==='psr'){
       fbsAnimT+=dt; updatePsr(dt);
+    } else if(state.s3view==='nexus'){
+      fbsAnimT+=dt; updateNexus(dt);
     } else if(state.s3view==='qso'){
       fbsAnimT+=dt; updateQso(dt);
     } else if(state.s3view==='atom'){
@@ -30150,6 +30536,7 @@ const makeLabPick=(group,r=2.6)=>{const m=new THREE.Mesh(new THREE.SphereGeometr
   new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));
   m.name='laboratory interaction volume';m.userData.atlasPersistent=true;group.add(m);return m;};
 const LAB_ATLAS_DEFS=[
+  ['nexusAtlas','nexus',nexusGroup,'Invariant Nexus','typed, non-metric cross-laboratory relation universe with morphing disciplinary and invariant embeddings'],
   ['quasiAtlas','quasi',quasiGroup,'Quasiparticle laboratory','phonon, magnon, exciton and collective-mode reference models'],
   ['atomAtlas','atom',atomGroup,'Element and atomic-shell laboratory','Aufbau occupations, nuclear radius law and approximate Slater effective radii'],
   ['gravAtlas','grav',gravGroup,'Gravitas three-body laboratory','symplectic reduced-unit few-body dynamics with invariant monitoring'],
@@ -30187,11 +30574,12 @@ const LAB_ATLAS_DEFS=[
   ['psrAtlas','psr',psrGroup,'Pulsar lighthouse laboratory','magnetic-dipole lighthouse geometry and spin-down reference relations'],
   ['qsoAtlas','qso',qsoGroup,'Quasar accretion and jet laboratory','Eddington scaling, thin-disk efficiency and relativistic Doppler-beaming reference model']
 ];
-const LAB_ATLAS_PICKS=new Map(LAB_ATLAS_DEFS.map(d=>{const p=makeLabPick(d[2],d[1]==='atom'?3.2:d[1]==='qm'?.75:d[1]==='cmb'?2.3:2.6);
+nexusSetup();
+const LAB_ATLAS_PICKS=new Map(LAB_ATLAS_DEFS.map(d=>{const p=makeLabPick(d[2],d[1]==='nexus'?1.25:d[1]==='atom'?3.2:d[1]==='qm'?.75:d[1]==='cmb'?2.3:2.6);
   if(d[1]==='qm')p.position.set(0,2.7,0);return [d[0],p];}));
 if(!qmRe)qmSetup();
 for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
-  const src=key==='qmAtlas'?['QMNUM','DERIVED']:key==='qcdAtlas'?['QCD','DERIVED']:
+  const src=key==='nexusAtlas'?['NEXUS','DERIVED']:key==='qmAtlas'?['QMNUM','DERIVED']:key==='qcdAtlas'?['QCD','DERIVED']:
     key==='bhtAtlas'?['BHTREF','DERIVED']:key==='cmbAtlas'?['CMBREF','DERIVED']:
     key==='mimgAtlas'?['TOPOREF','DERIVED']:
     key==='bhrAtlas'?['BHTREF','ASTRO','DERIVED']:
@@ -30203,6 +30591,21 @@ for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
     getPos:()=>group.getWorldPosition(new THREE.Vector3()),focusDist:()=>view==='atom'?11:9,
     onSelect:()=>setS3View(view),rows:()=>[['Active laboratory',name],['View/station',view],['Model status','reference/reduced demonstrator; inspect controls for assumptions']]});
 }
+/* Every luminous Nexus node is a first-class selectable.  The selectable points at
+   the relation-space proxy, not at the laboratory's own model geometry; opening the
+   laboratory remains an explicit second action in the Nexus panel. */
+for(const lab of NEXUS_VIEWS){
+  const n=NEXUS.nodes.get(lab),cluster=NEXUS_VIEW_CLUSTER.get(lab),C=NEXUS_CLUSTERS[cluster];
+  registerSel(`nexus_${lab}`,{name:()=>`Nexus · ${viewNameL(lab)}`,mode:'s3',pick:n.pick,labelEl:n.label.element,src:['NEXUS','DERIVED'],accuracyTier:'M',catalogueStatus:'derived-interface-node',
+    forbiddenClaims:['the node position or graph distance is a physical distance, similarity magnitude, evidence strength or causal effect size','a mixed-type path proves equivalence, unification or universal causation','visual proximity upgrades analogy or contrast to identity'],
+    desc:`A selectable relation-space proxy for the ${S3_VIEW_NAMES[lab]||lab} laboratory. Position morphs between disciplinary and typed-relation embeddings; it is deliberately non-metric.`,
+    formulas:['disciplinary position ↔ deterministic projection of the eight-component relation-type count vector','shortest path = fewest declared typed edges under the active filter; causal direction is metadata, not imposed on comparison traversal'],
+    getPos:()=>n.pick.getWorldPosition(new THREE.Vector3()),focusDist:4,
+    onSelect:()=>{if(state.s3view!=='nexus')setS3View('nexus');nexusFocus(lab,true);},
+    rows:()=>{const rel=NEXUS_RELATIONS.filter(e=>e.a===lab||e.b===lab);return [['Laboratory',viewNameL(lab)],['Disciplinary cluster',nexusLang(C.t)],['Declared Nexus degree',String(rel.length)],['Relation classes',[...new Set(rel.map(e=>nexusLang(NEXUS_TYPES[e.type].t)))].join(' · ')],['Coordinate contract','interface-only · morphing · non-metric']];}});
+}
+NEXUS_RELATIONS.forEach(e=>EXPLICIT_RELATIONS.push([`nexus_${e.a}`,`nexus_${e.b}`,`nexus:${e.type}`,`${e.label}. ${e.claim}`]));
+EXPLICIT_RELATIONS.push(['nexusAtlas','s3obs','typed relation index','Invariant Nexus indexes declared cross-laboratory relations inside the S³ instrument; its embedding is non-metric and does not upgrade evidence.']);
 [
   ['bhrAtlas','lensAtlas','shared null-geodesic geometry','The ray tracer and lensing lab expose complementary Schwarzschild null-geodesic observables.'],
   ['bhrAtlas','bhtAtlas','horizon geometry to thermodynamics','The same Schwarzschild mass fixes the ray-capture geometry and the idealized horizon thermodynamic scales.'],
@@ -30339,7 +30742,7 @@ function buildDevelopmentAudit(){
       unresolvedRelations:unresolved.length,unlinkedObjects:unlinked.length,objectsWithoutExplicitRelation:withoutExplicitRelation.length,fieldSolverFamilies:Object.keys(FIELD.equations).length,
       experimentPresets:Object.values(FIELD.presets).reduce((n,p)=>n+p.length,0),referenceLaboratories:LAB_ATLAS_DEFS.length,
       quantumScenarios:4,quantumPhaseSpaceSamples:QM_WX*QM_WP,qcdScenarios:3,newFoundationalLaboratories:3,newCompactObjectLaboratories:5,
-      causalWorkspace:CAUSAL.diagnostics(),vectorLayers:vectorDiagnostics()},
+      causalWorkspace:CAUSAL.diagnostics(),invariantNexus:nexusDiagnostics(),vectorLayers:vectorDiagnostics()},
     sections:modeStats,relationKinds,unresolved,unlinked,withoutExplicitRelation,explicitObjectDegree:Object.fromEntries([...degree].sort((a,b)=>b[1]-a[1])),
     improvementBacklog:[
       {priority:'P0',area:'Numerical validation',need:'Per-model convergence studies, adaptive time steps, error estimators and reference-solution comparisons before predictive use.'},
@@ -30406,6 +30809,8 @@ globalThis.FBS3R_QA=Object.freeze({
   geometryAudit(){const bad=[];scene.traverse(o=>{const a=o.geometry?.attributes?.position?.array;if(!a)return;let n=0;for(const v of a)if(!Number.isFinite(v))n++;if(n)bad.push({name:o.name||o.type,selKey:o.userData?.selKey||null,nonFinite:n,count:a.length});});return bad;},
   field(){return FIELD.diagnostics();},
   causal(){return CAUSAL.diagnostics();},
+  nexus(){return nexusDiagnostics();},
+  nexusPath(source=state.nexusSource,target=state.nexusTarget,kind=state.nexusKind){const p=nexusFindPath(source,target,kind);return {nodes:p.nodes,edges:p.edges.map(e=>({...e}))};},
   vectors(){return vectorDiagnostics();},
   quantum(){try{let norm=0;for(let i=0;i<QM_N;i++)norm+=(qmRe[i]*qmRe[i]+qmIm[i]*qmIm[i])*QM_DX;
     const p=qmWignerPts?.geometry?.attributes?.position?.array||[],c=qmWignerPts?.geometry?.attributes?.color?.array||[];
