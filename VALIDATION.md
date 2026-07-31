@@ -1,8 +1,9 @@
 # VALIDATION — S³ LIGHT-TRISPHERE / FBS3R Interactive 3D Model
 
 > XR-specific validation lives in `XR_VALIDATION.md` and `QUEST3_TEST_PLAN.md`.
-> The automated suite now also covers the WebXR layer (191 checks) and the app
-> runs 14 numerical self-tests at startup (exportable as `validation_report.json`).
+> The automated suite covers the desktop, mobile and WebXR contracts. The app
+> also runs its current numerical self-test registry at startup, exportable as
+> `validation_report.json`. Counts are generated at runtime rather than frozen here.
 
 ## Automated checks
 
@@ -12,13 +13,14 @@ Run from the repository root (requires Node ≥ 18):
 node scripts/validate.mjs
 ```
 
-The script asserts (161 checks, all passing at last commit):
+The script asserts the following classes of checks. Because IDs and scientific
+contracts are checked individually, the exact PASS count grows with the atlas.
 
 | # | Check |
 |---|---|
 | 1 | Inline ES module extracts and passes `node --check` (JavaScript syntax) |
-| 2 | No Cyrillic characters anywhere in `index.html` (UI fully English) |
-| 3 | All six mode buttons declared and each has a `setMode`/`buildCtl`/`tick` branch |
+| 2 | Complete EN/RU/DE localization dictionaries are present |
+| 3 | All seven mode buttons are declared and each has a `setMode`/`buildCtl`/`tick` branch |
 | 4 | Every `querySelector('#…')` / `getElementById('…')` target id is created in markup or a control-panel template (no missing event-handler targets) |
 | 5 | Selection registry present (≥15 `registerSel` call-sites → ~60 runtime entries), provenance container and `SOURCE_MAP` exist |
 | 6 | Mobile: `max-width:760px` media query, iOS `env(safe-area-inset-*)`, `viewport-fit=cover`, pinch handler, bottom-sheet toggles |
@@ -26,11 +28,13 @@ The script asserts (161 checks, all passing at last commit):
 | 8 | JSON & CSV export functions wired to buttons |
 | 9 | Discipline guard: the app never claims topology detection as established fact; explicit conditional-reconstruction disclaimer present |
 | 10 | Every `onclick`/`oninput`/`onchange` assignment target exists |
+| 11 | FB(S³)R published epoch labels are kept distinct from the CoScale clock |
+| 12 | Inverse Atlas refuses an untyped scalar and labels cross-quantity scans as numerical coincidences |
 
 ## Manual test checklist (desktop)
 
 - [ ] Open `index.html` — title, ornamental clock (real UTC + sim time) visible.
-- [ ] All six modes open: Solar System / Cycles & Events / Observable Universe / S³ Carrier & Hopf / φ FBS3R Levels / Fractal Explorer.
+- [ ] All seven modes open: Solar System / Cycles & Events / Observable Universe / S³ Carrier & Hopf / φ FBS3R Levels / Field Lab / Fractal Explorer.
 - [ ] Click any planet body or label → card with data, formula provenance, source tags (hover tag → full citation).
 - [ ] Focus flies and follows; Land gives first-person surface view (true-scale sky, Sun at real angular size); Esc leaves.
 - [ ] Moon: select → phase/elongation/node rows; Land works.
@@ -41,6 +45,9 @@ The script asserts (161 checks, all passing at last commit):
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
 - [ ] FBS3R: slider with epoch ticks, chips, exact-N input, length+unit input (fm…Gly) → correct N (e.g. 1 m → N≈166.5); formula matrix live; shells clickable; cycle animation ping-pongs 0→299.
+- [ ] FBS3R: quick-access chips have explicit labels and increase by N; N★207 is not appended after cosmological scales.
+- [ ] FBS3R: the N_rec=266 publication label shows CoScale t(266)≈66.6 kyr separately from the 380 kyr cosmological label.
+- [ ] Inverse Atlas: entering a number without selecting a quantity kind produces no matches; the 2.224566 MeV preset returns only the energy observable unless the explicit exploratory all-kinds mode is selected.
 - [ ] FBS3R exports: State JSON downloads and parses; φ-ladder CSV opens with 313 rows + header.
 - [ ] Day/Night theme toggle persists after reload.
 - [ ] Milky Way band passes through Cygnus–Cassiopeia and is brightest toward Sagittarius/Scorpius; zodiac glyphs lie along the gold ecliptic.
@@ -56,10 +63,9 @@ The script asserts (161 checks, all passing at last commit):
 
 ## Screenshots
 
-No headless browser is available in the CI container, so screenshots are a manual
-step: open each of the six modes and capture one frame per mode
-(desktop ≥1280 px and a phone viewport). Suggested names:
-`shots/01-solar.png … 06-fractal.png`.
+Screenshot comparison remains a manual release gate: open each of the seven modes
+and capture one frame per mode (desktop ≥1280 px and a phone viewport). Suggested
+names: `shots/01-solar.png … 07-fractal.png`.
 
 ## Known accuracy envelopes (by design, disclosed in-app)
 
@@ -69,4 +75,6 @@ step: open each of the six modes and capture one frame per mode
 - Equinox/solstice solver: mean Kepler elements, no nutation/aberration → ~1 h.
 - Star catalogue: curated bright stars, ~0.1°.
 - Galactic year 230 Myr and precession 25,772 yr: standard quoted values.
-- S³ and FBS3R numbers: verbatim from the tagged publications (SOURCE_MAP).
+- S³ and FBS3R inputs are source-tagged. Derived values are recomputed from the
+  displayed formulas; publication labels and independent CoScale results are not
+  silently conflated.

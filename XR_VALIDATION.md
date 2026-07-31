@@ -1,7 +1,7 @@
 # XR_VALIDATION — WebXR layer (Meta Quest 3)
 
 Companion to `VALIDATION.md`. Automated XR checks live in `scripts/validate.mjs`
-(§10, 191 total checks passing). This file is the **manual** XR checklist plus the
+(§10; the exact PASS count is emitted by the current validator). This file is the **manual** XR checklist plus the
 honest capability matrix.
 
 ## Capability matrix (what is real vs. not exposed)

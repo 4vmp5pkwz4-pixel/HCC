@@ -78,6 +78,21 @@ for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_
                  'ln(L/l_P)/ln', 'φ⁻³ᴺ', 'φᴺ/√5', '4*Math.PI*S3.R*S3.R'])
   check(html.includes(f), `formula fragment present: ${f}`);
 
+/* 7a · FBS/CoScale anchors must remain numerically and semantically distinct. */
+{
+  const phi=(1+Math.sqrt(5))/2, tP=5.391247e-44, yr=365.25*86400;
+  const t266=tP*phi**266/yr;
+  const n380=Math.log(380000*yr/tP)/Math.log(phi);
+  check(Math.abs(t266-66572.9143)<0.1,
+    `CoScale t(266) is independently verified (${t266.toFixed(1)} yr, not 380000 yr)`);
+  check(Math.abs(n380-269.619764)<1e-5,
+    `CoScale 380000 yr corresponds to N=${n380.toFixed(6)}`);
+  check(html.includes('CoScale t(266) ≈ 66.6 kyr') && html.includes('380 kyr corresponds to N ≈ 269.62'),
+    'UI discloses the published N_rec label separately from the CoScale clock');
+  check(!html.includes('const SHORTS =') && html.includes("short:'N★207'") && html.includes('FBS_EPOCHS.sort'),
+    'FBS epoch chips are self-labelled and ordered by N (no parallel-array undefined label)');
+}
+
 /* 8 · Export features */
 check(html.includes('exportStateJSON') && html.includes('exportLadderCSV'),
   'JSON & CSV export functions wired');
@@ -87,6 +102,11 @@ check(!/topology (is|was) (detected|proven)/i.test(html),
   'app never claims topology detection as established fact');
 check(html.includes('not a topology detection') || html.includes('NOT a topology detection'),
   'explicit conditional-reconstruction disclaimer present');
+check(html.includes("invQ:'', invQuantity:''") && html.includes('function invAtlasEntries(quantity)'),
+  'Inverse Atlas requires a declared quantity kind before matching');
+check(html.includes('equal numbers carrying different physical meanings are not relations')
+  && html.includes('Exploratory cross-quantity scan'),
+  'cross-quantity numeric coincidences are explicitly labelled non-equivalent');
 
 /* 10 · WebXR layer (Quest 3 VR/MR) */
 check(html.includes('renderer.xr.enabled = true'), 'renderer.xr.enabled = true');
