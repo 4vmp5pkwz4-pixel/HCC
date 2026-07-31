@@ -649,6 +649,8 @@
       display:flex;justify-content:flex-end;align-items:baseline;gap:7px;padding:3px 8px;max-width:170px}
     #clock .rt{font-size:11px;letter-spacing:1px;white-space:nowrap}
     #clock .st{font-size:8.5px;margin-top:0;white-space:nowrap}
+    #navCluster{left:50%;transform:translateX(-50%);max-width:88vw;justify-content:center}
+    #navCluster>#breadcrumb{left:auto;transform:none;max-width:100%;text-align:center}
     /* dock collapses into a round FAB; expand to a left-pinned vertical pill so the view stays clear */
     #dockFab{display:flex}
     #helpFab,#dockFab,#ctlFab{left:14px;right:auto}   /* FABs go bottom-left; selection card stays bottom-right */
@@ -710,6 +712,13 @@
     .label.axis{font-size:8px;letter-spacing:.7px;opacity:.62;
       white-space:normal;max-width:38vw;text-align:center;line-height:1.3}
     .label.const{white-space:normal;max-width:56vw;text-align:center;line-height:1.35}
+  }
+  @media (max-width:420px){
+    #topbar .title{flex:0 0 calc(100% - 182px);max-width:calc(100% - 182px);padding-right:0;
+      min-height:26px;font-size:10.5px;letter-spacing:1.25px;white-space:nowrap;overflow:hidden}
+    #clock{max-width:176px;gap:0;padding-inline:7px}
+    #clock .rt{font-size:9.5px;letter-spacing:.42px}
+    #clock .st{display:none}
   }
   /* accessibility as infrastructure (2026): honour the user's motion preference —
      kill decorative transitions; the camera idle-drift is gated in JS by the same query */
@@ -984,6 +993,7 @@ const SOURCE_MAP = {
   CMBREF:{tag:'PLANCK-CMB',label:'Planck 2018 VII large-angle isotropy/statistics context. The displayed low-ℓ coefficients and maps are illustrative deterministic summaries, not a likelihood re-analysis or evidence for topology; cosmic variance, masking, foregrounds and look-elsewhere choices matter.'},
   TOPOREF:{tag:'COSMIC-TOPO',label:'Round-S³ geodesic and cosmic-topology reference model. Multiple observable images require sufficient conformal lookback time and a detectable compact topology; no ghost image or matched-circle topology is claimed as observed.'},
   NEXUS: {tag:'INV-NEXUS',  label:'Invariant Nexus — curated, typed cross-laboratory relation layer derived from the atlas contracts. Edge classes keep theorem/identity, representation, shared invariant, limiting relation, coupling, causal succession, analogy and contrast distinct. The 3D embedding and graph distance are interface coordinates, never physical distance, evidence strength or causal effect size.'},
+  SYMDISC:{tag:'SYM-DISC', label:'Symmetry Discovery Chamber — deterministic finite-orbit candidate tests over exact SO(3), SO+(1,1), U(1), symplectic and Möbius actions. Mathematical anchors: PDG 2025 kinematics and NIST DLMF §1.9; recent symmetry-discovery research motivates the invariant-first instrument, but no machine learning runs in this browser lab.'},
   DERIVED:{tag:'derived',  label:'Derived live inside this app from the tagged formulas — no fitting, no hidden parameters'},
 };
 
@@ -3197,6 +3207,24 @@ function runSelfTests(){
       ex.nodes.length===NEXUS_VIEWS.length&&ex.edges.length===NEXUS_RELATIONS.length&&/not equivalence/i.test(sem)&&/physical distance/i.test(sem)&&/causal/i.test(sem),
       `${ex.schema} · ${ex.nodes.length} nodes · ${ex.edges.length} edges · epistemic firewall present`);
   }
+  { // SYMMETRY DISCOVERY: exact benchmarks, falsification response and epistemic firewall
+    const ids=Object.keys(SYD_WORLDS),exact=ids.map(id=>[id,sydScan(id,0)]);
+    const candidateCount=exact.reduce((n,[,r])=>n+r.length,0),expectedCount=exact.reduce((n,[,r])=>n+r.filter(x=>x.expected).length,0);
+    ok('Symmetry Discovery spans five transformation spaces with 20 named candidates and nine declared exact invariants',
+      ids.length===5&&candidateCount===20&&expectedCount===9&&exact.every(([,r])=>r.length===4),
+      `${ids.join(' · ')} · ${candidateCount} candidates · ${expectedCount} exact benchmarks`);
+    ok('Every declared invariant remains finite and stable below 5×10⁻¹² while every negative-control candidate drifts above 10⁻⁵ on the same 65-sample exact orbit',
+      exact.every(([,r])=>r.filter(x=>x.expected).every(x=>x.finite&&x.residual<5e-12)&&r.filter(x=>!x.expected).every(x=>x.finite&&x.residual>1e-5)),
+      exact.map(([id,r])=>`${id}:${Math.max(...r.filter(x=>x.expected).map(x=>x.residual)).toExponential(1)}`).join(' · '));
+    const broken=ids.map(id=>[id,sydScan(id,.12)]);
+    ok('A documented non-group perturbation falsifies at least one formerly invariant candidate in every transformation space',
+      broken.every(([,r])=>r.filter(x=>x.expected).some(x=>x.residual>1e-6)),
+      broken.map(([id,r])=>`${id}:${Math.max(...r.filter(x=>x.expected).map(x=>x.residual)).toExponential(1)}`).join(' · '));
+    const ex=sydExportData(),firewall=`${ex.epistemic_firewall} ${ex.diagnostics?.semantics||''}`;
+    ok('Symmetry Discovery export contains the reproducible 65-sample orbit and forbids upgrading finite numerical stability into a theorem or exhaustive discovery',
+      ex.samples.length===65&&ex.diagnostics?.candidate_library?.length===4&&/not a theorem/i.test(firewall)&&/not exhaustive|unlisted invariant/i.test(firewall),
+      `${ex.schema} · ${ex.samples.length} samples · finite-scan firewall present`);
+  }
   ok('Global vector manager exposes seven independent layers',VECTOR_LAYER_KEYS.length===7,VECTOR_LAYER_KEYS.join(', '));
   ok('Global vector panel is registered in the managed panel deck',PANEL_IDS.includes('vectorPanel')&&!!document.getElementById('vectorPanel'),'vectorPanel');
   { const d=deepDateToEpochDays(-100000,7,2,13,45),s=formatDeepDate(d),r=parseDeepDate(s);
@@ -4207,7 +4235,7 @@ const SOURCE_CLASS={
   IAU:'reference-model',IERS:'reference-model',CANON:'catalogue',ASTRO:'reference-model',CODATA:'reference-standard',
   S3:'conditional-model',FBS:'conditional-model',GCS:'conditional-model',RING:'conditional-model',
   HOPF:'mathematical-model',DRD:'mathematical-model',COSCALE:'mathematical-model',
-  SEL:'mathematical-model',CURV:'observation',NEXUS:'derived-runtime',DERIVED:'derived-runtime',
+  SEL:'mathematical-model',CURV:'observation',NEXUS:'derived-runtime',SYMDISC:'mathematical-model',DERIVED:'derived-runtime',
   PDE:'mathematical-model',QMNUM:'mathematical-model',QCD:'reference-model',LABREF:'reference-model',
   BHTREF:'reference-model',CMBREF:'observation',TOPOREF:'conditional-model',
   CATALOGUE:'observation',     // points loaded from a real absorber catalogue
@@ -4480,6 +4508,7 @@ function buildAtlasManifest(){
     entities:[...SELECT.keys()].map(getAtlasEntityContract),
     relations:[...SELECT.keys()].map(key=>({entity_id:`urn:fbs3r:runtime:${key}`,relations:getObjectRelations(key)})),
     invariant_nexus:nexusExportData(false),
+    symmetry_discovery:sydExportData(),
     validation:{passed:SELF_TESTS.filter(t=>t.pass).length,total:SELF_TESTS.length,self_tests:SELF_TESTS}};
 }
 function exportAtlasManifest(){downloadFile('fbs3r_runtime_atlas_manifest.json','application/json',JSON.stringify(buildAtlasManifest(),null,2));}
@@ -17599,6 +17628,191 @@ function updateRpd(dt){
 }
 
 /* ================================================================
+   SYMMETRY DISCOVERY CHAMBER — finite-orbit invariant stress tests.
+
+   Five exact transformation families act on five different spaces.  For
+   each family the chamber evaluates four named candidate observables over
+   a deterministic 65-sample orbit and reports the maximum normalized drift.
+   This is an inspectable numerical witness inside a declared candidate
+   library — never a proof that no other invariant exists, and never a
+   machine-learning claim.  The symmetry-break control adds a documented
+   non-group perturbation so the same instrument can expose false invariance.
+   ================================================================ */
+const sydGroup=new THREE.Group();sydGroup.name='Symmetry Discovery Chamber · finite orbit tests';sydGroup.visible=false;scene.add(sydGroup);
+const sydC=(re,im=0)=>({re,im});
+const sydCSub=(a,b)=>sydC(a.re-b.re,a.im-b.im);
+const sydCMul=(a,b)=>sydC(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+const sydCDiv=(a,b)=>{const d=b.re*b.re+b.im*b.im;return sydC((a.re*b.re+a.im*b.im)/d,(a.im*b.re-a.re*b.im)/d);};
+function sydCrossRatio(z){return sydCDiv(sydCMul(sydCSub(z[0],z[1]),sydCSub(z[2],z[3])),sydCMul(sydCSub(z[0],z[3]),sydCSub(z[2],z[1])));}
+const sydAxis=new THREE.Vector3(1,2,3).normalize(),sydRotBase=new THREE.Vector3(1.2,-.7,.9);
+const sydMobiusBase=[sydC(-1.2,-.32),sydC(-.28,.94),sydC(.62,.54),sydC(1.08,-.46)];
+function sydAngle(p,span){return (THREE.MathUtils.clamp(+p||0,0,1)*2-1)*span;}
+function sydStereo(z){const r2=z.re*z.re+z.im*z.im,d=1+r2;return new THREE.Vector3(2*z.re/d,2*z.im/d,(r2-1)/d);}
+const SYD_WORLDS={
+  rotation:{
+    t:{en:'SO(3) rotation',ru:'вращение SO(3)',de:'SO(3)-Rotation'},span:Math.PI,param:'θ',unit:'rad',closed:true,
+    state:(p,br=0)=>{const a=sydAngle(p,Math.PI),v=sydRotBase.clone().applyAxisAngle(sydAxis,a);
+      if(br)v.add(new THREE.Vector3(Math.sin(1.7*a),Math.cos(.8*a)-1,Math.sin(.6*a)).multiplyScalar(br*.55));return {a,v};},
+    candidates:[
+      {id:'norm2',label:'‖v‖²',expected:true,read:s=>s.v.lengthSq()},
+      {id:'axis',label:'n·v',expected:true,read:s=>s.v.dot(sydAxis)},
+      {id:'vx',label:'vₓ',expected:false,read:s=>s.v.x},
+      {id:'sum',label:'vₓ+vᵧ+v_z',expected:false,read:s=>s.v.x+s.v.y+s.v.z}],
+    points:s=>[new THREE.Vector3(-2,0,0).addScaledVector(s.v,1.16)],
+    contract:'Rodrigues action about a fixed unit axis; norm and axial component are exact SO(3) invariants.'},
+  lorentz:{
+    t:{en:'Lorentz boost SO⁺(1,1)',ru:'буст Лоренца SO⁺(1,1)',de:'Lorentz-Boost SO⁺(1,1)'},span:1.35,param:'η',unit:'rapidity',closed:false,
+    state:(p,br=0)=>{const a=sydAngle(p,1.35),c=Math.cosh(a),h=Math.sinh(a),t0=2.4,x0=1.1;
+      let t=c*t0-h*x0,x=-h*t0+c*x0;if(br){t+=br*.8*Math.sin(1.3*a);x+=br*.65*(Math.cos(.9*a)-1);}return {a,t,x};},
+    candidates:[
+      {id:'interval',label:'t²−x²',expected:true,read:s=>s.t*s.t-s.x*s.x},
+      {id:'time',label:'t',expected:false,read:s=>s.t},
+      {id:'space',label:'x',expected:false,read:s=>s.x},
+      {id:'euclid',label:'t²+x²',expected:false,read:s=>s.t*s.t+s.x*s.x}],
+    points:s=>[new THREE.Vector3(-2+s.x*1.05,(s.t-2.25)*.82,0)],
+    contract:'Proper orthochronous 1+1 boost with c=1; the Minkowski interval is invariant, Euclidean distance is not.'},
+  phase:{
+    t:{en:'quantum global phase U(1)',ru:'глобальная квантовая фаза U(1)',de:'globale Quantenphase U(1)'},span:Math.PI,param:'α',unit:'rad',closed:true,
+    state:(p,br=0)=>{const a=sydAngle(p,Math.PI),th=.94,ph=.66,ca=Math.cos(a),sa=Math.sin(a),a0=sydC(Math.cos(th/2),0),b0=sydC(Math.cos(ph)*Math.sin(th/2),Math.sin(ph)*Math.sin(th/2));
+      const rot=z=>sydC(z.re*ca-z.im*sa,z.re*sa+z.im*ca),A=rot(a0),B=rot(b0),fa=1+br*.45*(Math.cos(a)-1),fb=1+br*.45*Math.sin(a);
+      A.re*=fa;A.im*=fa;B.re*=fb;B.im*=fb;return {a,A,B};},
+    candidates:[
+      {id:'norm2',label:'⟨ψ|ψ⟩',expected:true,read:s=>s.A.re*s.A.re+s.A.im*s.A.im+s.B.re*s.B.re+s.B.im*s.B.im},
+      {id:'p0',label:'P(0)=|a|²',expected:true,read:s=>s.A.re*s.A.re+s.A.im*s.A.im},
+      {id:'p1',label:'P(1)=|b|²',expected:true,read:s=>s.B.re*s.B.re+s.B.im*s.B.im},
+      {id:'rea',label:'Re(a)',expected:false,read:s=>s.A.re}],
+    points:s=>[new THREE.Vector3(-2+s.A.re*1.75,s.A.im*1.75,s.B.re*1.75)],
+    contract:'A common U(1) phase multiplies both amplitudes; norm and Born probabilities remain unchanged.'},
+  symplectic:{
+    t:{en:'symplectic phase rotation',ru:'симплектическое фазовое вращение',de:'symplektische Phasenrotation'},span:Math.PI,param:'ωt',unit:'rad',closed:true,
+    state:(p,br=0)=>{const a=sydAngle(p,Math.PI),c=Math.cos(a),h=Math.sin(a),d=Math.exp(-br*.42*Math.abs(a)),q0=1.2,p0=.65;
+      return {a,q:d*(c*q0+h*p0),p:d*(-h*q0+c*p0),M:[d*c,d*h,-d*h,d*c]};},
+    candidates:[
+      {id:'hamiltonian',label:'H=(q²+p²)/2',expected:true,read:s=>(s.q*s.q+s.p*s.p)/2},
+      {id:'area',label:'det M',expected:true,read:s=>s.M[0]*s.M[3]-s.M[1]*s.M[2]},
+      {id:'q',label:'q',expected:false,read:s=>s.q},
+      {id:'qp',label:'q·p',expected:false,read:s=>s.q*s.p}],
+    points:s=>[new THREE.Vector3(-2+s.q*1.42,s.p*1.42,0),new THREE.Vector3(-2+s.M[0]*1.15,s.M[2]*1.15,.32),new THREE.Vector3(-2+s.M[1]*1.15,s.M[3]*1.15,-.32)],
+    contract:'Harmonic phase rotation is canonical: det M=1 and the quadratic Hamiltonian are preserved.'},
+  mobius:{
+    t:{en:'Möbius action on ℂ∪{∞}',ru:'действие Мёбиуса на ℂ∪{∞}',de:'Möbius-Wirkung auf ℂ∪{∞}'},span:1.6,param:'α',unit:'rad',closed:false,
+    state:(p,br=0)=>{const a=sydAngle(p,1.6),c=Math.cos(a/2),h=Math.sin(a/2),z=sydMobiusBase.map((v,i)=>{const w=sydCDiv(sydC(c*v.re+h,c*v.im),sydC(-h*v.re+c,-h*v.im));
+        if(br){w.re+=br*.12*(i+1)*Math.sin((i+1)*a);w.im+=br*.09*(i+1)*(Math.cos((i+1)*a)-1);}return w;});return {a,z};},
+    candidates:[
+      {id:'cross_ratio',label:'cross-ratio(z₁…z₄)',expected:true,read:s=>{const q=sydCrossRatio(s.z);return [q.re,q.im];}},
+      {id:'distance',label:'|z₁−z₂|',expected:false,read:s=>{const q=sydCSub(s.z[0],s.z[1]);return Math.hypot(q.re,q.im);}},
+      {id:'centroid',label:'Re(mean z)',expected:false,read:s=>s.z.reduce((a,z)=>a+z.re,0)/4},
+      {id:'radius',label:'|z₁|',expected:false,read:s=>Math.hypot(s.z[0].re,s.z[0].im)}],
+    points:s=>s.z.map(z=>sydStereo(z).multiplyScalar(1.82).add(new THREE.Vector3(-2,0,0))),
+    contract:'A determinant-one fractional-linear family acts on the Riemann sphere; the four-point cross-ratio is exact.'}
+};
+const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,markers:[],baseMarkers:[],bars:[],barLabels:[],core:null,rings:[],bead:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
+const sydFlat=v=>Array.isArray(v)?v.map(Number):[Number(v)];
+function sydScan(worldId=state.sydWorld||'rotation',br=state.sydBreak??0,samples=65){
+  const W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,base=W.state(0,br),out=[];
+  for(const C of W.candidates){const b=sydFlat(C.read(base));let residual=0,finite=b.every(Number.isFinite);
+    for(let i=1;i<samples&&finite;i++){const v=sydFlat(C.read(W.state(i/(samples-1),br)));if(v.length!==b.length){finite=false;break;}
+      for(let j=0;j<v.length;j++){if(!Number.isFinite(v[j])){finite=false;break;}residual=Math.max(residual,Math.abs(v[j]-b[j])/Math.max(1,Math.abs(b[j])));}}
+    out.push({id:C.id,label:C.label,expected:C.expected,residual:finite?residual:Infinity,finite});}
+  return out;
+}
+function sydDiagnostics(worldId=state.sydWorld||'rotation',br=state.sydBreak??0){
+  const tol=Math.pow(10,state.sydTolLog??-9),W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,results=sydScan(worldId,br),discovered=results.filter(r=>r.residual<=tol).map(r=>r.id);
+  return {schema:'fbs3r-symmetry-discovery-diagnostics-v1',world:worldId,transformation:sydLang(W.t),samples:65,tolerance:tol,break_amplitude:br,
+    candidate_library:results,discovered,expected_at_exact_action:results.filter(r=>r.expected).map(r=>r.id),finite:results.every(r=>r.finite),
+    semantics:'A finite sampled orbit can falsify a candidate within this transformation family, but numerical stability is not a universal proof and the candidate library is not exhaustive.'};
+}
+function sydExportData(){
+  const W=SYD_WORLDS[state.sydWorld||'rotation'],D=sydDiagnostics(),samples=[];
+  for(let i=0;i<65;i++){const u=i/64,s=W.state(u,state.sydBreak??0);samples.push({u,parameter:s.a,position:W.points(s)[0].toArray(),candidates:Object.fromEntries(W.candidates.map(c=>[c.id,c.read(s)]))});}
+  return {schema:'fbs3r-symmetry-discovery-v1',generated_at:new Date().toISOString(),world:state.sydWorld,transformation:sydLang(W.t),parameter:{symbol:W.param,unit:W.unit,normalized:state.sydParam??.5},contract:W.contract,
+    perturbation:{amplitude:state.sydBreak??0,kind:'documented non-group perturbation; zero recovers the exact action'},diagnostics:D,samples,
+    epistemic_firewall:'This finite deterministic scan tests only the named candidate library on the sampled parameter orbit. Passing the tolerance is numerical evidence inside the displayed model, not a theorem, physical discovery, learned law or evidence that no unlisted invariant exists.'};
+}
+const sydLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
+function sydGuide(world){
+  const mat=new THREE.MeshBasicMaterial({color:0x4d8fc7,wireframe:true,transparent:true,opacity:.12,depthWrite:false});
+  if(world==='rotation'){const m=new THREE.Mesh(new THREE.SphereGeometry(sydRotBase.length()*1.16,28,18),mat);m.position.x=-2;sydGroup.add(m);}
+  else if(world==='phase'||world==='mobius'){const m=new THREE.Mesh(new THREE.SphereGeometry(1.82,28,18),mat);m.position.x=-2;sydGroup.add(m);}
+  else if(world==='symplectic'){const m=new THREE.Mesh(new THREE.TorusGeometry(Math.hypot(1.2,.65)*1.42,.018,6,96),mat);m.position.x=-2;sydGroup.add(m);}
+  else {const pts=[];for(const s of [-1,1]){pts.push(new THREE.Vector3(-4.7,-2.2,0),new THREE.Vector3(-.1,2.2*s,0));}sydGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x4d8fc7,transparent:true,opacity:.22})));}
+}
+function sydSetup(){
+  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.bars=[];SYD.barLabels=[];SYD.rings=[];
+  sydGroup.add(new THREE.AmbientLight(0x7386b4,.7));const dl=new THREE.DirectionalLight(0xe9f7ff,.85);dl.position.set(4,7,8);sydGroup.add(dl);sydGuide(world);
+  const exactMat=new THREE.LineBasicMaterial({color:0x62e8ff,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending}),brokenMat=new THREE.LineBasicMaterial({color:0xff6f86,transparent:true,opacity:.78,depthWrite:false,blending:THREE.AdditiveBlending});
+  SYD.orbitExact=new THREE.Line(new THREE.BufferGeometry(),exactMat);SYD.orbitBroken=new THREE.Line(new THREE.BufferGeometry(),brokenMat);sydGroup.add(SYD.orbitExact,SYD.orbitBroken);
+  const W=SYD_WORLDS[world],basePts=W.points(W.state(.5,0));
+  for(let i=0;i<4;i++){const bm=new THREE.Mesh(new THREE.SphereGeometry(.105,12,9),new THREE.MeshBasicMaterial({color:0x7fe8ff,wireframe:true,transparent:true,opacity:.7}));
+    const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.15,1),new THREE.MeshStandardMaterial({color:[0xffd36a,0xc28dff,0x55e8c4,0xff7898][i],emissive:[0x6b4210,0x381d61,0x144f48,0x5b1729][i],emissiveIntensity:1.4,roughness:.28,metalness:.25}));
+    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:nexusGlowTexture(),color:[0xffd36a,0xc28dff,0x55e8c4,0xff7898][i],transparent:true,opacity:.58,depthWrite:false}));gl.scale.setScalar(.82);m.add(gl);sydGroup.add(bm,m);SYD.baseMarkers.push(bm);SYD.markers.push(m);}
+  SYD.link=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd36a,transparent:true,opacity:.75,depthWrite:false}));sydGroup.add(SYD.link);
+  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.62,2),new THREE.MeshStandardMaterial({color:0xffd36a,emissive:0x8b5b18,emissiveIntensity:1.65,roughness:.22,metalness:.68,transparent:true,opacity:.94}));core.position.set(.55,0,0);sydGroup.add(core);SYD.core=core;
+  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.93+i*.24,.022,8,96),new THREE.MeshBasicMaterial({color:[0x62e8ff,0xc28dff,0xffd36a][i],transparent:true,opacity:.43,depthWrite:false,blending:THREE.AdditiveBlending}));r.position.copy(core.position);r.rotation.set(i*.67,(i+1)*.52,i*.31);sydGroup.add(r);SYD.rings.push(r);}
+  SYD.bead=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));sydGroup.add(SYD.bead);
+  for(let i=0;i<4;i++){const bar=new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,1,12),new THREE.MeshStandardMaterial({color:0x55e8c4,emissive:0x143f39,emissiveIntensity:.9,roughness:.35,metalness:.28}));bar.position.set(3.1,-2,(-1.65+i*1.1));sydGroup.add(bar);SYD.bars.push(bar);
+    const l=mkLabel(W.candidates[i].label,'label dim');l.position.set(3.1,-2.75,(-1.65+i*1.1));sydGroup.add(l);SYD.barLabels.push(l);}
+  SYD.title=mkLabel('SYMMETRY DISCOVERY CHAMBER · finite-orbit invariant stress test','label const');SYD.title.position.set(0,3.48,0);sydGroup.add(SYD.title);
+  SYD.sub=mkLabel('','label axis');SYD.sub.position.set(0,2.95,0);sydGroup.add(SYD.sub);
+  const foot=mkLabel('cyan = exact group orbit · coral = declared symmetry break · pillars = −log₁₀(max normalized drift)','label dim');foot.position.set(0,-3.35,0);sydGroup.add(foot);
+  sydRender();
+}
+function sydRender(){
+  if(!SYD.built)return;const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5,exact=[],broken=[];
+  for(let i=0;i<=96;i++){exact.push(W.points(W.state(i/96,0))[0]);broken.push(W.points(W.state(i/96,br))[0]);}
+  SYD.orbitExact.geometry.setFromPoints(exact);SYD.orbitBroken.geometry.setFromPoints(broken);SYD.orbitBroken.visible=br>1e-8;
+  const cur=W.points(W.state(p,br)),base=W.points(W.state(.5,0));
+  for(let i=0;i<4;i++){const on=i<cur.length;SYD.markers[i].visible=SYD.baseMarkers[i].visible=on;if(on){SYD.markers[i].position.copy(cur[i]);SYD.baseMarkers[i].position.copy(base[Math.min(i,base.length-1)]);}}
+  if(cur[0]&&base[0])SYD.link.geometry.setFromPoints([base[0],cur[0]]);
+  const D=sydDiagnostics(world,br),tol=D.tolerance;SYD.lastScan=D;
+  D.candidate_library.forEach((r,i)=>{const decades=Math.max(0,Math.min(14,-Math.log10(Math.max(r.residual,1e-16)))),h=.12+decades/14*4.35,pass=r.residual<=tol,b=SYD.bars[i];
+    b.scale.y=h;b.position.y=-2.25+h/2;b.material.color.setHex(pass?0x55e8c4:0xff6f86);b.material.emissive.setHex(pass?0x143f39:0x59162a);SYD.barLabels[i].element.style.color=pass?'#8fffe3':'#ff9daf';});
+  SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} candidates below ${tol.toExponential(0)}`;
+}
+function sydPanelHTML(){
+  const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],D=sydDiagnostics(world,state.sydBreak??0),tol=D.tolerance,a=W.state(state.sydParam??.5,state.sydBreak??0).a;
+  return `<div class="sect" style="border-color:rgba(98,232,255,.42);background:linear-gradient(135deg,rgba(29,89,117,.22),rgba(126,66,151,.13))"><b style="color:#bdefff">⌬ ${TT('SYMMETRY DISCOVERY CHAMBER','КАМЕРА ОТКРЫТИЯ СИММЕТРИЙ','SYMMETRIE-ENTDECKUNGSKAMMER')}</b>
+    <div class="small" style="margin-top:4px">${TT('Five exact group actions · twenty candidate observables · nine known invariants · one falsification instrument.','Пять точных групповых действий · двадцать наблюдаемых-кандидатов · девять известных инвариантов · один инструмент фальсификации.','Fünf exakte Gruppenwirkungen · zwanzig Kandidaten · neun bekannte Invarianten · ein Falsifikationsinstrument.')}</div>
+    <div class="note" style="margin-top:6px;color:#ffd58a">${TT('A passing finite scan is numerical evidence inside this declared orbit—not a universal proof, learned law, or exhaustive search.','Успешный конечный скан — численное свидетельство внутри объявленной орбиты, а не универсальное доказательство, обученный закон или исчерпывающий поиск.','Ein bestandener endlicher Scan ist numerische Evidenz in dieser Bahn — kein universeller Beweis oder vollständige Suche.')}</div></div>
+  <div class="sect"><b>${TT('TRANSFORMATION SPACE','ПРОСТРАНСТВО ПРЕОБРАЗОВАНИЙ','TRANSFORMATIONSRAUM')}</b><div class="chips">${Object.entries(SYD_WORLDS).map(([k,v])=>`<button class="chip ${world===k?'on':''}" data-syd-world="${k}">${esc(sydLang(v.t))}</button>`).join('')}</div>
+    <div class="ctlrow"><button class="btn green" id="sydRun">${state.sydRun!==false?'⏸ '+TT('pause sweep','пауза','Sweep pausieren'):'▶ '+TT('sweep orbit','сканировать орбиту','Bahn durchlaufen')}</button><button class="btn" id="sydReset">↺</button>
+      <label>${TT('speed','скорость','Tempo')}</label><input id="sydSpeed" type="range" min="0.15" max="2.5" step="0.05" value="${state.sydSpeed??.65}"><span class="val" id="sydSpeedV">×${(state.sydSpeed??.65).toFixed(2)}</span></div>
+    <div class="ctlrow"><label>${W.param}</label><input id="sydParam" type="range" min="0" max="1" step="0.001" value="${state.sydParam??.5}" data-no-osc><span class="val" id="sydParamV">${a.toFixed(3)} ${W.unit}</span></div>
+  </div>
+  <div class="sect"><b>${TT('BREAK THE SYMMETRY','НАРУШИТЬ СИММЕТРИЮ','SYMMETRIE BRECHEN')}</b><div class="ctlrow"><label>ε_break</label><input id="sydBreak" type="range" min="0" max="0.3" step="0.002" value="${state.sydBreak??0}" data-no-osc><span class="val" id="sydBreakV">${(state.sydBreak??0).toFixed(3)}</span></div>
+    <div class="ctlrow"><label>${TT('accept below','принимать ниже','akzeptieren unter')}</label><select id="sydTol">${[-12,-9,-6,-3].map(v=>`<option value="${v}" ${(state.sydTolLog??-9)===v?'selected':''}>10^${v}</option>`).join('')}</select></div>
+    <div class="note">${TT('ε=0 is the exact action. ε>0 adds a documented non-group perturbation; coral separates from cyan and genuine candidates acquire measurable drift.','ε=0 — точное действие. При ε>0 добавляется объявленное негрупповое возмущение: коралловая орбита отделяется от голубой, а настоящие кандидаты получают измеримый дрейф.','ε=0 ist die exakte Wirkung. ε>0 fügt eine deklarierte Nichtgruppen-Störung hinzu; echte Kandidaten beginnen messbar zu driften.')}</div></div>
+  <div class="sect"><b>${TT('CANDIDATE RESIDUALS','НЕВЯЗКИ КАНДИДАТОВ','KANDIDATEN-RESIDUEN')}</b><div id="sydResults">${D.candidate_library.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.residual<=tol?'#55e8c4':'#ff6f86'}"><b>${esc(r.label)}</b> · Δ_max=${Number.isFinite(r.residual)?r.residual.toExponential(3):'∞'} · <span style="color:${r.residual<=tol?'#8fffe3':'#ff9daf'}">${r.residual<=tol?TT('stable on sampled orbit','стабилен на сканированной орбите','auf der Stichprobenbahn stabil'):TT('changes','изменяется','verändert sich')}</span></div>`).join('')}</div>
+    <div class="note" style="color:var(--dim)">${esc(W.contract)}</div></div>
+  <div class="sect"><b>${TT('COMPOSE & EXPORT','СОПОСТАВИТЬ И ЭКСПОРТИРОВАТЬ','VERGLEICHEN & EXPORTIEREN')}</b><div class="ctlrow"><button class="btn" id="sydCompare">◱ ${TT('open exact anchors in Multiview','открыть точные опоры в Multiview','exakte Anker in Multiview öffnen')}</button><button class="btn" id="sydExport">⬇ JSON</button></div></div>`;
+}
+function sydCompare(){
+  const sets={rotation:['syd','noe','poin'],lorentz:['syd','rel','gw'],phase:['syd','spin','qm','su2'],symplectic:['syd','psp','kam','poin'],mobius:['syd','imp','and','rsh']},views=(sets[state.sydWorld]||sets.rotation).slice(0,4);if(renderer.xr.isPresenting)return;
+  mvEnsure();MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=views.length;
+  for(let i=0;i<MV.n;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
+  MV.active=-1;for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();
+}
+function bindSydControls(root=ctl){
+  root.querySelectorAll('[data-syd-world]').forEach(b=>b.onclick=()=>{state.sydWorld=b.dataset.sydWorld;state.sydParam=.5;SYD.built=false;sydSetup();buildCtl();});
+  const run=root.querySelector('#sydRun');if(run)run.onclick=()=>{state.sydRun=!state.sydRun;buildCtl();};
+  const reset=root.querySelector('#sydReset');if(reset)reset.onclick=()=>{state.sydParam=.5;state.sydBreak=0;state.sydRun=false;sydRender();buildCtl();};
+  const param=root.querySelector('#sydParam');if(param)param.oninput=e=>{state.sydParam=+e.target.value;sydRender();const v=root.querySelector('#sydParamV'),W=SYD_WORLDS[state.sydWorld];if(v)v.textContent=`${W.state(state.sydParam,state.sydBreak).a.toFixed(3)} ${W.unit}`;};
+  const speed=root.querySelector('#sydSpeed');if(speed)speed.oninput=e=>{state.sydSpeed=+e.target.value;const v=root.querySelector('#sydSpeedV');if(v)v.textContent='×'+state.sydSpeed.toFixed(2);};
+  const br=root.querySelector('#sydBreak');if(br)br.oninput=e=>{state.sydBreak=+e.target.value;sydRender();buildCtl();};
+  const tol=root.querySelector('#sydTol');if(tol)tol.onchange=e=>{state.sydTolLog=+e.target.value;sydRender();buildCtl();};
+  const cmp=root.querySelector('#sydCompare');if(cmp)cmp.onclick=sydCompare;const exp=root.querySelector('#sydExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_symmetry_discovery.json','application/json',JSON.stringify(sydExportData(),null,2));
+}
+function updateSyd(dt){
+  if(!SYD.built)return;SYD.time+=dt;if(state.sydRun!==false&&!PREFERS_REDUCED_MOTION){state.sydParam=(state.sydParam+dt*.075*(state.sydSpeed??.65))%1;sydRender();}
+  SYD.core.rotation.x+=dt*.21;SYD.core.rotation.y-=dt*.32;SYD.rings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.19:-.14));
+  const W=SYD_WORLDS[state.sydWorld||'rotation'],pts=W.points(W.state(state.sydParam??.5,state.sydBreak??0));if(pts[0])SYD.bead.position.lerp(pts[0],.18);
+  SYD.ui+=dt;if(SYD.ui>.22){SYD.ui=0;const D=SYD.lastScan||sydDiagnostics();hudBig.textContent=`SYMMETRY DISCOVERY · ${sydLang(W.t)} · ${D.discovered.length}/${D.candidate_library.length} candidates stable`;
+    hudSub.textContent=`65-point deterministic orbit · tolerance ${D.tolerance.toExponential(0)} · ε_break=${(state.sydBreak??0).toFixed(3)} · finite-orbit evidence, never a universal proof`;
+    ATLAS_BUS.pub('syd.discovered',D.discovered.length,'candidate(s)');ATLAS_BUS.pub('syd.bestResidual',Math.min(...D.candidate_library.map(r=>r.residual)),'normalized drift');
+    const p=ctl.querySelector('#sydParam');if(p)p.value=state.sydParam;const pv=ctl.querySelector('#sydParamV');if(pv)pv.textContent=`${W.state(state.sydParam,state.sydBreak).a.toFixed(3)} ${W.unit}`;}
+}
+
+/* ================================================================
    INVARIANT NEXUS — a typed, non-metric atlas of relationships.
 
    The scene deliberately supports TWO embeddings of the same graph:
@@ -17622,7 +17836,7 @@ const NEXUS_TYPES={
   contrast:{color:0xff7a63,t:{en:'contrast / hypothesis test',ru:'контраст / проверка гипотез',de:'Kontrast / Hypothesentest'},epistemic:'distinguishable explanations, regimes or observables that must not be conflated'}
 };
 const NEXUS_CLUSTERS={
-  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh']},
+  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['syd','sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh']},
   quantum:{color:0xc28dff,center:[-5.1,1.5,2.0],t:{en:'quantum · fields · matter',ru:'кванты · поля · материя',de:'Quanten · Felder · Materie'},views:['hopfion','skyrmion','quasi','atom','qm','qcd','spin','sc','berry','rsh','and','imp','pole']},
   waves:{color:0x5ce2cf,center:[5.2,1.4,1.5],t:{en:'waves · response · materials',ru:'волны · отклик · материалы',de:'Wellen · Antwort · Materialien'},views:['eot','wave','kdv','ret','dip','rd','bb','te','pv','disp','cau','cusp','qcrys']},
   dynamics:{color:0xff7898,center:[-3.3,-4.2,-3.0],t:{en:'dynamics · chaos · phase space',ru:'динамика · хаос · фазовое пространство',de:'Dynamik · Chaos · Phasenraum'},views:['grav','rel','chaos','kin','cp','kam','psp','poin']},
@@ -17731,7 +17945,16 @@ const NEXUS_RELATIONS=[
   ['noe','cp','invariant','symmetry ↔ conserved momentum','Prescribed-field particle motion inherits conserved quantities only when the field respects the corresponding symmetry.','theorem-context'],
   ['noe','grav','invariant','central symmetry ↔ orbital charges','Rotational symmetry gives angular momentum conservation; Runge–Lenz requires the special inverse-square form.','theorem'],
   ['grav','rel','limit','Newtonian ↔ weak-field low-speed regime','Newtonian gravity is a weak-field low-speed limit of GR; the SR station alone does not derive gravity.','regime-limit'],
-  ['grav','lens','contrast','Newtonian trajectories ≠ null geodesics','Few-body trajectories and Schwarzschild light deflection answer different dynamical questions.','regime-contrast']
+  ['grav','lens','contrast','Newtonian trajectories ≠ null geodesics','Few-body trajectories and Schwarzschild light deflection answer different dynamical questions.','regime-contrast'],
+
+  /* symmetry discovery chamber: exact anchors plus its epistemic boundary */
+  ['syd','noe','representation','orbit scan ↔ symmetry charge','The chamber numerically stress-tests named candidates along declared group orbits; the Noether station supplies the continuous-symmetry charge theorem for dynamical actions.','method-bridge'],
+  ['syd','rel','exact','Lorentz orbit ↔ invariant interval','The SO⁺(1,1) station applies the same exact boost law and preserves t²−x² to floating-point precision.','theorem'],
+  ['syd','spin','representation','global U(1) orbit ↔ quantum phase','The chamber exposes the unobservable global phase orbit while the spin station shows the corresponding Bloch-state representation.','exact-representation'],
+  ['syd','qm','invariant','phase action ↔ Born probabilities','A common U(1) phase preserves wavefunction norm and component probabilities inside the displayed two-amplitude state.','theorem'],
+  ['syd','psp','exact','canonical rotation ↔ symplectic area','The harmonic phase rotation has determinant one and preserves the quadratic Hamiltonian, an exact symplectic benchmark.','theorem'],
+  ['syd','imp','exact','Möbius orbit ↔ cross-ratio','The four-point cross-ratio is invariant under the chamber’s determinant-one fractional-linear action, matching the DLMF identity.','theorem'],
+  ['syd','topo','contrast','finite residual ≠ proof','Passing sixty-five samples can support or falsify a named candidate inside the displayed family; it cannot prove an exhaustive theorem or discover all invariants.','epistemic-boundary']
 ].map(([a,b,type,label,claim,status],i)=>({id:`nx-e${String(i+1).padStart(3,'0')}`,a,b,type,label,claim,status,directed:type==='causal'}));
 const NEXUS_VIEWS=Object.values(NEXUS_CLUSTERS).flatMap(c=>c.views);
 const NEXUS_VIEW_CLUSTER=new Map(Object.entries(NEXUS_CLUSTERS).flatMap(([k,c])=>c.views.map(v=>[v,k])));
@@ -17945,12 +18168,13 @@ function updateNexus(dt){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='nexus'?[0,2.4,22]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,2.4,22]:v==='syd'?[0,2.1,11.5]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
 function s3ViewVisibility(v){
   nexusGroup.visible   = v==='nexus';
+  sydGroup.visible     = v==='syd';
   sectionGroup.visible = (v==='sec'||v==='eig'||v==='red');
   hopfGroup.visible    = v==='hopf';
   s3LabGroup.visible   = v==='lab';
@@ -18021,6 +18245,7 @@ function setS3View(v){
   state.s3view = v;
   clearCurrentProjection();
   s3ViewVisibility(v);
+  if(v==='syd'){ sydSetup(); }
   if(v==='nexus'){ nexusSetup(); }
   if(v==='hopfion'){ hfDirty=true; }
   if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
@@ -23628,6 +23853,7 @@ const state = {
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invQuantity:'', invTol:1e-3,   // Inverse atlas — a value is meaningless until its quantity kind is selected
+  sydWorld:'rotation', sydParam:.5, sydBreak:0, sydTolLog:-9, sydRun:true, sydSpeed:.65,   // finite-orbit symmetry discovery chamber
   nexusKind:'all', nexusMorph:0, nexusRotate:true, nexusPulse:true,
   nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas
   mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
@@ -24066,20 +24292,29 @@ function enhancePrecision(root){
     const host=r.parentElement; if(host) host.appendChild(wrap);
   });
 }
+let LAST_CTL_CONTEXT='';
 function buildCtl(){
   // Re-render preserving scroll state: on phones the chip rows scroll horizontally,
   // and a full innerHTML rebuild used to snap every row (and the sheet itself) back
   // to the start — tapping any preset visually "reset to the first button".
-  const _st=ctl.scrollTop, _rows=[...ctl.querySelectorAll('.chips,.radioRow')].map(r=>r.scrollLeft);
+  const _context=`${state.mode}:${state.mode==='s3'?(state.s3view||'sec'):''}`,
+    _jumpActive=state.mode==='s3'&&_context!==LAST_CTL_CONTEXT,
+    _st=ctl.scrollTop, _rows=[...ctl.querySelectorAll('.chips,.radioRow')].map(r=>r.scrollLeft);
+  LAST_CTL_CONTEXT=_context;
   buildCtlBody();
-  const _restore=()=>{ ctl.scrollTop=_st;
+  const _restore=()=>{ const active=_jumpActive?ctl.querySelector('#activeLabControls'):null;
+    ctl.scrollTop=active?Math.max(0,active.offsetTop-8):_st;
     [...ctl.querySelectorAll('.chips,.radioRow')].forEach((r,i)=>{ if(_rows[i]) r.scrollLeft=_rows[i]; }); };
   try{ enhancePrecision(ctl); }catch(e){}     // exact numeric entry + snap for every slider
   _restore();
   // the panel-enhance MutationObservers (collapsible sections, sheet grip) MOVE nodes
   // right after this task — moving a scrolled element zeroes its scroll, so restore
   // again after they have run (and once more a frame later for safety).
-  requestAnimationFrame(()=>{ _restore(); requestAnimationFrame(_restore); });
+  const _revealActive=()=>{ if(!_jumpActive||!MOBILE_GPU)return;
+    const active=ctl.querySelector('#activeLabControls');if(!active)return;
+    [...active.querySelectorAll(':scope > .sect')].slice(0,2).forEach(sect=>{const head=sect.firstElementChild;if(!head)return;
+      sect.classList.remove('collapsed');SECT_STATE.set(`ctl|${state.mode}|${head.textContent.trim()}`,'1');}); };
+  requestAnimationFrame(()=>{ _revealActive();_restore();requestAnimationFrame(()=>{_revealActive();_restore();}); });
 }
 function buildCtlBody(){
   if(state.mode==='solar'){
@@ -26138,6 +26373,7 @@ function buildCtlBody(){
         <button class="btn" id="psrToDip">→ Dipole radiation: the braking torque</button>
         <button class="btn" id="psrToCp">→ Charged particles in its magnetosphere</button></div>
     </div>`;
+    else if(V==='syd') body = sydPanelHTML();
     else if(V==='nexus') body = nexusPanelHTML();
     else if(V==='qso') body = `
     <div class="sect"><b>Quasar — engine parameters</b>
@@ -26595,6 +26831,7 @@ function buildCtlBody(){
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
         <button class="btn ${V==='nexus'?'on':''}" id="v-nexus">✦ ${TT('Invariant Nexus','Инвариантный Нексус','Invariant Nexus')}</button>
+        <button class="btn ${V==='syd'?'on':''}" id="v-syd">⌬ ${TT('Symmetry Discovery','Открытие симметрий','Symmetrie-Entdeckung')}</button>
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
         <button class="btn ${V==='hopf'?'on':''}" id="v-hopf">Hopf</button>
         <button class="btn ${V==='eig'?'on':''}" id="v-eig">Modes</button>
@@ -26659,7 +26896,7 @@ function buildCtlBody(){
         <button class="btn ${V==='psr'?'on':''}" id="v-psr">Pulsar</button>
         <button class="btn ${V==='qso'?'on':''}" id="v-qso">Quasar</button>
       </div>
-    </div>` + body;
+    </div><div id="activeLabControls">${body}</div>`;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
     ctl.querySelector('#v-hopf').onclick = ()=>{ setS3View('hopf'); buildCtl(); };
     ctl.querySelector('#v-eig').onclick  = ()=>{ setS3View('eig');  buildCtl(); };
@@ -26705,8 +26942,9 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['nexus','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
+    for(const vv of ['nexus','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
+    if(V==='syd') bindSydControls(ctl);
     if(V==='nexus') bindNexusControls(ctl);
     if(V==='skyrmion'){
       ctl.querySelectorAll('[data-skpreset]').forEach(b=>b.onclick=()=>{ const p=SK_PRESETS.find(x=>x.id===b.dataset.skpreset); if(p){
@@ -28760,10 +28998,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={nexus:'Invariant Nexus',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
+const S3_VIEW_NAMES={nexus:'Invariant Nexus',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'};
 const S3_VIEW_I18N={
- ru:{nexus:'Инвариантный Нексус',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
- de:{nexus:'Invariant Nexus',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+ ru:{nexus:'Инвариантный Нексус',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
+ de:{nexus:'Invariant Nexus',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -28913,7 +29151,8 @@ const WIKI={ sun:'Sun', moon:'Moon', oortCloud:'Oort_cloud',
   cosmos_sgrabh:'Sagittarius_A*', cosmos_m87bh:'Messier_87', cosmos_ton618bh:'TON_618',
   cosmos_cygx1:'Cygnus_X-1', cosmos_crabpsr:'Crab_Pulsar', cosmos_sn1987a:'SN_1987A',
   cosmos_j0740ns:'PSR_J0740%2B6620',
-  bbAtlas:'Black-body_radiation', bhtAtlas:'Black_hole_thermodynamics', bhrAtlas:'Black_hole',
+  sydAtlas:'Symmetry_(physics)', noeAtlas:'Noether%27s_theorem', pspAtlas:'Symplectic_geometry',
+  impAtlas:'Smith_chart', bbAtlas:'Black-body_radiation', bhtAtlas:'Black_hole_thermodynamics', bhrAtlas:'Black_hole',
   nsAtlas:'Tolman%E2%80%93Oppenheimer%E2%80%93Volkoff_equation', snAtlas:'Supernova',
   psrAtlas:'Pulsar', qsoAtlas:'Quasar', gravAtlas:'Three-body_problem', qmAtlas:'Schr%C3%B6dinger_equation',
   qcdAtlas:'Quantum_chromodynamics', topoAtlas:'Topology', scAtlas:'Superconductivity',
@@ -30418,6 +30657,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateSn(dt);
     } else if(state.s3view==='psr'){
       fbsAnimT+=dt; updatePsr(dt);
+    } else if(state.s3view==='syd'){
+      fbsAnimT+=dt; updateSyd(dt);
     } else if(state.s3view==='nexus'){
       fbsAnimT+=dt; updateNexus(dt);
     } else if(state.s3view==='qso'){
@@ -30537,6 +30778,10 @@ const makeLabPick=(group,r=2.6)=>{const m=new THREE.Mesh(new THREE.SphereGeometr
   m.name='laboratory interaction volume';m.userData.atlasPersistent=true;group.add(m);return m;};
 const LAB_ATLAS_DEFS=[
   ['nexusAtlas','nexus',nexusGroup,'Invariant Nexus','typed, non-metric cross-laboratory relation universe with morphing disciplinary and invariant embeddings'],
+  ['sydAtlas','syd',sydGroup,'Symmetry Discovery Chamber','finite-orbit candidate testing across SO(3), Lorentz, U(1), symplectic and Möbius transformation families'],
+  ['noeAtlas','noe',noeGroup,'Noether and momentum-map laboratory','continuous-symmetry charges, momentum maps and controlled symmetry breaking'],
+  ['pspAtlas','psp',pspGroup,'Symplectic phase-space laboratory','canonical area, non-squeezing and Hamiltonian phase-space geometry'],
+  ['impAtlas','imp',impGroup,'Impedance, Möbius and Smith laboratory','fractional-linear impedance maps, reflection coefficient and resonance matching'],
   ['quasiAtlas','quasi',quasiGroup,'Quasiparticle laboratory','phonon, magnon, exciton and collective-mode reference models'],
   ['atomAtlas','atom',atomGroup,'Element and atomic-shell laboratory','Aufbau occupations, nuclear radius law and approximate Slater effective radii'],
   ['gravAtlas','grav',gravGroup,'Gravitas three-body laboratory','symplectic reduced-unit few-body dynamics with invariant monitoring'],
@@ -30579,17 +30824,28 @@ const LAB_ATLAS_PICKS=new Map(LAB_ATLAS_DEFS.map(d=>{const p=makeLabPick(d[2],d[
   if(d[1]==='qm')p.position.set(0,2.7,0);return [d[0],p];}));
 if(!qmRe)qmSetup();
 for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
-  const src=key==='nexusAtlas'?['NEXUS','DERIVED']:key==='qmAtlas'?['QMNUM','DERIVED']:key==='qcdAtlas'?['QCD','DERIVED']:
+  const src=key==='nexusAtlas'?['NEXUS','DERIVED']:key==='sydAtlas'?['SYMDISC','DERIVED']:key==='qmAtlas'?['QMNUM','DERIVED']:key==='qcdAtlas'?['QCD','DERIVED']:
     key==='bhtAtlas'?['BHTREF','DERIVED']:key==='cmbAtlas'?['CMBREF','DERIVED']:
     key==='mimgAtlas'?['TOPOREF','DERIVED']:
     key==='bhrAtlas'?['BHTREF','ASTRO','DERIVED']:
     /^(ns|sn|psr|qso)Atlas$/.test(key)?['ASTRO','DERIVED']:['LABREF','DERIVED'];
-  registerSel(key,{name,mode:'s3',pick:LAB_ATLAS_PICKS.get(key),src,accuracyTier:'M',catalogueStatus:'reference-model',
-    forbiddenClaims:['the reduced demonstrator is a calibrated material, engineering or clinical prediction','visual similarity proves physical identity across linked laboratories','a conditional topology or anomaly visualization is observational proof'],
-    desc:`${scope}. Interactive reference laboratory with explicit equations, assumptions and live diagnostics; rendering is not measurement evidence.`,
+  const symmetryDiscovery=key==='sydAtlas';
+  registerSel(key,{name,mode:'s3',pick:LAB_ATLAS_PICKS.get(key),src,accuracyTier:'M',catalogueStatus:symmetryDiscovery?'finite-orbit-mathematical-instrument':'reference-model',
+    forbiddenClaims:symmetryDiscovery?[
+      'finite sampled stability proves a theorem or a universal conservation law',
+      'the four displayed candidates exhaust all possible invariants',
+      'the browser chamber performs machine learning or establishes a new physical discovery',
+      'a non-group perturbation is itself evidence against the exact group symmetry'
+    ]:['the reduced demonstrator is a calibrated material, engineering or clinical prediction','visual similarity proves physical identity across linked laboratories','a conditional topology or anomaly visualization is observational proof'],
+    desc:symmetryDiscovery?`${scope}. Deterministic numerical stress test over a declared finite candidate library; passing tolerance is a reproducible witness inside the displayed model, never a proof or exhaustive search.`:`${scope}. Interactive reference laboratory with explicit equations, assumptions and live diagnostics; rendering is not measurement evidence.`,
     formulas:[scope,'laboratory-specific formulas and assumptions are displayed in its controls and invariant monitor'],
     getPos:()=>group.getWorldPosition(new THREE.Vector3()),focusDist:()=>view==='atom'?11:9,
-    onSelect:()=>setS3View(view),rows:()=>[['Active laboratory',name],['View/station',view],['Model status','reference/reduced demonstrator; inspect controls for assumptions']]});
+    onSelect:()=>setS3View(view),rows:()=>symmetryDiscovery?[
+      ['Active laboratory',name],['Transformation space',sydLang(SYD_WORLDS[state.sydWorld||'rotation'].t)],
+      ['Finite orbit',`${sydDiagnostics().samples} deterministic samples · tolerance ${fmt(sydDiagnostics().tolerance)}`],
+      ['Candidate verdict',`${sydDiagnostics().discovered.length}/${sydDiagnostics().candidate_library.length} numerically stable`],
+      ['Model status','finite candidate test · not a theorem · not exhaustive']
+    ]:[['Active laboratory',name],['View/station',view],['Model status','reference/reduced demonstrator; inspect controls for assumptions']]});
 }
 /* Every luminous Nexus node is a first-class selectable.  The selectable points at
    the relation-space proxy, not at the laboratory's own model geometry; opening the
@@ -30606,6 +30862,13 @@ for(const lab of NEXUS_VIEWS){
 }
 NEXUS_RELATIONS.forEach(e=>EXPLICIT_RELATIONS.push([`nexus_${e.a}`,`nexus_${e.b}`,`nexus:${e.type}`,`${e.label}. ${e.claim}`]));
 EXPLICIT_RELATIONS.push(['nexusAtlas','s3obs','typed relation index','Invariant Nexus indexes declared cross-laboratory relations inside the S³ instrument; its embedding is non-metric and does not upgrade evidence.']);
+[
+  ['sydAtlas','noeAtlas','finite-orbit method bridge','The discovery chamber stress-tests candidate invariants numerically; the Noether lab supplies exact momentum-map theorems under declared dynamical symmetries.'],
+  ['sydAtlas','relAtlas','exact Lorentz benchmark','Both preserve the same 1+1 Minkowski interval under the displayed boost convention.'],
+  ['sydAtlas','spinAtlas','global-phase representation','The chamber exposes the U(1) fibre erased by the Bloch projection while retaining norm and Born probabilities.'],
+  ['sydAtlas','pspAtlas','exact symplectic benchmark','The canonical phase rotation preserves determinant and quadratic Hamiltonian.'],
+  ['sydAtlas','impAtlas','exact Möbius benchmark','The chamber tests the four-point cross-ratio under a determinant-one fractional-linear family.']
+].forEach(r=>EXPLICIT_RELATIONS.push(r));
 [
   ['bhrAtlas','lensAtlas','shared null-geodesic geometry','The ray tracer and lensing lab expose complementary Schwarzschild null-geodesic observables.'],
   ['bhrAtlas','bhtAtlas','horizon geometry to thermodynamics','The same Schwarzschild mass fixes the ray-capture geometry and the idealized horizon thermodynamic scales.'],
@@ -30742,7 +31005,7 @@ function buildDevelopmentAudit(){
       unresolvedRelations:unresolved.length,unlinkedObjects:unlinked.length,objectsWithoutExplicitRelation:withoutExplicitRelation.length,fieldSolverFamilies:Object.keys(FIELD.equations).length,
       experimentPresets:Object.values(FIELD.presets).reduce((n,p)=>n+p.length,0),referenceLaboratories:LAB_ATLAS_DEFS.length,
       quantumScenarios:4,quantumPhaseSpaceSamples:QM_WX*QM_WP,qcdScenarios:3,newFoundationalLaboratories:3,newCompactObjectLaboratories:5,
-      causalWorkspace:CAUSAL.diagnostics(),invariantNexus:nexusDiagnostics(),vectorLayers:vectorDiagnostics()},
+      causalWorkspace:CAUSAL.diagnostics(),invariantNexus:nexusDiagnostics(),symmetryDiscovery:sydDiagnostics(),vectorLayers:vectorDiagnostics()},
     sections:modeStats,relationKinds,unresolved,unlinked,withoutExplicitRelation,explicitObjectDegree:Object.fromEntries([...degree].sort((a,b)=>b[1]-a[1])),
     improvementBacklog:[
       {priority:'P0',area:'Numerical validation',need:'Per-model convergence studies, adaptive time steps, error estimators and reference-solution comparisons before predictive use.'},
@@ -30811,6 +31074,7 @@ globalThis.FBS3R_QA=Object.freeze({
   causal(){return CAUSAL.diagnostics();},
   nexus(){return nexusDiagnostics();},
   nexusPath(source=state.nexusSource,target=state.nexusTarget,kind=state.nexusKind){const p=nexusFindPath(source,target,kind);return {nodes:p.nodes,edges:p.edges.map(e=>({...e}))};},
+  symmetryDiscovery(world=state.sydWorld,breakAmplitude=state.sydBreak){return sydDiagnostics(world,breakAmplitude);},
   vectors(){return vectorDiagnostics();},
   quantum(){try{let norm=0;for(let i=0;i<QM_N;i++)norm+=(qmRe[i]*qmRe[i]+qmIm[i]*qmIm[i])*QM_DX;
     const p=qmWignerPts?.geometry?.attributes?.position?.array||[],c=qmWignerPts?.geometry?.attributes?.color?.array||[];

@@ -31,6 +31,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 11 | FB(S³)R published epoch labels are kept distinct from the CoScale clock |
 | 12 | Inverse Atlas refuses an untyped scalar and labels cross-quantity scans as numerical coincidences |
 | 13 | Invariant Nexus declares all eight relation classes, both exported embeddings, typed pathfinding, Multiview composition, JSON export, QA diagnostics and the non-metric epistemic firewall |
+| 14 | Symmetry Discovery declares five exact transformation spaces, finite-orbit scanning, controlled symmetry breaking, candidate residuals, Atlas/Nexus/Multiview wiring, reproducible JSON and a non-theorem/non-exhaustive firewall |
 
 ## Manual test checklist (desktop)
 
@@ -45,13 +46,18 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] S³ → Section: χ slider live A(χ)/Γ(χ); photon loop reaches Γ=100 % at t ≥ 1722.6 Gyr.
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
-- [ ] S³ → Invariant Nexus: 63 luminous laboratory nodes appear in six labelled domains; the HUD reports one connected universe and no console error occurs.
+- [ ] S³ → Invariant Nexus: 64 luminous laboratory nodes and 102 typed relations appear across six labelled domains; the HUD reports one connected universe and no console error occurs.
 - [ ] Nexus relation filters show only the selected edge class; node color/proximity never removes the visible disclaimer that graph distance is non-metric.
 - [ ] Nexus dimensional morph moves continuously from disciplinary geography (`0`) to invariant-signature geography (`1`), remains finite at both ends and is reversible.
 - [ ] Nexus path Spin → Black-hole thermodynamics resolves; each hop displays its edge class and claim. A restrictive disconnected filter reports “no path” instead of fabricating one.
 - [ ] Clicking/tapping a Nexus node opens its relation-space contract; double-click focuses it; **open focused laboratory** enters the real laboratory.
 - [ ] **Compare path in Multiview** opens the first 2–4 path laboratories without treating their sequence as causal.
-- [ ] Nexus JSON export parses, contains 63 nodes, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
+- [ ] Nexus JSON export parses, contains 64 nodes and 102 relations, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
+- [ ] S³ → Symmetry Discovery: switch across SO(3), Lorentz, U(1), symplectic and Möbius spaces; the cyan exact orbit, current marker and four residual pillars stay finite.
+- [ ] At `epsilon_break=0`, the nine declared exact candidates pass at `10^-9` while every displayed negative control changes over its 65-sample orbit.
+- [ ] Increase `epsilon_break` to `0.12`: a coral orbit separates from cyan and at least one formerly stable candidate fails in every transformation space; reset restores exact results.
+- [ ] **Open exact anchors in Multiview** produces the documented 3–4 laboratory comparison for every space without claiming physical identity.
+- [ ] Symmetry Discovery JSON parses with 65 samples, four candidate values per sample, normalized residuals, perturbation contract and the explicit “not a theorem / not exhaustive” firewall.
 - [ ] FBS3R: slider with epoch ticks, chips, exact-N input, length+unit input (fm…Gly) → correct N (e.g. 1 m → N≈166.5); formula matrix live; shells clickable; cycle animation ping-pongs 0→299.
 - [ ] FBS3R: quick-access chips have explicit labels and increase by N; N★207 is not appended after cosmological scales.
 - [ ] FBS3R: the N_rec=266 publication label shows CoScale t(266)≈66.6 kyr separately from the 380 kyr cosmological label.
@@ -68,6 +74,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Tap selection works for planets, screens, instruments, shells, constellations.
 - [ ] Safe-area: no UI under the notch / home indicator (iOS).
 - [ ] Stable FPS (pixel ratio capped at 1.6 on mobile).
+- [ ] Symmetry Discovery world chips, sweep, symmetry-break slider, tolerance and residual list remain usable in the mobile bottom sheet; no control is clipped by the safe area.
 
 ## Screenshots
 

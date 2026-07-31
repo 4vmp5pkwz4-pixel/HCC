@@ -86,6 +86,34 @@ causal chain unless every edge is explicitly causal, correctly oriented and
 valid under one compatible scenario. JSON exports must preserve the edge type,
 claim, status, direction flag and this non-metric disclaimer.
 
+### Symmetry Discovery operational contract
+
+Symmetry Discovery Chamber is a deterministic finite-orbit **candidate test**,
+not an automated theorem prover. Its declared benchmark library contains five
+transformation families and twenty named observables:
+
+| Transformation family | Exact benchmark candidates | Deliberate negative controls |
+|---|---|---|
+| SO(3) rotation about a fixed axis | vector norm squared, axial component | Cartesian component, component sum |
+| SO⁺(1,1) Lorentz boost (`c=1`) | Minkowski interval | time, space, Euclidean norm squared |
+| global U(1) phase of a qubit state | state norm, both Born probabilities | real part of one amplitude |
+| harmonic symplectic phase rotation | quadratic Hamiltonian, determinant | canonical coordinate, coordinate product |
+| determinant-one Möbius action | complex four-point cross-ratio | pair distance, centroid, point radius |
+
+For each family, the chamber samples 65 deterministic parameter values and
+reports the maximum normalized drift relative to the first sample. Passing the
+selected numerical tolerance means only “stable on this sampled orbit within
+this candidate library.” It does not prove invariance for every group element,
+prove a conservation law for an unspecified dynamics, establish a physical
+discovery, or exclude unlisted invariants.
+
+The `epsilon_break` control is a documented **non-group perturbation**. Its only
+role is to test whether the instrument responds when exact symmetry is removed;
+drift under that perturbation is not evidence against the unperturbed group
+action. Every export must preserve the transformation family, sample sequence,
+candidate values, normalized residuals, tolerance, perturbation amplitude and
+the finite-scan epistemic firewall.
+
 ## Validation obligations
 
 Each laboratory must eventually provide:
