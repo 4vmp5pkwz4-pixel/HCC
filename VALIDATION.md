@@ -32,6 +32,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 12 | Inverse Atlas refuses an untyped scalar and labels cross-quantity scans as numerical coincidences |
 | 13 | Invariant Nexus declares all eight relation classes, both exported embeddings, typed pathfinding, Multiview composition, JSON export, QA diagnostics and the non-metric epistemic firewall |
 | 14 | Symmetry Discovery declares five exact transformation spaces, finite-orbit scanning, controlled symmetry breaking, candidate residuals, Atlas/Nexus/Multiview wiring, reproducible JSON and a non-theorem/non-exhaustive firewall |
+| 15 | Holonomy Observatory declares five closed-path stations, analytic identities, independent finite closure checks, gauge/conjugacy invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a cross-domain epistemic firewall |
 
 ## Manual test checklist (desktop)
 
@@ -46,13 +47,19 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] S³ → Section: χ slider live A(χ)/Γ(χ); photon loop reaches Γ=100 % at t ≥ 1722.6 Gyr.
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
-- [ ] S³ → Invariant Nexus: 64 luminous laboratory nodes and 102 typed relations appear across six labelled domains; the HUD reports one connected universe and no console error occurs.
+- [ ] S³ → Invariant Nexus: 65 luminous laboratory nodes and 110 typed relations appear across six labelled domains; the HUD reports one connected universe and no console error occurs.
 - [ ] Nexus relation filters show only the selected edge class; node color/proximity never removes the visible disclaimer that graph distance is non-metric.
 - [ ] Nexus dimensional morph moves continuously from disciplinary geography (`0`) to invariant-signature geography (`1`), remains finite at both ends and is reversible.
 - [ ] Nexus path Spin → Black-hole thermodynamics resolves; each hop displays its edge class and claim. A restrictive disconnected filter reports “no path” instead of fabricating one.
 - [ ] Clicking/tapping a Nexus node opens its relation-space contract; double-click focuses it; **open focused laboratory** enters the real laboratory.
 - [ ] **Compare path in Multiview** opens the first 2–4 path laboratories without treating their sequence as causal.
-- [ ] Nexus JSON export parses, contains 64 nodes and 102 relations, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
+- [ ] Nexus JSON export parses, contains 65 nodes and 110 relations, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
+- [ ] S³ → Holonomy Observatory: all five station chips rebuild a finite 3D path, moving marker, invariant core and return-phase dial without console errors or orphan labels.
+- [ ] S² station: sweep both controls; `K·A` remains equal to `Ω` when `R` changes and the 1,024-step transport residual stays within its declared tolerance.
+- [ ] Berry station: increase the local-gauge amplitude through its full range; the 257-vertex phase remains gauge invariant and stays converged on `−Ω/2` within the displayed polygon tolerance.
+- [ ] SU(2), Wigner and Möbius stations: noncommuting order produces a visible return defect while unit norm/determinant/interval and conjugacy trace remain closed.
+- [ ] Holonomy **Open exact anchors in Multiview** produces a four-laboratory comparison for every station without treating shared closed-path structure as physical identity.
+- [ ] Holonomy JSON parses with five station contracts, raw path/matrix values, deterministic discretisation metadata and the explicit non-measurement/non-exhaustive firewall.
 - [ ] S³ → Symmetry Discovery: switch across SO(3), Lorentz, U(1), symplectic and Möbius spaces; the cyan exact orbit, current marker and four residual pillars stay finite.
 - [ ] At `epsilon_break=0`, the nine declared exact candidates pass at `10^-9` while every displayed negative control changes over its 65-sample orbit.
 - [ ] Increase `epsilon_break` to `0.12`: a coral orbit separates from cyan and at least one formerly stable candidate fails in every transformation space; reset restores exact results.
@@ -74,6 +81,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Tap selection works for planets, screens, instruments, shells, constellations.
 - [ ] Safe-area: no UI under the notch / home indicator (iOS).
 - [ ] Stable FPS (pixel ratio capped at 1.6 on mobile).
+- [ ] Holonomy station chips, two normalized controls, transport toggle, invariant readouts and export remain usable in the mobile bottom sheet; the scope contract is readable without horizontal clipping.
 - [ ] Symmetry Discovery world chips, sweep, symmetry-break slider, tolerance and residual list remain usable in the mobile bottom sheet; no control is clipped by the safe area.
 
 ## Screenshots
@@ -93,3 +101,6 @@ names: `shots/01-solar.png … 07-fractal.png`.
 - S³ and FBS3R inputs are source-tagged. Derived values are recomputed from the
   displayed formulas; publication labels and independent CoScale results are not
   silently conflated.
+- Holonomy stations are exact only within their declared round-S², ideal
+  two-level, SU(2), orthogonal-boost or real SL(2,R) families. The sphere and
+  Berry closures are finite deterministic discretisations, not measurements.

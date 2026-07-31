@@ -45,7 +45,10 @@ honest capability matrix.
 7. S³ in VR: Section χ ±, Hopf fibres ±/flow, Eigenmode β/m all live.
    Invariant Nexus renders as a stereo 3D relation universe; controller ray or
    hand pinch selects individual laboratory nodes and opens their typed,
-   non-metric contract. Symmetry Discovery renders exact/broken orbits and four
+   non-metric contract. Holonomy Observatory renders its ordered closed path,
+   transported marker, invariant core and return-phase dial in stereo; its
+   persistent laboratory volume opens the five-station scope contract. Symmetry
+   Discovery renders exact/broken orbits and four
    finite residual pillars; the laboratory volume is ray/pinch selectable and
    its card states the non-theorem, non-exhaustive contract. Multiview comparison
    remains flat-screen only.
