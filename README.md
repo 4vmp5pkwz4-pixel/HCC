@@ -64,7 +64,7 @@ separate labelled layers with deconflicted labels.
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
-63 scientific laboratory views that preceded it. Its declared edges distinguish
+64 scientific laboratory views around it through 102 declared relations. Its edges distinguish
 eight operational classes: exact identity, representation, shared invariant,
 limit/reduction, coupling/input, causal succession, structural analogy and
 contrast/hypothesis test. Every edge carries a plain-language claim and model
@@ -85,6 +85,29 @@ path nodes in Multiview, or export the complete graph as
 `fbs3r_invariant_nexus.json`. Graph distance and embedding coordinates are
 explicitly non-metric: they are not physical distance, evidence strength,
 similarity magnitude or causal effect size.
+
+## Symmetry Discovery Chamber — invariants under stress
+
+**Symmetry Discovery Chamber** turns five transformation spaces into one
+inspectable experiment: SO(3) rotations, SO⁺(1,1) Lorentz boosts, global U(1)
+phase, symplectic phase rotation and Möbius action on the Riemann sphere. Each
+space sweeps a deterministic 65-sample orbit and tests four named observables,
+for 20 candidates and nine exact benchmark invariants in total.
+
+The exact cyan orbit can be compared with a coral, explicitly non-group
+perturbation. Live pillars encode `−log₁₀(max normalized drift)`; the tolerance
+is selectable; all samples, candidate values, residuals and the perturbation
+contract export to `fbs3r_symmetry_discovery.json`. One click composes each
+space with its theorem or representation anchors in Multiview, and the chamber
+is itself a first-class Atlas and Nexus node.
+
+The instrument is deliberately **finite, deterministic and non-ML**. A stable
+candidate is numerical evidence inside the displayed action, not a theorem or
+an exhaustive discovery. Its invariant-first design is informed by recent work
+on [symmetry discovery in classical mechanics](https://arxiv.org/abs/2412.14632)
+and [equation discovery from symmetry invariants](https://arxiv.org/abs/2505.12083);
+the implemented exact anchors follow the Lorentz-invariant kinematic contract
+and Möbius cross-ratio invariance.
 
 ## WebXR — Meta Quest 3 VR & MR
 
@@ -156,9 +179,12 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-- **Invariant Nexus** — 63 laboratory nodes, six disciplinary domains, eight
+- **Invariant Nexus** — 64 laboratory nodes, 102 typed relations, six disciplinary domains, eight
   epistemic edge classes, a disciplinary↔invariant layout morph, typed
   pathfinding, Multiview comparison and JSON export;
+- **Symmetry Discovery Chamber** — five transformation spaces, twenty candidate
+  observables, nine exact benchmark invariants, finite-orbit residual pillars,
+  a controlled symmetry-break perturbation, Multiview anchors and JSON export;
 - the foundational sub-laboratories include:
 - **Section** — R = 548.3245 Gly great 2-sphere; observable cap θ = 4.82°
   (Γ_obs = 0.0126 %); interactive screen S²_χ with live A(χ), Γ(χ); photon on

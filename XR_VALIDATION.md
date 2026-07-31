@@ -45,7 +45,10 @@ honest capability matrix.
 7. S³ in VR: Section χ ±, Hopf fibres ±/flow, Eigenmode β/m all live.
    Invariant Nexus renders as a stereo 3D relation universe; controller ray or
    hand pinch selects individual laboratory nodes and opens their typed,
-   non-metric contract. Multiview path comparison remains flat-screen only.
+   non-metric contract. Symmetry Discovery renders exact/broken orbits and four
+   finite residual pillars; the laboratory volume is ray/pinch selectable and
+   its card states the non-theorem, non-exhaustive contract. Multiview comparison
+   remains flat-screen only.
 8. Left stick flies (vignette appears), right stick X snap-turns (angle cycles
    15/30/45), right stick Y ascends/descends; trigger in empty space blink-teleports.
 9. Both grips squeezed: universe follows hands — move/scale/rotate; release keeps.

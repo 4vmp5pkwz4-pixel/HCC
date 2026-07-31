@@ -72,6 +72,9 @@ check(html.includes('#mBtns'), 'mobile bottom-sheet toggles present');
 check(/#clock\{position:absolute;top:/.test(html)
   && /right:calc\([^;]*safe-area-inset-right/.test(html),
   'UTC clock is pinned to the safe-area-aware upper-right corner');
+check(html.includes('@media (max-width:420px)') && html.includes('#navCluster>#breadcrumb{left:auto;transform:none')
+  && html.includes('id="activeLabControls"') && html.includes('_jumpActive') && html.includes('_revealActive'),
+  'narrow phones separate title/clock/breadcrumb and jump to the newly selected laboratory controls');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
@@ -217,6 +220,28 @@ check(html.includes('id="v-nexus"') && html.includes("state.s3view==='nexus'")
   'Invariant Nexus is reachable, rendered and stepped as a full S³ laboratory');
 check(html.includes('nexus(){return nexusDiagnostics();}') && html.includes('invariant_nexus:nexusExportData(false)'),
   'Invariant Nexus diagnostics are exposed through QA and the atlas manifest');
+
+/* 18 · Symmetry Discovery Chamber: finite-orbit invariant instrument */
+check(html.includes('const SYD_WORLDS=') && html.includes('function sydScan(')
+  && html.includes('function sydDiagnostics(') && html.includes('function sydExportData('),
+  'Symmetry Discovery finite-orbit scanner, diagnostics and reproducible export exist');
+for (const world of ['rotation','lorentz','phase','symplectic','mobius'])
+  check(new RegExp(`\\n  ${world}:\\{`).test(html), `Symmetry Discovery transformation space present: ${world}`);
+check(html.includes('65-sample orbit') && html.includes('documented non-group perturbation')
+  && html.includes('candidate library is not exhaustive'),
+  'Symmetry Discovery declares sample count, perturbation semantics and non-exhaustive candidate scope');
+check(html.includes('id="sydParam"') && html.includes('id="sydBreak"') && html.includes('id="sydTol"')
+  && html.includes('id="sydCompare"') && html.includes('fbs3r_symmetry_discovery.json'),
+  'Symmetry Discovery controls expose orbit position, symmetry break, tolerance, Multiview and JSON export');
+check(html.includes('id="v-syd"') && html.includes("state.s3view==='syd'")
+  && html.includes("sydGroup.visible     = v==='syd'") && html.includes('updateSyd(dt)'),
+  'Symmetry Discovery is reachable, rendered and stepped as a full S³ laboratory');
+check(html.includes("['sydAtlas','syd',sydGroup") && html.includes("['sydAtlas','noeAtlas'")
+  && html.includes("['sydAtlas','relAtlas'") && html.includes("['sydAtlas','impAtlas'"),
+  'Symmetry Discovery is registered in the Atlas with exact and theorem-bridge relations');
+check(html.includes('symmetryDiscovery(world=state.sydWorld') && html.includes('symmetry_discovery:sydExportData()')
+  && html.includes('finite sampled stability proves a theorem') && html.includes('not a theorem · not exhaustive'),
+  'Symmetry Discovery diagnostics, manifest payload and epistemic firewall are exposed');
 
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
