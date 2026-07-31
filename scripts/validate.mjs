@@ -268,6 +268,36 @@ check(html.includes('holonomy(station=state.holStation') && html.includes('holon
   && html.includes('exhaustive holonomy classification'),
   'Holonomy diagnostics, manifest payload and cross-domain epistemic firewall are exposed');
 
+/* 20 · Contact & Action Observatory: contact dynamics, return maps and semiclassical lift */
+check(html.includes('const ACT_STATIONS=') && html.includes('function actDiagnostics(')
+  && html.includes('function actExportData(') && html.includes('function actContactResidual(')
+  && html.includes('function actHopf('),
+  'Contact & Action Observatory exposes native R4 identities, station diagnostics and reproducible export');
+for (const station of ['reeb','return','legendrian','ks','maslov'])
+  check(new RegExp(`\\n  ${station}:\\{t:`).test(html), `Contact & Action exact station present: ${station}`);
+for (const formula of ['act.reeb','act.return','act.legendrian','act.ks','act.maslov'])
+  check(html.includes(`id:'${formula}'`), `Contact & Action formula registry entry present: ${formula}`);
+check(html.includes('lambda_0(R)=1') && html.includes('theta_return=2 pi b/a')
+  && html.includes('lambda_0(gamma_dot)=0') && html.includes('|X|=|u|^2')
+  && html.includes('exp(-i pi mu/2)=-1'),
+  'Contact & Action registry spans Reeb, ellipsoid, Legendrian, KS and Maslov identities');
+check(html.includes('id="actA"') && html.includes('id="actB"') && html.includes('id="actCompare"')
+  && html.includes('id="actExport"') && html.includes('fbs3r_contact_action_observatory.json'),
+  'Contact & Action controls expose both parameters, Multiview composition and JSON export');
+check(html.includes('id="v-act"') && html.includes("state.s3view==='act'")
+  && html.includes("actGroup.visible     = v==='act'") && html.includes('updateAct(dt)'),
+  'Contact & Action Observatory is reachable, rendered and stepped as a full S3 laboratory');
+check(html.includes("['actAtlas','act',actGroup") && html.includes("['actAtlas','pspAtlas'")
+  && html.includes("['actAtlas','hopfAtlas'") && html.includes("['actAtlas','noeAtlas'")
+  && html.includes("['actAtlas','qmAtlas'") && html.includes("['actAtlas','holAtlas'"),
+  'Contact & Action is registered in Atlas with symplectic, Hopf, KS, semiclassical and holonomy bridges');
+check(html.includes('contactAction(station=state.actStation')
+  && html.includes('contact_action_observatory:actExportData()')
+  && html.includes('finite station proves a theorem about arbitrary contact forms')
+  && html.includes('not four-dimensional metric evidence')
+  && html.includes('not experimental data'),
+  'Contact & Action diagnostics, manifest payload and epistemic firewall are exposed');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));
