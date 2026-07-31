@@ -56,7 +56,7 @@ reconstruction*. FBS3R gained: N step/velocity/range, density exponent k,
 exact BigInt Fibonacci vs Binet, φ′/l_P′ exploration with explicit **Tier 2**
 labelling (canonical anchors hide), a **Sensitivity Observatory** (H₀, |Ω_K| →
 live R′, N′, Γ′_obs) and eight one-tap **Experiences** (φ-Ladder Walk,
-Recombination Gate 266, Particle Horizon Gate, Light-Trisphere Closure,
+Published N_rec Gate 266, Particle Horizon Gate, Light-Trisphere Closure,
 Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
 Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
 separate labelled layers with deconflicted labels.
@@ -81,7 +81,13 @@ Balanced / Ultra / Desktop Cinematic) drive foveation, raymarch steps, star
 draw-ranges and Hopf density, with an automatic downgrade guard below ~63 FPS.
 Honesty rule: capabilities WebXR does not expose (raw camera pixels, multiview,
 native SDK) are documented in `XR_VALIDATION.md`, never faked. The Fractal
-Explorer is excluded from XR (fullscreen mono raymarch is not stereo-safe).
+Explorer's TRUE-GEOMETRY types (hydrogen orbitals, 4-polytopes, bifurcation 3D,
+Mandelbrot⇄Julia fibers) are fully XR-enabled; only the fullscreen mono raymarch
+types (Mandelbulb / 2D sets) remain excluded (not stereo-safe) — entering XR on
+one of those switches to the orbitals instead of leaving the Fractal atlas.
+The wrist menu stows/recalls with the Y button (small gold wrist dot while
+stowed); every object card offers ◉ Ride (the object carries your exact
+vantage) and, for planets, ⭑ Stand (surface viewpoint with the sky overhead).
 
 XR docs: `XR_VALIDATION.md` (capability matrix + manual checklist) and
 `QUEST3_TEST_PLAN.md` (device test plan). New exports: `xr_session_capabilities.json`,
@@ -95,7 +101,7 @@ selectable and opens a live data card with **Focus** (fly-and-follow camera),
 **formula provenance + source tags** (hover for full citation), and for
 planets/Moon **Land** (first-person surface view with true-scale sky).
 
-## The six modes
+## The seven modes
 
 ### ☀ Solar System (1 unit = 1 AU)
 Keplerian J2000 orbits (JPL approximate ephemerides; Kepler's equation by Newton
@@ -138,7 +144,7 @@ Three sub-laboratories:
 ### φ FBS3R Levels
 The published golden-ratio ladder with full navigation:
 - slider over N **with epoch tick marks** + quick-access chips
-  (Planck → proton → atom → human → Earth → AU → ly → galaxy → recombination
+  (Planck → proton → atom → human → Earth → N★207 → AU → ly → galaxy → recombination
   N=266 → particle horizon → S³ radius);
 - **exact-N input** and **physical-length input** with units fm/nm/mm/cm/m/km/AU/ly/Gly
   via N(L) = ln(L/l_P)/ln φ;
@@ -147,6 +153,18 @@ The published golden-ratio ladder with full navigation:
   exponential H-phase), familiar-scale comparator;
 - **live formula matrix** and **exports**: app-state **JSON** and the full
   313-row φ-ladder benchmark **CSV**.
+
+The published recombination-level label `N_rec = 266` and the independent
+CoScale clock are displayed separately. With `t(N)=t_P·φᴺ`, level 266 is
+approximately 66.6 kyr; 380 kyr corresponds to `N≈269.62`. The interface does
+not silently identify these two anchors.
+
+### ∇ Field Lab
+Eight reproducible reduced-unit solvers—heat, damped waves, Gray–Scott,
+Poisson electrostatics/gravity, Schrödinger packets, FitzHugh–Nagumo and a 3D
+Ising Monte Carlo—publish their live invariants onto the shared atlas bus. Grid,
+boundary and calibration limits remain visible: these are reference models, not
+unsupported material, engineering or clinical forecasts.
 
 ### ❄ Fractal Explorer
 GPU distance-estimator raymarching of the Mandelbulb z → zⁿ + c (power,
@@ -160,7 +178,8 @@ V   = 2π²R³            D_causal = πR           C = 2πR
 A(χ) = 4πR²·sin²χ      Γ(χ) = (χ − ½sin 2χ)/π
 λ_β = (β²−1)/R²        g_β = β²                k_β = √(β²−1)/R
 R(N) = l_P·φᴺ          N(L) = ln(L/l_P)/ln φ
-ρ(N)/ρ_P = φ⁻³ᴺ        F_N ≈ φᴺ/√5             N(t_rec) = 266
+ρ(N)/ρ_P = φ⁻³ᴺ        F_N ≈ φᴺ/√5             published N_rec = 266
+t(N) = t_P·φᴺ          R(N)/t(N) = c             [CoScale identity]
 ```
 
 ## Source / provenance policy
@@ -172,10 +191,13 @@ source tags — hover for the full citation: **S3-v38**, **FBS3R**, **JPL-approx
 Accuracy envelopes are disclosed in `VALIDATION.md`. The app never presents the
 S³ topology or the FBS3R ladder as detected facts.
 
+`SCIENTIFIC_CONTRACT.md` defines the required epistemic statuses, typed-datum
+metadata, relation taxonomy and validation obligations for future laboratories.
+
 ## Validation
 
 ```bash
-node scripts/validate.mjs     # 161 automated checks — see VALIDATION.md
+npm test                      # or: node scripts/validate.mjs
 ```
 
 ## FBS3R web sources
@@ -188,4 +210,5 @@ node scripts/validate.mjs     # 161 automated checks — see VALIDATION.md
 ## Technology
 
 Three.js r160 (WebGL2, OrbitControls, CSS2DRenderer, logarithmic depth, GLSL
-raymarching), Cinzel + Manrope, one self-contained HTML file, no build step.
+raymarching), Cinzel + Manrope, a single-file browser runtime plus dependency-free
+Node validation. No application bundler is required.

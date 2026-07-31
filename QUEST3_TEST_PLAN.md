@@ -6,7 +6,7 @@ tunnel or local cert). Companion docs: `XR_VALIDATION.md`, `VALIDATION.md`.
 
 ## 0 · Regression first (flat targets)
 
-- [ ] Desktop Chrome/Firefox: all six modes, selection, landing, exports, themes.
+- [ ] Desktop Chrome/Firefox: all seven modes, selection, landing, exports, themes.
 - [ ] Android/iOS phone: bottom sheets, pinch, safe-area, ⚙/ⓘ toggles, clock.
 - [ ] `node scripts/validate.mjs` → ALL CHECKS PASSED.
 
@@ -70,7 +70,7 @@ Budget: ≥72 FPS sustained, 90 preferred; no frame-time spikes >20 ms during mo
 ## 7 · Exports & audit
 
 - [ ] Wrist Status → Export capabilities JSON: includes enabledFeatures, frame rates, hands/anchors/hit-test flags, quality, hashes, disclaimer.
-- [ ] Info panel: formula_registry.json, source_registry.json, validation_report.json (self-tests 14/14), state.json + CSV from FBS3R panel.
+- [ ] Info panel: formula_registry.json, source_registry.json, validation_report.json (all current self-tests pass), state.json + CSV from FBS3R panel.
 - [ ] Every export contains ISO timestamp, version, registry hashes, "not a topology detection" disclaimer.
 
 ## 8 · Honesty audit
