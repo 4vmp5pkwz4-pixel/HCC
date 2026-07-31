@@ -58,6 +58,34 @@ Every future relation edge must use one declared type:
 Each edge must state its transformation, domain, evidence, uncertainty and test.
 Numerical equality alone is not a relation.
 
+### Invariant Nexus operational classes
+
+Invariant Nexus presents the canonical taxonomy through eight interface classes:
+
+| Nexus class | Canonical relation types | Required interpretation |
+|---|---|---|
+| `exact` | 1 | A theorem or exact identity only inside the stated mathematical model. |
+| `representation` | 2–3 | A coordinate, basis, isomorphism or equivalent-representation statement; physical systems may still differ. |
+| `invariant` | 5–6 | The same typed symmetry, invariant or conservation law is measured or asserted under declared domains. |
+| `limit` | 4 and, where explicit, 7 | A limiting/effective reduction with assumptions; never a universal identity. |
+| `coupling` | 7–8 or a declared model input | One model can condition or feed another; this does not imply a unit-safe coupled solver. |
+| `causal` | 9 | A directed, conditional physical succession. Comparison traversal may inspect it in either direction but may not reverse the causal claim. |
+| `analogy` | 10 | Shared structure or morphology without physical identity. |
+| `contrast` | 11 | A discriminating comparison, contradiction or competing explanation that must remain visibly distinct. |
+
+Every Nexus node is an interface proxy for a laboratory, not a second physical
+object. Its two exported positions are visualization coordinates. The
+disciplinary embedding groups fields by human taxonomy; the invariant embedding
+is a deterministic projection of relation-type counts. Neither coordinate is a
+physical distance, similarity magnitude, probability, evidence score or causal
+effect.
+
+A Nexus path means only that consecutive laboratories share declared typed
+edges. A mixed path is not a proof of equivalence or unification. It is not a
+causal chain unless every edge is explicitly causal, correctly oriented and
+valid under one compatible scenario. JSON exports must preserve the edge type,
+claim, status, direction flag and this non-metric disclaimer.
+
 ## Validation obligations
 
 Each laboratory must eventually provide:

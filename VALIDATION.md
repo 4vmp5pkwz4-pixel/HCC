@@ -30,6 +30,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 10 | Every `onclick`/`oninput`/`onchange` assignment target exists |
 | 11 | FB(S³)R published epoch labels are kept distinct from the CoScale clock |
 | 12 | Inverse Atlas refuses an untyped scalar and labels cross-quantity scans as numerical coincidences |
+| 13 | Invariant Nexus declares all eight relation classes, both exported embeddings, typed pathfinding, Multiview composition, JSON export, QA diagnostics and the non-metric epistemic firewall |
 
 ## Manual test checklist (desktop)
 
@@ -44,6 +45,13 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] S³ → Section: χ slider live A(χ)/Γ(χ); photon loop reaches Γ=100 % at t ≥ 1722.6 Gyr.
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
+- [ ] S³ → Invariant Nexus: 63 luminous laboratory nodes appear in six labelled domains; the HUD reports one connected universe and no console error occurs.
+- [ ] Nexus relation filters show only the selected edge class; node color/proximity never removes the visible disclaimer that graph distance is non-metric.
+- [ ] Nexus dimensional morph moves continuously from disciplinary geography (`0`) to invariant-signature geography (`1`), remains finite at both ends and is reversible.
+- [ ] Nexus path Spin → Black-hole thermodynamics resolves; each hop displays its edge class and claim. A restrictive disconnected filter reports “no path” instead of fabricating one.
+- [ ] Clicking/tapping a Nexus node opens its relation-space contract; double-click focuses it; **open focused laboratory** enters the real laboratory.
+- [ ] **Compare path in Multiview** opens the first 2–4 path laboratories without treating their sequence as causal.
+- [ ] Nexus JSON export parses, contains 63 nodes, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
 - [ ] FBS3R: slider with epoch ticks, chips, exact-N input, length+unit input (fm…Gly) → correct N (e.g. 1 m → N≈166.5); formula matrix live; shells clickable; cycle animation ping-pongs 0→299.
 - [ ] FBS3R: quick-access chips have explicit labels and increase by N; N★207 is not appended after cosmological scales.
 - [ ] FBS3R: the N_rec=266 publication label shows CoScale t(266)≈66.6 kyr separately from the 380 kyr cosmological label.

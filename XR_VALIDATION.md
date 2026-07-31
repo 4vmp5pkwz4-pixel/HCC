@@ -43,6 +43,9 @@ honest capability matrix.
 5. Mode switching via wrist panel keeps session; rig re-seats per mode.
 6. FBS3R in VR: N ±1/±10, cycle, → N=266, → S³ R all work; shells clickable.
 7. S³ in VR: Section χ ±, Hopf fibres ±/flow, Eigenmode β/m all live.
+   Invariant Nexus renders as a stereo 3D relation universe; controller ray or
+   hand pinch selects individual laboratory nodes and opens their typed,
+   non-metric contract. Multiview path comparison remains flat-screen only.
 8. Left stick flies (vignette appears), right stick X snap-turns (angle cycles
    15/30/45), right stick Y ascends/descends; trigger in empty space blink-teleports.
 9. Both grips squeezed: universe follows hands — move/scale/rotate; release keeps.
