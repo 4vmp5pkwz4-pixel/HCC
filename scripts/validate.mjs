@@ -298,6 +298,34 @@ check(html.includes('contactAction(station=state.actStation')
   && html.includes('not experimental data'),
   'Contact & Action diagnostics, manifest payload and epistemic firewall are exposed');
 
+/* 21 · Spinor & Light-Cone Observatory: projective, Lorentz, null-frame and conformal chain */
+check(html.includes('const NUL_STATIONS=') && html.includes('function nulDiagnostics(')
+  && html.includes('function nulExportData(') && html.includes('function nulSL2(')
+  && html.includes('function nulTransformVec('),
+  'Spinor & Light-Cone Observatory exposes native complex, Hermitian and Minkowski diagnostics with reproducible export');
+for (const station of ['null','lorentz','celestial','tetrad','diamond'])
+  check(new RegExp(`\\n  ${station}:\\{t:`).test(html), `Spinor & Light-Cone exact station present: ${station}`);
+for (const formula of ['nul.pauli','nul.lorentz','nul.celestial','nul.tetrad','nul.diamond'])
+  check(html.includes(`id:'${formula}'`), `Spinor & Light-Cone formula registry entry present: ${formula}`);
+check(html.includes('det X=x_mu x^mu') && html.includes('cross-ratio is invariant')
+  && html.includes('m tensor m -> exp(2i chi)') && html.includes('sec^2(U) sec^2(V)'),
+  'Spinor & Light-Cone registry spans Pauli, Lorentz, celestial Möbius, null-tetrad and conformal identities');
+check(html.includes('id="nulA"') && html.includes('id="nulB"') && html.includes('id="nulCompare"')
+  && html.includes('id="nulExport"') && html.includes('fbs3r_spinor_lightcone_observatory.json'),
+  'Spinor & Light-Cone controls expose both parameters, Multiview composition and JSON export');
+check(html.includes('id="v-nul"') && html.includes("state.s3view==='nul'")
+  && html.includes("nulGroup.visible     = v==='nul'") && html.includes('updateNul(dt)'),
+  'Spinor & Light-Cone Observatory is reachable, rendered and stepped as a full S3 laboratory');
+check(html.includes("['nulAtlas','nul',nulGroup") && html.includes("['nulAtlas','hopfAtlas'")
+  && html.includes("['nulAtlas','su2Atlas'") && html.includes("['nulAtlas','relAtlas'")
+  && html.includes("['nulAtlas','gwAtlas'") && html.includes("['nulAtlas','bhrAtlas'"),
+  'Spinor & Light-Cone is registered in Atlas with Hopf, spinor, relativistic, polarization and curved-ray bridges');
+check(html.includes('spinorLightcone(station=state.nulStation')
+  && html.includes('spinor_lightcone_observatory:nulExportData()')
+  && html.includes('qubits, photons and gravitational waves are one physical system')
+  && html.includes('not experimental data') && html.includes('curved-spacetime or quantum-gravity solver'),
+  'Spinor & Light-Cone diagnostics, manifest payload and native-space epistemic firewall are exposed');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));

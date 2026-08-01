@@ -64,7 +64,7 @@ separate labelled layers with deconflicted labels.
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
-66 scientific laboratory views around it through 120 declared relations. Its edges distinguish
+67 scientific laboratory views around it through 130 declared relations. Its edges distinguish
 eight operational classes: exact identity, representation, shared invariant,
 limit/reduction, coupling/input, causal succession, structural analogy and
 contrast/hypothesis test. Every edge carries a plain-language claim and model
@@ -85,6 +85,36 @@ path nodes in Multiview, or export the complete graph as
 `fbs3r_invariant_nexus.json`. Graph distance and embedding coordinates are
 explicitly non-metric: they are not physical distance, evidence strength,
 similarity magnitude or causal effect size.
+
+## Spinor & Light-Cone Observatory — from S³ phase to null infinity
+
+**Spinor & Light-Cone Observatory** exposes one exact representation chain
+without collapsing its physically distinct meanings:
+
+- a normalized two-spinor on S³ produces a future null ray through the Pauli
+  bilinear, while common U(1) phase leaves that ray fixed;
+- `X=x^μσ_μ → AXA†` realizes `SL(2,C) → SO⁺(1,3)`, preserving the Hermitian
+  determinant/Minkowski interval and displaying the `A ↔ −A` double cover;
+- the projective coordinate `ζ=ψ₁/ψ₀` undergoes the induced celestial Möbius
+  map, agrees with the transformed null direction and preserves a complex
+  four-point cross-ratio;
+- an orthonormal spin dyad constructs a Newman–Penrose null tetrad and resolves
+  spin-frame weights one and two;
+- the radial `1+1`, `r≥0` section of flat Minkowski spacetime compactifies to a
+  finite Penrose diamond while outgoing and ingoing null families remain null.
+
+Each station has two live controls, a moving 3D construction, native-space
+residuals, explicit tolerances and scope boundaries, exact-neighbour Multiview
+composition, and a reproducible
+`fbs3r_spinor_lightcone_observatory.json` export. All identities are evaluated
+in C², Herm(2), Minkowski R^(1,3), or the declared radial conformal section
+before visualization. The module is not observational data, a curved-spacetime
+solver, a quantum-gravity theory, or evidence that qubits, photons and
+gravitational waves are one physical system. Primary anchors include
+[Newman & Penrose's null-tetrad formalism](https://doi.org/10.1063/1.1724257),
+[Penrose's conformal treatment of null infinity](https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.10.66),
+[Penrose's conformal-spinor/twistor algebra](https://www.osti.gov/biblio/4433498),
+and the explicit [Lorentz/celestial-sphere correspondence](https://arxiv.org/abs/1508.00920).
 
 ## Holonomy Observatory — what a closed journey remembers
 
@@ -239,9 +269,13 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-- **Invariant Nexus** — 66 laboratory nodes, 120 typed relations, six disciplinary domains, eight
+- **Invariant Nexus** — 67 laboratory nodes, 130 typed relations, six disciplinary domains, eight
   epistemic edge classes, a disciplinary↔invariant layout morph, typed
   pathfinding, Multiview comparison and JSON export;
+- **Spinor & Light-Cone Observatory** — five exact stations linking a normalized
+  S³ spinor, future null rays, the `SL(2,C)` Lorentz double cover, celestial
+  Möbius geometry, null-tetrad spin weights and radial conformal infinity, with
+  native-space residuals, Multiview bridges and JSON export;
 - **Holonomy Observatory** — five closed-path stations for spherical transport,
   Berry phase, SU(2) Wilson commutators, Thomas–Wigner rotation and SL(2,R)
   monodromy, each with an analytic anchor, numerical closure, Multiview and JSON;
