@@ -230,6 +230,46 @@ encodings only. The export must preserve coefficients, spectrum, seed, mask,
 reconstruction residual, estimator convention, source labels and the explicit
 list of forbidden observational claims.
 
+### Supernova Radiation-Hydrodynamics operational contract
+
+The Supernova laboratory is a reduced spherical reference calculation with two
+explicitly different clocks. `Transient` spans 0.5–400 days and stops at its
+upper boundary; it must never wrap to the explosion epoch. `Remnant` spans
+1–10^6 years on a logarithmic clock. Switching clocks changes the represented
+physical regime, not merely the animation speed.
+
+| Layer | Computed quantity | Validity boundary |
+|---|---|---|
+| radioactive source | exact Bateman fractions for 56Ni to 56Co to 56Fe and their declared specific heating rates | fixed lifetimes and heating constants; no explosive nucleosynthesis network |
+| gamma deposition | `f_gamma=1-exp[-(t0/t)^2]` with a disclosed grey homologous column and fixed gamma opacity | approximate spherical grey transfer; no line-by-line Compton transport |
+| photon diffusion | the Arnett one-zone convolution evaluated by a stable exponential recurrence | homologous, one-zone, constant-opacity diffusion; strongest for radioactively powered stripped-envelope events |
+| photosphere | `R_ph=v_ph t` and `T_eff=[L/(4 pi sigma R_ph^2)]^(1/4)` | displayed as a photosphere only while the grey optical depth is at least 2/3; no non-LTE spectrum or dilution factor |
+| non-radiative remnant | a continuous match between free expansion and the Sedov-Taylor asymptote | uniform ambient density and spherical energy-conserving blast wave; not the full Truelove-McKee ejecta/reverse-shock solution |
+| radiative remnant | shell-formation scale followed by a radius-continuous pressure-driven `R proportional t^(2/7)` asymptote | the reduced phase switch is C0, not velocity-smooth; solar-metallicity cooling scale; no chemistry, cloud interaction or momentum-conserving late merger model |
+| ejecta morphology | occupied-box slope `D_box,N` measured from the finite deterministic rendered sample | resolution-dependent visualization diagnostic, not a universal fractal dimension, observation or turbulence prediction |
+
+The bolometric luminosity, deposited power, effective temperature, gamma
+trapping fraction, forward-shock radius, shock velocity, shock temperature and
+finite-sample morphology diagnostic are separate typed outputs. None may be
+silently substituted for another. A Type-Ia preset is not a calibrated
+standard candle, and the SN 1987A preset is only a radioactive-tail/remnant
+reference: it deliberately does not fit shock cooling, hydrogen recombination,
+circumstellar interaction or the measured event covariance.
+
+The 3D particle cloud is a velocity-space encoding. Its physical radius is
+homologous velocity times time; its on-screen square-root/logarithmic scale is a
+declared display map. Forward shock, contact discontinuity and reverse-shock
+surfaces are model boundaries, while the white probe owns animation. The
+linear limb-darkening profile is a declared illustrative view-space encoding,
+not a fitted atmosphere. Color and bloom are perceptual encodings and are never
+radiometric measurements.
+
+Magnetic helicity, flux freezing, reconnection, Rayleigh-Taylor growth,
+cosmic-ray acceleration, neutrino transport and non-spherical gravitational-
+wave emission remain outside this solver. Hopf or Hopfion geometry may classify
+linked field topology in a future radiation-MHD observatory, but the existing
+vacuum electromagnetic Hopfion must not be identified with magnetized ejecta.
+
 ## Prediction and validation contract
 
 Every S3 laboratory is assigned exactly one operational prediction class:

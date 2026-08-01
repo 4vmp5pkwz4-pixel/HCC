@@ -1481,8 +1481,15 @@ const FORMULA_REGISTRY = [
  {id:'tov.mass',    expr:'dm/dr = 4 pi r^2 eps',                   units:'geometrized', src:'DERIVED'},
  {id:'tov.eos',     expr:'P = K rho0^Gamma; eps = rho0 + P/(Gamma-1)  (Gamma=2, K=100 benchmark)', units:'geometrized', src:'DERIVED'},
  {id:'tov.buchdahl',expr:'2GM/(R c^2) < 8/9 for any static star',   units:'1',   src:'DERIVED'},
- {id:'sn.bateman',  expr:'L = M_Ni[e_Ni e^{-t/tNi} + e_Co (tCo/(tCo-tNi))(e^{-t/tCo}-e^{-t/tNi})]', units:'erg/s', src:'DERIVED'},
- {id:'sn.sedov',    expr:'R = xi (E t^2 / rho)^{1/5} after sweep-up', units:'cm',  src:'DERIVED'},
+ {id:'sn.bateman',  expr:'X_Ni=e^{-t/tNi}; X_Co=tCo/(tCo-tNi)(e^{-t/tCo}-e^{-t/tNi}); X_Fe=1-X_Ni-X_Co', units:'1', src:'DERIVED'},
+ {id:'sn.radioactive',expr:'Q_radio=M_Ni[e_Ni e^{-t/tNi}+e_Co X_Co(t)]', units:'erg/s', src:'DERIVED'},
+ {id:'sn.gamma',    expr:'f_gamma=1-exp[-(t0_gamma/t)^2]; t0_gamma^2=kappa_gamma M_ej/(4 pi v_ej^2) for the declared q=1/3 grey column', units:'1 / days', src:'DERIVED'},
+ {id:'sn.diffusion',expr:'tau_m=[2 kappa M_ej/(beta c v_ej)]^{1/2}; beta=13.8', units:'days', src:'DERIVED'},
+ {id:'sn.arnett',   expr:'L(t)=2 exp(-x^2) integral_0^x z exp(z^2) Q_dep(tau_m z) dz; x=t/tau_m', units:'erg/s', src:'DERIVED'},
+ {id:'sn.photosphere',expr:'R_ph=v_ph t; T_eff=[L_bol/(4 pi sigma_SB R_ph^2)]^{1/4}; valid while tau_opt>=2/3', units:'cm / K', src:'DERIVED'},
+ {id:'sn.sedov',    expr:'R_ST=xi(E t^2/rho)^{1/5}; xi=1.15167 for gamma=5/3, continuously matched to R_free=v_ej t', units:'cm', src:'DERIVED'},
+ {id:'sn.cooling',  expr:'t_sf=3.61e4 E_51^{3/14} n_0^{-4/7} yr; radius-continuous pressure-driven shell R proportional t^{2/7}', units:'yr / cm', src:'DERIVED'},
+ {id:'sn.morphology',expr:'D_box,N = slope[ln N_occupied(epsilon), ln(1/epsilon)] on the finite rendered ejecta sample', units:'finite-sample diagnostic', src:'DERIVED'},
  {id:'psr.bfield',  expr:'B = 3.2e19 sqrt(P dP/dt)',                units:'G',   src:'DERIVED'},
  {id:'psr.spindown',expr:'L = 4 pi^2 I (dP/dt) / P^3; tau = P/(2 dP/dt)', units:'erg/s', src:'DERIVED'},
  {id:'qso.eta',     expr:'eta_Schw = 1 - sqrt(8/9) = 0.05719 (ISCO)', units:'1',  src:'DERIVED'},
@@ -1898,12 +1905,22 @@ function runSelfTests(){
     const lo=tovSolve(1e-5,3e-3,false), RN=Math.PI*Math.sqrt(NS_K/(2*Math.PI));
     ok('TOV: low-density limit converges to the Newtonian Γ=2 Lane–Emden radius π√(K/2π) (±1%)',
       Math.abs(lo.Rcode-RN)/RN<0.01, `${lo.Rcode.toFixed(2)} vs ${RN.toFixed(2)}`); }
-  { // SUPERNOVA: Bateman late tail declines on the Co-56 lifetime; Sedov exponent exact
-    const efold=100*SN_DAY/Math.log(snLdep(150*SN_DAY,0.6)/snLdep(250*SN_DAY,0.6))/SN_DAY;
-    ok('Supernova: late-tail e-folding time equals the ⁵⁶Co lifetime 111.3 d (±1%)',
-      Math.abs(efold-111.3)/111.3<0.01, efold.toFixed(1)+' d');
-    ok('Supernova: Sedov–Taylor scaling R(4t)/R(t)=4^{2/5} (exact)',
-      Math.abs(Math.pow(4,0.4)-Math.pow(4*4/1,0.2))<1e-12, Math.pow(4,0.4).toFixed(4)); }
+  { // SUPERNOVA: source, transport, timeline, morphology and remnant asymptotes
+    const P=snMakeParams(SN_PRESETS.ia),efold=100*SN_DAY/Math.log(snLradio(150*SN_DAY,.6)/snLradio(250*SN_DAY,.6))/SN_DAY,F=snDecayFractions(73*SN_DAY);
+    ok('Supernova: Bateman fractions close exactly and the late generated-power tail recovers the ⁵⁶Co lifetime (±1%)',
+      Math.abs(F.Ni+F.Co+F.Fe-1)<2e-15&&Math.abs(efold-111.3)/111.3<.01, `sum=${(F.Ni+F.Co+F.Fe).toFixed(15)} · τ=${efold.toFixed(1)} d`);
+    const C=snBuildArnettCurve(P),Qpk=snLdep(C.peakT*SN_DAY,P.MNi,P.tGamma),ratio=C.peakL/Qpk;
+    ok('Supernova: stable Arnett recurrence yields a finite Type-Ia peak and satisfies the peak heating relation inside the reduced grey model',
+      Number.isFinite(C.peakL)&&C.peakT>8&&C.peakT<35&&ratio>.7&&ratio<1.3, `t_peak=${C.peakT.toFixed(1)} d · L/Q=${ratio.toFixed(3)}`);
+    const A=snAdvanceTransient(399,9),B=snAdvanceTransient(A.time,9);
+    ok('Supernova: the non-periodic transient clamps and stops at day 400 — it can never teleport back to explosion',
+      A.ended&&B.ended&&A.time===400&&B.time===400, `${A.time.toFixed(1)} → ${B.time.toFixed(1)} d`);
+    const ages=[10,100,1e3,1e4,1e5,1e6],R=ages.map(t=>snRemnantState(t,P));
+    ok('Supernova remnant: forward radius is continuous and strictly monotone across ejecta, Sedov and radiative regimes',
+      R.every((x,i)=>Number.isFinite(x.R)&&x.R>0&&(!i||x.R>R[i-1].R))&&R[R.length-1].exponent<=.4, R.map(x=>x.Rpc.toFixed(2)).join(' < ')+' pc');
+    const M=snMorphologyMetrics(.62);
+    ok('Supernova morphology: finite-sample box dimension is measured from deterministic occupied boxes and remains explicitly bounded by the 3D carrier',
+      Number.isFinite(M.D)&&M.D>0&&M.D<=3&&M.counts[0]<M.counts[1]&&M.counts[1]<=M.counts[2], `D_box,N=${M.D.toFixed(3)} · ${M.counts.join('/')}`); }
   { // PULSAR: Crab observables from P,Ṗ match the literature
     const B=psrB(0.0334,4.21e-13), tau=psrTau(0.0334,4.21e-13), L=psrLsd(0.0334,4.21e-13);
     ok('Pulsar: Crab from (P,Ṗ) → B≈3.8×10¹² G, τ≈1257 yr, L_sd≈4.5×10³⁸ erg/s (±5%)',
@@ -7090,7 +7107,7 @@ const COSMOS = [
   {key:'crabpsr', name:'Crab Pulsar (PSR B0531+21)', ra:83.6332, dec:22.0145, dGly:6.52e-6, size:0.015, type:'compact', col:0x8fe0ff, srcTags:['ASTRO'],
     note:'P=33.4 ms, spun by the SN of 1054 AD · 2.0 kpc · its B, age and spin-down power are the live Crab preset of the Pulsar lab (3.8×10¹² G, ~1.3 kyr, 4.5×10³⁸ erg/s)'},
   {key:'sn1987a', name:'SN 1987A (LMC)',           ra:83.8667, dec:-69.2697, dGly:1.68e-4, size:0.015, type:'compact', col:0xffb060, srcTags:['ASTRO'],
-    note:'the nearest modern supernova (23 Feb 1987, LMC, 51.4 kpc) · its ⁵⁶Co-tail light curve is exactly the Bateman deposition drawn in the Supernova lab · neutrinos observed hours before the light'},
+    note:'the nearest modern supernova (23 Feb 1987, LMC, 51.4 kpc) · the Supernova lab opens its declared ⁵⁶Co-tail/remnant reference; it is not a calibrated reconstruction of the early shock-cooling or recombination light curve · neutrinos arrived hours before the optical light'},
   {key:'j0740ns', name:'PSR J0740+6620 — 2.08 M☉ NS', ra:115.1919, dec:66.3421, dGly:3.72e-6, size:0.015, type:'compact', col:0x9fe8d8, srcTags:['ASTRO'],
     note:'the most massive precisely-measured neutron star (2.08±0.07 M☉, Fonseca 2021 · NICER radius ~12.4 km) · 1.14 kpc · ABOVE the toy-EOS TOV maximum in the Neutron-star lab — the observational proof real nuclear matter is stiffer (declared there)'},
   // Nature 2026 JWST little-red-dot black-hole seed — a single high-z AGN, NOT a large-scale structure.
@@ -15556,68 +15573,123 @@ function updateNs(dt){
 }
 
 /* ================================================================
-   SUPERNOVA LAB · the radioactive engine of a Type Ia (UPRS 15/18).
-   The light of a thermonuclear supernova is powered by freshly-made
-   ⁵⁶Ni: the exact Bateman chain ⁵⁶Ni →(τ=8.77 d) ⁵⁶Co →(τ=111.3 d)
-   ⁵⁶Fe deposits L(t)=M_Ni[ε_Ni e^{−t/τNi}+ε_Co(τCo/(τCo−τNi))
-   (e^{−t/τCo}−e^{−t/τNi})] — the famous 111-day cobalt tail measured
-   in every SN Ia. The remnant expands freely (R=v_ej t) until it has
-   swept up its own mass, then follows Sedov–Taylor R∝t^{2/5}.
-   DECLARED: this is the radioactive DEPOSITION power (exact); the
-   emergent optical light curve additionally needs photon diffusion
-   (Arnett); the remnant transition is schematic. */
-const snGroup=new THREE.Group(); snGroup.visible=false; s3Group.add(snGroup);
-const SN_DAY=86400, SN_TAUNI=8.77*SN_DAY, SN_TAUCO=111.3*SN_DAY, SN_ENI=3.9e10, SN_ECO=6.78e9, SN_MSUNG=1.989e33;
-let snObjs=null, snUiAcc=0, snT=0;
-function snLdep(tSec,MNiMsun){ const M=MNiMsun*SN_MSUNG;
-  return M*(SN_ENI*Math.exp(-tSec/SN_TAUNI)+SN_ECO*(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-tSec/SN_TAUCO)-Math.exp(-tSec/SN_TAUNI))); }
-function snClear(){ labWipe(snGroup); snObjs=null; }
-function snSetup(){
-  snClear(); snT=0.5;
-  snGroup.add(new THREE.AmbientLight(0x65738a,.46));const key=new THREE.DirectionalLight(0xffead1,.86);key.position.set(4,7,6);snGroup.add(key);
-  const remnant=new THREE.Group();remnant.position.set(0,.35,0);snGroup.add(remnant);
-  const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xfff0c4,transparent:true,opacity:.44,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));flash.scale.setScalar(.96);flash.renderOrder=13;remnant.add(flash);
-  const ejectaLight=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xff814f,transparent:true,opacity:.26,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));ejectaLight.scale.setScalar(1.82);ejectaLight.renderOrder=12;remnant.add(ejectaLight);
-  const shockGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0x63bfe9,transparent:true,opacity:.075,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));shockGlow.scale.setScalar(2.72);shockGlow.renderOrder=11;remnant.add(shockGlow);
-  const core=new THREE.Mesh(new THREE.SphereGeometry(.09,20,14),new THREE.MeshBasicMaterial({color:0xfff8e8}));remnant.add(core);
-  // Homologous ejecta are a velocity-resolved particle volume, not nested
-  // glowing balloons.  Radius is velocity × time; colour encodes temperature.
-  const count=MOBILE_GPU?520:1100,pos=new Float32Array(count*3),col=new Float32Array(count*3),_ec=new THREE.Color();
-  for(let i=0;i<count;i++){const u=(i+.5)/count,z=1-2*u,a=2.399963229728653*i,s=Math.sqrt(Math.max(0,1-z*z)),v=.22+.78*Math.pow(((i*73)%997)/997,.58),clump=.86+.14*Math.sin(i*12.9898);pos[3*i]=v*s*Math.cos(a)*clump;pos[3*i+1]=v*z*clump;pos[3*i+2]=v*s*Math.sin(a)*clump;qsoTempColor(.18+.82*(1-v),_ec);col[3*i]=.18+1.12*_ec.r;col[3*i+1]=.08+1.06*_ec.g;col[3*i+2]=.05+1.02*_ec.b;}
-  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));const particles=new THREE.Points(pg,new THREE.PointsMaterial({map:scientificGlowTexture(),alphaTest:.006,size:.069,vertexColors:true,transparent:true,opacity:.68,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));particles.renderOrder=14;remnant.add(particles);
-  const rays=[];for(let i=0;i<(MOBILE_GPU?38:76);i++){const z=1-2*(i+.5)/(MOBILE_GPU?38:76),a=2.399963229728653*i,s=Math.sqrt(Math.max(0,1-z*z)),dir=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a)),line=scientificTube([dir.clone().multiplyScalar(.12),dir.clone().multiplyScalar(.98)],i%7===0?SCI_GOLD:0x7595aa,.003,i%7===0?.24:.055,false,36);remnant.add(line);rays.push(line);}
-  const shock=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),scientificFresnelMaterial(0x4395bd,0xc9f1ff,.15,1.08));shock.renderOrder=4;remnant.add(shock);
-  const tracer=scientificCrystal(0xffffff,.055);tracer.position.set(1.02,0,0);remnant.add(tracer);
-  const decay=[];[[.17,0xe8c77a],[.23,0x82bfd6],[.29,0xb89bd8]].forEach(([r,c],i)=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(r,.006,5,96),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.24,depthWrite:false,blending:THREE.NormalBlending}));ring.rotation.set(i*.72,i*1.1,.3+i*.45);remnant.add(ring);decay.push(ring);});
-  const clock=mkLabel('⁵⁶Ni → ⁵⁶Co → ⁵⁶Fe · isotope fractions orbit inside the expanding ejecta','label axis');clock.position.set(0,2.55,0);snGroup.add(clock);
-  const tl=mkLabel('SUPERNOVA · ⁵⁶Ni→⁵⁶Co→⁵⁶Fe Bateman deposition · Sedov remnant','label const','snAtlas'); tl.position.set(0,3.5,0); snGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); snGroup.add(rl);
-  snObjs={remnant,flash,ejectaLight,shockGlow,core,particles,rays,shock,tracer,decay,readLab:rl};
-}
-function updateSn(dt){
-  const O=snObjs; if(!O) return;
-  const MNi=state.snMNi??0.6, vej=(state.snVej??10000)*1e5;   // cm/s
-  if(state.snRun!==false){ snT+=dt*(state.snSpeed??1)*22; if(snT>400) snT=0.5; }
-  const L=snLdep(snT*SN_DAY,MNi);
-  // remnant: free expansion then Sedov (sweep-up at t_sw for M_ej=1.4 Msun into n=1/cm3)
-  const Mej=1.4*SN_MSUNG, rho=1.67e-24, Rsw=Math.pow(3*Mej/(4*Math.PI*rho),1/3), tsw=Rsw/vej;
-  const tS=snT*SN_DAY, Rcm=tS<tsw?vej*tS:Rsw*Math.pow(tS/tsw,0.4);
-  // A square-root display map keeps the first radioactive year spatially
-  // inspectable; the exact physical radius remains in the readout.  Linear
-  // free-expansion / Sedov exponents are never inferred from screen size.
-  const s=.62+1.8*Math.sqrt(Math.min(1,snT/400));
-  const light=THREE.MathUtils.clamp(Math.pow(Math.max(0,L/2e43),.34),0,1);
-  O.remnant.scale.setScalar(s);O.shock.scale.setScalar(1.04);O.particles.material.opacity=.45+.34*light;O.particles.material.size=.052+.028*light;
-  O.remnant.rotation.y+=dt*.006;const Ni=Math.exp(-tS/SN_TAUNI),Co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-tS/SN_TAUCO)-Math.exp(-tS/SN_TAUNI)),Fe=Math.max(0,1-Ni-Co),fra=[Ni,Co,Fe];O.decay.forEach((ring,i)=>{ring.material.opacity=.055+.52*fra[i];ring.rotation.z+=dt*(.075+i*.028);});
-  const a=snT*.017;O.tracer.position.set(1.025*Math.cos(a),.32*Math.sin(a*.7),1.025*Math.sin(a));
-  O.flash.material.opacity=.24+.38*light;O.flash.scale.setScalar(.72+.42*light);O.ejectaLight.material.opacity=.13+.25*light;O.ejectaLight.scale.setScalar(1.54+.42*light);O.shockGlow.material.opacity=.035+.07*light;O.core.scale.setScalar(.82+.42*light);O.shock.material.uniforms.uOpacity.value=.10+.055*light;O.shock.material.uniforms.uIntensity.value=.95+.28*light;
-  snUiAcc+=dt; if(snUiAcc>0.25){ snUiAcc=0;
-    const phase=tS<tsw?'free expansion R=v_ej·t':'Sedov–Taylor R∝t^{2/5} (swept-up ISM dominates)';
-    hudBig.textContent=`SUPERNOVA · t=${snT.toFixed(0)} d · L_dep=${L.toExponential(2)} erg/s · M(⁵⁶Ni)=${MNi.toFixed(2)} M☉`;
-    hudSub.textContent='a Type Ia shines by radioactivity: freshly-synthesised ⁵⁶Ni decays through ⁵⁶Co to stable ⁵⁶Fe, and the EXACT Bateman deposition drawn here explains the universal 111-day tail of every Ia light curve — the decay clock of cobalt, readable across a billion light-years. The remnant coasts at v_ej until it sweeps up its own mass, then decelerates as Sedov–Taylor t^{2/5}. Display radius uses a declared √time normalization so the first year stays visible; exact physical R remains in the readout. Deposition power is exact; the emergent optical curve adds photon diffusion (Arnett).';
-    ATLAS_BUS.pub('sn.L',+L.toExponential(2),'erg/s');
-    const el=ctl.querySelector('#snInv'); if(el) el.innerHTML=`M(⁵⁶Ni)=<b>${MNi.toFixed(2)}</b> M☉ · v_ej=<b>${(vej/1e5/1e3).toFixed(0)}×10³</b> km/s · t=<b>${snT.toFixed(1)}</b> d<br>L_dep=<b>${L.toExponential(3)}</b> erg/s · remnant R=${(Rcm/3.086e18).toFixed(2)} pc · phase: <b>${phase}</b> · sweep-up at ${(tsw/SN_DAY/365.25).toFixed(0)} yr (n=1 cm⁻³, M_ej=1.4 M☉)`;
+   SUPERNOVA RADIATION–HYDRODYNAMICS LAB.
+
+   The transient station combines four explicitly separated layers:
+   (1) exact Bateman 56Ni→56Co→56Fe abundances and generated power;
+   (2) a grey homologous gamma-column deposition approximation;
+   (3) the Arnett one-zone diffusion integral, evaluated by a stable
+       exponential recurrence that cannot overflow at late epochs;
+   (4) a grey photospheric radius and effective temperature while the
+       optical depth exceeds 2/3.
+
+   The remnant station spans 1–10^6 yr: ejecta-dominated expansion,
+   the Sedov–Taylor asymptote, and a radius-continuous radiative
+   pressure-driven snowplough after the Cioffi shell-formation scale.
+   This is a reduced spherical reference model, not radiation-MHD,
+   nucleosynthesis, non-LTE transfer or a calibrated event fit.
+
+   GPU CONTRACT: one bounded point-shader draw, no canvas point map,
+   no camera-sized depthTest=false sprites, no animated allocation and
+   no nonphysical wrap from day 400 back to explosion. */
+const snGroup=new THREE.Group();snGroup.visible=false;s3Group.add(snGroup);
+const SN_DAY=86400,SN_YEAR=365.25*SN_DAY,SN_TAUNI=8.77*SN_DAY,SN_TAUCO=111.3*SN_DAY,
+  SN_ENI=3.9e10,SN_ECO=6.78e9,SN_MSUNG=1.98847e33,SN_C=2.99792458e10,
+  SN_PC=3.085677581491367e18,SN_SIGMA=5.670374419e-5,SN_KB=1.380649e-16,
+  SN_MP=1.67262192369e-24,SN_DIFF_BETA=13.8,SN_ST_XI=1.15167;
+const SN_PRESETS={
+  ia:{label:'Type Ia · normal',kind:'ia',MNi:.60,Mej:1.40,Vej:10000,kappa:.10,n0:1,mix:.24,
+    caveat:'thermonuclear one-zone reference · strongest validity of the Arnett station'},
+  dim:{label:'Type Ia · low ⁵⁶Ni',kind:'ia',MNi:.18,Mej:1.15,Vej:8500,kappa:.09,n0:1,mix:.18,
+    caveat:'sub-luminous thermonuclear parameter study · not a named-event calibration'},
+  bright:{label:'Type Ia · luminous',kind:'ia',MNi:1.02,Mej:1.55,Vej:12000,kappa:.11,n0:.3,mix:.31,
+    caveat:'high-Ni thermonuclear parameter study · no circumstellar interaction'},
+  cc87a:{label:'SN 1987A · radioactive tail',kind:'cc',MNi:.07,Mej:14,Vej:3500,kappa:.20,n0:1,mix:.62,
+    caveat:'87A-like tail/remnant reference · early shock cooling and H recombination are deliberately not fitted'}
+};
+let snObjs=null,snUiAcc=0,snCtlAcc=0,snT=.5,snAnim=0,snCurveCache=null,snMorphCache=null;
+function snMakeParams(src={}){const Mej=Math.max(.1,+src.Mej||1.4),vejKm=Math.max(500,+src.Vej||10000),MNi=Math.max(0,+src.MNi||.6),kappa=Math.max(.005,+src.kappa||.1),n0=Math.max(1e-4,+src.n0||1),mix=THREE.MathUtils.clamp(+src.mix||0,0,1),MejG=Mej*SN_MSUNG,vej=vejKm*1e5;
+  const P={key:src.kind||'ia',label:src.label||'',caveat:src.caveat||'',MNi,Mej,MejG,vejKm,vej,kappa,n0,mix,kGamma:.027};
+  P.Ekin=.3*MejG*vej*vej;P.E51=P.Ekin/1e51;P.tGamma=Math.sqrt(3*P.kGamma*MejG/(12*Math.PI*vej*vej))/SN_DAY;return P;}
+function snParams(){const preset=SN_PRESETS[state.snType]||SN_PRESETS.ia;return snMakeParams({...preset,kind:state.snType||preset.kind,MNi:state.snMNi,Mej:state.snMej,Vej:state.snVej,kappa:state.snKappa,n0:state.snAmbient,mix:state.snMix});}
+function snApplyPreset(key){const p=SN_PRESETS[key]||SN_PRESETS.ia;state.snType=key;state.snMNi=p.MNi;state.snMej=p.Mej;state.snVej=p.Vej;state.snKappa=p.kappa;state.snAmbient=p.n0;state.snMix=p.mix;state.snDomain='transient';state.snTimeDays=.5;state.snAgeYr=1;state.snRun=true;snT=.5;snCurveCache=null;snMorphCache=null;}
+function snSyncControls(domain){
+  const run=ctl.querySelector('#snRun');if(run)run.textContent=state.snRun!==false?'⏸ pause':'▶ run';
+  if(domain==='transient'){
+    const input=ctl.querySelector('#snTime'),value=ctl.querySelector('#snTimeV');
+    if(input&&document.activeElement!==input){input.value=snT;const exact=input.parentElement?.querySelector('.precBox');if(exact&&document.activeElement!==exact)exact.value=_fmtPrec(snT);}
+    if(value)value.textContent=snT.toFixed(1)+' d';
+  }else{
+    const input=ctl.querySelector('#snAge'),value=ctl.querySelector('#snAgeV'),age=Math.log10(Math.max(1,state.snAgeYr??1));
+    if(input&&document.activeElement!==input){input.value=age;const exact=input.parentElement?.querySelector('.precBox');if(exact&&document.activeElement!==exact)exact.value=_fmtPrec(age);}
+    if(value)value.textContent=age.toFixed(2);
   }
+}
+function snDecayFractions(tSec){const Ni=Math.exp(-Math.max(0,tSec)/SN_TAUNI),Co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-Math.max(0,tSec)/SN_TAUCO)-Math.exp(-Math.max(0,tSec)/SN_TAUNI));return {Ni,Co,Fe:Math.max(0,1-Ni-Co)};}
+function snRadioComponents(tSec,MNiMsun){const M=Math.max(0,MNiMsun)*SN_MSUNG,eNi=Math.exp(-Math.max(0,tSec)/SN_TAUNI),co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-Math.max(0,tSec)/SN_TAUCO)-eNi);return {Ni:M*SN_ENI*eNi,Co:M*SN_ECO*co};}
+function snLradio(tSec,MNiMsun){const q=snRadioComponents(tSec,MNiMsun);return q.Ni+q.Co;}
+function snGammaTrap(tDays,t0Days){if(!Number.isFinite(t0Days))return 1;const x=Math.max(1e-6,t0Days/Math.max(.05,tDays));return -Math.expm1(-x*x);}
+function snLdep(tSec,MNiMsun,t0Days=Infinity){const q=snRadioComponents(tSec,MNiMsun),f=snGammaTrap(tSec/SN_DAY,t0Days);return q.Ni*f+q.Co*(.035+.965*f);}
+function snDiffusionDays(P){return Math.sqrt(2*P.kappa*P.MejG/(SN_DIFF_BETA*SN_C*P.vej))/SN_DAY;}
+function snCurveKey(P){return [P.MNi,P.Mej,P.vejKm,P.kappa,P.tGamma].map(x=>(+x).toPrecision(8)).join('|');}
+function snBuildArnettCurve(P){const key=snCurveKey(P);if(snCurveCache?.key===key)return snCurveCache;const N=1000,tMax=500,tau=snDiffusionDays(P),time=new Float64Array(N+1),lum=new Float64Array(N+1);let L=0,peakL=0,peakT=0;
+  for(let i=1;i<=N;i++){const t0=(i-1)*tMax/N,t1=i*tMax/N,tm=.5*(t0+t1),x0=t0/tau,x1=t1/tau,damp=Math.exp(-(x1*x1-x0*x0)),Q=snLdep(tm*SN_DAY,P.MNi,P.tGamma);L=L*damp+Q*(1-damp);time[i]=t1;lum[i]=L;if(L>peakL){peakL=L;peakT=t1;}}
+  snCurveCache={key,time,lum,tMax,N,tau,peakL,peakT};return snCurveCache;}
+function snArnettLum(tDays,P){const C=snBuildArnettCurve(P),t=THREE.MathUtils.clamp(tDays,0,C.tMax),u=t/C.tMax*C.N,i=Math.min(C.N-1,Math.floor(u)),f=u-i;return C.lum[i]*(1-f)+C.lum[i+1]*f;}
+function snTransientState(tDays,P=snParams()){const t=Math.max(.01,tDays),tSec=t*SN_DAY,decay=snDecayFractions(tSec),radio=snLradio(tSec,P.MNi),fGamma=snGammaTrap(t,P.tGamma),dep=snLdep(tSec,P.MNi,P.tGamma),Lbol=snArnettLum(t,P),tauM=snDiffusionDays(P),Rout=P.vej*tSec,tauOpt=3*P.kappa*P.MejG/(4*Math.PI*Rout*Rout),vph=P.vej*THREE.MathUtils.clamp(.94-.46*Math.sqrt(Math.min(1,t/400)),.34,.94),Rph=vph*tSec,Teff=Math.pow(Math.max(1,Lbol)/(4*Math.PI*SN_SIGMA*Rph*Rph),.25);return {t,tSec,decay,radio,fGamma,dep,Lbol,tauM,Rout,tauOpt,vph,Rph,Teff,photospheric:tauOpt>=2/3,curve:snBuildArnettCurve(P)};}
+function snAdvanceTransient(t,deltaDays){const time=Math.min(400,Math.max(.5,t)+Math.max(0,deltaDays));return {time,ended:time>=400};}
+function snRemnantState(ageYr,P=snParams()){const age=Math.max(1,ageYr),t=age*SN_YEAR,rho=1.4*SN_MP*P.n0,Rfree=P.vej*t,Rst=SN_ST_XI*Math.pow(P.Ekin*t*t/rho,.2),a=4,wa=Math.pow(Rfree,-a),wb=Math.pow(Rst,-a),Radiab=Math.pow(wa+wb,-1/a),expAd=(wa+0.4*wb)/(wa+wb),Rsw=Math.pow(3*P.MejG/(4*Math.PI*rho),1/3),tSweep=Rsw/P.vej/SN_YEAR,tShell=3.61e4*Math.pow(Math.max(.02,P.E51),3/14)*Math.pow(P.n0,-4/7),ts=tShell*SN_YEAR,Rsf0=P.vej*ts,Rsf1=SN_ST_XI*Math.pow(P.Ekin*ts*ts/rho,.2),Rsf=Math.pow(Math.pow(Rsf0,-a)+Math.pow(Rsf1,-a),-1/a);let R=Radiab,exponent=expAd,phase=age<tSweep?'ejecta-dominated · R≈v t':'Sedov–Taylor · R∝t²⁄⁵';if(age>=tShell){R=Rsf*Math.pow(age/tShell,2/7);exponent=2/7;phase='radiative pressure-driven shell · R∝t²⁄⁷';}const vShock=exponent*R/t,Tshock=3*.61*SN_MP*vShock*vShock/(16*SN_KB),swept=4*Math.PI*rho*R*R*R/(3*SN_MSUNG);return {age,t,rho,R,Rpc:R/SN_PC,vShock,Tshock,swept,tSweep,tShell,phase,exponent,contact:.86*R,reverse:(age<tSweep?.73:.64)*R};}
+function snHash(i,s=0){let x=Math.imul((i+1)^(s+101),0x45d9f3b);x^=x>>>16;x=Math.imul(x,0x45d9f3b);x^=x>>>16;return (x>>>0)/4294967295;}
+function snUnit(i,n,out=new THREE.Vector3()){const z=1-2*(i+.5)/n,a=2.399963229728653*(i+.5),r=Math.sqrt(Math.max(0,1-z*z));return out.set(r*Math.cos(a),z,r*Math.sin(a));}
+function snMorphPoint(i,n,mix,out=new THREE.Vector3()){const base=snUnit(i,n,new THREE.Vector3()),cluster=snUnit((i*37)%19,19,new THREE.Vector3()),u=THREE.MathUtils.clamp(mix,0,1)*.62;out.copy(base).multiplyScalar(1-u).addScaledVector(cluster,u).normalize();const v=.14+.86*Math.pow(snHash(i,7),.62),finger=1+mix*.28*(2*snHash(i,19)-1);return out.multiplyScalar(v*finger);}
+function snMorphologyMetrics(mix){const key=(+mix).toFixed(3);if(snMorphCache?.key===key)return snMorphCache;const N=MOBILE_GPU?384:640,grids=[4,8,16],sets=grids.map(()=>new Set()),p=new THREE.Vector3();for(let i=0;i<N;i++){snMorphPoint(i,N,mix,p);for(let k=0;k<grids.length;k++){const q=grids[k],ix=THREE.MathUtils.clamp(Math.floor((p.x/2.5+.5)*q),0,q-1),iy=THREE.MathUtils.clamp(Math.floor((p.y/2.5+.5)*q),0,q-1),iz=THREE.MathUtils.clamp(Math.floor((p.z/2.5+.5)*q),0,q-1);sets[k].add(ix+q*(iy+q*iz));}}const xs=grids.map(Math.log),ys=sets.map(s=>Math.log(Math.max(1,s.size))),xm=xs.reduce((a,b)=>a+b,0)/xs.length,ym=ys.reduce((a,b)=>a+b,0)/ys.length,D=xs.reduce((a,x,i)=>a+(x-xm)*(ys[i]-ym),0)/xs.reduce((a,x)=>a+(x-xm)*(x-xm),0);snMorphCache={key,D,counts:sets.map(s=>s.size),N};return snMorphCache;}
+function snEjectaMaterial(){const m=new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false,
+    uniforms:{uMix:{value:.2},uOpacity:{value:.22},uPointSize:{value:.046},uPixelScale:{value:420},uThermal:{value:new THREE.Color(0xffb57f)},uDecay:{value:new THREE.Color(0xe8c77a)},uRadiance:{value:.78}},
+    vertexShader:`attribute vec3 color;attribute vec3 aCluster;attribute float aClump;varying vec3 vColor;varying float vR;uniform float uMix,uPointSize,uPixelScale;uniform vec3 uThermal,uDecay;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){float r=length(position);vec3 d=normalize(mix(normalize(position),normalize(aCluster),uMix*.62));vec3 p=d*r*(1.0+uMix*.28*(aClump-.5)*2.0);vR=r;vColor=mix(color,mix(uThermal,uDecay,.48),.18+.34*(1.0-r));vec4 mv=modelViewMatrix*vec4(p,1.0);gl_PointSize=clamp(uPointSize*uPixelScale/max(1.0,-mv.z),1.0,5.2);gl_Position=projectionMatrix*mv;
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`varying vec3 vColor;varying float vR;uniform float uOpacity,uRadiance;
+      #include <logdepthbuf_pars_fragment>
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec2 d=gl_PointCoord*2.0-1.0;float r2=dot(d,d);if(r2>1.0)discard;float a=(1.0-r2)*(1.0-r2)*uOpacity*(.62+.38*(1.0-vR));gl_FragColor=vec4(vColor*uRadiance,a);
+      }`});m.userData.supernovaStablePoints=true;return m;}
+function snPhotosphereMaterial(){return new THREE.ShaderMaterial({transparent:true,depthTest:true,depthWrite:false,side:THREE.FrontSide,blending:THREE.NormalBlending,
+  uniforms:{uColor:{value:new THREE.Color(0xffc18a)},uOpacity:{value:.2},uLimb:{value:.62}},
+  vertexShader:`varying vec3 vViewNormal;varying vec3 vViewPosition;
+    #include <common>
+    #include <logdepthbuf_pars_vertex>
+    void main(){vec4 mv=modelViewMatrix*vec4(position,1.0);vViewPosition=mv.xyz;vViewNormal=normalize(normalMatrix*normal);gl_Position=projectionMatrix*mv;
+      #include <logdepthbuf_vertex>
+    }`,
+  fragmentShader:`varying vec3 vViewNormal;varying vec3 vViewPosition;uniform vec3 uColor;uniform float uOpacity,uLimb;
+    #include <logdepthbuf_pars_fragment>
+    void main(){
+      #include <logdepthbuf_fragment>
+      float mu=clamp(dot(normalize(vViewNormal),normalize(-vViewPosition)),0.0,1.0);float linearLimb=1.0-uLimb*(1.0-mu);float alpha=uOpacity*(.18+.82*sqrt(mu));vec3 radiance=uColor*(.38+.62*linearLimb);gl_FragColor=vec4(radiance,alpha);
+    }`});}
+function snClear(){labWipe(snGroup);snObjs=null;}
+function snSetup(){snClear();snT=THREE.MathUtils.clamp(state.snTimeDays??snT??.5,.5,400);snAnim=0;const modelRoot=new THREE.Group();modelRoot.position.set(0,.28,0);snGroup.add(modelRoot);
+  const count=MOBILE_GPU?480:900,pos=new Float32Array(count*3),col=new Float32Array(count*3),cluster=new Float32Array(count*3),clump=new Float32Array(count),p=new THREE.Vector3(),c=new THREE.Vector3(),tmpCol=new THREE.Color();for(let i=0;i<count;i++){snUnit(i,count,p);const v=.14+.86*Math.pow(snHash(i,7),.62);p.multiplyScalar(v);snUnit((i*37)%19,19,c);qsoTempColor(.16+.84*(1-v),tmpCol);pos.set([p.x,p.y,p.z],3*i);cluster.set([c.x,c.y,c.z],3*i);clump[i]=snHash(i,19);col.set([tmpCol.r*.76,tmpCol.g*.76,tmpCol.b*.76],3*i);}const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));pg.setAttribute('aCluster',new THREE.BufferAttribute(cluster,3));pg.setAttribute('aClump',new THREE.BufferAttribute(clump,1));pg.computeBoundingSphere();const particles=new THREE.Points(pg,snEjectaMaterial());particles.frustumCulled=false;particles.renderOrder=5;modelRoot.add(particles);
+  const photosphere=new THREE.Mesh(new THREE.SphereGeometry(1,56,38),snPhotosphereMaterial());photosphere.renderOrder=2;modelRoot.add(photosphere);
+  const forward=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),scientificFresnelMaterial(0x5fa9cc,0xd7f5ff,.13,.92));forward.renderOrder=3;modelRoot.add(forward);
+  const contact=new THREE.Mesh(new THREE.SphereGeometry(1,40,26),scientificFresnelMaterial(0xd0a85e,0xffe0a0,.075,.62));contact.renderOrder=2;modelRoot.add(contact);
+  const reverse=new THREE.Mesh(new THREE.SphereGeometry(1,36,24),scientificFresnelMaterial(0x8d75bd,0xd8c5ff,.065,.58));reverse.renderOrder=2;modelRoot.add(reverse);
+  const core=new THREE.Mesh(new THREE.SphereGeometry(.055,18,12),new THREE.MeshBasicMaterial({color:0xfffbef,depthTest:true,depthWrite:true}));modelRoot.add(core);
+  const tracer=new THREE.Mesh(new THREE.OctahedronGeometry(.034,1),new THREE.MeshBasicMaterial({color:0xffffff,depthTest:true,depthWrite:true}));tracer.renderOrder=7;modelRoot.add(tracer);
+  const clock=mkLabel('homologous velocity volume · diffusion photosphere · forward/contact/reverse shock surfaces','label axis');clock.position.set(0,2.63,0);snGroup.add(clock);
+  const tl=mkLabel('SUPERNOVA · radioactive transport → homologous ejecta → multi-phase remnant','label const','snAtlas');tl.position.set(0,3.5,0);snGroup.add(tl);
+  const rl=mkLabel('','label dim');rl.position.set(0,-3.4,0);snGroup.add(rl);
+  snObjs={modelRoot,particles,photosphere,forward,contact,reverse,core,tracer,readLab:rl,tmpColor:new THREE.Color()};}
+function updateSn(dt){const O=snObjs;if(!O)return;const P=snParams(),domain=state.snDomain||'transient';if(state.snRun!==false){if(!PREFERS_REDUCED_MOTION)snAnim+=dt;if(domain==='transient'){const A=snAdvanceTransient(snT,dt*(state.snSpeed??1)*22);snT=A.time;state.snTimeDays=snT;if(A.ended)state.snRun=false;}else{const lg=Math.min(6,Math.log10(Math.max(1,state.snAgeYr??1))+dt*(state.snSpeed??1)*.18);state.snAgeYr=Math.pow(10,lg);if(lg>=6)state.snRun=false;}}
+  snCtlAcc+=dt;if(snCtlAcc>.25){snCtlAcc=0;snSyncControls(domain);}
+  const M=snMorphologyMetrics(P.mix),U=O.particles.material.uniforms;U.uMix.value=P.mix;U.uPixelScale.value=Math.min(1100,renderer.domElement.clientHeight*renderer.getPixelRatio()*.52);const decayColor=O.tmpColor;
+  if(domain==='transient'){const S=snTransientState(snT,P),light=THREE.MathUtils.clamp(Math.pow(S.Lbol/2e43,.28),0,1),scale=.90+1.54*Math.sqrt(Math.min(1,snT/400)),tempU=THREE.MathUtils.clamp((Math.log10(Math.max(1000,S.Teff))-3.45)/1.05,0,1);qsoTempColor(tempU,O.tmpColor);U.uThermal.value.copy(O.tmpColor);decayColor.set(0xe8c77a).multiplyScalar(S.decay.Ni).add(new THREE.Color(0xb89bd8).multiplyScalar(S.decay.Co)).add(new THREE.Color(0x8eb4c8).multiplyScalar(S.decay.Fe));U.uDecay.value.copy(decayColor);U.uOpacity.value=.12+.18*light;U.uPointSize.value=.036+.018*light;U.uRadiance.value=.58+.28*light;O.modelRoot.scale.setScalar(scale);O.photosphere.visible=S.tauOpt>.08;O.photosphere.scale.setScalar(S.vph/P.vej);O.photosphere.material.uniforms.uColor.value.copy(U.uThermal.value);O.photosphere.material.uniforms.uOpacity.value=THREE.MathUtils.clamp(.055+.21*Math.min(1,S.tauOpt),.055,.26);O.forward.scale.setScalar(1.025);O.forward.material.uniforms.uOpacity.value=.075+.055*light;O.forward.material.uniforms.uIntensity.value=.74+.24*light;O.contact.visible=false;O.reverse.visible=false;O.core.scale.setScalar(.7+.6*light);const a=snAnim*.24;O.tracer.position.set(1.035*Math.cos(a),.23*Math.sin(a*.71),1.035*Math.sin(a));
+    snUiAcc+=dt;if(snUiAcc>.25){snUiAcc=0;const C=S.curve,photo=S.photospheric?`photospheric · τ_opt=${S.tauOpt.toFixed(2)}`:`nebular limit · τ_opt=${S.tauOpt.toFixed(2)} < 2/3`;hudBig.textContent=`SUPERNOVA · day ${snT.toFixed(1)} · L_bol=${S.Lbol.toExponential(2)} erg/s · T_eff=${Math.round(S.Teff).toLocaleString()} K`;hudSub.textContent='Bateman abundances feed a grey gamma-deposition column; the deposited power is convolved with the Arnett diffusion kernel before it becomes the displayed bolometric luminosity. Radius is homologous velocity × time. The photospheric colour is derived from L=4πR²σT⁴ only while the grey optical depth supports that interpretation; its linear limb profile is an illustrative view-space encoding, not a fitted atmosphere. Playback stops at day 400: a supernova is not periodic.';ATLAS_BUS.pub('sn.L',+S.Lbol.toExponential(3),'erg/s');ATLAS_BUS.pub('sn.Lbol',+S.Lbol.toExponential(3),'erg/s');ATLAS_BUS.pub('sn.Ldep',+S.dep.toExponential(3),'erg/s');ATLAS_BUS.pub('sn.Teff',+S.Teff.toFixed(1),'K');ATLAS_BUS.pub('sn.fgamma',+S.fGamma.toFixed(5),'1');ATLAS_BUS.pub('sn.Dbox',+M.D.toFixed(4),'finite-sample');const el=ctl.querySelector('#snInv');if(el)el.innerHTML=`<b>${P.label||SN_PRESETS[state.snType]?.label||'custom'}</b> · t=<b>${snT.toFixed(2)} d</b> · M_ej=${P.Mej.toFixed(2)} M☉ · E_k=${P.E51.toFixed(3)}×10⁵¹ erg<br>τ_m=<b>${S.tauM.toFixed(2)} d</b> · t₀,γ=<b>${P.tGamma.toFixed(1)} d</b> · f_γ=${S.fGamma.toFixed(4)} · L_radio=${S.radio.toExponential(3)} · L_dep=${S.dep.toExponential(3)} erg/s<br>L_bol=<b>${S.Lbol.toExponential(3)} erg/s</b> · peak ${C.peakL.toExponential(3)} at ${C.peakT.toFixed(1)} d · R_ph=${(S.Rph/1e15).toFixed(3)}×10¹⁵ cm · T_eff=${S.Teff.toFixed(0)} K · <b>${photo}</b><br>fractions: ⁵⁶Ni ${S.decay.Ni.toFixed(4)} · ⁵⁶Co ${S.decay.Co.toFixed(4)} · ⁵⁶Fe ${S.decay.Fe.toFixed(4)} · morphology D_box,N=<b>${M.D.toFixed(3)}</b> [${M.counts.join(' · ')} boxes; N=${M.N}; resolution-dependent]`;O.readLab.element.textContent=`transient · Arnett τ_m=${S.tauM.toFixed(1)} d · γ trapping ${Math.round(100*S.fGamma)}% · finite-sample D_box=${M.D.toFixed(2)}`;}}
+  else{const R=snRemnantState(state.snAgeYr??1,P),logAge=Math.log10(R.age),scale=.68+1.72*logAge/6;U.uThermal.value.set(0x7e9db0);U.uDecay.value.set(0x9fb9c8);U.uOpacity.value=.07+.08*Math.exp(-R.swept/Math.max(.01,P.Mej));U.uPointSize.value=.038;U.uRadiance.value=.58;O.modelRoot.scale.setScalar(scale);O.photosphere.visible=false;O.forward.scale.setScalar(1.035);O.forward.material.uniforms.uOpacity.value=.11;O.forward.material.uniforms.uIntensity.value=.92;O.contact.visible=true;O.contact.scale.setScalar(.86);O.reverse.visible=R.age<Math.max(8*R.tSweep,R.tShell);O.reverse.scale.setScalar(R.reverse/R.R);O.core.scale.setScalar(.58);const a=snAnim*.19;O.tracer.position.set(1.04*Math.cos(a),.16*Math.sin(a*.83),1.04*Math.sin(a));snUiAcc+=dt;if(snUiAcc>.25){snUiAcc=0;hudBig.textContent=`SUPERNOVA REMNANT · age ${R.age.toExponential(2)} yr · R_FS=${R.Rpc.toFixed(2)} pc · v_s=${(R.vShock/1e5).toFixed(0)} km/s`;hudSub.textContent='The forward shock is matched continuously from free expansion to the Sedov–Taylor similarity limit; at the Cioffi shell-formation scale the radius remains continuous but the reduced phase switch is not velocity-smooth; thereafter the station follows the pressure-driven R∝t²⁄⁷ asymptote. Gold is the contact discontinuity; violet is the reduced reverse-shock surface. Exact Truelove–McKee ejecta profiles, cooling chemistry, magnetic fields and an inhomogeneous ISM require the dedicated radiation-MHD observatory identified by the architecture audit.';ATLAS_BUS.pub('sn.Rfs',+R.Rpc.toFixed(5),'pc');ATLAS_BUS.pub('sn.vshock',+(R.vShock/1e5).toFixed(2),'km/s');ATLAS_BUS.pub('sn.Tshock',+R.Tshock.toExponential(3),'K');ATLAS_BUS.pub('sn.Dbox',+M.D.toFixed(4),'finite-sample');const el=ctl.querySelector('#snInv');if(el)el.innerHTML=`<b>${P.label||SN_PRESETS[state.snType]?.label||'custom'} remnant</b> · age=<b>${R.age.toExponential(3)} yr</b> · phase: <b>${R.phase}</b><br>R_FS=<b>${R.Rpc.toFixed(4)} pc</b> · d ln R/d ln t=${R.exponent.toFixed(4)} · v_s=${(R.vShock/1e5).toFixed(1)} km/s · T_s=${R.Tshock.toExponential(3)} K<br>swept mass=${R.swept.toFixed(3)} M☉ · equality scale t_sweep=${R.tSweep.toFixed(1)} yr · radiative shell scale t_sf=${R.tShell.toExponential(2)} yr · n₀=${P.n0.toFixed(3)} cm⁻³<br>morphology D_box,N=<b>${M.D.toFixed(3)}</b> [${M.counts.join(' · ')} boxes; synthetic ejecta diagnostic, not an observed invariant]`;O.readLab.element.textContent=`${R.phase} · R=${R.Rpc.toFixed(2)} pc · v_s=${(R.vShock/1e5).toFixed(0)} km/s · T_s=${R.Tshock.toExponential(2)} K`;}}
 }
 
 /* ================================================================
@@ -19208,6 +19280,11 @@ const NEXUS_RELATIONS=[
   ['ns','sn','causal','core collapse → compact remnant','A core-collapse scenario can produce a neutron-star remnant under progenitor-dependent conditions.','scenario-causal'],
   ['ns','psr','representation','neutron star ↔ lighthouse class','A pulsar is represented as a rotating magnetized neutron star; not every neutron star is observed as a pulsar.','object-class'],
   ['sn','psr','causal','supernova → young pulsar','Some core-collapse remnants produce pulsars; the edge is conditional, not universal.','scenario-causal'],
+  ['sn','nuc','coupling','radioactive ash → decay heating','The nuclear station supplies binding and decay context for 56Ni/56Co; it does not derive the explosion nucleosynthesis network.','model-input'],
+  ['sn','bb','coupling','diffusion photosphere → thermal colour','The transient station derives an effective temperature from bolometric luminosity and radius while optically thick; the blackbody station supplies the ideal spectral limit.','model-input'],
+  ['sn','rd','analogy','ejecta mixing ↔ pattern instability','Rayleigh–Taylor mixing motivates a clumpy morphology, but the Gray–Scott reaction–diffusion PDE is only a contrastive pattern instrument and is not supernova hydrodynamics.','structural-analogy'],
+  ['sn','gw','coupling','asymmetric explosion → wave channel','A non-spherical core collapse can source gravitational waves; the displayed supernova remains spherical and the chirp station models a different compact-binary source.','missing-physics-bridge'],
+  ['sn','hopfion','contrast','magnetic helicity ≠ vacuum light knot','Hopf invariants can classify linked field lines, but the electromagnetic vacuum Hopfion is not a magnetized ejecta solution; radiation-MHD and helicity transport remain a declared missing solver.','model-contrast'],
   ['nuc','ns','coupling','nuclear matter → TOV equation of state','Dense-matter assumptions close the TOV system; the displayed nuclear formula is not that equation of state.','model-input'],
   ['gw','ns','coupling','compact structure → waveform','Neutron-star structure can imprint a binary waveform beyond the point-mass chirp used here.','physics-context'],
   ['gw','bhr','coupling','merger source ↔ remnant geometry','Binary dynamics can produce a black-hole remnant; the ray station is a separate stationary spacetime model.','scenario-context'],
@@ -19737,6 +19814,11 @@ const MV_PRESETS=[
   w:{en:'A normalized spinor, its projective sky direction, its future null vector and a spin-2 polarization frame are compared through exact maps while their physical contracts remain separate.',
      ru:'Нормированный спинор, его проективное небесное направление, будущий нулевой вектор и рама поляризации спина 2 сравниваются точными отображениями при разделённых физических контрактах.',
      de:'Normierter Spinor, projektive Himmelsrichtung, zukünftiger Nullvektor und Spin-2-Polarisationsrahmen werden durch exakte Abbildungen verglichen.'}},
+ {id:'supernova-transport', views:['sn','nuc','bb','rd'], bus:['sn.Lbol','sn.Teff','sn.Dbox'],
+  t:{en:'Supernova transport · source, escape, colour, mixing',ru:'Перенос в сверхновой · источник, выход, цвет, перемешивание',de:'Supernova-Transport · Quelle, Austritt, Farbe, Mischung'},
+  w:{en:'Radioactive nuclear power, diffusion-delayed bolometric escape, the optically thick blackbody limit and a contrastive pattern-instability instrument are separated into four contracts. The Gray–Scott tile is not ejecta hydrodynamics.',
+     ru:'Радиоактивная ядерная мощность, задержанный диффузией выход, предел оптически толстой фотосферы и контрастный инструмент неустойчивости узоров разделены на четыре контракта. Gray–Scott не является гидродинамикой выброса.',
+     de:'Radioaktive Leistung, diffusionsverzögerter Austritt, Schwarzkörpergrenze und Musterinstabilität bleiben vier getrennte Verträge; Gray–Scott ist keine Ejektahydrodynamik.'}},
  {id:'action', views:['act','psp','noe','qm'], bus:['act.action','psp.link','noe.dA'],
   t:{en:'Contact action · dynamics on an S³ shell',ru:'Контактное действие · динамика на оболочке S³',de:'Kontaktwirkung · Dynamik auf einer S³-Schale'},
   w:{en:'The contact restriction of phase space, its Reeb/Hopf flow, Kepler regularization and the Maslov quantum phase are shown together while their distinct contracts remain explicit.',
@@ -19807,7 +19889,7 @@ const MV_RELATION_SCORE={exact:14,invariant:12,representation:10,causal:9,coupli
 function mvPreset(id){ return (MV.semantic&&MV.semantic.id===id?MV.semantic:null)||MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0]; }
 function mvRelationScore(anchor,candidate){
   if(anchor===candidate)return -Infinity;let score=0;
-  for(const r of NEXUS_RELATIONS)if((r[0]===anchor&&r[1]===candidate)||(r[1]===anchor&&r[0]===candidate))score=Math.max(score,MV_RELATION_SCORE[r[2]]||1);
+  for(const r of NEXUS_RELATIONS)if((r.a===anchor&&r.b===candidate)||(r.b===anchor&&r.a===candidate))score=Math.max(score,MV_RELATION_SCORE[r.type]||1);
   for(const p of MV_PRESETS)if(p.views.includes(anchor)&&p.views.includes(candidate))score=Math.max(score,7);
   for(const L of MV_LINKS){const labs=mvLinkLabs(L);if(labs.includes(anchor)&&labs.includes(candidate))score=Math.max(score,L.kind==='IDENTITY'?8:L.kind==='DIMENSIONLESS'?6:4);}
   for(const C of Object.values(NEXUS_CLUSTERS))if(C.views.includes(anchor)&&C.views.includes(candidate))score=Math.max(score,2);
@@ -19824,7 +19906,7 @@ function mvSemanticSelection(anchor,n=4){
   const target=Math.max(1,Math.min(4,n)),views=[anchor],score=new Map(),order=new Map();let oi=0;
   const offer=(v,s)=>{if(v!==anchor&&known.includes(v)){if(!order.has(v))order.set(v,oi++);score.set(v,Math.max(score.get(v)||0,s));}};
   if(anchor==='nexus'){offer(state.nexusSource,30);offer(state.nexusTarget,29);offer('topo',20);offer('syd',19);}
-  for(const r of NEXUS_RELATIONS){if(r[0]===anchor)offer(r[1],MV_RELATION_SCORE[r[2]]||1);else if(r[1]===anchor)offer(r[0],MV_RELATION_SCORE[r[2]]||1);}
+  for(const r of NEXUS_RELATIONS){if(r.a===anchor)offer(r.b,MV_RELATION_SCORE[r.type]||1);else if(r.b===anchor)offer(r.a,MV_RELATION_SCORE[r.type]||1);}
   for(const p of MV_PRESETS)if(p.views.includes(anchor))for(const v of p.views)offer(v,7);
   for(const L of MV_LINKS){const labs=mvLinkLabs(L);if(labs.includes(anchor))for(const v of labs)offer(v,L.kind==='IDENTITY'?8:L.kind==='DIMENSIONLESS'?6:4);}
   for(const C of Object.values(NEXUS_CLUSTERS))if(C.views.includes(anchor))for(const v of C.views)offer(v,2);
@@ -25298,7 +25380,8 @@ const state = {
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab (Schwarzschild)
   nsRhoc:1.28e-3,   // Neutron-star TOV lab
-  snMNi:0.6, snVej:10000, snRun:true, snSpeed:1,   // Supernova lab
+  snType:'ia', snDomain:'transient', snMNi:0.6, snMej:1.4, snVej:10000, snKappa:.10,
+  snAmbient:1, snMix:.24, snTimeDays:.5, snAgeYr:1, snRun:true, snSpeed:1,   // Supernova radiation-hydrodynamics lab
   psrP:0.0334, psrPd:4.21e-13, psrAlpha:35, psrZeta:38, psrW:9, psrRun:true,   // Pulsar lab
   qsoM:1e9, qsoLam:0.3, qsoTheta:30, qsoSpeed:1,   // Quasar lab
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
@@ -27766,31 +27849,44 @@ function buildCtlBody(){
         <button class="btn" id="nsToGw">→ Binary NS mergers: gravitational waves</button></div>
     </div>`;
     else if(V==='sn') body = `
-    <div class="sect"><b>Supernova — nickel mass & ejecta</b>
-      <div class="chips">
-        <button class="chip" data-snp="0.6,10000">Type Ia · 0.6 M☉ Ni</button>
-        <button class="chip" data-snp="0.07,3500">Core-collapse (87A-like)</button>
-        <button class="chip" data-snp="1.1,12000">Luminous Ia</button>
+    <div class="sect"><b>Supernova — radiation, ejecta & remnant</b>
+      <div class="chips">${Object.entries(SN_PRESETS).map(([k,p])=>`<button class="chip ${state.snType===k?'on':''}" data-snp="${k}">${p.label}</button>`).join('')}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${esc((SN_PRESETS[state.snType]||SN_PRESETS.ia).caveat)}</div>
+      <div class="chips" style="margin-top:6px">
+        <button class="chip ${(state.snDomain||'transient')==='transient'?'on':''}" data-sndomain="transient">Transient · 0.5–400 d</button>
+        <button class="chip ${state.snDomain==='remnant'?'on':''}" data-sndomain="remnant">Remnant · 1–10⁶ yr</button>
       </div>
       <div class="ctlrow">
         <button class="btn green" id="snRun">${state.snRun!==false?'⏸ pause':'▶ run'}</button>
         <button class="btn" id="snReplay">↺ replay</button>
         <label style="margin-left:8px">Speed</label>
         <input type="range" id="snSpeed" min="0.2" max="3" step="0.1" value="${state.snSpeed??1}"><span class="val" id="snSpeedV">×${(state.snSpeed??1).toFixed(1)}</span></div>
+      ${(state.snDomain||'transient')==='transient'?`<div class="ctlrow"><label>Epoch</label><input type="range" id="snTime" min="0.5" max="400" step="0.5" value="${state.snTimeDays??snT??.5}"><span class="val" id="snTimeV">${(state.snTimeDays??snT??.5).toFixed(1)} d</span></div>`:`<div class="ctlrow"><label>log₁₀ age / yr</label><input type="range" id="snAge" min="0" max="6" step="0.01" value="${Math.log10(Math.max(1,state.snAgeYr??1)).toFixed(2)}"><span class="val" id="snAgeV">${Math.log10(Math.max(1,state.snAgeYr??1)).toFixed(2)}</span></div>`}
       <div class="ctlrow"><label>M(⁵⁶Ni)</label>
-        <input type="range" id="snMNi" min="0.05" max="1.2" step="0.01" value="${state.snMNi??0.6}"><span class="val" id="snMNiV">${(state.snMNi??0.6).toFixed(2)} M☉</span></div>
+        <input type="range" id="snMNi" min="0.01" max="1.25" step="0.01" value="${state.snMNi??0.6}"><span class="val" id="snMNiV">${(state.snMNi??0.6).toFixed(2)} M☉</span></div>
+      <div class="ctlrow"><label>M_ejecta</label>
+        <input type="range" id="snMej" min="0.5" max="20" step="0.1" value="${state.snMej??1.4}"><span class="val" id="snMejV">${(state.snMej??1.4).toFixed(1)} M☉</span></div>
       <div class="ctlrow"><label>v_ejecta</label>
-        <input type="range" id="snVej" min="3000" max="15000" step="250" value="${state.snVej??10000}"><span class="val" id="snVejV">${((state.snVej??10000)/1000).toFixed(1)}×10³ km/s</span></div>
+        <input type="range" id="snVej" min="2000" max="20000" step="100" value="${state.snVej??10000}"><span class="val" id="snVejV">${((state.snVej??10000)/1000).toFixed(1)}×10³ km/s</span></div>
+      <div class="ctlrow"><label>κ_opt</label>
+        <input type="range" id="snKappa" min="0.03" max="0.34" step="0.005" value="${state.snKappa??.1}"><span class="val" id="snKappaV">${(state.snKappa??.1).toFixed(3)} cm²/g</span></div>
+      <div class="ctlrow"><label>n₀ ISM</label>
+        <input type="range" id="snAmbient" min="-3" max="2" step="0.05" value="${Math.log10(state.snAmbient??1).toFixed(2)}"><span class="val" id="snAmbientV">${(state.snAmbient??1).toExponential(1)} cm⁻³</span></div>
+      <div class="ctlrow"><label>3D mixing</label>
+        <input type="range" id="snMix" min="0" max="1" step="0.01" value="${state.snMix??.24}"><span class="val" id="snMixV">${(state.snMix??.24).toFixed(2)}</span></div>
     </div>
-    <div class="sect"><b>Radioactive readout</b>
+    <div class="sect"><b>Radiation–hydrodynamics readout</b>
       <div class="note" id="snInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">The EXACT Bateman chain ⁵⁶Ni→(τ 8.77 d)⁵⁶Co→(τ 111.3 d)⁵⁶Fe. The late tail of every Type Ia light curve declines on the cobalt lifetime — a radioactive clock readable across the Universe, and the reason Ia are standardisable candles. Deposition power shown (exact); the emergent optical curve adds photon diffusion (Arnett's rule) — declared. Remnant: free expansion R=v_ej·t → Sedov–Taylor R∝t^{2/5} after sweep-up (schematic transition).</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Bateman abundances are exact for the declared lifetimes. Gamma deposition is a grey homologous-column approximation; emergent luminosity is the Arnett one-zone diffusion solution. The ejecta-to-Sedov match is smooth; the reduced radiative phase switch preserves radius but not velocity. D_box,N is measured from the finite synthetic ejecta point set: it diagnoses the displayed hierarchy, but is resolution-dependent and is neither an observed invariant nor a turbulence simulation.</div>
     </div>
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
-        <button class="btn" id="snToNuc">→ Nuclear binding: why ⁵⁶Ni is the ash</button>
-        <button class="btn" id="snToNs">→ The neutron star it can leave</button>
-        <button class="btn" id="snToBb">→ Blackbody: the photosphere's colour</button></div>
+        <button class="btn" id="snToNuc">→ Nuclear binding: radioactive ash</button>
+        <button class="btn" id="snToNs">→ Compact remnant</button>
+        <button class="btn" id="snToBb">→ Thermal photosphere</button>
+        <button class="btn" id="snToRd">→ Mixing & pattern instability</button>
+        <button class="btn" id="snToGw">→ Asymmetric explosion channel</button>
+        <button class="btn" id="snToHopf">↔ EM Hopfion contrast (not ejecta MHD)</button></div>
     </div>`;
     else if(V==='psr') body = `
     <div class="sect"><b>Pulsar — pick a star</b>
@@ -29034,15 +29130,25 @@ function buildCtlBody(){
       ctl.querySelector('#nsToGw')&&(ctl.querySelector('#nsToGw').onclick=()=>{ navPush(); setS3View('gw'); buildCtl(); });
     }
     if(V==='sn'){
-      ctl.querySelectorAll('[data-snp]').forEach(b=>b.onclick=()=>{ const [m,v]=b.dataset.snp.split(',').map(Number); state.snMNi=m; state.snVej=v; snT=0.5; buildCtl(); });
+      ctl.querySelectorAll('[data-snp]').forEach(b=>b.onclick=()=>{snApplyPreset(b.dataset.snp);buildCtl();});
+      ctl.querySelectorAll('[data-sndomain]').forEach(b=>b.onclick=()=>{state.snDomain=b.dataset.sndomain;state.snRun=false;if(state.snDomain==='transient'){snT=THREE.MathUtils.clamp(state.snTimeDays??.5,.5,400);state.snTimeDays=snT;}else state.snAgeYr=Math.max(1,state.snAgeYr??1);buildCtl();});
       ctl.querySelector('#snRun')&&(ctl.querySelector('#snRun').onclick=()=>{ state.snRun=state.snRun===false; buildCtl(); });
-      ctl.querySelector('#snReplay')&&(ctl.querySelector('#snReplay').onclick=()=>{ snT=0.5; });
+      ctl.querySelector('#snReplay')&&(ctl.querySelector('#snReplay').onclick=()=>{if((state.snDomain||'transient')==='transient'){snT=.5;state.snTimeDays=.5;}else state.snAgeYr=1;state.snRun=true;buildCtl();});
       ctl.querySelector('#snSpeed')&&(ctl.querySelector('#snSpeed').oninput=e=>{ state.snSpeed=+e.target.value; const v=ctl.querySelector('#snSpeedV'); if(v)v.textContent='×'+state.snSpeed.toFixed(1); });
-      ctl.querySelector('#snMNi')&&(ctl.querySelector('#snMNi').oninput=e=>{ state.snMNi=+e.target.value; const v=ctl.querySelector('#snMNiV'); if(v)v.textContent=state.snMNi.toFixed(2)+' M☉'; });
-      ctl.querySelector('#snVej')&&(ctl.querySelector('#snVej').oninput=e=>{ state.snVej=+e.target.value; const v=ctl.querySelector('#snVejV'); if(v)v.textContent=(state.snVej/1000).toFixed(1)+'×10³ km/s'; });
+      ctl.querySelector('#snTime')&&(ctl.querySelector('#snTime').oninput=e=>{snT=+e.target.value;state.snTimeDays=snT;state.snRun=false;const v=ctl.querySelector('#snTimeV');if(v)v.textContent=snT.toFixed(1)+' d';});
+      ctl.querySelector('#snAge')&&(ctl.querySelector('#snAge').oninput=e=>{state.snAgeYr=Math.pow(10,+e.target.value);state.snRun=false;const v=ctl.querySelector('#snAgeV');if(v)v.textContent=(+e.target.value).toFixed(2);});
+      ctl.querySelector('#snMNi')&&(ctl.querySelector('#snMNi').oninput=e=>{state.snMNi=+e.target.value;snCurveCache=null;const v=ctl.querySelector('#snMNiV');if(v)v.textContent=state.snMNi.toFixed(2)+' M☉';});
+      ctl.querySelector('#snMej')&&(ctl.querySelector('#snMej').oninput=e=>{state.snMej=+e.target.value;snCurveCache=null;const v=ctl.querySelector('#snMejV');if(v)v.textContent=state.snMej.toFixed(1)+' M☉';});
+      ctl.querySelector('#snVej')&&(ctl.querySelector('#snVej').oninput=e=>{state.snVej=+e.target.value;snCurveCache=null;const v=ctl.querySelector('#snVejV');if(v)v.textContent=(state.snVej/1000).toFixed(1)+'×10³ km/s';});
+      ctl.querySelector('#snKappa')&&(ctl.querySelector('#snKappa').oninput=e=>{state.snKappa=+e.target.value;snCurveCache=null;const v=ctl.querySelector('#snKappaV');if(v)v.textContent=state.snKappa.toFixed(3)+' cm²/g';});
+      ctl.querySelector('#snAmbient')&&(ctl.querySelector('#snAmbient').oninput=e=>{state.snAmbient=Math.pow(10,+e.target.value);const v=ctl.querySelector('#snAmbientV');if(v)v.textContent=state.snAmbient.toExponential(1)+' cm⁻³';});
+      ctl.querySelector('#snMix')&&(ctl.querySelector('#snMix').oninput=e=>{state.snMix=+e.target.value;snMorphCache=null;const v=ctl.querySelector('#snMixV');if(v)v.textContent=state.snMix.toFixed(2);});
       ctl.querySelector('#snToNuc')&&(ctl.querySelector('#snToNuc').onclick=()=>{ navPush(); setS3View('nuc'); buildCtl(); });
       ctl.querySelector('#snToNs')&&(ctl.querySelector('#snToNs').onclick=()=>{ navPush(); setS3View('ns'); buildCtl(); });
       ctl.querySelector('#snToBb')&&(ctl.querySelector('#snToBb').onclick=()=>{ navPush(); setS3View('bb'); buildCtl(); });
+      ctl.querySelector('#snToRd')&&(ctl.querySelector('#snToRd').onclick=()=>{navPush();setS3View('rd');buildCtl();});
+      ctl.querySelector('#snToGw')&&(ctl.querySelector('#snToGw').onclick=()=>{navPush();setS3View('gw');buildCtl();});
+      ctl.querySelector('#snToHopf')&&(ctl.querySelector('#snToHopf').onclick=()=>{state.dipStation='hopfion';navPush();setS3View('dip');buildCtl();});
     }
     if(V==='psr'){
       ctl.querySelectorAll('[data-psrp]').forEach(b=>b.onclick=()=>{ const p=PSR_PRESETS[b.dataset.psrp]; state.psrP=p.P; state.psrPd=p.Pd; buildCtl(); });
@@ -30502,7 +30608,7 @@ const PREDICTION_CLASS_MEMBERS={
   conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
 };
 const PREDICTION_TARGETS={
-  nexus:'typed relation paths and candidate cross-laboratory bridges',nul:'future-null direction, Lorentz interval and spin-weight transformation',act:'Reeb return, contact action, regularized collision and Maslov phase',hol:'closed-path return phase, Wilson trace and Wigner rotation',syd:'finite-orbit invariant drift under declared transformations',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Schwarzschild radius, Hawking temperature, entropy and idealized lifetime',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'reflection coefficient, VSWR, impedance transform and pole geometry',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'radioactive-deposition light curve and idealized remnant expansion',psr:'dipole field, spin-down power, characteristic age and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming'
+  nexus:'typed relation paths and candidate cross-laboratory bridges',nul:'future-null direction, Lorentz interval and spin-weight transformation',act:'Reeb return, contact action, regularized collision and Maslov phase',hol:'closed-path return phase, Wilson trace and Wigner rotation',syd:'finite-orbit invariant drift under declared transformations',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Schwarzschild radius, Hawking temperature, entropy and idealized lifetime',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'reflection coefficient, VSWR, impedance transform and pole geometry',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'Bateman abundances, grey gamma deposition, Arnett bolometric diffusion, photospheric temperature and matched multi-phase remnant expansion',psr:'dipole field, spin-down power, characteristic age and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming'
 };
 const PRED_STATE_PREFIX={sec:['chi','gyrPerSec'],hopf:['hopf'],eig:['eig'],red:['rkz'],ring:['ring'],lab:['lab'],bell:['bell'],drd:['drd'],sel:['sel'],hopfion:['hf'],skyrmion:['sk'],quasi:['qp'],atom:['at'],grav:['grav'],qm:['qm'],qcd:['qcd'],topo:['topo'],sc:['sc'],taub:['tn'],eot:['eot'],wave:['wave'],spin:['spin'],rel:['rel'],chaos:['chaos'],kin:['kin'],sh:['sh'],kdv:['kdv'],ret:['ret'],dip:['dip'],cp:['cp'],rd:['rd'],he:['he'],bb:['bb'],nuc:['nuc'],lens:['lens'],te:['te'],gw:['gw'],pv:['pv'],su2:['su2'],bht:['bht'],rpd:['rpd'],imp:['imp'],pole:['pole'],disp:['disp'],berry:['berry'],cusp:['cusp'],kam:['kam'],rsh:['rsh'],and:['and'],psp:['psp'],dfx:['dfx'],noe:['noe'],cau:['cau'],wil:['wil'],poin:['poin'],qcrys:['qc'],cmb:['cmb'],mimg:['mimg'],bhr:['bhr'],ns:['ns'],sn:['sn'],psr:['psr'],qso:['qso'],nul:['nul'],act:['act'],hol:['hol'],syd:['syd'],nexus:['nexus']};
 const PRED_FORMULA_PREFIX={sec:'s3.',eig:'s3.',red:'gcs.',bell:'bell.',bht:'bh.',cmb:'cmb.',mimg:'topo.',hol:'hol.',act:'act.',nul:'nul.',ns:'tov.',sn:'sn.',psr:'psr.',qso:'qso.'};
@@ -30587,7 +30693,7 @@ const MODEL_PORTALS={
   ton618bh:{labKey:'qsoAtlas',view:'qso',label:'Open TON 618 accretion model',secondary:['bhtAtlas','bht','Open horizon thermodynamics'],preset:()=>{state.qsoM=6.6e10;state.qsoLam=.4;state.qsoTheta=35;state.bhtM=6.6e10*BHT_MSUN;state.bhtEvap=false;}},
   cygx1:{labKey:'bhtAtlas',view:'bht',label:'Open Cygnus X-1 horizon model',secondary:['bhrAtlas','bhr','Open ray-tracing model'],preset:()=>{state.bhtM=21.2*BHT_MSUN;state.bhtEvap=false;}},
   crabpsr:{labKey:'psrAtlas',view:'psr',label:'Open Crab pulsar model',preset:()=>{state.psrP=.0334;state.psrPd=4.21e-13;}},
-  sn1987a:{labKey:'snAtlas',view:'sn',label:'Open SN 1987A-like model',preset:()=>{state.snMNi=.07;state.snVej=3500;}},
+  sn1987a:{labKey:'snAtlas',view:'sn',label:'Open SN 1987A radioactive-tail/remnant reference',preset:()=>snApplyPreset('cc87a')},
   j0740ns:{labKey:'nsAtlas',view:'ns',label:'Open massive neutron-star model',preset:()=>{state.nsRhoc=Math.pow(10,-2.15);}},
   a2744_qso1:{labKey:'qsoAtlas',view:'qso',label:'Open A2744-QSO1 model',secondary:['bhtAtlas','bht','Open horizon thermodynamics'],preset:()=>{state.qsoM=Math.pow(10,7.7);state.qsoLam=.3;state.qsoTheta=35;state.bhtM=Math.pow(10,7.7)*BHT_MSUN;state.bhtEvap=false;}}
 };
@@ -32377,7 +32483,7 @@ const LAB_ATLAS_DEFS=[
   ['mimgAtlas','mimg',mimgGroup,'S³ multiple-path laboratory','conditional round-S³ geodesic paths and observable-topology caveats'],
   ['bhrAtlas','bhr',bhrGroup,'Relativistic black-hole ray laboratory','pixelwise Schwarzschild null-geodesic integration with explicit capture and step diagnostics'],
   ['nsAtlas','ns',nsGroup,'Neutron-star TOV laboratory','reduced Tolman–Oppenheimer–Volkoff interior with declared equation-of-state dependence'],
-  ['snAtlas','sn',snGroup,'Supernova and remnant laboratory','Ni-56 to Co-56 to Fe-56 Bateman deposition coupled to an idealized Sedov remnant'],
+  ['snAtlas','sn',snGroup,'Supernova radiation–hydrodynamics and remnant laboratory','Bateman abundances, grey gamma escape, stable Arnett diffusion, a conditional photosphere, a smooth ejecta/Sedov match and a radius-continuous radiative phase switch'],
   ['psrAtlas','psr',psrGroup,'Pulsar lighthouse laboratory','magnetic-dipole lighthouse geometry and spin-down reference relations'],
   ['qsoAtlas','qso',qsoGroup,'Quasar accretion and jet laboratory','Eddington scaling, thin-disk efficiency and relativistic Doppler-beaming reference model']
 ];
@@ -32501,7 +32607,11 @@ EXPLICIT_RELATIONS.push(['nexusAtlas','s3obs','typed relation index','Invariant 
   ['bhrAtlas','bhtAtlas','horizon geometry to thermodynamics','The same Schwarzschild mass fixes the ray-capture geometry and the idealized horizon thermodynamic scales.'],
   ['nsAtlas','nucAtlas','equation-of-state bridge','Nuclear binding and dense-matter assumptions constrain the reduced stellar-structure closure.'],
   ['nsAtlas','gwAtlas','compact-binary source bridge','Neutron-star structure conditions the source parameters used by compact-binary chirp models.'],
-  ['snAtlas','nucAtlas','radioactive-decay energy source','The transient light-curve model uses declared nuclear decay chains as an energy-deposition source.'],
+  ['snAtlas','nucAtlas','radioactive-decay energy source','The transient model uses the declared 56Ni to 56Co to 56Fe chain as an energy source; it does not derive explosive nucleosynthesis.'],
+  ['snAtlas','bbAtlas','conditional photospheric limit','While the grey optical depth exceeds 2/3, bolometric luminosity and homologous radius define an effective temperature whose ideal spectral limit is the blackbody station.'],
+  ['snAtlas','rdAtlas','pattern-instability contrast','The finite ejecta morphology can expose clumping, while Gray-Scott supplies only a contrastive pattern-forming PDE and is not a Rayleigh-Taylor hydrodynamics solver.'],
+  ['snAtlas','gwAtlas','missing asymmetry channel','An asymmetric core collapse can radiate gravitational waves; the current supernova reference remains spherical and the displayed GW station models a distinct binary chirp.'],
+  ['snAtlas','hopfionLab','helicity boundary','The Hopfion and vacuum electromagnetic Hopfion stations demonstrate linked field topology but are not radiation-MHD ejecta; no magnetic-helicity inference is made.'],
   ['psrAtlas','dipAtlas','magnetic-dipole radiation limit','The lighthouse model specializes the dipole-radiation geometry to a rotating compact object.'],
   ['qsoAtlas','lensAtlas','high-redshift beacon relation','Quasars can act as background beacons while the lensing laboratory models intervening deflection.'],
   ['qsoAtlas','bhrAtlas','compact-object environment','The accretion/jet and null-geodesic laboratories describe distinct observables around an idealized black-hole environment.']
