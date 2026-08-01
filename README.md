@@ -61,6 +61,32 @@ Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
 Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
 separate labelled layers with deconflicted labels.
 
+## Native spatial rendering for the five observatories
+
+Invariant Nexus, Symmetry Discovery, Holonomy, Contact & Action, and Spinor &
+Light Cone now share a code-native scientific rendering core instead of a
+detached dial/bar/slide vocabulary. Paths are volumetric tubes, phase is a
+measurable twist around a path, failed invariance becomes geometric separation,
+parallel transport carries a sampled frame field, curvature/solid angle becomes
+an enclosed surface, and null structure becomes a cone, celestial sphere or
+finite conformal diamond. These are interface projections of the existing
+calculations, never extra dimensions, observables or physical claims.
+
+The core uses custom Fresnel/filament shaders, true 3D tube and ribbon geometry,
+parametric surfaces, crystal probes and instanced particles/plane fields. Dense
+repeated marks are instanced and mobile particle counts are bounded; solver
+resolution, residuals, tolerances and exports do not change with visual quality.
+Outside Multiview, only the active high-density station remains GPU-resident;
+leaving it disposes geometry, materials, render lists and label DOM while its
+persistent Atlas interaction volume remains available for navigation.
+The five observatories also use a narrow-screen camera envelope so their native
+manifolds remain framed behind the mobile bottom sheet instead of being cropped.
+This native geometry is present in the classic default presentation and remains
+stereo-safe in XR and per-camera correct in Multiview. The separate cinematic
+stage remains an explicit setting and stays disabled by default. Historical
+scope, station-by-station mappings and release gates are recorded in
+[`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md).
+
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
@@ -133,8 +159,9 @@ directly comparable without collapsing their physical meanings:
 - an SL(2,R) elliptic/hyperbolic Möbius commutator, with determinant-one and
   conjugacy-trace checks plus a visible complex probe orbit.
 
-The 3D instrument combines the ordered path, moving transported marker,
-return-phase dial and invariant core. Every station provides two live controls,
+The 3D instrument combines the ordered path, moving transported crystal,
+sampled frame field, curvature-flux surface and co-located start/return vectors;
+the surviving phase is visible as braid twist on the path itself. Every station provides two live controls,
 an analytic anchor, an independently computed closure residual, a declared
 validity scope, one-click Multiview anchors and a reproducible
 `fbs3r_holonomy_observatory.json` export. It is a mathematical observatory, not
@@ -185,7 +212,8 @@ space sweeps a deterministic 65-sample orbit and tests four named observables,
 for 20 candidates and nine exact benchmark invariants in total.
 
 The exact cyan orbit can be compared with a coral, explicitly non-group
-perturbation. Live pillars encode `−log₁₀(max normalized drift)`; the tolerance
+perturbation. Four candidate filaments remain welded to a stable orbit or peel
+away by an amount driven by normalized drift; the tolerance
 is selectable; all samples, candidate values, residuals and the perturbation
 contract export to `fbs3r_symmetry_discovery.json`. One click composes each
 space with its theorem or representation anchors in Multiview, and the chamber
@@ -308,7 +336,7 @@ S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
   regularization and Maslov/EBK phase, with native-dimensional residuals,
   Multiview bridges and JSON export;
 - **Symmetry Discovery Chamber** — five transformation spaces, twenty candidate
-  observables, nine exact benchmark invariants, finite-orbit residual pillars,
+  observables, nine exact benchmark invariants, finite-orbit residual braids,
   a controlled symmetry-break perturbation, Multiview anchors and JSON export;
 - the foundational sub-laboratories include:
 - **Section** — R = 548.3245 Gly great 2-sphere; observable cap θ = 4.82°

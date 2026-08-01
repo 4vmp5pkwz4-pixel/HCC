@@ -46,9 +46,11 @@ tunnel or local cert). Companion docs: `XR_VALIDATION.md`, `VALIDATION.md`.
 - [ ] Cycles: instruments readable; grab-scale the trio; cards show live galactic year/age.
 - [ ] Observable: stand inside the 46 Gly ball (rig at centre); screens selectable.
 - [ ] S³: χ ± live A(χ)/Γ(χ) on the card; Hopf flow beads at 72+ FPS at default density; eigenmode β/m repaint <150 ms.
-- [ ] S³ Spinor & Light Cone: all five stations render in stereo; ray/pinch selection opens the native-space scope contract; sphere/cone/frame/diamond geometry, moving marker, invariant core and phase dial remain finite; station changes through the flat control sheet persist into XR; no Multiview button is offered inside XR.
-- [ ] S³ Holonomy: all five stations render in stereo; ray/pinch selection opens the scope contract; moving marker, invariant core and phase dial remain finite; no Multiview button is offered inside XR.
-- [ ] S³ Contact & Action: all five stations render in stereo; ray/pinch selection opens the native-dimension scope contract; both projected paths, moving marker, invariant core and action/phase dial remain finite; no Multiview button is offered inside XR.
+- [ ] S³ Spinor & Light Cone: all five stations render in stereo; ray/pinch selection opens the native-space scope contract; sphere/cone/frame/diamond geometry, volumetric null paths, moving crystal and phase-fibre braid remain finite; station changes through the flat control sheet persist into XR; no Multiview button is offered inside XR.
+- [ ] S³ Holonomy: all five stations render in stereo; ray/pinch selection opens the scope contract; moving crystal, path braid, sampled transported frames, flux surface and co-located return vectors remain finite; no Multiview button is offered inside XR.
+- [ ] S³ Contact & Action: all five stations render in stereo; ray/pinch selection opens the native-dimension scope contract; both projected paths, moving crystal, contact-plane field and S³/ellipsoid/KS/caustic volumes remain finite; no Multiview button is offered inside XR.
+- [ ] S³ Symmetry Discovery: all five native manifolds and four residual braids render in stereo; symmetry breaking separates the coral orbit without changing the finite-scan contract.
+- [ ] S³ Invariant Nexus: crystal nodes, six translucent domain volumes, typed tube conduits, instanced relation flow and the eight-axis tensor remain depth-readable and selectable in both eyes.
 - [ ] FBS3R: walk the ladder with N ±1 (each step ×φ — "φ-Ladder Walk"); N=266 chip = Recombination Gate; S³ R chip = Light-Trisphere Closure (N≈299.1); re-quantization wave visible; shells selectable with density/Fibonacci rows.
 - [ ] Fractal Explorer: hidden from XR menu; entering VR while in fractal auto-switches to Solar with a clear reason in docs.
 
@@ -65,6 +67,7 @@ tunnel or local cert). Companion docs: `XR_VALIDATION.md`, `VALIDATION.md`.
 Budget: ≥72 FPS sustained, 90 preferred; no frame-time spikes >20 ms during mode switch.
 
 - [ ] Status panel FPS ≥ 72 in: Solar default, S³ Hopf default, FBS3R mid-ladder, Cycles.
+- [ ] Status panel FPS ≥ 72 while sweeping Nexus, dense ellipsoid return, SU(2) holonomy and conformal diamond; mobile/Quest particle budgets reduce repeated marks without changing solver samples or exports.
 - [ ] Force heavy state (Hopf ×3 density + Ultra): auto-downgrade fires within ~3–6 s.
 - [ ] Foveation visibly changes per preset (Safe=1 … Cinematic=0).
 - [ ] No nausea triggers: no auto camera animation, vignette during motion, snap turn default 30°.
