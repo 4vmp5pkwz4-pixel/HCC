@@ -35,8 +35,9 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 15 | Holonomy Observatory declares five closed-path stations, analytic identities, independent finite closure checks, gauge/conjugacy invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a cross-domain epistemic firewall |
 | 16 | Contact & Action Observatory declares five exact stations, native R⁴ contact/KS checks, return-map and semiclassical invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a native-dimension epistemic firewall |
 | 17 | Spinor & Light-Cone Observatory declares five exact native-space stations, Pauli/Lorentz/Möbius/null-tetrad/conformal identities, Atlas/Nexus/Multiview wiring, reproducible JSON and a flat-space epistemic firewall |
-| 18 | Native scientific spatial core provides volumetric paths, shader surfaces, parametric manifolds, instanced flows/frame fields and degenerate-curve guards across the five rebuilt observatories; legacy detached bars/needles/ring cores are absent |
-| 19 | Premium visual engine is disabled on a fresh browser, exposed through one persistent settings switch, fully CSS/render scoped, and still declares sRGB/ACES output, complete 68-laboratory coverage, bounded adaptive bloom, reduced-motion support and XR/Multiview exclusions when opted in |
+| 18 | Native scientific spatial core provides hairline paths, restrained shader surfaces, parametric manifolds, sparse instanced flows/frame fields, one sharp motion carrier and degenerate-curve guards across the five station observatories; legacy detached bars/needles/ring cores are absent |
+| 19 | DRD, Chromodynamics, Neutron Star, Supernova, Pulsar and Quasar use native spatial instruments (geodesic quantiles, field congruences, TOV cutaway, homologous ejecta, sight-line crossing and GPU accretion) rather than embedded presentation charts or opaque primitive solids |
+| 20 | Premium visual engine is disabled on a fresh browser, exposed through one persistent settings switch, fully CSS/render scoped, and still declares sRGB/ACES output, complete laboratory coverage, bounded adaptive bloom, reduced-motion support and XR/Multiview exclusions when opted in |
 
 ## Manual test checklist (desktop)
 
@@ -57,14 +58,20 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] S³ → Section: χ slider live A(χ)/Γ(χ); photon loop reaches Γ=100 % at t ≥ 1722.6 Gyr.
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
-- [ ] S³ → Invariant Nexus: 67 crystal laboratory nodes and 130 volumetric typed conduits appear across six translucent domain volumes around the eight-axis relation tensor; the HUD reports one connected universe and no console error occurs.
+- [ ] S³ → Invariant Nexus: 67 restrained crystal laboratory nodes and 130 hairline typed relations appear across six translucent domain volumes around the sparse eight-axis tensor; the moving path tracer remains sharper than every static node and the HUD reports one connected universe.
 - [ ] Nexus relation filters show only the selected edge class; node color/proximity never removes the visible disclaimer that graph distance is non-metric.
 - [ ] Nexus dimensional morph moves continuously from disciplinary geography (`0`) to invariant-signature geography (`1`), remains finite at both ends and is reversible.
 - [ ] Nexus path Spin → Black-hole thermodynamics resolves; each hop displays its edge class and claim. A restrictive disconnected filter reports “no path” instead of fabricating one.
 - [ ] Clicking/tapping a Nexus node opens its relation-space contract; double-click focuses it; **open focused laboratory** enters the real laboratory.
 - [ ] **Compare path in Multiview** opens the first 2–4 path laboratories without treating their sequence as causal.
 - [ ] Nexus JSON export parses, contains 67 nodes and 130 relations, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
-- [ ] S³ → Spinor & Light Cone: all five station chips rebuild finite stereo-safe sphere/cone/frame/diamond geometry, volumetric null paths, a moving crystal and a phase-fibre braid without console errors or orphan labels.
+- [ ] S³ → Spinor & Light Cone: all five station chips rebuild finite stereo-safe sphere/cone/frame/diamond geometry, hairline null paths, a sharp moving crystal and a phase-fibre braid without console errors or orphan labels.
+- [ ] S³ → DRD: the old horizontal suspension chain, capacity bars and Monte-Carlo histogram are invisible; concentric carriers, modal populations and exact geodesic quantiles remain selectable and agree numerically with PIR.
+- [ ] S³ → Chromodynamics: meson, baryon, running-coupling and instanton modes all use thin field geometry; the white exchange tracer remains visible across the full default separation sweep and string breaking leaves two local neutral pairs.
+- [ ] S³ → Neutron Star: the TOV quarter-cutaway exposes nested density layers and the radial profile; no embedded M–R chart remains and the unstable branch changes only the declared surface state.
+- [ ] S³ → Supernova: velocity-resolved particles and isotope orbits remain visible from the first radioactive day; the shock is a restrained Fresnel boundary and the HUD states the normalized display-radius limitation.
+- [ ] S³ → Pulsar: no opaque beam cones or P–Pdot/pulse charts remain; the detector brightens only when a polar caustic crosses its fixed sight-line.
+- [ ] S³ → Quasar: the horizon/photon ring stays black and sharp while GPU particles show differential shear and Doppler asymmetry; the disk never becomes an opaque overexposed plate and jet streamlines do not hide it.
 - [ ] Spinor → null ray: `k·k`, `det(2ψψ†)`, normalization and common-phase direction drift remain below tolerance while `k⁰>0` over the full two-control sweep.
 - [ ] `SL(2,C)` → Lorentz: `det A=1`, the Minkowski interval and time orientation close; replacing `A` with `−A` leaves the induced transformation unchanged.
 - [ ] Celestial Möbius: projective-spinor and transformed-null directions agree, nullity closes and the complex four-point cross-ratio remains invariant.
@@ -114,7 +121,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Holonomy station chips, two normalized controls, transport toggle, invariant readouts and export remain usable in the mobile bottom sheet; the scope contract is readable without horizontal clipping.
 - [ ] Contact & Action station chips, two normalized controls, action/contact readouts, Multiview and export remain usable in the mobile bottom sheet; long station contracts wrap without horizontal clipping.
 - [ ] Symmetry Discovery world chips, sweep, symmetry-break slider, tolerance and residual list remain usable in the mobile bottom sheet; no control is clipped by the safe area.
-- [ ] The five rebuilt scenes remain interactive at the mobile particle budget; dense return paths and Nexus conduits do not bloom to a white frame or stall input.
+- [ ] All eleven optically reconstructed scenes remain interactive at the mobile particle budget; dense return paths, QCD field lines, ejecta and accretion particles do not bloom to a white frame or stall input.
 
 ## Screenshots
 

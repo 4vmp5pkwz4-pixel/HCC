@@ -61,30 +61,33 @@ Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
 Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
 separate labelled layers with deconflicted labels.
 
-## Native spatial rendering for the five observatories
+## Scientific optical reconstruction — eleven laboratories
 
-Invariant Nexus, Symmetry Discovery, Holonomy, Contact & Action, and Spinor &
-Light Cone now share a code-native scientific rendering core instead of a
-detached dial/bar/slide vocabulary. Paths are volumetric tubes, phase is a
-measurable twist around a path, failed invariance becomes geometric separation,
-parallel transport carries a sampled frame field, curvature/solid angle becomes
-an enclosed surface, and null structure becomes a cone, celestial sphere or
-finite conformal diamond. These are interface projections of the existing
-calculations, never extra dimensions, observables or physical claims.
+Invariant Nexus, Symmetry Discovery, Holonomy, Contact & Action, Spinor & Light
+Cone, DRD, Chromodynamics, Neutron Star, Supernova, Pulsar and Quasar now follow
+one code-native optical contract derived from the project's strongest scenes:
+deep black negative space, hairline geometry, restrained normal-blended shells,
+and one sharp white carrier of motion. A computed path is never inflated into a
+glowing pipe; a scientific state is never reduced to an embedded bar chart.
 
-The core uses custom Fresnel/filament shaders, true 3D tube and ribbon geometry,
-parametric surfaces, crystal probes and instanced particles/plane fields. Dense
-repeated marks are instanced and mobile particle counts are bounded; solver
-resolution, residuals, tolerances and exports do not change with visual quality.
-Outside Multiview, only the active high-density station remains GPU-resident;
-leaving it disposes geometry, materials, render lists and label DOM while its
-persistent Atlas interaction volume remains available for navigation.
-The five observatories also use a narrow-screen camera envelope so their native
-manifolds remain framed behind the mobile bottom sheet instead of being cropped.
-This native geometry is present in the classic default presentation and remains
-stereo-safe in XR and per-camera correct in Multiview. The separate cinematic
-stage remains an explicit setting and stays disabled by default. Historical
-scope, station-by-station mappings and release gates are recorded in
+Each laboratory now lets its native geometry carry the explanation. DRD is one
+carrier–modal–causal instrument with exact geodesic quantiles; QCD uses a
+chromoelectric congruence, Y junction and renormalisation tunnel; the neutron
+star is a live TOV cutaway; the supernova is a homologous ejecta volume with an
+isotope clock; the pulsar is a dipole magnetosphere intersecting a physical
+sight-line; and the quasar combines a black horizon with GPU differential
+accretion and streamline jets. The original five observatories retain their
+exact solvers and exports while their linework, glow hierarchy and moving probes
+use the same disciplined grammar.
+
+The core uses custom Fresnel/filament and particle shaders, deterministic
+`BufferGeometry`, parametric surfaces, sharp crystal probes and bounded
+instancing. Mobile budgets reduce only representative visual density; solver
+resolution, residuals, tolerances, classifications and exports do not change.
+Inactive high-density station geometry is released outside Multiview, and the
+same native scene remains stereo-safe in XR. The separate cinematic stage is
+still an explicit setting and remains disabled by default. Attribution, the
+station-by-station mapping, visual firewall and release gates are recorded in
 [`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md).
 
 ## Invariant Nexus — the atlas of relationships

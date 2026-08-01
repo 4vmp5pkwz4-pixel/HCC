@@ -199,19 +199,22 @@ the finite-scan epistemic firewall.
 
 ## Visual encoding firewall
 
-The five rebuilt observatories use one native spatial grammar: a path may be
-rendered as a volumetric tube, phase as a braid twist, residual as separation
-from an exact orbit, parallel transport as a sampled frame field, integrated
-curvature as an enclosed surface, and null structure as a cone or conformal
-diamond. Each mark must be generated from an already declared model output.
-Its Euclidean thickness, glow, particle density, filament frequency and scene
-placement are interface parameters, not extra coordinates, energies,
-probabilities, uncertainties, confidence scores or new invariants.
+The eleven optically reconstructed laboratories use one native spatial grammar:
+a path is a hairline geodesic, phase may be a braid twist, residual is separation
+from an exact orbit, parallel transport is a sampled frame field, integrated
+curvature/causal volume is a bounded surface, and motion belongs to one sharp
+white tracer. Modal capacity, field confinement, stellar interiors, explosive
+ejecta, pulsed sight-line crossings and accretion are rendered as native spatial
+populations or manifolds rather than charts placed in 3-D. Each mark must be
+generated from an already declared model output. Its opacity, glow, particle
+density, filament frequency and scene placement are interface parameters, not
+extra coordinates, energies, probabilities, uncertainties, confidence scores
+or new invariants.
 
-Hardware adaptation may reduce tube subdivisions, instanced particle counts or
+Hardware adaptation may reduce representative filament/particle counts or
 post-processing resolution. It must not change the native sample sequence,
 solver step, analytic anchor, residual, tolerance, classification, exported
-value or epistemic status. A visually closed tube never substitutes for the
+value or epistemic status. A visually closed path never substitutes for the
 native-space closure check, and visual intersection/proximity never creates a
 relation absent from the typed registry.
 
