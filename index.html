@@ -28,6 +28,32 @@
   canvas{display:block}
   body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:6;
     background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.5) 100%)}
+  /* LUX context layer: a restrained optical highlight follows a fine pointer while
+     the instrument rail states which mathematical space is actually on screen. */
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:7;opacity:.7;
+    background:radial-gradient(440px circle at var(--lux-x,50%) var(--lux-y,45%),
+      color-mix(in srgb,var(--mode-glow,#d4af6a) 8%,transparent),transparent 68%)}
+  #contextRail{position:fixed;left:50%;top:calc(var(--topbar-h,64px) + 8px);z-index:14;
+    transform:translateX(-50%);display:flex;align-items:center;gap:0;max-width:min(760px,calc(100vw - 32px));
+    border:1px solid color-mix(in srgb,var(--mode-glow,#d4af6a) 36%,transparent);
+    border-radius:999px;background:linear-gradient(180deg,rgba(13,18,30,.78),rgba(5,8,15,.67));
+    box-shadow:0 12px 38px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.09);
+    backdrop-filter:blur(18px) saturate(135%);-webkit-backdrop-filter:blur(18px) saturate(135%);
+    overflow:hidden;pointer-events:none;transition:border-color .35s ease,opacity .25s ease,transform .25s ease}
+  .ctxCell{position:relative;padding:6px 13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    color:var(--dim);font:600 9px/1.15 var(--sans);letter-spacing:1.15px;text-transform:uppercase}
+  .ctxCell+.ctxCell::before{content:'';position:absolute;left:0;top:25%;height:50%;width:1px;background:var(--border)}
+  #ctxMode{color:var(--gold-2);font-family:var(--serif);letter-spacing:1.6px}
+  #ctxSpace{max-width:330px;color:#c6cede}
+  #ctxPerf{font-variant-numeric:tabular-nums;color:#9ce3c6}
+  #contextRail[data-health="warm"] #ctxPerf{color:var(--warn)}
+  #contextRail[data-health="hot"] #ctxPerf{color:#ff8f82}
+  body[data-mode="solar"]{--mode-glow:#e7b85c} body[data-mode="cyc"]{--mode-glow:#c69aff}
+  body[data-mode="obs"]{--mode-glow:#79bfff} body[data-mode="s3"]{--mode-glow:#80e4d1}
+  body[data-mode="fbs"]{--mode-glow:#f0c45f} body[data-mode="field"]{--mode-glow:#84e89d}
+  body[data-mode="fractal"]{--mode-glow:#c99bff}
+  :where(button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--gold-2)!important;
+    outline-offset:3px;box-shadow:0 0 0 5px rgba(212,175,106,.16)!important}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-thumb{background:rgba(212,175,106,.25);border-radius:4px}
   ::-webkit-scrollbar-track{background:transparent}
@@ -710,10 +736,14 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;
       animation-iteration-count:1!important;scroll-behavior:auto!important}
+    body::before{display:none}
     .btn{padding:8px 13px}
     .ctlrow label{flex:1 1 106px;min-width:82px;font-size:11px}
   }
   @media (max-width:480px){
+    #contextRail{top:calc(var(--topbar-h,64px) + 5px);max-width:calc(100vw - 16px)}
+    .ctxCell{padding:5px 8px;font-size:7.8px;letter-spacing:.75px}
+    #ctxSpace{max-width:42vw} #ctxPerf{display:none}
     .scoregrid{grid-template-columns:1fr}
     .relrow{grid-template-columns:minmax(0,1fr) auto;align-items:start}
     .relkind,.relclaim{grid-column:1}
@@ -757,6 +787,12 @@
   <button class="btn" id="vectorBtn" title="Global main, additional, field and relation vector layers">↗ Vectors</button>
 </div>
 <div id="breadcrumb" aria-hidden="true"></div>
+<div id="contextRail" role="status" aria-live="polite" aria-label="Current scientific context">
+  <span class="ctxCell" id="ctxMode">Solar</span>
+  <span class="ctxCell" id="ctxSpace">R³ · heliocentric ecliptic J2000</span>
+  <span class="ctxCell" id="ctxScale">1 unit = 1 AU</span>
+  <span class="ctxCell" id="ctxPerf">— fps</span>
+</div>
 <div id="zenBar" role="toolbar" aria-label="Zen time regulator">
   <button class="btn icon" id="zenPause" title="Pause / run time">⏸</button>
   <button class="btn icon" id="zenDir" title="Time arrow — forward / reverse">⏩</button>
@@ -26538,6 +26574,46 @@ info.addEventListener('click', e=>{
 });
 
 /* ---------------- MODE SWITCHING ---------------- */
+/* The context rail is scientific orientation, not decoration: it keeps manifold,
+   coordinate convention and display scale visible while panels are closed. */
+const CONTEXT_META={
+  solar:['Solar atlas','R³ · heliocentric ecliptic J2000','1 unit = 1 AU'],
+  cyc:['Cycles & events','S¹ phase clocks · shared epoch','time-linked instruments'],
+  obs:['Observable universe','B³χ(p) ⊂ S³R · comoving','1 unit = 1 Gly'],
+  s3:['S³ carrier','S³R → R³ · stereographic chart','1 unit = 100 Gly'],
+  fbs:['FBS3R ladder','logφ(R/ℓP) · discrete scale space','N ∈ ℝ · step ×φ'],
+  field:['Field laboratory','state / phase space · solver grid','reduced calibrated units'],
+  fractal:['Fractal explorer','C² / R⁴ · projected manifold','semantic infinite zoom']
+};
+let contextRailAt=0;
+function updateContextRail(force=false){
+  const now=performance.now(); if(!force&&now-contextRailAt<500)return; contextRailAt=now;
+  const rail=document.getElementById('contextRail'); if(!rail)return;
+  const meta=CONTEXT_META[state.mode]||CONTEXT_META.solar;
+  let name=meta[0], space=meta[1], scale=meta[2];
+  if(state.mode==='s3'){
+    const v=state.s3view||'sec'; name=S3_VIEW_NAMES?.[v]||name;
+    space=({hopf:'S¹ ↪ S³ → S² · Hopf bundle',psp:'H(q,p)=E ⊂ R⁴ · S³ energy shell',
+      spin:'CP¹ ≅ S² · Bloch sphere',rel:'Minkowski R¹,³ · Lorentz frame',
+      topo:'homotopy · fibre · linking invariants',berry:'U(1) bundle · parameter space'}[v]||space);
+  } else if(state.mode==='solar'&&state.solarScaleLayer!=='local'){
+    const layer=state.solarScaleLayer||'local'; name=({galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'})[layer]||name;
+    scale='semantic gateway · directions invariant';
+  } else if(state.mode==='fractal'){ name=(typeof fractalType==='string'?fractalType:name).replace(/3d$/i,' 3D'); }
+  document.getElementById('ctxMode').textContent=name;
+  document.getElementById('ctxSpace').textContent=space;
+  document.getElementById('ctxScale').textContent=scale;
+  const ms=ATLAS_TELEMETRY.frameEmaMs||0, fps=ms?Math.min(999,1000/ms):0;
+  document.getElementById('ctxPerf').textContent=fps?`${fps.toFixed(0)} fps · ${ms.toFixed(1)} ms`:'warming optics';
+  rail.dataset.health=fps&&fps<35?'hot':fps&&fps<58?'warm':'cool';
+  document.body.dataset.mode=state.mode;
+}
+if(matchMedia('(pointer:fine)').matches&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  addEventListener('pointermove',e=>{
+    document.documentElement.style.setProperty('--lux-x',e.clientX+'px');
+    document.documentElement.style.setProperty('--lux-y',e.clientY+'px');
+  },{passive:true});
+}
 function syncControlCapabilities(){
   const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||GEO_FRACTALS.has(fractalType));  // true 3D views: mandelbulb + bifurc3d/polytope4d/orbital3d
   const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&!is3D);
@@ -26608,6 +26684,7 @@ function setMode(mode){
   buildCtl();
   updateBreadcrumb();
   armIdleDrift();   // every section opens alive: a slow cinematic orbit until the user takes over
+  updateContextRail(true);
 }
 /* Idle cinematic drift — on boot and on every mode switch the scene begins a very slow
    auto-orbit so the universe is always gently alive; the FIRST user gesture anywhere
@@ -27952,6 +28029,7 @@ function tickBody(now, frame){
   ATLAS_TELEMETRY.frames++;
   ATLAS_TELEMETRY.frameEmaMs=ATLAS_TELEMETRY.frames===1?frameMs:ATLAS_TELEMETRY.frameEmaMs*.94+frameMs*.06;
   ATLAS_TELEMETRY.frameJitterMs=ATLAS_TELEMETRY.frameJitterMs*.94+Math.abs(frameMs-ATLAS_TELEMETRY.frameEmaMs)*.06;
+  updateContextRail();
   XRX.update(dt, frame);
   MOTION.apply(dt); MOTION.uiTick(dt);
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
