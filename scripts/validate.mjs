@@ -360,11 +360,12 @@ check(html.includes('bundle of chromoelectric field lines')
   'Chromodynamics uses field congruences, a Y junction and a renormalisation tunnel instead of bars or rods');
 check(html.includes('TOV cutaway') || (html.includes('TOV interior') && html.includes('Math.PI*1.5')),
   'Neutron-star TOV state is rendered as a spatial cutaway rather than an embedded M-R chart');
-check(html.includes('Homologous ejecta are a velocity-resolved particle volume')
-  && html.includes('square-root display map')
-  && html.includes('first radioactive year spatially')
-  && html.includes('scientificFresnelMaterial(0x4395bd'),
-  'Supernova uses homologous ejecta, isotope orbits and a restrained shock front instead of a light-curve slide');
+check(html.includes('SUPERNOVA RADIATION–HYDRODYNAMICS LAB')
+  && html.includes('function snBuildArnettCurve(')
+  && html.includes('function snRemnantState(')
+  && html.includes('function snMorphologyMetrics(')
+  && html.includes('forward/contact/reverse shock surfaces'),
+  'Supernova is a native spatial transport/remnant instrument with diffusion, phase surfaces and measured finite morphology');
 check(html.includes('The magnetosphere is the object: a sparse dipole congruence')
   && html.includes('pulse when a polar caustic crosses this sight-line'),
   'Pulsar makes field topology and observer crossing spatial, with no opaque beam cones or P-Pdot chart');
@@ -391,14 +392,22 @@ check(html.includes('SCI_GEOM_STATS.reuses++') && html.includes("a&&a.count===sa
   && html.includes('float wave=.5+.5*sin(dot(vLocal') && !html.includes('uTime*.48'),
   'dynamic scientific paths reuse position buffers and the shared alpha field is temporally stable');
 check(html.includes('function mvSemanticSelection(') && html.includes("const anchor=state.s3view||'sec'")
+  && html.includes("if(r.a===anchor)offer(r.b") && html.includes("else if(r.b===anchor)offer(r.a")
   && html.includes('function mvReplaceAt(') && html.includes('function uiSetS3View(')
   && html.includes('mvSetSlot(MV.active,v)') && html.includes('mvExit(false)'),
   'Multiview retains the current anchor, semantically fills companions, replaces only the active tile and exits without rebuilding');
-check(html.includes('const flash=new THREE.Sprite') && html.includes('const ejectaLight=new THREE.Sprite')
-  && html.includes('particles.renderOrder=14') && html.includes('THREE.AdditiveBlending')
-  && html.includes('const light=THREE.MathUtils.clamp(Math.pow')
-  && html.includes('O.flash.material.opacity=.24+.38*light'),
-  'Supernova restores physically driven additive emission without animated geometry allocation');
+check(html.includes('m.userData.supernovaStablePoints=true')
+  && html.includes('particles.frustumCulled=false')
+  && html.includes('#include <common>')
+  && html.includes('function snPhotosphereMaterial()') && html.includes('float linearLimb=')
+  && html.includes('gl_PointSize=clamp(')
+  && html.includes('depthTest:true,depthWrite:false')
+  && html.includes('const time=Math.min(400')
+  && html.includes('function snSyncControls(domain)')
+  && !html.includes('if(snT>400) snT=0.5')
+  && !html.includes('const ejectaLight=new THREE.Sprite')
+  && !html.includes('const shockGlow=new THREE.Sprite'),
+  'Supernova uses one bounded stable GPU point draw, explicit depth testing and a non-wrapping timeline');
 
 /* 23 · Premium visual engine: cinematic consistency without scientific mutation */
 check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
@@ -475,8 +484,9 @@ check(html.includes('prediction_contracts:Object.keys(S3_VIEW_NAMES).map(predict
   && html.includes('Prediction contract classifies every S³ laboratory exactly once'),
   'prediction contracts are exported, QA-queryable and guarded by exhaustive runtime coverage tests');
 check(readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Prediction and validation contract')
-  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### CMB Multipole Observatory operational contract'),
-  'scientific contract documents prediction classes and the CMB inverse-problem boundary');
+  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### CMB Multipole Observatory operational contract')
+  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### Supernova Radiation-Hydrodynamics operational contract'),
+  'scientific contract documents prediction classes plus the CMB and Supernova model boundaries');
 
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
