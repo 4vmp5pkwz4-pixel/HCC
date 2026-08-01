@@ -12,6 +12,16 @@ const check = (cond, msg) => {
 };
 console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
 
+/* Deployment identity: the public Pages document must be visibly and
+   programmatically distinguishable from a stale browser-cached build. */
+check(html.includes('data-hcc-build="omni-predictive-2026.08.02.1"')
+  && html.includes('<meta name="hcc-build" content="omni-predictive-2026.08.02.1">')
+  && html.includes('Predictive Foundations 2026.08.02'),
+  'Pages build carries a visible and machine-readable predictive release identity');
+check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
+  && html.includes('deployment(){return {...HCC_DEPLOYMENT};}'),
+  'deployment identity is exposed through the read-only QA surface');
+
 /* 1 · JavaScript syntax (extract the inline module, strip imports) */
 {
   const m = html.match(/<script type="module">([\s\S]*?)<\/script>\s*<\/body>/);
