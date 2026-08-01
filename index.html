@@ -1100,7 +1100,7 @@ const SOURCE_MAP = {
   QCD:   {tag:'PDG-QCD',   label:'Particle Data Group QCD review plus lattice string-breaking studies (Duncan–Eichten–Thacker; Bernard et al.). Cornell and one-loop curves are reference/phenomenological models; colour motion and fragmentation are schematic.'},
   LABREF:{tag:'REF-LABS',  label:'Canonical benchmark equations and historical reference models named in each laboratory. Reduced demonstrators are not calibrated material, clinical or engineering predictions.'},
   BHTREF:{tag:'BH-THERMO', label:'Hawking and Bekenstein–Hawking relations for an isolated, non-rotating, uncharged Schwarzschild black hole. The displayed luminosity/lifetime use a simplified idealized coefficient; greybody factors, particle degrees of freedom, accretion, spin, charge and the final quantum-gravity phase are not solved.'},
-  CMBREF:{tag:'PLANCK-CMB',label:'Planck 2018 VII large-angle isotropy/statistics context. The displayed low-ℓ coefficients and maps are illustrative deterministic summaries, not a likelihood re-analysis or evidence for topology; cosmic variance, masking, foregrounds and look-elsewhere choices matter.'},
+  CMBREF:{tag:'PLANCK-CMB',label:'Planck 2018 V/VII likelihood and large-angle isotropy/statistics context; HEALPix spherical-harmonic conventions. The laboratory generates a deterministic synthetic Gaussian low-ℓ realization and an explicit reduced plateau model, never a Planck map or likelihood product. Cosmic variance, masks, beam/noise, foregrounds, transfer functions and look-elsewhere choices remain separate.'},
   TOPOREF:{tag:'COSMIC-TOPO',label:'Round-S³ geodesic and cosmic-topology reference model. Multiple observable images require sufficient conformal lookback time and a detectable compact topology; no ghost image or matched-circle topology is claimed as observed.'},
   NEXUS: {tag:'INV-NEXUS',  label:'Invariant Nexus — curated, typed cross-laboratory relation layer derived from the atlas contracts. Edge classes keep theorem/identity, representation, shared invariant, limiting relation, coupling, causal succession, analogy and contrast distinct. The 3D embedding and graph distance are interface coordinates, never physical distance, evidence strength or causal effect size.'},
   SYMDISC:{tag:'SYM-DISC', label:'Symmetry Discovery Chamber — deterministic finite-orbit candidate tests over exact SO(3), SO+(1,1), U(1), symplectic and Möbius actions. Mathematical anchors: PDG 2025 kinematics and NIST DLMF §1.9; recent symmetry-discovery research motivates the invariant-first instrument, but no machine learning runs in this browser lab.'},
@@ -1483,6 +1483,10 @@ const FORMULA_REGISTRY = [
  {id:'qso.eta',     expr:'eta_Schw = 1 - sqrt(8/9) = 0.05719 (ISCO)', units:'1',  src:'DERIVED'},
  {id:'qso.eddington',expr:'L_Edd = 4 pi G M m_p c / sigma_T',        units:'erg/s', src:'DERIVED'},
  {id:'cmb.harmonics',expr:'Delta T(n) = sum_lm a_lm Y_lm(n); D_l=l(l+1)C_l/(2 pi)',units:'microK / microK^2',src:'CMBREF'},
+ {id:'cmb.estimator',expr:'C_l_hat = (1/(2l+1)) sum_m |a_lm|^2; D_l=l(l+1)C_l_hat/(2 pi)',units:'microK^2',src:'CMBREF'},
+ {id:'cmb.cosmic_variance',expr:'sigma(C_l_hat)/C_l = sqrt(2/(2l+1)) full sky; approx /sqrt(f_sky) when masked',units:'1',src:'CMBREF'},
+ {id:'cmb.mask',expr:'a_lm_tilde = (1/f_sky) integral W(n) DeltaT(n) Y_lm(n) dOmega; W couples multipoles',units:'microK',src:'CMBREF'},
+ {id:'cmb.parseval',expr:'integral |DeltaT|^2 dOmega = sum_lm |a_lm|^2 for an orthonormal full-sky basis',units:'microK^2 sr',src:'CMBREF'},
  {id:'topo.s3paths',expr:'ell_short=chi R; ell_complement=(2 pi-chi)R; sum=2 pi R',units:'length',src:'TOPOREF'},
  {id:'hol.sphere',  expr:'Delta alpha = integral K dA = Omega = 2 pi(1-cos theta) (mod 2 pi)',units:'rad',src:'HOLONOMY'},
  {id:'hol.berry',   expr:'gamma_B = -Omega/2; gamma_polygon = -arg product_j <u_j|u_(j+1)>/|<u_j|u_(j+1)>|',units:'rad',src:'HOLONOMY'},
@@ -2043,6 +2047,26 @@ function runSelfTests(){
     let s2=0; for(let m=-2;m<=2;m++) s2+=shY(2,m,0.7,1.3)**2;
     ok('CMB harmonics: addition theorem Σ_m Y₂ₘ² = (2·2+1)/4π (isotropic multipole variance)',
       Math.abs(s2-5/(4*Math.PI))<1e-6, s2.toFixed(4)); }
+  { // CMB OBSERVATORY: deterministic synthesis, estimator normalization, variance and inverse-transform closure
+    const saved={cmbSeed:state.cmbSeed,cmbLmax:state.cmbLmax,cmbLowPower:state.cmbLowPower,cmbMaskDeg:state.cmbMaskDeg};
+    Object.assign(state,{cmbSeed:31,cmbLmax:8,cmbLowPower:.45,cmbMaskDeg:0});
+    const a=cmbCoefficientSet(31,8),b=cmbCoefficientSet(31,8),c=cmbCoefficientSet(32,8);
+    ok('CMB observatory: a seed gives a deterministic Gaussian a_lm realization while a new seed changes it',
+      [...a].every(([k,v])=>v===b.get(k))&&[...a].some(([k,v])=>v!==c.get(k)),`${a.size} real coefficients · seed 31/32`);
+    const unit=new Map();for(let m=-2;m<=2;m++)unit.set(cmbCoeffKey(2,m),m===0?Math.sqrt(5):0);
+    ok('CMB observatory: D_l estimator uses l(l+1)/(2π) times mean_m |a_lm|²',
+      Math.abs(cmbDl(unit,2)-3/Math.PI)<1e-12,cmbDl(unit,2).toPrecision(12));
+    ok('CMB observatory: exact full-sky cosmic variance at l=2 is sqrt(2/5)',
+      Math.abs(Math.sqrt(2/(2*2+1))-Math.sqrt(.4))<1e-15,Math.sqrt(.4).toPrecision(12));
+    const A=cmbAnalyze(true);
+    ok('CMB observatory: full-sky forward/inverse harmonic transform closes below 2% relative coefficient residual',
+      A.coefficientRelativeResidual<.02,A.coefficientRelativeResidual.toExponential(3));
+    state.cmbMaskDeg=20;const M=cmbAnalyze(true),f20=1-Math.sin(20*Math.PI/180);
+    ok('CMB observatory: the latitude mask exposes its exact geometric f_sky and increases undeconvolved mode mixing',
+      Math.abs(M.fSky-f20)<1e-12&&M.coefficientRelativeResidual>A.coefficientRelativeResidual,
+      `f_sky=${M.fSky.toFixed(9)} · residual ${A.coefficientRelativeResidual.toExponential(2)} → ${M.coefficientRelativeResidual.toExponential(2)}`);
+    Object.assign(state,saved);cmbAnalysisCache.clear();
+  }
   { // S³ IMAGING: direct + ghost geodesic lengths sum to 2π; on the great 2-sphere the two arcs meet at the pole
     const chi=0.4*Math.PI, direct=chi, ghost=2*Math.PI-chi;
     const P=(colat,phi)=>[Math.sin(colat)*Math.cos(phi),Math.cos(colat),Math.sin(colat)*Math.sin(phi)];
@@ -3450,6 +3474,19 @@ function runSelfTests(){
       `${ex.schema} · ${ex.samples.length} samples · finite-scan firewall present`);
   }
   ok('Global vector manager exposes seven independent layers',VECTOR_LAYER_KEYS.length===7,VECTOR_LAYER_KEYS.join(', '));
+  { // PREDICTION CONTRACT: every laboratory is classified exactly once and exposes an auditable target
+    const labs=Object.keys(S3_VIEW_NAMES),mapped=Object.values(PREDICTION_CLASS_MEMBERS).flat(),unique=new Set(mapped),missing=labs.filter(v=>!unique.has(v)),extra=mapped.filter(v=>!S3_VIEW_NAMES[v]);
+    ok('Prediction contract classifies every S³ laboratory exactly once',
+      mapped.length===labs.length&&unique.size===labs.length&&!missing.length&&!extra.length,
+      `${unique.size}/${labs.length} · missing ${missing.join(',')||'none'} · extra ${extra.join(',')||'none'}`);
+    ok('Prediction contract gives every S³ laboratory a specific auditable target',
+      labs.every(v=>typeof PREDICTION_TARGETS[v]==='string'&&PREDICTION_TARGETS[v].length>18),
+      `${labs.filter(v=>PREDICTION_TARGETS[v]).length}/${labs.length} targets`);
+    const contracts=labs.map(predictionContract);
+    ok('Prediction contracts expose scope, validity, uncertainty, validation gate and falsifier without claiming calibration by default',
+      contracts.every(c=>c.schema==='fbs3r-prediction-contract-v1'&&c.predicts&&c.scope&&c.validity_domain&&c.uncertainty&&c.validation&&c.falsifier&&/does not upgrade/i.test(c.forbidden_upgrade)),
+      `${contracts.length} generated contracts`);
+  }
   ok('Global vector panel is registered in the managed panel deck',PANEL_IDS.includes('vectorPanel')&&!!document.getElementById('vectorPanel'),'vectorPanel');
   { const d=deepDateToEpochDays(-100000,7,2,13,45),s=formatDeepDate(d),r=parseDeepDate(s);
     ok('Deep-time text calendar round-trips year −100000 to one-minute precision',Number.isFinite(r)&&Math.abs(r-d)<=1/1440,s);
@@ -4253,6 +4290,8 @@ const EXPLICIT_RELATIONS=[
   ['bhtAtlas','heAtlas','thermodynamic analogy','Temperature and entropy provide a thermodynamic bridge, but a black hole is not an ordinary heat-engine reservoir.'],
   ['cmbAtlas','shAtlas','basis identity','The illustrative CMB sky is expanded in real spherical harmonics Y_lm.'],
   ['cmbAtlas','eigAtlas','conditional spectral bridge','A compact spatial topology can alter allowed long-wavelength modes; the displayed CMB anomalies do not establish that topology.'],
+  ['cmbAtlas','bbAtlas','observable contrast','Blackbody predicts the mean frequency spectrum; CMB multipoles resolve angular temperature anisotropy around that mean.'],
+  ['cmbAtlas','lensAtlas','propagation contrast','CMB lensing remapping and the point-mass Schwarzschild station both act on sky patterns but occupy different regimes and are not one fitted model.'],
   ['cmbAtlas','field_observation','measurement context','CMB anomaly statistics depend on masking, foreground cleaning, cosmic variance and estimator choices.'],
   ['mimgAtlas','hopfAtlas','shared S3 geometry','Both use round S³ geometry; Hopf fibres and photon geodesics are distinct structures.'],
   ['mimgAtlas','lensAtlas','multiple-image contrast','Topological multiple paths and gravitational lensing can both yield images but have different physical causes.'],
@@ -4719,6 +4758,10 @@ function atlasSemanticType(key,s){
 }
 function atlasEvidenceClass(key,s){
   const src=s?.src||[];
+  // cmbAtlas cites observational literature for context, but its payload is a
+  // seeded synthetic field and numerical transform. A citation must not promote
+  // the generated realization itself to observational evidence.
+  if(key==='cmbAtlas')return 'mathematical-model';
   if(src.includes('LOPEZ')||src.includes('LSS')||src.includes('JWST_LRD'))return 'observation';
   if(src.includes('FLOW'))return 'probabilistic-reconstruction';
   if(s?.mode==='fractal'||s?.mode==='field'||src.includes('HOPF')||src.includes('PDE')||src.includes('QMNUM'))return 'mathematical-model';
@@ -4965,6 +5008,7 @@ function buildAtlasManifest(){
     spinor_lightcone_observatory:nulExportData(),
     holonomy_observatory:holExportData(),
     symmetry_discovery:sydExportData(),
+    prediction_contracts:Object.keys(S3_VIEW_NAMES).map(predictionContract),
     validation:{passed:SELF_TESTS.filter(t=>t.pass).length,total:SELF_TESTS.length,self_tests:SELF_TESTS}};
 }
 function exportAtlasManifest(){downloadFile('fbs3r_runtime_atlas_manifest.json','application/json',JSON.stringify(buildAtlasManifest(),null,2));}
@@ -15089,62 +15133,117 @@ function updateBht(dt){
    large-angle power. That is the S³ connection this whole atlas explores;
    nothing here claims a detection. */
 const cmbGroup=new THREE.Group(); cmbGroup.visible=false; s3Group.add(cmbGroup);
-const CMB_NLAT=72, CMB_NLON=144;
-let cmbObjs=null, cmbUiAcc=0, cmbRot=0;
-// illustrative large-angle summary D_l=l(l+1)C_l/2π in μK² — not a likelihood product
-const CMB_DL=[[2,200,1150],[3,1050,1080],[4,910,1015],[5,1050,985],[6,1160,1000],[7,1210,1040],[8,1260,1080]];
-function cmbAlm(l,m){ return Math.sin((l*127.1+m*311.7))*Math.cos((l*269.5-m*183.3)); }   // deterministic pseudo-random coefficients
-function cmbField(th,ph,mode){   // ΔT(n̂) for the selected multipole content
-  if(mode==='quad'){ return 0.6*shY(2,0,th,ph)+0.5*shY(2,1,th,ph)+0.42*shY(2,2,th,ph); }
-  if(mode==='oct'){ return 0.55*shY(3,0,th,ph)+0.4*shY(3,1,th,ph)+0.32*shY(3,3,th,ph); }
-  if(mode==='align'){ return shY(2,0,th,ph)+0.85*shY(3,0,th,ph); }   // quad & octopole share the same (z) axis → the "axis of evil"
-  let s=0; for(let l=2;l<=8;l++){ const supp=(l<=3)?0.42:1.0; for(let m=-l;m<=l;m++) s+=supp*0.5*cmbAlm(l,m)*shY(l,m,th,ph); } return s;   // 'low' full map with l=2,3 suppressed
+const CMB_NLAT=MOBILE_GPU?36:48, CMB_NLON=MOBILE_GPU?72:96, CMB_LMAX=12, CMB_D0=1000;
+let cmbObjs=null,cmbUiAcc=0,cmbRot=0,cmbPhase=0,cmbAnalysisCache=new Map();
+const CMB_STATIONS={
+  sky:'Gaussian sky synthesis',mode:'multipole tomography',alignment:'quadrupole–octopole geometry',residual:'mask / reconstruction residual'
+};
+function cmbHash01(seed,l,m,salt=0){
+  let x=(seed|0)^Math.imul((l+37)|0,0x9e3779b1)^Math.imul((m+71)|0,0x85ebca6b)^Math.imul((salt+11)|0,0xc2b2ae35);
+  x^=x>>>16;x=Math.imul(x,0x7feb352d);x^=x>>>15;x=Math.imul(x,0x846ca68b);x^=x>>>16;
+  return ((x>>>0)+.5)/4294967296;
 }
-function cmbColor(t,_c){ const x=Math.max(-1,Math.min(1,t)); _c.setHSL(0.66*(1-x)/2,0.8,0.5); return _c; }
-function cmbClear(){ labWipe(cmbGroup); cmbObjs=null; }
+function cmbGaussian(seed,l,m){const u=Math.max(1e-12,cmbHash01(seed,l,m,1)),v=cmbHash01(seed,l,m,2);return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
+function cmbModelDl(l){return CMB_D0*(l<=3?(state.cmbLowPower??.45):1);}
+function cmbModelCl(l){return 2*Math.PI*cmbModelDl(l)/(l*(l+1));}
+function cmbCoeffKey(l,m){return `${l}:${m}`;}
+function cmbCoefficientSet(seed=state.cmbSeed??19,lmax=state.cmbLmax??CMB_LMAX){
+  const out=new Map();for(let l=2;l<=lmax;l++){const s=Math.sqrt(cmbModelCl(l));for(let m=-l;m<=l;m++)out.set(cmbCoeffKey(l,m),s*cmbGaussian(seed,l,m));}return out;
+}
+function cmbAxisY(l,axis,x,y,z){const q=x*axis.x+y*axis.y+z*axis.z;return shNlm(l,0)*shPlm(l,0,THREE.MathUtils.clamp(q,-1,1));}
+function cmbSumL(coeff,l,th,ph){let s=0;for(let m=-l;m<=l;m++)s+=(coeff.get(cmbCoeffKey(l,m))||0)*shY(l,m,th,ph);return s;}
+function cmbSum(coeff,th,ph,lmax=state.cmbLmax??CMB_LMAX){let s=0;for(let l=2;l<=lmax;l++)s+=cmbSumL(coeff,l,th,ph);return s;}
+function cmbDl(coeff,l){let p=0;for(let m=-l;m<=l;m++){const a=coeff.get(cmbCoeffKey(l,m))||0;p+=a*a;}return l*(l+1)*p/((2*l+1)*2*Math.PI);}
+function cmbMaskAllows(th,maskDeg=state.cmbMaskDeg??0){return Math.abs(Math.PI/2-th)>=THREE.MathUtils.degToRad(maskDeg);}
+function cmbRecover(coeff,lmax=state.cmbLmax??CMB_LMAX,maskDeg=state.cmbMaskDeg??0,Nt=MOBILE_GPU?18:22,Np=MOBILE_GPU?36:44){
+  const modes=[];for(let l=2;l<=lmax;l++)for(let m=-l;m<=l;m++)modes.push({l,m,key:cmbCoeffKey(l,m),a:coeff.get(cmbCoeffKey(l,m))||0});
+  const sum=new Float64Array(modes.length),basis=new Float64Array(modes.length),fs=Math.max(.05,1-Math.sin(THREE.MathUtils.degToRad(maskDeg))),dth=Math.PI/Nt,dph=2*Math.PI/Np;
+  for(let i=0;i<Nt;i++){const th=(i+.5)*dth;if(!cmbMaskAllows(th,maskDeg))continue;const w=Math.sin(th)*dth*dph;
+    for(let j=0;j<Np;j++){const ph=(j+.5)*dph;let T=0;for(let q=0;q<modes.length;q++){const h=shY(modes[q].l,modes[q].m,th,ph);basis[q]=h;T+=modes[q].a*h;}const s=T*w/fs;for(let q=0;q<modes.length;q++)sum[q]+=s*basis[q];}}
+  return new Map(modes.map((q,i)=>[q.key,sum[i]]));
+}
+function cmbAnalyze(force=false){
+  const seed=state.cmbSeed??19,lmax=Math.max(2,Math.min(CMB_LMAX,state.cmbLmax??CMB_LMAX)),mask=state.cmbMaskDeg??0,low=state.cmbLowPower??.45;
+  const key=[seed,lmax,mask.toFixed(3),low.toFixed(5)].join('|');if(!force&&cmbAnalysisCache.has(key))return cmbAnalysisCache.get(key);
+  const coeff=cmbCoefficientSet(seed,lmax),recovered=cmbRecover(coeff,lmax,mask),power=[],fs=Math.max(.05,1-Math.sin(THREE.MathUtils.degToRad(mask)));
+  let sumA2=0,sumR2=0,maxCoeffResidual=0;for(let l=2;l<=lmax;l++){const model=cmbModelDl(l),real=cmbDl(coeff,l),pseudo=cmbDl(recovered,l),cv=Math.sqrt(2/(2*l+1)),cvMasked=cv/Math.sqrt(fs);
+    power.push({l,model,real,pseudo,cv,cvMasked,z:(real-model)/(model*cv)});for(let m=-l;m<=l;m++){const a=coeff.get(cmbCoeffKey(l,m))||0,b=recovered.get(cmbCoeffKey(l,m))||0;sumA2+=a*a;sumR2+=(a-b)*(a-b);maxCoeffResidual=Math.max(maxCoeffResidual,Math.abs(a-b));}}
+  const out={schema:'fbs3r-cmb-low-ell-v2',seed,lmax,maskDeg:mask,fSky:fs,lowPower:low,coeff,recovered,power,
+    coefficientRelativeResidual:Math.sqrt(sumR2/Math.max(1e-30,sumA2)),maxCoefficientResidual:maxCoeffResidual,
+    caveat:mask>0?'f_sky-corrected pseudo-C_l; mode-coupling matrix is not deconvolved':'full-sky midpoint quadrature recovery'};
+  if(cmbAnalysisCache.size>8)cmbAnalysisCache.clear();cmbAnalysisCache.set(key,out);return out;
+}
+function cmbFieldValue(th,ph,A=cmbAnalyze()){
+  const mode=state.cmbMode||'sky',l=Math.max(2,Math.min(A.lmax,state.cmbL??2)),m=Math.max(-l,Math.min(l,state.cmbM??0));
+  if(mode==='mode')return cmbSumL(A.coeff,l,th,ph);
+  if(mode==='alignment'){const st=Math.sin(th),x=st*Math.cos(ph),y=st*Math.sin(ph),z=Math.cos(th),d=THREE.MathUtils.degToRad(state.cmbAxisSepDeg??12),a2=new THREE.Vector3(0,0,1),a3=new THREE.Vector3(Math.sin(d),0,Math.cos(d));
+    return Math.sqrt(5*cmbModelCl(2))*cmbAxisY(2,a2,x,y,z)+Math.sqrt(7*cmbModelCl(3))*cmbAxisY(3,a3,x,y,z);}
+  if(mode==='residual')return cmbSum(A.coeff,th,ph,A.lmax)-cmbSum(A.recovered,th,ph,A.lmax);
+  if(state.cmbBasis===true)return Math.sqrt((2*l+1)*cmbModelCl(l))*shY(l,m,th,ph);
+  return cmbSum(A.coeff,th,ph,A.lmax);
+}
+function cmbColor(t,c){const x=THREE.MathUtils.clamp(t,-1,1),deep=new THREE.Color(0x071326);if(x<0)c.copy(deep).lerp(new THREE.Color(0x76acd6),Math.pow(-x,.72));else c.copy(deep).lerp(new THREE.Color(0xe9c778),Math.pow(x,.72));return c;}
+function cmbSpherePoint(th,ph,r){const s=Math.sin(th);return new THREE.Vector3(r*s*Math.cos(ph),r*s*Math.sin(ph),r*Math.cos(th));}
+function cmbCirclePoints(normal,r,n=144){const z=normal.clone().normalize(),ref=Math.abs(z.y)<.88?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0),u=new THREE.Vector3().crossVectors(z,ref).normalize(),v=new THREE.Vector3().crossVectors(z,u).normalize(),pts=[];
+  for(let i=0;i<=n;i++){const a=2*Math.PI*i/n;pts.push(u.clone().multiplyScalar(r*Math.cos(a)).addScaledVector(v,r*Math.sin(a)));}return pts;}
+function cmbRingNormal(l){const a=(l-2)*2.399963229728653,tilt=.36+.68*((l-2)/Math.max(1,CMB_LMAX-2));return new THREE.Vector3(Math.sin(tilt)*Math.cos(a),Math.cos(tilt),Math.sin(tilt)*Math.sin(a)).normalize();}
+function cmbSetLine(line,pts){line.geometry?.dispose?.();line.geometry=new THREE.BufferGeometry().setFromPoints(pts);line.geometry.computeBoundingSphere();}
+function cmbContourSets(A,levels,Nt=MOBILE_GPU?16:20,Np=MOBILE_GPU?32:40){
+  const val=Array.from({length:Nt+1},()=>new Float64Array(Np+1)),raw=levels.map(()=>[]);let mx=1e-12;
+  for(let i=0;i<=Nt;i++){const th=i/Nt*Math.PI;for(let j=0;j<=Np;j++){const ph=j/Np*2*Math.PI,v=cmbFieldValue(th,ph,A);val[i][j]=v;mx=Math.max(mx,Math.abs(v));}}
+  for(let h=0;h<levels.length;h++){const level=levels[h],edge=(th0,ph0,v0,th1,ph1,v1)=>{const u=Math.abs(v1-v0)<1e-12?.5:(level*mx-v0)/(v1-v0);return cmbSpherePoint(th0+(th1-th0)*u,ph0+(ph1-ph0)*u,2.285+level*.014);};
+    for(let i=0;i<Nt;i++)for(let j=0;j<Np;j++){const th0=i/Nt*Math.PI,th1=(i+1)/Nt*Math.PI,ph0=j/Np*2*Math.PI,ph1=(j+1)/Np*2*Math.PI,V=[val[i][j],val[i][j+1],val[i+1][j+1],val[i+1][j]],P=[],q=level*mx;
+      if((V[0]-q)*(V[1]-q)<0)P.push(edge(th0,ph0,V[0],th0,ph1,V[1]));if((V[1]-q)*(V[2]-q)<0)P.push(edge(th0,ph1,V[1],th1,ph1,V[2]));
+      if((V[2]-q)*(V[3]-q)<0)P.push(edge(th1,ph1,V[2],th1,ph0,V[3]));if((V[3]-q)*(V[0]-q)<0)P.push(edge(th1,ph0,V[3],th0,ph0,V[0]));
+      if(P.length===2)raw[h].push(P[0],P[1]);else if(P.length===4)raw[h].push(P[0],P[1],P[2],P[3]);}}
+  return raw;
+}
+function cmbContourPoints(A,level,Nt,Np){return cmbContourSets(A,[level],Nt,Np)[0];}
+function cmbMaskBandGeometry(maskDeg){const b=Math.max(.001,THREE.MathUtils.degToRad(maskDeg)),seg=MOBILE_GPU?48:72,rows=10,pos=[],idx=[];
+  for(let j=0;j<=rows;j++){const lat=-b+2*b*j/rows,th=Math.PI/2-lat;for(let i=0;i<=seg;i++){const ph=2*Math.PI*i/seg,p=cmbSpherePoint(th,ph,2.305);pos.push(p.x,p.y,p.z);}}
+  for(let j=0;j<rows;j++)for(let i=0;i<seg;i++){const a=j*(seg+1)+i,c=a+seg+1;idx.push(a,c,a+1,a+1,c,c+1);}const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setIndex(idx);g.computeVertexNormals();return g;
+}
+function cmbClear(){labWipe(cmbGroup);cmbObjs=null;}
+function cmbRefresh(){
+  const O=cmbObjs;if(!O)return;const A=cmbAnalyze(),l=Math.max(2,Math.min(A.lmax,state.cmbL??2));state.cmbL=l;state.cmbM=Math.max(-l,Math.min(l,state.cmbM??0));
+  const pos=O.sky.geometry.attributes.position,col=O.sky.geometry.attributes.color,dirs=O.dirs,vals=new Float64Array(pos.count),C=new THREE.Color();let mx=1e-12;
+  for(let i=0;i<pos.count;i++){const x=dirs[3*i],y=dirs[3*i+1],z=dirs[3*i+2],v=cmbFieldValue(Math.acos(z),Math.atan2(y,x),A);vals[i]=v;mx=Math.max(mx,Math.abs(v));}
+  for(let i=0;i<pos.count;i++){const q=THREE.MathUtils.clamp(vals[i]/mx,-1,1),r=2.22*(1+(state.cmbRelief??.82)*.055*q),x=dirs[3*i],y=dirs[3*i+1],z=dirs[3*i+2];pos.setXYZ(i,r*x,r*y,r*z);cmbColor(q,C);col.setXYZ(i,C.r,C.g,C.b);}
+  pos.needsUpdate=col.needsUpdate=true;O.sky.geometry.computeVertexNormals();O.sky.geometry.computeBoundingSphere();
+  const levels=[-.42,0,.42],contourSets=cmbContourSets(A,levels);for(let i=0;i<O.contours.length;i++){cmbSetLine(O.contours[i],contourSets[i]);O.contours[i].material.opacity=i===1?.48:.25;}
+  let selectedCurve=null;for(const R of O.rings){const P=A.power.find(p=>p.l===R.l);R.root.visible=R.l<=A.lmax;if(!P)continue;const base=2.72+.035*(R.l-2),ratio=Math.max(.08,P.real/P.model),actual=base+.26*Math.tanh(Math.log(ratio)),ptsRef=cmbCirclePoints(R.normal,base),ptsActual=cmbCirclePoints(R.normal,actual);
+    scientificReplaceRibbon(R.band,ptsRef,true);scientificReplaceTube(R.ref,ptsRef,true);scientificReplaceTube(R.actual,ptsActual,true);const sel=R.l===l;R.band.visible=sel;R.ref.material.opacity=sel?.36:.08;R.actual.material.opacity=sel?.92:.16;R.actual.material.color.setHex(P.real<P.model?0x79bdd8:0xe9c778);R.root.scale.setScalar(sel?1.018:1);if(sel)selectedCurve=scientificCurve(ptsActual,true).curve;}
+  O.selectedCurve=selectedCurve;
+  const d=THREE.MathUtils.degToRad(state.cmbAxisSepDeg??12),a2=new THREE.Vector3(0,0,1),a3=new THREE.Vector3(Math.sin(d),0,Math.cos(d));cmbSetLine(O.axis2,cmbCirclePoints(a2,2.47));cmbSetLine(O.axis3,cmbCirclePoints(a3,2.51));cmbSetLine(O.spine2,[a2.clone().multiplyScalar(-3.02),a2.clone().multiplyScalar(3.02)]);cmbSetLine(O.spine3,[a3.clone().multiplyScalar(-3.02),a3.clone().multiplyScalar(3.02)]);O.axes.visible=(state.cmbMode||'sky')==='alignment';
+  O.mask.geometry?.dispose?.();O.mask.geometry=cmbMaskBandGeometry(state.cmbMaskDeg??0);O.mask.visible=(state.cmbMaskDeg??0)>.05;
+  const mode=state.cmbMode||'sky',P=A.power.find(p=>p.l===l);O.modeLab.element.textContent=`${CMB_STATIONS[mode]} · ℓ=${l} · seed ${A.seed}`;O.readLab.element.textContent=`Dℓ ${P.real.toFixed(1)} / ${P.model.toFixed(1)} µK² · σcv ${(P.cv*100).toFixed(1)}% · fsky ${A.fSky.toFixed(3)}`;
+}
 function cmbSetup(){
-  cmbClear(); const mode=state.cmbMode||'align';
-  cmbGroup.add(new THREE.AmbientLight(0xffffff,1));
-  const geo=new THREE.SphereGeometry(2.2,CMB_NLON,CMB_NLAT);
-  const pos=geo.attributes.position, col=new Float32Array(pos.count*3), _c=new THREE.Color();
-  let mx=1e-9; const vals=new Float32Array(pos.count);
-  for(let i=0;i<pos.count;i++){ const x=pos.getX(i),y=pos.getY(i),z=pos.getZ(i), r=Math.hypot(x,y,z), th=Math.acos(z/r), ph=Math.atan2(y,x);
-    const v=cmbField(th,ph,mode); vals[i]=v; if(Math.abs(v)>mx)mx=Math.abs(v); }
-  for(let i=0;i<pos.count;i++){ cmbColor(vals[i]/mx,_c); col[i*3]=_c.r; col[i*3+1]=_c.g; col[i*3+2]=_c.b; }
-  geo.setAttribute('color',new THREE.BufferAttribute(col,3));
-  const sky=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({vertexColors:true})); cmbGroup.add(sky);
-  // shared quad–octopole axis (only meaningful in 'align')
-  if(mode==='align'){ const ax=new THREE.ArrowHelper(new THREE.Vector3(0,0,1),new THREE.Vector3(0,0,-2.9),5.8,0xffe27a,.3,.18); cmbGroup.add(ax);
-    const al=mkLabel('illustrative shared quadrupole–octopole axis','label axis'); al.position.set(0,0,3.1); cmbGroup.add(al); }
-  // low-l power spectrum bars below the sky
-  // low-ℓ power spectrum: glowing stems + a smooth ΛCDM reference curve; suppressed multipoles
-  // (observed < ΛCDM at low ℓ — the compact-S³ large-angle signature) glow red
-  const bx=l=>-2.2+(l-2)*0.62, byBase=-3.0, sc=1.6/1300, _bc=new THREE.Color(), refPts=[];
-  for(const [l,obs,ref] of CMB_DL){ const supp=obs<ref*0.98; _bc.setHex(supp?0xff7a6a:0x7fb0ff);
-    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,Math.max(0.02,obs*sc),10),new THREE.MeshBasicMaterial({color:_bc.getHex(),transparent:true,opacity:.85}));
-    stem.position.set(bx(l),byBase+obs*sc/2,0); cmbGroup.add(stem);
-    const head=new THREE.Mesh(new THREE.SphereGeometry(0.09,12,9),new THREE.MeshBasicMaterial({color:_bc.getHex()}));
-    head.position.set(bx(l),byBase+obs*sc,0); const g=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:_bc.getHex(),transparent:true,opacity:.7,depthWrite:false})); g.scale.setScalar(0.5); head.add(g); cmbGroup.add(head);
-    refPts.push(new THREE.Vector3(bx(l),byBase+ref*sc,0));
-    const ll=mkLabel('l='+l,'label dim'); ll.position.set(bx(l),byBase-0.25,0); cmbGroup.add(ll);
-  }
-  cmbGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(refPts),new THREE.LineBasicMaterial({color:0xffcf6a,transparent:true,opacity:.85,blending:THREE.AdditiveBlending,depthWrite:false})));
-  { const rlab=mkLabel('ΛCDM reference','label axis'); rlab.position.copy(refPts[refPts.length-1]).add(new THREE.Vector3(0.55,0.18,0)); cmbGroup.add(rlab); }
-  const spl=mkLabel('illustrative D_l=l(l+1)C_l/2π context · bars and ΛCDM ticks are not a likelihood product','label dim'); spl.position.set(0.6,-3.55,0); cmbGroup.add(spl);
-  const tl=mkLabel('CMB LOW MULTIPOLES · illustrative ΔT=Σ a_lm Y_lm · anomaly context','label const','cmbAtlas'); tl.position.set(0,3.5,0); cmbGroup.add(tl);
-  const rl=mkLabel('','label dim'); rl.position.set(0,2.7,0); cmbGroup.add(rl);
-  cmbObjs={sky,readLab:rl};
+  cmbClear();cmbGroup.add(new THREE.HemisphereLight(0x9fcde8,0x050914,.72));const key=new THREE.DirectionalLight(0xffe6ad,1.05);key.position.set(4,6,7);cmbGroup.add(key);const rim=new THREE.DirectionalLight(0x72aee8,.72);rim.position.set(-5,-1,-6);cmbGroup.add(rim);
+  const geo=new THREE.SphereGeometry(2.22,CMB_NLON,CMB_NLAT),p=geo.attributes.position,dirs=new Float32Array(p.count*3);for(let i=0;i<p.count;i++){const r=Math.hypot(p.getX(i),p.getY(i),p.getZ(i));dirs[3*i]=p.getX(i)/r;dirs[3*i+1]=p.getY(i)/r;dirs[3*i+2]=p.getZ(i)/r;}geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(p.count*3),3));
+  const sky=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.66,metalness:.08,side:THREE.DoubleSide}));sky.renderOrder=2;cmbGroup.add(sky);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(2.36,MOBILE_GPU?40:64,MOBILE_GPU?24:38),scientificFresnelMaterial(0x6aaed0,0xe8c77a,.2,.7));halo.renderOrder=1;cmbGroup.add(halo);
+  const inner=new THREE.Mesh(new THREE.SphereGeometry(2.05,40,24),new THREE.MeshBasicMaterial({color:0x020713,transparent:true,opacity:.74,side:THREE.BackSide,depthWrite:false}));cmbGroup.add(inner);
+  const contours=[0x76acd6,0xe8c77a,0xe68d98].map(c=>{const x=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.3,depthWrite:false,blending:THREE.NormalBlending}));x.renderOrder=5;cmbGroup.add(x);return x;});
+  const armillary=new THREE.Group();cmbGroup.add(armillary);const rings=[];for(let l=2;l<=CMB_LMAX;l++){const root=new THREE.Group(),normal=cmbRingNormal(l),pts=cmbCirclePoints(normal,2.72+.035*(l-2)),band=scientificRibbon(pts,.032+Math.sqrt(2/(2*l+1))*.08,0x9d8fc1,.2,true),ref=scientificTube(pts,0xe8c77a,.018,.28,true),actual=scientificTube(pts,0x79bdd8,.022,.62,true);root.add(band,ref,actual);armillary.add(root);rings.push({l,root,normal,band,ref,actual});}
+  const axes=new THREE.Group(),axis2=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xe8c77a,transparent:true,opacity:.58,depthWrite:false})),axis3=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fc6df,transparent:true,opacity:.58,depthWrite:false})),spine2=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xe8c77a,transparent:true,opacity:.34,depthWrite:false})),spine3=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fc6df,transparent:true,opacity:.34,depthWrite:false}));axes.add(axis2,axis3,spine2,spine3);cmbGroup.add(axes);
+  const mask=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshBasicMaterial({color:0x030712,transparent:true,opacity:.78,side:THREE.DoubleSide,depthWrite:false}));mask.renderOrder=8;cmbGroup.add(mask);
+  const tracer=scientificCrystal(0xffffff,.075);tracer.traverse(o=>{if(o.material){o.material.depthTest=false;o.renderOrder=20;}});cmbGroup.add(tracer);
+  const tl=mkLabel('CMB MULTIPOLE OBSERVATORY · ΔT(n)=ΣaℓmYℓm','label const','cmbAtlas');tl.position.set(0,3.14,0);cmbGroup.add(tl);
+  const modeLab=mkLabel('','label axis');modeLab.visible=false;cmbGroup.add(modeLab);const al=mkLabel('cosmic-variance armillary · model / realization / ±1σ','label dim');al.position.set(2.12,-2.85,.2);cmbGroup.add(al);const readLab=mkLabel('','label dim');readLab.position.set(0,-3.45,0);cmbGroup.add(readLab);
+  cmbObjs={sky,dirs,halo,contours,armillary,rings,axes,axis2,axis3,spine2,spine3,mask,tracer,modeLab,readLab,selectedCurve:null};cmbRefresh();
 }
+function cmbExportData(){const A=cmbAnalyze(),coeff=[];for(const [key,value] of A.coeff)coeff.push({key,value});return {schema:A.schema,generated_at:new Date().toISOString(),station:state.cmbMode||'sky',parameters:{seed:A.seed,lmax:A.lmax,focus_l:state.cmbL,focus_m:state.cmbM,low_l_power_ratio:A.lowPower,mask_half_width_deg:A.maskDeg,axis_separation_deg:state.cmbAxisSepDeg,relief_display_only:state.cmbRelief},prediction:{model:'low-ell Sachs-Wolfe plateau reference',D0_microK2:CMB_D0,cosmic_variance:'sigma(C_l)/C_l=sqrt(2/(2l+1)); f_sky scaling is approximate when masked'},power:A.power,coefficients:coeff,reconstruction:{f_sky:A.fSky,relative_coefficient_residual:A.coefficientRelativeResidual,max_coefficient_residual:A.maxCoefficientResidual,method:A.caveat},epistemic:{status:'deterministic synthetic Gaussian realization / reference calculation',not_claimed:['Planck map reconstruction','likelihood evaluation','anomaly significance','topology detection']},sources:['Planck 2018 VII','Planck 2018 V','HEALPix conventions']};}
 function updateCmb(dt){
-  const O=cmbObjs; if(!O) return; const mode=state.cmbMode||'align';
-  if(state.cmbRun!==false){ cmbRot+=dt*0.12; O.sky.rotation.y=cmbRot; }
-  cmbUiAcc+=dt; if(cmbUiAcc>0.3){ cmbUiAcc=0;
-    const ratio=(CMB_DL[0][1]/CMB_DL[0][2]);   // observed/ΛCDM quadrupole
-    const names={quad:'quadrupole (l=2) only',oct:'octopole (l=3) only',align:'quadrupole + octopole, shared axis',low:'l=2…8 map, low-l suppressed'};
-    hudBig.textContent=`CMB LOW MULTIPOLES · ${names[mode]} · illustrative quadrupole ratio ${(ratio*100).toFixed(0)}%`;
-    hudSub.textContent='Planck temperature maps retain several large-angle anomaly statistics, while ΛCDM remains an excellent global fit and no unambiguous topology detection follows. Cosmic variance, masking, foreground cleaning, estimator choice and look-elsewhere effects matter. Compact topology can discretize long-wavelength modes, but the prediction depends on topology, cosmological parameters and transfer functions.';
-    ATLAS_BUS.pub('cmb.q_ratio',+ratio.toFixed(3),'C2_obs/ΛCDM');
-    const el=ctl.querySelector('#cmbInv'); if(el) el.innerHTML=`mode: <b>${names[mode]}</b><br>illustrative D₂=<b>${CMB_DL[0][1]}</b> µK² and reference tick ${CMB_DL[0][2]} µK² → <b>${(ratio*100).toFixed(0)}%</b>. This deterministic map is not a Planck likelihood re-analysis. Alignment significance is estimator- and mask-dependent; compact topology changes the allowed spectrum conditionally and is not inferred here.`;
+  const O=cmbObjs;if(!O)return;const A=cmbAnalyze(),l=Math.max(2,Math.min(A.lmax,state.cmbL??2)),P=A.power.find(p=>p.l===l),mode=state.cmbMode||'sky';
+  if(state.cmbRun!==false&&!PREFERS_REDUCED_MOTION&&!renderer.xr.isPresenting){cmbRot+=dt*.055*(state.cmbSpeed??1);O.armillary.rotation.y=cmbRot;cmbPhase=(cmbPhase+dt*.085*(state.cmbSpeed??1))%1;}
+  if(O.selectedCurve)O.tracer.position.copy(O.selectedCurve.getPointAt(cmbPhase));scientificUpdateMaterials(cmbGroup,cmbRot*8);
+  cmbUiAcc+=dt;if(cmbUiAcc>.24){cmbUiAcc=0;const ratio=P.real/P.model;
+    hudBig.textContent=`CMB MULTIPOLES · ${CMB_STATIONS[mode]} · ℓ=${l} · Dℓ=${P.real.toFixed(1)} µK² · realization/model=${ratio.toFixed(3)}`;
+    hudSub.textContent=`Synthetic Gaussian low-ℓ realization, not a Planck map. Full-sky ΛCDM cosmic variance is ${(P.cv*100).toFixed(1)}% at ℓ=${l}; the masked ${(P.cvMasked*100).toFixed(1)}% scaling is an f_sky approximation. The armillary compares the declared plateau model with this deterministic seed; no anomaly significance or topology detection is inferred.`;
+    ATLAS_BUS.pub('cmb.ell',l,'multipole');ATLAS_BUS.pub('cmb.D_model',+P.model.toFixed(4),'microK^2');ATLAS_BUS.pub('cmb.D_real',+P.real.toFixed(4),'microK^2');ATLAS_BUS.pub('cmb.cv_frac',+P.cv.toFixed(6),'1');ATLAS_BUS.pub('cmb.f_sky',+A.fSky.toFixed(6),'1');ATLAS_BUS.pub('cmb.residual',+A.coefficientRelativeResidual.toExponential(4),'relative');ATLAS_BUS.pub('cmb.axis_sep',+(state.cmbAxisSepDeg??12).toFixed(3),'deg');ATLAS_BUS.pub('cmb.q_ratio',+(state.cmbLowPower??.45).toFixed(4),'model D2/Dplateau');
+    const el=ctl.querySelector('#cmbInv');if(el)el.innerHTML=`station <b>${CMB_STATIONS[mode]}</b> · deterministic seed <b>${A.seed}</b><br>ℓ=<b>${l}</b> · model Dℓ=<b>${P.model.toFixed(2)}</b> µK² · realization <b>${P.real.toFixed(2)}</b> µK² · ratio <b>${ratio.toFixed(4)}</b><br>full-sky σ(Cℓ)/Cℓ=<b>${P.cv.toFixed(6)}</b> · f_sky=<b>${A.fSky.toFixed(6)}</b> · reconstruction coefficient residual <b>${A.coefficientRelativeResidual.toExponential(3)}</b><br><span style="opacity:.72">${A.caveat}; z=${P.z.toFixed(3)} is a standardized diagnostic, not a Gaussian low-ℓ p-value.</span>`;
+    const live=ctl.querySelector('#cmbLivePrediction');if(live)live.textContent=`D${l} = ${P.real.toFixed(3)} µK² · model ${P.model.toFixed(3)} ± ${(P.model*P.cvMasked).toFixed(3)} µK² (1σ ${A.maskDeg?'f_sky approximation':'full sky'})`;
   }
 }
 
@@ -19007,6 +19106,9 @@ const NEXUS_RELATIONS=[
   ['hopf','mimg','representation','shared round-S³ geometry','Hopf fibres and photon geodesics inhabit the same model carrier but are different curves with different physics.','exact-geometry'],
   ['eig','sh','representation','S³ modes ↔ S² harmonics','Compact S³ eigenmodes and S² spherical harmonics are related spectral bases with different domains and degeneracies.','theorem-context'],
   ['eig','cmb','coupling','compact spectrum ↔ low-ℓ sky','A detectable compact topology could alter allowed long modes; the illustrative CMB map is not evidence for it.','conditional-model'],
+  ['sh','cmb','representation','Yℓm basis ↔ sky coefficients','The CMB synthesis and inverse transform use the same normalized real spherical-harmonic basis measured by the S² harmonic laboratory.','exact-representation'],
+  ['bb','cmb','contrast','mean blackbody ↔ angular anisotropy','The blackbody laboratory predicts the mean Planck spectrum; the multipole laboratory resolves directional temperature perturbations around that mean. Spectral shape and angular power are different observables.','model-contrast'],
+  ['lens','cmb','contrast','strong-field ray bending ↔ weak CMB remapping','Both change observed sky patterns through null propagation, but the point-mass Schwarzschild station is not a CMB lensing-potential reconstruction and shares no fitted mass scale with it.','regime-contrast'],
   ['topo','dfx','representation','homotopy theorem ↔ defect table','The defect atlas instantiates π₀, π₁, π₂ and π₃ classifications measured in its fields.','theorem'],
   ['topo','sc','invariant','π₁ ↔ flux winding','Abrikosov vortex number is a topological integer; material energetics remain separate.','theorem-context'],
   ['topo','hopfion','invariant','π₃ ↔ Hopf charge','The Hopfion station measures a linking/Hopf invariant under its declared field map.','theorem-context'],
@@ -19359,12 +19461,17 @@ function scientificReleaseInactiveLabs(active=''){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
 function scientificCameraPreset(v){const p=s3ViewPreset(v);if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
 function s3ViewVisibility(v){
+  // CMB already carries its native spherical armillary. The carrier's Cartesian
+  // projection grid would cross the sky and obscure the field, so it is suppressed
+  // only for this station (also per tile in Multiview), without changing the saved
+  // global guide preference.
+  spatialGuides.s3.visible=state.showGuides&&state.vectorGuides!==false&&v!=='cmb';
   nexusGroup.visible   = v==='nexus';
   nulGroup.visible     = v==='nul';
   actGroup.visible     = v==='act';
@@ -19623,6 +19730,11 @@ const MV_PRESETS=[
   w:{en:'Carnot, ZT, Shockley–Queisser and the blackbody spectrum that sets them all. Each ceiling is the same second law wearing different clothes.',
      ru:'Карно, ZT, Шокли–Квайссер и спектр чёрного тела, который задаёт их все. Каждый потолок — тот же второй закон в другой одежде.',
      de:'Carnot, ZT, Shockley–Queisser und das Schwarzkörperspektrum, das sie alle setzt.'}},
+ {id:'cmbmodes', views:['cmb','sh','eig','mimg'], bus:['cmb.ell','cmb.D_real'],
+  t:{en:'Cosmic modes · sky, basis, carrier, topology test',ru:'Космические моды · небо, базис, носитель, тест топологии',de:'Kosmische Moden · Himmel, Basis, Träger, Topologietest'},
+  w:{en:'The same angular-mode question is separated into four contracts: a synthetic CMB realization on S², its exact Y_lm basis, the conditional discrete spectrum of a round S³ carrier, and the matched-pattern path test. Simultaneous display is comparison, never topology evidence.',
+     ru:'Один вопрос об угловых модах разделён на четыре контракта: синтетическая реализация CMB на S², точный базис Y_lm, условный дискретный спектр круглого носителя S³ и тест совпадающих паттернов по путям. Одновременный показ — сравнение, а не свидетельство топологии.',
+     de:'Dieselbe Modenfrage wird in synthetischen CMB-Himmel, exakte Y_lm-Basis, bedingtes S³-Spektrum und Musterpfad-Test getrennt.'}},
  {id:'grsc', views:['bhr','bht','rpd','gw'], bus:['bhr.steps','rpd.sigma'],
   t:{en:'Horizons · geometry, thermodynamics, information, radiation',ru:'Горизонты · геометрия, термодинамика, информация, излучение',de:'Horizonte'},
   w:{en:'One surface seen as a lens, as a temperature, as a limit on what can be distinguished, and as a wave that escaped.',
@@ -19936,13 +20048,14 @@ const MV_LINKS=[
            {lab:'sh',k:'shDeform',dom:[0.3,1.8],map:v=>1+v*0.8}]},
  {id:'charge', kind:'STRUCTURAL', unit:'n (integer)', lo:1, hi:6, def:1, int:true,
   t:{en:'topological / modal integer n',ru:'топологическое / модовое целое n',de:'topologische / modale ganze Zahl n'},
-  why:{en:'One integer, seven meanings, all of them protected: a vortex winding, a hedgehog degree, a resonance order on the energy shell, a Hopf index, a spherical-harmonic ℓ, a Gauss linking number, a skyrmion count. Turn it and every laboratory changes class at the same moment.',
-       ru:'Одно целое, семь смыслов, и все защищены: намотка вихря, степень ежа, порядок резонанса на энергетической оболочке, индекс Хопфа, ℓ сферической гармоники, коэффициент зацепления Гаусса, число скирмионов. Поверни — и все лаборатории меняют класс одновременно.',
-       de:'Eine ganze Zahl, sieben Bedeutungen, alle geschützt — Wirbelwindung, Igelgrad, Resonanzordnung, Hopf-Index, ℓ, Verschlingungszahl, Skyrmionenzahl.'},
+  why:{en:'One integer, several rigorously distinct meanings: a winding or degree, resonance order, Hopf index, S² multipole ℓ, S³ mode label and skyrmion count. The common integer changes the modal or topological class simultaneously; it does not make the represented quantities physically identical.',
+       ru:'Одно целое имеет несколько строго различных смыслов: намотка или степень, порядок резонанса, индекс Хопфа, мультиполь ℓ на S², метка моды S³ и число скирмионов. Общее целое одновременно меняет модовый или топологический класс, но не делает величины физически тождественными.',
+       de:'Eine ganze Zahl mit mehreren streng getrennten Bedeutungen: Windung, Grad, Resonanzordnung, Hopf-Index, S²-Multipol, S³-Modenlabel und Skyrmionzahl.'},
   members:[{lab:'dfx',k:'dfxQ',dom:[-3,3]},{lab:'dfx',k:'dfxD',dom:[-3,3]},
            {lab:'psp',k:'pspN',dom:[1,6]},{lab:'hopfion',k:'hfK',dom:[3,48],map:v=>3+ (v-1)*9},
            {lab:'sh',k:'shL',dom:[0,8]},{lab:'topo',k:'topoM',dom:[1,5]},
-           {lab:'eig',k:'eigBeta',dom:[1,12],map:v=>v+1},{lab:'skyrmion',k:'skN',dom:[2,25],map:v=>2+(v-1)*4}]},
+           {lab:'eig',k:'eigBeta',dom:[1,12],map:v=>v+1},{lab:'cmb',k:'cmbL',dom:[2,12],map:v=>v+1},
+           {lab:'skyrmion',k:'skN',dom:[2,25],map:v=>2+(v-1)*4}]},
  {id:'wavelength', kind:'IDENTITY', unit:'nm (scaled)', lo:400, hi:1100, def:620,
   t:{en:'optical wavelength',ru:'оптическая длина волны',de:'optische Wellenlänge'},
   why:{en:'A wavelength is a wavelength. The transmission peak of a hole array, the fringe spacing of a two-slit pattern, the observed band of a quasar and the band gap of a photocell (through E_g = 1240/λ exactly) are all fixed by the same number of nanometres.',
@@ -19975,13 +20088,14 @@ const MV_LINKS=[
            {lab:'bht',k:'bhtM',dom:[11,42],map:v=>30.2986+v,set:v=>{ state.bhtM=Math.pow(10,v); state.bhtEvap=false; bhtM=state.bhtM; bhtApplyScale&&bhtApplyScale(); }},
            {lab:'qso',k:'qsoM',dom:[6,10.9],map:v=>v},
            {lab:'ns',k:'nsRhoc',dom:[-3.4,-1.9],kind:'STRUCTURAL',map:v=>-3.4+(v/10)*1.5,set:v=>{ state.nsRhoc=Math.pow(10,v); }}]},
- {id:'view', kind:'IDENTITY', unit:'deg', lo:0, hi:90, def:45,
+ {id:'view', kind:'STRUCTURAL', unit:'deg', lo:0, hi:90, def:45,
   t:{en:'viewing / orientation angle',ru:'угол наблюдения / ориентации',de:'Betrachtungs- / Orientierungswinkel'},
-  why:{en:'What you see depends on where you stand, and these five say so with the same angle: the inclination of a binary, the magnetic obliquity of a pulsar, the opening of a quasar cone, the polar angle of a Bell setting and the base point of the linking measurement.',
-       ru:'Что видно — зависит от того, где стоишь, и эти пять говорят это одним углом: наклонение двойной, магнитный наклон пульсара, раствор конуса квазара, полярный угол настройки Белла и базовая точка измерения зацепления.',
-       de:'Inklination eines Doppelsterns, magnetische Schiefe eines Pulsars, Öffnung eines Quasarkegels, Polarwinkel einer Bell-Einstellung.'},
+  why:{en:'These are different physical angles sharing the same geometric role: angle between a sightline and source axis, between two low multipole axes, or between two measurement directions. Degrees are unit-compatible, but the observables are not identical and are linked only structurally.',
+       ru:'Это разные физические углы с одной геометрической ролью: угол между лучом зрения и осью источника, между двумя низкими мультипольными осями или между направлениями измерения. Градусы совместимы как единицы, но наблюдаемые не тождественны и связаны только структурно.',
+       de:'Verschiedene physikalische Winkel mit derselben geometrischen Rolle; einheitenkompatibel, aber nicht dieselbe Observable.'},
   members:[{lab:'gw',k:'gwIota',dom:[0,180]},{lab:'psr',k:'psrAlpha',dom:[5,85]},
            {lab:'qso',k:'qsoTheta',dom:[2,80]},
+           {lab:'cmb',k:'cmbAxisSepDeg',dom:[0,90]},
            {lab:'bell',k:'bellTheta',dom:[0.01,Math.PI],map:v=>v*Math.PI/180},
            {lab:'topo',k:'topoThB',dom:[0.3,2.8],map:v=>v*Math.PI/180},
            {lab:'hopf',k:'hopfA.t',dom:[0.05,3.09],map:v=>v*Math.PI/180,set:v=>{ if(state.hopfA){ state.hopfA.t=v; updateHopfHighlights&&updateHopfHighlights(); } }},
@@ -20032,7 +20146,7 @@ const MV_LINKS=[
            {lab:'rpd',k:'rpdSpeed',dom:[0.2,3]},{lab:'gw',k:'gwSpeed',dom:[0.2,3]},{lab:'skyrmion',k:'skSpeed',dom:[0.2,4]},
            {lab:'quasi',k:'qpSpeed',dom:[0.2,4]},{lab:'rel',k:'relSpeed',dom:[0.1,3]},{lab:'poin',k:'poinSpeed',dom:[0.1,3]},
            {lab:'sh',k:'shSpeed',dom:[0.2,3]},{lab:'taub',k:'tnSpeed',dom:[0.1,4]},{lab:'hopf',k:'hopfFlowSpd',dom:[0.1,4]},
-           {lab:'red',k:'rkzSpeed',dom:[0.02,1.2]},{lab:'bhr',k:'bhrSpeed',dom:[0.2,3]},
+           {lab:'red',k:'rkzSpeed',dom:[0.02,1.2]},{lab:'bhr',k:'bhrSpeed',dom:[0.2,3]},{lab:'cmb',k:'cmbSpeed',dom:[0.2,3]},
            /* other modes keep their own clocks; tempo scales each about its own default,
               so one control paces the solar system, the cycles, the φ-ladder, the Oort
               shell, the Laniakea flow and the field lab together with the laboratories */
@@ -25077,6 +25191,7 @@ const state = {
   nexusKind:'all', nexusMorph:0, nexusRotate:false, nexusPulse:false,
   nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas
   mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
+  predictionRefs:{},   // user-entered, unit-compatible validation references, kept separate per laboratory
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
   pspStation:'shell', pspMap:'squeeze', pspLambda:0.5, pspR:1.0, pspN:1, pspM:1, pspOrbits:14,   // Phase-space lab
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
@@ -25090,7 +25205,8 @@ const state = {
   dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
   impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
-  cmbMode:'align', cmbRun:true,   // CMB low-multipole lab
+  cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
+  cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
   bhrQuality:'balanced', bhrDisk:true, bhrRun:true, bhrSpeed:1,   // GR raymarcher lab (Schwarzschild)
   nsRhoc:1.28e-3,   // Neutron-star TOV lab
@@ -25239,7 +25355,8 @@ function applySpatialGuideVisibility(){
       // the Cycles guide grid annotates the multi-instrument LAYOUT PLANE; in the
       // single-instrument stage frames (Antikythera, Earth/Sun/Moon orientation) that
       // plane does not exist, so its captions would just cut across the mechanism
-      && !(mode==='cyc'&&(state.cycFrame==='antikythera'||state.cycFrame==='orientation'));
+      && !(mode==='cyc'&&(state.cycFrame==='antikythera'||state.cycFrame==='orientation'))
+      && !(mode==='s3'&&state.mode==='s3'&&state.s3view==='cmb');
     g.traverse(o=>{
       if(o.material?.userData?.guideBaseOpacity!=null)
         o.material.opacity=o.material.userData.guideBaseOpacity*state.guideOpacity;
@@ -27458,23 +27575,44 @@ function buildCtlBody(){
         <button class="btn" id="qcToTopo">${TT('→ Topology: order without periodicity','→ Топология: порядок без периодичности','→ Topologie: Ordnung ohne Periodizität')}</button></div>
     </div>`;
     else if(V==='cmb') body = `
-    <div class="sect"><b>CMB sky — which multipoles</b>
+    <div class="sect" style="border-color:rgba(121,189,216,.34);background:linear-gradient(135deg,rgba(9,31,55,.34),rgba(78,55,87,.13))"><b style="color:#bfe9f4">CMB multipole observatory</b>
+      <div class="note" style="margin-top:5px;color:#e8d7a4">A forward model, one deterministic Gaussian realization and its inverse spherical transform occupy the same spatial instrument. Nothing on screen is presented as a Planck data product.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The generic Cartesian carrier grid is suppressed here so it cannot cross the sky; the native spherical armillary remains the station's orientation reference. Your global guide setting is unchanged.</div>
       <div class="chips">
-        ${[['align','Quad + octopole (axis)'],['quad','Quadrupole l=2'],['oct','Octopole l=3'],['low','Low-l map (2…8)']].map(([k,l])=>
-          `<button class="chip ${(state.cmbMode||'align')===k?'on':''}" data-cmbm="${k}">${l}</button>`).join('')}
+        ${[['sky','Sky synthesis'],['mode','Mode tomography'],['alignment','Axis geometry'],['residual','Mask residual']].map(([k,l])=>
+          `<button class="chip ${(state.cmbMode||'sky')===k?'on':''}" data-cmbm="${k}">${l}</button>`).join('')}
       </div>
       <div class="ctlrow">
-        <button class="chip ${state.cmbRun!==false?'on':''}" id="cmbRun">${state.cmbRun!==false?'⏸ stop spin':'▶ spin'}</button>
-        <span style="font-size:10px;color:var(--dim)">illustrative D_l context · not a likelihood product</span></div>
+        <button class="chip ${state.cmbRun!==false?'on':''}" id="cmbRun">${state.cmbRun!==false?'⏸ freeze armillary':'▶ orbit armillary'}</button>
+        <button class="btn" id="cmbNextSeed">↻ next realization</button></div>
+      <div class="ctlrow"><label>Realization seed</label><input type="range" id="cmbSeed" min="1" max="99" step="1" value="${state.cmbSeed??19}"><span class="val" id="cmbSeedV">${state.cmbSeed??19}</span></div>
+      <div class="ctlrow"><label>Band limit ℓmax</label><input type="range" id="cmbLmax" min="4" max="12" step="1" value="${state.cmbLmax??12}"><span class="val" id="cmbLmaxV">${state.cmbLmax??12}</span></div>
     </div>
-    <div class="sect"><b>Anomaly readout</b>
+    <div class="sect"><b>Harmonic microscope</b>
+      <div class="ctlrow"><label>Focus ℓ</label><input type="range" id="cmbL" min="2" max="${state.cmbLmax??12}" step="1" value="${Math.min(state.cmbL??2,state.cmbLmax??12)}"><span class="val" id="cmbLV">${Math.min(state.cmbL??2,state.cmbLmax??12)}</span></div>
+      <div class="ctlrow"><label>Basis m</label><input type="range" id="cmbM" min="${-Math.min(state.cmbL??2,state.cmbLmax??12)}" max="${Math.min(state.cmbL??2,state.cmbLmax??12)}" step="1" value="${Math.max(-Math.min(state.cmbL??2,state.cmbLmax??12),Math.min(state.cmbM??0,Math.min(state.cmbL??2,state.cmbLmax??12)))}"><span class="val" id="cmbMV">${state.cmbM??0}</span></div>
+      <div class="ctlrow"><label>Pure Yℓm basis</label><input type="checkbox" id="cmbBasis" ${state.cmbBasis?'checked':''}><span class="val" style="flex:1;text-align:left;color:var(--dim)">separate basis from realization</span></div>
+      <div class="ctlrow"><label>Radial relief</label><input type="range" id="cmbRelief" min="0" max="1.5" step="0.01" value="${state.cmbRelief??.82}"><span class="val" id="cmbReliefV">${(state.cmbRelief??.82).toFixed(2)}×</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Surface radius encodes normalized ΔT only as a display relief. Temperature remains the vertex colour and harmonic coefficient; relief is never used in the transform.</div>
+    </div>
+    <div class="sect"><b>Prediction &amp; observational operators</b>
+      <div class="ctlrow"><label>Low-ℓ model power</label><input type="range" id="cmbLowPower" min="0.12" max="1.5" step="0.01" value="${state.cmbLowPower??.45}"><span class="val" id="cmbLowPowerV">${(state.cmbLowPower??.45).toFixed(2)} Dplateau</span></div>
+      <div class="ctlrow"><label>Galactic mask ±</label><input type="range" id="cmbMask" min="0" max="35" step="0.5" value="${state.cmbMaskDeg??0}"><span class="val" id="cmbMaskV">${(state.cmbMaskDeg??0).toFixed(1)}°</span></div>
+      <div class="ctlrow"><label>ℓ2–ℓ3 axis separation</label><input type="range" id="cmbAxisSep" min="0" max="90" step="0.5" value="${state.cmbAxisSepDeg??12}"><span class="val" id="cmbAxisSepV">${(state.cmbAxisSepDeg??12).toFixed(1)}°</span></div>
+      <div class="note" id="cmbLivePrediction" style="font-variant-numeric:tabular-nums;font-size:11.5px">computing forward realization…</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Reference prediction: a reduced Sachs–Wolfe plateau Dℓ=1000 µK², with the chosen ℓ≤3 power ratio. Full-sky Gaussian cosmic variance is exact for this model; dividing by √fsky after masking is only an approximation. A production likelihood requires an actual map, beam, noise, mask-coupling matrix, foreground model, transfer functions and covariance.</div>
+    </div>
+    <div class="sect"><b>Reconstruction &amp; falsification readout</b>
       <div class="note" id="cmbInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">The sky is expanded as ΔT(n̂)=Σa_lmY_lm. Planck retains several large-angle anomaly statistics while ΛCDM remains an excellent global fit. The rendered coefficients and D_l bars are deterministic illustrations, not fitted Planck products. Cosmic variance, masks, foregrounds, estimator selection and look-elsewhere effects must accompany any interpretation; compact topology changes modes conditionally and is not detected here.</div>
+      <div class="ctlrow"><button class="btn" id="cmbExport">⬇ export coefficients + power + residual</button><button class="btn" id="cmbCompare">◱ compare sky bases</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Falsification contract: the forward coefficients must be recovered by full-sky quadrature within the disclosed discretisation error; masking must increase mode mixing; every exported Dℓ must equal ℓ(ℓ+1)Σm|aℓm|²/[2π(2ℓ+1)]. A visual alignment alone is not evidence and no low-ℓ standardized residual is treated as a Gaussian p-value.</div>
     </div>
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
         <button class="btn" id="cmbToSh">→ Spherical harmonics: the Y_lm modes</button>
-        <button class="btn" id="cmbToEig">→ S³ modes β: harmonics of a finite universe</button></div>
+        <button class="btn" id="cmbToEig">→ S³ modes β: finite spectrum</button>
+        <button class="btn" id="cmbToMimg">→ Matched-pattern topology test</button>
+        <button class="btn" id="cmbToBb">→ Blackbody mean spectrum</button></div>
     </div>`;
     else if(V==='mimg') body = `
     <div class="sect"><b>Source distance — where is the galaxy?</b>
@@ -28004,6 +28142,9 @@ function buildCtlBody(){
         <div style="margin-top:6px"><b style="font-size:10px;letter-spacing:.1em;color:var(--gold-dim)">${TT('CATALOGUE — compose the tiles from a shared parameter','КАТАЛОГ — собрать окна вокруг общего параметра','KATALOG — Kacheln aus einem geteilten Parameter bilden')}</b>
         <div class="chips" style="margin-top:3px">${MV_LINKS.map(l=>`<button class="chip" data-mvlinkgo="${l.id}" title="${esc(mvLinkLabs(l).map(viewNameL).join(' · '))}"><span style="color:${MV_LINK_KIND[l.kind].c}">●</span> ${esc(impL(l.t))} <span style="opacity:.6">${mvLinkLabs(l).length}</span></button>`).join('')}</div></div>
       </div>`; })()}
+      <div class="sect" style="border:1px solid rgba(180,214,255,.22);border-radius:8px;padding:8px;margin-top:6px">
+        <div id="mvPredictionMatrix">${predictionMatrixHTML(MV.views.slice(0,MV.n))}</div>
+      </div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('One WebGL context, one scene graph, four scissored viewports — measured at 1.01× the single-view frame time, i.e. together about one full-screen frame of fragment work, with no extra framebuffers. (That figure is from a fragment-bound software rasteriser; on a real GPU the extra cost is the fourfold draw-call and vertex work rather than fill.) Every visible laboratory is stepped with the same dt in the same frame, so the comparison is simultaneous rather than remembered. Orientation is shared while each tile keeps its own framing distance, because these laboratories differ in size by more than an order of magnitude. Click any tile to hand it the whole control panel below. DECLARED: bloom and the 3-D label layer are single-camera passes and are replaced by per-tile captions while multiview is on.','Один контекст WebGL, один граф сцены, четыре области с ножничным отсечением — измерено 1.01× от времени кадра одиночного вида, то есть суммарно около одного полноэкранного кадра фрагментной работы, без дополнительных буферов. (Замер сделан на программном растеризаторе, ограниченном фрагментами; на настоящем GPU дополнительная цена — четырёхкратные вызовы отрисовки и вершинная работа, а не заполнение.) Каждая видимая лаборатория считается с тем же dt в том же кадре, поэтому сравнение одновременное, а не по памяти. Ориентация общая, но каждое окно сохраняет свою дистанцию кадрирования, так как лаборатории различаются по размеру более чем на порядок. Щёлкни по любому окну — и вся панель управления ниже станет его. ЗАЯВЛЕНО: свечение и слой трёхмерных подписей — однокамерные проходы; на время мультивида их заменяют подписи по окнам.','Ein WebGL-Kontext, ein Szenengraph, vier Scissor-Viewports — gemessen 1.01× der Einzelansicht, zusammen etwa ein Vollbild an Fragmentarbeit. (Gemessen auf einem fragmentgebundenen Software-Rasterizer.) Jedes sichtbare Labor wird im selben Frame mit demselben dt gerechnet. Die Orientierung ist gemeinsam, die Kadrierung pro Kachel eigen. Ein Klick auf eine Kachel übergibt ihr das gesamte Bedienfeld. ERKLÄRT: Bloom und die 3-D-Beschriftungsebene sind Einkamera-Durchgänge und werden im Multiview durch Kachel-Beschriftungen ersetzt.')}</div>`:''}
     </div>`; })()}
     ${(()=>{ const q=state.invQ, qk=state.invQuantity??'', tol=state.invTol??1e-3;
@@ -28122,7 +28263,7 @@ function buildCtlBody(){
         <button class="btn ${V==='psr'?'on':''}" id="v-psr">Pulsar</button>
         <button class="btn ${V==='qso'?'on':''}" id="v-qso">Quasar</button>
       </div>
-    </div><div id="activeLabControls">${body}</div>`;
+    </div><div id="activeLabControls">${body}${predictionWorkbenchHTML(V)}</div>`;
     ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
     ctl.querySelector('#v-hopf').onclick = ()=>{ setS3View('hopf'); buildCtl(); };
     ctl.querySelector('#v-eig').onclick  = ()=>{ setS3View('eig');  buildCtl(); };
@@ -28170,6 +28311,7 @@ function buildCtlBody(){
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
     for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
+    bindPredictionWorkbench(V);
     if(V==='nul') bindNulControls(ctl);
     if(V==='act') bindActControls(ctl);
     if(V==='hol') bindHolControls(ctl);
@@ -28759,10 +28901,25 @@ function buildCtlBody(){
       ctl.querySelector('#qcToTopo')&&(ctl.querySelector('#qcToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
     }
     if(V==='cmb'){
-      ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{ state.cmbMode=b.dataset.cmbm; cmbSetup(); buildCtl(); });
+      const cmbSlide=(id,key,fmt,after)=>{const el=ctl.querySelector('#'+id);if(!el)return;el.oninput=e=>{state[key]=+e.target.value;const v=ctl.querySelector('#'+id+'V');if(v)v.textContent=fmt(state[key]);if(after)after();else cmbRefresh();};};
+      ctl.querySelectorAll('[data-cmbm]').forEach(b=>b.onclick=()=>{state.cmbMode=b.dataset.cmbm;state.cmbBasis=false;cmbRefresh();buildCtl();});
       ctl.querySelector('#cmbRun')&&(ctl.querySelector('#cmbRun').onclick=()=>{ state.cmbRun=state.cmbRun===false; buildCtl(); });
+      ctl.querySelector('#cmbNextSeed')&&(ctl.querySelector('#cmbNextSeed').onclick=()=>{state.cmbSeed=(state.cmbSeed??19)%99+1;cmbRefresh();buildCtl();});
+      cmbSlide('cmbSeed','cmbSeed',v=>String(Math.round(v)),()=>{state.cmbSeed=Math.round(state.cmbSeed);cmbRefresh();});
+      cmbSlide('cmbLmax','cmbLmax',v=>String(Math.round(v)),()=>{state.cmbLmax=Math.round(state.cmbLmax);state.cmbL=Math.min(state.cmbL,state.cmbLmax);state.cmbM=THREE.MathUtils.clamp(state.cmbM,-state.cmbL,state.cmbL);cmbRefresh();});
+      {const el=ctl.querySelector('#cmbL');if(el){el.oninput=e=>{state.cmbL=+e.target.value|0;state.cmbM=THREE.MathUtils.clamp(state.cmbM,-state.cmbL,state.cmbL);const v=ctl.querySelector('#cmbLV');if(v)v.textContent=String(state.cmbL);cmbRefresh();};el.onchange=()=>buildCtl();}}
+      cmbSlide('cmbM','cmbM',v=>String(Math.round(v)),()=>{state.cmbM=Math.round(state.cmbM);cmbRefresh();});
+      cmbSlide('cmbRelief','cmbRelief',v=>v.toFixed(2)+'×');
+      cmbSlide('cmbLowPower','cmbLowPower',v=>v.toFixed(2)+' Dplateau');
+      cmbSlide('cmbMask','cmbMaskDeg',v=>v.toFixed(1)+'°');
+      cmbSlide('cmbAxisSep','cmbAxisSepDeg',v=>v.toFixed(1)+'°');
+      ctl.querySelector('#cmbBasis')&&(ctl.querySelector('#cmbBasis').onchange=e=>{state.cmbBasis=e.target.checked;if(state.cmbBasis)state.cmbMode='sky';cmbRefresh();buildCtl();});
+      ctl.querySelector('#cmbExport')&&(ctl.querySelector('#cmbExport').onclick=()=>downloadFile('cmb_multipole_experiment.json','application/json',JSON.stringify(cmbExportData(),null,2)));
+      ctl.querySelector('#cmbCompare')&&(ctl.querySelector('#cmbCompare').onclick=()=>{if(!MV.on)mvEnter();mvApplyPreset('cmbmodes');});
       ctl.querySelector('#cmbToSh')&&(ctl.querySelector('#cmbToSh').onclick=()=>{ navPush(); setS3View('sh'); buildCtl(); });
       ctl.querySelector('#cmbToEig')&&(ctl.querySelector('#cmbToEig').onclick=()=>{ navPush(); setS3View('eig'); buildCtl(); });
+      ctl.querySelector('#cmbToMimg')&&(ctl.querySelector('#cmbToMimg').onclick=()=>{navPush();setS3View('mimg');buildCtl();});
+      ctl.querySelector('#cmbToBb')&&(ctl.querySelector('#cmbToBb').onclick=()=>{navPush();setS3View('bb');buildCtl();});
     }
     if(V==='mimg'){
       const P={near:0.3,far:0.7,deep:0.95,anti:0.999};
@@ -30233,6 +30390,80 @@ const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observator
 const S3_VIEW_I18N={
  ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар'},
  de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar'} };
+
+/* ================================================================
+   PREDICTION & VALIDATION WORKBENCH
+
+   "Prediction" is deliberately typed.  A theorem consequence, a reduced
+   reference calculation, a numerical trajectory and a calibrated empirical
+   forecast are not interchangeable merely because each returns a number.
+   Every S³ laboratory receives a generated contract; missing calibration or
+   benchmark evidence is shown as a gap, never promoted to false precision.
+   ================================================================ */
+const PREDICTION_CLASSES={
+  exact:{color:'#9fe8c0',label:'exact model consequence',scope:'Deterministic inside the declared mathematical model; not an empirical forecast.',falsifier:'An independent evaluation of the named identity or invariant exceeds its declared numerical tolerance.'},
+  numerical:{color:'#79bdd8',label:'numerical forward simulation',scope:'Predicts the declared discretized model from its inputs and boundaries; empirical use additionally requires convergence, units and calibration.',falsifier:'Grid/time-step refinement or a reference solution fails the disclosed convergence or conservation target.'},
+  reference:{color:'#e8c77a',label:'parameterized reference model',scope:'Computes a standard or phenomenological equation in its validity domain; it is not automatically calibrated to a particular system.',falsifier:'A benchmark dataset or analytic limit disagrees beyond the combined model, measurement and numerical uncertainty.'},
+  conditional:{color:'#d99ab0',label:'conditional scenario prediction',scope:'Answers what follows if the displayed hypothesis and inputs are adopted; it does not establish that the hypothesis describes nature.',falsifier:'The hypothesis-specific observable is absent or incompatible after selection effects, nuisance parameters and covariance are modelled.'},
+  exploratory:{color:'#b89bd8',label:'exploratory inference instrument',scope:'Finds typed paths, candidate invariants or compatible settings; it predicts no external phenomenon without a separate physical model.',falsifier:'A declared relation, type, transform or candidate-stability result fails its own reproducible contract.'}
+};
+const PREDICTION_CLASS_MEMBERS={
+  exploratory:['nexus'],
+  exact:['nul','act','hol','syd','sec','hopf','eig','bell','topo','sh','su2','imp','berry','psp','dfx','noe','cau','wil','poin','qcrys'],
+  numerical:['hopfion','skyrmion','grav','qm','chaos','kin','kdv','cp','rd','lens','bhr','ns'],
+  reference:['quasi','atom','qcd','sc','taub','eot','wave','spin','rel','ret','dip','he','bb','nuc','te','gw','pv','bht','pole','disp','cusp','kam','rsh','and','sn','psr','qso'],
+  conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
+};
+const PREDICTION_TARGETS={
+  nexus:'typed relation paths and candidate cross-laboratory bridges',nul:'future-null direction, Lorentz interval and spin-weight transformation',act:'Reeb return, contact action, regularized collision and Maslov phase',hol:'closed-path return phase, Wilson trace and Wigner rotation',syd:'finite-orbit invariant drift under declared transformations',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Schwarzschild radius, Hawking temperature, entropy and idealized lifetime',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'reflection coefficient, VSWR, impedance transform and pole geometry',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'radioactive-deposition light curve and idealized remnant expansion',psr:'dipole field, spin-down power, characteristic age and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming'
+};
+const PRED_STATE_PREFIX={sec:['chi','gyrPerSec'],hopf:['hopf'],eig:['eig'],red:['rkz'],ring:['ring'],lab:['lab'],bell:['bell'],drd:['drd'],sel:['sel'],hopfion:['hf'],skyrmion:['sk'],quasi:['qp'],atom:['at'],grav:['grav'],qm:['qm'],qcd:['qcd'],topo:['topo'],sc:['sc'],taub:['tn'],eot:['eot'],wave:['wave'],spin:['spin'],rel:['rel'],chaos:['chaos'],kin:['kin'],sh:['sh'],kdv:['kdv'],ret:['ret'],dip:['dip'],cp:['cp'],rd:['rd'],he:['he'],bb:['bb'],nuc:['nuc'],lens:['lens'],te:['te'],gw:['gw'],pv:['pv'],su2:['su2'],bht:['bht'],rpd:['rpd'],imp:['imp'],pole:['pole'],disp:['disp'],berry:['berry'],cusp:['cusp'],kam:['kam'],rsh:['rsh'],and:['and'],psp:['psp'],dfx:['dfx'],noe:['noe'],cau:['cau'],wil:['wil'],poin:['poin'],qcrys:['qc'],cmb:['cmb'],mimg:['mimg'],bhr:['bhr'],ns:['ns'],sn:['sn'],psr:['psr'],qso:['qso'],nul:['nul'],act:['act'],hol:['hol'],syd:['syd'],nexus:['nexus']};
+const PRED_FORMULA_PREFIX={sec:'s3.',eig:'s3.',red:'gcs.',bell:'bell.',bht:'bh.',cmb:'cmb.',mimg:'topo.',hol:'hol.',act:'act.',nul:'nul.',ns:'tov.',sn:'sn.',psr:'psr.',qso:'qso.'};
+const PRED_TEST_TERMS={nexus:['invariant nexus'],nul:['spinor','null'],act:['contact','maslov','reeb'],hol:['holonomy','berry'],syd:['symmetry discovery'],sec:['s³','cap volume'],hopf:['hopf'],eig:['eigenmode','laplacian'],bell:['bell','chsh'],grav:['three-body','gravitas'],qm:['quantum'],qcd:['qcd','chromodynamics'],sh:['spherical harmonic','cmb harmonic'],lens:['gravitational lensing'],su2:['su(2)'],cmb:['cmb'],mimg:['multiple imaging','s³ imaging'],bhr:['raymarch','schwarzschild'],ns:['neutron star','tov'],sn:['supernova'],psr:['pulsar'],qso:['quasar']};
+function predictionClassId(v){for(const [k,a] of Object.entries(PREDICTION_CLASS_MEMBERS))if(a.includes(v))return k;return 'exploratory';}
+function predictionAtlasKey(v){try{return LAB_ATLAS_DEFS.find(d=>d[1]===v)?.[0]||null;}catch(e){return null;}}
+function predictionInputKeys(v){const prefixes=PRED_STATE_PREFIX[v]||[v],fromState=Object.keys(state).filter(k=>prefixes.some(p=>k.toLowerCase().startsWith(p.toLowerCase()))),fromLinks=[];
+  try{for(const L of MV_LINKS)for(const m of L.members)if(m.lab===v&&m.k in state)fromLinks.push(m.k);}catch(e){}return [...new Set([...fromState,...fromLinks])].sort();}
+function predictionLiveRows(v){const out=[];for(const [k,e] of ATLAS_BUS._d)if(k.split('.')[0]===v)out.push({key:k,value:e.v,unit:e.unit||'',age:ATLAS_BUS.age(k)});return out.sort((a,b)=>a.key.localeCompare(b.key));}
+function predictionFormulaIds(v){const prefix=PRED_FORMULA_PREFIX[v]||(v+'.'),ids=FORMULA_REGISTRY.filter(f=>f.id.startsWith(prefix)).map(f=>f.id),key=predictionAtlasKey(v),s=key?SELECT.get(key):null;
+  for(const f of s?.formulas||[])if(typeof f==='string'&&f.length<80&&!ids.includes(f))ids.push(f);return ids;}
+function predictionTests(v){const terms=PRED_TEST_TERMS[v]||[(S3_VIEW_NAMES[v]||v).toLowerCase().split(/[^a-z0-9³]+/).filter(x=>x.length>4)[0]||''];return SELF_TESTS.filter(t=>terms.some(q=>q&&t.name.toLowerCase().includes(q.toLowerCase())));}
+function predictionContract(v){const classId=predictionClassId(v),cls=PREDICTION_CLASSES[classId],key=predictionAtlasKey(v),entity=key?getAtlasEntityContract(key):null,tests=predictionTests(v),failed=tests.filter(t=>!t.pass),inputs=predictionInputKeys(v),formulas=predictionFormulaIds(v),outputs=predictionLiveRows(v);
+  return {schema:'fbs3r-prediction-contract-v1',laboratory:v,name:S3_VIEW_NAMES[v]||v,class_id:classId,class_label:cls.label,predicts:PREDICTION_TARGETS[v]||`${S3_VIEW_NAMES[v]||v} forward observables`,scope:cls.scope,
+    inputs,outputs,formula_ids:formulas,validity_domain:entity?.physics?.boundary_conditions||'laboratory-specific; inspect the active station',uncertainty:entity?.uncertainty?.semantics||'not calibrated',calibration_status:entity?.uncertainty?.calibration_status||'not encoded',precision_policy:entity?.quality?.precision_policy||'implementation-specific',
+    validation:{status:failed.length?'failed':tests.length?'implementation checks pass':'benchmark gap',tests:tests.map(t=>({name:t.name,pass:t.pass,detail:t.detail})),passed:tests.filter(t=>t.pass).length,total:tests.length},falsifier:cls.falsifier,
+    forbidden_upgrade:'A rendered match, small numerical residual or shared parameter does not upgrade this contract to calibrated empirical prediction.'};}
+function predictionReference(v){if(!state.predictionRefs)state.predictionRefs={};return state.predictionRefs[v]||(state.predictionRefs[v]={key:'',observed:'',sigma:''});}
+function predictionFormat(x){const n=Number(x);return !Number.isFinite(n)?String(x):Math.abs(n)>=1e4||(Math.abs(n)>0&&Math.abs(n)<1e-3)?n.toExponential(5):n.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');}
+function predictionBusControlsHTML(v){
+  const rows=predictionLiveRows(v),R=predictionReference(v);
+  if(!rows.length)return `<div class="note" style="color:var(--dim)">${TT('No live output has been published yet. Let the active station advance one frame; the contract remains available meanwhile.','Live-выход ещё не опубликован. Дайте активной станции выполнить один кадр; контракт уже доступен.','Noch keine Live-Ausgabe; lassen Sie die Station einen Frame laufen.')}</div>`;
+  if(!rows.some(x=>x.key===R.key))R.key=rows[0].key;
+  const cur=rows.find(x=>x.key===R.key),obs=Number(R.observed),sig=Number(R.sigma),hasObs=String(R.observed).trim()!==''&&Number.isFinite(obs),hasSigma=String(R.sigma).trim()!==''&&Number.isFinite(sig)&&sig>0;
+  const delta=cur&&Number.isFinite(Number(cur.value))&&hasObs?Number(cur.value)-obs:null,z=delta!=null&&hasSigma?delta/sig:null;
+  const residual=cur?`${esc(cur.key)} = <b>${esc(predictionFormat(cur.value))}</b>${cur.unit?' '+esc(cur.unit):''}${delta==null?' · enter a unit-compatible reference':` · residual <b>${predictionFormat(delta)}</b>${z==null?'':` · standardized <b>${predictionFormat(z)} σ</b>`}`}`:'—';
+  return `<div class="ctlrow"><label>${TT('Live output','Live-выход','Live-Ausgabe')}</label><select id="predKey" style="flex:1;min-width:0">${rows.map(x=>`<option value="${esc(x.key)}" ${x.key===R.key?'selected':''}>${esc(x.key)} · ${esc(predictionFormat(x.value))}${x.unit?' '+esc(x.unit):''}</option>`).join('')}</select></div>
+    <div class="ctlrow"><label>${TT('Observed/reference','Наблюдение/эталон','Beobachtung/Referenz')}</label><input id="predObserved" type="text" inputmode="decimal" value="${esc(R.observed)}" placeholder="value" style="min-width:0;flex:1"><input id="predSigma" type="text" inputmode="decimal" value="${esc(R.sigma)}" placeholder="σ" style="width:68px"></div>
+    <div class="note" id="predResidual" style="font-variant-numeric:tabular-nums">${residual}</div>`;
+}
+function predictionOutputSignature(v){return predictionLiveRows(v).map(x=>`${x.key}:${predictionFormat(x.value)}:${x.unit}`).join('|');}
+function predictionWorkbenchHTML(v){const C=predictionContract(v),cls=PREDICTION_CLASSES[C.class_id],formula=C.formula_ids.slice(0,5),inputs=C.inputs.slice(0,8);return `<div class="sect" id="predictionWorkbench" style="border-color:${cls.color}55;background:linear-gradient(135deg,${cls.color}12,rgba(7,16,31,.22))" data-view="${v}">
+    <b style="color:${cls.color}">⌁ ${TT('PREDICTION & VALIDATION CONTRACT','КОНТРАКТ ПРОГНОЗА И ВАЛИДАЦИИ','VORHERSAGE- & VALIDIERUNGSVERTRAG')}</b>
+    <div class="note" style="margin-top:5px"><b>${esc(C.class_label)}</b> · ${esc(C.predicts)}</div>
+    <div class="note" style="font-size:10.5px;color:var(--dim)">${esc(C.scope)}</div>
+    <div class="note" style="font-size:10.5px"><b>${TT('Inputs','Входы','Eingaben')}:</b> ${inputs.length?inputs.map(esc).join(' · '):'station-local / no scalar control'}${C.inputs.length>inputs.length?` · +${C.inputs.length-inputs.length}`:''}<br><b>${TT('Equations','Уравнения','Gleichungen')}:</b> ${formula.length?formula.map(esc).join(' · '):'declared in active station'}<br><b>${TT('Implementation gate','Проверка реализации','Implementierungsprüfung')}:</b> <span style="color:${C.validation.status==='failed'?'#ff806c':C.validation.total?'#9fe8c0':'#ffb45a'}">${esc(C.validation.status)} · ${C.validation.passed}/${C.validation.total}</span></div>
+    <div id="predBusControls" data-signature="${esc(predictionOutputSignature(v))}">${predictionBusControlsHTML(v)}</div>
+    <div class="note" style="font-size:10.5px;color:var(--dim)"><b>${TT('Validity','Область','Gültigkeit')}:</b> ${esc(C.validity_domain)}<br><b>${TT('Uncertainty','Неопределённость','Unsicherheit')}:</b> ${esc(C.uncertainty)}<br><b>${TT('Falsifier','Условие опровержения','Falsifikator')}:</b> ${esc(C.falsifier)}</div>
+    <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><button class="btn" id="predExport">⬇ ${TT('reproducible experiment','воспроизводимый эксперимент','reproduzierbares Experiment')}</button><button class="btn" id="predCompare">◱ ${TT('validation matrix','матрица валидации','Validierungsmatrix')}</button></div>
+    <div class="note" style="font-size:10px;color:#d8b781">${esc(C.forbidden_upgrade)}</div>
+  </div>`;}
+function predictionExperimentManifest(v){const C=predictionContract(v),input={};for(const k of C.inputs)if(k in state)try{input[k]=JSON.parse(JSON.stringify(state[k]));}catch(e){input[k]=String(state[k]);}return {schema:'fbs3r-reproducible-experiment-v1',generated_at:new Date().toISOString(),contract:C,inputs:input,live_outputs:predictionLiveRows(v),reference:predictionReference(v),multiview:{on:MV.on,views:MV.views.slice(0,MV.n),active:MV.active,linked_parameter:state.mvLink||null},relations:MV_LINKS.filter(L=>mvLinkLabs(L).includes(v)).map(L=>({id:L.id,kind:L.kind,unit:L.unit,peers:mvLinkLabs(L)})),special_payload:v==='cmb'?cmbExportData():null};}
+function predictionMatrixHTML(views){return `<div class="note" style="font-size:10.5px"><b>${TT('SIMULTANEOUS PREDICTION MATRIX','ОДНОВРЕМЕННАЯ МАТРИЦА ПРОГНОЗОВ','SIMULTANE VORHERSAGEMATRIX')}</b><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:5px">${views.map(v=>{const C=predictionContract(v),O=predictionLiveRows(v),cls=PREDICTION_CLASSES[C.class_id];return `<div style="border:1px solid ${cls.color}44;border-radius:7px;padding:6px"><b style="color:${cls.color}">${esc(S3_VIEW_NAMES[v]||v)}</b><br><span style="opacity:.75">${esc(C.class_label)} · tests ${C.validation.passed}/${C.validation.total}</span><br>${O.length?O.slice(0,2).map(x=>`${esc(x.key.split('.')[1])}=<b>${esc(predictionFormat(x.value))}</b>${x.unit?' '+esc(x.unit):''}`).join(' · '):'<span style="opacity:.55">awaiting live output</span>'}</div>`;}).join('')}</div><div style="margin-top:5px;color:var(--dim)">${TT('Values are compared only inside their typed units and contracts. Side-by-side proximity is not equality, correlation or causation.','Значения сравниваются только внутри их типизированных единиц и контрактов. Соседство не означает тождество, корреляцию или причинность.','Werte werden nur innerhalb typisierter Einheiten und Verträge verglichen.')}</div></div>`;}
+function predictionWorkbenchTick(v){const root=document.getElementById('predictionWorkbench');if(root&&root.dataset.view===v){const host=root.querySelector('#predBusControls'),signature=predictionOutputSignature(v);if(host&&host.dataset.signature!==signature&&!host.contains(document.activeElement)){host.dataset.signature=signature;host.innerHTML=predictionBusControlsHTML(v);}}
+  const M=document.getElementById('mvPredictionMatrix');if(M&&MV.on&&!M.contains(document.activeElement))M.innerHTML=predictionMatrixHTML(MV.views.slice(0,MV.n));}
+function bindPredictionWorkbench(v){const root=ctl.querySelector('#predictionWorkbench');if(!root)return;root.oninput=e=>{const R=predictionReference(v);if(e.target.id==='predObserved')R.observed=e.target.value;if(e.target.id==='predSigma')R.sigma=e.target.value;const out=root.querySelector('#predResidual');if(out)out.outerHTML=(()=>{const h=document.createElement('div');h.innerHTML=predictionBusControlsHTML(v);return h.querySelector('#predResidual')?.outerHTML||'<div id="predResidual"></div>';})();};
+  root.onchange=e=>{if(e.target.id==='predKey'){predictionReference(v).key=e.target.value;const host=root.querySelector('#predBusControls');if(host)host.innerHTML=predictionBusControlsHTML(v);}};
+  root.onclick=e=>{const b=e.target.closest&&e.target.closest('#predExport,#predCompare');if(!b)return;if(b.id==='predExport')downloadFile(`${v}_reproducible_experiment.json`,'application/json',JSON.stringify(predictionExperimentManifest(v),null,2));else{const P=MV_PRESETS.find(p=>p.views.includes(v))||MV_PRESETS.find(p=>p.id==='cmbmodes');if(!MV.on)mvEnter();if(P)mvApplyPreset(P.id);}};}
 function viewNameL(v){ const L=(state&&state.lang)||'en'; return (L!=='en'&&S3_VIEW_I18N[L]&&S3_VIEW_I18N[L][v])||S3_VIEW_NAMES[v]||v; }
 function updateBreadcrumb(){
   const el=document.getElementById('breadcrumb'); if(!el)return;
@@ -32055,7 +32286,7 @@ const LAB_ATLAS_DEFS=[
   ['pvAtlas','pv',pvGroup,'Photovoltaic laboratory','single-diode reference curve and maximum-power point'],
   ['su2Atlas','su2',su2Group,'SU(2) spinor laboratory','unit-quaternion double cover, belt trick and SLERP'],
   ['bhtAtlas','bht',bhtGroup,'Black-hole thermodynamics laboratory','Schwarzschild horizon temperature, entropy and idealized evaporation scaling'],
-  ['cmbAtlas','cmb',cmbGroup,'CMB low-multipole laboratory','illustrative real-Y_lm sky and large-angle anomaly context'],
+  ['cmbAtlas','cmb',cmbGroup,'CMB multipole prediction observatory','deterministic Gaussian sky synthesis, Y_lm inversion, cosmic variance and masked mode-coupling diagnostics'],
   ['mimgAtlas','mimg',mimgGroup,'S³ multiple-path laboratory','conditional round-S³ geodesic paths and observable-topology caveats'],
   ['bhrAtlas','bhr',bhrGroup,'Relativistic black-hole ray laboratory','pixelwise Schwarzschild null-geodesic integration with explicit capture and step diagnostics'],
   ['nsAtlas','ns',nsGroup,'Neutron-star TOV laboratory','reduced Tolman–Oppenheimer–Volkoff interior with declared equation-of-state dependence'],
@@ -32073,9 +32304,14 @@ for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
     key==='mimgAtlas'?['TOPOREF','DERIVED']:
     key==='bhrAtlas'?['BHTREF','ASTRO','DERIVED']:
     /^(ns|sn|psr|qso)Atlas$/.test(key)?['ASTRO','DERIVED']:['LABREF','DERIVED'];
-  const nullGeometry=key==='nulAtlas',symmetryDiscovery=key==='sydAtlas',holonomyObservatory=key==='holAtlas',actionObservatory=key==='actAtlas';
-  registerSel(key,{name,mode:'s3',pick:LAB_ATLAS_PICKS.get(key),src,accuracyTier:'M',catalogueStatus:nullGeometry?'spinor-null-mathematical-instrument':symmetryDiscovery?'finite-orbit-mathematical-instrument':holonomyObservatory?'exact-return-map-mathematical-instrument':actionObservatory?'contact-action-mathematical-instrument':'reference-model',
-    forbiddenClaims:nullGeometry?[
+  const nullGeometry=key==='nulAtlas',symmetryDiscovery=key==='sydAtlas',holonomyObservatory=key==='holAtlas',actionObservatory=key==='actAtlas',cmbObservatory=key==='cmbAtlas';
+  registerSel(key,{name,mode:'s3',pick:LAB_ATLAS_PICKS.get(key),src,accuracyTier:'M',catalogueStatus:cmbObservatory?'synthetic-gaussian-low-ell-instrument':nullGeometry?'spinor-null-mathematical-instrument':symmetryDiscovery?'finite-orbit-mathematical-instrument':holonomyObservatory?'exact-return-map-mathematical-instrument':actionObservatory?'contact-action-mathematical-instrument':'reference-model',
+    forbiddenClaims:cmbObservatory?[
+      'the synthetic Gaussian realization is a Planck, WMAP or observed sky map',
+      'a standardized low-multipole residual is a Gaussian p-value or anomaly significance',
+      'the f_sky variance scaling is a deconvolved mask-coupling likelihood',
+      'low power, axis proximity or matched patterns establish compact cosmic topology'
+    ]:nullGeometry?[
       'a common CP1 coordinate proves that qubits, photons and gravitational waves are one physical system',
       'three-dimensional projection distances, cone angles or colours are Minkowski or conformal observables',
       'flat SL(2,C) identities solve an arbitrary curved spacetime, cosmology or black-hole geometry',
@@ -32096,10 +32332,15 @@ for(const [key,view,group,name,scope] of LAB_ATLAS_DEFS){
       'the displayed Legendrian family exhausts knot classes or computes contact homology',
       'the KS coordinate chart is a general perturbed N-body solver or new physical effect'
     ]:['the reduced demonstrator is a calibrated material, engineering or clinical prediction','visual similarity proves physical identity across linked laboratories','a conditional topology or anomaly visualization is observational proof'],
-    desc:nullGeometry?`${scope}. Spinor, Hermitian-matrix, Minkowski and radial-conformal identities are evaluated in their native spaces before projection; the exact chain is not a claim of shared physical identity, observation or curved-spacetime generality.`:symmetryDiscovery?`${scope}. Deterministic numerical stress test over a declared finite candidate library; passing tolerance is a reproducible witness inside the displayed model, never a proof or exhaustive search.`:holonomyObservatory?`${scope}. Analytic identities are cross-checked by deterministic finite calculations; the shared closed-path architecture is not a claim of physical identity, measurement or exhaustive classification.`:actionObservatory?`${scope}. Contact, return-map, spinor and semiclassical identities are evaluated in their declared native dimensions before projection; finite checks do not imply generality or measurement.`:`${scope}. Interactive reference laboratory with explicit equations, assumptions and live diagnostics; rendering is not measurement evidence.`,
-    formulas:[scope,'laboratory-specific formulas and assumptions are displayed in its controls and invariant monitor'],
+    desc:cmbObservatory?`${scope}. A deterministic synthetic low-ell sky, exact forward power estimator, analytic full-sky cosmic variance and numerical masked inverse transform share one reproducible experiment. No observed map, fitted likelihood, anomaly significance or topology detection is fabricated.`:nullGeometry?`${scope}. Spinor, Hermitian-matrix, Minkowski and radial-conformal identities are evaluated in their native spaces before projection; the exact chain is not a claim of shared physical identity, observation or curved-spacetime generality.`:symmetryDiscovery?`${scope}. Deterministic numerical stress test over a declared finite candidate library; passing tolerance is a reproducible witness inside the displayed model, never a proof or exhaustive search.`:holonomyObservatory?`${scope}. Analytic identities are cross-checked by deterministic finite calculations; the shared closed-path architecture is not a claim of physical identity, measurement or exhaustive classification.`:actionObservatory?`${scope}. Contact, return-map, spinor and semiclassical identities are evaluated in their declared native dimensions before projection; finite checks do not imply generality or measurement.`:`${scope}. Interactive reference laboratory with explicit equations, assumptions and live diagnostics; rendering is not measurement evidence.`,
+    formulas:cmbObservatory?['cmb.harmonics','cmb.estimator','cmb.cosmic_variance','cmb.mask','cmb.parseval']:[scope,'laboratory-specific formulas and assumptions are displayed in its controls and invariant monitor'],
     getPos:()=>group.getWorldPosition(new THREE.Vector3()),focusDist:()=>view==='atom'?11:9,
-    onSelect:()=>setS3View(view),rows:()=>nullGeometry?[
+    onSelect:()=>setS3View(view),rows:()=>cmbObservatory?(()=>{const A=cmbAnalyze(),l=Math.max(2,Math.min(A.lmax,state.cmbL??2)),P=A.power.find(x=>x.l===l);return [
+      ['Active laboratory',name],['Prediction class','deterministic synthetic Gaussian forward model'],
+      ['Focused power',`D_${l}=${P.real.toFixed(3)} µK² · model ${P.model.toFixed(3)} µK²`],
+      ['Uncertainty',`full-sky cosmic variance ${(P.cv*100).toFixed(3)}% · f_sky ${A.fSky.toFixed(5)}`],
+      ['Inverse diagnostic',`coefficient residual ${A.coefficientRelativeResidual.toExponential(3)} · ${A.caveat}`],
+      ['Model status','not observed sky · not likelihood · not anomaly significance · not topology detection']];})():nullGeometry?[
       ['Active laboratory',name],['Null-geometry station',nulDiagnostics().title],
       ['Native-space residual',`${nulDiagnostics().residual.toExponential(3)} · ${nulDiagnostics().pass?'within':'outside'} tolerance`],
       ['Metric / chart contract','signature +--- · X=x⁰I+x·σ · radial diamond uses r≥0'],
@@ -32299,16 +32540,19 @@ function buildDevelopmentAudit(){
   const unresolved=EXPLICIT_RELATIONS.filter(([a,b])=>!SELECT.has(a)||!SELECT.has(b)).map(([a,b,k])=>({a,b,kind:k}));
   const withoutExplicitRelation=[...degree].filter(([,n])=>n===0).map(([key])=>key);
   const unlinked=[...SELECT.keys()].filter(key=>getObjectRelations(key).length===0);
+  const predictionContracts=Object.keys(S3_VIEW_NAMES).map(predictionContract),predictionClasses={};
+  for(const c of predictionContracts)predictionClasses[c.class_id]=(predictionClasses[c.class_id]||0)+1;
   return {schema:'fbs3r-development-audit-v1',generated:new Date().toISOString(),summary:{registeredObjects:SELECT.size,
       explicitTypedRelations:EXPLICIT_RELATIONS.length,resolvedRelationEndpoints:EXPLICIT_RELATIONS.length-unresolved.length,
       unresolvedRelations:unresolved.length,unlinkedObjects:unlinked.length,objectsWithoutExplicitRelation:withoutExplicitRelation.length,fieldSolverFamilies:Object.keys(FIELD.equations).length,
       experimentPresets:Object.values(FIELD.presets).reduce((n,p)=>n+p.length,0),referenceLaboratories:LAB_ATLAS_DEFS.length,
       quantumScenarios:4,quantumPhaseSpaceSamples:QM_WX*QM_WP,qcdScenarios:3,newFoundationalLaboratories:4,newCompactObjectLaboratories:5,
+      predictionContracts:{total:predictionContracts.length,classes:predictionClasses,implementationChecked:predictionContracts.filter(c=>c.validation.total>0&&!c.validation.tests.some(t=>!t.pass)).length,benchmarkGaps:predictionContracts.filter(c=>!c.validation.total).length,failed:predictionContracts.filter(c=>c.validation.status==='failed').length},
       causalWorkspace:CAUSAL.diagnostics(),invariantNexus:nexusDiagnostics(),contactActionObservatory:actDiagnostics(),holonomyObservatory:holDiagnostics(),symmetryDiscovery:sydDiagnostics(),vectorLayers:vectorDiagnostics()},
     sections:modeStats,relationKinds,unresolved,unlinked,withoutExplicitRelation,explicitObjectDegree:Object.fromEntries([...degree].sort((a,b)=>b[1]-a[1])),
     improvementBacklog:[
-      {priority:'P0',area:'Numerical validation',need:'Per-model convergence studies, adaptive time steps, error estimators and reference-solution comparisons before predictive use.'},
-      {priority:'P0',area:'Units and calibration',need:'Explicit SI/QUDT quantity contracts, material parameters, uncertainty distributions and calibration datasets for every physical experiment.'},
+      {priority:'P0',area:'Calibration completion',need:'The universal prediction contract now exposes every gap; add per-model convergence studies, reference solutions and benchmark datasets before promoting any laboratory to calibrated empirical prediction.'},
+      {priority:'P0',area:'Units and uncertainty',need:'Complete SI/QUDT quantity contracts, material parameters, covariance-aware uncertainty distributions and calibration datasets for every physical experiment.'},
       {priority:'P0',area:'Causal inference',need:'Keep the ontology graph separate from statistical causal identification; add datasets, interventions, assumptions and falsifiable tests before any causal claim.'},
       {priority:'P1',area:'High-performance solvers',need:'Move large lattices to WebGPU/WASM workers; add multigrid Poisson, FFT spectral solvers and reproducible device-independent kernels.'},
       {priority:'P1',area:'Cross-laboratory coupling',need:'Typed unit-safe ports, conservation ledgers and operator splitting so heat, chemistry, mechanics, electromagnetism and biology can be coupled without hidden scale changes.'},
@@ -32328,6 +32572,7 @@ globalThis.FBS3R_ATLAS=Object.freeze({
   scorecards:atlasScorecards,
   interaction:INTERACTION,
   collisionLayers:COLLISION_LAYERS,
+  predictionContract,
   developmentAudit:buildDevelopmentAudit,
 });
 globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
@@ -32338,6 +32583,8 @@ globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
    verify that every destination in the atlas is genuinely represented in 3D. */
 globalThis.FBS3R_QA=Object.freeze({
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
+  prediction(view=state.s3view){return predictionContract(view);},
+  predictions(){return Object.keys(S3_VIEW_NAMES).map(predictionContract);},
   telemetry(){return {...ATLAS_TELEMETRY};},
   multiview(){return {on:MV.on,n:MV.n,active:MV.active,sync:MV.sync,preset:MV.presetId,hudOwner:mvHudOwner(),
     views:MV.views.slice(0,MV.n),rects:MV.rects.map(r=>({...r}))};},
@@ -32392,8 +32639,10 @@ globalThis.FBS3R_QA=Object.freeze({
       wikipediaSearch:wiki.includes('/Special:Search?'),hasPick:!!s.pick};});},
   blackHole(){try{const M=bhtM||state.bhtM||BHT_MSUN;return {massKg:M,schwarzschildRadiusM:bhtRs(M),temperatureK:bhtTH(M),entropyOverKb:bhtS(M)/BHT_kB,
     idealizedLuminosityW:bhtLum(M),idealizedLifetimeYears:bhtEvapYr(M),assumptions:'Schwarzschild; isolated; simplified coefficient; no greybody/species/accretion/final quantum gravity'};}catch(e){return {err:String(e)};}},
-  cmb(){try{return {mode:state.cmbMode,quadrupoleIllustrative:CMB_DL[0],skyVertices:cmbObjs?.sky?.geometry?.attributes?.position?.count||0,
-    caveat:'illustrative deterministic map and summary; not a Planck likelihood re-analysis or topology detection'};}catch(e){return {err:String(e)};}},
+  cmb(){try{const A=cmbAnalyze(),l=Math.max(2,Math.min(A.lmax,state.cmbL??2)),P=A.power.find(x=>x.l===l);return {schema:A.schema,station:state.cmbMode,seed:A.seed,lmax:A.lmax,focus_l:l,
+    model_Dl_microK2:P.model,realization_Dl_microK2:P.real,pseudo_Dl_microK2:P.pseudo,cosmic_variance_fraction:P.cv,f_sky:A.fSky,
+    coefficient_relative_residual:A.coefficientRelativeResidual,skyVertices:cmbObjs?.sky?.geometry?.attributes?.position?.count||0,
+    caveat:'synthetic Gaussian realization and reduced plateau model; not a Planck map, likelihood, anomaly p-value or topology detection'};}catch(e){return {err:String(e)};}},
   multipleImaging(){try{const chi=state.mimgChi??.4*Math.PI;return {chi,directArc:chi,longArc:2*Math.PI-chi,sum:2*Math.PI,
     caveat:'observable repeats require sufficient conformal time and detectable compact topology'};}catch(e){return {err:String(e)};}},
   developmentAudit(){return buildDevelopmentAudit();},
@@ -32563,9 +32812,11 @@ function labPassportBusHTML(v){
 }
 let passBusAcc=0;
 function labPassportTick(dt){
-  const el=document.getElementById('passBus'); if(!el) return;
   passBusAcc+=dt; if(passBusAcc<0.6) return; passBusAcc=0;
-  if(state.mode==='s3'&&state.s3view) el.innerHTML=labPassportBusHTML(state.s3view);
+  if(state.mode!=='s3'||!state.s3view) return;
+  const el=document.getElementById('passBus');
+  if(el) el.innerHTML=labPassportBusHTML(state.s3view);
+  predictionWorkbenchTick(state.s3view);
 }
 function labPassportHTML(){
   if(state.mode!=='s3') return '';

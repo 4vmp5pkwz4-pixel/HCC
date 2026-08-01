@@ -197,6 +197,72 @@ action. Every export must preserve the transformation family, sample sequence,
 candidate values, normalized residuals, tolerance, perturbation amplitude and
 the finite-scan epistemic firewall.
 
+### CMB Multipole Observatory operational contract
+
+The CMB laboratory is a deterministic low-multipole synthesis and inverse-
+transform instrument. It is not a Planck data product, likelihood engine,
+anomaly significance estimator or topology detector.
+
+Its native field is
+`Delta T(n) = sum_(l=2)^lmax sum_m a_lm Y_lm(n)` in a real, orthonormal
+spherical-harmonic basis. The reference spectrum is deliberately reduced to a
+declared Sachs-Wolfe-like plateau `D_l = l(l+1)C_l/(2 pi)` with a user-selected
+low-l power ratio. A seeded Gaussian draw makes exact replay possible; it does
+not reproduce the observed microwave sky.
+
+The observatory must expose four complementary stations:
+
+| Station | Scientific object | Required diagnostic |
+|---|---|---|
+| sky synthesis | the complete seeded low-l scalar field on S2 | model and realization `D_l`, seed and basis range |
+| mode tomography | one selected `(l,m)` component or pure basis function | selected coefficient sector and Laplacian representation |
+| axis geometry | a controlled quadrupole-octopole orientation hypothesis | declared angular separation, without a posteriori significance |
+| mask residual | forward sky minus the disclosed inverse-transform reconstruction | `f_sky`, coefficient residual and method caveat |
+
+For full-sky Gaussian fields the displayed fractional cosmic variance is the
+exact model consequence `sqrt(2/(2l+1))`. With a sky mask, division by
+`sqrt(f_sky)` is labelled an approximation. The masked inverse is an
+`f_sky`-corrected pseudo-`C_l` diagnostic; because its mode-coupling matrix is
+not deconvolved, it must never be presented as an unbiased recovered spectrum.
+
+Relief, armillary radius, contour opacity, tracer speed and color are display
+encodings only. The export must preserve coefficients, spectrum, seed, mask,
+reconstruction residual, estimator convention, source labels and the explicit
+list of forbidden observational claims.
+
+## Prediction and validation contract
+
+Every S3 laboratory is assigned exactly one operational prediction class:
+
+1. **exact model consequence**;
+2. **numerical forward simulation**;
+3. **parameterized reference model**;
+4. **conditional scenario prediction**;
+5. **exploratory inference instrument**.
+
+The class is part of the claim. A theorem consequence, a computed trajectory,
+a phenomenological equation, a hypothesis-conditional observable and a graph
+query are not interchangeable merely because each produces a number.
+
+Each generated contract must state the specific target, inputs, live outputs
+and units, governing formula identifiers, validity domain, uncertainty and
+calibration status, implementation checks and a falsifier. A user may add a
+unit-compatible reference and uncertainty to inspect raw and standardized
+residuals. That comparison is a validation aid, not an automatic calibration.
+
+Multi-View must show the active contracts and outputs simultaneously. Shared
+controls remain typed as identity, dimensionless-ratio identity or structural
+analogy. Side-by-side proximity never establishes equality, correlation or
+causation. Every contract and its current references must be exportable as a
+replayable experiment manifest.
+
+No rendered match, small residual, passing implementation test or linked
+parameter may promote a laboratory to calibrated empirical prediction. Such a
+promotion additionally requires a versioned benchmark dataset, unit and frame
+compatibility, covariance-aware uncertainty, selection effects, nuisance
+parameters and an out-of-sample validation procedure appropriate to that
+laboratory.
+
 ## Visual encoding firewall
 
 The eleven optically reconstructed laboratories use one native spatial grammar:

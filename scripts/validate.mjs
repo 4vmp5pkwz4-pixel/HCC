@@ -413,6 +413,52 @@ check(html.includes('id="cinemaFrame"') && html.includes('id="sceneTransition"')
   && html.includes('PREMIUM VISUAL ENGINE') && html.includes('@media(prefers-reduced-motion:reduce)'),
   'optional premium UI frame, transitions, responsive treatment and reduced-motion guard remain available');
 
+/* 24 · CMB low-multipole observatory: synthesis, uncertainty and inverse problem */
+check(html.includes('function cmbCoefficientSet(') && html.includes('function cmbRecover(')
+  && html.includes('function cmbAnalyze(') && html.includes('function cmbExportData('),
+  'CMB observatory exposes deterministic synthesis, numerical inverse transform, diagnostics and export');
+for (const station of ['sky','mode','alignment','residual'])
+  check(html.includes(`${station}:'`) || html.includes(`${station}: '`),
+    `CMB observatory station present: ${station}`);
+for (const formula of ['cmb.estimator','cmb.cosmic_variance','cmb.mask','cmb.parseval'])
+  check(html.includes(`id:'${formula}'`), `CMB formula registry entry present: ${formula}`);
+check(html.includes('sigma(C_l)/C_l=sqrt(2/(2l+1))')
+  && html.includes('mode-coupling matrix is not deconvolved')
+  && html.includes('not a Planck map, likelihood, anomaly p-value or topology detection'),
+  'CMB cosmic variance, masked pseudo-Cl limitation and observational firewall are explicit');
+check(html.includes('cosmic-variance armillary') && html.includes('scientificReplaceRibbon(R.band')
+  && html.includes('cmbContourPoints(') && html.includes('const tracer=scientificCrystal'),
+  'CMB model, realization, uncertainty, field contours and motion are spatial encodings rather than a presentation chart');
+check(html.includes("id:'cmbmodes'") && html.includes("views:['cmb','sh','eig','mimg']")
+  && html.includes("['cmbAtlas','bbAtlas'") && html.includes("['cmbAtlas','lensAtlas'"),
+  'CMB has a prepared Multi-View quartet plus explicit representation, spectral and lensing relations');
+check(html.includes('CMB observatory: full-sky forward/inverse harmonic transform closes below 2%')
+  && html.includes('CMB observatory: exact full-sky cosmic variance at l=2'),
+  'CMB deterministic, estimator, variance and inverse-closure runtime tests are installed');
+
+/* 25 · Universal prediction and validation workbench */
+check(html.includes('const PREDICTION_CLASSES=') && html.includes('const PREDICTION_CLASS_MEMBERS=')
+  && html.includes('const PREDICTION_TARGETS='),
+  'prediction layer declares typed classes, complete laboratory membership and specific targets');
+for (const kind of ['exact','numerical','reference','conditional','exploratory'])
+  check(new RegExp(`\\n  ${kind}:`).test(html), `prediction class present: ${kind}`);
+check(html.includes('function predictionContract(') && html.includes('function predictionExperimentManifest(')
+  && html.includes('function predictionWorkbenchHTML(') && html.includes('bindPredictionWorkbench(V)'),
+  'every active laboratory receives a generated contract, UI workbench and reproducible experiment export');
+check(html.includes('validity_domain:') && html.includes('calibration_status:')
+  && html.includes('forbidden_upgrade:') && html.includes('falsifier:cls.falsifier'),
+  'prediction contracts expose domain, calibration, validation and falsification boundaries');
+check(html.includes('id="mvPredictionMatrix"') && html.includes('function predictionMatrixHTML(')
+  && html.includes('Side-by-side proximity is not equality, correlation or causation.'),
+  'Multi-View renders simultaneous typed prediction outputs without implying equality or causation');
+check(html.includes('prediction_contracts:Object.keys(S3_VIEW_NAMES).map(predictionContract)')
+  && html.includes('predictions(){return Object.keys(S3_VIEW_NAMES).map(predictionContract);}')
+  && html.includes('Prediction contract classifies every S³ laboratory exactly once'),
+  'prediction contracts are exported, QA-queryable and guarded by exhaustive runtime coverage tests');
+check(readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Prediction and validation contract')
+  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### CMB Multipole Observatory operational contract'),
+  'scientific contract documents prediction classes and the CMB inverse-problem boundary');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));
