@@ -201,7 +201,12 @@ and Möbius cross-ratio invariance.
 
 ## Premium visual engine — one cinematic language, zero scientific drift
 
-Every mode and all 68 S³ laboratories share a restrained display system: an
+The premium layer is **optional and disabled by default**. A fresh browser keeps
+the original laboratory presentation. To opt in, open **More → Interface →
+Premium visuals: Off**; the explicit choice is saved locally and the same
+control restores the classic view at any time.
+
+When enabled, every mode and all 68 S³ laboratories share a restrained display system: an
 explicit sRGB/ACES color pipeline, domain-directed accents, a camera-facing
 precision stage, layered glass controls, cinematic view reveals and
 priority-aware CSS2D label decluttering. The stage is deliberately named and

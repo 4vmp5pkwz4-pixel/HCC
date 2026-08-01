@@ -199,7 +199,9 @@ the finite-scan epistemic firewall.
 
 ## Visual encoding firewall
 
-Shared cinematic elements are interface context, not scientific evidence. The
+The shared cinematic layer is an optional user preference and is disabled by
+default. Its absence must preserve the original laboratory presentation. When
+enabled, its elements are interface context, not scientific evidence. The
 camera-facing precision stage, glow, bloom, glass surfaces, transition veil and
 domain accent must never be read as an additional coordinate system, field,
 confidence interval, energy density or measured magnitude. Domain accents are

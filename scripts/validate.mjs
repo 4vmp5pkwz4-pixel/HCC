@@ -327,9 +327,12 @@ check(html.includes('spinorLightcone(station=state.nulStation')
   'Spinor & Light-Cone diagnostics, manifest payload and native-space epistemic firewall are exposed');
 
 /* 22 · Premium visual engine: cinematic consistency without scientific mutation */
-check(html.includes('renderer.outputColorSpace=THREE.SRGBColorSpace')
-  && html.includes('renderer.toneMapping=THREE.ACESFilmicToneMapping'),
-  'premium display pipeline declares sRGB output and ACES filmic highlight roll-off');
+check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
+  && html.includes('renderer.toneMapping=premiumVisualsEnabled?THREE.ACESFilmicToneMapping:THREE.NoToneMapping'),
+  'classic presentation is the fresh-browser default and ACES is explicit opt-in');
+check(html.includes('id="premiumVisualsBtn"') && html.includes('aria-pressed="false"')
+  && html.includes('function setPremiumVisuals(') && html.includes("PREMIUM_VISUALS_KEY='s3.premiumVisuals'"),
+  'settings exposes one persistent Premium visuals switch, off by default');
 check(html.includes('const PREMIUM_POST_MAX=') && html.includes('function premiumPerformanceTick(')
   && html.includes("premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure')")
   && html.includes("premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery')"),
@@ -341,15 +344,19 @@ check(html.includes('function premiumDeclutterLabels(') && html.includes("classL
   && html.includes('premiumLabelPriority('),
   'global priority-based CSS2D collision management is wired');
 check(html.includes("premiumStage.name='Cinematic non-metric laboratory stage'")
-  && html.includes('premiumStage.visible=op>0&&!mv&&!xr&&!webglContextLost')
+  && html.includes('premiumStage.visible=premiumVisualsEnabled&&op>0&&!mv&&!xr&&!webglContextLost')
   && html.includes('premiumStage.visible=false; // a single camera-facing stage is invalid across four tile cameras'),
-  'cinematic stage is explicitly non-metric and excluded from XR, Multiview and context-loss states');
+  'cinematic stage is opt-in, explicitly non-metric and excluded from XR, Multiview and context-loss states');
 check(html.includes('const PREMIUM_VIEW_DOMAINS=') && html.includes('premiumApplyProfile(')
   && html.includes("root.style.setProperty('--lab-accent'"),
   'laboratory-domain color direction is centralized and UI/scene synchronized');
+check(html.includes('#cinemaFrame,#sceneTransition{display:none}')
+  && html.includes('body.premium-visuals #cinemaFrame') && html.includes('body.premium-visuals .panel')
+  && html.includes('body.premium-visuals .label.declutter-hidden'),
+  'all premium UI, frame and label styling is scoped behind the opt-in body class');
 check(html.includes('id="cinemaFrame"') && html.includes('id="sceneTransition"')
   && html.includes('PREMIUM VISUAL ENGINE') && html.includes('@media(prefers-reduced-motion:reduce)'),
-  'premium UI frame, transitions, responsive treatment and reduced-motion guard exist');
+  'optional premium UI frame, transitions, responsive treatment and reduced-motion guard remain available');
 
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
