@@ -118,8 +118,9 @@ The same graph has two continuously morphable embeddings:
 - **disciplinary geography** groups laboratories into geometry/topology,
   quantum/matter, waves/materials, dynamics/phase space, thermodynamics/dense
   matter and astrophysics/observation;
-- **invariant geography** is deterministically projected from each node's
-  eight-component relation signature.
+- **relational spectral geography** uses three non-trivial eigenvectors of the
+  unweighted normalized-adjacency graph, computed by deterministic orthogonal
+  iteration; it is a topology-of-the-registry view, not an evidence metric.
 
 Click/tap/XR-select a luminous node to inspect its scientific contract,
 double-activate to approach it, filter the graph by relation class, trace a
@@ -128,6 +129,12 @@ path nodes in Multiview, or export the complete graph as
 `fbs3r_invariant_nexus.json`. Graph distance and embedding coordinates are
 explicitly non-metric: they are not physical distance, evidence strength,
 similarity magnitude or causal effect size.
+
+The default local lens shows only the focused neighbourhood and traced route.
+Explicit path, structural-hypothesis and global lenses are available. Proposed
+bridges are ranked by a leave-one-declared-edge-out resource-allocation audit;
+they remain unadmitted curation prompts until a typed claim, source and review
+are supplied.
 
 ## Spinor & Light-Cone Observatory — from S³ phase to null infinity
 
@@ -427,6 +434,21 @@ S³ topology or the FBS3R ladder as detected facts.
 
 `SCIENTIFIC_CONTRACT.md` defines the required epistemic statuses, typed-datum
 metadata, relation taxonomy and validation obligations for future laboratories.
+
+## Predictive foundations
+
+The Smith laboratory can now ingest Touchstone S1P/S2P sweeps, fit and reject a
+transparent series-RLC inverse on unseen samples, and render measurement,
+forecast and uncertainty directly on the Riemann sphere. Invariant Nexus uses
+an uncluttered local lens and deterministic spectral geometry; its proposed
+bridges are held-edge-calibrated curation hypotheses, never automatic laws.
+Symmetry, Holonomy, Contact and Spinor laboratories share sensitivity,
+uncertainty, exact-holdout and inverse-target instruments. Black-hole
+thermodynamics includes a restored, non-random Schwarzschild radiation field
+alongside the Kerr and evaporation stations.
+
+The implementation decisions and scientific rejection gates are recorded in
+[PREDICTIVE_FOUNDATIONS_AUDIT.md](PREDICTIVE_FOUNDATIONS_AUDIT.md).
 
 ## Validation
 
