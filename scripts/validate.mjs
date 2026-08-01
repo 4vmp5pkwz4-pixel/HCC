@@ -381,10 +381,10 @@ check(html.includes("dense=D.station==='return'")
   && html.includes('renderer.renderLists?.dispose?.()')
   && html.includes('function scientificCameraPreset('),
   'exposure, curves, reverse flow, instancing, GPU lifetime and narrow-screen framing are guarded');
-check(['sydGroup','holGroup','actGroup','nulGroup','nexusGroup'].every(g=>html.includes(`s3Group.add(${g})`))
-  && !['sydGroup','holGroup','actGroup','nulGroup','nexusGroup'].some(g=>html.includes(`scene.add(${g})`)),
+check(['sydGroup','holGroup','actGroup','nulGroup','nexusGroup','rmhdGroup','wdGroup'].every(g=>html.includes(`s3Group.add(${g})`))
+  && !['sydGroup','holGroup','actGroup','nulGroup','nexusGroup','rmhdGroup','wdGroup'].some(g=>html.includes(`scene.add(${g})`)),
   'recent S3 observatories are contained by the S3 mode root and cannot leak into Solar or Observable');
-check(html.includes("const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','qcd','cmb','ns','sn','psr','qso']")
+check(html.includes("const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','qcd','cmb','ns','sn','psr','qso','rmhd','wd']")
   && html.includes('scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true)')
   && html.includes("if(mode!=='s3')scientificReleaseInactiveLabs('',true)"),
   'transient GPU laboratories have a bounded keep-set in Multiview and are force-released outside S3');
@@ -487,6 +487,41 @@ check(readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Prediction and 
   && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### CMB Multipole Observatory operational contract')
   && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('### Supernova Radiation-Hydrodynamics operational contract'),
   'scientific contract documents prediction classes plus the CMB and Supernova model boundaries');
+
+/* 26 · Stellar / compact-object best-of-both audit and new physical rung */
+check(['flux','helicity','reconnection','shock','instability'].every(s=>html.includes(`${s}:'`))
+  && html.includes('function rmhdDiagnostics(') && html.includes('function rmhdExportData(')
+  && ['rmhd.flux','rmhd.helicity','rmhd.sweet_parker','rmhd.shock','rmhd.rt'].every(id=>html.includes(`id:'${id}'`)),
+  'Radiation-MHD observatory exposes five reduced stations, analytic diagnostics, provenance and reproducible export');
+check(html.includes('Gauss integral of the displayed closed flux pair measures one link')
+  && html.includes('Sweet–Parker inflow and sheet aspect are exactly')
+  && html.includes('magnetic tension crosses the linear Rayleigh–Taylor stability boundary'),
+  'Radiation-MHD linking, reconnection, shock and stability benchmark tests are installed');
+check(html.includes('function wdMch(') && html.includes('function wdRadiusKm(') && html.includes('function wdDiagnostics(')
+  && html.includes('const N=30,inst=new THREE.InstancedMesh')
+  && html.includes("id:'wd.chandrasekhar'") && html.includes("id:'wd.nauenberg'"),
+  'White-dwarf laboratory computes the composition-dependent Chandrasekhar/Nauenberg family and renders configurations, not a chart');
+check(html.includes('White dwarf: μ_e=2 gives M_Ch=1.454 M☉')
+  && html.includes('contracts monotonically and tends toward zero at the analytic endpoint'),
+  'White-dwarf canonical radius and endpoint monotonicity runtime tests are installed');
+check(html.includes('function bhtKerr(') && html.includes('KERR HORIZON · black surface r₊')
+  && html.includes('Schwarzschild evaporation worldtube')
+  && html.includes('increasing spin shrinks horizon area and surface-gravity temperature'),
+  'Black-hole thermodynamics separates exact Kerr horizon quantities from idealized Schwarzschild evaporation');
+check(html.includes('OUTGOING NULL WAVEFRONTS') && html.includes('normalized Stokes state on S²')
+  && html.includes('test masses · h₊ stretches space') && !html.includes('GW_NW'),
+  'Gravitational-wave laboratory uses native null wavefronts, tensor polarization and detector response without a flat waveform strip');
+check(html.includes("id:'stellar-cycle'") && html.includes("views:['wd','sn','ns','rmhd']")
+  && html.includes("id:'magnetized-plasma'") && html.includes("views:['rmhd','psr','qso','hopfion']")
+  && html.includes('radiationMhd(){try{return rmhdDiagnostics();}')
+  && html.includes('whiteDwarf(){try{return wdDiagnostics();}'),
+  'stellar-cycle and magnetized-plasma Multi-View quartets plus read-only QA diagnostics are integrated');
+check(readFileSync('STELLAR_BLACK_HOLE_AUDIT.md','utf8').includes('## New missing rung: white dwarfs')
+  && readFileSync('STELLAR_BLACK_HOLE_AUDIT.md','utf8').includes('## New bridge: Radiation-MHD and magnetic helicity')
+  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Compact-object and radiation-MHD extensions')
+  && readFileSync('README.md','utf8').includes('69 scientific laboratory views around it through 144 declared relations')
+  && readFileSync('README.md','utf8').includes('all 70 S³ laboratories'),
+  'stellar lineage, best-of-both decisions and scientific model boundaries are documented');
 
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'

@@ -61,7 +61,7 @@ Density Chamber, Fibonacci Energy Ladder, S³/FBS Bridge, Sensitivity).
 Sky zodiac constellations and the Precession **Age Wheel** are now explicitly
 separate labelled layers with deconflicted labels.
 
-## Scientific optical reconstruction — eleven laboratories
+## Scientific optical reconstruction — laboratory and stellar audit
 
 Invariant Nexus, Symmetry Discovery, Holonomy, Contact & Action, Spinor & Light
 Cone, DRD, Chromodynamics, Neutron Star, Supernova, Pulsar and Quasar now follow
@@ -80,6 +80,18 @@ accretion and streamline jets. The original five observatories retain their
 exact solvers and exports while their linework, glow hierarchy and moving probes
 use the same disciplined grammar.
 
+The stellar/compact-object extension applies the same best-of-both audit to the
+historical neutron-star, supernova, pulsar, quasar, black-hole and
+gravitational-wave scenes. It restores useful spatial configuration families,
+separates Kerr horizon thermodynamics from Schwarzschild evaporation and ray
+imaging, adds Goldreich-Julian/RVM pulsar observables, and replaces the flat GW
+strip with native null-wavefront, polarization and detector-response geometry.
+The missing electron-degenerate rung is now a composition-dependent
+white-dwarf mass-radius laboratory. A separate five-station Radiation-MHD &
+Helicity Observatory supplies reduced frozen-flux, helicity, reconnection,
+normal-shock and magnetized Rayleigh-Taylor benchmarks without claiming a full
+radiation-GRMHD solver.
+
 The core uses custom Fresnel/filament and particle shaders, deterministic
 `BufferGeometry`, parametric surfaces, sharp crystal probes and bounded
 instancing. Mobile budgets reduce only representative visual density; solver
@@ -88,12 +100,14 @@ Inactive high-density station geometry is released outside Multiview, and the
 same native scene remains stereo-safe in XR. The separate cinematic stage is
 still an explicit setting and remains disabled by default. Attribution, the
 station-by-station mapping, visual firewall and release gates are recorded in
-[`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md).
+[`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md). Stellar lineage,
+best-of-both decisions and model boundaries are recorded in
+[`STELLAR_BLACK_HOLE_AUDIT.md`](STELLAR_BLACK_HOLE_AUDIT.md).
 
 ## Invariant Nexus — the atlas of relationships
 
 The S³ mode includes **Invariant Nexus**, an immersive typed graph spanning all
-67 scientific laboratory views around it through 130 declared relations. Its edges distinguish
+69 scientific laboratory views around it through 144 declared relations. Its edges distinguish
 eight operational classes: exact identity, representation, shared invariant,
 limit/reduction, coupling/input, causal succession, structural analogy and
 contrast/hypothesis test. Every edge carries a plain-language claim and model
@@ -237,7 +251,7 @@ the original laboratory presentation. To opt in, open **More → Interface →
 Premium visuals: Off**; the explicit choice is saved locally and the same
 control restores the classic view at any time.
 
-When enabled, every mode and all 68 S³ laboratories share a restrained display system: an
+When enabled, every mode and all 70 S³ laboratories share a restrained display system: an
 explicit sRGB/ACES color pipeline, domain-directed accents, a camera-facing
 precision stage, layered glass controls, cinematic view reveals and
 priority-aware CSS2D label decluttering. The stage is deliberately named and
@@ -324,7 +338,7 @@ Invariant light-sphere screens: ct₀ = 13.788 Gly, S²_LSS, particle horizon
 S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 
 ### ⬡ S³ Carrier & Hopf (1 unit = 100 Gly)
-- **Invariant Nexus** — 67 laboratory nodes, 130 typed relations, six disciplinary domains, eight
+- **Invariant Nexus** — 69 laboratory nodes, 144 typed relations, six disciplinary domains, eight
   epistemic edge classes, a disciplinary↔invariant layout morph, typed
   pathfinding, Multiview comparison and JSON export;
 - **Spinor & Light-Cone Observatory** — five exact stations linking a normalized
@@ -341,6 +355,14 @@ S²_ph = 46.125 Gly; clustered large-scale structure inside B³_χ(p).
 - **Symmetry Discovery Chamber** — five transformation spaces, twenty candidate
   observables, nine exact benchmark invariants, finite-orbit residual braids,
   a controlled symmetry-break perturbation, Multiview anchors and JSON export;
+- **Radiation-MHD & Helicity Observatory** — five reduced spatial benchmark
+  stations for frozen flux, closed-domain magnetic helicity, Sweet-Parker
+  reconnection, a normal-shock baseline and magnetized Rayleigh-Taylor growth,
+  with typed stellar/plasma bridges and reproducible export;
+- **White-dwarf degeneracy laboratory** — the composition-dependent
+  Chandrasekhar endpoint and Nauenberg zero-temperature mass-radius family,
+  rendered as a cutaway plus actual spatial stellar configurations and joined
+  to the white-dwarf → supernova → neutron-star cycle;
 - the foundational sub-laboratories include:
 - **Section** — R = 548.3245 Gly great 2-sphere; observable cap θ = 4.82°
   (Γ_obs = 0.0126 %); interactive screen S²_χ with live A(χ), Γ(χ); photon on
