@@ -86,6 +86,34 @@ causal chain unless every edge is explicitly causal, correctly oriented and
 valid under one compatible scenario. JSON exports must preserve the edge type,
 claim, status, direction flag and this non-metric disclaimer.
 
+### Spinor & Light-Cone Observatory operational contract
+
+Spinor & Light-Cone Observatory is a chain of five **exact representation
+experiments**. Its common projective geometry does not make a qubit, photon,
+polarization frame, gravitational wave or conformal boundary one physical
+observable.
+
+| Station | Exact anchor | Independent check | Validity boundary |
+|---|---|---|---|
+| spinor → future null ray | `k^μ=ψ†σ^μψ`, `k·k=0`, `k⁰>0` for normalized `ψ∈C²` | rank-one determinant of `2ψψ†`, spinor normalization and direction before/after common U(1) phase | normalized two-spinors and the associated CP¹ direction; not a photon preparation or qubit-to-photon identification |
+| `SL(2,C)` → Lorentz | `X′=AXA†`, `det X′=det X=x·x` | determinant one, interval closure, time orientation and identical transformations from `A` and `−A` | proper orthochronous flat-spacetime kinematics; no curvature or Einstein-equation solver |
+| celestial Möbius map | `ζ′=(c+dζ)/(a+bζ)` for the displayed matrix convention | projective-spinor agreement, transformed-null-direction agreement, nullity and four-point complex cross-ratio closure | observer sky coordinates only; drawn separations, chords and colors are not angles, fluxes or lensing data |
+| null tetrad & spin weight | spin dyad gives `l·n=1`, `m·m̄=−1`, all other required contractions zero | opposite dyad rephasing fixes `l,n`, rotates `m` by weight one and `m⊗m` by weight two | local flat null frame and polarization phase; no curvature scalar, source waveform or detector response |
+| conformal null diamond | `U=atan((t−r)/L)`, `V=atan((t+r)/L)` preserve `U=const` and `V=const` null families | inverse-map closure and outgoing/ingoing coordinate drift | radial `1+1`, `r≥0` section of flat Minkowski spacetime only; not a cosmological or black-hole Penrose diagram |
+
+Every invariant must be computed in C², Herm(2), Minkowski R^(1,3), or the
+declared radial conformal section before its 3D interface projection. Displayed
+Euclidean lengths and angles are not promoted to native Lorentzian or
+projective observables. Residuals are deterministic binary64 implementation
+checks, not experimental uncertainties or evidence for a new physical effect.
+
+Every Spinor & Light-Cone export must preserve the station catalog, parameters,
+native complex/matrix/vector values, metric and Pauli conventions,
+discretisation counts, residual, tolerance, contract, caveat and epistemic
+firewall. Passing all five stations does not extend flat-space identities to an
+arbitrary curved metric, solve quantum gravity, classify all spin structures,
+or identify the five represented systems physically.
+
 ### Holonomy Observatory operational contract
 
 Holonomy Observatory is a family of five **declared mathematical return-map
