@@ -35,7 +35,8 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 15 | Holonomy Observatory declares five closed-path stations, analytic identities, independent finite closure checks, gauge/conjugacy invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a cross-domain epistemic firewall |
 | 16 | Contact & Action Observatory declares five exact stations, native R⁴ contact/KS checks, return-map and semiclassical invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a native-dimension epistemic firewall |
 | 17 | Spinor & Light-Cone Observatory declares five exact native-space stations, Pauli/Lorentz/Möbius/null-tetrad/conformal identities, Atlas/Nexus/Multiview wiring, reproducible JSON and a flat-space epistemic firewall |
-| 18 | Premium visual engine is disabled on a fresh browser, exposed through one persistent settings switch, fully CSS/render scoped, and still declares sRGB/ACES output, complete 68-laboratory coverage, bounded adaptive bloom, reduced-motion support and XR/Multiview exclusions when opted in |
+| 18 | Native scientific spatial core provides volumetric paths, shader surfaces, parametric manifolds, instanced flows/frame fields and degenerate-curve guards across the five rebuilt observatories; legacy detached bars/needles/ring cores are absent |
+| 19 | Premium visual engine is disabled on a fresh browser, exposed through one persistent settings switch, fully CSS/render scoped, and still declares sRGB/ACES output, complete 68-laboratory coverage, bounded adaptive bloom, reduced-motion support and XR/Multiview exclusions when opted in |
 
 ## Manual test checklist (desktop)
 
@@ -56,14 +57,14 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] S³ → Section: χ slider live A(χ)/Γ(χ); photon loop reaches Γ=100 % at t ≥ 1722.6 Gyr.
 - [ ] S³ → Hopf: density rebuilds fibres; flow beads slide; moving fibre A/B never unlinks; base-S² dots track.
 - [ ] S³ → Eigenmodes: β/m sliders repaint Y_ℓm; readouts update (λ_β, k_β, g_β=β², wavelength).
-- [ ] S³ → Invariant Nexus: 67 luminous laboratory nodes and 130 typed relations appear across six labelled domains; the HUD reports one connected universe and no console error occurs.
+- [ ] S³ → Invariant Nexus: 67 crystal laboratory nodes and 130 volumetric typed conduits appear across six translucent domain volumes around the eight-axis relation tensor; the HUD reports one connected universe and no console error occurs.
 - [ ] Nexus relation filters show only the selected edge class; node color/proximity never removes the visible disclaimer that graph distance is non-metric.
 - [ ] Nexus dimensional morph moves continuously from disciplinary geography (`0`) to invariant-signature geography (`1`), remains finite at both ends and is reversible.
 - [ ] Nexus path Spin → Black-hole thermodynamics resolves; each hop displays its edge class and claim. A restrictive disconnected filter reports “no path” instead of fabricating one.
 - [ ] Clicking/tapping a Nexus node opens its relation-space contract; double-click focuses it; **open focused laboratory** enters the real laboratory.
 - [ ] **Compare path in Multiview** opens the first 2–4 path laboratories without treating their sequence as causal.
 - [ ] Nexus JSON export parses, contains 67 nodes and 130 relations, both coordinate arrays, typed/status-bearing edges and the non-metric/non-equivalence disclaimer.
-- [ ] S³ → Spinor & Light Cone: all five station chips rebuild finite stereo-safe 3D geometry, a moving marker, invariant core and phase dial without console errors or orphan labels.
+- [ ] S³ → Spinor & Light Cone: all five station chips rebuild finite stereo-safe sphere/cone/frame/diamond geometry, volumetric null paths, a moving crystal and a phase-fibre braid without console errors or orphan labels.
 - [ ] Spinor → null ray: `k·k`, `det(2ψψ†)`, normalization and common-phase direction drift remain below tolerance while `k⁰>0` over the full two-control sweep.
 - [ ] `SL(2,C)` → Lorentz: `det A=1`, the Minkowski interval and time orientation close; replacing `A` with `−A` leaves the induced transformation unchanged.
 - [ ] Celestial Möbius: projective-spinor and transformed-null directions agree, nullity closes and the complex four-point cross-ratio remains invariant.
@@ -71,13 +72,13 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Conformal diamond: the event round-trip closes, `U=const` outgoing and `V=const` ingoing families remain null, and the scope stays visibly restricted to radial flat spacetime.
 - [ ] Spinor & Light Cone **compare exact neighbours** opens the declared four-view Multiview preset without turning a representation or analogy into physical identity.
 - [ ] Spinor & Light Cone JSON parses with all five station contracts, native values, conventions, deterministic sample counts, residuals and the explicit non-observation/non-curved-spacetime firewall.
-- [ ] S³ → Holonomy Observatory: all five station chips rebuild a finite 3D path, moving marker, invariant core and return-phase dial without console errors or orphan labels.
+- [ ] S³ → Holonomy Observatory: all five station chips rebuild a finite 3D path, moving crystal, sampled transported-frame field, flux surface and co-located start/return vectors without console errors or orphan labels.
 - [ ] S² station: sweep both controls; `K·A` remains equal to `Ω` when `R` changes and the 1,024-step transport residual stays within its declared tolerance.
 - [ ] Berry station: increase the local-gauge amplitude through its full range; the 257-vertex phase remains gauge invariant and stays converged on `−Ω/2` within the displayed polygon tolerance.
 - [ ] SU(2), Wigner and Möbius stations: noncommuting order produces a visible return defect while unit norm/determinant/interval and conjugacy trace remain closed.
 - [ ] Holonomy **Open exact anchors in Multiview** produces a four-laboratory comparison for every station without treating shared closed-path structure as physical identity.
 - [ ] Holonomy JSON parses with five station contracts, raw path/matrix values, deterministic discretisation metadata and the explicit non-measurement/non-exhaustive firewall.
-- [ ] S³ → Contact & Action: all five station chips rebuild finite 3D paths, moving marker, tangent/action cue and invariant core without console errors or non-finite geometry.
+- [ ] S³ → Contact & Action: all five station chips rebuild finite 3D paths, moving crystal, tangent/action cue, contact-plane field and station-specific S³/ellipsoid/KS/caustic volume without console errors or non-finite geometry.
 - [ ] Reeb station: `λ₀(R)=1`, `ι_Rdλ₀=0` and constant Hopf image close in native R⁴; the projected two-fibre Gauss integral remains within the declared finite tolerance of `|Lk|=1`.
 - [ ] Ellipsoid return station: the section map preserves determinant one; rational presets visibly close after the reported denominator while the golden-ratio preset is explicitly reported as non-closed at the finite search bound.
 - [ ] Legendrian station: every coprime `(p,q)` preset closes and the sampled maximum `|λ₀(γ̇)|` stays within tolerance; the Reeb push-off is visually distinct.
@@ -85,7 +86,8 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Maslov station: the 2,048-edge action integral agrees with `(n+1/2)ħ`, counts `μ=2`, and distinguishes the classical `2π` return from the metaplectic `−1` and `4π` return.
 - [ ] Contact & Action **Open exact bridges in Multiview** produces the declared four-laboratory comparison for every station without upgrading a bridge to physical identity.
 - [ ] Contact & Action JSON parses with all five station contracts, sample counts, native-dimensional residuals and the non-measurement/non-general-theorem firewall.
-- [ ] S³ → Symmetry Discovery: switch across SO(3), Lorentz, U(1), symplectic and Möbius spaces; the cyan exact orbit, current marker and four residual pillars stay finite.
+- [ ] S³ → Symmetry Discovery: switch across SO(3), Lorentz, U(1), symplectic and Möbius spaces; the native sphere/hyperbolic/torus/vortex/Riemann manifold, cyan exact orbit, current crystal and four residual braids stay finite and framed.
+- [ ] Stress-tour Nexus and all 20 station states in sequence: the final conformal diamond still renders, no `webglcontextlost`/shader/tick error appears, and inactive station scenes have been released outside Multiview.
 - [ ] At `epsilon_break=0`, the nine declared exact candidates pass at `10^-9` while every displayed negative control changes over its 65-sample orbit.
 - [ ] Increase `epsilon_break` to `0.12`: a coral orbit separates from cyan and at least one formerly stable candidate fails in every transformation space; reset restores exact results.
 - [ ] **Open exact anchors in Multiview** produces the documented 3–4 laboratory comparison for every space without claiming physical identity.
@@ -112,12 +114,16 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Holonomy station chips, two normalized controls, transport toggle, invariant readouts and export remain usable in the mobile bottom sheet; the scope contract is readable without horizontal clipping.
 - [ ] Contact & Action station chips, two normalized controls, action/contact readouts, Multiview and export remain usable in the mobile bottom sheet; long station contracts wrap without horizontal clipping.
 - [ ] Symmetry Discovery world chips, sweep, symmetry-break slider, tolerance and residual list remain usable in the mobile bottom sheet; no control is clipped by the safe area.
+- [ ] The five rebuilt scenes remain interactive at the mobile particle budget; dense return paths and Nexus conduits do not bloom to a white frame or stall input.
 
 ## Screenshots
 
 Screenshot comparison remains a manual release gate: open each of the seven modes
-and capture one frame per mode (desktop ≥1280 px and a phone viewport). Suggested
-names: `shots/01-solar.png … 07-fractal.png`.
+and capture one frame per mode (desktop ≥1280 px and a phone viewport), then
+capture every station of Symmetry, Holonomy, Contact & Action and Spinor & Light
+Cone plus both Nexus embeddings. Suggested mode names:
+`shots/01-solar.png … 07-fractal.png`; observatory captures should include the
+laboratory id and station id.
 
 ## Known accuracy envelopes (by design, disclosed in-app)
 

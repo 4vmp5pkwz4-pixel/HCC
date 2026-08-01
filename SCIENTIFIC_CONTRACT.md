@@ -199,6 +199,22 @@ the finite-scan epistemic firewall.
 
 ## Visual encoding firewall
 
+The five rebuilt observatories use one native spatial grammar: a path may be
+rendered as a volumetric tube, phase as a braid twist, residual as separation
+from an exact orbit, parallel transport as a sampled frame field, integrated
+curvature as an enclosed surface, and null structure as a cone or conformal
+diamond. Each mark must be generated from an already declared model output.
+Its Euclidean thickness, glow, particle density, filament frequency and scene
+placement are interface parameters, not extra coordinates, energies,
+probabilities, uncertainties, confidence scores or new invariants.
+
+Hardware adaptation may reduce tube subdivisions, instanced particle counts or
+post-processing resolution. It must not change the native sample sequence,
+solver step, analytic anchor, residual, tolerance, classification, exported
+value or epistemic status. A visually closed tube never substitutes for the
+native-space closure check, and visual intersection/proximity never creates a
+relation absent from the typed registry.
+
 The shared cinematic layer is an optional user preference and is disabled by
 default. Its absence must preserve the original laboratory presentation. When
 enabled, its elements are interface context, not scientific evidence. The

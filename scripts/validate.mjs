@@ -189,7 +189,7 @@ check(html.includes('SKY_NAME_ELS') && html.includes('label deconfliction'),
 
 /* 15 · Documentation set */
 for (const f of ['README.md','VALIDATION.md','XR_VALIDATION.md','QUEST3_TEST_PLAN.md',
-                 'QUEST3_START_HERE.md','COMPATIBILITY.md'])
+                 'QUEST3_START_HERE.md','COMPATIBILITY.md','SPATIAL_LABS_REBUILD.md'])
   check(existsSync(f), `doc exists: ${f}`);
 check(readFileSync('QUEST3_START_HERE.md','utf8').includes('xrtest=1'),
   'start-here doc explains the ?xrtest=1 sanity route');
@@ -326,7 +326,37 @@ check(html.includes('spinorLightcone(station=state.nulStation')
   && html.includes('not experimental data') && html.includes('curved-spacetime or quantum-gravity solver'),
   'Spinor & Light-Cone diagnostics, manifest payload and native-space epistemic firewall are exposed');
 
-/* 22 · Premium visual engine: cinematic consistency without scientific mutation */
+/* 22 · Native scientific spatial rendering: geometry carries the model */
+check(html.includes('function scientificFresnelMaterial(')
+  && html.includes('function scientificParametricSurface(')
+  && html.includes('function scientificReplaceRibbon('),
+  'shared scientific shader, parametric-surface and ribbon primitives exist');
+check(html.includes('new THREE.TubeGeometry(') && html.includes('new THREE.InstancedMesh(')
+  && html.includes('function scientificContactPlanes('),
+  'volumetric paths, instanced flows and transported plane fields are wired');
+check(html.includes('paths have volume, phase is twist, residual is')
+  && html.includes('geometric separation, transport carries a frame'),
+  'native visual encodings declare their scientific meaning and projection boundary');
+check(html.includes('eight-axis relation tensor')
+  && html.includes('Symmetry transformation field')
+  && html.includes('Holonomy native transport space')
+  && html.includes('Contact geometry native field')
+  && html.includes('Null geometry native field'),
+  'all five rebuilt laboratories expose distinct native spatial fields');
+check(!html.includes('SYD.bars') && !html.includes('HOL.needle')
+  && !html.includes('ACT.needle') && !html.includes('NUL.coreRings')
+  && !html.includes('NEXUS.coreRings'),
+  'legacy presentation bars, detached needles and shared ring-core templates are absent');
+check(html.includes("dense=D.station==='return'")
+  && html.includes('actualClosed=!!(closed&&pts.length>2)')
+  && html.includes('u=((raw%1)+1)%1')
+  && html.includes('#ifdef USE_INSTANCING')
+  && html.includes('function scientificReleaseInactiveLabs(')
+  && html.includes('renderer.renderLists?.dispose?.()')
+  && html.includes('function scientificCameraPreset('),
+  'exposure, curves, reverse flow, instancing, GPU lifetime and narrow-screen framing are guarded');
+
+/* 23 · Premium visual engine: cinematic consistency without scientific mutation */
 check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
   && html.includes('renderer.toneMapping=premiumVisualsEnabled?THREE.ACESFilmicToneMapping:THREE.NoToneMapping'),
   'classic presentation is the fresh-browser default and ACES is explicit opt-in');

@@ -52,13 +52,14 @@ honest capability matrix.
    diamond in stereo; its persistent volume opens the five-station native-space
    contract, while station switching continues through the ordinary S³
    controls. Holonomy Observatory renders its ordered closed path,
-   transported marker, invariant core and return-phase dial in stereo; its
-   persistent laboratory volume opens the five-station scope contract. Contact
-   & Action renders its Reeb/return/Legendrian/KS/Maslov paths, moving marker,
-   native-invariant core and phase/action dial in stereo; the persistent
-   laboratory volume opens the five-station native-dimension contract. Symmetry
-   Discovery renders exact/broken orbits and four
-   finite residual pillars; the laboratory volume is ray/pinch selectable and
+   transported crystal, sampled frame field, curvature-flux surface and
+   co-located return vectors in stereo; its persistent laboratory volume opens
+   the five-station scope contract. Contact & Action renders its
+   Reeb/return/Legendrian/KS/Maslov paths, moving crystal, contact-plane field
+   and S³/ellipsoid/KS/caustic volumes in stereo; the persistent laboratory
+   volume opens the five-station native-dimension contract. Symmetry Discovery
+   renders its five native manifolds, exact/broken orbits and four finite
+   residual braids; the laboratory volume is ray/pinch selectable and
    its card states the non-theorem, non-exhaustive contract. Multiview comparison,
    including the Spinor & Light-Cone exact-neighbour preset, remains flat-screen
    only.

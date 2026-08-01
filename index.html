@@ -11878,13 +11878,13 @@ function topoGaussLink(A,B){                          // (1/4π)∮∮ (dr₁×d
    read as a GPU freeze (the CSS2D renderer composites every orphan each frame) */
 function labWipe(group){
   const keep=[];
-  while(group.children.length){ const o=group.children.pop();
+  while(group.children.length){ const o=group.children[group.children.length-1];group.remove(o);
     if(o.userData?.atlasPersistent){keep.push(o);continue;}
     disposeCSS2D?.(o);
     o.traverse?.(x=>{ x.geometry&&x.geometry.dispose&&x.geometry.dispose();
       if(x.material){ (Array.isArray(x.material)?x.material:[x.material]).forEach(m=>m.dispose&&m.dispose()); } });
   }
-  group.children.push(...keep.reverse());
+  keep.reverse().forEach(o=>group.add(o));
 }
 let topoObjs=null, topoT=0, topoDirty=true, topoLk=null;
 function topoClear(){
@@ -18085,6 +18085,109 @@ function updateRpd(dt){
 }
 
 /* ================================================================
+   SCIENTIFIC SPATIAL RENDERING CORE · local to the five observatories.
+
+   The original implementations below used one-pixel lines, beads, dials and
+   residual pillars.  Those marks were numerically correct but behaved like a
+   slide assembled in 3-D.  The replacement primitives make the computation
+   inhabit the scene itself: paths have volume, phase is twist, residual is
+   geometric separation, transport carries a frame, and dense repeated marks
+   use instancing.  This is an interface projection, never an extra physical
+   dimension or a new invariant.
+   ================================================================ */
+const SCI_CYAN=0x62e8ff,SCI_GOLD=0xffd36a,SCI_CORAL=0xff6f86,SCI_VIOLET=0xc28dff,SCI_MINT=0x55e8c4,SCI_DEEP=0x07101f;
+let scientificGlowMap=null;
+function scientificGlowTexture(){
+  if(scientificGlowMap)return scientificGlowMap;
+  const c=document.createElement('canvas');c.width=c.height=128;const x=c.getContext('2d'),g=x.createRadialGradient(64,64,1,64,64,64);
+  g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.12,'rgba(200,238,255,.92)');g.addColorStop(.38,'rgba(90,180,255,.28)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128);
+  scientificGlowMap=new THREE.CanvasTexture(c);if('colorSpace' in scientificGlowMap)scientificGlowMap.colorSpace=THREE.SRGBColorSpace;return scientificGlowMap;
+}
+function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,intensity=1){
+  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.AdditiveBlending,
+    uniforms:{uColor:{value:new THREE.Color(color)},uAccent:{value:new THREE.Color(accent)},uOpacity:{value:opacity},uIntensity:{value:intensity},uTime:{value:0}},
+    vertexShader:`
+      varying vec3 vNormalV;varying vec3 vViewV;varying vec3 vLocal;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){vec3 transformed=position;vec3 objectNormal=normal;
+        #ifdef USE_INSTANCING
+          transformed=(instanceMatrix*vec4(transformed,1.0)).xyz;
+          objectNormal=mat3(instanceMatrix)*objectNormal;
+        #endif
+        vLocal=transformed;vec4 mv=modelViewMatrix*vec4(transformed,1.0);vNormalV=normalize(normalMatrix*objectNormal);vViewV=normalize(-mv.xyz);gl_Position=projectionMatrix*mv;
+        #include <logdepthbuf_vertex>
+      }
+    `,
+    fragmentShader:`
+      uniform vec3 uColor;uniform vec3 uAccent;uniform float uOpacity;uniform float uIntensity;uniform float uTime;
+      varying vec3 vNormalV;varying vec3 vViewV;varying vec3 vLocal;
+      #include <logdepthbuf_pars_fragment>
+      void main(){
+        #include <logdepthbuf_fragment>
+        float rim=pow(1.0-abs(dot(normalize(vNormalV),normalize(vViewV))),2.25);
+        float wave=.5+.5*sin(dot(vLocal,vec3(5.7,7.9,4.3))+uTime*.48);
+        float filament=pow(wave,14.0);vec3 col=mix(uColor,uAccent,clamp(rim*.7+filament*.18,0.0,1.0));
+        float a=uOpacity*(.13+.87*rim)+uOpacity*.24*filament;
+        gl_FragColor=vec4(col*(.42+1.45*rim+.46*filament)*uIntensity,min(.92,a));}
+    `});
+  m.userData.scientificFresnel=true;return m;
+}
+function scientificCurve(points,closed=false){
+  const pts=[];for(const p of points||[]){const v=p?.isVector3?p.clone():new THREE.Vector3(...p);if(!Number.isFinite(v.x+v.y+v.z))continue;if(!pts.length||v.distanceToSquared(pts[pts.length-1])>1e-10)pts.push(v);}
+  if(closed&&pts.length>2&&pts[0].distanceToSquared(pts[pts.length-1])<1e-8)pts.pop();
+  const actualClosed=!!(closed&&pts.length>2);
+  if(pts.length===2)return {curve:new THREE.LineCurve3(pts[0],pts[1]),points:pts,closed:false};
+  return {curve:pts.length>2?new THREE.CatmullRomCurve3(pts,actualClosed,'centripetal',.45):null,points:pts,closed:actualClosed};
+}
+function scientificTube(points,color=SCI_CYAN,radius=.035,opacity=.9,closed=false,segments){
+  const q=scientificCurve(points,closed),n=Math.max(12,segments||q.points.length*2),g=q.curve?new THREE.TubeGeometry(q.curve,n,radius,7,q.closed):new THREE.BufferGeometry();
+  const m=new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:1.35,roughness:.18,metalness:.28,transparent:opacity<1,opacity,depthWrite:false,blending:THREE.AdditiveBlending});
+  const mesh=new THREE.Mesh(g,m);mesh.renderOrder=5;mesh.userData.scientificTube={radius,closed,segments};return mesh;
+}
+function scientificReplaceTube(mesh,points,closed=mesh?.userData?.scientificTube?.closed||false){
+  if(!mesh)return;const pts=(points||[]).map(p=>p?.isVector3?p:new THREE.Vector3(...p));mesh.visible=pts.length>1;if(pts.length<2)return;
+  const spec=mesh.userData.scientificTube||{radius:.035,segments:0},q=scientificCurve(pts,closed),n=Math.max(12,spec.segments||q.points.length*2);mesh.visible=!!q.curve;if(!q.curve)return;mesh.geometry?.dispose?.();mesh.geometry=new THREE.TubeGeometry(q.curve,n,spec.radius||.035,7,q.closed);mesh.geometry.computeBoundingSphere();
+}
+function scientificRibbon(points,width=.16,color=SCI_GOLD,opacity=.28,closed=false){
+  const mesh=new THREE.Mesh(new THREE.BufferGeometry(),scientificFresnelMaterial(color,color,opacity,.8));mesh.renderOrder=2;mesh.userData.scientificRibbon={width,closed};scientificReplaceRibbon(mesh,points,closed);return mesh;
+}
+function scientificReplaceRibbon(mesh,points,closed=mesh?.userData?.scientificRibbon?.closed||false){
+  if(!mesh)return;const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p));mesh.visible=pts.length>2;if(pts.length<3)return;
+  const spec=mesh.userData.scientificRibbon||{width:.16},q=scientificCurve(pts,closed);mesh.visible=!!q.curve;if(!q.curve)return;const steps=Math.max(12,q.points.length-1),frames=q.curve.computeFrenetFrames(steps,q.closed),pos=[],uv=[],idx=[];
+  for(let i=0;i<=steps;i++){const u=i/steps,p=q.curve.getPointAt(u),side=frames.normals[Math.min(i,frames.normals.length-1)],w=spec.width*(.82+.18*Math.sin(Math.PI*u));pos.push(p.x+side.x*w,p.y+side.y*w,p.z+side.z*w,p.x-side.x*w,p.y-side.y*w,p.z-side.z*w);uv.push(u,0,u,1);if(i<steps){const a=2*i;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();mesh.geometry?.dispose?.();mesh.geometry=g;
+}
+function scientificFlow(points,count=48,color=SCI_CYAN,size=.045,closed=true){
+  const inst=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(size,1),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}),count);
+  inst.frustumCulled=false;inst.renderOrder=7;inst.userData.scientificFlow={curve:null,count,closed,speed:.08,seed:.173,tmp:new THREE.Object3D()};scientificSetFlowPath(inst,points,closed);return inst;
+}
+function scientificSetFlowPath(flow,points,closed=flow?.userData?.scientificFlow?.closed||false){
+  if(!flow)return;const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),q=scientificCurve(pts,closed);flow.visible=!!q.curve;flow.userData.scientificFlow.curve=q.curve;flow.userData.scientificFlow.closed=q.closed;
+}
+function scientificUpdateFlow(flow,time,speed){
+  const d=flow?.userData?.scientificFlow,c=d?.curve;if(!c||!flow.visible)return;const o=d.tmp,n=d.count;
+  for(let i=0;i<n;i++){const raw=(i/n)+time*(speed??d.speed)+d.seed,u=((raw%1)+1)%1,p=c.getPointAt(u),s=.55+.75*Math.pow(Math.sin(Math.PI*((u*3+i*.17)%1)),2);o.position.copy(p);o.scale.setScalar(s);o.rotation.set(time*.4+i,time*.27-i*.3,0);o.updateMatrix();flow.setMatrixAt(i,o.matrix);}flow.instanceMatrix.needsUpdate=true;
+}
+function scientificCrystal(color=SCI_GOLD,scale=.22){
+  const root=new THREE.Group(),body=new THREE.Mesh(new THREE.OctahedronGeometry(scale,2),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:1.65,roughness:.14,metalness:.72}));
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color,transparent:true,opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.setScalar(scale*5.2);root.add(halo,body);root.userData.body=body;return root;
+}
+function scientificParametricSurface(uSeg,vSeg,fn,material){
+  const pos=[],uv=[],idx=[];for(let j=0;j<=vSeg;j++)for(let i=0;i<=uSeg;i++){const u=i/uSeg,v=j/vSeg,p=fn(u,v);pos.push(p.x,p.y,p.z);uv.push(u,v);}for(let j=0;j<vSeg;j++)for(let i=0;i<uSeg;i++){const a=j*(uSeg+1)+i,b=a+1,c=a+uSeg+1,d=c+1;idx.push(a,c,b,b,c,d);}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();return new THREE.Mesh(g,material);
+}
+function scientificNebula(center,scale,color,count=220,seed=1){
+  const pos=new Float32Array(count*3),col=new Float32Array(count*3),C=new THREE.Color(color);for(let i=0;i<count;i++){const h=nexusHash(`${seed}:${i}`),q=nexusHash(`${i}:${seed}:q`),r=nexusHash(`${seed}:r:${i}`),a=6.2831853*h,z=2*q-1,rad=Math.cbrt(r),s=Math.sqrt(Math.max(0,1-z*z));pos[3*i]=center.x+scale.x*rad*s*Math.cos(a);pos[3*i+1]=center.y+scale.y*rad*z;pos[3*i+2]=center.z+scale.z*rad*s*Math.sin(a);const k=.38+.62*r;col[3*i]=C.r*k;col[3*i+1]=C.g*k;col[3*i+2]=C.b*k;}
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));const m=new THREE.PointsMaterial({size:.055,vertexColors:true,transparent:true,opacity:.48,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});return new THREE.Points(g,m);
+}
+function scientificContactPlanes(points,color=SCI_VIOLET,size=.24){
+  const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),g=new THREE.CircleGeometry(size,6),m=scientificFresnelMaterial(color,SCI_GOLD,.18,.72),inst=new THREE.InstancedMesh(g,m,pts.length),o=new THREE.Object3D(),z=new THREE.Vector3(0,0,1),centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/Math.max(1,pts.length));
+  pts.forEach((p,i)=>{const n=p.clone().sub(centre);if(n.lengthSq()<1e-8)n.set(0,1,0);n.normalize();const tangent=new THREE.Vector3(-n.y,n.x,.35*Math.sin(i*.7)).normalize();o.position.copy(p);o.quaternion.setFromUnitVectors(z,tangent);o.scale.set(1,.38,1);o.updateMatrix();inst.setMatrixAt(i,o.matrix);});inst.instanceMatrix.needsUpdate=true;inst.frustumCulled=false;return inst;
+}
+function scientificUpdateMaterials(root,time){root?.traverse?.(o=>{if(o.material?.userData?.scientificFresnel)o.material.uniforms.uTime.value=time;});}
+
+/* ================================================================
    SYMMETRY DISCOVERY CHAMBER — finite-orbit invariant stress tests.
 
    Five exact transformation families act on five different spaces.  For
@@ -18163,7 +18266,7 @@ const SYD_WORLDS={
     points:s=>s.z.map(z=>sydStereo(z).multiplyScalar(1.82).add(new THREE.Vector3(-2,0,0))),
     contract:'A determinant-one fractional-linear family acts on the Riemann sphere; the four-point cross-ratio is exact.'}
 };
-const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,markers:[],baseMarkers:[],bars:[],barLabels:[],core:null,rings:[],bead:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
+const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,orbitRibbon:null,orbitFlow:null,markers:[],baseMarkers:[],candidateTubes:[],fieldRoot:null,probe:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
 const sydFlat=v=>Array.isArray(v)?v.map(Number):[Number(v)];
 function sydScan(worldId=state.sydWorld||'rotation',br=state.sydBreak??0,samples=65){
   const W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,base=W.state(0,br),out=[];
@@ -18187,43 +18290,51 @@ function sydExportData(){
     epistemic_firewall:'This finite deterministic scan tests only the named candidate library on the sampled parameter orbit. Passing the tolerance is numerical evidence inside the displayed model, not a theorem, physical discovery, learned law or evidence that no unlisted invariant exists.'};
 }
 const sydLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
+function sydVisualPoints(W,s){const scale=(W===SYD_WORLDS.lorentz) ? .72 : 1.42;return W.points(s).map(p=>p.clone().add(new THREE.Vector3(2,0,0)).multiplyScalar(scale));}
 function sydGuide(world){
-  const mat=new THREE.MeshBasicMaterial({color:0x4d8fc7,wireframe:true,transparent:true,opacity:.12,depthWrite:false});
-  if(world==='rotation'){const m=new THREE.Mesh(new THREE.SphereGeometry(sydRotBase.length()*1.16,28,18),mat);m.position.x=-2;sydGroup.add(m);}
-  else if(world==='phase'||world==='mobius'){const m=new THREE.Mesh(new THREE.SphereGeometry(1.82,28,18),mat);m.position.x=-2;sydGroup.add(m);}
-  else if(world==='symplectic'){const m=new THREE.Mesh(new THREE.TorusGeometry(Math.hypot(1.2,.65)*1.42,.018,6,96),mat);m.position.x=-2;sydGroup.add(m);}
-  else {const pts=[];for(const s of [-1,1]){pts.push(new THREE.Vector3(-4.7,-2.2,0),new THREE.Vector3(-.1,2.2*s,0));}sydGroup.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x4d8fc7,transparent:true,opacity:.22})));}
+  const root=new THREE.Group();root.name=`Symmetry transformation field · ${world}`;sydGroup.add(root);SYD.fieldRoot=root;
+  root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.75,2.35),world==='mobius'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?130:260,17+world.length));
+  if(world==='rotation'){
+    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.72,64,42),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.27,.9));root.add(shell);SYD.manifold=shell;
+    const a=sydAxis.clone().multiplyScalar(3.65),axis=scientificTube([a.clone().multiplyScalar(-1),a],SCI_GOLD,.045,.82,false,64);root.add(axis);
+    const planes=[];for(let i=0;i<22;i++){const u=(i/21-.5)*5.5;planes.push(sydAxis.clone().multiplyScalar(u));}root.add(scientificContactPlanes(planes,SCI_GOLD,.18));
+  }else if(world==='lorentz'){
+    const surf=scientificParametricSurface(72,18,(u,v)=>{const eta=(u-.5)*2.5,a=6.2831853*v,r=.22+.22*Math.cos(a);return new THREE.Vector3(1.2*Math.sinh(eta),1.06*(Math.cosh(eta)-1.45),r*Math.sin(a));},scientificFresnelMaterial(SCI_CYAN,SCI_CORAL,.31,.92));root.add(surf);SYD.manifold=surf;
+    root.add(scientificTube([new THREE.Vector3(-3.55,-2.72,-.05),new THREE.Vector3(3.55,2.72,-.05)],SCI_GOLD,.026,.46,false,48));
+    root.add(scientificTube([new THREE.Vector3(-3.55,2.72,.05),new THREE.Vector3(3.55,-2.72,.05)],SCI_GOLD,.026,.46,false,48));
+  }else if(world==='phase'){
+    const tor=new THREE.Mesh(new THREE.TorusGeometry(1.82,.72,48,160),scientificFresnelMaterial(SCI_VIOLET,SCI_CYAN,.3,.95));tor.rotation.x=Math.PI/2;root.add(tor);SYD.manifold=tor;
+    for(let k=0;k<5;k++){const pts=[];for(let i=0;i<=140;i++){const a=6.2831853*i/140,ph=a+k*1.256;pts.push(new THREE.Vector3((1.82+.72*Math.cos(ph))*Math.cos(a),.72*Math.sin(ph),(1.82+.72*Math.cos(ph))*Math.sin(a)));}root.add(scientificTube(pts,k%2?SCI_CYAN:SCI_GOLD,.018,.34,true,160));}
+  }else if(world==='symplectic'){
+    const vortex=scientificParametricSurface(96,24,(u,v)=>{const a=6.2831853*u,b=6.2831853*v,r=1.83+.46*Math.cos(b);return new THREE.Vector3(1.18*r*Math.cos(a),.82*r*Math.sin(a),.46*Math.sin(b)+.24*Math.sin(2*a));},scientificFresnelMaterial(SCI_MINT,SCI_GOLD,.27,.9));root.add(vortex);SYD.manifold=vortex;
+    const orbit=[];for(let i=0;i<36;i++){const a=6.2831853*i/36;orbit.push(new THREE.Vector3(2.05*Math.cos(a),1.45*Math.sin(a),.24*Math.sin(2*a)));}root.add(scientificContactPlanes(orbit,SCI_VIOLET,.2));
+  }else{
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.56,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.27,.94));root.add(sphere);SYD.manifold=sphere;
+    for(let k=-3;k<=3;k++){const lat=[];for(let i=0;i<=128;i++){const a=6.2831853*i/128,th=(k/7)*Math.PI;lat.push(new THREE.Vector3(2.56*Math.cos(th)*Math.cos(a),2.56*Math.sin(th),2.56*Math.cos(th)*Math.sin(a)));}root.add(scientificTube(lat,k===0?SCI_GOLD:SCI_CYAN,.014,k===0?.52:.2,true,128));}
+  }
 }
 function sydSetup(){
-  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.bars=[];SYD.barLabels=[];SYD.rings=[];
-  sydGroup.add(new THREE.AmbientLight(0x7386b4,.7));const dl=new THREE.DirectionalLight(0xe9f7ff,.85);dl.position.set(4,7,8);sydGroup.add(dl);sydGuide(world);
-  const exactMat=new THREE.LineBasicMaterial({color:0x62e8ff,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending}),brokenMat=new THREE.LineBasicMaterial({color:0xff6f86,transparent:true,opacity:.78,depthWrite:false,blending:THREE.AdditiveBlending});
-  SYD.orbitExact=new THREE.Line(new THREE.BufferGeometry(),exactMat);SYD.orbitBroken=new THREE.Line(new THREE.BufferGeometry(),brokenMat);sydGroup.add(SYD.orbitExact,SYD.orbitBroken);
-  const W=SYD_WORLDS[world],basePts=W.points(W.state(.5,0));
-  for(let i=0;i<4;i++){const bm=new THREE.Mesh(new THREE.SphereGeometry(.105,12,9),new THREE.MeshBasicMaterial({color:0x7fe8ff,wireframe:true,transparent:true,opacity:.7}));
-    const m=new THREE.Mesh(new THREE.IcosahedronGeometry(.15,1),new THREE.MeshStandardMaterial({color:[0xffd36a,0xc28dff,0x55e8c4,0xff7898][i],emissive:[0x6b4210,0x381d61,0x144f48,0x5b1729][i],emissiveIntensity:1.4,roughness:.28,metalness:.25}));
-    const gl=new THREE.Sprite(new THREE.SpriteMaterial({map:nexusGlowTexture(),color:[0xffd36a,0xc28dff,0x55e8c4,0xff7898][i],transparent:true,opacity:.58,depthWrite:false}));gl.scale.setScalar(.82);m.add(gl);sydGroup.add(bm,m);SYD.baseMarkers.push(bm);SYD.markers.push(m);}
-  SYD.link=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd36a,transparent:true,opacity:.75,depthWrite:false}));sydGroup.add(SYD.link);
-  const core=new THREE.Mesh(new THREE.IcosahedronGeometry(.62,2),new THREE.MeshStandardMaterial({color:0xffd36a,emissive:0x8b5b18,emissiveIntensity:1.65,roughness:.22,metalness:.68,transparent:true,opacity:.94}));core.position.set(.55,0,0);sydGroup.add(core);SYD.core=core;
-  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.93+i*.24,.022,8,96),new THREE.MeshBasicMaterial({color:[0x62e8ff,0xc28dff,0xffd36a][i],transparent:true,opacity:.43,depthWrite:false,blending:THREE.AdditiveBlending}));r.position.copy(core.position);r.rotation.set(i*.67,(i+1)*.52,i*.31);sydGroup.add(r);SYD.rings.push(r);}
-  SYD.bead=new THREE.Mesh(new THREE.SphereGeometry(.09,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));sydGroup.add(SYD.bead);
-  for(let i=0;i<4;i++){const bar=new THREE.Mesh(new THREE.CylinderGeometry(.095,.095,1,12),new THREE.MeshStandardMaterial({color:0x55e8c4,emissive:0x143f39,emissiveIntensity:.9,roughness:.35,metalness:.28}));bar.position.set(3.1,-2,(-1.65+i*1.1));sydGroup.add(bar);SYD.bars.push(bar);
-    const l=mkLabel(W.candidates[i].label,'label dim');l.position.set(3.1,-2.75,(-1.65+i*1.1));sydGroup.add(l);SYD.barLabels.push(l);}
+  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.candidateTubes=[];SYD.time=0;sydGuide(world);
+  sydGroup.add(new THREE.AmbientLight(0x5d719c,.62));const key=new THREE.DirectionalLight(0xe8f7ff,1.15);key.position.set(5,8,7);sydGroup.add(key);const rim=new THREE.PointLight(0xffc971,2.4,14,2);rim.position.set(-3,2,3);sydGroup.add(rim);
+  const W=SYD_WORLDS[world],closed=!!W.closed;
+  SYD.orbitRibbon=scientificRibbon([],world==='mobius'?.22:.18,SCI_CYAN,.25,closed);SYD.orbitExact=scientificTube([],SCI_CYAN,.065,.94,closed,196);SYD.orbitBroken=scientificTube([],SCI_CORAL,.05,.9,closed,196);SYD.orbitFlow=scientificFlow([],MOBILE_GPU?36:72,SCI_CYAN,.045,closed);sydGroup.add(SYD.orbitRibbon,SYD.orbitExact,SYD.orbitBroken,SYD.orbitFlow);
+  for(let i=0;i<4;i++){const c=[SCI_GOLD,SCI_VIOLET,SCI_MINT,SCI_CORAL][i],ghost=scientificCrystal(SCI_CYAN,.075),m=scientificCrystal(c,.13);ghost.scale.setScalar(.72);ghost.traverse(o=>{if(o.material){o.material.transparent=true;o.material.opacity=.3;o.material.depthWrite=false;}});sydGroup.add(ghost,m);SYD.baseMarkers.push(ghost);SYD.markers.push(m);const tube=scientificTube([],c,.022,.68,closed,164);sydGroup.add(tube);SYD.candidateTubes.push(tube);}
+  SYD.link=scientificTube([],SCI_GOLD,.018,.46,false,32);sydGroup.add(SYD.link);SYD.probe=scientificCrystal(0xffffff,.16);sydGroup.add(SYD.probe);
   SYD.title=mkLabel('SYMMETRY DISCOVERY CHAMBER · finite-orbit invariant stress test','label const');SYD.title.position.set(0,3.48,0);sydGroup.add(SYD.title);
   SYD.sub=mkLabel('','label axis');SYD.sub.position.set(0,2.95,0);sydGroup.add(SYD.sub);
-  const foot=mkLabel('cyan = exact group orbit · coral = declared symmetry break · pillars = −log₁₀(max normalized drift)','label dim');foot.position.set(0,-3.35,0);sydGroup.add(foot);
+  const foot=mkLabel('closure lives in the braid · stable candidates remain welded to the orbit · false invariants peel away','label dim');foot.position.set(0,-3.35,0);sydGroup.add(foot);
   sydRender();
 }
 function sydRender(){
   if(!SYD.built)return;const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5,exact=[],broken=[];
-  for(let i=0;i<=96;i++){exact.push(W.points(W.state(i/96,0))[0]);broken.push(W.points(W.state(i/96,br))[0]);}
-  SYD.orbitExact.geometry.setFromPoints(exact);SYD.orbitBroken.geometry.setFromPoints(broken);SYD.orbitBroken.visible=br>1e-8;
-  const cur=W.points(W.state(p,br)),base=W.points(W.state(.5,0));
+  for(let i=0;i<=96;i++){exact.push(sydVisualPoints(W,W.state(i/96,0))[0]);broken.push(sydVisualPoints(W,W.state(i/96,br))[0]);}
+  scientificReplaceTube(SYD.orbitExact,exact,!!W.closed);scientificReplaceRibbon(SYD.orbitRibbon,exact,!!W.closed);scientificSetFlowPath(SYD.orbitFlow,exact,!!W.closed);scientificReplaceTube(SYD.orbitBroken,broken,!!W.closed);SYD.orbitBroken.visible=br>1e-8;
+  const cur=sydVisualPoints(W,W.state(p,br)),base=sydVisualPoints(W,W.state(.5,0));
   for(let i=0;i<4;i++){const on=i<cur.length;SYD.markers[i].visible=SYD.baseMarkers[i].visible=on;if(on){SYD.markers[i].position.copy(cur[i]);SYD.baseMarkers[i].position.copy(base[Math.min(i,base.length-1)]);}}
-  if(cur[0]&&base[0])SYD.link.geometry.setFromPoints([base[0],cur[0]]);
+  if(cur[0]&&base[0])scientificReplaceTube(SYD.link,[base[0],cur[0]],false);if(cur[0])SYD.probe.position.copy(cur[0]);
   const D=sydDiagnostics(world,br),tol=D.tolerance;SYD.lastScan=D;
-  D.candidate_library.forEach((r,i)=>{const decades=Math.max(0,Math.min(14,-Math.log10(Math.max(r.residual,1e-16)))),h=.12+decades/14*4.35,pass=r.residual<=tol,b=SYD.bars[i];
-    b.scale.y=h;b.position.y=-2.25+h/2;b.material.color.setHex(pass?0x55e8c4:0xff6f86);b.material.emissive.setHex(pass?0x143f39:0x59162a);SYD.barLabels[i].element.style.color=pass?'#8fffe3':'#ff9daf';});
+  const centre=exact.reduce((a,q)=>a.add(q),new THREE.Vector3()).multiplyScalar(1/Math.max(1,exact.length));
+  D.candidate_library.forEach((r,i)=>{const pass=r.residual<=tol,norm=pass?0:Math.min(1,Math.log10(1+r.residual/Math.max(tol,1e-16))/8),phase=i*Math.PI*.5,braid=exact.map((q,j)=>{const u=j/Math.max(1,exact.length-1),rad=q.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(Math.cos(phase),Math.sin(phase),.4);rad.normalize();const tangent=exact[Math.min(exact.length-1,j+1)].clone().sub(exact[Math.max(0,j-1)]).normalize(),side=new THREE.Vector3().crossVectors(tangent,rad);if(side.lengthSq()<1e-7)side.set(0,0,1);side.normalize();const weave=.11*Math.sin(6.2831853*(u*2+i*.25)),failure=norm*(.16+.5*Math.pow(Math.sin(Math.PI*u),2))*Math.sin((3+i)*6.2831853*u+phase);return q.clone().addScaledVector(rad,.13+i*.025+weave).addScaledVector(side,failure);});const tube=SYD.candidateTubes[i],c=pass?[SCI_GOLD,SCI_MINT,SCI_CYAN,SCI_VIOLET][i]:SCI_CORAL;tube.material.color.setHex(c);tube.material.emissive.setHex(c);tube.material.opacity=pass?.74:.86;scientificReplaceTube(tube,braid,!!W.closed);});
   SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} candidates below ${tol.toExponential(0)}`;
 }
 function sydPanelHTML(){
@@ -18261,8 +18372,7 @@ function bindSydControls(root=ctl){
 }
 function updateSyd(dt){
   if(!SYD.built)return;SYD.time+=dt;if(state.sydRun!==false&&!PREFERS_REDUCED_MOTION){state.sydParam=(state.sydParam+dt*.075*(state.sydSpeed??.65))%1;sydRender();}
-  SYD.core.rotation.x+=dt*.21;SYD.core.rotation.y-=dt*.32;SYD.rings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.19:-.14));
-  const W=SYD_WORLDS[state.sydWorld||'rotation'],pts=W.points(W.state(state.sydParam??.5,state.sydBreak??0));if(pts[0])SYD.bead.position.lerp(pts[0],.18);
+  const W=SYD_WORLDS[state.sydWorld||'rotation'];scientificUpdateFlow(SYD.orbitFlow,SYD.time,.035+(state.sydSpeed??.65)*.035);scientificUpdateMaterials(sydGroup,SYD.time);SYD.probe?.userData?.body?.rotation.set(SYD.time*.42,SYD.time*.68,SYD.time*.21);SYD.markers.forEach((m,i)=>m.userData?.body&&m.userData.body.rotation.set(SYD.time*.25+i,SYD.time*.41-i*.3,0));
   SYD.ui+=dt;if(SYD.ui>.22){SYD.ui=0;const D=SYD.lastScan||sydDiagnostics();hudBig.textContent=`SYMMETRY DISCOVERY · ${sydLang(W.t)} · ${D.discovered.length}/${D.candidate_library.length} candidates stable`;
     hudSub.textContent=`65-point deterministic orbit · tolerance ${D.tolerance.toExponential(0)} · ε_break=${(state.sydBreak??0).toFixed(3)} · finite-orbit evidence, never a universal proof`;
     ATLAS_BUS.pub('syd.discovered',D.discovered.length,'candidate(s)');ATLAS_BUS.pub('syd.bestResidual',Math.min(...D.candidate_library.map(r=>r.residual)),'normalized drift');
@@ -18379,53 +18489,52 @@ function holExportData(){
     epistemic_firewall:'This export contains exact closed-form benchmarks and finite deterministic numerical checks in declared models. It is not a physical measurement, experimental discovery, exhaustive holonomy classification or evidence that the five stations describe one physical system.'};
 }
 const holGroup=new THREE.Group();holGroup.name='Holonomy Observatory · closed journeys and invariant return maps';holGroup.visible=false;scene.add(holGroup);
-const HOL={built:false,station:'',pathA:null,pathB:null,bead:null,vector:null,needle:null,core:null,rings:[],title:null,sub:null,dialLabel:null,currentPaths:[],last:null,ui:0,time:0};
+const HOL={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,flowA:null,flowB:null,probe:null,vector:null,fieldRoot:null,frameLayer:null,returnLayer:null,fluxLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function holVisualPaths(D){
-  const mapSphere=p=>new THREE.Vector3(-2+1.72*p[0],1.72*p[1],1.72*p[2]);
+  const mapSphere=p=>new THREE.Vector3(2.55*p[0],2.55*p[1],2.55*p[2]);
   if(D.station==='sphere'||D.station==='berry')return [D.path.points.map(mapSphere)];
-  if(D.station==='su2')return [D.path.quaternions.map(q=>{const den=Math.max(.12,1+q[0]),v=new THREE.Vector3(q[1]/den,q[2]/den,q[3]/den);if(v.length()>1.65)v.setLength(1.65);return v.multiplyScalar(1.08).add(new THREE.Vector3(-2,0,0));})];
-  if(D.station==='wigner'){const f=p=>new THREE.Vector3(-2+2.05*p[0],2.05*p[1],0);return [D.path.yx.map(f),D.path.xy.map(f)];}
-  const f=z=>{const r=Math.hypot(z[0],z[1]),s=r?1.72/(1+r):1.72;return new THREE.Vector3(-2+z[0]*s,z[1]*s,0);};return [D.path.complex.map(f)];
+  if(D.station==='su2')return [D.path.quaternions.map(q=>{const den=Math.max(.12,1+q[0]),v=new THREE.Vector3(q[1]/den,q[2]/den,q[3]/den);if(v.length()>2.45)v.setLength(2.45);return v.multiplyScalar(1.42);})];
+  if(D.station==='wigner'){const f=(p,z)=>new THREE.Vector3(2.72*p[0],2.72*p[1],z);return [D.path.yx.map(p=>f(p,.13)),D.path.xy.map(p=>f(p,-.13))];}
+  const f=z=>{const r2=z[0]*z[0]+z[1]*z[1],d=1+r2;return new THREE.Vector3(5.1*z[0]/d,5.1*z[1]/d,2.55*(r2-1)/d);};return [D.path.complex.map(f)];
 }
 function holCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.length===1)return pts[0].clone();const x=holClamp01(u)*(pts.length-1),i=Math.min(pts.length-2,Math.floor(x));return pts[i].clone().lerp(pts[i+1],x-i);}
 function holGuide(station){
+  const root=new THREE.Group();root.name=`Holonomy native transport space · ${station}`;holGroup.add(root);HOL.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.85,2.7),station==='berry'||station==='su2'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?120:240,73+station.length));
   if(station==='sphere'||station==='berry'){
-    const s=new THREE.Mesh(new THREE.SphereGeometry(1.72,32,20),new THREE.MeshBasicMaterial({color:station==='berry'?0x9b7cff:0x3fcbea,wireframe:true,transparent:true,opacity:.16,depthWrite:false}));s.position.x=-2;holGroup.add(s);
-  } else if(station==='su2'){
-    const s=new THREE.Mesh(new THREE.SphereGeometry(1.72,24,16),new THREE.MeshBasicMaterial({color:0xc28dff,wireframe:true,transparent:true,opacity:.13,depthWrite:false}));s.position.x=-2;holGroup.add(s);
-    for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(1.15+i*.2,.012,6,72),new THREE.MeshBasicMaterial({color:[0xff7898,0x55e8c4,0xffd36a][i],transparent:true,opacity:.22}));r.position.x=-2;r.rotation.set(i*.61,i*.73,0);holGroup.add(r);}
-  } else {
-    const disk=new THREE.Mesh(new THREE.CircleGeometry(1.86,64),new THREE.MeshBasicMaterial({color:station==='wigner'?0x3a83c8:0x7042a0,transparent:true,opacity:.08,side:THREE.DoubleSide,depthWrite:false}));disk.position.x=-2;holGroup.add(disk);
-    for(let i=1;i<=4;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.42*i,.012,5,80),new THREE.MeshBasicMaterial({color:station==='wigner'?0x62e8ff:0xc28dff,transparent:true,opacity:.18}));r.position.x=-2;holGroup.add(r);}
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(station==='berry'?SCI_VIOLET:SCI_CYAN,SCI_GOLD,.29,.95));root.add(sphere);HOL.manifold=sphere;
+  }else if(station==='su2'){
+    const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(2.58,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.25,.94));root.add(ball);const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(1.56,.12,240,12,3,5),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.38,1));knot.rotation.set(.62,.35,.18);root.add(knot);HOL.manifold=ball;
+  }else if(station==='wigner'){
+    const disk=scientificParametricSurface(96,34,(u,v)=>{const a=6.2831853*u,r=.02+2.52*v;return new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),-.34*r*r/2.52);},scientificFresnelMaterial(SCI_CYAN,SCI_CORAL,.3,.94));disk.rotation.x=-.14;root.add(disk);HOL.manifold=disk;
+  }else{
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.26,.95));root.add(sphere);HOL.manifold=sphere;
   }
-  const gl=mkLabel(station==='sphere'?'ROUND S² · curvature flux':station==='berry'?'BLOCH S² · U(1) polygon':station==='su2'?'SU(2) · stereographic group path':station==='wigner'?'RAPIDITY DISK · ordered boosts':'COMPLEX PROBE · Möbius orbit','label dim');gl.position.set(-2,-2.35,0);holGroup.add(gl);
 }
 function holSetup(){
-  const station=state.holStation||'sphere';if(HOL.built&&HOL.station===station){holRender();return;}labWipe(holGroup);HOL.built=true;HOL.station=station;HOL.rings=[];HOL.time=0;holGuide(station);
-  holGroup.add(new THREE.AmbientLight(0x7586aa,.75));const dl=new THREE.DirectionalLight(0xf3f8ff,.95);dl.position.set(4,7,9);holGroup.add(dl);
-  HOL.pathA=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x62e8ff,transparent:true,opacity:.92,depthWrite:false}));HOL.pathB=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff7898,transparent:true,opacity:.82,depthWrite:false}));holGroup.add(HOL.pathA,HOL.pathB);
-  HOL.bead=new THREE.Mesh(new THREE.SphereGeometry(.095,12,9),new THREE.MeshBasicMaterial({color:0xffffff}));const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:nexusGlowTexture(),color:0x8fefff,transparent:true,opacity:.72,depthWrite:false}));glow.scale.setScalar(.75);HOL.bead.add(glow);holGroup.add(HOL.bead);
-  HOL.vector=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd36a,transparent:true,opacity:.96,depthWrite:false}));holGroup.add(HOL.vector);
-  HOL.core=new THREE.Mesh(new THREE.IcosahedronGeometry(.55,2),new THREE.MeshStandardMaterial({color:0x55e8c4,emissive:0x124c43,emissiveIntensity:1.65,roughness:.2,metalness:.72,transparent:true,opacity:.96}));HOL.core.position.set(.65,0,0);holGroup.add(HOL.core);
-  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.82+i*.2,.021,8,88),new THREE.MeshBasicMaterial({color:[0x62e8ff,0xc28dff,0xffd36a][i],transparent:true,opacity:.4,depthWrite:false,blending:THREE.AdditiveBlending}));r.position.copy(HOL.core.position);r.rotation.set(i*.71,(i+1)*.49,i*.23);holGroup.add(r);HOL.rings.push(r);}
-  const dial=new THREE.Mesh(new THREE.TorusGeometry(.92,.028,8,96),new THREE.MeshBasicMaterial({color:0xffd36a,transparent:true,opacity:.58,depthWrite:false}));dial.position.set(3.15,.05,0);holGroup.add(dial);
-  HOL.needle=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.96}));holGroup.add(HOL.needle);
+  const station=state.holStation||'sphere';if(HOL.built&&HOL.station===station){holRender();return;}labWipe(holGroup);HOL.built=true;HOL.station=station;HOL.time=0;holGuide(station);
+  holGroup.add(new THREE.AmbientLight(0x61749c,.64));const dl=new THREE.DirectionalLight(0xf3f8ff,1.12);dl.position.set(5,8,9);holGroup.add(dl);const rim=new THREE.PointLight(0xffcf72,2.2,14,2);rim.position.set(-3,2,4);holGroup.add(rim);
+  HOL.pathRibbon=scientificRibbon([],.2,SCI_CYAN,.24,true);HOL.pathA=scientificTube([],SCI_CYAN,.065,.95,true,220);HOL.pathB=scientificTube([],SCI_CORAL,.052,.88,true,220);HOL.flowA=scientificFlow([],MOBILE_GPU?32:68,SCI_CYAN,.045,true);HOL.flowB=scientificFlow([],MOBILE_GPU?20:42,SCI_CORAL,.04,true);holGroup.add(HOL.pathRibbon,HOL.pathA,HOL.pathB,HOL.flowA,HOL.flowB);
+  HOL.probe=scientificCrystal(0xffffff,.17);holGroup.add(HOL.probe);HOL.vector=scientificTube([],SCI_GOLD,.042,.96,false,40);holGroup.add(HOL.vector);
+  HOL.frameLayer=new THREE.Group();HOL.returnLayer=new THREE.Group();HOL.fluxLayer=new THREE.Group();holGroup.add(HOL.fluxLayer,HOL.frameLayer,HOL.returnLayer);
   HOL.title=mkLabel('HOLONOMY OBSERVATORY · closed journeys / changed return','label const');HOL.title.position.set(0,3.35,0);holGroup.add(HOL.title);
   HOL.sub=mkLabel('','label axis');HOL.sub.position.set(0,2.82,0);holGroup.add(HOL.sub);
-  HOL.dialLabel=mkLabel('','label gold');HOL.dialLabel.position.set(3.15,-1.16,0);holGroup.add(HOL.dialLabel);
-  const foot=mkLabel('cyan = declared order · coral = reverse order · centre = gauge/conjugacy-invariant closure','label dim');foot.position.set(0,-3.18,0);holGroup.add(foot);holRender();
+  const foot=mkLabel('the transported frame returns to its own starting point · the surviving twist is the holonomy','label dim');foot.position.set(0,-3.18,0);holGroup.add(foot);holRender();
 }
 function holSetProgress(D=HOL.last){
-  if(!D||!HOL.currentPaths.length)return;const p=state.holProgress??0,pts=HOL.currentPaths[0];HOL.bead.position.copy(holCurvePoint(pts,p));
-  HOL.vector.visible=D.station==='sphere';if(D.station==='sphere'){
+  if(!D||!HOL.currentPaths.length)return;const p=state.holProgress??0,pts=HOL.currentPaths[0],at=holCurvePoint(pts,p);HOL.probe.position.copy(at);
+  if(D.station==='sphere'){
     const th=D.values.theta,ph=HOL_TAU*p,q=holSpherePoint(th,ph),e=new THREE.Vector3(Math.cos(th)*Math.cos(ph),-Math.sin(th),Math.cos(th)*Math.sin(ph)),f=new THREE.Vector3(-Math.sin(ph),0,Math.cos(ph)),psi=-Math.cos(th)*ph,v=e.multiplyScalar(Math.cos(psi)).add(f.multiplyScalar(Math.sin(psi))).normalize();
-    const start=q.multiplyScalar(1.72).add(new THREE.Vector3(-2,0,0));HOL.vector.geometry.setFromPoints([start,start.clone().addScaledVector(v,.72)]);
-  }
+    const start=q.multiplyScalar(2.55);scientificReplaceTube(HOL.vector,[start,start.clone().addScaledVector(v,.82)],false);
+  }else{const u=holClamp01(p)*(pts.length-1),i=Math.min(pts.length-2,Math.floor(u)),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize();scientificReplaceTube(HOL.vector,[at,at.clone().addScaledVector(t,.64)],false);}
 }
+function holPhaseBraid(pts,phase){if(!pts?.length)return[];const centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/pts.length);return pts.map((p,i)=>{const u=i/Math.max(1,pts.length-1),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),r=p.clone().sub(centre);if(r.lengthSq()<1e-7)r.set(0,1,0);r.normalize();const s=new THREE.Vector3().crossVectors(t,r);if(s.lengthSq()<1e-7)s.set(0,0,1);s.normalize();const a=phase*u*2+6.2831853*u;return p.clone().addScaledVector(r,.16*Math.cos(a)).addScaledVector(s,.16*Math.sin(a));});}
 function holRender(){
-  if(!HOL.built)return;const D=holDiagnostics();HOL.last=D;HOL.currentPaths=holVisualPaths(D);HOL.pathA.geometry.setFromPoints(HOL.currentPaths[0]||[]);HOL.pathB.visible=!!HOL.currentPaths[1];if(HOL.currentPaths[1])HOL.pathB.geometry.setFromPoints(HOL.currentPaths[1]);
-  const phase=Number.isFinite(D.phase)?D.phase:0,c=new THREE.Vector3(3.15,.05,0),tip=c.clone().add(new THREE.Vector3(.78*Math.cos(phase),.78*Math.sin(phase),0));HOL.needle.geometry.setFromPoints([c,tip]);HOL.dialLabel.element.textContent=`return phase ${phase.toFixed(6)} rad`;
-  HOL.sub.element.textContent=`${D.title} · ${D.pass?'closure verified':'closure outside tolerance'} · residual ${D.residual.toExponential(2)}`;HOL.core.material.color.setHex(D.pass?0x55e8c4:0xff6f86);HOL.core.material.emissive.setHex(D.pass?0x124c43:0x59162a);holSetProgress(D);
+  if(!HOL.built)return;const D=holDiagnostics(),phase=Number.isFinite(D.phase)?D.phase:0;HOL.last=D;HOL.currentPaths=holVisualPaths(D);const A=HOL.currentPaths[0]||[],B=HOL.currentPaths[1]||[],closed=D.station!=='su2'||A[0]?.distanceTo(A[A.length-1])<.2;
+  scientificReplaceTube(HOL.pathA,A,closed);scientificReplaceRibbon(HOL.pathRibbon,holPhaseBraid(A,phase),closed);scientificSetFlowPath(HOL.flowA,A,closed);HOL.pathB.visible=HOL.flowB.visible=B.length>1;if(B.length>1){scientificReplaceTube(HOL.pathB,B,true);scientificSetFlowPath(HOL.flowB,B,true);}
+  labWipe(HOL.frameLayer);labWipe(HOL.returnLayer);labWipe(HOL.fluxLayer);
+  if(A.length>4){const samples=[];for(let i=0;i<Math.min(24,A.length);i++)samples.push(A[Math.floor(i*(A.length-1)/Math.min(23,A.length-1))]);HOL.frameLayer.add(scientificContactPlanes(samples,D.station==='wigner'?SCI_CORAL:SCI_GOLD,.15));const p0=A[0],tan=A[Math.min(2,A.length-1)].clone().sub(A[0]).normalize(),centre=A.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/A.length),rad=p0.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(0,1,0);rad.normalize();let e=new THREE.Vector3().crossVectors(tan,rad);if(e.lengthSq()<1e-7)e.set(0,0,1);e.normalize();const returned=e.clone().applyAxisAngle(tan,phase);HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(e,.78)],SCI_GOLD,.045,.98,false,32));HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(returned,.78)],SCI_CORAL,.034,.9,false,32));}
+  if((D.station==='sphere'||D.station==='berry')&&Number.isFinite(D.values.theta)){const th=D.values.theta,cap=scientificParametricSurface(72,24,(u,v)=>holSpherePoint(th*v,6.2831853*u).multiplyScalar(2.535),scientificFresnelMaterial(D.station==='berry'?SCI_VIOLET:SCI_GOLD,SCI_CYAN,.16,.75));HOL.fluxLayer.add(cap);}
+  HOL.sub.element.textContent=`${D.title} · return phase ${phase.toFixed(6)} rad · ${D.pass?'closure verified':'inspect residual'} · ε ${D.residual.toExponential(2)}`;holSetProgress(D);
 }
 function holReadoutsHTML(D){return D.readouts.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.good===false?'#ff6f86':r.good===true?'#55e8c4':'#62e8ff'}"><b>${esc(r.label)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(String(r.value))}</span></div>`).join('');}
 function holPanelHTML(){
@@ -18455,7 +18564,7 @@ function bindHolControls(root=ctl){
   const speed=root.querySelector('#holSpeed');if(speed)speed.oninput=e=>{state.holSpeed=+e.target.value;const v=root.querySelector('#holSpeedV');if(v)v.textContent='×'+state.holSpeed.toFixed(2);};const cmp=root.querySelector('#holCompare');if(cmp)cmp.onclick=holCompare;const exp=root.querySelector('#holExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_holonomy_observatory.json','application/json',JSON.stringify(holExportData(),null,2));
 }
 function updateHol(dt){
-  if(!HOL.built)return;HOL.time+=dt;if(state.holRun!==false&&!PREFERS_REDUCED_MOTION){state.holProgress=(state.holProgress+dt*.085*(state.holSpeed??.55))%1;holSetProgress();}HOL.core.rotation.x+=dt*.19;HOL.core.rotation.y-=dt*.28;HOL.rings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.17:-.13));
+  if(!HOL.built)return;HOL.time+=dt;if(state.holRun!==false&&!PREFERS_REDUCED_MOTION){state.holProgress=(state.holProgress+dt*.085*(state.holSpeed??.55))%1;holSetProgress();}scientificUpdateFlow(HOL.flowA,HOL.time,.04+(state.holSpeed??.55)*.035);scientificUpdateFlow(HOL.flowB,HOL.time,-.032-(state.holSpeed??.55)*.025);scientificUpdateMaterials(holGroup,HOL.time);HOL.probe?.userData?.body?.rotation.set(HOL.time*.32,HOL.time*.51,HOL.time*.17);
   HOL.ui+=dt;if(HOL.ui>.22){HOL.ui=0;const D=HOL.last||holDiagnostics();hudBig.textContent=`HOLONOMY OBSERVATORY · ${D.title} · ${D.pass?'closure verified':'inspect residual'}`;hudSub.textContent=`return phase ${D.phase.toFixed(6)} rad · residual ${D.residual.toExponential(2)} · exact only inside the declared station contract`;ATLAS_BUS.pub('hol.phase',+D.phase.toFixed(9),'rad');ATLAS_BUS.pub('hol.residual',D.residual,'closure');if(Number.isFinite(D.trace))ATLAS_BUS.pub('hol.trace',+D.trace.toFixed(9),'normalized trace');}
 }
 
@@ -18550,45 +18659,46 @@ function actDiagnostics(station=state.actStation||'reeb',aU=state.actA??.55,bU=s
 }
 function actExportData(){return {schema:'fbs3r-contact-action-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(ACT_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:actDiagnostics(),reproducibility:{normalized_controls:{a:state.actA,b:state.actB},reeb_edges:512,legendrian_edges:840,ellipsoid_edges:720,maslov_edges:2048,ks_gauge_vertices:321,floating_point:'IEEE-754 binary64'},epistemic_firewall:'This export contains exact model identities and deterministic finite checks. It is not experimental data, a proof for arbitrary contact or Hamiltonian systems, an exhaustive knot classification, a general N-body regularizer or evidence that the five stations are one physical system.'};}
 const actGroup=new THREE.Group();actGroup.name='Contact & Action Observatory · Reeb, return, regularization and Maslov phase';actGroup.visible=false;scene.add(actGroup);
-const ACT={built:false,station:'',pathA:null,pathB:null,bead:null,tangent:null,normal:null,needle:null,core:null,rings:[],title:null,sub:null,dialLabel:null,currentPaths:[],last:null,ui:0,time:0};
+const ACT={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,phaseTube:null,flowA:null,flowB:null,probe:null,tangent:null,normal:null,fieldRoot:null,planeLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function actVisualPaths(D){
-  const fit=p=>{const v=new THREE.Vector3(...p);if(v.length()>1.82)v.setLength(1.82);return v.add(new THREE.Vector3(-2,0,0));};
+  const fit=p=>{const v=new THREE.Vector3(...p);if(v.length()>1.82)v.setLength(1.82);return v.multiplyScalar(1.4);};
   if(D.station==='reeb'||D.station==='legendrian')return [D.path.a.map(fit),D.path.b.map(fit)];
-  if(D.station==='return'){const A=D.path.a.map(fit),B=D.path.b.map(p=>new THREE.Vector3(3.05+.78*p[0],.12+.78*p[1],0));return [A,B];}
-  if(D.station==='ks'){const A=D.path.a.map(fit),rho=D.values.spinor_norm_squared,sc=1.15/Math.max(1e-9,rho),tm=rho/3;const B=D.path.b.map(p=>new THREE.Vector3(2.25+sc*p[0],1.15*p[3]/Math.max(1e-9,tm),sc*p[2]));return [A,B];}
-  const amp=D.values.amplitude,sc=1.55/Math.max(.1,amp),A=D.path.a.map(p=>new THREE.Vector3(-2+sc*p[0],sc*p[1],0)),B=D.path.b.map(p=>{const th=Math.atan2(p[1],p[0]),turn=p[2];return new THREE.Vector3(3.05+.72*Math.cos(th),.72*Math.sin(th),1.25*(turn-.5));});return [A,B];
+  if(D.station==='return'){const A=D.path.a.map(fit),B=D.path.b.map(p=>new THREE.Vector3(1.48*p[0],1.48*p[1],.04));return [A,B];}
+  if(D.station==='ks'){const A=D.path.a.map(fit),rho=D.values.spinor_norm_squared,sc=1.42/Math.max(1e-9,rho),tm=rho/3;const B=D.path.b.map(p=>new THREE.Vector3(sc*p[0],1.32*p[3]/Math.max(1e-9,tm),sc*p[2]));return [A,B];}
+  const amp=D.values.amplitude,sc=2.05/Math.max(.1,amp),A=D.path.a.map(p=>new THREE.Vector3(sc*p[0],.72*sc*p[1],.62*sc*p[1]-.32)),B=D.path.b.map(p=>{const th=Math.atan2(p[1],p[0]),turn=p[2];return new THREE.Vector3(1.78*Math.cos(th),1.10*Math.sin(th)+1.75*(turn-.5),.9*Math.sin(th));});return [A,B];
 }
 function actCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.length===1)return pts[0].clone();const x=actClamp01(u)*(pts.length-1),i=Math.min(pts.length-2,Math.floor(x));return pts[i].clone().lerp(pts[i+1],x-i);}
 function actGuide(station){
-  if(station!=='maslov'){
-    const shell=new THREE.Mesh(new THREE.SphereGeometry(1.82,30,20),new THREE.MeshBasicMaterial({color:station==='ks'?0xc28dff:0x54dff1,wireframe:true,transparent:true,opacity:.13,depthWrite:false}));shell.position.x=-2;actGroup.add(shell);
-    for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.78+i*.28,.012,6,88),new THREE.MeshBasicMaterial({color:[0x55e8c4,0xc28dff,0xffd36a][i],transparent:true,opacity:.2,depthWrite:false}));r.position.x=-2;r.rotation.set(i*.59,(i+1)*.43,i*.21);actGroup.add(r);}
+  const root=new THREE.Group();root.name=`Contact geometry native field · ${station}`;actGroup.add(root);ACT.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.25,2.75,2.65),station==='ks'||station==='maslov'?SCI_VIOLET:SCI_MINT,MOBILE_GPU?120:250,111+station.length));
+  if(station==='reeb'||station==='legendrian'){
+    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.62,5),scientificFresnelMaterial(SCI_MINT,station==='legendrian'?SCI_CORAL:SCI_GOLD,.25,.95));root.add(shell);ACT.manifold=shell;
+  }else if(station==='return'){
+    const ellipsoid=new THREE.Mesh(new THREE.SphereGeometry(2.35,72,48),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.25,.92));ellipsoid.scale.set(1.18,.82,1);root.add(ellipsoid);const section=new THREE.Mesh(new THREE.CircleGeometry(2.38,96),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.18,.75));section.position.z=.02;root.add(section);ACT.manifold=ellipsoid;
+  }else if(station==='ks'){
+    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.55,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.22,.9));root.add(shell);const throat=scientificParametricSurface(80,28,(u,v)=>{const x=(u-.5)*5,a=6.2831853*v,r=.18+.16*x*x;return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_GOLD,SCI_CORAL,.26,.9));throat.rotation.z=Math.PI/2;root.add(throat);ACT.manifold=shell;
   }else{
-    const disk=new THREE.Mesh(new THREE.CircleGeometry(1.82,64),new THREE.MeshBasicMaterial({color:0x345d92,transparent:true,opacity:.1,side:THREE.DoubleSide,depthWrite:false}));disk.position.x=-2;actGroup.add(disk);
-    for(let i=1;i<=4;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.42*i,.01,5,72),new THREE.MeshBasicMaterial({color:0x62e8ff,transparent:true,opacity:.18}));r.position.x=-2;actGroup.add(r);}
+    const caustic=scientificParametricSurface(112,32,(u,v)=>{const a=6.2831853*u,s=2*v-1,r=.18+1.96*Math.abs(s),z=1.34*s+.28*Math.sin(2*a)*(1-Math.abs(s));return new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),z);},scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.31,.98));caustic.rotation.set(.46,.18,.12);root.add(caustic);ACT.manifold=caustic;
   }
-  const left=mkLabel(station==='reeb'?'STANDARD CONTACT S³ · Reeb/Hopf fibre':station==='return'?'ELLIPSOID ENERGY SHELL · exact Reeb orbit':station==='legendrian'?'KER λ₀ · tangent knot':station==='ks'?'R⁴ SPINOR / U(1) · same R³ point':'(q,p) PHASE PLANE · action area','label dim act-guide');left.position.set(-2,-2.35,0);actGroup.add(left);
-  const right=mkLabel(station==='return'?'DISK SECTION · exact rotation':station==='ks'?'R³ COLLISION · time blow-up':station==='maslov'?'METAPLECTIC DOUBLE COVER':'ACTION / CONTACT INVARIANT','label dim act-guide');right.position.set(3.05,-2.35,0);actGroup.add(right);
 }
 function actSetup(){
-  const station=state.actStation||'reeb';if(ACT.built&&ACT.station===station){actRender();return;}labWipe(actGroup);ACT.built=true;ACT.station=station;ACT.rings=[];ACT.time=0;actGuide(station);
-  actGroup.add(new THREE.AmbientLight(0x7388ae,.74));const dl=new THREE.DirectionalLight(0xf4f8ff,.92);dl.position.set(4,8,9);actGroup.add(dl);
-  ACT.pathA=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x62e8ff,transparent:true,opacity:.94,depthWrite:false,blending:THREE.AdditiveBlending}));ACT.pathB=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff8ba1,transparent:true,opacity:.84,depthWrite:false,blending:THREE.AdditiveBlending}));actGroup.add(ACT.pathA,ACT.pathB);
-  ACT.bead=new THREE.Mesh(new THREE.SphereGeometry(.10,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:nexusGlowTexture(),color:0x8fefff,transparent:true,opacity:.76,depthWrite:false}));glow.scale.setScalar(.82);ACT.bead.add(glow);actGroup.add(ACT.bead);
-  ACT.tangent=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd36a,transparent:true,opacity:.97}));ACT.normal=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc28dff,transparent:true,opacity:.86}));actGroup.add(ACT.tangent,ACT.normal);
-  ACT.core=new THREE.Mesh(new THREE.DodecahedronGeometry(.56,1),new THREE.MeshStandardMaterial({color:0x55e8c4,emissive:0x124c43,emissiveIntensity:1.7,roughness:.18,metalness:.7,transparent:true,opacity:.96}));ACT.core.position.set(.62,0,0);actGroup.add(ACT.core);
-  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.82+i*.21,.022,8,88),new THREE.MeshBasicMaterial({color:[0x62e8ff,0xc28dff,0xffd36a][i],transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));r.position.copy(ACT.core.position);r.rotation.set(i*.69,(i+1)*.51,i*.27);actGroup.add(r);ACT.rings.push(r);}
-  const dial=new THREE.Mesh(new THREE.TorusGeometry(.92,.028,8,96),new THREE.MeshBasicMaterial({color:0xffd36a,transparent:true,opacity:.62,depthWrite:false}));dial.position.set(3.05,.08,0);actGroup.add(dial);ACT.needle=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.98}));actGroup.add(ACT.needle);
-  ACT.title=mkLabel('CONTACT & ACTION · S³ ENERGY-SHELL DYNAMICS','label const act-title');ACT.title.position.set(.3,3.35,0);actGroup.add(ACT.title);ACT.sub=mkLabel('','label axis act-sub');ACT.sub.position.set(.3,2.82,0);actGroup.add(ACT.sub);ACT.dialLabel=mkLabel('','label gold act-dial');ACT.dialLabel.position.set(3.05,-1.15,0);actGroup.add(ACT.dialLabel);
-  const foot=mkLabel('cyan = declared trajectory · coral = return / gauge / lift · gold = projected tangent · invariants computed before projection','label dim act-foot');foot.position.set(.25,-3.48,0);actGroup.add(foot);actRender();
+  const station=state.actStation||'reeb';if(ACT.built&&ACT.station===station){actRender();return;}labWipe(actGroup);ACT.built=true;ACT.station=station;ACT.time=0;actGuide(station);
+  actGroup.add(new THREE.AmbientLight(0x62779c,.64));const dl=new THREE.DirectionalLight(0xf4f8ff,1.15);dl.position.set(5,8,9);actGroup.add(dl);const rim=new THREE.PointLight(0xffc96b,2.15,14,2);rim.position.set(-3,2,4);actGroup.add(rim);
+  ACT.pathRibbon=scientificRibbon([],.19,SCI_MINT,.24,true);ACT.pathA=scientificTube([],SCI_CYAN,.067,.95,true,240);ACT.pathB=scientificTube([],SCI_CORAL,.052,.9,true,240);ACT.phaseTube=scientificTube([],SCI_GOLD,.026,.82,true,220);ACT.flowA=scientificFlow([],MOBILE_GPU?34:72,SCI_CYAN,.045,true);ACT.flowB=scientificFlow([],MOBILE_GPU?22:46,SCI_CORAL,.04,true);actGroup.add(ACT.pathRibbon,ACT.pathA,ACT.pathB,ACT.phaseTube,ACT.flowA,ACT.flowB);
+  ACT.probe=scientificCrystal(0xffffff,.17);actGroup.add(ACT.probe);ACT.tangent=scientificTube([],SCI_GOLD,.04,.98,false,36);ACT.normal=scientificTube([],SCI_VIOLET,.032,.88,false,36);actGroup.add(ACT.tangent,ACT.normal);ACT.planeLayer=new THREE.Group();actGroup.add(ACT.planeLayer);
+  ACT.title=mkLabel('CONTACT & ACTION · S³ ENERGY-SHELL DYNAMICS','label const act-title');ACT.title.position.set(0,3.35,0);actGroup.add(ACT.title);ACT.sub=mkLabel('','label axis act-sub');ACT.sub.position.set(0,2.82,0);actGroup.add(ACT.sub);
+  const foot=mkLabel('contact planes form the field · Reeb flow pierces them · action appears as accumulated geometric twist','label dim act-foot');foot.position.set(0,-3.36,0);actGroup.add(foot);actRender();
 }
 function actSetProgress(){
-  if(!ACT.currentPaths.length)return;const pts=ACT.currentPaths[0],u=state.actProgress??0,p=actCurvePoint(pts,u);ACT.bead.position.copy(p);const x=actClamp01(u)*(pts.length-1),i=Math.min(pts.length-2,Math.max(0,Math.floor(x))),j=Math.min(pts.length-1,i+1),tan=pts[j].clone().sub(pts[Math.max(0,i-1)]).normalize();ACT.tangent.geometry.setFromPoints([p,p.clone().addScaledVector(tan,.68)]);
-  const radial=p.clone().sub(new THREE.Vector3(-2,0,0));if(radial.lengthSq()<1e-8)radial.set(0,1,0);radial.normalize();let side=new THREE.Vector3().crossVectors(tan,radial);if(side.lengthSq()<1e-8)side.set(0,0,1);side.normalize();ACT.normal.geometry.setFromPoints([p,p.clone().addScaledVector(side,.52)]);
+  if(!ACT.currentPaths.length)return;const pts=ACT.currentPaths[0],u=state.actProgress??0,p=actCurvePoint(pts,u);ACT.probe.position.copy(p);const x=actClamp01(u)*(pts.length-1),i=Math.min(pts.length-2,Math.max(0,Math.floor(x))),j=Math.min(pts.length-1,i+1),tan=pts[j].clone().sub(pts[Math.max(0,i-1)]).normalize();scientificReplaceTube(ACT.tangent,[p,p.clone().addScaledVector(tan,.72)],false);
+  const radial=p.clone();if(radial.lengthSq()<1e-8)radial.set(0,1,0);radial.normalize();let side=new THREE.Vector3().crossVectors(tan,radial);if(side.lengthSq()<1e-8)side.set(0,0,1);side.normalize();scientificReplaceTube(ACT.normal,[p,p.clone().addScaledVector(side,.58)],false);
 }
+function actPhaseBraid(pts,phase){if(!pts?.length)return[];return pts.map((p,i)=>{const u=i/Math.max(1,pts.length-1),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),r=p.clone();if(r.lengthSq()<1e-7)r.set(0,1,0);r.normalize();const s=new THREE.Vector3().crossVectors(t,r);if(s.lengthSq()<1e-7)s.set(0,0,1);s.normalize();const a=6.2831853*u+phase*u;return p.clone().addScaledVector(r,.14*Math.cos(a)).addScaledVector(s,.14*Math.sin(a));});}
 function actRender(){
-  if(!ACT.built)return;const D=actDiagnostics();ACT.last=D;ACT.currentPaths=actVisualPaths(D);ACT.pathA.geometry.setFromPoints(ACT.currentPaths[0]||[]);ACT.pathB.visible=!!ACT.currentPaths[1];if(ACT.currentPaths[1])ACT.pathB.geometry.setFromPoints(ACT.currentPaths[1]);
-  const phase=Number.isFinite(D.phase)?D.phase:0,c=new THREE.Vector3(3.05,.08,0),tip=c.clone().add(new THREE.Vector3(.78*Math.cos(phase),.78*Math.sin(phase),0));ACT.needle.geometry.setFromPoints([c,tip]);ACT.dialLabel.element.textContent=D.station==='maslov'?'Maslov phase −π · classical 2π / quantum −1':D.station==='reeb'?`action ${D.values.action.toFixed(6)} = π`:`return / gauge phase ${actWrap(phase).toFixed(6)} rad`;ACT.sub.element.textContent=`${D.title} · ${D.pass?'contract verified':'inspect residual'} · residual ${D.residual.toExponential(2)}`;ACT.core.material.color.setHex(D.pass?0x55e8c4:0xff6f86);ACT.core.material.emissive.setHex(D.pass?0x124c43:0x59162a);actSetProgress();
+  if(!ACT.built)return;const D=actDiagnostics(),phase=Number.isFinite(D.phase)?D.phase:0;ACT.last=D;ACT.currentPaths=actVisualPaths(D);const A=ACT.currentPaths[0]||[],B=ACT.currentPaths[1]||[],closedA=D.station!=='ks'||A[0]?.distanceTo(A[A.length-1])<.2,closedB=D.station!=='maslov',dense=D.station==='return';
+  ACT.pathA.userData.scientificTube.radius=dense?.027:.067;ACT.pathB.userData.scientificTube.radius=dense?.023:.052;ACT.phaseTube.userData.scientificTube.radius=dense?.012:.026;ACT.pathA.material.opacity=dense?.28:.95;ACT.pathB.material.opacity=dense?.38:.9;ACT.phaseTube.material.opacity=dense?.24:.82;ACT.pathA.material.emissiveIntensity=dense?.68:1.35;ACT.pathB.material.emissiveIntensity=dense?.82:1.35;ACT.flowA.material.opacity=dense?.38:.82;ACT.flowB.material.opacity=dense?.44:.82;ACT.pathRibbon.material.uniforms.uOpacity.value=dense?.045:.24;
+  scientificReplaceTube(ACT.pathA,A,closedA);scientificReplaceRibbon(ACT.pathRibbon,A,closedA);scientificReplaceTube(ACT.phaseTube,actPhaseBraid(A,phase),closedA);scientificSetFlowPath(ACT.flowA,A,closedA);ACT.pathB.visible=ACT.flowB.visible=B.length>1;if(B.length>1){scientificReplaceTube(ACT.pathB,B,closedB);scientificSetFlowPath(ACT.flowB,B,closedB);}
+  labWipe(ACT.planeLayer);if(A.length>6){const planes=[];for(let i=0;i<Math.min(28,A.length);i++)planes.push(A[Math.floor(i*(A.length-1)/Math.min(27,A.length-1))]);ACT.planeLayer.add(scientificContactPlanes(planes,D.station==='legendrian'?SCI_CORAL:SCI_VIOLET,D.station==='return'?.18:.14));}
+  const value=D.station==='reeb'?`action ${D.values.action.toFixed(6)} = π`:D.station==='maslov'?'Maslov phase −π · metaplectic return −1':`return / gauge phase ${actWrap(phase).toFixed(6)} rad`;ACT.sub.element.textContent=`${D.title} · ${value} · ${D.pass?'contract verified':'inspect residual'} · ε ${D.residual.toExponential(2)}`;actSetProgress();
 }
 function actReadoutsHTML(D){return D.readouts.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.good===false?'#ff6f86':r.good===true?'#55e8c4':'#62e8ff'}"><b>${esc(r.label)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(String(r.value))}</span></div>`).join('');}
 function actPanelHTML(){
@@ -18605,7 +18715,7 @@ function bindActControls(root=ctl){
   root.querySelectorAll('[data-act-station]').forEach(b=>b.onclick=()=>{state.actStation=b.dataset.actStation;state.actA=.55;state.actB=.42;state.actProgress=0;ACT.built=false;actSetup();buildCtl();});root.querySelectorAll('[data-act-preset]').forEach(b=>b.onclick=()=>{const [a,c]=b.dataset.actPreset.split('|').map(Number);state.actA=a;state.actB=c;actRender();buildCtl();});
   const run=root.querySelector('#actRun');if(run)run.onclick=()=>{state.actRun=!state.actRun;buildCtl();};const reset=root.querySelector('#actReset');if(reset)reset.onclick=()=>{state.actA=.55;state.actB=.42;state.actProgress=0;state.actRun=false;actRender();buildCtl();};const a=root.querySelector('#actA');if(a)a.oninput=e=>{state.actA=+e.target.value;actRender();actUpdatePanel(root);};const b=root.querySelector('#actB');if(b)b.oninput=e=>{state.actB=+e.target.value;actRender();actUpdatePanel(root);};const speed=root.querySelector('#actSpeed');if(speed)speed.oninput=e=>{state.actSpeed=+e.target.value;const v=root.querySelector('#actSpeedV');if(v)v.textContent='×'+state.actSpeed.toFixed(2);};const cmp=root.querySelector('#actCompare');if(cmp)cmp.onclick=actCompare;const exp=root.querySelector('#actExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_contact_action_observatory.json','application/json',JSON.stringify(actExportData(),null,2));
 }
-function updateAct(dt){if(!ACT.built)return;ACT.time+=dt;if(state.actRun!==false&&!PREFERS_REDUCED_MOTION){state.actProgress=(state.actProgress+dt*.078*(state.actSpeed??.52))%1;actSetProgress();}ACT.core.rotation.x+=dt*.17;ACT.core.rotation.y-=dt*.29;ACT.rings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.16:-.12));ACT.ui+=dt;if(ACT.ui>.22){ACT.ui=0;const D=ACT.last||actDiagnostics();hudBig.textContent=`CONTACT & ACTION · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`model residual ${D.residual.toExponential(2)} · invariants evaluated before 3D projection · finite station, explicit scope`;ATLAS_BUS.pub('act.action',Number.isFinite(D.values.action)?D.values.action:Number.isFinite(D.values.action_variable)?D.values.action_variable:Number.isFinite(D.values.return_time)?D.values.return_time:0,'reduced action');ATLAS_BUS.pub('act.residual',D.residual,'closure');if(Number.isFinite(D.values.maslov_index))ATLAS_BUS.pub('act.maslov',D.values.maslov_index,'index');}}
+function updateAct(dt){if(!ACT.built)return;ACT.time+=dt;if(state.actRun!==false&&!PREFERS_REDUCED_MOTION){state.actProgress=(state.actProgress+dt*.078*(state.actSpeed??.52))%1;actSetProgress();}scientificUpdateFlow(ACT.flowA,ACT.time,.038+(state.actSpeed??.52)*.035);scientificUpdateFlow(ACT.flowB,ACT.time,-.03-(state.actSpeed??.52)*.025);scientificUpdateMaterials(actGroup,ACT.time);ACT.probe?.userData?.body?.rotation.set(ACT.time*.31,ACT.time*.52,ACT.time*.16);ACT.ui+=dt;if(ACT.ui>.22){ACT.ui=0;const D=ACT.last||actDiagnostics();hudBig.textContent=`CONTACT & ACTION · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`model residual ${D.residual.toExponential(2)} · invariants evaluated before 3D projection · finite station, explicit scope`;ATLAS_BUS.pub('act.action',Number.isFinite(D.values.action)?D.values.action:Number.isFinite(D.values.action_variable)?D.values.action_variable:Number.isFinite(D.values.return_time)?D.values.return_time:0,'reduced action');ATLAS_BUS.pub('act.residual',D.residual,'closure');if(Number.isFinite(D.values.maslov_index))ATLAS_BUS.pub('act.maslov',D.values.maslov_index,'index');}}
 
 /* ================================================================
    SPINOR & LIGHT-CONE OBSERVATORY — one exact bridge from the
@@ -18697,31 +18807,42 @@ function nulDiagnostics(station=state.nulStation||'null',aU=state.nulA??.56,bU=s
 }
 function nulExportData(){return {schema:'fbs3r-spinor-lightcone-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(NUL_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:nulDiagnostics(),reproducibility:{normalized_controls:{a:state.nulA,b:state.nulB},celestial_circle_vertices:161,diamond_null_ray_vertices:81,floating_point:'IEEE-754 binary64',metric_signature:'+---',pauli_convention:'X=x0 I+x sigma'},epistemic_firewall:'This export contains exact representation identities and deterministic finite checks. It is not experimental data, a general curved-spacetime or quantum-gravity solver, an observational map of the sky, an exhaustive spinor classification or evidence that the five stations are one physical system.'};}
 const nulGroup=new THREE.Group();nulGroup.name='Spinor & Light-Cone Observatory · CP1, SL2C, null tetrad and conformal infinity';nulGroup.visible=false;scene.add(nulGroup);
-const NUL={built:false,station:'',paths:[],bead:null,core:null,rings:[],title:null,sub:null,phaseLabel:null,last:null,ui:0,time:0};
+const NUL={built:false,station:'',paths:[],flows:[],phaseTube:null,probe:null,fieldRoot:null,surfaceLayer:null,dynamicObjects:[],title:null,sub:null,phaseLabel:null,last:null,currentLines:[],ui:0,time:0};
+function nulVisualLines(D){
+  const map=p=>{const v=new THREE.Vector3(...p);if(D.station==='null'){if(v.x<-.05)v.x=-1.72+(v.x+2.3)*1.16;else v.x=1.72+(v.x-2.05)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='lorentz'){v.x*=.5;v.y*=1.18;v.z*=1.18;}else if(D.station==='celestial'){const side=v.x<0?-1:1,c=side<0?-2.25:2.25;v.x=side*1.72+(v.x-c)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='tetrad'){v.x*=.78;v.y*=1.18;v.z*=1.18;}else{v.x=v.x*1.28+.42;v.y*=1.06;v.z*=2.4;}return v;};return (D.path.lines||[]).map(L=>L.map(map));
+}
 function nulGuide(station){
-  const wire=(g,c,p)=>{const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:c,wireframe:true,transparent:true,opacity:.15,depthWrite:false}));m.position.copy(p);nulGroup.add(m);return m;};
-  if(station==='null'||station==='celestial'||station==='tetrad')wire(new THREE.SphereGeometry(1.48,28,18),station==='tetrad'?0xffd36a:0x62e8ff,new THREE.Vector3(-2.3,0,0));
-  if(station==='celestial')wire(new THREE.SphereGeometry(1.48,28,18),0xff7898,new THREE.Vector3(2.3,0,0));
-  if(station==='null'||station==='lorentz'){
-    const xs=station==='lorentz'?[-2.25,2.25]:[2.05];for(const x of xs){const a=wire(new THREE.ConeGeometry(1.28,2.5,28,4,true),0x55e8c4,new THREE.Vector3(x,.74,0)),b=wire(new THREE.ConeGeometry(1.28,2.5,28,4,true),0xc28dff,new THREE.Vector3(x,-.74,0));b.rotation.z=Math.PI;}
+  const root=new THREE.Group();root.name=`Null geometry native field · ${station}`;nulGroup.add(root);NUL.fieldRoot=root;NUL.dynamicObjects=[];NUL.transformedField=null;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.5,2.9,2.9),station==='tetrad'||station==='diamond'?SCI_GOLD:SCI_CYAN,MOBILE_GPU?140:290,151+station.length));
+  const sphere=(x,c,a=SCI_GOLD)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1.76,72,48),scientificFresnelMaterial(c,a,.27,.95));m.position.x=x;root.add(m);return m;};
+  const conePair=(x,c1,c2,scale=1)=>{const g=new THREE.ConeGeometry(1.56*scale,2.9*scale,72,8,true),up=new THREE.Mesh(g,scientificFresnelMaterial(c1,SCI_GOLD,.3,.98)),dn=new THREE.Mesh(g.clone(),scientificFresnelMaterial(c2,SCI_CYAN,.25,.9));up.position.set(x,1.45*scale,0);up.rotation.z=Math.PI;dn.position.set(x,-1.45*scale,0);root.add(up,dn);NUL.dynamicObjects.push(up,dn);return [up,dn];};
+  if(station==='null'){
+    sphere(-1.72,SCI_CYAN,SCI_VIOLET);conePair(1.72,SCI_MINT,SCI_VIOLET,.92);const bridge=scientificParametricSurface(72,20,(u,v)=>{const x=-.48+.96*u,a=6.2831853*v,r=.18+.3*Math.pow(Math.abs(u-.5)*2,1.5);return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.28,.9));root.add(bridge);
+  }else if(station==='lorentz'){
+    conePair(0,SCI_CYAN,SCI_VIOLET,1);const transformed=conePair(0,SCI_CORAL,SCI_GOLD,.93);transformed.forEach(o=>{o.material.uniforms.uOpacity.value=.2;o.rotation.y=.32;});NUL.transformedField=transformed;
+  }else if(station==='celestial'){
+    sphere(-1.72,SCI_CYAN,SCI_GOLD);NUL.transformedField=[sphere(1.72,SCI_CORAL,SCI_VIOLET)];const bridge=scientificParametricSurface(64,18,(u,v)=>{const x=-.48+.96*u,a=6.2831853*v,r=.2+.42*Math.sin(Math.PI*u);return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.23,.86));root.add(bridge);
+  }else if(station==='tetrad'){
+    const sky=new THREE.Mesh(new THREE.IcosahedronGeometry(2.65,5),scientificFresnelMaterial(SCI_GOLD,SCI_VIOLET,.23,.92));root.add(sky);NUL.transformedField=[sky];
+  }else{
+    const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(2.75,2),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.3,1));diamond.scale.set(1,1.16,.54);root.add(diamond);NUL.transformedField=[diamond];const inner=new THREE.Mesh(new THREE.OctahedronGeometry(1.9,1),scientificFresnelMaterial(SCI_VIOLET,SCI_CORAL,.18,.78));inner.scale.copy(diamond.scale);root.add(inner);
   }
-  if(station==='tetrad'){const r=wire(new THREE.TorusGeometry(1.35,.018,6,96),0xc28dff,new THREE.Vector3(2.25,0,0));r.rotation.x=Math.PI/2;}
-  if(station==='diamond'){const p=new THREE.Mesh(new THREE.PlaneGeometry(4.2,5.5),new THREE.MeshBasicMaterial({color:0x31547d,transparent:true,opacity:.055,side:THREE.DoubleSide,depthWrite:false}));p.position.set(.15,0,.04);nulGroup.add(p);}
-  const left=mkLabel(station==='null'?'S³/U(1)=CP¹ · Hopf/Bloch direction':station==='lorentz'?'Herm(2) · det X = Minkowski norm':station==='celestial'?'observer sky · CP¹ before frame change':station==='tetrad'?'spin dyad · l,n,m,m̄':'radial Minkowski section · r≥0','label dim nul-guide');left.position.set(-2.25,-2.62,0);nulGroup.add(left);
-  const right=mkLabel(station==='null'?'future light cone · k·k=0':station==='lorentz'?'AXA† · same interval':station==='celestial'?'same sky after Möbius action':station==='tetrad'?'spin-1 frame / spin-2 polarization':'finite conformal boundary · null lines stay null','label dim nul-guide');right.position.set(2.25,-2.62,0);nulGroup.add(right);
 }
 function nulSetup(){
-  const station=state.nulStation||'null';if(NUL.built&&NUL.station===station){nulRender();return;}labWipe(nulGroup);NUL.built=true;NUL.station=station;NUL.paths=[];NUL.rings=[];NUL.time=0;nulGuide(station);
-  nulGroup.add(new THREE.AmbientLight(0x7285aa,.76));const dl=new THREE.DirectionalLight(0xf5f9ff,.95);dl.position.set(4,8,9);nulGroup.add(dl);
-  const colors=[0x62e8ff,0xff7898,0xffd36a,0xc28dff,0x55e8c4,0xffffff];for(let i=0;i<6;i++){const q=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:colors[i],transparent:true,opacity:i===5?.96:.88,depthWrite:false,blending:THREE.AdditiveBlending}));nulGroup.add(q);NUL.paths.push(q);}
-  NUL.bead=new THREE.Mesh(new THREE.SphereGeometry(.105,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:nexusGlowTexture(),color:0x8fefff,transparent:true,opacity:.8,depthWrite:false}));glow.scale.setScalar(.86);NUL.bead.add(glow);nulGroup.add(NUL.bead);
-  NUL.core=new THREE.Mesh(new THREE.OctahedronGeometry(.58,2),new THREE.MeshStandardMaterial({color:0x55e8c4,emissive:0x123f4a,emissiveIntensity:1.75,roughness:.16,metalness:.74,transparent:true,opacity:.96}));NUL.core.position.set(0,0,0);nulGroup.add(NUL.core);
-  for(let i=0;i<3;i++){const r=new THREE.Mesh(new THREE.TorusGeometry(.8+i*.22,.021,8,88),new THREE.MeshBasicMaterial({color:[0x62e8ff,0xc28dff,0xffd36a][i],transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));r.rotation.set(i*.67,(i+1)*.49,i*.28);nulGroup.add(r);NUL.rings.push(r);}
+  const station=state.nulStation||'null';if(NUL.built&&NUL.station===station){nulRender();return;}labWipe(nulGroup);NUL.built=true;NUL.station=station;NUL.paths=[];NUL.flows=[];NUL.time=0;nulGuide(station);
+  nulGroup.add(new THREE.AmbientLight(0x60749a,.62));const dl=new THREE.DirectionalLight(0xf5f9ff,1.18);dl.position.set(5,8,9);nulGroup.add(dl);const rim=new THREE.PointLight(0xffcd70,2.25,15,2);rim.position.set(-3,2,4);nulGroup.add(rim);
+  const colors=[SCI_CYAN,SCI_CORAL,SCI_GOLD,SCI_VIOLET,SCI_MINT,0xffffff];for(let i=0;i<6;i++){const q=scientificTube([],colors[i],i===5?.05:.042,i===5?.98:.87,false,220),f=scientificFlow([],MOBILE_GPU?14:28,colors[i],i===5?.04:.032,false);nulGroup.add(q,f);NUL.paths.push(q);NUL.flows.push(f);}
+  NUL.phaseTube=scientificTube([],SCI_GOLD,.025,.84,false,220);nulGroup.add(NUL.phaseTube);NUL.probe=scientificCrystal(0xffffff,.17);nulGroup.add(NUL.probe);NUL.surfaceLayer=new THREE.Group();nulGroup.add(NUL.surfaceLayer);
   NUL.title=mkLabel('SPINOR & LIGHT CONE · S³ PHASE TO NULL INFINITY','label const nul-title');NUL.title.position.set(0,3.42,0);nulGroup.add(NUL.title);NUL.sub=mkLabel('','label axis nul-sub');NUL.sub.position.set(0,2.92,0);nulGroup.add(NUL.sub);NUL.phaseLabel=mkLabel('','label gold nul-phase');NUL.phaseLabel.position.set(2.25,-1.72,0);nulGroup.add(NUL.phaseLabel);
-  const foot=mkLabel('cyan = native/projective path · coral = transformed path · gold = invariant witness · all distances after projection are interface-only','label dim nul-foot');foot.position.set(0,-3.42,0);nulGroup.add(foot);nulRender();
+  const foot=mkLabel('nullity is visible as cone geometry · spin phase becomes fibre twist · conformal infinity becomes a finite light volume','label dim nul-foot');foot.position.set(0,-3.42,0);nulGroup.add(foot);nulRender();
 }
-function nulSetProgress(){const D=NUL.last||nulDiagnostics(),p=(state.nulProgress??0)%1,L=(D.path.lines||[]).find(x=>x.length>1);if(!L||!NUL.bead)return;const q=p*(L.length-1),i=Math.min(L.length-2,Math.floor(q)),f=q-i,a=L[i],b=L[i+1];NUL.bead.position.set(a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f);}
-function nulRender(){if(!NUL.built)return;const D=nulDiagnostics();NUL.last=D;for(let i=0;i<NUL.paths.length;i++){const L=D.path.lines[i]||[];NUL.paths[i].visible=L.length>1;if(L.length>1){NUL.paths[i].geometry.dispose();NUL.paths[i].geometry=new THREE.BufferGeometry().setFromPoints(L.map(p=>new THREE.Vector3(...p)));}}NUL.sub.element.textContent=`${D.title} · ${D.pass?'contract verified':'inspect residual'} · residual ${D.residual.toExponential(2)}`;NUL.phaseLabel.element.textContent=D.station==='diamond'?`compact time T = ${D.values.T.toFixed(6)}`:D.station==='tetrad'?`spin-1 χ = ${D.values.spin_weight_one_phase.toFixed(6)} · spin-2 = ${D.values.spin_weight_two_phase.toFixed(6)}`:`return / frame phase ${nulWrap(D.phase).toFixed(6)} rad`;NUL.core.material.color.setHex(D.pass?0x55e8c4:0xff6f86);NUL.core.material.emissive.setHex(D.pass?0x124c43:0x59162a);nulSetProgress();}
+function nulSetProgress(){const p=(state.nulProgress??0)%1,L=NUL.currentLines.reduce((a,b)=>b.length>a.length?b:a,[]);if(L.length<2||!NUL.probe)return;const q=p*(L.length-1),i=Math.min(L.length-2,Math.floor(q)),f=q-i;NUL.probe.position.copy(L[i]).lerp(L[i+1],f);}
+function nulRender(){if(!NUL.built)return;const D=nulDiagnostics(),phase=nulWrap(D.phase);NUL.last=D;NUL.currentLines=nulVisualLines(D);let main=[];for(let i=0;i<NUL.paths.length;i++){const L=NUL.currentLines[i]||[],closed=L.length>3&&L[0].distanceTo(L[L.length-1])<.16;NUL.paths[i].visible=NUL.flows[i].visible=L.length>1;if(L.length>1){scientificReplaceTube(NUL.paths[i],L,closed);scientificSetFlowPath(NUL.flows[i],L,closed);if(L.length>main.length)main=L;}}
+  scientificReplaceTube(NUL.phaseTube,actPhaseBraid(main,phase),main.length>3&&main[0].distanceTo(main[main.length-1])<.16);labWipe(NUL.surfaceLayer);
+  if(D.station==='tetrad'&&main.length>1){const centre=new THREE.Vector3(),axis=main[main.length-1].clone().sub(main[0]);if(axis.lengthSq()<1e-8)axis.set(0,1,0);else axis.normalize();const e=new THREE.Vector3(1,0,0);if(Math.abs(axis.dot(e))>.9)e.set(0,1,0);e.cross(axis).normalize();const f=e.clone().applyAxisAngle(axis,Math.PI/2),r=.42,helixA=[],helixB=[];for(let i=0;i<=120;i++){const u=i/120,p=axis.clone().multiplyScalar((u-.5)*4.5),a=phase*u*2+6.2831853*u;helixA.push(p.clone().addScaledVector(e,r*Math.cos(a)).addScaledVector(f,r*Math.sin(a)));helixB.push(p.clone().addScaledVector(e,-r*Math.cos(a)).addScaledVector(f,-r*Math.sin(a)));}NUL.surfaceLayer.add(scientificTube(helixA,SCI_GOLD,.03,.8,false,160),scientificTube(helixB,SCI_VIOLET,.03,.72,false,160));}
+  if(D.station==='lorentz'&&NUL.transformedField){const eta=D.parameters[0].value;NUL.transformedField.forEach((o,i)=>{o.rotation.y=.32+.12*Math.sin(eta);o.scale.set(Math.exp((i ? -.08 : .08)*eta),1,Math.exp((i ? .08 : -.08)*eta));});}
+  if(D.station==='celestial'&&NUL.transformedField)NUL.transformedField.forEach(o=>o.rotation.set(.12*Math.sin(phase),phase*.16,.08*Math.cos(phase)));
+  if(D.station==='diamond'&&NUL.transformedField){const cf=Math.max(.15,Math.abs(D.values.conformal_factor||.5));NUL.transformedField[0].scale.set(1,1.16,.42+.24*cf);}
+  NUL.sub.element.textContent=`${D.title} · ${D.pass?'contract verified':'inspect residual'} · native residual ${D.residual.toExponential(2)}`;NUL.phaseLabel.element.textContent=D.station==='diamond'?`compact time T = ${D.values.T.toFixed(6)}`:D.station==='tetrad'?`spin-1 χ = ${D.values.spin_weight_one_phase.toFixed(6)} · spin-2 = ${D.values.spin_weight_two_phase.toFixed(6)}`:`fibre / frame twist ${phase.toFixed(6)} rad`;nulSetProgress();}
 function nulReadoutsHTML(D){return D.readouts.map(([k,v])=>`<div class="small" style="display:flex;gap:8px;justify-content:space-between"><span style="color:var(--dim)">${esc(k)}</span><b style="font-variant-numeric:tabular-nums;text-align:right">${esc(String(v))}</b></div>`).join('');}
 function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[station],D=nulDiagnostics();return `<div class="sect" style="border-color:rgba(98,232,255,.43);background:linear-gradient(135deg,rgba(20,82,108,.25),rgba(81,44,128,.19))"><b style="color:#c8f8ff">◇ ${TT('SPINOR & LIGHT-CONE OBSERVATORY','ОБСЕРВАТОРИЯ СПИНОРА И СВЕТОВОГО КОНУСА','SPINOR- & LICHTKEGEL-OBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact chain: normalized S³ spinor → CP¹ direction → future null ray → Lorentz/Möbius action → null frame → conformal infinity.','Одна точная цепь: нормированный спинор S³ → направление CP¹ → будущий нулевой луч → действие Лоренца/Мёбиуса → нулевая рама → конформная бесконечность.','Eine exakte Kette: normierter S³-Spinor → CP¹-Richtung → Nullstrahl → Lorentz/Möbius-Wirkung → Nullrahmen → konforme Unendlichkeit.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated before 3D projection; shared geometry does not make qubits, photons and gravitational waves one physical system.','Барьер: все инварианты вычисляются до 3D-проекции; общая геометрия не делает кубиты, фотоны и гравитационные волны одной физической системой.','Firewall: Alle Invarianten werden vor der 3D-Projektion ausgewertet; gemeinsame Geometrie macht Qubits, Photonen und Gravitationswellen nicht zu einem System.')}</div></div>
   <div class="sect"><b>${TT('NULL-GEOMETRY STATION','СТАНЦИЯ НУЛЕВОЙ ГЕОМЕТРИИ','NULLGEOMETRIE-STATION')}</b><div class="chips">${Object.entries(NUL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-nul-station="${k}">${esc(nulLang(v.t))}</button>`).join('')}</div><div class="ctlrow"><button class="btn green" id="nulRun">${state.nulRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="nulReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="nulSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.nulSpeed??.54}"><span class="val" id="nulSpeedV">×${(state.nulSpeed??.54).toFixed(2)}</span></div>
@@ -18731,7 +18852,7 @@ function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[st
 function nulCompare(){const sets={null:['nul','hopf','spin','su2'],lorentz:['nul','rel','hol','syd'],celestial:['nul','rel','imp','sh'],tetrad:['nul','gw','spin','su2'],diamond:['nul','rel','bhr','cau']},views=sets[state.nulStation]||sets.null;if(renderer.xr.isPresenting)return;mvEnsure();MV.presetId='lightcone';MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=4;for(let i=0;i<4;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}MV.active=-1;for(let i=3;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();}
 function nulUpdatePanel(root=ctl){const D=NUL.last||nulDiagnostics(),a=root.querySelector('#nulAV'),b=root.querySelector('#nulBV'),al=root.querySelector('#nulAL'),bl=root.querySelector('#nulBL'),r=root.querySelector('#nulReadouts'),o=root.querySelector('#nulOrder');if(a)a.textContent=D.parameters[0].display;if(b)b.textContent=D.parameters[1].display;if(al)al.textContent=D.parameters[0].label;if(bl)bl.textContent=D.parameters[1].label;if(r)r.innerHTML=nulReadoutsHTML(D);if(o){o.style.color=D.pass?'#8fffe3':'#ff9daf';o.innerHTML=`<b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}`;}}
 function bindNulControls(root=ctl){root.querySelectorAll('[data-nul-station]').forEach(b=>b.onclick=()=>{state.nulStation=b.dataset.nulStation;state.nulA=.56;state.nulB=.34;state.nulProgress=0;NUL.built=false;nulSetup();buildCtl();});const run=root.querySelector('#nulRun');if(run)run.onclick=()=>{state.nulRun=!state.nulRun;buildCtl();};const reset=root.querySelector('#nulReset');if(reset)reset.onclick=()=>{state.nulA=.56;state.nulB=.34;state.nulProgress=0;state.nulRun=false;nulRender();buildCtl();};const a=root.querySelector('#nulA');if(a)a.oninput=e=>{state.nulA=+e.target.value;nulRender();nulUpdatePanel(root);};const b=root.querySelector('#nulB');if(b)b.oninput=e=>{state.nulB=+e.target.value;nulRender();nulUpdatePanel(root);};const speed=root.querySelector('#nulSpeed');if(speed)speed.oninput=e=>{state.nulSpeed=+e.target.value;const v=root.querySelector('#nulSpeedV');if(v)v.textContent='×'+state.nulSpeed.toFixed(2);};const cmp=root.querySelector('#nulCompare');if(cmp)cmp.onclick=nulCompare;const exp=root.querySelector('#nulExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_spinor_lightcone_observatory.json','application/json',JSON.stringify(nulExportData(),null,2));}
-function updateNul(dt){if(!NUL.built)return;NUL.time+=dt;if(state.nulRun!==false&&!PREFERS_REDUCED_MOTION){state.nulProgress=(state.nulProgress+dt*.075*(state.nulSpeed??.54))%1;nulSetProgress();}NUL.core.rotation.x+=dt*.19;NUL.core.rotation.y-=dt*.27;NUL.rings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.15:-.11));NUL.ui+=dt;if(NUL.ui>.22){NUL.ui=0;const D=NUL.last||nulDiagnostics();hudBig.textContent=`SPINOR & LIGHT CONE · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`native residual ${D.residual.toExponential(2)} · CP¹ / Minkowski / radial-conformal contracts remain explicitly distinct`;ATLAS_BUS.pub('nul.nullity',D.residual,'native residual');ATLAS_BUS.pub('nul.phase',nulWrap(D.phase),'rad');if(Number.isFinite(D.values.interval))ATLAS_BUS.pub('nul.interval',D.values.interval,'Minkowski interval');}}
+function updateNul(dt){if(!NUL.built)return;NUL.time+=dt;if(state.nulRun!==false&&!PREFERS_REDUCED_MOTION){state.nulProgress=(state.nulProgress+dt*.075*(state.nulSpeed??.54))%1;nulSetProgress();}NUL.flows.forEach((f,i)=>scientificUpdateFlow(f,NUL.time,(i%2?-.026:.034)+(state.nulSpeed??.54)*.018));scientificUpdateMaterials(nulGroup,NUL.time);NUL.probe?.userData?.body?.rotation.set(NUL.time*.34,NUL.time*.53,NUL.time*.17);NUL.ui+=dt;if(NUL.ui>.22){NUL.ui=0;const D=NUL.last||nulDiagnostics();hudBig.textContent=`SPINOR & LIGHT CONE · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`native residual ${D.residual.toExponential(2)} · CP¹ / Minkowski / radial-conformal contracts remain explicitly distinct`;ATLAS_BUS.pub('nul.nullity',D.residual,'native residual');ATLAS_BUS.pub('nul.phase',nulWrap(D.phase),'rad');if(Number.isFinite(D.values.interval))ATLAS_BUS.pub('nul.interval',D.values.interval,'Minkowski interval');}}
 
 /* ================================================================
    INVARIANT NEXUS — a typed, non-metric atlas of relationships.
@@ -18921,7 +19042,7 @@ const NEXUS_TYPE_AXES={
 };
 Object.values(NEXUS_TYPE_AXES).forEach(v=>v.normalize());
 const nexusGroup=new THREE.Group();nexusGroup.name='Invariant Nexus · typed relation space';nexusGroup.visible=false;scene.add(nexusGroup);
-const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),core:null,coreRings:[],pathEdges:[],time:0};
+const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),fieldRoot:null,tensorRoot:null,pathCorridor:null,pathFlow:null,pathEdges:[],time:0};
 const nexusLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
 const nexusHash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0)/4294967295;};
 function nexusGlowTexture(){
@@ -18945,36 +19066,27 @@ function nexusSetup(){
   NEXUS.built=true;
   const glowTex=nexusGlowTexture();
   const edgeLayer=new THREE.Group(),nodeLayer=new THREE.Group(),decorLayer=new THREE.Group();
-  edgeLayer.name='typed relation arcs';nodeLayer.name='laboratory nodes';decorLayer.name='coordinate lenses';
+  edgeLayer.name='typed relation conduits';nodeLayer.name='laboratory constellations';decorLayer.name='disciplinary field volumes';
   nexusGroup.add(decorLayer,edgeLayer,nodeLayer);NEXUS.edgeLayer=edgeLayer;NEXUS.nodeLayer=nodeLayer;
-
-  const core=new THREE.Group();
-  const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(.86,2),new THREE.MeshStandardMaterial({color:0x6cc8ff,emissive:0x17496f,emissiveIntensity:1.4,metalness:.55,roughness:.18,wireframe:true,transparent:true,opacity:.8,depthWrite:false}));
-  const inner=new THREE.Mesh(new THREE.OctahedronGeometry(.43,2),new THREE.MeshBasicMaterial({color:0xffd36a,wireframe:true,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));
-  core.add(shell,inner);core.userData.shell=shell;core.userData.inner=inner;
-  for(let i=0;i<3;i++){
-    const pts=[];for(let j=0;j<96;j++){const a=2*Math.PI*j/96,r=1.2+i*.37;pts.push(new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),0));}
-    const line=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:i===1?0x8ea8ff:0xffd36a,transparent:true,opacity:.24-i*.035,depthWrite:false,blending:THREE.AdditiveBlending}));
-    line.rotation.set(i*.73,(i+1)*.47,i*.31);core.add(line);NEXUS.coreRings.push(line);
-  }
-  const coreLabel=mkLabel('INVARIANT NEXUS','label gold');coreLabel.position.set(0,1.35,0);core.add(coreLabel);
-  decorLayer.add(core);NEXUS.core=core;
+  const fieldRoot=new THREE.Group(),tensorRoot=new THREE.Group();fieldRoot.name='epistemic relation field';tensorRoot.name='eight-axis relation tensor';decorLayer.add(fieldRoot,tensorRoot);NEXUS.fieldRoot=fieldRoot;NEXUS.tensorRoot=tensorRoot;
+  fieldRoot.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(7.4,6.2,6.4),SCI_CYAN,MOBILE_GPU?220:520,211));
+  const tensorCore=scientificCrystal(SCI_GOLD,.34);tensorRoot.add(tensorCore);let ti=0;for(const [kind,axis] of Object.entries(NEXUS_TYPE_AXES)){const T=NEXUS_TYPES[kind],end=axis.clone().multiplyScalar(1.65+.18*(ti%3)),bend=axis.clone().multiplyScalar(.78).add(new THREE.Vector3(Math.sin(ti*1.7),Math.cos(ti*.93),Math.sin(ti*.61)).multiplyScalar(.24)),arm=scientificTube([new THREE.Vector3(),bend,end],T.color,.038,.72,false,72),tip=scientificCrystal(T.color,.09);tip.position.copy(end);tensorRoot.add(arm,tip);ti++;}
+  const coreLabel=mkLabel('RELATION TENSOR · eight typed directions','label gold');coreLabel.position.set(0,2.15,0);tensorRoot.add(coreLabel);
+  NEXUS.pathCorridor=scientificTube([],SCI_GOLD,.07,.98,false,420);NEXUS.pathFlow=scientificFlow([],MOBILE_GPU?24:56,SCI_GOLD,.06,false);edgeLayer.add(NEXUS.pathCorridor,NEXUS.pathFlow);
 
   for(const [key,C] of Object.entries(NEXUS_CLUSTERS)){
     const center=new THREE.Vector3(...C.center),normal=center.clone().normalize();
     let u=new THREE.Vector3(0,1,0).cross(normal);if(u.lengthSq()<.01)u.set(1,0,0);u.normalize();const v=normal.clone().cross(u).normalize();
-    const radius=1.48+Math.sqrt(C.views.length)*.14,pts=[];
-    for(let i=0;i<128;i++){const a=2*Math.PI*i/128;pts.push(center.clone().addScaledVector(u,Math.cos(a)*radius).addScaledVector(v,Math.sin(a)*radius));}
-    const ring=new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:C.color,transparent:true,opacity:.22,depthWrite:false,blending:THREE.AdditiveBlending}));
-    const label=mkLabel(nexusLang(C.t),'label dim');label.position.copy(center.clone().addScaledVector(normal,.55));decorLayer.add(ring,label);
-    NEXUS.clusterVisuals.set(key,{ring,label,center,normal,u,v,radius});
+    const radius=1.48+Math.sqrt(C.views.length)*.14,hull=new THREE.Mesh(new THREE.IcosahedronGeometry(radius*1.08,3),scientificFresnelMaterial(C.color,SCI_GOLD,.105,.72));hull.position.copy(center);hull.scale.set(1,.72,.82);hull.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1),normal);const mist=scientificNebula(center,new THREE.Vector3(radius*.95,radius*.72,radius*.8),C.color,MOBILE_GPU?42:88,31+key.length);
+    const label=mkLabel(nexusLang(C.t),'label dim');label.position.copy(center.clone().addScaledVector(normal,radius*.88));decorLayer.add(hull,mist,label);
+    NEXUS.clusterVisuals.set(key,{hull,mist,label,center,normal,u,v,radius});
     C.views.forEach((lab,i)=>{
       const th=2*Math.PI*(i/C.views.length)+GOLDEN_ANGLE*(C.views.length%5)*.09;
       const discipline=center.clone().addScaledVector(u,Math.cos(th)*radius).addScaledVector(v,Math.sin(th)*radius).addScaledVector(normal,.28*Math.sin(3*th));
       const root=new THREE.Group();root.position.copy(discipline);root.userData.nexusLab=lab;
       const mat=new THREE.MeshStandardMaterial({color:C.color,emissive:C.color,emissiveIntensity:.72,metalness:.38,roughness:.26,transparent:true,opacity:.92});
-      const visual=new THREE.Mesh(new THREE.SphereGeometry(.17,18,12),mat);
-      const cage=new THREE.Mesh(new THREE.IcosahedronGeometry(.25,1),new THREE.MeshBasicMaterial({color:C.color,wireframe:true,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
+      const visual=new THREE.Mesh(new THREE.OctahedronGeometry(.19,2),mat);
+      const cage=new THREE.Mesh(new THREE.TetrahedronGeometry(.31,1),new THREE.MeshBasicMaterial({color:C.color,wireframe:true,transparent:true,opacity:.42,depthWrite:false,blending:THREE.AdditiveBlending}));
       const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:C.color,transparent:true,opacity:.38,depthWrite:false,depthTest:true,blending:THREE.AdditiveBlending}));glow.scale.set(.92,.92,1);
       const pick=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));pick.name=`Nexus pick · ${lab}`;
       const label=mkLabel(viewNameL(lab),'label dim',`nexus_${lab}`);label.position.set(0,.38,0);label.visible=false;
@@ -18983,9 +19095,9 @@ function nexusSetup(){
     });
   }
 
-  const beadGeom=new THREE.SphereGeometry(.045,8,6);
+  const beadGeom=new THREE.OctahedronGeometry(.052,1);
   NEXUS_RELATIONS.forEach((r,i)=>{
-    const T=NEXUS_TYPES[r.type],line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:T.color,transparent:true,opacity:.2,depthWrite:false,blending:THREE.AdditiveBlending}));
+    const T=NEXUS_TYPES[r.type],line=scientificTube([],T.color,.014,.2,false,64);
     const bead=new THREE.Mesh(beadGeom,new THREE.MeshBasicMaterial({color:T.color,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));bead.renderOrder=4;
     edgeLayer.add(line,bead);NEXUS.edges.push({...r,i,line,bead,curve:null});
   });
@@ -19006,12 +19118,16 @@ function nexusSetup(){
 function nexusLayout(morph=state.nexusMorph??0){
   if(!NEXUS.built)return;const t=THREE.MathUtils.clamp(+morph||0,0,1);state.nexusMorph=t;
   for(const n of NEXUS.nodes.values())n.root.position.lerpVectors(n.discipline,n.invariant,t);
-  for(const [k,c] of NEXUS.clusterVisuals){c.ring.material.opacity=.22*(1-t)+.025;c.label.visible=t<.82;c.label.element.style.opacity=String(Math.max(.18,1-t));}
+  for(const [k,c] of NEXUS.clusterVisuals){c.hull.material.uniforms.uOpacity.value=.105*(1-t)+.018;c.mist.material.opacity=.48*(1-t)+.045;c.label.visible=t<.82;c.label.element.style.opacity=String(Math.max(.18,1-t));}
   for(const e of NEXUS.edges){
     const a=NEXUS.nodes.get(e.a)?.root.position,b=NEXUS.nodes.get(e.b)?.root.position;if(!a||!b)continue;
-    e.curve=nexusCurve(a,b,e.i);e.line.geometry.setFromPoints(e.curve.getPoints(28));e.line.geometry.computeBoundingSphere();
+    e.curve=nexusCurve(a,b,e.i);scientificReplaceTube(e.line,e.curve.getPoints(28),false);
   }
+  nexusUpdatePathGeometry();
   nexusApplyStyles();
+}
+function nexusUpdatePathGeometry(){
+  if(!NEXUS.built||!NEXUS.pathCorridor)return;const route=state.nexusPath||[],pts=[];for(let i=0;i<(NEXUS.pathEdges||[]).length;i++){const e=NEXUS.pathEdges[i];if(!e?.curve)continue;let q=e.curve.getPoints(34);if(route[i]!==e.a)q=q.reverse();if(pts.length)q.shift();pts.push(...q);}NEXUS.pathCorridor.visible=NEXUS.pathFlow.visible=pts.length>1;if(pts.length>1){scientificReplaceTube(NEXUS.pathCorridor,pts,false);scientificSetFlowPath(NEXUS.pathFlow,pts,false);}
 }
 function nexusFindPath(source,target,kind=state.nexusKind||'all'){
   if(!NEXUS_VIEW_CLUSTER.has(source)||!NEXUS_VIEW_CLUSTER.has(target))return {nodes:[],edges:[]};
@@ -19026,7 +19142,7 @@ function nexusFindPath(source,target,kind=state.nexusKind||'all'){
 }
 function nexusTrace(rebuild=true){
   const p=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all');
-  state.nexusPath=p.nodes.slice();NEXUS.pathEdges=p.edges.slice();nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();return p;
+  state.nexusPath=p.nodes.slice();NEXUS.pathEdges=p.edges.slice();nexusUpdatePathGeometry();nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();return p;
 }
 function nexusFocus(lab,rebuild=true){
   if(!NEXUS_VIEW_CLUSTER.has(lab))return;state.nexusFocus=lab;nexusApplyStyles();if(rebuild&&typeof buildCtl==='function')buildCtl();
@@ -19037,9 +19153,10 @@ function nexusApplyStyles(){
   const enabledNode=new Set();for(const e of NEXUS.edges)if(kind==='all'||e.type===kind){enabledNode.add(e.a);enabledNode.add(e.b);}
   for(const e of NEXUS.edges){
     const active=kind==='all'||e.type===kind,inPath=pathEdgeIds.has(e.id),incident=focus&&(e.a===focus||e.b===focus);
-    e.line.visible=active;e.line.material.opacity=inPath?.96:incident?.62:kind==='all'?.105:.31;e.line.material.linewidth=inPath?2:1;
+    e.line.visible=active;e.line.material.opacity=inPath?.96:incident?.62:kind==='all'?.075:.3;e.line.material.emissiveIntensity=inPath?2.2:incident?1.65:.72;
     e.bead.visible=!!(active&&state.nexusPulse&&(inPath||incident||e.i%4===0));e.bead.material.opacity=inPath?1:incident?.9:.48;
   }
+  if(NEXUS.pathCorridor){NEXUS.pathCorridor.visible=NEXUS.pathFlow.visible=path.size>1;NEXUS.pathCorridor.material.color.setHex(SCI_GOLD);NEXUS.pathCorridor.material.emissive.setHex(SCI_GOLD);}
   for(const [lab,n] of NEXUS.nodes){
     const selected=lab===focus||selectedKey===`nexus_${lab}`,inPath=path.has(lab),active=kind==='all'||enabledNode.has(lab),endpoint=lab===(state.nexusSource||'')||lab===(state.nexusTarget||'');
     n.visual.material.opacity=active?(selected||inPath?1:.88):.12;n.visual.material.emissiveIntensity=selected?2.1:inPath?1.35:.62;
@@ -19111,19 +19228,34 @@ function bindNexusControls(root=ctl){
 function updateNexus(dt){
   if(!NEXUS.built)return;NEXUS.time+=dt;const t=NEXUS.time;
   if(state.nexusRotate&&!PREFERS_REDUCED_MOTION&&!renderer.xr.isPresenting)nexusGroup.rotation.y+=dt*.026;
-  NEXUS.core.userData.shell.rotation.y+=dt*.18;NEXUS.core.userData.shell.rotation.x+=dt*.07;NEXUS.core.userData.inner.rotation.y-=dt*.31;NEXUS.core.userData.inner.rotation.z+=dt*.11;
-  NEXUS.coreRings.forEach((r,i)=>r.rotation.z+=dt*(i%2?.09:-.07));
+  if(NEXUS.tensorRoot){NEXUS.tensorRoot.rotation.y+=dt*.12;NEXUS.tensorRoot.rotation.x=.08*Math.sin(t*.17);}
+  let ci=0;for(const c of NEXUS.clusterVisuals.values()){c.hull.rotation.y+=dt*(ci%2?.018:-.014);c.hull.rotation.z=.035*Math.sin(t*.14+ci);ci++;}
   for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
-  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
+  scientificUpdateFlow(NEXUS.pathFlow,t,.075);scientificUpdateMaterials(nexusGroup,t);
+  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
   const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
   hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'invariant'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
+}
+
+/* The four station-based observatories are deliberately GPU-resident only while
+   active.  The atlas-wide Nexus remains resident because its selectable node
+   proxies are registered once, but retaining every high-density station after a
+   visit would needlessly compound GPU memory in this already large single-page
+   universe. Multiview is the explicit exception: it owns the decision to keep
+   several laboratories alive for its simultaneous camera passes. */
+function scientificReleaseInactiveLabs(active=''){
+  if((typeof MV!=='undefined'&&MV.on)||renderer.xr.isPresenting)return;
+  const labs=[['syd',sydGroup,SYD],['hol',holGroup,HOL],['act',actGroup,ACT],['nul',nulGroup,NUL]];
+  let released=false;for(const [id,group,model] of labs){if(id===active||!model.built)continue;labWipe(group);model.built=false;model.station='';model.world='';model.time=0;model.ui=0;model.currentPaths=[];model.currentLines=[];model.paths=[];model.flows=[];model.markers=[];model.baseMarkers=[];model.candidateTubes=[];model.dynamicObjects=[];model.transformedField=null;released=true;}
+  if(released)renderer.renderLists?.dispose?.();
 }
 
 /* Per-view camera framing, one source of truth: setS3View() uses it to place the main
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='nexus'?[0,2.4,22]:v==='nul'?[0,2.0,11.9]:v==='act'?[0,2.0,11.9]:v==='hol'?[0,2.0,11.7]:v==='syd'?[0,2.1,11.5]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,7,24]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,0,9]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:[0,8,17]; }
+function scientificCameraPreset(v){const p=s3ViewPreset(v);if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
    share one scene and one WebGL context without four framebuffers. */
@@ -19204,6 +19336,7 @@ function setS3View(v){
   premiumDeclutterDirty=true;
   premiumApplyProfile(!(typeof MV!=='undefined'&&MV.on));
   clearCurrentProjection();
+  scientificReleaseInactiveLabs(v);
   s3ViewVisibility(v);
   if(v==='nul'){ nulSetup(); }
   if(v==='act'){ actSetup(); }
@@ -19273,7 +19406,7 @@ function setS3View(v){
     setRingView(state.ringView);
     updateRingLab();
   } else {
-    const preset=s3ViewPreset(v);
+    const preset=scientificCameraPreset(v);
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
     stabilizeCamera();syncCameraClipping(true);
   }
