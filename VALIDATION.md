@@ -35,13 +35,15 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 | 15 | Holonomy Observatory declares five closed-path stations, analytic identities, independent finite closure checks, gauge/conjugacy invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a cross-domain epistemic firewall |
 | 16 | Contact & Action Observatory declares five exact stations, native R⁴ contact/KS checks, return-map and semiclassical invariants, Atlas/Nexus/Multiview wiring, reproducible JSON and a native-dimension epistemic firewall |
 | 17 | Spinor & Light-Cone Observatory declares five exact native-space stations, Pauli/Lorentz/Möbius/null-tetrad/conformal identities, Atlas/Nexus/Multiview wiring, reproducible JSON and a flat-space epistemic firewall |
-| 18 | Premium visual engine declares sRGB/ACES output, complete 68-laboratory domain coverage, bounded adaptive bloom, context recovery, collision-aware labels, reduced-motion support and a non-metric XR/Multiview exclusion contract |
+| 18 | Premium visual engine is disabled on a fresh browser, exposed through one persistent settings switch, fully CSS/render scoped, and still declares sRGB/ACES output, complete 68-laboratory coverage, bounded adaptive bloom, reduced-motion support and XR/Multiview exclusions when opted in |
 
 ## Manual test checklist (desktop)
 
 - [ ] Open `index.html` — title, ornamental clock (real UTC + sim time) visible.
 - [ ] All seven modes open: Solar System / Cycles & Events / Observable Universe / S³ Carrier & Hopf / φ FBS3R Levels / Field Lab / Fractal Explorer.
-- [ ] Switch repeatedly across visually dense laboratories (Nexus, Spinor, KAM, CMB): accent, precision stage and panel highlights update as one system; no stale palette or transition layer remains.
+- [ ] In a fresh browser, **Premium visuals** reads `Off`: no precision-stage rings, corner frame, transition veil, premium panel restyle, ACES profile or global label decluttering is active; the presentation matches the pre-premium release.
+- [ ] **More → Interface → Premium visuals** enables the complete layer in one action and persists the explicit opt-in; switching it Off restores the classic presentation immediately without reloading.
+- [ ] With Premium visuals On, switch repeatedly across Nexus, Spinor, KAM and CMB: accent, precision stage and panel highlights update as one system; no stale palette or transition layer remains.
 - [ ] The cinematic stage always stays behind the active model, follows camera framing without parallax jumps, and never appears as a selectable object or exported scientific datum.
 - [ ] Dense CSS2D scenes retain major/selected labels while lower-priority collisions disappear; resize, camera movement and selection recompute the layout without orphan labels.
 - [ ] Simulated WebGL context loss returns to a rendered scene and conservative bloom budget; no white/frozen viewport or duplicate canvas remains.
@@ -104,7 +106,7 @@ contracts are checked individually, the exact PASS count grows with the atlas.
 - [ ] Tap selection works for planets, screens, instruments, shells, constellations.
 - [ ] Safe-area: no UI under the notch / home indicator (iOS).
 - [ ] Stable FPS (pixel ratio capped at 1.6 on mobile).
-- [ ] Premium frame respects safe areas; the bottom sheet, HUD and corner ornaments do not collide at 390×844 or 360×800.
+- [ ] With the optional layer On, its frame respects safe areas; with it Off, no premium ornament occupies the 390×844 or 360×800 viewport.
 - [ ] Under sustained GPU pressure only bloom-buffer resolution steps down; laboratory geometry, solver resolution, controls and displayed values remain unchanged.
 - [ ] Spinor & Light Cone station chips, both controls, native residuals, Multiview and export remain usable in the mobile bottom sheet; long contracts wrap without horizontal clipping.
 - [ ] Holonomy station chips, two normalized controls, transport toggle, invariant readouts and export remain usable in the mobile bottom sheet; the scope contract is readable without horizontal clipping.
