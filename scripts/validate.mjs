@@ -331,11 +331,14 @@ check(html.includes('function scientificFresnelMaterial(')
   && html.includes('function scientificParametricSurface(')
   && html.includes('function scientificReplaceRibbon('),
   'shared scientific shader, parametric-surface and ribbon primitives exist');
-check(html.includes('new THREE.TubeGeometry(') && html.includes('new THREE.InstancedMesh(')
-  && html.includes('function scientificContactPlanes('),
-  'volumetric paths, instanced flows and transported plane fields are wired');
-check(html.includes('paths have volume, phase is twist, residual is')
-  && html.includes('geometric separation, transport carries a frame'),
+check(html.includes('opticalHairline:true') && html.includes('new THREE.InstancedMesh(')
+  && html.includes('function scientificContactPlanes(')
+  && html.includes('A scientific path is a hairline'),
+  'hairline paths, sparse instanced flows and transported plane fields are wired');
+check(html.includes('paths are sub-pixel/hairline geodesics, phase is twist')
+  && html.includes('residual is geometric')
+  && html.includes('separation, transport carries a frame')
+  && html.includes('a single white tracer owns motion'),
   'native visual encodings declare their scientific meaning and projection boundary');
 check(html.includes('eight-axis relation tensor')
   && html.includes('Symmetry transformation field')
@@ -347,6 +350,28 @@ check(!html.includes('SYD.bars') && !html.includes('HOL.needle')
   && !html.includes('ACT.needle') && !html.includes('NUL.coreRings')
   && !html.includes('NEXUS.coreRings'),
   'legacy presentation bars, detached needles and shared ring-core templates are absent');
+check(html.includes('chain.visible=false; cap.visible=false; pir.visible=false; dd.visible=false')
+  && html.includes('deterministic equal-probability quantiles')
+  && html.includes('causal fraction = geodesic-distance CDF (exact)'),
+  'DRD presentation boards are retired in favour of one exact spatial carrier-modal-causal instrument');
+check(html.includes('bundle of chromoelectric field lines')
+  && html.includes('energy is depth · tunnel aperture is αs(Q)')
+  && html.includes('one sharp exchange tracer remains legible at every separation'),
+  'Chromodynamics uses field congruences, a Y junction and a renormalisation tunnel instead of bars or rods');
+check(html.includes('TOV cutaway') || (html.includes('TOV interior') && html.includes('Math.PI*1.5')),
+  'Neutron-star TOV state is rendered as a spatial cutaway rather than an embedded M-R chart');
+check(html.includes('Homologous ejecta are a velocity-resolved particle volume')
+  && html.includes('square-root display map')
+  && html.includes('first radioactive year spatially')
+  && html.includes('scientificFresnelMaterial(0x94bfd4'),
+  'Supernova uses homologous ejecta, isotope orbits and a restrained shock front instead of a light-curve slide');
+check(html.includes('The magnetosphere is the object: a sparse dipole congruence')
+  && html.includes('pulse when a polar caustic crosses this sight-line'),
+  'Pulsar makes field topology and observer crossing spatial, with no opaque beam cones or P-Pdot chart');
+check(html.includes('A differential-orbit particle sheet makes temperature, shear and Doppler')
+  && html.includes('Twin jets are congruences of thin streamlines')
+  && html.includes('const dust=new THREE.Points'),
+  'Quasar uses GPU differential accretion, a black horizon and streamline jets instead of an overexposed disk');
 check(html.includes("dense=D.station==='return'")
   && html.includes('actualClosed=!!(closed&&pts.length>2)')
   && html.includes('u=((raw%1)+1)%1')
