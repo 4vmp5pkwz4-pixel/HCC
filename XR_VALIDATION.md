@@ -31,12 +31,14 @@ honest capability matrix.
 | System keyboard | ⚠ DOM overlay only (AR) | `dom-overlay` requested; VR text entry uses panel buttons |
 | KTX2/Basis textures | n/a | app has zero asset textures (all procedural canvases) |
 | Fractal Explorer in XR | ❌ excluded by design | fullscreen mono raymarch is not stereo-safe; auto-switches to Solar |
+| Flat-screen cinematic precision stage | ✅ intentionally excluded | one camera-facing plane is invalid for stereo eyes; native laboratory geometry remains |
 
 ## Manual XR checklist (Quest 3, Meta Quest Browser, HTTPS)
 
 1. Header shows 🥽 VR (and ◈ MR) only on XR-capable browsers.
-2. Enter VR: floor-level start, mode-appropriate rig position, CSS2D labels gone,
-   wrist Control Observatory floats above the left hand/controller.
+2. Enter VR: floor-level start, mode-appropriate rig position, CSS2D labels and
+   flat-screen cinematic stage gone; wrist Control Observatory floats above the
+   left hand/controller.
 3. Ray hover over a panel button highlights it + tick haptic; trigger activates.
 4. Point at a planet/screen/shell → cursor sticks; trigger → gold object card with
    rows, formulas (gold monospace), source tags; "Approach" moves the rig.

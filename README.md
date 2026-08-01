@@ -199,6 +199,25 @@ and [equation discovery from symmetry invariants](https://arxiv.org/abs/2505.120
 the implemented exact anchors follow the Lorentz-invariant kinematic contract
 and Möbius cross-ratio invariance.
 
+## Premium visual engine — one cinematic language, zero scientific drift
+
+Every mode and all 68 S³ laboratories share a restrained display system: an
+explicit sRGB/ACES color pipeline, domain-directed accents, a camera-facing
+precision stage, layered glass controls, cinematic view reveals and
+priority-aware CSS2D label decluttering. The stage is deliberately named and
+implemented as **non-metric**: it never enters picking, model coordinates,
+diagnostics or exports, and color identifies a broad laboratory family rather
+than a measured scalar.
+
+Bloom uses its own capped render-buffer budget and a frame-pressure governor.
+If a device cannot sustain the cinematic buffer, only post-processing
+resolution steps down; simulations, geometry, sample counts and numerical
+solvers remain untouched. Quality is restored gradually after sustained
+headroom. WebGL context loss resumes from a conservative buffer instead of
+leaving a white or frozen viewport. The single-camera stage is intentionally
+disabled in XR and four-camera Multiview, where its facing-plane assumption
+would be invalid.
+
 ## WebXR — Meta Quest 3 VR & MR
 
 Serve over **HTTPS** and open in Meta Quest Browser: 🥽 VR and ◈ MR header

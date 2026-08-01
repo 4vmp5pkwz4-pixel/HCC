@@ -326,6 +326,31 @@ check(html.includes('spinorLightcone(station=state.nulStation')
   && html.includes('not experimental data') && html.includes('curved-spacetime or quantum-gravity solver'),
   'Spinor & Light-Cone diagnostics, manifest payload and native-space epistemic firewall are exposed');
 
+/* 22 · Premium visual engine: cinematic consistency without scientific mutation */
+check(html.includes('renderer.outputColorSpace=THREE.SRGBColorSpace')
+  && html.includes('renderer.toneMapping=THREE.ACESFilmicToneMapping'),
+  'premium display pipeline declares sRGB output and ACES filmic highlight roll-off');
+check(html.includes('const PREMIUM_POST_MAX=') && html.includes('function premiumPerformanceTick(')
+  && html.includes("premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure')")
+  && html.includes("premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery')"),
+  'flat-screen bloom has bounded adaptive degradation and slow quality recovery');
+check(html.includes('function premiumBloomProfile(') && html.includes('function resetBloomComposer(')
+  && html.includes('premiumComposerPixelRatio()'),
+  'bloom profiles, independent buffer cap and recovery path are wired');
+check(html.includes('function premiumDeclutterLabels(') && html.includes("classList.add('declutter-hidden')")
+  && html.includes('premiumLabelPriority('),
+  'global priority-based CSS2D collision management is wired');
+check(html.includes("premiumStage.name='Cinematic non-metric laboratory stage'")
+  && html.includes('premiumStage.visible=op>0&&!mv&&!xr&&!webglContextLost')
+  && html.includes('premiumStage.visible=false; // a single camera-facing stage is invalid across four tile cameras'),
+  'cinematic stage is explicitly non-metric and excluded from XR, Multiview and context-loss states');
+check(html.includes('const PREMIUM_VIEW_DOMAINS=') && html.includes('premiumApplyProfile(')
+  && html.includes("root.style.setProperty('--lab-accent'"),
+  'laboratory-domain color direction is centralized and UI/scene synchronized');
+check(html.includes('id="cinemaFrame"') && html.includes('id="sceneTransition"')
+  && html.includes('PREMIUM VISUAL ENGINE') && html.includes('@media(prefers-reduced-motion:reduce)'),
+  'premium UI frame, transitions, responsive treatment and reduced-motion guard exist');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));
