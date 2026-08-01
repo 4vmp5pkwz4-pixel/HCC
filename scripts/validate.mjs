@@ -363,7 +363,7 @@ check(html.includes('TOV cutaway') || (html.includes('TOV interior') && html.inc
 check(html.includes('Homologous ejecta are a velocity-resolved particle volume')
   && html.includes('square-root display map')
   && html.includes('first radioactive year spatially')
-  && html.includes('scientificFresnelMaterial(0x94bfd4'),
+  && html.includes('scientificFresnelMaterial(0x4395bd'),
   'Supernova uses homologous ejecta, isotope orbits and a restrained shock front instead of a light-curve slide');
 check(html.includes('The magnetosphere is the object: a sparse dipole congruence')
   && html.includes('pulse when a polar caustic crosses this sight-line'),
@@ -380,6 +380,25 @@ check(html.includes("dense=D.station==='return'")
   && html.includes('renderer.renderLists?.dispose?.()')
   && html.includes('function scientificCameraPreset('),
   'exposure, curves, reverse flow, instancing, GPU lifetime and narrow-screen framing are guarded');
+check(['sydGroup','holGroup','actGroup','nulGroup','nexusGroup'].every(g=>html.includes(`s3Group.add(${g})`))
+  && !['sydGroup','holGroup','actGroup','nulGroup','nexusGroup'].some(g=>html.includes(`scene.add(${g})`)),
+  'recent S3 observatories are contained by the S3 mode root and cannot leak into Solar or Observable');
+check(html.includes("const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','qcd','cmb','ns','sn','psr','qso']")
+  && html.includes('scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true)')
+  && html.includes("if(mode!=='s3')scientificReleaseInactiveLabs('',true)"),
+  'transient GPU laboratories have a bounded keep-set in Multiview and are force-released outside S3');
+check(html.includes('SCI_GEOM_STATS.reuses++') && html.includes("a&&a.count===sample.length")
+  && html.includes('float wave=.5+.5*sin(dot(vLocal') && !html.includes('uTime*.48'),
+  'dynamic scientific paths reuse position buffers and the shared alpha field is temporally stable');
+check(html.includes('function mvSemanticSelection(') && html.includes("const anchor=state.s3view||'sec'")
+  && html.includes('function mvReplaceAt(') && html.includes('function uiSetS3View(')
+  && html.includes('mvSetSlot(MV.active,v)') && html.includes('mvExit(false)'),
+  'Multiview retains the current anchor, semantically fills companions, replaces only the active tile and exits without rebuilding');
+check(html.includes('const flash=new THREE.Sprite') && html.includes('const ejectaLight=new THREE.Sprite')
+  && html.includes('particles.renderOrder=14') && html.includes('THREE.AdditiveBlending')
+  && html.includes('const light=THREE.MathUtils.clamp(Math.pow')
+  && html.includes('O.flash.material.opacity=.24+.38*light'),
+  'Supernova restores physically driven additive emission without animated geometry allocation');
 
 /* 23 · Premium visual engine: cinematic consistency without scientific mutation */
 check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
