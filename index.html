@@ -998,6 +998,11 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
+const ATLAS_RUNTIME_ERRORS=[];globalThis.FBS3R_RUNTIME_ERRORS=ATLAS_RUNTIME_ERRORS;
+function atlasCaptureRuntimeError(kind,message,stack=''){const row={kind,message:String(message||'unknown error'),stack:String(stack||''),at:new Date().toISOString()};const prev=ATLAS_RUNTIME_ERRORS[ATLAS_RUNTIME_ERRORS.length-1];if(!prev||prev.kind!==row.kind||prev.message!==row.message)ATLAS_RUNTIME_ERRORS.push(row);if(ATLAS_RUNTIME_ERRORS.length>32)ATLAS_RUNTIME_ERRORS.shift();}
+addEventListener('error',e=>atlasCaptureRuntimeError('error',e.message,e.error?.stack));
+addEventListener('unhandledrejection',e=>atlasCaptureRuntimeError('unhandledrejection',e.reason,e.reason?.stack));
+
 const ATLAS_BOOT_T0=performance.now();
 const ATLAS_TELEMETRY={firstFrameMs:null,frameEmaMs:0,frameJitterMs:0,frames:0,contextLosses:0};
 
@@ -2605,7 +2610,17 @@ function runSelfTests(){
       for(const p of MV_PRESETS) for(const v of p.views){ const pr=s3ViewPreset(v);
         if(!Array.isArray(pr)||pr.length!==3||!pr.every(x=>isFinite(x))||Math.hypot(pr[0],pr[1],pr[2])<=0) mism=v; }
       ok('Multiview: every tile can be framed independently — s3ViewPreset returns a finite non-degenerate camera radius for each laboratory, which is why a shared orientation does not force four wrong scales',
-        !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); } }
+        !mism, mism?('bad preset for '+mism):'all quartet members have a usable framing radius'); }
+    { let bad=null;for(const anchor of ['nexus','cmb','sn','qcd','psr']){const S=mvSemanticSelection(anchor,4);if(S.views.length!==4||S.views[0]!==anchor||new Set(S.views).size!==4||S.views.some(v=>!S3_VIEW_NAMES[v]))bad=`${anchor}: ${S.views.join(',')}`;}
+      const sn=mvSemanticSelection('sn',4).views,cmb=mvSemanticSelection('cmb',4).views;if(!sn.includes('ns')||!sn.includes('psr')||!cmb.includes('sh')||!cmb.includes('eig'))bad=`semantic neighbours: sn=${sn.join(',')} cmb=${cmb.join(',')}`;
+      ok('Multiview: entering from any representative laboratory RETAINS that laboratory in tile 1 and deterministically fills three distinct declared semantic neighbours',
+        !bad,bad||'Nexus, CMB, Supernova, QCD and Pulsar all retain the anchor and produce four valid distinct tiles'); }
+    { const before=['sn','ns','psr','rel'],after=mvReplaceAt(before,2,'cmb'),same=before.every((v,i)=>i===2||after[i]===v);
+      ok('Multiview: replacing the focused tile is a pure one-slot operation — the other three laboratories cannot move or reset',
+        same&&after[2]==='cmb'&&before[2]==='psr',`before ${before.join(' · ')} → after ${after.join(' · ')}`); }
+    { const owned=[sydGroup,holGroup,actGroup,nulGroup,nexusGroup],bad=owned.filter(g=>g.parent!==s3Group);
+      ok('S³ visibility containment: every recent observatory is a child of s3Group, so Solar, Observable, Cycles, Field and Fractal modes hide it atomically',
+        bad.length===0,bad.length?bad.map(g=>g.name||'unnamed').join(', '):'5/5 recent observatories share the S³ visibility boundary'); } }
   { // WILLMORE: the Clifford minimum, its identity with the Hopf preimage of the equator
     { let mx=0; for(const a of [1.2,Math.SQRT2,2,3,6]) mx=Math.max(mx,Math.abs(wilQuad(a,200000)-wilExact(a))/wilExact(a));
       ok('Willmore: the surface quadrature of ∫H²dA agrees with the closed form π²a²/√(a²−1) to thirteen digits, so the headline energy is measured on the torus rather than quoted from a formula',
@@ -11879,13 +11894,13 @@ function qcdInstanton(Q){
   // around a glowing self-dual action-density core. Action S = 8π²|Q|/g² (self-dual F=*F).
   qcdGroup.add(new THREE.AmbientLight(0x66758d,.38)); { const dl=new THREE.DirectionalLight(0xe9f1ff,.62); dl.position.set(3,5,4); qcdGroup.add(dl); }
   const core=new THREE.Mesh(new THREE.SphereGeometry(0.19,28,20),new THREE.MeshStandardMaterial({color:0xf4e8c7,emissive:0x493711,emissiveIntensity:.16,roughness:.36,metalness:.12}));
-  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xe8c77a,transparent:true,opacity:.13,depthWrite:false,blending:THREE.NormalBlending})); glow.scale.setScalar(.82); core.add(glow); qcdGroup.add(core);
+  const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xffd98a,transparent:true,opacity:.24,depthWrite:false,blending:THREE.AdditiveBlending})); glow.scale.setScalar(.92); core.add(glow); qcdGroup.add(core);
   const holder=new THREE.Group(); holder.scale.setScalar(0.5); qcdGroup.add(holder);
   const rings=[[0.4,7],[0.8,11],[1.15,13],[1.5,11],[1.85,7]], _c=new THREE.Color(), v=new THREE.Vector3();
   for(const [th,cnt] of rings) for(let j=0;j<cnt;j++){ const ph=2*Math.PI*j/cnt;
     const pts=[]; for(let k=0;k<=120;k++) pts.push(hopfPoint(th,ph,k/120*2*Math.PI,v).clone());
     _c.setHSL(((Q*ph/(2*Math.PI))%1+1)%1,0.72,0.56);
-    holder.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.19,blending:THREE.NormalBlending,depthWrite:false}))); }
+    holder.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.16,blending:THREE.AdditiveBlending,depthWrite:false}))); }
   const tl=mkLabel('QCD INSTANTON · topological charge Q — the boundary map g:S³→SU(2)≅S³ (π₃(SU(2))=ℤ)','label const','qcdAtlas'); tl.position.set(0,3.6,0); qcdGroup.add(tl);
   const bl=mkLabel('trisphere Hopf fibration · the winding phase wraps |Q| times · action S=8π²|Q|/g² · self-dual F=*F','label dim','qcdAtlas'); bl.position.set(0,-3.4,0); qcdGroup.add(bl);
   qcdObjs={mode:'instanton',core,holder,Q};
@@ -11897,7 +11912,7 @@ function qcdSetup(){
   qcdGroup.add(new THREE.AmbientLight(0x66758d,.42));const key=new THREE.DirectionalLight(0xddeeff,.72);key.position.set(4,7,6);qcdGroup.add(key);
   const mkQuark=col=>{const q=scientificCrystal(col,.14);q.userData.qcdColor=col;q.traverse(o=>{if(o.material){o.material.depthWrite=false;if(o.material.opacity!=null)o.material.opacity=Math.min(o.material.opacity,.78);}});qcdGroup.add(q);return q;};
   const setQuarkColor=(q,col)=>{q.userData.qcdColor=col;q.traverse(o=>{if(o.material?.color&&o!==q.userData?.core)o.material.color.setHex(col);if(o.material?.emissive)o.material.emissive.setHex(col);});};
-  const mkField=(count,col=0xe8c77a)=>Array.from({length:count},(_,i)=>{const line=scientificTube([new THREE.Vector3(-1,0,0),new THREE.Vector3(1,0,0)],col,.006,i===0?.72:.22,false,96);line.userData.qcdPhase=2*Math.PI*i/count;line.userData.qcdIndex=i;line.frustumCulled=false;qcdGroup.add(line);return line;});
+  const mkField=(count,col=0xe8c77a)=>Array.from({length:count},(_,i)=>{const line=scientificTube([new THREE.Vector3(-1,0,0),new THREE.Vector3(1,0,0)],col,.006,i===0?.72:.22,false,96);if(i===0)line.material.blending=THREE.AdditiveBlending;line.userData.qcdPhase=2*Math.PI*i/count;line.userData.qcdIndex=i;line.frustumCulled=false;qcdGroup.add(line);return line;});
   if(mode==='baryon'){
     const q=[mkQuark(0xe98291),mkQuark(0x79cfb7),mkQuark(0x8daee8)],field=[mkField(7,0xe98291),mkField(7,0x79cfb7),mkField(7,0x8daee8)];
     const junction=scientificCrystal(0xffffff,.055);qcdGroup.add(junction);qcdObjs={mode,q,field,junction,setQuarkColor};
@@ -15559,23 +15574,25 @@ function snLdep(tSec,MNiMsun){ const M=MNiMsun*SN_MSUNG;
 function snClear(){ labWipe(snGroup); snObjs=null; }
 function snSetup(){
   snClear(); snT=0.5;
-  snGroup.add(new THREE.AmbientLight(0x65738a,.38));const key=new THREE.DirectionalLight(0xeaf4ff,.72);key.position.set(4,7,6);snGroup.add(key);
+  snGroup.add(new THREE.AmbientLight(0x65738a,.46));const key=new THREE.DirectionalLight(0xffead1,.86);key.position.set(4,7,6);snGroup.add(key);
   const remnant=new THREE.Group();remnant.position.set(0,.35,0);snGroup.add(remnant);
-  const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xffe6b0,transparent:true,opacity:.2,depthWrite:false,blending:THREE.NormalBlending}));flash.scale.setScalar(.7);remnant.add(flash);
+  const flash=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xfff0c4,transparent:true,opacity:.44,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));flash.scale.setScalar(.96);flash.renderOrder=13;remnant.add(flash);
+  const ejectaLight=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xff814f,transparent:true,opacity:.26,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));ejectaLight.scale.setScalar(1.82);ejectaLight.renderOrder=12;remnant.add(ejectaLight);
+  const shockGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0x63bfe9,transparent:true,opacity:.075,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));shockGlow.scale.setScalar(2.72);shockGlow.renderOrder=11;remnant.add(shockGlow);
   const core=new THREE.Mesh(new THREE.SphereGeometry(.09,20,14),new THREE.MeshBasicMaterial({color:0xfff8e8}));remnant.add(core);
   // Homologous ejecta are a velocity-resolved particle volume, not nested
   // glowing balloons.  Radius is velocity × time; colour encodes temperature.
   const count=MOBILE_GPU?520:1100,pos=new Float32Array(count*3),col=new Float32Array(count*3),_ec=new THREE.Color();
-  for(let i=0;i<count;i++){const u=(i+.5)/count,z=1-2*u,a=2.399963229728653*i,s=Math.sqrt(Math.max(0,1-z*z)),v=.22+.78*Math.pow(((i*73)%997)/997,.58),clump=.9+.1*Math.sin(i*12.9898);pos[3*i]=v*s*Math.cos(a)*clump;pos[3*i+1]=v*z*clump;pos[3*i+2]=v*s*Math.sin(a)*clump;qsoTempColor(.18+.82*(1-v),_ec);col[3*i]=_ec.r;col[3*i+1]=_ec.g;col[3*i+2]=_ec.b;}
-  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));const particles=new THREE.Points(pg,new THREE.PointsMaterial({size:.024,vertexColors:true,transparent:true,opacity:.42,depthWrite:false,blending:THREE.NormalBlending,sizeAttenuation:true}));remnant.add(particles);
+  for(let i=0;i<count;i++){const u=(i+.5)/count,z=1-2*u,a=2.399963229728653*i,s=Math.sqrt(Math.max(0,1-z*z)),v=.22+.78*Math.pow(((i*73)%997)/997,.58),clump=.86+.14*Math.sin(i*12.9898);pos[3*i]=v*s*Math.cos(a)*clump;pos[3*i+1]=v*z*clump;pos[3*i+2]=v*s*Math.sin(a)*clump;qsoTempColor(.18+.82*(1-v),_ec);col[3*i]=.18+1.12*_ec.r;col[3*i+1]=.08+1.06*_ec.g;col[3*i+2]=.05+1.02*_ec.b;}
+  const pg=new THREE.BufferGeometry();pg.setAttribute('position',new THREE.BufferAttribute(pos,3));pg.setAttribute('color',new THREE.BufferAttribute(col,3));const particles=new THREE.Points(pg,new THREE.PointsMaterial({map:scientificGlowTexture(),alphaTest:.006,size:.069,vertexColors:true,transparent:true,opacity:.68,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true}));particles.renderOrder=14;remnant.add(particles);
   const rays=[];for(let i=0;i<(MOBILE_GPU?38:76);i++){const z=1-2*(i+.5)/(MOBILE_GPU?38:76),a=2.399963229728653*i,s=Math.sqrt(Math.max(0,1-z*z)),dir=new THREE.Vector3(s*Math.cos(a),z,s*Math.sin(a)),line=scientificTube([dir.clone().multiplyScalar(.12),dir.clone().multiplyScalar(.98)],i%7===0?SCI_GOLD:0x7595aa,.003,i%7===0?.24:.055,false,36);remnant.add(line);rays.push(line);}
-  const shock=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),scientificFresnelMaterial(0x94bfd4,0xddefff,.14,.62));remnant.add(shock);
+  const shock=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),scientificFresnelMaterial(0x4395bd,0xc9f1ff,.15,1.08));shock.renderOrder=4;remnant.add(shock);
   const tracer=scientificCrystal(0xffffff,.055);tracer.position.set(1.02,0,0);remnant.add(tracer);
   const decay=[];[[.17,0xe8c77a],[.23,0x82bfd6],[.29,0xb89bd8]].forEach(([r,c],i)=>{const ring=new THREE.Mesh(new THREE.TorusGeometry(r,.006,5,96),new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:.24,depthWrite:false,blending:THREE.NormalBlending}));ring.rotation.set(i*.72,i*1.1,.3+i*.45);remnant.add(ring);decay.push(ring);});
   const clock=mkLabel('⁵⁶Ni → ⁵⁶Co → ⁵⁶Fe · isotope fractions orbit inside the expanding ejecta','label axis');clock.position.set(0,2.55,0);snGroup.add(clock);
   const tl=mkLabel('SUPERNOVA · ⁵⁶Ni→⁵⁶Co→⁵⁶Fe Bateman deposition · Sedov remnant','label const','snAtlas'); tl.position.set(0,3.5,0); snGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); snGroup.add(rl);
-  snObjs={remnant,flash,core,particles,rays,shock,tracer,decay,readLab:rl};
+  snObjs={remnant,flash,ejectaLight,shockGlow,core,particles,rays,shock,tracer,decay,readLab:rl};
 }
 function updateSn(dt){
   const O=snObjs; if(!O) return;
@@ -15589,10 +15606,11 @@ function updateSn(dt){
   // inspectable; the exact physical radius remains in the readout.  Linear
   // free-expansion / Sedov exponents are never inferred from screen size.
   const s=.62+1.8*Math.sqrt(Math.min(1,snT/400));
-  O.remnant.scale.setScalar(s);O.shock.scale.setScalar(1.035);O.particles.material.opacity=.12+.3*Math.max(0,1-snT/420);O.particles.material.size=.018+.01*Math.max(0,1-snT/120);
-  O.remnant.rotation.y+=dt*.025;const Ni=Math.exp(-tS/SN_TAUNI),Co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-tS/SN_TAUCO)-Math.exp(-tS/SN_TAUNI)),Fe=Math.max(0,1-Ni-Co),fra=[Ni,Co,Fe];O.decay.forEach((ring,i)=>{ring.material.opacity=.035+.48*fra[i];ring.rotation.z+=dt*(.09+i*.035);});
+  const light=THREE.MathUtils.clamp(Math.pow(Math.max(0,L/2e43),.34),0,1);
+  O.remnant.scale.setScalar(s);O.shock.scale.setScalar(1.04);O.particles.material.opacity=.45+.34*light;O.particles.material.size=.052+.028*light;
+  O.remnant.rotation.y+=dt*.006;const Ni=Math.exp(-tS/SN_TAUNI),Co=(SN_TAUCO/(SN_TAUCO-SN_TAUNI))*(Math.exp(-tS/SN_TAUCO)-Math.exp(-tS/SN_TAUNI)),Fe=Math.max(0,1-Ni-Co),fra=[Ni,Co,Fe];O.decay.forEach((ring,i)=>{ring.material.opacity=.055+.52*fra[i];ring.rotation.z+=dt*(.075+i*.028);});
   const a=snT*.017;O.tracer.position.set(1.025*Math.cos(a),.32*Math.sin(a*.7),1.025*Math.sin(a));
-  O.flash.material.opacity=.045+.19*Math.min(1,L/2e43);O.flash.scale.setScalar(.42+.34*Math.min(1,L/2e43));
+  O.flash.material.opacity=.24+.38*light;O.flash.scale.setScalar(.72+.42*light);O.ejectaLight.material.opacity=.13+.25*light;O.ejectaLight.scale.setScalar(1.54+.42*light);O.shockGlow.material.opacity=.035+.07*light;O.core.scale.setScalar(.82+.42*light);O.shock.material.uniforms.uOpacity.value=.10+.055*light;O.shock.material.uniforms.uIntensity.value=.95+.28*light;
   snUiAcc+=dt; if(snUiAcc>0.25){ snUiAcc=0;
     const phase=tS<tsw?'free expansion R=v_ej·t':'Sedov–Taylor R∝t^{2/5} (swept-up ISM dominates)';
     hudBig.textContent=`SUPERNOVA · t=${snT.toFixed(0)} d · L_dep=${L.toExponential(2)} erg/s · M(⁵⁶Ni)=${MNi.toFixed(2)} M☉`;
@@ -15638,15 +15656,18 @@ function psrSetup(){
   const zeta=(state.psrZeta??38)*DEG;
   const obsDir=new THREE.Vector3(Math.sin(zeta),Math.cos(zeta),0),detector=scientificCrystal(SCI_MINT,.09);detector.position.copy(spin.position).addScaledVector(obsDir,3.25);psrGroup.add(detector);
   const sight=scientificTube([spin.position,detector.position],SCI_MINT,.004,.34,false,72);psrGroup.add(sight);
-  const pulseHalo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xffffff,transparent:true,opacity:.02,depthWrite:false,depthTest:false,blending:THREE.NormalBlending}));pulseHalo.scale.setScalar(.42);detector.add(pulseHalo);
+  const pulseHalo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xffffff,transparent:true,opacity:.025,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));pulseHalo.scale.setScalar(.42);detector.add(pulseHalo);
   const ol=mkLabel('observer · pulse when a polar caustic crosses this sight-line','label axis');ol.position.copy(detector.position).add(new THREE.Vector3(.2,.25,0));psrGroup.add(ol);
   const tl=mkLabel('PULSAR · lighthouse dipole · B=3.2×10¹⁹√(PṖ) G · τ=P/2Ṗ · L=4π²IṖ/P³','label const','psrAtlas'); tl.position.set(0,3.5,0); psrGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.4,0); psrGroup.add(rl);
-  psrObjs={spin,mag,star,crust,fieldLines,beamLines,windLines,detector,pulseHalo,sight,readLab:rl,alpha,zeta};
+  psrObjs={spin,mag,star,crust,fieldLines,beamLines,windLines,detector,pulseHalo,sight,observerLabel:ol,readLab:rl,alpha,zeta};
 }
 function updatePsr(dt){
   const O=psrObjs; if(!O) return;
   const P=state.psrP??0.0334, Pd=state.psrPd??4.21e-13;
+  const alpha=(state.psrAlpha??35)*DEG,zeta=(state.psrZeta??38)*DEG;
+  if(Math.abs(alpha-O.alpha)>1e-9){O.alpha=alpha;O.mag.rotation.z=alpha;}
+  if(Math.abs(zeta-O.zeta)>1e-9){O.zeta=zeta;const d=new THREE.Vector3(Math.sin(zeta),Math.cos(zeta),0);O.detector.position.copy(O.spin.position).addScaledVector(d,3.25);O.observerLabel.position.copy(O.detector.position).add(new THREE.Vector3(.2,.25,0));scientificReplaceTube(O.sight,[O.spin.position,O.detector.position],false);}
   const visHz=Math.min(2.2,1.5/Math.max(0.03,Math.sqrt(P)));   // slowed, declared
   if(state.psrRun!==false) psrPhase+=dt*visHz*2*Math.PI;
   O.spin.rotation.y=psrPhase;
@@ -15690,10 +15711,10 @@ function qsoSetup(){
   qsoClear(); qsoT=0;
   qsoGroup.add(new THREE.AmbientLight(0x65728a,.38));const key=new THREE.DirectionalLight(0xe7efff,.68);key.position.set(4,6,5);qsoGroup.add(key);
   const tilt=new THREE.Group(); qsoGroup.add(tilt);
-  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xe8c77a,transparent:true,opacity:.18,depthWrite:false,blending:THREE.NormalBlending}));
-  core.scale.setScalar(.78);tilt.add(core);
+  const core=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color:0xffd98a,transparent:true,opacity:.34,depthWrite:false,depthTest:false,blending:THREE.AdditiveBlending}));
+  core.scale.setScalar(.92);core.renderOrder=12;tilt.add(core);
   const horizon=new THREE.Mesh(new THREE.SphereGeometry(.28,40,28),new THREE.MeshBasicMaterial({color:0x010205}));tilt.add(horizon);
-  const photonRing=new THREE.Mesh(new THREE.TorusGeometry(.42,.009,6,128),new THREE.MeshBasicMaterial({color:0xe8c77a,transparent:true,opacity:.78,depthWrite:false,blending:THREE.NormalBlending}));photonRing.rotation.x=Math.PI/2;tilt.add(photonRing);
+  const photonRing=new THREE.Mesh(new THREE.TorusGeometry(.42,.009,6,128),new THREE.MeshBasicMaterial({color:0xffdfa0,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending}));photonRing.rotation.x=Math.PI/2;tilt.add(photonRing);
   // Shakura–Sunyaev disk: one lit annular surface with T(r)∝[(r_in/r)³(1−√(r_in/r))]^{1/4},
   // coloured by the local blackbody temperature and Doppler-brightened on the approaching limb
   const rin=0.55, rout=3.15, NR=28, NA=76;
@@ -15720,13 +15741,16 @@ function qsoSetup(){
       void main(){
         #include <logdepthbuf_fragment>
         float r=length(vP.xz);float a=atan(vP.z,vP.x);
-        float coarse=.5+.5*sin(a*31.0-log(max(r,.02))*36.0+uTime*.13);
-        float fine=.5+.5*sin(a*71.0+r*27.0-uTime*.09);
+        /* The emissivity texture is anchored to the disk. Differential motion
+           belongs to the particle sheet below; animating this high-frequency
+           alpha mask caused temporal aliasing and apparent VRAM flicker. */
+        float coarse=.5+.5*sin(a*31.0-log(max(r,.02))*36.0);
+        float fine=.5+.5*sin(a*71.0+r*27.0);
         float filament=smoothstep(.91,.998,coarse)*(.42+.58*fine);
         float edge=smoothstep(uRin,uRin+.11,r)*(1.0-smoothstep(uRout-.24,uRout,r));
         float dop=.48+.92*(.5+.5*cos(a-1.5707963));
-        float alpha=edge*(.006+.105*filament+.012*fine);
-        vec3 col=vC*(.12+.72*filament)*dop+vec3(.009,.014,.024)*fine;
+        float alpha=edge*(.018+.14*filament+.018*fine);
+        vec3 col=vC*(.22+.82*filament)*dop+vec3(.012,.019,.032)*fine;
         gl_FragColor=vec4(col,alpha);}`});
   const disk=new THREE.Mesh(dgeo,diskMat);tilt.add(disk);
   // A differential-orbit particle sheet makes temperature, shear and Doppler
@@ -15740,7 +15764,7 @@ function qsoSetup(){
     qsoTempColor(ssT(r)/(Tpk||1),_dc);dustC[3*i]=_dc.r;dustC[3*i+1]=_dc.g;dustC[3*i+2]=_dc.b;
   }
   const dustGeo=new THREE.BufferGeometry();dustGeo.setAttribute('position',new THREE.BufferAttribute(dustPos,3));dustGeo.setAttribute('aRadius',new THREE.BufferAttribute(dustR,1));dustGeo.setAttribute('aAngle',new THREE.BufferAttribute(dustA,1));dustGeo.setAttribute('aHeight',new THREE.BufferAttribute(dustY,1));dustGeo.setAttribute('aColor',new THREE.BufferAttribute(dustC,3));dustGeo.computeBoundingSphere();
-  const dustMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.NormalBlending,
+  const dustMat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
     uniforms:{uTime:{value:0},uRin:{value:rin},uRout:{value:rout}},
     vertexShader:`attribute float aRadius;attribute float aAngle;attribute float aHeight;attribute vec3 aColor;uniform float uTime;uniform float uRin;uniform float uRout;varying vec3 vDustColor;varying float vDustAlpha;
       #include <common>
@@ -15763,13 +15787,13 @@ function qsoSetup(){
       pos.push(r*Math.cos(a),.018*Math.sin(a*3+i*.37)*(r/rout),r*Math.sin(a));
       qsoTempColor(ssT(r)/(Tpk||1),_dc);const dop=.5+.82*(.5+.5*Math.cos(a-Math.PI*.5));cols.push(Math.min(1,_dc.r*dop),Math.min(1,_dc.g*dop),Math.min(1,_dc.b*dop));}
     geom.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));geom.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
-    const line=new THREE.Line(geom,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:i%5===0?.25:.105,depthWrite:false,blending:THREE.NormalBlending}));line.userData.rate=.0012+.0018*(i/25);tilt.add(line);diskLines.push(line);
+    const line=new THREE.Line(geom,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:i%5===0?.28:.11,depthWrite:false,blending:THREE.AdditiveBlending}));line.userData.rate=.0012+.0018*(i/25);tilt.add(line);diskLines.push(line);
   }
   // Twin jets are congruences of thin streamlines.  No opaque cone is allowed
   // to hide the black-hole engine or dominate the frame.
   const jetLines=[];for(const sgn of [1,-1])for(let k=0;k<10;k++){const pts=[];for(let i=0;i<=72;i++){const u=i/72,y=sgn*(.38+5.1*u),rad=.018+.11*u,a=2*Math.PI*k/10+u*1.8;pts.push(new THREE.Vector3(rad*Math.cos(a),y,rad*Math.sin(a)));}const line=scientificTube(pts,sgn>0?0xaedcf0:0x789fb5,.004,k===0?.42:.12,false,76);tilt.add(line);jetLines.push(line);}
   const blobs=[]; const bg=new THREE.SphereGeometry(.09,10,8);
-  for(let i=0;i<8;i++){const b=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({color:0xeaf7ff,transparent:true,opacity:.42,blending:THREE.NormalBlending,depthWrite:false}));b.scale.setScalar(.42);
+  for(let i=0;i<8;i++){const b=new THREE.Mesh(bg,new THREE.MeshBasicMaterial({color:0xeaf7ff,transparent:true,opacity:.42,blending:THREE.AdditiveBlending,depthWrite:false}));b.scale.setScalar(.42);
     b.userData={s:i%2?1:-1,t:(i/8)%1};tilt.add(b);blobs.push(b);}
   const tl=mkLabel('QUASAR · η=1−√(8/9)=0.0572 exact · L_Edd=4πGMm_pc/σ_T · Doppler-boosted jet','label const','qsoAtlas'); tl.position.set(0,3.6,0); qsoGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.5,0); qsoGroup.add(rl);
@@ -15783,8 +15807,8 @@ function updateQso(dt){
     const y=b.userData.s*(0.6+4.6*b.userData.t); b.position.set(0.12*Math.sin(qsoT*2+y*3),y,0.12*Math.cos(qsoT*2+y*3));
     b.material.opacity=.48*(1-b.userData.t)*(b.userData.s>0?1:.52); }
   const gamJ=1/Math.sqrt(1-beta*beta), dop=1/(gamJ*(1-beta*Math.cos(th))), boost=Math.pow(dop,3);
-  O.core.material.opacity=Math.min(.29,.12+.025*Math.log10(1+boost));
-  O.core.scale.setScalar(.68+.055*Math.log10(1+boost)+.012*Math.sin(qsoT*2.1));
+  O.core.material.opacity=Math.min(.48,.26+.04*Math.log10(1+boost));
+  O.core.scale.setScalar(.82+.065*Math.log10(1+boost)+.008*Math.sin(qsoT*1.2));
   O.diskMat.uniforms.uTime.value=qsoT;O.dustMat.uniforms.uTime.value=qsoT;O.photonRing.rotation.z=qsoT*.035;O.diskLines.forEach(l=>l.rotation.y=qsoT*l.userData.rate);
   qsoUiAcc+=dt; if(qsoUiAcc>0.25){ qsoUiAcc=0;
     const LE=qsoLEdd(M), L=lam*LE, Mdot=L/(QSO_ETA*8.988e20)/SN_MSUNG*3.156e7, Rs=2.95e5*M/1e5;
@@ -18293,6 +18317,7 @@ function updateRpd(dt){
    an extra physical dimension or a new invariant.
    ================================================================ */
 const SCI_CYAN=0x8fd8e8,SCI_GOLD=0xe8c77a,SCI_CORAL=0xe98291,SCI_VIOLET=0xb89bd8,SCI_MINT=0x79cfb7,SCI_DEEP=0x07101f;
+const SCI_GEOM_STATS={allocations:0,reuses:0};
 let scientificGlowMap=null;
 function scientificGlowTexture(){
   if(scientificGlowMap)return scientificGlowMap;
@@ -18323,10 +18348,13 @@ function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,in
       void main(){
         #include <logdepthbuf_fragment>
         float rim=pow(1.0-abs(dot(normalize(vNormalV),normalize(vViewV))),2.7);
-        float wave=.5+.5*sin(dot(vLocal,vec3(5.7,7.9,4.3))+uTime*.48);
-        float filament=pow(wave,18.0);vec3 col=mix(uColor,uAccent,clamp(rim*.42+filament*.08,0.0,1.0));
-        float a=uOpacity*(.055+.58*rim)+uOpacity*.065*filament;
-        gl_FragColor=vec4(col*(.24+.62*rim+.10*filament)*min(uIntensity,1.15),min(.38,a));}
+        /* Stable object-space structure: motion belongs to tracers and transport,
+           never to a high-frequency transparency mask that shimmers at sub-pixel
+           scale. uTime remains in the ABI so old stations need no material churn. */
+        float wave=.5+.5*sin(dot(vLocal,vec3(3.1,4.3,2.7)));
+        float filament=smoothstep(.88,1.0,wave);vec3 col=mix(uColor,uAccent,clamp(rim*.38+filament*.10,0.0,1.0));
+        float a=uOpacity*(.10+.68*rim+.12*filament);
+        gl_FragColor=vec4(col*(.34+.82*rim+.16*filament)*min(uIntensity,1.28),min(.50,a));}
     `});
   m.userData.scientificFresnel=true;return m;
 }
@@ -18348,7 +18376,11 @@ function scientificTube(points,color=SCI_CYAN,radius=.035,opacity=.9,closed=fals
 }
 function scientificReplaceTube(mesh,points,closed=mesh?.userData?.scientificTube?.closed||false){
   if(!mesh)return;const pts=(points||[]).map(p=>p?.isVector3?p:new THREE.Vector3(...p));mesh.visible=pts.length>1;if(pts.length<2)return;
-  const spec=mesh.userData.scientificTube||{radius:.035,segments:0},q=scientificCurve(pts,closed),n=Math.max(12,spec.segments||q.points.length*2);mesh.visible=!!q.curve;if(!q.curve)return;mesh.geometry?.dispose?.();mesh.geometry=new THREE.BufferGeometry().setFromPoints(q.curve.getSpacedPoints(n));mesh.geometry.computeBoundingSphere();
+  const spec=mesh.userData.scientificTube||{radius:.035,segments:0},q=scientificCurve(pts,closed),n=Math.max(12,spec.segments||q.points.length*2);mesh.visible=!!q.curve;if(!q.curve)return;
+  const sample=q.curve.getSpacedPoints(n),a=mesh.geometry?.getAttribute?.('position');
+  if(a&&a.count===sample.length){for(let i=0;i<sample.length;i++)a.setXYZ(i,sample[i].x,sample[i].y,sample[i].z);a.needsUpdate=true;SCI_GEOM_STATS.reuses++;}
+  else{mesh.geometry?.dispose?.();mesh.geometry=new THREE.BufferGeometry().setFromPoints(sample);SCI_GEOM_STATS.allocations++;}
+  mesh.geometry.computeBoundingSphere();
 }
 function scientificRibbon(points,width=.16,color=SCI_GOLD,opacity=.28,closed=false){
   const mesh=new THREE.Mesh(new THREE.BufferGeometry(),scientificFresnelMaterial(color,color,opacity*.46,.72));mesh.renderOrder=2;mesh.userData.scientificRibbon={width:width*.42,closed};scientificReplaceRibbon(mesh,points,closed);return mesh;
@@ -18357,7 +18389,9 @@ function scientificReplaceRibbon(mesh,points,closed=mesh?.userData?.scientificRi
   if(!mesh)return;const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p));mesh.visible=pts.length>2;if(pts.length<3)return;
   const spec=mesh.userData.scientificRibbon||{width:.16},q=scientificCurve(pts,closed);mesh.visible=!!q.curve;if(!q.curve)return;const steps=Math.max(12,q.points.length-1),frames=q.curve.computeFrenetFrames(steps,q.closed),pos=[],uv=[],idx=[];
   for(let i=0;i<=steps;i++){const u=i/steps,p=q.curve.getPointAt(u),side=frames.normals[Math.min(i,frames.normals.length-1)],w=spec.width*(.82+.18*Math.sin(Math.PI*u));pos.push(p.x+side.x*w,p.y+side.y*w,p.z+side.z*w,p.x-side.x*w,p.y-side.y*w,p.z-side.z*w);uv.push(u,0,u,1);if(i<steps){const a=2*i;idx.push(a,a+1,a+2,a+1,a+3,a+2);}}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();mesh.geometry?.dispose?.();mesh.geometry=g;
+  const g=mesh.geometry,pa=g?.getAttribute?.('position'),ua=g?.getAttribute?.('uv'),ix=g?.getIndex?.(),same=pa&&ua&&ix&&pa.count===pos.length/3&&ua.count===uv.length/2&&ix.count===idx.length;
+  if(same){pa.array.set(pos);ua.array.set(uv);ix.array.set(idx);pa.needsUpdate=ua.needsUpdate=ix.needsUpdate=true;g.computeVertexNormals();g.computeBoundingSphere();SCI_GEOM_STATS.reuses++;}
+  else{const ng=new THREE.BufferGeometry();ng.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));ng.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));ng.setIndex(idx);ng.computeVertexNormals();ng.computeBoundingSphere();mesh.geometry?.dispose?.();mesh.geometry=ng;SCI_GEOM_STATS.allocations++;}
 }
 function scientificFlow(points,count=48,color=SCI_CYAN,size=.045,closed=true){
   const n=Math.min(count,MOBILE_GPU?10:18),inst=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(size*.38,1),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.22,depthWrite:false,blending:THREE.NormalBlending}),n);
@@ -18373,9 +18407,9 @@ function scientificUpdateFlow(flow,time,speed){
   if(d.tracer){const u=((time*(speed??d.speed)+d.seed)%1+1)%1;d.tracer.position.copy(c.getPointAt(u));}
 }
 function scientificCrystal(color=SCI_GOLD,scale=.22){
-  const root=new THREE.Group(),body=new THREE.Mesh(new THREE.OctahedronGeometry(scale,2),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.22,roughness:.34,metalness:.46}));
+  const root=new THREE.Group(),body=new THREE.Mesh(new THREE.OctahedronGeometry(scale,2),new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.34,roughness:.31,metalness:.42}));
   const core=new THREE.Mesh(new THREE.SphereGeometry(scale*.28,10,8),new THREE.MeshBasicMaterial({color:0xffffff,depthWrite:false}));
-  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color,transparent:true,opacity:.18,depthWrite:false,blending:THREE.NormalBlending}));halo.scale.setScalar(scale*2.55);root.add(halo,body,core);root.userData.body=body;root.userData.core=core;return root;
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color,transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.setScalar(scale*3.1);root.add(halo,body,core);root.userData.body=body;root.userData.core=core;root.userData.halo=halo;return root;
 }
 function scientificParametricSurface(uSeg,vSeg,fn,material){
   const pos=[],uv=[],idx=[];for(let j=0;j<=vSeg;j++)for(let i=0;i<=uSeg;i++){const u=i/uSeg,v=j/vSeg,p=fn(u,v);pos.push(p.x,p.y,p.z);uv.push(u,v);}for(let j=0;j<vSeg;j++)for(let i=0;i<uSeg;i++){const a=j*(uSeg+1)+i,b=a+1,c=a+uSeg+1,d=c+1;idx.push(a,c,b,b,c,d);}
@@ -18389,7 +18423,7 @@ function scientificContactPlanes(points,color=SCI_VIOLET,size=.24){
   const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),g=new THREE.CircleGeometry(size,6),m=scientificFresnelMaterial(color,SCI_GOLD,.18,.72),inst=new THREE.InstancedMesh(g,m,pts.length),o=new THREE.Object3D(),z=new THREE.Vector3(0,0,1),centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/Math.max(1,pts.length));
   pts.forEach((p,i)=>{const n=p.clone().sub(centre);if(n.lengthSq()<1e-8)n.set(0,1,0);n.normalize();const tangent=new THREE.Vector3(-n.y,n.x,.35*Math.sin(i*.7)).normalize();o.position.copy(p);o.quaternion.setFromUnitVectors(z,tangent);o.scale.set(1,.38,1);o.updateMatrix();inst.setMatrixAt(i,o.matrix);});inst.instanceMatrix.needsUpdate=true;inst.frustumCulled=false;return inst;
 }
-function scientificUpdateMaterials(root,time){root?.traverse?.(o=>{if(o.material?.userData?.scientificFresnel)o.material.uniforms.uTime.value=time;});}
+function scientificUpdateMaterials(root,time){if(!root?.visible)return;root.traverse?.(o=>{if(o.material?.userData?.scientificFresnel)o.material.uniforms.uTime.value=time;});}
 
 /* ================================================================
    SYMMETRY DISCOVERY CHAMBER — finite-orbit invariant stress tests.
@@ -18402,7 +18436,7 @@ function scientificUpdateMaterials(root,time){root?.traverse?.(o=>{if(o.material
    machine-learning claim.  The symmetry-break control adds a documented
    non-group perturbation so the same instrument can expose false invariance.
    ================================================================ */
-const sydGroup=new THREE.Group();sydGroup.name='Symmetry Discovery Chamber · finite orbit tests';sydGroup.visible=false;scene.add(sydGroup);
+const sydGroup=new THREE.Group();sydGroup.name='Symmetry Discovery Chamber · finite orbit tests';sydGroup.visible=false;s3Group.add(sydGroup);
 const sydC=(re,im=0)=>({re,im});
 const sydCSub=(a,b)=>sydC(a.re-b.re,a.im-b.im);
 const sydCMul=(a,b)=>sydC(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
@@ -18560,9 +18594,7 @@ function sydPanelHTML(){
 }
 function sydCompare(){
   const sets={rotation:['syd','noe','poin'],lorentz:['syd','rel','gw'],phase:['syd','spin','qm','su2'],symplectic:['syd','psp','kam','poin'],mobius:['syd','imp','and','rsh']},views=(sets[state.sydWorld]||sets.rotation).slice(0,4);if(renderer.xr.isPresenting)return;
-  mvEnsure();MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=views.length;
-  for(let i=0;i<MV.n;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
-  MV.active=-1;for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();
+  mvOpenViews(views,'__symmetry');
 }
 function bindSydControls(root=ctl){
   root.querySelectorAll('[data-syd-world]').forEach(b=>b.onclick=()=>{state.sydWorld=b.dataset.sydWorld;state.sydParam=.5;SYD.built=false;sydSetup();buildCtl();});
@@ -18692,7 +18724,7 @@ function holExportData(){
     reproducibility:{normalized_controls:{a:state.holA,b:state.holB},sphere_transport_steps:1024,berry_polygon_vertices:257,deterministic_gauge:'lambda[sin(3phi+0.2)+0.37 cos(5phi-0.4)]',floating_point:'IEEE-754 binary64'},
     epistemic_firewall:'This export contains exact closed-form benchmarks and finite deterministic numerical checks in declared models. It is not a physical measurement, experimental discovery, exhaustive holonomy classification or evidence that the five stations describe one physical system.'};
 }
-const holGroup=new THREE.Group();holGroup.name='Holonomy Observatory · closed journeys and invariant return maps';holGroup.visible=false;scene.add(holGroup);
+const holGroup=new THREE.Group();holGroup.name='Holonomy Observatory · closed journeys and invariant return maps';holGroup.visible=false;s3Group.add(holGroup);
 const HOL={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,flowA:null,flowB:null,probe:null,vector:null,fieldRoot:null,frameLayer:null,returnLayer:null,fluxLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function holVisualPaths(D){
   const mapSphere=p=>new THREE.Vector3(2.55*p[0],2.55*p[1],2.55*p[2]);
@@ -18757,9 +18789,7 @@ function holPanelHTML(){
 function holUpdatePanel(root=ctl){const D=HOL.last||holDiagnostics(),a=root.querySelector('#holAV'),b=root.querySelector('#holBV'),r=root.querySelector('#holReadouts'),o=root.querySelector('#holOrder');if(a)a.textContent=D.parameters[0].display;if(b)b.textContent=D.parameters[1].display;if(r)r.innerHTML=holReadoutsHTML(D);if(o){o.style.color=D.pass?'#8fffe3':'#ff9daf';o.innerHTML=`<b>${D.pass?'✓ '+TT('closure verified','замыкание подтверждено','Abschluss verifiziert'):'△ '+TT('outside declared tolerance','вне заявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}`;}}
 function holCompare(){
   const sets={sphere:['hol','berry','wil','sec'],berry:['hol','berry','spin','su2'],su2:['hol','su2','spin','hopf'],wigner:['hol','rel','poin','noe'],mobius:['hol','imp','and','rsh']},views=sets[state.holStation]||sets.sphere;if(renderer.xr.isPresenting)return;
-  mvEnsure();MV.presetId='holonomy';MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=views.length;
-  for(let i=0;i<MV.n;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
-  MV.active=-1;for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();
+  mvOpenViews(views,'__holonomy');
 }
 function bindHolControls(root=ctl){
   root.querySelectorAll('[data-hol-station]').forEach(b=>b.onclick=()=>{state.holStation=b.dataset.holStation;state.holA=.55;state.holB=.65;state.holProgress=0;HOL.built=false;holSetup();buildCtl();});
@@ -18862,7 +18892,7 @@ function actDiagnostics(station=state.actStation||'reeb',aU=state.actA??.55,bU=s
   return base;
 }
 function actExportData(){return {schema:'fbs3r-contact-action-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(ACT_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:actDiagnostics(),reproducibility:{normalized_controls:{a:state.actA,b:state.actB},reeb_edges:512,legendrian_edges:840,ellipsoid_edges:720,maslov_edges:2048,ks_gauge_vertices:321,floating_point:'IEEE-754 binary64'},epistemic_firewall:'This export contains exact model identities and deterministic finite checks. It is not experimental data, a proof for arbitrary contact or Hamiltonian systems, an exhaustive knot classification, a general N-body regularizer or evidence that the five stations are one physical system.'};}
-const actGroup=new THREE.Group();actGroup.name='Contact & Action Observatory · Reeb, return, regularization and Maslov phase';actGroup.visible=false;scene.add(actGroup);
+const actGroup=new THREE.Group();actGroup.name='Contact & Action Observatory · Reeb, return, regularization and Maslov phase';actGroup.visible=false;s3Group.add(actGroup);
 const ACT={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,phaseTube:null,flowA:null,flowB:null,probe:null,tangent:null,normal:null,fieldRoot:null,planeLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function actVisualPaths(D){
   const fit=p=>{const v=new THREE.Vector3(...p);if(v.length()>1.82)v.setLength(1.82);return v.multiplyScalar(1.4);};
@@ -18914,7 +18944,7 @@ function actPanelHTML(){
   <div class="sect"><b>${TT('SCOPE CONTRACT','КОНТРАКТ ОБЛАСТИ','GELTUNGSVERTRAG')}</b><div class="note">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:var(--dim)">${esc(S.caveat)}</div></div><div class="sect"><b>${TT('COMPOSE & EXPORT','СОПОСТАВИТЬ И ЭКСПОРТИРОВАТЬ','VERGLEICHEN & EXPORTIEREN')}</b><div class="ctlrow"><button class="btn" id="actCompare">◱ ${TT('open exact bridges in Multiview','открыть точные мосты в Multiview','exakte Brücken in Multiview')}</button><button class="btn" id="actExport">⬇ JSON</button></div></div>`;
 }
 function actUpdatePanel(root=ctl){const D=ACT.last||actDiagnostics(),a=root.querySelector('#actAV'),b=root.querySelector('#actBV'),r=root.querySelector('#actReadouts'),o=root.querySelector('#actOrder');if(a)a.textContent=D.parameters[0].display;if(b)b.textContent=D.parameters[1].display;if(r)r.innerHTML=actReadoutsHTML(D);if(o){o.style.color=D.pass?'#8fffe3':'#ff9daf';o.innerHTML=`<b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}`;}}
-function actCompare(){const sets={reeb:['act','hopf','psp','hol'],return:['act','kam','poin','psp'],legendrian:['act','topo','dfx','hopf'],ks:['act','noe','grav','psp'],maslov:['act','qm','rsh','su2']},views=sets[state.actStation]||sets.reeb;if(renderer.xr.isPresenting)return;mvEnsure();MV.presetId='action';MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=4;for(let i=0;i<4;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}MV.active=-1;for(let i=3;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();}
+function actCompare(){const sets={reeb:['act','hopf','psp','hol'],return:['act','kam','poin','psp'],legendrian:['act','topo','dfx','hopf'],ks:['act','noe','grav','psp'],maslov:['act','qm','rsh','su2']},views=sets[state.actStation]||sets.reeb;mvOpenViews(views,'__action');}
 function bindActControls(root=ctl){
   root.querySelectorAll('[data-act-station]').forEach(b=>b.onclick=()=>{state.actStation=b.dataset.actStation;state.actA=.55;state.actB=.42;state.actProgress=0;ACT.built=false;actSetup();buildCtl();});root.querySelectorAll('[data-act-preset]').forEach(b=>b.onclick=()=>{const [a,c]=b.dataset.actPreset.split('|').map(Number);state.actA=a;state.actB=c;actRender();buildCtl();});
   const run=root.querySelector('#actRun');if(run)run.onclick=()=>{state.actRun=!state.actRun;buildCtl();};const reset=root.querySelector('#actReset');if(reset)reset.onclick=()=>{state.actA=.55;state.actB=.42;state.actProgress=0;state.actRun=false;actRender();buildCtl();};const a=root.querySelector('#actA');if(a)a.oninput=e=>{state.actA=+e.target.value;actRender();actUpdatePanel(root);};const b=root.querySelector('#actB');if(b)b.oninput=e=>{state.actB=+e.target.value;actRender();actUpdatePanel(root);};const speed=root.querySelector('#actSpeed');if(speed)speed.oninput=e=>{state.actSpeed=+e.target.value;const v=root.querySelector('#actSpeedV');if(v)v.textContent='×'+state.actSpeed.toFixed(2);};const cmp=root.querySelector('#actCompare');if(cmp)cmp.onclick=actCompare;const exp=root.querySelector('#actExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_contact_action_observatory.json','application/json',JSON.stringify(actExportData(),null,2));
@@ -19010,7 +19040,7 @@ function nulDiagnostics(station=state.nulStation||'null',aU=state.nulA??.56,bU=s
   return base;
 }
 function nulExportData(){return {schema:'fbs3r-spinor-lightcone-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(NUL_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:nulDiagnostics(),reproducibility:{normalized_controls:{a:state.nulA,b:state.nulB},celestial_circle_vertices:161,diamond_null_ray_vertices:81,floating_point:'IEEE-754 binary64',metric_signature:'+---',pauli_convention:'X=x0 I+x sigma'},epistemic_firewall:'This export contains exact representation identities and deterministic finite checks. It is not experimental data, a general curved-spacetime or quantum-gravity solver, an observational map of the sky, an exhaustive spinor classification or evidence that the five stations are one physical system.'};}
-const nulGroup=new THREE.Group();nulGroup.name='Spinor & Light-Cone Observatory · CP1, SL2C, null tetrad and conformal infinity';nulGroup.visible=false;scene.add(nulGroup);
+const nulGroup=new THREE.Group();nulGroup.name='Spinor & Light-Cone Observatory · CP1, SL2C, null tetrad and conformal infinity';nulGroup.visible=false;s3Group.add(nulGroup);
 const NUL={built:false,station:'',paths:[],flows:[],phaseTube:null,probe:null,fieldRoot:null,surfaceLayer:null,dynamicObjects:[],title:null,sub:null,phaseLabel:null,last:null,currentLines:[],ui:0,time:0};
 function nulVisualLines(D){
   const map=p=>{const v=new THREE.Vector3(...p);if(D.station==='null'){if(v.x<-.05)v.x=-1.72+(v.x+2.3)*1.16;else v.x=1.72+(v.x-2.05)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='lorentz'){v.x*=.5;v.y*=1.18;v.z*=1.18;}else if(D.station==='celestial'){const side=v.x<0?-1:1,c=side<0?-2.25:2.25;v.x=side*1.72+(v.x-c)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='tetrad'){v.x*=.78;v.y*=1.18;v.z*=1.18;}else{v.x=v.x*1.28+.42;v.y*=1.06;v.z*=2.4;}return v;};return (D.path.lines||[]).map(L=>L.map(map));
@@ -19053,7 +19083,7 @@ function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[st
   <div class="ctlrow"><label id="nulAL">${esc(D.parameters[0].label)}</label><input id="nulA" type="range" min="0" max="1" step="0.001" value="${state.nulA??.56}"><span class="val" id="nulAV">${esc(D.parameters[0].display)}</span></div><div class="ctlrow"><label id="nulBL">${esc(D.parameters[1].label)}</label><input id="nulB" type="range" min="0" max="1" step="0.001" value="${state.nulB??.34}"><span class="val" id="nulBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('INVARIANT PASSPORT','ПАСПОРТ ИНВАРИАНТОВ','INVARIANTENPASS')}</b><div id="nulReadouts">${nulReadoutsHTML(D)}</div><div id="nulOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div><div class="small" style="margin-top:6px;color:var(--dim)">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:#ffd58a">${esc(S.caveat)}</div></div>
   <div class="sect"><b>${TT('BRIDGES & REPRODUCIBILITY','МОСТЫ И ВОСПРОИЗВОДИМОСТЬ','BRÜCKEN & REPRODUZIERBARKEIT')}</b><div class="ctlrow"><button class="btn" id="nulCompare">◱ ${TT('compare exact neighbours','сравнить точных соседей','exakte Nachbarn vergleichen')}</button><button class="btn" id="nulExport">⬇ JSON</button></div><div class="small" style="color:var(--dim)">Newman–Penrose 1962 · Penrose 1963/1967 · SL(2,C)/CP¹ correspondence · IEEE-754 binary64.</div></div>`;}
-function nulCompare(){const sets={null:['nul','hopf','spin','su2'],lorentz:['nul','rel','hol','syd'],celestial:['nul','rel','imp','sh'],tetrad:['nul','gw','spin','su2'],diamond:['nul','rel','bhr','cau']},views=sets[state.nulStation]||sets.null;if(renderer.xr.isPresenting)return;mvEnsure();MV.presetId='lightcone';MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';MV.n=4;for(let i=0;i<4;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}MV.active=-1;for(let i=3;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();}
+function nulCompare(){const sets={null:['nul','hopf','spin','su2'],lorentz:['nul','rel','hol','syd'],celestial:['nul','rel','imp','sh'],tetrad:['nul','gw','spin','su2'],diamond:['nul','rel','bhr','cau']},views=sets[state.nulStation]||sets.null;mvOpenViews(views,'__lightcone');}
 function nulUpdatePanel(root=ctl){const D=NUL.last||nulDiagnostics(),a=root.querySelector('#nulAV'),b=root.querySelector('#nulBV'),al=root.querySelector('#nulAL'),bl=root.querySelector('#nulBL'),r=root.querySelector('#nulReadouts'),o=root.querySelector('#nulOrder');if(a)a.textContent=D.parameters[0].display;if(b)b.textContent=D.parameters[1].display;if(al)al.textContent=D.parameters[0].label;if(bl)bl.textContent=D.parameters[1].label;if(r)r.innerHTML=nulReadoutsHTML(D);if(o){o.style.color=D.pass?'#8fffe3':'#ff9daf';o.innerHTML=`<b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}`;}}
 function bindNulControls(root=ctl){root.querySelectorAll('[data-nul-station]').forEach(b=>b.onclick=()=>{state.nulStation=b.dataset.nulStation;state.nulA=.56;state.nulB=.34;state.nulProgress=0;NUL.built=false;nulSetup();buildCtl();});const run=root.querySelector('#nulRun');if(run)run.onclick=()=>{state.nulRun=!state.nulRun;buildCtl();};const reset=root.querySelector('#nulReset');if(reset)reset.onclick=()=>{state.nulA=.56;state.nulB=.34;state.nulProgress=0;state.nulRun=false;nulRender();buildCtl();};const a=root.querySelector('#nulA');if(a)a.oninput=e=>{state.nulA=+e.target.value;nulRender();nulUpdatePanel(root);};const b=root.querySelector('#nulB');if(b)b.oninput=e=>{state.nulB=+e.target.value;nulRender();nulUpdatePanel(root);};const speed=root.querySelector('#nulSpeed');if(speed)speed.oninput=e=>{state.nulSpeed=+e.target.value;const v=root.querySelector('#nulSpeedV');if(v)v.textContent='×'+state.nulSpeed.toFixed(2);};const cmp=root.querySelector('#nulCompare');if(cmp)cmp.onclick=nulCompare;const exp=root.querySelector('#nulExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_spinor_lightcone_observatory.json','application/json',JSON.stringify(nulExportData(),null,2));}
 function updateNul(dt){if(!NUL.built)return;NUL.time+=dt;if(state.nulRun!==false&&!PREFERS_REDUCED_MOTION){state.nulProgress=(state.nulProgress+dt*.075*(state.nulSpeed??.54))%1;nulSetProgress();}NUL.flows.forEach((f,i)=>scientificUpdateFlow(f,NUL.time,(i%2?-.026:.034)+(state.nulSpeed??.54)*.018));scientificUpdateMaterials(nulGroup,NUL.time);NUL.probe?.userData?.body?.rotation.set(NUL.time*.34,NUL.time*.53,NUL.time*.17);NUL.ui+=dt;if(NUL.ui>.22){NUL.ui=0;const D=NUL.last||nulDiagnostics();hudBig.textContent=`SPINOR & LIGHT CONE · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`native residual ${D.residual.toExponential(2)} · CP¹ / Minkowski / radial-conformal contracts remain explicitly distinct`;ATLAS_BUS.pub('nul.nullity',D.residual,'native residual');ATLAS_BUS.pub('nul.phase',nulWrap(D.phase),'rad');if(Number.isFinite(D.values.interval))ATLAS_BUS.pub('nul.interval',D.values.interval,'Minkowski interval');}}
@@ -19248,7 +19278,7 @@ const NEXUS_TYPE_AXES={
   analogy:new THREE.Vector3(-.48,.12,-.88),contrast:new THREE.Vector3(.82,.38,.62)
 };
 Object.values(NEXUS_TYPE_AXES).forEach(v=>v.normalize());
-const nexusGroup=new THREE.Group();nexusGroup.name='Invariant Nexus · typed relation space';nexusGroup.visible=false;scene.add(nexusGroup);
+const nexusGroup=new THREE.Group();nexusGroup.name='Invariant Nexus · typed relation space';nexusGroup.visible=false;s3Group.add(nexusGroup);
 const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),fieldRoot:null,tensorRoot:null,pathCorridor:null,pathFlow:null,pathEdges:[],time:0};
 const nexusLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
 const nexusHash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0)/4294967295;};
@@ -19444,17 +19474,42 @@ function updateNexus(dt){
   hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'invariant'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
 }
 
-/* The four station-based observatories are deliberately GPU-resident only while
-   active.  The atlas-wide Nexus remains resident because its selectable node
-   proxies are registered once, but retaining every high-density station after a
-   visit would needlessly compound GPU memory in this already large single-page
-   universe. Multiview is the explicit exception: it owns the decision to keep
-   several laboratories alive for its simultaneous camera passes. */
-function scientificReleaseInactiveLabs(active=''){
-  if((typeof MV!=='undefined'&&MV.on)||renderer.xr.isPresenting)return;
-  const labs=[['syd',sydGroup,SYD],['hol',holGroup,HOL],['act',actGroup,ACT],['nul',nulGroup,NUL]];
-  let released=false;for(const [id,group,model] of labs){if(id===active||!model.built)continue;labWipe(group);model.built=false;model.station='';model.world='';model.time=0;model.ui=0;model.currentPaths=[];model.currentLines=[];model.paths=[];model.flows=[];model.markers=[];model.baseMarkers=[];model.candidateTubes=[];model.dynamicObjects=[];model.transformedField=null;released=true;}
+/* The high-density observatories are GPU-resident only while they can actually
+   be rendered.  This is a real lifetime policy, not merely visibility: changing
+   laboratory disposes buffers/textures owned by inactive transient stations.
+   Multiview supplies an explicit keep-set so its visible tiles remain resident,
+   while leaving S³ force-releases every transient laboratory.  The Nexus stays
+   resident because its registered selectable proxies reference its node objects. */
+const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','qcd','cmb','ns','sn','psr','qso'];
+function scientificResetStation(group,model){
+  labWipe(group);model.built=false;model.station='';model.world='';model.time=0;model.ui=0;
+  model.currentPaths=[];model.currentLines=[];model.paths=[];model.flows=[];model.markers=[];
+  model.baseMarkers=[];model.candidateTubes=[];model.dynamicObjects=[];model.transformedField=null;
+}
+function scientificReleaseLab(id){
+  if(id==='syd'&&SYD.built){scientificResetStation(sydGroup,SYD);return true;}
+  if(id==='hol'&&HOL.built){scientificResetStation(holGroup,HOL);return true;}
+  if(id==='act'&&ACT.built){scientificResetStation(actGroup,ACT);return true;}
+  if(id==='nul'&&NUL.built){scientificResetStation(nulGroup,NUL);return true;}
+  if(id==='qcd'&&qcdObjs){labWipe(qcdGroup);qcdObjs=null;return true;}
+  if(id==='cmb'&&cmbObjs){cmbClear();return true;}
+  if(id==='ns'&&nsObjs){nsClear();return true;}
+  if(id==='sn'&&snObjs){snClear();return true;}
+  if(id==='psr'&&psrObjs){psrClear();return true;}
+  if(id==='qso'&&qsoObjs){qsoClear();return true;}
+  return false;
+}
+function scientificReleaseInactiveLabs(active='',force=false){
+  if(!force&&((typeof MV!=='undefined'&&MV.on)||renderer.xr.isPresenting))return;
+  const keep=new Set(Array.isArray(active)?active:(active?[active]:[]));let released=false;
+  for(const id of SCIENTIFIC_TRANSIENT_LABS)if(!keep.has(id))released=scientificReleaseLab(id)||released;
   if(released)renderer.renderLists?.dispose?.();
+}
+function scientificViewReady(v){
+  if(v==='syd')return SYD.built;if(v==='hol')return HOL.built;if(v==='act')return ACT.built;if(v==='nul')return NUL.built;
+  if(v==='nexus')return NEXUS.built;if(v==='qcd')return !!qcdObjs&&qcdObjs.mode===(state.qcdMode||'meson');
+  if(v==='cmb')return !!cmbObjs;if(v==='ns')return !!nsObjs;if(v==='sn')return !!snObjs;if(v==='psr')return !!psrObjs;if(v==='qso')return !!qsoObjs;
+  return false;
 }
 
 /* Per-view camera framing, one source of truth: setS3View() uses it to place the main
@@ -19543,73 +19598,80 @@ function s3ViewVisibility(v){
   qsoGroup.visible     = (v==='qso');
   obsCap.visible = chiRing.visible = photon.visible = photonTrail.visible = (v==='sec');
 }
-function setS3View(v){
+function setS3View(v,opt={}){
+  /* One routing gate for every navigation surface. A catalogue button, a lab
+     bridge, a passport jump and a command-palette action all mean the same thing
+     while Multiview is active: replace its focused tile, never reset the quartet. */
+  if(opt.route!==false&&typeof MV!=='undefined'&&MV.on&&state.mode==='s3'&&!renderer.xr.isPresenting){mvSetSlot(MV.active,v);return;}
   state.s3view = v;
   premiumDeclutterDirty=true;
   premiumApplyProfile(!(typeof MV!=='undefined'&&MV.on));
   clearCurrentProjection();
   scientificReleaseInactiveLabs(v);
   s3ViewVisibility(v);
-  if(v==='nul'){ nulSetup(); }
-  if(v==='act'){ actSetup(); }
-  if(v==='hol'){ holSetup(); }
-  if(v==='syd'){ sydSetup(); }
-  if(v==='nexus'){ nexusSetup(); }
-  if(v==='hopfion'){ hfDirty=true; }
-  if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
-  if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
-  if(v==='grav'){ if(!gravBodies.length||state.gravPreset!==gravBuiltId) gravSetup(); }
-  if(v==='qm'){ if(!qmRe||state.qmMode!==qmBuilt) qmSetup(); }
-  if(v==='qcd'){ if(!qcdObjs||qcdObjs.mode!==(state.qcdMode||'meson')) qcdSetup(); }
-  if(v==='topo'){ topoSetup(); }
-  if(v==='sc'){ scSetupLab(); }
-  if(v==='taub'){ tnSetupLab(); }
-  if(v==='eot'){ if(!eotObjs) eotSetup(); }
-  if(v==='wave'){ if(!waveObjs) waveSetup(); }
-  if(v==='spin'){ if(!spinObjs) spinSetup(); }
-  if(v==='rel'){ relSetup(); }
-  if(v==='chaos'){ chaosSetup(); }
-  if(v==='kin'){ kinSetup(); }
-  if(v==='sh'){ shSetup(); }
-  if(v==='kdv'){ kdvSetup(); }
-  if(v==='ret'){ retSetup(); }
-  if(v==='dip'){ dipSetup(); }
-  if(v==='cp'){ cpSetup(); }
-  if(v==='rd'){ rdSetup(); }
-  if(v==='he'){ heSetup(); }
-  if(v==='bb'){ bbSetup(); }
-  if(v==='nuc'){ nucSetup(); }
-  if(v==='lens'){ lensSetup(); }
-  if(v==='te'){ teSetup(); }
-  if(v==='gw'){ gwSetup(); }
-  if(v==='pv'){ pvSetup(); }
-  if(v==='su2'){ su2Setup(); }
-  if(v==='bht'){ bhtSetup(); }
-  if(v==='rpd'){ rpdSetup(); }
-  if(v==='imp'){ impSetup(); }
-  if(v==='pole'){ poleSetup(); }
-  if(v==='disp'){ dispSetup(); }
-  if(v==='berry'){ berrySetup(); }
-  if(v==='cusp'){ cuspSetup(); }
-  if(v==='kam'){ kamSetup(); }
-  if(v==='rsh'){ rshSetup(); }
-  if(v==='and'){ andSetup(); }
-  if(v==='psp'){ pspSetup(); }
-  if(v==='dfx'){ dfxSetup(); }
-  if(v==='noe'){ noeSetup(); }
-  if(v==='cau'){ cauSetup(); }
-  if(v==='wil'){ wilSetup(); }
-  if(v==='poin'){ poinSetup(); }
-  if(v==='qcrys'){ qcSetup(); }
-  if(v==='cmb'){ cmbSetup(); }
-  if(v==='mimg'){ mimgSetup(); }
-  if(v==='bhr'){ bhrSetup(); }
-  if(v==='ns'){ nsSetup(); }
-  if(v==='sn'){ snSetup(); }
-  if(v==='psr'){ psrSetup(); }
-  if(v==='qso'){ qsoSetup(); }
-  if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
-  if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
+  const ensure=opt.ensure!==false,ready=scientificViewReady(v);
+  if(ensure){
+    if(v==='nul'&&!ready){ nulSetup(); }
+    if(v==='act'&&!ready){ actSetup(); }
+    if(v==='hol'&&!ready){ holSetup(); }
+    if(v==='syd'&&!ready){ sydSetup(); }
+    if(v==='nexus'&&!ready){ nexusSetup(); }
+    if(v==='hopfion'){ hfDirty=true; }
+    if(v==='skyrmion'){ if(!skCenters.length) skSetup(); skDirty=true; }
+    if(v==='quasi'){ if(state.qpType!==qpBuiltType) buildQuasi(); }
+    if(v==='grav'){ if(!gravBodies.length||state.gravPreset!==gravBuiltId) gravSetup(); }
+    if(v==='qm'){ if(!qmRe||state.qmMode!==qmBuilt) qmSetup(); }
+    if(v==='qcd'&&!ready){ qcdSetup(); }
+    if(v==='topo'){ topoSetup(); }
+    if(v==='sc'){ scSetupLab(); }
+    if(v==='taub'){ tnSetupLab(); }
+    if(v==='eot'){ if(!eotObjs) eotSetup(); }
+    if(v==='wave'){ if(!waveObjs) waveSetup(); }
+    if(v==='spin'){ if(!spinObjs) spinSetup(); }
+    if(v==='rel'){ relSetup(); }
+    if(v==='chaos'){ chaosSetup(); }
+    if(v==='kin'){ kinSetup(); }
+    if(v==='sh'){ shSetup(); }
+    if(v==='kdv'){ kdvSetup(); }
+    if(v==='ret'){ retSetup(); }
+    if(v==='dip'){ dipSetup(); }
+    if(v==='cp'){ cpSetup(); }
+    if(v==='rd'){ rdSetup(); }
+    if(v==='he'){ heSetup(); }
+    if(v==='bb'){ bbSetup(); }
+    if(v==='nuc'){ nucSetup(); }
+    if(v==='lens'){ lensSetup(); }
+    if(v==='te'){ teSetup(); }
+    if(v==='gw'){ gwSetup(); }
+    if(v==='pv'){ pvSetup(); }
+    if(v==='su2'){ su2Setup(); }
+    if(v==='bht'){ bhtSetup(); }
+    if(v==='rpd'){ rpdSetup(); }
+    if(v==='imp'){ impSetup(); }
+    if(v==='pole'){ poleSetup(); }
+    if(v==='disp'){ dispSetup(); }
+    if(v==='berry'){ berrySetup(); }
+    if(v==='cusp'){ cuspSetup(); }
+    if(v==='kam'){ kamSetup(); }
+    if(v==='rsh'){ rshSetup(); }
+    if(v==='and'){ andSetup(); }
+    if(v==='psp'){ pspSetup(); }
+    if(v==='dfx'){ dfxSetup(); }
+    if(v==='noe'){ noeSetup(); }
+    if(v==='cau'){ cauSetup(); }
+    if(v==='wil'){ wilSetup(); }
+    if(v==='poin'){ poinSetup(); }
+    if(v==='qcrys'){ qcSetup(); }
+    if(v==='cmb'&&!ready){ cmbSetup(); }
+    if(v==='mimg'){ mimgSetup(); }
+    if(v==='bhr'){ bhrSetup(); }
+    if(v==='ns'&&!ready){ nsSetup(); }
+    if(v==='sn'&&!ready){ snSetup(); }
+    if(v==='psr'&&!ready){ psrSetup(); }
+    if(v==='qso'&&!ready){ qsoSetup(); }
+    if(v==='atom'){ if(state.atZ!==atomBuiltZ) buildAtom(); buildAtomTable(); }
+    if(v==='hopf' && !hopfDefs.length){ buildHopfFibers(state.hopfDensity); updateHopfHighlights(); }
+  }
   if(v==='eig') setEigMode(state.eigBeta, state.eigM);
   if(v==='lab') CLAB.update();
   if(v==='red') setRkzCap(state.rkzChi);
@@ -19657,7 +19719,7 @@ const MV={
   on:false, n:4, active:0, sync:true,
   views:['imp','and','rsh','su2'],
   cams:[], slots:[], dom:null, tiles:[], presetId:'mobius',
-  rects:[]
+  rects:[], semantic:null
 };
 const MV_PRESETS=[
  {id:'mobius', views:['imp','and','rsh','su2'], bus:['imp.gamma','and.gamma','rsh.sheet','su2.w'],
@@ -19741,7 +19803,38 @@ const MV_PRESETS=[
      ru:'Одна поверхность как линза, как температура, как предел различимости и как ушедшая волна.',
      de:'Eine Fläche als Linse, als Temperatur, als Unterscheidbarkeitsgrenze und als entkommene Welle.'}}
 ];
-function mvPreset(id){ return MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0]; }
+const MV_RELATION_SCORE={exact:14,invariant:12,representation:10,causal:9,coupling:8,limit:7,contrast:5,analogy:4};
+function mvPreset(id){ return (MV.semantic&&MV.semantic.id===id?MV.semantic:null)||MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0]; }
+function mvRelationScore(anchor,candidate){
+  if(anchor===candidate)return -Infinity;let score=0;
+  for(const r of NEXUS_RELATIONS)if((r[0]===anchor&&r[1]===candidate)||(r[1]===anchor&&r[0]===candidate))score=Math.max(score,MV_RELATION_SCORE[r[2]]||1);
+  for(const p of MV_PRESETS)if(p.views.includes(anchor)&&p.views.includes(candidate))score=Math.max(score,7);
+  for(const L of MV_LINKS){const labs=mvLinkLabs(L);if(labs.includes(anchor)&&labs.includes(candidate))score=Math.max(score,L.kind==='IDENTITY'?8:L.kind==='DIMENSIONLESS'?6:4);}
+  for(const C of Object.values(NEXUS_CLUSTERS))if(C.views.includes(anchor)&&C.views.includes(candidate))score=Math.max(score,2);
+  return score;
+}
+function mvSemanticDescriptor(anchor,views,id=`__semantic:${anchor}`){
+  const peers=views.filter(v=>v!==anchor).map(v=>viewNameL(v)).join(' · ');
+  return {id,views:views.slice(),bus:[],
+    t:{en:`Semantic set · ${viewNameL(anchor)}`,ru:`Смысловой набор · ${viewNameL(anchor)}`,de:`Semantisches Set · ${viewNameL(anchor)}`},
+    w:{en:`The active laboratory is retained. The other tiles are its strongest declared theorem, invariant, causal, parameter or model neighbours: ${peers}.`,ru:`Активная лаборатория сохранена. Остальные окна — её наиболее сильные объявленные теоремные, инвариантные, причинные, параметрические или модельные соседи: ${peers}.`,de:`Das aktive Labor bleibt erhalten; die übrigen Kacheln zeigen seine stärksten deklarierten Beziehungen: ${peers}.`}};
+}
+function mvSemanticSelection(anchor,n=4){
+  const known=Object.keys(S3_VIEW_NAMES);if(!known.includes(anchor))anchor='sec';
+  const target=Math.max(1,Math.min(4,n)),views=[anchor],score=new Map(),order=new Map();let oi=0;
+  const offer=(v,s)=>{if(v!==anchor&&known.includes(v)){if(!order.has(v))order.set(v,oi++);score.set(v,Math.max(score.get(v)||0,s));}};
+  if(anchor==='nexus'){offer(state.nexusSource,30);offer(state.nexusTarget,29);offer('topo',20);offer('syd',19);}
+  for(const r of NEXUS_RELATIONS){if(r[0]===anchor)offer(r[1],MV_RELATION_SCORE[r[2]]||1);else if(r[1]===anchor)offer(r[0],MV_RELATION_SCORE[r[2]]||1);}
+  for(const p of MV_PRESETS)if(p.views.includes(anchor))for(const v of p.views)offer(v,7);
+  for(const L of MV_LINKS){const labs=mvLinkLabs(L);if(labs.includes(anchor))for(const v of labs)offer(v,L.kind==='IDENTITY'?8:L.kind==='DIMENSIONLESS'?6:4);}
+  for(const C of Object.values(NEXUS_CLUSTERS))if(C.views.includes(anchor))for(const v of C.views)offer(v,2);
+  const ranked=[...score].map(([v,s])=>({v,s,i:order.get(v)})).sort((a,b)=>b.s-a.s||a.i-b.i);
+  for(const x of ranked)if(views.length<target)views.push(x.v);
+  for(const v of known)if(views.length<target&&!views.includes(v))views.push(v);
+  const id=`__semantic:${anchor}`,semantic=mvSemanticDescriptor(anchor,views,id);
+  return {anchor,id,views,semantic};
+}
+function mvReplaceAt(views,index,value){const out=views.slice();if(index>=0&&index<out.length)out[index]=value;return out;}
 /* Which laboratory is allowed to write the scene caption. Exactly one, always:
    in multiview the active tile, otherwise the single current view. Every other
    tile's write is reverted in the same frame it is made. */
@@ -19808,60 +19901,70 @@ function mvSetActive(i){
   const v=MV.views[i];
   // hand the panel and the main camera to the newly active laboratory
   const S=MV.slots[i], p=s3ViewPreset(v), r=Math.hypot(p[0],p[1],p[2])||1;
-  setS3View(v);
+  setS3View(v,{ensure:false,route:false});
   controls.target.set(0,0,0);
   camera.position.copy(S.dir).multiplyScalar(r*S.zoom);
   stabilizeCamera(); syncCameraClipping(true);
   mvLayout(); buildCtl(); if(typeof refreshMenu==='function') refreshMenu();
 }
 function mvSetSlot(i,v){
-  if(i<0||i>=4) return;
-  MV.views[i]=v;
+  if(!MV.on||i<0||i>=MV.n||!S3_VIEW_NAMES[v]) return;
+  MV.views=mvReplaceAt(MV.views,i,v);
   const A=MV.slots[MV.active], keepDir=A.dir.clone(), keepZoom=A.zoom;
-  const saved=state.s3view;
-  setS3View(v);                            // builds the laboratory (setup dispatch) …
-  if(i!==MV.active) setS3View(saved);      // … then hands the panel back
-  if(i!==MV.active){                       // and restores the active tile's own framing
-    const p=s3ViewPreset(MV.views[MV.active]), r=Math.hypot(p[0],p[1],p[2])||1;
-    A.dir.copy(keepDir); A.zoom=keepZoom;
-    controls.target.set(0,0,0); camera.position.copy(keepDir).multiplyScalar(r*keepZoom);
-    stabilizeCamera(); syncCameraClipping(true);
-  } else {
-    const p=s3ViewPreset(v), r=Math.hypot(p[0],p[1],p[2])||1;
-    A.dir.copy(keepDir); A.zoom=keepZoom;
-    controls.target.set(0,0,0); camera.position.copy(keepDir).multiplyScalar(r*keepZoom);
-    stabilizeCamera(); syncCameraClipping(true);
-  }
+  setS3View(v,{route:false});               // build only the replacement laboratory
+  scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true);
+  const activeView=MV.views[MV.active];if(i!==MV.active)setS3View(activeView,{ensure:false,route:false});
+  const p=s3ViewPreset(activeView), r=Math.hypot(p[0],p[1],p[2])||1;
+  A.dir.copy(keepDir); A.zoom=keepZoom;
+  controls.target.set(0,0,0); camera.position.copy(keepDir).multiplyScalar(r*keepZoom);
+  stabilizeCamera(); syncCameraClipping(true);
+  MV.presetId='__manual';MV.semantic=mvSemanticDescriptor(activeView,MV.views.slice(0,MV.n),'__manual');
   mvLayout(); buildCtl();
 }
-function mvApplyPreset(id){
-  const P=mvPreset(id); MV.presetId=id; MV.n=Math.min(4,P.views.length);
-  for(let i=0;i<MV.n;i++){ MV.views[i]=P.views[i]; }
+function mvSetCount(n){
+  if(!MV.on)return;MV.n=Math.max(1,Math.min(4,n));if(MV.active>=MV.n)MV.active=MV.n-1;
+  for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i],{route:false});scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true);
+  setS3View(MV.views[MV.active],{ensure:false,route:false});MV.presetId='__manual';MV.semantic=mvSemanticDescriptor(MV.views[MV.active],MV.views.slice(0,MV.n),'__manual');mvLayout();buildCtl();
+}
+function uiSetS3View(v){
+  if(MV.on&&state.mode==='s3'&&!renderer.xr.isPresenting)mvSetSlot(MV.active,v);
+  else{setS3View(v);buildCtl();}
+}
+function mvApplyViews(views,id='__comparison',active=0,semantic=null){
+  mvEnsure();const valid=views.filter(v=>S3_VIEW_NAMES[v]).slice(0,4);if(!valid.length)return;
+  MV.presetId=id;MV.semantic=semantic;MV.n=valid.length;for(let i=0;i<MV.n;i++)MV.views[i]=valid[i];
   MV.active=-1;
-  for(let i=0;i<MV.n;i++){ const v=MV.views[i], p=s3ViewPreset(v);
-    const d=new THREE.Vector3(p[0],p[1],p[2]); if(d.lengthSq()<1e-9) d.set(0,.35,1);
-    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
-  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);   // build all, active view last
-  mvSetActive(0); mvLayout(); buildCtl();
+  for(let i=0;i<MV.n;i++){const p=s3ViewPreset(MV.views[i]),d=new THREE.Vector3(p[0],p[1],p[2]);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
+  for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i],{route:false});
+  scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true);
+  mvSetActive(Math.max(0,Math.min(MV.n-1,active)));mvLayout();buildCtl();
+}
+function mvOpenViews(views,id='__comparison',active=0,semantic=null){
+  if(renderer.xr.isPresenting)return;mvEnsure();MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';
+  mvApplyViews(views,id,active,semantic||mvSemanticDescriptor(views[active]||views[0],views,id));
+}
+function mvApplyPreset(id){
+  const P=MV_PRESETS.find(p=>p.id===id)||MV_PRESETS[0];mvApplyViews(P.views,P.id,0,null);
 }
 function mvEnter(){
   if(renderer.xr.isPresenting) return;
-  mvEnsure(); MV.on=true;
+  const anchor=state.s3view||'sec',S=mvSemanticSelection(anchor,4);mvEnsure(); MV.on=true;
   MV.dom.style.display='block';
   document.body.classList.add('mv-on');
   labelRenderer.domElement.style.display='none';   // CSS2D is single-camera; tiles use DOM captions
-  mvApplyPreset(MV.presetId);
+  mvApplyViews(S.views,S.id,0,S.semantic);
 }
-function mvExit(){
+function mvExit(restoreView=true){
   if(!MV.on) return;
+  const v=MV.views[Math.max(0,Math.min(MV.n-1,MV.active))]||state.s3view;
   MV.on=false;
   document.body.classList.remove('mv-on');
   if(MV.dom) MV.dom.style.display='none';
   labelRenderer.domElement.style.display='';
-  const v=MV.views[MV.active];
   renderer.setScissorTest(false); renderer.autoClear=true;
   const {W,H}=mvViewSize(); renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
-  setS3View(v); buildCtl(); if(typeof refreshMenu==='function') refreshMenu();
+  scientificReleaseInactiveLabs(restoreView?v:'',true);
+  if(restoreView){setS3View(v,{ensure:false,route:false});buildCtl();if(typeof refreshMenu==='function')refreshMenu();}
 }
 /* Project the currently traced Nexus path into the existing scissored Multiview.
    This is a comparison surface only: ordering follows graph traversal and does not
@@ -19869,9 +19972,7 @@ function mvExit(){
 function nexusComparePath(){
   const P=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all'),views=P.nodes.slice(0,4);
   if(views.length<2||renderer.xr.isPresenting)return;
-  mvEnsure();MV.on=true;MV.dom.style.display='block';document.body.classList.add('mv-on');labelRenderer.domElement.style.display='none';
-  MV.n=views.length;for(let i=0;i<MV.n;i++){MV.views[i]=views[i];const p=s3ViewPreset(views[i]),d=new THREE.Vector3(...p);if(d.lengthSq()<1e-9)d.set(0,.35,1);MV.slots[i].dir.copy(d).normalize();MV.slots[i].zoom=1;}
-  MV.active=-1;for(let i=MV.n-1;i>=0;i--)setS3View(MV.views[i]);mvSetActive(0);mvLayout();buildCtl();
+  mvOpenViews(views,'__nexus-path');
 }
 /* one orientation, four correct framings */
 function mvSyncCameras(){
@@ -19895,19 +19996,22 @@ function mvRenderTiles(){
   if(!MV.rects.length||MV.rects.length!==MV.n) mvLayout();
   const saved=state.s3view;
   const prevAuto=renderer.autoClear;
-  renderer.autoClear=false; renderer.setScissorTest(true);
-  renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H); renderer.clear(true,true,true);
-  for(let i=0;i<MV.n;i++){
-    const R=MV.rects[i]; if(!R) continue;
-    s3ViewVisibility(MV.views[i]);
-    renderer.setViewport(R.x,R.y,R.w,R.h);
-    renderer.setScissor(R.x,R.y,R.w,R.h);
-    renderer.clear(true,true,false);
-    renderer.render(scene,MV.cams[i]);
+  try{
+    renderer.autoClear=false; renderer.setScissorTest(true);
+    renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H); renderer.clear(true,true,true);
+    for(let i=0;i<MV.n;i++){
+      const R=MV.rects[i]; if(!R) continue;
+      s3ViewVisibility(MV.views[i]);
+      renderer.setViewport(R.x,R.y,R.w,R.h);
+      renderer.setScissor(R.x,R.y,R.w,R.h);
+      renderer.clear(true,true,false);
+      renderer.render(scene,MV.cams[i]);
+    }
+  } finally {
+    renderer.setScissorTest(false); renderer.autoClear=prevAuto;
+    renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
+    s3ViewVisibility(saved);
   }
-  renderer.setScissorTest(false); renderer.autoClear=prevAuto;
-  renderer.setViewport(0,0,W,H); renderer.setScissor(0,0,W,H);
-  s3ViewVisibility(saved);
 }
 let mvBusAcc=0, mvLinkAcc=0;
 /* Drive the linked master. Called from the frame loop while sweeping and from the
@@ -20185,16 +20289,10 @@ function mvLinkApply(L,u,onlyLabs){
 function mvLinkCompose(L){
   const labs=mvLinkLabs(L).slice(0,4);
   if(labs.length<2) return;
-  if(!MV.on) mvEnter();
-  MV.presetId='__link:'+L.id; MV.n=labs.length; MV.active=-1;
-  for(let i=0;i<labs.length;i++){ MV.views[i]=labs[i];
-    const p=s3ViewPreset(labs[i]), d=new THREE.Vector3(p[0],p[1],p[2]);
-    if(d.lengthSq()<1e-9) d.set(0,.35,1);
-    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
-  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);
+  mvOpenViews(labs,'__link:'+L.id);
   state.mvLink=L.id; state.mvLinkV=mvLinkU(L,L.def);
   mvLinkApply(L,state.mvLinkV,labs);
-  mvSetActive(0); mvLayout(); buildCtl();
+  buildCtl();
 }
 /* which laboratories can never join a link, and why — reported, not hidden */
 function mvLinkCoverage(){
@@ -20385,23 +20483,13 @@ function invAtlasQuery(y,relTol,quantity){
 }
 function invAtlasGo(E,p){
   try{ E.apply(p); }catch(e){ return; }
-  navPush(); setS3View(E.lab);
-  if(MV.on){ MV.views[MV.active]=E.lab; mvLayout(); }
-  buildCtl();
+  navPush();uiSetS3View(E.lab);
 }
 function invAtlasQuartet(hits){
   const labs=[...new Set(hits.map(h=>h.E.lab))].slice(0,4);
   if(labs.length<2) return;
   for(const h of hits) if(labs.includes(h.E.lab)) { try{ h.E.apply(h.p); }catch(e){} }
-  if(!MV.on) mvEnter();
-  MV.n=labs.length; MV.presetId='__solved';
-  for(let i=0;i<labs.length;i++) MV.views[i]=labs[i];
-  MV.active=-1;
-  for(let i=0;i<MV.n;i++){ const pr=s3ViewPreset(MV.views[i]);
-    const d=new THREE.Vector3(pr[0],pr[1],pr[2]); if(d.lengthSq()<1e-9) d.set(0,.35,1);
-    MV.slots[i].dir.copy(d).normalize(); MV.slots[i].zoom=1; }
-  for(let i=MV.n-1;i>=0;i--) setS3View(MV.views[i]);
-  mvSetActive(0); mvLayout(); buildCtl();
+  mvOpenViews(labs,'__solved');
 }
 
 /* ================================================================
@@ -28264,22 +28352,22 @@ function buildCtlBody(){
         <button class="btn ${V==='qso'?'on':''}" id="v-qso">Quasar</button>
       </div>
     </div><div id="activeLabControls">${body}${predictionWorkbenchHTML(V)}</div>`;
-    ctl.querySelector('#v-sec').onclick  = ()=>{ setS3View('sec');  buildCtl(); };
-    ctl.querySelector('#v-hopf').onclick = ()=>{ setS3View('hopf'); buildCtl(); };
-    ctl.querySelector('#v-eig').onclick  = ()=>{ setS3View('eig');  buildCtl(); };
-    ctl.querySelector('#v-ring').onclick = ()=>{ setS3View('ring'); buildCtl(); };
-    ctl.querySelector('#v-red').onclick  = ()=>{ setS3View('red');  buildCtl(); };
-    ctl.querySelector('#v-lab').onclick  = ()=>{ setS3View('lab');  buildCtl(); };
-    ctl.querySelector('#v-bell').onclick = ()=>{ setS3View('bell'); buildCtl(); };
-    ctl.querySelector('#v-drd').onclick  = ()=>{ setS3View('drd');  buildCtl(); };
-    ctl.querySelector('#v-sel').onclick  = ()=>{ setS3View('sel');  buildCtl(); };
-    ctl.querySelector('#v-hopfion').onclick = ()=>{ setS3View('hopfion'); buildCtl(); };
-    ctl.querySelector('#v-skyrmion').onclick = ()=>{ setS3View('skyrmion'); buildCtl(); };
-    ctl.querySelector('#v-quasi').onclick = ()=>{ setS3View('quasi'); buildCtl(); };
-    ctl.querySelector('#v-atom').onclick = ()=>{ setS3View('atom'); buildCtl(); };
-    ctl.querySelector('#v-grav').onclick = ()=>{ setS3View('grav'); buildCtl(); };
-    ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>{ setS3View('qm'); buildCtl(); });
-    ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>{ setS3View('qcd'); buildCtl(); });
+    ctl.querySelector('#v-sec').onclick  = ()=>uiSetS3View('sec');
+    ctl.querySelector('#v-hopf').onclick = ()=>uiSetS3View('hopf');
+    ctl.querySelector('#v-eig').onclick  = ()=>uiSetS3View('eig');
+    ctl.querySelector('#v-ring').onclick = ()=>uiSetS3View('ring');
+    ctl.querySelector('#v-red').onclick  = ()=>uiSetS3View('red');
+    ctl.querySelector('#v-lab').onclick  = ()=>uiSetS3View('lab');
+    ctl.querySelector('#v-bell').onclick = ()=>uiSetS3View('bell');
+    ctl.querySelector('#v-drd').onclick  = ()=>uiSetS3View('drd');
+    ctl.querySelector('#v-sel').onclick  = ()=>uiSetS3View('sel');
+    ctl.querySelector('#v-hopfion').onclick = ()=>uiSetS3View('hopfion');
+    ctl.querySelector('#v-skyrmion').onclick = ()=>uiSetS3View('skyrmion');
+    ctl.querySelector('#v-quasi').onclick = ()=>uiSetS3View('quasi');
+    ctl.querySelector('#v-atom').onclick = ()=>uiSetS3View('atom');
+    ctl.querySelector('#v-grav').onclick = ()=>uiSetS3View('grav');
+    ctl.querySelector('#v-qm')&&(ctl.querySelector('#v-qm').onclick = ()=>uiSetS3View('qm'));
+    ctl.querySelector('#v-qcd')&&(ctl.querySelector('#v-qcd').onclick = ()=>uiSetS3View('qcd'));
     { const q=ctl.querySelector('#invQ');
       if(q){ q.oninput=()=>{ state.invQ=q.value; };
         q.onchange=()=>{ state.invQ=q.value; buildCtl(); };
@@ -28303,14 +28391,12 @@ function buildCtlBody(){
       { const b=ctl.querySelector('#mvResetAnim'); if(b) b.onclick=()=>{ const r=resetAnimated();
           if(typeof buildInfo==='function') try{ buildInfo(); }catch(e){} }; }
       const sy=ctl.querySelector('#mvSync'); if(sy) sy.onclick=()=>{ MV.sync=!MV.sync; buildCtl(); };
-      ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>{ MV.n=Math.max(1,Math.min(4,+e.dataset.mvn));
-        if(MV.active>=MV.n) MV.active=MV.n-1; for(let i=0;i<MV.n;i++) setS3View(MV.views[i]);
-        setS3View(MV.views[MV.active]); mvLayout(); buildCtl(); });
+      ctl.querySelectorAll('[data-mvn]').forEach(e=>e.onclick=()=>mvSetCount(+e.dataset.mvn));
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
     for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso']){
-      const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>{ setS3View(vv); buildCtl(); }; }
+      const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>uiSetS3View(vv); }
     bindPredictionWorkbench(V);
     if(V==='nul') bindNulControls(ctl);
     if(V==='act') bindActControls(ctl);
@@ -28963,8 +29049,8 @@ function buildCtlBody(){
       ctl.querySelector('#psrRun')&&(ctl.querySelector('#psrRun').onclick=()=>{ state.psrRun=state.psrRun===false; buildCtl(); });
       ctl.querySelector('#psrP')&&(ctl.querySelector('#psrP').oninput=e=>{ state.psrP=Math.pow(10,+e.target.value); const v=ctl.querySelector('#psrPV'); if(v)v.textContent=state.psrP.toExponential(2); });
       ctl.querySelector('#psrPd')&&(ctl.querySelector('#psrPd').oninput=e=>{ state.psrPd=Math.pow(10,+e.target.value); const v=ctl.querySelector('#psrPdV'); if(v)v.textContent=state.psrPd.toExponential(1); });
-      ctl.querySelector('#psrAlpha')&&(ctl.querySelector('#psrAlpha').oninput=e=>{ state.psrAlpha=+e.target.value; psrSetup(); });
-      ctl.querySelector('#psrZeta')&&(ctl.querySelector('#psrZeta').oninput=e=>{ state.psrZeta=+e.target.value; psrSetup(); });
+      ctl.querySelector('#psrAlpha')&&(ctl.querySelector('#psrAlpha').oninput=e=>{ state.psrAlpha=+e.target.value; });
+      ctl.querySelector('#psrZeta')&&(ctl.querySelector('#psrZeta').oninput=e=>{ state.psrZeta=+e.target.value; });
       ctl.querySelector('#psrW')&&(ctl.querySelector('#psrW').oninput=e=>{ state.psrW=+e.target.value; const v=ctl.querySelector('#psrWV'); if(v)v.textContent=state.psrW+'°'; });
       ctl.querySelector('#psrToNs')&&(ctl.querySelector('#psrToNs').onclick=()=>{ navPush(); setS3View('ns'); buildCtl(); });
       ctl.querySelector('#psrToDip')&&(ctl.querySelector('#psrToDip').onclick=()=>{ navPush(); setS3View('dip'); buildCtl(); });
@@ -30118,7 +30204,8 @@ function syncControlCapabilities(){
 }
 function setMode(mode){
   if(state.landed) leaveSurface();
-  if(mode!=='s3' && typeof MV!=='undefined' && MV.on) mvExit();   // multiview is an S³-laboratory mode
+  if(mode!=='s3' && typeof MV!=='undefined' && MV.on) mvExit(false);   // do not rebuild an S³ tile while leaving S³
+  if(mode!=='s3')scientificReleaseInactiveLabs('',true);
   state.mode = mode;
   premiumDeclutterDirty=true;
   if(mode!=='s3')premiumApplyProfile(true);
