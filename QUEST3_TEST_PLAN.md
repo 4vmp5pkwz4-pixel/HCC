@@ -69,6 +69,7 @@ Budget: ≥72 FPS sustained, 90 preferred; no frame-time spikes >20 ms during mo
 - [ ] Foveation visibly changes per preset (Safe=1 … Cinematic=0).
 - [ ] No nausea triggers: no auto camera animation, vignette during motion, snap turn default 30°.
 - [ ] Text on panels legible at 1–2 m (24 px serif titles / 19 px UI on 760-px canvases).
+- [ ] Flat-screen precision stage and bloom composer are absent from both eyes; every native laboratory model remains present and stereo-correct.
 
 ## 7 · Exports & audit
 

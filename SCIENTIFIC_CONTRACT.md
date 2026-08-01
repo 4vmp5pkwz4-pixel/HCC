@@ -197,6 +197,22 @@ action. Every export must preserve the transformation family, sample sequence,
 candidate values, normalized residuals, tolerance, perturbation amplitude and
 the finite-scan epistemic firewall.
 
+## Visual encoding firewall
+
+Shared cinematic elements are interface context, not scientific evidence. The
+camera-facing precision stage, glow, bloom, glass surfaces, transition veil and
+domain accent must never be read as an additional coordinate system, field,
+confidence interval, energy density or measured magnitude. Domain accents are
+categorical navigation aids only. Their hues and intensities have no scalar
+ordering.
+
+Display adaptation may change post-processing resolution and label visibility,
+but it must not change model geometry, integration steps, lattice sizes,
+sampling, selections, controls, diagnostics or exported values. Selected and
+major annotations take priority during collision removal. A shared facing-plane
+ornament must be disabled where its geometric assumption is false, including
+stereo XR and multi-camera Multiview.
+
 ## Validation obligations
 
 Each laboratory must eventually provide:
