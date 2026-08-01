@@ -75,10 +75,16 @@ Invariant Nexus presents the canonical taxonomy through eight interface classes:
 
 Every Nexus node is an interface proxy for a laboratory, not a second physical
 object. Its two exported positions are visualization coordinates. The
-disciplinary embedding groups fields by human taxonomy; the invariant embedding
-is a deterministic projection of relation-type counts. Neither coordinate is a
+disciplinary embedding groups fields by human taxonomy; the relational embedding
+uses three non-trivial eigenvectors of the unweighted normalized-adjacency graph.
+Neither coordinate is a
 physical distance, similarity magnitude, probability, evidence score or causal
 effect.
+
+The default local lens must suppress unrelated conduits. A structural bridge
+score may be shown only as an unadmitted curation hypothesis and must carry a
+held-edge reconstruction diagnostic. It never creates a registry edge without
+a typed scientific claim, source and review.
 
 A Nexus path means only that consecutive laboratories share declared typed
 edges. A mixed path is not a proof of equivalence or unification. It is not a
@@ -385,3 +391,43 @@ Publication labels, application calculations and independent model extensions
 must be stored separately when they do not numerically coincide. The FB(S³)R
 `N_rec=266` publication label and the CoScale clock `t(N)=t_P phi^N` are the first
 enforced example of this rule.
+
+## Operational predictive foundations
+
+Invariant Nexus, Symmetry Discovery, Holonomy, Contact & Action, and Spinor &
+Light Cone share an operational forecast protocol:
+
+1. a local surrogate is estimated from neighbouring exact model evaluations;
+2. input uncertainty is propagated through first and second local sensitivity;
+3. a displaced exact evaluation is reserved as a holdout;
+4. the surrogate is accepted or rejected against an explicit numerical gate;
+5. all bracketed normalized-control solutions for a target are reported;
+6. the current state, holdout, uncertainty and inverse roots are exported.
+
+This is a model-validation protocol, not empirical calibration. A holdout pass
+means only that the local surrogate predicted its own declared exact model over
+the chosen displacement. It does not establish that the model describes a
+particular physical system.
+
+Symmetry Discovery must keep candidate-decision training and holdout orbit
+locations separate. A finite pass can reject or support only a named candidate
+inside the declared transformation family. It is not a general theorem or an
+exhaustive machine-learning discovery.
+
+Invariant Nexus structural hypotheses must be evaluated by held-edge graph
+reconstruction. They are curation prompts only. No candidate becomes a
+scientific relation without a typed claim, a source and review. Spectral
+coordinates, resource-allocation scores and graph distance are never physical
+distance, evidence strength, effect size, equivalence or causation.
+
+The Smith measurement station may infer a positive series-RLC model from
+Touchstone S11 only after reserving unseen samples. Train and holdout complex
+residuals must remain separate. A failed positivity, conditioning or holdout
+gate rejects the model. Import is not instrument calibration, fixture
+de-embedding or automatic causal multi-pole identification.
+
+The black-hole radiation station is a Schwarzschild scaling reference. Its
+dimensionless thermal peak and mass laws are testable model consequences, but
+precision spectra require frequency-, spin- and species-dependent greybody
+factors. The deterministic luminous field encodes flux; it is not a local
+particle-creation mechanism or measured photon count.

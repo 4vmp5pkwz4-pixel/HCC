@@ -523,6 +523,101 @@ check(readFileSync('STELLAR_BLACK_HOLE_AUDIT.md','utf8').includes('## New missin
   && readFileSync('README.md','utf8').includes('all 70 S³ laboratories'),
   'stellar lineage, best-of-both decisions and scientific model boundaries are documented');
 
+/* 27 · OmniAtlas predictive-foundations transfer and restored radiation field */
+{
+  /* Execute the exact DOM-free Smith functions extracted from index.html. This
+     complements the browser self-test and prevents a static substring check
+     from accepting a numerically broken parser or inverse. */
+  const functionSource=name=>{
+    const start=html.indexOf(`function ${name}(`);if(start<0)return '';
+    const open=html.indexOf('{',start);let depth=0,quote='',escape=false;
+    for(let i=open;i<html.length;i++){const c=html[i];
+      if(quote){if(escape)escape=false;else if(c==='\\')escape=true;else if(c===quote)quote='';continue;}
+      if(c==='\''||c==='"'||c==='`'){quote=c;continue;}if(c==='{')depth++;else if(c==='}'&&--depth===0)return html.slice(start,i+1);
+    }return '';
+  };
+  try{
+    const names=['impGamma','impZof','impRlcGamma','impParseTouchstone','impFitSeriesRLC'],src=names.map(functionSource);
+    const impMedian=a=>{const q=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!q.length)return NaN;const h=q.length>>1;return q.length%2?q[h]:(q[h-1]+q[h])/2;};
+    const api=new Function('impMedian',src.join('\n')+';return {impRlcGamma,impParseTouchstone,impFitSeriesRLC};')(impMedian);
+    const rows=['# MHz S RI R 50'];for(let i=0;i<41;i++){const f=1+i*.25,g=api.impRlcGamma(f*1e6,32,1.4e-6,470e-12,50);rows.push(`${f} ${g[0]} ${g[1]}`);}
+    const parsed=api.impParseTouchstone(rows.join('\n'),'exact.s1p'),fit=api.impFitSeriesRLC(parsed.samples,parsed.z0);
+    check(parsed.samples.length===41&&parsed.z0===50&&fit.ok&&fit.adequate
+      &&Math.abs(fit.R/32-1)<1e-10&&Math.abs(fit.L/1.4e-6-1)<1e-9
+      &&Math.abs(fit.C/470e-12-1)<1e-9&&fit.holdoutRmse<1e-10&&fit.conditionNumber<1e8&&fit.resonanceInBand,
+      'extracted Smith parser and withheld inverse numerically recover an exact series-RLC sweep');
+    const narrow=[];for(let i=0;i<21;i++){const f=1e6+i*2500,g=api.impRlcGamma(f,32,1.4e-6,470e-12,50);narrow.push({f,gr:g[0],gi:g[1]});}const narrowFit=api.impFitSeriesRLC(narrow,50);
+    check(!narrowFit.adequate&&(!narrowFit.resonanceInBand||narrowFit.conditionNumber>=1e8),
+      'Smith domain gate refuses a narrow sweep that cannot support an in-band resonance prediction');
+    const s2=['[Number of Ports] 2','[Reference] 75 75','# GHz S DB R 75','[Network Data]'];for(let i=1;i<=6;i++)s2.push(`${i} -6 90 -80 0 -80 0 -80 0`);s2.push('[Noise Data]','1 2 3 4 5','[End]');
+    const p2=api.impParseTouchstone(s2.join('\n'),'v2.s2p');
+    check(p2.samples.length===6&&p2.z0===75&&Math.abs(p2.samples[0].f-1e9)<1e-6
+      &&Math.abs(p2.samples[0].gr)<1e-12&&Math.abs(p2.samples[0].gi-Math.pow(10,-6/20))<1e-12,
+      'extracted Touchstone parser preserves S2P v2 port count, GHz, DB phase and reference impedance');
+    let rejected=0;for(const bad of ['[Number of Ports] 2\n[Matrix Format] Lower\n# GHz S RI R 50','#[space] GHz Z RI R 50'.replace('[space]',''),'# GHz S RI R 50\n1 nope 0'])try{api.impParseTouchstone(bad,'bad.s2p');}catch(e){rejected++;}
+    check(rejected===3,'Touchstone import rejects triangular, non-S and malformed network data instead of silently reinterpreting them');
+  }catch(e){check(false,'extracted Smith numerical validation executes: '+e.message);}
+  const hbar=1.054571817e-34,c=2.99792458e8,G=6.67430e-11,kB=1.380649e-23,h=2*Math.PI*hbar,M=1.98892e30,
+    T=m=>hbar*c**3/(8*Math.PI*G*m*kB),L=m=>hbar*c**6/(15360*Math.PI*G*G*m*m),life=m=>5120*Math.PI*G*G*m**3/(hbar*c**4),peak=2.8214393721220787*kB*T(M)/h;
+  check(Math.abs(T(2*M)/T(M)-.5)<1e-15&&Math.abs(L(2*M)/L(M)-.25)<1e-15
+    &&Math.abs(life(2*M)/life(M)-8)<1e-14&&Math.abs(h*peak/(kB*T(M))-2.8214393721220787)<1e-14,
+    'independent Schwarzschild reference closes the thermal peak and M^-1/M^-2/M^3 scaling laws');
+}
+check(html.includes('function impParseTouchstone(') && html.includes('function impFitSeriesRLC(')
+  && html.includes('holdout:i%5===0') && html.includes('conditionNumber') && html.includes('passivityViolations') && html.includes('function impAssimExport('),
+  'Smith lab parses Touchstone S1P/S2P and fits an explicitly withheld series-RLC inverse');
+check(html.includes('id="impTouchstone"') && html.includes('id="impSynthetic"')
+  && html.includes('id="impAssimExport"') && html.includes('measured S11 · RLC holdout forecast on the Riemann sphere'),
+  'Smith measurement assimilation, reproducible reference, spatial forecast and export are reachable');
+check(html.includes('Möbius–Smith assimilation: Touchstone S1P RI parser')
+  && html.includes('passes unseen every-fifth-point holdout'),
+  'Smith parser, inverse recovery and unseen holdout runtime benchmarks are installed');
+check(html.includes('function pfFiniteAudit(') && html.includes('function pfInverseRoots(')
+  && html.includes('function pfSydAudit(') && html.includes('function pfUpdateSpatial('),
+  'shared predictive kernel exposes sensitivity, uncertainty, exact holdout, inverse roots and native future geometry');
+check(html.includes('PF_AUDIT_CACHE')
+  && html.includes('if(PF_AUDIT_CACHE.has(cacheKey))return PF_AUDIT_CACHE.get(cacheKey)'),
+  'expensive inverse and holdout audits are memoized instead of recomputed every animation frame');
+check(html.includes('predictiveRuntime(){return {auditCacheEntries:PF_AUDIT_CACHE.size')
+  && html.includes('blackHoleRadiation:bhtObjs?.station'),
+  'read-only QA exposes predictive cache, spatial attachment and frozen-radiation runtime state');
+check(html.includes('if(glowTexture.shared)return glowTexture.shared')
+  && html.includes("t.name='shared radial laboratory glow'"),
+  'identical laboratory halos reuse one immutable GPU texture across station rebuilds');
+check(['syd','hol','act','nul'].every(v=>html.includes("pfPanelHTML('"+v+"')"))
+  && html.includes('operational_forecast:operational')
+  && html.includes("ATLAS_BUS.pub(v+'.forecast'") && html.includes("v==='nexus'?'nexus.recall5'")
+  && html.includes("id:'predict.local_holdout'") && html.includes("id:'predict.uncertainty'")
+  && html.includes("id:'predict.inverse'"),
+  'all four exact observatories and universal prediction contracts carry operational forecasts');
+check(html.includes('Forty-eight orbit samples train') && html.includes('sixteen interleaved samples remain unseen')
+  && html.includes('Symmetry Discovery keeps interleaved train/holdout decisions separate')
+  && html.includes('id="pfSydCandidate"') && html.includes('candidate_id:C.id'),
+  'Symmetry Discovery separates candidate training from holdout falsification and predicts a break threshold');
+check(html.includes('function nexusSpectralEmbedding(') && html.includes('shifted orthogonal iteration, 96 deterministic iterations')
+  && html.includes("nexusLens:'local'") && html.includes('data-nx-lens="'),
+  'Invariant Nexus uses deterministic spectral geometry and an uncluttered local lens by default');
+check(html.includes('function nexusStructuralCalibration(') && html.includes('leave-one-declared-edge-out resource-allocation score')
+  && html.includes('No candidate is a registry edge until a typed scientific claim')
+  && html.includes("id:'nexus.resource_allocation'"),
+  'Nexus bridge hypotheses are held-edge calibrated and protected by an admission firewall');
+{
+  const block=html.slice(html.indexOf('BLACK-HOLE HORIZON THERMODYNAMICS OBSERVATORY'),html.indexOf('CMB LOW-MULTIPOLE LAB'));
+  check(block.includes("station==='radiation'") && block.includes('function bhtRadiationAudit(')
+    && block.includes('BHT_XPEAK=2.8214393721220787') && block.includes('wavefronts')
+    && block.includes('mass-temperature-lifetime constellation') && block.includes('O.flux.visible&&radiationFrame')
+    && block.includes("O.station==='radiation'&&radiationFrame") && block.includes('O.radiationPrimed=true') && !block.includes('Math.random'),
+    'Black-hole radiation restores halo/flux phenomenology with deterministic wavefronts and a spatial mass-scaling constellation');
+}
+check(html.includes('Black-hole radiation: dimensionless energy-spectrum peak')
+  && html.includes('T proportional to M^-1, L proportional to M^-2 and lifetime proportional to M^3')
+  && html.includes("id:'bh.thermal_peak'"),
+  'black-hole spectral peak and independent mass-scaling runtime closures are installed');
+check(existsSync('PREDICTIVE_FOUNDATIONS_AUDIT.md')
+  && readFileSync('PREDICTIVE_FOUNDATIONS_AUDIT.md','utf8').includes('## Smith measurement assimilation')
+  && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Operational predictive foundations'),
+  'predictive transfer, assumptions, rejection gates and provenance are documented');
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));

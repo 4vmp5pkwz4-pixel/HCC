@@ -2098,6 +2098,14 @@ function runSelfTests(){
     ok('Black hole Kerr station: increasing spin shrinks horizon area and surface-gravity temperature while Ω_H remains finite below extremality',
       k9.area<k0.area&&ke.area<k9.area&&k9.TH<k0.TH&&ke.TH<k9.TH&&ke.omega>k9.omega&&Number.isFinite(ke.omega),
       `A(.998)/A(0)=${(ke.area/k0.area).toFixed(5)} · T(.998)/T(0)=${(ke.TH/k0.TH).toFixed(5)}`); }
+  { // RESTORED BLACK-HOLE RADIATION FIELD: spectral peak and three independent mass scalings
+    const R=bhtRadiationAudit(BHT_MSUN),Q=R.scalingClosure;
+    ok('Black-hole radiation: dimensionless energy-spectrum peak is x=2.821439372 and nu_peak=h^-1 x k_B T',
+      Math.abs(R.energySpectrumPeakX-2.8214393721220787)<1e-14&&Math.abs(BHT_h*R.energySpectrumPeakHz/(BHT_kB*R.temperatureK)-BHT_XPEAK)<1e-12,
+      'x='+R.energySpectrumPeakX.toFixed(12)+' · nu='+R.energySpectrumPeakHz.toExponential(4)+' Hz');
+    ok('Black-hole radiation: independent doubled-mass holdout closes T proportional to M^-1, L proportional to M^-2 and lifetime proportional to M^3',
+      Math.abs(Q.temperature_double_mass_ratio-.5)<1e-14&&Math.abs(Q.luminosity_double_mass_ratio-.25)<1e-14&&Math.abs(Q.lifetime_double_mass_ratio-8)<1e-12,
+      'ratios='+Q.temperature_double_mass_ratio.toFixed(3)+' · '+Q.luminosity_double_mass_ratio.toFixed(3)+' · '+Q.lifetime_double_mass_ratio.toFixed(3)); }
   { // CMB harmonics: the real Y_lm the sky map is built from are orthonormal and obey the addition theorem
     const inner=(l1,m1,l2,m2)=>{ let s=0; const Nt=90,Np=180; for(let i=0;i<Nt;i++){ const th=(i+0.5)/Nt*Math.PI, w=Math.sin(th)*(Math.PI/Nt)*(2*Math.PI/Np);
       for(let j=0;j<Np;j++){ const ph=j/Np*2*Math.PI; s+=shY(l1,m1,th,ph)*shY(l2,m2,th,ph)*w; } } return s; };
@@ -2454,6 +2462,27 @@ function runSelfTests(){
       const V=1.0, q=Math.PI, k=Math.sqrt(q*q+2*V);   // E=q²/2+V ⇒ k²=q²+2V
       ok('Möbius–Smith ⇄ Quantum: at the transmission resonance qa=π the barrier reflection is EXACTLY zero — the state sits at the zenith (match)',
         Math.hypot(...qmBarrierR(k,V,1.0))<1e-9 && Math.abs(qmBarrierT(k,V,1.0)-1)<1e-9, `|r|=${Math.hypot(...qmBarrierR(k,V,1.0)).toExponential(1)} T=${qmBarrierT(k,V,1.0).toFixed(9)}`); } }
+  { // SMITH MEASUREMENT ASSIMILATION: Touchstone parsing, inverse fit and unseen holdout
+    const txt=['! deterministic S1P parser benchmark','# MHz S RI R 50'];for(let i=0;i<21;i++){const f=1+i*.45,g=impRlcGamma(f*1e6,32,1.4e-6,470e-12,50);txt.push(f.toFixed(6)+' '+g[0].toPrecision(12)+' '+g[1].toPrecision(12));}
+    const P=impParseTouchstone(txt.join('\n'),'benchmark.s1p'),F=impFitSeriesRLC(P.samples,P.z0);
+    ok('Möbius–Smith assimilation: Touchstone S1P RI parser preserves units, Z0 and complex S11',
+      P.samples.length===21&&P.z0===50&&Math.abs(P.samples[0].f-1e6)<1e-9&&P.format.includes('S1P MHZ RI'),P.format+' · n='+P.samples.length);
+    ok('Möbius–Smith assimilation: series-RLC inverse recovers R/L/C from training samples and passes unseen every-fifth-point holdout',
+      F.ok&&F.adequate&&Math.abs(F.R/32-1)<1e-9&&Math.abs(F.L/1.4e-6-1)<1e-8&&Math.abs(F.C/470e-12-1)<1e-8&&F.holdoutRmse<1e-9,
+      F.ok?'R='+F.R.toFixed(6)+' L='+F.L.toExponential(5)+' C='+F.C.toExponential(5)+' holdout='+F.holdoutRmse.toExponential(2):F.reason); }
+  { // PREDICTIVE FOUNDATION: inverse roots, holdout separation and graph calibration
+    const roots=pfInverseRoots(x=>x*x,.25,false),H=pfFiniteAudit('hol'),S=pfSydAudit('rotation',0),E=nexusSpectralEmbedding(),C=nexusStructuralCalibration('all');
+    ok('Predictive foundation: bracketed inverse solver recovers every finite root without confusing angular branch cuts',
+      roots.length===1&&Math.abs(roots[0]-.5)<1e-8,'roots='+roots.map(x=>x.toFixed(8)).join(','));
+    ok('Predictive foundation: Holonomy exposes a finite unseen exact holdout, local sensitivity and propagated uncertainty',
+      [H.exact_holdout,H.linear_holdout_prediction,H.holdout_residual,H.local_sensitivity,H.propagated_sigma].every(Number.isFinite)&&H.future_control_normalized!==H.control_normalized,
+      'holdout='+H.holdout_residual.toExponential(3)+' sigma='+H.propagated_sigma.toExponential(3));
+    ok('Predictive foundation: Symmetry Discovery keeps interleaved train/holdout decisions separate and predicts a finite break threshold',
+      S.candidates.every(q=>Number.isFinite(q.train_residual)&&Number.isFinite(q.holdout_residual))&&Number.isFinite(S.critical_break_amplitude)&&S.critical_break_amplitude>=0,
+      'agreement='+(100*S.train_holdout_agreement).toFixed(1)+'% critical='+S.critical_break_amplitude.toExponential(3));
+    ok('Invariant Nexus: spectral embedding is finite/deterministic and held-edge calibration reports bounded reconstruction scores',
+      E.positions.size===NEXUS_VIEWS.length&&[...E.positions.values()].every(p=>[p.x,p.y,p.z].every(Number.isFinite))&&[C.recall_at_1,C.recall_at_5,C.mean_reciprocal_rank].every(x=>x>=0&&x<=1)&&C.tested===NEXUS_RELATIONS.length,
+      'lambda='+E.meta.eigenvalues.map(x=>x.toFixed(4)).join(',')+' · R@5='+(100*C.recall_at_5).toFixed(1)+'%'); }
   { // COMPLEX-FREQUENCY POLE ATLAS: the universal resonance identities
     const R=(wr,wi,P)=>{const nr=wr-P.z[0],ni=wi-P.z[1],dr=wr-P.p[0],di=wi-P.p[1],D=dr*dr+di*di;return Math.hypot((nr*dr+ni*di)/D,(ni*dr-nr*di)/D);};
     const mk=(gi,gc,D)=>({gi,gc,g:gi+gc,p:[1,-(gi+gc)/2],z:[1+D,-(gi-gc)/2],D});
@@ -6257,13 +6286,14 @@ registerSel('sun', {
 });
 
 function glowTexture(){
+  if(glowTexture.shared)return glowTexture.shared;
   const c = document.createElement('canvas'); c.width=c.height=128;
   const ctx = c.getContext('2d');
   const g = ctx.createRadialGradient(64,64,4,64,64,64);
   g.addColorStop(0,'rgba(255,240,200,1)'); g.addColorStop(.35,'rgba(255,200,110,.45)');
   g.addColorStop(1,'rgba(255,180,80,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,128,128);
-  return new THREE.CanvasTexture(c);
+  const t=new THREE.CanvasTexture(c);t.name='shared radial laboratory glow';glowTexture.shared=t;return t;
 }
 function keplerE(M, e){
   let E = e < .8 ? M : Math.PI;
@@ -15114,7 +15144,7 @@ function updateSu2(dt){
    claim.  Greybody spectra, spin-down, charge, accretion and the final
    quantum-gravity regime remain outside the model. */
 const bhtGroup=new THREE.Group(); bhtGroup.visible=false; s3Group.add(bhtGroup);
-const BHT_hbar=1.054571817e-34, BHT_c=2.99792458e8, BHT_G=6.67430e-11, BHT_kB=1.380649e-23, BHT_MSUN=1.98892e30, BHT_YR=3.15576e7;
+const BHT_hbar=1.054571817e-34, BHT_h=2*Math.PI*BHT_hbar, BHT_c=2.99792458e8, BHT_G=6.67430e-11, BHT_kB=1.380649e-23, BHT_MSUN=1.98892e30, BHT_YR=3.15576e7, BHT_XPEAK=2.8214393721220787;
 let bhtObjs=null, bhtUiAcc=0, bhtM=BHT_MSUN, bhtM0=BHT_MSUN, bhtEvapProg=0, bhtPairs=[], bhtT=0;
 function bhtRs(M){ return 2*BHT_G*M/(BHT_c*BHT_c); }
 function bhtKerr(M,chi=state.bhtSpin??0){chi=THREE.MathUtils.clamp(Math.abs(chi),0,.999999);const rg=BHT_G*M/(BHT_c*BHT_c),q=Math.sqrt(Math.max(0,1-chi*chi)),rp=rg*(1+q),area=8*Math.PI*rg*rg*(1+q),TH=BHT_hbar*BHT_c**3/(4*Math.PI*BHT_G*M*BHT_kB)*q/(1+q),omega=chi*BHT_c**3/(2*BHT_G*M*(1+q));return{chi,rg,q,rp,area,TH,omega,ergEq:2*rg,ergPole:rp};}
@@ -15123,6 +15153,15 @@ function bhtArea(M,chi=state.bhtSpin??0){ return bhtKerr(M,chi).area; }
 function bhtS(M,chi=state.bhtSpin??0){ return BHT_kB*BHT_c**3*bhtArea(M,chi)/(4*BHT_G*BHT_hbar); }
 function bhtLum(M){ return BHT_hbar*BHT_c**6/(15360*Math.PI*BHT_G*BHT_G*M*M); }
 function bhtEvapYr(M){ return 5120*Math.PI*BHT_G*BHT_G*M**3/(BHT_hbar*BHT_c**4)/BHT_YR; }
+function bhtPeakHz(M){return BHT_XPEAK*BHT_kB*bhtTH(M,0)/BHT_h;}
+function bhtRadiationAudit(M=state.bhtM??BHT_MSUN){
+  const T=bhtTH(M,0),L=bhtLum(M),life=bhtEvapYr(M),nu=bhtPeakHz(M),M2=2*M;
+  return {schema:'fbs3r-schwarzschild-radiation-reference-v1',massKg:M,temperatureK:T,idealizedLuminosityW:L,idealizedLifetimeYears:life,
+    energySpectrumPeakX:BHT_XPEAK,energySpectrumPeakHz:nu,peakPhotonEnergyJ:BHT_h*nu,
+    scalingClosure:{temperature_M_times_M:T*M,temperature_double_mass_ratio:bhtTH(M2,0)/T,luminosity_double_mass_ratio:bhtLum(M2)/L,lifetime_double_mass_ratio:bhtEvapYr(M2)/life},
+    model_status:'dimensionless blackbody spectral-shape and textbook Schwarzschild scaling reference; not a precision species-resolved Hawking flux',
+    excluded:['frequency- and spin-dependent greybody factors','particle species and thresholds','charge','accretion','back-reaction','unknown endpoint quantum gravity']};
+}
 const BHT_PRESETS={ primordial:1e12, asteroid:1e20, solar:BHT_MSUN, sgra:4.15e6*BHT_MSUN, m31:1.4e8*BHT_MSUN, m87:6.5e9*BHT_MSUN, ton618:66e9*BHT_MSUN };
 function bhtRadius(M){ return 0.42+1.5*Math.min(1,Math.max(0,(Math.log10(M)-11)/31)); }
 function bhtColor(TH){ const lt=Math.log10(Math.max(1e-20,TH)), t=Math.min(1,Math.max(0,(lt+20)/32)); const c=new THREE.Color(); c.setHSL(0.62-0.62*t,0.82,0.32+0.28*t); return c; }
@@ -15134,33 +15173,59 @@ function bhtSetup(){
   const bh=new THREE.Mesh(new THREE.SphereGeometry(1,64,42),new THREE.MeshStandardMaterial({color:0x010205,roughness:.2,metalness:.42,emissive:0x000000}));world.add(bh);
   const shell=new THREE.Mesh(new THREE.SphereGeometry(1.014,48,32),new THREE.MeshBasicMaterial({color:0xffd17a,wireframe:true,transparent:true,opacity:.055,depthWrite:false}));world.add(shell);
   const ergo=new THREE.Mesh(new THREE.SphereGeometry(1,56,36),scientificFresnelMaterial(0x6ea8c9,SCI_GOLD,.035,.44));world.add(ergo);
+  const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffc96b,transparent:true,opacity:station==='radiation'?.48:.16,depthWrite:false,depthTest:true,blending:THREE.NormalBlending}));halo.scale.setScalar(4.2);world.add(halo);
+  const halo2=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0x7fbfff,transparent:true,opacity:station==='radiation'?.20:.07,depthWrite:false,depthTest:true,blending:THREE.NormalBlending}));halo2.scale.setScalar(5.5);world.add(halo2);
   const cellN=MOBILE_GPU?112:196,cellGeo=new THREE.OctahedronGeometry(.018,0),cellMat=new THREE.MeshStandardMaterial({color:0xd8e9f2,emissive:0x6f5530,emissiveIntensity:.12,metalness:.46,roughness:.3,transparent:true,opacity:.52}),cells=new THREE.InstancedMesh(cellGeo,cellMat,cellN),dummy=new THREE.Object3D();
   for(let i=0;i<cellN;i++){const y=1-2*(i+.5)/cellN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;dummy.position.set(r*Math.cos(a),y,r*Math.sin(a)).multiplyScalar(1.022);dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dummy.position.clone().normalize());dummy.scale.setScalar(.7+.45*((i*37)%17)/16);dummy.updateMatrix();cells.setMatrixAt(i,dummy.matrix);}cells.instanceMatrix.needsUpdate=true;world.add(cells);
   const drag=[];for(let j=0;j<12;j++){const pts=[],rad=1.2+.11*j;for(let i=0;i<=160;i++){const a=2*Math.PI*i/160,warp=.10*Math.sin(2*a+j*.4);pts.push(new THREE.Vector3(rad*Math.cos(a),warp,rad*Math.sin(a)));}const l=scientificTube(pts,j%4===0?SCI_GOLD:0x6f91ab,.003,j%4===0?.42:.08,true,164);world.add(l);drag.push(l);}
-  const fluxN=MOBILE_GPU?34:58,flux=new THREE.InstancedMesh(new THREE.SphereGeometry(.025,7,5),new THREE.MeshBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.46,depthWrite:false}),fluxN);flux.instanceMatrix.setUsage(THREE.DynamicDrawUsage);flux.visible=station==='evaporation';world.add(flux);bhtPairs=[];for(let i=0;i<fluxN;i++){const y=1-2*(i+.5)/fluxN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;bhtPairs.push({dir:new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a)),phase:(i*.61803398875)%1});}
-  let worldline=null,worldlineBeads=[];
+  const fluxN=MOBILE_GPU?34:58,flux=new THREE.InstancedMesh(new THREE.SphereGeometry(.025,7,5),new THREE.MeshBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.46,depthWrite:false}),fluxN);flux.instanceMatrix.setUsage(THREE.DynamicDrawUsage);flux.visible=station!=='horizon';world.add(flux);bhtPairs=[];for(let i=0;i<fluxN;i++){const y=1-2*(i+.5)/fluxN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;bhtPairs.push({dir:new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a)),phase:(i*.61803398875)%1});}
+  let worldline=null,worldlineBeads=[],radiationRoot=null,wavefronts=[],massMarker=null,massLadder=null;
   if(station==='evaporation'){
     const pts=[],beadGeo=new THREE.SphereGeometry(1,26,18),beadWireMat=new THREE.MeshBasicMaterial({color:0x8eb6ca,wireframe:true,transparent:true,opacity:.13,depthWrite:false});for(let i=0;i<15;i++){const u=i/14,m=Math.pow(Math.max(.015,1-u),1/3),p=new THREE.Vector3(1.15+4.25*u,.15+.62*Math.sin(Math.PI*u),-.7+.5*Math.sin(2*Math.PI*u));pts.push(p);const bead=new THREE.Mesh(beadGeo,new THREE.MeshStandardMaterial({color:0x020307,roughness:.24,metalness:.36,transparent:true,opacity:.34+.45*(1-u)})),wire=new THREE.Mesh(beadGeo,beadWireMat);wire.scale.setScalar(1.018);bead.add(wire);bead.position.copy(p);bead.scale.setScalar(.18+.32*m);bhtGroup.add(bead);worldlineBeads.push(bead);}
     worldline=scientificTube(pts,SCI_GOLD,.006,.5,false,120);bhtGroup.add(worldline);const lab=mkLabel('SCHWARZSCHILD EVAPORATION WORLDTUBE · cross-sections follow M/M₀=(1−t/t_evap)¹ᐟ³ · endpoint excluded','label axis');lab.position.set(2.1,2.72,0);bhtGroup.add(lab);
+  }else if(station==='radiation'){
+    radiationRoot=new THREE.Group();radiationRoot.name='deterministic Schwarzschild thermal field · mass-temperature-lifetime constellation';bhtGroup.add(radiationRoot);
+    for(let i=0;i<7;i++){const w=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshBasicMaterial({color:i%2?0x78bde0:SCI_GOLD,wireframe:true,transparent:true,opacity:.10,depthWrite:false,blending:THREE.NormalBlending}));world.add(w);wavefronts.push(w);}
+    const N=MOBILE_GPU?22:30,geo=new THREE.IcosahedronGeometry(.055,1),mat=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.34,roughness:.32,emissive:0x121820,emissiveIntensity:.22}),inst=new THREE.InstancedMesh(geo,mat,N),dummy2=new THREE.Object3D(),pts=[];
+    for(let i=0;i<N;i++){const u=i/(N-1),logM=11+31*u,a=5.4*Math.PI*u,r=2.45+.18*Math.sin(3*a),p=new THREE.Vector3(r*Math.cos(a),-2.0+4*u,r*Math.sin(a));pts.push(p);dummy2.position.copy(p);dummy2.scale.setScalar(.72+.68*u);dummy2.updateMatrix();inst.setMatrixAt(i,dummy2.matrix);inst.setColorAt(i,bhtColor(bhtTH(Math.pow(10,logM),0)));}
+    inst.instanceMatrix.needsUpdate=true;if(inst.instanceColor)inst.instanceColor.needsUpdate=true;radiationRoot.add(inst);massLadder={inst,pts};radiationRoot.add(scientificTube(pts,0x789db2,.006,.24,false,160));
+    massMarker=scientificCrystal(SCI_GOLD,.13);radiationRoot.add(massMarker);
+    const lab=mkLabel('HAWKING RADIATION REFERENCE · deterministic flux · x³/(eˣ−1) energy-spectrum peak · mass scaling constellation','label axis');lab.position.set(0,3.0,0);bhtGroup.add(lab);
   }else{const lab=mkLabel('KERR HORIZON · black surface r₊ · blue-gold ergosurface · cells sample area/entropy · ribbons encode frame dragging','label axis');lab.position.set(0,3.0,0);bhtGroup.add(lab);}
-  const tl=mkLabel(`BLACK-HOLE THERMODYNAMICS · ${station==='evaporation'?'Schwarzschild evaporation worldtube':'Kerr horizon geometry'}`,'label const','bhtAtlas');tl.position.set(0,3.65,0);bhtGroup.add(tl);const rl=mkLabel('','label dim');rl.position.set(0,-3.5,0);bhtGroup.add(rl);
-  bhtObjs={station,world,bh,shell,ergo,cells,drag,flux,readLab:rl,worldline,worldlineBeads};bhtApplyScale();
+  const stationTitle=station==='evaporation'?'Schwarzschild evaporation worldtube':station==='radiation'?'Schwarzschild radiation reference':'Kerr horizon geometry';
+  const tl=mkLabel('BLACK-HOLE THERMODYNAMICS · '+stationTitle,'label const','bhtAtlas');tl.position.set(0,3.65,0);bhtGroup.add(tl);const rl=mkLabel('','label dim');rl.position.set(0,-3.5,0);bhtGroup.add(rl);
+  bhtObjs={station,world,bh,shell,ergo,halo,halo2,cells,drag,flux,readLab:rl,worldline,worldlineBeads,radiationRoot,wavefronts,massMarker,massLadder,radiationPrimed:false};bhtApplyScale();
 }
-function bhtApplyScale(){const O=bhtObjs;if(!O)return;const chi=O.station==='evaporation'?0:(state.bhtSpin??0),K=bhtKerr(bhtM,chi),R=bhtRadius(bhtM),polar=.64+.36*K.q,ergoEq=2/(1+K.q);O.bh.scale.set(R,R*polar,R);O.shell.scale.copy(O.bh.scale);O.cells.scale.copy(O.bh.scale);O.ergo.scale.set(R*ergoEq,R*polar,R*ergoEq);O.ergo.visible=chi>.005;const col=bhtColor(K.TH);O.flux.visible=O.station==='evaporation';O.flux.material.color.setHex(SCI_GOLD);if(O.station==='evaporation'){O.shell.material.color.copy(col);O.cells.material.emissive.copy(col).multiplyScalar(.24);}else{O.shell.material.color.setHex(SCI_GOLD);O.cells.material.emissive.setHex(0x6f5530);}for(const l of O.drag){l.material.opacity=chi>.005?.035+.32*chi:.012;l.visible=chi>.005;}}
+function bhtApplyScale(){
+  const O=bhtObjs;if(!O)return;const chi=O.station==='horizon'?(state.bhtSpin??0):0,K=bhtKerr(bhtM,chi),R=bhtRadius(bhtM),polar=.64+.36*K.q,ergoEq=2/(1+K.q);
+  O.bh.scale.set(R,R*polar,R);O.shell.scale.copy(O.bh.scale);O.cells.scale.copy(O.bh.scale);O.ergo.scale.set(R*ergoEq,R*polar,R*ergoEq);O.ergo.visible=O.station==='horizon'&&chi>.005;
+  O.halo.scale.setScalar(R*(O.station==='radiation'?4.25:3.25));O.halo2.scale.setScalar(R*(O.station==='radiation'?5.4:4.0));O.halo.material.opacity=O.station==='radiation'?.48:.16;O.halo2.material.opacity=O.station==='radiation'?.20:.07;
+  const col=bhtColor(K.TH);O.flux.visible=O.station!=='horizon';O.flux.material.color.setHex(SCI_GOLD);
+  if(O.station!=='horizon'){O.shell.material.color.copy(col);O.cells.material.emissive.copy(col).multiplyScalar(.34);}else{O.shell.material.color.setHex(SCI_GOLD);O.cells.material.emissive.setHex(0x6f5530);}
+  for(const l of O.drag){l.material.opacity=chi>.005?.035+.32*chi:.012;l.visible=O.station==='horizon'&&chi>.005;}
+  if(O.massMarker&&O.massLadder){const u=THREE.MathUtils.clamp((Math.log10(bhtM)-11)/31,0,1),x=u*(O.massLadder.pts.length-1),i=Math.min(O.massLadder.pts.length-2,Math.floor(x));O.massMarker.position.copy(O.massLadder.pts[i]).lerp(O.massLadder.pts[i+1],x-i);}
+  if(O.station==='radiation')O.radiationPrimed=false;
+}
 function updateBht(dt){
   const O=bhtObjs; if(!O) return;
-  bhtT+=dt;
+  const radiationRunning=O.station!=='radiation'||state.bhtRadiationRun!==false;
+  const radiationFrame=radiationRunning||O.radiationPrimed!==true;
+  if(radiationRunning)bhtT+=dt*(state.bhtSpeed??1);
   if(state.bhtEvap&&O.station==='evaporation'){bhtEvapProg+=dt*(state.bhtSpeed??1)*.035;bhtEvapProg=Math.min(.985,bhtEvapProg);state.bhtEvapProgress=bhtEvapProg;bhtM=bhtM0*Math.pow(1-bhtEvapProg,1/3);if(bhtEvapProg>=.985)state.bhtEvap=false;bhtApplyScale();}
-  const chi=O.station==='evaporation'?0:(state.bhtSpin??0),K=bhtKerr(bhtM,chi),TH=K.TH,R=bhtRadius(bhtM),rate=Math.min(1,Math.max(.03,(Math.log10(Math.max(1e-30,TH))+20)/34)),dummy=new THREE.Object3D();
-  if(O.flux.visible){for(let i=0;i<bhtPairs.length;i++){const p=bhtPairs[i],u=(p.phase+bhtT*.045*(.4+rate))%1,rr=R*(1.08+2.45*u);dummy.position.copy(p.dir).multiplyScalar(rr);dummy.scale.setScalar(.5+.8*(1-u));dummy.updateMatrix();O.flux.setMatrixAt(i,dummy.matrix);}O.flux.instanceMatrix.needsUpdate=true;}O.world.rotation.y+=dt*.018*chi;O.drag.forEach((l,i)=>l.rotation.y+=dt*chi*(.015+.002*i));
+  const chi=O.station==='horizon'?(state.bhtSpin??0):0,K=bhtKerr(bhtM,chi),TH=K.TH,R=bhtRadius(bhtM),rate=Math.min(1,Math.max(.03,(Math.log10(Math.max(1e-30,TH))+20)/34)),dummy=new THREE.Object3D();
+  if(O.flux.visible&&radiationFrame){for(let i=0;i<bhtPairs.length;i++){const p=bhtPairs[i],u=(p.phase+bhtT*.045*(.4+rate))%1,rr=R*(1.08+2.45*u);dummy.position.copy(p.dir).multiplyScalar(rr);dummy.scale.setScalar(.42+.7*(1-u));dummy.updateMatrix();O.flux.setMatrixAt(i,dummy.matrix);}O.flux.instanceMatrix.needsUpdate=true;}
+  if(O.station==='radiation'&&radiationFrame){O.wavefronts.forEach((w,i)=>{const u=(bhtT*.085+i/O.wavefronts.length)%1,s=R*(1.08+2.7*u);w.scale.setScalar(s);w.material.opacity=.13*Math.pow(1-u,1.6);});if(O.massMarker)O.massMarker.scale.setScalar(1+.10*Math.sin(bhtT*1.7));O.halo.material.rotation=bhtT*.015;O.halo2.material.rotation=-bhtT*.009;O.radiationPrimed=true;}
+  O.world.rotation.y+=dt*.018*chi;O.drag.forEach((l,i)=>l.rotation.y+=dt*chi*(.015+.002*i));
   bhtUiAcc+=dt; if(bhtUiAcc>0.2){ bhtUiAcc=0;
     const S=bhtS(bhtM,chi), L=bhtLum(bhtM), tev=bhtEvapYr(bhtM), Rs=bhtRs(bhtM);
     const nm=Math.abs(bhtM/BHT_MSUN-1)<0.01?'1 M☉':bhtM>=BHT_MSUN?(bhtM/BHT_MSUN).toExponential(2)+' M☉':(bhtM)+' kg';
-    hudBig.textContent=`BLACK HOLE · ${O.station==='evaporation'?'Schwarzschild':'Kerr χ='+chi.toFixed(3)} · M=${nm} · r₊=${K.rp.toExponential(2)} m · T_H=${TH.toExponential(2)} K`;
-    hudSub.textContent=O.station==='evaporation'?'A non-looping worldtube shows the idealized Schwarzschild law M/M₀=(1−t/t_evap)¹ᐟ³. The animation stops before the unknown endpoint. Its coefficient omits greybody factors and particle species, so it is a scaling reference rather than a precision lifetime.':'The black surface is the Kerr outer horizon; the surrounding blue-gold surface is the ergoregion boundary and the fine ribbons encode the sign and strength of frame dragging. Entropy follows the exact horizon area. The coordinate-surface embedding is an interface projection, not an isometric Euclidean shape or a ray-traced image.';
+    const stationName=O.station==='horizon'?'Kerr χ='+chi.toFixed(3):O.station==='radiation'?'Schwarzschild radiation':'Schwarzschild evaporation';
+    hudBig.textContent='BLACK HOLE · '+stationName+' · M='+nm+' · r₊='+K.rp.toExponential(2)+' m · T_H='+TH.toExponential(2)+' K';
+    hudSub.textContent=O.station==='evaporation'?'A non-looping worldtube shows the idealized Schwarzschild law M/M₀=(1−t/t_evap)¹ᐟ³. The animation stops before the unknown endpoint. Its coefficient omits greybody factors and particle species, so it is a scaling reference rather than a precision lifetime.':O.station==='radiation'?'The restored luminous field is deterministic: outgoing tracers and nested wavefronts encode flux without stochastic respawn flicker. The surrounding helix is a family of black-hole masses, coloured by Hawking temperature. The x³/(eˣ−1) peak and textbook T∝M⁻¹, L∝M⁻², t∝M³ laws are reference predictions; greybody factors and particle species remain an explicit precision firewall.':'The black surface is the Kerr outer horizon; the surrounding blue-gold surface is the ergoregion boundary and the fine ribbons encode the sign and strength of frame dragging. Entropy follows the exact horizon area. The coordinate-surface embedding is an interface projection, not an isometric Euclidean shape or a ray-traced image.';
     ATLAS_BUS.pub('bht.TH',+TH.toExponential(3),'K');
-    ATLAS_BUS.pub('bht.area',+K.area.toExponential(3),'m2');ATLAS_BUS.pub('bht.omega',+K.omega.toExponential(3),'rad/s');
-    const el=ctl.querySelector('#bhtInv');if(el)el.innerHTML=`M=<b>${nm}</b> · χ=<b>${chi.toFixed(4)}</b> · r_g=GM/c²=${K.rg.toExponential(3)} m · r₊=<b>${K.rp.toExponential(3)} m</b><br>A_H=<b>${K.area.toExponential(3)} m²</b> · T_H=<b>${TH.toExponential(3)} K</b> · S_BH/k_B=<b>${(S/BHT_kB).toExponential(3)}</b> · Ω_H=<b>${K.omega.toExponential(3)} rad/s</b><br>${O.station==='evaporation'?`Schwarzschild-only idealized L=<b>${L.toExponential(2)} W</b> · t=<b>${tev.toExponential(3)} yr</b> · progress ${(100*bhtEvapProg).toFixed(2)}%`:`ergosurface equator r=2r_g=${(2*K.rg).toExponential(3)} m · entropy cells are normalized samples, not Planck pixels`}`;
+    ATLAS_BUS.pub('bht.area',+K.area.toExponential(3),'m2');ATLAS_BUS.pub('bht.omega',+K.omega.toExponential(3),'rad/s');if(O.station==='radiation'){const R=bhtRadiationAudit(bhtM);ATLAS_BUS.pub('bht.peak',+R.energySpectrumPeakHz.toExponential(5),'Hz');ATLAS_BUS.pub('bht.luminosity',+R.idealizedLuminosityW.toExponential(5),'W');}
+    const el=ctl.querySelector('#bhtInv'),rad=O.station==='radiation'?bhtRadiationAudit(bhtM):null,stationReadout=O.station==='evaporation'?'Schwarzschild-only idealized L=<b>'+L.toExponential(2)+' W</b> · t=<b>'+tev.toExponential(3)+' yr</b> · progress '+(100*bhtEvapProg).toFixed(2)+'%':O.station==='radiation'?'energy-spectrum peak x=<b>'+BHT_XPEAK.toFixed(9)+'</b> · ν_peak=<b>'+rad.energySpectrumPeakHz.toExponential(4)+' Hz</b> · idealized L=<b>'+rad.idealizedLuminosityW.toExponential(3)+' W</b> · t=<b>'+rad.idealizedLifetimeYears.toExponential(3)+' yr</b><br>holdout-style scaling closure: T(2M)/T(M)='+rad.scalingClosure.temperature_double_mass_ratio.toFixed(6)+' · L(2M)/L(M)='+rad.scalingClosure.luminosity_double_mass_ratio.toFixed(6)+' · t(2M)/t(M)='+rad.scalingClosure.lifetime_double_mass_ratio.toFixed(6):'ergosurface equator r=2r_g='+(2*K.rg).toExponential(3)+' m · entropy cells are normalized samples, not Planck pixels';
+    if(el)el.innerHTML='M=<b>'+nm+'</b> · χ=<b>'+chi.toFixed(4)+'</b> · r_g=GM/c²='+K.rg.toExponential(3)+' m · r₊=<b>'+K.rp.toExponential(3)+' m</b><br>A_H=<b>'+K.area.toExponential(3)+' m²</b> · T_H=<b>'+TH.toExponential(3)+' K</b> · S_BH/k_B=<b>'+(S/BHT_kB).toExponential(3)+'</b> · Ω_H=<b>'+K.omega.toExponential(3)+' rad/s</b><br>'+stationReadout;
   }
 }
 
@@ -16084,6 +16149,89 @@ function impBaseGamma(){ const D=state.impDomain||'rf';
   if(D==='qmbarrier') return qmBarrierR(state.qmK0??1.4,state.qmV0??1.5,1.0);
   if(D==='wireless'){ const U=impU(); return impGamma(Math.sqrt(1+U*U),0); }
   return impGamma(state.impR??2.4,state.impX??1.1); }
+
+/* Measurement assimilation carried over from the OmniAtlas predictive
+   observatory as a clean contract rather than another runtime patch.  The
+   parser accepts Touchstone v1 S1P/S2P RI, MA and DB records.  The deliberately
+   transparent inverse model is a series RLC: measured S11 is inverted through
+   the Cayley map, R is estimated from Re Z and Im Z=omega L-1/(omega C) is
+   solved by linear least squares.  Every fifth sample is withheld before fitting. */
+const IMP_ASSIM={samples:[],fit:null,source:'',z0:50,format:'',error:'',generated:false};
+const impMedian=a=>{const q=a.filter(Number.isFinite).sort((x,y)=>x-y);if(!q.length)return NaN;const h=q.length>>1;return q.length%2?q[h]:(q[h-1]+q[h])/2;};
+function impParseTouchstone(text,name='measurement.s1p'){
+  let unit='ghz',format='ma',z0=50,ports=Number(/\.s(\d+)p(?:$|\?)/i.exec(name)?.[1]||0),declaredPorts=0,buffer=[],rows=[],section='network',pendingReference=false;
+  if(ports&&![1,2].includes(ports))throw new Error('Only Touchstone S1P/S2P network data are supported');
+  const scale={hz:1,khz:1e3,mhz:1e6,ghz:1e9};
+  for(const raw of String(text).split(/\r?\n/)){
+    const line=raw.replace(/!.*/,'').trim();if(!line)continue;
+    const kw=/^\[\s*([^\]]+)\s*\]\s*(.*)$/i.exec(line);if(kw){const key=kw[1].trim().toLowerCase(),value=kw[2].trim();
+      if(key==='number of ports'){declaredPorts=Number(value);if(![1,2].includes(declaredPorts))throw new Error('Only Touchstone S1P/S2P network data are supported');}
+      else if(key==='network data')section='network';else if(key==='noise data'||key==='end')section=key;
+      else if(key==='matrix format'&&value.toLowerCase()!=='full')throw new Error('Touchstone triangular Matrix Format is not supported; export Full S-parameters');
+      else if(key==='mixed-mode order')throw new Error('Mixed-mode Touchstone data require an explicit port transformation and are not accepted as S11');
+      else if(key==='reference'){pendingReference=true;if(value){const refs=value.split(/[\s,]+/).map(Number);if(refs.some(x=>!Number.isFinite(x)||x<=0)||refs.some(x=>Math.abs(x-refs[0])>1e-12))throw new Error('Only a finite uniform Touchstone reference impedance is supported');z0=refs[0];pendingReference=false;}}
+      continue;}
+    if(line[0]==='#'){const t=line.slice(1).trim().toLowerCase().split(/\s+/);if(t[0] in scale)unit=t[0];const parameter=t.find(x=>['s','y','z','h','g'].includes(x));if(parameter&&parameter!=='s')throw new Error('Touchstone import requires S-parameters');const fi=t.find(x=>['ri','ma','db'].includes(x));if(fi)format=fi;const r=t.indexOf('r');if(r>=0){const ref=+t[r+1];if(!(ref>0&&Number.isFinite(ref)))throw new Error('Touchstone reference impedance must be finite and positive');z0=ref;}continue;}
+    if(section!=='network'&&!pendingReference)continue;const tokens=line.split(/[\s,]+/),nums=tokens.map(Number);if(nums.some(x=>!Number.isFinite(x)))throw new Error('Non-numeric Touchstone network token encountered');
+    if(pendingReference){if(nums.some(x=>x<=0)||nums.some(x=>Math.abs(x-nums[0])>1e-12))throw new Error('Only a finite uniform Touchstone reference impedance is supported');z0=nums[0];pendingReference=false;continue;}
+    buffer.push(...nums);
+    const n=declaredPorts||ports||((buffer.length>=9)?2:1),need=1+2*n*n;
+    while(buffer.length>=need){const q=buffer.splice(0,need),f=q[0]*(scale[unit]||1),a=q[1],b=q[2];let gr,gi;
+      if(format==='ri'){gr=a;gi=b;}else{const mag=format==='db'?Math.pow(10,a/20):a,ph=b*Math.PI/180;gr=mag*Math.cos(ph);gi=mag*Math.sin(ph);}
+      if(f>0&&Number.isFinite(gr)&&Number.isFinite(gi))rows.push({f,gr,gi});}
+  }
+  if(pendingReference)throw new Error('Touchstone [Reference] has no values');if(buffer.length)throw new Error('Incomplete Touchstone network record');
+  rows.sort((a,b)=>a.f-b.f);if(rows.length<6)throw new Error('Touchstone sweep needs at least six finite S11 records');
+  return {samples:rows,z0,format:'S'+(declaredPorts||ports||1)+'P '+unit.toUpperCase()+' '+format.toUpperCase()+' R '+z0};
+}
+function impRlcGamma(f,R,L,C,z0=50){const w=2*Math.PI*f,x=w*L-1/(w*C);return impGamma(R/z0,x/z0);}
+function impFitSeriesRLC(samples,z0=50){
+  const usable=samples.map((s,i)=>{const z=impZof(s.gr,s.gi);return {...s,i,R:z0*z[0],X:z0*z[1],holdout:i%5===0};}).filter(s=>[s.f,s.R,s.X].every(Number.isFinite)&&s.f>0);
+  const train=usable.filter(s=>!s.holdout);if(train.length<5)return {ok:false,reason:'insufficient finite training samples',usable};
+  const R=train.reduce((q,s)=>q+s.R,0)/train.length,fmin=usable.reduce((q,s)=>Math.min(q,s.f),Infinity),fmax=usable.reduce((q,s)=>Math.max(q,s.f),0),wScale=2*Math.PI*Math.sqrt(fmin*fmax);let aa=0,ab=0,bb=0,ay=0,by=0;
+  /* Scale omega and 1/omega around the geometric band centre. The two columns
+     are now O(1), so a narrow sweep is rejected by a meaningful condition
+     number instead of appearing precise through raw 1e+/-N normal equations. */
+  for(const s of train){const w=2*Math.PI*s.f,a=w/wScale,b=-wScale/w;aa+=a*a;ab+=a*b;bb+=b*b;ay+=a*s.X;by+=b*s.X;}
+  const det=aa*bb-ab*ab,P=(ay*bb-by*ab)/det,q=(aa*by-ab*ay)/det,L=P/wScale,k=q*wScale,C=1/k,trN=aa+bb,discN=Math.sqrt(Math.max(0,(aa-bb)*(aa-bb)+4*ab*ab)),eigMax=(trN+discN)/2,eigMin=(trN-discN)/2,conditionNumber=eigMax/Math.max(1e-18,eigMin);
+  if(!(det>1e-12&&conditionNumber<1e12&&R>0&&L>0&&C>0&&[R,L,C,conditionNumber].every(Number.isFinite)))return {ok:false,reason:'series-RLC positivity/conditioning gate failed',usable,R,L,C,conditionNumber};
+  const predict=s=>{const g=impRlcGamma(s.f,R,L,C,z0);return {...s,pgr:g[0],pgi:g[1],e:Math.hypot(g[0]-s.gr,g[1]-s.gi)};},evaluated=usable.map(predict),tr=evaluated.filter(s=>!s.holdout),ho=evaluated.filter(s=>s.holdout);
+  const rmse=a=>Math.sqrt(a.reduce((q,s)=>q+s.e*s.e,0)/Math.max(1,a.length)),trainRmse=rmse(tr),holdoutRmse=rmse(ho);
+  const med=impMedian(tr.map(s=>s.e)),noise=1.4826*impMedian(tr.map(s=>Math.abs(s.e-med))),sigmaGamma=Math.max(noise,trainRmse/Math.sqrt(2),1e-8);
+  let sx2=0;for(const s of train){const w=2*Math.PI*s.f,e=s.X-(w*L-k/w);sx2+=e*e;}const variance=sx2/Math.max(1,train.length-2),inv00=bb/det,inv01=-ab/det,inv11=aa/det,covLL=variance*inv00/(wScale*wScale),covLk=variance*inv01,covkk=variance*inv11*wScale*wScale;
+  const f0=Math.sqrt(k/L)/(2*Math.PI),Q=2*Math.PI*f0*L/R,gL=-f0/(2*L),gk=f0/(2*k),sigmaF0=Math.sqrt(Math.max(0,gL*gL*covLL+2*gL*gk*covLk+gk*gk*covkk));
+  const span=fmax-fmin,forecast=[];for(let i=0;i<=120;i++){const f=Math.max(1,fmin-.12*span+1.24*span*i/120),g=impRlcGamma(f,R,L,C,z0);forecast.push({f,gr:g[0],gi:g[1]});}
+  const phases=usable.map(s=>Math.atan2(s.gi,s.gr));for(let i=1;i<phases.length;i++){while(phases[i]-phases[i-1]>Math.PI)phases[i]-=2*Math.PI;while(phases[i]-phases[i-1]<-Math.PI)phases[i]+=2*Math.PI;}
+  let maxDelay=0;for(let i=1;i<usable.length-1;i++){const dw=2*Math.PI*(usable[i+1].f-usable[i-1].f),gd=-(phases[i+1]-phases[i-1])/dw;if(Number.isFinite(gd)&&Math.abs(gd)>Math.abs(maxDelay))maxDelay=gd;}
+  const resonanceInBand=f0>=fmin&&f0<=fmax,passivityThreshold=1+Math.max(.005,5*sigmaGamma),passivityViolations=usable.filter(s=>Math.hypot(s.gr,s.gi)>passivityThreshold).length,adequacyReasons=[];
+  if(holdoutRmse>Math.max(.025,5*sigmaGamma))adequacyReasons.push('unseen complex-Gamma residual exceeds gate');if(conditionNumber>=1e8)adequacyReasons.push('frequency basis is ill-conditioned');if(!resonanceInBand)adequacyReasons.push('inferred resonance lies outside measured band');if(passivityViolations)adequacyReasons.push('samples violate the passive one-port envelope');const adequate=!adequacyReasons.length;
+  return {ok:true,model:'series RLC inferred from complex S11',z0,R,L,C,f0,Q,sigmaF0,trainRmse,holdoutRmse,sigmaGamma,adequate,adequacyReasons,conditionNumber,resonanceInBand,passivityThreshold,passivityViolations,coverageOctaves:Math.log2(fmax/fmin),frequencyBandHz:[fmin,fmax],maxGroupDelayS:maxDelay,
+    trainCount:tr.length,holdoutCount:ho.length,usable:evaluated,forecast,validity:'linear time-invariant passive one-port; series RLC; resonance observed inside the imported band; uniform reference impedance; no fixture de-embedding or multi-pole model selection'};
+}
+function impSyntheticSweep(){
+  const z0=50,R=32,L=1.4e-6,C=470e-12,out=[];for(let i=0;i<81;i++){const f=1e6+10e6*i/80,g=impRlcGamma(f,R,L,C,z0),n=.0018*Math.sin(i*2.399)+.0007*Math.sin(i*.417);out.push({f,gr:g[0]+n,gi:g[1]-.73*n});}
+  impAssimSet(out,z0,'deterministic synthetic series-RLC sweep','S1P synthetic RI R 50',true);
+}
+function impAssimSet(samples,z0,source,format,generated=false){
+  IMP_ASSIM.samples=samples;IMP_ASSIM.z0=z0;IMP_ASSIM.source=source;IMP_ASSIM.format=format;IMP_ASSIM.generated=generated;IMP_ASSIM.error='';
+  IMP_ASSIM.fit=impFitSeriesRLC(samples,z0);state.impAssimVisible=true;impAssimRender();
+}
+function impAssimAttach(){
+  if(!impObjs)return;const root=new THREE.Group();root.name='measured S11 · RLC holdout forecast on the Riemann sphere';
+  const measured=scientificTube([],SCI_MINT,.018,.72,false,220),forecast=scientificTube([],SCI_GOLD,.013,.72,false,220),lo=scientificTube([],SCI_VIOLET,.007,.24,false,220),hi=scientificTube([],SCI_VIOLET,.007,.24,false,220);
+  const points=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:.075,vertexColors:true,transparent:true,opacity:.92,depthWrite:false,sizeAttenuation:true}));
+  root.add(measured,forecast,lo,hi,points);impGroup.add(root);impObjs.assim={root,measured,forecast,lo,hi,points};impAssimRender();
+}
+function impAssimRender(){
+  const A=impObjs?.assim;if(!A)return;A.root.visible=!!(state.impAssimVisible&&IMP_ASSIM.samples.length);if(!A.root.visible)return;
+  const F=IMP_ASSIM.fit,cap=(arr,n=180)=>arr.filter((_,i)=>i%Math.max(1,Math.ceil(arr.length/n))===0),meas=cap(IMP_ASSIM.samples).map(s=>impObjs.toSph(s.gr,s.gi));
+  scientificReplaceTube(A.measured,meas,false);const fc=F?.ok?F.forecast:[],pred=cap(fc).map(s=>impObjs.toSph(s.gr,s.gi));scientificReplaceTube(A.forecast,pred,false);
+  const sig=F?.sigmaGamma||0,band=sign=>cap(fc).map(s=>{const m=Math.hypot(s.gr,s.gi),k=m>1e-9?Math.max(0,m+sign*sig)/m:1;return impObjs.toSph(s.gr*k,s.gi*k);});
+  scientificReplaceTube(A.lo,band(-1),false);scientificReplaceTube(A.hi,band(1),false);A.forecast.visible=A.lo.visible=A.hi.visible=!!F?.ok;
+  const pos=[],col=[];for(const s of cap(F?.usable||IMP_ASSIM.samples,240)){const p=impObjs.toSph(s.gr,s.gi),hold=!!s.holdout,c=new THREE.Color(hold?SCI_CORAL:SCI_MINT);pos.push(p.x,p.y,p.z);col.push(c.r,c.g,c.b);}
+  A.points.geometry.dispose();A.points.geometry=new THREE.BufferGeometry();A.points.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));A.points.geometry.setAttribute('color',new THREE.Float32BufferAttribute(col,3));A.points.geometry.computeBoundingSphere();
+}
+function impAssimExport(){return {schema:'fbs3r-smith-measurement-assimilation-v1',generated_at:new Date().toISOString(),source:IMP_ASSIM.source,format:IMP_ASSIM.format,reference_impedance_ohm:IMP_ASSIM.z0,samples:IMP_ASSIM.samples,fit:IMP_ASSIM.fit,epistemic_firewall:'The series-RLC inverse is accepted only when positivity and holdout gates pass. It is not a calibrated VNA, fixture de-embedding, automatic causal macromodel, multi-pole identification or evidence that an arbitrary one-port is series RLC.'};}
 function impClear(){ labWipe(impGroup); impObjs=null; impTrail=[]; impBl=0; impMatchA=null; }
 function impSetup(){
   impClear();
@@ -16175,6 +16323,7 @@ function impSetup(){
   const tl=mkLabel(TT('IMPEDANCE · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · one map, four physics','ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','IMPEDANZ · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · eine Karte, vier Physiken'),'label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
   impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,rsGrp,rsMark,rsDrop,RSX,RSY,RSZ,toDisk,toSph,readLab:rl};
+  impAssimAttach();
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
   const [gr0,gi0]=impBaseGamma();
@@ -16241,6 +16390,7 @@ function updateImp(dt){
       'одна точная карта Мёбиуса Γ=(z−1)/(z+1) сворачивает ЛЮБОЙ пассивный импеданс в единичный диск (карту Смита), стереографически поднимается на сферу Римана — экватор сферы СОВПАДАЕТ с ободом карты (|Γ|=1), а согласование z=1 сидит в зените — и далее в S³ лифтом Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²): движение вдоль линии без потерь — В ТОЧНОСТИ вращение U(1)-фибры Γ→Γe^{−2jβℓ}. Та же алгебра точно решает квантовую ступеньку (R+T=1), френелевскую границу и акустический стык. Золотой луч — истинный стереографический луч из активного полюса.',
       'Eine exakte Möbius-Abbildung Γ=(z−1)/(z+1) faltet JEDE passive Impedanz in die Einheitsscheibe (das Smith-Diagramm), hebt sie stereographisch auf die Riemann-Kugel — deren Äquator mit dem Diagrammrand ZUSAMMENFÄLLT (|Γ|=1), während die Anpassung z=1 im Zenit liegt — und weiter nach S³ über den Hopf-Lift ψ=e^{iα}(Γ,1)/√(1+|Γ|²): Bewegung entlang einer verlustlosen Leitung ist GENAU die U(1)-Faserdrehung Γ→Γe^{−2jβℓ}. Dieselbe Algebra löst exakt die Quantenstufe (R+T=1), die Fresnel-Grenzfläche und den akustischen Übergang. Der goldene Strahl ist der wahre stereographische Strahl vom aktiven Pol.');
     ATLAS_BUS.pub('imp.gamma',+m.toFixed(4),'|Γ|');
+    if(IMP_ASSIM.fit?.ok){ATLAS_BUS.pub('imp.f0',+IMP_ASSIM.fit.f0.toPrecision(8),'Hz');ATLAS_BUS.pub('imp.holdout',+IMP_ASSIM.fit.holdoutRmse.toPrecision(6),'complex Γ RMSE');ATLAS_BUS.pub('imp.Q',+IMP_ASSIM.fit.Q.toPrecision(7),'series-RLC');}
     const el=ctl.querySelector('#impInv'); if(el) el.innerHTML=
       `z=<b>${zr>99?zr.toExponential(2):zr.toFixed(3)}</b>${zi>=0?'+':'−'}j<b>${Math.abs(zi).toFixed(3)}</b> → Γ=<b>${gr.toFixed(4)}</b>${gi>=0?'+':'−'}j<b>${Math.abs(gi).toFixed(4)}</b> · |Γ|=<b>${m.toFixed(5)}</b> ∠<b>${(Math.atan2(gi,gr)*180/Math.PI).toFixed(2)}°</b><br>`+
       ((state.impDomain||'rf')==='qmbarrier'?(()=>{ const k=state.qmK0??1.4,V=state.qmV0??1.5,T=qmBarrierT(k,V,1.0),R=m*m;
@@ -19557,15 +19707,11 @@ function nexusSetup(){
     edgeLayer.add(line,bead);NEXUS.edges.push({...r,i,line,bead,curve:null});
   });
 
-  /* A deterministic eight-dimensional relation signature projected to 3D.  It is a
-     visual analytic embedding, not PCA over evidence and not a physical coordinate. */
-  for(const [lab,n] of NEXUS.nodes){
-    const incident=NEXUS_RELATIONS.filter(e=>e.a===lab||e.b===lab),q=new THREE.Vector3();
-    incident.forEach(e=>q.add(NEXUS_TYPE_AXES[e.type]));
-    const h=nexusHash(lab),j=new THREE.Vector3(Math.sin(h*37.1),Math.cos(h*53.7),Math.sin(h*91.3+.8)).multiplyScalar(.48);
-    q.add(j);if(q.lengthSq()<1e-6)q.set(1,0,0);q.normalize().multiplyScalar(4.55+Math.min(1.8,incident.length*.11));q.y+=(incident.length-3)*.085;
-    n.invariant.copy(q);
-  }
+  /* The analytic embedding is now a deterministic spectral projection of the
+     unweighted relation topology.  It contains no hash jitter and no evidence
+     weights: coordinates remain interface-only and non-metric. */
+  const spectral=nexusSpectralEmbedding();NEXUS.spectral=spectral;
+  for(const [lab,n] of NEXUS.nodes)n.invariant.copy(spectral.positions.get(lab)||n.discipline);
   nexusLayout(state.nexusMorph??0);
   nexusTrace(false);
   nexusApplyStyles();
@@ -19648,7 +19794,7 @@ function nexusPanelHTML(){
   </div></div>
   <div class="sect"><b>${TT('DIMENSIONAL MORPH','МОРФИНГ ИЗМЕРЕНИЙ','DIMENSIONS-MORPHING')}</b>
     <div class="small">${TT('disciplinary geography','география дисциплин','Disziplingeografie')} <input id="nxMorph" type="range" min="0" max="1" step="0.01" value="${state.nexusMorph??0}" data-no-osc> <span id="nxMorphV">${(state.nexusMorph??0).toFixed(2)}</span> ${TT('invariant geography','география инвариантов','Invariantengeografie')}</div>
-    <div class="note">${TT('The right-hand embedding is computed from each node’s eight-component relation signature; it is a visual analytic projection, not an evidence ranking.','Правая конфигурация вычисляется из восьмикомпонентной сигнатуры связей каждого узла; это аналитическая визуальная проекция, а не рейтинг доказательности.','Die rechte Einbettung wird aus der achtkomponentigen Beziehungssignatur jedes Knotens berechnet; sie ist keine Evidenzrangfolge.')}</div>
+    <div class="note">${TT('The right-hand embedding is computed from three non-trivial eigenvectors of the unweighted normalized relation graph; it is deterministic, non-metric and never an evidence ranking.','Правая конфигурация вычисляется по трём нетривиальным собственным векторам невзвешенного нормализованного графа связей; она детерминирована, неметрична и не является рейтингом доказательности.','Die rechte Einbettung nutzt drei nichttriviale Eigenvektoren des ungewichteten normalisierten Graphen; deterministisch, nichtmetrisch, keine Evidenzrangfolge.')}</div>
     <div class="ctlrow"><button class="btn ${state.nexusRotate?'on':''}" id="nxRotate">↻ ${TT('orbit','вращение','Rotation')}</button><button class="btn ${state.nexusPulse?'on':''}" id="nxPulse">⌁ ${TT('relation flow','поток связей','Beziehungsfluss')}</button></div>
   </div>
   <div class="sect"><b>${TT('TRACE A CONNECTION','ПРОЛОЖИТЬ СВЯЗЬ','VERBINDUNG VERFOLGEN')}</b>
@@ -19688,9 +19834,167 @@ function updateNexus(dt){
   for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
   scientificUpdateFlow(NEXUS.pathFlow,t,.075);scientificUpdateMaterials(nexusGroup,t);
   for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
+  NEXUS.busAcc=(NEXUS.busAcc||0)+dt;if(NEXUS.busAcc>.5){NEXUS.busAcc=0;const V=nexusStructuralCalibration(state.nexusKind||'all'),C=nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',1)[0];ATLAS_BUS.pub('nexus.recall5',+V.recall_at_5.toFixed(6),'held-edge');if(C)ATLAS_BUS.pub('nexus.candidate',+C.score.toPrecision(6),'resource-allocation');}
   const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
-  hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'invariant'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
+  hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'relational spectral'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
 }
+
+/* ================================================================
+   PREDICTIVE FOUNDATIONS.
+
+   OmniAtlas' strongest transferable idea is an operational loop, not a visual
+   widget: controlled perturbation -> invariant/observable -> local sensitivity
+   -> propagated input uncertainty -> unseen holdout -> inverse target solve ->
+   explicit rejection.  The four exact observatories below now share that
+   contract.  Their pale forecast curves remain native paths on each manifold;
+   no presentation chart is inserted into 3D space. */
+const _pfSydDiagnostics=sydDiagnostics,_pfHolDiagnostics=holDiagnostics,_pfActDiagnostics=actDiagnostics,_pfNulDiagnostics=nulDiagnostics;
+const PF_SPATIAL=new Map(),PF_AUDIT_CACHE=new Map(),PF_TAU=2*Math.PI;
+const pfClamp=x=>Math.max(0,Math.min(1,Number.isFinite(+x)?+x:0));
+const pfWrap=x=>Math.atan2(Math.sin(x),Math.cos(x));
+const pfDelta=(a,b,angular=false)=>angular?pfWrap(a-b):a-b;
+const pfFmt=x=>!Number.isFinite(+x)?String(x):(Math.abs(x)>=1e4||(Math.abs(x)>0&&Math.abs(x)<1e-3)?(+x).toExponential(4):(+x).toFixed(6).replace(/0+$/,'').replace(/\.$/,''));
+const PF_SPECS={
+  hol:{control:()=>state.holA??.55,eval:x=>_pfHolDiagnostics(state.holStation||'sphere',x,state.holB??.65),scalar:d=>d.phase,label:d=>'return phase · '+d.title,angular:d=>['sphere','berry','wigner'].includes(d.station)},
+  act:{control:()=>state.actA??.55,eval:x=>_pfActDiagnostics(state.actStation||'reeb',x,state.actB??.42),scalar:d=>d.station==='reeb'?d.values.action:d.station==='return'?d.values.return_angle:d.station==='legendrian'?d.values.max_contact_residual:d.station==='ks'?d.values.physical_radius:d.values.energy,label:d=>d.station==='reeb'?'Reeb action':d.station==='return'?'return angle':d.station==='legendrian'?'contact residual':d.station==='ks'?'regularized radius':'EBK energy',angular:d=>d.station==='return'},
+  nul:{control:()=>state.nulA??.56,eval:x=>_pfNulDiagnostics(state.nulStation||'null',x,state.nulB??.34),scalar:d=>d.station==='lorentz'?d.values.transformed_event[0]:d.station==='tetrad'?d.values.spin_weight_two_phase:d.station==='diamond'?d.values.T:d.phase,label:d=>d.station==='lorentz'?'transformed event time':d.station==='tetrad'?'spin-2 phase':d.station==='diamond'?'conformal time T':'projective/null phase',angular:d=>['null','celestial','tetrad'].includes(d.station)}
+};
+function pfInverseRoots(fn,target,angular=false){
+  const roots=[],N=128,err=x=>pfDelta(fn(x),target,angular);let x0=0,e0=err(0);
+  for(let i=1;i<=N;i++){const x1=i/N,e1=err(x1);if(Math.abs(e0)<1e-8)roots.push(x0);
+    if(Number.isFinite(e0)&&Number.isFinite(e1)&&e0*e1<0&&(!angular||Math.abs(e1-e0)<Math.PI)){let a=x0,b=x1,ea=e0;for(let k=0;k<48;k++){const m=(a+b)/2,em=err(m);if(ea*em<=0)b=m;else{a=m;ea=em;}}const r=(a+b)/2;if(Math.abs(err(r))<2e-5)roots.push(r);}
+    x0=x1;e0=e1;
+  }
+  return roots.filter((x,i)=>i===0||Math.abs(x-roots[i-1])>2e-3).slice(0,8);
+}
+function pfFiniteAudit(v){
+  const station=v==='hol'?(state.holStation||'sphere'):v==='act'?(state.actStation||'reeb'):(state.nulStation||'null'),controls=v==='hol'?[state.holA??.55,state.holB??.65]:v==='act'?[state.actA??.55,state.actB??.42]:[state.nulA??.56,state.nulB??.34],cacheKey=JSON.stringify(['finite',v,station,...controls,state.foundationHorizon?.[v]??.12,state.foundationSigma?.[v]??.01,state.foundationTarget?.[v]??0]);
+  if(PF_AUDIT_CACHE.has(cacheKey))return PF_AUDIT_CACHE.get(cacheKey);
+  const S=PF_SPECS[v],x0=pfClamp(S.control()),h=.018,xm=Math.max(0,x0-h),xp=Math.min(1,x0+h),D0=S.eval(x0),Dm=S.eval(xm),Dp=S.eval(xp),angular=!!S.angular(D0),y0=S.scalar(D0),ym=S.scalar(Dm),yp=S.scalar(Dp),den=Math.max(1e-12,xp-xm),sensitivity=pfDelta(yp,ym,angular)/den;
+  const dl=Math.max(1e-12,x0-xm),dr=Math.max(1e-12,xp-x0),curvature=2*((pfDelta(yp,y0,angular)/dr)-(pfDelta(y0,ym,angular)/dl))/(dl+dr),horizon=Math.max(-.45,Math.min(.45,state.foundationHorizon?.[v]??.12)),xf=pfClamp(x0+horizon),dx=xf-x0,Df=S.eval(xf),exact=S.scalar(Df),linear=angular?pfWrap(y0+sensitivity*dx):y0+sensitivity*dx,error=Math.abs(pfDelta(linear,exact,angular)),sigmaX=Math.max(0,state.foundationSigma?.[v]??.01),sigmaY=Math.abs(sensitivity)*sigmaX+.5*Math.abs(curvature)*sigmaX*sigmaX+D0.residual,target=Number(state.foundationTarget?.[v]??0),roots=pfInverseRoots(x=>S.scalar(S.eval(x)),target,angular),gate=Math.max(50*(D0.tolerance||1e-12),2*sigmaY,.01*Math.max(1,Math.abs(exact)));
+  const out={schema:'fbs3r-operational-forecast-v1',laboratory:v,station:D0.station,observable:S.label(D0),control_normalized:x0,future_control_normalized:xf,horizon:dx,current:y0,local_sensitivity:sensitivity,local_curvature:curvature,linear_holdout_prediction:linear,exact_holdout:exact,holdout_residual:error,input_sigma:sigmaX,propagated_sigma:sigmaY,target,inverse_roots:roots,gate,pass:error<=gate,native_contract_residual:D0.residual,native_tolerance:D0.tolerance,
+    semantics:'The local linear surrogate is trained only at x-h, x and x+h; the exact model at the future control is the holdout. Propagated sigma is a local input-uncertainty envelope, not empirical calibration.'};
+  if(PF_AUDIT_CACHE.size>160)PF_AUDIT_CACHE.clear();PF_AUDIT_CACHE.set(cacheKey,out);return out;
+}
+function pfSydResidual(world,br,C,holdout){
+  const W=SYD_WORLDS[world],base=sydFlat(C.read(W.state(0,br)));let residual=0,n=0;
+  for(let i=1;i<65;i++){if((i%4===0)!==holdout)continue;const q=sydFlat(C.read(W.state(i/64,br)));for(let j=0;j<q.length;j++)residual=Math.max(residual,Math.abs(q[j]-base[j])/Math.max(1,Math.abs(base[j])));n++;}
+  return {residual,n};
+}
+function pfSydAudit(world=state.sydWorld||'rotation',br=state.sydBreak??0){
+  const W=SYD_WORLDS[world]||SYD_WORLDS.rotation,C=W.candidates.find(q=>q.id===(state.sydPredictCandidate||''))||W.candidates.find(q=>q.expected)||W.candidates[0],cacheKey=JSON.stringify(['syd',world,C.id,br,state.sydTolLog??-9,state.foundationHorizon?.syd??.12,state.foundationSigma?.syd??.01,state.foundationTarget?.syd??Math.pow(10,state.sydTolLog??-9)]);if(PF_AUDIT_CACHE.has(cacheKey))return PF_AUDIT_CACHE.get(cacheKey);
+  const tol=Math.pow(10,state.sydTolLog??-9),f=x=>pfSydResidual(world,pfClamp(x),C,true).residual,current=f(br),h=.006,sens=(f(Math.min(.3,br+h))-f(Math.max(0,br-h)))/Math.max(1e-12,Math.min(.3,br+h)-Math.max(0,br-h)),horizon=Math.max(-.25,Math.min(.25,state.foundationHorizon?.syd??.12)),future=pfClamp(br+horizon),exact=f(future),linear=Math.max(0,current+sens*(future-br)),error=Math.abs(linear-exact),sigmaX=Math.max(0,state.foundationSigma?.syd??.01),sigmaY=Math.abs(sens)*sigmaX,target=Math.max(0,Number(state.foundationTarget?.syd??tol)),roots=pfInverseRoots(f,target,false);
+  let critical=null;if(f(0)<=tol&&f(.3)>tol){let a=0,b=.3;for(let i=0;i<52;i++){const m=(a+b)/2;if(f(m)>tol)b=m;else a=m;}critical=(a+b)/2;}
+  const candidates=W.candidates.map(q=>{const tr=pfSydResidual(world,br,q,false),ho=pfSydResidual(world,br,q,true),trainPass=tr.residual<=tol,holdoutPass=ho.residual<=tol;return {id:q.id,expected:q.expected,train_residual:tr.residual,holdout_residual:ho.residual,train_pass:trainPass,holdout_pass:holdoutPass,agreement:trainPass===holdoutPass};}),agreement=candidates.filter(q=>q.agreement).length/candidates.length,gate=Math.max(4*sigmaY,10*tol,.02*Math.max(1,exact));
+  const out={schema:'fbs3r-symmetry-holdout-forecast-v1',laboratory:'syd',world,candidate_id:C.id,expected_candidate:!!C.expected,candidate_decision_current:current<=tol?'supported_on_interleaved_holdout':'rejected_on_interleaved_holdout',observable:C.label,control_normalized:br,future_control_normalized:future,horizon:future-br,current,local_sensitivity:sens,linear_holdout_prediction:linear,exact_holdout:exact,holdout_residual:error,input_sigma:sigmaX,propagated_sigma:sigmaY,target,inverse_roots:roots,critical_break_amplitude:critical,critical_status:current>tol?'candidate already rejected at current break':critical==null?'tolerance crossing not bracketed in break amplitude [0,0.3]':'first tolerance crossing bracketed',train_holdout_agreement:agreement,candidates,gate,pass:error<=gate,
+    semantics:'Forty-eight orbit samples train the named-candidate decision and sixteen interleaved samples remain unseen. This can reject a candidate in the declared family; it cannot prove or exhaustively discover a symmetry.'};
+  if(PF_AUDIT_CACHE.size>160)PF_AUDIT_CACHE.clear();PF_AUDIT_CACHE.set(cacheKey,out);return out;
+}
+function predictiveFoundationAudit(v){if(v==='syd')return pfSydAudit();if(PF_SPECS[v])return pfFiniteAudit(v);if(v==='imp')return IMP_ASSIM.fit?{schema:'fbs3r-smith-holdout-v1',...IMP_ASSIM.fit}:null;if(v==='bht')return bhtRadiationAudit();if(v==='nexus')return {schema:'fbs3r-nexus-link-hypothesis-v1',calibration:nexusStructuralCalibration(state.nexusKind||'all'),candidates:nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',8)};return null;}
+function pfPath(v,A){
+  if(v==='syd'){const W=SYD_WORLDS[state.sydWorld||'rotation'],out=[];for(let i=0;i<=112;i++)out.push(sydVisualPoints(W,W.state(i/112,A.future_control_normalized))[0]);return out;}
+  const S=PF_SPECS[v],D=S.eval(A.future_control_normalized),sets=v==='hol'?holVisualPaths(D):v==='act'?actVisualPaths(D):nulVisualLines(D),lines=(sets||[]).filter(Array.isArray),L=lines.reduce((a,b)=>b.length>a.length?b:a,[]);
+  return L.map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p));
+}
+function pfEnsureSpatial(v){
+  const pair=v==='syd'?[sydGroup,SYD]:v==='hol'?[holGroup,HOL]:v==='act'?[actGroup,ACT]:[nulGroup,NUL],group=pair[0],old=PF_SPATIAL.get(v);if(old?.root?.parent===group)return old;
+  const root=new THREE.Group();root.name='native forecast field · holdout and propagated uncertainty';const curve=scientificTube([],SCI_GOLD,.018,.62,false,260),lo=scientificTube([],SCI_VIOLET,.006,.22,false,260),hi=scientificTube([],SCI_VIOLET,.006,.22,false,260),ring=scientificTube([],SCI_MINT,.008,.42,true,80),marker=scientificCrystal(0xffffff,.10);
+  root.add(curve,lo,hi,ring,marker);group.add(root);const O={root,curve,lo,hi,ring,marker,hash:''};PF_SPATIAL.set(v,O);return O;
+}
+function pfUpdateSpatial(v){
+  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),O=pfEnsureSpatial(v),visible=state.foundationVisible?.[v]!==false;ATLAS_BUS.pub(v+'.forecast',+A.exact_holdout.toPrecision(8),'station native');ATLAS_BUS.pub(v+'.forecast_error',+A.holdout_residual.toPrecision(6),'holdout');ATLAS_BUS.pub(v+'.forecast_sigma',+A.propagated_sigma.toPrecision(6),'local envelope');O.root.visible=visible;if(!visible)return;
+  const hash=[A.station||A.world,A.future_control_normalized,A.propagated_sigma,A.target].map(pfFmt).join('|');if(hash===O.hash)return;O.hash=hash;const P=pfPath(v,A);if(P.length<2)return;scientificReplaceTube(O.curve,P,false);
+  const centre=P.reduce((q,p)=>q.add(p),new THREE.Vector3()).multiplyScalar(1/P.length),amp=Math.min(.24,.025+Math.log10(1+Math.abs(A.propagated_sigma)*1e6)*.018),offset=sign=>P.map((p,i)=>{const t=P[Math.min(P.length-1,i+1)].clone().sub(P[Math.max(0,i-1)]).normalize(),r=p.clone().sub(centre);if(r.lengthSq()<1e-8)r.set(0,1,0);const n=new THREE.Vector3().crossVectors(t,r).normalize();return p.clone().addScaledVector(n,sign*amp);});
+  scientificReplaceTube(O.lo,offset(-1),false);scientificReplaceTube(O.hi,offset(1),false);const q=P[Math.floor(.82*(P.length-1))];O.marker.position.copy(q);const ring=[];for(let i=0;i<=64;i++){const a=PF_TAU*i/64;ring.push(q.clone().add(new THREE.Vector3(amp*1.45*Math.cos(a),0,amp*1.45*Math.sin(a))));}scientificReplaceTube(O.ring,ring,true);
+}
+function pfReadoutHTML(v){
+  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),roots=A.inverse_roots||[],status=A.pass?'HOLDOUT PASS':'LOCAL SURROGATE REJECTED',extra=v==='syd'?' · candidate '+A.candidate_decision_current.replaceAll('_',' ')+' · train/holdout agreement '+(100*A.train_holdout_agreement).toFixed(1)+'% · '+A.critical_status+(A.critical_break_amplitude==null?'':' at epsilon '+pfFmt(A.critical_break_amplitude)):'';
+  return '<div class="note" style="border-left:3px solid '+(A.pass?'#55e8c4':'#ff6f86')+'"><b style="color:'+(A.pass?'#9fe8c0':'#ff9daf')+'">'+status+'</b> · '+esc(A.observable)+'<br>control '+pfFmt(A.control_normalized)+' to unseen '+pfFmt(A.future_control_normalized)+' · exact <b>'+pfFmt(A.exact_holdout)+'</b> · local prediction '+pfFmt(A.linear_holdout_prediction)+' · residual <b>'+pfFmt(A.holdout_residual)+'</b><br>dy/du='+pfFmt(A.local_sensitivity)+' · propagated sigma_y='+pfFmt(A.propagated_sigma)+' · gate='+pfFmt(A.gate)+extra+'<br>inverse target '+pfFmt(A.target)+' -> '+(roots.length?roots.map(pfFmt).join(' · '):'no bracketed root in u=[0,1]')+'</div>';
+}
+function pfPanelHTML(v){
+  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),h=state.foundationHorizon?.[v]??.12,s=state.foundationSigma?.[v]??.01,t=state.foundationTarget?.[v]??0,on=state.foundationVisible?.[v]!==false,W=v==='syd'?SYD_WORLDS[state.sydWorld||'rotation']:null,candidate=W?'<div class="ctlrow"><label>'+TT('tested observable','проверяемая величина','geprüfte Observable')+'</label><select id="pfSydCandidate">'+W.candidates.map(q=>'<option value="'+q.id+'" '+(q.id===A.candidate_id?'selected':'')+'>'+esc(q.label)+' · '+(q.expected?TT('expected invariant','ожидаемый инвариант','erwartete Invariante'):TT('negative control','отрицательный контроль','Negativkontrolle'))+'</option>').join('')+'</select></div>':'';
+  return '<div class="sect" id="pfWorkbench" data-pf-view="'+v+'" style="border-color:rgba(232,199,122,.42);background:linear-gradient(135deg,rgba(39,70,96,.25),rgba(91,55,117,.18))"><b style="color:#ffe3a0">⌁ '+TT('OPERATIONAL FORECAST · INVERSE TARGET','ОПЕРАЦИОННЫЙ ПРОГНОЗ · ОБРАТНАЯ ЦЕЛЬ','OPERATIVE PROGNOSE · INVERSZIEL')+'</b><div class="small" style="margin-top:4px">'+TT('Three neighbouring evaluations train a local surrogate; a displaced exact evaluation remains unseen until validation. The pale curve is that future native manifold, not a chart.','Три соседних вычисления обучают локальный суррогат; смещённое точное вычисление остаётся невиданным до проверки. Светлая кривая — будущая нативная геометрия, не график.','Drei Nachbarwerte trainieren lokal; ein versetzter exakter Wert bleibt Holdout. Die helle Kurve ist die zukünftige Mannigfaltigkeit.')+'</div>'+candidate+'<div class="ctlrow"><label>Delta u</label><input id="pfHorizon" type="range" min="-0.35" max="0.35" step="0.005" value="'+h+'"><span class="val" id="pfHorizonV">'+pfFmt(h)+'</span></div><div class="ctlrow"><label>sigma(u)</label><input id="pfSigma" type="range" min="0" max="0.08" step="0.001" value="'+s+'"><span class="val" id="pfSigmaV">'+pfFmt(s)+'</span></div><div class="ctlrow"><label>'+TT('inverse target','обратная цель','Inversziel')+'</label><input id="pfTarget" type="number" step="any" value="'+t+'" style="min-width:0;flex:1"><button class="chip '+(on?'on':'')+'" id="pfVisible">'+(on?TT('forecast field shown','поле прогноза показано','Prognosefeld sichtbar'):TT('show forecast field','показать поле прогноза','Prognosefeld zeigen'))+'</button></div><div id="pfReadout">'+pfReadoutHTML(v)+'</div><div class="ctlrow"><button class="btn" id="pfExport">⬇ JSON</button><button class="btn" id="pfCompare">◱ Multi-View</button></div><div class="note" style="font-size:10px;color:var(--dim)">'+esc(A.semantics)+'</div></div>';
+}
+function bindPfControls(root,v){
+  const refresh=()=>{pfUpdateSpatial(v);const q=root.querySelector('#pfReadout');if(q)q.innerHTML=pfReadoutHTML(v);};
+  const candidate=root.querySelector('#pfSydCandidate');if(candidate)candidate.onchange=e=>{state.sydPredictCandidate=e.target.value;refresh();};
+  const h=root.querySelector('#pfHorizon');if(h)h.oninput=e=>{state.foundationHorizon[v]=+e.target.value;const q=root.querySelector('#pfHorizonV');if(q)q.textContent=pfFmt(+e.target.value);refresh();};
+  const s=root.querySelector('#pfSigma');if(s)s.oninput=e=>{state.foundationSigma[v]=+e.target.value;const q=root.querySelector('#pfSigmaV');if(q)q.textContent=pfFmt(+e.target.value);refresh();};
+  const t=root.querySelector('#pfTarget');if(t)t.onchange=e=>{const x=Number(e.target.value);if(Number.isFinite(x))state.foundationTarget[v]=x;refresh();};
+  const vis=root.querySelector('#pfVisible');if(vis)vis.onclick=()=>{state.foundationVisible[v]=state.foundationVisible[v]===false;pfUpdateSpatial(v);buildCtl();};
+  const exp=root.querySelector('#pfExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_'+v+'_operational_forecast.json','application/json',JSON.stringify(v==='syd'?pfSydAudit():pfFiniteAudit(v),null,2));
+  const cmp=root.querySelector('#pfCompare');if(cmp)cmp.onclick=()=>mvOpenViews(v==='syd'?['syd','noe','psp','imp']:v==='hol'?['hol','berry','rel','imp']:v==='act'?['act','psp','qm','hopf']:['nul','rel','gw','bhr'],'__predictive_foundation');
+}
+const _pfSydPanel=sydPanelHTML,_pfHolPanel=holPanelHTML,_pfActPanel=actPanelHTML,_pfNulPanel=nulPanelHTML;
+sydPanelHTML=function(){return _pfSydPanel()+pfPanelHTML('syd');};holPanelHTML=function(){return _pfHolPanel()+pfPanelHTML('hol');};actPanelHTML=function(){return _pfActPanel()+pfPanelHTML('act');};nulPanelHTML=function(){return _pfNulPanel()+pfPanelHTML('nul');};
+const _pfBindSyd=bindSydControls,_pfBindHol=bindHolControls,_pfBindAct=bindActControls,_pfBindNul=bindNulControls;
+bindSydControls=function(root=ctl){_pfBindSyd(root);bindPfControls(root,'syd');};bindHolControls=function(root=ctl){_pfBindHol(root);bindPfControls(root,'hol');};bindActControls=function(root=ctl){_pfBindAct(root);bindPfControls(root,'act');};bindNulControls=function(root=ctl){_pfBindNul(root);bindPfControls(root,'nul');};
+const _pfUpdateSyd=updateSyd,_pfUpdateHol=updateHol,_pfUpdateAct=updateAct,_pfUpdateNul=updateNul;
+updateSyd=function(dt){_pfUpdateSyd(dt);pfUpdateSpatial('syd');};updateHol=function(dt){_pfUpdateHol(dt);pfUpdateSpatial('hol');};updateAct=function(dt){_pfUpdateAct(dt);pfUpdateSpatial('act');};updateNul=function(dt){_pfUpdateNul(dt);pfUpdateSpatial('nul');};
+sydDiagnostics=function(...a){const d=_pfSydDiagnostics(...a);d.operational_forecast=pfSydAudit(a[0]??state.sydWorld,a[1]??state.sydBreak);return d;};
+holDiagnostics=function(...a){const d=_pfHolDiagnostics(...a);d.operational_forecast=pfFiniteAudit('hol');return d;};
+actDiagnostics=function(...a){const d=_pfActDiagnostics(...a);d.operational_forecast=pfFiniteAudit('act');return d;};
+nulDiagnostics=function(...a){const d=_pfNulDiagnostics(...a);d.operational_forecast=pfFiniteAudit('nul');return d;};
+
+/* Invariant Nexus: deterministic spectral geometry and held-edge structural
+   hypotheses. Scores curate questions; they never manufacture physical links. */
+function nexusSpectralEmbedding(){
+  const ids=NEXUS_VIEWS.slice(),n=ids.length,ix=new Map(ids.map((v,i)=>[v,i])),A=Array.from({length:n},()=>new Float64Array(n));
+  for(const e of NEXUS_RELATIONS){const i=ix.get(e.a),j=ix.get(e.b);if(i==null||j==null||i===j)continue;A[i][j]=A[j][i]=1;}
+  const deg=A.map(r=>r.reduce((q,x)=>q+x,0)),q0=Float64Array.from(deg,d=>Math.sqrt(Math.max(1,d))),norm=v=>Math.hypot(...v),scale=(v,s)=>{for(let i=0;i<n;i++)v[i]*=s;return v;},dot=(a,b)=>a.reduce((q,x,i)=>q+x*b[i],0);scale(q0,1/norm(q0));
+  let Q=[q0];for(let k=1;k<=3;k++){const v=Float64Array.from({length:n},(_,i)=>Math.sin((i+1)*(k*1.731+.37))+Math.cos((i+1)*(k*.613+1.11)));for(const q of Q){const c=dot(v,q);for(let i=0;i<n;i++)v[i]-=c*q[i];}scale(v,1/norm(v));Q.push(v);}
+  for(let it=0;it<96;it++){const Z=[q0];for(let k=1;k<=3;k++){const v=new Float64Array(n);for(let i=0;i<n;i++){let m=0;for(let j=0;j<n;j++)if(A[i][j])m+=A[i][j]*Q[k][j]/Math.sqrt(deg[i]*deg[j]);v[i]=.5*(Q[k][i]+m);}for(const q of Z){const c=dot(v,q);for(let i=0;i<n;i++)v[i]-=c*q[i];}const z=norm(v);if(z>1e-14)scale(v,1/z);Z.push(v);}Q=Z;}
+  const positions=new Map();for(let k=1;k<=3;k++){const seed=Float64Array.from({length:n},(_,i)=>Math.sin((i+1)*(k+.41)));if(dot(Q[k],seed)<0)scale(Q[k],-1);}const rms=[1,2,3].map(k=>Math.sqrt(Q[k].reduce((q,x)=>q+x*x,0)/n)||1);
+  for(let i=0;i<n;i++){const p=new THREE.Vector3(Q[1][i]/rms[0],Q[2][i]/rms[1],Q[3][i]/rms[2]).multiplyScalar(2.65);if(p.length()>6.1)p.setLength(6.1);positions.set(ids[i],p);}
+  const eigenvalues=[1,2,3].map(k=>{let s=0;for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(A[i][j])s+=Q[k][i]*A[i][j]*Q[k][j]/Math.sqrt(deg[i]*deg[j]);return s;});
+  return {positions,meta:{method:'three non-trivial eigenvectors of the unweighted normalized adjacency; shifted orthogonal iteration, 96 deterministic iterations',eigenvalues,unweighted:true,non_metric:true}};
+}
+const NEXUS_CV_CACHE=new Map();
+function nexusAdjacency(kind='all',exclude=''){
+  const adj=new Map(NEXUS_VIEWS.map(v=>[v,new Set()]));for(const e of NEXUS_RELATIONS){if(e.id===exclude||(kind!=='all'&&e.type!==kind))continue;adj.get(e.a)?.add(e.b);adj.get(e.b)?.add(e.a);}return adj;
+}
+function nexusPairScore(a,b,adj){
+  if(a===b||adj.get(a)?.has(b))return 0;let score=0,common=0;for(const z of adj.get(a)||[])if(adj.get(b)?.has(z)){common++;score+=1/Math.max(1,adj.get(z).size);}return score+common*1e-6;
+}
+function nexusStructuralCandidates(focus=state.nexusFocus||state.nexusSource||'spin',kind=state.nexusKind||'all',limit=8){
+  if(!NEXUS_VIEW_CLUSTER.has(focus))return [];const adj=nexusAdjacency(kind);return NEXUS_VIEWS.filter(v=>v!==focus&&!adj.get(focus).has(v)).map(v=>({a:focus,b:v,score:nexusPairScore(focus,v,adj),common_neighbors:[...adj.get(focus)].filter(z=>adj.get(v).has(z))})).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||a.b.localeCompare(b.b)).slice(0,limit).map((x,i)=>({...x,rank:i+1,status:'structural curation hypothesis only; requires a typed scientific claim and source before registry admission'}));
+}
+function nexusStructuralCalibration(kind='all'){
+  if(NEXUS_CV_CACHE.has(kind))return NEXUS_CV_CACHE.get(kind);const held=NEXUS_RELATIONS.filter(e=>kind==='all'||e.type===kind);let hit1=0,hit5=0,mrr=0,tested=0;
+  for(const e of held){const adj=nexusAdjacency(kind,e.id),ranked=NEXUS_VIEWS.filter(v=>v!==e.a&&!adj.get(e.a).has(v)).map(v=>({v,s:nexusPairScore(e.a,v,adj)})).sort((a,b)=>b.s-a.s||a.v.localeCompare(b.v)),r=ranked.findIndex(q=>q.v===e.b)+1;if(!r)continue;tested++;if(r===1)hit1++;if(r<=5)hit5++;mrr+=1/r;}
+  const out={scheme:'leave-one-declared-edge-out resource-allocation score',kind,tested,recall_at_1:tested?hit1/tested:0,recall_at_5:tested?hit5/tested:0,mean_reciprocal_rank:tested?mrr/tested:0,calibration_status:'internal graph-reconstruction diagnostic; not physical validation'};NEXUS_CV_CACHE.set(kind,out);return out;
+}
+function nexusEnsureHypothesisLayer(){
+  if(NEXUS.hypothesisLayer?.parent===NEXUS.edgeLayer)return;const root=new THREE.Group();root.name='unadmitted held-edge-calibrated structural hypotheses';NEXUS.edgeLayer.add(root);NEXUS.hypothesisLayer=root;NEXUS.hypothesisLines=[];for(let i=0;i<5;i++){const q=scientificTube([],SCI_VIOLET,.008,.2,false,64);root.add(q);NEXUS.hypothesisLines.push(q);}}
+function nexusUpdateHypotheses(){
+  if(!NEXUS.built)return;nexusEnsureHypothesisLayer();const show=(state.nexusLens||'local')==='hypotheses',C=show?nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',5):[];
+  NEXUS.hypothesisLines.forEach((l,i)=>{const q=C[i],a=q&&NEXUS.nodes.get(q.a)?.root.position,b=q&&NEXUS.nodes.get(q.b)?.root.position;l.visible=!!(q&&a&&b);if(l.visible){const c=nexusCurve(a,b,900+i);scientificReplaceTube(l,c.getPoints(34),false);l.material.opacity=.13+.22*Math.min(1,q.score);}});
+}
+const _nexusApplyStylesFoundation=nexusApplyStyles;
+nexusApplyStyles=function(){
+  _nexusApplyStylesFoundation();if(!NEXUS.built)return;const lens=state.nexusLens||'local',focus=state.nexusFocus||state.nexusSource||'spin',pathIds=new Set((NEXUS.pathEdges||[]).map(e=>e.id)),kind=state.nexusKind||'all';
+  if(lens!=='global')for(const e of NEXUS.edges){const active=kind==='all'||e.type===kind,incident=e.a===focus||e.b===focus,inPath=pathIds.has(e.id);e.line.visible=active&&(lens==='path'?inPath:(incident||inPath));}
+  nexusUpdateHypotheses();
+};
+function nexusFoundationPanelHTML(){
+  const focus=state.nexusFocus||state.nexusSource||'spin',C=nexusStructuralCandidates(focus,state.nexusKind||'all',5),V=nexusStructuralCalibration(state.nexusKind||'all'),lens=state.nexusLens||'local';
+  return '<div class="sect" id="nexusFoundation"><b style="color:#ffe3a0">⌬ '+TT('SPECTRAL LENS · HELD-EDGE HYPOTHESES','СПЕКТРАЛЬНАЯ ЛИНЗА · ГИПОТЕЗЫ С УДЕРЖАННЫМИ РЁБРАМИ','SPEKTRALLINSE · HELD-EDGE-HYPOTHESEN')+'</b><div class="chips">'+[['local','local neighbourhood'],['path','traced path only'],['hypotheses','candidate bridges'],['global','full topology']].map(q=>'<button class="chip '+(lens===q[0]?'on':'')+'" data-nx-lens="'+q[0]+'">'+q[1]+'</button>').join('')+'</div><div class="note" style="font-size:10.5px">Spectral coordinates use three non-trivial eigenvectors of the unweighted normalized relation graph. The default local lens suppresses unrelated conduits. Global topology is available deliberately, never imposed.</div><div class="note" style="font-variant-numeric:tabular-nums"><b>leave-one-edge-out:</b> recall@1 '+(100*V.recall_at_1).toFixed(1)+'% · recall@5 '+(100*V.recall_at_5).toFixed(1)+'% · MRR '+V.mean_reciprocal_rank.toFixed(3)+' · n='+V.tested+'</div><div class="small" style="margin-top:5px"><b>Unadmitted candidates from '+esc(viewNameL(focus))+':</b></div>'+C.map(q=>'<button class="btn" data-nx-candidate="'+q.b+'" style="display:block;width:100%;text-align:left;margin:4px 0">◇ '+q.rank+' · '+esc(viewNameL(q.b))+' · score '+q.score.toFixed(4)+'<br><span class="small" style="color:var(--dim)">via '+q.common_neighbors.map(viewNameL).map(esc).join(' · ')+'</span></button>').join('')+'<div class="note" style="font-size:10px;color:#d8b781">A score predicts only which declared edge the graph could reconstruct. It is not a missing law, similarity strength, evidence, equivalence or causation; admission still requires a typed claim, source and scientific review.</div></div>';
+}
+const _nexusPanelFoundation=nexusPanelHTML,_bindNexusFoundation=bindNexusControls,_nexusExportFoundation=nexusExportData,_nexusDiagnosticsFoundation=nexusDiagnostics;
+nexusPanelHTML=function(){return _nexusPanelFoundation()+nexusFoundationPanelHTML();};
+bindNexusControls=function(root=ctl){_bindNexusFoundation(root);root.querySelectorAll('[data-nx-lens]').forEach(b=>b.onclick=()=>{state.nexusLens=b.dataset.nxLens;nexusApplyStyles();buildCtl();});root.querySelectorAll('[data-nx-candidate]').forEach(b=>b.onclick=()=>{nexusFocus(b.dataset.nxCandidate,false);selectKey('nexus_'+b.dataset.nxCandidate);buildCtl();});};
+nexusExportData=function(...a){const d=_nexusExportFoundation(...a),focus=state.nexusFocus||state.nexusSource||'spin';d.semantics.layout='Unweighted normalized-adjacency spectral embedding; three non-trivial eigenvectors; deterministic and non-metric.';d.spectral=NEXUS.spectral||null;d.structural_hypotheses={focus,calibration:nexusStructuralCalibration(state.nexusKind||'all'),candidates:nexusStructuralCandidates(focus,state.nexusKind||'all',12),admission_firewall:'No candidate is a registry edge until a typed scientific claim, source and review are supplied.'};return d;};
+nexusDiagnostics=function(){const d=_nexusDiagnosticsFoundation();d.lens=state.nexusLens||'local';d.spectral=NEXUS.spectral?.meta||null;d.structural_calibration=nexusStructuralCalibration(state.nexusKind||'all');return d;};
+
+FORMULA_REGISTRY.push(
+  {id:'predict.local_holdout',expr:'y(x+Delta) ~= y(x) + (dy/dx) Delta; validate against withheld exact y',units:'station native',src:'OMNI-TRANSFER'},
+  {id:'predict.uncertainty',expr:'sigma_y ~= |dy/dx| sigma_x + |d2y/dx2| sigma_x^2/2 + epsilon_num',units:'station native',src:'OMNI-TRANSFER'},
+  {id:'predict.inverse',expr:'find every bracketed x in [0,1] with wrap(y(x)-target)=0',units:'normalized control',src:'DERIVED'},
+  {id:'nexus.spectral',expr:'three non-trivial eigenvectors of D^(-1/2) A D^(-1/2)',units:'non-metric interface coordinate',src:'DERIVED'},
+  {id:'nexus.resource_allocation',expr:'score(a,b)=SUM_common z 1/degree(z)',units:'structural curation only',src:'DERIVED'},
+  {id:'imp.rlc_inverse',expr:'Z=Z0(1+Gamma)/(1-Gamma); Im Z=omega L-1/(omega C)',units:'ohm/H/F',src:'TOUCHSTONE'},
+  {id:'bh.thermal_peak',expr:'x=h nu/(k_B T); x_peak=2.821439372 for x^3/(exp x-1)',units:'1/Hz',src:'HAWKING-REFERENCE'}
+);
 
 /* The high-density observatories are GPU-resident only while they can actually
    be rendered.  This is a real lifetime policy, not merely visibility: changing
@@ -20054,8 +20358,8 @@ function mvRelationScore(anchor,candidate){
   return score;
 }
 function mvSemanticDescriptor(anchor,views,id=`__semantic:${anchor}`){
-  const peers=views.filter(v=>v!==anchor).map(v=>viewNameL(v)).join(' · ');
-  return {id,views:views.slice(),bus:[],
+  const peers=views.filter(v=>v!==anchor).map(v=>viewNameL(v)).join(' · '),bus=views.map(v=>['syd','hol','act','nul'].includes(v)?v+'.forecast':v==='nexus'?'nexus.recall5':v==='imp'?'imp.holdout':v==='bht'?'bht.peak':null).filter(Boolean);
+  return {id,views:views.slice(),bus,
     t:{en:`Semantic set · ${viewNameL(anchor)}`,ru:`Смысловой набор · ${viewNameL(anchor)}`,de:`Semantisches Set · ${viewNameL(anchor)}`},
     w:{en:`The active laboratory is retained. The other tiles are its strongest declared theorem, invariant, causal, parameter or model neighbours: ${peers}.`,ru:`Активная лаборатория сохранена. Остальные окна — её наиболее сильные объявленные теоремные, инвариантные, причинные, параметрические или модельные соседи: ${peers}.`,de:`Das aktive Labor bleibt erhalten; die übrigen Kacheln zeigen seine stärksten deklarierten Beziehungen: ${peers}.`}};
 }
@@ -25510,17 +25814,19 @@ const state = {
   gwM1:36, gwM2:29, gwRun:true, gwSpeed:1, gwIota:60,   // Gravitational-wave lab (+ polarization Poincaré sphere)
   pvEg:1.34, pvConc:1, pvT:300,   // Photovoltaic lab
   su2Station:'belt', su2Run:true, su2Speed:1, su2Fibres:true,   // SU(2) spinor lab
-  bhtM:1.98892e30, bhtStation:'horizon', bhtSpin:0, bhtEvap:false, bhtEvapProgress:0, bhtSpeed:1,   // Kerr horizon + Schwarzschild evaporation stations
+  bhtM:1.98892e30, bhtStation:'horizon', bhtSpin:0, bhtEvap:false, bhtEvapProgress:0, bhtSpeed:1, bhtRadiationRun:true,   // Kerr horizon + deterministic Schwarzschild radiation / evaporation stations
   rpdRun:true, rpdSpeed:1, rpdTau:1.2, rpdLogX:20,   // RPD transformer lab (horizon-mediated distinguishability)
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invQuantity:'', invTol:1e-3,   // Inverse atlas — a value is meaningless until its quantity kind is selected
-  sydWorld:'rotation', sydParam:.5, sydBreak:0, sydTolLog:-9, sydRun:true, sydSpeed:.65,   // finite-orbit symmetry discovery chamber
+  sydWorld:'rotation', sydParam:.5, sydBreak:0, sydTolLog:-9, sydRun:true, sydSpeed:.65, sydPredictCandidate:'',   // finite-orbit symmetry discovery chamber
   holStation:'sphere', holA:.55, holB:.65, holProgress:0, holRun:true, holSpeed:.55,   // holonomy / geometric-phase observatory
   actStation:'reeb', actA:.55, actB:.42, actProgress:0, actRun:true, actSpeed:.52,   // contact, Reeb, KS and Maslov action observatory
   nulStation:'null', nulA:.56, nulB:.34, nulProgress:0, nulRun:true, nulSpeed:.54,   // spinor, null-cone, celestial and conformal observatory
-  nexusKind:'all', nexusMorph:0, nexusRotate:false, nexusPulse:false,
-  nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas
+  nexusKind:'all', nexusMorph:0, nexusRotate:false, nexusPulse:false, nexusLens:'local',
+  nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas; local lens is the uncluttered default
+  foundationHorizon:{syd:.12,hol:.12,act:.12,nul:.12}, foundationSigma:{syd:.01,hol:.01,act:.01,nul:.01},
+  foundationTarget:{syd:1e-6,hol:0,act:0,nul:0}, foundationVisible:{syd:true,hol:true,act:true,nul:true},
   mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
   predictionRefs:{},   // user-entered, unit-compatible validation references, kept separate per laboratory
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
@@ -25535,7 +25841,7 @@ const state = {
   berryU:1.0, berryMesh:12,   // Berry curvature / Chern number atlas
   dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
-  impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf',   // Impedance · Möbius · Smith lab
+  impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf', impAssimVisible:false,   // Impedance · Möbius · Smith lab + measured sweep assimilation
   cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
   cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
   mimgChi:1.2566370614, mimgAnim:false, mimgSpeed:1,   // S³ multiple-imaging lab
@@ -27406,12 +27712,15 @@ function buildCtlBody(){
     </div>`;
     else if(V==='bht') body = `
     <div class="sect"><b>Black hole — horizon observatory</b>
-      <div class="chips"><button class="chip ${(state.bhtStation||'horizon')==='horizon'?'on':''}" data-bhtstation="horizon">Kerr horizon · spin &amp; ergoregion</button><button class="chip ${state.bhtStation==='evaporation'?'on':''}" data-bhtstation="evaporation">Schwarzschild evaporation worldtube</button></div>
+      <div class="chips"><button class="chip ${(state.bhtStation||'horizon')==='horizon'?'on':''}" data-bhtstation="horizon">Kerr horizon · spin &amp; ergoregion</button><button class="chip ${state.bhtStation==='radiation'?'on':''}" data-bhtstation="radiation">Hawking radiation · predictive field</button><button class="chip ${state.bhtStation==='evaporation'?'on':''}" data-bhtstation="evaporation">Schwarzschild evaporation worldtube</button></div>
       <div class="chips">
         ${[['primordial','Primordial 10¹² kg'],['asteroid','Asteroid-mass'],['solar','Solar mass'],['sgra','Sgr A* (4.15×10⁶)'],['m31','M31* (1.4×10⁸)'],['m87','M87* (6.5×10⁹)'],['ton618','Ton 618 (66×10⁹)']].map(([k,l])=>
           `<button class="chip" data-bhtp="${k}">${l}</button>`).join('')}
       </div>
-      ${(state.bhtStation||'horizon')==='horizon'?`<div class="ctlrow"><label>Dimensionless spin χ</label><input type="range" id="bhtSpin" min="0" max=".998" step=".001" value="${state.bhtSpin??0}"><span class="val" id="bhtSpinV">${(state.bhtSpin??0).toFixed(3)}</span></div>`:`<div class="ctlrow">
+      ${(state.bhtStation||'horizon')==='horizon'?`<div class="ctlrow"><label>Dimensionless spin χ</label><input type="range" id="bhtSpin" min="0" max=".998" step=".001" value="${state.bhtSpin??0}"><span class="val" id="bhtSpinV">${(state.bhtSpin??0).toFixed(3)}</span></div>`:state.bhtStation==='radiation'?`<div class="ctlrow">
+        <button class="chip ${state.bhtRadiationRun!==false?'on':''}" id="bhtRadiationRun">${state.bhtRadiationRun!==false?'⏸ freeze deterministic flux':'▶ evolve deterministic flux'}</button>
+        <label style="margin-left:8px">Field speed</label>
+        <input type="range" id="bhtSpeed" min="0.2" max="3" step="0.1" value="${state.bhtSpeed??1}"><span class="val" id="bhtSpeedV">×${(state.bhtSpeed??1).toFixed(1)}</span></div>`:`<div class="ctlrow">
         <button class="chip ${state.bhtEvap?'on':''}" id="bhtEvap">${state.bhtEvap?'⏹ stop idealized evolution':'▶ idealized evaporation'}</button>
         <label style="margin-left:8px">Speed</label>
         <input type="range" id="bhtSpeed" min="0.2" max="3" step="0.1" value="${state.bhtSpeed??1}"><span class="val" id="bhtSpeedV">×${(state.bhtSpeed??1).toFixed(1)}</span></div>`}
@@ -27420,7 +27729,7 @@ function buildCtlBody(){
     </div>
     <div class="sect"><b>Geometry &amp; thermodynamic readout</b>
       <div class="note" id="bhtInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">Kerr station: r₊=r_g(1+√(1−χ²)), A_H=8πr_g²(1+√(1−χ²)), Ω_H=χc³/[2GM(1+√(1−χ²))], with Hawking temperature from surface gravity. The separate evaporation worldtube is intentionally Schwarzschild-only and stops before the unknown endpoint. Greybody spectra, particle species, charge, accretion, spin-down and quantum gravity are excluded; the embedded coordinate surfaces are not ray-traced images.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Kerr geometry: r₊=r_g(1+√(1−χ²)), A_H=8πr_g²(1+√(1−χ²)), Ω_H=χc³/[2GM(1+√(1−χ²))]. Radiation station: Schwarzschild T_H, idealized L∝M⁻² and t∝M³, with the dimensionless energy-spectrum peak x=hν/kT=2.821439; deterministic tracers restore the luminous phenomenology without random respawn flicker. Evaporation is a separate non-looping Schwarzschild worldtube. Frequency-dependent greybody factors, species, charge, accretion, spin-down and quantum gravity are excluded; coordinate surfaces are not ray-traced images.</div>
     </div>
     <div class="sect"><b>Bridges</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
@@ -27482,6 +27791,17 @@ function buildCtlBody(){
         <button class="btn" id="impMatch">${TT('◎ match (2 steps, exact)','◎ согласовать (2 шага, точно)','◎ anpassen (2 Schritte, exakt)')}</button>
         <label style="margin-left:6px">${TT('Speed','Скорость','Tempo')}</label>
         <input type="range" id="impSpeed" min="0.2" max="3" step="0.1" value="${state.impSpeed??1}"><span class="val" id="impSpeedV">×${(state.impSpeed??1).toFixed(1)}</span></div>
+    </div>
+    <div class="sect"><b>${TT('MEASUREMENT ASSIMILATION · HOLDOUT FORECAST','АССИМИЛЯЦИЯ ИЗМЕРЕНИЙ · HOLDOUT-ПРОГНОЗ','MESSDATENASSIMILATION · HOLDOUT-PROGNOSE')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="impSynthetic">⌁ ${TT('deterministic RLC sweep','детерминированный RLC-свип','deterministischer RLC-Sweep')}</button>
+        <button class="btn" id="impImport">⇧ ${TT('import Touchstone','импорт Touchstone','Touchstone importieren')}</button>
+        <input id="impTouchstone" type="file" accept=".s1p,.s2p,.txt" style="display:none">
+        <button class="btn ${state.impAssimVisible?'on':''}" id="impAssimToggle">${state.impAssimVisible?TT('hide measured field','скрыть поле измерений','Messfeld ausblenden'):TT('show measured field','показать поле измерений','Messfeld anzeigen')}</button>
+      </div>
+      <div class="note" id="impAssimReadout" style="font-size:10.5px;font-variant-numeric:tabular-nums">${(()=>{const F=IMP_ASSIM.fit;if(!IMP_ASSIM.samples.length)return TT('Load an S1P/S2P sweep or generate the reproducible reference. Mint points are training samples; coral points are never shown to the fit; gold is its out-of-sample series-RLC forecast and violet is the complex-residual envelope.','Загрузите S1P/S2P или создайте воспроизводимый эталон. Мятные точки — обучение; коралловые не видны подгонке; золото — вневыборочный прогноз series-RLC, фиолетовый — оболочка комплексного остатка.','S1P/S2P laden oder Referenz erzeugen. Mint=train, Koralle=Holdout, Gold=RLC-Prognose, Violett=komplexe Residuenhülle.');if(!F?.ok)return '<b style="color:#ff9daf">MODEL REJECTED</b> · '+esc(F?.reason||IMP_ASSIM.error||'unknown');return '<b style="color:'+(F.adequate?'#9fe8c0':'#ff9daf')+'">'+(F.adequate?'HOLDOUT GATE PASS':'MODEL DOMAIN GATE FAIL')+'</b> · '+esc(IMP_ASSIM.source)+'<br>R='+F.R.toPrecision(6)+' Ω · L='+F.L.toExponential(5)+' H · C='+F.C.toExponential(5)+' F · f₀='+(F.f0/1e6).toFixed(6)+' ± '+(F.sigmaF0/1e6).toFixed(6)+' MHz · Q='+F.Q.toFixed(4)+'<br>complex Γ RMSE train='+F.trainRmse.toExponential(3)+' · holdout='+F.holdoutRmse.toExponential(3)+' · robust σΓ='+F.sigmaGamma.toExponential(3)+'<br>scaled-design κ='+F.conditionNumber.toExponential(3)+' · resonance '+(F.resonanceInBand?'inside':'OUTSIDE')+' measured band · passive-envelope violations='+F.passivityViolations+(F.adequacyReasons?.length?'<br><span style="color:#ff9daf">'+esc(F.adequacyReasons.join(' · '))+'</span>':'');})()}</div>
+      <div class="ctlrow"><button class="btn" id="impAssimExport" ${IMP_ASSIM.samples.length?'':'disabled'}>⬇ ${TT('measurement + model JSON','измерение + модель JSON','Messung + Modell JSON')}</button></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">${TT('The inverse is intentionally falsifiable: positivity, conditioning and unseen samples can reject the series-RLC hypothesis. Touchstone import is not fixture de-embedding, calibration or automatic multi-pole causal modelling.','Обратная задача намеренно фальсифицируема: положительность, обусловленность и невиданные точки могут отвергнуть гипотезу series-RLC. Импорт Touchstone не заменяет de-embedding, калибровку или многополюсное причинное моделирование.','Die Inversion ist falsifizierbar: Positivität, Kondition und Holdout können das Serien-RLC-Modell verwerfen. Kein De-Embedding oder Mehrpolmodell.')}</div>
     </div>
     <div class="sect"><b>${TT('Reflection passport','Отражательный паспорт','Reflexions-Pass')}</b>
       <div class="note" id="impInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
@@ -29062,9 +29382,10 @@ function buildCtlBody(){
       ctl.querySelector('#su2ToHopf')&&(ctl.querySelector('#su2ToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
     }
     if(V==='bht'){
-      ctl.querySelectorAll('[data-bhtstation]').forEach(b=>b.onclick=()=>{state.bhtStation=b.dataset.bhtstation;if(state.bhtStation==='evaporation')state.bhtSpin=0;state.bhtEvap=false;state.bhtEvapProgress=0;bhtSetup();buildCtl();});
+      ctl.querySelectorAll('[data-bhtstation]').forEach(b=>b.onclick=()=>{state.bhtStation=b.dataset.bhtstation;if(state.bhtStation!=='horizon')state.bhtSpin=0;state.bhtEvap=false;state.bhtEvapProgress=0;bhtSetup();buildCtl();});
       ctl.querySelectorAll('[data-bhtp]').forEach(b=>b.onclick=()=>{ state.bhtM=BHT_PRESETS[b.dataset.bhtp]; state.bhtEvap=false; state.bhtEvapProgress=0; bhtSetup(); buildCtl(); });
       ctl.querySelector('#bhtEvap')&&(ctl.querySelector('#bhtEvap').onclick=()=>{ state.bhtEvap=!state.bhtEvap; if(state.bhtEvap){ bhtM0=bhtM=state.bhtM??BHT_MSUN; bhtEvapProg=0;state.bhtEvapProgress=0; } buildCtl(); });
+      ctl.querySelector('#bhtRadiationRun')&&(ctl.querySelector('#bhtRadiationRun').onclick=()=>{state.bhtRadiationRun=state.bhtRadiationRun===false;buildCtl();});
       ctl.querySelector('#bhtSpeed')&&(ctl.querySelector('#bhtSpeed').oninput=e=>{ state.bhtSpeed=+e.target.value; const v=ctl.querySelector('#bhtSpeedV'); if(v)v.textContent='×'+state.bhtSpeed.toFixed(1); });
       ctl.querySelector('#bhtSpin')&&(ctl.querySelector('#bhtSpin').oninput=e=>{state.bhtSpin=+e.target.value;bhtApplyScale();const v=ctl.querySelector('#bhtSpinV');if(v)v.textContent=state.bhtSpin.toFixed(3);});
       ctl.querySelector('#bhtLogM')&&(ctl.querySelector('#bhtLogM').oninput=e=>{ state.bhtM=Math.pow(10,+e.target.value); state.bhtEvap=false;state.bhtEvapProgress=0;bhtM=state.bhtM;bhtM0=bhtM;bhtEvapProg=0; bhtApplyScale(); const v=ctl.querySelector('#bhtLogMV'); if(v)v.textContent='10^'+(+e.target.value).toFixed(1); });
@@ -29089,6 +29410,11 @@ function buildCtlBody(){
       ctl.querySelector('#rpdToBell')&&(ctl.querySelector('#rpdToBell').onclick=()=>{ navPush(); setS3View('bell'); buildCtl(); });
     }
     if(V==='imp'){
+      ctl.querySelector('#impSynthetic')&&(ctl.querySelector('#impSynthetic').onclick=()=>{impSyntheticSweep();buildCtl();});
+      ctl.querySelector('#impImport')&&(ctl.querySelector('#impImport').onclick=()=>ctl.querySelector('#impTouchstone')?.click());
+      ctl.querySelector('#impTouchstone')&&(ctl.querySelector('#impTouchstone').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{const P=impParseTouchstone(await file.text(),file.name);impAssimSet(P.samples,P.z0,file.name,P.format,false);}catch(err){IMP_ASSIM.error=String(err?.message||err);IMP_ASSIM.fit={ok:false,reason:IMP_ASSIM.error};}buildCtl();});
+      ctl.querySelector('#impAssimToggle')&&(ctl.querySelector('#impAssimToggle').onclick=()=>{state.impAssimVisible=!state.impAssimVisible;impAssimRender();buildCtl();});
+      ctl.querySelector('#impAssimExport')&&(ctl.querySelector('#impAssimExport').onclick=()=>downloadFile('fbs3r_smith_measurement_assimilation.json','application/json',JSON.stringify(impAssimExport(),null,2)));
       ctl.querySelectorAll('[data-impdom]').forEach(b=>b.onclick=()=>{ const d=IMP_DOMS[b.dataset.impdom];
         state.impDomain=b.dataset.impdom; state.impR=d.set[0]; state.impX=d.set[1]; impBl=0; impMatchA=null; impTrail=[]; buildCtl(); });
       ctl.querySelector('#impR')&&(ctl.querySelector('#impR').oninput=e=>{ state.impR=+e.target.value; impMatchA=null; impTrail=[];
@@ -30826,7 +31152,7 @@ const PREDICTION_CLASS_MEMBERS={
   conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
 };
 const PREDICTION_TARGETS={
-  nexus:'typed relation paths and candidate cross-laboratory bridges',nul:'future-null direction, Lorentz interval and spin-weight transformation',act:'Reeb return, contact action, regularized collision and Maslov phase',hol:'closed-path return phase, Wilson trace and Wigner rotation',syd:'finite-orbit invariant drift under declared transformations',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Kerr horizon radius, area, angular velocity, Hawking temperature and Schwarzschild evaporation scaling',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'reflection coefficient, VSWR, impedance transform and pole geometry',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'Bateman abundances, grey gamma deposition, Arnett bolometric diffusion, photospheric temperature and matched multi-phase remnant expansion',psr:'dipole field, spin-down power, characteristic age, light-cylinder scale, RVM polarization and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming',rmhd:'frozen-flux response, relative magnetic helicity, Sweet–Parker rate, shock compression and magnetized Rayleigh–Taylor growth',wd:'Chandrasekhar mass and zero-temperature white-dwarf mass–radius relation'
+  nexus:'typed paths plus held-edge-calibrated structural bridge hypotheses under an explicit admission firewall',nul:'future-null / spin-weight observable with sensitivity, uncertainty, holdout and inverse target',act:'Reeb, return, regularized or Maslov observable with sensitivity, uncertainty, holdout and inverse target',hol:'closed-path return phase with sensitivity, uncertainty, holdout and multi-root inverse target',syd:'train/holdout candidate drift and predicted symmetry-breaking threshold',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Kerr horizon geometry plus deterministic Schwarzschild spectral peak, luminosity and lifetime scaling',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'Touchstone S11 assimilation, series-RLC inverse, unseen holdout forecast and uncertainty envelope',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'Bateman abundances, grey gamma deposition, Arnett bolometric diffusion, photospheric temperature and matched multi-phase remnant expansion',psr:'dipole field, spin-down power, characteristic age, light-cylinder scale, RVM polarization and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming',rmhd:'frozen-flux response, relative magnetic helicity, Sweet–Parker rate, shock compression and magnetized Rayleigh–Taylor growth',wd:'Chandrasekhar mass and zero-temperature white-dwarf mass–radius relation'
 };
 const PRED_STATE_PREFIX={sec:['chi','gyrPerSec'],hopf:['hopf'],eig:['eig'],red:['rkz'],ring:['ring'],lab:['lab'],bell:['bell'],drd:['drd'],sel:['sel'],hopfion:['hf'],skyrmion:['sk'],quasi:['qp'],atom:['at'],grav:['grav'],qm:['qm'],qcd:['qcd'],topo:['topo'],sc:['sc'],taub:['tn'],eot:['eot'],wave:['wave'],spin:['spin'],rel:['rel'],chaos:['chaos'],kin:['kin'],sh:['sh'],kdv:['kdv'],ret:['ret'],dip:['dip'],cp:['cp'],rd:['rd'],he:['he'],bb:['bb'],nuc:['nuc'],lens:['lens'],te:['te'],gw:['gw'],pv:['pv'],su2:['su2'],bht:['bht'],rpd:['rpd'],imp:['imp'],pole:['pole'],disp:['disp'],berry:['berry'],cusp:['cusp'],kam:['kam'],rsh:['rsh'],and:['and'],psp:['psp'],dfx:['dfx'],noe:['noe'],cau:['cau'],wil:['wil'],poin:['poin'],qcrys:['qc'],cmb:['cmb'],mimg:['mimg'],bhr:['bhr'],ns:['ns'],sn:['sn'],psr:['psr'],qso:['qso'],rmhd:['rmhd'],wd:['wd'],nul:['nul'],act:['act'],hol:['hol'],syd:['syd'],nexus:['nexus']};
 const PRED_FORMULA_PREFIX={sec:'s3.',eig:'s3.',red:'gcs.',bell:'bell.',bht:'bh.',cmb:'cmb.',mimg:'topo.',hol:'hol.',act:'act.',nul:'nul.',ns:'tov.',sn:'sn.',psr:'psr.',qso:'qso.',rmhd:'rmhd.',wd:'wd.'};
@@ -30839,10 +31165,10 @@ function predictionLiveRows(v){const out=[];for(const [k,e] of ATLAS_BUS._d)if(k
 function predictionFormulaIds(v){const prefix=PRED_FORMULA_PREFIX[v]||(v+'.'),ids=FORMULA_REGISTRY.filter(f=>f.id.startsWith(prefix)).map(f=>f.id),key=predictionAtlasKey(v),s=key?SELECT.get(key):null;
   for(const f of s?.formulas||[])if(typeof f==='string'&&f.length<80&&!ids.includes(f))ids.push(f);return ids;}
 function predictionTests(v){const terms=PRED_TEST_TERMS[v]||[(S3_VIEW_NAMES[v]||v).toLowerCase().split(/[^a-z0-9³]+/).filter(x=>x.length>4)[0]||''];return SELF_TESTS.filter(t=>terms.some(q=>q&&t.name.toLowerCase().includes(q.toLowerCase())));}
-function predictionContract(v){const classId=predictionClassId(v),cls=PREDICTION_CLASSES[classId],key=predictionAtlasKey(v),entity=key?getAtlasEntityContract(key):null,tests=predictionTests(v),failed=tests.filter(t=>!t.pass),inputs=predictionInputKeys(v),formulas=predictionFormulaIds(v),outputs=predictionLiveRows(v);
+function predictionContract(v){const classId=predictionClassId(v),cls=PREDICTION_CLASSES[classId],key=predictionAtlasKey(v),entity=key?getAtlasEntityContract(key):null,tests=predictionTests(v),failed=tests.filter(t=>!t.pass),inputs=predictionInputKeys(v),formulas=predictionFormulaIds(v),outputs=predictionLiveRows(v),operational=predictiveFoundationAudit(v);
   return {schema:'fbs3r-prediction-contract-v1',laboratory:v,name:S3_VIEW_NAMES[v]||v,class_id:classId,class_label:cls.label,predicts:PREDICTION_TARGETS[v]||`${S3_VIEW_NAMES[v]||v} forward observables`,scope:cls.scope,
     inputs,outputs,formula_ids:formulas,validity_domain:entity?.physics?.boundary_conditions||'laboratory-specific; inspect the active station',uncertainty:entity?.uncertainty?.semantics||'not calibrated',calibration_status:entity?.uncertainty?.calibration_status||'not encoded',precision_policy:entity?.quality?.precision_policy||'implementation-specific',
-    validation:{status:failed.length?'failed':tests.length?'implementation checks pass':'benchmark gap',tests:tests.map(t=>({name:t.name,pass:t.pass,detail:t.detail})),passed:tests.filter(t=>t.pass).length,total:tests.length},falsifier:cls.falsifier,
+    validation:{status:failed.length?'failed':tests.length?'implementation checks pass':'benchmark gap',tests:tests.map(t=>({name:t.name,pass:t.pass,detail:t.detail})),passed:tests.filter(t=>t.pass).length,total:tests.length},operational_forecast:operational,falsifier:cls.falsifier,
     forbidden_upgrade:'A rendered match, small numerical residual or shared parameter does not upgrade this contract to calibrated empirical prediction.'};}
 function predictionReference(v){if(!state.predictionRefs)state.predictionRefs={};return state.predictionRefs[v]||(state.predictionRefs[v]={key:'',observed:'',sigma:''});}
 function predictionFormat(x){const n=Number(x);return !Number.isFinite(n)?String(x):Math.abs(n)>=1e4||(Math.abs(n)>0&&Math.abs(n)<1e-3)?n.toExponential(5):n.toFixed(6).replace(/0+$/,'').replace(/\.$/,'');}
@@ -30868,7 +31194,7 @@ function predictionWorkbenchHTML(v){const C=predictionContract(v),cls=PREDICTION
     <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><button class="btn" id="predExport">⬇ ${TT('reproducible experiment','воспроизводимый эксперимент','reproduzierbares Experiment')}</button><button class="btn" id="predCompare">◱ ${TT('validation matrix','матрица валидации','Validierungsmatrix')}</button></div>
     <div class="note" style="font-size:10px;color:#d8b781">${esc(C.forbidden_upgrade)}</div>
   </div>`;}
-function predictionExperimentManifest(v){const C=predictionContract(v),input={};for(const k of C.inputs)if(k in state)try{input[k]=JSON.parse(JSON.stringify(state[k]));}catch(e){input[k]=String(state[k]);}const special=v==='cmb'?cmbExportData():v==='rmhd'?rmhdExportData():v==='wd'?wdDiagnostics():null;return {schema:'fbs3r-reproducible-experiment-v1',generated_at:new Date().toISOString(),contract:C,inputs:input,live_outputs:predictionLiveRows(v),reference:predictionReference(v),multiview:{on:MV.on,views:MV.views.slice(0,MV.n),active:MV.active,linked_parameter:state.mvLink||null},relations:MV_LINKS.filter(L=>mvLinkLabs(L).includes(v)).map(L=>({id:L.id,kind:L.kind,unit:L.unit,peers:mvLinkLabs(L)})),special_payload:special};}
+function predictionExperimentManifest(v){const C=predictionContract(v),input={};for(const k of C.inputs)if(k in state)try{input[k]=JSON.parse(JSON.stringify(state[k]));}catch(e){input[k]=String(state[k]);}const special=v==='cmb'?cmbExportData():v==='rmhd'?rmhdExportData():v==='wd'?wdDiagnostics():v==='imp'?impAssimExport():['nexus','syd','hol','act','nul','bht'].includes(v)?predictiveFoundationAudit(v):null;return {schema:'fbs3r-reproducible-experiment-v1',generated_at:new Date().toISOString(),contract:C,inputs:input,live_outputs:predictionLiveRows(v),reference:predictionReference(v),multiview:{on:MV.on,views:MV.views.slice(0,MV.n),active:MV.active,linked_parameter:state.mvLink||null},relations:MV_LINKS.filter(L=>mvLinkLabs(L).includes(v)).map(L=>({id:L.id,kind:L.kind,unit:L.unit,peers:mvLinkLabs(L)})),special_payload:special};}
 function predictionMatrixHTML(views){return `<div class="note" style="font-size:10.5px"><b>${TT('SIMULTANEOUS PREDICTION MATRIX','ОДНОВРЕМЕННАЯ МАТРИЦА ПРОГНОЗОВ','SIMULTANE VORHERSAGEMATRIX')}</b><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin-top:5px">${views.map(v=>{const C=predictionContract(v),O=predictionLiveRows(v),cls=PREDICTION_CLASSES[C.class_id];return `<div style="border:1px solid ${cls.color}44;border-radius:7px;padding:6px"><b style="color:${cls.color}">${esc(S3_VIEW_NAMES[v]||v)}</b><br><span style="opacity:.75">${esc(C.class_label)} · tests ${C.validation.passed}/${C.validation.total}</span><br>${O.length?O.slice(0,2).map(x=>`${esc(x.key.split('.')[1])}=<b>${esc(predictionFormat(x.value))}</b>${x.unit?' '+esc(x.unit):''}`).join(' · '):'<span style="opacity:.55">awaiting live output</span>'}</div>`;}).join('')}</div><div style="margin-top:5px;color:var(--dim)">${TT('Values are compared only inside their typed units and contracts. Side-by-side proximity is not equality, correlation or causation.','Значения сравниваются только внутри их типизированных единиц и контрактов. Соседство не означает тождество, корреляцию или причинность.','Werte werden nur innerhalb typisierter Einheiten und Verträge verglichen.')}</div></div>`;}
 function predictionWorkbenchTick(v){const root=document.getElementById('predictionWorkbench');if(root&&root.dataset.view===v){const host=root.querySelector('#predBusControls'),signature=predictionOutputSignature(v);if(host&&host.dataset.signature!==signature&&!host.contains(document.activeElement)){host.dataset.signature=signature;host.innerHTML=predictionBusControlsHTML(v);}}
   const M=document.getElementById('mvPredictionMatrix');if(M&&MV.on&&!M.contains(document.activeElement))M.innerHTML=predictionMatrixHTML(MV.views.slice(0,MV.n));}
@@ -33053,6 +33379,10 @@ globalThis.FBS3R_QA=Object.freeze({
   spinorLightcone(station=state.nulStation,a=state.nulA,b=state.nulB){return nulDiagnostics(station,a,b);},
   holonomy(station=state.holStation,a=state.holA,b=state.holB){return holDiagnostics(station,a,b);},
   symmetryDiscovery(world=state.sydWorld,breakAmplitude=state.sydBreak){return sydDiagnostics(world,breakAmplitude);},
+  predictiveFoundation(view=state.s3view){return predictiveFoundationAudit(view);},
+  predictiveRuntime(){return {auditCacheEntries:PF_AUDIT_CACHE.size,spatialForecasts:[...PF_SPATIAL].map(([view,o])=>({view,attached:o.root?.parent!=null,visible:o.root?.visible!==false,geometryHash:o.hash})),sharedGlowTexture:glowTexture.shared?.name||null,blackHoleRadiation:bhtObjs?.station==='radiation'?{primed:!!bhtObjs.radiationPrimed,running:state.bhtRadiationRun!==false,fluxInstances:bhtObjs.flux?.count||0,wavefronts:bhtObjs.wavefronts?.length||0}:null};},
+  smithAssimilation(){return impAssimExport();},
+  nexusCandidates(focus=state.nexusFocus||state.nexusSource,kind=state.nexusKind){return {focus,kind,calibration:nexusStructuralCalibration(kind),candidates:nexusStructuralCandidates(focus,kind,12)};},
   vectors(){return vectorDiagnostics();},
   quantum(){try{let norm=0;for(let i=0;i<QM_N;i++)norm+=(qmRe[i]*qmRe[i]+qmIm[i]*qmIm[i])*QM_DX;
     const p=qmWignerPts?.geometry?.attributes?.position?.array||[],c=qmWignerPts?.geometry?.attributes?.color?.array||[];
@@ -33066,8 +33396,8 @@ globalThis.FBS3R_QA=Object.freeze({
     const wiki=wikiUrl(key,s);return {key,mode:s.mode,name:objectName(s),rows:rows.length,desc:(s.desc||'').length,
       sources:(s.src||[]).length,formulas:(s.formulas||[]).length,wikipedia:wiki,
       wikipediaSearch:wiki.includes('/Special:Search?'),hasPick:!!s.pick};});},
-  blackHole(){try{const M=bhtM||state.bhtM||BHT_MSUN,station=state.bhtStation||'horizon',spin=station==='evaporation'?0:(state.bhtSpin??0),K=bhtKerr(M,spin);return {station,massKg:M,dimensionlessSpin:spin,gravitationalRadiusM:K.rg,outerHorizonRadiusM:K.rp,horizonAreaM2:K.area,horizonAngularVelocityRadS:K.omega,temperatureK:K.TH,entropyOverKb:bhtS(M,spin)/BHT_kB,
-    schwarzschildReferenceRadiusM:bhtRs(M),idealizedSchwarzschildLuminosityW:spin===0?bhtLum(M):null,idealizedSchwarzschildLifetimeYears:spin===0?bhtEvapYr(M):null,assumptions:station==='evaporation'?'Schwarzschild; isolated; simplified coefficient; no greybody/species/accretion/final quantum gravity':'exact Kerr horizon thermodynamics; coordinate-surface visual embedding is non-isometric; no ray tracing or accretion'};}catch(e){return {err:String(e)};}},
+  blackHole(){try{const M=bhtM||state.bhtM||BHT_MSUN,station=state.bhtStation||'horizon',spin=station==='horizon'?(state.bhtSpin??0):0,K=bhtKerr(M,spin);return {station,massKg:M,dimensionlessSpin:spin,gravitationalRadiusM:K.rg,outerHorizonRadiusM:K.rp,horizonAreaM2:K.area,horizonAngularVelocityRadS:K.omega,temperatureK:K.TH,entropyOverKb:bhtS(M,spin)/BHT_kB,
+    schwarzschildReferenceRadiusM:bhtRs(M),idealizedSchwarzschildLuminosityW:spin===0?bhtLum(M):null,idealizedSchwarzschildLifetimeYears:spin===0?bhtEvapYr(M):null,radiationReference:station==='radiation'?bhtRadiationAudit(M):null,assumptions:station==='evaporation'?'Schwarzschild; isolated; simplified coefficient; no greybody/species/accretion/final quantum gravity':station==='radiation'?'Schwarzschild dimensionless thermal shape and textbook scaling; deterministic flux encoding; no greybody/species/accretion/back-reaction/endpoint claim':'exact Kerr horizon thermodynamics; coordinate-surface visual embedding is non-isometric; no ray tracing or accretion'};}catch(e){return {err:String(e)};}},
   radiationMhd(){try{return rmhdDiagnostics();}catch(e){return {err:String(e)};}},
   whiteDwarf(){try{return wdDiagnostics();}catch(e){return {err:String(e)};}},
   cmb(){try{const A=cmbAnalyze(),l=Math.max(2,Math.min(A.lmax,state.cmbL??2)),P=A.power.find(x=>x.l===l);return {schema:A.schema,station:state.cmbMode,seed:A.seed,lmax:A.lmax,focus_l:l,
