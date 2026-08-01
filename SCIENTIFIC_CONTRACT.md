@@ -266,9 +266,33 @@ radiometric measurements.
 
 Magnetic helicity, flux freezing, reconnection, Rayleigh-Taylor growth,
 cosmic-ray acceleration, neutrino transport and non-spherical gravitational-
-wave emission remain outside this solver. Hopf or Hopfion geometry may classify
-linked field topology in a future radiation-MHD observatory, but the existing
-vacuum electromagnetic Hopfion must not be identified with magnetized ejecta.
+wave emission remain outside this supernova solver. The separate
+Radiation-MHD & Helicity Observatory now supplies reduced analytic and kinematic
+benchmarks for the first four concepts and a typed bridge to the supernova
+laboratory. It is not a coupled radiation-GRMHD evolution. Its closed magnetic
+flux tubes and the existing vacuum electromagnetic Hopfion share topological
+language but must not be identified as the same physical field.
+
+## Compact-object and radiation-MHD extensions
+
+The stellar chain distinguishes equations from encodings and reference models
+from calibrated predictions:
+
+| Laboratory | Computed contract | Explicit boundary |
+|---|---|---|
+| white dwarf | composition-dependent Chandrasekhar mass and the Nauenberg zero-temperature mass-radius family | no finite-temperature envelope, rotation, magnetic support, crystallization, Coulomb correction or stellar-evolution calibration |
+| neutron star | TOV sequence for the declared Gamma=2 polytropic equation of state | not a nuclear-EOS inference, universal mass-radius curve or observed-star fit |
+| pulsar | dipole spin-down quantities, Goldreich-Julian light-cylinder scale and rotating-vector polarization angle | field/current-sheet/beam geometry is a kinematic reference, not a force-free or particle-in-cell magnetosphere |
+| black-hole thermodynamics | analytic Kerr outer-horizon radius, area, angular velocity, temperature and entropy; separate idealized Schwarzschild evaporation scaling | coordinate surfaces are not ray-traced images; evaporation omits spin-down, charge, greybody factors, particle species, accretion and the endpoint |
+| gravitational waves | leading-order quasi-circular chirp mass, frequency sweep, time to merger, tensor polarization state and test-mass response | no numerical-relativity merger or calibrated detector waveform; shell strain is visibly magnified and shell spacing encodes phase |
+| radiation-MHD and helicity | frozen flux, closed-domain mutual helicity, Sweet-Parker rate, normal-shock compression baseline and normalized magnetized Rayleigh-Taylor boundary | five reduced stations, not self-consistent radiation-GRMHD; visual line density and sheet thickness are display parameters |
+
+The black-hole ray laboratory and gravitational-lensing laboratory remain the
+optical references for null propagation. Thermodynamic horizon surfaces never
+substitute for either ray calculation. The compact-object mass link in
+Multi-View is an SI-typed shared input; clipping at a model's own domain is
+reported and does not imply that white dwarfs, neutron stars and black holes are
+the same solution family.
 
 ## Prediction and validation contract
 
