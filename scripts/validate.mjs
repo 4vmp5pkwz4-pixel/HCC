@@ -14,10 +14,10 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
 
 /* Deployment identity: the public Pages document must be visibly and
    programmatically distinguishable from a stale browser-cached build. */
-check(html.includes('data-hcc-build="omni-predictive-2026.08.02.1"')
-  && html.includes('<meta name="hcc-build" content="omni-predictive-2026.08.02.1">')
-  && html.includes('Predictive Foundations 2026.08.02'),
-  'Pages build carries a visible and machine-readable predictive release identity');
+check(html.includes('data-hcc-build="omni-stability-2026.08.02.2"')
+  && html.includes('<meta name="hcc-build" content="omni-stability-2026.08.02.2">')
+  && html.includes('Mobile/GPU Stability 2026.08.02'),
+  'Pages build carries a visible and machine-readable stability release identity');
 check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
   && html.includes('deployment(){return {...HCC_DEPLOYMENT};}'),
   'deployment identity is exposed through the read-only QA surface');
@@ -85,6 +85,10 @@ check(/#clock\{position:absolute;top:/.test(html)
 check(html.includes('@media (max-width:420px)') && html.includes('#navCluster>#breadcrumb{left:auto;transform:none')
   && html.includes('id="activeLabControls"') && html.includes('_jumpActive') && html.includes('_revealActive'),
   'narrow phones separate title/clock/breadcrumb and jump to the newly selected laboratory controls');
+check(html.includes('calc(100% - 194px)') && html.includes('text-overflow:ellipsis')
+  && html.includes('.chips.stationSelector{flex-wrap:wrap;overflow-x:visible')
+  && html.includes('<div class="chips stationSelector"><button class="chip ${(state.bhtStation'),
+  'phone header reserves a real clock gap and station selectors cannot reopen in a clipped scroll position');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
@@ -401,6 +405,15 @@ check(html.includes("const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','q
 check(html.includes('SCI_GEOM_STATS.reuses++') && html.includes("a&&a.count===sample.length")
   && html.includes('float wave=.5+.5*sin(dot(vLocal') && !html.includes('uTime*.48'),
   'dynamic scientific paths reuse position buffers and the shared alpha field is temporally stable');
+check(html.includes('m.forceSinglePass=true') && html.includes('now-d.lastUploadMs<42')
+  && html.includes('Math.min(uSeg,56)') && html.includes('never traverse an entire lab per')
+  && !html.includes('root.traverse?.(o=>{if(o.material?.userData?.scientificFresnel)'),
+  'scientific fields use single-pass transparency, bounded mobile meshes, throttled instance uploads and no inert per-frame shader traversal');
+check(html.includes("geometryKey=[world,br,state.sydTolLog??-9].join('|')")
+  && html.includes('if(geometryKey!==SYD.geometryKey)')
+  && html.includes('state.sydRun===true') && html.includes('state.holRun===true')
+  && html.includes('state.actRun===true') && html.includes('state.nulRun===true'),
+  'experimental observatories rebuild parameter geometry only on change and animate only after explicit opt-in');
 check(html.includes('function mvSemanticSelection(') && html.includes("const anchor=state.s3view||'sec'")
   && html.includes("if(r.a===anchor)offer(r.b") && html.includes("else if(r.b===anchor)offer(r.a")
   && html.includes('function mvReplaceAt(') && html.includes('function uiSetS3View(')
@@ -518,6 +531,9 @@ check(html.includes('function bhtKerr(') && html.includes('KERR HORIZON · black
   && html.includes('Schwarzschild evaporation worldtube')
   && html.includes('increasing spin shrinks horizon area and surface-gravity temperature'),
   'Black-hole thermodynamics separates exact Kerr horizon quantities from idealized Schwarzschild evaporation');
+check(html.includes('function bhtEvapWorldtubePoint(') && html.includes("worldtubeSurface.name='continuous Schwarzschild evaporation worldtube")
+  && html.includes('new THREE.TorusGeometry(1,.012,6,72)') && !html.includes('worldlineBeads'),
+  'evaporation is one continuous mass-law worldtube with a transform-only time section, never a bead chain');
 check(html.includes('OUTGOING NULL WAVEFRONTS') && html.includes('normalized Stokes state on S²')
   && html.includes('test masses · h₊ stretches space') && !html.includes('GW_NW'),
   'Gravitational-wave laboratory uses native null wavefronts, tensor polarization and detector response without a flat waveform strip');
@@ -600,6 +616,22 @@ check(['syd','hol','act','nul'].every(v=>html.includes("pfPanelHTML('"+v+"')"))
   && html.includes("id:'predict.local_holdout'") && html.includes("id:'predict.uncertainty'")
   && html.includes("id:'predict.inverse'"),
   'all four exact observatories and universal prediction contracts carry operational forecasts');
+check(html.includes('foundationVisible:{syd:false,hol:false,act:false,nul:false}')
+  && html.includes('const visible=state.foundationVisible?.[v]===true;if(!visible)')
+  && html.includes('sydRun:false') && html.includes('holRun:false')
+  && html.includes('actRun:false') && html.includes('nulRun:false'),
+  'forecast overlays and motion are off by default and disabled fields perform no audit or geometry work per frame');
+{
+  const labBlock=html.slice(html.indexOf('<div class="sect"><b>S³ Laboratory</b>'),html.indexOf('</div><div id="activeLabControls">'));
+  const experimental=['v-nexus','v-nul','v-act','v-hol','v-syd'];
+  check(labBlock.includes('Experimental research instruments · motion opt-in')
+    && experimental.every(id=>labBlock.indexOf(`id="${id}"`)>labBlock.indexOf('id="v-wd"')),
+    'five experimental GPU observatories are retained but deliberately placed after the established laboratory catalogue');
+}
+check(html.includes('Nexus is intentionally lazy')
+  && !/\];\s*nexusSetup\(\);\s*const LAB_ATLAS_PICKS/.test(html)
+  && html.includes('NEXUS.ui+=dt;if(NEXUS.ui>.25)'),
+  'Invariant Nexus is allocated on demand and its diagnostics do not mutate the DOM every frame');
 check(html.includes('Forty-eight orbit samples train') && html.includes('sixteen interleaved samples remain unseen')
   && html.includes('Symmetry Discovery keeps interleaved train/holdout decisions separate')
   && html.includes('id="pfSydCandidate"') && html.includes('candidate_id:C.id'),

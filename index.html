@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="omni-predictive-2026.08.02.1">
+<html lang="en" data-hcc-build="omni-stability-2026.08.02.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="omni-predictive-2026.08.02.1">
+<meta name="hcc-build" content="omni-stability-2026.08.02.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -507,6 +507,8 @@
   .radioRow{display:flex;gap:4px;margin:4px 0;flex-wrap:wrap}
   .radioRow .btn.on{border-color:var(--gold);color:var(--gold-2);
     background:linear-gradient(165deg,rgba(212,175,106,.2),rgba(212,175,106,.06))}
+  .labTierBreak{flex:1 0 100%;margin:8px 0 2px;padding-top:8px;border-top:1px solid rgba(121,189,216,.22);
+    color:#8fa9c2;font:600 9px var(--sans);letter-spacing:1.35px;text-transform:uppercase}
 
   body.day{
     --bg:#ece5d3;
@@ -706,6 +708,9 @@
     .chips{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;
       padding-bottom:3px;mask-image:linear-gradient(90deg,#000 92%,transparent)}
     .chips::-webkit-scrollbar{display:none}
+    /* A station selector is navigation, not a carousel. All stations remain
+       visible after buildCtl() and the first item can never be left half clipped. */
+    .chips.stationSelector{flex-wrap:wrap;overflow-x:visible;mask-image:none;padding-bottom:0}
     /* The fractal-MODE selector must never be a swipe strip: with 10 modes a horizontal
        scroller only fits ~4 chips, and buildCtl() resets its scroll on every pick, so the
        mode you reach for scrolls away and the tap lands on a neighbour (looked like it
@@ -728,8 +733,8 @@
     .label.act-foot{display:none}
   }
   @media (max-width:420px){
-    #topbar .title{flex:0 0 calc(100% - 182px);max-width:calc(100% - 182px);padding-right:0;
-      min-height:26px;font-size:10.5px;letter-spacing:1.25px;white-space:nowrap;overflow:hidden}
+    #topbar .title{flex:0 0 calc(100% - 194px);max-width:calc(100% - 194px);padding-right:0;
+      min-height:26px;font-size:10.5px;letter-spacing:1.25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #clock{max-width:176px;gap:0;padding-inline:7px}
     #clock .rt{font-size:9.5px;letter-spacing:.42px}
     #clock .st{display:none}
@@ -855,7 +860,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· Live · Predictive Foundations 2026.08.02</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· Live · Mobile/GPU Stability 2026.08.02</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1004,7 +1009,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const HCC_DEPLOYMENT=Object.freeze({build:'omni-predictive-2026.08.02.1',channel:'github-pages',source:'main'});
+const HCC_DEPLOYMENT=Object.freeze({build:'omni-stability-2026.08.02.2',channel:'github-pages',source:'main'});
 globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT;
 const ATLAS_RUNTIME_ERRORS=[];globalThis.FBS3R_RUNTIME_ERRORS=ATLAS_RUNTIME_ERRORS;
 function atlasCaptureRuntimeError(kind,message,stack=''){const row={kind,message:String(message||'unknown error'),stack:String(stack||''),at:new Date().toISOString()};const prev=ATLAS_RUNTIME_ERRORS[ATLAS_RUNTIME_ERRORS.length-1];if(!prev||prev.kind!==row.kind||prev.message!==row.message)ATLAS_RUNTIME_ERRORS.push(row);if(ATLAS_RUNTIME_ERRORS.length>32)ATLAS_RUNTIME_ERRORS.shift();}
@@ -15173,10 +15178,15 @@ function bhtRadiationAudit(M=state.bhtM??BHT_MSUN){
 const BHT_PRESETS={ primordial:1e12, asteroid:1e20, solar:BHT_MSUN, sgra:4.15e6*BHT_MSUN, m31:1.4e8*BHT_MSUN, m87:6.5e9*BHT_MSUN, ton618:66e9*BHT_MSUN };
 function bhtRadius(M){ return 0.42+1.5*Math.min(1,Math.max(0,(Math.log10(M)-11)/31)); }
 function bhtColor(TH){ const lt=Math.log10(Math.max(1e-20,TH)), t=Math.min(1,Math.max(0,(lt+20)/32)); const c=new THREE.Color(); c.setHSL(0.62-0.62*t,0.82,0.32+0.28*t); return c; }
+function bhtEvapWorldtubePoint(u,v,radiusScale=1){
+  const q=THREE.MathUtils.clamp(u,0,1),modelTime=.985*q,m=Math.pow(Math.max(.015,1-modelTime),1/3),a=2*Math.PI*v;
+  const x=-3.15+6.3*q,cy=.06+.24*Math.sin(Math.PI*q),r=1.16*m*radiusScale;
+  return new THREE.Vector3(x,cy+r*Math.cos(a),r*Math.sin(a));
+}
 function bhtClear(){ labWipe(bhtGroup); bhtObjs=null; bhtPairs=[]; }
 function bhtSetup(){
   bhtClear();bhtT=0;bhtM0=state.bhtM??BHT_MSUN;bhtEvapProg=state.bhtEvapProgress??0;
-  const station=state.bhtStation||'horizon';bhtM=station==='evaporation'?bhtM0*Math.pow(Math.max(.015,1-bhtEvapProg),1/3):bhtM0;const world=new THREE.Group();world.position.set(station==='evaporation'?-2.15:0,.25,0);bhtGroup.add(world);
+  const station=state.bhtStation||'horizon';bhtM=station==='evaporation'?bhtM0*Math.pow(Math.max(.015,1-bhtEvapProg),1/3):bhtM0;const world=new THREE.Group();world.position.set(0,.25,0);world.visible=station!=='evaporation';bhtGroup.add(world);
   bhtGroup.add(new THREE.AmbientLight(0x637087,.34));const key=new THREE.DirectionalLight(0xddeaff,.68);key.position.set(4,7,5);bhtGroup.add(key);
   const bh=new THREE.Mesh(new THREE.SphereGeometry(1,64,42),new THREE.MeshStandardMaterial({color:0x010205,roughness:.2,metalness:.42,emissive:0x000000}));world.add(bh);
   const shell=new THREE.Mesh(new THREE.SphereGeometry(1.014,48,32),new THREE.MeshBasicMaterial({color:0xffd17a,wireframe:true,transparent:true,opacity:.055,depthWrite:false}));world.add(shell);
@@ -15186,11 +15196,16 @@ function bhtSetup(){
   const cellN=MOBILE_GPU?112:196,cellGeo=new THREE.OctahedronGeometry(.018,0),cellMat=new THREE.MeshStandardMaterial({color:0xd8e9f2,emissive:0x6f5530,emissiveIntensity:.12,metalness:.46,roughness:.3,transparent:true,opacity:.52}),cells=new THREE.InstancedMesh(cellGeo,cellMat,cellN),dummy=new THREE.Object3D();
   for(let i=0;i<cellN;i++){const y=1-2*(i+.5)/cellN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;dummy.position.set(r*Math.cos(a),y,r*Math.sin(a)).multiplyScalar(1.022);dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),dummy.position.clone().normalize());dummy.scale.setScalar(.7+.45*((i*37)%17)/16);dummy.updateMatrix();cells.setMatrixAt(i,dummy.matrix);}cells.instanceMatrix.needsUpdate=true;world.add(cells);
   const drag=[];for(let j=0;j<12;j++){const pts=[],rad=1.2+.11*j;for(let i=0;i<=160;i++){const a=2*Math.PI*i/160,warp=.10*Math.sin(2*a+j*.4);pts.push(new THREE.Vector3(rad*Math.cos(a),warp,rad*Math.sin(a)));}const l=scientificTube(pts,j%4===0?SCI_GOLD:0x6f91ab,.003,j%4===0?.42:.08,true,164);world.add(l);drag.push(l);}
-  const fluxN=MOBILE_GPU?34:58,flux=new THREE.InstancedMesh(new THREE.SphereGeometry(.025,7,5),new THREE.MeshBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.46,depthWrite:false}),fluxN);flux.instanceMatrix.setUsage(THREE.DynamicDrawUsage);flux.visible=station!=='horizon';world.add(flux);bhtPairs=[];for(let i=0;i<fluxN;i++){const y=1-2*(i+.5)/fluxN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;bhtPairs.push({dir:new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a)),phase:(i*.61803398875)%1});}
-  let worldline=null,worldlineBeads=[],radiationRoot=null,wavefronts=[],massMarker=null,massLadder=null;
+  const fluxN=MOBILE_GPU?34:58,flux=new THREE.InstancedMesh(new THREE.SphereGeometry(.025,7,5),new THREE.MeshBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.46,depthWrite:false}),fluxN);flux.instanceMatrix.setUsage(THREE.DynamicDrawUsage);flux.visible=station==='radiation';world.add(flux);bhtPairs=[];for(let i=0;i<fluxN;i++){const y=1-2*(i+.5)/fluxN,r=Math.sqrt(Math.max(0,1-y*y)),a=GOLDEN_ANGLE*i;bhtPairs.push({dir:new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a)),phase:(i*.61803398875)%1});}
+  let worldline=null,worldtubeSurface=null,worldtubeMarker=null,worldtubeRings=[],radiationRoot=null,wavefronts=[],massMarker=null,massLadder=null;
   if(station==='evaporation'){
-    const pts=[],beadGeo=new THREE.SphereGeometry(1,26,18),beadWireMat=new THREE.MeshBasicMaterial({color:0x8eb6ca,wireframe:true,transparent:true,opacity:.13,depthWrite:false});for(let i=0;i<15;i++){const u=i/14,m=Math.pow(Math.max(.015,1-u),1/3),p=new THREE.Vector3(1.15+4.25*u,.15+.62*Math.sin(Math.PI*u),-.7+.5*Math.sin(2*Math.PI*u));pts.push(p);const bead=new THREE.Mesh(beadGeo,new THREE.MeshStandardMaterial({color:0x020307,roughness:.24,metalness:.36,transparent:true,opacity:.34+.45*(1-u)})),wire=new THREE.Mesh(beadGeo,beadWireMat);wire.scale.setScalar(1.018);bead.add(wire);bead.position.copy(p);bead.scale.setScalar(.18+.32*m);bhtGroup.add(bead);worldlineBeads.push(bead);}
-    worldline=scientificTube(pts,SCI_GOLD,.006,.5,false,120);bhtGroup.add(worldline);const lab=mkLabel('SCHWARZSCHILD EVAPORATION WORLDTUBE · cross-sections follow M/M₀=(1−t/t_evap)¹ᐟ³ · endpoint excluded','label axis');lab.position.set(2.1,2.72,0);bhtGroup.add(lab);
+    const surfaceMat=new THREE.MeshPhysicalMaterial({color:0x02050a,emissive:0x0b2837,emissiveIntensity:.38,metalness:.54,roughness:.24,clearcoat:.72,clearcoatRoughness:.2,side:THREE.DoubleSide});surfaceMat.forceSinglePass=true;
+    worldtubeSurface=scientificParametricSurface(MOBILE_GPU?56:96,MOBILE_GPU?14:22,(u,v)=>bhtEvapWorldtubePoint(u,v),surfaceMat);worldtubeSurface.name='continuous Schwarzschild evaporation worldtube · r_s proportional to M';bhtGroup.add(worldtubeSurface);
+    const centre=[];for(let i=0;i<=96;i++){const u=i/96,p=bhtEvapWorldtubePoint(u,0);p.y=.06+.24*Math.sin(Math.PI*u);p.z=0;centre.push(p);}worldline=scientificTube(centre,SCI_GOLD,.006,.34,false,128);bhtGroup.add(worldline);
+    for(let k=0;k<=8;k++){const u=k/8,ring=[];for(let i=0;i<=72;i++)ring.push(bhtEvapWorldtubePoint(u,i/72,1.012));const line=scientificTube(ring,k===0||k===8?SCI_GOLD:0x7eb6cd,.006,k===0||k===8?.48:.18,true,88);bhtGroup.add(line);worldtubeRings.push(line);}
+    for(let k=0;k<4;k++){const meridian=[];for(let i=0;i<=96;i++)meridian.push(bhtEvapWorldtubePoint(i/96,k/4,1.014));const line=scientificTube(meridian,k===0?SCI_GOLD:0x789db2,.004,k===0?.34:.13,false,128);bhtGroup.add(line);worldtubeRings.push(line);}
+    worldtubeMarker=new THREE.Mesh(new THREE.TorusGeometry(1,.012,6,72),new THREE.MeshBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.92,depthTest:true,depthWrite:false}));worldtubeMarker.rotation.y=Math.PI/2;worldtubeMarker.renderOrder=6;bhtGroup.add(worldtubeMarker);
+    const lab=mkLabel('SCHWARZSCHILD EVAPORATION WORLDTUBE · continuous horizon family · M/M₀=(1−t/t_evap)¹ᐟ³ · endpoint excluded','label axis');lab.position.set(0,2.72,0);bhtGroup.add(lab);
   }else if(station==='radiation'){
     radiationRoot=new THREE.Group();radiationRoot.name='deterministic Schwarzschild thermal field · mass-temperature-lifetime constellation';bhtGroup.add(radiationRoot);
     for(let i=0;i<7;i++){const w=new THREE.Mesh(new THREE.SphereGeometry(1,32,20),new THREE.MeshBasicMaterial({color:i%2?0x78bde0:SCI_GOLD,wireframe:true,transparent:true,opacity:.10,depthWrite:false,blending:THREE.NormalBlending}));world.add(w);wavefronts.push(w);}
@@ -15202,28 +15217,29 @@ function bhtSetup(){
   }else{const lab=mkLabel('KERR HORIZON · black surface r₊ · blue-gold ergosurface · cells sample area/entropy · ribbons encode frame dragging','label axis');lab.position.set(0,3.0,0);bhtGroup.add(lab);}
   const stationTitle=station==='evaporation'?'Schwarzschild evaporation worldtube':station==='radiation'?'Schwarzschild radiation reference':'Kerr horizon geometry';
   const tl=mkLabel('BLACK-HOLE THERMODYNAMICS · '+stationTitle,'label const','bhtAtlas');tl.position.set(0,3.65,0);bhtGroup.add(tl);const rl=mkLabel('','label dim');rl.position.set(0,-3.5,0);bhtGroup.add(rl);
-  bhtObjs={station,world,bh,shell,ergo,halo,halo2,cells,drag,flux,readLab:rl,worldline,worldlineBeads,radiationRoot,wavefronts,massMarker,massLadder,radiationPrimed:false};bhtApplyScale();
+  bhtObjs={station,world,bh,shell,ergo,halo,halo2,cells,drag,flux,readLab:rl,worldline,worldtubeSurface,worldtubeMarker,worldtubeRings,radiationRoot,wavefronts,massMarker,massLadder,radiationPrimed:false};bhtApplyScale();
 }
 function bhtApplyScale(){
   const O=bhtObjs;if(!O)return;const chi=O.station==='horizon'?(state.bhtSpin??0):0,K=bhtKerr(bhtM,chi),R=bhtRadius(bhtM),polar=.64+.36*K.q,ergoEq=2/(1+K.q);
   O.bh.scale.set(R,R*polar,R);O.shell.scale.copy(O.bh.scale);O.cells.scale.copy(O.bh.scale);O.ergo.scale.set(R*ergoEq,R*polar,R*ergoEq);O.ergo.visible=O.station==='horizon'&&chi>.005;
   O.halo.scale.setScalar(R*(O.station==='radiation'?4.25:3.25));O.halo2.scale.setScalar(R*(O.station==='radiation'?5.4:4.0));O.halo.material.opacity=O.station==='radiation'?.48:.16;O.halo2.material.opacity=O.station==='radiation'?.20:.07;
-  const col=bhtColor(K.TH);O.flux.visible=O.station!=='horizon';O.flux.material.color.setHex(SCI_GOLD);
+  const col=bhtColor(K.TH);O.flux.visible=O.station==='radiation';O.flux.material.color.setHex(SCI_GOLD);
   if(O.station!=='horizon'){O.shell.material.color.copy(col);O.cells.material.emissive.copy(col).multiplyScalar(.34);}else{O.shell.material.color.setHex(SCI_GOLD);O.cells.material.emissive.setHex(0x6f5530);}
   for(const l of O.drag){l.material.opacity=chi>.005?.035+.32*chi:.012;l.visible=O.station==='horizon'&&chi>.005;}
+  if(O.worldtubeMarker){const f=THREE.MathUtils.clamp(bhtEvapProg/.985,0,1),p=bhtEvapWorldtubePoint(f,0),r=1.16*Math.pow(Math.max(.015,1-bhtEvapProg),1/3);O.worldtubeMarker.position.set(p.x,.06+.24*Math.sin(Math.PI*f),0);O.worldtubeMarker.scale.setScalar(r*1.018);}
   if(O.massMarker&&O.massLadder){const u=THREE.MathUtils.clamp((Math.log10(bhtM)-11)/31,0,1),x=u*(O.massLadder.pts.length-1),i=Math.min(O.massLadder.pts.length-2,Math.floor(x));O.massMarker.position.copy(O.massLadder.pts[i]).lerp(O.massLadder.pts[i+1],x-i);}
   if(O.station==='radiation')O.radiationPrimed=false;
 }
 function updateBht(dt){
   const O=bhtObjs; if(!O) return;
-  const radiationRunning=O.station!=='radiation'||state.bhtRadiationRun!==false;
-  const radiationFrame=radiationRunning||O.radiationPrimed!==true;
+  const radiationRunning=O.station==='radiation'&&state.bhtRadiationRun!==false;
+  const radiationFrame=O.station==='radiation'&&(radiationRunning||O.radiationPrimed!==true);
   if(radiationRunning)bhtT+=dt*(state.bhtSpeed??1);
   if(state.bhtEvap&&O.station==='evaporation'){bhtEvapProg+=dt*(state.bhtSpeed??1)*.035;bhtEvapProg=Math.min(.985,bhtEvapProg);state.bhtEvapProgress=bhtEvapProg;bhtM=bhtM0*Math.pow(1-bhtEvapProg,1/3);if(bhtEvapProg>=.985)state.bhtEvap=false;bhtApplyScale();}
   const chi=O.station==='horizon'?(state.bhtSpin??0):0,K=bhtKerr(bhtM,chi),TH=K.TH,R=bhtRadius(bhtM),rate=Math.min(1,Math.max(.03,(Math.log10(Math.max(1e-30,TH))+20)/34)),dummy=new THREE.Object3D();
   if(O.flux.visible&&radiationFrame){for(let i=0;i<bhtPairs.length;i++){const p=bhtPairs[i],u=(p.phase+bhtT*.045*(.4+rate))%1,rr=R*(1.08+2.45*u);dummy.position.copy(p.dir).multiplyScalar(rr);dummy.scale.setScalar(.42+.7*(1-u));dummy.updateMatrix();O.flux.setMatrixAt(i,dummy.matrix);}O.flux.instanceMatrix.needsUpdate=true;}
   if(O.station==='radiation'&&radiationFrame){O.wavefronts.forEach((w,i)=>{const u=(bhtT*.085+i/O.wavefronts.length)%1,s=R*(1.08+2.7*u);w.scale.setScalar(s);w.material.opacity=.13*Math.pow(1-u,1.6);});if(O.massMarker)O.massMarker.scale.setScalar(1+.10*Math.sin(bhtT*1.7));O.halo.material.rotation=bhtT*.015;O.halo2.material.rotation=-bhtT*.009;O.radiationPrimed=true;}
-  O.world.rotation.y+=dt*.018*chi;O.drag.forEach((l,i)=>l.rotation.y+=dt*chi*(.015+.002*i));
+  if(O.station==='horizon'&&chi>.005){O.world.rotation.y+=dt*.018*chi;O.drag.forEach((l,i)=>l.rotation.y+=dt*chi*(.015+.002*i));}
   bhtUiAcc+=dt; if(bhtUiAcc>0.2){ bhtUiAcc=0;
     const S=bhtS(bhtM,chi), L=bhtLum(bhtM), tev=bhtEvapYr(bhtM), Rs=bhtRs(bhtM);
     const nm=Math.abs(bhtM/BHT_MSUN-1)<0.01?'1 M☉':bhtM>=BHT_MSUN?(bhtM/BHT_MSUN).toExponential(2)+' M☉':(bhtM)+' kg';
@@ -18721,7 +18737,10 @@ function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,in
         float a=uOpacity*(.10+.68*rim+.12*filament);
         gl_FragColor=vec4(col*(.34+.82*rim+.16*filament)*min(uIntensity,1.28),min(.50,a));}
     `});
-  m.userData.scientificFresnel=true;return m;
+  /* Three.js otherwise renders transparent DoubleSide materials twice. The
+     scientific field is deliberately thin and symmetric, so one pass removes
+     redundant overdraw and the mobile depth-sorting flash it can create. */
+  m.forceSinglePass=true;m.userData.scientificFresnel=true;return m;
 }
 function scientificCurve(points,closed=false){
   const pts=[];for(const p of points||[]){const v=p?.isVector3?p.clone():new THREE.Vector3(...p);if(!Number.isFinite(v.x+v.y+v.z))continue;if(!pts.length||v.distanceToSquared(pts[pts.length-1])>1e-10)pts.push(v);}
@@ -18760,14 +18779,14 @@ function scientificReplaceRibbon(mesh,points,closed=mesh?.userData?.scientificRi
 }
 function scientificFlow(points,count=48,color=SCI_CYAN,size=.045,closed=true){
   const n=Math.min(count,MOBILE_GPU?10:18),inst=new THREE.InstancedMesh(new THREE.IcosahedronGeometry(size*.38,1),new THREE.MeshBasicMaterial({color,transparent:true,opacity:.22,depthWrite:false,blending:THREE.NormalBlending}),n);
-  const tracer=scientificCrystal(0xffffff,Math.max(.045,size*.88));tracer.scale.setScalar(.74);tracer.traverse(o=>{if(o.material){o.material.depthTest=false;o.renderOrder=18;}});inst.add(tracer);
-  inst.frustumCulled=false;inst.renderOrder=6;inst.userData.scientificFlow={curve:null,count:n,closed,speed:.08,seed:.173,tmp:new THREE.Object3D(),tracer};scientificSetFlowPath(inst,points,closed);return inst;
+  const tracer=scientificCrystal(0xffffff,Math.max(.045,size*.88));tracer.scale.setScalar(.74);tracer.traverse(o=>{if(o.material){o.material.depthTest=true;o.material.depthWrite=false;o.renderOrder=7;}});inst.add(tracer);
+  inst.frustumCulled=false;inst.renderOrder=6;inst.userData.scientificFlow={curve:null,count:n,closed,speed:.08,seed:.173,tmp:new THREE.Object3D(),tracer,lastUploadMs:-Infinity};scientificSetFlowPath(inst,points,closed);return inst;
 }
 function scientificSetFlowPath(flow,points,closed=flow?.userData?.scientificFlow?.closed||false){
-  if(!flow)return;const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),q=scientificCurve(pts,closed);flow.visible=!!q.curve;flow.userData.scientificFlow.curve=q.curve;flow.userData.scientificFlow.closed=q.closed;
+  if(!flow)return;const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),q=scientificCurve(pts,closed);flow.visible=!!q.curve;flow.userData.scientificFlow.curve=q.curve;flow.userData.scientificFlow.closed=q.closed;if(q.curve)scientificUpdateFlow(flow,0,0,true);
 }
-function scientificUpdateFlow(flow,time,speed){
-  const d=flow?.userData?.scientificFlow,c=d?.curve;if(!c||!flow.visible)return;const o=d.tmp,n=d.count;
+function scientificUpdateFlow(flow,time,speed,force=false){
+  const d=flow?.userData?.scientificFlow,c=d?.curve;if(!c||!flow.visible)return;const now=typeof performance!=='undefined'&&performance.now?performance.now():time*1000;if(MOBILE_GPU&&!force&&now-d.lastUploadMs<42)return;d.lastUploadMs=now;const o=d.tmp,n=d.count;
   for(let i=0;i<n;i++){const raw=(i/n)+time*(speed??d.speed)+d.seed,u=((raw%1)+1)%1,p=c.getPointAt(u),s=.45+.46*Math.pow(Math.sin(Math.PI*((u*3+i*.17)%1)),2);o.position.copy(p);o.scale.setScalar(s);o.rotation.set(time*.4+i,time*.27-i*.3,0);o.updateMatrix();flow.setMatrixAt(i,o.matrix);}flow.instanceMatrix.needsUpdate=true;
   if(d.tracer){const u=((time*(speed??d.speed)+d.seed)%1+1)%1;d.tracer.position.copy(c.getPointAt(u));}
 }
@@ -18777,6 +18796,7 @@ function scientificCrystal(color=SCI_GOLD,scale=.22){
   const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:scientificGlowTexture(),color,transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));halo.scale.setScalar(scale*3.1);root.add(halo,body,core);root.userData.body=body;root.userData.core=core;root.userData.halo=halo;return root;
 }
 function scientificParametricSurface(uSeg,vSeg,fn,material){
+  uSeg=Math.max(12,Math.floor(MOBILE_GPU?Math.min(uSeg,56):uSeg));vSeg=Math.max(8,Math.floor(MOBILE_GPU?Math.min(vSeg,18):vSeg));
   const pos=[],uv=[],idx=[];for(let j=0;j<=vSeg;j++)for(let i=0;i<=uSeg;i++){const u=i/uSeg,v=j/vSeg,p=fn(u,v);pos.push(p.x,p.y,p.z);uv.push(u,v);}for(let j=0;j<vSeg;j++)for(let i=0;i<uSeg;i++){const a=j*(uSeg+1)+i,b=a+1,c=a+uSeg+1,d=c+1;idx.push(a,c,b,b,c,d);}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();g.computeBoundingSphere();return new THREE.Mesh(g,material);
 }
@@ -18788,7 +18808,12 @@ function scientificContactPlanes(points,color=SCI_VIOLET,size=.24){
   const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),g=new THREE.CircleGeometry(size,6),m=scientificFresnelMaterial(color,SCI_GOLD,.18,.72),inst=new THREE.InstancedMesh(g,m,pts.length),o=new THREE.Object3D(),z=new THREE.Vector3(0,0,1),centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/Math.max(1,pts.length));
   pts.forEach((p,i)=>{const n=p.clone().sub(centre);if(n.lengthSq()<1e-8)n.set(0,1,0);n.normalize();const tangent=new THREE.Vector3(-n.y,n.x,.35*Math.sin(i*.7)).normalize();o.position.copy(p);o.quaternion.setFromUnitVectors(z,tangent);o.scale.set(1,.38,1);o.updateMatrix();inst.setMatrixAt(i,o.matrix);});inst.instanceMatrix.needsUpdate=true;inst.frustumCulled=false;return inst;
 }
-function scientificUpdateMaterials(root,time){if(!root?.visible)return;root.traverse?.(o=>{if(o.material?.userData?.scientificFresnel)o.material.uniforms.uTime.value=time;});}
+function scientificUpdateMaterials(root,time){
+  /* Stable object-space Fresnel shaders do not consume uTime. Keep the call
+     surface for station compatibility, but never traverse an entire lab per
+     animation frame to upload a uniform that cannot affect a pixel. */
+  return;
+}
 
 /* ================================================================
    SYMMETRY DISCOVERY CHAMBER — finite-orbit invariant stress tests.
@@ -18869,7 +18894,7 @@ const SYD_WORLDS={
     points:s=>s.z.map(z=>sydStereo(z).multiplyScalar(1.82).add(new THREE.Vector3(-2,0,0))),
     contract:'A determinant-one fractional-linear family acts on the Riemann sphere; the four-point cross-ratio is exact.'}
 };
-const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,orbitRibbon:null,orbitFlow:null,markers:[],baseMarkers:[],candidateTubes:[],fieldRoot:null,probe:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
+const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,orbitRibbon:null,orbitFlow:null,markers:[],baseMarkers:[],candidateTubes:[],fieldRoot:null,probe:null,link:null,title:null,sub:null,time:0,ui:0,motionAcc:0,lastScan:null,geometryKey:'',exactPoints:[]};
 const sydFlat=v=>Array.isArray(v)?v.map(Number):[Number(v)];
 function sydScan(worldId=state.sydWorld||'rotation',br=state.sydBreak??0,samples=65){
   const W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,base=W.state(0,br),out=[];
@@ -18917,7 +18942,7 @@ function sydGuide(world){
   }
 }
 function sydSetup(){
-  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.candidateTubes=[];SYD.time=0;sydGuide(world);
+  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.candidateTubes=[];SYD.time=0;SYD.motionAcc=0;SYD.geometryKey='';SYD.exactPoints=[];sydGuide(world);
   sydGroup.add(new THREE.AmbientLight(0x5d719c,.62));const key=new THREE.DirectionalLight(0xe8f7ff,1.15);key.position.set(5,8,7);sydGroup.add(key);const rim=new THREE.PointLight(0xffc971,2.4,14,2);rim.position.set(-3,2,3);sydGroup.add(rim);
   const W=SYD_WORLDS[world],closed=!!W.closed;
   SYD.orbitRibbon=scientificRibbon([],world==='mobius'?.22:.18,SCI_CYAN,.25,closed);SYD.orbitExact=scientificTube([],SCI_CYAN,.065,.94,closed,196);SYD.orbitBroken=scientificTube([],SCI_CORAL,.05,.9,closed,196);SYD.orbitFlow=scientificFlow([],MOBILE_GPU?36:72,SCI_CYAN,.045,closed);sydGroup.add(SYD.orbitRibbon,SYD.orbitExact,SYD.orbitBroken,SYD.orbitFlow);
@@ -18929,23 +18954,25 @@ function sydSetup(){
   sydRender();
 }
 function sydRender(){
-  if(!SYD.built)return;const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5,exact=[],broken=[];
-  for(let i=0;i<=96;i++){exact.push(sydVisualPoints(W,W.state(i/96,0))[0]);broken.push(sydVisualPoints(W,W.state(i/96,br))[0]);}
-  scientificReplaceTube(SYD.orbitExact,exact,!!W.closed);scientificReplaceRibbon(SYD.orbitRibbon,exact,!!W.closed);scientificSetFlowPath(SYD.orbitFlow,exact,!!W.closed);scientificReplaceTube(SYD.orbitBroken,broken,!!W.closed);SYD.orbitBroken.visible=br>1e-8;
+  if(!SYD.built)return;const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5,geometryKey=[world,br,state.sydTolLog??-9].join('|');
+  if(geometryKey!==SYD.geometryKey){
+    const exact=[],broken=[];for(let i=0;i<=96;i++){exact.push(sydVisualPoints(W,W.state(i/96,0))[0]);broken.push(sydVisualPoints(W,W.state(i/96,br))[0]);}
+    scientificReplaceTube(SYD.orbitExact,exact,!!W.closed);scientificReplaceRibbon(SYD.orbitRibbon,exact,!!W.closed);scientificSetFlowPath(SYD.orbitFlow,exact,!!W.closed);scientificReplaceTube(SYD.orbitBroken,broken,!!W.closed);SYD.orbitBroken.visible=br>1e-8;
+    const D=sydDiagnostics(world,br),tol=D.tolerance,centre=exact.reduce((a,q)=>a.add(q),new THREE.Vector3()).multiplyScalar(1/Math.max(1,exact.length));SYD.lastScan=D;SYD.exactPoints=exact;
+    D.candidate_library.forEach((r,i)=>{const pass=r.residual<=tol,norm=pass?0:Math.min(1,Math.log10(1+r.residual/Math.max(tol,1e-16))/8),phase=i*Math.PI*.5,braid=exact.map((q,j)=>{const u=j/Math.max(1,exact.length-1),rad=q.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(Math.cos(phase),Math.sin(phase),.4);rad.normalize();const tangent=exact[Math.min(exact.length-1,j+1)].clone().sub(exact[Math.max(0,j-1)]).normalize(),side=new THREE.Vector3().crossVectors(tangent,rad);if(side.lengthSq()<1e-7)side.set(0,0,1);side.normalize();const weave=.11*Math.sin(6.2831853*(u*2+i*.25)),failure=norm*(.16+.5*Math.pow(Math.sin(Math.PI*u),2))*Math.sin((3+i)*6.2831853*u+phase);return q.clone().addScaledVector(rad,.13+i*.025+weave).addScaledVector(side,failure);}),tube=SYD.candidateTubes[i],c=pass?[SCI_GOLD,SCI_MINT,SCI_CYAN,SCI_VIOLET][i]:SCI_CORAL;tube.material.color.setHex(c);tube.material.emissive.setHex(c);tube.material.opacity=pass?.74:.86;scientificReplaceTube(tube,braid,!!W.closed);});
+    SYD.geometryKey=geometryKey;
+  }
   const cur=sydVisualPoints(W,W.state(p,br)),base=sydVisualPoints(W,W.state(.5,0));
   for(let i=0;i<4;i++){const on=i<cur.length;SYD.markers[i].visible=SYD.baseMarkers[i].visible=on;if(on){SYD.markers[i].position.copy(cur[i]);SYD.baseMarkers[i].position.copy(base[Math.min(i,base.length-1)]);}}
   if(cur[0]&&base[0])scientificReplaceTube(SYD.link,[base[0],cur[0]],false);if(cur[0])SYD.probe.position.copy(cur[0]);
-  const D=sydDiagnostics(world,br),tol=D.tolerance;SYD.lastScan=D;
-  const centre=exact.reduce((a,q)=>a.add(q),new THREE.Vector3()).multiplyScalar(1/Math.max(1,exact.length));
-  D.candidate_library.forEach((r,i)=>{const pass=r.residual<=tol,norm=pass?0:Math.min(1,Math.log10(1+r.residual/Math.max(tol,1e-16))/8),phase=i*Math.PI*.5,braid=exact.map((q,j)=>{const u=j/Math.max(1,exact.length-1),rad=q.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(Math.cos(phase),Math.sin(phase),.4);rad.normalize();const tangent=exact[Math.min(exact.length-1,j+1)].clone().sub(exact[Math.max(0,j-1)]).normalize(),side=new THREE.Vector3().crossVectors(tangent,rad);if(side.lengthSq()<1e-7)side.set(0,0,1);side.normalize();const weave=.11*Math.sin(6.2831853*(u*2+i*.25)),failure=norm*(.16+.5*Math.pow(Math.sin(Math.PI*u),2))*Math.sin((3+i)*6.2831853*u+phase);return q.clone().addScaledVector(rad,.13+i*.025+weave).addScaledVector(side,failure);});const tube=SYD.candidateTubes[i],c=pass?[SCI_GOLD,SCI_MINT,SCI_CYAN,SCI_VIOLET][i]:SCI_CORAL;tube.material.color.setHex(c);tube.material.emissive.setHex(c);tube.material.opacity=pass?.74:.86;scientificReplaceTube(tube,braid,!!W.closed);});
-  SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} candidates below ${tol.toExponential(0)}`;
+  const D=SYD.lastScan||sydDiagnostics(world,br);SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} candidates below ${D.tolerance.toExponential(0)}`;
 }
 function sydPanelHTML(){
   const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],D=sydDiagnostics(world,state.sydBreak??0),tol=D.tolerance,a=W.state(state.sydParam??.5,state.sydBreak??0).a;
   return `<div class="sect" style="border-color:rgba(98,232,255,.42);background:linear-gradient(135deg,rgba(29,89,117,.22),rgba(126,66,151,.13))"><b style="color:#bdefff">⌬ ${TT('SYMMETRY DISCOVERY CHAMBER','КАМЕРА ОТКРЫТИЯ СИММЕТРИЙ','SYMMETRIE-ENTDECKUNGSKAMMER')}</b>
     <div class="small" style="margin-top:4px">${TT('Five exact group actions · twenty candidate observables · nine known invariants · one falsification instrument.','Пять точных групповых действий · двадцать наблюдаемых-кандидатов · девять известных инвариантов · один инструмент фальсификации.','Fünf exakte Gruppenwirkungen · zwanzig Kandidaten · neun bekannte Invarianten · ein Falsifikationsinstrument.')}</div>
     <div class="note" style="margin-top:6px;color:#ffd58a">${TT('A passing finite scan is numerical evidence inside this declared orbit—not a universal proof, learned law, or exhaustive search.','Успешный конечный скан — численное свидетельство внутри объявленной орбиты, а не универсальное доказательство, обученный закон или исчерпывающий поиск.','Ein bestandener endlicher Scan ist numerische Evidenz in dieser Bahn — kein universeller Beweis oder vollständige Suche.')}</div></div>
-  <div class="sect"><b>${TT('TRANSFORMATION SPACE','ПРОСТРАНСТВО ПРЕОБРАЗОВАНИЙ','TRANSFORMATIONSRAUM')}</b><div class="chips">${Object.entries(SYD_WORLDS).map(([k,v])=>`<button class="chip ${world===k?'on':''}" data-syd-world="${k}">${esc(sydLang(v.t))}</button>`).join('')}</div>
+  <div class="sect"><b>${TT('TRANSFORMATION SPACE','ПРОСТРАНСТВО ПРЕОБРАЗОВАНИЙ','TRANSFORMATIONSRAUM')}</b><div class="chips stationSelector">${Object.entries(SYD_WORLDS).map(([k,v])=>`<button class="chip ${world===k?'on':''}" data-syd-world="${k}">${esc(sydLang(v.t))}</button>`).join('')}</div>
     <div class="ctlrow"><button class="btn green" id="sydRun">${state.sydRun!==false?'⏸ '+TT('pause sweep','пауза','Sweep pausieren'):'▶ '+TT('sweep orbit','сканировать орбиту','Bahn durchlaufen')}</button><button class="btn" id="sydReset">↺</button>
       <label>${TT('speed','скорость','Tempo')}</label><input id="sydSpeed" type="range" min="0.15" max="2.5" step="0.05" value="${state.sydSpeed??.65}"><span class="val" id="sydSpeedV">×${(state.sydSpeed??.65).toFixed(2)}</span></div>
     <div class="ctlrow"><label>${W.param}</label><input id="sydParam" type="range" min="0" max="1" step="0.001" value="${state.sydParam??.5}" data-no-osc><span class="val" id="sydParamV">${a.toFixed(3)} ${W.unit}</span></div>
@@ -18972,8 +18999,8 @@ function bindSydControls(root=ctl){
   const cmp=root.querySelector('#sydCompare');if(cmp)cmp.onclick=sydCompare;const exp=root.querySelector('#sydExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_symmetry_discovery.json','application/json',JSON.stringify(sydExportData(),null,2));
 }
 function updateSyd(dt){
-  if(!SYD.built)return;SYD.time+=dt;if(state.sydRun!==false&&!PREFERS_REDUCED_MOTION){state.sydParam=(state.sydParam+dt*.075*(state.sydSpeed??.65))%1;sydRender();}
-  const W=SYD_WORLDS[state.sydWorld||'rotation'];scientificUpdateFlow(SYD.orbitFlow,SYD.time,.035+(state.sydSpeed??.65)*.035);scientificUpdateMaterials(sydGroup,SYD.time);SYD.probe?.userData?.body?.rotation.set(SYD.time*.42,SYD.time*.68,SYD.time*.21);SYD.markers.forEach((m,i)=>m.userData?.body&&m.userData.body.rotation.set(SYD.time*.25+i,SYD.time*.41-i*.3,0));
+  if(!SYD.built)return;const running=state.sydRun===true&&!PREFERS_REDUCED_MOTION;if(running){SYD.time+=dt;SYD.motionAcc+=dt;state.sydParam=(state.sydParam+dt*.075*(state.sydSpeed??.65))%1;if(!MOBILE_GPU||SYD.motionAcc>=1/30){SYD.motionAcc=0;sydRender();}scientificUpdateFlow(SYD.orbitFlow,SYD.time,.035+(state.sydSpeed??.65)*.035);SYD.probe?.userData?.body?.rotation.set(SYD.time*.42,SYD.time*.68,SYD.time*.21);SYD.markers.forEach((m,i)=>m.userData?.body&&m.userData.body.rotation.set(SYD.time*.25+i,SYD.time*.41-i*.3,0));}
+  const W=SYD_WORLDS[state.sydWorld||'rotation'];
   SYD.ui+=dt;if(SYD.ui>.22){SYD.ui=0;const D=SYD.lastScan||sydDiagnostics();hudBig.textContent=`SYMMETRY DISCOVERY · ${sydLang(W.t)} · ${D.discovered.length}/${D.candidate_library.length} candidates stable`;
     hudSub.textContent=`65-point deterministic orbit · tolerance ${D.tolerance.toExponential(0)} · ε_break=${(state.sydBreak??0).toFixed(3)} · finite-orbit evidence, never a universal proof`;
     ATLAS_BUS.pub('syd.discovered',D.discovered.length,'candidate(s)');ATLAS_BUS.pub('syd.bestResidual',Math.min(...D.candidate_library.map(r=>r.residual)),'normalized drift');
@@ -19143,7 +19170,7 @@ function holPanelHTML(){
   return `<div class="sect" style="border-color:rgba(98,232,255,.42);background:linear-gradient(135deg,rgba(18,91,122,.24),rgba(104,54,147,.16))"><b style="color:#bdefff">⌁ ${TT('HOLONOMY OBSERVATORY','ОБСЕРВАТОРИЯ ГОЛОНОМИИ','HOLONOMIE-OBSERVATORIUM')}</b>
     <div class="small" style="margin-top:4px">${TT('One closed-journey lens across curvature, quantum phase, non-Abelian order, relativity and Möbius monodromy.','Одна оптика замкнутого пути для кривизны, квантовой фазы, неабелева порядка, относительности и монодромии Мёбиуса.','Ein Blick auf geschlossene Wege: Krümmung, Quantenphase, nichtabelsche Ordnung, Relativität und Möbius-Monodromie.')}</div>
     <div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: exact inside each declared model; finite checks stay finite; structural similarity never means physical identity or experimental discovery.','Барьер: точность действует внутри каждой объявленной модели; конечная проверка остаётся конечной; структурное сходство не означает физическую тождественность или экспериментальное открытие.','Firewall: exakt im deklarierten Modell; endliche Prüfungen bleiben endlich; strukturelle Ähnlichkeit bedeutet keine physikalische Identität.')}</div></div>
-  <div class="sect"><b>${TT('CLOSED-JOURNEY STATION','СТАНЦИЯ ЗАМКНУТОГО ПУТИ','STATION DES GESCHLOSSENEN WEGS')}</b><div class="chips">${Object.entries(HOL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-hol-station="${k}">${esc(holLang(v.t))}</button>`).join('')}</div>
+  <div class="sect"><b>${TT('CLOSED-JOURNEY STATION','СТАНЦИЯ ЗАМКНУТОГО ПУТИ','STATION DES GESCHLOSSENEN WEGS')}</b><div class="chips stationSelector">${Object.entries(HOL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-hol-station="${k}">${esc(holLang(v.t))}</button>`).join('')}</div>
     <div class="ctlrow"><button class="btn green" id="holRun">${state.holRun!==false?'⏸ '+TT('pause transport','пауза переноса','Transport pausieren'):'▶ '+TT('run transport','запустить перенос','Transport starten')}</button><button class="btn" id="holReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="holSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.holSpeed??.55}"><span class="val" id="holSpeedV">×${(state.holSpeed??.55).toFixed(2)}</span></div>
     <div class="ctlrow"><label>${esc(holLang(S.p1))}</label><input id="holA" data-no-osc type="range" min="0" max="1" step="0.001" value="${state.holA??.55}"><span class="val" id="holAV">${esc(D.parameters[0].display)}</span></div>
     <div class="ctlrow"><label>${esc(holLang(S.p2))}</label><input id="holB" data-no-osc type="range" min="0" max="1" step="0.001" value="${state.holB??.65}"><span class="val" id="holBV">${esc(D.parameters[1].display)}</span></div></div>
@@ -19163,7 +19190,7 @@ function bindHolControls(root=ctl){
   const speed=root.querySelector('#holSpeed');if(speed)speed.oninput=e=>{state.holSpeed=+e.target.value;const v=root.querySelector('#holSpeedV');if(v)v.textContent='×'+state.holSpeed.toFixed(2);};const cmp=root.querySelector('#holCompare');if(cmp)cmp.onclick=holCompare;const exp=root.querySelector('#holExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_holonomy_observatory.json','application/json',JSON.stringify(holExportData(),null,2));
 }
 function updateHol(dt){
-  if(!HOL.built)return;HOL.time+=dt;if(state.holRun!==false&&!PREFERS_REDUCED_MOTION){state.holProgress=(state.holProgress+dt*.085*(state.holSpeed??.55))%1;holSetProgress();}scientificUpdateFlow(HOL.flowA,HOL.time,.04+(state.holSpeed??.55)*.035);scientificUpdateFlow(HOL.flowB,HOL.time,-.032-(state.holSpeed??.55)*.025);scientificUpdateMaterials(holGroup,HOL.time);HOL.probe?.userData?.body?.rotation.set(HOL.time*.32,HOL.time*.51,HOL.time*.17);
+  if(!HOL.built)return;const running=state.holRun===true&&!PREFERS_REDUCED_MOTION;if(running){HOL.time+=dt;state.holProgress=(state.holProgress+dt*.085*(state.holSpeed??.55))%1;holSetProgress();scientificUpdateFlow(HOL.flowA,HOL.time,.04+(state.holSpeed??.55)*.035);scientificUpdateFlow(HOL.flowB,HOL.time,-.032-(state.holSpeed??.55)*.025);HOL.probe?.userData?.body?.rotation.set(HOL.time*.32,HOL.time*.51,HOL.time*.17);}
   HOL.ui+=dt;if(HOL.ui>.22){HOL.ui=0;const D=HOL.last||holDiagnostics();hudBig.textContent=`HOLONOMY OBSERVATORY · ${D.title} · ${D.pass?'closure verified':'inspect residual'}`;hudSub.textContent=`return phase ${D.phase.toFixed(6)} rad · residual ${D.residual.toExponential(2)} · exact only inside the declared station contract`;ATLAS_BUS.pub('hol.phase',+D.phase.toFixed(9),'rad');ATLAS_BUS.pub('hol.residual',D.residual,'closure');if(Number.isFinite(D.trace))ATLAS_BUS.pub('hol.trace',+D.trace.toFixed(9),'normalized trace');}
 }
 
@@ -19303,7 +19330,7 @@ function actReadoutsHTML(D){return D.readouts.map(r=>`<div class="note" style="m
 function actPanelHTML(){
   const station=state.actStation||'reeb',S=ACT_STATIONS[station],D=actDiagnostics(),retPresets=station==='return'?`<div class="chips" style="margin-top:5px"><button class="chip" data-act-preset="0.2222222222|0.2222222222">1:1</button><button class="chip" data-act-preset="0.2222222222|0.5">b/a=3/2</button><button class="chip" data-act-preset="0.2222222222|0.5925925926">b/a=5/3</button><button class="chip" data-act-preset="0.2222222222|0.5655737201">b/a=φ · ${TT('irrational','иррационально','irrational')}</button></div>`:'';
   return `<div class="sect" style="border-color:rgba(85,232,196,.43);background:linear-gradient(135deg,rgba(18,112,98,.23),rgba(87,49,141,.17))"><b style="color:#bfffee">∮ ${TT('CONTACT & ACTION OBSERVATORY','ОБСЕРВАТОРИЯ КОНТАКТА И ДЕЙСТВИЯ','KONTAKT- & WIRKUNGSOBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact bridge from the S³ energy shell to Reeb motion, Poincaré return, Legendrian geometry, collision regularization and quantum phase.','Один точный мост от энергетической S³ к движению Риба, возврату Пуанкаре, легендровой геометрии, регуляризации столкновения и квантовой фазе.','Eine exakte Brücke von der S³-Energiefläche zu Reeb-Fluss, Poincaré-Rückkehr, Legendrescher Geometrie, Kollisionsregularisierung und Quantenphase.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated in the declared mathematical station before 3D projection; no finite residual proves a general theorem or new physical effect.','Барьер: все инварианты вычисляются в объявленной математической станции до 3D-проекции; конечная невязка не доказывает общую теорему или новый физический эффект.','Firewall: Alle Invarianten werden vor der 3D-Projektion im deklarierten Modell ausgewertet; kein endlicher Rest beweist einen allgemeinen Satz.')}</div></div>
-  <div class="sect"><b>${TT('ACTION STATION','СТАНЦИЯ ДЕЙСТВИЯ','WIRKUNGSSTATION')}</b><div class="chips">${Object.entries(ACT_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-act-station="${k}">${esc(actLang(v.t))}</button>`).join('')}</div>${retPresets}<div class="ctlrow"><button class="btn green" id="actRun">${state.actRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="actReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="actSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.actSpeed??.52}"><span class="val" id="actSpeedV">×${(state.actSpeed??.52).toFixed(2)}</span></div>
+  <div class="sect"><b>${TT('ACTION STATION','СТАНЦИЯ ДЕЙСТВИЯ','WIRKUNGSSTATION')}</b><div class="chips stationSelector">${Object.entries(ACT_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-act-station="${k}">${esc(actLang(v.t))}</button>`).join('')}</div>${retPresets}<div class="ctlrow"><button class="btn green" id="actRun">${state.actRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="actReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="actSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.actSpeed??.52}"><span class="val" id="actSpeedV">×${(state.actSpeed??.52).toFixed(2)}</span></div>
     <div class="ctlrow"><label>${esc(actLang(S.p1))}</label><input id="actA" data-no-osc type="range" min="0" max="1" step="0.0001" value="${state.actA??.55}"><span class="val" id="actAV">${esc(D.parameters[0].display)}</span></div><div class="ctlrow"><label>${esc(actLang(S.p2))}</label><input id="actB" data-no-osc type="range" min="0" max="1" step="0.0001" value="${state.actB??.42}"><span class="val" id="actBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('CONTACT / ACTION PASSPORT','ПАСПОРТ КОНТАКТА / ДЕЙСТВИЯ','KONTAKT- / WIRKUNGSPASS')}</b><div id="actReadouts">${actReadoutsHTML(D)}</div><div id="actOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div></div>
   <div class="sect"><b>${TT('SCOPE CONTRACT','КОНТРАКТ ОБЛАСТИ','GELTUNGSVERTRAG')}</b><div class="note">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:var(--dim)">${esc(S.caveat)}</div></div><div class="sect"><b>${TT('COMPOSE & EXPORT','СОПОСТАВИТЬ И ЭКСПОРТИРОВАТЬ','VERGLEICHEN & EXPORTIEREN')}</b><div class="ctlrow"><button class="btn" id="actCompare">◱ ${TT('open exact bridges in Multiview','открыть точные мосты в Multiview','exakte Brücken in Multiview')}</button><button class="btn" id="actExport">⬇ JSON</button></div></div>`;
@@ -19314,7 +19341,7 @@ function bindActControls(root=ctl){
   root.querySelectorAll('[data-act-station]').forEach(b=>b.onclick=()=>{state.actStation=b.dataset.actStation;state.actA=.55;state.actB=.42;state.actProgress=0;ACT.built=false;actSetup();buildCtl();});root.querySelectorAll('[data-act-preset]').forEach(b=>b.onclick=()=>{const [a,c]=b.dataset.actPreset.split('|').map(Number);state.actA=a;state.actB=c;actRender();buildCtl();});
   const run=root.querySelector('#actRun');if(run)run.onclick=()=>{state.actRun=!state.actRun;buildCtl();};const reset=root.querySelector('#actReset');if(reset)reset.onclick=()=>{state.actA=.55;state.actB=.42;state.actProgress=0;state.actRun=false;actRender();buildCtl();};const a=root.querySelector('#actA');if(a)a.oninput=e=>{state.actA=+e.target.value;actRender();actUpdatePanel(root);};const b=root.querySelector('#actB');if(b)b.oninput=e=>{state.actB=+e.target.value;actRender();actUpdatePanel(root);};const speed=root.querySelector('#actSpeed');if(speed)speed.oninput=e=>{state.actSpeed=+e.target.value;const v=root.querySelector('#actSpeedV');if(v)v.textContent='×'+state.actSpeed.toFixed(2);};const cmp=root.querySelector('#actCompare');if(cmp)cmp.onclick=actCompare;const exp=root.querySelector('#actExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_contact_action_observatory.json','application/json',JSON.stringify(actExportData(),null,2));
 }
-function updateAct(dt){if(!ACT.built)return;ACT.time+=dt;if(state.actRun!==false&&!PREFERS_REDUCED_MOTION){state.actProgress=(state.actProgress+dt*.078*(state.actSpeed??.52))%1;actSetProgress();}scientificUpdateFlow(ACT.flowA,ACT.time,.038+(state.actSpeed??.52)*.035);scientificUpdateFlow(ACT.flowB,ACT.time,-.03-(state.actSpeed??.52)*.025);scientificUpdateMaterials(actGroup,ACT.time);ACT.probe?.userData?.body?.rotation.set(ACT.time*.31,ACT.time*.52,ACT.time*.16);ACT.ui+=dt;if(ACT.ui>.22){ACT.ui=0;const D=ACT.last||actDiagnostics();hudBig.textContent=`CONTACT & ACTION · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`model residual ${D.residual.toExponential(2)} · invariants evaluated before 3D projection · finite station, explicit scope`;ATLAS_BUS.pub('act.action',Number.isFinite(D.values.action)?D.values.action:Number.isFinite(D.values.action_variable)?D.values.action_variable:Number.isFinite(D.values.return_time)?D.values.return_time:0,'reduced action');ATLAS_BUS.pub('act.residual',D.residual,'closure');if(Number.isFinite(D.values.maslov_index))ATLAS_BUS.pub('act.maslov',D.values.maslov_index,'index');}}
+function updateAct(dt){if(!ACT.built)return;const running=state.actRun===true&&!PREFERS_REDUCED_MOTION;if(running){ACT.time+=dt;state.actProgress=(state.actProgress+dt*.078*(state.actSpeed??.52))%1;actSetProgress();scientificUpdateFlow(ACT.flowA,ACT.time,.038+(state.actSpeed??.52)*.035);scientificUpdateFlow(ACT.flowB,ACT.time,-.03-(state.actSpeed??.52)*.025);ACT.probe?.userData?.body?.rotation.set(ACT.time*.31,ACT.time*.52,ACT.time*.16);}ACT.ui+=dt;if(ACT.ui>.22){ACT.ui=0;const D=ACT.last||actDiagnostics();hudBig.textContent=`CONTACT & ACTION · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`model residual ${D.residual.toExponential(2)} · invariants evaluated before 3D projection · finite station, explicit scope`;ATLAS_BUS.pub('act.action',Number.isFinite(D.values.action)?D.values.action:Number.isFinite(D.values.action_variable)?D.values.action_variable:Number.isFinite(D.values.return_time)?D.values.return_time:0,'reduced action');ATLAS_BUS.pub('act.residual',D.residual,'closure');if(Number.isFinite(D.values.maslov_index))ATLAS_BUS.pub('act.maslov',D.values.maslov_index,'index');}}
 
 /* ================================================================
    SPINOR & LIGHT-CONE OBSERVATORY — one exact bridge from the
@@ -19444,14 +19471,14 @@ function nulRender(){if(!NUL.built)return;const D=nulDiagnostics(),phase=nulWrap
   NUL.sub.element.textContent=`${D.title} · ${D.pass?'contract verified':'inspect residual'} · native residual ${D.residual.toExponential(2)}`;NUL.phaseLabel.element.textContent=D.station==='diamond'?`compact time T = ${D.values.T.toFixed(6)}`:D.station==='tetrad'?`spin-1 χ = ${D.values.spin_weight_one_phase.toFixed(6)} · spin-2 = ${D.values.spin_weight_two_phase.toFixed(6)}`:`fibre / frame twist ${phase.toFixed(6)} rad`;nulSetProgress();}
 function nulReadoutsHTML(D){return D.readouts.map(([k,v])=>`<div class="small" style="display:flex;gap:8px;justify-content:space-between"><span style="color:var(--dim)">${esc(k)}</span><b style="font-variant-numeric:tabular-nums;text-align:right">${esc(String(v))}</b></div>`).join('');}
 function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[station],D=nulDiagnostics();return `<div class="sect" style="border-color:rgba(98,232,255,.43);background:linear-gradient(135deg,rgba(20,82,108,.25),rgba(81,44,128,.19))"><b style="color:#c8f8ff">◇ ${TT('SPINOR & LIGHT-CONE OBSERVATORY','ОБСЕРВАТОРИЯ СПИНОРА И СВЕТОВОГО КОНУСА','SPINOR- & LICHTKEGEL-OBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact chain: normalized S³ spinor → CP¹ direction → future null ray → Lorentz/Möbius action → null frame → conformal infinity.','Одна точная цепь: нормированный спинор S³ → направление CP¹ → будущий нулевой луч → действие Лоренца/Мёбиуса → нулевая рама → конформная бесконечность.','Eine exakte Kette: normierter S³-Spinor → CP¹-Richtung → Nullstrahl → Lorentz/Möbius-Wirkung → Nullrahmen → konforme Unendlichkeit.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated before 3D projection; shared geometry does not make qubits, photons and gravitational waves one physical system.','Барьер: все инварианты вычисляются до 3D-проекции; общая геометрия не делает кубиты, фотоны и гравитационные волны одной физической системой.','Firewall: Alle Invarianten werden vor der 3D-Projektion ausgewertet; gemeinsame Geometrie macht Qubits, Photonen und Gravitationswellen nicht zu einem System.')}</div></div>
-  <div class="sect"><b>${TT('NULL-GEOMETRY STATION','СТАНЦИЯ НУЛЕВОЙ ГЕОМЕТРИИ','NULLGEOMETRIE-STATION')}</b><div class="chips">${Object.entries(NUL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-nul-station="${k}">${esc(nulLang(v.t))}</button>`).join('')}</div><div class="ctlrow"><button class="btn green" id="nulRun">${state.nulRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="nulReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="nulSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.nulSpeed??.54}"><span class="val" id="nulSpeedV">×${(state.nulSpeed??.54).toFixed(2)}</span></div>
+  <div class="sect"><b>${TT('NULL-GEOMETRY STATION','СТАНЦИЯ НУЛЕВОЙ ГЕОМЕТРИИ','NULLGEOMETRIE-STATION')}</b><div class="chips stationSelector">${Object.entries(NUL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-nul-station="${k}">${esc(nulLang(v.t))}</button>`).join('')}</div><div class="ctlrow"><button class="btn green" id="nulRun">${state.nulRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="nulReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="nulSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.nulSpeed??.54}"><span class="val" id="nulSpeedV">×${(state.nulSpeed??.54).toFixed(2)}</span></div>
   <div class="ctlrow"><label id="nulAL">${esc(D.parameters[0].label)}</label><input id="nulA" type="range" min="0" max="1" step="0.001" value="${state.nulA??.56}"><span class="val" id="nulAV">${esc(D.parameters[0].display)}</span></div><div class="ctlrow"><label id="nulBL">${esc(D.parameters[1].label)}</label><input id="nulB" type="range" min="0" max="1" step="0.001" value="${state.nulB??.34}"><span class="val" id="nulBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('INVARIANT PASSPORT','ПАСПОРТ ИНВАРИАНТОВ','INVARIANTENPASS')}</b><div id="nulReadouts">${nulReadoutsHTML(D)}</div><div id="nulOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div><div class="small" style="margin-top:6px;color:var(--dim)">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:#ffd58a">${esc(S.caveat)}</div></div>
   <div class="sect"><b>${TT('BRIDGES & REPRODUCIBILITY','МОСТЫ И ВОСПРОИЗВОДИМОСТЬ','BRÜCKEN & REPRODUZIERBARKEIT')}</b><div class="ctlrow"><button class="btn" id="nulCompare">◱ ${TT('compare exact neighbours','сравнить точных соседей','exakte Nachbarn vergleichen')}</button><button class="btn" id="nulExport">⬇ JSON</button></div><div class="small" style="color:var(--dim)">Newman–Penrose 1962 · Penrose 1963/1967 · SL(2,C)/CP¹ correspondence · IEEE-754 binary64.</div></div>`;}
 function nulCompare(){const sets={null:['nul','hopf','spin','su2'],lorentz:['nul','rel','hol','syd'],celestial:['nul','rel','imp','sh'],tetrad:['nul','gw','spin','su2'],diamond:['nul','rel','bhr','cau']},views=sets[state.nulStation]||sets.null;mvOpenViews(views,'__lightcone');}
 function nulUpdatePanel(root=ctl){const D=NUL.last||nulDiagnostics(),a=root.querySelector('#nulAV'),b=root.querySelector('#nulBV'),al=root.querySelector('#nulAL'),bl=root.querySelector('#nulBL'),r=root.querySelector('#nulReadouts'),o=root.querySelector('#nulOrder');if(a)a.textContent=D.parameters[0].display;if(b)b.textContent=D.parameters[1].display;if(al)al.textContent=D.parameters[0].label;if(bl)bl.textContent=D.parameters[1].label;if(r)r.innerHTML=nulReadoutsHTML(D);if(o){o.style.color=D.pass?'#8fffe3':'#ff9daf';o.innerHTML=`<b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}`;}}
 function bindNulControls(root=ctl){root.querySelectorAll('[data-nul-station]').forEach(b=>b.onclick=()=>{state.nulStation=b.dataset.nulStation;state.nulA=.56;state.nulB=.34;state.nulProgress=0;NUL.built=false;nulSetup();buildCtl();});const run=root.querySelector('#nulRun');if(run)run.onclick=()=>{state.nulRun=!state.nulRun;buildCtl();};const reset=root.querySelector('#nulReset');if(reset)reset.onclick=()=>{state.nulA=.56;state.nulB=.34;state.nulProgress=0;state.nulRun=false;nulRender();buildCtl();};const a=root.querySelector('#nulA');if(a)a.oninput=e=>{state.nulA=+e.target.value;nulRender();nulUpdatePanel(root);};const b=root.querySelector('#nulB');if(b)b.oninput=e=>{state.nulB=+e.target.value;nulRender();nulUpdatePanel(root);};const speed=root.querySelector('#nulSpeed');if(speed)speed.oninput=e=>{state.nulSpeed=+e.target.value;const v=root.querySelector('#nulSpeedV');if(v)v.textContent='×'+state.nulSpeed.toFixed(2);};const cmp=root.querySelector('#nulCompare');if(cmp)cmp.onclick=nulCompare;const exp=root.querySelector('#nulExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_spinor_lightcone_observatory.json','application/json',JSON.stringify(nulExportData(),null,2));}
-function updateNul(dt){if(!NUL.built)return;NUL.time+=dt;if(state.nulRun!==false&&!PREFERS_REDUCED_MOTION){state.nulProgress=(state.nulProgress+dt*.075*(state.nulSpeed??.54))%1;nulSetProgress();}NUL.flows.forEach((f,i)=>scientificUpdateFlow(f,NUL.time,(i%2?-.026:.034)+(state.nulSpeed??.54)*.018));scientificUpdateMaterials(nulGroup,NUL.time);NUL.probe?.userData?.body?.rotation.set(NUL.time*.34,NUL.time*.53,NUL.time*.17);NUL.ui+=dt;if(NUL.ui>.22){NUL.ui=0;const D=NUL.last||nulDiagnostics();hudBig.textContent=`SPINOR & LIGHT CONE · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`native residual ${D.residual.toExponential(2)} · CP¹ / Minkowski / radial-conformal contracts remain explicitly distinct`;ATLAS_BUS.pub('nul.nullity',D.residual,'native residual');ATLAS_BUS.pub('nul.phase',nulWrap(D.phase),'rad');if(Number.isFinite(D.values.interval))ATLAS_BUS.pub('nul.interval',D.values.interval,'Minkowski interval');}}
+function updateNul(dt){if(!NUL.built)return;const running=state.nulRun===true&&!PREFERS_REDUCED_MOTION;if(running){NUL.time+=dt;state.nulProgress=(state.nulProgress+dt*.075*(state.nulSpeed??.54))%1;nulSetProgress();NUL.flows.forEach((f,i)=>scientificUpdateFlow(f,NUL.time,(i%2?-.026:.034)+(state.nulSpeed??.54)*.018));NUL.probe?.userData?.body?.rotation.set(NUL.time*.34,NUL.time*.53,NUL.time*.17);}NUL.ui+=dt;if(NUL.ui>.22){NUL.ui=0;const D=NUL.last||nulDiagnostics();hudBig.textContent=`SPINOR & LIGHT CONE · ${D.title} · ${D.pass?'contract verified':'inspect residual'}`;hudSub.textContent=`native residual ${D.residual.toExponential(2)} · CP¹ / Minkowski / radial-conformal contracts remain explicitly distinct`;ATLAS_BUS.pub('nul.nullity',D.residual,'native residual');ATLAS_BUS.pub('nul.phase',nulWrap(D.phase),'rad');if(Number.isFinite(D.values.interval))ATLAS_BUS.pub('nul.interval',D.values.interval,'Minkowski interval');}}
 
 /* ================================================================
    INVARIANT NEXUS — a typed, non-metric atlas of relationships.
@@ -19655,7 +19682,7 @@ const NEXUS_TYPE_AXES={
 };
 Object.values(NEXUS_TYPE_AXES).forEach(v=>v.normalize());
 const nexusGroup=new THREE.Group();nexusGroup.name='Invariant Nexus · typed relation space';nexusGroup.visible=false;s3Group.add(nexusGroup);
-const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),fieldRoot:null,tensorRoot:null,pathCorridor:null,pathFlow:null,pathEdges:[],time:0};
+const NEXUS={built:false,nodes:new Map(),edges:[],clusterVisuals:new Map(),fieldRoot:null,tensorRoot:null,pathCorridor:null,pathFlow:null,pathEdges:[],time:0,ui:0};
 const nexusLang=o=>o?.[(state&&state.lang)||'en']||o?.en||String(o||'');
 const nexusHash=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619);}return (h>>>0)/4294967295;};
 function nexusGlowTexture(){
@@ -19770,7 +19797,7 @@ function nexusApplyStyles(){
     const selected=lab===focus||selectedKey===`nexus_${lab}`,inPath=path.has(lab),active=kind==='all'||enabledNode.has(lab),endpoint=lab===(state.nexusSource||'')||lab===(state.nexusTarget||'');
     n.visual.material.opacity=active?(selected||inPath?1:.74):.09;n.visual.material.emissiveIntensity=selected?.42:inPath?.28:.12;
     n.cage.material.opacity=selected?.62:inPath?.42:active?.14:.035;n.glow.material.opacity=selected?.24:inPath?.16:active?.065:.015;
-    n.label.visible=selected||endpoint||(inPath&&path.size<=4);n.label.element.style.color=selected?'#ffd36a':inPath?'#dff7ff':'';n.baseScale=selected?1.52:inPath?1.24:1;
+    n.label.visible=selected||endpoint||(inPath&&path.size<=4);n.label.element.style.color=selected?'#ffd36a':inPath?'#dff7ff':'';n.baseScale=selected?1.52:inPath?1.24:1;n.root.scale.setScalar(n.baseScale);
   }
 }
 function nexusComponents(kind='all'){
@@ -19835,16 +19862,11 @@ function bindNexusControls(root=ctl){
   const exp=root.querySelector('#nxExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_invariant_nexus.json','application/json',JSON.stringify(nexusExportData(),null,2));
 }
 function updateNexus(dt){
-  if(!NEXUS.built)return;NEXUS.time+=dt;const t=NEXUS.time;
-  if(state.nexusRotate&&!PREFERS_REDUCED_MOTION&&!renderer.xr.isPresenting)nexusGroup.rotation.y+=dt*.026;
-  if(NEXUS.tensorRoot){NEXUS.tensorRoot.rotation.y+=dt*.12;NEXUS.tensorRoot.rotation.x=.08*Math.sin(t*.17);}
-  let ci=0;for(const c of NEXUS.clusterVisuals.values()){c.hull.rotation.y+=dt*(ci%2?.018:-.014);c.hull.rotation.z=.035*Math.sin(t*.14+ci);ci++;}
-  for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
-  scientificUpdateFlow(NEXUS.pathFlow,t,.075);scientificUpdateMaterials(nexusGroup,t);
-  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
-  NEXUS.busAcc=(NEXUS.busAcc||0)+dt;if(NEXUS.busAcc>.5){NEXUS.busAcc=0;const V=nexusStructuralCalibration(state.nexusKind||'all'),C=nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',1)[0];ATLAS_BUS.pub('nexus.recall5',+V.recall_at_5.toFixed(6),'held-edge');if(C)ATLAS_BUS.pub('nexus.candidate',+C.score.toPrecision(6),'resource-allocation');}
-  const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
-  hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'relational spectral'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
+  if(!NEXUS.built)return;const animate=!PREFERS_REDUCED_MOTION&&(state.nexusRotate===true||state.nexusPulse===true);if(animate)NEXUS.time+=dt;const t=NEXUS.time;
+  if(state.nexusRotate===true&&!PREFERS_REDUCED_MOTION&&!renderer.xr.isPresenting)nexusGroup.rotation.y+=dt*.026;
+  if(state.nexusPulse===true&&!PREFERS_REDUCED_MOTION){if(NEXUS.tensorRoot){NEXUS.tensorRoot.rotation.y+=dt*.12;NEXUS.tensorRoot.rotation.x=.08*Math.sin(t*.17);}let ci=0;for(const c of NEXUS.clusterVisuals.values()){c.hull.rotation.y+=dt*(ci%2?.018:-.014);c.hull.rotation.z=.035*Math.sin(t*.14+ci);ci++;}for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));scientificUpdateFlow(NEXUS.pathFlow,t,.075);for(const [lab,n] of NEXUS.nodes){const pulse=1+.035*Math.sin(t*2.2+nexusHash(lab)*12);n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}}
+  NEXUS.busAcc=(NEXUS.busAcc||0)+dt;if(NEXUS.busAcc>1){NEXUS.busAcc=0;const V=nexusStructuralCalibration(state.nexusKind||'all'),C=nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',1)[0];ATLAS_BUS.pub('nexus.recall5',+V.recall_at_5.toFixed(6),'held-edge');if(C)ATLAS_BUS.pub('nexus.candidate',+C.score.toPrecision(6),'resource-allocation');}
+  NEXUS.ui+=dt;if(NEXUS.ui>.25){NEXUS.ui=0;const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'relational spectral'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;}
 }
 
 /* ================================================================
@@ -19910,7 +19932,7 @@ function pfEnsureSpatial(v){
   root.add(curve,lo,hi,ring,marker);group.add(root);const O={root,curve,lo,hi,ring,marker,hash:''};PF_SPATIAL.set(v,O);return O;
 }
 function pfUpdateSpatial(v){
-  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),O=pfEnsureSpatial(v),visible=state.foundationVisible?.[v]!==false;ATLAS_BUS.pub(v+'.forecast',+A.exact_holdout.toPrecision(8),'station native');ATLAS_BUS.pub(v+'.forecast_error',+A.holdout_residual.toPrecision(6),'holdout');ATLAS_BUS.pub(v+'.forecast_sigma',+A.propagated_sigma.toPrecision(6),'local envelope');O.root.visible=visible;if(!visible)return;
+  const visible=state.foundationVisible?.[v]===true;if(!visible){const old=PF_SPATIAL.get(v);if(old)old.root.visible=false;return;}const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),O=pfEnsureSpatial(v);ATLAS_BUS.pub(v+'.forecast',+A.exact_holdout.toPrecision(8),'station native');ATLAS_BUS.pub(v+'.forecast_error',+A.holdout_residual.toPrecision(6),'holdout');ATLAS_BUS.pub(v+'.forecast_sigma',+A.propagated_sigma.toPrecision(6),'local envelope');O.root.visible=true;
   const hash=[A.station||A.world,A.future_control_normalized,A.propagated_sigma,A.target].map(pfFmt).join('|');if(hash===O.hash)return;O.hash=hash;const P=pfPath(v,A);if(P.length<2)return;scientificReplaceTube(O.curve,P,false);
   const centre=P.reduce((q,p)=>q.add(p),new THREE.Vector3()).multiplyScalar(1/P.length),amp=Math.min(.24,.025+Math.log10(1+Math.abs(A.propagated_sigma)*1e6)*.018),offset=sign=>P.map((p,i)=>{const t=P[Math.min(P.length-1,i+1)].clone().sub(P[Math.max(0,i-1)]).normalize(),r=p.clone().sub(centre);if(r.lengthSq()<1e-8)r.set(0,1,0);const n=new THREE.Vector3().crossVectors(t,r).normalize();return p.clone().addScaledVector(n,sign*amp);});
   scientificReplaceTube(O.lo,offset(-1),false);scientificReplaceTube(O.hi,offset(1),false);const q=P[Math.floor(.82*(P.length-1))];O.marker.position.copy(q);const ring=[];for(let i=0;i<=64;i++){const a=PF_TAU*i/64;ring.push(q.clone().add(new THREE.Vector3(amp*1.45*Math.cos(a),0,amp*1.45*Math.sin(a))));}scientificReplaceTube(O.ring,ring,true);
@@ -19920,7 +19942,7 @@ function pfReadoutHTML(v){
   return '<div class="note" style="border-left:3px solid '+(A.pass?'#55e8c4':'#ff6f86')+'"><b style="color:'+(A.pass?'#9fe8c0':'#ff9daf')+'">'+status+'</b> · '+esc(A.observable)+'<br>control '+pfFmt(A.control_normalized)+' to unseen '+pfFmt(A.future_control_normalized)+' · exact <b>'+pfFmt(A.exact_holdout)+'</b> · local prediction '+pfFmt(A.linear_holdout_prediction)+' · residual <b>'+pfFmt(A.holdout_residual)+'</b><br>dy/du='+pfFmt(A.local_sensitivity)+' · propagated sigma_y='+pfFmt(A.propagated_sigma)+' · gate='+pfFmt(A.gate)+extra+'<br>inverse target '+pfFmt(A.target)+' -> '+(roots.length?roots.map(pfFmt).join(' · '):'no bracketed root in u=[0,1]')+'</div>';
 }
 function pfPanelHTML(v){
-  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),h=state.foundationHorizon?.[v]??.12,s=state.foundationSigma?.[v]??.01,t=state.foundationTarget?.[v]??0,on=state.foundationVisible?.[v]!==false,W=v==='syd'?SYD_WORLDS[state.sydWorld||'rotation']:null,candidate=W?'<div class="ctlrow"><label>'+TT('tested observable','проверяемая величина','geprüfte Observable')+'</label><select id="pfSydCandidate">'+W.candidates.map(q=>'<option value="'+q.id+'" '+(q.id===A.candidate_id?'selected':'')+'>'+esc(q.label)+' · '+(q.expected?TT('expected invariant','ожидаемый инвариант','erwartete Invariante'):TT('negative control','отрицательный контроль','Negativkontrolle'))+'</option>').join('')+'</select></div>':'';
+  const A=v==='syd'?pfSydAudit():pfFiniteAudit(v),h=state.foundationHorizon?.[v]??.12,s=state.foundationSigma?.[v]??.01,t=state.foundationTarget?.[v]??0,on=state.foundationVisible?.[v]===true,W=v==='syd'?SYD_WORLDS[state.sydWorld||'rotation']:null,candidate=W?'<div class="ctlrow"><label>'+TT('tested observable','проверяемая величина','geprüfte Observable')+'</label><select id="pfSydCandidate">'+W.candidates.map(q=>'<option value="'+q.id+'" '+(q.id===A.candidate_id?'selected':'')+'>'+esc(q.label)+' · '+(q.expected?TT('expected invariant','ожидаемый инвариант','erwartete Invariante'):TT('negative control','отрицательный контроль','Negativkontrolle'))+'</option>').join('')+'</select></div>':'';
   return '<div class="sect" id="pfWorkbench" data-pf-view="'+v+'" style="border-color:rgba(232,199,122,.42);background:linear-gradient(135deg,rgba(39,70,96,.25),rgba(91,55,117,.18))"><b style="color:#ffe3a0">⌁ '+TT('OPERATIONAL FORECAST · INVERSE TARGET','ОПЕРАЦИОННЫЙ ПРОГНОЗ · ОБРАТНАЯ ЦЕЛЬ','OPERATIVE PROGNOSE · INVERSZIEL')+'</b><div class="small" style="margin-top:4px">'+TT('Three neighbouring evaluations train a local surrogate; a displaced exact evaluation remains unseen until validation. The pale curve is that future native manifold, not a chart.','Три соседних вычисления обучают локальный суррогат; смещённое точное вычисление остаётся невиданным до проверки. Светлая кривая — будущая нативная геометрия, не график.','Drei Nachbarwerte trainieren lokal; ein versetzter exakter Wert bleibt Holdout. Die helle Kurve ist die zukünftige Mannigfaltigkeit.')+'</div>'+candidate+'<div class="ctlrow"><label>Delta u</label><input id="pfHorizon" type="range" min="-0.35" max="0.35" step="0.005" value="'+h+'"><span class="val" id="pfHorizonV">'+pfFmt(h)+'</span></div><div class="ctlrow"><label>sigma(u)</label><input id="pfSigma" type="range" min="0" max="0.08" step="0.001" value="'+s+'"><span class="val" id="pfSigmaV">'+pfFmt(s)+'</span></div><div class="ctlrow"><label>'+TT('inverse target','обратная цель','Inversziel')+'</label><input id="pfTarget" type="number" step="any" value="'+t+'" style="min-width:0;flex:1"><button class="chip '+(on?'on':'')+'" id="pfVisible">'+(on?TT('forecast field shown','поле прогноза показано','Prognosefeld sichtbar'):TT('show forecast field','показать поле прогноза','Prognosefeld zeigen'))+'</button></div><div id="pfReadout">'+pfReadoutHTML(v)+'</div><div class="ctlrow"><button class="btn" id="pfExport">⬇ JSON</button><button class="btn" id="pfCompare">◱ Multi-View</button></div><div class="note" style="font-size:10px;color:var(--dim)">'+esc(A.semantics)+'</div></div>';
 }
 function bindPfControls(root,v){
@@ -19929,7 +19951,7 @@ function bindPfControls(root,v){
   const h=root.querySelector('#pfHorizon');if(h)h.oninput=e=>{state.foundationHorizon[v]=+e.target.value;const q=root.querySelector('#pfHorizonV');if(q)q.textContent=pfFmt(+e.target.value);refresh();};
   const s=root.querySelector('#pfSigma');if(s)s.oninput=e=>{state.foundationSigma[v]=+e.target.value;const q=root.querySelector('#pfSigmaV');if(q)q.textContent=pfFmt(+e.target.value);refresh();};
   const t=root.querySelector('#pfTarget');if(t)t.onchange=e=>{const x=Number(e.target.value);if(Number.isFinite(x))state.foundationTarget[v]=x;refresh();};
-  const vis=root.querySelector('#pfVisible');if(vis)vis.onclick=()=>{state.foundationVisible[v]=state.foundationVisible[v]===false;pfUpdateSpatial(v);buildCtl();};
+  const vis=root.querySelector('#pfVisible');if(vis)vis.onclick=()=>{state.foundationVisible[v]=state.foundationVisible[v]!==true;pfUpdateSpatial(v);buildCtl();};
   const exp=root.querySelector('#pfExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_'+v+'_operational_forecast.json','application/json',JSON.stringify(v==='syd'?pfSydAudit():pfFiniteAudit(v),null,2));
   const cmp=root.querySelector('#pfCompare');if(cmp)cmp.onclick=()=>mvOpenViews(v==='syd'?['syd','noe','psp','imp']:v==='hol'?['hol','berry','rel','imp']:v==='act'?['act','psp','qm','hopf']:['nul','rel','gw','bhr'],'__predictive_foundation');
 }
@@ -25827,14 +25849,14 @@ const state = {
   kamK:0.5, kamOrbits:26, kamIters:240,   // KAM lab (Chirikov standard map on the torus)
   rshMode:'ere', rshA:5.4194, rshR0:1.7536, rshKR:0.55, rshKI:0.09, rshEmax:40,   // Riemann-sheet lab
   invQ:'', invQuantity:'', invTol:1e-3,   // Inverse atlas — a value is meaningless until its quantity kind is selected
-  sydWorld:'rotation', sydParam:.5, sydBreak:0, sydTolLog:-9, sydRun:true, sydSpeed:.65, sydPredictCandidate:'',   // finite-orbit symmetry discovery chamber
-  holStation:'sphere', holA:.55, holB:.65, holProgress:0, holRun:true, holSpeed:.55,   // holonomy / geometric-phase observatory
-  actStation:'reeb', actA:.55, actB:.42, actProgress:0, actRun:true, actSpeed:.52,   // contact, Reeb, KS and Maslov action observatory
-  nulStation:'null', nulA:.56, nulB:.34, nulProgress:0, nulRun:true, nulSpeed:.54,   // spinor, null-cone, celestial and conformal observatory
+  sydWorld:'rotation', sydParam:.5, sydBreak:0, sydTolLog:-9, sydRun:false, sydSpeed:.65, sydPredictCandidate:'',   // finite-orbit symmetry discovery chamber
+  holStation:'sphere', holA:.55, holB:.65, holProgress:0, holRun:false, holSpeed:.55,   // holonomy / geometric-phase observatory
+  actStation:'reeb', actA:.55, actB:.42, actProgress:0, actRun:false, actSpeed:.52,   // contact, Reeb, KS and Maslov action observatory
+  nulStation:'null', nulA:.56, nulB:.34, nulProgress:0, nulRun:false, nulSpeed:.54,   // spinor, null-cone, celestial and conformal observatory
   nexusKind:'all', nexusMorph:0, nexusRotate:false, nexusPulse:false, nexusLens:'local',
   nexusFocus:'', nexusSource:'spin', nexusTarget:'bht', nexusPath:[],   // typed non-metric relation atlas; local lens is the uncluttered default
   foundationHorizon:{syd:.12,hol:.12,act:.12,nul:.12}, foundationSigma:{syd:.01,hol:.01,act:.01,nul:.01},
-  foundationTarget:{syd:1e-6,hol:0,act:0,nul:0}, foundationVisible:{syd:true,hol:true,act:true,nul:true},
+  foundationTarget:{syd:1e-6,hol:0,act:0,nul:0}, foundationVisible:{syd:false,hol:false,act:false,nul:false},
   mvLink:'', mvLinkV:0.5, mvLinkSweep:false, mvLinkAll:false,   // linked parameters across multiview tiles
   predictionRefs:{},   // user-entered, unit-compatible validation references, kept separate per laboratory
   andE:1.0, andW:1.0, andSeed:7,   // Anderson localization lab (SL(2,R) walk on the hyperbolic disk)
@@ -27720,7 +27742,7 @@ function buildCtlBody(){
     </div>`;
     else if(V==='bht') body = `
     <div class="sect"><b>Black hole — horizon observatory</b>
-      <div class="chips"><button class="chip ${(state.bhtStation||'horizon')==='horizon'?'on':''}" data-bhtstation="horizon">Kerr horizon · spin &amp; ergoregion</button><button class="chip ${state.bhtStation==='radiation'?'on':''}" data-bhtstation="radiation">Hawking radiation · predictive field</button><button class="chip ${state.bhtStation==='evaporation'?'on':''}" data-bhtstation="evaporation">Schwarzschild evaporation worldtube</button></div>
+      <div class="chips stationSelector"><button class="chip ${(state.bhtStation||'horizon')==='horizon'?'on':''}" data-bhtstation="horizon">Kerr horizon · spin &amp; ergoregion</button><button class="chip ${state.bhtStation==='radiation'?'on':''}" data-bhtstation="radiation">Hawking radiation · predictive field</button><button class="chip ${state.bhtStation==='evaporation'?'on':''}" data-bhtstation="evaporation">Schwarzschild evaporation worldtube</button></div>
       <div class="chips">
         ${[['primordial','Primordial 10¹² kg'],['asteroid','Asteroid-mass'],['solar','Solar mass'],['sgra','Sgr A* (4.15×10⁶)'],['m31','M31* (1.4×10⁸)'],['m87','M87* (6.5×10⁹)'],['ton618','Ton 618 (66×10⁹)']].map(([k,l])=>
           `<button class="chip" data-bhtp="${k}">${l}</button>`).join('')}
@@ -28899,11 +28921,6 @@ function buildCtlBody(){
       </div>`; })()}
     <div class="sect"><b>S³ Laboratory</b>
       <div class="radioRow">
-        <button class="btn ${V==='nexus'?'on':''}" id="v-nexus">✦ ${TT('Invariant Nexus','Инвариантный Нексус','Invariant Nexus')}</button>
-        <button class="btn ${V==='nul'?'on':''}" id="v-nul">◇ ${TT('Spinor & Light Cone','Спинор и световой конус','Spinor & Lichtkegel')}</button>
-        <button class="btn ${V==='act'?'on':''}" id="v-act">∮ ${TT('Contact & Action','Контакт и действие','Kontakt & Wirkung')}</button>
-        <button class="btn ${V==='hol'?'on':''}" id="v-hol">⌁ ${TT('Holonomy Observatory','Обсерватория голономии','Holonomie-Observatorium')}</button>
-        <button class="btn ${V==='syd'?'on':''}" id="v-syd">⌬ ${TT('Symmetry Discovery','Открытие симметрий','Symmetrie-Entdeckung')}</button>
         <button class="btn ${V==='sec'?'on':''}" id="v-sec">Section</button>
         <button class="btn ${V==='hopf'?'on':''}" id="v-hopf">Hopf</button>
         <button class="btn ${V==='eig'?'on':''}" id="v-eig">Modes</button>
@@ -28969,6 +28986,12 @@ function buildCtlBody(){
         <button class="btn ${V==='qso'?'on':''}" id="v-qso">Quasar</button>
         <button class="btn ${V==='rmhd'?'on':''}" id="v-rmhd">Radiation–MHD · helicity</button>
         <button class="btn ${V==='wd'?'on':''}" id="v-wd">White dwarf</button>
+        <span class="labTierBreak">${TT('Experimental research instruments · motion opt-in','Экспериментальные исследовательские инструменты · движение включается вручную','Experimentelle Forschungsinstrumente · Bewegung optional')}</span>
+        <button class="btn ${V==='nexus'?'on':''}" id="v-nexus">✦ ${TT('Invariant Nexus','Инвариантный Нексус','Invariant Nexus')}</button>
+        <button class="btn ${V==='nul'?'on':''}" id="v-nul">◇ ${TT('Spinor & Light Cone','Спинор и световой конус','Spinor & Lichtkegel')}</button>
+        <button class="btn ${V==='act'?'on':''}" id="v-act">∮ ${TT('Contact & Action','Контакт и действие','Kontakt & Wirkung')}</button>
+        <button class="btn ${V==='hol'?'on':''}" id="v-hol">⌁ ${TT('Holonomy Observatory','Обсерватория голономии','Holonomie-Observatorium')}</button>
+        <button class="btn ${V==='syd'?'on':''}" id="v-syd">⌬ ${TT('Symmetry Discovery','Открытие симметрий','Symmetrie-Entdeckung')}</button>
       </div>
     </div><div id="activeLabControls">${body}${predictionWorkbenchHTML(V)}</div>`;
     ctl.querySelector('#v-sec').onclick  = ()=>uiSetS3View('sec');
@@ -31131,7 +31154,7 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy'};
+const S3_VIEW_NAMES={sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy',nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber'};
 const S3_VIEW_I18N={
  ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар',rmhd:'радиационная МГД и спиральность',wd:'вырождение белого карлика'},
  de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Strahlungs-MHD & Helizität',wd:'Entartung Weißer Zwerge'} };
@@ -33045,7 +33068,9 @@ const LAB_ATLAS_DEFS=[
   ['rmhdAtlas','rmhd',rmhdGroup,'Radiation–MHD and magnetic-helicity observatory','five reduced analytic and kinematic stations for flux freezing, magnetic helicity, reconnection, shocks and magnetized Rayleigh–Taylor instability'],
   ['wdAtlas','wd',wdGroup,'White-dwarf degeneracy laboratory','Nauenberg zero-temperature composition-dependent mass–radius family and Chandrasekhar endpoint']
 ];
-nexusSetup();
+/* Nexus is intentionally lazy. Its atlas proxy needs only the root group;
+   allocating every node, edge and translucent hull during application boot
+   penalised users who never opened this experimental instrument. */
 const LAB_ATLAS_PICKS=new Map(LAB_ATLAS_DEFS.map(d=>{const p=makeLabPick(d[2],d[1]==='nexus'?1.25:d[1]==='atom'?3.2:d[1]==='qm'?.75:d[1]==='cmb'?2.3:2.6);
   if(d[1]==='qm')p.position.set(0,2.7,0);return [d[0],p];}));
 if(!qmRe)qmSetup();
