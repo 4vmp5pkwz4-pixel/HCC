@@ -35,6 +35,32 @@
   canvas{display:block}
   body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:6;
     background:radial-gradient(ellipse at center, transparent 52%, rgba(0,0,0,.5) 100%)}
+  /* LUX context layer: a restrained optical highlight follows a fine pointer while
+     the instrument rail states which mathematical space is actually on screen. */
+  body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:7;opacity:.7;
+    background:radial-gradient(440px circle at var(--lux-x,50%) var(--lux-y,45%),
+      color-mix(in srgb,var(--mode-glow,#d4af6a) 8%,transparent),transparent 68%)}
+  #contextRail{position:fixed;left:50%;top:calc(var(--topbar-h,64px) + 8px);z-index:14;
+    transform:translateX(-50%);display:flex;align-items:center;gap:0;max-width:min(760px,calc(100vw - 32px));
+    border:1px solid color-mix(in srgb,var(--mode-glow,#d4af6a) 36%,transparent);
+    border-radius:999px;background:linear-gradient(180deg,rgba(13,18,30,.78),rgba(5,8,15,.67));
+    box-shadow:0 12px 38px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.09);
+    backdrop-filter:blur(18px) saturate(135%);-webkit-backdrop-filter:blur(18px) saturate(135%);
+    overflow:hidden;pointer-events:none;transition:border-color .35s ease,opacity .25s ease,transform .25s ease}
+  .ctxCell{position:relative;padding:6px 13px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+    color:var(--dim);font:600 9px/1.15 var(--sans);letter-spacing:1.15px;text-transform:uppercase}
+  .ctxCell+.ctxCell::before{content:'';position:absolute;left:0;top:25%;height:50%;width:1px;background:var(--border)}
+  #ctxMode{color:var(--gold-2);font-family:var(--serif);letter-spacing:1.6px}
+  #ctxSpace{max-width:330px;color:#c6cede}
+  #ctxPerf{font-variant-numeric:tabular-nums;color:#9ce3c6}
+  #contextRail[data-health="warm"] #ctxPerf{color:var(--warn)}
+  #contextRail[data-health="hot"] #ctxPerf{color:#ff8f82}
+  body[data-mode="solar"]{--mode-glow:#e7b85c} body[data-mode="cyc"]{--mode-glow:#c69aff}
+  body[data-mode="obs"]{--mode-glow:#79bfff} body[data-mode="s3"]{--mode-glow:#80e4d1}
+  body[data-mode="fbs"]{--mode-glow:#f0c45f} body[data-mode="field"]{--mode-glow:#84e89d}
+  body[data-mode="fractal"]{--mode-glow:#c99bff}
+  :where(button,input,select,textarea,[tabindex]):focus-visible{outline:2px solid var(--gold-2)!important;
+    outline-offset:3px;box-shadow:0 0 0 5px rgba(212,175,106,.16)!important}
   ::-webkit-scrollbar{width:8px;height:8px}
   ::-webkit-scrollbar-thumb{background:rgba(212,175,106,.25);border-radius:4px}
   ::-webkit-scrollbar-track{background:transparent}
@@ -739,10 +765,14 @@
   @media (prefers-reduced-motion: reduce){
     *,*::before,*::after{transition-duration:.01ms!important;animation-duration:.01ms!important;
       animation-iteration-count:1!important;scroll-behavior:auto!important}
+    body::before{display:none}
     .btn{padding:8px 13px}
     .ctlrow label{flex:1 1 106px;min-width:82px;font-size:11px}
   }
   @media (max-width:480px){
+    #contextRail{top:calc(var(--topbar-h,64px) + 5px);max-width:calc(100vw - 16px)}
+    .ctxCell{padding:5px 8px;font-size:7.8px;letter-spacing:.75px}
+    #ctxSpace{max-width:42vw} #ctxPerf{display:none}
     .scoregrid{grid-template-columns:1fr}
     .relrow{grid-template-columns:minmax(0,1fr) auto;align-items:start}
     .relkind,.relclaim{grid-column:1}
@@ -888,6 +918,12 @@
   <button class="btn" id="vectorBtn" title="Global main, additional, field and relation vector layers">↗ Vectors</button>
 </div>
 <div id="breadcrumb" aria-hidden="true"></div>
+<div id="contextRail" role="status" aria-live="polite" aria-label="Current scientific context">
+  <span class="ctxCell" id="ctxMode">Solar</span>
+  <span class="ctxCell" id="ctxSpace">R³ · heliocentric ecliptic J2000</span>
+  <span class="ctxCell" id="ctxScale">1 unit = 1 AU</span>
+  <span class="ctxCell" id="ctxPerf">— fps</span>
+</div>
 <div id="zenBar" role="toolbar" aria-label="Zen time regulator">
   <button class="btn icon" id="zenPause" title="Pause / run time">⏸</button>
   <button class="btn icon" id="zenDir" title="Time arrow — forward / reverse">⏩</button>
@@ -2988,6 +3024,21 @@ function runSelfTests(){
       const P=andWalk(E,W,N,seed).pts, rho=P.length?P[P.length-1][2]:0, rel=Math.abs(rho/(2*acc)-1);
       ok('Anderson: the drawn hyperbolic walk and the matrix product are provably the same object — the disk distance ρ = 2 artanh|w| equals 2 log‖M‖ to machine precision on the identical realization, so the escape to the boundary IS the Lyapunov growth (Furstenberg), not an analogy',
         P.length===N && rel<1e-9, `ρ_end=${rho.toFixed(9)} vs 2 log‖M‖=${(2*acc).toFixed(9)} · relative ${rel.toExponential(1)} · checked at ρ≈9, below the ρ≈30 radius where |w| saturates double precision · the a.s. drift ρ/n → 2γ is asymptotic and is deliberately not asserted at finite n`); } }
+  { // ENCLOSURE RULE: a shell may never paint over the laboratory it surrounds
+    const plain=scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1);
+    const encl=scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1,true);
+    ok('Aesthetics: a Fresnel shell asked to enclose renders back-face only while a small Fresnel object stays double-sided — the flag is what keeps a surrounding shell from painting over the physics inside it',
+      plain.side===THREE.DoubleSide && encl.side===THREE.BackSide && plain.blending===THREE.AdditiveBlending,
+      `plain side=${plain.side} (DoubleSide=${THREE.DoubleSide}) · enclosing side=${encl.side} (BackSide=${THREE.BackSide}) · both additive so neither can darken what is behind`);
+    { const probe=new THREE.Group();
+      const big=new THREE.Mesh(new THREE.SphereGeometry(2.6,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
+      const small=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
+      probe.add(big); probe.add(small); probe.updateMatrixWorld(true);
+      const fixed=scientificEnclosureFix(probe);
+      ok('Aesthetics: the enclosure rule measures every Fresnel mesh in WORLD units and flips only the ones large enough to surround their laboratory — shells built through parametric or instanced paths are caught too, which is where the grey-ball regression came from',
+        fixed===1 && big.material.side===THREE.BackSide && small.material.side===THREE.DoubleSide,
+        `${fixed} of 2 meshes flipped · r=2.6 → BackSide, r=0.4 → left DoubleSide · threshold ${SCI_ENCLOSE_R}`);
+      big.geometry.dispose(); small.geometry.dispose(); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -15339,7 +15390,7 @@ function cmbSetup(){
   cmbClear();cmbGroup.add(new THREE.HemisphereLight(0x9fcde8,0x050914,.72));const key=new THREE.DirectionalLight(0xffe6ad,1.05);key.position.set(4,6,7);cmbGroup.add(key);const rim=new THREE.DirectionalLight(0x72aee8,.72);rim.position.set(-5,-1,-6);cmbGroup.add(rim);
   const geo=new THREE.SphereGeometry(2.22,CMB_NLON,CMB_NLAT),p=geo.attributes.position,dirs=new Float32Array(p.count*3);for(let i=0;i<p.count;i++){const r=Math.hypot(p.getX(i),p.getY(i),p.getZ(i));dirs[3*i]=p.getX(i)/r;dirs[3*i+1]=p.getY(i)/r;dirs[3*i+2]=p.getZ(i)/r;}geo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(p.count*3),3));
   const sky=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:.66,metalness:.08,side:THREE.DoubleSide}));sky.renderOrder=2;cmbGroup.add(sky);
-  const halo=new THREE.Mesh(new THREE.SphereGeometry(2.36,MOBILE_GPU?40:64,MOBILE_GPU?24:38),scientificFresnelMaterial(0x6aaed0,0xe8c77a,.2,.7));halo.renderOrder=1;cmbGroup.add(halo);
+  const halo=new THREE.Mesh(new THREE.SphereGeometry(2.36,MOBILE_GPU?40:64,MOBILE_GPU?24:38),scientificFresnelMaterial(0x6aaed0,0xe8c77a,.2,.7,true));halo.renderOrder=1;cmbGroup.add(halo);
   const inner=new THREE.Mesh(new THREE.SphereGeometry(2.05,40,24),new THREE.MeshBasicMaterial({color:0x020713,transparent:true,opacity:.74,side:THREE.BackSide,depthWrite:false}));cmbGroup.add(inner);
   const contours=[0x76acd6,0xe8c77a,0xe68d98].map(c=>{const x=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:c,transparent:true,opacity:.3,depthWrite:false,blending:THREE.NormalBlending}));x.renderOrder=5;cmbGroup.add(x);return x;});
   const armillary=new THREE.Group();cmbGroup.add(armillary);const rings=[];for(let l=2;l<=CMB_LMAX;l++){const root=new THREE.Group(),normal=cmbRingNormal(l),pts=cmbCirclePoints(normal,2.72+.035*(l-2)),band=scientificRibbon(pts,.032+Math.sqrt(2/(2*l+1))*.08,0x9d8fc1,.2,true),ref=scientificTube(pts,0xe8c77a,.018,.28,true),actual=scientificTube(pts,0x79bdd8,.022,.62,true);root.add(band,ref,actual);armillary.add(root);rings.push({l,root,normal,band,ref,actual});}
@@ -16046,7 +16097,7 @@ function rmhdSetup(){
     if(sp.plasmoid)for(let i=-2;i<=2;i++){const tor=new THREE.Mesh(new THREE.TorusGeometry(.12+.025*Math.abs(i),.008,5,36),new THREE.MeshBasicMaterial({color:i%2?SCI_MINT:SCI_GOLD,transparent:true,opacity:.56,depthWrite:false}));tor.position.set(i*.65,0,.03);world.add(tor);dynamic.push(tor);}
     const lab=mkLabel('CURRENT SHEET · δ/L=S⁻¹ᐟ² (physical ratio; rendered thickness magnified) · arrows are inflow/outflow','label axis');lab.position.set(0,3.02,0);world.add(lab);
   }else if(station==='shock'){
-    const sh=rmhdShock(state.rmhdMach??8),outer=new THREE.Mesh(new THREE.IcosahedronGeometry(2.1,4),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.055,.54)),contact=new THREE.Mesh(new THREE.IcosahedronGeometry(1.63,4),scientificFresnelMaterial(SCI_GOLD,SCI_CORAL,.04,.4));world.add(outer,contact);dynamic.push(outer,contact);
+    const sh=rmhdShock(state.rmhdMach??8),outer=new THREE.Mesh(new THREE.IcosahedronGeometry(2.1,4),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.055,.54,true)),contact=new THREE.Mesh(new THREE.IcosahedronGeometry(1.63,4),scientificFresnelMaterial(SCI_GOLD,SCI_CORAL,.04,.4));world.add(outer,contact);dynamic.push(outer,contact);
     const inner=new THREE.Mesh(new THREE.IcosahedronGeometry(1.28,3),new THREE.MeshStandardMaterial({color:0x283a57,emissive:0x6f2f24,emissiveIntensity:.12,transparent:true,opacity:.18,depthWrite:false,roughness:.5}));world.add(inner);
     for(let q=0;q<18;q++){const ph=2*Math.PI*q/18,pts=[];for(let j=0;j<=90;j++){const x=-3.2+6.4*j/90,b=.42+.105*(q%6),r=Math.hypot(x,b),bend=r<2.25?.6*(1-r/2.25):0;pts.push(new THREE.Vector3(x,b*Math.cos(ph)+bend*Math.sin(ph),b*Math.sin(ph)-bend*Math.cos(ph)));}world.add(scientificTube(pts,q%6===0?SCI_GOLD:0x80b8cf,.0035,q%6===0?.44:.085,false,94));}
     const shockFlow=[];for(let j=0;j<=80;j++){const u=j/80,r=2.2+1.7*u;shockFlow.push(new THREE.Vector3(r,0,0));}const f=scientificFlow(shockFlow,26,SCI_CYAN,.04,false);world.add(f);flows.push(f);
@@ -18690,8 +18741,13 @@ function scientificGlowTexture(){
   g.addColorStop(0,'rgba(255,255,255,.98)');g.addColorStop(.055,'rgba(238,249,255,.96)');g.addColorStop(.13,'rgba(145,205,225,.24)');g.addColorStop(.27,'rgba(45,100,130,.07)');g.addColorStop(1,'rgba(0,0,0,0)');x.fillStyle=g;x.fillRect(0,0,128,128);
   scientificGlowMap=new THREE.CanvasTexture(c);if('colorSpace' in scientificGlowMap)scientificGlowMap.colorSpace=THREE.SRGBColorSpace;return scientificGlowMap;
 }
-function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,intensity=1){
-  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,blending:THREE.NormalBlending,
+/* `enclosing` renders only the FAR inner face. A shell that surrounds the physics
+   must never paint over it: with DoubleSide the near hemisphere washed every
+   observatory into an opaque grey ball with hairlines inside it. Back-face only
+   leaves the interior completely clear and still gives the soft dome behind. */
+function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,intensity=1,enclosing=false){
+  const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,
+    side:enclosing?THREE.BackSide:THREE.DoubleSide,blending:THREE.AdditiveBlending,
     uniforms:{uColor:{value:new THREE.Color(color)},uAccent:{value:new THREE.Color(accent)},uOpacity:{value:opacity},uIntensity:{value:intensity},uTime:{value:0}},
     vertexShader:`
       varying vec3 vNormalV;varying vec3 vViewV;varying vec3 vLocal;
@@ -18718,10 +18774,50 @@ function scientificFresnelMaterial(color=SCI_CYAN,accent=SCI_GOLD,opacity=.34,in
            scale. uTime remains in the ABI so old stations need no material churn. */
         float wave=.5+.5*sin(dot(vLocal,vec3(3.1,4.3,2.7)));
         float filament=smoothstep(.88,1.0,wave);vec3 col=mix(uColor,uAccent,clamp(rim*.38+filament*.10,0.0,1.0));
-        float a=uOpacity*(.10+.68*rim+.12*filament);
-        gl_FragColor=vec4(col*(.34+.82*rim+.16*filament)*min(uIntensity,1.28),min(.50,a));}
+        /* additive: the constant floor is what produced the grey wash, so the
+           shell is now carried almost entirely by its rim and filaments — the
+           interior of every observatory stays at full contrast. */
+        float a=uOpacity*(.010+.80*rim+.10*filament);
+        gl_FragColor=vec4(col*(.18+1.10*rim+.20*filament)*min(uIntensity,1.28),min(.58,a));}
     `});
   m.userData.scientificFresnel=true;return m;
+}
+/* ── ENCLOSURE RULE ───────────────────────────────────────────────────────────
+   A Fresnel shell that is big enough to SURROUND its laboratory must be drawn
+   back-face only. With DoubleSide the near hemisphere is painted over the very
+   physics the shell exists to frame, and because these materials do not write
+   depth, several such shells stack into an opaque wash — which is why the newer
+   observatories read as grey balls with hairlines inside them. Marking them at
+   the source is not enough, because shells are also built through parametric and
+   instanced paths, so the rule is applied once to a laboratory after it is set
+   up: measure each Fresnel mesh in world units and flip anything that encloses.
+   Small Fresnel objects — contact planes, knots, probes — are untouched. */
+const SCI_ENCLOSE_R=1.9;
+/* Laboratories build lazily — several of them only construct their shells on the
+   first update after the view changes — so the rule is applied on a slow tick
+   rather than once at switch time, which also heals any shell a station rebuilds
+   later. The traverse is a pointer walk twice a second and costs nothing next to
+   a frame. */
+let sciEncloseAcc=99, sciEncloseFixed=0;
+function scientificEnclosureTick(dt){
+  sciEncloseAcc+=dt; if(sciEncloseAcc<0.5) return;
+  sciEncloseAcc=0;
+  try{ sciEncloseFixed+=scientificEnclosureFix(s3Group); }catch(e){}
+}
+function scientificEnclosureFix(root){
+  if(!root) return 0;
+  let fixed=0; const sc=new THREE.Vector3();
+  root.traverse(o=>{
+    if(!o.isMesh||!o.geometry) return;
+    const m=o.material; if(!m||!m.userData||!m.userData.scientificFresnel) return;
+    if(!o.geometry.boundingSphere){ try{ o.geometry.computeBoundingSphere(); }catch(e){ return; } }
+    const bs=o.geometry.boundingSphere; if(!bs) return;
+    o.getWorldScale(sc);
+    const r=bs.radius*Math.max(Math.abs(sc.x),Math.abs(sc.y),Math.abs(sc.z));
+    const want=r>=SCI_ENCLOSE_R?THREE.BackSide:m.side;
+    if(m.side!==want){ m.side=want; m.needsUpdate=true; fixed++; }
+  });
+  return fixed;
 }
 function scientificCurve(points,closed=false){
   const pts=[];for(const p of points||[]){const v=p?.isVector3?p.clone():new THREE.Vector3(...p);if(!Number.isFinite(v.x+v.y+v.z))continue;if(!pts.length||v.distanceToSquared(pts[pts.length-1])>1e-10)pts.push(v);}
@@ -18782,7 +18878,7 @@ function scientificParametricSurface(uSeg,vSeg,fn,material){
 }
 function scientificNebula(center,scale,color,count=220,seed=1){
   const pos=new Float32Array(count*3),col=new Float32Array(count*3),C=new THREE.Color(color);for(let i=0;i<count;i++){const h=nexusHash(`${seed}:${i}`),q=nexusHash(`${i}:${seed}:q`),r=nexusHash(`${seed}:r:${i}`),a=6.2831853*h,z=2*q-1,rad=Math.cbrt(r),s=Math.sqrt(Math.max(0,1-z*z));pos[3*i]=center.x+scale.x*rad*s*Math.cos(a);pos[3*i+1]=center.y+scale.y*rad*z;pos[3*i+2]=center.z+scale.z*rad*s*Math.sin(a);const k=.38+.62*r;col[3*i]=C.r*k;col[3*i+1]=C.g*k;col[3*i+2]=C.b*k;}
-  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));const m=new THREE.PointsMaterial({size:.026,vertexColors:true,transparent:true,opacity:.23,depthWrite:false,blending:THREE.NormalBlending,sizeAttenuation:true});return new THREE.Points(g,m);
+  const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));const m=new THREE.PointsMaterial({size:.024,vertexColors:true,transparent:true,opacity:.15,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});return new THREE.Points(g,m);
 }
 function scientificContactPlanes(points,color=SCI_VIOLET,size=.24){
   const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),g=new THREE.CircleGeometry(size,6),m=scientificFresnelMaterial(color,SCI_GOLD,.18,.72),inst=new THREE.InstancedMesh(g,m,pts.length),o=new THREE.Object3D(),z=new THREE.Vector3(0,0,1),centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/Math.max(1,pts.length));
@@ -18898,7 +18994,7 @@ function sydGuide(world){
   const root=new THREE.Group();root.name=`Symmetry transformation field · ${world}`;sydGroup.add(root);SYD.fieldRoot=root;
   root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.75,2.35),world==='mobius'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?130:260,17+world.length));
   if(world==='rotation'){
-    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.72,64,42),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.27,.9));root.add(shell);SYD.manifold=shell;
+    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.72,64,42),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.27,.9,true));root.add(shell);SYD.manifold=shell;
     const a=sydAxis.clone().multiplyScalar(3.65),axis=scientificTube([a.clone().multiplyScalar(-1),a],SCI_GOLD,.045,.82,false,64);root.add(axis);
     const planes=[];for(let i=0;i<22;i++){const u=(i/21-.5)*5.5;planes.push(sydAxis.clone().multiplyScalar(u));}root.add(scientificContactPlanes(planes,SCI_GOLD,.18));
   }else if(world==='lorentz'){
@@ -18912,7 +19008,7 @@ function sydGuide(world){
     const vortex=scientificParametricSurface(96,24,(u,v)=>{const a=6.2831853*u,b=6.2831853*v,r=1.83+.46*Math.cos(b);return new THREE.Vector3(1.18*r*Math.cos(a),.82*r*Math.sin(a),.46*Math.sin(b)+.24*Math.sin(2*a));},scientificFresnelMaterial(SCI_MINT,SCI_GOLD,.27,.9));root.add(vortex);SYD.manifold=vortex;
     const orbit=[];for(let i=0;i<36;i++){const a=6.2831853*i/36;orbit.push(new THREE.Vector3(2.05*Math.cos(a),1.45*Math.sin(a),.24*Math.sin(2*a)));}root.add(scientificContactPlanes(orbit,SCI_VIOLET,.2));
   }else{
-    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.56,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.27,.94));root.add(sphere);SYD.manifold=sphere;
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.56,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.27,.94,true));root.add(sphere);SYD.manifold=sphere;
     for(let k=-3;k<=3;k++){const lat=[];for(let i=0;i<=128;i++){const a=6.2831853*i/128,th=(k/7)*Math.PI;lat.push(new THREE.Vector3(2.56*Math.cos(th)*Math.cos(a),2.56*Math.sin(th),2.56*Math.cos(th)*Math.sin(a)));}root.add(scientificTube(lat,k===0?SCI_GOLD:SCI_CYAN,.014,k===0?.52:.2,true,128));}
   }
 }
@@ -19102,13 +19198,13 @@ function holCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.
 function holGuide(station){
   const root=new THREE.Group();root.name=`Holonomy native transport space · ${station}`;holGroup.add(root);HOL.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.85,2.7),station==='berry'||station==='su2'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?120:240,73+station.length));
   if(station==='sphere'||station==='berry'){
-    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(station==='berry'?SCI_VIOLET:SCI_CYAN,SCI_GOLD,.29,.95));root.add(sphere);HOL.manifold=sphere;
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(station==='berry'?SCI_VIOLET:SCI_CYAN,SCI_GOLD,.29,.95,true));root.add(sphere);HOL.manifold=sphere;
   }else if(station==='su2'){
-    const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(2.58,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.25,.94));root.add(ball);const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(1.56,.12,240,12,3,5),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.38,1));knot.rotation.set(.62,.35,.18);root.add(knot);HOL.manifold=ball;
+    const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(2.58,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.25,.94,true));root.add(ball);const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(1.56,.12,240,12,3,5),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.38,1));knot.rotation.set(.62,.35,.18);root.add(knot);HOL.manifold=ball;
   }else if(station==='wigner'){
     const disk=scientificParametricSurface(96,34,(u,v)=>{const a=6.2831853*u,r=.02+2.52*v;return new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),-.34*r*r/2.52);},scientificFresnelMaterial(SCI_CYAN,SCI_CORAL,.3,.94));disk.rotation.x=-.14;root.add(disk);HOL.manifold=disk;
   }else{
-    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.26,.95));root.add(sphere);HOL.manifold=sphere;
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.26,.95,true));root.add(sphere);HOL.manifold=sphere;
   }
 }
 function holSetup(){
@@ -19270,11 +19366,11 @@ function actCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.
 function actGuide(station){
   const root=new THREE.Group();root.name=`Contact geometry native field · ${station}`;actGroup.add(root);ACT.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.25,2.75,2.65),station==='ks'||station==='maslov'?SCI_VIOLET:SCI_MINT,MOBILE_GPU?120:250,111+station.length));
   if(station==='reeb'||station==='legendrian'){
-    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.62,5),scientificFresnelMaterial(SCI_MINT,station==='legendrian'?SCI_CORAL:SCI_GOLD,.25,.95));root.add(shell);ACT.manifold=shell;
+    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.62,5),scientificFresnelMaterial(SCI_MINT,station==='legendrian'?SCI_CORAL:SCI_GOLD,.25,.95,true));root.add(shell);ACT.manifold=shell;
   }else if(station==='return'){
-    const ellipsoid=new THREE.Mesh(new THREE.SphereGeometry(2.35,72,48),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.25,.92));ellipsoid.scale.set(1.18,.82,1);root.add(ellipsoid);const section=new THREE.Mesh(new THREE.CircleGeometry(2.38,96),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.18,.75));section.position.z=.02;root.add(section);ACT.manifold=ellipsoid;
+    const ellipsoid=new THREE.Mesh(new THREE.SphereGeometry(2.35,72,48),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.25,.92,true));ellipsoid.scale.set(1.18,.82,1);root.add(ellipsoid);const section=new THREE.Mesh(new THREE.CircleGeometry(2.38,96),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.18,.75,true));section.position.z=.02;root.add(section);ACT.manifold=ellipsoid;
   }else if(station==='ks'){
-    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.55,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.22,.9));root.add(shell);const throat=scientificParametricSurface(80,28,(u,v)=>{const x=(u-.5)*5,a=6.2831853*v,r=.18+.16*x*x;return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_GOLD,SCI_CORAL,.26,.9));throat.rotation.z=Math.PI/2;root.add(throat);ACT.manifold=shell;
+    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.55,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.22,.9,true));root.add(shell);const throat=scientificParametricSurface(80,28,(u,v)=>{const x=(u-.5)*5,a=6.2831853*v,r=.18+.16*x*x;return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_GOLD,SCI_CORAL,.26,.9));throat.rotation.z=Math.PI/2;root.add(throat);ACT.manifold=shell;
   }else{
     const caustic=scientificParametricSurface(112,32,(u,v)=>{const a=6.2831853*u,s=2*v-1,r=.18+1.96*Math.abs(s),z=1.34*s+.28*Math.sin(2*a)*(1-Math.abs(s));return new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),z);},scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.31,.98));caustic.rotation.set(.46,.18,.12);root.add(caustic);ACT.manifold=caustic;
   }
@@ -19421,9 +19517,9 @@ function nulGuide(station){
   }else if(station==='celestial'){
     sphere(-1.72,SCI_CYAN,SCI_GOLD);NUL.transformedField=[sphere(1.72,SCI_CORAL,SCI_VIOLET)];const bridge=scientificParametricSurface(64,18,(u,v)=>{const x=-.48+.96*u,a=6.2831853*v,r=.2+.42*Math.sin(Math.PI*u);return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.23,.86));root.add(bridge);
   }else if(station==='tetrad'){
-    const sky=new THREE.Mesh(new THREE.IcosahedronGeometry(2.65,5),scientificFresnelMaterial(SCI_GOLD,SCI_VIOLET,.23,.92));root.add(sky);NUL.transformedField=[sky];
+    const sky=new THREE.Mesh(new THREE.IcosahedronGeometry(2.65,5),scientificFresnelMaterial(SCI_GOLD,SCI_VIOLET,.23,.92,true));root.add(sky);NUL.transformedField=[sky];
   }else{
-    const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(2.75,2),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.3,1));diamond.scale.set(1,1.16,.54);root.add(diamond);NUL.transformedField=[diamond];const inner=new THREE.Mesh(new THREE.OctahedronGeometry(1.9,1),scientificFresnelMaterial(SCI_VIOLET,SCI_CORAL,.18,.78));inner.scale.copy(diamond.scale);root.add(inner);
+    const diamond=new THREE.Mesh(new THREE.OctahedronGeometry(2.75,2),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.3,1,true));diamond.scale.set(1,1.16,.54);root.add(diamond);NUL.transformedField=[diamond];const inner=new THREE.Mesh(new THREE.OctahedronGeometry(1.9,1),scientificFresnelMaterial(SCI_VIOLET,SCI_CORAL,.18,.78,true));inner.scale.copy(diamond.scale);root.add(inner);
   }
 }
 function nulSetup(){
@@ -20222,6 +20318,7 @@ function setS3View(v,opt={}){
     stabilizeCamera();syncCameraClipping(true);
   }
   if(v==='bell') updateBell();
+  sciEncloseAcc=99;   // re-apply the enclosure rule as soon as the new lab has built
   updateBreadcrumb();   // the breadcrumb displays the active S³ lab view
   try{ if(typeof buildInfo==='function') buildInfo(); }catch(e){}   // the passport follows the view
 }
@@ -30850,6 +30947,46 @@ info.addEventListener('click', e=>{
 });
 
 /* ---------------- MODE SWITCHING ---------------- */
+/* The context rail is scientific orientation, not decoration: it keeps manifold,
+   coordinate convention and display scale visible while panels are closed. */
+const CONTEXT_META={
+  solar:['Solar atlas','R³ · heliocentric ecliptic J2000','1 unit = 1 AU'],
+  cyc:['Cycles & events','S¹ phase clocks · shared epoch','time-linked instruments'],
+  obs:['Observable universe','B³χ(p) ⊂ S³R · comoving','1 unit = 1 Gly'],
+  s3:['S³ carrier','S³R → R³ · stereographic chart','1 unit = 100 Gly'],
+  fbs:['FBS3R ladder','logφ(R/ℓP) · discrete scale space','N ∈ ℝ · step ×φ'],
+  field:['Field laboratory','state / phase space · solver grid','reduced calibrated units'],
+  fractal:['Fractal explorer','C² / R⁴ · projected manifold','semantic infinite zoom']
+};
+let contextRailAt=0;
+function updateContextRail(force=false){
+  const now=performance.now(); if(!force&&now-contextRailAt<500)return; contextRailAt=now;
+  const rail=document.getElementById('contextRail'); if(!rail)return;
+  const meta=CONTEXT_META[state.mode]||CONTEXT_META.solar;
+  let name=meta[0], space=meta[1], scale=meta[2];
+  if(state.mode==='s3'){
+    const v=state.s3view||'sec'; name=S3_VIEW_NAMES?.[v]||name;
+    space=({hopf:'S¹ ↪ S³ → S² · Hopf bundle',psp:'H(q,p)=E ⊂ R⁴ · S³ energy shell',
+      spin:'CP¹ ≅ S² · Bloch sphere',rel:'Minkowski R¹,³ · Lorentz frame',
+      topo:'homotopy · fibre · linking invariants',berry:'U(1) bundle · parameter space'}[v]||space);
+  } else if(state.mode==='solar'&&state.solarScaleLayer!=='local'){
+    const layer=state.solarScaleLayer||'local'; name=({galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'})[layer]||name;
+    scale='semantic gateway · directions invariant';
+  } else if(state.mode==='fractal'){ name=(typeof fractalType==='string'?fractalType:name).replace(/3d$/i,' 3D'); }
+  document.getElementById('ctxMode').textContent=name;
+  document.getElementById('ctxSpace').textContent=space;
+  document.getElementById('ctxScale').textContent=scale;
+  const ms=ATLAS_TELEMETRY.frameEmaMs||0, fps=ms?Math.min(999,1000/ms):0;
+  document.getElementById('ctxPerf').textContent=fps?`${fps.toFixed(0)} fps · ${ms.toFixed(1)} ms`:'warming optics';
+  rail.dataset.health=fps&&fps<35?'hot':fps&&fps<58?'warm':'cool';
+  document.body.dataset.mode=state.mode;
+}
+if(matchMedia('(pointer:fine)').matches&&!matchMedia('(prefers-reduced-motion: reduce)').matches){
+  addEventListener('pointermove',e=>{
+    document.documentElement.style.setProperty('--lux-x',e.clientX+'px');
+    document.documentElement.style.setProperty('--lux-y',e.clientY+'px');
+  },{passive:true});
+}
 function syncControlCapabilities(){
   const is3D=state.mode==='fractal'&&(fractalType==='mandelbulb'||GEO_FRACTALS.has(fractalType));  // true 3D views: mandelbulb + bifurc3d/polytope4d/orbital3d
   const semanticZoom=state.mode==='fbs'||(state.mode==='fractal'&&!is3D);
@@ -30924,6 +31061,7 @@ function setMode(mode){
   buildCtl();
   updateBreadcrumb();
   armIdleDrift();   // every section opens alive: a slow cinematic orbit until the user takes over
+  updateContextRail(true);
 }
 /* Idle cinematic drift — on boot and on every mode switch the scene begins a very slow
    auto-orbit so the universe is always gently alive; the FIRST user gesture anywhere
@@ -32347,12 +32485,14 @@ function tickBody(now, frame){
   ATLAS_TELEMETRY.frameEmaMs=ATLAS_TELEMETRY.frames===1?frameMs:ATLAS_TELEMETRY.frameEmaMs*.94+frameMs*.06;
   ATLAS_TELEMETRY.frameJitterMs=ATLAS_TELEMETRY.frameJitterMs*.94+Math.abs(frameMs-ATLAS_TELEMETRY.frameEmaMs)*.06;
   premiumPerformanceTick(dt);
+  updateContextRail();
   XRX.update(dt, frame);
   MOTION.apply(dt); MOTION.uiTick(dt);
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
   updateLaniakeaFlows(dt);
   updateHierarchyLocator();
   try{ labPassportTick(dt); }catch(e){}
+  if(state.mode==='s3') scientificEnclosureTick(dt);
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
