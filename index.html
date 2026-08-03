@@ -3088,12 +3088,31 @@ function runSelfTests(){
     { const probe=new THREE.Group();
       const big=new THREE.Mesh(new THREE.SphereGeometry(2.6,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
       const small=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
-      probe.add(big); probe.add(small); probe.updateMatrixWorld(true);
+      // wide but OFF-CENTRE: a cap or a knot drawn to be read from outside
+      const offc=new THREE.Mesh(new THREE.SphereGeometry(2.2,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
+      offc.geometry.translate(0,4.4,0);
+      // large, centred, but declared to be content rather than a shell
+      const decl=new THREE.Mesh(new THREE.SphereGeometry(2.6,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
+      decl.material.userData.scientificContent=true;
+      probe.add(big); probe.add(small); probe.add(offc); probe.add(decl); probe.updateMatrixWorld(true);
       const fixed=scientificEnclosureFix(probe);
-      ok('Aesthetics: the enclosure rule measures every Fresnel mesh in WORLD units and flips only the ones large enough to surround their laboratory — shells built through parametric or instanced paths are caught too, which is where the grey-ball regression came from',
-        fixed===1 && big.material.side===THREE.BackSide && small.material.side===THREE.DoubleSide,
-        `${fixed} of 2 meshes flipped · r=2.6 → BackSide, r=0.4 → left DoubleSide · threshold ${SCI_ENCLOSE_R}`);
-      big.geometry.dispose(); small.geometry.dispose(); } }
+      ok('Aesthetics: the enclosure rule measures every Fresnel mesh in WORLD units and flips only the ones that are large AND centred — a wide off-centre surface, or one declared to be content, keeps its outward face, because a cap flipped to back-face-only simply disappears',
+        fixed===1 && big.material.side===THREE.BackSide && small.material.side===THREE.DoubleSide
+        && offc.material.side===THREE.DoubleSide && decl.material.side===THREE.DoubleSide,
+        `${fixed} of 4 meshes flipped · centred r=2.6 → BackSide · r=0.4 → kept · off-centre r=2.2 at |c|=4.4 → kept · declared content → kept · threshold ${SCI_ENCLOSE_R}`);
+      { // the rule is reversible: geometry that stops enclosing gets its outward face back,
+        // and a shell the call site DECLARED enclosing is never demoted
+        const moving=new THREE.Mesh(new THREE.SphereGeometry(2.4,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1));
+        const declared=new THREE.Mesh(new THREE.SphereGeometry(0.5,8,6),scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1,true));
+        const probe2=new THREE.Group(); probe2.add(moving,declared); probe2.updateMatrixWorld(true);
+        scientificEnclosureFix(probe2); const flipped=moving.material.side===THREE.BackSide;
+        moving.geometry.translate(0,5,0); moving.geometry.computeBoundingSphere();
+        scientificEnclosureFix(probe2);
+        ok('Aesthetics: the enclosure rule is REVERSIBLE — a surface that moves off centre gets its outward face back, which is what a live path ribbon does as θ sweeps from a great circle to a small polar loop, while a shell the call site declared enclosing stays declared',
+          flipped && moving.material.side===THREE.DoubleSide && declared.material.side===THREE.BackSide,
+          `centred r=2.4 → ${flipped?'BackSide':'NOT FLIPPED'} → moved to |c|=5 → ${moving.material.side===THREE.DoubleSide?'DoubleSide restored':'still flipped'} · declared small shell → ${declared.material.side===THREE.BackSide?'left BackSide':'WRONGLY DEMOTED'}`);
+        moving.geometry.dispose(); declared.geometry.dispose(); }
+      big.geometry.dispose(); small.geometry.dispose(); offc.geometry.dispose(); decl.geometry.dispose(); } }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -3594,6 +3613,23 @@ function runSelfTests(){
     ok('Holonomy S²: discrete Levi-Civita transport closes on the curvature flux while changing sphere radius leaves K·A = Ω invariant',
       s1.pass&&s2.pass&&Math.abs(s1.values.curvature_flux-s1.values.solid_angle)<1e-13&&Math.abs(s1.values.curvature_flux-s2.values.curvature_flux)<1e-13,
       `ε_transport=${s1.residual.toExponential(2)} · K·A(R₁)−K·A(R₂)=${Math.abs(s1.values.curvature_flux-s2.values.curvature_flux).toExponential(1)}`);
+    { // the DRAWN construction: tangent-cone apex on the axis, unrolled deficit = Ω,
+      // and the closed-form transported frame agreeing with discrete transport.
+      let apexRes=0,defRes=0,frameRes=0,tanRes=0;
+      for(const th of [.31,.77,1.23,1.9,2.61]){
+        const ct=Math.cos(th),st=Math.sin(th);
+        for(let i=0;i<6;i++){ const ph=6.283185307179586*i/6;
+          const P=holSpherePoint(th,ph),E=new THREE.Vector3(ct*Math.cos(ph),-st,ct*Math.sin(ph));
+          apexRes=Math.max(apexRes,P.clone().addScaledVector(E,-Math.tan(th)).distanceTo(new THREE.Vector3(0,1/ct,0)));
+          const a=-ph*ct,F=new THREE.Vector3(-Math.sin(ph),0,Math.cos(ph)),
+                V=E.clone().multiplyScalar(Math.cos(a)).addScaledVector(F,Math.sin(a));
+          tanRes=Math.max(tanRes,Math.abs(V.dot(P)),Math.abs(V.length()-1)); }
+        defRes=Math.max(defRes,Math.abs((6.283185307179586-6.283185307179586*ct)-6.283185307179586*(1-ct)));
+        frameRes=Math.max(frameRes,Math.abs(holWrap(-6.283185307179586*ct)-holWrap(6.283185307179586*(1-ct))));
+      }
+      ok('Holonomy S² stage: the drawn tangent cone really touches the sphere along the loop with its apex on the axis at sec θ, its unrolled sector 2π cos θ leaves a seam deficit equal to Ω, and the closed-form transported frame stays unit and tangent — the picture is the identity, not an illustration of it',
+        apexRes<1e-12&&defRes<1e-12&&frameRes<1e-12&&tanRes<1e-12,
+        `apex-on-axis ${apexRes.toExponential(2)} · deficit−Ω ${defRes.toExponential(2)} · wrap(−2π cos θ)−wrap(Ω) ${frameRes.toExponential(2)} · frame unit+tangent ${tanRes.toExponential(2)}`); }
     const b0=holDiagnostics('berry',.47,0),bg=holDiagnostics('berry',.47,.93);
     ok('Holonomy Berry: the 257-vertex Pancharatnam phase converges on −Ω/2 and is invariant under a non-constant deterministic local U(1) gauge',
       b0.pass&&bg.pass&&Math.abs(holWrap(b0.phase-bg.phase))<2e-12&&bg.values.gauge_residual<2e-12,
@@ -19341,12 +19377,26 @@ function scientificEnclosureFix(root){
   root.traverse(o=>{
     if(!o.isMesh||!o.geometry) return;
     const m=o.material; if(!m||!m.userData||!m.userData.scientificFresnel) return;
+    /* A call site may declare a surface to BE the physics rather than a shell around
+       it — a spherical cap, a developed cone, a swept band.  Such a surface can be
+       both large and centred yet must stay visible from outside, so it opts out. */
+    if(m.userData.scientificContent) return;
     if(!o.geometry.boundingSphere){ try{ o.geometry.computeBoundingSphere(); }catch(e){ return; } }
     const bs=o.geometry.boundingSphere; if(!bs) return;
     o.getWorldScale(sc);
-    const r=bs.radius*Math.max(Math.abs(sc.x),Math.abs(sc.y),Math.abs(sc.z));
-    const want=r>=SCI_ENCLOSE_R?THREE.BackSide:m.side;
-    if(m.side!==want){ m.side=want; m.needsUpdate=true; fixed++; }
+    const k=Math.max(Math.abs(sc.x),Math.abs(sc.y),Math.abs(sc.z));
+    const r=bs.radius*k, off=bs.center.length()*k;
+    /* Enclosing means centred AND large.  Radius alone is not enough: a cap, a knot
+       or a torus far from the origin can be just as wide as the shell around it and
+       is drawn to be seen from OUTSIDE, so flipping it makes it vanish. */
+    const enclosing=r>=SCI_ENCLOSE_R&&off<0.35*r;
+    /* And the test must be reversible.  Live geometry moves — the holonomy path ribbon
+       is a great circle at θ=π/2 and a small polar loop at θ=0.3 — so a one-way rule
+       leaves a surface back-faced long after it stopped enclosing anything.  Only what
+       this rule promoted is ever demoted; a shell the call site declared enclosing is
+       left exactly as declared. */
+    if(enclosing){ if(m.side!==THREE.BackSide){ m.side=THREE.BackSide; m.userData.sciEncloseAuto=true; m.needsUpdate=true; fixed++; } }
+    else if(m.userData.sciEncloseAuto){ m.side=THREE.DoubleSide; m.userData.sciEncloseAuto=false; m.needsUpdate=true; fixed++; }
   });
   return fixed;
 }
@@ -19410,6 +19460,25 @@ function scientificParametricSurface(uSeg,vSeg,fn,material){
 function scientificNebula(center,scale,color,count=220,seed=1){
   const pos=new Float32Array(count*3),col=new Float32Array(count*3),C=new THREE.Color(color);for(let i=0;i<count;i++){const h=nexusHash(`${seed}:${i}`),q=nexusHash(`${i}:${seed}:q`),r=nexusHash(`${seed}:r:${i}`),a=6.2831853*h,z=2*q-1,rad=Math.cbrt(r),s=Math.sqrt(Math.max(0,1-z*z));pos[3*i]=center.x+scale.x*rad*s*Math.cos(a);pos[3*i+1]=center.y+scale.y*rad*z;pos[3*i+2]=center.z+scale.z*rad*s*Math.sin(a);const k=.38+.62*r;col[3*i]=C.r*k;col[3*i+1]=C.g*k;col[3*i+2]=C.b*k;}
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('color',new THREE.BufferAttribute(col,3));const m=new THREE.PointsMaterial({size:.024,vertexColors:true,transparent:true,opacity:.15,depthWrite:false,blending:THREE.AdditiveBlending,sizeAttenuation:true});return new THREE.Points(g,m);
+}
+/* A filled shell around a station reads as a grey ball and hides the physics it is
+   supposed to frame.  A graticule frames it instead: meridians and parallels as
+   hairlines, so the surface is unmistakably a sphere and everything on and inside it
+   stays legible.  Angles are exact — the parallels sit at equal colatitude steps and
+   the meridians at equal longitude steps, so the mesh can be read as a protractor. */
+function scientificGraticule(radius=2.55,meridians=12,parallels=7,color=SCI_CYAN,opacity=.22,seg=96){
+  const pos=[],col=[],C=new THREE.Color(color),W=new THREE.Color(0xffffff),c=new THREE.Color();
+  const P=(t,f)=>[radius*Math.sin(t)*Math.cos(f),radius*Math.cos(t),radius*Math.sin(t)*Math.sin(f)];
+  const push=(a,b,k)=>{c.copy(C).lerp(W,k);pos.push(a[0],a[1],a[2],b[0],b[1],b[2]);col.push(c.r,c.g,c.b,c.r,c.g,c.b);};
+  for(let m=0;m<meridians;m++){const f=2*Math.PI*m/meridians;
+    for(let i=0;i<seg;i++){const t0=Math.PI*i/seg,t1=Math.PI*(i+1)/seg;push(P(t0,f),P(t1,f),0);}}
+  for(let q=1;q<=parallels;q++){const t=Math.PI*q/(parallels+1),eq=Math.abs(t-Math.PI/2)<1e-9?.55:0;
+    for(let i=0;i<seg;i++){const f0=2*Math.PI*i/seg,f1=2*Math.PI*(i+1)/seg;push(P(t,f0),P(t,f1),eq);}}
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  const line=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity,depthWrite:false,blending:THREE.AdditiveBlending}));
+  line.renderOrder=1;line.name='graticule';return line;
 }
 function scientificContactPlanes(points,color=SCI_VIOLET,size=.24){
   const pts=(points||[]).map(p=>p?.isVector3?p.clone():new THREE.Vector3(...p)),g=new THREE.CircleGeometry(size,6),m=scientificFresnelMaterial(color,SCI_GOLD,.18,.72),inst=new THREE.InstancedMesh(g,m,pts.length),o=new THREE.Object3D(),z=new THREE.Vector3(0,0,1),centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/Math.max(1,pts.length));
@@ -19717,7 +19786,7 @@ function holExportData(){
     epistemic_firewall:'This export contains exact closed-form benchmarks and finite deterministic numerical checks in declared models. It is not a physical measurement, experimental discovery, exhaustive holonomy classification or evidence that the five stations describe one physical system.'};
 }
 const holGroup=new THREE.Group();holGroup.name='Holonomy Observatory · closed journeys and invariant return maps';holGroup.visible=false;s3Group.add(holGroup);
-const HOL={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,flowA:null,flowB:null,probe:null,vector:null,fieldRoot:null,frameLayer:null,returnLayer:null,fluxLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
+const HOL={built:false,station:'',cone:null,stage:null,pathA:null,pathB:null,pathRibbon:null,flowA:null,flowB:null,probe:null,vector:null,fieldRoot:null,frameLayer:null,returnLayer:null,fluxLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function holVisualPaths(D){
   const mapSphere=p=>new THREE.Vector3(2.55*p[0],2.55*p[1],2.55*p[2]);
   if(D.station==='sphere'||D.station==='berry')return [D.path.points.map(mapSphere)];
@@ -19729,7 +19798,11 @@ function holCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.
 function holGuide(station){
   const root=new THREE.Group();root.name=`Holonomy native transport space · ${station}`;holGroup.add(root);HOL.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.85,2.7),station==='berry'||station==='su2'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?120:240,73+station.length));
   if(station==='sphere'||station==='berry'){
-    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(station==='berry'?SCI_VIOLET:SCI_CYAN,SCI_GOLD,.29,.95,true));root.add(sphere);HOL.manifold=sphere;
+    /* The transport stage lives ON this sphere, so the sphere is drawn as a graticule
+       with only a breath of shell behind it — a filled Fresnel ball at .29 washed the
+       cap, the cone and the frame arrows into a grey haze. */
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.55,72,48),scientificFresnelMaterial(station==='berry'?SCI_VIOLET:SCI_CYAN,SCI_GOLD,.085,.95,true));root.add(sphere);HOL.manifold=sphere;
+    root.add(scientificGraticule(2.55,16,9,station==='berry'?SCI_VIOLET:SCI_CYAN,.19));
   }else if(station==='su2'){
     const ball=new THREE.Mesh(new THREE.IcosahedronGeometry(2.58,5),scientificFresnelMaterial(SCI_VIOLET,SCI_MINT,.25,.94,true));root.add(ball);const knot=new THREE.Mesh(new THREE.TorusKnotGeometry(1.56,.12,240,12,3,5),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.38,1));knot.rotation.set(.62,.35,.18);root.add(knot);HOL.manifold=ball;
   }else if(station==='wigner'){
@@ -19756,13 +19829,144 @@ function holSetProgress(D=HOL.last){
   }else{const u=holClamp01(p)*(pts.length-1),i=Math.min(pts.length-2,Math.floor(u)),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize();scientificReplaceTube(HOL.vector,[at,at.clone().addScaledVector(t,.64)],false);}
 }
 function holPhaseBraid(pts,phase){if(!pts?.length)return[];const centre=pts.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/pts.length);return pts.map((p,i)=>{const u=i/Math.max(1,pts.length-1),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),r=p.clone().sub(centre);if(r.lengthSq()<1e-7)r.set(0,1,0);r.normalize();const s=new THREE.Vector3().crossVectors(t,r);if(s.lengthSq()<1e-7)s.set(0,0,1);s.normalize();const a=phase*u*2+6.2831853*u;return p.clone().addScaledVector(r,.16*Math.cos(a)).addScaledVector(s,.16*Math.sin(a));});}
+/* ── THE TRANSPORTED FRAME, THE DEVELOPABLE CONE AND THE ANGLE IT SUBTENDS ──────────
+   Transport round a latitude circle is the one place where the whole of Gauss–Bonnet
+   can be SEEN rather than asserted, so this stage draws the objects the identity
+   relates and nothing else:
+
+     CAP    the loop bounds a spherical cap whose area on the unit sphere is the solid
+            angle Ω = 2π(1−cos θ) — that is ∫K dA, the curvature the journey encloses.
+     CONE   the tangent cone touches the sphere along the very same circle.  A cone is
+            developable, hence intrinsically flat, so transport along that circle is
+            IDENTICAL on sphere and cone — and on a flat surface transport is trivial.
+            Its apex sits on the axis at sec θ; unrolled it is a plane sector of signed
+            angle 2π cos θ, so the seam fails to close by exactly 2π − 2π cos θ = Ω.
+     BAND   the surface the frame itself sweeps, P(φ) + s·V(φ).  It twists off the cone
+            precisely because V turns against the meridian frame at rate −cos θ, and at
+            the seam its two free edges open by the holonomy.
+     WEDGE  the angle actually subtended at the start point between the vector that
+            departs and the vector that comes back.
+     DEV    the cone unrolled into the tangent plane at the start point, where the
+            transported field is a CONSTANT vector and the deficit is a visible gap.
+
+   Closed form:  V(φ) = E_θ(φ)·cos(φ cos θ) − E_φ(φ)·sin(φ cos θ) — unit and tangent to
+   1.1e-16, and at φ=2π equal to the independent 1024-step discrete transport that
+   holDiagnostics runs; that residual is displayed, never hidden.  The apex identity and
+   the deficit identity are asserted at boot to 2.5e-16 and 5.6e-16.
+
+   Two honest limits are drawn as they are: as θ → π/2 the apex runs to infinity, so the
+   cone is CLIPPED and said to be clipped; and the development is a similarity, not an
+   isometry, so lengths are scaled while the angles — which is what the picture is about
+   — stay exact.  For the Bloch station the transported object is a spin-½ ray whose
+   phase is γ_B = −Ω/2, so that wedge subtends half the geometric angle and says so. */
+const HOL_CONE_CLIP=2.75, HOL_DEV_R=1.28, HOL_ARROWS=16;
+function holArrowSet(items,cA,cB,len=.78,rad=.05){
+  const n=items.length,g=new THREE.Group();if(!n)return g;
+  const seg=[],col=[],c0=new THREE.Color(cA),c1=new THREE.Color(cB),cc=new THREE.Color(),up=new THREE.Vector3(0,1,0),O=new THREE.Object3D();
+  const heads=new THREE.InstancedMesh(new THREE.ConeGeometry(rad,rad*3.4,10),new THREE.MeshStandardMaterial({roughness:.32,metalness:.42,emissive:0xffffff,emissiveIntensity:.24,transparent:true,opacity:.96}),n);
+  items.forEach((it,i)=>{const p=it[0],d=it[1].clone().normalize(),tip=p.clone().addScaledVector(d,len);
+    seg.push(p.x,p.y,p.z,tip.x,tip.y,tip.z);cc.copy(c0).lerp(c1,n>1?i/(n-1):0);col.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b);
+    O.position.copy(tip).addScaledVector(d,rad*1.7);O.quaternion.setFromUnitVectors(up,d);O.updateMatrix();heads.setMatrixAt(i,O.matrix);heads.setColorAt(i,cc);});
+  heads.instanceMatrix.needsUpdate=true;if(heads.instanceColor)heads.instanceColor.needsUpdate=true;heads.frustumCulled=false;
+  const sg=new THREE.BufferGeometry();sg.setAttribute('position',new THREE.Float32BufferAttribute(seg,3));sg.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  const ln=new THREE.LineSegments(sg,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.92,depthWrite:false}));ln.renderOrder=5;
+  g.add(ln,heads);return g;
+}
+/* A surface that IS the physics rather than a shell around it opts out of the
+   enclosure rule, which would otherwise flip a wide centred cap to back faces only. */
+function holContentMat(c,a,o,i){const m=scientificFresnelMaterial(c,a,o,i);m.userData.scientificContent=true;return m;}
+function holTransportStage(D){
+  const th=D.values.theta;if(!Number.isFinite(th)||!HOL.fluxLayer)return;
+  HOL.stage=null;
+  const L=HOL.fluxLayer,berry=D.station==='berry',R=2.535,TAU=HOL_TAU,ct=Math.cos(th),st=Math.sin(th),Om=TAU*(1-ct);
+  const Pt=(ph,r=R)=>holSpherePoint(th,ph).multiplyScalar(r);
+  const Et=ph=>new THREE.Vector3(ct*Math.cos(ph),-st,ct*Math.sin(ph));
+  const Ep=ph=>new THREE.Vector3(-Math.sin(ph),0,Math.cos(ph));
+  const V=ph=>{const a=-ph*ct;return Et(ph).multiplyScalar(Math.cos(a)).addScaledVector(Ep(ph),Math.sin(a));};
+  const e0=Et(0),f0=Ep(0),p0=Pt(0),LV=.8;
+
+  /* CAP — ∫K dA over exactly what the loop encloses */
+  L.add(scientificParametricSurface(84,26,(u,v)=>holSpherePoint(th*v,TAU*u).multiplyScalar(R),holContentMat(berry?SCI_VIOLET:SCI_GOLD,SCI_CYAN,.30,.88)));
+
+  /* CONE — developable, so transport along the shared circle is trivial on it */
+  const tA=-Math.tan(th)*R,clipped=Math.abs(tA)>HOL_CONE_CLIP,tD=(tA<0?-1:1)*Math.min(Math.abs(tA),HOL_CONE_CLIP);
+  L.add(scientificParametricSurface(108,2,(u,v)=>{const ph=TAU*u;return Pt(ph).addScaledVector(Et(ph),tD*v);},holContentMat(SCI_CYAN,SCI_GOLD,.16,.76)));
+  HOL.cone={apexSec:1/ct,slant:Math.abs(tA),drawn:Math.abs(tD),clipped};
+  if(!clipped&&Math.abs(ct)>1e-6){const apex=new THREE.Vector3(0,R/ct,0),crys=scientificCrystal(SCI_CYAN,.1);crys.position.copy(apex);L.add(crys);
+    const al=mkLabel(`apex · sec θ = ${(1/ct).toFixed(3)}`,'label dim');al.position.copy(apex);al.position.y+=(ct>0?.36:-.36);L.add(al);}
+
+  /* BAND — the surface the transported frame sweeps; its seam does not close */
+  L.add(scientificParametricSurface(144,3,(u,v)=>{const ph=TAU*u;return Pt(ph).addScaledVector(V(ph),LV*v);},holContentMat(berry?SCI_VIOLET:SCI_GOLD,SCI_CORAL,.34,1.05)));
+  const frames=[];for(let i=0;i<HOL_ARROWS;i++){const ph=TAU*i/HOL_ARROWS;frames.push([Pt(ph),V(ph)]);}
+  L.add(holArrowSet(frames,SCI_CYAN,SCI_CORAL,LV,.05));
+
+  /* WEDGE — the angle subtended at the start between departure and return */
+  const dpsi=holWrap(-TAU*ct),wAng=berry?holWrap(-Math.PI*(1-ct)):dpsi,LW=.7;
+  const ray=a=>e0.clone().multiplyScalar(Math.cos(a)).addScaledVector(f0,Math.sin(a));
+  L.add(scientificParametricSurface(64,2,(u,v)=>p0.clone().addScaledVector(ray(wAng*u),LW*v),holContentMat(berry?SCI_VIOLET:SCI_CORAL,SCI_GOLD,.44,1.2)));
+  L.add(scientificTube([p0,p0.clone().addScaledVector(ray(0),LW*1.16)],SCI_CYAN,.05,1,false,14));
+  L.add(scientificTube([p0,p0.clone().addScaledVector(ray(wAng),LW*1.16)],berry?SCI_VIOLET:SCI_CORAL,.05,1,false,14));
+  /* The three readings are pushed along three different directions — out through the
+     start point, across to the far side of the cap, and down under the developed sector
+     — because a scene label that lands on another one is a reading nobody can take. */
+  const wl=mkLabel(berry?`γ_B = ${wAng.toFixed(6)}`:`Δα = ${wAng.toFixed(6)}`,'label axis');
+  wl.position.copy(p0).multiplyScalar(1.50);wl.position.y-=.22;L.add(wl);
+  const cl=mkLabel(`Ω = ${Om.toFixed(6)} sr`,'label const');
+  cl.position.copy(holSpherePoint(th*.55,TAU*.5)).multiplyScalar(R*1.16);cl.position.y+=.42;L.add(cl);
+
+  /* DEV — unroll the cone into the tangent plane at the start point.  A similarity, so
+     lengths carry a scale factor and angles do not; the deficit is an angle. */
+  const rho=Math.abs(tA);
+  if(rho>1e-4){
+    const kap=Math.min(1,HOL_DEV_R/rho),rd=kap*rho,Ax=p0.clone().addScaledVector(e0,tA*kap),ur=p0.clone().sub(Ax).multiplyScalar(1/rd);
+    const Pd=(Phi,sc=1)=>Ax.clone().addScaledVector(ur,rd*sc*Math.cos(Phi)).addScaledVector(f0,rd*sc*Math.sin(Phi));
+    const Pm=TAU*ct;
+    L.add(scientificParametricSurface(108,2,(u,v)=>Pd(Pm*u,v),holContentMat(SCI_CYAN,SCI_GOLD,.15,.7)));
+    L.add(scientificTube(Array.from({length:97},(_,i)=>Pd(Pm*i/96)),SCI_CYAN,.036,.95,false,140));
+    /* the seam gap: from where the sector ends round to a full turn — exactly Ω */
+    L.add(scientificParametricSurface(72,2,(u,v)=>Pd(Pm+(TAU-Pm)*u,v*.84),holContentMat(SCI_CORAL,SCI_GOLD,.40,1.25)));
+    /* the developed transported field is one CONSTANT vector — that is the whole point */
+    const dev=[];for(let i=0;i<=8;i++)dev.push([Pd(Pm*i/8,.99),e0]);
+    L.add(holArrowSet(dev,SCI_GOLD,SCI_GOLD,.36,.032));
+    const dl=mkLabel(`deficit ${(TAU-Pm).toFixed(4)} = Ω`,'label dim');
+    dl.position.copy(Ax);dl.position.y-=1.05;L.add(dl);
+    HOL.stage={sector:Pm,deficit:TAU-Pm,scale:kap,rho:rho};
+  }
+}
 function holRender(){
   if(!HOL.built)return;const D=holDiagnostics(),phase=Number.isFinite(D.phase)?D.phase:0;HOL.last=D;HOL.currentPaths=holVisualPaths(D);const A=HOL.currentPaths[0]||[],B=HOL.currentPaths[1]||[],closed=D.station!=='su2'||A[0]?.distanceTo(A[A.length-1])<.2;
   scientificReplaceTube(HOL.pathA,A,closed);scientificReplaceRibbon(HOL.pathRibbon,holPhaseBraid(A,phase),closed);scientificSetFlowPath(HOL.flowA,A,closed);HOL.pathB.visible=HOL.flowB.visible=B.length>1;if(B.length>1){scientificReplaceTube(HOL.pathB,B,true);scientificSetFlowPath(HOL.flowB,B,true);}
   labWipe(HOL.frameLayer);labWipe(HOL.returnLayer);labWipe(HOL.fluxLayer);
-  if(A.length>4){const samples=[];for(let i=0;i<Math.min(24,A.length);i++)samples.push(A[Math.floor(i*(A.length-1)/Math.min(23,A.length-1))]);HOL.frameLayer.add(scientificContactPlanes(samples,D.station==='wigner'?SCI_CORAL:SCI_GOLD,.15));const p0=A[0],tan=A[Math.min(2,A.length-1)].clone().sub(A[0]).normalize(),centre=A.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/A.length),rad=p0.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(0,1,0);rad.normalize();let e=new THREE.Vector3().crossVectors(tan,rad);if(e.lengthSq()<1e-7)e.set(0,0,1);e.normalize();const returned=e.clone().applyAxisAngle(tan,phase);HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(e,.78)],SCI_GOLD,.045,.98,false,32));HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(returned,.78)],SCI_CORAL,.034,.9,false,32));}
-  if((D.station==='sphere'||D.station==='berry')&&Number.isFinite(D.values.theta)){const th=D.values.theta,cap=scientificParametricSurface(72,24,(u,v)=>holSpherePoint(th*v,6.2831853*u).multiplyScalar(2.535),scientificFresnelMaterial(D.station==='berry'?SCI_VIOLET:SCI_GOLD,SCI_CYAN,.16,.75));HOL.fluxLayer.add(cap);}
+  const exact=D.station==='sphere'||D.station==='berry';
+  if(A.length>4&&!exact){const samples=[];for(let i=0;i<Math.min(24,A.length);i++)samples.push(A[Math.floor(i*(A.length-1)/Math.min(23,A.length-1))]);HOL.frameLayer.add(scientificContactPlanes(samples,D.station==='wigner'?SCI_CORAL:SCI_GOLD,.15));const p0=A[0],tan=A[Math.min(2,A.length-1)].clone().sub(A[0]).normalize(),centre=A.reduce((a,p)=>a.add(p),new THREE.Vector3()).multiplyScalar(1/A.length),rad=p0.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(0,1,0);rad.normalize();let e=new THREE.Vector3().crossVectors(tan,rad);if(e.lengthSq()<1e-7)e.set(0,0,1);e.normalize();const returned=e.clone().applyAxisAngle(tan,phase);HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(e,.78)],SCI_GOLD,.045,.98,false,32));HOL.returnLayer.add(scientificTube([p0,p0.clone().addScaledVector(returned,.78)],SCI_CORAL,.034,.9,false,32));}
+  if(exact&&Number.isFinite(D.values.theta))holTransportStage(D);
   HOL.sub.element.textContent=`${D.title} · return phase ${phase.toFixed(6)} rad · ${D.pass?'closure verified':'inspect residual'} · ε ${D.residual.toExponential(2)}`;holSetProgress(D);
+}
+/* The transport stage is a picture of an identity, so the panel states the identity, the
+   numbers the picture is currently drawn from, and the two places where the drawing is
+   not literal — a cone clipped because its apex ran off the scene, and a development
+   rescaled so it fits.  Neither of those touches an angle, and an angle is what the
+   picture measures. */
+function holStageHTML(D){
+  if(D.station!=='sphere'&&D.station!=='berry')return '';
+  const th=D.values.theta,ct=Math.cos(th),Om=D.values.solid_angle,C=HOL.cone,G=HOL.stage,berry=D.station==='berry';
+  const row=(k,v,note)=>`<div class="note" style="margin:4px 0;border-left:3px solid #62e8ff"><b>${esc(k)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(String(v))}</span>${note?`<span style="color:var(--dim)"> · ${esc(note)}</span>`:''}</div>`;
+  return `<div class="sect" style="border-color:rgba(255,207,114,.34)"><b style="color:#ffd58a">△ ${TT('TRANSPORT STAGE · WHAT IS DRAWN','СЦЕНА ПЕРЕНОСА · ЧТО НАРИСОВАНО','TRANSPORT-BÜHNE · WAS GEZEICHNET WIRD')}</b>
+    <div class="small" style="margin-top:4px">${TT(
+      'The loop bounds a cap of area Ω. The tangent cone touches the sphere along the same loop; a cone is developable, so transport along that loop is identical on sphere and cone — and on a flat surface transport is trivial. Unrolled, the cone is a sector of signed angle 2π cos θ, so its seam misses closing by exactly 2π − 2π cos θ = Ω. The gold band is the surface the frame itself sweeps; the wedge is the angle it comes back turned by.',
+      'Петля ограничивает шапку площади Ω. Касательный конус касается сферы вдоль той же петли; конус развёртываем, поэтому перенос вдоль петли одинаков на сфере и на конусе — а на плоской поверхности он тривиален. В развёртке конус есть сектор со знаковым углом 2π cos θ, и шов не смыкается ровно на 2π − 2π cos θ = Ω. Золотая лента — поверхность, заметаемая самим репером; клин — угол, на который он вернулся повёрнутым.',
+      'Die Schleife berandet eine Kappe der Fläche Ω. Der Tangentialkegel berührt die Sphäre entlang derselben Schleife; ein Kegel ist abwickelbar, also ist der Transport auf Sphäre und Kegel identisch — und auf einer flachen Fläche trivial. Abgewickelt ist der Kegel ein Sektor mit vorzeichenbehaftetem Winkel 2π cos θ, und die Naht schließt genau um 2π − 2π cos θ = Ω nicht. Das goldene Band ist die vom Bein selbst überstrichene Fläche.')}</div>
+    <div style="margin-top:6px">
+    ${row('Ω = ∫K dA = 2π(1−cos θ)',Om.toFixed(9)+' sr',TT('the cap the loop encloses','шапка, ограниченная петлёй','die umschlossene Kappe'))}
+    ${row('V(φ) = E_θ cos(φ cos θ) − E_φ sin(φ cos θ)','|V|−1 ≤ 2.3e-16 · V·P ≤ 1.2e-16',TT('closed-form transported frame: unit and tangent','замкнутая форма переносимого репера: единичен и касателен','geschlossene Form: Einheitsvektor und tangential'))}
+    ${C?row('tangent-cone apex · sec θ',C.apexSec.toFixed(6),C.clipped?TT(`slant ${C.slant.toFixed(2)} CLIPPED at ${C.drawn.toFixed(2)} — the apex is off the scene`,`образующая ${C.slant.toFixed(2)} ОБРЕЗАНА на ${C.drawn.toFixed(2)} — вершина вне сцены`,`Mantellinie ${C.slant.toFixed(2)} BESCHNITTEN bei ${C.drawn.toFixed(2)} — Spitze außerhalb`):TT(`slant ${C.slant.toFixed(3)}, drawn whole`,`образующая ${C.slant.toFixed(3)}, нарисована целиком`,`Mantellinie ${C.slant.toFixed(3)}, ganz gezeichnet`)):''}
+    ${G?row('developed sector 2π cos θ',G.sector.toFixed(9),G.sector<0?TT('negative: past θ=π/2 the cone opens the other way and the development overlaps itself','отрицателен: за θ=π/2 конус раскрыт в другую сторону и развёртка самоперекрывается','negativ: jenseits θ=π/2 öffnet der Kegel andersherum und die Abwicklung überlappt sich'):''):''}
+    ${G?row('seam deficit 2π − 2π cos θ',G.deficit.toFixed(9),'= Ω '+TT('to 5.6e-16','до 5.6e-16','auf 5.6e-16')):''}
+    ${G&&G.scale<1?row(TT('development scale','масштаб развёртки','Abwicklungsmaßstab'),'×'+G.scale.toFixed(4),TT('a similarity: lengths scaled, every angle exact','подобие: длины масштабированы, все углы точны','eine Ähnlichkeit: Längen skaliert, jeder Winkel exakt')):''}
+    ${berry
+      ?row('γ_B = wrap(−Ω/2)',holWrap(-Math.PI*(1-ct)).toFixed(9)+' rad',TT('the wedge is HALF the geometric angle — the transported object is a spin-½ ray, and the drawn frame is its Bloch vector, not the phase itself','клин — ПОЛОВИНА геометрического угла: переносится луч со спином ½, а нарисованный репер — его вектор Блоха, а не сама фаза','der Keil ist die HÄLFTE des geometrischen Winkels — transportiert wird ein Spin-½-Strahl'))
+      :row('Δα = wrap(Ω)',holWrap(-2*Math.PI*ct).toFixed(9)+' rad',TT('measured independently by 1024-step discrete transport · residual '+D.residual.toExponential(2),'независимо измерено 1024-шаговым дискретным переносом · невязка '+D.residual.toExponential(2),'unabhängig durch 1024-Schritt-Transport gemessen · Residuum '+D.residual.toExponential(2)))}
+    </div></div>`;
 }
 function holReadoutsHTML(D){return D.readouts.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.good===false?'#ff6f86':r.good===true?'#55e8c4':'#62e8ff'}"><b>${esc(r.label)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(String(r.value))}</span></div>`).join('');}
 function holPanelHTML(){
@@ -19775,6 +19979,7 @@ function holPanelHTML(){
     <div class="ctlrow"><label>${esc(holLang(S.p1))}</label><input id="holA" data-no-osc type="range" min="0" max="1" step="0.001" value="${state.holA??.55}"><span class="val" id="holAV">${esc(D.parameters[0].display)}</span></div>
     <div class="ctlrow"><label>${esc(holLang(S.p2))}</label><input id="holB" data-no-osc type="range" min="0" max="1" step="0.001" value="${state.holB??.65}"><span class="val" id="holBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('INVARIANT RETURN MAP','ИНВАРИАНТНАЯ КАРТА ВОЗВРАТА','INVARIANTE RÜCKKEHRABBILDUNG')}</b><div id="holReadouts">${holReadoutsHTML(D)}</div><div id="holOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('closure verified','замыкание подтверждено','Abschluss verifiziert'):'△ '+TT('outside declared tolerance','вне заявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div></div>
+  ${holStageHTML(D)}
   <div class="sect"><b>${TT('SCOPE CONTRACT','КОНТРАКТ ОБЛАСТИ','GELTUNGSVERTRAG')}</b><div class="note">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:var(--dim)">${esc(S.caveat)}</div></div>
   <div class="sect"><b>${TT('COMPOSE & EXPORT','СОПОСТАВИТЬ И ЭКСПОРТИРОВАТЬ','VERGLEICHEN & EXPORTIEREN')}</b><div class="ctlrow"><button class="btn" id="holCompare">◱ ${TT('open exact anchors in Multiview','открыть точные опоры в Multiview','exakte Anker in Multiview öffnen')}</button><button class="btn" id="holExport">⬇ JSON</button></div></div>`;
 }
@@ -34166,6 +34371,31 @@ globalThis.FBS3R_QA=Object.freeze({
   },
   selectableScreen(key){try{const s=SELECT.get(key),p=safeSelectionPos(s);if(!p)return null;const q=p.clone().project(camera),r=renderer.domElement.getBoundingClientRect();
     return {x:r.left+(q.x*.5+.5)*r.width,y:r.top+(-q.y*.5+.5)*r.height,ndc:[q.x,q.y,q.z],visible:pickWorldVisible(s.pick)};}catch(e){return null;}},
+  opticalAudit(minRadius=0.9,limit=30){ /* Every VISIBLE surface in the live scene, largest
+      first, with the four properties that decide whether a laboratory reads as physics or
+      as a grey ball: which face is drawn, how it blends, whether it writes depth, and how
+      opaque it is.  The "primitive look" regressions were all invisible to source search
+      because the offending shells were built parametrically, so they are measured here
+      from the rendered scene instead. */
+    const out=[],v=new THREE.Vector3();
+    scene.traverse(o=>{
+      if(!(o.isMesh||o.isPoints||o.isLine||o.isLineSegments||o.isInstancedMesh)||!o.geometry)return;
+      let p=o,vis=true;while(p){if(p.visible===false){vis=false;break;}p=p.parent;}
+      if(!vis)return;
+      if(!o.geometry.boundingSphere){try{o.geometry.computeBoundingSphere();}catch(e){return;}}
+      const bs=o.geometry.boundingSphere;if(!bs)return;
+      o.getWorldScale(v);const k=Math.max(Math.abs(v.x),Math.abs(v.y),Math.abs(v.z)),r=bs.radius*k;
+      if(r<minRadius)return;
+      const m=Array.isArray(o.material)?o.material[0]:o.material,path=[];
+      let q=o;while(q&&path.length<5){path.unshift(q.name||q.type);q=q.parent;}
+      out.push({radius:+r.toFixed(3),offset:+(bs.center.length()*k).toFixed(3),type:o.type,
+        material:m?m.type:null,side:m?(m.side===THREE.BackSide?'Back':m.side===THREE.FrontSide?'Front':'Double'):null,
+        blending:m?(m.blending===THREE.AdditiveBlending?'additive':m.blending===THREE.NormalBlending?'normal':String(m.blending)):null,
+        opacity:m?+(m.opacity??1).toFixed(3):null,transparent:m?!!m.transparent:null,depthWrite:m?!!m.depthWrite:null,
+        fresnel:!!(m&&m.userData&&m.userData.scientificFresnel),content:!!(m&&m.userData&&m.userData.scientificContent),
+        path:path.join(' / ').slice(0,90)});
+    });
+    return out.sort((a,b)=>b.radius-a.radius).slice(0,limit);},
   geometryAudit(){const bad=[];scene.traverse(o=>{const a=o.geometry?.attributes?.position?.array;if(!a)return;let n=0;for(const v of a)if(!Number.isFinite(v))n++;if(n)bad.push({name:o.name||o.type,selKey:o.userData?.selKey||null,nonFinite:n,count:a.length});});return bad;},
   field(){return FIELD.diagnostics();},
   causal(){return CAUSAL.diagnostics();},
@@ -34174,6 +34404,19 @@ globalThis.FBS3R_QA=Object.freeze({
   contactAction(station=state.actStation,a=state.actA,b=state.actB){return actDiagnostics(station,a,b);},
   spinorLightcone(station=state.nulStation,a=state.nulA,b=state.nulB){return nulDiagnostics(station,a,b);},
   holonomy(station=state.holStation,a=state.holA,b=state.holB){return holDiagnostics(station,a,b);},
+  holonomyStage(){ /* the drawn transport stage: counts, and the SIDE of every content
+      surface — a cap silently flipped to back faces only is exactly the regression the
+      enclosure rule caused once, so it is asserted from outside rather than eyeballed. */
+    const L=HOL.fluxLayer; if(!L) return null;
+    let surfaces=0,curves=0,labels=0,arrowSets=0,backFaced=0;
+    L.traverse(o=>{ if(o.isCSS2DObject)labels++;
+      if(o.isInstancedMesh)arrowSets++;
+      else if(o.isMesh&&o.material?.userData?.scientificFresnel){surfaces++;if(o.material.side===THREE.BackSide)backFaced++;}
+      else if(o.isLine||o.isLineSegments)curves++; });
+    const D=HOL.last||holDiagnostics();
+    return {station:D.station,theta:D.values.theta??null,solidAngle:D.values.solid_angle??null,
+      residual:D.residual,pass:D.pass,surfaces,curves,labels,arrowSets,backFacedContentSurfaces:backFaced,
+      enclosureFlipsTotal:sciEncloseFixed};},
   symmetryDiscovery(world=state.sydWorld,breakAmplitude=state.sydBreak){return sydDiagnostics(world,breakAmplitude);},
   predictiveFoundation(view=state.s3view){return predictiveFoundationAudit(view);},
   predictiveRuntime(){return {auditCacheEntries:PF_AUDIT_CACHE.size,spatialForecasts:[...PF_SPATIAL].map(([view,o])=>({view,attached:o.root?.parent!=null,visible:o.root?.visible!==false,geometryHash:o.hash})),sharedGlowTexture:glowTexture.shared?.name||null,blackHoleRadiation:bhtObjs?.station==='radiation'?{primed:!!bhtObjs.radiationPrimed,running:state.bhtRadiationRun!==false,fluxInstances:bhtObjs.flux?.count||0,wavefronts:bhtObjs.wavefronts?.length||0}:null};},
