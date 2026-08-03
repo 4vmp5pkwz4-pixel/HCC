@@ -919,7 +919,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.5.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.6.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1083,7 +1083,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.5.0';
+const HCC_VERSION='3.6.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3220,6 +3220,25 @@ function runSelfTests(){
       !built || (strayInCtl.length===0 && inPanel.length>=known.length),
       built?`${inPanel.length} in browser · ${strayInCtl.length} stray · ${known.length} registered`
            :'S³ controls not built yet at boot — checked live by the view walk instead'); }
+  { /* A material that asks for vertex colours on a geometry that has none renders BLACK,
+       because WebGL reads a missing attribute as (0,0,0) and the shader multiplies by it.
+       It is silent — no error, no warning — and it cost three laboratories their entire
+       colour scale: the Hawking-temperature ladder, the mint/coral stable-versus-unstable
+       TOV branch, and the white-dwarf mass sequence, which showed as a dark crescent
+       across the sky.  Instanced colour comes from setColorAt, never from vertexColors. */
+    const bad=[];
+    scene.traverse(o=>{
+      if(!o.geometry) return;
+      const mats=Array.isArray(o.material)?o.material:[o.material];
+      for(const m of mats){
+        if(!m||!m.vertexColors) continue;
+        if(!o.geometry.getAttribute||!o.geometry.getAttribute('color'))
+          bad.push((o.name||o.type)+(o.isInstancedMesh?' [instanced]':''));
+      }
+    });
+    ok('No material asks for vertex colours on a geometry that has none — the silent failure that renders an object pure black and once cost three laboratories the colour scale carrying their physics',
+      bad.length===0, bad.length?bad.slice(0,6).join(' · '):'every vertexColors material has a matching color attribute');
+  }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -15502,7 +15521,13 @@ function bhtSetup(){
     for(let i=0;i<BHT_WAVEFRONTS;i++){
       const w=scientificGraticule(1,10,5,i%2?0x78bde0:SCI_GOLD,.30,48);
       world.add(w);wavefronts.push(w);}
-    const N=MOBILE_GPU?22:30,geo=new THREE.IcosahedronGeometry(.055,1),mat=new THREE.MeshStandardMaterial({vertexColors:true,metalness:.34,roughness:.32,emissive:0x121820,emissiveIntensity:.22}),inst=new THREE.InstancedMesh(geo,mat,N),dummy2=new THREE.Object3D(),pts=[];
+    /* NOT vertexColors.  These beads are coloured per INSTANCE through setColorAt, which
+   three.js delivers as instanceColor; vertexColors instead asks the shader to read a
+   `color` attribute off the geometry, and IcosahedronGeometry has none.  A missing
+   vertex attribute reads as (0,0,0) in WebGL, so vColor was multiplied to zero and the
+   whole constellation rendered BLACK — taking the Hawking-temperature colour scale,
+   which is the physics of this station, with it. */
+    const N=MOBILE_GPU?22:30,geo=new THREE.IcosahedronGeometry(.055,1),mat=new THREE.MeshStandardMaterial({metalness:.34,roughness:.32,emissive:0x121820,emissiveIntensity:.22}),inst=new THREE.InstancedMesh(geo,mat,N),dummy2=new THREE.Object3D(),pts=[];
     /* the constellation sits between the horizon (at most 1.92 drawn) and the outermost
        wavefront (2.62), so it is legible at every mass without leaving the frame */
     for(let i=0;i<N;i++){const u=i/(N-1),logM=11+31*u,a=5.4*Math.PI*u,r=2.28+.14*Math.sin(3*a),p=new THREE.Vector3(r*Math.cos(a),-2.0+4*u,r*Math.sin(a));pts.push(p);dummy2.position.copy(p);dummy2.scale.setScalar(.72+.68*u);dummy2.updateMatrix();inst.setMatrixAt(i,dummy2.matrix);inst.setColorAt(i,bhtColor(bhtTH(Math.pow(10,logM),0)));}
@@ -15942,7 +15967,10 @@ function nsSetup(){
      constellation of physical configurations instead of an embedded chart.
      Stable and unstable stars share one continuous TOV sequence; the active
      central density is a luminous marker moving through that family. */
-  const seqPts=[],seqMeta=[],seqN=C.pts.length,seq=new THREE.InstancedMesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.82,depthWrite:false}),seqN),dummy=new THREE.Object3D();
+  /* per-INSTANCE colour via setColorAt, not a geometry colour attribute — see the note in
+   the radiation station.  With vertexColors the mint/coral stable-versus-unstable coding,
+   which is the entire content of this family, was multiplied to black. */
+  const seqPts=[],seqMeta=[],seqN=C.pts.length,seq=new THREE.InstancedMesh(new THREE.SphereGeometry(1,14,10),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.82,depthWrite:false}),seqN),dummy=new THREE.Object3D();
   for(let i=0;i<seqN;i++){const p=C.pts[i],u=i/(seqN-1),a=-1.18+2.36*u,pos=new THREE.Vector3(2.35+1.38*Math.cos(a),-.35+2.55*Math.sin(a),-.82+.7*Math.sin(2*a));seqPts.push(pos);seqMeta.push({...p,pos});dummy.position.copy(pos);dummy.scale.setScalar(.068+.18*p.Rkm/18);dummy.updateMatrix();seq.setMatrixAt(i,dummy.matrix);seq.setColorAt(i,new THREE.Color(p.rc<=C.mx.rc?0x79d5c3:0xff796b));}
   seq.instanceMatrix.needsUpdate=true;if(seq.instanceColor)seq.instanceColor.needsUpdate=true;nsGroup.add(seq);nsGroup.add(scientificTube(seqPts,0x718da2,.003,.19,false,120));
   const seqMarker=scientificCrystal(SCI_GOLD,.085);nsGroup.add(seqMarker);const seqLab=mkLabel('TOV CONFIGURATION FAMILY · mint stable dM/dρc>0 · coral unstable dM/dρc<0','label axis');seqLab.position.set(2.35,3.05,0);nsGroup.add(seqLab);
@@ -16408,7 +16436,11 @@ function wdSetup(){
   const starRoot=new THREE.Group();starRoot.position.set(-.8,.35,0);wdGroup.add(starRoot);const shells=[];
   for(let i=8;i>=0;i--){const u=(i+1)/9,c=new THREE.Color().setHSL(.58-.43*(1-u),.42,.34+.34*(1-u)),m=new THREE.Mesh(new THREE.SphereGeometry(u,52,34,2.35619449,Math.PI*1.5,0,Math.PI),new THREE.MeshStandardMaterial({color:c,emissive:c,emissiveIntensity:.035,roughness:.34,metalness:.08,transparent:true,opacity:i===8?.28:.035+.065*(1-u),side:THREE.DoubleSide,depthWrite:false}));starRoot.add(m);shells.push(m);}
   const core=scientificCrystal(0xfaf4d5,.16);starRoot.add(core);const surface=[];for(let i=0;i<=160;i++){const a=2*Math.PI*i/160;surface.push(new THREE.Vector3(Math.cos(a),0,Math.sin(a)));}const rim=scientificTube(surface,SCI_CYAN,.004,.65,true,164);starRoot.add(rim);
-  const N=30,inst=new THREE.InstancedMesh(new THREE.SphereGeometry(1,18,12),new THREE.MeshBasicMaterial({color:0xffffff,vertexColors:true,transparent:true,opacity:.84,depthWrite:false}),N),dummy=new THREE.Object3D(),colors=[],positions=[];const mu=state.wdMuE??2,mch=wdMch(mu);
+  /* THE DARK CRESCENT.  Thirty white-dwarf configurations, each coloured by mass through
+   setColorAt — but vertexColors made the shader look for a geometry `color` attribute
+   that SphereGeometry does not have, so every bead came out black and the arc read as a
+   dark scar across the sky rather than as the Nauenberg mass sequence. */
+  const N=30,inst=new THREE.InstancedMesh(new THREE.SphereGeometry(1,18,12),new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.84,depthWrite:false}),N),dummy=new THREE.Object3D(),colors=[],positions=[];const mu=state.wdMuE??2,mch=wdMch(mu);
   for(let i=0;i<N;i++){const M=.16+(mch-.19)*i/(N-1),R=wdRadiusKm(M,mu),u=i/(N-1),a=-1.18+2.36*u,pos=new THREE.Vector3(2.45+1.95*Math.cos(a),-.28+2.55*Math.sin(a),-.85+.72*Math.sin(2*a));positions.push({M,R,pos});dummy.position.copy(pos);dummy.scale.setScalar(.075+.23*Math.sqrt(R/Math.max(1,wdRadiusKm(.16,mu))));dummy.updateMatrix();inst.setMatrixAt(i,dummy.matrix);const col=new THREE.Color().setHSL(.58-.5*u,.56,.62);inst.setColorAt(i,col);colors.push(col);}
   inst.instanceMatrix.needsUpdate=true;if(inst.instanceColor)inst.instanceColor.needsUpdate=true;wdGroup.add(inst);const seqPts=positions.map(x=>x.pos);wdGroup.add(scientificTube(seqPts,0x7899ad,.003,.19,false,96));
   const marker=new THREE.Mesh(new THREE.IcosahedronGeometry(.12,2),new THREE.MeshStandardMaterial({color:0xfff1c4,emissive:0xffcf6a,emissiveIntensity:.32,metalness:.28,roughness:.26}));wdGroup.add(marker);
