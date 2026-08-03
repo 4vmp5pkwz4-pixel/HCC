@@ -296,6 +296,23 @@
   #atlasPanel .navRow{cursor:pointer;padding:3px 5px;border-radius:7px}
   #atlasPanel .navRow:hover{background:rgba(212,175,106,.12)}
   #atlasPanel .navRow.on{background:rgba(212,175,106,.2)}
+/* The controls panel occupies left:14px, width 336, so the browser sits BESIDE it
+   rather than on top of it — both are readable at once, which is what makes the pinned
+   browser usable as a launcher bar next to the parameters of the laboratory it opened.
+   Below 900px there is no room for two columns, so it becomes a full-width sheet. */
+  #labPanel{left:364px;top:calc(var(--topbar-h,64px) + 50px);width:min(520px,calc(100vw - 378px));
+    max-height:calc(100vh - var(--topbar-h,64px) - 74px);overflow:auto;z-index:36}
+  @media (max-width:900px){
+    #labPanel{left:14px;right:14px;width:auto;max-width:none;
+      max-height:calc(100vh - var(--topbar-h,64px) - 120px);z-index:41}
+  }
+  #labPanel .radioRow{display:flex;flex-wrap:wrap;gap:5px}
+  #labPanel .radioRow .btn{flex:0 1 auto;font-size:11px;padding:5px 9px;white-space:nowrap}
+  #labSearch{width:100%;background:rgba(8,12,20,.82);border:1px solid rgba(212,175,106,.42);
+    color:var(--gold-2);font-size:12px;padding:6px 10px;border-radius:9px;letter-spacing:.3px}
+  #labSearch:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 2px rgba(212,175,106,.18);color:#fff}
+  body.day #labSearch{background:rgba(255,252,244,.9);color:#6b5518}
+  #labPanel .labGroup[hidden]{display:none}
   #atlasPanel{right:14px;top:calc(var(--topbar-h,64px) + 50px);width:430px;
     max-height:calc(100vh - var(--topbar-h,64px) - 64px);overflow:auto;font-size:11px;z-index:32}
   #atlasPanel h3{font-family:var(--serif);color:var(--gold);letter-spacing:1.5px;font-size:12.5px;margin-bottom:5px}
@@ -902,7 +919,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.4.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.5.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -983,6 +1000,7 @@
 <div id="oscPanel" class="panel" style="display:none"></div>
 <div id="objectPanel" class="panel" style="display:none"></div>
 <div id="atlasPanel" class="panel" style="display:none"></div>
+<div id="labPanel" class="panel" style="display:none"></div>
 <div id="selCard" class="panel">
   <h3 id="selName"></h3>
   <div id="selTabs"></div>
@@ -1065,7 +1083,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.4.0';
+const HCC_VERSION='3.5.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3186,6 +3204,22 @@ function runSelfTests(){
     ok('A pinned panel is defended at the DOM rather than at each call site, so code that hides panels — including code written later — cannot make a pinned one disappear',
       !!probe && restored,
       probe?`probe #${probe.id} kept its pin through a direct display:none`:'no panel to probe'); }
+  { // The browser groups by the atlas's own domain registry, so an unregistered
+    // laboratory would land in a nameless bucket.  This is mode-independent — the
+    // controls panel only exists once S³ is entered — and it is the failure that
+    // actually matters, because it is the one a new laboratory causes.
+    const known=Object.keys(S3_VIEW_NAMES), ungrouped=known.filter(k=>labDomainOf(k)==='other');
+    ok('Every registered S³ laboratory is classified by the domain registry the browser groups on, so a newly added laboratory cannot fall into a nameless bucket — the browser taxonomy and the atlas visual identity are the same registry',
+      known.length>0 && ungrouped.length===0,
+      `${known.length} laboratories over ${LAB_DOMAIN_ORDER.length-1} domains · ${ungrouped.length?'UNCLASSIFIED: '+ungrouped.join(', '):'all classified'}`);
+    // and when the S³ controls are actually built, nothing may be left behind
+    const inPanel=[...document.querySelectorAll('#labPanel button[id^="v-"]')].map(b=>b.id.slice(2));
+    const strayInCtl=[...document.querySelectorAll('#ctl button[id^="v-"]')].map(b=>b.id.slice(2));
+    const built=inPanel.length>0||strayInCtl.length>0;
+    ok('When the S³ controls are built, every laboratory button has moved into the browser and none is stranded in the controls panel — no laboratory may become unreachable through the navigation change meant to make them easier to reach',
+      !built || (strayInCtl.length===0 && inPanel.length>=known.length),
+      built?`${inPanel.length} in browser · ${strayInCtl.length} stray · ${known.length} registered`
+           :'S³ controls not built yet at boot — checked live by the view walk instead'); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -27667,6 +27701,124 @@ function panelPinBuild(){
     panelPinApply(el);
   });
 }
+/* ── LABORATORY BROWSER ────────────────────────────────────────────────────────
+   Seventy-two laboratories were a wall of buttons at the TOP of the controls panel,
+   so opening one meant scrolling past all seventy-two to reach the parameters of the
+   very laboratory you had just opened.  The list stood in the way of the thing it
+   had opened, and the panel bought back the space with an automatic scroll jump that
+   made the controls move under the pointer.
+
+   The buttons are NOT recreated here.  They are MOVED, which is why every id, every
+   onclick attached in buildCtlBody, every keyboard route and every external test that
+   addresses #v-<view> keeps working untouched — and why a laboratory added tomorrow
+   appears in the browser without being registered anywhere.  Grouping uses the domain
+   registry the atlas already maintains for its visual identity, so the taxonomy cannot
+   drift away from the rest of the app.
+
+   In the controls panel their place is taken by one line: which laboratory is open,
+   and one key to open the browser.  The browser filters as you type — over the visible
+   label in whichever of the three languages is showing, and over the internal view key,
+   so both a physicist and a maintainer can find things — and it closes on choice unless
+   it has been pinned, in which case it stays and becomes a launcher bar. */
+const LAB_DOMAIN_LABEL={
+  geometry:{en:'Geometry & topology',ru:'Геометрия и топология',de:'Geometrie & Topologie'},
+  dynamics:{en:'Dynamics & invariants',ru:'Динамика и инварианты',de:'Dynamik & Invarianten'},
+  quantum:{en:'Quantum & matter',ru:'Квант и материя',de:'Quanten & Materie'},
+  thermo:{en:'Thermodynamics & transport',ru:'Термодинамика и перенос',de:'Thermodynamik & Transport'},
+  astro:{en:'Astrophysics & cosmology',ru:'Астрофизика и космология',de:'Astrophysik & Kosmologie'},
+  waves:{en:'Waves, fields & defects',ru:'Волны, поля и дефекты',de:'Wellen, Felder & Defekte'},
+  other:{en:'Unclassified',ru:'Без раздела',de:'Nicht klassifiziert'}};
+const LAB_DOMAIN_ORDER=['geometry','dynamics','quantum','waves','thermo','astro','other'];
+let LAB_BROWSER_OPEN=false, LAB_BROWSER_QUERY='';
+function labDomainOf(v){
+  for(const [k,set] of Object.entries(PREMIUM_VIEW_DOMAINS)) if(set.has(v)) return k;
+  return 'other';
+}
+function labBrowserSetOpen(on){
+  LAB_BROWSER_OPEN=!!on;
+  const el=document.getElementById('labPanel'); if(!el) return;
+  el.style.display=LAB_BROWSER_OPEN?'block':'none';
+  if(LAB_BROWSER_OPEN){
+    const q=el.querySelector('#labSearch'); if(q) setTimeout(()=>{try{q.focus();q.select();}catch(e){}},0);
+    const cur=el.querySelector('.btn.on'); if(cur) try{cur.scrollIntoView({block:'nearest'});}catch(e){}
+  }
+}
+function labBrowserFilter(){
+  const el=document.getElementById('labPanel'); if(!el) return;
+  const q=LAB_BROWSER_QUERY.trim().toLowerCase();
+  let shown=0;
+  el.querySelectorAll('.labGroup').forEach(g=>{
+    let any=false;
+    g.querySelectorAll('button[id^="v-"]').forEach(b=>{
+      const key=b.id.slice(2);
+      const hay=(b.textContent+' '+key+' '+(S3_VIEW_NAMES[key]||'')).toLowerCase();
+      const hit=!q||hay.includes(q);
+      b.style.display=hit?'':'none';
+      if(hit){any=true;shown++;}
+    });
+    g.hidden=!any;
+  });
+  const c=el.querySelector('#labCount');
+  if(c) c.textContent=q?`${shown} ${TT('of','из','von')} ${LAB_BROWSER_TOTAL}`:`${LAB_BROWSER_TOTAL}`;
+}
+let LAB_BROWSER_TOTAL=0;
+function labBrowserBuild(){
+  const panel=document.getElementById('labPanel'); if(!panel||typeof ctl==='undefined'||!ctl) return;
+  const row=ctl.querySelector('#v-sec')?.closest('.radioRow');
+  const sect=row?row.closest('.sect'):null;
+  if(!row||!sect){ // not the S³ mode — the browser simply has nothing to offer
+    if(!ctl.querySelector('#v-sec')) { panel.style.display='none'; }
+    return;
+  }
+  const buttons=[...row.querySelectorAll('button[id^="v-"]')];
+  LAB_BROWSER_TOTAL=buttons.length;
+  const byDomain=new Map();
+  for(const b of buttons){
+    const d=labDomainOf(b.id.slice(2));
+    if(!byDomain.has(d)) byDomain.set(d,[]);
+    byDomain.get(d).push(b);
+  }
+  // rebuild the browser shell, then MOVE the live buttons into it
+  const pin=panel.querySelector(':scope > .pinBtn');
+  panel.innerHTML=`<div class="sect" style="border-color:rgba(212,175,106,.42)">
+      <b>⌕ ${TT('LABORATORY BROWSER','КАТАЛОГ ЛАБОРАТОРИЙ','LABORKATALOG')} · <span id="labCount">${LAB_BROWSER_TOTAL}</span></b>
+      <div class="ctlrow" style="margin-top:5px"><input id="labSearch" type="text" spellcheck="false"
+        placeholder="${TT('type to filter — name or key','фильтр — название или ключ','filtern — Name oder Schlüssel')}" value="${esc(LAB_BROWSER_QUERY)}"></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">${TT('Grouped by the domain registry the atlas already uses for its visual identity. Choosing a laboratory closes this panel — pin it to keep it open as a launcher bar.','Сгруппировано по тому же реестру областей, который атлас использует для визуальной идентичности. Выбор лаборатории закрывает панель — закрепите её, чтобы оставить как панель запуска.','Gruppiert nach der Domänen-Registry des Atlas. Die Auswahl schließt dieses Panel — anheften, um es als Startleiste zu behalten.')}</div>
+    </div>` + LAB_DOMAIN_ORDER.filter(d=>byDomain.has(d)).map(d=>
+      `<div class="sect labGroup" data-domain="${d}"><b>${esc(impL(LAB_DOMAIN_LABEL[d]))} · ${byDomain.get(d).length}</b>
+        <div class="radioRow" data-domain-row="${d}"></div></div>`).join('');
+  if(pin) panel.appendChild(pin);
+  for(const d of LAB_DOMAIN_ORDER){
+    const host=panel.querySelector(`[data-domain-row="${d}"]`); if(!host) continue;
+    for(const b of (byDomain.get(d)||[])) host.appendChild(b);   // MOVE, not clone
+  }
+  // the controls panel keeps a single line where the wall used to be
+  const V=state.s3view||'sec', dom=labDomainOf(V);
+  sect.innerHTML=`<b>${TT('S³ Laboratory','S³ лаборатория','S³-Labor')}</b>
+    <div class="ctlrow" style="margin-top:4px"><button class="btn" id="labOpenBrowser" style="flex:1 1 auto">⌕ ${TT('Browse all','Каталог, всего','Alle durchsuchen')} ${LAB_BROWSER_TOTAL} ${TT('laboratories','лабораторий','Labore')}</button></div>
+    <div class="note" style="margin-top:4px"><b style="color:var(--gold-2)">${esc(S3_VIEW_NAMES[V]||V)}</b> <span style="color:var(--dim)">· ${esc(impL(LAB_DOMAIN_LABEL[dom]))}</span></div>`;
+  const open=sect.querySelector('#labOpenBrowser');
+  if(open) open.onclick=()=>labBrowserSetOpen(!LAB_BROWSER_OPEN);
+  const q=panel.querySelector('#labSearch');
+  if(q){ q.oninput=e=>{LAB_BROWSER_QUERY=e.target.value;labBrowserFilter();};
+    q.onkeydown=e=>{ e.stopPropagation();
+      if(e.key==='Escape'){ LAB_BROWSER_QUERY=''; q.value=''; labBrowserFilter(); labBrowserSetOpen(false); }
+      if(e.key==='Enter'){ const first=panel.querySelector('.labGroup:not([hidden]) button[id^="v-"]:not([style*="none"])');
+        if(first) first.click(); } }; }
+  if(!panel.dataset.chooseBound){
+    panel.dataset.chooseBound='1';
+    // capture phase: the flag has to be set BEFORE the button's own handler rebuilds
+    // the panel, or the rebuild would read the stale value and reopen it
+    panel.addEventListener('click',e=>{
+      const b=e.target.closest?.('button[id^="v-"]');
+      if(b&&!PANEL_PINNED.has('labPanel')) LAB_BROWSER_OPEN=false;
+    },true);
+  }
+  panel.style.display=LAB_BROWSER_OPEN?'block':'none';
+  labBrowserFilter();
+  try{ panelPinApply(panel); }catch(e){}
+}
 function enhancePrecision(root){
   if(!root) return;
   root.querySelectorAll('input[type=range]').forEach(r=>{
@@ -27723,6 +27875,7 @@ function buildCtl(){
     [...ctl.querySelectorAll('.chips,.radioRow')].forEach((r,i)=>{ if(_rows[i]) r.scrollLeft=_rows[i]; }); };
   try{ enhancePrecision(ctl); }catch(e){}     // exact numeric entry + snap for every slider
   try{ panelPinBuild(); }catch(e){}           // the pin survives every panel rebuild
+  try{ labBrowserBuild(); }catch(e){}         // the 72 laboratory buttons move to their own surface
   _restore();
   // the panel-enhance MutationObservers (collapsible sections, sheet grip) MOVE nodes
   // right after this task — moving a scrolled element zeroes its scroll, so restore

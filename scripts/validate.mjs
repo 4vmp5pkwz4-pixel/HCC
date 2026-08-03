@@ -14,10 +14,25 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
 
 /* Deployment identity: the public Pages document must be visibly and
    programmatically distinguishable from a stale browser-cached build. */
-check(html.includes('data-hcc-build="omni-predictive-2026.08.02.1"')
-  && html.includes('<meta name="hcc-build" content="omni-predictive-2026.08.02.1">')
-  && html.includes('Predictive Foundations 2026.08.02'),
-  'Pages build carries a visible and machine-readable predictive release identity');
+/* This used to pin the literal build string, which meant a legitimate release bump
+   FAILED validation until someone remembered to edit this file too — a fifth copy of
+   the version, and the very drift the single-source rewrite removed.  It now checks
+   the invariant instead: the constant exists, is well formed, and every copy in the
+   document agrees with it. */
+{
+  const ver = html.match(/const HCC_VERSION='([^']+)'/);
+  const bld = html.match(/const HCC_BUILD='([^']+)'/);
+  check(!!ver && !!bld && /^\d+\.\d+\.\d+$/.test(ver[1])
+    && /^omni-predictive-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(bld[1]),
+    'release identity is declared once as a semantic version and a dated build stamp');
+  if (ver && bld) {
+    check(html.includes(`data-hcc-build="${bld[1]}"`)
+      && html.includes(`<meta name="hcc-build" content="${bld[1]}">`)
+      && html.includes(`<span class="buildMark">· v${ver[1]}</span>`)
+      && html.includes('function hccStampVersion()'),
+      `every copy of the release identity agrees with the declared source (v${ver[1]} · ${bld[1]})`);
+  }
+}
 check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
   && html.includes('deployment(){return {...HCC_DEPLOYMENT};}'),
   'deployment identity is exposed through the read-only QA surface');
