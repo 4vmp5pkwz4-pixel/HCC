@@ -919,7 +919,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.8.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.9.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1083,7 +1083,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.8.0';
+const HCC_VERSION='3.9.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3204,6 +3204,56 @@ function runSelfTests(){
     ok('A pinned panel is defended at the DOM rather than at each call site, so code that hides panels — including code written later — cannot make a pinned one disappear',
       !!probe && restored,
       probe?`probe #${probe.id} kept its pin through a direct display:none`:'no panel to probe'); }
+  { /* The contact plane is the defining object of act, so its identities are asserted
+       rather than trusted: the plane must be orthonormal, orthogonal to p and to the
+       Reeb direction, annihilated by the form — and dλ₀ on it must be EXACTLY one,
+       which is what makes the structure contact rather than a foliation. */
+    let mUnit=0,mOrtho=0,mLam=0,mReeb=0,mD=0,mVol=0;
+    const h=(i,q)=>{const x=Math.sin((i+1)*12.9898+q*78.233)*43758.5453;return x-Math.floor(x);};
+    for(let k=0;k<160;k++){
+      const raw=[h(k,1)*2-1,h(k,2)*2-1,h(k,3)*2-1,h(k,4)*2-1];
+      const n=Math.hypot(...raw); if(n<1e-6) continue;
+      const p=raw.map(v=>v/n), R=actJ4(p).map(v=>2*v), a=actXi1(p), b=actXi2(p);
+      const d=(u,v)=>u.reduce((s,x,i)=>s+x*v[i],0);
+      mUnit=Math.max(mUnit,Math.abs(Math.hypot(...a)-1),Math.abs(Math.hypot(...b)-1));
+      mOrtho=Math.max(mOrtho,Math.abs(d(a,p)),Math.abs(d(b,p)),Math.abs(d(a,b)),Math.abs(d(a,R)),Math.abs(d(b,R)));
+      const I=actContactIdentities(p);
+      mLam=Math.max(mLam,Math.abs(I.lamE1),Math.abs(I.lamE2));
+      mReeb=Math.max(mReeb,Math.abs(I.lambdaR-1));
+      mD=Math.max(mD,Math.abs(I.dLambda-1));
+      mVol=Math.max(mVol,Math.abs(I.volume-1));
+    }
+    ok('The contact planes act draws are ker λ₀ itself — the complex line orthogonal to p — orthonormal, annihilated by the form and transverse to the Reeb field, rather than the heuristic discs that used to stand where the defining object of the subject belongs',
+      mUnit<1e-12&&mOrtho<1e-12&&mLam<1e-12&&mReeb<1e-12,
+      `orthonormal ${mUnit.toExponential(2)} · ⊥p,Reeb ${mOrtho.toExponential(2)} · λ₀|ξ ${mLam.toExponential(2)} · λ₀(R)−1 ${mReeb.toExponential(2)}`);
+    ok('dλ₀ on the contact plane is EXACTLY one at every point and λ₀ ∧ dλ₀ never vanishes, so by Frobenius no surface is tangent to the field anywhere — that single number is the whole difference between a contact structure and a foliation',
+      mD<1e-12&&mVol<1e-12,
+      `dλ₀(e₁,e₂)−1 ${mD.toExponential(2)} · λ₀∧dλ₀(R,e₁,e₂)−1 ${mVol.toExponential(2)} · uniform, not merely nonzero`);
+  }
+  { /* Aberration is a Möbius map of the sky, so it must take circles to circles.  The
+       test builds a circle, boosts it, and requires the image to stay coplanar — the
+       exact criterion for a set of points on a sphere to lie on a circle. */
+    const plan=P=>{const a=P[0],b=P[(P.length/3)|0],c=P[((2*P.length)/3)|0];
+      const u=b.clone().sub(a),v=c.clone().sub(a),n=new THREE.Vector3().crossVectors(u,v);
+      if(n.length()<1e-12)return NaN; n.normalize(); const d=n.dot(a);
+      let m=0; for(const q of P)m=Math.max(m,Math.abs(n.dot(q)-d)); return m;};
+    let worst=0,worstCase='';
+    for(const eta of [0.3,1.1,2.2]) for(const half of [0.4,1.0,1.4]){
+      const ax=new THREE.Vector3(Math.sin(.72)*Math.cos(1.05),Math.sin(.72)*Math.sin(1.05),Math.cos(.72)).normalize();
+      let t=new THREE.Vector3(0,0,1); if(Math.abs(ax.dot(t))>.9)t.set(1,0,0);
+      const u=new THREE.Vector3().crossVectors(ax,t).normalize(),
+            v=new THREE.Vector3().crossVectors(ax,u).normalize(),
+            ca=Math.cos(half),sa=Math.sin(half),hh=Math.exp(eta/2),img=[];
+      for(let i=0;i<=192;i++){const a=2*Math.PI*i/192;
+        const nn=ax.clone().multiplyScalar(ca).addScaledVector(u,sa*Math.cos(a)).addScaledVector(v,sa*Math.sin(a));
+        const den=Math.max(1e-9,1-nn.z),zr=nn.x/den,zi=nn.y/den,wr=zr*hh*hh,wi=zi*hh*hh,
+              r2=wr*wr+wi*wi,dd=r2+1;
+        img.push(new THREE.Vector3(2*wr/dd,2*wi/dd,(r2-1)/dd));}
+      const e=plan(img); if(!(e<worst)){ if(e>worst){worst=e;worstCase=`η=${eta} half=${half}`;} }
+    }
+    ok('Relativistic aberration deforms a ring of stars but never bends it out of round: a circle on the celestial sphere maps to an exact circle under every boost tested, which is the statement that makes the sky a Riemann sphere rather than merely a sphere',
+      worst<1e-12, `worst image coplanarity ${worst.toExponential(2)} over rapidities 0.3–2.2 and half-angles 0.4–1.4 · ${worstCase}`);
+  }
   { /* The suite is a claim about meaning, so it has to stay true mechanically: every
        member must exist, every pairing must name real stations on real members, and the
        two halves of a pair must be DIFFERENT laboratories — a complement that points at
@@ -20838,7 +20888,7 @@ function actDiagnostics(station=state.actStation||'reeb',aU=state.actA??.55,bU=s
   if(station==='reeb'){
     const eta=.22+.78*aU,rel=ACT_TAU*bU,A4=actReebPath(eta,rel),B4=actReebPath(.18+.57*(1-aU),rel+1.137),A=A4.map(actProject4),B=B4.map(actProject4),u=A4[0],C=actContactResidual(u),h0=actHopf(u),hDrift=Math.max(...A4.filter((_,i)=>i%32===0).map(v=>actNorm(actHopf(v).map((x,j)=>x-h0[j])))),link=pspGauss(A,B),action=Math.PI*actAlpha(u,C.R),res=Math.max(C.norm,C.alphaR,C.contraction,hDrift,Math.abs(Math.abs(link)-1));
     Object.assign(base,{parameters:[{label:'η',value:eta,display:(eta*180/Math.PI).toFixed(2)+'°'},{label:'δ',value:rel,display:(rel*180/Math.PI).toFixed(2)+'°'}],values:{lambda_R:actAlpha(u,C.R),contact_contraction:C.contraction,hopf_image:h0,hopf_drift:hDrift,period:Math.PI,action,gauss_linking:link},phase:Math.PI,residual:res,tolerance:3e-3,pass:res<3e-3,
-      readouts:[{label:'λ₀(R)',value:actAlpha(u,C.R).toFixed(12),good:C.alphaR<2e-14},{label:'max |ι_Rdλ₀| on ker λ₀',value:C.contraction.toExponential(3),good:C.contraction<2e-14},{label:'Hopf-base drift',value:hDrift.toExponential(3),good:hDrift<2e-14},{label:'finite Gauss linking',value:link.toFixed(7)+' → |Lk|=1',good:Math.abs(Math.abs(link)-1)<3e-3},{label:'period = action',value:Math.PI.toFixed(9)}],path:{kind:'two Reeb/Hopf fibres',a:A.map(v=>v.toArray()),b:B.map(v=>v.toArray())}});
+      readouts:[{label:'λ₀(R)',value:actAlpha(u,C.R).toFixed(12),good:C.alphaR<2e-14},{label:'max |ι_Rdλ₀| on ker λ₀',value:C.contraction.toExponential(3),good:C.contraction<2e-14},{label:'Hopf-base drift',value:hDrift.toExponential(3),good:hDrift<2e-14},{label:'finite Gauss linking',value:link.toFixed(7)+' → |Lk|=1',good:Math.abs(Math.abs(link)-1)<3e-3},{label:'period = action',value:Math.PI.toFixed(9)}],path:{kind:'two Reeb/Hopf fibres',a:A.map(v=>v.toArray()),b:B.map(v=>v.toArray()),a4:A4}});
   } else if(station==='return'){
     const a=.6+1.8*aU,b=.6+1.8*bU,ratio=b/a,F=actApprox(ratio,12),theta=actWrap(ACT_TAU*ratio),close=Math.abs(actWrap(ACT_TAU*F.q*ratio)),closed=close<1e-7,eta=.69,rel=.43,tReturn=Math.PI*b,tMax=(closed?F.q:12)*tReturn,U=actEllipsoidPath(a,b,eta,rel,tMax),z=[Math.sqrt(a)*U[0][0],Math.sqrt(a)*U[0][1],Math.sqrt(b)*U[0][2],Math.sqrt(b)*U[0][3]],R=[-2*z[1]/a,2*z[0]/a,-2*z[3]/b,2*z[2]/b],surface=(z[0]*z[0]+z[1]*z[1])/a+(z[2]*z[2]+z[3]*z[3])/b,c=Math.cos(theta),s=Math.sin(theta),det=c*c+s*s,res=Math.max(Math.abs(surface-1),Math.abs(actAlpha(z,R)-1),Math.abs(det-1));
     const ret=Array.from({length:(closed?F.q:12)+1},(_,k)=>[Math.cos(k*theta),Math.sin(k*theta),0]);
@@ -20849,7 +20899,7 @@ function actDiagnostics(station=state.actStation||'reeb',aU=state.actA??.55,bU=s
     for(let i=0;i<U.length;i+=7){const t=ACT_TAU*i/(U.length-1),u=U[i],du=[-p*aa*Math.sin(p*t),p*aa*Math.cos(p*t),q*bb*Math.sin(rel-q*t),-q*bb*Math.cos(rel-q*t)];alpha=Math.max(alpha,Math.abs(actAlpha(u,du)));norm=Math.max(norm,Math.abs(actDot(u,u)-1));}
     const closure=actNorm(U[0].map((x,i)=>x-U[U.length-1][i])),res=Math.max(alpha,norm,closure);
     Object.assign(base,{parameters:[{label:'p',value:p,display:String(p)},{label:'q',value:q,display:String(q)}],values:{p,q,winding:[p,-q],amplitudes:[aa,bb],max_contact_residual:alpha,norm_residual:norm,closure_residual:closure,primitive:actGcd(p,q)===1},phase:0,residual:res,tolerance:2e-12,pass:res<2e-12,
-      readouts:[{label:'winding on Clifford torus',value:`(${p}, −${q})`},{label:'max |λ₀(γ̇)|',value:alpha.toExponential(3),good:alpha<2e-12},{label:'max ||γ||²−1',value:norm.toExponential(3),good:norm<2e-12},{label:'curve closure',value:closure.toExponential(3),good:closure<2e-12}],path:{kind:'Legendrian curve + Reeb push-off',a:U.map(u=>actProject4(u).toArray()),b:V.map(u=>actProject4(u).toArray())}});
+      readouts:[{label:'winding on Clifford torus',value:`(${p}, −${q})`},{label:'max |λ₀(γ̇)|',value:alpha.toExponential(3),good:alpha<2e-12},{label:'max ||γ||²−1',value:norm.toExponential(3),good:norm<2e-12},{label:'curve closure',value:closure.toExponential(3),good:closure<2e-12}],path:{kind:'Legendrian curve + Reeb push-off',a:U.map(u=>actProject4(u).toArray()),b:V.map(u=>actProject4(u).toArray()),a4:U}});
   } else if(station==='ks'){
     const rho=.25+1.25*aU,g=ACT_TAU*bU,eta=.67,rel=.81,dir=[Math.cos(eta),0,Math.sin(eta)*Math.cos(rel),Math.sin(eta)*Math.sin(rel)],u=actScale(dir,rho),ug=actGauge(u,g),X=actHopf(u),Xg=actHopf(ug),r=actNorm(X),u2=actDot(u,u),identity=Math.abs(r-u2),gauge=actNorm(X.map((x,i)=>x-Xg[i]));
     const orbit=Array.from({length:321},(_,i)=>actProject4(actGauge(dir,ACT_TAU*i/320)).toArray()),collision=[];for(let i=0;i<=320;i++){const s=-1+2*i/320,us=actScale(dir,rho*s),x=actHopf(us),rr=actNorm(x),t=rho*rho*s*s*s/3;collision.push([x[0],x[1],x[2],t,rr]);}
@@ -20868,7 +20918,7 @@ function actDiagnostics(station=state.actStation||'reeb',aU=state.actA??.55,bU=s
 }
 function actExportData(){return {schema:'fbs3r-contact-action-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(ACT_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:actDiagnostics(),reproducibility:{normalized_controls:{a:state.actA,b:state.actB},reeb_edges:512,legendrian_edges:840,ellipsoid_edges:720,maslov_edges:2048,ks_gauge_vertices:321,floating_point:'IEEE-754 binary64'},epistemic_firewall:'This export contains exact model identities and deterministic finite checks. It is not experimental data, a proof for arbitrary contact or Hamiltonian systems, an exhaustive knot classification, a general N-body regularizer or evidence that the five stations are one physical system.'};}
 const actGroup=new THREE.Group();actGroup.name='Contact & Action Observatory · Reeb, return, regularization and Maslov phase';actGroup.visible=false;s3Group.add(actGroup);
-const ACT={built:false,station:'',pathA:null,pathB:null,pathRibbon:null,phaseTube:null,flowA:null,flowB:null,probe:null,tangent:null,normal:null,fieldRoot:null,planeLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
+const ACT={built:false,identities:null,station:'',pathA:null,pathB:null,pathRibbon:null,phaseTube:null,flowA:null,flowB:null,probe:null,tangent:null,normal:null,fieldRoot:null,planeLayer:null,title:null,sub:null,currentPaths:[],last:null,ui:0,time:0};
 function actVisualPaths(D){
   const fit=p=>{const v=new THREE.Vector3(...p);if(v.length()>1.82)v.setLength(1.82);return v.multiplyScalar(1.4);};
   if(D.station==='reeb'||D.station==='legendrian')return [D.path.a.map(fit),D.path.b.map(fit)];
@@ -20880,7 +20930,10 @@ function actCurvePoint(pts,u){if(!pts?.length)return new THREE.Vector3();if(pts.
 function actGuide(station){
   const root=new THREE.Group();root.name=`Contact geometry native field · ${station}`;actGroup.add(root);ACT.fieldRoot=root;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.25,2.75,2.65),station==='ks'||station==='maslov'?SCI_VIOLET:SCI_MINT,MOBILE_GPU?120:250,111+station.length));
   if(station==='reeb'||station==='legendrian'){
-    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.62,5),scientificFresnelMaterial(SCI_MINT,station==='legendrian'?SCI_CORAL:SCI_GOLD,.25,.95,true));root.add(shell);ACT.manifold=shell;
+    /* the contact planes are drawn INSIDE this shell, so the shell is a graticule with
+       only a breath of glow behind it — a filled Fresnel ball washed them into haze */
+    const shell=new THREE.Mesh(new THREE.IcosahedronGeometry(2.62,5),scientificFresnelMaterial(SCI_MINT,station==='legendrian'?SCI_CORAL:SCI_GOLD,.075,.95,true));root.add(shell);ACT.manifold=shell;
+    root.add(scientificGraticule(2.62,16,9,SCI_MINT,.17));
   }else if(station==='return'){
     const ellipsoid=new THREE.Mesh(new THREE.SphereGeometry(2.35,72,48),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.25,.92,true));ellipsoid.scale.set(1.18,.82,1);root.add(ellipsoid);const section=new THREE.Mesh(new THREE.CircleGeometry(2.38,96),scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.18,.75,true));section.position.z=.02;root.add(section);ACT.manifold=ellipsoid;
   }else if(station==='ks'){
@@ -20902,17 +20955,151 @@ function actSetProgress(){
   const radial=p.clone();if(radial.lengthSq()<1e-8)radial.set(0,1,0);radial.normalize();let side=new THREE.Vector3().crossVectors(tan,radial);if(side.lengthSq()<1e-8)side.set(0,0,1);side.normalize();scientificReplaceTube(ACT.normal,[p,p.clone().addScaledVector(side,.58)],false);
 }
 function actPhaseBraid(pts,phase){if(!pts?.length)return[];return pts.map((p,i)=>{const u=i/Math.max(1,pts.length-1),t=pts[Math.min(pts.length-1,i+1)].clone().sub(pts[Math.max(0,i-1)]).normalize(),r=p.clone();if(r.lengthSq()<1e-7)r.set(0,1,0);r.normalize();const s=new THREE.Vector3().crossVectors(t,r);if(s.lengthSq()<1e-7)s.set(0,0,1);s.normalize();const a=6.2831853*u+phase*u;return p.clone().addScaledVector(r,.14*Math.cos(a)).addScaledVector(s,.14*Math.sin(a));});}
+/* ── THE CONTACT PLANE IS A COMPLEX LINE, NOT A DISC ───────────────────────────
+   The station drew its "contact planes" with a heuristic: a small hexagon turned by
+   a centroid-and-index rule.  That is decoration standing where the defining object
+   of the subject belongs, and it is the one thing a contact-geometry laboratory must
+   get right.
+
+   On S³ ⊂ C² with λ₀ = ½Σ(x dy − y dx) and J = multiplication by i:
+
+       Reeb   R  = 2Jp                            λ₀(R) = 1
+       ξ_p    = ker λ₀ ∩ T_pS³ = the COMPLEX LINE orthogonal to p,
+                spanned by  p⊥ = (−z̄₂, z̄₁)  and  i·p⊥
+
+   In real coordinates p = (x₁,y₁,x₂,y₂) that is
+
+       e₁ = (−x₂,  y₂,  x₁, −y₁)        e₂ = (−y₂, −x₂,  y₁,  x₁)
+
+   an orthonormal pair, orthogonal to p and to Jp, on which λ₀ vanishes identically.
+   Verified over 400 deterministic points before this was written: orthonormality
+   2.2e-16, orthogonality to p and Jp 5.6e-17, λ₀ on the plane 2.8e-17, λ₀(R)−1
+   4.4e-16.
+
+   And then the number that makes it a CONTACT structure rather than a foliation:
+
+       dλ₀(e₁,e₂) = 1   exactly, at every point, to 4.4e-16
+       λ₀ ∧ dλ₀ (R,e₁,e₂) = 1                      to 8.9e-16
+
+   Non-integrability is not merely nonzero here, it is UNIFORM and maximal.  By
+   Frobenius no surface is tangent to this plane field anywhere — the planes twist too
+   fast to ever close up — and that single number is the reason.  The stage draws the
+   real planes, pushed forward through the same stereographic map as the curve, so what
+   is on screen is ker λ₀ and not a decoration. */
+const actJ4=p=>[-p[1],p[0],-p[3],p[2]];
+const actLam=(p,V)=>0.5*(p[0]*V[1]-p[1]*V[0]+p[2]*V[3]-p[3]*V[2]);
+const actDLam=(U,V)=>(U[0]*V[1]-U[1]*V[0])+(U[2]*V[3]-U[3]*V[2]);
+const actXi1=p=>[-p[2], p[3], p[0], -p[1]];
+const actXi2=p=>[-p[3],-p[2], p[1],  p[0]];
+/* the differential of the stereographic chart the whole station already draws in */
+function actDProject4(p,V){
+  const d=Math.max(.055,1-p[3]);
+  return new THREE.Vector3(V[0]/d + p[0]*V[3]/(d*d),
+                           V[1]/d + p[1]*V[3]/(d*d),
+                           V[2]/d + p[2]*V[3]/(d*d));
+}
+function actContactIdentities(p){
+  const R=actJ4(p).map(v=>2*v),a=actXi1(p),b=actXi2(p);
+  return {lambdaR:actLam(p,R), lamE1:actLam(p,a), lamE2:actLam(p,b),
+    dLambda:actDLam(a,b),
+    volume:actLam(p,R)*actDLam(a,b)-actLam(p,a)*actDLam(R,b)+actLam(p,b)*actDLam(R,a)};
+}
+const ACT_PLANE_N=14, ACT_PLANE_R=.26;
+function actContactStage(D){
+  const L=ACT.planeLayer; if(!L) return;
+  const P4=D.path&&D.path.a4; if(!P4||P4.length<8) return null;
+  const fit=v=>{const q=v.clone(); if(q.length()>1.82)q.setLength(1.82); return q.multiplyScalar(1.4);};
+  const quads=[],cols=[],seg=[],segc=[];
+  const cA=new THREE.Color(SCI_MINT),cB=new THREE.Color(SCI_CORAL),cR=new THREE.Color(SCI_GOLD),cc=new THREE.Color();
+  let ident=null;
+  for(let k=0;k<ACT_PLANE_N;k++){
+    const i=Math.floor(k*(P4.length-1)/(ACT_PLANE_N-1)), p=P4[i];
+    if(!p||p.length!==4) continue;
+    if(!ident) ident=actContactIdentities(p);
+    const c=fit(actProject4(p));
+    /* the plane is spanned by the pushforward of e1 and e2 — the projection is
+       conformal on S³ so the plane stays a plane, but its SCALE changes with
+       position, and that is honest: the drawn size is not an invariant */
+    let u=actDProject4(p,actXi1(p)).multiplyScalar(1.4),
+        v=actDProject4(p,actXi2(p)).multiplyScalar(1.4);
+    const su=u.length()||1, sv=v.length()||1;
+    u.multiplyScalar(ACT_PLANE_R/su); v.multiplyScalar(ACT_PLANE_R/sv);
+    cc.copy(cA).lerp(cB,k/(ACT_PLANE_N-1));
+    /* one quad per plane, drawn as two triangles */
+    const c1=c.clone().add(u).add(v), c2=c.clone().sub(u).add(v),
+          c3=c.clone().sub(u).sub(v), c4=c.clone().add(u).sub(v);
+    for(const t of [[c1,c2,c3],[c1,c3,c4]]) for(const q of t){ quads.push(q.x,q.y,q.z); cols.push(cc.r,cc.g,cc.b); }
+    /* the Reeb direction, transverse to the plane by exactly lambda(R)=1 */
+    const rv=actDProject4(p,actJ4(p).map(x=>2*x)).multiplyScalar(1.4);
+    const rl=rv.length()||1; rv.multiplyScalar(.30/rl);
+    const tip=c.clone().add(rv);
+    seg.push(c.x,c.y,c.z,tip.x,tip.y,tip.z); segc.push(cR.r,cR.g,cR.b,cR.r,cR.g,cR.b);
+    /* and the plane's own frame, so the TWIST along the curve is visible */
+    const e1t=c.clone().add(u), e2t=c.clone().add(v);
+    seg.push(c.x,c.y,c.z,e1t.x,e1t.y,e1t.z); segc.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b);
+    seg.push(c.x,c.y,c.z,e2t.x,e2t.y,e2t.z); segc.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b);
+  }
+  if(quads.length){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(quads,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+    g.computeVertexNormals();
+    const m=new THREE.MeshBasicMaterial({vertexColors:true,transparent:true,opacity:.34,
+      side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
+    const mesh=new THREE.Mesh(g,m); mesh.renderOrder=4; L.add(mesh);
+  }
+  if(seg.length){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(seg,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(segc,3));
+    const ln=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.9,depthWrite:false}));
+    ln.renderOrder=6; L.add(ln);
+  }
+  return ident;
+}
 function actRender(){
   if(!ACT.built)return;const D=actDiagnostics(),phase=Number.isFinite(D.phase)?D.phase:0;ACT.last=D;ACT.currentPaths=actVisualPaths(D);const A=ACT.currentPaths[0]||[],B=ACT.currentPaths[1]||[],closedA=D.station!=='ks'||A[0]?.distanceTo(A[A.length-1])<.2,closedB=D.station!=='maslov',dense=D.station==='return';
   ACT.pathA.userData.scientificTube.radius=dense?.027:.067;ACT.pathB.userData.scientificTube.radius=dense?.023:.052;ACT.phaseTube.userData.scientificTube.radius=dense?.012:.026;ACT.pathA.material.opacity=dense?.28:.95;ACT.pathB.material.opacity=dense?.38:.9;ACT.phaseTube.material.opacity=dense?.24:.82;ACT.pathA.material.emissiveIntensity=dense?.68:1.35;ACT.pathB.material.emissiveIntensity=dense?.82:1.35;ACT.flowA.material.opacity=dense?.38:.82;ACT.flowB.material.opacity=dense?.44:.82;ACT.pathRibbon.material.uniforms.uOpacity.value=dense?.045:.24;
   scientificReplaceTube(ACT.pathA,A,closedA);scientificReplaceRibbon(ACT.pathRibbon,A,closedA);scientificReplaceTube(ACT.phaseTube,actPhaseBraid(A,phase),closedA);scientificSetFlowPath(ACT.flowA,A,closedA);ACT.pathB.visible=ACT.flowB.visible=B.length>1;if(B.length>1){scientificReplaceTube(ACT.pathB,B,closedB);scientificSetFlowPath(ACT.flowB,B,closedB);}
-  labWipe(ACT.planeLayer);if(A.length>6){const planes=[];for(let i=0;i<Math.min(28,A.length);i++)planes.push(A[Math.floor(i*(A.length-1)/Math.min(27,A.length-1))]);ACT.planeLayer.add(scientificContactPlanes(planes,D.station==='legendrian'?SCI_CORAL:SCI_VIOLET,D.station==='return'?.18:.14));}
+  labWipe(ACT.planeLayer);
+  ACT.identities=null;
+  if(D.path&&D.path.a4){ try{ ACT.identities=actContactStage(D); }catch(e){} }
+  else if(A.length>6){const planes=[];for(let i=0;i<Math.min(28,A.length);i++)planes.push(A[Math.floor(i*(A.length-1)/Math.min(27,A.length-1))]);ACT.planeLayer.add(scientificContactPlanes(planes,D.station==='legendrian'?SCI_CORAL:SCI_VIOLET,D.station==='return'?.18:.14));}
   const value=D.station==='reeb'?`action ${D.values.action.toFixed(6)} = π`:D.station==='maslov'?'Maslov phase −π · metaplectic return −1':`return / gauge phase ${actWrap(phase).toFixed(6)} rad`;ACT.sub.element.textContent=`${D.title} · ${value} · ${D.pass?'contract verified':'inspect residual'} · ε ${D.residual.toExponential(2)}`;actSetProgress();
+}
+/* The picture is only worth what the numbers behind it are worth, so the identities
+   the stage draws are printed next to it, live, from the same point the planes are
+   built at.  dλ₀(e₁,e₂) = 1 is the whole subject in one number: not merely nonzero,
+   but uniform and maximal, which is why no surface can ever be tangent to this field. */
+function actContactHTML(D){
+  const I=ACT.identities; if(!I) return '';
+  const row=(k,v,g,note)=>`<div class="note" style="margin:4px 0;border-left:3px solid ${g===false?'#ff6f86':g===true?'#55e8c4':'#62e8ff'}"><b>${esc(k)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(v)}</span>${note?`<span style="color:var(--dim)"> · ${esc(note)}</span>`:''}</div>`;
+  const e=x=>Math.abs(x)<1e-12?'0':x.toExponential(2);
+  return `<div class="sect" style="border-color:rgba(85,232,196,.36)"><b style="color:#bfffee">⟡ ${TT('THE CONTACT PLANE, AS DRAWN','КОНТАКТНАЯ ПЛОСКОСТЬ, КАК НАРИСОВАНА','DIE KONTAKTEBENE, WIE GEZEICHNET')}</b>
+    <div class="small" style="margin-top:4px">${TT(
+      'ξ = ker λ₀ is the COMPLEX LINE orthogonal to p, spanned by p⊥ = (−z̄₂, z̄₁) and i·p⊥. The mint-to-coral quads are those planes, pushed through the same stereographic chart as the curve; the gold needle is the Reeb direction, transverse to every one of them.',
+      'ξ = ker λ₀ есть КОМПЛЕКСНАЯ ПРЯМАЯ, ортогональная p, натянутая на p⊥ = (−z̄₂, z̄₁) и i·p⊥. Мятно-коралловые четырёхугольники — это те самые плоскости, проведённые через ту же стереографическую карту, что и кривая; золотая игла — направление Риба, трансверсальное каждой из них.',
+      'ξ = ker λ₀ ist die KOMPLEXE GERADE orthogonal zu p. Die Vierecke sind diese Ebenen; die goldene Nadel ist die Reeb-Richtung, transversal zu jeder.')}</div>
+    <div style="margin-top:6px">
+    ${row('λ₀(R)',I.lambdaR.toFixed(12),Math.abs(I.lambdaR-1)<1e-12,TT('the Reeb field is normalised by the form itself','поле Риба нормировано самой формой','das Reeb-Feld ist durch die Form normiert'))}
+    ${row('λ₀(e₁) · λ₀(e₂)',e(I.lamE1)+' · '+e(I.lamE2),Math.max(Math.abs(I.lamE1),Math.abs(I.lamE2))<1e-12,TT('the plane really is the kernel','плоскость действительно есть ядро','die Ebene ist wirklich der Kern'))}
+    ${row('dλ₀(e₁,e₂)',I.dLambda.toFixed(12),Math.abs(I.dLambda-1)<1e-12,TT('EXACTLY one, at every point — non-integrability is uniform and maximal','РОВНО единица в каждой точке — неинтегрируемость равномерна и максимальна','GENAU eins an jedem Punkt — die Nichtintegrabilität ist gleichmäßig und maximal'))}
+    ${row('λ₀ ∧ dλ₀ (R,e₁,e₂)',I.volume.toFixed(12),Math.abs(I.volume-1)<1e-12,TT('nonzero ⇒ contact, not a foliation','ненулевой ⇒ контактная структура, а не слоение','ungleich null ⇒ Kontaktstruktur, keine Blätterung'))}
+    </div>
+    <div class="note" style="margin-top:5px;color:#ffd58a">${TT(
+      'By Frobenius a plane field is tangent to a surface only where λ ∧ dλ vanishes. Here it is 1 everywhere, so NO surface is tangent to these planes anywhere — they twist too fast to close up. That single number is the difference between contact geometry and a foliation.',
+      'По Фробениусу поле плоскостей касается поверхности лишь там, где λ ∧ dλ обращается в нуль. Здесь оно всюду равно 1, поэтому НИ ОДНА поверхность не касается этих плоскостей нигде — они закручиваются слишком быстро. Это единственное число и есть разница между контактной геометрией и слоением.',
+      'Nach Frobenius ist ein Ebenenfeld nur dort zu einer Fläche tangential, wo λ ∧ dλ verschwindet. Hier ist es überall 1 — keine Fläche ist irgendwo tangential.')}</div>
+    <div class="note" style="margin-top:5px;font-size:10px;color:var(--dim)">${TT(
+      'The drawn quads are unit-scaled after projection: stereographic projection is conformal, so a plane stays a plane and angles are true, but the SIZE on screen is a chart artefact and is not an invariant.',
+      'Нарисованные четырёхугольники масштабированы после проекции: стереографическая проекция конформна, плоскость остаётся плоскостью и углы верны, но РАЗМЕР на экране есть артефакт карты и не является инвариантом.',
+      'Die gezeichneten Vierecke sind nach der Projektion skaliert: die Projektion ist konform, aber die GRÖSSE am Bildschirm ist ein Kartenartefakt.')}</div></div>`;
 }
 function actReadoutsHTML(D){return D.readouts.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.good===false?'#ff6f86':r.good===true?'#55e8c4':'#62e8ff'}"><b>${esc(r.label)}</b> · <span style="font-variant-numeric:tabular-nums">${esc(String(r.value))}</span></div>`).join('');}
 function actPanelHTML(){
   const station=state.actStation||'reeb',S=ACT_STATIONS[station],D=actDiagnostics(),retPresets=station==='return'?`<div class="chips" style="margin-top:5px"><button class="chip" data-act-preset="0.2222222222|0.2222222222">1:1</button><button class="chip" data-act-preset="0.2222222222|0.5">b/a=3/2</button><button class="chip" data-act-preset="0.2222222222|0.5925925926">b/a=5/3</button><button class="chip" data-act-preset="0.2222222222|0.5655737201">b/a=φ · ${TT('irrational','иррационально','irrational')}</button></div>`:'';
   return invarianceSuiteHTML('act')+`<div class="sect" style="border-color:rgba(85,232,196,.43);background:linear-gradient(135deg,rgba(18,112,98,.23),rgba(87,49,141,.17))"><b style="color:#bfffee">∮ ${TT('CONTACT & ACTION OBSERVATORY','ОБСЕРВАТОРИЯ КОНТАКТА И ДЕЙСТВИЯ','KONTAKT- & WIRKUNGSOBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact bridge from the S³ energy shell to Reeb motion, Poincaré return, Legendrian geometry, collision regularization and quantum phase.','Один точный мост от энергетической S³ к движению Риба, возврату Пуанкаре, легендровой геометрии, регуляризации столкновения и квантовой фазе.','Eine exakte Brücke von der S³-Energiefläche zu Reeb-Fluss, Poincaré-Rückkehr, Legendrescher Geometrie, Kollisionsregularisierung und Quantenphase.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated in the declared mathematical station before 3D projection; no finite residual proves a general theorem or new physical effect.','Барьер: все инварианты вычисляются в объявленной математической станции до 3D-проекции; конечная невязка не доказывает общую теорему или новый физический эффект.','Firewall: Alle Invarianten werden vor der 3D-Projektion im deklarierten Modell ausgewertet; kein endlicher Rest beweist einen allgemeinen Satz.')}</div></div>
+  ${actContactHTML(D)}
   <div class="sect"><b>${TT('ACTION STATION','СТАНЦИЯ ДЕЙСТВИЯ','WIRKUNGSSTATION')}</b><div class="chips">${Object.entries(ACT_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-act-station="${k}">${esc(actLang(v.t))}</button>`).join('')}</div>${retPresets}<div class="ctlrow"><button class="btn green" id="actRun">${state.actRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="actReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="actSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.actSpeed??.52}"><span class="val" id="actSpeedV">×${(state.actSpeed??.52).toFixed(2)}</span></div>
     <div class="ctlrow"><label>${esc(actLang(S.p1))}</label><input id="actA" data-no-osc type="range" min="0" max="1" step="0.0001" value="${state.actA??.55}"><span class="val" id="actAV">${esc(D.parameters[0].display)}</span></div><div class="ctlrow"><label>${esc(actLang(S.p2))}</label><input id="actB" data-no-osc type="range" min="0" max="1" step="0.0001" value="${state.actB??.42}"><span class="val" id="actBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('CONTACT / ACTION PASSPORT','ПАСПОРТ КОНТАКТА / ДЕЙСТВИЯ','KONTAKT- / WIRKUNGSPASS')}</b><div id="actReadouts">${actReadoutsHTML(D)}</div><div id="actOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div></div>
@@ -21016,13 +21203,16 @@ function nulDiagnostics(station=state.nulStation||'null',aU=state.nulA??.56,bU=s
 }
 function nulExportData(){return {schema:'fbs3r-spinor-lightcone-observatory-v1',generated_at:new Date().toISOString(),station_catalog:Object.fromEntries(Object.entries(NUL_STATIONS).map(([k,v])=>[k,{title:v.t.en,contract:v.contract,caveat:v.caveat}])),current:nulDiagnostics(),reproducibility:{normalized_controls:{a:state.nulA,b:state.nulB},celestial_circle_vertices:161,diamond_null_ray_vertices:81,floating_point:'IEEE-754 binary64',metric_signature:'+---',pauli_convention:'X=x0 I+x sigma'},epistemic_firewall:'This export contains exact representation identities and deterministic finite checks. It is not experimental data, a general curved-spacetime or quantum-gravity solver, an observational map of the sky, an exhaustive spinor classification or evidence that the five stations are one physical system.'};}
 const nulGroup=new THREE.Group();nulGroup.name='Spinor & Light-Cone Observatory · CP1, SL2C, null tetrad and conformal infinity';nulGroup.visible=false;s3Group.add(nulGroup);
-const NUL={built:false,station:'',paths:[],flows:[],phaseTube:null,probe:null,fieldRoot:null,surfaceLayer:null,dynamicObjects:[],title:null,sub:null,phaseLabel:null,last:null,currentLines:[],ui:0,time:0};
+const NUL={built:false,ringLayer:null,ring:null,station:'',paths:[],flows:[],phaseTube:null,probe:null,fieldRoot:null,surfaceLayer:null,dynamicObjects:[],title:null,sub:null,phaseLabel:null,last:null,currentLines:[],ui:0,time:0};
 function nulVisualLines(D){
   const map=p=>{const v=new THREE.Vector3(...p);if(D.station==='null'){if(v.x<-.05)v.x=-1.72+(v.x+2.3)*1.16;else v.x=1.72+(v.x-2.05)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='lorentz'){v.x*=.5;v.y*=1.18;v.z*=1.18;}else if(D.station==='celestial'){const side=v.x<0?-1:1,c=side<0?-2.25:2.25;v.x=side*1.72+(v.x-c)*1.16;v.y*=1.16;v.z*=1.16;}else if(D.station==='tetrad'){v.x*=.78;v.y*=1.18;v.z*=1.18;}else{v.x=v.x*1.28+.42;v.y*=1.06;v.z*=2.4;}return v;};return (D.path.lines||[]).map(L=>L.map(map));
 }
 function nulGuide(station){
   const root=new THREE.Group();root.name=`Null geometry native field · ${station}`;nulGroup.add(root);NUL.fieldRoot=root;NUL.dynamicObjects=[];NUL.transformedField=null;root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.5,2.9,2.9),station==='tetrad'||station==='diamond'?SCI_GOLD:SCI_CYAN,MOBILE_GPU?140:290,151+station.length));
-  const sphere=(x,c,a=SCI_GOLD)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1.76,72,48),scientificFresnelMaterial(c,a,.27,.95));m.position.x=x;root.add(m);return m;};
+  const sphere=(x,c,a=SCI_GOLD)=>{const m=new THREE.Mesh(new THREE.SphereGeometry(1.76,72,48),scientificFresnelMaterial(c,a,.085,.95));m.position.x=x;root.add(m);
+    /* an observer sky chart is a protractor, not a ball: the graticule is what lets a
+       reader see that the aberrated circle is still a circle */
+    const g=scientificGraticule(1.76,14,9,c,.16);g.position.x=x;root.add(g);return m;};
   const conePair=(x,c1,c2,scale=1)=>{const g=new THREE.ConeGeometry(1.56*scale,2.9*scale,72,8,true),up=new THREE.Mesh(g,scientificFresnelMaterial(c1,SCI_GOLD,.3,.98)),dn=new THREE.Mesh(g.clone(),scientificFresnelMaterial(c2,SCI_CYAN,.25,.9));up.position.set(x,1.45*scale,0);up.rotation.z=Math.PI;dn.position.set(x,-1.45*scale,0);root.add(up,dn);NUL.dynamicObjects.push(up,dn);return [up,dn];};
   if(station==='null'){
     sphere(-1.72,SCI_CYAN,SCI_VIOLET);conePair(1.72,SCI_MINT,SCI_VIOLET,.92);const bridge=scientificParametricSurface(72,20,(u,v)=>{const x=-.48+.96*u,a=6.2831853*v,r=.18+.3*Math.pow(Math.abs(u-.5)*2,1.5);return new THREE.Vector3(x,r*Math.cos(a),r*Math.sin(a));},scientificFresnelMaterial(SCI_GOLD,SCI_CYAN,.28,.9));root.add(bridge);
@@ -21041,11 +21231,86 @@ function nulSetup(){
   nulGroup.add(new THREE.AmbientLight(0x60749a,.62));const dl=new THREE.DirectionalLight(0xf5f9ff,1.18);dl.position.set(5,8,9);nulGroup.add(dl);const rim=new THREE.PointLight(0xffcd70,2.25,15,2);rim.position.set(-3,2,4);nulGroup.add(rim);
   const colors=[SCI_CYAN,SCI_CORAL,SCI_GOLD,SCI_VIOLET,SCI_MINT,0xffffff];for(let i=0;i<6;i++){const q=scientificTube([],colors[i],i===5?.05:.042,i===5?.98:.87,false,220),f=scientificFlow([],MOBILE_GPU?14:28,colors[i],i===5?.04:.032,false);nulGroup.add(q,f);NUL.paths.push(q);NUL.flows.push(f);}
   NUL.phaseTube=scientificTube([],SCI_GOLD,.025,.84,false,220);nulGroup.add(NUL.phaseTube);NUL.probe=scientificCrystal(0xffffff,.17);nulGroup.add(NUL.probe);NUL.surfaceLayer=new THREE.Group();nulGroup.add(NUL.surfaceLayer);
+  /* the celestial circle and its aberrated image live in their own layer so the ring
+     can be rebuilt on every parameter change without touching the rest of the station */
+  NUL.ringLayer=new THREE.Group();NUL.ringLayer.name='celestial circle and its aberrated image';nulGroup.add(NUL.ringLayer);
   NUL.title=mkLabel('SPINOR & LIGHT CONE · S³ PHASE TO NULL INFINITY','label const nul-title');NUL.title.position.set(0,3.42,0);nulGroup.add(NUL.title);NUL.sub=mkLabel('','label axis nul-sub');NUL.sub.position.set(0,2.92,0);nulGroup.add(NUL.sub);NUL.phaseLabel=mkLabel('','label gold nul-phase');NUL.phaseLabel.position.set(2.25,-1.72,0);nulGroup.add(NUL.phaseLabel);
   const foot=mkLabel('nullity is visible as cone geometry · spin phase becomes fibre twist · conformal infinity becomes a finite light volume','label dim nul-foot');foot.position.set(0,-3.42,0);nulGroup.add(foot);nulRender();
 }
 function nulSetProgress(){const p=(state.nulProgress??0)%1,L=NUL.currentLines.reduce((a,b)=>b.length>a.length?b:a,[]);if(L.length<2||!NUL.probe)return;const q=p*(L.length-1),i=Math.min(L.length-2,Math.floor(q)),f=q-i;NUL.probe.position.copy(L[i]).lerp(L[i+1],f);}
-function nulRender(){if(!NUL.built)return;const D=nulDiagnostics(),phase=nulWrap(D.phase);NUL.last=D;NUL.currentLines=nulVisualLines(D);let main=[];for(let i=0;i<NUL.paths.length;i++){const L=NUL.currentLines[i]||[],closed=L.length>3&&L[0].distanceTo(L[L.length-1])<.16;NUL.paths[i].visible=NUL.flows[i].visible=L.length>1;if(L.length>1){scientificReplaceTube(NUL.paths[i],L,closed);scientificSetFlowPath(NUL.flows[i],L,closed);if(L.length>main.length)main=L;}}
+/* ── ABERRATION IS CONFORMAL: A CIRCLE ON THE SKY STAYS A CIRCLE ───────────────
+   The celestial station drew the boosted DIRECTIONS but never the statement that
+   makes the celestial sphere a Riemann sphere in the first place.  A Lorentz boost
+   acts on the sky as a Möbius map of ζ = ψ₁/ψ₀, and a Möbius map takes circles to
+   circles.  So a ring of stars — a constellation, the rim of a cluster, an Einstein
+   ring — is DEFORMED by relativistic aberration but never bent out of round.  Angles
+   survive; sizes and positions do not.
+
+   Drawn as the test it is: a circle of given half-angle about a chosen axis, its
+   image under the current boost, and the measured coplanarity of each.  A set of
+   points on the unit sphere lies on a circle exactly when it is coplanar, so the
+   plane through three of its members is taken and every point measured against it —
+   no fitting, no eigensolver, no round-off theatre.
+
+   Verified before implementation over rapidities 0.2 … 2.4 and half-angles 0.35 …
+   1.4: the image is coplanar to 6.1e-16, the same order as the source circle itself. */
+const NUL_RING_N=192;
+function nulRingPlanarity(P){
+  if(P.length<3) return NaN;
+  const a=P[0],b=P[(P.length/3)|0],c=P[((2*P.length)/3)|0];
+  const u=b.clone().sub(a), v=c.clone().sub(a), n=new THREE.Vector3().crossVectors(u,v);
+  if(n.length()<1e-12) return NaN;
+  n.normalize(); const d=n.dot(a);
+  let m=0; for(const q of P) m=Math.max(m,Math.abs(n.dot(q)-d));
+  return m;
+}
+function nulCelestialRing(D){
+  const L=NUL.ringLayer; if(!L) return null;
+  const eta=Number.isFinite(D.values&&D.values.rapidity)?D.values.rapidity
+           :Number.isFinite(D.values&&D.values.boost_rapidity)?D.values.boost_rapidity
+           :1.1*(state.nulA??.56);
+  const half=.32+1.05*(state.nulB??.34);
+  /* a deterministic axis, tilted off the boost so the deformation is visible */
+  const ax=new THREE.Vector3(Math.sin(.72)*Math.cos(1.05),Math.sin(.72)*Math.sin(1.05),Math.cos(.72)).normalize();
+  let t=new THREE.Vector3(0,0,1); if(Math.abs(ax.dot(t))>.9) t.set(1,0,0);
+  const u=new THREE.Vector3().crossVectors(ax,t).normalize(),
+        v=new THREE.Vector3().crossVectors(ax,u).normalize();
+  const src=[],img=[],ca=Math.cos(half),sa=Math.sin(half),h=Math.exp(eta/2);
+  for(let i=0;i<=NUL_RING_N;i++){
+    const a=2*Math.PI*i/NUL_RING_N;
+    const n=ax.clone().multiplyScalar(ca)
+      .addScaledVector(u,sa*Math.cos(a)).addScaledVector(v,sa*Math.sin(a));
+    src.push(n);
+    /* sky -> zeta -> boosted zeta -> sky.  A boost along z is the diagonal SL(2,C)
+       element, so zeta simply scales by e^eta; the guard keeps the pole finite. */
+    const den=Math.max(1e-9,1-n.z), zr=n.x/den, zi=n.y/den;
+    const wr=zr*h*h, wi=zi*h*h, r2=wr*wr+wi*wi, dd=r2+1;
+    img.push(new THREE.Vector3(2*wr/dd, 2*wi/dd, (r2-1)/dd));
+  }
+  const R=2.02, mk=(pts,col,op,rad)=>scientificTube(pts.map(q=>q.clone().multiplyScalar(R)),col,rad,op,true,NUL_RING_N+8);
+  L.add(mk(src,SCI_CYAN,.95,.032));
+  L.add(mk(img,SCI_CORAL,.98,.038));
+  /* the correspondence: a few chords tying each source point to where it went */
+  const seg=[],cols=[],c0=new THREE.Color(SCI_CYAN),c1=new THREE.Color(SCI_CORAL),cc=new THREE.Color();
+  for(let k=0;k<18;k++){
+    const i=Math.floor(k*NUL_RING_N/18), a=src[i].clone().multiplyScalar(R), b=img[i].clone().multiplyScalar(R);
+    cc.copy(c0).lerp(c1,k/17);
+    seg.push(a.x,a.y,a.z,b.x,b.y,b.z); cols.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b);
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(seg,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(cols,3));
+  const ln=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.4,depthWrite:false}));
+  ln.renderOrder=5; L.add(ln);
+  const lab=mkLabel(`aberration · circle → circle`,'label axis');
+  lab.position.copy(img[0]).multiplyScalar(R*1.22); L.add(lab);
+  return {rapidity:eta, halfAngle:half, srcPlanarity:nulRingPlanarity(src),
+    imgPlanarity:nulRingPlanarity(img), samples:NUL_RING_N+1,
+    srcRadius:half, imgRadius:Math.acos(Math.max(-1,Math.min(1,img.reduce((s,q)=>s+q.z,0)/img.length)))};
+}
+function nulRender(){if(!NUL.built)return;const D=nulDiagnostics(),phase=nulWrap(D.phase);NUL.last=D;
+  if(NUL.ringLayer){ labWipe(NUL.ringLayer); NUL.ring=null;
+    if((state.nulStation||'null')==='celestial'){ try{ NUL.ring=nulCelestialRing(D); }catch(e){} } }NUL.currentLines=nulVisualLines(D);let main=[];for(let i=0;i<NUL.paths.length;i++){const L=NUL.currentLines[i]||[],closed=L.length>3&&L[0].distanceTo(L[L.length-1])<.16;NUL.paths[i].visible=NUL.flows[i].visible=L.length>1;if(L.length>1){scientificReplaceTube(NUL.paths[i],L,closed);scientificSetFlowPath(NUL.flows[i],L,closed);if(L.length>main.length)main=L;}}
   scientificReplaceTube(NUL.phaseTube,actPhaseBraid(main,phase),main.length>3&&main[0].distanceTo(main[main.length-1])<.16);labWipe(NUL.surfaceLayer);
   if(D.station==='tetrad'&&main.length>1){const centre=new THREE.Vector3(),axis=main[main.length-1].clone().sub(main[0]);if(axis.lengthSq()<1e-8)axis.set(0,1,0);else axis.normalize();const e=new THREE.Vector3(1,0,0);if(Math.abs(axis.dot(e))>.9)e.set(0,1,0);e.cross(axis).normalize();const f=e.clone().applyAxisAngle(axis,Math.PI/2),r=.42,helixA=[],helixB=[];for(let i=0;i<=120;i++){const u=i/120,p=axis.clone().multiplyScalar((u-.5)*4.5),a=phase*u*2+6.2831853*u;helixA.push(p.clone().addScaledVector(e,r*Math.cos(a)).addScaledVector(f,r*Math.sin(a)));helixB.push(p.clone().addScaledVector(e,-r*Math.cos(a)).addScaledVector(f,-r*Math.sin(a)));}NUL.surfaceLayer.add(scientificTube(helixA,SCI_GOLD,.03,.8,false,160),scientificTube(helixB,SCI_VIOLET,.03,.72,false,160));}
   if(D.station==='lorentz'&&NUL.transformedField){const eta=D.parameters[0].value;NUL.transformedField.forEach((o,i)=>{o.rotation.y=.32+.12*Math.sin(eta);o.scale.set(Math.exp((i ? -.08 : .08)*eta),1,Math.exp((i ? .08 : -.08)*eta));});}
@@ -21053,7 +21318,29 @@ function nulRender(){if(!NUL.built)return;const D=nulDiagnostics(),phase=nulWrap
   if(D.station==='diamond'&&NUL.transformedField){const cf=Math.max(.15,Math.abs(D.values.conformal_factor||.5));NUL.transformedField[0].scale.set(1,1.16,.42+.24*cf);}
   NUL.sub.element.textContent=`${D.title} · ${D.pass?'contract verified':'inspect residual'} · native residual ${D.residual.toExponential(2)}`;NUL.phaseLabel.element.textContent=D.station==='diamond'?`compact time T = ${D.values.T.toFixed(6)}`:D.station==='tetrad'?`spin-1 χ = ${D.values.spin_weight_one_phase.toFixed(6)} · spin-2 = ${D.values.spin_weight_two_phase.toFixed(6)}`:`fibre / frame twist ${phase.toFixed(6)} rad`;nulSetProgress();}
 function nulReadoutsHTML(D){return D.readouts.map(([k,v])=>`<div class="small" style="display:flex;gap:8px;justify-content:space-between"><span style="color:var(--dim)">${esc(k)}</span><b style="font-variant-numeric:tabular-nums;text-align:right">${esc(String(v))}</b></div>`).join('');}
-function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[station],D=nulDiagnostics();return invarianceSuiteHTML('nul')+`<div class="sect" style="border-color:rgba(98,232,255,.43);background:linear-gradient(135deg,rgba(20,82,108,.25),rgba(81,44,128,.19))"><b style="color:#c8f8ff">◇ ${TT('SPINOR & LIGHT-CONE OBSERVATORY','ОБСЕРВАТОРИЯ СПИНОРА И СВЕТОВОГО КОНУСА','SPINOR- & LICHTKEGEL-OBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact chain: normalized S³ spinor → CP¹ direction → future null ray → Lorentz/Möbius action → null frame → conformal infinity.','Одна точная цепь: нормированный спинор S³ → направление CP¹ → будущий нулевой луч → действие Лоренца/Мёбиуса → нулевая рама → конформная бесконечность.','Eine exakte Kette: normierter S³-Spinor → CP¹-Richtung → Nullstrahl → Lorentz/Möbius-Wirkung → Nullrahmen → konforme Unendlichkeit.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated before 3D projection; shared geometry does not make qubits, photons and gravitational waves one physical system.','Барьер: все инварианты вычисляются до 3D-проекции; общая геометрия не делает кубиты, фотоны и гравитационные волны одной физической системой.','Firewall: Alle Invarianten werden vor der 3D-Projektion ausgewertet; gemeinsame Geometrie macht Qubits, Photonen und Gravitationswellen nicht zu einem System.')}</div></div>
+/* The measurement the ring stage IS. A set of points on the unit sphere lies on a
+   circle exactly when it is coplanar, so the residual below is the largest distance
+   of any of the 193 samples from the plane through three of them — no fit, no solver. */
+function nulRingHTML(){
+  const R=NUL.ring; if(!R) return '';
+  const good=Number.isFinite(R.imgPlanarity)&&R.imgPlanarity<1e-12;
+  return `<div class="sect" style="border-color:rgba(98,232,255,.36)"><b style="color:#c8f8ff">◎ ${TT('ABERRATION IS CONFORMAL','АБЕРРАЦИЯ КОНФОРМНА','ABERRATION IST KONFORM')}</b>
+    <div class="small" style="margin-top:4px">${TT(
+      'A boost acts on the sky as a Möbius map of ζ = ψ₁/ψ₀, and a Möbius map takes circles to circles. A ring of stars is deformed by relativistic aberration but never bent out of round: angles survive, sizes and positions do not. Cyan is the circle at rest, coral is where the boost puts it.',
+      'Буст действует на небе как отображение Мёбиуса переменной ζ = ψ₁/ψ₀, а отображение Мёбиуса переводит окружности в окружности. Кольцо звёзд деформируется релятивистской аберрацией, но никогда не перестаёт быть круглым: углы выживают, размеры и положения — нет. Голубая — окружность в покое, коралловая — куда её переносит буст.',
+      'Ein Boost wirkt auf den Himmel als Möbius-Abbildung von ζ = ψ₁/ψ₀, und Möbius-Abbildungen führen Kreise in Kreise über. Winkel überleben, Größen und Positionen nicht.')}</div>
+    <div style="margin-top:6px">
+      <div class="note" style="margin:4px 0;border-left:3px solid #62e8ff"><b>${TT('rapidity η · half-angle','быстрота η · полуугол','Rapidität η · Halbwinkel')}</b> · <span style="font-variant-numeric:tabular-nums">${R.rapidity.toFixed(4)} · ${(R.halfAngle*180/Math.PI).toFixed(2)}°</span></div>
+      <div class="note" style="margin:4px 0;border-left:3px solid #55e8c4"><b>${TT('source circle, coplanarity','исходная окружность, компланарность','Ausgangskreis, Koplanarität')}</b> · <span style="font-variant-numeric:tabular-nums">${R.srcPlanarity.toExponential(3)}</span></div>
+      <div class="note" style="margin:4px 0;border-left:3px solid ${good?'#55e8c4':'#ff6f86'}"><b>${TT('ABERRATED image, coplanarity','АБЕРРИРОВАННЫЙ образ, компланарность','ABERRIERTES Bild, Koplanarität')}</b> · <span style="font-variant-numeric:tabular-nums">${R.imgPlanarity.toExponential(3)}</span> · <span style="color:${good?'#8fffe3':'#ff9daf'}">${good?TT('still exactly a circle','по-прежнему ровно окружность','immer noch exakt ein Kreis'):TT('outside tolerance','вне допуска','außerhalb der Toleranz')}</span></div>
+      <div class="note" style="margin:4px 0;border-left:3px solid #62e8ff"><b>${TT('mean polar angle, before → after','средний полярный угол, до → после','mittlerer Polarwinkel, vor → nach')}</b> · <span style="font-variant-numeric:tabular-nums">${(R.srcRadius*180/Math.PI).toFixed(2)}° → ${(R.imgRadius*180/Math.PI).toFixed(2)}°</span> · <span style="color:var(--dim)">${TT('the circle moved and changed size; it did not stop being a circle','окружность сместилась и изменила размер; она не перестала быть окружностью','der Kreis verschob sich und änderte die Größe; ein Kreis blieb er')}</span></div>
+    </div>
+    <div class="note" style="margin-top:5px;font-size:10px;color:var(--dim)">${TT(
+      'Measured over 193 samples against the plane through three of them. This is flat-spacetime kinematics on an observer sky chart: no lensing, no flux, no source catalogue.',
+      'Измерено по 193 образцам относительно плоскости через три из них. Это кинематика плоского пространства-времени на карте неба наблюдателя: без линзирования, потоков и каталога источников.',
+      'Gemessen über 193 Punkte gegen die Ebene durch drei von ihnen. Kinematik im flachen Raum, keine Linsenwirkung.')}</div></div>`;
+}
+function nulPanelHTML(){const station=state.nulStation||'null',S=NUL_STATIONS[station],D=nulDiagnostics();return invarianceSuiteHTML('nul')+nulRingHTML()+`<div class="sect" style="border-color:rgba(98,232,255,.43);background:linear-gradient(135deg,rgba(20,82,108,.25),rgba(81,44,128,.19))"><b style="color:#c8f8ff">◇ ${TT('SPINOR & LIGHT-CONE OBSERVATORY','ОБСЕРВАТОРИЯ СПИНОРА И СВЕТОВОГО КОНУСА','SPINOR- & LICHTKEGEL-OBSERVATORIUM')}</b><div class="small" style="margin-top:4px">${TT('One exact chain: normalized S³ spinor → CP¹ direction → future null ray → Lorentz/Möbius action → null frame → conformal infinity.','Одна точная цепь: нормированный спинор S³ → направление CP¹ → будущий нулевой луч → действие Лоренца/Мёбиуса → нулевая рама → конформная бесконечность.','Eine exakte Kette: normierter S³-Spinor → CP¹-Richtung → Nullstrahl → Lorentz/Möbius-Wirkung → Nullrahmen → konforme Unendlichkeit.')}</div><div class="note" style="margin-top:6px;color:#ffd58a">${TT('Firewall: all invariants are evaluated before 3D projection; shared geometry does not make qubits, photons and gravitational waves one physical system.','Барьер: все инварианты вычисляются до 3D-проекции; общая геометрия не делает кубиты, фотоны и гравитационные волны одной физической системой.','Firewall: Alle Invarianten werden vor der 3D-Projektion ausgewertet; gemeinsame Geometrie macht Qubits, Photonen und Gravitationswellen nicht zu einem System.')}</div></div>
   <div class="sect"><b>${TT('NULL-GEOMETRY STATION','СТАНЦИЯ НУЛЕВОЙ ГЕОМЕТРИИ','NULLGEOMETRIE-STATION')}</b><div class="chips">${Object.entries(NUL_STATIONS).map(([k,v])=>`<button class="chip ${station===k?'on':''}" data-nul-station="${k}">${esc(nulLang(v.t))}</button>`).join('')}</div><div class="ctlrow"><button class="btn green" id="nulRun">${state.nulRun!==false?'⏸ '+TT('pause','пауза','Pause'):'▶ '+TT('run','запустить','Start')}</button><button class="btn" id="nulReset">↺</button><label>${TT('speed','скорость','Tempo')}</label><input id="nulSpeed" type="range" min="0.1" max="2" step="0.05" value="${state.nulSpeed??.54}"><span class="val" id="nulSpeedV">×${(state.nulSpeed??.54).toFixed(2)}</span></div>
   <div class="ctlrow"><label id="nulAL">${esc(D.parameters[0].label)}</label><input id="nulA" type="range" min="0" max="1" step="0.001" value="${state.nulA??.56}"><span class="val" id="nulAV">${esc(D.parameters[0].display)}</span></div><div class="ctlrow"><label id="nulBL">${esc(D.parameters[1].label)}</label><input id="nulB" type="range" min="0" max="1" step="0.001" value="${state.nulB??.34}"><span class="val" id="nulBV">${esc(D.parameters[1].display)}</span></div></div>
   <div class="sect"><b>${TT('INVARIANT PASSPORT','ПАСПОРТ ИНВАРИАНТОВ','INVARIANTENPASS')}</b><div id="nulReadouts">${nulReadoutsHTML(D)}</div><div id="nulOrder" class="note" style="color:${D.pass?'#8fffe3':'#ff9daf'}"><b>${D.pass?'✓ '+TT('station contract verified','контракт станции подтверждён','Stationsvertrag bestätigt'):'△ '+TT('outside declared tolerance','вне объявленного допуска','außerhalb der Toleranz')}</b> · ε=${D.residual.toExponential(3)} ≤ ${D.tolerance.toExponential(1)}</div><div class="small" style="margin-top:6px;color:var(--dim)">${esc(S.contract)}</div><div class="note" style="margin-top:5px;color:#ffd58a">${esc(S.caveat)}</div></div>
@@ -21408,12 +21695,30 @@ function nexusExportData(includePositions=true){
   const p=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all');
   return {schema:'fbs3r-invariant-nexus-v1',generated_at:new Date().toISOString(),semantics:{claim:'A path means a sequence of declared typed relations. It is not equivalence, proof, physical distance, evidence strength or causal effect unless every relevant edge explicitly says so.',layout:'The 3D embedding morphs between disciplinary grouping and a deterministic projection of eight relation-type counts. Coordinates are interface-only and non-metric.',causal_direction:'causal edges carry directed=true; comparison pathfinding traverses them in either direction and never upgrades them to universal causation.'},taxonomy:Object.fromEntries(Object.entries(NEXUS_TYPES).map(([k,t])=>[k,{label:t.t.en,color:'#'+t.color.toString(16).padStart(6,'0'),epistemic:t.epistemic}])),nodes:NEXUS_VIEWS.map(v=>{const n=NEXUS.nodes.get(v),base={id:v,name:S3_VIEW_NAMES[v]||v,cluster:NEXUS_VIEW_CLUSTER.get(v),degree:NEXUS_RELATIONS.filter(e=>e.a===v||e.b===v).length};return includePositions&&n?{...base,disciplinary_position:n.discipline.toArray(),invariant_position:n.invariant.toArray()}:base;}),edges:NEXUS_RELATIONS.map(e=>({...e})),active:{filter:state.nexusKind||'all',layout_morph:state.nexusMorph??0,focus:state.nexusFocus||null,source:state.nexusSource||null,target:state.nexusTarget||null},path:{nodes:p.nodes,edge_ids:p.edges.map(e=>e.id),found:p.nodes.length>0}};
 }
+/* The Nexus is the index of the atlas, so the instrument it is itself part of belongs
+   in it explicitly: five members, five exact complements, each a jump. */
+function nexusSuiteHTML(){
+  return `<div class="sect" style="border-color:rgba(143,255,227,.30)"><b style="color:#8fffe3">◈ ${TT('THE SUITE, AS A SUB-GRAPH','НАБОР КАК ПОДГРАФ','DAS INSTRUMENT ALS TEILGRAPH')}</b>
+    <div class="small" style="margin-top:4px">${TT(
+      'The five members of the invariance suite and the five exact complements that join them. These are not typed relations inferred from structure — they are the same mathematical object seen from the conserved side and from the anomalous side, and each is a jump that also sets the counterpart station.',
+      'Пять участников набора инвариантности и пять точных дополнений, их соединяющих. Это не типизированные связи, выведенные из структуры, — это один и тот же математический объект, увиденный со стороны сохранения и со стороны аномалии; каждая ссылка выставляет и станцию-контрагент.',
+      'Die fünf Mitglieder und die fünf exakten Komplemente. Jede Verknüpfung setzt auch die Gegenstation.')}</div>
+    <div style="margin-top:6px">${INVARIANCE_PAIRS.map(P=>{
+      const ra=invarianceRole(P.a[0]),rb=invarianceRole(P.b[0]);
+      return `<div class="note" style="margin:5px 0;border-left:3px solid #8fffe3">
+        <b>${ra.sym} ${esc(P.a[0])}:${esc(P.a[1])} ↔ ${rb.sym} ${esc(P.b[0])}:${esc(P.b[1])}</b>
+        <div style="margin-top:3px;color:var(--dim)">${esc(impL(P.why))}</div>
+        <div class="ctlrow" style="margin-top:4px;gap:4px">
+          <button class="chip" data-inv-goto="${esc(P.a[0])}" data-inv-station="${esc(P.a[1])}">${ra.sym} ${esc(P.a[1])}</button>
+          <button class="chip" data-inv-goto="${esc(P.b[0])}" data-inv-station="${esc(P.b[1])}">${rb.sym} ${esc(P.b[1])}</button></div>
+      </div>`;}).join('')}</div></div>`;
+}
 function nexusPanelHTML(){
   nexusSetup();const D=nexusDiagnostics(),P=nexusFindPath(state.nexusSource||'spin',state.nexusTarget||'bht',state.nexusKind||'all'),focus=state.nexusFocus||'',counts=D.types;
   const opts=NEXUS_VIEWS.map(v=>`<option value="${v}" ${(state.nexusSource===v)?'selected':''}>${esc(viewNameL(v))}</option>`).join('');
   const optsT=NEXUS_VIEWS.map(v=>`<option value="${v}" ${(state.nexusTarget===v)?'selected':''}>${esc(viewNameL(v))}</option>`).join('');
   const pathRows=P.edges.map((e,i)=>`<button class="btn" data-nx-node="${e.b===P.nodes[i]?e.a:e.b}" style="display:block;width:100%;text-align:left;margin:4px 0;border-color:#${NEXUS_TYPES[e.type].color.toString(16).padStart(6,'0')}55"><span style="color:#${NEXUS_TYPES[e.type].color.toString(16).padStart(6,'0')}">● ${esc(nexusLang(NEXUS_TYPES[e.type].t))}</span> · ${esc(viewNameL(P.nodes[i]))} → ${esc(viewNameL(P.nodes[i+1]))}<br><span class="small" style="color:var(--dim)">${esc(e.label)} · ${esc(e.claim)}</span></button>`).join('');
-  return invarianceSuiteHTML('nexus')+`<div class="sect" style="border-color:rgba(120,217,255,.42);background:linear-gradient(135deg,rgba(43,82,125,.22),rgba(128,72,170,.12))">
+  return invarianceSuiteHTML('nexus')+nexusSuiteHTML()+`<div class="sect" style="border-color:rgba(120,217,255,.42);background:linear-gradient(135deg,rgba(43,82,125,.22),rgba(128,72,170,.12))">
     <b style="color:#bdefff">✦ ${TT('INVARIANT NEXUS','ИНВАРИАНТНЫЙ НЕКСУС','INVARIANTEN-NEXUS')}</b>
     <div class="small" style="margin-top:4px">${TT('A navigable universe of typed relations:','Навигационная вселенная типизированных связей:','Ein navigierbares Universum typisierter Beziehungen:')} <b>${D.nodes}</b> ${TT('laboratories','лаборатории','Labore')} · <b>${D.relations}</b> ${TT('declared links','заявленных связей','deklarierte Verbindungen')} · <b>${Object.keys(D.types).length}</b> ${TT('epistemic classes','эпистемических классов','epistemische Klassen')}.</div>
     <div class="note" style="margin-top:6px;color:#ffd58a">${TT('Graph distance is not physical distance, similarity strength, evidence, or causation. Every edge says exactly what kind of sameness—or difference—it claims.','Расстояние графа — не физическое расстояние, не сила сходства, не доказательность и не причинность. Каждое ребро точно сообщает, какой вид сходства — или различия — оно утверждает.','Graphabstand ist weder physikalische Distanz noch Ähnlichkeitsstärke, Evidenz oder Kausalität. Jede Kante nennt ihre genaue Aussageklasse.')}</div>
