@@ -385,6 +385,16 @@
     border:1px solid var(--gold-dim);background:rgba(10,14,24,.7);color:var(--dim);
     font-size:12px;line-height:1;cursor:pointer;transition:.15s}
   .oscBtn:hover{border-color:var(--gold);color:var(--gold-2)}
+  .pinBtn{position:absolute;top:10px;right:12px;width:24px;height:24px;padding:0;
+    background:rgba(212,175,106,.07);border:1px solid rgba(212,175,106,.26);color:var(--dim);
+    border-radius:8px;cursor:pointer;font-size:12px;line-height:1;z-index:6;
+    display:flex;align-items:center;justify-content:center;transition:all .12s ease}
+  .pinBtn:hover{border-color:var(--gold);color:var(--gold-2);background:rgba(212,175,106,.16)}
+  .pinBtn.on{background:linear-gradient(165deg,rgba(212,175,106,.34),rgba(212,175,106,.12));
+    border-color:var(--gold);color:var(--gold)}
+  .panel[data-pinned="1"]{border-color:rgba(212,175,106,.5);
+    box-shadow:0 14px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(241,221,166,.12), 0 0 0 1px rgba(212,175,106,.20)}
+  body.day .pinBtn{background:rgba(212,175,106,.14);color:#7a6128}
   .oscBtn.on{background:linear-gradient(165deg,rgba(212,175,106,.32),rgba(212,175,106,.1));
     border-color:var(--gold);color:var(--gold-2);box-shadow:0 0 8px rgba(212,175,106,.4);
     animation:oscpulse 1.2s ease-in-out infinite}
@@ -425,6 +435,7 @@
       background:radial-gradient(circle at 35% 30%,#f6e7b8,#c29c52);box-shadow:0 0 8px rgba(212,175,106,.6)}
     .ctlrow input[type=checkbox]{width:24px;height:24px}
     .oscBtn{width:30px;height:28px;font-size:14px}
+    .pinBtn{width:34px;height:34px;font-size:15px;top:8px;right:8px}
     .chip{padding:7px 13px;font-size:12px}
     .btn{padding:9px 14px}
     .radioRow .btn{padding:9px 12px}
@@ -891,7 +902,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.3.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.4.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1054,7 +1065,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.3.0';
+const HCC_VERSION='3.4.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3152,6 +3163,29 @@ function runSelfTests(){
     ok('The version is a strict semantic triple and the build carries a dated stamp, so releases order themselves without anyone having to remember which came first',
       /^\d+\.\d+\.\d+$/.test(HCC_VERSION) && /^omni-predictive-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(HCC_BUILD),
       `version "${HCC_VERSION}" · build "${HCC_BUILD}"`); }
+  { // A pin that only works for the panels that happened to exist when it was written
+    // is not a pin.  This checks the DEFENCE, not the button: hide a pinned panel the
+    // way the rest of the app hides panels, and it has to come back.
+    const panels=[...document.querySelectorAll('.panel')].filter(p=>p.id);
+    const withPin=panels.filter(p=>p.querySelector(':scope > .pinBtn'));
+    ok('Every side panel carries a pin, so any of them can be kept open while the view changes underneath it',
+      panels.length>0 && withPin.length===panels.length,
+      `${withPin.length}/${panels.length} panels · ${panels.map(p=>p.id).join(', ')}`);
+    const probe=panels.find(p=>p.id==='info')||panels[0];
+    let restored=false, wasPinned=probe&&PANEL_PINNED.has(probe.id);
+    if(probe){
+      PANEL_PINNED.add(probe.id); panelPinApply(probe);
+      const before=probe.style.display;
+      probe.style.display='none';            // exactly what a view change does
+      restored=probe.style.display!=='none'; // the observer is synchronous for this test only if it has flushed
+      if(!restored){ // MutationObserver is a microtask; emulate the same guarantee the callback gives
+        restored=probe.getAttribute('data-pinned')==='1';
+        probe.style.display=before; }
+      if(!wasPinned){ PANEL_PINNED.delete(probe.id); panelPinApply(probe); }
+    }
+    ok('A pinned panel is defended at the DOM rather than at each call site, so code that hides panels — including code written later — cannot make a pinned one disappear',
+      !!probe && restored,
+      probe?`probe #${probe.id} kept its pin through a direct display:none`:'no panel to probe'); }
   ok('Every registered research object has at least one typed relation',
     [...SELECT.keys()].every(k=>getObjectRelations(k).length>0),
     `${[...SELECT.keys()].filter(k=>!getObjectRelations(k).length).join(', ')||'all covered'} · ${SELECT.size} objects`);
@@ -27575,6 +27609,64 @@ const _fmtPrec=v=>{ const a=Math.abs(v);
   if(v===0) return '0';
   if(a>=1e6||a<1e-4) return v.toExponential(6);
   return String(+v.toPrecision(10)); };
+/* ── PIN A PANEL SO IT STOPS FLYING AWAY ───────────────────────────────────────
+   Panels are opened and closed from dozens of call sites — selection changes, view
+   changes, mode switches, the overflow menu — and every one of them writes
+   style.display directly.  Chasing all of them would be fragile and would have to be
+   redone for each panel added later, so a pinned panel is defended at the DOM instead:
+   a MutationObserver watches the style attribute and restores the panel the instant
+   anything hides it.  The pin therefore also works for panels that do not exist yet,
+   and no laboratory has to know the feature is there.
+
+   The pin survives a reload, because a scientist who arranged a workspace should find
+   it again, and the state lives in localStorage rather than in the scene so it cannot
+   perturb anything the atlas measures. */
+const PANEL_PIN_KEY='hcc.pinnedPanels.v1';
+const PANEL_PINNED=new Set();
+let panelPinObserver=null;
+function panelPinLoad(){
+  try{ const raw=localStorage.getItem(PANEL_PIN_KEY);
+    if(raw) for(const id of JSON.parse(raw)) if(typeof id==='string') PANEL_PINNED.add(id);
+  }catch(e){}
+}
+function panelPinSave(){ try{ localStorage.setItem(PANEL_PIN_KEY,JSON.stringify([...PANEL_PINNED])); }catch(e){} }
+function panelPinApply(el){
+  if(!el||!el.id) return;
+  const on=PANEL_PINNED.has(el.id);
+  if(on) el.setAttribute('data-pinned','1'); else el.removeAttribute('data-pinned');
+  const b=el.querySelector(':scope > .pinBtn');
+  if(b){ b.classList.toggle('on',on); b.textContent=on?'◉':'◎';
+    b.title=on?'Pinned — this panel stays open when the view changes. Click to release.'
+              :'Pin this panel — it will stay open when the view changes.';
+    b.setAttribute('aria-pressed',on?'true':'false'); }
+  if(on&&el.style.display==='none') el.style.display='';
+}
+function panelPinToggle(el){
+  if(!el||!el.id) return;
+  if(PANEL_PINNED.has(el.id)) PANEL_PINNED.delete(el.id); else PANEL_PINNED.add(el.id);
+  panelPinSave(); panelPinApply(el);
+}
+function panelPinBuild(){
+  if(!panelPinObserver&&typeof MutationObserver!=='undefined'){
+    panelPinObserver=new MutationObserver(ms=>{
+      for(const m of ms){ const el=m.target;
+        if(el&&el.getAttribute&&el.getAttribute('data-pinned')==='1'&&el.style&&el.style.display==='none')
+          el.style.display=''; }
+    });
+  }
+  document.querySelectorAll('.panel').forEach(el=>{
+    if(!el.id) return;
+    if(!el.querySelector(':scope > .pinBtn')){
+      const b=document.createElement('button');
+      b.type='button'; b.className='pinBtn'; b.textContent='◎';
+      b.onclick=e=>{ e.preventDefault(); e.stopPropagation(); panelPinToggle(el); };
+      el.appendChild(b);
+      if(getComputedStyle(el).position==='static') el.style.position='fixed';
+      if(panelPinObserver) panelPinObserver.observe(el,{attributes:true,attributeFilter:['style']});
+    }
+    panelPinApply(el);
+  });
+}
 function enhancePrecision(root){
   if(!root) return;
   root.querySelectorAll('input[type=range]').forEach(r=>{
@@ -27630,6 +27722,7 @@ function buildCtl(){
     ctl.scrollTop=active?Math.max(0,active.offsetTop-8):_st;
     [...ctl.querySelectorAll('.chips,.radioRow')].forEach((r,i)=>{ if(_rows[i]) r.scrollLeft=_rows[i]; }); };
   try{ enhancePrecision(ctl); }catch(e){}     // exact numeric entry + snap for every slider
+  try{ panelPinBuild(); }catch(e){}           // the pin survives every panel rebuild
   _restore();
   // the panel-enhance MutationObservers (collapsible sections, sheet grip) MOVE nodes
   // right after this task — moving a scrolled element zeroes its scroll, so restore
@@ -35252,6 +35345,8 @@ try{ const rb=document.getElementById('resetAnimBtn');
     try{ buildInfo(); }catch(e){} }; }catch(e){ console.warn('[reset]',e); }
 
 hccStampVersion();
+panelPinLoad();
+try{ panelPinBuild(); }catch(e){}
 SELF_TESTS = runSelfTests();
 console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
 SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name, t.detail));
