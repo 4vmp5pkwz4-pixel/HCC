@@ -919,7 +919,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.6.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.7.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1083,7 +1083,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.6.0';
+const HCC_VERSION='3.7.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -19575,6 +19575,66 @@ const SCI_ENCLOSE_R=1.9;
    later. The traverse is a pointer walk twice a second and costs nothing next to
    a frame. */
 let sciEncloseAcc=99, sciEncloseFixed=0;
+/* ── A CAPTION UNDER THE INTERFACE IS NOT A CAPTION ────────────────────────────
+   Scene labels are HTML elements positioned over the canvas, so the fixed chrome —
+   the topbar, the control panels, the context rail — always wins the stacking order
+   and simply covers them.  Measured across the atlas before this guard: 40 of the 72
+   laboratories had at least one caption partly hidden behind the interface, including
+   titles carrying the quantity the laboratory is about ("GAUSS LINKING INTEGRAL · Lk",
+   "WILLMORE · the roundest a torus can be").  Half a caption is worse than none,
+   because the half that shows is the half without the number.
+
+   The guard measures the overlap five times a second and dims what has gone under,
+   restoring it the moment it comes clear.  It dims rather than hides so a label that
+   grazes a panel edge does not flicker in and out, and it never moves a label, because
+   a label that has been moved no longer points at the thing it names. */
+/* Two clocks.  The chrome moves rarely — a panel opens, the window resizes — so its
+   rectangles are cached and refreshed twice a second.  The captions move CONTINUOUSLY,
+   because the scene turns under them, so they are tested twenty times a second: at the
+   original five, a label could drift under a panel and sit there visibly clipped for a
+   fifth of a second before the guard noticed.  Only the handful of captions actually on
+   screen are measured, so this is a few rect reads per tick, not a layout storm. */
+const LABEL_GUARD_HZ=0.05, LABEL_ZONE_HZ=0.5;
+let labelGuardAcc=99, labelZoneAcc=99, labelGuardDimmed=0, labelGuardZones=[];
+function labelChromeGuard(){
+  const host=labelRenderer&&labelRenderer.domElement; if(!host) return;
+  /* The chrome is not a fixed list — panels come and go, and a bar added next year
+     would silently start covering captions again.  Every FIXED top-level element that
+     is not the canvas or the label layer itself counts as chrome, so the guard keeps
+     working for interface that does not exist yet. */
+  const zones=labelGuardZones;
+  if(labelZoneAcc>=LABEL_ZONE_HZ){ labelZoneAcc=0; zones.length=0;
+  for(const el of document.body.children){
+    if(el===host||el===renderer.domElement||el.tagName==='SCRIPT'||el.tagName==='CANVAS') continue;
+    const cs=getComputedStyle(el);
+    if(cs.display==='none'||cs.visibility==='hidden'||+cs.opacity<0.05) continue;
+    if(cs.position!=='fixed'&&cs.position!=='absolute') continue;
+    if(cs.pointerEvents==='none'&&+cs.opacity<0.5) continue;
+    const r=el.getBoundingClientRect();
+    if(r.width>2&&r.height>2&&r.width<innerWidth*0.98) zones.push(r);
+  } }
+  let dimmed=0;
+  for(const d of host.querySelectorAll('.label')){
+    if(d.style.display==='none') continue;
+    const b=d.getBoundingClientRect();
+    if(b.width<1||b.height<1) continue;
+    let hidden=false;
+    for(const z of zones){
+      if(Math.min(b.right,z.right)-Math.max(b.left,z.left)>8 &&
+         Math.min(b.bottom,z.bottom)-Math.max(b.top,z.top)>6){ hidden=true; break; }
+    }
+    if(hidden){ dimmed++; if(d.dataset.chromeHidden!=='1'){ d.dataset.chromeHidden='1';
+        d.style.opacity='.07'; d.style.pointerEvents='none'; } }
+    else if(d.dataset.chromeHidden==='1'){ d.dataset.chromeHidden='';
+      d.style.opacity=''; d.style.pointerEvents=''; }
+  }
+  labelGuardDimmed=dimmed;
+}
+function labelChromeGuardTick(dt){
+  labelGuardAcc+=dt; labelZoneAcc+=dt;
+  if(labelGuardAcc<LABEL_GUARD_HZ) return;
+  labelGuardAcc=0; try{ labelChromeGuard(); }catch(e){}
+}
 function scientificEnclosureTick(dt){
   sciEncloseAcc+=dt; if(sciEncloseAcc<0.5) return;
   sciEncloseAcc=0;
@@ -34107,6 +34167,7 @@ function tickBody(now, frame){
   updateHierarchyLocator();
   try{ labPassportTick(dt); }catch(e){}
   if(state.mode==='s3') scientificEnclosureTick(dt);
+  labelChromeGuardTick(dt);
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
@@ -35137,6 +35198,14 @@ globalThis.FBS3R_QA=Object.freeze({
   },
   selectableScreen(key){try{const s=SELECT.get(key),p=safeSelectionPos(s);if(!p)return null;const q=p.clone().project(camera),r=renderer.domElement.getBoundingClientRect();
     return {x:r.left+(q.x*.5+.5)*r.width,y:r.top+(-q.y*.5+.5)*r.height,ndc:[q.x,q.y,q.z],visible:pickWorldVisible(s.pick)};}catch(e){return null;}},
+  labelGuard(){ /* how many scene captions are currently hidden behind the interface,
+      and how many are on screen at all — the measurement that showed 40 of 72
+      laboratories had a caption under the chrome */
+    const host=labelRenderer&&labelRenderer.domElement;
+    const all=host?[...host.querySelectorAll('.label')]:[];
+    const shown=all.filter(d=>d.style.display!=='none');
+    return {inDom:all.length,onScreen:shown.length,dimmedByChrome:labelGuardDimmed,
+      periodSeconds:LABEL_GUARD_HZ};},
   opticalAudit(minRadius=0.9,limit=30){ /* Every VISIBLE surface in the live scene, largest
       first, with the four properties that decide whether a laboratory reads as physics or
       as a grey ball: which face is drawn, how it blends, whether it writes depth, and how
