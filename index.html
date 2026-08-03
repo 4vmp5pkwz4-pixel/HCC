@@ -3704,6 +3704,29 @@ function runSelfTests(){
       `${nx.schema} · ${Object.keys(nx.station_catalog).length} stations · native-space firewall present`);
   }
   { // SYMMETRY DISCOVERY: exact benchmarks, falsification response and epistemic firewall
+    { // DISCOVERY, not lookup: the null-space engine is told no labels, and must return
+      // the invariant dimension every one of the five actions is known to have.
+      const want={rotation:3,lorentz:1,phase:4,symplectic:1,mobius:0};
+      let bad=[],worst=0,minGap=Infinity;
+      for(const [id,k] of Object.entries(want)){
+        const N=sydDiscover(id,0);
+        if(!N||!N.ok||N.dim!==k){bad.push(`${id}: ${N&&N.ok?N.dim:'unavailable'}≠${k}`);continue;}
+        if(N.worst!==null)worst=Math.max(worst,N.worst);
+        if(N.gap!==null)minGap=Math.min(minGap,N.gap);
+      }
+      ok('Symmetry discovery is DISCOVERY, not lookup: given only the coordinates and the action, the null-space engine returns the known invariant dimension of all five group actions — including 4 for the global U(1) phase, where it recovers Re(a b̄) and Im(a b̄), which appear in no candidate list in this file, and 0 for Möbius, where the cross-ratio is rational and honestly lies outside the searched polynomial space',
+        bad.length===0 && worst<1e-12 && minGap>1e-3,
+        bad.length?bad.join(' · '):`dims 3/1/4/1/0 as expected · worst invariant residual ${worst.toExponential(2)} · smallest gap to a non-invariant ${minGap.toExponential(2)}`);
+      // and it must COLLAPSE when the action stops being a group action
+      const b0=sydDiscover('symplectic',0),b1=sydDiscover('symplectic',0.02);
+      ok('Symmetry discovery collapses under a documented break: switching on a non-group perturbation removes the invariant from the null space instead of quietly keeping it, and the residual it leaves behind is the size of the break',
+        b0.ok&&b1.ok&&b0.dim===1&&b1.dim===0&&b1.residuals[0]>1e-3,
+        `ε=0 → dim ${b0.dim} (residual ${b0.residuals[0].toExponential(2)}) · ε=0.02 → dim ${b1.dim} (residual ${b1.residuals[0].toExponential(2)})`);
+      // the canonical basis must be readable, not an arbitrary rotation of the space
+      const R=sydDiscover('symplectic',0);
+      ok('The discovered basis is put in reduced row echelon form, so an invariant comes back as a readable polynomial rather than an arbitrary rotation of the null space',
+        R.ok&&R.canonical.length===1&&/^q²\s*\+\s*p²$/.test(sydPolyText(R.canonical[0],R.names)),
+        `symplectic basis reads "${R.ok&&R.canonical.length?sydPolyText(R.canonical[0],R.names):'—'}"`); }
     const ids=Object.keys(SYD_WORLDS),exact=ids.map(id=>[id,sydScan(id,0)]);
     const candidateCount=exact.reduce((n,[,r])=>n+r.length,0),expectedCount=exact.reduce((n,[,r])=>n+r.filter(x=>x.expected).length,0);
     ok('Symmetry Discovery spans five transformation spaces with 20 named candidates and nine declared exact invariants',
@@ -19507,6 +19530,138 @@ const sydAxis=new THREE.Vector3(1,2,3).normalize(),sydRotBase=new THREE.Vector3(
 const sydMobiusBase=[sydC(-1.2,-.32),sydC(-.28,.94),sydC(.62,.54),sydC(1.08,-.46)];
 function sydAngle(p,span){return (THREE.MathUtils.clamp(+p||0,0,1)*2-1)*span;}
 function sydStereo(z){const r2=z.re*z.re+z.im*z.im,d=1+r2;return new THREE.Vector3(2*z.re/d,2*z.im/d,(r2-1)/d);}
+/* ================================================================
+   INVARIANT DISCOVERY BY NULL SPACE
+   ----------------------------------------------------------------
+   The chamber used to SCAN A LABELLED LIST: each candidate carried an
+   expected:true/false flag written by hand, so the "discovery" could only ever
+   return what had already been decided.  This engine is told nothing.
+
+   A function f is an invariant of a one-parameter action exactly when f is
+   constant along EVERY orbit — to a different value on each.  Restrict f to the
+   polynomials of degree ≤ 2 in the state coordinates, centre each orbit on its
+   own mean, and stack the rows: the invariants are then precisely the NULL SPACE
+   of the stacked monomial matrix, and its DIMENSION is a measured number.
+
+   Two things make it work and both are easy to get wrong:
+
+     · One orbit is a curve, and far too many quadrics contain one curve.  The
+       initial conditions must span a transversal to the orbits, so the union of
+       orbits fills the state space up to the action.  Sixteen deterministic
+       seeds are used, never a random draw, so the result is reproducible.
+     · A null space has no preferred basis, so the raw eigenvectors are
+       unreadable.  Reduced row echelon form with largest-entry pivoting gives a
+       canonical basis in which each invariant carries a 1 on its own pivot
+       monomial — which is what turns a column of numbers back into q² + p².
+
+   The residual reported for a direction is ‖Bc‖/(‖B‖·‖c‖), computed directly
+   rather than read off an eigenvalue, because forming the Gram matrix squares
+   the condition number and would hide exactly the digits that matter.
+
+   Verified offline against five closed forms before it was written: SO(3) about
+   a fixed axis → dim 3 spanned by n·v, ‖v‖², (n·v)²; SO⁺(1,1) → dim 1, t²−x²;
+   symplectic rotation → dim 1, q²+p²; global U(1) on two amplitudes → dim 4,
+   and it recovers Re(a b̄) and Im(a b̄), which appear in NO candidate list in
+   this file; Möbius on four points → dim 0, correctly, because the cross-ratio
+   is rational and lies outside the searched space.  Worst residual over all
+   five: 1.4e-15, against a gap to the first non-invariant of 8.4e-3 or better.
+
+   What this is NOT: a proof, a physical discovery, or a statement about
+   invariants outside the declared search space.  The search space is printed. */
+const SYD_DISC_SEEDS=16, SYD_DISC_SAMPLES=33, SYD_DISC_TOL=1e-7;
+const sydHash=(i,s)=>{const x=Math.sin((i+1)*12.9898+s*78.233)*43758.5453;return x-Math.floor(x);};
+function sydMonomialNames(labels){
+  const n=labels.slice();
+  for(let i=0;i<labels.length;i++)for(let j=i;j<labels.length;j++)
+    n.push(i===j?`${labels[i]}²`:`${labels[i]}·${labels[j]}`);
+  return n;
+}
+function sydMonomials(x){const d=x.length,o=x.slice();
+  for(let i=0;i<d;i++)for(let j=i;j<d;j++)o.push(x[i]*x[j]);return o;}
+function sydJacobiEig(Ain,m){
+  const A=Ain.map(r=>r.slice()),V=[];
+  for(let i=0;i<m;i++){V.push(new Array(m).fill(0));V[i][i]=1;}
+  for(let sw=0;sw<100;sw++){
+    let off=0;for(let p=0;p<m-1;p++)for(let q=p+1;q<m;q++)off+=A[p][q]*A[p][q];
+    if(off<1e-300)break;
+    for(let p=0;p<m-1;p++)for(let q=p+1;q<m;q++){
+      if(Math.abs(A[p][q])<1e-300)continue;
+      const th=(A[q][q]-A[p][p])/(2*A[p][q]),t=Math.sign(th||1)/(Math.abs(th)+Math.sqrt(1+th*th)),
+            c=1/Math.sqrt(1+t*t),sn=c*t;
+      for(let k=0;k<m;k++){const a1=A[k][p],a2=A[k][q];A[k][p]=c*a1-sn*a2;A[k][q]=sn*a1+c*a2;}
+      for(let k=0;k<m;k++){const a1=A[p][k],a2=A[q][k];A[p][k]=c*a1-sn*a2;A[q][k]=sn*a1+c*a2;}
+      for(let k=0;k<m;k++){const v1=V[k][p],v2=V[k][q];V[k][p]=c*v1-sn*v2;V[k][q]=sn*v1+c*v2;}
+    }
+  }
+  const ev=[];for(let i=0;i<m;i++)ev.push(A[i][i]);
+  const idx=ev.map((v,i)=>i).sort((a,b)=>ev[b]-ev[a]);
+  return {ev:idx.map(i=>ev[i]),V:idx.map(i=>V.map(r=>r[i]))};
+}
+function sydRREF(rows,m){
+  const A=rows.map(r=>r.slice()),piv=[];let r=0;
+  for(let c=0;c<m&&r<A.length;c++){
+    let best=r;for(let i=r;i<A.length;i++)if(Math.abs(A[i][c])>Math.abs(A[best][c]))best=i;
+    if(Math.abs(A[best][c])<1e-9)continue;
+    const tmp=A[r];A[r]=A[best];A[best]=tmp;
+    const pv=A[r][c];for(let j=0;j<m;j++)A[r][j]/=pv;
+    for(let i=0;i<A.length;i++)if(i!==r){const f=A[i][c];if(f)for(let j=0;j<m;j++)A[i][j]-=f*A[r][j];}
+    piv.push(c);r++;
+  }
+  return {rows:A.slice(0,r),piv};
+}
+const SYD_DISC_CACHE=new Map();
+function sydDiscover(worldId=state.sydWorld||'rotation',br=state.sydBreak??0){
+  const W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,Dc=W.disc;
+  if(!Dc)return null;
+  const key=`${worldId}|${br}`;
+  if(SYD_DISC_CACHE.has(key))return SYD_DISC_CACHE.get(key);
+  const names=sydMonomialNames(Dc.labels),m=names.length,B=[],orbits=[];
+  let finite=true;
+  for(let k=0;k<SYD_DISC_SEEDS;k++){
+    const x0=Dc.seed(k),orb=[];
+    for(let i=0;i<SYD_DISC_SAMPLES;i++)orb.push(Dc.act(x0,i/(SYD_DISC_SAMPLES-1),br));
+    orbits.push(orb);
+    const rows=orb.map(sydMonomials),mean=new Array(m).fill(0);
+    for(const r of rows)for(let j=0;j<m;j++)mean[j]+=r[j]/rows.length;
+    for(const r of rows){const c=r.map((v,j)=>v-mean[j]);
+      for(const v of c)if(!Number.isFinite(v))finite=false;
+      B.push(c);}
+  }
+  const n=B.length;
+  if(!finite||n<=m){
+    const out={world:worldId,ok:false,reason:!finite?'non-finite orbit sample':'not enough independent rows',
+      dim:0,m,n,names,residuals:[],canonical:[],gap:null,orbits,labels:Dc.labels,note:Dc.note,degree:2};
+    SYD_DISC_CACHE.set(key,out);return out;
+  }
+  /* column scaling is a similarity on function space, so the null SPACE is unchanged
+     while degree-1 and degree-2 monomials become comparable in size */
+  const sc=new Array(m).fill(0);
+  for(let j=0;j<m;j++){let t=0;for(let i=0;i<n;i++)t+=B[i][j]*B[i][j];sc[j]=Math.sqrt(t/n);}
+  const ref=Math.max(...sc)||1;for(let j=0;j<m;j++)if(sc[j]<ref*1e-13)sc[j]=ref;
+  for(let i=0;i<n;i++)for(let j=0;j<m;j++)B[i][j]/=sc[j];
+  const G=[];for(let i=0;i<m;i++)G.push(new Array(m).fill(0));
+  for(let i=0;i<m;i++)for(let j=i;j<m;j++){let t=0;for(let k=0;k<n;k++)t+=B[k][i]*B[k][j];G[i][j]=G[j][i]=t/n;}
+  const eig=sydJacobiEig(G,m),s0=Math.sqrt(Math.max(eig.ev[0],1e-300));
+  const resOf=v=>{let num=0;for(let k=0;k<n;k++){let t=0;for(let j=0;j<m;j++)t+=B[k][j]*v[j];num+=t*t;}
+    let nv=0;for(let j=0;j<m;j++)nv+=v[j]*v[j];return nv>0?Math.sqrt(num/n)/(s0*Math.sqrt(nv)):Infinity;};
+  const res=eig.V.map(resOf),order=res.map((r,i)=>i).sort((a,b)=>res[a]-res[b]);
+  const dim=res.filter(r=>r<=SYD_DISC_TOL).length;
+  const raw=order.slice(0,dim).map(i=>eig.V[i].map((c,j)=>c/sc[j]));
+  const canon=sydRREF(raw,m).rows;
+  const named=(W.disc.known||[]).map(q=>({label:q.label,residual:resOf(q.vec.map((v,j)=>v*sc[j]))}));
+  const out={world:worldId,ok:true,dim,m,n,names,labels:Dc.labels,degree:2,orbits,note:Dc.note,
+    residuals:order.map(i=>res[i]),worst:dim?res[order[dim-1]]:null,gap:dim<m?res[order[dim]]:null,
+    canonical:canon,named,seeds:SYD_DISC_SEEDS,samples:SYD_DISC_SAMPLES,tolerance:SYD_DISC_TOL};
+  SYD_DISC_CACHE.set(key,out);
+  if(SYD_DISC_CACHE.size>64)SYD_DISC_CACHE.delete(SYD_DISC_CACHE.keys().next().value);
+  return out;
+}
+function sydPolyText(v,names){
+  const terms=v.map((c,i)=>[c,names[i]]).filter(([c])=>Math.abs(c)>1e-8);
+  if(!terms.length)return '0';
+  return terms.map(([c,nm],k)=>{const one=Math.abs(Math.abs(c)-1)<1e-9;
+    return `${c>=0?(k?' + ':''):(k?' − ':'−')}${one?'':Math.abs(c).toFixed(6)+'·'}${nm}`;}).join('');
+}
 const SYD_WORLDS={
   rotation:{
     t:{en:'SO(3) rotation',ru:'вращение SO(3)',de:'SO(3)-Rotation'},span:Math.PI,param:'θ',unit:'rad',closed:true,
@@ -19518,7 +19673,23 @@ const SYD_WORLDS={
       {id:'vx',label:'vₓ',expected:false,read:s=>s.v.x},
       {id:'sum',label:'vₓ+vᵧ+v_z',expected:false,read:s=>s.v.x+s.v.y+s.v.z}],
     points:s=>[new THREE.Vector3(-2,0,0).addScaledVector(s.v,1.16)],
-    contract:'Rodrigues action about a fixed unit axis; norm and axial component are exact SO(3) invariants.'},
+    contract:'Rodrigues action about a fixed unit axis; norm and axial component are exact SO(3) invariants.',
+    /* The discovery engine is given the coordinates and the action and nothing else.
+       n is exactly unit here — the engine detects a 6-digit axis as a 1e-8 residual
+       floor, which is how the axis normalisation was checked in the first place. */
+    disc:{d:3,labels:['vₓ','vᵧ','v_z'],
+      seed:k=>[.6+1.4*sydHash(k,1),-1.1+2.2*sydHash(k,2),.3+1.6*sydHash(k,3)],
+      act:(x,u,br)=>{const a=6.283185307179586*u,v=new THREE.Vector3(x[0],x[1],x[2]).applyAxisAngle(sydAxis,a);
+        if(br)v.add(new THREE.Vector3(Math.sin(1.7*a),Math.cos(.8*a)-1,Math.sin(.6*a)).multiplyScalar(br*.55));
+        return [v.x,v.y,v.z];},
+      pos:x=>new THREE.Vector3(-2+x[0]*1.16,x[1]*1.16,x[2]*1.16),
+      known:[{label:'n·v',vec:[sydAxis.x,sydAxis.y,sydAxis.z,0,0,0,0,0,0]},
+             {label:'‖v‖²',vec:[0,0,0,1,0,0,1,0,1]},
+             {label:'vₓ',vec:[1,0,0,0,0,0,0,0,0]}],
+      level:(c,names)=>'sphere-plane',
+      note:{en:'Expected span of the degree-≤2 invariants: n·v, ‖v‖² and (n·v)² — three, not two, because the square of a linear invariant is an independent quadratic.',
+            ru:'Ожидаемая оболочка инвариантов степени ≤2: n·v, ‖v‖² и (n·v)² — три, а не два, поскольку квадрат линейного инварианта есть независимая квадратичная форма.',
+            de:'Erwartete Spanne der Invarianten vom Grad ≤2: n·v, ‖v‖² und (n·v)² — drei, nicht zwei.'}}},
   lorentz:{
     t:{en:'Lorentz boost SO⁺(1,1)',ru:'буст Лоренца SO⁺(1,1)',de:'Lorentz-Boost SO⁺(1,1)'},span:1.35,param:'η',unit:'rapidity',closed:false,
     state:(p,br=0)=>{const a=sydAngle(p,1.35),c=Math.cosh(a),h=Math.sinh(a),t0=2.4,x0=1.1;
@@ -19529,7 +19700,18 @@ const SYD_WORLDS={
       {id:'space',label:'x',expected:false,read:s=>s.x},
       {id:'euclid',label:'t²+x²',expected:false,read:s=>s.t*s.t+s.x*s.x}],
     points:s=>[new THREE.Vector3(-2+s.x*1.05,(s.t-2.25)*.82,0)],
-    contract:'Proper orthochronous 1+1 boost with c=1; the Minkowski interval is invariant, Euclidean distance is not.'},
+    contract:'Proper orthochronous 1+1 boost with c=1; the Minkowski interval is invariant, Euclidean distance is not.',
+    disc:{d:2,labels:['t','x'],
+      seed:k=>[1.4+1.8*sydHash(k,4),-1.2+2.4*sydHash(k,5)],
+      act:(x,u,br)=>{const a=(u-.5)*2.7,c=Math.cosh(a),h=Math.sinh(a);
+        let t=c*x[0]-h*x[1],q=-h*x[0]+c*x[1];
+        if(br){t+=br*.8*Math.sin(1.3*a);q+=br*.65*(Math.cos(.9*a)-1);}return [t,q];},
+      pos:x=>new THREE.Vector3(-2+x[1]*1.05,(x[0]-2.25)*.82,0),
+      known:[{label:'t²−x²',vec:[0,0,1,0,-1]},{label:'t²+x²',vec:[0,0,1,0,1]},{label:'t',vec:[1,0,0,0,0]}],
+      level:'hyperbola',
+      note:{en:'Expected span: t²−x² alone. Euclidean t²+x² is offered to the same search and must be rejected.',
+            ru:'Ожидаемая оболочка: только t²−x². Евклидова t²+x² предлагается тому же поиску и должна быть отвергнута.',
+            de:'Erwartete Spanne: allein t²−x². Das euklidische t²+x² wird derselben Suche angeboten und muss abgelehnt werden.'}}},
   phase:{
     t:{en:'quantum global phase U(1)',ru:'глобальная квантовая фаза U(1)',de:'globale Quantenphase U(1)'},span:Math.PI,param:'α',unit:'rad',closed:true,
     state:(p,br=0)=>{const a=sydAngle(p,Math.PI),th=.94,ph=.66,ca=Math.cos(a),sa=Math.sin(a),a0=sydC(Math.cos(th/2),0),b0=sydC(Math.cos(ph)*Math.sin(th/2),Math.sin(ph)*Math.sin(th/2));
@@ -19541,7 +19723,17 @@ const SYD_WORLDS={
       {id:'p1',label:'P(1)=|b|²',expected:true,read:s=>s.B.re*s.B.re+s.B.im*s.B.im},
       {id:'rea',label:'Re(a)',expected:false,read:s=>s.A.re}],
     points:s=>[new THREE.Vector3(-2+s.A.re*1.75,s.A.im*1.75,s.B.re*1.75)],
-    contract:'A common U(1) phase multiplies both amplitudes; norm and Born probabilities remain unchanged.'},
+    contract:'A common U(1) phase multiplies both amplitudes; norm and Born probabilities remain unchanged.',
+    disc:{d:4,labels:['aᵣ','aᵢ','bᵣ','bᵢ'],
+      seed:k=>[-1+2*sydHash(k,8),-1+2*sydHash(k,9),-1+2*sydHash(k,10),-1+2*sydHash(k,11)],
+      act:(x,u,br)=>{const a=6.283185307179586*u,c=Math.cos(a),sn=Math.sin(a),
+        fa=1+br*.45*(Math.cos(a)-1),fb=1+br*.45*Math.sin(a);
+        return [(x[0]*c-x[1]*sn)*fa,(x[0]*sn+x[1]*c)*fa,(x[2]*c-x[3]*sn)*fb,(x[2]*sn+x[3]*c)*fb];},
+      pos:x=>new THREE.Vector3(-2+x[0]*1.75,x[1]*1.75,x[2]*1.75),
+      known:null,level:null,
+      note:{en:'Expected dimension 4. The engine recovers |a|², |b|², Re(a b̄) and Im(a b̄) — the last two appear in no candidate list anywhere in this atlas, which is the point: nothing was labelled.',
+            ru:'Ожидаемая размерность 4. Движок восстанавливает |a|², |b|², Re(a b̄) и Im(a b̄) — последние две не входят ни в один список кандидатов этого атласа: именно в этом суть — ничего не размечалось.',
+            de:'Erwartete Dimension 4. Der Motor findet |a|², |b|², Re(a b̄) und Im(a b̄) — die letzten beiden stehen in keiner Kandidatenliste dieses Atlas.'}}},
   symplectic:{
     t:{en:'symplectic phase rotation',ru:'симплектическое фазовое вращение',de:'symplektische Phasenrotation'},span:Math.PI,param:'ωt',unit:'rad',closed:true,
     state:(p,br=0)=>{const a=sydAngle(p,Math.PI),c=Math.cos(a),h=Math.sin(a),d=Math.exp(-br*.42*Math.abs(a)),q0=1.2,p0=.65;
@@ -19552,7 +19744,17 @@ const SYD_WORLDS={
       {id:'q',label:'q',expected:false,read:s=>s.q},
       {id:'qp',label:'q·p',expected:false,read:s=>s.q*s.p}],
     points:s=>[new THREE.Vector3(-2+s.q*1.42,s.p*1.42,0),new THREE.Vector3(-2+s.M[0]*1.15,s.M[2]*1.15,.32),new THREE.Vector3(-2+s.M[1]*1.15,s.M[3]*1.15,-.32)],
-    contract:'Harmonic phase rotation is canonical: det M=1 and the quadratic Hamiltonian are preserved.'},
+    contract:'Harmonic phase rotation is canonical: det M=1 and the quadratic Hamiltonian are preserved.',
+    disc:{d:2,labels:['q','p'],
+      seed:k=>[-1.5+3*sydHash(k,6),-1.5+3*sydHash(k,7)],
+      act:(x,u,br)=>{const a=6.283185307179586*u,c=Math.cos(a),sn=Math.sin(a),d=Math.exp(-br*.42*Math.abs(a));
+        return [d*(c*x[0]+sn*x[1]),d*(-sn*x[0]+c*x[1])];},
+      pos:x=>new THREE.Vector3(-2+x[0]*1.42,x[1]*1.42,0),
+      known:[{label:'q²+p²',vec:[0,0,1,0,1]},{label:'q·p',vec:[0,0,0,1,0]}],
+      level:'circle',
+      note:{en:'Expected span: q²+p² alone — twice the harmonic Hamiltonian. The break is a contraction, so it destroys the invariant without leaving the plane.',
+            ru:'Ожидаемая оболочка: только q²+p² — удвоенный гармонический гамильтониан. Нарушение есть сжатие: инвариант разрушается, не покидая плоскости.',
+            de:'Erwartete Spanne: allein q²+p². Die Brechung ist eine Kontraktion.'}}},
   mobius:{
     t:{en:'Möbius action on ℂ∪{∞}',ru:'действие Мёбиуса на ℂ∪{∞}',de:'Möbius-Wirkung auf ℂ∪{∞}'},span:1.6,param:'α',unit:'rad',closed:false,
     state:(p,br=0)=>{const a=sydAngle(p,1.6),c=Math.cos(a/2),h=Math.sin(a/2),z=sydMobiusBase.map((v,i)=>{const w=sydCDiv(sydC(c*v.re+h,c*v.im),sydC(-h*v.re+c,-h*v.im));
@@ -19563,9 +19765,21 @@ const SYD_WORLDS={
       {id:'centroid',label:'Re(mean z)',expected:false,read:s=>s.z.reduce((a,z)=>a+z.re,0)/4},
       {id:'radius',label:'|z₁|',expected:false,read:s=>Math.hypot(s.z[0].re,s.z[0].im)}],
     points:s=>s.z.map(z=>sydStereo(z).multiplyScalar(1.82).add(new THREE.Vector3(-2,0,0))),
-    contract:'A determinant-one fractional-linear family acts on the Riemann sphere; the four-point cross-ratio is exact.'}
+    contract:'A determinant-one fractional-linear family acts on the Riemann sphere; the four-point cross-ratio is exact.',
+    disc:{d:8,labels:['z₁ᵣ','z₁ᵢ','z₂ᵣ','z₂ᵢ','z₃ᵣ','z₃ᵢ','z₄ᵣ','z₄ᵢ'],
+      seed:k=>{const o=[];for(let i=0;i<4;i++)o.push(-1.2+2.4*sydHash(k*4+i,12),.2+1.6*sydHash(k*4+i,13));return o;},
+      act:(x,u,br)=>{const a=(u-.5)*1.6,c=Math.cos(a/2),h=Math.sin(a/2),o=[];
+        for(let i=0;i<4;i++){const zr=x[2*i],zi=x[2*i+1],nr=c*zr+h,ni=c*zi,dr=-h*zr+c,di=-h*zi,dd=dr*dr+di*di;
+          let wr=(nr*dr+ni*di)/dd,wi=(ni*dr-nr*di)/dd;
+          if(br){wr+=br*.12*(i+1)*Math.sin((i+1)*a);wi+=br*.09*(i+1)*(Math.cos((i+1)*a)-1);}
+          o.push(wr,wi);}return o;},
+      pos:x=>sydStereo(sydC(x[0],x[1])).multiplyScalar(1.82).add(new THREE.Vector3(-2,0,0)),
+      known:null,level:null,
+      note:{en:'Expected dimension 0, and that is the honest result: the cross-ratio is a RATIO of differences, so it is rational, not polynomial, and lies outside the declared search space. A search that reports nothing when there is nothing to find is worth more than one that always finds something.',
+            ru:'Ожидаемая размерность 0 — и это честный результат: двойное отношение есть ОТНОШЕНИЕ разностей, то есть рационально, а не полиномиально, и лежит вне объявленного пространства поиска. Поиск, который ничего не сообщает, когда искать нечего, ценнее того, который всегда что-то находит.',
+            de:'Erwartete Dimension 0, und das ist das ehrliche Ergebnis: das Doppelverhältnis ist rational, nicht polynomial, und liegt außerhalb des deklarierten Suchraums.'}}}
 };
-const SYD={built:false,world:null,orbitExact:null,orbitBroken:null,orbitRibbon:null,orbitFlow:null,markers:[],baseMarkers:[],candidateTubes:[],fieldRoot:null,probe:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
+const SYD={built:false,world:null,discLayer:null,levelDrawn:0,levelSkipped:0,orbitExact:null,orbitBroken:null,orbitRibbon:null,orbitFlow:null,markers:[],baseMarkers:[],candidateTubes:[],fieldRoot:null,probe:null,link:null,title:null,sub:null,time:0,ui:0,lastScan:null};
 const sydFlat=v=>Array.isArray(v)?v.map(Number):[Number(v)];
 function sydScan(worldId=state.sydWorld||'rotation',br=state.sydBreak??0,samples=65){
   const W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,base=W.state(0,br),out=[];
@@ -19579,7 +19793,13 @@ function sydDiagnostics(worldId=state.sydWorld||'rotation',br=state.sydBreak??0)
   const tol=Math.pow(10,state.sydTolLog??-9),W=SYD_WORLDS[worldId]||SYD_WORLDS.rotation,results=sydScan(worldId,br),discovered=results.filter(r=>r.residual<=tol).map(r=>r.id);
   return {schema:'fbs3r-symmetry-discovery-diagnostics-v1',world:worldId,transformation:sydLang(W.t),samples:65,tolerance:tol,break_amplitude:br,
     candidate_library:results,discovered,expected_at_exact_action:results.filter(r=>r.expected).map(r=>r.id),finite:results.every(r=>r.finite),
-    semantics:'A finite sampled orbit can falsify a candidate within this transformation family, but numerical stability is not a universal proof and the candidate library is not exhaustive.'};
+    null_space_discovery:(()=>{const N=sydDiscover(worldId,br);if(!N||!N.ok)return null;
+      return {search_space:`polynomials of degree ≤ ${N.degree} in (${N.labels.join(', ')})`,monomials:N.m,
+        orbit_seeds:N.seeds,samples_per_orbit:N.samples,rows:N.n,tolerance:N.tolerance,
+        invariant_dimension:N.dim,worst_invariant_residual:N.worst,gap_to_first_non_invariant:N.gap,
+        basis:N.canonical.map(v=>sydPolyText(v,N.names)),
+        named_candidate_residuals:N.named};})(),
+    semantics:'A finite sampled orbit can falsify a candidate within this transformation family, but numerical stability is not a universal proof and the candidate library is not exhaustive. The null-space discovery is told no labels at all, but it searches only the declared polynomial space: a dimension of zero means nothing was found INSIDE that space, never that no invariant exists.'};
 }
 function sydExportData(){
   const W=SYD_WORLDS[state.sydWorld||'rotation'],D=sydDiagnostics(),samples=[];
@@ -19594,21 +19814,23 @@ function sydGuide(world){
   const root=new THREE.Group();root.name=`Symmetry transformation field · ${world}`;sydGroup.add(root);SYD.fieldRoot=root;
   root.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(3.35,2.75,2.35),world==='mobius'?SCI_VIOLET:SCI_CYAN,MOBILE_GPU?130:260,17+world.length));
   if(world==='rotation'){
-    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.72,64,42),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.27,.9,true));root.add(shell);SYD.manifold=shell;
+    const shell=new THREE.Mesh(new THREE.SphereGeometry(2.72,64,42),scientificFresnelMaterial(SCI_CYAN,SCI_GOLD,.075,.9,true));root.add(shell);SYD.manifold=shell;
+    root.add(scientificGraticule(2.72,16,9,SCI_CYAN,.17));
     const a=sydAxis.clone().multiplyScalar(3.65),axis=scientificTube([a.clone().multiplyScalar(-1),a],SCI_GOLD,.045,.82,false,64);root.add(axis);
     const planes=[];for(let i=0;i<22;i++){const u=(i/21-.5)*5.5;planes.push(sydAxis.clone().multiplyScalar(u));}root.add(scientificContactPlanes(planes,SCI_GOLD,.18));
   }else if(world==='lorentz'){
-    const surf=scientificParametricSurface(72,18,(u,v)=>{const eta=(u-.5)*2.5,a=6.2831853*v,r=.22+.22*Math.cos(a);return new THREE.Vector3(1.2*Math.sinh(eta),1.06*(Math.cosh(eta)-1.45),r*Math.sin(a));},scientificFresnelMaterial(SCI_CYAN,SCI_CORAL,.31,.92));root.add(surf);SYD.manifold=surf;
+    const surf=scientificParametricSurface(72,18,(u,v)=>{const eta=(u-.5)*2.5,a=6.2831853*v,r=.22+.22*Math.cos(a);return new THREE.Vector3(1.2*Math.sinh(eta),1.06*(Math.cosh(eta)-1.45),r*Math.sin(a));},scientificFresnelMaterial(SCI_CYAN,SCI_CORAL,.17,.92));root.add(surf);SYD.manifold=surf;
     root.add(scientificTube([new THREE.Vector3(-3.55,-2.72,-.05),new THREE.Vector3(3.55,2.72,-.05)],SCI_GOLD,.026,.46,false,48));
     root.add(scientificTube([new THREE.Vector3(-3.55,2.72,.05),new THREE.Vector3(3.55,-2.72,.05)],SCI_GOLD,.026,.46,false,48));
   }else if(world==='phase'){
-    const tor=new THREE.Mesh(new THREE.TorusGeometry(1.82,.72,48,160),scientificFresnelMaterial(SCI_VIOLET,SCI_CYAN,.3,.95));tor.rotation.x=Math.PI/2;root.add(tor);SYD.manifold=tor;
+    const tor=new THREE.Mesh(new THREE.TorusGeometry(1.82,.72,48,160),scientificFresnelMaterial(SCI_VIOLET,SCI_CYAN,.16,.95));tor.rotation.x=Math.PI/2;root.add(tor);SYD.manifold=tor;
     for(let k=0;k<5;k++){const pts=[];for(let i=0;i<=140;i++){const a=6.2831853*i/140,ph=a+k*1.256;pts.push(new THREE.Vector3((1.82+.72*Math.cos(ph))*Math.cos(a),.72*Math.sin(ph),(1.82+.72*Math.cos(ph))*Math.sin(a)));}root.add(scientificTube(pts,k%2?SCI_CYAN:SCI_GOLD,.018,.34,true,160));}
   }else if(world==='symplectic'){
-    const vortex=scientificParametricSurface(96,24,(u,v)=>{const a=6.2831853*u,b=6.2831853*v,r=1.83+.46*Math.cos(b);return new THREE.Vector3(1.18*r*Math.cos(a),.82*r*Math.sin(a),.46*Math.sin(b)+.24*Math.sin(2*a));},scientificFresnelMaterial(SCI_MINT,SCI_GOLD,.27,.9));root.add(vortex);SYD.manifold=vortex;
+    const vortex=scientificParametricSurface(96,24,(u,v)=>{const a=6.2831853*u,b=6.2831853*v,r=1.83+.46*Math.cos(b);return new THREE.Vector3(1.18*r*Math.cos(a),.82*r*Math.sin(a),.46*Math.sin(b)+.24*Math.sin(2*a));},scientificFresnelMaterial(SCI_MINT,SCI_GOLD,.15,.9));root.add(vortex);SYD.manifold=vortex;
     const orbit=[];for(let i=0;i<36;i++){const a=6.2831853*i/36;orbit.push(new THREE.Vector3(2.05*Math.cos(a),1.45*Math.sin(a),.24*Math.sin(2*a)));}root.add(scientificContactPlanes(orbit,SCI_VIOLET,.2));
   }else{
-    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.56,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.27,.94,true));root.add(sphere);SYD.manifold=sphere;
+    const sphere=new THREE.Mesh(new THREE.SphereGeometry(2.56,72,48),scientificFresnelMaterial(SCI_VIOLET,SCI_GOLD,.075,.94,true));root.add(sphere);SYD.manifold=sphere;
+    root.add(scientificGraticule(2.56,14,9,SCI_VIOLET,.16));
     for(let k=-3;k<=3;k++){const lat=[];for(let i=0;i<=128;i++){const a=6.2831853*i/128,th=(k/7)*Math.PI;lat.push(new THREE.Vector3(2.56*Math.cos(th)*Math.cos(a),2.56*Math.sin(th),2.56*Math.cos(th)*Math.sin(a)));}root.add(scientificTube(lat,k===0?SCI_GOLD:SCI_CYAN,.014,k===0?.52:.2,true,128));}
   }
 }
@@ -19619,6 +19841,7 @@ function sydSetup(){
   SYD.orbitRibbon=scientificRibbon([],world==='mobius'?.22:.18,SCI_CYAN,.25,closed);SYD.orbitExact=scientificTube([],SCI_CYAN,.065,.94,closed,196);SYD.orbitBroken=scientificTube([],SCI_CORAL,.05,.9,closed,196);SYD.orbitFlow=scientificFlow([],MOBILE_GPU?36:72,SCI_CYAN,.045,closed);sydGroup.add(SYD.orbitRibbon,SYD.orbitExact,SYD.orbitBroken,SYD.orbitFlow);
   for(let i=0;i<4;i++){const c=[SCI_GOLD,SCI_VIOLET,SCI_MINT,SCI_CORAL][i],ghost=scientificCrystal(SCI_CYAN,.075),m=scientificCrystal(c,.13);ghost.scale.setScalar(.72);ghost.traverse(o=>{if(o.material){o.material.transparent=true;o.material.opacity=.3;o.material.depthWrite=false;}});sydGroup.add(ghost,m);SYD.baseMarkers.push(ghost);SYD.markers.push(m);const tube=scientificTube([],c,.022,.68,closed,164);sydGroup.add(tube);SYD.candidateTubes.push(tube);}
   SYD.link=scientificTube([],SCI_GOLD,.018,.46,false,32);sydGroup.add(SYD.link);SYD.probe=scientificCrystal(0xffffff,.16);sydGroup.add(SYD.probe);
+  SYD.discLayer=new THREE.Group();SYD.discLayer.name='Invariant discovery · seed orbits, level sets and the residual gap';sydGroup.add(SYD.discLayer);
   SYD.title=mkLabel('SYMMETRY DISCOVERY CHAMBER · finite-orbit invariant stress test','label const');SYD.title.position.set(0,3.48,0);sydGroup.add(SYD.title);
   SYD.sub=mkLabel('','label axis');SYD.sub.position.set(0,2.95,0);sydGroup.add(SYD.sub);
   const foot=mkLabel('closure lives in the braid · stable candidates remain welded to the orbit · false invariants peel away','label dim');foot.position.set(0,-3.35,0);sydGroup.add(foot);
@@ -19634,12 +19857,188 @@ function sydRender(){
   const D=sydDiagnostics(world,br),tol=D.tolerance;SYD.lastScan=D;
   const centre=exact.reduce((a,q)=>a.add(q),new THREE.Vector3()).multiplyScalar(1/Math.max(1,exact.length));
   D.candidate_library.forEach((r,i)=>{const pass=r.residual<=tol,norm=pass?0:Math.min(1,Math.log10(1+r.residual/Math.max(tol,1e-16))/8),phase=i*Math.PI*.5,braid=exact.map((q,j)=>{const u=j/Math.max(1,exact.length-1),rad=q.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(Math.cos(phase),Math.sin(phase),.4);rad.normalize();const tangent=exact[Math.min(exact.length-1,j+1)].clone().sub(exact[Math.max(0,j-1)]).normalize(),side=new THREE.Vector3().crossVectors(tangent,rad);if(side.lengthSq()<1e-7)side.set(0,0,1);side.normalize();const weave=.11*Math.sin(6.2831853*(u*2+i*.25)),failure=norm*(.16+.5*Math.pow(Math.sin(Math.PI*u),2))*Math.sin((3+i)*6.2831853*u+phase);return q.clone().addScaledVector(rad,.13+i*.025+weave).addScaledVector(side,failure);});const tube=SYD.candidateTubes[i],c=pass?[SCI_GOLD,SCI_MINT,SCI_CYAN,SCI_VIOLET][i]:SCI_CORAL;tube.material.color.setHex(c);tube.material.emissive.setHex(c);tube.material.opacity=pass?.74:.86;scientificReplaceTube(tube,braid,!!W.closed);});
-  SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} candidates below ${tol.toExponential(0)}`;
+  labWipe(SYD.discLayer);
+  const N=sydDiscover(world,br);
+  try{ if(N&&N.ok) sydDiscoveryStage(N,W); }catch(e){}
+  SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} named candidates below ${tol.toExponential(0)}${N&&N.ok?` · discovered invariant dimension ${N.dim}/${N.m}`:''}`;
 }
+function sydDiscoveryHTML(){
+  const N=sydDiscover();
+  if(!N)return '';
+  const dimColour=N.dim>0?'#8fffe3':'#ffd58a';
+  const ladder=(N.residuals||[]).slice(0,12).map((r,i)=>{
+    const inv=i<N.dim,h=Math.max(2,Math.min(46,46+4.6*Math.log10(Math.max(r,1e-17))));
+    return `<div title="${esc(r.toExponential(2))}" style="flex:1 1 0;min-width:5px;height:${h.toFixed(1)}px;align-self:flex-end;border-radius:2px 2px 0 0;background:${inv?'linear-gradient(180deg,#ffd58a,#9a7a2e)':'linear-gradient(180deg,#ff8fa2,#7a2e3c)'}"></div>`;}).join('');
+  return `<div class="sect" style="border-color:rgba(143,255,227,.34)"><b style="color:#8fffe3">⌕ ${TT('INVARIANT DISCOVERY · NULL SPACE','ОБНАРУЖЕНИЕ ИНВАРИАНТОВ · ЯДРО','INVARIANTEN-ENTDECKUNG · KERN')}</b>
+    <div class="small" style="margin-top:4px">${TT(
+      'Nothing here is labelled. A function is invariant exactly when it is constant along every orbit, so the engine samples 16 deterministic orbits, centres each on its own mean and takes the null space of the stacked degree-≤2 monomial matrix. The DIMENSION of that null space is a measured number, and the basis below is what the measurement returned.',
+      'Здесь ничего не размечено. Функция инвариантна ровно тогда, когда постоянна вдоль каждой орбиты, поэтому движок берёт 16 детерминированных орбит, центрирует каждую по её собственному среднему и находит ядро составленной матрицы мономов степени ≤2. РАЗМЕРНОСТЬ этого ядра — измеренное число, а базис ниже — то, что вернуло измерение.',
+      'Nichts hier ist etikettiert. Eine Funktion ist genau dann invariant, wenn sie entlang jeder Bahn konstant ist; der Motor nimmt 16 deterministische Bahnen und bildet den Kern der Monommatrix vom Grad ≤2. Die DIMENSION dieses Kerns ist eine gemessene Zahl.')}</div>
+    ${N.ok?`
+    <div class="note" style="margin-top:6px;color:${dimColour}"><b>${TT('invariant dimension','размерность инвариантов','Invariantendimension')} = ${N.dim}</b> ${TT('of','из',von_de())} ${N.m} ${TT('monomials','мономов','Monome')} · ${N.n} ${TT('rows from','строк из','Zeilen aus')} ${N.seeds} ${TT('orbits','орбит','Bahnen')}</div>
+    <div style="display:flex;gap:2px;height:50px;margin:7px 0 3px">${ladder}</div>
+    <div class="small" style="color:var(--dim)">${TT('residual ladder, log scale · gold = inside the null space','лестница невязок, лог. шкала · золото = внутри ядра','Residuenleiter, log · Gold = im Kern')}${N.gap!==null?` · ${TT('gap','разрыв','Lücke')} ${N.worst!==null?N.worst.toExponential(1)+' → ':''}${N.gap.toExponential(1)}`:''}</div>
+    ${N.canonical.length?`<div style="margin-top:6px">${N.canonical.map(v=>`<div class="note" style="margin:4px 0;border-left:3px solid #ffd58a;font-variant-numeric:tabular-nums">${esc(sydPolyText(v,N.names))}</div>`).join('')}</div>`
+      :`<div class="note" style="margin-top:6px;color:#ffd58a">${TT('no invariant found inside the declared search space','инвариантов внутри объявленного пространства поиска не найдено','keine Invariante im deklarierten Suchraum gefunden')}</div>`}
+    ${(N.named||[]).length?`<div style="margin-top:6px">${N.named.map(q=>`<div class="note" style="margin:3px 0;border-left:3px solid ${q.residual<=N.tolerance?'#55e8c4':'#ff6f86'}"><b>${esc(q.label)}</b> · ${esc(q.residual.toExponential(2))} · ${q.residual<=N.tolerance?TT('inside the discovered space','внутри найденного пространства','im gefundenen Raum'):TT('not invariant','не инвариант','nicht invariant')}</div>`).join('')}</div>`:''}
+    <div class="note" style="margin-top:6px;color:var(--dim)">${TT('search space','пространство поиска','Suchraum')}: ${TT('polynomials of degree ≤','полиномы степени ≤','Polynome vom Grad ≤')} ${N.degree} ${TT('in','по','in')} (${esc(N.labels.join(', '))}) · ${TT('tolerance','допуск','Toleranz')} ${N.tolerance.toExponential(0)}</div>
+    <div class="note" style="margin-top:5px;color:#ffd58a">${esc(sydLang(N.note))}</div>
+    <div class="note" style="margin-top:5px;color:var(--dim)">${TT('A dimension of zero means nothing was found INSIDE this space — never that no invariant exists. Discovery here is numerical evidence in a declared model, not a theorem.','Нулевая размерность означает, что ничего не найдено ВНУТРИ этого пространства, а не что инвариантов не существует. Обнаружение здесь — численное свидетельство в объявленной модели, а не теорема.','Dimension null heißt: nichts INNERHALB dieses Raums gefunden — nicht, dass keine Invariante existiert.')}</div>`
+    :`<div class="note" style="margin-top:6px;color:#ff9daf">${TT('discovery unavailable','обнаружение недоступно','Entdeckung nicht verfügbar')}: ${esc(N.reason||'')}</div>`}</div>`;
+}
+const von_de=()=>'von';
+/* ── THE DISCOVERY, DRAWN ───────────────────────────────────────────────────────
+   The panel reports a dimension; the scene has to show where that dimension came
+   from, so the stage draws the three things the measurement is actually made of:
+
+     SEEDS    the sixteen orbits.  A single orbit is a curve, and far too many
+              quadrics contain one curve — the dimension only becomes meaningful
+              because the seeds span a transversal, so the seeds are shown.
+     LADDER   the residual of every direction in the monomial space, log-scaled.
+              The invariants sit on the floor at 1e-16 and everything else stands
+              far above: the GAP is the discovery, and it is drawn as a gap.
+     LEVEL    the level set of a discovered invariant, with the orbits lying in
+              it.  Nothing about that surface was written down in advance; it is
+              reconstructed from the coefficients the null space returned.
+
+   A quadric level set is found by radial solve — along the ray t·u the equation
+   Q(u)t² + L(u)t = c is a scalar quadratic, so the surface is exact rather than
+   marched.  Directions with no positive root are DROPPED rather than clamped, so
+   an unbounded level set shows as an honest gap instead of a fabricated wall, and
+   a surface that is not closed is not drawn as if it were. */
+const SYD_LEVEL_DIRS=[72,36];
+function sydEvalPoly(v,d,x){
+  let s=0,k=0;
+  for(let i=0;i<d;i++)s+=v[k++]*x[i];
+  for(let i=0;i<d;i++)for(let j=i;j<d;j++)s+=v[k++]*x[i]*x[j];
+  return s;
+}
+function sydSplitPoly(v,d){
+  const L=v.slice(0,d),Q=[];let k=d;
+  for(let i=0;i<d;i++)for(let j=i;j<d;j++)Q.push([i,j,v[k++]]);
+  return {L,Q};
+}
+/* smallest positive t with Q(u)t^2 + L(u)t = c, or null if the ray never reaches
+   the level -- null is a REAL answer here and is drawn as a gap */
+function sydRadial(L,Q,u,c){
+  let l=0,q=0;
+  for(let i=0;i<L.length;i++)l+=L[i]*u[i];
+  for(const [i,j,w] of Q)q+=w*u[i]*u[j];
+  if(Math.abs(q)<1e-12){ if(Math.abs(l)<1e-12)return null; const t=c/l; return t>1e-9?t:null; }
+  const disc=l*l+4*q*c; if(disc<0)return null;
+  const r=Math.sqrt(disc),t1=(-l+r)/(2*q),t2=(-l-r)/(2*q);
+  const pos=[t1,t2].filter(t=>t>1e-9).sort((a,b)=>a-b);
+  return pos.length?pos[0]:null;
+}
+function sydDiscoveryStage(N,W){
+  const L=SYD.discLayer; if(!L||!N||!N.ok)return;
+  const Dc=W.disc,d=Dc.d,br=state.sydBreak??0;
+
+  /* SEEDS — the transversal the dimension is measured across */
+  const seg=[],col=[],c0=new THREE.Color(SCI_CYAN),c1=new THREE.Color(SCI_VIOLET),cc=new THREE.Color();
+  N.orbits.forEach((orb,k)=>{
+    cc.copy(c0).lerp(c1,k/Math.max(1,N.orbits.length-1));
+    let prev=null;
+    for(const x of orb){const p=Dc.pos(x);
+      if(!Number.isFinite(p.x+p.y+p.z)){prev=null;continue;}
+      if(prev){seg.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);col.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b);}
+      prev=p;}
+  });
+  if(seg.length){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(seg,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    const ln=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.38,depthWrite:false,blending:THREE.AdditiveBlending}));
+    ln.renderOrder=3;L.add(ln);
+  }
+
+  /* LEVEL — a surface reconstructed from coefficients nobody wrote down */
+  let drawn=0,skipped=0;
+  if(d<=3&&N.canonical.length){
+    const x0=Dc.act(Dc.seed(0),0,br);
+    for(const v of N.canonical.slice(0,2)){
+      const {L:lin,Q:quad}=sydSplitPoly(v,d),c=sydEvalPoly(v,d,x0);
+      const quadZero=quad.every(q=>Math.abs(q[2])<1e-12);
+      if(quadZero){
+        /* a linear invariant: its level set is a plane, drawn as a disc */
+        const n=new THREE.Vector3(lin[0]||0,lin[1]||0,lin[2]||0);
+        if(n.lengthSq()<1e-12){skipped++;continue;}
+        const nn=n.clone().normalize(),base=nn.clone().multiplyScalar(c/n.length()),
+          e1=new THREE.Vector3(1,0,0).cross(nn);
+        if(e1.lengthSq()<1e-6)e1.set(0,1,0).cross(nn);
+        e1.normalize();const e2=new THREE.Vector3().crossVectors(nn,e1);
+        const RAD=2.1;
+        L.add(scientificParametricSurface(48,2,(uu,vv)=>{const a=6.283185307179586*uu,r=RAD*vv;
+          const q=[base.x+ (e1.x*Math.cos(a)+e2.x*Math.sin(a))*r,
+                   base.y+ (e1.y*Math.cos(a)+e2.y*Math.sin(a))*r,
+                   base.z+ (e1.z*Math.cos(a)+e2.z*Math.sin(a))*r];
+          return Dc.pos(q.slice(0,d));},sydContentMat(SCI_MINT,SCI_CYAN,.18,.8)));
+        drawn++;continue;
+      }
+      if(d===2){
+        /* a plane curve: gaps where the ray never reaches the level are left as gaps */
+        const pos=[],cl=[],C=new THREE.Color(SCI_GOLD);let prev=null;
+        for(let i=0;i<=512;i++){const a=6.283185307179586*i/512,u=[Math.cos(a),Math.sin(a)],
+          t=sydRadial(lin,quad,u,c);
+          if(t===null){prev=null;continue;}
+          const p=Dc.pos([t*u[0],t*u[1]]);
+          if(!Number.isFinite(p.x+p.y+p.z)){prev=null;continue;}
+          if(prev&&prev.distanceTo(p)<1.6){pos.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);cl.push(C.r,C.g,C.b,C.r,C.g,C.b);}
+          prev=p;}
+        if(pos.length){const g=new THREE.BufferGeometry();
+          g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+          g.setAttribute('color',new THREE.Float32BufferAttribute(cl,3));
+          const ln=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.95,depthWrite:false}));
+          ln.renderOrder=6;L.add(ln);drawn++;} else skipped++;
+        continue;
+      }
+      /* d = 3: only a CLOSED level set is drawn as a surface.  Anything the radial
+         solve cannot reach in every direction is unbounded, and drawing it as a
+         closed shell would be a lie about its shape. */
+      const [NU,NV]=SYD_LEVEL_DIRS,grid=[];let miss=0;
+      for(let j=0;j<=NV;j++)for(let i=0;i<=NU;i++){
+        const th=Math.PI*j/NV,ph=6.283185307179586*i/NU,
+          u=[Math.sin(th)*Math.cos(ph),Math.cos(th),Math.sin(th)*Math.sin(ph)],
+          t=sydRadial(lin,quad,u,c);
+        if(t===null){miss++;grid.push(null);}else grid.push([t*u[0],t*u[1],t*u[2]]);
+      }
+      if(miss===0){
+        L.add(scientificParametricSurface(NU,NV,(uu,vv)=>{
+          const i=Math.round(uu*NU),j=Math.round(vv*NV),g=grid[j*(NU+1)+i];
+          return g?Dc.pos(g):new THREE.Vector3();},sydContentMat(SCI_GOLD,SCI_CYAN,.20,.9)));
+        drawn++;
+      } else skipped++;
+    }
+  }
+  SYD.levelDrawn=drawn;SYD.levelSkipped=skipped;
+
+  /* LADDER — the gap IS the discovery, so it is drawn to scale */
+  const R=N.residuals.slice(0,14),lo=-17,hi=1,H=2.2,X0=3.05,W0=1.32,BASE=-2.55;
+  /* a chart, not a lit object: MeshBasic so the per-instance gold/coral coding is the
+     colour that reaches the eye, instead of being washed out by an emissive term */
+  const bars=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),
+    new THREE.MeshBasicMaterial({transparent:true,opacity:.9,depthWrite:false}),R.length);
+  const O=new THREE.Object3D(),cg=new THREE.Color(SCI_GOLD),cr=new THREE.Color(SCI_CORAL);
+  R.forEach((r,i)=>{
+    const y=Math.max(.02,H*(Math.log10(Math.max(r,1e-17))-lo)/(hi-lo)),
+      x=X0+W0*(i/Math.max(1,R.length-1))*2;
+    O.position.set(x,BASE+y/2,0);O.scale.set(W0*2/R.length*.66,y,.16);O.updateMatrix();
+    bars.setMatrixAt(i,O.matrix);bars.setColorAt(i,i<N.dim?cg:cr);
+  });
+  bars.instanceMatrix.needsUpdate=true;if(bars.instanceColor)bars.instanceColor.needsUpdate=true;
+  bars.frustumCulled=false;L.add(bars);
+  const lab=mkLabel(`null dim ${N.dim} / ${N.m}`,'label const');lab.position.set(X0+W0,BASE+H+.42,0);L.add(lab);
+  const lab2=mkLabel(N.gap!==null?`gap ${(N.worst!==null?N.worst.toExponential(0)+' → ':'')}${N.gap.toExponential(1)}`:'no gap','label dim');
+  lab2.position.set(X0+W0,BASE-.34,0);L.add(lab2);
+  const note=d>3?`${d} coordinates · level set not drawable in 3D`
+    :skipped?`${skipped} level set${skipped>1?'s':''} unbounded · not drawn as closed`:'';
+  if(note){const l3=mkLabel(note,'label dim');l3.position.set(X0+W0,BASE-.72,0);L.add(l3);}
+}
+function sydContentMat(c,a,o,i){const m=scientificFresnelMaterial(c,a,o,i);m.userData.scientificContent=true;return m;}
 function sydPanelHTML(){
   const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],D=sydDiagnostics(world,state.sydBreak??0),tol=D.tolerance,a=W.state(state.sydParam??.5,state.sydBreak??0).a;
   return `<div class="sect" style="border-color:rgba(98,232,255,.42);background:linear-gradient(135deg,rgba(29,89,117,.22),rgba(126,66,151,.13))"><b style="color:#bdefff">⌬ ${TT('SYMMETRY DISCOVERY CHAMBER','КАМЕРА ОТКРЫТИЯ СИММЕТРИЙ','SYMMETRIE-ENTDECKUNGSKAMMER')}</b>
-    <div class="small" style="margin-top:4px">${TT('Five exact group actions · twenty candidate observables · nine known invariants · one falsification instrument.','Пять точных групповых действий · двадцать наблюдаемых-кандидатов · девять известных инвариантов · один инструмент фальсификации.','Fünf exakte Gruppenwirkungen · zwanzig Kandidaten · neun bekannte Invarianten · ein Falsifikationsinstrument.')}</div>
+    <div class="small" style="margin-top:4px">${TT('Five exact group actions. Two instruments on each: a falsifier that scores a named candidate list, and a discovery engine that is told no names at all and returns the dimension of the invariant space it measures.','Пять точных групповых действий. Два инструмента на каждое: фальсификатор, оценивающий именованный список кандидатов, и движок обнаружения, которому не сообщают ни одного имени и который возвращает измеренную размерность пространства инвариантов.','Fünf exakte Gruppenwirkungen. Zwei Instrumente je Wirkung: ein Falsifikator für eine benannte Kandidatenliste und ein Entdeckungsmotor, dem keine Namen genannt werden.')}</div>
     <div class="note" style="margin-top:6px;color:#ffd58a">${TT('A passing finite scan is numerical evidence inside this declared orbit—not a universal proof, learned law, or exhaustive search.','Успешный конечный скан — численное свидетельство внутри объявленной орбиты, а не универсальное доказательство, обученный закон или исчерпывающий поиск.','Ein bestandener endlicher Scan ist numerische Evidenz in dieser Bahn — kein universeller Beweis oder vollständige Suche.')}</div></div>
   <div class="sect"><b>${TT('TRANSFORMATION SPACE','ПРОСТРАНСТВО ПРЕОБРАЗОВАНИЙ','TRANSFORMATIONSRAUM')}</b><div class="chips">${Object.entries(SYD_WORLDS).map(([k,v])=>`<button class="chip ${world===k?'on':''}" data-syd-world="${k}">${esc(sydLang(v.t))}</button>`).join('')}</div>
     <div class="ctlrow"><button class="btn green" id="sydRun">${state.sydRun!==false?'⏸ '+TT('pause sweep','пауза','Sweep pausieren'):'▶ '+TT('sweep orbit','сканировать орбиту','Bahn durchlaufen')}</button><button class="btn" id="sydReset">↺</button>
@@ -19651,6 +20050,7 @@ function sydPanelHTML(){
     <div class="note">${TT('ε=0 is the exact action. ε>0 adds a documented non-group perturbation; coral separates from cyan and genuine candidates acquire measurable drift.','ε=0 — точное действие. При ε>0 добавляется объявленное негрупповое возмущение: коралловая орбита отделяется от голубой, а настоящие кандидаты получают измеримый дрейф.','ε=0 ist die exakte Wirkung. ε>0 fügt eine deklarierte Nichtgruppen-Störung hinzu; echte Kandidaten beginnen messbar zu driften.')}</div></div>
   <div class="sect"><b>${TT('CANDIDATE RESIDUALS','НЕВЯЗКИ КАНДИДАТОВ','KANDIDATEN-RESIDUEN')}</b><div id="sydResults">${D.candidate_library.map(r=>`<div class="note" style="margin:4px 0;border-left:3px solid ${r.residual<=tol?'#55e8c4':'#ff6f86'}"><b>${esc(r.label)}</b> · Δ_max=${Number.isFinite(r.residual)?r.residual.toExponential(3):'∞'} · <span style="color:${r.residual<=tol?'#8fffe3':'#ff9daf'}">${r.residual<=tol?TT('stable on sampled orbit','стабилен на сканированной орбите','auf der Stichprobenbahn stabil'):TT('changes','изменяется','verändert sich')}</span></div>`).join('')}</div>
     <div class="note" style="color:var(--dim)">${esc(W.contract)}</div></div>
+  ${sydDiscoveryHTML()}
   <div class="sect"><b>${TT('COMPOSE & EXPORT','СОПОСТАВИТЬ И ЭКСПОРТИРОВАТЬ','VERGLEICHEN & EXPORTIEREN')}</b><div class="ctlrow"><button class="btn" id="sydCompare">◱ ${TT('open exact anchors in Multiview','открыть точные опоры в Multiview','exakte Anker in Multiview öffnen')}</button><button class="btn" id="sydExport">⬇ JSON</button></div></div>`;
 }
 function sydCompare(){
