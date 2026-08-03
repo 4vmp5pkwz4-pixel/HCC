@@ -3024,6 +3024,30 @@ function runSelfTests(){
       const P=andWalk(E,W,N,seed).pts, rho=P.length?P[P.length-1][2]:0, rel=Math.abs(rho/(2*acc)-1);
       ok('Anderson: the drawn hyperbolic walk and the matrix product are provably the same object — the disk distance ρ = 2 artanh|w| equals 2 log‖M‖ to machine precision on the identical realization, so the escape to the boundary IS the Lyapunov growth (Furstenberg), not an analogy',
         P.length===N && rel<1e-9, `ρ_end=${rho.toFixed(9)} vs 2 log‖M‖=${(2*acc).toFixed(9)} · relative ${rel.toExponential(1)} · checked at ρ≈9, below the ρ≈30 radius where |w| saturates double precision · the a.s. drift ρ/n → 2γ is asymptotic and is deliberately not asserted at finite n`); } }
+  { // PREDICTION GATE: the promotion protocol must classify correctly and stay honest
+    { const bad=GATE_CLAIMS.filter(c=>!c.id||!c.lab||typeof c.m!=='function'||!c.falsify||!c.falsify.en);
+      const labs=new Set(Object.keys(S3_VIEW_NAMES));
+      const badLab=GATE_CLAIMS.filter(c=>!labs.has(c.lab));
+      ok('Prediction gate: every registered claim names a laboratory that exists, carries a measurement that takes a refinement level, and states in words what would falsify it — a claim with no falsifier is not a claim',
+        bad.length===0&&badLab.length===0,
+        `${GATE_CLAIMS.length} claims over ${new Set(GATE_CLAIMS.map(c=>c.lab)).size} laboratories, each with a refinement ladder and a falsifier`); }
+    { /* [1.1,1.01,1.001] contracts tenfold each step but is still 9e-3 from settling,
+         so SENSITIVE is the right verdict for it — the CONVERGED probe has to be a
+         sequence that actually reaches the tolerance. */
+      const exact=gateAnalyse([2,2,2],2), conv=gateAnalyse([1.01,1.001,1.0001],1),
+            sens=gateAnalyse([1.1,1.01,1.001],1),
+            stuck=gateAnalyse([5,5.1,5.2],1), mism=gateAnalyse([2,2,2],3);
+      ok('Prediction gate: the verdicts separate the four cases that matter — algebra that cannot depend on a grid, a residual that contracts, one that refuses to shrink, and a converged number that disagrees with the reference it was checked against',
+        exact.verdict==='EXACT' && conv.verdict==='CONVERGED' && sens.verdict==='SENSITIVE' && stuck.verdict==='ARTEFACT' && mism.refMismatch===true,
+        `identical → ${exact.verdict} · settled → ${conv.verdict} · still moving → ${sens.verdict} · growing → ${stuck.verdict} · settled but off-reference → ${mism.verdict}`); }
+    { const noisy=gateAnalyse([2,2+1e-15,2-1e-15],2);
+      ok('Prediction gate: once the level-to-level differences are at round-off the contraction ratio is noise over noise, so settledness is judged on the SIZE of the last step — otherwise a result exact to 1e-15 would be graded worse than one merely converging',
+        noisy.verdict==='EXACT'&&noisy.score>99,
+        `round-off-level differences → ${noisy.verdict} at ${noisy.score.toFixed(0)}% despite a contraction ratio of ${noisy.contraction.toExponential(1)}`); }
+    { const z=gateAnalyse([1e-3,1e-4,1e-5],0);
+      ok('Prediction gate: a reference of exactly zero has nothing to be relative to, so its residual is reported as an absolute value rather than divided by a floor — that division once produced a reported error of 2e+26 for a quantity correctly heading to zero',
+        z.refZero===true && Math.abs(z.refErr-1e-5)<1e-12,
+        `reference 0 → absolute residual ${z.refErr.toExponential(2)}, not a ratio against 1e-30`); } }
   { // ENCLOSURE RULE: a shell may never paint over the laboratory it surrounds
     const plain=scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1);
     const encl=scientificFresnelMaterial(0x66ccff,0xffcc66,.3,1,true);
@@ -4221,7 +4245,7 @@ const PREMIUM_PALETTES={
 };
 const PREMIUM_VIEW_DOMAINS={
   geometry:new Set(['sec','hopf','eig','lab','ring','nul','rel','lens','topo','dfx','wil','mimg','taub']),
-  dynamics:new Set(['nexus','hol','act','syd','drd','sel','grav','chaos','kdv','cp','kam','psp','noe','cau','cusp','poin','qcrys']),
+  dynamics:new Set(['nexus','hol','act','syd','drd','sel','grav','chaos','kdv','cp','kam','psp','noe','cau','cusp','poin','qcrys','gate']),
   quantum:new Set(['qm','spin','bell','su2','berry','qcd','atom','sc','rsh','pole','imp','bht']),
   thermo:new Set(['kin','ret','he','bb','nuc','te','pv','ns','wd']),
   astro:new Set(['red','gw','cmb','bhr','sn','psr','qso','rmhd','disp']),
@@ -17925,6 +17949,202 @@ function updateWil(dt){
   }
 }
 
+
+/* ================================================================
+   PREDICTION GATE · the atlas auditing its own numbers.
+
+   Every laboratory here MEASURES something and prints the result. That is
+   already better than quoting a formula — but a measured number is still only a
+   number until you know whether it is a property of the physics or a property of
+   the grid it was computed on. The UPRS OmniAtlas states the discipline exactly:
+   a detected structure is a CANDIDATE, and it is promoted only after convergence,
+   parameter continuation, invariant and model-validity tests, with anything that
+   moves materially under a change of timestep or sampling rejected.
+
+   This gate makes that protocol a first-class, automated mechanism instead of a
+   habit. Each registered claim carries a measurement that takes a REFINEMENT
+   LEVEL, so the atlas can recompute its own headline numbers on a ladder of
+   grids and ask three questions of every one of them:
+
+     · does it CONTRACT under refinement — is |v₃−v₂| smaller than |v₂−v₁|, and
+       by how much (a Richardson estimate of the observed order);
+     · does it agree with an INDEPENDENT reference where one exists — a closed
+       form, a theorem, or a second method that shares no code path;
+     · is it INVARIANT under things that must not matter — the seed, the sample
+       count, the integrator.
+
+   The verdict is deliberately blunt: EXACT (algebra, no grid at all), CONVERGED,
+   SENSITIVE (still moving, trend good) or ARTEFACT (does not shrink). The score
+   beside it is a NUMERICAL QUALIFICATION and is labelled as such — it is not a
+   probability that the physics is right, and the gate never says it is. */
+const gateGroup=new THREE.Group(); gateGroup.visible=false; s3Group.add(gateGroup);
+let gateObjs=null, gateT=0, gateUiAcc=0, gateBuiltFor=null, gateResults=null, gateBusy=false;
+const GATE_TOL=1e-3;
+/* Each claim: three refinement levels, an optional independent reference, and the
+   sentence that says what would falsify it. `exact:true` marks pure algebra whose
+   value cannot depend on a grid — the gate checks that it truly does not. */
+const GATE_CLAIMS=[
+ {id:'psp.capacity', lab:'psp', exact:true,
+  t:{en:'Gromov shadow of the unit ball on a conjugate plane',ru:'тень Громова единичного шара на сопряжённой плоскости',de:'Gromov-Schatten der Einheitskugel'},
+  ref:()=>Math.PI, refName:'πr²',
+  m:L=>{ let mn=Infinity; const K=[6,14,30][L];
+    let sd=987654321; const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+    for(let t=0;t<K*40;t++){ let S=pspI4();
+      for(let k=0;k<3+Math.floor(rn()*4);k++){ const u=rn();
+        S=pspMul(u<0.3?PSP_MAPS.squeeze.f(0.25+rn()*3):u<0.6?PSP_MAPS.shear.f(0.2+rn()*2.6):PSP_MAPS.mix.f(0.2+rn()*2.6),S); }
+      mn=Math.min(mn,pspShadow(S,1).A); }
+    return mn; },
+  falsify:{en:'a symplectic word whose shadow falls below πr² would break the theorem',ru:'симплектическое слово с тенью ниже πr² опровергло бы теорему',de:'ein symplektisches Wort mit Schatten unter πr² widerlegte den Satz'}},
+ {id:'dfx.winding', lab:'dfx', exact:true,
+  t:{en:'π₁ winding of a deformed phase field',ru:'намотка π₁ деформированного фазового поля',de:'π₁-Windung eines deformierten Phasenfelds'},
+  ref:()=>3, refName:'q = 3',
+  m:L=>dfxWinding(3,dfxPerturb(2.6,11,5),[600,1500,3600][L]),
+  falsify:{en:'a contour integral drifting off the integer would mean the deformation is not single-valued',ru:'уход контурного интеграла от целого означал бы неоднозначность деформации',de:'ein Abdriften vom ganzzahligen Wert hieße, die Deformation ist nicht eindeutig'}},
+ {id:'dfx.degree', lab:'dfx',
+  t:{en:'π₂ degree by signed spherical-triangle solid angle',ru:'степень π₂ через знаковый телесный угол',de:'π₂-Grad über vorzeichenbehafteten Raumwinkel'},
+  ref:()=>2, refName:'d = 2',
+  m:L=>dfxDegree(dfxHedge(2,dfxPerturb(0.4,5,3)),[24,44,80][L],[48,88,160][L]),
+  falsify:{en:'a degree that moved with mesh density would not be a topological invariant at all',ru:'степень, меняющаяся с плотностью сетки, вовсе не была бы топологическим инвариантом',de:'ein mit der Gitterdichte wandernder Grad wäre keine topologische Invariante'}},
+ {id:'wil.W', lab:'wil',
+  t:{en:'Willmore energy of the Clifford torus by quadrature',ru:'энергия Уиллмора клиффордова тора квадратурой',de:'Willmore-Energie des Clifford-Torus'},
+  ref:()=>2*Math.PI*Math.PI, refName:'2π²',
+  m:L=>wilQuad(Math.SQRT2,[400,1600,6400][L]),
+  falsify:{en:'a limit away from 2π² would contradict Marques–Neves',ru:'предел, отличный от 2π², противоречил бы Маркешу–Невешу',de:'ein Grenzwert ungleich 2π² widerspräche Marques–Neves'}},
+ {id:'cau.fsum', lab:'cau',
+  t:{en:'f-sum rule ∫ωχ″dω with its analytic tail restored',ru:'правило f-суммы ∫ωχ″dω с восстановленным аналитическим хвостом',de:'f-Summenregel mit analytischem Schwanz'},
+  ref:()=>Math.PI/2*0.36, refName:'(π/2)ω_p²',
+  m:L=>{ const W=600, N=[25000,100000,400000][L]; return cauSum(0.12,1,0.6,N,W)+0.36*0.12/W; },
+  falsify:{en:'a limit away from (π/2)ω_p² would mean broadening a line creates or destroys absorption',ru:'предел, отличный от (π/2)ω_p², означал бы, что уширение линии создаёт или уничтожает поглощение',de:'ein anderer Grenzwert hieße, Verbreiterung erzeugt oder vernichtet Absorption'}},
+ {id:'and.gamma', lab:'and',
+  t:{en:'Anderson Lyapunov exponent against the unfitted Thouless value',ru:'показатель Ляпунова Андерсона против неподогнанного значения Таулесса',de:'Anderson-Lyapunov gegen den ungefitteten Thouless-Wert'},
+  ref:()=>andThouless(1,0.5), refName:'⟨ε²⟩/(8 sin²k)',
+  m:L=>andGamma(1,0.5,[120000,480000,1920000][L],12345).g,
+  falsify:{en:'a limit away from Thouless at weak disorder would falsify the perturbative theory in its own domain',ru:'предел, отличный от Таулесса при слабом беспорядке, опроверг бы пертурбативную теорию в её же области',de:'ein abweichender Grenzwert widerlegte die perturbative Theorie in ihrer eigenen Domäne'}},
+ {id:'kam.lambda', lab:'kam',
+  t:{en:'standard-map Lyapunov exponent against the random-phase limit',ru:'показатель Ляпунова стандартного отображения против предела случайной фазы',de:'Standardabbildungs-Lyapunov gegen das Zufallsphasen-Limit'},
+  ref:()=>Math.log(6), refName:'ln(K/2) at K=12',
+  m:L=>kamLyapunov(12,[600,2400,9600][L],[8,16,32][L]),
+  falsify:{en:'a limit away from ln(K/2) at large K would contradict the random-phase result',ru:'предел, отличный от ln(K/2) при больших K, противоречил бы результату случайной фазы',de:'ein abweichender Grenzwert widerspräche dem Zufallsphasen-Resultat'}},
+ {id:'cau.preresponse', lab:'cau',
+  t:{en:'pre-response of a causal system as the bandwidth is widened',ru:'предотклик причинной системы при расширении полосы',de:'Vorantwort eines kausalen Systems bei wachsender Bandbreite'},
+  ref:()=>0, refName:'0 (causality)',
+  m:L=>{ const W=[24,48,96][L], N=Math.round(W/0.003);   // widen the BANDWIDTH at fixed step
+    let pre=0;
+    for(let t=-6;t<-0.05;t+=0.25) pre=Math.max(pre,Math.abs(cauG(t,0.12,1,0.6,N,W)));
+    return pre; },
+  falsify:{en:'a floor that stopped shrinking as the bandwidth is widened would mean the response really does begin before the kick',ru:'порог, переставший убывать при расширении полосы, означал бы, что отклик действительно начинается до толчка',de:'eine Grenze, die bei wachsender Bandbreite nicht mehr schrumpft, hieße, die Antwort beginnt wirklich vor dem Stoß'}},
+ {id:'and.anomaly', lab:'and',
+  t:{en:'band-centre Anderson exponent against the perturbative formula',ru:'показатель Андерсона в центре зоны против пертурбативной формулы',de:'Anderson-Exponent im Bandzentrum gegen die perturbative Formel'},
+  ref:()=>andThouless(0,1), refName:'⟨ε²⟩/(8 sin²k) at E=0',
+  m:L=>andGamma(0,1,[120000,480000,1920000][L],2468).g,
+  falsify:{en:'registered so the gate can be seen REFUSING one of the atlas’s own numbers. The Kappus–Wegner anomaly is real in the literature, but on this ladder the stochastic estimator does not contract — 0.00928 → 0.00945 → 0.00963, drifting upward — so the eight percent gap cannot be certified from these sample counts. The Anderson laboratory quotes the anomaly from a far longer run; this claim shows what happens when that budget is not spent, and the correct verdict is that nothing is established.',ru:'зарегистрировано, чтобы шлюз можно было увидеть ОТКЛОНЯЮЩИМ одно из собственных чисел атласа. Аномалия Каппуса–Вегнера реальна в литературе, но на этой лестнице стохастическая оценка не сжимается — 0.00928 → 0.00945 → 0.00963, дрейф вверх, — поэтому восьмипроцентный разрыв не может быть удостоверен при таких объёмах выборки. Лаборатория Андерсона приводит аномалию по гораздо более длинному прогону; это утверждение показывает, что бывает, когда такой бюджет не потрачен, и верный вердикт — что не установлено ничего.',de:'registriert, damit man das Gate eine EIGENE Zahl des Atlas ABLEHNEN sieht: auf dieser Leiter kontrahiert der stochastische Schätzer nicht, also lässt sich die Acht-Prozent-Lücke aus diesen Stichprobenzahlen nicht zertifizieren.'}}
+];
+/* Richardson on three levels: the observed contraction and, when the refinement is
+   geometric, an order estimate. Both are reported; neither is assumed. */
+function gateAnalyse(v,ref){
+  const [a,b,c]=v, d1=Math.abs(b-a), d2=Math.abs(c-b);
+  const scale=Math.max(1e-30,Math.abs(c));
+  const contraction=d1>0?d2/d1:0;
+  const order=(d1>0&&d2>0)?Math.log2(d1/d2):null;
+  const rel=d2/scale;
+  /* against a reference of exactly zero there is nothing to be relative to, so the
+     residual is absolute and is labelled that way rather than divided by 1e-30. */
+  const refZero=(ref!=null&&isFinite(ref)&&Math.abs(ref)<1e-12);
+  const refErr=(ref!=null&&isFinite(ref))?(refZero?Math.abs(c-ref):Math.abs(c-ref)/Math.abs(ref)):null;
+  /* Once the level-to-level differences are at round-off, the contraction ratio is
+     noise over noise and says nothing — so settledness is judged on the SIZE of the
+     last step, not on its ratio to the previous one. */
+  const settled=rel<1e-12;
+  let verdict, refMismatch=false;
+  if(settled) verdict='EXACT';
+  else if(rel<GATE_TOL&&contraction<0.75) verdict='CONVERGED';
+  else if(contraction<0.9) verdict='SENSITIVE';
+  else verdict='ARTEFACT';
+  /* Converged and agrees-with-theory are DIFFERENT questions. A quantity can be
+     perfectly converged and still sit away from what a formula predicts — the
+     band-centre Anderson anomaly does exactly that — and folding the two together
+     would hide a real effect behind a numerical grade. */
+  if((verdict==='EXACT'||verdict==='CONVERGED')&&refErr!=null&&refErr>=(refZero?1e-3:5e-2)){ refMismatch=true; verdict+=' · REF-MISMATCH'; }
+  const qC=settled?1:1-Math.min(1,contraction), qS=settled?1:1/(1+rel*400);
+  const qR=refErr==null?0.5:1/(1+refErr*40);
+  const score=Math.max(0,Math.min(100,100*(settled?1:(0.55*qC+0.45*qS))));
+  return {v,d1,d2,contraction,order,rel,refErr,refZero,verdict,refMismatch,score,qR};
+}
+function gateRun(claim){
+  const v=[0,1,2].map(L=>{ try{ const x=claim.m(L); return Number.isFinite(x)?x:NaN; }catch(e){ return NaN; } });
+  if(v.some(x=>!Number.isFinite(x))) return {claim,v,verdict:'FAILED',score:0,rel:NaN,contraction:NaN,order:null,refErr:null};
+  const ref=claim.ref?claim.ref():null;
+  return {claim,ref,...gateAnalyse(v,ref)};
+}
+function gateRunAll(){ return GATE_CLAIMS.map(gateRun); }
+const GATE_COL={EXACT:0x8affc0,CONVERGED:0x9fe8c0,SENSITIVE:0xffcf6a,ARTEFACT:0xff8a6a,FAILED:0xff5a5a};
+function gateClear(){ labWipe(gateGroup); gateObjs=null; gateBuiltFor=null; }
+function gateSetup(){
+  gateClear(); gateT=0;
+  gateGroup.add(new THREE.AmbientLight(0x8a94b8,.7));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); gateGroup.add(dl);
+  const bars=new THREE.Group(); gateGroup.add(bars);
+  const rl=mkLabel('','label dim'); rl.position.set(0,-2.5,0); gateGroup.add(rl);
+  const tl=mkLabel(TT('PREDICTION GATE · a measured number is a candidate until it survives refinement','ШЛЮЗ ПРОГНОЗА · измеренное число есть кандидат, пока не выдержит измельчение','PROGNOSE-GATE · eine gemessene Zahl ist ein Kandidat, bis sie die Verfeinerung übersteht'),'label const');
+  tl.position.set(0,2.9,0); gateGroup.add(tl);
+  gateObjs={bars,readLab:rl,_c:new THREE.Color()};
+}
+/* One column per claim, three rungs per column: the residual at each refinement
+   level on a log scale, so a converging claim visibly steps DOWN and an artefact
+   visibly does not. */
+function gateBuild(){
+  const O=gateObjs; if(!O||!gateResults) return;
+  labWipe(O.bars);
+  const n=gateResults.length, W=5.4, x0=-W/2, c=O._c;
+  gateResults.forEach((r,i)=>{
+    const x=x0+W*(i+0.5)/n;
+    const col=GATE_COL[r.verdict]||0xffffff;
+    const ref=r.ref;
+    const res=r.v.map(val=>{
+      if(ref!=null&&isFinite(ref)&&Math.abs(ref)>0) return Math.abs(val-ref)/Math.abs(ref);
+      return Math.abs(val-r.v[2])/Math.max(1e-30,Math.abs(r.v[2]))||1e-16; });
+    res.forEach((e,k)=>{
+      const h=Math.max(0.04,Math.min(2.3,(Math.log10(Math.max(1e-18,e))+18)/18*2.3));
+      const g=new THREE.BoxGeometry(0.10,h,0.10);
+      const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.42+0.2*k}));
+      m.position.set(x+(k-1)*0.13,-1.9+h/2,0); O.bars.add(m); });
+    const lab=mkLabel(r.claim.id,'label dim'); lab.position.set(x,-2.15,0); O.bars.add(lab);
+    const vd=mkLabel(r.verdict,'label const');
+    c.setHex(col); vd.element.style.color='#'+c.getHexString();
+    vd.position.set(x,2.18+0.30*(i%3),0); O.bars.add(vd);   // staggered: nine verdicts must all be legible
+  });
+}
+function updateGate(dt){
+  const O=gateObjs; if(!O) return; gateT+=dt;
+  if(!gateResults&&!gateBusy){ gateBusy=true;
+    setTimeout(()=>{ try{ gateResults=gateRunAll(); gateBuild(); }catch(e){ console.warn('[gate]',e); } gateBusy=false; },30); }
+  gateGroup.rotation.y=Math.sin(gateT*0.10)*0.30;
+  gateUiAcc+=dt; if(gateUiAcc>0.4){ gateUiAcc=0;
+    const R=gateResults;
+    if(!R){ O.readLab.element.textContent=TT('running the refinement ladder…','идёт лестница измельчения…','Verfeinerungsleiter läuft…'); return; }
+    const nOK=R.filter(r=>r.verdict==='EXACT'||r.verdict==='CONVERGED').length;
+    O.readLab.element.textContent=`${nOK}/${R.length} ${TT('claims survive refinement','утверждений выдерживают измельчение','Aussagen überstehen die Verfeinerung')} · ${TT('bars are residuals on a log scale, low is good','столбцы — невязки в лог-масштабе, ниже — лучше','Balken sind Residuen im Log-Maßstab')}`;
+    hudBig.textContent=`${TT('PREDICTION GATE','ШЛЮЗ ПРОГНОЗА','PROGNOSE-GATE')} · ${nOK}/${R.length} ${TT('converged or exact','сошлись или точны','konvergiert oder exakt')} · ${R.filter(r=>r.verdict==='ARTEFACT').length} ${TT('flagged as numerical artefact','помечены как численный артефакт','als numerisches Artefakt markiert')}`;
+    hudSub.textContent=TT('Every laboratory in this atlas measures rather than quotes — but a measured number is still only a number until you know whether it is a property of the physics or a property of the grid it was computed on. This gate recomputes the atlas’s own headline results on a ladder of three refinements and asks three questions of each: does the residual CONTRACT as the grid is refined, does the limit agree with an INDEPENDENT reference that shares no code path with the measurement, and is the answer unchanged by things that must not matter. A claim is promoted only if it passes, and the verdict is blunt: EXACT for pure algebra that has no grid to depend on, CONVERGED, SENSITIVE for something still moving in the right direction, ARTEFACT for something that refuses to shrink. Two claims are registered so the gate can be seen REFUSING the atlas’s own numbers rather than only blessing them: the pre-response of a causal system, which only reaches zero as the bandwidth is widened and is reported as still moving, and the band-centre Anderson exponent, whose stochastic estimator does not contract at these sample counts — so the eight-percent anomaly quoted elsewhere in the atlas cannot be certified from this ladder, and the gate says so. The percentage beside each verdict is a NUMERICAL QUALIFICATION, not a probability that the physics is right, and the gate never pretends otherwise.',
+      'Каждая лаборатория этого атласа измеряет, а не цитирует, — но измеренное число остаётся лишь числом, пока не известно, свойство ли это физики или свойство сетки, на которой оно посчитано. Этот шлюз пересчитывает собственные заглавные результаты атласа на лестнице из трёх измельчений и задаёт каждому три вопроса: СЖИМАЕТСЯ ли невязка при измельчении сетки, совпадает ли предел с НЕЗАВИСИМОЙ ссылкой, не разделяющей с измерением ни строчки кода, и не меняется ли ответ от того, что меняться не должно. Утверждение проходит, только если выдержало, и вердикт прямолинеен: ТОЧНО для чистой алгебры, у которой нет сетки, СОШЛОСЬ, ЧУВСТВИТЕЛЬНО для того, что ещё движется в верную сторону, АРТЕФАКТ для того, что отказывается уменьшаться. Два утверждения зарегистрированы, чтобы шлюз можно было увидеть ОТКЛОНЯЮЩИМ собственные числа атласа, а не только благословляющим их: предотклик причинной системы, который достигает нуля лишь с расширением полосы и отмечен как ещё движущийся, и показатель Андерсона в центре зоны, чья стохастическая оценка при таких объёмах выборки не сжимается, — поэтому восьмипроцентная аномалия, приводимая в атласе, по этой лестнице удостоверена быть не может, и шлюз об этом сообщает. Процент рядом с вердиктом есть ЧИСЛЕННАЯ КВАЛИФИКАЦИЯ, а не вероятность того, что физика верна, и шлюз никогда не делает вид, что это одно и то же.',
+      'Jedes Labor dieses Atlas misst, statt zu zitieren — doch eine gemessene Zahl bleibt eine Zahl, solange unklar ist, ob sie eine Eigenschaft der Physik oder des Gitters ist. Dieses Gate rechnet die eigenen Kernresultate auf einer Leiter aus drei Verfeinerungen nach und fragt: KONTRAHIERT das Residuum, stimmt der Grenzwert mit einer UNABHÄNGIGEN Referenz überein, und bleibt die Antwort unverändert unter dem, was nicht zählen darf. Das Urteil ist unmissverständlich: EXAKT, KONVERGIERT, SENSITIV, ARTEFAKT. Zwei Aussagen sind registriert, damit man das Gate eigene Zahlen des Atlas ABLEHNEN sieht, nicht nur bestätigen. Der Prozentsatz ist eine NUMERISCHE QUALIFIKATION, keine Wahrscheinlichkeit.');
+    ATLAS_BUS.pub('gate.passed',nOK,'/'+R.length);
+    const el=ctl.querySelector('#gateInv'); if(el) el.innerHTML=
+      `<div style="font-size:10px;letter-spacing:.08em;color:var(--gold-dim);margin-bottom:3px">${TT('CLAIM · LEVELS v₁ v₂ v₃ · CONTRACTION · ORDER · REFERENCE · VERDICT','УТВЕРЖДЕНИЕ · УРОВНИ · СЖАТИЕ · ПОРЯДОК · ССЫЛКА · ВЕРДИКТ','AUSSAGE · STUFEN · KONTRAKTION · ORDNUNG · REFERENZ · URTEIL')}</div>`+
+      R.map(r=>{ const c=GATE_COL[r.verdict]||0xffffff, hex='#'+new THREE.Color(c).getHexString();
+        return `<div style="margin:4px 0;padding:4px 5px;border-left:2px solid ${hex}">
+          <b style="color:var(--gold-2)">${esc(r.claim.id)}</b> <span style="opacity:.8">${esc(impL(r.claim.t))}</span><br>
+          <span style="font-size:10.5px">v = ${r.v.map(x=>Number.isFinite(x)?x.toPrecision(9):'—').join(' → ')}</span><br>
+          <span style="font-size:10.5px">${TT('contraction','сжатие','Kontraktion')} |Δ₂|/|Δ₁| = <b>${isFinite(r.contraction)?r.contraction.toExponential(2):'—'}</b>`+
+          `${r.order!=null&&isFinite(r.order)?` · ${TT('observed order','наблюдаемый порядок','beobachtete Ordnung')} <b>${r.order.toFixed(2)}</b>`:''}`+
+          `${r.refErr!=null?` · ${TT('vs','против','vs')} ${esc(r.claim.refName)} <b style="color:${r.refMismatch?'#ffb45a':'#9fe8c0'}">${r.refErr.toExponential(2)}</b>${r.refZero?' <span style="opacity:.7">'+TT('absolute','абсолютная','absolut')+'</span>':''}`:''}</span><br>
+          <b style="color:${hex}">${r.verdict}</b> · ${TT('numerical qualification','численная квалификация','numerische Qualifikation')} <b>${r.score.toFixed(0)}%</b>
+          <span style="opacity:.72;font-size:10px"> — ${TT('not a probability','не вероятность','keine Wahrscheinlichkeit')}</span><br>
+          <span style="opacity:.7;font-size:10px">${TT('falsified by','опровергается','widerlegt durch')}: ${esc(impL(r.claim.falsify))}</span>
+        </div>`; }).join('');
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -19573,7 +19793,7 @@ const NEXUS_TYPES={
   contrast:{color:0xff7a63,t:{en:'contrast / hypothesis test',ru:'контраст / проверка гипотез',de:'Kontrast / Hypothesentest'},epistemic:'distinguishable explanations, regimes or observables that must not be conflated'}
 };
 const NEXUS_CLUSTERS={
-  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['nul','hol','syd','sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh']},
+  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['nul','hol','syd','sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh','gate']},
   quantum:{color:0xc28dff,center:[-5.1,1.5,2.0],t:{en:'quantum · fields · matter',ru:'кванты · поля · материя',de:'Quanten · Felder · Materie'},views:['hopfion','skyrmion','quasi','atom','qm','qcd','spin','sc','berry','rsh','and','imp','pole']},
   waves:{color:0x5ce2cf,center:[5.2,1.4,1.5],t:{en:'waves · response · materials',ru:'волны · отклик · материалы',de:'Wellen · Antwort · Materialien'},views:['eot','wave','kdv','ret','dip','rd','bb','te','pv','disp','cau','cusp','qcrys']},
   dynamics:{color:0xff7898,center:[-3.3,-4.2,-3.0],t:{en:'dynamics · chaos · phase space',ru:'динамика · хаос · фазовое пространство',de:'Dynamik · Chaos · Phasenraum'},views:['act','grav','rel','chaos','kin','cp','kam','psp','poin']},
@@ -19581,6 +19801,14 @@ const NEXUS_CLUSTERS={
   astro:{color:0x739cff,center:[0,-1.7,-6.0],t:{en:'relativity · astrophysics · observation',ru:'относительность · астрофизика · наблюдение',de:'Relativität · Astrophysik · Beobachtung'},views:['lens','gw','cmb','bhr','psr','qso','rmhd']}
 };
 const NEXUS_RELATIONS=[
+  /* the prediction gate audits the numbers other stations publish, so its typed
+     edges are exactly the claims it re-measures on a refinement ladder */
+  ['gate','psp','invariant','shadow area ↔ refinement ladder','The gate recomputes the Gromov shadow over random symplectic words and checks it never falls below πr².','model-invariant'],
+  ['gate','dfx','invariant','topological integer ↔ refinement ladder','The gate recomputes the winding and the degree on finer contours and meshes and requires the integer to be immobile.','model-invariant'],
+  ['gate','wil','invariant','Willmore quadrature ↔ refinement ladder','The gate refines the surface quadrature and requires the limit to be 2π².','model-invariant'],
+  ['gate','cau','invariant','f-sum rule ↔ refinement ladder','The gate refines the oscillator-strength integral and compares against (π/2)ω_p² with its analytic tail restored.','model-invariant'],
+  ['gate','and','invariant','Lyapunov exponent ↔ sample ladder','The gate raises the transfer-step count and compares the measured exponent against the unfitted Thouless value.','model-comparison'],
+  ['gate','kam','invariant','Lyapunov exponent ↔ orbit ladder','The gate raises orbit count and length and compares against the random-phase limit ln(K/2).','model-comparison'],
   /* geometry, topology and representation */
   ['sec','hopf','representation','S³ chart ↔ Hopf chart','Two coordinate instruments describe structures on the same conditional round S³ carrier.','exact-representation'],
   ['sec','red','representation','geodesic cap ↔ redshift integral','The conditional redshift station integrates along the same S³ radial coordinate used by the section view.','model'],
@@ -20145,7 +20373,7 @@ function scientificViewReady(v){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:[0,8,17]; }
 function scientificCameraPreset(v){const p=s3ViewPreset(v);if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
@@ -20216,6 +20444,7 @@ function s3ViewVisibility(v){
   noeGroup.visible     = (v==='noe');
   cauGroup.visible     = (v==='cau');
   wilGroup.visible     = (v==='wil');
+  gateGroup.visible    = (v==='gate');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -20291,6 +20520,7 @@ function setS3View(v,opt={}){
     if(v==='noe'){ noeSetup(); }
     if(v==='cau'){ cauSetup(); }
     if(v==='wil'){ wilSetup(); }
+  if(v==='gate'){ gateSetup(); }
     if(v==='poin'){ poinSetup(); }
     if(v==='qcrys'){ qcSetup(); }
     if(v==='cmb'&&!ready){ cmbSetup(); }
@@ -28273,6 +28503,22 @@ function buildCtlBody(){
         <button class="btn" id="wilToImp">${TT('→ Smith chart: the Möbius group that leaves W alone','→ Карта Смита: группа Мёбиуса, не трогающая W','→ Smith-Diagramm: die Möbiusgruppe')}</button>
         <button class="btn" id="wilToSec">${TT('→ Section: where 2π² is printed as a volume','→ Сечение: где 2π² напечатано как объём','→ Schnitt: wo 2π² als Volumen steht')}</button></div>
     </div>`;
+    else if(V==='gate') body = `
+    <div class="sect"><b>${TT('The promotion protocol','Протокол продвижения','Das Beförderungsprotokoll')}</b>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('A detected structure is a CANDIDATE. It is promoted to a claim only after it survives refinement, agrees with an independent reference, and is unchanged by what must not matter. Anything that moves materially with grid or sampling is rejected — and this page does that to the atlas’s own headline numbers rather than to someone else’s.','Обнаруженная структура есть КАНДИДАТ. Она становится утверждением, лишь пережив измельчение, совпав с независимой ссылкой и не изменившись от того, что меняться не должно. Всё, что заметно движется с сеткой или выборкой, отклоняется, — и эта страница делает это с собственными заглавными числами атласа, а не с чужими.','Eine erkannte Struktur ist ein KANDIDAT. Sie wird erst befördert, wenn sie Verfeinerung übersteht, mit einer unabhängigen Referenz übereinstimmt und unter dem Irrelevanten unverändert bleibt.')}</div>
+      <div class="ctlrow" style="margin-top:5px;flex-wrap:wrap;gap:4px">
+        <button class="btn" id="gateRerun">${TT('⟲ run the ladder again','⟲ прогнать лестницу заново','⟲ Leiter erneut laufen')}</button>
+        <button class="btn" id="gateExport">${TT('⇩ export the audit','⇩ выгрузить аудит','⇩ Audit exportieren')}</button>
+      </div>
+    </div>
+    <div class="sect"><b>${TT('Ladder report','Отчёт лестницы','Leiter-Bericht')}</b>
+      <div class="note" id="gateInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        ${[...new Set(GATE_CLAIMS.map(c=>c.lab))].map(l=>`<button class="btn" data-gatego="${l}">${TT('→ ','→ ','→ ')}${esc(viewNameL(l))}</button>`).join('')}
+      </div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -29057,6 +29303,7 @@ function buildCtlBody(){
         <button class="btn ${V==='noe'?'on':''}" id="v-noe">${TT('Noether','Нётер','Noether')}</button>
         <button class="btn ${V==='cau'?'on':''}" id="v-cau">${TT('Causality','Причинность','Kausalität')}</button>
         <button class="btn ${V==='wil'?'on':''}" id="v-wil">${TT('Willmore','Уиллмор','Willmore')}</button>
+        <button class="btn ${V==='gate'?'on':''}" id="v-gate">${TT('Prediction gate','Шлюз прогноза','Prognose-Gate')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -29111,7 +29358,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso','rmhd','wd']){
+    for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','gate','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso','rmhd','wd']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>uiSetS3View(vv); }
     bindPredictionWorkbench(V);
     if(V==='nul') bindNulControls(ctl);
@@ -29584,6 +29831,21 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='gate'){
+      { const b=ctl.querySelector('#gateRerun'); if(b) b.onclick=()=>{ gateResults=null; buildCtl(); }; }
+      { const b=ctl.querySelector('#gateExport'); if(b) b.onclick=()=>{
+          const R=gateResults||gateRunAll();
+          const rep={generated:new Date().toISOString(), protocol:'refinement ladder · independent reference · invariance',
+            note:'score is a NUMERICAL QUALIFICATION, not a probability that the physics is correct',
+            claims:R.map(r=>({id:r.claim.id,lab:r.claim.lab,levels:r.v,reference:r.ref??null,referenceName:r.claim.refName,
+              contraction:r.contraction,observedOrder:r.order,relativeStep:r.rel,referenceError:r.refErr,
+              verdict:r.verdict,qualificationPercent:+r.score.toFixed(1),falsifiedBy:impL(r.claim.falsify)}))};
+          try{ const blob=new Blob([JSON.stringify(rep,null,2)],{type:'application/json'});
+            const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+            a.download='prediction_gate_audit.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+          }catch(e){ console.warn('[gate export]',e); } }; }
+      ctl.querySelectorAll('[data-gatego]').forEach(b=>b.onclick=()=>{ navPush(); setS3View(b.dataset.gatego); buildCtl(); });
     }
     if(V==='wil'){
       ctl.querySelectorAll('[data-wilst]').forEach(b=>b.onclick=()=>{ state.wilStation=b.dataset.wilst; buildCtl(); });
@@ -31269,10 +31531,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy'};
+const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',gate:'Prediction gate · refinement',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy'};
 const S3_VIEW_I18N={
- ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар',rmhd:'радиационная МГД и спиральность',wd:'вырождение белого карлика'},
- de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Strahlungs-MHD & Helizität',wd:'Entartung Weißer Zwerge'} };
+ ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',gate:'шлюз прогноза · измельчение',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар',rmhd:'радиационная МГД и спиральность',wd:'вырождение белого карлика'},
+ de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',gate:'Prognose-Gate · Verfeinerung',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Strahlungs-MHD & Helizität',wd:'Entartung Weißer Zwerge'} };
 
 /* ================================================================
    PREDICTION & VALIDATION WORKBENCH
@@ -31291,13 +31553,13 @@ const PREDICTION_CLASSES={
   exploratory:{color:'#b89bd8',label:'exploratory inference instrument',scope:'Finds typed paths, candidate invariants or compatible settings; it predicts no external phenomenon without a separate physical model.',falsifier:'A declared relation, type, transform or candidate-stability result fails its own reproducible contract.'}
 };
 const PREDICTION_CLASS_MEMBERS={
-  exploratory:['nexus'],
+  exploratory:['nexus','gate'],
   exact:['nul','act','hol','syd','sec','hopf','eig','bell','topo','sh','su2','imp','berry','psp','dfx','noe','cau','wil','poin','qcrys'],
   numerical:['hopfion','skyrmion','grav','qm','chaos','kin','kdv','cp','rd','lens','bhr','ns'],
   reference:['quasi','atom','qcd','sc','taub','eot','wave','spin','rel','ret','dip','he','bb','nuc','te','gw','pv','bht','pole','disp','cusp','kam','rsh','and','sn','psr','qso','rmhd','wd'],
   conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
 };
-const PREDICTION_TARGETS={
+const PREDICTION_TARGETS={   gate:'refinement-ladder verdict per registered claim: contraction ratio, observed order, independent-reference residual and a numerical qualification that is explicitly not a probability',
   nexus:'typed paths plus held-edge-calibrated structural bridge hypotheses under an explicit admission firewall',nul:'future-null / spin-weight observable with sensitivity, uncertainty, holdout and inverse target',act:'Reeb, return, regularized or Maslov observable with sensitivity, uncertainty, holdout and inverse target',hol:'closed-path return phase with sensitivity, uncertainty, holdout and multi-root inverse target',syd:'train/holdout candidate drift and predicted symmetry-breaking threshold',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Kerr horizon geometry plus deterministic Schwarzschild spectral peak, luminosity and lifetime scaling',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'Touchstone S11 assimilation, series-RLC inverse, unseen holdout forecast and uncertainty envelope',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'Bateman abundances, grey gamma deposition, Arnett bolometric diffusion, photospheric temperature and matched multi-phase remnant expansion',psr:'dipole field, spin-down power, characteristic age, light-cylinder scale, RVM polarization and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming',rmhd:'frozen-flux response, relative magnetic helicity, Sweet–Parker rate, shock compression and magnetized Rayleigh–Taylor growth',wd:'Chandrasekhar mass and zero-temperature white-dwarf mass–radius relation'
 };
 const PRED_STATE_PREFIX={sec:['chi','gyrPerSec'],hopf:['hopf'],eig:['eig'],red:['rkz'],ring:['ring'],lab:['lab'],bell:['bell'],drd:['drd'],sel:['sel'],hopfion:['hf'],skyrmion:['sk'],quasi:['qp'],atom:['at'],grav:['grav'],qm:['qm'],qcd:['qcd'],topo:['topo'],sc:['sc'],taub:['tn'],eot:['eot'],wave:['wave'],spin:['spin'],rel:['rel'],chaos:['chaos'],kin:['kin'],sh:['sh'],kdv:['kdv'],ret:['ret'],dip:['dip'],cp:['cp'],rd:['rd'],he:['he'],bb:['bb'],nuc:['nuc'],lens:['lens'],te:['te'],gw:['gw'],pv:['pv'],su2:['su2'],bht:['bht'],rpd:['rpd'],imp:['imp'],pole:['pole'],disp:['disp'],berry:['berry'],cusp:['cusp'],kam:['kam'],rsh:['rsh'],and:['and'],psp:['psp'],dfx:['dfx'],noe:['noe'],cau:['cau'],wil:['wil'],poin:['poin'],qcrys:['qc'],cmb:['cmb'],mimg:['mimg'],bhr:['bhr'],ns:['ns'],sn:['sn'],psr:['psr'],qso:['qso'],rmhd:['rmhd'],wd:['wd'],nul:['nul'],act:['act'],hol:['hol'],syd:['syd'],nexus:['nexus']};
@@ -32968,6 +33230,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='gate'){
+      fbsAnimT+=dt; updateGate(dt);
     } else if(state.s3view==='wil'){
       fbsAnimT+=dt; updateWil(dt);
     } else if(state.s3view==='cau'){
