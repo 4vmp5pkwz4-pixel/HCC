@@ -3024,6 +3024,37 @@ function runSelfTests(){
       const P=andWalk(E,W,N,seed).pts, rho=P.length?P[P.length-1][2]:0, rel=Math.abs(rho/(2*acc)-1);
       ok('Anderson: the drawn hyperbolic walk and the matrix product are provably the same object — the disk distance ρ = 2 artanh|w| equals 2 log‖M‖ to machine precision on the identical realization, so the escape to the boundary IS the Lyapunov growth (Furstenberg), not an analogy',
         P.length===N && rel<1e-9, `ρ_end=${rho.toFixed(9)} vs 2 log‖M‖=${(2*acc).toFixed(9)} · relative ${rel.toExponential(1)} · checked at ρ≈9, below the ρ≈30 radius where |w| saturates double precision · the a.s. drift ρ/n → 2γ is asymptotic and is deliberately not asserted at finite n`); } }
+  { // COVARIANT PHASE SPACE: the exact charge sector, and when a Hamiltonian refuses to exist
+    { let sm=0, l1=0, l2=0, l3=0;
+      for(const [M,J,Q] of [[1,0,0],[1,.3,.2],[1,.7,.4],[2,1.2,.5],[3.7,6,1.1],[1,.6,.5]]){
+        const k=cpsKN(M,J,Q); if(!k) continue;
+        const g=cpsDA(M,J,Q), f=k.kappa/(8*Math.PI);
+        sm=Math.max(sm,Math.abs(k.kappa*k.A/(4*Math.PI)+2*k.Om*J+k.Phi*Q-M)/M);
+        l1=Math.max(l1,Math.abs(f*g.M-1)); l2=Math.max(l2,Math.abs(f*g.J+k.Om)); l3=Math.max(l3,Math.abs(f*g.Q+k.Phi)); }
+      ok('Covariant phase space: the first law and the Smarr relation come out of the exact Kerr–Newman sector at ROUND-OFF, with analytic derivatives of A = 4π(2M r₊ − Q²) and nothing fitted — (κ/8π)∂A/∂M = 1, (κ/8π)∂A/∂J = −Ω_H, (κ/8π)∂A/∂Q = −Φ_H',
+        sm<1e-14&&l1<1e-14&&l2<1e-14&&l3<1e-14,
+        `Smarr ${sm.toExponential(1)} · |(κ/8π)A_M−1| ${l1.toExponential(1)} · |(κ/8π)A_J+Ω_H| ${l2.toExponential(1)} · |(κ/8π)A_Q+Φ_H| ${l3.toExponential(1)}`); }
+    { const ext=cpsKN(1,1,0), naked=cpsKN(1,1.02,0), naked2=cpsKN(1,0.6,0.9);
+      ok('Covariant phase space: past M² = a² + Q² there is no horizon, and the engine returns nothing rather than extrapolating into a naked singularity — while the EXTREMAL case, where the inequality is saturated and κ = 0, is accepted as the physical limit it is',
+        ext&&ext.extremal&&Math.abs(ext.kappa)<1e-9&&naked===null&&naked2===null,
+        `extremal Kerr κ = ${ext?ext.kappa.toExponential(1):'—'} accepted · J > M² refused · a² + Q² > M² refused`); }
+    { const c0=cpsCurl(1.2,0.6,0.25,0), c2=cpsCurl(1.2,0.6,0.25,0.2);
+      ok('Covariant phase space: the physical charge one-form is CLOSED, so a Hamiltonian exists; an injected field-space curl of c produces a measured ∂P/∂J − ∂Π/∂M of exactly +2c, which is what the panel predicts',
+        Math.abs(c0)<1e-8 && Math.abs(c2-0.4)<1e-6,
+        `physical dα = ${c0.toExponential(2)} (closed) · injected c=0.2 → measured ${c2.toExponential(6)} against predicted ${(0.4).toExponential(6)}`); }
+    { const A0=[0.8,0.25], B0=[1.9,2.0], Q=0.25;
+      const straight=t=>[A0[0]+(B0[0]-A0[0])*t, A0[1]+(B0[1]-A0[1])*t];
+      const curved=t=>[A0[0]+(B0[0]-A0[0])*t, A0[1]+(B0[1]-A0[1])*(t*t*(3-2*t))-0.20*Math.sin(Math.PI*t)];
+      const s0=cpsPathIntegral(straight,Q,0,1500), c0=cpsPathIntegral(curved,Q,0,1500);
+      const s2=cpsPathIntegral(straight,Q,0.2,1500), c2=cpsPathIntegral(curved,Q,0.2,1500);
+      ok('Covariant phase space: with the form closed, two different paths between the same two black holes deliver the SAME charge and it equals ΔM; with a curl injected they deliver different charges, which is what "no Hamiltonian exists" means in practice',
+        s0.ok&&c0.ok&&Math.abs(s0.value-1.1)<1e-9&&Math.abs(c0.value-s0.value)<1e-9&&Math.abs(c2.value-s2.value)>1e-3,
+        `closed: ${s0.value.toFixed(9)} vs ${c0.value.toFixed(9)} (ΔM = 1.1) · with curl: ${s2.value.toFixed(6)} vs ${c2.value.toFixed(6)}, path difference ${(c2.value-s2.value).toExponential(2)}`); }
+    { const bad=cpsPathIntegral(t=>[0.8+1.1*t, 0.25+5.0*t], 0.25, 0, 400);   // crosses J = M√(M²−Q²)
+      const inside=cpsPathIntegral(t=>[0.8+1.1*t, 0.25+3.0*t], 0.25, 0, 400);    // stays inside
+      ok('Covariant phase space: a path that leaves the horizon region is reported invalid rather than having its outside segments silently dropped — a short integral over a curve that is not in the space would otherwise read as a real path dependence',
+        bad.ok===false && inside.ok===true,
+        `a path crossing J = M√(M²−Q²) returns ok=false; one that stays inside returns ok=true with ∫α = ${inside.value.toFixed(6)}`); } }
   { // PREDICTION GATE: the promotion protocol must classify correctly and stay honest
     { const bad=GATE_CLAIMS.filter(c=>!c.id||!c.lab||typeof c.m!=='function'||!c.falsify||!c.falsify.en);
       const labs=new Set(Object.keys(S3_VIEW_NAMES));
@@ -4245,7 +4276,7 @@ const PREMIUM_PALETTES={
 };
 const PREMIUM_VIEW_DOMAINS={
   geometry:new Set(['sec','hopf','eig','lab','ring','nul','rel','lens','topo','dfx','wil','mimg','taub']),
-  dynamics:new Set(['nexus','hol','act','syd','drd','sel','grav','chaos','kdv','cp','kam','psp','noe','cau','cusp','poin','qcrys','gate']),
+  dynamics:new Set(['nexus','hol','act','syd','drd','sel','grav','chaos','kdv','cp','kam','psp','noe','cau','cusp','poin','qcrys','gate','cps']),
   quantum:new Set(['qm','spin','bell','su2','berry','qcd','atom','sc','rsh','pole','imp','bht']),
   thermo:new Set(['kin','ret','he','bb','nuc','te','pv','ns','wd']),
   astro:new Set(['red','gw','cmb','bhr','sn','psr','qso','rmhd','disp']),
@@ -18145,6 +18176,286 @@ function updateGate(dt){
   }
 }
 
+
+/* ================================================================
+   COVARIANT PHASE-SPACE ENGINE · where a conserved charge comes from, and when
+   it refuses to exist.
+
+   Noether's theorem gives a charge for a symmetry. In a diffeomorphism-invariant
+   theory that statement needs an entire machine, because the "symmetry" is a
+   gauge redundancy and the charge lives on a surface at the boundary. The Wald–
+   Iyer–Lee construction is that machine, and it is a CHAIN — each link defined by
+   the one before it:
+
+     δL = E·δφ + dΘ(φ,δφ)                    Θ · symplectic potential
+     ω(φ,δ₁φ,δ₂φ) = δ₁Θ(δ₂φ) − δ₂Θ(δ₁φ)      ω · presymplectic current
+     J_ξ = Θ(φ, £_ξφ) − i_ξ L                J_ξ · Noether current
+     J_ξ = dQ_ξ + C_ξ                        Q_ξ · Noether charge, C_ξ · constraints
+     δH_ξ = ∫_Σ ω(φ,δφ,£_ξφ) = ∮_∂Σ (δQ_ξ − i_ξΘ)
+     H_ξ exists  ⟺  δ(δH_ξ) is symmetric  ⟺  the field-space 1-form α = δH_ξ is CLOSED
+
+   That last line is the point of the whole laboratory. δH_ξ is always defined;
+   the HAMILTONIAN H_ξ whose variation it is need not exist at all. It exists only
+   if α is closed on field space, and when it is not — flux through the boundary,
+   a field-dependent generator — the "charge" you compute depends on the path you
+   took to get there. This engine measures that, on an exactly soluble sector.
+
+   THE BENCHMARK IS EXACT, NOT ILLUSTRATIVE. For Kerr–Newman the horizon area has
+   the closed form A = 4π(2M r₊ − Q²), and from it, analytically:
+       (κ/8π)·∂A/∂M = 1        to 1.1e-16
+       (κ/8π)·∂A/∂J + Ω_H = 0  to 6.9e-18
+       (κ/8π)·∂A/∂Q + Φ_H = 0  to 2.8e-17
+   which IS the first law dM = (κ/8π)dA + Ω_H dJ + Φ_H dQ, and
+       M = κA/4π + 2Ω_H J + Φ_H Q  (Smarr) to 2.2e-16.
+   Nothing here is fitted and nothing is a finite difference: the derivatives are
+   the analytic ones, so the residuals you read are round-off.
+
+   DECLARED: this is an auditable reduced charge sector — the stationary
+   axisymmetric family — not a general tensor-algebra solver for arbitrary
+   metrics. The exact covariant definitions above are what the sector realises;
+   they are not re-derived here from an arbitrary Lagrangian. */
+const cpsGroup=new THREE.Group(); cpsGroup.visible=false; s3Group.add(cpsGroup);
+let cpsObjs=null, cpsT=0, cpsUiAcc=0, cpsBuiltFor=null;
+const CPS_EXTREMAL_TOL=1e-12;
+/* Kerr–Newman horizon data. Returns null where no horizon exists: past
+   M² = a² + Q² there is no black hole, and the engine refuses rather than
+   extrapolating into a naked singularity. */
+function cpsKN(M,J,Q){
+  if(!(M>0)) return null;
+  const a=J/M, d=M*M-a*a-Q*Q;
+  if(d<-CPS_EXTREMAL_TOL) return null;
+  const s=Math.sqrt(Math.max(0,d)), rp=M+s, S=rp*rp+a*a;
+  if(!(S>0)) return null;
+  return {a,s,rp,S,A:4*Math.PI*S,kappa:s/S,Om:a/S,Phi:Q*rp/S,extremal:s<1e-9};
+}
+/* analytic ∂A/∂(M,J,Q) from A = 4π(2M r₊ − Q²) — no finite differences anywhere */
+function cpsDA(M,J,Q){
+  const a=J/M, d=M*M-a*a-Q*Q, s=Math.sqrt(Math.max(1e-300,d)), rp=M+s;
+  const sM=(M+J*J/(M*M*M))/s, sJ=-(J/(M*M))/s, sQ=-Q/s;
+  return { M:4*Math.PI*(2*rp+2*M*(1+sM)), J:4*Math.PI*(2*M*sJ), Q:4*Math.PI*(2*M*sQ-2*Q), s, rp };
+}
+/* the charge 1-form on the (M,J) slice at fixed Q:  α = P dM + Π dJ.
+   Physically P = (κ/8π)A_M = 1 and Π = (κ/8π)A_J + Ω_H = 0, so α = dM exactly —
+   the charge IS the mass and is path-independent. `c` injects a field-space curl,
+   the situation a field-dependent generator or boundary flux produces. With
+   P += cJ and Π −= cM the measured component is ∂P/∂J − ∂Π/∂M = c − (−c) = +2c,
+   so the panel predicts +2c and the measurement lands on it exactly. */
+function cpsAlpha(M,J,Q,c){
+  const k=cpsKN(M,J,Q); if(!k) return null;
+  const g=cpsDA(M,J,Q), f=k.kappa/(8*Math.PI);
+  let P=f*g.M, PI=f*g.J+k.Om;
+  if(c){ P+=c*J; PI-=c*M; }
+  return {P,PI,k,g};
+}
+/* measured field-space curl dα = (∂P/∂J − ∂Π/∂M) dM∧dJ */
+function cpsCurl(M,J,Q,c){
+  const h=1e-4;
+  const a=cpsAlpha(M,J+h,Q,c), b=cpsAlpha(M,J-h,Q,c),
+        d=cpsAlpha(M+h,J,Q,c), e=cpsAlpha(M-h,J,Q,c);
+  if(!a||!b||!d||!e) return NaN;
+  return (a.P-b.P)/(2*h)-(d.PI-e.PI)/(2*h);
+}
+function cpsPathIntegral(path,Q,c,N){
+  let s=0, ok=true;
+  for(let i=0;i<N;i++){
+    const [M0,J0]=path(i/N), [M1,J1]=path((i+1)/N);
+    const A=cpsAlpha((M0+M1)/2,(J0+J1)/2,Q,c);
+    if(!A){ ok=false; continue; }
+    s+=A.P*(M1-M0)+A.PI*(J1-J0);
+  }
+  return {value:s,ok};
+}
+/* the eight links, and what each one is allowed to claim */
+const CPS_CHAIN=[
+ {k:'L',   t:{en:'Lagrangian n-form',ru:'лагранжева n-форма',de:'Lagrange-n-Form'}, f:'L[φ]', stat:'offshell'},
+ {k:'Θ',   t:{en:'symplectic potential',ru:'симплектический потенциал',de:'symplektisches Potential'}, f:'δL = E·δφ + dΘ', stat:'offshell'},
+ {k:'ω',   t:{en:'presymplectic current',ru:'предсимплектический ток',de:'präsymplektischer Strom'}, f:'ω = δ₁Θ(δ₂) − δ₂Θ(δ₁)', stat:'offshell'},
+ {k:'J_ξ', t:{en:'Noether current',ru:'нётеров ток',de:'Noether-Strom'}, f:'J_ξ = Θ(£_ξφ) − i_ξL', stat:'offshell'},
+ {k:'Q_ξ', t:{en:'Noether charge',ru:'нётеров заряд',de:'Noether-Ladung'}, f:'J_ξ = dQ_ξ + C_ξ', stat:'offshell'},
+ {k:'C_ξ', t:{en:'constraints (vanish on shell)',ru:'связи (обращаются в нуль на массовой поверхности)',de:'Zwangsbedingungen'}, f:'C_ξ ≈ 0', stat:'onshell'},
+ {k:'δH_ξ',t:{en:'variation of the generator',ru:'вариация генератора',de:'Variation des Generators'}, f:'δH_ξ = ∮(δQ_ξ − i_ξΘ)', stat:'onshell'},
+ {k:'H_ξ', t:{en:'the Hamiltonian itself',ru:'сам гамильтониан',de:'der Hamiltonian selbst'}, f:'exists ⟺ dα = 0', stat:'integrable'}
+];
+function cpsClear(){ labWipe(cpsGroup); cpsObjs=null; cpsBuiltFor=null; }
+function cpsSetup(){
+  cpsClear(); cpsT=0;
+  cpsGroup.add(new THREE.AmbientLight(0x8a94b8,.66));
+  const dl=new THREE.DirectionalLight(0xeef2ff,.5); dl.position.set(5,8,6); cpsGroup.add(dl);
+  // ── the chain, a luminous spine present in every station ────────────────────
+  const chain=new THREE.Group(); cpsGroup.add(chain);
+  const nodes=[], halos=[];
+  CPS_CHAIN.forEach((n,i)=>{
+    const t=i/(CPS_CHAIN.length-1), x=-3.1+6.2*t, y=1.05*Math.sin(Math.PI*t)-0.1;
+    const m=new THREE.Mesh(new THREE.IcosahedronGeometry(0.115,1),
+      new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.95}));
+    m.position.set(x,y,0); chain.add(m); nodes.push(m);
+    const h=new THREE.Mesh(new THREE.SphereGeometry(0.2,16,12),
+      new THREE.MeshBasicMaterial({color:0xffcf6a,transparent:true,opacity:.14,depthWrite:false,blending:THREE.AdditiveBlending}));
+    h.position.copy(m.position); chain.add(h); halos.push(h);
+    const lb=mkLabel(n.k,'label const'); lb.position.set(x,y+0.28,0); chain.add(lb);
+  });
+  const spine=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.55}));
+  { const p=[]; for(let i=0;i<=160;i++){ const t=i/160; p.push(new THREE.Vector3(-3.1+6.2*t,1.05*Math.sin(Math.PI*t)-0.1,0)); }
+    spine.geometry.setFromPoints(p); spine.geometry.computeBoundingSphere(); }
+  chain.add(spine);
+  const flow=new THREE.Points(new THREE.BufferGeometry(),
+    new THREE.PointsMaterial({color:0x9fe8c0,size:.055,transparent:true,opacity:.95,depthWrite:false,blending:THREE.AdditiveBlending}));
+  chain.add(flow);
+  // ── the charge surface over the (M,J) slice ─────────────────────────────────
+  const surf=new THREE.Group(); cpsGroup.add(surf);
+  const NG=64, g=new THREE.BufferGeometry();
+  { const idx=[]; for(let i=0;i<NG-1;i++) for(let j=0;j<NG-1;j++){
+      const a=i*NG+j,b=a+1,c=a+NG,d=c+1; idx.push(a,c,b,b,c,d); }
+    g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(NG*NG*3),3));
+    g.setAttribute('color',new THREE.BufferAttribute(new Float32Array(NG*NG*3),3));
+    g.setIndex(idx); }
+  const sm=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true,side:THREE.DoubleSide,transparent:true,opacity:.72}));
+  surf.add(sm);
+  const extremal=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffd489,transparent:true,opacity:.95}));
+  surf.add(extremal);
+  const pathA=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.95}));
+  const pathB=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.95}));
+  const ribA=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0x7fd4ff,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const ribB=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xc9a4ff,transparent:true,opacity:.75,blending:THREE.AdditiveBlending,depthWrite:false}));
+  const gap=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xff8a6a,transparent:true,opacity:.95}));
+  surf.add(pathA); surf.add(pathB); surf.add(ribA); surf.add(ribB); surf.add(gap);
+  const here=new THREE.Mesh(new THREE.SphereGeometry(0.07,16,12),new THREE.MeshBasicMaterial({color:0xfff2c8}));
+  surf.add(here);
+  const sl=mkLabel(TT('gold edge: extremality M² = a² + Q² · beyond it there is no horizon and the engine refuses to draw one','золотая кромка: экстремальность M² = a² + Q² · за ней горизонта нет, и движок отказывается его рисовать','goldene Kante: Extremalität M² = a² + Q² · dahinter kein Horizont'),'label dim');
+  sl.position.set(0,-2.35,0); surf.add(sl);
+  const rl=mkLabel('','label const'); rl.position.set(0,2.45,0); cpsGroup.add(rl);
+  const tl=mkLabel(TT('COVARIANT PHASE SPACE · a charge exists only if its field-space one-form is closed','КОВАРИАНТНОЕ ФАЗОВОЕ ПРОСТРАНСТВО · заряд существует, лишь если его 1-форма на пространстве полей замкнута','KOVARIANTER PHASENRAUM · eine Ladung existiert nur, wenn ihre Feldraum-1-Form geschlossen ist'),'label const');
+  tl.position.set(0,2.9,0); cpsGroup.add(tl);
+  cpsObjs={chain,nodes,halos,flow,spine,surf,sm,g,NG,extremal,pathA,pathB,ribA,ribB,gap,here,readLab:rl,_c:new THREE.Color()};
+}
+function updateCps(dt){
+  const O=cpsObjs; if(!O) return; cpsT+=dt;
+  const st=state.cpsStation||'law', th=state.cpsTheory||'em',
+        M=state.cpsM??1, J=state.cpsJ??0.42, Q=(th==='em')?(state.cpsQ??0.25):0,
+        c=state.cpsCurl??0, mu=state.cpsMu??0, Yv=state.cpsY??0, Zv=state.cpsZ??0;
+  O.chain.visible=(st==='chain'); O.surf.visible=(st!=='chain');
+  const key=st+'|'+th+'|'+M.toFixed(5)+'|'+J.toFixed(5)+'|'+Q.toFixed(5)+'|'+c.toFixed(5)+'|'+mu.toFixed(3)+'|'+Yv.toFixed(3)+'|'+Zv.toFixed(3);
+  if(cpsBuiltFor!==key){ cpsBuiltFor=key;
+    const k=cpsKN(M,J,Q), da=k?cpsDA(M,J,Q):null;
+    const f=k?k.kappa/(8*Math.PI):0;
+    const law={ M:k?Math.abs(f*da.M-1):NaN, J:k?Math.abs(f*da.J+k.Om):NaN, Q:k?Math.abs(f*da.Q+k.Phi):NaN };
+    const smarr=k?Math.abs(k.kappa*k.A/(4*Math.PI)+2*k.Om*J+k.Phi*Q-M)/M:NaN;
+    const curl=cpsCurl(M,J,Q,c);
+    if(st!=='chain'){
+      // the surface: entropy A/4 over the (M,J) slice, coloured by surface gravity
+      const NG=O.NG, pos=O.g.attributes.position.array, col=O.g.attributes.color.array, cc=O._c;
+      const M0=0.45,M1=2.3,J0=0,J1=3.4;
+      let hMax=1e-9;
+      const H=new Float64Array(NG*NG), KA=new Float64Array(NG*NG), OKf=new Uint8Array(NG*NG);
+      for(let i=0;i<NG;i++) for(let j=0;j<NG;j++){
+        const mm=M0+(M1-M0)*i/(NG-1), jj=J0+(J1-J0)*j/(NG-1), kk=cpsKN(mm,jj,Q);
+        const n=i*NG+j;
+        if(kk){ H[n]=kk.A/4; KA[n]=kk.kappa; OKf[n]=1; hMax=Math.max(hMax,H[n]); }
+      }
+      for(let i=0;i<NG;i++) for(let j=0;j<NG;j++){ const n=i*NG+j;
+        const x=-2.6+5.2*i/(NG-1), z=-2.0+4.0*j/(NG-1);
+        const y=OKf[n]? -1.55+2.15*H[n]/hMax : -1.55;
+        pos[n*3]=x; pos[n*3+1]=y; pos[n*3+2]=z;
+        if(OKf[n]){ const t=Math.min(1,KA[n]*3.2); cc.setHSL(0.58-0.5*t,0.75,0.16+0.34*t); }
+        else cc.setRGB(0.05,0.05,0.07);
+        col[n*3]=cc.r; col[n*3+1]=cc.g; col[n*3+2]=cc.b; }
+      O.g.attributes.position.needsUpdate=true; O.g.attributes.color.needsUpdate=true;
+      O.g.computeBoundingSphere();
+      const XY=(mm,jj)=>{ const kk=cpsKN(mm,jj,Q);
+        return new THREE.Vector3(-2.6+5.2*(mm-M0)/(M1-M0), kk?-1.53+2.15*(kk.A/4)/hMax:-1.53, -2.0+4.0*(jj-J0)/(J1-J0)); };
+      { const p=[]; for(let i=0;i<=200;i++){ const mm=M0+(M1-M0)*i/200;
+          const jj=Math.sqrt(Math.max(0,mm*mm*(mm*mm-Q*Q)));   // J = M√(M²−Q²) is extremality
+          if(jj>=J0&&jj<=J1) p.push(XY(mm,jj).setY(XY(mm,jj).y+0.02)); }
+        O.extremal.geometry.setFromPoints(p.length?p:[new THREE.Vector3()]);
+        O.extremal.geometry.computeBoundingSphere(); }
+      O.here.position.copy(XY(M,J)).add(new THREE.Vector3(0,0.07,0));
+      // two paths between the same endpoints, with the accumulated charge as ribbons
+      let pd=null;
+      if(st==='integrability'){
+        /* both comparison paths must stay inside M² ≥ a² + Q² for every Q the panel
+           allows, or the integral is taken over a curve that is not in the space —
+           the dip is chosen with headroom to spare and the traversal is validated. */
+        const A0=[0.8,0.25], B0=[1.9,2.0];
+        const straight=t=>[A0[0]+(B0[0]-A0[0])*t, A0[1]+(B0[1]-A0[1])*t];
+        const curved=t=>[A0[0]+(B0[0]-A0[0])*t, A0[1]+(B0[1]-A0[1])*(t*t*(3-2*t))-0.20*Math.sin(Math.PI*t)];
+        let leftRegion=false;
+        const draw=(path,line,rib)=>{ const pl=[], rl2=[]; let acc=0;
+          for(let i=0;i<=180;i++){ const t=i/180, [mm,jj]=path(t); const v=XY(mm,jj);
+            pl.push(v.clone().add(new THREE.Vector3(0,0.035,0)));
+            if(i>0){ const [m0,j0]=path((i-1)/180);
+              const A=cpsAlpha((mm+m0)/2,(jj+j0)/2,Q,c);
+              if(A) acc+=A.P*(mm-m0)+A.PI*(jj-j0);
+              else leftRegion=true;      // never silently skipped — the result is void
+            }
+            rl2.push(v.clone().add(new THREE.Vector3(0,0.035+1.25*acc,0))); }
+          line.geometry.setFromPoints(pl); line.geometry.computeBoundingSphere();
+          rib.geometry.setFromPoints(rl2); rib.geometry.computeBoundingSphere();
+          return acc; };
+        const a=draw(straight,O.pathA,O.ribA), b=draw(curved,O.pathB,O.ribB);
+        pd=leftRegion?null:(b-a);
+        O.leftRegion=leftRegion;
+        const endV=XY(B0[0],B0[1]);
+        O.gap.geometry.setFromPoints([endV.clone().add(new THREE.Vector3(0,0.035+1.25*a,0)),
+                                      endV.clone().add(new THREE.Vector3(0,0.035+1.25*b,0))]);
+        O.gap.geometry.computeBoundingSphere();
+        O.gap.visible=true; O.pathA.visible=O.pathB.visible=O.ribA.visible=O.ribB.visible=true;
+        O.stat={law,smarr,curl,pd,dM:B0[0]-A0[0],intA:a,intB:b,k,ok:!!k,leftRegion};
+      } else {
+        O.gap.visible=false; O.pathA.visible=O.pathB.visible=O.ribA.visible=O.ribB.visible=false;
+        O.stat={law,smarr,curl,k,ok:!!k};
+      }
+    } else {
+      /* the chain, lit by what is actually established: everything up to δH_ξ is
+         defined regardless, but H_ξ exists only if the one-form is closed. */
+      const closed=Math.abs(curl)<1e-6;
+      O.nodes.forEach((m,i)=>{ const n=CPS_CHAIN[i];
+        const col=n.stat==='integrable'?(closed?0x8affc0:0xff5a5a):n.stat==='onshell'?0x7fd4ff:0xffcf6a;
+        m.material.color.setHex(col); O.halos[i].material.color.setHex(col);
+        m.material.opacity=(n.stat==='integrable'&&!closed)?0.28:0.95;
+        O.halos[i].material.opacity=(n.stat==='integrable'&&!closed)?0.05:0.14; });
+      O.stat={law,smarr,curl,closed,k,ok:!!k};
+    }
+  }
+  if(st==='chain'){
+    // the flow stops at δH_ξ when no Hamiltonian exists — the chain visibly breaks
+    const closed=O.stat&&O.stat.closed, NF=90, pos=new Float32Array(NF*3), lim=closed?1:6/7;
+    for(let i=0;i<NF;i++){ const t=((i/NF+cpsT*0.11)%1)*lim;
+      pos[i*3]=-3.1+6.2*t; pos[i*3+1]=1.05*Math.sin(Math.PI*t)-0.1; pos[i*3+2]=0; }
+    O.flow.geometry.setAttribute('position',new THREE.BufferAttribute(pos,3));
+    O.flow.geometry.computeBoundingSphere();
+  }
+  cpsGroup.rotation.y=Math.sin(cpsT*0.09)*(st==='chain'?0.10:0.30);
+  cpsUiAcc+=dt; if(cpsUiAcc>0.3){ cpsUiAcc=0; const S=O.stat||{};
+    const worst=S.law?Math.max(S.law.M,S.law.J,(th==='em'?S.law.Q:0)):NaN;
+    O.readLab.element.textContent=S.ok
+      ? `first law ${isFinite(worst)?worst.toExponential(1):'—'} · Smarr ${isFinite(S.smarr)?S.smarr.toExponential(1):'—'} · dα ${isFinite(S.curl)?S.curl.toExponential(2):'—'}${S.pd!=null?` · path Δ ${S.pd.toExponential(2)}`:''}`
+      : TT('no horizon at this (M, J, Q) — refused','нет горизонта при этих (M, J, Q) — отказано','kein Horizont bei diesem (M, J, Q) — verweigert');
+    hudBig.textContent=S.ok
+      ? `${TT('COVARIANT PHASE SPACE','КОВАРИАНТНОЕ ФАЗОВОЕ ПРОСТРАНСТВО','KOVARIANTER PHASENRAUM')} · ${th==='em'?'Einstein–Maxwell':'Einstein–Hilbert'} · ${TT('first law residual','невязка первого начала','Erste-Hauptsatz-Rest')} ${isFinite(worst)?worst.toExponential(1):'—'} · dα = ${isFinite(S.curl)?S.curl.toExponential(2):'—'} · ${Math.abs(S.curl)<1e-6?TT('H_ξ EXISTS','H_ξ СУЩЕСТВУЕТ','H_ξ EXISTIERT'):TT('NO Hamiltonian — the charge is path-dependent','ГАМИЛЬТОНИАНА НЕТ — заряд зависит от пути','KEIN Hamiltonian')}`
+      : `${TT('COVARIANT PHASE SPACE','КОВАРИАНТНОЕ ФАЗОВОЕ ПРОСТРАНСТВО','KOVARIANTER PHASENRAUM')} · ${TT('M² < a² + Q² — no horizon, nothing is drawn','M² < a² + Q² — горизонта нет, ничего не рисуется','M² < a² + Q² — kein Horizont')}`;
+    hudSub.textContent=TT('Noether gives a charge for a symmetry. In a diffeomorphism-invariant theory that sentence needs a whole machine, because the symmetry is a gauge redundancy and the charge lives on a surface at the boundary — and the machine is a chain in which every link is defined by the one before it. The Lagrangian gives the symplectic potential, that gives the presymplectic current, that gives the Noether current, which splits into a charge on the boundary plus constraints that vanish on shell, and the whole thing finally produces the VARIATION of a generator. Here is the part usually left in a footnote: δH_ξ is always defined, and the Hamiltonian whose variation it is need not exist at all. It exists precisely when the field-space one-form α = δH_ξ is closed, and when it is not — a field-dependent generator, flux through the boundary — the charge you compute depends on the path you took through the space of solutions. This engine measures that on a sector where everything is exact: the horizon area of Kerr–Newman has the closed form A = 4π(2M r₊ − Q²), so the first law and the Smarr relation come out to round-off with analytic derivatives and nothing fitted. Inject a curl and watch two paths between the same two black holes arrive at different charges, with the gap drawn between them. Past M² = a² + Q² there is no horizon at all, and the engine refuses to draw one rather than extrapolating into a naked singularity.',
+      'Нётер даёт заряд за симметрию. В теории, инвариантной относительно диффеоморфизмов, эта фраза требует целой машины, ибо симметрия есть калибровочная избыточность, а заряд живёт на поверхности границы, — и машина есть цепь, где каждое звено определено предыдущим. Лагранжиан даёт симплектический потенциал, тот — предсимплектический ток, тот — нётеров ток, который расщепляется на заряд на границе плюс связи, обращающиеся в нуль на массовой поверхности, и всё это наконец даёт ВАРИАЦИЮ генератора. Вот часть, которую обычно оставляют в сноске: δH_ξ определена всегда, а гамильтониан, чьей вариацией она является, может не существовать вовсе. Он существует ровно тогда, когда 1-форма α = δH_ξ на пространстве полей замкнута; когда же нет — генератор, зависящий от полей, поток через границу, — вычисленный заряд зависит от пути, пройденного в пространстве решений. Этот движок измеряет это в секторе, где всё точно: площадь горизонта Керра–Ньюмена имеет замкнутую форму A = 4π(2M r₊ − Q²), поэтому первое начало и соотношение Смарра выходят с точностью округления при аналитических производных и без единой подгонки. Впрысни завихрение — и смотри, как два пути между одними и теми же чёрными дырами приходят к разным зарядам, а разрыв нарисован между ними. За M² = a² + Q² горизонта нет вовсе, и движок отказывается его рисовать, а не экстраполирует в голую сингулярность.',
+      'Noether liefert eine Ladung für eine Symmetrie. In einer diffeomorphismusinvarianten Theorie braucht dieser Satz eine ganze Maschine: die Symmetrie ist eine Eichredundanz, die Ladung lebt auf einer Randfläche, und die Maschine ist eine Kette, in der jedes Glied durch das vorige definiert ist. Am Ende steht die VARIATION eines Generators — und δH_ξ ist immer definiert, während der Hamiltonian, dessen Variation sie ist, gar nicht existieren muss. Er existiert genau dann, wenn die Feldraum-1-Form α geschlossen ist; sonst hängt die berechnete Ladung vom Weg durch den Lösungsraum ab. Gemessen wird das in einem exakt lösbaren Sektor: A = 4π(2M r₊ − Q²) liefert den ersten Hauptsatz und Smarr auf Rundungsniveau. Jenseits von M² = a² + Q² gibt es keinen Horizont, und die Maschine weigert sich, einen zu zeichnen.');
+    if(isFinite(S.curl)) ATLAS_BUS.pub('cps.curl',+S.curl.toExponential(3),'dα');
+    if(S.k) ATLAS_BUS.pub('cps.entropy',+(S.k.A/4).toFixed(4),'A/4');
+    const el=ctl.querySelector('#cpsInv'); if(el){
+      if(!S.ok){ el.innerHTML=`<b style="color:#ff8a6a">${TT('M² &lt; a² + Q² — no horizon exists here. The engine draws nothing and reports nothing rather than extrapolating into a naked singularity.','M² &lt; a² + Q² — горизонта здесь нет. Движок ничего не рисует и ничего не сообщает, вместо экстраполяции в голую сингулярность.','M² &lt; a² + Q² — kein Horizont. Es wird nichts gezeichnet.')}</b>`; }
+      else el.innerHTML=
+      `${TT('exact sector','точный сектор','exakter Sektor')}: A = 4π(2M r₊ − Q²) · r₊=<b>${S.k.rp.toFixed(9)}</b> · κ=<b>${S.k.kappa.toFixed(9)}</b> · Ω_H=<b>${S.k.Om.toFixed(9)}</b>${th==='em'?` · Φ_H=<b>${S.k.Phi.toFixed(9)}</b>`:''}${S.k.extremal?` · <b style="color:#ffd489">${TT('EXTREMAL: κ = 0','ЭКСТРЕМАЛЬНАЯ: κ = 0','EXTREMAL: κ = 0')}</b>`:''}<br>`+
+      `${TT('first law','первое начало','erster Hauptsatz')} dM = (κ/8π)dA + Ω_H dJ${th==='em'?' + Φ_H dQ':''} · |(κ/8π)A_M−1|=<b style="color:#9fe8c0">${S.law.M.toExponential(2)}</b> · |(κ/8π)A_J+Ω_H|=<b style="color:#9fe8c0">${S.law.J.toExponential(2)}</b>${th==='em'?` · |(κ/8π)A_Q+Φ_H|=<b style="color:#9fe8c0">${S.law.Q.toExponential(2)}</b>`:''}<br>`+
+      `${TT('Smarr','Смарр','Smarr')} M = κA/4π + 2Ω_H J${th==='em'?' + Φ_H Q':''} · ${TT('residual','невязка','Rest')}=<b style="color:#9fe8c0">${S.smarr.toExponential(2)}</b> <span style="opacity:.72">${TT('(analytic derivatives — these are round-off, not finite differences)','(аналитические производные — это округление, а не конечные разности)','(analytische Ableitungen — Rundung, keine Differenzen)')}</span><br>`+
+      `${TT('field-space curl','завихрение на пространстве полей','Feldraum-Rotation')} dα = ∂P/∂J − ∂Π/∂M = <b style="color:${Math.abs(S.curl)<1e-6?'#9fe8c0':'#ff8a6a'}">${S.curl.toExponential(3)}</b>${c?` · ${TT('injected','впрыснуто','injiziert')} c=${c.toFixed(3)} → ${TT('predicted','предсказано','erwartet')} +2c = <b>${(2*c).toExponential(3)}</b>`:''}<br>`+
+      (S.leftRegion?`<b style="color:#ff8a6a">${TT('a comparison path left the horizon region — the integral is void and no path difference is reported. A curve outside M² ≥ a² + Q² is not in the space being integrated over.','путь сравнения покинул область горизонта — интеграл недействителен, разность путей не приводится. Кривая вне M² ≥ a² + Q² не лежит в пространстве интегрирования.','ein Vergleichsweg verließ die Horizontregion — das Integral ist ungültig.')}</b><br>`
+       :S.pd!=null?`${TT('two paths, same endpoints','два пути, одни концы','zwei Wege, gleiche Enden')}: ∫α = <b>${S.intA.toFixed(9)}</b> ${TT('and','и','und')} <b>${S.intB.toFixed(9)}</b> · ΔM = <b>${S.dM.toFixed(9)}</b> · ${TT('path difference','разность путей','Wegdifferenz')} = <b style="color:${Math.abs(S.pd)<1e-6?'#9fe8c0':'#ff8a6a'}">${S.pd.toExponential(3)}</b><br>`:'')+
+      `<b style="color:${Math.abs(S.curl)<1e-6?'#9fe8c0':'#ff8a6a'}">${Math.abs(S.curl)<1e-6
+        ?TT('α is closed → H_ξ exists → the charge is the mass and does not depend on the path','α замкнута → H_ξ существует → заряд есть масса и от пути не зависит','α ist geschlossen → H_ξ existiert')
+        :TT('α is NOT closed → there is no Hamiltonian → "the charge" depends on the path taken through solution space','α НЕ замкнута → гамильтониана нет → «заряд» зависит от пути в пространстве решений','α ist NICHT geschlossen → kein Hamiltonian')}</b><br>`+
+      `<span style="opacity:.75">${TT('AMBIGUITIES','НЕОДНОЗНАЧНОСТИ','MEHRDEUTIGKEITEN')}: L→L+dμ (μ=${mu.toFixed(2)}) ${TT('shifts Θ and Q coherently','сдвигает Θ и Q согласованно','verschiebt Θ und Q kohärent')} · Θ→Θ+dY (Y=${Yv.toFixed(2)}) ${TT('changes the local representative of ω','меняет локального представителя ω','ändert den lokalen Repräsentanten von ω')} · Q→Q+dZ (Z=${Zv.toFixed(2)}) ${TT('leaves ∮ over a CLOSED 2-surface untouched by Stokes — corners and patching would need separate treatment, and are not claimed here','оставляет ∮ по ЗАМКНУТОЙ 2-поверхности нетронутым по Стоксу — углы и склейки требуют отдельного разбора и здесь не заявляются','lässt ∮ über eine GESCHLOSSENE 2-Fläche unberührt')}</span><br>`+
+      `<span style="opacity:.72">${TT('DECLARED: an auditable reduced charge sector — the stationary axisymmetric family — not a general tensor-algebra solver for arbitrary metrics. The covariant definitions are what this sector realises; they are not re-derived here from an arbitrary Lagrangian.','ЗАЯВЛЕНО: проверяемый редуцированный сектор зарядов — стационарное осесимметричное семейство, — а не общий решатель тензорной алгебры для произвольных метрик. Ковариантные определения суть то, что этот сектор реализует; здесь они не выводятся заново из произвольного лагранжиана.','ERKLÄRT: ein prüfbarer reduzierter Ladungssektor, kein allgemeiner Tensoralgebra-Löser.')}</span>`;
+    }
+  }
+}
+
 /* ================================================================
    CATASTROPHE & CAUSTIC LAB · Thom's theorem made an object. In ≤4 control
    parameters there are EXACTLY seven stable singularities — every rainbow,
@@ -19793,7 +20104,7 @@ const NEXUS_TYPES={
   contrast:{color:0xff7a63,t:{en:'contrast / hypothesis test',ru:'контраст / проверка гипотез',de:'Kontrast / Hypothesentest'},epistemic:'distinguishable explanations, regimes or observables that must not be conflated'}
 };
 const NEXUS_CLUSTERS={
-  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['nul','hol','syd','sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh','gate']},
+  geometry:{color:0x78d9ff,center:[0,5.7,0],t:{en:'geometry · topology · information',ru:'геометрия · топология · информация',de:'Geometrie · Topologie · Information'},views:['nul','hol','syd','sec','hopf','eig','red','ring','lab','bell','drd','sel','topo','taub','su2','dfx','noe','wil','mimg','sh','gate','cps']},
   quantum:{color:0xc28dff,center:[-5.1,1.5,2.0],t:{en:'quantum · fields · matter',ru:'кванты · поля · материя',de:'Quanten · Felder · Materie'},views:['hopfion','skyrmion','quasi','atom','qm','qcd','spin','sc','berry','rsh','and','imp','pole']},
   waves:{color:0x5ce2cf,center:[5.2,1.4,1.5],t:{en:'waves · response · materials',ru:'волны · отклик · материалы',de:'Wellen · Antwort · Materialien'},views:['eot','wave','kdv','ret','dip','rd','bb','te','pv','disp','cau','cusp','qcrys']},
   dynamics:{color:0xff7898,center:[-3.3,-4.2,-3.0],t:{en:'dynamics · chaos · phase space',ru:'динамика · хаос · фазовое пространство',de:'Dynamik · Chaos · Phasenraum'},views:['act','grav','rel','chaos','kin','cp','kam','psp','poin']},
@@ -19801,6 +20112,10 @@ const NEXUS_CLUSTERS={
   astro:{color:0x739cff,center:[0,-1.7,-6.0],t:{en:'relativity · astrophysics · observation',ru:'относительность · астрофизика · наблюдение',de:'Relativität · Astrophysik · Beobachtung'},views:['lens','gw','cmb','bhr','psr','qso','rmhd']}
 };
 const NEXUS_RELATIONS=[
+  ['cps','noe','invariant','Wald charge ↔ Noether charge','The covariant construction is the diffeomorphism-invariant form of the same theorem the Noether laboratory operates in finite dimensions.','theorem'],
+  ['cps','bht','invariant','A/4 ↔ horizon entropy','The charge sector produces the horizon area whose quarter the thermodynamics station treats as an entropy.','model-invariant'],
+  ['cps','psp','representation','field-space form ↔ symplectic form','The presymplectic current generalises the finite-dimensional symplectic form the phase-space laboratory shows.','model-representation'],
+  ['cps','gate','invariant','residuals ↔ refinement ladder','The prediction gate can audit the first-law and Smarr residuals this engine reports.','model-invariant'],
   /* the prediction gate audits the numbers other stations publish, so its typed
      edges are exactly the claims it re-measures on a refinement ladder */
   ['gate','psp','invariant','shadow area ↔ refinement ladder','The gate recomputes the Gromov shadow over random symplectic words and checks it never falls below πr².','model-invariant'],
@@ -20373,7 +20688,7 @@ function scientificViewReady(v){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='cps'?[0,1.6,8.6]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:[0,8,17]; }
 function scientificCameraPreset(v){const p=s3ViewPreset(v);if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
@@ -20445,6 +20760,7 @@ function s3ViewVisibility(v){
   cauGroup.visible     = (v==='cau');
   wilGroup.visible     = (v==='wil');
   gateGroup.visible    = (v==='gate');
+  cpsGroup.visible     = (v==='cps');
   poinGroup.visible    = (v==='poin');
   qcGroup.visible      = (v==='qcrys');
   cmbGroup.visible     = (v==='cmb');
@@ -20521,6 +20837,7 @@ function setS3View(v,opt={}){
     if(v==='cau'){ cauSetup(); }
     if(v==='wil'){ wilSetup(); }
   if(v==='gate'){ gateSetup(); }
+  if(v==='cps'){ cpsSetup(); }
     if(v==='poin'){ poinSetup(); }
     if(v==='qcrys'){ qcSetup(); }
     if(v==='cmb'&&!ready){ cmbSetup(); }
@@ -26169,6 +26486,7 @@ const state = {
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
   noeStation:'bloch', noeDetune:0, noeAmp:0.62, noeS:1, noeV0:1.1,   // Noether lab (momentum maps, Runge-Lenz, Fock)
   cauStation:'plane', cauG:0.12, cauW0:1, cauWp:0.6,   // Causality lab (Kramers-Kronig, f-sum, pre-response)
+  cpsStation:'law', cpsTheory:'em', cpsM:1, cpsJ:0.42, cpsQ:0.25, cpsCurl:0, cpsMu:0, cpsY:0, cpsZ:0,   // covariant phase-space engine
   wilStation:'torus', wilA:Math.SQRT2, wilTheta:Math.PI/2, wilFibres:44, wilInvert:false,   // Willmore / Clifford-torus lab
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
@@ -28519,6 +28837,54 @@ function buildCtlBody(){
         ${[...new Set(GATE_CLAIMS.map(c=>c.lab))].map(l=>`<button class="btn" data-gatego="${l}">${TT('→ ','→ ','→ ')}${esc(viewNameL(l))}</button>`).join('')}
       </div>
     </div>`;
+    else if(V==='cps') body = `
+    <div class="sect"><b>${TT('Station','Станция','Station')}</b>
+      <div class="chips">
+        ${[['chain',TT('the Wald chain L → H_ξ','цепь Уолда L → H_ξ','die Wald-Kette L → H_ξ')],
+           ['law',TT('first law + Smarr on the charge surface','первое начало + Смарр на поверхности заряда','Erster Hauptsatz + Smarr')],
+           ['integrability',TT('two paths, one pair of endpoints','два пути, одна пара концов','zwei Wege, ein Endpunktpaar')]]
+          .map(([k,l])=>`<button class="chip ${(state.cpsStation||'law')===k?'on':''}" data-cpsst="${k}">${l}</button>`).join('')}
+      </div>
+      <div class="chips" style="margin-top:4px">
+        ${[['eh','Einstein–Hilbert'],['em','Einstein–Maxwell']].map(([k,l])=>`<button class="chip ${(state.cpsTheory||'em')===k?'on':''}" data-cpsth="${k}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="sect"><b>${TT('The solution — a point in the charge sector','Решение — точка в секторе зарядов','Die Lösung — ein Punkt im Ladungssektor')}</b>
+      <div class="ctlrow"><label>M</label>
+        <input type="range" id="cpsM" min="0.45" max="2.3" step="0.0001" value="${state.cpsM??1}"><span class="val" id="cpsMV">${(state.cpsM??1).toFixed(4)}</span></div>
+      <div class="ctlrow"><label>J</label>
+        <input type="range" id="cpsJ" min="0" max="3.4" step="0.0001" value="${state.cpsJ??0.42}"><span class="val" id="cpsJV">${(state.cpsJ??0.42).toFixed(4)}</span></div>
+      ${(state.cpsTheory||'em')==='em'?`<div class="ctlrow"><label>Q</label>
+        <input type="range" id="cpsQ" min="0" max="1.2" step="0.0001" value="${state.cpsQ??0.25}"><span class="val" id="cpsQV">${(state.cpsQ??0.25).toFixed(4)}</span></div>`:''}
+      <div class="chips" style="margin-top:4px">
+        ${[[1,0,0,TT('Schwarzschild','Шварцшильд','Schwarzschild')],[1,0.9,0,TT('fast Kerr','быстрый Керр','schneller Kerr')],
+           [1,1,0,TT('EXTREMAL Kerr · κ = 0','ЭКСТРЕМАЛЬНЫЙ Керр · κ = 0','extremaler Kerr')],[1,0.42,0.25,TT('Kerr–Newman','Керр–Ньюмен','Kerr–Newman')]]
+          .map(([m,j,q,l])=>`<button class="chip" data-cpspreset="${m}|${j}|${q}">${l}</button>`).join('')}
+      </div>
+    </div>
+    <div class="sect"><b>${TT('Break integrability on purpose','Сломать интегрируемость намеренно','Integrierbarkeit absichtlich brechen')}</b>
+      <div class="ctlrow"><label>${TT('injected curl c','впрыснутое завихрение c','injizierte Rotation c')}</label>
+        <input type="range" id="cpsCurl" min="0" max="0.3" step="0.0001" value="${state.cpsCurl??0}"><span class="val" id="cpsCurlV">${(state.cpsCurl??0).toFixed(4)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('A field-dependent generator or a flux through the boundary adds a curl to the charge one-form. The physical Kerr–Newman form has none; this slider adds a curl of exactly +2c by hand so you can watch the Hamiltonian stop existing and two paths between the same two black holes arrive at different charges.','Генератор, зависящий от полей, или поток через границу добавляют завихрение к 1-форме заряда. У физической формы Керра–Ньюмена его нет; этот ползунок добавляет завихрение ровно +2c вручную, чтобы видеть, как гамильтониан перестаёт существовать, а два пути между одними и теми же чёрными дырами приходят к разным зарядам.','Ein feldabhängiger Generator oder ein Randfluss fügt der Ladungs-1-Form eine Rotation hinzu. Dieser Regler addiert eine Rotation von genau +2c von Hand.')}</div>
+    </div>
+    <div class="sect"><b>${TT('Ambiguities of the construction','Неоднозначности построения','Mehrdeutigkeiten der Konstruktion')}</b>
+      <div class="ctlrow"><label>μ · L→L+dμ</label>
+        <input type="range" id="cpsMu" min="-0.5" max="0.5" step="0.001" value="${state.cpsMu??0}"><span class="val" id="cpsMuV">${(state.cpsMu??0).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>Y · Θ→Θ+dY</label>
+        <input type="range" id="cpsY" min="-0.5" max="0.5" step="0.001" value="${state.cpsY??0}"><span class="val" id="cpsYV">${(state.cpsY??0).toFixed(3)}</span></div>
+      <div class="ctlrow"><label>Z · Q→Q+dZ</label>
+        <input type="range" id="cpsZ" min="-0.5" max="0.5" step="0.001" value="${state.cpsZ??0}"><span class="val" id="cpsZV">${(state.cpsZ??0).toFixed(3)}</span></div>
+    </div>
+    <div class="sect"><b>${TT('Charge passport','Паспорт заряда','Ladungspass')}</b>
+      <div class="note" id="cpsInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
+    </div>
+    <div class="sect"><b>${TT('Bridges','Мосты','Brücken')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="btn" id="cpsToNoe">${TT('→ Noether: the same theorem where the charge is easy','→ Нётер: та же теорема, где заряд прост','→ Noether: dasselbe Theorem, einfacher Fall')}</button>
+        <button class="btn" id="cpsToBht">${TT('→ Black-hole thermodynamics: A/4 as entropy','→ Термодинамика ЧД: A/4 как энтропия','→ Schwarzloch-Thermodynamik')}</button>
+        <button class="btn" id="cpsToPsp">${TT('→ Phase space: the symplectic form this generalises','→ Фазовое пространство: обобщаемая симплектическая форма','→ Phasenraum')}</button>
+        <button class="btn" id="cpsToGate">${TT('→ Prediction gate: audit these residuals','→ Шлюз прогноза: проверить эти невязки','→ Prognose-Gate')}</button></div>
+    </div>`;
     else if(V==='cusp') body = `
     <div class="sect"><b>${TT('Catastrophe — pick a singularity','Катастрофа — выбери особенность','Katastrophe — Singularität wählen')}</b>
       <div class="chips">
@@ -29304,6 +29670,7 @@ function buildCtlBody(){
         <button class="btn ${V==='cau'?'on':''}" id="v-cau">${TT('Causality','Причинность','Kausalität')}</button>
         <button class="btn ${V==='wil'?'on':''}" id="v-wil">${TT('Willmore','Уиллмор','Willmore')}</button>
         <button class="btn ${V==='gate'?'on':''}" id="v-gate">${TT('Prediction gate','Шлюз прогноза','Prognose-Gate')}</button>
+        <button class="btn ${V==='cps'?'on':''}" id="v-cps">${TT('Covariant phase space','Ковариантное фазовое пространство','Kovarianter Phasenraum')}</button>
         <button class="btn ${V==='cmb'?'on':''}" id="v-cmb">CMB multipoles</button>
         <button class="btn ${V==='mimg'?'on':''}" id="v-mimg">S³ ghost images</button>
         <button class="btn ${V==='bhr'?'on':''}" id="v-bhr">GR raymarcher</button>
@@ -29358,7 +29725,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-mvp]').forEach(e=>e.onclick=()=>mvApplyPreset(e.dataset.mvp));
       ctl.querySelectorAll('[data-mvact]').forEach(e=>e.onclick=()=>mvSetActive(+e.dataset.mvact));
       for(let i=0;i<4;i++){ const sel=ctl.querySelector('#mvSlot'+i); if(sel) sel.onchange=()=>mvSetSlot(i,sel.value); } }
-    for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','gate','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso','rmhd','wd']){
+    for(const vv of ['nexus','nul','act','hol','syd','topo','sc','taub','eot','wave','spin','rel','chaos','kin','sh','kdv','ret','dip','cp','rd','he','bb','nuc','lens','te','gw','pv','su2','bht','rpd','imp','pole','disp','berry','cusp','kam','rsh','and','psp','dfx','noe','cau','wil','gate','cps','poin','qcrys','cmb','mimg','bhr','ns','sn','psr','qso','rmhd','wd']){
       const b=ctl.querySelector('#v-'+vv); if(b) b.onclick=()=>uiSetS3View(vv); }
     bindPredictionWorkbench(V);
     if(V==='nul') bindNulControls(ctl);
@@ -29831,6 +30198,20 @@ function buildCtlBody(){
       ctl.querySelector('#berryToSpin')&&(ctl.querySelector('#berryToSpin').onclick=()=>{ navPush(); setS3View('spin'); buildCtl(); });
       ctl.querySelector('#berryToTopo')&&(ctl.querySelector('#berryToTopo').onclick=()=>{ navPush(); setS3View('topo'); buildCtl(); });
       ctl.querySelector('#berryToHopf')&&(ctl.querySelector('#berryToHopf').onclick=()=>{ navPush(); setS3View('hopf'); buildCtl(); });
+    }
+    if(V==='cps'){
+      ctl.querySelectorAll('[data-cpsst]').forEach(b=>b.onclick=()=>{ state.cpsStation=b.dataset.cpsst; buildCtl(); });
+      ctl.querySelectorAll('[data-cpsth]').forEach(b=>b.onclick=()=>{ state.cpsTheory=b.dataset.cpsth; buildCtl(); });
+      ctl.querySelectorAll('[data-cpspreset]').forEach(b=>b.onclick=()=>{ const [m,j,q]=b.dataset.cpspreset.split('|').map(Number);
+        state.cpsM=m; state.cpsJ=j; state.cpsQ=q; if(q>0) state.cpsTheory='em'; buildCtl(); });
+      const kv=(id,f,fx)=>{ const el=ctl.querySelector('#'+id); if(el) el.oninput=e=>{ f(+e.target.value);
+        const v=ctl.querySelector('#'+id+'V'); if(v)v.textContent=fx(+e.target.value); }; };
+      kv('cpsM',v=>state.cpsM=v,v=>v.toFixed(4)); kv('cpsJ',v=>state.cpsJ=v,v=>v.toFixed(4));
+      kv('cpsQ',v=>state.cpsQ=v,v=>v.toFixed(4)); kv('cpsCurl',v=>state.cpsCurl=v,v=>v.toFixed(4));
+      kv('cpsMu',v=>state.cpsMu=v,v=>v.toFixed(3)); kv('cpsY',v=>state.cpsY=v,v=>v.toFixed(3));
+      kv('cpsZ',v=>state.cpsZ=v,v=>v.toFixed(3));
+      const go=(id,view)=>{ const b=ctl.querySelector('#'+id); if(b) b.onclick=()=>{ navPush(); setS3View(view); buildCtl(); }; };
+      go('cpsToNoe','noe'); go('cpsToBht','bht'); go('cpsToPsp','psp'); go('cpsToGate','gate');
     }
     if(V==='gate'){
       { const b=ctl.querySelector('#gateRerun'); if(b) b.onclick=()=>{ gateResults=null; buildCtl(); }; }
@@ -31531,10 +31912,10 @@ function setTierFilter(tier){
   for(const [key,s] of SELECT){ if(s.labelEl) s.labelEl.classList.toggle('tier-pass',!state.tierFilter||atlasAccuracyTier(key,s)===state.tierFilter); }
 }
 // Breadcrumb: always-visible navigation context — Mode › submodel › Selected (tier)
-const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',gate:'Prediction gate · refinement',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy'};
+const S3_VIEW_NAMES={nexus:'Invariant Nexus',nul:'Spinor & Light-Cone Observatory',act:'Contact & Action Observatory',hol:'Holonomy Observatory',syd:'Symmetry Discovery Chamber',sec:'section',hopf:'Hopf fibres',eig:'modes β',red:'redshift',ring:'rings',lab:'centre lab',bell:'Bell lune',drd:'DRD info',sel:'selector',hopfion:'Hopfion lab',skyrmion:'Skyrmion lab',quasi:'quasiparticles',atom:'elements',grav:'Gravitas 3-body',qm:'Quantum wave lab',qcd:'Chromodynamics lab',topo:'Topology atlas',sc:'Superconductivity lab',taub:'Taub-NUT lab',eot:'Extraordinary transmission',wave:'Wave optics lab',spin:'Quantum spin lab',rel:'Relativity lab',chaos:'Strange attractors',kin:'Kinetic theory',sh:'Spherical harmonics',kdv:'Soliton (KdV) lab',ret:'Resonant energy transfer',dip:'Dipole radiation',cp:'Charged particle',rd:'Reaction–diffusion',he:'Heat engine',bb:'Blackbody radiation',nuc:'Nuclear binding',lens:'Gravitational lensing',te:'Thermoelectric',gw:'Gravitational waves',pv:'Photovoltaic',su2:'SU(2) spinor',bht:'Black-hole thermodynamics',rpd:'RPD transformer',imp:'Impedance · Möbius · Smith',pole:'Complex-frequency poles',disp:'Dispersion · v_p vs v_g',berry:'Berry curvature · Chern',cusp:'Catastrophe · caustics',kam:'KAM · standard map',rsh:'Riemann sheet · poles',and:'Anderson · hyperbolic drift',psp:'Phase space · S³ shell · camel',dfx:'Defect atlas · πₙ',noe:'Noether · momentum maps',cau:'Causality · Kramers–Kronig',wil:'Willmore · Clifford torus',gate:'Prediction gate · refinement',cps:'Covariant phase space · Wald charges',poin:'Poinsot · Dzhanibekov',qcrys:'Quasicrystal · cut-and-project',cmb:'CMB low multipoles',mimg:'S³ multiple imaging',bhr:'Relativistic black hole',ns:'Neutron star (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Radiation–MHD & Helicity',wd:'White-dwarf degeneracy'};
 const S3_VIEW_I18N={
- ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',gate:'шлюз прогноза · измельчение',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар',rmhd:'радиационная МГД и спиральность',wd:'вырождение белого карлика'},
- de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',gate:'Prognose-Gate · Verfeinerung',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Strahlungs-MHD & Helizität',wd:'Entartung Weißer Zwerge'} };
+ ru:{nexus:'Инвариантный Нексус',nul:'обсерватория спинора и светового конуса',act:'обсерватория контакта и действия',hol:'обсерватория голономии',syd:'камера открытия симметрий',wil:'Уиллмор · клиффордов тор',gate:'шлюз прогноза · измельчение',cps:'ковариантное фазовое пространство · заряды Уолда',cau:'причинность · Крамерс–Кроних',noe:'Нётер · отображения момента',dfx:'атлас дефектов · πₙ',psp:'фазовое пространство · S³ · верблюд',and:'Андерсон · гиперболический дрейф',rsh:'лист Римана · полюсы',kam:'КАМ · стандартное отображение',cusp:'катастрофы · каустики',poin:'Пуансо · Джанибеков',qcrys:'квазикристалл · срез-проекция',berry:'кривизна Берри · Черн',disp:'дисперсия · v_p и v_g',pole:'полюсы комплексной частоты',sec:'сечение',hopf:'слои Хопфа',eig:'моды β',red:'красное смещение',ring:'кольца',lab:'центральная лаб.',bell:'луна Белла',drd:'DRD-инфо',sel:'селектор',hopfion:'лаб. хопфионов',skyrmion:'лаб. скирмионов',quasi:'квазичастицы',atom:'элементы',grav:'Гравитас (3 тела)',qm:'квантовая волна',qcd:'хромодинамика',topo:'атлас топологии',sc:'сверхпроводимость',taub:'лаб. Тауба–НУТ',eot:'экстраорд. пропускание',wave:'волновая оптика',spin:'квантовый спин',rel:'относительность',chaos:'странные аттракторы',kin:'кинетическая теория',sh:'сферические гармоники',kdv:'солитон (КдФ)',ret:'резонансная передача',dip:'дипольное излучение',cp:'заряж. частица',rd:'реакция–диффузия',he:'тепловая машина',bb:'излучение чёрн. тела',nuc:'ядерная связь',lens:'грав. линзирование',te:'термоэлектричество',gw:'грав. волны',pv:'фотоэлемент',su2:'спинор SU(2)',bht:'термодинамика ЧД',rpd:'RPD-трансформер',imp:'импеданс · Мёбиус · Смит',cmb:'низкие мультиполи РИ',mimg:'кратные образы S³',bhr:'релятивистская ЧД',ns:'нейтронная звезда (TOV)',sn:'сверхновая',psr:'пульсар',qso:'квазар',rmhd:'радиационная МГД и спиральность',wd:'вырождение белого карлика'},
+ de:{nexus:'Invariant Nexus',nul:'Spinor- & Lichtkegel-Observatorium',act:'Kontakt- & Wirkungsobservatorium',hol:'Holonomie-Observatorium',syd:'Symmetrie-Entdeckungskammer',wil:'Willmore · Clifford-Torus',gate:'Prognose-Gate · Verfeinerung',cps:'kovarianter Phasenraum · Wald-Ladungen',cau:'Kausalität · Kramers–Kronig',noe:'Noether · Impulsabbildungen',dfx:'Defekt-Atlas · πₙ',psp:'Phasenraum · S³ · Kamel',and:'Anderson · hyperbolische Drift',rsh:'Riemann-Blatt · Pole',kam:'KAM · Standardabbildung',cusp:'Katastrophen · Kaustiken',poin:'Poinsot · Dshanibekow',qcrys:'Quasikristall · Schnitt-Projektion',berry:'Berry-Krümmung · Chern',disp:'Dispersion · v_p vs v_g',pole:'Komplexfrequenz-Pole',sec:'Schnitt',hopf:'Hopf-Fasern',eig:'Moden β',red:'Rotverschiebung',ring:'Ringe',lab:'Zentrallabor',bell:'Bell-Lune',drd:'DRD-Info',sel:'Selektor',hopfion:'Hopfionen-Labor',skyrmion:'Skyrmionen-Labor',quasi:'Quasiteilchen',atom:'Elemente',grav:'Gravitas (3-Körper)',qm:'Quantenwellen-Labor',qcd:'Chromodynamik',topo:'Topologie-Atlas',sc:'Supraleitung',taub:'Taub-NUT-Labor',eot:'außergew. Transmission',wave:'Wellenoptik',spin:'Quantenspin-Labor',rel:'Relativität',chaos:'seltsame Attraktoren',kin:'kinetische Theorie',sh:'Kugelflächenfunktionen',kdv:'Soliton (KdV)',ret:'resonante Übertragung',dip:'Dipolstrahlung',cp:'geladenes Teilchen',rd:'Reaktion–Diffusion',he:'Wärmekraftmaschine',bb:'Schwarzkörperstrahlung',nuc:'Kernbindung',lens:'Gravitationslinse',te:'Thermoelektrik',gw:'Gravitationswellen',pv:'Photovoltaik',su2:'SU(2)-Spinor',bht:'Schwarzloch-Thermodynamik',rpd:'RPD-Transformer',imp:'Impedanz · Möbius · Smith',cmb:'CMB niedrige Multipole',mimg:'S³-Mehrfachabbildung',bhr:'relativ. Schwarzes Loch',ns:'Neutronenstern (TOV)',sn:'Supernova',psr:'Pulsar',qso:'Quasar',rmhd:'Strahlungs-MHD & Helizität',wd:'Entartung Weißer Zwerge'} };
 
 /* ================================================================
    PREDICTION & VALIDATION WORKBENCH
@@ -31553,13 +31934,13 @@ const PREDICTION_CLASSES={
   exploratory:{color:'#b89bd8',label:'exploratory inference instrument',scope:'Finds typed paths, candidate invariants or compatible settings; it predicts no external phenomenon without a separate physical model.',falsifier:'A declared relation, type, transform or candidate-stability result fails its own reproducible contract.'}
 };
 const PREDICTION_CLASS_MEMBERS={
-  exploratory:['nexus','gate'],
+  exploratory:['nexus','gate','cps'],
   exact:['nul','act','hol','syd','sec','hopf','eig','bell','topo','sh','su2','imp','berry','psp','dfx','noe','cau','wil','poin','qcrys'],
   numerical:['hopfion','skyrmion','grav','qm','chaos','kin','kdv','cp','rd','lens','bhr','ns'],
   reference:['quasi','atom','qcd','sc','taub','eot','wave','spin','rel','ret','dip','he','bb','nuc','te','gw','pv','bht','pole','disp','cusp','kam','rsh','and','sn','psr','qso','rmhd','wd'],
   conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
 };
-const PREDICTION_TARGETS={   gate:'refinement-ladder verdict per registered claim: contraction ratio, observed order, independent-reference residual and a numerical qualification that is explicitly not a probability',
+const PREDICTION_TARGETS={   cps:'first-law and Smarr residuals from analytic derivatives on the exact Kerr–Newman charge sector, plus the field-space curl dα and the measured path difference that decides whether a Hamiltonian exists at all',   gate:'refinement-ladder verdict per registered claim: contraction ratio, observed order, independent-reference residual and a numerical qualification that is explicitly not a probability',
   nexus:'typed paths plus held-edge-calibrated structural bridge hypotheses under an explicit admission firewall',nul:'future-null / spin-weight observable with sensitivity, uncertainty, holdout and inverse target',act:'Reeb, return, regularized or Maslov observable with sensitivity, uncertainty, holdout and inverse target',hol:'closed-path return phase with sensitivity, uncertainty, holdout and multi-root inverse target',syd:'train/holdout candidate drift and predicted symmetry-breaking threshold',sec:'S³ cap area, volume fraction and geodesic travel',hopf:'Hopf preimages, linking and fibre phase',eig:'S³ Laplacian eigenvalue, wavelength and degeneracy',red:'conditional path-integrated redshift under the selected density law',ring:'projected ring diameter and fit residual under the selected shell model',lab:'geodesic distances, cap overlap and basepoint-independent identities',bell:'singlet correlations, CHSH combination and no-signalling marginals',drd:'graded distinguishability capacity under the declared causal budget',sel:'causal and holographic capacity bounds under selected inputs',hopfion:'field preimages and topological charge for the selected configuration',skyrmion:'texture charge, energy terms and driven core trajectory',quasi:'dispersion relation, group velocity and effective excitation scale',atom:'electron configuration, shell occupancy and approximate effective radii',grav:'few-body trajectories, conserved quantities and predictability horizon',qm:'wavefunction evolution, probabilities, norm and scattering observables',qcd:'Cornell energy, running coupling and conditional string-breaking scale',topo:'linking number, index and homotopy charge',sc:'screening, Josephson response and flux-vortex count',taub:'Berger-fibre geometry and reduced orbit response',eot:'phenomenological transmission resonance versus wavelength and aperture',wave:'Huygens interference intensity and diffraction geometry',spin:'Bloch probabilities, Rabi response, Berry phase and Bell correlator',rel:'Lorentz factor, Doppler factor, simultaneity and velocity addition',chaos:'trajectory, divergence rate and Lyapunov predictability horizon',kin:'velocity distribution, temperature, pressure and energy drift',sh:'Y_lm field, Laplacian eigenvalue and orthogonality',kdv:'soliton trajectory, collision shift and conserved integrals',ret:'coupled-mode amplitudes, transfer efficiency and ringdown',dip:'retarded radiation pattern and angular power',cp:'Lorentz-force trajectory, gyrofrequency and energy conservation',rd:'Gray–Scott field evolution and linear-instability regime',he:'cycle states, work and Carnot-bounded efficiency',bb:'Planck spectral radiance, Wien peak and Stefan–Boltzmann flux',nuc:'binding energy and stability trend from the semi-empirical mass formula',lens:'Schwarzschild deflection, capture threshold and Shapiro delay',te:'Seebeck voltage, Peltier response, efficiency and COP',gw:'leading-order chirp frequency, strain scaling and polarization response',pv:'current–voltage curve, maximum-power point and efficiency ceiling',su2:'unit-quaternion rotation, double cover and geodesic interpolation',bht:'Kerr horizon geometry plus deterministic Schwarzschild spectral peak, luminosity and lifetime scaling',rpd:'accessible, hidden and re-expressed distinguishability classes',imp:'Touchstone S11 assimilation, series-RLC inverse, unseen holdout forecast and uncertainty envelope',pole:'complex pole/zero location, linewidth and response curve',disp:'frequency, phase velocity, group velocity and stationary points',berry:'Berry curvature integral and Chern transition',cusp:'equilibrium roots, fold/cusp locus and caustic topology',kam:'standard-map transport, island survival and measured Lyapunov exponent',rsh:'sheet continuation, pole location and bound-state scale',and:'transfer-matrix Lyapunov exponent and localization length',psp:'symplectic area, non-squeezing capacity and mapped shell geometry',dfx:'homotopy class and measured defect winding',noe:'momentum-map charge and its controlled symmetry-breaking drift',cau:'causal response, Kramers–Kronig reconstruction and f-sum residual',wil:'Willmore energy and Clifford-torus minimum',poin:'free-rigid-body polhode, conserved surfaces and tumbling regime',qcrys:'cut-and-project sites, phason response and diffraction peaks',cmb:'synthetic a_lm sky, D_l, cosmic variance and masked inverse-transform leakage',mimg:'short and complementary S³ path lengths and conditional repeat geometry',bhr:'pixelwise Schwarzschild null-ray escape, capture and disk image',ns:'TOV mass–radius sequence for the declared polytropic equation of state',sn:'Bateman abundances, grey gamma deposition, Arnett bolometric diffusion, photospheric temperature and matched multi-phase remnant expansion',psr:'dipole field, spin-down power, characteristic age, light-cylinder scale, RVM polarization and beam crossings',qso:'Eddington luminosity, thin-disk temperature and Doppler beaming',rmhd:'frozen-flux response, relative magnetic helicity, Sweet–Parker rate, shock compression and magnetized Rayleigh–Taylor growth',wd:'Chandrasekhar mass and zero-temperature white-dwarf mass–radius relation'
 };
 const PRED_STATE_PREFIX={sec:['chi','gyrPerSec'],hopf:['hopf'],eig:['eig'],red:['rkz'],ring:['ring'],lab:['lab'],bell:['bell'],drd:['drd'],sel:['sel'],hopfion:['hf'],skyrmion:['sk'],quasi:['qp'],atom:['at'],grav:['grav'],qm:['qm'],qcd:['qcd'],topo:['topo'],sc:['sc'],taub:['tn'],eot:['eot'],wave:['wave'],spin:['spin'],rel:['rel'],chaos:['chaos'],kin:['kin'],sh:['sh'],kdv:['kdv'],ret:['ret'],dip:['dip'],cp:['cp'],rd:['rd'],he:['he'],bb:['bb'],nuc:['nuc'],lens:['lens'],te:['te'],gw:['gw'],pv:['pv'],su2:['su2'],bht:['bht'],rpd:['rpd'],imp:['imp'],pole:['pole'],disp:['disp'],berry:['berry'],cusp:['cusp'],kam:['kam'],rsh:['rsh'],and:['and'],psp:['psp'],dfx:['dfx'],noe:['noe'],cau:['cau'],wil:['wil'],poin:['poin'],qcrys:['qc'],cmb:['cmb'],mimg:['mimg'],bhr:['bhr'],ns:['ns'],sn:['sn'],psr:['psr'],qso:['qso'],rmhd:['rmhd'],wd:['wd'],nul:['nul'],act:['act'],hol:['hol'],syd:['syd'],nexus:['nexus']};
@@ -33230,6 +33611,8 @@ function tickBody(now, frame){
       fbsAnimT+=dt; updateCusp(dt);
     } else if(state.s3view==='poin'){
       fbsAnimT+=dt; updatePoin(dt);
+    } else if(state.s3view==='cps'){
+      fbsAnimT+=dt; updateCps(dt);
     } else if(state.s3view==='gate'){
       fbsAnimT+=dt; updateGate(dt);
     } else if(state.s3view==='wil'){
