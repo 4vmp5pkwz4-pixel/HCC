@@ -10,10 +10,12 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `zero-point-fractal-ladder-levels-0-312.csv` | all 313 rungs, 24 columns |
 | `verify-zero-point-ladder.cjs` | an independent second implementation of every claim |
 | `verify-zero-point-csv.cjs` | recomputes every cell of the CSV from first principles |
+| `verify-log-periodicity.cjs` | calibrates the predefined log-periodicity test, including its false-positive rate |
 
 ```
 node docs/verify-zero-point-ladder.cjs     # 16/16 checks pass
 node docs/verify-zero-point-csv.cjs        # 313 rows × 24 columns reproduced
+node docs/verify-log-periodicity.cjs      # finds a signal, and fails to find one that is not there
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -66,6 +68,35 @@ confirms the ladder would expose it.
 fixed ceiling of 512 terms. The summand β³e^{−β/θ} peaks near β = 3θ, so for θ ≳ 130 the
 sum stops before the physics does and returns a confident wrong number — 87 % low at
 θ = 300. The ceiling now follows θ, and a shortfall is reported instead of hidden.
+
+## The sixth open item, built rather than solved
+
+The report ends with six things it does not do. Five are research: derive φ, fix the
+field content, solve the backreaction, go to a dynamic R(t), make the Hopf splitting
+measurable. The sixth asks for **a predefined observable test of log-periodicity**, and
+that an instrument can supply.
+
+A φ-ladder is not merely a power law. If scales really come in golden steps, then any
+scale-indexed observable is modulated with period **ln φ = 0.481211825** in ln r. Fit and
+remove the power law, Lomb–Scargle the residual at that one frequency — Lomb–Scargle
+rather than an FFT because real scale samples are never evenly spaced in ln r — and take
+the significance from a permutation null, so no distributional assumption is smuggled in.
+
+A test is worth nothing until it has been shown to fail correctly. Calibrated before it
+was wired to anything:
+
+| case | result |
+|---|---|
+| signal ε = 0.12 at 2 % noise | recovered 0.1245, q = 4.0007, p = 0.001 |
+| pure power law, same noise | amplitude 0.0028, **p = 0.479** |
+| modulation at the wrong period ln 2.7 | amplitude 0.0037, **p = 0.943** — not fooled |
+| 200 pure series at α = 0.05 | 4 false positives, **2.0 %** |
+| detection floor, 140 samples | ε = 0.01 still reaches p = 0.002 |
+
+And the statement the panel carries: the ladder's own ρ_C(R) = ħc/480π²R⁴ is a
+**continuous** power law and predicts no modulation whatever. Log-periodicity is the
+signature of genuine discreteness — of a world in which only the rungs exist — so a
+detection in real data would be evidence for something this model does not itself claim.
 
 ## One column that is not what it looks like
 

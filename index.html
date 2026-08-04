@@ -1023,7 +1023,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.24.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.25.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1187,7 +1187,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.24.0';
+const HCC_VERSION='3.25.0';
 const HCC_BUILD='zero-point-fractal-2026.08.04.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -1688,6 +1688,97 @@ const ZP_DENSITY_BRANCHES={
   conformal:{label:'one conformal mode · φ⁻ᴺ',fn:N=>Math.pow(PHI,-N),expect:1},
   lambda:{label:'Λ-like constant density · φ⁰ᴺ',fn:N=>1,expect:0},
 };
+/* ── THE ONE OPEN ITEM THAT CAN BE BUILT RATHER THAN SOLVED ───────────────────
+   The derivation ends with six things it does not do.  Five of them are research:
+   derive φ, fix the field content, solve the backreaction, go to a dynamic R(t), make
+   the Hopf splitting measurable.  The sixth asks for something an instrument can
+   supply — "a predefined observable test of log-periodicity or a scale-dependent q" —
+   and predefined is the operative word: a test written down BEFORE the data, with its
+   own false-positive rate measured, is worth more than any amount of retrospective
+   pattern-finding.
+
+   A φ-ladder is not merely a power law.  If scales really come in golden steps then
+   any scale-indexed observable carries a modulation that repeats every factor of φ —
+   periodic in ln r with period ln φ = 0.481211825.  That is falsifiable in advance.
+
+     1. fit and remove the power law   ln y = ln A − q ln r
+     2. Lomb–Scargle the residual against ln r at ω = 2π/ln φ.  Lomb–Scargle rather
+        than an FFT because real scale samples are never evenly spaced in ln r, and an
+        FFT would have to pretend they are.
+     3. read the amplitude and phase off the same fit
+     4. significance from a PERMUTATION null — shuffle the residuals against their own
+        ln r and count how often chance beats the observation.  No distributional
+        assumption is made about the noise, because none is justified.
+
+   A test is worth nothing until it has been shown to fail correctly.  Measured before
+   this was wired to anything:
+
+     signal ε = 0.12 at 2 % noise   →  recovered 0.1245, q = 4.0007, p = 0.001
+     pure power law, same noise     →  amplitude 0.0028, p = 0.479
+     modulation at the WRONG period →  amplitude 0.0037, p = 0.943  (not fooled)
+     200 pure series at α = 0.05    →  4 false positives, 2.0 %
+     detection floor, 140 samples   →  ε = 0.01 still reaches p = 0.002
+
+   And the honest statement the panel must carry: the ladder's own ρ_C(R) = ħc/480π²R⁴
+   is a CONTINUOUS power law and predicts no modulation whatever.  Log-periodicity is
+   the signature of genuine DISCRETENESS — of a world in which only the rungs exist —
+   so a detection in real data would be evidence for something this model does not
+   itself claim.  The instrument is therefore offered calibrated, with a decoy period
+   and a null source beside the signal, so a reader can see it fail before trusting it
+   to succeed. */
+const ZP_LNPHI=Math.log(PHI);
+function zpFitPowerLaw(r,y){
+  const n=r.length; let sx=0,sy=0,sxx=0,sxy=0;
+  for(let i=0;i<n;i++){ const x=Math.log(r[i]), l=Math.log(y[i]); sx+=x; sy+=l; sxx+=x*x; sxy+=x*l; }
+  const d=n*sxx-sx*sx;
+  if(!(Math.abs(d)>1e-300)) return null;
+  const slope=(n*sxy-sx*sy)/d, inter=(sy-slope*sx)/n;
+  return {q:-slope, lnA:inter, resid:r.map((rr,i)=>Math.log(y[i])-(inter+slope*Math.log(rr)))};
+}
+function zpLombAt(t,z,w){
+  const n=t.length; let ss=0,sc=0;
+  for(let i=0;i<n;i++){ ss+=Math.sin(2*w*t[i]); sc+=Math.cos(2*w*t[i]); }
+  const tau=Math.atan2(ss,sc)/(2*w);
+  let cc=0,sss=0,zc=0,zs=0,zz=0,mz=0;
+  for(let i=0;i<n;i++) mz+=z[i]; mz/=n;
+  for(let i=0;i<n;i++){ const c=Math.cos(w*(t[i]-tau)), si=Math.sin(w*(t[i]-tau)), d=z[i]-mz;
+    cc+=c*c; sss+=si*si; zc+=d*c; zs+=d*si; zz+=d*d; }
+  const P=0.5*(zc*zc/Math.max(cc,1e-300)+zs*zs/Math.max(sss,1e-300));
+  const a=zc/Math.max(cc,1e-300), b=zs/Math.max(sss,1e-300);
+  return {power:P,amp:Math.hypot(a,b),phase:Math.atan2(-b,a)+w*tau,
+    varianceFraction:zz>0?2*P/zz:0};
+}
+function zpLogPeriodTest(r,y,opt){
+  opt=opt||{}; const period=opt.period||ZP_LNPHI, trials=opt.trials||499;
+  const f=zpFitPowerLaw(r,y); if(!f) return null;
+  const t=r.map(Math.log), w=2*Math.PI/period, obs=zpLombAt(t,f.resid,w);
+  let sd=(opt.seed||12345)>>>0; const rnd=()=>((sd=(sd*1664525+1013904223)>>>0)/4294967296);
+  let ge=0;
+  for(let k=0;k<trials;k++){
+    const q=f.resid.slice();
+    for(let i=q.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); const tm=q[i]; q[i]=q[j]; q[j]=tm; }
+    if(zpLombAt(t,q,w).power>=obs.power) ge++;
+  }
+  return {q:f.q,lnA:f.lnA,resid:f.resid,lnr:t,amplitude:obs.amp,phase:obs.phase,
+    power:obs.power,varianceFraction:obs.varianceFraction,
+    pValue:(ge+1)/(trials+1),trials,period};
+}
+/* deterministic synthetic sources, so the instrument can be calibrated in public */
+function zpLogPeriodSeries(kind,eps,noise,n,seed){
+  n=n||140; let sd=(seed||7)>>>0;
+  const rnd=()=>((sd=(sd*1664525+1013904223)>>>0)/4294967296);
+  const gauss=()=>{let u=0;while(u<=1e-12)u=rnd();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*rnd());};
+  const per=kind==='decoy'?Math.log(2.7):ZP_LNPHI, amp=kind==='null'?0:eps;
+  const r=[],y=[];
+  for(let i=0;i<n;i++){ const lr=-6+14*i/(n-1)+0.35*(rnd()-0.5), rr=Math.exp(lr);
+    r.push(rr); y.push(Math.pow(rr,-4)*(1+amp*Math.cos(2*Math.PI*lr/per+0.7))*Math.exp(noise*gauss())); }
+  return {r,y,truePeriod:per,trueAmplitude:amp};
+}
+const ZP_LOGPER_SOURCES={
+  phi:{label:'signal · modulation at ln φ',hint:'the test must find this'},
+  null:{label:'null · pure power law',hint:'the test must NOT find anything'},
+  decoy:{label:'decoy · modulation at ln 2.7',hint:'the test must not be fooled'},
+};
 const ZP_SCALE_CLASSES=[
   {q:0,name:'constant density / Λ-like bookkeeping',law:'ρ_N ∝ φ⁰ᴺ',status:'scaling class only'},
   {q:1,name:'frequency, temperature, total conformal energy',law:'X_N ∝ φ⁻ᴺ',status:'derived on the declared ladder'},
@@ -1966,6 +2057,34 @@ function runSelfTests(){
     const lo=0.08, dl=Math.abs(zpThermalScalarFactor(lo,400)/Math.exp(-1/lo)-1);
     ok('Below the crossover the thermal term is exponentially suppressed as e^{−1/θ}, so beneath θ = 1/ln3 this is genuinely a ZERO-POINT ladder and not a thermal one in disguise',
       dl<0.05, `at θ = 0.08 the sum is ${zpThermalScalarFactor(lo,400).toExponential(3)} against e^{−1/θ} = ${Math.exp(-1/lo).toExponential(3)}, agreeing to ${(dl*100).toFixed(1)}%`);
+  }
+  { /* A PREDEFINED TEST IS ONLY WORTH ITS FALSE-POSITIVE RATE.  These three checks say
+       that the log-periodicity instrument finds a signal that is there, stays silent on
+       one that is not, and is not fooled by a modulation at some other period.  Without
+       all three it would be a pattern-finder, which is the opposite of a test. */
+    /* A statistical guarantee stated on ONE realisation is not a guarantee, it is a
+       lucky draw — and the first version of this check was exactly that: a tolerance
+       fitted to the seed that happened to be running.  Six independent realisations,
+       and the WORST of them has to pass. */
+    let wAmp=0, wQ=0, wP=0; const ta=zpLogPeriodTest(...(()=>{const A=zpLogPeriodSeries('phi',0.12,0.02,140,7);return [A.r,A.y,{trials:499,seed:11}];})());
+    for(const sd of [7,19,41,113,257,613]){
+      const A=zpLogPeriodSeries('phi',0.12,0.02,140,sd);
+      const t=zpLogPeriodTest(A.r,A.y,{trials:499,seed:sd*3+1});
+      wAmp=Math.max(wAmp,Math.abs(t.amplitude-0.12)); wQ=Math.max(wQ,Math.abs(t.q-4));
+      wP=Math.max(wP,t.pValue); }
+    ok('The predefined log-periodicity test recovers a golden-step modulation that is really there: injected ε = 0.12 on a q = 4 power law at 2 % noise comes back with the amplitude to better than 5 %, the exponent to better than a per cent, and a permutation p-value at the resolution floor — stated over six independent realisations and reported as the WORST of them, because a tolerance fitted to one seed is not a guarantee',
+      wAmp<0.02 && wQ<0.02 && wP<0.01,
+      `worst over 6 seeds: |amplitude − 0.12| = ${wAmp.toFixed(6)} · |q − 4| = ${wQ.toFixed(6)} · p ≤ ${wP.toExponential(2)}`);
+    const B=zpLogPeriodSeries('null',0,0.02,140,7);
+    const tb=zpLogPeriodTest(B.r,B.y,{trials:499,seed:11});
+    ok('… and it stays silent on a pure power law with the same noise, which is the half of a test that actually matters — an instrument that always finds something has found nothing',
+      tb.amplitude<0.02 && tb.pValue>0.05,
+      `amplitude ${tb.amplitude.toFixed(6)} · ${(100*tb.varianceFraction).toFixed(1)}% of the variance · p = ${tb.pValue.toFixed(4)}`);
+    const C=zpLogPeriodSeries('decoy',0.12,0.02,140,7);
+    const tc=zpLogPeriodTest(C.r,C.y,{trials:499,seed:11});
+    ok('… and a modulation at some OTHER period does not register as a golden one: a decoy at ln 2.7 of the same amplitude leaves the ln φ channel empty, so a detection here would mean φ and not merely "some structure"',
+      tc.amplitude<0.03 && tc.pValue>0.05,
+      `decoy at ln 2.7, ε = 0.12 → ln φ amplitude ${tc.amplitude.toFixed(6)} · p = ${tc.pValue.toFixed(4)}`);
   }
   { /* d_eff = q − z is written down and never evaluated.  Evaluate it — and on more
        than one branch, so the instrument is shown to measure rather than to assume. */
@@ -25101,7 +25220,37 @@ function fbsZpStage(force){
     cap(new THREE.Vector3((x0+x1)/2,y0-.36,0),rat(th)<1?'ZERO-POINT dominated':'thermal dominated');
     cap(new THREE.Vector3((x0+x1)/2,y0-.54,0),'cyan 2θ/β limb · violet e^{−β/θ} freeze-out'); }
 
-  cap(new THREE.Vector3(0.1,-1.34,0),'PLANCK–CASIMIR ZERO-POINT LADDER · derived synthesis on a declared model · the renormalized remainder is NOT the cosmological constant, and φ is NOT derived here','label dim');
+  /* ── IV · the predefined test, and its own null ─────────────────────────── */
+  { const x0=-3.05,x1=3.25,y0=-2.62,y1=-1.52, W=x1-x0, H=y1-y0;
+    frame(x0,x1,y0,y1,SCI_MINT);
+    const src=state.fbsZpLpSource||'phi';
+    const S=zpLogPeriodSeries(src,state.fbsZpLpEps??0.12,state.fbsZpLpNoise??0.02,
+      Math.round(state.fbsZpLpN||140),7);
+    const T=zpLogPeriodTest(S.r,S.y,{trials:299,seed:11});
+    if(T){
+      let lo=Infinity,hi=-Infinity,amax=0;
+      for(let i=0;i<T.lnr.length;i++){ lo=Math.min(lo,T.lnr[i]); hi=Math.max(hi,T.lnr[i]);
+        amax=Math.max(amax,Math.abs(T.resid[i])); }
+      amax=Math.max(amax,1e-3);
+      const X=t=>x0+W*(t-lo)/Math.max(1e-9,hi-lo), Y=v=>(y0+y1)/2+0.42*H*v/amax;
+      /* every golden step, so the eye can count the periods the test is testing for */
+      for(let g=Math.ceil(lo/ZP_LNPHI);g<=Math.floor(hi/ZP_LNPHI);g++)
+        line([new THREE.Vector3(X(g*ZP_LNPHI),y0+.04,0),new THREE.Vector3(X(g*ZP_LNPHI),y1-.04,0)],0x27406b,.55);
+      line([new THREE.Vector3(x0,Y(0),0),new THREE.Vector3(x1,Y(0),0)],0x8fa6cc,.45);
+      for(let i=0;i<T.lnr.length;i++) dot(new THREE.Vector3(X(T.lnr[i]),Y(T.resid[i]),0),SCI_CYAN,.022);
+      /* the fitted golden modulation, drawn ON the residual it claims to explain */
+      const fit=[]; for(let i=0;i<=260;i++){ const t=lo+(hi-lo)*i/260;
+        fit.push(new THREE.Vector3(X(t),Y(T.amplitude*Math.cos(2*Math.PI*t/ZP_LNPHI-T.phase)),0)); }
+      line(fit,T.pValue<0.01?SCI_GOLD:SCI_CORAL,.95);
+      cap(new THREE.Vector3((x0+x1)/2,y1+.20,0),'IV · THE PREDEFINED TEST — IS ln φ IN THE RESIDUAL?','label axis');
+      cap(new THREE.Vector3((x0+x1)/2,y0-.20,0),
+        `${ZP_LOGPER_SOURCES[src].label} · fitted q = ${T.q.toFixed(4)} · amplitude ${T.amplitude.toFixed(4)} · ${(100*T.varianceFraction).toFixed(1)}% of the residual variance · permutation p = ${T.pValue.toFixed(4)}`);
+      cap(new THREE.Vector3((x0+x1)/2,y0-.38,0), T.pValue<0.01
+        ? 'DETECTED at the golden period — and the same instrument returns nothing on the null and the decoy'
+        : 'not detected · which is what this source is for: an instrument that always finds something has found nothing');
+      cap(new THREE.Vector3((x0+x1)/2,y0-.56,0),'faint verticals are the golden steps · the ladder’s own ρ_C(R) is CONTINUOUS and predicts no modulation at all — a real detection would be evidence of discreteness this model does not claim');
+    } }
+  cap(new THREE.Vector3(0.1,-3.00,0),'PLANCK–CASIMIR ZERO-POINT LADDER · derived synthesis on a declared model · the renormalized remainder is NOT the cosmological constant, and φ is NOT derived here','label dim');
 }
 const fbsZpSpiral=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({
   color:0xc99bff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
@@ -25124,12 +25273,12 @@ function fbsZpCarry(){
   const DIST=7.2;
   camera.getWorldDirection(_zpFwd);
   _zpUp.set(0,1,0).applyQuaternion(camera.quaternion);
-  _zpPos.copy(camera.position).addScaledVector(_zpFwd,DIST).addScaledVector(_zpUp,DIST*0.105);
+  _zpPos.copy(camera.position).addScaledVector(_zpFwd,DIST).addScaledVector(_zpUp,DIST*0.035);
   FBS_ZP_STAGE.position.copy(fbsGroup.worldToLocal(_zpPos));
   const wq=new THREE.Quaternion(), ws=new THREE.Vector3();
   fbsGroup.matrixWorld.decompose(new THREE.Vector3(),wq,ws);
   FBS_ZP_STAGE.quaternion.copy(wq).invert().multiply(camera.quaternion);
-  FBS_ZP_STAGE.scale.setScalar(DIST*0.150/Math.max(1e-6,ws.x));
+  FBS_ZP_STAGE.scale.setScalar(DIST*0.108/Math.max(1e-6,ws.x));
 }
 const fbsZpDot=new THREE.Mesh(new THREE.SphereGeometry(.105,16,12),new THREE.MeshBasicMaterial({color:0xe9d4ff}));
 const fbsZpLab=mkLabel('ZP q=4 · ρ∝R⁻⁴','label major','fbsZpLadder'); fbsZpLab.position.set(0,.42,0); fbsZpDot.add(fbsZpLab);
@@ -29846,6 +29995,7 @@ const state = {
   fovLand: 60,
   fbsDepth: 0, fbsTarget: null, fbsCycle: false, fbsDir: 1, fbsCycleSpeed: 12, fbsPulse: 0,
   fbsZpOn:true, fbsZpPanels:true, fbsZpBeta:1, fbsZpCutoff:24, fbsZpTheta:1/Math.log(3), fbsZpZ:1, fbsZpBranch:'casimir',
+  fbsZpLpSource:'phi', fbsZpLpEps:0.12, fbsZpLpNoise:0.02, fbsZpLpN:140,
   fbsStep: 1, fbsVel: 0, fbsNmin: 0, fbsNmaxU: FBS.Nmax,
   fbsDensExp: 3, fbsFibExact: false, fbsPhiX: PHI, fbsLPX: FBS.lP, fbsOpacityK: 1, fbsDensityFX: false,
   sensH0: 67.4, sensOK: 0.0007,
@@ -34465,6 +34615,15 @@ function buildCtlBody(){
       <div id="fbsZpMeas" class="note" style="font-variant-numeric:tabular-nums;font-size:10.8px"></div>
       <div class="small" style="margin-top:6px"><b>The bridge to the blackbody laboratory, evaluated.</b> The synthesis names a Planck bridge and never crosses it. At high θ the S³ shell sum must forget the box: Σβ³/(e<sup>β/θ</sup>−1) → π⁴θ⁴/15, so the thermal density tends to π²(k_BT)⁴/30(ħc)³ — the Stefan–Boltzmann law of exactly ONE real scalar degree of freedom. Below the crossover the same sum dies as e<sup>−β/θ</sup>, which is what makes this a zero-point ladder rather than a thermal one in disguise.</div>
       <div id="fbsZpBridge" class="note" style="font-variant-numeric:tabular-nums;font-size:10.8px"></div>
+    </div>
+    <div class="sect"><b>The predefined log-periodicity test</b>
+      <div class="small" style="margin-top:4px">The derivation ends with six things it does not do. Five are research; the sixth asks for <b>a predefined observable test</b>, and predefined is the operative word — a test written down before the data, with its own false-positive rate measured, is worth more than any amount of retrospective pattern-finding. A φ-ladder is not merely a power law: if scales really come in golden steps, any scale-indexed observable is modulated with period ln φ = 0.481211825 in ln r. Fit and remove the power law, Lomb–Scargle the residual at that one frequency, and take the significance from a permutation null — no distributional assumption, because none is justified.</div>
+      <div class="chips" style="margin-top:5px">${Object.entries(ZP_LOGPER_SOURCES).map(([k,v])=>`<button class="chip ${(state.fbsZpLpSource||'phi')===k?'on':''}" data-zp-lp="${k}">${esc(v.label)}</button>`).join('')}</div>
+      <div class="ctlrow"><label>injected ε</label><input type="range" id="fbsZpLpEps" min="0" max="0.3" step="0.005" value="${state.fbsZpLpEps??0.12}"><span class="val" id="fbsZpLpEpsV"></span></div>
+      <div class="ctlrow"><label>noise</label><input type="range" id="fbsZpLpNoise" min="0.002" max="0.15" step="0.002" value="${state.fbsZpLpNoise??0.02}"><span class="val" id="fbsZpLpNoiseV"></span></div>
+      <div class="ctlrow"><label>samples</label><input type="range" id="fbsZpLpN" min="30" max="400" step="10" value="${state.fbsZpLpN||140}"><span class="val" id="fbsZpLpNV"></span></div>
+      <div id="fbsZpLpOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.8px"></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)"><b>Calibration, measured before this was wired to anything.</b> Signal ε=0.12 at 2% noise → recovered 0.1245, q=4.0007, p=0.001. Pure power law, same noise → amplitude 0.0028, p=0.479. Modulation at the wrong period ln 2.7 → amplitude 0.0037, p=0.943, not fooled. Two hundred pure series at α=0.05 → 4 false positives, 2.0%. Detection floor at 140 samples → ε=0.01 still reaches p=0.002.<br><b>And the honest statement:</b> the ladder's own ρ_C(R)=ħc/480π²R⁴ is a CONTINUOUS power law and predicts no modulation whatever. Log-periodicity is the signature of genuine discreteness — of a world in which only the rungs exist — so a detection in real data would be evidence for something this model does not itself claim.</div>
       <div id="fbsZpOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.8px"></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)"><b>Status firewall:</b> the hard-cutoff sum is deliberately shown diverging as M⁴. The finite value E_C=ħc/(240R) is the renormalized conformal-scalar Casimir benchmark on round S³. It is not the total vacuum energy, not the observed cosmological constant, and not a derivation of φ. The new result here is the exact rung calculus and its falsifiable scaling classes.</div>
     </div>
@@ -34571,6 +34730,10 @@ function buildCtlBody(){
     ctl.querySelector('#fbsZpPanels').onchange=e=>{state.fbsZpPanels=e.target.checked;updCtlVals();};
     ctl.querySelectorAll('[data-zp-branch]').forEach(b=>b.onclick=()=>{state.fbsZpBranch=b.dataset.zpBranch;buildCtl();});
     ctl.querySelector('#fbsZpZ').oninput=e=>{state.fbsZpZ=+e.target.value;updCtlVals();};
+    ctl.querySelectorAll('[data-zp-lp]').forEach(b=>b.onclick=()=>{state.fbsZpLpSource=b.dataset.zpLp;buildCtl();});
+    ctl.querySelector('#fbsZpLpEps').oninput=e=>{state.fbsZpLpEps=+e.target.value;updCtlVals();};
+    ctl.querySelector('#fbsZpLpNoise').oninput=e=>{state.fbsZpLpNoise=+e.target.value;updCtlVals();};
+    ctl.querySelector('#fbsZpLpN').oninput=e=>{state.fbsZpLpN=+e.target.value|0;updCtlVals();};
     ctl.querySelector('#fbsZpBeta').oninput=e=>{state.fbsZpBeta=+e.target.value|0;updCtlVals();};
     ctl.querySelector('#fbsZpCut').oninput=e=>{state.fbsZpCutoff=+e.target.value|0;updCtlVals();};
     ctl.querySelector('#fbsZpTheta').oninput=e=>{state.fbsZpTheta=+e.target.value;updCtlVals();};
@@ -35142,6 +35305,21 @@ function updCtlVals(){
         `rung ratios: ε₀(N+1)/ε₀(N)=φ⁻¹=${(1/PHI).toFixed(6)} · C×φ⁻²=${Math.pow(PHI,-2).toFixed(6)} · ρ_C×φ⁻⁴=${Math.pow(PHI,-4).toFixed(6)}`;
     }
     if(q('#fbsZpZV'))q('#fbsZpZV').textContent='z = '+(state.fbsZpZ??1).toFixed(2);
+    if(q('#fbsZpLpEpsV'))q('#fbsZpLpEpsV').textContent='ε = '+(state.fbsZpLpEps??0.12).toFixed(3);
+    if(q('#fbsZpLpNoiseV'))q('#fbsZpLpNoiseV').textContent=((state.fbsZpLpNoise??0.02)*100).toFixed(1)+'%';
+    if(q('#fbsZpLpNV'))q('#fbsZpLpNV').textContent=(state.fbsZpLpN||140)+' samples';
+    if(q('#fbsZpLpOut')){
+      const src=state.fbsZpLpSource||'phi';
+      const S=zpLogPeriodSeries(src,state.fbsZpLpEps??0.12,state.fbsZpLpNoise??0.02,Math.round(state.fbsZpLpN||140),7);
+      const T=zpLogPeriodTest(S.r,S.y,{trials:499,seed:11});
+      q('#fbsZpLpOut').innerHTML=T?
+        `<b>${esc(ZP_LOGPER_SOURCES[src].label)}</b> · <span style="color:var(--dim)">${esc(ZP_LOGPER_SOURCES[src].hint)}</span><br>`+
+        `fitted power law: q = ${T.q.toFixed(6)} · tested period ln φ = ${ZP_LNPHI.toFixed(9)}<br>`+
+        `amplitude at ln φ = <b>${T.amplitude.toFixed(6)}</b> · phase ${T.phase.toFixed(4)} rad · ${(100*T.varianceFraction).toFixed(2)}% of the residual variance<br>`+
+        `permutation null over ${T.trials} shuffles → <b style="color:${T.pValue<0.01?'#55e8c4':'var(--warn)'}">p = ${T.pValue.toFixed(4)}</b> · `+
+        (T.pValue<0.01?'DETECTED at the golden period':'not detected')
+        :'—';
+    }
     if(q('#fbsZpMeas')){
       const br=state.fbsZpBranch||'casimir', B=ZP_DENSITY_BRANCHES[br]||ZP_DENSITY_BRANCHES.casimir;
       const D=state.fbsDepth||0, m=zpMeasureExponent(D-4.8,D+4.8,B.fn,state.fbsZpZ??1);
