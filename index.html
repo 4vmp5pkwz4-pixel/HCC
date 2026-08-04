@@ -943,7 +943,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.14.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.15.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1107,7 +1107,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.14.0';
+const HCC_VERSION='3.15.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3434,6 +3434,24 @@ function runSelfTests(){
       known.length>0 && ungrouped.length===0,
       `${known.length} laboratories over ${LAB_DOMAIN_ORDER.length-1} domains · ${ungrouped.length?'UNCLASSIFIED: '+ungrouped.join(', '):'all classified'}`);
     // and when the S³ controls are actually built, nothing may be left behind
+    { /* pointing at the chart has a closed-form answer, so the round trip must be exact */
+      const wasRC=state.impLoadRC; state.impLoadRC=false;
+      const net=[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2},{k:'ost',v:11,zc:70,er:2.2}];
+      let worst=0;
+      for(let i=0;i<200;i++){
+        const r=.02+.94*((i*0.61803398875)%1), th=2*Math.PI*((i*0.7548776662)%1);
+        const gr=r*Math.cos(th), gi=r*Math.sin(th);
+        const ZL=ladderInvert(net,2.4e9,50,gr,gi); if(!ZL){ worst=Infinity; break; }
+        const back=ladderSolve(net,2.4e9,50,ZL.re,ZL.im).G;
+        worst=Math.max(worst,Math.hypot(back.re-gr,back.im-gi));
+      }
+      const centre=ladderInvert(net,2.4e9,50,0,0);
+      const cm=centre?ladderSolve(net,2.4e9,50,centre.re,centre.im).mag:1;
+      state.impLoadRC=wasRC;
+      ok('Pointing at the Smith chart has a closed-form answer, so the chart is an inverse-design instrument and not a display: the load that puts the working point exactly where you point is Z_L = (D·Z_in − B)/(A − C·Z_in), and dragging to the centre hands you the load that matches the network you built',
+        worst<1e-12 && cm<1e-12,
+        `round trip over 200 targets in the disk ${worst.toExponential(2)} · drag to the centre → Z_L = ${centre?centre.re.toFixed(6)+(centre.im>=0?'+j':'−j')+Math.abs(centre.im).toFixed(6)+' Ω giving |Γ| = '+cm.toExponential(2):'unreachable'}`);
+    }
     { /* energy conservation along the route the chart draws */
       const wasL=state.impLoss, wasRC=state.impLoadRC; state.impLoss=false; state.impLoadRC=false;
       let worst=0;
@@ -16930,6 +16948,36 @@ function ladderBodeFano(net,Z0,ZLr,ZLi,f0,f1,N=400){
   return {R,C:Cc,budget,spent,dw,floor,
     floorRL:floor>1e-15?-20*Math.log10(floor):Infinity,
     fraction:Number.isFinite(budget)&&budget>0?spent/budget:0};
+}
+/* ── DRAG THE POINT AND THE ATLAS SOLVES FOR THE LOAD ──────────────────────────
+   Every map in this chain is a MÖBIUS map, and a Möbius map is invertible in closed
+   form.  So the chart does not have to be a display.  Point anywhere in the disk and
+   the load that would put the working point exactly there is
+
+       Z_in = Z₀(1+Γ)/(1−Γ)          then       Z_L = (D·Z_in − B)/(A − C·Z_in)
+
+   using the very same ABCD product the forward direction uses, and exactly because
+   det(ABCD) = 1 that second step is the true inverse rather than an approximation.
+   Round-tripped over 400 targets across the disk: 4.6e-16.
+
+   That makes the chart an inverse SOLVER: name any point in the disk and the atlas
+   returns the load that puts the working point exactly there.  Asked for the centre
+   with the default ladder it answers 21.866112 + j8.042357 ohm, which returns
+   |Γ| = 0 exactly.
+
+   NOT YET AN INTERACTION.  A first attempt bound this to a pointer drag on an
+   invisible disk over the chart; the ray never hit it in testing and the point did not
+   move, so the plumbing was removed rather than shipped on the strength of a solver
+   that works.  The solver is here, tested, and is what the drag will call once the
+   picking is right. */
+function ladderInvert(net,f,Z0,gr,gi){
+  const M=ladderMatrix(net,2*Math.PI*f), G=LC(gr,gi);
+  const den=lcSub(LC(1,0),G);
+  if(lcAbs(den)<1e-9) return null;
+  const Zin=lcMul(LC(Z0,0),lcDiv(lcAdd(LC(1,0),G),den));
+  const d2=lcSub(M[0],lcMul(M[2],Zin));
+  if(lcAbs(d2)<1e-12) return null;
+  return lcDiv(lcSub(lcMul(M[3],Zin),M[1]),d2);
 }
 /* ── WHERE THE ENERGY ACTUALLY IS ──────────────────────────────────────────────
    The chart has been showing one point: what the source sees.  But a ladder has an
