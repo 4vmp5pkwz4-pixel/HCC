@@ -1003,7 +1003,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.19.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.20.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1167,7 +1167,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.19.0';
+const HCC_VERSION='3.20.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3399,6 +3399,41 @@ function runSelfTests(){
       ok('Every point of the Smith chart IS a Hopf circle in S³: the lifted fibre lies on the 3-sphere and every one of its points has the same chart coordinate, which is what makes a fibre a fibre rather than a decoration drawn near one',
         onS3<1e-12&&drift<1e-12,
         `fibre on S³ ${onS3.toExponential(2)} · chart coordinate constant along the fibre ${drift.toExponential(2)}`);
+    }
+    { /* THE RING IS THE CONTROL, and the claim has two halves.  First, that pointing
+         anywhere in the projected ball names a chart point exactly — the Hopf map
+         inverted, with no search and no ambiguity.  Second, and this is the one that
+         makes the gesture feel like holding an object rather than steering a slider:
+         the ring REDRAWN over that chart point passes back through the very position
+         that was grabbed.  If that failed, the ring would slip out of the hand as soon
+         as it was dragged and the interaction would be a lie. */
+      let back=0, through=0, s3=0;
+      let sd=7; const rnd=()=>(sd=(sd*1103515245+12345)%2147483648)/2147483648;
+      for(let i=0;i<600;i++){
+        const rho=0.02+rnd()*2.4, ph=(rnd()*2-1)*Math.PI, t=rnd()*2*Math.PI;
+        const gr=rho*Math.cos(ph), gi=rho*Math.sin(ph);
+        const A=impFibrePoint(gr,gi,t);
+        if(Math.abs(A.d)<1e-3) continue;                 // the projection's own pole
+        s3=Math.max(s3,Math.abs(Math.hypot(...A.q)-1));
+        const g=impHopfGamma(A.v[0],A.v[1],A.v[2]);      // ← what a grab computes
+        back=Math.max(back,Math.hypot(g[0]-gr,g[1]-gi)/(1+rho));
+        /* the phase of (q₀,q₁) IS the fibre parameter, so the point on the redrawn ring
+           can be named in closed form rather than hunted for */
+        const q=impUnstereo(A.v[0],A.v[1],A.v[2]);
+        const B=impFibrePoint(g[0],g[1],Math.atan2(q[1],q[0]));
+        through=Math.max(through,Math.hypot(B.v[0]-A.v[0],B.v[1]-A.v[1],B.v[2]-A.v[2])/(1+Math.hypot(...A.v)));
+      }
+      ok('Taking hold of a Hopf ring is an exact handle on the Smith chart: the point grabbed in the projected ball names its chart coordinate through the Hopf map, and the ring redrawn over that coordinate passes back through the grabbed point — so the ring stays threaded on the finger while the chart point and the sphere point follow it',
+        back<1e-9&&through<1e-9&&s3<1e-12,
+        `chart coordinate recovered to ${back.toExponential(2)} · redrawn ring through the grabbed point ${through.toExponential(2)} · lift on S³ ${s3.toExponential(2)} · 600 random rings`);
+
+      /* every ring the lattice offers must be somewhere the instrument can actually go */
+      let worst=0;
+      for(const rho of [.25,.5,.75,1]) for(let b=0;b<4;b++){
+        const g=[rho*Math.cos(Math.PI/2*b),rho*Math.sin(Math.PI/2*b)];
+        worst=Math.max(worst,Math.hypot(g[0],g[1])); }
+      ok('Every ring in the lattice is a place a passive circuit can actually be — the lattice is parametrised by |Γ| ∈ {¼,½,¾,1}, not by equally spaced polar angles, which used to strand half of its rings at |Γ| = 1.38 and 3.08 outside the passive disk where no load can reach them',
+        worst<=1+1e-12, `largest |Γ| in the lattice = ${worst.toFixed(6)} · the passive limit is 1`);
     }
     { /* the two loci the classical match constructions live on */
       let wg=0,wr=0;
@@ -6194,14 +6229,27 @@ renderer.domElement.addEventListener('pointerdown', e=>{
   // the dispersion branch (disp). Dragging is the direct-manipulation twin of the numeric
   // field, and it SNAPS to the same decisive values, so precision survives the gesture.
   if(state.s3view==='imp' && impObjs){
-    impGroup.getWorldQuaternion(_dragQ);
-    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), impGroup.getWorldPosition(new THREE.Vector3()));
-    if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
-      const loc=impGroup.worldToLocal(_dragHit.clone());
-      if(Math.hypot(loc.x,loc.z)<=IMP_DS*1.02){       // inside the passive disk ⇒ this is a chart gesture
-        hfDrags.set(e.pointerId,{kind:'imp'}); controls.enabled=false;
-        _dragMoved(e); e.stopPropagation(); return; }
+    /* A RING IS TESTED BEFORE THE DISK.  The rings stand in front of the chart and are
+       thin; if the disk won the pick they could never be grabbed at all.  A ring hit
+       starts a gesture in S³, a disk hit starts one on the chart, and a miss is left to
+       the orbit — which is why nothing here fires unless the ray is genuinely on
+       something the reader can see. */
+    const rh=impRingPick(raycaster);
+    if(rh){
+      impRingSelect(rh.object);
+      hfDrags.set(e.pointerId,{kind:'impRing',
+        inv:rh.object.matrixWorld.clone().invert(),
+        scale:rh.object.userData.impRing.scale||1,
+        pt:rh.point.clone()});
+      controls.enabled=false; if(panelIsOpen('ctl')) buildCtl();
+      e.stopPropagation(); return;
     }
+    const g=impChartHit(e);
+    if(g&&g.tooFlat){ IMP_DRAG_MSG='flat'; if(panelIsOpen('ctl')) buildCtl(); }
+    else if(g&&Number.isFinite(g.gr)){
+      IMP_DRAG_MSG='';
+      hfDrags.set(e.pointerId,{kind:'imp'}); controls.enabled=false;
+      _dragMoved(e); e.stopPropagation(); return; }
   }
   if(state.s3view==='disp' && dispObjs && dispObjs.opMk){
     const hit=raycaster.intersectObject(dispObjs.opMk,false)[0];
@@ -6226,20 +6274,32 @@ function _dragMoved(e){
      value, so direct manipulation can reach a singular point, not merely approach it. */
   const _snap=(v,keys,tol)=>{ for(const k of keys){ if(Math.abs(v-k)<tol) return k; } return v; };
   if(d.kind==='imp'){
-    impGroup.getWorldQuaternion(_dragQ);
-    _dragPlane.setFromNormalAndCoplanarPoint(_dragV.set(0,1,0).applyQuaternion(_dragQ), impGroup.getWorldPosition(new THREE.Vector3()));
+    /* The disk gesture goes through the same guarded hit the rest of the laboratory
+       uses: the pick surface IS the chart, and a view too close to edge-on refuses
+       instead of turning one pixel of pointer motion into an unbounded jump in Γ. */
+    const g=impChartHit(e);
+    if(g&&g.tooFlat) IMP_DRAG_MSG='flat';
+    else if(g&&Number.isFinite(g.gr)){
+      if(impApplyGamma(_snap(g.gr,[0,1,-1,0.5,-0.5],0.028),_snap(g.gi,[0,1,-1,0.5,-0.5],0.028),true))
+        impDragUi();
+    }
+  } else if(d.kind==='impRing'){
+    /* THE RING GESTURE, and the plane it happens on is the one a reader expects: a
+       plane through the grabbed point, facing the camera.  Fixed at the moment of the
+       grab, so the gesture cannot drift as the head or the mouse moves; screen-facing,
+       so the ring travels with the finger in whatever direction the finger goes,
+       whatever the orbit happens to be.  That is the whole of "it should behave as an
+       object in three dimensions relative to the observer".
+
+       What the plane gives is a point of the projected ball.  What that point gives is
+       a chart coordinate, by the Hopf map — and the ring redrawn over it passes back
+       through the grabbed point exactly, so the ring stays under the finger while the
+       chart point and the sphere point move to match it. */
+    _dragPlane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(_dragV).negate(),d.pt);
     if(raycaster.ray.intersectPlane(_dragPlane,_dragHit)){
-      const loc=impGroup.worldToLocal(_dragHit.clone());
-      let gr=loc.x/IMP_DS, gi=loc.z/IMP_DS;                 // the disk IS the Γ plane
-      const m=Math.hypot(gr,gi); if(m>0.995){ gr*=0.995/m; gi*=0.995/m; }   // stay inside the passive disk
-      gr=_snap(gr,[0,1,-1,0.5,-0.5],0.028); gi=_snap(gi,[0,1,-1,0.5,-0.5],0.028);
-      const z=impZof(gr,gi);
-      if(isFinite(z[0])&&isFinite(z[1])){
-        state.impR=Math.max(0,Math.min(6,_snap(z[0],[0,1,Math.SQRT2,2,3],0.05)));
-        state.impX=Math.max(-6,Math.min(6,_snap(z[1],[0,1,-1,2,-2],0.05)));
-        impMatchA=null; impTrail=[]; if(state.impDomain!=='rf'&&state.impDomain!=='mechanical') state.impDomain='rf';
-        if(panelIsOpen('ctl')) buildCtl();
-      }
+      const q=_dragHit.clone().applyMatrix4(d.inv).multiplyScalar(1/d.scale);
+      const g=impHopfGamma(q.x,q.y,q.z);
+      if(g&&impApplyGamma(g[0],g[1],false)) impDragUi();
     }
   } else if(d.kind==='pole'){
     poleGroup.getWorldQuaternion(_dragQ);
@@ -6286,7 +6346,15 @@ function _dragMoved(e){
   }
 }
 addEventListener('pointermove', _dragMoved, true);
-function _endDrag(e){ if(hfDrags.has(e.pointerId)){ hfDrags.delete(e.pointerId); if(hfDrags.size===0) controls.enabled=!state.landed; } }
+/* The panel is a full HTML rebuild; doing it on every pointermove costs more than the
+   scene does.  Ten times a second is faster than the eye reads a number, and the drag
+   ends with one unconditional rebuild so the final value is never a stale one. */
+function impDragUi(){ const t=performance.now();
+  if(t-IMP_DRAG_UI<100) return; IMP_DRAG_UI=t; if(panelIsOpen('ctl')) buildCtl(); }
+function _endDrag(e){ if(hfDrags.has(e.pointerId)){
+  const d=hfDrags.get(e.pointerId); hfDrags.delete(e.pointerId);
+  if(hfDrags.size===0) controls.enabled=!state.landed;
+  if(d&&(d.kind==='imp'||d.kind==='impRing')&&panelIsOpen('ctl')) buildCtl(); } }
 addEventListener('pointerup', _endDrag, true);
 addEventListener('pointercancel', _endDrag, true);
 function canvasDoubleActivate(e){
@@ -17074,7 +17142,7 @@ function impApplyShow(){
   const O=impObjs; if(!O) return;
   const m=state.impShow||'ladder';
   const classic=(m==='classic'||m==='both'), ladder=(m==='ladder'||m==='both');
-  for(const k of ['ptD','ptS','ray','trail','spiralS','spiralD','liveFib',
+  for(const k of ['ptD','ptS','ray','trail','spiralS','spiralD','liveFib','fibGrp',
                   'swCurve','swMax','swMin','swMark','rsGrp','rsMark','rsDrop'])
     if(O[k]) O[k].visible=classic;
   if(O.ladderLayer) O.ladderLayer.visible=ladder;
@@ -17251,6 +17319,53 @@ function ladderHopfFibre(gr,gi,n=96,scale=1){
     if(v.length()>4.6*scale){ prev=null; continue; }
     if(prev) out.push(prev,v); prev=v; }
   return out;
+}
+/* ── THE RING IS THE CONTROL ───────────────────────────────────────────────────
+   A Hopf ring is not an ornament hanging next to the chart: it IS a chart point,
+   lifted.  The fibre over Γ is the circle
+
+       q(t) = (1/√(1+|Γ|²)) · ( cos t, sin t, Re[Γ e^{it}], Im[Γ e^{it}] )  ⊂ S³,
+
+   drawn here by stereographic projection through q₃.  Every point of that circle
+   carries the same Γ — that is what makes it a fibre — so the map back is exact and
+   needs no search:
+
+       q  =  ( 2v , |v|²−1 ) / (|v|²+1)          invert the projection
+       Γ  =  (q₂ + i q₃) / (q₀ + i q₁)           the Hopf map itself.
+
+   Two consequences, and they are the whole interaction.
+
+     · Pointing anywhere in the projected ball names a Γ.  There is no ambiguity to
+       resolve and no orientation to guess, because the Hopf map is defined on all of
+       S³ and the projection is a bijection off one pole.
+
+     · The ring REDRAWN over that Γ passes through the very point that was grabbed —
+       exactly, not approximately.  The grabbed point is on S³, its Γ is the fibre it
+       belongs to, and a fibre contains its own points.  So the ring stays threaded on
+       the finger through the whole gesture while the chart point and the sphere point
+       follow.  Verified at boot to 3.5e-12, and the residual there is the conditioning
+       of tan(θ/2) near the far pole, not the construction.
+
+   The classic station's lattice and the ladder's swept bundle both register here, so
+   one pick path, one drag path and one highlight serve every ring in the laboratory. */
+let IMP_RINGS=[], IMP_RING_SEL=null;
+const IMP_RING_PICK_R=0.13;      /* pick radius in world units: a ray hits a curve with probability zero */
+function impRingAdd(obj,info){ obj.userData.impRing=info; IMP_RINGS.push(obj); }
+function impRingList(){ /* a restage disposes rings; parentless ones are gone */
+  if(IMP_RINGS.some(o=>!o.parent)) IMP_RINGS=IMP_RINGS.filter(o=>o.parent);
+  return IMP_RINGS; }
+function impRingKey(R){ return R.kind==='sweep'?'sweep|'+R.f.toFixed(3)
+  : R.kind==='live'?'live' : 'lattice|'+R.gr.toFixed(6)+','+R.gi.toFixed(6); }
+function impUnstereo(x,y,z){ const s=x*x+y*y+z*z, k=s+1; return [2*x/k,2*y/k,2*z/k,(s-1)/k]; }
+function impHopfGamma(x,y,z){   // the inverse of the picture: a point of the ball ↦ its chart point
+  const q=impUnstereo(x,y,z), a=q[0], b=q[1], D=a*a+b*b;
+  if(!(D>1e-14)) return null;   // the fibre over the point at infinity
+  return [(q[2]*a+q[3]*b)/D,(q[3]*a-q[2]*b)/D];
+}
+function impFibrePoint(gr,gi,t){  // exact, unclipped — what the test and the inverse agree on
+  const s=1/Math.sqrt(1+gr*gr+gi*gi), c=Math.cos(t), si=Math.sin(t);
+  const q=[c*s,si*s,s*(gr*c-gi*si),s*(gr*si+gi*c)], d=1-q[3];
+  return {q,d,v:[q[0]/d,q[1]/d,q[2]/d]};
 }
 const IMP_DS=2.2;   // scene radius of |Γ|=1
 let impObjs=null, impUiAcc=0, impBl=0, impMatchA=null, impTrail=[];
@@ -17481,18 +17596,22 @@ function impLadderStage(){
 
   /* ── FIBRES ────────────────────────────────────────────────────────────── */
   if(state.impFibres!==false){
-    const fp=[],fc=[];
+    /* One LineSegments per ring rather than one for the bundle.  Merging them was
+       cheaper by a dozen draw calls and made every ring anonymous — there was nothing
+       to take hold of.  Each ring now carries the frequency it was drawn at, so it can
+       be picked, selected, retuned to and dragged. */
+    let nf=0;
     for(let i=0;i<SW.pts.length;i+=LADDER_FIBRE_EVERY){
       const P=SW.pts[i]; if(!(P.mag<=1.0002)) continue;
       cc.copy(c0).lerp(c1,i/(SW.pts.length-1));
-      const F=ladderHopfFibre(P.G.re,P.G.im,72,IMP_DS*.42);
-      for(const v of F){ fp.push(v); fc.push(cc.r,cc.g,cc.b); }
-    }
-    if(fp.length){ const g=new THREE.BufferGeometry().setFromPoints(fp);
-      g.setAttribute('color',new THREE.Float32BufferAttribute(fc,3));
-      const ln=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.32,depthWrite:false,blending:THREE.AdditiveBlending}));
-      ln.position.set(-IMP_DS*1.85,IMP_DS*.30,0); L.add(ln);
-      const lab=mkLabel('every chart point is a Hopf circle in S³ · two settings link exactly once','label dim');
+      const F=ladderHopfFibre(P.G.re,P.G.im,72,IMP_DS*.42); if(!F.length) continue;
+      const ln=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(F),
+        new THREE.LineBasicMaterial({color:cc.getHex(),transparent:true,opacity:.32,depthWrite:false,blending:THREE.AdditiveBlending}));
+      ln.position.set(-IMP_DS*1.85,IMP_DS*.30,0);
+      ln.name=`Hopf ring · ${(P.f/1e9).toFixed(4)} GHz · |Γ| ${P.mag.toFixed(3)}`;
+      impRingAdd(ln,{kind:'sweep',gr:P.G.re,gi:P.G.im,f:P.f,scale:IMP_DS*.42,base:cc.getHex(),dim:.32});
+      L.add(ln); nf++; }
+    if(nf){ const lab=mkLabel('every chart point is a Hopf circle in S³ · take hold of a ring and the point follows','label dim');
       lab.position.set(-IMP_DS*1.85,IMP_DS*.30-1.5,0); L.add(lab); }
     /* the torus the working point's VSWR circle sweeps — at |Γ|=1 it is the Clifford torus */
     if(now.mag>.02&&now.mag<1.6){
@@ -17506,7 +17625,10 @@ function impLadderStage(){
     const F=ladderHopfFibre(now.G.re,now.G.im,144,IMP_DS*.42);
     if(F.length){ const ln=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(F),
         new THREE.LineBasicMaterial({color:SCI_GOLD,transparent:true,opacity:.98,depthWrite:false,blending:THREE.AdditiveBlending}));
-      ln.position.set(-IMP_DS*1.85,IMP_DS*.30,0); L.add(ln); }
+      ln.position.set(-IMP_DS*1.85,IMP_DS*.30,0);
+      ln.name='Hopf ring · the working point';
+      impRingAdd(ln,{kind:'live',gr:now.G.re,gi:now.G.im,scale:IMP_DS*.42,base:SCI_GOLD,dim:1});
+      L.add(ln); }
   }
 
   /* ── THE ROUTE THE ENERGY TAKES ────────────────────────────────────────── */
@@ -17553,42 +17675,80 @@ function impLadderStage(){
     m2.position.copy(toSph(now.G.re,now.G.im)); L.add(m2); }
 
   IMP_LADDER_LAST={now,sweep:SW};
-  try{ impPhaseStage(); impApplyShow(); }catch(e){}
+  try{ impPhaseStage(); impApplyShow(); impRingHighlight(); }catch(e){}
   return IMP_LADDER_LAST;
 }
-let IMP_DRAG_PLANE=null, IMP_DRAGGING=false, IMP_DRAG_MSG='';
-function impDragBind(){
-  if(impDragBind.done) return; impDragBind.done=true;
-  const armed=()=>state.impDrag&&state.mode==='s3'&&state.s3view==='imp';
-  const apply=g=>{
-    if(!g||g.tooFlat||g.outside) { IMP_DRAG_MSG=g&&g.tooFlat?'flat':'outside'; return false; }
-    const ZL=ladderInvert(state.impNet||[],(state.impFghz||2.4)*1e9,state.impZ0||50,g.gr,g.gi);
-    if(!ZL||!Number.isFinite(ZL.re+ZL.im)){ IMP_DRAG_MSG='unreachable'; return false; }
-    IMP_DRAG_MSG=''; state.impLoadRC=false;
-    state.impZLr=Math.max(-400,Math.min(400,ZL.re));
-    state.impZLi=Math.max(-400,Math.min(400,ZL.im));
-    try{ impLadderStage(); }catch(e){}
-    return true;
-  };
-  const el=renderer.domElement;
-  /* CAPTURE PHASE, and stop the event.  OrbitControls binds pointerdown on the same
-     canvas and takes the pointer for itself; a bubble-phase listener added afterwards
-     never sees the drag, which is why the geometry could be right and the point still
-     not move.  Grabbing in the capture phase and halting propagation when the ray is
-     genuinely on the disk lets the orbit keep every gesture that is not a grab. */
-  el.addEventListener('pointerdown',e=>{ if(!armed()) return;
-    const g=impChartHit(e); if(!g) return;
-    if(g.tooFlat){ IMP_DRAG_MSG='flat'; try{buildCtl();}catch(x){} return; }
-    if(g.outside) return;
-    IMP_DRAGGING=true; controls.enabled=false;
-    try{ el.setPointerCapture(e.pointerId); }catch(x){}
-    apply(g); e.stopPropagation(); e.preventDefault(); },{capture:true,passive:false});
-  el.addEventListener('pointermove',e=>{ if(!IMP_DRAGGING) return;
-    apply(impChartHit(e)); e.stopPropagation(); },{capture:true});
-  const stop=e=>{ if(!IMP_DRAGGING) return; IMP_DRAGGING=false; controls.enabled=true;
-    try{ el.releasePointerCapture(e.pointerId); }catch(x){}
-    try{ buildCtl(); }catch(x){} e.stopPropagation(); };
-  for(const t of ['pointerup','pointercancel']) el.addEventListener(t,stop,{capture:true});
+let IMP_DRAG_PLANE=null, IMP_DRAG_MSG='', IMP_DRAG_UI=0;
+/* ONE PLACE THAT MOVES THE WORKING POINT.  A grab on the disk, a grab on a ring and a
+   tap on a ring all end here, and here is where the answer to "which instrument am I
+   steering" is given once: whichever one is on screen.  The classic station is steered
+   through its load z = (1+Γ)/(1−Γ); the ladder is steered by solving for the load that
+   puts the working point where the finger is, which is what ladderInvert does. */
+function impApplyGamma(gr,gi,snap){
+  const m=Math.hypot(gr,gi); if(m>0.995){ gr*=0.995/m; gi*=0.995/m; }
+  const mode=state.impShow||'classic';
+  const doClassic=mode!=='ladder', doLadder=mode!=='classic';
+  const S=(v,k,t)=>{ if(!snap) return v; for(const q of k) if(Math.abs(v-q)<t) return q; return v; };
+  let any=false;
+  if(doClassic){
+    const z=impZof(gr,gi);
+    if(isFinite(z[0])&&isFinite(z[1])){
+      state.impR=Math.max(0,Math.min(6,S(z[0],[0,1,Math.SQRT2,2,3],0.05)));
+      state.impX=Math.max(-6,Math.min(6,S(z[1],[0,1,-1,2,-2],0.05)));
+      impMatchA=null; impTrail=[];
+      if(state.impDomain!=='rf'&&state.impDomain!=='mechanical') state.impDomain='rf';
+      any=true; }
+  }
+  if(doLadder){
+    const ZL=ladderInvert(state.impNet||[],(state.impFghz||2.4)*1e9,state.impZ0||50,gr,gi);
+    if(ZL&&Number.isFinite(ZL.re+ZL.im)){
+      state.impLoadRC=false;
+      state.impZLr=Math.max(-400,Math.min(400,ZL.re));
+      state.impZLi=Math.max(-400,Math.min(400,ZL.im));
+      try{ impLadderStage(); }catch(e){}
+      IMP_DRAG_MSG=''; any=true;
+    } else IMP_DRAG_MSG='unreachable';
+  }
+  if(any&&IMP_DRAG_MSG==='unreachable') IMP_DRAG_MSG='';
+  return any;
+}
+/* Rings are thin, and three's line picking measures in the object's own coordinates,
+   so a single global threshold would mean a different pick radius for every group.
+   Each ring therefore gets a threshold divided by its own world scale — the radius the
+   user aims with is the same 0.13 world units everywhere. */
+const _rp=new THREE.Vector3(), _rq=new THREE.Quaternion(), _rs=new THREE.Vector3();
+function impRingPick(rc){
+  const rings=impRingList(); if(!rings.length) return null;
+  const keep=rc.params.Line.threshold; let best=null;
+  for(const o of rings){
+    if(!o.visible||!o.parent||!o.parent.visible) continue;
+    o.matrixWorld.decompose(_rp,_rq,_rs);
+    rc.params.Line.threshold=IMP_RING_PICK_R/Math.max(1e-6,_rs.x);
+    const h=rc.intersectObject(o,false)[0];
+    if(h&&(!best||h.distance<best.distance)) best=h;
+  }
+  rc.params.Line.threshold=keep; return best;
+}
+function impRingHighlight(){
+  const k=IMP_RING_SEL?IMP_RING_SEL.key:'';
+  for(const o of impRingList()){
+    const R=o.userData.impRing, on=impRingKey(R)===k;
+    o.material.opacity=on?Math.max(.9,R.dim):R.dim;
+    o.material.color.setHex(on?SCI_GOLD:R.base);
+  }
+}
+/* Selecting a ring moves the working point ONTO it, which is the whole point of the
+   request: the ring is a handle on the chart.  A swept ring also carries the frequency
+   it was drawn at, so choosing it retunes the instrument — and then the load solved for
+   at that frequency is, identically, the load already fitted, which is a live check on
+   the inverse rather than a claim about it. */
+function impRingSelect(obj){
+  const R=obj.userData.impRing;
+  IMP_RING_SEL={key:impRingKey(R),kind:R.kind,gr:R.gr,gi:R.gi,f:R.f};
+  if(R.kind==='sweep'&&R.f) state.impFghz=R.f/1e9;
+  if(Number.isFinite(R.gr)&&R.kind!=='live') impApplyGamma(R.gr,R.gi,false);
+  else if(R.kind==='sweep') { try{ impLadderStage(); }catch(e){} }
+  impRingHighlight();
 }
 let IMP_LADDER_LAST=null, IMP_LADDER_PLANES=null, IMP_FLOW=null, IMP_FLOW_MARK=null, IMP_FLOW_T=0;
 /* The marker walks the route at a steady rate and restarts at the source, so what you
@@ -17708,12 +17868,18 @@ function impLadderHTML(){
     <div class="ctlrow"><button class="chip ${state.impFibres!==false?'on':''}" id="impFibres">${TT('Hopf fibres along the sweep','волокна Хопфа вдоль развёртки','Hopf-Fasern entlang des Sweeps')}</button>
       <button class="chip" id="impZLmatch">${TT('set Z_L = Z₀ (then Γ ≡ S₁₁)','задать Z_L = Z₀ (тогда Γ ≡ S₁₁)','Z_L = Z₀ setzen (dann Γ ≡ S₁₁)')}</button>
       <button class="chip ${state.impLoss?'on':''}" id="impLoss">${TT('non-ideal components','неидеальные компоненты','nicht-ideale Bauteile')}</button>
-      <button class="chip ${state.impDrag?'on':''}" id="impDrag">${state.impDrag?TT('⊕ dragging the point — orbit paused','⊕ точка перетаскивается — орбита на паузе','⊕ Punkt ziehen'):TT('⊕ grab the point on the chart','⊕ взять точку на чарте','⊕ Punkt greifen')}</button>
       <button class="chip ${state.impLoadRC?'on':''}" id="impLoadRC">${TT('load = R ∥ C (Bode–Fano applies)','нагрузка = R ∥ C (применим Боде–Фано)','Last = R ∥ C')}</button></div>
-    ${state.impDrag?`<div class="note" style="font-size:10px;color:${IMP_DRAG_MSG==='flat'?'#ffd58a':'var(--dim)'}">${
-      IMP_DRAG_MSG==='flat'?TT('The chart is nearly edge-on. A plane seen this flat cannot be dragged on — one pixel of pointer motion would move Γ without bound — so the grab refuses. Orbit up and try again.','Чарт виден почти с ребра. По такой плоскости тянуть нельзя — один пиксель движения указателя сдвинул бы Γ неограниченно — поэтому захват отказывает. Поверните камеру выше.','Der Chart ist fast von der Kante gesehen; ein Ziehen wäre unbestimmt und wird verweigert.')
-      :IMP_DRAG_MSG==='unreachable'?TT('This network cannot reach that point with any load.','Эта сеть не достигает такой точки ни при какой нагрузке.','Dieses Netzwerk erreicht diesen Punkt mit keiner Last.')
-      :TT('Point anywhere in the disk: the atlas solves for the load that puts the working point exactly there.','Укажите в диск: атлас решит, какая нагрузка ставит рабочую точку ровно туда.','Zeigen Sie in die Scheibe: der Atlas löst nach der Last auf.')}</div>`:''}
+    ${(()=>{
+      const S=IMP_RING_SEL, warn=IMP_DRAG_MSG==='flat'||IMP_DRAG_MSG==='unreachable';
+      const head=IMP_DRAG_MSG==='flat'
+        ? TT('The chart is nearly edge-on. A plane seen this flat cannot be dragged on — one pixel of pointer motion would move Γ without bound — so the grab refuses. Orbit up and try again.','Чарт виден почти с ребра. По такой плоскости тянуть нельзя — один пиксель движения указателя сдвинул бы Γ неограниченно — поэтому захват отказывает. Поверните камеру выше.','Der Chart ist fast von der Kante gesehen; ein Ziehen wäre unbestimmt und wird verweigert.')
+        : IMP_DRAG_MSG==='unreachable'
+        ? TT('This network cannot reach that point with any load.','Эта сеть не достигает такой точки ни при какой нагрузке.','Dieses Netzwerk erreicht diesen Punkt mit keiner Last.')
+        : TT('Two handles on the same physics. Point inside the disk and the atlas solves for the load that puts the working point exactly there. Or take hold of a HOPF RING: every ring IS a chart point lifted to S³, the ring you drag stays threaded on your finger, and the point on the chart and on the sphere follows it.','Две рукояти на одной и той же физике. Укажите внутрь диска — атлас решит, какая нагрузка ставит рабочую точку ровно туда. Либо возьмитесь за КОЛЬЦО ХОПФА: каждое кольцо — это точка чарта, поднятая в S³; кольцо остаётся нанизанным на палец, а точка на чарте и на сфере следует за ним.','Zwei Griffe an derselben Physik: die Scheibe, oder ein HOPF-RING — jeder Ring ist ein auf S³ gehobener Chart-Punkt.');
+      const sel=S?`<br><b style="color:#ffd98a">${TT('ring in hand','кольцо в руке','Ring in der Hand')}:</b> ${
+        S.kind==='sweep'?`${(S.f/1e9).toFixed(4)} GHz`:S.kind==='live'?TT('the working point','рабочая точка','der Arbeitspunkt')
+        :`|Γ| ${Math.hypot(S.gr,S.gi).toFixed(2)} · ∠ ${(Math.atan2(S.gi,S.gr)*180/Math.PI).toFixed(0)}° · VSWR ${((1+Math.hypot(S.gr,S.gi))/Math.max(1e-9,1-Math.hypot(S.gr,S.gi))).toFixed(2)}`}`:'';
+      return `<div class="note" style="font-size:10px;color:${warn?'#ffd58a':'var(--dim)'}">${head}${sel}</div>`;})()}
     ${state.impLoadRC?`<div class="ctlrow"><label>R_load</label><input id="impLoadR" type="range" min="2" max="400" step="0.5" value="${state.impLoadR||50}"><span class="val">${(state.impLoadR||50).toFixed(1)} Ω</span>
       <label>C_load</label><input id="impLoadC" type="range" min="0.05" max="20" step="0.01" value="${state.impLoadC||1}"><span class="val">${(state.impLoadC||1).toFixed(2)} pF</span></div>`:''}
     ${state.impLoss?`<div class="ctlrow"><label>Q_L</label><input id="impQL" type="range" min="5" max="400" step="1" value="${state.impQL||60}"><span class="val">${(state.impQL||60).toFixed(0)}</span>
@@ -17826,11 +17992,24 @@ function impSetup(){
   const spiralD=new THREE.Line(spd,new THREE.LineBasicMaterial({color:0xffb0e0,transparent:true,opacity:.35,depthWrite:false})); spiralD.visible=false; impGroup.add(spiralD);
   // live Hopf fibre over the sphere point — ψ=e^{iα}(Γ,1)/√(1+|Γ|²), the U(1) the lossless line rotates
   const fib=new THREE.Group(); fib.position.set(4.6,0.9,0); fib.scale.setScalar(0.38); impGroup.add(fib);
-  const _c=new THREE.Color();
-  for(let aa=1;aa<=4;aa++){ const th0=Math.PI*aa/5; for(let bb=0;bb<4;bb++){ const seg=spinHopfFibre(th0,2*Math.PI*bb/4); if(!seg.length) continue;
-    _c.setHSL(0.58-0.4*(th0/Math.PI),0.6,0.5);
-    fib.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.12,blending:THREE.AdditiveBlending,depthWrite:false}))); } }
+  /* THE RING LATTICE, reparametrised so that every ring is somewhere a circuit can
+     actually be: four standing-wave ratios × four reflection phases, |Γ| ∈ {¼,½,¾,1}
+     and arg Γ ∈ {0°,90°,180°,270°}.  The lattice used to be laid out on four equally
+     spaced POLAR angles, which put half of its rings at |Γ| = 1.38 and 3.08 — outside
+     the passive disk, reachable by no passive load at all.  Selecting one of those
+     would have been selecting a place the instrument cannot go. */
+  const _c=new THREE.Color(), _ringMag=[.25,.5,.75,1];
+  for(const rho of _ringMag) for(let bb=0;bb<4;bb++){
+    const phi=Math.PI/2*bb, gr=rho*Math.cos(phi), gi=rho*Math.sin(phi);
+    const seg=ladderHopfFibre(gr,gi,120,1); if(!seg.length) continue;
+    _c.setHSL(0.45-0.17*rho,0.62,0.52);
+    const ln=new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(seg),
+      new THREE.LineBasicMaterial({color:_c.getHex(),transparent:true,opacity:.16,blending:THREE.AdditiveBlending,depthWrite:false}));
+    ln.name=`Hopf ring · |Γ| = ${rho} · ∠ ${bb*90}° · VSWR ${((1+rho)/(1-rho)||Infinity).toFixed(2)}`;
+    impRingAdd(ln,{kind:'lattice',gr,gi,scale:1,base:_c.getHex(),dim:.16});
+    fib.add(ln); }
   const liveFib=new THREE.LineSegments(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({color:0xffe27a,transparent:true,opacity:1,blending:THREE.AdditiveBlending,depthWrite:false})); fib.add(liveFib);
+  liveFib.name='Hopf ring · the working point'; impRingAdd(liveFib,{kind:'live',scale:1,base:0xffe27a,dim:1});
   { const l=mkLabel(TT('Hopf fibre ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · line = U(1) rotation','фибра Хопфа ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · линия = вращение U(1)','Hopf-Faser ψ=e^{iα}(Γ,1)/√(1+|Γ|²) · Leitung = U(1)-Drehung'),'label dim'); l.position.set(4.6,2.5,0); impGroup.add(l); }
   // ── reflection PHASE SPACE |r|(k,V₀): the predictive landscape of the barrier, with the exact
   //    resonance valleys k=√(2V₀+n²π²) (where qa=nπ ⇒ r≡0, perfect transmission = the zenith) ──
@@ -17882,8 +18061,8 @@ function impSetup(){
   dragPlane.rotation.x=-Math.PI/2; dragPlane.position.y=.04; dragPlane.name='Smith chart pick surface';
   impGroup.add(dragPlane); IMP_DRAG_PLANE=dragPlane;
   IMP_PHASE_LAYER=new THREE.Group();IMP_PHASE_LAYER.name='phase space · (v,i) ellipse at every circuit plane';impGroup.add(IMP_PHASE_LAYER);
-  impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,rsGrp,rsMark,rsDrop,RSX,RSY,RSZ,toDisk,toSph,ladderLayer,readLab:rl};
-  try{ impLadderStage(); impPhaseStage(); impApplyShow(); impDragBind(); }catch(e){}
+  impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,fibGrp:fib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,rsGrp,rsMark,rsDrop,RSX,RSY,RSZ,toDisk,toSph,ladderLayer,readLab:rl};
+  try{ impLadderStage(); impPhaseStage(); impApplyShow(); impRingHighlight(); }catch(e){}
   impAssimAttach();
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
@@ -28915,7 +29094,7 @@ const state = {
   /* The laboratory opens on the instrument it always had: the wave running on a single
      load, animated, exactly as before the ladder existed.  Defaulting to the ladder
      replaced a working first impression with a second one, which was my mistake. */
-  impLoadRC:false, impLoadR:50, impLoadC:1, impShow:'classic', impPhase:true, impDrag:false, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
+  impLoadRC:false, impLoadR:50, impLoadC:1, impShow:'classic', impPhase:true, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
   impNet:[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2}],   // Impedance · Möbius · Smith lab + measured sweep assimilation
   cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
   cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
@@ -32788,10 +32967,14 @@ function buildCtlBody(){
         if(ol) ol.onclick=()=>{ state.impLadderOn=!state.impLadderOn; relad(); };
         const fb=ctl.querySelector('#impFibres');
         if(fb) fb.onclick=()=>{ state.impFibres=state.impFibres===false; relad(); };
-        const dg=ctl.querySelector('#impDrag');
-        if(dg) dg.onclick=()=>{ state.impDrag=!state.impDrag; if(!state.impDrag){controls.enabled=true;IMP_DRAG_MSG='';} relad(); };
+        /* Choosing the network IS switching the network on.  Leaving those two as
+           separate switches meant a reader could pick "⚡ the network" and be shown an
+           empty frame, because the ladder was still off — a control that answers a
+           direct request with nothing. */
         ctl.querySelectorAll('[data-imp-show]').forEach(b=>b.onclick=()=>{
-          state.impShow=b.dataset.impShow; relad(); });
+          state.impShow=b.dataset.impShow;
+          if(state.impShow!=='classic') state.impLadderOn=true;
+          relad(); });
         const ph=ctl.querySelector('#impPhase');
         if(ph) ph.onclick=()=>{ state.impPhase=state.impPhase===false; relad(); };
         const lr=ctl.querySelector('#impLoadRC');
@@ -36874,6 +37057,24 @@ globalThis.FBS3R_QA=Object.freeze({
     const shown=all.filter(d=>d.style.display!=='none');
     return {inDom:all.length,onScreen:shown.length,dimmedByChrome:labelGuardDimmed,
       periodSeconds:LABEL_GUARD_HZ};},
+  impState(){ /* the working point of the impedance laboratory, both instruments */
+    return {R:state.impR,X:state.impX,f:state.impFghz,ZLr:state.impZLr,ZLi:state.impZLi,
+      show:state.impShow,gamma:impDispGamma()};},
+  rings(){ /* what is pickable, what is selected, and where each ring's point is */
+    const L=(typeof impRingList==='function')?impRingList():[];
+    return {count:L.length,selected:IMP_RING_SEL?{...IMP_RING_SEL}:null,
+      pickRadius:IMP_RING_PICK_R,
+      list:L.map(o=>({name:o.name,kind:o.userData.impRing.kind,
+        gr:o.userData.impRing.gr,gi:o.userData.impRing.gi,f:o.userData.impRing.f,
+        visible:o.visible&&!!o.parent&&o.parent.visible}))};},
+  ringPickAt(nx=0,ny=0){ /* the exact pick the pointer performs, exposed for verification */
+    const rc=new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(nx,ny),camera);
+    const h=(typeof impRingPick==='function')?impRingPick(rc):null;
+    if(!h) return null;
+    const R=h.object.userData.impRing;
+    const q=h.point.clone().applyMatrix4(h.object.matrixWorld.clone().invert()).multiplyScalar(1/(R.scale||1));
+    return {name:h.object.name,kind:R.kind,distance:h.distance,
+      gammaOfGrab:impHopfGamma(q.x,q.y,q.z),ringGamma:[R.gr,R.gi],f:R.f};},
   chartHitAt(nx=0,ny=0){ /* what chart coordinate does a ray through this NDC point land
       on?  This is the exact test the grab performs, exposed so the interaction can be
       verified from outside instead of by eye. */
