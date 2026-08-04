@@ -933,7 +933,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.11.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.12.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1097,7 +1097,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.11.0';
+const HCC_VERSION='3.12.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3279,6 +3279,32 @@ function runSelfTests(){
       ok('Extraordinary transmission has an exact circuit statement the chart can show: a resonant aperture is a parallel LC across the line, its admittance vanishes at resonance, the obstacle becomes an open circuit and ALL the power goes through at the very frequency a hole that small should be opaque',
         Math.abs(par.through-1)<1e-12&&par.mag<1e-9,
         `f₀ = ${(f0/1e9).toFixed(6)} GHz · |S₂₁|² = ${(par.through*100).toFixed(9)} % · |Γ| = ${par.mag.toExponential(2)}`);
+    }
+    { /* the constant-Q locus and the Bode-Fano budget: two claims the panel makes */
+      let wq=0;
+      for(const Q of [1,3,10]) for(let i=0;i<400;i++){
+        const t=2*Math.PI*i/400, Rr=Math.sqrt(1+1/(Q*Q)), u=Rr*Math.cos(t), v=-1/Q+Rr*Math.sin(t);
+        const d=(1-u)*(1-u)+v*v; if(d<1e-4) continue;
+        const r=(1-u*u-v*v)/d, x=2*v/d; if(r>1e-6) wq=Math.max(wq,Math.abs(Math.abs(x)/r-Q)); }
+      ok('The constant-Q arcs are the exact locus |X|/R = Q — a circle centred on the imaginary axis through both Γ = ±1 — so a load sitting on a high-Q arc is visibly a load whose match will be narrow, before any network is built',
+        wq<1e-9, `max ||x|/r − Q| over Q ∈ {1,3,10} = ${wq.toExponential(2)}`);
+      const wasL=state.impLoss, wasRC=state.impLoadRC, wasR=state.impLoadR, wasC=state.impLoadC;
+      state.impLoss=false; state.impLoadRC=true; state.impLoadR=50; state.impLoadC=1;
+      /* the Fano integral converges slowly — its integrand falls as 1/ω² — so the
+         check runs over the band the offline verification used, not a display band */
+      const BF=ladderBodeFano([],50,0,0,1e4,1e16,40000);
+      state.impLoss=wasL; state.impLoadRC=wasRC; state.impLoadR=wasR; state.impLoadC=wasC;
+      ok('Bode–Fano is exact where the theorem applies: for a parallel-RC load matched to its own resistance the BARE load already spends the entire ∫ln(1/|Γ|)dω = π/(RC) budget, so a lossless network there can only move the match in frequency and never improve it on the whole — the chart states what is impossible, not merely what is achieved',
+        BF.fraction<=1+1e-9 && BF.fraction>0.999,
+        `spent/budget = ${BF.fraction.toFixed(6)} · budget ${BF.budget.toExponential(4)} rad/s · best possible |Γ| over the band ${BF.floor.toExponential(3)}`);
+      { /* losses must actually cost power, and must be off by default */
+        const net=[{k:'sL',v:3.2},{k:'pC',v:1.1}];
+        state.impLoss=false; const clean=ladderSolve(net,3e9,50,25,-30).unitarity;
+        state.impLoss=true;  const lossy=ladderSolve(net,3e9,50,25,-30).unitarity;
+        state.impLoss=wasL;
+        ok('Non-ideal components are off by default and, when switched on, actually cost power: the unitarity residual stops being round-off and starts reporting what the inductor resistance and the capacitor ESR eat',
+          clean<1e-12 && lossy>1e-6,
+          `ideal ${clean.toExponential(2)} → non-ideal ${lossy.toExponential(3)} with Q_L = ${state.impQL||60}, tan δ = ${state.impTD??0.002}`); }
     }
     { /* Γ and S₁₁ are DIFFERENT measurements and the panel must never print one as
          the other.  They coincide exactly when the load equals the reference. */
@@ -16714,16 +16740,22 @@ const IMP_C0=299792458;
 const LADDER_KINDS={
   sR :{t:'series',sym:'—R—', unit:'Ω', lo:0.1,  hi:500,  def:25,   log:true,
        mk:(e,w)=>[LC(1),LC(e.v,0),LC(0),LC(1)]},
+  /* A real inductor has series resistance ωL/Q and a real capacitor has ESR
+     tanδ/(ωC).  Both are switched on together by the NON-IDEAL toggle, and when they
+     are on the unitarity residual stops being 1e-16 and starts reporting the power
+     the components are actually eating — which is the honest reason a match built on
+     paper never quite lands where the paper says. */
   sL :{t:'series',sym:'—L—', unit:'nH',lo:0.01, hi:100,  def:3.2,  log:true,
-       mk:(e,w)=>[LC(1),LC(0,w*e.v*1e-9),LC(0),LC(1)]},
+       mk:(e,w)=>[LC(1),LC(LADDER_LOSS?w*e.v*1e-9/Math.max(1e-6,state.impQL||60):0,w*e.v*1e-9),LC(0),LC(1)]},
   sC :{t:'series',sym:'—C—', unit:'pF',lo:0.01, hi:100,  def:1.1,  log:true,
-       mk:(e,w)=>[LC(1),LC(0,-1/(w*e.v*1e-12)),LC(0),LC(1)]},
+       mk:(e,w)=>[LC(1),LC(LADDER_LOSS?(state.impTD??0.002)/(w*e.v*1e-12):0,-1/(w*e.v*1e-12)),LC(0),LC(1)]},
   pR :{t:'shunt', sym:'⊥R',  unit:'Ω', lo:1,    hi:5000, def:200,  log:true,
        mk:(e,w)=>[LC(1),LC(0),LC(1/e.v,0),LC(1)]},
   pL :{t:'shunt', sym:'⊥L',  unit:'nH',lo:0.01, hi:100,  def:5,    log:true,
-       mk:(e,w)=>[LC(1),LC(0),LC(0,-1/(w*e.v*1e-9)),LC(1)]},
+       mk:(e,w)=>{const X=w*e.v*1e-9, R=LADDER_LOSS?X/Math.max(1e-6,state.impQL||60):0;
+         return [LC(1),LC(0),lcDiv(LC(1,0),LC(R,X)),LC(1)];}},
   pC :{t:'shunt', sym:'⊥C',  unit:'pF',lo:0.01, hi:100,  def:0.9,  log:true,
-       mk:(e,w)=>[LC(1),LC(0),LC(0,w*e.v*1e-12),LC(1)]},
+       mk:(e,w)=>[LC(1),LC(0),LC(LADDER_LOSS?(state.impTD??0.002)*w*e.v*1e-12:0,w*e.v*1e-12),LC(1)]},
   tl :{t:'line',  sym:'≡ line',unit:'mm',lo:0.1,hi:120,  def:18,   log:false,
        mk:(e,w)=>{const th=w*e.v*1e-3/(IMP_C0/Math.sqrt(e.er||2.2));
          return [LC(Math.cos(th)),LC(0,(e.zc||50)*Math.sin(th)),LC(0,Math.sin(th)/(e.zc||50)),LC(Math.cos(th))];}},
@@ -16737,10 +16769,18 @@ const LADDER_KINDS={
        mk:(e,w)=>[LC(e.v),LC(0),LC(0),LC(1/e.v)]},
 };
 const LADDER_ORDER=['sR','sL','sC','pR','pL','pC','tl','ost','sst','xf'];
-function ladderMatrix(net,w){ let M=LC_EYE;
+let LADDER_LOSS=false;
+function ladderMatrix(net,w){ LADDER_LOSS=!!state.impLoss; let M=LC_EYE;
   for(const e of net){ const K=LADDER_KINDS[e.k]; if(!K) continue; M=lcMM(M,K.mk(e,w)); } return M; }
 function ladderSolve(net,f,Z0,ZLr,ZLi){
-  const w=2*Math.PI*f, M=ladderMatrix(net,w), ZL=LC(ZLr,ZLi);
+  const w=2*Math.PI*f, M=ladderMatrix(net,w);
+  /* Fano's theorem is stated for a load that IS a resistance in parallel with a
+     capacitance — a frequency-dependent object.  A constant impedance is not one, so
+     when the Bode–Fano budget is on display the load is genuinely R∥C and is swept as
+     such; otherwise it is the fixed Z_L the sliders set. */
+  const ZL=state.impLoadRC
+    ? lcDiv(LC(state.impLoadR||50,0),LC(1,w*(state.impLoadR||50)*(state.impLoadC||1)*1e-12))
+    : LC(ZLr,ZLi);
   const Zin=lcDiv(lcAdd(lcMul(M[0],ZL),M[1]), lcAdd(lcMul(M[2],ZL),M[3]));
   const G=lcDiv(lcSub(Zin,LC(Z0,0)), lcAdd(Zin,LC(Z0,0)));
   const z=LC(Z0,0), den=lcAdd(lcAdd(M[0],lcDiv(M[1],z)),lcAdd(lcMul(M[2],z),M[3]));
@@ -16804,6 +16844,56 @@ function ladderSweep(net,f0,f1,N,Z0,ZLr,ZLi){
     }
   }
   return {pts,resonances:res,matches:mat,transmission:thru};
+}
+/* CONSTANT-Q ARCS.  Q = |X|/R is |x|/r on the normalised chart, and that locus is a
+   CIRCLE: u² + (v ∓ 1/Q)² = 1 + 1/Q², centred on the imaginary axis and passing through
+   both Γ = ±1.  Verified to 4.3e-12.  A load sitting on a high-Q arc is a load whose
+   match will be narrow, and the arc says so before any network is built. */
+function ladderQCircle(Q,sign){
+  const R=Math.sqrt(1+1/(Q*Q)), cy=-sign/Q, out=[];
+  for(let i=0;i<=220;i++){ const t=2*Math.PI*i/220, u=R*Math.cos(t), v=cy+R*Math.sin(t);
+    out.push(u*u+v*v<=1.0002?[u,v]:null); }
+  return out;
+}
+/* BODE–FANO.  For a load that is a resistance R in parallel with C, NO lossless
+   matching network whatever its complexity can do better than
+
+       ∫₀^∞ ln(1/|Γ|) dω  ≤  π/(RC)
+
+   which turns into a hard floor on the match a given bandwidth can have:
+
+       |Γ|min  =  exp( −π / (R·C·Δω) )
+
+   Verified: for R = Z₀ the BARE load already spends the entire budget to 3 parts in
+   10⁴ (the rest is integration tail), so a network there can only move the match
+   around in frequency, never improve it on the whole.  For R ≠ Z₀ the bare load spends
+   only part of it — the unspent remainder is exactly the improvement a matching
+   network is able to buy, and the panel prints how much is left.
+
+   This is the strongest predictive statement the chart carries: it tells you what is
+   impossible before you try it. */
+function ladderBodeFano(net,Z0,ZLr,ZLi,f0,f1,N=400){
+  /* the load's parallel-RC equivalent at the band centre, which is what Fano's
+     theorem is stated for; other load topologies have their own constants and are
+     NOT covered, which the panel says */
+  const fc=Math.sqrt(f0*f1), wc=2*Math.PI*fc;
+  const R=state.impLoadRC?(state.impLoadR||50):(()=>{const Y=lcDiv(LC(1,0),LC(ZLr,ZLi));return Y.re>1e-15?1/Y.re:Infinity;})();
+  const Cc=state.impLoadRC?(state.impLoadC||1)*1e-12:(()=>{const Y=lcDiv(LC(1,0),LC(ZLr,ZLi));return Y.im>1e-18?Y.im/wc:0;})();
+  const budget=(R>0&&Cc>0&&Number.isFinite(R))?Math.PI/(R*Cc):Infinity;
+  /* The integrand carries a logarithmic singularity at ω → 0 (a matched load has
+     |Γ| → 0 there) and falls off as 1/ω² far out, so LINEAR sampling misses most of
+     the integral at both ends: the first attempt lost 6% of it and looked like a
+     violation of a theorem that was in fact fine.  Geometric sampling resolves both
+     tails with the same number of evaluations. */
+  let spent=0;
+  const lo=2*Math.PI*f0, hi=2*Math.PI*f1, k=Math.log(hi/lo)/N;
+  for(let i=0;i<N;i++){ const w=lo*Math.exp((i+.5)*k), dw=w*k;
+    const g=ladderSolve(net,w/(2*Math.PI),Z0,ZLr,ZLi).mag;
+    spent+=Math.log(1/Math.max(g,1e-12))*dw; }
+  const dw=hi-lo, floor=Number.isFinite(budget)?Math.exp(-budget/dw):0;
+  return {R,C:Cc,budget,spent,dw,floor,
+    floorRL:floor>1e-15?-20*Math.log10(floor):Infinity,
+    fraction:Number.isFinite(budget)&&budget>0?spent/budget:0};
 }
 /* Γ is a point of CP¹, so it IS a circle in S³.  The fibre over ζ is
    { e^{iψ}(1,ζ)/√(1+|ζ|²) } — a great circle — drawn here by the same
@@ -16987,6 +17077,15 @@ function impLadderStage(){
   circle(.5,0,.5,SCI_MINT,.72);                       // r = 1 · series-match locus
   circle(-.5,0,.5,SCI_VIOLET,.72);                    // g = 1 · shunt-stub locus
   if(now.mag>1e-4&&now.mag<.999) circle(0,0,now.mag,SCI_GOLD,.5,true);   // constant VSWR
+  /* constant-Q arcs: a load on a high-Q arc has a narrow match, and the arc says so */
+  for(const Q of [1,3,10]) for(const sg of [1,-1]){
+    const pts=ladderQCircle(Q,sg), d=[],sp=[]; let pd=null,ps=null;
+    pts.forEach((q,k)=>{ if(!q){pd=null;ps=null;return;}
+      const a=toDisk(q[0],q[1],.018), b=toSph(q[0],q[1]);
+      if(pd&&k%3===0){ d.push(pd,a); sp.push(ps,b); } pd=a; ps=b; });
+    if(d.length){ const mk=p=>new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(p),
+      new THREE.LineBasicMaterial({color:SCI_VIOLET,transparent:true,opacity:.26,depthWrite:false,blending:THREE.AdditiveBlending}));
+      L.add(mk(d)); L.add(mk(sp)); } }
 
   /* the one node every reader should learn to see */
   { const c=new THREE.Mesh(new THREE.SphereGeometry(.085,14,10),
@@ -17166,7 +17265,14 @@ function impLadderHTML(){
         ${K.t==='line'||e.k==='ost'||e.k==='sst'?`<div class="ctlrow"><label>Zc</label><input data-imp-zc="${i}" type="range" min="10" max="200" step="0.5" value="${e.zc||50}"><span class="val">${(e.zc||50).toFixed(1)} Ω</span><label>εr</label><input data-imp-er="${i}" type="range" min="1" max="12" step="0.01" value="${e.er||2.2}"><span class="val">${(e.er||2.2).toFixed(2)}</span></div>`:''}
       </div>`;}).join(''):`<div class="note" style="color:var(--dim)">${TT('empty ladder — the load is seen directly','цепь пуста — нагрузка видна напрямую','leere Kette — die Last wird direkt gesehen')}</div>`}</div>
     <div class="ctlrow"><button class="chip ${state.impFibres!==false?'on':''}" id="impFibres">${TT('Hopf fibres along the sweep','волокна Хопфа вдоль развёртки','Hopf-Fasern entlang des Sweeps')}</button>
-      <button class="chip" id="impZLmatch">${TT('set Z_L = Z₀ (then Γ ≡ S₁₁)','задать Z_L = Z₀ (тогда Γ ≡ S₁₁)','Z_L = Z₀ setzen (dann Γ ≡ S₁₁)')}</button></div>
+      <button class="chip" id="impZLmatch">${TT('set Z_L = Z₀ (then Γ ≡ S₁₁)','задать Z_L = Z₀ (тогда Γ ≡ S₁₁)','Z_L = Z₀ setzen (dann Γ ≡ S₁₁)')}</button>
+      <button class="chip ${state.impLoss?'on':''}" id="impLoss">${TT('non-ideal components','неидеальные компоненты','nicht-ideale Bauteile')}</button>
+      <button class="chip ${state.impLoadRC?'on':''}" id="impLoadRC">${TT('load = R ∥ C (Bode–Fano applies)','нагрузка = R ∥ C (применим Боде–Фано)','Last = R ∥ C')}</button></div>
+    ${state.impLoadRC?`<div class="ctlrow"><label>R_load</label><input id="impLoadR" type="range" min="2" max="400" step="0.5" value="${state.impLoadR||50}"><span class="val">${(state.impLoadR||50).toFixed(1)} Ω</span>
+      <label>C_load</label><input id="impLoadC" type="range" min="0.05" max="20" step="0.01" value="${state.impLoadC||1}"><span class="val">${(state.impLoadC||1).toFixed(2)} pF</span></div>`:''}
+    ${state.impLoss?`<div class="ctlrow"><label>Q_L</label><input id="impQL" type="range" min="5" max="400" step="1" value="${state.impQL||60}"><span class="val">${(state.impQL||60).toFixed(0)}</span>
+      <label>tan δ</label><input id="impTD" type="range" min="0" max="0.05" step="0.0002" value="${state.impTD??0.002}"><span class="val">${(state.impTD??0.002).toFixed(4)}</span></div>
+    <div class="note" style="font-size:10px;color:var(--dim)">${TT('Inductors carry series resistance ωL/Q, capacitors an ESR of tanδ/(ωC). The series resistance rises with frequency, which is the skin effect to first order. With these on, the unitarity residual stops being 1e-16 and starts reporting the power the components actually eat.','Катушки несут последовательное сопротивление ωL/Q, конденсаторы — ESR величиной tanδ/(ωC). Последовательное сопротивление растёт с частотой — это скин-эффект в первом приближении. С ними невязка унитарности перестаёт быть 1e-16 и начинает показывать мощность, которую компоненты действительно съедают.','Spulen tragen ωL/Q, Kondensatoren einen ESR von tanδ/(ωC).')}</div>`:''}
     ${!N?'':`<div style="margin-top:7px">
       ${row('Z_in',`${fmt(N.Zin.re)} ${N.Zin.im>=0?'+j':'−j'}${fmt(Math.abs(N.Zin.im))} Ω`,`z = ${fmt(N.Zin.re/(state.impZ0||50))} ${N.Zin.im>=0?'+j':'−j'}${fmt(Math.abs(N.Zin.im)/(state.impZ0||50))}`)}
       ${row('Γ',`${fmt(N.G.re)} ${N.G.im>=0?'+j':'−j'}${fmt(Math.abs(N.G.im))}`,`|Γ| = ${fmt(N.mag)}`)}
@@ -17196,6 +17302,24 @@ function impLadderHTML(){
             `|S₂₁|² = ${(m.through*100).toFixed(4)}% · |S₁₁| = ${m.s11.toExponential(2)} · ${TT('unitarity','унитарность','Unitarität')} ${m.unitarity.toExponential(1)}`,
             m.through>0.999?'#55e8c4':'#ffd58a')).join('')}</div>`
         :`<div class="note" style="color:var(--dim)">${TT('no |S₁₁| minimum inside the sweep','минимумов |S₁₁| в развёртке нет','kein |S₁₁|-Minimum im Sweep')}</div>`}
+      ${(()=>{ const BF=ladderBodeFano(net,state.impZ0||50,state.impZLr??25,state.impZLi??-30,(state.impFlo||.3)*1e9,(state.impFhi||12)*1e9);
+        if(!state.impLoadRC) return `<div class="note" style="margin-top:6px;color:var(--dim)">${TT('Bode–Fano is stated for a load that IS a resistance in parallel with a capacitance — a frequency-dependent object. A fixed Z_L is not one, so the bound is not offered here. Switch the load to R ∥ C to see it.','Боде–Фано записан для нагрузки, которая ЕСТЬ сопротивление параллельно ёмкости — частотно-зависимый объект. Фиксированный Z_L таковым не является, поэтому граница здесь не предлагается. Переключите нагрузку на R ∥ C.','Bode–Fano gilt für eine echte Parallel-RC-Last; ein fester Z_L ist keine.')}</div>`;
+        if(!Number.isFinite(BF.budget)||!(BF.C>0)) return '';
+        return `<div class="note" style="margin-top:6px;border-left:3px solid #ffd58a">
+          <b style="color:#ffd58a">${TT('BODE–FANO · what is impossible','БОДЕ–ФАНО · что невозможно','BODE–FANO · was unmöglich ist')}</b>
+          <div style="margin-top:3px">${TT(
+            'No lossless matching network, however complex, can beat ∫ln(1/|Γ|)dω ≤ π/(RC) for a parallel-RC load. That turns into a hard floor on the match any bandwidth can have — it tells you what is impossible before you try it.',
+            'Никакая согласующая цепь без потерь, сколь угодно сложная, не превзойдёт ∫ln(1/|Γ|)dω ≤ π/(RC) для нагрузки R∥C. Отсюда жёсткий пол для согласования в любой полосе — он говорит, что невозможно, ещё до попытки.',
+            'Kein verlustfreies Anpassnetzwerk kann ∫ln(1/|Γ|)dω ≤ π/(RC) übertreffen.')}</div>
+          <div style="margin-top:4px;font-variant-numeric:tabular-nums">
+            ${TT('load equivalent','эквивалент нагрузки','Lastäquivalent')} R∥C = ${BF.R.toFixed(2)} Ω ∥ ${(BF.C*1e12).toFixed(4)} pF<br>
+            ${TT('budget','бюджет','Budget')} π/(RC) = ${BF.budget.toExponential(4)} rad/s · ${TT('spent in this sweep','израсходовано в развёртке','im Sweep verbraucht')} ${BF.spent.toExponential(4)} (${(BF.fraction*100).toFixed(2)}%)<br>
+            <b style="color:${BF.floor<.1?'#8fffe3':'#ffd58a'}">${TT('best possible |Γ| over this band','наилучший возможный |Γ| в этой полосе','bestmögliches |Γ|')} = ${BF.floor.toExponential(4)}</b> · RL ≤ ${BF.floorRL.toFixed(2)} dB
+          </div>
+          <div style="margin-top:3px;color:var(--dim)">${TT(
+            'Fano\'s constant is stated for a parallel-RC load; the panel takes the load\'s R∥C equivalent at the band centre. Other load topologies have their own constants and are NOT covered by this number.',
+            'Постоянная Фано записана для нагрузки R∥C; панель берёт эквивалент R∥C на центре полосы. У других топологий нагрузки свои постоянные, и это число их НЕ покрывает.',
+            'Fanos Konstante gilt für eine Parallel-RC-Last; andere Topologien sind NICHT abgedeckt.')}</div></div>`; })()}
       <div class="note" style="margin-top:5px;font-size:10px;color:var(--dim)">${TT(
         'Resonances are located by bisection on X(f) and matches by golden section on |Γ(f)| — both refined, neither read off the sampling grid. The residual printed next to each resonance is how close X actually is to zero there. Lumped elements are ideal: no parasitics, no skin effect, no radiation, no dispersion in εr, and the line model is TEM.',
         'Резонансы находятся делением пополам по X(f), согласования — золотым сечением по |Γ(f)|: оба уточнены, ни один не считан с сетки. Невязка рядом с резонансом — насколько X там действительно близок к нулю. Сосредоточенные элементы идеальны: без паразитов, скин-эффекта, излучения и дисперсии εr; линия — TEM.',
@@ -28322,7 +28446,8 @@ const state = {
   dispSys:'phonon', dispK:1.2, dispSpeed:1,   // Dispersion manifold (v_p vs v_g)
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
   impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf', impAssimVisible:false,
-  impLadderOn:false, impPreset:'', impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
+  impLadderOn:false, impPreset:'', impLoss:false, impQL:60, impTD:0.002,
+  impLoadRC:false, impLoadR:50, impLoadC:1, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
   impNet:[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2}],   // Impedance · Möbius · Smith lab + measured sweep assimilation
   cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
   cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
@@ -32175,6 +32300,14 @@ function buildCtlBody(){
         if(ol) ol.onclick=()=>{ state.impLadderOn=!state.impLadderOn; relad(); };
         const fb=ctl.querySelector('#impFibres');
         if(fb) fb.onclick=()=>{ state.impFibres=state.impFibres===false; relad(); };
+        const lr=ctl.querySelector('#impLoadRC');
+        if(lr) lr.onclick=()=>{ state.impLoadRC=!state.impLoadRC; relad(); };
+        for(const id of ['impLoadR','impLoadC']){ const el=ctl.querySelector('#'+id);
+          if(el){ el.oninput=e=>{ state[id]=+e.target.value; relad(false); }; el.onchange=()=>buildCtl(); } }
+        const lo=ctl.querySelector('#impLoss');
+        if(lo) lo.onclick=()=>{ state.impLoss=!state.impLoss; relad(); };
+        for(const id of ['impQL','impTD']){ const el=ctl.querySelector('#'+id);
+          if(el){ el.oninput=e=>{ state[id]=+e.target.value; relad(false); }; el.onchange=()=>buildCtl(); } }
         const zm=ctl.querySelector('#impZLmatch');
         if(zm) zm.onclick=()=>{ state.impZLr=state.impZ0||50; state.impZLi=0; relad(); };
         for(const [id,key,rebuild] of [['impFghz','impFghz',false],['impFlo','impFlo',false],
