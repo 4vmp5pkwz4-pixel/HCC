@@ -1003,7 +1003,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.16.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.17.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1167,7 +1167,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.16.0';
+const HCC_VERSION='3.17.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3494,6 +3494,21 @@ function runSelfTests(){
       known.length>0 && ungrouped.length===0,
       `${known.length} laboratories over ${LAB_DOMAIN_ORDER.length-1} domains · ${ungrouped.length?'UNCLASSIFIED: '+ungrouped.join(', '):'all classified'}`);
     // and when the S³ controls are actually built, nothing may be left behind
+    { /* the phase-space ellipse: shape IS the physics */
+      const shoe=P=>{let a=0;for(let i=0;i<P.length;i++){const q=P[(i+1)%P.length];a+=P[i][0]*q[1]-q[0]*P[i][1];}return a/2;};
+      let wa=0,wp=0;
+      for(const [Vm,Vp,Im,Ip] of [[1,0,.5,0],[2,.3,1.1,-.9],[.7,1.2,3,1.2],[1,0,1,Math.PI/2]]){
+        const N=6000,P=[];
+        for(let k=0;k<N;k++){const t=2*Math.PI*k/N;P.push([Vm*Math.cos(t+Vp),Im*Math.cos(t+Ip)]);}
+        const d=Vp-Ip;
+        wa=Math.max(wa,Math.abs(Math.abs(shoe(P))-Math.PI*Vm*Im*Math.abs(Math.sin(d))));
+        let m=0;for(const q of P)m+=q[0]*q[1];m/=N;
+        wp=Math.max(wp,Math.abs(m-.5*Vm*Im*Math.cos(d)));
+      }
+      ok('The fourth dimension is the cycle itself: putting time back into the phasors makes (v,i) trace an ellipse at every plane whose AREA is the energy that plane stores and returns and whose mean v·i is the power it passes — so a purely resistive plane collapses to a straight line and a purely reactive one opens widest with zero net power',
+        wa<1e-5 && wp<1e-12,
+        `area = π|V||I||sin Δφ| to ${wa.toExponential(2)} · mean(v·i) = ½|V||I|cos Δφ to ${wp.toExponential(2)}`);
+    }
     { /* pointing at the chart has a closed-form answer, so the round trip must be exact */
       const wasRC=state.impLoadRC; state.impLoadRC=false;
       const net=[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2},{k:'ost',v:11,zc:70,er:2.2}];
@@ -17009,6 +17024,86 @@ function ladderBodeFano(net,Z0,ZLr,ZLi,f0,f1,N=400){
     floorRL:floor>1e-15?-20*Math.log10(floor):Infinity,
     fraction:Number.isFinite(budget)&&budget>0?spent/budget:0};
 }
+/* ── TWO INSTRUMENTS, ONE CHART, AND A SWITCH BETWEEN THEM ─────────────────────
+   The original station and the circuit ladder were drawing on the same disk at the
+   same time and drowning each other: the travelling sinusoid, the standing-wave curve
+   and the reflection spiral competed with the ladder's route, its loci and its fibres
+   for the same few hundred pixels, and neither could be read.
+
+   They are not the same instrument and should never have shared a frame without a
+   switch.  One shows how a wave MOVES on a single load — the sinusoid running down the
+   line, the part that is absorbed, the standing-wave pattern.  The other shows what a
+   NETWORK does to it.  Both are correct; showing them together is what was wrong. */
+function impApplyShow(){
+  const O=impObjs; if(!O) return;
+  const m=state.impShow||'ladder';
+  const classic=(m==='classic'||m==='both'), ladder=(m==='ladder'||m==='both');
+  for(const k of ['ptD','ptS','ray','trail','spiralS','spiralD','liveFib',
+                  'swCurve','swMax','swMin','swMark','rsGrp','rsMark','rsDrop'])
+    if(O[k]) O[k].visible=classic;
+  if(O.ladderLayer) O.ladderLayer.visible=ladder;
+  if(IMP_PHASE_LAYER) IMP_PHASE_LAYER.visible=ladder&&state.impPhase!==false;
+}
+/* ── THE FOURTH DIMENSION: HOW IT UNFOLDS IN TIME ──────────────────────────────
+   Everything so far is a phasor — a complex number that has already had the time taken
+   out of it.  Put the time back and each plane carries a real voltage and current,
+
+       v(t) = |V| cos(wt + fV)        i(t) = |I| cos(wt + fI)
+
+   and the pair (v, i) traces an ELLIPSE once per cycle.  That ellipse is the phase
+   space of that plane, and its shape IS the physics:
+
+       area        = pi |V||I| |sin df|    the energy the plane STORES and returns
+       mean of v i = 1/2 |V||I| cos df     the power it actually PASSES
+
+   A purely resistive plane collapses the ellipse to a straight LINE — nothing stored,
+   everything passes — and a purely reactive one opens it widest while the mean power
+   through it is zero.  Verified before drawing: area to 2.7e-6 (polygon
+   discretisation), power to 1.0e-15.
+
+   The ellipses stack along a depth axis, one per plane, with a marker running them all
+   in step: the fourth dimension is not another spatial axis but the cycle itself. */
+let IMP_PHASE_LAYER=null, IMP_PHASE_T=0, IMP_PHASE_ELL=[];
+function impPhaseStage(){
+  if(!IMP_PHASE_LAYER) return;
+  labWipe(IMP_PHASE_LAYER); IMP_PHASE_ELL=[];
+  const PL=IMP_LADDER_PLANES; if(!PL||state.impPhase===false) return;
+  const n=PL.planes.length, X0=-IMP_DS*1.9, DX=IMP_DS*0.62;
+  let vmax=1e-30, imax=1e-30;
+  for(const q of PL.planes){ vmax=Math.max(vmax,lcAbs(q.V)); imax=Math.max(imax,lcAbs(q.I)); }
+  const SC=IMP_DS*0.30;
+  const c0=new THREE.Color(SCI_CORAL), c1=new THREE.Color(SCI_MINT), cc=new THREE.Color();
+  const seg=[],col=[];
+  PL.planes.forEach((q,k)=>{
+    const Vm=lcAbs(q.V)/vmax, Im=lcAbs(q.I)/imax;
+    const Vp=Math.atan2(q.V.im,q.V.re), Ip=Math.atan2(q.I.im,q.I.re);
+    const cx=X0, cy=IMP_DS*0.30, cz=-DX*(k-(n-1)/2);
+    cc.copy(c0).lerp(c1,n>1?k/(n-1):0);
+    const P=t=>new THREE.Vector3(cx+SC*Vm*Math.cos(t+Vp), cy+SC*Im*Math.cos(t+Ip), cz);
+    let prev=null;
+    for(let i=0;i<=96;i++){ const v=P(2*Math.PI*i/96);
+      if(prev){ seg.push(prev,v); col.push(cc.r,cc.g,cc.b,cc.r,cc.g,cc.b); } prev=v; }
+    IMP_PHASE_ELL.push({P, area:Math.PI*Vm*Im*Math.abs(Math.sin(Vp-Ip)),
+      power:.5*Vm*Im*Math.cos(Vp-Ip), name:q.name});
+  });
+  if(seg.length){ const g=new THREE.BufferGeometry().setFromPoints(seg);
+    g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    IMP_PHASE_LAYER.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.9,depthWrite:false,blending:THREE.AdditiveBlending})));
+  }
+  const mk=new THREE.InstancedMesh(new THREE.SphereGeometry(.055,10,8),
+    new THREE.MeshBasicMaterial({color:0xffe27a}), Math.max(1,IMP_PHASE_ELL.length));
+  mk.frustumCulled=false; IMP_PHASE_LAYER.add(mk); IMP_PHASE_LAYER.userData.mark=mk;
+  const lab=mkLabel('phase space · (v,i) once per cycle · a LINE means nothing is stored','label dim');
+  lab.position.set(X0,IMP_DS*0.30+SC*1.5,0); IMP_PHASE_LAYER.add(lab);
+}
+function impPhaseTick(dt){
+  const L=IMP_PHASE_LAYER; if(!L||!L.visible||!IMP_PHASE_ELL.length) return;
+  const mk=L.userData.mark; if(!mk) return;
+  IMP_PHASE_T=(IMP_PHASE_T+dt*(state.impSpeed??1)*1.1)%(2*Math.PI);
+  const o=new THREE.Object3D();
+  IMP_PHASE_ELL.forEach((e,i)=>{ o.position.copy(e.P(IMP_PHASE_T)); o.updateMatrix(); mk.setMatrixAt(i,o.matrix); });
+  mk.instanceMatrix.needsUpdate=true;
+}
 /* ── DRAG THE POINT AND THE ATLAS SOLVES FOR THE LOAD ──────────────────────────
    Every map in this chain is a MÖBIUS map, and a Möbius map is invertible in closed
    form.  So the chart does not have to be a display.  Point anywhere in the disk and
@@ -17422,6 +17517,7 @@ function impLadderStage(){
     m2.position.copy(toSph(now.G.re,now.G.im)); L.add(m2); }
 
   IMP_LADDER_LAST={now,sweep:SW};
+  try{ impPhaseStage(); impApplyShow(); }catch(e){}
   return IMP_LADDER_LAST;
 }
 let IMP_LADDER_LAST=null, IMP_LADDER_PLANES=null, IMP_FLOW=null, IMP_FLOW_MARK=null, IMP_FLOW_T=0;
@@ -17513,6 +17609,14 @@ function impLadderHTML(){
       'Each element carries an exact ABCD matrix; the cascade is their product; the load enters through Zin = (A·Z_L+B)/(C·Z_L+D), which is a Möbius map, and Γ = (Zin−Z₀)/(Zin+Z₀) is another. So the Smith chart is the same Möbius geometry as the celestial sphere, and every point of it is a Hopf circle in S³.',
       'Каждый элемент несёт точную ABCD-матрицу; каскад есть их произведение; нагрузка входит через Zin = (A·Z_L+B)/(C·Z_L+D) — отображение Мёбиуса, и Γ = (Zin−Z₀)/(Zin+Z₀) — тоже. Значит чарт Смита есть та же геометрия Мёбиуса, что и небесная сфера, а каждая его точка — окружность Хопфа в S³.',
       'Jedes Element trägt eine exakte ABCD-Matrix; die Kaskade ist ihr Produkt; Zin und Γ sind Möbius-Abbildungen. Der Smith-Chart ist dieselbe Geometrie wie die Himmelssphäre, und jeder Punkt ist ein Hopf-Kreis in S³.')}</div>
+    <div class="chips" style="margin-top:6px">${[['classic',TT('◐ wave on one load','◐ волна на нагрузке','◐ Welle an der Last')],
+        ['ladder',TT('⚡ the network','⚡ сеть','⚡ das Netzwerk')],['both',TT('◑ both at once','◑ оба сразу','◑ beide')]].map(([k,l])=>
+        `<button class="chip ${(state.impShow||'ladder')===k?'on':''}" data-imp-show="${k}">${l}</button>`).join('')}
+      <button class="chip ${state.impPhase!==false?'on':''}" id="impPhase">${TT('⟳ phase space (v,i) in time','⟳ фазовое пространство (v,i) во времени','⟳ Phasenraum (v,i)')}</button></div>
+    <div class="note" style="font-size:10px;color:var(--dim);margin-top:3px">${TT(
+      'Two instruments shared this chart and drowned each other. One shows how a wave MOVES on a single load; the other what a NETWORK does to it. Pick one — or both, knowing they overlap.',
+      'Два прибора делили этот чарт и забивали друг друга. Один показывает, как волна ДВИЖЕТСЯ на одной нагрузке; другой — что с ней делает СЕТЬ. Выберите один — или оба, зная, что они накладываются.',
+      'Zwei Instrumente teilten sich diesen Chart. Eines zeigt die Wellenbewegung an einer Last, das andere die Wirkung eines Netzwerks.')}</div>
     <div class="ctlrow" style="margin-top:6px"><button class="btn ${on?'green':''}" id="impLadderOn" style="flex:1 1 auto">${on?'⏹ '+TT('close the ladder','закрыть цепь','Schaltung schließen'):'▶ '+TT('open the circuit ladder','открыть цепь','Schaltung öffnen')}</button></div>
     ${!on?'':`
     <div class="ctlrow"><label>f</label><input id="impFghz" type="range" min="${state.impFlo||.3}" max="${state.impFhi||12}" step="0.001" value="${state.impFghz||2.4}"><span class="val">${(state.impFghz||2.4).toFixed(3)} GHz</span></div>
@@ -17697,8 +17801,9 @@ function impSetup(){
   const tl=mkLabel(TT('IMPEDANCE · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · one map, four physics','ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','IMPEDANZ · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · eine Karte, vier Physiken'),'label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
   const ladderLayer=new THREE.Group();ladderLayer.name='circuit ladder · Smith trace, match loci and Hopf fibres';impGroup.add(ladderLayer);
+  IMP_PHASE_LAYER=new THREE.Group();IMP_PHASE_LAYER.name='phase space · (v,i) ellipse at every circuit plane';impGroup.add(IMP_PHASE_LAYER);
   impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,rsGrp,rsMark,rsDrop,RSX,RSY,RSZ,toDisk,toSph,ladderLayer,readLab:rl};
-  try{ impLadderStage(); }catch(e){}
+  try{ impLadderStage(); impPhaseStage(); impApplyShow(); }catch(e){}
   impAssimAttach();
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
@@ -28727,7 +28832,7 @@ const state = {
   poleGi:0.05, poleGc:0.05, poleDelta:0, poleSpeed:1,   // Complex-frequency pole atlas
   impR:2.4, impX:1.1, impAlpha:0, impRun:true, impSpeed:1, impDomain:'rf', impAssimVisible:false,
   impLadderOn:false, impPreset:'', impLoss:false, impQL:60, impTD:0.002,
-  impLoadRC:false, impLoadR:50, impLoadC:1, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
+  impLoadRC:false, impLoadR:50, impLoadC:1, impShow:'ladder', impPhase:true, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
   impNet:[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2}],   // Impedance · Möbius · Smith lab + measured sweep assimilation
   cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
   cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
@@ -32600,6 +32705,10 @@ function buildCtlBody(){
         if(ol) ol.onclick=()=>{ state.impLadderOn=!state.impLadderOn; relad(); };
         const fb=ctl.querySelector('#impFibres');
         if(fb) fb.onclick=()=>{ state.impFibres=state.impFibres===false; relad(); };
+        ctl.querySelectorAll('[data-imp-show]').forEach(b=>b.onclick=()=>{
+          state.impShow=b.dataset.impShow; relad(); });
+        const ph=ctl.querySelector('#impPhase');
+        if(ph) ph.onclick=()=>{ state.impPhase=state.impPhase===false; relad(); };
         const lr=ctl.querySelector('#impLoadRC');
         if(lr) lr.onclick=()=>{ state.impLoadRC=!state.impLoadRC; relad(); };
         for(const id of ['impLoadR','impLoadC']){ const el=ctl.querySelector('#'+id);
@@ -35641,7 +35750,7 @@ function tickBody(now, frame){
   if(state.mode==='s3') scientificEnclosureTick(dt);
   labelChromeGuardTick(dt);
   labDockTick(dt);
-  if(state.mode==='s3'&&state.s3view==='imp'){ try{ impFlowTick(dt); }catch(e){} }
+  if(state.mode==='s3'&&state.s3view==='imp'){ try{ impFlowTick(dt); impPhaseTick(dt); }catch(e){} }
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
