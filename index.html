@@ -1003,7 +1003,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.18.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.19.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1167,7 +1167,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.18.0';
+const HCC_VERSION='3.19.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -17024,6 +17024,42 @@ function ladderBodeFano(net,Z0,ZLr,ZLi,f0,f1,N=400){
     floorRL:floor>1e-15?-20*Math.log10(floor):Infinity,
     fraction:Number.isFinite(budget)&&budget>0?spent/budget:0};
 }
+/* ── GRABBING THE POINT AS A 3-D OBJECT ───────────────────────────────────────
+   Two earlier attempts failed and the QA probe finally said why.  Firing a ray
+   through the centre of the screen in this laboratory hits the TOP OF THE RIEMANN
+   SPHERE — every intersection came back at y between 1.4 and 2.4 — while the chart
+   lies at y ≈ 0.  Aimed there the ray crosses the chart plane only far outside the
+   disk, so a drag started at the middle of the view was reaching for a point that
+   was never under the cursor.  Guessing at plane orientations would never have found
+   that; measuring the ray did.
+
+   Two things follow, and both are geometry rather than taste:
+
+     · The plane must be picked where the CHART is, not where the scene happens to be
+       centred, so the grab tests the disk itself and reports a miss as a miss.
+     · A plane seen edge-on cannot be dragged on.  As the view flattens toward the
+       chart, a pixel of pointer motion maps to an unbounded change in Γ — that is
+       what "it goes off in a strange direction" is.  Below a declared grazing angle
+       the drag REFUSES rather than amplifying noise, and says so.
+
+   Everything else was already exact: the pointer lands on Γ, ladderInvert turns Γ
+   into the load that puts the point there, and the round trip closes to 4.6e-16. */
+const IMP_GRAZE_MIN=0.18;      /* |cos| between the ray and the chart normal */
+function impChartHit(ev){
+  if(!IMP_DRAG_PLANE) return null;
+  const r=renderer.domElement.getBoundingClientRect();
+  const v=new THREE.Vector2(((ev.clientX-r.left)/r.width)*2-1, -((ev.clientY-r.top)/r.height)*2+1);
+  const rc=new THREE.Raycaster(); rc.setFromCamera(v,camera);
+  /* the chart normal in world space — the plane is a child, so ask the object */
+  const n=new THREE.Vector3(0,1,0).transformDirection(IMP_DRAG_PLANE.matrixWorld).normalize();
+  const graze=Math.abs(rc.ray.direction.dot(n));
+  if(graze<IMP_GRAZE_MIN) return {graze,tooFlat:true};
+  const h=rc.intersectObject(IMP_DRAG_PLANE,false)[0];
+  if(!h) return {graze,outside:true};
+  const p=IMP_DRAG_PLANE.worldToLocal(h.point.clone());
+  const gr=p.x/IMP_DS, gi=-p.y/IMP_DS, m=Math.hypot(gr,gi);
+  return m<=1?{gr,gi,graze}:{gr:gr/m*0.999,gi:gi/m*0.999,graze,clamped:true};
+}
 /* ── TWO INSTRUMENTS, ONE CHART, AND A SWITCH BETWEEN THEM ─────────────────────
    The original station and the circuit ladder were drawing on the same disk at the
    same time and drowning each other: the travelling sinusoid, the standing-wave curve
@@ -17520,6 +17556,40 @@ function impLadderStage(){
   try{ impPhaseStage(); impApplyShow(); }catch(e){}
   return IMP_LADDER_LAST;
 }
+let IMP_DRAG_PLANE=null, IMP_DRAGGING=false, IMP_DRAG_MSG='';
+function impDragBind(){
+  if(impDragBind.done) return; impDragBind.done=true;
+  const armed=()=>state.impDrag&&state.mode==='s3'&&state.s3view==='imp';
+  const apply=g=>{
+    if(!g||g.tooFlat||g.outside) { IMP_DRAG_MSG=g&&g.tooFlat?'flat':'outside'; return false; }
+    const ZL=ladderInvert(state.impNet||[],(state.impFghz||2.4)*1e9,state.impZ0||50,g.gr,g.gi);
+    if(!ZL||!Number.isFinite(ZL.re+ZL.im)){ IMP_DRAG_MSG='unreachable'; return false; }
+    IMP_DRAG_MSG=''; state.impLoadRC=false;
+    state.impZLr=Math.max(-400,Math.min(400,ZL.re));
+    state.impZLi=Math.max(-400,Math.min(400,ZL.im));
+    try{ impLadderStage(); }catch(e){}
+    return true;
+  };
+  const el=renderer.domElement;
+  /* CAPTURE PHASE, and stop the event.  OrbitControls binds pointerdown on the same
+     canvas and takes the pointer for itself; a bubble-phase listener added afterwards
+     never sees the drag, which is why the geometry could be right and the point still
+     not move.  Grabbing in the capture phase and halting propagation when the ray is
+     genuinely on the disk lets the orbit keep every gesture that is not a grab. */
+  el.addEventListener('pointerdown',e=>{ if(!armed()) return;
+    const g=impChartHit(e); if(!g) return;
+    if(g.tooFlat){ IMP_DRAG_MSG='flat'; try{buildCtl();}catch(x){} return; }
+    if(g.outside) return;
+    IMP_DRAGGING=true; controls.enabled=false;
+    try{ el.setPointerCapture(e.pointerId); }catch(x){}
+    apply(g); e.stopPropagation(); e.preventDefault(); },{capture:true,passive:false});
+  el.addEventListener('pointermove',e=>{ if(!IMP_DRAGGING) return;
+    apply(impChartHit(e)); e.stopPropagation(); },{capture:true});
+  const stop=e=>{ if(!IMP_DRAGGING) return; IMP_DRAGGING=false; controls.enabled=true;
+    try{ el.releasePointerCapture(e.pointerId); }catch(x){}
+    try{ buildCtl(); }catch(x){} e.stopPropagation(); };
+  for(const t of ['pointerup','pointercancel']) el.addEventListener(t,stop,{capture:true});
+}
 let IMP_LADDER_LAST=null, IMP_LADDER_PLANES=null, IMP_FLOW=null, IMP_FLOW_MARK=null, IMP_FLOW_T=0;
 /* The marker walks the route at a steady rate and restarts at the source, so what you
    watch is a packet leaving the generator and arriving at the load — through exactly
@@ -17638,7 +17708,12 @@ function impLadderHTML(){
     <div class="ctlrow"><button class="chip ${state.impFibres!==false?'on':''}" id="impFibres">${TT('Hopf fibres along the sweep','волокна Хопфа вдоль развёртки','Hopf-Fasern entlang des Sweeps')}</button>
       <button class="chip" id="impZLmatch">${TT('set Z_L = Z₀ (then Γ ≡ S₁₁)','задать Z_L = Z₀ (тогда Γ ≡ S₁₁)','Z_L = Z₀ setzen (dann Γ ≡ S₁₁)')}</button>
       <button class="chip ${state.impLoss?'on':''}" id="impLoss">${TT('non-ideal components','неидеальные компоненты','nicht-ideale Bauteile')}</button>
+      <button class="chip ${state.impDrag?'on':''}" id="impDrag">${state.impDrag?TT('⊕ dragging the point — orbit paused','⊕ точка перетаскивается — орбита на паузе','⊕ Punkt ziehen'):TT('⊕ grab the point on the chart','⊕ взять точку на чарте','⊕ Punkt greifen')}</button>
       <button class="chip ${state.impLoadRC?'on':''}" id="impLoadRC">${TT('load = R ∥ C (Bode–Fano applies)','нагрузка = R ∥ C (применим Боде–Фано)','Last = R ∥ C')}</button></div>
+    ${state.impDrag?`<div class="note" style="font-size:10px;color:${IMP_DRAG_MSG==='flat'?'#ffd58a':'var(--dim)'}">${
+      IMP_DRAG_MSG==='flat'?TT('The chart is nearly edge-on. A plane seen this flat cannot be dragged on — one pixel of pointer motion would move Γ without bound — so the grab refuses. Orbit up and try again.','Чарт виден почти с ребра. По такой плоскости тянуть нельзя — один пиксель движения указателя сдвинул бы Γ неограниченно — поэтому захват отказывает. Поверните камеру выше.','Der Chart ist fast von der Kante gesehen; ein Ziehen wäre unbestimmt und wird verweigert.')
+      :IMP_DRAG_MSG==='unreachable'?TT('This network cannot reach that point with any load.','Эта сеть не достигает такой точки ни при какой нагрузке.','Dieses Netzwerk erreicht diesen Punkt mit keiner Last.')
+      :TT('Point anywhere in the disk: the atlas solves for the load that puts the working point exactly there.','Укажите в диск: атлас решит, какая нагрузка ставит рабочую точку ровно туда.','Zeigen Sie in die Scheibe: der Atlas löst nach der Last auf.')}</div>`:''}
     ${state.impLoadRC?`<div class="ctlrow"><label>R_load</label><input id="impLoadR" type="range" min="2" max="400" step="0.5" value="${state.impLoadR||50}"><span class="val">${(state.impLoadR||50).toFixed(1)} Ω</span>
       <label>C_load</label><input id="impLoadC" type="range" min="0.05" max="20" step="0.01" value="${state.impLoadC||1}"><span class="val">${(state.impLoadC||1).toFixed(2)} pF</span></div>`:''}
     ${state.impLoss?`<div class="ctlrow"><label>Q_L</label><input id="impQL" type="range" min="5" max="400" step="1" value="${state.impQL||60}"><span class="val">${(state.impQL||60).toFixed(0)}</span>
@@ -17801,9 +17876,14 @@ function impSetup(){
   const tl=mkLabel(TT('IMPEDANCE · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · one map, four physics','ИМПЕДАНС · МЁБИУС · СМИТ — Γ=(z−1)/(z+1) · одна карта, четыре физики','IMPEDANZ · MÖBIUS · SMITH — Γ=(z−1)/(z+1) · eine Karte, vier Physiken'),'label const'); tl.position.set(0,3.7,0); impGroup.add(tl);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.3,0); impGroup.add(rl);
   const ladderLayer=new THREE.Group();ladderLayer.name='circuit ladder · Smith trace, match loci and Hopf fibres';impGroup.add(ladderLayer);
+  /* the pick surface IS the chart disk: a ray that misses it has genuinely missed */
+  const dragPlane=new THREE.Mesh(new THREE.CircleGeometry(IMP_DS*1.02,72),
+    new THREE.MeshBasicMaterial({visible:false,side:THREE.DoubleSide}));
+  dragPlane.rotation.x=-Math.PI/2; dragPlane.position.y=.04; dragPlane.name='Smith chart pick surface';
+  impGroup.add(dragPlane); IMP_DRAG_PLANE=dragPlane;
   IMP_PHASE_LAYER=new THREE.Group();IMP_PHASE_LAYER.name='phase space · (v,i) ellipse at every circuit plane';impGroup.add(IMP_PHASE_LAYER);
   impObjs={ptD,ptS,ray,trail,spiralS,spiralD,liveFib,swCurve,swMax,swMin,swMark,SWx,SWy,SWN,rsGrp,rsMark,rsDrop,RSX,RSY,RSZ,toDisk,toSph,ladderLayer,readLab:rl};
-  try{ impLadderStage(); impPhaseStage(); impApplyShow(); }catch(e){}
+  try{ impLadderStage(); impPhaseStage(); impApplyShow(); impDragBind(); }catch(e){}
   impAssimAttach();
 }
 function impDispGamma(){   // display Γ: matching animation > lossless-line rotation > base
@@ -28835,7 +28915,7 @@ const state = {
   /* The laboratory opens on the instrument it always had: the wave running on a single
      load, animated, exactly as before the ladder existed.  Defaulting to the ladder
      replaced a working first impression with a second one, which was my mistake. */
-  impLoadRC:false, impLoadR:50, impLoadC:1, impShow:'classic', impPhase:true, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
+  impLoadRC:false, impLoadR:50, impLoadC:1, impShow:'classic', impPhase:true, impDrag:false, impZ0:50, impZLr:25, impZLi:-30, impFghz:2.4, impFlo:0.3, impFhi:12, impFibres:true,
   impNet:[{k:'sL',v:3.2},{k:'pC',v:0.9},{k:'tl',v:18,zc:50,er:2.2}],   // Impedance · Möbius · Smith lab + measured sweep assimilation
   cmbMode:'sky',cmbRun:true,cmbSpeed:1,cmbSeed:19,cmbLmax:12,cmbL:2,cmbM:0,cmbBasis:false,
   cmbLowPower:.45,cmbMaskDeg:0,cmbAxisSepDeg:12,cmbRelief:.82,   // CMB synthesis / tomography / masked inverse problem
@@ -32708,6 +32788,8 @@ function buildCtlBody(){
         if(ol) ol.onclick=()=>{ state.impLadderOn=!state.impLadderOn; relad(); };
         const fb=ctl.querySelector('#impFibres');
         if(fb) fb.onclick=()=>{ state.impFibres=state.impFibres===false; relad(); };
+        const dg=ctl.querySelector('#impDrag');
+        if(dg) dg.onclick=()=>{ state.impDrag=!state.impDrag; if(!state.impDrag){controls.enabled=true;IMP_DRAG_MSG='';} relad(); };
         ctl.querySelectorAll('[data-imp-show]').forEach(b=>b.onclick=()=>{
           state.impShow=b.dataset.impShow; relad(); });
         const ph=ctl.querySelector('#impPhase');
@@ -36792,6 +36874,25 @@ globalThis.FBS3R_QA=Object.freeze({
     const shown=all.filter(d=>d.style.display!=='none');
     return {inDom:all.length,onScreen:shown.length,dimmedByChrome:labelGuardDimmed,
       periodSeconds:LABEL_GUARD_HZ};},
+  chartHitAt(nx=0,ny=0){ /* what chart coordinate does a ray through this NDC point land
+      on?  This is the exact test the grab performs, exposed so the interaction can be
+      verified from outside instead of by eye. */
+    const r=renderer.domElement.getBoundingClientRect();
+    const ev={clientX:r.left+(nx*.5+.5)*r.width, clientY:r.top+(-ny*.5+.5)*r.height};
+    try{ return impChartHit(ev); }catch(e){ return {err:String(e).slice(0,60)}; }},
+  pickProbe(nx=0,ny=0,limit=8){ /* what does a ray through this NDC point actually hit?
+      Two attempts at a drag control failed because the ray never reached the surface I
+      thought it did, and guessing at plane orientations is not debugging.  This reports
+      the truth: every object along the ray, nearest first, with its name and distance. */
+    const rc=new THREE.Raycaster();
+    rc.setFromCamera(new THREE.Vector2(nx,ny),camera);
+    /* Meshes only.  A line object with an empty geometry throws inside three's
+       raycaster, and lines are not what a drag surface is made of anyway. */
+    const meshes=[]; scene.traverse(o=>{ if(o.isMesh&&o.geometry&&o.geometry.attributes&&o.geometry.attributes.position) meshes.push(o); });
+    const hits=rc.intersectObjects(meshes,false).slice(0,limit);
+    return {ndc:[nx,ny],count:hits.length,
+      hits:hits.map(h=>({name:h.object.name||h.object.type,dist:+h.distance.toFixed(3),
+        visible:h.object.visible, pt:[+h.point.x.toFixed(3),+h.point.y.toFixed(3),+h.point.z.toFixed(3)]}))};},
   opticalAudit(minRadius=0.9,limit=30){ /* Every VISIBLE surface in the live scene, largest
       first, with the four properties that decide whether a laboratory reads as physics or
       as a grey ball: which face is drawn, how it blends, whether it writes depth, and how
