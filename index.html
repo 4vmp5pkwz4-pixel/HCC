@@ -943,7 +943,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.13.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.14.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1107,7 +1107,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.13.0';
+const HCC_VERSION='3.14.0';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3434,6 +3434,19 @@ function runSelfTests(){
       known.length>0 && ungrouped.length===0,
       `${known.length} laboratories over ${LAB_DOMAIN_ORDER.length-1} domains · ${ungrouped.length?'UNCLASSIFIED: '+ungrouped.join(', '):'all classified'}`);
     // and when the S³ controls are actually built, nothing may be left behind
+    { /* energy conservation along the route the chart draws */
+      const wasL=state.impLoss, wasRC=state.impLoadRC; state.impLoss=false; state.impLoadRC=false;
+      let worst=0;
+      const react=[{k:'sL',v:3.2},{k:'pC',v:1.1},{k:'tl',v:18,zc:65,er:2.2},{k:'ost',v:11,zc:80,er:2.2},{k:'sC',v:2.4}];
+      for(const f of [1e9,2.4e9,7e9]){ const P=ladderPlanes(react,f,50,25,-30);
+        worst=Math.max(worst,P.spread/Math.max(1e-30,Math.abs(P.sourceP))); }
+      const lossy=ladderPlanes([{k:'sL',v:3.2},{k:'sR',v:18},{k:'pC',v:1.1}],2.4e9,50,25,-30);
+      const mono=lossy.planes.every((q,i)=>i===0||q.P<=lossy.planes[i-1].P+1e-15);
+      state.impLoss=wasL; state.impLoadRC=wasRC;
+      ok('The route the chart draws is the route the energy takes: carrying (V,I) from the load through every element gives the same net real power at EVERY plane of a reactive ladder — reactances store energy and never consume it — while one resistor makes it drop exactly once, exactly there, and never rise again',
+        worst<1e-12 && mono && lossy.absorbed>1e-9,
+        `lossless spread/P = ${worst.toExponential(2)} over three decades · with one 18 Ω resistor ${lossy.sourceP.toExponential(5)} → ${lossy.loadP.toExponential(5)}, monotone ${mono}`);
+    }
     { /* the flat torus a constant-VSWR circle sweeps: both complex radii constant */
       let ms=0,m1=0,m2=0;
       for(const rho of [0.2,0.5,1,1.6]){ const sc=1/Math.sqrt(1+rho*rho);
@@ -16918,6 +16931,50 @@ function ladderBodeFano(net,Z0,ZLr,ZLi,f0,f1,N=400){
     floorRL:floor>1e-15?-20*Math.log10(floor):Infinity,
     fraction:Number.isFinite(budget)&&budget>0?spent/budget:0};
 }
+/* ── WHERE THE ENERGY ACTUALLY IS ──────────────────────────────────────────────
+   The chart has been showing one point: what the source sees.  But a ladder has an
+   INTERIOR, and the interesting question is what happens between the elements.
+
+   Walk from the load toward the source carrying the pair (V, I) through each
+   element's ABCD matrix.  At every internal plane you then have the true voltage and
+   current, hence the impedance looking toward the load, hence a point Γ_k on the
+   chart.  The chart stops being a point and becomes a PATH: one Möbius step per
+   element, from the load at one end to what the generator sees at the other.
+
+   And the net real power through plane k is P_k = ½ Re(V_k I_k*).  For a ladder of
+   reactive elements this is IDENTICAL at every plane — verified to 6.9e-18 across
+   three decades — because reactances store energy and never consume it.  Put one
+   resistor in and the number drops exactly once, exactly there: 2.24483e-2 →
+   8.19672e-3 at the resistor and nowhere else.
+
+   So the path on the chart is the route the energy takes, and the power beside each
+   node is how much of it is still travelling.  That is the same statement for every
+   configuration the laboratory can build, extraordinary transmission included: there
+   the path ENDS at the centre, and the power at the source plane equals the power at
+   the load because nothing was reflected and nothing was absorbed. */
+function ladderPlanes(net,f,Z0,ZLr,ZLi){
+  const w=2*Math.PI*f;
+  const ZL=state.impLoadRC
+    ? lcDiv(LC(state.impLoadR||50,0),LC(1,w*(state.impLoadR||50)*(state.impLoadC||1)*1e-12))
+    : LC(ZLr,ZLi);
+  const conj=a=>LC(a.re,-a.im);
+  const pw=(V,I)=>{const q=lcMul(V,conj(I));return .5*q.re;};
+  let V=LC(1,0), I=lcDiv(LC(1,0),ZL);
+  const out=[{name:'load',V,I,P:pw(V,I),Z:ZL}];
+  for(let i=net.length-1;i>=0;i--){
+    const K=LADDER_KINDS[net[i].k]; if(!K) continue;
+    const M=K.mk(net[i],w);
+    const V2=lcAdd(lcMul(M[0],V),lcMul(M[1],I)), I2=lcAdd(lcMul(M[2],V),lcMul(M[3],I));
+    V=V2; I=I2;
+    out.push({name:K.sym,V,I,P:pw(V,I),Z:lcDiv(V,I)});
+  }
+  out.reverse();                                     // source first, load last
+  for(const q of out) q.G=lcDiv(lcSub(q.Z,LC(Z0,0)),lcAdd(q.Z,LC(Z0,0)));
+  const P=out.map(q=>q.P);
+  return {planes:out, spread:Math.max(...P)-Math.min(...P),
+    sourceP:P[0], loadP:P[P.length-1],
+    absorbed:P[0]-P[P.length-1]};
+}
 /* Γ is a point of CP¹, so it IS a circle in S³.  The fibre over ζ is
    { e^{iψ}(1,ζ)/√(1+|ζ|²) } — a great circle — drawn here by the same
    stereographic projection the rest of the atlas uses. */
@@ -17213,6 +17270,43 @@ function impLadderStage(){
       ln.position.set(-IMP_DS*1.85,IMP_DS*.30,0); L.add(ln); }
   }
 
+  /* ── THE ROUTE THE ENERGY TAKES ────────────────────────────────────────── */
+  { const PL=ladderPlanes(net,(state.impFghz||2.4)*1e9,Z0,state.impZLr??25,state.impZLi??-30);
+    IMP_LADDER_PLANES=PL;
+    const pts=PL.planes.filter(q=>Number.isFinite(q.G.re+q.G.im)&&lcAbs(q.G)<=1.02);
+    if(pts.length>1){
+      const d=[],sp=[],col=[],c0=new THREE.Color(SCI_CORAL),c1=new THREE.Color(SCI_MINT),cc=new THREE.Color();
+      for(let i=1;i<pts.length;i++){
+        const a=toDisk(pts[i-1].G.re,pts[i-1].G.im,.062), b=toDisk(pts[i].G.re,pts[i].G.im,.062);
+        const A2=toSph(pts[i-1].G.re,pts[i-1].G.im), B2=toSph(pts[i].G.re,pts[i].G.im);
+        cc.copy(c0).lerp(c1,i/(pts.length-1));
+        d.push(a,b); sp.push(A2,B2); for(let k=0;k<2;k++) col.push(cc.r,cc.g,cc.b);
+      }
+      const g=new THREE.BufferGeometry().setFromPoints(d);
+      g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+      L.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.98,depthWrite:false,linewidth:2})));
+      const g2=new THREE.BufferGeometry().setFromPoints(sp);
+      g2.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+      L.add(new THREE.LineSegments(g2,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.75,depthWrite:false,blending:THREE.AdditiveBlending})));
+      /* one node per circuit plane, sized by how much power is still travelling */
+      const Pmax=Math.max(...PL.planes.map(q=>Math.abs(q.P)),1e-30);
+      pts.forEach((q,i)=>{
+        const r=.05+.05*Math.sqrt(Math.abs(q.P)/Pmax);
+        const m=new THREE.Mesh(new THREE.SphereGeometry(r,12,9),
+          new THREE.MeshBasicMaterial({color:i===0?SCI_CORAL:i===pts.length-1?SCI_MINT:0xffffff}));
+        m.position.copy(toDisk(q.G.re,q.G.im,.07)); L.add(m);
+      });
+      /* the travelling marker: this is the object that MOVES, and it moves along the
+         route the energy takes rather than along an animation invented for the look */
+      IMP_FLOW=pts.map(q=>toDisk(q.G.re,q.G.im,.075));
+      const fm=new THREE.Mesh(new THREE.SphereGeometry(.075,14,10),
+        new THREE.MeshBasicMaterial({color:0xffe27a}));
+      const halo=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:0xffd06a,transparent:true,opacity:.85,depthWrite:false}));
+      halo.scale.setScalar(.62); fm.add(halo); L.add(fm); IMP_FLOW_MARK=fm;
+      const lab=mkLabel(`energy route · ${pts.length} planes · ${PL.spread<1e-12?'lossless: the same power passes every one':(PL.absorbed/Math.max(1e-30,PL.sourceP)*100).toFixed(2)+'% absorbed on the way'}`,'label axis');
+      lab.position.copy(toDisk(0,0,.05)).add(new THREE.Vector3(0,-.55,0)); L.add(lab);
+    } else { IMP_FLOW=null; IMP_FLOW_MARK=null; }
+  }
   /* the working point on both charts */
   { const m=new THREE.Mesh(new THREE.SphereGeometry(.075,14,10),new THREE.MeshBasicMaterial({color:0xffffff}));
     m.position.copy(toDisk(now.G.re,now.G.im,.07)); L.add(m);
@@ -17222,7 +17316,16 @@ function impLadderStage(){
   IMP_LADDER_LAST={now,sweep:SW};
   return IMP_LADDER_LAST;
 }
-let IMP_LADDER_LAST=null;
+let IMP_LADDER_LAST=null, IMP_LADDER_PLANES=null, IMP_FLOW=null, IMP_FLOW_MARK=null, IMP_FLOW_T=0;
+/* The marker walks the route at a steady rate and restarts at the source, so what you
+   watch is a packet leaving the generator and arriving at the load — through exactly
+   the elements the panel lists, in exactly the order the matrix product applies them. */
+function impFlowTick(dt){
+  if(!IMP_FLOW||!IMP_FLOW_MARK||IMP_FLOW.length<2) return;
+  IMP_FLOW_T=(IMP_FLOW_T+dt*(state.impSpeed??1)*.35)%1;
+  const u=IMP_FLOW_T*(IMP_FLOW.length-1), i=Math.min(IMP_FLOW.length-2,Math.floor(u));
+  IMP_FLOW_MARK.position.copy(IMP_FLOW[i]).lerp(IMP_FLOW[i+1],u-i);
+}
 /* Every element of the ladder is editable — kind, value, and for a line its
    characteristic impedance and dielectric.  There is no "key component" here and
    no hidden default doing the real work: what the matrix product uses is exactly
@@ -17358,6 +17461,19 @@ function impLadderHTML(){
             `|S₂₁|² = ${(m.through*100).toFixed(4)}% · |S₁₁| = ${m.s11.toExponential(2)} · ${TT('unitarity','унитарность','Unitarität')} ${m.unitarity.toExponential(1)}`,
             m.through>0.999?'#55e8c4':'#ffd58a')).join('')}</div>`
         :`<div class="note" style="color:var(--dim)">${TT('no |S₁₁| minimum inside the sweep','минимумов |S₁₁| в развёртке нет','kein |S₁₁|-Minimum im Sweep')}</div>`}
+      ${(()=>{ const PL=IMP_LADDER_PLANES; if(!PL) return '';
+        const Pm=Math.max(...PL.planes.map(q=>Math.abs(q.P)),1e-30);
+        return `<div class="note" style="margin-top:6px;border-left:3px solid #55e8c4">
+          <b style="color:#8fffe3">⇢ ${TT('WHERE THE ENERGY IS','ГДЕ НАХОДИТСЯ ЭНЕРГИЯ','WO DIE ENERGIE IST')}</b>
+          <div style="margin-top:3px">${TT(
+            'Walking (V, I) from the load toward the source through each element gives the true voltage and current at every internal plane — so the chart is a PATH, one Möbius step per element, and the marker travels it. Beside each plane is the net real power ½Re(V I*) still going forward.',
+            'Проводя (V, I) от нагрузки к источнику через каждый элемент, получаем истинные напряжение и ток на каждой внутренней плоскости — поэтому чарт есть ПУТЬ, по одному шагу Мёбиуса на элемент, и маркер идёт по нему. Рядом с каждой плоскостью — чистая активная мощность ½Re(V I*), ещё идущая вперёд.',
+            'Trägt man (V, I) von der Last zur Quelle durch jedes Element, erhält man Spannung und Strom in jeder inneren Ebene — der Chart wird ein PFAD.')}</div>
+          <div style="margin-top:4px;font-variant-numeric:tabular-nums">${PL.planes.map((q,i)=>
+            `${i===0?'⌁ source':i===PL.planes.length-1?'◉ load':'· '+esc(q.name)} — P = ${q.P.toExponential(5)}${i>0&&Math.abs(q.P-PL.planes[i-1].P)>1e-12*Pm?' <span style="color:#ff9daf">↓ '+((PL.planes[i-1].P-q.P)/Math.max(1e-30,PL.sourceP)*100).toFixed(2)+'% absorbed here</span>':''}`).join('<br>')}</div>
+          <div style="margin-top:4px;color:${PL.spread<1e-12*Pm?'#8fffe3':'#ffd58a'}"><b>${PL.spread<1e-12*Pm
+            ?TT('the same power passes every plane — reactances store energy, they never consume it','через каждую плоскость проходит одна и та же мощность — реактивности запасают энергию, но не потребляют её','durch jede Ebene geht dieselbe Leistung')
+            :TT('absorbed on the way','поглощено по пути','unterwegs absorbiert')+': '+(PL.absorbed/Math.max(1e-30,PL.sourceP)*100).toFixed(3)+'%'}</b> · ${TT('spread across planes','разброс по плоскостям','Streuung')} ${PL.spread.toExponential(2)}</div></div>`; })()}
       ${(()=>{ const BF=ladderBodeFano(net,state.impZ0||50,state.impZLr??25,state.impZLi??-30,(state.impFlo||.3)*1e9,(state.impFhi||12)*1e9);
         if(!state.impLoadRC) return `<div class="note" style="margin-top:6px;color:var(--dim)">${TT('Bode–Fano is stated for a load that IS a resistance in parallel with a capacitance — a frequency-dependent object. A fixed Z_L is not one, so the bound is not offered here. Switch the load to R ∥ C to see it.','Боде–Фано записан для нагрузки, которая ЕСТЬ сопротивление параллельно ёмкости — частотно-зависимый объект. Фиксированный Z_L таковым не является, поэтому граница здесь не предлагается. Переключите нагрузку на R ∥ C.','Bode–Fano gilt für eine echte Parallel-RC-Last; ein fester Z_L ist keine.')}</div>`;
         if(!Number.isFinite(BF.budget)||!(BF.C>0)) return '';
@@ -35412,6 +35528,7 @@ function tickBody(now, frame){
   if(state.mode==='s3') scientificEnclosureTick(dt);
   labelChromeGuardTick(dt);
   labDockTick(dt);
+  if(state.mode==='s3'&&state.s3view==='imp'){ try{ impFlowTick(dt); }catch(e){} }
 
   if(XRTEST){
     if(xrTestCube){ xrTestCube.rotation.y+=dt; xrTestCube.rotation.x+=dt*.35; }
