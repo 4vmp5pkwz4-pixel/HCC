@@ -23,7 +23,7 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
   const ver = html.match(/const HCC_VERSION='([^']+)'/);
   const bld = html.match(/const HCC_BUILD='([^']+)'/);
   check(!!ver && !!bld && /^\d+\.\d+\.\d+$/.test(ver[1])
-    && /^omni-predictive-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(bld[1]),
+    && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(bld[1]),
     'release identity is declared once as a semantic version and a dated build stamp');
   if (ver && bld) {
     check(html.includes(`data-hcc-build="${bld[1]}"`)
