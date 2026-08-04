@@ -964,7 +964,7 @@
      and clear of the action column on the left */
   /* the sheet sits ABOVE the readout rather than on it: the HUD is the one line that
      must stay legible while a panel is open */
-  #info{left:74px;right:8px;width:auto;top:auto;bottom:calc(var(--hud-h,58px) + 10px);
+  #info{left:74px;right:8px;width:auto;top:auto;bottom:calc(var(--hud-band,120px) + 10px);
         max-height:38vh;overflow:auto;font-size:11.5px;z-index:38}
   /* the breadcrumb rail sits BELOW the back cluster instead of through it */
   #contextRail{top:calc(var(--topbar-h,64px) + 34px);max-width:calc(100vw - 96px)}
@@ -979,20 +979,40 @@
   /* the coach is a hint bar; on a phone the few hundred pixels are worth more to the
      scene, and the same text is in the info sheet */
   #atlasCoach{display:none !important}
-  /* Apple asks for 44 pt.  Twenty controls were under 40 px. */
-  .btn,.chip,button.pinBtn,#labPanel .foldBtn,.oscBtn{min-height:44px}
+  /* Apple asks for 44 pt.  Twenty controls were under 40 px; re-measuring found seven
+     still were, and they were the seven that matter most — the mode row, which is how
+     the entire atlas is navigated.  (The panel dock also measured 54 × 24, but that
+     deck is CLOSED at rest — opacity 0, pointer-events none — so it was never a tap
+     target at all.  A tap-target audit that counts unreachable controls reports work
+     that does not exist.) */
+  .btn,.chip,button.pinBtn,#labPanel .foldBtn,.oscBtn,.modebtn{min-height:44px}
   .chip,.btn{padding-top:10px;padding-bottom:10px}
   .precBox{min-height:38px}
 }
 @media (max-height:500px) and (orientation:landscape){
   /* in landscape the height is the scarce axis: the sheet goes to the right half
      so the scene keeps a usable square, and the controls keep the left */
-  #info{left:auto;right:8px;width:min(46vw,360px);top:calc(var(--topbar-h,64px) + 8px);
+  /* the rail is centred and runs the width of the screen, so a right-hand sheet
+     starting at the top bar cut straight through it (measured: 235 × 24).  The sheet
+     starts below the rail instead — 34 px of offset for the rail, 24 for its height. */
+  #info{left:auto;right:8px;width:min(46vw,360px);top:calc(var(--topbar-h,64px) + 66px);
         bottom:8px;max-height:none}
   #ctl{max-height:calc(100vh - var(--topbar-h,64px) - 24px)}
   #labPanel{left:74px;right:auto;width:min(52vw,420px);
             bottom:calc(var(--ctl-h,220px) + 14px);max-height:38vh}
   #atlasCoach{right:auto;width:min(52vw,380px)}
+  /* The readout is centred, so in landscape it ran under the right-hand sheet — 155 ×
+     39 px of two texts on top of each other.  Anchoring it to the left half puts it in
+     the one band nothing else claims: clear of the action column at x = 14…60 and clear
+     of the sheet, which starts at 46vw from the right. */
+  #hud{left:74px;right:auto;transform:none;text-align:left;max-width:min(46vw,360px)}
+  /* In landscape the height is the scarce axis and a 44 px mode row would take a
+     sixteenth of the screen away from the scene.  The 44 pt guidance is about the
+     TOUCH target, not the painted one, so the painted control stays compact and only
+     the hit area grows — vertically, leaving the horizontal packing untouched. */
+  .modebtn{min-height:0;position:relative}
+  .modebtn::after{content:'';position:absolute;left:0;right:0;top:50%;height:44px;
+    transform:translateY(-50%);border:0;background:none}
 }
 
 </style>
@@ -1003,7 +1023,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.20.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.20.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1167,7 +1187,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.20.0';
+const HCC_VERSION='3.20.1';
 const HCC_BUILD='omni-predictive-2026.08.03.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -29601,11 +29621,17 @@ function labDockTick(dt){
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
   try{ const h=ctl&&ctl.getBoundingClientRect().height;
     if(h>0) document.documentElement.style.setProperty('--ctl-h',Math.round(h)+'px');
-    /* the readout's height is published too, so a phone sheet can sit above it
-       instead of on it — the HUD is the one line that must stay legible */
+    /* The readout's footprint is published so a phone sheet can sit above it instead
+       of on it.  Publishing its HEIGHT was not enough and the measurement said so: the
+       readout is 51 px tall but floats 62 px off the bottom edge, so a sheet given
+       bottom = 51 + 10 still landed squarely on it — 197 × 51 px of overlap, exactly
+       the height of the readout.  What a bottom-anchored sheet needs is the band the
+       readout OCCUPIES, measured from the bottom of the viewport up. */
     const hd=document.getElementById('hud');
     if(hd){ const r=hd.getBoundingClientRect();
-      if(r.height>0) document.documentElement.style.setProperty('--hud-h',Math.round(r.height)+'px'); }
+      if(r.height>0){ const band=Math.round(Math.max(r.height,innerHeight-r.top));
+        document.documentElement.style.setProperty('--hud-h',r.height+'px');
+        document.documentElement.style.setProperty('--hud-band',band+'px'); } }
   }catch(e){}
 }
 function labBrowserSetOpen(on){
