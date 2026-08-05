@@ -1067,7 +1067,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.28.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.29.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1233,7 +1233,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.28.0';
+const HCC_VERSION='3.29.0';
 const HCC_BUILD='zero-point-fractal-2026.08.04.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3658,6 +3658,26 @@ function runSelfTests(){
          SHAPE: a lowercase-hyphen slug followed by a dated, numbered stamp. */
       /^\d+\.\d+\.\d+$/.test(HCC_VERSION) && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(HCC_BUILD),
       `version "${HCC_VERSION}" · build "${HCC_BUILD}"`); }
+  { /* AN INVISIBLE OBJECT IS NOT A FREE OBJECT.  The Invariant Nexus gave every one of
+       its seventy-two nodes a sphere at opacity 0, so that a fingertip would have
+       something generous to hit — and every one of them was still a draw call, a
+       material bind and a transparent-pass sort, every frame, painting nothing.  They
+       could not simply be hidden either: the selection layer collects picks BY
+       visibility, so a hidden node stops being selectable.  Layer 1 is the answer —
+       the camera does not render it, the raycaster does test it — and this holds both
+       halves of that, because getting either one wrong is silent. */
+    let picks=0, onLayer1=0, rendered=0, selectable=0;
+    for(const [key,d] of SELECT){
+      if(!/^nexus_/.test(key)||!d.pick) continue;
+      picks++;
+      if(d.pick.layers.mask===(1<<1)) onLayer1++;
+      if(d.pick.layers.test(camera.layers)) rendered++;
+      if(d.pick.layers.test(raycaster.layers)) selectable++;
+    }
+    ok('The Invariant Nexus pick spheres are reachable by the ray and invisible to the camera: seventy-two objects at opacity 0 were being drawn every frame to paint nothing, and hiding them would have made their nodes unselectable, so they sit on a layer the raycaster tests and the camera does not render',
+      picks>0 && onLayer1===picks && rendered===0 && selectable===picks,
+      `${picks} pick spheres · ${onLayer1} on the pick layer · ${rendered} reach the camera · ${selectable} reach the ray`);
+  }
   { /* THE DISCOVERY ENGINE MUST NOT RUN SIXTY TIMES A SECOND.  Symmetry Discovery ran
        its entire render every animation frame, and its render contains the invariant
        search: sixteen orbits, a degree-≤2 monomial matrix, a Jacobi eigen-decomposition
@@ -6684,6 +6704,16 @@ function projectInCurrentView(key){
 
 /* click-pick via raycaster (in addition to clickable labels) */
 const raycaster = new THREE.Raycaster();
+/* LAYER 1 IS THE PICK LAYER.  Some laboratories give every node an invisible sphere so
+   that a fingertip has something generous to hit — the Invariant Nexus has seventy-two
+   of them, at opacity 0.  Opacity 0 is not free: each one is still a draw call, still a
+   material bind, still a transparent-pass sort, every frame, to paint nothing.  And
+   they cannot simply be hidden, because the selection layer collects picks by
+   visibility and a hidden node would stop being selectable.
+
+   So they move to a layer the camera does not render and the ray does.  Nothing else
+   in the atlas uses layer 1, and the raycaster is told about it once, here. */
+raycaster.layers.enable(1);
 /* three.js raycasting ignores Object3D.visible, so without this filter the picks of
    HIDDEN sub-views (e.g. the Bell lune or Hopf fibres while the S³ Section view is
    active, or cosmic mirrors on the local scale layer) sit as invisible tap targets —
@@ -23777,6 +23807,10 @@ function nexusCurve(a,b,i=0){
   const radial=mid.lengthSq()>1e-6?mid.clone().normalize().multiplyScalar(.35+span*.035):new THREE.Vector3();
   return new THREE.QuadraticBezierCurve3(a.clone(),mid.multiplyScalar(.76).add(radial).add(cross),b.clone());
 }
+/* Seventy-two identical invisible spheres do not need seventy-two geometries and
+   seventy-two materials; they are the same object seventy-two times. */
+const NEXUS_PICK_GEOM=new THREE.SphereGeometry(.38,10,8);
+const NEXUS_PICK_MAT=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
 function nexusSetup(){
   if(NEXUS.built){
     for(const [v,n] of NEXUS.nodes)n.label.element.textContent=viewNameL(v);
@@ -23808,8 +23842,17 @@ function nexusSetup(){
       const visual=new THREE.Mesh(new THREE.OctahedronGeometry(.14,2),mat);
       const cage=new THREE.Mesh(new THREE.TetrahedronGeometry(.25,1),new THREE.MeshBasicMaterial({color:C.color,wireframe:true,transparent:true,opacity:.18,depthWrite:false,blending:THREE.NormalBlending}));
       const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:C.color,transparent:true,opacity:.11,depthWrite:false,depthTest:true,blending:THREE.NormalBlending}));glow.scale.set(.46,.46,1);
-      const pick=new THREE.Mesh(new THREE.SphereGeometry(.38,10,8),new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false}));pick.name=`Nexus pick · ${lab}`;
+      const pick=new THREE.Mesh(NEXUS_PICK_GEOM,NEXUS_PICK_MAT);pick.name=`Nexus pick · ${lab}`;
+      pick.layers.set(1);          // raycast yes, render no — see the pick-layer note
       const label=mkLabel(viewNameL(lab),'label dim',`nexus_${lab}`);label.position.set(0,.38,0);label.visible=false;
+      /* On a phone the cage and the glow are two more draw calls per node — a hundred
+         and forty-four of them — for a wireframe tetrahedron and a soft halo that a
+         393 px screen renders at a few pixels across.  The octahedron and the label
+         carry the node's identity; the decoration is spent where it cannot be seen.
+         The atlas already makes this trade explicitly elsewhere (the nebula sample
+         count), and it is made explicitly here too rather than by a quality slider
+         nobody finds. */
+      if(MOBILE_GPU){ cage.visible=false; glow.visible=false; }
       root.add(glow,cage,visual,pick,label);nodeLayer.add(root);
       NEXUS.nodes.set(lab,{lab,cluster:key,root,visual,cage,glow,pick,label,discipline,invariant:discipline.clone(),baseScale:1});
     });
@@ -23966,7 +24009,9 @@ function updateNexus(dt){
   let ci=0;for(const c of NEXUS.clusterVisuals.values()){c.hull.rotation.y+=dt*(ci%2?.018:-.014);c.hull.rotation.z=.035*Math.sin(t*.14+ci);ci++;}
   for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
   scientificUpdateFlow(NEXUS.pathFlow,t,.075);scientificUpdateMaterials(nexusGroup,t);
-  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
+  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);
+    if(n.cage.visible)n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);
+    if(n.glow.visible)n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
   NEXUS.busAcc=(NEXUS.busAcc||0)+dt;if(NEXUS.busAcc>.5){NEXUS.busAcc=0;const V=nexusStructuralCalibration(state.nexusKind||'all'),C=nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',1)[0];ATLAS_BUS.pub('nexus.recall5',+V.recall_at_5.toFixed(6),'held-edge');if(C)ATLAS_BUS.pub('nexus.candidate',+C.score.toPrecision(6),'resource-allocation');}
   const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
   hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'relational spectral'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;
