@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="bianchi-dynamics-2026.08.05.1">
+<html lang="en" data-hcc-build="nexus-instancing-2026.08.05.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="bianchi-dynamics-2026.08.05.1">
+<meta name="hcc-build" content="nexus-instancing-2026.08.05.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1084,7 +1084,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.37.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.38.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1252,8 +1252,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.37.0';
-const HCC_BUILD='bianchi-dynamics-2026.08.05.1';
+const HCC_VERSION='3.38.0';
+const HCC_BUILD='nexus-instancing-2026.08.05.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -2602,6 +2602,23 @@ function runSelfTests(){
     const lo=0.08, dl=Math.abs(zpThermalScalarFactor(lo,400)/Math.exp(-1/lo)-1);
     ok('Below the crossover the thermal term is exponentially suppressed as e^{−1/θ}, so beneath θ = 1/ln3 this is genuinely a ZERO-POINT ladder and not a thermal one in disguise',
       dl<0.05, `at θ = 0.08 the sum is ${zpThermalScalarFactor(lo,400).toExponential(3)} against e^{−1/θ} = ${Math.exp(-1/lo).toExponential(3)}, agreeing to ${(dl*100).toFixed(1)}%`);
+  }
+  { /* THE NEXUS DRAW-CALL BUDGET, GUARDED SO IT CANNOT SILENTLY COME BACK. */
+    /* This is a REGRESSION test, not a physics one, and it exists because the defect it
+       guards was invisible to source search: the nexus built three rendered meshes per
+       node in a loop, so the cost scaled with the laboratory count and nobody reading
+       the loop would see 213 objects. FBS3R_QA.opticalAudit() found them; this keeps
+       them gone. The four buckets are the four (opacity, emissiveIntensity) pairs that
+       nexusApplyStyles actually uses, so instancing reproduces the old appearance
+       exactly rather than approximating opacity through the instance colour. */
+    const B=NEXUS.buckets, n=NEXUS_VIEWS.length;
+    const rendered=B?B.reduce((k,b)=>k+1+(b.cage?1:0)+(b.glow?1:0),0):Infinity;
+    const cap=B&&B.every(b=>b.visual.instanceMatrix.count>=n);
+    const classes=new Set(NEXUS_STYLES.map(S=>S.op+'/'+S.emis)).size;
+    ok('The Invariant Nexus draws its seventy-one laboratories from FOUR instanced style buckets rather than three meshes each: the measured cost was 274 visible objects and 298 draw calls for 10,096 triangles — thirty-four triangles per call, by far the worst in the atlas — and instancing takes it to twelve rendered objects and 93 calls without approximating anything, because the per-node styling takes exactly four distinct (opacity, emissiveIntensity) pairs',
+      !!B && B.length===4 && rendered<=12 && cap && classes===4,
+      B?`${n} nodes drawn by ${rendered} rendered objects in ${B.length} style buckets (${classes} distinct opacity/emissive pairs) · each bucket sized for the full node count: ${cap}`
+        :'the instanced buckets were not built');
   }
   { /* WORK PACKAGE C2 — THE DYNAMICS, NOT THE ACTION. */
     /* the reparametrisation is exact ON the constraint surface and NOT off it, because
@@ -24650,6 +24667,92 @@ function nexusCurve(a,b,i=0){
    seventy-two materials; they are the same object seventy-two times. */
 const NEXUS_PICK_GEOM=new THREE.SphereGeometry(.38,10,8);
 const NEXUS_PICK_MAT=new THREE.MeshBasicMaterial({transparent:true,opacity:0,depthWrite:false});
+/* ── WHY THE NODES ARE INSTANCED, AND WHY IN EXACTLY FOUR BUCKETS ─────────────
+   Measured, not guessed.  FBS3R_QA.opticalAudit() over the live nexus returned 274
+   visible objects, 213 of them under "laboratory constellations": seventy-one nodes
+   each carrying THREE separate rendered meshes — a glow sprite, a wireframe cage and
+   an octahedron.  254 of the 274 were transparent and 192 had depthWrite off, so every
+   frame three.js depth-sorted a quarter of a thousand objects and issued 298 draw calls
+   to put 10,096 triangles on screen: thirty-four triangles per call.  Nothing else in
+   the atlas comes close — the Section view draws twice the geometry in 31 calls — and
+   on a tile-based mobile GPU, where each blended draw is a separate tile pass and the
+   logarithmic depth buffer already forbids early-Z, that is the whole cost of the view.
+
+   The obvious instancing fix has an obvious flaw: MeshStandardMaterial carries opacity
+   and emissiveIntensity as MATERIAL uniforms, not per-instance attributes, and the
+   nexus varies both per node.  Folding opacity into the instance colour would have been
+   an approximation, and a silent one.  It is not needed: read nexusApplyStyles and the
+   per-node styling takes exactly FOUR distinct (opacity, emissiveIntensity) pairs —
+   selected, on-path, active, dimmed.  So four buckets reproduce the old appearance
+   EXACTLY, with colour still per instance, and the count falls 213 → 12.
+
+   What is genuinely given up: the glow was a Sprite whose material rotated per node,
+   and Points cannot rotate a texture per point.  A rotating soft halo a few pixels
+   across is invisible, and it cost seventy-one uniform writes per frame. */
+const NEXUS_STYLES=[
+  {op:1,   emis:.42, cage:.62,  glow:.24 },   // 0 selected
+  {op:1,   emis:.28, cage:.42,  glow:.16 },   // 1 on the path
+  {op:.74, emis:.12, cage:.14,  glow:.065},   // 2 active under the current filter
+  {op:.09, emis:.12, cage:.035, glow:.015}];  // 3 dimmed out by the filter
+const NEXUS_VIS_GEOM=new THREE.OctahedronGeometry(.14,2);
+const NEXUS_CAGE_GEOM=new THREE.TetrahedronGeometry(.25,1);
+function nexusBuildBuckets(layer,cap,glowTex){
+  const B=[];
+  for(const S of NEXUS_STYLES){
+    const b={n:0};
+    b.visual=new THREE.InstancedMesh(NEXUS_VIS_GEOM,new THREE.MeshStandardMaterial({
+      emissiveIntensity:S.emis,metalness:.42,roughness:.34,transparent:true,opacity:S.op}),cap);
+    b.visual.name='nexus nodes · '+S.op;
+    b.visual.frustumCulled=false;          /* one bucket spans every cluster at once */
+    layer.add(b.visual);
+    if(!MOBILE_GPU){
+      b.cage=new THREE.InstancedMesh(NEXUS_CAGE_GEOM,new THREE.MeshBasicMaterial({
+        wireframe:true,transparent:true,opacity:S.cage,depthWrite:false}),cap);
+      b.cage.frustumCulled=false; layer.add(b.cage);
+      const g=new THREE.BufferGeometry();
+      b.gp=new Float32Array(cap*3); b.gc=new Float32Array(cap*3);
+      g.setAttribute('position',new THREE.BufferAttribute(b.gp,3));
+      g.setAttribute('color',new THREE.BufferAttribute(b.gc,3));
+      g.setDrawRange(0,0);
+      b.glow=new THREE.Points(g,new THREE.PointsMaterial({map:glowTex,size:.72,
+        sizeAttenuation:true,transparent:true,opacity:S.glow,depthWrite:false,
+        vertexColors:true,blending:THREE.NormalBlending}));
+      b.glow.frustumCulled=false; layer.add(b.glow);
+    }
+    B.push(b);
+  }
+  return B;
+}
+const NEXUS_M4=new THREE.Matrix4(), NEXUS_Q=new THREE.Quaternion(),
+      NEXUS_E=new THREE.Euler(), NEXUS_S=new THREE.Vector3();
+function nexusSyncInstances(t=0){
+  const B=NEXUS.buckets; if(!B) return;
+  for(const b of B) b.n=0;
+  for(const [lab,n] of NEXUS.nodes){
+    const b=B[n.style|0]||B[3], i=b.n++, h=nexusHash(lab);
+    const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+h*12):1;
+    const sc=n.baseScale*pulse, p=n.root.position;
+    n.root.scale.setScalar(sc);                 /* the label and the pick sphere follow */
+    NEXUS_S.setScalar(sc);
+    NEXUS_E.set(t*.12+h*3, t*.19+h*5, t*.07); NEXUS_Q.setFromEuler(NEXUS_E);
+    NEXUS_M4.compose(p,NEXUS_Q,NEXUS_S);
+    b.visual.setMatrixAt(i,NEXUS_M4); b.visual.setColorAt(i,n.color);
+    if(b.cage){ NEXUS_E.set(-t*.08, t*.1+h*6, 0); NEXUS_Q.setFromEuler(NEXUS_E);
+      NEXUS_M4.compose(p,NEXUS_Q,NEXUS_S);
+      b.cage.setMatrixAt(i,NEXUS_M4); b.cage.setColorAt(i,n.color); }
+    if(b.glow){ b.gp[i*3]=p.x; b.gp[i*3+1]=p.y; b.gp[i*3+2]=p.z;
+      b.gc[i*3]=n.color.r; b.gc[i*3+1]=n.color.g; b.gc[i*3+2]=n.color.b; }
+  }
+  for(const b of B){
+    b.visual.count=b.n; b.visual.instanceMatrix.needsUpdate=true;
+    if(b.visual.instanceColor) b.visual.instanceColor.needsUpdate=true;
+    if(b.cage){ b.cage.count=b.n; b.cage.instanceMatrix.needsUpdate=true;
+      if(b.cage.instanceColor) b.cage.instanceColor.needsUpdate=true; }
+    if(b.glow){ b.glow.geometry.setDrawRange(0,b.n);
+      b.glow.geometry.attributes.position.needsUpdate=true;
+      b.glow.geometry.attributes.color.needsUpdate=true; }
+  }
+}
 function nexusSetup(){
   if(NEXUS.built){
     for(const [v,n] of NEXUS.nodes)n.label.element.textContent=viewNameL(v);
@@ -24661,6 +24764,7 @@ function nexusSetup(){
   const edgeLayer=new THREE.Group(),nodeLayer=new THREE.Group(),decorLayer=new THREE.Group();
   edgeLayer.name='typed relation conduits';nodeLayer.name='laboratory constellations';decorLayer.name='disciplinary field volumes';
   nexusGroup.add(decorLayer,edgeLayer,nodeLayer);NEXUS.edgeLayer=edgeLayer;NEXUS.nodeLayer=nodeLayer;
+  NEXUS.buckets=nexusBuildBuckets(nodeLayer,NEXUS_VIEWS.length,glowTex);
   const fieldRoot=new THREE.Group(),tensorRoot=new THREE.Group();fieldRoot.name='epistemic relation field';tensorRoot.name='eight-axis relation tensor';decorLayer.add(fieldRoot,tensorRoot);NEXUS.fieldRoot=fieldRoot;NEXUS.tensorRoot=tensorRoot;
   fieldRoot.add(scientificNebula(new THREE.Vector3(),new THREE.Vector3(7.4,6.2,6.4),SCI_CYAN,MOBILE_GPU?120:260,211));
   const tensorCore=scientificCrystal(SCI_GOLD,.34);tensorRoot.add(tensorCore);let ti=0;for(const [kind,axis] of Object.entries(NEXUS_TYPE_AXES)){const T=NEXUS_TYPES[kind],end=axis.clone().multiplyScalar(1.65+.18*(ti%3)),bend=axis.clone().multiplyScalar(.78).add(new THREE.Vector3(Math.sin(ti*1.7),Math.cos(ti*.93),Math.sin(ti*.61)).multiplyScalar(.24)),arm=scientificTube([new THREE.Vector3(),bend,end],T.color,.038,.72,false,72),tip=scientificCrystal(T.color,.09);tip.position.copy(end);tensorRoot.add(arm,tip);ti++;}
@@ -24677,23 +24781,16 @@ function nexusSetup(){
       const th=2*Math.PI*(i/C.views.length)+GOLDEN_ANGLE*(C.views.length%5)*.09;
       const discipline=center.clone().addScaledVector(u,Math.cos(th)*radius).addScaledVector(v,Math.sin(th)*radius).addScaledVector(normal,.28*Math.sin(3*th));
       const root=new THREE.Group();root.position.copy(discipline);root.userData.nexusLab=lab;
-      const mat=new THREE.MeshStandardMaterial({color:C.color,emissive:C.color,emissiveIntensity:.16,metalness:.42,roughness:.34,transparent:true,opacity:.82});
-      const visual=new THREE.Mesh(new THREE.OctahedronGeometry(.14,2),mat);
-      const cage=new THREE.Mesh(new THREE.TetrahedronGeometry(.25,1),new THREE.MeshBasicMaterial({color:C.color,wireframe:true,transparent:true,opacity:.18,depthWrite:false,blending:THREE.NormalBlending}));
-      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex,color:C.color,transparent:true,opacity:.11,depthWrite:false,depthTest:true,blending:THREE.NormalBlending}));glow.scale.set(.46,.46,1);
       const pick=new THREE.Mesh(NEXUS_PICK_GEOM,NEXUS_PICK_MAT);pick.name=`Nexus pick · ${lab}`;
       pick.layers.set(1);          // raycast yes, render no — see the pick-layer note
       const label=mkLabel(viewNameL(lab),'label dim',`nexus_${lab}`);label.position.set(0,.38,0);label.visible=false;
-      /* On a phone the cage and the glow are two more draw calls per node — a hundred
-         and forty-four of them — for a wireframe tetrahedron and a soft halo that a
-         393 px screen renders at a few pixels across.  The octahedron and the label
-         carry the node's identity; the decoration is spent where it cannot be seen.
-         The atlas already makes this trade explicitly elsewhere (the nebula sample
-         count), and it is made explicitly here too rather than by a quality slider
-         nobody finds. */
-      if(MOBILE_GPU){ cage.visible=false; glow.visible=false; }
-      root.add(glow,cage,visual,pick,label);nodeLayer.add(root);
-      NEXUS.nodes.set(lab,{lab,cluster:key,root,visual,cage,glow,pick,label,discipline,invariant:discipline.clone(),baseScale:1});
+      /* The cage and the glow are drawn from the shared instanced buckets, and on a
+         phone they are not built at all: a wireframe tetrahedron and a soft halo that a
+         393 px screen renders at a few pixels across are decoration spent where it
+         cannot be seen.  The octahedron and the label carry the node's identity. */
+      root.add(pick,label);nodeLayer.add(root);
+      NEXUS.nodes.set(lab,{lab,cluster:key,root,pick,label,discipline,invariant:discipline.clone(),
+        color:new THREE.Color(C.color),style:2,baseScale:1});
     });
   }
 
@@ -24757,10 +24854,10 @@ function nexusApplyStyles(){
   if(NEXUS.pathCorridor){NEXUS.pathCorridor.visible=NEXUS.pathFlow.visible=path.size>1;NEXUS.pathCorridor.material.color.setHex(SCI_GOLD);NEXUS.pathCorridor.material.emissive.setHex(SCI_GOLD);}
   for(const [lab,n] of NEXUS.nodes){
     const selected=lab===focus||selectedKey===`nexus_${lab}`,inPath=path.has(lab),active=kind==='all'||enabledNode.has(lab),endpoint=lab===(state.nexusSource||'')||lab===(state.nexusTarget||'');
-    n.visual.material.opacity=active?(selected||inPath?1:.74):.09;n.visual.material.emissiveIntensity=selected?.42:inPath?.28:.12;
-    n.cage.material.opacity=selected?.62:inPath?.42:active?.14:.035;n.glow.material.opacity=selected?.24:inPath?.16:active?.065:.015;
+    n.style=selected?0:inPath?1:active?2:3;
     n.label.visible=selected||endpoint||(inPath&&path.size<=4);n.label.element.style.color=selected?'#ffd36a':inPath?'#dff7ff':'';n.baseScale=selected?1.52:inPath?1.24:1;
   }
+  nexusSyncInstances(NEXUS.lastT||0);
 }
 function nexusComponents(kind='all'){
   const unseen=new Set(NEXUS_VIEWS),out=[];while(unseen.size){const seed=unseen.values().next().value,p=[seed],comp=[];unseen.delete(seed);
@@ -24848,9 +24945,7 @@ function updateNexus(dt){
   let ci=0;for(const c of NEXUS.clusterVisuals.values()){c.hull.rotation.y+=dt*(ci%2?.018:-.014);c.hull.rotation.z=.035*Math.sin(t*.14+ci);ci++;}
   for(const e of NEXUS.edges)if(e.curve&&e.bead.visible)e.bead.position.copy(e.curve.getPointAt((t*(.045+(e.i%5)*.006)+e.i*.173)%1));
   scientificUpdateFlow(NEXUS.pathFlow,t,.075);scientificUpdateMaterials(nexusGroup,t);
-  for(const [lab,n] of NEXUS.nodes){const pulse=state.nexusPulse&&!PREFERS_REDUCED_MOTION?1+.035*Math.sin(t*2.2+nexusHash(lab)*12):1;n.root.scale.setScalar(n.baseScale*pulse);n.visual.rotation.set(t*.12+nexusHash(lab)*3,t*.19+nexusHash(lab)*5,t*.07);
-    if(n.cage.visible)n.cage.rotation.set(-t*.08,t*.1+nexusHash(lab)*6,0);
-    if(n.glow.visible)n.glow.material.rotation=t*.08+nexusHash(lab)*6.28;}
+  NEXUS.lastT=t; nexusSyncInstances(t);
   NEXUS.busAcc=(NEXUS.busAcc||0)+dt;if(NEXUS.busAcc>.5){NEXUS.busAcc=0;const V=nexusStructuralCalibration(state.nexusKind||'all'),C=nexusStructuralCandidates(state.nexusFocus||state.nexusSource||'spin',state.nexusKind||'all',1)[0];ATLAS_BUS.pub('nexus.recall5',+V.recall_at_5.toFixed(6),'held-edge');if(C)ATLAS_BUS.pub('nexus.candidate',+C.score.toPrecision(6),'resource-allocation');}
   const D=nexusDiagnostics();hudBig.textContent=`INVARIANT NEXUS · ${D.nodes} laboratories · ${D.relations} typed relations · ${D.components} connected universe`;
   hudSub.textContent=`${(state.nexusMorph??0)<.5?'disciplinary':'relational spectral'} geometry · filter ${(state.nexusKind||'all')} · graph paths are non-metric and non-causal unless every edge says causal`;

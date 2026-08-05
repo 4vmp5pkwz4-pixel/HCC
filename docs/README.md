@@ -440,6 +440,78 @@ specification. It never reloads by itself, and it distinguishes *stale*, *curren
 `scripts/validate.mjs` fails the build if `version.json` disagrees with `HCC_VERSION` /
 `HCC_BUILD`, so the manifest cannot drift from the document it describes.
 
+## The five invariance laboratories, measured
+
+The report was that these five load video memory and judder. Measurement, not guesswork,
+with `FBS3R_QA.renderStats()` and `FBS3R_QA.opticalAudit()` sampled per frame:
+
+**There is no leak.** Geometry, texture and program counts rise on first visit to each lab
+and then plateau exactly — across four full cycles of all five labs, nexus sits at 361
+geometries and 45 programs from the second visit onward and never moves. What is true is
+that every lab's stage stays resident once built, so the *footprint* is permanent even
+though the growth is not.
+
+**There is no flicker.** The signature of sort-order or z-fighting flicker is that frame N
+matches frame N+2 while differing from N+1. Measured over ten frames per view,
+d(N,N+2)/d(N,N+1) = 1.70–1.75 in all five — smooth motion, not alternation — and the same
+1.55–1.75 in the `sec`, `hopf` and `ring` controls. On that measurement the five labs are
+the *quietest* views in the atlas (mean inter-frame difference 2.6–3.2 against 5.2 for
+Section and 19.0 for Hopf).
+
+**One lab was genuinely pathological, and it was not subtle.**
+
+| view | visible objects | transparent | draw calls | triangles | tri/call |
+|---|---|---|---|---|---|
+| Section (control) | 16 | 13 | 31 | 21094 | 680 |
+| **Invariant Nexus (before)** | **274** | **254** | **298** | **10096** | **34** |
+| Spinor & Light Cone | 55 | 30 | 75 | 21110 | 281 |
+| Contact & Action | 33 | 25 | 52 | 5716 | 110 |
+| Holonomy | 39 | 33 | 56 | 16246 | 290 |
+| Symmetry Discovery | 39 | 31 | 58 | 13746 | 237 |
+
+213 of the nexus's 274 objects were node markers: seventy-one laboratories × three separate
+rendered meshes each (glow sprite, wireframe cage, octahedron). Thirty-four triangles per
+draw call is the whole cost of the view — on a tile-based mobile GPU each blended draw is a
+separate tile pass, and the logarithmic depth buffer already forbids early-Z.
+
+The obvious instancing fix has a real obstacle: `MeshStandardMaterial` carries opacity and
+emissiveIntensity as *material* uniforms, and the nexus varies both per node. Folding
+opacity into the instance colour would have been a silent approximation. It is not needed —
+`nexusApplyStyles` uses exactly **four** distinct (opacity, emissiveIntensity) pairs, so
+four instanced buckets reproduce the previous appearance exactly, with colour still per
+instance.
+
+| after | objects | transparent | draw calls | triangles |
+|---|---|---|---|---|
+| Invariant Nexus, desktop | 144 | 124 | **93** | 9954 |
+| Invariant Nexus, iPhone 13 profile | 136 | 116 | **87** | 9314 |
+
+213 rendered node objects → 12. A self-test guards the budget, because the defect was
+invisible to source search: the meshes were built in a loop, so the cost scaled with the
+laboratory count and nobody reading the loop would have seen 213 objects.
+
+**The other four were not rewritten, and the reason is that they measure sound.** Their
+scientific content is not decorative:
+
+| lab | what it closes | residual |
+|---|---|---|
+| Spinor & Light Cone | k^μ = ψ†σ^μψ is null; det(2ψψ†) = 0; U(1) phase leaves k fixed | 2.1e-17 · 0 · 1.1e-16 |
+| Contact & Action | λ₀(R) = 1, ι_Rdλ₀ = 0 on ker λ₀, Hopf image constant, period = action = π | 5.4e-16, linking 1.0000327 |
+| Holonomy | Gauss–Bonnet: transport angle = curvature flux, 1024-edge polygon | 7.7e-7 |
+| Symmetry Discovery | null-space discovery told **no labels** recovers invariant dimension 3 | 1.1e-15, gap 0.176 |
+
+Rewriting those would have been churn justified by a symptom the measurements do not
+support. What was wrong was one view's draw-call budget, and that is what was fixed.
+
+**One hypothesis is left open rather than acted on.** `logarithmicDepthBuffer: true` is a
+renderer-construction flag, so it cannot be toggled per view, and on Apple GPUs it forces a
+per-fragment depth write that disables the hidden-surface removal the architecture depends
+on. That would cost most exactly where overdraw is highest — these five labs. It is a
+plausible explanation for a device symptom none of the desktop or emulated-mobile
+measurements reproduce, but it is not measured here, and the atlas spans Planck lengths to
+gigalight-years, so the flag is presumably load-bearing. Changing it on a hunch would be the
+kind of unverified edit this file exists to prevent.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
