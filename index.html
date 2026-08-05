@@ -1067,7 +1067,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.27.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.28.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1233,7 +1233,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.27.0';
+const HCC_VERSION='3.28.0';
 const HCC_BUILD='zero-point-fractal-2026.08.04.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3658,6 +3658,24 @@ function runSelfTests(){
          SHAPE: a lowercase-hyphen slug followed by a dated, numbered stamp. */
       /^\d+\.\d+\.\d+$/.test(HCC_VERSION) && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(HCC_BUILD),
       `version "${HCC_VERSION}" · build "${HCC_BUILD}"`); }
+  { /* THE DISCOVERY ENGINE MUST NOT RUN SIXTY TIMES A SECOND.  Symmetry Discovery ran
+       its entire render every animation frame, and its render contains the invariant
+       search: sixteen orbits, a degree-≤2 monomial matrix, a Jacobi eigen-decomposition
+       and an RREF — then labWipe() of the discovery layer and a full geometry rebuild.
+       None of it depends on the parameter the animation moves, so all of it was repeated
+       for a result that had not changed.  This holds the separation: ten frames with no
+       change to world, symmetry-breaking or tolerance must cost exactly ONE discovery. */
+    try{ sydRenderStatic(); }catch(e){}          // prime: the first frame is allowed to search
+    const before=SYD_STATIC_RUNS;
+    for(let i=0;i<10;i++) { try{ sydRenderStatic(); }catch(e){} }
+    const idle=SYD_STATIC_RUNS-before;
+    const k=SYD_STATIC_KEY; SYD_STATIC_KEY='__forced__';
+    try{ sydRenderStatic(); }catch(e){} const forced=SYD_STATIC_RUNS-before-idle;
+    SYD_STATIC_KEY=k;
+    ok('Symmetry Discovery separates what MOVES from what is DISCOVERED: ten frames with the same world, symmetry-breaking and tolerance cost exactly one null-space search, and a genuine change to any of the three costs exactly one more — the eigen-decomposition and the geometry rebuild stop being repeated at sixty hertz for a result that had not changed',
+      idle===0 && forced===1,
+      `ten unchanged frames → ${idle} discovery runs · one changed input → ${forced} run`);
+  }
   { /* THE HEADER MUST NOT PRINT TWO THINGS IN ONE PLACE.  The title reserved the clock's
        room with two hard-coded widths — 174 px, and 182 px below a 420 px breakpoint —
        and a phone 440 px wide falls between them, so on that device the title ran under
@@ -21996,7 +22014,7 @@ function sydGuide(world){
   }
 }
 function sydSetup(){
-  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.candidateTubes=[];SYD.time=0;sydGuide(world);
+  const world=state.sydWorld||'rotation';if(SYD.built&&SYD.world===world){sydRender();return;}labWipe(sydGroup);SYD.built=true;SYD.world=world;SYD.markers=[];SYD.baseMarkers=[];SYD.candidateTubes=[];SYD.time=0;sydGuide(world);SYD_STATIC_KEY='';
   sydGroup.add(new THREE.AmbientLight(0x5d719c,.62));const key=new THREE.DirectionalLight(0xe8f7ff,1.15);key.position.set(5,8,7);sydGroup.add(key);const rim=new THREE.PointLight(0xffc971,2.4,14,2);rim.position.set(-3,2,3);sydGroup.add(rim);
   const W=SYD_WORLDS[world],closed=!!W.closed;
   SYD.orbitRibbon=scientificRibbon([],world==='mobius'?.22:.18,SCI_CYAN,.25,closed);SYD.orbitExact=scientificTube([],SCI_CYAN,.065,.94,closed,196);SYD.orbitBroken=scientificTube([],SCI_CORAL,.05,.9,closed,196);SYD.orbitFlow=scientificFlow([],MOBILE_GPU?36:72,SCI_CYAN,.045,closed);sydGroup.add(SYD.orbitRibbon,SYD.orbitExact,SYD.orbitBroken,SYD.orbitFlow);
@@ -22008,20 +22026,54 @@ function sydSetup(){
   const foot=mkLabel('closure lives in the braid · stable candidates remain welded to the orbit · false invariants peel away','label dim');foot.position.set(0,-3.35,0);sydGroup.add(foot);
   sydRender();
 }
-function sydRender(){
-  if(!SYD.built)return;const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5,exact=[],broken=[];
+/* ── WHAT MOVES, AND WHAT IS DISCOVERED ───────────────────────────────────────
+   This laboratory ran its ENTIRE render every animation frame, and its entire render
+   contains the invariant-discovery engine: sixteen deterministic orbits, a degree-≤2
+   monomial matrix, a Jacobi eigen-decomposition of its Gram matrix and an RREF for a
+   readable basis — followed by labWipe() of the discovery layer and a full rebuild of
+   its geometry, plus a fresh braid built point by point for every candidate in the
+   library.  Sixty times a second.  That is the judder the reader sees and the memory
+   churn behind it: geometry allocated and disposed on every frame, for a result that
+   had not changed.
+
+   And it had not changed, because NONE of it depends on the parameter the animation is
+   moving.  sydDiscover(world, break) does not take the orbit phase; neither does the
+   candidate library, the residual ladder or the swept orbit itself.  What the animation
+   actually moves is four markers, a probe and one link line.
+
+   So the frame does what the frame is for, and the discovery is recomputed exactly when
+   its own inputs change — world, symmetry-breaking, tolerance.  The moving parts stay
+   per-frame and cost almost nothing.  Same picture, same numbers, same residuals; the
+   arithmetic simply stops being repeated at sixty hertz for no reason. */
+let SYD_STATIC_KEY='', SYD_STATIC_RUNS=0;
+function sydRenderStatic(force){
+  const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0;
+  const key=[world,br,state.sydTolLog??'',state.sydSpeed??''].join('|');
+  if(!force&&key===SYD_STATIC_KEY) return;
+  SYD_STATIC_KEY=key; SYD_STATIC_RUNS++;
+  const exact=[],broken=[];
   for(let i=0;i<=96;i++){exact.push(sydVisualPoints(W,W.state(i/96,0))[0]);broken.push(sydVisualPoints(W,W.state(i/96,br))[0]);}
   scientificReplaceTube(SYD.orbitExact,exact,!!W.closed);scientificReplaceRibbon(SYD.orbitRibbon,exact,!!W.closed);scientificSetFlowPath(SYD.orbitFlow,exact,!!W.closed);scientificReplaceTube(SYD.orbitBroken,broken,!!W.closed);SYD.orbitBroken.visible=br>1e-8;
-  const cur=sydVisualPoints(W,W.state(p,br)),base=sydVisualPoints(W,W.state(.5,0));
-  for(let i=0;i<4;i++){const on=i<cur.length;SYD.markers[i].visible=SYD.baseMarkers[i].visible=on;if(on){SYD.markers[i].position.copy(cur[i]);SYD.baseMarkers[i].position.copy(base[Math.min(i,base.length-1)]);}}
-  if(cur[0]&&base[0])scientificReplaceTube(SYD.link,[base[0],cur[0]],false);if(cur[0])SYD.probe.position.copy(cur[0]);
   const D=sydDiagnostics(world,br),tol=D.tolerance;SYD.lastScan=D;
   const centre=exact.reduce((a,q)=>a.add(q),new THREE.Vector3()).multiplyScalar(1/Math.max(1,exact.length));
   D.candidate_library.forEach((r,i)=>{const pass=r.residual<=tol,norm=pass?0:Math.min(1,Math.log10(1+r.residual/Math.max(tol,1e-16))/8),phase=i*Math.PI*.5,braid=exact.map((q,j)=>{const u=j/Math.max(1,exact.length-1),rad=q.clone().sub(centre);if(rad.lengthSq()<1e-7)rad.set(Math.cos(phase),Math.sin(phase),.4);rad.normalize();const tangent=exact[Math.min(exact.length-1,j+1)].clone().sub(exact[Math.max(0,j-1)]).normalize(),side=new THREE.Vector3().crossVectors(tangent,rad);if(side.lengthSq()<1e-7)side.set(0,0,1);side.normalize();const weave=.11*Math.sin(6.2831853*(u*2+i*.25)),failure=norm*(.16+.5*Math.pow(Math.sin(Math.PI*u),2))*Math.sin((3+i)*6.2831853*u+phase);return q.clone().addScaledVector(rad,.13+i*.025+weave).addScaledVector(side,failure);});const tube=SYD.candidateTubes[i],c=pass?[SCI_GOLD,SCI_MINT,SCI_CYAN,SCI_VIOLET][i]:SCI_CORAL;tube.material.color.setHex(c);tube.material.emissive.setHex(c);tube.material.opacity=pass?.74:.86;scientificReplaceTube(tube,braid,!!W.closed);});
   labWipe(SYD.discLayer);
   const N=sydDiscover(world,br);
   try{ if(N&&N.ok) sydDiscoveryStage(N,W); }catch(e){}
-  SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} named candidates below ${tol.toExponential(0)}${N&&N.ok?` · discovered invariant dimension ${N.dim}/${N.m}`:''}`;
+  SYD.lastD=D; SYD.lastN=N; SYD.lastTol=tol;
+}
+function sydRender(force){
+  if(!SYD.built)return;
+  sydRenderStatic(force);
+  /* the only things the animation actually moves */
+  const world=state.sydWorld||'rotation',W=SYD_WORLDS[world],br=state.sydBreak??0,p=state.sydParam??.5;
+  const cur=sydVisualPoints(W,W.state(p,br)),base=sydVisualPoints(W,W.state(.5,0));
+  for(let i=0;i<4;i++){const on=i<cur.length;SYD.markers[i].visible=SYD.baseMarkers[i].visible=on;if(on){SYD.markers[i].position.copy(cur[i]);SYD.baseMarkers[i].position.copy(base[Math.min(i,base.length-1)]);}}
+  if(cur[0]&&base[0])scientificReplaceTube(SYD.link,[base[0],cur[0]],false);if(cur[0])SYD.probe.position.copy(cur[0]);
+  /* the caption carries one number that moves and two that were discovered, so it is
+     written here, from what the discovery pass published */
+  const D=SYD.lastD, N=SYD.lastN, tol=SYD.lastTol;
+  if(D&&SYD.sub) SYD.sub.element.textContent=`${sydLang(W.t)} · ${W.param}=${W.state(p,br).a.toFixed(3)} ${W.unit} · ${D.discovered.length}/${D.candidate_library.length} named candidates below ${tol.toExponential(0)}${N&&N.ok?` · discovered invariant dimension ${N.dim}/${N.m}`:''}`;
 }
 function sydDiscoveryHTML(){
   const N=sydDiscover();
@@ -22329,11 +22381,11 @@ function sydCompare(){
 function bindSydControls(root=ctl){
   root.querySelectorAll('[data-syd-world]').forEach(b=>b.onclick=()=>{state.sydWorld=b.dataset.sydWorld;state.sydParam=.5;SYD.built=false;sydSetup();buildCtl();});
   const run=root.querySelector('#sydRun');if(run)run.onclick=()=>{state.sydRun=!state.sydRun;buildCtl();};
-  const reset=root.querySelector('#sydReset');if(reset)reset.onclick=()=>{state.sydParam=.5;state.sydBreak=0;state.sydRun=false;sydRender();buildCtl();};
+  const reset=root.querySelector('#sydReset');if(reset)reset.onclick=()=>{state.sydParam=.5;state.sydBreak=0;state.sydRun=false;sydRender(true);buildCtl();};
   const param=root.querySelector('#sydParam');if(param)param.oninput=e=>{state.sydParam=+e.target.value;sydRender();const v=root.querySelector('#sydParamV'),W=SYD_WORLDS[state.sydWorld];if(v)v.textContent=`${W.state(state.sydParam,state.sydBreak).a.toFixed(3)} ${W.unit}`;};
   const speed=root.querySelector('#sydSpeed');if(speed)speed.oninput=e=>{state.sydSpeed=+e.target.value;const v=root.querySelector('#sydSpeedV');if(v)v.textContent='×'+state.sydSpeed.toFixed(2);};
-  const br=root.querySelector('#sydBreak');if(br)br.oninput=e=>{state.sydBreak=+e.target.value;sydRender();buildCtl();};
-  const tol=root.querySelector('#sydTol');if(tol)tol.onchange=e=>{state.sydTolLog=+e.target.value;sydRender();buildCtl();};
+  const br=root.querySelector('#sydBreak');if(br)br.oninput=e=>{state.sydBreak=+e.target.value;sydRender(true);buildCtl();};
+  const tol=root.querySelector('#sydTol');if(tol)tol.onchange=e=>{state.sydTolLog=+e.target.value;sydRender(true);buildCtl();};
   const cmp=root.querySelector('#sydCompare');if(cmp)cmp.onclick=sydCompare;const exp=root.querySelector('#sydExport');if(exp)exp.onclick=()=>downloadFile('fbs3r_symmetry_discovery.json','application/json',JSON.stringify(sydExportData(),null,2));
 }
 function updateSyd(dt){
