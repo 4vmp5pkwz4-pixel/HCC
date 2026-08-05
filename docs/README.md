@@ -14,6 +14,8 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-field-content-and-backreaction.cjs` | derives every species' Casimir coefficient from its own S³ spectrum and solves the backreaction equation |
 | `verify-berger-euler-wpa.cjs` | Work Package A — exact Euler-top frequencies, the signed rotation number, and the refutation of ρ = 1 − λ² |
 | `verify-zeckendorf-structure.cjs` | the Origin-of-φ audit: four structures kept apart, and why none of them derives φ |
+| `verify-floquet-gap-c1.cjs` | Work Package C1 — the bright/dark decomposition, the detuning scan, and whose gap it is |
+| `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
 node docs/verify-zero-point-ladder.cjs     # 16/16 checks pass
@@ -22,6 +24,7 @@ node docs/verify-log-periodicity.cjs      # finds a signal, and fails to find on
 node docs/verify-field-content-and-backreaction.cjs   # 11/11 checks pass
 node docs/verify-berger-euler-wpa.cjs      # 8/8 checks pass
 node docs/verify-zeckendorf-structure.cjs  # 10/10 checks pass
+node docs/verify-floquet-gap-c1.cjs        # 7/7 checks pass, writes data/floquet-detuning-scan.csv
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -201,6 +204,33 @@ never appears in it.
 so it is a first-rungs test with no cosmological power. True discrete scale invariance at
 ratio φ sits at ω_DSI = 2π/lnφ = 13.0570056, **exactly twice as fast**. A test tuned to one
 has no power against the other, and the atlas presents them as separate hypotheses.
+
+## Work Package C1 — the Floquet gap, and whose gap it is
+
+A **technical benchmark**, not a cosmological model. Driving a biaxial anisotropy
+a₁,a₂ = ā(1 ± ε cos ωt) puts ⅛(A₁−A₂)(K₊² + K₋²) into the Hamiltonian, and that term
+moves K by **±2 only**. In the J = 2 block the selection rule splits the space into an
+even-K sector {|0⟩, |S₂⟩, |A₂⟩} and an odd-K sector the drive never mixes with |0⟩. Since
+(K₊²+K₋²)|0⟩ ∝ |2⟩ + |−2⟩ = √2|S₂⟩, which is orthogonal to |A₂⟩:
+
+    <A₂|H|0> = 0   identically — not merely numerically
+
+and |A₂⟩ survives as an **exact Floquet eigenvector**, overlap 1.000000000000. The gap
+therefore belongs to the **bright parity sector** span{|0⟩, |S₂⟩}; calling it a gap of
+the whole J = 2 block would be false.
+
+| acceptance criterion | required | measured |
+|---|---|---|
+| unitarity ‖U†U − I‖_F | < 1e-10 | **2.4e-14** |
+| dark-state coupling \|⟨A₂\|H\|0⟩\| | < 1e-12 | **0 exactly** |
+| resonant gap law Δε = 2√3 ε | — | to **0.30 %** over ε ∈ [0.005, 0.04] |
+| detuning hyperbola √((ΔE−ω)² + Δε_min²) | — | to **0.72 %** over 41 points, ω ∈ [5.5, 6.5] |
+| minimum of the hyperbola | at ω = ΔE = 6 | **ω = 6.0000**, gap 0.06933373 |
+| the minimum equals the resonant gap | — | 0.06933373 vs 2√3ε = 0.06928203 |
+
+Branches are tracked by **eigenvector overlap with the bright sector**, not by sorting
+quasi-energies, and the gap is taken modulo ω into the fundamental zone, so a crossing
+of the zone boundary at ε = ±ω/2 cannot masquerade as a closing gap.
 
 ## Status
 
