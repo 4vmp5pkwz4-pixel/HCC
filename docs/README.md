@@ -15,6 +15,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-berger-euler-wpa.cjs` | Work Package A — exact Euler-top frequencies, the signed rotation number, and the refutation of ρ = 1 − λ² |
 | `verify-zeckendorf-structure.cjs` | the Origin-of-φ audit: four structures kept apart, and why none of them derives φ |
 | `verify-floquet-gap-c1.cjs` | Work Package C1 — the bright/dark decomposition, the detuning scan, and whose gap it is |
+| `verify-hopf-splitting.cjs` | the Berger deformation lifts the Hopf charge degeneracy, and the Smith map is a rotation of the Riemann sphere |
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
@@ -29,6 +30,7 @@ node docs/verify-zeckendorf-structure.cjs  # 10/10 checks pass
 node docs/verify-floquet-gap-c1.cjs        # 7/7 checks pass, writes data/floquet-detuning-scan.csv
 node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
+node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -304,6 +306,42 @@ is allowed to run.
 **No new law is claimed.** This is Marsden–Weinstein reduction, the Poinsot construction
 and Kostant–Souriau quantisation, assembled and checked. What is new is that the atlas
 can now say these are one construction, and say it with residuals.
+
+## The Hopf splitting, and the Smith chart as a rotation
+
+**The splitting becomes an observable.** On the round S³ the Hopf charge sectors are
+degenerate, so the decomposition is representation theory and nothing an instrument could
+see. A Berger deformation stretches the fibre alone and lifts it:
+
+    ω²_{j,m} − ω²_{j,m′} = (4c²/R²)(λ_H⁻² − 1)(m² − m′²)
+
+zero on the round sphere, and changing **sign** according to whether the fibre is squeezed
+or stretched — so the reading says not only that the degeneracy lifted but which way the
+deformation went. The check that makes it worth anything is the unsplit case: at λ_H = 1
+the formula collapses onto k(k+2)/R² with degeneracy (k+1)², to 2.1e-16. And the honest
+limit is stated with it: the splitting vanishes *continuously* as λ_H → 1, so a
+measurement resolves the deformation only down to its own linewidth.
+
+**The Smith chart is a rigid rotation of the Riemann sphere.** Γ = (z−1)/(z+1) normalised
+to determinant one has the matrix (1/√2)[[1,−1],[1,1]], which is **unitary** — an element
+of SU(2), hence a rotation and not merely a conformal map. It is exactly
+exp(−i(π/2)σ_y/2), ninety degrees about y. Verified: determinant 1.000000000000,
+unitarity residual 2.2e-16, agreement with the exponential 1.1e-16, and a single
+orthogonal 3×3 carries every test point to its image to 3.7e-16.
+
+So unrolling the marking plane *from inside the sphere* is not a metaphor: it is that
+rotation followed by stereographic projection, and the impedance plane, the reflection
+disk and the sphere are **three charts of one object**. The unrolled grid is drawn from
+closed forms rather than sampled —
+
+| grid line | image | residual |
+|---|---|---|
+| r = const | circle, centre r/(1+r), radius 1/(1+r) | 3.3e-16 |
+| x = const | circle, centre (1, 1/x), radius 1/\|x\| | 8.9e-16 |
+| any two directions | angle preserved (conformality) | 6.3e-9 rad |
+
+The mode is toggleable from the chart's own control row, and it adds nothing to the scene
+when it is off: 56 draw calls off, 93 on, 56 off again.
 
 ## Status
 
