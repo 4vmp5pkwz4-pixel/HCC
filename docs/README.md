@@ -592,6 +592,65 @@ Touch targets inside the panel were 30 px tall and now clear 44×44 under
 buttons still measure 30–40 px wide: they are the shared panel chrome (collapse, pin,
 close), not controls this laboratory added, and widening them would move every panel.
 
+## One grid, held still, and carried onto the whole sky
+
+Four corrections to the Smith–Möbius laboratory and the hierarchy locator.
+
+**There were two grids on the chart.** The base Smith chart is added to the scene at
+setup and was always visible, so switching the unrolling on drew the *same figure on top
+of itself* — the unrolling at θ = π/2 **is** the base chart. That is not twice the
+information, it is a moiré of a figure with itself. The base chart is now captured
+explicitly at construction so it can be retired the moment the unrolling takes over and
+restored when it stops. Draw calls fall 92 → 88 as a side effect.
+
+**It now rests instead of running.** The default is `impEase: 'man'`, `impPlay: false`,
+`u = 1` — exactly θ = π/2, the Smith chart, motionless. The animation is an option that
+has to be asked for. Two explicit holds were added, *hold at the Smith chart* and *hold
+at the impedance plane*, and the play button now hands the laboratory a timing law as
+well as setting a flag: without that, pressing play on a manually-held state toggled a
+boolean the manual easing ignores — a control that did nothing.
+
+**The grid extends over all of space, and that is a similarity.** A point of the Riemann
+sphere *is* a direction, and the celestial sphere *is* the set of directions, so carrying
+the grid out to the sky is the radial dilation v ↦ Rv. It multiplies every tangent vector
+by the same factor, so angles are unchanged **exactly** (measured: cosine drift 0.0 over
+64 directions) and circles stay circles; every direction is covered with no seam and no
+pole. It reuses the identical buffers and the identical rotation — one uniform differs.
+The grid is not tiled onto the sky: at that radius it *is* the sky.
+
+**The locator became the camera control.** It used to orbit its own camera, so it showed
+a fixed three-quarter view no matter where the scene was looking, and dragging it moved
+nothing — a picture of an orientation, not an orientation control. It is now slaved both
+ways: every frame it copies the main camera's direction, making it a true attitude
+indicator, and dragging it rotates the **main** camera about the orbit target. Its axis
+buttons and its wheel move the scene too. That is a permanent handle on the view in every
+one of the 72 laboratories, including the ones whose own controls are busy. The rotation
+is applied in the camera's own spherical frame about `controls.target` — what
+OrbitControls itself does — so the two never fight and no state is mirrored.
+
+### Two self-tests that were wrong before the code was
+
+Both new checks failed at first, and neither failure was in the feature.
+
+The sky check demanded the live meshes, but the laboratory is built on first entry, so at
+boot there was nothing to inspect — the test asserted a precondition it had not
+established. It now checks the **arithmetic** unconditionally (a uniform dilation leaves
+every angle cosine exactly invariant and keeps the image on the sphere of radius R) and
+the wiring only when it exists, saying in the detail which case it saw.
+
+The locator check compared the locator's direction with the scene's, but at the moment
+the self-tests run the camera can still be sitting on its orbit target — the offset vector
+is zero, there is no direction, and the normalised dot product is 0. That read as a broken
+synchronisation when it was a broken test. It now sets three known camera placements,
+measures, and restores: worst 1 − (locator)·(scene) = 0.0 over all three.
+
+| measurement | before | after |
+|---|---|---|
+| draw calls, unrolling on (desktop) | 92 | **88** |
+| draw calls, sky grid on | — | 94 |
+| resting θ | animated | **exactly π/2** |
+| self-tests | 564 | **567** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
