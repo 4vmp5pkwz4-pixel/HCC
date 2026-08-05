@@ -15,6 +15,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-berger-euler-wpa.cjs` | Work Package A — exact Euler-top frequencies, the signed rotation number, and the refutation of ρ = 1 − λ² |
 | `verify-zeckendorf-structure.cjs` | the Origin-of-φ audit: four structures kept apart, and why none of them derives φ |
 | `verify-floquet-gap-c1.cjs` | Work Package C1 — the bright/dark decomposition, the detuning scan, and whose gap it is |
+| `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
@@ -27,6 +28,7 @@ node docs/verify-berger-euler-wpa.cjs      # 8/8 checks pass
 node docs/verify-zeckendorf-structure.cjs  # 10/10 checks pass
 node docs/verify-floquet-gap-c1.cjs        # 7/7 checks pass, writes data/floquet-detuning-scan.csv
 node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
+node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -269,6 +271,39 @@ factor, instead of declaring a whole class infeasible.
 integrable Euler top, so triaxiality alone proves nothing about chaos. Non-integrability
 has to come from dynamical a_i(t), inhomogeneity, an external field or matter coupling.
 Trajectory classification is C2 and remains **OPEN**.
+
+## One momentum map, four laboratories
+
+The atlas ran four laboratories on what it treated as four objects — the Hopf fibration,
+the contact form on S³, the Bloch sphere of a spin-½, and the Euler top of Work Package A.
+**They are one object seen four times**: a phase space with a symmetry, its momentum map,
+and the space that momentum map fibres over.
+
+| statement | residual |
+|---|---|
+| J(z) = ½z†σz is a momentum map: ι_Xω = −dJ with **one** constant for every generator, direction and point | spread 5.3e-8 |
+| \|J\| = ½ on S³ — the reduced space is S²(½), and the factor is not a droppable convention | 3.3e-16 |
+| the fibres of J **are** the U(1) Hopf orbits | 2.4e-16 |
+| λ₀(X_Hopf) = ½ everywhere, so R = 2X_Hopf and λ₀(R) = 1 — the contact form is the **connection form** of the Hopf bundle | 4.4e-16 |
+| dλ₀ is the **pullback** of the reduced area form, universal multiple measured as ¼ | spread 5.5e-9 |
+| the reduced orbit has symplectic area 2π → Chern number 1 → dimension 2: a **spin ½** | exact |
+| Poinsot: WP A's ν₂ is the **reduced** frequency and ν₁ the **reconstruction** phase | exact at 64 instants |
+
+The Reeb flow and the Hopf flow are one flow at two speeds. The Bloch sphere and the Hopf
+base are the same sphere because a symplectic area of 2π quantises to a two-dimensional
+Hilbert space. WP A's two frequencies are reduction and reconstruction rather than two
+unrelated numbers.
+
+**A note on method.** For the momentum-map constant I expected ½ and the measurement
+returned exactly **−1**, with a spread of 5e-8 over 1799 samples. What a momentum map
+requires is that there be *one* constant, and there is; the value −1 is the convention
+ι_Xω = −dJ and the ½ I was expecting already sits inside the generator normalisation.
+The measurement corrected the expectation, which is the only direction that correction
+is allowed to run.
+
+**No new law is claimed.** This is Marsden–Weinstein reduction, the Poinsot construction
+and Kostant–Souriau quantisation, assembled and checked. What is new is that the atlas
+can now say these are one construction, and say it with residuals.
 
 ## Status
 
