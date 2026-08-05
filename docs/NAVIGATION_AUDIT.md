@@ -160,11 +160,68 @@ Back / Forward / reload restore the state.
 
 ---
 
-## 4 · What is not yet done, and why
+## 4 · Stage 2 — what was built
 
-This document is stage 1 only. The registries, the context store, the scope system, the
-unified Atlas, the routes, the desktop three-column layout and the mobile four-item bottom
-navigation are **not implemented in this change**.
+Implemented in the same branch, on top of this audit.
+
+**Registries.** `WORLD_REGISTRY` (7 worlds, each with a `defaultEntry`), `LAB_REGISTRY`
+(72 laboratories, each with `id, parentWorld, category, title, description, status,
+capabilities, defaultInspector, route`) and `TOOL_REGISTRY` (every panel with a scope).
+The registry is *derived* from data that already existed — names from `S3_VIEW_NAMES`,
+purposes from `LAB_ATLAS_DEFS` — so nothing is invented and nothing is lost. The 26
+laboratories the audit found bare now carry a purpose line.
+
+**Context store.** `HCC_CTX = {worldId, labId, inspectorTab, selectedObjectId, openPanels,
+navigationHistory}`, exposed as `HCC_NAV` for QA. Nothing infers the active world from a
+DOM class any more.
+
+**One navigation system.** `setMode` and `setS3View` are *not* replaced — they become the
+implementation underneath. The world buttons and `uiSetS3View` both route through
+`hccGo()`, which is the only code allowed to change world and laboratory together: it
+resolves the parent world, drops out-of-scope panels, switches, activates, restores,
+opens the inspector, and writes breadcrumb and URL. The architecture test fails if an
+entry point bypasses it.
+
+**Scope enforcement.** A panel outside its scope is *removed*, never disabled and never
+left empty. Measured after leaving a laboratory: **orphan panels 0, panels visible
+outside scope 0.**
+
+**One Atlas.** Worlds, the 72 laboratories in nine categories, search, favourites,
+recently used, and status filters, in one panel. It takes the primary dock slot; the
+duplicate "↩ Return" moves to the overflow rather than being deleted.
+
+**Routes.** `#/world/<id>` and `#/world/<id>/lab/<id>`, parsed at boot **before the first
+frame** so there is no flash of the wrong world. Measured: a cold load of
+`#/world/s3/lab/berry` restores world and laboratory; browser Back from `hopf` returns to
+`berry`; unknown worlds and unknown laboratories are rejected rather than half-applied.
+
+**Breadcrumb.** `Atlas / S³ · Hopf / Möbius & Applied Maps / Impedance · Möbius · Smith`,
+every segment clickable.
+
+**Mobile.** Four destinations — Atlas, Controls, Inspect, More — replacing the scrolling
+row of seven worlds as the primary route. Measured on iPhone 13 portrait and landscape:
+4 items, none under 44 × 44, 0 panels outside scope, 0 page errors.
+
+### A bug my own test caught
+
+The breadcrumb first rendered as `Atlas / / / Impedance`. `impL()` takes `{en, ru, de}`
+and the registries carry `[en, ru, de]`; handing an array to it returns an empty string
+in silence. The registries now use their own picker.
+
+### Verification
+
+`docs/verify-navigation-architecture.cjs` — **10/10**, static, plus three live self-tests
+inside the atlas. 570/570 self-tests green, all 72 S³ views walk with 0 page errors.
+
+## 5 · What is still not done
+
+
+The **desktop three-column layout** (Atlas left, scene centre, Inspector right, Timeline
+below) is not built: the Atlas and the inspectors exist and are correctly scoped, but they
+still float as panels rather than occupying fixed columns. The **Inspector tab set**
+(Controls / Measurements / Theory / Objects / Data) is declared per laboratory as
+`defaultInspector` but is not yet a tab strip. `Recommended` is not implemented;
+Favorites and Recently Used are.
 
 That is deliberate. Migrating the navigation shell of a 40,000-line single-file
 application halfway would leave the old and new systems live at the same time — the one
