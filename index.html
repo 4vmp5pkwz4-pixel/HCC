@@ -1067,7 +1067,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.29.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.30.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1233,7 +1233,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.29.0';
+const HCC_VERSION='3.30.0';
 const HCC_BUILD='zero-point-fractal-2026.08.04.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -4652,6 +4652,20 @@ function runSelfTests(){
           tanRes=Math.max(tanRes,Math.abs(V.dot(P)),Math.abs(V.length()-1)); }
         defRes=Math.max(defRes,Math.abs((6.283185307179586-6.283185307179586*ct)-6.283185307179586*(1-ct)));
         frameRes=Math.max(frameRes,Math.abs(holWrap(-6.283185307179586*ct)-holWrap(6.283185307179586*(1-ct))));
+      }
+      { /* The cap's solid angle and the angle the frame comes back turned by are one
+           number modulo 2π, and the stage used to print them in two corners as if they
+           were two.  Checked across the full range of θ, including past a hemisphere
+           where they stop looking alike. */
+        const W=x=>Math.atan2(Math.sin(x),Math.cos(x));
+        let wr=0, rows=[];
+        for(const deg of [15,45,60,92,120,170]){
+          const t=deg*Math.PI/180, c=Math.cos(t);
+          const O=2*Math.PI*(1-c), psi=W(-2*Math.PI*c), k=Math.round((O-psi)/(2*Math.PI));
+          wr=Math.max(wr,Math.abs(O-psi-k*2*Math.PI));
+          if(deg===92) rows.push(`θ=92°: Ω=${O.toFixed(6)} sr, Δα=${psi.toFixed(6)} rad, Ω−Δα=${k}×2π`); }
+        ok('The holonomy IS the enclosed solid angle, modulo 2π — and the stage now says so instead of printing the two numbers in opposite corners as though they were separate facts: past a hemisphere they stop looking alike, and they are still the same number less a whole number of turns',
+          wr<1e-12, `${rows[0]} · worst residual over θ ∈ {15,45,60,92,120,170}° = ${wr.toExponential(2)}`);
       }
       ok('Holonomy S² stage: the drawn tangent cone really touches the sphere along the loop with its apex on the axis at sec θ, its unrolled sector 2π cos θ leaves a seam deficit equal to Ω, and the closed-form transported frame stays unit and tangent — the picture is the identity, not an illustration of it',
         apexRes<1e-12&&defRes<1e-12&&frameRes<1e-12&&tanRes<1e-12,
@@ -22637,11 +22651,37 @@ function holTransportStage(D){
   const e0=Et(0),f0=Ep(0),p0=Pt(0),LV=.8;
 
   /* CAP — ∫K dA over exactly what the loop encloses */
-  L.add(scientificParametricSurface(84,26,(u,v)=>holSpherePoint(th*v,TAU*u).multiplyScalar(R),holContentMat(berry?SCI_VIOLET:SCI_GOLD,SCI_CYAN,.30,.88)));
+  /* The cap IS the claim — ∫K dA over exactly what the loop encloses — but as θ grows
+     past a hemisphere it stops being a lid and becomes the whole ball, and a fill that
+     reads well at θ = 30° is an opaque solid at θ = 92°.  So the fill thins with the
+     area it covers while its rim stays bright: the region remains legible as a region,
+     and the frames inside it remain visible. */
+  const capFrac=(1-ct)/2;                       // 0 at the pole, 1 at the far pole
+  L.add(scientificParametricSurface(84,26,(u,v)=>holSpherePoint(th*v,TAU*u).multiplyScalar(R),
+    holContentMat(berry?SCI_VIOLET:SCI_GOLD,SCI_CYAN,.30*(1-.72*capFrac),.88)));
+  { const rim=[]; for(let i=0;i<=192;i++) rim.push(Pt(TAU*i/192,R*1.002));
+    L.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(rim),
+      new THREE.LineBasicMaterial({color:berry?SCI_VIOLET:SCI_GOLD,transparent:true,opacity:.95,depthWrite:false}))); }
 
   /* CONE — developable, so transport along the shared circle is trivial on it */
   const tA=-Math.tan(th)*R,clipped=Math.abs(tA)>HOL_CONE_CLIP,tD=(tA<0?-1:1)*Math.min(Math.abs(tA),HOL_CONE_CLIP);
-  L.add(scientificParametricSurface(108,2,(u,v)=>{const ph=TAU*u;return Pt(ph).addScaledVector(Et(ph),tD*v);},holContentMat(SCI_CYAN,SCI_GOLD,.16,.76)));
+  /* A CONE THAT RUNS OFF TO INFINITY MUST NOT BE DRAWN AS A WALL.  Near θ = 90° the
+     tangent cone is almost a cylinder, so the clipped surface became a filled tube
+     standing around the sphere — and everything the laboratory is about, the frames and
+     the wedge and the cap, went behind it.  A photograph of the phone showed exactly
+     that: an opaque olive mass where the transport should be.  When the cone is clipped
+     it is drawn as its GENERATRICES instead: the same object, stated as the ruling it
+     is, with nothing to hide behind. */
+  if(clipped){
+    const ribs=[];
+    for(let i=0;i<24;i++){ const ph=TAU*i/24, a=Pt(ph), b=a.clone().addScaledVector(Et(ph),tD); ribs.push(a,b); }
+    const rg=new THREE.BufferGeometry().setFromPoints(ribs);
+    const rl=new THREE.LineSegments(rg,new THREE.LineBasicMaterial({color:SCI_CYAN,transparent:true,
+      opacity:.34,depthWrite:false,blending:THREE.AdditiveBlending}));
+    L.add(rl);
+  } else {
+    L.add(scientificParametricSurface(108,2,(u,v)=>{const ph=TAU*u;return Pt(ph).addScaledVector(Et(ph),tD*v);},holContentMat(SCI_CYAN,SCI_GOLD,.16,.76)));
+  }
   HOL.cone={apexSec:1/ct,slant:Math.abs(tA),drawn:Math.abs(tD),clipped};
   if(!clipped&&Math.abs(ct)>1e-6){const apex=new THREE.Vector3(0,R/ct,0),crys=scientificCrystal(SCI_CYAN,.1);crys.position.copy(apex);L.add(crys);
     const al=mkLabel(`apex · sec θ = ${(1/ct).toFixed(3)}`,'label dim');al.position.copy(apex);al.position.y+=(ct>0?.36:-.36);L.add(al);}
@@ -22662,7 +22702,17 @@ function holTransportStage(D){
      — because a scene label that lands on another one is a reading nobody can take. */
   const wl=mkLabel(berry?`γ_B = ${wAng.toFixed(6)}`:`Δα = ${wAng.toFixed(6)}`,'label axis');
   wl.position.copy(p0).multiplyScalar(1.50);wl.position.y-=.22;L.add(wl);
-  const cl=mkLabel(`Ω = ${Om.toFixed(6)} sr`,'label const');
+  /* THE THEOREM, SAID OUT LOUD.  The cap's solid angle and the angle the frame actually
+     comes back turned by are THE SAME NUMBER — modulo 2π — and the laboratory printed
+     them in two different corners of the screen as if they were two facts.  At θ = 92°
+     they read 6.502465 sr and 0.219280 rad, which look like different quantities and
+     are not: they differ by exactly one full turn.  What the wedge shows is what
+     survives after the whole turns are taken out, and the caption now says so. */
+  const turns=berry?null:Math.round((Om-wAng)/TAU);
+  const cl=mkLabel(berry?`Ω = ${Om.toFixed(6)} sr`
+    :turns===0?`Ω = ${Om.toFixed(6)} sr = Δα · the frame returns turned by exactly the solid angle it enclosed`
+    :`Ω = ${Om.toFixed(6)} sr = ${turns}×2π + ${wAng.toFixed(6)} · the wedge shows what survives the whole turns`,
+    'label const');
   cl.position.copy(holSpherePoint(th*.55,TAU*.5)).multiplyScalar(R*1.16);cl.position.y+=.42;L.add(cl);
 
   /* DEV — unroll the cone into the tangent plane at the start point.  A similarity, so
