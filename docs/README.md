@@ -15,6 +15,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-berger-euler-wpa.cjs` | Work Package A — exact Euler-top frequencies, the signed rotation number, and the refutation of ρ = 1 − λ² |
 | `verify-zeckendorf-structure.cjs` | the Origin-of-φ audit: four structures kept apart, and why none of them derives φ |
 | `verify-floquet-gap-c1.cjs` | Work Package C1 — the bright/dark decomposition, the detuning scan, and whose gap it is |
+| `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -25,6 +26,7 @@ node docs/verify-field-content-and-backreaction.cjs   # 11/11 checks pass
 node docs/verify-berger-euler-wpa.cjs      # 8/8 checks pass
 node docs/verify-zeckendorf-structure.cjs  # 10/10 checks pass
 node docs/verify-floquet-gap-c1.cjs        # 7/7 checks pass, writes data/floquet-detuning-scan.csv
+node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -231,6 +233,42 @@ the whole J = 2 block would be false.
 Branches are tracked by **eigenvector overlap with the bright sector**, not by sorting
 quasi-energies, and the gap is taken modulo ω into the fundamental zone, so a crossing
 of the zone boundary at ε = ±ω/2 cannot masquerade as a closing gap.
+
+## Work Package D — the Bianchi IX action
+
+With dσ_i = ½ε_ijk σ_j∧σ_k, ∫σ₁∧σ₂∧σ₃ = 16π², a_i = e^{α+β_i} and C = π/G:
+
+    V_G  = ½[e^{4β₁}+e^{4β₂}+e^{4β₃} − 2e^{−2β₁}−2e^{−2β₂}−2e^{−2β₃}]
+    H_IX = N[(−p_α²+p₊²+p₋²)/(24Ce^{3α}) + Ce^αV_G + 2CΛe^{3α}] = 0
+
+**The decisive check fixes every coefficient at once.** Setting β = p_β = 0 collapses the
+constraint to α̇² = Λ/3 − ¼e^{−2α}, which *is* the closed-FLRW Friedmann equation
+H² = Λ/3 − 1/R² with the physical radius **R = 2e^α**. That radius is not a choice: the σ
+normalisation makes the unit round S³ metric ¼Σσ_i², and the stated volume 16π² gives
+16π²e^{3α} = 2π²(2e^α)³ — two independent routes to the same R. C = π/G is then just
+(1/16πG)·16π². Neither the 6, the 24, the e^{3α}, the e^α nor the −3/2 can be wrong
+without breaking that agreement.
+
+| check | residual |
+|---|---|
+| the two stated forms of V_G agree (61×61 grid) | 1.1e-13 |
+| V_G(0,0) = −3/2 | exact |
+| C₃ᵥ wall symmetry of the (β₊,β₋) plane | 8.0e-14 |
+| H is the Legendre transform of L | 4.5e-16 |
+| the isotropic limit reproduces Friedmann | 5.9e-15 |
+| the volume computed two ways | 1.0e-15 |
+| constraint drift over 6000 RK4 steps, four classes | 1.2e-12 |
+
+Initial data are **constructed** rather than declared: solving the constraint for p_α
+needs p_α² ≥ 0, and with Λ ≤ 0 the potential term near isotropy is large and negative, so
+a small anisotropic momentum simply cannot lie on the constraint surface. That is physics,
+not a bug — the generator scales (p₊, p₋) until the data are admissible and reports the
+factor, instead of declaring a whole class infeasible.
+
+**What this does not establish.** A *fixed* triaxial left-invariant metric is still an
+integrable Euler top, so triaxiality alone proves nothing about chaos. Non-integrability
+has to come from dynamical a_i(t), inhomogeneity, an external field or matter coupling.
+Trajectory classification is C2 and remains **OPEN**.
 
 ## Status
 
