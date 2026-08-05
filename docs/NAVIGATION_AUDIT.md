@@ -213,15 +213,52 @@ in silence. The registries now use their own picker.
 `docs/verify-navigation-architecture.cjs` — **10/10**, static, plus three live self-tests
 inside the atlas. 570/570 self-tests green, all 72 S³ views walk with 0 page errors.
 
-## 5 · What is still not done
+## 5 · Stage 3 — the Inspector, and Recommended
+
+**The Inspector strip.** The fourth level of the declared hierarchy existed only as a
+string on the context — `defaultInspector` — and a level of a hierarchy that never
+appears is not a level. It is now a strip: Controls · Measurements · Theory · Objects ·
+Data.
+
+The rule that keeps *visible dead controls = 0* true: **a tab is rendered only when the
+panel behind it exists AND is in scope**. There is no disabled state and no empty tab,
+because a tab you can press that does nothing teaches you the interface is lying.
+Measured across five contexts:
+
+| context | tabs offered |
+|---|---|
+| `solar` | controls, theory, objects, data |
+| `s3 / imp` | controls, **measurements**, theory, objects, data |
+| `s3 / sec` | controls, **measurements**, theory, objects, data |
+| `s3 / hopf` | controls, theory, objects, data |
+| `fbs` | controls, **measurements**, theory, objects, data |
+
+"Measurements" appears exactly where a measurement panel is in scope — the Smith–Möbius
+panel for `imp`, the Bianchi IX panel for `sec`, the zero-point observatory for `fbs` —
+and is absent where there is none. A strip showing the same five tabs everywhere would be
+a decoration rather than a description of the laboratory. All five tabs were pressed in
+turn: **0 opened nothing**. On iPhone: 5 buttons, **none under 44 × 44**.
+
+**Recommended** is the declared relation graph read as navigation. It walks
+`NEXUS_RELATIONS` — edges that were already written and that the Invariant Nexus already
+draws — and returns the laboratories joined to the current one, nearest first. It invents
+no adjacency: with no laboratory active it returns nothing rather than filling the space.
+For the impedance laboratory it offers *Complex-frequency poles*, which is a declared
+typed relation and not a guess.
+
+`docs/verify-navigation-architecture.cjs` is now **12/12**; the atlas carries 572
+self-tests.
+
+## 6 · What is still not done
+
 
 
 The **desktop three-column layout** (Atlas left, scene centre, Inspector right, Timeline
-below) is not built: the Atlas and the inspectors exist and are correctly scoped, but they
-still float as panels rather than occupying fixed columns. The **Inspector tab set**
-(Controls / Measurements / Theory / Objects / Data) is declared per laboratory as
-`defaultInspector` but is not yet a tab strip. `Recommended` is not implemented;
-Favorites and Recently Used are.
+below) is not built. The Atlas, the Inspector strip and the panels they drive all exist
+and are correctly scoped, but they still float rather than occupying fixed columns. That
+is a layout change to a chrome that eleven panels position themselves against, and it is
+worth doing only with the same measurement discipline as the rest — which is a stage of
+its own, not a corner of this one.
 
 That is deliberate. Migrating the navigation shell of a 40,000-line single-file
 application halfway would leave the old and new systems live at the same time — the one
