@@ -11,11 +11,13 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-zero-point-ladder.cjs` | an independent second implementation of every claim |
 | `verify-zero-point-csv.cjs` | recomputes every cell of the CSV from first principles |
 | `verify-log-periodicity.cjs` | calibrates the predefined log-periodicity test, including its false-positive rate |
+| `verify-field-content-and-backreaction.cjs` | derives every species' Casimir coefficient from its own S³ spectrum and solves the backreaction equation |
 
 ```
 node docs/verify-zero-point-ladder.cjs     # 16/16 checks pass
 node docs/verify-zero-point-csv.cjs        # 313 rows × 24 columns reproduced
 node docs/verify-log-periodicity.cjs      # finds a signal, and fails to find one that is not there
+node docs/verify-field-content-and-backreaction.cjs   # 11/11 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -97,6 +99,50 @@ And the statement the panel carries: the ladder's own ρ_C(R) = ħc/480π²R⁴ 
 **continuous** power law and predicts no modulation whatever. Log-periodicity is the
 signature of genuine discreteness — of a world in which only the rungs exist — so a
 detection in real data would be evidence for something this model does not itself claim.
+
+## Two more open items, closed
+
+**Item 2 — the field content.** The coefficient 1/240 belongs to *one* conformally
+coupled massless real scalar and to nothing else. Each species has its own spectrum on
+the round S³ and its own statistics, and each coefficient is continued from that
+spectrum by Hurwitz zeta, ζ_H(−n, a) = −B_{n+1}(a)/(n+1) — not copied from a table:
+
+| species | spectrum | Σ | E |
+|---|---|---|---|
+| conformal scalar | ω_β = βc/R, g = β² | ζ(−3) = 1/120 | ħc/240R |
+| photon | ω_n = (n+1)c/R, g = 2n(n+2) | 2ζ(−3) − 2ζ(−1) = 11/60 | 11ħc/120R |
+| massless Dirac | \|ω_n\| = (n+3/2)c/R, g = 2(n+1)(n+2) | 2ζ_H(−3,3/2) − ½ζ_H(−1,3/2) = **−17/480** | +17ħc/960R |
+
+The Dirac sum is **negative** and the fermionic sign turns it positive again; getting
+that backwards flips the sign of the whole vacuum. All three are confirmed a second way
+in the same script, by brute summation with an exponential regulator and no zeta
+function anywhere — the divergent 1/ε⁴ and 1/ε² pieces fitted away and the finite
+remainder compared, agreeing to 2e-3.
+
+**Item 3 — the backreaction, solved.** For the Einstein static universe with k = +1
+sourced by this vacuum, whose conformal spectrum forces p = ε/3, the two static
+conditions close in closed form:
+
+    R* = ℓ_P √(8A/3π)          Λ* = 9π/(16A) · ℓ_P⁻²        (E_total = A ħc/R)
+
+verified by substituting the answer back into *both* equations rather than by repeating
+the algebra — residual 6.7e-16. And the answer indicts the model, which is what an
+honest answer is for:
+
+| field content | A | R* |
+|---|---|---|
+| 1 conformal scalar | 0.004167 | **0.0595 ℓ_P** |
+| 1 photon | 0.091667 | 0.2789 ℓ_P |
+| 1 Dirac | 0.017708 | 0.1226 ℓ_P |
+| 4 scalars + 1 photon + 3 Dirac | 0.161458 | 0.3702 ℓ_P |
+
+The model's only self-consistent static solution sits **seventeen times below the
+Planck length** — where the semiclassical approximation the whole construction rests on
+stops being usable. It reaches ℓ_P only at A = 3π/8 ≈ 1.178, about **283** conformal
+scalar fields or 13 photon fields. And the same solution demands Λ* = 1.624e+72 m⁻²,
+**1.5 × 10¹²⁴** times the observed 1.106e-52 m⁻². The model does not explain the
+cosmological-constant problem; it reproduces it with a definite number, which is more
+useful than a gesture.
 
 ## One column that is not what it looks like
 
