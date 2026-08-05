@@ -729,8 +729,16 @@
   @media (max-width:760px){ #vrBtn,#mrBtn{display:none!important} }
   @media (max-width:760px), (pointer:coarse){
     #topbar{padding:4px 8px;gap:4px;padding-top:calc(4px + env(safe-area-inset-top,0px))}
-    #topbar .title{font-size:12px;letter-spacing:2px;flex-basis:100%;text-align:left;margin:0;
-      padding-right:174px;min-height:26px;display:flex;align-items:center}
+    /* PADDING IS INSIDE THE CLIP.  Reserving the clock's room with padding-right and
+       overflow:hidden does not work: overflow clips at the PADDING box, so the title
+       renders straight through the space it just reserved and lands under the clock
+       anyway — which is what the photograph showed.  The room has to come off the
+       WIDTH, and then the ellipsis has somewhere to happen. */
+    #topbar .title{font-size:12px;letter-spacing:2px;text-align:left;margin:0;padding-right:0;
+      flex:0 0 calc(100% - var(--clock-w,180px) - 16px);
+      max-width:calc(100% - var(--clock-w,180px) - 16px);
+      min-height:26px;display:block;line-height:26px;
+      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     /* the long subtitle costs a whole topbar row on a phone — the title alone carries it */
     #topbar .title small{display:none}
     #modeRow{flex-basis:100%;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
@@ -813,8 +821,9 @@
     .label.act-foot{display:none}
   }
   @media (max-width:420px){
-    #topbar .title{flex:0 0 calc(100% - 182px);max-width:calc(100% - 182px);padding-right:0;
-      min-height:26px;font-size:10.5px;letter-spacing:1.25px;white-space:nowrap;overflow:hidden}
+    /* below this width the clock is compacted rather than merely avoided; the room it
+       needs is still measured, never assumed */
+    #topbar .title{font-size:10.5px;letter-spacing:1.25px}
     #clock{max-width:176px;gap:0;padding-inline:7px}
     #clock .rt{font-size:9.5px;letter-spacing:.42px}
     #clock .st{display:none}
@@ -1058,7 +1067,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.26.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.27.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1224,7 +1233,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.26.0';
+const HCC_VERSION='3.27.0';
 const HCC_BUILD='zero-point-fractal-2026.08.04.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
@@ -3649,6 +3658,36 @@ function runSelfTests(){
          SHAPE: a lowercase-hyphen slug followed by a dated, numbered stamp. */
       /^\d+\.\d+\.\d+$/.test(HCC_VERSION) && /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*-\d{4}\.\d{2}\.\d{2}\.\d+$/.test(HCC_BUILD),
       `version "${HCC_VERSION}" · build "${HCC_BUILD}"`); }
+  { /* THE HEADER MUST NOT PRINT TWO THINGS IN ONE PLACE.  The title reserved the clock's
+       room with two hard-coded widths — 174 px, and 182 px below a 420 px breakpoint —
+       and a phone 440 px wide falls between them, so on that device the title ran under
+       the clock: 168 × 24 px of collision with neither string readable.  A breakpoint
+       cannot know how wide a clock is; it depends on locale, font, theme and whether the
+       simulated-time line is showing.  The clock is measured and publishes --clock-w,
+       the title takes that off its WIDTH — not its padding, because overflow clips at the
+       padding box and the text would render straight through the space it reserved — and
+       this test measures the two rectangles rather than trusting either rule. */
+    const t=document.querySelector('#topbar .title'), c=document.getElementById('clock');
+    let ok2=true, detail='no header';
+    if(t&&c){ const a=t.getBoundingClientRect(), b=c.getBoundingClientRect();
+      const ix=Math.min(a.right,b.right)-Math.max(a.left,b.left);
+      const iy=Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top);
+      ok2=!(ix>2&&iy>2);
+      detail=ok2?`title ${Math.round(a.width)}px ends at ${Math.round(a.right)}, clock starts at ${Math.round(b.left)} · --clock-w ${getComputedStyle(document.documentElement).getPropertyValue('--clock-w').trim()||'unset'}`
+                :`OVERLAP ${Math.round(ix)}×${Math.round(iy)} px`; }
+    ok('The title and the clock cannot print in the same place at any viewport width: the clock publishes the room it occupies and the title takes that off its width, so the header degrades to an ellipsis instead of to two strings on top of each other',
+      ok2, detail);
+  }
+  { /* THE FRONT DOOR.  A photograph from a phone showed a benchmark table filling the
+       middle of the screen with Uranus and Neptune behind it, because a panel that begins
+       life without display:none stays open unless some other line happens to close it.
+       The opening state is now declared last, after every other boot path, and this holds
+       it there. */
+    const boot=globalThis.HCC_BOOT_PANELS;
+    ok('The atlas opens on one declared state and not on whichever boot path ran last: the Solar System in view, the Controls at hand, and no panel covering the scene',
+      !boot || (globalThis.HCC_BOOT_MODE==='solar' && boot.filter(id=>id!=='selCard').join()==='ctl'),
+      boot?`mode ${globalThis.HCC_BOOT_MODE} · open at boot: ${boot.join(', ')||'none'}`:'front door not yet run (checked on the next frame)');
+  }
   { // A pin that only works for the panels that happened to exist when it was written
     // is not a pin.  This checks the DEFENCE, not the button: hide a pinned panel the
     // way the rest of the app hides panels, and it has to come back.
@@ -35673,6 +35712,25 @@ if(isMobile){
 }else{
   openPanel('ctl');
 }
+/* ── THE FRONT DOOR ───────────────────────────────────────────────────────────
+   Whatever any individual boot path decides, the atlas has ONE opening state and it is
+   not negotiable: the Solar System in view, the Controls at hand, and nothing else
+   covering the scene.  A photograph from a phone showed the reverse — a benchmark table
+   filling the middle of the screen with Uranus and Neptune behind it — because a panel
+   that begins life without display:none stays open unless some other line happens to
+   close it, and on that device none did.
+
+   Chasing which of a dozen boot paths won that race would fix one device.  Declaring
+   the opening state once, at the end of boot, after every other path has had its say,
+   fixes all of them — and a self-test holds it there.  Pinned panels are exempt: a pin
+   is a deliberate choice and outranks the default. */
+function atlasFrontDoor(){
+  try{
+    if(state.mode!=='solar' && !location.hash) setMode('solar');
+    closeAllPanels();          // pinned panels are restored by the pin observer
+    openPanel('ctl');
+  }catch(e){ console.warn('[front door]',e); }
+}
 document.getElementById('mCtl').onclick=()=>togglePanel('ctl');
 document.getElementById('mInfo').onclick=()=>togglePanel('info');
 
@@ -36606,15 +36664,28 @@ addEventListener('keydown', e=>{
    (info, XR check, motion, landed banner, panels toggle) always opens
    BELOW the header instead of colliding with the clock or buttons. */
 const topbarEl = document.getElementById('topbar');
+/* THE CLOCK MUST RESERVE ITS OWN ROOM.  The title used to leave a hard-coded 174 px
+   for it, with a second hard-coded 182 px below 420 px of viewport — and a phone 440 px
+   wide falls between the two, so on that device the title ran straight underneath the
+   clock: "S³ LIGHT-TRISPHERE" and "2026-08-05 05:39:29 UTC" printed on top of each
+   other, 168 × 24 px of collision, and neither readable.  A breakpoint cannot know how
+   wide a clock is; it depends on the locale, the font, the theme and whether the
+   simulated-time line is showing.  So the clock is MEASURED and publishes what it
+   occupies, exactly as the readout does for the bottom sheet, and the title reserves
+   that and not a guess. */
 function syncTopbarH(){
   const h = Math.ceil(topbarEl.getBoundingClientRect().height) || 64;
   document.documentElement.style.setProperty('--topbar-h', h + 'px');
+  const c = document.getElementById('clock');
+  if(c){ const w = Math.ceil(c.getBoundingClientRect().width);
+    if(w>0) document.documentElement.style.setProperty('--clock-w', w + 'px'); }
   requestHierarchyLayout();
 }
 syncTopbarH();
 addEventListener('resize', syncTopbarH);
 addEventListener('orientationchange', ()=>setTimeout(syncTopbarH, 60));
-if(window.ResizeObserver) new ResizeObserver(syncTopbarH).observe(topbarEl);
+if(window.ResizeObserver){ const ro=new ResizeObserver(syncTopbarH); ro.observe(topbarEl);
+  const _ck=document.getElementById('clock'); if(_ck) ro.observe(_ck); }
 if(document.fonts && document.fonts.ready) document.fonts.ready.then(syncTopbarH);
 setTimeout(syncTopbarH, 350);
 
@@ -38689,6 +38760,14 @@ if(XRTEST){
 }
 
 renderer.setAnimationLoop(tick);   // XR-compatible main loop (rAF does not fire in immersive sessions)
+
+/* Declared LAST on purpose.  Placed among the other boot code it merely joined the
+   race it was written to end; the opening state has to be the final word, so it is
+   stated after every other path has had its say, and again on the next frame in case
+   one of them is deferred. */
+try{ atlasFrontDoor(); requestAnimationFrame(()=>{ atlasFrontDoor();
+  globalThis.HCC_BOOT_PANELS=PANEL_IDS.filter(id=>panelIsOpen(id));
+  globalThis.HCC_BOOT_MODE=state.mode; }); }catch(e){}
 </script>
 </body>
 </html>
