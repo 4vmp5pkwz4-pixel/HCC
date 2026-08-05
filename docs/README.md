@@ -12,12 +12,16 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-zero-point-csv.cjs` | recomputes every cell of the CSV from first principles |
 | `verify-log-periodicity.cjs` | calibrates the predefined log-periodicity test, including its false-positive rate |
 | `verify-field-content-and-backreaction.cjs` | derives every species' Casimir coefficient from its own S³ spectrum and solves the backreaction equation |
+| `verify-berger-euler-wpa.cjs` | Work Package A — exact Euler-top frequencies, the signed rotation number, and the refutation of ρ = 1 − λ² |
+| `verify-zeckendorf-structure.cjs` | the Origin-of-φ audit: four structures kept apart, and why none of them derives φ |
 
 ```
 node docs/verify-zero-point-ladder.cjs     # 16/16 checks pass
 node docs/verify-zero-point-csv.cjs        # 313 rows × 24 columns reproduced
 node docs/verify-log-periodicity.cjs      # finds a signal, and fails to find one that is not there
 node docs/verify-field-content-and-backreaction.cjs   # 11/11 checks pass
+node docs/verify-berger-euler-wpa.cjs      # 8/8 checks pass
+node docs/verify-zeckendorf-structure.cjs  # 10/10 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -149,6 +153,54 @@ useful than a gesture.
 `t_coh_s` is **πR/c**, not 2πR/c. On S³ the farthest point from any point is its
 antipode, and the antipode is π radii away, not 2π. The column is the antipodal causal
 crossing time, and it is correct.
+
+## Work Package A — the Berger–Euler torus
+
+A left-invariant **biaxial** metric on SU(2) ≅ S³ *is* the free symmetric Euler top, with
+I₁ = I₂ = 1 and I₃ = λ². The exact frequencies are
+
+    ν₁ = |M| = √(Ω⊥² + λ⁴Ω₃²)     ν₂ = (1 − λ²)Ω₃     ρ = ν₂/ν₁   (signed)
+
+and the attitude closes in the group, R(t) = exp(t ν₁[M̂]ₓ) R₀ exp(t ν₂[e₃]ₓ), which
+reproduces a straight RK4 integration of Euler's equations to **0.00 rad** in geodesic
+distance on SO(3) after t = 3.7, with dE = 7.4e-14, dM² = 7.4e-14 and d\|M_space\| = 2.2e-11.
+Both frequencies are *measured off the trajectory* and match the closed forms.
+
+**REFUTED — ρ = 1 − λ².** It drops the |M| normalisation entirely and is correct only on
+the measure-zero shell |M| = 1. Counterexample: λ = 0.6, Ω = (0.7, −0.3, 1.1) gives
+ρ = 0.820149709 while the old formula gives 0.640000000, with |M| = 0.858380 ≠ 1. After
+rescaling to |M| = 1 the two agree exactly, which is the special case it assumed.
+
+**CONDITIONAL — the golden torus.** On the 2E = 1 shell the largest attainable |ρ| is
+|1−λ²|/λ², so ρ = 1/φ is *reachable* exactly when λ ≤ φ^{−1/2} = 0.786151 or λ ≥ φ. That
+is an **inequality, not an equation**: it does not select λ, and no golden value of the
+Berger parameter follows from it.
+
+## Origin of φ — four structures, kept apart
+
+| | statement | status |
+|---|---|---|
+| A | the golden-mean constraint admits C_L = F_{L+2} words, so h_top = ln φ | THEOREM |
+| B | uniqueness of the representation forces a_n = F_{n+2} | THEOREM |
+| C | radii add only at Δ = 1; the ratio tends to φ^{1/Δ} | THEOREM |
+| D | a full Zeckendorf code gives no geometric ladder at all | THEOREM |
+| — | the physical origin of φ | **OPEN** |
+
+A is the growth rate of a **state count** — an entropy is not a length scale. B is
+arithmetic about weights. C is the decisive one: with Q_n = (R_n/ℓ)^Δ = F_{n+2} the
+recursion lives on the **charge**, holds for every Δ, and the *radii* add only at Δ = 1 —
+so a golden ladder of radii is a claim about Δ that none of this supplies. D shows the
+full code has thresholds of ratio (Q+1)/Q → 1, arithmetic and not geometric; only a
+**sparse primitive** spectrum q_n = F_{n+2} is golden, and no physical operator with that
+spectrum is derived anywhere. The generalised Cassini identity is checked in exact
+integer arithmetic to n = 60 — it is an invariant of the charges, which is exactly why Δ
+never appears in it.
+
+**Three different tests, three different frequencies.** The Binet transient sits at
+ω_Z = πΔ/lnφ = 6.5285028 and its amplitude dies as φ^{−2n} — 6.6e-5 by the tenth rung —
+so it is a first-rungs test with no cosmological power. True discrete scale invariance at
+ratio φ sits at ω_DSI = 2π/lnφ = 13.0570056, **exactly twice as fast**. A test tuned to one
+has no power against the other, and the atlas presents them as separate hypotheses.
 
 ## Status
 
