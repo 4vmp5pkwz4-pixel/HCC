@@ -512,6 +512,86 @@ measurements reproduce, but it is not measured here, and the atlas spans Planck 
 gigalight-years, so the flag is presumably load-bearing. Changing it on a hunch would be the
 kind of unverified edit this file exists to prevent.
 
+## The Smith–Möbius unrolling, as one rotation
+
+`docs/verify-smith-mobius-unrolling.cjs` — **14/14**, reads none of the atlas.
+
+The Smith chart and the impedance plane are not two pictures that morph. They are two
+stereographic views of ONE grid on the Riemann sphere, and the whole animation is a
+single rigid rotation of that sphere:
+
+    M(θ) = [[cos(θ/2), −sin(θ/2)], [sin(θ/2), cos(θ/2)]]
+    w_θ(z) = (cos(θ/2)z − sin(θ/2)) / (sin(θ/2)z + cos(θ/2))
+    θ = 0 → w = z  ·  θ = π/2 → w = (z−1)/(z+1) = Γ
+
+| check | residual |
+|---|---|
+| det M(θ) = 1, 401 angles | 2.2e-16 |
+| M†M = I, 401 angles | 2.2e-16 |
+| **Möbius route = sphere route**, 1589 pairs, chordal metric on CP¹ | 1.1e-13 |
+| z = 0, 1, ∞ → Γ = −1, 0, +1 | 2.2e-16 |
+| round trip z → Γ → z | 3.6e-15 |
+| passive r ≥ 0 ⇔ \|Γ\| ≤ 1, 227 points, 0 misclassified | boundary 4.4e-16 |
+| r = const → centre r/(1+r), radius 1/(1+r), from H → (M⁻¹)†HM⁻¹ | 6.3e-15 |
+| x = const → centre (1, 1/x), radius 1/\|x\| | 6.7e-15 |
+| cross-ratio invariance, 420 quadruples | 2.2e-15 |
+| angle preservation (the Angle witness) | 0.0 rad |
+| generalized circles stay generalized circles | 2.6e-16 |
+| no NaN at the projection pole, 50 approaches from both sides | 0 NaN, 0 off-sphere |
+| θ(t) = (π/4)[1+cos(2πt/T)]: ends, zero velocity, time symmetry | 6.7e-16 |
+| loop closure measured **on the grid**, and half-cycle mirror symmetry | 0.0 · 1.8e-15 |
+
+### Two things the first attempt got wrong
+
+**The metric.** Comparing the two routes as \|w_A − w_B\| in the plane made the residual
+blow up near the projection pole — at θ = π/2 and z = −1 + 1e-4i the routes agree
+perfectly and \|w\| is 2×10⁴, so a "1e-9 disagreement" was cancellation in the readout,
+not error in the map. The correct measure on CP¹ is the chordal distance, which is
+uniformly valid and lets the pole be included rather than stepped around.
+
+**The wording.** The interface says, in those words, that the grid does **not** stretch on
+the sphere: it rotates rigidly in S² and only appears to deform after projection. Angles,
+generalized circles, cross-ratios and incidence are preserved; euclidean distances, areas
+and circle sizes on the plane are not. This is not an isometric unrolling of a sphere onto
+a plane — no such map exists — and nothing claims one.
+
+### How it is drawn, and why that costs nothing
+
+Every vertex carries its own (r, x) **and its partner's**, and the lift–rotate–project runs
+in the vertex shader from a single θ uniform. Buffers are built once; θ costs one uniform
+write per frame; no geometry is ever rebuilt or reallocated. Carrying the partner is what
+makes infinity behave: a segment whose either endpoint crosses the projection pole
+collapses to zero length and is discarded, so the curve is **cut** at the pole and resumes
+on the other side instead of flashing across the screen. Infinity is the CP¹ point [1:0],
+never 1e6.
+
+The curves are sampled for drawing — which the specification allows — but the geometry is
+analytic. In the exact orthographic view each grid line is stroked as a **true SVG circle**
+whose centre and radius come from the transformed Hermitian form in closed form.
+
+**The exact view is an orthographic projection by construction.** The requirement was a
+view strictly perpendicular to the output plane with no perspective, no camera motion and
+no auto-zoom. Pointing the atlas's perspective camera downwards leaves a residual
+projective distortion, which is exactly what the requirement forbids; drawing the output
+plane in its own parallel projection has none, costs zero draw calls, and keeps the 3D
+budget free for the explanatory view.
+
+| measurement | desktop | iPhone portrait | iPhone landscape |
+|---|---|---|---|
+| draw calls, unrolling **off** | 56 | 39 | 56 |
+| draw calls, unrolling **on** | **92** | **73** | **92** |
+| triangles, on | 15620 | 15004 | 15620 |
+| page errors | 0 | 0 | 0 |
+
+Off is unchanged from before this work, and on sits inside the stated 93–100 budget. Live
+residuals in the invariant monitor at an arbitrary θ: det 0, unitarity 0, sphere 2.2e-16,
+**route agreement 5.6e-16**, cross-ratio 5.9e-17, angle witness 0.
+
+Touch targets inside the panel were 30 px tall and now clear 44×44 under
+`(pointer:coarse)` — the track keeps its drawn thickness while the hit area grows. Six
+buttons still measure 30–40 px wide: they are the shared panel chrome (collapse, pin,
+close), not controls this laboratory added, and widening them would move every panel.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
