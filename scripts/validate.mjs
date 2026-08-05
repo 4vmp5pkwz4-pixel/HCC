@@ -31,6 +31,17 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
       && html.includes(`<span class="buildMark">· v${ver[1]}</span>`)
       && html.includes('function hccStampVersion()'),
       `every copy of the release identity agrees with the declared source (v${ver[1]} · ${bld[1]})`);
+    /* version.json is the manifest the freshness sentinel fetches with cache: 'no-store'.
+       If it were allowed to drift, the sentinel would confidently report the wrong answer —
+       worse than no sentinel — so a mismatch fails the build here, not in front of a reader. */
+    let man = null;
+    try { man = JSON.parse(readFileSync('version.json', 'utf8')); } catch { man = null; }
+    check(!!man && man.version === ver[1] && man.build === bld[1],
+      `version.json publishes the same release the document declares (v${ver[1]} · ${bld[1]})`);
+    check(html.includes("fetch(u.href,{cache:'no-store',credentials:'omit'})")
+      && html.includes('function hccCheckFreshness()')
+      && !html.includes('navigator.serviceWorker.register'),
+      'the freshness sentinel asks the origin, not the cache, and no service worker can pin a stale copy');
   }
 }
 check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
