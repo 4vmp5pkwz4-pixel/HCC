@@ -121,6 +121,25 @@ const atlasDescribed=(()=>{ const m=H.match(/const LAB_ATLAS_DEFS=\[([\s\S]*?)\n
     `${atlasDescribed.length} purposes already written + ${descExtra.length} supplied = ${described.size} distinct, covering all ${viewNames.length}${bare.length?' · still bare: '+bare.join(', '):''}`);
 }
 
+/* ══ 11 ══ the Inspector is present and cannot offer a dead tab ════════════ */
+{
+  const tabs=(H.match(/const INSPECTOR_TABS=\[([\s\S]*?)\n\];/)||[])[1]||'';
+  const n=[...tabs.matchAll(/\['([a-z]+)',/g)].map(m=>m[1]);
+  const gate=/if\(!document\.getElementById\(id\)\) return null;[\s\S]{0,120}?panelInScope\(id,ctx\)\?id:null/.test(H);
+  const strip=/function hccRenderInspector\(\)/.test(H) && /live\.length<2/.test(H);
+  ok('the Inspector is the fourth level of the hierarchy and it is present: five tabs are declared, and a tab is resolved to a panel only if that panel EXISTS and is IN SCOPE — so the strip cannot render a control that opens nothing, and it hides itself rather than showing a strip of one',
+    n.length===5 && gate && strip,
+    `tabs: ${n.join(', ')} · resolution is gated on existence and scope: ${gate} · a one-tab strip hides itself: ${strip}`);
+}
+/* ══ 12 ══ Recommended reads the declared graph ════════════════════════════ */
+{
+  const fn=/function hccRecommended\(limit=4\)/.test(H) && /NEXUS_RELATIONS/.test(H);
+  const empty=/const cur=HCC_CTX\.labId; if\(!cur\) return \[\];/.test(H);
+  ok('Recommended is the declared relation graph read as navigation and nothing else: it walks NEXUS_RELATIONS, and with no laboratory active it returns an empty list rather than inventing an adjacency to fill the space',
+    fn && empty,
+    `derived from NEXUS_RELATIONS: ${fn} · returns nothing when there is nothing to be near: ${empty}`);
+}
+
 for(const [s,n,d] of out) console.log(s.padEnd(5), n, '\n      ', d);
 console.log('\n', out.filter(r=>r[0]==='PASS').length+'/'+out.length, 'checks pass');
 process.exitCode = out.some(r=>r[0]==='FAIL') ? 1 : 0;

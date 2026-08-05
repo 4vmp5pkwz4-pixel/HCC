@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="atlas-world-lab-2026.08.05.5">
+<html lang="en" data-hcc-build="inspector-strip-2026.08.05.6">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="atlas-world-lab-2026.08.05.5">
+<meta name="hcc-build" content="inspector-strip-2026.08.05.6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -431,6 +431,23 @@
   /* PHONE: four destinations, not a scrolling row of seven worlds.  The worlds move
      inside the Atlas sheet, where they have room to be read; the bottom bar answers only
      "where do I go", "what can I change", "what does it say" and "everything else". */
+  /* the Inspector strip sits with the right-hand panels it drives, never over the scene
+     centre and never over the breadcrumb */
+  #hccInspector{position:fixed;right:14px;top:calc(var(--topbar-h,64px) + 6px);z-index:36;
+    display:flex;gap:3px;background:rgba(10,14,22,.74);border:1px solid rgba(212,175,106,.2);
+    border-radius:9px;padding:3px}
+  #hccInspector[hidden]{display:none}
+  #hccInspector button{background:none;border:0;color:#8ea1b8;border-radius:7px;
+    padding:5px 9px;font:600 10.5px var(--sans);cursor:pointer;display:flex;align-items:center;gap:5px}
+  #hccInspector button i{font-style:normal;font-size:12px}
+  #hccInspector button:hover{color:var(--gold-2);background:rgba(212,175,106,.12)}
+  #hccInspector button.on{color:#f3e6c6;background:rgba(212,175,106,.2)}
+  @media (max-width:900px), (pointer:coarse){
+    #hccInspector{right:8px;left:auto;top:auto;bottom:calc(62px + env(safe-area-inset-bottom,0px))}
+    #hccInspector button{min-height:44px;min-width:44px;padding:6px 8px}
+    #hccInspector button span{display:none}
+    #hccInspector button i{font-size:16px}
+  }
   #hccTabs{display:none}
   @media (max-width:900px), (pointer:coarse){
     #hccTabs{display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;
@@ -1153,7 +1170,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.41.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.42.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1244,6 +1261,7 @@
 <div id="labPanel" class="panel" style="display:none"></div>
 <div id="atlasNav" class="panel" style="display:none"></div>
 <nav id="hccCrumb" aria-label="Atlas breadcrumb"></nav>
+<nav id="hccInspector" aria-label="Inspector" hidden></nav>
 <nav id="hccTabs" aria-label="Primary">
   <button data-tab="atlas"><i>⊞</i><span>Atlas</span></button>
   <button data-tab="controls"><i>⚙</i><span>Controls</span></button>
@@ -1332,8 +1350,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.41.0';
-const HCC_BUILD='atlas-world-lab-2026.08.05.5';
+const HCC_VERSION='3.42.0';
+const HCC_BUILD='inspector-strip-2026.08.05.6';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -2754,6 +2772,38 @@ function runSelfTests(){
     ok('the 3D hierarchy locator is slaved to the scene camera in BOTH directions: every frame it copies the main camera’s direction, so it is a true attitude indicator rather than a fixed three-quarter picture, and dragging it rotates the MAIN camera about the orbit target — a permanent handle on the view in every one of the 72 laboratories, including the ones whose own controls are busy',
       align<1e-12 && tried===3,
       `over ${tried} independent camera placements, worst 1 − (locator direction)·(scene direction) = ${align.toExponential(2)} · rotation is applied in the camera’s own spherical frame about controls.target, which is what OrbitControls does, so the two never fight`);
+  }
+  { /* THE INSPECTOR OFFERS NOTHING IT CANNOT DELIVER. */
+    const probe=(w,l)=>{ const ctx={worldId:w,labId:l};
+      return INSPECTOR_TABS.map(([k])=>k).filter(k=>inspectorPanelFor(k,ctx)); };
+    const cases=[['solar',null],['s3','imp'],['s3','sec'],['s3','hopf'],['fbs',null]];
+    let dead=0, rows=[];
+    for(const [w,l] of cases){
+      const live=probe(w,l);
+      for(const k of live){ const id=inspectorPanelFor(k,{worldId:w,labId:l});
+        if(!id||!document.getElementById(id)||!panelInScope(id,{worldId:w,labId:l})) dead++; }
+      rows.push(`${w}/${l||'—'}: ${live.join(',')}`);
+    }
+    /* the discriminating case: "measurements" must appear where a measurement panel is
+       in scope and be ABSENT where it is not — a tab strip that shows the same five
+       everywhere is a decoration, not a description of the laboratory */
+    const withM=probe('s3','imp').includes('measurements');
+    const withoutM=!probe('s3','hopf').includes('measurements');
+    ok('INSPECTOR · the fourth level of the hierarchy is present and offers nothing it cannot deliver: a tab is rendered only when the panel behind it exists AND is in scope, so there is no disabled state and no empty tab. "Measurements" appears for the impedance and Bianchi laboratories and for the FBS3R world, and is absent for a laboratory that has none — a strip showing the same five tabs everywhere would be a decoration rather than a description',
+      dead===0 && withM && withoutM,
+      `${dead} tabs would open nothing · ${rows.join(' · ')}`);
+    /* Recommended is read from the declared relation graph, so it can be wrong only if
+       the graph is wrong — it invents no adjacency of its own */
+    let recOK=true, recN=0;
+    try{ const save=HCC_CTX.labId; HCC_CTX.labId='imp';
+      const R=hccRecommended(4); recN=R.length;
+      recOK=R.every(L=>LAB_BY_ID.has(L.id)&&L.id!=='imp')
+        && R.every(L=>NEXUS_RELATIONS.some(e=>(e.a==='imp'&&e.b===L.id)||(e.b==='imp'&&e.a===L.id)));
+      HCC_CTX.labId=save;
+    }catch(e){ recOK=false; }
+    ok('and Recommended is the declared relation graph read as navigation rather than a guess: every suggestion is joined to the current laboratory by an edge that was already written and that the Invariant Nexus already draws, and with no laboratory active nothing is recommended rather than something being invented',
+      recOK && recN>0,
+      `${recN} recommendations for the impedance laboratory, every one of them an existing typed relation`);
   }
   { /* THE NAVIGATION ARCHITECTURE, MEASURED IN THE LIVE DOCUMENT. */
     const panels=[...document.querySelectorAll('.panel')].map(e=>e.id);
@@ -20033,6 +20083,22 @@ registerPanelRenderer('smithPanel',()=>{ IMP_UNROLL_PANEL_ON=true; renderSmithPa
    question.  This is the one.  Choosing anything here runs hccGo(), which is the only
    code in the atlas permitted to change world and laboratory together, so a laboratory
    can never be reached by a route that forgets a step. */
+/* Recommended is the NEXUS relation graph read as navigation: the laboratories joined to
+   the current one by a declared typed relation, nearest first.  It invents nothing — the
+   edges were already written, and the Invariant Nexus already draws them.  With no
+   laboratory active there is nothing to be near, so nothing is recommended rather than
+   something being made up. */
+function hccRecommended(limit=4){
+  const cur=HCC_CTX.labId; if(!cur) return [];
+  let rel=[];
+  try{ for(const e of NEXUS_RELATIONS){
+    if(e.a===cur&&LAB_BY_ID.has(e.b)) rel.push(e.b);
+    else if(e.b===cur&&LAB_BY_ID.has(e.a)) rel.push(e.a); } }catch(e){ return []; }
+  const seen=new Set([cur]), out=[];
+  for(const id of rel){ if(seen.has(id)) continue; seen.add(id);
+    const L=LAB_BY_ID.get(id); if(L) out.push(L); if(out.length>=limit) break; }
+  return out;
+}
 let HCC_ATLAS_Q='', HCC_ATLAS_CAT='', HCC_ATLAS_STATUS='';
 function hccAtlasOpen(on,cat){
   if(cat!==undefined) HCC_ATLAS_CAT=cat||'';
@@ -20085,6 +20151,8 @@ function renderAtlasNav(){
     <button class="chip ${!HCC_ATLAS_STATUS?'on':''}" data-st="">${esc(TT('any status','любой статус','jeder Status'))}</button>
     ${HCC_STATUS_TAGS.map(t=>`<button class="chip ${HCC_ATLAS_STATUS===t?'on':''}" data-st="${t}">${t}</button>`).join('')}
   </div>
+  ${(()=>{ const R=hccRecommended().filter(pass);
+      return R.length?`<div class="aCat">${esc(TT('recommended · related by a declared relation','рекомендовано · связано объявленным отношением','empfohlen'))}</div>${R.map(L=>card(L)).join('')}`:''; })()}
   ${fav.length?`<div class="aCat">${esc(TT('favorites','избранное','Favoriten'))}</div>${fav.map(L=>card(L)).join('')}`:''}
   ${recent.length?`<div class="aCat">${esc(TT('recently used','недавние','zuletzt verwendet'))}</div>${recent.slice(0,5).map(L=>card(L)).join('')}`:''}
   ${LAB_CATEGORIES.map(([k,t])=>{ const g=labs.filter(L=>L.category===k); if(!g.length) return '';
@@ -20111,6 +20179,54 @@ function renderAtlasNav(){
   if(qi) qi.oninput=()=>{ HCC_ATLAS_Q=qi.value; renderAtlasNav();
     const n=document.querySelector('#atlasNav input[type=search]'); if(n){ n.focus();
       try{ n.setSelectionRange(n.value.length,n.value.length); }catch(e){} } };
+}
+/* ── THE INSPECTOR ────────────────────────────────────────────────────────────
+   Atlas → World → Laboratory → INSPECTOR.  The fourth level was declared in the
+   architecture and existed only as a string on the context: `defaultInspector`.  A level
+   of a hierarchy that never appears is not a level, so here it is.
+
+   THE RULE THAT KEEPS "visible dead controls = 0" TRUE: a tab is rendered only when the
+   panel behind it exists AND is in scope for the current context.  There is no disabled
+   state and no empty tab — a tab you can press that does nothing is worse than a tab
+   that is not there, because it teaches you the interface is lying. */
+const INSPECTOR_TABS=[
+  ['controls',    ['Controls','Управление','Steuerung'],       '⚙'],
+  ['measurements',['Measurements','Измерения','Messungen'],    '◎'],
+  ['theory',      ['Theory','Теория','Theorie'],               '∮'],
+  ['objects',     ['Objects','Объекты','Objekte'],             '⌘'],
+  ['data',        ['Data','Данные','Daten'],                   '⬇'],
+];
+/* which panel answers which tab, per laboratory.  Anything not named here falls back to
+   the general answer, and anything whose panel is out of scope is simply not offered. */
+const INSPECTOR_MAP={
+  imp:{measurements:'smithPanel'},
+  sec:{measurements:'bixPanel'},
+};
+function inspectorPanelFor(tab,ctx=HCC_CTX){
+  const perLab=(ctx.labId&&INSPECTOR_MAP[ctx.labId])||{};
+  const id=perLab[tab]||({controls:'ctl', theory:'info', objects:'objectPanel',
+    data:'atlasPanel', measurements:ctx.worldId==='fbs'?'zpPanel':null})[tab];
+  if(!id) return null;
+  if(!document.getElementById(id)) return null;
+  return panelInScope(id,ctx)?id:null;
+}
+function hccSetInspector(tab){
+  const id=inspectorPanelFor(tab); if(!id) return false;
+  HCC_CTX.inspectorTab=tab;
+  try{ openPanel(id); }catch(e){ return false; }
+  hccRenderInspector(); hccTabsSync(); return true;
+}
+function hccRenderInspector(){
+  const el=document.getElementById('hccInspector'); if(!el) return;
+  const live=INSPECTOR_TABS.filter(([k])=>inspectorPanelFor(k));
+  if(live.length<2){ el.innerHTML=''; el.hidden=true; return; }   /* one tab is not a strip */
+  el.hidden=false;
+  const cur=live.some(([k])=>k===HCC_CTX.inspectorTab)?HCC_CTX.inspectorTab:live[0][0];
+  el.innerHTML=live.map(([k,t,ic])=>{
+    const id=inspectorPanelFor(k), open=(()=>{ try{ return panelIsOpen(id); }catch(e){ return false; } })();
+    return `<button data-insp="${k}" class="${open?'on':''}" title="${esc(hccL(t))}">
+      <i>${ic}</i><span>${esc(hccL(t))}</span></button>`; }).join('');
+  el.querySelectorAll('[data-insp]').forEach(b=>b.onclick=()=>hccSetInspector(b.dataset.insp));
 }
 try{ registerPanelRenderer('atlasNav',renderAtlasNav); }catch(e){}
 /* the four destinations, wired to the same one navigation system */
@@ -20142,7 +20258,7 @@ function hccTabsSync(){
     else if(k==='more'){ try{ openPanel('navPanel'); }catch(e){} }
     hccTabsSync();
   });
-  hccTabsSync();
+  hccTabsSync(); try{ hccRenderInspector(); }catch(e){}
 })();
 function impSetup(){
   impClear();
@@ -40192,7 +40308,7 @@ function hccGo(target,opts={}){
     if(location.hash!==r){
       if(opts.replace) history.replaceState(null,'',r); else history.pushState(null,'',r);
     }
-    hccRenderBreadcrumb();
+    hccRenderBreadcrumb(); try{ hccRenderInspector(); }catch(e){}
     try{ if(typeof buildCtl==='function'&&panelIsOpen('ctl')) buildCtl(); }catch(e){}
     try{ if(typeof renderAtlasPanel==='function') renderAtlasPanel(); }catch(e){}
   } finally { HCC_NAV_LOCK=false; }
