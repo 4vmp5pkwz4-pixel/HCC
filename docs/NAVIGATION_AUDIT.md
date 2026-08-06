@@ -249,16 +249,58 @@ typed relation and not a guess.
 `docs/verify-navigation-architecture.cjs` is now **12/12**; the atlas carries 572
 self-tests.
 
-## 6 · What is still not done
+## 6 · Stage 4 — the three columns
+
+Atlas left · scene centre · Inspector right, and the last item stage 3 listed as open.
+
+**The obvious way to build this is the wrong way here.** Restructuring the DOM into three
+flex columns would relocate eleven panels to answer a layout question about two. So the
+columns are **measured and published** instead: `--col-l`, `--col-r`, `--col-c` and
+`--col-cx` carry what each side is occupying *right now*, live, and anything that needs to
+stay out of the way reads them. A panel that closes gives its column back the same frame.
+
+Measured before, at 1280 px: the centre band was **302 px of 1280**, because a 392 px panel
+on the right and a breadcrumb free to grow to 515 px on the left each took as much as they
+liked.
+
+| width | left | centre | right | breadcrumb | 2-D overlaps |
+|---|---|---|---|---|---|
+| 1280 | 0 | **874 (68 %)** | 406 | 400 | **0** |
+| 1920 | 0 | **1514 (79 %)** | 406 | 400 | **0** |
+| iPhone | columns disabled — a phone has one column | | | | |
+
+`L + C + R` sums to the viewport, and the scene readout is centred on the **column** centre
+rather than the window centre, so an open Inspector no longer pushes the caption off the
+object it describes.
+
+### Two defects my own measurements caught
+
+**A CSS rule that did nothing.** `#hud{left:var(--col-cx)}` lost to a more specific
+existing rule: the readout stayed at 640 px while the column centre was 437. `body #hud`
+wins, and the readout now sits at 437 and 757 exactly.
+
+**A cap that never bound.** The first breadcrumb cap was `min(46vw, 520px)`, and the
+breadcrumb measured 515 px — under the cap, so the cap changed nothing. It is now
+`min(32vw, 400px)` and measures 400.
+
+**And a test that was wrong before the layout was.** The first overlap check compared
+horizontal ranges only, and reported the Inspector strip overlapping the panel it drives —
+they share an x-range and sit in different rows. It now compares rectangles in two
+dimensions. A test that fails on a correct layout is worse than no test, because it teaches
+you to ignore it.
+
+`docs/verify-navigation-architecture.cjs` is now **13/13**; the atlas carries 574
+self-tests.
+
+## 7 · What is still not done
 
 
 
-The **desktop three-column layout** (Atlas left, scene centre, Inspector right, Timeline
-below) is not built. The Atlas, the Inspector strip and the panels they drive all exist
-and are correctly scoped, but they still float rather than occupying fixed columns. That
-is a layout change to a chrome that eleven panels position themselves against, and it is
-worth doing only with the same measurement discipline as the rest — which is a stage of
-its own, not a corner of this one.
+
+The **Timeline** row along the bottom is not built, because no laboratory currently
+declares a timeline: adding a fourth band for a control nobody has yet would be an empty
+frame, which is the thing this whole rework exists to remove. When a laboratory declares
+one, `--col-c` already tells it how much room it has.
 
 That is deliberate. Migrating the navigation shell of a 40,000-line single-file
 application halfway would leave the old and new systems live at the same time — the one
