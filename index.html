@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="inspector-strip-2026.08.05.6">
+<html lang="en" data-hcc-build="three-columns-2026.08.05.7">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="inspector-strip-2026.08.05.6">
+<meta name="hcc-build" content="three-columns-2026.08.05.7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -392,9 +392,13 @@
   @media (max-width:520px){ #freshBar{font-size:10.5px;gap:7px;padding:6px 8px 6px 11px} #freshBar span{display:none} }
   /* the breadcrumb answers "where am I" without being asked, so it is never hidden
      behind a panel and never competes with the scene for the middle of the view */
+  /* the breadcrumb answers "where am I", not "how wide can I get": it is capped to the
+     left band so it can never march across the scene.  Measured at 1280 px before this
+     cap: 515 px of breadcrumb against a 302 px centre. */
   #hccCrumb{position:fixed;left:14px;top:calc(var(--topbar-h,64px) + 6px);z-index:36;
-    display:flex;align-items:center;gap:2px;flex-wrap:wrap;max-width:min(62vw,720px);
-    font:600 11px var(--sans);pointer-events:auto}
+    display:flex;align-items:center;gap:2px;flex-wrap:nowrap;overflow:hidden;
+    max-width:min(32vw,400px);font:600 11px var(--sans);pointer-events:auto}
+  #hccCrumb button{flex:0 1 auto;min-width:0}
   #hccCrumb button{background:rgba(10,14,22,.72);border:1px solid rgba(212,175,106,.22);
     color:#a9bcd4;border-radius:7px;padding:4px 9px;font:inherit;cursor:pointer;
     white-space:nowrap;max-width:34ch;overflow:hidden;text-overflow:ellipsis}
@@ -447,6 +451,14 @@
     #hccInspector button{min-height:44px;min-width:44px;padding:6px 8px}
     #hccInspector button span{display:none}
     #hccInspector button i{font-size:16px}
+  }
+  /* the readout is centred between the columns, so an open Inspector does not push the
+     caption off the object it describes */
+  @media (min-width:901px){
+    /* body #hud, not #hud: the bare selector lost to an existing rule and the readout
+       stayed on the window centre — measured 640 px against a column centre of 437 */
+    body #hud{left:var(--col-cx,50%);right:auto;transform:translateX(-50%);
+      max-width:calc(var(--col-c,100vw) - 32px)}
   }
   #hccTabs{display:none}
   @media (max-width:900px), (pointer:coarse){
@@ -1170,7 +1182,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.42.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.43.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1350,8 +1362,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.42.0';
-const HCC_BUILD='inspector-strip-2026.08.05.6';
+const HCC_VERSION='3.43.0';
+const HCC_BUILD='three-columns-2026.08.05.7';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -2772,6 +2784,33 @@ function runSelfTests(){
     ok('the 3D hierarchy locator is slaved to the scene camera in BOTH directions: every frame it copies the main camera’s direction, so it is a true attitude indicator rather than a fixed three-quarter picture, and dragging it rotates the MAIN camera about the orbit target — a permanent handle on the view in every one of the 72 laboratories, including the ones whose own controls are busy',
       align<1e-12 && tried===3,
       `over ${tried} independent camera placements, worst 1 − (locator direction)·(scene direction) = ${align.toExponential(2)} · rotation is applied in the camera’s own spherical frame about controls.target, which is what OrbitControls does, so the two never fight`);
+  }
+  { /* THE THREE COLUMNS ARE MEASURED, AND NOTHING OVERLAPS. */
+    try{ hccPublishColumns(9); }catch(e){}
+    const cs=getComputedStyle(document.documentElement);
+    const num=k=>parseInt(cs.getPropertyValue(k))||0;
+    const L=num('--col-l'), R=num('--col-r'), C=num('--col-c'), CX=num('--col-cx');
+    const phone=innerWidth<=900||matchMedia('(pointer:coarse)').matches;
+    const sane=phone?(L===0&&R===0):(C>0 && Math.abs(L+C+R-innerWidth)<=2 && Math.abs(CX-(L+C/2))<=2);
+    /* TRUE 2-D overlap.  The first version of this compared horizontal ranges only and
+       called the Inspector strip and the panel it drives an overlap, when they sit in
+       different rows — a test that fails on a layout which is correct is worse than no
+       test, because it teaches you to ignore it. */
+    const vis=[...document.querySelectorAll('.panel,#hccCrumb,#hccInspector')]
+      .filter(e=>{ try{ return getComputedStyle(e).display!=='none'&&!e.hidden; }catch(x){ return false; } })
+      .map(e=>({id:e.id,r:e.getBoundingClientRect()}))
+      .filter(o=>o.r.width>1&&o.r.height>1);
+    const ov=[];
+    for(let i=0;i<vis.length;i++)for(let j=i+1;j<vis.length;j++){
+      const A=vis[i].r,B=vis[j].r;
+      if(A.left<B.right&&B.left<A.right&&A.top<B.bottom&&B.top<A.bottom) ov.push(vis[i].id+'×'+vis[j].id); }
+    ok('LAYOUT · the three columns are MEASURED and published rather than drawn: --col-l, --col-r and --col-c carry what each side is actually occupying right now, they sum to the viewport, and the centre is a known quantity rather than whatever is left over. Restructuring the DOM into flex columns would have relocated eleven panels to answer a layout question about two',
+      sane,
+      phone?`phone: columns disabled (L=${L}, R=${R}), because a phone has one column`
+        :`L ${L} + C ${C} + R ${R} = ${L+C+R} against a viewport of ${innerWidth} · centre line at ${CX}`);
+    ok('and nothing overlaps anything: every visible panel, the breadcrumb and the Inspector strip are compared as RECTANGLES, in two dimensions. Comparing horizontal ranges alone reported the Inspector strip overlapping the panel it drives — they share an x-range and sit in different rows — and a test that fails on a correct layout is worse than no test',
+      ov.length===0,
+      `${vis.length} visible surfaces compared pairwise in 2-D · ${ov.length} overlaps${ov.length?': '+ov.join(', '):''}`);
   }
   { /* THE INSPECTOR OFFERS NOTHING IT CANNOT DELIVER. */
     const probe=(w,l)=>{ const ctx={worldId:w,labId:l};
@@ -20078,6 +20117,45 @@ function renderSmithPanel(){
     renderSmithPanel(); });
 }
 registerPanelRenderer('smithPanel',()=>{ IMP_UNROLL_PANEL_ON=true; renderSmithPanel(); });
+/* ── THE THREE COLUMNS, PUBLISHED RATHER THAN DRAWN ───────────────────────────
+   Atlas left · scene centre · Inspector right.  The obvious way to build this is to
+   restructure the DOM into three flex columns, and it is the wrong way here: eleven
+   panels already position themselves against the current chrome, and moving them into
+   containers would relocate all eleven to fix a layout question about two.
+
+   So the columns are MEASURED and PUBLISHED instead.  --col-l and --col-r carry the
+   width each side is actually occupying right now, live, and anything that needs to
+   stay out of the way reads them.  A panel that closes gives its column back the same
+   frame.  That makes the centre a real, known quantity rather than whatever is left.
+
+   Measured before this existed: at 1280 px the centre band was 302 px of 1280, because
+   a 392 px panel on the right and a breadcrumb allowed to grow to 515 px on the left
+   were each taking as much as they liked. */
+const HCC_COL_L=new Set(['atlasNav','labPanel','navPanel']);
+const HCC_COL_R=new Set(['smithPanel','bixPanel','zpPanel','info','objectPanel',
+                         'atlasPanel','oscPanel','vectorPanel','motionPanel','xrCheck']);
+let HCC_COL_ACC=99;
+function hccPublishColumns(dt){
+  HCC_COL_ACC+=dt||1; if(HCC_COL_ACC<0.2) return; HCC_COL_ACC=0;
+  try{
+    if(innerWidth<=900||matchMedia('(pointer:coarse)').matches){
+      document.documentElement.style.setProperty('--col-l','0px');
+      document.documentElement.style.setProperty('--col-r','0px'); return; }
+    let L=0,R=0;
+    for(const id of HCC_COL_L){ const e=document.getElementById(id);
+      if(e&&getComputedStyle(e).display!=='none'){ const r=e.getBoundingClientRect();
+        if(r.width>0) L=Math.max(L,Math.round(r.right)); } }
+    for(const id of HCC_COL_R){ const e=document.getElementById(id);
+      if(e&&getComputedStyle(e).display!=='none'){ const r=e.getBoundingClientRect();
+        if(r.width>0) R=Math.max(R,Math.round(innerWidth-r.left)); } }
+    document.documentElement.style.setProperty('--col-l',L+'px');
+    document.documentElement.style.setProperty('--col-r',R+'px');
+    /* the centre is what is genuinely left, and it is published so a readout can be
+       centred in the SCENE rather than in the window */
+    document.documentElement.style.setProperty('--col-c',Math.max(0,innerWidth-L-R)+'px');
+    document.documentElement.style.setProperty('--col-cx',Math.round(L+(innerWidth-L-R)/2)+'px');
+  }catch(e){}
+}
 /* ── THE ONE ATLAS ────────────────────────────────────────────────────────────
    Search, Navigator and the laboratory browser were three surfaces answering the same
    question.  This is the one.  Choosing anything here runs hccGo(), which is the only
@@ -32520,6 +32598,7 @@ function labDomainOf(v){
    laboratory, so its height is published as a CSS variable on a slow tick */
 let labDockAcc=99;
 function labDockTick(dt){
+  try{ hccPublishColumns(dt); }catch(e){}
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
   try{ const h=ctl&&ctl.getBoundingClientRect().height;
     if(h>0) document.documentElement.style.setProperty('--ctl-h',Math.round(h)+'px');

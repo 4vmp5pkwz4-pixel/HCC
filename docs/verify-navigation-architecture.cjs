@@ -140,6 +140,19 @@ const atlasDescribed=(()=>{ const m=H.match(/const LAB_ATLAS_DEFS=\[([\s\S]*?)\n
     `derived from NEXUS_RELATIONS: ${fn} · returns nothing when there is nothing to be near: ${empty}`);
 }
 
+/* ══ 13 ══ the three columns are published, and the phone opts out ═════════ */
+{
+  const pub=/function hccPublishColumns\(dt\)/.test(H)
+    && /setProperty\('--col-l'/.test(H) && /setProperty\('--col-r'/.test(H)
+    && /setProperty\('--col-c'/.test(H) && /setProperty\('--col-cx'/.test(H);
+  const phoneOut=/if\(innerWidth<=900\|\|matchMedia\('\(pointer:coarse\)'\)\.matches\)\{[\s\S]{0,200}?--col-l','0px'/.test(H);
+  const hud=/body #hud\{left:var\(--col-cx/.test(H);
+  const crumbCap=/max-width:min\(32vw,400px\)/.test(H);
+  ok('the three columns are measured and published rather than drawn, the phone opts out of them because a phone has one column, and the two things that were measured going wrong are fixed: the readout is centred on the COLUMN centre with a selector specific enough to win, and the breadcrumb carries a cap that actually binds',
+    pub && phoneOut && hud && crumbCap,
+    `columns published: ${pub} · disabled below 901 px and on coarse pointers: ${phoneOut} · readout centred on the column with "body #hud": ${hud} · breadcrumb capped at min(32vw, 400px): ${crumbCap}`);
+}
+
 for(const [s,n,d] of out) console.log(s.padEnd(5), n, '\n      ', d);
 console.log('\n', out.filter(r=>r[0]==='PASS').length+'/'+out.length, 'checks pass');
 process.exitCode = out.some(r=>r[0]==='FAIL') ? 1 : 0;
