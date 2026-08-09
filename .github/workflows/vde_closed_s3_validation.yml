@@ -1,0 +1,93 @@
+name: VDE closed-S3 pinned CLASS validation
+
+on:
+  push:
+    branches:
+      - vde-class-validation-20260809
+    paths:
+      - '.github/workflows/vde_closed_s3_validation.yml'
+      - 'vde_validation/run_validation.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CLASS_COMMIT: e85808324f51fc694d12e3ed7439552a3c3f9540
+      VDE_OUT: vde_validation/results
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Record runner environment
+        run: |
+          set -euxo pipefail
+          mkdir -p "$VDE_OUT"
+          uname -a | tee "$VDE_OUT/environment.txt"
+          python --version | tee -a "$VDE_OUT/environment.txt"
+          gcc --version | head -1 | tee -a "$VDE_OUT/environment.txt"
+          git --version | tee -a "$VDE_OUT/environment.txt"
+
+      - name: Fetch exact pinned CLASS source
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/lesgourg/class_public.git class_public
+          cd class_public
+          git checkout "$CLASS_COMMIT"
+          test "$(git rev-parse HEAD)" = "$CLASS_COMMIT"
+          git rev-parse HEAD | tee ../"$VDE_OUT"/class_commit.txt
+
+      - name: Build pinned CLASS/classy
+        run: |
+          set -euxo pipefail
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install numpy matplotlib
+          python -m pip install ./class_public
+          python - <<'PY' | tee "$VDE_OUT/classy_version.txt"
+          import classy
+          print(classy.__version__)
+          from classy import Class
+          print('classy import and Class construction: OK')
+          PY
+
+      - name: Execute control, VDE, null-limit, and convergence runs
+        id: validation
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          CLASS_DIR="$GITHUB_WORKSPACE/class_public" \
+          VDE_OUT="$GITHUB_WORKSPACE/$VDE_OUT" \
+          python vde_validation/run_validation.py 2>&1 | tee "$VDE_OUT/run.log"
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Hash all numerical outputs
+        if: always()
+        run: |
+          set -euxo pipefail
+          find "$VDE_OUT" -type f -print0 | sort -z | xargs -0 sha256sum > "$VDE_OUT/SHA256SUMS.txt"
+          ls -lah "$VDE_OUT" | tee "$VDE_OUT/file_listing.txt"
+
+      - name: Upload complete validation artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closed-s3-vde-class-validation
+          path: vde_validation/results/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Enforce validation success
+        if: always()
+        run: |
+          code='${{ steps.validation.outputs.exit_code }}'
+          echo "validation exit code: $code"
+          test "$code" = "0"
