@@ -1,0 +1,105 @@
+name: VDE DESI DR2 BAO pilot MCMC
+
+on:
+  push:
+    branches:
+      - vde-class-validation-20260809
+    paths:
+      - '.github/workflows/vde_desi_dr2_bao_mcmc.yml'
+      - 'vde_likelihood/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/vde_desi_dr2_bao_mcmc.yml'
+      - 'vde_likelihood/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desi-dr2-bao-pilot:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    env:
+      CLASS_COMMIT: e85808324f51fc694d12e3ed7439552a3c3f9540
+      COBAYA_PACKAGES_PATH: ${{ github.workspace }}/cobaya_packages
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Record environment
+        run: |
+          set -euxo pipefail
+          mkdir -p vde_likelihood/results/summary
+          uname -a | tee vde_likelihood/results/summary/environment.txt
+          python --version | tee -a vde_likelihood/results/summary/environment.txt
+          gcc --version | head -1 | tee -a vde_likelihood/results/summary/environment.txt
+
+      - name: Build exact validated CLASS revision
+        run: |
+          set -euxo pipefail
+          git clone https://github.com/lesgourg/class_public.git class_public
+          cd class_public
+          git checkout "$CLASS_COMMIT"
+          test "$(git rev-parse HEAD)" = "$CLASS_COMMIT"
+          git rev-parse HEAD | tee ../vde_likelihood/results/summary/class_commit.txt
+          cd ..
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install numpy scipy matplotlib
+          python -m pip install ./class_public
+          python - <<'PY' | tee vde_likelihood/results/summary/classy_version.txt
+          import classy
+          print(classy.__version__)
+          PY
+
+      - name: Install pinned Cobaya and official DESI DR2 BAO likelihood data
+        run: |
+          set -euxo pipefail
+          python -m pip install 'cobaya==3.6.2' getdist
+          python - <<'PY' | tee vde_likelihood/results/summary/cobaya_version.txt
+          import cobaya
+          print(cobaya.__version__)
+          PY
+          mkdir -p "$COBAYA_PACKAGES_PATH"
+          python -m cobaya install bao.desi_dr2 --packages-path "$COBAYA_PACKAGES_PATH" --no-progress-bars
+
+      - name: Test likelihood and theory initialization
+        run: |
+          set -euxo pipefail
+          python -m cobaya run vde_likelihood/desi_dr2_bao_vde_pilot.yaml \
+            --packages-path "$COBAYA_PACKAGES_PATH" --test 2>&1 | tee vde_likelihood/results/summary/model_test.log
+
+      - name: Run real DESI DR2 BAO MCMC
+        run: |
+          set -euxo pipefail
+          python -m cobaya run vde_likelihood/desi_dr2_bao_vde_pilot.yaml \
+            --packages-path "$COBAYA_PACKAGES_PATH" 2>&1 | tee vde_likelihood/results/summary/mcmc.log
+
+      - name: Analyze posterior chain
+        run: |
+          set -euxo pipefail
+          python vde_likelihood/analyze_chain.py 2>&1 | tee vde_likelihood/results/summary/analyze.log
+          python -m pip freeze > vde_likelihood/results/summary/pip_freeze.txt
+
+      - name: Hash likelihood outputs
+        if: always()
+        run: |
+          set -euxo pipefail
+          find vde_likelihood/results -type f -print0 | sort -z | xargs -0 sha256sum > vde_likelihood/results/summary/SHA256SUMS.txt
+          find vde_likelihood/results -maxdepth 2 -type f -printf '%p %s bytes\n' | sort > vde_likelihood/results/summary/file_listing.txt
+
+      - name: Upload complete MCMC artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closed-s3-vde-desi-dr2-bao-pilot-mcmc
+          path: vde_likelihood/results/
+          if-no-files-found: error
+          retention-days: 30
