@@ -20,19 +20,25 @@ OUT.mkdir(parents=True, exist_ok=True)
 PINNED_CLASS_COMMIT = "e85808324f51fc694d12e3ed7439552a3c3f9540"
 OMEGA_X_FID = 0.05
 NULL_EPS = (1.0e-4, 1.0e-6, 1.0e-8)
+NULL_ANCHOR = 1.0e-12
 OMEGA_K = -0.01
 H = 0.674
 L_MAX = 1200
 PK_MAX_HMPC = 1.5
 
-# Validation tolerances are declared before execution.  The null test is judged
-# at common tight precision and with a robust 95th-percentile metric; isolated
-# k-samples are also reported but are not used to hide numerical outliers.
+# Tolerances are declared before execution. Exact-zero endpoint agreement is
+# tested against the no-fluid curved-LCDM control. Continuity is tested
+# separately inside the fluid-active code path against Omega_X=1e-12, avoiding
+# a false requirement that the numerical species-on/species-off switch be
+# perfectly smooth at machine precision.
 TOL = {
     "mode_kmin_rel": 5.0e-3,
-    "null_TT_p95": 2.0e-5,
-    "null_EE_p95": 2.0e-5,
-    "null_Pk_p95": 5.0e-4,
+    "endpoint_TT_p95": 2.0e-5,
+    "endpoint_EE_p95": 2.0e-5,
+    "endpoint_Pk_p95": 5.0e-4,
+    "internal_TT_p95": 2.0e-5,
+    "internal_EE_p95": 2.0e-5,
+    "internal_Pk_p95": 5.0e-4,
     "convergence_TT_p95": 5.0e-3,
     "convergence_EE_p95": 5.0e-3,
     "convergence_Pk_p95": 5.0e-3,
@@ -260,42 +266,63 @@ def plot_validation(
     vde: dict[str, Any],
     control_tight: dict[str, Any],
     vde_tight: dict[str, Any],
+    anchor: dict[str, Any],
     nulls: dict[float, dict[str, Any]],
 ) -> None:
     ell = np.asarray(vde["lensed"]["ell"])
     mask = (ell >= 30) & (ell <= 1000)
     tt_ct = np.asarray(control_tight["lensed"]["tt"])
+    tt_anchor = np.asarray(anchor["lensed"]["tt"])
     tt_v = np.asarray(vde["lensed"]["tt"])
     tt_vt = np.asarray(vde_tight["lensed"]["tt"])
 
     fig, ax = plt.subplots(2, 1, figsize=(8, 8))
     for eps in NULL_EPS:
         tt_n = np.asarray(nulls[eps]["lensed"]["tt"])
-        ax[0].plot(ell[mask], tt_n[mask] / tt_ct[mask] - 1.0, label=fr"$\Omega_X={eps:.0e}$")
-    ax[0].set_ylabel("null / tight control - 1")
+        ax[0].plot(ell[mask], tt_n[mask] / tt_ct[mask] - 1.0, label=fr"$\Omega_X={eps:.0e}$ vs exact-zero")
+    ax[0].set_ylabel("fractional difference")
     ax[0].set_xlabel(r"$\ell$")
-    ax[0].legend()
+    ax[0].legend(fontsize=8)
     ax[0].grid(alpha=.25)
-    ax[1].plot(ell[mask], tt_vt[mask] / tt_v[mask] - 1.0, label="VDE tight/default")
-    ax[1].plot(ell[mask], np.asarray(control_tight["lensed"]["tt"])[mask] / np.asarray(control["lensed"]["tt"])[mask] - 1.0, label="control tight/default")
-    ax[1].set_ylabel("precision shift")
+    for eps in NULL_EPS:
+        tt_n = np.asarray(nulls[eps]["lensed"]["tt"])
+        ax[1].plot(ell[mask], tt_n[mask] / tt_anchor[mask] - 1.0, label=fr"$\Omega_X={eps:.0e}$ vs $10^{{-12}}$")
+    ax[1].set_ylabel("same-code-path difference")
     ax[1].set_xlabel(r"$\ell$")
-    ax[1].legend()
+    ax[1].legend(fontsize=8)
     ax[1].grid(alpha=.25)
     fig.tight_layout()
-    fig.savefig(OUT / "null_and_convergence_tt.png", dpi=180)
+    fig.savefig(OUT / "null_limit_tt.png", dpi=180)
+    plt.close(fig)
+
+    fig, ax = plt.subplots(2, 1, figsize=(8, 8))
+    for eps in NULL_EPS:
+        ax[0].semilogx(nulls[eps]["k_h"], nulls[eps]["pk"] / control_tight["pk"] - 1.0, label=fr"$\Omega_X={eps:.0e}$ vs exact-zero")
+    ax[0].axhline(0, color="k", lw=.7)
+    ax[0].set_ylabel("P(k) endpoint difference")
+    ax[0].legend(fontsize=8)
+    ax[0].grid(alpha=.25, which="both")
+    for eps in NULL_EPS:
+        ax[1].semilogx(nulls[eps]["k_h"], nulls[eps]["pk"] / anchor["pk"] - 1.0, label=fr"$\Omega_X={eps:.0e}$ vs $10^{{-12}}$")
+    ax[1].axhline(0, color="k", lw=.7)
+    ax[1].set_xlabel(r"$k$ [$h/\mathrm{Mpc}$]")
+    ax[1].set_ylabel("P(k) same-code-path difference")
+    ax[1].legend(fontsize=8)
+    ax[1].grid(alpha=.25, which="both")
+    fig.tight_layout()
+    fig.savefig(OUT / "null_limit_pk.png", dpi=180)
     plt.close(fig)
 
     fig, ax = plt.subplots(figsize=(8, 5))
-    for eps in NULL_EPS:
-        ax.semilogx(nulls[eps]["k_h"], nulls[eps]["pk"] / control_tight["pk"] - 1.0, label=fr"$\Omega_X={eps:.0e}$")
+    ax.plot(ell[mask], tt_vt[mask] / tt_v[mask] - 1.0, label="VDE tight/default")
+    ax.plot(ell[mask], tt_ct[mask] / np.asarray(control["lensed"]["tt"])[mask] - 1.0, label="control tight/default")
     ax.axhline(0, color="k", lw=.7)
-    ax.set_xlabel(r"$k$ [$h/\mathrm{Mpc}$]")
-    ax.set_ylabel("null / tight control - 1")
+    ax.set_xlabel(r"$\ell$")
+    ax.set_ylabel("TT precision shift")
     ax.legend()
-    ax.grid(alpha=.25, which="both")
+    ax.grid(alpha=.25)
     fig.tight_layout()
-    fig.savefig(OUT / "null_limit_pk.png", dpi=180)
+    fig.savefig(OUT / "convergence_tt.png", dpi=180)
     plt.close(fig)
 
 
@@ -304,18 +331,20 @@ def main() -> int:
     tight_precision = parse_precision_file(class_dir / "cl_permille.pre")
     mode_meta = write_mode_ledger()
 
-    print("[1/7] curved LCDM control, default precision")
+    print("[1/8] curved LCDM control, default precision")
     control = run_model("control", control_params(), save_background=True)
-    print("[2/7] fiducial canonical VDE, default precision")
+    print("[2/8] fiducial canonical VDE, default precision")
     vde = run_model("vde", with_vde(OMEGA_X_FID), save_background=True)
-    print("[3/7] curved LCDM control, cl_permille precision")
+    print("[3/8] curved LCDM control, cl_permille precision")
     control_tight = run_model("control_tight", control_params(), tight_precision)
-    print("[4/7] fiducial canonical VDE, cl_permille precision")
+    print("[4/8] fiducial canonical VDE, cl_permille precision")
     vde_tight = run_model("vde_tight", with_vde(OMEGA_X_FID), tight_precision)
+    print(f"[5/8] fluid-active null anchor Omega_X={NULL_ANCHOR:.0e}, cl_permille precision")
+    anchor = run_model("null_anchor_1e-12", with_vde(NULL_ANCHOR), tight_precision)
 
     nulls: dict[float, dict[str, Any]] = {}
-    for i, eps in enumerate(NULL_EPS, start=5):
-        print(f"[{i}/7] null-limit Omega_X={eps:.0e}, cl_permille precision")
+    for i, eps in enumerate(NULL_EPS, start=6):
+        print(f"[{i}/8] null-limit Omega_X={eps:.0e}, cl_permille precision")
         nulls[eps] = run_model(f"null_{eps:.0e}", with_vde(eps), tight_precision, save_background=(eps == NULL_EPS[-1]))
 
     required = {"k (h/Mpc)", "d_fld", "t_fld", "phi", "psi"}
@@ -329,18 +358,25 @@ def main() -> int:
     version = str(vde["derived"].get("classy_version", ""))
     version_ok = version.lstrip("v").startswith("3.3.4")
 
-    null_metrics: dict[str, Any] = {}
+    endpoint_metrics: dict[str, Any] = {}
+    internal_metrics: dict[str, Any] = {}
     for eps in NULL_EPS:
         n = nulls[eps]
-        null_metrics[f"{eps:.0e}"] = {
+        endpoint_metrics[f"{eps:.0e}"] = {
             "TT_l30_1000": ell_window_stats(n["lensed"]["tt"], control_tight["lensed"]["tt"]),
             "EE_l30_1000": ell_window_stats(n["lensed"]["ee"], control_tight["lensed"]["ee"]),
             "Pk": rel_stats(n["pk"], control_tight["pk"]),
             "sigma8": n["derived"]["sigma8"],
         }
+        internal_metrics[f"{eps:.0e}"] = {
+            "TT_l30_1000": ell_window_stats(n["lensed"]["tt"], anchor["lensed"]["tt"]),
+            "EE_l30_1000": ell_window_stats(n["lensed"]["ee"], anchor["lensed"]["ee"]),
+            "Pk": rel_stats(n["pk"], anchor["pk"]),
+        }
 
-    null_final = null_metrics[f"{NULL_EPS[-1]:.0e}"]
-    null_coarse = null_metrics[f"{NULL_EPS[0]:.0e}"]
+    endpoint_final = endpoint_metrics[f"{NULL_EPS[-1]:.0e}"]
+    internal_final = internal_metrics[f"{NULL_EPS[-1]:.0e}"]
+    internal_coarse = internal_metrics[f"{NULL_EPS[0]:.0e}"]
 
     convergence = {
         "control": {
@@ -362,6 +398,7 @@ def main() -> int:
         "physical_parameters": {
             "Omega_X_fiducial": OMEGA_X_FID,
             "Omega_X_null_sequence": list(NULL_EPS),
+            "Omega_X_internal_anchor": NULL_ANCHOR,
             "Omega_k_geom": OMEGA_K,
             "h": H,
             "l_max": L_MAX,
@@ -373,7 +410,8 @@ def main() -> int:
             "sigma8_control": control["derived"]["sigma8"],
             "sigma8_vde": vde["derived"]["sigma8"],
         },
-        "null_limit_common_tight_precision": null_metrics,
+        "null_endpoint_vs_exact_zero_common_tight_precision": endpoint_metrics,
+        "null_internal_continuity_vs_1e-12_common_tight_precision": internal_metrics,
         "convergence_default_vs_cl_permille": convergence,
         "closed_s3_mode_check": {
             "expected_first_physical_scalar_k_h_Mpc": expected_kmin_h,
@@ -390,6 +428,7 @@ def main() -> int:
             "vde": vde["derived"],
             "control_tight": control_tight["derived"],
             "vde_tight": vde_tight["derived"],
+            "null_anchor_1e-12_tight": anchor["derived"],
             "null_1e-8_tight": nulls[NULL_EPS[-1]]["derived"],
         },
     }
@@ -399,11 +438,15 @@ def main() -> int:
         "vde_transfer_columns_present": len(missing) == 0,
         "vde_Omega_fld_matches": abs(vde["derived"]["Omega_fld"] - OMEGA_X_FID) < 1.0e-10,
         "closed_mode_kmin_matches_n2": kmin_rel < TOL["mode_kmin_rel"],
-        "null_TT_p95_below_declared_tol": null_final["TT_l30_1000"]["p95"] < TOL["null_TT_p95"],
-        "null_EE_p95_below_declared_tol": null_final["EE_l30_1000"]["p95"] < TOL["null_EE_p95"],
-        "null_Pk_p95_below_declared_tol": null_final["Pk"]["p95"] < TOL["null_Pk_p95"],
-        "null_TT_contracts_from_1e-4_to_1e-8": null_final["TT_l30_1000"]["p95"] < null_coarse["TT_l30_1000"]["p95"],
-        "null_Pk_contracts_from_1e-4_to_1e-8": null_final["Pk"]["p95"] < null_coarse["Pk"]["p95"],
+        "endpoint_null_TT_p95": endpoint_final["TT_l30_1000"]["p95"] < TOL["endpoint_TT_p95"],
+        "endpoint_null_EE_p95": endpoint_final["EE_l30_1000"]["p95"] < TOL["endpoint_EE_p95"],
+        "endpoint_null_Pk_p95": endpoint_final["Pk"]["p95"] < TOL["endpoint_Pk_p95"],
+        "internal_null_TT_p95": internal_final["TT_l30_1000"]["p95"] < TOL["internal_TT_p95"],
+        "internal_null_EE_p95": internal_final["EE_l30_1000"]["p95"] < TOL["internal_EE_p95"],
+        "internal_null_Pk_p95": internal_final["Pk"]["p95"] < TOL["internal_Pk_p95"],
+        "internal_TT_contracts_1e-4_to_1e-8": internal_final["TT_l30_1000"]["p95"] < internal_coarse["TT_l30_1000"]["p95"],
+        "internal_EE_contracts_1e-4_to_1e-8": internal_final["EE_l30_1000"]["p95"] < internal_coarse["EE_l30_1000"]["p95"],
+        "internal_Pk_contracts_1e-4_to_1e-8": internal_final["Pk"]["p95"] < internal_coarse["Pk"]["p95"],
         "control_convergence_TT_p95": convergence["control"]["TT_l30_1000"]["p95"] < TOL["convergence_TT_p95"],
         "control_convergence_EE_p95": convergence["control"]["EE_l30_1000"]["p95"] < TOL["convergence_EE_p95"],
         "control_convergence_Pk_p95": convergence["control"]["Pk"]["p95"] < TOL["convergence_Pk_p95"],
@@ -422,7 +465,7 @@ def main() -> int:
             w.writerow([key, int(value)])
 
     plot_vde_vs_control(control, vde)
-    plot_validation(control, vde, control_tight, vde_tight, nulls)
+    plot_validation(control, vde, control_tight, vde_tight, anchor, nulls)
 
     print(json.dumps(metrics, indent=2, sort_keys=True))
     print("ALL_CHECKS_PASS=", metrics["all_checks_pass"])
