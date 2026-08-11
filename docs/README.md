@@ -795,6 +795,86 @@ On the phone the panel leads with the answer — Λ, the Planck comparison, the 
 control, then the explanation, then the evidence. The prose used to lead, and on a 390 px
 screen the result was below the fold in its own laboratory.
 
+## Four instruments, and a class that could never be returned (v3.51.0)
+
+The Capacity Selector proved the shape of the instrument layer. The three laboratories
+that already had a pure computation and a verifier behind it — the zero-point ladder,
+Bianchi IX and Smith–Möbius — are now registered the same way, so `HCC_API.list()`
+returns four and an agent with nothing but the published link can drive all of them.
+
+Registering them found three defects in the atlas, and two of them were in specs I had
+just written.
+
+**`smithInvariants` returns `|det M − 1|`, not `det M`.** Labelling that field
+`determinant` would have printed 0 where the answer is 1. It is now
+`determinant_residual`, with the unit written out.
+
+**The Bianchi spec declared a `lyapunov` output that would always have been null.** The
+atlas computed no Lyapunov exponent at runtime — the estimator lived only in the offline
+verifier. A declared output that is structurally null is worse than an absent one.
+
+**And the reason that mattered: `BIX_CLASSES` declares six trajectory classes and
+`bixClassify` could produce five.** "Chaotic" means *bounded with sensitive dependence*,
+and sensitive dependence is not something a return-map recurrence test can see. The class
+was unreachable — a label, not a measurement.
+
+So it is now measured. The 6-D flow is integrated together with a tangent vector driven
+by the **exact Jacobian**, not by a finite difference of two nearby trajectories, which
+loses the separation to round-off long before it grows. Two things keep the number honest:
+
+- **λ is withheld from any run that is not bounded.** On a de Sitter escape the tangent
+  grows because the *background* is inflating: two perfectly regular escapes measured
+  λ = 16 and λ = 39. The first version of this returned that number beside the words
+  "not measured", which is the exact contradiction the measurement exists to avoid.
+- **The discriminator is not a threshold on λ but the doubling ratio ρ = λ(2T)/λ(T).**
+  A regular orbit's finite-time estimate decays like ln τ/τ, so ρ sits near 0.5; a chaotic
+  one plateaus and ρ → 1.
+
+| bounded seed | λ(2T) | ρ |
+|---|---|---|
+| mild, Λ = 0.08 | 1.6710 | **0.551** |
+| panel default | 1.7266 | **0.578** |
+| vacuum wall bounce | 1.5990 | **0.571** |
+| near-isotropic | 1.0688 | **0.544** |
+
+A tight cluster just above the pure-1/τ value of 0.5, nowhere near a plateau. The cut sits
+at 0.85 — far above everything observed, far below the chaotic limit. **So `chaotic` is
+now reachable and has not been reached.** That is a statement about a finite volume-time
+window, not about Bianchi IX: Mixmaster chaos is asymptotic to the singularity as α → −∞,
+and a finite window is the wrong instrument for it. The atlas says which of the two it is
+measuring.
+
+### The calibration that was measuring the wrong system
+
+The first calibration of that cut was run in a scratch harness with `C = 1/12`. The atlas
+and the C2 verifier both use **C = π** (`C = π/G` in G = 1 units, from the volume factor),
+so the harness was integrating a different system entirely and the ratios it produced —
+0.538 through 0.659 — described nothing in this repository. It was caught because the
+atlas and the harness disagreed about whether one orbit collapsed, and the disagreement
+was chased instead of averaged. With C = π the dynamics is fast: most seeds collapse or
+escape inside τ ≈ 5, and the asymptotic null hypothesis 0.5 + ln2/(2 ln T) evaluates to
+exactly 1 at T = 2, where it would read "regular means chaotic". It is now reported only
+for T ≥ 4, where it means something.
+
+### What an agent gets through the link
+
+```js
+HCC_API.list()                          // ladder, bianchi, smith, capacity
+HCC_API.describe('bianchi')             // 8 inputs, 11 outputs, 5 limits, 3 verifiers
+HCC_API.evaluate('bianchi', {tauMax: 2})
+HCC_API.markdown('ladder')              // 9 KB report, units and limits included
+```
+
+String inputs are validated against the alternatives they declare, so
+`{branch: 'sideways'}` is refused by name rather than falling through to a default and
+returning a real answer to a question nobody asked.
+
+| measurement | before | after |
+|---|---|---|
+| laboratories reachable as instruments | 1 | **4** |
+| Bianchi trajectory classes reachable | 5 of 6 | **6 of 6** |
+| self-tests | 585 | **589** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

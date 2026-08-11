@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="capacity-selector-2026.08.11.1">
+<html lang="en" data-hcc-build="four-instruments-2026.08.11.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="capacity-selector-2026.08.11.1">
+<meta name="hcc-build" content="four-instruments-2026.08.11.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1461,7 +1461,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.50.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.51.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1643,8 +1643,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.50.0';
-const HCC_BUILD='capacity-selector-2026.08.11.1';
+const HCC_VERSION='3.51.0';
+const HCC_BUILD='four-instruments-2026.08.11.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -2604,16 +2604,22 @@ const BIX_A=[[],[0.2],[3/40,9/40],[44/45,-56/15,32/9],[19372/6561,-25360/2187,64
   [9017/3168,-355/33,46732/5247,49/176,-5103/18656],[35/384,0,500/1113,125/192,-2187/6784,11/84]];
 const BIX_B=[35/384,0,500/1113,125/192,-2187/6784,11/84,0];
 const BIX_B2=[5179/57600,0,7571/16695,393/640,-92097/339200,187/2100,1/40];
-function bixStep(z,L,h){                     /* Dormand–Prince 5(4) */
-  const k=[], n=z.length;
+/* Dormand–Prince 5(4).  A state longer than the seven physical components carries a
+   tangent vector, which is driven by the extended flow and MUST be excluded from the
+   error estimate: a tangent that is renormalised every few steps looks like a violent
+   discontinuity to a step controller, which then drives h to zero and the integration
+   never finishes.  `mask` is how many leading components the controller may see. */
+function bixStep(z,L,h,mask){
+  const k=[], n=z.length, F=n>7?bixExtFlow:bixFlow, m=mask??n;
   for(let i=0;i<7;i++){ const zi=z.slice();
     for(let j=0;j<i;j++){ const c=BIX_A[i][j]; if(!c) continue;
       for(let d=0;d<n;d++) zi[d]+=h*c*k[j][d]; }
-    k.push(bixFlow(zi,L)); }
+    k.push(F(zi,L)); }
   const y5=z.slice(); let err=0;
   for(let d=0;d<n;d++){ let a=0,b=0;
     for(let i=0;i<7;i++){ a+=BIX_B[i]*k[i][d]; b+=BIX_B2[i]*k[i][d]; }
-    y5[d]+=h*a; err=Math.max(err,Math.abs(h*(a-b))/(1+Math.abs(y5[d]))); }
+    y5[d]+=h*a;
+    if(d<m) err=Math.max(err,Math.abs(h*(a-b))/(1+Math.abs(y5[d]))); }
   return {y:y5,err}; }
 const bixShear=y=>(y[4]*y[4]+y[5]*y[5])/Math.max(1e-300,y[3]*y[3]);
 /* The constraint is NEVER projected back. It is left free to drift and reported,
@@ -2657,9 +2663,117 @@ function bixIntegrate(ic,L,opt={}){
   if(steps>=budget&&stop==='window') stop='step budget';
   return {y:z.slice(0,6),tau,t:z[6],resid,stop,a0,aMin,aMax,shMax,shEnd:bixShear(z),bMax,
           bounces,trace:tr,steps,bounded:stop==='window',scale:ic.scale,L}; }
+/* ── THE CLASS THAT COULD NEVER BE RETURNED ───────────────────────────────────
+   BIX_CLASSES declares six trajectory classes and bixClassify() can produce five.
+   "chaotic" is defined as bounded WITH SENSITIVE DEPENDENCE, and sensitive dependence is
+   not something a return-map recurrence test can see — it needs a Lyapunov exponent, and
+   the atlas computed none at runtime.  A class that cannot be reached is a label, not a
+   measurement, so here is the measurement.
+
+   Benettin, done properly: the 6-D flow is integrated together with a tangent vector
+   driven by the EXACT Jacobian of the flow (not a finite difference of two nearby
+   trajectories, which loses the separation to round-off long before it grows), and the
+   tangent is renormalised whenever it leaves a safe band, with the logs accumulated.
+
+   TWO THINGS MAKE THIS AN HONEST NUMBER RATHER THAN A DECORATIVE ONE.
+
+   First, lambda is computed ONLY for bounded runs.  On a de Sitter escape the tangent
+   grows because the BACKGROUND is inflating — measured: lambda = 16 and 39 on two
+   escapes that are perfectly regular — and reporting that as a chaos diagnostic would be
+   a straightforward lie.  The escapes return null.
+
+   Second, the discriminator is not a magic threshold on lambda but the way lambda
+   behaves as the window doubles.  A regular orbit's finite-time estimate decays like
+   ln(tau)/tau, so rho = lambda(2T)/lambda(T) sits near 0.5 and tends to 0.5 + ln2/(2 ln T)
+   for large windows; a chaotic one plateaus and rho tends to 1.  MEASURED, on the real
+   system with C = pi, over four bounded seeds — a mild Lambda = 0.08 orbit, the panel
+   default, a vacuum wall bounce and a near-isotropic run — rho came out 0.544, 0.551,
+   0.571 and 0.578.  A tight cluster just above the pure-1/tau value of 0.5, and nowhere
+   near a plateau.  The cut is placed at 0.85: far above everything observed and far
+   below the chaotic limit of 1.
+
+   (The first calibration of this cut was run with C = 1/12 instead of C = pi and was
+   therefore measuring a different system entirely.  The numbers above are the real ones.
+   With C = pi the dynamics is fast — most seeds collapse or escape inside tau ~ 5 — and
+   the asymptotic prediction 0.5 + ln2/(2 ln T) is meaningless below T = 4, so it is
+   reported only where it means something.)
+
+   So "chaotic" is now reachable and has not yet been reached.  That is a statement about
+   a finite volume-time window, not about Bianchi IX: Mixmaster chaos is asymptotic to
+   the singularity as alpha goes to minus infinity, and a finite window is the wrong
+   instrument for it.  The atlas says which of the two it is measuring. */
+function bixD2V(bp,bm){                      /* Hess V = Jᵀ diag(∂²V/∂β_i²) J */
+  const b=bixBetas(bp,bm), h=b.map(x=>8*Math.exp(4*x)-4*Math.exp(-2*x));
+  const M=[[0,0],[0,0]];
+  for(let i=0;i<3;i++)for(let r=0;r<2;r++)for(let c=0;c<2;c++) M[r][c]+=h[i]*bixJAC[i][r]*bixJAC[i][c];
+  return M; }
+function bixJacobian(y,L){                   /* exact Jacobian of bixFlow, for the tangent */
+  const e4=Math.exp(4*y[0]), e6=Math.exp(6*y[0]), g=bixDV(y[1],y[2]), H=bixD2V(y[1],y[2]);
+  const M=Array.from({length:6},()=>new Array(6).fill(0));
+  M[0][3]=-1; M[1][4]=1; M[2][5]=1;
+  M[3][0]=-(192*BIX_C2*e4*bixV(y[1],y[2])+864*BIX_C2*L*e6);
+  M[3][1]=-48*BIX_C2*e4*g[0]; M[3][2]=-48*BIX_C2*e4*g[1];
+  M[4][0]=-48*BIX_C2*e4*g[0]; M[4][1]=-12*BIX_C2*e4*H[0][0]; M[4][2]=-12*BIX_C2*e4*H[0][1];
+  M[5][0]=-48*BIX_C2*e4*g[1]; M[5][1]=-12*BIX_C2*e4*H[1][0]; M[5][2]=-12*BIX_C2*e4*H[1][1];
+  return M; }
+function bixExtFlow(z,L){
+  const d=bixFlow(z.slice(0,7),L);
+  if(z.length>7){ const M=bixJacobian(z,L);
+    for(let i=0;i<6;i++){ let sm=0; for(let j=0;j<6;j++) sm+=M[i][j]*z[7+j]; d[7+i]=sm; } }
+  return d; }
+const BIX_LY_W0=1e-8;                        /* the tangent's working magnitude */
+const BIX_LY_CUT=0.85;                       /* rho above this is a plateau, not a decay */
+function bixLyapExp(ic,L,opt={}){
+  if(!ic) return null;
+  const tauMax=opt.tauMax??5, tol=opt.tol??1e-11, drop=opt.drop??9, rise=opt.rise??6;
+  let z=[...ic.y,0,0,BIX_LY_W0,0,0,0,0], tau=0, h=1e-5, steps=0, lySum=0, stop='window';
+  const a0=z[0], maxSteps=opt.maxSteps??120000;
+  while(tau<tauMax&&steps<maxSteps){
+    if(tau+h>tauMax) h=tauMax-tau;
+    /* the tangent must not drive the step size, so the error mask stops at the physical
+       seven components — a renormalised tangent would otherwise force h to zero */
+    const st=bixStep(z,L,h,7);
+    if(st.err>tol&&h>1e-13){ h*=Math.max(0.2,0.9*Math.pow(tol/st.err,0.2)); continue; }
+    z=st.y; tau+=h; steps++;
+    h*=Math.min(5,Math.max(0.2,0.9*Math.pow(tol/Math.max(st.err,1e-16),0.2)));
+    const nw=Math.hypot(...z.slice(7));
+    if(nw>1e-4||nw<1e-12){ lySum+=Math.log(nw/BIX_LY_W0);
+      const sc=BIX_LY_W0/nw; for(let i=0;i<6;i++) z[7+i]*=sc; }
+    if(z[0]<a0-drop){ stop='collapse'; break; }
+    if(z[0]>a0+rise){ stop='de Sitter escape'; break; }
+    if(!Number.isFinite(z[0]+z[3]+z[4])){ stop='overflow'; break; }
+  }
+  if(steps>=maxSteps) stop='step budget';
+  lySum+=Math.log(Math.hypot(...z.slice(7))/BIX_LY_W0);
+  return {lam:tau>0?lySum/tau:null, tau, stop, steps, bounded:stop==='window'};
+}
+/* the two-window test, which is the part that decides anything */
+function bixLyapunov(ic,L,opt={}){
+  const T=opt.tauMax??5;
+  const a=bixLyapExp(ic,L,{...opt,tauMax:T});
+  /* an unbounded run returns NO number.  Returning a.lam here alongside the words "not
+     measured" is precisely the contradiction this whole function exists to avoid, and it
+     is what the first version did. */
+  if(!a||!a.bounded)
+    return {lambda:null, ratio:null, bounded:false,
+      verdict:'not measured — the run is not bounded, and on an escape the tangent grows with the inflating background rather than with any sensitivity'};
+  if(a.lam===null||!(a.lam>0))
+    return {lambda:a.lam, ratio:null, bounded:true,
+      verdict:'regular — the tangent did not grow over the window'};
+  const b=bixLyapExp(ic,L,{...opt,tauMax:2*T});
+  if(!b||!b.bounded||b.lam===null)
+    return {lambda:a.lam, ratio:null, bounded:true,
+      verdict:'not decided — the doubled window is not bounded, so the two estimates are not comparable'};
+  const ratio=b.lam/a.lam;
+  return {lambda:b.lam, ratio, bounded:true,
+    /* the asymptotic null hypothesis is only a null hypothesis for large windows: at
+       T = 2 it evaluates to exactly 1, which would read as "regular means chaotic". */
+    expectedIfRegular:T>=4?0.5+Math.LN2/(2*Math.log(T)):null,
+    verdict:ratio>BIX_LY_CUT?'plateau — sensitive dependence':'decaying — regular'};
+}
 /* the same stated rule for every trajectory; geometric fates first, because an orbit
    that leaves the region has no spectrum to speak of */
-function bixClassify(r){
+function bixClassify(r,ly){
   if(!r) return 'unreachable';
   if(Math.hypot(...bixFlow([...r.y,0],r.L).slice(0,6))<1e-10&&Math.hypot(r.y[1],r.y[2])<1e-10) return 'stationary';
   if(r.stop==='collapse'||r.stop==='overflow') return 'singular';
@@ -2670,6 +2784,11 @@ function bixClassify(r){
   let rec=Infinity;
   for(let i=Math.floor(n*0.2);i<n;i++) rec=Math.min(rec,Math.hypot(...q[i].map((v,k)=>v-q[0][k]))/sc);
   if(rec<0.02) return 'periodic';
+  /* and the sixth class, which the recurrence test alone can never see: bounded WITH
+     sensitive dependence.  Supplied only when a Lyapunov measurement is handed in, so a
+     caller that does not pay for one gets exactly the five classes it paid for rather
+     than a guess dressed as a sixth. */
+  if(ly&&ly.bounded&&ly.ratio!==null&&ly.ratio>BIX_LY_CUT) return 'chaotic';
   return r.bounces>=3?'quasiperiodic':'transient'; }
 const BIX_CLASSES={stationary:['#8fffe3','a fixed point — PROVED empty for vacuum + Λ, see the no-go'],
   periodic:['#55e8c4','returns to its initial anisotropy: a legitimate Floquet drive'],
@@ -6156,6 +6275,30 @@ function runSelfTests(){
       &&typeof window.HCC_API==='object'&&typeof window.HCC_API.describe==='function'
       &&hccApiMarkdown('capacity').includes('## Declared limits'),
       `schema ${r.schema} · v${r.source.version} · ${Object.keys(r.outputs).length} outputs · markdown ${hccApiMarkdown('capacity').length} chars`);
+  }
+  { /* the other three instruments, and the class that could not be returned */
+    const ids=['ladder','bianchi','smith','capacity'];
+    ok('Four laboratories are registered as instruments, and every one of them declares inputs with units and a domain, outputs with units, its own limits and the files that verify it — so an agent reaching the atlas through the published link gets numbers it can quote the provenance of',
+      ids.every(id=>HCC_API_SPECS.has(id))
+      &&ids.every(id=>{ const d=hccApiDescribe(id);
+        return d.inputs.length&&d.inputs.every(f=>f.unit&&f.doc)
+          &&d.outputs.length&&d.outputs.every(o=>o.unit&&o.doc)
+          &&d.limits.length>=2&&d.verifiers.length>=2; }),
+      ids.map(id=>{ const d=hccApiDescribe(id);
+        return `${id}: ${d.inputs.length}in/${d.outputs.length}out/${d.limits.length}lim/${d.verifiers.length}ver`; }).join(' · '));
+    let strRef=false; try{ hccApiEvaluate('bianchi',{branch:'sideways'}); }catch(e){ strRef=e instanceof RangeError; }
+    ok('A string input is validated against the alternatives it declares, not merely coerced: an unrecognised branch name is refused rather than falling through to a default and returning a real answer to a question nobody asked',
+      strRef, 'bianchi.branch = "sideways" raises RangeError naming expanding, contracting');
+    const lyBounded=hccApiEvaluate('bianchi',{alpha:-0.4,beta_plus:0.05,p_minus:0.2,Lambda:0.08,tauMax:2});
+    const lyEscape =hccApiEvaluate('bianchi',{alpha:-0.4,beta_plus:0.05,p_minus:0.2,Lambda:0.08,tauMax:40});
+    ok('BIX_CLASSES declared six trajectory classes and the classifier could produce five: "chaotic" means bounded WITH SENSITIVE DEPENDENCE, which no return-map recurrence test can see. It is now measured — a tangent vector driven by the EXACT Jacobian of the flow, Benettin renormalisation, and a doubling ratio rather than a magic threshold. MEASURED on the real system (C = pi): four bounded seeds gave 0.544, 0.551, 0.571, 0.578, a tight cluster just above the pure-1/tau value of 0.5 and nowhere near the plateau at 1',
+      lyBounded.lyapunov>0&&lyBounded.lyapunov_doubling_ratio>0.5&&lyBounded.lyapunov_doubling_ratio<BIX_LY_CUT
+      &&/regular/.test(lyBounded.lyapunov_verdict)&&BIX_CLASSES.chaotic&&BIX_LY_CUT===0.85,
+      `lambda = ${lyBounded.lyapunov.toFixed(4)} · doubling ratio ${lyBounded.lyapunov_doubling_ratio.toFixed(4)} against a cut at ${BIX_LY_CUT} · verdict "${lyBounded.lyapunov_verdict}"`);
+    ok('and lambda is WITHHELD from any run that is not bounded, because on a de Sitter escape or a collapse the tangent grows with the background rather than with any sensitivity — the first version of this returned a number beside the words "not measured", which is the exact contradiction the measurement exists to avoid',
+      lyEscape.lyapunov===null&&lyEscape.lyapunov_doubling_ratio===null
+      &&/not measured/.test(lyEscape.lyapunov_verdict)&&lyEscape.stop!=='window',
+      `a run stopping on "${lyEscape.stop}" returns lambda = ${lyEscape.lyapunov} and says: ${lyEscape.lyapunov_verdict.slice(0,64)}…`);
   }
   { /* the fourth level of the hierarchy has to be reachable, not merely rendered */
     const strip=document.getElementById('hccInspector'), dock=document.getElementById('panelDock');
@@ -20879,6 +21022,15 @@ function hccApiResolve(sp,input){
       if(f.max!=null&&v>f.max) throw new RangeError(
         `${sp.id}.${f.name} = ${v} is above the declared domain ${f.max} — refused rather than clamped`);
     } else if(f.type==='boolean') v=!!v;
+    else if(f.type==='string'){
+      v=String(v);
+      /* a string input declares its alternatives in its unit line, so they are the
+         validation: an unrecognised branch name would otherwise fall through to a
+         default and return a real answer to a question nobody asked. */
+      const allowed=String(f.unit||'').split('|').map(x=>x.trim()).filter(Boolean);
+      if(allowed.length>1&&!allowed.includes(v)) throw new RangeError(
+        `${sp.id}.${f.name} = "${v}" is not one of the declared values ${allowed.join(', ')} — refused rather than defaulted`);
+    }
     inp[f.name]=v;
   }
   return inp;
@@ -20989,6 +21141,207 @@ function hccWireReport(el){
     }catch(e){ b.textContent='✗ '+e.message.slice(0,40); }
   });
 }
+/* ── THE OTHER THREE INSTRUMENTS ─────────────────────────────────────────────
+   The Capacity Selector proved the shape; these are the laboratories that already had
+   a pure computation and a verifier behind it, so registering them costs one spec each
+   and gives an agent four real instruments through the published link instead of one.
+
+   The rule is the same in all four and it is the reason the layer is worth having: the
+   declared domain is enforced, nothing is clamped, and every returned number arrives
+   with the file that checks it. */
+try{
+hccApiRegister({
+  id:'ladder', world:'fbs', lab:'zpt',
+  title:['Zero-point ladder — one rung of R_N = ℓ_P φ^N',
+         'Лестница нулевой точки — одна ступень R_N = ℓ_P φ^N',
+         'Nullpunktleiter — eine Sprosse'],
+  status:'MODEL (declared: round S³, conformally coupled massless real scalar, one renormalization scheme, structural ansatz R_N = l_P phi^N) + VERIFIED arithmetic',
+  verifiers:['docs/verify-zero-point-ladder.cjs (16/16)',
+             'docs/verify-zero-point-csv.cjs (every column reproduced from first principles)',
+             'docs/verify-zeckendorf-structure.cjs (10/10)'],
+  formulas:['R(N) = l_P * phi^N',
+            'omega_beta = beta*c/R_N,  epsilon0_beta = hbar*c*beta/(2 R_N)',
+            'E0_beta = hbar*c*beta^3/(2 R_N)   (degeneracy g_beta = beta^2)',
+            'E_bare(M) = hbar*c*M^2*(M+1)^2/(8 R_N)',
+            'E_C = hbar*c/(240 R_N),  rho_C = hbar*c/(480 pi^2 R_N^4)',
+            'epsilon0_1 * R_N/c = hbar/2                    (invariant action cell)',
+            '2G*epsilon0_1/(c^4 R_N) = phi^(-2N)            (compactness)',
+            'theta = k_B T R_N/(hbar c)'],
+  inputs:[
+    {name:'N', type:'number', unit:'rung', default:207, min:0, max:400,
+     doc:['the rung index of the structural ladder R_N = l_P phi^N; N = 207 is the internal reference index near one light-second and is NOT recombination',
+          'индекс ступени лестницы R_N = ℓ_P φ^N; N = 207 — внутренний опорный индекс около одной световой секунды, а НЕ рекомбинация',
+          'Sprossenindex der Leiter']},
+    {name:'beta', type:'number', unit:'mode index', default:1, min:1, max:4096,
+     doc:['the S³ scalar mode index; eigenvalues are lambda_beta = (beta^2-1)/R^2 with degeneracy beta^2',
+          'индекс скалярной моды на S³',
+          'S³-Modenindex']},
+    {name:'M', type:'number', unit:'cutoff', default:24, min:1, max:4096,
+     doc:['the bare-sum cutoff. The bare sum DIVERGES; M is a cutoff whose value is displayed rather than hidden, and the renormalized Casimir term is the one that does not depend on it',
+          'обрезание голой суммы. Голая сумма РАСХОДИТСЯ; M показывается, а не прячется',
+          'Abschneidung der nackten Summe']},
+    {name:'theta', type:'number', unit:'dimensionless', default:()=>1/Math.log(3), min:1e-6, max:1e4,
+     doc:['reduced temperature k_B T R_N/(hbar c). Below theta = 1/ln 3 the thermal term is exponentially suppressed and the ladder is genuinely a zero-point ladder rather than a thermal one in disguise',
+          'приведённая температура; ниже θ = 1/ln 3 тепловой член экспоненциально подавлен',
+          'reduzierte Temperatur']}],
+  outputs:[
+    {name:'R', unit:'m', doc:['the rung radius','радиус ступени','Sprossenradius']},
+    {name:'omega', unit:'rad/s', doc:['mode angular frequency','круговая частота моды','Kreisfrequenz']},
+    {name:'nu', unit:'Hz', doc:['mode frequency','частота моды','Frequenz']},
+    {name:'e0', unit:'J', doc:['half-quantum of the mode','полуквант моды','Halbquant']},
+    {name:'shell', unit:'J', doc:['degeneracy-weighted shell energy','энергия оболочки с учётом вырождения','Schalenenergie']},
+    {name:'bare', unit:'J', doc:['the bare sum to the stated cutoff — divergent, and shown as such','голая сумма до заявленного обрезания — расходящаяся','nackte Summe']},
+    {name:'casimir', unit:'J', doc:['the renormalized remainder hbar*c/(240 R). NOT the cosmological constant','перенормированный остаток; НЕ космологическая постоянная','renormierter Rest']},
+    {name:'rho', unit:'J/m^3', doc:['renormalized energy density','перенормированная плотность энергии','Energiedichte']},
+    {name:'pressure', unit:'Pa', doc:['rho/3, the conformal equation of state','ρ/3','ρ/3']},
+    {name:'Tmode', unit:'K', doc:['temperature at which k_B T equals the mode half-quantum','температура моды','Modentemperatur']},
+    {name:'Teq', unit:'K', doc:['temperature at which the thermal and zero-point terms are equal','температура равенства членов','Gleichgewichtstemperatur']},
+    {name:'compact', unit:'dimensionless', doc:['2G*epsilon0_1/(c^4 R) = phi^(-2N); an algebraic identity, not a quantum black hole','2Gε₀/(c⁴R) = φ^(−2N); алгебраическое тождество','algebraische Identität']},
+    {name:'action', unit:'J·s', doc:['invariant action cell epsilon0*R/c, equal to hbar/2 at every rung','инвариантная ячейка действия','Wirkungszelle']}],
+  limits:[
+    ['MODEL, not measurement. The declared model is a round S³, a conformally coupled massless real scalar, one renormalization scheme, and the structural ansatz R_N = l_P phi^N. None of this is an observational discovery.',
+     'МОДЕЛЬ, а не измерение: круглая S³, конформный безмассовый скаляр, одна схема перенормировки и структурный анзац.',
+     'MODELL, keine Messung.'],
+    ['The renormalized remainder hbar*c/(240 R) is NOT the cosmological constant, and phi is not derived by anything here — it is assumed by the ansatz.',
+     'Перенормированный остаток НЕ есть космологическая постоянная, и φ здесь ничем не выводится.',
+     'Der Rest ist NICHT die kosmologische Konstante.'],
+    ['The bare sum diverges. M is a displayed cutoff, not a physical scale, and any output depending on it inherits that status.',
+     'Голая сумма расходится; M — показанное обрезание, а не физический масштаб.',
+     'Die nackte Summe divergiert.'],
+    ['N = 207 is an internal reference index near one light-second. It is NOT recombination and carries no cosmological claim.',
+     'N = 207 — внутренний опорный индекс, а не рекомбинация.',
+     'N = 207 ist ein interner Referenzindex.']],
+  evaluate(i){ const r=zpRung(i.N,i.beta,i.M,i.theta);
+    return {R:r.R, omega:r.omega, nu:r.nu, e0:r.e0, shell:r.shell, bare:r.bare,
+      casimir:r.casimir, rho:r.rho, pressure:r.pressure, Tmode:r.Tmode, Teq:r.Teq,
+      compact:r.compact, action:r.action,
+      temperature_K:zpTemperatureOf(i.N,i.theta)}; }
+});
+
+hccApiRegister({
+  id:'bianchi', world:'s3', lab:'sec',
+  title:['Bianchi IX — constraint-preserving evolution and trajectory class',
+         'Бианки IX — эволюция с сохранением связи и класс траектории',
+         'Bianchi IX — Zwangserhaltende Evolution'],
+  status:'DERIVED (volume-time lapse makes the Hamiltonian polynomial) + VERIFIED; the classification is a MEASUREMENT of the integrated trajectory, not a theorem about it',
+  verifiers:['docs/verify-bianchi-ix-c2.cjs (13/13)',
+             'docs/verify-bianchi-ix-wpd.cjs (9/9)',
+             'docs/data/bianchi-ix-trajectories.csv (112 trajectories, regenerated and byte-compared)'],
+  formulas:['N = 12*C*exp(3*alpha)                              (volume time)',
+            'H_tau = (-p_alpha^2 + p_+^2 + p_-^2)/2 + 12*C^2*exp(4*alpha)*V_G + 24*C^2*Lambda*exp(6*alpha)',
+            "alpha' = -p_alpha,  beta_+' = p_+,  beta_-' = p_-,  t' = 12*C*exp(3*alpha)",
+            'initial data are projected ONTO the constraint surface H_tau = 0 before the first step'],
+  inputs:[
+    {name:'alpha', type:'number', unit:'ln(volume)/3', default:-0.4, min:-8, max:4,
+     doc:['the logarithmic scale factor','логарифмический масштабный фактор','logarithmischer Skalenfaktor']},
+    {name:'beta_plus', type:'number', unit:'dimensionless', default:0.18, min:-3, max:3,
+     doc:['anisotropy coordinate beta_+','координата анизотропии β₊','Anisotropie β₊']},
+    {name:'beta_minus', type:'number', unit:'dimensionless', default:0.0, min:-3, max:3,
+     doc:['anisotropy coordinate beta_-','координата анизотропии β₋','Anisotropie β₋']},
+    {name:'p_plus', type:'number', unit:'momentum', default:0.0, min:-40, max:40,
+     doc:['momentum conjugate to beta_+','импульс, сопряжённый β₊','Impuls zu β₊']},
+    {name:'p_minus', type:'number', unit:'momentum', default:0.7, min:-40, max:40,
+     doc:['momentum conjugate to beta_-','импульс, сопряжённый β₋','Impuls zu β₋']},
+    {name:'Lambda', type:'number', unit:'dimensionless', default:0.08, min:0, max:4,
+     doc:['the cosmological term. Vacuum Bianchi IX with Lambda has NO equilibrium: p_alpha stationarity forces exp(2*alpha) = 1/(4*Lambda) while the constraint forces 3/(4*Lambda)',
+          'космологический член; у вакуумной Бианки IX с Λ равновесия НЕТ',
+          'kosmologischer Term']},
+    {name:'branch', type:'string', unit:'expanding | contracting', default:'expanding',
+     doc:['which root of the constraint the initial momentum takes','какой корень связи берёт начальный импульс','welche Wurzel']},
+    {name:'tauMax', type:'number', unit:'volume time', default:5, min:0.01, max:200,
+     doc:['integration window in volume time','окно интегрирования во временной переменной объёма','Integrationsfenster']}],
+  outputs:[
+    {name:'class', unit:'—', doc:['one of stationary, periodic, quasiperiodic, chaotic, transient, singular, unreachable','один из шести классов или unreachable','Trajektorienklasse']},
+    {name:'lyapunov', unit:'1/tau', doc:['Benettin estimate over the DOUBLED window, driven by the exact Jacobian of the flow. null for any run that is not bounded, because on a de Sitter escape the tangent grows with the inflating background and not with any sensitivity',
+      'оценка Бенеттина на удвоенном окне; null для несвязанных прогонов','Benettin-Schätzer']},
+    {name:'lyapunov_doubling_ratio', unit:'dimensionless', doc:['lambda(2T)/lambda(T). A regular orbit decays like ln(tau)/tau so this tends to 0.5 + ln2/(2 ln T); a chaotic one plateaus and it tends to 1. This ratio, not a threshold on lambda, is what decides the chaotic class',
+      'λ(2T)/λ(T) — именно это отношение, а не порог на λ, решает вопрос о хаосе','λ(2T)/λ(T)']},
+    {name:'lyapunov_expected_if_regular', unit:'dimensionless', doc:['what the ratio would be for a regular orbit at this window, so the measurement can be read against its own null hypothesis',
+      'чему равнялось бы отношение для регулярной орбиты','Nullhypothese']},
+    {name:'lyapunov_verdict', unit:'—', doc:['plateau, decaying, or not measured — in words','вердикт словами','Urteil']},
+    {name:'constraint_residual', unit:'relative', doc:['|H_tau| normalised by the CURRENT scale of its own terms, not the initial one','остаток связи, нормированный текущим масштабом','Zwangsrest']},
+    {name:'bounces', unit:'count', doc:['curvature-wall reflections counted during the run','число отражений от стенок кривизны','Wandreflexionen']},
+    {name:'stop', unit:'—', doc:['why integration ended: window, collapse, overflow or de Sitter escape','причина остановки','Abbruchgrund']},
+    {name:'steps', unit:'count', doc:['adaptive Dormand-Prince 5(4) steps taken','число адаптивных шагов','Schritte']},
+    {name:'seed_rescaled', unit:'factor', doc:['1 unless the requested momenta were off the constraint surface and had to be scaled onto it — reported rather than applied silently','1, если начальные импульсы уже лежали на поверхности связи','Reskalierung']}],
+  limits:[
+    ['The classification is a MEASUREMENT of one integrated trajectory over a finite window, not a theorem. A run labelled quasiperiodic over tau <= 5 may be chaotic over tau <= 500, and the window is an input for that reason.',
+     'Классификация — ИЗМЕРЕНИЕ одной траектории на конечном окне, а не теорема.',
+     'Die Klassifikation ist eine Messung, kein Theorem.'],
+    ['Initial data are PROJECTED onto the constraint surface before the first step. If the requested momenta were off it, seed_rescaled reports the factor rather than the run pretending they were on it.',
+     'Начальные данные проецируются на поверхность связи; коэффициент сообщается.',
+     'Anfangsdaten werden projiziert.'],
+    ['NO-GO, verified: vacuum Bianchi IX with a cosmological term has no equilibrium at all, so "stationary" can only arise from the isotropic locus and never from a genuine fixed point of the full flow.',
+     'NO-GO: у вакуумной Бианки IX с Λ равновесия нет вовсе.',
+     'NO-GO: kein Gleichgewicht.'],
+    ['The Lyapunov exponent is a finite-time Benettin estimate and a diagnostic of the run, not the asymptotic exponent of the system. It is reported only for bounded runs: on an escape the tangent grows with the inflating background, and two perfectly regular escapes measured lambda = 16 and 39.',
+     'Показатель Ляпунова — конечновременная оценка и диагностика прогона; сообщается только для связанных прогонов.',
+     'Endzeit-Schätzer, nur für beschränkte Läufe.'],
+    ['MEASURED, and stated because it bounds what this instrument can find: on the four bounded seeds tested the doubling ratio came out 0.544, 0.551, 0.571 and 0.578 — a tight cluster just above the pure-1/tau value of 0.5, and nowhere near the plateau at 1. Every reachable bounded orbit is REGULAR. The chaotic class is reachable and has not been reached. That is a statement about a finite volume-time window, not about Bianchi IX: Mixmaster chaos is asymptotic to the singularity as alpha goes to minus infinity, and a finite window is the wrong instrument for it.',
+     'ИЗМЕРЕНО: на четырёх связанных начальных данных отношение удвоения дало 0.544, 0.551, 0.571 и 0.578 — плотная группа чуть выше значения 0.5 для чистого спада 1/τ. Все достижимые связанные орбиты регулярны. Класс "хаотический" достижим и пока не достигнут; это утверждение о конечном окне, а не о Бианки IX.',
+     'GEMESSEN: alle erreichbaren beschränkten Bahnen sind regulär.']],
+  evaluate(i){
+    const ic=bixSeed(i.alpha,i.beta_plus,i.beta_minus,i.p_plus,i.p_minus,i.Lambda,i.branch);
+    if(!ic) return {class:'unreachable', lyapunov:null, lyapunov_doubling_ratio:null,
+      lyapunov_expected_if_regular:null, lyapunov_verdict:'not measured — these data are not on the constraint surface',
+      constraint_residual:null, bounces:null,
+      stop:'no real root of the constraint for these data', steps:0, seed_rescaled:null};
+    const r=bixIntegrate(ic,i.Lambda,{tauMax:i.tauMax});
+    const ly=bixLyapunov(ic,i.Lambda,{tauMax:i.tauMax});
+    return {class:bixClassify(r,ly), lyapunov:ly.lambda, lyapunov_doubling_ratio:ly.ratio,
+      lyapunov_expected_if_regular:ly.expectedIfRegular??null, lyapunov_verdict:ly.verdict,
+      constraint_residual:r.resid, bounces:r.bounces, stop:r.stop, steps:r.steps,
+      seed_rescaled:ic.scale};
+  }
+});
+
+hccApiRegister({
+  id:'smith', world:'s3', lab:'imp',
+  title:['Smith–Möbius unrolling — one SU(2) rotation of the Riemann sphere',
+         'Развёртка Смита–Мёбиуса — один поворот SU(2) сферы Римана',
+         'Smith–Möbius-Entrollung'],
+  status:'THEOREM (the map is a rigid rotation; both routes agree identically) + VERIFIED to the chordal metric on CP^1',
+  verifiers:['docs/verify-smith-mobius-unrolling.cjs (14/14)',
+             'docs/verify-hopf-splitting.cjs (7/7)'],
+  formulas:['M(theta) = [[cos(theta/2), -sin(theta/2)], [sin(theta/2), cos(theta/2)]] in SU(2)',
+            'w_theta(z) = (cos(theta/2)*z - sin(theta/2)) / (sin(theta/2)*z + cos(theta/2))',
+            'S(z) = (2*Re z, 2*Im z, |z|^2 - 1)/(1 + |z|^2)      (Riemann sphere)',
+            'sphere route: S(z) -> R_y(theta) -> w = (X + iY)/(1 - Z)',
+            'the two routes agree identically — the map is a RIGID ROTATION, not a morph',
+            'chordal distance d(a,b) = 2|a-b| / sqrt((1+|a|^2)(1+|b|^2))'],
+  inputs:[
+    {name:'z_re', type:'number', unit:'dimensionless', default:0.5, min:-1e6, max:1e6,
+     doc:['real part of the normalised impedance z = Z/Z0','вещественная часть нормированного импеданса','Realteil']},
+    {name:'z_im', type:'number', unit:'dimensionless', default:0.6, min:-1e6, max:1e6,
+     doc:['imaginary part of the normalised impedance','мнимая часть нормированного импеданса','Imaginärteil']},
+    {name:'theta', type:'number', unit:'rad', default:()=>Math.PI/2, min:-6.283185307179586, max:6.283185307179586,
+     doc:['the rotation angle of the Riemann sphere about the y axis; theta = pi/2 is the resting position the animation stops at',
+          'угол поворота сферы Римана вокруг оси y; θ = π/2 — положение покоя',
+          'Drehwinkel']}],
+  outputs:[
+    {name:'w_re', unit:'dimensionless', doc:['real part of the transformed point','вещественная часть образа','Realteil des Bildes']},
+    {name:'w_im', unit:'dimensionless', doc:['imaginary part of the transformed point','мнимая часть образа','Imaginärteil des Bildes']},
+    {name:'route_agreement', unit:'chordal distance on CP^1', doc:['how far the Möbius route and the sphere route disagree. Measured in the CHORDAL metric, because the plane metric |w_A - w_B| blows up near the pole where |w| ~ 2e4 and would report a perfect agreement as a catastrophe',
+      'расхождение двух маршрутов в хордовой метрике на CP¹','Abweichung der beiden Wege']},
+    {name:'unitarity', unit:'max |M†M - I|', doc:['how far M(theta) is from unitary','отклонение M(θ) от унитарности','Unitaritätsfehler']},
+    {name:'determinant_residual', unit:'|det M - 1|', doc:['how far det M(theta) is from 1. It is the RESIDUAL, not the determinant — smithInvariants returns |det - 1| and labelling that as the determinant would have printed 0 where the answer is 1',
+      'отклонение det M(θ) от 1 — это остаток, а не сам определитель','Abweichung von 1']},
+    {name:'on_sphere', unit:'max ||S| - 1|', doc:['how far the lifted points stray from the unit sphere','отклонение поднятых точек от единичной сферы','Kugelabweichung']}],
+  limits:[
+    ['Agreement between the two routes is measured in the chordal metric on CP^1, not in the plane. Near the pole |w| reaches 2e4 and a plane-metric residual reports a 1e-16 disagreement as enormous — the first version of the verifier did exactly that.',
+     'Согласие маршрутов измеряется в хордовой метрике на CP¹, а не на плоскости.',
+     'Chordale Metrik, nicht die Ebene.'],
+    ['z at the pole of the map (sin(theta/2)*z + cos(theta/2) = 0) sends w to infinity on CP^1. That point is a legitimate value of the map and is returned as a non-finite pair rather than clamped.',
+     'Полюс отображения отправляет w в бесконечность на CP¹; это допустимое значение, а не ошибка.',
+     'Der Pol ist ein legitimer Wert.']],
+  evaluate(i){
+    const w=impWtheta(i.z_re,i.z_im,i.theta), inv=smithInvariants(i.theta);
+    return {w_re:w?w[0]:Infinity, w_im:w?w[1]:Infinity,
+      route_agreement:inv.route, unitarity:inv.uni, determinant_residual:inv.det, on_sphere:inv.sph};
+  }
+});
+}catch(e){}
+
 try{
   window.HCC_API={
     schema:'hcc.api/1',
