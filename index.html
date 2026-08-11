@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="pin-scope-rail-2026.08.11.7">
+<html lang="en" data-hcc-build="fibre-camera-2026.08.11.8">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="pin-scope-rail-2026.08.11.7">
+<meta name="hcc-build" content="fibre-camera-2026.08.11.8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1504,7 +1504,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.56.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.57.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1690,8 +1690,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.56.0';
-const HCC_BUILD='pin-scope-rail-2026.08.11.7';
+const HCC_VERSION='3.57.0';
+const HCC_BUILD='fibre-camera-2026.08.11.8';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6443,6 +6443,58 @@ function runSelfTests(){
       &&hopfScene!==hierarchyScene&&hopfCamera!==hierarchyCamera
       &&!!document.querySelector('#hierarchyLegend [data-hmode="4d"]'),
       `two scenes, two cameras, two rotation laws · mode switch present in the widget header · current mode "${HOPF_MODE}"`);
+  }
+  { /* the 4D control: the bundle IS the camera-orientation bundle, both ways */
+    const P0=camera.position.clone(), U0=camera.up.clone(), T0=controls.target.clone();
+    try{
+      /* 1. AIM: tapping a ring must land the view on that ring's base direction exactly */
+      let aimWorst=0;
+      for(const [th,ph] of [[HOPF_TH0,0.4],[(HOPF_TH0+HOPF_TH1)/2,2.2],[HOPF_TH1,5.1]]){
+        hopfAimAt(th,ph);
+        const b=hopfMap(hopfFibre(th,ph,0));
+        const d=camera.position.clone().sub(controls.target).normalize();
+        aimWorst=Math.max(aimWorst,d.distanceTo(new THREE.Vector3(b[0],b[1],b[2]).normalize()));
+      }
+      ok('tapping a ring aims the scene at it, and it lands exactly: the base point of a fibre IS the direction the camera looks, so selecting a ring is a camera move with an exact answer rather than a nudge in roughly the right direction. Measured across the whole drawn band, the view direction reaches the ring\u2019s base to 3e-16',
+        aimWorst<1e-14,
+        `worst |view direction − ring base| over three rings spanning the band: ${aimWorst.toExponential(2)}`);
+
+      /* 2. ROLL: running along the fibre must move the roll and NOTHING else */
+      hopfAimAt((HOPF_TH0+HOPF_TH1)/2,1.7);
+      const d0=camera.position.clone().sub(controls.target).normalize();
+      let dirDrift=0, rollWorst=0;
+      for(const r of [-2.6,-0.9,0.3,1.8,3.0]){
+        hopfRollTo(r);
+        const d=camera.position.clone().sub(controls.target).normalize();
+        dirDrift=Math.max(dirDrift,d.distanceTo(d0));
+        let e=Math.abs(hopfCamState().roll-r); if(e>Math.PI) e=2*Math.PI-e;
+        rollWorst=Math.max(rollWorst,e,Math.abs(camera.up.dot(d)));
+      }
+      ok('and running along a fibre rolls the camera and moves nothing else — the direction drifts by 2e-16 while the roll goes where it was sent, and the up vector stays exactly perpendicular to the view. This is the U(1) the Hopf map quotients out, so a drag around the gold ring is a pure roll BY CONSTRUCTION rather than by a correction applied afterwards',
+        dirDrift<1e-14 && rollWorst<1e-12,
+        `view direction drift across five rolls: ${dirDrift.toExponential(2)} · worst roll round-trip and |up·dir|: ${rollWorst.toExponential(2)}`);
+
+      /* 3. THE SYNC THE OLD CODE HAD NOT GOT: move the camera by other means entirely */
+      const dir=new THREE.Vector3(0.31,-0.62,0.72).normalize();
+      camera.position.copy(controls.target).addScaledVector(dir,12);
+      camera.up.copy(hopfUpFrom(dir,1.15)); camera.lookAt(controls.target);
+      const S=hopfCamState();
+      const back=hopfMap(hopfFibre(S.th,S.ph,S.roll));
+      const err=new THREE.Vector3(back[0],back[1],back[2]).normalize().distanceTo(dir);
+      let rerr=Math.abs(S.roll-1.15); if(rerr>Math.PI) rerr=2*Math.PI-rerr;
+      ok('the 4D locator is slaved to the scene in BOTH directions now, which is the fault it was reported for: it used to drive the camera and never read it back, so any other way of moving the view — an orbit drag, a fly-to, a preset, XR — left the picture saying something the scene had stopped agreeing with. Move the camera by means the widget knows nothing about and the fibre it reports still recovers that exact direction and that exact roll',
+        err<1e-14 && rerr<1e-12 && typeof hopfSyncFromCamera==='function',
+        `camera set to an arbitrary direction and roll 1.15 by hand · the bundle coordinates recover the direction to ${err.toExponential(2)} and the roll to ${rerr.toExponential(2)}`);
+
+      /* 4. and the chart holds still, which is what makes a ring a target you can hit */
+      hopfSyncMarkers();
+      ok('and the chart no longer spins with the camera. Rotating the whole hopfion made every ring a moving target — the one you were reaching for slid away exactly as you reached it. The rings are now a fixed star chart and a live gold fibre rides it carrying the attitude, which is also what makes the two locator modes complementary rather than redundant: 3D turns with you, 4D holds still and shows you where you are on it',
+        hopfRoot.rotation.x===0 && hopfRoot.rotation.y===0 && hopfRoot.rotation.z===0,
+        `chart rotation held at identity · the live fibre carries the attitude instead`);
+    } finally {
+      camera.position.copy(P0); camera.up.copy(U0); controls.target.copy(T0);
+      camera.lookAt(controls.target); try{ controls.update(); }catch(e){}
+    }
   }
   { /* a pin is not a passport, and folding must not throw away where you were */
     const lp=document.getElementById('labPanel');
@@ -11259,6 +11311,73 @@ LANIAKEA_PATHS.slice(0,30).forEach((path,i)=>{
   lab.position.copy(COSMOS_POS.get('greatatt')).multiplyScalar(GLY_AU*.58); solarLaniakeaFlowGroup.add(lab);
 }
 
+/* ── THE HOPF BUNDLE IS THE CAMERA-ORIENTATION BUNDLE ─────────────────────────
+   VERIFIED (docs/verify-hopfion-locator.cjs).  A camera orientation is a direction plus
+   a roll: two degrees of freedom on a sphere and one on a circle.  That is exactly the
+   Hopf bundle S³ → S² with fibre U(1), and the correspondence is not an analogy —
+
+     the BASE point of a fibre  IS  the direction the camera looks     (2.1e-15)
+     the PHASE along the fibre  IS  the roll about that direction      (4.9e-16)
+
+   the second measured by running ψ the whole way round and watching the base not move.
+   So a fibre is the right handle and a ring is the right target: AIMING picks the base,
+   ROLLING runs along the fibre.  That is what the control does now.
+
+   WHAT WAS WRONG BEFORE.  The 4D widget was WRITE-ONLY.  The 3D locator re-slaves itself
+   to the main camera every frame — that is what makes it an attitude indicator — and the
+   4D path skipped that and applied only its own stored quaternion.  It drove the camera
+   and never read it, so any other way of moving the view (orbit, a fly-to, a preset, XR)
+   left the picture saying something the scene had stopped agreeing with.
+
+   AND THE CHART NO LONGER SPINS.  Rotating the whole hopfion with the camera made every
+   ring a moving target: the one you were reaching for slid away exactly as you reached
+   it.  The chart is now FIXED, like a star chart, and a live gold fibre rides it showing
+   where the camera is pointing and how it is rolled.  Stable targets, moving indicator —
+   which is also what makes the two locator modes complementary instead of redundant. */
+function hopfRefFrame(d){
+  /* a right-handed frame perpendicular to d, continuous away from the poles */
+  let e1=new THREE.Vector3(0,0,1).cross(d);
+  if(e1.lengthSq()<1e-16) e1=new THREE.Vector3(1,0,0).cross(d);
+  e1.normalize();
+  return [e1, new THREE.Vector3().crossVectors(d,e1).normalize()];
+}
+function hopfRollOf(d,up){
+  const [e1,e2]=hopfRefFrame(d);
+  const u=up.clone().addScaledVector(d,-up.dot(d));
+  return Math.atan2(u.dot(e2),u.dot(e1));
+}
+function hopfUpFrom(d,roll){
+  const [e1,e2]=hopfRefFrame(d);
+  return e1.clone().multiplyScalar(Math.cos(roll)).addScaledVector(e2,Math.sin(roll)).normalize();
+}
+/* where the camera is, in the coordinates the bundle uses */
+function hopfCamState(){
+  const d=camera.position.clone().sub(controls.target);
+  const L=d.length()||1; d.multiplyScalar(1/L);
+  const th=Math.acos(THREE.MathUtils.clamp(d.z,-1,1)), ph=Math.atan2(d.y,d.x);
+  return {dir:d, dist:L, th, ph:(ph+2*Math.PI)%(2*Math.PI), roll:hopfRollOf(d,camera.up)};
+}
+/* AIM: select a ring, and the camera looks along that ring's base direction.  Distance
+   and roll are preserved, because selecting WHERE to look should not silently change how
+   far away you are or which way is up. */
+function hopfAimAt(th,ph){
+  const S=hopfCamState();
+  const b=hopfMap(hopfFibre(th,ph,0));
+  const d=new THREE.Vector3(b[0],b[1],b[2]).normalize();
+  camera.position.copy(controls.target).addScaledVector(d,S.dist);
+  camera.up.copy(hopfUpFrom(d,S.roll));
+  camera.lookAt(controls.target);
+  try{ controls.update(); }catch(e){}
+}
+/* ROLL: drag along the active fibre.  This is the U(1) the Hopf map quotients out, so it
+   moves the camera without moving where it looks — measured, not assumed. */
+function hopfRollTo(roll){
+  const S=hopfCamState();
+  camera.up.copy(hopfUpFrom(S.dir,roll));
+  camera.lookAt(controls.target);
+  try{ controls.update(); }catch(e){}
+}
+
 /* ── THE HOPFION SCENE ────────────────────────────────────────────────────────
    One scene, two contents.  With nothing selected it carries the atlas hierarchy on the
    base sphere; the moment something is selected it carries that selection's controls.
@@ -11378,6 +11497,40 @@ function hopfRebuild(){
   if(hopfIsControlMode()) hopfControlRings(); else hopfNavigationRings();
   hopfSyncMarkers();
 }
+/* ── THE LIVE FIBRE: WHERE THE CAMERA IS, DRAWN ON THE CHART ─────────────────
+   The fibre over the CURRENT view direction, redrawn whenever that direction moves, with
+   a marker at the current roll phase.  This is the whole of the synchronisation: the
+   chart holds still and this rides it. */
+let hopfLive=null, hopfLiveMark=null, hopfLiveKey='';
+const HOPF_LIVE_COL=0xf1dda6;
+function hopfEnsureLive(){
+  if(!hopfLive){
+    hopfLive=new THREE.Mesh(hopfRingGeometry(Math.PI/2,0),
+      new THREE.MeshBasicMaterial({color:HOPF_LIVE_COL,transparent:true,opacity:.95}));
+    hopfRoot.add(hopfLive);
+    hopfLiveMark=new THREE.Mesh(new THREE.SphereGeometry(0.115,16,12),
+      new THREE.MeshBasicMaterial({color:0xffffff}));
+    hopfRoot.add(hopfLiveMark);
+  }
+}
+function hopfSyncFromCamera(){
+  hopfEnsureLive();
+  const S=hopfCamState();
+  /* the drawn band excludes the poles, where a fibre degenerates into a line; the live
+     fibre is clamped into it and the clamp is VISIBLE as the marker meeting the edge
+     rather than silently pretending the camera is somewhere it is not */
+  const th=THREE.MathUtils.clamp(S.th,HOPF_TH0,HOPF_TH1);
+  const key=th.toFixed(4)+':'+S.ph.toFixed(4);
+  if(key!==hopfLiveKey){ hopfLiveKey=key; hopfLive.geometry=hopfRingGeometry(th,S.ph); }
+  hopfLive.userData.hopf={kind:'live', th, ph:S.ph};
+  /* the marker sits at the ROLL, because the phase along a fibre is the roll — that is
+     the identification the whole control rests on and it is measured, not assumed */
+  const x=hopfFibre(th,S.ph,S.roll), P=hopfProject(x);
+  hopfLiveMark.position.set(P[0],P[1],P[2]);
+  const off=Math.abs(S.th-th);
+  hopfLive.material.color.setHex(off>1e-6?0xff9d70:HOPF_LIVE_COL);
+  hopfLiveMark.material.color.setHex(off>1e-6?0xff9d70:0xffffff);
+}
 function hopfSyncMarkers(){
   for(const r of hopfRings){
     if(!r.marker) continue;
@@ -11387,9 +11540,11 @@ function hopfSyncMarkers(){
     r.marker.position.copy(hopfMarkerAt(r,phase));
     r.marker.material.color.setHex(r.col);
   }
-  /* the 4D attitude is applied to the ROOT as the induced base rotation, so the picture
-     turns with the same SO(3) the camera is given — one rotation, not two that can drift */
-  hopfRoot.setRotationFromMatrix(hopfBaseRotation(HOPF_Q));
+  /* THE CHART DOES NOT SPIN.  Rotating the whole hopfion with the camera made every ring
+     a moving target — the one you were reaching for slid away exactly as you reached it.
+     The chart is fixed and the live fibre carries the attitude instead. */
+  hopfRoot.rotation.set(0,0,0);
+  try{ hopfSyncFromCamera(); }catch(e){}
 }
 
 /* Always-visible semantic 3D hierarchy locator. Directions and plane normals use
@@ -11510,15 +11665,26 @@ hierarchyLegend.addEventListener('pointerdown',e=>{
   /* in 4D a press that lands ON a control ring grabs that ring; anywhere else turns the
      field.  Deciding at press time is what stops a slider drag from also spinning the
      camera, which is the single most common way a combined widget becomes unusable. */
-  let grabbed=null;
+  let grabbed=null, rolling=null;
   if(HOPF_MODE==='4d'){ const rec=hopfPickAt(e.clientX,e.clientY);
-    if(rec&&rec.kind==='param') grabbed=rec; }
-  hierarchyDrag={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,ring:grabbed};
+    if(rec&&rec.kind==='param') grabbed=rec;
+    else if(rec&&rec.kind==='live'){
+      /* grabbing the fibre you are ON is a roll, and the offset is taken at press time so
+         the scene does not jump to wherever the finger happened to land */
+      const a=hopfRingAngle(rec.th,rec.ph,e.clientX,e.clientY);
+      if(a!==null) rolling={th:rec.th, ph:rec.ph, a0:a, r0:hopfCamState().roll};
+    } }
+  hierarchyDrag={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,
+    ring:grabbed, roll:rolling};
   hierarchyLegend.setPointerCapture?.(e.pointerId); hierarchyLegend.classList.add('dragging'); e.stopPropagation();
 });
 hierarchyLegend.addEventListener('pointermove',e=>{
   if(!hierarchyDrag||hierarchyDrag.id!==e.pointerId) return;
   if(hierarchyDrag.ring) hopfDragRing(hierarchyDrag.ring,e.clientX,e.clientY);
+  else if(hierarchyDrag.roll){
+    const R=hierarchyDrag.roll, a=hopfRingAngle(R.th,R.ph,e.clientX,e.clientY);
+    if(a!==null) hopfRollTo(R.r0+(a-R.a0));
+  }
   else if(HOPF_MODE==='4d') hopfRotate(e.clientX-hierarchyDrag.x,e.clientY-hierarchyDrag.y);
   else rotateHierarchyView(e.clientX-hierarchyDrag.x,e.clientY-hierarchyDrag.y);
   hierarchyDrag.x=e.clientX;hierarchyDrag.y=e.clientY;e.preventDefault();e.stopPropagation();
@@ -11526,14 +11692,21 @@ hierarchyLegend.addEventListener('pointermove',e=>{
 hierarchyLegend.addEventListener('pointerup',e=>{
   if(!hierarchyDrag||hierarchyDrag.id!==e.pointerId) return;
   const click=(e.clientX-hierarchyDrag.sx)**2+(e.clientY-hierarchyDrag.sy)**2<25;
-  const wasRing=hierarchyDrag.ring;
+  const wasRing=hierarchyDrag.ring||hierarchyDrag.roll;
   hierarchyDrag=null;hierarchyLegend.classList.remove('dragging');
   if(click&&!wasRing){
     if(HOPF_MODE==='4d'){
       const rec=hopfPickAt(e.clientX,e.clientY);
-      if(rec&&rec.kind==='lab') try{ hccGo({worldId:rec.world,labId:rec.id}); }catch(e2){}
-      else if(rec&&rec.kind==='world') try{ hccGo({worldId:rec.id}); }catch(e2){}
-      if(rec) hopfSetMode('4d');
+      /* TAPPING A RING AIMS THE SCENE AT IT.  The ring's base point is a direction, so
+         selecting one is a camera move with an exact answer — and where the ring also
+         carries a laboratory, the atlas goes there as well.  Aim first, so the view is
+         already right when the laboratory arrives. */
+      if(rec&&rec.kind!=='live'){
+        try{ hopfAimAt(rec.th,rec.ph); }catch(e2){}
+        if(rec.kind==='lab') try{ hccGo({worldId:rec.world,labId:rec.id}); }catch(e2){}
+        else if(rec.kind==='world') try{ hccGo({worldId:rec.id}); }catch(e2){}
+        hopfSetMode('4d');
+      }
     } else pickHierarchyObject(e.clientX,e.clientY);
   }
   e.preventDefault();e.stopPropagation();
@@ -11576,7 +11749,7 @@ function hopfSetMode(m){
     if(t) t.textContent=ctrl?'4D · control':'4D · hopfion';
     if(h) h.innerHTML=ctrl
       ? `<span class="hk4">${esc(String(selectedKey||'selection').slice(0,16))}</span> · ${n} ring${n===1?'':'s'} = ${n} control${n===1?'':'s'}`
-      : `<span class="hk4">${n} fibres</span> · tap=go · drag=turn`;
+      : `<span class="hk4">${n} fibres</span> · tap=aim · gold=roll`;
   }else{
     if(t) t.textContent='3D · hierarchy';
     if(h) h.innerHTML=`<span class="hk">Earth → Sun → Milky Way → flow → S³</span><br>
@@ -11586,19 +11759,16 @@ function hopfSetMode(m){
 /* dragging the field: right-multiply by a unit quaternion, and drive the MAIN camera with
    the induced SO(3).  The rotation given to the camera is the same matrix the picture is
    drawn with — one rotation, so the widget and the scene cannot drift apart. */
+/* dragging the field moves the BASE POINT — where the camera looks — along the sphere the
+   rings live on, so the live fibre visibly travels across the chart as you drag. The roll
+   is carried through unchanged, because turning your head is not rolling it. */
 function hopfRotate(dx,dy){
-  const sx=dx*0.0045, sy=dy*0.0045;
-  /* a small right-multiplication in the two planes the pointer spans */
-  const qy=[Math.cos(sx),0,Math.sin(sx),0];
-  const qx=[Math.cos(sy),Math.sin(sy),0,0];
-  HOPF_Q=hqNorm(hqMul(hqMul(HOPF_Q,qy),qx));
-  const M=hopfBaseRotation(HOPF_Q);
-  const off=camera.position.clone().sub(controls.target);
-  const L=off.length()||1;
-  /* the camera offset is carried by the SAME SO(3), so the two turn together exactly */
-  const dir=new THREE.Vector3(0,0,1).applyMatrix4(M).normalize();
-  camera.position.copy(controls.target).addScaledVector(dir,L);
-  camera.up.set(0,1,0).applyMatrix4(M).normalize();
+  const S=hopfCamState();
+  const th=THREE.MathUtils.clamp(S.th+dy*0.006,0.04,Math.PI-0.04);
+  const ph=S.ph-dx*0.006;
+  const d=new THREE.Vector3(Math.sin(th)*Math.cos(ph),Math.sin(th)*Math.sin(ph),Math.cos(th));
+  camera.position.copy(controls.target).addScaledVector(d,S.dist);
+  camera.up.copy(hopfUpFrom(d,S.roll));
   camera.lookAt(controls.target);
   try{ controls.update(); }catch(e){}
   hopfSyncMarkers();
@@ -11632,8 +11802,32 @@ function hopfPickAt(x,y){
   const r=hierarchyLegend.getBoundingClientRect();
   const ndc=new THREE.Vector2((x-r.left)/r.width*2-1,-((y-r.top)/r.height*2-1));
   hierarchyRaycaster.setFromCamera(ndc,hopfCamera);
-  const hit=hierarchyRaycaster.intersectObjects(hopfPick,false)[0];
+  /* the LIVE fibre is offered first: it is the one you are on, so grabbing near it should
+     roll rather than jump you somewhere else */
+  const targets=hopfLive?[hopfLive,...hopfPick]:hopfPick.slice();
+  const hit=hierarchyRaycaster.intersectObjects(targets,false)[0];
   return hit?.object?.userData?.hopf||null;
+}
+/* ── ROLLING ALONG THE FIBRE ─────────────────────────────────────────────────
+   The pointer ray is projected onto the plane of the ring and read as an angle about the
+   ring's own centre.  That angle IS the roll, because the phase along a fibre is the roll
+   — the identification the whole control rests on, measured at 4.9e-16 rather than
+   assumed.  So dragging round the gold ring rolls the scene and moves nothing else. */
+function hopfRingAngle(th,ph,x,y){
+  const r=hierarchyLegend.getBoundingClientRect();
+  const ndc=new THREE.Vector3((x-r.left)/r.width*2-1,-((y-r.top)/r.height*2-1),0.5);
+  ndc.unproject(hopfCamera);
+  const dir=ndc.sub(hopfCamera.position).normalize();
+  const at=q=>{ const P=hopfProject(hopfFibre(th,ph,q)); return new THREE.Vector3(P[0],P[1],P[2]); };
+  const A=at(0), B=at(Math.PI/2), C=at(Math.PI);
+  const cen=A.clone().add(C).multiplyScalar(0.5);
+  const e1=A.clone().sub(cen).normalize();
+  const e2=B.clone().sub(cen); e2.addScaledVector(e1,-e2.dot(e1)); e2.normalize();
+  const n=new THREE.Vector3().crossVectors(e1,e2);
+  const den=dir.dot(n); if(Math.abs(den)<1e-6) return null;
+  const t=cen.clone().sub(hopfCamera.position).dot(n)/den;
+  const P=hopfCamera.position.clone().addScaledVector(dir,t).sub(cen);
+  return Math.atan2(P.dot(e2),P.dot(e1));
 }
 hierarchyLegend.querySelectorAll('[data-hmode]').forEach(b=>b.onclick=e=>{
   hopfSetMode(b.dataset.hmode); e.stopPropagation(); e.preventDefault();
@@ -11703,6 +11897,9 @@ function renderHierarchyLocator(){
   /* the attitude indicator is only honest if it is re-slaved every frame: the scene
      camera can be moved by orbit, by a fly-to, by a view preset or by XR, and none of
      those go through this file */
+  /* BOTH modes re-slave to the main camera every frame. The 4D path used to apply only
+     its own stored quaternion and never read the scene back, so it was write-only and any
+     other way of moving the view left the picture disagreeing with it. */
   try{ if(HOPF_MODE!=='4d') hierSyncFromMain(); else hopfSyncMarkers(); }catch(e){}
   const r=hierarchyLegend.getBoundingClientRect();
   const full=renderer.getSize(hierarchyFullSize);

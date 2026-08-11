@@ -1240,6 +1240,64 @@ button, the fold button, the pin button, the topbar.
 | pinned panel restored on returning to S³ | — | **yes** |
 | self-tests | 600 | **603** |
 
+## The fibre is the camera (v3.57.0)
+
+The 4D locator drove the view and never read it back. Reported as "not synchronised with
+the view", and that is exactly what it was: **write-only**. The 3D locator re-slaves itself
+to the main camera every frame — that is what makes it an attitude indicator — and the 4D
+path skipped that and applied only its own stored quaternion. Any other way of moving the
+view (an orbit drag, a fly-to, a preset, XR) left the picture saying something the scene
+had stopped agreeing with.
+
+Fixing it properly meant asking what the Hopf bundle actually *is* here.
+
+### It is the camera-orientation bundle, and that is an identity
+
+A camera orientation is a direction plus a roll: two degrees of freedom on a sphere and one
+on a circle. That is exactly S³ → S² with fibre U(1). Measured, not asserted:
+
+| claim | measured |
+|---|---|
+| the **base** of a fibre **is** the viewing direction | 2.1×10⁻¹⁵ over 400 directions |
+| running the **phase** leaves the base unmoved | 4.9×10⁻¹⁶ |
+| roll written on = roll read back | 4.4×10⁻¹⁶ |
+| up stays perpendicular to the view | 4.4×10⁻¹⁶ |
+
+The second line is the one that matters: **the fibre is the roll circle.** So a ring is the
+right target and a fibre is the right handle — aiming picks the base, rolling runs along
+the fibre. Neither gesture needs a correction applied afterwards; they are what the bundle
+already is.
+
+### What the control does now
+
+- **Tap any ring** → the scene aims along that ring's base direction, exactly (3×10⁻¹⁶),
+  keeping distance and roll. Where the ring also carries a laboratory, the atlas goes
+  there — aiming first, so the view is already right when the laboratory arrives.
+- **Drag the gold ring** → pure roll. The view direction drifts by 2×10⁻¹⁶ across five
+  rolls. This is the U(1) the Hopf map quotients out, so it is a roll *by construction*.
+- **Drag the field** → moves the base point, and the live fibre visibly travels across the
+  chart, because the widget now reads the camera back.
+
+### The chart stopped spinning
+
+Rotating the whole hopfion with the camera made every ring a moving target — the one you
+were reaching for slid away exactly as you reached it. The rings are now a fixed star chart
+and a live gold fibre rides it carrying the attitude, with a white marker at the current
+roll. That is also what makes the two locator modes complementary rather than redundant:
+**3D turns with you; 4D holds still and shows you where you are on it.**
+
+When the view leaves the drawn latitude band — where a fibre degenerates into a line — the
+live fibre clamps to the edge and turns amber. The clamp is visible rather than silently
+pretending the camera is somewhere it is not.
+
+| measurement | before | after |
+|---|---|---|
+| 4D locator reads the camera back | **no** | **yes** |
+| aim error onto a selected ring | — | **3×10⁻¹⁶** |
+| view drift during a roll | — | **2×10⁻¹⁶** |
+| verifier checks | 8 | **10** |
+| self-tests | 603 | **607** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

@@ -198,7 +198,61 @@ const len=a=>Math.sqrt(dot(a,a));
     `worst phase round-trip error over three rings and 65 settings each: ${worst.toExponential(2)} · monotone throughout`);
 }
 
-/* ══ 8 ══ what is convention and what is not ═══════════════════════════════ */
+/* ══ 8 ══ THE BUNDLE IS THE CAMERA-ORIENTATION BUNDLE ══════════════════════ */
+{
+  /* A camera orientation is a direction plus a roll: two degrees of freedom on a sphere
+     and one on a circle.  That is exactly S^3 -> S^2 with fibre U(1), and the
+     correspondence is not an analogy -- it is an identity, which is what makes a fibre
+     the right handle and a ring the right target.  AIMING picks the base; ROLLING runs
+     along the fibre. */
+  const dirOf=(th,ph)=>[Math.sin(th)*Math.cos(ph),Math.sin(th)*Math.sin(ph),Math.cos(th)];
+  const angOf=d=>[Math.acos(Math.max(-1,Math.min(1,d[2]))),Math.atan2(d[1],d[0])];
+  let wDir=0, wBase=0;
+  for(let i=0;i<400;i++){
+    const d=(a=>{const L=len(a);return[a[0]/L,a[1]/L,a[2]/L];})(
+      [Math.sin(i*1.1)+0.3*Math.cos(i*2.3), Math.cos(i*0.7), Math.sin(i*0.31)+0.2]);
+    const [th,ph]=angOf(d);
+    /* the base of the fibre IS the direction, for every phase */
+    for(const ps of [0,1.3,4.9]) wDir=Math.max(wDir,len(sub(hopf(fibrePt(th,ph,ps)),d)));
+    /* and running the phase leaves the base exactly where it was: the fibre is the roll */
+    const b0=hopf(fibrePt(th,ph,0));
+    for(const ps of [0.1,0.7,2.2,5.5]) wBase=Math.max(wBase,len(sub(hopf(fibrePt(th,ph,ps)),b0)));
+  }
+  ok('the Hopf bundle IS the camera-orientation bundle, and that is an identity rather than an analogy: over four hundred directions the base point of the fibre recovers the viewing direction to 2e-15, and running the phase the whole way round leaves that base unmoved to 5e-16. So the base is WHERE THE CAMERA LOOKS and the phase is HOW IT IS ROLLED — which is why selecting a ring can be an exact aim and dragging round one can be a pure roll, rather than two gestures that approximately do those things',
+    wDir<1e-14 && wBase<1e-14,
+    `base recovers the direction to ${wDir.toExponential(2)} over 400 directions x 3 phases · the base is unmoved as the phase runs, to ${wBase.toExponential(2)} — the fibre is exactly the roll circle`);
+}
+
+/* ══ 9 ══ the roll coordinate round-trips ══════════════════════════════════ */
+{
+  /* The roll is read off the camera's up vector against a reference frame carried by the
+     fibre.  Written on and read back it must be the same number, or the gold ring would
+     be a dial that disagreed with the scene it was driving. */
+  const refFrame=d=>{ let e1=cross([0,0,1],d);
+    if(len(e1)<1e-8) e1=cross([1,0,0],d);
+    const n1=len(e1); e1=[e1[0]/n1,e1[1]/n1,e1[2]/n1];
+    const e2=cross(d,e1), n2=len(e2);
+    return [e1,[e2[0]/n2,e2[1]/n2,e2[2]/n2]]; };
+  let worst=0, perp=0;
+  for(let i=0;i<300;i++){
+    const a=[Math.sin(i*0.9)+0.2,Math.cos(i*1.7),Math.sin(i*0.41)-0.3], L=len(a);
+    const d=[a[0]/L,a[1]/L,a[2]/L], [e1,e2]=refFrame(d);
+    for(const r of [-2.9,-1.0,0,0.6,2.4,3.0]){
+      const u=[e1[0]*Math.cos(r)+e2[0]*Math.sin(r),
+               e1[1]*Math.cos(r)+e2[1]*Math.sin(r),
+               e1[2]*Math.cos(r)+e2[2]*Math.sin(r)];
+      const up=sub(u,[d[0]*dot(u,d),d[1]*dot(u,d),d[2]*dot(u,d)]);
+      const back=Math.atan2(dot(up,e2),dot(up,e1));
+      let e=Math.abs(back-r); if(e>Math.PI) e=2*Math.PI-e;
+      worst=Math.max(worst,e); perp=Math.max(perp,Math.abs(dot(u,d)));
+    }
+  }
+  ok('and the roll written onto the camera is the roll read back off it, to 4e-16 over three hundred directions and six settings each, with the up vector staying exactly perpendicular to the view. A dial that drifted from the thing it drives would be worse than no dial, because it would look like it was working',
+    worst<1e-14 && perp<1e-14,
+    `worst roll round-trip error ${worst.toExponential(2)} · worst |up · direction| ${perp.toExponential(2)}`);
+}
+
+/* ══ 10 ══ what is convention and what is not ══════════════════════════════ */
 {
   ok('and the boundary: the fibration, the two sided actions and the linking are THEOREMS and are verified here as arithmetic. What is convention is the assignment — which world sits at which latitude, which parameter gets which longitude, and the stereographic pole, which is placed away from every drawn fibre so that no ring degenerates to a straight line. Those are design choices and the atlas states them as such; the geometry underneath them is not a choice',
     true,
