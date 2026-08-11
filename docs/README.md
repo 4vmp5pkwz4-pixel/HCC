@@ -1107,6 +1107,78 @@ is a convention with a standard justification, not a derivation.
 | independent verifiers | 18 | **19** |
 | self-tests | 595 | **597** |
 
+## The hopfion locator: a second hierarchy, a second camera (v3.55.0)
+
+The 3D locator is an attitude indicator — it shows where the camera points and turning it
+turns the camera in its own spherical frame. This is the other one, in the same window,
+behind a switch, with a genuinely different geometry underneath rather than a second skin
+on the first.
+
+### Which side of the quaternion product does what — measured, not guessed
+
+h(z₁,z₂) = (2z₁z̄₂, |z₁|²−|z₂|²) sends S³ to S², and the fibre over
+(sin θ cos φ, sin θ sin φ, cos θ) is z₁ = cos(θ/2)e^{iψ}, z₂ = sin(θ/2)e^{i(ψ−φ)}. Writing
+x = z₁ + z₂ j as a quaternion:
+
+| action | effect on the base | measured |
+|---|---|---|
+| **left** by a unit *complex* number | none — moves along the fibre | 3×10⁻¹⁶ |
+| **right** by a unit *quaternion* | rigid SO(3) rotation | inner products preserved to 2×10⁻¹⁶ |
+| left by a general quaternion | **not an isometry** | rigidity error **1.8** |
+
+That last row is why this was established before a line was drawn. Building the widget on
+the wrong side would have produced something that dragged plausibly and skewed the scene —
+the class of error a screenshot cannot catch. The induced map is extracted as an explicit
+matrix and checked to be a *proper* rotation, orthonormal with determinant +1; a reflection
+would flip the scene's handedness and nothing in a picture would say so.
+
+### What the two modes do with it
+
+**Navigation.** Each atlas object gets its own fibre: worlds are latitudes, laboratories
+are longitudes within their world. The hierarchy is not drawn *on* the hopfion — it *is*
+the hopfion's base sphere. Every fibre is an exact planar circle (radius constant to
+2×10⁻¹⁵) linked exactly once with every other (Gauss integral 1.0000). Tapping a ring goes
+there.
+
+**Control.** The moment something is selected the same rings become that selection's
+controls: each parameter is a base point, its **value is the phase ψ** along that
+parameter's fibre. Dragging around a ring is a circular slider whose geometry is the
+fibration. The phase written on is the phase read back to 1×10⁻¹⁵, monotone the whole way
+round — a faithful dial, not a decorative circle. The parameters are read from the live
+Controls panel rather than a hand-kept list, so it stays correct in all 72 laboratories
+with no registry to fall out of date.
+
+**Camera.** Dragging right-multiplies by a unit quaternion and the induced SO(3) drives the
+main camera — the *same* matrix the picture is drawn with, so widget and scene cannot
+drift apart. Two camera controls that differ in kind: the 3D locator turns in the camera's
+spherical frame, the 4D locator turns through the Hopf map.
+
+### Three things found by drawing it
+
+**The rings left the frame.** The projected radius is cos(θ/2)·K/(1 − sin(θ/2)), which
+*diverges* as θ → π because the projection pole lies on that fibre. Spreading the worlds
+over the whole latitude range put the outer rings outside the widget entirely. Measured at
+K = 0.75 over the band θ ∈ [0.32π, 0.68π]: radii run 0.19 to 2.92 against a camera
+half-height of 3.24 — every ring inside the frame, sizes still distinguishable. The band is
+a stated convention; the divergence forcing it is not.
+
+**The family piled into one corner.** With every world ring at φ = 0 they all shared a
+meridian. Longitudes now advance by the golden angle.
+
+**The caption was winning an argument with its picture.** A three-line hint covered the
+half of the frame the rings are drawn in. In 4D it is one line.
+
+The mode switch also could not live inside the title element: that is absolutely positioned
+with only a left edge, so a flex row inside it has no width to distribute and the buttons
+ran straight through the title.
+
+| measurement | before | after |
+|---|---|---|
+| locator modes | 1 | **2** |
+| camera control laws | 1 | **2** |
+| independent verifiers | 19 | **20** |
+| self-tests | 597 | **600** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
