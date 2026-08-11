@@ -958,6 +958,84 @@ the time-dependent problem being solved.
 | independent verifiers | 16 | **17** (9 checks in the new one) |
 | self-tests | 589 | **592** |
 
+## Particle creation, and what expansion does not do (v3.53.0)
+
+The spectral operator ended by declaring what it does not claim: H(t) is instantaneous,
+the metric is time dependent, and nothing about particle creation follows without solving
+the time-dependent problem. This solves it — and the structure makes the answer a
+prediction rather than a fit.
+
+### The factorisation carries the whole argument
+
+α enters H only through an overall factor, so every eigenvalue factorises **exactly**:
+
+    λ_n(α, β) = e^{−2α} · μ_n(β)
+
+verified directly to 4×10⁻¹⁵ across five decades of scale factor, four anisotropies, four
+spin blocks and every level inside them. For a **conformally coupled massless** scalar the
+rescaling u = a·φ removes exactly one power of e^{−2α}, leaving
+
+    Ω_n²(τ) = e^{2α} λ_n = μ_n(β₊(τ), β₋(τ))
+
+with the scale factor gone **identically**. Ω depends on the anisotropy alone.
+
+### An isotropic universe creates exactly nothing
+
+Not "approximately nothing". Three runs at Λ = 0.5, 1 and 2, each escaping to de Sitter
+with α growing by **six e-folds**, all return
+
+    n = 0     |A|² − |B|² − 1 = 0     μ swing = 0
+
+at machine precision, with no seed rescaling. It is structural: β = 0 is a critical point
+of the curvature potential — dV(0,0) = (0,0) — so the isotropic locus is invariant, μ is
+constant, and the Bogoliubov source Ω′/2Ω vanishes identically.
+
+### Anisotropy is what pays
+
+Holding the expansion fixed and turning β₊ up:
+
+| β₊ | n | μ swing |
+|---|---|---|
+| 0.00 | **0** exactly | 0 |
+| 0.02 | 4.82×10⁻⁵ | 0.027 |
+| 0.05 | 2.49×10⁻⁴ | 0.059 |
+| 0.10 | 6.99×10⁻⁴ | 0.091 |
+| 0.20 | 1.24×10⁻³ | 0.101 |
+
+The control variable is the anisotropy and nothing else — no seed rescaling anywhere in
+the scan, so nothing was quietly moved onto the constraint surface.
+
+### The conserved quantity is measured, never imposed
+
+|A|² − |B|² = 1 is the Wronskian of the mode equation. It is never projected back, so its
+drift measures the integration honestly — and it tightens from 2.3×10⁻¹² to 9.1×10⁻¹⁵ as
+the tolerance tightens while n stabilises to six digits. A scheme that imposed the
+constraint would report a perfect Wronskian and hide whatever else was wrong.
+
+Ω′ comes from the chain rule, (dμ/dβ)·β′ with β′ = p_β exact from the Hamiltonian flow,
+rather than from differencing Ω along the integrator's own output.
+
+### A monotone law the atlas is not permitted to claim
+
+β₊ = 0.35 creates **less** than β₊ = 0.20 — 1.04×10⁻³ against 1.24×10⁻³ — because the
+larger anisotropy drives a faster escape and the mode spends less time being stirred. What
+the occupation tracks is the *swing* of μ along the orbit, not the anisotropy it started
+with. Kept as a check so the tempting monotone story cannot creep in later.
+
+**Not claimed:** this is not a statement that expansion never creates particles. It is a
+statement about a conformally coupled massless field, for which conformal flatness is
+exactly the condition for no creation, and an isotropic Bianchi IX is conformally flat. A
+massive or minimally coupled field keeps its α dependence in Ω and would be created by
+expansion alone. This isolates the anisotropic channel; it does not close the others. And
+n is the occupation of **one** mode in the adiabatic vacuum at τ = 0 — no sum over the
+(2j+1)² degeneracy or over j, both of which diverge without a regulator not supplied here.
+
+| measurement | before | after |
+|---|---|---|
+| laboratories reachable as instruments | 5 | **6** |
+| independent verifiers | 17 | **18** |
+| self-tests | 592 | **595** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
