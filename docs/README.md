@@ -768,9 +768,22 @@ it pinned the tab count at five and failed the moment a sixth tab was earned —
 measuring its own history. It now checks distinctness, the existence-and-scope gate, and
 that reachability is measured at runtime.
 
+And then it happened again. One commit later the version bump made the freshness sentinel
+appear — it shows only when the served build disagrees with the declared source — and
+`#freshBar` was written as `left:50%; transform:translateX(-50%)` in the same row, at
+z-index 80. It swallowed three tabs at 1440, four at 1280. Found by hit-testing, not by
+looking, and it is why the self-test no longer names the dock: it enumerates every tenant
+of the band (`#panelDock`, `#contextRail`, `#freshBar`, `#hccCrumb`) and asserts the strip
+is disjoint from all of them. Naming the last offender is a changelog; enumerating the row
+is the invariant.
+
+The sentinel is an alert, so it outranks the rest while it is up: the rail hides, the
+Inspector drops to icons, and the alert takes the freed band on the same measured terms.
+
 | measurement | before | after |
 |---|---|---|
 | Inspector tabs reachable on desktop | **0 / 6** | **6 / 6** at 1024–1680 px |
+| Inspector tabs reachable with the sentinel up | 0–3 / 6 | **6 / 6** |
 | Inspector ↔ dock rectangles | fully overlapping | disjoint |
 | scene visible with the panel open (iPhone portrait) | — | 70 % |
 | scene visible (iPhone landscape) | — | 76 % |

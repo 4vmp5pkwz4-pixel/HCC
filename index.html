@@ -1448,6 +1448,10 @@
     :root[data-rail="perf"] #ctxMode,:root[data-rail="perf"] #ctxSpace,
     :root[data-rail="perf"] #ctxScale{display:none}
     :root[data-rail="none"] #contextRail{display:none}
+    /* and the alert takes the band the rail just gave up, on the same measured terms */
+    #freshBar{left:calc(var(--insp-r,50%) + 10px);right:calc(var(--dock-w,0px) + 24px);
+      transform:none;margin:0 auto;width:max-content;
+      max-width:max(0px,calc(100vw - var(--insp-r,0px) - var(--dock-w,0px) - 44px))}
   }
 </style>
 </head>
@@ -6165,10 +6169,17 @@ function runSelfTests(){
       const e=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);
       return e===t||t.contains(e); });
     const inter=(a,b)=>a&&b&&a.width&&b.width&&a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
-    ok('Every Inspector tab can actually be pressed. MEASURED before the fix: the strip at right:14px / z-index 38 and the dock at right:14px / z-index 110 shared the same band, a hit test at the centre of all six tabs returned a dock button at 1024, 1280, 1440 and 1680 px, and the whole fourth level of Atlas → World → Laboratory → Inspector was dead while every logic test passed — because logic tests ask which tabs render and never ask whether a finger can reach one',
-      seen.length===reach.length
-      &&!inter(strip&&strip.getBoundingClientRect(),dock&&dock.getBoundingClientRect()),
-      `${reach.length}/${seen.length} tab centres hit their own tab · strip and dock rectangles ${inter(strip&&strip.getBoundingClientRect(),dock&&dock.getBoundingClientRect())?'INTERSECT':'are disjoint'}`);
+    /* and the band is checked against EVERY tenant of it, not against the one that bit
+       first.  The dock was found by hit-testing; the freshness sentinel was found the same
+       way one commit later, because it too was centred on the viewport in the same row.
+       Enumerating the row is the invariant; naming the last offender is a changelog. */
+    const sr=strip&&!strip.hidden?strip.getBoundingClientRect():null;
+    const band=['panelDock','contextRail','freshBar','hccCrumb']
+      .map(id=>[id,document.getElementById(id)]).filter(([,e])=>e&&!e.hidden);
+    const clash=band.filter(([,e])=>inter(sr,e.getBoundingClientRect())).map(([id])=>id);
+    ok('Every Inspector tab can actually be pressed, and the row it lives in is checked against every tenant of that row. MEASURED before the fix: the strip at right:14px / z-index 38 and the dock at right:14px / z-index 110 shared the same band, a hit test at the centre of all six tabs returned a dock button at 1024, 1280, 1440 and 1680 px, and the whole fourth level of Atlas → World → Laboratory → Inspector was dead while every logic test passed — because logic tests ask which tabs render and never ask whether a finger can reach one',
+      seen.length===reach.length&&clash.length===0,
+      `${reach.length}/${seen.length} tab centres hit their own tab · ${band.length} elements share the top band (${band.map(([id])=>id).join(', ')||'none'}) · overlapping the strip: ${clash.join(', ')||'none'}`);
     ok('The top row is over-subscribed by 360 px and is therefore budgeted rather than hoped over: the breadcrumb never yields, the Inspector drops its labels only when it would otherwise reach the dock, and the context rail — a passive readout whose first three cells are repeated verbatim in the bottom readout — yields first and in that order',
       typeof hccInspectorFit==='function'&&HCC_RAIL_FULL>HCC_RAIL_TRIM&&HCC_RAIL_TRIM>HCC_RAIL_PERF&&HCC_RAIL_PERF>0,
       `rail tiers full ${HCC_RAIL_FULL} > trim ${HCC_RAIL_TRIM} > perf ${HCC_RAIL_PERF} px · inspector natural ${HCC_INSP_NATURAL} px`);
@@ -20811,14 +20822,21 @@ function hccInspectorFit(){
     el.classList.remove('compact'); root.removeAttribute('data-rail'); return; }
   const cs=getComputedStyle(root), px=n=>parseFloat(cs.getPropertyValue(n))||0;
   const crumb=px('--crumb-r'), dock=px('--dock-w');
+  /* the freshness sentinel is an ALERT — it appears only when the served build disagrees
+     with the declared source — so while it is up it outranks the Inspector's labels and
+     the rail entirely.  It was written into the same centred band as everything else and
+     duly swallowed three tabs the first time a version bump made it appear; found by
+     hit-testing, not by looking. */
+  const alerting=!!document.getElementById('freshBar');
   if(!el.hidden){
     /* the Inspector's own fit, and only its own — making it depend on the rail as well
        made the layout non-monotone: the strip compacted at 1280 and not at 1440, so the
        labels came back as the window got smaller. */
-    el.classList.toggle('compact', crumb+10+HCC_INSP_NATURAL+10+dock+14>innerWidth);
+    el.classList.toggle('compact', alerting||crumb+10+HCC_INSP_NATURAL+10+dock+14>innerWidth);
   }
   const band=innerWidth-px('--insp-r')-dock-44;
-  root.setAttribute('data-rail', band>=HCC_RAIL_FULL?'full'
+  root.setAttribute('data-rail', alerting?'none'
+    : band>=HCC_RAIL_FULL?'full'
     : band>=HCC_RAIL_TRIM?'trim' : band>=HCC_RAIL_PERF?'perf' : 'none');
 }
 /* ── LABORATORY REPORTS, AND AN API THAT AN AI CAN DRIVE ─────────────────────
