@@ -651,6 +651,137 @@ measures, and restores: worst 1 − (locator)·(scene) = 0.0 over all three.
 | resting θ | animated | **exactly π/2** |
 | self-tests | 564 | **567** |
 
+## The Capacity Selector laboratory (v3.50.0)
+
+The capacity closure gave the atlas a number: Λ★ = 3π/(ℓ_P²q★) with q★ = 3.30725e122,
+0.90 σ from the Planck 2018 late-time value. A number on a page is not a laboratory, so
+this release turns it into one.
+
+### The selector is drawn exactly, on the window the function chooses
+
+q is 10¹²², so Γ(q) = q[ln(q/q★) − 1] − log Z_edge(q) cannot be plotted. In δ = u − u★ it
+normalises to a single elementary curve,
+
+    [Γ(u) − Γ(u★)] / q★  =  e^δ(δ − 1) + 1
+
+exact up to ν e^{−u★} ≈ 10⁻¹²³. That is not a sketch of the selector; it is the selector,
+in units of the sector it selects.
+
+The first draft plotted it on δ ∈ [−3.2, 3.2] and the picture was useless: Γ reaches 54.9
+by δ = 3.2 and only 0.83 by δ = −3.2, so the left branch drew as a flat line and the "one
+minimum" written underneath was invisible. The function hands over the right window
+itself — **Γ → 1 as δ → −∞ and Γ(1) = 1 exactly** — so on δ ∈ (−∞, 1] the whole valley
+lives inside [0, 1], bounded above by its own asymptote. The minimum is now the shape of
+the picture rather than a claim written under it, and the far field is stated numerically
+instead of being drawn badly.
+
+### What the laboratory adds to the manuscript: the error budget
+
+The paper passes three gates and presents them side by side, as three conditions that must
+all hold. That is true, and it is also the wrong picture of where the prediction comes
+from, because the three do not constrain the answer to remotely the same precision. Each
+gate implies a value of u on its own; each implied u implies a Λ; each Λ sits some number
+of observational σ from the measured sky. That table is the error budget, and it is the one
+thing a reader cannot get from the paper.
+
+| gate | supplies | u − u★ | σ from the sky | its own width | role |
+|---|---|---|---|---|---|
+| A · Hopf–Bradlow–APS–HC | N_φ = 292 | +0.060937 | **−4.83** | ±31.3 σ | locator |
+| B · GLSM / stringy | b g² , Ξ | −6.2×10⁻¹⁰ | **−0.90** | ±8×10⁻⁶ σ | predictor |
+| C · determinant line | ν = ½ | +1.5×10⁻¹²³ | −0.90 | 0 | structural |
+
+Read down the σ column. The scheme gate fixes u to nine decimals and lands Λ at −0.90 σ —
+**that is the prediction.** The recursion gate only says the sector sits on rung 292, and
+rungs are 2 ln φ = 0.962 apart, which is 41 σ wide: it confirms, it cannot sharpen. The
+determinant line moves u by ν/q★ ≈ 10⁻¹²³ — structurally essential, numerically invisible.
+A reader who took "three gates" to mean "three independent determinations of Λ" would badly
+overstate the redundancy. There is one sharp determination and two consistency conditions.
+
+Nothing here contradicts the manuscript; it quantifies a distinction the manuscript leaves
+implicit. Verified independently in `docs/verify-capacity-gate-budget.cjs` (7/7), including
+the approximation the file refuses: the linearisation |dΛ/Λ| = |du| would report the rung
+window as ±32.4 σ where the exact span is ±31.3, wrong by 4% because Λ ∝ e^{−u} is convex.
+It changes no conclusion and it is still not used, because an error budget assembled from
+approximations is an estimate wearing the clothes of a measurement.
+
+Gate C's displacement cannot be recovered by subtraction: u★ + ν/q★ *is* u★ at double
+precision (282 carries ~10⁻¹⁴ of resolution and the shift is 10⁻¹²³), so printing the
+difference would show 0 and hide the very thing the row is about. It is stated directly.
+
+### Laboratories as instruments: reports and an API an agent can drive
+
+A laboratory that only draws is a picture. One that accepts a declared input, computes, and
+hands back a result with its own provenance and its own stated limits is an instrument.
+This release adds the generic machinery — a laboratory registers one spec and gets a
+report, a download, a clipboard copy and a public entry point at once — with the Capacity
+Selector as its first citizen.
+
+The whole atlas is one static file on Pages, so an agent that can open the page can already
+run every computation in it:
+
+```js
+HCC_API.list();                            // the catalogue
+HCC_API.describe('capacity');              // inputs, units, declared domain, limits, verifiers
+HCC_API.evaluate('capacity', {u: 282.11}); // the numbers
+HCC_API.markdown('capacity');              // the same, as a readable report
+```
+
+Two rules are enforced rather than documented. **Nothing returns a number without its
+provenance** — every object carries the schema, the atlas version and build, and a status
+naming what is derived, what is verified and by which file. And **an input outside its
+declared domain is refused, never clamped**, because a silently clamped input returns a
+real number for a question that was never asked: `HCC_API.evaluate('capacity',{u:1})`
+raises a RangeError naming the domain instead of quietly answering about u★ − 40.
+
+### A dead level of the hierarchy, found only by hit-testing it
+
+Adding the sixth Inspector tab meant pressing it, and it could not be pressed. Measured:
+`#hccInspector` at `right:14px` / z-index 38 and `#panelDock` at `right:14px` / z-index 110
+shared the same band exactly. A hit test at the centre of **all six** tabs returned a dock
+button, at 1024, 1280, 1440 and 1680 px. The entire fourth level of Atlas → World →
+Laboratory → Inspector was dead on every desktop width — while every logic test passed,
+because logic tests ask which tabs render and never ask whether a finger can reach one.
+
+The strip now continues the breadcrumb instead of fighting the dock, which is also what it
+means: `Atlas › World › Laboratory › ⚙ ◎ ∮ ⌘ ◱ ⬇` reads as one line because it is one line.
+
+That exposed the real constraint. Measured at three widths: breadcrumb 193, Inspector 521
+with labels and 183 without, context rail 584, dock 494 + 14 — **1802 px of content for a
+row that is at most 1440 wide.** The row does not fit at any width below about 1810, and
+pretending it does is what put the strip under the dock in the first place. So it is
+budgeted by what each element *is*: the breadcrumb is identity and never yields; the
+Inspector is navigation you press and keeps its labels until it would otherwise reach the
+dock; the context rail is a passive readout with `pointer-events:none` whose first three
+cells are repeated verbatim in the bottom readout, so it yields first and in that order —
+the long space cell, then everything but the frame timer, which appears nowhere else.
+
+The first version of the budget was non-monotone: tying the Inspector's compaction to the
+rail's needs made the labels come back as the window got *smaller*. The Inspector's fit now
+depends on the Inspector alone.
+
+The self-test for this was also wrong before the code was. It asserted `right === 'auto'` —
+a proxy, and a false one, because `getComputedStyle` returns the *used* value and a
+left-anchored fixed box reports `right` as a pixel number. It now hit-tests every tab
+centre with `elementFromPoint` and checks the two rectangles are disjoint, which is the
+invariant. `verify-navigation-architecture.cjs` had the same disease from the other side:
+it pinned the tab count at five and failed the moment a sixth tab was earned — a test
+measuring its own history. It now checks distinctness, the existence-and-scope gate, and
+that reachability is measured at runtime.
+
+| measurement | before | after |
+|---|---|---|
+| Inspector tabs reachable on desktop | **0 / 6** | **6 / 6** at 1024–1680 px |
+| Inspector ↔ dock rectangles | fully overlapping | disjoint |
+| scene visible with the panel open (iPhone portrait) | — | 70 % |
+| scene visible (iPhone landscape) | — | 76 % |
+| tap targets under 44 px | 0 | 0 |
+| independent verifiers | 15 | **16** |
+| self-tests | 574 | **585** |
+
+On the phone the panel leads with the answer — Λ, the Planck comparison, the σ — then the
+control, then the explanation, then the evidence. The prose used to lead, and on a 390 px
+screen the result was below the fold in its own laboratory.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

@@ -127,9 +127,16 @@ const atlasDescribed=(()=>{ const m=H.match(/const LAB_ATLAS_DEFS=\[([\s\S]*?)\n
   const n=[...tabs.matchAll(/\['([a-z]+)',/g)].map(m=>m[1]);
   const gate=/if\(!document\.getElementById\(id\)\) return null;[\s\S]{0,120}?panelInScope\(id,ctx\)\?id:null/.test(H);
   const strip=/function hccRenderInspector\(\)/.test(H) && /live\.length<2/.test(H);
-  ok('the Inspector is the fourth level of the hierarchy and it is present: five tabs are declared, and a tab is resolved to a panel only if that panel EXISTS and is IN SCOPE — so the strip cannot render a control that opens nothing, and it hides itself rather than showing a strip of one',
-    n.length===5 && gate && strip,
-    `tabs: ${n.join(', ')} · resolution is gated on existence and scope: ${gate} · a one-tab strip hides itself: ${strip}`);
+  /* the count is NOT the invariant.  This check pinned it at five and duly failed the
+     moment a sixth laboratory earned a tab, which is a test measuring its own history
+     rather than the architecture.  What must hold is that the tabs are distinct, that
+     every one of them resolves through the existence-and-scope gate, and that a strip
+     of one hides itself — none of which cares how many there are. */
+  const fit=/function hccInspectorFit\(\)/.test(H)
+    && /elementFromPoint/.test(H);   /* the strip is verified reachable, not merely rendered */
+  ok('the Inspector is the fourth level of the hierarchy, it is present, and it is REACHABLE: its tabs are distinct, a tab resolves to a panel only if that panel EXISTS and is IN SCOPE so the strip cannot render a control that opens nothing, a strip of one hides itself, and a runtime check hit-tests every tab centre — because the strip once rendered perfectly underneath the panel dock while every logic test passed',
+    n.length>=5 && new Set(n).size===n.length && gate && strip && fit,
+    `tabs: ${n.join(', ')} (${n.length}, all distinct) · resolution gated on existence and scope: ${gate} · a one-tab strip hides itself: ${strip} · reachability measured at runtime: ${fit}`);
 }
 /* ══ 12 ══ Recommended reads the declared graph ════════════════════════════ */
 {
