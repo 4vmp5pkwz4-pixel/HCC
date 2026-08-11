@@ -875,6 +875,89 @@ returning a real answer to a question nobody asked.
 | Bianchi trajectory classes reachable | 5 of 6 | **6 of 6** |
 | self-tests | 585 | **589** |
 
+## The spectral operator (v3.52.0)
+
+Work package C2 gave the atlas a trajectory of the **geometry** — α(τ), β±(τ), constraint
+preserved, each orbit's fate measured. A trajectory of the geometry is not yet a statement
+about a **field** on that geometry, and the bridge is one operator:
+
+    H(t) = ½ Σ_i a_i(t)⁻² K_i²,     a_i = e^{α + β_i}
+
+with K_i the left-invariant fields on S³ = SU(2) and β the Misner triple.
+
+### Why it is exactly solvable
+
+On a spin-j irrep the K_i are the su(2) generators, so
+
+    H|_j = ½[ (c₁+c₂)/2 (J² − J_z²) + c₃ J_z² + (c₁−c₂)/4 (J₊² + J₋²) ],   c_i = a_i⁻²
+
+which is the quantum **asymmetric top**: real symmetric, coupling m only to m±2, splitting
+into even and odd ladders. Diagonalised by cyclic Jacobi to machine precision. Nothing here
+is variational, truncated, or perturbative in the anisotropy — the eigenvalues *are* the
+eigenvalues. At α = 0, where c = 1 is exactly representable, the isotropic law
+λ = ½c·j(j+1) and the trace identity both hold to **exactly zero**, not to a tolerance.
+
+### Convention versus physics
+
+The overall scale of H depends on how K_i is normalised against the metric, and the
+literature differs by factors of two and by powers of the fiducial volume. One convention
+is fixed — `Σ K_i² = j(j+1)`, the standard Casimir — and only what is independent of it is
+claimed: degeneracy structure, level ratios (exactly j(j+1)/j′(j′+1)), and the trace
+identity `Tr H|_j = ½(c₁+c₂+c₃)·j(j+1)(2j+1)/3`, which holds to 5×10⁻¹⁶ across the β plane.
+The factor is stated, not smuggled.
+
+### The spectator index
+
+Scalar harmonics on S³ are the Wigner functions D^j_{mm′}, and the left-invariant K_i act
+on m alone. Every eigenvalue of the (2j+1)-dimensional block therefore carries a further
+(2j+1)-fold multiplicity, giving (2j+1)² per j — exactly the known n² degeneracy of the
+round S³ at n = 2j+1. Reporting the block dimension as the physical multiplicity would
+understate every degeneracy by a factor of 2j+1.
+
+### Degeneracy lifting is a discrete fingerprint
+
+At j = 2 the isotropic block holds **one** level; the axially symmetric block (β₋ = 0, so
+c₁ = c₂) holds **three**, one per |m|; the fully asymmetric block holds all **five**. A
+count cannot be right by accident, which makes it a stronger check than any tolerance.
+
+### The implication this refuses to draw
+
+Bianchi IX is classically non-integrable. That is a statement about trajectories in a
+six-dimensional phase space. The gap of H is a statement about a Hermitian matrix at one
+instant. **Non-integrability does not imply a spectral gap**, and the counterexample is
+computed live rather than argued:
+
+| geometry | gap | distinct levels |
+|---|---|---|
+| isotropic (least chaotic there is) | **1.391** | 4 |
+| mildly anisotropic | **0.593** | 8 |
+| strongly anisotropic | **1.848** | 11 |
+
+The isotropic geometry has the *larger* gap. And two points at the same anisotropy radius
+— identical classical character — give gaps a factor of 1.96 apart. The gap is computed
+from the metric at an instant and is never inferred from the dynamics. This is kept as a
+running self-test and as check 7 of the verifier so it cannot quietly be assumed later.
+
+And a sharper one, found by running the instrument rather than by arguing. Set β₋ = 0 and
+the two transverse axes coincide, c₁ = c₂: that is the **symmetric top**, a textbook
+*integrable* system — two conserved angular momentum components, no chaos anywhere in it.
+Its gap is **0.0076**, essentially closed. The fully asymmetric top beside it, the
+non-integrable one, has a gap of **1.85** — 244× larger. The integrable geometry carries
+the nearly closed gap and the non-integrable one carries the wide open gap. That is the
+naive implication running exactly backwards, and it is check 8 of the verifier so nobody
+has to take it on trust.
+
+**Not claimed:** H(t) is the instantaneous operator. It is not a generator of time
+evolution — the metric is time dependent, so this is an adiabatic basis and not a conserved
+spectrum. Nothing about level crossings, Berry phases or particle creation follows without
+the time-dependent problem being solved.
+
+| measurement | before | after |
+|---|---|---|
+| laboratories reachable as instruments | 4 | **5** |
+| independent verifiers | 16 | **17** (9 checks in the new one) |
+| self-tests | 589 | **592** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

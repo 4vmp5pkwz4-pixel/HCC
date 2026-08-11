@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="four-instruments-2026.08.11.2">
+<html lang="en" data-hcc-build="spectral-operator-2026.08.11.3">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="four-instruments-2026.08.11.2">
+<meta name="hcc-build" content="spectral-operator-2026.08.11.3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1461,7 +1461,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.51.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.52.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1643,8 +1643,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.51.0';
-const HCC_BUILD='four-instruments-2026.08.11.2';
+const HCC_VERSION='3.52.0';
+const HCC_BUILD='spectral-operator-2026.08.11.3';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6299,6 +6299,33 @@ function runSelfTests(){
       lyEscape.lyapunov===null&&lyEscape.lyapunov_doubling_ratio===null
       &&/not measured/.test(lyEscape.lyapunov_verdict)&&lyEscape.stop!=='window',
       `a run stopping on "${lyEscape.stop}" returns lambda = ${lyEscape.lyapunov} and says: ${lyEscape.lyapunov_verdict.slice(0,64)}…`);
+  }
+  { /* the spectral operator, and the implication it refuses to draw */
+    const iso=hccApiEvaluate('spectrum',{alpha:-0.4,beta_plus:0,beta_minus:0,j_max:2});
+    const mild=hccApiEvaluate('spectrum',{alpha:-0.4,beta_plus:0.18,beta_minus:0,j_max:2});
+    const axi=hccApiEvaluate('spectrum',{alpha:-0.4,beta_plus:0.3,beta_minus:0,j_max:2});
+    const asy=hccApiEvaluate('spectrum',{alpha:-0.4,beta_plus:0.3,beta_minus:0.2,j_max:2});
+    const nAt=(r,j)=>{ const b=r.blocks.find(x=>x.j===j); const u=[];
+      for(const e of b.eigenvalues) if(!u.length||Math.abs(e-u[u.length-1])>1e-9*Math.max(1,Math.abs(e))) u.push(e);
+      return u.length; };
+    /* the exact-zero claim holds where c is exactly representable — at alpha = 0, where
+       c = 1 — and NOT at alpha = -0.4, where c is irrational and the residual is ordinary
+       double rounding.  Asserting exact zero at an arbitrary alpha was a test demanding a
+       property of floating point that the mathematics never promised. */
+    const unit=hccApiEvaluate('spectrum',{alpha:0,beta_plus:0,beta_minus:0,j_max:4});
+    const isoLaw=Math.max(...unit.blocks.map(b=>Math.max(...b.eigenvalues.map(e=>
+      Math.abs(e-0.5*unit.c[0]*b.j*(b.j+1))))));
+    ok('C2 gave the atlas a trajectory of the GEOMETRY; this is the operator that turns it into a statement about a FIELD on that geometry. H = ½ Σ a_i⁻² K_i² restricted to a spin-j block is the quantum asymmetric top — real symmetric, coupling m only to m±2 — so the spectrum is exact rather than variational, truncated or perturbative in the anisotropy. At zero anisotropy and unit scale every eigenvalue collapses onto c/2·j(j+1) not to a tolerance but to zero, and the trace identity holds to double rounding everywhere else',
+      isoLaw===0 && unit.trace_residual===0
+      && Math.max(iso.trace_residual,mild.trace_residual,asy.trace_residual)<1e-14,
+      `at α = 0, where c = 1 is exactly representable: eigenvalue law deviation exactly ${isoLaw} and trace residual exactly ${unit.trace_residual} · elsewhere, where c is irrational, the residual is ordinary double rounding at ${Math.max(iso.trace_residual,mild.trace_residual,asy.trace_residual).toExponential(2)}`);
+    ok('anisotropy lifts the degeneracy in the discrete pattern the residual symmetry allows, which cannot be right by accident: at j = 2 the isotropic block holds ONE level, the axially symmetric block (β₋ = 0, so c₁ = c₂) holds THREE — one per |m| — and the fully asymmetric block holds all FIVE. And the multiplicity reported is the physical one: the left-invariant K_i act on a single Wigner index, so each block eigenvalue is (2j+1)-fold degenerate and the total per j is (2j+1)², reproducing the known n² degeneracy of the round S³ at n = 2j+1',
+      nAt(iso,2)===1&&nAt(axi,2)===3&&nAt(asy,2)===5
+      &&iso.blocks.every(b=>b.total_states===Math.round((2*b.j+1)*(2*b.j+1))),
+      `j = 2 · isotropic ${nAt(iso,2)} level · axial ${nAt(axi,2)} · asymmetric ${nAt(asy,2)} of 5 · total states per j = ${iso.blocks.map(b=>`${Math.round(2*b.j+1)}²=${b.total_states}`).join(', ')}`);
+    ok('and the implication this laboratory REFUSES to draw, kept as a running check so it cannot be assumed in the retelling: non-integrability does not imply a spectral gap. Bianchi IX is classically non-integrable — a statement about trajectories in a six-dimensional phase space — while the gap is a statement about a Hermitian matrix at one instant. The counterexample is computed live: the isotropic geometry, the least chaotic there is, has a LARGER gap than the mildly anisotropic one. The gap comes from the metric at an instant and is never inferred from the dynamics',
+      iso.gap>mild.gap&&iso.gap>0&&mild.gap>0,
+      `isotropic gap ${iso.gap.toFixed(4)} EXCEEDS the mildly anisotropic ${mild.gap.toFixed(4)} · distinct levels rise ${iso.level_count.distinct} → ${mild.level_count.distinct} → ${asy.level_count.distinct} as the symmetry breaks`);
   }
   { /* the fourth level of the hierarchy has to be reachable, not merely rendered */
     const strip=document.getElementById('hccInspector'), dock=document.getElementById('panelDock');
@@ -20781,6 +20808,100 @@ function capGateBudget(){
   });
 }
 
+/* ── THE SPECTRAL OPERATOR OF AN ANISOTROPIC S³ ───────────────────────────────
+   STATUS: DERIVED (the operator and its matrix elements) + VERIFIED
+   (docs/verify-spectral-operator.cjs, 8/8).
+
+   Work package C2 gave the atlas a real Bianchi IX trajectory.  A trajectory of the
+   GEOMETRY is not yet a statement about a FIELD on that geometry, and the bridge is one
+   operator:
+
+       H(t) = ½ Σ_i a_i(t)⁻² K_i² ,      a_i = e^{α + β_i},
+
+   with K_i the left-invariant fields on S³ = SU(2) and β the Misner triple.
+
+   WHY IT IS EXACTLY SOLVABLE.  On a spin-j irrep the K_i are the su(2) generators, so
+
+       H|_j = ½[ (c₁+c₂)/2 (J² − J_z²) + c₃ J_z² + (c₁−c₂)/4 (J₊² + J₋²) ],   c_i = a_i⁻²,
+
+   which is the quantum ASYMMETRIC TOP: real symmetric, coupling m only to m±2, split into
+   even and odd ladders and diagonalised exactly.  Nothing below is variational, truncated
+   or perturbative in the anisotropy — the eigenvalues ARE the eigenvalues.
+
+   CONVENTION VERSUS PHYSICS.  The overall scale of H depends on how K_i is normalised
+   against the metric, and the literature differs by factors of two and by powers of the
+   fiducial volume.  ONE convention is fixed here — Σ K_i² = j(j+1), the standard Casimir
+   — and only what is independent of it is claimed: degeneracy structure, level ratios,
+   and the trace identity Tr H|_j = ½(c₁+c₂+c₃)·j(j+1)(2j+1)/3.  The factor is stated,
+   not smuggled.
+
+   THE SPECTATOR INDEX.  Scalar harmonics on S³ are the Wigner functions D^j_{mm′}, and
+   the left-invariant K_i act on m alone.  Every eigenvalue of the (2j+1)-dimensional
+   block therefore carries a further (2j+1)-fold multiplicity, giving (2j+1)² per j —
+   exactly the known n² degeneracy of the round-S³ Laplacian at n = 2j+1.  Reporting the
+   block multiplicity as the physical one would understate every degeneracy by 2j+1.
+
+   AND THE IMPLICATION THIS REFUSES TO DRAW.  Bianchi IX is classically non-integrable;
+   that is a statement about trajectories in a six-dimensional phase space.  The gap of H
+   is a statement about a Hermitian matrix at one instant.  NON-INTEGRABILITY DOES NOT
+   IMPLY A SPECTRAL GAP, and the counterexample is one line: the isotropic geometry — the
+   least chaotic there is — has a LARGER gap (1.391) than the mildly anisotropic one
+   (0.593), and two points at the same anisotropy radius, hence identical classical
+   character, give gaps a factor of 1.96 apart.  The gap is computed from the metric at an
+   instant.  It is never inferred from the dynamics. */
+const specC=(al,bp,bm)=>bixBetas(bp,bm).map(b=>Math.exp(-2*al-2*b));
+function specBlock(j,c){
+  const n=Math.round(2*j)+1, M=Array.from({length:n},()=>new Array(n).fill(0));
+  const [c1,c2,c3]=c, sm=(c1+c2)/2, d=(c1-c2)/4, m=k=>-j+k;
+  for(let k=0;k<n;k++){ const mm=m(k); M[k][k]=0.5*(sm*(j*(j+1)-mm*mm)+c3*mm*mm); }
+  for(let k=0;k+2<n;k++){ const mm=m(k);
+    const v=0.5*d*Math.sqrt((j-mm)*(j+mm+1))*Math.sqrt((j-mm-1)*(j+mm+2));
+    M[k][k+2]+=v; M[k+2][k]+=v; }
+  return M;
+}
+/* cyclic Jacobi — exact to machine precision for a real symmetric matrix, no library */
+function specEig(Ain){
+  const n=Ain.length, A=Ain.map(r=>r.slice());
+  for(let sweep=0;sweep<100;sweep++){
+    let off=0; for(let p=0;p<n;p++)for(let q=p+1;q<n;q++) off+=A[p][q]*A[p][q];
+    if(off<1e-30) break;
+    for(let p=0;p<n;p++)for(let q=p+1;q<n;q++){
+      if(Math.abs(A[p][q])<1e-300) continue;
+      const th=(A[q][q]-A[p][p])/(2*A[p][q]);
+      const t=Math.sign(th||1)/(Math.abs(th)+Math.sqrt(th*th+1));
+      const co=1/Math.sqrt(t*t+1), si=t*co;
+      for(let k=0;k<n;k++){ const akp=A[k][p], akq=A[k][q];
+        A[k][p]=co*akp-si*akq; A[k][q]=si*akp+co*akq; }
+      for(let k=0;k<n;k++){ const apk=A[p][k], aqk=A[q][k];
+        A[p][k]=co*apk-si*aqk; A[q][k]=si*apk+co*aqk; }
+    }
+  }
+  return A.map((r,i)=>r[i]).sort((a,b)=>a-b);
+}
+function specSpectrum(al,bp,bm,jMax){
+  const c=specC(al,bp,bm), blocks=[];
+  for(let t=1;t<=Math.round(2*jMax);t++){ const j=t/2;
+    const ev=specEig(specBlock(j,c));
+    blocks.push({j, ev, blockDim:ev.length, spectator:Math.round(2*j)+1,
+      total:(Math.round(2*j)+1)*(Math.round(2*j)+1)}); }
+  const all=blocks.flatMap(b=>b.ev.map(e=>({e, j:b.j, mult:b.spectator})));
+  all.sort((x,y)=>x.e-y.e);
+  const distinct=[];
+  for(const x of all){
+    const last=distinct[distinct.length-1];
+    if(last&&Math.abs(x.e-last.value)<=1e-9*Math.max(1,Math.abs(x.e))) last.multiplicity+=x.mult;
+    else distinct.push({value:x.e, multiplicity:x.mult, j:x.j});
+  }
+  return {c, blocks, distinct,
+    lowest:distinct.length?distinct[0].value:null,
+    gap:distinct.length>1?distinct[1].value-distinct[0].value:null,
+    /* the trace identity, recomputed live rather than quoted, so a broken build says so */
+    traceResidual:(()=>{ let w=0;
+      for(const b of blocks){ const tr=b.ev.reduce((a,x)=>a+x,0);
+        const want=0.5*(c[0]+c[1]+c[2])*b.j*(b.j+1)*(2*b.j+1)/3;
+        w=Math.max(w,Math.abs(tr-want)/Math.abs(want)); } return w; })()};
+}
+
 /* ── THE ONE ATLAS ────────────────────────────────────────────────────────────
    Search, Navigator and the laboratory browser were three surfaces answering the same
    question.  This is the one.  Choosing anything here runs hccGo(), which is the only
@@ -21216,6 +21337,71 @@ hccApiRegister({
       casimir:r.casimir, rho:r.rho, pressure:r.pressure, Tmode:r.Tmode, Teq:r.Teq,
       compact:r.compact, action:r.action,
       temperature_K:zpTemperatureOf(i.N,i.theta)}; }
+});
+
+hccApiRegister({
+  id:'spectrum', world:'s3', lab:'sec',
+  title:['Spectral operator — H(t) = ½ Σ a_i⁻² K_i² on an anisotropic S³',
+         'Спектральный оператор — H(t) = ½ Σ a_i⁻² K_i² на анизотропной S³',
+         'Spektraloperator auf anisotroper S³'],
+  status:'DERIVED (operator and matrix elements) + EXACT (Jacobi diagonalisation, machine precision) + VERIFIED; the adiabatic interpretation is explicitly NOT claimed',
+  verifiers:['docs/verify-spectral-operator.cjs (8/8)',
+             'docs/verify-bianchi-ix-c2.cjs (13/13) — the geometry it is evaluated on',
+             'docs/verify-hopf-splitting.cjs (7/7)'],
+  formulas:['a_i = exp(alpha + beta_i),  beta = (b+ + sqrt3 b-, b+ - sqrt3 b-, -2 b+)',
+            'c_i = a_i^-2',
+            'H|_j = 1/2 [ (c1+c2)/2 (J^2 - Jz^2) + c3 Jz^2 + (c1-c2)/4 (J+^2 + J-^2) ]',
+            'convention: SUM_i K_i^2 = j(j+1) on the spin-j block',
+            'Tr H|_j = 1/2 (c1+c2+c3) j(j+1)(2j+1)/3     (exact, any anisotropy)',
+            'isotropic limit: every eigenvalue = c/2 * j(j+1), degeneracy (2j+1)^2',
+            'total multiplicity per j = (2j+1)^2 = n^2 at n = 2j+1'],
+  inputs:[
+    {name:'alpha', type:'number', unit:'ln(volume)/3', default:-0.4, min:-8, max:4,
+     doc:['the logarithmic scale factor of the Bianchi IX geometry the operator is evaluated on',
+          'логарифмический масштабный фактор геометрии','logarithmischer Skalenfaktor']},
+    {name:'beta_plus', type:'number', unit:'dimensionless', default:0.18, min:-3, max:3,
+     doc:['anisotropy coordinate beta_+; zero with beta_- gives the round sphere',
+          'координата анизотропии β₊','Anisotropie β₊']},
+    {name:'beta_minus', type:'number', unit:'dimensionless', default:0.0, min:-3, max:3,
+     doc:['anisotropy coordinate beta_-; zero alone leaves c1 = c2, an axially symmetric top',
+          'координата анизотропии β₋; ноль оставляет c₁ = c₂ — аксиально-симметричный волчок','Anisotropie β₋']},
+    {name:'j_max', type:'number', unit:'spin', default:2, min:0.5, max:12,
+     doc:['highest half-integer spin block to diagonalise. Blocks are (2j+1)-dimensional and the cost is cubic in that, so this is the only knob that costs anything',
+          'наибольший спиновый блок','höchster Spin-Block']}],
+  outputs:[
+    {name:'c', unit:'a_i^-2', doc:['the three inverse squared scale factors that define the top','три обратных квадрата масштабных факторов','die drei Faktoren']},
+    {name:'lowest', unit:'energy (convention units)', doc:['the lowest eigenvalue over all blocks','наименьшее собственное значение','niedrigster Eigenwert']},
+    {name:'gap', unit:'energy (convention units)', doc:['the spacing between the lowest two DISTINCT levels. Computed from the metric at one instant and never inferred from the classical dynamics',
+      'расстояние между двумя низшими различными уровнями — вычислено из метрики, а не выведено из динамики','Abstand der beiden untersten Niveaus']},
+    {name:'distinct', unit:'levels', doc:['every distinct eigenvalue with its FULL multiplicity, spectator index included','каждое различное собственное значение с полной кратностью','Niveaus mit Vielfachheit']},
+    {name:'blocks', unit:'—', doc:['per spin j: the eigenvalues of the (2j+1)-dimensional block, its spectator multiplicity, and the total (2j+1)^2',
+      'по каждому j: собственные значения блока и кратности','pro Spin j']},
+    {name:'trace_residual', unit:'relative', doc:['how far the assembled spectrum is from the exact trace identity, recomputed live rather than quoted — a broken build says so instead of returning plausible numbers',
+      'отклонение от точного следового тождества, пересчитанное вживую','Abweichung von der Spuridentität']},
+    {name:'level_count', unit:'—', doc:['distinct levels and total states, so the degeneracy structure is visible at a glance','число различных уровней и полное число состояний','Niveauzahl']}],
+  limits:[
+    ['H(t) is the INSTANTANEOUS operator at one point of the trajectory. It is not a generator of time evolution: the metric is time dependent, so this is an adiabatic basis and not a conserved spectrum. No statement about level crossings, Berry phases or particle creation follows from it without the time-dependent problem being solved, and none is made.',
+     'H(t) — мгновенный оператор в одной точке траектории, а не генератор эволюции; это адиабатический базис, а не сохраняющийся спектр.',
+     'H(t) ist der momentane Operator, kein Zeitentwicklungsgenerator.'],
+    ['NON-INTEGRABILITY DOES NOT IMPLY A SPECTRAL GAP. Bianchi IX is classically non-integrable — a statement about trajectories in a six-dimensional phase space — while the gap is a statement about a Hermitian matrix at an instant. Counterexample, computed: the isotropic geometry has a LARGER gap (1.391) than the mildly anisotropic one (0.593), and two points at the same anisotropy radius, hence identical classical character, give gaps a factor of 1.96 apart.',
+     'НЕИНТЕГРИРУЕМОСТЬ НЕ ВЛЕЧЁТ СПЕКТРАЛЬНОЙ ЩЕЛИ. Контрпример вычислен: у изотропной геометрии щель БОЛЬШЕ (1.391), чем у слабо анизотропной (0.593).',
+     'NICHT-INTEGRABILITÄT IMPLIZIERT KEINE SPEKTRALLÜCKE.'],
+    ['The overall scale is the stated convention SUM K_i^2 = j(j+1). Normalisations of K_i against the metric differ across the literature by factors of two and by powers of the fiducial volume, so absolute eigenvalues are convention-dependent. Ratios, degeneracies and the trace identity are not, and those are what is claimed.',
+     'Общий масштаб задан соглашением Σ K_i² = j(j+1); отношения, кратности и следовое тождество от него не зависят — именно они и утверждаются.',
+     'Der Gesamtmaßstab ist die genannte Konvention.'],
+    ['Multiplicities include the spectator Wigner index: the left-invariant K_i act on m alone, so each block eigenvalue is (2j+1)-fold degenerate and the total per j is (2j+1)^2. Reporting the block dimension as the physical multiplicity would understate every degeneracy by a factor of 2j+1.',
+     'Кратности включают спектаторный индекс: полная кратность на уровне j равна (2j+1)².',
+     'Vielfachheiten enthalten den Zuschauerindex.']],
+  evaluate(i){
+    const S=specSpectrum(i.alpha,i.beta_plus,i.beta_minus,i.j_max);
+    return {c:S.c, lowest:S.lowest, gap:S.gap,
+      distinct:S.distinct.map(d=>({value:d.value, multiplicity:d.multiplicity, from_j:d.j})),
+      blocks:S.blocks.map(b=>({j:b.j, eigenvalues:b.ev, block_dimension:b.blockDim,
+        spectator_multiplicity:b.spectator, total_states:b.total})),
+      trace_residual:S.traceResidual,
+      level_count:{distinct:S.distinct.length,
+        total_states:S.blocks.reduce((a,b)=>a+b.total,0)}};
+  }
 });
 
 hccApiRegister({
