@@ -1036,6 +1036,77 @@ n is the occupation of **one** mode in the adiabatic vacuum at τ = 0 — no sum
 | independent verifiers | 17 | **18** |
 | self-tests | 592 | **595** |
 
+## EBK quantisation, and the licence that was measured (v3.54.0)
+
+Three work packages meet here, and the meeting is the point.
+
+**C2 measured** that every reachable bounded Bianchi IX orbit is regular — Lyapunov
+doubling ratios 0.544 to 0.578 against a plateau at 1. Regular motion on invariant tori is
+exactly the condition that licenses EBK quantisation. On a chaotic orbit there are no tori
+and the construction has no meaning, so the atlas is entitled to this method **because it
+checked**, not because it is customary.
+
+**The spectral operator supplies the exact answer** to check against, rather than another
+approximation.
+
+### The convergence rate is the check, not the agreement
+
+The leading correction to EBK is O(ħ²) relative, so the error must fall by a factor of
+**four** each time j doubles:
+
+| j | 8 | 16 | 32 | 64 |
+|---|---|---|---|---|
+| relative error | 0.637 % | 0.175 % | 0.046 % | 0.0118 % |
+| ratio | — | **3.64** | **3.80** | **3.90** |
+
+Approaching 4, the 1/j² law. Agreement alone would be weak evidence; the *rate* is what
+identifies the method as correct. It holds across the shape of the top too — moderate,
+strongly asymmetric and near-axial all give 3.7–4.0 between j = 32 and 64.
+
+### EBK is blind to tunnelling, and that is a property
+
+One torus corresponds to **two** quantum states — a symmetric and an antisymmetric
+combination of the two symmetry-related classical orbits, split by tunnelling. EBK returns
+the *mean* and cannot see the split. The splittings fall exponentially, 2.9×10⁻², 2.4×10⁻³,
+1.6×10⁻⁴, 5.6×10⁻⁷, 1.7×10⁻⁹ at j = 4, 6, 8, 12, 16 — the semiclassical signature.
+
+Comparing an EBK level to a *single* eigenvalue instead of the doublet mean is not a small
+error; it is comparing the wrong things, and it is what made the first run report 5 %
+disagreements that were not disagreements.
+
+### Two traps found by running it
+
+**The action was a factor of two out.** A librating loop and a circulating torus both
+enclose ∫ p_max dφ over the allowed φ. The first version doubled it — once by counting the
+two symmetry-related loops as one, once by counting the ±p branches twice — and every level
+came out low.
+
+**The doublet pairing is not automatic.** Levels 2n and 2n+1 are a tunnelling pair only in
+a genuinely *asymmetric* top. Let two axes coincide — β₋ = 0 gives c₁ = c₂ — and the
+structure becomes a singlet at m = 0 followed by exact ±m pairs, so the pairing straddles
+two different levels and the reported "splitting" is a real gap orders of magnitude too
+large. Found by running the atlas self-test at β₋ = 0 and getting **1.4** where tunnelling
+would give 10⁻⁹. The instrument now tests whether a pair is closer to itself than to its
+neighbours and reports *"NOT a doublet"* rather than returning confident nonsense.
+
+### The floor, declared
+
+Beyond about j = 24 the true splitting falls below what double precision can resolve
+against eigenvalues of order 10², so reported values become round-off. Each level carries a
+flag saying which regime it is in. A plot of the unresolved values would be a plot of
+arithmetic noise.
+
+**Not claimed:** this quantises the *instantaneous* operator with the cᵢ held fixed. It is a
+check of the semiclassical correspondence for the asymmetric top, not a quantisation of the
+Bianchi IX geometry, and no quantum cosmology follows from it. The Langer length L = j + ½
+is a convention with a standard justification, not a derivation.
+
+| measurement | before | after |
+|---|---|---|
+| laboratories reachable as instruments | 6 | **7** |
+| independent verifiers | 18 | **19** |
+| self-tests | 595 | **597** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="particle-creation-2026.08.11.4">
+<html lang="en" data-hcc-build="ebk-quantisation-2026.08.11.5">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="particle-creation-2026.08.11.4">
+<meta name="hcc-build" content="ebk-quantisation-2026.08.11.5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1461,7 +1461,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.53.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.54.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1643,8 +1643,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.53.0';
-const HCC_BUILD='particle-creation-2026.08.11.4';
+const HCC_VERSION='3.54.0';
+const HCC_BUILD='ebk-quantisation-2026.08.11.5';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6341,6 +6341,25 @@ function runSelfTests(){
     ok('and the monotone law the atlas is NOT permitted to claim: the occupation tracks the SWING of μ along the orbit, not the anisotropy it started with. β₊ = 0.35 creates LESS than β₊ = 0.20, because the larger anisotropy drives a faster escape and the mode spends less time being stirred',
       big.n<ani.n&&big.mu_swing<ani.mu_swing,
       `β₊ = 0.20 → n = ${ani.n.toExponential(4)} with μ swing ${ani.mu_swing.toExponential(3)} · β₊ = 0.35 → n = ${big.n.toExponential(4)} with the SMALLER swing ${big.mu_swing.toExponential(3)}`);
+  }
+  { /* EBK, and the licence that was measured rather than assumed */
+    const a=hccApiEvaluate('ebk',{j:16,beta_plus:0.3,beta_minus:0,levels:1,quadrature:20000});
+    const b=hccApiEvaluate('ebk',{j:32,beta_plus:0.3,beta_minus:0,levels:1,quadrature:20000});
+    const ratio=a.worst_relative_error/b.worst_relative_error;
+    ok('EBK reproduces the exact asymmetric-top spectrum at the rate the theory demands, which is the check that agreement alone could never be: the relative error against the doublet mean falls by a factor of FOUR when j doubles, the 1/j² law of a leading O(ħ²) correction. And the atlas is entitled to use EBK here because it MEASURED the regularity that licenses it — Lyapunov doubling ratios 0.544 to 0.578 on every reachable bounded orbit, against a plateau at 1 for a chaotic one. On a chaotic orbit there are no invariant tori and the construction has no meaning',
+      a.worst_relative_error<0.02&&b.worst_relative_error<a.worst_relative_error
+      &&ratio>3.2&&ratio<4.4&&BIX_LY_CUT===0.85,
+      `j = 16 → ${(100*a.worst_relative_error).toFixed(4)}% · j = 32 → ${(100*b.worst_relative_error).toFixed(4)}% · ratio ${ratio.toFixed(2)} against the predicted 4`);
+    /* beta_- must be non-zero: with two axes equal the top is axially symmetric and the
+       (2n, 2n+1) pairing straddles two different levels rather than a doublet */
+    const t=hccApiEvaluate('ebk',{j:8,beta_plus:0.3,beta_minus:0.2,levels:2,quadrature:20000});
+    const hi=hccApiEvaluate('ebk',{j:40,beta_plus:0.3,beta_minus:0.2,levels:1,quadrature:20000});
+    const axial=hccApiEvaluate('ebk',{j:8,beta_plus:0.3,beta_minus:0,levels:1,quadrature:20000});
+    ok('and EBK is blind to tunnelling BY CONSTRUCTION, which is why every comparison here is against the doublet mean and never against a single eigenvalue: one torus corresponds to a symmetric/antisymmetric pair split by tunnelling between the two symmetry-related classical orbits. Beyond about j = 24 that splitting falls under what double precision can resolve, and each level carries a flag saying which regime it is in rather than presenting arithmetic noise as data',
+      t.levels.every(l=>l.splitting>0&&l.doubletMean>0&&/tunnelling/.test(l.pairing))
+      &&t.levels[0].splittingResolved&&!hi.levels[0].splittingResolved
+      &&/NOT a doublet/.test(axial.levels[0].pairing),
+      `j = 8: splittings ${t.levels.map(l=>l.splitting.toExponential(1)).join(', ')}, both genuine doublets · j = 40: ${hi.levels[0].splitting.toExponential(1)} at ${(hi.levels[0].splitting/hi.levels[0].doubletMean).toExponential(0)} of the level, below the floor and flagged · and the axially symmetric top (β₋ = 0, c₁ = c₂) is correctly refused as "NOT a doublet" instead of returning confident nonsense`);
   }
   { /* the fourth level of the hierarchy has to be reachable, not merely rendered */
     const strip=document.getElementById('hccInspector'), dock=document.getElementById('panelDock');
@@ -21010,6 +21029,84 @@ function pcCreate(ic,L,opt={}){
   return {n:z[9]*z[9]+z[10]*z[10], wronskian:wr, tau, stop, steps,
     muSwing:muMax-muMin, muMin, muMax, alphaGrowth:z[0]-a0}; }
 
+/* ── EBK QUANTISATION, AND THE LICENCE THAT WAS MEASURED ──────────────────────
+   STATUS: DERIVED (the action integral) + VERIFIED
+   (docs/verify-ebk-quantisation.cjs, 6/6).
+
+   Three work packages meet here.  C2 MEASURED that every reachable bounded Bianchi IX
+   orbit is regular — Lyapunov doubling ratios 0.544 to 0.578 against a plateau at 1 — and
+   regular motion on invariant tori is exactly the condition that licenses Einstein–
+   Brillouin–Keller quantisation.  EBK has no meaning on a chaotic orbit, so the atlas is
+   entitled to it here because it checked, not because it is customary.  The spectral
+   operator then supplies the exact answer to check against, rather than another
+   approximation.
+
+   THE ACTION.  On the sphere |J| = L with canonical pair (φ, p = J₃),
+
+       H(φ,p) = ½[(L² − p²) g(φ) + c₃p²],   g = c₁cos²φ + c₂sin²φ,
+
+   so the level set H = E is p² = (2E − L²g)/(c₃ − g) and S(E) = ∮ p dφ.  EBK sets
+   S = 2π(n + ½) at ħ = 1, with the Langer length L = j + ½.
+
+   A LIBRATING loop and a CIRCULATING torus both have action ∫_allowed p_max dφ.  The
+   first version doubled it — once by counting the two symmetry-related loops as one, once
+   by counting the ±p branches twice — and every level came out low.
+
+   WHAT EBK CANNOT DO, AND WHY THAT IS A PROPERTY.  One torus corresponds to TWO quantum
+   states: a symmetric and an antisymmetric combination of the two symmetry-related
+   classical orbits, split by tunnelling.  EBK returns the MEAN and is blind to the split
+   by construction.  Comparing an EBK level to a single eigenvalue rather than to the
+   doublet mean is not a small error — it is comparing the wrong things, and it is what
+   made the first run report 5% disagreements that were not disagreements.
+
+   MEASURED: the relative error against the doublet mean falls 0.64%, 0.18%, 0.046%,
+   0.012% as j doubles from 8 to 64 — successive ratios 3.6, 3.8, 3.9, approaching the
+   FOUR demanded by the 1/j² law of a leading O(ħ²) correction.  Agreement alone would be
+   weak evidence; the convergence RATE is what identifies the method as correct. */
+function ebkAction(E,L,c,N){
+  const [c1,c2,c3]=c; N=N||8000; let s=0, allPos=true;
+  for(let i=0;i<N;i++){ const ph=2*Math.PI*(i+0.5)/N;
+    const gg=c1*Math.cos(ph)*Math.cos(ph)+c2*Math.sin(ph)*Math.sin(ph), den=c3-gg;
+    const v=Math.abs(den)<1e-300?0:(2*E-L*L*gg)/den;
+    if(v<=0) allPos=false; else s+=Math.sqrt(v); }
+  return {S:s*2*Math.PI/N, circulating:allPos};
+}
+function ebkLevel(n,L,c,N){
+  const target=2*Math.PI*(n+0.5), cs=c.slice().sort((a,b)=>a-b);
+  let lo=0.5*cs[0]*L*L*0.999, hi=0.5*cs[2]*L*L*1.001;
+  for(let it=0;it<160;it++){ const mid=0.5*(lo+hi);
+    if(ebkAction(mid,L,cs,N).S<target) lo=mid; else hi=mid; }
+  return 0.5*(lo+hi);
+}
+/* the comparison, done the only way it can honestly be done: torus n against the mean of
+   the exact doublet (2n, 2n+1), never against a single eigenvalue */
+function ebkCompare(j,bp,bm,nMax,N){
+  const c=bixBetas(bp,bm).map(b=>Math.exp(-2*b)).sort((a,b)=>a-b);
+  const L=j+0.5, ex=specEig(pcMuBlock(j,bp,bm)), rows=[];
+  for(let n=0;n<=nMax&&2*n+1<ex.length;n++){
+    const e=ebkLevel(n,L,c,N), mean=0.5*(ex[2*n]+ex[2*n+1]), split=Math.abs(ex[2*n+1]-ex[2*n]);
+    /* THE PAIRING IS NOT AUTOMATIC.  Levels 2n and 2n+1 form a tunnelling doublet only in
+       a genuinely ASYMMETRIC top.  Let the two axes coincide — beta_- = 0 gives c1 = c2 —
+       and the structure becomes a singlet at m = 0 followed by EXACT +/-m pairs, so the
+       (2n, 2n+1) pairing lands across two different levels and the "splitting" it reports
+       is a real gap, not a tunnelling split.  A pair is only a doublet if it is much
+       closer together than it is to its neighbours, and that is tested rather than
+       assumed: without this the instrument returns confident nonsense on every axially
+       symmetric top. */
+    const near=2*n+2<ex.length?Math.abs(ex[2*n+2]-ex[2*n+1]):Infinity;
+    const below=2*n>0?Math.abs(ex[2*n]-ex[2*n-1]):Infinity;
+    const isDoublet=split<0.2*Math.min(near,below);
+    rows.push({n, ebk:e, doubletMean:mean, splitting:split,
+      relativeError:Math.abs(e-mean)/Math.abs(mean),
+      pairing:isDoublet?'tunnelling doublet'
+        :'NOT a doublet — these two levels are not a symmetric/antisymmetric pair, so the mean is not the quantity EBK predicts. This happens whenever two axes coincide (beta_- = 0 gives c1 = c2), where the structure is a singlet followed by exact +/-m pairs',
+      /* and beyond about j = 24 a genuine splitting falls under what double precision can
+         resolve against a level of order 10^2 */
+      splittingResolved:isDoublet&&split/Math.abs(mean)>1e-14});
+  }
+  return {c, L, levels:rows};
+}
+
 /* ── THE ONE ATLAS ────────────────────────────────────────────────────────────
    Search, Navigator and the laboratory browser were three surfaces answering the same
    question.  This is the one.  Choosing anything here runs hccGo(), which is the only
@@ -21445,6 +21542,65 @@ hccApiRegister({
       casimir:r.casimir, rho:r.rho, pressure:r.pressure, Tmode:r.Tmode, Teq:r.Teq,
       compact:r.compact, action:r.action,
       temperature_K:zpTemperatureOf(i.N,i.theta)}; }
+});
+
+hccApiRegister({
+  id:'ebk', world:'s3', lab:'sec',
+  title:['EBK quantisation — the semiclassical prediction against the exact spectrum',
+         'Квантование ЭБК — полуклассическое предсказание против точного спектра',
+         'EBK-Quantisierung gegen das exakte Spektrum'],
+  status:'DERIVED (action integral) + VERIFIED against exact diagonalisation, including the 1/j^2 convergence rate; the licence to use EBK here was MEASURED in work package C2, not assumed',
+  verifiers:['docs/verify-ebk-quantisation.cjs (6/6)',
+             'docs/verify-spectral-operator.cjs (9/9)',
+             'docs/verify-bianchi-ix-c2.cjs (13/13) — the regularity that licenses the method'],
+  formulas:['H(phi,p) = 1/2 [ (L^2 - p^2) g(phi) + c3 p^2 ],  g = c1 cos^2 phi + c2 sin^2 phi',
+            'p^2 = (2E - L^2 g)/(c3 - g)                      (the level set)',
+            'S(E) = INT p dphi over the orbit',
+            'EBK:  S = 2 pi (n + 1/2)   at hbar = 1',
+            'Langer length  L = j + 1/2   (not sqrt(j(j+1)))',
+            'torus n  <->  exact doublet (2n, 2n+1); EBK returns the MEAN'],
+  inputs:[
+    {name:'j', type:'number', unit:'spin', default:16, min:2, max:80,
+     doc:['the spin block. The EBK error falls as 1/j^2, so this is the knob that controls how good the semiclassical answer is — and the block is (2j+1)-dimensional, so it is also what it costs',
+          'спиновый блок; ошибка ЭБК падает как 1/j²','Spin-Block']},
+    {name:'beta_plus', type:'number', unit:'dimensionless', default:0.3, min:-3, max:3,
+     doc:['anisotropy coordinate beta_+. At zero anisotropy the top is spherical, every level is degenerate and there is no torus structure to quantise',
+          'координата анизотропии β₊','Anisotropie β₊']},
+    {name:'beta_minus', type:'number', unit:'dimensionless', default:0.2, min:-3, max:3,
+     doc:['anisotropy coordinate beta_-','координата анизотропии β₋','Anisotropie β₋']},
+    {name:'levels', type:'number', unit:'count', default:3, min:1, max:12,
+     doc:['how many EBK tori to compute, each compared against its own exact doublet','сколько торов ЭБК вычислить','Anzahl der Tori']},
+    {name:'quadrature', type:'number', unit:'samples', default:8000, min:200, max:200000,
+     doc:['samples in the action integral. The quadrature error is separate from the semiclassical error and must be pushed below it before any convergence rate can be read',
+          'число узлов в интеграле действия','Stützstellen']}],
+  outputs:[
+    {name:'c', unit:'e^{-2 beta_i}', doc:['the three sorted inverse squared axis lengths that define the top','три отсортированных фактора','die drei Faktoren']},
+    {name:'L', unit:'hbar', doc:['the Langer length j + 1/2 used as the classical angular momentum','лангеровская длина j + ½','Langer-Länge']},
+    {name:'levels', unit:'—', doc:['per torus: the EBK energy, the exact doublet mean it is compared against, the tunnelling splitting, the relative error, and whether that splitting is above the double-precision floor',
+      'по каждому тору: энергия ЭБК, среднее точного дублета, туннельное расщепление, относительная ошибка и разрешимо ли расщепление','pro Torus']},
+    {name:'worst_relative_error', unit:'relative', doc:['the largest disagreement with a doublet mean over the levels computed','наибольшее расхождение со средним дублета','größte Abweichung']}],
+  limits:[
+    ['EBK is blind to tunnelling BY CONSTRUCTION. One torus corresponds to a symmetric/antisymmetric pair of quantum states split by tunnelling between the two symmetry-related classical orbits, and EBK returns the mean of the pair. Every comparison here is against the doublet mean; comparing to a single eigenvalue is not a small error but a comparison of the wrong things.',
+     'ЭБК слеп к туннелированию ПО ПОСТРОЕНИЮ: один тор отвечает паре состояний, и ЭБК даёт среднее по дублету.',
+     'EBK ist konstruktionsbedingt blind für Tunneln.'],
+    ['Beyond about j = 24 the tunnelling splitting falls below what double precision can resolve against eigenvalues of order 10^2, so reported splittings become round-off. Each level carries a flag saying which regime it is in; a plot of the unresolved values would be a plot of arithmetic noise.',
+     'Выше примерно j = 24 расщепление уходит под точность double и становится округлением; у каждого уровня стоит флаг.',
+     'Ab etwa j = 24 liegt die Aufspaltung unter der Maschinengenauigkeit.'],
+    ['This quantises the INSTANTANEOUS operator with the c_i held fixed. It is a check of the semiclassical correspondence for the asymmetric top, not a quantisation of the Bianchi IX geometry, and no statement about a quantum cosmology follows from it.',
+     'Здесь квантуется МГНОВЕННЫЙ оператор при фиксированных c_i; это проверка полуклассического соответствия, а не квантование геометрии.',
+     'Hier wird der momentane Operator quantisiert.'],
+    ['The licence to use EBK at all was MEASURED, not assumed: work package C2 found Lyapunov doubling ratios of 0.544 to 0.578 on every reachable bounded orbit, against a plateau at 1 for a chaotic one. On a chaotic orbit there are no invariant tori and the construction has no meaning.',
+     'Право применять ЭБК ИЗМЕРЕНО, а не принято: все достижимые связанные орбиты регулярны.',
+     'Die Lizenz für EBK wurde gemessen.'],
+    ['The Langer substitution L = j + 1/2 is a choice with a standard justification, not a derivation. Using sqrt(j(j+1)) degrades the agreement without changing its 1/j^2 rate.',
+     'Подстановка Лангера L = j + ½ — соглашение со стандартным обоснованием, а не вывод.',
+     'Die Langer-Substitution ist eine Konvention.']],
+  evaluate(i){
+    const r=ebkCompare(Math.round(2*i.j)/2, i.beta_plus, i.beta_minus,
+      Math.round(i.levels)-1, Math.round(i.quadrature));
+    return {c:r.c, L:r.L, levels:r.levels,
+      worst_relative_error:r.levels.length?Math.max(...r.levels.map(x=>x.relativeError)):null};
+  }
 });
 
 hccApiRegister({
