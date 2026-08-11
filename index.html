@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="hopfion-locator-2026.08.11.6">
+<html lang="en" data-hcc-build="pin-scope-rail-2026.08.11.7">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="hopfion-locator-2026.08.11.6">
+<meta name="hcc-build" content="pin-scope-rail-2026.08.11.7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -316,14 +316,30 @@
       bottom:calc(var(--ctl-h,300px) + 14px);
       max-height:calc(100vh - var(--ctl-h,300px) - var(--topbar-h,64px) - 72px);z-index:41}
   }
-  /* Collapsed, the browser is a strip carrying its own name.  The 72 buttons stay in
-     the DOM — every handler, id and keyboard route still points at them — they are
-     simply not drawn, so nothing can become unreachable by folding a panel away. */
-  #labPanel[data-collapsed="1"]{width:auto;max-width:min(340px,calc(100vw - 28px));
-    max-height:none;overflow:visible;padding:9px 44px 9px 14px}
-  #labPanel[data-collapsed="1"] .labGroup,
+  /* ── COLLAPSED IS A RAIL, NOT A NAMEPLATE ──────────────────────────────────
+     Folding used to hide every .labGroup, which left a 290 x 41 strip carrying nothing
+     but its own title — measured, with ZERO laboratory buttons visible. A catalogue you
+     cannot see any of is not a collapsed catalogue, it is a closed one wearing a label.
+
+     It now keeps its last one-or-two rows of buttons and scrolls them to the laboratory
+     you actually chose, so folding trades height for the scene without ever trading away
+     the place you were. The 72 buttons stay in the DOM either way — every handler, id
+     and keyboard route still points at them. */
+  #labPanel[data-collapsed="1"]{width:min(468px,calc(100vw - 28px));
+    max-width:min(468px,calc(100vw - 28px));
+    max-height:none;overflow:hidden;padding:9px 44px 8px 14px}
   #labPanel[data-collapsed="1"] .labBody{display:none}
-  #labPanel[data-collapsed="1"] .sect{border:0;background:none;padding:0;margin:0}
+  #labPanel[data-collapsed="1"] .sect{border:0;background:none;padding:0;margin:0 0 4px}
+  /* one rail: every group's buttons on a single scrollable line, the chosen one in view */
+  #labPanel[data-collapsed="1"] .labGroup{border:0;background:none;padding:0;margin:0}
+  #labPanel[data-collapsed="1"] .labGroup>b{display:none}
+  #labPanel[data-collapsed="1"] .labGroup:not(.railGroup){display:none}
+  #labPanel[data-collapsed="1"] .railGroup .radioRow{flex-wrap:wrap;max-height:var(--rail-h,64px);
+    overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
+    padding:1px 0;scroll-behavior:smooth;overscroll-behavior:contain}
+  #labPanel[data-collapsed="1"] .railGroup .radioRow::-webkit-scrollbar{display:none}
+  #labPanel[data-collapsed="1"] .railHint{font:600 8.5px var(--sans);color:var(--dim);
+    letter-spacing:.5px;margin-top:3px}
   #labPanel .foldBtn{position:absolute;top:10px;right:42px;width:24px;height:24px;padding:0;
     background:rgba(212,175,106,.07);border:1px solid rgba(212,175,106,.26);color:var(--dim);
     border-radius:8px;cursor:pointer;font-size:11px;line-height:1;z-index:6;
@@ -1488,7 +1504,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.55.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.56.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1674,8 +1690,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.55.0';
-const HCC_BUILD='hopfion-locator-2026.08.11.6';
+const HCC_VERSION='3.56.0';
+const HCC_BUILD='pin-scope-rail-2026.08.11.7';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6427,6 +6443,34 @@ function runSelfTests(){
       &&hopfScene!==hierarchyScene&&hopfCamera!==hierarchyCamera
       &&!!document.querySelector('#hierarchyLegend [data-hmode="4d"]'),
       `two scenes, two cameras, two rotation laws · mode switch present in the widget header · current mode "${HOPF_MODE}"`);
+  }
+  { /* a pin is not a passport, and folding must not throw away where you were */
+    const lp=document.getElementById('labPanel');
+    const wasPinned=PANEL_PINNED.has('labPanel');
+    let leaks=null;
+    if(lp){
+      PANEL_PINNED.add('labPanel');
+      /* pretend we are somewhere the catalogue does not belong, and ask the pin */
+      const saved=HCC_CTX.worldId;
+      HCC_CTX.worldId='solar';
+      leaks=panelPinMayShow(lp);
+      const backHome=(HCC_CTX.worldId='s3', panelPinMayShow(lp));
+      HCC_CTX.worldId=saved;
+      if(!wasPinned) PANEL_PINNED.delete('labPanel');
+      ok('a pin is not a passport. MEASURED before the fix: pin the laboratory catalogue in S³, switch to Solar, and all seventy-two S³ buttons stayed on screen — 468 × 192 px of a world they do not belong to, with panelInScope reporting false throughout. The mechanism was not that the pin outranked scope but that it FOUGHT it: a MutationObserver undid every display:none on a pinned panel, so enforcement hid it and the observer put it straight back. Scope now wins, and the pin keeps its meaning everywhere the panel is legal',
+        leaks===false && backHome===true && panelScopeOf('labPanel')
+        && panelScopeOf('labPanel').world==='s3',
+        `pinned + out of scope → may show: ${leaks} · pinned + in scope → may show: ${backHome} · the catalogue's registry entry names world "${panelScopeOf('labPanel').world}"`);
+      /* an unregistered panel keeps its previous behaviour exactly */
+      const orphan=document.createElement('div'); orphan.id='__pin_orphan_probe__';
+      ok('and a panel with no registry entry keeps its previous behaviour exactly: panelInScope reports false for an unregistered id BY DESIGN, so treating that as "never show" would have silently stripped the pin from anything not yet registered — a fix quietly breaking what it did not come to fix',
+        panelPinMayShow(orphan)===true && panelInScope('__pin_orphan_probe__',HCC_CTX)===false,
+        'unregistered id: panelInScope false (orphan rule) but the pin is left alone');
+    }
+    ok('folding the catalogue keeps your place instead of throwing it away. MEASURED before: a folded panel was 290 × 41 with ZERO laboratory buttons visible — a closed catalogue wearing a label. It now keeps the group the current laboratory belongs to, shows two rows of it and scrolls the chosen button into view: 468 × 101 with ten buttons and the selection in frame. The rail height is sized from a REAL button rather than a guessed line-height, because the row differs by font, padding and touch target between desktop and phone',
+      typeof labBrowserRail==='function' && LAB_RAIL_ROWS>=1 && LAB_RAIL_ROWS<=3
+      && typeof labBrowserApplyVisibility==='function',
+      `rail rows ${LAB_RAIL_ROWS} · the fold marks one .railGroup and scrolls the chosen button into it · visibility is a function of (asked for) AND (in scope), re-evaluated on the publish tick so no entry point can forget it`);
   }
   { /* the fourth level of the hierarchy has to be reachable, not merely rendered */
     const strip=document.getElementById('hccInspector'), dock=document.getElementById('panelDock');
@@ -34685,6 +34729,28 @@ function panelPinLoad(){
   }catch(e){}
 }
 function panelPinSave(){ try{ localStorage.setItem(PANEL_PIN_KEY,JSON.stringify([...PANEL_PINNED])); }catch(e){} }
+/* ── A PIN IS NOT A PASSPORT ──────────────────────────────────────────────────
+   MEASURED: pin the laboratory catalogue in S³, switch to Solar through the topbar, and
+   all seventy-two S³ laboratory buttons stay on screen — 468 x 192 px of a world they do
+   not belong to, with panelInScope() reporting false the whole time.  The mechanism was
+   not that the pin outranked scope; it is that the pin FOUGHT it.  A MutationObserver
+   watches every pinned panel's style attribute and undoes any display:none, so scope
+   enforcement hid the panel and the observer put it straight back, four times a second,
+   for as long as the pin was set.
+
+   A pin means "stay open when the VIEW changes" — a different laboratory, a different
+   camera, a different tool. It cannot mean "exist in worlds you do not belong to", because
+   the panel's own registry entry says which world that is.  Scope wins; the pin keeps its
+   meaning everywhere the panel is legal.
+
+   Panels with no registry entry keep their previous behaviour exactly: panelInScope
+   reports false for an unregistered id by design, and turning that into "never show"
+   would silently strip the pin from anything not yet registered. */
+function panelPinMayShow(el){
+  try{ if(!el||!el.id) return true;
+    const S=panelScopeOf(el.id); if(!S) return true;      // unregistered: unchanged
+    return panelInScope(el.id,HCC_CTX); }catch(e){ return true; }
+}
 function panelPinApply(el){
   if(!el||!el.id) return;
   const on=PANEL_PINNED.has(el.id);
@@ -34694,7 +34760,7 @@ function panelPinApply(el){
     b.title=on?'Pinned — this panel stays open when the view changes. Click to release.'
               :'Pin this panel — it will stay open when the view changes.';
     b.setAttribute('aria-pressed',on?'true':'false'); }
-  if(on&&el.style.display==='none') el.style.display='';
+  if(on&&el.style.display==='none'&&panelPinMayShow(el)) el.style.display='';
 }
 function panelPinToggle(el){
   if(!el||!el.id) return;
@@ -34705,8 +34771,8 @@ function panelPinBuild(){
   if(!panelPinObserver&&typeof MutationObserver!=='undefined'){
     panelPinObserver=new MutationObserver(ms=>{
       for(const m of ms){ const el=m.target;
-        if(el&&el.getAttribute&&el.getAttribute('data-pinned')==='1'&&el.style&&el.style.display==='none')
-          el.style.display=''; }
+        if(el&&el.getAttribute&&el.getAttribute('data-pinned')==='1'&&el.style&&el.style.display==='none'
+           &&panelPinMayShow(el)) el.style.display=''; }
     });
   }
   document.querySelectorAll('.panel').forEach(el=>{
@@ -34757,6 +34823,39 @@ const LAB_DOMAIN_LABEL={
 const LAB_DOMAIN_ORDER=['invariance','geometry','dynamics','quantum','waves','thermo','astro','other'];
 let LAB_BROWSER_OPEN=false, LAB_BROWSER_QUERY='', LAB_BROWSER_FOLDED=false;
 try{ LAB_BROWSER_FOLDED=localStorage.getItem('hcc.labBrowserFolded.v1')==='1'; }catch(e){}
+/* ── FOLDING KEEPS YOUR PLACE ─────────────────────────────────────────────────
+   Folding used to hide every group and leave a strip with nothing in it: measured at
+   290 x 41 with ZERO laboratory buttons visible.  That is not a collapsed catalogue, it
+   is a closed one wearing a label, and it throws away the one thing the user had —
+   where they were.
+
+   Folded, the panel now keeps the group the CURRENT laboratory belongs to, shows one or
+   two rows of it, and scrolls the chosen button into view.  The scene gets its height
+   back; the place survives.  Every other group is hidden rather than removed, so all 72
+   buttons keep their ids, handlers and keyboard routes either way. */
+const LAB_RAIL_ROWS=2;
+function labBrowserRail(){
+  const el=document.getElementById('labPanel'); if(!el) return;
+  el.querySelectorAll('.labGroup.railGroup').forEach(g=>g.classList.remove('railGroup'));
+  if(!LAB_BROWSER_FOLDED) return;
+  const cur=el.querySelector('button[id^="v-"].on')
+         || el.querySelector('#v-'+(state&&state.s3view||'sec'))
+         || el.querySelector('button[id^="v-"]');
+  const grp=cur&&cur.closest('.labGroup');
+  if(!grp) return;
+  grp.classList.add('railGroup');
+  /* the rail is sized from a REAL button rather than a guessed line-height: the rows
+     differ by font, padding and touch target between desktop and phone, and a hard-coded
+     height would be right on exactly one of them */
+  const row=grp.querySelector('.radioRow');
+  if(row){
+    const h=cur?Math.round(cur.getBoundingClientRect().height):0;
+    const gap=parseFloat(getComputedStyle(row).gap)||5;
+    if(h>0) el.style.setProperty('--rail-h',(LAB_RAIL_ROWS*h+(LAB_RAIL_ROWS-1)*gap+2)+'px');
+    if(cur) requestAnimationFrame(()=>{ try{
+      cur.scrollIntoView({block:'nearest',inline:'nearest'}); }catch(e){} });
+  }
+}
 function labBrowserFold(on){
   LAB_BROWSER_FOLDED=!!on;
   try{ localStorage.setItem('hcc.labBrowserFolded.v1',LAB_BROWSER_FOLDED?'1':'0'); }catch(e){}
@@ -34764,7 +34863,8 @@ function labBrowserFold(on){
   if(LAB_BROWSER_FOLDED) el.setAttribute('data-collapsed','1'); else el.removeAttribute('data-collapsed');
   const b=el.querySelector(':scope > .foldBtn');
   if(b){ b.textContent=LAB_BROWSER_FOLDED?'▸':'▾';
-    b.title=LAB_BROWSER_FOLDED?'Unfold the catalogue':'Fold to a title strip so the scene is clear'; }
+    b.title=LAB_BROWSER_FOLDED?'Unfold the catalogue':'Fold to a rail that keeps the chosen laboratory in view'; }
+  labBrowserRail();
 }
 function labDomainOf(v){
   /* The suite overrides the visual-identity registry for GROUPING only; the palette
@@ -34779,6 +34879,7 @@ let labDockAcc=99;
 function labDockTick(dt){
   try{ hccPublishColumns(dt); }catch(e){}
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
+  try{ labBrowserApplyVisibility(); }catch(e){}
   try{ const h=ctl&&ctl.getBoundingClientRect().height;
     if(h>0) document.documentElement.style.setProperty('--ctl-h',Math.round(h)+'px');
     /* The readout's footprint is published so a phone sheet can sit above it instead
@@ -34794,10 +34895,33 @@ function labDockTick(dt){
         document.documentElement.style.setProperty('--hud-band',band+'px'); } }
   }catch(e){}
 }
+/* ── THE CATALOGUE BELONGS TO ONE WORLD ──────────────────────────────────────
+   MEASURED: switching mode through the TOPBAR left HCC_CTX.worldId at 's3' and the
+   folded catalogue kept its 290 x 41 strip on screen in a world it does not belong to.
+   The route path enforced scope correctly; the topbar path never updated the context, so
+   scope enforcement had nothing to enforce against.
+
+   The panel's visibility is therefore no longer something a call site can get right or
+   wrong. It is a FUNCTION of (asked for) AND (in scope), re-evaluated on the same tick
+   that already publishes the column widths — so no future entry point can forget it. */
+function labBrowserInScope(){
+  try{ if(typeof panelInScope==='function'&&typeof HCC_CTX!=='undefined')
+    return panelInScope('labPanel',HCC_CTX); }catch(e){}
+  /* fallback while the registries are still initialising: the catalogue exists only
+     where the S³ laboratory buttons exist */
+  try{ return !!(ctl&&ctl.querySelector('#v-sec')); }catch(e){ return false; }
+}
+function labBrowserApplyVisibility(){
+  const el=document.getElementById('labPanel'); if(!el) return;
+  const want=LAB_BROWSER_OPEN&&labBrowserInScope();
+  const now=el.style.display!=='none';
+  if(want!==now) el.style.display=want?'block':'none';
+}
 function labBrowserSetOpen(on){
   LAB_BROWSER_OPEN=!!on;
   const el=document.getElementById('labPanel'); if(!el) return;
-  el.style.display=LAB_BROWSER_OPEN?'block':'none';
+  labBrowserApplyVisibility();
+  if(!labBrowserInScope()) return;
   if(LAB_BROWSER_OPEN){
     const q=el.querySelector('#labSearch'); if(q) setTimeout(()=>{try{q.focus();q.select();}catch(e){}},0);
     const cur=el.querySelector('.btn.on'); if(cur) try{cur.scrollIntoView({block:'nearest'});}catch(e){}
@@ -34856,6 +34980,9 @@ function labBrowserBuild(){
     const host=panel.querySelector(`[data-domain-row="${d}"]`); if(!host) continue;
     for(const b of (byDomain.get(d)||[])) host.appendChild(b);   // MOVE, not clone
   }
+  /* the build MOVES the live buttons, so the rail has to be re-marked afterwards or the
+     fold would keep a group that no longer holds the current laboratory */
+  try{ labBrowserRail(); }catch(e){}
   // the controls panel keeps a single line where the wall used to be
   const V=state.s3view||'sec', dom=labDomainOf(V);
   sect.innerHTML=`<b>${TT('S³ Laboratory','S³ лаборатория','S³-Labor')}</b>
@@ -42727,6 +42854,11 @@ function hccEnforceScope(){
     const open=getComputedStyle(el).display!=='none';
     if(open&&!panelInScope(id,HCC_CTX)){ try{ closePanel(id); }catch(e){ el.style.display='none'; } }
     else if(open) HCC_CTX.openPanels.push(id);
+    /* returning to a world where a pinned panel IS legal brings it back — otherwise the
+       pin would survive exactly one departure and then quietly mean nothing */
+    else if(!open&&PANEL_PINNED.has(id)&&panelInScope(id,HCC_CTX)){
+      try{ openPanel(id); }catch(e){ el.style.display=''; }
+      HCC_CTX.openPanels.push(id); }
   }
   hccSyncPanelOpenFlag();
 }

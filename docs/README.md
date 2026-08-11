@@ -1179,6 +1179,67 @@ ran straight through the title.
 | independent verifiers | 19 | **20** |
 | self-tests | 597 | **600** |
 
+## A pin is not a passport (v3.56.0)
+
+Two faults in the laboratory catalogue, reported together and turning out to be
+unrelated.
+
+### Folding threw away the one thing you had
+
+Folded, the catalogue was **290 × 41 px with zero laboratory buttons visible** — a closed
+catalogue wearing a label. Every `.labGroup` was hidden, so what remained was a nameplate.
+
+It now keeps the group the current laboratory belongs to, shows two rows of it, and
+scrolls the chosen button into view: **468 × 101 with ten buttons and the selection in
+frame**. The scene gets its height back; the place survives. The rail height is measured
+from a real button rather than a guessed line-height, because the row differs by font,
+padding and touch target between desktop and phone — a hard-coded height would be right on
+exactly one of them.
+
+| folded | before | after |
+|---|---|---|
+| box | 290 × 41 | **468 × 101** |
+| laboratory buttons visible | **0** | **10** |
+| chosen laboratory in view | no | **yes** |
+
+### The remnants in other worlds: a pin fighting scope
+
+The catalogue is registered `{scope:'world', world:'s3'}` and route changes enforced that
+correctly, which is why the first attempt to reproduce the report failed. The path that
+does leak is **pinning**:
+
+    pin the catalogue in S³ → switch to Solar → 468 × 192 px of 72 S³ buttons,
+    with panelInScope() reporting false the whole time.
+
+And the mechanism is sharper than "the pin outranks scope". The pin **fights** it: a
+MutationObserver watches every pinned panel's `style` attribute and undoes any
+`display:none`. Scope enforcement hid the panel; the observer put it straight back, four
+times a second, for as long as the pin was set.
+
+A pin means *stay open when the view changes* — a different laboratory, a different camera,
+a different tool. It cannot mean *exist in worlds you do not belong to*, because the
+panel's own registry entry names which world that is. Scope now wins, and the pin keeps its
+meaning everywhere the panel is legal: leaving S³ hides it, returning restores it.
+
+Panels with **no** registry entry keep their previous behaviour exactly. `panelInScope`
+reports false for an unregistered id by design, and turning that into "never show" would
+have silently stripped the pin from anything not yet registered — a fix quietly breaking
+what it did not come to fix.
+
+### A measurement that was measuring itself
+
+Worth recording: the first probe of this could not reach the module-scoped
+`labBrowserSetOpen`, so its `catch` branch set `style.display = 'block'` by hand — and then
+reported a "leak" that was its own assignment surviving. The panel had never been opened.
+Every number in this section comes from driving the real affordances instead: the browse
+button, the fold button, the pin button, the topbar.
+
+| measurement | before | after |
+|---|---|---|
+| S³ buttons visible in other worlds, pinned | **72** | **0** |
+| pinned panel restored on returning to S³ | — | **yes** |
+| self-tests | 600 | **603** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
