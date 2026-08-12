@@ -1298,6 +1298,42 @@ pretending the camera is somewhere it is not.
 | verifier checks | 8 | **10** |
 | self-tests | 603 | **607** |
 
+## The obstacle list was not the whole room (v3.58.0)
+
+Found by finally looking at the thing I had twice said I had not looked at: the hopfion's
+**control mode**, where every ring is one of the selection's parameters. It renders
+correctly — `planet1 · 6 rings = 6 controls` — but the locator itself had walked to the
+top-left corner and the breadcrumb was drawn straight through its header and its mode
+switch.
+
+`positionHierarchyLegend()` scores four corner candidates by total overlap with obstacles.
+The obstacle list was `.panel, #hud, #mBtns, #landedBanner, #panelDock` — **the breadcrumb,
+the Inspector, the context rail and the freshness sentinel were not in it.** With Controls
+and Selection open, both bottom corners scored as blocked and the top-left scored as free,
+because the thing occupying it was not on the list.
+
+This is the Inspector-under-the-dock fault from the other side, and it takes the same cure:
+**enumerate the room, do not name the last offender.**
+
+### Widening the list was not enough, and the measurement said so
+
+With the breadcrumb added, the locator stayed at 14, 98. The score was now honest and the
+top-left was still winning — *on merit*. A breadcrumb is thin: a few thousand square pixels
+of overlap against an open panel's hundred thousand. Scoring cannot rank "sits on your
+navigation identity" above "clips a panel edge", because by area it doesn't.
+
+What was wrong was the starting line. A top candidate began beneath the **topbar** alone,
+so it started inside a band already occupied by five other things. It now begins beneath
+all of them — breadcrumb, Inspector, rail, dock, freshness sentinel — and the locator moved
+from **y = 98 to y = 148**, clear of the band entirely.
+
+| measurement | before | after |
+|---|---|---|
+| chrome elements the placement avoids | 5 | **13** |
+| locator top edge with Controls + Selection open | **98** (on the breadcrumb) | **148** |
+| chrome overlapping the locator | breadcrumb | **none** |
+| self-tests | 607 | **608** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

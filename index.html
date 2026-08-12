@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="fibre-camera-2026.08.11.8">
+<html lang="en" data-hcc-build="whole-room-2026.08.12.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="fibre-camera-2026.08.11.8">
+<meta name="hcc-build" content="whole-room-2026.08.12.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1504,7 +1504,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.57.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.58.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1690,8 +1690,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.57.0';
-const HCC_BUILD='fibre-camera-2026.08.11.8';
+const HCC_VERSION='3.58.0';
+const HCC_BUILD='whole-room-2026.08.12.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6443,6 +6443,24 @@ function runSelfTests(){
       &&hopfScene!==hierarchyScene&&hopfCamera!==hierarchyCamera
       &&!!document.querySelector('#hierarchyLegend [data-hmode="4d"]'),
       `two scenes, two cameras, two rotation laws · mode switch present in the widget header · current mode "${HOPF_MODE}"`);
+  }
+  { /* the locator has to be placed against the whole room, not the part someone listed */
+    const L=document.getElementById('hierarchyLegend');
+    const chrome=['hccCrumb','navCluster','hccInspector','contextRail','freshBar','clock','panelDock','hud'];
+    const listed=chrome.filter(id=>{
+      const src=String(positionHierarchyLegend);
+      return src.includes('#'+id); });
+    let clash=[];
+    if(L&&getComputedStyle(L).display!=='none'){
+      const lr=L.getBoundingClientRect();
+      const hit=(a,b)=>a.left<b.right&&b.left<a.right&&a.top<b.bottom&&b.top<a.bottom;
+      clash=chrome.map(id=>[id,document.getElementById(id)])
+        .filter(([,e])=>e&&getComputedStyle(e).display!=='none'&&e.getBoundingClientRect().width>0)
+        .filter(([,e])=>hit(lr,e.getBoundingClientRect())).map(([id])=>id);
+    }
+    ok('the locator is placed against the WHOLE room rather than the part someone remembered to list. MEASURED before: with Controls and Selection open, both bottom corners scored as blocked and the placement fell back to the top-left — which it scored as free because the breadcrumb was not among its obstacles. The locator landed at 14, 98 with the breadcrumb drawn straight through its header and its mode switch. This is the Inspector-under-the-dock fault from the other side, and it takes the same cure: enumerate the room, do not name the last offender',
+      listed.length===chrome.length && clash.length===0,
+      `${listed.length}/${chrome.length} pieces of fixed chrome are obstacles for the placement (${listed.join(', ')}) · currently overlapping the locator: ${clash.join(', ')||'none'}`);
   }
   { /* the 4D control: the bundle IS the camera-orientation bundle, both ways */
     const P0=camera.position.clone(), U0=camera.up.clone(), T0=controls.target.clone();
@@ -11844,7 +11862,22 @@ function rectOverlap(a,b){
 function positionHierarchyLegend(){
   if(getComputedStyle(hierarchyLegend).display==='none'||hierarchyDrag) return;
   const r=hierarchyLegend.getBoundingClientRect(),w=r.width,h=r.height,m=innerWidth<760?8:14;
-  const top=Math.ceil(document.getElementById('topbar').getBoundingClientRect().bottom)+8;
+  /* THE TOP CANDIDATES MUST START BELOW THE TOP BAND, NOT INSIDE IT.
+     Widening the obstacle list made the top-left score honest but did not move the
+     locator, and the measurement said why: with both bottom corners blocked by open
+     panels, the top-left really IS the least-overlapping slot — it was winning on merit
+     while sitting on the breadcrumb.  Scoring cannot fix that, because the breadcrumb is
+     thin: a few thousand square pixels of overlap against a panel's hundred thousand.
+
+     What is wrong is the starting line.  The top band is occupied by the breadcrumb, the
+     Inspector, the context rail, the dock and the freshness sentinel, so a top candidate
+     begins beneath ALL of them rather than beneath the topbar alone. */
+  const topBand=['topbar','hccCrumb','navCluster','hccInspector','contextRail','freshBar','panelDock']
+    .map(id=>document.getElementById(id))
+    .filter(el=>el&&getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().width>0)
+    .reduce((y,el)=>{ const r=el.getBoundingClientRect();
+      return r.top<innerHeight*0.45?Math.max(y,r.bottom):y; },0);
+  const top=Math.ceil(topBand||document.getElementById('topbar').getBoundingClientRect().bottom)+8;
   const maxY=Math.max(m,innerHeight-h-m),minY=Math.min(top,maxY);
   const bottom=THREE.MathUtils.clamp(innerHeight-(innerWidth<760?68:14)-h,minY,maxY);
   const candidates=[
@@ -11852,8 +11885,22 @@ function positionHierarchyLegend(){
     {x:innerWidth-m-w,y:top},{x:m,y:top},
     {x:(innerWidth-w)/2,y:bottom},
   ].map(c=>({x:THREE.MathUtils.clamp(c.x,m,Math.max(m,innerWidth-w-m)),y:THREE.MathUtils.clamp(c.y,minY,maxY)}));
-  const obstacles=[...document.querySelectorAll('.panel,#hud,#mBtns,#landedBanner,#panelDock')]
-    .filter(el=>el!==hierarchyLegend&&getComputedStyle(el).display!=='none'&&el.getBoundingClientRect().width>0)
+  /* THE OBSTACLE LIST HAS TO BE THE WHOLE ROOM, NOT THE PART ANYONE REMEMBERED.
+     MEASURED: with the Controls and Selection panels open, the two bottom corners score
+     as blocked and the placement falls back to the TOP-LEFT — which it scored as free
+     because the breadcrumb was not in this list.  The locator landed at 14, 98 with the
+     breadcrumb drawn straight through its header and its mode switch.
+
+     This is the same fault as the Inspector strip under the panel dock, from the other
+     side: an enumeration that names some tenants of the screen and not others.  The cure
+     is the same one — enumerate the room.  Every piece of fixed chrome that can occupy a
+     corner is an obstacle, whether or not it happens to be a .panel. */
+  const obstacles=[...document.querySelectorAll(
+      '.panel,#hud,#mBtns,#landedBanner,#panelDock,'+
+      '#hccCrumb,#navCluster,#breadcrumb,#hccInspector,#contextRail,#freshBar,#clock,#hccTabs')]
+    .filter(el=>el!==hierarchyLegend&&!hierarchyLegend.contains(el)
+      &&getComputedStyle(el).display!=='none'&&getComputedStyle(el).visibility!=='hidden'
+      &&el.getBoundingClientRect().width>0&&el.getBoundingClientRect().height>0)
     .map(el=>el.getBoundingClientRect());
   let best=candidates[0],score=Infinity;
   for(const c of candidates){
