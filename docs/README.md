@@ -697,8 +697,18 @@ determinant line moves u by ν/q★ ≈ 10⁻¹²³ — structurally essential, 
 A reader who took "three gates" to mean "three independent determinations of Λ" would badly
 overstate the redundancy. There is one sharp determination and two consistency conditions.
 
+Gate A's displacement is not a residue. I first published +0.060937 as "a real displacement
+rather than a round-off", which was true and useless — it is exactly
+
+    u − u★ = ln(1 + π/50) = 0.06093700...
+
+to 3.5×10⁻¹⁶, because the selector's fixed point carries the same denominator:
+q₀ = πφ⁵⁸⁴/(1 + π/50). Rung 292 is where the ladder puts the sector; the gap to the
+scheme-fixed u★ is the logarithm of the gate factor and nothing else. Checks 7 and 8 of the
+verifier assert this identity and refuse the earlier wording.
+
 Nothing here contradicts the manuscript; it quantifies a distinction the manuscript leaves
-implicit. Verified independently in `docs/verify-capacity-gate-budget.cjs` (7/7), including
+implicit. Verified independently in `docs/verify-capacity-gate-budget.cjs` (9/9), including
 the approximation the file refuses: the linearisation |dΛ/Λ| = |du| would report the rung
 window as ±32.4 σ where the exact span is ±31.3, wrong by 4% because Λ ∝ e^{−u} is convex.
 It changes no conclusion and it is still not used, because an error budget assembled from
@@ -1440,6 +1450,102 @@ reopens itself every frame is not an affordance, it is a fight.
 | catalogue present in S³ | **no** | yes, above Controls |
 | catalogue present outside S³ | heading leaked | **no** |
 | self-tests | 611 | **614** |
+
+## A panel that appears by itself must have a way out (v3.61.0)
+
+The laboratory catalogue was offered on arrival in S³ and could be folded and pinned, but
+not closed. Measured on a phone: it held **52% of the screen** and covered **49% of the
+model**, and there was no gesture that removed it. A panel the user did not ask for and
+cannot dismiss is not an affordance.
+
+| | before | after |
+|---|---|---|
+| ways to dismiss | fold, pin | fold, pin, **×**, backdrop tap, `Esc` |
+| screen held, phone | 52% | 0% once closed, 14% at the rail |
+| model covered | 49% | 0% |
+| reopens itself | on every arrival | once per arrival, never after a close |
+
+The close is remembered for the session, so the catalogue does not re-appear behind you.
+Offering something once is hospitality; offering it every frame is a fight.
+
+## Sixteen fibres, and every one of them says its name (v3.62.0)
+
+The 4D locator draws the Hopf bundle as sixteen fibres carrying the atlas's worlds, its
+laboratories and the live parameters of the current selection. Reported as unusable. It
+was, and the reason was measurable rather than aesthetic.
+
+| fault | measurement | fix |
+|---|---|---|
+| fibres too thin to hit | tube radius 0.028 in a 6-unit scene ≈ **1 px** | drawn at `HOPF_TUBE_R = 0.046` with invisible pick tubes at `HOPF_PICK_R = 0.19` — 4× the drawn radius, ~19 px |
+| nothing was named | naming was **hover-only** | hover does not exist on touch, so naming moved to **focus** |
+| focus and hover disagreed | two writers of the same colour | `hopfPaint()` is the single authority for opacity, colour and marker scale |
+| a tap both aimed and navigated | one gesture, two irreversible effects | tap = focus + aim (reversible); a separate **go →** press navigates |
+| no keyboard or thumb path | none | **‹ ›** stepper, shown only when `[data-locator="4d"]` |
+| 212 px widget | fibres overlapped at the poles | **⤢** expands to 380×380 |
+
+Measured after, from a cold load, by pressing **›** and reading the name line:
+
+```
+desktop: 16 distinct fibre names · 40 presses · 0 page errors · "go →" present
+phone  : 16 distinct fibre names · 40 presses · 0 page errors · "go →" present
+```
+
+Forty presses because the walk deliberately overruns to prove the ring wraps; the sixteenth
+name arrives on the sixteenth press and the seventeenth returns to the first. The sixteen
+are **7 worlds** (Solar System, Cycles, Observable domain, S³·Hopf, FBS3R φ-ladder, Field
+laboratory, Fractal) + the **9 laboratories of the world you are in**. Select an object and
+the same widget rebuilds as parameter rings taken live from the Controls panel's own range
+inputs — not from a hand-kept list, which is why it stays correct across all 72
+laboratories.
+
+### Then I looked at it, and eight faults had passed every number
+
+The measurement above was **wrong about the phone**, and wrong in the way that matters: it
+was driven by JavaScript clicks, and a script can click a button that is not on the screen.
+The phone had no navigator at all. What the screenshots then showed:
+
+| fault | why no number caught it |
+|---|---|
+| the locator carries `display:none !important` below 820 px | a JS click works on a hidden element, so 16/16 names still came back |
+| "hide it while a panel is open" was written **three times** — stylesheet, layout tick, render pass — and the opt-in beat only the first | every rectangle was correct: frame, title, name line, working buttons |
+| …so the scissor pass returned before drawing: a widget with **no picture in it** | there is nothing to measure about a picture that was never drawn |
+| the mode switch's whole stylesheet sat inside `@media (min-width:901px) and (pointer:fine)` | correct sizes, correct hit targets — and 3D / 4D / ⤢ rendered as raw white platform boxes |
+| growing both button rows to a 30 px thumb target made them **overlap** | both rows measured 30 px, exactly as asked |
+| expanded, the square was 374 px tall on a 390 px phone and its top edge landed at **y = −37** | the widget was "expanded", as requested — with the ⤢ that shrinks it off the top of the screen |
+| the top-band list — whose whole lesson was *enumerate the room* — was missing `#breadcrumb` and `#clock` | the placement engine scored honestly against the list it had |
+| labels cut at 24 characters mid-word: *"Spinor & Light-Cone Obse"* | 24 is 24 |
+
+In order: the navigator is opt-in from **More → ⬡ 4D navigator**, which turns it on and puts
+it straight into 4D; the visibility rule is now one function, `hierLocatorAllowed()`, that
+both JavaScript readers ask instead of restating; the mode switch is styled for every
+screen; `.hq` moved to y 40 so a tap aimed at ⤢ no longer fires the Y-view button; the
+expanded height is the band that actually exists between the top band and the Controls
+stack; `#breadcrumb` and `#clock` joined the band, which is published as `--loc-top`; and
+labels trim at the last word boundary with the full name in the tooltip.
+
+The drawn tube went 0.028 → **0.046** at the same time. At 196 px on a phone the old radius
+was a scratch you had to know was there; the pick tube went to 0.19 to keep the 4× margin.
+
+Measured after all of it, on a 390×844 phone with **real touch events**:
+
+```
+7 visible controls · smallest 30 px · 0 taps landing on the wrong control
+16 distinct fibre names by touch · expand 374x167 into its own band · shrink back 196x167
+0 page errors
+```
+
+Self-tests 614 → **618**, including *every fibre named by stepping* and *the navigator
+exists on a phone*; the 72-view S³ walk reports 0 page errors.
+
+The honest summary is that the geometry was never the problem and the numbers were never
+enough. Six of those eight faults were invisible to assertions that measure rectangles, and
+every one of them was fatal to using the thing.
+
+The camera law is unchanged and is the one thing here that was never in doubt: the Hopf
+bundle **is** the camera-orientation bundle — base point ↔ view direction (2.1×10⁻¹⁵),
+fibre phase ↔ roll (4.9×10⁻¹⁶), verified in `docs/verify-hopfion-locator.cjs` (10/10).
+What was broken was never the geometry. It was that a correct instrument with 1-pixel
+controls and no labels is, to a user, indistinguishable from a broken one.
 
 ## Status
 
