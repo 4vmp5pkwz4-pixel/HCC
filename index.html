@@ -1556,6 +1556,17 @@
     body.has-tabs #freshBar{bottom:calc(var(--ctl-top, 40vh) + var(--lab-h, 0px) + 20px)!important;
       top:auto!important}
   }
+
+  /* the enlarged navigator: the rings become separable, the labels legible */
+  body.hopf-big #hierarchyLegend{width:min(380px,calc(100vw - 28px));
+    height:min(380px,calc(100vh - 180px))}
+  body.hopf-big #hierarchyLegend .ht{max-width:170px}
+  body.hopf-big #hierarchyLegend .hs{font-size:10px;max-height:32px}
+  #hierarchyLegend .hmode button[data-hbig]{font-size:11px;padding:2px 6px}
+  @media (max-width:900px), (pointer:coarse){
+    body.hopf-big #hierarchyLegend{width:calc(100vw - 16px);
+      height:min(72vw,calc(100vh - 320px))}
+  }
 </style>
 </head>
 <body>
@@ -1704,6 +1715,7 @@
   <div class="hmode" role="group" aria-label="Locator mode">
     <button data-hmode="3d" class="on" title="3D hierarchy — attitude indicator; drag turns the camera in its own spherical frame">3D</button>
     <button data-hmode="4d" title="4D hopfion — the atlas hierarchy on the base sphere of the Hopf fibration; drag turns the camera through the Hopf map">4D</button>
+    <button data-hbig="1" title="Enlarge — sixteen linked fibres do not fit a thumbnail">⤢</button>
   </div>
   <div class="hq">
     <button data-hview="reset" title="Reset oblique orientation">◇</button>
@@ -11528,22 +11540,35 @@ const hopfPick=[];
 /* premium palette: the ring reads as metal under a warm key, the selection as gold */
 const HOPF_COL=[0xd4af6a,0x7eb7d8,0xa78bd4,0x8fd8c0,0xff9d70,0xf1dda6,0x9caed4];
 const hopfGeomCache=new Map();
-function hopfRingGeometry(th,ph){
-  const key=th.toFixed(5)+':'+ph.toFixed(5);
+function hopfRingGeometry(th,ph,radius){
+  const R=radius||0.028;
+  const key=th.toFixed(5)+':'+ph.toFixed(5)+':'+R;
   let g=hopfGeomCache.get(key);
   if(!g){ const pts=[];
     for(let k=0;k<=HOPF_SEG;k++){ const ps=2*Math.PI*k/HOPF_SEG;
       const P=hopfProject(hopfFibre(th,ph,ps)); pts.push(new THREE.Vector3(P[0],P[1],P[2])); }
-    g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),HOPF_SEG,0.028,8,true);
+    g=new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),HOPF_SEG,R,8,true);
     hopfGeomCache.set(key,g); }
   return g;
 }
 function hopfClear(){
-  for(const r of hopfRings){ hopfRoot.remove(r.mesh); if(r.marker) hopfRoot.remove(r.marker); }
+  for(const r of hopfRings){ hopfRoot.remove(r.mesh);
+    if(r.pick) hopfRoot.remove(r.pick); if(r.marker) hopfRoot.remove(r.marker); }
   hopfRings.length=0; hopfPick.length=0;
 }
+/* ── AIMING AT A RING HAS TO BE POSSIBLE ─────────────────────────────────────
+   SEEN, not measured: sixteen anonymous rings in a 212 px box, drawn as tubes of radius
+   0.028 in a scene six units across — about ONE PIXEL wide on screen.  Nothing about that
+   is navigable: you cannot hit what you cannot aim at, and you cannot choose what you
+   cannot name.  Both are fixed here.
+
+   The visible tube stays thin, because the picture is the point.  Picking uses a separate
+   INVISIBLE tube five times fatter around the same curve — the standard trick in every
+   serious 3D tool — so the target a finger has to find is ~14 px rather than 1, while
+   what the eye sees is unchanged. */
+const HOPF_PICK_R=0.14;
 function hopfAddRing(th,ph,col,meta){
-  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:meta.dim?0.34:0.86,
+  const mat=new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:meta.dim?0.30:0.92,
     depthWrite:!meta.dim});
   const mesh=new THREE.Mesh(hopfRingGeometry(th,ph),mat);
   hopfRoot.add(mesh);
@@ -11553,7 +11578,12 @@ function hopfAddRing(th,ph,col,meta){
       new THREE.MeshBasicMaterial({color:col}));
     hopfRoot.add(m); rec.marker=m;
   }
-  hopfRings.push(rec); hopfPick.push(mesh);
+  /* the fat invisible twin that actually receives the pointer */
+  const pickGeom=hopfRingGeometry(th,ph,HOPF_PICK_R);
+  const pick=new THREE.Mesh(pickGeom,new THREE.MeshBasicMaterial({
+    transparent:true,opacity:0,depthWrite:false,depthTest:false}));
+  hopfRoot.add(pick); rec.pick=pick; pick.userData.hopf=rec;
+  hopfRings.push(rec); hopfPick.push(pick);
   mesh.userData.hopf=rec;
   return rec;
 }
@@ -11795,7 +11825,8 @@ function pickHierarchyObject(x,y){
   if(hit?.object?.userData?.selKey) selectGlobalKey(hit.object.userData.selKey,true);
 }
 hierarchyLegend.addEventListener('pointerdown',e=>{
-  if(e.target.closest('[data-hview]')||e.target.closest('[data-hmode]')) return;
+  if(e.target.closest('[data-hview]')||e.target.closest('[data-hmode]')
+     ||e.target.closest('[data-hbig]')) return;
   /* in 4D a press that lands ON a control ring grabs that ring; anywhere else turns the
      field.  Deciding at press time is what stops a slider drag from also spinning the
      camera, which is the single most common way a combined widget becomes unusable. */
@@ -11813,6 +11844,12 @@ hierarchyLegend.addEventListener('pointerdown',e=>{
   hierarchyLegend.setPointerCapture?.(e.pointerId); hierarchyLegend.classList.add('dragging'); e.stopPropagation();
 });
 hierarchyLegend.addEventListener('pointermove',e=>{
+  /* naming what is under the pointer costs one raycast against sixteen fat tubes and is
+     what turns the widget from an ornament into something you can aim with */
+  if(!hierarchyDrag&&HOPF_MODE==='4d'){
+    try{ const rec=hopfPickAt(e.clientX,e.clientY);
+      hopfSetHover(rec&&rec.kind!=='live'?rec:null); }catch(e2){}
+  }
   if(!hierarchyDrag||hierarchyDrag.id!==e.pointerId) return;
   if(hierarchyDrag.ring) hopfDragRing(hierarchyDrag.ring,e.clientX,e.clientY);
   else if(hierarchyDrag.roll){
@@ -11848,6 +11885,7 @@ hierarchyLegend.addEventListener('pointerup',e=>{
 hierarchyLegend.addEventListener('pointercancel',()=>{
   hierarchyDrag=null;hierarchyLegend.classList.remove('dragging');
 });
+hierarchyLegend.addEventListener('pointerleave',()=>{ try{ hopfSetHover(null); }catch(e){} });
 hierarchyLegend.addEventListener('wheel',e=>{
   /* the wheel dollies the SCENE, within whatever range its own controls allow */
   const off=camera.position.clone().sub(controls.target);
@@ -11881,9 +11919,7 @@ function hopfSetMode(m){
     hopfRebuild();
     const ctrl=hopfIsControlMode(), n=hopfRings.length;
     if(t) t.textContent=ctrl?'4D · control':'4D · hopfion';
-    if(h) h.innerHTML=ctrl
-      ? `<span class="hk4">${esc(String(selectedKey||'selection').slice(0,16))}</span> · ${n} ring${n===1?'':'s'} = ${n} control${n===1?'':'s'}`
-      : `<span class="hk4">${n} fibres</span> · tap=aim · gold=roll`;
+    HOPF_HOVER=null; try{ hopfHintDefault(); }catch(e){}
   }else{
     if(t) t.textContent='3D · hierarchy';
     if(h) h.innerHTML=`<span class="hk">Earth → Sun → Milky Way → flow → S³</span><br>
@@ -11932,6 +11968,39 @@ function hopfDragRing(rec,x,y){
   p.el.dispatchEvent(new Event('change',{bubbles:true}));
   hopfSyncMarkers();
 }
+/* ── A RING THAT CAN SAY ITS OWN NAME ────────────────────────────────────────
+   Sixteen identical circles carry no information about which laboratory is which, so the
+   widget was a picture of a hierarchy rather than a way through one.  Pointing at a ring
+   now names it, in the line under the drawing, and lifts it out of the tangle: the ring
+   under the pointer goes bright and full-width while everything else recedes.  That is
+   the whole difference between an ornament and a navigator — you can see what you are
+   about to choose BEFORE you choose it. */
+let HOPF_HOVER=null;
+function hopfSetHover(rec){
+  if(HOPF_HOVER===rec) return;
+  HOPF_HOVER=rec;
+  for(const r of hopfRings){
+    const on=(r===rec);
+    r.mesh.material.opacity=on?1:(r.dim?0.22:0.72);
+    r.mesh.material.color.setHex(on?0xffffff:r.col);
+    if(r.marker) r.marker.scale.setScalar(on?1.7:1);
+  }
+  const h=document.getElementById('hierHint');
+  if(!h) return;
+  if(rec&&rec.label){
+    const kind=rec.kind==='world'?TT('world','мир','Welt')
+      :rec.kind==='lab'?TT('laboratory','лаборатория','Labor')
+      :TT('control','параметр','Parameter');
+    h.innerHTML=`<span class="hk4">${esc(String(rec.label).slice(0,26))}</span> · ${kind}`;
+  } else { try{ hopfHintDefault(); }catch(e){} }
+}
+function hopfHintDefault(){
+  const h=document.getElementById('hierHint'); if(!h) return;
+  const n=hopfRings.length, ctrl=hopfIsControlMode();
+  h.innerHTML=ctrl
+    ? `<span class="hk4">${esc(String(selectedKey||'selection').slice(0,16))}</span> · ${n} ring${n===1?'':'s'} = ${n} control${n===1?'':'s'}`
+    : `<span class="hk4">${n} fibres</span> · point to name · tap to go`;
+}
 function hopfPickAt(x,y){
   const r=hierarchyLegend.getBoundingClientRect();
   const ndc=new THREE.Vector2((x-r.left)/r.width*2-1,-((y-r.top)/r.height*2-1));
@@ -11965,6 +12034,20 @@ function hopfRingAngle(th,ph,x,y){
 }
 hierarchyLegend.querySelectorAll('[data-hmode]').forEach(b=>b.onclick=e=>{
   hopfSetMode(b.dataset.hmode); e.stopPropagation(); e.preventDefault();
+});
+/* ── SIXTEEN LINKED FIBRES DO NOT FIT A THUMBNAIL ────────────────────────────
+   At 212 px the rings are a tangle: legible as an ornament, unusable as a chart. The
+   widget opens to 380 and the drawing gets nearly three times the area, which is what
+   makes individual rings separable at all. It is a toggle, not a default, because most
+   of the time the atlas wants its scene back. */
+hierarchyLegend.querySelectorAll('[data-hbig]').forEach(b=>b.onclick=e=>{
+  const on=!document.body.classList.contains('hopf-big');
+  document.body.classList.toggle('hopf-big',on);
+  b.classList.toggle('on',on);
+  b.textContent=on?'⤡':'⤢';
+  b.title=on?'Shrink back to the corner':'Enlarge — sixteen linked fibres do not fit a thumbnail';
+  requestHierarchyLayout();
+  e.stopPropagation(); e.preventDefault();
 });
 /* the atlas moves for many reasons — a selection, a route, a laboratory switch — and the
    hopfion has to follow all of them, so it rebuilds on the context bus rather than

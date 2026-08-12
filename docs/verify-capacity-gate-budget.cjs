@@ -127,7 +127,55 @@ const [A,B,Cg]=budget;
     `nu/q* = ${shift.toExponential(3)} · gate C half-width ${Cg.halfWidth} sigma · sigma at gate C = ${Cg.sigma.toFixed(6)}, which differs from gate B by ${Math.abs(Cg.sigma-B.sigma).toExponential(1)} sigma -- and that residual is gate B's OWN round-off (+/-${B.halfWidth.toExponential(1)}), not a contribution from nu, which vanishes 115 orders below it`);
 }
 
-/* ══ 7 ══ the linearisation that was NOT used, and why ═════════════════════ */
+/* ══ 7 ══ THE CORRECTION: the 0.0609 gap is a CLOSED FORM, not a discrepancy ═ */
+{
+  /* This file previously reported the 0.0609 offset between the exact rung and the
+     manuscript sector as "a real displacement rather than a round-off", and concluded
+     that the recursion gate is only a LOCATOR -- a window tens of sigma wide that
+     confirms without sharpening.  The arithmetic was right and the reading was wrong.
+
+     The sector has a closed form:
+
+         q_0 = pi phi^584 / (1 + pi/50)
+
+     which reproduces q* to 2.0e-14 -- every digit the quoted q* carries.  So the shell
+     rank is EXACTLY 292 (584 = 2 x 292), and the 0.0609 offset is not the recursion gate
+     missing: it is ln(1 + pi/50), an edge correction factor, to 2e-14.  Equivalently the
+     apparent shell coordinate 291.9367 sits below 292 by exactly ln(1+pi/50)/(2 ln phi).
+
+     With the factor included the recursion gate lands ON the scheme gate rather than
+     4.83 sigma away, so the two are not independent determinations of different accuracy
+     -- they are the same number written two ways.  The earlier conclusion that the atlas
+     has "one sharp determination and two consistency conditions" understated the
+     recursion gate, and is corrected here rather than left standing. */
+  const PHI2=(1+Math.sqrt(5))/2;
+  const q0=Math.PI*Math.pow(PHI2,584)/(1+Math.PI/50);
+  const relQ=Math.abs(q0-Q_STAR)/Q_STAR;
+  const gapU=(Math.log(Math.PI)+584*Math.log(PHI2))-U_STAR;
+  const lnFac=Math.log(1+Math.PI/50);
+  const deficit=292-(U_STAR-Math.log(Math.PI))/(2*Math.log(PHI2));
+  ok('CORRECTION to check 2 of this file. The sector has a closed form — q_0 = pi phi^584/(1 + pi/50) — reproducing q* to 2.0e-14, every digit the quoted value carries. So the shell rank is EXACTLY 292, and the 0.0609 offset this file previously called "a real displacement" is ln(1 + pi/50) to 2e-14: an edge correction factor, not a failure of the recursion gate to agree. With it included the recursion gate lands ON the scheme gate rather than 4.83 sigma away, and the earlier conclusion that the rung can locate but never sharpen understated it',
+    relQ<1e-13 && Math.abs(gapU-lnFac)<1e-12
+    && Math.abs(deficit-lnFac/(2*Math.log(PHI2)))<1e-9,
+    `q_0 = ${q0.toExponential(15)} against q* = ${Q_STAR.toExponential(15)}, relative ${relQ.toExponential(2)} · gap ln(pi phi^584) − ln q* = ${gapU.toFixed(12)} and ln(1+pi/50) = ${lnFac.toFixed(12)}, agreeing to ${Math.abs(gapU-lnFac).toExponential(1)} · shell deficit 292 − 291.936684 = ${deficit.toFixed(9)} = ln(1+pi/50)/(2 ln phi)`);
+}
+
+/* ══ 8 ══ what this DOES and does not establish ════════════════════════════ */
+{
+  /* Consistency of three quoted numbers is a real check and it is not a derivation of
+     two of them.  And Xi is not a restatement of the same correction: it is not
+     1/(1 + pi/50), which is 5.8% away, so it carries independent content. */
+  const PHI2=(1+Math.sqrt(5))/2;
+  const u0=Math.log(Math.PI)+584*Math.log(PHI2)-Math.log(1+Math.PI/50);
+  const bg2=16*Math.PI*Math.PI/(u0-Math.log(XI));
+  const rel=Math.abs(bg2-BG2)/BG2;
+  const xiIsFactor=Math.abs(1/(1+Math.PI/50)-XI)/XI;
+  ok('and the boundary of what this establishes, which is the part most easily overstated: the scheme relation reproduces the closed form to 2.2e-12, so the three quoted gate numbers are mutually consistent to that precision. That is a genuine check and NOT a derivation — b g^2 and Xi_edge remain QUOTED, and nothing here computes either from an edge algebra. Xi is also not a restatement of the same correction: 1/(1 + pi/50) misses it by 5.8%',
+    rel<1e-10 && xiIsFactor>0.01,
+    `b g^2 from the closed form and Xi = ${bg2.toFixed(12)} against the quoted ${BG2}, relative ${rel.toExponential(2)} · Xi vs 1/(1+pi/50): ${(100*xiIsFactor).toFixed(1)}% apart · STILL UNDERIVED HERE: the edge algebra producing b g^2 and Xi, the operator R whose spectrum selects 292, and the free energy built from H_edge^cand`);
+}
+
+/* ══ 9 ══ the linearisation that was NOT used, and why ═════════════════════ */
 {
   /* An error budget assembled with |dLambda/Lambda| = |du| would report the rung window
      as 64.9 sigma instead of 62.6.  That is a 4% overstatement on the half-width -- small,
