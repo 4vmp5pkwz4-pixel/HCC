@@ -18,6 +18,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-hopf-splitting.cjs` | the Berger deformation lifts the Hopf charge degeneracy, and the Smith map is a rotation of the Riemann sphere |
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
+| `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -31,6 +32,7 @@ node docs/verify-floquet-gap-c1.cjs        # 7/7 checks pass, writes data/floque
 node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
+node docs/verify-capacity-flow.cjs         # 31/31 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -1546,6 +1548,135 @@ bundle **is** the camera-orientation bundle — base point ↔ view direction (2
 fibre phase ↔ roll (4.9×10⁻¹⁶), verified in `docs/verify-hopfion-locator.cjs` (10/10).
 What was broken was never the geometry. It was that a correct instrument with 1-pixel
 controls and no labels is, to a user, indistinguishable from a broken one.
+
+## A varying dark energy is a moving horizon (v3.63.0)
+
+From the manuscript *Trace-Free Gravity and Horizon Capacity: Fibonacci Shell Closure and
+an Autonomous Edge-Hamiltonian Candidate for the Cosmological Constant* (Preece & Batenin,
+12 Aug 2026), §dynamic-capacity, §hopf-schwinger, §bradlow-packing, §real-data-audit.
+
+The argument the atlas can now draw is one sentence long. **A cosmological constant is
+constant**, so a measurement of time-varying dark energy cannot be a measurement of Λ
+changing. Write the same number as a boundary capacity,
+
+    N_∂(a) = 3π / (ℓ_P² Λ_eff(a)),
+
+and a varying dark-energy density becomes a *flow of capacity* — the horizon holding a
+different number of Planck cells — with no local vacuum energy varying anywhere. Capacity
+is an area, so this is a statement about a **sphere**, and a sphere is something an atlas
+can put on the screen at true scale.
+
+### What is now in the Observable domain
+
+`R_Λ = √(3/Λ_eff) = 17.528 Gly` is drawn as a real shell beside the two horizons that were
+already there — and it is **none of them**:
+
+| shell | radius | what it is |
+|---|---|---|
+| ΛCDM event horizon | 16.685 Gly | future causal boundary |
+| **de Sitter capacity horizon** | **17.528 Gly** | asymptotic √(3/Λ), the Planck-cell count |
+| particle horizon | 46.125 Gly | the observable radius today |
+
+Move `w₀` or `w_a` in the Capacity-flow panel and the shell moves, because that is exactly
+what the manuscript claims moves. At `w₀ = −0.9, w_a = −0.8, a = 0.35` it reads
+`R_Λ = 24.19 Gly · N_∂ = 6.301×10¹²²`.
+
+### The panel
+
+Exact closed forms, all of them boxed equations in the paper:
+
+```
+Λ_eff(a)/Λ₀ = a^{-3(1+w₀+w_a)} exp[3w_a(a-1)]      N_∂(a)/N_∂0 = the exact reciprocal
+w(a) = w₀ + w_a(1-a)                               a_× = 1 + (1+w₀)/w_a
+ν_∂ = 𝒟 ln N_∂ = 3(1+w) = -s_eff                   w_s = -1 - s/3 on S_val = {1,0,-1,-2,-3}
+```
+
+Two things it does that the paper does not:
+
+**The null is measured, not printed back.** `ℛ_cap = 𝒟 ln N_∂ − 3(1+w) = 0` is an identity
+of the construction. The panel differentiates its own closed form numerically and shows
+the residual, because an identity that is displayed instead of evaluated is a claim rather
+than a test. Worst residual over 15 (w₀, w_a, a) points: 4×10⁻¹⁰.
+
+**It says when your epoch is impossible.** A positive non-interacting valuation mixture on
+fixed support obeys `𝒟w = −Var_π(s)/3 ≤ 0`. So a reconstruction with `𝒟w > 0` — the
+DESI-type trend from phantom-like in the past to quintessence-like today — *cannot be one*,
+and the panel says so, with the exchange current `J₊` recovered pointwise from the
+observable pair `(w, 𝒟w)`. The alternatives are named: bulk-valuation activation,
+interacting branch exchange, or a sign-indefinite reconstruction.
+
+### Bradlow packing: the capacity IS a vortex count
+
+The prettiest identity in this part of the paper, and it survives being checked:
+
+    N_v^max = τ_P·A/(4π) = A/(4ℓ_P²) = N_∂,     τ_P = π/ℓ_P²
+
+Not approximately — *identically*, because both sides are the same expression. The maximum
+number of Planck–Bradlow vortex cells that fit on the horizon is the Bekenstein–Hawking
+capacity. One cell has area 4ℓ_P² and coherence length ξ_P = ℓ_P/√π = 9.12×10⁻³⁶ m. The
+atlas records what this is **not**: Bradlow gives an upper *bound*, so it is a packing
+channel, and only an added saturation hypothesis turns `N_v ≤ N_∂` into `N_v = N_∂`.
+
+Beside it, the Schwinger wall, for contrast: a horizon-wide field at the QED limit carries
+`N_e^Sch = 4πε₀R_Λ²E_Sch/e = 2.53×10⁷⁹` charges — **43.1 orders of magnitude** below N_∂ —
+while the mean dark-energy scale `E_Λ = 10.89 V/m` sits 8.2×10⁻¹⁸ below the wall itself.
+Two different invariants; the atlas refuses to let one stand in for the other.
+
+### The saddle is not the sky
+
+The manuscript prints `n_∂ = 291.936672…` immediately under the boxed
+`q₀ = πφ⁵⁸⁴/(1+π/50)`, which reads as `n_∂(q₀)`. It is not.
+
+| point | ladder coordinate | what it is |
+|---|---|---|
+| saddle | `n_∂(q₀) = 292 − ln(1+π/50)/(2 ln φ) = 291.936684` | the theory's own value |
+| sky | `n_∂ = log_φ√(N_∂0/π) = 291.936672` | 3π/(Λ₀ℓ_P²) at the paper's H₀ = 67.4, Ω_Λ = 0.685 |
+
+Both round to shell **292** — that is the claim, and it holds. But they are two points
+1.19×10⁻⁵ of a shell apart, and the atlas shows both rather than letting one number stand
+for two. The gap is not observable: moving H₀ by the Planck-2018 uncertainty ±0.42 moves
+n_∂ by 0.0129 shells, a thousand times more.
+
+### q₀ in exact arithmetic
+
+The paper quotes q₀ to sixteen digits. Double precision cannot check that: `Math.pow(φ,584)`
+is already wrong in the 14th digit, and the atlas's own stored constant inherits it. The
+verifier computes φ⁵⁸⁴ = (L₅₈₄ + F₅₈₄√5)/2 in exact BigInt Lucas/Fibonacci integers at
+10⁻⁸⁰ fixed point and confirms **all sixteen quoted digits**:
+
+```
+exact  q0 = 3.307251460713979e+122
+paper  q0 = 3.307251460713979e+122
+double     ...460714043      <- wrong inside the quoted precision
+```
+
+### Declared boundary
+
+`docs/verify-capacity-flow.cjs` — **31/31**, reading neither the atlas nor being read by it.
+It checks the arithmetic of the chain. It does **not** re-derive Ξ_edge or b g_∂² from the
+edge algebra, and it does **not** re-fit the DESI DR2 BAO χ² table: the DR2 Table 4 data
+vector and its covariance are not reproduced in the manuscript, so no re-fit is possible
+here. That table is displayed in the panel labelled **QUOTED FROM THE MANUSCRIPT** wherever
+it appears, with the paper's own conclusion attached — a consistency-level improvement, not
+a detection, and the positive s = +1 branch driven to Ω_P ≈ 0.
+
+Self-tests 618 → **628**; the 72-view S³ walk stays at 0 page errors.
+
+### A rule is not a layout
+
+Two of the new checks originally asked `document.styleSheets` whether a rule existed. One
+of them was doubly wrong. It asks the stylesheet what the layout will be instead of asking
+the layout — and the walk itself returned `false` against a sheet where a flat loop found
+the rule at every sample, five samples over nine seconds. The rendered page obeyed the
+rule the whole time.
+
+Both are gone. The chip-row check now reads `getComputedStyle(el).flexWrap` from the
+element itself; the phone-navigator check asks `hierLocatorAllowed()`, the behaviour, and
+leaves the rendered rectangle to the external 390×844 measurement recorded above. The
+fault the wrap fixes is the same one the fractal MODE selector taught: on a phone `.chips`
+is one swipeable line, this panel rebuilds on every press, and the rebuild resets the
+scroll — so two of the five presets sat off the right edge at x = 331 and x = 460 and
+could not be reached at all.
 
 ## Status
 
