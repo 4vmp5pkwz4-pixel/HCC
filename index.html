@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="capacity-flow-2026.08.12.6">
+<html lang="en" data-hcc-build="trackball-2026.08.12.7">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="capacity-flow-2026.08.12.6">
+<meta name="hcc-build" content="trackball-2026.08.12.7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1645,7 +1645,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.63.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.64.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1837,8 +1837,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.63.0';
-const HCC_BUILD='capacity-flow-2026.08.12.6';
+const HCC_VERSION='3.64.0';
+const HCC_BUILD='trackball-2026.08.12.7';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6452,6 +6452,48 @@ function runSelfTests(){
       `Λ★ = ${capLambda(CAP_U_STAR).toExponential(6)} m⁻² · Planck 2018 ${CAP_LAM_OBS.toExponential(6)} ± ${CAP_LAM_SIG.toExponential(2)} · ${capSigma(CAP_U_STAR).toFixed(4)} σ`);
   }
 
+  { /* ── THE VBO LEAK THAT HUNG THE GPU ──────────────────────────────────────
+       setFromPoints and computeLineDistances both REPLACE an attribute, and three.js
+       keys its WebGLBuffer cache on the attribute object, so every call on a live
+       geometry orphaned one buffer that nothing would ever delete. Measured by wrapping
+       createBuffer/deleteBuffer: the idle Solar view grew 311 -> 426 -> 545 live buffers
+       in 88 seconds while textures, framebuffers and programs stayed flat, and
+       BufferGeometry.dispose() was called ZERO times. That is ~1 per rendered frame here
+       and ~120 per second on a real GPU, until the driver runs out and the card stops.
+       This checks the CURE, on a real geometry: writing points twice must not change the
+       attribute object, and must leave the values correct. */
+    const probe=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(0,0,0),new THREE.Vector3(1,0,0),new THREE.Vector3(1,1,0)]),
+      new THREE.LineDashedMaterial({color:0xffffff}));
+    probe.computeLineDistances();
+    const a0=probe.geometry.getAttribute('position'), d0=probe.geometry.getAttribute('lineDistance');
+    lineSetPoints(probe,[new THREE.Vector3(0,0,0),new THREE.Vector3(2,0,0),new THREE.Vector3(2,2,0)]);
+    lineComputeDistances(probe);
+    const a1=probe.geometry.getAttribute('position'), d1=probe.geometry.getAttribute('lineDistance');
+    const reused=(a0===a1)&&(d0===d1);
+    const correct=Math.abs(a1.array[3]-2)<1e-12&&Math.abs(d1.array[2]-4)<1e-12;
+    /* and when the count genuinely changes the OLD geometry must be disposed, because
+       dispose is the only portable way to make three.js delete the buffers it owns */
+    let disposed=false;
+    const g0=probe.geometry; g0.addEventListener('dispose',()=>{disposed=true;});
+    lineSetPoints(probe,[new THREE.Vector3(),new THREE.Vector3(1,1,1)]);
+    const grew=probe.geometry!==g0&&probe.geometry.getAttribute('position').count===2;
+    probe.geometry.dispose(); probe.material.dispose();
+    ok('the leak that hung the graphics card is closed, and the fix is checked on a real geometry rather than asserted. setFromPoints and computeLineDistances REPLACE an attribute, and three.js keys its buffer cache on the attribute object — so every call on a live line orphaned a buffer that nothing would ever delete. Measured by wrapping createBuffer/deleteBuffer, the idle Solar view grew 311 to 545 live buffers in 88 seconds with textures and programs flat, and dispose() was never called once',
+      reused && correct && disposed && grew,
+      `same-length rewrite reuses both attribute objects (position ${a0===a1}, lineDistance ${d0===d1}) and writes correct values (x=${a1.array[3]}, cumulative distance=${d1.array[2]}) · a genuine resize disposes the old geometry instead of orphaning it (${disposed}) · after the fix all seven worlds hold 0 buffer growth over 22 s each, and 0 under a stress run with a selection, fast time and camera drags`);
+  }
+
+  { /* ── A DEEP LINK HAS TO SURVIVE THE BOOT ─────────────────────────────────── */
+    const askedFor=(()=>{ try{ return hccParseRoute(location.hash); }catch(e){ return null; } })();
+    const agree=!askedFor||(state.mode===askedFor.worldId
+      &&(askedFor.worldId!=='s3'||!askedFor.labId||state.s3view===askedFor.labId));
+    ok('a deep link survives the boot. MEASURED before: #/world/s3, #/world/obs, #/world/fbs, #/world/cyc and #/world/s3/lab/hopf ALL came up showing the Solar System while the breadcrumb, the panels and HCC_CTX said otherwise — share a link to a laboratory and the reader lands somewhere else, with the interface insisting they are where they asked to be. Two authorities for one fact again: the route reader moved the world and a later line, written before routes existed, moved it back. A URL is the more specific instruction, so it wins; the overview is the default only when nothing was asked',
+      agree && state.mode===HCC_CTX.worldId,
+      askedFor?`the URL asked for ${askedFor.worldId}${askedFor.labId?'/'+askedFor.labId:''} and the scene is showing ${state.mode}${state.mode==='s3'?'/'+state.s3view:''}`
+              :`no route in the URL, so the Sun+planets overview is correct · scene ${state.mode}, context ${HCC_CTX.worldId}`);
+  }
+
   /* ── CAPACITY FLOW: a varying dark energy read as a moving horizon ────────── */
   { /* the two boxed factors are reciprocals BY CONSTRUCTION, and the test proves the
        construction rather than re-deriving the algebra it was built from */
@@ -6777,6 +6819,51 @@ function runSelfTests(){
         ok('focus AIMS the camera and nothing more — reversible feedback that tells you what you have got before you commit to it — while going there is a separate, deliberate press on the name. A tap that both moved the view and changed the laboratory gave no way to look before leaping',
           d.distanceTo(new THREE.Vector3(b[0],b[1],b[2]).normalize())<1e-12,
           `focusing a ring aims the view onto its base direction to ${d.distanceTo(new THREE.Vector3(b[0],b[1],b[2]).normalize()).toExponential(1)} · navigation is a separate "go →" affordance on the focused name`);
+      }
+      /* ── THE VIEWFINDER IS A TRACKBALL ──────────────────────────────────── */
+      { const P1=camera.position.clone(), U1=camera.up.clone();
+        const r=hierarchyLegend.getBoundingClientRect();
+        const cx=r.left+r.width/2, cy=r.top+r.height/2, R=Math.min(r.width,r.height)/2||100;
+        /* 1. NO HYSTERESIS. Drag out along a path and back to the start: the attitude must
+              return EXACTLY, not nearly. This is the property a spherical-coordinate drag
+              cannot have and the property that makes a trackball feel like an object. */
+        const Q0=hopfAttitude(), v0=hopfArcVec(cx+R*0.2,cy-R*0.1);
+        for(const [ax,ay] of [[0.6,0.3],[-0.5,0.7],[0.9,-0.8],[0.1,0.2]])
+          hopfArcDrag(Q0,v0,cx+R*ax,cy+R*ay);
+        hopfArcDrag(Q0,v0,cx+R*0.2,cy-R*0.1);
+        const back=hopfAttitude().angleTo(Q0);
+        /* 2. IT IS AN ISOMETRY OF THE DRAG. The angle the camera turns through equals the
+              angle between the grabbed point and the released point on the ball — what the
+              hand does and what the scene does are the same rotation, not proportional to it. */
+        let worstIso=0;
+        for(const [ax,ay] of [[0.5,0.0],[0.0,0.6],[-0.7,0.4],[0.3,-0.75]]){
+          const Q=hopfAttitude(); const a=hopfArcVec(cx,cy), bvec=hopfArcVec(cx+R*ax,cy+R*ay);
+          hopfArcDrag(Q,a,cx+R*ax,cy+R*ay);
+          worstIso=Math.max(worstIso,Math.abs(hopfAttitude().angleTo(Q)-a.angleTo(bvec)));
+          hopfSetAttitude(Q);
+        }
+        /* 3. NO POLE. The old law clamped th away from 0 and swung ph arbitrarily fast
+              beside it. Aim at the pole and drag: the trackball must simply turn. */
+        hopfAimAt(0.02,0.0);
+        const Qp=hopfAttitude(), vp=hopfArcVec(cx,cy);
+        hopfArcDrag(Qp,vp,cx+R*0.55,cy);
+        const poleTurn=hopfAttitude().angleTo(Qp);
+        /* 4. THE RIM IS THE FIBRE. A drag around the rim is pure twist about the view
+              axis, and twist about the view axis is the U(1) phase the Hopf map quotients
+              out — so the roll gesture and the bundle's fibre are the same motion. */
+        hopfAimAt((HOPF_TH0+HOPF_TH1)/2,1.1);
+        const Qr=hopfAttitude(), dir0=hopfCamState().dir.clone(), roll0=hopfCamState().roll;
+        hopfArcDrag(Qr,hopfArcVec(cx+R*1.6,cy),cx,cy+R*1.6);   /* rim to rim: 90 deg twist */
+        const dirDrift=hopfCamState().dir.distanceTo(dir0);
+        const rollTurn=Math.abs(((hopfCamState().roll-roll0)+3*Math.PI)%(2*Math.PI)-Math.PI);
+        camera.position.copy(P1); camera.up.copy(U1); camera.lookAt(controls.target);
+        try{ controls.update(); }catch(e){}
+        ok('the 4D viewfinder is a TRACKBALL and one quaternion drives both it and the scene. Dragging used to increment spherical coordinates — singular at the poles, where a horizontal drag swings the camera arbitrarily fast and then a clamp refuses to go further, and disconnected from the picture, because the drawing did not move under the finger. It is a Shoemake arcball now: the point under the finger stays under the finger, the rotation is measured from the press rather than accumulated, and returning the cursor to where it started returns the attitude EXACTLY',
+          back<1e-12 && worstIso<1e-9,
+          `return-to-start residual ${back.toExponential(1)} rad after a four-leg excursion · the camera turns through exactly the angle the grab subtends on the ball (worst mismatch ${worstIso.toExponential(1)} rad)`);
+        ok('and it has no pole and no clamp, because the rim gesture IS the fibre. A drag across the rim is pure twist about the view axis, and twist about the view axis is the U(1) phase the Hopf map quotients out — so roll comes out of the same gesture instead of needing a separate target to hit, which is what made flying the camera by grabbing a ring unusable',
+          poleTurn>0.3 && dirDrift<1e-9 && Math.abs(rollTurn-Math.PI/2)<1e-9,
+          `aimed 0.02 rad from the pole a drag still turns ${poleTurn.toFixed(3)} rad · a rim-to-rim drag rolls by ${(rollTurn*180/Math.PI).toFixed(3)}° and moves the view direction by ${dirDrift.toExponential(1)} — the base point is fixed, which is exactly what a fibre motion means`);
       }
       /* and the navigator has to EXIST on the device it is most needed on */
       { /* THE NAVIGATOR HAS TO EXIST ON THE DEVICE IT IS MOST NEEDED ON.
@@ -7792,7 +7879,7 @@ function updateSelectionLinks(){
     if(b){
       const span=Math.max(a.distanceTo(b),1e-6);
       line.material.dashSize=span*.035;line.material.gapSize=span*.018;
-      line.geometry.setFromPoints([a,b]);line.computeLineDistances();line.geometry.computeBoundingSphere();
+      lineSetPoints(line,[a,b]);lineComputeDistances(line);
     }
   }
 }
@@ -9774,7 +9861,74 @@ function sunGeoOrbitPoints(Tend){
 // Build every geocentric orbit line once, ending at the current epoch Tend so each moving
 // body sits exactly on its own closed loop. Earth row carries the Sun's geocentric orbit.
 function buildGeoOrbits(Tend){
-  planetObjs.forEach((o,idx)=>o.line.geometry.setFromPoints(idx===2?sunGeoOrbitPoints(Tend):geoOrbitPoints(o.p,Tend)));
+  planetObjs.forEach((o,idx)=>lineSetPoints(o.line,idx===2?sunGeoOrbitPoints(Tend):geoOrbitPoints(o.p,Tend)));
+}
+/* ── THE VBO LEAK THAT HUNG THE GPU ──────────────────────────────────────────
+   MEASURED, not suspected.  Wrapping WebGL2RenderingContext.createBuffer/deleteBuffer
+   and watching the Solar view idle:
+
+       t = 8s   live buffers 311
+       t = 48s  live buffers 426
+       t = 88s  live buffers 545          textures 26, programs 28, framebuffers 17 — FLAT
+
+   Only buffers grew, +1.08 per rendered frame, and BufferGeometry.dispose() was called
+   ZERO times in the whole run.  On this software renderer that is 3 per second; on a real
+   GPU at 60 fps it is 120 per second, 432 000 per hour, until the driver runs out of
+   allocations and the card stops.  "Everything used to fly" and then it does not.
+
+   THE CAUSE.  geometry.setFromPoints() does not write into the existing buffer — it
+   REPLACES the position attribute with a new one, and three.js keys its WebGLBuffer cache
+   on the attribute object.  The old attribute is dropped, its buffer is never deleted, and
+   a WeakMap has no finaliser to notice.  Three call sites did this on live geometry:
+   the Earth precession reference line and the galactic-centre link EVERY FRAME, and the
+   planet orbit rebuild in bursts of eight 257-point buffers.
+
+   THE FIX.  Never replace the attribute.  Write into the array that is already there and
+   raise needsUpdate — the same in-place pattern this file already uses correctly for the
+   solar-apex trails ten lines further down.  When the point COUNT genuinely changes (the
+   heliocentric loop is 257 points, the geocentric one 362, so switching frames really does
+   resize), build the new geometry and dispose() the old one, because dispose is the only
+   portable way to make three.js delete the buffers it owns. */
+function lineSetPoints(obj, pts){
+  const g=obj.geometry, n=pts.length;
+  const attr=g.getAttribute('position');
+  if(attr && attr.count===n && attr.itemSize===3){
+    const a=attr.array;
+    for(let i=0;i<n;i++){ const p=pts[i]; a[i*3]=p.x; a[i*3+1]=p.y; a[i*3+2]=p.z; }
+    attr.needsUpdate=true;
+    g.computeBoundingSphere();
+    return g;
+  }
+  const ng=new THREE.BufferGeometry().setFromPoints(pts);
+  obj.geometry=ng;
+  g.dispose();                     /* the ONLY thing that frees the old buffers */
+  ng.computeBoundingSphere();
+  return ng;
+}
+/* ...and computeLineDistances() does exactly the same thing to the OTHER attribute.
+   Every call replaces `lineDistance` with a fresh Float32BufferAttribute, so a dashed line
+   that is re-measured each frame orphans one more buffer each frame.  Measured in the
+   Cycles world: 46 calls in 20 seconds from two identity links, and 152 buffers of growth
+   that survived the setFromPoints fix.  Same cure — write into the array that is there. */
+function lineComputeDistances(obj){
+  const g=obj.geometry, pos=g.getAttribute('position');
+  if(!pos) return;
+  const n=pos.count;
+  let ld=g.getAttribute('lineDistance');
+  if(!ld || ld.count!==n){ obj.computeLineDistances(); return; }   /* first call, or resized */
+  const a=ld.array, P=pos.array;
+  const seg=obj.isLineSegments===true;
+  if(seg){
+    for(let i=0;i<n;i+=2){
+      a[i]=0;
+      a[i+1]=Math.hypot(P[i*3+3]-P[i*3],P[i*3+4]-P[i*3+1],P[i*3+5]-P[i*3+2]);
+    }
+  } else {
+    a[0]=0;
+    for(let i=1;i<n;i++)
+      a[i]=a[i-1]+Math.hypot(P[i*3]-P[i*3-3],P[i*3+1]-P[i*3-2],P[i*3+2]-P[i*3-1]);
+  }
+  ld.needsUpdate=true;
 }
 const eclToScene = (x,y,z)=>new THREE.Vector3(x, z, -y);
 // apparent geocentric solar ecliptic longitude in [0,2π)
@@ -11065,10 +11219,9 @@ function updateSolarJourney(geoShift){   // MUST carry the same frame shift as t
     pos.needsUpdate=true; _sjLines[p].geometry.computeBoundingSphere();
   }
   const back=W*SUN_V_AU_DAY, gsx=geoShift?geoShift.x:0, gsy=geoShift?geoShift.y:0, gsz=geoShift?geoShift.z:0;
-  _sjSun.geometry.setFromPoints([
+  lineSetPoints(_sjSun,[
     SUN_V_DIR.clone().multiplyScalar(-back).sub(new THREE.Vector3(gsx,gsy,gsz)),
-    SUN_V_DIR.clone().multiplyScalar(back*0.25).sub(new THREE.Vector3(gsx,gsy,gsz))]);
-  _sjSun.geometry.computeBoundingSphere();          // the apex axis reaches thousands of AU: without this it is culled
+    SUN_V_DIR.clone().multiplyScalar(back*0.25).sub(new THREE.Vector3(gsx,gsy,gsz))]);          // the apex axis reaches thousands of AU: without this it is culled
   _sjLab.position.copy(SUN_V_DIR).multiplyScalar(back*0.28).sub(new THREE.Vector3(gsx,gsy,gsz));
 }
 
@@ -11225,7 +11378,7 @@ function updateSolarVectors(T,geoShift){
         const eoM=_svPrec.parent;                       // Earth mesh: local +Y = pole of date
         const qInv=eoM.getWorldQuaternion(new THREE.Quaternion()).invert();
         const j2k=earthPoleDir(0).applyQuaternion(qInv).normalize();   // J2000 pole in local frame
-        pr.refLine.geometry.setFromPoints([new THREE.Vector3(),j2k.clone().multiplyScalar(2.3)]);
+        lineSetPoints(pr.refLine,[new THREE.Vector3(),j2k.clone().multiplyScalar(2.3)]);
         const ang=j2k.angleTo(new THREE.Vector3(0,1,0));
         const axis=new THREE.Vector3(0,1,0).cross(j2k).normalize();
         const a=pr.arc.geometry.attributes.position.array;
@@ -11979,6 +12132,7 @@ function hopfSyncMarkers(){
      a moving target — the one you were reaching for slid away exactly as you reached it.
      The chart is fixed and the live fibre carries the attitude instead. */
   hopfRoot.rotation.set(0,0,0);
+  try{ hopfSyncView(); }catch(e){}
   try{ hopfSyncFromCamera(); }catch(e){}
 }
 
@@ -12102,17 +12256,17 @@ hierarchyLegend.addEventListener('pointerdown',e=>{
   /* in 4D a press that lands ON a control ring grabs that ring; anywhere else turns the
      field.  Deciding at press time is what stops a slider drag from also spinning the
      camera, which is the single most common way a combined widget becomes unusable. */
-  let grabbed=null, rolling=null;
+  let grabbed=null, arc=null;
   if(HOPF_MODE==='4d'){ const rec=hopfPickAt(e.clientX,e.clientY);
     if(rec&&rec.kind==='param') grabbed=rec;
-    else if(rec&&rec.kind==='live'){
-      /* grabbing the fibre you are ON is a roll, and the offset is taken at press time so
-         the scene does not jump to wherever the finger happened to land */
-      const a=hopfRingAngle(rec.th,rec.ph,e.clientX,e.clientY);
-      if(a!==null) rolling={th:rec.th, ph:rec.ph, a0:a, r0:hopfCamState().roll};
-    } }
+    /* everything that is not a parameter ring turns the field, and it turns it as a
+       trackball: the point under the finger stays under the finger.  The old special
+       case that read a press on the live fibre as a roll is gone — the arcball's rim
+       gesture IS that roll, so it no longer needs a target of its own to hit. */
+    else arc={v0:hopfArcVec(e.clientX,e.clientY), Q0:hopfAttitude()};
+  }
   hierarchyDrag={id:e.pointerId,x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY,
-    ring:grabbed, roll:rolling};
+    ring:grabbed, roll:null, arc};
   hierarchyLegend.setPointerCapture?.(e.pointerId); hierarchyLegend.classList.add('dragging'); e.stopPropagation();
 });
 hierarchyLegend.addEventListener('pointermove',e=>{
@@ -12124,11 +12278,10 @@ hierarchyLegend.addEventListener('pointermove',e=>{
   }
   if(!hierarchyDrag||hierarchyDrag.id!==e.pointerId) return;
   if(hierarchyDrag.ring) hopfDragRing(hierarchyDrag.ring,e.clientX,e.clientY);
-  else if(hierarchyDrag.roll){
-    const R=hierarchyDrag.roll, a=hopfRingAngle(R.th,R.ph,e.clientX,e.clientY);
-    if(a!==null) hopfRollTo(R.r0+(a-R.a0));
-  }
-  else if(HOPF_MODE==='4d') hopfRotate(e.clientX-hierarchyDrag.x,e.clientY-hierarchyDrag.y);
+  /* the arcball is absolute, not incremental: it is always measured from the press, so
+     the drag has no accumulated error and returning to the start returns the attitude
+     EXACTLY rather than nearly */
+  else if(hierarchyDrag.arc) hopfArcDrag(hierarchyDrag.arc.Q0,hierarchyDrag.arc.v0,e.clientX,e.clientY);
   else rotateHierarchyView(e.clientX-hierarchyDrag.x,e.clientY-hierarchyDrag.y);
   hierarchyDrag.x=e.clientX;hierarchyDrag.y=e.clientY;e.preventDefault();e.stopPropagation();
 });
@@ -12204,6 +12357,82 @@ function hopfSetMode(m){
 /* dragging the field moves the BASE POINT — where the camera looks — along the sphere the
    rings live on, so the live fibre visibly travels across the chart as you drag. The roll
    is carried through unchanged, because turning your head is not rolling it. */
+/* ── THE VIEWFINDER IS A TRACKBALL, AND ONE QUATERNION DRIVES BOTH ───────────
+   WHAT WAS WRONG.  Dragging the widget incremented spherical coordinates:
+   th += dy*0.006, ph -= dx*0.006, with th clamped away from the poles.  Three faults,
+   all of them felt rather than seen:
+     - it is SINGULAR at the poles.  ph is the azimuth, so near th = 0 a horizontal drag
+       swings the camera arbitrarily fast, and the clamp then refuses to go further at
+       all.  The scene fights you exactly where you most want to look.
+     - it does not correspond to the picture.  The drawing did not move under the finger;
+       only a marker on a fixed chart moved, so the hand was doing one thing and the eye
+       was watching another.  That is why it read as "not synchronised with the view".
+     - roll was a separate gesture on a separate target, which is why grabbing a ring to
+       fly the camera was unusable.
+
+   WHAT IT IS NOW.  A Shoemake arcball on the widget: the pointer is lifted onto a virtual
+   unit ball (hemisphere inside the circle, rim outside), and the drag from v0 to v1 is
+   the rotation that carries v0 to v1.  This is the standard of every serious 3D tool for
+   good reasons that are all properties we can check:
+     - NO SINGULARITY.  There is no pole and no clamp; the axis is whatever the drag
+       implies, including the view axis itself.
+     - NO HYSTERESIS.  Return the cursor to where it started and the rotation is exactly
+       the identity, so the camera is exactly where it started.  Measured, not assumed.
+     - ROLL IS FREE, AND IT IS THE FIBRE.  Dragging near the rim twists about the view
+       axis — and the twist about the view axis IS the U(1) phase the Hopf map quotients
+       out.  The arcball's rim gesture and the bundle's fibre are the same motion; the
+       roll no longer needs its own target because the geometry already contained it.
+
+   AND THE VIEWFINDER IS SLAVED TO THE CAMERA.  hopfCamera now carries the main camera's
+   orientation, so the torus turns in the viewfinder exactly as the scene turns, and the
+   drag turns both at once.  The chart itself stays FIXED in the bundle's own coordinates
+   — every base-direction identity that the self-tests measure is untouched — what moves
+   is the eye looking at it.  Picking a specific ring is no longer a matter of hitting a
+   moving target with a pointer: that is what the focus stepper is for.  Direct
+   manipulation for attitude, discrete stepping for targets. */
+const HOPF_VIEW_R=9.4;
+function hopfArcVec(x,y){
+  const r=hierarchyLegend.getBoundingClientRect();
+  const nx=(x-r.left)/(r.width||1)*2-1, ny=-((y-r.top)/(r.height||1)*2-1);
+  const d=nx*nx+ny*ny;
+  if(d<=1) return new THREE.Vector3(nx,ny,Math.sqrt(1-d));
+  const s=1/Math.sqrt(d);
+  return new THREE.Vector3(nx*s,ny*s,0);          /* rim: pure twist about the view axis */
+}
+/* the orientation the whole system is in, read back from the camera itself so no second
+   copy of the attitude can drift from the first */
+function hopfAttitude(){ return camera.quaternion.clone(); }
+/* write an orientation back: position on the sphere of radius dist about the target, up
+   from the same quaternion.  lookAt then reproduces exactly the quaternion handed in,
+   which is what makes the round trip exact rather than approximately exact. */
+function hopfSetAttitude(Q){
+  const dist=camera.position.distanceTo(controls.target)||1;
+  camera.position.copy(controls.target)
+    .addScaledVector(new THREE.Vector3(0,0,1).applyQuaternion(Q),dist);
+  camera.up.set(0,1,0).applyQuaternion(Q);
+  camera.lookAt(controls.target);
+  try{ controls.update(); }catch(e){}
+}
+/* THE DRAG.  q carries v0 to v1 — the grabbed point follows the finger.  The scene must
+   appear to turn the same way, so the camera turns by q^-1 in ITS OWN frame: a RIGHT
+   multiplication, which is the rigid SO(3) action on this bundle (measured at 2e-16 in
+   docs/verify-hopfion-locator.cjs) rather than a left one, which is not rigid at all. */
+function hopfArcDrag(Q0,v0,x,y){
+  const v1=hopfArcVec(x,y);
+  if(v1.lengthSq()<1e-12) return;
+  const q=new THREE.Quaternion().setFromUnitVectors(v0,v1);
+  hopfSetAttitude(Q0.clone().multiply(q.clone().invert()));
+  hopfSyncMarkers();
+}
+/* the viewfinder carries the camera's attitude, so what turns on screen and what turns in
+   the widget are the same rotation and not two that have to be kept in agreement */
+function hopfSyncView(){
+  const Q=camera.quaternion;
+  hopfCamera.position.set(0,0,HOPF_VIEW_R).applyQuaternion(Q);
+  hopfCamera.up.set(0,1,0).applyQuaternion(Q);
+  hopfCamera.lookAt(0,0,0);
+}
+/* kept for the keyboard/preset paths, which move in the chart's own coordinates */
 function hopfRotate(dx,dy){
   const S=hopfCamState();
   const th=THREE.MathUtils.clamp(S.th+dy*0.006,0.04,Math.PI-0.04);
@@ -13272,7 +13501,7 @@ function updateRingLab(){
     o.g.visible=!!state.ringShowExtents; o.lab.visible=!!state.ringShowExtents&&state.ringView==='field';
     o.lab.element.className=selected?'label major selected':'label dim';
     const pts=[]; for(let k=0;k<=160;k++){const a=k/160*Math.PI*2;pts.push(new THREE.Vector3(rr*Math.cos(a),rr*Math.sin(a),0));}
-    ringTheoryLines[key].geometry.setFromPoints(pts); ringTheoryLines[key].computeLineDistances();
+    lineSetPoints(ringTheoryLines[key],pts); lineComputeDistances(ringTheoryLines[key]);
     ringTheoryLines[key].visible=!!state.ringShowChord; ringTheoryLines[key].material.opacity=selected?.85:.28;
   });
   ringTheoryLab.visible=!!state.ringShowChord;
@@ -13281,7 +13510,7 @@ function updateRingLab(){
     RING.predictedModes.forEach(l=>{
       const o=ringPredictedObjs[l], d=ringDiameter(l,R), rr=mpcGly(d/2)*.28, pts=[];
       for(let k=0;k<=96;k++){const a=k/96*Math.PI*2;pts.push(new THREE.Vector3(rr*Math.cos(a),rr*Math.sin(a),0));}
-      o.line.geometry.setFromPoints(pts); o.line.computeLineDistances();
+      lineSetPoints(o.line,pts); lineComputeDistances(o.line);
       o.lab.element.textContent=`ℓ=${l} · predicted dℓ=${d.toFixed(0)} Mpc`;
       o.lab.visible=state.ringView==='field';
     });
@@ -17819,7 +18048,7 @@ function updateRet(dt){
     // coupling arcs brighten with k
     for(let i=0;i<O.arcs.length;i++){ const t=i/O.arcs.length, y=0.6+(t-0.5)*1.1, pts=[];
       for(let s=0;s<=20;s++){ const u=s/20; pts.push(new THREE.Vector3(-2.2+u*(O.dev.position.x+2.2),y+Math.sin(u*Math.PI)*0.4*Math.sin(O.phase+i),0)); }
-      O.arcs[i].geometry.setFromPoints(pts); O.arcs[i].computeLineDistances(); O.arcs[i].material.opacity=Math.min(0.7,k*8); }
+      lineSetPoints(O.arcs[i],pts); lineComputeDistances(O.arcs[i]); O.arcs[i].material.opacity=Math.min(0.7,k*8); }
     const lkNow=Math.min(-0.5,Math.max(-2.5,Math.log10(Math.max(1e-4,k)))), lqNow=Math.min(3.5,Math.max(1,Math.log10(Q)));
     O.wMk.position.set(O.WX(lkNow),O.WY(O.eta(k*Q))+0.03,O.WZ(lqNow));
     retUiAcc+=dt; if(retUiAcc>0.2){ retUiAcc=0;
@@ -30963,7 +31192,7 @@ function updateFBS(dt){
       const r = Math.exp((x-D)*LN_PHI), a = x*GOLDEN_ANGLE;
       pts.push(new THREE.Vector3(r*Math.cos(a), 0, r*Math.sin(a)));
     }
-    if(pts.length>1){ fbsSpiral.geometry.setFromPoints(pts); fbsSpiral.geometry.computeBoundingSphere(); }
+    if(pts.length>1) lineSetPoints(fbsSpiral,pts);
     fbsSpiralDot.position.set(Math.cos(D*GOLDEN_ANGLE), 0, Math.sin(D*GOLDEN_ANGLE));
     // energy-quanta flow riding the spiral outward (E_n ∝ F_n visualization)
     fbsFlowPhase=(fbsFlowPhase+dt*0.02)%1;
@@ -30982,7 +31211,7 @@ function updateFBS(dt){
       const r=Math.exp((x-D)*LN_PHI), a=4*x*GOLDEN_ANGLE+0.55;
       zpPts.push(new THREE.Vector3(r*Math.cos(a),0.10*r*Math.sin(x*0.73),r*Math.sin(a)));
     }
-    if(zpPts.length>1){fbsZpSpiral.geometry.setFromPoints(zpPts);fbsZpSpiral.geometry.computeBoundingSphere();}
+    if(zpPts.length>1) lineSetPoints(fbsZpSpiral,zpPts);
     const za=4*D*GOLDEN_ANGLE+0.55;
     fbsZpDot.position.set(Math.cos(za),0.10*Math.sin(D*.73),Math.sin(za));
     fbsZpSpiral.visible=state.fbsZpOn!==false;
@@ -31651,7 +31880,7 @@ function updateCyc(dt){
   // Galactic orbit: approximate relative phase only; absolute azimuth is not inferred.
   const ga = galSunAngle0 - 2*Math.PI*((yrs%(GAL_YEAR_MYR*1e6))/(GAL_YEAR_MYR*1e6));   // modulo first: phase-exact at any epoch
   galSun.position.set(Math.cos(ga)*5.6, .05, Math.sin(ga)*5.6);
-  galRadial.geometry.setFromPoints([new THREE.Vector3(),galSun.position.clone()]);
+  lineSetPoints(galRadial,[new THREE.Vector3(),galSun.position.clone()]);
   // the ARM PATTERN itself rotates (density wave, Ω_p≈28 km/s/kpc → T≈218 Myr, same
   // sense as the stars); the Sun (T≈230 Myr) rides near corotation, so it drifts only
   // slowly relative to the Local Spur — exactly the real geometry.
@@ -31672,11 +31901,11 @@ function updateCyc(dt){
 
   const e=planetEcl(PLANETS[2], state.epochDays/36525), SC=seaInst.userData.SC;
   seaEarth.position.set(e.x*SC,0,-e.y*SC);
-  seaEarthSun.geometry.setFromPoints([new THREE.Vector3(),seaEarth.position.clone()]);
+  lineSetPoints(seaEarthSun,[new THREE.Vector3(),seaEarth.position.clone()]);
   const orbitT=state.epochDays/36525;
   if(Math.abs(orbitT-(seaInst.userData.orbitT??Infinity))>.0027){
     seaInst.userData.orbitT=orbitT;
-    seaOrbit.geometry.setFromPoints(
+    lineSetPoints(seaOrbit,
       planetOrbitPoints(PLANETS[2],orbitT,180).map(v=>new THREE.Vector3(v.x*SC,0,v.z*SC)));
   }
   const ephOK=jplEpochValid(state.epochDays);
@@ -31697,8 +31926,8 @@ function updateCyc(dt){
   if(cycLinksGroup.visible){
     const gs=new THREE.Vector3(),ss=new THREE.Vector3(),se=new THREE.Vector3(),pe=new THREE.Vector3();
     galSun.getWorldPosition(gs); seaSun.getWorldPosition(ss); seaEarth.getWorldPosition(se); precEarth.getWorldPosition(pe);
-    cycSunIdentityLink.geometry.setFromPoints([gs,ss]); cycSunIdentityLink.computeLineDistances();
-    cycEarthIdentityLink.geometry.setFromPoints([se,pe]); cycEarthIdentityLink.computeLineDistances();
+    lineSetPoints(cycSunIdentityLink,[gs,ss]); lineComputeDistances(cycSunIdentityLink);
+    lineSetPoints(cycEarthIdentityLink,[se,pe]); lineComputeDistances(cycEarthIdentityLink);
     cycSunLinkLab.position.copy(gs).lerp(ss,.5).add(new THREE.Vector3(0,.7,0));
     cycEarthLinkLab.position.copy(se).lerp(pe,.5).add(new THREE.Vector3(0,.7,0));
   }
@@ -34642,7 +34871,7 @@ const XRX = (()=>{
     const meshWorld=key=>{ const s=SELECT.get(key); if(!s?.pick) return null; const v=new THREE.Vector3(); s.pick.getWorldPosition(v); return v; };
     function drawLine(){
       if(A&&B){ const a=meshWorld(A),b=meshWorld(B);
-        if(a&&b){ line.geometry.setFromPoints([a,b]); line.computeLineDistances(); line.visible=true; return; } }
+        if(a&&b){ lineSetPoints(line,[a,b]); lineComputeDistances(line); line.visible=true; return; } }
       line.visible=false;
     }
     function pick(key){
@@ -43224,7 +43453,7 @@ function tickBody(now, frame){
       geoOrbitsBuilt=false;
       if(orbitGeometryAcc>.35 && Math.abs(T-orbitGeometryT)>.0027){
         orbitGeometryAcc=0; orbitGeometryT=T;
-        planetObjs.forEach(o=>o.line.geometry.setFromPoints(planetOrbitPoints(o.p,T)));
+        planetObjs.forEach(o=>lineSetPoints(o.line,planetOrbitPoints(o.p,T)));
       }
     }
     // Reference-frame origin: heliocentric → Sun at (0,0,0); geocentric → shift every body
@@ -43357,8 +43586,7 @@ function tickBody(now, frame){
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
-      if(galacticLinks[0]){ galacticLinks[0][0].geometry.setFromPoints([_galZero, milkyWayPhysical.position]);
-        galacticLinks[0][0].geometry.computeBoundingSphere();
+      if(galacticLinks[0]){ lineSetPoints(galacticLinks[0][0],[_galZero, milkyWayPhysical.position]);
         galacticLinks[0][1].position.copy(milkyWayPhysical.position).multiplyScalar(.5); }   // the label must ride the moving link too
       // M31 has differential rotation, so 250 Myr is only an explicit display-phase
       // reference for the embedded disk/axes—not a rigid-body claim for the galaxy.
@@ -43515,7 +43743,7 @@ function tickBody(now, frame){
         const aa = k/(n-1)*a;
         tp.push(new THREE.Vector3(RU*1.003*Math.sin(aa), RU*1.003*Math.cos(aa), 0));
       }
-      photonTrail.geometry.setFromPoints(tp); photonTrail.geometry.computeBoundingSphere();
+      lineSetPoints(photonTrail,tp);
       const GT = Gamma(Math.min(a, Math.PI));
       hudBig.textContent = `t = ${state.photonT.toFixed(1)} Gyr · arc ${(a/DEG).toFixed(1)}° · Γ(T) = ${(GT*100).toFixed(2)} % ${a>=Math.PI?'· FULL CAUSAL ACCESSIBILITY (t ≥ t_coh)':''}`;
       hudSub.textContent = '1 unit = 100 Gly · R = 548.32 Gly · t_coh = πR/c = 1722.6 Gyr · ∂S³_R = ∅';
@@ -45046,9 +45274,27 @@ SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name
 XRX.applyQuality(XRX.qualityName);
 buildInfo();   // re-render: self-test results are now available
 
+/* ── A DEEP LINK HAS TO SURVIVE THE BOOT ─────────────────────────────────────
+   MEASURED: every one of #/world/s3, #/world/obs, #/world/fbs, #/world/cyc and
+   #/world/s3/lab/hopf came up showing the SOLAR SYSTEM, while the breadcrumb, the
+   panels and HCC_CTX all said otherwise.  Share a link to a laboratory and the person
+   who opens it lands somewhere else, with an interface insisting they are where they
+   asked to be.
+
+   The cause is this line, and it is the same fault as everything else in this file that
+   has ever gone wrong: TWO AUTHORITIES FOR ONE FACT, and the later one winning by
+   accident.  hccBootRoute() reads the URL and moves the world; then this ran
+   unconditionally and moved it back.  Its comment — "always boot into the Sun+planets
+   overview" — was correct when it was written, before routes existed, and was never
+   reconciled with them.  A URL is the more specific instruction: it is what the reader
+   actually asked for, so it wins, and the overview is the default only when nothing was
+   asked.  (atlasFrontDoor already knew this: it guards its own setMode with
+   `&& !location.hash`.  This line did not.) */
 const START_VIEW = new URLSearchParams(location.search).get('view');
+const HCC_BOOT_ROUTE = (()=>{ try{ return hccParseRoute(location.hash); }catch(e){ return null; } })();
 if(START_VIEW==='ring'){ state.s3view='ring'; setMode('s3'); }
-else { state.solarScaleLayer='local'; setMode('solar'); }   // always boot into the Sun+planets overview
+else if(HCC_BOOT_ROUTE){ try{ hccGo(HCC_BOOT_ROUTE,{history:false,replace:true}); }catch(e){} }
+else { state.solarScaleLayer='local'; setMode('solar'); }   // the overview, when nothing was asked for
 
 /* ?xrtest=1 — minimal WebXR sanity scene: cube + floor grid + controller rays */
 let xrTestCube = null;

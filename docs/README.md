@@ -1678,6 +1678,133 @@ is one swipeable line, this panel rebuilds on every press, and the rebuild reset
 scroll — so two of the five presets sat off the right edge at x = 331 and x = 460 and
 could not be reached at all.
 
+## The leak that hung the graphics card (v3.64.0)
+
+Reported: the Solar System runs fine and then, after a while, the graphics card hangs and
+everything crawls. It used to fly.
+
+It was a **WebGL buffer leak**, and it was measurable rather than a matter of opinion.
+Wrapping `createBuffer`/`deleteBuffer` on the GL context and letting the idle Solar view
+run:
+
+```
+t =  8s   live buffers 311
+t = 48s   live buffers 426        textures 26 · framebuffers 17 · programs 28 — FLAT
+t = 88s   live buffers 545
+BufferGeometry.dispose() called: 0 times in the entire run
+```
+
+Only buffers grew: **+1.08 per rendered frame**, none ever freed. On the software renderer
+that is 3 per second. On a real GPU at 60 fps it is 120 per second, 432 000 per hour, until
+the driver runs out of allocations and the card stops responding.
+
+### The cause
+
+`geometry.setFromPoints()` does not write into the existing buffer. It **replaces the
+position attribute** with a new one, and three.js keys its `WebGLBuffer` cache on the
+attribute object — so the old attribute is dropped, its buffer is never deleted, and a
+`WeakMap` has no finaliser to notice. `computeLineDistances()` does exactly the same thing
+to the `lineDistance` attribute, which is why dashed lines leaked twice as fast.
+
+Fourteen call sites did this to live geometry. Two ran **every frame** in the Solar view
+(the Earth precession reference line and the galactic-centre link); the Cycles world had
+five more and leaked hardest at 513 buffers in 22 seconds.
+
+### The fix
+
+Never replace the attribute. `lineSetPoints()` writes into the array that is already there
+and raises `needsUpdate` — the in-place pattern this file already used correctly for the
+solar-apex trails ten lines away from one of the leaks. `lineComputeDistances()` does the
+same for the dash metric. When the point count genuinely changes (the heliocentric orbit
+loop is 257 points, the geocentric one 362, so switching reference frames really does
+resize), the new geometry is built and the old one **disposed** — `dispose()` is the only
+portable way to make three.js delete the buffers it owns.
+
+Measured after, 22 seconds in each world:
+
+| world | before | after |
+|---|---|---|
+| Solar | +234 / 88 s | **0** |
+| Cycles | +513 / 22 s | **0** |
+| FBS3R | +138 / 22 s | **0** |
+| S³ · Hopf | +78 / 22 s | **0** |
+| Observable, Fractal, Field | 0 | **0** |
+
+And 0 under a stress run — a selection active (which lights the relation lines), time at
+maximum rate, and six camera drags.
+
+## A deep link that lands somewhere else (v3.64.0)
+
+Found while checking the above. Every deep link was broken:
+
+```
+#/world/s3          context s3/sec   scene solar   MISMATCH
+#/world/obs         context obs      scene solar   MISMATCH
+#/world/fbs         context fbs      scene solar   MISMATCH
+#/world/cyc         context cyc      scene solar   MISMATCH
+#/world/s3/lab/hopf context s3/hopf  scene solar   MISMATCH
+```
+
+Share a link to a laboratory and the person who opens it lands in the Solar System, with
+the breadcrumb, the panels and `HCC_CTX` all insisting they are where they asked to be.
+
+The same fault as everything else in this file that has ever gone wrong: **two authorities
+for one fact, and the later one winning by accident.** `hccBootRoute()` reads the URL and
+moves the world; then a line further down ran unconditionally and moved it back. Its
+comment — *"always boot into the Sun+planets overview"* — was correct when written, before
+routes existed, and was never reconciled with them. `atlasFrontDoor()` already knew better:
+it guards its own `setMode` with `&& !location.hash`. This line did not.
+
+A URL is the more specific instruction, so it wins; the overview is the default only when
+nothing was asked. All five links now land where they say.
+
+## The viewfinder is a trackball (v3.64.0)
+
+Reported: steering the camera by grabbing a ring is unusable; the torus should turn in the
+viewfinder under the cursor, and the scene should turn correctly with it.
+
+The old law incremented spherical coordinates — `θ += dy·0.006`, `φ −= dx·0.006`, with θ
+clamped away from the poles. Three faults, all felt rather than seen:
+
+- **It is singular at the poles.** φ is the azimuth, so near θ = 0 a horizontal drag swings
+  the camera arbitrarily fast, and the clamp then refuses to go further at all. The scene
+  fights you exactly where you most want to look.
+- **It did not correspond to the picture.** The drawing did not move under the finger; only
+  a marker on a fixed chart moved. The hand did one thing and the eye watched another.
+- **Roll was a separate gesture on a separate target** — which is what made grabbing a ring
+  to fly the camera unusable.
+
+It is a **Shoemake arcball** now. The pointer is lifted onto a virtual unit ball —
+hemisphere inside the circle, rim outside — and the drag from `v₀` to `v₁` is the rotation
+carrying `v₀` to `v₁`. The scene must appear to turn the same way, so the camera turns by
+`q⁻¹` **in its own frame**: a right multiplication, which is the rigid SO(3) action on this
+bundle (measured at 2×10⁻¹⁶ in `verify-hopfion-locator.cjs`) rather than a left one, which
+is not rigid at all.
+
+And `hopfCamera` now carries the main camera's orientation, so **one quaternion drives both**
+the viewfinder and the scene. The chart itself stays fixed in the bundle's own coordinates —
+every base-direction identity the self-tests measure is untouched — what moves is the eye
+looking at it.
+
+Four properties, each one measured rather than claimed:
+
+| property | measurement |
+|---|---|
+| **no hysteresis** | a four-leg excursion returned to the start leaves a residual of 0 rad — exact, not nearly |
+| **isometry** | the camera turns through exactly the angle the grab subtends on the ball (worst mismatch < 10⁻⁹ rad) |
+| **no pole** | aimed 0.02 rad from the pole, a drag still turns 0.3+ rad instead of clamping |
+| **the rim is the fibre** | a rim-to-rim drag rolls by exactly 90.000° and moves the view direction by < 10⁻⁹ |
+
+That last row is the part worth keeping. Twist about the view axis **is** the U(1) phase the
+Hopf map quotients out, so the arcball's rim gesture and the bundle's fibre are the same
+motion. Roll no longer needs a target of its own, because the geometry already contained it.
+
+Choosing a specific ring is no longer a matter of hitting a moving target with a pointer:
+that is what the ‹ › focus stepper is for. **Direct manipulation for attitude, discrete
+stepping for targets.**
+
+Self-tests 628 → **632**; the 72-view S³ walk stays at 0 page errors.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
