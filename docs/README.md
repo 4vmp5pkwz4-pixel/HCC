@@ -1334,6 +1334,65 @@ from **y = 98 to y = 148**, clear of the band entirely.
 | chrome overlapping the locator | breadcrumb | **none** |
 | self-tests | 607 | **608** |
 
+## One bar, and a catalogue that stays reachable (v3.59.0)
+
+Two faults reported from a phone, both confirmed with numbers.
+
+### Two bottom bars that both said "Controls"
+
+Measured at 393 × 852: the nav was 56 px and the Inspector strip another 52 — **108 px,
+12.7 % of the screen** — on two rows that overlapped in meaning. The nav offered *Controls*
+and *Inspect*; the strip directly above it offered controls, measurements, theory, objects
+and data. "Controls" appeared twice and "Inspect" was a label for the bar sitting on top of
+it.
+
+The strip **is** the inspector, so on a phone it becomes the bar. Its live tabs render into
+the nav between Atlas and More — the same tabs, through the same `inspectorPanelFor()` gate,
+so a tab still cannot appear unless its panel exists and is in scope — and the separate
+strip goes. Desktop is untouched: the strip keeps its own space and the nav is not shown.
+
+Seven items at the nav's own label size showed **four** and pushed the rest off the edge,
+which is worse than the two bars it replaced. So every item keeps its icon and the *active*
+one alone carries its name.
+
+| | before | after |
+|---|---|---|
+| bottom chrome, portrait | 108 px (12.7 %) | **56 px (6.6 %)** |
+| destinations reachable | 4 of 7 | **7 of 7** |
+| duplicated destinations | Controls ×2 | **0** |
+
+### A function that destroyed the thing it tested for
+
+`labBrowserBuild()` looked for `#v-sec` inside the controls panel to find the laboratory
+row — and then **moved all 72 buttons out of that panel** into the catalogue. So the first
+build worked, and every rebuild afterwards found no `#v-sec`, took the "not the S³ mode"
+exit, and never re-created the launcher. Measured on desktop *and* phone: `#labOpenBrowser`
+absent, 72 buttons sitting intact inside `#labPanel` — the catalogue whole and completely
+unreachable, in the one world it belongs to.
+
+The launcher now has its own section in the controls panel, created if missing, and the
+buttons are looked for wherever they are. Two wrong turns on the way, both caught by
+measurement: walking up from a moved button lands *inside* `#labPanel`, which would have
+written the launcher into the panel it is supposed to open; and taking the union of both
+locations double-counts, because the controls panel re-creates its buttons on every rebuild
+— the count climbed 72, 144, 216. What is wanted is the fresh set when there is one and the
+held set when there is not, never both.
+
+### And two faults of my own, caught by the suite
+
+Inserting the bar's CSS closed the desktop media block early, so the `#contextRail` desktop
+rule fell into the phone block and stopped applying — the rail drifted back over the
+Inspector strip. The self-test that enumerates every tenant of the top band caught it.
+
+And `hccTabsBuildMerged()` toggled its class *before* building the replacement. It runs
+during module evaluation, before `HCC_CTX` exists, so `inspectorPanelFor()` threw on a
+temporal-dead-zone reference — after the class had already hidden the strip. Strip 0 px, bar
+unmerged, five tools unreachable. Nothing is hidden now until its replacement is in hand.
+
+| measurement | before | after |
+|---|---|---|
+| self-tests | 608 | **611** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
