@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="one-bar-2026.08.12.2">
+<html lang="en" data-hcc-build="arrive-with-controls-2026.08.12.3">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="one-bar-2026.08.12.2">
+<meta name="hcc-build" content="arrive-with-controls-2026.08.12.3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1514,6 +1514,21 @@
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
     body.tabs-merged #hccTabs button.on{flex:1.6 1 0}
   }
+
+  /* ── THE CATALOGUE SITS ABOVE CONTROLS, ON A PHONE TOO ─────────────────────
+     On a phone every panel is a bottom sheet in the same slot, so the catalogue and
+     Controls were handed identical geometry and the catalogue landed exactly on top of
+     the panel it is supposed to sit above — measured, both at y 461..734.
+     Where Controls starts is published each tick as --ctl-top (measured from the bottom
+     of the viewport), and the catalogue is anchored to it. */
+  @media (max-width:900px), (pointer:coarse){
+    body #labPanel{top:auto!important;
+      bottom:calc(var(--ctl-top, 40vh) + 10px)!important;
+      left:8px!important;right:8px!important;width:auto!important;
+      height:auto!important;max-height:32vh!important;overflow:auto!important;
+      transform:none!important;z-index:41!important}
+    body #labPanel[data-collapsed="1"]{max-height:none!important;overflow:hidden!important}
+  }
 </style>
 </head>
 <body>
@@ -1522,7 +1537,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.59.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.60.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1708,8 +1723,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.59.0';
-const HCC_BUILD='one-bar-2026.08.12.2';
+const HCC_VERSION='3.60.0';
+const HCC_BUILD='arrive-with-controls-2026.08.12.3';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6461,6 +6476,30 @@ function runSelfTests(){
       &&hopfScene!==hierarchyScene&&hopfCamera!==hierarchyCamera
       &&!!document.querySelector('#hierarchyLegend [data-hmode="4d"]'),
       `two scenes, two cameras, two rotation laws · mode switch present in the widget header · current mode "${HOPF_MODE}"`);
+  }
+  { /* arriving somewhere shows you ITS controls, and the catalogue belongs to S³ alone */
+    const c=document.getElementById('ctl'), lp=document.getElementById('labPanel');
+    const shown=e=>e&&getComputedStyle(e).display!=='none';
+    const head=(document.querySelector('#ctl .sect b')||{}).textContent||'';
+    const s3=HCC_CTX.worldId==='s3';
+    ok('choosing a section of the atlas presents that section\u2019s controls — open, compact, and scrolled to its first real parameter rather than to the panel\u2019s own heading. MEASURED before: entering Solar left Controls closed, and pressing a section you were already in toggled it shut with nothing to bring it back. Pressing a section is a request to work with that model, so the answer is its settings',
+      shown(c)&&typeof hccPresentControls==='function'&&typeof hccScrollToFirstParameter==='function',
+      `world ${HCC_CTX.worldId} · Controls ${shown(c)?'open':'CLOSED'} · heading "${head.slice(0,44)}"`);
+    /* the S³ heading must not appear anywhere else */
+    ok('and the S³ launcher section leaves when S³ does. MEASURED before: it was inserted into the controls panel and never removed, so FBS3R came up headed "S³ Laboratory" with its own first parameter pushed below the fold — a section belonging to one world outliving the world. The gate is the registry, not a DOM node: testing "are there laboratory buttons anywhere" answers yes in every world once they have been moved into the catalogue',
+      s3 || !document.getElementById('labLaunchSect'),
+      s3?'in S³, where the launcher belongs':`world ${HCC_CTX.worldId} · launcher section ${document.getElementById('labLaunchSect')?'STILL PRESENT':'removed, as it should be'} · heading "${head.slice(0,44)}"`);
+    /* and in S³ it sits ABOVE Controls rather than on it */
+    let above=null;
+    if(s3&&shown(lp)&&shown(c)){
+      const l=lp.getBoundingClientRect(), r=c.getBoundingClientRect();
+      above=l.bottom<=r.top+2;
+    }
+    ok('in S³ the catalogue arrives with the world and sits directly ABOVE Controls. MEASURED before: on a phone every panel is a bottom sheet in the same slot, so the two were handed identical geometry and the catalogue landed exactly on top of the panel it is meant to sit above — both at y 461..734. Where Controls starts is published each tick as --ctl-top and the catalogue is anchored to it',
+      !s3 || above!==false,
+      s3?(above===null?'catalogue closed for this visit — it is offered once per arrival, not forced back every frame'
+                      :`catalogue ${Math.round(lp.getBoundingClientRect().top)}..${Math.round(lp.getBoundingClientRect().bottom)} · Controls ${Math.round(c.getBoundingClientRect().top)}..${Math.round(c.getBoundingClientRect().bottom)} · above: ${above}`)
+        :`world ${HCC_CTX.worldId} · out of scope here`);
   }
   { /* one bottom bar, and a catalogue that stays reachable in its own world */
     const n=document.getElementById('hccTabs'), ins=document.getElementById('hccInspector');
@@ -35250,7 +35289,7 @@ let labDockAcc=99;
 function labDockTick(dt){
   try{ hccPublishColumns(dt); }catch(e){}
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
-  try{ labBrowserApplyVisibility(); }catch(e){}
+  try{ hccPresentControls(); labBrowserWorldTick(); labBrowserApplyVisibility(); }catch(e){}
   /* the bar's SHAPE is a function of the viewport and the live tools, so it is evaluated
      on the same tick rather than left to whichever call site last remembered. It bails
      out cheaply when the signature has not changed. */
@@ -35263,6 +35302,13 @@ function labDockTick(dt){
        bottom = 51 + 10 still landed squarely on it — 197 × 51 px of overlap, exactly
        the height of the readout.  What a bottom-anchored sheet needs is the band the
        readout OCCUPIES, measured from the bottom of the viewport up. */
+    /* the catalogue sits ABOVE Controls, and on a phone both are bottom sheets in the
+       same slot — so where Controls STARTS has to be published, not guessed */
+    if(ctl&&getComputedStyle(ctl).display!=='none'){
+      const cr=ctl.getBoundingClientRect();
+      if(cr.height>0) document.documentElement.style.setProperty('--ctl-top',
+        Math.round(Math.max(0,innerHeight-cr.top))+'px');
+    }
     const hd=document.getElementById('hud');
     if(hd){ const r=hd.getBoundingClientRect();
       if(r.height>0){ const band=Math.round(Math.max(r.height,innerHeight-r.top));
@@ -35279,6 +35325,26 @@ function labDockTick(dt){
    The panel's visibility is therefore no longer something a call site can get right or
    wrong. It is a FUNCTION of (asked for) AND (in scope), re-evaluated on the same tick
    that already publishes the column widths — so no future entry point can forget it. */
+/* ── ENTERING S³ BRINGS THE CATALOGUE WITH IT ────────────────────────────────
+   The catalogue belongs to the S³ world and to no other, so arriving there should present
+   it — folded to its rail, sitting directly above Controls — rather than leaving the user
+   to discover a launcher first.  Leaving takes it away again.  MEASURED before: entering
+   S³ showed no catalogue at all, in the one section it exists for.
+
+   It is offered once per arrival.  If you close it, it stays closed for that visit — an
+   affordance that reopens itself every frame is not an affordance, it is a fight. */
+let LAB_LAST_WORLD=null;
+function labBrowserWorldTick(){
+  let w=null; try{ w=HCC_CTX.worldId; }catch(e){ return; }
+  if(w===LAB_LAST_WORLD) return;
+  const arrived=LAB_LAST_WORLD!==null&&w==='s3';
+  LAB_LAST_WORLD=w;
+  if(w!=='s3'){ LAB_BROWSER_OPEN=false; return; }
+  /* fold it first so it arrives as the rail rather than as a wall of 72 buttons */
+  try{ if(!LAB_BROWSER_FOLDED) labBrowserFold(true); }catch(e){}
+  LAB_BROWSER_OPEN=true;
+  try{ labBrowserBuild(); }catch(e){}
+}
 function labBrowserInScope(){
   try{ if(typeof panelInScope==='function'&&typeof HCC_CTX!=='undefined')
     return panelInScope('labPanel',HCC_CTX); }catch(e){}
@@ -35334,6 +35400,14 @@ function labBrowserBuild(){
      A function must not destroy the thing it tests for.  The buttons are now looked for
      WHEREVER THEY ARE, and the only real question — is this a world with S³ laboratories
      at all — is asked of the registry instead of of a DOM node that moves. */
+  /* THE GATE IS THE WORLD.  Testing "are there laboratory buttons anywhere" answered yes
+     in every world once they had been moved into the catalogue, so FBS3R's Controls came
+     up headed "S³ Laboratory" with its own first parameter pushed below the fold. The
+     catalogue belongs to S³; that is a fact about the registry, not about the DOM. */
+  { let w=null; try{ w=HCC_CTX.worldId; }catch(e){}
+    if(w&&w!=='s3'){
+      const stale=ctl.querySelector('#labLaunchSect'); if(stale) stale.remove();
+      panel.style.display='none'; return; } }
   const already=panel.querySelector('button[id^="v-"]');
   const row=ctl.querySelector('#v-sec')?.closest('.radioRow')
         || (already?already.closest('.radioRow'):null);
@@ -35348,6 +35422,11 @@ function labBrowserBuild(){
     ctl.insertBefore(sect,ctl.firstChild);
   }
   if(!row||!sect){ // not the S³ mode — the browser simply has nothing to offer
+    /* and the launcher goes with it.  Inserting the section and never removing it left
+       every other world's Controls headed "S³ Laboratory", with that world's own first
+       parameter pushed below the fold — measured in FBS3R. A section that belongs to one
+       world has to leave when the world does. */
+    const stale=ctl.querySelector('#labLaunchSect'); if(stale) stale.remove();
     if(!ctl.querySelector('#v-sec')&&!already) { panel.style.display='none'; }
     return;
   }
@@ -40489,7 +40568,15 @@ addEventListener('wheel',disarmIdleDrift,{capture:true,passive:true});
    the bare selector used to capture them and OVERWRITE their XR-entry handlers. */
 document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=()=>{
   const same=b.dataset.mode===state.mode;
-  if(same){ togglePanel('ctl'); return; }              // re-click the active tab hides/shows its Controls
+  if(same){
+    /* re-click the active section hides/shows its Controls — and when it SHOWS, it lands
+       on that model's first real parameter rather than on the panel's own heading.
+       Pressing a section is a request to work with it, so the answer is its settings. */
+    togglePanel('ctl');
+    try{ if(getComputedStyle(document.getElementById('ctl')).display!=='none')
+      hccScrollToFirstParameter('ctl'); }catch(e){}
+    return;
+  }
   if(b.dataset.mode==='solar') state.solarScaleLayer='local';   // Solar returns to the planets, not a stale cosmic warp
   /* THROUGH hccGo, NOT AROUND IT.  setMode is still what moves the scene, but it is now
      reached from one place, so the world can never change without the scope sweep, the
@@ -40497,6 +40584,7 @@ document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=(
      into six navigation controls that each knew a different amount. */
   hccGo({worldId:b.dataset.mode, labId:b.dataset.mode==='s3'?'sec':null});
   openPanel('ctl');
+  try{ hccScrollToFirstParameter('ctl'); }catch(e){}
 });
 /* compact topbar "More" dropdown + Controls FAB */
 (()=>{
@@ -43256,6 +43344,26 @@ function hccSyncPanelOpenFlag(){
     document.body.classList.toggle('panel-open',!!any);
   }catch(e){}
 }
+/* ── ARRIVING SOMEWHERE SHOWS YOU ITS CONTROLS ───────────────────────────────
+   Choosing a section of the atlas is a request to work with that model, and the settings
+   that belong to it should be in front of you when you get there — already scrolled to
+   the first real parameter rather than to the panel's own heading.  MEASURED before:
+   entering Solar left the Controls panel closed entirely.
+
+   Once per arrival, and never against an explicit close: if you shut Controls, it stays
+   shut for that visit. */
+let HCC_LAST_WORLD_CTL=null;
+function hccPresentControls(){
+  let w=null; try{ w=HCC_CTX.worldId; }catch(e){ return; }
+  if(w===HCC_LAST_WORLD_CTL) return;
+  HCC_LAST_WORLD_CTL=w;
+  try{
+    if(!panelInScope('ctl',HCC_CTX)) return;
+    openPanel('ctl');
+    hccScrollToFirstParameter('ctl');
+    hccTabsSync(); hccRenderInspector();
+  }catch(e){}
+}
 function hccEnforceScope(){
   HCC_CTX.openPanels=[];
   for(const id of Object.keys(TOOL_REGISTRY)){
@@ -43270,6 +43378,7 @@ function hccEnforceScope(){
       HCC_CTX.openPanels.push(id); }
   }
   hccSyncPanelOpenFlag();
+  try{ hccPresentControls(); }catch(e){}
 }
 globalThis.hccBack=()=>hccBack();
 function hccBack(){

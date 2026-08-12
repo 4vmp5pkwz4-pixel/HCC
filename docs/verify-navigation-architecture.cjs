@@ -87,7 +87,20 @@ const atlasDescribed=(()=>{ const m=H.match(/const LAB_ATLAS_DEFS=\[([\s\S]*?)\n
 {
   /* the entry points must route through hccGo; setMode and setS3View remain the
      implementation underneath but must not be called directly by a control */
-  const modeBtn=/modebtn\[data-mode\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{[\s\S]{0,900}?hccGo\(/.test(H);
+  /* THE HANDLER BODY, NOT A CHARACTER BUDGET.  This used to require hccGo within 900
+     characters of the handler's opening brace, which is a proxy for "the handler calls
+     hccGo" and a bad one: adding a comment to the handler broke it while the routing was
+     untouched.  The body is now delimited by matching braces and asked the real question
+     -- does it route through hccGo, and does it avoid calling setMode behind hccGo's back. */
+  const modeBtn=(()=>{
+    const m=H.match(/modebtn\[data-mode\]'\)\.forEach\(b=>b\.onclick=\(\)=>\{/);
+    if(!m) return false;
+    let i=m.index+m[0].length, depth=1;
+    while(i<H.length&&depth>0){ const c=H[i++];
+      if(c==='{') depth++; else if(c==='}') depth--; }
+    const body=H.slice(m.index,i);
+    return /hccGo\(/.test(body) && !/(^|[^.\w])setMode\(/.test(body);
+  })();
   const labBtn=/function uiSetS3View\(v\)\{[\s\S]{0,300}?hccGo\(/.test(H);
   const seven=/hccGo\(target,opts=\{\}\)/.test(H) && /hccEnforceScope\(\)/.test(H)
     && /hccRenderBreadcrumb\(\)/.test(H) && /history\.(push|replace)State/.test(H);

@@ -1393,6 +1393,54 @@ unmerged, five tools unreachable. Nothing is hidden now until its replacement is
 |---|---|---|
 | self-tests | 608 | **611** |
 
+## Arriving somewhere shows you its controls (v3.60.0)
+
+Reported as broken work: choosing a section did not present its settings, and the
+laboratory catalogue had gone from the one world it belongs to. Measured across four
+sections on a phone, all three faults were real and all three were mine.
+
+### What was wrong
+
+| section | before | after |
+|---|---|---|
+| Solar | Controls **closed** | open · "Time" · first parameter visible |
+| Zyklen | open | open · "Shared timeline" |
+| **S³·Hopf** | Controls open, **no catalogue at all** | catalogue **above** Controls (279–451 vs 461–734) |
+| FBS3R | headed **"S³ Laboratory"**, own parameter below the fold | "Golden-ratio ladder — R(N) = ℓ_P·φᴺ" · visible |
+
+**The launcher section leaked into every world.** I inserted it into the controls panel and
+never removed it, so FBS3R came up wearing S³'s heading with its own first parameter pushed
+below the fold. And the gate was wrong in kind: testing *"are there laboratory buttons
+anywhere"* answers yes in every world once they have been moved into the catalogue. The
+gate is the registry — the catalogue belongs to S³ — not a DOM node that moves.
+
+**The catalogue landed on top of Controls, not above it.** On a phone every panel is a
+bottom sheet in the same slot, so both were handed identical geometry — both at y 461..734.
+Where Controls *starts* is now published each tick as `--ctl-top`, measured from the bottom
+of the viewport, and the catalogue is anchored to it. It arrives folded to its rail, so it
+costs 101 px on desktop and 172 on a phone rather than a wall of 72 buttons.
+
+**Pressing a section you were already in toggled Controls shut** with nothing to bring it
+back. The toggle stays — it is a useful affordance and it predates this work — but when it
+opens it now lands on that model's first real parameter rather than on the panel's own
+heading. Pressing a section is a request to work with that model, so the answer is its
+settings.
+
+### The rule underneath all three
+
+Each of these was a piece of state that some call site was expected to maintain. Each is
+now a **function of the context, evaluated on the publish tick**: which world am I in →
+should Controls be presented, should the catalogue exist, where does it sit. The catalogue
+is offered once per arrival and not forced back if you close it — an affordance that
+reopens itself every frame is not an affordance, it is a fight.
+
+| measurement | before | after |
+|---|---|---|
+| sections presenting their own controls | 3 of 4 | **4 of 4** |
+| catalogue present in S³ | **no** | yes, above Controls |
+| catalogue present outside S³ | heading leaked | **no** |
+| self-tests | 611 | **614** |
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
