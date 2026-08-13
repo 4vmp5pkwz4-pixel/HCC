@@ -3298,6 +3298,37 @@ fault in its own right, so the class is closed rather than this instance of it.
 
 Self-tests 701 → **703**.
 
+## Every door opens (v3.87.0)
+
+The Fibonacci anyon laboratory appeared in both lists and would not select. It was there,
+it rendered, and pressing it did nothing.
+
+**The click wiring was a third hand-kept list.** Seventeen individual assignments of the
+form `ctl.querySelector('#v-sec').onclick = …` plus an array of fifty-six ids — and this
+laboratory was in **neither**, so its button rendered in the Controls panel, was harvested
+into the catalogue, appeared in both lists and had no handler at all.
+
+That is the **third hand-kept list this one laboratory fell out of in three versions**:
+
+| version | the list it was missing from | symptom |
+|---|---|---|
+| v3.85.0 | the view-button markup | absent from the catalogue entirely — 72 of 73 |
+| v3.85.0 | the catalogue's harvest | fixed by synthesis, so the class is closed |
+| **v3.87.0** | **the click wiring** | **listed in both lists, dead to the touch** |
+
+A list someone must remember to extend is a list that will be forgotten. The buttons are
+now wired **by enumeration** — anything naming a registered laboratory and lacking a
+handler gets one — and the sweep runs last, so every bespoke binding above it still wins
+and a laboratory added tomorrow is clickable by existing.
+
+> Verified by clicking every entry: **73 of 73 laboratories select from the catalogue and
+> land on their own route.** Buttons with no click handler: **0**.
+
+A self-test now asserts it, and says so plainly when it is measured outside S³ and
+therefore vacuous, rather than reporting a pass over nothing.
+
+Self-tests 703 → **704**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
