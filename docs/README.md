@@ -2397,6 +2397,53 @@ are not.
 Self-tests 659 → **663**; `docs/verify-gate-independence.cjs` **9/9**; the 72-view S³ walk
 stays at 0 page errors.
 
+## A control row is one line, and the navigator is not on the panel (v3.73.0)
+
+Four defects, reported from a phone and a tablet, all measured before being touched.
+
+### The navigator was drawn across the panel it navigates
+
+In landscape the 4D locator sat on the Controls sheet with a **27,440 px² overlap**. The
+cause was mine: the v3.62 phone rule pinned the widget with `top`/`right`/`!important`,
+which **disabled the obstacle-avoiding placement engine entirely**. The engine had a full
+obstacle list and no say.
+
+The pin is gone. And the engine was taught the one candidate a phone actually has — the
+band **above** the bottom sheet, which the sheet already publishes every tick as
+`--ctl-top`. Without those candidates "least overlap" still meant "on top of Controls",
+because every corner a phone owns was already occupied.
+
+```
+landscape  locator ∩ Controls   27,440 px²  →  0
+```
+
+### A control row was four lines
+
+On a 390-px phone the row `χ (geodesic radius)` was **201 px tall inside a 270-px sheet** —
+74% of the panel for one parameter. The label, the slider, the readout, a 74-px numeric
+wrapper and a 312-px row of snap buttons each claimed a 44-pt line of its own.
+
+The touch targets stay; the stacking goes. The numeric field joins the first line and the
+snap buttons become one thin swipeable strip.
+
+| row | before | after |
+|---|---|---|
+| `χ (geodesic radius)` | 201 px | **114 px** |
+| `Speed, Gyr/s` | 96 px | **44 px** |
+
+### And the last mode chip no longer reads as broken
+
+`φ FBS3R` sat half off the right edge. The row is a swipe strip, so it now carries
+`scroll-snap-type: x proximity` with end padding and per-chip snap alignment — a chip
+lands whole or not at all.
+
+Self-tests 663 → **665**, both new ones measuring the rendered geometry rather than the
+rule that produces it; the 72-view S³ walk stays at 0 page errors.
+
+**Still open, and named rather than implied:** the freshness banner still overlaps the
+locator by ~3,600 px² in portrait (it is a transient dev-build notice), and the χ row's two
+`→ horizon` / `→ equator` action buttons still take a line of their own.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
