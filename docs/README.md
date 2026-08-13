@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
@@ -35,6 +36,7 @@ node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
 node docs/verify-quantity-bus.cjs          # 21/21 checks pass
+node docs/verify-edge-operator.cjs         # 12/12 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2082,6 +2084,87 @@ from the other side, where the recursion gate measured ±31 σ wide.
 
 Self-tests 642 → **645**; `docs/verify-quantity-bus.cjs` 18/18 → **21/21**; the 72-view S³
 walk stays at 0 page errors and all seven worlds at 0 buffer growth.
+
+## The recursion operator, and the no-go that comes with it (v3.69.0)
+
+ℛ = Proj_Bradlow ∘ APS_η ∘ Hopf_red ∘ Fus_φ is offered in the manuscript as the operator
+whose spectrum should select the closed shell N_φ = 292. It is implemented here as written.
+**The headline result is a negative one, and it is the manuscript's own.**
+
+### The operator is diagonal
+
+The finite-cutoff matrix model carries *both* Kronecker deltas, so ℛ is diagonal in the
+edge-character basis and its spectrum is simply its diagonal. No diagonalisation is
+involved, and any claim that "the spectrum selects" is a claim about a product of four
+scalars. The Bradlow factor is a **projector**, not a weight: it truncates the tower at
+ℓ(ℓ+1) ≤ q and leaves everything below untouched.
+
+### The no-go
+
+With `E_Fus(N) = N ln φ`, `ρ_Hopf(N) ~ N²` and an O(1) APS correction, gap balance reads
+`N ln φ − ln(N² + C_APS) = 0`, and its root is:
+
+| C_APS | 0.5 | 1 | 2 | 5 | 10 |
+|---|---|---|---|---|---|
+| root N | 8.83 | **9.29** | 9.85 | 10.86 | 11.79 |
+
+Near **nine**, not 292 — for every O(1) constant. And the size of the failure is worth
+stating: to move that root to 292 the APS constant would have to be
+
+```
+C_APS = φ²⁹² − 292² ≈ 1.06e+61
+```
+
+which is not an O(1) correction to anything. It is the answer smuggled in as an input.
+
+So **ℛ as written is a registry consistent with rung 292, not a selector that produces
+it.** The manuscript says exactly this, in order to protect itself from a false easy proof.
+An atlas that implemented ℛ and quietly displayed 292 would be doing the opposite of what
+the paper asked for, so `edge.n_naive` reports the refuted root as a first-class output and
+292 appears only as `n_shell`, labelled *quoted for comparison, not produced here*.
+
+### The edge Hamiltonian's admissibility kernel
+
+`β_q Ĥ_adm,q` is a sum of positive squares with every λ → ∞. That makes it a **projector,
+not an energy**: a configuration is admissible exactly when every term vanishes. Four terms
+are ordinary arithmetic and are checked, refusing term by term rather than returning a
+number that is merely large:
+
+```
+k_CS = 799 != 2q = 800 · P_val(0.5) = -3.28125 != 0
+```
+
+### And the kernel is where two things the atlas already drew come from
+
+This is the part worth having.
+
+- The **Planck-cell term** `λ_P(τℓ_P² − π)²` forces `τ = π/ℓ_P²` — which *is* the
+  Planck–Bradlow normalisation τ_P that makes the maximum vortex packing on the horizon
+  equal the Bekenstein–Hawking capacity. The Capacity-flow laboratory has been drawing that
+  identity since v3.63.0.
+- The **valuation annihilator** `P_val(D̂) = 0`, `P_val(z) = (z−1)z(z+1)(z+2)(z+3)`, has
+  roots {1, 0, −1, −2, −3} — which *is* the static valuation spectrum the same laboratory
+  draws as the rungs of its w(a) chart, with `w_s = −1 − s/3`.
+
+Two laboratories were drawing consequences of one kernel without either of them saying so.
+The edge Hamiltonian is not a new picture bolted on; it is the common source.
+
+A twelfth coupling became admissible the moment `edge` registered, and the self-test caught
+it before it could go undeclared: `capacity.q → edge.q`. The Bradlow projector truncates
+against the capacity sector, so the sector the selector chooses is the sector the operator
+must be built over.
+
+### Declared boundary
+
+Not implemented, and **named rather than glossed**: the Harish–Chandra edge oscillator
+character, the SO(4) edge volume, the primed determinants `det′|∇² + m²|` with their
+tachyonic edge masses, and the Kronecker-limit functional `F_KL(E₂, η, η̄)`. Those are what
+would turn ℛ from a registry into a selector, and none of them is arithmetic on numbers
+this instrument holds. `Z_edge(q) = Z_grav·Z_DEM·Z_string·Z_val` is a declared
+factorisation, never a computed number.
+
+Self-tests 645 → **649**; `docs/verify-edge-operator.cjs` **12/12**; the 72-view S³ walk
+stays at 0 page errors.
 
 ## Status
 
