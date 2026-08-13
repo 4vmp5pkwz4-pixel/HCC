@@ -3080,6 +3080,83 @@ now read from the source. **A test that hard-codes what it is measuring measures
 
 Self-tests 692 → **696**.
 
+## Everything on the screen is on the screen (v3.84.0)
+
+A reader photographed an iPhone and wrote: *the last buttons of the top bar slide off the
+edge, I cannot reach many of the functions.* Reproduced at 390×844 and 844×390, and the
+report was an understatement.
+
+### What the measurements said
+
+| viewport | before |
+|---|---|
+| 390×844 portrait | **6 of 10 top-bar buttons outside the viewport**, and the row was not even scrollable |
+| 360×780 | 7 of 10 outside |
+| 844×390 landscape | 7 elements over the **top** edge — the Controls sheet's pin and collapse at **y = −152**, the catalogue at −18, the freshness bar at −79 |
+| every mobile size | the bottom tab bar's **⬇ Data and ⋯ More wrapped to y = 845 on an 844 px screen** |
+
+Every one of those controls rendered, was registered, and passed every logic test. The
+atlas has claimed "visible dead controls = 0" for many versions and tested it by asking
+whether a control *renders*. None of the tests asked whether a finger could reach one.
+
+### Four causes, none of them cosmetic
+
+**`100vh` is a lie on iOS Safari.** It is the height the page would have with the address
+bar hidden — larger than what the reader can see. Every sheet sized itself from
+`100vh − topbar − tabs − …`, came out too tall, and the offsets stacked above it walked off
+the top. There is now one honest unit, `--vh100`, defined as `100vh` and redefined as
+`100dvh` under `@supports`; **28 occurrences** switched to it.
+
+**Subtractions with no floor.** On a 390 px screen `calc(100dvh − … − 92px)` reaches zero
+and goes negative, and a negative height falls back to content height — which is how a
+sheet taller than the screen pushed its own header out of view. `max()` gives the
+arithmetic a floor; the sheet scrolls inside itself instead.
+
+**Corner controls scrolled away with the content.** Pin, fold and close are absolutely
+positioned inside a panel that is itself the scroll container, so `top:10px` is measured
+from the content origin. With the sheet scrolled 250 px they sat at −152. A capturing
+scroll listener publishes `--panel-scroll` and the CSS adds it back.
+
+**A hidden horizontal scroller for ten destinations.** The worst of both worlds on a phone:
+it hides what it holds, has no affordance, and the swipe that would reveal the rest is the
+gesture that orbits the scene. The row is now a **five-column grid** — two rows, in every
+language, at every width, with labels ellipsised rather than buttons lost. Search,
+Navigator and More keep their icons and drop their words, which required splitting the icon
+from the label in `LANG_MISC`: `applyLangChrome` wrote `textContent` and had been deleting
+the `<span>` at boot.
+
+### The invariant that was missing, and what it caught
+
+`HCC_API.ui.unreachable()` measures, **on the reader's own screen**, every visible control
+whose box lies outside the visual viewport — skipping anything inside a scroller, where
+being out of view is normal. It runs as a boot self-test and is exposed so a harness can
+drive it across viewports.
+
+It paid for itself on its first run. `#hccTabs` was `grid-template-columns:repeat(4,1fr)`
+while the merged bar is built with **six** buttons, so ⬇ Data and ⋯ More wrapped into an
+implicit second row below the screen — present, rendering, unreachable, and visible as a
+four-icon bar in the reader's photograph. A fixed column count is a promise about content
+that the content does not keep; `grid-auto-flow:column` lays whatever is there in one row.
+
+### After
+
+| viewport | unreachable controls | panel collisions |
+|---|---|---|
+| 390×844 | **0** of 51 | 0 |
+| 844×390 | **0** of 41 | 0 |
+| 360×780 | **0** of 51 | 0 |
+| 320×568 | **0** of 51 | 0 |
+
+Collisions were measured too, and three real ones in short landscape were resolved: the
+breadcrumb was covered by the catalogue (7,604 px²) and the freshness banner sat across
+both. The banner is a notice, not an instrument, and now takes the free lower-left of the
+scene. Fixing the catalogue needed two changes and only one was obvious —
+`body #labPanel[data-collapsed="1"]{max-height:none!important}` outranks a plain
+`body #labPanel` on the attribute and was quietly winning, with the measurement reporting
+`max-height: none` while the rule that set it read `!important`.
+
+Self-tests 696 → **697**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
