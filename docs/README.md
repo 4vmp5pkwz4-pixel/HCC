@@ -2816,6 +2816,85 @@ file is parsed.
 Self-tests 679 → **682**; `docs/verify-fibonacci-anyons.cjs` 14/14 → **19/19**; the
 73-laboratory walk stays at 0 page errors.
 
+## The fusion tree and the golden chain (v3.81.0)
+
+Two structures the braid instrument alone cannot show: the Hilbert space of Fibonacci
+anyons, and what happens when they interact. `docs/verify-fibonacci-chain.cjs` — **15/15**.
+
+### The Hilbert space is a Zeckendorf condition
+
+Fuse *n* τ one at a time and record the running total charge x₁ … x_n. The fusion rule says
+1 × τ = τ, with **nothing else on the right**, and τ × τ = 1 + τ. So from the vacuum you may
+only step to τ; from τ you may step to either. The admissible label strings are exactly the
+binary strings with **no two adjacent vacua**, and there are F_{n+1} of them — enumerated,
+not asserted: 610 for *n* = 14, splitting as 377 of total charge τ plus 233 of charge 1,
+with zero strings violating the condition across the whole set.
+
+The laboratory draws **every basis vector at once**. Each path is splayed about the
+fusion-order axis by an angle that indexes it, so a vacuum label sits *on* the axis and a τ
+label lifts off it in a direction unique to that basis vector. Adding one anyon visibly
+thickens the solid by φ. The first version stacked the basis in *z* under a camera looking
+straight down *z*, and eighty-nine distinct paths projected onto four horizontal streaks — a
+three-dimensional object drawn so that none of its three dimensions read.
+
+A step you cannot take says so before you press it, rather than doing nothing.
+
+### e_∞ = 2φ − 4, exactly
+
+H = −Σᵢ Pᵢ, with Pᵢ the projector of the neighbouring pair onto the vacuum channel: the
+anyonic antiferromagnet, with the F-matrix where the Clebsch–Gordan coefficients would be.
+All three blocks are forced by the tree — outer labels (1,1) give P = 1, (1,τ) or (τ,1) give
+P = 0, and (τ,τ) gives |v⟩⟨v| with v the vacuum column of F. P² = P because 1/φ² + 1/φ = 1.
+**No free parameter anywhere.**
+
+Diagonalised by Lanczos with full reorthogonalisation out to N = 20 (15,127 states), the
+three-point finite-size fit of E₀/N converges onto
+
+> **e_∞ = 2φ − 4 = −2/φ² = −0.763932022500**
+
+to 6e−9, without ever being told about it. In the Temperley–Lieb normalisation e_i = φPᵢ it
+reads e_∞ = 2 − 2φ = −2/φ. That is derived here.
+
+### The velocity cancels
+
+A finite ring measures two products, c·v = 1.271446 and x·v = 0.136230, and cannot separate
+either from the sound velocity. Their **ratio is velocity-free**, and it is what gets
+compared:
+
+> measured c/x → **9.333175** · (7/10)/(3/40) = 28/3 = **9.333333** · 0.002%
+
+And with the Bethe-ansatz velocity supplied from outside — v = π sin γ/(γφ) at γ = π/5, the
+φ undoing the e_i = φPᵢ normalisation — the measured c·v becomes a central charge:
+**c = 0.699998** against 7/10. Nothing was fitted: c·v came from the energies, v from the
+integrable structure, and they met.
+
+**What is quoted and what is derived, kept apart.** Derived here: e_∞ = 2φ − 4, c·v, x·v and
+their ratio. Quoted from the literature (Feiguin et al., PRL 98, 160409): that the chain
+flows to the tricritical Ising model, that its lowest lattice excitation is the h = 3/80
+field, and the velocity formula. Any claim of "c = 0.70" from the lattice data alone has
+silently chosen a velocity, and the atlas says which one it borrowed.
+
+### A negative central charge, and why
+
+The first fit produced c·v = −7.31. **Odd rings are frustrated** — an antiferromagnet on an
+odd cycle cannot satisfy every bond — so E₀/N alternates strongly with parity, and a
+two-point fit across N = 9 and N = 10 mixes two different sequences. Odd-N gaps are an order
+of magnitude larger than even-N gaps at the same size, 0.77 against 0.11. The laboratory now
+offers only even rings and says why.
+
+A second scratch error is worth the same note: the entropy per anyon is the **increment**
+ln[dim(n+1)/dim(n)] → ln φ, not ln dim(n)/n, which still carries a −ln√5/n tail of 0.058 at
+n = 14 and reads as the failure of a true statement.
+
+The ring is diagonalised **in the browser**, and two independent routes through the same
+state are checked against each other: −Σᵢ⟨Pᵢ⟩ computed from the ground vector against E₀
+computed from the tridiagonal, agreeing to 1e−12, with the bond values equal to 4e−15 —
+translation invariance measured rather than assumed.
+
+Self-tests 682 → **688**; tree and chain rebuilds leak neither GL buffers nor label DOM
+(0 growth over 30 and 20 rebuilds, 0 over 48 station swaps); the laboratory walk stays at
+0 page errors.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
