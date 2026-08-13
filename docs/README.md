@@ -2597,6 +2597,62 @@ strong hint and not an identification, and the atlas keeps the two statements ap
 Self-tests 665 → **670**; `docs/verify-fibonacci-anyons.cjs` **14/14**; the 72-view S³ walk
 stays at 0 page errors and the phone boots clean.
 
+## The braiding laboratory (v3.77.0)
+
+The **73rd** laboratory: three Fibonacci τ particles, their worldlines running up the page
+in time, and a braid you weave by hand.
+
+### Why worldlines and not particles moving
+
+In two dimensions an exchange is not a permutation — it is an element of the **braid group**,
+and which way they went round each other matters. A picture of dots swapping cannot say
+that; a picture of strands in spacetime can, and the over/under crossing is the whole
+content. So time is the vertical axis and the braid is the object.
+
+### The state is not a decoration on the picture
+
+The buttons are the generators. `σ₁`, `σ₂`, `σ₁⁻¹`, `σ₂⁻¹`, undo, clear — and the numbers
+underneath are the matrix that word computes acting on the fusion state, from the
+representation verified in `verify-fibonacci-anyons.cjs`.
+
+Weave `σ₁σ₂σ₁` and the outcome probabilities come out
+
+```
+1 : 38.196601 %        τ : 61.803399 %        norm 1.000000000000
+```
+
+which are **1/φ² and 1/φ**. The golden ratio arrives as a *measurement outcome*, not as a
+constant anyone typed in.
+
+And `σ₂σ₁σ₂` gives the same state to 10⁻¹⁶ — **Yang–Baxter is something you can weave.** Both
+are offered as presets precisely so the relation is checked by hand rather than believed.
+
+### Six registries said no
+
+The atlas's own completeness invariants refused the new laboratory until it was declared in
+every place a laboratory has to exist: `S3_VIEW_NAMES`, the prediction-contract class and
+target, the premium visual domains, the browser's domain registry, and the Invariant Nexus —
+where an isolated node is itself a failure, so the anyon station arrives with five typed
+relations (`τ×τ = 1+τ ↔ d = φ` to the mode ladder, `braid → SU(2)` to the spinor lab,
+topological spin ↔ Berry phase, braid ↔ linking, and a contrast edge to Bell).
+
+That is the registries working exactly as intended: a laboratory that cannot be found,
+classified, coloured or related is not finished.
+
+### Two faults worth recording
+
+**The buttons were wired inside the FBS3R branch.** They existed in the markup and did
+nothing — the panel showed the controls, the word stayed `∅` and the scene stayed dark. A
+control wired in one mode's branch is a control every other mode silently loses. One
+delegated listener, bound lazily on entry, cannot be forgotten by a branch that does not
+know about it.
+
+**And it was bound at module scope, where `ctl` is still in its temporal dead zone** — the
+third time this session that a `try{}catch{}` swallowed a TDZ error and left a feature
+silently absent.
+
+Self-tests 670 → **673**; the S³ walk now covers 73 laboratories with 0 page errors.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
