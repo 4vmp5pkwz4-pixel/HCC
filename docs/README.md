@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-fibonacci-anyons.cjs` | the Fibonacci category — F, R, braid, S, T and c = 14/5, checked against each other |
 | `verify-gate-independence.cjs` | whether the three gates are three determinations, by exact arithmetic and a calibrated symbolic search |
 | `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
@@ -41,6 +42,7 @@ node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 node docs/verify-edge-operator.cjs         # 12/12 checks pass
 node docs/verify-edge-determinants.cjs     # 21/21 checks pass
 node docs/verify-gate-independence.cjs     # 9/9 checks pass
+node docs/verify-fibonacci-anyons.cjs      # 14/14 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2531,6 +2533,69 @@ as a pass.
 
 Self-tests **665/665** on both a 1280×800 desktop and a 390×844 phone; the 72-view S³ walk
 stays at 0 page errors.
+
+## Fibonacci anyons — and Fus_φ is them (v3.76.0)
+
+The recursion operator is `ℛ = Proj_Bradlow ∘ APS_η ∘ Hopf_red ∘ Fus_φ`, and its fusion term
+is `E_Fus(N) = N ln φ`. That is not a golden-ratio flourish.
+
+### φ is not a choice
+
+The Fibonacci anyon τ obeys **τ × τ = 1 + τ**. That forces `d² = 1 + d`, whose only positive
+root is φ. The golden ratio is the *only* quantum dimension a particle with this fusion rule
+can have — and the total quantum dimension is `D = √(1+φ²) = √(2+φ) = 1.902113032590`, whose
+logarithm is the topological entanglement entropy of a Fibonacci liquid.
+
+### And the fusion space is literally Fibonacci
+
+Count fusion trees of n τ's: `a_{n+1} = a_n + b_n`, `b_{n+1} = a_n`, straight out of the
+fusion rule and nothing else.
+
+```
+n = 12:  144 / 89  =  F₁₂ / F₁₁      total 233 = F₁₃
+log(dim₁₂/dim₁₁) = 0.481225      ln φ = 0.481212
+```
+
+So `log dim → n ln φ` — **exactly the manuscript's E_Fus(N)**. And since `q(N) = πφ^{2N}`,
+the boundary sector at rung 292 carries the fusion space of **584 τ particles**, up to the π.
+The golden ladder this atlas runs on and the Fibonacci anyon are the same φ, and that is now
+a computation rather than a resemblance.
+
+### The category, checked against itself
+
+| check | result |
+|---|---|
+| `F² = I`, unitary, symmetric | holds — it *is* `1 + φ = φ²` |
+| F forced | `M = [[a,x],[x,−a]]` has `M² = (a²+x²)I` identically, so `M²=I` ⟺ `a²+x²=1`; `a = 1/φ` leaves `\|x\| = φ^{−1/2}` and nothing else |
+| Yang–Baxter `σ₁σ₂σ₁ = σ₂σ₁σ₂` | residual 1.6×10⁻¹⁶, recomputed every evaluation |
+| braid image dense in SU(2) | closest approach 1.6×10⁻³ over 60 000 words — a witness, not a Solovay–Kitaev compilation |
+| **(ST)³ = e^{2πic/8}S², c = 14/5** | holds — and c appears *only* on the right-hand side |
+
+That last one closes the whole data set at once: a wrong topological spin, a wrong D or a
+wrong phase anywhere in R fails it.
+
+### The ribbon relation caught a real error
+
+The first version paired `R_τ = e^{+3πi/5}` with `θ_τ = e^{+4πi/5}`. **Yang–Baxter passed and
+(ST)³ passed** — because each set is internally consistent, and only the relation *between*
+them fixes the handedness. `(R^ττ_τ)² = θ_τ` is the check that caught it. One theory, one
+chirality.
+
+A second error, in the check rather than the physics: F's uniqueness was first "shown" by
+sweeping 40 001 grid candidates, which found none — because the exact root φ^{−1/2} does not
+land on a grid of 1/20000 and the tolerance was tighter than the spacing. **A search that
+could not have succeeded, reported as a failure of the mathematics.** Sampling was the wrong
+instrument; the replacement is two lines of algebra.
+
+### What this is not
+
+The Fibonacci **category** is verified. It is *not* a claim that the manuscript's boundary
+sector **is** a Fibonacci anyon liquid — that would need the edge algebra to produce the
+category, which is precisely the gap the edge-determinant work left open. A shared φ is a
+strong hint and not an identification, and the atlas keeps the two statements apart.
+
+Self-tests 665 → **670**; `docs/verify-fibonacci-anyons.cjs` **14/14**; the 72-view S³ walk
+stays at 0 page errors and the phone boots clean.
 
 ## Status
 
