@@ -3157,6 +3157,86 @@ scene. Fixing the catalogue needed two changes and only one was obvious —
 
 Self-tests 696 → **697**.
 
+## The axioms, the universality, and the door that was never cut (v3.85.0)
+
+`docs/verify-fibonacci-category.cjs` — **7/7**.
+
+### The catalogue was built by harvest, so a laboratory could be invisible
+
+A reader could not find the Fibonacci anyon laboratory in the laboratory catalogue. It was
+registered in `S3_VIEW_NAMES`, `LAB_REGISTRY`, the prediction contract, the premium domains,
+the browser domains and the Nexus — **six registries** — and the catalogue still did not
+list it, because the catalogue is built by harvesting `button[id^="v-"]` out of the Controls
+panel and nobody had added a seventh declaration. Measured: **72 of 73 laboratories, and
+the quantum row listing 12 of that domain's 13 members.** The missing one was this.
+
+The button is added. More importantly the catalogue now **synthesises one for anything
+still absent**, from the same `S3_VIEW_NAMES` the router uses, so the class of fault is
+closed rather than this instance of it. The enumeration is a pure function shared by the
+builder and the boot self-test, because the builder exits outside S³ and a test that calls
+it at boot measures nothing.
+
+### The two coherence conditions nothing had checked
+
+A fusion category is not a table of F- and R-symbols; it is a table that **satisfies** two
+conditions, and the laboratory had been computing on that table for nine versions without
+asking.
+
+> **Pentagon** — the five ways of reassociating four anyons agree: max |LHS − RHS| =
+> **1.11e−16** over all **512** labellings. The F-matrix was derived here from F² = I,
+> which is a *consequence* of the pentagon, not the axiom.
+
+> **Hexagon** — braiding and reassociation commute: **3.14e−16** for R₁ = e^{4πi/5},
+> R_τ = e^{−3πi/5}, and equally for its mirror, which is correct — a theory and its parity
+> conjugate are both consistent and the category cannot choose between them.
+
+**And the hexagon rejects, at residual 1.18, the exact chirality error this atlas made in
+v3.76.0**: pairing R₁ = e^{4πi/5} with R_τ = e^{+3πi/5}. Yang–Baxter passed that. So did
+(ST)³ = e^{2πic/8}S². Both are satisfied by either handedness *taken consistently*, and
+neither relates the two phases to the F-matrix. The hexagon does. It is the cheapest check
+in the laboratory and it was the one that was missing — the bug was caught then by
+reasoning, and would have been caught by arithmetic.
+
+### Universality, exercised instead of cited
+
+"The braid image is dense in SU(2)" is normally a citation. The **compile a gate** station
+searches braid words and watches the operator distance to a target fall:
+
+| max length | distance to a Hadamard | word |
+|---|---|---|
+| ≤ 8 | 0.119088 | `121` |
+| ≤ 11 | 0.086457 | `bb1bb11b1ba` |
+| ≤ 13 | **0.029155** | `1b1b1bbb1b1b1` |
+
+That is what universality *means* operationally: any gate, to any accuracy, by moving
+particles around one another and nothing else. And no word reaches a gate exactly — the
+image is dense, not onto. A topological quantum computer approximates; its protection is
+that the approximation cannot drift, the word being an invariant of the worldlines rather
+than a set of tuned pulses. The station draws it on a Bloch sphere: the target axis, the
+axis the braid actually produces, and the convergence trail between them.
+
+### The other sign
+
+`H = −ΣPᵢ` is the antiferromagnetic golden chain and flows to the tricritical Ising model.
+`H = +ΣPᵢ` is a **different theory**, and the entanglement entropy separates them with no
+velocity, no energy fit and no momentum resolution — S(ℓ) = (c/3)·ln[(N/π)sin(πℓ/N)] on a
+ring, so the slope against the chord *is* c/3:
+
+| N | H = −ΣP | H = +ΣP |
+|---|---|---|
+| 12 | 0.7561 | 0.9339 |
+| 14 | 0.7486 | 0.8431 |
+| 16 | **0.7462** | **0.8175** |
+
+against 7/10 and (quoted) 4/5. **This is a discriminator, not a precision measurement**, and
+the file says so: both sequences are still falling at N = 16 and both sit a few per cent
+high, because anyonic chains carry a boundary contribution this two-parameter fit does not
+model. The precise c for the antiferromagnet remains **0.699945**, from the stress tensor.
+What entanglement adds is that it needs none of that machinery — and that the *ordering* is
+unambiguous.
+
+Self-tests 697 → **701**; verifiers 29 → **30**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
