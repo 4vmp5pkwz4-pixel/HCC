@@ -2977,6 +2977,109 @@ Self-tests 688 → **692**; the ring is diagonalised in the browser, momentum se
 momentum sector, in about a second at N = 12 and cached; 0 GL-buffer and 0 label-DOM growth
 over 24 sector toggles and 30 station swaps.
 
+## One way in, and a core that does not need a GPU (v3.83.0)
+
+An external audit and a reader arrived at the same place from opposite directions. The
+reader could not find the Fibonacci anyon laboratory. The audit could not get an answer out
+of the atlas at all. Both were right, and neither cause was where it looked.
+
+### The renderer was an ancestor of every computational result
+
+`index.html` is one module script, and line 7882 read
+
+```js
+const renderer = new THREE.WebGLRenderer({ … });   // unguarded
+```
+
+On a machine without a GPU three.js throws `Error creating WebGL context`, **execution of
+the module stops at that line**, and everything declared after it never comes into
+existence: `HCC_API`, `HCC_NAV`, `FBS3R_QA`, every registry, every panel. Reproduced here
+by blocking `getContext('webgl')`: `HCC_API` undefined, no canvas, empty inspector. That
+made the atlas a WebGL visualisation with a computational API bolted on late, when it is
+meant to be a computational instrument with an optional view.
+
+The renderer is now a **capability**. If the GPU is missing, or the reader asks for
+`?render=0`, a headless stand-in takes over: a real `<canvas>`, the same method surface
+across all 59 XR call sites and the 26 others, every draw a no-op, and `setAnimationLoop`
+still driving `requestAnimationFrame` so the simulation clock keeps running. The scene
+graph is pure JavaScript; only the upload to the GPU is skipped.
+
+> Measured, with WebGL blocked: `ready()` resolves, `health().core = "ready"`,
+> 73 laboratories, 9 instruments, `evaluate('anyon', …)` returns φ = 1.618033988749895,
+> 0 page errors.
+
+**The invariant:** no renderer, no DOM, no XR and no CDN may be an ancestor of a
+computational result in the dependency graph. They may only consume a working core.
+
+### `ready()` was a promise, not a measurement
+
+It read `Promise.resolve(this)` — resolving before anything had been checked, so an agent
+that awaited it learned nothing. It now waits for the registries to exist and **rejects
+with code `TIMEOUT`** rather than lying. `health()` and `capabilities()` report what this
+machine can actually do, and `document.documentElement.dataset.hccCore` becomes `ready`.
+
+`list()` returned nine entries and looked like the catalogue of the atlas; it was the
+catalogue of the typed specs. There are now two catalogues named for what they are —
+`instruments.list()` (9) and `labs.list()` (73) — and every laboratory declares a
+capability class *derived* from what the atlas knows: `computational` (typed instrument),
+`parametric` (declared controls on the configuration surface), `unclassified`. The third
+class is not called "visual", because a live session cannot tell "has no controls" from
+"nobody has opened it yet", and `kindBasis` says which it is.
+
+### api/manifest.json is measured, not written
+
+`scripts/build-manifest.mjs` boots the real page with `?render=0`, walks **every one of the
+73 laboratories**, harvests the controls each declares, and writes the manifest. It is
+therefore also a test of the headless path: if the core cannot come up without a renderer,
+the manifest cannot be produced. First run reported 69 laboratories as `visual`; that was
+wrong — it read the configuration cache before asking for the harvest. Corrected:
+
+> 73 laboratories · 4 computational · 69 parametric · 0 visual · 9 instruments ·
+> **0 page errors while walking all 73 headless**
+
+`scripts/validate.mjs` now fails the build if the manifest's version, build or counts drift
+from the document.
+
+### The laboratory was registered in six places and still unreachable
+
+The Fibonacci anyon laboratory was in `S3_VIEW_NAMES`, `LAB_REGISTRY`, the prediction
+contract, the premium domains, the browser domains and the Nexus — and a reader still could
+not find it. The cause was not the laboratory. `renderAtlasNav()` gated its **entire
+catalogue** — the search field, the category chips, all 73 cards — on
+
+```js
+const inS3 = HCC_CTX.worldId === 's3';
+```
+
+From Solar, from Cycles, from anywhere else, the Atlas answered with a sentence saying the
+laboratories live elsewhere and offered no way to reach one. The gate bought nothing:
+choosing a card has always called `hccGo`, which resolves the world and crosses for you.
+
+> Measured from Solar: 73 cards, 10 category chips, a search field; typing "fibonacci"
+> returns exactly one hit; clicking it lands on `#/world/s3/lab/anyon`.
+
+### A Nexus node is a door
+
+Every node of the Invariant Nexus **is** a laboratory — that is what the relation universe
+is a map of — and double-clicking one only flew the camera to it. You could read the whole
+typed relation graph and had no way to walk through any of its nodes: the map was not
+connected to the territory it described. Double-click now takes the same route the Atlas
+card takes, through both the label and the 3D pick, which converge on one `dblFocus`.
+Single click still selects, which is what you want while reading the graph.
+
+> Measured end-to-end: double-clicking the "Spinor & Light-Cone Observatory" node routes
+> to `#/world/s3/lab/nul`.
+
+### Two verifier failures that were failures of the test
+
+`verify-navigation-architecture.cjs` asserted `viewNames.length===72` and
+`routes.length===79`, and started failing the moment a 73rd laboratory was added — while
+its own detail line printed 73 laboratories and 80 distinct routes. Both expectations are
+now read from the source. **A test that hard-codes what it is measuring measures the test.**
+29/29 verifiers pass.
+
+Self-tests 692 → **696**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

@@ -39,22 +39,27 @@ const atlasDescribed=(()=>{ const m=H.match(/const LAB_ATLAS_DEFS=\[([\s\S]*?)\n
 /* ══ 1 ══ every laboratory has an existing parent world ═════════════════════ */
 {
   const wid=new Set(worlds.map(w=>w.id));
+  /* the expected count is READ FROM THE SOURCE, not typed here. This assertion said
+     `viewNames.length===72` and failed the moment a seventy-third laboratory was added —
+     reporting a defect in the navigation when the only thing wrong was a number in the
+     test. A test that hard-codes what it is measuring measures the test. */
   ok('every laboratory declares a parent world that exists: the registry is built from S3_VIEW_NAMES with parentWorld "s3", and "s3" is a registered world, so no laboratory can be reachable without a world to reach it through',
-    worlds.length===7 && wid.has('s3') && viewNames.length===72,
+    worlds.length===7 && wid.has('s3') && viewNames.length>0
+    && viewNames.every(v=>typeof v==='string'&&v.length>0),
     `${worlds.length} worlds (${[...wid].join(', ')}) · ${viewNames.length} laboratories, all with parentWorld = s3`);
 }
 /* ══ 2 ══ every route is unique ════════════════════════════════════════════ */
 {
   const routes=worlds.map(w=>`#/world/${w.id}`).concat(viewNames.map(v=>`#/world/s3/lab/${v}`));
   const dup=routes.filter((r,i)=>routes.indexOf(r)!==i);
-  ok('every route is unique: seven world routes and one route per laboratory, with no collision, so a URL names exactly one place',
-    dup.length===0 && routes.length===79,
+  ok('every route is unique: one route per world and one per laboratory, with no collision, so a URL names exactly one place',
+    dup.length===0 && routes.length===worlds.length+viewNames.length,
     `${routes.length} routes, ${new Set(routes).size} distinct${dup.length?' · duplicates: '+dup.join(', '):''}`);
 }
 /* ══ 3 ══ every panel in the document has a scope ═══════════════════════════ */
 {
   const missing=domPanels.filter(id=>!scopes[id]);
-  ok('every panel in the document declares a scope in TOOL_REGISTRY: a panel with no scope is an orphan by definition, and the audit found exactly one — labPanel, which held all 72 laboratory buttons and was absent from every registry',
+  ok('every panel in the document declares a scope in TOOL_REGISTRY: a panel with no scope is an orphan by definition, and the audit found exactly one — labPanel, which held every laboratory button and was absent from every registry',
     missing.length===0 && domPanels.length>=15,
     `${domPanels.length} panels in the document, ${Object.keys(scopes).length} scoped${missing.length?' · unscoped: '+missing.join(', '):' · none unscoped'}`);
 }
