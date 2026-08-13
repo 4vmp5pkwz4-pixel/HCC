@@ -1805,6 +1805,75 @@ stepping for targets.**
 
 Self-tests 628 → **632**; the 72-view S³ walk stays at 0 page errors.
 
+## An instrument whose knobs are below its readout (v3.65.0)
+
+Reported from a phone: the Planck–Casimir zero-point observatory and the panels like it
+are one long strip — the sliders end up under the visualisation and the instrument is
+useless. Parameters must always be their own segment.
+
+Measured on a 390×844 phone, each panel open in its 270 px sheet:
+
+| panel | content | first slider at | parameters reachable |
+|---|---|---|---|
+| Planck–Casimir zero-point | 4730 px | **1483 px** | **0 of 3** |
+| Bianchi IX | 2776 px | **1462 px** | **0 of 7** |
+| Smith–Möbius | 1966 px | **769 px** | **0 of 4** |
+| Capacity flow | 2342 px | 146 px | 1 of 3 |
+
+Five and a half screens of charts before you reach one control. The report was exactly
+right and the number says how right.
+
+### The dock
+
+Every parameter row is lifted out of the prose into **one dock pinned at the top of the
+panel** with `position: sticky`, so opening an instrument shows its controls first and
+they stay on screen while the science scrolls underneath. It caps its own height and
+scrolls internally — seven parameters must not swallow a sheet — and it **folds to a
+single line**, because a control surface that cannot get out of the way is the fault we
+started from wearing different clothes.
+
+| | before | after |
+|---|---|---|
+| zero-point | 0 of 3 at 1483 px | **3 of 3** at 118 px |
+| Bianchi IX | 0 of 7 at 1462 px | **6 of 7** at 122 px |
+| Smith–Möbius | 0 of 4 at 769 px | **4 of 4** at 99 px |
+| Capacity flow | 1 of 3 | **3 of 3** at 82 px |
+
+Two smaller measurements inside that one. A phone `.ctlrow` stacks label, slider, value and
+the oscillate button on four lines — **96 px each** — so three parameters came to 245 px of
+a 270 px sheet and the chart was gone; inside the dock a row is one line, **46 px**. And the
+fold control was inflated to a 70 px slab beside an 8 px heading by the 44-pt touch rule,
+which is right for a primary action and wrong for a chevron.
+
+### It runs on the tick, not on a call site
+
+These panels rebuild their `innerHTML` wholesale, from several places, some of which are
+their own slider handlers. Anything that must be re-applied after a render **and is invoked
+by a call site** will eventually be missed by one — this file has the scar tissue to prove
+it. So the dock is a function of the panel's current DOM evaluated on the publish tick: if
+there are loose parameter rows they get docked, and a rebuild deletes the dock along with
+everything else, which is precisely the signal to build it again. When the dock is already
+there the tick costs one `querySelector`.
+
+### Room for both halves
+
+32vh is right for a list and wrong for a panel carrying a docked control surface *and* the
+readout those controls act on. The five instruments now default to 50vh in portrait, 46vw
+in landscape — a **default, not a clamp**: the reader's own drag of the grip still wins and
+is still remembered, and a CSS fallback could not have done this job because the default is
+written *into* `--sheet-h` by script, where `var(--sheet-h, …)` never sees it.
+
+### And the band under them
+
+`--ctl-top` — the band a bottom sheet occupies, which the freshness banner and the
+laboratory catalogue both anchor to — was measured from `#ctl` alone. With the observatory
+open, the banner was drawn straight across the parameter dock's header and its fold
+control. The same enumeration fault as the locator's obstacle list, one floor down: the
+publisher now takes the highest top edge among `#ctl` and all five instrument sheets.
+
+Self-tests 632 → **635**; the 72-view S³ walk stays at 0 page errors and all seven worlds
+stay at 0 buffer growth.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
