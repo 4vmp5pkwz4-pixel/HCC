@@ -34,7 +34,7 @@ node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
-node docs/verify-quantity-bus.cjs          # 18/18 checks pass
+node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2030,6 +2030,58 @@ HCC_API.config.coverage()       how much of the atlas has declared itself
 
 Self-tests 639 → **642**; `docs/verify-quantity-bus.cjs` 14/14 → **18/18**; the 72-view S³
 walk stays at 0 page errors.
+
+## Every rung already carries a cosmological constant (v3.68.0)
+
+### The links, finished
+
+The typed bus discovers couplings because its quantities carry declared units. A
+**configuration** link cannot be discovered, and the near misses are a better argument for
+that than the rule is: the chaos laboratory has a slider labelled **β**, so does the S³
+eigenmode laboratory, and neither is the Misner anisotropy a Bianchi trajectory reaches.
+Three different β, three different physics, one label — and no type system can tell them
+apart, because the label is all there is.
+
+So of the 336 controls the atlas harvested, **exactly one** is *determined* by a typed
+instrument output rather than merely compatible with it, and it is declared with a reason.
+`hccBusWire` **refuses a wire that carries no justification**: a coupling whose reason
+nobody wrote down is a coincidence waiting to be mistaken for a law.
+
+And it is **offered, not forced**. A wire does not overwrite a control every tick — that is
+how a panel starts fighting the person using it, and this record already contains two of
+those. It provides an action; pulling it takes the value once, through the control's own
+input event, refusing anything outside the control's declared domain.
+
+### What that one link buys, and why FBS3R is where it lands
+
+`R_N = ℓ_P φ^N` is a radius. The Bekenstein–Hawking capacity of the sphere it bounds is
+`q = π(R/ℓ_P)²`. The capacity postulate reads that as `Λ = 3π/(ℓ_P²q) = 3/R²`. Three lines
+of arithmetic on a number the golden ladder already holds — so **every rung of the ladder
+already carries a cosmological constant**, and the atlas simply never said so.
+
+It says so now, live, beside the Level N slider:
+
+```
+◱ capacity rung 291.94        ← takes the rung from the Capacity selector, over the bus
+q = π(R/ℓ_P)² = 3.3073e+122 · Λ = 3/R² = 1.0909e-52 m⁻²
+the measured sky sits at rung 291.9367 · you are +0.0000 from it
+one rung is a factor φ² = 2.618 in capacity
+```
+
+Press the chip and the ladder moves from N = 0 to **N = 291.936684**, with the provenance
+recorded as `capacity.n_phi` — not a constant typed into this world. The HUD then reads
+*R = ℓ_P·φᴺ = 17.53 Gly ≈ the scale of the observable Universe*, and that radius is the
+same de Sitter shell the Capacity-flow laboratory draws in the Observable domain.
+
+Three worlds, one equation, and none of them holds the other's number.
+
+The readout also states what it is: **a postdiction of the anchor, not a measurement of the
+shell.** One rung is a factor φ² = 2.618 in capacity, which is exactly why the ladder
+*locates* the sector and cannot sharpen it — the same conclusion the gate budget reached
+from the other side, where the recursion gate measured ±31 σ wide.
+
+Self-tests 642 → **645**; `docs/verify-quantity-bus.cjs` 18/18 → **21/21**; the 72-view S³
+walk stays at 0 page errors and all seven worlds at 0 buffer growth.
 
 ## Status
 

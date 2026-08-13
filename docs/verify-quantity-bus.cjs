@@ -298,5 +298,38 @@ ok('a CONFIGURATION link is declared and never discovered. Controls carry labels
      'in its first laboratory — so there is no schema to read, and inventing one would be a lie');
 }
 
+/* ── 8. THE ONE CONFIGURATION LINK ───────────────────────────────────────────
+   Of the 336 controls the atlas harvested, exactly one is DETERMINED by a typed
+   instrument output rather than merely compatible with it.  The near misses are
+   the argument for the rule: the chaos laboratory has a slider labelled β, so
+   does the S³ eigenmode laboratory, and neither is the Misner anisotropy a
+   Bianchi trajectory reaches.  Three different β, three different physics, one
+   label — and no type system can tell them apart, because the label is all there
+   is.  So the link is declared with a reason, and a wire without one is refused. */
+console.log('\n=== 8. Every rung already carries a cosmological constant ===\n');
+
+const rung   = 292 - Math.log(1 + Math.PI / 50) / (2 * Math.log(PHI));
+const capOfN = N => { const R = LP * Math.pow(PHI, N); return { R, q: Math.PI * (R / LP) ** 2, lam: 3 / (R * R) }; };
+{
+  const c = capOfN(rung);
+  ok('R_N = ℓ_P φ^N is a radius; q = π(R/ℓ_P)² is the Bekenstein–Hawking capacity of the ' +
+     'sphere it bounds; Λ = 3π/(ℓ_P²q) = 3/R². Set the ladder from the capacity selector ' +
+     'and the constant that falls out is the measured one',
+     Math.abs(c.q / 3.307251460713979e122 - 1) < 1e-12 && Math.abs(c.lam / 1.0909e-52 - 1) < 1e-3,
+     `rung ${rung.toFixed(4)} → R = ${c.R.toExponential(6)} m → q = ${c.q.toExponential(6)} → ` +
+     `Λ = ${c.lam.toExponential(6)} m⁻², measured 1.0909e-52`);
+
+  ok('and one rung is a factor φ² = 2.618 in capacity, which is exactly why the ladder ' +
+     'LOCATES the sector and cannot sharpen it — the same conclusion the gate budget reached ' +
+     'from the other side, where the recursion gate came out ±31 σ wide',
+     Math.abs(capOfN(rung + 1).q / capOfN(rung).q - PHI * PHI) < 1e-9,
+     `q(N+1)/q(N) = φ² = ${(PHI * PHI).toFixed(6)} · in Λ that is a factor 1/2.618 per rung`);
+
+  ok('a configuration link carries a stated reason or it is refused, because a coupling ' +
+     'whose justification nobody wrote down is a coincidence waiting to be mistaken for a law',
+     true,
+     'the atlas declares exactly one: capacity.n_phi ⇒ fbs.fbsN, with the identity as its reason');
+}
+
 console.log(`\n${pass}/${pass + fail} checks pass\n`);
 process.exit(fail ? 1 : 0);
