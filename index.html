@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="one-line-2026.08.13.9">
+<html lang="en" data-hcc-build="panels-back-2026.08.13.10">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="one-line-2026.08.13.9">
+<meta name="hcc-build" content="panels-back-2026.08.13.10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1738,6 +1738,13 @@
       padding-right:14px;padding-left:10px}
     #modeRow .modebtn{scroll-snap-align:center;flex:0 0 auto}
   }
+  /* MEASURED: with every panel button moved in, the menu grew to 1483 px inside an
+     844-px viewport and ran off the bottom with no way to reach the last entries.
+     A menu taller than the screen scrolls inside itself. */
+  #moreMenu{max-height:calc(100vh - var(--topbar-h,64px) - var(--tabs-h,56px) - 24px);
+    overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+  #moreMenu::-webkit-scrollbar{width:4px}
+  #moreMenu::-webkit-scrollbar-thumb{background:rgba(212,175,106,.35);border-radius:4px}
   #locBtn.on{color:#f3e6c6;border-color:var(--gold)}
   /* ── THE CAPACITY-FLOW CHIP ROW MUST WRAP, NOT SCROLL ─────────────────────
      On a phone .chips becomes one swipeable line.  This panel re-renders on every
@@ -1755,7 +1762,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.73.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.74.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1787,6 +1794,7 @@
   <button class="btn" id="motionBtn" style="display:none" title="Permission-gated device sensors and scientific input routing">📡 Sensors</button>
   <button class="btn" id="vectorBtn" title="Global main, additional, field and relation vector layers">↗ Vectors</button>
   <button class="btn" id="locBtn" data-keepopen aria-pressed="false" title="4D hopfion navigator — the atlas on the fibres of the Hopf bundle; steppable without a pointer">⬡ 4D navigator</button>
+
 </div>
 <div id="breadcrumb" aria-hidden="true"></div>
 <div id="contextRail" role="status" aria-live="polite" aria-label="Current scientific context">
@@ -1947,8 +1955,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.73.0';
-const HCC_BUILD='one-line-2026.08.13.9';
+const HCC_VERSION='3.74.0';
+const HCC_BUILD='panels-back-2026.08.13.10';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6787,6 +6795,7 @@ function runSelfTests(){
       try{ PANEL_RENDERERS.get(id)?.(); }catch(e){}
       el.style.display='block';          /* the tick only docks what is on screen */
       try{ paramDockTick(); }catch(e){}
+  try{ moreInstrumentsTick(); }catch(e){}
   /* a laboratory declares its parameters by being visited: the schema is read off its own
      controls on the same tick that publishes everything else */
   try{ hccConfigHarvest(hccConfigCurrentId()); }catch(e){}
@@ -37267,6 +37276,44 @@ function paramDockTick(){
     };
   }
 }
+/* the More menu's instrument list is a function of the current context, evaluated on the
+   publish tick — so a panel that cannot be true here is not offered, and one that becomes
+   available appears without anyone having to remember to add it */
+/* ── THE INSTRUMENTS HAD NO DOOR ON A PHONE ──────────────────────────────────
+   MEASURED on a 390-px phone: View, Motion, Navigator, Capacity flow, Zero-point,
+   Bianchi IX, Smith-Möbius, Objects, QA Atlas — every secondary panel had ZERO reachable
+   buttons.  #panelDock is desktop-only and nothing replaced it, so a whole tier of the
+   atlas existed with no way in.
+
+   The cure is the one chromeBuild already uses for everything else: MOVE the nodes.  The
+   buttons keep their handlers, their titles and their live labels, and they live wherever
+   they can actually be pressed — the dock when the dock is on screen, the More menu when
+   it is not.  Evaluated on the publish tick, so rotating the device moves them back. */
+let moreInstrSig='';
+function moreInstrumentsTick(){
+  const dock=document.getElementById('panelDock'), more=document.getElementById('moreMenu');
+  if(!dock||!more) return;
+  const dockLive=getComputedStyle(dock).display!=='none';
+  const sig=dockLive?'dock':'more';
+  if(sig===moreInstrSig) return;                  /* cost when nothing changed: one read */
+  moreInstrSig=sig;
+  if(dockLive){
+    /* back to the dock, and the heading with them */
+    const host=more.querySelector('[data-mmpanels]');
+    if(host){ for(const b of [...host.querySelectorAll('[data-panel]')]) dock.appendChild(b);
+      host.previousElementSibling?.remove(); host.remove(); }
+  } else {
+    let host=more.querySelector('[data-mmpanels]');
+    if(!host){
+      const h=document.createElement('div'); h.className='mm-h';
+      h.dataset.mmh=JSON.stringify({en:'Panels',ru:'Панели',de:'Panels'});
+      h.textContent=TT('Panels','Панели','Panels');
+      host=document.createElement('div'); host.className='mm-row'; host.dataset.mmpanels='1';
+      more.appendChild(h); more.appendChild(host);
+    }
+    for(const b of [...dock.querySelectorAll('[data-panel]')]) host.appendChild(b);
+  }
+}
 function labDockTick(dt){
   try{ hccPublishColumns(dt); }catch(e){}
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
@@ -37292,13 +37339,18 @@ function labDockTick(dt){
        publisher only ever looked at ONE of the seven panels that occupy that slot.  The
        same enumeration fault as the locator's obstacle list, one floor down: the band is
        whichever bottom sheet is actually open, so all of them are asked. */
-    { let top=0;
-      for(const el of [ctl,...PARAM_DOCK_PANELS.map(id=>document.getElementById(id))]){
-        if(!el||getComputedStyle(el).display==='none') continue;
-        const r=el.getBoundingClientRect();
-        if(r.height>0) top=Math.max(top,Math.round(Math.max(0,innerHeight-r.top)));
-      }
-      if(top>0) document.documentElement.style.setProperty('--ctl-top',top+'px');
+    /* ...and it is the ACTIVE sheet, not the tallest of all of them.  Taking the maximum
+       over every open instrument made two panels push each other: each was anchored to a
+       band the other was changing, so animating a parameter in one made BOTH jump, four
+       times a second.  Two authorities for one band.  On a phone exactly one panel is the
+       bottom sheet, and that is the one the band belongs to. */
+    { const active=(typeof activePanelId!=='undefined'&&activePanelId)
+        ? document.getElementById(activePanelId) : null;
+      const el=(active&&getComputedStyle(active).display!=='none')?active
+        :(ctl&&getComputedStyle(ctl).display!=='none'?ctl:null);
+      if(el){ const r=el.getBoundingClientRect();
+        if(r.height>0) document.documentElement.style.setProperty('--ctl-top',
+          Math.round(Math.max(0,innerHeight-r.top))+'px'); }
     }
     { const lp=document.getElementById('labPanel');
       const h=(lp&&getComputedStyle(lp).display!=='none')?lp.getBoundingClientRect().height:0;

@@ -2444,6 +2444,49 @@ rule that produces it; the 72-view S³ walk stays at 0 page errors.
 locator by ~3,600 px² in portrait (it is a transient dev-build notice), and the χ row's two
 `→ horizon` / `→ equator` action buttons still take a line of their own.
 
+## The panels had no door on a phone (v3.74.0)
+
+Reported: the row with View, Motion, Shot, Navigator, Capacity flow, Zero-point, Bianchi IX
+is simply absent on mobile. It was.
+
+```
+390x844   panel buttons reachable:  0
+```
+
+`#panelDock` is desktop-only and **nothing replaced it**, so a whole tier of the atlas —
+Navigator, Capacity selector, Capacity flow, Zero-point, Bianchi IX, Smith–Möbius, Objects,
+QA Atlas, Oscillators, XR, Sensors, Vectors — existed with no way in.
+
+The cure is the one `chromeBuild` already uses for everything else: **move the nodes**. The
+buttons keep their handlers, their titles and their live labels, and they live wherever they
+can actually be pressed — the dock when the dock is on screen, the More menu when it is not.
+Evaluated on the publish tick, so rotating the device moves them back.
+
+```
+390x844   panel buttons in More:  15
+```
+
+And with them in, the menu grew to **1483 px inside an 844-px viewport** and ran off the
+bottom with no way to reach the last entries. A menu taller than the screen scrolls inside
+itself: 1483 → 654, fits.
+
+### Two panels were pushing each other
+
+Also reported: animating a parameter made *both* open instruments jump. That was mine, from
+v3.65. `--ctl-top` — the band a bottom sheet occupies, which every other surface anchors to
+— was published as the **maximum over `#ctl` and all five instrument sheets**. With two
+instruments open, each was anchored to a band the other was changing, four times a second.
+Two authorities for one band, again.
+
+On a phone exactly one panel is the bottom sheet. The band is now published from the
+**active** panel only.
+
+Self-tests **665/665**; the 72-view S³ walk stays at 0 page errors.
+
+**Verified visually**, and stated plainly: the panel list is confirmed by screenshot. The
+jump itself I fixed at its cause and have *not* yet watched with an oscillator running —
+that check is owed.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
