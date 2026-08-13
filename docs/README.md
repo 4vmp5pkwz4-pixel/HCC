@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
@@ -37,6 +38,7 @@ node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
 node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 node docs/verify-edge-operator.cjs         # 12/12 checks pass
+node docs/verify-edge-determinants.cjs     # 16/16 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2164,6 +2166,83 @@ this instrument holds. `Z_edge(q) = Z_grav·Z_DEM·Z_string·Z_val` is a declare
 factorisation, never a computed number.
 
 Self-tests 645 → **649**; `docs/verify-edge-operator.cjs` **12/12**; the 72-view S³ walk
+stays at 0 page errors.
+
+## The missing terms, and the one number that is left (v3.70.0)
+
+The manuscript names two things that would turn ℛ from a registry into a selector: the
+primed determinants `det′|∇²_{S²_Rq} + m_α²|` and the Kronecker-limit functional
+`F_KL(E₂, η, η̄)`. Both are ordinary special functions. Both are now implemented exactly and
+checked against closed forms:
+
+```
+η(i) = Γ(1/4)/(2π^{3/4}) = 0.768225422326      η(−1/τ) = √(−iτ) η(τ)
+E₂(i) = 3/π    E₄(i) = 3Γ(1/4)⁸/(64π⁶)    E₆(i) = 0
+ln det′(−Δ) on the unit S² = 1/2 − 4ζ_R′(−1) = 1.161684574802
+```
+
+Implementing them was never the hard part. What they *settle* is.
+
+### One of the two cannot possibly matter
+
+The naive closure failed **structurally, not numerically**: the fusion term `N ln φ` is
+linear in N while the Hopf density `ln(N²)` is logarithmic, so no O(1) constant could ever
+reach 292.
+
+`F_KL` is built on `log(√y |η(τ)|²)` — an **SL₂(ℤ)-invariant**, bounded above by −0.5168 at
+τ = i. Being an invariant it is a function on the fundamental domain: once τ is fixed it is
+**one number**. It could depend on the rung only through a declared τ(N), and the manuscript
+declares none. So it shifts the intercept exactly as `C_APS` does, and is structurally
+incapable of moving the root from 9 to 292.
+
+The determinant is a different kind of object. Under a Weyl rescaling `ln det′` picks up
+`−2ζ(0) ln R`, and `ln R = N ln φ + ln ℓ_P` — so it contributes a term **linear in N**. That
+is precisely the missing structure.
+
+### The whole obstruction reduces to one number
+
+With the determinant included, `N ln φ = ln(N² + C) + κN` with `κ = −2ζ_eff(0) ln φ`. The
+root sits at 292 **iff**
+
+```
+ζ_eff(0) = −1/2 + ln(N² + C)/(2N ln φ) = −0.459600000
+```
+
+robust against the O(1) constant, because the intercept enters only logarithmically
+(−0.4596000 for C = 0.5, 1, 2 and 10 alike).
+
+The **leading term is exactly −1/2**, which says the edge determinant density must grow at
+*exactly the golden rate* φ^N — the same rate as the Fibonacci fusion it balances. So 292 is
+not fixed by two comparable terms: it is fixed by a **near-cancellation**, and the shell is
+large precisely because the residual `ln φ − κ = 0.0389` is small.
+
+| completion | κ | root |
+|---|---|---|
+| none (the naive closure) | 0 | **9.29** |
+| one massless scalar, ζ(0) = −2/3 | 0.641616 | **none** — κ > ln φ, no positive root |
+| the target | 0.442330 | **292.000000** |
+
+The obvious completion fails by *overshooting*, which brackets the answer: neither nothing
+nor one field, but **0.6894 of one massless scalar**.
+
+### What this is, and what it is not
+
+**It is not a proof that ℛ selects 292, and the atlas does not offer it as one.** The
+manuscript never writes the closure these terms enter, so any equation whose root landed on
+292 would be one chosen to land there — exactly the false easy proof the paper guards
+against. `edge.n_naive` still reports the refuted 9.29; `n_with_determinant` reports what
+the supplied ζ_eff(0) gives, whatever that is; 292 appears only as `n_shell`, quoted.
+
+What *is* established is sharper than a fudge: which of the two named terms can matter, why
+the other cannot, and the single number the survivor must supply. That is the same service
+`Ξ_edge` and `b g_∂²` perform for the scheme gate — an unspecified missing term turned into
+a falsifiable target.
+
+What remains is now **named and small**: the edge species content `{σ_α, m_α}` of
+`Z_grav^edge`, which fixes `ζ_eff(0) = Σ_α σ_α (a₁^{(α)} − n₀^{(α)})`. One heat-kernel sum
+away from a decided answer.
+
+Self-tests 649 → **655**; `docs/verify-edge-determinants.cjs` **16/16**; the 72-view S³ walk
 stays at 0 page errors.
 
 ## Status
