@@ -38,7 +38,7 @@ node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
 node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 node docs/verify-edge-operator.cjs         # 12/12 checks pass
-node docs/verify-edge-determinants.cjs     # 16/16 checks pass
+node docs/verify-edge-determinants.cjs     # 21/21 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2244,6 +2244,79 @@ away from a decided answer.
 
 Self-tests 649 → **655**; `docs/verify-edge-determinants.cjs` **16/16**; the 72-view S³ walk
 stays at 0 page errors.
+
+## The species content, supplied — and what it decides (v3.71.0)
+
+The last named gap was the edge species content. It was supplied: one-loop linearised
+gravity on S^{d+1} (d = 3, horizon S²) fixes a definite finite list of shift-symmetric
+ghost-like fields,
+
+```
+Z_edge^det ~ det′|−∇₁² − 1|^{1/2} · det′|−∇₀² − 2| · det′(−∇₀²)^{1/2}
+
+  one tachyonic vector  A_μ    −∇₁² − 1   σ = ½   shift level k = 0
+  two tachyonic scalars φ^a    −∇₀² − 2   σ = 1   shift level k = 1
+  one massless scalar   χ      −∇₀²       σ = ½   shift level k = 0
+```
+
+Seeley–DeWitt on the unit S² (R = 2, Area = 4π) gives `a₁ = r/3 − tr E` and
+`ζ(0) = a₁ − n₀`. Nothing is fitted; every number follows from the spectrum and the kernel.
+
+| species | a₁ | n₀ | ζ(0) |
+|---|---|---|---|
+| χ, massless scalar | 1/3 | 1 | **−2/3** |
+| φ^a, tachyonic scalar | 7/3 | 3 | **−2/3** |
+| A_μ, tachyonic vector (full l = 1 kernel) | 8/3 | 6 | **−10/3** |
+| A_μ, with Killing vectors alone | 8/3 | 3 | **−1/3** |
+
+The tachyonic scalar lands on −2/3 exactly like the massless one: its a₁ rises by 2 and its
+kernel rises from 1 to 3, and the two changes cancel.
+
+### The answer is that it overshoots
+
+```
+ζ_eff(0) = ½(−10/3) + 1(−2/3) + ½(−2/3) = −8/3      κ = 2.566463
+with Killing vectors alone                 = −7/6      κ = 1.122828
+target                                     = −0.4596   κ = 0.442330
+```
+
+Against `ln φ = 0.481212`, both readings give `ln φ − κ < 0`: **no positive root at all** —
+the same failure mode as a single massless scalar, two to five times worse. The instrument
+returns `null`, because there is no root to report.
+
+### And the mismatch is structural, not numerical
+
+This is what settles it. Every ζ(0) here is **rational** — `a₁ = r/3 − tr E` with rational
+E, n₀ an integer, σ rational — so `ζ_eff(0)` is rational for *any* finite species list of
+this kind. The target is
+
+```
+ζ_eff(0) = −1/2 + ln(N² + C)/(2N ln φ) = −1/2 + 0.040400000
+```
+
+a ratio of logarithms of algebraically independent numbers. **A rational cannot equal it.**
+No species list can put the root exactly at 292 in this closure — not this one, and not a
+better one.
+
+### So one of three things is true
+
+The atlas states all three rather than choosing:
+
+1. the closure is not this reconstruction — and the manuscript never writes one;
+2. the determinant is not the term that fixes the shell;
+3. **292 does not come from a gap balance at all.**
+
+The third is the reading this atlas already reached from the opposite end. The gate-budget
+measurement, made months of work earlier and by an entirely unrelated route, found the
+recursion gate **±31 σ wide** and the scheme gate **±8×10⁻⁶ σ**: a *locator* and a
+*predictor*. The recursion gate names the rung; it was never the thing that determines the
+value.
+
+This is the microscopic version of that conclusion, and the two arrived independently. ℛ
+remains a registry, and the atlas has now said so twice.
+
+Self-tests 655 → **659**; `docs/verify-edge-determinants.cjs` 16/16 → **21/21**; the
+72-view S³ walk stays at 0 page errors.
 
 ## Status
 
