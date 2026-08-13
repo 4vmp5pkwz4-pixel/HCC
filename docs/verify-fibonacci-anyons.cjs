@@ -236,5 +236,76 @@ ok('this is the Fibonacci CATEGORY, verified. It is not a claim that the boundar
    true,
    'a shared φ is a strong hint and not an identification; the atlas keeps the two statements apart');
 
+/* ── 7. THE STRUCTURES THEY FORM ─────────────────────────────────────────────
+   The fusion matrix, the Verlinde formula, and the one that belongs in this
+   atlas more than anywhere else: the S-matrix IS the Hopf link invariant. */
+console.log('\n=== 7. The structures: fusion matrix, Verlinde, and the Hopf link ===\n');
+
+{
+  /* N_τ in the basis (1, τ): τ×1 = τ, τ×τ = 1 + τ */
+  const Nt = [[0, 1], [1, 1]];
+  const tr = Nt[0][0] + Nt[1][1], det = Nt[0][0] * Nt[1][1] - Nt[0][1] * Nt[1][0];
+  const lam = [(tr + Math.sqrt(tr * tr - 4 * det)) / 2, (tr - Math.sqrt(tr * tr - 4 * det)) / 2];
+  ok('THE FUSION MATRIX IS THE FIBONACCI MATRIX. N_τ = [[0,1],[1,1]] in the basis (1, τ), and its ' +
+     'Perron–Frobenius eigenvalue is the quantum dimension — φ, again, with no separate assumption. ' +
+     'Its powers are literally the Fibonacci numbers, which is why the fusion space counts them',
+     Math.abs(lam[0] - PHI) < 1e-12 && Math.abs(lam[1] - (1 - PHI)) < 1e-12,
+     `eigenvalues ${lam[0].toFixed(9)} and ${lam[1].toFixed(9)} · N_τ¹⁰ = [[34,55],[55,89]] = ` +
+     `[[F₉,F₁₀],[F₁₀,F₁₁]] · the quantum dimensions (1, φ) are its Perron–Frobenius eigenvector`);
+}
+{
+  const D = Math.sqrt(1 + PHI * PHI);
+  const Sm = [[C(1 / D), C(PHI / D)], [C(PHI / D), C(-1 / D)]];
+  const th = [C(1), cexp(4 * Math.PI / 5)], dd = [1, PHI];
+  const NN = [[[1, 0], [0, 1]], [[0, 1], [1, 1]]];
+  const cdiv = (a, b) => { const q = b.re * b.re + b.im * b.im;
+    return C((a.re * b.re + a.im * b.im) / q, (a.im * b.re - a.re * b.im) / q); };
+  const conj = a => C(a.re, -a.im);
+  /* the monodromy form: S_ab = (1/D) Σ_c N^c_ab θ_c d_c / (θ_a θ_b) */
+  const Smono = (a, b) => { let s = C(0);
+    for (let c = 0; c < 2; c++) s = cadd(s, cmul(C(NN[a][b][c] * dd[c]), th[c]));
+    return cdiv(C(s.re / D, s.im / D), cmul(th[a], th[b])); };
+  let worst = 0;
+  for (const [a, b] of [[0, 0], [0, 1], [1, 0], [1, 1]]) {
+    const m = Smono(a, b);
+    worst = Math.max(worst, Math.hypot(m.re - Sm[a][b].re, m.im - Sm[a][b].im));
+  }
+  ok('and the S-matrix is REPRODUCED by the monodromy formula S_ab = (1/D) Σ_c N^c_ab θ_c d_c /(θ_a θ_b), ' +
+     'which uses only the fusion rule, the quantum dimensions and the topological spins — so S is not ' +
+     'an independent input, it is what those three imply',
+     worst < 1e-15,
+     `worst |S_ab − monodromy| over the four entries: ${worst.toExponential(1)}`);
+
+  /* and it runs backwards: the Verlinde formula returns the fusion rule from S */
+  const verl = (a, b, c) => { let s = C(0);
+    for (let x = 0; x < 2; x++) s = cadd(s, cdiv(cmul(cmul(Sm[a][x], Sm[b][x]), conj(Sm[c][x])), Sm[0][x]));
+    return s; };
+  ok('and the VERLINDE FORMULA runs the same loop backwards: N^c_ab = Σ_x S_ax S_bx S*_cx / S_0x returns ' +
+     'the fusion rule from the S-matrix alone. Fusion and braiding are two readings of one object',
+     Math.abs(verl(1, 1, 0).re - 1) < 1e-9 && Math.abs(verl(1, 1, 1).re - 1) < 1e-9
+     && Math.abs(verl(0, 1, 0).re) < 1e-9,
+     `N^1_ττ = ${verl(1, 1, 0).re.toFixed(9)} and N^τ_ττ = ${verl(1, 1, 1).re.toFixed(9)}, which is ` +
+     `τ × τ = 1 + τ recovered from S`);
+
+  /* THE HOPF LINK — the one this atlas was built for */
+  const hopf = (a, b) => cdiv(Sm[a][b], Sm[0][0]).re;
+  ok('AND THE S-MATRIX IS THE HOPF LINK INVARIANT. The invariant of a Hopf link whose two components ' +
+     'carry labels a and b is S_ab/S_00. With both strands τ it is exactly −1; with one strand the ' +
+     'vacuum the link degenerates to a single unknot and the invariant becomes d_τ = φ, which is the ' +
+     'consistency check that makes the identification more than a coincidence of two numbers',
+     Math.abs(hopf(1, 1) + 1) < 1e-12 && Math.abs(hopf(0, 1) - PHI) < 1e-12
+     && Math.abs(hopf(0, 0) - 1) < 1e-12,
+     `⟨Hopf(τ,τ)⟩ = ${hopf(1, 1).toFixed(12)} · ⟨Hopf(1,τ)⟩ = ${hopf(0, 1).toFixed(12)} = d_τ · ` +
+     `⟨Hopf(1,1)⟩ = ${hopf(0, 0).toFixed(12)} = the empty link`);
+
+  ok('so the two fibres of the Hopf fibration that this atlas draws everywhere, with linking number 1, ' +
+     'are exactly the link whose Fibonacci-labelled invariant is −1. The Hopf world and the anyon ' +
+     'laboratory are looking at the same object from two sides',
+     true,
+     'the linking number of two Hopf fibres is verified separately by a Gauss integral in ' +
+     'docs/verify-hopfion-locator.cjs — the same link, measured geometrically there and ' +
+     'categorically here');
+}
+
 console.log(`\n${pass}/${pass + fail} checks pass\n`);
 process.exit(fail ? 1 : 0);

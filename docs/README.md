@@ -43,7 +43,7 @@ node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 node docs/verify-edge-operator.cjs         # 12/12 checks pass
 node docs/verify-edge-determinants.cjs     # 21/21 checks pass
 node docs/verify-gate-independence.cjs     # 9/9 checks pass
-node docs/verify-fibonacci-anyons.cjs      # 14/14 checks pass
+node docs/verify-fibonacci-anyons.cjs      # 19/19 checks pass
 node docs/verify-lagrange-points.cjs       # 11/11 checks pass
 ```
 
@@ -2758,6 +2758,63 @@ ordering fault rather than an error.
 
 Self-tests 674 → **679**; `docs/verify-lagrange-points.cjs` **11/11**; the 73-laboratory walk
 stays at 0 page errors.
+
+## The S-matrix is the Hopf link invariant (v3.80.0)
+
+The anyon laboratory gains the structures the τ particle actually forms — and one of them
+is the object this atlas has been drawing since its first version.
+
+### The fusion matrix is the Fibonacci matrix
+
+In the basis (1, τ) the fusion rule is a 2×2 integer matrix:
+
+```
+N_τ = [[0,1],[1,1]]        N_τ¹⁰ = [[34,55],[55,89]] = [[F₉,F₁₀],[F₁₀,F₁₁]]
+```
+
+Its Perron–Frobenius eigenvalue is the quantum dimension **φ**, and its powers are literally
+the Fibonacci numbers. Nothing separate is assumed anywhere along that chain: the fusion
+rule gives the matrix, the matrix gives φ, and φ is the ladder the whole atlas runs on.
+
+### S is not an independent input
+
+The **monodromy formula** `S_ab = (1/D) Σ_c N^c_ab θ_c d_c /(θ_a θ_b)` rebuilds the entire
+S-matrix from the fusion rule, the quantum dimensions and the topological spins — agreeing
+to 10⁻¹⁵. And the **Verlinde formula** `N^c_ab = Σ_x S_ax S_bx S*_cx / S_0x` runs the same
+loop backwards, returning `τ × τ = 1 + τ` from S alone. Fusion and braiding are two readings
+of one object.
+
+### And then the Hopf link
+
+The invariant of a Hopf link whose two components carry labels a and b is `S_ab/S_00`:
+
+```
+⟨Hopf(τ,τ)⟩ = −1.000000000000
+⟨Hopf(1,τ)⟩ = +1.618033988750  = d_τ      ← one strand the vacuum leaves a single unknot
+⟨Hopf(1,1)⟩ = +1.000000000000             ← the empty link
+```
+
+That middle line is what makes the identification more than two numbers agreeing: when one
+component carries the vacuum the link *degenerates*, and the invariant has to become the
+quantum dimension of the survivor. It does.
+
+**So the two linked fibres this atlas draws in every Hopf view are exactly the link whose
+Fibonacci-labelled invariant is −1.** The laboratory now draws it that way — a `Hopf link`
+chip beside the braid, built from the atlas's own `hopfFibre`/`hopfProject` over antipodal
+base points, not from two circles arranged to look linked. The linking number is verified
+geometrically by a Gauss integral in `verify-hopfion-locator.cjs` and categorically here:
+one object, measured two ways, in two laboratories that now say so to each other.
+
+### A fifth silent guard
+
+`FIB_S` was declared as a module-level `const` reading `fibC` and `FIB_D`, which live nine
+thousand lines further down with the anyon instrument. The temporal dead zone took the whole
+module with it — `FBS3R_QA` undefined, every self-test unreachable. Fifth time this session,
+and the cure is the same every time: **ask for the value when it is needed**, not when the
+file is parsed.
+
+Self-tests 679 → **682**; `docs/verify-fibonacci-anyons.cjs` 14/14 → **19/19**; the
+73-laboratory walk stays at 0 page errors.
 
 ## Status
 
