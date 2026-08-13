@@ -2653,6 +2653,39 @@ silently absent.
 
 Self-tests 670 → **673**; the S³ walk now covers 73 laboratories with 0 page errors.
 
+## The opening frame was never tone-mapped (v3.78.0)
+
+Reported: a white screen at startup — *"light and nothing"* — with the scene appearing only
+after switching modes.
+
+The first two hypotheses were wrong and the measurements said so. Draw calls at boot were
+**1400 in two seconds**, healthy, so the scene was not blank; and booting with a restored
+hash rendered normally too, so the route was not the cause.
+
+What was actually wrong is one line of state:
+
+```
+boot, premium visuals ON:   body.dataset.premiumDomain = UNSET
+after one mode switch:      body.dataset.premiumDomain = "thermo"
+```
+
+`premiumApplyProfile()` is called from `setMode` and from `setS3View`. **At boot neither of
+them runs for the world the state already claims** — `hccGo` skips `setMode` when the world
+it is asked for is the one `state.mode` already holds, which at boot is always true. So the
+palette, the tone mapping and the exposure were never applied to the opening frame.
+
+The scene drew the whole time. It drew **untone-mapped**, which on a real GPU is a white
+screen — and switching modes "fixed" it because that is what finally ran the profile.
+
+The fix is the pattern this file already uses for the opening state: state it last, after
+every other path has had its say. `premiumDomain` is now `"gold"` at boot instead of unset.
+
+This only bites a reader who has premium visuals stored **on**, which is why it never
+appeared in a fresh-profile test — and why it appeared immediately for someone who had
+turned them on and come back.
+
+Self-tests 673 → **674**; the 73-laboratory S³ walk stays at 0 page errors.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
