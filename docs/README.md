@@ -3237,6 +3237,67 @@ unambiguous.
 
 Self-tests 697 → **701**; verifiers 29 → **30**.
 
+## One panel again, and the shake explained (v3.86.0)
+
+A reader photographed the capacity selector: *make this floating inner panel with the
+sliders one again, the way it was — everything shakes during the animation.* Both halves
+of that were right, and the second one has a structural cause.
+
+### The shake was a layout correction arriving a quarter of a second late
+
+The parameter dock lifted every `.ctlrow` to the top of its panel — a real fix for a real
+measurement (the first slider in the zero-point observatory sat **1,483 px down a 270 px
+window**, 0 of 3 parameters reachable) — but it did the lifting by **moving nodes on the
+4 Hz publish tick**. These panels rebuild their `innerHTML` from their own slider handlers.
+So every rebuild destroyed the dock and dropped the rows back down a two-thousand-pixel
+scroll, and the tick hoisted them again a quarter of a second later.
+
+> Measured on the capacity selector with an oscillator running, sampling at 12 Hz for three
+> seconds: **the dock was present in some frames and absent in others**, and the first
+> parameter row travelled **48.3 px**.
+
+A layout correction applied 250 ms after the layout it corrects is not a correction — it is
+a second animation. The repair is to stop polling: a `MutationObserver` fires in the
+microtask after the rebuild, **before the browser paints**, so the frame the reader sees is
+already right.
+
+| instrument | oscillators | first-row travel, before → after |
+|---|---|---|
+| capacity selector | 1 | 48.3 px → **0.0** |
+| zero-point | 3 | → **0.0** |
+| capacity flow | 3 | → **0.0** |
+| Smith–Möbius | 4 | → **0.0** |
+| Bianchi IX | 7 | → **0.0** |
+
+### And it is one panel again
+
+The dock was a card: its own border, shadow, backdrop blur, header, fold control and
+scrollbar — a second instrument on top of the first. It is now a plain leading group in the
+panel's own flow, separated by a hairline. It still puts the parameters above the readout
+they act on, which is the entire reason it exists; it just does that **as part of the
+panel** rather than as an object floating on it. No second border, no second scrollbar, no
+second header.
+
+### Twelve controls behind a gesture
+
+The reachability invariant added in v3.84.0 exempts anything inside a scroller, because
+being out of view in a scrolling panel is normal — you scroll to it. That exemption is
+right vertically and **wrong horizontally**: a chip row with `overflow-x:auto` and a hidden
+scrollbar conceals its own contents behind a swipe which, on a touch screen, is the gesture
+that orbits the scene. Measured at 390 px:
+
+| instrument | hidden past the right edge |
+|---|---|
+| capacity selector | "match the sky", "⧉ copy report" |
+| zero-point | "null · pure", "decoy · modular" |
+| Smith–Möbius | "manual", "projection", "✦ grid", "▭ hold" |
+| Bianchi IX | "mild triaxial", "Mixmaster", "strong triaxial", two axes |
+
+**12 → 0.** The rows wrap, and `HCC_API.ui.clipped()` now measures horizontal clipping as a
+fault in its own right, so the class is closed rather than this instance of it.
+
+Self-tests 701 → **703**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
