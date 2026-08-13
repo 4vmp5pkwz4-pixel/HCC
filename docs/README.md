@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-gate-independence.cjs` | whether the three gates are three determinations, by exact arithmetic and a calibrated symbolic search |
 | `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
@@ -39,6 +40,7 @@ node docs/verify-capacity-flow.cjs         # 31/31 checks pass
 node docs/verify-quantity-bus.cjs          # 21/21 checks pass
 node docs/verify-edge-operator.cjs         # 12/12 checks pass
 node docs/verify-edge-determinants.cjs     # 21/21 checks pass
+node docs/verify-gate-independence.cjs     # 9/9 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2317,6 +2319,83 @@ remains a registry, and the atlas has now said so twice.
 
 Self-tests 655 → **659**; `docs/verify-edge-determinants.cjs` 16/16 → **21/21**; the
 72-view S³ walk stays at 0 page errors.
+
+## One determination, not three (v3.72.0)
+
+The third possibility was that 292 comes from the scheme gate. It was worth testing, and the
+test is decidable in exact arithmetic rather than by argument.
+
+### The scheme gate is q★ written backwards
+
+Invert it. If the gate were an independent determination, `b g_∂²` would be a number the
+edge algebra produces and the agreement with q₀ would be the result. Computed at 50 digits:
+
+```
+16π²/(ln q₀ − ln Ξ) = 0.5597545859987624454713
+quoted b g_∂²       = 0.5597545859987624455
+relative difference   5.1e-20      ← the rounding of the last quoted digit
+```
+
+**All nineteen quoted digits.** The gate does not derive the shell; it encodes it.
+
+And that is exactly why it looked like the sharpest gate. The gate budget measured its width
+at ±8×10⁻⁶ σ against the recursion gate's ±31 σ, and this atlas called it *the prediction*.
+The widths are right. **The conclusion was half right**: the scheme gate is sharp because it
+is a transcription of q₀ to nineteen digits, so its sharpness is **inherited**. It is the
+precision of a copy, not of a measurement.
+
+What survives unchanged: `Λ(q₀)` sits at **−0.90 σ** from the measured sky. That agreement is
+a property of q₀ itself. But it is **one agreement, not three**.
+
+### A calibrated search, everywhere
+
+Two stories fit the identity above — the gate is a restatement, or the edge algebra genuinely
+produces the number. They differ on whether `b g_∂²` has a closed form of its own. So: a
+declared, enumerated space of closed forms, with the expected number of accidental hits
+reported beside every result.
+
+| target | quoted digits | hits | expected by chance |
+|---|---|---|---|
+| `b g_∂²` | 19 | **0** | 3.8×10⁻¹¹ |
+| `Ξ_edge` | 8 | **0** | 3.8×10⁻³ |
+| `1 − Ξ_edge` | — | **0** | 3.8×10⁻¹ |
+| `u★ = ln q₀` | 16 | **0** | 3.8×10⁻¹⁰ |
+
+188,758 candidates each, built from eleven constants and thirty integers. The search had the
+power to find a form and found none. *A null result from a calibrated search is evidence, not
+proof* — a closed form outside the declared space would be missed, and the space is written
+down so it can be enlarged.
+
+### What is primitive
+
+The gate factor `1 + π/50` reads as `1 + π/(2 d_val²)` with `d_val = 5`, the degree of the
+valuation annihilator `P_val = (z−1)z(z+1)(z+2)(z+3)` — consistent with the manuscript calling
+q₀ the *valuation-compressed* saddle. Stated as a reading, not a derivation: 50 has other
+arithmetic parents, and only the paper can say which it meant.
+
+Strip the restatements and what remains is
+
+```
+q₀ = π φ^{2N} / (1 + π/(2 d_val²)),    d_val = 5 (derived),    N = 292 (not derived)
+```
+
+**One free integer.** Gate A is a registry that cannot select it — measured twice, once by the
+naive closure rooting at 9 and once by the literature species content overshooting into no
+root at all. Gate B is that integer written backwards. Gate C moves u by 10⁻¹²³.
+
+A near-miss, refused rather than reported: `3π⁴ = 292.2273` sits within 0.08% of 292. An
+integer shell is an integer, and a search of this size manufactures coincidences of that
+quality routinely.
+
+### The correction
+
+This atlas has been calling the scheme gate "the prediction" since v3.58. That claim is now
+amended in the Capacity-selector panel, in its self-test, and here. The widths it measured
+were right; what it did not ask was whether the three determinations are independent. They
+are not.
+
+Self-tests 659 → **663**; `docs/verify-gate-independence.cjs` **9/9**; the 72-view S³ walk
+stays at 0 page errors.
 
 ## Status
 
