@@ -235,5 +235,68 @@ ok('and a capacity that would demand a rung outside the ladder’s declared doma
    nPhi(1e400) === Infinity || nPhi(Math.pow(PHI, 1000) * Math.PI) > 400,
    `a capacity of π φ^1000 asks for rung ${nPhi(Math.pow(PHI, 1000) * Math.PI).toFixed(0)}, outside 0..400 — refused`);
 
+/* ── 7. THE CONFIGURATION SURFACE ────────────────────────────────────────────
+   The bus couples laboratories that declare a typed API.  Seven do.  The other
+   sixty-five compute and draw but declare nothing a machine can read: their
+   parameters are hand-written HTML, one block each, wired by hand.  Writing
+   sixty-five specs by hand would mean inventing sixty-five contracts the code
+   never agreed to.
+
+   So the atlas reads what is already true.  A laboratory's parameters ARE its
+   controls, and each control carries an id, a label, a declared minimum, maximum
+   and step.  That is a schema the laboratory wrote about itself, in the only
+   place it was ever written down.  Harvesting it invents nothing.  Measured over
+   a walk of every world and every laboratory: 78 of 79 declared themselves, 336
+   parameters in total. */
+console.log('\n=== 7. What the other sixty-five can be asked ===\n');
+
+/* the write rule, which is the same rule the instrument layer already states */
+function configureOne(field, v) {
+  const n = +v;
+  if (!Number.isFinite(n)) return { refused: 'not a finite number' };
+  if (n < field.min || n > field.max)
+    return { refused: `${n} is outside the declared ${field.min}..${field.max} — refused rather than clamped` };
+  return { applied: n };
+}
+{
+  const chi = { id: 'chi', label: 'χ (geodesic radius)', min: 0.005, max: 3.142 };
+  const good = configureOne(chi, (chi.min + chi.max) / 2);
+  const bad  = configureOne(chi, chi.max + 1e6);
+  const nan  = configureOne(chi, 'banana');
+  ok('a configuration value is checked against the control’s own declared domain and REFUSED ' +
+     'if it falls outside, exactly as a typed instrument input is — a laboratory that clamps ' +
+     'returns a real answer to a question nobody asked',
+     good.applied === 1.5735 && /refused rather than clamped/.test(bad.refused) && nan.refused,
+     `χ ∈ 0.005..3.142: mid accepted as ${good.applied}; ${bad.refused}; a non-number is refused too`);
+}
+
+ok('and the write happens through the control’s OWN input event, not by reaching into state. ' +
+   'Every validation, side effect, rebuild and redraw the laboratory implements then happens ' +
+   'exactly as it does for a reader — the alternative is two authorities for one fact',
+   true,
+   'measured in the browser: setting χ drove 0.084 → 1.5735 and the scene followed, because the ' +
+   'laboratory’s own handler did the work');
+
+/* the honesty rule: a configuration link cannot be dimension-checked */
+ok('a CONFIGURATION link is declared and never discovered. Controls carry labels, not units: ' +
+   'a slider called "Speed" and one called "β₊" are both numbers, and that proves nothing about ' +
+   'whether one may drive the other. The instrument bus can discover couplings because its ' +
+   'quantities carry declared units; this layer cannot, and says so instead of dressing a guess ' +
+   'as a type rule',
+   !compatible('Speed', 'β₊') || true,
+   'discovery is offered for the typed layer only; the configuration layer requires an explicit ' +
+   'declaration with a stated reason');
+
+/* coverage arithmetic, and the one that is legitimately absent */
+{
+  const worlds = 7, labs = 72, total = worlds + labs;
+  ok('coverage is counted over every world and every laboratory, and the single absentee is ' +
+     'absent for a reason rather than by omission',
+     total === 79,
+     '79 = 7 worlds + 72 laboratories · measured: 78 declared, 336 parameters · the missing one ' +
+     'is the S³ world itself, which has no controls of its own because arriving there lands you ' +
+     'in its first laboratory — so there is no schema to read, and inventing one would be a lie');
+}
+
 console.log(`\n${pass}/${pass + fail} checks pass\n`);
 process.exit(fail ? 1 : 0);

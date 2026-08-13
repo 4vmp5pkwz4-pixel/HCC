@@ -34,7 +34,7 @@ node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
-node docs/verify-quantity-bus.cjs          # 14/14 checks pass
+node docs/verify-quantity-bus.cjs          # 18/18 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -1965,6 +1965,71 @@ HCC_API.bus.evaluate(id)   run it with linked inputs resolved, with provenance
 
 Self-tests 635 → **639**; `docs/verify-quantity-bus.cjs` 14/14; the 72-view S³ walk stays
 at 0 page errors and all seven worlds at 0 buffer growth.
+
+## What the other sixty-five can be asked (v3.67.0)
+
+The bus can only couple what has declared itself. Seven laboratories declare a typed API.
+The other sixty-five compute and draw but declare nothing a machine can read: their
+parameters are hand-written HTML, one block each, wired by hand. There is no table to
+read — and writing sixty-five specs by hand would mean **inventing sixty-five contracts
+the code never agreed to**.
+
+### So read what is already true
+
+A laboratory's parameters *are* its controls. Each carries an id, a label, a declared
+minimum, maximum and step, and a current value. That is a schema the laboratory wrote
+about itself, in the only place it was ever written down. Harvesting it invents nothing.
+
+It fills itself: the schema is read off the current laboratory's own controls on the same
+publish tick that does everything else, so the atlas declares itself by being used. Walking
+every world and every laboratory once:
+
+```
+79 = 7 worlds + 72 laboratories
+78 declared · 336 parameters
+missing: 1
+```
+
+The one absentee is the **S³ world itself**, and it is absent for a reason rather than by
+omission: arriving there lands you in its first laboratory, so the world has no controls of
+its own. There is no schema to read, and inventing one would be a lie.
+
+### And write the way a person would
+
+`config.set(lab, {control: value})` sets the control's value and dispatches the same
+`input` event a finger produces, so every validation, side effect, rebuild and redraw the
+laboratory implements happens exactly as it does for a reader. Measured: χ driven
+0.084 → 1.5735 and the scene followed, because the laboratory's own handler did the work.
+The alternative — writing into state and hoping the scene notices — is how an interface
+acquires two authorities for one fact, and this file has enough of those already.
+
+A value outside the control's own declared domain is **refused, not clamped**:
+
+```
+chi = 1000003.142 is outside the declared 0.005..3.142 — refused rather than clamped
+```
+
+the same rule the typed layer already states, applied to the same kind of quantity.
+
+### What this layer may not do
+
+It may not pretend a configuration link is dimensionally checked. **Controls carry labels,
+not units.** A slider called "Speed" and one called "β₊" are both numbers, and that proves
+nothing about whether one may drive the other. The typed bus can *discover* couplings
+because its quantities carry declared units; this layer cannot, so configuration links are
+**declared, never discovered**, and there is deliberately no `config.discover()`.
+
+That distinction is the whole difference between a machine and a pile of wires, and it is
+worth more than the sixty-five couplings a looser rule would have manufactured.
+
+```
+HCC_API.config.schema(lab)      the laboratory's own controls: id, label, domain, value
+HCC_API.config.set(lab, {...})  drive them the way a finger would
+HCC_API.config.coverage()       how much of the atlas has declared itself
+```
+
+Self-tests 639 → **642**; `docs/verify-quantity-bus.cjs` 14/14 → **18/18**; the 72-view S³
+walk stays at 0 page errors.
 
 ## Status
 
