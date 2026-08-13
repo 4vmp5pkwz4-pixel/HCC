@@ -2895,6 +2895,88 @@ Self-tests 682 → **688**; tree and chain rebuilds leak neither GL buffers nor 
 (0 growth over 30 and 20 rebuilds, 0 over 48 station swaps); the laboratory walk stays at
 0 page errors.
 
+## Momentum and the topological sector (v3.82.0)
+
+`docs/verify-fibonacci-momentum.cjs` — **9/9**. This section **amends the previous one**.
+
+### A published claim that needed amending
+
+v3.81.0 said a finite ring cannot separate c from the sound velocity, so the velocity had to
+be borrowed from the Bethe ansatz. That is true of an **unresolved** spectrum, and it stops
+being true the moment two exact quantum numbers stop being thrown away.
+
+### The loop operator is found, not quoted
+
+Translation gives the momentum k = 2πm/N. The **topological** symmetry Y is the Wilson loop
+of a τ carried around the ring behind the anyons; it commutes with every Pᵢ because it can
+be slid off them. Y is a product of one F-symbol per site — and which contraction of the
+symbol's six slots it is, I did not trust myself to recall. So the whole declared family was
+enumerated (two of six slots carry the loop's τ, the other four take x_i, x_{i+1}, x′_i,
+x′_{i+1} — 15 × 24 = 360) and filtered by
+
+> Y² = 1 + Y   ·   [Y, H] = 0   ·   [Y, T] = 0
+
+Sixteen survive, in two slot patterns, **and all sixteen are the same matrix to 5.6e−17** —
+the tetrahedral symmetries of the 6j symbol. A search that returns one answer sixteen ways
+has not got lucky; it has run out of alternatives. The canonical form is
+
+> Y_{x′x} = ∏ᵢ (F^{τ xᵢ τ}_{x′ᵢ₊₁})_{xᵢ₊₁ x′ᵢ}
+
+Y² = 1 + Y is the fusion rule τ × τ = 1 + τ satisfied by the **operator**: a Wilson loop
+obeys the algebra of the label it carries.
+
+### The Lucas number was never one number
+
+Y has exactly two eigenvalues, **φ and −1/φ**. Those are S_{1τ}/S_{11} and S_{ττ}/S_{τ1} —
+**the Hopf link invariants this laboratory already draws two stations away**. The topological
+sector of a golden chain is read off by the very S-matrix that evaluates the link of two Hopf
+fibres. And the eigenspaces have Fibonacci dimension:
+
+> dim = F_{N−1} ⊕ F_{N+1} = L_N     (N = 12: 89 ⊕ 233 = 322)
+
+so the Lucas number the ring had been reporting since v3.81.0 was a sum with a physical
+meaning for each term. The census now comes from a **trace**, not a diagonalisation: two
+exact equations, d₁ + d_τ = D and φd₁ − d_τ/φ = tr Y, determine both. The first version ran a
+full D×D Jacobi and spent a second of a reader's time computing what algebra already knew.
+
+The ground state sits at **momentum 0 in the vacuum-flux sector**; the first excitation sits
+at **momentum π in the τ-flux sector**. The gap the chain has been reporting is the lowest
+state of a *different topological sector*, reached by threading a τ flux through the ring —
+and nothing in an unresolved spectrum could have said so.
+
+### The velocity, measured
+
+In **any** conformal field theory the stress tensor sits at scaling dimension exactly x = 2
+with spin ±2 in the identity module. That is what "conformal" means, not what "tricritical
+Ising" means. Find the lowest spin ±2 state in the ground state's topological sector, set
+x = 2, and
+
+> v = 1.816494   ·   Bethe ansatz π sin γ/(γφ) = 1.816356   ·   0.008%
+
+The integrable result is now a **check**, not an input. And then
+
+> **c = 0.699945** against 7/10   ·   **x = 0.074996** against 3/40
+
+both from the lattice. A ratio that never needed a velocity at all confirms it independently:
+x(ε)/x(σ′) → 2.667316 against (1/5)/(3/40) = 8/3 = 2.666667.
+
+**What is still assumed, stated plainly:** that the theory is conformal, so a stress tensor
+exists at x = 2 with spin ±2; and that no other primary puts a spin ±2 state below it —
+checked after the fact by the three numbers landing on 7/10, 3/40 and 8/3. **No longer
+assumed:** the central charge, the field content, the velocity.
+
+### The Brillouin cylinder
+
+Momentum on a ring lives on a **circle**, so the spectrum is drawn on a cylinder rather than
+flattened onto a line: angle is k, height is energy, colour is the flux — gold for Y = φ,
+violet for Y = −1/φ. The ground state and the stress tensor are marked, because the second
+one *is* the velocity. A sector filter dims either flux. The first version left the cylinder
+untipped under a camera near its equator, and the momentum circle projected to a line.
+
+Self-tests 688 → **692**; the ring is diagonalised in the browser, momentum sector by
+momentum sector, in about a second at N = 12 and cached; 0 GL-buffer and 0 label-DOM growth
+over 24 sector toggles and 30 station swaps.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
