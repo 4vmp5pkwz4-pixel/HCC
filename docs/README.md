@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-lagrange-points.cjs` | the five Lagrange points solved from the quintic, and what the Hill approximation costs |
 | `verify-fibonacci-anyons.cjs` | the Fibonacci category — F, R, braid, S, T and c = 14/5, checked against each other |
 | `verify-gate-independence.cjs` | whether the three gates are three determinations, by exact arithmetic and a calibrated symbolic search |
 | `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
@@ -43,6 +44,7 @@ node docs/verify-edge-operator.cjs         # 12/12 checks pass
 node docs/verify-edge-determinants.cjs     # 21/21 checks pass
 node docs/verify-gate-independence.cjs     # 9/9 checks pass
 node docs/verify-fibonacci-anyons.cjs      # 14/14 checks pass
+node docs/verify-lagrange-points.cjs       # 11/11 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -2685,6 +2687,77 @@ appeared in a fresh-profile test — and why it appeared immediately for someone
 turned them on and come back.
 
 Self-tests 673 → **674**; the 73-laboratory S³ walk stays at 0 page errors.
+
+## Forty Lagrange stations, solved (v3.79.0)
+
+Five points for each of eight planets, each one selectable and flyable, each riding its own
+pair's instantaneous orbital plane.
+
+### Solved, not approximated
+
+The collinear points are roots of
+
+```
+f(x) = x − (1−μ)(x+μ)/|x+μ|³ − μ(x−1+μ)/|x−1+μ|³ = 0
+```
+
+found by **bracketed bisection**, which cannot diverge and cannot return a point that is not
+a root — Newton on a quintic very much can. The equilateral points need no solving at all:
+`x = ½ − μ, y = ±√3/2` exactly, for every mass ratio, with `∇Ω` vanishing there identically
+(checked over seven mass ratios from 10⁻⁷ to ½).
+
+**The atlas was previously drawing the approximation.** Its Sun–Earth display used
+`1 ∓ ∛(μ/3)` — the first term of a series. That misses L1 by **5006 km** and L2 by
+**4975 km in opposite directions**, so it also erased the fact that they are not equidistant
+from Earth:
+
+```
+L1 = 1.4916 million km        L2 = 1.5015 million km
+L2 − L1 = 9981 km  =  (2/3)a(μ/3)^{2/3}
+Hill radius = 1.4966 million km — one number, offered for both
+```
+
+A picture that places them symmetrically is drawing a different solar system. Both the old
+display and the new stations now use the exact roots.
+
+**And my own recalled number was wrong too.** The first version of the verifier asserted
+L1 = 1.4811×10⁶ km "from the mission literature" and failed — the solver said 1.4916 and
+satisfied f(x) = 0 to 2×10⁻¹⁵. The solver was right. The check is now the *next order of the
+same expansion*, an independent derivation rather than a memory, and the two agree to
+**1.1 km**.
+
+### What selecting one draws
+
+The zero-velocity curve of that point's own Jacobi constant `C = 2Ω`, where
+`Ω = ½(x²+y²) + (1−μ)/r₁ + μ/r₂` in the rotating frame — computed by marching squares on a
+190² grid — plus the field of the **analytic** ∇Ω around it. Those are the force lines: a
+particle with that C can never cross its own curve, so the curve is a wall and not a
+decoration. They clear when anything else is selected.
+
+The curves open in a fixed order as C falls — `C(L1) > C(L2) > C(L3) > C(L4)` — which is the
+whole story of which transfers are energetically possible.
+
+### Stability is stated per pair
+
+L4 and L5 are linearly stable only for `μ < μ_Routh = 0.0385208965`, the root of
+`μ(1−μ) = 1/27` — which is why Jupiter keeps Trojan asteroids at its equilateral points. The
+collinear points are unstable for **every** mass ratio, which is why a spacecraft at L1 or L2
+is on a station-keeping budget and not parked. Every point says which it is.
+
+The barycentre offset is kept rather than dropped for being small: `world = a((x+μ)û + y v̂)`
+puts the Sun at the origin and the planet exactly at P, and for Jupiter that μ shift is
+0.005 AU.
+
+### A fourth silent guard
+
+The build hook was placed beside `solarGroup.visible` in a function that never fires for the
+opening world. `try{}catch{}` reported nothing because **nothing threw** — the call simply
+never happened, and 40 registered stations sat at the origin. It now builds where the work
+already is, in the frame loop. That is the fourth time this session a silent guard hid an
+ordering fault rather than an error.
+
+Self-tests 674 → **679**; `docs/verify-lagrange-points.cjs` **11/11**; the 73-laboratory walk
+stays at 0 page errors.
 
 ## Status
 
