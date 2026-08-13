@@ -19,6 +19,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-momentum-map-unification.cjs` | the Hopf map IS a momentum map — one construction behind four laboratories |
 | `verify-bianchi-ix-wpd.cjs` | Work Package D — every coefficient of the Bianchi IX action, checked against the closed-FLRW limit |
 | `verify-capacity-flow.cjs` | capacity flow, Bradlow packing, the Schwinger wall, and q₀ to sixteen digits in exact BigInt arithmetic |
+| `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -33,6 +34,7 @@ node docs/verify-bianchi-ix-wpd.cjs        # 9/9 checks pass
 node docs/verify-momentum-map-unification.cjs  # 8/8 checks pass
 node docs/verify-hopf-splitting.cjs        # 7/7 checks pass
 node docs/verify-capacity-flow.cjs         # 31/31 checks pass
+node docs/verify-quantity-bus.cjs          # 14/14 checks pass
 ```
 
 Neither script reads the atlas. They exist so the tables can be disbelieved and then
@@ -1873,6 +1875,96 @@ publisher now takes the highest top edge among `#ctl` and all five instrument sh
 
 Self-tests 632 → **635**; the 72-view S³ walk stays at 0 page errors and all seven worlds
 stay at 0 buffer growth.
+
+## Seventy-two instruments, one machine (v3.66.0)
+
+The atlas already had a typed instrument layer: every laboratory declares its inputs and
+outputs with a name, a unit and a domain, and refuses an input outside that domain rather
+than clamping it. What it did not have was any way for one laboratory's **output** to
+become another's **input**. Seventy-two instruments sat side by side, each able to answer
+its own question and none able to ask another's.
+
+### What makes a coupling admissible
+
+Two rules, and the second is the one that matters.
+
+**The unit must match**, compared as a normalised string. Most units here are declared
+tags — `rung`, `spin`, `momentum`, `volume time` — not SI, so the atlas has no licence to
+invent a conversion it was never given. A mismatch is refused, not rescaled:
+
+```
+ladder.R is in [m] and capacity.u is in [ln(capacity), dimensionless]
+  — refused rather than rescaled, because the atlas was never given a conversion
+```
+
+**And unit matching is necessary, not sufficient.** Half the quantities in this atlas are
+dimensionless; matching on units alone proposes **46** couplings where **11** are
+meaningful. So discovery requires a shared coordinate *name* as well, with a short alias
+table for the pairs whose names differ for a reason. `bus.candidates()` proposes;
+`bus.links()` is what has been declared; the difference between the two lists is a
+judgement about physics, made in the open rather than hidden in a type rule.
+
+The bus also refuses a second driver for one input, and refuses a link that would close a
+cycle **when it is declared**, not when it is evaluated — a bus with a cycle is an
+oscillator, not a machine. A value arriving over the bus is still an input and goes
+through the same domain check.
+
+### The deepest coupling is an identity
+
+The capacity selector says which rung of the golden ladder the boundary sector sits on,
+`n_∂ = log_φ √(q/π)`. The FBS3R ladder turns a rung into a radius, `R_N = ℓ_P φ^N`. Route
+the first into the second:
+
+```
+capacity.n_phi = 291.936684  →  ladder.N  →  R = 1.658321e+26 m = 17.528 Gly
+closing the loop back to q = π(R/ℓ_P)² costs 1.5e-14
+```
+
+That radius is the de Sitter horizon the Capacity-flow laboratory draws as a shell in the
+Observable domain. It is not a resemblance between two laboratories: `q = π(R/ℓ_P)²` **is**
+`N_∂ = A/(4ℓ_P²)` written twice. The ladder never sees q, the selector never sees R, and
+neither knows the other exists — the loop is closed by arithmetic. Checked offline over
+five capacities spanning sixty decades, worst round trip 2.7×10⁻¹⁴.
+
+### A state that was computed and thrown away
+
+Bianchi IX integrates a trajectory in the Misner variables and reported only its verdict —
+the class, the Lyapunov exponent, the bounces. The **state it reached** was in the
+integrator's return value the whole time and was dropped. Three other laboratories take
+exactly those coordinates as input.
+
+| | before | after |
+|---|---|---|
+| spectral gap | 0.5930 at a state somebody typed in | **17735.36** at the state the cosmology reached |
+| provenance | none | `alpha ← bianchi.alpha_final`, `beta_plus ← …`, `beta_minus ← …` |
+
+Nothing new is computed. The trajectory reached (α, β₊, β₋) = (−6.9623, 2.9374, 0.4910),
+and the question changed from *what does this cosmology do* to *what does the quantum
+spectrum look like at the state this cosmology reached*. The Misner triple sums to zero
+identically, so what travels the bus is a shear and cannot smuggle a volume change into a
+shape variable.
+
+Eleven couplings are live: `capacity.n_phi → ladder.N`, and Bianchi's final α, β₊, β₋
+into the spectral operator, particle creation and EBK, plus its final momenta into
+particle creation.
+
+### The wiring order was itself a bug
+
+Written inline, the declarations ran at line 23594 while the capacity selector registers at
+24064. The first link threw *"unknown laboratory"*, one `try` swallowed it, and the whole
+set was silently absent while `candidates()` looked perfectly healthy — eleven admissible,
+zero declared. A declaration that depends on registration order has to state that
+dependence, so it is a named function called once, after the last laboratory registers,
+and it returns what it declared and what it refused.
+
+```
+HCC_API.bus.candidates()   every coupling the atlas finds admissible
+HCC_API.bus.links()        the couplings actually declared
+HCC_API.bus.evaluate(id)   run it with linked inputs resolved, with provenance
+```
+
+Self-tests 635 → **639**; `docs/verify-quantity-bus.cjs` 14/14; the 72-view S³ walk stays
+at 0 page errors and all seven worlds at 0 buffer growth.
 
 ## Status
 
