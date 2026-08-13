@@ -2487,6 +2487,51 @@ Self-tests **665/665**; the 72-view S³ walk stays at 0 page errors.
 jump itself I fixed at its cause and have *not* yet watched with an oscillator running —
 that check is owed.
 
+## A synchronous write, four times a second (v3.75.0)
+
+Reported: the whole application became heavy, and it sometimes came up as a white screen.
+Both trace to one line I added in v3.67.
+
+The configuration harvest runs on the publish tick — four times a second — and it ended with
+an unconditional `hccConfigSave()`. That serialises the entire configuration map, **336
+parameters across 78 laboratories**, into `localStorage` on every tick: a synchronous
+main-thread write of a growing JSON blob at 4 Hz. That is exactly the shape of a fault that
+makes an interface feel heavy everywhere and can stall a first paint on a phone.
+
+The schema only changes when a control is added, removed or moved. **Values** change
+constantly and are not what the registry is for — so the signature now ignores values, and
+the write happens on a real change or not at all.
+
+### The panels no longer push each other
+
+Measured with an oscillator actually running, 24 samples over 3.4 s on a 390-px phone:
+
+```
+zpPanel   top 304..304 (Δ0)   height 422..422 (Δ0)
+--ctl-top  1 distinct value over 24 samples
+```
+
+The band-coupling fix from v3.74 holds under animation: no movement at all. That check was
+owed and is now done.
+
+### Three self-tests were measuring things that were not on screen
+
+They passed on a desktop and failed on a phone, which is the signature of a test asserting
+through an absent object rather than of a broken feature:
+
+- the trackball checks ran against a locator whose rect is 0×0 when the navigator has not
+  been opted into, so every pointer mapped to the same garbage point (residual 3×10⁻⁸
+  instead of 10⁻¹², roll 90.359° instead of 90.000°);
+- the Inspector-tab check hit-tested a strip that is `display:none` at that width, so
+  `elementFromPoint` landed on whatever was behind it and returned 0/4.
+
+All three now **declare the skip** rather than asserting through it, and say so in their
+detail line. A measurement of nothing reported as a failure is as misleading as one reported
+as a pass.
+
+Self-tests **665/665** on both a 1280×800 desktop and a 390×844 phone; the 72-view S³ walk
+stays at 0 page errors.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

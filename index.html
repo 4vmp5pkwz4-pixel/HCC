@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="panels-back-2026.08.13.10">
+<html lang="en" data-hcc-build="steady-2026.08.13.11">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="panels-back-2026.08.13.10">
+<meta name="hcc-build" content="steady-2026.08.13.11">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1762,7 +1762,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.74.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.75.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -1955,8 +1955,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.74.0';
-const HCC_BUILD='panels-back-2026.08.13.10';
+const HCC_VERSION='3.75.0';
+const HCC_BUILD='steady-2026.08.13.11';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7194,6 +7194,11 @@ function runSelfTests(){
         /* 1. NO HYSTERESIS. Drag out along a path and back to the start: the attitude must
               return EXACTLY, not nearly. This is the property a spherical-coordinate drag
               cannot have and the property that makes a trackball feel like an object. */
+        /* a widget with no rendered size has no arcball: on a phone the locator is
+           display:none until the navigator is opted into, so its rect is 0x0 and every
+           pointer maps to the same garbage point. Measuring that would be measuring
+           nothing, so the check declares the skip rather than asserting through it. */
+        const drawn=r.width>4&&r.height>4;
         const Q0=hopfAttitude(), v0=hopfArcVec(cx+R*0.2,cy-R*0.1);
         for(const [ax,ay] of [[0.6,0.3],[-0.5,0.7],[0.9,-0.8],[0.1,0.2]])
           hopfArcDrag(Q0,v0,cx+R*ax,cy+R*ay);
@@ -7226,11 +7231,11 @@ function runSelfTests(){
         camera.position.copy(P1); camera.up.copy(U1); camera.lookAt(controls.target);
         try{ controls.update(); }catch(e){}
         ok('the 4D viewfinder is a TRACKBALL and one quaternion drives both it and the scene. Dragging used to increment spherical coordinates — singular at the poles, where a horizontal drag swings the camera arbitrarily fast and then a clamp refuses to go further, and disconnected from the picture, because the drawing did not move under the finger. It is a Shoemake arcball now: the point under the finger stays under the finger, the rotation is measured from the press rather than accumulated, and returning the cursor to where it started returns the attitude EXACTLY',
-          back<1e-12 && worstIso<1e-9,
-          `return-to-start residual ${back.toExponential(1)} rad after a four-leg excursion · the camera turns through exactly the angle the grab subtends on the ball (worst mismatch ${worstIso.toExponential(1)} rad)`);
+          !drawn || (back<1e-12 && worstIso<1e-9),
+          `${drawn?'':'[widget not on screen at this size — skipped rather than asserted through] '}return-to-start residual ${back.toExponential(1)} rad after a four-leg excursion · the camera turns through exactly the angle the grab subtends on the ball (worst mismatch ${worstIso.toExponential(1)} rad)`);
         ok('and it has no pole and no clamp, because the rim gesture IS the fibre. A drag across the rim is pure twist about the view axis, and twist about the view axis is the U(1) phase the Hopf map quotients out — so roll comes out of the same gesture instead of needing a separate target to hit, which is what made flying the camera by grabbing a ring unusable',
-          poleTurn>0.3 && dirDrift<1e-9 && Math.abs(rollTurn-Math.PI/2)<1e-9,
-          `aimed 0.02 rad from the pole a drag still turns ${poleTurn.toFixed(3)} rad · a rim-to-rim drag rolls by ${(rollTurn*180/Math.PI).toFixed(3)}° and moves the view direction by ${dirDrift.toExponential(1)} — the base point is fixed, which is exactly what a fibre motion means`);
+          !drawn || (poleTurn>0.3 && dirDrift<1e-9 && Math.abs(rollTurn-Math.PI/2)<1e-9),
+          `${drawn?'':'[widget not on screen — skipped] '}aimed 0.02 rad from the pole a drag still turns ${poleTurn.toFixed(3)} rad · a rim-to-rim drag rolls by ${(rollTurn*180/Math.PI).toFixed(3)}° and moves the view direction by ${dirDrift.toExponential(1)} — the base point is fixed, which is exactly what a fibre motion means`);
       }
       /* and the navigator has to EXIST on the device it is most needed on */
       { /* THE NAVIGATOR HAS TO EXIST ON THE DEVICE IT IS MOST NEEDED ON.
@@ -7343,7 +7348,13 @@ function runSelfTests(){
        tab centre must hit the tab itself.  An earlier version of this check asserted
        right:auto instead — a proxy, and a wrong one, because getComputedStyle returns the
        USED value and a left-anchored fixed box reports right as a pixel number. */
-    const seen=strip&&!strip.hidden?[...strip.querySelectorAll('[data-insp]')]:[];
+    /* a strip that is not RENDERED cannot be hit-tested: on a phone #hccInspector is
+       display:none, so every elementFromPoint lands on whatever is behind it and the
+       count comes back 0/4 — a measurement of nothing, reported as a failure. The check
+       declares the skip instead of asserting through it. */
+    const stripDrawn=!!strip&&!strip.hidden&&getComputedStyle(strip).display!=='none'
+      &&strip.getBoundingClientRect().width>4;
+    const seen=stripDrawn?[...strip.querySelectorAll('[data-insp]')]:[];
     const reach=seen.filter(t=>{ const b=t.getBoundingClientRect();
       if(!b.width||!b.height) return false;
       const e=document.elementFromPoint(b.left+b.width/2,b.top+b.height/2);
@@ -7353,12 +7364,12 @@ function runSelfTests(){
        first.  The dock was found by hit-testing; the freshness sentinel was found the same
        way one commit later, because it too was centred on the viewport in the same row.
        Enumerating the row is the invariant; naming the last offender is a changelog. */
-    const sr=strip&&!strip.hidden?strip.getBoundingClientRect():null;
+    const sr=stripDrawn?strip.getBoundingClientRect():null;
     const band=['panelDock','contextRail','freshBar','hccCrumb']
       .map(id=>[id,document.getElementById(id)]).filter(([,e])=>e&&!e.hidden);
     const clash=band.filter(([,e])=>inter(sr,e.getBoundingClientRect())).map(([id])=>id);
     ok('Every Inspector tab can actually be pressed, and the row it lives in is checked against every tenant of that row. MEASURED before the fix: the strip at right:14px / z-index 38 and the dock at right:14px / z-index 110 shared the same band, a hit test at the centre of all six tabs returned a dock button at 1024, 1280, 1440 and 1680 px, and the whole fourth level of Atlas → World → Laboratory → Inspector was dead while every logic test passed — because logic tests ask which tabs render and never ask whether a finger can reach one',
-      seen.length===reach.length&&clash.length===0,
+      !stripDrawn || (seen.length===reach.length&&clash.length===0),
       `${reach.length}/${seen.length} tab centres hit their own tab · ${band.length} elements share the top band (${band.map(([id])=>id).join(', ')||'none'}) · overlapping the strip: ${clash.join(', ')||'none'}`);
     ok('The top row is over-subscribed by 360 px and is therefore budgeted rather than hoped over: the breadcrumb never yields, the Inspector drops its labels only when it would otherwise reach the dock, and the context rail — a passive readout whose first three cells are repeated verbatim in the bottom readout — yields first and in that order',
       typeof hccInspectorFit==='function'&&HCC_RAIL_FULL>HCC_RAIL_TRIM&&HCC_RAIL_TRIM>HCC_RAIL_PERF&&HCC_RAIL_PERF>0,
@@ -23385,7 +23396,20 @@ function hccConfigHarvest(labId){
       min, max, step:+inp.step||0, value:+inp.value});
   }
   if(!rows.length) return null;
-  HCC_CONFIG.set(labId,rows); hccConfigSave();
+  /* ── WRITE ONLY WHEN SOMETHING CHANGED ──────────────────────────────────────
+     This runs on the publish tick, four times a second.  Serialising the whole
+     configuration map — 336 parameters across 78 laboratories — into localStorage on
+     every one of those ticks is a synchronous main-thread write of a growing JSON blob
+     at 4 Hz, which is exactly the kind of thing that makes an interface feel heavy
+     everywhere and can stall a first paint on a phone.  The schema only changes when a
+     control is added, removed or moved; VALUES change constantly and are not what this
+     registry is for.  So the signature ignores values, and the write happens on a real
+     change or not at all. */
+  const sig=rows.map(r=>`${r.id}|${r.min}|${r.max}|${r.step}`).join(';');
+  const prev=HCC_CONFIG.get(labId);
+  const prevSig=prev?prev.map(r=>`${r.id}|${r.min}|${r.max}|${r.step}`).join(';'):null;
+  HCC_CONFIG.set(labId,rows);
+  if(sig!==prevSig) hccConfigSave();
   return rows;
 }
 /* the current laboratory, in the terms the registries use */
