@@ -56,6 +56,21 @@ console.log('=== S³ LIGHT-TRISPHERE / FBS3R — automated validation ===\n');
           + `${api.counts.visual} visual) with ${api.counts.instruments} typed instruments`
           : 'api/manifest.json is missing — run node scripts/build-manifest.mjs');
 
+    /* agent.html is the audit's other half: a 12 KB page that lists the whole atlas for a
+       machine, a screen reader or a text browser, reading the SAME manifest so it cannot
+       drift. It must never grow a dependency on the thing it exists to avoid. */
+    let agent = null;
+    try { agent = readFileSync('agent.html', 'utf8'); } catch { agent = null; }
+    check(!!agent && agent.includes('api/manifest.json')
+      && agent.includes('index.html?render=0')
+      /* match USAGE, not the word: this page's own prose says "no WebGL, no canvas", and the
+         first version of this check failed on its own explanation of itself */
+      && !/<canvas[\s>]|getContext\s*\(|three\.module|new\s+(?:THREE\.)?WebGLRenderer/i.test(agent),
+      agent ? `agent.html reads the static manifest, offers ?render=0, and contains no canvas, `
+            + `no WebGL and no three.js — ${Math.round(agent.length / 1024)} KB against the atlas's `
+            + `${Math.round(html.length / 1024)} KB`
+            : 'agent.html is missing — the machine-readable catalogue has no page');
+
     check(html.includes("fetch(u.href,{cache:'no-store',credentials:'omit'})")
       && html.includes('function hccCheckFreshness()')
       && !html.includes('navigator.serviceWorker.register'),

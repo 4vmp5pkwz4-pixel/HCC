@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>HCC · catalogue for machines and readers without a GPU</title>
+<!--
+   WHY THIS PAGE EXISTS
+   ====================
+   The atlas is a 4 MB WebGL application. An external audit pointed out that an agent, a
+   screen reader, a text browser or a machine with no GPU could not get an answer out of
+   it at all — and until v3.83.0 that was literally true, because an unguarded
+   WebGLRenderer stopped the module before the API was declared.
+
+   That is fixed: index.html?render=0 runs the whole computational core headless. But a
+   4 MB page is still a 4 MB page. This one is 12 KB of HTML that reads the SAME static
+   manifest the build script writes by walking every laboratory, so what it lists cannot
+   drift from what the atlas contains.
+
+   It needs no WebGL, no canvas, no fonts, no network beyond one JSON file, and it works
+   with JavaScript disabled — the manifest link below is a plain anchor, and everything
+   this page renders is in that file.
+-->
+<style>
+  :root{ color-scheme:dark light;
+    --bg:#06080e; --fg:#e8ddc7; --dim:#8ea1b8; --gold:#d4af6a; --line:rgba(212,175,106,.22);
+    --card:rgba(255,255,255,.03); }
+  @media (prefers-color-scheme:light){
+    :root{ --bg:#f7f4ec; --fg:#20242c; --dim:#5d6672; --gold:#7a5f24; --line:rgba(122,95,36,.28);
+      --card:rgba(0,0,0,.03); } }
+  *{box-sizing:border-box}
+  body{margin:0;padding:24px 18px 64px;background:var(--bg);color:var(--fg);
+    font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    max-width:1080px;margin-inline:auto}
+  h1{font-size:22px;letter-spacing:.06em;margin:0 0 4px;font-weight:700}
+  h2{font-size:15px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);
+    margin:34px 0 10px;font-weight:600}
+  a{color:var(--gold)}
+  .sub{color:var(--dim);margin:0 0 18px}
+  .bar{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 6px}
+  .bar a,.bar code{display:inline-block;padding:6px 11px;border:1px solid var(--line);
+    border-radius:9px;text-decoration:none;background:var(--card);font-size:13px}
+  table{border-collapse:collapse;width:100%;font-size:13.5px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+  td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .tag{display:inline-block;padding:1px 7px;border:1px solid var(--line);border-radius:20px;
+    font-size:11px;color:var(--dim);margin-right:4px}
+  .tag.c{color:var(--gold);border-color:var(--gold)}
+  .wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--card)}
+  .note{color:var(--dim);font-size:13px;margin:10px 0}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+  pre{overflow-x:auto;padding:12px;border:1px solid var(--line);border-radius:12px;
+    background:var(--card);font-size:12.5px}
+  #err{color:#ff9a8a}
+</style>
+</head>
+<body>
+
+<h1>HCC — catalogue for machines</h1>
+<p class="sub">Every laboratory and every typed instrument in the atlas, read from the same
+static manifest the build script produces by walking all of them headless. No WebGL, no
+canvas, no GPU.</p>
+
+<div class="bar">
+  <a href="./api/manifest.json">api/manifest.json</a>
+  <a href="./index.html?render=0">open the atlas with rendering off</a>
+  <a href="./index.html">open the atlas</a>
+  <a href="https://github.com/4vmp5pkwz4-pixel/HCC">source</a>
+</div>
+
+<p id="err" hidden></p>
+<p class="note" id="head">Loading the manifest…</p>
+
+<h2>Calling it from code</h2>
+<pre><code>// the whole computational core, with no renderer at all
+await fetch('./api/manifest.json').then(r =&gt; r.json());   // static, no JS execution needed
+
+// or drive the live atlas headless — ?render=0 skips the GPU entirely
+await HCC_API.ready({ timeout: 10000 });   // rejects with code TIMEOUT rather than lying
+HCC_API.health();                          // core, version, build, capabilities
+HCC_API.labs.list();                       // every laboratory, with its capability class
+HCC_API.instruments.list();                // the typed instruments
+HCC_API.describe('anyon');                 // inputs, units, domain, limits, verifiers
+HCC_API.evaluate('anyon', { n: 12, braid: '121' });   // the numbers
+HCC_API.report('anyon', { n: 12, braid: '121' });     // numbers + provenance, as JSON
+HCC_API.ui.unreachable();                  // controls outside the viewport, on this screen</code></pre>
+<p class="note">Inputs outside a declared domain are <strong>refused, never clamped</strong>.
+Every laboratory route is a permanent link of the form
+<code>#/world/&lt;world&gt;/lab/&lt;id&gt;</code>.</p>
+
+<h2 id="ih">Typed instruments</h2>
+<div class="wrap"><table id="inst"><thead><tr>
+  <th>id</th><th>title</th><th>status</th><th>inputs</th><th>outputs</th><th>verifiers</th>
+</tr></thead><tbody></tbody></table></div>
+
+<h2 id="lh">Laboratories</h2>
+<div class="wrap"><table id="labs"><thead><tr>
+  <th>id</th><th>title</th><th>class</th><th>status</th><th>parameters</th><th>route</th>
+</tr></thead><tbody></tbody></table></div>
+
+<script>
+/* Everything below is presentation. The data is api/manifest.json and nothing else —
+   if this script fails, the link at the top of the page is still the whole answer. */
+const el = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+fetch('./api/manifest.json', { cache: 'no-store' })
+  .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+  .then(m => {
+    const c = m.counts || {};
+    el('head').innerHTML =
+      `<strong>v${esc(m.version)}</strong> · build <code>${esc(m.build)}</code>` +
+      (m.commit ? ` · commit <code>${esc(String(m.commit).slice(0, 10))}</code>` : '') +
+      `<br>${c.laboratories} laboratories in ${c.worlds} worlds · ` +
+      `${c.instruments} typed instruments · ` +
+      `${c.computational} computational, ${c.parametric} parametric, ${c.visual} visual` +
+      `<br><span class="tag">measured</span>${esc(m.generator || '')}`;
+
+    el('ih').textContent = `Typed instruments · ${(m.instruments || []).length}`;
+    const ib = el('inst').tBodies[0];
+    for (const i of m.instruments || []) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="n"><code>${esc(i.id)}</code></td>` +
+        `<td>${esc(i.title)}</td>` +
+        `<td><span class="tag c">${esc(i.status)}</span></td>` +
+        `<td>${(i.inputs || []).map(x => `<code>${esc(x.name || x.id || x)}</code>`).join(' ')}</td>` +
+        `<td class="n">${(i.outputs || []).length}</td>` +
+        `<td>${(i.verifiers || []).map(v => `<code>${esc(v)}</code>`).join('<br>')}</td>`;
+      ib.appendChild(tr);
+    }
+
+    el('lh').textContent = `Laboratories · ${(m.labs || []).length}`;
+    const lb = el('labs').tBodies[0];
+    for (const L of m.labs || []) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="n"><code>${esc(L.id)}</code></td>` +
+        `<td>${esc(L.title)}</td>` +
+        `<td><span class="tag${L.kind === 'computational' ? ' c' : ''}">${esc(L.kind)}</span>` +
+        (L.instrument ? `<code>${esc(L.instrument)}</code>` : '') + `</td>` +
+        `<td><span class="tag">${esc(L.status)}</span></td>` +
+        `<td class="n">${(L.parameters || []).length}</td>` +
+        `<td><a href="./index.html${esc(L.route)}">${esc(L.route)}</a></td>`;
+      lb.appendChild(tr);
+    }
+  })
+  .catch(e => {
+    el('err').hidden = false;
+    el('err').textContent = 'Could not read api/manifest.json (' + e.message +
+      '). It is a plain file — open it directly with the link above.';
+    el('head').textContent = '';
+  });
+</script>
+</body>
+</html>

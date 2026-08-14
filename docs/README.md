@@ -3329,6 +3329,75 @@ therefore vacuous, rather than reporting a pass over nothing.
 
 Self-tests 703 → **704**.
 
+## The two things v3.85.0 named and did not build (v3.88.0)
+
+`docs/verify-anyon-bridge.cjs` — **6/6**. v3.85.0 ended by listing what it had left
+undone. Both items are now instruments, and the audit's last open P1 is a page.
+
+### The number a detector actually reads
+
+Everything else in the anyon laboratory is structure. This is the measurement. Send a τ
+around an island on two paths and the interference fringe is multiplied by the monodromy
+M_ab = S_ab S_00/(S_a0 S_0b):
+
+| island | M | fringe |
+|---|---|---|
+| empty (charge 1) | **1** | full visibility |
+| one τ | **−1/φ² = −0.381966** | visibility 0.381966, and **inverted** |
+
+That is how a Fibonacci anyon would be *detected* — not "the state is topological" but a
+contrast that collapses by 61.8% and a peak that becomes a trough, with the missing
+1 − 1/φ² = 1/φ being exactly where the which-path information went. The station draws both
+fringes against each other, with the empty-island curve left faint behind the live one.
+
+It is computed **two independent ways that must agree**: from the S-matrix, and from the
+twists and the fusion rule as (1/d_a d_b) Σ_c N^c_ab d_c θ_c/(θ_aθ_b). The first knows
+nothing about θ and the second nothing about S, so agreement checks the whole modular data
+rather than restating it. Residual 0, and the imaginary part vanishes exactly, as it must
+for a self-conjugate pair.
+
+### Every rung of the φ-ladder is a fusion space
+
+The atlas has asserted "the golden ladder and this particle are the same φ" since v3.76.0.
+It is an exact integer identity:
+
+> q(N) = π φ^{2N}  and  dim Fus(2N τ) = F_{2N+1} = round( φ·(q/π)/√5 )
+
+At the manuscript's rung that is **F₅₈₅, a 122-digit integer**, computed in BigInt rather
+than asserted — so
+
+> u★ = ln q₀ = ln π + 584 ln φ − ln(1 + π/50)
+
+reads as *one π, the entropy of 584 anyons, and the valuation gate*. The station draws the
+ladder as a cone of rungs carrying 2N beads each, and the cone opens at ln φ per rung
+because that **is** the entropy per anyon.
+
+**A reading, not a derivation**, and the panel says so: nothing here shows the horizon
+*carries* those anyons — that would need the edge algebra to produce the category, and
+`verify-edge-operator.cjs` shows it does not. What is established is that the two
+appearances of φ are the same φ.
+
+The first draft of this verifier put u★ 0.0609 too high because it omitted the valuation
+gate from q₀. The assertion caught it, which is the entire reason the assertions carry the
+number rather than the conclusion.
+
+### agent.html — the atlas for a machine, a screen reader, or no GPU at all
+
+The audit asked for a catalogue a machine can read without executing the application.
+`agent.html` is **8 KB against the atlas's 3,992 KB**: every laboratory, every typed
+instrument, every route, read from the *same* static manifest the build script writes by
+walking all 73 headless — so it cannot drift. No canvas, no WebGL, no three.js, one JSON
+fetch, and if the script fails the manifest link at the top is still the whole answer.
+Verified with WebGL blocked: 9 instruments, 73 laboratories, 73 working route links, 0
+errors. `validate.mjs` fails the build if the page ever grows a dependency on the thing it
+exists to avoid — the first version of that check failed on the page's own prose saying
+"no WebGL, no canvas", so it now matches *usage* rather than the word.
+
+The anyon laboratory now has **nine stations**: braid worldlines, Hopf link, fusion tree,
+golden chain, momentum & sector, category axioms, compile a gate, interferometer, φ-ladder.
+
+Self-tests 704 → **706**; verifiers 30 → **31**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
