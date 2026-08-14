@@ -1,0 +1,422 @@
+#!/usr/bin/env node
+/* ── ONE SOURCE OF TRUTH FOR THE PHYSICS ─────────────────────────────────────
+   Eight of the twelve computational kernels are the mathematics the atlas already draws.
+   There were two ways to give them a machine contract: retype them into core/labs, or take
+   them. Retyping creates a second copy that can drift, and a drift between the picture and
+   the number is exactly the failure this whole core exists to prevent — so this script
+   TAKES them.
+
+   It reads the single module block of index.html, finds every top-level declaration,
+   builds the identifier graph between them, and emits the transitive closure of the
+   declarations the kernels name. Emission is in ORIGINAL SOURCE ORDER, which is the only
+   ordering guaranteed to respect the temporal dead zone of the consts as written.
+
+   If the closure ever touches a browser global — window, document, THREE, a canvas — the
+   extraction FAILS rather than emitting a module that cannot load in node. That failure is
+   the useful part: it says which piece of physics is still entangled with a renderer. */
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const HTML = readFileSync(join(ROOT, 'index.html'), 'utf8');
+
+/* the single module block */
+const open = HTML.indexOf('<script type="module">');
+if (open < 0) throw new Error('index.html has no module block');
+const bodyStart = HTML.indexOf('>', open) + 1;
+const bodyEnd = HTML.lastIndexOf('</script>');
+const SRC = HTML.slice(bodyStart, bodyEnd);
+
+const BROWSER = new Set(['window', 'document', 'THREE', 'navigator', 'localStorage', 'location',
+  'requestAnimationFrame', 'cancelAnimationFrame', 'HTMLElement', 'CanvasRenderingContext2D',
+  'performance', 'fetch', 'getComputedStyle', 'MutationObserver', 'ResizeObserver', 'Image',
+  'devicePixelRatio', 'screen', 'history', 'alert', 'customElements', 'WebGLRenderingContext']);
+const GLOBALS = new Set(['Math', 'Number', 'Object', 'Array', 'String', 'Boolean', 'JSON', 'Map',
+  'Set', 'WeakMap', 'WeakSet', 'Promise', 'Symbol', 'Error', 'RangeError', 'TypeError', 'Infinity',
+  'NaN', 'undefined', 'null', 'true', 'false', 'this', 'BigInt', 'Float64Array', 'Float32Array',
+  'Int32Array', 'Uint8Array', 'Uint32Array', 'Int8Array', 'Int16Array', 'Uint16Array', 'ArrayBuffer',
+  'DataView', 'Date', 'RegExp', 'Function', 'Proxy', 'Reflect', 'globalThis', 'console', 'structuredClone',
+  'isFinite', 'isNaN', 'parseFloat', 'parseInt', 'encodeURIComponent', 'decodeURIComponent', 'Intl',
+  'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'queueMicrotask', 'AbortController']);
+const KEYWORD = new Set(['if', 'else', 'for', 'while', 'do', 'return', 'break', 'continue', 'new',
+  'typeof', 'instanceof', 'in', 'of', 'delete', 'void', 'try', 'catch', 'finally', 'throw', 'switch',
+  'case', 'default', 'const', 'let', 'var', 'function', 'class', 'extends', 'super', 'yield', 'await',
+  'async', 'static', 'get', 'set', 'from', 'as', 'export', 'import']);
+
+
+/* ── A SCANNER THAT KNOWS WHAT IT IS LOOKING AT ──────────────────────────────
+   Brace depth alone is not enough: a brace inside a string, a template, a regex or a
+   comment is not a brace. Everything downstream depends on "top level" meaning top level,
+   so the scanner classifies every character once and the rest of the script trusts it. */
+function scan(s) {
+  const depth = new Int32Array(s.length);     // brace/paren/bracket depth at each char
+  const code = new Uint8Array(s.length);      // 1 iff this char is executable code
+  let d = 0, i = 0;
+  const prevSignificant = () => { let k = i - 1; while (k >= 0 && !code[k]) k--;
+    while (k >= 0 && /\s/.test(s[k])) k--; return k >= 0 ? s[k] : ''; };
+  while (i < s.length) {
+    const c = s[i], c2 = s.slice(i, i + 2);
+    if (c2 === '//') { while (i < s.length && s[i] !== '\n') { depth[i] = d; i++; } continue; }
+    if (c2 === '/*') { const e = s.indexOf('*/', i + 2); const stop = e < 0 ? s.length : e + 2;
+      while (i < stop) { depth[i] = d; i++; } continue; }
+    if (c === '"' || c === "'") { const q = c; depth[i] = d; code[i] = 1; i++;
+      while (i < s.length) { depth[i] = d; if (s[i] === '\\') { i += 2; continue; }
+        if (s[i] === q) { i++; break; } i++; } continue; }
+    if (c === '`') { // template literal, with ${ } holes that ARE code
+      depth[i] = d; code[i] = 1; i++;
+      while (i < s.length) {
+        if (s[i] === '\\') { depth[i] = d; depth[i + 1] = d; i += 2; continue; }
+        if (s[i] === '`') { depth[i] = d; i++; break; }
+        if (s[i] === '$' && s[i + 1] === '{') {
+          depth[i] = d; depth[i + 1] = d; i += 2;
+          let h = 1;
+          while (i < s.length && h > 0) {   // recurse by re-entering the main loop shape
+            const sub = scanHole(s, i, d);
+            i = sub.i; h = sub.h; for (let k = sub.from; k < i; k++) { depth[k] = d; code[k] = 1; }
+          }
+          continue;
+        }
+        depth[i] = d; i++;
+      }
+      continue;
+    }
+    if (c === '/') {   // regex, but only where a regex can legally begin
+      const p = prevSignificant();
+      if (p === '' || '(,=:[!&|?{};+-*%~^<>'.includes(p)) {
+        depth[i] = d; code[i] = 1; i++; let cls = false;
+        while (i < s.length) { depth[i] = d;
+          if (s[i] === '\\') { i += 2; continue; }
+          if (s[i] === '[') cls = true; else if (s[i] === ']') cls = false;
+          else if (s[i] === '/' && !cls) { i++; break; }
+          else if (s[i] === '\n') break;
+          i++; }
+        continue;
+      }
+    }
+    if (c === '{' || c === '(' || c === '[') { depth[i] = d; code[i] = 1; d++; i++; continue; }
+    if (c === '}' || c === ')' || c === ']') { d--; depth[i] = d; code[i] = 1; i++; continue; }
+    depth[i] = d; code[i] = 1; i++;
+  }
+  return { depth, code };
+}
+/* a template hole is ordinary code; walk it until its brace closes */
+function scanHole(s, i, d) {
+  const from = i; let h = 1;
+  while (i < s.length && h > 0) {
+    const c = s[i];
+    if (c === '"' || c === "'" || c === '`') { const q = c; i++;
+      while (i < s.length) { if (s[i] === '\\') { i += 2; continue; } if (s[i] === q) { i++; break; } i++; }
+      continue; }
+    if (c === '{') h++; else if (c === '}') h--;
+    i++;
+  }
+  return { i, h: 0, from };
+}
+
+const { depth, code } = scan(SRC);
+const topLevel = i => depth[i] === 0 && code[i] === 1;
+
+const IDENT = /(?<![.\w$])([A-Za-z_$][\w$]*)/g;
+
+/* ── ONE DECLARATOR WALKER, USED TWICE ───────────────────────────────────────
+   `const a = 1, b = f(x), {c, d} = o` binds four names; `const g = (N, M = 1) => …` binds
+   ONE, and the M inside its parameter list is not a declarator at all. Both questions —
+   what does this statement bind, and what is bound anywhere inside this function — are the
+   same walk, so there is one implementation of it. Reading the head with a regex answered
+   the first question wrongly and exported a parameter as a module-level name. */
+function listBinders(text, c2, dp, at, kwLen) {
+  const out = [], D = dp[at];
+  let i = at + kwLen, binder = true;
+  while (i < text.length) {
+    if (!c2[i]) { i++; continue; }
+    const d = dp[i], ch = text[i];
+    if (d < D) break;
+    if (d === D) {
+      if (ch === ';') break;
+      if (ch === '\n') { let n = i + 1; while (n < text.length && /\s/.test(text[n])) n++;
+        if (n >= text.length || (!'.,+-*/%?:)]}=&|`'.includes(text[n]) && text.slice(n, n + 2) !== '=>')) break; }
+      if (ch === ',') { binder = true; i++; continue; }
+      if (ch === '=' && text[i + 1] !== '=') { binder = false; i++; continue; }
+      if (binder && (ch === '{' || ch === '[')) {          /* destructuring pattern */
+        let dd = d, k = i;
+        for (; k < text.length; k++) { if (!c2[k]) continue;
+          if ('{(['.includes(text[k])) dd++;
+          else if ('})]'.includes(text[k])) { dd--; if (dd === d) break; } }
+        for (const g of text.slice(i, k + 1).matchAll(IDENT)) if (!KEYWORD.has(g[1])) out.push(g[1]);
+        i = k + 1; binder = false; continue;
+      }
+      if (binder && /[A-Za-z_$]/.test(ch)) {
+        const nm = /^[A-Za-z_$][\w$]*/.exec(text.slice(i))[0];
+        if (!KEYWORD.has(nm)) out.push(nm);
+        i += nm.length; binder = false; continue;
+      }
+    }
+    i++;
+  }
+  return out;
+}
+
+/* ── TOP-LEVEL DECLARATIONS ──────────────────────────────────────────────────
+   function f(...){...}, const a=…, let a=…, class C{…}. Destructuring patterns are
+   recorded with every name they bind, because a closure that needs one of them needs the
+   whole statement. */
+const DECLS = [];
+const kwRe = /\b(function|const|let|var|class)\b/g;
+let m;
+while ((m = kwRe.exec(SRC))) {
+  const at = m.index;
+  if (!topLevel(at)) continue;
+  /* it must begin a statement: nothing but whitespace back to a newline, ; or } */
+  let k = at - 1; while (k >= 0 && ' \t'.includes(SRC[k])) k--;
+  if (k >= 0 && !'\n;}'.includes(SRC[k])) continue;
+  const kw = m[1];
+  let end;
+  if (kw === 'function' || kw === 'class') {
+    /* run to the closing brace of the body: the first '{' at depth 0→1 after the head,
+       then the matching '}' back at depth 0 */
+    let j = at, seen = false;
+    for (; j < SRC.length; j++) {
+      if (!code[j]) continue;
+      if (SRC[j] === '{' && depth[j] === 0) seen = true;
+      else if (seen && SRC[j] === '}' && depth[j] === 0) { j++; break; }
+    }
+    end = j;
+  } else {
+    /* run to the terminating semicolon or newline at depth 0 */
+    let j = at + kw.length;
+    for (; j < SRC.length; j++) {
+      if (!code[j] || depth[j] !== 0) continue;
+      if (SRC[j] === ';') { j++; break; }
+      if (SRC[j] === '\n') {
+        /* a newline ends the statement only if the next code char cannot continue it */
+        let n = j + 1; while (n < SRC.length && /\s/.test(SRC[n])) n++;
+        if (n >= SRC.length) break;
+        if (!'.,+-*/%?:)]}=&|`'.includes(SRC[n]) && SRC.slice(n, n + 2) !== '=>') break;
+      }
+    }
+    end = j;
+  }
+  const text = SRC.slice(at, end);
+  const names = [];
+  if (kw === 'function' || kw === 'class') {
+    const nm = /^(?:function|class)\s*\*?\s*([A-Za-z_$][\w$]*)/.exec(text);
+    if (nm) names.push(nm[1]);
+  } else {
+    names.push(...listBinders(SRC, code, depth, at, kw.length));
+  }
+  if (!names.length) continue;
+  DECLS.push({ names, text, at, end, kw });
+  kwRe.lastIndex = end;
+}
+
+const BY_NAME = new Map();
+for (const d of DECLS) for (const n of d.names) if (!BY_NAME.has(n)) BY_NAME.set(n, d);
+
+/* ── SHADOWING ───────────────────────────────────────────────────────────────
+   A name used inside a declaration is a DEPENDENCY only if it is not bound there. This
+   file has 47 000 lines and names like j, gap, C, p, key and name exist both as loop
+   variables and as top-level declarations, so without this the closure of specSpectrum
+   swallowed the renderer through a parameter called j.
+
+   The analysis deliberately OVER-collects binders: a name bound anywhere inside counts as
+   bound everywhere inside. Over-collecting drops a real dependency, which makes the emitted
+   module throw ReferenceError the moment it is imported — loud, immediate and caught by the
+   very first self-test. Under-collecting drags in a renderer, which is silent. */
+function boundNames(text) {
+  const { code: c2, depth: dp } = scan(text);
+  const out = new Set();
+  const add = s => { for (const g of s.matchAll(IDENT)) if (!KEYWORD.has(g[1])) out.add(g[1]); };
+  const matchParen = a => { let d2 = 0;
+    for (let k = a; k < text.length; k++) { if (!c2[k]) continue;
+      if (text[k] === '(') d2++; else if (text[k] === ')') { d2--; if (!d2) return k; } }
+    return -1; };
+  for (let i = 0; i < text.length; i++) {
+    if (!c2[i]) continue;
+    if (text.startsWith('function', i) && !/[\w$]/.test(text[i - 1] || ' ')) {
+      const a = text.indexOf('(', i), b = a >= 0 ? matchParen(a) : -1;
+      if (b > 0) add(text.slice(a + 1, b));
+    }
+    if (text[i] === '(') {                       /* ( params ) => */
+      const b = matchParen(i);
+      if (b > 0) { let k = b + 1; while (k < text.length && /\s/.test(text[k])) k++;
+        if (text.slice(k, k + 2) === '=>') add(text.slice(i + 1, b)); }
+    }
+  }
+  for (const g of text.matchAll(/([A-Za-z_$][\w$]*)\s*=>/g)) out.add(g[1]);   /* x => … */
+  for (const g of text.matchAll(/\b(?:function|class)\s+([A-Za-z_$][\w$]*)/g)) out.add(g[1]);
+  for (const g of text.matchAll(/\bcatch\s*\(\s*([A-Za-z_$][\w$]*)/g)) out.add(g[1]);
+
+  /* ── DECLARATOR LISTS ──────────────────────────────────────────────────────
+     `const c = …, L = j + 0.5, ex = specEig(…), rows = []` binds FOUR names. A regex that
+     stops at the first '=' binds one, and the other three then look like references to
+     whatever the atlas happens to declare at top level under those names — which is how
+     ebkCompare's local `rows` resolved to a renderer array. So the list is walked at its
+     own bracket depth: a binder sits after the keyword or after a comma at that depth,
+     and the statement ends at a semicolon there or at any bracket closing below it. */
+  const kw = /\b(var|let|const)\b/g;
+  let g;
+  while ((g = kw.exec(text))) {
+    if (!c2[g.index]) continue;
+    for (const n of listBinders(text, c2, dp, g.index, g[1].length)) out.add(n);
+  }
+  return out;
+}
+/* an object-literal KEY is not a reference. ZPF = {…, C: 2.99792458e8, …} was pulling the
+   whole renderer in through a top-level `C` declared 20 000 lines away, and specSpectrum
+   through its own `gap:` and `total:` keys. A key is an identifier followed by ':' whose
+   previous significant character opens or continues an object literal — which is exactly
+   what distinguishes it from the middle branch of a ternary. */
+function isObjectKey(text, c2, i, len) {
+  let k = i + len; while (k < text.length && /\s/.test(text[k])) k++;
+  if (text[k] !== ':' || text[k + 1] === ':') return false;
+  let j = i - 1; while (j >= 0 && (/\s/.test(text[j]) || !c2[j])) j--;
+  return j < 0 || text[j] === '{' || text[j] === ',';
+}
+function refs(d) {
+  const out = new Set();
+  const { code: c2 } = scan(d.text);
+  const bound = boundNames(d.text);
+  for (const g of d.text.matchAll(IDENT)) {
+    if (!c2[g.index]) continue;                 // inside a string or comment
+    if (d.names.includes(g[1]) || bound.has(g[1])) continue;
+    if (isObjectKey(d.text, c2, g.index, g[1].length)) continue;
+    out.add(g[1]);
+  }
+  return out;
+}
+
+/* ── AUGMENTING STATEMENTS ───────────────────────────────────────────────────
+   `const ZPF = {…}` is a declaration; the very next line, `ZPF.EP = ZPF.HBAR*ZPF.C/FBS.lP`,
+   is not — it is a bare expression statement, and an extractor that only collects
+   declarations emits an object with a missing field and no error anywhere. So top-level
+   statements that WRITE TO a name already in the closure come along with it. */
+const PATCHES = [];
+{
+  const re = /(?:^|\n)([ \t]*)([A-Za-z_$][\w$]*)\s*(?:\.[\w$]+|\[[^\]\n]*\])(?:\s*(?:\.[\w$]+|\[[^\]\n]*\]))*\s*(?:\+|-|\*|\/|\|\||\?\?)?=[^=]/g;
+  let g;
+  while ((g = re.exec(SRC))) {
+    const at = g.index + (g[0][0] === '\n' ? 1 : 0) + g[1].length;
+    if (!topLevel(at)) continue;
+    let j = at;
+    for (; j < SRC.length; j++) {
+      if (!code[j] || depth[j] !== 0) continue;
+      if (SRC[j] === ';') { j++; break; }
+      if (SRC[j] === '\n') { let n = j + 1; while (n < SRC.length && /\s/.test(SRC[n])) n++;
+        if (n >= SRC.length || (!'.,+-*/%?:)]}=&|`'.includes(SRC[n]) && SRC.slice(n, n + 2) !== '=>')) break; }
+    }
+    PATCHES.push({ base: g[2], text: SRC.slice(at, j), at, end: j, names: [], patch: true });
+  }
+}
+for (const p of PATCHES) p.refs = refs({ ...p, names: [] });
+
+/* ── THE ROOTS ───────────────────────────────────────────────────────────────
+   Named here and nowhere else. Adding a kernel means adding its entry point to this list;
+   everything it needs comes along by itself. */
+export const ROOTS = [
+  /* fbs.zero_point_ladder */
+  'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
+  /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
+  'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* bianchi_ix.evolution */
+  'bixSeed', 'bixIntegrate', 'bixLyapunov', 'bixClassify',
+  /* edge.admissibility_no_go */
+  'PHI_R', 'edgeRdiag', 'edgeNaiveRoot', 'edgeRootWith', 'edgeZetaEff', 'edgeZetaFromSpecies',
+  'edgePval', 'edgeKL', 'edgeEisenstein', 'EDGE_ZETA0_SCALAR', 'EDGE_LNDET_UNIT',
+  /* capacity.conditional_selector */
+  'capNphi', 'capLambda', 'capSigma', 'capGamma', 'capGammaD', 'capBg2', 'capGateBudget',
+  'CAP_LAM_OBS', 'CAP_LAM_SIG', 'CAP_U_STAR', 'CAP_GATES',
+  /* fibonacci.anyons */
+  'FIB_PHI', 'FIB_D', 'FIB_S1', 'FIB_S2', 'fibFusion', 'fibBraid', 'fibMM',
+  'fibFsym', 'fibMonodromy', 'fibAxioms', 'fibPentagon', 'fibHexagon'
+];
+
+const REFS = new Map(DECLS.map(d => [d, refs(d)]));
+
+function closure(roots) {
+  const want = new Set(), missing = new Set(), browser = new Map();
+  /* breadth first, remembering who pulled whom in, so a failure can name the CHAIN from a
+     kernel to the renderer instead of just the renderer — the chain is the thing to cut */
+  const via = new Map(roots.map(r => [r, null]));
+  const queue = [...roots];
+  while (queue.length) {
+    const n = queue.shift();
+    if (GLOBALS.has(n) || KEYWORD.has(n)) continue;
+    if (BROWSER.has(n)) { if (!browser.has(n)) browser.set(n, path(via, n)); continue; }
+    const d = BY_NAME.get(n);
+    if (!d) { missing.add(n); continue; }
+    if (want.has(d)) continue;
+    want.add(d);
+    for (const r of REFS.get(d)) { if (!via.has(r)) via.set(r, n); queue.push(r); }
+    /* whatever writes to this name is part of it */
+    for (const p of PATCHES) if (p.base === n && !want.has(p)) { want.add(p);
+      for (const r of p.refs) { if (!via.has(r)) via.set(r, n); queue.push(r); } }
+  }
+  return { want, missing, browser };
+}
+function path(via, n) { const out = []; let k = n, guard = 0;
+  while (k != null && guard++ < 64) { out.push(k); k = via.get(k); }
+  return out.reverse().join(' → '); }
+
+const { want, missing, browser } = closure(ROOTS);
+const rootMissing = ROOTS.filter(r => !BY_NAME.has(r));
+
+if (rootMissing.length) {
+  console.error(`extraction FAILED: these roots are not top-level declarations in index.html:\n  ${rootMissing.join(', ')}`);
+  process.exit(1);
+}
+if (browser.size) {
+  console.error(`extraction FAILED: the closure touches browser globals — the physics is still ` +
+    `entangled with the renderer. The chain from a kernel to each one:`);
+  for (const [g, chain] of browser) console.error(`  ${g}\n    ${chain}`);
+  process.exit(1);
+}
+
+/* names that are referenced but never declared at top level: parameters of enclosing
+   arrow chains, labels, and genuine globals. They are reported, not silently allowed. */
+const unresolved = [...missing].filter(n => !GLOBALS.has(n) && !KEYWORD.has(n)).sort();
+
+const ordered = [...want].sort((a, b) => a.at - b.at);
+const exported = [...new Set(ordered.flatMap(d => d.names || []))].sort();
+
+const body = ordered.map(d => d.text).join('\n\n');
+/* The recorded hash covers the EXTRACTED DECLARATIONS, not the whole module block. Hashing
+   the block made a version-string bump read as a change to the physics, so the drift guard
+   cried wolf on every release and would soon have been switched off — which is how a guard
+   stops guarding. This hash moves when, and only when, the mathematics does. */
+const header = `/* GENERATED by scripts/extract-kernels.mjs — DO NOT EDIT.
+   The transitive closure of the physics the computational kernels name, sliced verbatim
+   out of the single module block of index.html and emitted in original source order.
+   Editing this file instead of index.html would create the second copy the extractor
+   exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
+
+   declarations: ${ordered.length}   ·   exported names: ${exported.length}
+   extracted physics, sha256 ${createHash('sha256').update(body).digest('hex')} */
+
+`;
+const foot = `\n\nexport {\n  ${exported.join(', ')}\n};\n`;
+const out = header + body + foot;
+
+mkdirSync(join(ROOT, 'core/atlas'), { recursive: true });
+const target = join(ROOT, 'core/atlas/extracted.mjs');
+let previous = null;
+try { previous = readFileSync(target, 'utf8'); } catch {}
+
+/* --check is the DRIFT GUARD. Someone editing the physics in index.html and not
+   regenerating would leave the API answering with yesterday's mathematics while the picture
+   shows today's, and nothing would say so. In CI this fails the build instead. */
+const check = process.argv.includes('--check');
+if (check) {
+  if (previous === out) { console.log(`extracted module is in step with index.html · ${ordered.length} declarations`); process.exit(0); }
+  console.error('DRIFT: core/atlas/extracted.mjs does not match index.html.\n' +
+    '  The atlas physics changed and the kernels were not regenerated, so the API would answer\n' +
+    '  with different mathematics from the one the atlas draws. Run: node scripts/extract-kernels.mjs');
+  process.exit(1);
+}
+writeFileSync(target, out);
+
+console.log(`extracted ${ordered.length} declarations · ${exported.length} names · ` +
+  `${(out.length / 1024).toFixed(1)} KB${previous === out ? ' · unchanged' : ' · REWRITTEN'}`);
+if (unresolved.length)
+  console.log(`  references resolved outside the closure (assumed free): ${unresolved.join(', ')}`);

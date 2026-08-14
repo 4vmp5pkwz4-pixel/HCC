@@ -8,6 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { CORE, LABS } from '../core/index.mjs';
 import { CORE_VERSION } from '../core/version.mjs';
 import { STATUS_DOC } from '../core/status.mjs';
+/* the tool table is IMPORTED from the server, not restated here. It used to be written out
+   twice — once for the descriptor and once for the endpoint — and two copies of a contract
+   means the older one is wrong and nothing says which. Importing server.mjs starts no
+   listener: it only calls listen() when it is the entry point. */
+import { TOOLS } from '../server/server.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 mkdirSync(join(ROOT, 'api'), { recursive: true });
@@ -34,8 +39,10 @@ const openapi = {
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: { content: { 'application/json': { schema: { type: 'object',
         properties: { input: { type: 'object' }, async: { type: 'boolean' } } } } } },
-      responses: { 200: { description: 'result' }, 202: { description: 'job accepted' },
+      responses: { 200: { description: 'result' },
+        202: { description: 'job accepted; it runs on a worker thread' },
         422: { description: 'DOMAIN_ERROR — inputs are refused, never clamped' },
+        429: { description: 'BUSY — HCC_MAX_ACTIVE_JOBS slots are all in use; the limit is named in the error' },
         501: { description: 'NOT_IMPLEMENTED — no number is invented' } } } },
     '/api/v1/labs/{id}/sweep': { post: { summary: 'one parameter over many values',
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
@@ -53,8 +60,22 @@ const openapi = {
       responses: { 200: { description: 'text/event-stream' } } } },
     '/api/v1/open-problems': { get: { summary: 'every declared gap, machine-readable',
       responses: { 200: { description: 'ok' } } } },
-    '/mcp/call': { post: { summary: 'invoke an MCP tool over plain HTTP',
-      responses: { 200: { description: 'ok' } } } }
+    '/api/v1/runs': { get: { summary: 'every retained job, with the active and retained bounds',
+      responses: { 200: { description: 'ok' } } } },
+    '/mcp': { post: { summary: 'MCP over Streamable HTTP, JSON-RPC 2.0: initialize, ping, tools/list, tools/call',
+      requestBody: { content: { 'application/json': { schema: { type: 'object',
+        required: ['jsonrpc', 'method'],
+        properties: { jsonrpc: { const: '2.0' }, id: { type: ['string', 'number', 'null'] },
+          method: { type: 'string' }, params: { type: 'object' } } } } } },
+      responses: { 200: { description: 'a JSON-RPC response, or text/event-stream if the client asked for one' },
+        202: { description: 'a notification was accepted and has no response' },
+        405: { description: 'this server opens no server-initiated stream' } } } },
+    '/mcp/call': { post: { summary: 'DEPRECATED — the first MCP transport, plain POST {tool, arguments}',
+      deprecated: true,
+      description: 'Superseded by JSON-RPC 2.0 at POST /mcp. Kept working, and every response carries ' +
+        'a Deprecation header and a Link to the successor, so a client that already depends on it ' +
+        'learns that from the wire rather than from a changelog.',
+      responses: { 200: { description: 'ok' }, 400: { description: 'unknown tool' } } } }
   },
   components: { schemas: {
     Status: { type: 'string', enum: Object.keys(STATUS_DOC), description: Object.entries(STATUS_DOC).map(([k, v]) => `${k}: ${v}`).join(' | ') },
@@ -85,25 +106,15 @@ writeFileSync(join(ROOT, 'api/openapi.json'), JSON.stringify(openapi, null, 2) +
 /* ── MCP descriptor ──────────────────────────────────────────────────────── */
 const mcp = {
   schema: 'mcp/1', name: 'hcc', version: CORE_VERSION,
-  description: 'HCC computational core: 77 laboratories behind one contract, no browser required.',
-  transport: { type: 'http', endpoint: '/mcp/call', method: 'POST' },
-  tools: [
-    { name: 'list_labs', description: 'every laboratory with its id, title, status and cost hint', inputSchema: { type: 'object', properties: {} } },
-    { name: 'describe_lab', description: 'the full contract: inputs, outputs, units, assumptions, domain of validity, falsifiers, verifiers',
-      inputSchema: { type: 'object', required: ['lab_id'], properties: { lab_id: { type: 'string' } } } },
-    { name: 'run_lab', description: 'run a laboratory and get the full result envelope',
-      inputSchema: { type: 'object', required: ['lab_id'], properties: { lab_id: { type: 'string' }, input: { type: 'object' } } } },
-    { name: 'get_run', description: 'state and result of a job',
-      inputSchema: { type: 'object', required: ['run_id'], properties: { run_id: { type: 'string' } } } },
-    { name: 'cancel_run', description: 'cancel a job',
-      inputSchema: { type: 'object', required: ['run_id'], properties: { run_id: { type: 'string' } } } },
-    { name: 'validate_run', description: 'run a laboratory\'s own self-tests and return each check',
-      inputSchema: { type: 'object', required: ['lab_id'], properties: { lab_id: { type: 'string' } } } },
-    { name: 'export_artifact', description: 'serialise a result as json or csv',
-      inputSchema: { type: 'object', required: ['lab_id','result'], properties: { lab_id: { type: 'string' }, result: { type: 'object' }, format: { type: 'string', enum: ['json','csv'] } } } },
-    { name: 'list_open_problems', description: 'every declared gap in the atlas, machine-readable',
-      inputSchema: { type: 'object', properties: {} } }
-  ],
+  description: `HCC computational core: ${LABS.size} laboratories behind one contract ` +
+    `(describe · run · sweep · validate · export · cancel), ` +
+    `${described.filter(d => d.status !== 'NOT_IMPLEMENTED').length} of them with a computational kernel. ` +
+    'No browser, no WebGL, no animation frame.',
+  transport: { type: 'streamable-http', endpoint: '/mcp', method: 'POST', jsonrpc: '2.0',
+    protocolVersion: '2025-06-18',
+    legacy: { endpoint: '/mcp/call', method: 'POST', deprecated: true,
+      note: 'plain POST {tool, arguments}; superseded by JSON-RPC 2.0 at /mcp and kept working for clients that already depend on it' } },
+  tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
   statuses: STATUS_DOC
 };
 writeFileSync(join(ROOT, '.well-known/mcp.json'), JSON.stringify(mcp, null, 2) + '\n');

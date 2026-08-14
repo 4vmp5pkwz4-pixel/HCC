@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HCC computational core",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "Every laboratory behind one contract: describe, run, sweep, validate, export, cancel. No browser, no WebGL, no animation frame. Statuses are load-bearing: NOT_IMPLEMENTED is returned in place of a plausible number, and a synthetic self-test is never reported as an empirical result."
   },
   "servers": [
@@ -89,10 +89,13 @@
             "description": "result"
           },
           "202": {
-            "description": "job accepted"
+            "description": "job accepted; it runs on a worker thread"
           },
           "422": {
             "description": "DOMAIN_ERROR — inputs are refused, never clamped"
+          },
+          "429": {
+            "description": "BUSY — HCC_MAX_ACTIVE_JOBS slots are all in use; the limit is named in the error"
           },
           "501": {
             "description": "NOT_IMPLEMENTED — no number is invented"
@@ -211,12 +214,74 @@
         }
       }
     },
-    "/mcp/call": {
-      "post": {
-        "summary": "invoke an MCP tool over plain HTTP",
+    "/api/v1/runs": {
+      "get": {
+        "summary": "every retained job, with the active and retained bounds",
         "responses": {
           "200": {
             "description": "ok"
+          }
+        }
+      }
+    },
+    "/mcp": {
+      "post": {
+        "summary": "MCP over Streamable HTTP, JSON-RPC 2.0: initialize, ping, tools/list, tools/call",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "properties": {
+                  "jsonrpc": {
+                    "const": "2.0"
+                  },
+                  "id": {
+                    "type": [
+                      "string",
+                      "number",
+                      "null"
+                    ]
+                  },
+                  "method": {
+                    "type": "string"
+                  },
+                  "params": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "a JSON-RPC response, or text/event-stream if the client asked for one"
+          },
+          "202": {
+            "description": "a notification was accepted and has no response"
+          },
+          "405": {
+            "description": "this server opens no server-initiated stream"
+          }
+        }
+      }
+    },
+    "/mcp/call": {
+      "post": {
+        "summary": "DEPRECATED — the first MCP transport, plain POST {tool, arguments}",
+        "deprecated": true,
+        "description": "Superseded by JSON-RPC 2.0 at POST /mcp. Kept working, and every response carries a Deprecation header and a Link to the successor, so a client that already depends on it learns that from the wire rather than from a changelog.",
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "400": {
+            "description": "unknown tool"
           }
         }
       }
@@ -948,6 +1013,1007 @@
             "type": "string",
             "unit": "dimensionless",
             "description": "2 pi f d / c — the near-field smallness parameter"
+          }
+        }
+      },
+      "fbs.zero_point_ladder.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "N": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400,
+            "unit": "rung",
+            "description": "rung index. N = 207 is an INTERNAL reference index near one light-second; it is not recombination and carries no cosmological claim"
+          },
+          "beta": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 4096,
+            "unit": "mode index",
+            "description": "S³ scalar mode index; eigenvalues (beta^2-1)/R^2 with degeneracy beta^2"
+          },
+          "M": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 4096,
+            "unit": "cutoff",
+            "description": "cutoff of the DIVERGENT bare sum, displayed rather than hidden"
+          },
+          "theta": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 10000,
+            "unit": "dimensionless",
+            "description": "reduced temperature k_B T R/(hbar c)"
+          }
+        }
+      },
+      "fbs.zero_point_ladder.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "R",
+          "omega",
+          "nu",
+          "e0",
+          "shell",
+          "bare",
+          "casimir",
+          "rho",
+          "pressure",
+          "Tmode",
+          "Teq",
+          "temperature_K",
+          "compact",
+          "action"
+        ],
+        "properties": {
+          "R": {
+            "type": "string",
+            "unit": "m",
+            "description": "rung radius l_P phi^N"
+          },
+          "omega": {
+            "type": "string",
+            "unit": "rad/s",
+            "description": "mode angular frequency"
+          },
+          "nu": {
+            "type": "string",
+            "unit": "Hz",
+            "description": "mode frequency"
+          },
+          "e0": {
+            "type": "string",
+            "unit": "J",
+            "description": "half-quantum of the mode"
+          },
+          "shell": {
+            "type": "string",
+            "unit": "J",
+            "description": "degeneracy-weighted shell energy"
+          },
+          "bare": {
+            "type": "string",
+            "unit": "J",
+            "description": "the bare sum to the stated cutoff — DIVERGENT, and inheriting that status"
+          },
+          "casimir": {
+            "type": "string",
+            "unit": "J",
+            "description": "renormalized remainder hbar c/(240 R). NOT the cosmological constant"
+          },
+          "rho": {
+            "type": "string",
+            "unit": "J/m^3",
+            "description": "renormalized energy density"
+          },
+          "pressure": {
+            "type": "string",
+            "unit": "Pa",
+            "description": "rho/3, the conformal equation of state"
+          },
+          "Tmode": {
+            "type": "string",
+            "unit": "K",
+            "description": "temperature at which k_B T equals the mode half-quantum"
+          },
+          "Teq": {
+            "type": "string",
+            "unit": "K",
+            "description": "temperature at which thermal and zero-point terms are equal"
+          },
+          "temperature_K": {
+            "type": "string",
+            "unit": "K",
+            "description": "the temperature the requested theta corresponds to at this rung"
+          },
+          "compact": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "2 G epsilon0/(c^4 R) = phi^(-2N); an algebraic identity, not a quantum black hole"
+          },
+          "action": {
+            "type": "string",
+            "unit": "J·s",
+            "description": "invariant action cell epsilon0 R/c = hbar/2 at every rung"
+          }
+        }
+      },
+      "fibonacci.anyons.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "n": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 4096,
+            "unit": "anyons",
+            "description": "how many tau anyons are fused"
+          },
+          "braid": {
+            "type": "string",
+            "unit": "word",
+            "description": "a braid word over 1 (sigma_1), 2 (sigma_2) and a (sigma_1 inverse), acting on the two-dimensional space of three tau with total charge tau"
+          }
+        }
+      },
+      "fibonacci.anyons.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "d_tau",
+          "D_total",
+          "gamma_topological",
+          "dim_to_tau",
+          "dim_to_vacuum",
+          "dim_total",
+          "log_dim_rate",
+          "braid_trace_re",
+          "braid_trace_im",
+          "braid_unitarity_residual",
+          "yang_baxter_residual",
+          "pentagon_residual",
+          "hexagon_residual",
+          "hexagon_rejects_mixed",
+          "monodromy_tau_tau",
+          "central_charge"
+        ],
+        "properties": {
+          "d_tau": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the quantum dimension phi, the positive root of d^2 = 1 + d"
+          },
+          "D_total": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "total quantum dimension sqrt(2 + phi)"
+          },
+          "gamma_topological": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "topological entanglement entropy ln D"
+          },
+          "dim_to_tau": {
+            "type": "string",
+            "unit": "states",
+            "description": "fusion space dimension in the total-charge-tau sector"
+          },
+          "dim_to_vacuum": {
+            "type": "string",
+            "unit": "states",
+            "description": "fusion space dimension in the vacuum sector"
+          },
+          "dim_total": {
+            "type": "string",
+            "unit": "states",
+            "description": "the whole fusion space, F_{n+1}"
+          },
+          "log_dim_rate": {
+            "type": "string",
+            "unit": "nats/anyon",
+            "description": "ln(dim(n)/dim(n-1)), which tends to ln phi — the fusion entropy the recursion operator uses"
+          },
+          "braid_trace_re": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "real part of the trace of the braid word"
+          },
+          "braid_trace_im": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "imaginary part of the trace of the braid word"
+          },
+          "braid_unitarity_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "|B B^dagger - I|, which is zero for a unitary braid representation"
+          },
+          "yang_baxter_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "worst entry of sigma_1 sigma_2 sigma_1 - sigma_2 sigma_1 sigma_2"
+          },
+          "pentagon_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "worst pentagon violation over all 512 labellings"
+          },
+          "hexagon_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "worst hexagon violation for the CONSISTENT chirality"
+          },
+          "hexagon_rejects_mixed": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the hexagon violation for MIXED chirality; it must be O(1), not O(1e-16) — this is the check that fixed the handedness of R_tau"
+          },
+          "monodromy_tau_tau": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "M_{tau tau} = -1/phi^2 = -0.381966…"
+          },
+          "central_charge": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "c = 14/5, appearing only on the right-hand side of (ST)^3 and not used to build S or T"
+          }
+        }
+      },
+      "capacity.conditional_selector.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "u": {
+            "type": "number",
+            "minimum": 242.11149881530412,
+            "maximum": 322.1114988153041,
+            "unit": "ln(capacity), dimensionless",
+            "description": "logarithm of the horizon capacity q = N_boundary; u* = ln q* = 282.1114988153041 is the sector the closure selects"
+          }
+        }
+      },
+      "capacity.conditional_selector.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "lambda",
+          "lambda_observed",
+          "lambda_sigma",
+          "sigma",
+          "q",
+          "gamma_normalised",
+          "gamma_slope",
+          "n_phi",
+          "n_phi_rung",
+          "bg2",
+          "gates",
+          "N_phi_derived"
+        ],
+        "properties": {
+          "lambda": {
+            "type": "string",
+            "unit": "m^-2",
+            "description": "the cosmological constant the sector implies"
+          },
+          "lambda_observed": {
+            "type": "string",
+            "unit": "m^-2",
+            "description": "Planck 2018 TT,TE,EE+lowE+lensing+BAO"
+          },
+          "lambda_sigma": {
+            "type": "string",
+            "unit": "m^-2",
+            "description": "1 sigma of the observational inputs, propagated from Omega_L and H0"
+          },
+          "sigma": {
+            "type": "string",
+            "unit": "sigma",
+            "description": "signed distance of lambda from the measured sky"
+          },
+          "q": {
+            "type": "string",
+            "unit": "boundary degrees of freedom",
+            "description": "the capacity itself, e^u"
+          },
+          "gamma_normalised": {
+            "type": "string",
+            "unit": "q*",
+            "description": "(Gamma(u) - Gamma(u*))/q*, exact in delta"
+          },
+          "gamma_slope": {
+            "type": "string",
+            "unit": "q*",
+            "description": "dGamma/ddelta; zero only at the selected sector"
+          },
+          "n_phi": {
+            "type": "string",
+            "unit": "rung",
+            "description": "golden-registry coordinate ln(q/pi)/(2 ln phi)"
+          },
+          "n_phi_rung": {
+            "type": "string",
+            "unit": null,
+            "description": "nearest rung, and whether the sector sits on it within 0.1"
+          },
+          "bg2": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the coupling the scheme relation implies at this u"
+          },
+          "gates": {
+            "type": "array",
+            "unit": null,
+            "description": "the error budget: per gate, the u it implies, its own width, and its distance from the sky in sigma"
+          },
+          "N_phi_derived": {
+            "type": "boolean",
+            "unit": null,
+            "description": "false, always: N_phi is READ OFF a declared registry and is not produced by any operator in this repository"
+          }
+        }
+      },
+      "edge.admissibility_no_go.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "l_max": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 64,
+            "unit": "edge level",
+            "description": "finite cutoff of the edge-character tower"
+          },
+          "q": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000000,
+            "unit": "boundary degrees of freedom",
+            "description": "the capacity sector the Bradlow projector truncates against"
+          },
+          "C_APS": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 100,
+            "unit": "dimensionless",
+            "description": "the O(1) APS defect constant of the naive closure"
+          },
+          "tau_lP2": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "unit": "dimensionless",
+            "description": "tau·lP^2; the Planck-cell term forces it to pi"
+          },
+          "tau_im": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 40,
+            "unit": "dimensionless",
+            "description": "imaginary part of the modular parameter; no tau(N) is declared anywhere, which is why this term cannot move the root"
+          },
+          "k_CS": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 10000000,
+            "unit": "level",
+            "description": "boundary Chern–Simons level; the lock is k_CS = 2q"
+          },
+          "zeta_eff": {
+            "type": "number",
+            "minimum": -4,
+            "maximum": 0,
+            "unit": "dimensionless",
+            "description": "the effective zeta(0) of the edge determinant sector. This is the ONE number the missing determinants have to supply; -2/3 is a single massless scalar"
+          },
+          "D_val": {
+            "type": "number",
+            "minimum": -6,
+            "maximum": 4,
+            "unit": "dimensionless",
+            "description": "an eigenvalue of the valuation operator; the annihilator demands P_val(D) = 0"
+          }
+        }
+      },
+      "edge.admissibility_no_go.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "n_naive",
+          "n_shell",
+          "C_needed",
+          "n_with_determinant",
+          "kappa",
+          "zeta_eff_needed",
+          "scalar_fraction",
+          "zeta_eff_species",
+          "zeta_eff_species_killing",
+          "n_from_species",
+          "species_verdict",
+          "spectral_radius",
+          "levels_kept",
+          "bradlow_cut",
+          "admissible",
+          "violations",
+          "P_val",
+          "lndet_unit_S2",
+          "kronecker",
+          "E2",
+          "Z_edge_computed",
+          "selects_292"
+        ],
+        "properties": {
+          "n_naive": {
+            "type": "string",
+            "unit": "rung",
+            "description": "root of the naive gap balance — the REFUTED value, reported because the manuscript reports it"
+          },
+          "n_shell": {
+            "type": "string",
+            "unit": "rung",
+            "description": "the closed shell the paper claims, quoted for comparison and NOT produced by this operator"
+          },
+          "C_needed": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the APS constant the naive balance would need to reach 292 — about 1e61, the answer smuggled in as an input"
+          },
+          "n_with_determinant": {
+            "type": "string",
+            "unit": "rung",
+            "description": "the root once a determinant slope is included; null when the slope overshoots ln phi and no positive root exists"
+          },
+          "kappa": {
+            "type": "string",
+            "unit": "per rung",
+            "description": "the determinant slope -2 zeta_eff(0) ln phi actually supplied"
+          },
+          "zeta_eff_needed": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the zeta_eff(0) that would put the root exactly at 292 — a falsifiable target, not a result"
+          },
+          "scalar_fraction": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "that target in units of one massless scalar — neither nothing nor one field"
+          },
+          "zeta_eff_species": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "zeta_eff(0) from the literature-fixed edge species content with the full l = 1 vector kernel (6 modes): -8/3"
+          },
+          "zeta_eff_species_killing": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the same with the vector kernel read as Killing vectors alone (3 modes): -7/6"
+          },
+          "n_from_species": {
+            "type": "string",
+            "unit": "rung",
+            "description": "the root the supplied species content actually gives — null, because its slope overshoots ln phi"
+          },
+          "species_verdict": {
+            "type": "string",
+            "unit": null,
+            "description": "what the supplied species content decides, in words"
+          },
+          "spectral_radius": {
+            "type": "string",
+            "unit": null,
+            "description": "largest diagonal entry of R at this cutoff; the operator is diagonal, so this is an eigenvalue and not a bound"
+          },
+          "levels_kept": {
+            "type": "string",
+            "unit": "count",
+            "description": "how many levels survive the Bradlow projector at this q"
+          },
+          "bradlow_cut": {
+            "type": "string",
+            "unit": "edge level",
+            "description": "the level where l(l+1) > q truncates the tower"
+          },
+          "admissible": {
+            "type": "string",
+            "unit": null,
+            "description": "1 when every checked admissibility term vanishes, 0 otherwise"
+          },
+          "violations": {
+            "type": "string",
+            "unit": null,
+            "description": "which admissibility conditions failed, by name"
+          },
+          "P_val": {
+            "type": "string",
+            "unit": null,
+            "description": "P_val(D) itself; zero exactly on {1,0,-1,-2,-3}"
+          },
+          "lndet_unit_S2": {
+            "type": "string",
+            "unit": null,
+            "description": "ln det'(-Delta) on the unit two-sphere, exact"
+          },
+          "kronecker": {
+            "type": "string",
+            "unit": null,
+            "description": "the SL2(Z)-invariant Kronecker term at the declared tau; ONE number once tau is fixed, so it shifts the intercept and cannot move the root"
+          },
+          "E2": {
+            "type": "string",
+            "unit": null,
+            "description": "E2(tau), quasi-modular, the other argument of F_KL"
+          },
+          "Z_edge_computed": {
+            "type": "boolean",
+            "unit": null,
+            "description": "false, always: Z_edge is a declared factorisation and no number is produced for it"
+          },
+          "selects_292": {
+            "type": "boolean",
+            "unit": null,
+            "description": "false: the operator as written is a REGISTRY consistent with rung 292, not a selector that produces it"
+          }
+        }
+      },
+      "s3.spectral_operator.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "minimum": -8,
+            "maximum": 4,
+            "unit": "ln(volume)/3",
+            "description": "logarithmic scale factor of the geometry the operator is evaluated on"
+          },
+          "beta_plus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy coordinate beta_+; zero with beta_- gives the round sphere"
+          },
+          "beta_minus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy coordinate beta_-; zero alone leaves c1 = c2, an axially symmetric top"
+          },
+          "j_max": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 12,
+            "unit": "spin",
+            "description": "highest half-integer spin block to diagonalise"
+          }
+        }
+      },
+      "s3.spectral_operator.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "c",
+          "lowest",
+          "gap",
+          "distinct",
+          "blocks",
+          "trace_residual",
+          "level_count"
+        ],
+        "properties": {
+          "c": {
+            "type": "array",
+            "unit": "a_i^-2",
+            "description": "the three inverse squared scale factors"
+          },
+          "lowest": {
+            "type": "string",
+            "unit": "energy (convention units)",
+            "description": "lowest eigenvalue over all blocks"
+          },
+          "gap": {
+            "type": "string",
+            "unit": "energy (convention units)",
+            "description": "spacing between the two lowest DISTINCT levels"
+          },
+          "distinct": {
+            "type": "array",
+            "unit": "levels",
+            "description": "every distinct eigenvalue with its FULL multiplicity, spectator index included"
+          },
+          "blocks": {
+            "type": "array",
+            "unit": null,
+            "description": "per spin j: eigenvalues, block dimension, spectator multiplicity and total (2j+1)^2"
+          },
+          "trace_residual": {
+            "type": "string",
+            "unit": "relative",
+            "description": "departure from the exact trace identity, recomputed live"
+          },
+          "level_count": {
+            "type": "string",
+            "unit": null,
+            "description": "distinct levels and total states"
+          }
+        }
+      },
+      "bianchi_ix.evolution.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "minimum": -8,
+            "maximum": 4,
+            "unit": "ln(volume)/3",
+            "description": "logarithmic scale factor"
+          },
+          "beta_plus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_+"
+          },
+          "beta_minus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_-"
+          },
+          "p_plus": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 40,
+            "unit": "momentum",
+            "description": "momentum conjugate to beta_+"
+          },
+          "p_minus": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 40,
+            "unit": "momentum",
+            "description": "momentum conjugate to beta_-"
+          },
+          "Lambda": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 4,
+            "unit": "dimensionless",
+            "description": "the cosmological term"
+          },
+          "branch": {
+            "type": "string",
+            "enum": [
+              "expanding",
+              "contracting"
+            ],
+            "unit": "expanding | contracting",
+            "description": "which root of the constraint the initial momentum takes"
+          },
+          "tauMax": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 200,
+            "unit": "volume time",
+            "description": "integration window"
+          }
+        }
+      },
+      "bianchi_ix.evolution.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "class",
+          "lyapunov",
+          "lyapunov_doubling_ratio",
+          "lyapunov_expected_if_regular",
+          "lyapunov_verdict",
+          "constraint_residual",
+          "bounces",
+          "stop",
+          "steps",
+          "seed_rescaled",
+          "alpha_final",
+          "beta_plus_final",
+          "beta_minus_final",
+          "p_plus_final",
+          "p_minus_final",
+          "tau_final"
+        ],
+        "properties": {
+          "class": {
+            "type": "string",
+            "unit": null,
+            "description": "stationary, periodic, quasiperiodic, chaotic, transient, singular or unreachable"
+          },
+          "lyapunov": {
+            "type": "string",
+            "unit": "1/tau",
+            "description": "Benettin estimate over the DOUBLED window; null for any run that is not bounded"
+          },
+          "lyapunov_doubling_ratio": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "lambda(2T)/lambda(T); this, not a threshold on lambda, decides the chaotic class"
+          },
+          "lyapunov_expected_if_regular": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "what the ratio would be for a regular orbit at this window"
+          },
+          "lyapunov_verdict": {
+            "type": "string",
+            "unit": null,
+            "description": "plateau, decaying, or not measured — in words"
+          },
+          "constraint_residual": {
+            "type": "string",
+            "unit": "relative",
+            "description": "|H_tau| normalised by the CURRENT scale of its own terms"
+          },
+          "bounces": {
+            "type": "string",
+            "unit": "count",
+            "description": "curvature-wall reflections counted during the run"
+          },
+          "stop": {
+            "type": "string",
+            "unit": null,
+            "description": "window, collapse, overflow or de Sitter escape"
+          },
+          "steps": {
+            "type": "string",
+            "unit": "count",
+            "description": "adaptive Dormand–Prince 5(4) steps taken"
+          },
+          "seed_rescaled": {
+            "type": "string",
+            "unit": "factor",
+            "description": "1 unless the requested momenta were off the constraint surface"
+          },
+          "alpha_final": {
+            "type": "string",
+            "unit": "ln(volume)/3",
+            "description": "the scale factor reached, ready to route into the spectral operator, particle creation or EBK"
+          },
+          "beta_plus_final": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the anisotropy beta_+ reached"
+          },
+          "beta_minus_final": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "the anisotropy beta_- reached"
+          },
+          "p_plus_final": {
+            "type": "string",
+            "unit": "momentum",
+            "description": "p_+ at the end of the run"
+          },
+          "p_minus_final": {
+            "type": "string",
+            "unit": "momentum",
+            "description": "p_- at the end of the run"
+          },
+          "tau_final": {
+            "type": "string",
+            "unit": "volume time",
+            "description": "the volume time actually reached"
+          }
+        }
+      },
+      "s3.particle_creation.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "alpha": {
+            "type": "number",
+            "minimum": -8,
+            "maximum": 4,
+            "unit": "ln(volume)/3",
+            "description": "the starting scale factor; below the bounce radius there is no real p_alpha at beta = 0 and the seed is REFUSED rather than moved"
+          },
+          "beta_plus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_+; zero with beta_- gives exactly zero created particles"
+          },
+          "beta_minus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_-"
+          },
+          "p_plus": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 40,
+            "unit": "momentum",
+            "description": "momentum conjugate to beta_+"
+          },
+          "p_minus": {
+            "type": "number",
+            "minimum": -40,
+            "maximum": 40,
+            "unit": "momentum",
+            "description": "momentum conjugate to beta_-"
+          },
+          "Lambda": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 4,
+            "unit": "dimensionless",
+            "description": "the cosmological term"
+          },
+          "j": {
+            "type": "number",
+            "minimum": 0.5,
+            "maximum": 6,
+            "unit": "spin",
+            "description": "which spin block the mode lives in"
+          },
+          "level": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 12,
+            "unit": "index",
+            "description": "which level within the block, counted from the lowest; prefer the lowest, which is generically non-degenerate away from isotropy"
+          },
+          "tauMax": {
+            "type": "number",
+            "minimum": 0.01,
+            "maximum": 60,
+            "unit": "volume time",
+            "description": "integration window"
+          }
+        }
+      },
+      "s3.particle_creation.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "n",
+          "wronskian",
+          "mu_swing",
+          "alpha_growth",
+          "stop",
+          "steps",
+          "seed_rescaled"
+        ],
+        "properties": {
+          "n": {
+            "type": "string",
+            "unit": "quanta",
+            "description": "the occupation |B|^2 of ONE mode in the adiabatic vacuum at tau = 0 — not a total particle number"
+          },
+          "wronskian": {
+            "type": "string",
+            "unit": "absolute",
+            "description": "worst ||A|^2 - |B|^2 - 1| along the run; never projected back"
+          },
+          "mu_swing": {
+            "type": "string",
+            "unit": "mu",
+            "description": "how far the reduced eigenvalue travelled — this, not the initial anisotropy, is what the mode responds to"
+          },
+          "alpha_growth": {
+            "type": "string",
+            "unit": "e-folds",
+            "description": "how much the scale factor grew, so a run creating nothing can be seen to have been expanding violently"
+          },
+          "stop": {
+            "type": "string",
+            "unit": null,
+            "description": "window, collapse, overflow, de Sitter escape or step budget"
+          },
+          "steps": {
+            "type": "string",
+            "unit": "count",
+            "description": "adaptive steps taken"
+          },
+          "seed_rescaled": {
+            "type": "string",
+            "unit": "factor",
+            "description": "1 unless the requested momenta had to be scaled onto the constraint surface"
+          }
+        }
+      },
+      "s3.ebk_quantisation.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "j": {
+            "type": "number",
+            "minimum": 2,
+            "maximum": 80,
+            "unit": "spin",
+            "description": "the spin block; the EBK error falls as 1/j^2 and the block is (2j+1)-dimensional"
+          },
+          "beta_plus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_+; at zero anisotropy every level is degenerate and there is no torus structure"
+          },
+          "beta_minus": {
+            "type": "number",
+            "minimum": -3,
+            "maximum": 3,
+            "unit": "dimensionless",
+            "description": "anisotropy beta_-"
+          },
+          "levels": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 12,
+            "unit": "count",
+            "description": "how many EBK tori to compute, each against its own exact doublet"
+          },
+          "quadrature": {
+            "type": "number",
+            "minimum": 200,
+            "maximum": 200000,
+            "unit": "samples",
+            "description": "samples in the action integral; the quadrature error is separate from the semiclassical one"
+          }
+        }
+      },
+      "s3.ebk_quantisation.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "c",
+          "L",
+          "levels",
+          "worst_relative_error",
+          "n_genuine_doublets"
+        ],
+        "properties": {
+          "c": {
+            "type": "array",
+            "unit": "e^{-2 beta_i}",
+            "description": "the three sorted factors that define the top"
+          },
+          "L": {
+            "type": "string",
+            "unit": "hbar",
+            "description": "the Langer length j + 1/2"
+          },
+          "levels": {
+            "type": "array",
+            "unit": null,
+            "description": "per torus: the EBK energy, the exact doublet mean, the splitting, the relative error, whether it is a genuine doublet and whether the splitting is resolvable in double precision"
+          },
+          "worst_relative_error": {
+            "type": "string",
+            "unit": "relative",
+            "description": "largest disagreement with a doublet mean"
+          },
+          "n_genuine_doublets": {
+            "type": "string",
+            "unit": "count",
+            "description": "how many of the pairs are tunnelling doublets rather than exact +/-m pairs"
           }
         }
       }

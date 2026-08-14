@@ -5,7 +5,7 @@
    Every claim it prints is one the service will stand behind, and the ones it will not make
    are printed as refusals. */
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { server } from '../server/server.mjs';
+import { server, shutdown } from '../server/server.mjs';
 const PORT = 8979, B = `http://127.0.0.1:${PORT}`;
 await new Promise(r => server.listen(PORT, r));
 const post = (p, b) => fetch(B + p, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) }).then(r => r.json());
@@ -51,14 +51,38 @@ const one = await post('/api/v1/labs/smith.wireless_transfer/runs', { input: { d
 console.log(`   power balance closes to ${one.outputs.power_balance_residual.toExponential(2)} W`);
 console.log(`   the abstract coupled-mode figure U = k sqrt(Q1 Q2) = ${one.outputs.U_cmt.toFixed(4)} is reported as a BENCHMARK, not a distance calculation`);
 
-say(6, 'ask what the service will NOT do, and get a straight answer');
-const np = await post('/mcp/call', { tool: 'run_lab', arguments: { lab_id: 'atlas.cmb', input: {} } });
-console.log(`   atlas.cmb → ${np.error.code}: ${np.error.message.slice(0, 96)}`);
+say(6, 'follow the golden thread across three laboratories, over JSON-RPC, in one conversation');
+const rpc = async (method, params) => (await post('/mcp', { jsonrpc: '2.0', id: Math.floor(Math.random() * 1e9), method, params })).result;
+await rpc('initialize', {});
+const anyon = step('anyon', (await rpc('tools/call', { name: 'run_lab',
+  arguments: { lab_id: 'fibonacci.anyons', input: { n: 40 } } })).structuredContent);
+console.log(`   the fusion rule tau x tau = 1 + tau forces d_tau = ${anyon.outputs.d_tau.toFixed(15)}`);
+console.log(`   and the fusion entropy rate is ln d_tau = ${anyon.outputs.log_dim_rate.toFixed(15)} — nothing was assumed, it was fused`);
+const cap = step('capacity', (await rpc('tools/call', { name: 'run_lab',
+  arguments: { lab_id: 'capacity.conditional_selector', input: {} } })).structuredContent);
+console.log(`   the capacity sector puts the boundary at rung N_phi = ${cap.outputs.n_phi.toFixed(6)} ` +
+  `(nearest ${cap.outputs.n_phi_rung.nearest}, on it: ${cap.outputs.n_phi_rung.on_rung})`);
+const rung = step('ladder', (await rpc('tools/call', { name: 'run_lab',
+  arguments: { lab_id: 'fbs.zero_point_ladder', input: { N: cap.outputs.n_phi_rung.nearest } } })).structuredContent);
+console.log(`   routed into the ladder, rung ${cap.outputs.n_phi_rung.nearest} has R = ${rung.outputs.R.toExponential(6)} m ` +
+  `and an action cell of exactly hbar/2 = ${rung.outputs.action.toExponential(6)} J s`);
+console.log('   AND THE HONEST PART: capacity says N_phi_derived = ' + cap.outputs.N_phi_derived +
+  '. The rung is READ OFF a declared registry, not produced by an operator.');
+const nogo = step('no_go', (await rpc('tools/call', { name: 'run_lab',
+  arguments: { lab_id: 'edge.admissibility_no_go', input: {} } })).structuredContent);
+console.log(`   the operator that was supposed to SELECT rung 292 has its root at ${nogo.outputs.n_naive.toFixed(6)}; ` +
+  `reaching 292 would need C_APS = ${nogo.outputs.C_needed.toExponential(2)}`);
+console.log(`   so the service reports selects_292 = ${nogo.outputs.selects_292} and never returns 292 as a result of anything.`);
+
+say(7, 'ask what the service will NOT do, and get a straight answer');
+const npr = await rpc('tools/call', { name: 'run_lab', arguments: { lab_id: 'atlas.cmb', input: {} } });
+const np = npr.structuredContent;
+console.log(`   atlas.cmb → isError = ${npr.isError} · ${np.error.code}: ${np.error.message.slice(0, 96)}`);
 const op = step('open_problems', await get('/api/v1/open-problems'));
 console.log(`   ${op.count} declared open problems, including:`);
 for (const p of op.problems.slice(0, 4)) console.log(`     · ${p.lab_id}: ${p.problem.slice(0, 92)}`);
 
-say(7, 'export a report that another machine can check');
+say(8, 'export a report that another machine can check');
 mkdirSync(new URL('../artifacts/', import.meta.url), { recursive: true });
 report.provenance = { core_version: health.core_version, git_commit: health.git_commit, code_sha256: health.code_sha256 };
 const out = new URL('../artifacts/agent-demo-report.json', import.meta.url);
@@ -66,4 +90,5 @@ writeFileSync(out, JSON.stringify(report, null, 2) + '\n');
 console.log(`   wrote artifacts/agent-demo-report.json · ${report.steps.length} steps · ` +
   `every result carries commit ${health.git_commit.slice(0, 10)} and code hash ${health.code_sha256.slice(0, 12)}`);
 console.log('\ndone — no browser was opened at any point.\n');
+shutdown();
 server.close();

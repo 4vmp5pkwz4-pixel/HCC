@@ -12,6 +12,7 @@ const run = (label, cmd) => {
   catch (e) { console.log('FAILED'); console.log(String(e.stdout || '').slice(-1200)); console.log(String(e.stderr || '').slice(-600)); return false; }
 };
 let ok = true;
+ok = run('the extracted kernels are in step with index.html', 'node scripts/extract-kernels.mjs --check') && ok;
 ok = run('regenerate the API contracts from the core', 'node scripts/build-api.mjs') && ok;
 ok = run('static validator', 'node scripts/validate.mjs') && ok;
 for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.test(f)).sort())

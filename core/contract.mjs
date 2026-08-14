@@ -107,6 +107,10 @@ export function defineLab(spec) {
         falsifiers: spec.falsifiers || [],
         verifiers: spec.verifiers || [],
         open_problems: spec.open_problems || [],
+        /* a visual laboratory that has no kernel of its own can still POINT at the kernels
+           extracted from it, so an agent that lands on a NOT_IMPLEMENTED entry is told where
+           the computation lives instead of concluding there is none */
+        covered_by: spec.covered_by || [],
         cost_hint: spec.cost_hint || 'fast'
       };
     },

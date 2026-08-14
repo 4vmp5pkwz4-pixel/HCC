@@ -1,0 +1,106 @@
+name: Computational core
+
+# Everything that can disagree with something else, checked on every push. The point is not
+# that the tests pass — it is that the atlas, the extracted kernels, the generated contracts
+# and the running service are all forced to say the same thing, and the build stops if any
+# two of them do not.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # the provenance block reads the commit at call time; a shallow clone with no
+          # history still has HEAD, but fetch-depth 0 keeps `git rev-parse` honest
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: The extracted kernels are in step with index.html
+        run: node scripts/extract-kernels.mjs --check
+
+      - name: Regenerate every machine-facing contract from the core
+        run: node scripts/build-api.mjs
+
+      - name: The generated contracts are committed, not merely generatable
+        # a contract that only exists after a build step is a contract nobody can read
+        # in the repository, and a stale one in the repository is worse than none
+        run: |
+          if ! git diff --quiet -- api/openapi.json .well-known/mcp.json api/open-problems.json; then
+            echo "::error::generated contracts differ from what is committed — run scripts/build-api.mjs and commit the result"
+            git --no-pager diff --stat -- api/openapi.json .well-known/mcp.json api/open-problems.json
+            exit 1
+          fi
+
+      - name: Static validator
+        run: node scripts/validate.mjs
+
+      - name: Every verifier
+        run: |
+          fail=0
+          for f in docs/verify-*.cjs; do
+            printf '· %s … ' "$f"
+            if node "$f" > /tmp/out.txt 2>&1; then echo ok; else echo FAILED; tail -30 /tmp/out.txt; fail=1; fi
+          done
+          exit $fail
+
+      - name: API contract and benchmark suite, with the job bounds squeezed
+        # a small HCC_MAX_ACTIVE_JOBS is deliberate: it makes the 429 BUSY path a thing that
+        # is exercised on every run rather than a branch nobody has entered since it was written
+        env:
+          HCC_MAX_ACTIVE_JOBS: 2
+          HCC_MAX_RETAINED_RUNS: 32
+        run: node test/run-tests.mjs
+
+      - name: Headless agent scenario
+        run: node scripts/demo-agent.mjs
+
+      - name: The service starts, answers, and needs no browser to do it
+        run: |
+          node server/server.mjs & pid=$!
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8974/api/v1/health > /tmp/h.json && break
+            sleep 0.25
+          done
+          node -e "
+            const h = require('/tmp/h.json');
+            if (h.status !== 'ok' || h.requires_webgl !== false) { console.error('health is wrong:', h); process.exit(1); }
+            console.log('core ' + h.core_version + ' · ' + h.labs + ' laboratories, ' + h.implemented + ' implemented · ' +
+              'jobs on ' + h.jobs.execution + ' · MCP ' + h.mcp.jsonrpc);
+          "
+          curl -sf -X POST http://127.0.0.1:8974/mcp \
+            -H 'content-type: application/json' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{
+                const t=JSON.parse(s).result.tools.map(x=>x.name);
+                if(t.length!==9){console.error('expected nine MCP tools, got',t);process.exit(1);}
+                console.log('MCP tools: '+t.join(', '));})"
+          kill $pid
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the image, which runs the whole suite inside itself
+        run: docker build -t hcc-core:ci .
+      - name: And the built image serves
+        run: |
+          docker run -d --name hcc -p 8974:8974 hcc-core:ci
+          for i in $(seq 1 40); do
+            curl -sf http://127.0.0.1:8974/api/v1/health > /dev/null && break
+            sleep 0.5
+          done
+          curl -sf http://127.0.0.1:8974/api/v1/health | head -c 400
+          docker rm -f hcc
