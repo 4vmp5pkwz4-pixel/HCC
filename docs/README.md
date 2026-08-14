@@ -3589,6 +3589,49 @@ caught it.
 
 Self-tests 708 → **710**; verifiers 31 → **32**.
 
+## The layer in the other laboratories, and 107 bridges that did not cross (v3.92.0)
+
+v3.91.0 built the census *inside* the anyon laboratory. The other half of the request was
+the layer **in the models where this number does something** — and looking for the place to
+put it turned up a navigation defect across the whole atlas.
+
+### The anyon layer, where the anyon acts
+
+**Quasicrystal.** A live panel showing the substitution a → ab, b → a, its abelianisation
+[[1,1],[1,0]], and the conjugation `P·[[1,1],[1,0]]·P = [[0,1],[1,1]] = N_τ` — the fusion
+matrix of a Fibonacci anyon, exactly. Iterated twenty-four times in the panel: 75,025 +
+46,368 = 121,393 tiles, ratio **1.618033989**. The tile-length ratio of the crystal and the
+quantum dimension d_τ are one Perron eigenvalue, and the Zeckendorf addressing that makes
+the tiling unique is the fusion rule 1 × τ = τ.
+
+**KAM.** A live panel computing the Lagrange numbers: **L(φ) = 2.236068 = √5**, L(√2) =
+2√2, L(√3) = 2√3. Smaller means harder to approximate, no irrational goes below √5, and φ
+sits exactly there because every partial quotient of [1;1,1,…] is 1. Then the line that
+joins the two laboratories: φ = 1 + 1/φ **is** τ × τ = 1 + τ. The golden circle survives to
+K_c = 0.971635406 for the reason the other laboratory calls d_τ — with what is quoted
+(Greene/Aubry, and K_c as a converged constant) marked as quoted.
+
+Each carries a bridge to the census station, so the connection is walkable in both
+directions.
+
+### A bridge that does not move the URL is not a bridge
+
+Looking for where to put those bridges, I clicked an existing one. Measured: from the
+quasicrystal, "→ Topology" **changed the scene and left the route at
+`#/world/s3/lab/qcrys`**, with the breadcrumb still reading "Quasicrystal". So a reload
+came back to the wrong laboratory, the trail lied about where the reader was, and the
+address bar could not be shared.
+
+> **107 bridges did this** — every cross-laboratory link in the atlas — because
+> `setS3View()` moves the scene and `hccGo()` is what writes the route.
+
+All 107 now take the canonical route, the same one an Atlas card takes. Exercised across a
+sample of 26 laboratories: **16 bridges, route agrees with context 16, mismatches 0.** A
+boot self-test reads the handlers rather than trusting the edit: no bridge may still call
+`setS3View`.
+
+Self-tests 710 → **711**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
