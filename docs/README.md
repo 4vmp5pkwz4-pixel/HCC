@@ -3524,6 +3524,71 @@ at the first zero-height ancestor instead of walking the chain to find the one t
 
 Self-tests 707 → **708**.
 
+## Where else this number is, and why (v3.91.0)
+
+`docs/verify-phi-census.cjs` — **9/9**. The atlas has been saying "the golden ladder and
+this particle are the same φ" since v3.76.0, in five or six places, without ever saying
+**what kind of sameness** each one is. That is the difference between a map and a mood.
+
+### One equation, two theorems
+
+> d = 1 + 1/d  ⟺  d² = d + 1
+
+The fusion rule τ×τ = 1+τ and the continued fraction [1;1,1,…] are the **same statement**.
+From the first, φ is a quantum dimension. From the second, φ is the **worst-approximable
+irrational there is** — Lagrange number √5, measured here at 2.236068023 against
+2.236067977, the smallest any number can have (Hurwitz), with √2 at 2√2 and √3 at 2√3 for
+comparison. That is why the golden torus is the last to break in the KAM laboratory: the
+same number, and for once the shared cause is the equation itself.
+
+Getting that measurement right took three corrections, all mine: iterating
+y ↦ 1/(y − ⌊y⌋) on a double invents partial quotients by the twentieth term (L(φ) came out
+2.2371 and L(√2) came out **Infinity**); the max over the sequence is not the limsup;
+and the last value is not either, because √3 = [1;1,2,1,2,…] **oscillates**. Exact
+continued-fraction terms, a q-cap where a double still resolves the gap, and a two-term
+tail.
+
+### The quasicrystal and the anyon share one matrix
+
+The Fibonacci tiling's substitution a → ab, b → a has abelianisation [[1,1],[1,0]], and
+conjugating by the basis swap gives **N_τ = [[0,1],[1,1]] exactly** — not a similar matrix,
+the same matrix in the other order. So the tile-length ratio of a quasicrystal and the
+quantum dimension of a τ anyon are one Perron eigenvalue. Iterating the substitution 24
+times: 75,025 long tiles to 46,368 short, ratio 1.618033989.
+
+And "no two adjacent" is one condition: the fusion-space basis of twelve anyons is in
+explicit bijection with 233 distinct Zeckendorf representations, because the non-adjacency
+that makes Zeckendorf unique **is** the fusion rule 1 × τ = τ.
+
+### Nine appearances, four kinds
+
+| kind | count | what it means |
+|---|---|---|
+| derived | **6** | forced by the mathematics — d_τ, D, e_∞ = 2φ−4, the tile ratio, Zeckendorf, L(φ) = √5 |
+| quoted | **1** | that the golden torus survives longest is Greene/Aubry, cited not proved |
+| conditional | **1** | dim Fus(2N) = round(φ(q/π)/√5) is exact **given** the ansatz |
+| declared | **1** | R_N = ℓ_P φ^N is that ansatz — not derived by anything here |
+
+The new **"where else φ is"** station draws this as a wheel: the equation at the hub, one
+ring per kind, every spoke naming the laboratory it lands in, filterable by kind. Kept
+beside them, refused: 3π⁴ = 292.2273 against the shell integer 292 — 0.08% is nowhere near
+close enough for an integer, and a census that accepts it has stopped being a census.
+
+### Three proofs that were not walkable
+
+`anyon ↔ qcrys`, `anyon ↔ kam` and `anyon ↔ hopf` are now typed relations in the Nexus.
+All three were already **proved** in this atlas and none was an edge in the relation graph
+— and a verified identity that is not in the graph is a fact the reader cannot walk to.
+
+Three faults of my own along the way, each the same shape as one before it: the census
+disc is a *child* of the group whose clear loop empties it, so the station rendered as
+captions floating over nothing (third occurrence, same guard); the relation literals are
+mapped into objects with named fields, so indexing them positionally found zero relations;
+and my verifier's census list drifted one entry behind the atlas's until the assertion
+caught it.
+
+Self-tests 708 → **710**; verifiers 31 → **32**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
