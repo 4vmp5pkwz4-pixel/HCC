@@ -1,0 +1,96 @@
+import { readFileSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineLab, sha256, notImplemented } from './contract.mjs';
+import { STATUS } from './status.mjs';
+import { CORE_VERSION, CORE_SCHEMA } from './version.mjs';
+import mobius from './labs/smith.mobius.mjs';
+import rlc from './labs/smith.fit_series_rlc.mjs';
+import ident from './labs/smith.identify_resonances.mjs';
+import wpt from './labs/smith.wireless_transfer.mjs';
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const ROOT = join(HERE, '..');
+
+/* ── PROVENANCE ──────────────────────────────────────────────────────────────
+   The commit is read at CALL time, not at build time. The manifest used to record the
+   commit of the run before the one that shipped it, because it was generated and then
+   committed; a value that is stale by construction is worse than no value. */
+function gitCommit() {
+  try { return execSync('git rev-parse HEAD', { cwd: ROOT, stdio: ['ignore','pipe','ignore'] }).toString().trim(); }
+  catch { return null; }
+}
+function coreHash() {
+  const files = ['contract.mjs','status.mjs','version.mjs','index.mjs',
+    'math/complex.mjs','math/poly.mjs','math/elliptic.mjs','math/lstsq.mjs',
+    'labs/smith.mobius.mjs','labs/smith.fit_series_rlc.mjs',
+    'labs/smith.identify_resonances.mjs','labs/smith.wireless_transfer.mjs'];
+  return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));
+}
+export const PROVENANCE = Object.freeze({ commit: gitCommit(), code_sha256: coreHash() });
+
+/* the four implemented instruments */
+const IMPLEMENTED = [mobius, rlc, ident, wpt];
+
+/* ── AND THE REST OF THE CATALOGUE, HONESTLY ────────────────────────────────
+   Sixty-nine laboratories are in the visual atlas and have no computational contract yet.
+   They are registered so an agent can SEE them and told NOT_IMPLEMENTED so no agent can
+   mistake a rendering for a result. That is the taxonomy doing its job on the first day. */
+let catalogue = [];
+try { catalogue = JSON.parse(readFileSync(join(ROOT, 'api/manifest.json'), 'utf8')).labs || []; } catch {}
+const stubs = catalogue.map(L => defineLab({
+  id: 'atlas.' + L.id,
+  title: L.title,
+  status: STATUS.NOT_IMPLEMENTED,
+  model_id: 'atlas.' + L.id,
+  summary: `Catalogued in the visual atlas as "${L.title}". It renders; it does not yet compute ` +
+    `through this contract, and this service will not invent a number for it.`,
+  not_implemented_reason: 'no pure computational kernel has been extracted from the visual laboratory yet; ' +
+    'the atlas draws it and the API refuses to return a plausible number in place of one',
+  open_problems: [`extract a pure kernel for "${L.id}" and give it describe/run/sweep/validate/export/cancel`],
+  inputs: [], outputs: [],
+  assumptions: ['none — nothing is computed'],
+  domain_of_validity: ['none — nothing is computed'],
+  evaluate() { throw notImplemented('atlas.' + L.id, 'not implemented'); }
+}));
+
+export const NAMED_OPEN_PROBLEMS = Object.freeze([
+  ['edge.determinants', "primed functional determinants det'|∇²+m²| with tachyonic edge masses are not implemented"],
+  ['edge.harish_chandra', 'the Harish-Chandra edge oscillator character is not implemented'],
+  ['edge.so4_volume', 'the SO(4) volume factor is not implemented'],
+  ['edge.kronecker', 'the Kronecker-limit modular functional is not implemented'],
+  ['edge.H_boundary_q', 'H_{∂,q} does not exist as a fully specified operator; the recursion operator is a registry, not a selector'],
+  ['capacity.selector', 'the capacity selector does not select N = 292; the scheme gate is q0 written backwards'],
+  ['phi.physical_origin', 'no physical operator produces φ; R_N = ℓ_P φ^N is a declared ansatz'],
+  ['desi.covariance', 'no DESI covariance or evidence computation exists in this repository'],
+  ['bianchi.spectral_consequence', 'the spectral consequence of Bianchi IX is not derived'],
+  ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator']
+]);
+export const LABS = new Map([...IMPLEMENTED, ...stubs].map(l => [l.id, l]));
+export const CORE = {
+  schema: CORE_SCHEMA, version: CORE_VERSION, provenance: PROVENANCE,
+  list() { return [...LABS.values()].map(l => { const d = l.describe();
+    return { id: d.id, title: d.title, status: d.status, cost_hint: d.cost_hint,
+      inputs: d.inputs.length, outputs: d.outputs.length }; }); },
+  describe(id) { const l = LABS.get(id); if (!l) return null; return l.describe(); },
+  run(id, input, ctx = {}) { const l = LABS.get(id);
+    if (!l) throw Object.assign(new Error(`no laboratory "${id}"`), { code: 'NOT_FOUND' });
+    return l.run(input, { ...ctx, provenance: PROVENANCE }); },
+  sweep(id, input) { const l = LABS.get(id); if (!l) throw Object.assign(new Error('no such lab'), { code: 'NOT_FOUND' });
+    return l.sweep(input, { provenance: PROVENANCE }); },
+  validate(id) { const l = LABS.get(id); if (!l) throw Object.assign(new Error('no such lab'), { code: 'NOT_FOUND' });
+    return l.validate({}, { provenance: PROVENANCE }); },
+  export(id, result, format) { const l = LABS.get(id); return l.export(result, format); },
+  openProblems() {
+    /* the gaps the atlas has carried in prose for many versions, now machine-readable and
+       served by the SAME function the build script writes to a file — the first version had
+       the build script inject them, so the endpoint and the file disagreed by ten entries */
+    const out = NAMED_OPEN_PROBLEMS.map(([lab_id, problem]) => ({ lab_id, status: STATUS.OPEN, problem }));
+    for (const l of LABS.values()) { const d = l.describe();
+      for (const p of d.open_problems || []) out.push({ lab_id: d.id, status: d.status, problem: p });
+    }
+    return { schema: 'hcc.open-problems/1', core_version: CORE_VERSION,
+      git_commit: PROVENANCE.commit, count: out.length, problems: out };
+  }
+};

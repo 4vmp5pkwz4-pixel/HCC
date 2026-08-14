@@ -1,0 +1,956 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "HCC computational core",
+    "version": "1.0.0",
+    "description": "Every laboratory behind one contract: describe, run, sweep, validate, export, cancel. No browser, no WebGL, no animation frame. Statuses are load-bearing: NOT_IMPLEMENTED is returned in place of a plausible number, and a synthetic self-test is never reported as an empirical result."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "liveness, version, commit and code hash",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/api/v1/labs": {
+      "get": {
+        "summary": "every laboratory in the catalogue",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/api/v1/labs/{id}": {
+      "get": {
+        "summary": "the full contract of one laboratory",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "404": {
+            "description": "no such laboratory"
+          }
+        }
+      }
+    },
+    "/api/v1/labs/{id}/runs": {
+      "post": {
+        "summary": "run it; short work answers inline, slow work returns a job",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object"
+                  },
+                  "async": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "result"
+          },
+          "202": {
+            "description": "job accepted"
+          },
+          "422": {
+            "description": "DOMAIN_ERROR — inputs are refused, never clamped"
+          },
+          "501": {
+            "description": "NOT_IMPLEMENTED — no number is invented"
+          }
+        }
+      }
+    },
+    "/api/v1/labs/{id}/sweep": {
+      "post": {
+        "summary": "one parameter over many values",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "rows"
+          }
+        }
+      }
+    },
+    "/api/v1/labs/{id}/validate": {
+      "get": {
+        "summary": "run the laboratory's own self-tests",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "checks"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}": {
+      "get": {
+        "summary": "job state and result",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ok"
+          },
+          "404": {
+            "description": "no such run"
+          }
+        }
+      },
+      "delete": {
+        "summary": "cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "cancelled"
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{id}/events": {
+      "get": {
+        "summary": "server-sent progress events",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/event-stream"
+          }
+        }
+      }
+    },
+    "/api/v1/open-problems": {
+      "get": {
+        "summary": "every declared gap, machine-readable",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    },
+    "/mcp/call": {
+      "post": {
+        "summary": "invoke an MCP tool over plain HTTP",
+        "responses": {
+          "200": {
+            "description": "ok"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Status": {
+        "type": "string",
+        "enum": [
+          "EXACT",
+          "NUMERICALLY_VERIFIED",
+          "CONDITIONAL",
+          "REFERENCE_MODEL",
+          "SYNTHETIC_ONLY",
+          "OPEN",
+          "NOT_IMPLEMENTED"
+        ],
+        "description": "EXACT: closed form, or an identity that holds to machine precision by construction | NUMERICALLY_VERIFIED: no closed form, but reproduced by an independent numerical route inside a stated tolerance | CONDITIONAL: exact GIVEN a declared assumption or ansatz that this atlas does not derive | REFERENCE_MODEL: a standard abstract model, useful as a benchmark, NOT a prediction about a physical device | SYNTHETIC_ONLY: exercised only against data this software generated; no external measurement has ever been used | OPEN: the mathematics is stated and the object does not yet exist; no number is returned | NOT_IMPLEMENTED: declared in the catalogue, no computational contract yet; returns no number at all"
+      },
+      "Result": {
+        "type": "object",
+        "description": "the run envelope",
+        "required": [
+          "schema",
+          "run_id",
+          "lab_id",
+          "status",
+          "outputs"
+        ],
+        "properties": {
+          "schema": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "lab_id": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "equation_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "$ref": "#/components/schemas/Status"
+          },
+          "core_version": {
+            "type": "string"
+          },
+          "git_commit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "code_sha256": {
+            "type": "string"
+          },
+          "data_sha256": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "inputs": {
+            "type": "object"
+          },
+          "input_units": {
+            "type": "object"
+          },
+          "seed": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "precision": {
+            "type": "string"
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "domain_of_validity": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "outputs": {
+            "type": "object"
+          },
+          "output_units": {
+            "type": "object"
+          },
+          "uncertainty": {
+            "type": "object"
+          },
+          "covariance": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "residuals": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "diagnostics": {
+            "type": "object"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "verifiers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "started_at": {
+            "type": "string"
+          },
+          "finished_at": {
+            "type": "string"
+          },
+          "duration_ms": {
+            "type": "number"
+          }
+        }
+      },
+      "smith.mobius.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "z_re": {
+            "type": "number",
+            "minimum": -1000000,
+            "maximum": 1000000,
+            "unit": "dimensionless",
+            "description": "real part of z = Z/Z0"
+          },
+          "z_im": {
+            "type": "number",
+            "minimum": -1000000,
+            "maximum": 1000000,
+            "unit": "dimensionless",
+            "description": "imaginary part of z = Z/Z0"
+          },
+          "theta": {
+            "type": "number",
+            "minimum": -6.283185307179586,
+            "maximum": 6.283185307179586,
+            "unit": "rad",
+            "description": "rotation angle of the Riemann sphere about the y axis"
+          }
+        }
+      },
+      "smith.mobius.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "w_re",
+          "w_im",
+          "w_sphere_re",
+          "w_sphere_im",
+          "route_disagreement",
+          "gamma_re",
+          "gamma_im",
+          "gamma_abs",
+          "passive",
+          "unitarity_residual",
+          "cross_ratio_residual",
+          "conformality_residual"
+        ],
+        "properties": {
+          "w_re": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "real part of the rotated point, plane route"
+          },
+          "w_im": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "imaginary part of the rotated point, plane route"
+          },
+          "w_sphere_re": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "real part via the sphere route"
+          },
+          "w_sphere_im": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "imaginary part via the sphere route"
+          },
+          "route_disagreement": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "chordal distance between the two routes; 0 iff the map is a rigid rotation"
+          },
+          "gamma_re": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "reflection coefficient, real part"
+          },
+          "gamma_im": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "reflection coefficient, imaginary part"
+          },
+          "gamma_abs": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "|Gamma|; <= 1 exactly when the load is passive"
+          },
+          "passive": {
+            "type": "boolean",
+            "unit": null,
+            "description": "whether Re z >= 0"
+          },
+          "unitarity_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "|det M - 1|, the SU(2) condition"
+          },
+          "cross_ratio_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "change in a test cross-ratio under the map"
+          },
+          "conformality_residual": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "departure from angle preservation, measured on a small triad"
+          }
+        }
+      },
+      "smith.fit_series_rlc.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "f_hz",
+          "z_re",
+          "z_im"
+        ],
+        "properties": {
+          "f_hz": {
+            "type": "array",
+            "unit": "Hz",
+            "description": "frequency samples"
+          },
+          "z_re": {
+            "type": "array",
+            "unit": "ohm",
+            "description": "real part of Z at each frequency"
+          },
+          "z_im": {
+            "type": "array",
+            "unit": "ohm",
+            "description": "imaginary part of Z at each frequency"
+          },
+          "holdout_fraction": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 0.6,
+            "unit": "dimensionless",
+            "description": "contiguous fraction of the band withheld from the fit — blocked, not random, because neighbouring frequency points are not independent"
+          }
+        }
+      },
+      "smith.fit_series_rlc.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "R",
+          "L",
+          "C",
+          "f0",
+          "Q",
+          "rms_residual_train",
+          "rms_residual_holdout",
+          "condition_estimate",
+          "n_train",
+          "n_holdout"
+        ],
+        "properties": {
+          "R": {
+            "type": "string",
+            "unit": "ohm",
+            "description": "series resistance"
+          },
+          "L": {
+            "type": "string",
+            "unit": "H",
+            "description": "series inductance"
+          },
+          "C": {
+            "type": "string",
+            "unit": "F",
+            "description": "series capacitance"
+          },
+          "f0": {
+            "type": "string",
+            "unit": "Hz",
+            "description": "resonant frequency 1/(2 pi sqrt(LC))"
+          },
+          "Q": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "quality factor sqrt(L/C)/R"
+          },
+          "rms_residual_train": {
+            "type": "string",
+            "unit": "ohm",
+            "description": "RMS residual on the fitted points"
+          },
+          "rms_residual_holdout": {
+            "type": "string",
+            "unit": "ohm",
+            "description": "RMS residual on the band the fit never saw"
+          },
+          "condition_estimate": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "conditioning of the design matrix"
+          },
+          "n_train": {
+            "type": "string",
+            "unit": "count",
+            "description": "points used"
+          },
+          "n_holdout": {
+            "type": "string",
+            "unit": "count",
+            "description": "points withheld"
+          }
+        }
+      },
+      "smith.identify_resonances.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "touchstone": {
+            "type": "string",
+            "unit": null,
+            "description": "Touchstone 1.0 text; leave empty to pass f_hz/s_re/s_im directly"
+          },
+          "f_hz": {
+            "type": "array",
+            "unit": "Hz",
+            "description": "frequency samples, if not using a Touchstone file"
+          },
+          "s_re": {
+            "type": "array",
+            "unit": "dimensionless",
+            "description": "real part of the transfer parameter"
+          },
+          "s_im": {
+            "type": "array",
+            "unit": "dimensionless",
+            "description": "imaginary part of the transfer parameter"
+          },
+          "order_max": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 24,
+            "unit": "count",
+            "description": "largest rational order to consider"
+          },
+          "calibrated": {
+            "type": "boolean",
+            "unit": null,
+            "description": "assert that the data is already calibrated; if false every result is labelled UNCALIBRATED"
+          },
+          "detection_threshold": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 1,
+            "unit": "dimensionless",
+            "description": "minimum modal participation for a pole to be reported as a detected mode"
+          },
+          "bootstrap": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 400,
+            "unit": "count",
+            "description": "bootstrap resamples for confidence intervals; 0 disables"
+          },
+          "seed": {
+            "type": "number",
+            "unit": "dimensionless",
+            "description": "seed for the bootstrap"
+          }
+        }
+      },
+      "smith.identify_resonances.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "n_modes_resolvable",
+          "modes",
+          "order_selected",
+          "aic",
+          "bic",
+          "rms_residual_train",
+          "rms_residual_holdout",
+          "stable",
+          "passive_data",
+          "band_hz",
+          "resolution_hz",
+          "calibration_state",
+          "bootstrap_intervals",
+          "claim"
+        ],
+        "properties": {
+          "n_modes_resolvable": {
+            "type": "string",
+            "unit": "count",
+            "description": "number of resolvable modes detected inside the band"
+          },
+          "modes": {
+            "type": "array",
+            "unit": "mixed",
+            "description": "per-mode f0 (Hz), Q, linewidth (Hz), residue magnitude, participation"
+          },
+          "order_selected": {
+            "type": "string",
+            "unit": "count",
+            "description": "rational order chosen by blocked cross-validation"
+          },
+          "aic": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "Akaike information criterion at the selected order"
+          },
+          "bic": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "Bayesian information criterion at the selected order"
+          },
+          "rms_residual_train": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "RMS fit residual"
+          },
+          "rms_residual_holdout": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "RMS residual on the blocked hold-out"
+          },
+          "stable": {
+            "type": "boolean",
+            "unit": null,
+            "description": "all poles in the left half plane"
+          },
+          "passive_data": {
+            "type": "boolean",
+            "unit": null,
+            "description": "whether every measured |S| <= 1"
+          },
+          "band_hz": {
+            "type": "array",
+            "unit": "Hz",
+            "description": "the band the claim is restricted to"
+          },
+          "resolution_hz": {
+            "type": "string",
+            "unit": "Hz",
+            "description": "sample spacing; poles closer than this are not resolvable"
+          },
+          "calibration_state": {
+            "type": "string",
+            "unit": null,
+            "description": "CALIBRATED or UNCALIBRATED — never inferred"
+          },
+          "bootstrap_intervals": {
+            "type": "array",
+            "unit": "Hz",
+            "description": "per-mode 95% interval on f0 from residual resampling; null when bootstrap = 0"
+          },
+          "claim": {
+            "type": "string",
+            "unit": null,
+            "description": "the exact, bounded statement this run supports"
+          }
+        }
+      },
+      "smith.wireless_transfer.input": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [],
+        "properties": {
+          "r1_m": {
+            "type": "number",
+            "minimum": 0.0001,
+            "maximum": 10,
+            "unit": "m",
+            "description": "radius of coil 1"
+          },
+          "r2_m": {
+            "type": "number",
+            "minimum": 0.0001,
+            "maximum": 10,
+            "unit": "m",
+            "description": "radius of coil 2"
+          },
+          "a1_m": {
+            "type": "number",
+            "minimum": 1e-7,
+            "maximum": 0.1,
+            "unit": "m",
+            "description": "wire radius of coil 1"
+          },
+          "a2_m": {
+            "type": "number",
+            "minimum": 1e-7,
+            "maximum": 0.1,
+            "unit": "m",
+            "description": "wire radius of coil 2"
+          },
+          "N1": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000,
+            "unit": "count",
+            "description": "turns on coil 1"
+          },
+          "N2": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 1000,
+            "unit": "count",
+            "description": "turns on coil 2"
+          },
+          "d_m": {
+            "type": "number",
+            "minimum": 0.0001,
+            "maximum": 100,
+            "unit": "m",
+            "description": "coaxial separation"
+          },
+          "R1_ohm": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 1000000,
+            "unit": "ohm",
+            "description": "loss resistance of coil 1"
+          },
+          "R2_ohm": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 1000000,
+            "unit": "ohm",
+            "description": "loss resistance of coil 2"
+          },
+          "Rs_ohm": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 1000000,
+            "unit": "ohm",
+            "description": "source resistance"
+          },
+          "RL_ohm": {
+            "type": "number",
+            "minimum": 0.000001,
+            "maximum": 1000000,
+            "unit": "ohm",
+            "description": "load resistance"
+          },
+          "f_hz": {
+            "type": "number",
+            "minimum": 1,
+            "maximum": 100000000000,
+            "unit": "Hz",
+            "description": "drive frequency"
+          },
+          "V_source": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "unit": "V",
+            "description": "source EMF amplitude"
+          },
+          "tune_to_resonance": {
+            "type": "boolean",
+            "unit": null,
+            "description": "choose C1, C2 so that each loop resonates at f"
+          }
+        }
+      },
+      "smith.wireless_transfer.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "M_H",
+          "k",
+          "L1_H",
+          "L2_H",
+          "Q1",
+          "Q2",
+          "eta",
+          "P_in_W",
+          "P_load_W",
+          "P_loss_coil1_W",
+          "P_loss_coil2_W",
+          "P_loss_source_W",
+          "power_balance_residual",
+          "S11_db",
+          "S21_db",
+          "U_cmt",
+          "eta_cmt_benchmark",
+          "near_field_ok",
+          "kd"
+        ],
+        "properties": {
+          "M_H": {
+            "type": "string",
+            "unit": "H",
+            "description": "mutual inductance at this geometry and separation"
+          },
+          "k": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "coupling coefficient M/sqrt(L1 L2)"
+          },
+          "L1_H": {
+            "type": "string",
+            "unit": "H",
+            "description": "self-inductance of coil 1"
+          },
+          "L2_H": {
+            "type": "string",
+            "unit": "H",
+            "description": "self-inductance of coil 2"
+          },
+          "Q1": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "loaded quality factor of coil 1"
+          },
+          "Q2": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "loaded quality factor of coil 2"
+          },
+          "eta": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "delivered load power divided by real input power"
+          },
+          "P_in_W": {
+            "type": "string",
+            "unit": "W",
+            "description": "real power delivered by the source"
+          },
+          "P_load_W": {
+            "type": "string",
+            "unit": "W",
+            "description": "power dissipated in the load"
+          },
+          "P_loss_coil1_W": {
+            "type": "string",
+            "unit": "W",
+            "description": "ohmic loss in coil 1"
+          },
+          "P_loss_coil2_W": {
+            "type": "string",
+            "unit": "W",
+            "description": "ohmic loss in coil 2"
+          },
+          "P_loss_source_W": {
+            "type": "string",
+            "unit": "W",
+            "description": "loss in the source resistance"
+          },
+          "power_balance_residual": {
+            "type": "string",
+            "unit": "W",
+            "description": "input minus the sum of every sink; must be ~0"
+          },
+          "S11_db": {
+            "type": "string",
+            "unit": "dB",
+            "description": "input reflection"
+          },
+          "S21_db": {
+            "type": "string",
+            "unit": "dB",
+            "description": "forward transmission"
+          },
+          "U_cmt": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "k sqrt(Q1 Q2) — the ABSTRACT coupled-mode figure of merit"
+          },
+          "eta_cmt_benchmark": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "U^2/(1+sqrt(1+U^2))^2 — a BENCHMARK, not a device prediction"
+          },
+          "near_field_ok": {
+            "type": "boolean",
+            "unit": null,
+            "description": "whether d is small compared with the wavelength"
+          },
+          "kd": {
+            "type": "string",
+            "unit": "dimensionless",
+            "description": "2 pi f d / c — the near-field smallness parameter"
+          }
+        }
+      }
+    }
+  }
+}

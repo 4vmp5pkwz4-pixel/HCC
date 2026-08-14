@@ -3632,6 +3632,94 @@ boot self-test reads the handlers rather than trusting the edit: no bridge may s
 
 Self-tests 710 → **711**.
 
+## The computational core, and what it does not yet cover (v3.93.0 · core 1.0.0)
+
+An agent-first refactor. The atlas is unchanged; underneath it there is now a pure core that
+a machine can drive with no browser at all. `docs/AGENTS.md` is the machine-facing document.
+
+### The audit findings, reproduced first
+
+| finding | reproduced |
+|---|---|
+| 73 labs, 9 typed instruments | yes |
+| `HCC_API` lives only inside the 4 MB page | yes |
+| manifest publishes outputs as `"0","1",…` | yes — `Object.keys` of an array in `instruments.list()` |
+| manifest `units: null` | yes |
+| manifest commit ≠ built commit | yes — `079c7bf` recorded against `42b77c7` |
+
+All five are fixed. Outputs are named with types and units, the commit is read at call time
+rather than at build time, and `/api/v1/labs/{id}` publishes JSON Schema for inputs and
+outputs.
+
+### What was built
+
+**`core/`** — pure ESM, no DOM, no Three.js, no animation frame. Complex arithmetic, a
+Durand–Kerner root finder (exact on a test cubic), AGM elliptic integrals (matching
+reference K(0.5), E(0.5) to 10 digits) and least squares with a condition estimate.
+
+**One contract for every laboratory** — `describe · run · sweep · validate · export ·
+cancel` — and a 28-field result envelope carrying run id, core version, git commit, code
+SHA-256, model and equation ids, inputs *with units*, seed, precision, assumptions, domain
+of validity, outputs *with units*, uncertainty, covariance, residuals, diagnostics,
+warnings, verifiers and artifacts.
+
+**An HTTP + MCP service** with every route required: health, labs, lab, runs, run, cancel,
+SSE events, sweep, validate, open-problems, `/openapi.json` (OpenAPI 3.1),
+`/.well-known/mcp.json` (8 tools), `/mcp/call`, and `/` → `/HCC/`.
+
+**Möbius–Smith split into four instruments:**
+
+| instrument | status | what it is |
+|---|---|---|
+| `smith.mobius` | EXACT | plane and sphere routes computed independently; disagreement returned as a residual |
+| `smith.fit_series_rlc` | NUMERICALLY_VERIFIED | blocked hold-out, conditioning, matched-load negative control |
+| `smith.identify_resonances` | **SYNTHETIC_ONLY** | Touchstone 1.0, Levy + Sanathanan–Koerner, order by blocked hold-out, bootstrap intervals |
+| `smith.wireless_transfer` | **REFERENCE_MODEL** | Maxwell mutual inductance, coupled-RLC two-port, power balance |
+
+### The numbers
+
+- Noiseless RLC benchmark: **R = 32.000000000 Ω, L = 1.400000000 µH, C = 470.000000 pF,
+  f₀ = 6.204505657 MHz, Q = 1.705552572** — max relative error 3.3e−15.
+- Pole recovery: 1 pole **0.0e+0**, 2 poles 3.9e−14, **5 poles all found** at 4.9e−8.
+- Bootstrap coverage: the 95% interval covered the true f₀ in **18 of 20** noisy trials.
+- Mutual inductance approaches the dipole law to 2.5e−4 at d = 12 m; power balance closes
+  to 8.7e−19 W; efficiency never exceeds 1 over the sweep.
+- **UI and API agree bitwise** on `smith.mobius`: |Δ| = 0 (the only instrument that exists
+  in both; parity for the rest is untestable because the rest do not exist in the core).
+
+### Statuses are load-bearing
+
+An unimplemented laboratory returns **501 NOT_IMPLEMENTED** with no number, through HTTP and
+through MCP. An out-of-domain input returns **422 DOMAIN_ERROR** — refused, never clamped.
+`smith.identify_resonances` never says "all resonances were found"; it says *"all resolvable
+modes inside the stated band, for the stated model class, at the stated detection threshold
+and resolution"*, and labels itself UNCALIBRATED because no calibration exists in this build.
+
+`api/open-problems.json` carries **92** machine-readable gaps, including the named ones the
+atlas had only ever stated in prose: the edge determinants, the Harish–Chandra character,
+the SO(4) volume, the Kronecker functional, the non-existent H_{∂,q}, the capacity selector,
+the physical origin of φ, DESI covariance, and the Bianchi CSV that is not byte-reproducible.
+
+### What this is NOT
+
+This is a **working vertical slice, not the finished refactor**, and the ratio is published
+in `/api/v1/health` rather than buried:
+
+- **4 of 77 laboratories have a computational kernel.** The other 73 are catalogued and
+  return NOT_IMPLEMENTED. Extracting 73 kernels from the visual atlas is the bulk of the
+  remaining work and none of it is done.
+- **No SOLT/TRL calibration or de-embedding.** Declared, refused, listed as open.
+- **No full-wave solver.** The near-field model stops at kd > 0.3 and says so.
+- **No lateral offset, tilt, shields, obstacles, ferrite, proximity or skin effect.**
+- **No WASM, no Parquet, no PNG or GLB artifacts** — export is JSON and CSV.
+- **No external measured data anywhere in this repository.** Every fixture is synthetic and
+  labelled synthetic in its own comments.
+- **The Bianchi IX CSV is still not byte-reproducible**; it is recorded as an open problem
+  rather than quietly regenerated.
+
+`node scripts/ci.mjs` rebuilds every artifact from scratch, runs all 32 verifiers, the 22
+API contract and benchmark checks and the headless agent scenario: **all green**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
