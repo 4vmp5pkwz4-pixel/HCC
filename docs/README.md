@@ -3398,6 +3398,69 @@ golden chain, momentum & sector, category axioms, compile a gate, interferometer
 
 Self-tests 704 → **706**; verifiers 30 → **31**.
 
+## The solvers come off the main thread (v3.89.0)
+
+The audit's P2-15, and the one item on the remaining list with a concrete measurable
+payoff. An exact diagonalisation is honest work and it has no business happening between
+two frames.
+
+### Measured, before
+
+Sampling `requestAnimationFrame` while each station computes:
+
+| action | worst frame gap |
+|---|---|
+| open the golden chain | 407 ms |
+| ring N = 14 | 450 ms |
+| enter the momentum station | 633 ms |
+| **compile a gate to depth 13** | **1,179 ms** |
+
+### The source-of-truth problem, and how this avoids it
+
+A worker in a single-file application usually means a second copy of the numerics inside a
+template string — and a second copy drifts. This atlas has met that failure four times in
+other guises during this session alone. So the worker is built from the functions
+**themselves**, via `Function.prototype.toString()`: it runs the same source text the main
+thread runs, because it *is* the same source text. Nothing to keep in sync, and the check
+that the two agree therefore tests the transport rather than the mathematics.
+
+The synchronous functions stay exactly where they are — they are the fallback when Workers
+are unavailable, what the boot self-tests call, and what the verifiers mirror.
+
+### The bug that made it useless, and the invariant that closes it
+
+The first version shipped an **open dependency set**: `fibMM` calls `fibAdd` and `fibMul`,
+neither was shipped, the worker loaded cleanly, accepted the job and threw
+`fibAdd is not defined` — and the `catch` that falls back to the main thread **swallowed
+the message**. The only symptom was that nothing got faster. A silent fallback is a worse
+bug than a loud failure.
+
+Two repairs, not one: `hccSolveAsync` now records why it fell back and
+`HCC_API.ui.worker()` reports it; and a boot self-test **checks the closure** instead of me
+re-reading the sources — every solver identifier referenced in the generated source must be
+defined inside it. That check immediately caught a second name, `chainSpecCache`, declared
+as the second declarator of a `const a=…, b=…`, which its first matcher could not see.
+
+### Measured, after — A/B on the same machine
+
+`?worker=0` forces the old behaviour so this is reproducible rather than believed. The
+harness has no GPU and renders at 3–4 fps in every world *idle*, so the absolute numbers
+are the environment's; the **excess over its own idle floor** is the result.
+
+| | idle floor | peak while compiling | **excess** | answer |
+|---|---|---|---|---|
+| `?worker=0` | 317 ms | 1,171 ms | **854 ms** | 0.029155263 |
+| default | 328 ms | 355 ms | **27 ms** | 0.029155263 |
+
+**854 ms → 27 ms, and the same answer to every digit.** Each station now draws a
+"computing" state for one frame and rebuilds itself when the result lands.
+
+One consequence worth recording: a structured clone copies arrays, so the spectrum
+station's `q === S.ground` identity tests silently stopped marking anything. Positions
+survive the crossing and identities do not, so the marks are carried as indices now.
+
+Self-tests 706 → **707**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

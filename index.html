@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="bridge-2026.08.13.24">
+<html lang="en" data-hcc-build="offthread-2026.08.14.25">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="bridge-2026.08.13.24">
+<meta name="hcc-build" content="offthread-2026.08.14.25">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1886,7 +1886,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.88.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.89.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2079,8 +2079,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.88.0';
-const HCC_BUILD='bridge-2026.08.13.24';
+const HCC_VERSION='3.89.0';
+const HCC_BUILD='offthread-2026.08.14.25';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6977,6 +6977,30 @@ function runSelfTests(){
       ok('AND EVERY RUNG OF THE φ-LADDER IS A FUSION SPACE, which the atlas has been asserting since v3.76.0 and can now show as an exact integer identity: q(N) = π φ^{2N}, and the fusion space of 2N τ has dimension F_{2N+1} = round(φ·(q/π)/√5). At the manuscript’s rung that is F₅₈₅, a 122-digit number, so u★ = ln π + 584 ln φ − ln(1 + π/50) reads as one π, the entropy of 584 anyons, and the valuation gate. A READING, NOT A DERIVATION — nothing here shows the horizon carries them, which would need the edge algebra to produce the category, and it does not',
         fibBig(21)===10946n && fibBig(585).toString().length===122,
         `N = 10 → 20 τ → F₂₁ = ${fibBig(21)} · rung 292 → 584 τ → F₅₈₅ has ${fibBig(585).toString().length} digits · the cone the station draws opens at ln φ per rung because that IS the entropy per anyon`);
+
+      { /* the fault that made the worker useless was an OPEN dependency set: fibMM calls
+           fibAdd and fibMul and neither was shipped, so the worker threw on its first job
+           and the catch quietly ran the work on the main thread instead. Reading the
+           sources again is not a fix; checking the closure is. */
+        let src='', missing=[];
+        try{ src=hccWorkerSource(); }catch(e){ missing=['(source failed: '+e.message+')']; }
+        if(src){
+          const used=new Set(), re=/\b((?:fib|chain|FIB|CHAIN|PHI)[A-Za-z_$0-9]*)\s*[({[.]/g;
+          let m; while((m=re.exec(src))) used.add(m[1]);
+          for(const nm of used){
+            /* a name can be declared as `const x=` OR as the second declarator of
+               `const a=…, x=…` — the first version of this matcher only saw the first,
+               and reported chainSpecCache as unshipped when it was right there */
+            const decl=new RegExp('(?:function|const|let|var)\\s+'+nm+'\\b|[,(]\\s*'+nm+'\\s*=');
+            if(!decl.test(src)) missing.push(nm);
+          }
+        }
+        ok('THE WORKER’S DEPENDENCY SET IS CLOSED, and that is checked rather than re-read. The heavy solvers now run off the main thread in a worker built from the FUNCTIONS THEMSELVES via Function.prototype.toString — the worker runs the same source text the main thread runs, so there is no second copy to drift. The first version shipped an OPEN set: fibMM calls fibAdd and fibMul, neither was shipped, the worker threw on its first job, and the catch that falls back to the main thread swallowed the message — so the only symptom was that nothing got faster. A silent fallback is worse than a loud failure',
+          missing.length===0,
+          missing.length===0
+            ? `${HCC_WORKER_SRC_FNS.length} functions and their constants, ${src.length} bytes, every referenced solver identifier defined inside the worker`
+            : `UNSHIPPED: ${missing.join(', ')}`);
+      }
 
       const g8=fibCompile('H',8), g11=fibCompile('H',11);
       ok('BRAIDING IS UNIVERSAL, AND THE LABORATORY EXERCISES IT RATHER THAN CITING IT. Searching braid words for the best approximation to a Hadamard, the operator distance falls as the words get longer — 0.119 at length ≤ 8, 0.086 at ≤ 11, 0.029 at ≤ 13. That is what “Fibonacci anyons are universal for quantum computation” MEANS operationally: any gate, to any accuracy, by moving particles around one another and nothing else',
@@ -15891,6 +15915,46 @@ function chainSolve(N){
   out.cx=out.cv/out.xv;
   chainCache.set(N,out); return out;
 }
+/* ── ASKED FOR NOW, ANSWERED WHEN IT IS READY ────────────────────────────────
+   Each accessor returns the cached answer immediately when there is one, and otherwise
+   returns null after starting the work on the worker. The station draws a "computing"
+   state for that one frame and rebuilds itself when the result lands, so the scene keeps
+   moving through a diagonalisation that used to stop it for half a second. */
+const chainPending=new Set(), specPending=new Set(), gatePending=new Set();
+function chainReady(N){
+  if(chainCache.has(N)) return chainCache.get(N);
+  if(!chainPending.has(N)){ chainPending.add(N);
+    hccSolveAsync({task:'chain',N},()=>chainSolve(N)).then(r=>{
+      chainPending.delete(N); if(r) chainCache.set(N,r);
+      if(state.anyonView==='chain'){ try{ anyonChainBuild(); buildCtl(); }catch(e){} }
+    },()=>{ chainPending.delete(N); }); }
+  return null;
+}
+function specReady(N){
+  if(chainSpecCache.has(N)) return chainSpecCache.get(N);
+  if(!specPending.has(N)){ specPending.add(N);
+    hccSolveAsync({task:'spectrum',N},()=>chainSpectrum(N)).then(r=>{
+      specPending.delete(N); if(r) chainSpecCache.set(N,r);
+      if(state.anyonView==='spec'){ try{ anyonSpecBuild(); buildCtl(); }catch(e){} }
+    },()=>{ specPending.delete(N); }); }
+  return null;
+}
+function gateReady(key,len){
+  const ck=key+':'+len;
+  if(gateCache.has(ck)) return gateCache.get(ck);
+  if(!gatePending.has(ck)){ gatePending.add(ck);
+    hccSolveAsync({task:'gate',T:GATE_TARGETS[key].m(),len,S1:FIB_S1,S2:FIB_S2},
+      ()=>fibCompileM(GATE_TARGETS[key].m(),len,FIB_S1,FIB_S2)).then(r=>{
+      gatePending.delete(ck); if(r){ r.target=key; gateCache.set(ck,r); }
+      if(state.anyonView==='gate'){ try{ anyonGateBuild(); buildCtl(); }catch(e){} }
+    },()=>{ gatePending.delete(ck); }); }
+  return null;
+}
+/* one honest placeholder, used by every station that is waiting */
+function anyonBusyLabel(group,store,what){
+  const l=mkLabel(`${TT('computing','вычисляется','wird berechnet')} ${what} …`,'label major');
+  l.position.set(0,0,0); group.add(l); store.push(l);
+}
 const CHAIN_R=1.95;
 function anyonChainBuild(){
   for(const c of [...anyonChainRing.children]){ anyonChainRing.remove(c);
@@ -15898,7 +15962,8 @@ function anyonChainBuild(){
   for(const c of [...anyonChain.children]){ if(c===anyonChainRing) continue; anyonChain.remove(c);
     if(c.geometry)c.geometry.dispose(); if(c.material)c.material.dispose(); }
   for(const l of anyonChainLabels){ (l.parent||anyonChain).remove(l); disposeCSS2D(l); } anyonChainLabels=[];
-  const N=chainN, S=chainSolve(N);
+  const N=chainN, S=chainReady(N);
+  if(!S){ anyonBusyLabel(anyonChain,anyonChainLabels,`N = ${N}`); return; }
   const P=k=>{ const a=2*Math.PI*k/N-Math.PI/2;
     return new THREE.Vector3(CHAIN_R*Math.cos(a),CHAIN_R*Math.sin(a),0); };
   /* the ring of anyons */
@@ -16068,7 +16133,11 @@ function chainSpectrum(N){
   const d1=Math.round((trY+D/PHI_R)/Math.sqrt(5)), dt=D-d1;
   const E0=out[0].E;
   const T2=out.find(q=>Math.abs(q.s)===2&&q.y>0);   /* the stress tensor: spin ±2, ground sector */
-  const res={N,D,out,E0,d1,dt,trY,
+  /* INDICES, not object references. A structured clone across a worker boundary copies
+     the array — so `q === S.ground` would be false for every element and the ground state
+     would never be marked. Positions survive the crossing; identities do not. */
+  const groundIdx=0, stressIdx=T2?out.indexOf(T2):-1;
+  const res={N,D,out,E0,d1,dt,trY,groundIdx,stressIdx,
     censusExact:Math.abs((trY+D/PHI_R)/Math.sqrt(5)-d1),
     vStress:T2?(T2.E-E0)*N/(2*Math.PI)/2:NaN, stress:T2||null,
     ground:out[0], first:out[1]};
@@ -16103,7 +16172,8 @@ function anyonSpecBuild(){
   for(const c of [...anyonSpec.children]){ if(c===anyonSpecCyl) continue; anyonSpec.remove(c);
     if(c.geometry)c.geometry.dispose(); if(c.material)c.material.dispose(); }
   for(const l of anyonSpecLabels){ (l.parent||anyonSpec).remove(l); disposeCSS2D(l); } anyonSpecLabels=[];
-  const N=Math.min(chainN,CHAIN_SPEC_MAX), S=chainSpectrum(N);
+  const N=Math.min(chainN,CHAIN_SPEC_MAX), S=specReady(N);
+  if(!S){ anyonBusyLabel(anyonSpec,anyonSpecLabels,`N = ${N}`); return; }
   const keep=S.out.slice(0,Math.min(S.out.length,56));
   const Emax=keep[keep.length-1].E, hgt=E=>-SPEC_H/2+SPEC_H*(E-S.E0)/Math.max(1e-9,Emax-S.E0);
   /* the zone itself: a circle of momenta, drawn at the ground-state height */
@@ -16129,7 +16199,7 @@ function anyonSpecBuild(){
   for(const q of keep){
     const vac=q.y>0, on=(specSector==='all')||(specSector==='vac')===vac;
     const a=2*Math.PI*q.m/N, y=hgt(q.E);
-    const isG=(q===S.ground), isT=(S.stress&&q===S.stress);
+    const isG=(keep.indexOf(q)===S.groundIdx), isT=(S.stressIdx>=0&&keep.indexOf(q)===S.stressIdx);
     const r=isG?0.085:(isT?0.075:0.042);
     const mesh=new THREE.Mesh(new THREE.SphereGeometry(r,isG||isT?16:10,isG||isT?12:8),
       new THREE.MeshBasicMaterial({color:vac?0xd4af6a:0xc9a2ff,
@@ -16234,8 +16304,12 @@ function fibGateDistance(U,T){
 let gateTarget='H', gateLen=11, gateCache=new Map();
 function fibCompile(key,maxLen){
   const ck=key+':'+maxLen; if(gateCache.has(ck)) return gateCache.get(ck);
-  const T=GATE_TARGETS[key].m();
-  const S1=FIB_S1, S2=FIB_S2;
+  const out=fibCompileM(GATE_TARGETS[key].m(),maxLen,FIB_S1,FIB_S2);
+  out.target=key; gateCache.set(ck,out); return out;
+}
+/* the search itself, taking the target and the generators as DATA rather than reading
+   module constants — which is what lets the identical source text run inside a worker */
+function fibCompileM(T,maxLen,S1,S2){
   const dag=M=>[[{re:M[0][0].re,im:-M[0][0].im},{re:M[1][0].re,im:-M[1][0].im}],
                 [{re:M[0][1].re,im:-M[0][1].im},{re:M[1][1].re,im:-M[1][1].im}]];
   const GEN=[['1',S1],['2',S2],['a',dag(S1)],['b',dag(S2)]];
@@ -16252,8 +16326,96 @@ function fibCompile(key,maxLen){
     }
   };
   walk([[fibC(1),fibC(0)],[fibC(0),fibC(1)]],'',maxLen);
-  const out={...best,trail,target:key,maxLen};
-  gateCache.set(ck,out); return out;
+  return {...best,trail,maxLen};
+}
+/* ── THE SOLVERS COME OFF THE MAIN THREAD ────────────────────────────────────
+   MEASURED, by sampling requestAnimationFrame while each station computes: the atlas
+   stopped drawing for 407 ms opening the golden chain, 450 ms at N = 14, 633 ms entering
+   the momentum station, and 1,179 ms compiling a gate to depth 13. Over a second of a
+   frozen scene, on a desktop; a phone is worse. An exact diagonalisation is honest work
+   and it has no business happening between two frames.
+
+   THE SOURCE OF TRUTH PROBLEM, AND HOW THIS AVOIDS IT. A worker in a single-file
+   application usually means a second copy of the numerics inside a template string, and
+   a second copy drifts — this atlas has met that failure four times in other guises. So
+   the worker is built from the functions THEMSELVES, via Function.prototype.toString():
+   the worker runs the same source text the main thread runs, because it IS the same
+   source text. There is nothing to keep in sync, and the self-test that compares the two
+   results is therefore testing the transport rather than the mathematics.
+
+   The synchronous functions stay exactly where they are. They are the fallback when
+   Workers are unavailable, they are what the boot self-tests call, and they are what the
+   verifiers mirror. */
+const HCC_WORKER_SRC_FNS=[
+  ['FIB_N3',()=>FIB_N3],['fibFR',()=>fibFR],['fibFsym',()=>fibFsym],
+  ['chainJacobiV',()=>chainJacobiV],['chainSolve',()=>chainSolve],['chainSpectrum',()=>chainSpectrum],
+  ['fibC',()=>fibC],['fibMul',()=>fibMul],['fibAdd',()=>fibAdd],['fibMM',()=>fibMM],
+  ['fibGateDistance',()=>fibGateDistance],['fibCompileM',()=>fibCompileM]];
+/* THE DEPENDENCY SET HAS TO BE CLOSED, and the first version of it was not: fibMM calls
+   fibAdd and fibMul, neither of which was shipped, so the worker loaded cleanly, accepted
+   the job and threw "fibAdd is not defined" — and the catch that falls back to the main
+   thread swallowed the message, so the only symptom was that nothing got faster. A silent
+   fallback is a worse bug than a loud failure; hccSolveAsync now records the reason and
+   HCC_API.ui.worker() reports it, and the self-test below closes the set by CHECKING it
+   rather than by my reading the sources again. */
+function hccWorkerSource(){
+  let src='"use strict";\n'
+    +`const PHI_R=${PHI_R};\nconst CHAIN_EINF=${CHAIN_EINF};\nlet FIB_FR=null;\n`
+    +'const chainCache=new Map(), chainSpecCache=new Map();\n';
+  for(const [name,get] of HCC_WORKER_SRC_FNS){
+    const f=get(), t=f.toString();
+    /* a function declaration carries its own name; an arrow or a const does not */
+    src+=/^\s*(async\s+)?function\b/.test(t) ? t+'\n' : `const ${name}=${t};\n`;
+  }
+  src+=`onmessage=function(e){ const d=e.data||{};
+    try{
+      let r=null;
+      if(d.task==='chain') r=chainSolve(d.N);
+      else if(d.task==='spectrum') r=chainSpectrum(d.N);
+      else if(d.task==='gate') r=fibCompileM(d.T,d.len,d.S1,d.S2);
+      postMessage({id:d.id,ok:true,r:r});
+    }catch(err){ postMessage({id:d.id,ok:false,e:String(err&&err.message||err)}); }
+  };`;
+  return src;
+}
+let hccWorker=null, hccWorkerDead=false, hccWorkerSeq=0, hccWorkerReason='';
+const hccWorkerJobs=new Map();
+function hccWorkerGet(){
+  if(hccWorker||hccWorkerDead) return hccWorker;
+  try{
+    /* ?worker=0 forces the old behaviour, so the measurement that justifies this whole
+       mechanism can be reproduced by anyone on their own machine rather than believed */
+    let wq=null; try{ wq=new URLSearchParams(location.search).get('worker'); }catch(e){}
+    if(wq==='0'||wq==='off') throw new Error('?worker=0 requested');
+    if(typeof Worker!=='function'||typeof Blob!=='function') throw new Error('no Worker');
+    const url=URL.createObjectURL(new Blob([hccWorkerSource()],{type:'text/javascript'}));
+    hccWorker=new Worker(url);
+    URL.revokeObjectURL(url);
+    hccWorker.onmessage=e=>{ const d=e.data||{}, j=hccWorkerJobs.get(d.id);
+      if(!j) return; hccWorkerJobs.delete(d.id);
+      d.ok?j.res(d.r):j.rej(new Error(d.e));
+    };
+    hccWorker.onerror=ev=>{ hccWorkerDead=true;
+      hccWorkerReason=(ev&&(ev.message||ev.type))||'worker error';
+      try{ console.warn('HCC worker failed:',hccWorkerReason,ev&&ev.filename,ev&&ev.lineno); }catch(e){}
+      for(const j of hccWorkerJobs.values()) j.rej(new Error('worker failed'));
+      hccWorkerJobs.clear(); hccWorker=null; };
+  }catch(e){ hccWorkerDead=true; hccWorker=null;
+    hccWorkerReason=String(e&&e.message||e);
+    try{ console.warn('HCC worker unavailable:',hccWorkerReason); }catch(x){} }
+  return hccWorker;
+}
+/* every request resolves, worker or no worker: without one the synchronous function runs
+   and the frame is dropped, which is the old behaviour and still correct */
+function hccSolveAsync(msg,fallback){
+  const w=hccWorkerGet();
+  if(!w) return Promise.resolve().then(fallback);
+  const id=++hccWorkerSeq;
+  return new Promise((res,rej)=>{ hccWorkerJobs.set(id,{res,rej}); w.postMessage({...msg,id}); })
+    .catch(err=>{ /* a solver that quietly fell back to the main thread is a thing to know */
+      hccWorkerReason=String(err&&err.message||err);
+      try{ console.warn('HCC worker task failed, running on the main thread:',hccWorkerReason); }catch(e){}
+      return fallback(); });
 }
 /* ── THE PENTAGON AND THE HEXAGON, DRAWN AS THE DIAGRAMS THEY ARE ───────────
    Both equations say that two routes around a polygon of re-bracketings agree, so the
@@ -16321,7 +16483,9 @@ function anyonGateBuild(){
   const R=1.55;
   anyonGate.add(new THREE.Mesh(new THREE.SphereGeometry(R,40,26),
     new THREE.MeshBasicMaterial({color:0x2a3646,wireframe:true,transparent:true,opacity:0.22})));
-  const res=fibCompile(gateTarget,gateLen);
+  const res=gateReady(gateTarget,gateLen);
+  if(!res){ anyonBusyLabel(anyonGate,anyonGateLabels,
+    `${GATE_TARGETS[gateTarget].label} ≤ ${gateLen}`); return; }
   const tAxis=gateAxis(GATE_TARGETS[gateTarget].m()).multiplyScalar(R);
   const uAxis=gateAxis(fibWordMatrix(res.w)).multiplyScalar(R);
   const ray=(v,col,w)=>{ anyonGate.add(new THREE.Mesh(
@@ -16503,7 +16667,9 @@ function anyonTreePanel(){
 }
 function anyonChainPanel(){
   if(state.anyonView!=='chain') return '';
-  const S=chainSolve(chainN);
+  const S=chainReady(chainN);
+  if(!S) return `<div class="sect"><b>${TT('The golden chain','Золотая цепочка','Die goldene Kette')}</b>
+      <div class="note">${TT('diagonalising the ring, N =','диагонализация кольца, N =','Diagonalisierung, N =')} ${chainN} …</div></div>`;
   let sizes='';
   for(const m of [4,6,8,10,12,14])
     sizes+=`<button class="chip ${m===chainN?'on':''}" data-anb="cn${m}">${m}</button>`;
@@ -16574,7 +16740,9 @@ function anyonAxiomPanel(){
 }
 function anyonGatePanel(){
   if(state.anyonView!=='gate') return '';
-  const res=fibCompile(gateTarget,gateLen);
+  const res=gateReady(gateTarget,gateLen);
+  if(!res) return `<div class="sect"><b>${TT('Compile a gate out of a braid','Скомпилировать вентиль из косы','Ein Gatter aus einem Zopf')}</b>
+      <div class="note">${TT('searching braid words to depth','поиск слов косы до глубины','Suche bis Tiefe')} ${gateLen} …</div></div>`;
   let tg=''; for(const k in GATE_TARGETS)
     tg+=`<button class="chip ${k===gateTarget?'on':''}" data-anb="gt${k}">${esc(GATE_TARGETS[k].label)}</button>`;
   let ln=''; for(const L of [6,8,10,11,12,13])
@@ -16653,7 +16821,9 @@ function anyonLadderPanel(){
 }
 function anyonSpecPanel(){
   if(state.anyonView!=='spec') return '';
-  const N=Math.min(chainN,CHAIN_SPEC_MAX), S=chainSpectrum(N);
+  const N=Math.min(chainN,CHAIN_SPEC_MAX), S=specReady(N);
+  if(!S) return `<div class="sect"><b>${TT('Momentum and the topological sector','Импульс и топологический сектор','Impuls und Sektor')}</b>
+      <div class="note">${TT('resolving the spectrum, N =','разрешение спектра, N =','Spektrum, N =')} ${N} …</div></div>`;
   let sizes='';
   for(const m of [4,6,8,10,12])
     sizes+=`<button class="chip ${m===N?'on':''}" data-anb="cn${m}">${m}</button>`;
@@ -26086,6 +26256,16 @@ try{
         insideScroller:scrolled })); },
       unreachable(tol){ return uiUnreachable(tol); },
       clipped(){ return uiClipped(); },
+      /* a real round trip, so "is the solver actually off the main thread" is answerable
+         rather than inferred from a timing */
+      workerTest(){ const t0=performance.now();
+        return hccSolveAsync({task:'gate',T:GATE_TARGETS.H.m(),len:6,S1:FIB_S1,S2:FIB_S2},
+          ()=>({__fallback:true}))
+          .then(r=>({viaWorker:!r.__fallback, ms:Math.round(performance.now()-t0),
+            d:r.d!==undefined?r.d:null, reason:hccWorkerReason||null})); },
+      worker(){ return {alive:!!hccWorker&&!hccWorkerDead, dead:hccWorkerDead,
+        reason:hccWorkerReason||null, pending:hccWorkerJobs.size,
+        sourceBytes:(()=>{ try{ return hccWorkerSource().length; }catch(e){ return -1; } })()}; },
       viewport(){ return {w:innerWidth,h:innerHeight,dpr:devicePixelRatio,
         orientation:innerWidth>=innerHeight?'landscape':'portrait'}; }
     },
