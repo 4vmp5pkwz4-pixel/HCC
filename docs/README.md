@@ -3461,6 +3461,69 @@ survive the crossing and identities do not, so the marks are carried as indices 
 
 Self-tests 706 → **707**.
 
+## A sweep of all seventy-three (v3.90.0)
+
+The invariants added in v3.84.0 and v3.86.0 had only ever been run where a defect was
+already suspected. This version runs them over **every laboratory, at phone and desktop
+size**, and fixes what the sweep found. Perfection is not a claim; it is a measurement
+that comes back empty.
+
+### Three exceptions mean the rule is wrong
+
+The mobile stylesheet turned **every** chip row into a hidden horizontal scroller — "one
+elegant swipeable line instead of a wall of pills" — and the file had since accumulated
+three separate exceptions to it, each added after a measured failure: the fractal mode
+selector, the capacity-flow presets, and the five instrument panels. The sweep settled it:
+
+> **59 of 73 laboratories were hiding controls past the right edge.** 18 in the skyrmion
+> laboratory, 9 in the hopfion, 9 in the three-body, 5 in the selector — Antiskyrmion,
+> Skyrmionium, the Skyrmion-Hall race, the annihilation demo: rendered, registered, and
+> behind a swipe that on a touch screen is the gesture that orbits the scene.
+
+Chip rows wrap now; a row that genuinely wants a swipe strip opts in with `.chips.swipe`,
+and nothing does. Then the same inverted default one level down, in `.snapRow` — the
+precision shortcuts, χ = π at the antipode, k = 1, the √2 critical point — four more.
+
+**59 → 4 → 0.**
+
+### Every slider in the atlas was three pixels tall
+
+`.ctlrow input[type=range]{height:3px}`, with the touch treatment that gives it a 30 px
+body and a 28 px thumb gated behind `@media (pointer:coarse)`. So on **every desktop, in
+every laboratory, every slider was a three-pixel hairline.** Found by a new zero-size
+invariant on its first run, in the FBS3R world: eight range inputs at 131 × 3 px.
+
+The premium skin painted the *element* as the track, which is why the height could never
+grow — it paints the track pseudo-element now, so both skins agree and both are grabbable.
+The look is unchanged: thin gold track, jewel thumb.
+
+> **3 px → 22 px on desktop, 44 px on touch.** Fitts's law is not kind to a three-pixel
+> target.
+
+### The invariant that found it, and the one that was wrong
+
+`HCC_API.ui.dead()` asks a question the atlas had never asked. It has claimed "visible dead
+controls = 0" for many versions and tested it by asking whether a control *exists*; this
+asks whether it is visible **and yet impossible to press**. The distinction is the whole
+check — a control inside a folded section is legitimately 0 × 0 — and my first version of
+the measurement reported about 1,700 of those as dead across the atlas, because it stopped
+at the first zero-height ancestor instead of walking the chain to find the one that was
+`display:none`. Corrected, the honest answer was 0 in S³ and 8 real ones in FBS3R.
+
+### After
+
+| | 390 × 844 | 1440 × 900 |
+|---|---|---|
+| laboratories swept | 73 | 73 |
+| unreachable controls | **0** | **0** |
+| controls clipped sideways | **0** | **0** |
+| visible zero-sized controls | **0** | **0** |
+| empty panels | **0** | **0** |
+| laboratories that threw | **0** | **0** |
+| page errors | **0** | **0** |
+
+Self-tests 707 → **708**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
