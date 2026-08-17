@@ -3936,6 +3936,36 @@ list, so the node kernels come along as a **slice rather than a retyping**.
 **Measured by walking the atlas: 80 laboratories, 16 computational, 21 instruments, 0 page
 errors.** The gap is 69 → 64.
 
+### Four more, on the same rule (v3.99.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `cau` | Im χ and Re χ in closed form, the dispersion integral's reconstruction, the f-sum | EXACT |
+| `lens` | the **exact** Schwarzschild deflection by quadrature, the photon sphere, capture | EXACT |
+| `poin` | Euler's equations in Jacobi elliptic functions, with both invariants returned | EXACT |
+| `kam` | the standard map's finite-time Lyapunov exponent, with the sample size an input | NUMERICALLY_VERIFIED |
+
+**80 laboratories, 20 computational, 25 instruments, 0 page errors.** The gap is **69 → 60**.
+
+`lensAlpha` had the same wrapped-declarator defect the CIVP block did — `du` and `f` sat
+after a line break inside a `const` list and the extractor could not see them, so it reported
+them free. Joined, and the closure closes.
+
+Three more checks in `docs/verify-atlas-instruments.cjs` (now 28) were wrong when written
+while the kernels were right, and two of them are worth keeping as method notes:
+
+- the separatrix probe used **L² = 2E·I₁**, the lower edge of the allowed range where k → 0
+  and nothing diverges, instead of **L² = 2E·I₂**, where k → 1 and the period goes
+  logarithmic. That value *is* the Dzhanibekov flip.
+- the f-sum check compared one truncated integral against the exact area and failed by 1% at
+  heavy damping — which was the **tail, correctly present**. It now asserts the law: a
+  Lorentzian's shortfall beyond a cutoff W goes as wp²γ/W, so it must **halve when the cutoff
+  doubles**. A tolerance can pass for the wrong reason; a law cannot.
+
+The lensing check gained the same treatment: rather than "the exact answer is close to
+4GM/c²b", it asserts that the **excess** falls as the second post-Newtonian term
+(15π/16)(r_s/b)², which it does to under 1%.
+
 ### One function had to become pure first
 
 `bhtKerr` reached for `state.bhtSpin` as a default and `THREE.MathUtils` for a clamp. Either

@@ -362,7 +362,16 @@ export const ROOTS = [
   'shY', 'shPlm', 'shNlm',
   'nucBE', 'nucBperA', 'nucBestZ',
   'bbPlanck',
-  'wilQuad'
+  'wilQuad',
+  /* ── AND FOUR MORE THAT DREW AND DID NOT COMPUTE ──────────────────────────
+     Kramers-Kronig on a Lorentz oscillator, the EXACT Schwarzschild deflection by
+     quadrature, the free rigid body in Jacobi elliptic functions, and the standard map's
+     Lyapunov exponent. Same rule as the five before them: the function that draws is the
+     function that answers, and the extractor refuses anything that reaches for a renderer. */
+  'cauChiIm', 'cauKK', 'cauSum', 'CAU_H', 'CAU_N',
+  'lensAlpha', 'lensPeriU', 'LENS_RS', 'LENS_BCRIT',
+  'poinSolve', 'poinOmega', 'jacobiSCD',
+  'kamStep', 'kamLyapunov'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
