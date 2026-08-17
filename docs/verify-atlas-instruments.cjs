@@ -370,6 +370,254 @@ console.log('\n=== 9. The standard map: area preservation and the two limits ===
     `worst relative departure ${(100 * worstAsym).toFixed(2)}% at K = 6, 10 and 16 — approached from above, as the finite-time average should be`);
 }
 
+console.log('\n=== 10. Two integers that cannot be almost right ===\n');
+{
+  /* the linking number of two distinct Hopf fibres is 1 in magnitude, whichever two they
+     are — that is the statement, and it is tested across the base sphere rather than once */
+  let worstDefect = 0, n = 0; const wrong = [];
+  for (const t1 of [0.05, 0.4, 0.9, 1.6, 2.4, 3.05]) for (const t2 of [0.7, 1.3, 2.1, 2.8, 3.09]) {
+    if (Math.abs(t1 - t2) < 0.2) continue;
+    const [A, B] = X.topoHopfPair(t1, t2, 0, 1.3, 400);
+    const lk = X.topoLinkPure(A, B);
+    if (Math.abs(Math.round(lk)) !== 1) wrong.push(`(${t1}, ${t2}) -> ${lk.toFixed(6)}`);
+    worstDefect = Math.max(worstDefect, Math.abs(lk - Math.round(lk))); n++;
+  }
+  /* This check FAILED when written, and it was the kernel that was wrong: the pure copy of
+     the fibre projected from w = 1.6 - z2i, a centre outside S^3, which is two-to-one — four
+     of sixteen pairs came back 0. The check named the pairs, the projection was corrected to
+     the stereographic w = 1 - z2i the renderer already used, and the defect fell 30-fold. */
+  ok('any two distinct Hopf fibres link exactly once, over a sweep of the whole declared base-angle domain',
+    wrong.length === 0 && worstDefect < 5e-4,
+    wrong.length
+      ? `${wrong.length} of ${n} pairs do NOT round to +-1: ${wrong.slice(0, 4).join(' · ')}`
+      : `${n} pairs spanning theta in [0.05, 3.09] · every one rounds to +-1 · worst distance to the integer ${worstDefect.toExponential(2)}, which is the polygon and not the topology`);
+
+  /* the defect must FALL as the polygons refine — otherwise the integer is a coincidence */
+  const d = N => { const [A, B] = X.topoHopfPair(0.9, 2.1, 0, 1.3, N);
+    const lk = X.topoLinkPure(A, B); return Math.abs(lk - Math.round(lk)); };
+  const d1 = d(120), d2 = d(240), d3 = d(480);
+  ok('and the distance to that integer falls as the polygons refine, so the integer is the answer and not a coincidence',
+    d2 < d1 && d3 < d2,
+    `${d1.toExponential(2)} -> ${d2.toExponential(2)} -> ${d3.toExponential(2)} at 120, 240 and 480 vertices`);
+
+  /* the two symmetries the Gauss integral must have, to machine precision */
+  const [A, B] = X.topoHopfPair(0.9, 2.1, 0, 1.3, 300);
+  ok('the Gauss integral is symmetric in its two curves and antisymmetric under reversing one',
+    Math.abs(X.topoLinkPure(A, B) - X.topoLinkPure(B, A)) < 1e-12 &&
+    Math.abs(X.topoLinkPure(A, B) + X.topoLinkPure(A, B.slice().reverse())) < 1e-12,
+    `|Lk(A,B) - Lk(B,A)| = ${Math.abs(X.topoLinkPure(A, B) - X.topoLinkPure(B, A)).toExponential(2)} · ` +
+    `|Lk(A,B) + Lk(A,-B)| = ${Math.abs(X.topoLinkPure(A, B) + X.topoLinkPure(A, B.slice().reverse())).toExponential(2)}`);
+
+  /* winding: a smooth perturbation cannot move a homotopy invariant until it adds a zero */
+  let moved = 0, tested = 0, worstW = 0;
+  for (const q of [-3, -1, 0, 2, 5]) for (const a of [0, 0.3, 0.8]) {
+    const w = X.dfxWinding(q, [{ a, k: 2, p: 0.4 }], 4000);
+    if (Math.round(w) !== q) moved++;
+    worstW = Math.max(worstW, Math.abs(w - q)); tested++;
+  }
+  ok('a smooth phase perturbation leaves the winding number exactly where it was — homotopy invariance, measured',
+    moved === 0 && worstW < 1e-9,
+    `${tested} (q, amplitude) pairs · worst departure from the bare integer ${worstW.toExponential(2)}`);
+
+  /* This check was WRITTEN VACUOUS — its condition was `w === 1 || |w - 1| >= 0`, whose
+     right half is true of every number, so it could not fail. It also claimed the wrong
+     boundary. A 2 pi-periodic perturbation contributes zero net phase whatever its
+     amplitude, so the winding is q for ALL a; what breaks the march is NYQUIST, and that
+     is a property of the sampling, not of the field. Both halves are now measured. */
+  let hugeOk = true; const hugeSeen = [];
+  for (const a of [0, 1, 5, 20, 100]) {
+    const w = X.dfxWinding(1, [{ a, k: 5, p: 0.4 }], 200000);
+    hugeSeen.push(`a=${a}:${w.toFixed(6)}`); if (Math.abs(w - 1) > 1e-9) hugeOk = false;
+  }
+  ok('no amplitude of a periodic perturbation can move the winding — it is q for a = 0 through a = 100, exactly',
+    hugeOk, `${hugeSeen.join(' · ')} · the perturbation is 2 pi-periodic, so its net phase is zero however violent it is`);
+
+  /* the boundary that DOES exist: the branch march aliases once max|phi'| dt exceeds pi */
+  const steep = [{ a: 6, k: 5, p: 0.4 }], vmax = 1 + 6 * 5, nyq = 2 * vmax;   // N > 2 pi vmax / pi
+  const wUnder = X.dfxWinding(1, steep, 40), wOver = X.dfxWinding(1, steep, 80);
+  ok('and the boundary is Nyquist, not amplitude: below 2 max|dphi/dt| samples the branch march aliases, above it the integer is exact',
+    Math.round(wUnder) !== 1 && Math.abs(wOver - 1) < 1e-12 && 40 < nyq && 80 > nyq,
+    `max|dphi/dt| = ${vmax}, so the march needs more than ${nyq} samples · 40 samples returns ${wUnder} (aliased, and wrong by ${Math.abs(wUnder - 1)}) · 80 returns ${wOver.toFixed(9)}`);
+
+  /* degree: the identity map has degree 1, the antipodal map -1, a constant map 0 */
+  let worstD = 0;
+  for (const n2 of [-2, -1, 0, 1, 2, 3]) {
+    const deg = X.dfxDegree((t, p) => [Math.sin(t) * Math.cos(n2 * p), Math.sin(t) * Math.sin(n2 * p), Math.cos(t)], 80, 160);
+    worstD = Math.max(worstD, Math.abs(deg - n2));
+  }
+  ok('the degree of (theta, phi) -> (theta, n phi) is n, for six values of n including zero and both signs',
+    worstD < 1e-9,
+    `worst departure from the integer ${worstD.toExponential(2)} — the solid-angle sum lands on it, it is not rounded to it`);
+}
+
+console.log('\n=== 11. A Chern number, three KdV invariants, the double cover, a discriminant and a limiting mass ===\n');
+{
+  /* The Chern number of the Qi-Wu-Zhang band is the sharpest check available anywhere in
+     this file: it is an integer that CHANGES, so it cannot be right by accident and it
+     cannot be right for the wrong reason — a sign error moves the phase boundary. */
+  const phase = u => (Math.abs(u) > 2 ? 0 : u < 0 ? 1 : -1);
+  let worstC = 0, wrongPhase = [];
+  for (const u of [-3.5, -3, -2.4, -1.9, -1, -0.4, 0.4, 1, 1.9, 2.4, 3, 3.5]) {
+    const C = X.berryChernFHS(u, 24);
+    if (Math.round(C) !== phase(u)) wrongPhase.push(`u=${u} -> ${C.toFixed(6)}, expected ${phase(u)}`);
+    worstC = Math.max(worstC, Math.abs(C - Math.round(C)));
+  }
+  ok('the Chern number is 0 outside |u| = 2, +1 below zero and -1 above it — twelve values, and the integer changes where the theory says',
+    wrongPhase.length === 0 && worstC < 1e-9,
+    wrongPhase.length ? wrongPhase.join(' · ')
+      : `twelve mass parameters across all three phases · worst distance to the integer ${worstC.toExponential(2)} — the plaquette sum is gauge invariant, so it lands ON the integer at finite lattice size rather than converging to it`);
+
+  /* and it does not depend on the lattice, away from a gap closing — that is the whole
+     content of "topological", and a sum that drifted with N would not be one */
+  const sizes = [8, 12, 20, 32, 48].map(N => X.berryChernFHS(1.2, N));
+  ok('and it does not move with the lattice: five sizes from 8 to 48 plaquettes a side give the same integer',
+    sizes.every(c => Math.abs(c + 1) < 1e-9),
+    `${sizes.map(c => c.toFixed(9)).join(' · ')} — 8x8 already gives it exactly, which a convergent quadrature would not`);
+
+  /* the gap closes exactly at the transitions, and the curvature integral is the integer */
+  const gaps = [0, 2, -2].map(u => X.berryGap(u));
+  ok('the direct gap closes at exactly u = 0 and u = +-2, and nowhere else that was tested',
+    gaps.every(g => g < 1e-12) && [0.5, 1.5, 2.5, -1.3].every(u => X.berryGap(u) > 0.5),
+    `gap at the three transitions = ${gaps.map(g => g.toExponential(1)).join(', ')} · gap at u = 0.5, 1.5, 2.5, -1.3 all above 0.5`);
+
+  /* an INDEPENDENT route to the same integer: integrate the closed-form Berry curvature
+     over the zone with a midpoint rule, which shares no code with the plaquette sum */
+  {
+    const N = 240, h = 2 * Math.PI / N; let s = 0;
+    for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+      s += X.berryF(-Math.PI + (i + 0.5) * h, -Math.PI + (j + 0.5) * h, 1.2) * h * h;
+    const C = s / (2 * Math.PI);
+    ok('and integrating the closed-form curvature over the zone gives the same integer by a route that shares no code with the plaquette sum',
+      Math.abs(C - X.berryChernFHS(1.2, 24)) < 5e-3,
+      `curvature integral ${C.toFixed(6)} vs plaquette sum ${X.berryChernFHS(1.2, 24).toFixed(6)} — the quadrature converges to it, the plaquette sum lands on it`);
+  }
+
+  /* KdV: the three invariants are exact constants of the PDE, so any drift belongs to the
+     integrator — and a fourth-order integrator must show it, by falling like dt^4 */
+  const drift = (dt, T) => {
+    const u0 = X.kdvTwoSoliton(5, 2, -20, -8), a = X.kdvInvariants(u0);
+    const u = X.kdvEvolve(u0, dt, Math.round(T / dt)), b = X.kdvInvariants(u);
+    return [Math.abs(b.I1 - a.I1), Math.abs(b.I2 - a.I2), Math.abs(b.I3 - a.I3)];
+  };
+  const dA = drift(0.004, 0.4), dB = drift(0.002, 0.4);
+  ok('the KdV invariants drift, and halving the step cuts the drift by more than eight — the integrator is fourth order and the invariants are exact',
+    dB[1] < dA[1] / 8 && dB[2] < dA[2] / 8,
+    `dt = 0.004: I2 ${dA[1].toExponential(2)}, I3 ${dA[2].toExponential(2)} · dt = 0.002: I2 ${dB[1].toExponential(2)}, I3 ${dB[2].toExponential(2)} · ratios ${(dA[1] / dB[1]).toFixed(1)} and ${(dA[2] / dB[2]).toFixed(1)}`);
+
+  ok('and mass is conserved to machine precision at any step, because a spectral method conserves the zero mode exactly',
+    dA[0] < 1e-12 && dB[0] < 1e-12,
+    `|I1 drift| = ${dA[0].toExponential(2)} and ${dB[0].toExponential(2)} — the mean of u is the k = 0 Fourier coefficient, and the nonlinearity multiplies it by k`);
+
+  /* the one-soliton profile travels at its own speed c, which is the exact statement */
+  {
+    const c = 4, u0 = X.kdvTwoSoliton(c, c, -20, -20).map(v => v / 2);  // one soliton of speed c
+    const T = 0.6, u = X.kdvEvolve(Float64Array.from(u0), 0.0008, Math.round(T / 0.0008));
+    const arg = arr => { let bi = 0; for (let i = 1; i < arr.length; i++) if (arr[i] > arr[bi]) bi = i; return X.kdvGridX(bi); };
+    const moved = arg(u) - arg(u0), expect = c * T, dx = X.KDV_L / X.KDV_N;
+    ok('a single soliton of speed c travels a distance c t, to within one grid cell',
+      Math.abs(moved - expect) <= dx,
+      `c = ${c}, t = ${T} · expected ${expect.toFixed(4)}, measured ${moved.toFixed(4)} · one cell is ${dx.toFixed(4)}`);
+  }
+
+  /* the double cover, which is the one fact about SU(2) that surprises people */
+  {
+    const two = X.su2axang([0, 0, 1], 2 * Math.PI), four = X.su2axang([0, 0, 1], 4 * Math.PI);
+    let worstAx = 0;
+    for (const ax of [[0, 0, 1], [1, 0, 0], [1, 1, 1], [-2, 0.5, 3]]) {
+      const q = X.su2axang(ax, 2 * Math.PI);
+      worstAx = Math.max(worstAx, Math.hypot(q[0] + 1, q[1], q[2], q[3]));
+    }
+    ok('a 2 pi rotation is minus one and a 4 pi rotation is one — the double cover, about any axis',
+      Math.abs(two[0] + 1) < 1e-12 && Math.abs(four[0] - 1) < 1e-12 && worstAx < 1e-12,
+      `q(2 pi) = ${two[0].toFixed(12)} · q(4 pi) = ${four[0].toFixed(12)} · worst |q(2 pi) + 1| over four axes = ${worstAx.toExponential(2)}`);
+  }
+
+  {
+    let worstN = 0, worstI = 0;
+    for (const th of [0.3, 1.1, 2.7, 5.9, 11.4]) for (const ax of [[1, 0, 0], [0.3, -1, 2]]) {
+      const q = X.su2axang(ax, th), p = X.su2mul(q, X.su2conj(q));
+      worstN = Math.max(worstN, Math.abs(Math.hypot(q[0], q[1], q[2], q[3]) - 1));
+      worstI = Math.max(worstI, Math.hypot(p[0] - 1, p[1], p[2], p[3]));
+    }
+    ok('every quaternion the instrument builds is a unit quaternion, and its conjugate is its inverse',
+      worstN < 1e-15 && worstI < 1e-15,
+      `ten (angle, axis) pairs · worst |‖q‖ - 1| = ${worstN.toExponential(2)} · worst |q q* - 1| = ${worstI.toExponential(2)}`);
+  }
+
+  {
+    const q = X.su2axang([0.2, 1, -0.4], 1.7);
+    const s0 = X.su2slerp([1, 0, 0, 0], q, 0), s1 = X.su2slerp([1, 0, 0, 0], q, 1);
+    const half = X.su2slerp([1, 0, 0, 0], q, 0.5), mid = X.su2axang([0.2, 1, -0.4], 0.85);
+    ok('slerp hits both endpoints exactly, and its midpoint is the half angle — a great circle, not a chord',
+      Math.hypot(s0[0] - 1, s0[1], s0[2], s0[3]) < 1e-12 &&
+      Math.hypot(s1[0] - q[0], s1[1] - q[1], s1[2] - q[2], s1[3] - q[3]) < 1e-12 &&
+      Math.hypot(half[0] - mid[0], half[1] - mid[1], half[2] - mid[2], half[3] - mid[3]) < 1e-12,
+      `t = 0 gives the identity, t = 1 gives q, t = 0.5 gives the rotation by half the angle to ${Math.hypot(half[0] - mid[0], half[1] - mid[1], half[2] - mid[2], half[3] - mid[3]).toExponential(2)}`);
+  }
+
+  /* the cusp: the root COUNT is dictated by the sign of the discriminant, and that is a
+     statement no fit can satisfy by accident */
+  {
+    let mismatched = [], worstRes = 0, n = 0;
+    for (const a of [-5, -3, -1.2, -0.4, 0.5, 2]) for (const b of [-4, -1.1, -0.2, 0.3, 1.7, 5]) {
+      const D = 4 * a ** 3 + 27 * b * b, r = X.cuspRoots(a, b);
+      const want = D < 0 ? 3 : 1;
+      if (r.length !== want) mismatched.push(`(a=${a}, b=${b}, D=${D.toFixed(3)}) gave ${r.length}, wanted ${want}`);
+      for (const x of r) worstRes = Math.max(worstRes, Math.abs(x ** 3 + a * x + b));
+      n++;
+    }
+    ok('the number of real equilibria is three where the discriminant is negative and one where it is positive, over a sweep of the control plane',
+      mismatched.length === 0 && worstRes < 1e-8,
+      mismatched.length ? mismatched.slice(0, 4).join(' · ')
+        : `${n} (a, b) pairs · every root count matches the sign of 4a^3 + 27b^2 · worst |x^3 + ax + b| = ${worstRes.toExponential(2)}`);
+  }
+
+  {
+    /* Vieta on the three-root side: the sum is exactly zero because there is no x^2 term */
+    let worstV = 0;
+    for (const a of [-5, -3, -1.2]) for (const b of [-1.1, -0.2, 0.3, 1.7]) {
+      const r = X.cuspRoots(a, b); if (r.length !== 3) continue;
+      worstV = Math.max(worstV, Math.abs(r[0] + r[1] + r[2]), Math.abs(r[0] * r[1] * r[2] + b));
+    }
+    ok('and where there are three, they sum to zero and their product is -b — Vieta, on roots found by Newton and not by the formula',
+      worstV < 1e-8, `worst violation of either identity ${worstV.toExponential(2)}`);
+  }
+
+  /* the white dwarf: the relation runs BACKWARDS, and that is the physics */
+  {
+    const masses = [0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.35, 1.44];
+    const radii = masses.map(m => X.wdRadiusKm(m, 2));
+    let monotone = true;
+    for (let i = 1; i < radii.length; i++) if (!(radii[i] < radii[i - 1])) monotone = false;
+    ok('a heavier white dwarf is a smaller white dwarf, at every mass tested — degeneracy pressure, not thermal pressure',
+      monotone,
+      `${masses[0]} M_sun -> ${radii[0].toFixed(0)} km, down to ${masses[masses.length - 1]} M_sun -> ${radii[radii.length - 1].toFixed(0)} km`);
+  }
+
+  ok('the limiting mass is 5.816 / mu_e^2 solar masses, and the radius goes to zero there',
+    Math.abs(X.wdMch(2) - 1.454) < 1e-9 && Math.abs(X.wdMch(1) - 5.816) < 1e-9 &&
+    X.wdRadiusKm(1.4539999, 2) < 40,
+    `M_Ch(mu = 2) = ${X.wdMch(2).toFixed(6)} · M_Ch(mu = 1) = ${X.wdMch(1).toFixed(6)} · R at one part in ten million below the limit = ${X.wdRadiusKm(1.4539999, 2).toFixed(1)} km`);
+
+  {
+    /* far below the limit the relation must reduce to the non-relativistic R ~ M^(-1/3) */
+    const r1 = X.wdRadiusKm(0.05, 2), r2 = X.wdRadiusKm(0.1, 2);
+    const slope = Math.log(r2 / r1) / Math.log(2);
+    ok('and far below the limit it reduces to the non-relativistic polytrope, R proportional to M^(-1/3)',
+      Math.abs(slope + 1 / 3) < 0.02,
+      `doubling the mass from 0.05 to 0.1 M_sun changes the radius by a power of ${slope.toFixed(4)}, against the polytrope's -0.3333`);
+  }
+
+  {
+    /* Sirius B: 1.018 M_sun, 5900 km measured (Barstow 2005 HST). A MODEL is allowed to
+       miss, and the check states the miss rather than choosing a tolerance that hides it. */
+    const R = X.wdRadiusKm(1.018, 2), miss = Math.abs(R - 5900) / 5900;
+    ok('and it reproduces Sirius B, the best-measured white dwarf, to within a tenth',
+      miss < 0.1,
+      `1.018 M_sun gives ${R.toFixed(0)} km against the 5900 km measured from its gravitational redshift (Barstow 2005) — a ${(100 * miss).toFixed(1)}% miss, which is the accuracy of a zero-temperature fit and is why the status says MODEL`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

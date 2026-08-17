@@ -371,7 +371,22 @@ export const ROOTS = [
   'cauChiIm', 'cauKK', 'cauSum', 'CAU_H', 'CAU_N',
   'lensAlpha', 'lensPeriU', 'LENS_RS', 'LENS_BCRIT',
   'poinSolve', 'poinOmega', 'jacobiSCD',
-  'kamStep', 'kamLyapunov'
+  'kamStep', 'kamLyapunov',
+  /* two integers that cannot be almost right: a linking number and a winding number. The
+     Gauss integral had to be rewritten on plain [x,y,z] triples first — it allocated
+     THREE.Vector3 and read .x off its input, and the extractor refuses that on purpose. */
+  'topoLinkPure', 'topoHopfPts', 'topoHopfPair',
+  'dfxPhase', 'dfxWinding', 'dfxOmega', 'dfxDegree',
+  /* five more that drew without answering: the Chern number of the Qi-Wu-Zhang band (an
+     exact integer, by the gauge-invariant Fukui-Hatsugai-Suzuki plaquette sum), the three
+     KdV invariants under a spectral integrator, the quaternion double cover, the cusp
+     catastrophe's real roots, and the Chandrasekhar mass-radius relation. */
+  'berryD', 'berryN', 'berryF', 'berryChernFHS', 'berryGap',
+  'qmFFT', 'KDV_N', 'KDV_L', 'kdvSech', 'kdvSoliton', 'kdvGridX', 'kdvTwoSoliton',
+  'kdvNonlin', 'kdvEvolve', 'kdvInvariants',
+  'su2mul', 'su2conj', 'su2axang', 'su2slerp',
+  'cuspRoots',
+  'wdMch', 'wdRadiusKm', 'WD_RSUN_KM', 'WD_G', 'WD_MSUN', 'WD_C'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
