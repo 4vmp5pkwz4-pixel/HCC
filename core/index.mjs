@@ -20,6 +20,17 @@ import specop from './labs/s3.spectral_operator.mjs';
 import bixevo from './labs/bianchi_ix.evolution.mjs';
 import pcreate from './labs/s3.particle_creation.mjs';
 import ebkq from './labs/s3.ebk_quantisation.mjs';
+/* six kernels for the trace-free de Sitter CIVP manuscript — molecular null geometry, the
+   CP^1 evaluation lock, finite index, the finite carrier, the UV selector and the
+   conditional closure. Their mathematics lives in core/civp/, imports nothing from node,
+   and is loaded unchanged by the browser observatory, so the picture and the number are
+   one piece of code rather than two transcriptions of it. */
+import cp1lock from './labs/civp.cp1_locking.mjs';
+import embadon from './labs/civp.embadon_measure.mjs';
+import findex from './labs/civp.finite_index.mjs';
+import fcarrier from './labs/civp.finite_carrier.mjs';
+import uvsel from './labs/civp.uv_selector.mjs';
+import civpclosure from './labs/civp.closure.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -41,14 +52,17 @@ function coreHash() {
     'labs/fbs.zero_point_ladder.mjs','labs/fibonacci.anyons.mjs',
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
     'labs/s3.spectral_operator.mjs','labs/bianchi_ix.evolution.mjs',
-    'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs'];
+    'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
+    'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
+    'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs'];
   return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));
 }
 export const PROVENANCE = Object.freeze({ commit: gitCommit(), code_sha256: coreHash() });
 
-/* the twelve implemented instruments */
+/* the eighteen implemented instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
-  zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq];
+  zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
+  cp1lock, embadon, findex, fcarrier, uvsel, civpclosure];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
    A kernel does not RETIRE the laboratory it came from: one visual laboratory can host
@@ -131,7 +145,11 @@ export const CORE = {
     for (const l of LABS.values()) { const d = l.describe();
       for (const p of d.open_problems || []) out.push({ lab_id: d.id, status: d.status, problem: p });
     }
+    /* both halves of the provenance, as every other envelope here carries them: the commit
+       says WHICH RUN answered, the code hash says WHAT CODE answered. Only the second one
+       survives being written to a file — see the note in scripts/build-api.mjs. */
     return { schema: 'hcc.open-problems/1', core_version: CORE_VERSION,
-      git_commit: PROVENANCE.commit, count: out.length, problems: out };
+      git_commit: PROVENANCE.commit, code_sha256: PROVENANCE.code_sha256,
+      count: out.length, problems: out };
   }
 };

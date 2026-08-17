@@ -19,6 +19,19 @@ python3 -m http.server 8000     # → http://localhost:8000
 ```
 or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 
+Two entry points share one origin:
+
+| page | for | needs a GPU |
+|---|---|---|
+| `index.html` | the atlas — **80** laboratories across 7 worlds, WebXR | yes |
+| `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
+
+The newest laboratories are the **seven CIVP stations** — the CP¹ evaluation lock, the
+molecular cut, the Jones ladder, the A₄ transfer, the UV selector, the Berry carrier and the
+conditional closure. Each is a laboratory in its own right, with its own route, camera and
+card, and together they are the source of six computational kernels: the mathematics is
+written where the atlas draws it and `scripts/extract-kernels.mjs` slices it into the core.
+
 **Desktop:** drag = orbit · wheel = zoom · right-drag = pan · Esc = leave surface/deselect.
 **Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·
 ⚙/ⓘ bottom-sheet panels · horizontal mode row · iOS safe-area aware · DPR capped for stable FPS.

@@ -3695,10 +3695,13 @@ through MCP. An out-of-domain input returns **422 DOMAIN_ERROR** — refused, ne
 modes inside the stated band, for the stated model class, at the stated detection threshold
 and resolution"*, and labels itself UNCALIBRATED because no calibration exists in this build.
 
-`api/open-problems.json` carries **92** machine-readable gaps, including the named ones the
+`api/open-problems.json` carries **119** machine-readable gaps, including the named ones the
 atlas had only ever stated in prose: the edge determinants, the Harish–Chandra character,
 the SO(4) volume, the Kronecker functional, the non-existent H_{∂,q}, the capacity selector,
 the physical origin of φ, DESI covariance, and the Bianchi CSV that is not byte-reproducible.
+The count is generated from the core, not typed here — it moved from 92 to 119 when the six
+CIVP kernels arrived, and every one of the five closure certificates is in that list because
+none of them is derived.
 
 ### What this is NOT
 
@@ -3719,6 +3722,125 @@ in `/api/v1/health` rather than buried:
 
 `node scripts/ci.mjs` rebuilds every artifact from scratch, runs all 32 verifiers, the 22
 API contract and benchmark checks and the headless agent scenario: **all green**.
+
+## The CIVP locking chain, and the five things it does not prove (core 1.3.0)
+
+A manuscript arrived — *Acyclic CIVP–Index Locking, Molecular Corner Statistics,
+Entropy–Flux Structure, and Capacity Selection in Trace-Free de Sitter Gravity* — and almost
+every theorem in it is a finite exact computation. So it is one, in six kernels, a
+verifier and a three-dimensional observatory.
+
+### The thing worth saying first
+
+The paper's own subject is **type safety**: the same integer or scalar occurs in several
+unrelated roles, and the work is keeping them apart until something earns the equality.
+`q_can` is a positive real, `N_emb` is the degree of an effective divisor, `q_ind` is a
+dimension, `N_Berry` is a representation rank, and `I_J` is generally irrational. So the
+kernels are built to make the SEPARATION visible, not the identification:
+
+- `civp.embadon_measure` can be driven to a state where `q_can = N_emb` holds numerically
+  and the pointwise unit gate `C_U` reports **no**. Raise the weight spread with the mean
+  pinned at one: the capacity equals the count by accident, and the variance is the only
+  output that moves. That gap is the first locking gate.
+- `civp.finite_index` computes the golden window and, with the same care, the four things
+  that cannot be the defect: a divisible endomorphism semigroup (forced to index 1, because
+  `I^{1/n}` enters the empty interval (1,2)), the irreducible fuzzy sphere (λ\* = 1/N, which
+  hits the window's *excluded endpoints* at N = 2 and 3 and never its interior),
+  the consecutive matrix tower (Mat_N ↪ Mat_{N+1} needs N | N+1), and the irrational
+  capacity ladder.
+- `civp.closure` holds the five certificates as switches and computes which conclusions
+  survive. Remove any one and **exactly one** conclusion goes with it — the irreducibility
+  proposition, as a table rather than as a claim. And it warns, on every run where all five
+  are switched on, that switching a certificate on in an input is not deriving it.
+
+### The exact lock
+
+`civp.cp1_locking` is the sharpest statement in the paper: RΓ(CP¹, L_q(−Z)) ≃ 0 **iff**
+N_emb = q_ind. It is computed twice, by routes that share no code — sheaf cohomology of the
+residual bundle O(q−1−N), and the rank of the confluent evaluation matrix — and the two are
+compared rather than assumed to agree. Collisions are supported because the derived
+formulation is the reason to have one: a double point contributes a jet, the evaluation
+target grows by one, and the defect does not notice. At the lock the determinant is checked
+against ∏(z_b − z_a)^{m_a m_b}.
+
+### The selector, and why its location is not a quotient
+
+`civp.uv_selector` implements κ_q = Δ² log I_q. The nuisance I_q → C e^{aq} I_q is the
+boundary-tension and normalisation freedom, κ annihilates it, and κ is complete modulo it.
+The consequence is the useful part: **shape is a quotient and location is not**. In the
+observatory this is one picture — log Z_q over the (q, a) plane, where every row has the
+same curvature and the crest slides by tens of sectors. That is exactly why removing C_UV
+leaves q★ undetermined while leaving the selector's shape untouched.
+
+### Verified against something else
+
+`docs/verify-civp-locking.cjs` does not ask a kernel whether it likes its own answer. For
+each claim it recomputes the same number by a different route: h¹ through **Serre duality**
+rather than the max formula; the evaluation rank by **Gram–Schmidt** rather than pivoted
+elimination; the confluent determinant by the **Leibniz sum over every permutation**; the
+only Jones value in (2,3) by **inverting** 4cos²(π/m) at the endpoints, which lands on m = 4
+and m = 6 and leaves m = 5 alone; the BMS shape norm against **BigInt factorials**; the
+Capelli multiplicities from the polynomial's own **derivative orders**, forming no transfer
+at all; and the compound-Poisson cumulants by **brute-force summation** over the count.
+35 checks, all green. The kernels' own self-tests add 44 more.
+
+### The atlas is the source, and the kernels are sliced out of it
+
+This is the part that decides the architecture. The mathematics is **written in
+`index.html`**, where the seven stations draw it, and `scripts/extract-kernels.mjs` takes the
+transitive closure of the named roots straight out of that file into `core/atlas/extracted.mjs`.
+`core/labs/civp.*` import from there and rename; they contain **no arithmetic at all**.
+
+That direction is not decoration. The alternative — a parallel `core/civp/` module and a
+separate page importing it — was built first, and it was wrong for exactly the reason this
+repository keeps repeating: two copies of a formula means the older one is wrong and nothing
+says which. `civpDiagnostics` is pure — no THREE, no `state`, no DOM — so the same function
+that returns the geometry for the scene is the function the API answers with. When
+`docs/verify-civp-locking.cjs` checks a claim, it is checking the code that drew the picture.
+
+`scripts/extract-kernels.mjs` enforces this: if any of the CIVP closure ever reached for a
+renderer, the extraction would **fail** and name the chain from the kernel to the browser
+global. That failure is the useful part.
+
+Two defects turned up while wiring it, both worth recording. The extractor's statement walker
+stops at a newline inside a `const a = …,` list when the next line begins with an identifier,
+so a wrapped declarator list silently lost every binder after the wrap — `civpJacobi`'s `c`
+resolved to a top-level `c` twenty thousand lines away and dragged `document` into the closure.
+The 337 wrapped continuation lines in this block are now joined. And the Capelli transfer's
+telescoping direction is not a convention: for ε = +1 the sum runs upward, for ε = −1 downward,
+and the first version summed upward in both charts.
+
+### Seven laboratories, not seven chips
+
+A chip hidden inside one view is not a laboratory: it has no route, no card, no camera of
+its own, and nobody can link to it. So each station is registered exactly like any other S³
+laboratory — `civplock`, `civpcut`, `civpidx`, `civpa4`, `civpsel`, `civpcar`, `civpclo` —
+with its own entry in every registry the atlas keeps, and the station chips **navigate**
+rather than mutating state behind the URL. They share one scene graph because they are one
+instrument in seven configurations. The atlas goes from 73 laboratories to **80**.
+
+The seven are the argument in order, each with three normalised controls and its own
+contract and caveat on the panel:
+
+1. **CP¹ evaluation lock** — the divisor on the Riemann sphere, the carrier as q latitudes,
+   h⁰ and h¹ as columns above and below. At N = q both empty and the equator closes.
+2. **Molecular cut** — atoms whose *volume* is their weight, with the count and the capacity
+   as two columns. Raise the spread: they stay equal and C_U flips to no.
+3. **Jones ladder** — the gap (1,2) drawn as a void because it is empty, the window (2,3)
+   holding exactly one rung, and the divisibility descent falling into the void.
+4. **A₄ transfer** — BBᵀ, N_τ² and A as three 2×2 stacks that coincide, with the fusion tree.
+5. **Selector landscape** — log Z_q over (q, a): every row has the same curvature and the
+   crest slides.
+6. **Berry carrier · Capelli** — N−1 flux meridians and N latitudes, one apart, beside a root
+   divisor and its exact reconstruction.
+7. **Conditional closure** — five rings that light one at a time, each unlocking exactly one row.
+
+### What is still open
+
+All five certificates. They are in `api/open-problems.json` — C_X, C_win, C_U, C_E, C_UV —
+because none of them is derived here and the atlas does not pretend otherwise. The de Sitter
+map is exact and kinematic: without a derived q★, Λ_{q★} = 3π/(q★ ℓ_P²) is arithmetic on an
+unknown, and every run says so in its own output.
 
 ## Status
 

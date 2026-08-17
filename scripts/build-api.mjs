@@ -121,14 +121,30 @@ writeFileSync(join(ROOT, '.well-known/mcp.json'), JSON.stringify(mcp, null, 2) +
 
 /* ── open problems ───────────────────────────────────────────────────────── */
 const op = CORE.openProblems();
-/* the named gaps now come FROM THE CORE, so this file and the live endpoint agree */
-writeFileSync(join(ROOT, 'api/open-problems.json'), JSON.stringify(op, null, 2) + '\n');
+/* the named gaps now come FROM THE CORE, so this file and the live endpoint agree.
+
+   The COMMIT is the one thing that cannot come along. core/index.mjs reads it at call time
+   precisely so the served answer names the commit it is running, and that is right there —
+   but a file that is generated and then committed is written BEFORE the commit it would have
+   to name, so the snapshot can only ever record its own parent. That is not a stamp that goes
+   stale eventually; it is one that is false the instant it is written, and CI asking whether
+   the committed contract equals a fresh build could never be satisfied while it was there.
+
+   So the live endpoint keeps the commit, where it is true, and the snapshot drops it, where
+   it never can be. What identifies the snapshot is code_sha256 — derived from the core's
+   bytes rather than from the history around them, and therefore checkable by anyone holding
+   the file. */
+const { git_commit: _live, ...opSnapshot } = op;
+writeFileSync(join(ROOT, 'api/open-problems.json'), JSON.stringify(opSnapshot, null, 2) + '\n');
 
 /* ── the instrument half of the manifest, with NAMED outputs ─────────────── */
 const mpath = join(ROOT, 'api/manifest.json');
 if (existsSync(mpath)) {
   const man = JSON.parse(readFileSync(mpath, 'utf8'));
-  man.core = { version: CORE_VERSION, git_commit: CORE.provenance.commit, code_sha256: CORE.provenance.code_sha256 };
+  /* no git_commit here either, and for the same reason: this file is written before the
+     commit it would name. The health endpoint reports the commit live; the manifest reports
+     the code hash, which is true of the bytes it was built from and stays true. */
+  man.core = { version: CORE_VERSION, code_sha256: CORE.provenance.code_sha256 };
   man.contracts = { openapi: '/openapi.json', mcp: '/.well-known/mcp.json', open_problems: '/api/open-problems.json' };
   man.instruments_v2 = described.filter(d => d.inputs.length || d.outputs.length).map(d => ({
     id: d.id, title: d.title, status: d.status, model_id: d.model_id,

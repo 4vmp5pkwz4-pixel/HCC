@@ -687,6 +687,69 @@ check(existsSync('PREDICTIVE_FOUNDATIONS_AUDIT.md')
   && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Operational predictive foundations'),
   'predictive transfer, assumptions, rejection gates and provenance are documented');
 
+/* 28 · CIVP corner locking: seven stations, six registries, one extracted source */
+check(html.includes('const CIVP_STATIONS=') && html.includes('function civpDiagnostics(')
+  && html.includes('function civpExportData(') && html.includes('function civpLock(')
+  && html.includes('function civpSelect(') && html.includes('function civpClosure('),
+  'CIVP station registry, pure diagnostics, reproducible export and the locking kernels exist');
+for (const station of ['lock','cut','index','a4','selector','carrier','closure'])
+  check(new RegExp(`\\n  ${station}:\\{t:`).test(html), `CIVP station present: ${station}`);
+check(html.includes('RΓ(CP¹, L_q(−Z)) ≃ 0 if and only if N_emb = q_ind')
+  && html.includes('q_can = Σγ_i and γ̄ = q_can/N_emb')
+  && html.includes('1/3 < λ* < 1/2 is 2 < [M:N] < 3')
+  && html.includes('BBᵀ = N_τ² = [[1,1],[1,2]]')
+  && html.includes('κ_q = Δ²log I_q is invariant under I_q → C e^{aq} I_q')
+  && html.includes('c₁(L_N) = N−1 and ind ∂̄ = N differ by exactly one')
+  && html.includes('R_q = ℓ_P√(q/π) and Λ_q = 3π/(q ℓ_P²) is an exact kinematic map'),
+  'every CIVP station declares its contract, and the seven contracts are the seven theorems');
+/* EVERY STATION IS ITS OWN LABORATORY. A chip hidden inside one view is not a laboratory:
+   it has no route, no card, no camera of its own and nobody can link to it. Each of the
+   seven is registered exactly like any other S³ laboratory, and this loop is what stops
+   the next one from being added to six registries out of seven. */
+const CIVP_LABS = ['civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'];
+for (const v of CIVP_LABS) {
+  check(html.includes(`id="v-${v}"`) && html.includes(`${v}:'CIVP`)
+    && html.includes(`${v}:'VERIFIED'`) && html.includes(`'${v}:'inv'`.slice(1))
+    && html.includes(`'${v}'`) && html.includes(`['${v}Atlas','${v}',civpGroup,`),
+    `CIVP laboratory registered end to end: ${v}`);
+}
+check(html.includes('const CIVP_VIEW_STATION={civplock:')
+  && html.includes('const CIVP_STATION_VIEW=')
+  && html.includes("civpGroup.visible    = !!CIVP_VIEW_STATION[v]")
+  && html.includes('updateCivp(dt)')
+  && html.includes("if(CIVP_VIEW_STATION[v]){ if(state.civpStation!==CIVP_VIEW_STATION[v])")
+  && html.includes('if(CIVP_VIEW_STATION[v])return CIVP.built&&CIVP.station===CIVP_VIEW_STATION[v]')
+  && html.includes("else if(CIVP_VIEW_STATION[V]) body = civpPanelHTML();")
+  && html.includes('if(CIVP_VIEW_STATION[V]) bindCivpControls(ctl);'),
+  'the seven CIVP laboratories share one scene graph through a view→station map, and every routing surface reads that map instead of a hard-coded id');
+check(html.includes("const v=CIVP_STATION_VIEW[b.dataset.civpStation];")
+  && html.includes("if(v&&typeof uiSetS3View==='function')uiSetS3View(v);"),
+  'a CIVP station chip NAVIGATES: the chip and the route can never disagree about which station is open');
+for (const [a, b] of [['civplock','shAtlas'],['civplock','civpcutAtlas'],['civpcut','selAtlas'],
+  ['civpcut','kinAtlas'],['civpidx','anyonAtlas'],['civpidx','civpa4Atlas'],['civpa4','qcrysAtlas'],
+  ['civpsel','gateAtlas'],['civpsel','cauAtlas'],['civpcar','berryAtlas'],['civpcar','su2Atlas'],
+  ['civpclo','bhtAtlas'],['civpclo','secAtlas']])
+  check(html.includes(`['${a}Atlas','${b}'`), `typed Nexus relation present: ${a} → ${b}`);
+check(html.includes('civpLocking(station=state.civpStation') && html.includes('function bindCivpControls(')
+  && html.includes('fbs3r_civp_corner_locking.json'),
+  'CIVP diagnostics are QA-queryable, its controls are bound and its export is reproducible');
+check(html.includes('none of the five physical certificates is derived here')
+  && html.includes('never a prediction of Λ')
+  && html.includes('kinematic map from a capacity that has been SELECTED BY HAND'),
+  'CIVP states its epistemic firewall: the five certificates are undischarged and Λ is not predicted');
+{
+  /* the load-bearing claim of the whole laboratory: the kernels are SLICED from this file,
+     not retyped beside it. If core/civp/ ever came back, the drift would be silent. */
+  const roots = readFileSync('scripts/extract-kernels.mjs', 'utf8');
+  check(roots.includes("'civpLock'") && roots.includes("'civpDiagnostics'") && roots.includes("'CIVP_STATIONS'")
+    && !existsSync('core/civp') && !existsSync('civp.html'),
+    'the CIVP mathematics has exactly one home: index.html, sliced into core/atlas/extracted.mjs by the root list — no parallel module, no separate page');
+  const ex = readFileSync('core/atlas/extracted.mjs', 'utf8');
+  check(ex.includes('function civpDiagnostics(') && ex.includes('function civpLock(')
+    && ex.includes('const CIVP_STATIONS='),
+    'the extracted module carries the station registry and the pure diagnostics the atlas draws with');
+}
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));
