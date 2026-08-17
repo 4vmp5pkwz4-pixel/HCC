@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 208   ·   exported names: 212
-   extracted physics, sha256 1d624b402c98b1267e655417f7f9b9c7938dfe471e35f54302f981bf710d6720 */
+   extracted physics, sha256 637b86f33a5ff5642259e9648400795fed3be6ce8bc299be7accdafb9adff929 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -1230,7 +1230,7 @@ function civpDiagnostics(station,aU,bU,cU){
     labels.push({p:[4.9,.4+FR+.5,0],t:'Mat_'+NF+'(ℂ)  ·  λ* = 1/'+NF,c:2});
     points.push({p:[X+2.4,Y(Math.min(NF,4.6)),2.2],c:3,r:.1});
     labels.push({p:[X+2.4,Y(Math.min(NF,4.6))+.34,2.2],t:'1/'+NF+' → index '+NF+(F.in_open_window?'':'  ✕ outside'),c:3});
-    Object.assign(base,{parameters:[{label:'λ*',value:lam,display:lam.toFixed(4)},{label:'divisibility n',value:nr,display:String(nr)},{label:'fuzzy N',value:NF,display:String(NF)}],values:{lambda_star:lam,index:W.index,in_window:W.in_window,forced_index:W.forced_index,forced_m:W.forced_m,graph:W.graph,admissible:W.admissible,divisibility_root:root,divisible_forced_to_one:civpDivisibleNoGo(W.index).forced_to_one,fuzzy_lambda:F.lambda_scalar,fuzzy_in_window:F.in_open_window,matrix_tower_exists:civpMatrixTower(NF).unital_embedding_exists},readouts:[['[M:N] = 1/λ*',W.index.toFixed(9)],['inside (1/3,1/2)',W.in_window?'yes':'no'],['forced index',W.forced_index?W.forced_index.toFixed(9):'—'],['φ²',CIVP_GOLD.toFixed(9)],['principal graph',W.graph||'—'],['I^(1/n)',root.toFixed(9)],['fuzzy λ* in window',F.in_open_window?'yes':'no']],phase:W.index,residual:W.distance_to_golden,tolerance:1e-9,pass:W.in_window&&W.distance_to_golden<1e-9,path:{lines,points,labels}});
+    Object.assign(base,{parameters:[{label:'λ*',value:lam,display:lam.toFixed(4)},{label:'divisibility n',value:nr,display:String(nr)},{label:'fuzzy N',value:NF,display:String(NF)}],values:{lambda_star:lam,index:W.index,in_window:W.in_window,forced_index:W.forced_index,forced_m:W.forced_m,graph:W.graph,admissible:W.admissible,divisibility_root:root,divisible_forced_to_one:civpDivisibleNoGo(W.index).forced_to_one,fuzzy_lambda:F.lambda_scalar,fuzzy_in_window:F.in_open_window,matrix_tower_exists:civpMatrixTower(NF).unital_embedding_exists},readouts:[['[M:N] = 1/λ*',W.index.toFixed(9)],['inside (1/3,1/2)',W.in_window?'yes':'no'],['forced index',W.forced_index?W.forced_index.toFixed(9):'—'],['φ²',CIVP_GOLD.toFixed(9)],['principal graph',W.graph||'—'],['I^(1/n)',root.toFixed(9)],['fuzzy λ* in window',F.in_open_window?'yes':'no']],/* THE CONTRACT IS THE FORCING, NOT THE SLIDER. This station first passed only when the dialled lambda* landed exactly on 1/phi^2, which a continuous control with a 0.001 step essentially never does — so it opened reporting a failure of a theorem that was holding perfectly. What the window theorem claims is that ANY lambda* strictly inside it forces the SAME index: inside, the forced value is phi^2 to the last bit; outside, there is nothing to force and the station says so. */ phase:W.index,residual:W.in_window?Math.abs(W.forced_index-CIVP_GOLD):W.distance_to_golden,tolerance:1e-12,pass:W.in_window,path:{lines,points,labels}});
   }else if(station==='a4'){
     const n=civpStep(1,14,aU),D=civpStep(1,9,bU),carriers=civpStep(0,60,cU),A=civpA4(n),fib=civpFibFibre(carriers),lines=[],points=[],labels=[],gy=2.9;
     for(let d=0;d<4;d++){const x=-3.6+d*1.5,even=d%2===0;

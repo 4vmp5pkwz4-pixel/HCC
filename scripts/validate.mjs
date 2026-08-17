@@ -725,11 +725,23 @@ check(html.includes('const CIVP_VIEW_STATION={civplock:')
 check(html.includes("const v=CIVP_STATION_VIEW[b.dataset.civpStation];")
   && html.includes("if(v&&typeof uiSetS3View==='function')uiSetS3View(v);"),
   'a CIVP station chip NAVIGATES: the chip and the route can never disagree about which station is open');
-for (const [a, b] of [['civplock','shAtlas'],['civplock','civpcutAtlas'],['civpcut','selAtlas'],
-  ['civpcut','kinAtlas'],['civpidx','anyonAtlas'],['civpidx','civpa4Atlas'],['civpa4','qcrysAtlas'],
-  ['civpsel','gateAtlas'],['civpsel','cauAtlas'],['civpcar','berryAtlas'],['civpcar','su2Atlas'],
-  ['civpclo','bhtAtlas'],['civpclo','secAtlas']])
-  check(html.includes(`['${a}Atlas','${b}'`), `typed Nexus relation present: ${a} → ${b}`);
+/* A RELATION TO A NODE THAT DOES NOT EXIST IS NOT A RELATION, and the atlas's own runtime
+   check says so by name. Seven of these edges first pointed at selAtlas, anyonAtlas,
+   qcrysAtlas, gateAtlas, cauAtlas, berryAtlas and secAtlas — not every S³ laboratory has an
+   Atlas object, and none of those does. So the target is verified to be a REGISTERED key
+   here too, statically, rather than only at runtime where a reader has to open the panel. */
+{
+  const atlasKeys = new Set([...html.matchAll(/\['([a-zA-Z0-9]+Atlas)','[a-z0-9]+',/g)].map(m => m[1]));
+  const edges = [...html.matchAll(/\['(civp[a-z0-9]+Atlas)','([a-zA-Z0-9]+Atlas)'/g)]
+    .map(m => [m[1], m[2]]);
+  const labs = new Set(edges.map(e => e[0]));
+  check(edges.length >= 13 && labs.size === 7,
+    `${edges.length} typed Nexus relations from the ${labs.size} CIVP laboratories, every one of them linked`);
+  const dangling = edges.filter(([, b]) => !atlasKeys.has(b));
+  check(dangling.length === 0,
+    dangling.length ? `relations pointing at unregistered Atlas objects: ${dangling.map(e => e.join('→')).join(', ')}`
+      : 'every CIVP relation resolves to a registered Atlas object');
+}
 check(html.includes('civpLocking(station=state.civpStation') && html.includes('function bindCivpControls(')
   && html.includes('fbs3r_civp_corner_locking.json'),
   'CIVP diagnostics are QA-queryable, its controls are bound and its export is reproducible');
@@ -737,6 +749,33 @@ check(html.includes('none of the five physical certificates is derived here')
   && html.includes('never a prediction of Λ')
   && html.includes('kinematic map from a capacity that has been SELECTED BY HAND'),
   'CIVP states its epistemic firewall: the five certificates are undischarged and Λ is not predicted');
+/* A LABORATORY AN AGENT CAN ONLY LOOK AT IS A LABORATORY AN AGENT CANNOT USE. The seven
+   walked out of the first build as "parametric" — controls but no typed output contract —
+   which is exactly the class the atlas invented so that nothing visual-only could be
+   mistaken for something you can compute with. They are instruments now, and this is what
+   keeps them that way. */
+check(html.includes('const CIVP_SPEC_ROWS=') && html.includes('for(const [id,station,name,ctl,outs] of CIVP_SPEC_ROWS)')
+  && html.includes('hccApiRegister({') && html.includes("id, world:'s3', lab:id,"),
+  'the seven CIVP stations are registered as typed instruments from one table, not seven copies');
+check(html.includes("['civpsel.q_star','civpclo.q']") && html.includes("hccBusLink('civpsel.q_star','civpclo.q')"),
+  'the selected sector reaches the de Sitter map over the quantity bus, with the alias that says the two names are one coordinate');
+check(html.includes('const CIVP_STATION_OPEN=') && html.includes('const civpOpen=st=>CIVP_STATION_OPEN[st]'),
+  'every CIVP station declares the opening position that shows its own theorem, rather than parking all three controls at the midpoint');
+{
+  /* the boot camera: the defect a first-time reader met and nobody navigating ever could */
+  check(html.includes('function frameOpeningWorld()') && html.includes('if(!(d<sunMesh.scale.x*3)) return false;')
+    && html.includes('try{ frameOpeningWorld(); }catch(e){}')
+    && html.includes('requestAnimationFrame(()=>{ atlasFrontDoor(); frameOpeningWorld();'),
+    'the opening world is framed at boot, and the guard is the measurement — it only fires while the camera is still inside the body it is looking at');
+  const api = JSON.parse(readFileSync('api/manifest.json', 'utf8'));
+  const civp = api.labs.filter(l => l.id.startsWith('civp'));
+  check(civp.length === 7 && civp.every(l => l.kind === 'computational' && l.instrument === l.id),
+    civp.length ? `all ${civp.length} CIVP laboratories are computational with a typed instrument attached`
+      : 'the CIVP laboratories are missing from the measured manifest');
+  check(!api.labs.some(l => l.note && /hand-registered/.test(l.note)),
+    'no laboratory in the manifest is hand-registered — it is measured by walking the atlas headlessly');
+}
+
 {
   /* the load-bearing claim of the whole laboratory: the kernels are SLICED from this file,
      not retyped beside it. If core/civp/ ever came back, the drift would be silent. */
