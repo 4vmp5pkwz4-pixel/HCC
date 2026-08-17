@@ -1,0 +1,1091 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CIVP Locking Observatory · HCC</title>
+<meta name="description" content="Seven interactive three-dimensional stages for the trace-free de Sitter CIVP locking chain: the CP¹ evaluation lock, the molecular cut, finite index, the A₄ transfer, the UV selector landscape, the Berry carrier and the conditional closure. Every number is computed by the same core/civp modules the API serves.">
+<style>
+/* ── THE OBSERVATORY IS DARK BECAUSE THE OBJECTS EMIT ────────────────────────
+   Nothing here is lit by a lamp. Every stage draws a mathematical object whose
+   brightness IS a quantity — index density, weight, curvature — so the page is
+   black and the geometry carries the light. */
+:root{
+  --bg:#05070c; --bg2:#0a0f18; --ink:#e8edf5; --dim:#8a97ab; --faint:#4b586c;
+  --gold:#e9c46a; --cyan:#54d3e8; --rose:#e879a6; --lime:#8fe388; --violet:#a78bfa;
+  --edge:rgba(255,255,255,.09); --glass:rgba(12,18,28,.72);
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Inter,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);
+  overflow:hidden;-webkit-font-smoothing:antialiased}
+#gl{position:fixed;inset:0;display:block}
+#labels{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+.lbl{font:500 11px/1.25 var(--mono);letter-spacing:.02em;color:var(--ink);
+  text-shadow:0 0 10px #000,0 0 3px #000;white-space:pre;opacity:.92}
+.lbl.gold{color:var(--gold)} .lbl.cyan{color:var(--cyan)} .lbl.rose{color:var(--rose)}
+.lbl.dim{color:var(--dim);font-size:10px}
+
+/* ── chrome ─────────────────────────────────────────────────────────────── */
+header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;align-items:baseline;
+  gap:14px;padding:14px 18px 12px;pointer-events:none;
+  background:linear-gradient(180deg,rgba(5,7,12,.94),rgba(5,7,12,0))}
+header h1{font:600 14px/1 var(--sans);letter-spacing:.06em;text-transform:uppercase}
+header .sub{font:400 11px/1 var(--mono);color:var(--faint)}
+header .spacer{flex:1}
+header a,header button{pointer-events:auto}
+
+.panel{position:fixed;z-index:20;background:var(--glass);backdrop-filter:blur(16px) saturate(1.3);
+  -webkit-backdrop-filter:blur(16px) saturate(1.3);border:1px solid var(--edge);
+  border-radius:14px;box-shadow:0 18px 50px -18px #000,inset 0 1px 0 rgba(255,255,255,.05)}
+
+#stages{left:14px;top:56px;width:212px;padding:8px;display:flex;flex-direction:column;gap:2px;
+  max-height:calc(100vh - 74px);overflow:auto}
+#stages button{all:unset;display:block;cursor:pointer;padding:9px 11px;border-radius:9px;
+  font:500 12px/1.3 var(--sans);color:var(--dim);transition:background .16s,color .16s}
+#stages button b{display:block;font:600 12px/1.35 var(--sans);color:var(--ink)}
+#stages button small{display:block;font:400 10px/1.35 var(--mono);color:var(--faint);margin-top:2px}
+#stages button:hover{background:rgba(255,255,255,.045)}
+#stages button[aria-current="true"]{background:linear-gradient(90deg,rgba(233,196,106,.16),rgba(233,196,106,.03));
+  box-shadow:inset 2px 0 0 var(--gold)}
+#stages button[aria-current="true"] b{color:var(--gold)}
+
+#readout{right:14px;top:56px;width:296px;padding:13px 15px 14px;max-height:calc(100vh - 190px);overflow:auto}
+#readout h2{font:600 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--faint);margin-bottom:9px}
+#readout .thm{font:400 11.5px/1.5 var(--sans);color:var(--dim);margin-bottom:11px;
+  padding-bottom:10px;border-bottom:1px solid var(--edge)}
+#readout .thm em{color:var(--ink);font-style:normal;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font:400 11px/1.7 var(--mono);border-bottom:1px solid rgba(255,255,255,.035)}
+.row span:first-child{color:var(--faint);flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.row span:last-child{color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.row.hi span:last-child{color:var(--gold);font-weight:600}
+.row.yes span:last-child{color:var(--lime)}
+.row.no span:last-child{color:var(--rose)}
+.note{margin-top:11px;padding-top:10px;border-top:1px solid var(--edge);
+  font:400 10.5px/1.55 var(--sans);color:var(--faint)}
+.note b{color:var(--dim);font-weight:600}
+
+#controls{left:50%;transform:translateX(-50%);bottom:14px;width:min(760px,calc(100vw - 28px));
+  padding:11px 15px 12px;display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center}
+.ctl{display:flex;flex-direction:column;gap:3px;min-width:132px;flex:1 1 132px}
+.ctl label{font:500 9.5px/1 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--faint);
+  display:flex;justify-content:space-between;gap:8px}
+.ctl label b{color:var(--gold);font:600 11px/1 var(--mono);letter-spacing:0}
+.ctl input[type=range]{-webkit-appearance:none;appearance:none;height:20px;background:transparent;cursor:pointer}
+.ctl input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--gold),rgba(255,255,255,.12))}
+.ctl input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:rgba(255,255,255,.18)}
+.ctl input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+  margin-top:-5px;border-radius:50%;background:var(--ink);box-shadow:0 0 0 3px rgba(233,196,106,.22)}
+.ctl input[type=range]::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:var(--ink)}
+.ctl.toggle{flex:0 0 auto;min-width:0}
+.ctl.toggle button{all:unset;cursor:pointer;padding:6px 12px;border-radius:8px;
+  font:600 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;
+  border:1px solid var(--edge);color:var(--dim);transition:.15s}
+.ctl.toggle button[aria-pressed="true"]{color:var(--bg);background:var(--lime);border-color:var(--lime)}
+
+.chip{all:unset;cursor:pointer;padding:6px 11px;border-radius:8px;border:1px solid var(--edge);
+  font:600 10px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--dim);transition:.15s}
+.chip:hover{color:var(--ink);border-color:rgba(255,255,255,.22)}
+.chip[hidden]{display:none}
+
+#boot{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:var(--bg);
+  font:400 12px/1.6 var(--mono);color:var(--faint);text-align:center;padding:24px}
+#boot b{display:block;font:600 13px/1.4 var(--sans);color:var(--ink);letter-spacing:.06em;
+  text-transform:uppercase;margin-bottom:8px}
+#boot code{color:var(--gold)}
+
+@media (max-width:900px){
+  #stages{width:172px} #readout{width:236px}
+  #controls{width:calc(100vw - 20px);bottom:8px;left:10px;transform:none}
+}
+@media (max-width:640px){
+  #stages{top:auto;bottom:8px;left:8px;right:8px;width:auto;flex-direction:row;overflow-x:auto;
+    max-height:none;padding:6px}
+  #stages button{flex:0 0 auto;white-space:nowrap} #stages button small{display:none}
+  #readout{right:8px;left:8px;top:52px;width:auto;max-height:34vh}
+  #controls{display:none}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+
+<header>
+  <h1>CIVP Locking Observatory</h1>
+  <span class="sub" id="hdrSub">seven stages · one computational core</span>
+  <span class="spacer"></span>
+  <button class="chip" id="xrBtn" hidden>Enter VR</button>
+  <button class="chip" id="spinBtn" aria-pressed="true">Orbit</button>
+  <a class="chip" href="./index.html" style="text-decoration:none">Atlas</a>
+</header>
+
+<nav class="panel" id="stages" aria-label="stages"></nav>
+<aside class="panel" id="readout" aria-live="polite"></aside>
+<div class="panel" id="controls"></div>
+
+<div id="boot"><b>loading the computational core</b>
+If this message stays, the page is being opened from <code>file://</code>.<br>
+ES modules need an origin — serve the folder, e.g. <code>python3 -m http.server</code>.</div>
+
+<script type="importmap">
+{"imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+/* ── THE SAME CODE THE API SERVES ────────────────────────────────────────────
+   These six modules are the ones core/labs/civp.*.mjs call. They import nothing from
+   node, which is not an accident: it is what lets the picture and the number be one
+   piece of code instead of two transcriptions that drift. Every figure below is drawn
+   from a value returned here, and nothing on this page recomputes any of it. */
+import * as CP1 from './core/civp/cp1.mjs';
+import * as EMB from './core/civp/embadon.mjs';
+import * as JON from './core/civp/jones.mjs';
+import * as SEL from './core/civp/selector.mjs';
+import * as CAR from './core/civp/carrier.mjs';
+import * as CLO from './core/civp/closure.mjs';
+
+document.getElementById('boot').remove();
+
+/* ═══ RENDERER ══════════════════════════════════════════════════════════════ */
+const canvas = document.getElementById('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:false, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.setClearColor(0x05070c, 1);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+renderer.xr.enabled = true;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x05070c, 0.018);
+const camera = new THREE.PerspectiveCamera(46, innerWidth/innerHeight, 0.06, 700);
+camera.position.set(0, 3.4, 12.5);
+
+const controls = new OrbitControls(camera, canvas);
+controls.enableDamping = true; controls.dampingFactor = 0.075;
+controls.minDistance = 2.4; controls.maxDistance = 60;
+controls.autoRotate = true; controls.autoRotateSpeed = 0.42;
+
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('labels') });
+labelRenderer.setSize(innerWidth, innerHeight);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.68, 0.62, 0.14);
+composer.addPass(bloom);
+
+scene.add(new THREE.AmbientLight(0x8fa6c8, 0.55));
+const key = new THREE.DirectionalLight(0xffffff, 1.25); key.position.set(5, 9, 7); scene.add(key);
+const rim = new THREE.DirectionalLight(0x6fa8ff, 0.55); rim.position.set(-7, -3, -6); scene.add(rim);
+
+/* a slow star field, so rotation reads as rotation and the void is not a flat black wall */
+{
+  const N = 1400, pos = new Float32Array(N*3);
+  for (let i=0;i<N;i++){ const r = 120 + Math.random()*260, t = Math.random()*Math.PI*2, u = Math.random()*2-1;
+    const s = Math.sqrt(1-u*u);
+    pos[i*3]=r*s*Math.cos(t); pos[i*3+1]=r*u; pos[i*3+2]=r*s*Math.sin(t); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const stars = new THREE.Points(g, new THREE.PointsMaterial({ color:0x9fb4d4, size:0.55, sizeAttenuation:true,
+    transparent:true, opacity:0.34, depthWrite:false }));
+  stars.name = 'field'; scene.add(stars);
+}
+
+/* ═══ SHARED PRIMITIVES ═════════════════════════════════════════════════════ */
+const COL = { gold:0xe9c46a, cyan:0x54d3e8, rose:0xe879a6, lime:0x8fe388, violet:0xa78bfa,
+  ink:0xe8edf5, dim:0x60708a, void:0x1a1020 };
+
+const glow = (c, o=0.9) => new THREE.MeshBasicMaterial({ color:c, transparent:true, opacity:o, depthWrite:false });
+const solid = (c, ro=0.35, me=0.1, o=1) => new THREE.MeshStandardMaterial({ color:c, roughness:ro, metalness:me,
+  transparent:o<1, opacity:o });
+
+function label(text, x, y, z, cls='lbl'){
+  const el = document.createElement('div'); el.className = cls; el.textContent = text;
+  const o = new CSS2DObject(el); o.position.set(x,y,z); o.userData.el = el; return o;
+}
+function line(points, color, opacity=0.85, width=1){
+  const g = new THREE.BufferGeometry().setFromPoints(points.map(p=>p.isVector3?p:new THREE.Vector3(...p)));
+  return new THREE.Line(g, new THREE.LineBasicMaterial({ color, transparent:true, opacity, linewidth:width }));
+}
+function ring(r, color, opacity=0.5, seg=192, tilt=-Math.PI/2){
+  const pts=[]; for(let i=0;i<=seg;i++){ const t=i/seg*Math.PI*2; pts.push(new THREE.Vector3(r*Math.cos(t),0,r*Math.sin(t))); }
+  const l = line(pts, color, opacity); return l;
+}
+function tube(a, b, color, r=0.02, opacity=0.8){
+  const dir = new THREE.Vector3().subVectors(b,a), len = dir.length();
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8, 1, true), glow(color, opacity));
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+  return m;
+}
+function orb(r, color, opacity=1, seg=28){
+  return new THREE.Mesh(new THREE.SphereGeometry(r, seg, seg), glow(color, opacity));
+}
+function clear(group){
+  for (const c of [...group.children]){
+    group.remove(c);
+    c.traverse?.(n => { n.geometry?.dispose?.();
+      if (n.material) (Array.isArray(n.material)?n.material:[n.material]).forEach(m=>m.dispose?.());
+      if (n.userData?.el) n.userData.el.remove(); });
+    if (c.userData?.el) c.userData.el.remove();
+  }
+}
+/* stereographic lift of the affine chart onto the unit Riemann sphere, so a divisor
+   drawn on CP^1 is drawn where it actually lives */
+function toSphere(re, im, R=1){
+  const d = 1 + re*re + im*im;
+  return new THREE.Vector3(2*re*R/d, ((re*re+im*im-1)/d)*R, 2*im*R/d);
+}
+
+/* ═══ STAGE FRAMEWORK ═══════════════════════════════════════════════════════ */
+const root = new THREE.Group(); scene.add(root);
+const STAGES = [];
+let active = null, tAcc = 0;
+
+function defineStage(spec){ STAGES.push(spec); }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 1 · THE CP¹ EVALUATION LOCK
+   The Riemann sphere carries the molecular divisor; the carrier K_q is drawn as
+   q latitudes, one per basis section. The residual complex is the vertical
+   column: h⁰ ghosts rising, h¹ ghosts falling. At N = q both columns are empty
+   and the equator closes into a single gold ring. That closing IS the theorem.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'lock', title:'CP¹ evaluation lock', sub:'RΓ(L_q(−Z)) ≃ 0 ⟺ N = q',
+  theorem:'The residual complex vanishes <em>if and only if</em> the molecular divisor degree equals the index-space dimension. Collisions are jets, and the defect does not notice.',
+  camera:[0,3.2,10.5],
+  controls:[
+    { key:'q', label:'q_ind', min:1, max:14, step:1, value:7 },
+    { key:'n', label:'N_emb', min:1, max:14, step:1, value:7 },
+    { key:'col', label:'collisions', min:0, max:5, step:1, value:0 }
+  ],
+  build(g, S){
+    const q = S.q|0, n = S.n|0, col = Math.min(S.col|0, n-1);
+    const distinct = n - col;
+    const atoms = [];
+    for (let a=0; a<distinct; a++){
+      const t = 2*Math.PI*a/distinct + 0.35;
+      const rr = 0.62 + 0.5*Math.sin(a*1.7);
+      atoms.push({ re: rr*Math.cos(t), im: rr*Math.sin(t), mult: a===0 ? 1+col : 1 });
+    }
+    const L = CP1.evaluationLock(q, atoms);
+    const R = 2.5;
+
+    /* the sphere itself: faint, because it is the stage and not the object */
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 48),
+      new THREE.MeshStandardMaterial({ color:0x0d1726, roughness:.95, metalness:.05,
+        transparent:true, opacity:.42, side:THREE.DoubleSide })));
+    for (let i=1;i<8;i++){ const y = -R + 2*R*i/8, r = Math.sqrt(Math.max(R*R-y*y,0));
+      const l = ring(r, 0x24354d, .35); l.position.y = y; g.add(l); }
+
+    /* the carrier: q latitudes, one per basis section of K_q. Their number is the
+       index, and it is meant to be countable by eye. */
+    for (let k=0;k<q;k++){
+      const u = (k+0.5)/q, y = -R*0.94 + 1.88*R*u, r = Math.sqrt(Math.max(R*R-y*y,0));
+      const l = ring(r*1.004, COL.cyan, 0.5); l.position.y = y; g.add(l);
+    }
+    g.add(label(`K_q : ${q} sections`, 0, R+0.55, 0, 'lbl cyan'));
+
+    /* the divisor: one orb per atom, radius by multiplicity, plus a jet halo per
+       extra order — a double point is drawn as a point WITH a derivative */
+    for (const a of atoms){
+      const p = toSphere(a.re, a.im, R);
+      const o = orb(0.085 + 0.05*Math.sqrt(a.mult), COL.gold, 0.98); o.position.copy(p); g.add(o);
+      for (let j=1;j<a.mult;j++){
+        const h = ring(0.17 + j*0.115, COL.gold, 0.55 - j*0.07, 64);
+        h.position.copy(p); h.lookAt(0,0,0); h.rotateX(Math.PI/2); g.add(h);
+      }
+      g.add(tube(p.clone().multiplyScalar(1.0), p.clone().multiplyScalar(1.16), COL.gold, 0.008, 0.5));
+      if (a.mult>1) g.add(label(`m=${a.mult}`, p.x*1.3, p.y*1.3, p.z*1.3, 'lbl gold'));
+    }
+
+    /* the residual column: h⁰ above, h¹ below, nothing at the lock */
+    const bar = (count, dir, color, tag) => {
+      for (let i=0;i<count;i++){
+        const y = dir*(R + 0.75 + i*0.34);
+        const m = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.11, 0.11), glow(color, .85));
+        m.position.set(0, y, 0); g.add(m);
+      }
+      if (count) g.add(label(`${tag} = ${count}`, 1.25, dir*(R+0.75+(count-1)*0.34), 0,
+        `lbl ${color===COL.rose?'rose':'cyan'}`));
+    };
+    bar(L.h0, +1, COL.cyan, 'h⁰');
+    bar(L.h1, -1, COL.rose, 'h¹');
+
+    if (L.acyclic){
+      const gold = ring(R*1.045, COL.gold, 1, 256); g.add(gold);
+      gold.userData.pulse = true;
+      const t = new THREE.Mesh(new THREE.TorusGeometry(R*1.045, 0.018, 10, 256), glow(COL.gold, .95));
+      t.rotation.x = Math.PI/2; g.add(t); t.userData.pulse = true;
+      g.add(label('ACYCLIC · ev_Z is an isomorphism', 0, -R-0.7, 0, 'lbl gold'));
+    } else {
+      g.add(label(`Δ_lock = ${L.delta_lock > 0 ? '+' : ''}${L.delta_lock}   ${L.regime.split('—')[1].trim()}`,
+        0, -R-0.7, 0, 'lbl dim'));
+    }
+    return L;
+  },
+  readout(L, S){
+    return [
+      ['q_ind', L.q_ind], ['N_emb', L.n_emb], ['distinct atoms', L.support_points],
+      ['Δ_lock  = q − N', L.delta_lock, L.acyclic?'hi':''],
+      ['residual degree', L.q_ind-1-L.n_emb],
+      ['h⁰ (ker ev_Z)', L.h0], ['h¹ (coker ev_Z)', L.h1],
+      ['rank ev_Z', L.rank],
+      ['acyclic', L.acyclic?'yes':'no', L.acyclic?'yes':'no'],
+      ['routes agree', L.routes_agree?'yes':'no', L.routes_agree?'yes':'no'],
+      ['det vs ∏(z_b−z_a)^{m_a m_b}', L.det_agreement===null?'—':L.det_agreement.toExponential(2)],
+      ['Bergman B_q(z)', CP1.bergman(L.q_ind).diagonal, 'hi'],
+      ['12·Δ_lock  (Tate image)', CP1.tateImage(L.delta_lock).det_multiple],
+      ['zeros of ONE section', CP1.zeroDivisorNoGo(L.q_ind).zeros_of_one_section]
+    ];
+  },
+  note:'<b>Two routes, one answer.</b> The kernel and cokernel come from the rank of the confluent evaluation matrix; h⁰ and h¹ come from sheaf cohomology of O(q−1−N). They share no code. What this stage does <i>not</i> show is certificate C_E — that the physical embadon support realises this frame.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 2 · THE MOLECULAR CUT
+   Atoms on the cut, each drawn with VOLUME proportional to its weight γ_i, and
+   two columns beside them: the count and the capacity. Unit weights make the
+   columns equal. Spread weights with mean one make them equal TOO — and that is
+   the whole point of the no-go theorem, so the stage shows the variance as the
+   thing that actually differs.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'cut', title:'Molecular cut', sub:'q_can = Σγ_i is not a count',
+  theorem:'Area is a <em>weighted sum</em>. A molecular decomposition buys the support number and the 1/N! quotient; the equality q_can = N_emb needs certificate C_U, and mean-one weights satisfy it only on average.',
+  camera:[0,4.2,11],
+  controls:[
+    { key:'n', label:'N_emb', min:2, max:48, step:1, value:16 },
+    { key:'spread', label:'weight spread', min:0, max:90, step:1, value:0 },
+    { key:'glue', label:'gluing offset', min:0, max:60, step:1, value:0 }
+  ],
+  build(g, S){
+    const N = S.n|0, amp = S.spread/100;
+    const w = Array.from({length:N}, (_,i)=> 1 + amp*Math.cos(2*Math.PI*(i+0.5)/N));
+    const sum = w.reduce((a,b)=>a+b,0); const gam = w.map(x=>x*N/sum);   /* mean exactly one */
+    const cap = EMB.capacity(gam);
+    const R = 2.6;
+
+    /* the cut, drawn as a sphere because a codimension-two cut of a null boundary is one */
+    g.add(new THREE.Mesh(new THREE.SphereGeometry(R, 64, 48),
+      new THREE.MeshStandardMaterial({ color:0x0b1420, roughness:.95, transparent:true, opacity:.34,
+        side:THREE.DoubleSide })));
+    for (let i=1;i<6;i++){ const y=-R+2*R*i/6, r=Math.sqrt(Math.max(R*R-y*y,0));
+      const l=ring(r,0x1f2f45,.3); l.position.y=y; g.add(l); }
+
+    /* golden-angle spiral: N atoms with no accidental symmetry to read into */
+    const GA = Math.PI*(3-Math.sqrt(5));
+    const pts = [];
+    for (let i=0;i<N;i++){
+      const u = 1 - 2*(i+0.5)/N, s = Math.sqrt(Math.max(1-u*u,0)), t = i*GA;
+      const p = new THREE.Vector3(R*s*Math.cos(t), R*u, R*s*Math.sin(t));
+      pts.push(p);
+      const rad = 0.11*Math.cbrt(gam[i]);        /* VOLUME is the weight, not radius */
+      const dev = Math.abs(gam[i]-1);
+      const c = dev < 1e-9 ? COL.gold : (gam[i] > 1 ? COL.rose : COL.cyan);
+      const o = orb(rad, c, 0.96, 20); o.position.copy(p); g.add(o);
+      if (dev > 1e-9){
+        const l = tube(p, p.clone().multiplyScalar(1 + 0.32*(gam[i]-1)), c, 0.012, 0.75); g.add(l);
+      }
+    }
+
+    /* the two columns: count and capacity, side by side, same scale */
+    const colH = 3.4, unit = colH / Math.max(N, 1);
+    const mkCol = (x, h, c, tag, val) => {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, h, 28), glow(c, .55));
+      m.position.set(x, -R - 0.4 + h/2, 0); g.add(m);
+      g.add(label(`${tag}\n${val}`, x, -R - 0.4 + h + 0.42, 0, `lbl ${c===COL.gold?'gold':'cyan'}`));
+    };
+    mkCol(-4.4, N*unit, COL.cyan, 'N_emb', String(N));
+    mkCol(-3.4, cap.q_can*unit, COL.gold, 'q_can', cap.q_can.toFixed(4));
+
+    /* the variance, drawn as the thing that actually separates the two statements */
+    const vh = Math.min(cap.weight_variance*6, 3.4);
+    if (vh > 0.001){
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14, vh, 24), glow(COL.rose, .6));
+      m.position.set(4.2, -R-0.4+vh/2, 0); g.add(m);
+      g.add(label(`Var γ\n${cap.weight_variance.toFixed(5)}`, 4.2, -R-0.4+vh+0.4, 0, 'lbl rose'));
+    } else {
+      g.add(label('Var γ = 0\nC_U holds', 4.2, -R-0.2, 0, 'lbl gold'));
+    }
+
+    /* double-null gluing: the second sheet, offset by the control, matched atom by atom */
+    const off = S.glue/1000;
+    const A = pts.map((p,i)=>({ re:p.x, im:p.z, w:gam[i] }));
+    const B = pts.map((p,i)=>({ re:p.x, im:p.z, w:gam[i] + (i===0?off:0) })).slice().reverse();
+    const gl = EMB.gluing(A, B, 1e-12);
+    const sheet = new THREE.Mesh(new THREE.SphereGeometry(R*1.16, 48, 36),
+      new THREE.MeshBasicMaterial({ color: gl.compatible?COL.lime:COL.rose, wireframe:true,
+        transparent:true, opacity: gl.compatible?0.055:0.115 }));
+    g.add(sheet);
+    g.add(label(gl.compatible ? 'double-null gluing: the two atomic measures agree up to permutation'
+      : `gluing FAILS · max mass defect ${gl.max_mass_defect.toExponential(2)}`,
+      0, R*1.16+0.5, 0, gl.compatible?'lbl dim':'lbl rose'));
+    return { cap, gl, N };
+  },
+  readout(D){
+    const bq = EMB.bosonicQuotient(D.N), cm = EMB.cornerModes(D.N);
+    return [
+      ['N_emb', D.N], ['q_can = Σγ_i', D.cap.q_can.toFixed(6), 'hi'],
+      ['γ̄', D.cap.gamma_bar.toFixed(9)],
+      ['Var γ', D.cap.weight_variance.toExponential(3)],
+      ['q_can = N_emb', D.cap.capacity_equals_count?'yes':'no', D.cap.capacity_equals_count?'yes':'no'],
+      ['C_U  (every γ_i = 1)', D.cap.certificate_C_U?'yes':'no', D.cap.certificate_C_U?'yes':'no'],
+      ['−log N!', (-bq.log_factorial).toFixed(4)],
+      ['collective pairs', cm.collective_pairs],
+      ['relative shape pairs', cm.relative_pairs],
+      ['|[q̂_can, μ̄̂]|', '2π = '+(2*Math.PI).toFixed(6)],
+      ['gluing compatible', D.gl.compatible?'yes':'no', D.gl.compatible?'yes':'no'],
+      ['max mass defect', D.gl.max_mass_defect.toExponential(2)]
+    ];
+  },
+  note:'<b>Watch the two columns, not the atoms.</b> Raising the spread keeps q_can = N_emb exactly, because the mean is held at one — and C_U still flips to <i>no</i>. That gap is the first locking gate, and no amount of molecular structure closes it.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 3 · THE JONES LADDER
+   The small-index spectrum as a vertical ladder. The band 1 < I < 2 is drawn as a
+   VOID because it is empty, and the slab 2 < I < 3 is drawn as a window because
+   exactly one rung is inside it. The divisibility no-go is the descending marker:
+   I^{1/n} walks down the ladder and falls into the void.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'index', title:'Jones ladder', sub:'one rung inside (2,3)',
+  theorem:'1/3 &lt; λ* &lt; 1/2 is 2 &lt; [M:N] &lt; 3, and the spectrum has <em>exactly one</em> value there. A coarse positivity window does the work of an irrational computation.',
+  camera:[0,2.0,11.5],
+  controls:[
+    { key:'lam', label:'λ*  ×1000', min:180, max:990, step:1, value:382 },
+    { key:'nroot', label:'divisibility n', min:1, max:16, step:1, value:1 },
+    { key:'fuzzy', label:'fuzzy N', min:1, max:12, step:1, value:5 }
+  ],
+  build(g, S){
+    const lam = S.lam/1000, W = JON.pimsnerPopaWindow(lam);
+    const Y = I => (I-1)*2.05;                      /* index → height */
+    const X = -3.2;
+
+    g.add(line([[X,Y(0.92),0],[X,Y(4.6),0]], 0x33465f, .8));
+    for (const I of [1,2,3,4]){
+      g.add(line([[X-0.16,Y(I),0],[X+0.16,Y(I),0]], 0x55698a, .9));
+      g.add(label(String(I), X-0.6, Y(I), 0, 'lbl dim'));
+    }
+
+    /* the empty gap, drawn as a void slab */
+    const gap = new THREE.Mesh(new THREE.BoxGeometry(6.4, Y(2)-Y(1), 2.4),
+      new THREE.MeshBasicMaterial({ color:COL.void, transparent:true, opacity:.55 }));
+    gap.position.set(X+3.2, (Y(1)+Y(2))/2, 0); g.add(gap);
+    g.add(label('EMPTY · no finite index here', X+3.4, (Y(1)+Y(2))/2, 1.3, 'lbl dim'));
+
+    /* the window */
+    const win = new THREE.Mesh(new THREE.BoxGeometry(6.4, Y(3)-Y(2), 2.4),
+      new THREE.MeshBasicMaterial({ color:COL.gold, transparent:true, opacity:.075 }));
+    win.position.set(X+3.2, (Y(2)+Y(3))/2, 0); g.add(win);
+    g.add(label('2 < [M:N] < 3', X+3.4, Y(3)-0.22, 1.3, 'lbl gold'));
+
+    /* the rungs */
+    for (const { m, index } of JON.jonesSpectrum(14)){
+      const inWin = index > 2 && index < 3;
+      const c = inWin ? COL.gold : COL.cyan;
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(inWin?5.4:4.2, inWin?0.075:0.035, inWin?0.24:0.11), glow(c, inWin?1:.6));
+      bar.position.set(X + (inWin?2.7:2.1), Y(index), 0); g.add(bar);
+      if (m<=8 || inWin) g.add(label(`m=${m}   ${index.toFixed(6)}`, X + (inWin?5.6:4.4), Y(index), 0,
+        inWin?'lbl gold':'lbl dim'));
+      if (inWin) bar.userData.pulse = true;
+    }
+    /* the continuum above 4 */
+    const cont = new THREE.Mesh(new THREE.BoxGeometry(4.2, Y(4.6)-Y(4), 0.5),
+      new THREE.MeshBasicMaterial({ color:COL.cyan, transparent:true, opacity:.09 }));
+    cont.position.set(X+2.1, (Y(4)+Y(4.6))/2, 0); g.add(cont);
+    g.add(label('[4, ∞) continuum', X+4.4, Y(4.3), 0, 'lbl dim'));
+
+    /* the state under test */
+    const my = Y(Math.min(W.index, 4.6));
+    const mk = orb(0.15, W.in_window?COL.gold:COL.rose, 1); mk.position.set(X+2.4, my, 1.1); g.add(mk);
+    mk.userData.pulse = true;
+    g.add(label(`λ* = ${lam.toFixed(4)}\n[M:N] = ${W.index.toFixed(6)}`, X+2.4, my+0.5, 1.1,
+      W.in_window?'lbl gold':'lbl rose'));
+
+    /* the divisibility descent: I^{1/n}, walking into the void */
+    const n = S.nroot|0, root = Math.pow(W.index, 1/n);
+    if (n > 1){
+      const ry = Y(root);
+      const m2 = orb(0.1, root>1.001&&root<1.999 ? COL.rose : COL.violet, 1);
+      m2.position.set(X+2.4, ry, -1.15); g.add(m2);
+      g.add(tube(new THREE.Vector3(X+2.4,my,-1.15), new THREE.Vector3(X+2.4,ry,-1.15), COL.violet, 0.008, .55));
+      g.add(label(`I^(1/${n}) = ${root.toFixed(9)}${root>1.001&&root<1.999?'   ← in the void':''}`,
+        X+2.4, ry-0.42, -1.15, root>1.001&&root<1.999?'lbl rose':'lbl dim'));
+    }
+
+    /* the fuzzy sphere, on its own axis: N points and λ* = 1/N */
+    const NF = S.fuzzy|0, F = JON.fuzzySphereNoGo(NF);
+    const fc = new THREE.Group(); fc.position.set(4.9, 0.4, 0); g.add(fc);
+    const FR = 1.15;
+    fc.add(new THREE.Mesh(new THREE.SphereGeometry(FR, 40, 30),
+      new THREE.MeshStandardMaterial({ color:0x101c2c, roughness:.9, transparent:true, opacity:.35 })));
+    const GA = Math.PI*(3-Math.sqrt(5));
+    for (let i=0;i<NF;i++){
+      const u = 1-2*(i+0.5)/NF, s = Math.sqrt(Math.max(1-u*u,0)), t = i*GA;
+      const o = orb(0.075, COL.violet, .95, 14);
+      o.position.set(FR*s*Math.cos(t), FR*u, FR*s*Math.sin(t)); fc.add(o);
+    }
+    fc.add(label(`Mat_${NF}(ℂ)   J = ${((NF-1)/2)}`, 0, FR+0.45, 0, 'lbl dim'));
+    const fy = Y(NF);
+    const fm = orb(0.1, COL.rose, 1); fm.position.set(X+2.4, Y(Math.min(NF,4.6)), 2.2); g.add(fm);
+    g.add(label(`λ* = 1/${NF} → index ${NF}${F.in_open_window?'':'   ✕ outside the window'}`,
+      X+2.4, Y(Math.min(NF,4.6))+0.34, 2.2, 'lbl rose'));
+    return { W, F, n, root, NF };
+  },
+  readout(D){
+    const mt = JON.matrixTowerNoGo(D.NF), dv = JON.divisibilityNoGo(D.W.index);
+    return [
+      ['λ*', D.W.lambda_star.toFixed(9)],
+      ['[M:N] = 1/λ*', D.W.index.toFixed(9), 'hi'],
+      ['inside (1/3, 1/2)', D.W.in_window?'yes':'no', D.W.in_window?'yes':'no'],
+      ['forced index', D.W.forced_index? D.W.forced_index.toFixed(9) : '—', D.W.in_window?'hi':''],
+      ['φ²', JON.GOLDEN_INDEX.toFixed(9)],
+      ['Coxeter m', D.W.forced_m ?? '—'],
+      ['principal graph', D.W.graph ?? '—'],
+      ['admissible in spectrum', D.W.admissible?'yes':'no', D.W.admissible?'yes':'no'],
+      [`I^(1/${D.n})`, D.root.toFixed(9)],
+      ['divisibility forces I = 1', dv.forced_to_one?'yes':'no', dv.forced_to_one?'yes':'no'],
+      ['first violating n', dv.first_violating_n ?? '—'],
+      [`fuzzy λ* = 1/${D.NF}`, D.F.lambda_scalar.toFixed(6)],
+      ['fuzzy in window', D.F.in_open_window?'yes':'no', D.F.in_open_window?'yes':'no'],
+      [`Mat_${D.NF} ↪ Mat_${D.NF+1}`, mt.unital_embedding_exists?'yes':'no', mt.unital_embedding_exists?'yes':'no']
+    ];
+  },
+  note:'<b>Three no-go theorems on one axis.</b> Drag the divisibility slider: every index above 1 has an n-th root that lands in the void, so a divisible semigroup of endomorphisms is forced to index one. Drag the fuzzy rank: 1/N passes through the window\'s <i>endpoints</i> at N = 2 and 3 and never its interior.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 4 · THE A₄ TRANSFER AND THE FIBONACCI FIBRE
+   The principal graph as four vertices, the fusion tree as the branching object
+   above it, and the integral identity BBᵀ = N_τ² = A drawn as two 2×2 grids that
+   coincide. The irrational eigenvalue never appears as a length.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'a4', title:'A₄ · Fibonacci fibre', sub:'BBᵀ = N_τ² = [[1,1],[1,2]]',
+  theorem:'The golden index carries an <em>exact integral shadow</em>. Aⁿ is the Fibonacci matrix and Tr Aⁿ = L₂ₙ — that identity is the bridge, not an irrational ladder of areas.',
+  camera:[0,2.6,11],
+  controls:[
+    { key:'pow', label:'transfer power n', min:1, max:14, step:1, value:5 },
+    { key:'depth', label:'fusion depth', min:1, max:9, step:1, value:6 },
+    { key:'carriers', label:'embadons carrying τ', min:0, max:60, step:1, value:0 }
+  ],
+  build(g, S){
+    const n = S.pow|0, A = JON.a4Transfer(n), fib = JON.fibonacciFibre(S.carriers|0);
+
+    /* the principal graph A_4: four vertices, even at depths 0 and 2 */
+    const gy = 2.9;
+    for (let d=0; d<4; d++){
+      const x = -3.6 + d*1.5, even = d%2===0;
+      const o = orb(even?0.15:0.11, even?COL.gold:COL.cyan, 1); o.position.set(x, gy, 0); g.add(o);
+      g.add(label(`depth ${d}`, x, gy-0.42, 0, 'lbl dim'));
+      if (d) g.add(tube(new THREE.Vector3(-3.6+(d-1)*1.5, gy, 0), new THREE.Vector3(x, gy, 0), 0x6c7f9c, 0.014, .8));
+    }
+    g.add(label('A₄  ·  ‖G‖² = φ² = 2.618033988750', 0.5, gy+0.5, 0, 'lbl gold'));
+
+    /* the Fibonacci fusion tree: a τ fusing with a τ gives 1 ⊕ τ, so the number of
+       paths at depth k is F_{k+1}. The tree is drawn because the DIMENSION is what
+       grows, not the particle count. */
+    const D = S.depth|0;
+    const nodes = [[{ y:0, charge:1, x:0 }]];
+    for (let k=1;k<=D;k++){
+      const prev = nodes[k-1], cur = [];
+      for (const p of prev){
+        cur.push({ y:k, charge:1, from:p });                    /* τ ⊗ τ ⊃ τ  always */
+        if (p.charge===1) cur.push({ y:k, charge:0, from:p });  /* τ ⊗ τ ⊃ 1 */
+      }
+      nodes.push(cur);
+    }
+    const treeY = -0.4, span = 6.6;
+    for (let k=0;k<=D;k++){
+      const row = nodes[k];
+      row.forEach((v,i)=>{ v.px = row.length===1 ? 0 : -span/2 + span*i/(row.length-1);
+        v.py = treeY - k*0.62; });
+      if (k) for (const v of row){
+        g.add(tube(new THREE.Vector3(v.from.px, v.from.py, 0), new THREE.Vector3(v.px, v.py, 0),
+          v.charge?COL.gold:COL.cyan, 0.0065, .5));
+      }
+      for (const v of row){ const o = orb(0.035, v.charge?COL.gold:COL.cyan, .9, 10);
+        o.position.set(v.px, v.py, 0); g.add(o); }
+      g.add(label(`dim ${row.length}`, span/2+0.55, treeY-k*0.62, 0, 'lbl dim'));
+    }
+    g.add(label('Fus(τ^n) · the dimension is Fibonacci, the particles are not', 0, treeY+0.5, 0, 'lbl dim'));
+
+    /* the two 2×2 grids, drawn as coincident stacks of unit cubes */
+    const grid = (ox, M, c, tag) => {
+      for (let r=0;r<2;r++) for (let cc=0;cc<2;cc++){
+        const v = M[r][cc];
+        for (let s=0;s<v;s++){
+          const m = new THREE.Mesh(new THREE.BoxGeometry(0.34,0.1,0.34), glow(c, .8));
+          m.position.set(ox+cc*0.44, -5.0 + s*0.13, -0.6 + r*0.44); g.add(m);
+        }
+      }
+      g.add(label(tag, ox+0.22, -4.55, -0.16, 'lbl dim'));
+    };
+    grid(-4.9, A.BBt, COL.cyan, 'BBᵀ');
+    grid(-3.2, A.N_tau_squared, COL.rose, 'N_τ²');
+    grid(-1.5, A.A, COL.gold, 'A');
+    g.add(label(A.identity_holds ? 'the three stacks are the same stack' : 'IDENTITY BROKEN',
+      -2.4, -4.2, -0.16, A.identity_holds?'lbl gold':'lbl rose'));
+
+    /* A^n itself, as four labelled heights */
+    const P = A.A_power, mx = Math.max(...P.flat(), 1);
+    for (let r=0;r<2;r++) for (let cc=0;cc<2;cc++){
+      const h = 0.4 + 2.4*P[r][cc]/mx;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,h,20), glow(COL.gold,.55));
+      m.position.set(3.1+cc*0.75, -5.0+h/2, -0.5+r*0.75); g.add(m);
+      g.add(label(String(P[r][cc]), 3.1+cc*0.75, -5.0+h+0.28, -0.5+r*0.75, 'lbl gold'));
+    }
+    g.add(label(`Aⁿ,  n = ${n}\nTr = ${A.trace} = L_${2*n}`, 3.45, -5.5, 0.6, 'lbl gold'));
+    return { A, fib, n };
+  },
+  readout(D){
+    return [
+      ['n', D.n],
+      ['BBᵀ = N_τ² = A', D.A.identity_holds?'yes':'no', D.A.identity_holds?'yes':'no'],
+      ['Tr Aⁿ', D.A.trace], ['L₂ₙ', D.A.lucas_2n, D.A.trace_is_lucas?'yes':'no'],
+      ['F₂ₙ', D.A.F_2n],
+      ['(φ^2n − φ^−2n)/√5', D.A.fibonacci_from_index.toFixed(6)],
+      ['Spec A', `{${D.A.spectrum[0].toFixed(9)}, ${D.A.spectrum[1].toFixed(9)}}`],
+      ['spectrum residual', D.A.spectrum_residual.toExponential(2)],
+      ['det A', D.A.det_A],
+      ['d_τ', D.fib.quantum_dimension.toFixed(12), 'hi'],
+      ['I_τ = d_τ²', D.fib.charged_sector_index.toFixed(12)],
+      ['μ_Fib = 1 + φ² = φ + 2', D.fib.global_dimension.toFixed(12)],
+      ['N ln φ  (extensive term)', D.fib.state_space_factor_log.toFixed(6)],
+      ['chirality determined', D.fib.chirality_undetermined?'no':'yes', 'no']
+    ];
+  },
+  note:'<b>Three numbers that must not be merged.</b> d_τ = φ, I_τ = φ², μ_Fib = φ + 2. And a Fibonacci fibre over the configuration space does <i>not</i> make N_emb equal to either — the base carries the support statistics, the fibre carries braid and fusion data, and opposite braidings share every quantity on this panel.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 5 · THE SELECTOR LANDSCAPE
+   log Z_q over the (q, a) plane, where a is the affine nuisance. The surface's
+   CURVATURE along q is identical in every row — that is κ being invariant — while
+   the crest slides. Seeing both at once is the theorem: shape is a quotient,
+   location is not.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'selector', title:'Selector landscape', sub:'κ invariant, crest sliding',
+  theorem:'κ_q = Δ²log I_q is a <em>complete</em> invariant modulo I_q → C e^{aq} I_q. So the ridge keeps its shape across the whole slab while its crest slides — and the location of q★ needs an absolute datum the quotient calculus cannot supply.',
+  camera:[7.5,6.4,10.5],
+  controls:[
+    { key:'alpha', label:'growth α ×100', min:40, max:95, step:1, value:75 },
+    { key:'a', label:'nuisance a ×100', min:-60, max:30, step:1, value:0 },
+    { key:'top', label:'Casimir ×1000', min:0, max:12, step:1, value:0 },
+    { key:'qmax', label:'q_max', min:24, max:96, step:4, value:64 }
+  ],
+  build(g, S){
+    const alpha = S.alpha/100, qmax = S.qmax|0, amp = S.top/1000;
+    const prim = (a) => { const o=[]; for(let q=1;q<=qmax;q++){
+      const th = amp/(q*q);
+      o.push(Math.exp(a*q) * Math.exp(alpha*q*Math.log(q+1) + th)); } return o; };
+
+    const AS = []; for (let k=-14;k<=7;k++) AS.push(k*0.04);
+    const SX = 11/qmax, SZ = 0.42, SY = 0.9;
+
+    /* the surface: one row per nuisance value, height = normalised log Z */
+    const W = AS.length, H = qmax;
+    const geo = new THREE.PlaneGeometry(11, (W-1)*SZ, H-1, W-1);
+    const pos = geo.attributes.position;
+    const colors = new Float32Array(pos.count*3);
+    const crest = [], rows = [];
+    let gmin = Infinity, gmax = -Infinity;
+    for (let j=0;j<W;j++){
+      const P = SEL.selectorProfile(prim(AS[j]), 1);
+      rows.push(P);
+      for (const r of P){ gmin = Math.min(gmin, r.log_Z); gmax = Math.max(gmax, r.log_Z); }
+    }
+    for (let j=0;j<W;j++){
+      const P = rows[j];
+      let best = P[0];
+      for (const r of P) if (r.log_Z > best.log_Z) best = r;
+      crest.push({ a:AS[j], q:best.q, v:best.log_Z, j });
+      for (let i=0;i<H;i++){
+        const idx = j*H + i, r = P[i];
+        const t = (r.log_Z - gmin)/Math.max(gmax-gmin, 1e-9);
+        pos.setZ(idx, t*4.6*SY);
+        const c = new THREE.Color().setHSL(0.58 - 0.5*t, 0.72, 0.22 + 0.44*t);
+        colors[idx*3]=c.r; colors[idx*3+1]=c.g; colors[idx*3+2]=c.b;
+      }
+    }
+    geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+    geo.computeVertexNormals();
+    const surf = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors:true,
+      roughness:.62, metalness:.12, side:THREE.DoubleSide, transparent:true, opacity:.94 }));
+    surf.rotation.x = -Math.PI/2; g.add(surf);
+    const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color:0x9fd6ff, wireframe:true,
+      transparent:true, opacity:.07 })); wire.rotation.x = -Math.PI/2; g.add(wire);
+
+    /* the crest line: where the maximum actually sits, row by row */
+    const cp = crest.map(c => new THREE.Vector3(
+      -5.5 + (c.q-1)*11/(H-1),
+      (c.v-gmin)/Math.max(gmax-gmin,1e-9)*4.6*SY + 0.06,
+      -(W-1)*SZ/2 + c.j*SZ));
+    g.add(line(cp, COL.gold, 1));
+    for (const p of cp){ const o = orb(0.045, COL.gold, .9, 10); o.position.copy(p); g.add(o); }
+
+    /* the selected row */
+    const jSel = AS.reduce((b,v,i)=> Math.abs(v-S.a/100) < Math.abs(AS[b]-S.a/100) ? i : b, 0);
+    const sel = SEL.selectSector(prim(AS[jSel]), 1);
+    const zSel = -(W-1)*SZ/2 + jSel*SZ;
+    const rowPts = rows[jSel].map(r => new THREE.Vector3(
+      -5.5 + (r.q-1)*11/(H-1), (r.log_Z-gmin)/Math.max(gmax-gmin,1e-9)*4.6*SY + 0.1, zSel));
+    g.add(line(rowPts, COL.cyan, 1));
+    if (sel.q_star !== null){
+      const p = rowPts[sel.q_star-1];
+      const m = orb(0.12, COL.gold, 1); m.position.copy(p); g.add(m); m.userData.pulse = true;
+      g.add(tube(new THREE.Vector3(p.x,0,p.z), p, COL.gold, 0.01, .55));
+      g.add(label(`q★ = ${sel.q_star}`, p.x, p.y+0.45, p.z, 'lbl gold'));
+    }
+    g.add(label(`a = ${AS[jSel].toFixed(2)}`, -6.3, 0.3, zSel, 'lbl cyan'));
+    g.add(label('q →', 5.9, 0.1, -(W-1)*SZ/2, 'lbl dim'));
+    g.add(label('nuisance a →', -6.3, 0.1, (W-1)*SZ/2+0.5, 'lbl dim'));
+    g.add(label('the crest slides; every row has the same κ', 0, 5.2, 0, 'lbl gold'));
+    return { sel, alpha, a:AS[jSel], amp, kappaSpread: (()=>{
+      const k0 = SEL.kappa(prim(0),1).map(x=>x.kappa), k1 = SEL.kappa(prim(AS[jSel]),1).map(x=>x.kappa);
+      return Math.max(0, ...k0.map((v,i)=>Math.abs(v-k1[i])));
+    })() };
+  },
+  readout(D){
+    const s = D.sel;
+    return [
+      ['α', D.alpha.toFixed(2)], ['nuisance a', D.a.toFixed(3)],
+      ['q★ (sign change of ρ)', s.q_star ?? '—', 'hi'],
+      ['argmax log Z (direct scan)', s.argmax_direct],
+      ['routes agree', s.routes_agree===null?'—':(s.routes_agree?'yes':'no'), s.routes_agree?'yes':''],
+      ['strictly convex', s.strictly_convex?'yes':'no', s.strictly_convex?'yes':'no'],
+      ['c★ = inf Δ²Γ', s.c_star===null?'—':s.c_star.toExponential(4)],
+      ['m★ = min(ρ₋, −ρ₊)', s.m_star===null?'—':s.m_star.toExponential(4)],
+      ['κ change under reweighting', D.kappaSpread.toExponential(2), 'hi'],
+      ['Δ²Γ identity residual', s.max_identity_residual.toExponential(2)],
+      ['crossings found', s.crossings.length],
+      ['Casimir amplitude', D.amp.toExponential(2)]
+    ];
+  },
+  note:'<b>The κ row is the point.</b> Slide the nuisance from −0.6 to +0.3 and watch q★ travel by tens of sectors while the change in κ stays at machine zero. That is exactly why removing certificate C_UV leaves the location undetermined and the shape intact.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 6 · THE BERRY CARRIER
+   The coherent-state orbit is CP¹; the Berry line has degree N−1 and the index is
+   N, so the flux quanta and the sections are drawn as two counts that differ by
+   one. Beside it, the Capelli transfer: a root divisor and its reconstruction.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'carrier', title:'Berry carrier · Capelli', sub:'c₁ = N−1, ind ∂̄ = N',
+  theorem:'The Berry Chern number and the Dolbeault index differ by <em>exactly one</em>. And ordinary moments see only distinct spectral points, while the Capelli transfer recovers every multiplicity — which is why both branches are here.',
+  camera:[0,3.0,11],
+  controls:[
+    { key:'N', label:'carrier N', min:1, max:12, step:1, value:6 },
+    { key:'m0', label:'multiplicity at 0', min:1, max:6, step:1, value:3 },
+    { key:'m1', label:'multiplicity at 5', min:1, max:6, step:1, value:2 },
+    { key:'s', label:'Hankel s', min:0, max:9, step:1, value:5 }
+  ],
+  build(g, S){
+    const N = S.N|0, bw = CAR.borelWeil(N), R = 2.2;
+    const orbit = new THREE.Group(); orbit.position.set(-3.4, 0.3, 0); g.add(orbit);
+    orbit.add(new THREE.Mesh(new THREE.SphereGeometry(R, 56, 42),
+      new THREE.MeshStandardMaterial({ color:0x0c1826, roughness:.92, transparent:true, opacity:.4,
+        side:THREE.DoubleSide })));
+
+    /* N−1 flux quanta: vortex lines through the sphere, counted by eye */
+    for (let k=0;k<N-1;k++){
+      const t = 2*Math.PI*k/Math.max(N-1,1);
+      const pts = [];
+      for (let i=0;i<=64;i++){ const u = -1 + 2*i/64, s = Math.sqrt(Math.max(1-u*u,0));
+        pts.push(new THREE.Vector3(R*1.03*s*Math.cos(t), R*1.03*u, R*1.03*s*Math.sin(t))); }
+      orbit.add(line(pts, COL.violet, .55));
+    }
+    orbit.add(label(`c₁(L_N) = ${N-1}\n${N-1} flux quanta`, 0, -R-0.45, 0, 'lbl'));
+
+    /* N sections: N latitudes */
+    for (let k=0;k<N;k++){
+      const u = -0.9 + 1.8*(k+0.5)/N, y = R*u, r = Math.sqrt(Math.max(R*R-y*y,0));
+      const l = ring(r*1.01, COL.gold, .75); l.position.y = y; orbit.add(l);
+    }
+    orbit.add(label(`ind ∂̄ = dim H⁰ = ${N}\n${N} sections`, 0, R+0.55, 0, 'lbl gold'));
+
+    /* the coherent-state orbit itself */
+    const eq = ring(R*1.06, COL.cyan, .9, 192); orbit.add(eq);
+    orbit.add(label('SU(2)/U(1) ≃ CP¹', R*1.35, 0, 0, 'lbl cyan'));
+
+    /* the off-by-one, drawn as a single unmatched rung */
+    const off = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.07,0.07), glow(COL.rose, 1));
+    off.position.set(-3.4, R+0.15, 0); g.add(off); off.userData.pulse = true;
+    g.add(label('off by one', -2.5, R+0.15+0.3, 0, 'lbl rose'));
+
+    /* the Capelli side: root divisor as stacks, transfer divisor as signed stacks */
+    const m0 = S.m0|0, m1 = S.m1|0;
+    const D = [[0,m0],[2,1],[5,m1]];
+    const eps = 1;
+    const T = CAR.capelliTransfer(D, eps);
+    const pts = Array.from({length: m0}, ()=>0).concat([2], Array.from({length:m1},()=>5));
+    const HK = CAR.hankelRank(pts, S.s|0);
+
+    const ox = 3.0, sx = 0.62;
+    g.add(line([[ox-1.2,-2.2,0],[ox+4.6,-2.2,0]], 0x44586f, .8));
+    for (let x=-1;x<=6;x++){
+      g.add(line([[ox+x*sx,-2.3,0],[ox+x*sx,-2.1,0]], 0x44586f,.6));
+      if (x%2===0) g.add(label(String(x), ox+x*sx, -2.5, 0, 'lbl dim'));
+    }
+    for (const [x,m] of T.root_divisor){
+      for (let s=0;s<m;s++){
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.2,0.28), glow(COL.gold,.85));
+        b.position.set(ox+x*sx, -2.0+s*0.24, 0); g.add(b);
+      }
+      g.add(label(`m=${m}`, ox+x*sx, -2.0+m*0.24+0.25, 0, 'lbl gold'));
+    }
+    g.add(label('root divisor  D_P', ox+2.2, -2.0+1.9, 0, 'lbl gold'));
+    for (const [x,d] of T.transfer_divisor){
+      const up = d>0;
+      for (let s=0;s<Math.abs(d);s++){
+        const b = new THREE.Mesh(new THREE.BoxGeometry(0.24,0.16,0.24), glow(up?COL.lime:COL.rose,.8));
+        b.position.set(ox+x*sx, -2.6-(s*0.2), up?1.0:-1.0); g.add(b);
+      }
+    }
+    g.add(label('div R_ε  ·  zeros', ox+2.2, -2.55, 1.0, 'lbl'));
+    g.add(label('div R_ε  ·  poles', ox+2.2, -2.55, -1.0, 'lbl rose'));
+    g.add(label(T.reconstruction_exact ? `m_n = −Σ_{j≥n} d_j   reconstructs r = ${T.recovered_rank} exactly`
+      : 'RECONSTRUCTION FAILED', ox+1.8, -3.6, 0, T.reconstruction_exact?'lbl gold':'lbl rose'));
+    g.add(label(`Hankel H^(s) sees ${HK.rank} of ${HK.r}`, ox+1.8, -3.95, 0,
+      HK.rank<HK.r ? 'lbl rose' : 'lbl dim'));
+    return { bw, T, HK, N };
+  },
+  readout(D){
+    const pj = CAR.projectiveRankNoGo();
+    return [
+      ['N', D.N], ['spin J', D.bw.spin_J],
+      ['c₁(L_N) = deg', D.bw.chern_number],
+      ['ind ∂̄ = dim H⁰', D.bw.index_dbar, 'hi'],
+      ['difference', D.bw.off_by_one, 'hi'],
+      ['dim End V_N', D.bw.dim_endomorphisms],
+      ['classically splittable', D.bw.classically_splittable?'yes':'no', D.bw.classically_splittable?'yes':'no'],
+      ['true rank r = Σ m_x', D.T.rank],
+      ['distinct spectral points', D.HK.distinct_points],
+      ['rank H^(s)', D.HK.rank, D.HK.rank<D.T.rank?'no':''],
+      ['Capelli recovers r', D.T.recovered_rank, 'hi'],
+      ['reconstruction exact', D.T.reconstruction_exact?'yes':'no', D.T.reconstruction_exact?'yes':'no'],
+      ['cross ratios fix rank', pj.ranks_distinguished?'yes':'no', 'no']
+    ];
+  },
+  note:'<b>Raise the multiplicity at 0.</b> The true rank climbs and the Hankel rank does not — the moment test counts distinct points. The transfer divisor below the axis pairs a pole at x with a zero at x − ε, and the telescoping sum puts every multiplicity back.'
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+   STAGE 7 · THE CONDITIONAL CLOSURE
+   Five gates, a horizon, and a number that refuses to call itself a prediction.
+   ──────────────────────────────────────────────────────────────────────────── */
+defineStage({
+  id:'closure', title:'Conditional closure', sub:'five certificates, one horizon',
+  theorem:'R_q = ℓ_P√(q/π) and Λ_q = 3π/(q ℓ_P²) is a <em>kinematic map</em>. Remove any one certificate and exactly one conclusion goes with it; without a derived q★ the number below is arithmetic on an unknown.',
+  camera:[0,3.4,12],
+  controls:[
+    { key:'q', label:'log₁₀ q★', min:0, max:122, step:1, value:2 },
+    { key:'gates', label:'certificates held', min:0, max:5, step:1, value:0 },
+    { key:'lmax', label:'BMS ℓ_max', min:2, max:14, step:1, value:8 }
+  ],
+  build(g, S){
+    const q = Math.pow(10, S.q);
+    const held = {}; const ids = ['C_X','C_win','C_U','C_E','C_UV'];
+    ids.slice(0, S.gates|0).forEach(k => held[k]=true);
+    const C = CLO.closure(held, { q_star:q });
+    const ds = CLO.deSitterFromCapacity(q);
+
+    /* the horizon: radius is log-compressed, because 122 decades do not fit in a room,
+       and the compression is SAID rather than hidden */
+    const R = 0.9 + 2.6*Math.log10(Math.max(q,1))/122;
+    const hz = new THREE.Mesh(new THREE.SphereGeometry(R, 64, 48),
+      new THREE.MeshStandardMaterial({ color:0x0b1a24, roughness:.5, metalness:.35,
+        transparent:true, opacity:.62, emissive:0x0a2230, emissiveIntensity:.8 }));
+    hz.position.set(-3.2, 0.4, 0); g.add(hz);
+    for (let i=0;i<3;i++){ const l = ring(R*(1.06+i*0.05), COL.cyan, .3-i*0.08, 128);
+      l.position.copy(hz.position); l.rotation.x = i*0.6; g.add(l); }
+    g.add(label(`de Sitter horizon\nR = ${ds.R_q.toExponential(4)} m\n(radius drawn log-compressed)`,
+      -3.2, -R-0.75, 0, 'lbl dim'));
+
+    /* the five gates: concentric rings that light as certificates are held */
+    for (let i=0;i<5;i++){
+      const on = !!held[ids[i]];
+      const r = 1.1 + i*0.42;
+      const t = new THREE.Mesh(new THREE.TorusGeometry(r, on?0.028:0.012, 10, 128),
+        glow(on?COL.lime:0x2c3a4c, on?0.95:0.6));
+      t.rotation.x = Math.PI/2; t.position.set(3.4, 0.4, 0); g.add(t);
+      if (on) t.userData.pulse = true;
+      const cert = CLO.CERTIFICATES[i];
+      g.add(label(`${cert.id}${on?'  ✓':''}`, 3.4 + r*0.72, 0.4 + r*0.72*0.0, r*0.72, on?'lbl gold':'lbl dim'));
+    }
+    g.add(label('the five certificates', 3.4, 3.5, 0, 'lbl'));
+    g.add(label(C.all_held ? 'all five held in this RUN — switching one on is not deriving it'
+      : `missing: ${C.missing.join(', ')}`, 3.4, -3.0, 0, C.all_held?'lbl gold':'lbl rose'));
+
+    /* the BMS shape quotient: ℓ = 0 and 1 fall into the kernel, ℓ ≥ 2 stand */
+    const sh = CLO.bmsShapeQuotient(S.lmax|0);
+    for (const r of sh.rows){
+      const x = -0.2 + r.l*0.52, h = r.in_kernel ? 0.05 : 0.16 + 1.5*Math.log10(1+r.hessian_norm_squared)/4;
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,h,16),
+        glow(r.in_kernel?COL.rose:COL.violet, r.in_kernel?.85:.7));
+      m.position.set(x, -3.4 + h/2, 2.6); g.add(m);
+      g.add(label(String(r.l), x, -3.6, 2.6, r.in_kernel?'lbl rose':'lbl dim'));
+    }
+    g.add(label('trace-free Hessian norm ½(ℓ−1)ℓ(ℓ+1)(ℓ+2) · kernel is exactly ℓ = 0, 1',
+      1.6, -2.9, 2.6, 'lbl dim'));
+
+    /* the entropy typing, as two arrows that cannot both be constant */
+    const eb = CLO.entropyBridge(JON.GOLDEN_INDEX);
+    g.add(label(`ΔS_gen = log Ind = ${eb.delta_S_gen.toFixed(9)}   (additive)\n` +
+      `Ω_{n+1}/Ω_n = Ind = ${eb.omega_ratio.toFixed(9)}   (the multiplicative carrier)`,
+      0, 3.9, -2.4, 'lbl'));
+    return { C, ds, sh, q };
+  },
+  readout(D){
+    const am = CLO.additiveMultiplicativeNoGo(Math.log(JON.GOLDEN_INDEX));
+    return [
+      ['q★ (given, not derived)', D.q.toExponential(3)],
+      ['R_q', D.ds.R_q.toExponential(6)+' m'],
+      ['Λ_q', D.ds.Lambda_q.toExponential(6)+' m⁻²', 'hi'],
+      ['horizon area', D.ds.horizon_area.toExponential(4)+' m²'],
+      ['capacity round trip', D.ds.roundtrip_residual.toExponential(2)],
+      ['Λ via R vs via q', D.ds.Lambda_residual.toExponential(2)],
+      ['certificates held', D.C.held.filter(c=>c.held).length + ' / 5'],
+      ['Ind(X) = φ²', D.C.conclusions['Ind(X) = phi^2']?'yes':'no', D.C.conclusions['Ind(X) = phi^2']?'yes':'no'],
+      ['q_can = N_emb', D.C.conclusions['q_can = N_emb']?'yes':'no', D.C.conclusions['q_can = N_emb']?'yes':'no'],
+      ['N_emb = q_ind', D.C.conclusions['N_emb = q_ind']?'yes':'no', D.C.conclusions['N_emb = q_ind']?'yes':'no'],
+      ['q★ unique', D.C.conclusions['q_* unique']?'yes':'no', D.C.conclusions['q_* unique']?'yes':'no'],
+      ['triple lock', D.C.triple_lock?'yes':'no', D.C.triple_lock?'yes':'no'],
+      ['additive/mult fixed point', am.fixed_point_Q.toFixed(9)],
+      ['shape dim (ℓ ≥ 2)', D.sh.shape_dimension],
+      ['is a prediction of Λ', 'no', 'no']
+    ];
+  },
+  note:'<b>Drag the gates one at a time.</b> Each ring that lights unlocks exactly one row on the right and no other. The horizon keeps computing at zero certificates, because the arithmetic was never the hard part — it is labelled kinematic and it stays that way.'
+});
+
+/* ═══ UI ════════════════════════════════════════════════════════════════════ */
+const elStages = document.getElementById('stages');
+const elReadout = document.getElementById('readout');
+const elControls = document.getElementById('controls');
+const elSub = document.getElementById('hdrSub');
+
+STAGES.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.innerHTML = `<b>${i+1}. ${s.title}</b><small>${s.sub}</small>`;
+  b.onclick = () => go(s.id);
+  b.dataset.id = s.id;
+  elStages.appendChild(b);
+});
+
+const stateOf = new Map();
+for (const s of STAGES) stateOf.set(s.id, Object.fromEntries((s.controls||[]).map(c=>[c.key,c.value])));
+
+let group = null, lastData = null;
+
+function rebuild(){
+  if (!active) return;
+  if (!group){ group = new THREE.Group(); root.add(group); }
+  clear(group);
+  try { lastData = active.build(group, stateOf.get(active.id)); }
+  catch (e){ console.error(e); lastData = null; }
+  paint();
+}
+
+function paint(){
+  if (!active) return;
+  const rows = lastData ? active.readout(lastData, stateOf.get(active.id)) : [];
+  elReadout.innerHTML = `<h2>${active.title}</h2><div class="thm">${active.theorem}</div>` +
+    rows.map(([k,v,cls]) => `<div class="row ${cls||''}"><span>${k}</span><span>${v}</span></div>`).join('') +
+    `<div class="note">${active.note}</div>`;
+}
+
+function buildControls(){
+  elControls.innerHTML = '';
+  for (const c of active.controls || []){
+    const w = document.createElement('div'); w.className = 'ctl';
+    const st = stateOf.get(active.id);
+    w.innerHTML = `<label>${c.label}<b id="v_${c.key}">${st[c.key]}</b></label>`;
+    const inp = document.createElement('input');
+    inp.type='range'; inp.min=c.min; inp.max=c.max; inp.step=c.step; inp.value=st[c.key];
+    inp.oninput = () => { st[c.key] = Number(inp.value);
+      w.querySelector('b').textContent = inp.value; rebuild(); };
+    w.appendChild(inp); elControls.appendChild(w);
+  }
+}
+
+function go(id){
+  active = STAGES.find(s=>s.id===id) || STAGES[0];
+  for (const b of elStages.children) b.setAttribute('aria-current', String(b.dataset.id===active.id));
+  elSub.textContent = active.sub;
+  if (active.camera){
+    camera.position.set(...active.camera); controls.target.set(0,0,0); controls.update();
+  }
+  buildControls(); rebuild();
+  if (location.hash.slice(1) !== id) history.replaceState(null,'','#'+id);
+}
+
+document.getElementById('spinBtn').onclick = (e) => {
+  controls.autoRotate = !controls.autoRotate;
+  e.currentTarget.setAttribute('aria-pressed', String(controls.autoRotate));
+};
+
+/* WebXR, feature-detected — the observatory is a room, and a Quest can stand in it */
+if (navigator.xr?.isSessionSupported){
+  navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+    if (!ok) return;
+    const btn = document.getElementById('xrBtn'); btn.hidden = false;
+    btn.onclick = async () => {
+      try {
+        const session = await navigator.xr.requestSession('immersive-vr',
+          { optionalFeatures:['local-floor','bounded-floor','hand-tracking'] });
+        renderer.xr.setSession(session);
+        btn.textContent = 'Exit VR';
+        session.addEventListener('end', () => { btn.textContent = 'Enter VR'; });
+      } catch (e){ btn.textContent = 'XR unavailable'; }
+    };
+  }).catch(()=>{});
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+  labelRenderer.setSize(innerWidth, innerHeight);
+});
+addEventListener('hashchange', () => go(location.hash.slice(1)));
+addEventListener('keydown', e => {
+  const i = '1234567'.indexOf(e.key);
+  if (i >= 0 && STAGES[i]) go(STAGES[i].id);
+});
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta(); tAcc += dt;
+  controls.update();
+  const p = 0.55 + 0.45*Math.sin(tAcc*2.1);
+  if (group) group.traverse(n => { if (n.userData?.pulse && n.material) n.material.opacity = 0.45 + 0.55*p; });
+  scene.getObjectByName('field').rotation.y += dt*0.006;
+  if (renderer.xr.isPresenting) renderer.render(scene, camera); else composer.render();
+  labelRenderer.render(scene, camera);
+});
+
+go(location.hash.slice(1) || 'lock');
+</script>
+</body>
+</html>
