@@ -3990,6 +3990,106 @@ tighter than the first-order correction it was testing. The last one now asserts
 The evaporation-time check finally passes to 1e-4 rather than 1e-6, and the difference is
 24 ppm: the Julian year against the Gregorian one, a calendar and not a physics disagreement.
 
+### Two integers that cannot be almost right (v3.99.0 → 4.0.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `topo` | the Gauss linking integral, with its distance to the integer | EXACT |
+| `dfx` | winding number and mapping degree, each with its own defect | EXACT |
+
+An integer invariant is the strictest kind of instrument, because it cannot be *nearly*
+right — either the answer rounds to the theorem's value or the whole construction is wrong,
+and a tolerance cannot hide the difference. Both of these found a real defect the moment
+they were cross-checked.
+
+**The Hopf pairs.** Two distinct fibres of the Hopf map link exactly once, whichever two
+they are. Swept over the base sphere, four of sixteen pairs came back **0**. The kernel was
+wrong and the check was right: the pure copy of the fibre projected with `w = 1.6 - z2i`, a
+centre *outside* S³. That map is two-to-one on the sphere, so what it draws is a shadow, and
+the shadow of two linked circles can be unlinked. The renderer had always used the genuine
+stereographic `w = 1 - z2i`. There is now one projection, `topoHopfPts`, and both the picture
+and the number come out of it — every pair links once, and the defect fell thirty-fold.
+
+**A check that could not fail.** The winding-number boundary test asserted
+`w === 1 || |w - 1| >= 0`, whose right half is true of every number. It also named the wrong
+boundary. A 2π-periodic perturbation contributes *zero net phase* whatever its amplitude, so
+the winding is q for **all** a — measured to 1e-9 from a = 0 to a = 100. What breaks the
+branch march is **Nyquist**: with max|φ′| = 31 and 40 samples it aliases to −9, and with 80
+it is exactly 1. That is a property of the sampling, not of the field, and it is now what
+the check says.
+
+### Five more, and one of them was hiding two cancelling sign errors (v4.0.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `berry` | the Chern number of the Qi–Wu–Zhang band, its gap, its curvature | EXACT |
+| `kdv` | the three KdV invariants and their drift under the integrator | MEASURED |
+| `su2` | the double cover — 2π is −1 — with norm and inverse residuals | EXACT |
+| `cusp` | the real equilibria of the cusp catastrophe and its discriminant | EXACT |
+| `wd` | the Chandrasekhar mass and the mass–radius relation | MODEL |
+
+**Measured by walking the atlas: 80 laboratories, 27 computational, 32 instruments, 0 page
+errors.** The gap is **69 → 53**.
+
+`berry` is the sharpest of the sixteen: an integer that *changes*, at exactly the parameters
+where the gap closes. A sign error anywhere moves a phase boundary, so it cannot be right by
+accident — and cross-checking it found that the laboratory's correct answer was being
+produced by **two errors that cancelled**:
+
+- `berryChernFHS` built its state as `(−s·e^{+iφ}, c)`. That is the complex *conjugate* of
+  the lower-band eigenvector and is not an eigenvector of **d**·**σ** at all — apply the
+  Hamiltonian at any φ ≠ 0 and it fails. Conjugating a line bundle negates its Chern number.
+- the plaquette sum was returned as written. Fukui–Hatsugai–Suzuki's *c* uses the connection
+  ⟨n|dn⟩; the Chern number in the convention where A = i⟨n|dn⟩ is **minus** that.
+
+Two sign flips, one right answer, and nothing inside the laboratory could tell — until the
+closed-form Berry curvature was integrated over the zone by a route sharing no code with the
+plaquette sum and came back **+1 where C reads −1**. Both steps are corrected; every integer
+the atlas has ever displayed is unchanged, and the curvature painted on the torus now
+integrates to the number printed beside it.
+
+`kdv` reports **drift, not conservation**. The three invariants are exact constants of the
+PDE, so any drift belongs to the integrator — and the check demands the fourth order: halving
+the step cuts the I₂ and I₃ drift by 28× and 22×. Mass is conserved to 7e-15 at every step,
+because a spectral method conserves the k = 0 mode exactly.
+
+`wd` is the only **MODEL** of the five and says so. The Nauenberg fit puts Sirius B at
+5421 km against the 5900 km measured from its gravitational redshift — an 8% miss, stated in
+the check rather than hidden by a tolerance chosen to pass. Above the Chandrasekhar mass the
+instrument **refuses**: there is no equilibrium there, and a small radius would be a lie.
+
+`docs/verify-atlas-instruments.cjs` is now **51 checks, 0 failed**, of which four were wrong
+or vacuous when written while the kernels were right, and two found kernels that were wrong.
+
+### And the bus caught three declarations that were not true
+
+The atlas's own quantity bus proposes a coupling wherever an output and an input share a
+**unit string** and a **name** — deliberately strict, because it has no licence to invent a
+conversion it was never given. Its self-test then demands that *every* admissible coupling be
+declared, so an accidental match cannot sit there unexamined. Run in a real browser, that
+test was failing at v3.99.0 — **15 admissible, 13 declared** — and this work would have made
+it 16. Every one of the three was a declaration that was not true, and each is fixed at the
+source rather than excluded by a list:
+
+- **`ladder.omega → cau.omega`.** The Kramers–Kronig laboratory's doc always said its
+  frequencies were *"in units of the oscillator strength"* — but it declared them `rad/s`,
+  which is what the FBS3R ladder's mode frequency genuinely is. The bus duly offered to feed
+  the SI angular frequency of a cosmological shell into a model oscillator. The unit string
+  now says `rad/s (reduced, in units of omega_p)`, which is what it always meant.
+- **`bht.q → civpclo.q`** and **`bht.q → dfx.q`.** Three unrelated quantities were all called
+  `q`: √(1 − χ²) of a Kerr horizon, a boundary capacity, and a winding number. A symbol is
+  not a name. The Kerr output is now `spin_root` and the winding input is `bare_winding` —
+  a rename of a published output, made deliberately, because the alternative was leaving two
+  false couplings admissible.
+
+**13 admissible, 13 declared.** Everything the bus will now propose is something the atlas
+means.
+
+The atlas's in-browser suite is **719 self-tests**; four still fail and all four fail
+identically at v3.99.0, measured by booting both revisions in the same harness. Three are
+layout reachability tests that need a rendered viewport to mean anything, and the fourth is
+the boot tone-mapping test recorded above.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

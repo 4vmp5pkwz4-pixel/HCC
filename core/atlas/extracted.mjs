@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 235   ·   exported names: 258
-   extracted physics, sha256 e912761dc488085fd4323feec6c81be15b8ee6aabc5ce07e0593c7e1c2dc4356 */
+   declarations: 265   ·   exported names: 294
+   extracted physics, sha256 c9bffe7907c903972209cbf1e87385c88bc95d3968e82dff9db022009c434137 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -365,6 +365,53 @@ function fibMonodromy(a,b){
   return (S[a][b].re*S[0][0].re)/(S[a][0].re*S[0][b].re);
 }
 
+function qmFFT(re,im,inv){
+  const n=re.length;
+  for(let i=1,j=0;i<n;i++){ let bit=n>>1;
+    for(;j&bit;bit>>=1) j^=bit; j^=bit;
+    if(i<j){ const tr=re[i];re[i]=re[j];re[j]=tr; const ti=im[i];im[i]=im[j];im[j]=ti; } }
+  for(let len=2;len<=n;len<<=1){
+    const ang=(inv?2:-2)*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){
+      let cr=1, ci=0;
+      for(let k=0;k<len/2;k++){
+        const ur=re[i+k], ui=im[i+k];
+        const vr=re[i+k+len/2]*cr-im[i+k+len/2]*ci, vi=re[i+k+len/2]*ci+im[i+k+len/2]*cr;
+        re[i+k]=ur+vr; im[i+k]=ui+vi; re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi;
+        const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr; } } }
+  if(inv) for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; }
+}
+
+function topoHopfPts(th,ph,N,R){
+  N=N||160; R=R||1.9; const pts=[];
+  for(let k=0;k<N;k++){ const t=k/N*2*Math.PI, z1r=Math.cos(th/2)*Math.cos(t+ph), z1i=Math.cos(th/2)*Math.sin(t+ph), z2r=Math.sin(th/2)*Math.cos(t), z2i=Math.sin(th/2)*Math.sin(t), w=1-z2i;
+    pts.push([z1r/w*R, z2r/w*R, z1i/w*R]); }
+  return pts;
+}
+
+function topoLinkPure(A,B){
+  let s=0;
+  for(let i=0;i<A.length;i++){
+    const a=A[i], a2=A[(i+1)%A.length];
+    const vax=a2[0]-a[0], vay=a2[1]-a[1], vaz=a2[2]-a[2];
+    const amx=(a[0]+a2[0])/2, amy=(a[1]+a2[1])/2, amz=(a[2]+a2[2])/2;
+    for(let j=0;j<B.length;j++){
+      const b=B[j], b2=B[(j+1)%B.length];
+      const vbx=b2[0]-b[0], vby=b2[1]-b[1], vbz=b2[2]-b[2];
+      const rx=amx-(b[0]+b2[0])/2, ry=amy-(b[1]+b2[1])/2, rz=amz-(b[2]+b2[2])/2;
+      const rl=Math.hypot(rx,ry,rz);
+      const cx=vay*vbz-vaz*vby, cy=vaz*vbx-vax*vbz, cz=vax*vby-vay*vbx;
+      s+=(cx*rx+cy*ry+cz*rz)/(rl*rl*rl);
+    }
+  }
+  return s/(4*Math.PI);
+}
+
+function topoHopfPair(th1,th2,ph1,ph2,N){
+  N=N||240;
+  return [topoHopfPts(th1,ph1,N,1.9), topoHopfPts(th2,ph2,N,1.9)];
+}
+
 function shPlm(l,m,x){   // associated Legendre P_l^m, m≥0 (Condon–Shortley)
   let pmm=1; if(m>0){ const s=Math.sqrt(Math.max(0,1-x*x)); let f=1; for(let i=1;i<=m;i++){ pmm*=-f*s; f+=2; } }
   if(l===m) return pmm;
@@ -382,6 +429,55 @@ function shY(l,m,th,ph){ const am=Math.abs(m), N=shNlm(l,am)*shPlm(l,am,Math.cos
   if(m>0) return Math.SQRT2*N*Math.cos(m*ph);
   if(m<0) return Math.SQRT2*N*Math.sin(am*ph);
   return N; }
+
+const KDV_N=256, KDV_L=60, KDV_NX=96, KDV_HW=84;
+
+const kdvSech=x=>1/Math.cosh(x);
+
+const kdvSoliton=(c,x,x0)=>0.5*c*kdvSech(0.5*Math.sqrt(c)*(x-x0))**2;
+
+const _kdvK=(()=>{ const k=new Float64Array(KDV_N); for(let i=0;i<KDV_N;i++) k[i]=(i<KDV_N/2?i:i-KDV_N)*2*Math.PI/KDV_L; return k; })();
+
+function kdvNonlin(hr,hi){   // N(û) = −3ik·FFT(u²), computed in the real frame
+  const ur=Float64Array.from(hr), ui=Float64Array.from(hi); qmFFT(ur,ui,true);
+  for(let i=0;i<KDV_N;i++){ ur[i]=ur[i]*ur[i]; ui[i]=0; }   // u² (real)
+  qmFFT(ur,ui,false);
+  const nr=new Float64Array(KDV_N), ni=new Float64Array(KDV_N);
+  for(let i=0;i<KDV_N;i++){ nr[i]=3*_kdvK[i]*ui[i]; ni[i]=-3*_kdvK[i]*ur[i]; }
+  return [nr,ni];
+}
+
+function kdvEvolve(u,dt,nsteps){   // integrating-factor RK4, rebased each call (t=0) → no large-t precision loss
+  let vr=Float64Array.from(u), vi=new Float64Array(KDV_N); qmFFT(vr,vi,false);
+  const applyE=(r,im,tt,sg)=>{ const or=new Float64Array(KDV_N),oi=new Float64Array(KDV_N);
+    for(let i=0;i<KDV_N;i++){ const ang=sg*_kdvK[i]**3*tt, c=Math.cos(ang),s=Math.sin(ang);
+      or[i]=r[i]*c-im[i]*s; oi[i]=r[i]*s+im[i]*c; } return [or,oi]; };
+  const F=(r,im,tt)=>{ const [hr,hi]=applyE(r,im,tt,1); const [nr,ni]=kdvNonlin(hr,hi); return applyE(nr,ni,tt,-1); };
+  let t=0;
+  for(let s=0;s<nsteps;s++){
+    const [k1r,k1i]=F(vr,vi,t);
+    const [k2r,k2i]=F(vr.map((v,i)=>v+dt/2*k1r[i]),vi.map((v,i)=>v+dt/2*k1i[i]),t+dt/2);
+    const [k3r,k3i]=F(vr.map((v,i)=>v+dt/2*k2r[i]),vi.map((v,i)=>v+dt/2*k2i[i]),t+dt/2);
+    const [k4r,k4i]=F(vr.map((v,i)=>v+dt*k3r[i]),vi.map((v,i)=>v+dt*k3i[i]),t+dt);
+    for(let i=0;i<KDV_N;i++){ vr[i]+=dt/6*(k1r[i]+2*k2r[i]+2*k3r[i]+k4r[i]); vi[i]+=dt/6*(k1i[i]+2*k2i[i]+2*k3i[i]+k4i[i]); }
+    t+=dt;
+  }
+  const [fr,fi]=applyE(vr,vi,t,1); qmFFT(fr,fi,true);
+  return fr;
+}
+
+function kdvGridX(i){ return i*(KDV_L/KDV_N)-KDV_L/2; }
+
+function kdvTwoSoliton(c1,c2,x1,x2){
+  const u=new Float64Array(KDV_N);
+  for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(c1,kdvGridX(i),x1)+kdvSoliton(c2,kdvGridX(i),x2);
+  return u;
+}
+
+function kdvInvariants(u){ const dx=KDV_L/KDV_N; let I1=0,I2=0,I3=0;
+  for(let i=0;i<KDV_N;i++){ const ux=(u[(i+1)%KDV_N]-u[(i-1+KDV_N)%KDV_N])/(2*dx);
+    I1+=u[i]*dx; I2+=u[i]*u[i]*dx; I3+=(u[i]**3-0.5*ux*ux)*dx; }
+  return {I1,I2,I3}; }
 
 const BB_H=6.62607015e-34, BB_C=2.99792458e8, BB_KB=1.380649e-23, BB_SIG=5.670374419e-8, BB_C2=1.438776877e-2;
 
@@ -414,6 +510,19 @@ function lensAlpha(b){   // EXACT deflection via quadrature α = 2∫₀^{u_max}
   return 2*s-Math.PI;
 }
 
+function su2mul(a,b){ return [ a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],
+  a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+  a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],
+  a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0] ]; }
+
+function su2conj(q){ return [q[0],-q[1],-q[2],-q[3]]; }
+
+function su2axang(ax,th){ const n=Math.hypot(ax[0],ax[1],ax[2])||1, s=Math.sin(th/2); return [Math.cos(th/2),s*ax[0]/n,s*ax[1]/n,s*ax[2]/n]; }
+
+function su2slerp(q0,q1,t){ let d=q0[0]*q1[0]+q0[1]*q1[1]+q0[2]*q1[2]+q0[3]*q1[3]; let b=q1.slice(); if(d<0){b=b.map(x=>-x);d=-d;}
+  const Om=Math.acos(Math.min(1,d)); if(Om<1e-5) return q0.slice(); const s=Math.sin(Om), a=Math.sin((1-t)*Om)/s, c=Math.sin(t*Om)/s;
+  return q0.map((x,i)=>a*x+c*b[i]); }
+
 const BHT_hbar=1.054571817e-34, BHT_h=2*Math.PI*BHT_hbar, BHT_c=2.99792458e8, BHT_G=6.67430e-11, BHT_kB=1.380649e-23, BHT_MSUN=1.98892e30, BHT_YR=3.15576e7, BHT_XPEAK=2.8214393721220787;
 
 function bhtKerr(M,chi=0){chi=Math.min(.999999,Math.max(0,Math.abs(Number(chi)||0)));const rg=BHT_G*M/(BHT_c*BHT_c),q=Math.sqrt(Math.max(0,1-chi*chi)),rp=rg*(1+q),area=8*Math.PI*rg*rg*(1+q),TH=BHT_hbar*BHT_c**3/(4*Math.PI*BHT_G*M*BHT_kB)*q/(1+q),omega=chi*BHT_c**3/(2*BHT_G*M*(1+q));return{chi,rg,q,rp,area,TH,omega,ergEq:2*rg,ergPole:rp};}
@@ -421,6 +530,12 @@ function bhtKerr(M,chi=0){chi=Math.min(.999999,Math.max(0,Math.abs(Number(chi)||
 function bhtArea(M,chi=state.bhtSpin??0){ return bhtKerr(M,chi).area; }
 
 function bhtEvapYr(M){ return 5120*Math.PI*BHT_G*BHT_G*M**3/(BHT_hbar*BHT_c**4)/BHT_YR; }
+
+const WD_RSUN_KM=695700,WD_G=6.67430e-11,WD_MSUN=1.98847e30,WD_C=2.99792458e8;
+
+function wdMch(muE=2){return 5.816/(muE*muE);}
+
+function wdRadiusKm(M,muE=2){const mch=wdMch(muE),q=Math.min(.999999,Math.max(1e-6,M/mch));return .0225/muE*WD_RSUN_KM*Math.sqrt(Math.max(0,1-Math.pow(q,4/3)))/Math.pow(q,1/3);}
 
 const CAP_Q_STAR = 3.307251460713979e122;
 
@@ -768,6 +883,29 @@ function kamLyapunov(K,N,M){ let acc=0;
   return acc/M;
 }
 
+function dfxPhase(t,q,A){ let f=q*t; for(const h of A) f+=h.a*Math.sin(h.k*t+h.p); return f; }
+
+function dfxWinding(q,A,N){ N=N||3000; let tot=0, prev=dfxPhase(0,q,A);
+  for(let i=1;i<=N;i++){ const t=2*Math.PI*i/N, cur=dfxPhase(t,q,A);
+    let d=cur-prev; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI;
+    tot+=d; prev=cur; }
+  return tot/(2*Math.PI); }
+
+function dfxOmega(a,b,c){
+  const dot=(u,v)=>u[0]*v[0]+u[1]*v[1]+u[2]*v[2];
+  const na=Math.hypot(a[0],a[1],a[2]), nb=Math.hypot(b[0],b[1],b[2]), nc=Math.hypot(c[0],c[1],c[2]);
+  const cx=b[1]*c[2]-b[2]*c[1], cy=b[2]*c[0]-b[0]*c[2], cz=b[0]*c[1]-b[1]*c[0];
+  const num=a[0]*cx+a[1]*cy+a[2]*cz;
+  const den=na*nb*nc+dot(a,b)*nc+dot(a,c)*nb+dot(b,c)*na;
+  return 2*Math.atan2(num,den); }
+
+function dfxDegree(n,NT,NP){ NT=NT||64; NP=NP||128; let tot=0;
+  for(let i=0;i<NT;i++) for(let j=0;j<NP;j++){
+    const t0=Math.PI*i/NT,t1=Math.PI*(i+1)/NT,p0=2*Math.PI*j/NP,p1=2*Math.PI*(j+1)/NP;
+    const A=n(t0,p0),B=n(t1,p0),C=n(t1,p1),D=n(t0,p1);
+    tot+=dfxOmega(A,B,C)+dfxOmega(A,C,D); }
+  return tot/(4*Math.PI); }
+
 const cauChiIm=(w,g,w0,wp)=>wp*wp*g*w/(Math.pow(w0*w0-w*w,2)+g*g*w*w);
 
 const CAU_N=12000, CAU_WMAX=30, CAU_H=CAU_WMAX/CAU_N, CAU_STRIDE=20;
@@ -788,6 +926,12 @@ function wilQuad(a,N){ let s=0; const h=2*Math.PI/N;
     s+=H*H*den*h*2*Math.PI; }
   return s; }
 
+function cuspRoots(a,b){ const out=[];
+  for(const s0 of [-2,0,2]){ let x=s0;
+    for(let i=0;i<80;i++){ const f=x*x*x+a*x+b, df=3*x*x+a; if(Math.abs(df)<1e-13) break; const nx=x-f/df; if(!isFinite(nx))break; x=nx; }
+    if(Math.abs(x*x*x+a*x+b)<1e-8 && !out.some(y=>Math.abs(y-x)<1e-6)) out.push(x); }
+  return out.sort((p,q)=>p-q); }
+
 function jacobiSCD(u,k){ const N=12, a=[1], b=[Math.sqrt(Math.max(0,1-k*k))], c=[k];
   for(let i=0;i<N;i++){ a.push((a[i]+b[i])/2); b.push(Math.sqrt(a[i]*b[i])); c.push((a[i]-b[i])/2); }
   let phi=Math.pow(2,N)*a[N]*u;
@@ -807,6 +951,42 @@ function poinSolve(I1,I2,I3,E,L2){
 
 function poinOmega(P,t){ const J=jacobiSCD(P.tau*t,P.k);
   return P.hi ? [P.A*J.cn, P.B*J.sn, P.C*J.dn] : [P.A*J.dn, P.B*J.sn, P.C*J.cn]; }
+
+const berryD=(kx,ky,u)=>[Math.sin(kx),Math.sin(ky),u+Math.cos(kx)+Math.cos(ky)];
+
+const berryN=v=>{ const n=Math.hypot(v[0],v[1],v[2])||1e-300; return [v[0]/n,v[1]/n,v[2]/n]; };
+
+function berryF(kx,ky,u){
+  const e=1e-5, d=berryN(berryD(kx,ky,u));
+  const a=berryN(berryD(kx+e,ky,u)), b=berryN(berryD(kx-e,ky,u));
+  const c=berryN(berryD(kx,ky+e,u)), g=berryN(berryD(kx,ky-e,u));
+  const px=[(a[0]-b[0])/(2*e),(a[1]-b[1])/(2*e),(a[2]-b[2])/(2*e)];
+  const py=[(c[0]-g[0])/(2*e),(c[1]-g[1])/(2*e),(c[2]-g[2])/(2*e)];
+  const cr=[px[1]*py[2]-px[2]*py[1],px[2]*py[0]-px[0]*py[2],px[0]*py[1]-px[1]*py[0]];
+  return 0.5*(d[0]*cr[0]+d[1]*cr[1]+d[2]*cr[2]);
+}
+
+function berryChernFHS(u,N){                    // gauge-invariant lattice Chern number — exact integer
+  /* the TRUE lower-band eigenvector (-sin(th/2) e^{-i phi}, cos(th/2)): H v = -|d| v */
+  const eig=(kx,ky)=>{ const D=berryD(kx,ky,u), n=Math.hypot(D[0],D[1],D[2])||1e-300;
+    const c=Math.sqrt(Math.max(0,(1+D[2]/n)/2)), s=Math.sqrt(Math.max(0,(1-D[2]/n)/2)), ph=Math.atan2(D[1],D[0]);
+    return [[-s*Math.cos(ph),s*Math.sin(ph)],[c,0]]; };
+  const inner=(A,B)=>{ let re=0,im=0; for(let m=0;m<2;m++){ const ar=A[m][0],ai=-A[m][1],br=B[m][0],bi=B[m][1];
+    re+=ar*br-ai*bi; im+=ar*bi+ai*br; } return [re,im]; };
+  const U=(A,B)=>{ const r=inner(A,B), n=Math.hypot(r[0],r[1])||1e-300; return [r[0]/n,r[1]/n]; };
+  const mul=(p,q)=>[p[0]*q[0]-p[1]*q[1],p[0]*q[1]+p[1]*q[0]];
+  const h=2*Math.PI/N; let tot=0;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    const k=(a,b)=>eig(-Math.PI+a*h,-Math.PI+b*h);
+    const P=mul(mul(U(k(i,j),k(i+1,j)),U(k(i+1,j),k(i+1,j+1))),mul(U(k(i+1,j+1),k(i,j+1)),U(k(i,j+1),k(i,j))));
+    tot+=Math.atan2(P[1],P[0]); }
+  /* minus: FHS's c uses the connection <n|dn>, this file's C uses A = i<n|dn> */
+  return -tot/(2*Math.PI);
+}
+
+const berryGap=u=>{ let g=Infinity;             // the direct gap 2|d| — closes exactly at u=0,±2
+  for(const [kx,ky] of [[0,0],[Math.PI,0],[0,Math.PI],[Math.PI,Math.PI]]){
+    const D=berryD(kx,ky,u); g=Math.min(g,2*Math.hypot(D[0],D[1],D[2])); } return g; };
 
 const CIVP_PHI=(1+Math.sqrt(5))/2, CIVP_GOLD=CIVP_PHI*CIVP_PHI, CIVP_LP=1.616255e-35;
 
@@ -1467,5 +1647,5 @@ function civpExportData(station,a,b,c){
       'of the five certificates, and not a prediction of the cosmological constant.'};}
 
 export {
-  BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, S3, ZPF, ZP_TH_BUDGET, _shFact, bbPlanck, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauKK, cauSum, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, jacobiSCD, kamLyapunov, kamStep, lensAlpha, lensPeriU, levelR, nucBE, nucBestZ, nucBperA, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, shNlm, shPlm, shY, specBlock, specC, specEig, specSpectrum, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, KDV_HW, KDV_L, KDV_N, KDV_NX, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, S3, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, ZPF, ZP_TH_BUDGET, _kdvK, _shFact, bbPlanck, berryChernFHS, berryD, berryF, berryGap, berryN, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauKK, cauSum, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, cuspRoots, dfxDegree, dfxOmega, dfxPhase, dfxWinding, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, jacobiSCD, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, lensAlpha, lensPeriU, levelR, nucBE, nucBestZ, nucBperA, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, qmFFT, shNlm, shPlm, shY, specBlock, specC, specEig, specSpectrum, su2axang, su2conj, su2mul, su2slerp, topoHopfPair, topoHopfPts, topoLinkPure, wdMch, wdRadiusKm, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };

@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="four-more-that-now-compute-2026.08.17.5">
+<html lang="en" data-hcc-build="seven-more-that-now-compute-2026.08.17.6">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="four-more-that-now-compute-2026.08.17.5">
+<meta name="hcc-build" content="seven-more-that-now-compute-2026.08.17.6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v3.99.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.0.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='3.99.0';
-const HCC_BUILD='four-more-that-now-compute-2026.08.17.5';
+const HCC_VERSION='4.0.0';
+const HCC_BUILD='seven-more-that-now-compute-2026.08.17.6';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19248,29 +19248,56 @@ globalThis.ATLAS_BUS=ATLAS_BUS;
    (converges to an INTEGER before your eyes), Poincaré–Hopf on S²
    vs the parallelisable S³, and the invariant map of every lab. */
 const topoGroup=new THREE.Group(); topoGroup.visible=false; s3Group.add(topoGroup);
-function topoHopfFibre(th,ph,N=160,R=1.9){
-  const pts=[];
-  for(let k=0;k<N;k++){ const t=k/N*2*Math.PI;
-    const z1r=Math.cos(th/2)*Math.cos(t+ph), z1i=Math.cos(th/2)*Math.sin(t+ph);
-    const z2r=Math.sin(th/2)*Math.cos(t),   z2i=Math.sin(th/2)*Math.sin(t);
-    const w=1-z2i;
-    pts.push(new THREE.Vector3(z1r/w*R, z2r/w*R, z1i/w*R));
-  }
+/* The fibre in PLAIN ARRAYS, and the projection written once. w = 1 - z2i is the genuine
+   stereographic projection of S^3 from the pole (0,0,0,1): it is injective, so the linking
+   number of the images IS the linking number of the fibres. A projection from a centre
+   OUTSIDE the sphere (w = 1.6 - z2i, which this file briefly used for the pure copy) is
+   two-to-one on S^3, and the shadow of two linked circles can be unlinked — measured, it
+   returned 0 for four of sixteen Hopf pairs. One projection, one copy, no shadow. */
+function topoHopfPts(th,ph,N,R){
+  N=N||160; R=R||1.9; const pts=[];
+  for(let k=0;k<N;k++){ const t=k/N*2*Math.PI, z1r=Math.cos(th/2)*Math.cos(t+ph), z1i=Math.cos(th/2)*Math.sin(t+ph), z2r=Math.sin(th/2)*Math.cos(t), z2i=Math.sin(th/2)*Math.sin(t), w=1-z2i;
+    pts.push([z1r/w*R, z2r/w*R, z1i/w*R]); }
   return pts;
 }
-function topoGaussLink(A,B){                          // (1/4π)∮∮ (dr₁×dr₂)·r̂/|r|²
-  let s=0; const va=new THREE.Vector3(), vb=new THREE.Vector3(), r=new THREE.Vector3(), c=new THREE.Vector3();
+function topoHopfFibre(th,ph,N=160,R=1.9){
+  return topoHopfPts(th,ph,N,R).map(v=>new THREE.Vector3(v[0],v[1],v[2]));
+}
+/* ── THE GAUSS INTEGRAL, IN PLAIN ARRAYS ─────────────────────────────────────
+   (1/4pi) oint oint (dr1 x dr2) . rhat / |r|^2, discretised on the two polygons. It used
+   to allocate four THREE.Vector3 and read .x/.y/.z off the input, which made it
+   unsliceable: scripts/extract-kernels.mjs would have refused it for touching a renderer,
+   and refusing is what that check is for. Written on [x,y,z] triples it is the same
+   arithmetic, the drawing path just maps its vectors in, and the closure is closed.
+
+   The answer is an INTEGER for disjoint closed curves — that is the theorem — so the
+   distance from the nearest integer is the honest measure of the discretisation, and both
+   are returned. */
+function topoLinkPure(A,B){
+  let s=0;
   for(let i=0;i<A.length;i++){
-    const a=A[i], a2=A[(i+1)%A.length]; va.subVectors(a2,a);
-    const amx=(a.x+a2.x)/2, amy=(a.y+a2.y)/2, amz=(a.z+a2.z)/2;
+    const a=A[i], a2=A[(i+1)%A.length];
+    const vax=a2[0]-a[0], vay=a2[1]-a[1], vaz=a2[2]-a[2];
+    const amx=(a[0]+a2[0])/2, amy=(a[1]+a2[1])/2, amz=(a[2]+a2[2])/2;
     for(let j=0;j<B.length;j++){
-      const b=B[j], b2=B[(j+1)%B.length]; vb.subVectors(b2,b);
-      r.set(amx-(b.x+b2.x)/2, amy-(b.y+b2.y)/2, amz-(b.z+b2.z)/2);
-      const rl=r.length(); c.crossVectors(va,vb);
-      s+=c.dot(r)/(rl*rl*rl);
+      const b=B[j], b2=B[(j+1)%B.length];
+      const vbx=b2[0]-b[0], vby=b2[1]-b[1], vbz=b2[2]-b[2];
+      const rx=amx-(b[0]+b2[0])/2, ry=amy-(b[1]+b2[1])/2, rz=amz-(b[2]+b2[2])/2;
+      const rl=Math.hypot(rx,ry,rz);
+      const cx=vay*vbz-vaz*vby, cy=vaz*vbx-vax*vbz, cz=vax*vby-vay*vbx;
+      s+=(cx*rx+cy*ry+cz*rz)/(rl*rl*rl);
     }
   }
   return s/(4*Math.PI);
+}
+/* one pair of Hopf fibres, as arrays: the two great circles at polar angles th1 and th2 of
+   the base sphere, which link exactly once for any two distinct base points */
+function topoHopfPair(th1,th2,ph1,ph2,N){
+  N=N||240;
+  return [topoHopfPts(th1,ph1,N,1.9), topoHopfPts(th2,ph2,N,1.9)];
+}
+function topoGaussLink(A,B){
+  return topoLinkPure(A.map(v=>[v.x,v.y,v.z]), B.map(v=>[v.x,v.y,v.z]));
 }
 /* shared lab-group wipe: geometries, materials AND CSS2D label DOM nodes —
    forgetting the labels leaked hundreds of DOM elements per slider scrub and
@@ -20594,9 +20621,18 @@ function kdvEvolve(u,dt,nsteps){   // integrating-factor RK4, rebased each call 
   const [fr,fi]=applyE(vr,vi,t,1); qmFFT(fr,fi,true);
   return fr;
 }
+/* the grid and the two-soliton initial datum, with no `state` in them — the renderer reads
+   its mode off state and calls this, the instrument passes the speeds it was given, and
+   there is exactly one definition of what a soliton on this grid is */
+function kdvGridX(i){ return i*(KDV_L/KDV_N)-KDV_L/2; }
+function kdvTwoSoliton(c1,c2,x1,x2){
+  const u=new Float64Array(KDV_N);
+  for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(c1,kdvGridX(i),x1)+kdvSoliton(c2,kdvGridX(i),x2);
+  return u;
+}
 function kdvInit(){
   const u=new Float64Array(KDV_N), M=state.kdvMode||'collide';
-  const X=i=>i*(KDV_L/KDV_N)-KDV_L/2;
+  const X=i=>kdvGridX(i);
   if(M==='single'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(state.kdvC1??3,X(i),-16); }
   else if(M==='collide'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(state.kdvC1??5,X(i),-20)+kdvSoliton(state.kdvC2??2,X(i),-8); }
   else if(M==='triple'){ for(let i=0;i<KDV_N;i++) u[i]=kdvSoliton(6,X(i),-22)+kdvSoliton(3,X(i),-14)+kdvSoliton(1.5,X(i),-7); }
@@ -23252,7 +23288,9 @@ const wdGroup=new THREE.Group();wdGroup.visible=false;s3Group.add(wdGroup);
 const WD_RSUN_KM=695700,WD_G=6.67430e-11,WD_MSUN=1.98847e30,WD_C=2.99792458e8;
 let wdObjs=null,wdUiAcc=0,wdT=0;
 function wdMch(muE=2){return 5.816/(muE*muE);}
-function wdRadiusKm(M,muE=2){const mch=wdMch(muE),q=THREE.MathUtils.clamp(M/mch,1e-6,.999999);return .0225/muE*WD_RSUN_KM*Math.sqrt(Math.max(0,1-Math.pow(q,4/3)))/Math.pow(q,1/3);}
+/* the clamp was THREE.MathUtils.clamp, which is the same arithmetic behind a browser
+   global and put the whole mass-radius relation out of the extractor's reach */
+function wdRadiusKm(M,muE=2){const mch=wdMch(muE),q=Math.min(.999999,Math.max(1e-6,M/mch));return .0225/muE*WD_RSUN_KM*Math.sqrt(Math.max(0,1-Math.pow(q,4/3)))/Math.pow(q,1/3);}
 function wdDiagnostics(){const M=state.wdMass??.85,mu=state.wdMuE??2,Rkm=wdRadiusKm(M,mu),mch=wdMch(mu),rho=3*M*WD_MSUN/(4*Math.PI*Math.pow(Rkm*1000,3)),comp=2*WD_G*M*WD_MSUN/(Rkm*1000*WD_C*WD_C),z=1/Math.sqrt(1-comp)-1,vesc=Math.sqrt(2*WD_G*M*WD_MSUN/(Rkm*1000));return{schema:'fbs3r-white-dwarf-v1',massSolar:M,muE:mu,chandrasekharMassSolar:mch,radiusKm:Rkm,meanDensityKgM3:rho,compactness:comp,surfaceRedshift:z,escapeVelocityKmS:vesc/1000,distanceToLimit:mch-M,model:'Nauenberg 1972 zero-temperature analytic approximation'};}
 function wdClear(){labWipe(wdGroup);wdObjs=null;}
 function wdSetup(){
@@ -26501,7 +26539,10 @@ const ATLAS_LATE_SPECS=[
            {name:'T_H', unit:'K', doc:['Hawking temperature','температура Хокинга','Hawking-Temperatur']},
            {name:'Omega_H', unit:'s^-1', doc:['horizon angular velocity','угловая скорость горизонта','Winkelgeschwindigkeit']},
            {name:'entropy', unit:'J/K', doc:['Bekenstein-Hawking entropy','энтропия Бекенштейна–Хокинга','Entropie']},
-           {name:'q', unit:'dimensionless', doc:['sqrt(1 - chi^2); it is the whole spin dependence','sqrt(1-chi^2)','sqrt(1-chi^2)']},
+           /* RENAMED from `q`. The quantity bus proposes a coupling wherever a unit string
+              and a NAME agree, and `q` collided with two capacities and a winding number
+              that share nothing with sqrt(1 - chi^2) but a letter. A symbol is not a name. */
+           {name:'spin_root', unit:'dimensionless', doc:['sqrt(1 - chi^2); it is the whole spin dependence','sqrt(1-chi^2)','sqrt(1-chi^2)']},
            {name:'t_evap_yr', unit:'yr', doc:['Schwarzschild evaporation time at this mass','время испарения Шварцшильда','Verdampfungszeit']}],
   limits:[['The evaporation time is the Schwarzschild Page lifetime for one massless species. It is NOT the lifetime of the spinning hole this row otherwise describes, and it ignores greybody factors and every particle threshold.',
            'Время испарения — шварцшильдовское, не для вращающейся дыры, и без серых факторов.',
@@ -26510,7 +26551,7 @@ const ATLAS_LATE_SPECS=[
            'chi = 1 отвергается, а не зажимается: при экстремальности T_H = 0 и горизонт вырождается.',
            'chi = 1 wird abgelehnt, nicht geklemmt.']],
   ev:i=>{const K=bhtKerr(i.M,i.chi);
-    return {r_plus:K.rp, area:K.area, T_H:K.TH, Omega_H:K.omega, q:K.q,
+    return {r_plus:K.rp, area:K.area, T_H:K.TH, Omega_H:K.omega, spin_root:K.q,
       entropy:BHT_kB*K.area*BHT_c**3/(4*BHT_G*BHT_hbar), t_evap_yr:bhtEvapYr(i.M)};}},
 
  {id:'sh', lab:'sh',
@@ -26637,13 +26678,19 @@ const ATLAS_LATE_SPECS=[
             "Re chi(w) = (2/pi) P int_0^inf w' Im chi(w') / (w'^2 - w^2) dw'",
             'int_0^inf w Im chi(w) dw = (pi/2) wp^2      (the f-sum rule)',
             'a response that is not causal cannot satisfy either, which is what makes them a test'],
-  inputs:[{name:'omega', type:'number', unit:'rad/s', default:1, min:0.005, max:29.99,
+  /* THE UNIT STRING HAD TO TELL THE TRUTH. These four frequencies are REDUCED — the doc
+     always said "in units of the oscillator strength" — but they were declared as rad/s,
+     which is what the FBS3R ladder's mode frequency genuinely is. The bus proposed
+     ladder.omega -> cau.omega on that string match: an SI angular frequency of a
+     cosmological shell fed to a model oscillator as if the two were one coordinate. The
+     atlas has no licence to invent that conversion, so the declaration now says which. */
+  inputs:[{name:'omega', type:'number', unit:'rad/s (reduced, in units of omega_p)', default:1, min:0.005, max:29.99,
            doc:['the probe frequency, in units of the oscillator strength','пробная частота','Prüffrequenz']},
-          {name:'gamma', type:'number', unit:'rad/s', default:0.2, min:0.01, max:5,
+          {name:'gamma', type:'number', unit:'rad/s (reduced, in units of omega_p)', default:0.2, min:0.01, max:5,
            doc:['the damping; zero is refused because the undamped oscillator has a pole ON the real axis and the principal value stops existing',
                 'затухание; ноль отвергается — у незатухающего осциллятора полюс на вещественной оси','Dämpfung']},
-          {name:'omega0', type:'number', unit:'rad/s', default:1, min:0.05, max:20, doc:['the resonance','резонанс','Resonanz']},
-          {name:'omega_p', type:'number', unit:'rad/s', default:1, min:0.01, max:20, doc:['the plasma / oscillator strength','сила осциллятора','Oszillatorstärke']}],
+          {name:'omega0', type:'number', unit:'rad/s (reduced, in units of omega_p)', default:1, min:0.05, max:20, doc:['the resonance','резонанс','Resonanz']},
+          {name:'omega_p', type:'number', unit:'rad/s (reduced, in units of omega_p)', default:1, min:0.01, max:20, doc:['the plasma / oscillator strength','сила осциллятора','Oszillatorstärke']}],
   outputs:[{name:'chi_im', unit:'dimensionless', doc:['the absorptive half, in closed form','поглощающая половина','Absorptionsteil']},
            {name:'chi_re_exact', unit:'dimensionless', doc:['the dispersive half, in closed form','дисперсионная половина','Dispersionsteil']},
            {name:'chi_re_kk', unit:'dimensionless', doc:['the dispersive half reconstructed from the absorptive one by the dispersion integral','восстановленная дисперсионная половина','rekonstruiert']},
@@ -26761,7 +26808,312 @@ const ATLAS_LATE_SPECS=[
            'K_c — литературное значение, а не измеренное здесь.','K_c ist ein Literaturwert.']],
   ev:i=>{const K=i.K, N=Math.round(i.iterations), M=Math.round(i.orbits);
     return {lyapunov:kamLyapunov(K,N,M), large_K_asymptote:K>0?Math.log(K/2):-Infinity,
-      K_critical:0.971635406, above_critical:K>0.971635406?1:0, samples:N*M};}}
+      K_critical:0.971635406, above_critical:K>0.971635406?1:0, samples:N*M};}},
+
+ /* ── AND TWO INTEGERS THAT CANNOT BE ALMOST RIGHT ───────────────────────────
+    A linking number and a winding number are integers or they are wrong. That makes them
+    the sharpest instruments in the atlas: the discretisation error is not a tolerance a
+    reader has to accept on faith, it is the distance to the nearest integer, and it is
+    returned beside the answer every time. */
+ {id:'topo', lab:'topo',
+  title:['Linking number — the Gauss integral, returned with its distance to an integer',
+         'Число зацепления — интеграл Гаусса, с расстоянием до целого',
+         'Verschlingungszahl'],
+  status:'EXACT (the linking number is an integer by theorem; what is computed is a discretisation of the Gauss double integral, and its distance to that integer is returned)',
+  verifiers:['docs/verify-atlas-instruments.cjs (Hopf pairs, unlinked pairs, antisymmetry, convergence)'],
+  formulas:['Lk(A,B) = (1/4 pi) oint_A oint_B (dr1 x dr2) . r / |r|^3',
+            'Lk is an INTEGER for disjoint closed curves, and it is a topological invariant: no deformation that avoids a crossing can change it',
+            'two distinct fibres of the Hopf map link exactly once, whichever two they are',
+            'Lk(A,B) = Lk(B,A), and reversing one curve flips the sign'],
+  inputs:[{name:'theta1', type:'number', unit:'rad', default:0.9, min:0.05, max:3.09,
+           doc:['polar angle of the first base point of the Hopf map','полярный угол первой базовой точки','Polarwinkel 1']},
+          {name:'theta2', type:'number', unit:'rad', default:2.1, min:0.05, max:3.09,
+           doc:['polar angle of the second; equal angles are allowed but the fibres then coincide and the integral diverges',
+                'полярный угол второй','Polarwinkel 2']},
+          {name:'phi', type:'number', unit:'rad', default:1.3, min:0, max:6.283185307179586,
+           doc:['azimuth offset between the two fibres','азимутальный сдвиг','Azimutversatz']},
+          {name:'segments', type:'number', unit:'dimensionless', default:240, min:24, max:2000,
+           doc:['polygon vertices per curve; the double sum is O(N^2), which is why the cap is where it is',
+                'вершин на кривую; двойная сумма растёт как N^2','Polygonecken']}],
+  outputs:[{name:'linking_number', unit:'dimensionless', doc:['the Gauss integral, as computed','интеграл Гаусса как посчитан','Gauss-Integral']},
+           {name:'nearest_integer', unit:'dimensionless', doc:['what the theorem says it is','что говорит теорема','ganzzahliger Wert']},
+           {name:'integer_defect', unit:'dimensionless', doc:['the distance between them — the discretisation error, stated rather than assumed away',
+             'расстояние между ними — ошибка дискретизации','Diskretisierungsfehler']},
+           {name:'antisymmetry_residual', unit:'dimensionless', doc:['|Lk(A,B) - Lk(B,A)|, which must vanish','|Lk(A,B) - Lk(B,A)|','Antisymmetrie']},
+           {name:'reversed_sum', unit:'dimensionless', doc:['Lk(A,B) + Lk(A,reverse B), which must vanish because reversing flips the sign',
+             'Lk(A,B) + Lk(A,-B), должно обнуляться','Summe bei Umkehr']}],
+  limits:[['Two closed polygons. Curves that intersect or coincide make the integrand singular and the answer meaningless — equal polar angles are the way to do that here, and the integer defect is what will tell you.',
+           'Пересекающиеся или совпадающие кривые делают подынтегральное выражение сингулярным.',
+           'Sich schneidende Kurven machen den Integranden singulär.'],
+          ['This is the LINKING number, not the Hopf invariant of a map and not a knot invariant of either curve alone.',
+           'Это число зацепления, а не инвариант Хопфа отображения и не инвариант узла.',
+           'Verschlingungszahl, nicht Hopf-Invariante.']],
+  ev:i=>{const N=Math.round(i.segments),
+      pair=topoHopfPair(i.theta1,i.theta2,0,i.phi,N), A=pair[0], B=pair[1],
+      lk=topoLinkPure(A,B), rev=topoLinkPure(A,B.slice().reverse());
+    return {linking_number:lk, nearest_integer:Math.round(lk),
+      integer_defect:Math.abs(lk-Math.round(lk)),
+      antisymmetry_residual:Math.abs(lk-topoLinkPure(B,A)),
+      reversed_sum:Math.abs(lk+rev)};}},
+
+ {id:'dfx', lab:'dfx',
+  title:['Winding and degree — the two integers a defect cannot lose continuously',
+         'Число обмоток и степень — два целых, которые дефект не теряет непрерывно',
+         'Windungszahl und Grad'],
+  status:'EXACT (both are integers by theorem; the phase march and the solid-angle sum are their discretisations and both defects are returned)',
+  verifiers:['docs/verify-atlas-instruments.cjs (perturbation invariance, additivity, degree of the identity)'],
+  formulas:['winding: w = (1/2 pi) oint dphi, accumulated as branch-corrected phase increments',
+            'degree: deg = (1/4 pi) sum of signed solid angles of the triangulated image (Van Oosterom-Strackee)',
+            'both are HOMOTOPY invariants: a perturbation that never sends the field through zero cannot change either',
+            'the identity map of the sphere has degree 1, the antipodal map degree -1'],
+  inputs:[{name:'bare_winding', type:'number', unit:'dimensionless', default:3, min:-12, max:12,
+           doc:['the bare winding of the phase; it is an integer and non-integers are refused',
+                'голое число обмоток; целое, дробные отвергаются','Grundwindung']},
+          {name:'harmonic_amplitude', type:'number', unit:'rad', default:0.8, min:0, max:20,
+           doc:['amplitude of a smooth perturbation added to the phase — the whole point is that it does NOT change the winding until it is large enough to add a zero',
+                'амплитуда гладкого возмущения фазы','Störamplitude']},
+          {name:'harmonic_k', type:'number', unit:'dimensionless', default:2, min:1, max:12,
+           doc:['its wavenumber','его волновое число','Wellenzahl']},
+          {name:'degree_n', type:'number', unit:'dimensionless', default:1, min:-4, max:4,
+           doc:['the winding of the sphere map whose degree is measured: (theta, phi) -> (theta, n phi)',
+                'обмотка отображения сферы, степень которого измеряется','Abbildungswindung']}],
+  outputs:[{name:'winding', unit:'dimensionless', doc:['the accumulated phase divided by 2 pi','накопленная фаза, делённая на 2pi','Windung']},
+           {name:'winding_integer', unit:'dimensionless', doc:['its nearest integer','ближайшее целое','nächste ganze Zahl']},
+           {name:'winding_defect', unit:'dimensionless', doc:['the distance between them','расстояние между ними','Abstand']},
+           {name:'unperturbed_winding', unit:'dimensionless', doc:['the winding with the perturbation switched off','обмотка без возмущения','ungestörte Windung']},
+           {name:'perturbation_changed_it', unit:'dimensionless', doc:['1 if the smooth perturbation moved the integer, which it can only do by creating a zero',
+             '1, если возмущение изменило целое','1 wenn geändert']},
+           {name:'degree', unit:'dimensionless', doc:['the degree of the sphere map','степень отображения сферы','Grad']},
+           {name:'degree_integer', unit:'dimensionless', doc:['its nearest integer','ближайшее целое','nächste ganze Zahl']},
+           {name:'degree_defect', unit:'dimensionless', doc:['the distance between them','расстояние','Abstand']}],
+  limits:[['Both integers are computed on a finite grid, so both carry a discretisation defect. Neither defect is a physical statement; a defect that stops being small is a grid that stopped resolving the field, and the number to distrust is the one whose defect grew.',
+           'Оба целых считаются на конечной сетке, оба несут ошибку дискретизации.',
+           'Beide auf endlichem Gitter.'],
+          ['A non-integer bare winding is refused rather than rounded: the field would not be single valued, and the integral it names would not exist.',
+           'Нецелая базовая обмотка отвергается, а не округляется.','Nicht ganzzahlige Grundwindung wird abgelehnt.']],
+  ev:i=>{const q=i.bare_winding;
+    if(Math.abs(q-Math.round(q))>1e-12)
+      throw new RangeError('the bare winding must be an integer; q = '+q+' names a field that is not single valued');
+    const A=[{a:i.harmonic_amplitude,k:Math.round(i.harmonic_k),p:0.4}],
+      w=dfxWinding(q,A,4000), w0=dfxWinding(q,[],4000), n=Math.round(i.degree_n),
+      map=(t,p)=>[Math.sin(t)*Math.cos(n*p), Math.sin(t)*Math.sin(n*p), Math.cos(t)],
+      d=dfxDegree(map,80,160);
+    return {winding:w, winding_integer:Math.round(w), winding_defect:Math.abs(w-Math.round(w)),
+      unperturbed_winding:w0, perturbation_changed_it:Math.round(w)!==Math.round(w0)?1:0,
+      degree:d, degree_integer:Math.round(d), degree_defect:Math.abs(d-Math.round(d))};}},
+
+ /* ── FIVE MORE, AND ONE OF THEM IS A PHASE DIAGRAM ─────────────────────────
+    The Chern number of the Qi–Wu–Zhang band is an integer that CHANGES — 0, +1, −1 —
+    at exactly the mass parameters where the gap closes, and the same u drives both the
+    picture and the plaquette sum, so the phase diagram and the scene cannot disagree.
+    Then: three KdV invariants under the spectral integrator the sheet is drawn from, the
+    quaternion double cover (2π is −1 and only 4π is 1, which is the whole content of
+    SU(2) → SO(3)), the real roots of the cusp catastrophe with its discriminant, and the
+    Chandrasekhar mass–radius relation. */
+ {id:'berry', lab:'berry',
+  title:['Chern number — an integer that changes, at exactly the gap closings',
+         'Число Черна — целое, которое меняется ровно там, где закрывается щель',
+         'Chern-Zahl'],
+  status:'EXACT (the Fukui–Hatsugai–Suzuki plaquette sum is gauge invariant and returns the integer on a finite lattice, not a limit of one; the Berry curvature is the closed-form Pontryagin density of the two-band map)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the three phases, the gap closings, the curvature integral against the plaquette sum)'],
+  formulas:['two-band model d(k) = (sin kx, sin ky, u + cos kx + cos ky) — Qi, Wu and Zhang',
+            'F(k) = -1/2 d.(d_x d x d_y d) with d the unit vector — the Berry curvature of the lower band',
+            'C = (1/2 pi) sum over plaquettes of arg of the product of four link variables (Fukui–Hatsugai–Suzuki)',
+            'C = 0 for |u| > 2, C = +1 for -2 < u < 0, C = -1 for 0 < u < 2; the gap closes exactly at u = 0 and u = +-2',
+            'direct gap = 2|d| minimised over the four time-reversal invariant momenta'],
+  inputs:[{name:'u', type:'number', unit:'dimensionless', default:1, min:-4, max:4,
+           doc:['the mass parameter; the topological transitions are at u = 0 and u = ±2 and nowhere else',
+                'массовый параметр; переходы при u = 0 и u = ±2','Massenparameter']},
+          {name:'lattice', type:'number', unit:'dimensionless', default:24, min:6, max:96,
+           doc:['plaquettes per side of the Brillouin zone; the sum is O(N^2) and the integer does not depend on it away from a gap closing',
+                'плакетов на сторону зоны Бриллюэна','Plaketten pro Seite']},
+          {name:'kx', type:'number', unit:'rad', default:0, min:-3.141592653589793, max:3.141592653589793,
+           doc:['a momentum at which the local curvature is also returned','импульс для локальной кривизны','Impuls']},
+          {name:'ky', type:'number', unit:'rad', default:0, min:-3.141592653589793, max:3.141592653589793,
+           doc:['the other component','вторая компонента','zweite Komponente']}],
+  outputs:[{name:'chern_number', unit:'dimensionless', doc:['the plaquette sum','сумма по плакетам','Plakettensumme']},
+           {name:'chern_integer', unit:'dimensionless', doc:['its nearest integer','ближайшее целое','nächste ganze Zahl']},
+           {name:'chern_defect', unit:'dimensionless', doc:['the distance between them; it is not a discretisation error but a gauge-invariance residual, and it grows only when the gap is closing',
+             'расстояние между ними','Abstand']},
+           {name:'direct_gap', unit:'dimensionless', doc:['2|d| at the four high-symmetry momenta, minimised; zero exactly at a transition',
+             'прямая щель','direkte Lücke']},
+           {name:'berry_curvature', unit:'1/rad^2', doc:['F(kx, ky) of the lower band at the requested momentum',
+             'кривизна Берри в заданной точке','Berry-Krümmung']},
+           {name:'phase', unit:'dimensionless', doc:['1 if the band is topologically non-trivial, 0 if it is not — read off the integer, not off u',
+             '1 если зона топологически нетривиальна','1 wenn nichttrivial']}],
+  limits:[['At a gap closing (u = 0, ±2) the Chern number is NOT DEFINED: the plaquette sum still returns a number and its defect is what tells you not to trust it. The instrument does not refuse there, because "how close to the transition can I get" is a legitimate question and the defect answers it.',
+           'На закрытии щели число Черна не определено; дефект показывает это.',
+           'Am Lückenschluss ist die Chern-Zahl nicht definiert.'],
+          ['This is a two-band lattice model, not a material. The integer is exact for the model; whether the model is your material is a separate question this atlas does not answer.',
+           'Это двухзонная модель, а не материал.','Zweibandmodell, kein Material.']],
+  ev:i=>{const N=Math.round(i.lattice), C=berryChernFHS(i.u,N), n=Math.round(C);
+    return {chern_number:C, chern_integer:n, chern_defect:Math.abs(C-n),
+      direct_gap:berryGap(i.u), berry_curvature:berryF(i.kx,i.ky,i.u), phase:n!==0?1:0};}},
+
+ {id:'kdv', lab:'kdv',
+  title:['KdV: three invariants that a soliton collision is not allowed to spend',
+         'КдФ: три инварианта, которые столкновение солитонов не имеет права потратить',
+         'KdV-Invarianten'],
+  status:'MEASURED (the invariants are exact constants of the PDE; what is returned is their drift under the same integrating-factor RK4 the sheet is drawn with, which is the honest number — a claim of exact conservation would be a claim about the integrator, not about the equation)',
+  verifiers:['docs/verify-atlas-instruments.cjs (drift under refinement, single-soliton speed, the sech^2 profile)'],
+  formulas:['u_t + 6 u u_x + u_xxx = 0 on a periodic domain of length 60',
+            'one-soliton: u = (c/2) sech^2( sqrt(c)/2 (x - c t - x0) ) — amplitude c/2, speed c, width 2/sqrt(c)',
+            'I1 = integral u dx, I2 = integral u^2 dx, I3 = integral (u^3 - (1/2) u_x^2) dx',
+            'a two-soliton collision is elastic: the faster soliton passes through and both survive with a phase shift'],
+  inputs:[{name:'c1', type:'number', unit:'dimensionless', default:5, min:0.2, max:16,
+           doc:['speed of the faster soliton; its amplitude is c/2','скорость быстрого солитона','Geschwindigkeit 1']},
+          {name:'c2', type:'number', unit:'dimensionless', default:2, min:0.2, max:16,
+           doc:['speed of the slower one','скорость медленного','Geschwindigkeit 2']},
+          {name:'time', type:'number', unit:'dimensionless', default:0.8, min:0, max:6,
+           doc:['how long to integrate; the drift is reported for this interval and for no other',
+                'время интегрирования','Integrationszeit']},
+          {name:'dt', type:'number', unit:'dimensionless', default:0.0016, min:0.0001, max:0.005,
+           doc:['the step; halving it should cut the drift by roughly sixteen, which is the fourth order',
+                'шаг; уменьшение вдвое должно снизить дрейф примерно в шестнадцать раз','Schrittweite']}],
+  outputs:[{name:'I1', unit:'dimensionless', doc:['mass, at the end of the interval','масса в конце интервала','Masse']},
+           {name:'I2', unit:'dimensionless', doc:['momentum','импульс','Impuls']},
+           {name:'I3', unit:'dimensionless', doc:['energy','энергия','Energie']},
+           {name:'I1_drift', unit:'dimensionless', doc:['|I1(t) - I1(0)|','дрейф I1','Drift I1']},
+           {name:'I2_drift', unit:'dimensionless', doc:['|I2(t) - I2(0)|','дрейф I2','Drift I2']},
+           {name:'I3_drift', unit:'dimensionless', doc:['|I3(t) - I3(0)| — the largest of the three, because I3 carries a derivative',
+             'дрейф I3, наибольший из трёх','Drift I3']},
+           {name:'peak_amplitude', unit:'dimensionless', doc:['max u at the end; for a clean two-soliton state it is c1/2 once they have separated',
+             'максимум u в конце','Spitzenamplitude']},
+           {name:'steps', unit:'dimensionless', doc:['how many steps were taken','число шагов','Schritte']}],
+  limits:[['The domain is periodic with length 60 and 256 modes. A soliton faster than about c = 16 is not resolved by 256 modes and the drift will say so; that is why the domain caps there.',
+           'Область периодическая, длина 60, 256 мод.','Periodisches Gebiet, 256 Moden.'],
+          ['The drift is a property of the integrator and the step, not of the KdV equation, whose invariants are exactly constant. Reporting the drift rather than asserting conservation is the point.',
+           'Дрейф — свойство интегратора, а не уравнения.','Die Drift gehört zum Integrator.']],
+  ev:i=>{const u0=kdvTwoSoliton(i.c1,i.c2,-20,-8), a=kdvInvariants(u0),
+      steps=Math.max(0,Math.round(i.time/i.dt)),
+      u=steps?kdvEvolve(u0,i.dt,steps):u0, b=kdvInvariants(u);
+    let pk=-Infinity; for(let k=0;k<u.length;k++) if(u[k]>pk) pk=u[k];
+    return {I1:b.I1, I2:b.I2, I3:b.I3,
+      I1_drift:Math.abs(b.I1-a.I1), I2_drift:Math.abs(b.I2-a.I2), I3_drift:Math.abs(b.I3-a.I3),
+      peak_amplitude:pk, steps:steps};}},
+
+ {id:'su2', lab:'su2',
+  title:['The double cover, measured: 2 pi is minus one and only 4 pi is one',
+         'Двойное накрытие: поворот на 2π даёт минус единицу, и только 4π даёт единицу',
+         'Die Doppelüberlagerung'],
+  status:'EXACT (quaternion algebra in closed form; every residual below is a floating-point residual and is returned rather than asserted away)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the cover, unit norm, the conjugate as the inverse, slerp endpoints)'],
+  formulas:['q(axis, theta) = (cos(theta/2), sin(theta/2) * axis_hat) — the half angle IS the double cover',
+            'q(axis, 2 pi) = -1 and q(axis, 4 pi) = +1: a 2 pi rotation is not the identity in SU(2)',
+            'both q and -q give the same rotation of R^3, which is why SU(2) -> SO(3) is two-to-one',
+            'q q* = 1 for a unit quaternion, and the rotation is R(v) = q v q*'],
+  inputs:[{name:'theta', type:'number', unit:'rad', default:6.283185307179586, min:0, max:25.132741228718345,
+           doc:['the rotation angle; 2 pi and 4 pi are the two that matter','угол поворота','Drehwinkel']},
+          {name:'axis_x', type:'number', unit:'dimensionless', default:0, min:-1, max:1,
+           doc:['axis, normalised internally','ось, нормируется внутри','Achse x']},
+          {name:'axis_y', type:'number', unit:'dimensionless', default:0, min:-1, max:1,
+           doc:['axis','ось','Achse y']},
+          {name:'axis_z', type:'number', unit:'dimensionless', default:1, min:-1, max:1,
+           doc:['axis','ось','Achse z']},
+          {name:'slerp_t', type:'number', unit:'dimensionless', default:0.5, min:0, max:1,
+           doc:['interpolation parameter from the identity to q along the shortest great circle',
+                'параметр интерполяции','Interpolationsparameter']}],
+  outputs:[{name:'w', unit:'dimensionless', doc:['the scalar part of q','скалярная часть q','Skalarteil']},
+           {name:'x', unit:'dimensionless', doc:['vector part','векторная часть','Vektorteil x']},
+           {name:'y', unit:'dimensionless', doc:['vector part','векторная часть','Vektorteil y']},
+           {name:'z', unit:'dimensionless', doc:['vector part','векторная часть','Vektorteil z']},
+           {name:'norm_residual', unit:'dimensionless', doc:['| |q| - 1 |, which must vanish','|‖q‖ − 1|','Normabweichung']},
+           {name:'inverse_residual', unit:'dimensionless', doc:['|q q* - 1|, which must vanish','|q q* − 1|','Inversenabweichung']},
+           {name:'sheet', unit:'dimensionless', doc:['+1 if the scalar part is non-negative, -1 if the rotation has carried the frame onto the other sheet of the cover — this is the belt trick as a number',
+             '+1 или −1 — на каком листе накрытия находится кадр','Blatt der Überlagerung']},
+           {name:'slerp_w', unit:'dimensionless', doc:['scalar part of the interpolant at slerp_t','скалярная часть интерполянта','Skalarteil der Interpolation']}],
+  limits:[['A zero axis is normalised to the z axis rather than refused, because the rotation is then the identity for every angle and the answer is well defined.',
+           'Нулевая ось приводится к оси z.','Nullachse wird zur z-Achse.'],
+          ['slerp takes the SHORT way round: for an angle past 2 pi it interpolates to -q rather than q, which is the same rotation and the other sheet. That is a property of slerp, not a defect, and sheet reports it.',
+           'slerp идёт коротким путём и может прийти к −q.','slerp nimmt den kurzen Weg.']],
+  ev:i=>{const n=Math.hypot(i.axis_x,i.axis_y,i.axis_z),
+      ax=n>1e-12?[i.axis_x/n,i.axis_y/n,i.axis_z/n]:[0,0,1],
+      q=su2axang(ax,i.theta), p=su2mul(q,su2conj(q)),
+      s=su2slerp([1,0,0,0],q,i.slerp_t);
+    return {w:q[0], x:q[1], y:q[2], z:q[3],
+      norm_residual:Math.abs(Math.hypot(q[0],q[1],q[2],q[3])-1),
+      inverse_residual:Math.hypot(p[0]-1,p[1],p[2],p[3]),
+      sheet:q[0]>=0?1:-1, slerp_w:s[0]};}},
+
+ {id:'cusp', lab:'cusp',
+  title:['The cusp catastrophe: where three solutions become one, and the discriminant that says where',
+         'Катастрофа сборки: где три решения становятся одним, и дискриминант, который это говорит',
+         'Die Kuspenkatastrophe'],
+  status:'EXACT (the equilibrium set is the cubic x^3 + a x + b = 0; the roots are Newton-polished to below 1e-8 and each residual is returned, and the discriminant is closed form)',
+  verifiers:['docs/verify-atlas-instruments.cjs (root count against the sign of the discriminant, residuals, Vieta)'],
+  formulas:['potential V = x^4/4 + a x^2/2 + b x — the cusp catastrophe of Thom',
+            'equilibria: dV/dx = x^3 + a x + b = 0',
+            'discriminant D = 4 a^3 + 27 b^2 — three real roots when D < 0, one when D > 0, a repeated root exactly at D = 0',
+            'the fold curve 4 a^3 + 27 b^2 = 0 meets itself at the cusp point a = b = 0',
+            'Vieta: the three roots sum to zero, because the cubic has no quadratic term'],
+  inputs:[{name:'a', type:'number', unit:'dimensionless', default:-3, min:-8, max:8,
+           doc:['the splitting factor; negative a is what makes three solutions possible at all',
+                'фактор расщепления','Aufspaltungsfaktor']},
+          {name:'b', type:'number', unit:'dimensionless', default:0, min:-8, max:8,
+           doc:['the normal factor — sweeping it across the fold is the catastrophic jump',
+                'нормальный фактор','Normalfaktor']}],
+  outputs:[{name:'discriminant', unit:'dimensionless', doc:['4a^3 + 27b^2','4a³ + 27b²','Diskriminante']},
+           {name:'real_roots', unit:'dimensionless', doc:['how many distinct real equilibria were found','число различных вещественных равновесий','Zahl der Gleichgewichte']},
+           {name:'root_low', unit:'dimensionless', doc:['the smallest, or the only one','наименьший корень','kleinste Wurzel']},
+           {name:'root_mid', unit:'dimensionless', doc:['the middle one — the UNSTABLE equilibrium, the barrier between the other two; NaN when there is only one',
+             'средний корень — неустойчивое равновесие','mittlere Wurzel']},
+           {name:'root_high', unit:'dimensionless', doc:['the largest; NaN when there is only one','наибольший корень','größte Wurzel']},
+           {name:'root_sum', unit:'dimensionless', doc:['their sum, which is zero by Vieta when all three are present','сумма корней','Wurzelsumme']},
+           {name:'worst_residual', unit:'dimensionless', doc:['max |x^3 + a x + b| over the roots returned','наибольшая невязка','größtes Residuum']},
+           {name:'distance_to_fold', unit:'dimensionless', doc:['the discriminant again, signed — negative inside the three-solution region, and its zero is the fold',
+             'знаковое расстояние до складки','Abstand zur Falte']}],
+  limits:[['On the fold itself (D = 0) two roots coincide. The Newton polish then converges linearly rather than quadratically and returns the double root once, so real_roots reads 2 and not 3. That is the correct count of DISTINCT roots and the discriminant is what says a root is repeated.',
+           'На складке два корня совпадают; возвращается два различных корня.',
+           'Auf der Falte fallen zwei Wurzeln zusammen.'],
+          ['The roots are found from three fixed seeds, so a configuration whose roots all lie far outside [-2, 2] may return fewer than exist. worst_residual and the discriminant together are what detect that; neither is decorative.',
+           'Корни ищутся из трёх фиксированных начальных приближений.',
+           'Die Wurzeln werden aus drei festen Startwerten gesucht.']],
+  ev:i=>{const r=cuspRoots(i.a,i.b), D=4*i.a**3+27*i.b*i.b;
+    let worst=0; for(const x of r) worst=Math.max(worst,Math.abs(x**3+i.a*x+i.b));
+    return {discriminant:D, real_roots:r.length,
+      root_low:r.length?r[0]:NaN, root_mid:r.length>2?r[1]:NaN, root_high:r.length>1?r[r.length-1]:NaN,
+      root_sum:r.reduce((s,x)=>s+x,0), worst_residual:worst, distance_to_fold:D};}},
+
+ {id:'wd', lab:'wd',
+  title:['White-dwarf degeneracy: the mass–radius relation that runs the wrong way, and its limit',
+         'Вырождение белого карлика: соотношение масса–радиус, идущее наоборот, и его предел',
+         'Weißer Zwerg: Masse-Radius-Beziehung'],
+  status:'MODEL (Nauenberg 1972 zero-temperature analytic fit to the Chandrasekhar equation of state; the limiting mass is exact for the model and the radius is a fit, so the status is MODEL and not EXACT)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the limit, the non-relativistic scaling, monotonicity, the Sirius B comparison)'],
+  formulas:['M_Ch = 5.816 / mu_e^2 solar masses — the Chandrasekhar limiting mass',
+            'R = 0.0225/mu_e * R_sun * sqrt(1 - (M/M_Ch)^(4/3)) / (M/M_Ch)^(1/3)',
+            'a MORE massive white dwarf is SMALLER: dR/dM < 0 everywhere, which is what degeneracy pressure does',
+            'in the non-relativistic limit M << M_Ch this reduces to R proportional to M^(-1/3)',
+            'surface redshift z = 1/sqrt(1 - 2GM/Rc^2) - 1'],
+  inputs:[{name:'mass', type:'number', unit:'M_sun', default:0.85, min:0.05, max:1.45,
+           doc:['the mass in solar masses; above the limiting mass there is no white dwarf and the instrument refuses',
+                'масса в солнечных массах','Masse in Sonnenmassen']},
+          {name:'mu_e', type:'number', unit:'dimensionless', default:2, min:1, max:3,
+           doc:['mean molecular weight per electron — 2 for carbon-oxygen, 2.15 for iron; it enters the limit as 1/mu^2',
+                'средняя молекулярная масса на электрон','mittleres Molekulargewicht']}],
+  outputs:[{name:'radius_km', unit:'km', doc:['the radius','радиус','Radius']},
+           {name:'chandrasekhar_mass', unit:'M_sun', doc:['the limiting mass at this composition','предельная масса','Grenzmasse']},
+           {name:'mean_density', unit:'kg/m^3', doc:['3M / 4 pi R^3','средняя плотность','mittlere Dichte']},
+           {name:'compactness', unit:'dimensionless', doc:['2GM/Rc^2 — how close to a black hole it is not','компактность','Kompaktheit']},
+           {name:'surface_redshift', unit:'dimensionless', doc:['gravitational redshift at the surface','гравитационное красное смещение','Rotverschiebung']},
+           {name:'escape_velocity', unit:'km/s', doc:['sqrt(2GM/R)','вторая космическая скорость','Fluchtgeschwindigkeit']},
+           {name:'distance_to_limit', unit:'M_sun', doc:['M_Ch - M','расстояние до предела','Abstand zur Grenze']},
+           {name:'radius_earths', unit:'R_earth', doc:['the radius in Earth radii, because that is the fact worth carrying: a star the mass of the Sun, the size of a planet',
+             'радиус в радиусах Земли','Radius in Erdradien']}],
+  limits:[['Above the Chandrasekhar mass the instrument REFUSES rather than returning a small radius. There is no equilibrium there; a number would be a lie about the physics, and the domain maximum is set below the limiting mass at mu_e = 2 for that reason.',
+           'Выше предела Чандрасекара инструмент отказывает, а не возвращает малый радиус.',
+           'Oberhalb der Chandrasekhar-Masse wird verweigert.'],
+          ['Zero temperature, no rotation, no magnetic field, and a Newtonian structure with the relativistic equation of state. Near the limit general relativity destabilises the star before the radius reaches zero, so the last few percent of the curve is the model speaking, not the star.',
+           'Нулевая температура, без вращения и магнитного поля.','Nulltemperatur, keine Rotation.']],
+  ev:i=>{const mch=wdMch(i.mu_e);
+    if(!(i.mass<mch)) throw new Error(`mass ${i.mass} M_sun is at or above the Chandrasekhar limit ${mch.toFixed(4)} M_sun for mu_e = ${i.mu_e}: there is no white dwarf there`);
+    const R=wdRadiusKm(i.mass,i.mu_e), Rm=R*1000, M=i.mass*WD_MSUN,
+      comp=2*WD_G*M/(Rm*WD_C*WD_C);
+    return {radius_km:R, chandrasekhar_mass:mch,
+      mean_density:3*M/(4*Math.PI*Rm**3), compactness:comp,
+      surface_redshift:1/Math.sqrt(1-comp)-1,
+      escape_velocity:Math.sqrt(2*WD_G*M/Rm)/1000,
+      distance_to_limit:mch-i.mass, radius_earths:R/6371};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,
@@ -30344,19 +30696,39 @@ const berryGroup=new THREE.Group(); berryGroup.visible=false; s3Group.add(berryG
 let berryObjs=null, berryT=0, berryUiAcc=0;
 const berryD=(kx,ky,u)=>[Math.sin(kx),Math.sin(ky),u+Math.cos(kx)+Math.cos(ky)];
 const berryN=v=>{ const n=Math.hypot(v[0],v[1],v[2])||1e-300; return [v[0]/n,v[1]/n,v[2]/n]; };
-function berryF(kx,ky,u){                       // exact Berry curvature of the lower band
+/* THE SIGN, WHICH TWO WRONGS WERE MAKING RIGHT.
+   The Chern number this laboratory has always displayed is correct and matches the
+   Qi–Wu–Zhang table (C = 0 for |u| > 2, −1 for 0 < u < 2, +1 for −2 < u < 0). It was
+   arrived at by two cancelling sign errors, which a new instrument's cross-check found:
+
+     · berryChernFHS built its state as (−s e^{+i phi}, c). That is the complex CONJUGATE
+       of the lower band eigenvector and is not an eigenvector of d·sigma at all — check
+       H v against −|d| v at any phi other than 0 and it fails. Conjugating a line bundle
+       negates its Chern number, so this flipped the sign once.
+     · the plaquette sum was returned as written. Fukui–Hatsugai–Suzuki's c is
+       (1/2 pi i) sum ln(...) with the connection <n|d n>; the Chern number in the
+       convention where A = i<n|d n> is MINUS that. So the sign flipped back.
+
+   Two errors, one right answer, and nothing in the laboratory could tell — until the
+   curvature was integrated independently and came back +1 where C reads −1. Both are
+   corrected below and the published integer is unchanged; what changes is that the
+   curvature painted on the torus now integrates to the number printed beside it.
+
+   Berry curvature of the LOWER band, in the convention C = (1/2 pi) integral F d^2k. */
+function berryF(kx,ky,u){
   const e=1e-5, d=berryN(berryD(kx,ky,u));
   const a=berryN(berryD(kx+e,ky,u)), b=berryN(berryD(kx-e,ky,u));
   const c=berryN(berryD(kx,ky+e,u)), g=berryN(berryD(kx,ky-e,u));
   const px=[(a[0]-b[0])/(2*e),(a[1]-b[1])/(2*e),(a[2]-b[2])/(2*e)];
   const py=[(c[0]-g[0])/(2*e),(c[1]-g[1])/(2*e),(c[2]-g[2])/(2*e)];
   const cr=[px[1]*py[2]-px[2]*py[1],px[2]*py[0]-px[0]*py[2],px[0]*py[1]-px[1]*py[0]];
-  return -0.5*(d[0]*cr[0]+d[1]*cr[1]+d[2]*cr[2]);
+  return 0.5*(d[0]*cr[0]+d[1]*cr[1]+d[2]*cr[2]);
 }
 function berryChernFHS(u,N){                    // gauge-invariant lattice Chern number — exact integer
+  /* the TRUE lower-band eigenvector (-sin(th/2) e^{-i phi}, cos(th/2)): H v = -|d| v */
   const eig=(kx,ky)=>{ const D=berryD(kx,ky,u), n=Math.hypot(D[0],D[1],D[2])||1e-300;
     const c=Math.sqrt(Math.max(0,(1+D[2]/n)/2)), s=Math.sqrt(Math.max(0,(1-D[2]/n)/2)), ph=Math.atan2(D[1],D[0]);
-    return [[-s*Math.cos(ph),-s*Math.sin(ph)],[c,0]]; };
+    return [[-s*Math.cos(ph),s*Math.sin(ph)],[c,0]]; };
   const inner=(A,B)=>{ let re=0,im=0; for(let m=0;m<2;m++){ const ar=A[m][0],ai=-A[m][1],br=B[m][0],bi=B[m][1];
     re+=ar*br-ai*bi; im+=ar*bi+ai*br; } return [re,im]; };
   const U=(A,B)=>{ const r=inner(A,B), n=Math.hypot(r[0],r[1])||1e-300; return [r[0]/n,r[1]/n]; };
@@ -30366,7 +30738,8 @@ function berryChernFHS(u,N){                    // gauge-invariant lattice Chern
     const k=(a,b)=>eig(-Math.PI+a*h,-Math.PI+b*h);
     const P=mul(mul(U(k(i,j),k(i+1,j)),U(k(i+1,j),k(i+1,j+1))),mul(U(k(i+1,j+1),k(i,j+1)),U(k(i,j+1),k(i,j))));
     tot+=Math.atan2(P[1],P[0]); }
-  return tot/(2*Math.PI);
+  /* minus: FHS's c uses the connection <n|dn>, this file's C uses A = i<n|dn> */
+  return -tot/(2*Math.PI);
 }
 const berryGap=u=>{ let g=Infinity;             // the direct gap 2|d| — closes exactly at u=0,±2
   for(const [kx,ky] of [[0,0],[Math.PI,0],[0,Math.PI],[Math.PI,Math.PI]]){

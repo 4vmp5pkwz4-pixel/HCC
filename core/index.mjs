@@ -83,8 +83,42 @@ const COVERED_BY = new Map([
    mistake a rendering for a result. That is the taxonomy doing its job on the first day. */
 let catalogue = [];
 try { catalogue = JSON.parse(readFileSync(join(ROOT, 'api/manifest.json'), 'utf8')).labs || []; } catch {}
+/* A THIRD STATE, AND IT IS READ OFF THE ATLAS RATHER THAN TYPED HERE.
+   Sixteen laboratories now carry a TYPED INSTRUMENT in the atlas itself — declared inputs
+   with domains, named outputs with units, limits, verifiers — and their mathematics is
+   already sliced into core/atlas/extracted.mjs by scripts/extract-kernels.mjs. For those,
+   "extract a pure kernel" is a problem that has been SOLVED, and leaving it in the open
+   problems would be the same drift in the other direction: understating the atlas.
+
+   What is genuinely still missing for them is this service's contract — describe/run/sweep/
+   validate/export/cancel over HTTP — so that is what the open problem now says. The test is
+   the manifest's own instrument field, measured by walking the atlas, so no hand-kept list
+   can drift from it. */
 const stubs = catalogue.map(L => {
   const covered = COVERED_BY.get(L.id) || [];
+  if (L.instrument && !covered.length) return defineLab({
+    id: 'atlas.' + L.id,
+    title: L.title,
+    status: STATUS.NOT_IMPLEMENTED,
+    model_id: 'atlas.' + L.id,
+    summary: `Catalogued in the visual atlas as "${L.title}", where it carries the typed ` +
+      `instrument "${L.instrument}": declared inputs with domains, named outputs with units, ` +
+      `stated limits and named verifiers. Its kernel is pure and lives in ` +
+      `core/atlas/extracted.mjs. What it does NOT yet have is this service's contract, so ` +
+      `call it in the browser through HCC_API.run("${L.instrument}", …), not here.`,
+    not_implemented_reason:
+      `the physics IS extracted and IS callable — as the atlas instrument "${L.instrument}" ` +
+      `— but it has no describe/run/sweep/validate/export/cancel contract in this service yet, ` +
+      `and this service will not answer for an instrument it does not host`,
+    covered_by: ['atlas-instrument:' + L.instrument],
+    open_problems: [`wrap the extracted kernel of "${L.id}" in this service's ` +
+      `describe/run/sweep/validate/export/cancel contract; the kernel and the typed instrument ` +
+      `already exist and the atlas answers with them`],
+    inputs: [], outputs: [],
+    assumptions: ['none — nothing is computed through THIS contract'],
+    domain_of_validity: ['none — nothing is computed through THIS contract'],
+    evaluate() { throw notImplemented('atlas.' + L.id, 'not implemented'); }
+  });
   return defineLab({
     id: 'atlas.' + L.id,
     title: L.title,
