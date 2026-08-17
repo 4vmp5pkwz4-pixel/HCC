@@ -3914,6 +3914,52 @@ because none of them is derived here and the atlas does not pretend otherwise. T
 map is exact and kinematic: without a derived q★, Λ_{q★} = 3π/(q★ ℓ_P²) is arithmetic on an
 unknown, and every run says so in its own output.
 
+## Five laboratories that drew and did not compute (v3.98.0)
+
+Sixty-nine of the eighty laboratories render and return no number. `core/index.mjs` says so
+and `api/open-problems.json` lists the gap — that is honest, and it is also a standing
+invitation, because for some of them **the physics was already there**, written to draw the
+scene and one declaration short of being an instrument an agent can call.
+
+Five of them are now instruments. Nothing new was computed: every `evaluate()` calls the same
+function the laboratory draws with, and all of those functions went into the extraction root
+list, so the node kernels come along as a **slice rather than a retyping**.
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `bht` | Kerr r₊, area, T_H, Ω_H, S_BH, evaporation time | EXACT |
+| `sh` | Y_lm, N_lm, P_l^m, and the addition-theorem residual | EXACT |
+| `nuc` | B(A,Z), B/A, the most bound Z, the pairing term | REFERENCE_MODEL |
+| `bb` | Planck radiance, Wien peak, Stefan–Boltzmann exitance | EXACT |
+| `wil` | Willmore energy, and its excess over 2π² | EXACT |
+
+**Measured by walking the atlas: 80 laboratories, 16 computational, 21 instruments, 0 page
+errors.** The gap is 69 → 64.
+
+### One function had to become pure first
+
+`bhtKerr` reached for `state.bhtSpin` as a default and `THREE.MathUtils` for a clamp. Either
+one is enough to stop `scripts/extract-kernels.mjs` from taking it — the closure would touch
+the renderer and the extraction would **fail**, which is exactly what that failure is for.
+Every call site already passed the spin explicitly, so the default was never load-bearing.
+
+### Verified against something else — `docs/verify-atlas-instruments.cjs`, 17/17
+
+The Kerr area rebuilt from 16πG²M²/c⁴ and, at every spin, from 4π(r₊² + a²) — a different
+expression from the one the kernel evaluates. Orthonormality of all twenty-five harmonics up
+to ℓ = 4 integrated by a **Gauss–Legendre rule written in the verifier**. The mass formula
+rebuilt term by term, with the pairing term isolated by subtracting a δ-free reconstruction.
+**Stefan–Boltzmann recovered by integrating** the Planck law and **Wien by bisecting its
+derivative** — neither constant quoted. The Willmore bound tested over 201 radius ratios.
+
+Three of those checks were wrong when first written, and the kernels were right: a pairing
+claim that compared two different mass numbers, a Wien bisection whose bracket started where
+`exp()` overflows and the Planck law underflows to zero, and a Rayleigh–Jeans tolerance
+tighter than the first-order correction it was testing. The last one now asserts the **law**
+— the ratio approaches 1 as 1 − x/2 — which is stronger than a number against a tolerance.
+The evaporation-time check finally passes to 1e-4 rather than 1e-6, and the difference is
+24 ppm: the Julian year against the Gregorian one, a calendar and not a physics disagreement.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
