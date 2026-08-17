@@ -50534,25 +50534,34 @@ renderer.setAnimationLoop(tick);   // XR-compatible main loop (rAF does not fire
    profile. Opening state, stated last, like everything else in this block. */
 try{ if(premiumVisualsEnabled) premiumApplyProfile(true);
      else document.body.dataset.premiumDomain='off'; }catch(e){}
-/* ── AND THE OPENING FRAME MUST BE FRAMED ────────────────────────────────────
-   The same boot gap as the paragraph above, one symptom further along. setMode() frames
-   the camera for every world it is asked to enter, and at boot it is asked for none: the
-   state already claims 'solar', so setSolarScaleLayer('local') — and with it
-   frameSolarOverview() — never runs. The camera therefore keeps the position it was
-   CONSTRUCTED with, which is the origin, and OrbitControls does the only thing it can with
-   a camera sitting on its own target: it pushes it out along +Y to minDistance, which
-   stabilizeCamera() has just set to the navigation collision radius — the surface of a Sun
-   drawn at 24x so that it is visible at all.
+/* ── AND THE OPENING FRAME MUST SURVIVE THE BOOT ─────────────────────────────
+   MEASURED, in a real browser, with a trace on every write to camera.position.
 
-   MEASURED at boot in a real browser, before this line existed: camera at (0, 0.1317, 0)
-   AU, Sun drawn radius 0.1116 AU, so the star subtended 57.9 degrees of a 27.5-degree
-   half-frame and its glow sprite subtended 90. A first-time reader opened the atlas inside
-   the star and saw a white wash. Every other world framed itself correctly, which is
-   exactly why nobody found it: you have to arrive, not navigate.
+   frameSolarOverview() DOES run at boot — exactly once, and it writes the right answer:
+   (0, 53.231, 47.930), the 48-degree three-quarter view at the 71.6 AU bounding-sphere fit
+   for Neptune's orbit. It is call 92 of the 106 writes the camera takes during boot. The
+   other 105 are stabilizeCamera(), and that is the whole problem: renderer.setAnimationLoop
+   starts BEFORE the boot route runs, so for 91 writes the loop is clamping a camera that is
+   still sitting at the origin — where it was constructed — out to controls.minDistance,
+   which stabilizeCamera has set to navigationCollisionRadius(): the surface of a Sun drawn
+   at 24x so that it is visible at all. The framing lands in the middle of that, and does
+   not survive it.
 
-   The guard is the measurement rather than a flag: frame only when the camera is still
-   inside the body it is looking at. A deep link, a restored view or a reader who has
-   already moved all leave the camera outside it, and none of them is overridden. */
+   MEASURED before this line existed: camera 0.1317 AU from a Sun of drawn radius 0.1116, so
+   the star subtended 57.9 degrees of a 27.5-degree half-frame and its glow sprite subtended
+   90. A first-time reader opened the atlas inside the star. Every other world frames itself
+   on a mode CHANGE, long after the loop has settled, which is exactly why nobody found it:
+   you have to arrive, not navigate.
+
+   AN EARLIER VERSION OF THIS COMMENT SAID THE FRAMING NEVER RUNS. It runs; the trace above
+   is what corrected it. The fix is the same either way — state the opening frame last, like
+   everything else in this block — but the reason is a race with the loop's collision clamp
+   and not an absent call, and a comment that names the wrong cause sends the next reader to
+   the wrong place.
+
+   The guard is the measurement rather than a flag: re-frame only while the camera is still
+   inside the body it is looking at. A deep link, a restored view or a reader who has already
+   moved all leave it outside, and none of them is overridden. */
 function frameOpeningWorld(){
   try{
     if(state.mode!=='solar'||(state.solarScaleLayer||'local')!=='local'||state.landed) return false;

@@ -3886,14 +3886,18 @@ not a regression — v3.94.0 does exactly the same. Measured in a real browser a
 | Sun angular radius (half-frame is 27.5°) | 57.9° | **0.1°** |
 | glow sprite angular radius | 90° | **0.4°** |
 
-`setMode()` frames the camera for every world it is asked to enter, and at boot it is asked
-for none: the state already claims `solar`, so `setSolarScaleLayer('local')` — and with it
-`frameSolarOverview()` — never runs. The camera kept the position it was **constructed**
-with, the origin, and OrbitControls did the only thing it can with a camera sitting on its
-own target: pushed it out along +Y to `minDistance`, which `stabilizeCamera()` had just set
-to the navigation collision radius — the surface of a Sun drawn at 24× so it is visible at
-all. Every other world framed itself correctly, which is exactly why nobody found it: **you
-have to arrive, not navigate.**
+**The first explanation of this was wrong, and a trace on every write to `camera.position`
+is what corrected it.** `frameSolarOverview()` *does* run at boot — exactly once, and it
+writes the right answer, (0, 53.231, 47.930). It is write **92 of the 106** the camera takes
+during boot. The other 105 are `stabilizeCamera()`, and that is the whole problem:
+`renderer.setAnimationLoop` starts *before* the boot route runs, so for 91 writes the loop is
+clamping a camera still sitting at the origin — where it was constructed — out to
+`controls.minDistance`, which `stabilizeCamera()` has set to `navigationCollisionRadius()`:
+the surface of a Sun drawn at 24× so that it is visible at all. The framing lands in the
+middle of that and does not survive it.
+
+Every other world frames itself on a mode *change*, long after the loop has settled, which is
+exactly why nobody found it: **you have to arrive, not navigate.**
 
 The guard is the measurement rather than a flag: frame only while the camera is still inside
 the body it is looking at, so a deep link, a restored view or a reader who has already moved
