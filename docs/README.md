@@ -3835,6 +3835,74 @@ contract and caveat on the panel:
    divisor and its exact reconstruction.
 7. **Conditional closure** — five rings that light one at a time, each unlocking exactly one row.
 
+### Driven in a real browser, not asserted
+
+The seven were checked the way a reader meets them: Chromium, WebGL, every route opened by
+its hash the way a link would open it. All seven resolve, build their geometry, render their
+panel with three sliders and seven chips, and report a passing contract — **zero page errors
+across the whole walk**, and the interface measures 0 unreachable, 0 dead and 0 clipped
+controls out of 112.
+
+The same run found three regressions this work had introduced, all of them invisible to a
+static check and all of them named by the atlas's own self-tests:
+
+- **seven Nexus relations pointed at Atlas objects that do not exist.** Not every S³
+  laboratory has an Atlas node, and `selAtlas`, `anyonAtlas`, `qcrysAtlas`, `gateAtlas`,
+  `cauAtlas`, `berryAtlas` and `secAtlas` are seven that do not. Repointed at nodes that
+  exist and claims that stay true; the validator now checks the target is *registered*
+  rather than merely spelled correctly.
+- **seven isolated nodes in the Invariant Nexus.** `NEXUS_RELATIONS` lives in view-id space
+  and is a different registry from the Atlas object graph; the seven joined a cluster with
+  nothing attached and the graph reported `components 8 · isolated 7`. Eighteen typed edges
+  later it reports `components 1 · isolated 0`.
+- **seven laboratories with no prediction target**, so the contract layer had 73 of 80.
+
+### The agent surface
+
+A laboratory an agent can only look at is a laboratory an agent cannot use. The seven walked
+out of the first build as **parametric** — controls, no typed output contract — which is
+exactly the class the atlas invented so nothing visual-only could be mistaken for something
+you can compute with.
+
+They are **typed instruments** now, registered from one table rather than seven copies:
+declared inputs with domains, named outputs with units, limits, verifiers, provenance.
+`HCC_API.describe('civpidx')`, `HCC_API.evaluate('civpclo', { q: 1e61 })`,
+`HCC_API.report(...)` all work, and `api/manifest.json` — **measured by walking the atlas
+headlessly, not hand-written** — now reads 80 laboratories, 11 computational, 16 instruments.
+
+And one of them is wired: `civpsel` publishes `q★`, `civpclo` consumes `q`, and the quantity
+bus carries a selected sector into the de Sitter map without either laboratory knowing the
+other exists. It is the only place in this chain where a number becomes a metre, and it is a
+wire rather than a call so the provenance travels with it.
+
+### The Sun filled the frame, and had since long before this work
+
+A reader reported that the atlas opens with the Sun covering everything. It did, and it was
+not a regression — v3.94.0 does exactly the same. Measured in a real browser at boot:
+
+| | before | after |
+|---|---|---|
+| camera distance from the Sun | 0.1317 AU | **71.63 AU** |
+| Sun angular radius (half-frame is 27.5°) | 57.9° | **0.1°** |
+| glow sprite angular radius | 90° | **0.4°** |
+
+`setMode()` frames the camera for every world it is asked to enter, and at boot it is asked
+for none: the state already claims `solar`, so `setSolarScaleLayer('local')` — and with it
+`frameSolarOverview()` — never runs. The camera kept the position it was **constructed**
+with, the origin, and OrbitControls did the only thing it can with a camera sitting on its
+own target: pushed it out along +Y to `minDistance`, which `stabilizeCamera()` had just set
+to the navigation collision radius — the surface of a Sun drawn at 24× so it is visible at
+all. Every other world framed itself correctly, which is exactly why nobody found it: **you
+have to arrive, not navigate.**
+
+The guard is the measurement rather than a flag: frame only while the camera is still inside
+the body it is looking at, so a deep link, a restored view or a reader who has already moved
+is never overridden.
+
+Two failures remain and both predate this work: the opening frame is not tone-mapped at boot
+(the same "nothing runs for the world the state already claims" family, one symptom over),
+and a 4D viewfinder residual. They are recorded, not silently absorbed.
+
 ### What is still open
 
 All five certificates. They are in `api/open-problems.json` — C_X, C_win, C_U, C_E, C_UV —
