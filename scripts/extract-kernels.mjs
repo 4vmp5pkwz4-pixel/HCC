@@ -351,7 +351,18 @@ export const ROOTS = [
   'civpEntropyBridge', 'civpAddMultNoGo', 'civpFirstLaw', 'civpShapeNorm',
   'civpShapeQuotient', 'civpHopf', 'civpClosure', 'CIVP_CERTIFICATES', 'CIVP_LEDGER',
   /* the seven stations: the SAME function that draws the scene answers the API */
-  'CIVP_STATIONS', 'civpDiagnostics', 'civpExportData'
+  'CIVP_STATIONS', 'civpDiagnostics', 'civpExportData',
+  /* ── FIVE LABORATORIES THAT DREW AND DID NOT COMPUTE ──────────────────────
+     Sixty-nine of the eighty render and return no number. For these five the physics was
+     already here — written to draw the scene — and one declaration short of an instrument.
+     Taking them is a slice, not a retyping, so the kernel and the picture stay the same
+     function. bhtKerr had to be made pure first: it reached for state.bhtSpin as a default
+     and THREE.MathUtils for a clamp, and either one would have failed the extraction. */
+  'bhtKerr', 'bhtArea', 'bhtEvapYr',
+  'shY', 'shPlm', 'shNlm',
+  'nucBE', 'nucBperA', 'nucBestZ',
+  'bbPlanck',
+  'wilQuad'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 208   ·   exported names: 212
-   extracted physics, sha256 637b86f33a5ff5642259e9648400795fed3be6ce8bc299be7accdafb9adff929 */
+   declarations: 223   ·   exported names: 242
+   extracted physics, sha256 f10878198820a358a2517aa9b0b2bd53753d55370093a5c67f975efca9ffe72c */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -365,6 +365,45 @@ function fibMonodromy(a,b){
   return (S[a][b].re*S[0][0].re)/(S[a][0].re*S[0][b].re);
 }
 
+function shPlm(l,m,x){   // associated Legendre P_l^m, m≥0 (Condon–Shortley)
+  let pmm=1; if(m>0){ const s=Math.sqrt(Math.max(0,1-x*x)); let f=1; for(let i=1;i<=m;i++){ pmm*=-f*s; f+=2; } }
+  if(l===m) return pmm;
+  let pmm1=x*(2*m+1)*pmm; if(l===m+1) return pmm1;
+  let pll=0;
+  for(let ll=m+2;ll<=l;ll++){ pll=((2*ll-1)*x*pmm1-(ll+m-1)*pmm)/(ll-m); pmm=pmm1; pmm1=pll; }
+  return pll;
+}
+
+const _shFact=(n=>{ const a=[1]; for(let i=1;i<=40;i++) a[i]=a[i-1]*i; return a; })();
+
+function shNlm(l,m){ return Math.sqrt((2*l+1)/(4*Math.PI)*_shFact[l-m]/_shFact[l+m]); }
+
+function shY(l,m,th,ph){ const am=Math.abs(m), N=shNlm(l,am)*shPlm(l,am,Math.cos(th));
+  if(m>0) return Math.SQRT2*N*Math.cos(m*ph);
+  if(m<0) return Math.SQRT2*N*Math.sin(am*ph);
+  return N; }
+
+const BB_H=6.62607015e-34, BB_C=2.99792458e8, BB_KB=1.380649e-23, BB_SIG=5.670374419e-8, BB_C2=1.438776877e-2;
+
+function bbPlanck(lam,T){ return (2*BB_H*BB_C*BB_C/Math.pow(lam,5))/(Math.exp(BB_C2/(lam*T))-1); }
+
+const NUC_aV=15.75, NUC_aS=17.8, NUC_aC=0.711, NUC_aA=23.7, NUC_aP=11.18;
+
+function nucBE(A,Z){ const N=A-Z; let d=0; if(A%2===0) d=(Z%2===0)?NUC_aP/Math.sqrt(A):-NUC_aP/Math.sqrt(A);
+  return NUC_aV*A - NUC_aS*Math.pow(A,2/3) - NUC_aC*Z*(Z-1)/Math.pow(A,1/3) - NUC_aA*(A-2*Z)*(A-2*Z)/A + d; }
+
+function nucBperA(A,Z){ return nucBE(A,Z)/A; }
+
+function nucBestZ(A){ let bz=1,bb=-1e9; for(let Z=1;Z<A;Z++){ const b=nucBperA(A,Z); if(b>bb){bb=b;bz=Z;} } return bz; }
+
+const BHT_hbar=1.054571817e-34, BHT_h=2*Math.PI*BHT_hbar, BHT_c=2.99792458e8, BHT_G=6.67430e-11, BHT_kB=1.380649e-23, BHT_MSUN=1.98892e30, BHT_YR=3.15576e7, BHT_XPEAK=2.8214393721220787;
+
+function bhtKerr(M,chi=0){chi=Math.min(.999999,Math.max(0,Math.abs(Number(chi)||0)));const rg=BHT_G*M/(BHT_c*BHT_c),q=Math.sqrt(Math.max(0,1-chi*chi)),rp=rg*(1+q),area=8*Math.PI*rg*rg*(1+q),TH=BHT_hbar*BHT_c**3/(4*Math.PI*BHT_G*M*BHT_kB)*q/(1+q),omega=chi*BHT_c**3/(2*BHT_G*M*(1+q));return{chi,rg,q,rp,area,TH,omega,ergEq:2*rg,ergPole:rp};}
+
+function bhtArea(M,chi=state.bhtSpin??0){ return bhtKerr(M,chi).area; }
+
+function bhtEvapYr(M){ return 5120*Math.PI*BHT_G*BHT_G*M**3/(BHT_hbar*BHT_c**4)/BHT_YR; }
+
 const CAP_Q_STAR = 3.307251460713979e122;
 
 const CAP_NU     = 0.5;
@@ -698,6 +737,11 @@ function fibBraid(word){
     else if(ch==='a') M=fibMM(M,[[fibC(FIB_R1.re,-FIB_R1.im),fibC(0)],[fibC(0),fibC(FIB_RT.re,-FIB_RT.im)]]);
   }
   return M; }
+
+function wilQuad(a,N){ let s=0; const h=2*Math.PI/N;
+  for(let i=0;i<N;i++){ const u=(i+0.5)*h, c=Math.cos(u), den=a+c, H=0.5*(1+c/den);
+    s+=H*H*den*h*2*Math.PI; }
+  return s; }
 
 const CIVP_PHI=(1+Math.sqrt(5))/2, CIVP_GOLD=CIVP_PHI*CIVP_PHI, CIVP_LP=1.616255e-35;
 
@@ -1358,5 +1402,5 @@ function civpExportData(station,a,b,c){
       'of the five certificates, and not a prediction of the cosmological constant.'};}
 
 export {
-  BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, LN_PHI, LOG10_PHI, LY_M, PC_H, PHI, PHI_R, S3, ZPF, ZP_TH_BUDGET, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, levelR, pcCreate, pcExtFlow, pcMu, pcMuBlock, specBlock, specC, specEig, specSpectrum, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, LN_PHI, LOG10_PHI, LY_M, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, S3, ZPF, ZP_TH_BUDGET, _shFact, bbPlanck, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, levelR, nucBE, nucBestZ, nucBperA, pcCreate, pcExtFlow, pcMu, pcMuBlock, shNlm, shPlm, shY, specBlock, specC, specEig, specSpectrum, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };
