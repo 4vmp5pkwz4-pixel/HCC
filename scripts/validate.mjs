@@ -687,6 +687,53 @@ check(existsSync('PREDICTIVE_FOUNDATIONS_AUDIT.md')
   && readFileSync('SCIENTIFIC_CONTRACT.md','utf8').includes('## Operational predictive foundations'),
   'predictive transfer, assumptions, rejection gates and provenance are documented');
 
+/* 28 · CIVP corner locking: seven stations, six registries, one extracted source */
+check(html.includes('const CIVP_STATIONS=') && html.includes('function civpDiagnostics(')
+  && html.includes('function civpExportData(') && html.includes('function civpLock(')
+  && html.includes('function civpSelect(') && html.includes('function civpClosure('),
+  'CIVP station registry, pure diagnostics, reproducible export and the locking kernels exist');
+for (const station of ['lock','cut','index','a4','selector','carrier','closure'])
+  check(new RegExp(`\\n  ${station}:\\{t:`).test(html), `CIVP station present: ${station}`);
+check(html.includes('RΓ(CP¹, L_q(−Z)) ≃ 0 if and only if N_emb = q_ind')
+  && html.includes('q_can = Σγ_i and γ̄ = q_can/N_emb')
+  && html.includes('1/3 < λ* < 1/2 is 2 < [M:N] < 3')
+  && html.includes('BBᵀ = N_τ² = [[1,1],[1,2]]')
+  && html.includes('κ_q = Δ²log I_q is invariant under I_q → C e^{aq} I_q')
+  && html.includes('c₁(L_N) = N−1 and ind ∂̄ = N differ by exactly one')
+  && html.includes('R_q = ℓ_P√(q/π) and Λ_q = 3π/(q ℓ_P²) is an exact kinematic map'),
+  'every CIVP station declares its contract, and the seven contracts are the seven theorems');
+check(html.includes("id=\"v-civp\"") && html.includes("state.s3view==='civp'") === false
+  && html.includes("civpGroup.visible    = v==='civp'") && html.includes('updateCivp(dt)')
+  && html.includes("if(v==='civp'&&!ready){ civpSetup(); }"),
+  'CIVP is reachable, rendered and stepped as a full S³ laboratory');
+check(html.includes("S3_VIEW_NAMES={civp:") && html.includes("HCC_LAB_STATUS={civp:'VERIFIED'")
+  && html.includes("dynamics:new Set(['civp'") && html.includes("exact:['civp'")
+  && html.includes("['civpAtlas','civp',civpGroup,"),
+  'CIVP is registered in the view catalogue, the status table, a premium domain, the prediction contract and the Atlas');
+check(html.includes("['civpAtlas','anyonAtlas'") && html.includes("['civpAtlas','selAtlas'")
+  && html.includes("['civpAtlas','berryAtlas'") && html.includes("['civpAtlas','bhtAtlas'")
+  && html.includes("['civpAtlas','shAtlas'"),
+  'CIVP carries typed Nexus relations to the anyon, selector, Berry, black-hole and harmonic laboratories');
+check(html.includes('civpLocking(station=state.civpStation') && html.includes('function bindCivpControls(')
+  && html.includes('fbs3r_civp_corner_locking.json'),
+  'CIVP diagnostics are QA-queryable, its controls are bound and its export is reproducible');
+check(html.includes('none of the five physical certificates is derived here')
+  && html.includes('never a prediction of Λ')
+  && html.includes('kinematic map from a capacity that has been SELECTED BY HAND'),
+  'CIVP states its epistemic firewall: the five certificates are undischarged and Λ is not predicted');
+{
+  /* the load-bearing claim of the whole laboratory: the kernels are SLICED from this file,
+     not retyped beside it. If core/civp/ ever came back, the drift would be silent. */
+  const roots = readFileSync('scripts/extract-kernels.mjs', 'utf8');
+  check(roots.includes("'civpLock'") && roots.includes("'civpDiagnostics'") && roots.includes("'CIVP_STATIONS'")
+    && !existsSync('core/civp') && !existsSync('civp.html'),
+    'the CIVP mathematics has exactly one home: index.html, sliced into core/atlas/extracted.mjs by the root list — no parallel module, no separate page');
+  const ex = readFileSync('core/atlas/extracted.mjs', 'utf8');
+  check(ex.includes('function civpDiagnostics(') && ex.includes('function civpLock(')
+    && ex.includes('const CIVP_STATIONS='),
+    'the extracted module carries the station registry and the pure diagnostics the atlas draws with');
+}
+
 console.log('\n' + (failures === 0
   ? '✔ ALL CHECKS PASSED'
   : `✗ ${failures} CHECK(S) FAILED`));

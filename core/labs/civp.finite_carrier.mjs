@@ -1,7 +1,12 @@
 import { defineLab, domainError } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { borelWeil, polarisationTransport, stinespringLeakage, hankelRank,
-  capelliTransfer, projectiveRankNoGo, capelliGate, CARRIER_EQUATIONS } from '../civp/carrier.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { civpBorelWeil as borelWeil, civpPolarisation as polarisationTransport,
+  civpLeakage as stinespringLeakage, civpHankel as hankelRank, civpCapelli as capelliTransfer,
+  civpProjectiveNoGo as projectiveRankNoGo, civpCapelliGate as capelliGate } from '../atlas/extracted.mjs';
 
 /* the spectrum arrives as "x:m, x:m" so a SINGULAR central character can actually be
    written down — which is the whole point, because that is where the moment test goes
@@ -17,6 +22,16 @@ function parseSpectrum(spec) {
   if (!rows.length) throw domainError('the spectrum needs at least one point');
   return rows;
 }
+
+const CARRIER_EQUATIONS = Object.freeze([
+  'V_N ≃ Sym^{N-1} C^2 ≃ H^0(CP^1, O(N-1)), N = 2J + 1',
+  'c_1(L_N)[CP^1] = N - 1,  ind dbar_{L_N} = N',
+  'Q(ab) - Q(a)Q(b) = V* pi(a) K pi(b) V,  K = 1 - VV*',
+  'm_k = (1/r) sum x^k,  H^{(s)} = (m_{i+j}),  rank H = min(r, s+1)',
+  'R_eps(u) = P_r(u + eps)/P_r(u),  div R_eps = tau_{-eps} D_P - D_P',
+  'd_n = m_{n+1} - m_n,  m_n = -sum_{j>=n} d_j',
+  'Xi_k = C_{k+1} C_{k-1} / C_k^2 is invariant under C_k -> A B^k C_k'
+]);
 
 export default defineLab({
   id: 'civp.finite_carrier',
@@ -118,7 +133,8 @@ export default defineLab({
       stinespring_leakage: st.leakage_norm, stinespring_identity_residual: st.identity_residual,
       gate_clauses_satisfied: gate.satisfied },
       warnings,
-      diagnostics: { carrier: bw.carrier, polarisation: polarisationTransport(N).fixed_polarisation_obstruction,
+      diagnostics: { carrier: `V_N = Sym^{${N - 1}} C^2 = H^0(CP^1, O(${N - 1}))`,
+        polarisation: polarisationTransport(N).fixed_polarisation_obstruction,
         root_divisor: cap.root_divisor, transfer_divisor: cap.transfer_divisor,
         recovered_divisor: cap.recovered_divisor,
         gate_status: gate.status, hankel_blind_spot: hk.blind_spot } };

@@ -1,7 +1,12 @@
 import { defineLab, domainError } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { kappa, affineReweight, selectSector, boundedGrowthNoGo, topologyResponse,
-  topologyStability, differenceQuotient, SELECTOR_EQUATIONS } from '../civp/selector.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { civpKappa as kappa, civpReweight as affineReweight, civpSelect as selectSector,
+  civpBoundedGrowth as boundedGrowthNoGo, civpTopResponse as topologyResponse,
+  civpTopStability as topologyStability, civpDiffQuotient as differenceQuotient } from '../atlas/extracted.mjs';
 
 /* The primitive sequence is generated from a declared law rather than supplied blind, so
    the affine nuisance can be switched on and the invariant watched not to move.
@@ -39,6 +44,19 @@ function buildTopology(kind, amp, qMin, qMax) {
     return Array.from({ length: n }, (_, k) => amp / Math.pow(qMin + k, 2));
   throw domainError('topology must be none, constant, affine or casimir', { kind });
 }
+
+const SELECTOR_EQUATIONS = Object.freeze([
+  'Z_q^UV = I_q^UV / Gamma(q+1)',
+  'I_q -> C e^{aq} I_q leaves the physics unchanged',
+  'kappa_q = Delta^2 log I_q  (complete invariant modulo aq + b)',
+  'rho_q = log(I_{q+1}/I_q) - log(q+1)',
+  'Gamma_q = -log Z_q,  Delta^2 Gamma_q = log((q+2)/(q+1)) - kappa_q',
+  'Delta^2 Gamma > 0 and rho_{q*-1} > 0 > rho_{q*}  =>  q_* unique',
+  'I_{q+1}/I_q <= C  =>  Z_{q+1}/Z_q <= C/(q+1) < 1 for q+1 > C',
+  'delta_top rho_q = sigma_q,  delta_top(Delta^2 Gamma_q) = -nu_q',
+  'max(|sigma_{q*-1}|,|sigma_{q*}|) < m_* and sup|nu| < c_*  =>  sector preserved',
+  'ker Delta^{r+1} = P_r'
+]);
 
 export default defineLab({
   id: 'civp.uv_selector',
@@ -123,7 +141,7 @@ export default defineLab({
     const k1 = kappa(used, qMin).map(x => x.kappa);
     const kres = Math.max(0, ...k0.map((v, n) => Math.abs(v - k1[n])));
     const resp = topologyResponse(theta, qMin);
-    const stab = topologyStability({ selection: sel, response: resp });
+    const stab = topologyStability(sel, resp);
     /* C is MEASURED from the sequence actually used, not guessed from the growth law, so the
        no-go threshold means something for an explicit or bounded primitive too */
     const ratios = used.slice(1).map((x, k) => x / used[k]);

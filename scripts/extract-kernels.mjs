@@ -329,7 +329,29 @@ export const ROOTS = [
   'CAP_LAM_OBS', 'CAP_LAM_SIG', 'CAP_U_STAR', 'CAP_GATES',
   /* fibonacci.anyons */
   'FIB_PHI', 'FIB_D', 'FIB_S1', 'FIB_S2', 'fibFusion', 'fibBraid', 'fibMM',
-  'fibFsym', 'fibMonodromy', 'fibAxioms', 'fibPentagon', 'fibHexagon'
+  'fibFsym', 'fibMonodromy', 'fibAxioms', 'fibPentagon', 'fibHexagon',
+  /* civp.cp1_locking */
+  'civpLock', 'civpResidual', 'civpCarrier', 'civpBergman', 'civpAndreief', 'civpTate',
+  'civpZeroNoGo', 'civpNormDivisor', 'civpEvalMatrix', 'civpVandermonde', 'civpCohomology',
+  /* civp.embadon_measure */
+  'civpCapacity', 'civpBosonic', 'civpGluing', 'civpEffectiveDivisor', 'civpRigidity',
+  'civpCornerModes', 'civpCentralWeight',
+  /* civp.finite_index */
+  'CIVP_PHI', 'CIVP_GOLD', 'civpJonesSpectrum', 'civpAdmissible', 'civpWindow',
+  'civpTwoWitness', 'civpDivisibleNoGo', 'civpFuzzyNoGo', 'civpMatrixTower',
+  'civpLadderNoGo', 'civpA4', 'civpADE', 'civpFibFibre', 'civpTower',
+  /* civp.uv_selector */
+  'civpKappa', 'civpReweight', 'civpProfile', 'civpSelect', 'civpBoundedGrowth',
+  'civpTopResponse', 'civpTopStability', 'civpDiffQuotient',
+  /* civp.finite_carrier */
+  'civpBorelWeil', 'civpPolarisation', 'civpLeakage', 'civpHankel', 'civpCapelli',
+  'civpCrossRatio', 'civpProjectiveNoGo', 'civpCapelliGate',
+  /* civp.closure */
+  'CIVP_LP', 'civpVacuumShift', 'civpDeSitter', 'civpCapacityFromLambda', 'civpSaddle',
+  'civpEntropyBridge', 'civpAddMultNoGo', 'civpFirstLaw', 'civpShapeNorm',
+  'civpShapeQuotient', 'civpHopf', 'civpClosure', 'CIVP_CERTIFICATES', 'CIVP_LEDGER',
+  /* the seven stations: the SAME function that draws the scene answers the API */
+  'CIVP_STATIONS', 'civpDiagnostics', 'civpExportData'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

@@ -3784,20 +3784,49 @@ Capelli multiplicities from the polynomial's own **derivative orders**, forming 
 at all; and the compound-Poisson cumulants by **brute-force summation** over the count.
 35 checks, all green. The kernels' own self-tests add 44 more.
 
-### `civp.html` — the observatory
+### The atlas is the source, and the kernels are sliced out of it
 
-Seven interactive three-dimensional stages, WebXR-capable, importing `core/civp/*.mjs`
-**unchanged**. Those modules import nothing from node, which is not an accident: it is what
-lets the picture and the number be one piece of code instead of two transcriptions that
-drift. Every figure on the page is drawn from a value the API would return, and nothing
-there recomputes any of it.
+This is the part that decides the architecture. The mathematics is **written in
+`index.html`**, where the seven stations draw it, and `scripts/extract-kernels.mjs` takes the
+transitive closure of the named roots straight out of that file into `core/atlas/extracted.mjs`.
+`core/labs/civp.*` import from there and rename; they contain **no arithmetic at all**.
 
-The stages are the argument in order — the CP¹ lock closing into a gold ring at N = q; the
-molecular cut with the count and the capacity as two columns beside atoms whose *volume* is
-their weight; the Jones ladder with the empty gap drawn as a void and the window containing
-exactly one rung; the A₄ transfer as three 2×2 stacks that coincide; the selector landscape;
-the Berry carrier with N−1 flux quanta and N sections, one apart; and the closure, where
-five rings light one at a time and each unlocks exactly one row.
+That direction is not decoration. The alternative — a parallel `core/civp/` module and a
+separate page importing it — was built first, and it was wrong for exactly the reason this
+repository keeps repeating: two copies of a formula means the older one is wrong and nothing
+says which. `civpDiagnostics` is pure — no THREE, no `state`, no DOM — so the same function
+that returns the geometry for the scene is the function the API answers with. When
+`docs/verify-civp-locking.cjs` checks a claim, it is checking the code that drew the picture.
+
+`scripts/extract-kernels.mjs` enforces this: if any of the CIVP closure ever reached for a
+renderer, the extraction would **fail** and name the chain from the kernel to the browser
+global. That failure is the useful part.
+
+Two defects turned up while wiring it, both worth recording. The extractor's statement walker
+stops at a newline inside a `const a = …,` list when the next line begins with an identifier,
+so a wrapped declarator list silently lost every binder after the wrap — `civpJacobi`'s `c`
+resolved to a top-level `c` twenty thousand lines away and dragged `document` into the closure.
+The 337 wrapped continuation lines in this block are now joined. And the Capelli transfer's
+telescoping direction is not a convention: for ε = +1 the sum runs upward, for ε = −1 downward,
+and the first version summed upward in both charts.
+
+### The seven stations
+
+The stations are the argument in order, each with three normalised controls and its own
+contract and caveat on the panel:
+
+1. **CP¹ evaluation lock** — the divisor on the Riemann sphere, the carrier as q latitudes,
+   h⁰ and h¹ as columns above and below. At N = q both empty and the equator closes.
+2. **Molecular cut** — atoms whose *volume* is their weight, with the count and the capacity
+   as two columns. Raise the spread: they stay equal and C_U flips to no.
+3. **Jones ladder** — the gap (1,2) drawn as a void because it is empty, the window (2,3)
+   holding exactly one rung, and the divisibility descent falling into the void.
+4. **A₄ transfer** — BBᵀ, N_τ² and A as three 2×2 stacks that coincide, with the fusion tree.
+5. **Selector landscape** — log Z_q over (q, a): every row has the same curvature and the
+   crest slides.
+6. **Berry carrier · Capelli** — N−1 flux meridians and N latitudes, one apart, beside a root
+   divisor and its exact reconstruction.
+7. **Conditional closure** — five rings that light one at a time, each unlocking exactly one row.
 
 ### What is still open
 

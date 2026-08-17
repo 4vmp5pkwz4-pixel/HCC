@@ -1,9 +1,29 @@
 import { defineLab } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { vacuumShiftKernel, deSitterFromCapacity, capacityFromLambda, deSitterSaddleIdentity,
-  entropyBridge, additiveMultiplicativeNoGo, capacityFirstLaw, bmsShapeQuotient, shapeNorm,
-  hopfSector, closure, CERTIFICATES, TYPE_LEDGER, CLOSURE_EQUATIONS } from '../civp/closure.mjs';
-import { GOLDEN_INDEX } from '../civp/jones.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { civpVacuumShift as vacuumShiftKernel, civpDeSitter as deSitterFromCapacity,
+  civpCapacityFromLambda as capacityFromLambda, civpSaddle as deSitterSaddleIdentity,
+  civpEntropyBridge as entropyBridge, civpAddMultNoGo as additiveMultiplicativeNoGo,
+  civpFirstLaw as capacityFirstLaw, civpShapeQuotient as bmsShapeQuotient,
+  civpShapeNorm as shapeNorm, civpHopf as hopfSector, civpClosure as closure,
+  CIVP_CERTIFICATES as CERTIFICATES, CIVP_LEDGER as TYPE_LEDGER, CIVP_GOLD as GOLDEN_INDEX } from '../atlas/extracted.mjs';
+
+const CLOSURE_EQUATIONS = Object.freeze([
+  'R_{mu nu} - (1/4) R g_{mu nu} = 8 pi G (T_{mu nu} - (1/4) T g_{mu nu})',
+  'd(R + 8 pi G T) = 0',
+  'q_can = A/(4 l_P^2) = 3 pi / (Lambda l_P^2)',
+  'R_q = l_P sqrt(q/pi),  Lambda_q = 3 pi / (q l_P^2)',
+  'q_dS = 3pi/(G hbar Lambda) = rho_Lambda V_4/hbar = -I_E/hbar = S_GH',
+  'S_gen = A/(4 G hbar) + S_out = q_can + S_out',
+  'Delta S_gen = log Ind(X);  Omega = e^{S_gen}, Omega_{n+1}/Omega_n = Ind',
+  'Q + chi = e^chi Q  =>  Q = chi/(e^chi - 1), and no second step',
+  'T_H delta q_H = delta M - Omega_H delta J - Phi_H delta Q_el',
+  'D_AB[Y_lm] = 0 <=> l = 0,1;  int |D[Y_lm]|^2 = (1/2)(l-1)l(l+1)(l+2)',
+  'H(h o U) = deg U'
+]);
 
 export default defineLab({
   id: 'civp.closure',
@@ -83,7 +103,7 @@ export default defineLab({
   ],
   evaluate(i) {
     const held = { C_X: i.C_X, C_win: i.C_win, C_U: i.C_U, C_E: i.C_E, C_UV: i.C_UV };
-    const cl = closure(held, { q_star: i.q_star });
+    const cl = closure(held, i.q_star);
     const ds = deSitterFromCapacity(i.q_star);
     const eb = entropyBridge(i.index);
     const am = additiveMultiplicativeNoGo(Math.log(i.index) || 1e-9);
@@ -186,7 +206,7 @@ export default defineLab({
     { name: 'the five certificates are exactly five, each unlocking exactly one conclusion',
       run() { const ids = CERTIFICATES.map(c => c.id);
         return { pass: CERTIFICATES.length === 5 && new Set(ids).size === 5
-            && CERTIFICATES.every(c => c.unlocks.length === 1),
+            && CERTIFICATES.every(c => typeof c.unlocks === 'string' && c.unlocks.length > 0),
           detail: ids.join(', ') }; } }
   ]
 });

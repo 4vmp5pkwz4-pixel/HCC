@@ -10,9 +10,9 @@
 
    1.3.0 — six kernels for the trace-free de Sitter CIVP chain (civp.cp1_locking,
            civp.embadon_measure, civp.finite_index, civp.finite_carrier, civp.uv_selector,
-           civp.closure). Their mathematics lives in core/civp/, imports nothing from node,
-           and is loaded unchanged by civp.html — so the three-dimensional observatory and
-           the API answer with the same code rather than with two transcriptions of it. */
+           civp.closure), SLICED OUT OF the atlas's new seven-station laboratory rather than
+           retyped beside it. The mathematics is written where index.html draws it; these
+           contracts import core/atlas/extracted.mjs and contain no arithmetic of their own. */
 export const CORE_VERSION = '1.3.0';
 export const CORE_SCHEMA  = 'hcc.core/1';
 export const RESULT_SCHEMA = 'hcc.result/2';

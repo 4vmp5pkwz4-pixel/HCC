@@ -53,8 +53,6 @@ function coreHash() {
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
     'labs/s3.spectral_operator.mjs','labs/bianchi_ix.evolution.mjs',
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
-    'civp/cp1.mjs','civp/embadon.mjs','civp/jones.mjs','civp/selector.mjs',
-    'civp/carrier.mjs','civp/closure.mjs','math/cmatrix.mjs',
     'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
     'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs'];
   return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));

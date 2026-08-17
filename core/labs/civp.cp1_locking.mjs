@@ -1,7 +1,12 @@
 import { defineLab, domainError } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { evaluationLock, residualComplex, carrierSpace, bergman, andreief,
-  tateImage, zeroDivisorNoGo, normaliseDivisor, CP1_EQUATIONS } from '../civp/cp1.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { civpLock as evaluationLock, civpResidual as residualComplex, civpCarrier as carrierSpace,
+  civpBergman as bergman, civpAndreief as andreief, civpTate as tateImage,
+  civpZeroNoGo as zeroDivisorNoGo, civpNormDivisor as normaliseDivisor } from '../atlas/extracted.mjs';
 
 /* the divisor arrives as text so an agent can drive this over a URL: "re,im,mult; ..."
    or the word auto, which builds a ring of distinct points and then MERGES the requested
@@ -30,6 +35,19 @@ function buildDivisor(spec, nEmb, collisions) {
   if (atoms.some(a => a.mult < 1)) throw domainError('multiplicities are positive integers');
   return atoms;
 }
+
+const CP1_EQUATIONS = Object.freeze([
+  'h^0(O(d)) = max(d+1,0), h^1(O(d)) = max(-d-1,0) on CP^1',
+  'L_q = O(q_ind - 1), dim K_q = ind dbar_{L_q} = q_ind',
+  'R_{q,Z} = L_q(-Z) ≃ O(q_ind - 1 - N_emb)',
+  'Delta_lock = ind dbar_{R} = q_ind - N_emb',
+  'RGamma(CP^1, L_q(-Z)) ≃ 0  <=>  N_emb = q_ind',
+  'ev_Z : K_q -> H^0(Z, L_q|_Z), dim target = deg Z',
+  'det confluent Vandermonde = prod_{a<b} (z_b - z_a)^{m_a m_b}',
+  'B_q(z) = q_ind (round carrier, normalised measure)',
+  'int |det(s_i(z_j))|^2 dmu^q = q!',
+  'T_Tate([E]) = 12 chi(E) [Det] = chi(E) [BT]'
+]);
 
 export default defineLab({
   id: 'civp.cp1_locking',

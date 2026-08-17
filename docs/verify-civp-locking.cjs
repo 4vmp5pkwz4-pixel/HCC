@@ -2,10 +2,11 @@
 /* ============================================================================
    THE TRACE-FREE DE SITTER CIVP CHAIN, CHECKED AGAINST SOMETHING ELSE
 
-   Six kernels were added to the core for the manuscript "Acyclic CIVP--Index Locking,
+   Seven stations were added to the atlas for the manuscript "Acyclic CIVP--Index Locking,
    Molecular Corner Statistics, Entropy--Flux Structure, and Capacity Selection in
-   Trace-Free de Sitter Gravity". Every one of them carries its own self-tests, and a
-   self-test is a laboratory agreeing with itself.
+   Trace-Free de Sitter Gravity", and six kernels are SLICED OUT OF THEM by
+   scripts/extract-kernels.mjs. Every kernel carries its own self-tests, and a self-test is
+   a laboratory agreeing with itself.
 
    This file does not import a kernel and ask whether it likes its own answer. For each
    claim it computes the SAME NUMBER BY A DIFFERENT ROUTE, and then compares:
@@ -13,7 +14,7 @@
      · h^1 of a line bundle on CP^1 comes back through SERRE DUALITY, h^1(O(d)) =
        h^0(O(-d-2)), rather than through the max(-d-1,0) formula the kernel uses;
      · the rank of the confluent evaluation matrix is recomputed by GRAM-SCHMIDT on the
-       columns, which shares no code with the pivoted elimination in core/math/cmatrix.mjs;
+       columns, which shares no code with the pivoted elimination the atlas uses;
      · the confluent Vandermonde determinant is recomputed by the LEIBNIZ SUM over all
        permutations for small sizes — the definition, at factorial cost;
      · the only Jones value in (2,3) is found by SOLVING 4cos^2(pi/m) = 2 and = 3 for m,
@@ -41,12 +42,22 @@ const { join } = require('node:path');
 const ROOT = join(__dirname, '..');
 const load = p => import(pathToFileURL(join(ROOT, p)).href);
 
-const CP1 = await load('core/civp/cp1.mjs');
-const EMB = await load('core/civp/embadon.mjs');
-const JON = await load('core/civp/jones.mjs');
-const SEL = await load('core/civp/selector.mjs');
-const CAR = await load('core/civp/carrier.mjs');
-const CLO = await load('core/civp/closure.mjs');
+/* ONE import, and it is the module SLICED OUT OF index.html. The mathematics being checked
+   here is literally the code the atlas runs to draw the seven stations — if this file and the
+   picture ever disagreed, one of them would have been retyped, and neither is. */
+const X = await load('core/atlas/extracted.mjs');
+const CP1 = { bundleCohomology:X.civpCohomology, evaluationLock:X.civpLock,
+  evaluationMatrix:X.civpEvalMatrix, confluentVandermondeProduct:X.civpVandermonde };
+const EMB = { capacity:X.civpCapacity, gluing:X.civpGluing,
+  compoundPoissonRigidity:X.civpRigidity };
+const JON = { pimsnerPopaWindow:X.civpWindow, divisibilityNoGo:X.civpDivisibleNoGo,
+  a4Transfer:X.civpA4 };
+const SEL = { affineReweight:X.civpReweight, kappa:X.civpKappa, selectSector:X.civpSelect };
+const CAR = { borelWeil:X.civpBorelWeil, capelliTransfer:X.civpCapelli,
+  hankelRank:X.civpHankel, projectiveCrossRatio:X.civpCrossRatio };
+const CLO = { deSitterFromCapacity:X.civpDeSitter, shapeNorm:X.civpShapeNorm,
+  additiveMultiplicativeNoGo:X.civpAddMultNoGo, closure:X.civpClosure,
+  vacuumShiftKernel:X.civpVacuumShift };
 
 /* ─────────────────────────────────────────────────────────────────────────
    1 · SHEAF COHOMOLOGY ON CP^1 THROUGH SERRE DUALITY
@@ -521,8 +532,8 @@ console.log('\n=== 9. The kinematic map, and what it is not ===\n');
 
   /* and the headline refuses to be a prediction */
   {
-    const none = CLO.closure({}, { q_star: 292 });
-    const full = CLO.closure({ C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1 }, { q_star: 292 });
+    const none = CLO.closure({}, 292);
+    const full = CLO.closure({ C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1 }, 292);
     ok('with no certificates the map still computes and is labelled undetermined; with all five it names the capacity it was GIVEN',
       /NOT determined/.test(none.headline) && none.de_sitter === null && full.de_sitter !== null
       && full.de_sitter.is_prediction === false,

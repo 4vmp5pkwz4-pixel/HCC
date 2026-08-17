@@ -19,16 +19,16 @@ python3 -m http.server 8000     # → http://localhost:8000
 ```
 or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 
-Three entry points share one origin:
+Two entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
-| `index.html` | the atlas — 73 laboratories across 7 worlds, WebXR | yes |
-| `civp.html` | the **CIVP Locking Observatory** — seven 3D stages for the trace-free de Sitter locking chain, driven by the same `core/civp/` modules the API serves | yes |
+| `index.html` | the atlas — **74** laboratories across 7 worlds, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
 
-`civp.html` needs an origin rather than `file://`, because it imports the computational
-core as ES modules instead of restating it.
+The newest laboratory is **CIVP corner locking**: seven stations of the trace-free de Sitter
+locking chain, and the source of six of the computational kernels — the mathematics is written
+where the atlas draws it and `scripts/extract-kernels.mjs` slices it into the core.
 
 **Desktop:** drag = orbit · wheel = zoom · right-drag = pan · Esc = leave surface/deselect.
 **Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·

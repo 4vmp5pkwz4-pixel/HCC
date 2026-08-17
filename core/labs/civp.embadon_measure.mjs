@@ -1,7 +1,12 @@
 import { defineLab, domainError } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { capacity, bosonicQuotient, gluing, effectiveDivisor, compoundPoissonRigidity,
-  cornerModes, centralWeightDiagnostic, EMBADON_EQUATIONS } from '../civp/embadon.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { civpCapacity as capacity, civpBosonic as bosonicQuotient, civpGluing as gluing,
+  civpEffectiveDivisor as effectiveDivisor, civpRigidity as compoundPoissonRigidity,
+  civpCornerModes as cornerModes, civpCentralWeight as centralWeightDiagnostic } from '../atlas/extracted.mjs';
 
 /* weights arrive as a word or a list. The word matters: "unit" is the certificate C_U
    holding, "spread" is it failing while the MEAN stays one — which is the case the no-go
@@ -21,6 +26,18 @@ function buildWeights(spec, N) {
     throw domainError(`weights must be "unit", "spread:amp", or ${N} positive numbers`, { given: w.length, expected: N });
   return w;
 }
+
+const EMBADON_EQUATIONS = Object.freeze([
+  'Omega(z) = sum_i Omega_i delta^{(2)}(z - z_i)',
+  'gamma_i = Omega_i / (4 l_P^2)',
+  'q_can = sum_i gamma_i,  q_can / N_emb = gamma_bar',
+  'q_can = N_emb  <=>  gamma_bar = 1  (pointwise capacity needs gamma_i = 1)',
+  'UConf_N = Conf_N / S_N gives the 1/N! configuration quotient',
+  'Omega^{(u)} = Omega^{(v)} as measures => equal support and mass up to permutation',
+  'E q_A = Q E gamma, Var q_A = Q E gamma^2 (compound Poisson)',
+  '[q_can_hat, mu_bar_hat] = 2 pi i',
+  'c_tot / q_can = c_ray / gamma_bar'
+]);
 
 export default defineLab({
   id: 'civp.embadon_measure',

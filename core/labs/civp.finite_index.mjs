@@ -1,9 +1,27 @@
 import { defineLab } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { PHI, GOLDEN_INDEX, jonesSpectrum, admissibleIndex, pimsnerPopaWindow,
-  twoWitnessCertificate, divisibilityNoGo, fuzzySphereNoGo, matrixTowerNoGo,
-  irrationalLadderNoGo, a4Transfer, adeWindow, fibonacciFibre, jonesTower,
-  JONES_EQUATIONS } from '../civp/jones.mjs';
+/* The mathematics is NOT in this file. It lives in index.html, where the atlas draws it,
+   and scripts/extract-kernels.mjs slices it into core/atlas/extracted.mjs. A kernel that
+   retyped it would be a second copy, and the drift between the picture and the number is
+   exactly the failure this core exists to prevent. */
+import { CIVP_PHI as PHI, CIVP_GOLD as GOLDEN_INDEX, civpJonesSpectrum as jonesSpectrum,
+  civpAdmissible as admissibleIndex, civpWindow as pimsnerPopaWindow,
+  civpTwoWitness as twoWitnessCertificate, civpDivisibleNoGo as divisibilityNoGo,
+  civpFuzzyNoGo as fuzzySphereNoGo, civpMatrixTower as matrixTowerNoGo,
+  civpLadderNoGo as irrationalLadderNoGo, civpA4 as a4Transfer, civpADE as adeWindow,
+  civpFibFibre as fibonacciFibre, civpTower as jonesTower } from '../atlas/extracted.mjs';
+
+const JONES_EQUATIONS = Object.freeze([
+  '[M:N] in {4 cos^2(pi/m)} u [4, inf)',
+  'lambda*(E)^{-1} = [M:N]',
+  '1/3 < lambda* < 1/2  =>  [M:N] = 4cos^2(pi/5) = (3+sqrt5)/2 = phi^2',
+  'Ind(Theta_g) = Ind(Theta_{h_n})^n and no index lies in (1,2) => Ind = 1',
+  'lambda*(x -> tau_N(x)1) = 1/N',
+  'Mat_N -> Mat_m unital  <=>  N | m',
+  'BB^T = N_tau^2 = A = [[1,1],[1,2]], Spec A = {phi^2, phi^-2}, det A = 1',
+  'A^n = [[F_{2n-1}, F_{2n}],[F_{2n}, F_{2n+1}]], Tr A^n = L_{2n}',
+  'mu_Fib = 1 + d_tau^2 = phi + 2'
+]);
 
 export default defineLab({
   id: 'civp.finite_index',
