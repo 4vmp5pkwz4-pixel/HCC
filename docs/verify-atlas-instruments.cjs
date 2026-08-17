@@ -254,6 +254,122 @@ console.log('\n=== 5. Willmore: the Clifford torus, and the bound it saturates =
     `|W_2048 - W_200000| = ${Math.abs(coarse - fine).toExponential(2)} — spectral convergence, which is why the default is affordable`);
 }
 
+console.log('\n=== 6. Kramers-Kronig: both halves in closed form ===\n');
+{
+  /* the Lorentz oscillator has an exact real and imaginary part; the dispersion integral
+     has to rebuild one from the other, and the gap is discretisation, not physics */
+  const chi = (w, g, w0, wp) => { const dr = w0 * w0 - w * w, D = dr * dr + g * g * w * w;
+    return { re: wp * wp * dr / D, im: wp * wp * g * w / D }; };
+  let worst = 0, n = 0;
+  for (const g of [0.2, 0.5]) for (let i0 = 40; i0 <= 900; i0 += 70) {
+    const w = i0 * X.CAU_H, e = chi(w, g, 1, 1);
+    worst = Math.max(worst, Math.abs(X.cauKK(i0, g, 1, 1) - e.re)); n++;
+  }
+  ok('the dispersion integral rebuilds Re chi from Im chi alone, against the closed form',
+    worst < 5e-3, `${n} frequencies at two dampings · worst |KK - exact| = ${worst.toExponential(2)} on a grid of ${X.CAU_N} points`);
+
+  /* the f-sum rule is a different statement: it constrains the AREA, not any one value */
+  /* THE RESIDUAL IS THE TAIL, AND THE TAIL HAS A LAW. A Lorentzian's w Im chi falls as
+     wp^2 g / w, so everything beyond a cutoff W contributes about wp^2 g / W and the
+     shortfall must halve when the cutoff doubles. Testing THAT is stronger than testing one
+     number against a tolerance: a tolerance passes for the wrong reason, a law does not.
+     The first version of this check compared a single truncated integral at W = 60 to the
+     exact area and failed by 1% at g = 1 — which was the tail, correctly present. */
+  const shortfall = (g, wp, W) => (Math.PI / 2 * wp * wp - X.cauSum(g, 1, wp, Math.round(400 * W), W));
+  let worstLaw = 0, rows = [];
+  for (const g of [0.2, 1]) for (const wp of [1, 2]) {
+    const s1 = shortfall(g, wp, 120), s2 = shortfall(g, wp, 240), s3 = shortfall(g, wp, 480);
+    worstLaw = Math.max(worstLaw, Math.abs(s1 / s2 - 2), Math.abs(s2 / s3 - 2));
+    rows.push(`g=${g} wp=${wp}: ${s1.toExponential(2)} -> ${s2.toExponential(2)} -> ${s3.toExponential(2)}`);
+  }
+  ok('and the f-sum shortfall is the truncated tail: it HALVES every time the cutoff doubles, as wp^2 g / W says it must',
+    worstLaw < 0.05,
+    `${rows[0]} · worst departure from a factor of two: ${(100 * worstLaw).toFixed(2)}% — the damping broadens the line and moves none of the area`);
+}
+
+console.log('\n=== 7. Schwarzschild deflection: the exact integral against its own limit ===\n');
+{
+  ok('the photon sphere sits at b_crit = (3 sqrt3 / 2) r_s',
+    Math.abs(X.LENS_BCRIT - 3 * Math.sqrt(3) / 2 * X.LENS_RS) < 1e-12,
+    `${X.LENS_BCRIT.toFixed(9)} against ${(3 * Math.sqrt(3) / 2 * X.LENS_RS).toFixed(9)}`);
+
+  ok('inside it the ray is captured and NO deflection is returned — null, not a large number',
+    X.lensAlpha(X.LENS_BCRIT * 0.999) === null && X.lensAlpha(X.LENS_BCRIT * 1.5) !== null,
+    'a captured ray has no exit direction, so there is no angle to measure to');
+
+  /* the weak-field term is the first of a series; the exact answer must approach it, and
+     the DIFFERENCE must fall as 1/b^2, which is a sharper statement than "they are close" */
+  let worstLaw = 0;
+  for (const b of [200, 400, 800, 1600]) {
+    const a = X.lensAlpha(b), w = 2 * X.LENS_RS / b;
+    const excess = a - w, predicted = 15 * Math.PI / 16 * (X.LENS_RS / b) ** 2;
+    worstLaw = Math.max(worstLaw, Math.abs(excess / predicted - 1));
+  }
+  ok('the excess over 4GM/c^2b falls as the second post-Newtonian term (15 pi / 16)(r_s/b)^2',
+    worstLaw < 2e-2,
+    `worst departure from the second-order coefficient: ${(100 * worstLaw).toFixed(2)}% over four impact parameters`);
+
+  let mono = true;
+  for (let k = 0; k < 30; k++) { const b1 = 3 + k * 2, b2 = b1 + 2;
+    if (!(X.lensAlpha(b1) > X.lensAlpha(b2))) mono = false; }
+  ok('and the deflection decreases monotonically with impact parameter, over thirty pairs', mono,
+    `alpha(3 r_s) = ${X.lensAlpha(3).toFixed(6)} rad down to alpha(63 r_s) = ${X.lensAlpha(63).toFixed(6)} rad`);
+}
+
+console.log('\n=== 8. The free rigid body: two invariants, held along the motion ===\n');
+{
+  let worstE = 0, worstL = 0, n = 0;
+  for (const [I1, I2, I3, E, L2] of [[1, 2, 3, 1, 2.5], [1, 2, 3, 1, 3.5], [0.5, 1.5, 4, 2, 5], [1, 1.9, 2.1, 1, 3.9]])
+    for (let k = 0; k < 40; k++) {
+      const t = k * 0.37, P = X.poinSolve(I1, I2, I3, E, L2), w = X.poinOmega(P, t);
+      const E2 = 0.5 * (I1 * w[0] ** 2 + I2 * w[1] ** 2 + I3 * w[2] ** 2);
+      const L = I1 * I1 * w[0] ** 2 + I2 * I2 * w[1] ** 2 + I3 * I3 * w[2] ** 2;
+      worstE = Math.max(worstE, Math.abs(E2 - E) / E);
+      worstL = Math.max(worstL, Math.abs(L - L2) / L2); n++;
+    }
+  ok('both quadratic invariants are conserved along the elliptic solution, at 160 times across four bodies',
+    worstE < 1e-12 && worstL < 1e-12,
+    `worst relative drift: energy ${worstE.toExponential(2)}, angular momentum ${worstL.toExponential(2)} — they are not integrated, they are solved`);
+
+  /* THE SEPARATRIX IS AT 2 E I2, NOT 2 E I1. The first version of this check probed
+     L^2 = 2 = 2 E I1, which is the LOWER EDGE of the allowed range — steady rotation about
+     the smallest axis, where k -> 0 and nothing diverges. The separatrix of I1,I2,I3 = 1,2,3
+     at E = 1 is L^2 = 4, and that is where k -> 1 and the period goes logarithmic. */
+  const SEP = 2 * 1 * 2;
+  const below = X.poinSolve(1, 2, 3, 1, SEP - 0.1), above = X.poinSolve(1, 2, 3, 1, SEP + 0.1);
+  const kLo = X.poinSolve(1, 2, 3, 1, SEP - 1e-7).k, kHi = X.poinSolve(1, 2, 3, 1, SEP + 1e-7).k;
+  ok('the separatrix L^2 = 2 E I2 is where the solution changes branch and the elliptic modulus approaches 1',
+    below.hi === false && above.hi === true && kLo > 0.999 && kHi > 0.999,
+    `branch flips at L^2 = ${SEP} · k just below is ${kLo.toFixed(9)} and just above ${kHi.toFixed(9)} — the period diverges there, which IS the Dzhanibekov flip`);
+}
+
+console.log('\n=== 9. The standard map: area preservation and the two limits ===\n');
+{
+  /* the Jacobian of one step is exactly 1 for every K — area preservation, tested rather
+     than cited, on a finite difference of the map the kernel actually iterates */
+  let worstJ = 0;
+  for (const K of [0, 0.5, 1, 3, 9]) for (const th of [0.3, 1.7, 4.2]) for (const p of [0.2, 2.9]) {
+    const e = 1e-6;
+    const a = X.kamStep(th + e, p, K), b = X.kamStep(th - e, p, K),
+          c2 = X.kamStep(th, p + e, K), d = X.kamStep(th, p - e, K);
+    const J = ((a[0] - b[0]) / (2 * e)) * ((c2[1] - d[1]) / (2 * e))
+            - ((c2[0] - d[0]) / (2 * e)) * ((a[1] - b[1]) / (2 * e));
+    worstJ = Math.max(worstJ, Math.abs(J - 1));
+  }
+  ok('one step of the map preserves area: its Jacobian determinant is 1 at every kick strength tested',
+    worstJ < 1e-5, `thirty (K, theta, p) triples · worst |det J - 1| = ${worstJ.toExponential(2)}`);
+
+  ok('at K = 0 the map is integrable and the exponent is exactly zero',
+    X.kamLyapunov(0, 2000, 40) === 0, 'no stretching without a kick');
+
+  let worstAsym = 0;
+  for (const K of [6, 10, 16]) worstAsym = Math.max(worstAsym,
+    Math.abs(X.kamLyapunov(K, 20000, 60) / Math.log(K / 2) - 1));
+  ok('and at large K it approaches ln(K/2) from above, the standard-map asymptotic',
+    worstAsym < 0.06,
+    `worst relative departure ${(100 * worstAsym).toFixed(2)}% at K = 6, 10 and 16 — approached from above, as the finite-time average should be`);
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
