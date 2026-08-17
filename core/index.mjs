@@ -131,7 +131,11 @@ export const CORE = {
     for (const l of LABS.values()) { const d = l.describe();
       for (const p of d.open_problems || []) out.push({ lab_id: d.id, status: d.status, problem: p });
     }
+    /* both halves of the provenance, as every other envelope here carries them: the commit
+       says WHICH RUN answered, the code hash says WHAT CODE answered. Only the second one
+       survives being written to a file — see the note in scripts/build-api.mjs. */
     return { schema: 'hcc.open-problems/1', core_version: CORE_VERSION,
-      git_commit: PROVENANCE.commit, count: out.length, problems: out };
+      git_commit: PROVENANCE.commit, code_sha256: PROVENANCE.code_sha256,
+      count: out.length, problems: out };
   }
 };
