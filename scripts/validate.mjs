@@ -702,18 +702,34 @@ check(html.includes('RΓ(CP¹, L_q(−Z)) ≃ 0 if and only if N_emb = q_ind')
   && html.includes('c₁(L_N) = N−1 and ind ∂̄ = N differ by exactly one')
   && html.includes('R_q = ℓ_P√(q/π) and Λ_q = 3π/(q ℓ_P²) is an exact kinematic map'),
   'every CIVP station declares its contract, and the seven contracts are the seven theorems');
-check(html.includes("id=\"v-civp\"") && html.includes("state.s3view==='civp'") === false
-  && html.includes("civpGroup.visible    = v==='civp'") && html.includes('updateCivp(dt)')
-  && html.includes("if(v==='civp'&&!ready){ civpSetup(); }"),
-  'CIVP is reachable, rendered and stepped as a full S³ laboratory');
-check(html.includes("S3_VIEW_NAMES={civp:") && html.includes("HCC_LAB_STATUS={civp:'VERIFIED'")
-  && html.includes("dynamics:new Set(['civp'") && html.includes("exact:['civp'")
-  && html.includes("['civpAtlas','civp',civpGroup,"),
-  'CIVP is registered in the view catalogue, the status table, a premium domain, the prediction contract and the Atlas');
-check(html.includes("['civpAtlas','anyonAtlas'") && html.includes("['civpAtlas','selAtlas'")
-  && html.includes("['civpAtlas','berryAtlas'") && html.includes("['civpAtlas','bhtAtlas'")
-  && html.includes("['civpAtlas','shAtlas'"),
-  'CIVP carries typed Nexus relations to the anyon, selector, Berry, black-hole and harmonic laboratories');
+/* EVERY STATION IS ITS OWN LABORATORY. A chip hidden inside one view is not a laboratory:
+   it has no route, no card, no camera of its own and nobody can link to it. Each of the
+   seven is registered exactly like any other S³ laboratory, and this loop is what stops
+   the next one from being added to six registries out of seven. */
+const CIVP_LABS = ['civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'];
+for (const v of CIVP_LABS) {
+  check(html.includes(`id="v-${v}"`) && html.includes(`${v}:'CIVP`)
+    && html.includes(`${v}:'VERIFIED'`) && html.includes(`'${v}:'inv'`.slice(1))
+    && html.includes(`'${v}'`) && html.includes(`['${v}Atlas','${v}',civpGroup,`),
+    `CIVP laboratory registered end to end: ${v}`);
+}
+check(html.includes('const CIVP_VIEW_STATION={civplock:')
+  && html.includes('const CIVP_STATION_VIEW=')
+  && html.includes("civpGroup.visible    = !!CIVP_VIEW_STATION[v]")
+  && html.includes('updateCivp(dt)')
+  && html.includes("if(CIVP_VIEW_STATION[v]){ if(state.civpStation!==CIVP_VIEW_STATION[v])")
+  && html.includes('if(CIVP_VIEW_STATION[v])return CIVP.built&&CIVP.station===CIVP_VIEW_STATION[v]')
+  && html.includes("else if(CIVP_VIEW_STATION[V]) body = civpPanelHTML();")
+  && html.includes('if(CIVP_VIEW_STATION[V]) bindCivpControls(ctl);'),
+  'the seven CIVP laboratories share one scene graph through a view→station map, and every routing surface reads that map instead of a hard-coded id');
+check(html.includes("const v=CIVP_STATION_VIEW[b.dataset.civpStation];")
+  && html.includes("if(v&&typeof uiSetS3View==='function')uiSetS3View(v);"),
+  'a CIVP station chip NAVIGATES: the chip and the route can never disagree about which station is open');
+for (const [a, b] of [['civplock','shAtlas'],['civplock','civpcutAtlas'],['civpcut','selAtlas'],
+  ['civpcut','kinAtlas'],['civpidx','anyonAtlas'],['civpidx','civpa4Atlas'],['civpa4','qcrysAtlas'],
+  ['civpsel','gateAtlas'],['civpsel','cauAtlas'],['civpcar','berryAtlas'],['civpcar','su2Atlas'],
+  ['civpclo','bhtAtlas'],['civpclo','secAtlas']])
+  check(html.includes(`['${a}Atlas','${b}'`), `typed Nexus relation present: ${a} → ${b}`);
 check(html.includes('civpLocking(station=state.civpStation') && html.includes('function bindCivpControls(')
   && html.includes('fbs3r_civp_corner_locking.json'),
   'CIVP diagnostics are QA-queryable, its controls are bound and its export is reproducible');

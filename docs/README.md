@@ -3810,9 +3810,16 @@ The 337 wrapped continuation lines in this block are now joined. And the Capelli
 telescoping direction is not a convention: for ε = +1 the sum runs upward, for ε = −1 downward,
 and the first version summed upward in both charts.
 
-### The seven stations
+### Seven laboratories, not seven chips
 
-The stations are the argument in order, each with three normalised controls and its own
+A chip hidden inside one view is not a laboratory: it has no route, no card, no camera of
+its own, and nobody can link to it. So each station is registered exactly like any other S³
+laboratory — `civplock`, `civpcut`, `civpidx`, `civpa4`, `civpsel`, `civpcar`, `civpclo` —
+with its own entry in every registry the atlas keeps, and the station chips **navigate**
+rather than mutating state behind the URL. They share one scene graph because they are one
+instrument in seven configurations. The atlas goes from 73 laboratories to **80**.
+
+The seven are the argument in order, each with three normalised controls and its own
 contract and caveat on the panel:
 
 1. **CP¹ evaluation lock** — the divisor on the Riemann sphere, the carrier as q latitudes,
