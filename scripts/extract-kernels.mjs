@@ -386,7 +386,20 @@ export const ROOTS = [
   'kdvNonlin', 'kdvEvolve', 'kdvInvariants',
   'su2mul', 'su2conj', 'su2axang', 'su2slerp',
   'cuspRoots',
-  'wdMch', 'wdRadiusKm', 'WD_RSUN_KM', 'WD_G', 'WD_MSUN', 'WD_C'
+  'wdMch', 'wdRadiusKm', 'WD_RSUN_KM', 'WD_G', 'WD_MSUN', 'WD_C',
+  /* five more: the holonomy observatory's five closed-form identities, the exact
+     thermoelectric efficiency, the Peters inspiral, the Turing threshold, and the
+     phase/group velocity ratios. holSphereTransport allocated four THREE.Vector3 per
+     step and had to be rewritten as Rodrigues on plain arrays first. */
+  'HOL_TAU', 'holWrap', 'holPt', 'holTransportPure', 'holBerryWilson',
+  'holQ', 'holQMul', 'holQInv', 'holQNorm', 'holQAxis', 'holQArray',
+  'holM3Mul', 'holM3Vec', 'holM3Det', 'holBoostX', 'holBoostY',
+  'holM2Mul', 'holM2Det', 'holM2Inv', 'holMobiusApply',
+  'teMroot', 'teEta', 'teCOP',
+  'GW_G', 'GW_C', 'GW_MSUN', 'gwChirpMass', 'gwDfdt', 'gwTau', 'gwFisco', 'gwStokes',
+  'gwPetersRates', 'gwMergerTime',
+  'rdTuring',
+  'DISP_SYS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

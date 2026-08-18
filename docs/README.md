@@ -4090,6 +4090,55 @@ identically at v3.99.0, measured by booting both revisions in the same harness. 
 layout reachability tests that need a rendered viewport to mean anything, and the fourth is
 the boot tone-mapping test recorded above.
 
+### Five closed journeys, a Carnot limit and two refusals (v4.1.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `hol` | five holonomies — sphere, Berry, SU(2), Wigner, Möbius — each against its closed form | EXACT |
+| `te` | the exact maximum thermoelectric efficiency and COP, with the Carnot fraction | EXACT |
+| `gw` | chirp mass, time to coalescence, ISCO, cycles left, and the polarization | EXACT |
+| `rd` | the Turing threshold, the critical wavenumber and the fastest-growing mode | EXACT |
+| `disp` | phase and group velocity for six dispersion relations, and their exact ratios | EXACT |
+
+**80 laboratories, 32 computational, 37 instruments, 0 page errors.** The gap is **69 → 48**.
+
+`hol` is a station instrument in the shape of the CIVP block: one `station` string chooses
+which identity to evaluate, and every one of the five returns *both* the closed form and the
+discretisation that is supposed to reproduce it, plus the residual between them. The frame
+transported around a latitude comes back turned by the enclosed solid angle **modulo 2π** —
+tested past a hemisphere, where the two numbers stop looking alike and are still the same
+number. `holSphereTransport` allocated four `THREE.Vector3` per step; Rodrigues written out
+on plain arrays is the same rotation and is now the only copy.
+
+Two of the five **refuse**, and both refusals are the physics:
+
+- `te` returns a *negative* COP below ZT = 1/τ² − 1. That is not a poor cooler, it is the
+  absence of an operating point, so the instrument refuses and says which threshold it is
+  under. The figure of merit reaching half of Carnot is closed form in both modes —
+  M = 2 + τ for a generator, 1 + 2/τ for a cooler — and substituting it back returns
+  exactly ½.
+- `rd` refuses where no nontrivial homogeneous state exists. There is nothing to linearise
+  about, and zeros would read as a stable state rather than as the absence of one. The
+  classic spots, stripes and maze presets are **all** in that region: their patterns are
+  finite-amplitude, not Turing bifurcations.
+
+### Three more checks were wrong, and one formula was unusable rather than wrong
+
+- The BCH check extracted the commutator angle as `2·acos(w)`. Near the identity w is
+  1 − s⁴/2, so `acos` loses half its digits to cancellation **exactly where the limit
+  lives** — the ratio went 0.99917, 0.99999, then back out to 1.00093 as s shrank.
+  `2·atan2(|vector|, w)` is the same angle and is accurate there; the instrument now uses it
+  too, and the convergence runs clean over four decades with the error falling as s².
+  A formula that is right and unusable is not right enough.
+- The Peters check passed `c5 = 1`, which puts the merger threshold at a = 12 and makes
+  every starting separation already merged. It returned 0, and 0 has no exponent.
+- Then it asked for an exponent of exactly 4, which is **asymptotic**: the closed form is
+  (a⁴ − a_isco⁴)/4β, and the subtraction makes the apparent exponent 4.12 at these
+  separations. The check now inverts the law instead — 4βt + a_isco⁴ recovers a⁴ to 0.3% —
+  which is the exact statement rather than the limit of one.
+
+`docs/verify-atlas-instruments.cjs` is now **77 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
