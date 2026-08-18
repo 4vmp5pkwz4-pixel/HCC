@@ -453,10 +453,22 @@ check(html.includes("dense=D.station==='return'")
 check(['sydGroup','holGroup','actGroup','nulGroup','nexusGroup','rmhdGroup','wdGroup'].every(g=>html.includes(`s3Group.add(${g})`))
   && !['sydGroup','holGroup','actGroup','nulGroup','nexusGroup','rmhdGroup','wdGroup'].some(g=>html.includes(`scene.add(${g})`)),
   'recent S3 observatories are contained by the S3 mode root and cannot leak into Solar or Observable');
-check(html.includes("const SCIENTIFIC_TRANSIENT_LABS=['syd','hol','act','nul','qcd','cmb','ns','sn','psr','qso','rmhd','wd']")
-  && html.includes('scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true)')
-  && html.includes("if(mode!=='s3')scientificReleaseInactiveLabs('',true)"),
-  'transient GPU laboratories have a bounded keep-set in Multiview and are force-released outside S3');
+/* The keep-set is a LIST and it grows whenever a laboratory that builds heavy geometry is
+   added, so pinning its literal text here turns every such addition into a spurious failure.
+   What has to hold is the invariant: the list exists, it still contains the ones that made it
+   necessary, and every member of it has a release function to be released BY. */
+{
+  const m = html.match(/const SCIENTIFIC_TRANSIENT_LABS=\[([^\]]*)\]/);
+  const members = m ? m[1].split(',').map(x => x.trim().replace(/^'|'$/g, '')).filter(Boolean) : [];
+  const founding = ['syd', 'hol', 'act', 'nul', 'qcd', 'cmb', 'ns', 'sn', 'psr', 'qso', 'rmhd', 'wd'];
+  const releasable = members.filter(v => new RegExp(`if\\(id==='${v}'&&`).test(html));
+  check(members.length >= founding.length && founding.every(v => members.includes(v))
+    && releasable.length === members.length
+    && html.includes('scientificReleaseInactiveLabs(MV.views.slice(0,MV.n),true)')
+    && html.includes("if(mode!=='s3')scientificReleaseInactiveLabs('',true)"),
+    `transient GPU laboratories have a bounded keep-set in Multiview and are force-released outside S3 `
+    + `(${members.length} in the keep-set, ${releasable.length} with a release branch)`);
+}
 check(html.includes('SCI_GEOM_STATS.reuses++') && html.includes("a&&a.count===sample.length")
   && html.includes('float wave=.5+.5*sin(dot(vLocal') && !html.includes('uTime*.48'),
   'dynamic scientific paths reuse position buffers and the shared alpha field is temporally stable');

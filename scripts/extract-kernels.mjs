@@ -489,7 +489,36 @@ export const ROOTS = [
      exact. cmbModelDl and cmbModelCl read state.cmbLowPower, so the suppression factor is
      an argument now and the renderer passes its control. */
   'CMB_LMAX', 'CMB_D0', 'cmbHash01', 'cmbGaussian', 'cmbCoeffKey',
-  'cmbDlOf', 'cmbClOf', 'cmbCoeffsPure', 'cmbSumL', 'cmbDl', 'cmbMaskAllows', 'cmbRecoverPure'
+  'cmbDlOf', 'cmbClOf', 'cmbCoeffsPure', 'cmbSumL', 'cmbDl', 'cmbMaskAllows', 'cmbRecoverPure',
+  /* ── FOUR MORE THAT DREW AND DID NOT COMPUTE ─────────────────────────────
+     Resonant transfer, wave optics, kinetic theory and dipole radiation all had their
+     physics written INLINE inside their update* functions, exactly as bell's was. The
+     closed forms are named now and the renderers call them, so the picture and the
+     number cannot come apart. */
+  'retOmegaSym', 'retOmegaAnti', 'retBeatTime', 'retEnergyPure', 'retAccel', 'retLeapfrog',
+  'retAnalytic', 'retDrivenAmp', 'retPeakOmega', 'retPeakAmp', 'retWirelessU',
+  'retWirelessEta', 'retWirelessEtaAlt',
+  'waveSlitCenters', 'waveSources', 'waveIntensity', 'waveProfile', 'wavePeaks',
+  'waveOrderZ', 'waveOrderZFar', 'waveGratingSin', 'waveOrderZAsym',
+  'waveSlitMinSin', 'waveSlitMinSinCont',
+  'mathErf', 'mathErfc',
+  'kinRandDir', 'kinInitPure', 'kinStepPure', 'kinMoments', 'kinMBPdf', 'kinEntropyPure',
+  'kinMaxwellCdf', 'kinSampleMeanSpeed', 'kinKS',
+  'kinWallSide', 'kinPressure', 'kinPacking', 'kinZ', 'kinZCarnahanStarling',
+  'dipPattern', 'dipPatternNorm', 'dipPatternIntegral', 'DIP_PATTERN_EXACT',
+  'dipLarmorRel', 'dipRayleighRatio', 'dipWavefrontSpacing', 'dipHalfPower',
+  'emBaseQ', 'emHopfPtPure', 'emFibreTangentPure', 'emFibreLoop',
+  'emRightI', 'emRightJ', 'emProjTangent', 'emNullResidual',
+  /* ── THE EMBADON LABORATORY ───────────────────────────────────────────────
+     Sym^N(CP1) is CP^N, so two embadons on the carrier are a point of a real FOUR
+     manifold. These kernels are that identification, its moment polytope, the
+     discriminant where two atoms collide, and the braid monodromy of a loop
+     around it, which is where the 1/N! of the bosonic quotient comes from. */
+  'embSphereFromZ', 'embZFromSphere', 'embPositions', 'embWeights',
+  'embFormFromRoots', 'embRootsOfMonic', 'embMatchRoots', 'embMoment',
+  'embTorusAngles', 'embFubiniStudy', 'embDiscriminant', 'embSeparation',
+  'embCollisionPoint', 'embBraidQ', 'embMonodromy',
+  'embRot4', 'embProject4', 'embIsoclinicAngle'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

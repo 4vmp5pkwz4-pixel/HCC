@@ -2027,6 +2027,286 @@ console.log('\n=== 21. A sky, a quadrature, and a mask that costs more than the 
     `checked at l = 2, 3, 4, 7 and 12 · the conversion is the definition, and it is recomputed rather than trusted`);
 }
 
+/* ══════════════════════════════════════════════════════════════════════════════
+   22 · FOUR MORE THAT DREW AND DID NOT COMPUTE
+
+   Resonant transfer, wave optics, kinetic theory and dipole radiation each had their
+   physics written inline inside an update* function. Lifting it out found four wrong
+   statements on the screen, and each of them is now checked against something else:
+   the driven peak against a scan of the lineshape, the fringe positions against a
+   bisection of the path-difference condition, the single-slit minimum against a
+   far-field scan of the actual Huygens sum, and Maxwell-Boltzmann against a
+   Kolmogorov-Smirnov distance rather than against an identity of kT.
+   ══════════════════════════════════════════════════════════════════════════════ */
+{
+  /* ── RESONANT TRANSFER ────────────────────────────────────────────────────── */
+  const m = 1, k = 1, kap = 0.08;
+  ok('the mode splitting is an identity, not an approximation: omega_anti^2 - omega_sym^2 = 2 kappa/m to the last bit, at four couplings over three decades',
+    [0.001, 0.08, 1, 10].every(kk =>
+      Math.abs(X.retOmegaAnti(k, kk, m) ** 2 - X.retOmegaSym(k, m) ** 2 - 2 * kk / m) < 1e-14),
+    `worst residual ${Math.max(...[0.001, 0.08, 1, 10].map(kk => Math.abs(X.retOmegaAnti(k, kk, m) ** 2 - X.retOmegaSym(k, m) ** 2 - 2 * kk / m))).toExponential(2)} over kappa from 0.001 to 10`);
+
+  {
+    /* the leapfrog against the EXACT normal-mode solution, over four halvings */
+    const err = h => { const n = Math.round(4 / h);
+      const a = X.retAnalytic(n * h, k, kap, m), b = X.retLeapfrog([1, 0, 0, 0], k, kap, m, h, n);
+      return Math.max(...[0, 1, 2, 3].map(i => Math.abs(a[i] - b[i]))); };
+    const e = [0.02, 0.01, 0.005, 0.0025, 0.00125].map(err);
+    const ords = []; for (let i = 1; i < e.length; i++) ords.push(Math.log2(e[i - 1] / e[i]));
+    ok('the trajectory the laboratory draws converges to the exact two-mode solution at second order, measured over four halvings of the step and not at one',
+      ords.every(o => Math.abs(o - 2) < 0.02),
+      `orders ${ords.map(o => o.toFixed(4)).join(', ')} · errors ${e.map(x => x.toExponential(2)).join(' -> ')}`);
+  }
+
+  {
+    /* energy is conserved by the symplectic integrator, and the bound scales as h^2 */
+    const drift = h => { const T = X.retBeatTime(k, kap, m), n = Math.round(T / h);
+      const E0 = X.retEnergyPure(1, 0, 0, 0, k, kap, m).Et; let st = [1, 0, 0, 0], d = 0;
+      for (let i = 0; i < n; i++) { st = X.retLeapfrog(st, k, kap, m, h, 1);
+        const e = X.retEnergyPure(st[0], st[1], st[2], st[3], k, kap, m);
+        d = Math.max(d, Math.abs((e.Et - E0) / E0)); }
+      return d; };
+    const d1 = drift(0.004), d2 = drift(0.002), d3 = drift(0.001);
+    ok('and its energy error is BOUNDED and falls as the square of the step — a symplectic integrator does not drift, it oscillates, and the oscillation is what shrinks',
+      d1 < 1e-4 && Math.abs(d1 / d2 / 4 - 1) < 0.1 && Math.abs(d2 / d3 / 4 - 1) < 0.1,
+      `${d1.toExponential(2)} -> ${d2.toExponential(2)} -> ${d3.toExponential(2)} · ratios ${(d1 / d2).toFixed(3)} and ${(d2 / d3).toFixed(3)} against the exact 4`);
+  }
+
+  {
+    /* the driven peak: found by SCANNING the lineshape, not by trusting the formula */
+    const w0 = 1, F = 1;
+    let worstW = 0, worstA = 0;
+    for (const g of [0.02, 0.1, 0.4, 0.9, 1.2]) {
+      let bw = 0, bA = -1;
+      for (let i = 0; i <= 4000000; i++) { const w = i * 5e-7;
+        const A = X.retDrivenAmp(w, w0, g, F); if (A > bA) { bA = A; bw = w; } }
+      worstW = Math.max(worstW, Math.abs(bw - X.retPeakOmega(w0, g)));
+      worstA = Math.max(worstA, Math.abs(bA - X.retPeakAmp(w0, g, F)) / bA);
+    }
+    ok('the driven resonance peaks where sqrt(omega0^2 - gamma^2/2) says and at the height F/(gamma sqrt(omega0^2 - gamma^2/4)) says, found by scanning the lineshape at five dampings including two where the high-Q formula is badly wrong',
+      worstW < 1e-6 && worstA < 1e-10,
+      `worst frequency error ${worstW.toExponential(2)} (the scan grid is 5e-7, so this is the grid and not a disagreement) · worst relative height error ${worstA.toExponential(2)}, which is that frequency error squared through a quadratic maximum · at gamma = 1.2 the exact peak is ${X.retPeakAmp(1, 1.2, 1).toFixed(5)} and F/(gamma omega0) would say ${(1 / 1.2).toFixed(5)}, an error of ${(100 * Math.abs(1 / 1.2 - X.retPeakAmp(1, 1.2, 1)) / X.retPeakAmp(1, 1.2, 1)).toFixed(1)} per cent`);
+  }
+
+  ok('the wireless efficiency agrees with its second algebraic form to the last bit over five decades of coupling, rises monotonically, and passes through 1/(1+sqrt2)^2 exactly at U = 1',
+    [1e-4, 1e-3, 1e-2, 0.1, 0.5, 1].every(kk => Math.abs(X.retWirelessEta(kk, 100) - X.retWirelessEtaAlt(kk, 100)) < 1e-15) &&
+    [1e-4, 1e-3, 1e-2, 0.1, 0.5].every((kk, i, arr) => i === 0 || X.retWirelessEta(kk, 100) > X.retWirelessEta(arr[i - 1], 100)) &&
+    Math.abs(X.retWirelessEta(0.01, 100) - 1 / (1 + Math.SQRT2) ** 2) < 1e-15,
+    `eta at U = 1 is ${X.retWirelessEta(0.01, 100).toFixed(12)} against 1/(1+sqrt2)^2 = ${(1 / (1 + Math.SQRT2) ** 2).toFixed(12)} · at U = 100, eta = ${X.retWirelessEta(1, 100).toFixed(6)}, which approaches 1 and never reaches it`);
+}
+
+{
+  /* ── WAVE OPTICS ──────────────────────────────────────────────────────────── */
+  const L = 9.8, d = 2.4, lam = 0.45;
+  /* the closed form against a BISECTION of r_minus - r_plus = m lambda */
+  const bisect = (L, d, lam, m) => { const f = z => Math.hypot(L, z + d / 2) - Math.hypot(L, z - d / 2) - m * lam;
+    let lo = 0, hi = 1e7; if (f(hi) < 0) return null;
+    for (let i = 0; i < 200; i++) { const mid = (lo + hi) / 2; if (f(mid) < 0) lo = mid; else hi = mid; }
+    return (lo + hi) / 2; };
+  let worst = 0, tested = 0;
+  for (const LL of [2, 9.8, 40, 500]) for (const m of [1, 2, 3, 4]) {
+    const a = X.waveOrderZ(LL, d, lam, m), b = bisect(LL, d, lam, m);
+    if (a === null || b === null) continue;
+    worst = Math.max(worst, Math.abs(a - b) / b); tested++;
+  }
+  ok('the interference orders sit on a HYPERBOLA and the closed form for it is exact: sixteen order-and-distance pairs against a bisection of r_minus - r_plus = m lambda, sharing no algebra',
+    tested === 16 && worst < 1e-12,
+    `${tested} pairs, worst relative disagreement ${worst.toExponential(2)} · the locus is a conic with the slits as foci, so there is a closed form and no small-angle step is needed anywhere`);
+
+  ok('and lambda L / d is NOT that answer: it replaces tan by sin, so it is short by 1/sqrt(1-(m lambda/d)^2) even at infinite distance — 1.8 per cent at first order here and 52 per cent at fourth',
+    Math.abs(X.waveOrderZ(1e9, d, lam, 1) / X.waveOrderZAsym(1e9, d, lam, 1) - 1) < 1e-9 &&
+    Math.abs(X.waveOrderZAsym(1e9, d, lam, 1) / X.waveOrderZFar(1e9, d, lam, 1) - 1 / Math.sqrt(1 - (lam / d) ** 2)) < 1e-9 &&
+    X.waveOrderZAsym(1e9, d, lam, 4) / X.waveOrderZFar(1e9, d, lam, 4) > 1.5,
+    `at L = 1e9 the exact height over the paraxial one is ${(X.waveOrderZ(1e9, d, lam, 1) / X.waveOrderZFar(1e9, d, lam, 1)).toFixed(6)} at first order and ${(X.waveOrderZ(1e9, d, lam, 4) / X.waveOrderZFar(1e9, d, lam, 4)).toFixed(4)} at fourth · d sin(theta) = m lambda is exact, L sin(theta) is not the height`);
+
+  ok('and there is no order beyond |m lambda| = d, which the closed form refuses rather than returning a complex number',
+    X.waveOrderZ(L, d, lam, 6) === null && X.waveOrderZ(L, d, lam, 5) !== null &&
+    X.waveGratingSin(6, d, lam) === null && Math.abs(X.waveGratingSin(5, d, lam) - 5 * lam / d) < 1e-15,
+    `5 lambda / d = ${(5 * lam / d).toFixed(6)} is a direction and 6 lambda / d = ${(6 * lam / d).toFixed(6)} is not, so the sixth order does not exist and the instrument says null`);
+
+  {
+    /* the single-slit minimum, found by SCANNING the far field of the actual Huygens sum */
+    const a = 1.2, lm = 0.45, Lf = 4000, k = 2 * Math.PI / lm;
+    let worstN = 0; const rows = [];
+    for (const N of [3, 9, 21, 81]) {
+      const srcs = X.waveSources(1, 0, a, N); let found = null;
+      for (let i = 1; i < 400000; i++) { const z = i * 0.05;
+        const I = X.waveIntensity(Lf, z, srcs, k, 0);
+        if (I < X.waveIntensity(Lf, z - 0.05, srcs, k, 0) && I < X.waveIntensity(Lf, z + 0.05, srcs, k, 0)) { found = z; break; } }
+      const meas = found / Math.hypot(Lf, found), law = X.waveSlitMinSin(1, a, lm, N);
+      rows.push(`N=${N}: ${meas.toFixed(6)} vs ${law.toFixed(6)}`);
+      worstN = Math.max(worstN, Math.abs(meas - law) / law);
+    }
+    ok('a slit sampled by N points is a Dirichlet array, and its first minimum sits at lambda(N-1)/(aN) — measured by scanning the far field of the sum itself, at four sampling densities',
+      worstN < 2e-5,
+      `${rows.join(' · ')} · the continuum answer lambda/a = ${(lm / a).toFixed(6)} · with the three sub-sources the atlas shipped, the minimum is at two thirds of the place the readout claimed`);
+  }
+
+  ok('the intensity carries no global phase, so the render loop that recomputed 150 x 104 x n complex exponentials every frame was recomputing a field that never changed',
+    (() => { const srcs = X.waveSources(2, d, 0.3, 3), k = 2 * Math.PI / lam; let w = 0;
+      for (const ph of [0, 0.7, 1.234567, 3.9]) for (const z of [0, 0.9, -2.2]) {
+        let re = 0, im = 0;
+        for (const sz of srcs) { const r = Math.hypot(3, z - sz), amp = 1 / Math.sqrt(r);
+          re += amp * Math.cos(k * r - ph); im += amp * Math.sin(k * r - ph); }
+        w = Math.max(w, Math.abs((re * re + im * im) / srcs.length - X.waveIntensity(3, z, srcs, k, 0))); }
+      return w < 1e-14; })(),
+    `checked at four phases and three heights · |sum e^{i(kr - phi)}|^2 = |e^{-i phi}|^2 |sum e^{ikr}|^2 and |e^{-i phi}| = 1`);
+
+  {
+    /* the actual peaks are NEAR the ideal locus and not on it, and the instrument says so */
+    const srcs = X.waveSources(2, d, 0, 1), k = 2 * Math.PI / lam;
+    const prof = X.waveProfile(L, srcs, k, 3.7, 40001), pk = X.wavePeaks(prof, 0.02).filter(z => z > 0.02);
+    const z1 = X.waveOrderZ(L, d, lam, 1);
+    ok('and the measured maximum is close to the ideal locus but NOT on it, because the two slits are at different distances and their amplitudes differ — physics, reported, not hidden',
+      pk.length > 0 && Math.abs(pk[0] - z1) / z1 < 0.01 && Math.abs(pk[0] - z1) > 1e-3,
+      `measured ${pk[0].toFixed(5)} against the equal-path height ${z1.toFixed(5)} · offset ${(pk[0] - z1).toExponential(2)}, which is ${(100 * Math.abs(pk[0] - z1) / z1).toFixed(2)} per cent and is the 1/sqrt(r) amplitude asymmetry`);
+  }
+}
+
+{
+  /* ── KINETIC THEORY ───────────────────────────────────────────────────────── */
+  const N = 140, L = 3.2, R = 0.11, h = 0.008;
+  const init = X.kinInitPure(N, L, 7, false, true, 0.85);
+  const run = (vs, hs, steps, RR) => { const P = Float64Array.from(init.pos), V = Float64Array.from(init.vel).map(x => x * vs);
+    let imp = 0, t = 0;
+    for (let i = 0; i < steps; i++) { imp += X.kinStepPure(P, V, L, RR, hs, 1); t += hs; }
+    const mo = X.kinMoments(V);
+    return { Z: X.kinZ(X.kinPressure(imp, t, L, RR), L, RR, N, mo.kT), P, V, mo, t }; };
+
+  const base = run(1, h, 2000, R);
+  ok('the hard-sphere dynamics conserves energy to the floating-point floor over two thousand steps and a hundred thousand collisions — elastic means exactly elastic, and the drift the laboratory prints is that floor',
+    Math.abs((base.mo.ke - X.kinMoments(init.vel).ke) / X.kinMoments(init.vel).ke) < 1e-13,
+    `|dE/E| = ${Math.abs((base.mo.ke - X.kinMoments(init.vel).ke) / X.kinMoments(init.vel).ke).toExponential(2)} · the collision operator moves momentum along the line of centres and takes nothing`);
+
+  {
+    const two = run(2, h / 2, 2000, R), four = run(4, h / 4, 2000, R);
+    ok('and PV/NkT is BIT-IDENTICAL when every velocity is doubled and the step halved: pressure scales as temperature exactly, which is the ideal-gas law in the only part of it a finite box cannot spoil',
+      two.Z === base.Z && four.Z === base.Z,
+      `Z = ${base.Z.toFixed(15)} at all three velocity scales · impulse scales as v and the time as 1/v, so P goes as v^2 and so does kT · the trajectory is bit-for-bit the same because h/2 and h/4 are exact in binary`);
+  }
+
+  {
+    /* the point-particle limit: PV = NkT exactly, approached as the average lengthens */
+    const P2 = Float64Array.from(init.pos), V2 = Float64Array.from(init.vel);
+    let imp = 0, t = 0; const zs = [];
+    for (let b = 0; b < 4; b++) { for (let i = 0; i < 4000; i++) { imp += X.kinStepPure(P2, V2, L, 1e-9, h, 1); t += h; }
+      zs.push(X.kinZ(X.kinPressure(imp, t, L, 1e-9), L, 1e-9, N, X.kinMoments(V2).kT)); }
+    ok('shrink the spheres to points and PV/NkT goes to 1 — not by construction, but because the wall impulse of free particles IS n kT, and the finite-time noise falls as the average lengthens',
+      zs.every(z => Math.abs(z - 1) < 0.02) && Math.abs(zs[3] - 1) < Math.abs(zs[0] - 1),
+      `Z = ${zs.map(z => z.toFixed(5)).join(', ')} at t = 32, 64, 96 and 128 · with real spheres at eta = ${X.kinPacking(N, R, L).toFixed(5)} it is ${base.Z.toFixed(4)} instead, against Carnahan-Starling's ${X.kinZCarnahanStarling(X.kinPacking(N, R, L)).toFixed(4)}`);
+  }
+
+  {
+    /* the collision operator ALONE conserves momentum; the walls are what breaks it */
+    const P3 = Float64Array.from(init.pos), V3 = Float64Array.from(init.vel);
+    const p0 = X.kinMoments(V3); X.kinStepPure(P3, V3, 1e6, R, h, 400);
+    const p1 = X.kinMoments(V3);
+    ok('momentum is conserved by the collisions and broken by the walls, which is a property of the boundary and not of the gas: in a box too large to reach, the total momentum does not move',
+      Math.abs(p1.px - p0.px) < 1e-12 && Math.abs(p1.py - p0.py) < 1e-12 && Math.abs(p1.pz - p0.pz) < 1e-12 &&
+      Math.hypot(base.mo.px - p0.px, base.mo.py - p0.py, base.mo.pz - p0.pz) > 1,
+      `without walls |dp| = ${Math.hypot(p1.px - p0.px, p1.py - p0.py, p1.pz - p0.pz).toExponential(2)} · with them the momentum has moved by ${Math.hypot(base.mo.px - p0.px, base.mo.py - p0.py, base.mo.pz - p0.pz).toFixed(3)}`);
+  }
+
+  ok('the error function this needed did not exist in the atlas, and it is right to the last unit in the last place at five arguments',
+    Math.abs(X.mathErf(0.5) - 0.5204998778130465) < 2e-16 &&
+    Math.abs(X.mathErf(1) - 0.8427007929497149) < 2e-16 &&
+    Math.abs(X.mathErf(2) - 0.9953222650189527) < 2e-16 &&
+    Math.abs(X.mathErf(3) - 0.9999779095030014) < 2e-16 &&
+    Math.abs(X.mathErf(5) - 0.9999999999984626) < 2e-16 &&
+    X.mathErf(-1.5) === -X.mathErf(1.5),
+    `erf(1) = ${X.mathErf(1).toFixed(16)} · the series is used below 2 and a Lentz continued fraction above, and the two agree across the join to ${Math.abs(X.mathErf(1.9999999) - X.mathErf(2.0000001)).toExponential(1)}`);
+
+  ok('and the Maxwell speed distribution it makes possible is a real distribution: its density integrates to 1 and the cumulative it is checked against is that density integrated',
+    (() => { const kT = 0.31, dv = 1e-4; let acc = 0;
+      for (let i = 0; i < 200000; i++) acc += X.kinMBPdf((i + 0.5) * dv, kT) * dv;
+      const der = (X.kinMaxwellCdf(0.9 + 1e-6, kT) - X.kinMaxwellCdf(0.9 - 1e-6, kT)) / 2e-6;
+      return Math.abs(acc - 1) < 1e-9 && Math.abs(X.kinMaxwellCdf(50, kT) - 1) < 1e-14 && Math.abs(der - X.kinMBPdf(0.9, kT)) < 1e-8; })(),
+    `the density integrates to 1, the cumulative reaches 1, and d(cumulative)/dv equals the density at v = 0.9`);
+
+  {
+    /* THERMALISATION, MEASURED. v_mean/v_mp = sqrt(4/pi) is an identity of kT and could not fail. */
+    const P4 = Float64Array.from(init.pos), V4 = Float64Array.from(init.vel);
+    const ratio = () => X.kinSampleMeanSpeed(V4) / X.kinMoments(V4).vmean;
+    const r0 = ratio(), D0 = X.kinKS(V4, X.kinMoments(V4).kT);
+    for (let i = 0; i < 3000; i++) X.kinStepPure(P4, V4, L, R, h, 1);
+    const r1 = ratio(), D1 = X.kinKS(V4, X.kinMoments(V4).kT);
+    ok('the gas is NOT told to be Maxwellian: it starts monodisperse, where the sample mean speed is 8.5 per cent above sqrt(8kT/pi) and the Kolmogorov-Smirnov distance is five times its own critical value, and the collisions alone bring both home',
+      Math.abs(r0 - 1.0854) < 0.002 && D0.D > 5 * D0.critical95 && Math.abs(r1 - 1) < 0.02 && D1.D < D1.critical95,
+      `mean-speed ratio ${r0.toFixed(4)} -> ${r1.toFixed(4)} · KS distance ${D0.D.toFixed(4)} -> ${D1.D.toFixed(4)} against the 5 per cent critical value ${D1.critical95.toFixed(4)} at N = ${D1.n} · v_mean/v_mp = ${(X.kinMoments(V4).vmean / X.kinMoments(V4).vmp).toFixed(6)} against sqrt(4/pi) = ${Math.sqrt(4 / Math.PI).toFixed(6)}, which agrees because both sides are built from the same second moment and therefore proves nothing`);
+  }
+
+  {
+    /* the coarse-grained entropy rises and then FLUCTUATES; it is not monotone */
+    const e0 = X.kinInitPure(N, L, 7, true, false, 0.55);
+    const P5 = e0.pos, V5 = e0.vel;
+    const S0 = X.kinEntropyPure(P5, L, 8, 4, 4);
+    const trace = [];
+    for (let b = 0; b < 6; b++) { for (let i = 0; i < 500; i++) X.kinStepPure(P5, V5, L, R, h, 1);
+      trace.push(X.kinEntropyPure(P5, L, 8, 4, 4).S); }
+    const rose = trace.every(s => s > S0.S + 0.5), monotone = trace.every((s, i) => i === 0 || s >= trace[i - 1]);
+    ok('and the coarse-grained entropy of a freely expanding gas rises by a nat and then FLUCTUATES about its plateau — it never returns, and it is not monotone either, which is what the second law actually says',
+      rose && !monotone && trace.every(s => s < S0.Smax),
+      `S from ${S0.S.toFixed(4)} to ${trace.map(s => s.toFixed(4)).join(', ')} · ceiling ln(128) = ${S0.Smax.toFixed(4)} · a monotone entropy would be a stronger claim than mechanics supports, and this one is not monotone`);
+  }
+}
+
+{
+  /* ── DIPOLE RADIATION AND THE LIGHT KNOT ──────────────────────────────────── */
+  ok('the sin^2 pattern integrates to 8 pi/3 over the sphere, and the quadrature converges at FOURTH order — not the second the midpoint rule usually gives, because sin^3 has vanishing first derivative at both poles and the leading Euler-Maclaurin term goes with it',
+    (() => { const r = n => Math.abs(X.dipPatternIntegral(n) - X.DIP_PATTERN_EXACT);
+      const a = r(50), b = r(100), c2 = r(200);
+      return Math.abs(a / b / 16 - 1) < 0.05 && Math.abs(b / c2 / 16 - 1) < 0.05 && r(4000) < 1e-9; })(),
+    `residual ${Math.abs(X.dipPatternIntegral(50) - X.DIP_PATTERN_EXACT).toExponential(2)} -> ${Math.abs(X.dipPatternIntegral(100) - X.DIP_PATTERN_EXACT).toExponential(2)} -> ${Math.abs(X.dipPatternIntegral(200) - X.DIP_PATTERN_EXACT).toExponential(2)} at 50, 100 and 200 nodes — a factor of sixteen for each doubling · 8 pi/3 = ${X.DIP_PATTERN_EXACT.toFixed(12)}`);
+
+  ok('the null along the dipole axis is EXACT — identically zero, not small — and the half-power angle is 45 degrees to within one unit in the last place, which is as exact as sin(pi/4) can be in binary',
+    X.dipPattern(0) === 0 && X.dipPattern(Math.PI) < 1e-31 && X.dipPattern(Math.PI / 2) === 1 &&
+    Math.abs(X.dipPattern(X.dipHalfPower()) - 0.5) < 3e-16 &&
+    Math.abs(X.dipPatternIntegral(20000) * 3 / (8 * Math.PI) - 1) < 1e-9,
+    `sin^2 at theta = 0 is exactly ${X.dipPattern(0)} and at theta = pi it is ${X.dipPattern(Math.PI).toExponential(1)} — the second is not zero because pi is not representable, and saying so is more honest than picking a tolerance that hides it · sin^2 at the half-power angle is ${X.dipPattern(X.dipHalfPower()).toFixed(16)} · the normalised pattern integrates to ${(X.dipPatternIntegral(20000) * 3 / (8 * Math.PI)).toFixed(12)}`);
+
+  ok('Larmor is a fourth power, so blue at 450 nm scatters 5.86 times as hard as red at 700 nm — and doubling the frequency multiplies the power by exactly 16',
+    Math.abs(X.dipLarmorRel(2) / X.dipLarmorRel(1) - 16) < 1e-13 &&
+    Math.abs(X.dipRayleighRatio(450, 700) - 5.8552049) < 1e-6 &&
+    Math.abs(X.dipRayleighRatio(450, 700) - X.dipLarmorRel(700 / 450)) < 1e-12,
+    `(700/450)^4 = ${X.dipRayleighRatio(450, 700).toFixed(7)} · the Rayleigh ratio and the Larmor law are the same fourth power, computed two ways here and agreeing to ${Math.abs(X.dipRayleighRatio(450, 700) - X.dipLarmorRel(700 / 450)).toExponential(1)}`);
+
+  {
+    /* THE NULL FIELD. E and B at the SAME point, over a grid of base points and a sweep
+       along each fibre — the two fibrations are orthogonal and equal in length because
+       stereographic projection is conformal, which is what |E| = |B| and E.B = 0 mean. */
+    const qmul = (A, B) => [A[0] * B[0] - A[1] * B[1] - A[2] * B[2] - A[3] * B[3],
+      A[0] * B[1] + A[1] * B[0] + A[2] * B[3] - A[3] * B[2],
+      A[0] * B[2] - A[1] * B[3] + A[2] * B[0] + A[3] * B[1],
+      A[0] * B[3] + A[1] * B[2] - A[2] * B[1] + A[3] * B[0]];
+    let wD = 0, wR = 0, wFD = 0, wAgree = 0, n = 0;
+    for (let i = 1; i < 12; i++) for (let j = 0; j < 12; j++) for (const t of [0, 0.7, 2.1, 4.4]) {
+      const q0 = X.emBaseQ(i / 12 * 3.0, j / 12 * 2 * Math.PI);
+      const q = qmul(q0, [Math.cos(t), Math.sin(t), 0, 0]);
+      const nul = X.emNullResidual(q);
+      wD = Math.max(wD, Math.abs(nul.cosine)); wR = Math.max(wR, Math.abs(nul.ratio - 1)); n++;
+      const tE = X.emFibreTangentPure(q, 'i', 0, 1, 1e-5), tB = X.emFibreTangentPure(q, 'j', 0, 1, 1e-5);
+      const nE = Math.hypot(tE[0], tE[1], tE[2]), nB = Math.hypot(tB[0], tB[1], tB[2]);
+      wFD = Math.max(wFD, Math.abs((tE[0] * tB[0] + tE[1] * tB[1] + tE[2] * tB[2]) / (nE * nB)));
+      wAgree = Math.max(wAgree, Math.hypot(tE[0] / nE - nul.E[0] / nul.magnitude, tE[1] / nE - nul.E[1] / nul.magnitude, tE[2] / nE - nul.E[2] / nul.magnitude));
+    }
+    ok('the light knot is a NULL field, checked where the statement lives: at 528 common points, the electric and magnetic fibrations are orthogonal and of equal length, so E.B = 0 and |E| = |B| everywhere and not just at a convenient spot',
+      n === 528 && wD < 1e-14 && wR < 1e-14 && wFD < 1e-6 && wAgree < 1e-6,
+      `worst |cos(E,B)| ${wD.toExponential(2)} and worst ||E|/|B| - 1| ${wR.toExponential(2)} over ${n} points, from the ANALYTIC pushforward of q.i and q.j — machine precision, because the tangents are orthogonal on S^3 and stereographic projection is conformal · the central difference the picture is drawn from gives ${wFD.toExponential(2)} instead and its direction agrees with the analytic one to ${wAgree.toExponential(2)}, which is the truncation error at h = 1e-5 and nothing else`);
+  }
+
+  {
+    /* the Gauss linking integral between two field lines of the same fibration */
+    const A = X.emFibreLoop(X.emBaseQ(0.9, 0.3), 'i', 1, 200);
+    const B = X.emFibreLoop(X.emBaseQ(1.6, 2.1), 'i', 1, 200);
+    const A2 = X.emFibreLoop(X.emBaseQ(0.9, 0.3), 'i', 1, 800);
+    const B2 = X.emFibreLoop(X.emBaseQ(1.6, 2.1), 'i', 1, 800);
+    const d1 = Math.abs(Math.abs(X.topoLinkPure(A, B)) - 1), d2 = Math.abs(Math.abs(X.topoLinkPure(A2, B2)) - 1);
+    ok('and any two of its field lines link exactly once — the Gauss integral, computed on the discretised fibres, converges to 1 as they are refined',
+      d1 < 2e-3 && d2 < d1 / 8,
+      `defect ${d1.toExponential(2)} at 200 points and ${d2.toExponential(2)} at 800 · a factor of ${(d1 / d2).toFixed(1)} for a fourfold refinement · the linking number is an integer and the integral is not, which is exactly why it is worth computing`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

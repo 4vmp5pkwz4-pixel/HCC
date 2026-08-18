@@ -25,6 +25,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
+| `verify-embadon-laboratory.cjs` | Sym^N(CP¹) ≅ CP^N verified by round trip, the moment polytope, the classical discriminants, the braid that exchanges two embadons, and why the isoclinic rotation's orbits are Hopf fibres |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -4666,6 +4667,202 @@ guessed the rest. It now follows the second-order law the check above establishe
 a remembered number.
 
 `docs/verify-atlas-instruments.cjs` is now **211 checks, 0 failed**.
+
+## Four more that drew and did not compute (v4.11.0)
+
+Resonant transfer, wave optics, kinetic theory and dipole radiation each drew a correct
+picture out of formulas written **inside** an `update*` function, where nothing outside the
+render loop could reach them — exactly the shape `bell` was in before v4.11.0's predecessor.
+The closed forms are named now and the renderers call them, so the picture and the number
+cannot come apart. Lifting them out found four wrong statements **on the screen**.
+
+### The driven peak was quoted at its high-Q limit
+
+The resonance readout printed `peak A_max = … = F/(γω₀)`. The number it printed was right —
+it was `A(√(ω₀²−γ²/2))`, computed honestly — but the formula beside it is not that number.
+The exact peak height is **F/(γ√(ω₀²−γ²/4))**, and `F/(γω₀)` is only its γ ≪ ω₀ limit. At the
+laboratory's default γ = 0.1 the gap is 0.13%; at γ = 1.2 it is **20%**. The check scans the
+lineshape at five dampings — two of them well outside the high-Q regime — and finds the peak
+frequency to the scan grid and the height to twelve digits.
+
+`retLeapfrog` and `retAnalytic` also make a claim testable that was never tested: the
+trajectory converges to the exact two-mode solution at **order 2.0000, over four halvings of
+the step**, and the energy error is *bounded* and falls by exactly four each time — a
+symplectic integrator does not drift, it oscillates, and the oscillation is what shrinks.
+The wireless efficiency now agrees with its second algebraic form
+(√(1+U²)−1)/(√(1+U²)+1) **to the last bit** over five decades of coupling.
+
+### λL/d is not where the fringes are
+
+The two-slit readout compared its measured fringe spacing against "analytic λL/d". The locus
+of equal path difference is a **hyperbola** with the slits as foci, and it meets the screen at
+
+    z_m = (mλ/2) √(1 + 4L²/(d² − (mλ)²))
+
+exactly — no small-angle step anywhere. That closed form agrees with a bisection of
+r₋ − r₊ = mλ to **5.6e-14** across sixteen order-and-distance pairs. `λL/d` is `L sin θ` where
+the answer is `L tan θ`: it is short by 1/√(1−(mλ/d)²) **even at infinite distance** — 1.8% at
+first order here and **52% at fourth**. The grating equation `d sin θ = mλ` is the exact part,
+and the instrument returns the exact height, the asymptote, the paraxial formula and the gap
+between them rather than one of the four.
+
+The measured maximum is 1.88071 against the ideal 1.88416 — 0.18% off, and that is physics:
+the two slits are at different distances, so their amplitudes differ and the maximum is pulled
+off the equal-path locus. The instrument returns the offset.
+
+### A slit made of three points is not a slit
+
+The single-slit readout said "minima at sin θ = mλ/a". Three sub-sources per slit are a
+**Dirichlet array**, whose first minimum sits at λ(N−1)/(aN) — for N = 3 that is **two thirds**
+of what the screen claimed. Measured by scanning the far field of the sum itself at four
+sampling densities, the law holds to 2e-5 at N = 3, 9, 21 and 81, and the continuum λ/a is
+reached only as N grows. The sub-source count is a **control** now, with the law stated for
+whatever it is set to, and a slit narrower than the wavelength returns
+`slit_minimum_exists = 0` rather than an impossible angle.
+
+While lifting the field out, one more thing: **the global phase the render loop recomputed
+every frame is inert.** |Σ e^{i(kr−φ)}|² = |Σ e^{ikr}|², so 150 × 104 × n complex exponentials
+were being recomputed sixty times a second to produce a field that never changed. It is
+computed once per parameter change now, and the picture is bit-identical.
+
+### The gas was declared Maxwellian by an identity
+
+The kinetic readout showed `v_mean/v_mp` against √(4/π) as evidence of thermalisation. Both
+sides are built from the same second moment: **it is an identity of kT and cannot fail.** What
+can fail is the **sample** mean speed against √(8kT/π), and the **Kolmogorov–Smirnov distance**
+between the actual speeds and the Maxwell law. The atlas had no `erf` at all, so the one
+distribution every gas is measured against could not be integrated; there is one now, right to
+the last unit in the last place at five arguments. Starting monodisperse, the ratio runs
+**1.0854 → 0.9967** and the KS distance **0.6084 → 0.0663** against its own 5% critical value
+of 0.1148 at N = 140 — a claim that can be rejected, and is not.
+
+The initial condition was also **not seeded**: positions came from `mulberry(7)` and velocities
+from `THREE.Vector3.randomDirection()`, which uses `Math.random`. The gas was irreproducible
+in exactly the half that matters. `kinInitPure` draws both from the seeded stream.
+
+The molecular dynamics is the kernel now, in float64: energy is conserved to **3.2e-15** over
+two thousand steps, momentum is conserved **exactly** by the collisions in a box too large to
+reach and broken only by the walls, and `PV/NkT` is **bit-identical** when every velocity is
+doubled and the step halved — the ideal-gas temperature law in the only part of it a finite box
+cannot spoil. Shrink the spheres to points and Z → 1 (0.99964 at t = 128); leave them at
+η = 0.0295 and it is 1.1140 against Carnahan–Starling's 1.1272, and the instrument returns both
+rather than claiming they agree. The coarse-grained entropy of a free expansion rises by a nat
+and then **fluctuates** about its plateau: it is not monotone, and a monotone entropy would be a
+stronger claim than mechanics supports.
+
+### The light knot, checked without a finite difference
+
+The dipole pattern integral converges at **fourth** order, not second — `sin³θ` has vanishing
+first derivative at both poles, so the leading Euler–Maclaurin term goes with it. And the null
+condition of the Rañada knot is now checked where it lives: the tangents to the two fibrations
+are **q·i** and **q·j**, the derivative of the stereographic map is written out, and E·B = 0 and
+|E| = |B| hold to **1.8e-15** at 528 common points. The central difference the picture is drawn
+from gives 2.7e-8 instead — its own truncation error, and both are returned. The Gauss linking
+integral between two field lines converges to 1 by a factor of 16 for a fourfold refinement.
+
+### And five of my own checks were wrong
+
+The driven-peak tolerance was tighter than the scan grid it measured against; the KS check
+compared an **object** to a number; the pattern integral was asserted second order when it is
+fourth; `sin²(π/4)` was demanded exactly 0.5 when it is one ulp below; and `sin²(π)` was
+demanded exactly zero when π is not representable — 1.5e-32 is the honest answer and the check
+says so now.
+
+`docs/verify-atlas-instruments.cjs` is now **235 checks, 0 failed**. 66 of the 80 laboratories
+compute; 71 typed instruments; 0 page errors during the headless walk.
+
+## The embadon laboratory (v4.12.0)
+
+The CIVP chain already weighs the embadons — the atoms of the molecular decomposition of the
+capacity measure on the carrier — and already keeps `q_can` apart from `N_emb`. What it never
+drew is the **space they live in**, and that space is four dimensional as soon as there are
+two of them:
+
+    Sym^N(CP¹) ≅ CP^N
+
+An unordered N-tuple of points on the carrier **is** a binary form of degree N up to scale.
+For N = 2 that is CP², a real **four-manifold**, and the new laboratory draws all four of its
+dimensions rather than three of them and a promise.
+
+### It verifies the identification rather than quoting it
+
+`embFormFromRoots` builds the form by convolution; the verifier rebuilds it from **Vieta's
+elementary symmetric functions**, written independently as a sum over subsets. They agree to
+3.5e-14 at degree twelve. A Durand–Kerner iteration takes the roots back out, and the round
+trip returns the embadons that went in to **3.0e-16** — with the polynomial residual at every
+recovered root measured *relative to the size of the terms that build it*, because at N = 12
+the stereographic coefficients reach 1e8 and an absolute residual there measures nothing.
+
+And **all 720 orderings** of six embadons land on one point of CP⁶, to 3.2e-15. The unordered
+configuration space is not a quotient taken by hand; it is what the coefficients already are.
+
+### All four dimensions, on the screen at once
+
+CP^N is toric. The moment map μ_k = |a_k|²/‖a‖² lands on the **standard simplex** — the
+coordinates are non-negative and sum to 1.0000000000000000 — and the fibre over an interior
+point is a real N-torus. For N = 2 that is a triangle and a torus: **two coordinates and two
+angles**, and the laboratory draws both. Rescaling every coefficient by any complex number,
+including a negative one and a tiny one, does not move the moment point: it is a function on
+projective space and the check says so.
+
+The Fubini–Study distance is verified to be a metric on that space — orthogonal divisors
+exactly π/2 apart, an equal superposition exactly π/4, and the triangle inequality at forty
+random triples.
+
+### The 1/N! is a braid, and here it is
+
+Two embadons in the plane are the monic quadratic z² + pz + q, and (p, q) is an honest **R⁴**.
+They collide exactly where q = p²/4 — a real 2-surface of codimension two — and a loop around
+it **exchanges them**. Odd turns swap, even turns return, at six winding numbers, with the
+continued path closing to 7e-16.
+
+That is checked a second time by a route with no root finding in it at all: the two roots
+differ by √(p² − 4q), so the exchange is the sign change of a square root, and `arg(p² − 4q)`
+winds by **1.000000000, 2.000000000, 3.000000000** over one, two and three turns. π₁(C² ∖ Δ)
+is ℤ and it surjects onto S₂. The 1/N! the bosonic measure divides by is *that* group — not an
+analogy for it, and the atlas now says so with a monodromy rather than a sentence.
+
+The product over pairs is also checked against the classical **quadratic and cubic**
+discriminants, `p² − 4q` and `18abcd − 4b³d + b²c² − 4ac³ − 27a²d²`, which share no code with
+it: 2.2e-16 and 1.8e-15.
+
+### The four-dimensional viewfinder is a rotation, and its orbits are Hopf fibres
+
+The collision station applies a genuine **SO(4)** rotation before projecting to three
+dimensions. It preserves every length to 4.4e-16, composes as a one-parameter group, and in
+the **isoclinic** case — both plane angles equal — every vector without exception turns
+through the same angle, to 9.4e-16. With unequal angles the turning angle wanders by 0.68 rad,
+so the property is measured and not assumed.
+
+That property is the whole point: the orbits of an isoclinic rotation are the fibres of the
+Hopf map. The verifier feeds two of those orbits to **`topoLinkPure`** — the Gauss linking
+integral this atlas wrote for a different laboratory entirely — and gets 1.000059 at 400
+points and 1.000004 at 1600. The four-dimensional viewfinder here and the fibration drawn
+there are one motion.
+
+### And the gate the molecular cut is missing, unchanged
+
+The laboratory reuses `civpCapacity` and `civpGluing` exactly as they are. Raise the weight
+spread with the mean pinned at one: `q_can = N_emb` goes on holding — numerically, exactly,
+and **by accident** — while the pointwise certificate `C_U` flips to no and the variance is
+the only other output that moves. A count becomes a capacity through a weight theorem or not
+at all, and nothing in this laboratory supplies one.
+
+Eight typed Nexus relations connect it to the molecular cut, the CP¹ evaluation lock, kinetic
+theory (the same factorial), the Hopf fibration (the same motion), the anyon laboratory (S_N
+against B_N, and the difference is the subject there), the harmonic laboratory (the same
+sphere), the shell laboratory (configuration space is half of phase space) and the defect
+atlas (π₁ of a complement is the invariant in both).
+
+### And one validator of mine was brittle rather than wrong
+
+`scripts/validate.mjs` pinned the literal text of `SCIENTIFIC_TRANSIENT_LABS`, so adding any
+laboratory that builds heavy geometry failed a check about something else entirely. It tests
+the invariant now: the list exists, still contains the twelve that made it necessary, and
+**every member has a release branch to be released by** — 13 of 13.
+
+`docs/verify-embadon-laboratory.cjs`: **13 checks, 0 failed**. 67 of 81 laboratories compute;
+72 typed instruments; 0 page errors during the headless walk.
 
 ## Status
 
