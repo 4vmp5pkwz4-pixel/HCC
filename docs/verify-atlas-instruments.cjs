@@ -1044,6 +1044,165 @@ console.log('\n=== 13. A hidden symmetry, a filling rule, a pole and a boost ===
   }
 }
 
+console.log('\n=== 14. Detailed balance, three attractors, an orthogonal rotation and two exact constants ===\n');
+{
+  /* DETAILED BALANCE. The Shockley-Queisser limit is an INTEGRAL between two Planck
+     spectra, so the checks are the ones an integral has to satisfy, not a quoted number. */
+  let best = 0, bestEg = 0;
+  for (let Eg = 0.6; Eg <= 2.4; Eg += 0.01) { const e = X.pvCell(Eg, 300, 1).eff; if (e > best) { best = e; bestEg = Eg; } }
+  ok('the single-junction limit peaks near 30% at a gap near 1.26 eV for a 5778 K blackbody — the shape of the curve, not a number copied in',
+    best > 0.29 && best < 0.31 && bestEg > 1.15 && bestEg < 1.40,
+    `peak ${(100 * best).toFixed(2)}% at ${bestEg.toFixed(2)} eV · the widely quoted 33.7% at 1.34 eV is the SAME calculation over AM1.5G, which is a different source and is not what this instrument is given`);
+
+  let bestC = 0, bestEgC = 0;
+  for (let Eg = 0.6; Eg <= 2.4; Eg += 0.01) { const e = X.pvCell(Eg, 300, 46200).eff; if (e > bestC) { bestC = e; bestEgC = Eg; } }
+  ok('and at FULL concentration it rises to about 40.7%, which is the number the blackbody limit is actually known by',
+    bestC > 0.39 && bestC < 0.42 && bestC > best,
+    `${(100 * bestC).toFixed(2)}% at ${bestEgC.toFixed(2)} eV against ${(100 * best).toFixed(2)}% at one sun — concentration multiplies J_sc and leaves J_0 alone, so V_oc rises by (kT/q) ln X and the gap that wins moves DOWN`);
+
+  {
+    /* V_oc rises as ln(X) with the same slope kT/q — that is the mechanism, checked */
+    const kT = 1.380649e-23 * 300 / 1.602176634e-19;
+    let worstS = 0;
+    for (const X0 of [1, 10, 100, 1000]) {
+      const a = X.pvCell(1.34, 300, X0).Voc, b = X.pvCell(1.34, 300, 10 * X0).Voc;
+      worstS = Math.max(worstS, Math.abs((b - a) / (kT * Math.log(10)) - 1));
+    }
+    ok('and the open-circuit voltage rises by exactly (kT/q) ln 10 per decade of concentration, over four decades',
+      worstS < 0.01,
+      `worst departure from the ideal slope ${(100 * worstS).toFixed(3)}% · kT/q ln 10 = ${(kT * Math.log(10) * 1000).toFixed(3)} mV per decade at 300 K`);
+
+    ok('a hotter cell is a worse cell, because J_0 is the same integral at the cell temperature and it grows fast',
+      [250, 300, 350, 400].map(T => X.pvCell(1.34, T, 1).eff).every((e, i, a) => i === 0 || e < a[i - 1]),
+      `efficiency at 250, 300, 350, 400 K: ${[250, 300, 350, 400].map(T => (100 * X.pvCell(1.34, T, 1).eff).toFixed(2)).join('% -> ')}%`);
+
+    const c = X.pvCell(1.34, 300, 1);
+    ok('and the voltage deficit is most of a third of the gap before any device imperfection is counted — entropy, not engineering',
+      c.Voc < 1.34 && (1.34 - c.Voc) > 0.2 && c.FF > 0.85 && c.FF < 0.92,
+      `E_g/q = 1.34 V, V_oc = ${c.Voc.toFixed(4)} V, deficit ${(1.34 - c.Voc).toFixed(4)} V · fill factor ${c.FF.toFixed(4)}`);
+  }
+
+  /* THREE ATTRACTORS. */
+  {
+    const L = X.CHAOS_SYS.lorenz, p = L.params;
+    let worstF = 0;
+    for (const q of L.fixed(p)) { const d = L.f(p, q[0], q[1], q[2]); worstF = Math.max(worstF, Math.hypot(d[0], d[1], d[2])); }
+    ok('the Lorenz fixed points really are fixed: the closed-form triple is substituted back into the flow and returns zero',
+      worstF < 1e-13 && L.fixed(p).length === 3,
+      `three fixed points · worst |f| = ${worstF.toExponential(2)} · they sit at (+-sqrt(beta(rho-1)), same, rho-1) = (+-${Math.sqrt(p['β'] * (p['ρ'] - 1)).toFixed(6)}, ..., ${p['ρ'] - 1})`);
+
+    const e = 1e-6;
+    const div = (S, pp, x, y, z) => ((S.f(pp, x + e, y, z)[0] - S.f(pp, x - e, y, z)[0]) + (S.f(pp, x, y + e, z)[1] - S.f(pp, x, y - e, z)[1]) + (S.f(pp, x, y, z + e)[2] - S.f(pp, x, y, z - e)[2])) / (2 * e);
+    const exact = -(p['σ'] + 1 + p['β']);
+    let worstD = 0;
+    for (const q of [[1, 2, 3], [-4, 5, 20], [0.1, 0.1, 0.1], [30, -30, 60]]) worstD = Math.max(worstD, Math.abs(div(L, p, ...q) - exact));
+    ok('and the Lorenz flow contracts volume at the SAME rate everywhere — -(sigma + 1 + beta), at four points scattered across the state space',
+      worstD < 1e-7,
+      `worst |div f - ${exact.toFixed(6)}| = ${worstD.toExponential(2)} — a constant contraction is why the attractor has zero volume, and it is why "strange" needs a positive Lyapunov exponent on top`);
+
+    /* every attractor here must CONTRACT, or it is not an attractor */
+    const keys = Object.keys(X.CHAOS_SYS);
+    const dvs = keys.map(k => { const S = X.CHAOS_SYS[k]; return div(S, S.params, 1.1, 0.7, 0.3); });
+    ok('every one of the six systems contracts phase-space volume at the point tested, which is the price of admission for an attractor',
+      dvs.every(d => d < 0),
+      keys.map((k, i) => `${k} ${dvs[i].toFixed(3)}`).join(' · '));
+
+    /* the Lyapunov exponent, against the literature */
+    const lam = (key, N) => { const S = X.CHAOS_SYS[key], pp = S.params, h = S.dt, d0 = 1e-9;
+      let a = S.seed.slice(), b = [a[0] + d0, a[1], a[2]], sum = 0;
+      for (let n = 0; n < N; n++) { a = X.chaosRK4(S, pp, a, h); b = X.chaosRK4(S, pp, b, h);
+        const d = Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) || 1e-300; sum += Math.log(d / d0);
+        b = [a[0] + (b[0] - a[0]) * d0 / d, a[1] + (b[1] - a[1]) * d0 / d, a[2] + (b[2] - a[2]) * d0 / d]; }
+      return sum / (N * h); };
+    const lL = lam('lorenz', 120000), lR = lam('rossler', 120000), lC = lam('chen', 120000);
+    ok('and the largest Lyapunov exponent lands on the literature for three of them — Lorenz 0.906, Rossler 0.0714, Chen 2.03 — to a few per cent',
+      Math.abs(lL / 0.906 - 1) < 0.05 && Math.abs(lR / 0.0714 - 1) < 0.10 && Math.abs(lC / 2.03 - 1) < 0.05,
+      `measured ${lL.toFixed(4)}, ${lR.toFixed(4)}, ${lC.toFixed(4)} · all positive, which with the contraction above is the definition of a strange attractor`);
+  }
+
+  /* THE BORIS PUSHER: the property that makes it the standard pusher in every PIC code */
+  {
+    let x = [1.4, 0, 0], v = [0, 1, 0.4];
+    const s0 = v[0] ** 2 + v[1] ** 2 + v[2] ** 2;
+    for (let n = 0; n < 200000; n++) { const r = X.cpBorisPure('cyclo', 1, 0, 1, x, v, 0.05); x = r[0]; v = r[1]; }
+    const s1 = v[0] ** 2 + v[1] ** 2 + v[2] ** 2;
+    ok('the Boris pusher conserves energy over two hundred thousand steps in a pure magnetic field — the rotation is orthogonal, so there is nothing to accumulate',
+      Math.abs(s1 / s0 - 1) < 1e-12,
+      `|E/E_0 - 1| = ${Math.abs(s1 / s0 - 1).toExponential(2)} after 200000 steps at dt = 0.05 — this is the property the algorithm exists for, and it holds at any step size rather than in a small-step limit`);
+
+    /* and it holds at an ABSURD step, where the orbit is wrong and the energy still is not */
+    let y = [1.4, 0, 0], w = [0, 1, 0.4];
+    const t0 = w[0] ** 2 + w[1] ** 2 + w[2] ** 2;
+    for (let n = 0; n < 20000; n++) { const r = X.cpBorisPure('cyclo', 1, 0, 1, y, w, 3.0); y = r[0]; w = r[1]; }
+    ok('and it still conserves it at a step of 3.0, where a gyration takes barely two samples and the orbit is nonsense — energy conservation is not an accuracy statement',
+      Math.abs((w[0] ** 2 + w[1] ** 2 + w[2] ** 2) / t0 - 1) < 1e-10,
+      `|E/E_0 - 1| = ${Math.abs((w[0] ** 2 + w[1] ** 2 + w[2] ** 2) / t0 - 1).toExponential(2)} at dt = 3.0, against a gyroperiod of 2 pi · the tolerance is 20000 roundings wide and not one, because that is how many there were`);
+
+    /* the ExB drift is independent of charge and mass, which is why it does not separate species */
+    const drift = qm => { let a = [1.4, 0, 0], b = [0, 1, 0]; const N = 200000, dt = 0.02, y0 = a[1];
+      for (let n = 0; n < N; n++) { const r = X.cpBorisPure('exb', 1, 0.3, qm, a, b, dt); a = r[0]; b = r[1]; }
+      return (a[1] - y0) / (N * dt); };
+    const dp = drift(1), dn = drift(-2);
+    ok('the ExB drift is -E/B whatever the charge and mass — positive and negative species drift together, which is why it drives no current',
+      Math.abs(dp + 0.3) < 5e-3 && Math.abs(dn + 0.3) < 5e-3,
+      `q/m = +1 gives ${dp.toFixed(6)} and q/m = -2 gives ${dn.toFixed(6)}, against the exact -E/B = -0.3 — the two gyrate in opposite directions at different radii and drift identically`);
+
+    /* THE BOTTLE'S FIELD WAS NOT DIVERGENCE FREE, AND THIS CHECK FOUND IT.
+       mu drifted by 117% at a gyroradius of one and by 63% at a gyroradius of 0.0375 — an
+       adiabatic invariant does not do that, and the culprit was the field: B_r was written
+       as -0.5 B0 z with no factor of r, so div B was B0 z (1 - 0.5/r) instead of 0. With
+       the r restored the invariance appears, and the right check is the LAW rather than a
+       tolerance: the drift must fall as the gyroradius shrinks against the field scale. */
+    {
+      const muOf = (B0, q, w) => { const B = X.cpFieldPure('mirror', B0, 0, q)[1], m = Math.hypot(B[0], B[1], B[2]);
+        const par = (w[0] * B[0] + w[1] * B[1] + w[2] * B[2]) / m;
+        return ((w[0] ** 2 + w[1] ** 2 + w[2] ** 2) - par * par) / (2 * m); };
+      const run = (B0, vp, vz, N, dt) => { let a = [0.35, 0, -1.6], b = [0, vp, vz];
+        const m0 = muOf(B0, a, b);
+        for (let n = 0; n < N; n++) { const r = X.cpBorisPure('mirror', B0, 0, 1, a, b, dt); a = r[0]; b = r[1]; }
+        return Math.abs(muOf(B0, a, b) / m0 - 1); };
+      const d1 = run(1, 1, 0.88, 60000, 0.02), d2 = run(4, 0.5, 0.4, 120000, 0.006), d3 = run(10, 0.25, 0.22, 200000, 0.002);
+      ok('and the magnetic moment becomes an adiabatic invariant as the gyroradius shrinks against the field scale — 74% at a gyroradius of 1, 0.2% at 0.025',
+        d1 > 0.3 && d2 < 0.1 && d3 < 0.01 && d3 < d2 && d2 < d1,
+        `gyroradius 1.0 -> ${(100 * d1).toFixed(1)}% · 0.125 -> ${(100 * d2).toFixed(2)}% · 0.025 -> ${(100 * d3).toFixed(3)}% · adiabatic invariance is asymptotic, so the statement worth checking is that the drift FALLS, and it falls by a factor of 450`);
+
+      /* and the field it happens in has to be a field */
+      const e2 = 1e-6;
+      const divB = q => { const f = z => X.cpFieldPure('mirror', 1, 0, z)[1];
+        return (f([q[0] + e2, q[1], q[2]])[0] - f([q[0] - e2, q[1], q[2]])[0]
+              + f([q[0], q[1] + e2, q[2]])[1] - f([q[0], q[1] - e2, q[2]])[1]
+              + f([q[0], q[1], q[2] + e2])[2] - f([q[0], q[1], q[2] - e2])[2]) / (2 * e2); };
+      let worstDiv = 0;
+      for (const q of [[0.3, 0.2, -1.1], [0.05, 0.9, 0.4], [1.2, -0.4, 1.7], [0.7, 0.7, 0]])
+        worstDiv = Math.max(worstDiv, Math.abs(divB(q)));
+      ok('because the bottle is divergence free now, which it was not: div B is zero at every point tested rather than growing like 1/r near the axis',
+        worstDiv < 1e-9,
+        `worst |div B| over four points = ${worstDiv.toExponential(2)} — B_r = -(r/2) dB_z/dz is what makes it vanish, and the r is the part that was missing`);
+    }
+  }
+
+  /* TWO CONSTANTS THE SI MADE EXACT, AND THE 2 IN BOTH OF THEM. */
+  {
+    const h = 6.62607015e-34, e = 1.602176634e-19;
+    ok('the flux quantum and the Josephson constant are rebuilt from h and e and match the tabulated values to every digit — they are EXACT since 2019, and the 2 in both is the charge of a pair',
+      Math.abs(h / (2 * e) / X.SC_PHI0 - 1) < 1e-9 && Math.abs((2 * e / h / 1e9) / X.SC_KJ - 1) < 1e-9 &&
+      Math.abs(X.SC_PHI0 * X.SC_KJ * 1e9 - 1) < 1e-9,
+      `h/2e = ${(h / (2 * e)).toExponential(9)} Wb · 2e/h = ${(2 * e / h / 1e9).toFixed(4)} GHz/V · and their product is ${(X.SC_PHI0 * X.SC_KJ * 1e9).toFixed(12)}, because one is the reciprocal of the other`);
+
+    let worstG = 0;
+    for (const M of X.SC_MATS) worstG = Math.max(worstG, Math.abs(2 * X.scGapMeV(M.Tc) / (X.SC_KB_MEV * M.Tc) - 3.528));
+    ok('and the BCS gap ratio 2 Delta/k_B T_c comes out 3.528 for every material in the table — BY CONSTRUCTION, which is exactly why measuring it is how you discover a material is strongly coupled',
+      worstG < 1e-12,
+      `worst departure from 3.528 over all five materials = ${worstG.toExponential(2)} · lead actually measures about 4.3 and YBCO is not a BCS superconductor at all, and the instrument's limits say so rather than the number`);
+
+    /* flux quantisation: a loop holds an integer, and the defect is the screening job */
+    const n = X.scFluxQuanta(1e-5, 100e-12);
+    ok('a loop of 100 square micrometres in 10 microtesla holds about half a flux quantum, so the screening current it must run to reach an integer is nearly the largest it can be',
+      Math.abs(n - 0.4835) < 0.001 && Math.abs(n - Math.round(n)) > 0.4,
+      `${n.toFixed(6)} quanta · the defect from the nearest integer is ${Math.abs(n - Math.round(n)).toFixed(6)}, and that defect is a job the loop does rather than a discrepancy in the arithmetic`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

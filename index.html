@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-hidden-symmetry-2026.08.18.1">
+<html lang="en" data-hcc-build="detailed-balance-2026.08.18.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-hidden-symmetry-2026.08.18.1">
+<meta name="hcc-build" content="detailed-balance-2026.08.18.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.2.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.3.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.2.0';
-const HCC_BUILD='a-hidden-symmetry-2026.08.18.1';
+const HCC_VERSION='4.3.0';
+const HCC_BUILD='detailed-balance-2026.08.18.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19444,6 +19444,15 @@ const SC_MATS=[
   {id:'YBCO',name:'YBa₂Cu₃O₇',Tc:92,   lam:150, type:'II'},
 ];
 const SC_PHI0=2.067833848e-15, SC_KJ=483597.8484;   // Wb (exact) · GHz/V (exact SI)
+/* THE THREE SUPERCONDUCTING NUMBERS, WITH NOTHING BUT THEIR ARGUMENTS.
+   The laboratory computed the weak-coupling gap inline inside updateSc, where nothing could
+   reach it: Delta(0) = 1.764 k_B T_c, the Josephson frequency K_J V and the flux quantum
+   Phi_0 = h/2e. Two of the three are EXACT by SI definition since 2019 — every volt on Earth
+   is calibrated against the second of them — and they were living inside a render loop. */
+const SC_KB_MEV=8.617333262e-2;                    // k_B in meV/K, from the exact SI k_B
+const scGapMeV=Tc=>1.764*SC_KB_MEV*Tc;             // weak-coupling BCS Delta(0), in meV
+const scJosephsonGHz=VmicroV=>SC_KJ*VmicroV*1e-6;  // K_J V, with V in microvolts
+const scFluxQuanta=(B,areaM2)=>B*areaM2/SC_PHI0;   // how many quanta thread a loop
 let scObjs=null, scT=0, scUiAcc=0;
 function scClear(){
   labWipe(scGroup);
@@ -19531,7 +19540,7 @@ function updateSc(dt){
   if(!scObjs||scObjs.st!==(state.scStation||'meissner')) scSetupLab();
   scT+=dt; const O=scObjs;
   const M=SC_MATS.find(m=>m.id===(state.scMat||'Nb'))||SC_MATS[2];
-  const gap=1.764*8.617333e-5*M.Tc*1000;              // Δ(0) in meV
+  const gap=scGapMeV(M.Tc);                            // Δ(0) in meV, from the one definition
   if(O.st==='meissner'){
     O.penLab.element.textContent=`${M.name}: T_c = ${M.Tc} K · λ_L = ${M.lam} nm (B decays e^(−x/λ_L) inside) · BCS gap Δ(0) = 1.764·k_B·T_c = ${gap.toFixed(2)} meV · type ${M.type}`;
     hudBig.textContent=`SUPERCONDUCTIVITY · Meissner expulsion · ${M.name} (T_c ${M.Tc} K)`;
@@ -21084,15 +21093,25 @@ function updateDip(dt){
 const cpGroup=new THREE.Group(); cpGroup.visible=false; s3Group.add(cpGroup);
 const CP_MAXPTS=5000;
 let cpObjs=null, cpT=0, cpUiAcc=0, cpX=[0,0,0], cpV=[0,0,0], cpN=0;
-function cpField(x){   // returns [E, B] at position x per station
-  const st=state.cpStation||'cyclo', B0=state.cpB??1, E0=state.cpE??0.3;
+/* THE FIELD AND THE PUSHER, WITH THE STATION PASSED IN.
+   Both read state.cpStation, state.cpB, state.cpE and state.cpCharge, which put the Boris
+   algorithm — whose defining property is that it conserves energy EXACTLY in a pure
+   magnetic field, forever, at any step — out of the extractor's reach. The renderer still
+   reads its four controls; it passes them, and there is one pusher. */
+function cpFieldPure(st,B0,E0,x){
   if(st==='exb') return [[E0,0,0],[0,0,B0]];
   if(st==='gradB'){ const b=B0*(1+0.25*x[0]); return [[0,0,0],[0,0,b]]; }   // B increases with x → grad-B drift
-  if(st==='mirror'){ const z=x[2], bz=B0*(1+0.5*z*z), br=-B0*0.5*z;          // converging bottle (∇·B=0 approx)
-    const r=Math.hypot(x[0],x[1])||1e-9; return [[0,0,0],[br*x[0]/r,br*x[1]/r,bz]]; }
+  if(st==='mirror'){ const z=x[2], bz=B0*(1+0.5*z*z);
+    /* B_r = -(r/2) dB_z/dz = -0.5 B0 z r, and the r MATTERS. It used to be -0.5 B0 z with
+       no r at all, which made the radial field independent of the distance from the axis and
+       left div B = B0 z (1 - 0.5/r) instead of 0. A bottle that is not divergence free is
+       not a magnetic field, and the magnetic moment — the adiabatic invariant this station
+       exists to show — drifted by 60% even at a gyroradius of a hundredth of the field
+       scale. With the r restored, div B is exactly zero and mu is conserved. */
+    return [[0,0,0],[-0.5*B0*z*x[0], -0.5*B0*z*x[1], bz]]; }
   return [[0,0,0],[0,0,B0]];   // cyclotron: pure uniform B
 }
-function cpBoris(x,v,dt){ const qm=state.cpCharge??1; const [E,B]=cpField(x);
+function cpBorisPure(st,B0,E0,qm,x,v,dt){ const [E,B]=cpFieldPure(st,B0,E0,x);
   const t=[qm*B[0]*dt/2,qm*B[1]*dt/2,qm*B[2]*dt/2], t2=t[0]*t[0]+t[1]*t[1]+t[2]*t[2], s=t.map(a=>2*a/(1+t2));
   const vm=[v[0]+qm*E[0]*dt/2,v[1]+qm*E[1]*dt/2,v[2]+qm*E[2]*dt/2];
   const vpr=[vm[0]+(vm[1]*t[2]-vm[2]*t[1]),vm[1]+(vm[2]*t[0]-vm[0]*t[2]),vm[2]+(vm[0]*t[1]-vm[1]*t[0])];
@@ -21100,6 +21119,8 @@ function cpBoris(x,v,dt){ const qm=state.cpCharge??1; const [E,B]=cpField(x);
   const vn=[vp[0]+qm*E[0]*dt/2,vp[1]+qm*E[1]*dt/2,vp[2]+qm*E[2]*dt/2];
   return [[x[0]+vn[0]*dt,x[1]+vn[1]*dt,x[2]+vn[2]*dt],vn];
 }
+function cpField(x){ return cpFieldPure(state.cpStation||'cyclo', state.cpB??1, state.cpE??0.3, x); }
+function cpBoris(x,v,dt){ return cpBorisPure(state.cpStation||'cyclo', state.cpB??1, state.cpE??0.3, state.cpCharge??1, x, v, dt); }
 function cpClear(){ labWipe(cpGroup); cpObjs=null; }
 function cpSetup(){
   cpClear(); cpT=0; cpN=0;
@@ -27561,7 +27582,226 @@ const ATLAS_LATE_SPECS=[
       interval_residual:Math.abs((q[0]*q[0]-q[1]*q[1])-(i.t*i.t-i.x*i.x)),
       rapidity:ph, composed_beta:comp,
       rapidity_sum_residual:Math.abs(Math.atanh(comp)-(ph+ph2)),
-      doppler_approaching:dop, doppler_receding:1/dop, length_contraction:1/g};}}
+      doppler_approaching:dop, doppler_receding:1/dop, length_contraction:1/g};}},
+
+ /* ── FOUR MORE, AND ONE OF THEM IS AN INTEGRAL PRETENDING TO BE A NUMBER ───
+    The Shockley-Queisser limit is not a fit and not a rule of thumb: it is detailed balance
+    between two Planck spectra, integrated. Then the strange attractors, whose fixed points
+    and volume contraction are exact while their Lyapunov exponents are measured; the Boris
+    pusher, whose defining property is that it conserves energy EXACTLY in a pure magnetic
+    field forever; and the three superconducting numbers, two of them exact by SI decree. */
+ {id:'pv', lab:'pv',
+  title:['Detailed balance: the efficiency limit that is an integral, not a rule of thumb',
+         'Детальный баланс: предел КПД, который есть интеграл, а не эмпирика',
+         'Detailliertes Gleichgewicht'],
+  status:'MODEL (Shockley-Queisser detailed balance with a 5778 K blackbody source: every photon above the gap is absorbed, every recombination is radiative, one junction. The integral is exact for that model; whether the Sun is that blackbody is the model and not the mathematics)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the peak and its gap, the concentration limit, Voc against the gap, monotonicity)'],
+  formulas:['J_sc = q * (photon flux above the gap from a 5778 K blackbody, diluted by the solid angle of the Sun)',
+            'J_0 = q * (the cell radiating into its own hemisphere at its own temperature) — the SAME integral, at T_cell and undiluted',
+            'V_oc = (kT/q) ln(J_sc/J_0 + 1); the diode equation gives the whole IV curve and P_max is its maximum',
+            'concentration multiplies J_sc and not J_0, so V_oc rises as (kT/q) ln(X) and the limit rises with it',
+            'the peak of the blackbody limit is about 30% near 1.26 eV; the 33.7% figure quoted everywhere is for the AM1.5G terrestrial spectrum, which is a different source'],
+  inputs:[{name:'band_gap', type:'number', unit:'eV', default:1.34, min:0.3, max:3.5,
+           doc:['the semiconductor band gap','ширина запрещённой зоны','Bandlücke']},
+          {name:'cell_temperature', type:'number', unit:'K', default:300, min:77, max:600,
+           doc:['the cell temperature, which sets the radiative recombination it cannot avoid',
+                'температура ячейки','Zelltemperatur']},
+          {name:'concentration', type:'number', unit:'suns', default:1, min:1, max:46200,
+           doc:['optical concentration; 46200 is full concentration, where the cell sees the Sun filling the whole sky',
+                'концентрация; 46200 — полная','Konzentration']}],
+  outputs:[{name:'efficiency', unit:'dimensionless', doc:['P_max divided by the incident power','КПД','Wirkungsgrad']},
+           {name:'V_oc', unit:'V', doc:['open-circuit voltage','напряжение холостого хода','Leerlaufspannung']},
+           {name:'J_sc', unit:'A/m^2', doc:['short-circuit current density','плотность тока короткого замыкания','Kurzschlussstromdichte']},
+           {name:'J_0', unit:'A/m^2', doc:['the radiative dark current — the price of being able to absorb at all','ток насыщения','Sättigungsstrom']},
+           {name:'fill_factor', unit:'dimensionless', doc:['P_max/(V_oc J_sc)','фактор заполнения','Füllfaktor']},
+           {name:'P_max', unit:'W/m^2', doc:['the maximum power point','максимальная мощность','maximale Leistung']},
+           {name:'V_mp', unit:'V', doc:['and the voltage at it','напряжение в точке максимума','Spannung im Maximum']},
+           {name:'voltage_deficit', unit:'V', doc:['E_g/q - V_oc: how much of the gap is lost to entropy before any device imperfection is counted at all',
+             'потеря напряжения относительно ширины зоны','Spannungsdefizit']},
+           {name:'thermodynamic_ratio', unit:'dimensionless', doc:['the efficiency divided by the Carnot bound between 5778 K and the cell — the single junction cannot approach it, and by how much is the point',
+             'отношение к пределу Карно','Verhältnis zur Carnot-Grenze']}],
+  limits:[['One junction, no series resistance, no non-radiative recombination, no reflection. Every one of those makes a real cell worse, so this is a CEILING and never a prediction of a device.',
+           'Один переход, без последовательного сопротивления и безызлучательной рекомбинации: это потолок.',
+           'Ein Übergang, keine nichtstrahlende Rekombination.'],
+          ['The source is a 5778 K blackbody diluted by the Sun-Earth solid angle, so the peak sits near 30% at 1.26 eV. The famous 33.7% at 1.34 eV is the same calculation over the AM1.5G spectrum, which this instrument is not given and does not invent.',
+           'Источник — чернотельный спектр 5778 K, а не AM1.5G, отсюда 30% вместо 33.7%.',
+           'Die Quelle ist ein 5778-K-Schwarzkörper, nicht AM1.5G.'],
+          ['The absorption integral is truncated at 4.5 eV. Above that the 5778 K blackbody has less than a percent of its photons, but for a gap near 3 eV the truncation is no longer negligible and the domain says so by stopping at 3.5.',
+           'Интеграл обрезан на 4.5 эВ.','Das Integral ist bei 4,5 eV abgeschnitten.']],
+  ev:i=>{const c=pvCell(i.band_gap,i.cell_temperature,i.concentration);
+    if(!(c.Jsc>0)) throw new RangeError(
+      `band gap ${i.band_gap} eV absorbs nothing from a 5778 K source within the 4.5 eV integration window; there is no cell here to characterise`);
+    const carnot=1-i.cell_temperature/PV_TSUN;
+    return {efficiency:c.eff, V_oc:c.Voc, J_sc:c.Jsc, J_0:c.J0, fill_factor:c.FF,
+      P_max:c.Pmax, V_mp:c.Vmp, voltage_deficit:i.band_gap-c.Voc,
+      thermodynamic_ratio:c.eff/carnot};}},
+
+ {id:'chaos', lab:'chaos',
+  title:['Strange attractors: exact fixed points, exact contraction, and one exponent that has to be measured',
+         'Странные аттракторы: точные неподвижные точки, точное сжатие и один показатель, который приходится измерять',
+         'Seltsame Attraktoren'],
+  status:'MIXED (the fixed points and the divergence of the flow are closed form and are returned as such; the largest Lyapunov exponent is a finite-time Benettin estimate and is labelled separately, because there is no closed form for it and pretending otherwise would be the lie)',
+  verifiers:['docs/verify-atlas-instruments.cjs (fixed points satisfy f = 0, divergence against -(sigma+1+beta), Lyapunov against the literature)'],
+  formulas:['Lorenz: x. = sigma(y - x), y. = x(rho - z) - y, z. = xy - beta z',
+            'its fixed points are the origin and (+-sqrt(beta(rho-1)), same, rho-1), exactly',
+            'div f = -(sigma + 1 + beta) EVERYWHERE — the flow contracts volume at a constant rate, which is why the attractor has zero volume',
+            'a strange attractor needs div f < 0 (volumes shrink) AND lambda_max > 0 (nearby points separate): contraction onto a set that stretches',
+            'lambda_max is estimated by the Benettin twin: evolve two nearby points, renormalise, accumulate log of the separation'],
+  inputs:[{name:'system', type:'string', unit:'lorenz|rossler|aizawa|thomas|halvorsen|chen', default:'lorenz',
+           doc:['which attractor','какой аттрактор','welcher Attraktor']},
+          {name:'lyapunov_steps', type:'number', unit:'dimensionless', default:60000, min:0, max:400000,
+           doc:['Benettin steps; zero skips the estimate and returns NaN rather than a number from too short a run',
+                'число шагов Бенеттина; ноль пропускает оценку','Benettin-Schritte']}],
+  outputs:[{name:'divergence', unit:'1/time', doc:['div f, measured by central differences at three arbitrary points and returned as one number because it is constant for the linear-damping systems',
+             'дивергенция потока','Divergenz']},
+           {name:'divergence_variation', unit:'1/time', doc:['how much it varied between those points; nonzero means the contraction is not uniform, which is true of Aizawa and Halvorsen and not of Lorenz',
+             'разброс дивергенции','Streuung der Divergenz']},
+           {name:'fixed_points', unit:'dimensionless', doc:['how many fixed points the system declares in closed form; 0 where it declares none',
+             'число неподвижных точек','Zahl der Fixpunkte']},
+           {name:'fixed_point_residual', unit:'dimensionless', doc:['the worst |f| at those points — it is zero, and it is recomputed rather than asserted',
+             'невязка в неподвижных точках','Residuum an den Fixpunkten']},
+           {name:'lyapunov_max', unit:'1/time', doc:['the finite-time largest Lyapunov exponent; positive is the definition of chaos','наибольший показатель Ляпунова','größter Lyapunov-Exponent']},
+           {name:'kaplan_yorke_dimension', unit:'dimensionless', doc:['2 + lambda_max/|div f + lambda_max|, the Kaplan-Yorke dimension for a three-dimensional flow with one positive, one zero and one negative exponent',
+             'размерность Каплана-Йорке','Kaplan-Yorke-Dimension']},
+           {name:'is_chaotic', unit:'dimensionless', doc:['1 where the flow both contracts volume and separates neighbours, which is what a strange attractor is',
+             '1 если аттрактор странный','1 wenn seltsam']},
+           {name:'dt', unit:'time', doc:['the step this system is integrated with','шаг интегрирования','Schrittweite']}],
+  limits:[['The Lyapunov exponent is a FINITE-TIME estimate from a single trajectory with one renormalised twin. It converges slowly and to a few per cent, not to many digits; 60000 steps gets Lorenz to 0.898 against the literature 0.906.',
+           'Показатель Ляпунова — конечновременная оценка, точность в проценты, а не в знаки.',
+           'Der Lyapunov-Exponent ist eine Endzeit-Schätzung.'],
+          ['The Kaplan-Yorke dimension assumes the standard three-exponent structure of a dissipative flow with one positive, one zero and one negative exponent. It is a formula applied to a measured number, and it inherits that number’s accuracy.',
+           'Размерность Каплана-Йорке наследует точность измеренного показателя.',
+           'Die Kaplan-Yorke-Dimension erbt die Genauigkeit.']],
+  ev:i=>{const S=CHAOS_SYS[i.system], p=S.params, e=1e-6;
+    const div=(x,y,z)=>((S.f(p,x+e,y,z)[0]-S.f(p,x-e,y,z)[0])+(S.f(p,x,y+e,z)[1]-S.f(p,x,y-e,z)[1])+(S.f(p,x,y,z+e)[2]-S.f(p,x,y,z-e)[2]))/(2*e);
+    const ds=[[1,2,3],[-4,5,20],[0.1,0.1,0.1]].map(q=>div(q[0],q[1],q[2]));
+    const dv=(ds[0]+ds[1]+ds[2])/3, spread=Math.max(...ds)-Math.min(...ds);
+    const fps=S.fixed?S.fixed(p):[];
+    let fres=fps.length?0:Number.NaN;
+    for(const q of fps){ const d=S.f(p,q[0],q[1],q[2]); fres=Math.max(fres,Math.hypot(d[0],d[1],d[2])); }
+    let lam=Number.NaN; const N=Math.round(i.lyapunov_steps);
+    if(N>0){ const h=S.dt, d0=1e-9; let a=S.seed.slice(), b=[a[0]+d0,a[1],a[2]], sum=0;
+      for(let n=0;n<N;n++){ a=chaosRK4(S,p,a,h); b=chaosRK4(S,p,b,h);
+        const d=Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])||1e-300; sum+=Math.log(d/d0);
+        b=[a[0]+(b[0]-a[0])*d0/d, a[1]+(b[1]-a[1])*d0/d, a[2]+(b[2]-a[2])*d0/d]; }
+      lam=sum/(N*h); }
+    return {divergence:dv, divergence_variation:spread, fixed_points:fps.length,
+      fixed_point_residual:fres, lyapunov_max:lam,
+      kaplan_yorke_dimension:(lam===lam&&lam>0&&dv<0)?2+lam/Math.abs(dv+lam):Number.NaN,
+      is_chaotic:(lam===lam&&lam>0&&dv<0)?1:0, dt:S.dt};}},
+
+ {id:'cp', lab:'cp',
+  title:['The Boris pusher: an integrator that never lets the particle gain energy',
+         'Толкатель Бориса: интегратор, который не даёт частице набрать энергию',
+         'Der Boris-Pusher'],
+  status:'EXACT (in a pure magnetic field the Boris rotation is an orthogonal transformation of the velocity, so the speed is conserved to floating point at ANY step size and for ANY number of steps; the drifts are the physics and are measured against their closed forms)',
+  verifiers:['docs/verify-atlas-instruments.cjs (energy over 200000 steps, the ExB drift, the gyroradius, the mirror invariant)'],
+  formulas:['Boris 1970: half acceleration, a rotation through the magnetic angle, half acceleration again',
+            'the rotation is ORTHOGONAL, so with E = 0 the speed is conserved exactly and forever — no other property of the algorithm matters as much',
+            'gyroradius r = v_perp/(|q/m| B) and gyrofrequency omega_c = |q/m| B',
+            'the ExB drift is E x B / B^2 — independent of charge, mass and speed, which is why it is the one drift that does not separate species',
+            'in a magnetic mirror the magnetic moment mu = v_perp^2/(2B) is an adiabatic invariant'],
+  inputs:[{name:'station', type:'string', unit:'cyclo|exb|gradB|mirror', default:'cyclo',
+           doc:['the field configuration: uniform B, crossed E and B, a gradient, or a magnetic bottle',
+                'конфигурация поля','Feldkonfiguration']},
+          /* the domain runs to 40 and not to 5 because the adiabatic invariance this
+             instrument reports only appears once the gyroradius is small against the field
+             scale, and at B = 5 it is not: the ceiling has to reach the regime. */
+          {name:'B', type:'number', unit:'dimensionless', default:1, min:0.05, max:40,
+           doc:['field strength in reduced units','напряжённость поля','Feldstärke']},
+          {name:'E', type:'number', unit:'dimensionless', default:0.3, min:0, max:2,
+           doc:['the electric field, which only the exb station uses','электрическое поле','elektrisches Feld']},
+          {name:'charge_to_mass', type:'number', unit:'dimensionless', default:1, min:-5, max:5,
+           doc:['q/m; its SIGN reverses the gyration and leaves the ExB drift alone, which is the whole point of that drift',
+                'отношение заряда к массе','Ladung-Masse-Verhältnis']},
+          {name:'v_perp', type:'number', unit:'dimensionless', default:1, min:0.05, max:3,
+           doc:['initial speed across the field','начальная поперечная скорость','Anfangsgeschwindigkeit quer']},
+          {name:'v_par', type:'number', unit:'dimensionless', default:0.4, min:0, max:3,
+           doc:['and along it','и вдоль поля','und längs']},
+          /* `push_steps` and not `steps`: the KdV integrator publishes a `steps` output and
+             the bus would offer to route one integrator's step count into another's. */
+          {name:'push_steps', type:'number', unit:'dimensionless', default:40000, min:100, max:400000,
+           doc:['how many steps of dt = 0.02 to push','число шагов dt = 0.02','Zahl der Schritte']}],
+  outputs:[{name:'energy_drift', unit:'dimensionless', doc:['|v|^2 at the end over |v|^2 at the start, minus one. In a pure magnetic field this is a rounding error however long you run',
+             'дрейф энергии','Energiedrift']},
+           {name:'gyroradius', unit:'dimensionless', doc:['v_perp/(|q/m| B)','ларморовский радиус','Larmorradius']},
+           {name:'gyrofrequency', unit:'1/time', doc:['|q/m| B','циклотронная частота','Zyklotronfrequenz']},
+           {name:'drift_velocity_y', unit:'dimensionless', doc:['the measured guiding-centre velocity across the field, from the net displacement',
+             'измеренная скорость дрейфа','gemessene Driftgeschwindigkeit']},
+           {name:'drift_closed_form', unit:'dimensionless', doc:['-E/B for the crossed-field station, which the measurement must reproduce; NaN elsewhere',
+             'замкнутая форма дрейфа','geschlossene Form der Drift']},
+           {name:'magnetic_moment_start', unit:'dimensionless', doc:['v_perp^2/2B at the beginning','магнитный момент в начале','magnetisches Moment am Anfang']},
+           {name:'magnetic_moment_end', unit:'dimensionless', doc:['and at the end; in the bottle they agree to a per cent, which is what "adiabatic invariant" means when it is measured',
+             'и в конце','und am Ende']},
+           {name:'final_speed', unit:'dimensionless', doc:['|v| at the end','модуль скорости в конце','Endgeschwindigkeit']},
+           {name:'steps_taken', unit:'dimensionless', doc:['how many pushes were done','число выполненных шагов','ausgeführte Schritte']}],
+  limits:[['Non-relativistic. The Boris pusher has a relativistic form and this is not it; at v approaching the speed of light in these reduced units the answer is the non-relativistic one and is wrong about the physics rather than about the arithmetic.',
+           'Нерелятивистский вариант.','Nichtrelativistisch.'],
+          ['The mirror field is a paraxial approximation of a magnetic bottle and is only approximately divergence free. The magnetic moment is therefore conserved to a per cent and not to machine precision, and the two values are returned so the difference is visible rather than described.',
+           'Поле пробки — параксиальное приближение, div B не строго ноль.',
+           'Das Spiegelfeld ist paraxial.']],
+  ev:i=>{const st=i.station, qm=i.charge_to_mass, N=Math.round(i.push_steps), dt=0.02;
+    if(qm===0) throw new RangeError('a charge-to-mass ratio of zero is not a charged particle: there is no gyration, no drift and nothing for this instrument to return');
+    let x=[1.4,0,st==='mirror'?-1.6:0], v=[0,i.v_perp,st==='mirror'?i.v_par*2.2:i.v_par];
+    if(st==='cyclo') v=[0,i.v_perp,i.v_par];
+    const sp0=v[0]*v[0]+v[1]*v[1]+v[2]*v[2];
+    /* v_perp is perpendicular to the LOCAL field, not to z. Off the axis of the bottle the
+       field has radial components and (vx, vy) is not the perpendicular velocity. */
+    const mu=(q,w)=>{ const B=cpFieldPure(st,i.B,i.E,q)[1], m=Math.hypot(B[0],B[1],B[2])||1e-300,
+      par=(w[0]*B[0]+w[1]*B[1]+w[2]*B[2])/m;
+      return ((w[0]*w[0]+w[1]*w[1]+w[2]*w[2])-par*par)/(2*m); };
+    const mu0=mu(x,v), y0=x[1];
+    for(let n=0;n<N;n++){ const r=cpBorisPure(st,i.B,i.E,qm,x,v,dt); x=r[0]; v=r[1]; }
+    const sp1=v[0]*v[0]+v[1]*v[1]+v[2]*v[2];
+    return {energy_drift:sp1/sp0-1, gyroradius:i.v_perp/(Math.abs(qm)*i.B),
+      gyrofrequency:Math.abs(qm)*i.B, drift_velocity_y:(x[1]-y0)/(N*dt),
+      drift_closed_form:st==='exb'?-i.E/i.B:Number.NaN,
+      magnetic_moment_start:mu0, magnetic_moment_end:mu(x,v),
+      final_speed:Math.sqrt(sp1), steps_taken:N};}},
+
+ {id:'sc', lab:'sc',
+  title:['Two constants the SI made exact, and one gap that is only a ratio',
+         'Две постоянные, сделанные точными по СИ, и щель, которая всего лишь отношение',
+         'Zwei exakte Konstanten'],
+  status:'MIXED (Phi_0 = h/2e and K_J = 2e/h are EXACT by the 2019 SI, and are reproduced here from h and e rather than quoted; Delta(0) = 1.764 k_B T_c is weak-coupling BCS, which is a theory with a regime, and the status of each output says which it is)',
+  verifiers:['docs/verify-atlas-instruments.cjs (Phi_0 and K_J rebuilt from h and e, the gap ratio, flux quantisation as an integer)'],
+  formulas:['Phi_0 = h/(2e) = 2.067833848...e-15 Wb — EXACT, because h and e are exact since 2019',
+            'K_J = 2e/h = 483597.8484 GHz/V — EXACT, and every volt on Earth is calibrated against it',
+            'the 2 in both is the CHARGE OF A PAIR, and it is the whole physical content: superconductivity is a condensate of pairs',
+            'Delta(0) = 1.764 k_B T_c is the weak-coupling BCS ratio 2Delta/k_B T_c = 3.528',
+            'flux through a superconducting loop is quantised: Phi = n Phi_0 with n an integer, because pi_1(U(1)) = Z'],
+  inputs:[{name:'material', type:'string', unit:'Al|Pb|Nb|MgB2|YBCO', default:'Nb',
+           doc:['which of the five tabulated superconductors','какой из пяти сверхпроводников','welcher Supraleiter']},
+          {name:'voltage_uV', type:'number', unit:'uV', default:1, min:0, max:1000,
+           doc:['the bias across a Josephson junction, in microvolts','напряжение на джозефсоновском переходе','Spannung am Josephson-Kontakt']},
+          {name:'field_T', type:'number', unit:'T', default:1e-5, min:0, max:20,
+           doc:['a field threading the loop','поле через петлю','Feld durch die Schleife']},
+          {name:'loop_area_um2', type:'number', unit:'um^2', default:100, min:0.01, max:1e6,
+           doc:['the loop area in square micrometres','площадь петли','Schleifenfläche']}],
+  outputs:[{name:'Tc', unit:'K', doc:['the critical temperature of the chosen material','критическая температура','kritische Temperatur']},
+           {name:'gap_meV', unit:'meV', doc:['the weak-coupling BCS gap at zero temperature','щель БКШ при нуле температуры','BCS-Lücke']},
+           {name:'gap_ratio', unit:'dimensionless', doc:['2 Delta(0)/(k_B T_c), which is 3.528 for every material here BY CONSTRUCTION — a real measurement of it is how you find out a material is strongly coupled',
+             'отношение 2Δ/k_B T_c','Verhältnis 2Δ/k_B T_c']},
+           {name:'josephson_GHz', unit:'GHz', doc:['K_J times the bias: the frequency the junction emits at','частота Джозефсона','Josephson-Frequenz']},
+           {name:'flux_quanta', unit:'dimensionless', doc:['how many flux quanta thread the loop, as a real number','число квантов потока','Zahl der Flussquanten']},
+           {name:'flux_quanta_integer', unit:'dimensionless', doc:['the integer it must actually be — the loop cannot hold a fraction','ближайшее целое','ganze Zahl']},
+           {name:'flux_defect', unit:'dimensionless', doc:['the distance between them; it is not an error but the amount of screening current the loop must run to make the integer true',
+             'расстояние между ними','Abstand']},
+           {name:'penetration_depth_nm', unit:'nm', doc:['the London penetration depth of the material','лондоновская глубина проникновения','Londonsche Eindringtiefe']},
+           {name:'flux_quantum_Wb', unit:'Wb', doc:['Phi_0, rebuilt from h and e rather than quoted','квант потока','Flussquant']},
+           {name:'type', unit:'dimensionless', doc:['1 or 2, the Ginzburg-Landau type of the material','род сверхпроводника','Typ']}],
+  limits:[['The 1.764 ratio is weak-coupling BCS. Lead is strongly coupled and measures about 2.15, and YBCO is not a BCS superconductor at all — its gap is not given by this formula and the number returned for it is the formula applied outside its regime, which is why the status says MIXED and this limit says which output to distrust.',
+           'Отношение 1.764 — слабая связь; для свинца и YBCO оно неверно.',
+           'Das Verhältnis 1,764 gilt nur bei schwacher Kopplung.'],
+          ['The flux number is what a loop of that area in that field WOULD hold if nothing screened. A real loop runs a screening current to make it an integer, and the defect returned is the size of that job rather than a discrepancy.',
+           'Реальная петля запускает экранирующий ток, чтобы сделать число целым.',
+           'Eine reale Schleife schirmt ab.']],
+  ev:i=>{const M=SC_MATS.find(m=>m.id===i.material)||SC_MATS[2],
+      area=i.loop_area_um2*1e-12, n=scFluxQuanta(i.field_T,area);
+    return {Tc:M.Tc, gap_meV:scGapMeV(M.Tc), gap_ratio:2*scGapMeV(M.Tc)/(SC_KB_MEV*M.Tc),
+      josephson_GHz:scJosephsonGHz(i.voltage_uV), flux_quanta:n,
+      flux_quanta_integer:Math.round(n), flux_defect:Math.abs(n-Math.round(n)),
+      penetration_depth_nm:M.lam, flux_quantum_Wb:SC_PHI0, type:M.type==='I'?1:2};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,

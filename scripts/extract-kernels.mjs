@@ -407,7 +407,15 @@ export const ROOTS = [
   'noeJ', 'noeOrbit', 'noeInvariants', 'noeFock', 'noeEig4', 'noeGram',
   'AUFBAU', 'CONF_EXC', 'atomConfig', 'slaterZeff',
   'POLE_W0', 'poleR', 'POLE_PRESETS',
-  'relGamma', 'relBoostPts', 'REL_S'
+  'relGamma', 'relBoostPts', 'REL_S',
+  /* four more: detailed balance (the Shockley-Queisser limit is an INTEGRAL, not a fit),
+     the strange attractors with their exact fixed points and volume contraction, the Boris
+     pusher — whose defining property is exact energy conservation in a pure magnetic field —
+     and the three superconducting numbers, two of them exact by SI definition. */
+  'PV_q', 'PV_kB', 'PV_h', 'PV_c', 'PV_SIG', 'PV_TSUN', 'PV_DIL', 'pvFlux', 'pvCell',
+  'CHAOS_SYS', 'chaosRK4',
+  'cpFieldPure', 'cpBorisPure',
+  'SC_PHI0', 'SC_KJ', 'SC_KB_MEV', 'SC_MATS', 'scGapMeV', 'scJosephsonGHz', 'scFluxQuanta'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

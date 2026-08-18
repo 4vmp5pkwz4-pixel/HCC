@@ -4206,6 +4206,76 @@ each time: **a generic name is how an accidental coupling gets proposed.** The i
 
 `docs/verify-atlas-instruments.cjs` is now **97 checks, 0 failed**.
 
+### Detailed balance, three attractors, an orthogonal rotation and two exact constants (v4.3.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `pv` | the Shockley–Queisser limit, its concentration ceiling and the voltage deficit | MODEL |
+| `chaos` | exact fixed points, exact contraction, and a measured Lyapunov exponent | MIXED |
+| `cp` | the Boris pusher, the drifts, and the magnetic moment in a bottle | EXACT |
+| `sc` | Φ₀ and K_J rebuilt from h and e, and the weak-coupling BCS gap | MIXED |
+
+**80 laboratories, 40 computational, 45 instruments, 0 page errors.** The gap is **69 → 40**.
+
+The Shockley–Queisser limit is not a rule of thumb — it is detailed balance between two
+Planck spectra, integrated, and the checks are the ones an integral has to satisfy rather
+than a number copied in. The peak comes out **30.17% at 1.26 eV** for a 5778 K blackbody and
+**40.31%** at full concentration, which is the number the blackbody limit is known by. The
+famous 33.7% at 1.34 eV is the *same calculation over AM1.5G* — a different source, which
+this instrument is not given and does not invent. V_oc rises by exactly (kT/q)·ln 10 per
+decade of concentration, to within 0.000%, over four decades.
+
+`cp` carries the property the Boris pusher exists for: in a pure magnetic field the rotation
+is **orthogonal**, so the speed is conserved to 3.6e-14 over two hundred thousand steps —
+and to 2.6e-12 at a step of **3.0**, where a gyration takes barely two samples and the orbit
+is nonsense. Energy conservation here is not an accuracy statement.
+
+### The magnetic bottle was not a magnetic field
+
+The mirror station wrote its radial field as `B_r = −0.5 B₀ z` — with **no factor of r**. A
+radial field independent of the distance from the axis leaves ∇·**B** = B₀z(1 − 0.5/r)
+instead of zero, and the magnetic moment — the adiabatic invariant that station exists to
+show — drifted by **117%** at a gyroradius of 1 and by **63%** even at a gyroradius of
+0.0375, where adiabatic invariance should be excellent. An invariant does not do that; the
+field was the culprit.
+
+`B_r = −(r/2)·∂B_z/∂z = −0.5 B₀ z r` makes ∇·**B** vanish identically. With the r restored
+the particle bounces between real mirror points and μ behaves as it must: **74% at a
+gyroradius of 1, 5.9% at 0.125, 0.16% at 0.025** — a factor of 450, which is what asymptotic
+invariance looks like when it is measured. The check now asserts that the drift *falls*
+rather than that it is small, because the law is the falling and not the number.
+
+The instrument's own μ was wrong the same way: it used (v_x² + v_y²) for the perpendicular
+velocity, which is only correct where **B** ∥ ẑ. Off the axis of a bottle it is not, and the
+kernel now projects onto the local field direction.
+
+### Two constants the SI made exact
+
+Φ₀ = h/2e and K_J = 2e/h are **exact by decree** since 2019 — every volt on Earth is
+calibrated against the second of them — and they were living inline inside a render loop
+where nothing could reach them. They are rebuilt from h and e here rather than quoted, and
+their product is 1 to twelve digits because one is the reciprocal of the other. The 2 in
+both is the charge of a **pair**, which is the entire physical content.
+
+The BCS gap ratio comes back 3.528 for all five materials **by construction**, and the
+limits say what that means: lead measures about 4.3 and YBCO is not a BCS superconductor at
+all. Measuring that ratio is how you find out.
+
+### And the bus caught `steps` a second time
+
+`cp` declared its push count as `steps`, and the KdV integrator publishes a `steps` output —
+so the bus offered to route one integrator's step count into another's, exactly as it had
+for `noe` one release earlier. It is `push_steps` now. Four generic names caught this way so
+far: `q`, `omega`, `steps`, `steps`.
+
+`cp`'s field-strength domain also stopped at B = 5, which is *below the regime the
+instrument's own headline claim lives in*: the gyroradius is not small against the field
+scale there, so μ is not an adiabatic invariant and the instrument could not show the thing
+it exists to show. The ceiling is 40 now. A refusal at the edge of a domain is only honest
+if the domain reaches the physics.
+
+`docs/verify-atlas-instruments.cjs` is now **114 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
