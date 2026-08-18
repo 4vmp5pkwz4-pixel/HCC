@@ -518,7 +518,19 @@ export const ROOTS = [
   'embFormFromRoots', 'embRootsOfMonic', 'embMatchRoots', 'embMoment',
   'embTorusAngles', 'embFubiniStudy', 'embDiscriminant', 'embSeparation',
   'embCollisionPoint', 'embBraidQ', 'embMonodromy',
-  'embRot4', 'embProject4', 'embIsoclinicAngle'
+  'embRot4', 'embProject4', 'embIsoclinicAngle',
+  /* ── THE QUASICRYSTAL, AND THE CRYSTALLOGRAPHIC RESTRICTION IT RESOLVES ───
+     Five-fold symmetry is forbidden for any 3D lattice and is an INTEGER matrix
+     in six. qcBasis and qcBuild were already pure; the rest is the arithmetic
+     that makes the picture a statement. */
+  'QC_TAU', 'qcBasis', 'qcBuild', 'qcDot3', 'qcGram', 'qcSplitResidual',
+  'qcCompletenessResidual', 'qcRot3', 'qcFiveFold', 'qcMatMul6', 'qcOrderResidual',
+  'qcTraceSplit', 'qcInflation', 'qcMinSeparation', 'qcRadialCount',
+  /* ── AND POINCARE'S CONE, WHICH IS ALSO THE TAUB-NUT GEODESIC STRUCTURE ───
+     J = r x v - N r-hat is conserved, so J . r-hat = -N pins every orbit to a
+     cone that can be drawn before a single step is integrated. */
+  'tnCross', 'tnDot', 'tnNorm', 'tnUnit', 'tnAccPure', 'tnPoincare',
+  'tnConeCos', 'tnConeAngle', 'tnEnergy', 'tnRK4', 'tnV', 'tnSquashOf'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

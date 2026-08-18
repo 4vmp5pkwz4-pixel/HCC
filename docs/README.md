@@ -26,6 +26,8 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
 | `verify-embadon-laboratory.cjs` | Sym^N(CP¹) ≅ CP^N verified by round trip, the moment polytope, the classical discriminants, the braid that exchanges two embadons, and why the isoclinic rotation's orbits are Hopf fibres |
+| `verify-quasicrystal-arithmetic.cjs` | the orthogonal splitting of R⁶, the five-fold rotation as an integer matrix of order five, and the trace split τ + (1−τ) = 1 that is the whole crystallographic restriction |
+| `verify-taub-nut-cone.cjs` | Poincaré's conserved vector, the cone drawn before the orbit, the energy a magnetic force cannot change, and the Berger squash this laboratory had backwards |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -4863,6 +4865,85 @@ the invariant now: the list exists, still contains the twelve that made it neces
 
 `docs/verify-embadon-laboratory.cjs`: **13 checks, 0 failed**. 67 of 81 laboratories compute;
 72 typed instruments; 0 page errors during the headless walk.
+
+## Five-fold in six dimensions, and a cone drawn before the orbit (v4.13.0)
+
+Two more laboratories that drew and did not compute — and both of them turned out to be
+holding a sharper statement than the one on their own label.
+
+### The crystallographic restriction, dissolved arithmetically
+
+Five-fold symmetry is forbidden for any three-dimensional lattice. Shechtman photographed it
+anyway. The quasicrystal laboratory has drawn the resolution — a six-dimensional crystal
+casting a three-dimensional shadow — since it was written, and never said what makes it work.
+
+It works because of **one trace**. The six axes are the five-fold axes of the icosahedron;
+every one of the fifteen pairs meets at |cos| = 1/√5 exactly. A rotation by 2π/5 about any of
+them sends every axis to ± another one, so it **is an integer matrix** — checked against an
+independently written Rodrigues rotation at all six axes and all thirty-six entries, to
+1.6e-16. Its fifth power is the identity **exactly**; its square is a full unit away.
+
+And its trace is the integer **1**, splitting across the two projections as
+
+    (1 + 2cos 72°) + (1 + 2cos 144°) = τ + (1 − τ) = 1.000000000000000
+
+An irrational and its Galois conjugate, summing to an integer. In three dimensions the first
+term would have to be an integer **on its own** — and it is 0.382 away from the nearest one.
+That is the entire crystallographic restriction, and six dimensions dissolve it by supplying
+the conjugate. The same fact from the other side: 2cos(2π/5) is a root of x² + x − 1, whose
+coefficients are integers because the *pair* of roots sums to −1 and multiplies to −1.
+
+The splitting R⁶ = R³∥ ⊕ R³⊥ is verified orthogonal and isotropic — par·par = perp·perp = 2I
+and par·perp = 0 to **4.4e-16** — and **complete**, so a physical point together with its
+perpendicular shadow returns its integer six-dimensional coordinate exactly: checked on all
+285 atoms of a real patch and all six coordinates each, to **8.9e-16**.
+
+The τ-inflation satisfies **S² = S + I exactly** — the golden equation as a matrix identity,
+because both eigenvalues satisfy it. It is **not** an integer matrix in this basis: every
+entry is exactly ±½, so this is the *face-centred* icosahedral module and the inflation is
+integral only after refining the lattice. Saying so is the difference between a description
+and a claim.
+
+The phason moves the atom count by a tenth as the window slides, and the **minimum separation
+does not move at all** — exactly 1 at every shift, because it belongs to the module and not
+to where the window sits. And nothing translates the patch onto itself: the best candidate of
+two hundred reproduces **29.4%** of the interior where a period would reproduce all of it.
+Aperiodicity is reported as that fraction, because on a finite patch it is a measurement.
+
+### A cone drawn before the orbit, and the label that had the squash upside down
+
+Poincaré's 1896 result is also the geodesic structure of Taub-NUT: **J = r × v − N r̂** is
+conserved, so J·r̂ = −N and every orbit is pinned to a cone about J. The laboratory draws that
+cone *first* and then integrates into it — and never returned the number that makes the
+picture a claim. It does now: over **sixteen thousand** Runge–Kutta steps the worst departure
+of J·r̂ from −N is **3.3e-16**, while J itself wanders only in the twelfth decimal.
+
+The gravitomagnetic force is perpendicular to the velocity, so it does no work — checked
+separately (worst |ΔE/E| = 3.9e-13), and the *reason* checked on its own: the magnetic part
+of the acceleration is orthogonal to v at fifty states to the last bit. At N = 0 the cone
+opens to **exactly** a right angle and the motion is Kepler — the Laplace–Runge–Lenz vector
+holds still to 2.6e-12 and is destroyed (0.275) the moment a NUT charge is switched on, with
+the same integrator and the same initial condition. The integrator's order is **measured**:
+3.9944, 3.9979, 3.9999 over three halvings.
+
+**And the laboratory's own label had the Berger squash backwards.** It said s → 1 far from
+the NUT and s → 0 at its core. It is the other way round: s(r) = 2N/(r + 2N) is **one at the
+NUT**, where the metric is smooth R⁴ and the slices are round, and **zero far away**, where
+Taub-NUT is asymptotically *locally* flat and the Hopf circle keeps a fixed length while the
+base grows away from it. It had said the opposite for eleven versions.
+
+### And two more generic-name collisions, caught by the bus
+
+`qcrys.tau` is the golden ratio; `te.tau` is T_cold/T_hot. Same name, same unit string,
+different quantity — and the bus proposed the coupling, which is what it is for. Renamed at
+the source to `golden_ratio`, as was `qcrys.atoms` → `accepted_points`, which the bus wanted
+to route into the embadon laboratory's count of atoms. That makes nine of these found this
+way. 16 admissible couplings, 16 declared.
+
+`docs/verify-quasicrystal-arithmetic.cjs`: **13 checks, 0 failed**.
+`docs/verify-taub-nut-cone.cjs`: **9 checks, 0 failed**.
+**69 of 81** laboratories compute; **74** typed instruments; 0 page errors during the
+headless walk.
 
 ## Status
 
