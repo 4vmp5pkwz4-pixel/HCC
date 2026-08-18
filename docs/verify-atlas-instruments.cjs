@@ -1629,6 +1629,146 @@ console.log('\n=== 17. A ceiling, an anomaly, a sum that is one, and an integrat
   }
 }
 
+console.log('\n=== 18. A counterexample, a first law, a bounded energy and a slope that never turns ===\n');
+{
+  /* THE COUNTEREXAMPLE IS THE POINT. Every symplectic matrix has determinant 1; the
+     converse is false, and this laboratory ships a matrix that proves it. */
+  let canon = [], bad = null;
+  for (const k of ['squeeze', 'shear', 'mix']) for (const l of [0.4, 1.4, 3.3]) {
+    const S = X.PSP_MAPS[k].f(l);
+    canon.push({ k, l, def: X.pspSympDefect(S), det: X.pspDet(S) });
+  }
+  { const S = X.PSP_MAPS.bad.f(1.4); bad = { def: X.pspSympDefect(S), det: X.pspDet(S) }; }
+  ok('the three canonical maps satisfy S^T J S = J to the last bit and all have determinant exactly 1',
+    canon.every(c => c.def < 1e-14 && Math.abs(c.det - 1) < 1e-12),
+    `nine (map, parameter) pairs · worst defect ${Math.max(...canon.map(c => c.def)).toExponential(2)} · worst |det - 1| ${Math.max(...canon.map(c => Math.abs(c.det - 1))).toExponential(2)}`);
+
+  ok('and the counterexample has determinant exactly 1 while NOT being canonical — det = 1 is necessary and is not sufficient, and the laboratory carries the proof rather than the claim',
+    Math.abs(bad.det - 1) < 1e-12 && bad.def > 0.5 && X.PSP_MAPS.bad.symp === false,
+    `the "bad" map: det = ${bad.det.toFixed(12)}, symplectic defect = ${bad.def.toFixed(6)} · it preserves phase-space VOLUME and destroys the symplectic FORM, which is more than a volume`);
+
+  {
+    /* the symplectic matrices are a GROUP: closed under products and inverses */
+    let worstP = 0, worstI = 0;
+    for (const a of ['squeeze', 'shear', 'mix']) for (const b of ['squeeze', 'shear', 'mix']) {
+      const S = X.pspMul(X.PSP_MAPS[a].f(1.7), X.PSP_MAPS[b].f(0.6));
+      worstP = Math.max(worstP, X.pspSympDefect(S));
+      const negJ = X.PSP_J.map(r => r.map(v => -v));
+      worstI = Math.max(worstI, X.pspSympDefect(X.pspMul(X.pspMul(negJ, X.pspT4(S)), X.PSP_J)));
+    }
+    ok('and they form a group: every product of two canonical maps is canonical, and so is every inverse',
+      worstP < 1e-14 && worstI < 1e-14,
+      `nine products · worst defect ${worstP.toExponential(2)} · worst inverse defect ${worstI.toExponential(2)} — the inverse is -J S^T J, which IS the inverse only for a symplectic matrix`);
+  }
+
+  /* THE FIRST LAW, FROM ANALYTIC DERIVATIVES — no difference quotient anywhere. */
+  {
+    let worstM = 0, worstJ = 0, worstQ = 0, n = 0;
+    for (const [M, J, Q] of [[1, 0, 0], [1, 0.4, 0], [1, 0.6, 0.2], [2, 1.1, 0.5], [0.5, 0.1, 0.05], [3, 2.0, 1.0]]) {
+      const k = X.cpsKN(M, J, Q); if (!k) continue;
+      const g = X.cpsDA(M, J, Q), f = k.kappa / (8 * Math.PI);
+      worstM = Math.max(worstM, Math.abs(f * g.M - 1));
+      worstJ = Math.max(worstJ, Math.abs(f * g.J + k.Om));
+      worstQ = Math.max(worstQ, Math.abs(f * g.Q + k.Phi)); n++;
+    }
+    ok('the first law of black-hole mechanics holds in all three directions at once, to the last bit, from analytic derivatives of the area',
+      n >= 6 && worstM < 1e-12 && worstJ < 1e-12 && worstQ < 1e-12,
+      `${n} Kerr-Newman configurations · worst |(kappa/8pi) A_M - 1| = ${worstM.toExponential(2)} · |(kappa/8pi) A_J + Omega| = ${worstJ.toExponential(2)} · |(kappa/8pi) A_Q + Phi| = ${worstQ.toExponential(2)} — there is no finite difference anywhere in this`);
+
+    ok('and past M^2 = a^2 + Q^2 there is no horizon and the engine returns null rather than extrapolating into a naked singularity',
+      X.cpsKN(1, 0.8, 0.7) === null && X.cpsKN(1, 1.2, 0) === null && X.cpsKN(1, 0.9, 0.3) !== null,
+      `M = 1, J = 0.8, Q = 0.7 gives M^2 - a^2 - Q^2 = ${(1 - 0.64 - 0.49).toFixed(2)} and is refused · J = 0.9, Q = 0.3 is admitted`);
+
+    /* THE AREA AT EXTREMALITY DEPENDS ON WHICH EXTREMAL, and this check first asked for
+       4 pi M^2 at extremal KERR, which is the Reissner-Nordstrom answer. Extremal Kerr has
+       r+ = M and a = M, so A = 4 pi(M^2 + M^2) = 8 pi M^2 — twice as much. Both are tested
+       now, because the pair says which term of r+^2 + a^2 is carrying the area. */
+    const kerr = X.cpsKN(1, 1, 0), rn = X.cpsKN(1, 0, 1);
+    ok('at extremality the surface gravity vanishes exactly — and the area is 8 pi M^2 for extremal Kerr and 4 pi M^2 for extremal Reissner-Nordstrom, which is not the same number',
+      kerr.extremal === true && Math.abs(kerr.kappa) < 1e-12 && Math.abs(kerr.A - 8 * Math.PI) < 1e-9 &&
+      rn.extremal === true && Math.abs(rn.kappa) < 1e-12 && Math.abs(rn.A - 4 * Math.PI) < 1e-9,
+      `extremal Kerr (J = M^2): kappa = ${kerr.kappa.toExponential(2)}, A = ${kerr.A.toFixed(9)} = 8 pi, Omega = ${kerr.Om} · extremal Reissner-Nordstrom (Q = M): kappa = ${rn.kappa.toExponential(2)}, A = ${rn.A.toFixed(9)} = 4 pi, Omega = ${rn.Om} · the spin puts a^2 into the area and the charge does not`);
+  }
+
+  {
+    /* THE CURL. With no injected term the charge IS the mass and its integral is path
+       independent; inject c and the curl comes out exactly 2c and the loop stops closing. */
+    let worstC = 0;
+    for (const c of [0, 0.1, 0.5, -0.3, 2]) worstC = Math.max(worstC, Math.abs(X.cpsCurl(1, 0.5, 0.2, c) - 2 * c));
+    ok('the field-space curl of the charge one-form is exactly 2c, at five injected values including zero',
+      worstC < 1e-9,
+      `worst |measured - 2c| = ${worstC.toExponential(2)} · at c = 0 the charge is dM exactly, which is why it is integrable`);
+
+    const loop = t => { const th = 2 * Math.PI * t; return [1 + 0.15 * Math.cos(th), 0.5 + 0.15 * Math.sin(th)]; };
+    const z = X.cpsPathIntegral(loop, 0.2, 0, 4000).value;
+    const nz = X.cpsPathIntegral(loop, 0.2, 0.3, 4000).value;
+    const area = Math.PI * 0.15 * 0.15;
+    ok('and a closed loop integrates to zero when the charge is integrable and to the enclosed curl when it is not — Stokes, measured rather than invoked',
+      Math.abs(z) < 1e-12 && Math.abs(Math.abs(nz) / (2 * 0.3 * area) - 1) < 0.02,
+      `c = 0 gives ${z.toExponential(2)} · c = 0.3 gives ${nz.toExponential(4)} against the enclosed 2c x area = ${(2 * 0.3 * area).toExponential(4)} — the sign is the loop's orientation`);
+  }
+
+  /* A SYMPLECTIC INTEGRATOR: what it conserves exactly, and what it merely bounds. */
+  {
+    const run = (dt, N) => {
+      const B = [{ m: 1, x: -1, y: 0, vx: 0.347111, vy: 0.532728 },
+                 { m: 1, x: 1, y: 0, vx: 0.347111, vy: 0.532728 },
+                 { m: 1, x: 0, y: 0, vx: -2 * 0.347111, vy: -2 * 0.532728 }];
+      const i0 = X.gravInvariants(B); let dE = 0, dP = 0, dL = 0;
+      for (let n = 0; n < N; n++) { X.gravStep(B, dt);
+        if (n % 200 === 0) { const q = X.gravInvariants(B);
+          dE = Math.max(dE, Math.abs(q.E - i0.E)); dP = Math.max(dP, Math.abs(q.P - i0.P)); dL = Math.max(dL, Math.abs(q.Lz - i0.Lz)); } }
+      return { dE, dP, dL, E0: i0.E };
+    };
+    const a = run(0.001, 200000);
+    ok('momentum and angular momentum are conserved to rounding over two hundred thousand steps, because the force loop enforces Newton’s third law in a single statement',
+      a.dP < 1e-12 && a.dL < 1e-12,
+      `worst |dP| = ${a.dP.toExponential(2)} and |dL_z| = ${a.dL.toExponential(2)} over 200000 steps of the figure-eight orbit · these are exact by construction and not by accuracy`);
+
+    ok('and the energy does not drift: it oscillates inside a bound that a symplectic method guarantees and a Runge-Kutta does not',
+      a.dE < 1e-9,
+      `worst |dE| = ${a.dE.toExponential(2)} against E_0 = ${a.E0.toFixed(9)} — a relative excursion of ${(a.dE / Math.abs(a.E0)).toExponential(2)}, bounded rather than growing`);
+
+    const b = run(0.004, 50000), c = run(0.002, 100000);
+    ok('and that bound falls as the fourth power of the step, which is what the Yoshida composition is for',
+      Math.abs(Math.log(b.dE / c.dE) / Math.log(2) - 4) < 0.35,
+      `dt = 0.004 gives ${b.dE.toExponential(3)} and dt = 0.002 gives ${c.dE.toExponential(3)} · the ratio is ${(b.dE / c.dE).toFixed(2)}, a power of ${(Math.log(b.dE / c.dE) / Math.log(2)).toFixed(3)} against the exact 4`);
+  }
+
+  /* CONFINEMENT IS A STATEMENT ABOUT A SLOPE. */
+  {
+    let allPositive = true, minF = Infinity;
+    for (let r = 0.01; r <= 5; r += 0.01) {
+      const F = (4 / 3) * X.QCD_AS * X.QCD_HC / (r * r) + X.QCD_SIG;
+      if (!(F > 0)) allPositive = false; minF = Math.min(minF, F);
+    }
+    ok('the force between two quarks is positive at every separation out to five femtometres — it never turns over, and that is what confinement means',
+      allPositive && minF >= X.QCD_SIG - 1e-12,
+      `500 separations · the smallest force is ${minF.toFixed(6)} GeV/fm, which is the string tension itself · however far apart you pull them the force does not fall below sigma, so no finite energy frees a quark`);
+
+    const r0 = Math.sqrt(4 * X.QCD_AS * X.QCD_HC / (3 * X.QCD_SIG));
+    ok('and the potential crosses zero at exactly sqrt(4 alpha_s hbar c/3 sigma), where the Coulomb and confining terms cancel',
+      Math.abs(X.qcdV(r0)) < 1e-12 && Math.abs(r0 - 0.2961) < 1e-3,
+      `r_0 = ${r0.toFixed(9)} fm and V(r_0) = ${X.qcdV(r0).toExponential(2)} GeV · the potential is NEGATIVE inside it and positive outside, and it has no minimum anywhere because its slope never changes sign`);
+
+    /* asymptotic freedom, and the Landau pole */
+    const scales = [1, 2, 5, 10, 91.1876, 1000, 1e4];
+    const as = scales.map(q => X.qcdAlphaS(q));
+    ok('the running coupling falls monotonically across four decades of momentum — asymptotic freedom, measured rather than asserted',
+      as.every((v, k) => k === 0 || v < as[k - 1]),
+      `alpha_s at 1, 2, 5, 10, 91.2, 1000 and 10000 GeV: ${as.map(v => v.toFixed(4)).join(' > ')}`);
+
+    const aZ = X.qcdAlphaS(91.1876);
+    ok('and it misses the measured value at the Z mass by 14 per cent, which is what one loop costs — the instrument returns that error rather than tuning Lambda to hide it',
+      Math.abs(aZ / 0.1180 - 1) > 0.10 && Math.abs(aZ / 0.1180 - 1) < 0.20,
+      `alpha_s(M_Z) = ${aZ.toFixed(6)} against the world average 0.1180 — ${(100 * (aZ / 0.1180 - 1)).toFixed(1)}% high · a fitted Lambda would close this and would be a fit rather than one loop`);
+
+    ok('the coupling diverges at the Landau pole rather than staying finite, which is where a perturbative expansion in it stops existing',
+      X.qcdAlphaS(0.2101) > 20 && X.qcdAlphaS(0.25) > 1 && X.qcdAlphaS(2) < 0.5,
+      `alpha_s(0.2101 GeV) = ${X.qcdAlphaS(0.2101).toFixed(2)} · at Lambda = 0.21 the logarithm vanishes and the one-loop formula has a pole, which is the scale confinement lives at`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
