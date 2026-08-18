@@ -31,6 +31,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-skyrmion-charge.cjs` | Berg–Lüscher against L'Huilier, the window that keeps the charge off the integer, the Bogomolny bound saturated, and the skyrmion Hall angle that had never vanished where the readout said it did |
 | `verify-hopfion-invariant.cjs` | the Hopf invariant read back out of the field as a Gauss linking number of two preimage torus knots, Derrick's balance point against a scan, and the sub-linear bound measured rather than asserted |
 | `verify-s3-observational-geometry.cjs` | the redshift kernel shown to be the surface-to-volume ratio of the causal ball and the logarithmic derivative of its volume measure, the two arcs, the antipodal caustic and why the far side looks larger |
+| `verify-quasiparticle-dispersions.cjs` | the acoustic slope as a limit that now converges, the optical branch against the reduced mass, the magnon quadratic where the phonon is linear, an exciton scaling invariant, and a circulation measured over twelve decades of loop radius |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5118,6 +5119,59 @@ is 1.7e-30 — π is not representable, the same thing the dipole null said.
 
 `docs/verify-s3-observational-geometry.cjs`: **13 checks, 0 failed**. **73 of 81**
 laboratories compute; **78** typed instruments; 0 page errors during the headless walk.
+
+## A circulation that does not care which loop (v4.17.0)
+
+Five excitations, five dispersion relations, every one of them written inside an animation
+loop where nothing outside the picture could reach it.
+
+The sharpest is the vortex. v = nħ/(mr), so the circulation round a loop enclosing the core
+is n·h/m — and does **not depend on the loop**. Measured over **twelve decades** of radius,
+from a picometre to a metre, it is constant to the last bit (spread 1.3e-16) while the speed
+itself varies by twelve decades over the same range. That independence *is* what the word
+quantised means, and it is now a measurement rather than a caption. For helium four the
+quantum comes out at 9.969297e-8 m²/s, rebuilt from the CODATA Planck constant and the atomic
+mass rather than quoted — the number Vinen measured on a vibrating wire in 1961.
+
+The diatomic chain gives three exact statements: the acoustic branch is **linear** at long
+wavelength with slope √(K/2(m₁+m₂)), the optical branch starts at **√(2K/μ)** with μ the
+*reduced* mass, and at the zone boundary the two sit at √(2K/m_heavy) and √(2K/m_light) — so
+the gap closes **exactly** when the masses are equal and at no other time. With masses
+differing by one part in twenty thousand the gap is already 2.5e-5.
+
+The magnon is **quadratic** where the phonon is **linear**, checked side by side over the same
+wavevectors — the reason the two carry heat with different powers of the temperature. And the
+Wannier–Mott exciton has a scaling invariant: E_b·a*_B²·μ depends on **neither** the mass nor
+the permittivity, giving one number to twelve digits across five wildly different materials.
+At μ = 1 with no screening it is hydrogen — the Bohr radius and one Rydberg, which is the
+check that the constants were not merely fitted.
+
+### And the acoustic branch was numerically unstable
+
+Written literally, ω²_ac = K(1/m₁+1/m₂)(1 − √(1 − x)), and **1 − √(1 − x) is catastrophic at
+small x** — which at small k is the whole acoustic branch. Taking the sound speed as a limit
+did not converge: it drifted by **five per cent** at k = 1e-6 and got *worse* as k shrank.
+Multiplying by the conjugate gives x/(1 + √(1 − x)) — the same number, stable — and the worst
+residual over k = 1e-4, 1e-6, 1e-8 falls from **5.5e-2 to 4.2e-10**, now improving as the
+limit is taken. The same fix applies to the magnon: 4JS(1 − cos k) is 8JS sin²(k/2), and the
+quadratic law now converges as k⁴ (−8.3e-8 → −8.3e-12 → −7.8e-16) instead of stalling.
+
+Old and new agree to 1e-16 at moderate wavevectors, so the picture is unchanged.
+
+`docs/verify-quasiparticle-dispersions.cjs`: **12 checks, 0 failed**. **74 of 81**
+laboratories compute; **79** typed instruments; 0 page errors during the headless walk.
+
+### What the remaining seven are
+
+Of the seven that still declare no typed output, four are not physics and should not have
+one: `nexus` is the typed-relation graph over the other eighty, `sel` is the object registry,
+`lab` is the world's entry bench and `drd` is a declaration of reconstruction scope. `syd`
+remains deferred for the reason recorded at v4.4.0 — its world definitions build
+`THREE.Vector3` and the discovery engine cannot be lifted without rewriting them. `eig` would
+substantially duplicate the `spectrum` instrument, which already diagonalises the S³ Laplacian
+and of which the round case is the isotropic limit. `ring` is a set of published
+project-plane fits whose three-dimensional structure the paper explicitly leaves unresolved,
+and inventing an instrument over it would assert what the source declines to.
 
 ## Status
 
