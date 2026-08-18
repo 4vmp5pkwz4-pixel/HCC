@@ -1769,6 +1769,126 @@ console.log('\n=== 18. A counterexample, a first law, a bounded energy and a slo
   }
 }
 
+console.log('\n=== 19. A ray that is null, a phase that moves nothing, and a knot tangent everywhere ===\n');
+{
+  /* A NORMALIZED SPINOR MAKES A NULL RAY. Not nearly null — null. */
+  let worstN = 0, worstP = 0, worstD = 0, worstNorm = 0, allFuture = true, n = 0;
+  for (const th of [0.05, 0.7, 1.5, 2.2, 3.0]) for (const ph of [0, 1.1, 3.3, 5.9]) {
+    const s = X.nulSpinor(th, ph), k = X.nulSpinDir(s);
+    const sg = s.map(z => X.nulCMulExp(z, 1.137)), kg = X.nulSpinDir(sg);
+    worstN = Math.max(worstN, Math.abs(X.nulDot(k, k)));
+    worstP = Math.max(worstP, X.nulMaxVec(k, kg));
+    worstD = Math.max(worstD, X.nulCabs(X.nulMdet(X.nulMscale(X.nulMouter(s, s), 2))));
+    worstNorm = Math.max(worstNorm, Math.abs(X.nulSpinNorm(s) - 1));
+    if (!(k[0] > 0)) allFuture = false; n++;
+  }
+  ok('every normalized two-spinor makes a FUTURE-DIRECTED NULL ray, at twenty points of the Bloch sphere',
+    worstN < 1e-15 && worstNorm < 1e-15 && allFuture,
+    `${n} spinors · worst |k.k| = ${worstN.toExponential(2)} · worst | |psi| - 1 | = ${worstNorm.toExponential(2)} · k^0 > 0 at every one · the outer product has |det| = ${worstD.toExponential(2)}, which is what a null vector's matrix being degenerate looks like`);
+
+  ok('and a common U(1) phase moves the fibre and not the ray — the direction is the Hopf BASE point, and the phase is the fibre coordinate',
+    worstP < 1e-15,
+    `worst drift in k under a phase of 1.137 rad = ${worstP.toExponential(2)} · the state changed and nothing measurable did, which is the same statement the act laboratory makes about a Reeb orbit`);
+
+  {
+    /* SL(2,C) PRESERVES THE INTERVAL, and A and -A do the same thing to spacetime. */
+    let worstI = 0, worstC = 0, worstX = 0;
+    for (const rap of [-1.2, 0, 0.6, 2.0]) for (const ang of [0, 0.35, 2.7]) {
+      const A = X.nulSL2(rap, ang), s = X.nulSpinor(1.0, 0.8), k = X.nulSpinDir(s);
+      const M = X.nulMatFromVec(k);
+      const k2 = X.nulVecFromHermitian(X.nulMmul(X.nulMmul(A, M), X.nulMdag(A)));
+      const An = A.map(r => r.map(z => X.nulCscale(z, -1)));
+      const k3 = X.nulVecFromHermitian(X.nulMmul(X.nulMmul(An, M), X.nulMdag(An)));
+      const iv = v => v[0] * v[0] - v[1] * v[1] - v[2] * v[2] - v[3] * v[3];
+      worstI = Math.max(worstI, Math.abs(iv(k2) - iv(k)));
+      worstC = Math.max(worstC, X.nulMaxVec(k2, k3));
+      const z = [X.nulC(0.3, 0.7), X.nulC(-1.2, 0.4), X.nulC(0.9, -0.6), X.nulC(2.1, 1.3)];
+      const cr = X.nulCrossRatio(z), cr2 = X.nulCrossRatio(z.map(w => X.nulMobius(A, w)));
+      worstX = Math.max(worstX, Math.hypot(cr[0] - cr2[0], cr[1] - cr2[1]));
+    }
+    ok('an SL(2,C) element preserves the Minkowski interval through X -> A X A-dagger, at twelve boosts and rotations',
+      worstI < 1e-14,
+      `worst change in x.x = ${worstI.toExponential(2)} · det X IS x.x, so preserving one is preserving the other and there is nothing else to check`);
+
+    ok('and A and MINUS A do exactly the same thing to spacetime — the double cover, seen from the Lorentz end rather than the spinor end',
+      worstC < 1e-15,
+      `worst difference between the actions of A and -A = ${worstC.toExponential(2)} · the su2 laboratory shows the same fact from the other side, where a 2 pi rotation of a STATE is minus itself`);
+
+    ok('and a four-point cross ratio survives every Mobius map, which is what makes the celestial sphere conformal rather than metric',
+      worstX < 1e-13,
+      `worst drift in the cross ratio = ${worstX.toExponential(2)} over twelve transformations · angles on the observer's sky are preserved and distances are not, and that is the whole content of aberration`);
+  }
+
+  /* THE REEB FIELD IS DEFINED BY TWO CONDITIONS, AND BOTH ARE EXACT HERE. */
+  {
+    let worstS = 0, worstL = 0, worstK = 0, worstH = 0;
+    for (const eta of [0.1, 0.3, 0.7, 1.2, 1.45]) {
+      const P = X.actReebPath(eta, 0.5), u = P[0], C = X.actContactResidual(u), h0 = X.actHopf(u);
+      worstS = Math.max(worstS, C.norm); worstL = Math.max(worstL, C.alphaR); worstK = Math.max(worstK, C.contraction);
+      for (let m = 0; m < P.length; m += 8) { const h = X.actHopf(P[m]);
+        worstH = Math.max(worstH, X.actNorm(h.map((x, j) => x - h0[j]))); }
+    }
+    ok('the Reeb field satisfies both of the conditions that define it — lambda(R) = 1 and the contraction into d lambda vanishes — exactly, at five latitudes',
+      worstL < 1e-15 && worstK < 1e-15 && worstS < 1e-15,
+      `worst |lambda(R) - 1| = ${worstL.toExponential(2)} · worst contraction = ${worstK.toExponential(2)} · worst |u.u - 1| = ${worstS.toExponential(2)} — all three are zero, and a Reeb field is exactly the vector field for which they are`);
+
+    ok('and the Hopf image is constant along a Reeb orbit: the flow turns the fibre and leaves the base point where it was',
+      worstH < 1e-14,
+      `worst drift of the Hopf image around a whole orbit = ${worstH.toExponential(2)} · this is the Reeb flow BEING the Hopf flow, measured rather than named`);
+  }
+
+  {
+    /* A LEGENDRIAN CURVE IS TANGENT TO THE CONTACT PLANE AT EVERY POINT. The tangent has
+       to be the analytic one: a difference quotient reports its own step size instead. */
+    let worst = 0, worstU = 0, rows = [];
+    for (const [p, q] of [[2, 3], [3, 4], [2, 5], [5, 7], [3, 8]]) {
+      const g = X.actGcd(p, q), pp = p / g, qq = q / g;
+      const c1 = Math.sqrt(qq / (pp + qq)), c2 = Math.sqrt(pp / (pp + qq));
+      for (let m = 0; m < 400; m++) { const t = m / 400 * 2 * Math.PI;
+        const u = [c1 * Math.cos(pp * t), c1 * Math.sin(pp * t), c2 * Math.cos(qq * t), -c2 * Math.sin(qq * t)];
+        const d = [-c1 * pp * Math.sin(pp * t), c1 * pp * Math.cos(pp * t), -c2 * qq * Math.sin(qq * t), -c2 * qq * Math.cos(qq * t)];
+        worst = Math.max(worst, Math.abs(X.actAlpha(u, d)));
+        worstU = Math.max(worstU, Math.abs(X.actDot(u, u) - 1));
+      }
+      rows.push(`(${pp},${qq})`);
+    }
+    ok('a Legendrian torus knot is tangent to the contact plane at EVERY point of it — five knots, two thousand points, and the residual is floating point',
+      worst < 1e-14 && worstU < 1e-14,
+      `${rows.join(' ')} · worst |lambda(gamma-dot)| = ${worst.toExponential(2)} · worst |u.u - 1| = ${worstU.toExponential(2)} · the tangent is differentiated analytically, because a difference quotient here returns its own step size and would look like a physics residual`);
+
+    ok('and the primitive coprime pair is what gets used, so (4, 6) and (2, 3) are the same knot rather than two',
+      X.actGcd(4, 6) === 2 && X.actGcd(2, 3) === 1 && X.actGcd(9, 6) === 3,
+      `gcd(4,6) = 2 so (4,6) reduces to (2,3) · gcd(9,6) = 3 so (9,6) reduces to (3,2) · a non-primitive pair traces the same curve more than once and its linking number would be counted twice`);
+  }
+
+  {
+    /* KUSTAANHEIMO-STIEFEL: the same Hopf map that makes a light ray regularizes a
+       Kepler collision, and the gauge freedom is the same fibre. */
+    let worstK = 0, worstG = 0;
+    for (const rho of [0.05, 0.4, 0.8, 1.6, 4]) for (const ga of [0, 0.4, 2.2, 5.5]) {
+      const u = [rho, 0.3 * rho, -0.2 * rho, 0.5 * rho];
+      const Xp = X.actHopf(u), Xg = X.actHopf(X.actGauge(u, ga));
+      worstK = Math.max(worstK, Math.abs(X.actNorm(Xp) - X.actDot(u, u)));
+      worstG = Math.max(worstG, X.actNorm(Xp.map((x, j) => x - Xg[j])));
+    }
+    ok('the Kustaanheimo-Stiefel map satisfies |X(u)| = |u|^2 exactly, and a U(1) gauge rotation of the spinor moves nothing physical',
+      worstK < 1e-14 && worstG < 1e-14,
+      `twenty (scale, gauge) pairs · worst | |X(u)| - |u|^2 | = ${worstK.toExponential(2)} · worst gauge drift in the position = ${worstG.toExponential(2)} · that gauge freedom is the SAME Hopf fibre the nul laboratory calls a phase, which is why a collision can be regularized at all`);
+  }
+
+  {
+    /* the syd laboratory stays parametric, and its linear algebra still has to be right */
+    const A = [[4, 1, 2], [1, 3, 0], [2, 0, 5]], E = X.sydJacobiEig(A, 3);
+    const tr = E.ev[0] + E.ev[1] + E.ev[2];
+    let ortho = 0;
+    for (let a = 0; a < 3; a++) for (let b = a + 1; b < 3; b++)
+      ortho = Math.max(ortho, Math.abs(E.V[a].reduce((s, v, k) => s + v * E.V[b][k], 0)));
+    ok('and the Jacobi eigensolver underneath the symmetry-discovery engine returns eigenvalues that sum to the trace and eigenvectors that are orthogonal',
+      Math.abs(tr - 12) < 1e-12 && ortho < 1e-12 && E.ev[0] > E.ev[1] && E.ev[1] > E.ev[2],
+      `eigenvalues ${E.ev.map(v => v.toFixed(6)).join(', ')} sum to ${tr.toFixed(12)} against the trace 12 · worst eigenvector overlap ${ortho.toExponential(2)} · the discovery engine itself is not extracted, because SYD_WORLDS builds its group actions out of THREE.Vector3 and that is a larger change than this batch`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

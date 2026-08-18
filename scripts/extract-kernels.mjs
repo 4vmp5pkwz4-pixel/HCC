@@ -447,7 +447,29 @@ export const ROOTS = [
   'PSP_J', 'pspI4', 'pspMul', 'pspT4', 'pspSympDefect', 'pspDet', 'PSP_MAPS',
   'CPS_EXTREMAL_TOL', 'cpsKN', 'cpsDA', 'cpsAlpha', 'cpsCurl', 'cpsPathIntegral',
   'GRAV_CS', 'GRAV_DS', 'gravAccel', 'gravStep', 'gravRmin', 'gravInvariants',
-  'QCD_HC', 'QCD_AS', 'QCD_SIG', 'qcdV', 'qcdAlphaS'
+  'QCD_HC', 'QCD_AS', 'QCD_SIG', 'qcdV', 'qcdAlphaS',
+  /* the three remaining observatories, in the shape hol already established: pure kernels
+     out, the station logic written once in the instrument. The *Lang helpers are NOT here —
+     they read state.lang and belong to the renderer. */
+  'nulC', 'nulCadd', 'nulCsub', 'nulCmul', 'nulCdiv', 'nulCconj', 'nulCabs', 'nulCarg',
+  'nulCscale', 'nulCMulExp', 'nulCDot', 'nulSpinor', 'nulSpinNorm', 'nulSpinNormalize',
+  'nulSpinDir', 'nulMouter', 'nulMscale', 'nulMdet', 'nulMmul', 'nulMdag', 'nulMapply',
+  'nulMatFromVec', 'nulVecFromHermitian', 'nulCVecFromMat', 'nulDot', 'nulMaxVec',
+  'nulZeta', 'nulMobius', 'nulCrossRatio', 'nulSL2', 'nulTransformVec',
+  'nulWrap', 'nulClamp01',
+  'actWrap', 'actClamp01', 'actDot', 'actNorm', 'actScale', 'actGcd', 'actJ', 'actJ4',
+  'actLam', 'actDLam', 'actAlpha', 'actDAlpha', 'actXi1', 'actXi2', 'actHopf',
+  'actProj4', 'actDProj4', 'actReebPath', 'actEllipsoidPath', 'actLegendrianPath',
+  'actContactResidual', 'actGauge', 'actApprox',
+  /* syd stops HERE, and the reason is worth recording rather than working around:
+     SYD_WORLDS defines each world's state, its sample points and its group action by
+     building THREE.Vector3 objects, so the discovery engine cannot be lifted out without
+     rewriting those definitions. That is a larger change than this batch, and the
+     laboratory stays parametric until it is made. The pure linear algebra underneath —
+     the null-space search and the Jacobi eigensolver — comes out now regardless. */
+  'sydC', 'sydCSub', 'sydCMul', 'sydCDiv', 'sydCrossRatio', 'sydAngle',
+  'sydStereoPt', 'sydMobiusBase', 'sydHash', 'sydEvalPoly',
+  'sydMonomials', 'sydMonomialNames', 'sydRREF', 'sydJacobiEig', 'sydSplitPoly'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
