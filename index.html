@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="two-thirds-of-it-was-geometry-2026.08.18.15">
+<html lang="en" data-hcc-build="a-circulation-that-does-not-care-2026.08.18.16">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="two-thirds-of-it-was-geometry-2026.08.18.15">
+<meta name="hcc-build" content="a-circulation-that-does-not-care-2026.08.18.16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.16.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.17.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.16.0';
-const HCC_BUILD='two-thirds-of-it-was-geometry-2026.08.18.15';
+const HCC_VERSION='4.17.0';
+const HCC_BUILD='a-circulation-that-does-not-care-2026.08.18.16';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -18297,6 +18297,49 @@ registerSel('hopfionLab',{ name:'Hopfion laboratory · (p,q) solitons', mode:'s3
    Models are textbook-exact ansätze — declared as such, never material-fitted. */
 const quasiGroup=new THREE.Group(); quasiGroup.visible=false; s3Group.add(quasiGroup);
 let qpInst=null, qpExtra=[], qpTime=0, qpBuiltType='';
+/* ── The closed forms of the quasiparticle laboratory ──────────────────────────────────
+   Five excitations, five dispersion relations, all exact and all previously written inline
+   inside the animation loop where nothing could reach them. The renderer calls these. */
+/* DIATOMIC CHAIN. Two masses alternating on springs K: the branches are
+   omega^2 = K(1/m1 + 1/m2) [1 +- sqrt(1 - 4 m1 m2 sin^2(ka/2)/(m1+m2)^2)].
+   The lower one starts LINEAR at long wavelength — sound — and the upper one starts at a
+   finite frequency and is what a photon can couple to. Between them, at the zone boundary,
+   is a gap that closes only when the two masses are equal. */
+function qpPhononOmega2(k,K,m1,m2,branch){
+  const s2=Math.sin(k/2)**2, mm=4*m1*m2/((m1+m2)*(m1+m2));
+  const disc=Math.sqrt(Math.max(0,1-mm*s2)), pre=K*(1/m1+1/m2);
+  if(branch==='optical') return pre*(1+disc);
+  /* 1 - sqrt(1 - x) is CATASTROPHIC at small x, and at small k that is the entire acoustic
+     branch: written literally it loses every significant digit and the sound speed measured
+     as a limit drifts by five per cent at k = 1e-6 instead of converging. Multiplying by the
+     conjugate gives x/(1 + sqrt(1 - x)), which is the same number and is stable. */
+  return pre*mm*s2/(1+disc);
+}
+const qpPhononOmega=(k,K,m1,m2,branch)=>Math.sqrt(Math.max(0,qpPhononOmega2(k,K,m1,m2,branch)));
+const qpSoundSpeed=(K,m1,m2,a=1)=>a*Math.sqrt(K/(2*(m1+m2)));      // the k -> 0 slope of the acoustic branch
+const qpOpticalAtZero=(K,m1,m2)=>Math.sqrt(2*K*(1/m1+1/m2));       // = sqrt(2K/mu) with mu the REDUCED mass
+const qpZoneGap=(K,m1,m2)=>{ const hi=Math.max(m1,m2), lo=Math.min(m1,m2);
+  return {acoustic:Math.sqrt(2*K/hi), optical:Math.sqrt(2*K/lo)}; };
+/* HEISENBERG FERROMAGNET. One flipped spin, shared coherently: omega = 4 J S (1 - cos ka).
+   It is QUADRATIC at long wavelength where the phonon is linear, and that difference is why
+   magnons and phonons carry heat with different temperature laws. */
+/* 1 - cos k loses precision at small k for the same reason; 2 sin^2(k/2) does not. */
+const qpMagnonOmega=(k,J,S)=>8*J*S*Math.sin(k/2)**2;
+const qpMagnonStiffness=(J,S,a=1)=>2*J*S*a*a;                       // omega -> D k^2 with D this
+/* WANNIER-MOTT EXCITON. Hydrogen with the reduced mass and the dielectric constant put in:
+   a*_B = a0 eps/mu and E_b = Ry mu/eps^2. So E_b a*_B^2 mu does not depend on either. */
+const QP_A0_NM=0.0529177210903, QP_RY_MEV=13605.693122994;
+const qpExcitonRadius=(mu,eps)=>QP_A0_NM*eps/mu;
+const qpExcitonBinding=(mu,eps)=>QP_RY_MEV*mu/(eps*eps);
+const qpExcitonInvariant=(mu,eps)=>qpExcitonBinding(mu,eps)*qpExcitonRadius(mu,eps)**2*mu;
+/* FROHLICH POLARON, weak coupling: the carrier drags a lattice distortion and gets heavier. */
+const qpPolaronMass=alpha=>1+alpha/6;
+const qpPolaronEnergy=alpha=>-alpha;                                // in units of the phonon quantum
+/* QUANTISED VORTEX. v = n hbar/(m r), so the circulation round ANY loop enclosing the core
+   is n h/m — independent of the radius, exactly, which is the whole content of the word. */
+const qpVortexSpeed=(n,r,hbar,m)=>n*hbar/(m*Math.max(r,1e-300));
+const qpCirculation=(n,hbar,m)=>n*2*Math.PI*hbar/m;
+const qpCirculationFromLoop=(n,r,hbar,m)=>2*Math.PI*r*qpVortexSpeed(n,r,hbar,m);
 function qpClear(){
   if(qpInst){ quasiGroup.remove(qpInst); qpInst.geometry.dispose(); qpInst.material.dispose(); qpInst=null; }
   for(const o of qpExtra){ quasiGroup.remove(o); disposeCSS2D?.(o); o.geometry&&o.geometry.dispose&&o.geometry.dispose(); o.material&&o.material.dispose&&o.material.dispose(); }
@@ -18386,9 +18429,7 @@ function updateQuasi(dt){
   const T=state.qpType, t=qpTime;
   if(T==='phonon'&&qpInst){
     const {NX,NY,NZ,a}=qpInst.userData, k=state.qpK, m1=1, m2=Math.max(0.2,state.qpMassRatio);
-    const s2=Math.pow(Math.sin(k/2),2), mm=4*m1*m2/((m1+m2)*(m1+m2));
-    const disc=Math.sqrt(Math.max(0,1-mm*s2));
-    const w=Math.sqrt((1/m1+1/m2)*(state.qpBranch==='optical'?1+disc:1-disc));
+    const w=qpPhononOmega(k,1,m1,m2,state.qpBranch);
     const A=state.qpAmp*0.42; let i=0;
     for(let x=0;x<NX;x++)for(let y=0;y<NY;y++)for(let z=0;z<NZ;z++){
       const heavy=(x%2===1), ph=k*x-w*t;
@@ -30725,7 +30766,117 @@ const ATLAS_LATE_SPECS=[
       beyond_the_turning_point:chi>Math.PI/2?1:0,
       antipodal_area_residual:s3SphereArea(Math.PI,R),
       long_path_fits:(2*Math.PI-chi)<=i.conformal_budget?1:0,
-      conformal_shortfall:(2*Math.PI-chi)-i.conformal_budget};}}
+      conformal_shortfall:(2*Math.PI-chi)-i.conformal_budget};}},
+
+ /* ── FIVE EXCITATIONS, FIVE DISPERSIONS, ALL WRITTEN INSIDE AN ANIMATION LOOP ────
+    The diatomic chain, the Heisenberg magnon, the Wannier-Mott exciton, the Fröhlich
+    polaron and the quantised vortex. Each has a closed form and each was reachable only by
+    watching the picture. The sharpest of them is the vortex: the circulation round a loop
+    enclosing the core is n h/m and does NOT depend on the loop, which is the entire content
+    of the word quantised and is returned here as a measurement over four decades of radius. */
+ {id:'quasi', lab:'quasi',
+  title:['Five excitations, and a circulation that does not care what loop you measure it round',
+         'Пять возбуждений и циркуляция, которой всё равно, по какому контуру её мерить',
+         'Fuenf Anregungen und eine Zirkulation'],
+  status:'EXACT — every dispersion here is a closed form of its declared model: the diatomic chain, the nearest-neighbour Heisenberg ferromagnet, the hydrogenic exciton, the weak-coupling Frohlich polaron and the irrotational vortex. What is MODELLED is which model applies to any real material, and that is stated rather than assumed',
+  verifiers:['docs/verify-quasiparticle-dispersions.cjs (the acoustic slope against a limit, the optical branch against the reduced mass, the zone-boundary gap against both masses, the magnon against its quadratic stiffness, the exciton against a scaling invariant, and the circulation against the loop it is measured round)'],
+  formulas:['diatomic chain: omega^2 = K(1/m1 + 1/m2)[1 +- sqrt(1 - 4 m1 m2 sin^2(ka/2)/(m1+m2)^2)]',
+            'the acoustic branch starts LINEAR — that is sound — with slope a sqrt(K/(2(m1+m2)))',
+            'the optical branch starts at sqrt(2K/mu) with mu the REDUCED mass, and that is the frequency light can couple to',
+            'at the zone boundary the two branches sit at sqrt(2K/m_heavy) and sqrt(2K/m_light), so the gap between them closes exactly when the masses are equal and not otherwise',
+            'Heisenberg ferromagnet: omega = 4 J S (1 - cos ka), which is QUADRATIC at long wavelength where the phonon is linear — the reason magnons and phonons carry heat with different powers of the temperature',
+            'Wannier-Mott exciton: a*_B = a0 eps/mu and E_b = Ry mu/eps^2, so E_b a*_B^2 mu depends on neither',
+            'Frohlich polaron, weak coupling: m*/m = 1 + alpha/6',
+            'quantised vortex: v = n hbar/(m r), so the circulation round any enclosing loop is n h/m — independent of the loop, exactly'],
+  inputs:[{name:'k', type:'number', unit:'rad', default:1.5707963267948966, min:0, max:3.141592653589793,
+           doc:['the wavevector times the lattice spacing','волновой вектор на постоянную решётки','Wellenvektor mal Gitterkonstante']},
+          {name:'spring', type:'number', unit:'N/m', default:1, min:0.01, max:100,
+           doc:['the spring constant of the chain','жёсткость пружины','Federkonstante']},
+          {name:'mass_light', type:'number', unit:'kg', default:1, min:0.05, max:100,
+           doc:['the lighter of the two masses','лёгкая масса','leichtere Masse']},
+          {name:'mass_heavy', type:'number', unit:'kg', default:2.5, min:0.05, max:100,
+           doc:['and the heavier one; set them equal and the gap closes','тяжёлая масса','schwerere Masse']},
+          {name:'exchange', type:'number', unit:'J', default:1, min:0.001, max:100,
+           doc:['the Heisenberg exchange constant','обменная константа','Austauschkonstante']},
+          {name:'spin', type:'number', unit:'dimensionless', default:0.5, min:0.5, max:10,
+           doc:['the spin length','величина спина','Spinlaenge']},
+          {name:'reduced_mass', type:'number', unit:'dimensionless', default:0.1, min:0.001, max:10,
+           doc:['the exciton reduced mass in units of the electron mass','приведённая масса экситона','reduzierte Exzitonmasse']},
+          {name:'permittivity', type:'number', unit:'dimensionless', default:10, min:1, max:100,
+           doc:['the dielectric constant of the host','диэлектрическая проницаемость','Dielektrizitaetskonstante']},
+          {name:'alpha', type:'number', unit:'dimensionless', default:3, min:0, max:12,
+           doc:['the Frohlich coupling. The formula returned is the WEAK-coupling one and it is quoted as such',
+                'константа связи Фрёлиха','Frohlich-Kopplung']},
+          {name:'winding', type:'number', unit:'count', default:1, min:1, max:10,
+           doc:['the vortex winding number','число намотки вихря','Windungszahl']},
+          {name:'loop_radius', type:'number', unit:'m', default:1e-6, min:1e-12, max:1,
+           doc:['the radius of the loop the circulation is measured round. The answer does not depend on it, and that is the point',
+                'радиус контура','Schleifenradius']}],
+  outputs:[{name:'omega_acoustic', unit:'rad/s', doc:['the acoustic branch at the requested wavevector','акустическая ветвь','akustischer Zweig']},
+           {name:'omega_optical', unit:'rad/s', doc:['and the optical one','оптическая ветвь','optischer Zweig']},
+           {name:'branches_ordered', unit:'dimensionless', doc:['1 while the optical branch lies above the acoustic one at every sampled wavevector, which it does — the two never cross',
+             '1 если ветви не пересекаются','1 wenn sich die Zweige nicht kreuzen']},
+           {name:'sound_speed', unit:'m/s', doc:['the long-wavelength slope of the acoustic branch','скорость звука','Schallgeschwindigkeit']},
+           {name:'sound_speed_measured', unit:'m/s', doc:['omega/k at a very small wavevector, which is the same number','измеренная скорость звука','gemessene Schallgeschwindigkeit']},
+           {name:'optical_at_zero', unit:'rad/s', doc:['sqrt(2K/mu) with mu the reduced mass','оптическая ветвь при k=0','optischer Zweig bei k=0']},
+           {name:'optical_zero_residual', unit:'rad/s', doc:['against the dispersion evaluated at k = 0. Zero','невязка','Residuum']},
+           {name:'gap_at_zone_boundary', unit:'rad/s', doc:['the separation of the branches at ka = pi','щель на границе зоны','Luecke an der Zonengrenze']},
+           {name:'gap_closes_at_equal_masses', unit:'dimensionless', doc:['1, always: the gap with the two masses set equal is exactly zero, and it is computed rather than asserted',
+             '1: щель закрывается при равных массах','1: die Luecke schliesst bei gleichen Massen']},
+           {name:'omega_magnon', unit:'rad/s', doc:['4 J S (1 - cos ka)','магнонная частота','Magnonenfrequenz']},
+           {name:'magnon_stiffness', unit:'rad m^2/s', doc:['the coefficient D in omega -> D k^2','жёсткость магнона','Magnonensteifigkeit']},
+           {name:'magnon_quadratic_ratio', unit:'dimensionless', doc:['omega/(D k^2) at a very small wavevector. It is one — the magnon is quadratic where the phonon is linear, and that is measured here rather than stated',
+             'отношение к квадратичному закону','Verhaeltnis zum quadratischen Gesetz']},
+           {name:'exciton_radius', unit:'nm', doc:['a*_B = a0 eps/mu','боровский радиус экситона','Exziton-Bohrradius']},
+           {name:'exciton_binding', unit:'meV', doc:['E_b = Ry mu/eps^2','энергия связи','Bindungsenergie']},
+           {name:'exciton_invariant', unit:'meV nm^2', doc:['E_b a*_B^2 mu, which depends on neither the mass nor the permittivity — the hydrogenic scaling, as one number',
+             'инвариант масштабирования','Skalierungsinvariante']},
+           {name:'polaron_mass_ratio', unit:'dimensionless', doc:['1 + alpha/6, the WEAK-coupling Frohlich result','отношение масс полярона','Polaron-Massenverhaeltnis']},
+           {name:'polaron_weak_coupling_valid', unit:'dimensionless', doc:['1 only below alpha = 6, where the expansion this formula comes from is worth anything. Above it the number is still returned and is still an extrapolation',
+             '1 только при слабой связи','1 nur bei schwacher Kopplung']},
+           {name:'vortex_speed', unit:'m/s', doc:['n hbar/(m r) at the requested loop radius','скорость на контуре','Geschwindigkeit am Kontur']},
+           {name:'circulation', unit:'m^2/s', doc:['n h/m, the quantum','циркуляция','Zirkulation']},
+           {name:'circulation_from_loop', unit:'m^2/s', doc:['2 pi r times the speed there, which is the same number','циркуляция по контуру','Zirkulation ueber den Kontur']},
+           {name:'circulation_radius_independence', unit:'m^2/s', doc:['the spread of that product over four decades of loop radius. It is zero: the circulation is quantised, and quantised means it does not depend on where you measure it',
+             'разброс по радиусам','Streuung ueber die Radien']},
+           {name:'helium4_quantum', unit:'m^2/s', doc:['h/m for helium four, from CODATA: 9.97e-8 metres squared per second','квант циркуляции для ⁴He','Zirkulationsquantum fuer He-4']}],
+  limits:[['Every dispersion here is exact FOR ITS MODEL and the models are one-dimensional, harmonic, nearest-neighbour and isotropic. A real solid has anharmonicity, several branches per direction, long-range forces and a band structure; none of that is here and none of it is claimed.',
+           'Каждая дисперсия точна ДЛЯ СВОЕЙ МОДЕЛИ: одномерной, гармонической, с ближайшими соседями. Реальное твёрдое тело устроено сложнее.',
+           'Jede Dispersion ist exakt FUER IHR MODELL: eindimensional, harmonisch, naechste Nachbarn.'],
+          ['The polaron mass is the WEAK-coupling Frohlich expansion, valid below alpha of about six. The instrument returns the number at any alpha and a flag saying whether the expansion it came from applies; it does not silently switch to a strong-coupling formula.',
+           'Масса полярона — разложение слабой связи; прибор возвращает признак применимости, а не подменяет формулу молча.',
+           'Die Polaronmasse ist die Schwachkopplungsentwicklung.'],
+          ['The exciton is hydrogenic with a single scalar permittivity. Real excitons see an anisotropic, frequency-dependent screening and, in two dimensions, a different functional form entirely.',
+           'Экситон водородоподобный с одной скалярной проницаемостью; реальные экситоны видят анизотропное экранирование.',
+           'Das Exziton ist wasserstoffaehnlich mit einer skalaren Permittivitaet.']],
+  ev:i=>{const K=i.spring, m1=Math.min(i.mass_light,i.mass_heavy), m2=Math.max(i.mass_light,i.mass_heavy);
+    const wa=qpPhononOmega(i.k,K,m1,m2,'acoustic'), wo=qpPhononOmega(i.k,K,m1,m2,'optical');
+    let ordered=1;
+    for(let n=1;n<=400;n++){ const kk=n/400*Math.PI;
+      if(qpPhononOmega(kk,K,m1,m2,'optical')<=qpPhononOmega(kk,K,m1,m2,'acoustic')) ordered=0; }
+    const g=qpZoneGap(K,m1,m2);
+    const eq=Math.abs(qpPhononOmega(Math.PI,K,m1,m1,'optical')-qpPhononOmega(Math.PI,K,m1,m1,'acoustic'));
+    const kSmall=1e-4;
+    const D=qpMagnonStiffness(i.exchange,i.spin);
+    const hbar=1.054571817e-34, m4=4.002602*1.66053906660e-27;
+    const loops=[1e-9,1e-7,1e-5,1e-3].map(r=>qpCirculationFromLoop(i.winding,r,hbar,m4));
+    return {omega_acoustic:wa, omega_optical:wo, branches_ordered:ordered,
+      sound_speed:qpSoundSpeed(K,m1,m2), sound_speed_measured:qpPhononOmega(kSmall,K,m1,m2,'acoustic')/kSmall,
+      optical_at_zero:qpOpticalAtZero(K,m1,m2),
+      optical_zero_residual:Math.abs(qpOpticalAtZero(K,m1,m2)-qpPhononOmega(0,K,m1,m2,'optical')),
+      gap_at_zone_boundary:g.optical-g.acoustic,
+      gap_closes_at_equal_masses:eq===0?1:0,
+      omega_magnon:qpMagnonOmega(i.k,i.exchange,i.spin), magnon_stiffness:D,
+      magnon_quadratic_ratio:qpMagnonOmega(kSmall,i.exchange,i.spin)/(D*kSmall*kSmall),
+      exciton_radius:qpExcitonRadius(i.reduced_mass,i.permittivity),
+      exciton_binding:qpExcitonBinding(i.reduced_mass,i.permittivity),
+      exciton_invariant:qpExcitonInvariant(i.reduced_mass,i.permittivity),
+      polaron_mass_ratio:qpPolaronMass(i.alpha), polaron_weak_coupling_valid:i.alpha<6?1:0,
+      vortex_speed:qpVortexSpeed(i.winding,i.loop_radius,hbar,m4),
+      circulation:qpCirculation(i.winding,hbar,m4),
+      circulation_from_loop:qpCirculationFromLoop(i.winding,i.loop_radius,hbar,m4),
+      circulation_radius_independence:Math.max(...loops)-Math.min(...loops),
+      helium4_quantum:qpCirculation(1,hbar,m4)};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,

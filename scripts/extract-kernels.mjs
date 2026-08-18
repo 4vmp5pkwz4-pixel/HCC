@@ -548,7 +548,16 @@ export const ROOTS = [
      derivative of its volume measure — which is why the ansatz integrates. */
   'volMeasure', 'S3kernel', 'lnRedshift', 's3BallVolume', 's3SphereArea',
   'S3_UNIT_VOLUME', 's3KernelFlatLimit', 's3ArcShort', 's3ArcLong',
-  's3AngularDiameterDistance', 's3AngularSize', 's3Magnification'
+  's3AngularDiameterDistance', 's3AngularSize', 's3Magnification',
+  /* ── AND FIVE EXCITATIONS, EACH WITH A DISPERSION NOBODY COULD REACH ──────
+     The diatomic chain, the Heisenberg magnon, the Wannier-Mott exciton, the
+     Frohlich polaron and the quantised vortex whose circulation does not depend
+     on the loop it is measured round. */
+  'qpPhononOmega2', 'qpPhononOmega', 'qpSoundSpeed', 'qpOpticalAtZero', 'qpZoneGap',
+  'qpMagnonOmega', 'qpMagnonStiffness', 'QP_A0_NM', 'QP_RY_MEV',
+  'qpExcitonRadius', 'qpExcitonBinding', 'qpExcitonInvariant',
+  'qpPolaronMass', 'qpPolaronEnergy',
+  'qpVortexSpeed', 'qpCirculation', 'qpCirculationFromLoop'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
