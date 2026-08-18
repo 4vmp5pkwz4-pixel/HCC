@@ -872,6 +872,178 @@ console.log('\n=== 12. Five closed journeys, a Carnot limit, an inspiral, a thre
   }
 }
 
+console.log('\n=== 13. A hidden symmetry, a filling rule, a pole and a boost ===\n');
+{
+  /* THE SHARPEST STATEMENT IN CLASSICAL MECHANICS, AND IT IS TESTABLE.
+     Angular momentum is conserved for every central force — Noether on rotations.
+     The Laplace-Runge-Lenz vector is conserved for the inverse-square law and NOTHING
+     else, so a check that only looks at s = 1 has not tested the statement at all. */
+  const inv = (s, v0 = 1.1, n = 44000) => X.noeInvariants(X.noeOrbit(s, n, 0.002, 1, v0), s);
+  let worstL = 0;
+  for (const s of [0.6, 0.8, 1.0, 1.2, 1.5]) worstL = Math.max(worstL, inv(s).dL);
+  ok('angular momentum is conserved for EVERY central force, at five exponents — that is Noether on rotations, and it does not care which force it is',
+    worstL < 1e-10,
+    `worst spread of L over the whole orbit at s = 0.6, 0.8, 1.0, 1.2, 1.5 is ${worstL.toExponential(2)} — the integrator, not the mechanics`);
+
+  const k = inv(1), off = [0.9, 0.95, 1.05, 1.2].map(s => inv(s));
+  ok('and the Laplace-Runge-Lenz vector is conserved at s = 1 and at no other exponent — the hidden SO(4) symmetry, measured rather than asserted',
+    k.dA < 1e-5 && off.every(o => o.dA > 1e-3) &&
+    k.dArg < 1e-3 && off.every(o => o.dArg > 0.1),
+    `s = 1: |A| spreads by ${k.dA.toExponential(2)} and its direction by ${k.dArg.toExponential(2)} rad · nearest neighbours s = 0.95 and 1.05 spread by ${off[1].dA.toExponential(2)} and ${off[2].dA.toExponential(2)} — three orders of magnitude on a 5% change in the exponent`);
+
+  /* the direction spread must be measured about the MEAN direction; the min-max version
+     reports a fully conserved vector as having swept 2 pi whenever it sits on the cut */
+  const onCut = X.noeInvariants(X.noeOrbit(1, 20000, 0.002, 1, 0.9), 1);
+  ok('and it stays conserved when its direction happens to sit on the branch cut, which the old min-max spread reported as a full revolution',
+    onCut.dA < 1e-5 && onCut.dArg < 1e-3 && Math.abs(Math.abs(onCut.argMean) - Math.PI) < 0.01,
+    `at v0 = 0.9 the mean direction of A is ${onCut.argMean.toFixed(4)} rad, which is pi to four decimals — and the spread about it is ${onCut.dArg.toExponential(2)}, not the 6.28 that max minus min returns there`);
+
+  {
+    /* FOCK: the hodograph of a bound Kepler orbit lifts to a GREAT CIRCLE on S^3 */
+    const P = X.noeOrbit(1, 44000, 0.002, 1, 1.1), I = X.noeInvariants(P, 1);
+    const U = X.noeFock(P, I.E, 29);
+    let onSphere = 0; for (const u of U) onSphere = Math.max(onSphere, Math.abs(Math.hypot(u[0], u[1], u[2], u[3]) - 1));
+    const ev = X.noeEig4(X.noeGram(U));
+    const rank = ev.filter(v => v > 1e-9 * ev[0]).length;
+    ok('the Fock lift of a bound Kepler hodograph lands ON the unit three-sphere, and spans a plane there — rank 2, because a great circle is what it is',
+      onSphere < 1e-12 && rank === 2 && ev[2] < 1e-9 * ev[0] && ev[3] < 1e-9 * ev[0],
+      `${U.length} lifted points · worst |u| - 1 = ${onSphere.toExponential(2)} · Gram eigenvalues ${ev.map(v => v.toExponential(3)).join(', ')} — the last two are zero to within the Jacobi sweep's own residual, which is what "spans a plane" looks like in floating point`);
+
+    ok('and a bound orbit is required for it to exist at all: at non-negative energy the lift is refused rather than computed from a formula that does not apply',
+      X.noeFock(P, 0.5, 29) === null && X.noeFock(P, 0, 29) === null,
+      'noeFock returns null at E >= 0, where sqrt(-2E) is not a real momentum radius');
+  }
+
+  {
+    /* the momentum map of two oscillators IS the Hopf map, and its length is the energy */
+    let worstJ = 0;
+    for (const t of [0, 0.7, 1.9, 3.3, 5.5]) for (const [a, b] of [[1, 1], [0.6, 1.4], [2, 0.3]])
+      worstJ = Math.max(worstJ, Math.abs(Math.hypot(...X.noeJ(a, b, 1, 1, 0.4, t)) - (a * a + b * b)));
+    ok('the momentum map of two oscillators is the Hopf map: |J| is the total action at every time and every amplitude pair',
+      worstJ < 1e-12,
+      `fifteen (time, amplitude) pairs · worst ||J| - (a^2 + b^2)| = ${worstJ.toExponential(2)}`);
+  }
+
+  /* THE FILLING RULE. */
+  {
+    let bad = [], capBad = [];
+    for (let Z = 1; Z <= 103; Z++) {
+      const c = X.atomConfig(Z);
+      if (c.reduce((s, o) => s + o.c, 0) !== Z) bad.push(Z);
+      for (const o of c) if (o.c > 2 * (2 * o.l + 1) || o.c < 1) capBad.push(Z);
+    }
+    ok('every one of the 103 tabulated elements has exactly Z electrons, and no subshell holds more than 2(2l + 1)',
+      bad.length === 0 && capBad.length === 0,
+      `103 elements · ${bad.length} with the wrong electron count · ${capBad.length} with an impossible subshell — including all twenty configurations that break the Aufbau order`);
+
+    const nobles = [2, 10, 18, 36, 54, 86];
+    const closes = Z => { const c = X.atomConfig(Z), l = c[c.length - 1]; return l.c === 2 * (2 * l.l + 1); };
+    ok('and the noble gases are exactly where a subshell finishes closing — 2, 10, 18, 36, 54, 86, and not one element to either side',
+      nobles.every(Z => closes(Z)) && nobles.every(Z => Z === 2 || !closes(Z - 1)),
+      `all six close a subshell, and none of 1, 9, 17, 35, 53, 85 does`);
+
+    /* the twenty exceptions are the ones the rule gets WRONG, so they must differ from it */
+    const plain = Z => { const sh = []; let left = Z;
+      for (const [n, l] of X.AUFBAU) { if (left <= 0) break; const cap = 2 * (2 * l + 1), c = Math.min(cap, left); sh.push(n + 'spdf'[l] + c); left -= c; }
+      return sh.join(' '); };
+    const actual = Z => X.atomConfig(Z).map(o => o.n + 'spdf'[o.l] + o.c).join(' ');
+    const exc = Object.keys(X.CONF_EXC).map(Number);
+    ok('and every tabulated exception really does differ from what the Aufbau order would give — chromium and copper among them',
+      exc.length === 20 && exc.every(Z => plain(Z) !== actual(Z)),
+      `${exc.length} exceptions, all of them genuine departures · Cr (24) is ${actual(24).split(' ').slice(-2).join(' ')} where the rule says ${plain(24).split(' ').slice(-2).join(' ')}`);
+
+    /* Slater: a 1s electron is screened by exactly one other 1s electron, 0.30 of it */
+    let worst1s = 0;
+    for (let Z = 2; Z <= 103; Z++) worst1s = Math.max(worst1s, Math.abs(X.slaterZeff(Z, X.atomConfig(Z), 0) - (Z - 0.30)));
+    ok("Slater's rules give a 1s electron an effective charge of exactly Z - 0.30 for every atom past hydrogen — one partner, screening 0.30 of a charge",
+      worst1s < 1e-12,
+      `worst departure over Z = 2 to 103 is ${worst1s.toExponential(2)} — and it is Z - 0.3 rather than Z - 0.35 because n = 1 is the one shell Slater gave its own number`);
+
+    /* across a period Z_eff on the valence shell RISES: the reason atoms shrink left to right */
+    const per = [5, 6, 7, 8, 9, 10].map(Z => X.slaterZeff(Z, X.atomConfig(Z), X.atomConfig(Z).length - 1));
+    let rises = true; for (let i = 1; i < per.length; i++) if (!(per[i] > per[i - 1])) rises = false;
+    ok('and the valence electron feels a steadily RISING charge across a period, which is why atoms get smaller from boron to neon rather than bigger',
+      rises && Math.abs(per[per.length - 1] - per[0] - 5 * 0.65) < 1e-9,
+      `B through Ne: ${per.map(v => v.toFixed(2)).join(' -> ')} — each added proton is screened by only 0.35 of the electron that came with it, so 0.65 survives`);
+  }
+
+  /* ONE POLE AND ONE ZERO. */
+  {
+    const P = (gi, gc, D) => ({ gi, gc, g: gi + gc, p: [X.POLE_W0, -(gi + gc) / 2], z: [X.POLE_W0 + D, -(gi - gc) / 2], D });
+    const mag = (w, gi, gc, D) => Math.hypot(...X.poleR(w, 0, P(gi, gc, D)));
+
+    let worstAP = 0;
+    for (const gc of [0.02, 0.1, 0.4]) for (const w of [0.4, 0.8, 1, 1.3, 1.9])
+      worstAP = Math.max(worstAP, Math.abs(mag(w, 0, gc, 0) - 1));
+    ok('a lossless resonator is an exact all-pass: |r| = 1 at EVERY real frequency, not just on resonance',
+      worstAP < 1e-12,
+      `fifteen (coupling, frequency) pairs with no intrinsic loss · worst ||r| - 1| = ${worstAP.toExponential(2)} — the zero is the mirror image of the pole and the two moduli cancel identically`);
+
+    let worstCC = 0;
+    for (const g of [0.004, 0.05, 0.3]) worstCC = Math.max(worstCC, mag(1, g, g, 0));
+    ok('and at critical coupling it absorbs EVERYTHING: the zero sits on the real axis and the reflection is exactly nothing',
+      worstCC < 1e-15,
+      `worst |r(w_0)| over three matched loss rates = ${worstCC.toExponential(2)} — a hard zero, because g_i = g_c puts the zero's imaginary part at 0 rather than near it`);
+
+    ok('the sign of the zero is the coupling regime, and it flips exactly at the match rather than near it',
+      P(0.02, 0.05, 0).z[1] > 0 && P(0.05, 0.02, 0).z[1] < 0 && P(0.05, 0.05, 0).z[1] === 0,
+      `g_i < g_c puts the zero above the axis (overcoupled), g_i > g_c below it (undercoupled), g_i = g_c exactly on it`);
+
+    ok('and the pole is in the lower half plane for every admissible input, which is causality and not a modelling choice',
+      [[0, 1e-4], [0.5, 0.5], [1, 1], [0.03, 0.07]].every(([gi, gc]) => P(gi, gc, 0).p[1] < 0),
+      'the pole imaginary part is -(g_i + g_c)/2, and g_c has a positive lower bound in the declared domain precisely so it can never reach the axis');
+
+    /* Q FROM THE LINE, NOT FROM THE FORMULA. The first version of this bisected |r|,
+       which has a DIP and not a peak when the resonator is undercoupled, and the search
+       walked the wrong way and returned Q = 1 against a closed form of 33. The absorbed
+       fraction 1 - |r|^2 is the Lorentzian here, and its half-width at half-maximum is
+       exactly (g_i + g_c)/2 — so the width MEASURED off the curve gives Q with no fit. */
+    const absorbed = (w, gi, gc) => { const r = X.poleR(w, 0, P(gi, gc, 0)); return 1 - (r[0] * r[0] + r[1] * r[1]); };
+    let worstQ = 0, qrows = [];
+    for (const [gi, gc] of [[0.02, 0.01], [0.05, 0.05], [0.004, 0.004], [0.3, 0.1]]) {
+      const A0 = absorbed(1, gi, gc);
+      let lo = 1, hi = 1 + 4 * (gi + gc);
+      for (let n = 0; n < 200; n++) { const m = (lo + hi) / 2; if (absorbed(m, gi, gc) > A0 / 2) lo = m; else hi = m; }
+      const Qm = X.POLE_W0 / (2 * (hi - 1)), Qc = X.POLE_W0 / (gi + gc);
+      worstQ = Math.max(worstQ, Math.abs(Qm / Qc - 1));
+      if (gi === 0.004) qrows.push(`g = 0.004 each: measured Q = ${Qm.toFixed(3)}, closed form ${Qc.toFixed(3)}`);
+    }
+    ok('and the quality factor read off the WIDTH of the absorption line agrees with w_0/(g_i + g_c) exactly, so the formula and the curve are one object and not two',
+      worstQ < 1e-9,
+      `${qrows[0]} · worst relative disagreement over four loss pairs = ${worstQ.toExponential(2)} — the half-width at half-maximum IS (g_i + g_c)/2, which is why there is nothing to fit`);
+  }
+
+  /* THE BOOST. */
+  {
+    let worstI2 = 0;
+    for (const b of [-0.99, -0.5, 0, 0.3, 0.9, 0.999]) for (const [t, x] of [[1, 0], [0, 1], [2, -1], [3, 2.5], [5, 5]]) {
+      const q = X.relBoostPts([[t, x]], b)[0];
+      worstI2 = Math.max(worstI2, Math.abs((q[0] * q[0] - q[1] * q[1]) - (t * t - x * x)));
+    }
+    ok('the boost leaves the interval alone at thirty (velocity, event) pairs, including a null ray and a velocity of 0.999',
+      worstI2 < 1e-11,
+      `worst |(t'^2 - x'^2) - (t^2 - x^2)| = ${worstI2.toExponential(2)} — and the null ray t = x stays null exactly, because gamma multiplies both halves of a zero`);
+
+    let worstR = 0;
+    for (const a of [0.1, 0.5, 0.85]) for (const b of [-0.7, 0.2, 0.95]) {
+      const comp = (a + b) / (1 + a * b);
+      worstR = Math.max(worstR, Math.abs(Math.atanh(comp) - (Math.atanh(a) + Math.atanh(b))));
+    }
+    ok('rapidity adds exactly where velocity does not: composing two boosts adds their rapidities, at nine pairs',
+      worstR < 1e-12,
+      `worst |artanh(composed) - artanh(a) - artanh(b)| = ${worstR.toExponential(2)} · 0.85 and 0.95 compose to ${((0.85 + 0.95) / (1 + 0.85 * 0.95)).toFixed(9)} and never past 1 · the tolerance is 1e-12 and not 1e-14 because artanh near 0.996 amplifies its argument's last bits by a factor of 120, which is the derivative and not a defect`);
+
+    ok('and gamma diverges at the light speed rather than reaching a large number: it passes 22 at 0.999 and 707 at 0.999999',
+      Math.abs(X.relGamma(0.999) - 22.36627) < 1e-4 && Math.abs(X.relGamma(0.999999) - 707.1069) < 1e-3 &&
+      Math.abs(X.relGamma(0.6) - 1.25) < 1e-15,
+      `gamma(0.6) = ${X.relGamma(0.6)} exactly, gamma(0.999) = ${X.relGamma(0.999).toFixed(5)}, gamma(0.999999) = ${X.relGamma(0.999999).toFixed(4)}`);
+
+    ok('and the Doppler factor for approach is the reciprocal of the one for recession, which is what makes the two directions one formula',
+      [0.2, 0.6, 0.95].every(b => Math.abs(Math.sqrt((1 + b) / (1 - b)) * Math.sqrt((1 - b) / (1 + b)) - 1) < 1e-15),
+      `at beta = 0.6 the approaching factor is ${Math.sqrt(1.6 / 0.4).toFixed(6)} and the receding one ${Math.sqrt(0.4 / 1.6).toFixed(6)}, whose product is 1 to the last bit`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

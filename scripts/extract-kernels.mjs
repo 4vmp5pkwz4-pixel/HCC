@@ -399,7 +399,15 @@ export const ROOTS = [
   'GW_G', 'GW_C', 'GW_MSUN', 'gwChirpMass', 'gwDfdt', 'gwTau', 'gwFisco', 'gwStokes',
   'gwPetersRates', 'gwMergerTime',
   'rdTuring',
-  'DISP_SYS'
+  'DISP_SYS',
+  /* four more: the Laplace-Runge-Lenz vector, which is conserved for the inverse-square
+     law and for NOTHING ELSE — the sharpest statement in classical mechanics and the one
+     this atlas can measure; the Aufbau order with its twenty exceptions and Slater's
+     screening; the pole-zero response of a driven resonator; and the Lorentz boost. */
+  'noeJ', 'noeOrbit', 'noeInvariants', 'noeFock', 'noeEig4', 'noeGram',
+  'AUFBAU', 'CONF_EXC', 'atomConfig', 'slaterZeff',
+  'POLE_W0', 'poleR', 'POLE_PRESETS',
+  'relGamma', 'relBoostPts', 'REL_S'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

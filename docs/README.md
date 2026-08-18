@@ -4139,6 +4139,73 @@ Two of the five **refuse**, and both refusals are the physics:
 
 `docs/verify-atlas-instruments.cjs` is now **77 checks, 0 failed**.
 
+### A hidden symmetry, a filling rule, a pole and a boost (v4.2.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `noe` | L conserved for every central force, A only for the inverse-square one | MEASURED |
+| `atom` | the Aufbau configuration, its exceptions, and Slater's effective charge | REFERENCE_MODEL |
+| `pole` | the one-pole one-zero response: all-pass, critical coupling, Q, causality | EXACT |
+| `rel` | the Lorentz boost, the invariant interval and rapidity addition | EXACT |
+
+**80 laboratories, 36 computational, 41 instruments, 0 page errors.** The gap is **69 → 44**.
+
+`noe` carries the sharpest statement in classical mechanics, and it is one this atlas can
+*measure*. Angular momentum is conserved for **every** central force — Noether on rotations,
+and the spread over a whole orbit stays at 5e-14 at every exponent tested. The
+Laplace–Runge–Lenz vector is conserved for the inverse-square law and **nothing else**: at
+s = 1 its magnitude drifts by 1.3e-6 and its direction by 4e-5 rad, and at s = 1.05 — a five
+per cent change — they move by 8e-2 and 2.1 rad. Three orders of magnitude, from a symmetry
+that is not visible in the potential. Fock's lift of the bound hodograph then lands on the
+unit three-sphere to 4e-16 and spans a **plane** there: the Gram matrix has rank 2, because
+a great circle is what a Kepler hodograph becomes.
+
+### `dArg` was a min–max over a branch cut
+
+`noeInvariants` measured the swing of the LRL **direction** as max(θ) − min(θ). That is not
+a spread. A conserved direction sitting near ±π returns values at both ends and the
+difference comes back **2π** — a fully conserved vector reported as having swept the whole
+circle. The laboratory's own self-test passed only because its initial condition (v₀ = 1.1)
+happens to put arg A near zero; at v₀ = 0.9 the same s = 1 orbit reported `dArg = 6.28`
+while `dA` was 4e-6.
+
+The spread of a direction is measured about its **mean** direction, which has no cut. The
+kernel now accumulates the mean unit vector and takes twice the largest wrapped departure
+from it: the v₀ = 0.9 orbit reports 1.1e-4 with a mean direction of exactly π, and the
+s = 1.05 orbit still reports its genuine 2.1 rad.
+
+### Three more checks were wrong
+
+- The Fock rank check demanded the two null eigenvalues be below 1e-12 **absolutely**. The
+  Jacobi sweep leaves 2.6e-12 there. Relative to the two live eigenvalues that is 5e-12, and
+  the check now says so — it is the sweep's own residual, not a third dimension.
+- The Q-from-linewidth check bisected `|r|`, which has a **dip** and not a peak when the
+  resonator is undercoupled, so the search walked the wrong way and returned Q = 1 against a
+  closed form of 33. The absorbed fraction 1 − |r|² is the Lorentzian, and its half-width at
+  half-maximum is exactly (γᵢ + γ_c)/2 — the width measured off the curve now gives Q to
+  1e-9 with nothing fitted.
+- The rapidity-addition tolerance was 1e-14 where the residual is 2.4e-14. `artanh` near
+  0.996 amplifies its argument's last bits by a factor of 120; that is the derivative, not a
+  defect, and the check now states it rather than tightening against it.
+
+Two more exact zeros joined the collection: a lossless resonator is an all-pass with
+**|r| = 1 to 2e-16 at every real frequency**, and at critical coupling the reflection is a
+**hard zero** — not small, zero — because γᵢ = γ_c puts the zero's imaginary part at 0
+rather than near it.
+
+### And the bus caught a fourth one, of the same kind
+
+`noe` declared its integration step count as `steps`. So does the KdV integrator, and both
+are dimensionless — so the bus proposed routing the number of steps one spectral solver took
+into the number of steps an orbit integrator should take. Two integrators with nothing to do
+with each other, coupled by a generic word.
+
+That is the third time this has happened, after `q` and `omega`, and the lesson is the same
+each time: **a generic name is how an accidental coupling gets proposed.** The input is now
+`orbit_steps`, which is what it counts. **13 admissible, 13 declared.**
+
+`docs/verify-atlas-instruments.cjs` is now **97 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
