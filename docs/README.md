@@ -4276,6 +4276,83 @@ if the domain reaches the physics.
 
 `docs/verify-atlas-instruments.cjs` is now **114 checks, 0 failed**.
 
+### A maximum mass, an efficiency, a bound mode, a unitary step and one circle (v4.4.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `ns` | the TOV equation integrated, with the maximum mass it produces on its own | MEASURED |
+| `he` | the Carnot efficiency, and the entropy balance that makes it exact | EXACT |
+| `eot` | the surface-plasmon resonance of a hole array, solved to convergence | MODEL |
+| `qm` | the split-step propagator: exact in norm, second order in the step | MIXED |
+| `spin` | the Hopf fibre of a qubit — a whole circle of states, one measurement | EXACT |
+
+**80 laboratories, 45 computational, 50 instruments, 0 page errors.** The gap is **69 → 35**.
+
+`ns` is the one place in this atlas where general relativity produces a **hard ceiling on its
+own**. There is no closed form for the TOV equation, so the check is the limit where there
+*is* one: a Γ = 2 polytrope in Newtonian gravity has radius π√(K/2π) whatever its mass, and
+the integration walks onto that number to **0.38%** as the compactness goes to 4e-3. It then
+leaves it monotonically, and at ρ_c ≈ 3.16e-3 the mass turns over at **1.6373 M☉** against
+the literature's 1.6366 — past which a *denser* star is a *lighter* one. Newtonian gravity
+has no such turn anywhere. No star on the branch violates the Buchdahl bound 2M/R < 8/9, and
+that is checked rather than assumed.
+
+`he` returns an efficiency that depends on two temperatures and **nothing else**, and the
+way to check that is to change everything else: forty-five cycles across five temperature
+pairs, three working gases and three volume pairs all give 1 − T_c/T_h to 2.6e-16. γ and the
+volumes cancel exactly, which is why the number is a law and not a design.
+
+### Three iterations that stopped too early, and one check that measured the wrong thing
+
+- **`eotLamRes` ran exactly 24 sweeps and returned whatever it was holding.** For a 750 nm
+  pitch at order (2,1) that is not the fixed point: the true resonance is 393.860 nm and 24
+  sweeps were still at 389.280 — **nine nanometres out**, with nothing in the return value
+  to say so. It iterates to convergence now and **refuses** if it never settles. An
+  unconverged iterate is not a resonance, and a caller cannot tell the two apart.
+- **`tovSolve` had the wrapped-declarator defect** — the fourth time this file has hit it.
+  `const k1 = …, k2 = …,` wrapping onto a second line loses k3 and k4 to the extractor's
+  statement walker. One line.
+- **`spinHopfProject` had the wrong sign on y.** z₁*z₂ = (q₀q₂ + q₁q₃) + i(q₀q₃ − q₁q₂), and
+  the code had q₁q₂ − q₀q₃ — the conjugate map, which reflects the Bloch sphere. Every fibre
+  still projected to a single point, so the property being demonstrated survived; it was the
+  wrong point.
+
+### The order of a method is a floor, not a ceiling
+
+The splitting-order check took **three tries**, and each failure was measuring something
+real that was not the thing being asked about:
+
+1. Comparing ⟨x⟩ to its exact value gave 2.3e-5, 2.9e-5, 3.0e-5 — flat. That residual is the
+   **spatial grid** (512 points over a box of 80), which does not move when dt does.
+2. Comparing each run to a dt → 0 run on the same grid cancelled the grid and still hit a
+   floor at 2.9e-5. That one is the **endpoint**: `round(T/dt)·dt ≠ T`, and at dt = 0.08 the
+   run stops at t = 12.560 instead of 12.566, which moves ⟨x⟩ by exactly 3.1e-5.
+3. With dt = T/N so every run lands on T, the error finally falls — by **16 per halving**,
+   not 4.
+
+Sixteen is dt⁴, and Strang splitting only guarantees dt². The guarantee is a floor: in a
+**quadratic** potential the leading commutator term does not reach this observable at all.
+Adding a quartic term of amplitude 1e-3 brings the ratio straight back to **4.00 and 4.00**.
+Both are now asserted, because the pair says more than either alone.
+
+### The bus found a fifth generic name — and its first genuinely new coupling in six releases
+
+- **`he.gamma` collided with `rel.gamma`.** The Lorentz factor is not an adiabatic index.
+  Fifth of these after `q`, `omega`, `steps`, `steps`; it is `adiabatic_index` now.
+- **`ns.mass → wd.mass` is real, and it is now declared.** Both are a gravitational mass in
+  solar masses, and routing the TOV mass into the white-dwarf relation asks what radius that
+  mass would have if *electrons* rather than neutrons were holding it up. Above 1.454 M☉ the
+  white dwarf **refuses** — which is the answer, not a failure of the coupling. **14
+  admissible, 14 declared.**
+
+`qm`'s own period test could never fire: it asked whether the elapsed time was a whole
+number of periods to within 1e-9, and `round(T/dt)·dt` misses T by up to dt/2, so
+`sigma_expected` came back NaN at the instrument's own defaults. Within one step of a period
+*is* a whole period as far as a stepped integrator can express one, and the width now checks
+out to 1.3e-12.
+
+`docs/verify-atlas-instruments.cjs` is now **132 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

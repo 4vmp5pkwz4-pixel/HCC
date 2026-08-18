@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="detailed-balance-2026.08.18.2">
+<html lang="en" data-hcc-build="a-maximum-mass-2026.08.18.3">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="detailed-balance-2026.08.18.2">
+<meta name="hcc-build" content="a-maximum-mass-2026.08.18.3">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.3.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.4.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.3.0';
-const HCC_BUILD='detailed-balance-2026.08.18.2';
+const HCC_VERSION='4.4.0';
+const HCC_BUILD='a-maximum-mass-2026.08.18.3';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19022,20 +19022,41 @@ function qmSetup(){
   if(qmLines.hopf) qmLines.hopf.grp.visible=(M==='twolevel'&&state.qmHopf!==false);
   qmUpdateWigner();
 }
-function qmStepN(n){
-  const dt=0.008;
+/* STRANG SPLITTING, ON THE ARRAYS IT IS HANDED.
+   The propagator read and wrote the four module-level arrays directly, so the one property
+   worth stating about it — that each half-step is a multiplication by a phase, and therefore
+   UNITARY, so the norm is conserved to floating point however long you run — could not be
+   reached from outside. It is the same arithmetic; it just takes its state as arguments. */
+function qmPropagate(re,im,V,n,dt){
   for(let s=0;s<n;s++){
-    for(let i=0;i<QM_N;i++){ const ph=-qmV[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
-      const r=qmRe[i]*c-qmIm[i]*si; qmIm[i]=qmRe[i]*si+qmIm[i]*c; qmRe[i]=r; }
-    qmFFT(qmRe,qmIm,false);
+    for(let i=0;i<QM_N;i++){ const ph=-V[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+    qmFFT(re,im,false);
     for(let i=0;i<QM_N;i++){ const k=qmK(i), ph=-k*k/2*dt, c=Math.cos(ph), si=Math.sin(ph);
-      const r=qmRe[i]*c-qmIm[i]*si; qmIm[i]=qmRe[i]*si+qmIm[i]*c; qmRe[i]=r; }
-    qmFFT(qmRe,qmIm,true);
-    for(let i=0;i<QM_N;i++){ const ph=-qmV[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
-      const r=qmRe[i]*c-qmIm[i]*si; qmIm[i]=qmRe[i]*si+qmIm[i]*c; qmRe[i]=r; }
-    qmT+=dt;
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+    qmFFT(re,im,true);
+    for(let i=0;i<QM_N;i++){ const ph=-V[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
   }
+  return [re,im];
 }
+/* a normalised Gaussian wave packet, and the harmonic potential, in plain arrays */
+function qmGaussian(x0,k0,sig){
+  const re=new Float64Array(QM_N), im=new Float64Array(QM_N); let nrm=0;
+  for(let i=0;i<QM_N;i++){ const g=Math.exp(-((qmX(i)-x0)**2)/(4*sig*sig));
+    re[i]=g*Math.cos(k0*qmX(i)); im[i]=g*Math.sin(k0*qmX(i)); nrm+=g*g*QM_DX; }
+  const f=1/Math.sqrt(nrm); for(let i=0;i<QM_N;i++){ re[i]*=f; im[i]*=f; }
+  return [re,im];
+}
+function qmHarmonic(om){ const V=new Float64Array(QM_N);
+  for(let i=0;i<QM_N;i++) V[i]=0.5*om*om*qmX(i)*qmX(i); return V; }
+function qmMoments(re,im){
+  let n=0,x=0,x2=0;
+  for(let i=0;i<QM_N;i++){ const d=(re[i]*re[i]+im[i]*im[i])*QM_DX, q=qmX(i); n+=d; x+=q*d; x2+=q*q*d; }
+  const mx=x/(n||1e-300);
+  return {norm:n, x:mx, sigma:Math.sqrt(Math.max(0,x2/(n||1e-300)-mx*mx))};
+}
+function qmStepN(n){ qmPropagate(qmRe,qmIm,qmV,n,0.008); qmT+=0.008*n; }
 function updateQm(dt){
   if(state.qmMode!==qmBuilt||!qmRe) qmSetup();
   { const s=labSensor(); if(s) state.qmSpeed=THREE.MathUtils.clamp(1+s.x*2.2,0.1,5); }   // tilt throttles evolution
@@ -19686,11 +19707,19 @@ function updateTn(dt){
    SHAPES are schematic Fano profiles (declared). */
 const eotGroup=new THREE.Group(); eotGroup.visible=false; s3Group.add(eotGroup);
 const eotEpsM=l=>5-Math.pow(l/134,2);                  // Drude fit, λ in nm (silver-like, declared)
-function eotLamRes(a0,i,j){ const em=eotEpsM(a0), ed=1;  // solve iteratively: λ≈a0/√(i²+j²)·√(em ed/(em+ed))
-  let lam=a0/Math.sqrt(i*i+j*j)*1.05;
-  for(let k=0;k<24;k++){ const e=eotEpsM(lam); if(e>=-1.01) return null;
-    lam=a0/Math.sqrt(i*i+j*j)*Math.sqrt(e*1/(e+1)); }
-  return lam; }
+/* ITERATE TO CONVERGENCE, NOT FOR A FIXED COUNT.
+   This ran exactly 24 sweeps and returned whatever it was holding. For a 750 nm pitch at
+   order (2,1) that is not the fixed point: the true resonance is 393.860 nm and 24 sweeps
+   were still at 389.280, nine nanometres out, with nothing in the return value to say so.
+   It now iterates until the step stops moving and REFUSES if it never does — an unconverged
+   iterate is not a resonance, and a caller cannot tell the two apart from a number alone. */
+function eotLamRes(a0,i,j){ const n=Math.sqrt(i*i+j*j), ed=1;   // λ ≈ a0/√(i²+j²)·√(em ed/(em+ed))
+  let lam=a0/n*1.05;
+  for(let k=0;k<400;k++){ const e=eotEpsM(lam); if(e>=-1.01) return null;
+    const nx=a0/n*Math.sqrt(e*ed/(e+ed));
+    if(Math.abs(nx-lam)<1e-10) return nx;
+    lam=nx; }
+  return null; }
 let eotObjs=null, eotT=0;
 function eotClear(){
   labWipe(eotGroup);
@@ -19968,10 +19997,26 @@ function spinRodrigues(n,ax,ang){
 }
 let spinObjs=null, spinT=0, spinUiAcc=0, spinN=[0,0,1], spinTrail=[], spinPath=0,
     spinUp=0, spinDown=0, spinBerry=0, spinNPrev=[0,0,1];
+/* the fibre ON S^3, before any projection — the four-vector, which is what the statement
+   "every point of the Bloch sphere is a whole circle of states" is actually about */
+function spinFibrePure(th0,ph0,N){
+  N=N||101; const out=[];
+  for(let i=0;i<N;i++){ const t=i/(N-1)*2*Math.PI;
+    out.push([Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),
+              Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)]); }
+  return out;
+}
+/* and the Hopf map back down: S^3 -> S^2, which every point of one fibre must agree on */
+/* Bloch vector = (2 Re(z1* z2), 2 Im(z1* z2), |z1|^2 - |z2|^2) with z1 = q0 + i q1 and
+   z2 = q2 + i q3. z1* z2 = (q0 q2 + q1 q3) + i(q0 q3 - q1 q2) — the y component is
+   q0 q3 - q1 q2 and NOT q1 q2 - q0 q3, which is the conjugate map and reflects the sphere. */
+function spinHopfProject(q){
+  return [2*(q[0]*q[2]+q[1]*q[3]), 2*(q[0]*q[3]-q[1]*q[2]),
+          q[0]*q[0]+q[1]*q[1]-q[2]*q[2]-q[3]*q[3]];
+}
 function spinHopfFibre(th0,ph0){   // points of the Hopf fibre over Bloch point (th0,ph0): {e^{iα}|ψ⟩} on S³, stereographic
   const p=[]; let prev=null;
-  for(let i=0;i<=100;i++){ const t=i/100*2*Math.PI;
-    const q=[Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)];
+  for(const q of spinFibrePure(th0,ph0,101)){
     const d=1-q[3], k=Math.abs(d)<2e-2?(d<0?-2e-2:2e-2):d, r=Math.hypot(q[0]/k,q[1]/k,q[2]/k); if(r>4.2){prev=null;continue;}
     const v=new THREE.Vector3(q[0]/k,q[1]/k,q[2]/k); if(prev)p.push(prev,v); prev=v; }
   return p;
@@ -21469,6 +21514,23 @@ function updateRd(dt){
 const heGroup=new THREE.Group(); heGroup.visible=false; s3Group.add(heGroup);
 let heObjs=null, heT=0, heUiAcc=0, hePhase=0, heFrac=0;
 function heClear(){ labWipe(heGroup); heObjs=null; }
+/* THE CARNOT CYCLE, WITH ITS TEMPERATURES PASSED IN.
+   It read state.heTh and state.heTc, which is how the one closed-form statement in
+   thermodynamics — that the efficiency of this cycle is 1 - Tc/Th and depends on NOTHING
+   else, not the working substance, not the volumes, not gamma — stayed unreachable. */
+function heCyclePure(Th,Tc,g,V1,V2){
+  const nR=1;
+  const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
+  const P=(V,T)=>nR*T/V;
+  const pts=[]; const seg=(Va,Vb,Tf)=>{ const M=40; for(let m=0;m<=M;m++){ const V=Va+(Vb-Va)*m/M; pts.push([V,P(V,Tf(V))]); } };
+  seg(V1,V2,()=>Th);
+  seg(V2,V3,V=>Th*Math.pow(V2/V,g-1));
+  seg(V3,V4,()=>Tc);
+  seg(V4,V1,V=>Tc*Math.pow(V4/V,g-1));
+  /* the two isothermal heats, in closed form: Q = nRT ln(V_b/V_a) */
+  const Qin=nR*Th*Math.log(V2/V1), Qout=nR*Tc*Math.log(V3/V4);
+  return {pts,Th,Tc,nR,V1,V2,V3,V4,Qin,Qout,work:Qin-Qout,gamma:g};
+}
 function heCyclePts(){
   const Th=state.heTh??500, Tc=state.heTc??300, g=1.4, nR=1;
   const V1=1, V2=2.5;
@@ -22812,8 +22874,10 @@ function tovSolve(rhoc,h,wantProf){
   for(let i=0;i<40000;i++){
     if(P<=1e-14) break;
     if(prof&&i%40===0){ const rho0=Math.pow(P/NS_K,1/NS_GAM); prof.push([r,rho0+P/(NS_GAM-1),P,m]); }
-    const k1=f(r,P,m), k2=f(r+h/2,P+h/2*k1[0],m+h/2*k1[1]),
-          k3=f(r+h/2,P+h/2*k2[0],m+h/2*k2[1]), k4=f(r+h,P+h*k3[0],m+h*k3[1]);
+    /* ONE LINE. The fourth time this file has hit it: a wrapped `const a = ..., b = ...` list
+       loses every binder after the wrap to the extractor's statement walker, which then
+       reported k3 and k4 as free names. */
+    const k1=f(r,P,m), k2=f(r+h/2,P+h/2*k1[0],m+h/2*k1[1]), k3=f(r+h/2,P+h/2*k2[0],m+h/2*k2[1]), k4=f(r+h,P+h*k3[0],m+h*k3[1]);
     P+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]); m+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]); r+=h;
   }
   return {M:m,Rcode:r,Rkm:r*NS_KM,prof};
@@ -27801,7 +27865,267 @@ const ATLAS_LATE_SPECS=[
     return {Tc:M.Tc, gap_meV:scGapMeV(M.Tc), gap_ratio:2*scGapMeV(M.Tc)/(SC_KB_MEV*M.Tc),
       josephson_GHz:scJosephsonGHz(i.voltage_uV), flux_quanta:n,
       flux_quanta_integer:Math.round(n), flux_defect:Math.abs(n-Math.round(n)),
-      penetration_depth_nm:M.lam, flux_quantum_Wb:SC_PHI0, type:M.type==='I'?1:2};}}
+      penetration_depth_nm:M.lam, flux_quantum_Wb:SC_PHI0, type:M.type==='I'?1:2};}},
+
+ /* ── FIVE MORE, AND ONE OF THEM HAS A MAXIMUM ─────────────────────────────
+    The Tolman-Oppenheimer-Volkoff equation is the one place in this atlas where general
+    relativity produces a hard ceiling on its own: integrate it up in central density and
+    the mass RISES, turns over and falls, and everything past the turn is unstable. Then the
+    Carnot cycle, whose efficiency depends on nothing but two temperatures; the surface
+    plasmon of a hole array; the split-step propagator, which is unitary because each half
+    step is a phase; and the Hopf fibre of a qubit, where a whole circle is one state. */
+ {id:'ns', lab:'ns',
+  title:['The TOV equation, integrated: a maximum mass that nothing but relativity puts there',
+         'Уравнение ТОВ: максимальная масса, которую ставит только теория относительности',
+         'Die TOV-Gleichung'],
+  status:'MEASURED (a real fourth-order integration of the Tolman-Oppenheimer-Volkoff equation for a Gamma = 2, K = 100 polytrope; the equation is exact and the numbers are its converged solution, verified against the exactly known Newtonian limit)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the Newtonian n = 1 radius, step convergence, the maximum, the Buchdahl bound)'],
+  formulas:['dP/dr = -(eps + P)(m + 4 pi r^3 P)/(r(r - 2m)) — the TOV equation, in G = c = 1',
+            'dm/dr = 4 pi r^2 eps, and P = K rho^Gamma with Gamma = 2 and K = 100',
+            'the (eps + P) and the (r - 2m) are the relativity: Newton has rho and r there, and Newton has no maximum mass',
+            'in the Newtonian limit a Gamma = 2 polytrope has radius pi sqrt(K/2 pi) INDEPENDENT of its mass — 12.533 in code units, and the integration must approach it',
+            'Buchdahl: any static sphere has 2M/R < 8/9, whatever it is made of'],
+  inputs:[{name:'central_density', type:'number', unit:'code', default:1.28e-3, min:1e-6, max:2e-2,
+           doc:['the central rest-mass density in geometric units; the maximum-mass star is near 3.2e-3 and everything above it is unstable',
+                'центральная плотность в геометрических единицах','Zentraldichte']},
+          {name:'step', type:'number', unit:'code', default:2e-3, min:1e-4, max:1e-2,
+           doc:['the radial step; halving it should not move the mass, and the instrument reports what it does',
+                'радиальный шаг','Radialschritt']}],
+  outputs:[{name:'mass', unit:'M_sun', doc:['the gravitational mass','гравитационная масса','Gravitationsmasse']},
+           {name:'radius_km', unit:'km', doc:['the circumferential radius','радиус','Radius']},
+           {name:'radius_code', unit:'code', doc:['and the same in geometric units','то же в геометрических единицах','in geometrischen Einheiten']},
+           {name:'compactness', unit:'dimensionless', doc:['2M/R — how far from a black hole; a neutron star is a third of the way there and the Sun is four parts in a million',
+             'компактность','Kompaktheit']},
+           {name:'buchdahl_margin', unit:'dimensionless', doc:['8/9 minus the compactness. No static sphere of any material can make this negative, and it is checked rather than assumed',
+             'запас до предела Бухдаля','Buchdahl-Abstand']},
+           {name:'surface_redshift', unit:'dimensionless', doc:['1/sqrt(1 - 2M/R) - 1','поверхностное красное смещение','Oberflächenrotverschiebung']},
+           {name:'newtonian_radius_ratio', unit:'dimensionless', doc:['the radius over the exactly known Newtonian n = 1 radius; it goes to 1 as the star gets light, which is the check that the integration is right',
+             'отношение к ньютоновскому радиусу','Verhältnis zum Newton-Radius']},
+           {name:'is_past_maximum', unit:'dimensionless', doc:['1 if the central density is above the turning point, where a MORE dense star is a LESS massive one and the branch is unstable',
+             '1 если плотность выше точки максимума','1 wenn jenseits des Maximums']}],
+  limits:[['A Gamma = 2, K = 100 polytrope is a TOY equation of state. It has the right qualitative structure — a maximum mass near 1.64 solar masses — and it is not a neutron star: real matter above nuclear density is not a polytrope and the observed two-solar-mass pulsars rule this one out as a description of them.',
+           'Политропа Γ=2, K=100 — модельное уравнение состояния, а не реальная звезда.',
+           'Ein Polytrop, kein Neutronenstern.'],
+          ['The maximum mass is found by scanning central densities, so the turning point carries the resolution of the scan. The mass itself does not: it is converged to six digits under a sixteen-fold refinement of the step.',
+           'Максимум ищется сканированием и несёт его разрешение.','Das Maximum wird per Scan gefunden.']],
+  ev:i=>{const s=tovSolve(i.central_density,i.step,false);
+    if(!(s.M>0)) throw new RangeError(`no star forms at central density ${i.central_density}: the integration reached the surface with no mass, which means the density is below anything this equation of state can hold together`);
+    const C=2*s.M/s.Rcode, Rn=Math.PI*Math.sqrt(NS_K/(2*Math.PI));
+    /* the turning point of the mass-density curve, located once by a local comparison */
+    const lo=tovSolve(i.central_density*0.97,i.step,false), hi=tovSolve(i.central_density*1.03,i.step,false);
+    return {mass:s.M, radius_km:s.Rkm, radius_code:s.Rcode, compactness:C,
+      buchdahl_margin:8/9-C, surface_redshift:1/Math.sqrt(Math.max(1e-12,1-C))-1,
+      newtonian_radius_ratio:s.Rcode/Rn,
+      is_past_maximum:(hi.M<s.M&&s.M<=lo.M)||hi.M<lo.M?1:0};}},
+
+ {id:'he', lab:'he',
+  title:['Carnot: an efficiency that depends on two temperatures and nothing else at all',
+         'Карно: КПД, зависящий от двух температур и ни от чего больше',
+         'Carnot'],
+  status:'EXACT (the four legs are closed form and the two isothermal heats are nR T ln(V_b/V_a); the efficiency comes out 1 - T_c/T_h to twelve digits and is not asserted anywhere in the code)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the efficiency against 1 - Tc/Th, independence of gamma and of the volumes, the entropy balance)'],
+  formulas:['four legs: isothermal expansion at T_h, adiabatic expansion, isothermal compression at T_c, adiabatic compression',
+            'the adiabats give V_3/V_2 = V_4/V_1 = (T_h/T_c)^(1/(gamma-1)), so the two compression ratios are EQUAL',
+            'Q_in = nR T_h ln(V_2/V_1) and Q_out = nR T_c ln(V_3/V_4), and those logarithms are the same number',
+            'eta = 1 - Q_out/Q_in = 1 - T_c/T_h — the working substance, gamma and the volumes all cancel',
+            'Q_in/T_h = Q_out/T_c: the entropy taken from the hot reservoir is exactly the entropy given to the cold one, which is what reversible means'],
+  inputs:[{name:'T_hot', type:'number', unit:'K', default:500, min:1, max:1e5,
+           doc:['the hot reservoir','горячий резервуар','heißes Reservoir']},
+          {name:'T_cold', type:'number', unit:'K', default:300, min:1, max:1e5,
+           doc:['the cold one; it must be below the hot one or the engine runs backwards and is a heat pump',
+                'холодный резервуар','kaltes Reservoir']},
+          /* `adiabatic_index` and not `gamma`: the relativity laboratory publishes a `gamma`
+             output, and the Lorentz factor is not an adiabatic index. Fifth of these. */
+          {name:'adiabatic_index', type:'number', unit:'dimensionless', default:1.4, min:1.01, max:1.7,
+           doc:['the adiabatic index of the working gas — 5/3 monatomic, 7/5 diatomic. The efficiency does not depend on it, which is the point of returning it',
+                'показатель адиабаты рабочего газа','Adiabatenexponent']},
+          {name:'V1', type:'number', unit:'m^3', default:1, min:0.01, max:100,
+           doc:['the smallest volume','наименьший объём','kleinstes Volumen']},
+          {name:'V2', type:'number', unit:'m^3', default:2.5, min:0.02, max:1000,
+           doc:['the volume at the end of the isothermal expansion','объём в конце изотермического расширения','Volumen nach der isothermen Expansion']}],
+  outputs:[{name:'efficiency', unit:'dimensionless', doc:['the work over the heat taken in, computed from the cycle','КПД','Wirkungsgrad']},
+           {name:'carnot_efficiency', unit:'dimensionless', doc:['1 - T_c/T_h, computed from the temperatures alone','предел Карно','Carnot-Grenze']},
+           {name:'efficiency_residual', unit:'dimensionless', doc:['the difference between them, which is zero — and is returned rather than asserted',
+             'разница между ними','Differenz']},
+           {name:'heat_in', unit:'J', doc:['Q_in from the hot reservoir','полученное тепло','aufgenommene Wärme']},
+           {name:'heat_out', unit:'J', doc:['Q_out to the cold one','отданное тепло','abgegebene Wärme']},
+           {name:'work', unit:'J', doc:['their difference','работа','Arbeit']},
+           {name:'entropy_residual', unit:'J/K', doc:['Q_in/T_h - Q_out/T_c, which vanishes for a reversible cycle and is the sharpest statement here',
+             'невязка энтропии','Entropie-Residuum']},
+           {name:'V3', unit:'m^3', doc:['the volume after the adiabatic expansion','объём после адиабатического расширения','Volumen nach der Adiabate']},
+           {name:'V4', unit:'m^3', doc:['and after the isothermal compression','и после изотермического сжатия','und nach der Kompression']},
+           {name:'compression_ratio_residual', unit:'dimensionless', doc:['|V3/V2 - V4/V1|; the two adiabats have the same ratio, and that is what makes the logarithms cancel',
+             'невязка степеней сжатия','Residuum der Kompressionsverhältnisse']}],
+  limits:[['A reversible cycle with an ideal gas and no friction, no finite-rate heat transfer and no time. A real engine running at a finite rate produces less power than this at this efficiency and less efficiency than this at any useful power; Curzon-Ahlborn is the honest comparison and is not what this returns.',
+           'Обратимый цикл идеального газа: реальная машина не достигает его при конечной мощности.',
+           'Reversibler Kreisprozess mit idealem Gas.'],
+          ['T_cold above T_hot is REFUSED. The cycle then runs backwards and the number it would return is not an efficiency at all.',
+           'T_c выше T_h отвергается.','T_kalt über T_heiß wird verweigert.']],
+  ev:i=>{if(!(i.T_cold<i.T_hot)) throw new RangeError(
+      `T_cold = ${i.T_cold} K is not below T_hot = ${i.T_hot} K: this cycle then runs backwards and what it returns is a coefficient of performance, not an efficiency`);
+    const c=heCyclePure(i.T_hot,i.T_cold,i.adiabatic_index,i.V1,i.V2), eta=c.work/c.Qin;
+    return {efficiency:eta, carnot_efficiency:1-i.T_cold/i.T_hot,
+      efficiency_residual:Math.abs(eta-(1-i.T_cold/i.T_hot)),
+      heat_in:c.Qin, heat_out:c.Qout, work:c.work,
+      entropy_residual:Math.abs(c.Qin/i.T_hot-c.Qout/i.T_cold),
+      V3:c.V3, V4:c.V4,
+      compression_ratio_residual:Math.abs(c.V3/c.V2-c.V4/c.V1)};}},
+
+ {id:'eot', lab:'eot',
+  title:['A hole smaller than the wavelength, and the resonance that lets the light through anyway',
+         'Отверстие меньше длины волны и резонанс, который всё же пропускает свет',
+         'Ausserordentliche Transmission'],
+  status:'MODEL (the surface-plasmon resonance condition of a square hole array with a declared Drude-like permittivity fit; the resonance is solved exactly for that fit, and the fit is the model)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the resonance condition substituted back, the red shift with pitch, the bound-mode boundary)'],
+  formulas:['eps_m(lambda) = 5 - (lambda/134)^2 — a declared silver-like Drude fit, lambda in nanometres',
+            'a surface plasmon exists only where eps_m < -1: below that the mode is not bound to the interface',
+            'lambda(i,j) = (a_0/sqrt(i^2 + j^2)) sqrt(eps_m eps_d/(eps_m + eps_d)) — the grating-coupled plasmon of a square array of pitch a_0',
+            'the equation is implicit because eps_m depends on lambda, and it is solved by iteration',
+            'the resonance is always REDDER than the pitch divided by sqrt(i^2+j^2), because eps_m/(eps_m+1) exceeds 1 where the mode is bound'],
+  inputs:[{name:'pitch_nm', type:'number', unit:'nm', default:600, min:350, max:850,
+           doc:['the array pitch','период решётки','Gitterperiode']},
+          {name:'i', type:'number', unit:'dimensionless', default:1, min:0, max:4,
+           doc:['first grating order','первый порядок решётки','erste Gitterordnung']},
+          {name:'j', type:'number', unit:'dimensionless', default:0, min:0, max:4,
+           doc:['second grating order; (0,0) is not a grating coupling and is refused','второй порядок','zweite Gitterordnung']}],
+  outputs:[{name:'wavelength_nm', unit:'nm', doc:['the resonance wavelength','длина волны резонанса','Resonanzwellenlänge']},
+           {name:'eps_metal', unit:'dimensionless', doc:['the metal permittivity there; it is negative, which is what makes a surface mode possible at all',
+             'диэлектрическая проницаемость металла','Permittivität des Metalls']},
+           {name:'residual', unit:'nm', doc:['how far the returned wavelength is from satisfying its own implicit equation — the iteration is checked, not trusted',
+             'невязка неявного уравнения','Residuum']},
+           {name:'redshift_ratio', unit:'dimensionless', doc:['the resonance over a_0/sqrt(i^2+j^2); it exceeds 1 for every bound mode, which is why the peak sits to the red of the pitch',
+             'отношение к периоду','Verhältnis zur Periode']},
+           {name:'order_magnitude', unit:'dimensionless', doc:['sqrt(i^2 + j^2)','порядок решётки','Ordnung']},
+           {name:'bound', unit:'dimensionless', doc:['1 where eps_m < -1 and the mode exists','1 если мода связана','1 wenn gebunden']},
+           {name:'skin_depth_nm', unit:'nm', doc:['the field penetration into the metal, lambda/(2 pi sqrt(-eps_m)) — tens of nanometres, which is why these films are thin',
+             'глубина скин-слоя','Eindringtiefe']}],
+  limits:[['The permittivity is a two-parameter fit, not a measured silver. It has no imaginary part, so there is no loss, no linewidth and no peak height here — only the position of the resonance.',
+           'Проницаемость — двухпараметрическая подгонка без мнимой части: ширины и высоты пика нет.',
+           'Die Permittivität ist eine Anpassung ohne Imaginärteil.'],
+          ['Where no bound mode exists the instrument REFUSES. eps_m >= -1 means the surface plasmon does not exist at that pitch and order, and a wavelength returned there would be the fixed point of an iteration rather than a resonance.',
+           'Если связанной моды нет, инструмент отказывает.','Ohne gebundene Mode wird verweigert.']],
+  ev:i=>{const I=Math.round(i.i), J=Math.round(i.j), n=Math.hypot(I,J);
+    if(n===0) throw new RangeError('order (0, 0) is not a grating coupling: it is the specular beam, and it does not launch a surface plasmon');
+    const lam=eotLamRes(i.pitch_nm,I,J);
+    if(lam===null) throw new RangeError(
+      `no bound surface plasmon exists for pitch ${i.pitch_nm} nm at order (${I}, ${J}): the iteration reaches a wavelength where eps_m >= -1, and a surface mode needs eps_m < -1`);
+    const em=eotEpsM(lam), pred=i.pitch_nm/n*Math.sqrt(em/(em+1));
+    return {wavelength_nm:lam, eps_metal:em, residual:Math.abs(lam-pred),
+      redshift_ratio:lam/(i.pitch_nm/n), order_magnitude:n, bound:em<-1?1:0,
+      skin_depth_nm:lam/(2*Math.PI*Math.sqrt(Math.max(1e-12,-em)))};}},
+
+ {id:'qm', lab:'qm',
+  title:['Split-step: an integrator that cannot lose a particle, because every step is a phase',
+         'Расщепление шага: интегратор, который не может потерять частицу',
+         'Split-Step'],
+  status:'EXACT in norm (each half step multiplies by a unit-modulus phase, so the propagator is unitary by construction and the norm is conserved to floating point); SECOND ORDER in the dynamics (Strang splitting, and the error in the observables is the commutator term)',
+  verifiers:['docs/verify-atlas-instruments.cjs (norm over 50000 steps, the coherent-state period, the free-packet spreading law, second-order convergence)'],
+  formulas:['Strang: exp(-iVdt/2) exp(-ik^2 dt/2) exp(-iVdt/2), with the kinetic half done in Fourier space where it is diagonal',
+            'each factor has unit modulus, so the norm is conserved EXACTLY — not to second order, exactly',
+            'a coherent state in a harmonic well returns to itself after T = 2 pi/omega with its width unchanged: it is the one wave packet that does not spread',
+            'a free packet spreads as sigma(t)^2 = sigma_0^2 + (t/2 sigma_0)^2, which is exact for a Gaussian',
+            'the splitting error is O(dt^2) in the observables, so halving the step should quarter it'],
+  inputs:[{name:'x0', type:'number', unit:'dimensionless', default:6, min:-30, max:30,
+           doc:['where the packet starts','где начинается пакет','Startposition']},
+          {name:'k0', type:'number', unit:'dimensionless', default:0, min:-8, max:8,
+           doc:['its initial momentum','начальный импульс','Anfangsimpuls']},
+          {name:'sigma', type:'number', unit:'dimensionless', default:1, min:0.3, max:8,
+           doc:['its initial width','начальная ширина','Anfangsbreite']},
+          {name:'omega', type:'number', unit:'dimensionless', default:0.5, min:0, max:2,
+           doc:['the harmonic frequency; zero is a FREE particle and the packet then spreads instead of oscillating',
+                'частота осциллятора; ноль — свободная частица','Oszillatorfrequenz']},
+          {name:'time', type:'number', unit:'dimensionless', default:12.566370614359172, min:0, max:400,
+           doc:['how long to propagate; the default is one period at the default frequency',
+                'время эволюции','Entwicklungszeit']},
+          {name:'dt', type:'number', unit:'dimensionless', default:0.008, min:1e-4, max:0.05,
+           doc:['the step','шаг','Schrittweite']}],
+  outputs:[{name:'norm', unit:'dimensionless', doc:['at the end; it is 1','норма в конце','Norm']},
+           {name:'norm_drift', unit:'dimensionless', doc:['|norm - 1|, which is a rounding error however long the run — this is the whole reason to use this integrator',
+             'дрейф нормы','Normdrift']},
+           {name:'x_mean', unit:'dimensionless', doc:['<x> at the end','среднее x в конце','Mittelwert von x']},
+           {name:'sigma_final', unit:'dimensionless', doc:['and the width','ширина в конце','Breite am Ende']},
+           {name:'sigma_expected', unit:'dimensionless', doc:['what it should be: unchanged in a harmonic well at a whole period, and sqrt(sigma^2 + (t/2sigma)^2) for a free particle',
+             'ожидаемая ширина','erwartete Breite']},
+           {name:'width_residual', unit:'dimensionless', doc:['the difference','разница','Differenz']},
+           {name:'period', unit:'dimensionless', doc:['2 pi/omega, the harmonic period; Infinity for a free particle','период','Periode']},
+           {name:'steps', unit:'dimensionless', doc:['how many steps were taken','число шагов','Zahl der Schritte']}],
+  limits:[['Periodic boundaries on a box of length 80 with 512 points. A packet that reaches the edge wraps around and comes back, so a fast one over a long time is measuring the box and not the physics; the momentum and time domains are capped with that in mind and the width residual is what will tell you.',
+           'Периодические границы, длина 80, 512 точек: быстрый пакет за долгое время измеряет коробку.',
+           'Periodische Ränder auf einer Box der Länge 80.'],
+          ['Unitarity is EXACT and accuracy is not. A step too large gives a perfectly normalised and completely wrong answer, which is the failure mode worth naming: the norm cannot warn you about it.',
+           'Унитарность точна, точность — нет: большой шаг даёт нормированный и неверный ответ.',
+           'Unitarität ist exakt, Genauigkeit nicht.']],
+  ev:i=>{const om=i.omega, V=om>0?qmHarmonic(om):new Float64Array(QM_N);
+    const g=qmGaussian(i.x0,i.k0,i.sigma), re=g[0], im=g[1];
+    const N=Math.round(i.time/i.dt);
+    if(N>0) qmPropagate(re,im,V,N,i.dt);
+    const m=qmMoments(re,im), T=om>0?2*Math.PI/om:Infinity;
+    /* a coherent state keeps its width; a free Gaussian spreads by the exact law */
+    const t=N*i.dt;
+    /* "a whole number of periods" cannot mean "to 1e-9" when the run is quantised in steps
+       of dt: round(T/dt)*dt misses T by up to dt/2 and the test never fired. Within one
+       step of a period IS a whole period as far as this integrator can express one. */
+    const expect=om>0?(Math.abs(t-Math.round(t/T)*T)<=i.dt?i.sigma:Number.NaN)
+                     :Math.sqrt(i.sigma*i.sigma+Math.pow(t/(2*i.sigma),2));
+    return {norm:m.norm, norm_drift:Math.abs(m.norm-1), x_mean:m.x, sigma_final:m.sigma,
+      sigma_expected:expect, width_residual:expect===expect?Math.abs(m.sigma-expect):Number.NaN,
+      period:T, steps:N};}},
+
+ {id:'spin', lab:'spin',
+  title:['One point of the Bloch sphere is a whole circle of states',
+         'Одна точка сферы Блоха — это целая окружность состояний',
+         'Ein Punkt, ein ganzer Kreis']  ,
+  status:'EXACT (the fibre, the Hopf map and the Rodrigues rotation are all closed form; every residual below is floating point and is returned)',
+  verifiers:['docs/verify-atlas-instruments.cjs (the fibre on S^3, one Bloch point per fibre, Rodrigues orthogonality, the 4 pi return)'],
+  formulas:['a qubit is (z1, z2) with |z1|^2 + |z2|^2 = 1: a point of S^3, not of S^2',
+            'multiplying by a global phase e^{i alpha} moves it around a CIRCLE and changes no measurement — that circle is the Hopf fibre',
+            'the Hopf map (z1, z2) -> (2 Re(z1* z2), 2 Im(z1* z2), |z1|^2 - |z2|^2) sends the whole circle to ONE Bloch point',
+            'Rodrigues rotates the Bloch vector rigidly: |n| is unchanged and so is the angle between any two vectors',
+            'a 2 pi rotation of the STATE is minus itself and a 2 pi rotation of the BLOCH VECTOR is itself — the same double cover, seen from the two ends'],
+  inputs:[{name:'theta', type:'number', unit:'rad', default:0.7, min:0, max:3.141592653589793,
+           doc:['polar angle of the Bloch point','полярный угол точки Блоха','Polarwinkel']},
+          {name:'phi', type:'number', unit:'rad', default:1.1, min:0, max:6.283185307179586,
+           doc:['and its azimuth','азимут','Azimut']},
+          {name:'fibre_points', type:'number', unit:'dimensionless', default:64, min:8, max:2000,
+           doc:['how many points of the fibre to test','сколько точек слоя проверить','Punkte der Faser']},
+          {name:'rotation_angle', type:'number', unit:'rad', default:1.3, min:-25, max:25,
+           doc:['a Rodrigues rotation applied to the Bloch vector, about the z axis','угол поворота вектора Блоха','Drehwinkel']}],
+  outputs:[{name:'bloch_x', unit:'dimensionless', doc:['the Bloch vector the whole fibre projects to','вектор Блоха','Bloch-Vektor x']},
+           {name:'bloch_y', unit:'dimensionless', doc:['','','Bloch-Vektor y']},
+           {name:'bloch_z', unit:'dimensionless', doc:['','','Bloch-Vektor z']},
+           {name:'projection_spread', unit:'dimensionless', doc:['the worst distance between any two points’ projections. It is zero: that is the statement, and it is measured over every point of the fibre',
+             'разброс проекций точек слоя','Streuung der Projektionen']},
+           {name:'sphere_residual', unit:'dimensionless', doc:['the worst |q| - 1 over the fibre; it lives on S^3 or it is not a state',
+             'отклонение от S^3','Abweichung von S^3']},
+           {name:'bloch_norm_residual', unit:'dimensionless', doc:['| |n| - 1 |, because the Hopf image of a unit quaternion is a unit vector',
+             'отклонение |n| от 1','Abweichung von |n|']},
+           {name:'rotated_norm_residual', unit:'dimensionless', doc:['and after the Rodrigues rotation, which must not change the length',
+             'то же после поворота','dasselbe nach der Drehung']},
+           {name:'rotation_return_residual', unit:'dimensionless', doc:['how far a 2 pi rotation of the Bloch VECTOR is from the identity — zero, while 2 pi on the state is minus one; the double cover from the other side',
+             'невязка возврата после 2π','Rückkehr-Residuum']},
+           {name:'fibre_length', unit:'dimensionless', doc:['the length of the fibre on S^3, which is 2 pi for every one of them — every fibre is a great circle',
+             'длина слоя на S^3','Länge der Faser']}],
+  limits:[['This is the Hopf fibration of a single qubit. Two qubits live on S^7 and their entanglement is not visible anywhere in this picture; the fibration that describes them is a different one and this instrument does not speak about it.',
+           'Это расслоение Хопфа одного кубита; два кубита живут на S^7.',
+           'Die Hopf-Faserung eines einzelnen Qubits.'],
+          ['The fibre length is measured on the polygon through the sampled points, so it approaches 2 pi from below as the sampling refines. The instrument returns the measurement rather than the limit.',
+           'Длина слоя измеряется по многоугольнику и приближается к 2π снизу.',
+           'Die Länge wird am Polygon gemessen.']],
+  ev:i=>{const F=spinFibrePure(i.theta,i.phi,Math.round(i.fibre_points)),
+      n0=spinHopfProject(F[0]);
+    let sph=0, spread=0, len=0;
+    for(let k=0;k<F.length;k++){ const q=F[k];
+      sph=Math.max(sph,Math.abs(Math.hypot(q[0],q[1],q[2],q[3])-1));
+      const n=spinHopfProject(q); spread=Math.max(spread,Math.hypot(n[0]-n0[0],n[1]-n0[1],n[2]-n0[2]));
+      if(k){ const p=F[k-1]; len+=Math.hypot(q[0]-p[0],q[1]-p[1],q[2]-p[2],q[3]-p[3]); } }
+    const r=spinRodrigues(n0,[0,0,1],i.rotation_angle),
+      back=spinRodrigues(n0,[0,0,1],2*Math.PI);
+    return {bloch_x:n0[0], bloch_y:n0[1], bloch_z:n0[2],
+      projection_spread:spread, sphere_residual:sph,
+      bloch_norm_residual:Math.abs(Math.hypot(n0[0],n0[1],n0[2])-1),
+      rotated_norm_residual:Math.abs(Math.hypot(r[0],r[1],r[2])-1),
+      rotation_return_residual:Math.hypot(back[0]-n0[0],back[1]-n0[1],back[2]-n0[2]),
+      fibre_length:len};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,
@@ -28800,6 +29124,11 @@ function hccBusDeclareLinks(){
   for(const t of ['spectrum','creation','ebk'])
     for(const c of ['alpha','beta_plus','beta_minus']) L(`bianchi.${c}_final`,`${t}.${c}`);
   for(const c of ['p_plus','p_minus']) L(`bianchi.${c}_final`,`creation.${c}`);
+  /* two degeneracy-supported stars, one quantity: a gravitational mass in solar masses.
+     Routing the TOV mass into the white-dwarf relation asks what radius that mass would
+     have if electrons rather than neutrons were holding it up — and above 1.454 solar
+     masses wd REFUSES, which is the answer and not a failure of the coupling. */
+  L('ns.mass','wd.mass');
 
   /* ── AND ONE CONFIGURATION LINK, WHICH IS A JUDGEMENT AND NOT A TYPE RULE ──
      Of the 336 controls the atlas harvested, exactly one is determined by a typed
