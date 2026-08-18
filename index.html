@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="five-fold-in-six-dimensions-2026.08.18.12">
+<html lang="en" data-hcc-build="an-angle-that-vanishes-2026.08.18.13">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="five-fold-in-six-dimensions-2026.08.18.12">
+<meta name="hcc-build" content="an-angle-that-vanishes-2026.08.18.13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.13.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.14.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.13.0';
-const HCC_BUILD='five-fold-in-six-dimensions-2026.08.18.12';
+const HCC_VERSION='4.14.0';
+const HCC_BUILD='an-angle-that-vanishes-2026.08.18.13';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -17807,6 +17807,85 @@ const _skM=new Float32Array(SKGMAX*SKGMAX*3), _skTmp=[0,0,0], _skDummy=new THREE
    L = growing tail half-length of the stick-skyrmion (tailed skyrmions: Kuchkin et al.). */
 const skNucl={R1:-1.2, L:0};
 let skMagT=0;                                                    // magnon phase clock
+/* ── The closed forms of the skyrmion laboratory, on plain arrays ──────────────────────
+   m : R^2 -> S^2, and everything topological about it is a lattice sum the renderer was
+   already computing and nobody outside the render loop could reach. These are those sums,
+   parameterised instead of reading state, and the renderer calls them. */
+function skBPField(x,y,centers,R,gamma,w,out){
+  /* the Belavin-Polyakov rational map u = e^{i gamma} prod (z - a_k)/R, stereographically
+     projected back to the sphere. EXACT: an anti-holomorphic factor for each antiskyrmion,
+     and a radial reshaping of |u| that changes the wall width without touching the degree. */
+  let ur=Math.cos(gamma), ui=Math.sin(gamma);
+  for(let k=0;k<centers.length;k++){ const c=centers[k];
+    const fr=(x-c.x)/R, fi=(c.s<0?-(y-c.y):(y-c.y))/R;
+    const nr=ur*fr-ui*fi, ni=ur*fi+ui*fr; ur=nr; ui=ni; }
+  const uu=Math.hypot(ur,ui), sc= uu>1e-6? Math.pow(uu,1/Math.max(0.35,w)-1) : 0;
+  ur*=sc; ui*=sc; const V2=ur*ur+ui*ui, inv=1/(1+V2);
+  out[0]=2*ur*inv; out[1]=2*ui*inv; out[2]=(V2-1)*inv;
+  return out;
+}
+function skSampleBP(G,half,centers,R,gamma,w){   // the field on a square grid, as one flat array
+  const M=new Float64Array(G*G*3), D=2*half/(G-1), t=[0,0,0];
+  for(let j=0;j<G;j++)for(let i=0;i<G;i++){
+    skBPField(-half+i*D,-half+j*D,centers,R,gamma,w,t);
+    const k=(j*G+i)*3; M[k]=t[0]; M[k+1]=t[1]; M[k+2]=t[2]; }
+  return {M,G,D,half};
+}
+/* Berg-Lüscher: the signed area of the spherical triangle three neighbouring spins span,
+   summed over the lattice. It is the ONLY definition of a lattice topological charge that
+   is exact for a finite mesh rather than a discretisation of a continuum integral. */
+function skSolidAngle(a0,a1,a2,b0,b1,b2,c0,c1,c2){
+  const crx=b1*c2-b2*c1, cry=b2*c0-b0*c2, crz=b0*c1-b1*c0;
+  const num=a0*crx+a1*cry+a2*crz;
+  const den=1+(a0*b0+a1*b1+a2*b2)+(b0*c0+b1*c1+b2*c2)+(c0*a0+c1*a1+c2*a2);
+  return 2*Math.atan2(num,den);
+}
+function skBergLuscher(M,G){
+  const V=(i,j,k)=>M[(j*G+i)*3+k]; let Q=0;
+  for(let j=0;j<G-1;j++)for(let i=0;i<G-1;i++){
+    Q+=skSolidAngle(V(i,j,0),V(i,j,1),V(i,j,2), V(i+1,j,0),V(i+1,j,1),V(i+1,j,2), V(i+1,j+1,0),V(i+1,j+1,1),V(i+1,j+1,2))
+      +skSolidAngle(V(i,j,0),V(i,j,1),V(i,j,2), V(i+1,j+1,0),V(i+1,j+1,1),V(i+1,j+1,2), V(i,j+1,0),V(i,j+1,1),V(i,j+1,2)); }
+  return Q/(4*Math.PI);
+}
+/* the micromagnetic energy densities, integrated on the same mesh. The exchange term alone
+   obeys the BOGOMOLNY bound E >= 4 pi |Q|, and the rational map above SATURATES it. */
+function skEnergyPure(M,G,D,co,dmiBloch){
+  const V=(i,j,k)=>M[(j*G+i)*3+k];
+  let ex=0, dm=0, an=0, ze=0;
+  for(let j=0;j<G-1;j++)for(let i=0;i<G-1;i++){
+    const a0=V(i,j,0),a1=V(i,j,1),a2=V(i,j,2);
+    const gx0=(V(i+1,j,0)-a0)/D, gx1=(V(i+1,j,1)-a1)/D, gx2=(V(i+1,j,2)-a2)/D;
+    const gy0=(V(i,j+1,0)-a0)/D, gy1=(V(i,j+1,1)-a1)/D, gy2=(V(i,j+1,2)-a2)/D;
+    ex+=gx0*gx0+gx1*gx1+gx2*gx2+gy0*gy0+gy1*gy1+gy2*gy2;
+    an+=1-a2*a2; ze+=1-a2;
+    dm+= dmiBloch ? (a0*gy2-a2*gy0)-(a1*gx2-a2*gx1) : a2*(gx0+gy1)-(a0*gx2+a1*gy2); }
+  const dA=D*D, E={ex:(co.exchange??1)*0.5*ex*dA, dm:(co.dmi??0)*dm*dA,
+    an:(co.aniso??0)*an*dA, ze:(co.field??0)*ze*dA};
+  E.tot=E.ex+E.dm+E.an+E.ze;
+  E.exchange_bare=0.5*ex*dA;                       // with the coupling set to one, for the bound
+  return E;
+}
+const skBogomolny=Q=>4*Math.PI*Math.abs(Q);
+/* THE THIELE EQUATION. (G x + alpha D) v = (G x + beta D) v_s + F, with the gyrovector
+   G = 4 pi s. Solved exactly; the 2x2 inverse is written out rather than iterated. */
+const skGyrovector=s=>4*Math.PI*s;
+function skThieleSolve(s,alpha,beta,d0,vsx,vsy,Fx,Fy){
+  const G=skGyrovector(s), ad=Math.max(1e-9,alpha);
+  const Rx=G*(-vsy)+beta*d0*vsx+Fx, Ry=G*(vsx)+beta*d0*vsy+Fy, det=ad*ad*d0*d0+G*G;
+  return [(ad*d0*Rx+G*Ry)/det, (-G*Rx+ad*d0*Ry)/det];
+}
+/* The angle between the skyrmion's velocity and the drive that pushes it. Solving the
+   Thiele equation for a pure spin-transfer drive gives
+
+       tan(theta) = (beta - alpha) D G / (alpha beta D^2 + G^2)
+
+   which is EXACTLY zero when beta = alpha — the statement this laboratory has printed
+   under its own readout while computing atan2(G, alpha - beta), a quantity that goes to
+   ninety degrees there instead of to zero, and to zero nowhere. */
+function skHallAngle(s,alpha,beta,d0){
+  const G=skGyrovector(s), D=d0===undefined?1:d0;
+  return Math.atan2((beta-alpha)*D*G, alpha*beta*D*D+G*G);
+}
 function skFieldBase(x,y,out){   // out=[mx,my,mz] — the real unit magnetisation at (x,y)
   if(state.skAnim==='skyrmionium' && skCenters.length){          // ▶ nucleation: outer wall + growing inner wall
     const c=skCenters[0], dx=x-c.x, dy=y-c.y, r=Math.hypot(dx,dy), w=Math.max(0.2,state.skW);
@@ -17842,14 +17921,7 @@ function skFieldBase(x,y,out){   // out=[mx,my,mz] — the real unit magnetisati
       const g=1/(0.12+Math.pow(r/R,3)); ax+=g*st*Math.cos(Phi); ay+=g*st*Math.sin(Phi); az+=g*Math.cos(th); }
     const n=Math.hypot(ax,ay,az)||1; out[0]=ax/n; out[1]=ay/n; out[2]=az/n; return;
   }
-  const R=Math.max(0.3,state.skR); let ur=Math.cos(state.skHel), ui=Math.sin(state.skHel);   // BP: u=e^{iγ}∏(z−a_k)/R
-  for(const c of skCenters){
-    const fr=(x-c.x)/R, fi=(c.s<0?-(y-c.y):(y-c.y))/R;            // conjugate factor for antiskyrmion
-    const nr=ur*fr-ui*fi, ni=ur*fi+ui*fr; ur=nr; ui=ni;
-  }
-  const uu=Math.hypot(ur,ui), sc= uu>1e-6? Math.pow(uu,1/Math.max(0.35,state.skW)-1) : 0;   // wall-width reshape (radial ⇒ charge unchanged)
-  ur*=sc; ui*=sc; const V2=ur*ur+ui*ui, inv=1/(1+V2);
-  out[0]=2*ur*inv; out[1]=2*ui*inv; out[2]=(V2-1)*inv;
+  skBPField(x,y,skCenters,Math.max(0.3,state.skR),state.skHel,state.skW,out);
 }
 function skField(x,y,out){
   skFieldBase(x,y,out);
@@ -17914,25 +17986,10 @@ function skRenderField(){
     skColor(_skTmp[0],_skTmp[1],_skTmp[2],_skCol); skInst.setColorAt(idx,_skCol);
   }
   skInst.count=G*G; skInst.instanceMatrix.needsUpdate=true; skInst.instanceColor.needsUpdate=true;
-  const MM=(i,j,k)=>_skM[(j*G+i)*3+k], solid=(ax,ay,az,bx,by,bz,cx,cy,cz)=>{
-    const crx=by*cz-bz*cy,cry=bz*cx-bx*cz,crz=bx*cy-by*cx, num=ax*crx+ay*cry+az*crz;
-    const den=1+(ax*bx+ay*by+az*bz)+(bx*cx+by*cy+bz*cz)+(cx*ax+cy*ay+cz*az);
-    return 2*Math.atan2(num,den); };
-  let Qs=0, ex=0, an=0, ze=0, dm=0;
-  for(let j=0;j<G-1;j++)for(let i=0;i<G-1;i++){
-    const a0=MM(i,j,0),a1=MM(i,j,1),a2=MM(i,j,2), b0=MM(i+1,j,0),b1=MM(i+1,j,1),b2=MM(i+1,j,2),
-          c0=MM(i+1,j+1,0),c1=MM(i+1,j+1,1),c2=MM(i+1,j+1,2), d0=MM(i,j+1,0),d1=MM(i,j+1,1),d2=MM(i,j+1,2);
-    Qs+=solid(a0,a1,a2,b0,b1,b2,c0,c1,c2)+solid(a0,a1,a2,c0,c1,c2,d0,d1,d2);
-    const gx0=(b0-a0)/D,gx1=(b1-a1)/D,gx2=(b2-a2)/D, gy0=(d0-a0)/D,gy1=(d1-a1)/D,gy2=(d2-a2)/D;
-    ex+=(gx0*gx0+gx1*gx1+gx2*gx2+gy0*gy0+gy1*gy1+gy2*gy2);
-    an+=(1-a2*a2); ze+=(1-a2);
-    if(state.skType==='bloch') dm+=(a0*gy2-a2*gy0)-(a1*gx2-a2*gx1);       // bulk DMI (Bloch)
-    else dm+=a2*(gx0+gy1)-(a0*gx2+a1*gy2);                                // interfacial DMI (Néel)
-  }
-  const dA=D*D;
-  skQ=Qs/(4*Math.PI);
-  skE.ex=state.skExch*0.5*ex*dA; skE.dm=state.skDMI*dm*dA; skE.an=state.skAniso*an*dA; skE.ze=state.skBfield*ze*dA;
-  skE.tot=skE.ex+skE.dm+skE.an+skE.ze;
+  skQ=skBergLuscher(_skM,G);
+  { const E=skEnergyPure(_skM,G,D,{exchange:state.skExch,dmi:state.skDMI,aniso:state.skAniso,field:state.skBfield},
+      state.skType==='bloch');
+    skE.ex=E.ex; skE.dm=E.dm; skE.an=E.an; skE.ze=E.ze; skE.tot=E.tot; skE.bare=E.exchange_bare; }
   while(skCoreGrp.children.length){ const m=skCoreGrp.children.pop(); m.geometry.dispose(); m.material.dispose(); }
   for(const c of skCenters){
     const mk=new THREE.Mesh(new THREE.SphereGeometry(0.15,14,10),
@@ -18064,8 +18121,7 @@ function skThiele(dt){
     if(r>0.01){ const fc=state.skConfine*(Math.pow(r/Rc,3)+0.28*r/Rc); Fx-=fc*c.x/r; Fy-=fc*c.y/r; }
     if(state.skTemp>0){ Fx+=(Math.random()-.5)*state.skTemp*40; Fy+=(Math.random()-.5)*state.skTemp*40; }
     // Thiele with spin-transfer torque: (G× + αd)v = (G× + βd)v_s + F, G=4πs
-    const G=4*Math.PI*c.s, Rx=G*(-vsy)+be*d0*vsx+Fx, Ry=G*(vsx)+be*d0*vsy+Fy, det=ad*ad*d0*d0+G*G;
-    c.vx=(ad*d0*Rx+G*Ry)/det; c.vy=(-G*Rx+ad*d0*Ry)/det;
+    const uv=skThieleSolve(c.s,ad,be,d0,vsx,vsy,Fx,Fy); c.vx=uv[0]; c.vy=uv[1];
   }
   const sp=state.skSpeed;
   for(const c of skCenters){ c.x+=c.vx*dt*sp; c.y+=c.vy*dt*sp;
@@ -18073,7 +18129,11 @@ function skThiele(dt){
   for(let i=skCenters.length-1;i>=0;i--)for(let j=i-1;j>=0;j--){
     const a=skCenters[i],b=skCenters[j];
     if(a.s*b.s<0 && Math.hypot(a.x-b.x,a.y-b.y)<0.7){ skCenters.splice(i,1); skCenters.splice(j,1); break; } }
-  skHall=Math.atan2(4*Math.PI, Math.max(0.02,(state.skDamp-state.skBeta)))/DEG * (skCenters[0]?skCenters[0].s:1);
+  /* THE SHIPPED FORMULA WAS atan2(G, alpha - beta), which is ninety degrees when beta = alpha
+     and never zero — while the readout beneath it has always said the angle vanishes there.
+     Solving the Thiele equation gives tan(theta) = (beta - alpha) D G/(alpha beta D^2 + G^2),
+     which is exactly zero at beta = alpha and is what is printed now. */
+  skHall=skHallAngle(skCenters[0]?skCenters[0].s:1, Math.max(0.02,state.skDamp), state.skBeta, 1)/DEG;
 }
 function skyrmionPhysHTML(){
   if(state.skDim==='3d'){
@@ -30248,7 +30308,117 @@ const ATLAS_LATE_SPECS=[
       r_min:rmin, r_max:rmax, return_distance:back, closed_orbit:back<0.05?1:0,
       cone_is_plane:Math.abs(tnConeCos(p0,v0,N))<1e-15?1:0,
       berger_squash:tnSquashOf(i.slice_radius,N),
-      squash_at_core:tnSquashOf(1e-12,N), squash_far:tnSquashOf(1e12,N)};}}
+      squash_at_core:tnSquashOf(1e-12,N), squash_far:tnSquashOf(1e12,N)};}},
+
+ /* ── AND THE MAGNETIC SOLITON, WHOSE CHARGE IS A LATTICE SUM AND NOT AN INTEGRAL ──
+    Berg-Lüscher is EXACT on a finite mesh: the signed area of the spherical triangle three
+    neighbouring spins span, summed. So the number a finite window returns is short of the
+    integer by exactly the tail that fell outside it, and grows to the integer as the window
+    does — which the instrument shows rather than rounds away. The Belavin-Polyakov map
+    saturates the Bogomolny bound at the same time, so E and Q are short by the SAME factor
+    and their ratio stays one. */
+ {id:'skyrmion', lab:'skyrmion',
+  title:['A charge that is a lattice sum, and a bound the map saturates',
+         'Заряд как решёточная сумма и граница, которую отображение насыщает',
+         'Eine Ladung als Gittersumme und eine Schranke, die gesaettigt wird'],
+  status:'EXACT for the Belavin-Polyakov map, the Bogomolny bound and the Thiele solution (all closed form); MEASURED for the charge and the energy, which are lattice sums over a FINITE window and are returned with the deficit that window costs rather than rounded to the integer they are approaching',
+  verifiers:['docs/verify-skyrmion-charge.cjs (the charge against an independent Berg-Lüscher sum, its convergence in the window, the Bogomolny ratio at fixed mesh density, the exact invariance under helicity and under a global spin rotation, and the Thiele solution substituted back into its own equation)'],
+  formulas:['m : R^2 -> S^2 is a genuine unit field, given by the rational map u = exp(i gamma) prod (z - a_k)/R and stereographic projection back to the sphere',
+            'an antiskyrmion is the same map with an anti-holomorphic factor, so its degree is minus one',
+            'the topological charge is the Berg-Lüscher lattice sum: the signed spherical area of every triangle of neighbouring spins. That is EXACT on a finite mesh — it is not a discretised integral',
+            'the exchange energy obeys the Bogomolny bound E >= 4 pi |Q|, and the rational map SATURATES it',
+            'the helicity gamma rotates the in-plane spins and cannot change the degree, so the charge is exactly independent of it',
+            'a global rotation of the target sphere cannot change the degree either, which is why a bimeron carries the same charge as the skyrmion it is a rotation of',
+            'Thiele: (G x + alpha D) v = (G x + beta D) v_s + F with gyrovector G = 4 pi s',
+            'and the angle between the skyrmion and the drive is tan(theta) = (beta - alpha) D G/(alpha beta D^2 + G^2), which is EXACTLY zero when beta = alpha'],
+  inputs:[{name:'solitons', type:'number', unit:'count', default:1, min:1, max:6,
+           doc:['how many cores to place in a row','число солитонов','Anzahl der Solitonen']},
+          {name:'vorticity', type:'number', unit:'count', default:1, min:-1, max:1,
+           doc:['+1 for a skyrmion, -1 for an antiskyrmion','вихревое число','Vortizitaet']},
+          {name:'core_radius', type:'number', unit:'dimensionless', default:1.6, min:0.3, max:6,
+           doc:['the scale R of the rational map','радиус ядра','Kernradius']},
+          {name:'wall_width', type:'number', unit:'dimensionless', default:1, min:0.35, max:3,
+           doc:['a RADIAL reshaping of |u|. It cannot change the degree of the map, and the measured charge still moves — because the window is finite and a wider wall puts more of the texture outside it',
+                'радиальная перестройка стенки','radiale Wandbreite']},
+          {name:'helicity', type:'number', unit:'rad', default:0, min:0, max:6.283185307179586,
+           doc:['Neel at 0 and pi, Bloch at plus and minus pi/2 — and the charge does not know',
+                'спиральность','Helizitaet']},
+          {name:'separation', type:'number', unit:'dimensionless', default:3, min:0.5, max:12,
+           doc:['spacing between cores','расстояние между ядрами','Abstand der Kerne']},
+          {name:'window', type:'number', unit:'dimensionless', default:8, min:2, max:200,
+           doc:['the half-width of the square the charge is summed over. Grow it and the charge climbs to the integer',
+                'полуширина окна','Halbbreite des Fensters']},
+          {name:'grid', type:'number', unit:'count', default:241, min:21, max:801,
+           doc:['the mesh the Berg-Lüscher sum runs on','сетка','Gitter']},
+          {name:'alpha', type:'number', unit:'dimensionless', default:0.1, min:1e-4, max:2,
+           doc:['the Gilbert damping','затухание Гильберта','Gilbert-Daempfung']},
+          {name:'beta', type:'number', unit:'dimensionless', default:0, min:0, max:2,
+           doc:['the non-adiabatic torque. Set it equal to alpha and the skyrmion follows the current exactly',
+                'неадиабатический момент','nichtadiabatisches Drehmoment']},
+          {name:'drive', type:'number', unit:'dimensionless', default:1, min:0, max:20,
+           doc:['the spin-transfer drive speed along x','скорость накачки','Antriebsgeschwindigkeit']}],
+  outputs:[{name:'charge', unit:'dimensionless', doc:['the Berg-Lüscher charge measured on the mesh, over the window','измеренный заряд','gemessene Ladung']},
+           {name:'charge_exact', unit:'count', doc:['the degree of the map on the WHOLE plane: an integer, and the sign is the orientation convention of the mesh rather than a physical statement — the magnitude is what carries the topology',
+             'точный заряд отображения','exakte Abbildungsladung']},
+           {name:'window_deficit', unit:'dimensionless', doc:['|measured - exact|. It is the tail that fell outside the window and nothing else, and it falls as the window grows',
+             'дефицит окна','Fensterdefizit']},
+           {name:'exchange_energy', unit:'dimensionless', doc:['the exchange energy on the same mesh, with the coupling set to one','обменная энергия','Austauschenergie']},
+           {name:'bogomolny_bound', unit:'dimensionless', doc:['4 pi |Q| for the MEASURED charge','граница Боголюбного','Bogomolny-Schranke']},
+           {name:'bogomolny_ratio', unit:'dimensionless', doc:['the energy over that bound. It is one: the rational map saturates, and the window costs the energy and the charge the same factor, so the ratio does not notice',
+             'отношение к границе','Verhaeltnis zur Schranke']},
+           {name:'helicity_charge_shift', unit:'dimensionless', doc:['how much the charge moved when the helicity was rotated by a quarter turn. Zero, exactly',
+             'сдвиг заряда от спиральности','Ladungsverschiebung durch Helizitaet']},
+           {name:'rotation_charge_shift', unit:'dimensionless', doc:['and how much it moved under a global rotation of the target sphere — the bimeron transform. Zero, exactly, which is why a bimeron is not a different soliton',
+             'сдвиг заряда от вращения','Ladungsverschiebung durch Drehung']},
+           {name:'antiskyrmion_charge', unit:'dimensionless', doc:['the same configuration with the opposite vorticity, whose charge is the negative to every digit','заряд антискирмиона','Antiskyrmion-Ladung']},
+           {name:'gyrovector', unit:'dimensionless', doc:['G = 4 pi s','гировектор','Gyrovektor']},
+           {name:'velocity_x', unit:'dimensionless', doc:['the Thiele velocity along the drive','скорость вдоль накачки','Geschwindigkeit laengs']},
+           {name:'velocity_y', unit:'dimensionless', doc:['and across it','скорость поперёк','Geschwindigkeit quer']},
+           {name:'thiele_residual', unit:'dimensionless', doc:['the Thiele equation with that velocity substituted back into it. Zero: the solution is the closed-form inverse and not an iteration',
+             'невязка уравнения Тиле','Residuum der Thiele-Gleichung']},
+           {name:'hall_angle', unit:'rad', doc:['the angle between the skyrmion and the drive, from the Thiele solution','угол Холла скирмиона','Skyrmion-Hall-Winkel']},
+           {name:'hall_angle_shipped', unit:'rad', doc:['what this laboratory printed instead — atan2(G, alpha - beta), which is a right angle when beta = alpha and is never zero. Returned beside the right one because the difference is the finding',
+             'ранее выводившийся угол','der zuvor angezeigte Winkel']},
+           {name:'hall_vanishes', unit:'dimensionless', doc:['1 where the angle is zero to floating point, which happens exactly at beta = alpha and is what the readout has always claimed',
+             '1 если угол обращается в нуль','1 wenn der Winkel verschwindet']}],
+  limits:[['Reduced units throughout, and a two-dimensional film. Nothing here is calibrated to a material: the exchange, DMI, anisotropy and Zeeman couplings are dimensionless dials and the profile is an ansatz, not the minimiser of any particular free energy.',
+           'Приведённые единицы и двумерная плёнка: ничто здесь не откалибровано под материал.',
+           'Reduzierte Einheiten und ein zweidimensionaler Film; nichts ist auf ein Material kalibriert.'],
+          ['The charge is measured over a FINITE window and is therefore not an integer. That is not an error to be rounded away — the Belavin-Polyakov soliton has a tail that decays only as one over r squared, so a window of eight core radii is still three per cent short. The deficit is returned and it falls as the window grows.',
+           'Заряд измеряется в КОНЕЧНОМ окне и потому не целый: хвост солитона убывает лишь как 1/r², и дефицит возвращается вместе с числом.',
+           'Die Ladung wird in einem ENDLICHEN Fenster gemessen und ist deshalb keine ganze Zahl.'],
+          ['The Thiele equation is a rigid-body reduction: it treats the soliton as a point with a gyrovector and a damping tensor, and knows nothing about deformation, breathing modes or annihilation. The large skyrmion Hall angles reported in experiments are force-driven, which is a different term on the right-hand side from the spin-transfer drive this angle is defined against.',
+           'Уравнение Тиле — редукция твёрдого тела; большие холловские углы в экспериментах отвечают силовой накачке, а не спин-трансферной.',
+           'Die Thiele-Gleichung ist eine Starrkoerper-Reduktion.']],
+  ev:i=>{const n=Math.max(1,Math.round(i.solitons)), s=i.vorticity<0?-1:1;
+    const centers=[];
+    for(let k=0;k<n;k++) centers.push({x:(k-(n-1)/2)*i.separation, y:0, s});
+    const G=Math.max(21,Math.round(i.grid));
+    const S=skSampleBP(G,i.window,centers,i.core_radius,i.helicity,i.wall_width);
+    const Q=skBergLuscher(S.M,G);
+    const E=skEnergyPure(S.M,G,S.D,{exchange:1,dmi:0,aniso:0,field:0},false);
+    const bound=skBogomolny(Q);
+    const Sh=skSampleBP(G,i.window,centers,i.core_radius,i.helicity+Math.PI/2,i.wall_width);
+    const Sa=skSampleBP(G,i.window,centers.map(c=>({x:c.x,y:c.y,s:-c.s})),i.core_radius,i.helicity,i.wall_width);
+    /* a global rotation of the target sphere: the bimeron transform (mx,my,mz) -> (mz,my,-mx) */
+    const R=new Float64Array(S.M.length);
+    for(let k=0;k<S.M.length;k+=3){ R[k]=S.M[k+2]; R[k+1]=S.M[k+1]; R[k+2]=-S.M[k]; }
+    const v=skThieleSolve(s,i.alpha,i.beta,1,i.drive,0,0,0), Gy=skGyrovector(s);
+    /* substitute the solution back into (G x + alpha D) v = (G x + beta D) v_s */
+    const lhsX=-Gy*v[1]+i.alpha*v[0], lhsY=Gy*v[0]+i.alpha*v[1];
+    const rhsX=i.beta*i.drive, rhsY=Gy*i.drive;
+    const th=skHallAngle(s,i.alpha,i.beta,1);
+    return {charge:Q, charge_exact:-n*s, window_deficit:Math.abs(Math.abs(Q)-n),
+      exchange_energy:E.exchange_bare, bogomolny_bound:bound,
+      bogomolny_ratio:bound>0?E.exchange_bare/bound:Number.NaN,
+      helicity_charge_shift:Math.abs(skBergLuscher(Sh.M,G)-Q),
+      rotation_charge_shift:Math.abs(skBergLuscher(R,G)-Q),
+      antiskyrmion_charge:skBergLuscher(Sa.M,G),
+      gyrovector:Gy, velocity_x:v[0], velocity_y:v[1],
+      thiele_residual:Math.hypot(lhsX-rhsX,lhsY-rhsY)/Math.max(1e-300,Math.hypot(rhsX,rhsY)),
+      hall_angle:th,
+      hall_angle_shipped:Math.atan2(4*Math.PI,Math.max(0.02,i.alpha-i.beta)),
+      hall_vanishes:Math.abs(th)<1e-15?1:0};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,
