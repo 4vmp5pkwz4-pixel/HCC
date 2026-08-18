@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 328   ·   exported names: 365
-   extracted physics, sha256 d74e11f4a78d7bc6d6696c02892f261c9df56711be95c60233364461484db3dd */
+   declarations: 343   ·   exported names: 388
+   extracted physics, sha256 e81f51af6e4711e1705878085b948e82b8966c42407d5762a3dd7482bd1847d8 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -422,6 +422,10 @@ function gwMergerTime(a0,e0,M,c5){          // numeric — the honest general-e 
   return t;
 }
 
+const QM_N=512, QM_L=80, QM_DX=QM_L/QM_N;
+
+const qmX=i=>-QM_L/2+i*QM_DX, qmK=i=>(i<QM_N/2?i:i-QM_N)*2*Math.PI/QM_L;
+
 function qmFFT(re,im,inv){
   const n=re.length;
   for(let i=1,j=0;i<n;i++){ let bit=n>>1;
@@ -437,6 +441,38 @@ function qmFFT(re,im,inv){
         re[i+k]=ur+vr; im[i+k]=ui+vi; re[i+k+len/2]=ur-vr; im[i+k+len/2]=ui-vi;
         const ncr=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=ncr; } } }
   if(inv) for(let i=0;i<n;i++){ re[i]/=n; im[i]/=n; }
+}
+
+function qmPropagate(re,im,V,n,dt){
+  for(let s=0;s<n;s++){
+    for(let i=0;i<QM_N;i++){ const ph=-V[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+    qmFFT(re,im,false);
+    for(let i=0;i<QM_N;i++){ const k=qmK(i), ph=-k*k/2*dt, c=Math.cos(ph), si=Math.sin(ph);
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+    qmFFT(re,im,true);
+    for(let i=0;i<QM_N;i++){ const ph=-V[i]*dt/2, c=Math.cos(ph), si=Math.sin(ph);
+      const r=re[i]*c-im[i]*si; im[i]=re[i]*si+im[i]*c; re[i]=r; }
+  }
+  return [re,im];
+}
+
+function qmGaussian(x0,k0,sig){
+  const re=new Float64Array(QM_N), im=new Float64Array(QM_N); let nrm=0;
+  for(let i=0;i<QM_N;i++){ const g=Math.exp(-((qmX(i)-x0)**2)/(4*sig*sig));
+    re[i]=g*Math.cos(k0*qmX(i)); im[i]=g*Math.sin(k0*qmX(i)); nrm+=g*g*QM_DX; }
+  const f=1/Math.sqrt(nrm); for(let i=0;i<QM_N;i++){ re[i]*=f; im[i]*=f; }
+  return [re,im];
+}
+
+function qmHarmonic(om){ const V=new Float64Array(QM_N);
+  for(let i=0;i<QM_N;i++) V[i]=0.5*om*om*qmX(i)*qmX(i); return V; }
+
+function qmMoments(re,im){
+  let n=0,x=0,x2=0;
+  for(let i=0;i<QM_N;i++){ const d=(re[i]*re[i]+im[i]*im[i])*QM_DX, q=qmX(i); n+=d; x+=q*d; x2+=q*q*d; }
+  const mx=x/(n||1e-300);
+  return {norm:n, x:mx, sigma:Math.sqrt(Math.max(0,x2/(n||1e-300)-mx*mx))};
 }
 
 function topoHopfPts(th,ph,N,R){
@@ -486,6 +522,39 @@ const scGapMeV=Tc=>1.764*SC_KB_MEV*Tc;
 const scJosephsonGHz=VmicroV=>SC_KJ*VmicroV*1e-6;
 
 const scFluxQuanta=(B,areaM2)=>B*areaM2/SC_PHI0;
+
+const eotEpsM=l=>5-Math.pow(l/134,2);
+
+function eotLamRes(a0,i,j){ const n=Math.sqrt(i*i+j*j), ed=1;   // λ ≈ a0/√(i²+j²)·√(em ed/(em+ed))
+  let lam=a0/n*1.05;
+  for(let k=0;k<400;k++){ const e=eotEpsM(lam); if(e>=-1.01) return null;
+    const nx=a0/n*Math.sqrt(e*ed/(e+ed));
+    if(Math.abs(nx-lam)<1e-10) return nx;
+    lam=nx; }
+  return null; }
+
+const EOT_LMIN=420,EOT_LMAX=1000,EOT_AMIN=350,EOT_AMAX=850;
+
+function spinRodrigues(n,ax,ang){
+  const m=Math.hypot(ax[0],ax[1],ax[2])||1, kx=ax[0]/m,ky=ax[1]/m,kz=ax[2]/m;
+  const c=Math.cos(ang),s=Math.sin(ang), kn=kx*n[0]+ky*n[1]+kz*n[2];
+  return [n[0]*c+(ky*n[2]-kz*n[1])*s+kx*kn*(1-c),
+          n[1]*c+(kz*n[0]-kx*n[2])*s+ky*kn*(1-c),
+          n[2]*c+(kx*n[1]-ky*n[0])*s+kz*kn*(1-c)];
+}
+
+function spinFibrePure(th0,ph0,N){
+  N=N||101; const out=[];
+  for(let i=0;i<N;i++){ const t=i/(N-1)*2*Math.PI;
+    out.push([Math.cos(th0/2)*Math.cos(t),Math.cos(th0/2)*Math.sin(t),
+              Math.sin(th0/2)*Math.cos(t+ph0),Math.sin(th0/2)*Math.sin(t+ph0)]); }
+  return out;
+}
+
+function spinHopfProject(q){
+  return [2*(q[0]*q[2]+q[1]*q[3]), 2*(q[0]*q[3]-q[1]*q[2]),
+          q[0]*q[0]+q[1]*q[1]-q[2]*q[2]-q[3]*q[3]];
+}
 
 const REL_S=2.0;
 
@@ -636,6 +705,20 @@ function rdTuring(F,k,Du,Dv){
   return out;
 }
 
+function heCyclePure(Th,Tc,g,V1,V2){
+  const nR=1;
+  const V3=V2*Math.pow(Th/Tc,1/(g-1)), V4=V1*Math.pow(Th/Tc,1/(g-1));
+  const P=(V,T)=>nR*T/V;
+  const pts=[]; const seg=(Va,Vb,Tf)=>{ const M=40; for(let m=0;m<=M;m++){ const V=Va+(Vb-Va)*m/M; pts.push([V,P(V,Tf(V))]); } };
+  seg(V1,V2,()=>Th);
+  seg(V2,V3,V=>Th*Math.pow(V2/V,g-1));
+  seg(V3,V4,()=>Tc);
+  seg(V4,V1,V=>Tc*Math.pow(V4/V,g-1));
+  /* the two isothermal heats, in closed form: Q = nRT ln(V_b/V_a) */
+  const Qin=nR*Th*Math.log(V2/V1), Qout=nR*Tc*Math.log(V3/V4);
+  return {pts,Th,Tc,nR,V1,V2,V3,V4,Qin,Qout,work:Qin-Qout,gamma:g};
+}
+
 const BB_H=6.62607015e-34, BB_C=2.99792458e8, BB_KB=1.380649e-23, BB_SIG=5.670374419e-8, BB_C2=1.438776877e-2;
 
 function bbPlanck(lam,T){ return (2*BB_H*BB_C*BB_C/Math.pow(lam,5))/(Math.exp(BB_C2/(lam*T))-1); }
@@ -723,6 +806,28 @@ function bhtKerr(M,chi=0){chi=Math.min(.999999,Math.max(0,Math.abs(Number(chi)||
 function bhtArea(M,chi=state.bhtSpin??0){ return bhtKerr(M,chi).area; }
 
 function bhtEvapYr(M){ return 5120*Math.PI*BHT_G*BHT_G*M**3/(BHT_hbar*BHT_c**4)/BHT_YR; }
+
+const NS_K=100, NS_GAM=2, NS_KM=1.4766250385;
+
+function tovSolve(rhoc,h,wantProf){
+  h=h||2e-3;
+  let r=1e-6, P=NS_K*Math.pow(rhoc,NS_GAM), m=0;
+  const prof=wantProf?[]:null;
+  const f=(r,P,m)=>{ if(P<=0) return [0,0];
+    const rho0=Math.pow(P/NS_K,1/NS_GAM), eps=rho0+P/(NS_GAM-1);
+    const dP=(r<=0||r-2*m<=0)?0:-(eps+P)*(m+4*Math.PI*r*r*r*P)/(r*(r-2*m));
+    return [dP,4*Math.PI*r*r*eps]; };
+  for(let i=0;i<40000;i++){
+    if(P<=1e-14) break;
+    if(prof&&i%40===0){ const rho0=Math.pow(P/NS_K,1/NS_GAM); prof.push([r,rho0+P/(NS_GAM-1),P,m]); }
+    /* ONE LINE. The fourth time this file has hit it: a wrapped `const a = ..., b = ...` list
+       loses every binder after the wrap to the extractor's statement walker, which then
+       reported k3 and k4 as free names. */
+    const k1=f(r,P,m), k2=f(r+h/2,P+h/2*k1[0],m+h/2*k1[1]), k3=f(r+h/2,P+h/2*k2[0],m+h/2*k2[1]), k4=f(r+h,P+h*k3[0],m+h*k3[1]);
+    P+=h/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]); m+=h/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]); r+=h;
+  }
+  return {M:m,Rcode:r,Rkm:r*NS_KM,prof};
+}
 
 const WD_RSUN_KM=695700,WD_G=6.67430e-11,WD_MSUN=1.98847e30,WD_C=2.99792458e8;
 
@@ -1983,5 +2088,5 @@ function civpExportData(station,a,b,c){
       'of the five certificates, and not a prediction of the cosmological constant.'};}
 
 export {
-  AUFBAU, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, CONF_EXC, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, GW_C, GW_G, GW_MSUN, HOL_TAU, KDV_HW, KDV_L, KDV_N, KDV_NX, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, POLE_PRESETS, POLE_W0, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, REL_S, S3, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, ZPF, ZP_TH_BUDGET, _kdvK, _shFact, atomConfig, bbPlanck, berryChernFHS, berryD, berryF, berryGap, berryN, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, cpBorisPure, cpFieldPure, cuspRoots, dfxDegree, dfxOmega, dfxPhase, dfxWinding, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, jacobiSCD, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, lensAlpha, lensPeriU, levelR, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nucBE, nucBestZ, nucBperA, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, poleR, pvCell, pvFlux, qmFFT, rdTuring, relBoostPts, relGamma, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, slaterZeff, specBlock, specC, specEig, specSpectrum, su2axang, su2conj, su2mul, su2slerp, teCOP, teEta, teMroot, topoHopfPair, topoHopfPts, topoLinkPure, wdMch, wdRadiusKm, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  AUFBAU, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, CONF_EXC, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, GW_C, GW_G, GW_MSUN, HOL_TAU, KDV_HW, KDV_L, KDV_N, KDV_NX, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, POLE_PRESETS, POLE_W0, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QM_DX, QM_L, QM_N, REL_S, S3, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, ZPF, ZP_TH_BUDGET, _kdvK, _shFact, atomConfig, bbPlanck, berryChernFHS, berryD, berryF, berryGap, berryN, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, cpBorisPure, cpFieldPure, cuspRoots, dfxDegree, dfxOmega, dfxPhase, dfxWinding, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, heCyclePure, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, jacobiSCD, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, lensAlpha, lensPeriU, levelR, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nucBE, nucBestZ, nucBperA, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, poleR, pvCell, pvFlux, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, rdTuring, relBoostPts, relGamma, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, slaterZeff, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, teCOP, teEta, teMroot, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, wdMch, wdRadiusKm, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };

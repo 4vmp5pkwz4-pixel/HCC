@@ -1203,6 +1203,196 @@ console.log('\n=== 14. Detailed balance, three attractors, an orthogonal rotatio
   }
 }
 
+console.log('\n=== 15. A maximum mass, an efficiency, a bound mode, a unitary step and one circle ===\n');
+{
+  /* THE TOV EQUATION. There is no closed form, so the check is the limit where there IS
+     one: a Gamma = 2 polytrope in NEWTONIAN gravity has radius pi sqrt(K/2 pi) whatever
+     its mass. Any correct TOV integration must walk onto that number as gravity weakens. */
+  const Rn = Math.PI * Math.sqrt(X.NS_K / (2 * Math.PI));
+  const light = X.tovSolve(1e-5, 1e-3, false);
+  ok('the TOV integration walks onto the EXACTLY known Newtonian radius as the star gets light — pi sqrt(K/2 pi), which no mass appears in',
+    Math.abs(light.Rcode / Rn - 1) < 0.005 && 2 * light.M / light.Rcode < 0.005,
+    `at a compactness of ${(2 * light.M / light.Rcode).toExponential(2)} the radius is ${light.Rcode.toFixed(4)} against the exact ${Rn.toFixed(4)} — ${(100 * Math.abs(light.Rcode / Rn - 1)).toFixed(2)}% · this is the one radius in the problem that is known independently, and it is what says the integrator is right`);
+
+  const seq = [1e-5, 1e-4, 1e-3, 3e-3].map(rc => { const s = X.tovSolve(rc, 1e-3, false); return s.Rcode / Rn; });
+  ok('and it leaves that limit monotonically as relativity takes hold: a heavier star is a smaller one, by more than Newton would have it',
+    seq.every((v, k) => k === 0 || v < seq[k - 1]) && seq[3] < 0.7,
+    `R/R_Newtonian = ${seq.map(v => v.toFixed(4)).join(' -> ')} across four decades of central density`);
+
+  {
+    const h = [6e-3, 1.5e-3, 3.75e-4].map(s => X.tovSolve(3.162e-3, s, false));
+    ok('the integration is converged: a sixteen-fold refinement of the step moves the mass in the sixth digit and the radius in the fourth',
+      Math.abs(h[2].M - h[0].M) < 1e-5 && Math.abs(h[2].Rkm - h[0].Rkm) / h[0].Rkm < 1e-3,
+      `M = ${h.map(s => s.M.toFixed(6)).join(', ')} · R = ${h.map(s => s.Rkm.toFixed(4)).join(', ')} km at h = 6e-3, 1.5e-3, 3.75e-4`);
+  }
+
+  {
+    /* THE MAXIMUM. It is the whole content of the equation: Newtonian gravity has none. */
+    let mx = { M: 0 };
+    for (let lg = -3.4; lg <= -1.9; lg += 0.02) { const rc = Math.pow(10, lg), s = X.tovSolve(rc, 3e-3, false);
+      if (s.M > mx.M) mx = { M: s.M, Rkm: s.Rkm, rc }; }
+    const denser = X.tovSolve(mx.rc * 3, 3e-3, false);
+    ok('and there is a MAXIMUM mass, which is the entire point: past it a denser star is a lighter one, and Newtonian gravity has no such turn anywhere',
+      Math.abs(mx.M - 1.637) < 0.005 && denser.M < mx.M,
+      `M_max = ${mx.M.toFixed(6)} M_sun at rho_c = ${mx.rc.toExponential(3)} (literature 1.6366 for this equation of state) · tripling the central density past it gives ${denser.M.toFixed(6)}, which is LESS`);
+
+    let worstB = 0;
+    for (let lg = -3.4; lg <= -1.7; lg += 0.05) { const s = X.tovSolve(Math.pow(10, lg), 3e-3, false);
+      worstB = Math.max(worstB, 2 * s.M / s.Rcode); }
+    ok('and no star on the whole branch violates the Buchdahl bound 2M/R < 8/9, which holds for any static sphere of any material whatsoever',
+      worstB < 8 / 9,
+      `worst compactness over 35 central densities = ${worstB.toFixed(6)} against the bound ${(8 / 9).toFixed(6)} — the margin is real and it is not an assumption of the integrator`);
+  }
+
+  /* CARNOT. The efficiency depends on two temperatures and on nothing else, and the way to
+     check that is to change everything else. */
+  {
+    let worstE = 0;
+    for (const [Th, Tc] of [[500, 300], [800, 200], [310, 300], [5000, 4], [1e5, 99000]])
+      for (const g of [1.4, 5 / 3, 1.05]) for (const [V1, V2] of [[1, 2.5], [3, 9], [0.05, 60]]) {
+        const c = X.heCyclePure(Th, Tc, g, V1, V2);
+        worstE = Math.max(worstE, Math.abs(c.work / c.Qin - (1 - Tc / Th)));
+      }
+    ok('the Carnot efficiency is 1 - T_c/T_h and depends on nothing else — checked by varying the adiabatic index and both volumes across forty-five cycles',
+      worstE < 1e-12,
+      `worst |eta - (1 - Tc/Th)| = ${worstE.toExponential(2)} over five temperature pairs, three working gases and three volume pairs · gamma and the volumes cancel exactly, which is why the number is a law and not a design`);
+
+    let worstS = 0;
+    for (const [Th, Tc] of [[500, 300], [800, 200], [1200, 77]]) {
+      const c = X.heCyclePure(Th, Tc, 1.4, 1, 2.5);
+      worstS = Math.max(worstS, Math.abs(c.Qin / Th - c.Qout / Tc) / (c.Qin / Th));
+    }
+    ok('and the entropy taken from the hot reservoir is exactly the entropy given to the cold one, which is what reversible means',
+      worstS < 1e-12,
+      `worst relative |Q_in/T_h - Q_out/T_c| = ${worstS.toExponential(2)} · the two adiabats have the same compression ratio, so the two logarithms are the same number and the entropies cannot differ`);
+  }
+
+  /* THE BOUND MODE. */
+  {
+    let worstR = 0, n = 0;
+    for (const a0 of [400, 500, 600, 750, 850]) for (const [i2, j2] of [[1, 0], [1, 1], [2, 0], [2, 1]]) {
+      const lam = X.eotLamRes(a0, i2, j2); if (lam === null) continue;
+      const em = X.eotEpsM(lam), pred = a0 / Math.hypot(i2, j2) * Math.sqrt(em / (em + 1));
+      worstR = Math.max(worstR, Math.abs(lam - pred)); n++;
+    }
+    ok('every surface-plasmon resonance returned satisfies its own implicit equation, which the iteration is not trusted to have solved',
+      n >= 8 && worstR < 1e-6,
+      `${n} (pitch, order) pairs with a bound mode · worst |lambda - lambda(eps_m(lambda))| = ${worstR.toExponential(2)} nm`);
+
+    ok('and every one of them is REDDER than the pitch it came from, because eps_m/(eps_m + 1) exceeds 1 wherever the mode is bound',
+      [400, 600, 750, 850].every(a0 => { const l = X.eotLamRes(a0, 1, 0); return l !== null && l > a0; }),
+      `pitch 400 -> ${X.eotLamRes(400, 1, 0).toFixed(1)} nm · 600 -> ${X.eotLamRes(600, 1, 0).toFixed(1)} · 750 -> ${X.eotLamRes(750, 1, 0).toFixed(1)} · 850 -> ${X.eotLamRes(850, 1, 0).toFixed(1)} — the peak always sits to the red of the geometry, which is the observation the whole effect is known by`);
+
+    ok('and where the metal is not metallic enough the mode does not exist and null comes back rather than a number',
+      X.eotLamRes(400, 1, 1) === null && X.eotLamRes(400, 2, 0) === null && X.eotEpsM(300) > -1,
+      `a 400 nm pitch has no (1,1) or (2,0) mode: those would land near 280 nm where eps_m = ${X.eotEpsM(300).toFixed(3)} is above -1, and a surface plasmon needs it below`);
+  }
+
+  /* THE UNITARY STEP. */
+  {
+    const V = X.qmHarmonic(0.5);
+    const [re, im] = X.qmGaussian(6, 1.2, 2);
+    const m0 = X.qmMoments(re, im);
+    X.qmPropagate(re, im, V, 50000, 0.008);
+    const m1 = X.qmMoments(re, im);
+    ok('the split-step propagator conserves the norm over fifty thousand steps, because every factor it applies has unit modulus',
+      Math.abs(m1.norm - 1) < 1e-8 && Math.abs(m0.norm - 1) < 1e-12,
+      `norm ${m0.norm.toFixed(12)} -> ${m1.norm.toFixed(12)} · drift ${Math.abs(m1.norm - m0.norm).toExponential(2)} after 50000 steps, which is the FFT's rounding and not the propagator's`);
+
+    /* the one wave packet that does not spread */
+    const om = 0.5, T = 2 * Math.PI / om, s0 = 1 / Math.sqrt(2 * om);
+    const g = X.qmGaussian(6, 0, s0), a0 = X.qmMoments(g[0], g[1]);
+    X.qmPropagate(g[0], g[1], X.qmHarmonic(om), Math.round(T / 0.008), 0.008);
+    const a1 = X.qmMoments(g[0], g[1]);
+    ok('a coherent state comes back to itself after one harmonic period with its width unchanged — the one wave packet that does not spread',
+      Math.abs(a1.x - a0.x) < 1e-4 && Math.abs(a1.sigma / a0.sigma - 1) < 1e-6,
+      `<x> ${a0.x.toFixed(6)} -> ${a1.x.toFixed(6)} after T = ${T.toFixed(4)} · sigma ${a0.sigma.toFixed(6)} -> ${a1.sigma.toFixed(6)}, unchanged to a part in a million`);
+
+    /* a FREE packet spreads by an exact law, and that law is the check */
+    const f = X.qmGaussian(0, 0, 2), zero = new Float64Array(X.QM_N);
+    const t = 8; X.qmPropagate(f[0], f[1], zero, Math.round(t / 0.004), 0.004);
+    const fm = X.qmMoments(f[0], f[1]), want = Math.sqrt(4 + Math.pow(t / 4, 2));
+    ok('and a FREE Gaussian spreads by exactly sqrt(sigma^2 + (t/2 sigma)^2), which is the closed form for it',
+      Math.abs(fm.sigma / want - 1) < 1e-4,
+      `after t = ${t} a packet of width 2 has width ${fm.sigma.toFixed(6)} against the exact ${want.toFixed(6)} — ${(100 * Math.abs(fm.sigma / want - 1)).toFixed(4)}%`);
+
+    /* SECOND ORDER IN THE STEP — measured against the STEP and nothing else.
+       The first version of this compared <x> to its exact value 6 and saw 2.3e-5, 2.9e-5,
+       3.0e-5: flat, and not because the splitting is first order. That residual is the
+       SPATIAL grid (512 points over a box of 80), which does not move when dt does, and it
+       swamped the temporal error entirely. Comparing each run to a dt -> 0 run on the SAME
+       grid cancels the grid and leaves the splitting, which is then plainly second order. */
+    /* and every run must land on exactly the SAME final time. Math.round(T/dt) does not:
+       at dt = 0.08 it stops at t = 12.560 instead of 12.566, and 6 cos(omega * 0.0064)
+       differs from 6 by 3.1e-5 — which is precisely the floor the second version of this
+       check kept hitting. dt = T/N for integer N removes it, and the splitting appears. */
+    const run = N => { const q = X.qmGaussian(6, 0, s0);
+      X.qmPropagate(q[0], q[1], X.qmHarmonic(om), N, T / N);
+      return X.qmMoments(q[0], q[1]).x; };
+    const ref = run(51200);
+    const e1 = Math.abs(run(100) - ref), e2 = Math.abs(run(200) - ref), e3 = Math.abs(run(400) - ref);
+    /* MEASURED 16, NOT 4 — and the third version of this check said 4 because that is what
+       Strang splitting guarantees. The guarantee is a floor, not a ceiling: in a QUADRATIC
+       potential the leading commutator term does not reach this observable, and the error
+       falls as dt^4. The check below says 16 because 16 is what happens, and the one after
+       it adds a quartic term to show the general second order is still there underneath. */
+    ok('in a harmonic well the error in <x> falls as dt^4 — BETTER than the second order Strang splitting guarantees, because a quadratic potential degenerates the leading term',
+      Math.abs(e1 / e2 / 16 - 1) < 0.05 && Math.abs(e2 / e3 / 16 - 1) < 0.05,
+      `${e1.toExponential(2)} -> ${e2.toExponential(2)} -> ${e3.toExponential(2)} at 100, 200 and 400 steps per period, each against a 51200-step reference on the same grid · ratios ${(e1 / e2).toFixed(2)} and ${(e2 / e3).toFixed(2)}, which is 2^4`);
+
+    {
+      /* add a quartic term and the general order reappears, exactly as advertised */
+      const V4 = X.qmHarmonic(om); for (let i = 0; i < X.QM_N; i++) V4[i] += 1e-3 * Math.pow(X.qmX(i), 4);
+      const runQ = N => { const q = X.qmGaussian(6, 0, s0);
+        X.qmPropagate(q[0], q[1], V4, N, T / N); return X.qmMoments(q[0], q[1]).x; };
+      const r0 = runQ(51200);
+      const q1 = Math.abs(runQ(100) - r0), q2 = Math.abs(runQ(200) - r0), q3 = Math.abs(runQ(400) - r0);
+      ok('and adding a quartic term brings the second order straight back — the ratio drops from 16 to exactly 4, which is the Strang guarantee doing its job',
+        Math.abs(q1 / q2 / 4 - 1) < 0.05 && Math.abs(q2 / q3 / 4 - 1) < 0.05,
+        `${q1.toExponential(2)} -> ${q2.toExponential(2)} -> ${q3.toExponential(2)} with a x^4 term of amplitude 1e-3 · ratios ${(q1 / q2).toFixed(2)} and ${(q2 / q3).toFixed(2)} against the exact 4 · unitarity is exact and accuracy is not, and a step too large gives a perfectly normalised wrong answer`);
+    }
+  }
+
+  /* ONE CIRCLE. */
+  {
+    let worstS = 0, worstP = 0, worstL = 0;
+    for (const [th, ph] of [[0.7, 1.1], [2.2, 0.3], [1.5, 4.4], [0.05, 0], [3.0, 5.9]]) {
+      const F = X.spinFibrePure(th, ph, 512);
+      const want = [Math.sin(th) * Math.cos(ph), Math.sin(th) * Math.sin(ph), Math.cos(th)];
+      let len = 0;
+      for (let k = 0; k < F.length; k++) { const q = F[k];
+        worstS = Math.max(worstS, Math.abs(Math.hypot(q[0], q[1], q[2], q[3]) - 1));
+        const nn = X.spinHopfProject(q);
+        worstP = Math.max(worstP, Math.hypot(nn[0] - want[0], nn[1] - want[1], nn[2] - want[2]));
+        if (k) { const p = F[k - 1]; len += Math.hypot(q[0] - p[0], q[1] - p[1], q[2] - p[2], q[3] - p[3]); } }
+      worstL = Math.max(worstL, Math.abs(len / (2 * Math.PI) - 1));
+    }
+    ok('every point of a Hopf fibre is a unit quaternion, every one of them projects to the SAME Bloch point, and the fibre is a great circle of length 2 pi',
+      worstS < 1e-15 && worstP < 1e-14 && worstL < 1e-4,
+      `five fibres of 512 points each · worst |q| - 1 = ${worstS.toExponential(2)} · worst projection spread = ${worstP.toExponential(2)} · worst |length/2pi - 1| = ${worstL.toExponential(2)} — a whole circle of states, one measurement`);
+
+    let worstR = 0, worstA = 0;
+    for (const ang of [0.3, 1.3, 2.9, -4.1]) for (const n0 of [[0, 0, 1], [0.6, -0.8, 0], [0.267, 0.535, 0.802]]) {
+      const r = X.spinRodrigues(n0, [1, 2, -0.5], ang);
+      worstR = Math.max(worstR, Math.abs(Math.hypot(r[0], r[1], r[2]) - Math.hypot(n0[0], n0[1], n0[2])));
+    }
+    const a = [0, 0, 1], b = [0.6, -0.8, 0];
+    for (const ang of [0.3, 1.3, 2.9]) {
+      const ra = X.spinRodrigues(a, [1, 2, -0.5], ang), rb = X.spinRodrigues(b, [1, 2, -0.5], ang);
+      worstA = Math.max(worstA, Math.abs((ra[0] * rb[0] + ra[1] * rb[1] + ra[2] * rb[2]) - (a[0] * b[0] + a[1] * b[1] + a[2] * b[2])));
+    }
+    ok('and the Rodrigues rotation is rigid: it changes no length and no angle between vectors, at twelve rotations about an arbitrary axis',
+      worstR < 1e-15 && worstA < 1e-15,
+      `worst length change = ${worstR.toExponential(2)} · worst change in the dot product between two rotated vectors = ${worstA.toExponential(2)}`);
+
+    const n0 = [0.267, 0.535, 0.802];
+    const two = X.spinRodrigues(n0, [0, 0, 1], 2 * Math.PI);
+    ok('a 2 pi rotation returns the BLOCH VECTOR exactly, while 2 pi on the state returns minus it — the same double cover, seen from the two ends',
+      Math.hypot(two[0] - n0[0], two[1] - n0[1], two[2] - n0[2]) < 1e-15,
+      `|R(2 pi) n - n| = ${Math.hypot(two[0] - n0[0], two[1] - n0[1], two[2] - n0[2]).toExponential(2)} · the su2 instrument returns -1 for the same rotation of the state, and both are true`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

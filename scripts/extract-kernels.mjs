@@ -415,7 +415,15 @@ export const ROOTS = [
   'PV_q', 'PV_kB', 'PV_h', 'PV_c', 'PV_SIG', 'PV_TSUN', 'PV_DIL', 'pvFlux', 'pvCell',
   'CHAOS_SYS', 'chaosRK4',
   'cpFieldPure', 'cpBorisPure',
-  'SC_PHI0', 'SC_KJ', 'SC_KB_MEV', 'SC_MATS', 'scGapMeV', 'scJosephsonGHz', 'scFluxQuanta'
+  'SC_PHI0', 'SC_KJ', 'SC_KB_MEV', 'SC_MATS', 'scGapMeV', 'scJosephsonGHz', 'scFluxQuanta',
+  /* five more: the Tolman-Oppenheimer-Volkoff equation (a real integration, with a maximum
+     mass that is the whole point of it), the Carnot cycle, the surface-plasmon resonance of
+     a hole array, the split-step Schrodinger propagator, and the Hopf fibre of a qubit. */
+  'NS_K', 'NS_GAM', 'NS_KM', 'tovSolve',
+  'heCyclePure',
+  'eotEpsM', 'eotLamRes', 'EOT_LMIN', 'EOT_LMAX', 'EOT_AMIN', 'EOT_AMAX',
+  'QM_N', 'QM_L', 'QM_DX', 'qmX', 'qmK', 'qmPropagate', 'qmGaussian', 'qmHarmonic', 'qmMoments',
+  'spinRodrigues', 'spinFibrePure', 'spinHopfProject'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
