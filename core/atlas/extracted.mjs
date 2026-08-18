@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 469   ·   exported names: 537
-   extracted physics, sha256 f8145b71aaa528e55dae9eb5ebea5acf2a0877d0dfb98fc390428c4a11a29a2b */
+   declarations: 483   ·   exported names: 551
+   extracted physics, sha256 7a858db896272898535f13aee42eec986de43afb3a0560a5f473e833560ed97d */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -303,6 +303,18 @@ function bixClassify(r,ly){
      than a guess dressed as a sixth. */
   if(ly&&ly.bounded&&ly.ratio!==null&&ly.ratio>BIX_LY_CUT) return 'chaotic';
   return r.bounces>=3?'quasiperiodic':'transient'; }
+
+const bellE=th=>-Math.cos(th);
+
+const bellLuneOmega=th=>2*(Math.PI-th);
+
+const bellHolonomy=th=>Math.cos(bellLuneOmega(th)/2);
+
+function bellCHSH(a,ap,b,bp){                          // S = E(a,b) + E(a,b') + E(a',b) - E(a',b')
+  return bellE(Math.abs(a-b))+bellE(Math.abs(a-bp))+bellE(Math.abs(ap-b))-bellE(Math.abs(ap-bp));
+}
+
+const BELL_TSIRELSON=2*Math.SQRT2;
 
 function fibSMatrix(){
   const d=Math.sqrt(1+PHI_R*PHI_R);
@@ -1334,6 +1346,20 @@ const PSP_MAPS={
     t:{en:'volume-preserving but NOT canonical · det = 1 all the same',ru:'сохраняет объём, но НЕ каноническое · det = 1 всё равно',de:'volumenerhaltend, aber NICHT kanonisch'} }
 };
 
+function pspShadow(S,r){
+  const M=[S[0],S[2]];
+  const a=M[0].reduce((s,v)=>s+v*v,0), b=M[0].reduce((s,v,k)=>s+v*M[1][k],0), d=M[1].reduce((s,v)=>s+v*v,0);
+  const tr=a+d, dt=a*d-b*b, disc=Math.sqrt(Math.max(0,tr*tr/4-dt));
+  const l1=tr/2+disc, l2=tr/2-disc;
+  const th=Math.abs(b)<1e-14?(a>=d?0:Math.PI/2):0.5*Math.atan2(2*b,a-d);
+  return { A:Math.PI*r*r*Math.sqrt(Math.max(0,dt)), s1:r*Math.sqrt(Math.max(0,l1)), s2:r*Math.sqrt(Math.max(0,l2)), th, det:dt };
+}
+
+function dfxPerturb(eps,seed,K){ let sd=seed|0||7;
+  const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+  const A=[]; for(let i=0;i<(K||5);i++) A.push({a:eps*(rn()*2-1),k:1+Math.floor(rn()*4),p:rn()*7});
+  return A; }
+
 function dfxPhase(t,q,A){ let f=q*t; for(const h of A) f+=h.a*Math.sin(h.k*t+h.p); return f; }
 
 function dfxWinding(q,A,N){ N=N||3000; let tot=0, prev=dfxPhase(0,q,A);
@@ -1349,6 +1375,12 @@ function dfxOmega(a,b,c){
   const num=a[0]*cx+a[1]*cy+a[2]*cz;
   const den=na*nb*nc+dot(a,b)*nc+dot(a,c)*nb+dot(b,c)*na;
   return 2*Math.atan2(num,den); }
+
+function dfxHedge(d,W){ return (th,ph)=>{
+  let f=th; for(const h of W) f+=h.a*Math.sin(h.k*th)*Math.sin(h.k*ph+h.p);
+  f=Math.max(1e-9,Math.min(Math.PI-1e-9,f));
+  const g=d*ph;
+  return [Math.sin(f)*Math.cos(g),Math.sin(f)*Math.sin(g),Math.cos(f)]; }; }
 
 function dfxDegree(n,NT,NP){ NT=NT||64; NP=NP||128; let tot=0;
   for(let i=0;i<NT;i++) for(let j=0;j<NP;j++){
@@ -1422,6 +1454,13 @@ function cauKK(i0,g,w0,wp){
   return (4/Math.PI)*CAU_H*s;
 }
 
+function cauG(t,g,w0,wp,N,WMAX){
+  const h=WMAX/N; let re=0;
+  for(let j=-N;j<=N;j++){ const w=j*h, dr=w0*w0-w*w, di=-g*w, D=dr*dr+di*di||1e-300;
+    re+=(wp*wp*dr/D*Math.cos(w*t)-wp*wp*di/D*Math.sin(w*t))*h; }
+  return re/(2*Math.PI);
+}
+
 function cauSum(g,w0,wp,N,WMAX){ const h=WMAX/N; let s=0;
   for(let j=1;j<=N;j++){ const w=(j-0.5)*h; s+=w*cauChiIm(w,g,w0,wp)*h; }
   return s; }
@@ -1430,6 +1469,104 @@ function wilQuad(a,N){ let s=0; const h=2*Math.PI/N;
   for(let i=0;i<N;i++){ const u=(i+0.5)*h, c=Math.cos(u), den=a+c, H=0.5*(1+c/den);
     s+=H*H*den*h*2*Math.PI; }
   return s; }
+
+const GATE_TOL=1e-3;
+
+const GATE_CLAIMS=[
+ {id:'psp.capacity', lab:'psp', exact:true,
+  t:{en:'Gromov shadow of the unit ball on a conjugate plane',ru:'тень Громова единичного шара на сопряжённой плоскости',de:'Gromov-Schatten der Einheitskugel'},
+  ref:()=>Math.PI, refName:'πr²',
+  m:L=>{ let mn=Infinity; const K=[6,14,30][L];
+    let sd=987654321; const rn=()=>{ sd=(sd*1103515245+12345)&0x7fffffff; return sd/0x7fffffff; };
+    for(let t=0;t<K*40;t++){ let S=pspI4();
+      for(let k=0;k<3+Math.floor(rn()*4);k++){ const u=rn();
+        S=pspMul(u<0.3?PSP_MAPS.squeeze.f(0.25+rn()*3):u<0.6?PSP_MAPS.shear.f(0.2+rn()*2.6):PSP_MAPS.mix.f(0.2+rn()*2.6),S); }
+      mn=Math.min(mn,pspShadow(S,1).A); }
+    return mn; },
+  falsify:{en:'a symplectic word whose shadow falls below πr² would break the theorem',ru:'симплектическое слово с тенью ниже πr² опровергло бы теорему',de:'ein symplektisches Wort mit Schatten unter πr² widerlegte den Satz'}},
+ {id:'dfx.winding', lab:'dfx', exact:true,
+  t:{en:'π₁ winding of a deformed phase field',ru:'намотка π₁ деформированного фазового поля',de:'π₁-Windung eines deformierten Phasenfelds'},
+  ref:()=>3, refName:'q = 3',
+  m:L=>dfxWinding(3,dfxPerturb(2.6,11,5),[600,1500,3600][L]),
+  falsify:{en:'a contour integral drifting off the integer would mean the deformation is not single-valued',ru:'уход контурного интеграла от целого означал бы неоднозначность деформации',de:'ein Abdriften vom ganzzahligen Wert hieße, die Deformation ist nicht eindeutig'}},
+ {id:'dfx.degree', lab:'dfx',
+  t:{en:'π₂ degree by signed spherical-triangle solid angle',ru:'степень π₂ через знаковый телесный угол',de:'π₂-Grad über vorzeichenbehafteten Raumwinkel'},
+  ref:()=>2, refName:'d = 2',
+  m:L=>dfxDegree(dfxHedge(2,dfxPerturb(0.4,5,3)),[24,44,80][L],[48,88,160][L]),
+  falsify:{en:'a degree that moved with mesh density would not be a topological invariant at all',ru:'степень, меняющаяся с плотностью сетки, вовсе не была бы топологическим инвариантом',de:'ein mit der Gitterdichte wandernder Grad wäre keine topologische Invariante'}},
+ {id:'wil.W', lab:'wil',
+  t:{en:'Willmore energy of the Clifford torus by quadrature',ru:'энергия Уиллмора клиффордова тора квадратурой',de:'Willmore-Energie des Clifford-Torus'},
+  ref:()=>2*Math.PI*Math.PI, refName:'2π²',
+  m:L=>wilQuad(Math.SQRT2,[400,1600,6400][L]),
+  falsify:{en:'a limit away from 2π² would contradict Marques–Neves',ru:'предел, отличный от 2π², противоречил бы Маркешу–Невешу',de:'ein Grenzwert ungleich 2π² widerspräche Marques–Neves'}},
+ {id:'cau.fsum', lab:'cau',
+  t:{en:'f-sum rule ∫ωχ″dω with its analytic tail restored',ru:'правило f-суммы ∫ωχ″dω с восстановленным аналитическим хвостом',de:'f-Summenregel mit analytischem Schwanz'},
+  ref:()=>Math.PI/2*0.36, refName:'(π/2)ω_p²',
+  m:L=>{ const W=600, N=[25000,100000,400000][L]; return cauSum(0.12,1,0.6,N,W)+0.36*0.12/W; },
+  falsify:{en:'a limit away from (π/2)ω_p² would mean broadening a line creates or destroys absorption',ru:'предел, отличный от (π/2)ω_p², означал бы, что уширение линии создаёт или уничтожает поглощение',de:'ein anderer Grenzwert hieße, Verbreiterung erzeugt oder vernichtet Absorption'}},
+ {id:'and.gamma', lab:'and',
+  t:{en:'Anderson Lyapunov exponent against the unfitted Thouless value',ru:'показатель Ляпунова Андерсона против неподогнанного значения Таулесса',de:'Anderson-Lyapunov gegen den ungefitteten Thouless-Wert'},
+  ref:()=>andThouless(1,0.5), refName:'⟨ε²⟩/(8 sin²k)',
+  m:L=>andGamma(1,0.5,[120000,480000,1920000][L],12345).g,
+  falsify:{en:'a limit away from Thouless at weak disorder would falsify the perturbative theory in its own domain',ru:'предел, отличный от Таулесса при слабом беспорядке, опроверг бы пертурбативную теорию в её же области',de:'ein abweichender Grenzwert widerlegte die perturbative Theorie in ihrer eigenen Domäne'}},
+ {id:'kam.lambda', lab:'kam',
+  t:{en:'standard-map Lyapunov exponent against the random-phase limit',ru:'показатель Ляпунова стандартного отображения против предела случайной фазы',de:'Standardabbildungs-Lyapunov gegen das Zufallsphasen-Limit'},
+  ref:()=>Math.log(6), refName:'ln(K/2) at K=12',
+  m:L=>kamLyapunov(12,[600,2400,9600][L],[8,16,32][L]),
+  falsify:{en:'a limit away from ln(K/2) at large K would contradict the random-phase result',ru:'предел, отличный от ln(K/2) при больших K, противоречил бы результату случайной фазы',de:'ein abweichender Grenzwert widerspräche dem Zufallsphasen-Resultat'}},
+ {id:'cau.preresponse', lab:'cau',
+  t:{en:'pre-response of a causal system as the bandwidth is widened',ru:'предотклик причинной системы при расширении полосы',de:'Vorantwort eines kausalen Systems bei wachsender Bandbreite'},
+  ref:()=>0, refName:'0 (causality)',
+  m:L=>{ const W=[24,48,96][L], N=Math.round(W/0.003);   // widen the BANDWIDTH at fixed step
+    let pre=0;
+    for(let t=-6;t<-0.05;t+=0.25) pre=Math.max(pre,Math.abs(cauG(t,0.12,1,0.6,N,W)));
+    return pre; },
+  falsify:{en:'a floor that stopped shrinking as the bandwidth is widened would mean the response really does begin before the kick',ru:'порог, переставший убывать при расширении полосы, означал бы, что отклик действительно начинается до толчка',de:'eine Grenze, die bei wachsender Bandbreite nicht mehr schrumpft, hieße, die Antwort beginnt wirklich vor dem Stoß'}},
+ {id:'and.anomaly', lab:'and',
+  t:{en:'band-centre Anderson exponent against the perturbative formula',ru:'показатель Андерсона в центре зоны против пертурбативной формулы',de:'Anderson-Exponent im Bandzentrum gegen die perturbative Formel'},
+  ref:()=>andThouless(0,1), refName:'⟨ε²⟩/(8 sin²k) at E=0',
+  m:L=>andGamma(0,1,[120000,480000,1920000][L],2468).g,
+  falsify:{en:'registered so the gate can be seen REFUSING one of the atlas’s own numbers. The Kappus–Wegner anomaly is real in the literature, but on this ladder the stochastic estimator does not contract — 0.00928 → 0.00945 → 0.00963, drifting upward — so the eight percent gap cannot be certified from these sample counts. The Anderson laboratory quotes the anomaly from a far longer run; this claim shows what happens when that budget is not spent, and the correct verdict is that nothing is established.',ru:'зарегистрировано, чтобы шлюз можно было увидеть ОТКЛОНЯЮЩИМ одно из собственных чисел атласа. Аномалия Каппуса–Вегнера реальна в литературе, но на этой лестнице стохастическая оценка не сжимается — 0.00928 → 0.00945 → 0.00963, дрейф вверх, — поэтому восьмипроцентный разрыв не может быть удостоверен при таких объёмах выборки. Лаборатория Андерсона приводит аномалию по гораздо более длинному прогону; это утверждение показывает, что бывает, когда такой бюджет не потрачен, и верный вердикт — что не установлено ничего.',de:'registriert, damit man das Gate eine EIGENE Zahl des Atlas ABLEHNEN sieht: auf dieser Leiter kontrahiert der stochastische Schätzer nicht, also lässt sich die Acht-Prozent-Lücke aus diesen Stichprobenzahlen nicht zertifizieren.'}}
+];
+
+function gateAnalyse(v,ref){
+  const [a,b,c]=v, d1=Math.abs(b-a), d2=Math.abs(c-b);
+  const scale=Math.max(1e-30,Math.abs(c));
+  const contraction=d1>0?d2/d1:0;
+  const order=(d1>0&&d2>0)?Math.log2(d1/d2):null;
+  const rel=d2/scale;
+  /* against a reference of exactly zero there is nothing to be relative to, so the
+     residual is absolute and is labelled that way rather than divided by 1e-30. */
+  const refZero=(ref!=null&&isFinite(ref)&&Math.abs(ref)<1e-12);
+  const refErr=(ref!=null&&isFinite(ref))?(refZero?Math.abs(c-ref):Math.abs(c-ref)/Math.abs(ref)):null;
+  /* Once the level-to-level differences are at round-off, the contraction ratio is
+     noise over noise and says nothing — so settledness is judged on the SIZE of the
+     last step, not on its ratio to the previous one. */
+  const settled=rel<1e-12;
+  let verdict, refMismatch=false;
+  if(settled) verdict='EXACT';
+  else if(rel<GATE_TOL&&contraction<0.75) verdict='CONVERGED';
+  else if(contraction<0.9) verdict='SENSITIVE';
+  else verdict='ARTEFACT';
+  /* Converged and agrees-with-theory are DIFFERENT questions. A quantity can be
+     perfectly converged and still sit away from what a formula predicts — the
+     band-centre Anderson anomaly does exactly that — and folding the two together
+     would hide a real effect behind a numerical grade. */
+  if((verdict==='EXACT'||verdict==='CONVERGED')&&refErr!=null&&refErr>=(refZero?1e-3:5e-2)){ refMismatch=true; verdict+=' · REF-MISMATCH'; }
+  const qC=settled?1:1-Math.min(1,contraction), qS=settled?1:1/(1+rel*400);
+  const qR=refErr==null?0.5:1/(1+refErr*40);
+  const score=Math.max(0,Math.min(100,100*(settled?1:(0.55*qC+0.45*qS))));
+  return {v,d1,d2,contraction,order,rel,refErr,refZero,verdict,refMismatch,score,qR};
+}
+
+function gateRun(claim){
+  const v=[0,1,2].map(L=>{ try{ const x=claim.m(L); return Number.isFinite(x)?x:NaN; }catch(e){ return NaN; } });
+  if(v.some(x=>!Number.isFinite(x))) return {claim,v,verdict:'FAILED',score:0,rel:NaN,contraction:NaN,order:null,refErr:null};
+  const ref=claim.ref?claim.ref():null;
+  return {claim,ref,...gateAnalyse(v,ref)};
+}
+
+function gateRunAll(){ return GATE_CLAIMS.map(gateRun); }
 
 const CPS_EXTREMAL_TOL=1e-12;
 
@@ -2502,5 +2639,5 @@ function civpExportData(station,a,b,c){
       'of the five certificates, and not a prediction of the cosmological constant.'};}
 
 export {
-  ACT_TAU, AUFBAU, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, CONF_EXC, CPS_EXTREMAL_TOL, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GW_C, GW_G, GW_MSUN, HOL_TAU, KDV_HW, KDV_L, KDV_N, KDV_NX, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, POLE_PRESETS, POLE_W0, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QM_DX, QM_L, QM_N, QSO_ETA, REL_S, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, bbPlanck, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cuspRoots, dfxDegree, dfxOmega, dfxPhase, dfxWinding, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, heCyclePure, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, jacobiSCD, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, lensAlpha, lensPeriU, levelR, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, poleR, pspDet, pspI4, pspMul, pspSympDefect, pspT4, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qsoLEdd, rdTuring, relBoostPts, relGamma, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, wdMch, wdRadiusKm, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  ACT_TAU, AUFBAU, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_PHI, CIVP_STATIONS, CONF_EXC, CPS_EXTREMAL_TOL, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GW_C, GW_G, GW_MSUN, HOL_TAU, KDV_HW, KDV_L, KDV_N, KDV_NX, LENS_BCRIT, LENS_RS, LN_PHI, LOG10_PHI, LY_M, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, PC_H, PHI, PHI_R, POLE_PRESETS, POLE_W0, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QM_DX, QM_L, QM_N, QSO_ETA, REL_S, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, bbPlanck, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cuspRoots, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, gateAnalyse, gateRun, gateRunAll, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, heCyclePure, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, jacobiSCD, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, lensAlpha, lensPeriU, levelR, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, pcCreate, pcExtFlow, pcMu, pcMuBlock, poinOmega, poinSolve, poleR, pspDet, pspI4, pspMul, pspShadow, pspSympDefect, pspT4, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qsoLEdd, rdTuring, relBoostPts, relGamma, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, wdMch, wdRadiusKm, wilQuad, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };

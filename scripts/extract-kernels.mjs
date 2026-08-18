@@ -469,7 +469,16 @@ export const ROOTS = [
      the null-space search and the Jacobi eigensolver — comes out now regardless. */
   'sydC', 'sydCSub', 'sydCMul', 'sydCDiv', 'sydCrossRatio', 'sydAngle',
   'sydStereoPt', 'sydMobiusBase', 'sydHash', 'sydEvalPoly',
-  'sydMonomials', 'sydMonomialNames', 'sydRREF', 'sydJacobiEig', 'sydSplitPoly'
+  'sydMonomials', 'sydMonomialNames', 'sydRREF', 'sydJacobiEig', 'sydSplitPoly',
+  /* THE GATE, which is the atlas grading its own claims. Every claim is evaluated at three
+     refinement levels and the sequence is graded EXACT / CONVERGED / SENSITIVE / ARTEFACT —
+     and separately against theory, because a number can be perfectly converged and still sit
+     away from what a formula predicts. The Anderson band-centre anomaly does exactly that. */
+  'pspShadow', 'cauG', 'dfxPerturb', 'dfxHedge',
+  'GATE_TOL', 'GATE_CLAIMS', 'gateAnalyse', 'gateRun', 'gateRunAll',
+  /* and the Bell correlation, which had no name at all: E(a,b) and the lune's solid angle
+     were computed inline inside the render loop. */
+  'bellE', 'bellLuneOmega', 'bellHolonomy', 'bellCHSH', 'BELL_TSIRELSON'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
