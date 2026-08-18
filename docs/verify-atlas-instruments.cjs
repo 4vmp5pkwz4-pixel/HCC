@@ -1393,6 +1393,110 @@ console.log('\n=== 15. A maximum mass, an efficiency, a bound mode, a unitary st
   }
 }
 
+console.log('\n=== 16. Two measured numbers, a luminosity, an identity and a ledger ===\n');
+{
+  /* A PULSAR HANDS YOU TWO NUMBERS. Everything else is inference, and the Crab is where
+     that inference can be checked against a catalogue and against a supernova. */
+  const c = X.PSR_PRESETS.crab;
+  ok('the Crab pulsar: from its period and period derivative alone, the field, the age and the spin-down luminosity all land on their catalogue values',
+    Math.abs(X.psrB(c.P, c.Pd) / 3.8e12 - 1) < 0.05 &&
+    Math.abs(X.psrTau(c.P, c.Pd) / 1240 - 1) < 0.05 &&
+    Math.abs(X.psrLsd(c.P, c.Pd) / 4.5e38 - 1) < 0.05,
+    `B = ${X.psrB(c.P, c.Pd).toExponential(3)} G (catalogue 3.8e12) · tau = ${X.psrTau(c.P, c.Pd).toFixed(0)} yr (catalogue 1240) · L_sd = ${X.psrLsd(c.P, c.Pd).toExponential(3)} erg/s (catalogue 4.5e38)`);
+
+  ok('and the characteristic age is NOT the age: the Crab exploded in 1054 and this returns 1257 years, which is the braking assumption showing rather than an arithmetic error',
+    X.psrTau(c.P, c.Pd) > 1200 && X.psrTau(c.P, c.Pd) < 1300 && X.psrTau(c.P, c.Pd) > 2026 - 1054,
+    `tau = ${X.psrTau(c.P, c.Pd).toFixed(0)} yr against a true age of ${2026 - 1054} yr — a 29% overestimate, and it is what P/2Pdot means when the star was NOT born spinning much faster than it is now`);
+
+  {
+    /* the millisecond pulsars are a different population, and the two numbers say so */
+    const m = X.PSR_PRESETS.ms;
+    ok('a millisecond pulsar comes out with a field four orders of magnitude weaker and an age three orders older, from the same two formulas',
+      X.psrB(m.P, m.Pd) < 1e9 && X.psrTau(m.P, m.Pd) > 1e9 && X.psrTau(m.P, m.Pd) / X.psrTau(c.P, c.Pd) > 1e5,
+      `J0437: B = ${X.psrB(m.P, m.Pd).toExponential(3)} G and tau = ${X.psrTau(m.P, m.Pd).toExponential(3)} yr against the Crab's ${X.psrB(c.P, c.Pd).toExponential(2)} G and ${X.psrTau(c.P, c.Pd).toFixed(0)} yr — spun up by accretion, not born fast`);
+
+    let worstS = 0;
+    for (const [a, z] of [[0.6, 0.8], [1.2, 1.5], [0.3, 2.0], [2.5, 2.9]]) {
+      const num = (X.psrRvm(a, z, 1e-5) - X.psrRvm(a, z, -1e-5)) / 2e-5;
+      worstS = Math.max(worstS, Math.abs(num / (Math.sin(a) / Math.sin(z - a)) - 1));
+    }
+    ok('and the steepest slope of the Rotating Vector Model curve is sin(alpha)/sin(zeta - alpha) — a closed form, checked against the derivative of the curve itself',
+      worstS < 1e-6,
+      `worst relative disagreement over four geometries = ${worstS.toExponential(2)} · that slope is the one number a polarization sweep actually measures, and it constrains the two angles together`);
+  }
+
+  /* THE EDDINGTON LIMIT. */
+  {
+    ok('the Eddington luminosity is exactly linear in the mass and independent of everything else, which is why a brightness is a mass measurement',
+      Math.abs(X.qsoLEdd(2e8) / X.qsoLEdd(1e8) - 2) < 1e-12 &&
+      Math.abs(X.qsoLEdd(1e9) / X.qsoLEdd(1) - 1e9) < 1e-3,
+      `doubling the mass doubles it to ${(X.qsoLEdd(2e8) / X.qsoLEdd(1e8)).toFixed(12)} · a solar mass gives ${X.qsoLEdd(1).toExponential(4)} erg/s, which is 33 000 times the Sun's actual output — the Sun is nowhere near its own Eddington limit`);
+
+    ok('and the Schwarzschild ISCO efficiency is 1 - sqrt(8/9), recomputed rather than quoted — six per cent of the rest mass, against 0.7% for hydrogen fusion',
+      Math.abs(X.QSO_ETA - (1 - Math.sqrt(8 / 9))) < 1e-15 && Math.abs(X.QSO_ETA - 0.0571) < 1e-3 &&
+      X.QSO_ETA / 0.007 > 8,
+      `eta = ${X.QSO_ETA.toFixed(9)} · that is ${(X.QSO_ETA / 0.007).toFixed(1)} times as efficient as fusion, which is why accretion powers the brightest objects in the universe and fusion does not`);
+  }
+
+  /* UNITARITY AS AN IDENTITY, NOT A TOLERANCE. */
+  {
+    let worstU = 0, n = 0;
+    for (const kR of [0.05, 0.3, 0.55, 1.2, 2.8]) for (const kI of [0.001, 0.02, 0.09, 0.4, 0.9])
+      for (const k of [0.01, 0.1, 0.5, 1.0, 2.5, 9.0]) {
+        const s = X.rshS(k, kR, kI); worstU = Math.max(worstU, Math.abs(Math.hypot(s[0], s[1]) - 1)); n++;
+      }
+    ok('the two-pole S-matrix has modulus exactly one at every real momentum — 150 of them — because analyticity puts the mirror pole where unitarity needs it',
+      worstU < 1e-14,
+      `worst ||S(k)| - 1| over ${n} (pole, momentum) combinations = ${worstU.toExponential(2)} · this is an IDENTITY: the mirror pole at -k_p* makes the numerator and denominator complex conjugates for real k, and no tolerance is involved anywhere`);
+
+    /* the deuteron, from two low-energy numbers and nothing else */
+    const P = X.rshErePole(5.4194, 1.7536), B = X.RSH_C * P.k1 * P.k1;
+    ok('and the deuteron binding energy comes out of the triplet scattering length and effective range alone, to under a tenth of a per cent',
+      !P.bad && P.k1 > 0 && Math.abs(B / 2.224566 - 1) < 0.001,
+      `B = ${B.toFixed(6)} MeV against the measured 2.224566 — ${((B / 2.224566 - 1) * 100).toFixed(4)}% from two numbers that say nothing about the nuclear force`);
+
+    const V = X.rshErePole(-23.740, 2.77);
+    ok('while the SINGLET channel gives a negative momentum from the identical algebra — a virtual state and not a bound one, and only the sign says so',
+      !V.bad && V.k1 < 0 && P.k1 > 0 && Math.abs(X.RSH_C * V.k1 * V.k1 * 1000 - 66) < 3,
+      `singlet kappa = ${V.k1.toFixed(6)} 1/fm at ${(X.RSH_C * V.k1 * V.k1 * 1000).toFixed(2)} keV · the triplet gives +${P.k1.toFixed(6)} · the difference between a deuteron existing and a di-neutron not existing is that sign`);
+
+    ok('and where 2 r_0 exceeds a there is no real pole at all, and the discriminant says so rather than a square root of a negative number leaking out',
+      X.rshErePole(1.0, 3.0).bad === true && X.rshErePole(5.4194, 1.7536).bad === false,
+      `a = 1, r_0 = 3 gives a discriminant of ${X.rshErePole(1.0, 3.0).disc.toFixed(4)} and the flag is set`);
+
+    /* the resonance peaks where the closed form says, to five digits */
+    const S = { mode: 'pole', kR: 0.55, kI: 0.09 };
+    let peak = 0, Epk = 0;
+    for (let E = 0.1; E < 30; E += 0.001) { const s = X.rshSigma(E, S); if (s > peak) { peak = s; Epk = E; } }
+    const ER = X.RSH_C * (0.55 * 0.55 - 0.09 * 0.09);
+    ok('and the cross section peaks exactly where the pole says it will: (hbar^2/2mu)(k_R^2 - k_I^2), found by scanning the curve rather than by trusting the formula',
+      Math.abs(Epk / ER - 1) < 1e-3,
+      `scanned peak at ${Epk.toFixed(4)} MeV against the closed form ${ER.toFixed(4)} MeV`);
+  }
+
+  /* A LEDGER THAT BALANCES. */
+  {
+    let worstT = 0, bad = 0;
+    for (let p = 0; p <= 1; p += 0.005) { const c2 = X.rpdCounts(p);
+      const t = c2.acc + c2.hid + c2.re; worstT = Math.max(worstT, Math.abs(t - X.RPD_N)); if (t !== X.RPD_N) bad++; }
+    ok('the information ledger balances at every one of 201 stages: accessible plus hidden plus re-expressed is exactly 48, and these are integers rather than amplitudes',
+      worstT === 0 && bad === 0,
+      `201 stages · every total exactly ${X.RPD_N} · nothing is ever lost from the count, which is a property of how the model was written and not a result about black holes`);
+
+    /* the swallowed set is a running maximum: nothing is ever un-swallowed */
+    let mono = true, prev = -1;
+    for (let p = 0; p <= 0.4; p += 0.002) { const s = X.rpdCounts(p).swallowed.length; if (s < prev) mono = false; prev = s; }
+    ok('and the swallowed set only ever grows while the horizon does — nothing is un-swallowed, because it is the running maximum of the horizon history and not its current value',
+      mono,
+      `the count rises monotonically from ${X.rpdCounts(0).swallowed.length} to ${X.rpdCounts(0.4).swallowed.length} over the formation half`);
+
+    const start = X.rpdIext(0), end = X.rpdIext(1), mid = X.rpdIext(0.4);
+    ok('the external information falls as the horizon grows and returns to EXACTLY its starting value once every hidden class has been re-expressed',
+      Math.abs(end - start) < 1e-12 && mid < start - 1,
+      `I_ext = ${start.toFixed(6)} bits at the start, ${mid.toFixed(6)} at the peak of the horizon, ${end.toFixed(6)} at the end — the return is exact because the counts are integers, and the model was built that way rather than found to be that way`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
