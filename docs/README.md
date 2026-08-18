@@ -4667,6 +4667,109 @@ a remembered number.
 
 `docs/verify-atlas-instruments.cjs` is now **211 checks, 0 failed**.
 
+## Four more that drew and did not compute (v4.11.0)
+
+Resonant transfer, wave optics, kinetic theory and dipole radiation each drew a correct
+picture out of formulas written **inside** an `update*` function, where nothing outside the
+render loop could reach them — exactly the shape `bell` was in before v4.11.0's predecessor.
+The closed forms are named now and the renderers call them, so the picture and the number
+cannot come apart. Lifting them out found four wrong statements **on the screen**.
+
+### The driven peak was quoted at its high-Q limit
+
+The resonance readout printed `peak A_max = … = F/(γω₀)`. The number it printed was right —
+it was `A(√(ω₀²−γ²/2))`, computed honestly — but the formula beside it is not that number.
+The exact peak height is **F/(γ√(ω₀²−γ²/4))**, and `F/(γω₀)` is only its γ ≪ ω₀ limit. At the
+laboratory's default γ = 0.1 the gap is 0.13%; at γ = 1.2 it is **20%**. The check scans the
+lineshape at five dampings — two of them well outside the high-Q regime — and finds the peak
+frequency to the scan grid and the height to twelve digits.
+
+`retLeapfrog` and `retAnalytic` also make a claim testable that was never tested: the
+trajectory converges to the exact two-mode solution at **order 2.0000, over four halvings of
+the step**, and the energy error is *bounded* and falls by exactly four each time — a
+symplectic integrator does not drift, it oscillates, and the oscillation is what shrinks.
+The wireless efficiency now agrees with its second algebraic form
+(√(1+U²)−1)/(√(1+U²)+1) **to the last bit** over five decades of coupling.
+
+### λL/d is not where the fringes are
+
+The two-slit readout compared its measured fringe spacing against "analytic λL/d". The locus
+of equal path difference is a **hyperbola** with the slits as foci, and it meets the screen at
+
+    z_m = (mλ/2) √(1 + 4L²/(d² − (mλ)²))
+
+exactly — no small-angle step anywhere. That closed form agrees with a bisection of
+r₋ − r₊ = mλ to **5.6e-14** across sixteen order-and-distance pairs. `λL/d` is `L sin θ` where
+the answer is `L tan θ`: it is short by 1/√(1−(mλ/d)²) **even at infinite distance** — 1.8% at
+first order here and **52% at fourth**. The grating equation `d sin θ = mλ` is the exact part,
+and the instrument returns the exact height, the asymptote, the paraxial formula and the gap
+between them rather than one of the four.
+
+The measured maximum is 1.88071 against the ideal 1.88416 — 0.18% off, and that is physics:
+the two slits are at different distances, so their amplitudes differ and the maximum is pulled
+off the equal-path locus. The instrument returns the offset.
+
+### A slit made of three points is not a slit
+
+The single-slit readout said "minima at sin θ = mλ/a". Three sub-sources per slit are a
+**Dirichlet array**, whose first minimum sits at λ(N−1)/(aN) — for N = 3 that is **two thirds**
+of what the screen claimed. Measured by scanning the far field of the sum itself at four
+sampling densities, the law holds to 2e-5 at N = 3, 9, 21 and 81, and the continuum λ/a is
+reached only as N grows. The sub-source count is a **control** now, with the law stated for
+whatever it is set to, and a slit narrower than the wavelength returns
+`slit_minimum_exists = 0` rather than an impossible angle.
+
+While lifting the field out, one more thing: **the global phase the render loop recomputed
+every frame is inert.** |Σ e^{i(kr−φ)}|² = |Σ e^{ikr}|², so 150 × 104 × n complex exponentials
+were being recomputed sixty times a second to produce a field that never changed. It is
+computed once per parameter change now, and the picture is bit-identical.
+
+### The gas was declared Maxwellian by an identity
+
+The kinetic readout showed `v_mean/v_mp` against √(4/π) as evidence of thermalisation. Both
+sides are built from the same second moment: **it is an identity of kT and cannot fail.** What
+can fail is the **sample** mean speed against √(8kT/π), and the **Kolmogorov–Smirnov distance**
+between the actual speeds and the Maxwell law. The atlas had no `erf` at all, so the one
+distribution every gas is measured against could not be integrated; there is one now, right to
+the last unit in the last place at five arguments. Starting monodisperse, the ratio runs
+**1.0854 → 0.9967** and the KS distance **0.6084 → 0.0663** against its own 5% critical value
+of 0.1148 at N = 140 — a claim that can be rejected, and is not.
+
+The initial condition was also **not seeded**: positions came from `mulberry(7)` and velocities
+from `THREE.Vector3.randomDirection()`, which uses `Math.random`. The gas was irreproducible
+in exactly the half that matters. `kinInitPure` draws both from the seeded stream.
+
+The molecular dynamics is the kernel now, in float64: energy is conserved to **3.2e-15** over
+two thousand steps, momentum is conserved **exactly** by the collisions in a box too large to
+reach and broken only by the walls, and `PV/NkT` is **bit-identical** when every velocity is
+doubled and the step halved — the ideal-gas temperature law in the only part of it a finite box
+cannot spoil. Shrink the spheres to points and Z → 1 (0.99964 at t = 128); leave them at
+η = 0.0295 and it is 1.1140 against Carnahan–Starling's 1.1272, and the instrument returns both
+rather than claiming they agree. The coarse-grained entropy of a free expansion rises by a nat
+and then **fluctuates** about its plateau: it is not monotone, and a monotone entropy would be a
+stronger claim than mechanics supports.
+
+### The light knot, checked without a finite difference
+
+The dipole pattern integral converges at **fourth** order, not second — `sin³θ` has vanishing
+first derivative at both poles, so the leading Euler–Maclaurin term goes with it. And the null
+condition of the Rañada knot is now checked where it lives: the tangents to the two fibrations
+are **q·i** and **q·j**, the derivative of the stereographic map is written out, and E·B = 0 and
+|E| = |B| hold to **1.8e-15** at 528 common points. The central difference the picture is drawn
+from gives 2.7e-8 instead — its own truncation error, and both are returned. The Gauss linking
+integral between two field lines converges to 1 by a factor of 16 for a fourfold refinement.
+
+### And five of my own checks were wrong
+
+The driven-peak tolerance was tighter than the scan grid it measured against; the KS check
+compared an **object** to a number; the pattern integral was asserted second order when it is
+fourth; `sin²(π/4)` was demanded exactly 0.5 when it is one ulp below; and `sin²(π)` was
+demanded exactly zero when π is not representable — 1.5e-32 is the honest answer and the check
+says so now.
+
+`docs/verify-atlas-instruments.cjs` is now **235 checks, 0 failed**. 66 of the 80 laboratories
+compute; 71 typed instruments; 0 page errors during the headless walk.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
