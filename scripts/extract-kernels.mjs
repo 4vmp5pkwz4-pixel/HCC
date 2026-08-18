@@ -439,7 +439,15 @@ export const ROOTS = [
   'andRng', 'andGamma', 'andThouless',
   'SN_DAY', 'SN_YEAR', 'SN_TAUNI', 'SN_TAUCO', 'SN_ENI', 'SN_ECO', 'SN_MSUNG', 'SN_C',
   'snDecayFractions', 'snRadioComponents', 'snLradio',
-  'bhrTraceJS'
+  'bhrTraceJS',
+  /* four more: symplectic matrices (where det = 1 is necessary and NOT sufficient, and the
+     laboratory carries a counterexample), the Kerr-Newman first law with an analytic dA and
+     a field-space curl that must come out exactly 2c, a fourth-order symplectic three-body
+     integrator, and the Cornell potential with its running coupling. */
+  'PSP_J', 'pspI4', 'pspMul', 'pspT4', 'pspSympDefect', 'pspDet', 'PSP_MAPS',
+  'CPS_EXTREMAL_TOL', 'cpsKN', 'cpsDA', 'cpsAlpha', 'cpsCurl', 'cpsPathIntegral',
+  'GRAV_CS', 'GRAV_DS', 'gravAccel', 'gravStep', 'gravRmin', 'gravInvariants',
+  'QCD_HC', 'QCD_AS', 'QCD_SIG', 'qcdV', 'qcdAlphaS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

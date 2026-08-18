@@ -4469,6 +4469,64 @@ about what it holds is a defect wherever it appears — the bus is just what not
 `docs/verify-atlas-instruments.cjs` is now **165 checks, 0 failed** — the second batch in a
 row to pass on the first run.
 
+### A counterexample, a first law, a bounded energy and a slope that never turns (v4.7.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `psp` | the symplectic condition, the determinant, and the map that separates them | EXACT |
+| `cps` | the Kerr–Newman first law from analytic derivatives, and a field-space curl | EXACT |
+| `grav` | a fourth-order symplectic integrator: what it conserves, and what it bounds | MEASURED |
+| `qcd` | the Cornell potential and the running coupling, with its one-loop error | MODEL |
+
+**80 laboratories, 57 computational, 62 instruments, 0 page errors.** The gap is **69 → 23**.
+
+`psp` is the only instrument here that **carries its own counterexample**. Every symplectic
+matrix has determinant 1, and the converse is false — so the laboratory ships a map with
+determinant exactly 1 and a symplectic defect of **0.96**. It preserves phase-space *volume*
+and destroys the symplectic *form*, which is more than a volume. The other three maps have
+defect **exactly zero**, and products and inverses of them stay canonical to 2.2e-16: the
+group axioms, measured.
+
+`cps` gets the first law of black-hole mechanics in **all three directions at once**, to
+1.1e-16, from analytic derivatives of the area — there is no finite difference anywhere in
+that check. Past M² = a² + Q² it **refuses**: what lies there is a naked singularity, and
+returning horizon quantities for it would be returning a square root of a negative number
+with the sign thrown away. The injected field-space curl comes out **exactly 2c**, and a
+closed loop then integrates to the enclosed area times it — Stokes, measured rather than
+invoked.
+
+`grav` separates the two things a symplectic integrator does. Momentum and angular momentum
+are conserved to **5e-14 over two hundred thousand steps** — exactly, because the force loop
+enforces Newton's third law in a single statement. The energy is *not* conserved exactly and
+is not trying to be: it oscillates inside a bound of 2.5e-12 that falls as **dt⁴** (measured
+ratio 16.01), which is what the Yoshida composition is for.
+
+`qcd` states confinement as a fact about a **slope**: the force between two quarks is
+positive at all 500 separations tested and never falls below the string tension, so no finite
+energy frees a quark. The potential crosses zero at exactly √(4α_s ħc/3σ) and has **no
+minimum anywhere**, because its slope never changes sign.
+
+### The instrument returns its own error rather than tuning it away
+
+One-loop α_s with Λ = 0.21 GeV gives **0.1349 at the Z mass against the measured 0.1180** — a
+14.4% miss. That number is an *output*. Fitting Λ would close it and would be a fit rather
+than one loop, so the error is returned and the limits say what it costs.
+
+### The wrapped declarator, twice more — and the second one was caught differently
+
+Sixth occurrence: the Yoshida coefficients `GRAV_CS` and `GRAV_DS` sat past a line break and
+the extraction refused them by name. Seventh: inside `cpsCurl`, `d` sat past the wrap,
+resolved to a **top-level** `d`, and dragged `bar` and then `document` into the closure — the
+first time this defect was caught by the browser-global check rather than the missing-root
+one. The extractor named the chain both times.
+
+One check in this batch was wrong: it asked for **4πM²** at extremal Kerr, which is the
+Reissner–Nordström answer. Extremal Kerr has r₊ = M *and* a = M, so A = 4π(M² + M²) = **8πM²**
+— twice as much. Both families are tested now, because the pair shows which term of r₊² + a²
+carries the area.
+
+`docs/verify-atlas-instruments.cjs` is now **181 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
