@@ -4527,6 +4527,62 @@ carries the area.
 
 `docs/verify-atlas-instruments.cjs` is now **181 checks, 0 failed**.
 
+### A ray that is null, a phase that moves nothing, and a knot tangent everywhere (v4.8.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `nul` | a spinor's null ray, the SL(2,C) interval, the double cover, the cross ratio | EXACT |
+| `act` | the two conditions that define a Reeb field, a Legendrian knot, the KS map | EXACT |
+
+**80 laboratories, 59 computational, 64 instruments, 0 page errors.** The gap is **69 → 21**.
+
+Both are station observatories in the shape `hol` established, and both are made of
+identities that hold **to the last bit or not at all**.
+
+A normalized two-spinor makes a **future-directed null ray** — |k·k| = 3.3e-16 at twenty
+points of the Bloch sphere, k⁰ > 0 at every one. A common U(1) phase moves the fibre and
+**not the ray**: the direction is the Hopf base point. An SL(2,C) element preserves the
+Minkowski interval to 7e-15, and **A and −A do exactly the same thing to spacetime** — the
+double cover seen from the Lorentz end, where `su2` shows it from the spinor end. A
+four-point cross ratio survives every Möbius map to 4.7e-16, which is the whole content of
+aberration: the observer's sky is conformal, not metric.
+
+`act` checks **both** conditions that define a Reeb field — λ(R) = 1 and the contraction into
+dλ — and both are exactly zero. The Hopf image is constant along an orbit, so the Reeb flow
+*is* the Hopf flow, measured rather than named. Five Legendrian torus knots are tangent to
+the contact plane at all two thousand points tested, to 6.9e-16. And the Kustaanheimo–Stiefel
+map satisfies |X(u)| = |u|² exactly with a gauge freedom that moves nothing physical — that
+freedom is the **same Hopf fibre** `nul` calls a phase, which is why a Kepler collision can
+be regularized at all.
+
+### A residual that was my probe, not the physics
+
+The Legendrian tangency first measured 1.76e-4 — and it did **not fall** when the sampling
+was refined from 300 points to 2400. A discretisation error that ignores the discretisation
+is not one: the chord was being scaled by the array length instead of the parameter step.
+Differentiating the closed form analytically gives **7e-16**. The instrument uses the
+analytic tangent, because a difference quotient here returns its own step size and would
+read as a physics residual.
+
+### Where this batch stopped, and why
+
+`syd` stays parametric. Its discovery engine is pure linear algebra — a null-space search and
+a Jacobi eigensolver, both extracted and checked here — but `SYD_WORLDS` defines every
+world's state, sample points and **group action** by building `THREE.Vector3` objects. The
+engine cannot be lifted out without rewriting those definitions, which is a larger change
+than this batch, and the laboratory stays parametric until it is made rather than being
+half-extracted now.
+
+Three more entanglements were cut on the way: `actProject4` and `actDProject4` allocated
+`THREE.Vector3` (split into plain-array cores with the renderer wrapping them), `sydStereo`
+did the same, and `sydAngle` used `THREE.MathUtils.clamp`.
+
+The wrapped declarator, an **eighth** time: inside `sydJacobiEig`, `c` sat past the wrap,
+resolved to a top-level `c` and dragged `document` into the closure.
+
+`docs/verify-atlas-instruments.cjs` is now **192 checks, 0 failed** — the third batch in a
+row to pass on the first run.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
