@@ -4583,6 +4583,43 @@ resolved to a top-level `c` and dragged `document` into the closure.
 `docs/verify-atlas-instruments.cjs` is now **192 checks, 0 failed** — the third batch in a
 row to pass on the first run.
 
+### The atlas grading itself, and a bound it cannot pass (v4.9.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `gate` | every claim the atlas makes, graded for convergence AND against theory | EXACT |
+| `bell` | the singlet correlation as a holonomy, and the Tsirelson bound | EXACT |
+
+**80 laboratories, 61 computational, 66 instruments, 0 page errors.** The gap is **69 → 19**.
+
+`gate` is a **meta-instrument**: it evaluates each of the atlas's own nine numerical claims at
+three refinement levels and grades the *sequence* — EXACT, CONVERGED, SENSITIVE or ARTEFACT —
+recomputed on every call and never cached. Five come out EXACT. The sharpest lands on **πr² to
+seven parts in a trillion**: the Gromov width of the unit ball, found by minimising over random
+canonical maps rather than by being told. No canonical map squeezes the shadow below π, and the
+search does not find one.
+
+**Converged and correct are different questions, and the gate refuses to fold them together.**
+A sequence that settles perfectly and sits away from theory is flagged REF-MISMATCH rather than
+passed. That distinction is not decorative: one of the nine claims is graded **ARTEFACT on
+purpose** — the Anderson band-centre anomaly, contraction 1.06 and a 7.5% reference error,
+where the formula genuinely fails. A gate that graded everything green would be measuring
+nothing.
+
+`bell` had **no kernel at all**: E(a,b) = −cos θ and the lune's solid angle were computed
+inline inside the render loop, so the one number the laboratory is about could not be reached
+from outside. They are named functions now and the renderer calls them, so the picture and the
+number cannot come apart.
+
+The correlation **is** a holonomy — cos(Ω/2) equals −cos θ to 3.3e-16 at four hundred angles,
+with Ω = 2(π − θ). CHSH at the optimal settings saturates Tsirelson **exactly**, clearing the
+local hidden-variable bound of 2 by 0.828. And over **2 825 761 angle quadruples** the largest
+|S| is 2√2 with an excess of **0.00e+0** — the bound is reached and not passed, which is the
+whole content of Tsirelson's theorem, measured rather than quoted.
+
+`docs/verify-atlas-instruments.cjs` is now **203 checks, 0 failed** — the fourth batch in a
+row to pass on the first run.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

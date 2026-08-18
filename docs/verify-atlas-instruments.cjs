@@ -1889,6 +1889,79 @@ console.log('\n=== 19. A ray that is null, a phase that moves nothing, and a kno
   }
 }
 
+console.log('\n=== 20. The atlas grading itself, and a bound it cannot pass ===\n');
+{
+  /* THE RUBRIC FIRST, ON SEQUENCES WHOSE ANSWER IS KNOWN BY CONSTRUCTION. */
+  const g = (v, r) => X.gateAnalyse(v, r);
+  ok('the grading rubric calls a settled sequence EXACT, a contracting one CONVERGED, and a diverging one an ARTEFACT',
+    g([1, 1, 1], 1).verdict === 'EXACT' &&
+    g([1, 1.1, 1.101], 1.1011).verdict === 'CONVERGED' &&
+    g([1, 2, 4], null).verdict === 'ARTEFACT',
+    `[1,1,1] -> EXACT · [1, 1.1, 1.101] -> CONVERGED with contraction ${g([1, 1.1, 1.101], 1.1011).contraction.toFixed(4)} · [1,2,4] -> ARTEFACT with contraction ${g([1, 2, 4], null).contraction.toFixed(4)}, which is 2 and a sequence whose steps are GROWING is not converging to anything`);
+
+  const mism = g([3, 3.0000001, 3.00000011], 2.5);
+  ok('and it separates CONVERGED from CORRECT: a sequence that settles perfectly and sits away from theory is flagged REF-MISMATCH rather than passed',
+    mism.verdict.includes('REF-MISMATCH') && mism.verdict.startsWith('CONVERGED') && mism.refMismatch === true,
+    `[3, 3.0000001, 3.00000011] against a reference of 2.5 grades "${mism.verdict}" · rel = ${mism.rel.toExponential(2)} and reference error = ${mism.refErr.toExponential(2)} · folding the two grades together would hide a real effect behind a numerical one`);
+
+  ok('and a reference of exactly zero is compared ABSOLUTELY rather than divided by, because there is nothing to be relative to',
+    g([1e-9, 1e-10, 1e-11], 0).refZero === true &&
+    Math.abs(g([1e-9, 1e-10, 1e-11], 0).refErr - 1e-11) < 1e-20,
+    `against a zero reference the residual is |v2| = ${g([1e-9, 1e-10, 1e-11], 0).refErr.toExponential(2)} and not v2/1e-30`);
+
+  /* NOW THE ATLAS'S OWN NINE CLAIMS. */
+  {
+    const all = X.gateRunAll();
+    const tally = all.reduce((o, r) => { const k = String(r.verdict).split(' ')[0]; o[k] = (o[k] || 0) + 1; return o; }, {});
+    ok('the atlas makes nine numerical claims and grades every one of them on every call — five are EXACT and the rest are not, and none of that is cached',
+      all.length === 9 && (tally.EXACT || 0) === 5 && all.every(r => r.verdict !== 'FAILED'),
+      `${all.length} claims · ${JSON.stringify(tally)} · the five exact ones are ${all.filter(r => r.verdict === 'EXACT').map(r => r.claim.id).join(', ')}`);
+
+    const psp = all.find(r => r.claim.id === 'psp.capacity');
+    ok('and the sharpest of them lands on pi r squared to seven parts in a trillion — the Gromov width of a ball, found by minimising over random canonical maps rather than by being told',
+      psp.verdict === 'EXACT' && psp.refErr < 1e-10,
+      `psp.capacity reaches ${psp.refErr.toExponential(2)} relative to pi · the symplectic camel: no canonical map can squeeze the unit ball's shadow below pi, and the search does not find one`);
+
+    const an = all.find(r => r.claim.id === 'and.anomaly');
+    ok('and ONE claim is graded ARTEFACT, deliberately: the Anderson band-centre anomaly, where the reference formula genuinely fails and the sequence says so',
+      an.verdict.startsWith('ARTEFACT') && an.contraction > 1 && an.refErr > 0.05,
+      `and.anomaly: contraction ${an.contraction.toFixed(4)} (above 1, so it is not settling) and reference error ${(100 * an.refErr).toFixed(1)}% · a gate that graded everything green would be measuring nothing, and this is the claim that proves it is not`);
+
+    ok('and every claim returns three finite levels, so nothing is graded on a NaN',
+      all.every(r => r.v.every(x => Number.isFinite(x))),
+      `${all.length} claims x 3 refinement levels, all finite · a claim that threw would be FAILED with score 0, and none is`);
+  }
+
+  /* THE BOUND. */
+  {
+    let worstH = 0;
+    for (let m = 0; m <= 400; m++) { const t = m / 400 * Math.PI;
+      worstH = Math.max(worstH, Math.abs(X.bellHolonomy(t) - X.bellE(t))); }
+    ok('the singlet correlation IS a holonomy: cos of half the lune solid angle equals -cos(theta) at four hundred angles',
+      worstH < 1e-15,
+      `worst |cos(Omega/2) - E| = ${worstH.toExponential(2)} where Omega = 2(pi - theta) · the correlation is a geometric phase and not merely analogous to one`);
+
+    const S = X.bellCHSH(Math.PI / 4, 3 * Math.PI / 4, Math.PI / 2, 0);
+    ok('and CHSH at the optimal settings saturates the Tsirelson bound exactly, passing the classical bound of 2 by 0.83',
+      Math.abs(Math.abs(S) - X.BELL_TSIRELSON) < 1e-12 && Math.abs(S) > 2,
+      `|S| = ${Math.abs(S).toFixed(12)} against 2 sqrt 2 = ${X.BELL_TSIRELSON.toFixed(12)} · margin ${(X.BELL_TSIRELSON - Math.abs(S)).toExponential(2)} · it clears the local hidden-variable bound by ${(Math.abs(S) - 2).toFixed(9)}`);
+
+    let worst = 0, count = 0;
+    const N = 40;
+    for (let i2 = 0; i2 <= N; i2++) for (let j = 0; j <= N; j++) for (let k = 0; k <= N; k++) for (let l = 0; l <= N; l++) {
+      const v = Math.abs(X.bellCHSH(i2 / N * Math.PI, j / N * Math.PI, k / N * Math.PI, l / N * Math.PI));
+      if (v > worst) worst = v; count++;
+    }
+    ok('and NOTHING exceeds it: over 2.8 million angle quadruples the largest |S| is exactly 2 sqrt 2 and not one part in a trillion more',
+      worst <= X.BELL_TSIRELSON + 1e-12 && worst > X.BELL_TSIRELSON - 1e-9,
+      `${count.toLocaleString('en-US')} quadruples · largest |S| = ${worst.toFixed(12)} · excess over the bound = ${(worst - X.BELL_TSIRELSON).toExponential(2)} · the bound is reached and it is not passed, which is the whole content of Tsirelson's theorem`);
+
+    ok('the correlation is -1 at zero angle and +1 at pi, which is what perfect anticorrelation of a singlet means',
+      Math.abs(X.bellE(0) + 1) < 1e-15 && Math.abs(X.bellE(Math.PI) - 1) < 1e-15 && Math.abs(X.bellE(Math.PI / 2)) < 1e-15,
+      `E(0) = ${X.bellE(0)} · E(pi/2) = ${X.bellE(Math.PI / 2).toExponential(2)} · E(pi) = ${X.bellE(Math.PI)} · aligned detectors always disagree and opposite ones always agree`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
