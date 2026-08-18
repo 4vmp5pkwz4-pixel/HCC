@@ -530,7 +530,13 @@ export const ROOTS = [
      J = r x v - N r-hat is conserved, so J . r-hat = -N pins every orbit to a
      cone that can be drawn before a single step is integrated. */
   'tnCross', 'tnDot', 'tnNorm', 'tnUnit', 'tnAccPure', 'tnPoincare',
-  'tnConeCos', 'tnConeAngle', 'tnEnergy', 'tnRK4', 'tnV', 'tnSquashOf'
+  'tnConeCos', 'tnConeAngle', 'tnEnergy', 'tnRK4', 'tnV', 'tnSquashOf',
+  /* ── AND THE MAGNETIC SOLITON, WHOSE CHARGE IS A LATTICE SUM ─────────────
+     Berg-Lüscher is exact on a finite mesh, the Belavin-Polyakov map saturates
+     the Bogomolny bound, and the Thiele equation has a closed-form solution the
+     laboratory was printing the wrong angle from. */
+  'skBPField', 'skSampleBP', 'skSolidAngle', 'skBergLuscher', 'skEnergyPure',
+  'skBogomolny', 'skGyrovector', 'skThieleSolve', 'skHallAngle'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

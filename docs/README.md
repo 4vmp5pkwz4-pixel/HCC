@@ -28,6 +28,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-embadon-laboratory.cjs` | Sym^N(CP¹) ≅ CP^N verified by round trip, the moment polytope, the classical discriminants, the braid that exchanges two embadons, and why the isoclinic rotation's orbits are Hopf fibres |
 | `verify-quasicrystal-arithmetic.cjs` | the orthogonal splitting of R⁶, the five-fold rotation as an integer matrix of order five, and the trace split τ + (1−τ) = 1 that is the whole crystallographic restriction |
 | `verify-taub-nut-cone.cjs` | Poincaré's conserved vector, the cone drawn before the orbit, the energy a magnetic force cannot change, and the Berger squash this laboratory had backwards |
+| `verify-skyrmion-charge.cjs` | Berg–Lüscher against L'Huilier, the window that keeps the charge off the integer, the Bogomolny bound saturated, and the skyrmion Hall angle that had never vanished where the readout said it did |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -4944,6 +4945,62 @@ way. 16 admissible couplings, 16 declared.
 `docs/verify-taub-nut-cone.cjs`: **9 checks, 0 failed**.
 **69 of 81** laboratories compute; **74** typed instruments; 0 page errors during the
 headless walk.
+
+## An angle that had never vanished where the readout said it did (v4.14.0)
+
+The skyrmion laboratory prints, under its own numbers: **θ_SkH ≈ … (∝ N_sk; →0 when β=α)**.
+The formula beneath it was `atan2(4π, α−β)` — which is **89.91°** when β = α, and is never
+zero at any α and β at all. The statement and the number have disagreed since the laboratory
+was written.
+
+Solving the Thiele equation gives
+
+    tan θ = (β − α) D G / (α β D² + G²)
+
+which is **exactly zero when β = α** — checked at four dampings, zero to floating point at
+every one — and which changes sign with the charge and with β − α. That is what the readout
+prints now. The closed-form Thiele solution is substituted back into its own equation at
+thirty-six combinations of charge, damping, torque and drive direction: worst relative
+residual **2.1e-16**.
+
+### The charge is a lattice sum, and the window is what keeps it off the integer
+
+Berg–Lüscher is not a discretised integral — it is the signed spherical area of every
+triangle of neighbouring spins, and it is *exact* for a finite mesh. So refining the grid
+converges **immediately and to the wrong thing**: four grids from 81 to 641 agree to five
+decimals on a number that is **three per cent short of one**.
+
+The shortfall is the **window**. The Belavin–Polyakov soliton has a tail falling only as
+1/r², so half-widths of 4, 8, 16, 32, 64, 128 give −0.884653, −0.968340, −0.991886,
+−0.997959, −0.999489, −0.999872 — monotone, and within a thousandth of the integer by 128.
+The instrument returns that deficit rather than rounding it away, and the laboratory's own
+comment that the wall-width reshaping leaves the charge unchanged is now shown to be true of
+the *map* and false of the *measurement*, for exactly this reason.
+
+The lattice sum is checked against **L'Huilier's theorem**, which computes the same
+spherical area from the three side lengths alone and shares no algebra with it, at three
+hundred random triangles (3.9e-12, which is L'Huilier's own conditioning).
+
+### And what a degree cannot notice, it does not
+
+- **helicity**: Néel, Bloch and everything between give the same charge **to the last bit**
+  at five values (2.3e-15)
+- **a global rotation of the target sphere** — the bimeron transform — shifts it by
+  **1.1e-16**, which is why a bimeron is the same soliton and not another one
+- **an antiskyrmion** is the negative to every digit
+- **degrees add**: two like cores carry −1.999973 and one of each carries −0.000000000
+
+### The Bogomolny bound, saturated — and shown to be a bound
+
+E_ex ≥ 4π|Q|, and the rational map saturates it: the ratio is 0.99966, 0.99970, 0.99971 at
+half-widths 4, 8 and 16 **at fixed mesh density**. It keeps saturating as the window grows
+because the tail costs the energy and the charge the same factor and the ratio does not
+notice. Reshape the wall away from the holomorphic profile and the ratio rises to **1.2493**
+at half the width and **1.2359** at twice — above one in both directions, which is what a
+bound does and an identity does not.
+
+`docs/verify-skyrmion-charge.cjs`: **11 checks, 0 failed**. **70 of 81** laboratories
+compute; **75** typed instruments; 0 page errors during the headless walk.
 
 ## Status
 
