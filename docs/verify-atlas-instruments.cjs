@@ -618,6 +618,260 @@ console.log('\n=== 11. A Chern number, three KdV invariants, the double cover, a
   }
 }
 
+console.log('\n=== 12. Five closed journeys, a Carnot limit, an inspiral, a threshold and four exact ratios ===\n');
+{
+  /* HOLONOMY. The frame comes back turned by the ENCLOSED SOLID ANGLE — modulo 2 pi, and
+     the modulo is the part that is easy to get wrong, so it is tested past a hemisphere */
+  let worstH = 0, rows = [];
+  for (const deg of [15, 45, 60, 92, 120, 170]) {
+    const th = deg * Math.PI / 180, om = 2 * Math.PI * (1 - Math.cos(th));
+    const tr = X.holTransportPure(th, 2048);
+    const d = Math.abs(X.holWrap(tr.angle - X.holWrap(om)));
+    worstH = Math.max(worstH, d);
+    if (deg === 170) rows.push(`theta=170deg: Omega=${om.toFixed(6)} sr, transport=${tr.angle.toFixed(6)} rad`);
+  }
+  ok('parallel transport around a latitude returns the frame turned by the enclosed solid angle, at six angles including three past a hemisphere',
+    worstH < 1e-5,
+    `${rows[0]} · worst |wrap(transport - Omega)| = ${worstH.toExponential(2)} — beyond a hemisphere the two numbers stop looking alike and are still the same number`);
+
+  const hA = X.holTransportPure(1.0, 256), hB = X.holTransportPure(1.0, 1024), hC = X.holTransportPure(1.0, 4096);
+  const om1 = X.holWrap(2 * Math.PI * (1 - Math.cos(1.0)));
+  const e = t => Math.abs(X.holWrap(t.angle - om1));
+  ok('and the residual is the polygon, not the theorem: it falls by about sixteen each time the step count quadruples',
+    e(hB) < e(hA) / 8 && e(hC) < e(hB) / 8,
+    `${e(hA).toExponential(2)} -> ${e(hB).toExponential(2)} -> ${e(hC).toExponential(2)} at 256, 1024 and 4096 steps`);
+
+  {
+    let worstB = 0, worstG = 0;
+    for (const th of [0.4, 1.0, 1.9, 2.6]) {
+      const cf = X.holWrap(-Math.PI * (1 - Math.cos(th)));
+      const n = X.holBerryWilson(th, 0, 257), g = X.holBerryWilson(th, 2.5, 257);
+      worstB = Math.max(worstB, Math.abs(X.holWrap(n.phase - cf)));
+      worstG = Math.max(worstG, Math.abs(X.holWrap(n.phase - g.phase)));
+    }
+    ok('the Pancharatnam phase of a Bloch latitude is -Omega/2, and a non-constant local gauge cannot move it by more than a rounding error',
+      worstB < 1.2e-4 && worstG < 1e-12,
+      `worst |phase + Omega/2| = ${worstB.toExponential(2)} over four latitudes · worst gauge drift = ${worstG.toExponential(2)}, which is what gauge invariance looks like when it is measured rather than asserted`);
+  }
+
+  {
+    /* the SU(2) commutator angle approaches alpha*beta as the loop shrinks — BCH to
+       leading order, and a claim that only means something if the limit is watched */
+    const ang = (a, b) => { const qx = X.holQAxis('x', a), qy = X.holQAxis('y', b);
+      const C = X.holQMul(X.holQMul(X.holQMul(qx, qy), X.holQInv(qx)), X.holQInv(qy));
+      /* 2*acos(w) is the textbook extraction and is USELESS here: near the identity w is
+         1 - s^4/2, and acos loses half its digits to cancellation exactly where the limit
+         lives. 2*atan2(|vector|, w) is the same angle and is accurate there, so the
+         instrument uses it too — a formula that is right and unusable is not right enough. */
+      return 2 * Math.atan2(Math.hypot(C.x, C.y, C.z), C.w); };
+    const r = s => ang(s, s) / (s * s);
+    ok('the SU(2) group commutator of two rotations is a rotation by alpha*beta in the small-loop limit — Baker-Campbell-Hausdorff, watched converging over four decades',
+      Math.abs(r(0.1) - 1) < 0.01 && Math.abs(r(0.01) - 1) < 1e-4 &&
+      Math.abs(r(0.001) - 1) < 1e-6 && Math.abs(r(0.0001) - 1) < 1e-8,
+      `angle/(s^2) = ${r(0.1).toFixed(6)}, ${r(0.01).toFixed(8)}, ${r(0.001).toFixed(10)}, ${r(0.0001).toFixed(12)} at s = 0.1 down to 1e-4 — the error falls as s^2, which is the next BCH term`);
+
+    const a = 0.7, b = 1.3, za = X.holQAxis('z', a), zb = X.holQAxis('z', b);
+    const ab = X.holQMul(X.holQMul(za, zb), X.holQMul(X.holQInv(za), X.holQInv(zb)));
+    ok('and two rotations about the SAME axis commute exactly, so their commutator is the identity — the control case that says the angle above is curvature and not arithmetic',
+      Math.abs(ab.w - 1) < 1e-15 && Math.hypot(ab.x, ab.y, ab.z) < 1e-15,
+      `|w - 1| = ${Math.abs(ab.w - 1).toExponential(2)} · |vector part| = ${Math.hypot(ab.x, ab.y, ab.z).toExponential(2)}`);
+  }
+
+  {
+    /* WIGNER. Two boosts in different directions do not commute, and the leftover is a
+       ROTATION — the origin of Thomas precession. Two independent closed forms for it. */
+    let worstW = 0, worstI = 0, worstD = 0;
+    for (const a of [0.2, 0.9, 1.8]) for (const b of [0.3, 1.1, 2.2]) {
+      const YX = X.holM3Mul(X.holBoostY(b), X.holBoostX(a));
+      const v = X.holM3Vec(YX, [1, 0, 0]);
+      const half = -2 * Math.atan(Math.tanh(a / 2) * Math.tanh(b / 2));
+      const alt = Math.atan2(-Math.sinh(a) * Math.sinh(b), Math.cosh(a) + Math.cosh(b));
+      worstW = Math.max(worstW, Math.abs(X.holWrap(half - alt)));
+      worstI = Math.max(worstI, Math.abs(v[0] * v[0] - v[1] * v[1] - v[2] * v[2] - 1));
+      worstD = Math.max(worstD, Math.abs(X.holM3Det(YX) - 1));
+    }
+    ok('the Wigner rotation of two non-collinear boosts agrees between two independent closed forms, and every composed boost preserves the interval and has unit determinant',
+      worstW < 1e-13 && worstI < 1e-12 && worstD < 1e-12,
+      `nine rapidity pairs · worst |Omega_W difference| = ${worstW.toExponential(2)} · worst |tau^2 - x^2 - y^2 - 1| = ${worstI.toExponential(2)} · worst |det - 1| = ${worstD.toExponential(2)}`);
+
+    const c = X.holM3Mul(X.holBoostX(0.6), X.holBoostX(1.1)), d = X.holM3Mul(X.holBoostX(1.1), X.holBoostX(0.6));
+    let same = 0; for (let n = 0; n < 9; n++) same = Math.max(same, Math.abs(c[n] - d[n]));
+    ok('and two boosts along the SAME axis do commute, so there is no rotation left over — the control case for the Wigner angle',
+      same < 1e-14, `worst entrywise difference between the two orderings = ${same.toExponential(2)}`);
+  }
+
+  {
+    /* MOBIUS: det is 1 and the trace is conjugation invariant, which is what makes the
+       elliptic/parabolic/hyperbolic classification a property of the map and not the chart */
+    let worstDet = 0, worstTr = 0;
+    for (const a of [0.3, 1.4, 2.6]) for (const b of [0.2, 1.0, 2.4]) {
+      const ca = Math.cos(a / 2), sa = Math.sin(a / 2);
+      const M = [ca, -sa, sa, ca], B = [Math.exp(b / 2), 0, 0, Math.exp(-b / 2)];
+      const C = X.holM2Mul(X.holM2Mul(X.holM2Mul(M, B), X.holM2Inv(M)), X.holM2Inv(B));
+      const H = [Math.cos(0.31), -Math.sin(0.31), Math.sin(0.31), Math.cos(0.31)];
+      const HC = X.holM2Mul(X.holM2Mul(H, C), X.holM2Inv(H));
+      worstDet = Math.max(worstDet, Math.abs(X.holM2Det(C) - 1));
+      worstTr = Math.max(worstTr, Math.abs((HC[0] + HC[3]) - (C[0] + C[3])));
+    }
+    ok('the SL(2,R) commutator has determinant 1 and a trace no conjugation can move, so its conjugacy class is a property of the map and not of the chart',
+      worstDet < 1e-13 && worstTr < 1e-13,
+      `nine (angle, rapidity) pairs · worst |det - 1| = ${worstDet.toExponential(2)} · worst trace shift under conjugation = ${worstTr.toExponential(2)}`);
+  }
+
+  /* THERMOELECTRIC. The whole content is the approach to Carnot, so that is the check. */
+  {
+    let worstC = 0, mono = true;
+    for (const tau of [0.2, 0.5, 0.8]) {
+      const e = X.teEta(1e12, tau);
+      worstC = Math.max(worstC, Math.abs(e / (1 - tau) - 1));
+      let prev = -1;
+      for (const ZT of [0.1, 0.5, 1, 2, 5, 20, 100]) { const v = X.teEta(ZT, tau); if (!(v > prev)) mono = false; prev = v; }
+    }
+    ok('the thermoelectric efficiency rises monotonically with ZT and approaches Carnot exactly as ZT goes to infinity, at three temperature ratios',
+      worstC < 1e-5 && mono,
+      `worst |eta(ZT = 1e12)/Carnot - 1| = ${worstC.toExponential(2)} · monotone in ZT at every tau tested`);
+
+    ok('and the cooler approaches its own Carnot bound, tau/(1 - tau), from below',
+      [0.3, 0.6, 0.9].every(t => { const c = X.teCOP(1e12, t) / (t / (1 - t)); return c < 1 && Math.abs(c - 1) < 1e-5; }),
+      `COP/Carnot at ZT = 1e12: ${[0.3, 0.6, 0.9].map(t => (X.teCOP(1e12, t) / (t / (1 - t))).toFixed(9)).join(' · ')}`);
+
+    /* the closed-form ZT that reaches half of Carnot — solved, then verified by substitution */
+    let worstHalf = 0;
+    for (const tau of [0.15, 0.4, 0.75]) {
+      const Mg = 2 + tau, Mc = 1 + 2 / tau;
+      worstHalf = Math.max(worstHalf,
+        Math.abs(X.teEta(Mg * Mg - 1, tau) / (1 - tau) - 0.5),
+        Math.abs(X.teCOP(Mc * Mc - 1, tau) / (tau / (1 - tau)) - 0.5));
+    }
+    ok('the figure of merit that reaches half of Carnot is closed form — M = 2 + tau for a generator and 1 + 2/tau for a cooler — and substituting it back returns exactly one half',
+      worstHalf < 1e-12,
+      `worst departure from 0.5 over three temperature ratios and both modes = ${worstHalf.toExponential(2)}`);
+
+    ok('and below ZT = 1/tau^2 - 1 the maximum-COP expression goes NEGATIVE, which is the absence of an operating point and is why the instrument refuses there',
+      X.teCOP(1 / 0.25 - 1 - 0.3, 0.5) < 0 && X.teCOP(1 / 0.25 - 1 + 0.3, 0.5) > 0 &&
+      Math.abs(X.teCOP(1 / 0.25 - 1, 0.5)) < 1e-12,
+      `at tau = 0.5 the threshold is ZT = 3: COP(2.7) = ${X.teCOP(2.7, 0.5).toFixed(6)}, COP(3) = ${X.teCOP(3, 0.5).toExponential(2)}, COP(3.3) = ${X.teCOP(3.3, 0.5).toFixed(6)}`);
+  }
+
+  /* GRAVITATIONAL WAVES. */
+  {
+    ok('the chirp mass is symmetric in the two masses and scales linearly when both are scaled — the only mass combination the leading waveform depends on',
+      Math.abs(X.gwChirpMass(36, 29) - X.gwChirpMass(29, 36)) < 1e-12 &&
+      Math.abs(X.gwChirpMass(72, 58) - 2 * X.gwChirpMass(36, 29)) < 1e-12 &&
+      Math.abs(X.gwChirpMass(10, 10) - 10 * Math.pow(2, -1 / 5)) < 1e-12,
+      `GW150914 (36, 29) gives ${X.gwChirpMass(36, 29).toFixed(4)} M_sun · equal masses give m/2^(1/5) exactly`);
+
+    /* tau and df/dt are two faces of one law: dt = -df/(df/dt) integrated from f gives tau */
+    const Mc = X.gwChirpMass(36, 29) * X.GW_MSUN, f0 = 35;
+    let num = 0; const N = 200000, fmax = 1e6;
+    for (let n = 0; n < N; n++) { const f = f0 * Math.pow(fmax / f0, (n + 0.5) / N), df = f * (Math.log(fmax / f0) / N);
+      num += df / X.gwDfdt(f, Mc); }
+    ok('the time to coalescence IS the integral of df over the chirp rate, computed two entirely different ways',
+      Math.abs(num / X.gwTau(f0, Mc) - 1) < 1e-3,
+      `closed form ${X.gwTau(f0, Mc).toFixed(6)} s · integrated ${num.toFixed(6)} s from 35 Hz — the 0.2 s of GW150914 in band`);
+
+    ok('and tau scales as f^(-8/3) and as Mc^(-5/3), which is what makes a chirp measure a mass',
+      Math.abs(X.gwTau(70, Mc) / X.gwTau(35, Mc) - Math.pow(2, -8 / 3)) < 1e-12 &&
+      Math.abs(X.gwTau(35, 2 * Mc) / X.gwTau(35, Mc) - Math.pow(2, -5 / 3)) < 1e-12,
+      `doubling f multiplies tau by ${(X.gwTau(70, Mc) / X.gwTau(35, Mc)).toFixed(9)} = 2^(-8/3) · doubling Mc multiplies it by ${(X.gwTau(35, 2 * Mc) / X.gwTau(35, Mc)).toFixed(9)} = 2^(-5/3)`);
+
+    let worstP = 0;
+    for (const io of [0, 0.4, 1.0, Math.PI / 2, 2.4, Math.PI]) {
+      const S = X.gwStokes(io); worstP = Math.max(worstP, Math.abs(S.q * S.q + S.u * S.u + S.v * S.v - 1));
+    }
+    ok('a circular binary emits a PURE polarization state at every inclination — face on it is fully circular, edge on fully linear, and never partial',
+      worstP < 1e-12 && Math.abs(X.gwStokes(0).v - 1) < 1e-12 && Math.abs(X.gwStokes(Math.PI / 2).q - 1) < 1e-12,
+      `worst |q^2 + u^2 + v^2 - 1| = ${worstP.toExponential(2)} over six inclinations · v(0) = ${X.gwStokes(0).v} · q(pi/2) = ${X.gwStokes(Math.PI / 2).q}`);
+
+    /* PETERS. gwMergerTime integrates until a falls below 12/c5^0.4, which is the ISCO in
+       the laboratory's declared cinematic units — so it must be called in those units, and
+       the first attempt at this check passed c5 = 1, which puts the threshold at a = 12 and
+       makes every start already merged. It returned 0, and 0 has no exponent. */
+    const cc = 3.75, c5 = Math.pow(cc, 5), MM = 2, beta = (64 / 5) * MM / c5, isco = 12 / (cc * cc);
+    const t = a => X.gwMergerTime(a, 0, MM, c5);
+    const closed = a => (Math.pow(a, 4) - Math.pow(isco, 4)) / (4 * beta);
+    let worstT = 0;
+    for (const a of [1.6, 2.0, 2.4, 3.0]) worstT = Math.max(worstT, Math.abs(t(a) / closed(a) - 1));
+    ok("Peters' circular inspiral: the integration agrees with the closed form (a^4 - a_isco^4)/4beta at four separations",
+      worstT < 0.02,
+      `worst relative difference ${(100 * worstT).toFixed(2)}% · at a = 2.4 the integration gives ${t(2.4).toFixed(3)} against ${closed(2.4).toFixed(3)}`);
+
+    /* The a^4 law is ASYMPTOTIC — the closed form is (a^4 - a_isco^4)/4beta, and the
+       subtraction makes the apparent exponent 4.12 at these separations, not 4. The first
+       version of this check asked for 4 and was wrong about its own formula. The EXACT
+       statement is the one that inverts it: 4 beta t + a_isco^4 recovers a^4 exactly. */
+    let worstA = 0;
+    for (const a of [1.2, 1.6, 2.4, 3.0, 4.0])
+      worstA = Math.max(worstA, Math.abs(Math.pow(4 * beta * t(a) + Math.pow(isco, 4), 0.25) / a - 1));
+    ok('and inverting the law recovers the separation it started from: 4 beta t + a_isco^4 is a^4, at five separations',
+      worstA < 0.01,
+      `worst |recovered a / a - 1| = ${(100 * worstA).toFixed(3)}% · the apparent exponent of t itself is ${(Math.log(t(3) / t(1.6)) / Math.log(3 / 1.6)).toFixed(4)} and not 4, because a_isco^4 is subtracted — the fourth power is what the law becomes far from the ISCO`);
+
+    ok('and eccentricity shortens it sharply, because the loss rate carries an extra (1 - e^2)^(-7/2)',
+      X.gwMergerTime(2.4, 0.7, MM, c5) < 0.35 * t(2.4),
+      `at a = 2.4, e = 0 takes ${t(2.4).toFixed(2)} and e = 0.7 takes ${X.gwMergerTime(2.4, 0.7, MM, c5).toFixed(2)} in the laboratory's units — a factor of ${(t(2.4) / X.gwMergerTime(2.4, 0.7, MM, c5)).toFixed(2)}`);
+  }
+
+  /* TURING. */
+  {
+    const ex = (F, k) => F >= 4 * (F + k) * (F + k);
+    let agree = true;
+    for (const F of [0.02, 0.035, 0.055, 0.09]) for (const k of [0.05, 0.057, 0.062, 0.07])
+      if (X.rdTuring(F, k, 0.16, 0.08).exists !== ex(F, k)) agree = false;
+    ok('a nontrivial homogeneous state exists exactly where F >= 4(F + k)^2, at sixteen points of the control plane',
+      agree,
+      'the discriminant and the existence flag agree everywhere tested — and the classic spots, stripes and maze presets are all OUTSIDE it, so their patterns are finite-amplitude and not Turing bifurcations');
+
+    const T = X.rdTuring(0.055, 0.062, 0.16, 0.08), b = T.active;
+    ok('and where the branch IS Turing unstable, the critical wavenumber is the closed form sqrt(B/2 Du Dv) and the band brackets it',
+      b.turing && Math.abs(b.qc - Math.sqrt(b.B / (2 * 0.16 * 0.08))) < 1e-12 &&
+      b.band[0] < b.qc && b.qc < b.band[1],
+      `q_c = ${b.qc.toFixed(6)} · band [${b.band[0].toFixed(4)}, ${b.band[1].toFixed(4)}] · critical wavelength ${b.lam.toFixed(4)}, fastest ${b.lamMax.toFixed(4)}`);
+
+    /* the instability is DIFFUSION-DRIVEN: the same state is stable at q = 0 */
+    ok('the instability is driven by diffusion and nothing else: the same state is stable at zero wavenumber, and only the diffusive term makes it grow',
+      b.tr < 0 && b.det0 > 0 && b.rate > 0,
+      `tr J = ${b.tr.toExponential(3)} < 0 and det J = ${b.det0.toExponential(3)} > 0 at q = 0, so the well-mixed reactor is stable — and the fastest mode still grows at ${b.rate.toExponential(3)}`);
+  }
+
+  /* DISPERSION: four exact ratios and one exact product, and none of them is a fit */
+  {
+    const want = { photon: 1, electron: 2, kdv: 3, water: 0.5 };
+    let worstR = 0, rows2 = [];
+    for (const [sys, r] of Object.entries(want)) {
+      for (const k of [0.3, 0.9, 1.5]) {
+        const S = X.DISP_SYS[sys], got = S.vg(k) / (S.w(k) / k);
+        worstR = Math.max(worstR, Math.abs(got - r));
+      }
+      rows2.push(`${sys}=${r}`);
+    }
+    ok('four of the six dispersion relations have a group-to-phase velocity ratio that is an exact rational, at every wavenumber and not just one',
+      worstR < 1e-12,
+      `${rows2.join(' · ')} · worst departure over twelve (system, k) pairs = ${worstR.toExponential(2)}`);
+
+    let worstProd = 0;
+    for (const k of [0.2, 1, 2.5]) { const S = X.DISP_SYS.plasma; worstProd = Math.max(worstProd, Math.abs(S.vg(k) * (S.w(k) / k) - 1)); }
+    ok('and the plasma branch has v_p * v_g = c^2 exactly, so the phase velocity exceeds c at every wavenumber while the energy never does',
+      worstProd < 1e-12 &&
+      [0.2, 1, 2.5].every(k => X.DISP_SYS.plasma.w(k) / k > 1 && X.DISP_SYS.plasma.vg(k) < 1),
+      `worst |v_p v_g - 1| = ${worstProd.toExponential(2)} · at k = 1, v_p = ${(X.DISP_SYS.plasma.w(1)).toFixed(6)} and v_g = ${X.DISP_SYS.plasma.vg(1).toFixed(6)}`);
+
+    ok('the phonon chain stops carrying energy exactly at the zone boundary — the van Hove singularity, as an exact zero and not a small number',
+      X.DISP_SYS.phonon.vg(Math.PI) === Math.cos(Math.PI / 2) && Math.abs(X.DISP_SYS.phonon.vg(Math.PI)) < 1e-16,
+      `v_g(ka = pi) = ${X.DISP_SYS.phonon.vg(Math.PI).toExponential(2)} — cos(pi/2) in double precision, and the group velocity is zero to the last bit available`);
+
+    /* every analytic derivative checked against the function it differentiates */
+    let worstD2 = 0;
+    for (const sys of Object.keys(X.DISP_SYS)) for (const k of [0.4, 1.1, 1.7]) {
+      const S = X.DISP_SYS[sys], h = 1e-6;
+      worstD2 = Math.max(worstD2, Math.abs(S.vg(k) - (S.w(k + h) - S.w(k - h)) / (2 * h)));
+    }
+    ok('and every closed-form group velocity agrees with a central difference of the dispersion relation it claims to differentiate',
+      worstD2 < 1e-7,
+      `worst |analytic - central difference| over all six systems and three wavenumbers = ${worstD2.toExponential(2)}`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
