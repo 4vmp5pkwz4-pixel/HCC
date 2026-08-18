@@ -536,7 +536,12 @@ export const ROOTS = [
      the Bogomolny bound, and the Thiele equation has a closed-form solution the
      laboratory was printing the wrong angle from. */
   'skBPField', 'skSampleBP', 'skSolidAngle', 'skBergLuscher', 'skEnergyPure',
-  'skBogomolny', 'skGyrovector', 'skThieleSolve', 'skHallAngle'
+  'skBogomolny', 'skGyrovector', 'skThieleSolve', 'skHallAngle',
+  /* ── AND THE HOPF INVARIANT, WHICH IS A LINKING NUMBER AND CAN BE MEASURED ──
+     The preimage of a target point is a torus knot in closed form, so the integer
+     the field was BUILT from can be read back out of it with a Gauss integral. */
+  'hfFieldN', 'hfWMagOfTheta', 'hfPreimage', 'hfHopfCharge',
+  'hfEnergySlab', 'hfEnergyPure', 'hfDerrick', 'hfScaled'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

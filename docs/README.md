@@ -29,6 +29,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-quasicrystal-arithmetic.cjs` | the orthogonal splitting of R⁶, the five-fold rotation as an integer matrix of order five, and the trace split τ + (1−τ) = 1 that is the whole crystallographic restriction |
 | `verify-taub-nut-cone.cjs` | Poincaré's conserved vector, the cone drawn before the orbit, the energy a magnetic force cannot change, and the Berger squash this laboratory had backwards |
 | `verify-skyrmion-charge.cjs` | Berg–Lüscher against L'Huilier, the window that keeps the charge off the integer, the Bogomolny bound saturated, and the skyrmion Hall angle that had never vanished where the readout said it did |
+| `verify-hopfion-invariant.cjs` | the Hopf invariant read back out of the field as a Gauss linking number of two preimage torus knots, Derrick's balance point against a scan, and the sub-linear bound measured rather than asserted |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5001,6 +5002,62 @@ bound does and an identity does not.
 
 `docs/verify-skyrmion-charge.cjs`: **11 checks, 0 failed**. **70 of 81** laboratories
 compute; **75** typed instruments; 0 page errors during the headless walk.
+
+## An integer read back out of the field that was built from it (v4.15.0)
+
+π₃(S²) = ℤ and the integer is the **Hopf invariant**. The hopfion laboratory has always
+displayed `Q_H = p·q` — which is the exponent the field was *constructed* from. A label, not
+a measurement of anything.
+
+The Hopf invariant is *defined* as the linking number of the preimages of any two distinct
+target points. Working that out: on the three-sphere the field is w = Z₁^p/Z₂^q with
+|Z₁|² + |Z₂|² = 1, so |w| fixes |Z₁| — a torus — and arg w cuts a line on it that closes
+after winding q times one way and p times the other. **The preimage is a torus knot, in
+closed form.** Pushed back to R³ by stereographic projection, it can be handed to
+`topoLinkPure` — the Gauss integral this atlas wrote for a different laboratory entirely.
+
+It returns **p·q**, at seven exponent pairs including three where the product is the same
+and the exponents are not:
+
+    (1,1)→1.00000  (1,2)→2.00002  (2,1)→2.00001  (2,2)→4.00006
+    (1,3)→3.00008  (3,1)→3.00004  (2,3)→6.00017
+
+and it **converges**: defects 2.7e-3 → 6.8e-4 → 1.7e-4 at 300, 600 and 1200 points, ratios
+**4.00 and 4.00**. A second-order quadrature walking onto an integer, which is what a
+measured topological invariant looks like. The answer does not depend on which two target
+points are chosen — five different pairs, one number — which is the content of the word
+*invariant*.
+
+The curve is checked to be a preimage by evaluating the field along it (worst residual
+**1e-13** over twenty-one curves and 6300 points), and the two curves are checked to be
+disjoint, without which a linking number would mean nothing.
+
+### Derrick, and why a hopfion has a size
+
+Under x → λx the two Faddeev–Niemi terms scale oppositely, so E(λ) = λE₂ + E₄/λ has a
+minimum at λ* = √(E₄/E₂) with value 2√(E₂E₄). That closed form agrees with a
+**two-hundred-thousand-point scan over four decades** to nine digits, and the two terms are
+*exactly* equal there — λE₂ = E₄/λ = 636.134796 — which is what makes the balance a minimum
+and not an inflection.
+
+### And the claim about the constant, which does not hold
+
+The laboratory said `E_min/Q^{3/4} ≈ const` — the Vakulenko–Kapitanskii bound. Measured, that
+ratio runs from **331.9 to 427.6**, a spread of **29 per cent**, and the fitted exponent is
+**0.61**, not 0.75.
+
+What *does* hold is the thing the bound is actually about: the energy per unit charge **falls**,
+from 427.6 at Q = 1 to 212.0 at Q = 6. The growth is sub-linear. The exponent is not 3/4
+because this field is an **ansatz with the right topology, not the minimiser the theorem is
+about** — and swapping the exponents proves it, since (1,3) and (3,1) carry the same charge
+and differ in energy by 5.7 per cent. The readout says all of that now.
+
+The self-test that checked the bound had retyped the whole Faddeev–Niemi sum; it calls the
+kernel, and the renderer's idle-time batches call the same slab routine the instrument sums
+over — one implementation, three callers.
+
+`docs/verify-hopfion-invariant.cjs`: **11 checks, 0 failed**. **71 of 81** laboratories
+compute; **76** typed instruments; 0 page errors during the headless walk.
 
 ## Status
 
