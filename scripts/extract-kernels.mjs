@@ -423,7 +423,14 @@ export const ROOTS = [
   'heCyclePure',
   'eotEpsM', 'eotLamRes', 'EOT_LMIN', 'EOT_LMAX', 'EOT_AMIN', 'EOT_AMAX',
   'QM_N', 'QM_L', 'QM_DX', 'qmX', 'qmK', 'qmPropagate', 'qmGaussian', 'qmHarmonic', 'qmMoments',
-  'spinRodrigues', 'spinFibrePure', 'spinHopfProject'
+  'spinRodrigues', 'spinFibrePure', 'spinHopfProject',
+  /* four more: pulsar spin-down (four closed forms and a geometry), the Eddington
+     luminosity, a two-pole S-matrix whose unitarity is an identity rather than a fit, and
+     an information ledger whose counts are exact integers. */
+  'PSR_PRESETS', 'psrB', 'psrTau', 'psrLsd', 'psrRvm',
+  'QSO_ETA', 'qsoLEdd',
+  'RSH_C', 'rshErePole', 'rshCmul', 'rshCdiv', 'rshS', 'rshSigma',
+  'RPD_N', 'RPD_RCAR', 'RPD_RHMAX', 'rpdArea', 'rpdRh', 'rpdLayer', 'rpdCounts', 'rpdIext'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

@@ -4353,6 +4353,56 @@ out to 1.3e-12.
 
 `docs/verify-atlas-instruments.cjs` is now **132 checks, 0 failed**.
 
+### Two measured numbers, a luminosity, an identity and a ledger (v4.5.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `psr` | field, age, spin-down power and the polarization sweep, from P and Ṗ | MODEL |
+| `qso` | the Eddington luminosity and the ISCO efficiency | MIXED |
+| `rsh` | a two-pole S-matrix whose unitarity is an identity, and the deuteron | EXACT |
+| `rpd` | an information ledger whose entries are integers and whose total never moves | MODEL |
+
+**80 laboratories, 49 computational, 54 instruments, 0 page errors.** The gap is **69 → 31**.
+
+`rsh` carries the sharpest kind of statement a numerical instrument can make. |S(k)| = 1 on
+the real axis is not true to within a tolerance — it is an **identity**, because analyticity
+forces the mirror pole to −k_p* and that makes numerator and denominator complex conjugates
+for real k. Measured over 150 (pole, momentum) combinations, the worst departure is
+**2.2e-16**: one bit of double precision.
+
+The same laboratory then gets the **deuteron binding energy to 0.07%** out of a scattering
+length and an effective range — two low-energy numbers that say nothing whatever about the
+nuclear force. Run the identical algebra on the *singlet* channel and κ comes out
+**negative**: a virtual state, not a bound one. The difference between a deuteron existing
+and a di-neutron not existing is that sign.
+
+`psr` takes the two numbers a telescope actually measures — a period and its derivative —
+and returns four. For the Crab they land on 3.795e12 G, 1257 yr and 4.46e38 erg/s against
+catalogue values of 3.8e12, 1240 and 4.5e38. And the check states the thing the number is
+*wrong* about: the Crab exploded in **1054**, so its true age is 972 years and the
+characteristic age overestimates by 29%. That gap is the braking assumption showing, not an
+arithmetic error, and it is asserted rather than glossed.
+
+`rpd` is labelled **MODEL** twice over. Its ledger balances to exactly 48 at every one of
+201 stages and its external information returns to exactly its starting value — and the
+limits say plainly that this is a property of how the model was written, **not** a result
+about black holes. The information paradox is an open problem and nothing here bears on it.
+
+### A sixth generic name, and a second real coupling
+
+Three laboratories publish an output called `efficiency` — a thermoelectric one, a
+photovoltaic one and a Carnot one — and `qso` declared an input by the same name. None of
+them is the binding energy per unit mass at an innermost stable circular orbit. It is
+`radiative_efficiency` now; that is the sixth of these, after `q`, `omega`, `steps`,
+`steps` and `gamma`.
+
+And `ns.mass → qso.mass` was declared alongside `ns.mass → wd.mass`, because the Eddington
+limit is defined for **any** mass: a neutron star accreting at its own Eddington rate is
+what an X-ray binary *is*. **15 admissible, 15 declared.**
+
+`docs/verify-atlas-instruments.cjs` is now **146 checks, 0 failed** — and this batch passed
+on the first run, which is the first time in eight releases that no check needed correcting.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a
