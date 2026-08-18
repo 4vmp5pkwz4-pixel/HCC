@@ -32,7 +32,12 @@ const SRC = HTML.slice(bodyStart, bodyEnd);
 const BROWSER = new Set(['window', 'document', 'THREE', 'navigator', 'localStorage', 'location',
   'requestAnimationFrame', 'cancelAnimationFrame', 'HTMLElement', 'CanvasRenderingContext2D',
   'performance', 'fetch', 'getComputedStyle', 'MutationObserver', 'ResizeObserver', 'Image',
-  'devicePixelRatio', 'screen', 'history', 'alert', 'customElements', 'WebGLRenderingContext']);
+  'devicePixelRatio', 'screen', 'history', 'alert', 'customElements', 'WebGLRenderingContext',
+  /* matchMedia was NOT on this list, so a closure that reached it only produced a warning
+     and the emitted module failed at import time instead of failing here. A guard that
+     warns where it should refuse is not a guard; these are the rest of the same family. */
+  'matchMedia', 'speechSynthesis', 'indexedDB', 'sessionStorage', 'caches', 'crypto',
+  'XMLHttpRequest', 'WebSocket', 'Worker', 'OffscreenCanvas', 'AudioContext', 'visualViewport']);
 const GLOBALS = new Set(['Math', 'Number', 'Object', 'Array', 'String', 'Boolean', 'JSON', 'Map',
   'Set', 'WeakMap', 'WeakSet', 'Promise', 'Symbol', 'Error', 'RangeError', 'TypeError', 'Infinity',
   'NaN', 'undefined', 'null', 'true', 'false', 'this', 'BigInt', 'Float64Array', 'Float32Array',
@@ -478,7 +483,13 @@ export const ROOTS = [
   'GATE_TOL', 'GATE_CLAIMS', 'gateAnalyse', 'gateRun', 'gateRunAll',
   /* and the Bell correlation, which had no name at all: E(a,b) and the lune's solid angle
      were computed inline inside the render loop. */
-  'bellE', 'bellLuneOmega', 'bellHolonomy', 'bellCHSH', 'BELL_TSIRELSON'
+  'bellE', 'bellLuneOmega', 'bellHolonomy', 'bellCHSH', 'BELL_TSIRELSON',
+  /* and the low-multipole sky: synthesise a_lm from a spectrum, integrate them back out of
+     the field, and watch a galactic mask break the orthogonality that makes the recovery
+     exact. cmbModelDl and cmbModelCl read state.cmbLowPower, so the suppression factor is
+     an argument now and the renderer passes its control. */
+  'CMB_LMAX', 'CMB_D0', 'cmbHash01', 'cmbGaussian', 'cmbCoeffKey',
+  'cmbDlOf', 'cmbClOf', 'cmbCoeffsPure', 'cmbSumL', 'cmbDl', 'cmbMaskAllows', 'cmbRecoverPure'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

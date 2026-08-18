@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-atlas-grades-itself-2026.08.18.8">
+<html lang="en" data-hcc-build="a-mask-that-costs-2026.08.18.9">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-atlas-grades-itself-2026.08.18.8">
+<meta name="hcc-build" content="a-mask-that-costs-2026.08.18.9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.9.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.10.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.9.0';
-const HCC_BUILD='the-atlas-grades-itself-2026.08.18.8';
+const HCC_VERSION='4.10.0';
+const HCC_BUILD='a-mask-that-costs-2026.08.18.9';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -22549,7 +22549,10 @@ function updateBht(dt){
    large-angle power. That is the S³ connection this whole atlas explores;
    nothing here claims a detection. */
 const cmbGroup=new THREE.Group(); cmbGroup.visible=false; s3Group.add(cmbGroup);
-const CMB_NLAT=MOBILE_GPU?36:48, CMB_NLON=MOBILE_GPU?72:96, CMB_LMAX=12, CMB_D0=1000;
+/* SPLIT: the render grid is device dependent and the spectrum constants are not. On one
+   line the extractor took the whole statement, and MOBILE_GPU brought matchMedia with it. */
+const CMB_LMAX=12, CMB_D0=1000;
+const CMB_NLAT=MOBILE_GPU?36:48, CMB_NLON=MOBILE_GPU?72:96;
 let cmbObjs=null,cmbUiAcc=0,cmbRot=0,cmbPhase=0,cmbAnalysisCache=new Map();
 const CMB_STATIONS={
   sky:'Gaussian sky synthesis',mode:'multipole tomography',alignment:'quadrupole–octopole geometry',residual:'mask / reconstruction residual'
@@ -22560,23 +22563,40 @@ function cmbHash01(seed,l,m,salt=0){
   return ((x>>>0)+.5)/4294967296;
 }
 function cmbGaussian(seed,l,m){const u=Math.max(1e-12,cmbHash01(seed,l,m,1)),v=cmbHash01(seed,l,m,2);return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);}
-function cmbModelDl(l){return CMB_D0*(l<=3?(state.cmbLowPower??.45):1);}
-function cmbModelCl(l){return 2*Math.PI*cmbModelDl(l)/(l*(l+1));}
+/* THE MODEL SPECTRUM, WITH ITS SUPPRESSION FACTOR PASSED IN.
+   Both read state.cmbLowPower, which put the whole low-multipole story — synthesise a sky
+   from a spectrum, integrate the coefficients back out, and watch a mask break the
+   orthogonality that makes the recovery exact — out of the extractor's reach. */
+const cmbDlOf=(l,low)=>CMB_D0*(l<=3?low:1);
+const cmbClOf=(l,low)=>2*Math.PI*cmbDlOf(l,low)/(l*(l+1));
+function cmbModelDl(l){return cmbDlOf(l,state.cmbLowPower??.45);}
+function cmbModelCl(l){return cmbClOf(l,state.cmbLowPower??.45);}
 function cmbCoeffKey(l,m){return `${l}:${m}`;}
-function cmbCoefficientSet(seed=state.cmbSeed??19,lmax=state.cmbLmax??CMB_LMAX){
-  const out=new Map();for(let l=2;l<=lmax;l++){const s=Math.sqrt(cmbModelCl(l));for(let m=-l;m<=l;m++)out.set(cmbCoeffKey(l,m),s*cmbGaussian(seed,l,m));}return out;
+function cmbCoeffsPure(seed,lmax,low){
+  const out=new Map();for(let l=2;l<=lmax;l++){const s=Math.sqrt(cmbClOf(l,low));for(let m=-l;m<=l;m++)out.set(cmbCoeffKey(l,m),s*cmbGaussian(seed,l,m));}return out;
 }
-function cmbAxisY(l,axis,x,y,z){const q=x*axis.x+y*axis.y+z*axis.z;return shNlm(l,0)*shPlm(l,0,THREE.MathUtils.clamp(q,-1,1));}
+function cmbCoefficientSet(seed=state.cmbSeed??19,lmax=state.cmbLmax??CMB_LMAX){
+  return cmbCoeffsPure(seed,lmax,state.cmbLowPower??.45);
+}
+function cmbAxisY(l,axis,x,y,z){const q=x*axis.x+y*axis.y+z*axis.z;return shNlm(l,0)*shPlm(l,0,Math.min(1,Math.max(-1,q)));}
 function cmbSumL(coeff,l,th,ph){let s=0;for(let m=-l;m<=l;m++)s+=(coeff.get(cmbCoeffKey(l,m))||0)*shY(l,m,th,ph);return s;}
 function cmbSum(coeff,th,ph,lmax=state.cmbLmax??CMB_LMAX){let s=0;for(let l=2;l<=lmax;l++)s+=cmbSumL(coeff,l,th,ph);return s;}
 function cmbDl(coeff,l){let p=0;for(let m=-l;m<=l;m++){const a=coeff.get(cmbCoeffKey(l,m))||0;p+=a*a;}return l*(l+1)*p/((2*l+1)*2*Math.PI);}
-function cmbMaskAllows(th,maskDeg=state.cmbMaskDeg??0){return Math.abs(Math.PI/2-th)>=THREE.MathUtils.degToRad(maskDeg);}
-function cmbRecover(coeff,lmax=state.cmbLmax??CMB_LMAX,maskDeg=state.cmbMaskDeg??0,Nt=MOBILE_GPU?18:22,Np=MOBILE_GPU?36:44){
+function cmbMaskAllows(th,maskDeg=state.cmbMaskDeg??0){return Math.abs(Math.PI/2-th)>=maskDeg*Math.PI/180;}
+/* THE QUADRATURE RECOVERY, WITH ITS GRID PASSED IN RATHER THAN READ OFF THE DEVICE.
+   The pure function is the IMPLEMENTATION and the renderer's wrapper supplies the
+   device-dependent defaults — the other way round left MOBILE_GPU in a default parameter,
+   which dragged matchMedia into the closure and made the emitted module fail to import.
+   The extractor warned; the import proved it. */
+function cmbRecoverPure(coeff,lmax,maskDeg,Nt,Np){
   const modes=[];for(let l=2;l<=lmax;l++)for(let m=-l;m<=l;m++)modes.push({l,m,key:cmbCoeffKey(l,m),a:coeff.get(cmbCoeffKey(l,m))||0});
-  const sum=new Float64Array(modes.length),basis=new Float64Array(modes.length),fs=Math.max(.05,1-Math.sin(THREE.MathUtils.degToRad(maskDeg))),dth=Math.PI/Nt,dph=2*Math.PI/Np;
+  const sum=new Float64Array(modes.length),basis=new Float64Array(modes.length),fs=Math.max(.05,1-Math.sin(maskDeg*Math.PI/180)),dth=Math.PI/Nt,dph=2*Math.PI/Np;
   for(let i=0;i<Nt;i++){const th=(i+.5)*dth;if(!cmbMaskAllows(th,maskDeg))continue;const w=Math.sin(th)*dth*dph;
     for(let j=0;j<Np;j++){const ph=(j+.5)*dph;let T=0;for(let q=0;q<modes.length;q++){const h=shY(modes[q].l,modes[q].m,th,ph);basis[q]=h;T+=modes[q].a*h;}const s=T*w/fs;for(let q=0;q<modes.length;q++)sum[q]+=s*basis[q];}}
   return new Map(modes.map((q,i)=>[q.key,sum[i]]));
+}
+function cmbRecover(coeff,lmax=state.cmbLmax??CMB_LMAX,maskDeg=state.cmbMaskDeg??0,Nt=MOBILE_GPU?18:22,Np=MOBILE_GPU?36:44){
+  return cmbRecoverPure(coeff,lmax,maskDeg,Nt,Np);
 }
 function cmbAnalyze(force=false){
   const seed=state.cmbSeed??19,lmax=Math.max(2,Math.min(CMB_LMAX,state.cmbLmax??CMB_LMAX)),mask=state.cmbMaskDeg??0,low=state.cmbLowPower??.45;
@@ -29026,7 +29046,78 @@ const ATLAS_LATE_SPECS=[
       classical_bound:2, tsirelson_bound:BELL_TSIRELSON,
       exceeds_classical:aS>2?1:0,
       tsirelson_margin:BELL_TSIRELSON-aS,
-      saturated:Math.abs(BELL_TSIRELSON-aS)<1e-12?1:0};}}
+      saturated:Math.abs(BELL_TSIRELSON-aS)<1e-12?1:0};}},
+
+ /* ── AND THE LOW-MULTIPOLE SKY, WHERE COSMIC VARIANCE IS THE WHOLE DIFFICULTY ──
+    Synthesise a_lm from a spectrum, integrate them back out of the field, and the
+    orthonormality of the spherical harmonics returns what went in — to the accuracy of the
+    quadrature, which is second order in the grid and NOT exact. Then cut a galactic band
+    out of the sky and the orthogonality is gone: a five-degree mask already costs 22%. */
+ {id:'cmb', lab:'cmb',
+  title:['The lowest multipoles, where a mask costs more than the signal',
+         'Низшие мультиполи, где маска стоит дороже сигнала',
+         'Die niedrigsten Multipole'],
+  status:'MEASURED (the synthesis is exact given the spectrum; the recovery is a midpoint quadrature whose residual falls as the square of the grid and is returned rather than assumed away, and the masked recovery is an f_sky-rescaled pseudo-C_l with NO mode-coupling deconvolution)',
+  verifiers:['docs/verify-atlas-instruments.cjs (second-order recovery, the mask cost, cosmic variance, the suppression)'],
+  formulas:['the microwave sky is a temperature field on the 2-sphere: Delta T = sum a_lm Y_lm',
+            'a_lm are drawn Gaussian with variance C_l, deterministically in the seed, so every number here is reproducible',
+            'the recovery integrates a_lm = integral Delta T Y_lm dOmega back out; on the full sky the orthonormality of Y_lm makes that return what went in',
+            'D_l = l(l+1) C_l / 2 pi, and COSMIC VARIANCE is sqrt(2/(2l+1)) — at l = 2 that is 63 per cent, which is why the quadrupole anomaly is debated rather than settled',
+            'a galactic mask of half-width b removes f_sky = 1 - sin(b) of the sky and destroys the orthogonality; rescaling by f_sky is a pseudo-C_l estimate and not a deconvolution'],
+  inputs:[{name:'seed', type:'number', unit:'dimensionless', default:19, min:1, max:1e6,
+           doc:['the realisation; the sky is deterministic in this number','реализация неба','Realisierung']},
+          {name:'lmax', type:'number', unit:'dimensionless', default:8, min:2, max:12,
+           doc:['highest multipole synthesised','наибольший мультиполь','höchster Multipol']},
+          {name:'mask_deg', type:'number', unit:'deg', default:0, min:0, max:60,
+           doc:['half-width of the galactic mask; zero is the full sky','полуширина галактической маски','Halbbreite der Maske']},
+          {name:'low_power', type:'number', unit:'dimensionless', default:0.45, min:0.05, max:2,
+           doc:['the factor multiplying D_l at l = 2 and 3. Below 1 it is the observed suppression and at 1 there is none',
+                'множитель подавления на l = 2 и 3','Unterdrückungsfaktor']},
+          {name:'grid_theta', type:'number', unit:'dimensionless', default:64, min:8, max:256,
+           doc:['quadrature rows; the recovery residual falls as the square of this','строк квадратуры','Quadraturzeilen']},
+          {name:'grid_phi', type:'number', unit:'dimensionless', default:128, min:8, max:512,
+           doc:['and columns','столбцов','Quadraturspalten']}],
+  outputs:[{name:'coefficient_residual', unit:'dimensionless', doc:['the relative RMS distance between the coefficients that went in and the ones integrated back out',
+             'относительная невязка коэффициентов','relatives Residuum']},
+           {name:'worst_coefficient_residual', unit:'dimensionless', doc:['and the worst single one','наибольшая невязка одного коэффициента','größtes Einzelresiduum']},
+           {name:'f_sky', unit:'dimensionless', doc:['the fraction of sky the mask leaves','доля неба вне маски','Himmelsanteil']},
+           {name:'D2_realised', unit:'uK^2', doc:['the quadrupole power this realisation actually has','реализованная мощность квадруполя','realisierte Quadrupolleistung']},
+           {name:'D2_model', unit:'uK^2', doc:['what the spectrum asked for','что задал спектр','Modellwert']},
+           {name:'D2_z', unit:'dimensionless', doc:['how many cosmic-variance sigmas apart they are. At l = 2 one sigma is 63 per cent, so this number is rarely large and that is the point',
+             'на сколько сигм космической дисперсии они расходятся','Abweichung in Sigma']},
+           {name:'D3_realised', unit:'uK^2', doc:['the octopole','мощность октуполя','Oktupolleistung']},
+           {name:'D3_z', unit:'dimensionless', doc:['and its z','его z','sein z']},
+           {name:'cosmic_variance_l2', unit:'dimensionless', doc:['sqrt(2/5) = 0.632 — the irreducible spread of a quadrupole measured once, from one sky',
+             'космическая дисперсия на l = 2','kosmische Varianz bei l = 2']},
+           {name:'max_temperature', unit:'uK', doc:['the largest |Delta T| over the sampled sky','наибольшее |ΔT| по небу','größtes |ΔT|']},
+           {name:'suppressed', unit:'dimensionless', doc:['1 where the low-power factor is below 1 — the input, echoed back, so an agent can see which sky it asked for',
+             '1 если задано подавление','1 wenn unterdrückt']}],
+  limits:[['The full-sky recovery is NOT exact. It is a midpoint quadrature and its residual falls as the SQUARE of the grid — 1.6e-3 at 22 rows and 1.9e-4 at 64. The number is returned so it can be read rather than assumed, and a coarse grid is a real error and not a rounding one.',
+           'Восстановление по полному небу не точно: это квадратура среднего с ошибкой второго порядка по сетке.',
+           'Die Vollhimmel-Rückgewinnung ist nicht exakt.'],
+          ['With a mask the recovery is an f_sky-RESCALED PSEUDO-C_l. The mode-coupling matrix is not deconvolved, so a five-degree mask already costs 22 per cent and a thirty-degree one costs 86. That is the estimator being crude, not the sky being strange, and a real analysis deconvolves it.',
+           'С маской это псевдо-C_l с масштабированием на f_sky, без деконволюции связи мод.',
+           'Mit Maske ist es ein f_sky-skaliertes Pseudo-C_l.'],
+          ['This is a SYNTHETIC Gaussian sky from a toy spectrum. It is not Planck data, the suppression is an input rather than a measurement, and nothing here is evidence for or against any anomaly. Cosmic variance at l = 2 is 63 per cent, which is exactly why that argument is not settled by one number.',
+           'Это синтетическое гауссово небо по игрушечному спектру, а не данные Planck.',
+           'Ein synthetischer Gauß-Himmel, keine Planck-Daten.']],
+  ev:i=>{const L=Math.round(i.lmax), c=cmbCoeffsPure(Math.round(i.seed),L,i.low_power),
+      r=cmbRecoverPure(c,L,i.mask_deg,Math.round(i.grid_theta),Math.round(i.grid_phi));
+    let num=0, den=0, worst=0;
+    for(let l=2;l<=L;l++) for(let m=-l;m<=l;m++){ const k=cmbCoeffKey(l,m), a=c.get(k)||0, b=r.get(k)||0;
+      den+=a*a; num+=(a-b)*(a-b); worst=Math.max(worst,Math.abs(a-b)); }
+    let mx=0;
+    for(let p=0;p<40;p++){ const th=(p+0.5)/40*Math.PI;
+      for(let q=0;q<40;q++){ const ph=q/40*2*Math.PI; let T=0;
+        for(let l=2;l<=L;l++) T+=cmbSumL(c,l,th,ph); mx=Math.max(mx,Math.abs(T)); } }
+    const cv=l=>Math.sqrt(2/(2*l+1)), z=l=>(cmbDl(c,l)-cmbDlOf(l,i.low_power))/(cmbDlOf(l,i.low_power)*cv(l));
+    return {coefficient_residual:Math.sqrt(num/Math.max(1e-300,den)),
+      worst_coefficient_residual:worst,
+      f_sky:Math.max(.05,1-Math.sin(i.mask_deg*Math.PI/180)),
+      D2_realised:cmbDl(c,2), D2_model:cmbDlOf(2,i.low_power), D2_z:z(2),
+      D3_realised:cmbDl(c,3), D3_z:L>=3?z(3):Number.NaN,
+      cosmic_variance_l2:cv(2), max_temperature:mx,
+      suppressed:i.low_power<1?1:0};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,

@@ -4620,6 +4620,53 @@ whole content of Tsirelson's theorem, measured rather than quoted.
 `docs/verify-atlas-instruments.cjs` is now **203 checks, 0 failed** — the fourth batch in a
 row to pass on the first run.
 
+### A sky, a quadrature, and a mask that costs more than the signal (v4.10.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `cmb` | a synthetic Gaussian sky, its recovery, and what a galactic mask costs | MEASURED |
+
+**80 laboratories, 62 computational, 67 instruments, 0 page errors.** The gap is **69 → 18**.
+
+Synthesise a_lm from a spectrum, integrate them back out of the field, and the orthonormality
+of the spherical harmonics returns what went in. **It is not exact** — it is a midpoint
+quadrature, and the check says so: the residual falls by **4.03 and 4.01** as the grid
+doubles, which is second order, reaching 1.0e-4 at 88 rows and 2.5e-5 at 176.
+
+Then cut a galactic band out of the sky. A **five-degree** mask costs 0.163 — more than a
+thousand times the entire quadrature error — and thirty degrees costs 0.855. That is an
+f_sky-rescaled pseudo-C_l failing to be a deconvolution of the mode-coupling matrix, and the
+instrument returns the size of that failure rather than hiding it behind a correction factor.
+
+Cosmic variance at the quadrupole is **63%**. One sky gives one quadrupole. Over sixty
+independent skies the realised power scatters around the model by about one sigma — 57 of 60
+inside two — which is why the low-multipole anomaly is argued about rather than settled, and
+why the suppression here is an **input knob and not a measurement**. The limits say so three
+times over.
+
+### The extractor warned where it should have refused
+
+`cmbRecover` took its grid size from `MOBILE_GPU` in a **default parameter**, which dragged
+`matchMedia` into the closure. The extraction only *warned* — `matchMedia` was not on the
+browser-global list — and the emitted module then failed at import time with `matchMedia is
+not defined`. **A guard that warns where it should refuse is not a guard.** `matchMedia` and
+eleven more of the same family are on the list now, so this fails loudly at extraction
+instead of quietly at import.
+
+Two shapes of the same entanglement were fixed at the source: the pure recovery is now the
+*implementation* and the renderer's wrapper supplies the device-dependent defaults, and
+`CMB_LMAX` was split off the statement that also declared the device-dependent grid — one
+line had mixed a physical constant with a screen measurement.
+
+### And one claim of mine was wrong again
+
+The recovery check asserted "five parts in a hundred thousand" at 88 rows. The measured value
+is 1.0e-4 — one part in ten thousand. I wrote the threshold from a 64-row measurement and
+guessed the rest. It now follows the second-order law the check above establishes rather than
+a remembered number.
+
+`docs/verify-atlas-instruments.cjs` is now **211 checks, 0 failed**.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

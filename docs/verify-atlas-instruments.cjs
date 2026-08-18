@@ -1962,6 +1962,71 @@ console.log('\n=== 20. The atlas grading itself, and a bound it cannot pass ===\
   }
 }
 
+console.log('\n=== 21. A sky, a quadrature, and a mask that costs more than the signal ===\n');
+{
+  const L = 8, LOW = 0.45;
+  const c = X.cmbCoeffsPure(19, L, LOW);
+  const resid = (Nt, Np, mask) => { const r = X.cmbRecoverPure(c, L, mask, Nt, Np);
+    let num = 0, den = 0;
+    for (let l = 2; l <= L; l++) for (let m = -l; m <= l; m++) {
+      const k = X.cmbCoeffKey(l, m), a = c.get(k) || 0, b = r.get(k) || 0; den += a * a; num += (a - b) * (a - b); }
+    return Math.sqrt(num / den); };
+
+  /* THE RECOVERY IS NOT EXACT, AND SAYING SO IS THE CHECK. It is a midpoint quadrature
+     and it converges at SECOND order — which a claim of exactness would have hidden. */
+  const e1 = resid(22, 44, 0), e2 = resid(44, 88, 0), e3 = resid(88, 176, 0);
+  ok('the full-sky recovery converges at SECOND order in the quadrature grid — it is not exact, and the residual falls by four each time the grid doubles',
+    Math.abs(e1 / e2 / 4 - 1) < 0.15 && Math.abs(e2 / e3 / 4 - 1) < 0.15,
+    `${e1.toExponential(3)} -> ${e2.toExponential(3)} -> ${e3.toExponential(3)} at 22, 44 and 88 rows · ratios ${(e1 / e2).toFixed(2)} and ${(e2 / e3).toFixed(2)} against the exact 4 · the orthonormality of Y_lm is exact and the integral of it is not`);
+
+  /* "five parts in a hundred thousand" was written from the 64-row measurement and then
+     guessed for 88; the measured value is 1.0e-4, which is one part in ten thousand. The
+     threshold now follows the SECOND-ORDER law the check above establishes rather than a
+     remembered number: 176 rows must reach a quarter of what 88 does. */
+  const e4 = resid(176, 352, 0);
+  ok('and it does get small, on the schedule the second-order law sets: one part in ten thousand at 88 rows and a quarter of that at 176',
+    e3 < 1.5e-4 && e4 < e3 / 3.5,
+    `relative residual ${e3.toExponential(3)} at 88 rows and ${e4.toExponential(3)} at 176 · a factor of ${(e3 / e4).toFixed(2)} for a doubling, which is the same 4 the ratios above give · what went in comes back out because the spherical harmonics are orthonormal, and how fast is the quadrature's business`);
+
+  /* THE MASK. A five-degree cut already costs more than the whole quadrature error. */
+  const m5 = resid(88, 176, 5), m20 = resid(88, 176, 20), m30 = resid(88, 176, 30);
+  ok('a five-degree galactic mask costs more than the entire quadrature error, and thirty degrees costs most of the signal',
+    m5 > 100 * e3 && m5 > 0.15 && m20 > m5 && m30 > m20 && m30 > 0.7,
+    `mask 0 -> ${e3.toExponential(2)} · 5 deg -> ${m5.toFixed(3)} · 20 deg -> ${m20.toFixed(3)} · 30 deg -> ${m30.toFixed(3)} · an f_sky rescaling is a pseudo-C_l and NOT a deconvolution of the mode-coupling matrix, and this is the size of that difference`);
+
+  ok('and f_sky is 1 - sin(b), so a thirty-degree half-width mask removes exactly half the sky',
+    Math.abs((1 - Math.sin(30 * Math.PI / 180)) - 0.5) < 1e-15 &&
+    X.cmbMaskAllows(0.1, 20) === true && X.cmbMaskAllows(Math.PI / 2, 20) === false,
+    `1 - sin(30 deg) = ${(1 - Math.sin(Math.PI / 6)).toFixed(12)} · the mask is a band about the equator: the pole at theta = 0.1 is kept and the equator is cut`);
+
+  /* COSMIC VARIANCE IS THE WHOLE DIFFICULTY AT LOW l. */
+  ok('cosmic variance at the quadrupole is 63 per cent — one sky gives one quadrupole, and that is why the anomaly is argued about rather than settled',
+    Math.abs(Math.sqrt(2 / 5) - 0.6325) < 1e-3 && Math.sqrt(2 / 5) > Math.sqrt(2 / 7),
+    `sqrt(2/(2l+1)) is ${Math.sqrt(2 / 5).toFixed(4)} at l = 2 and ${Math.sqrt(2 / 7).toFixed(4)} at l = 3 · it falls as 1/sqrt(l), so the difficulty is worst exactly where the anomalies are`);
+
+  {
+    /* the realised power scatters around the model by about that much, across seeds */
+    let inside = 0, n = 0, worstZ = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const cc = X.cmbCoeffsPure(seed, 4, LOW);
+      const z = (X.cmbDl(cc, 2) - X.cmbDlOf(2, LOW)) / (X.cmbDlOf(2, LOW) * Math.sqrt(2 / 5));
+      if (Math.abs(z) < 2) inside++; worstZ = Math.max(worstZ, Math.abs(z)); n++;
+    }
+    ok('and the realised quadrupole scatters around the model by about one cosmic-variance sigma, over sixty independent skies',
+      inside / n > 0.8 && worstZ > 1.2,
+      `${inside} of ${n} skies land inside two sigma and the worst is ${worstZ.toFixed(2)} · a spectrum does not fix a sky, it fixes the distribution the sky is drawn from, and this is that distribution behaving`);
+  }
+
+  ok('the suppression is an INPUT and the instrument echoes it back: at low_power = 1 the quadrupole and octopole sit on the same D_l as everything else',
+    X.cmbDlOf(2, 1) === X.cmbDlOf(10, 1) && X.cmbDlOf(2, 0.45) < X.cmbDlOf(4, 0.45) &&
+    Math.abs(X.cmbDlOf(2, 0.45) / X.cmbDlOf(4, 0.45) - 0.45) < 1e-12,
+    `at low_power = 1 every D_l is ${X.cmbDlOf(2, 1)} · at 0.45 the first two are ${X.cmbDlOf(2, 0.45)} against ${X.cmbDlOf(4, 0.45)} · this is a knob, not a measurement, and the laboratory says so`);
+
+  ok('and D_l = l(l+1) C_l / 2 pi holds by construction at every multipole',
+    [2, 3, 4, 7, 12].every(l => Math.abs(l * (l + 1) * X.cmbClOf(l, LOW) / (2 * Math.PI) - X.cmbDlOf(l, LOW)) < 1e-9),
+    `checked at l = 2, 3, 4, 7 and 12 · the conversion is the definition, and it is recomputed rather than trusted`);
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
