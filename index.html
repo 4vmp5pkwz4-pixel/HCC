@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-embadon-laboratory-2026.08.18.11">
+<html lang="en" data-hcc-build="five-fold-in-six-dimensions-2026.08.18.12">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-embadon-laboratory-2026.08.18.11">
+<meta name="hcc-build" content="five-fold-in-six-dimensions-2026.08.18.12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.12.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.13.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.12.0';
-const HCC_BUILD='the-embadon-laboratory-2026.08.18.11';
+const HCC_VERSION='4.13.0';
+const HCC_BUILD='five-fold-in-six-dimensions-2026.08.18.12';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19641,9 +19641,55 @@ function tnClear(){
   labWipe(tnGroup);
   tnObjs=null;
 }
-function tnAcc(p,v,N){                                 // a = −r̂/r² + N (v×r̂)/r²   (μ=1)
-  const r=p.length(), r2=r*r, ur=p.clone().divideScalar(r);
-  return ur.clone().multiplyScalar(-1/r2).add(v.clone().cross(ur).multiplyScalar(N/r2));
+/* ── The closed forms of the Taub-NUT laboratory, on plain arrays ──────────────────────
+   Poincaré's 1896 result, which is also the geodesic structure of Taub-NUT: a charge moving
+   in the field of a magnetic (here gravitomagnetic) monopole has a conserved vector
+
+       J = r x v  -  N r-hat
+
+   and dotting it with r-hat gives J . r-hat = -N, a CONSTANT. So the orbit is pinned to a
+   cone about J whose half-angle is arccos(-N/|J|) — the cone can be drawn before a single
+   step is integrated, and the integration then has to stay on it. The renderer below calls
+   these, so the cone it draws and the orbit it runs come from one formula. */
+const tnCross=(a,b)=>[a[1]*b[2]-a[2]*b[1], a[2]*b[0]-a[0]*b[2], a[0]*b[1]-a[1]*b[0]];
+const tnDot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+const tnNorm=a=>Math.hypot(a[0],a[1],a[2]);
+const tnUnit=a=>{ const n=tnNorm(a)||1; return [a[0]/n,a[1]/n,a[2]/n]; };
+function tnAccPure(p,v,N){                       // a = -r-hat/r^2 + N (v x r-hat)/r^2, with mu = 1
+  const r=tnNorm(p), r2=r*r, ur=[p[0]/r,p[1]/r,p[2]/r], c=tnCross(v,ur);
+  return [(-ur[0]+N*c[0])/r2, (-ur[1]+N*c[1])/r2, (-ur[2]+N*c[2])/r2];
+}
+function tnPoincare(p,v,N){                      // J = r x v - N r-hat, conserved exactly
+  const ur=tnUnit(p), L=tnCross(p,v);
+  return [L[0]-N*ur[0], L[1]-N*ur[1], L[2]-N*ur[2]];
+}
+const tnConeCos=(p,v,N)=>{ const J=tnPoincare(p,v,N), n=tnNorm(J)||1;
+  return tnDot(J,tnUnit(p))/n; };
+const tnConeAngle=(p,v,N)=>Math.acos(Math.max(-1,Math.min(1,tnConeCos(p,v,N))));
+/* the ENERGY, which the gravitomagnetic term cannot change because v x r-hat is always
+   perpendicular to v: a magnetic force does no work, and that is testable rather than said */
+const tnEnergy=(p,v)=>0.5*tnDot(v,v)-1/tnNorm(p);
+function tnRK4(p,v,N,h,n){                       // the SAME integrator the picture runs
+  let P=[p[0],p[1],p[2]], V=[v[0],v[1],v[2]];
+  const ax=(a,b,s)=>[a[0]+b[0]*s,a[1]+b[1]*s,a[2]+b[2]*s];
+  for(let i=0;i<n;i++){
+    const k1v=tnAccPure(P,V,N), k1p=V;
+    const k2v=tnAccPure(ax(P,k1p,h/2),ax(V,k1v,h/2),N), k2p=ax(V,k1v,h/2);
+    const k3v=tnAccPure(ax(P,k2p,h/2),ax(V,k2v,h/2),N), k3p=ax(V,k2v,h/2);
+    const k4v=tnAccPure(ax(P,k3p,h),  ax(V,k3v,h),  N), k4p=ax(V,k3v,h);
+    for(let d=0;d<3;d++){
+      P[d]+=h/6*(k1p[d]+2*k2p[d]+2*k3p[d]+k4p[d]);
+      V[d]+=h/6*(k1v[d]+2*k2v[d]+2*k3v[d]+k4v[d]); }
+  }
+  return {p:P,v:V};
+}
+/* the Berger squash: fixed-r slices of the Euclidean Taub-NUT instanton are squashed
+   three-spheres, and the squash is the ratio the Hopf circle is scaled by */
+const tnV=(r,N)=>1+2*N/r;                        // the harmonic function of the metric
+const tnSquashOf=(r,N)=>{ const V=tnV(r,N); return 2*N/(r*V); };   // fibre-to-base scale
+function tnAcc(p,v,N){                                 // the renderer's Vector3 wrapper of the kernel above
+  const a=tnAccPure([p.x,p.y,p.z],[v.x,v.y,v.z],N);
+  return new THREE.Vector3(a[0],a[1],a[2]);
 }
 function tnSetupLab(){
   tnClear(); tnT=0;
@@ -19661,7 +19707,7 @@ function tnSetupLab(){
       new THREE.MeshBasicMaterial({color:0x16345e,wireframe:true,transparent:true,opacity:.12})));
     const tl=mkLabel('BERGER SPHERE · the Hopf-fibre circles rescaled by s — the fixed-r slices of Euclidean Taub-NUT','label const');
     tl.position.set(0,3.9,0); tnGroup.add(tl);
-    const bl=mkLabel(`ds² = V(dr² + r²dΩ²) + V⁻¹(2N)²(dψ + cosθ dφ)²,  V = 1 + 2N/r · squash s = ${(state.tnSquash??0.55).toFixed(2)} · s→1 far from the NUT, s→0 at its core`,'label dim');
+    const bl=mkLabel(`ds² = V(dr² + r²dΩ²) + V⁻¹(2N)²(dψ + cosθ dφ)²,  V = 1 + 2N/r · squash s = ${(state.tnSquash??0.55).toFixed(2)} · s(r) = 2N/(r + 2N): s→1 AT the NUT, where the space is smooth R⁴ and the slices are round, and s→0 far away, where Taub-NUT is asymptotically LOCALLY flat and the Hopf circle stays a fixed length while the base grows`,'label dim');
     bl.position.set(0,-3.4,0); tnGroup.add(bl);
     tnObjs={st};
   } else {
@@ -19700,24 +19746,18 @@ function updateTn(dt){
   if(O.st==='orbit'){
     { const s=labSensor(); if(s) state.tnSpeed=THREE.MathUtils.clamp(1+s.x*1.8,0.1,4); }   // tilt throttles the orbit
     const h=0.004, steps=Math.min(120,Math.round((state.tnSpeed??1)*40));
-    for(let s=0;s<steps;s++){                          // RK4 (k1p MUST be a clone — an alias of v corrupts the state)
-      const {p,v,N}=O;
-      const k1v=tnAcc(p,v,N),                    k1p=v.clone();
-      const k2v=tnAcc(p.clone().addScaledVector(k1p,h/2), v.clone().addScaledVector(k1v,h/2),N), k2p=v.clone().addScaledVector(k1v,h/2);
-      const k3v=tnAcc(p.clone().addScaledVector(k2p,h/2), v.clone().addScaledVector(k2v,h/2),N), k3p=v.clone().addScaledVector(k2v,h/2);
-      const k4v=tnAcc(p.clone().addScaledVector(k3p,h),   v.clone().addScaledVector(k3v,h),N),   k4p=v.clone().addScaledVector(k3v,h);
-      p.addScaledVector(k1p.add(k2p.multiplyScalar(2)).add(k3p.multiplyScalar(2)).add(k4p),h/6);
-      v.addScaledVector(k1v.add(k2v.multiplyScalar(2)).add(k3v.multiplyScalar(2)).add(k4v),h/6);
-    }
+    { const r=tnRK4([O.p.x,O.p.y,O.p.z],[O.v.x,O.v.y,O.v.z],O.N,h,steps);
+      O.p.set(r.p[0],r.p[1],r.p[2]); O.v.set(r.v[0],r.v[1],r.v[2]); }
     O.body.position.copy(O.p).multiplyScalar(1);
     const a=O.trail.geometry.attributes.position;
     if(O.n<2400){ O.n++; } else a.array.copyWithin(0,3);
     const k=(O.n-1)*3; a.array[k]=O.p.x; a.array[k+1]=O.p.y; a.array[k+2]=O.p.z;
     O.trail.geometry.setDrawRange(0,O.n); a.needsUpdate=true; O.trail.geometry.computeBoundingSphere();
     // live invariants: J and J·r̂ must both be constant — measured, not assumed
-    const J=O.p.clone().cross(O.v).sub(O.p.clone().normalize().multiplyScalar(O.N));
+    const Jp=tnPoincare([O.p.x,O.p.y,O.p.z],[O.v.x,O.v.y,O.v.z],O.N);
+    const J=new THREE.Vector3(Jp[0],Jp[1],Jp[2]);
     const drJ=J.clone().sub(O.J0).length()/O.J0.length();
-    const cosNow=J.dot(O.p.clone().normalize())/J.length(), cos0=-O.N/O.J0.length();
+    const cosNow=tnConeCos([O.p.x,O.p.y,O.p.z],[O.v.x,O.v.y,O.v.z],O.N), cos0=-O.N/O.J0.length();
     const dRet=O.p.distanceTo(O.p0)+O.v.distanceTo(O.v0);
     if(tnT>2&&dRet<0.05&&(!O.ret||dRet<O.ret.d)) O.ret={t:tnT,d:dRet};
     { const cAng=Math.acos(Math.max(-1,Math.min(1,cos0)))/DEG;
@@ -19727,7 +19767,7 @@ function updateTn(dt){
     ATLAS_BUS.pub('taub.JdotR',+(J.dot(O.p.clone().normalize())).toFixed(6),'= −N');
   } else {
     hudBig.textContent=`TAUB-NUT · Berger squash s = ${(state.tnSquash??0.55).toFixed(2)} — the trisphere family of the instanton`;
-    hudSub.textContent='fixed-r slices of Euclidean Taub-NUT are squashed 3-spheres: the Hopf circle carries the squash while the base S² stays round — at r→∞ the squash → 1 and the round trisphere returns';
+    hudSub.textContent=`fixed-r slices of Euclidean Taub-NUT are squashed 3-spheres: the Hopf circle carries the squash while the base S² stays round. s(r) = 2N/(r+2N) → 1 at the core, where the metric is smooth R⁴ and the round trisphere returns, and → 0 far away, where the circle stays a fixed length and the base grows without it. This laboratory said the opposite for eleven versions.`;
   }
 }
 
@@ -30012,7 +30052,203 @@ const ATLAS_LATE_SPECS=[
       so4_norm_residual:normRes, isoclinic_angle_residual:isoRes,
       log_bosonic_quotient:-civpBosonic(N).log_factorial,
       relative_corner_pairs:civpCornerModes(N).relative_pairs,
-      gluing_compatible:gl.compatible?1:0, gluing_max_mass_defect:gl.max_mass_defect};}}
+      gluing_compatible:gl.compatible?1:0, gluing_max_mass_defect:gl.max_mass_defect};}},
+
+ /* ── AND THE SOLID WHOSE SYMMETRY A THREE-DIMENSIONAL LATTICE CANNOT HAVE ──────
+    Five-fold symmetry is forbidden for any periodic crystal, and Shechtman photographed
+    it anyway. The resolution is arithmetic and it is checkable to the last bit: the six
+    axes here are the five-fold axes of the icosahedron, a rotation by 2 pi/5 permutes them
+    with signs — an INTEGER matrix of order five — and its trace is the integer 1, which
+    splits across the two projections as tau and 1 - tau. An irrational and its Galois
+    conjugate, summing to an integer. In three dimensions that sum would have to be an
+    integer on its own, and it is not. */
+ {id:'qcrys', lab:'qcrys',
+  title:['Five-fold symmetry, and the integer matrix that permits it',
+         'Пятерная симметрия и целочисленная матрица, которая её допускает',
+         'Fuenfzaehligkeit und die ganzzahlige Matrix'],
+  status:'EXACT for the arithmetic — the orthogonal splitting, the five-fold integer matrix, its order, its trace and the golden equation the inflation satisfies are all closed form and all verified rather than quoted; MEASURED for the patch, which is a finite cut whose atom count and minimum separation are returned as what they are',
+  verifiers:['docs/verify-quasicrystal-arithmetic.cjs (the splitting against its own Gram matrices, the five-fold matrix against an independent Rodrigues rotation, its order by repeated multiplication, the trace split against 1 + 2 cos, the inflation against S squared = S + I, and the patch against a search for a period)'],
+  formulas:['the six axes are the five-fold axes of the icosahedron; par and perp are the two three-dimensional projections of Z^6 they define',
+            'the splitting is ORTHOGONAL: par.par = perp.perp = 2 I and par.perp = 0, so cutting and projecting are independent operations',
+            'and it is complete: par_j.par_k + perp_j.perp_k = 2 delta_jk, so a physical point and its perpendicular shadow together recover the integer lattice coordinate exactly',
+            'a rotation by 2 pi/5 about any of the six axes sends every axis to plus or minus another one, so it IS an integer matrix — of order five, and of determinant one',
+            'its trace is the integer 1, and it splits as (1 + 2 cos 72) + (1 + 2 cos 144) = tau + (1 - tau)',
+            'in three dimensions the crystallographic restriction asks 1 + 2 cos(2 pi/5) = tau to be an integer by itself, and it is not: that is the whole prohibition, and six dimensions dissolve it by supplying the conjugate',
+            'the inflation that scales par by tau and perp by -1/tau satisfies S^2 = S + I exactly, because both eigenvalues do; in THIS basis its entries are half integers, so it is the face-centred module and not the primitive one',
+            'the phason shifts the acceptance window: atoms enter and leave and the solid genuinely rearranges'],
+  inputs:[{name:'window_radius', type:'number', unit:'dimensionless', default:0.9, min:0.05, max:2.5,
+           doc:['the radius of the spherical acceptance window in perpendicular space',
+                'радиус сферического окна приёма','Radius des Akzeptanzfensters']},
+          {name:'lattice_range', type:'number', unit:'count', default:3, min:1, max:4,
+           doc:['how far the six-dimensional lattice is enumerated in each direction','диапазон перечисления решётки','Gitterbereich']},
+          {name:'phason', type:'number', unit:'dimensionless', default:0, min:-1, max:1,
+           doc:['the phason shift of the window, which rearranges the solid','фазонный сдвиг','Phasonverschiebung']},
+          {name:'axis', type:'number', unit:'count', default:0, min:0, max:5,
+           doc:['which of the six axes to build the five-fold rotation about','ось вращения','Drehachse']},
+          {name:'ball_radius', type:'number', unit:'dimensionless', default:3, min:0.5, max:6,
+           doc:['a ball in physical space, for counting','радиус шара для подсчёта','Kugelradius']}],
+  outputs:[{name:'golden_ratio', unit:'dimensionless', doc:['tau, which is the whole arithmetic here. NOT called tau, because the thermoelectric laboratory means a temperature ratio by that name and the quantity bus was right to ask',
+             'золотое сечение','goldener Schnitt']},
+           {name:'golden_equation_residual', unit:'dimensionless', doc:['|tau^2 - tau - 1|, which is zero','невязка уравнения','Residuum']},
+           {name:'orthogonal_split_residual', unit:'dimensionless', doc:['the worst departure of par.par, perp.perp and par.perp from 2I, 2I and 0','невязка ортогонального расщепления','Residuum der Zerlegung']},
+           {name:'completeness_residual', unit:'dimensionless', doc:['the worst departure of par_j.par_k + perp_j.perp_k from 2 delta_jk','невязка полноты','Vollstaendigkeitsresiduum']},
+           {name:'axis_cosine', unit:'dimensionless', doc:['the pairwise cosine among the six axes, which is 1/sqrt 5 in magnitude for every pair — that is what makes them icosahedral',
+             'косинус между осями','Kosinus zwischen den Achsen']},
+           {name:'five_fold_is_integer', unit:'dimensionless', doc:['1 if the rotation by 2 pi/5 really is an integer matrix. It is, and that is the answer to the crystallographic restriction',
+             '1 если поворот целочислен','1 wenn die Drehung ganzzahlig ist']},
+           {name:'five_fold_residual', unit:'dimensionless', doc:['how far the rotated axes miss the axes they are matched to','невязка сопоставления','Zuordnungsresiduum']},
+           {name:'five_fold_trace', unit:'dimensionless', doc:['the trace of that integer matrix: exactly 1','след целочисленной матрицы','Spur']},
+           {name:'trace_par', unit:'dimensionless', doc:['1 + 2 cos(2 pi/5) = tau, the part a three-dimensional lattice would have to swallow alone',
+             'вклад физического пространства','Anteil des physikalischen Raums']},
+           {name:'trace_perp', unit:'dimensionless', doc:['1 + 2 cos(4 pi/5) = 1 - tau, the Galois conjugate that makes the sum an integer',
+             'вклад перпендикулярного пространства','Anteil des senkrechten Raums']},
+           {name:'trace_split_residual', unit:'dimensionless', doc:['|trace_par + trace_perp - five_fold_trace|. It is zero, and it is the entire content of the crystallographic restriction',
+             'невязка расщепления следа','Residuum der Spuraufteilung']},
+           {name:'order_5_residual', unit:'dimensionless', doc:['how far the fifth power of the matrix is from the identity','невязка порядка пять','Residuum der Ordnung fuenf']},
+           {name:'order_2_departure', unit:'dimensionless', doc:['how far its SQUARE is, which is not small: the order really is five and not two',
+             'отклонение квадрата','Abweichung des Quadrats']},
+           {name:'inflation_golden_residual', unit:'dimensionless', doc:['|S^2 - S - I| for the tau-inflation. Zero: the golden equation as a matrix identity','невязка золотого уравнения','Residuum der goldenen Gleichung']},
+           {name:'inflation_is_integral', unit:'dimensionless', doc:['0 here, and that is the honest answer: the entries are HALF integers, so this is the face-centred icosahedral module and the inflation is integral only after refining the lattice',
+             '0: элементы полуцелые','0: die Eintraege sind halbzahlig']},
+           {name:'inflation_half_integral_residual', unit:'dimensionless', doc:['and 2S is integral, to this','невязка полуцелости','Residuum der Halbzahligkeit']},
+           {name:'accepted_points', unit:'count', doc:['how many lattice points survive the cut. NOT called atoms: the embadon laboratory takes a count of atoms as an input and they are not the same quantity',
+             'число принятых узлов','Anzahl der akzeptierten Punkte']},
+           {name:'points_in_ball', unit:'count', doc:['how many of them lie in the requested ball','число узлов в шаре','Punkte in der Kugel']},
+           {name:'min_separation', unit:'dimensionless', doc:['the closest pair. It is exactly 1 and the phason does not move it: the window rearranges the solid without ever crowding it',
+             'минимальное расстояние','minimaler Abstand']},
+           {name:'lattice_recovery_residual', unit:'dimensionless', doc:['a physical point and its perpendicular shadow, put back through the completeness relation, return the INTEGER lattice coordinate to this. The projection is inverted, not approximated',
+             'невязка восстановления решётки','Residuum der Gitterrueckgewinnung']},
+           {name:'best_period_fraction', unit:'dimensionless', doc:['the largest fraction of the interior any candidate translation reproduces. A period would reproduce all of it; nothing here comes close, which is what aperiodic means when it is measured',
+             'наибольшая доля, воспроизводимая сдвигом','groesster reproduzierter Anteil']}],
+  limits:[['The acceptance window here is a SPHERE. The icosahedral quasicrystals of the literature use a triacontahedron, which tiles perpendicular space and this does not; a spherical window still gives a genuine cut-and-project set, and the arithmetic above is a property of the lattice and the projection, not of the window.',
+           'Окно приёма здесь — шар, а не триаконтаэдр: это законное сечение-проекция, но не стандартное икосаэдрическое окно.',
+           'Das Akzeptanzfenster ist hier eine KUGEL, kein Triakontaeder.'],
+          ['The patch is finite in both spaces, so the atom count and the period search are statements about a patch and not about the infinite point set. Aperiodicity is reported as the largest fraction any translation reproduces, which is a measurement rather than a proof.',
+           'Участок конечен: апериодичность здесь измерена на участке, а не доказана для бесконечного множества.',
+           'Der Ausschnitt ist endlich: die Aperiodizitaet ist gemessen, nicht bewiesen.'],
+          ['This is the geometry of a quasilattice. It is not a diffraction calculation, not a structure refinement of any real alloy, and it makes no claim about which atoms sit where in Al-Mn or anything else.',
+           'Это геометрия квазирешётки, а не расчёт дифракции и не уточнение структуры реального сплава.',
+           'Dies ist die Geometrie eines Quasigitters, keine Beugungsrechnung.']],
+  ev:i=>{const B=qcBasis(), N=Math.max(1,Math.min(4,Math.round(i.lattice_range))), t=i.phason;
+    const pts=qcBuild(N,i.window_radius,t,t*0.6,t*0.3);
+    const F=qcFiveFold(i.axis), T=qcTraceSplit(), S=qcInflation();
+    let recov=0;
+    for(const P of pts) for(let j=0;j<6;j++){
+      const n=(P[0]*B.par[j][0]+P[1]*B.par[j][1]+P[2]*B.par[j][2]
+              +(P[3]+t)*B.perp[j][0]+(P[4]+t*0.6)*B.perp[j][1]+(P[5]+t*0.3)*B.perp[j][2])/2;
+      const e=Math.abs(n-Math.round(n)); if(e>recov) recov=e; }
+    const phys=pts.map(p=>[p[0],p[1],p[2]]);
+    /* a period would reproduce the whole interior; the largest fraction any candidate
+       translation manages is what "aperiodic" looks like when it is measured */
+    const key=v=>v.map(x=>x.toFixed(6)).join(',');
+    const set=new Set(phys.map(key)); let best=0;
+    const inner=phys.filter(q=>Math.hypot(q[0],q[1],q[2])<=i.ball_radius);
+    for(let k=1;k<Math.min(phys.length,120);k++){
+      const d=[phys[k][0]-phys[0][0],phys[k][1]-phys[0][1],phys[k][2]-phys[0][2]];
+      if(Math.hypot(d[0],d[1],d[2])>2.2) continue;
+      let hit=0;
+      for(const q of inner) if(set.has(key([q[0]+d[0],q[1]+d[1],q[2]+d[2]]))) hit++;
+      if(inner.length&&hit/inner.length>best) best=hit/inner.length; }
+    const cos=Math.abs(qcDot3(B.par[0],B.par[1]));
+    return {golden_ratio:QC_TAU, golden_equation_residual:Math.abs(QC_TAU*QC_TAU-QC_TAU-1),
+      orthogonal_split_residual:qcSplitResidual(), completeness_residual:qcCompletenessResidual(),
+      axis_cosine:cos,
+      five_fold_is_integer:F.integral?1:0, five_fold_residual:F.residual, five_fold_trace:F.trace,
+      trace_par:T.par, trace_perp:T.perp,
+      trace_split_residual:Math.abs(T.total-F.trace),
+      order_5_residual:qcOrderResidual(F.matrix,5), order_2_departure:qcOrderResidual(F.matrix,2),
+      inflation_golden_residual:S.golden_residual, inflation_is_integral:S.integral?1:0,
+      inflation_half_integral_residual:S.half_integral_residual,
+      accepted_points:pts.length, points_in_ball:qcRadialCount(phys,i.ball_radius),
+      min_separation:qcMinSeparation(phys,1200),
+      lattice_recovery_residual:recov, best_period_fraction:best};}},
+
+ /* ── AND THE CONE THAT IS DRAWN BEFORE THE ORBIT IS RUN ────────────────────────
+    Poincaré 1896, which is also the geodesic structure of Taub-NUT: J = r x v - N r-hat is
+    conserved, so J . r-hat = -N is a CONSTANT and every orbit is pinned to a cone about J.
+    The laboratory draws that cone first and then integrates into it. The instrument returns
+    how far the integration drifted off it, which over sixteen thousand Runge-Kutta steps is
+    three parts in ten thousand million million. */
+ {id:'taub', lab:'taub',
+  title:['A cone drawn before the orbit, and the orbit that stays on it',
+         'Конус, нарисованный до орбиты, и орбита, которая с него не сходит',
+         'Ein Kegel, gezeichnet vor der Bahn'],
+  status:'EXACT for the conserved vector and the cone it defines (both closed form); MEASURED for the trajectory, which is a fourth-order Runge-Kutta whose convergence order and whose drift off the cone are returned rather than assumed',
+  verifiers:['docs/verify-taub-nut-cone.cjs (the conserved vector against a direct recomputation, the cone identity over a long integration, the energy the gravitomagnetic force cannot change, the measured order of the integrator, and the degeneration of the cone to a plane at zero NUT charge)'],
+  formulas:['a particle in the field of a gravitomagnetic monopole obeys a = -r-hat/r^2 + N (v x r-hat)/r^2',
+            'the ordinary angular momentum r x v is NOT conserved; the Poincaré vector J = r x v - N r-hat is',
+            'dotting it with r-hat gives J . r-hat = -N exactly, so the orbit lies on a cone about J of half-angle arccos(-N/|J|)',
+            'that cone can be drawn before a single step is integrated, and it is',
+            'the gravitomagnetic force is perpendicular to the velocity, so it does no work and the energy v^2/2 - 1/r is conserved as well',
+            'at N = 0 the cone opens to exactly a plane and the motion is the ordinary Kepler problem',
+            'fixed-r slices of the Euclidean instanton are Berger spheres with squash s(r) = 2N/(r + 2N): ONE at the NUT, where the metric is smooth R^4 and the slices are round, and zero far away, where the Hopf circle keeps a fixed length while the base grows'],
+  inputs:[{name:'nut_charge', type:'number', unit:'dimensionless', default:0.6, min:0, max:5,
+           doc:['the gravitomagnetic charge N','гравимагнитный заряд','gravitomagnetische Ladung']},
+          {name:'r0', type:'number', unit:'dimensionless', default:2.2, min:0.2, max:20,
+           doc:['the starting radius, on the x axis','начальный радиус','Anfangsradius']},
+          {name:'vy', type:'number', unit:'dimensionless', default:0.28, min:-3, max:3,
+           doc:['the starting velocity across the radius','начальная скорость поперёк радиуса','Anfangsgeschwindigkeit quer']},
+          {name:'vz', type:'number', unit:'dimensionless', default:0.52, min:-3, max:3,
+           doc:['and out of the plane, which is what makes the cone a cone','и из плоскости','und aus der Ebene']},
+          {name:'step', type:'number', unit:'dimensionless', default:0.004, min:1e-5, max:0.05,
+           doc:['the Runge-Kutta step','шаг Рунге–Кутты','Runge-Kutta-Schritt']},
+          {name:'duration', type:'number', unit:'dimensionless', default:64, min:0.1, max:2000,
+           doc:['how long to integrate','длительность интегрирования','Integrationsdauer']},
+          {name:'slice_radius', type:'number', unit:'dimensionless', default:1, min:0.01, max:100,
+           doc:['the radius of the Berger slice to report the squash of','радиус среза','Schnittradius']}],
+  outputs:[{name:'J_magnitude', unit:'dimensionless', doc:['|J| for the initial condition','модуль вектора Пуанкаре','Betrag des Poincare-Vektors']},
+           {name:'cone_cosine', unit:'dimensionless', doc:['J . r-hat over |J|, which is -N/|J| and does not move','косинус конуса','Kegelkosinus']},
+           {name:'cone_half_angle', unit:'rad', doc:['the half-angle of the cone the laboratory draws BEFORE integrating','полуугол конуса','halber Oeffnungswinkel']},
+           {name:'cone_residual', unit:'dimensionless', doc:['the worst |J . r-hat + N| over the whole integration. This is the number the laboratory exists to show, and it is at the floating-point floor',
+             'наибольшая невязка конуса','groesstes Kegelresiduum']},
+           {name:'J_drift', unit:'dimensionless', doc:['the worst |dJ|/|J| over the same integration','дрейф вектора Пуанкаре','Drift des Poincare-Vektors']},
+           {name:'energy_drift', unit:'dimensionless', doc:['the worst |dE/E|. A magnetic force does no work, and this is the check of it rather than the assertion',
+             'дрейф энергии','Energiedrift']},
+           {name:'convergence_order', unit:'dimensionless', doc:['measured by halving the step and comparing. It is 4','измеренный порядок сходимости','gemessene Konvergenzordnung']},
+           {name:'r_min', unit:'dimensionless', doc:['the closest approach over the integration','наименьшее сближение','geringste Annaeherung']},
+           {name:'r_max', unit:'dimensionless', doc:['and the farthest','наибольшее удаление','groesste Entfernung']},
+           {name:'return_distance', unit:'dimensionless', doc:['how close the state came back to where it started, in position and velocity together. Small means a resonant, closed orbit',
+             'расстояние возврата','Rueckkehrabstand']},
+           {name:'closed_orbit', unit:'dimensionless', doc:['1 where that distance falls below a twentieth','1 если орбита замкнута','1 wenn geschlossen']},
+           {name:'cone_is_plane', unit:'dimensionless', doc:['1 at zero NUT charge, where the cone opens to exactly a plane and the problem is Kepler',
+             '1 если конус выродился в плоскость','1 wenn der Kegel eine Ebene ist']},
+           {name:'berger_squash', unit:'dimensionless', doc:['s(r) = 2N/(r + 2N) at the requested slice radius','сжатие Бергера','Berger-Stauchung']},
+           {name:'squash_at_core', unit:'dimensionless', doc:['the limit at r -> 0, which is 1: the metric is smooth there and the slices are ROUND. The laboratory said the opposite for eleven versions',
+             'предел у ядра','Grenzwert am Kern']},
+           {name:'squash_far', unit:'dimensionless', doc:['and the limit at large r, which is 0 — Taub-NUT is asymptotically LOCALLY flat, so the Hopf circle keeps a fixed length while the base grows away from it',
+             'предел на бесконечности','Grenzwert im Unendlichen']}],
+  limits:[['This is the Newtonian gravitomagnetic-monopole problem, which shares its conserved vector and its cone with the geodesics of Taub-NUT. It is not a metric integration: no horizon, no Misner string, no closed timelike curves, and nothing here bears on whether Taub-NUT is a physical spacetime.',
+           'Это ньютоновская задача о гравимагнитном монополе, имеющая тот же сохраняющийся вектор, что и геодезические Тауба–НУТ; это не интегрирование метрики.',
+           'Dies ist das Newtonsche gravitomagnetische Monopolproblem, keine metrische Integration.'],
+          ['The Berger squash reported here uses the convention in which the fibre coordinate has period 4 pi, which is exactly the condition for the metric to be smooth at the NUT. With period 2 pi the core limit would be one half instead of one, and the difference is a statement about smoothness rather than about the picture.',
+           'Сжатие Бергера приведено в соглашении, где слоевая координата имеет период 4π — условие гладкости в точке NUT.',
+           'Die Berger-Stauchung verwendet die Konvention mit Faserperiode 4 pi.'],
+          ['A closed orbit is reported as a RETURN DISTANCE with a stated threshold. It is a numerical near-return over a finite integration, not a proof of periodicity.',
+           'Замкнутость орбиты — это измеренное возвращение с заявленным порогом, а не доказательство периодичности.',
+           'Geschlossenheit ist ein gemessener Rueckkehrabstand, kein Periodizitaetsbeweis.']],
+  ev:i=>{const N=i.nut_charge, p0=[i.r0,0,0], v0=[0,i.vy,i.vz];
+    const J0=tnPoincare(p0,v0,N), nJ=tnNorm(J0), E0=tnEnergy(p0,v0);
+    const n=Math.max(1,Math.round(i.duration/i.step)), chunk=Math.max(1,Math.round(n/400));
+    let P=p0.slice(), V=v0.slice(), cone=0, drift=0, ed=0, rmin=Infinity, rmax=0, back=Infinity, done=0;
+    while(done<n){ const take=Math.min(chunk,n-done);
+      const r=tnRK4(P,V,N,i.step,take); P=r.p; V=r.v; done+=take;
+      const J=tnPoincare(P,V,N), rr=tnNorm(P);
+      cone=Math.max(cone,Math.abs(tnDot(J,tnUnit(P))+N));
+      drift=Math.max(drift,Math.hypot(J[0]-J0[0],J[1]-J0[1],J[2]-J0[2])/Math.max(1e-300,nJ));
+      ed=Math.max(ed,Math.abs(tnEnergy(P,V)-E0)/Math.max(1e-300,Math.abs(E0)));
+      if(rr<rmin) rmin=rr; if(rr>rmax) rmax=rr;
+      if(done>n*0.05){ const d=Math.hypot(P[0]-p0[0],P[1]-p0[1],P[2]-p0[2])
+          +Math.hypot(V[0]-v0[0],V[1]-v0[1],V[2]-v0[2]);
+        if(d<back) back=d; } }
+    const err=h=>{ const m=Math.round(4/h), a=tnRK4(p0,v0,N,h,m), b=tnRK4(p0,v0,N,h/2,2*m);
+      return Math.hypot(a.p[0]-b.p[0],a.p[1]-b.p[1],a.p[2]-b.p[2]); };
+    return {J_magnitude:nJ, cone_cosine:tnConeCos(p0,v0,N), cone_half_angle:tnConeAngle(p0,v0,N),
+      cone_residual:cone, J_drift:drift, energy_drift:ed,
+      convergence_order:Math.log2(err(0.02)/err(0.01)),
+      r_min:rmin, r_max:rmax, return_distance:back, closed_orbit:back<0.05?1:0,
+      cone_is_plane:Math.abs(tnConeCos(p0,v0,N))<1e-15?1:0,
+      berger_squash:tnSquashOf(i.slice_radius,N),
+      squash_at_core:tnSquashOf(1e-12,N), squash_far:tnSquashOf(1e12,N)};}}
 ];
 for(const S of ATLAS_LATE_SPECS){
   hccApiRegister({id:S.id, world:'s3', lab:S.lab, title:S.title, status:S.status,
@@ -33556,6 +33792,103 @@ function qcBuild(N,Rw,tx,ty,tz){
     if(px*px+py*py+pz*pz<36) pts.push([px,py,pz,qx,qy,qz]);
   }
   return pts;
+}
+/* ── The closed forms of the quasicrystal laboratory, lifted out of the render loop ──
+   Five-fold symmetry is forbidden for any three-dimensional lattice and this laboratory
+   shows why it is NOT forbidden in six: the six axes below are the five-fold axes of the
+   icosahedron, and a rotation by 2 pi/5 permutes them with signs — an INTEGER matrix. Its
+   trace is the integer 1, and it splits across the two projections as tau and 1 - tau,
+   an irrational and its Galois conjugate summing to an integer. That is the whole of the
+   crystallographic restriction, and every number in it is checkable. */
+const qcDot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2];
+function qcGram(A,B){                          // the 3x3 overlap of two 6x3 bases
+  const M=[[0,0,0],[0,0,0],[0,0,0]];
+  for(let j=0;j<6;j++)for(let a=0;a<3;a++)for(let b=0;b<3;b++) M[a][b]+=A[j][a]*B[j][b];
+  return M;
+}
+/* par.par = perp.perp = 2 I and par.perp = 0: the splitting R^6 = R^3 par + R^3 perp is
+   ORTHOGONAL, which is what makes the cut and the projection independent of each other */
+function qcSplitResidual(){
+  const B=qcBasis(), pp=qcGram(B.par,B.par), qq=qcGram(B.perp,B.perp), pq=qcGram(B.par,B.perp);
+  let w=0;
+  for(let a=0;a<3;a++)for(let b=0;b<3;b++){
+    w=Math.max(w,Math.abs(pp[a][b]-(a===b?2:0)),Math.abs(qq[a][b]-(a===b?2:0)),Math.abs(pq[a][b]));
+  }
+  return w;
+}
+function qcCompletenessResidual(){             // par_j.par_k + perp_j.perp_k = 2 delta_jk
+  const B=qcBasis(); let w=0;
+  for(let j=0;j<6;j++)for(let k=0;k<6;k++)
+    w=Math.max(w,Math.abs(qcDot3(B.par[j],B.par[k])+qcDot3(B.perp[j],B.perp[k])-(j===k?2:0)));
+  return w;
+}
+function qcRot3(ax,ang){                       // Rodrigues, on a plain array
+  const [x,y,z]=ax, C=Math.cos(ang), S=Math.sin(ang), K=1-C;
+  return [[C+x*x*K,x*y*K-z*S,x*z*K+y*S],[y*x*K+z*S,C+y*y*K,y*z*K-x*S],[z*x*K-y*S,z*y*K+x*S,C+z*z*K]];
+}
+/* THE FIVE-FOLD ROTATION AS AN INTEGER MATRIX. A rotation by 2 pi/5 about one of the six
+   axes sends every axis to plus or minus another one; the matrix of that signed permutation
+   is the six-dimensional lattice symmetry a three-dimensional lattice cannot have. */
+function qcFiveFold(axis){
+  const B=qcBasis(), a=Math.max(0,Math.min(5,axis|0)), R=qcRot3(B.par[a],2*Math.PI/5);
+  const M=[]; let worst=0;
+  for(let j=0;j<6;j++){
+    const v=B.par[j], w=[R[0][0]*v[0]+R[0][1]*v[1]+R[0][2]*v[2],
+                         R[1][0]*v[0]+R[1][1]*v[1]+R[1][2]*v[2],
+                         R[2][0]*v[0]+R[2][1]*v[1]+R[2][2]*v[2]];
+    let bi=-1, bs=1, bd=Infinity;
+    for(let k=0;k<6;k++)for(const s of [1,-1]){
+      const d=Math.hypot(w[0]-s*B.par[k][0],w[1]-s*B.par[k][1],w[2]-s*B.par[k][2]);
+      if(d<bd){ bd=d; bi=k; bs=s; } }
+    if(bd>worst) worst=bd;
+    const row=new Array(6).fill(0); row[bi]=bs; M.push(row);
+  }
+  return {matrix:M, residual:worst, integral:M.every(r=>r.every(x=>Number.isInteger(x))),
+    trace:M.reduce((s,r,i)=>s+r[i],0)};
+}
+const qcMatMul6=(A,B)=>A.map(r=>B[0].map((_,j)=>r.reduce((s,x,k)=>s+x*B[k][j],0)));
+function qcOrderResidual(M,n){                 // how far M^n is from the identity
+  let X=M.map(r=>r.slice());
+  for(let i=1;i<n;i++) X=qcMatMul6(X,M);
+  let w=0; for(let j=0;j<6;j++)for(let k=0;k<6;k++) w=Math.max(w,Math.abs(X[j][k]-(j===k?1:0)));
+  return w;
+}
+/* The trace of that integer matrix is 1, and it splits as (1 + 2 cos 72) + (1 + 2 cos 144)
+   = tau + (1 - tau). An irrational and its Galois conjugate, summing to an integer: THAT is
+   why five-fold fits in six dimensions and not in three, where the same sum would have to be
+   an integer on its own and is not. */
+const qcTraceSplit=()=>({ par:1+2*Math.cos(2*Math.PI/5), perp:1+2*Math.cos(4*Math.PI/5),
+  total:(1+2*Math.cos(2*Math.PI/5))+(1+2*Math.cos(4*Math.PI/5)) });
+/* THE INFLATION. Scaling the physical space by tau and the perpendicular space by its Galois
+   conjugate -1/tau is a matrix on the module. In THIS basis — the face-centred icosahedral
+   module — its entries are HALF integers rather than integers, so 2S is integral and the
+   inflation is integral only after refining the lattice. It satisfies S^2 = S + I exactly,
+   because both of its eigenvalues do: that is the golden equation, as a matrix identity. */
+function qcInflation(){
+  const B=qcBasis(), t=QC_TAU, c=-1/QC_TAU, S=[];
+  for(let j=0;j<6;j++){ const row=[];
+    for(let k=0;k<6;k++) row.push((t*qcDot3(B.par[j],B.par[k])+c*qcDot3(B.perp[j],B.perp[k]))/2);
+    S.push(row); }
+  const S2=qcMatMul6(S,S);
+  let golden=0, half=0;
+  for(let j=0;j<6;j++)for(let k=0;k<6;k++){
+    golden=Math.max(golden,Math.abs(S2[j][k]-(S[j][k]+(j===k?1:0))));
+    half=Math.max(half,Math.abs(2*S[j][k]-Math.round(2*S[j][k]))); }
+  return {matrix:S, golden_residual:golden, half_integral_residual:half,
+    integral:S.every(r=>r.every(x=>Math.abs(x-Math.round(x))<1e-12))};
+}
+/* a Delone set: bounded below by a minimum separation and above by a covering radius */
+function qcMinSeparation(pts,cap){
+  const n=Math.min(pts.length,cap||1200); let m=Infinity;
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){
+    const d=Math.hypot(pts[i][0]-pts[j][0],pts[i][1]-pts[j][1],pts[i][2]-pts[j][2]);
+    if(d<m) m=d; }
+  return n<2?Infinity:m;
+}
+function qcRadialCount(pts,R){                 // how many of them lie inside a ball of radius R
+  let n=0;
+  for(let i=0;i<pts.length;i++) if(pts[i][0]*pts[i][0]+pts[i][1]*pts[i][1]+pts[i][2]*pts[i][2]<=R*R) n++;
+  return n;
 }
 function qcClear(){ labWipe(qcGroup); qcObjs=null; qcBuiltFor=null; }
 function qcSetup(){
