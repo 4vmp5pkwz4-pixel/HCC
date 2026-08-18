@@ -430,7 +430,16 @@ export const ROOTS = [
   'PSR_PRESETS', 'psrB', 'psrTau', 'psrLsd', 'psrRvm',
   'QSO_ETA', 'qsoLEdd',
   'RSH_C', 'rshErePole', 'rshCmul', 'rshCdiv', 'rshS', 'rshSigma',
-  'RPD_N', 'RPD_RCAR', 'RPD_RHMAX', 'rpdArea', 'rpdRh', 'rpdLayer', 'rpdCounts', 'rpdIext'
+  'RPD_N', 'RPD_RCAR', 'RPD_RHMAX', 'rpdArea', 'rpdRh', 'rpdLayer', 'rpdCounts', 'rpdIext',
+  /* four more: the Rankine-Hugoniot jump conditions (whose strong-shock compression is
+     exactly (gamma+1)/(gamma-1) and no more, however hard you hit it), the Anderson
+     transfer-matrix Lyapunov exponent against the Thouless formula, the Bateman solution
+     for Ni -> Co -> Fe, and a geodesic integrator checked against the exact deflection. */
+  'rmhdAlfven', 'rmhdSweetParker', 'rmhdShock', 'rmhdRT',
+  'andRng', 'andGamma', 'andThouless',
+  'SN_DAY', 'SN_YEAR', 'SN_TAUNI', 'SN_TAUCO', 'SN_ENI', 'SN_ECO', 'SN_MSUNG', 'SN_C',
+  'snDecayFractions', 'snRadioComponents', 'snLradio',
+  'bhrTraceJS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
