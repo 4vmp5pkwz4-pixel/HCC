@@ -30,6 +30,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-taub-nut-cone.cjs` | Poincaré's conserved vector, the cone drawn before the orbit, the energy a magnetic force cannot change, and the Berger squash this laboratory had backwards |
 | `verify-skyrmion-charge.cjs` | Berg–Lüscher against L'Huilier, the window that keeps the charge off the integer, the Bogomolny bound saturated, and the skyrmion Hall angle that had never vanished where the readout said it did |
 | `verify-hopfion-invariant.cjs` | the Hopf invariant read back out of the field as a Gauss linking number of two preimage torus knots, Derrick's balance point against a scan, and the sub-linear bound measured rather than asserted |
+| `verify-s3-observational-geometry.cjs` | the redshift kernel shown to be the surface-to-volume ratio of the causal ball and the logarithmic derivative of its volume measure, the two arcs, the antipodal caustic and why the far side looks larger |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5058,6 +5059,65 @@ over — one implementation, three callers.
 
 `docs/verify-hopfion-invariant.cjs`: **11 checks, 0 failed**. **71 of 81** laboratories
 compute; **76** typed instruments; 0 page errors during the headless walk.
+
+## Two thirds of it was geometry (v4.16.0)
+
+The redshift laboratory has drawn K(χ) since it was written and called the whole thing the
+*Gradient Redshift Ansatz*. Two thirds of it is not an ansatz at all.
+
+On the unit three-sphere the causal ball of radius χ has volume 2π·m(χ) with
+m(χ) = χ − sin χ cos χ, and its boundary has area 4π sin²χ. So
+
+    K(χ) = 2 sin²χ / m(χ)   IS   (boundary area) / (ball volume)
+
+— an **identity**, verified at four thousand radii from the origin to the antipode against a
+Simpson quadrature of the boundary area written independently (2.3e-13). And because
+dm/dχ = 2 sin²χ **exactly**, K is also the logarithmic derivative of m — which is the reason
+the integral in the ansatz has a closed form at all: ∫K dχ = ln m, with nothing left to
+integrate numerically. The readout had been printing `ln(1+z) = p·∫K dχ` without saying that
+the integral was already done.
+
+Three limits, all exact:
+- **K → 3/χ** as the ball shrinks — the Euclidean ball ratio 4πr²/((4/3)πr³) = 3/r, recovered
+  and not assumed (K·χ/3 = 1.000000000 at χ = 1e-4 and below)
+- **K(π/2) = 4/π** with difference *exactly zero*
+- **K(π) = 0** — the boundary of the causal ball has vanished, and the kernel with it
+- and the full ball at χ = π has volume **2π²**, which is the volume of the unit three-sphere,
+  to the last bit
+
+The one thing that *is* a choice — the exponent p — enters ln(1+z) **exactly linearly**: five
+values of p give one number for ln(1+z)/p, spread 0.0e+0. So the geometry and the modelling
+choice can be kept apart, and the instrument returns `redshift_is_ansatz = 1` as a field
+rather than as a footnote.
+
+### Two ways round, and why the far side looks larger
+
+The multiple-path laboratory now returns the geometry it draws. The two geodesics joining any
+two points sum to the whole great circle at two hundred separations, exactly. Every geodesic
+leaving a point reconverges at the antipode, where the geodesic sphere area **vanishes** —
+that vanishing *is* the caustic.
+
+Which makes the angular-diameter distance R sin χ, and it **peaks at a quarter turn**. A source
+is at its *smallest* there and looks larger both nearer and farther: the same object at
+χ = 2.9 subtends **4.18 times** the angle it would at π/2. The magnification is exactly
+1/sin²χ — one at the turning point, exactly four at thirty degrees, 394237 near the antipode.
+And the geodesic sphere is always smaller than the Euclidean sphere of the same arc length,
+equal only in the limit at the origin: curvature takes area away everywhere except where
+there is none.
+
+Observability of a second arrival is **not** geometry, and the instrument says so — the
+conformal budget is an *input* and what comes back is a necessary condition with the
+shortfall attached, not a prediction.
+
+### And three more of my own tolerances were wrong
+
+The log-derivative check was tighter than the finite difference that performed it, near the
+origin where ln m carries a 3/χ singularity; the identity itself is checked algebraically now
+and holds to **0.0e+0**. And the antipodal area was demanded below 1e-30 when sin(π)² at R = 3
+is 1.7e-30 — π is not representable, the same thing the dipole null said.
+
+`docs/verify-s3-observational-geometry.cjs`: **13 checks, 0 failed**. **73 of 81**
+laboratories compute; **78** typed instruments; 0 page errors during the headless walk.
 
 ## Status
 
