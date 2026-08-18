@@ -541,7 +541,14 @@ export const ROOTS = [
      The preimage of a target point is a torus knot in closed form, so the integer
      the field was BUILT from can be read back out of it with a Gauss integral. */
   'hfFieldN', 'hfWMagOfTheta', 'hfPreimage', 'hfHopfCharge',
-  'hfEnergySlab', 'hfEnergyPure', 'hfDerrick', 'hfScaled'
+  'hfEnergySlab', 'hfEnergyPure', 'hfDerrick', 'hfScaled',
+  /* ── AND THE OBSERVATIONAL GEOMETRY OF THE THREE-SPHERE ───────────────────
+     The redshift kernel the atlas has drawn for versions is exactly the
+     surface-to-volume ratio of the causal ball, and exactly the logarithmic
+     derivative of its volume measure — which is why the ansatz integrates. */
+  'volMeasure', 'S3kernel', 'lnRedshift', 's3BallVolume', 's3SphereArea',
+  'S3_UNIT_VOLUME', 's3KernelFlatLimit', 's3ArcShort', 's3ArcLong',
+  's3AngularDiameterDistance', 's3AngularSize', 's3Magnification'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
