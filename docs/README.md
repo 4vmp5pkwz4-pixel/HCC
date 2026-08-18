@@ -4403,6 +4403,72 @@ what an X-ray binary *is*. **15 admissible, 15 declared.**
 `docs/verify-atlas-instruments.cjs` is now **146 checks, 0 failed** — and this batch passed
 on the first run, which is the first time in eight releases that no check needed correcting.
 
+### A ceiling, an anomaly, a sum that is one, and an integrator graded (v4.6.0)
+
+| laboratory | what it now returns | status |
+|---|---|---|
+| `rmhd` | the Rankine–Hugoniot ceiling, the Alfvén speed, S^-1/2, the RT boundary | EXACT |
+| `and` | the Anderson Lyapunov exponent with an error bar, against Thouless | MEASURED |
+| `sn` | the Bateman chain, and the cobalt tail a light curve is measured by | EXACT |
+| `bhr` | a geodesic integrator, graded on every call by the exact quadrature | MEASURED |
+
+**80 laboratories, 53 computational, 58 instruments, 0 page errors.** The gap is **69 → 27**.
+
+A shock cannot compress a monatomic gas by more than **four**, however hard you hit it —
+3.999988 at Mach 1000, and the excess over the ceiling is negative at every Mach tested
+across five decades. The *pressure* jump has no ceiling at all and grows as M² forever;
+that is where the energy goes once the density cannot rise any further. Softer gases
+compress more: 6 at γ = 1.4 and 7.67 at γ = 1.3.
+
+`sn` returns three fractions that sum to **1 to 1.1e-16 at every one of 401 epochs**, and at
+one nickel mean life exactly 1/e of the nickel is left. The late-time luminosity decays on
+the **cobalt** mean life, not the nickel one — 111.3 days, or **0.9755 magnitudes per hundred
+days**, which is the number a supernova light curve is actually measured by.
+
+### Two things this batch would not claim
+
+**The band-centre anomaly is real, and the instrument shows it rather than averaging it
+away.** Away from E = 0 the measured Lyapunov exponent matches the Thouless weak-disorder
+formula to under 3%. *At* E = 0 it is **8.3% low and six standard errors away** — the
+Kappus–Wegner anomaly, a genuine failure of the textbook formula at exactly one energy. That
+is why the instrument returns an error bar rather than a number: without one, "8% off" and
+"noise" are indistinguishable.
+
+**The Möbius walk was going to return a slope of 2γ, and does not.** The identity is true
+asymptotically, but this implementation saturates at |w| = 1 − 1e-15 after under two thousand
+steps, and a least-squares slope from a single realisation came out between **0.58 and 0.76**
+of 2γ depending on the fitting window. The claim is removed and the reason is written where
+the output would have been. A true statement a measurement cannot support is not a result.
+
+### An integrator that says where it stops being right
+
+`bhr` returns the traced deflection **and** the exact quadrature on every call, so the error
+is an output rather than an assumption. Across the declared domain the two agree to
+**0.77%**. Outside it they do not: at b = 40 the tracer is **51% low**, because it starts the
+photon at x = −30 and a wide ray begins already bent. That is a property of the tracer's
+geometry, not of the physics, and the domain stops at b = 12 for exactly that reason — a
+declared limit found by measurement rather than by guesswork.
+
+The `SN_*` constants had the wrapped-declarator defect, the **fifth** occurrence: eleven of
+fourteen constants sat past a line break and the extraction refused them by name.
+
+### The generic-name problem is now systematic, and so is the fix
+
+Two more this release — `bhr.steps` collided with the KdV *and* the Schrödinger step counts,
+and `and.energy` with the Noether orbital energy. A Kepler energy is not a position in a
+tight-binding band. They are `trace_steps` and `band_energy` now.
+
+That is **eight** caught this way: `q`, `omega`, `steps` (four times), `gamma`, `efficiency`,
+`energy`. The pattern is stable enough to state as a rule: *a name that could belong to any
+laboratory will eventually be claimed by two, and the bus finds it the release after.* Every
+one has been fixed at the source rather than by an exclusion list, because a name that lies
+about what it holds is a defect wherever it appears — the bus is just what notices.
+
+**15 admissible, 15 declared.**
+
+`docs/verify-atlas-instruments.cjs` is now **165 checks, 0 failed** — the second batch in a
+row to pass on the first run.
+
 ## Status
 
 The derivation is a rigorous superstructure over a **declared model**: a round S³, a

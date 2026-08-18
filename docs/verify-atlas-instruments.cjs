@@ -1497,6 +1497,138 @@ console.log('\n=== 16. Two measured numbers, a luminosity, an identity and a led
   }
 }
 
+console.log('\n=== 17. A ceiling, an anomaly, a sum that is one, and an integrator graded ===\n');
+{
+  /* A SHOCK CANNOT COMPRESS A GAS BY MORE THAN (gamma+1)/(gamma-1), however hard you hit
+     it. That ceiling is the whole content of the Rankine-Hugoniot conditions. */
+  let worstOver = -Infinity, mono = true, prev = 0;
+  for (const M of [1, 1.2, 1.5, 2, 3, 5, 10, 20, 100, 1000, 1e5]) {
+    const c = X.rmhdShock(M).compression;
+    worstOver = Math.max(worstOver, c - 4);
+    if (c < prev) mono = false; prev = c;
+  }
+  ok('a strong shock compresses a monatomic gas by four and never more, at eleven Mach numbers spanning five decades',
+    worstOver < 0 && mono && X.rmhdShock(1e5).compression > 3.9999,
+    `worst excess over the ceiling = ${worstOver.toExponential(2)} (negative at every Mach) · M = 1000 gives ${X.rmhdShock(1000).compression.toFixed(6)} and M = 1e5 gives ${X.rmhdShock(1e5).compression.toFixed(6)} — approaching 4 and never arriving`);
+
+  ok('and the ceiling moves with the adiabatic index exactly as (gamma+1)/(gamma-1), which is 4, 6 and 7 for the three gases that matter',
+    [[5 / 3, 4], [1.4, 6], [1.3, 7 + 2 / 3]].every(([g, want]) =>
+      Math.abs(X.rmhdShock(1e6, g).compression - want) < 1e-3 && X.rmhdShock(1e6, g).compression < want),
+    `gamma = 5/3 -> ${X.rmhdShock(1e6, 5 / 3).compression.toFixed(4)} · 1.4 -> ${X.rmhdShock(1e6, 1.4).compression.toFixed(4)} · 1.3 -> ${X.rmhdShock(1e6, 1.3).compression.toFixed(4)} · a softer gas compresses more, which is why radiation-dominated shocks are thinner`);
+
+  ok('the PRESSURE jump has no ceiling at all — that is where the energy goes once the density cannot rise any further',
+    X.rmhdShock(1000).pressure > 1e6 && X.rmhdShock(1e5).pressure / X.rmhdShock(1000).pressure > 9000,
+    `M = 1000 gives ${X.rmhdShock(1000).pressure.toExponential(3)} and M = 1e5 gives ${X.rmhdShock(1e5).pressure.toExponential(3)} — it grows as M^2 forever, while the compression sits at 4`);
+
+  ok('the Alfven speed is B/sqrt(rho), so doubling the field and quadrupling the density leaves it exactly unchanged',
+    [[1, 1], [2, 4], [3, 9], [0.5, 0.25]].every(([b, r]) => Math.abs(X.rmhdAlfven(b, r) - 1) < 1e-15),
+    `four (B, rho) pairs on the same characteristic all give exactly ${X.rmhdAlfven(3, 9)}`);
+
+  ok('and the Sweet-Parker rate is S^(-1/2) exactly, with the plasmoid threshold flagged where the formula stops applying',
+    [3, 4, 6, 8, 12].every(l => Math.abs(X.rmhdSweetParker(l).rate * Math.pow(10, l / 2) - 1) < 1e-12) &&
+    X.rmhdSweetParker(4).plasmoid === false && X.rmhdSweetParker(6).plasmoid === true,
+    `rate * sqrt(S) = 1 at five Lundquist numbers · the plasmoid flag turns on between logS 4 and 6, which is where the real reconnection rate stops being this one`);
+
+  {
+    const stable = X.rmhdRT(0.55, 4, 0.5), unstable = X.rmhdRT(0.55, 1.4, 0.28);
+    const kc = 0.55 / (0.28 * 0.28);
+    ok('and magnetic tension stabilises Rayleigh-Taylor above a critical wavenumber, rather than merely slowing it',
+      unstable.gamma > 0 && stable.stable === true && Math.abs(X.rmhdRT(0.55, kc, 0.28).gamma2) < 1e-12,
+      `k = 1.4 grows at ${unstable.gamma.toFixed(6)} · k = 4 with more tension is stable · exactly at k = A/beta^2 = ${kc.toFixed(6)} the growth rate is ${X.rmhdRT(0.55, kc, 0.28).gamma2.toExponential(2)}, which is zero`);
+  }
+
+  /* ANDERSON. Every state in 1D is localised at any disorder — and the textbook formula
+     for how strongly is WRONG at exactly one energy, which is worth showing. */
+  {
+    let worstOff = 0, rows = [];
+    for (const E of [0.5, 1.0, 1.5, -0.8]) {
+      const g = X.andGamma(E, 1, 400000, 777), th = X.andThouless(E, 1);
+      worstOff = Math.max(worstOff, Math.abs(g.g / th - 1));
+      if (E === 1.0) rows.push(`E = 1: measured ${g.g.toFixed(6)} against ${th.toFixed(6)}`);
+    }
+    ok('away from the band centre the measured Lyapunov exponent matches the Thouless weak-disorder formula to a few per cent',
+      worstOff < 0.05,
+      `${rows[0]} · worst departure over four energies = ${(100 * worstOff).toFixed(2)}%`);
+
+    const c = X.andGamma(0, 1, 400000, 777), tc = X.andThouless(0, 1);
+    ok('and AT the band centre it does not — the Kappus-Wegner anomaly, eight per cent low and many standard errors away from the formula',
+      c.g / tc < 0.95 && Math.abs(c.g - tc) / c.se > 3,
+      `E = 0: measured ${c.g.toFixed(6)} against the formula's ${tc.toFixed(6)} — ${(100 * (1 - c.g / tc)).toFixed(1)}% low, and ${(Math.abs(c.g - tc) / c.se).toFixed(1)} standard errors away · this is a real effect at exactly one energy, and it is why the instrument returns an error bar rather than a number`);
+
+    /* gamma goes as W^2 in the weak-disorder limit, which is the scaling the formula rests on */
+    const g1 = X.andGamma(1, 0.5, 400000, 31).g, g2 = X.andGamma(1, 1, 400000, 31).g, g3 = X.andGamma(1, 2, 400000, 31).g;
+    ok('and it scales as the square of the disorder, which is the statement the Thouless formula actually rests on',
+      Math.abs(g2 / g1 / 4 - 1) < 0.08 && Math.abs(g3 / g2 / 4 - 1) < 0.08,
+      `W = 0.5, 1, 2 give ${g1.toExponential(3)}, ${g2.toExponential(3)}, ${g3.toExponential(3)} · ratios ${(g2 / g1).toFixed(3)} and ${(g3 / g2).toFixed(3)} against the exact 4`);
+
+    ok('every state is localised at every disorder tested, however weak — there is no mobility edge in one dimension and the exponent never touches zero',
+      [0.05, 0.1, 0.3, 1, 4].every(W => X.andGamma(1, W, 200000, 5).g > 0),
+      `W = 0.05 still gives ${X.andGamma(1, 0.05, 200000, 5).g.toExponential(3)} per site — a localisation length of ${(1 / X.andGamma(1, 0.05, 200000, 5).g).toExponential(2)} sites, which is enormous and is not infinite`);
+  }
+
+  /* THE BATEMAN CHAIN. Three fractions, one sum, no tolerance. */
+  {
+    let worstSum = 0;
+    for (let d = 0; d <= 1000; d += 2.5) { const f = X.snDecayFractions(d * X.SN_DAY);
+      worstSum = Math.max(worstSum, Math.abs(f.Ni + f.Co + f.Fe - 1)); }
+    ok('the nickel, cobalt and iron fractions sum to one at every one of 401 times — nothing leaves the chain',
+      worstSum < 1e-12,
+      `worst |sum - 1| over 401 epochs = ${worstSum.toExponential(2)}`);
+
+    const at1e = X.snDecayFractions(X.SN_TAUNI);
+    ok('and at one nickel mean life exactly 1/e of the nickel is left, which is what a mean life means',
+      Math.abs(at1e.Ni - Math.exp(-1)) < 1e-12,
+      `f_Ni(tau_Ni) = ${at1e.Ni.toFixed(12)} against 1/e = ${Math.exp(-1).toFixed(12)}`);
+
+    /* the late-time light curve decays on the COBALT mean life, not the nickel one */
+    const slope = d => { const h = 0.01 * X.SN_DAY, t = d * X.SN_DAY;
+      return (Math.log(X.snLradio(t + h, 0.6)) - Math.log(X.snLradio(t - h, 0.6))) / (2 * h); };
+    const tau = d => -1 / slope(d) / X.SN_DAY;
+    ok('the late-time luminosity decays on the COBALT mean life and not the nickel one — 111.3 days, which is why a supernova tail is slow',
+      Math.abs(tau(200) - 111.3) < 0.01 && Math.abs(tau(800) - 111.3) < 0.01 && Math.abs(tau(20) - 111.3) > 1,
+      `e-folding time is ${tau(20).toFixed(2)} d at day 20 and ${tau(200).toFixed(4)} d at day 200 — it walks from the nickel life to the cobalt one as the chain moves on`);
+
+    ok('and that tail is 0.98 magnitudes per hundred days, which is the number a light curve is actually measured by',
+      Math.abs(2.5 * Math.log10(Math.exp(-slope(300) * 100 * X.SN_DAY)) - 0.98) < 0.01,
+      `${(2.5 * Math.log10(Math.exp(-slope(300) * 100 * X.SN_DAY))).toFixed(4)} mag/100d — the cobalt mean life in the units observers use`);
+
+    ok('the cobalt term overtakes the nickel one on day 17.6, later than the fractions cross, because nickel releases 5.75 times more energy per gram',
+      X.snRadioComponents(17 * X.SN_DAY, 0.6).Co < X.snRadioComponents(17 * X.SN_DAY, 0.6).Ni &&
+      X.snRadioComponents(18 * X.SN_DAY, 0.6).Co > X.snRadioComponents(18 * X.SN_DAY, 0.6).Ni,
+      `nickel still leads on day 17 and cobalt leads on day 18 · e_Ni/e_Co = ${(X.SN_ENI / X.SN_ECO).toFixed(3)}, and the fractions themselves crossed on day 3`);
+  }
+
+  /* THE INTEGRATOR, GRADED BY A QUADRATURE THAT SHARES NO CODE WITH IT. */
+  {
+    let worstRel = 0, rows = [];
+    for (const b of [2.7, 3, 4, 5, 8, 12]) {
+      const t = X.bhrTraceJS(b, 40000), ex = X.lensAlpha(b);
+      if (t.captured || ex === null) { rows.push(`b=${b} captured`); continue; }
+      const tr = Math.abs(Math.atan2(t.dir[1], t.dir[0]));
+      worstRel = Math.max(worstRel, Math.abs(tr - ex) / Math.abs(ex));
+    }
+    ok('the geodesic integrator agrees with the exact deflection quadrature to under a per cent across its whole declared domain',
+      worstRel < 0.01,
+      `worst relative difference over six impact parameters from 2.7 to 12 = ${(100 * worstRel).toFixed(3)}% · the quadrature is lensAlpha, which shares no arithmetic with the leapfrog and is the same one the lensing laboratory uses`);
+
+    /* and it does NOT agree outside that domain, which is why the domain stops there */
+    const b40 = X.bhrTraceJS(40, 40000), ex40 = X.lensAlpha(40);
+    const tr40 = Math.abs(Math.atan2(b40.dir[1], b40.dir[0]));
+    ok('and it does NOT agree beyond it: at b = 40 the tracer is half the exact answer, because it starts the photon at x = -30 and a wide ray begins already bent',
+      Math.abs(tr40 - ex40) / ex40 > 0.4,
+      `traced ${tr40.toFixed(6)} against exact ${ex40.toFixed(6)} — ${(100 * Math.abs(tr40 - ex40) / ex40).toFixed(0)}% low · that is the reason the declared domain stops at 12, and it is a property of the tracer's geometry rather than of the physics`);
+
+    ok('capture happens at 3 sqrt(3)/2 in units of the Schwarzschild radius, and both routes agree on which side of it a photon is',
+      X.lensAlpha(2.59) === null && X.lensAlpha(2.61) !== null &&
+      X.bhrTraceJS(2.55, 40000).captured === true && X.bhrTraceJS(2.7, 40000).captured === false,
+      `b_crit = ${X.LENS_BCRIT.toFixed(6)} · the quadrature refuses below it and returns ${X.lensAlpha(2.61).toFixed(4)} rad just above · the tracer's threshold agrees to about a part in a thousand`);
+
+    ok('and far from the hole the exact deflection approaches 2 r_s/b, which is twice the Newtonian answer and is what was measured in 1919',
+      Math.abs(X.lensAlpha(200) / (2 / 200) - 1) < 0.01 && Math.abs(X.lensAlpha(2000) / (2 / 2000) - 1) < 0.002,
+      `b = 200 gives ${(X.lensAlpha(200) / (2 / 200)).toFixed(6)} times the weak-field value and b = 2000 gives ${(X.lensAlpha(2000) / (2 / 2000)).toFixed(6)} · at b = 3 the same ratio is ${(X.lensAlpha(3) / (2 / 3)).toFixed(4)}, which is the whole difference between a lens and a black hole`);
+  }
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
