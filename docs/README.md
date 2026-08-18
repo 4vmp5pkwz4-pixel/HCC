@@ -25,6 +25,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-edge-determinants.cjs` | the two named missing terms, which of them can matter, and the one number the other must supply |
 | `verify-edge-operator.cjs` | the recursion operator ℛ, the manuscript's own no-go, and the admissibility kernel two laboratories were already drawing |
 | `verify-quantity-bus.cjs` | what makes a coupling between two laboratories admissible, and the identity that closes capacity → ladder → radius → capacity |
+| `verify-embadon-laboratory.cjs` | Sym^N(CP¹) ≅ CP^N verified by round trip, the moment polytope, the classical discriminants, the braid that exchanges two embadons, and why the isoclinic rotation's orbits are Hopf fibres |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -4769,6 +4770,99 @@ says so now.
 
 `docs/verify-atlas-instruments.cjs` is now **235 checks, 0 failed**. 66 of the 80 laboratories
 compute; 71 typed instruments; 0 page errors during the headless walk.
+
+## The embadon laboratory (v4.12.0)
+
+The CIVP chain already weighs the embadons — the atoms of the molecular decomposition of the
+capacity measure on the carrier — and already keeps `q_can` apart from `N_emb`. What it never
+drew is the **space they live in**, and that space is four dimensional as soon as there are
+two of them:
+
+    Sym^N(CP¹) ≅ CP^N
+
+An unordered N-tuple of points on the carrier **is** a binary form of degree N up to scale.
+For N = 2 that is CP², a real **four-manifold**, and the new laboratory draws all four of its
+dimensions rather than three of them and a promise.
+
+### It verifies the identification rather than quoting it
+
+`embFormFromRoots` builds the form by convolution; the verifier rebuilds it from **Vieta's
+elementary symmetric functions**, written independently as a sum over subsets. They agree to
+3.5e-14 at degree twelve. A Durand–Kerner iteration takes the roots back out, and the round
+trip returns the embadons that went in to **3.0e-16** — with the polynomial residual at every
+recovered root measured *relative to the size of the terms that build it*, because at N = 12
+the stereographic coefficients reach 1e8 and an absolute residual there measures nothing.
+
+And **all 720 orderings** of six embadons land on one point of CP⁶, to 3.2e-15. The unordered
+configuration space is not a quotient taken by hand; it is what the coefficients already are.
+
+### All four dimensions, on the screen at once
+
+CP^N is toric. The moment map μ_k = |a_k|²/‖a‖² lands on the **standard simplex** — the
+coordinates are non-negative and sum to 1.0000000000000000 — and the fibre over an interior
+point is a real N-torus. For N = 2 that is a triangle and a torus: **two coordinates and two
+angles**, and the laboratory draws both. Rescaling every coefficient by any complex number,
+including a negative one and a tiny one, does not move the moment point: it is a function on
+projective space and the check says so.
+
+The Fubini–Study distance is verified to be a metric on that space — orthogonal divisors
+exactly π/2 apart, an equal superposition exactly π/4, and the triangle inequality at forty
+random triples.
+
+### The 1/N! is a braid, and here it is
+
+Two embadons in the plane are the monic quadratic z² + pz + q, and (p, q) is an honest **R⁴**.
+They collide exactly where q = p²/4 — a real 2-surface of codimension two — and a loop around
+it **exchanges them**. Odd turns swap, even turns return, at six winding numbers, with the
+continued path closing to 7e-16.
+
+That is checked a second time by a route with no root finding in it at all: the two roots
+differ by √(p² − 4q), so the exchange is the sign change of a square root, and `arg(p² − 4q)`
+winds by **1.000000000, 2.000000000, 3.000000000** over one, two and three turns. π₁(C² ∖ Δ)
+is ℤ and it surjects onto S₂. The 1/N! the bosonic measure divides by is *that* group — not an
+analogy for it, and the atlas now says so with a monodromy rather than a sentence.
+
+The product over pairs is also checked against the classical **quadratic and cubic**
+discriminants, `p² − 4q` and `18abcd − 4b³d + b²c² − 4ac³ − 27a²d²`, which share no code with
+it: 2.2e-16 and 1.8e-15.
+
+### The four-dimensional viewfinder is a rotation, and its orbits are Hopf fibres
+
+The collision station applies a genuine **SO(4)** rotation before projecting to three
+dimensions. It preserves every length to 4.4e-16, composes as a one-parameter group, and in
+the **isoclinic** case — both plane angles equal — every vector without exception turns
+through the same angle, to 9.4e-16. With unequal angles the turning angle wanders by 0.68 rad,
+so the property is measured and not assumed.
+
+That property is the whole point: the orbits of an isoclinic rotation are the fibres of the
+Hopf map. The verifier feeds two of those orbits to **`topoLinkPure`** — the Gauss linking
+integral this atlas wrote for a different laboratory entirely — and gets 1.000059 at 400
+points and 1.000004 at 1600. The four-dimensional viewfinder here and the fibration drawn
+there are one motion.
+
+### And the gate the molecular cut is missing, unchanged
+
+The laboratory reuses `civpCapacity` and `civpGluing` exactly as they are. Raise the weight
+spread with the mean pinned at one: `q_can = N_emb` goes on holding — numerically, exactly,
+and **by accident** — while the pointwise certificate `C_U` flips to no and the variance is
+the only other output that moves. A count becomes a capacity through a weight theorem or not
+at all, and nothing in this laboratory supplies one.
+
+Eight typed Nexus relations connect it to the molecular cut, the CP¹ evaluation lock, kinetic
+theory (the same factorial), the Hopf fibration (the same motion), the anyon laboratory (S_N
+against B_N, and the difference is the subject there), the harmonic laboratory (the same
+sphere), the shell laboratory (configuration space is half of phase space) and the defect
+atlas (π₁ of a complement is the invariant in both).
+
+### And one validator of mine was brittle rather than wrong
+
+`scripts/validate.mjs` pinned the literal text of `SCIENTIFIC_TRANSIENT_LABS`, so adding any
+laboratory that builds heavy geometry failed a check about something else entirely. It tests
+the invariant now: the list exists, still contains the twelve that made it necessary, and
+**every member has a release branch to be released by** — 13 of 13.
+
+`docs/verify-embadon-laboratory.cjs`: **13 checks, 0 failed**. 67 of 81 laboratories compute;
+72 typed instruments; 0 page errors during the headless walk.
 
 ## Status
 

@@ -508,7 +508,17 @@ export const ROOTS = [
   'dipPattern', 'dipPatternNorm', 'dipPatternIntegral', 'DIP_PATTERN_EXACT',
   'dipLarmorRel', 'dipRayleighRatio', 'dipWavefrontSpacing', 'dipHalfPower',
   'emBaseQ', 'emHopfPtPure', 'emFibreTangentPure', 'emFibreLoop',
-  'emRightI', 'emRightJ', 'emProjTangent', 'emNullResidual'
+  'emRightI', 'emRightJ', 'emProjTangent', 'emNullResidual',
+  /* ── THE EMBADON LABORATORY ───────────────────────────────────────────────
+     Sym^N(CP1) is CP^N, so two embadons on the carrier are a point of a real FOUR
+     manifold. These kernels are that identification, its moment polytope, the
+     discriminant where two atoms collide, and the braid monodromy of a loop
+     around it, which is where the 1/N! of the bosonic quotient comes from. */
+  'embSphereFromZ', 'embZFromSphere', 'embPositions', 'embWeights',
+  'embFormFromRoots', 'embRootsOfMonic', 'embMatchRoots', 'embMoment',
+  'embTorusAngles', 'embFubiniStudy', 'embDiscriminant', 'embSeparation',
+  'embCollisionPoint', 'embBraidQ', 'embMonodromy',
+  'embRot4', 'embProject4', 'embIsoclinicAngle'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
