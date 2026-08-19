@@ -23,7 +23,7 @@ Two entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
-| `index.html` | the atlas — **83** laboratories across 7 worlds, **81** typed instruments, **113** φ-ladder objects, WebXR | yes |
+| `index.html` | the atlas — **84** laboratories across 7 worlds, **82** typed instruments, **113** φ-ladder objects, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
 
 The newest laboratories are the **seven CIVP stations** — the CP¹ evaluation lock, the

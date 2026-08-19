@@ -577,6 +577,10 @@ export const ROOTS = [
      A temperature profile whose maximum is an exact rational multiple of the
      inner edge, and a spectrum that is a power law because the profile is. */
   'AD_SIGMA', 'AD_G', 'AD_C', 'AD_MSUN', 'AD_H', 'AD_KB', 'AD_MP', 'AD_SIGT',
+  'NU_HBARC', 'NU_KM', 'NU_GF', 'NU_FLAVOURS', 'nuC', 'nuMul', 'nuAdd', 'nuConj', 'nuAbs2',
+  'nuPmns', 'nuUnitarityResidual', 'nuDelta', 'nuProb', 'nuProbRow',
+  'nuJarlskogAngles', 'nuJarlskogFromU', 'nuTriangle', 'nuTriangleArea', 'nuTriangleClosure',
+  'nuOscLength', 'nuFirstMaximum', 'nuTwoFlavour', 'nuMswDensity', 'nuMixingSquared',
   'DISK_PEAK_RATIO', 'diskShape', 'diskPeakRadius', 'diskTemperature',
   'diskPeakTemperature', 'diskIsco', 'diskEfficiency', 'diskLuminosity',
   'diskEddington', 'diskSpectrum', 'diskSpectralSlope'

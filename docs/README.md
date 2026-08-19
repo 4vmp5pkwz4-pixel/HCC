@@ -36,6 +36,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-major-moons.cjs` | nine moons entered from their own orbits, and Kepler's third law over them handing back each parent's mass to a tenth of a per cent |
 | `verify-einstein-ring.cjs` | the lens equation's two roots against a bisection of itself, the magnification against a numerical Jacobian, and three identities that hold at every source offset |
 | `verify-accretion-disk.cjs` | the peak of the thin-disk profile against a four-million-point scan of the profile itself, the Kerr ISCO against its two exact closed forms, and the multicolour spectrum against an independently written annulus quadrature |
+| `verify-neutrino-oscillation.cjs` | PMNS unitarity entry by entry, the three probabilities summing to one over 720 configurations, the Jarlskog invariant from the angles against the same number read off the matrix, the CP asymmetry against its closed form in all six channels, and the two-flavour limit recovered exactly |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5399,6 +5400,56 @@ long before the innermost stable orbit matters.
 
 `docs/verify-accretion-disk.cjs`: **21 checks, 0 failed**. **83** laboratories, **81** typed
 instruments.
+
+### One unitary matrix, three flavours, and a sum that is exactly one (v4.23.0)
+
+A neutrino is produced in a **flavour** state and propagates in **mass** states, and one 3×3
+unitary matrix relates the two bases. Everything in this laboratory is a consequence of that
+single fact, and each consequence is checked against a route that shares no algebra with the
+kernel that produced it.
+
+The **1.27** of every textbook is not a fitted constant. The oscillation phase is Δm²L/(4E)
+in natural units; converting eV²·km/GeV to dimensionless with ħc gives 1e-15/(4ħc) =
+**1.2669327**, and that is where the number comes from. It is computed here from ħc and
+nothing else.
+
+Three stations, each drawing a different consequence of the one matrix:
+
+- **the probabilities along the baseline** — three curves, with the dashed line above them
+  being their sum. It is flat at one. Not approximately: over 720 configurations spanning
+  both mass orderings, both signs of the beam and all three initial flavours, the worst
+  |ΣP − 1| is **4.4e-16**. Nothing in the kernel normalises them; the sum is an *output* of
+  unitarity.
+- **the unitarity triangle** — the three terms of Σₖ U*ₑₖ U_μₖ laid head to tail. They
+  close (|Σ| = 3.7e-17), and the area they enclose is **exactly J/2**, the Jarlskog
+  invariant. Set δ_CP to zero on the slider and the triangle collapses to a line: no area,
+  no CP violation, and you can watch it happen.
+- **the flavour content of the mass states** — |U_αi|² as nine bars, every row and every
+  column summing to one. The same unitarity, seen a third way.
+
+**Found wrong, mine.** The CP-asymmetry sign convention was backwards. With
+J = Im(U_e1 U_μ2 U*_e2 U*_μ1) the closed form 16J·sinΔ₂₁·sinΔ₃₁·sinΔ₃₂ carries a **plus**
+for μ→e, τ→μ and e→τ and a minus for their reverses; I had written the two cases the wrong
+way round. The verifier caught it against the closed form at 240 configurations across all
+six off-diagonal channels, and the fixed version agrees to **1e-14**.
+
+**And a claim I made that was not true.** I had asserted the two-flavour formula differs
+from the three-flavour answer "by a few per cent" at T2K. It differs by **2.8e-4** there —
+the solar term has barely turned on at 295 km. The honest statement, which the check now
+makes, is that the size of the correction depends entirely on where you stand: 2.8e-4 at
+T2K, and **0.89** at 3439 km and 200 MeV, where the two-flavour formula is not an
+approximation of anything. Both numbers are returned by the instrument.
+
+The scales are arrived at rather than assumed. The first oscillation maximum for the
+atmospheric splitting at 0.6 GeV is at **303 km** and T2K's baseline is 295 km — that is why
+it was built there. At 4 MeV the same maximum is at **2.02 km**, which is where Daya Bay's
+far halls are. The MSW resonance density for the solar splitting at 10 MeV comes out at
+**1.1e25 cm⁻³** against a solar-core electron density near 6e25 — computed from G_F and ħc
+with no astrophysical input at all, which is why the solar neutrino problem was a matter
+effect and not a vacuum one.
+
+`docs/verify-neutrino-oscillation.cjs`: **19 checks, 0 failed**. **84** laboratories, **82**
+typed instruments.
 
 ### What the remaining seven are
 
