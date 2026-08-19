@@ -779,6 +779,14 @@ check(html.includes('const CIVP_STATION_OPEN=') && html.includes('const civpOpen
     && html.includes('try{ frameOpeningWorld(); }catch(e){}')
     && html.includes('requestAnimationFrame(()=>{ atlasFrontDoor(); frameOpeningWorld();'),
     'the opening world is framed at boot, and the guard is the measurement — it only fires while the camera is still inside the body it is looking at');
+  /* THE THIRD MEMBER OF THE SAME FAMILY. The palette, the framing and the cinematic drift
+     are all set up by setMode, and setMode does not run at boot when the parsed route
+     already names the current world — which an EMPTY hash does, because hccParseRoute('')
+     returns {worldId:'solar'} rather than null. Each of the three had to be stated last,
+     and this check exists so the next one is caught before a reader meets a frozen atlas. */
+  check(html.includes('try{ armIdleDrift(); }catch(e){}')
+    && /requestAnimationFrame\(\(\)=>\{ atlasFrontDoor\(\); frameOpeningWorld\(\);\s*\n\s*armIdleDrift\(\);/.test(html),
+    'the opening frame is ALIVE: the cinematic drift is armed in the boot tail as well as in setMode, because an empty hash takes the deep-link path and that path never calls setMode');
   const api = JSON.parse(readFileSync('api/manifest.json', 'utf8'));
   const civp = api.labs.filter(l => l.id.startsWith('civp'));
   check(civp.length === 7 && civp.every(l => l.kind === 'computational' && l.instrument === l.id),
