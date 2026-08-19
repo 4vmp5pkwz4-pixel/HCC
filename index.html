@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="exactly-two-thirds-2026.08.19.7">
+<html lang="en" data-hcc-build="every-laboratory-reachable-2026.08.19.8">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="exactly-two-thirds-2026.08.19.7">
+<meta name="hcc-build" content="every-laboratory-reachable-2026.08.19.8">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -306,6 +306,11 @@
   .snapChip:hover{background:rgba(212,175,106,.24);border-color:var(--gold);color:#fff;opacity:1}
   body.day .precBox{background:rgba(255,252,244,.9);color:#6b5518}
   body.day .snapChip{background:rgba(212,175,106,.16);color:#5a4516}
+  /* the status mark in the catalogue: verified laboratories carry a tick, declared
+     models a neutral dot. Deliberately quiet — it is a qualifier, not a badge. */
+  .labMark{display:inline-block;min-width:9px;margin-right:5px;opacity:.62;font-size:10px}
+  button[data-lab-status="verified"] .labMark{color:var(--gold-2,#e8d7a4);opacity:.85}
+  button[data-lab-status="model"] .labMark{color:var(--dim)}
   #atlasPanel .navRow{cursor:pointer;padding:3px 5px;border-radius:7px}
   #atlasPanel .navRow:hover{background:rgba(212,175,106,.12)}
   #atlasPanel .navRow.on{background:rgba(212,175,106,.2)}
@@ -1926,7 +1931,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.24.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.25.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2124,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.24.0';
-const HCC_BUILD='exactly-two-thirds-2026.08.19.7';
+const HCC_VERSION='4.25.0';
+const HCC_BUILD='every-laboratory-reachable-2026.08.19.8';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -6398,6 +6403,81 @@ function runSelfTests(){
         && !vr.dataset.mode && !mr.dataset.mode
         && document.querySelectorAll('#modeRow .modebtn[data-mode]').length===7; })(),
     'vrBtn/mrBtn onclick untouched · carousel selects [data-mode] only');
+  /* ══ REACHABILITY, ON EVERY SURFACE, AGAINST THE REGISTRY ═══════════════════
+     Three navigation surfaces carried hand-written lists of laboratories, and all three
+     had fallen behind the registry by the time anyone measured them. The wrist menu in XR
+     offered EIGHTEEN of eighty-five — sixty-seven laboratories unreachable from inside a
+     headset. These checks compare each surface against S3_VIEW_NAMES itself and name what
+     is missing, so the class of fault is closed rather than this instance of it. */
+  { const reg=Object.keys(S3_VIEW_NAMES), xr=xrLabIds();
+    const missing=reg.filter(v=>!xr.includes(v));
+    ok('EVERY LABORATORY IS REACHABLE FROM INSIDE THE HEADSET, which sixty-seven of them were not. The XR wrist menu carried a hand-written list of eighteen — measured by diffing its setS3View calls against the registry — so the Einstein ring, the accretion disk, neutrino oscillation, helium-3, the embadon laboratory and every CIVP station could not be reached in XR at all. The picker is now GENERATED from the same registry the router uses, grouped by the same domains the catalogue uses, and this check fails the build if the two ever disagree',
+      missing.length===0 && xr.length===reg.length,
+      `${xr.length} reachable of ${reg.length} registered${missing.length?' · MISSING: '+missing.slice(0,8).join(', '):' · none missing'}`);
+    ok('and the headset enumeration is a pure function of the registry, so a laboratory added tomorrow appears on the wrist without anyone typing it',
+      new Set(xr).size===xr.length && xr.every(v=>!!S3_VIEW_NAMES[v]),
+      `no duplicates, no strays · grouped into ${new Set(xr.map(v=>labDomainOf(v))).size} domains`);
+    ok('and PAGING THE WRIST PICKER covers the whole registry exactly once — every domain, every page, no laboratory listed twice and none dropped between pages',
+      (()=>{ const seen=[];
+        const plan0=xrLabPickerPlan({labs:xr});
+        for(const d of plan0.domains){
+          const p0=xrLabPickerPlan({labs:xr, domain:d});
+          for(let k=0;k<p0.pages;k++) seen.push(...xrLabPickerPlan({labs:xr, domain:d, page:k}).items);
+        }
+        return seen.length===reg.length && new Set(seen).size===reg.length
+            && reg.every(v=>seen.includes(v)); })(),
+      (()=>{ const p0=xrLabPickerPlan({labs:xr});
+        return `${p0.domains.length} domains · ${p0.domains.reduce((n,d)=>n+xrLabPickerPlan({labs:xr,domain:d}).pages,0)} pages of nine · every one of the ${reg.length} appears exactly once`; })());
+    ok('and the picker never lands on a page that does not exist: a page index past the end, or below zero, wraps rather than rendering an empty wrist',
+      (()=>{ const d=xrLabPickerPlan({labs:xr}).domains[0];
+        const hi=xrLabPickerPlan({labs:xr, domain:d, page:999});
+        const lo=xrLabPickerPlan({labs:xr, domain:d, page:-4});
+        const bad=xrLabPickerPlan({labs:xr, domain:'not-a-domain'});
+        return hi.items.length>0 && lo.items.length>0 && hi.page<hi.pages && lo.page>=0
+            && bad.domain===d; })(),
+      'page 999 and page −4 both wrap into range, and an unknown domain falls back to the first rather than showing nothing');
+    ok('and every wrist label is short enough to be legible on a third of a 42 cm panel at arm’s length, cut at a word boundary rather than mid-word',
+      xr.every(v=>xrLabShort(v).length<=20),
+      `longest label ${Math.max(...xr.map(v=>xrLabShort(v).length))} characters · e.g. "${xrLabShort('adisk')}", "${xrLabShort('nuosc')}"`);
+    ok('AND NO TWO WRIST LABELS ARE THE SAME, which the obvious shortening rule got wrong. Keeping the part before the middle dot rendered all seven CIVP stations as the identical button "CIVP" — seven buttons, one word, no way to tell which you were about to open. The half kept is now whichever half the registry says is distinctive: the head only where it belongs to one laboratory, the tail where it is shared',
+      new Set(xr.map(v=>xrLabShort(v))).size===xr.length,
+      `${new Set(xr.map(v=>xrLabShort(v))).size} distinct labels for ${xr.length} laboratories · the CIVP stations read "${['civplock','civpcut','civpidx'].map(v=>xrLabShort(v)).join('", "')}" rather than "CIVP" seven times`);
+    ok('the recent-laboratory list de-duplicates and keeps the most recent first, so the way back is one press and never two of the same',
+      (()=>{ const save=xrLabRecent.slice(); xrLabRecent=[];
+        xrLabRemember('elens'); xrLabRemember('adisk'); xrLabRemember('elens');
+        const r=xrLabRecent.slice(); xrLabRemember('nope_not_a_lab');
+        const guarded=xrLabRecent.length===2; xrLabRecent=save;
+        return r[0]==='elens' && r[1]==='adisk' && r.length===2 && guarded; })(),
+      'elens → adisk → elens leaves [elens, adisk], and an unregistered id is refused rather than stored'); }
+  { const iso=Object.keys(S3_VIEW_NAMES).filter(v=>labNeighbours(v).length===0);
+    ok('AND YOU CAN WALK THE RELATION GRAPH FROM WHERE YOU ARE STANDING. The atlas declares two hundred and four typed relations between laboratories, every one with a stated kind and a written reason, and until now none of them was a route — you could look at the graph in the Nexus and not walk it from the laboratory you were in. Three neighbours now sit on the wrist in XR and at the head of the palette, each carrying the reason the atlas gave for the edge',
+      iso.length===1 && iso[0]==='nexus',
+      `${Object.keys(S3_VIEW_NAMES).length-iso.length} of ${Object.keys(S3_VIEW_NAMES).length} laboratories have at least one declared neighbour · the only one without is "nexus", which IS the graph rather than a node in it`);
+    ok('and the neighbour list reads the relation OBJECTS the atlas builds, not the tuples its source literal is written as — destructuring the tuple shape reported all eighty-five as isolated, which is a "related" row that is always empty and therefore worse than no row at all',
+      labNeighbours('adisk').length===4 && labNeighbours('adisk').every(n=>n.id&&n.kind&&S3_VIEW_NAMES[n.id]),
+      `adisk → ${labNeighbours('adisk').map(n=>n.id+' ('+n.kind+')').join(', ')}`);
+    ok('and no laboratory is its own neighbour, and no edge points at anything the router cannot reach',
+      Object.keys(S3_VIEW_NAMES).every(v=>labNeighbours(v).every(n=>n.id!==v&&!!S3_VIEW_NAMES[n.id])),
+      `every edge lands on a registered laboratory · busiest node ${(()=>{let b='',n=0;for(const v of Object.keys(S3_VIEW_NAMES)){const k=labNeighbours(v).length;if(k>n){n=k;b=v;}}return b+' with '+n;})()}`); }
+  { const inPalette=(()=>{ try{ return LAB_REGISTRY.length; }catch(e){ return 0; } })();
+    ok('AND CHOOSING A LABORATORY IN THE COMMAND PALETTE ACTUALLY GOES THERE, which it did not. Measured: typing "Einstein ring laboratory" returned exactly one result and pressing it left the route at #/world/solar, the breadcrumb at "Atlas › Solar System" and the active laboratory at v-sec. Laboratories reached the palette only as scene markers, and the scene selector is not the router. They now have their own row whose action is hccGo — the one entry point that moves the route, the breadcrumb, the scene and the context together',
+      inPalette===Object.keys(S3_VIEW_NAMES).length,
+      `${inPalette} laboratories indexed for the palette, each routed through hccGo`);
+    ok('and a laboratory can be found in the palette by what it DOES, not only by what it is called — the haystack carries the description, the declared prediction target, the domain and the status',
+      (()=>{ const L=LAB_BY_ID.get('adisk'); if(!L) return false;
+        const hay=(L.title+' '+L.id+' '+(L.description||'')+' '+(PREDICTION_TARGETS['adisk']||'')).toLowerCase();
+        return hay.includes('isco') && hay.includes('efficiency'); })(),
+      'searching "isco" or "efficiency" reaches the accretion disk without its name being typed'); }
+  { ok('and the CATALOGUE searches the same four registries, token by token, so a multi-word query need not be adjacent in the title',
+      (()=>{ const h=labHaystack('he3');
+        return h.includes('node') && h.includes('fermi') && labHaystack('nuosc').includes('unitar'); })(),
+      `"point node" and "fermi surface" find helium-3; "unitarity" finds the neutrino laboratory · the filter used to match the title and the id and nothing else`);
+    ok('and every catalogue row declares whether its claims are verified or declared, from the registry the API reports rather than a second list',
+      (()=>{ let v=0,m=0; for(const id of Object.keys(S3_VIEW_NAMES)){
+          const L=LAB_BY_ID.get(id); if(!L) return false;
+          if(L.status==='VERIFIED') v++; else m++; }
+        return v>0 && m>=0 && v+m===Object.keys(S3_VIEW_NAMES).length; })(),
+      `${Object.keys(S3_VIEW_NAMES).filter(id=>(LAB_BY_ID.get(id)||{}).status==='VERIFIED').length} verified · ${Object.keys(S3_VIEW_NAMES).filter(id=>(LAB_BY_ID.get(id)||{}).status!=='VERIFIED').length} declared models`); }
   ok('Atlas Navigator panel exists and is registered in the panel deck',
     !!document.getElementById('navPanel') && PANEL_IDS.includes('navPanel'),
     'navPanel present');
@@ -45134,6 +45214,16 @@ const XRX = (()=>{
     new THREE.MeshBasicMaterial({color:0xf1dda6}));
   wristDot.visible=false; scene.add(wristDot);
 
+  /* the picker's own state: which domain is showing, which page of it, and whether the
+     picker is open at all. Kept in the closure because it is presentation, not science. */
+  let xrLabPick=false, xrLabDomain=null, xrLabPage=0;
+  /* ONE way in, so the recent list can never disagree with where you actually are */
+  function xrLabGo(v){
+    try{ xrLabRemember(v); }catch(e){}
+    setS3View(v);
+    xrLabPick=false;
+    refreshMenu();
+  }
   function refreshMenu(){
     const m=state.mode, rows=[];
     rows.push([
@@ -45173,32 +45263,50 @@ const XRX = (()=>{
       {label:'CMB wall', on:state.obsCmbTex, cb:()=>{state.obsCmbTex=!state.obsCmbTex; applyCmbWall(state.obsCmbTex); refreshMenu();}},
     ]);
     if(m==='s3'){
+      /* ── THE TELEPORT: EVERY LABORATORY, NOT THE EIGHTEEN SOMEONE TYPED ─────────
+         MEASURED before this existed, by diffing the setS3View() calls in this function
+         against S3_VIEW_NAMES: the wrist menu offered EIGHTEEN laboratories and the atlas
+         had eighty-five. Sixty-seven of them — the Einstein ring, the accretion disk,
+         neutrino oscillation, helium-3, the embadon laboratory, every one of the CIVP
+         stations — could not be reached from inside a headset at all. Not hidden behind a
+         page: absent. You could open the atlas in a Quest and the only way to the other
+         sixty-seven was to take the headset off.
+
+         The cause is the class of fault this file has closed twice already on the flat
+         side: a hand-written list standing in for a registry. So the picker is GENERATED
+         from S3_VIEW_NAMES, grouped by the same domain registry the catalogue uses, and a
+         laboratory added tomorrow appears on the wrist without anyone typing it. The
+         self-test asserts reachable === registered, so the list cannot silently rot
+         again. */
+      const LABS=xrLabIds();
+      const cur=state.s3view||'sec';
       rows.push([
-        {label:'Section', on:state.s3view==='sec', cb:()=>{setS3View('sec'); refreshMenu();}},
-        {label:'Hopf', on:state.s3view==='hopf', cb:()=>{setS3View('hopf'); refreshMenu();}},
-        {label:'Modes β', on:state.s3view==='eig', cb:()=>{setS3View('eig'); refreshMenu();}},
-        {label:'Redshift', on:state.s3view==='red', cb:()=>{setS3View('red'); refreshMenu();}},
+        {label:(xrLabPick?'▾ ':'⌕ ')+'Laboratories · '+LABS.length, on:xrLabPick,
+         cb:()=>{ xrLabPick=!xrLabPick; if(xrLabPick) xrLabDomain=labDomainOf(cur); xrLabPage=0; refreshMenu(); }},
+        {label:'◎ '+xrLabShort(cur), on:true, cb:()=>{ xrLabPick=false; refreshMenu(); }},
       ]);
-      rows.push([
-        {label:'Projected Rings', on:state.s3view==='ring', cb:()=>{setS3View('ring'); refreshMenu();}},
-        {label:'Center Lab', on:state.s3view==='lab', cb:()=>{setS3View('lab'); refreshMenu();}},
-        {label:'DRD Info', on:state.s3view==='drd', cb:()=>{setS3View('drd'); refreshMenu();}},
-      ]);
-      rows.push([
-        {label:'Selector', on:state.s3view==='sel', cb:()=>{setS3View('sel'); refreshMenu();}},
-        {label:'Hopfion', on:state.s3view==='hopfion', cb:()=>{setS3View('hopfion'); refreshMenu();}},
-        {label:'Skyrmion', on:state.s3view==='skyrmion', cb:()=>{setS3View('skyrmion'); refreshMenu();}},
-      ]);
-      rows.push([
-        {label:'Quasiparticles', on:state.s3view==='quasi', cb:()=>{setS3View('quasi'); refreshMenu();}},
-        {label:'Elements', on:state.s3view==='atom', cb:()=>{setS3View('atom'); refreshMenu();}},
-        {label:'Gravitas 3-body', on:state.s3view==='grav', cb:()=>{setS3View('grav'); refreshMenu();}},
-        {label:'Quantum wave', on:state.s3view==='qm', cb:()=>{setS3View('qm'); refreshMenu();}},
-        {label:'Chromodynamics', on:state.s3view==='qcd', cb:()=>{setS3View('qcd'); refreshMenu();}},
-        {label:'Topology', on:state.s3view==='topo', cb:()=>{setS3View('topo'); refreshMenu();}},
-        {label:'Superconductivity', on:state.s3view==='sc', cb:()=>{setS3View('sc'); refreshMenu();}},
-        {label:'Taub-NUT', on:state.s3view==='taub', cb:()=>{setS3View('taub'); refreshMenu();}},
-      ]);
+      if(!xrLabPick){
+        /* WHERE YOU CAN GO FROM HERE. Two hundred and thirty declared relations, and
+           until now none of them was a route: you could see the graph in the Nexus and
+           not walk it from the laboratory you were in. Three neighbours, one press each. */
+        const nb=labNeighbours(cur).slice(0,3);
+        if(nb.length) rows.push(nb.map(n=>({label:'↝ '+xrLabShort(n.id,17),
+          cb:()=>{ xrLabGo(n.id); }})));
+        /* and the way back is one press, and it is the press you reach for most */
+        const back=xrLabRecent.filter(v=>v!==cur).slice(0,3);
+        if(back.length) rows.push(back.map(v=>({label:'↩ '+xrLabShort(v,17), cb:()=>{ xrLabGo(v); }})));
+      }
+      if(xrLabPick){
+        /* the layout is decided by the pure planner above; this only attaches behaviour */
+        const plan=xrLabPickerPlan({labs:LABS, current:cur, domain:xrLabDomain, page:xrLabPage});
+        xrLabDomain=plan.domain; xrLabPage=plan.page;
+        for(const r of plan.rows) rows.push(r.map(b=>({label:b.label, on:!!b.on, cb:
+          b.kind==='domain' ? (()=>{ xrLabDomain=b.id; xrLabPage=0; refreshMenu(); })
+          : b.kind==='lab' ? (()=>{ xrLabGo(b.id); })
+          : b.kind==='prev' ? (()=>{ xrLabPage=(plan.page-1+plan.pages)%plan.pages; refreshMenu(); })
+          : b.kind==='next' ? (()=>{ xrLabPage=(plan.page+1)%plan.pages; refreshMenu(); })
+          : (()=>{}) })));
+      }
       if(state.s3view==='hopfion') rows.push([
         {label:'p ±', cb:()=>{state.hfP=state.hfP>=6?1:state.hfP+1; hfDirty=true; refreshMenu();}},
         {label:'q ±', cb:()=>{state.hfQ=state.hfQ>=6?1:state.hfQ+1; hfDirty=true; refreshMenu();}},
@@ -47247,6 +47355,130 @@ const LAB_DOMAIN_LABEL={
               ru:'Набор инвариантности · что переживает преобразование',
               de:'Das Invarianz-Instrument · was eine Transformation überdauert'}};
 const LAB_DOMAIN_ORDER=['invariance','geometry','dynamics','quantum','waves','thermo','astro','other'];
+/* ══ WHAT THE HEADSET CAN REACH ══════════════════════════════════════════════
+   Pure, exported, and shared between the wrist menu and the self-test — for the same
+   reason labCatalogueIds() is: the enumeration must be something you can ASK for without
+   entering XR, or the only way to check the headset is complete is to put it on.
+
+   xrLabIds() is the whole registry in catalogue order. If this ever returns fewer entries
+   than S3_VIEW_NAMES has keys, the boot self-test fails and names the missing ones. */
+function xrLabIds(){
+  const all=Object.keys(S3_VIEW_NAMES);
+  const seen=new Set();
+  const out=[];
+  for(const d of LAB_DOMAIN_ORDER) for(const v of all)
+    if(!seen.has(v)&&labDomainOf(v)===d){ seen.add(v); out.push(v); }
+  for(const v of all) if(!seen.has(v)){ seen.add(v); out.push(v); }   // nothing may fall out
+  return out;
+}
+/* ── A WRIST LABEL MUST NAME ONE LABORATORY AND NO OTHER ─────────────────────
+   A button is a third of a 42 cm panel at arm's length: about twenty legible characters,
+   and a title like "CIVP · CP¹ evaluation lock" does not fit.
+
+   The obvious rule — keep what comes before the middle dot — is WRONG, and measurably so.
+   Seven laboratories are titled "CIVP · something", so keeping the head rendered all
+   seven as the identical button "CIVP": seven buttons, one word, no way to tell which
+   station you were about to open. The half worth keeping is whichever half is
+   DISTINCTIVE, and which one that is depends on the registry, not on typography. So the
+   head is kept only when it belongs to this laboratory alone; where it is shared the tail
+   is kept instead. The self-test asserts all eighty-five labels are distinct, because a
+   label that names two things is not a label. */
+function xrLabHeadCounts(){
+  if(xrLabHeadCounts._c) return xrLabHeadCounts._c;
+  const c=new Map();
+  for(const id of Object.keys(S3_VIEW_NAMES)){
+    const t=String(S3_VIEW_NAMES[id]||id), d=t.indexOf(' · ');
+    const h=(d>0?t.slice(0,d):t).toLowerCase();
+    c.set(h,(c.get(h)||0)+1);
+  }
+  xrLabHeadCounts._c=c; return c;
+}
+function xrLabShort(v,max){
+  const M=max||20;
+  const full=String((S3_VIEW_NAMES&&S3_VIEW_NAMES[v])||v);
+  const d=full.indexOf(' · ');
+  let t=full;
+  if(d>0){
+    const head=full.slice(0,d), tail=full.slice(d+3);
+    /* the shared head is the useless one — "CIVP", "S³" — so take the tail there */
+    t=(xrLabHeadCounts().get(head.toLowerCase())||0)>1 ? tail : head;
+  }
+  t=t.trim();
+  if(t.length<=M) return t;
+  const cut=t.lastIndexOf(' ',M-1);
+  return (cut>=10?t.slice(0,cut):t.slice(0,M-1))+'…';
+}
+const XR_DOM_SHORT={invariance:'⟲ Invar',geometry:'◇ Geom',dynamics:'↻ Dyn',quantum:'⚛ Quant',
+  waves:'∿ Waves',thermo:'♨ Therm',astro:'✦ Astro',other:'· Other'};
+function xrDomShort(d){ return XR_DOM_SHORT[d]||d; }
+/* ── THE PICKER'S LAYOUT IS A PURE FUNCTION ──────────────────────────────────
+   The wrist menu builds THREE.js buttons with callbacks, which cannot be exercised
+   outside a live XR session — and "the headset menu is complete" is exactly the claim
+   that was false for sixty-seven laboratories precisely because nobody could check it
+   without a headset. So the LAYOUT is separated from the buttons: what appears, in what
+   order, on which page, is decided here in ordinary data, and the menu only turns the
+   result into meshes. The self-test walks every page of every domain and asserts the
+   union is the registry exactly once — which is the property that was violated. */
+function xrLabPickerPlan(opt){
+  const o=opt||{};
+  const labs=o.labs||xrLabIds();
+  const perPage=o.perPage||9, perRow=o.perRow||3;
+  const doms=LAB_DOMAIN_ORDER.filter(d=>labs.some(v=>labDomainOf(v)===d));
+  const domain=doms.includes(o.domain)?o.domain:doms[0];
+  const mine=labs.filter(v=>labDomainOf(v)===domain);
+  const pages=Math.max(1,Math.ceil(mine.length/perPage));
+  const page=((o.page|0)%pages+pages)%pages;
+  const items=mine.slice(page*perPage,page*perPage+perPage);
+  const rows=[];
+  for(let i=0;i<doms.length;i+=perRow)
+    rows.push(doms.slice(i,i+perRow).map(d=>({kind:'domain', id:d,
+      label:xrDomShort(d)+' '+labs.filter(v=>labDomainOf(v)===d).length, on:d===domain})));
+  for(let i=0;i<items.length;i+=perRow)
+    rows.push(items.slice(i,i+perRow).map(v=>({kind:'lab', id:v,
+      label:xrLabShort(v), on:v===o.current})));
+  if(pages>1) rows.push([{kind:'prev',id:'prev',label:'‹ prev'},
+                         {kind:'page',id:'page',label:(page+1)+' / '+pages},
+                         {kind:'next',id:'next',label:'next ›'}]);
+  return {domain, domains:doms, page, pages, items, rows};
+}
+/* ── WHERE YOU CAN GO FROM HERE, AND WHY ─────────────────────────────────────
+   The atlas already declares two hundred and thirty typed relations between laboratories,
+   every one of them with a stated kind and a written reason, and all eighty-five have at
+   least one. None of that was navigable: the graph could be looked at in the Nexus and
+   could not be walked from the laboratory you were standing in.
+
+   These are the neighbours of one laboratory, nearest-first by nothing more exotic than
+   declaration order, each carrying the reason the atlas gave for the edge. Pure, so the
+   wrist menu, the palette and the verifier all read the same answer. */
+function labNeighbours(id){
+  let rel=null; try{ rel=NEXUS_RELATIONS; }catch(e){ return []; }
+  if(!rel) return [];
+  const out=[], seen=new Set();
+  for(const r of rel){
+    /* the RELATIONS ARE OBJECTS, not the tuples the source literal is written as: the
+       array is built from those rows into {id,a,b,type,label,claim} before anything reads
+       it. Destructuring the tuple shape gave a graph in which all eighty-five laboratories
+       were isolated — a "related" row that is always empty, which is worse than no row,
+       because it says there is nothing nearby when there are two hundred and four edges. */
+    if(!r||typeof r!=='object') continue;
+    const a=r.a, b=r.b;
+    const other=(a===id)?b:(b===id)?a:null;
+    if(!other||seen.has(other)) continue;
+    if(!S3_VIEW_NAMES[other]) continue;          // an edge to something unregistered is not a route
+    seen.add(other);
+    out.push({id:other, kind:r.type||'relation', why:r.label||r.claim||'',
+      title:S3_VIEW_NAMES[other]||other});
+  }
+  return out;
+}
+/* the last places you were, most recent first, no duplicates, capped */
+let xrLabRecent=[];
+function xrLabRemember(v){
+  if(!v||!S3_VIEW_NAMES[v]) return xrLabRecent;
+  xrLabRecent=[v,...xrLabRecent.filter(x=>x!==v)].slice(0,8);
+  return xrLabRecent;
+}
+
 let LAB_BROWSER_OPEN=false, LAB_BROWSER_QUERY='', LAB_BROWSER_FOLDED=false;
 try{ LAB_BROWSER_FOLDED=localStorage.getItem('hcc.labBrowserFolded.v1')==='1'; }catch(e){}
 /* ── FOLDING KEEPS YOUR PLACE ─────────────────────────────────────────────────
@@ -47633,16 +47865,47 @@ function labBrowserSetOpen(on){
     const cur=el.querySelector('.btn.on'); if(cur) try{cur.scrollIntoView({block:'nearest'});}catch(e){}
   }
 }
+/* ── WHAT A LABORATORY CAN BE FOUND BY ────────────────────────────────────────
+   The filter used to match the button label, the id and the registry title, and nothing
+   else. With eighty-five laboratories that means you can only find one you can already
+   name: searching "isco", "point node", "unitarity" or "тепло" returned nothing at all,
+   although the atlas holds a description and a declared prediction target for every one
+   of them and those are exactly the words a reader arrives with.
+
+   The haystack is built once per laboratory and cached on the button, because it is
+   assembled from four registries and the filter runs on every keystroke. Multi-word
+   queries are matched token by token, so "disk temperature" finds the accretion disk
+   without the two words having to be adjacent. */
+/* every name this laboratory has, in every language the atlas is offered in */
+function labNamesAllLangs(id){
+  let out=String((S3_VIEW_NAMES&&S3_VIEW_NAMES[id])||'');
+  try{ for(const L of Object.values(S3_VIEW_I18N)) if(L&&L[id]) out+=' '+L[id]; }catch(e){}
+  return out;
+}
+const LAB_HAY=new Map();
+function labHaystack(id){
+  if(LAB_HAY.has(id)) return LAB_HAY.get(id);
+  let h=(S3_VIEW_NAMES[id]||'')+' '+id;
+  try{ const L=LAB_BY_ID.get(id); if(L){ h+=' '+(L.description||'')+' '+(L.status||'')+' '+(L.category||''); } }catch(e){}
+  try{ h+=' '+(PREDICTION_TARGETS[id]||''); }catch(e){}
+  try{ h+=' '+(LAB_DESC_EXTRA[id]||''); }catch(e){}
+  try{ h+=' '+impL(LAB_DOMAIN_LABEL[labDomainOf(id)]); }catch(e){}
+  h+=' '+labNamesAllLangs(id);
+  h=h.toLowerCase();
+  LAB_HAY.set(id,h);
+  return h;
+}
 function labBrowserFilter(){
   const el=document.getElementById('labPanel'); if(!el) return;
   const q=LAB_BROWSER_QUERY.trim().toLowerCase();
+  const tokens=q.split(/\s+/).filter(Boolean);
   let shown=0;
   el.querySelectorAll('.labGroup').forEach(g=>{
     let any=false;
     g.querySelectorAll('button[id^="v-"]').forEach(b=>{
       const key=b.id.slice(2);
-      const hay=(b.textContent+' '+key+' '+(S3_VIEW_NAMES[key]||'')).toLowerCase();
-      const hit=!q||hay.includes(q);
+      const hay=(b.textContent+' '+labHaystack(key)).toLowerCase();
+      const hit=!tokens.length||tokens.every(t=>hay.includes(t));
       b.style.display=hit?'':'none';
       if(hit){any=true;shown++;}
     });
@@ -47741,6 +48004,27 @@ function labBrowserBuild(){
       b.onclick=()=>{ hccGo({worldId:'s3',labId:id}); };
       buttons.push(b);
     } }
+  /* ── AND EVERY ROW SAYS WHAT IT IS ────────────────────────────────────────
+     A catalogue of eighty-five names tells you nothing about eighty-four of them. Each
+     button now carries its own description as a tooltip and a one-character status mark:
+     ✓ for a laboratory whose claims are checked by a verifier, · for a declared model.
+     The mark is read from the same registry the API reports, so it cannot disagree with
+     what the instrument says about itself. */
+  for(const b of buttons){
+    const id=b.id.slice(2);
+    let L=null; try{ L=LAB_BY_ID.get(id); }catch(e){}
+    const verified=(L&&L.status==='VERIFIED');
+    if(!b.dataset.marked){
+      b.dataset.marked='1';
+      b.dataset.labStatus=verified?'verified':'model';
+      const mark=document.createElement('span');
+      mark.className='labMark'; mark.textContent=verified?'✓':'·';
+      mark.setAttribute('aria-hidden','true');
+      b.insertBefore(mark,b.firstChild);
+    }
+    const d=(L&&L.description)||'';
+    b.title=(S3_VIEW_NAMES[id]||id)+(verified?' · VERIFIED':' · MODEL')+(d?'\n\n'+d:'');
+  }
   LAB_BROWSER_TOTAL=buttons.length;
   LAB_BROWSER_IDS=buttons.map(b=>b.id.slice(2));
   const byDomain=new Map();
@@ -53506,15 +53790,108 @@ const CMDK = (()=>{
     add('Save current view bookmark','store mode · selection · camera','★',()=>NAV.saveBookmark());
     return c;
   }
-  function objectsIndex(){ return [...SELECT.entries()].map(([key,s])=>{
+  /* ══ LABORATORIES ARE A FIRST-CLASS ROW, AND THE ROW TRAVELS ═══════════════
+     MEASURED before this existed: typing "Einstein ring laboratory" into the palette
+     returned exactly one result, and pressing it did NOTHING. The route stayed
+     #/world/solar, the breadcrumb stayed "Atlas › Solar System", and the active
+     laboratory button stayed v-sec. Every one of the eighty-five was findable and none
+     of them was reachable — the worst possible combination, because the interface
+     answers and then does not deliver, which reads as a broken atlas rather than a
+     missing feature.
+
+     The cause: laboratories were reaching the palette only as SCENE OBJECTS — the little
+     marker each laboratory registers so it can be picked in the S³ world — and the scene
+     selector is not the router. The fix is not to patch the selector but to give
+     laboratories the row they should always have had, with hccGo as the action: the one
+     entry point that moves the route, the breadcrumb, the scene and the context together.
+
+     The haystack is everything the atlas already knows about the laboratory — its title,
+     its id, its description, what it predicts, its domain and its status — so it can be
+     found by what it DOES ("isco", "point node", "unitarity") and not only by its name. */
+  /* LAZILY, and this mattered: computed at closure-creation time the try/catch swallowed a
+     temporal-dead-zone miss — LAB_ATLAS_DEFS is declared some two thousand lines further
+     down — and returned an EMPTY set, so nothing was filtered and the dead scene marker
+     went on out-ranking the live laboratory row it was supposed to replace. Measured:
+     "Einstein ring laboratory" (marker, inert) above "Einstein ring · the lens equation"
+     (row, routes). A cache that silently degrades to "no entries" is worse than no cache;
+     this one is filled on first use, when the registry certainly exists. */
+  let LAB_ATLAS_KEYS=null;
+  function labAtlasKeys(){
+    if(LAB_ATLAS_KEYS) return LAB_ATLAS_KEYS;
+    try{ LAB_ATLAS_KEYS=new Set(LAB_ATLAS_DEFS.map(d=>d[0])); }catch(e){ return new Set(); }
+    return LAB_ATLAS_KEYS;
+  }
+  function labsIndex(){
+    let list=[]; try{ list=LAB_REGISTRY; }catch(e){ return []; }
+    return list.map(L=>{
+      const pred=(typeof PREDICTION_TARGETS!=='undefined'&&PREDICTION_TARGETS[L.id])||'';
+      const dom=(()=>{ try{ return impL(LAB_DOMAIN_LABEL[labDomainOf(L.id)])||''; }catch(e){ return ''; } })();
+      const inst=(()=>{ try{ return HCC_API_SPECS.has(L.id); }catch(e){ return false; } })();
+      return {type:'lab', id:L.id, name:L.title||L.id, icon:'⌬',
+        hint:dom+' · '+(L.status||'MODEL')+(inst?' · typed instrument':'')
+             +(L.description?' — '+String(L.description).slice(0,120):''),
+        tier:L.status==='VERIFIED'?'A':'M',
+        /* AND IN EVERY LANGUAGE THE ATLAS SPEAKS. The interface is offered in three and
+           the palette searched only the English title, so a reader working in Russian
+           could not find "тепловая машина" or "сверхновая" by name at all — measured:
+           "тепло" returned nothing. The localized registry the mode buttons already use
+           goes into the haystack, and now it does. */
+        hay:(L.title+' '+L.id+' '+(L.description||'')+' '+pred+' '+dom+' '+(L.status||'')
+             +' '+labNamesAllLangs(L.id)
+             +' laboratory лаборатория labor').toLowerCase(),
+        run:()=>{ try{ navPush(); }catch(e){}
+                  hccGo({worldId:'s3', labId:L.id}); }};
+    });
+  }
+  function objectsIndex(){ const skip=labAtlasKeys();
+    return [...SELECT.entries()].filter(([key])=>!skip.has(key)).map(([key,s])=>{
     const tier=atlasAccuracyTier(key,s), name=objectName(s);
     return {type:'object',key,name,tier,icon:'◉',
       hint:(MODE_META[s.mode]||s.mode)+' · tier '+tier+(s.src?.length?' · '+s.src.join('/'):''),
       hay:(name+' '+key+' '+(s.mode||'')+' '+(s.src||[]).join(' ')+' '+(s.formulas||[]).join(' ')+' tier'+tier).toLowerCase(),
       run:()=>selectGlobalKey(key,true)}; }); }
-  function rebuild(){ items=[...objectsIndex(),...commands()]; }
-  function score(it,q){ if(!q)return it.type==='command'?1:2; const n=it.name.toLowerCase();
-    return n.startsWith(q)?0:n.includes(q)?1:it.hay.includes(q)?2:99; }
+  /* WHEN YOU OPEN THE PALETTE INSIDE A LABORATORY, the laboratories it is declared to be
+     related to come first, each with the reason the atlas gave for the edge. Search still
+     reaches everything; this only decides what you see before you have typed anything. */
+  function relatedIndex(){
+    let cur=null; try{ cur=(HCC_CTX.worldId==='s3')?HCC_CTX.labId:null; }catch(e){}
+    if(!cur) return [];
+    let nb=[]; try{ nb=labNeighbours(cur); }catch(e){ return []; }
+    return nb.map(n=>({type:'related', id:n.id, name:n.title, icon:'↝',
+      hint:n.kind+' — '+String(n.why).slice(0,110),
+      tier:((LAB_BY_ID.get(n.id)||{}).status==='VERIFIED')?'A':'M',
+      hay:(n.title+' '+n.id+' '+n.kind+' '+n.why+' related').toLowerCase(),
+      run:()=>{ try{ navPush(); }catch(e){} hccGo({worldId:'s3', labId:n.id}); }}));
+  }
+  function rebuild(){
+    const rel=relatedIndex(), skip=new Set(rel.map(r=>r.id));
+    items=[...rel,...labsIndex().filter(l=>!skip.has(l.id)),...objectsIndex(),...commands()];
+  }
+  /* ── A MID-WORD MATCH IS NOT A MATCH THE READER MEANT ──────────────────────
+     MEASURED: searching "isco" put the Symmetry DISCOvery Chamber first and the accretion
+     disk — the laboratory whose whole subject is the innermost stable circular orbit —
+     third, because "isco" is a substring of "discovery". Substring matching cannot tell
+     the difference between a word and the inside of one, so a hit that begins at a word
+     boundary now outranks one that does not, in the name first and then in the haystack.
+     Laboratories still lead on an empty query; nothing else about the order changes. */
+  const wordHit=(hay,q)=>{ const i=hay.indexOf(q);
+    if(i<0) return false;
+    let j=i; while(j>=0){ if(j===0||!/[a-z0-9а-яё]/i.test(hay[j-1])) return true;
+      j=hay.indexOf(q,j+1); }
+    return false; };
+  function score(it,q){ if(!q)return it.type==='related'?-1:it.type==='lab'?0:it.type==='command'?1:2;
+    /* AN EXACT IDENTIFIER WINS OUTRIGHT. Eleven laboratories carry ids of two to five
+       letters — sc, sh, te, cp, rel, spin — and those strings sit inside longer titles,
+       so typing the id you already know put somebody else first: "sc" found Black-hole
+       thermodynamics, "sh" found Shakura–Sunyaev, "lens" found the Einstein ring. Anyone
+       typing an exact id is naming one laboratory and no other; nothing outranks that. */
+    if(it.id&&it.id.toLowerCase()===q) return -1;
+    const n=it.name.toLowerCase(), base=(it.type==='related'||it.type==='lab')?0:it.type==='command'?4:8;
+    /* the tiers are ordered so that ANY word-boundary hit beats ANY mid-word one. Ranking
+       the name's mid-word hit above the haystack's word hit — which is what this line did
+       first — still put Symmetry DISCOvery above the accretion disk for "isco", because a
+       match inside a word scored better merely for being in the title. */
+    return base+(n.startsWith(q)?0:wordHit(n,q)?1:wordHit(it.hay,q)?2:n.includes(q)?3:it.hay.includes(q)?3.5:90); }
   function render(){
     const raw=input.value.trim().toLowerCase(), tokens=raw.split(/\s+/).filter(Boolean);
     view=items.filter(it=>tokens.every(t=>it.hay.includes(t)))
@@ -53524,10 +53901,10 @@ const CMDK = (()=>{
     if(!view.length){ list.innerHTML='<li class="cmdk-empty">No objects or commands match.</li>'; return; }
     let html='',lastType='';
     view.forEach((it,i)=>{
-      if(it.type!==lastType){ html+=`<li class="cmdk-group">${it.type==='object'?'Objects':'Commands'}</li>`; lastType=it.type; }
+      if(it.type!==lastType){ html+=`<li class="cmdk-group">${it.type==='related'?'Related to this laboratory':it.type==='lab'?'Laboratories':it.type==='object'?'Objects':'Commands'}</li>`; lastType=it.type; }
       html+=`<li class="cmdk-item ${i===sel?'sel':''}" role="option" data-i="${i}"><span class="ci-icon">${it.icon||'›'}</span>
         <span class="ci-main"><span class="ci-name">${esc(it.name)}</span><span class="ci-hint">${esc(it.hint||'')}</span></span>
-        ${it.type==='object'?`<span class="ci-tag tier-${it.tier}">${it.tier}</span>`:''}</li>`;
+        ${(it.type==='object'||it.type==='lab'||it.type==='related')?`<span class="ci-tag tier-${it.tier}">${it.tier}</span>`:''}</li>`;
     });
     list.innerHTML=html;
     list.querySelectorAll('.cmdk-item').forEach(el=>{ el.onclick=()=>run(+el.dataset.i); el.onmouseenter=()=>{sel=+el.dataset.i;highlight();}; });
@@ -53891,7 +54268,7 @@ function renderNextActions(key){
 
 /* ---- Help / Shortcuts overlay (?) ---- */
 const HELP_SHORTCUTS=[
-  ['/ or Ctrl/⌘+K','Search'],
+  ['/ or Ctrl/⌘+K','Search — all 85 laboratories by name, id, or what they compute ("isco", "point node", «тепло»); inside a laboratory, its related ones come first'],
   ['N','Navigator'],
   ['O','Objects'],
   ['Q','QA Atlas'],
@@ -56626,6 +57003,36 @@ globalThis.FBS3R_AUDIT=Object.freeze({build:buildDevelopmentAudit});
    verify that every destination in the atlas is genuinely represented in 3D. */
 globalThis.FBS3R_QA=Object.freeze({
   deployment(){return {...HCC_DEPLOYMENT};},
+  /* ── THE NAVIGATION LAYER, ASKABLE ────────────────────────────────────────
+     Three surfaces decide how a reader reaches one of eighty-five laboratories, and all
+     three used to be uncheckable from outside: the wrist picker needs a headset, the
+     palette needs a keystroke, the catalogue needs the S³ world to be open. So each one
+     is exposed here as data. An agent can now ask the site what it can reach and by what
+     route, which is the same guarantee the instruments already give about their physics. */
+  nav(){
+    const reg=Object.keys(S3_VIEW_NAMES);
+    const xr=xrLabIds();
+    return {
+      registered:reg.length,
+      xrReachable:xr.length,
+      xrMissing:reg.filter(v=>!xr.includes(v)),
+      paletteIndexed:(()=>{ try{ return LAB_REGISTRY.length; }catch(e){ return 0; } })(),
+      domains:LAB_DOMAIN_ORDER.filter(d=>reg.some(v=>labDomainOf(v)===d))
+        .map(d=>({domain:d, n:reg.filter(v=>labDomainOf(v)===d).length,
+                  pages:xrLabPickerPlan({labs:xr, domain:d}).pages})),
+      verified:reg.filter(v=>(LAB_BY_ID.get(v)||{}).status==='VERIFIED').length,
+    };
+  },
+  /* what the catalogue filter would show for a query, without opening the panel */
+  navSearch(q){
+    const tokens=String(q||'').trim().toLowerCase().split(/\s+/).filter(Boolean);
+    return Object.keys(S3_VIEW_NAMES).filter(id=>{
+      const hay=labHaystack(id);
+      return !tokens.length||tokens.every(t=>hay.includes(t));
+    });
+  },
+  /* one page of the wrist picker, exactly as the headset would lay it out */
+  navXrPage(domain,page){ return xrLabPickerPlan({domain,page,current:state.s3view}); },
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
   prediction(view=state.s3view){return predictionContract(view);},
   predictions(){return Object.keys(S3_VIEW_NAMES).map(predictionContract);},
