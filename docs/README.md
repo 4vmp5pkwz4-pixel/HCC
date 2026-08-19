@@ -39,6 +39,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-neutrino-oscillation.cjs` | PMNS unitarity entry by entry, the three probabilities summing to one over 720 configurations, the Jarlskog invariant from the angles against the same number read off the matrix, the CP asymmetry against its closed form in all six channels, and the two-flavour limit recovered exactly |
 | `verify-helium-three.cjs` | the 2/3 and 8/15 angular averages against a two-million-point quadrature of the sphere, the closed-form density of states against a smooth-variable quadrature below the gap and a direct one above it, the point-node coefficient of exactly one, and the pair circulation quantum against the measured 0.0661 mm²/s |
 | `verify-navigation-reach.cjs` | that every registered laboratory is reachable from the XR wrist picker, that paging it covers the registry exactly once, that all 85 wrist labels are distinct and fit, and that every laboratory is findable by what it does rather than only by its name |
+| `verify-lambda-gates.cjs` | that C_UV is split and the closure stays irreducible at six certificates, that a constant vacuum shift is annihilated exactly while a topological remainder is refused by the gate, that the failure of T_q = ∏T_i is exactly −K₁₂K₂₁, and that every external input is recorded as unverified |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5695,6 +5696,99 @@ drawn on, and it says so.
 
 `docs/verify-navigation-reach.cjs`: **23 checks, 0 failed**. In-browser self-tests **745**,
 up from 737.
+
+### The constant is not the remainder (v4.27.0)
+
+Three external results were reported to this atlas as bearing on the CIVP chain. **None of
+them has been read, checked or reproduced here** — they are dated August 2026, after the
+assistant's knowledge cutoff, so nothing below should be taken as confirmation that the
+papers say what the summary says. They are recorded in `CIVP_EXTERNAL` with
+`verified_here: false` on every entry, and the operator's own qualifications are kept: two
+of the three links given were arXiv *listing* pages rather than papers, and the absence of
+a paper constructing the missing vertical is an observation about a scanned corpus, not a
+proof of absence.
+
+What the atlas owns is the machinery their consequences demand. That machinery is exact,
+and it is what the verifier checks.
+
+**C_UV was two certificates wearing one name.** It read *"strict convexity, one crossing
+AND topology stability"* — so a reader who established the first two could hold it and
+believe the selection protected. `X_lapse` reports that a mechanism can remove the
+background's sensitivity to **constant** radiative shifts of the vacuum energy and still
+leave a finite topology-sensitive Casimir remainder. The remainder is what moves the
+crossing.
+
+The composite is split. `C_UV` now claims only what its own computation shows; `C_top` is a
+certificate in its own right. **Six certificates now stand where five stood** — holding the
+old five no longer determines `q_* unique`, and the pre-existing irreducibility guard
+caught the change immediately, which is what it is for.
+
+**And ln(ζ_∂^q T_q) splits exactly the way the selector cares about.** Write
+
+```
+θ_q  =  ln(ζ_∂^q T_q)  =  q ln ζ_∂  +  ln T_q
+```
+
+The selector is built on differences, so decompose θ into a constant, a linear term and a
+residual:
+
+| part | killed by | effect on the selection |
+|---|---|---|
+| constant `a` | Δ and Δ² | moves nothing |
+| linear `b q` | Δ² only | **moves the crossing**, invisible to the shape |
+| residual `r_q` | neither | moves crossing **and** shape |
+
+and `b` *is* ln ζ_∂. Showing ∂_ρvac Λ_eff = 0 controls `a`. It says nothing about `b` or
+`r`. Measured: a constant deformation decomposes to `b = 0` with residual **exactly** zero;
+θ_q = q gives ln ζ_∂ = 1 with residual at machine zero; a topology-sensitive remainder
+survives both differences.
+
+`civpCasimirGate` makes the tightening operational rather than quoted. Against a selector
+with a unique crossing (m★ = 0.030415) and strict convexity (c★ = 0.066304): a constant
+vacuum shift moves the crossing by **1.6e-15** and passes; a topological remainder of order
+0.4 moves it past the margin and is **refused**. The envelope returns
+`constant_is_annihilated: true` *beside* `passes: false`, so the one can never be read as
+discharging the other.
+
+**T_q = ∏ T_i is a conditional, not an identity.** `X_null` reports that the spin-2 bracket
+on a null hypersurface carries a bilocal Green kernel transporting shear along the
+generators. If the sector were ultralocal the residual trace would factorise over
+independent molecular rays; with transport it does not, and the defect is **exact**:
+
+```
+det(I + K)  −  ∏_i (1 + K_ii)      and for two rays this is exactly  −K₁₂K₂₁
+```
+
+verified to 1.7e-16. A diagonal coupling gives a defect of exactly 0; a four-ray bilocal
+coupling breaks it by **10.5%**. The atlas owns the implication — the antecedent comes from
+outside and is labelled as such.
+
+**The shape ledger begins at the quadrupole.** The atlas already proved the Hessian norm
+½(ℓ−1)ℓ(ℓ+1)(ℓ+2) vanishes at ℓ = 0 and ℓ = 1 and nowhere else. What it could *not* prove
+is that those modes are unobservable rather than merely normless, and the caveat said so
+for many versions. `X_soft` supplies exactly that from a different direction. So
+`Q_shape^physical = Q_{ℓ≥2}` is now recorded — **with the attribution carried rather than
+absorbed**. The caveat still says which half is proved here and which is external.
+
+**And the missing vertical has a named target instead of an abstract one.** The Damour
+constraint carries rescaling weight 1 against Raychaudhuri's 2, so it is the one that should
+quantise to a CFT current:
+
+```
+D_A  --quantise-->  Ĵ_A  --?-->  c₁(det Rπ∗L_q)
+```
+
+Recorded with what is still open in the source itself: the joint Raychaudhuri + Damour
+constraint algebra is uncomputed there too, so this is a bridge toward `N_emb = q_ind` and
+not a closure of it. Carroll boosts are pure gauge and lie in the kernel of the presymplectic
+form, so a vertical intertwiner must not depend on the Ehresmann gauge — that constraint is
+recorded too.
+
+Four new entries in `api/open-problems.json` (136, up from 131), every one of them naming
+something the atlas now knows it must discharge and has not.
+
+`docs/verify-lambda-gates.cjs`: **21 checks, 0 failed**. In-browser self-tests **754**, up
+from 745.
 
 ### What the remaining seven are
 

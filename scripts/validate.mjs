@@ -757,10 +757,21 @@ check(html.includes("const v=CIVP_STATION_VIEW[b.dataset.civpStation];")
 check(html.includes('civpLocking(station=state.civpStation') && html.includes('function bindCivpControls(')
   && html.includes('fbs3r_civp_corner_locking.json'),
   'CIVP diagnostics are QA-queryable, its controls are bound and its export is reproducible');
-check(html.includes('none of the five physical certificates is derived here')
+/* the count moved from five to six when the composite C_UV was split into convexity and
+   topological stability; the firewall sentence itself must move with it, or the page would
+   go on telling a reader there are five gates while the closure demands six */
+check(html.includes('none of the six physical certificates is derived here')
   && html.includes('never a prediction of Λ')
   && html.includes('kinematic map from a capacity that has been SELECTED BY HAND'),
-  'CIVP states its epistemic firewall: the five certificates are undischarged and Λ is not predicted');
+  'CIVP states its epistemic firewall: the six certificates are undischarged and Λ is not predicted');
+/* AND THE TIGHTENING IS IN THE DOCUMENT, not only in a self-test: the split certificate,
+   the gate that refuses a topological remainder, the no-go against factorising the
+   residual trace, and the provenance line that says none of the three external results was
+   verified here. A constraint recorded without its provenance is a claim. */
+check(html.includes("{id:'C_top'") && html.includes('function civpCasimirGate(')
+  && html.includes('function civpUltralocalDefect(') && html.includes('const CIVP_EXTERNAL=')
+  && html.includes('verified_here:false'),
+  'the two new gates are declared: C_top is a certificate of its own, the Casimir gate and the ultralocal no-go are computable, and every external input carries verified_here:false');
 /* A LABORATORY AN AGENT CAN ONLY LOOK AT IS A LABORATORY AN AGENT CANNOT USE. The seven
    walked out of the first build as "parametric" — controls but no typed output contract —
    which is exactly the class the atlas invented so that nothing visual-only could be
