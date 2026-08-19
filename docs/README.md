@@ -38,6 +38,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-accretion-disk.cjs` | the peak of the thin-disk profile against a four-million-point scan of the profile itself, the Kerr ISCO against its two exact closed forms, and the multicolour spectrum against an independently written annulus quadrature |
 | `verify-neutrino-oscillation.cjs` | PMNS unitarity entry by entry, the three probabilities summing to one over 720 configurations, the Jarlskog invariant from the angles against the same number read off the matrix, the CP asymmetry against its closed form in all six channels, and the two-flavour limit recovered exactly |
 | `verify-helium-three.cjs` | the 2/3 and 8/15 angular averages against a two-million-point quadrature of the sphere, the closed-form density of states against a smooth-variable quadrature below the gap and a direct one above it, the point-node coefficient of exactly one, and the pair circulation quantum against the measured 0.0661 mm²/s |
+| `verify-navigation-reach.cjs` | that every registered laboratory is reachable from the XR wrist picker, that paging it covers the registry exactly once, that all 85 wrist labels are distinct and fit, and that every laboratory is findable by what it does rather than only by its name |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5512,6 +5513,100 @@ built from an atomic mass rather than a pair mass).
 
 `docs/verify-helium-three.cjs`: **17 checks, 0 failed**. **85** laboratories, **83** typed
 instruments.
+
+### Every laboratory reachable, on every surface (v4.25.0)
+
+Eighty-five laboratories, three ways to reach one, and all three had fallen behind the
+registry. This release was written after measuring each surface rather than after reading
+the code, and what the measurements said was worse than expected.
+
+**Sixty-seven laboratories could not be reached from inside a headset.** Diffing the
+`setS3View` calls in the XR wrist menu against `S3_VIEW_NAMES` gave **eighteen** offered
+against **eighty-five** registered. Not hidden behind a page — absent. The Einstein ring,
+the accretion disk, neutrino oscillation, helium-3, the embadon laboratory and every one
+of the seven CIVP stations: the only way to any of them in a Quest was to take the headset
+off. The cause is the class of fault this file has closed twice before on the flat side, a
+hand-written list standing in for a registry.
+
+The picker is now **generated** from the registry, grouped by the same domains the
+catalogue uses, nine to a page — 7 domains, 13 pages. A laboratory added tomorrow appears
+on the wrist without anyone typing it.
+
+**The command palette found every laboratory and opened none of them.** Typing "Einstein
+ring laboratory" returned exactly one result; pressing it left the route at
+`#/world/solar`, the breadcrumb at "Atlas › Solar System" and the active laboratory at
+`v-sec`. Laboratories were reaching the palette only as *scene markers*, and the scene
+selector is not the router. They now have their own row whose action is `hccGo` — the one
+entry point that moves route, breadcrumb, scene and context together. Measured after:
+`#/world/s3/lab/elens`, crumb "Atlas › S³ · Hopf › Relativity & Null Geometry › Einstein
+ring · the lens equation".
+
+**Four things I got wrong while fixing it, each caught by measurement:**
+
+- **A cache that silently degraded to empty.** The set used to suppress the dead scene
+  markers was built at closure-creation time, where `LAB_ATLAS_DEFS` is still in its
+  temporal dead zone; the `try/catch` swallowed it and returned an empty set, so nothing
+  was filtered and the inert marker went on out-ranking the live row. Made lazy.
+- **Mid-word matches beating word matches.** Searching `isco` put the Symmetry **disco**very
+  Chamber first and the accretion disk — the laboratory whose entire subject is the
+  innermost stable circular orbit — third. Substring matching cannot tell a word from the
+  inside of one. A word-boundary hit now outranks a mid-word hit *anywhere*; my first
+  attempt still ranked the name's mid-word hit above the haystack's word hit and did not
+  fix it.
+- **Short ids losing to longer names.** Eleven laboratories carry ids of two to five
+  letters, and those strings sit inside other titles: `sc` found Black-hole thermodynamics,
+  `sh` found Shakura–Sunyaev, `lens` found the Einstein ring. An exact id now wins
+  outright. All 85 ids resolve to their own laboratory.
+- **Seven buttons reading "CIVP".** The obvious shortening rule — keep what precedes the
+  middle dot — rendered all seven CIVP stations identically, because the shared half is
+  the useless one. The half kept is now whichever half the *registry* says is distinctive.
+  All 85 wrist labels are distinct and ≤ 20 characters.
+
+**Russian and German search did not work at all.** The palette searched the English title
+only, so a reader working in Russian could not find «тепловая машина» by name — measured:
+`тепло` returned nothing. The localized registry the mode buttons already use is now in
+the haystack. `тепло` → Heat engine.
+
+**The catalogue searched the title and the id and nothing else**, so `isco`, `point node`,
+`unitarity` and `49/36` all returned empty although the atlas holds a description and a
+declared prediction target for every laboratory. It now searches four registries token by
+token, and every row carries its description as a tooltip and a status mark (✓ verified,
+· declared model) read from the registry the API reports.
+
+**And the whole layer is now askable.** `FBS3R_QA.nav()` reports what is reachable and by
+what route, `navSearch(q)` answers what the catalogue would show, and `navXrPage(domain,
+page)` returns exactly what the headset would lay out — because "the headset menu is
+complete" was precisely the claim that was false for sixty-seven laboratories, and it must
+be checkable by someone who does not own a headset. The picker's layout was extracted as a
+pure function for the same reason, so the verifier walks every page of every domain in
+Node and asserts the union is the registry exactly once.
+
+**And the relation graph became walkable.** The atlas declares **204** typed relations
+between laboratories, every one with a stated kind and a written reason, and until now none
+of them was a *route*: you could look at the graph in the Nexus and not walk it from the
+laboratory you were standing in. Three neighbours now sit on the wrist in XR and at the
+head of the palette, each carrying the reason the atlas gave for the edge. 84 of the 85
+have at least one; the exception is `nexus`, which *is* the graph rather than a node in it.
+
+**A fifth thing I got wrong.** The relations are built into objects `{a, b, type, label,
+claim}` before anything reads them, and I destructured the *tuple* shape the source literal
+is written in. The result was a graph in which all eighty-five laboratories were isolated —
+a "related" row that is always empty, which is worse than no row at all, because it asserts
+there is nothing nearby when there are 204 edges. The verifier now also checks the graph is
+symmetric as a route: every edge is walkable in both directions, so walking it can never
+strand you.
+
+**And a sixth, which CI caught rather than I did.** My first attempt put the relation table
+into the extracted kernel slice so the verifier could read it. `verify-kernel-extraction`
+refused it: the table is prose-heavy data whose comment blocks the statement walker cannot
+classify, and the closure reached a `window` reference. It was right to refuse — the slice
+is for physics, and a relation table is not physics. The graph is now parsed out of the
+document by the verifier, exactly as `S3_VIEW_NAMES` already was, so the check stays a
+check on the document rather than on the module agreeing with itself.
+
+`docs/verify-navigation-reach.cjs`: **16 checks, 0 failed**. In-browser self-tests **737**,
+up from 723 — fourteen new ones, all of them reachability assertions against the registry so
+that no navigation list can silently rot again.
 
 ### What the remaining seven are
 
