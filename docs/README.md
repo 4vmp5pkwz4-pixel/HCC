@@ -33,6 +33,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-s3-observational-geometry.cjs` | the redshift kernel shown to be the surface-to-volume ratio of the causal ball and the logarithmic derivative of its volume measure, the two arcs, the antipodal caustic and why the far side looks larger |
 | `verify-quasiparticle-dispersions.cjs` | the acoustic slope as a limit that now converges, the optical branch against the reduced mass, the magnon quadratic where the phonon is linear, an exciton scaling invariant, and a circulation measured over twelve decades of loop radius |
 | `verify-fractal-dimensions.cjs` | five self-similar solids built by their own substitution rules, with the Hausdorff dimension measured back out of the geometry by box counting |
+| `verify-major-moons.cjs` | nine moons entered from their own orbits, and Kepler's third law over them handing back each parent's mass to a tenth of a per cent |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5259,6 +5260,45 @@ unpredictably. Centres, and the agreement is immediate.
 
 `docs/verify-fractal-dimensions.cjs`: **9 checks, 0 failed**. The fractal section goes from
 12 entries to 18, and from zero bodies to five.
+
+### A moon larger than a planet, twice (v4.20.0)
+
+The atlas has had Jupiter and Saturn since it was written and **not one of their moons.**
+Only Earth's. Which left out the single most surprising true statement about the sizes in
+this system — **Ganymede and Titan are both larger than Mercury** — and there was nothing on
+the screen that could say it.
+
+Nine are added: Phobos, Deimos, Io, Europa, Ganymede, Callisto, Enceladus, Titan and Triton,
+each entered from its own literature semi-major axis, sidereal period and mean radius. The
+orbital plane and the phase at epoch are schematic — a circle in the ecliptic rather than in
+the parent's equator, because at the scale this scene is drawn the difference is far below a
+pixel — and the object card **says so** rather than implying otherwise.
+
+**No planet mass appears anywhere in that table**, which is what makes the check worth
+running. Kepler's third law over a parent's moons returns 4π²a³/P², and that number *is* the
+parent's GM:
+
+| parent | moons | GM from the orbits | against JPL |
+|---|---|---|---|
+| Mars | 2 | 4.284e13 | **0.031 %** |
+| Jupiter | 4 | 1.267e17 | **0.044 %** |
+| Saturn | 2 | 3.797e16 | **0.098 %** |
+| Neptune | 1 | 6.837e15 | **0.023 %** |
+
+The four Galileans agree with each other to **0.074 %**, and the exponent measured between
+every one of their six pairs is three halves to 5e-3. If these were plausible-looking numbers
+rather than measurements, none of that would hold.
+
+Ganymede beats Mercury by **194.4 km** and Titan by **135.0**; Callisto misses by 29. Triton
+is the only retrograde one, and its sign is carried in the **period** rather than in a note,
+so nothing that consumes the table can miss it — and Kepler does not care about the
+direction, which is why Neptune's mass still came out right.
+
+The moons are on the φ-ladder too, where Ganymede and Titan land either side of Mercury —
+which is the whole reason the ladder exists. φ-atlas 106 → 113 objects; the solar section
+165 → 174.
+
+`docs/verify-major-moons.cjs`: **8 checks, 0 failed**.
 
 ### What the remaining seven are
 
