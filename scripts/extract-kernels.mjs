@@ -566,7 +566,13 @@ export const ROOTS = [
   /* ── AND THE MAJOR MOONS, WHICH RECOVER THEIR PARENTS' MASSES ─────────────
      Entered from their own literature values with no planet mass in sight, so
      Kepler's third law over them is a second route to Jupiter and Saturn. */
-  'MAJOR_MOONS', 'moonKeplerGM', 'moonOrbitalSpeed', 'moonBiggerThanMercury'
+  'MAJOR_MOONS', 'moonKeplerGM', 'moonOrbitalSpeed', 'moonBiggerThanMercury',
+  /* ── EINSTEIN RINGS ───────────────────────────────────────────────────────
+     The deflection laboratory says how far a ray bends; these say WHERE the
+     images are, which is a quadratic with three exact identities in it. */
+  'EL_G', 'EL_C', 'EL_MSUN', 'EL_PC', 'elEinsteinRadius', 'elImages',
+  'elMagnifications', 'elTotalMagnification', 'elSisEinsteinRadius',
+  'elSisImages', 'elSisMagnifications', 'elIsRing', 'elRingRadiusArcsec', 'elTimeDelay'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

@@ -34,6 +34,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-quasiparticle-dispersions.cjs` | the acoustic slope as a limit that now converges, the optical branch against the reduced mass, the magnon quadratic where the phonon is linear, an exciton scaling invariant, and a circulation measured over twelve decades of loop radius |
 | `verify-fractal-dimensions.cjs` | five self-similar solids built by their own substitution rules, with the Hausdorff dimension measured back out of the geometry by box counting |
 | `verify-major-moons.cjs` | nine moons entered from their own orbits, and Kepler's third law over them handing back each parent's mass to a tenth of a per cent |
+| `verify-einstein-ring.cjs` | the lens equation's two roots against a bisection of itself, the magnification against a numerical Jacobian, and three identities that hold at every source offset |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5299,6 +5300,49 @@ which is the whole reason the ladder exists. φ-atlas 106 → 113 objects; the s
 165 → 174.
 
 `docs/verify-major-moons.cjs`: **8 checks, 0 failed**.
+
+### Two images, always, and a sum that is exactly one (v4.21.0)
+
+The atlas had a deflection laboratory: given an impact parameter, how far does the ray bend.
+It did not have the next question, which has a different answer and a closed form of its own
+— **where are the images.**
+
+The thin-lens equation β = θ − θ_E²/θ is a **quadratic**, so a point mass makes exactly two
+images at every source offset there is, and three identities follow:
+
+    θ₊ + θ₋  =  β          the images straddle the source
+    θ₊ θ₋    = −θ_E²       their product does not know where the source is
+    μ₊ + μ₋  =  1          with signs — the inner image is mirrored
+
+The last is the one worth the laboratory. However bright or faint the pair, the two **signed**
+magnifications sum to one — exactly, at every offset, to **2.2e-16** over seven decades. Written
+with magnitudes it reads |μ₊| − |μ₋| = 1.
+
+Nothing is trusted: the roots are checked by **bisecting the lens equation itself**, and the
+magnification against a **numerical Jacobian** of the lens mapping — including its sign, which
+is where the mirrored parity comes from.
+
+A **singular isothermal sphere** is offered beside the point mass because real galaxies are
+fitted with one, and it is structurally different rather than differently calibrated: past
+β = θ_E its second image is gone **entirely**, which a point mass never does, and its Einstein
+radius does not depend on the lens distance at all. The numbers land where lensing is
+observed — 2.21″ for a 10¹² M☉ galaxy at a gigaparsec, 1.08″ for a 250 km/s sphere — and are
+arrived at rather than assumed.
+
+### And my magnification had the wrong sign
+
+The first version returned μ₋ **positive**. The inner image is mirrored and its magnification
+is negative; with magnitudes the identity is a difference, with signs it is a sum, and I had
+written the difference while returning magnitudes. The Jacobian check is what would have
+caught it either way, and the signed form is the tidier statement.
+
+The residuals in this laboratory are conditioning, not disagreement: bisecting over a
+fifteen-decade bracket and multiplying a very large root by a very small one both floor at
+about 1e-10 in double arithmetic, and the checks say so rather than choosing a range where
+they would not.
+
+`docs/verify-einstein-ring.cjs`: **11 checks, 0 failed**. **82** laboratories, **80** typed
+instruments.
 
 ### What the remaining seven are
 
