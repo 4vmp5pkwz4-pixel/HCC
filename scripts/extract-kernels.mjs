@@ -557,7 +557,12 @@ export const ROOTS = [
   'qpMagnonOmega', 'qpMagnonStiffness', 'QP_A0_NM', 'QP_RY_MEV',
   'qpExcitonRadius', 'qpExcitonBinding', 'qpExcitonInvariant',
   'qpPolaronMass', 'qpPolaronEnergy',
-  'qpVortexSpeed', 'qpCirculation', 'qpCirculationFromLoop'
+  'qpVortexSpeed', 'qpCirculation', 'qpCirculationFromLoop',
+  /* ── AND THE HAUSDORFF DIMENSION ATLAS ───────────────────────────────────
+     Five self-similar solids built by their own substitution rules, with the
+     dimension measured back out of the built geometry by box counting. */
+  'FRAC_RULES', 'fracDimension', 'fracExactDimension', 'fracBuild',
+  'fracBoxCount', 'fracMeasuredDimension', 'fracCellCount'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

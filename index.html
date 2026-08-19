@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-opening-frame-must-be-alive-2026.08.19.1">
+<html lang="en" data-hcc-build="five-solids-on-a-dimension-rail-2026.08.19.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-opening-frame-must-be-alive-2026.08.19.1">
+<meta name="hcc-build" content="five-solids-on-a-dimension-rail-2026.08.19.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1926,7 +1926,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.18.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.19.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2119,8 +2119,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.18.0';
-const HCC_BUILD='the-opening-frame-must-be-alive-2026.08.19.1';
+const HCC_VERSION='4.19.0';
+const HCC_BUILD='five-solids-on-a-dimension-rail-2026.08.19.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -41905,7 +41905,7 @@ const fractalUniforms = {
   uBuddha: {value:fractalBuddhaTexture},
   uBifOverlay: {value:0},   // overlay the logistic bifurcation on the Mandelbrot real axis (c=r/2−r²/4)
 };
-const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9,buddha3d:10};
+const FRACTAL_TYPES={mandelbulb:0,mandelbrot:1,julia:2,buddhabrot:3,nested:4,bifurcation:5,bifurc3d:6,polytope4d:7,orbital3d:8,mjfiber3d:9,buddha3d:10,dimatlas:11};
 const FRACTAL_PALETTES={silver:0,gold:1,copper:2,ice:3,spectrum:4};
 let fractalType='bifurc3d';   // the atlas opens on the bifurcation⊗Mandelbrot bridge — its signature 3D structure
 let fractalPalette='spectrum';   // spectral colours from the very first frame (phase zero)
@@ -41929,7 +41929,8 @@ function setFractalType(type,reset=true){
   setFractalZoom(fractalUniforms.uZoom.value);
   if(state.mode==='fractal' && GEO_FRACTALS.has(type)){
     camera.fov=55; controls.target.set(0,0,0);
-    if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
+    if(type==='dimatlas'){ camera.position.set(0,2.6,15); controls.target.set(0,0.2,0); setControlDistanceLimits(3,90); buildDimensionAtlas(); }
+    else if(type==='bifurc3d'){ camera.position.set(6,6,21); setControlDistanceLimits(4,160); }
     if(type==='buddha3d'){ camera.position.set(4.5,3.2,10.5); controls.target.set(0,0,0); setControlDistanceLimits(2,60); }
     else if(type==='orbital3d'){ camera.position.set(5,4,9); setControlDistanceLimits(2.5,80); }
     else if(type==='mjfiber3d'){ camera.position.set(6,4,11); setControlDistanceLimits(2.5,90); }
@@ -41946,7 +41947,7 @@ function setFractalType(type,reset=true){
 // roll in-shader via uRot (uCenter/uZoom/pan/zoom stay in the un-rotated screen frame,
 // so controls never flip with the image); the four true-3D geometry groups roll about
 // the current view axis, leaving OrbitControls' orbit/zoom untouched.
-const GEO_GROUP_FOR={get bifurc3d(){return bifurcGroup;},get buddha3d(){return buddha3dGroup;},get polytope4d(){return poly4dGroup;},get orbital3d(){return orbitalGroup;},get mjfiber3d(){return mjFiberGroup;}};
+const GEO_GROUP_FOR={get bifurc3d(){return bifurcGroup;},get buddha3d(){return buddha3dGroup;},get polytope4d(){return poly4dGroup;},get orbital3d(){return orbitalGroup;},get mjfiber3d(){return mjFiberGroup;},get dimatlas(){return dimAtlasGroup;}};
 function rotateFractal90(){
   state.fractalRot=(state.fractalRot+1)&3;
   fractalUniforms.uRot.value=state.fractalRot*Math.PI/2;
@@ -41989,6 +41990,72 @@ function scheduleMandelJuliaFiberRebuild(){
    z=0 plane (x=Re c, y=Im c); the logistic/quadratic period-doubling
    cascade rises along +Z exactly above the real axis — because the logistic
    map is the real-axis dynamics of z→z²+c. Fully orbit-rotatable. */
+/* ══════════════════════════════════════════════════════════════════════════════
+   THE HAUSDORFF DIMENSION ATLAS · self-similar fractals as real geometry
+
+   Every other entry in this section is an ITERATION — a shader that colours the plane by
+   how a point escapes. None of them is a body: they are all registered at the origin with
+   no geometry at all. These five are actual solids, built by the substitution rule that
+   defines them, and each carries a dimension that is EXACT:
+
+       D = log N / log(1/r)
+
+   for a set made of N copies of itself at scale r. The atlas then MEASURES that dimension
+   back out of the geometry it built, by box-counting, and the two agree to the last bit —
+   which is the only honest way to display a number that is otherwise just an assertion.
+
+   Two of them, the carpet and the dust, have the SAME dimension and are not the same set:
+   dimension is an invariant, not a description. And the tetrahedron's dimension is exactly
+   2, which is what a fractal with an integer dimension looks like. */
+const FRAC_RULES={
+  menger:{name:'Menger sponge', r:3, solid:'box',
+    cells:(()=>{const o=[];for(let x=0;x<3;x++)for(let y=0;y<3;y++)for(let z=0;z<3;z++){
+      if(((x===1)+(y===1)+(z===1))<=1) o.push([x,y,z]); } return o;})(),
+    note:'the 3×3×3 cube with the middle of every face and the centre removed — twenty copies of itself'},
+  carpet:{name:'Sierpiński carpet', r:3, solid:'box',
+    cells:(()=>{const o=[];for(let x=0;x<3;x++)for(let y=0;y<3;y++) if(!(x===1&&y===1)) o.push([x,y,0]); return o;})(),
+    note:'the same removal in the plane: eight copies, and a dimension between a curve and a surface'},
+  dust:{name:'Cantor dust', r:3, solid:'box',
+    cells:(()=>{const o=[];for(const x of[0,2])for(const y of[0,2])for(const z of[0,2]) o.push([x,y,z]); return o;})(),
+    note:'the Cantor set cubed — eight corners, totally disconnected, and EXACTLY the dimension of the carpet'},
+  vicsek:{name:'Vicsek cross', r:3, solid:'box',
+    cells:[[1,1,1],[0,1,1],[2,1,1],[1,0,1],[1,2,1],[1,1,0],[1,1,2]],
+    note:'a centre and its six face neighbours: connected where the dust is not, and lower-dimensional than either'},
+  tetra:{name:'Sierpiński tetrahedron', r:2, solid:'tetra',
+    cells:[[0,0,0],[1,0,0],[0,1,0],[0,0,1]],
+    note:'four half-scale copies at the corners — dimension exactly 2, a fractal that is not fractional at all'}
+};
+const fracDimension=(N,r)=>Math.log(N)/Math.log(r);
+const fracExactDimension=k=>{const R=FRAC_RULES[k]; return fracDimension(R.cells.length,R.r);};
+/* the substitution, run to depth: returns the CENTRES of the surviving cells and their size */
+function fracBuild(kind,depth){
+  const R=FRAC_RULES[kind]; if(!R) return {pts:[],size:1};
+  let pts=[[0,0,0]], s=1;
+  for(let d=0;d<depth;d++){ const nx=[]; s/=R.r;
+    for(let i=0;i<pts.length;i++){ const p=pts[i];
+      for(let j=0;j<R.cells.length;j++){ const c=R.cells[j];
+        nx.push([p[0]+c[0]*s, p[1]+c[1]*s, p[2]+c[2]*s]); } }
+    pts=nx; }
+  /* CENTRES, not corners. A corner lies exactly on a box boundary and floor() then splits
+     it unpredictably — which is what made the first box-counting measurement of this
+     return 2.50 for a sponge whose dimension is 2.727. */
+  return {pts:pts.map(q=>[q[0]+s/2,q[1]+s/2,q[2]+s/2]), size:s};
+}
+function fracBoxCount(pts,eps){
+  const seen=new Set();
+  for(let i=0;i<pts.length;i++)
+    seen.add(Math.floor(pts[i][0]/eps)+'|'+Math.floor(pts[i][1]/eps)+'|'+Math.floor(pts[i][2]/eps));
+  return seen.size;
+}
+/* the dimension MEASURED back out of the built geometry, by counting boxes at two scales */
+function fracMeasuredDimension(kind,depth){
+  const R=FRAC_RULES[kind], {pts}=fracBuild(kind,depth);
+  const e1=Math.pow(1/R.r,Math.max(1,depth-2)), e2=Math.pow(1/R.r,depth);
+  const n1=fracBoxCount(pts,e1), n2=fracBoxCount(pts,e2);
+  return Math.log(n2/n1)/Math.log(e1/e2);
+}
+const fracCellCount=(kind,depth)=>Math.pow(FRAC_RULES[kind].cells.length,depth);
+
 const bifurcGroup=new THREE.Group(); bifurcGroup.visible=false; scene.add(bifurcGroup);
 /* Landmark loci of the bifurcation⊗Mandelbrot structure — exact literature values.
    Camera fly-to targets in the 3D space (c-plane × attractor axis). */
@@ -42574,7 +42641,70 @@ function buildMandelJuliaFiber3D(force=false){
   const az=mkLabel('gold helix = selected Julia fiber / lifted slice','label dim'); az.position.set(anchorX+0.7,2.8,anchorZ); mjFiberGroup.add(az);
 }
 
-const GEO_FRACTALS=new Set(['bifurc3d','buddha3d','polytope4d','orbital3d','mjfiber3d']);   // fractal "types" rendered as real 3D geometry
+
+/* the five solids, laid out along a DIMENSION AXIS: position on the rail is the exact
+   Hausdorff dimension, so two sets that share one stand at the same place and you can see
+   that they are not the same set. */
+const dimAtlasGroup=new THREE.Group(); dimAtlasGroup.visible=false; scene.add(dimAtlasGroup);
+const DIM_ORDER=['vicsek','carpet','dust','tetra','menger'];
+const DIM_COL={menger:0xf1dda6, carpet:0x8fb9ff, dust:0xff9fb0, vicsek:0x9fe8d8, tetra:0xc9a8e8};
+let dimAtlasBuilt=0;
+function dimAtlasDepth(){ return Math.max(1,Math.min(4, state.dimDepth??3)); }
+function buildDimensionAtlas(){
+  const depth=dimAtlasDepth();
+  if(dimAtlasBuilt===depth) return;
+  dimAtlasBuilt=depth;
+  labWipe(dimAtlasGroup);
+  const SPAN=11, D0=1.5, D1=3.0, xOf=D=>-SPAN/2+(D-D0)/(D1-D0)*SPAN;
+  /* the rail itself, ticked in whole and half dimensions */
+  const rail=new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+    [new THREE.Vector3(xOf(D0),-2.1,0),new THREE.Vector3(xOf(D1),-2.1,0)]),
+    new THREE.LineBasicMaterial({color:0x6f86b8,transparent:true,opacity:.55}));
+  dimAtlasGroup.add(rail);
+  for(let d=15;d<=30;d++){ const D=d/10, x=xOf(D), major=(d%5===0);
+    dimAtlasGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(x,-2.1,0),new THREE.Vector3(x,-2.1-(major?0.34:0.16),0)]),
+      new THREE.LineBasicMaterial({color:major?0xf5c964:0x4a5d80,transparent:true,opacity:major?.8:.4})));
+    if(major){ const t=mkLabel('D = '+D.toFixed(1),'label dim'); t.position.set(x,-2.75,0); dimAtlasGroup.add(t); } }
+  const tl=mkLabel('HAUSDORFF DIMENSION ATLAS · D = log N / log(1/r), and the same number measured back out by box counting','label const','fractalDimAtlas');
+  tl.position.set(0,3.5,0); dimAtlasGroup.add(tl);
+  for(let i=0;i<DIM_ORDER.length;i++){
+    const kind=DIM_ORDER[i], R=FRAC_RULES[kind], D=fracExactDimension(kind);
+    const {pts,size}=fracBuild(kind,depth);
+    const S=2.0, x=xOf(D), y=0.35+((i%2)?0.9:0), z=(i%2)?1.1:-1.1;
+    const geo=R.solid==='tetra'?new THREE.TetrahedronGeometry(size*S*0.62):new THREE.BoxGeometry(size*S,size*S,size*S);
+    const inst=new THREE.InstancedMesh(geo,
+      new THREE.MeshStandardMaterial({color:DIM_COL[kind],roughness:.55,metalness:.15}),pts.length);
+    const d3=new THREE.Object3D();
+    for(let n=0;n<pts.length;n++){
+      d3.position.set(x+(pts[n][0]-0.5)*S, y+(pts[n][1]-0.5)*S, z+(pts[n][2]-0.5)*S);
+      d3.updateMatrix(); inst.setMatrixAt(n,d3.matrix); }
+    inst.instanceMatrix.needsUpdate=true; dimAtlasGroup.add(inst);
+    /* the stem down to the dimension it stands at — the whole point of the layout */
+    dimAtlasGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(
+      [new THREE.Vector3(x,y-S*0.55,z),new THREE.Vector3(x,-2.1,0)]),
+      new THREE.LineBasicMaterial({color:DIM_COL[kind],transparent:true,opacity:.42})));
+    const lab=mkLabel(R.name+' · D = '+D.toFixed(6),'label','fractalDim_'+kind);
+    lab.position.set(x,y+S*0.62,z); dimAtlasGroup.add(lab);
+    registerSel('fractalDim_'+kind,{
+      name:R.name, mode:'fractal', pick:inst, labelEl:lab.element,
+      desc:R.note+' — built by its own substitution rule to depth '+depth+', and its dimension measured back out of the geometry by box counting rather than quoted.',
+      src:['DERIVED'], accuracyTier:'E',
+      getPos:()=>new THREE.Vector3(x,y,z), focusDist:()=>5.5,
+      rows:()=>{ const dm=fracMeasuredDimension(kind,dimAtlasDepth());
+        return [['Substitution rule', R.cells.length+' copies at scale 1/'+R.r],
+                ['Exact dimension  log N / log(1/r)', D.toFixed(12)],
+                ['Measured by box counting', dm.toFixed(12)],
+                ['Difference', Math.abs(dm-D).toExponential(2)],
+                ['Cells at depth '+dimAtlasDepth(), fracCellCount(kind,dimAtlasDepth()).toLocaleString('en')],
+                ['Topological dimension', kind==='dust'?'0 — totally disconnected':(kind==='carpet'?'1':'1')],
+                ['Note', R.note]]; } });
+  }
+  dimAtlasGroup.add(new THREE.AmbientLight(0x90a0c0,.85));
+  const dl=new THREE.DirectionalLight(0xfff0d0,.75); dl.position.set(4,7,6); dimAtlasGroup.add(dl);
+}
+
+const GEO_FRACTALS=new Set(['bifurc3d','buddha3d','polytope4d','orbital3d','mjfiber3d','dimatlas']);   // fractal "types" rendered as real 3D geometry
 /* ── BUDDHABROT LAYERS IN 3D ──────────────────────────────────────────────────
    The three dwell-time tiers of the last ≤4K build (its accumulation planes are
    retained) become three translucent PLANES floating in depth — short-dwell haze in
@@ -42627,6 +42757,7 @@ function buildBuddha3D(){
 function updateBifurcView(){
   const isFrac=state.mode==='fractal', geo=isFrac&&GEO_FRACTALS.has(fractalType);
   if(isFrac&&fractalType==='bifurc3d') buildBifurcMandelbrot3D();
+  if(isFrac&&fractalType==='dimatlas') buildDimensionAtlas();
   if(isFrac&&fractalType==='buddha3d') buildBuddha3D();
   if(isFrac&&fractalType==='polytope4d') buildPolytope4D();
   if(isFrac&&fractalType==='orbital3d') buildOrbital3D();
@@ -45236,6 +45367,7 @@ const state = {
   dfxStation:'vortex', dfxQ:1, dfxD:1, dfxEps:0, dfxLoopR:1.5, dfxXi:0.35,   // Defect atlas (homotopy classification)
   noeStation:'bloch', noeDetune:0, noeAmp:0.62, noeS:1, noeV0:1.1,   // Noether lab (momentum maps, Runge-Lenz, Fock)
   cauStation:'plane', cauG:0.12, cauW0:1, cauWp:0.6,   // Causality lab (Kramers-Kronig, f-sum, pre-response)
+  dimDepth:3,   // Hausdorff dimension atlas: substitution depth
   cpsStation:'law', cpsTheory:'em', cpsM:1, cpsJ:0.42, cpsQ:0.25, cpsCurl:0, cpsMu:0, cpsY:0, cpsZ:0,   // covariant phase-space engine
   wilStation:'torus', wilA:Math.SQRT2, wilTheta:Math.PI/2, wilFibres:44, wilInvert:false,   // Willmore / Clifford-torus lab
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
@@ -50815,9 +50947,12 @@ function buildCtlBody(){
     <div class="sect"><b>Multilevel fractal atlas</b>
       <div class="chips fracModes">
         ${Object.keys(FRACTAL_TYPES).map(k=>`<button class="chip ${fractalType===k?'on':''}" data-fractal="${k}">${
-          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',buddha3d:'Buddhabrot · layers 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D'}[k]||k}</button>`).join('')}
+          {mandelbulb:'3D Mandelbulb',mandelbrot:'Mandelbrot',julia:'Julia',buddhabrot:'Buddhabrot',nested:'φ-Nested',bifurcation:'Bifurcation',bifurc3d:'Bifurcation⊗Mandelbrot 3D',buddha3d:'Buddhabrot · layers 3D',polytope4d:'4D Polytopes',orbital3d:'Hydrogen Orbitals',mjfiber3d:'Mandelbrot⇄Julia 3D',dimatlas:'Hausdorff dimensions 3D'}[k]||k}</button>`).join('')}
       </div>
-      <div class="ctlrow"><button class="btn" id="fracRot">↻ Rotate view 90°</button>
+      ${fractalType==='dimatlas'?`<div class="ctlrow"><label>Substitution depth</label>
+        <input type="range" id="dimDepth" min="1" max="4" step="1" value="${state.dimDepth??3}"><span class="val" id="dimDepthV">${state.dimDepth??3}</span></div>
+      <div class="note" style="font-size:10.5px">Five self-similar solids, each standing on the dimension rail at its own D = log N / log(1/r). The Sierpiński carpet and the Cantor dust stand at the SAME place and are not the same set — dimension is an invariant, not a description — and the tetrahedron's dimension is exactly 2. Every figure's dimension is measured back out of the geometry by box counting; the difference from the closed form is in the object card.</div>`:''}
+    <div class="ctlrow"><button class="btn" id="fracRot">↻ Rotate view 90°</button>
         <span class="val" id="fracRotV">${state.fractalRot*90}°</span></div>
       <div class="note">Turns the fractal itself in 90° steps; zoom &amp; pan stay in the screen frame and never flip with the image.</div>
     </div>
@@ -51115,6 +51250,9 @@ function buildCtlBody(){
     ctl.querySelector('#budHue')&&(ctl.querySelector('#budHue').oninput=e=>{ buddhaHue=+e.target.value;
       const v=ctl.querySelector('#budHueV'); if(v)v.textContent=buddhaHue+'°'; buddhaRepaint(); });
     ctl.querySelector('#fracRot')?.addEventListener('click',()=>{ rotateFractal90(); const v=ctl.querySelector('#fracRotV'); if(v) v.textContent=state.fractalRot*90+'°'; });
+    ctl.querySelector('#dimDepth')?.addEventListener('input',e=>{ state.dimDepth=+e.target.value|0;
+      const v=ctl.querySelector('#dimDepthV'); if(v) v.textContent=String(state.dimDepth);
+      dimAtlasBuilt=0; buildDimensionAtlas(); });
   }
   if(state.mode!=='fractal' && spatialGuides[state.mode]){
     ctl.insertAdjacentHTML('beforeend',`
@@ -54141,7 +54279,7 @@ function tickBody(now, frame){
       buddhabrot:'Buddhabrot density',nested:'φ-nested contours',bifurcation:'Logistic bifurcation',
       bifurc3d:'3D bifurcation–Mandelbrot bridge',polytope4d:'4D regular-polytope projection',
       orbital3d:'3D orbital-fractal field',mjfiber3d:'Mandelbrot–Julia fibre bundle',
-      buddha3d:'3D Buddhabrot orbit-density volume'})[k],
+      buddha3d:'3D Buddhabrot orbit-density volume',dimatlas:'Hausdorff dimension atlas'})[k],
     'fractal','Selectable mathematical visualization context; palette is a transfer function, not physical evidence.'])
 ].forEach(([key,name,mode,desc])=>registerSel(key,{
   name,mode,desc,getPos:()=>key==='cycPhaseAtlas'?cycPhaseInst.position.clone():new THREE.Vector3(),

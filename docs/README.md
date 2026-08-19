@@ -32,6 +32,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-hopfion-invariant.cjs` | the Hopf invariant read back out of the field as a Gauss linking number of two preimage torus knots, Derrick's balance point against a scan, and the sub-linear bound measured rather than asserted |
 | `verify-s3-observational-geometry.cjs` | the redshift kernel shown to be the surface-to-volume ratio of the causal ball and the logarithmic derivative of its volume measure, the two arcs, the antipodal caustic and why the far side looks larger |
 | `verify-quasiparticle-dispersions.cjs` | the acoustic slope as a limit that now converges, the optical branch against the reduced mass, the magnon quadratic where the phonon is linear, an exciton scaling invariant, and a circulation measured over twelve decades of loop radius |
+| `verify-fractal-dimensions.cjs` | five self-similar solids built by their own substitution rules, with the Hausdorff dimension measured back out of the geometry by box counting |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5221,6 +5222,43 @@ And the atlas's own self-test caught me. Appending the new rows to the end of ea
 the invariant that levels increase with scale within a group, and the check that exists for
 exactly that threw during boot — which cost forty solar objects their registration until the
 rows were inserted in scale order instead.
+
+### Five solids on a dimension rail (v4.19.0)
+
+The fractal section had twelve entries and **not one of them was a body.** Every one is an
+*iteration* — a shader that colours the plane by how a point escapes — registered at the
+origin with no geometry at all. It was the thinnest section in the atlas and the only one
+with nothing in it you could fly to.
+
+Five self-similar solids are built there now, by the substitution rule that defines each,
+and laid out along a **dimension rail**: a figure's position on the rail *is* its exact
+Hausdorff dimension D = log N / log(1/r).
+
+| solid | rule | D |
+|---|---|---|
+| Vicsek cross | 7 copies at ⅓ | 1.771243749161 |
+| Sierpiński carpet | 8 copies at ⅓ | 1.892789260714 |
+| Cantor dust | 8 copies at ⅓ | 1.892789260714 |
+| Sierpiński tetrahedron | 4 copies at ½ | **exactly 2** |
+| Menger sponge | 20 copies at ⅓ | 2.726833027861 |
+
+A closed form is an assertion until something else returns the same number, so the atlas
+**builds** each set and then **counts boxes** — a route that knows only where the cells
+ended up and nothing about log N over log 1/r. The two agree to **4.4e-16** for all five,
+at three separate depths, and *exactly* for the tetrahedron.
+
+The layout is the argument. The carpet and the dust stand at the **same place on the rail**
+and are not the same set — one is a connected ring of eight, the other eight isolated
+corners. **Dimension is an invariant, not a description.** And the tetrahedron's dimension is
+exactly 2 while its topological dimension is 1: a fractal can have an integer dimension and
+still be a fractal, because what makes it one is that the two disagree.
+
+The first box-counting measurement returned 2.50 for a sponge whose dimension is 2.727. It
+was counting cell *corners*, which lie exactly on box boundaries where `floor()` splits them
+unpredictably. Centres, and the agreement is immediate.
+
+`docs/verify-fractal-dimensions.cjs`: **9 checks, 0 failed**. The fractal section goes from
+12 entries to 18, and from zero bodies to five.
 
 ### What the remaining seven are
 
