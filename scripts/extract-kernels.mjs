@@ -572,7 +572,14 @@ export const ROOTS = [
      images are, which is a quadratic with three exact identities in it. */
   'EL_G', 'EL_C', 'EL_MSUN', 'EL_PC', 'elEinsteinRadius', 'elImages',
   'elMagnifications', 'elTotalMagnification', 'elSisEinsteinRadius',
-  'elSisImages', 'elSisMagnifications', 'elIsRing', 'elRingRadiusArcsec', 'elTimeDelay'
+  'elSisImages', 'elSisMagnifications', 'elIsRing', 'elRingRadiusArcsec', 'elTimeDelay',
+  /* ── THE ACCRETION DISK ───────────────────────────────────────────────────
+     A temperature profile whose maximum is an exact rational multiple of the
+     inner edge, and a spectrum that is a power law because the profile is. */
+  'AD_SIGMA', 'AD_G', 'AD_C', 'AD_MSUN', 'AD_H', 'AD_KB', 'AD_MP', 'AD_SIGT',
+  'DISK_PEAK_RATIO', 'diskShape', 'diskPeakRadius', 'diskTemperature',
+  'diskPeakTemperature', 'diskIsco', 'diskEfficiency', 'diskLuminosity',
+  'diskEddington', 'diskSpectrum', 'diskSpectralSlope'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

@@ -35,6 +35,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-fractal-dimensions.cjs` | five self-similar solids built by their own substitution rules, with the Hausdorff dimension measured back out of the geometry by box counting |
 | `verify-major-moons.cjs` | nine moons entered from their own orbits, and Kepler's third law over them handing back each parent's mass to a tenth of a per cent |
 | `verify-einstein-ring.cjs` | the lens equation's two roots against a bisection of itself, the magnification against a numerical Jacobian, and three identities that hold at every source offset |
+| `verify-accretion-disk.cjs` | the peak of the thin-disk profile against a four-million-point scan of the profile itself, the Kerr ISCO against its two exact closed forms, and the multicolour spectrum against an independently written annulus quadrature |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5342,6 +5343,61 @@ about 1e-10 in double arithmetic, and the checks say so rather than choosing a r
 they would not.
 
 `docs/verify-einstein-ring.cjs`: **11 checks, 0 failed**. **82** laboratories, **80** typed
+instruments.
+
+### A maximum at 49/36, and it is not a fit (v4.22.0)
+
+A geometrically thin, optically thick accretion disk with no torque at its inner edge
+radiates locally as a blackbody at σT⁴ = 3GMṀ/(8πr³) · (1 − √(r_in/r)). Write x = r/r_in
+and the shape is x⁻³(1 − x⁻¹ᐟ²). **Differentiate it.** The stationary point is where
+x⁻¹ᐟ² = 6/7, so the temperature peaks at
+
+    r = (7/6)² r_in = 49/36 r_in
+
+**exactly** — a rational number, independent of the mass, the accretion rate and the spin,
+which only decide where the inner edge *is*. The laboratory draws the disk with that radius
+marked on its surface and the annuli coloured by their own blackbody temperature, so the
+maximum is a thing you can see rather than a number in a caption.
+
+The verifier does not take the rational number on trust. It scans four million points of the
+profile and finds the maximum numerically (1.361110838 against 49/36 = 1.361111111, a
+difference of 2.7e-7 against a grid spacing of 7.5e-7 — the resolution of the scan, not a
+disagreement), then differentiates numerically *at* the claimed point and gets 4.9e-9
+relative, which is the central-difference floor.
+
+**What was found wrong, in my own kernel.** `diskIsco` clamped the spin at ±0.9999999 to
+keep a cube root away from zero. The cube root is perfectly well behaved at zero — at a = 1,
+cbrt(1 − a²) = 0, so Z₁ = 1, Z₂ = 2 and r = 3 + 2 − √(2·8) = **1, exactly**; at a = −1 the
+retrograde root is **9, exactly**. The clamp cost three digits for nothing, because the
+approach to extremal goes like (1−a)^(1/3) and a millionth of a unit of spin is still seven
+thousandths of a gravitational radius. Removed, and the efficiency at a = 1 is now
+1 − 1/√3 = 42.264973% to 1e-14 rather than to 4e-3.
+
+**And three statements I had written on screen were wrong.** The slider stops at the Thorne
+limit a = 0.998, which is where photon capture stops real accretion — and there the
+efficiency is **32.10%, not 42.26%**. The hud, the control-panel note in three languages and
+the quantity-bus rationale all claimed the larger number for a spin nothing on screen can
+reach. All corrected to say 5.72% at zero spin, 32.10% at the Thorne limit, and 42.26% only
+at exact extremality. The typed instrument accepts a = 1 because the closed form *is* exact
+there, and its limits now say plainly that nothing occupies that configuration.
+
+The spectrum is summed annulus by annulus rather than drawn: every ring contributes its own
+Planck curve, and the sum is a power law of index **one third** across the middle band. The
+one third is nowhere put in — it follows from T ∝ r^(−3/4), which follows from the profile.
+The verifier measures 0.3156 and 0.3256 in the middle band, 1.99923 at 1 GHz (the
+Rayleigh–Jeans slope of 2) and −87.6 at 10¹⁷ Hz (the Wien cutoff): one routine, three
+regimes, three different answers, which is why the one third counts as a measurement.
+
+Two quantity-bus groups arrived with it, because a shared coordinate that exists in two
+places and is driven separately is a coincidence waiting to drift: `kerrSpin` couples the
+horizon laboratory's spin to the disk's (one parameter of one metric, asked two questions),
+and `eddRatio` couples the quasar's Eddington ratio to the disk's. A seventeenth typed
+coupling `ns.mass → adisk.mass` was proposed by the discovery pass and is now declared with
+its caveat: for 1.4 M☉ the ISCO is about 12.4 km and a neutron star is about 11 km across,
+so a real accreting neutron star's disk is truncated by the surface or the magnetosphere
+long before the innermost stable orbit matters.
+
+`docs/verify-accretion-disk.cjs`: **21 checks, 0 failed**. **83** laboratories, **81** typed
 instruments.
 
 ### What the remaining seven are
