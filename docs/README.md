@@ -5608,6 +5608,94 @@ check on the document rather than on the module agreeing with itself.
 up from 723 — fourteen new ones, all of them reachability assertions against the registry so
 that no navigation list can silently rot again.
 
+### Every model in every tile, and the chain back to the trisphere (v4.26.0)
+
+Four things were reported and all four were real. Each was measured before it was touched.
+
+**The Hausdorff dimension atlas showed nothing — because it was never made visible.**
+`updateBifurcView()` sets visibility for the geometry fractals and lists **five** of the
+**six**: `dimAtlasGroup` is created with `visible=false` like the others and nothing
+anywhere turned it back on. So the atlas built its five self-similar solids, measured
+their dimensions by box counting, registered them as selectable objects — and rendered an
+empty scene, in every session since it was added.
+
+Two more faults sat behind it, both the same shape:
+
+- `setFractalType` had **two** `if` chains, the second beginning `if(type==='buddha3d')`.
+  Its trailing `else` then fired for `dimatlas`, `bifurc3d` and `polytope4d`, overwriting
+  the camera the first chain had just placed. The dimension atlas is eleven units wide and
+  was being viewed from 8.5.
+- The frame loop's HUD chain ended in an `else` that announced **the hydrogen orbital** —
+  and spun `orbitalGroup`, a group belonging to another laboratory — whenever the type was
+  not one of the four it listed. `dimatlas` fell into it.
+
+Three instances of one fault in one feature: *a trailing `else` silently adopting every
+case nobody listed.* The visibility dispatch is now derived from `GEO_GROUP_FOR`, the one
+place that already knows every geometry fractal and its group, so a seventh cannot be
+forgotten.
+
+**Mandelbrot⇄Julia was unusable where a reader actually starts.** The correspondence
+laboratory has an excellent live verdict — it iterates the critical orbit, reports which
+side of the Fatou–Julia dichotomy c falls on, the attracting cycle's period and multiplier,
+and bridges the real axis to the logistic parameter r — and **all of it was gated to the 3D
+fibre mode**, buried under fifteen sliders named α, β, γ, δ, ε, λ. The two modes a reader
+clicks first, "Mandelbrot" and "Julia", got none of it: three sliders and no statement of
+what the object is.
+
+The verdict and the named loci now appear in both planes, the verdict **follows the view**
+(in the parameter plane the centre *is* c, so panning changes which Julia set you are being
+told about — throttled to 4 Hz), and the two planes are joined in both directions. A fourth
+defect surfaced while testing: pressing a named locus in the parameter plane set the Julia
+parameter and **never moved the view**, so every locus button did nothing visible. It moves
+the centre now, and zooms in far enough to resolve the point.
+
+**The catalogue could only scroll one section in a narrow window.** Line 354 read
+`#labPanel[data-collapsed="1"] .labGroup:not(.railGroup){display:none}` — folded meant
+*one domain and nothing else*, so on a phone, where the catalogue is folded by default, you
+could reach twelve laboratories and none of the other seventy-three. Folded now means
+**short, not narrow**: all 85 in one scroller with sticky domain headings and the search box
+kept live, measured at 320 px tall on a 390 × 844 screen with all 85 present.
+
+That took undoing two deliberate `!important` overrides — `max-height:none` — which existed
+because folded *used to* be a one-row rail that needed no clamp. They were correct for a
+rail and wrong for a scroller; they were changed at their own sites rather than out-shouted.
+
+**Multiview could only hold laboratories.** It is built entirely on `setS3View`, and
+`mvSetSlot` refused anything not in `S3_VIEW_NAMES`. Meanwhile five other worlds and six
+geometry fractals render from the *same scene* and differ only in which top-level group is
+visible — six lines. The one feature built for comparing models could not show most of the
+atlas.
+
+A tile now holds any of **96 models**: `'elens'` a laboratory, `'@solar'` a world,
+`'#bifurc3d'` a fractal geometry — all drawn by the same per-tile visibility switch,
+each with its own opening camera because a solar system framed like an S³ laboratory is a
+dot. Measured with four tiles holding a laboratory, a world, a fractal geometry and another
+laboratory: all four render distinct content.
+
+The honest limit, stated rather than hidden: the **raymarched** fractals (Mandelbrot, Julia,
+Mandelbulb) are not offered as tiles. They render a different scene through an orthographic
+camera and would need a second render path.
+
+**And everything is tied to the trisphere, explicitly.** The atlas is the S³
+Light-Trisphere and everything in it does connect — but measured on the declared relation
+graph, only 28 of the 85 sat within one step of the S³ core, 34 were two steps out and
+**23 were three or four**. A connection you have to reconstruct for yourself is not an
+explicit one.
+
+The fix is not eighty-five invented edges — a fabricated relation is worse than a distant
+one. It is to *show the chain that already exists*: a breadth-first sweep out of the ten
+stations that ARE the three-sphere gives every laboratory its shortest declared path back,
+and it is drawn under each one as pressable hops carrying the atlas's own reason for every
+link. `he3` reads **Defect atlas › Embadon laboratory › Hopf fibres**; `adisk` reads
+**Blackbody radiation › redshift**. True by construction, because every hop is a relation
+somebody wrote down and the verifier checks that it is.
+
+One documented exception: `nexus` has no chain, because it *is* the graph the chains are
+drawn on, and it says so.
+
+`docs/verify-navigation-reach.cjs`: **23 checks, 0 failed**. In-browser self-tests **745**,
+up from 737.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have

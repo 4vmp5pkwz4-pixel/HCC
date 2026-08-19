@@ -194,6 +194,68 @@ const REG = (() => {
     `every one of the ${ids.reduce((n, v) => n + X.labNeighbours(v).length, 0) / 2} edges is walkable in both directions`);
 }
 
+/* ── 7 · the fractal world, and multiview across models ───────────────────── */
+{
+  const geo = (() => { const m = html.match(/const GEO_FRACTALS=new Set\(\[([\s\S]*?)\]\)/);
+    return m ? [...m[1].matchAll(/'([a-z0-9]+)'/g)].map(x => x[1]) : []; })();
+
+  ok('every geometry fractal has a visibility line, which the Hausdorff dimension atlas did not — it was built, measured, registered as selectable, and rendered an empty scene in every session since it was added',
+    (() => { const seg = html.slice(html.indexOf('function updateBifurcView()'));
+      const body = seg.slice(0, seg.indexOf('\n}'));
+      return /for\(const k of GEO_FRACTALS\)/.test(body); })(),
+    `${geo.length} geometry fractals · the dispatch is derived from GEO_GROUP_FOR rather than written out, so a seventh cannot be forgotten`);
+
+  ok('and setFractalType is a SINGLE else-if chain, so no type inherits another’s camera through a trailing else',
+    (() => { const i = html.indexOf('function setFractalType(');
+      const body = html.slice(i, html.indexOf('\n}', i));
+      const inner = body.slice(body.indexOf("if(type==='dimatlas')"));
+      /* a second bare `if(` starting a new chain is exactly the defect: it used to read
+         `if(type==='buddha3d')` and its trailing else fired for dimatlas and bifurc3d */
+      return !/\n\s{4}if\(type===/.test(inner.slice(inner.indexOf('\n'))); })(),
+    'the chain that placed the dimension atlas at z = 15 used to be overwritten by a second chain putting it at z = 8.5');
+
+  const choices = (() => { const m = html.match(/const MV_WORLD_TOKENS=\[([\s\S]*?)\];/);
+    return m ? [...m[1].matchAll(/'(@[a-z]+)'/g)].map(x => x[1]) : []; })();
+  ok('multiview offers whole WORLDS and fractal geometries as tiles, not only the eighty-five laboratories — five worlds and six fractal geometries render from the same scene and differ only in which top-level group is visible',
+    choices.length === 5 && geo.length === 6,
+    `${choices.length} worlds + ${geo.length} fractal geometries + ${REG.length} laboratories = ${choices.length + geo.length + REG.length} models offered per tile`);
+
+  ok('and every world and fractal token carries its own opening camera, because a solar system framed like an S³ laboratory is a dot and a laboratory framed like a solar system is off-screen',
+    (() => { const m = html.match(/const MV_TILE_PRESET=\{([\s\S]*?)\};/);
+      if (!m) return false;
+      const keys = [...m[1].matchAll(/'([@#][a-z0-9]+)'/g)].map(x => x[1]);
+      return choices.every(c => keys.includes(c)) && geo.every(g => keys.includes('#' + g)); })(),
+    `${choices.length + geo.length} non-laboratory tokens, each with a declared framing`);
+}
+
+/* ── 8 · everything is tied to the trisphere, explicitly ──────────────────── */
+{
+  const CORE = (() => { const m = html.match(/const S3_CORE_VIEWS=\[([\s\S]*?)\];/);
+    return m ? [...m[1].matchAll(/'([a-z0-9]+)'/g)].map(x => x[1]) : []; })();
+  ok('the trisphere core is declared as the stations that ARE the three-sphere, rather than guessed at the point of use',
+    CORE.length >= 8 && CORE.includes('sec') && CORE.includes('hopf') && CORE.includes('eig'),
+    `${CORE.length} core stations: ${CORE.join(', ')}`);
+
+  /* walk the same graph the page walks, from the document */
+  const relSrc2 = html.slice(html.indexOf('const NEXUS_RELATIONS=['));
+  const E = [...relSrc2.slice(0, relSrc2.indexOf('\n];')).matchAll(
+    /\[\s*'([a-zA-Z0-9_]+)'\s*,\s*'([a-zA-Z0-9_]+)'\s*,\s*'([a-z-]+)'/g)];
+  const adj = new Map(REG.map(v => [v, []]));
+  for (const m of E) if (adj.has(m[1]) && adj.has(m[2])) { adj.get(m[1]).push(m[2]); adj.get(m[2]).push(m[1]); }
+  const dist = new Map(); const q = [];
+  for (const c of CORE) if (adj.has(c)) { dist.set(c, 0); q.push(c); }
+  while (q.length) { const v = q.shift(); for (const w of adj.get(v)) if (!dist.has(w)) { dist.set(w, dist.get(v) + 1); q.push(w); } }
+  const gap = REG.filter(v => !dist.has(v));
+  ok('and every laboratory has a finite chain back to it, so "everything is connected to the trisphere" is a fact about the declared graph rather than a slogan',
+    gap.length === 0,
+    `${REG.length} laboratories · furthest ${Math.max(...[...dist.values()])} steps · ${[...dist.values()].filter(d => d === 0).length} ARE the trisphere${gap.length ? ' · NO CHAIN: ' + gap.join(', ') : ''}`);
+
+  const far = REG.filter(v => (dist.get(v) || 0) >= 3);
+  ok('and the chains that are long are DRAWN rather than left to be reconstructed — twenty-three laboratories sit three or four steps out, which is exactly why the link had to become visible instead of merely existing',
+    far.length > 0 && html.includes('labTrispherePath') && html.includes('triHop'),
+    `${far.length} laboratories are three or more steps from the core; each now shows its chain as pressable hops with the atlas's own reason on each link`);
+}
+
 console.log(`\n${fail === 0 ? '✔' : '✗'} ${pass} passed, ${fail} failed\n`);
 process.exit(fail === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });
