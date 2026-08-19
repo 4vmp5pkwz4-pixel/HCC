@@ -5161,6 +5161,67 @@ Old and new agree to 1e-16 at moderate wavevectors, so the picture is unchanged.
 `docs/verify-quasiparticle-dispersions.cjs`: **12 checks, 0 failed**. **74 of 81**
 laboratories compute; **79** typed instruments; 0 page errors during the headless walk.
 
+### The opening frame, the catalogue and the ladder (v4.18.0)
+
+**THE ATLAS OPENED FROZEN.** Measured in a real browser with the boot path instrumented:
+`hccParseRoute('')` on an *empty* hash does not return null — it returns
+`{worldId:'solar', labId:null}` — so boot takes the deep-link branch rather than
+`else setMode('solar')`, `hccGo` then skips `setMode` because `state.mode` is *already*
+`'solar'`, and `armIdleDrift()` is therefore never called. `autoRotateSpeed` stayed at the
+OrbitControls default of 2 — the value nothing had written — and the azimuth did not move by
+a microradian in two and a half seconds. Switching to any other section and back started it,
+which is exactly why this survived: **you have to arrive, not navigate.**
+
+This is the third member of one family. The palette, the framing and now the cinematic drift
+are all set up by `setMode`, and `setMode` does not run at boot. Each has had to be stated
+last in the boot tail, and the static validator now carries a check so the next one is caught
+before a reader meets a frozen atlas. Measured after: **0.0052 rad in 2.5 s, speed 0.45.**
+
+**AND THE CATALOGUE DROPPED THE DESCRIPTIONS IT HAD.** All 81 laboratories carry one in
+`LAB_REGISTRY`, and all 542 selectable objects surface theirs — but `HCC_API.labs.list()`
+did not project the field, so the machine catalogue and `api/manifest.json`, built by walking
+it, showed **eighty-one laboratories with no description at all**. The registry was never the
+gap; the window onto it was. **81 of 81** now, in the catalogue and in the manifest.
+
+**AND SIXTEEN LABORATORIES COULD NOT BE DRIVEN WITH ANYTHING.** `mvLinkCoverage()` had always
+reported them — sixty-nine controls between them that nothing could move in concert. Twelve of
+those gaps are genuine shared coordinates and are closed with four groups and one extension:
+
+| group | kind | what it is |
+|---|---|---|
+| `nemb` | IDENTITY | the embadon count: one integer, read as a support count by the molecular cut and as the exponent of CP^N by the embadon laboratory |
+| `forecastHorizon` | IDENTITY | the held-out displacement Δu of the workbench the four invariance observatories share |
+| `forecastSigma` | IDENTITY | and the surrogate noise σ(u) it is trained against |
+| `civpStation` | STRUCTURAL | the first slider of the seven CIVP stations — **structural**, because it means a different quantity in each, and that distinction is the point |
+| `tempo` | extended | the four observatory clocks and the embadon one |
+
+Coverage **65 → 77 of 81**. The remaining four are not couplings and say so in their own
+words: `anyon` is driven by a braid *word*, `nexus` by a declared non-metric layout morph,
+`gate` by an ordinal refinement level, and `cps` by Wald charges in **geometric** units that
+are not the solar masses and winding numbers the `mass` and `charge` groups carry. Same
+words, different quantities — which is what this bus exists to refuse.
+
+**AND ONLY EIGHT OF EIGHTY-ONE LABORATORIES WERE ON THE φ-LADDER.** The FBS3R ladder is the
+scale spine of the whole atlas — its own text promises that "fractal kinships become VISIBLE
+as neighbours" — and 73 laboratories had no position on it at all. Twenty-six entries are
+added, each a literature value with its level *computed* rather than typed, taking the φ-atlas
+from **80 to 106 objects** and ladder reachability from **8 to 29 laboratories** across 63.3
+orders of magnitude. Among them the ones that make the point best: a **white dwarf** at
+5.8e6 m, one rung from the **Earth** — an Earth-sized star held up by electron degeneracy, and
+nothing else about them alike; the **de Sitter horizon from Λ** at 1.6473e26 m, which the
+capacity selector arrives at from a completely different direction; and the **S³ antipode** at
+πR, where the multiple-imaging laboratory says the far side looks larger rather than smaller.
+
+`phiAtlasJump` was a hand-written switch over jump codes, so all twenty-six new rows would
+have fallen through its `default` and silently done nothing. It resolves any code that is an
+S³ laboratory id now, and the switch keeps only the cases that genuinely need a scale layer,
+an element or a body selected: **54 codes, 33 by switch, 21 by fallback, 0 unresolved.**
+
+And the atlas's own self-test caught me. Appending the new rows to the end of each group broke
+the invariant that levels increase with scale within a group, and the check that exists for
+exactly that threw during boot — which cost forty solar objects their registration until the
+rows were inserted in scale order instead.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have

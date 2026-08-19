@@ -115,7 +115,8 @@ for (const L of head.labs) {
   }, L.id);
   const kind = row.instrument ? 'computational' : (row.params.length ? 'parametric' : 'visual');
   labs.push({ id: L.id, title: L.title, world: L.world, category: L.category, status: L.status,
-    route: L.route, kind, instrument: row.instrument, parameters: row.params });
+    route: L.route, description: L.description || null,
+    kind, instrument: row.instrument, parameters: row.params });
 }
 
 let commit = null;
