@@ -577,6 +577,11 @@ export const ROOTS = [
      A temperature profile whose maximum is an exact rational multiple of the
      inner edge, and a spectrum that is a power law because the profile is. */
   'AD_SIGMA', 'AD_G', 'AD_C', 'AD_MSUN', 'AD_H', 'AD_KB', 'AD_MP', 'AD_SIGT',
+  'HE3_HBAR', 'HE3_KB', 'HE3_H', 'HE3_M3', 'HE3_GAMMA', 'HE3_BCS', 'HE3_KAPPA',
+  'he3Atanh', 'he3GapA', 'he3GapB', 'he3Gap', 'he3MeanSquareGap', 'he3MeanFourthGap',
+  'he3DosA', 'he3DosB', 'he3Dos', 'he3GapFromTc', 'he3TcFromGap', 'he3Coherence',
+  'he3Circulation', 'he3NodeCount', 'he3NodeCharge', 'he3TotalNodeCharge',
+  'he3HeatCapacityExponent', 'he3GapAnisotropy',
   'NU_HBARC', 'NU_KM', 'NU_GF', 'NU_FLAVOURS', 'nuC', 'nuMul', 'nuAdd', 'nuConj', 'nuAbs2',
   'nuPmns', 'nuUnitarityResidual', 'nuDelta', 'nuProb', 'nuProbRow',
   'nuJarlskogAngles', 'nuJarlskogFromU', 'nuTriangle', 'nuTriangleArea', 'nuTriangleClosure',

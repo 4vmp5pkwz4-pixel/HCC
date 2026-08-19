@@ -37,6 +37,7 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-einstein-ring.cjs` | the lens equation's two roots against a bisection of itself, the magnification against a numerical Jacobian, and three identities that hold at every source offset |
 | `verify-accretion-disk.cjs` | the peak of the thin-disk profile against a four-million-point scan of the profile itself, the Kerr ISCO against its two exact closed forms, and the multicolour spectrum against an independently written annulus quadrature |
 | `verify-neutrino-oscillation.cjs` | PMNS unitarity entry by entry, the three probabilities summing to one over 720 configurations, the Jarlskog invariant from the angles against the same number read off the matrix, the CP asymmetry against its closed form in all six channels, and the two-flavour limit recovered exactly |
+| `verify-helium-three.cjs` | the 2/3 and 8/15 angular averages against a two-million-point quadrature of the sphere, the closed-form density of states against a smooth-variable quadrature below the gap and a direct one above it, the point-node coefficient of exactly one, and the pair circulation quantum against the measured 0.0661 mm²/s |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5450,6 +5451,67 @@ effect and not a vacuum one.
 
 `docs/verify-neutrino-oscillation.cjs`: **19 checks, 0 failed**. **84** laboratories, **82**
 typed instruments.
+
+### Two phases of one condensate, and an average that is exactly two thirds (v4.24.0)
+
+Helium-3 is a fermion, so it can only become superfluid by pairing — and unlike an electron
+in a metal its pairs are in the L = 1, S = 1 channel, which makes the energy gap a
+**function on the Fermi surface** rather than a number. The laboratory's first station is
+that function, plotted radially: the surface *is* the gap.
+
+```
+A phase (Anderson–Brinkman–Morel):  Δ(θ) = Δ₀|sin θ|    two point nodes on l̂
+B phase (Balian–Werthamer):         Δ(θ) = Δ₀           fully gapped, isotropic
+```
+
+The mean square gap of the A phase over the sphere is ⟨sin²θ⟩ = **2/3 exactly**, and the
+fourth moment is **8/15**. Both are returned as rationals by the kernel and confirmed
+against a two-million-point quadrature of the sphere to 1e-9. That 2/3 is why the B phase,
+with the same Δ₀ in every direction, wins the bulk energy competition at low pressure and
+the A phase needs a field or a wall.
+
+**And the density of states has a closed form.** Averaging the BCS density of states over
+the sphere with Δ = Δ₀ sin θ gives, with a = E/Δ₀,
+
+```
+N(E)/N₀ = a · artanh(a)                for a ≤ 1
+N(E)/N₀ = a · ln((1+a)/√(a²−1))        for a ≥ 1
+```
+
+derived by substitution rather than sampled. At low energy that is **a² with a coefficient
+of exactly one** — the quadratic tail of a *point* node — where the B phase has nothing at
+all below the gap. That difference is why the A-phase heat capacity goes like T³ and the B
+phase is exponentially activated, which is how the two phases were told apart.
+
+**A verification trap worth naming.** Checking the sub-gap branch against a uniform-grid
+quadrature is worthless: the integrand has a square-root edge singularity, so a uniform grid
+converges like 1/√M and is off by 2e-2 at a = 0.05 even with two million samples — enough
+noise to hide a real error. The substitution u² = b² + s² removes the singularity exactly
+and the same integral becomes smooth; against *that* the closed form agrees to **4.9e-14**.
+The verifier uses the smooth variable below the gap and the direct grid above it, and says
+which is which.
+
+**One tolerance of mine was wrong, and the physics was not.** I checked the pair circulation
+quantum against the literature's 0.0661 mm²/s with a tolerance of 5e-5 and it "failed" at
+0.066152. The literature figure *is* that number quoted to three figures; the tolerance is
+now set to the precision of the quotation rather than tighter than it. The factor of two in
+h/(2m₃) is the whole evidence for pairing — h/m₃ alone would be 0.132, twice the
+measurement.
+
+The third station draws the two nodes as what they are: **Weyl points**, Berry monopoles of
+charge +1 and −1 whose sum on a closed Fermi surface is forced to zero. That is why a node
+cannot be removed alone — perturb the order parameter however you like and the nodes move,
+but they can only leave in pairs.
+
+Four typed Nexus relations tie it in: a **contrast** with `sc` (a superconductor's gap is a
+number; this one has a shape, and everything else carries straight across), an **exact**
+relation to `dfx` (the node charges are the same homotopy statement the defect atlas makes),
+a **representation** relation to `berry` (the same curvature, integrated over a different
+surface), and a **coupling** to `quasi` (which carries the helium-*4* circulation quantum
+built from an atomic mass rather than a pair mass).
+
+`docs/verify-helium-three.cjs`: **17 checks, 0 failed**. **85** laboratories, **83** typed
+instruments.
 
 ### What the remaining seven are
 
