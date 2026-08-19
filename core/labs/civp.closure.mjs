@@ -61,7 +61,8 @@ export default defineLab({
     'C_win: the strict Pimsner–Popa window for the correctly typed expectation',
     'C_U: unit embadon weights in the same reduced physical measure',
     'C_E: the physical divisor realising the complete evaluation/jet frame',
-    'C_UV: one reduced ultraviolet measure with strict convexity, one crossing and topology stability'
+    'C_UV: one reduced ultraviolet measure with strict convexity and exactly one adjacent crossing',
+    'C_top: the topology-sensitive Casimir remainder of ln(zeta_boundary^q T_q) moves neither the crossing nor the convexity — vanishing sensitivity to a CONSTANT vacuum shift does not discharge this'
   ],
   cost_hint: 'fast',
   inputs: [
@@ -69,7 +70,8 @@ export default defineLab({
     { name: 'C_win', type: 'boolean', default: false, doc: 'the correctly typed expectation satisfies 1/3 < λ* < 1/2' },
     { name: 'C_U', type: 'boolean', default: false, doc: 'the embadon weights are unit in the same reduced measure' },
     { name: 'C_E', type: 'boolean', default: false, doc: 'the residual evaluation complex is acyclic for the physical support' },
-    { name: 'C_UV', type: 'boolean', default: false, doc: 'the reduced UV measure selects one stable integer sector' },
+    { name: 'C_UV', type: 'boolean', default: false, doc: 'the reduced UV measure is strictly convex with exactly one adjacent crossing' },
+    { name: 'C_top', type: 'boolean', default: false, doc: 'the topology-sensitive Casimir remainder moves neither the crossing nor the convexity; the constant part being annihilated is NOT this' },
     { name: 'q_star', type: 'number', unit: 'dimensionless', default: 292, min: 1e-9, max: 1e130,
       doc: 'the selected integer sector, if one has been named' },
     { name: 'index', type: 'number', unit: 'dimensionless', default: 2.618033988749895, min: 1, max: 1e6,
@@ -102,7 +104,7 @@ export default defineLab({
     { name: 'headline', type: 'string', unit: null, doc: 'what the current certificate state does and does not establish' }
   ],
   evaluate(i) {
-    const held = { C_X: i.C_X, C_win: i.C_win, C_U: i.C_U, C_E: i.C_E, C_UV: i.C_UV };
+    const held = { C_X: i.C_X, C_win: i.C_win, C_U: i.C_U, C_E: i.C_E, C_UV: i.C_UV, C_top: i.C_top };
     const cl = closure(held, i.q_star);
     const ds = deSitterFromCapacity(i.q_star);
     const eb = entropyBridge(i.index);
@@ -153,12 +155,12 @@ export default defineLab({
         return { pass: worst < 1e-14,
           detail: `six capacities over 120 orders of magnitude; worst residual ${worst.toExponential(2)}` }; } },
     { name: 'removing any one certificate removes exactly one conclusion',
-      run(L) { const all = { C_X: true, C_win: true, C_U: true, C_E: true, C_UV: true };
+      run(L) { const all = { C_X: true, C_win: true, C_U: true, C_E: true, C_UV: true, C_top: true };
         const full = L.run({ ...all }, { provenance: {} });
         const base = [full.outputs.golden_index_forced, full.outputs.triple_lock, full.outputs.sector_unique];
         if (!base.every(Boolean)) return { pass: false, detail: 'the full set does not establish everything' };
         const rows = [];
-        for (const k of ['C_X', 'C_win', 'C_U', 'C_E', 'C_UV']) {
+        for (const k of ['C_X', 'C_win', 'C_U', 'C_E', 'C_UV', 'C_top']) {
           const r = L.run({ ...all, [k]: false }, { provenance: {} });
           const lost = [r.outputs.golden_index_forced, r.outputs.triple_lock, r.outputs.sector_unique]
             .map((v, n) => (base[n] && !v) ? n : -1).filter(n => n >= 0);
@@ -203,9 +205,9 @@ export default defineLab({
         for (const k of [-7, -1, 0, 1, 5, 64]) { const r = L.run({ deg_U: k }, { provenance: {} });
           ok = ok && r.outputs.hopf_invariant === k; }
         return { pass: ok, detail: 'precomposition by a degree-k map multiplies the π₃(S²) generator by k' }; } },
-    { name: 'the five certificates are exactly five, each unlocking exactly one conclusion',
+    { name: 'the six certificates are exactly six, each unlocking exactly one conclusion',
       run() { const ids = CERTIFICATES.map(c => c.id);
-        return { pass: CERTIFICATES.length === 5 && new Set(ids).size === 5
+        return { pass: CERTIFICATES.length === 6 && new Set(ids).size === 6
             && CERTIFICATES.every(c => typeof c.unlocks === 'string' && c.unlocks.length > 0),
           detail: ids.join(', ') }; } }
   ]

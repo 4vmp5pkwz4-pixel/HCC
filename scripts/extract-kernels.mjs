@@ -348,6 +348,7 @@ export const ROOTS = [
   /* civp.uv_selector */
   'civpKappa', 'civpReweight', 'civpProfile', 'civpSelect', 'civpBoundedGrowth',
   'civpTopResponse', 'civpTopStability', 'civpDiffQuotient',
+  'CIVP_EXTERNAL', 'civpCasimirDecompose', 'civpCasimirGate', 'civpUltralocalDefect', 'CIVP_NULL_PHASE',
   /* civp.finite_carrier */
   'civpBorelWeil', 'civpPolarisation', 'civpLeakage', 'civpHankel', 'civpCapelli',
   'civpCrossRatio', 'civpProjectiveNoGo', 'civpCapelliGate',

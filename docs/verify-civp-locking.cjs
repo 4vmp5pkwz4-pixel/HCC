@@ -515,7 +515,12 @@ console.log('\n=== 9. The kinematic map, and what it is not ===\n');
 
   /* the certificate table: removing one removes exactly one */
   {
-    const all = { C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1 };
+    /* C_top joined when the composite C_UV was split into "convexity and a unique
+       crossing" and "the topological/Casimir remainder moves neither". The irreducibility
+       property is unchanged and is still the point of this check: C_X and C_win both feed
+       Ind(X) = phi^2, C_UV and C_top both feed q_* unique, and removing any SINGLE one
+       still costs exactly one conclusion. */
+    const all = { C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1, C_top: 1 };
     const base = CLO.closure(all);
     const nBase = Object.values(base.conclusions).filter(Boolean).length;
     let rows = [], okAll = nBase === 4;
@@ -533,8 +538,8 @@ console.log('\n=== 9. The kinematic map, and what it is not ===\n');
   /* and the headline refuses to be a prediction */
   {
     const none = CLO.closure({}, 292);
-    const full = CLO.closure({ C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1 }, 292);
-    ok('with no certificates the map still computes and is labelled undetermined; with all five it names the capacity it was GIVEN',
+    const full = CLO.closure({ C_X: 1, C_win: 1, C_U: 1, C_E: 1, C_UV: 1, C_top: 1 }, 292);
+    ok('with no certificates the map still computes and is labelled undetermined; with all six it names the capacity it was GIVEN',
       /NOT determined/.test(none.headline) && none.de_sitter === null && full.de_sitter !== null
       && full.de_sitter.is_prediction === false,
       'switching a certificate on in an input is not deriving it, and the output says so');

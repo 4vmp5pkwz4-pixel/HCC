@@ -154,7 +154,15 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
   ['phi.physical_origin', 'no physical operator produces φ; R_N = ℓ_P φ^N is a declared ansatz'],
   ['desi.covariance', 'no DESI covariance or evidence computation exists in this repository'],
   ['bianchi.spectral_consequence', 'the spectral consequence of Bianchi IX is not derived'],
-  ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator']
+  ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator'],
+  /* ── ADDED AFTER THREE EXTERNAL RESULTS WERE REPORTED TO THE ATLAS ─────────
+     Recorded as open problems rather than as achievements: each names something the atlas
+     now knows it must discharge and has not. The external inputs themselves are logged in
+     CIVP_EXTERNAL with their provenance, and none of them has been verified here. */
+  ['civp.casimir_remainder', 'C_top is undischarged: the topology-sensitive Casimir remainder of ln(zeta_boundary^q T_q) has not been computed for the physical measure, so it is not known whether it moves the adjacent-sector crossing Z_{q+1}/Z_q = 1. Showing d(rho_vac) Lambda_eff = 0 controls only the constant part and is not sufficient'],
+  ['civp.ultralocal_factorisation', 'T_q = prod_i T_i is NOT available in the general radiative sector: a bilocal kernel transporting shear along the null generators makes det(I+K) differ from prod_i (1+K_ii) by exactly the off-diagonal transport. Any use of the product form needs the shear sector restricted or the propagator diagonalised first, and neither is done here'],
+  ['civp.damour_current', 'the vertical N_emb -> q_ind is not constructed. The minimal target is now concrete rather than abstract: quantise the weight-1 Damour constraint D_A to a current J_A-hat and transgress its central extension to c_1(det R pi_* L_q). The joint Raychaudhuri + Damour constraint algebra is not computed in the source either, so the coefficient matrix that would have to reproduce the determinant-line normalisation is unknown'],
+  ['civp.shape_l01_externality', 'that the l = 0,1 shape modes are unobservable is external input, not derived here. The atlas proves only that the Hessian norm vanishes at l = 0,1']
 ]);
 export const LABS = new Map([...IMPLEMENTED, ...stubs].map(l => [l.id, l]));
 export const CORE = {
