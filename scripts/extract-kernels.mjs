@@ -562,7 +562,11 @@ export const ROOTS = [
      Five self-similar solids built by their own substitution rules, with the
      dimension measured back out of the built geometry by box counting. */
   'FRAC_RULES', 'fracDimension', 'fracExactDimension', 'fracBuild',
-  'fracBoxCount', 'fracMeasuredDimension', 'fracCellCount'
+  'fracBoxCount', 'fracMeasuredDimension', 'fracCellCount',
+  /* ── AND THE MAJOR MOONS, WHICH RECOVER THEIR PARENTS' MASSES ─────────────
+     Entered from their own literature values with no planet mass in sight, so
+     Kepler's third law over them is a second route to Jupiter and Saturn. */
+  'MAJOR_MOONS', 'moonKeplerGM', 'moonOrbitalSpeed', 'moonBiggerThanMercury'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
