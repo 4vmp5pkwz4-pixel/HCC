@@ -34,6 +34,10 @@ the numbers it was checked against, and the two scripts that do the checking.
 | `verify-quasiparticle-dispersions.cjs` | the acoustic slope as a limit that now converges, the optical branch against the reduced mass, the magnon quadratic where the phonon is linear, an exciton scaling invariant, and a circulation measured over twelve decades of loop radius |
 | `verify-fractal-dimensions.cjs` | five self-similar solids built by their own substitution rules, with the Hausdorff dimension measured back out of the geometry by box counting |
 | `verify-major-moons.cjs` | nine moons entered from their own orbits, and Kepler's third law over them handing back each parent's mass to a tenth of a per cent |
+| `verify-einstein-ring.cjs` | the lens equation's two roots against a bisection of itself, the magnification against a numerical Jacobian, and three identities that hold at every source offset |
+| `verify-accretion-disk.cjs` | the peak of the thin-disk profile against a four-million-point scan of the profile itself, the Kerr ISCO against its two exact closed forms, and the multicolour spectrum against an independently written annulus quadrature |
+| `verify-neutrino-oscillation.cjs` | PMNS unitarity entry by entry, the three probabilities summing to one over 720 configurations, the Jarlskog invariant from the angles against the same number read off the matrix, the CP asymmetry against its closed form in all six channels, and the two-flavour limit recovered exactly |
+| `verify-helium-three.cjs` | the 2/3 and 8/15 angular averages against a two-million-point quadrature of the sphere, the closed-form density of states against a smooth-variable quadrature below the gap and a direct one above it, the point-node coefficient of exactly one, and the pair circulation quantum against the measured 0.0661 mm²/s |
 | `data/floquet-detuning-scan.csv` | the 41-point detuning scan the C1 hyperbola is fitted against |
 
 ```
@@ -5299,6 +5303,215 @@ which is the whole reason the ladder exists. φ-atlas 106 → 113 objects; the s
 165 → 174.
 
 `docs/verify-major-moons.cjs`: **8 checks, 0 failed**.
+
+### Two images, always, and a sum that is exactly one (v4.21.0)
+
+The atlas had a deflection laboratory: given an impact parameter, how far does the ray bend.
+It did not have the next question, which has a different answer and a closed form of its own
+— **where are the images.**
+
+The thin-lens equation β = θ − θ_E²/θ is a **quadratic**, so a point mass makes exactly two
+images at every source offset there is, and three identities follow:
+
+    θ₊ + θ₋  =  β          the images straddle the source
+    θ₊ θ₋    = −θ_E²       their product does not know where the source is
+    μ₊ + μ₋  =  1          with signs — the inner image is mirrored
+
+The last is the one worth the laboratory. However bright or faint the pair, the two **signed**
+magnifications sum to one — exactly, at every offset, to **2.2e-16** over seven decades. Written
+with magnitudes it reads |μ₊| − |μ₋| = 1.
+
+Nothing is trusted: the roots are checked by **bisecting the lens equation itself**, and the
+magnification against a **numerical Jacobian** of the lens mapping — including its sign, which
+is where the mirrored parity comes from.
+
+A **singular isothermal sphere** is offered beside the point mass because real galaxies are
+fitted with one, and it is structurally different rather than differently calibrated: past
+β = θ_E its second image is gone **entirely**, which a point mass never does, and its Einstein
+radius does not depend on the lens distance at all. The numbers land where lensing is
+observed — 2.21″ for a 10¹² M☉ galaxy at a gigaparsec, 1.08″ for a 250 km/s sphere — and are
+arrived at rather than assumed.
+
+### And my magnification had the wrong sign
+
+The first version returned μ₋ **positive**. The inner image is mirrored and its magnification
+is negative; with magnitudes the identity is a difference, with signs it is a sum, and I had
+written the difference while returning magnitudes. The Jacobian check is what would have
+caught it either way, and the signed form is the tidier statement.
+
+The residuals in this laboratory are conditioning, not disagreement: bisecting over a
+fifteen-decade bracket and multiplying a very large root by a very small one both floor at
+about 1e-10 in double arithmetic, and the checks say so rather than choosing a range where
+they would not.
+
+`docs/verify-einstein-ring.cjs`: **11 checks, 0 failed**. **82** laboratories, **80** typed
+instruments.
+
+### A maximum at 49/36, and it is not a fit (v4.22.0)
+
+A geometrically thin, optically thick accretion disk with no torque at its inner edge
+radiates locally as a blackbody at σT⁴ = 3GMṀ/(8πr³) · (1 − √(r_in/r)). Write x = r/r_in
+and the shape is x⁻³(1 − x⁻¹ᐟ²). **Differentiate it.** The stationary point is where
+x⁻¹ᐟ² = 6/7, so the temperature peaks at
+
+    r = (7/6)² r_in = 49/36 r_in
+
+**exactly** — a rational number, independent of the mass, the accretion rate and the spin,
+which only decide where the inner edge *is*. The laboratory draws the disk with that radius
+marked on its surface and the annuli coloured by their own blackbody temperature, so the
+maximum is a thing you can see rather than a number in a caption.
+
+The verifier does not take the rational number on trust. It scans four million points of the
+profile and finds the maximum numerically (1.361110838 against 49/36 = 1.361111111, a
+difference of 2.7e-7 against a grid spacing of 7.5e-7 — the resolution of the scan, not a
+disagreement), then differentiates numerically *at* the claimed point and gets 4.9e-9
+relative, which is the central-difference floor.
+
+**What was found wrong, in my own kernel.** `diskIsco` clamped the spin at ±0.9999999 to
+keep a cube root away from zero. The cube root is perfectly well behaved at zero — at a = 1,
+cbrt(1 − a²) = 0, so Z₁ = 1, Z₂ = 2 and r = 3 + 2 − √(2·8) = **1, exactly**; at a = −1 the
+retrograde root is **9, exactly**. The clamp cost three digits for nothing, because the
+approach to extremal goes like (1−a)^(1/3) and a millionth of a unit of spin is still seven
+thousandths of a gravitational radius. Removed, and the efficiency at a = 1 is now
+1 − 1/√3 = 42.264973% to 1e-14 rather than to 4e-3.
+
+**And three statements I had written on screen were wrong.** The slider stops at the Thorne
+limit a = 0.998, which is where photon capture stops real accretion — and there the
+efficiency is **32.10%, not 42.26%**. The hud, the control-panel note in three languages and
+the quantity-bus rationale all claimed the larger number for a spin nothing on screen can
+reach. All corrected to say 5.72% at zero spin, 32.10% at the Thorne limit, and 42.26% only
+at exact extremality. The typed instrument accepts a = 1 because the closed form *is* exact
+there, and its limits now say plainly that nothing occupies that configuration.
+
+The spectrum is summed annulus by annulus rather than drawn: every ring contributes its own
+Planck curve, and the sum is a power law of index **one third** across the middle band. The
+one third is nowhere put in — it follows from T ∝ r^(−3/4), which follows from the profile.
+The verifier measures 0.3156 and 0.3256 in the middle band, 1.99923 at 1 GHz (the
+Rayleigh–Jeans slope of 2) and −87.6 at 10¹⁷ Hz (the Wien cutoff): one routine, three
+regimes, three different answers, which is why the one third counts as a measurement.
+
+Two quantity-bus groups arrived with it, because a shared coordinate that exists in two
+places and is driven separately is a coincidence waiting to drift: `kerrSpin` couples the
+horizon laboratory's spin to the disk's (one parameter of one metric, asked two questions),
+and `eddRatio` couples the quasar's Eddington ratio to the disk's. A seventeenth typed
+coupling `ns.mass → adisk.mass` was proposed by the discovery pass and is now declared with
+its caveat: for 1.4 M☉ the ISCO is about 12.4 km and a neutron star is about 11 km across,
+so a real accreting neutron star's disk is truncated by the surface or the magnetosphere
+long before the innermost stable orbit matters.
+
+`docs/verify-accretion-disk.cjs`: **21 checks, 0 failed**. **83** laboratories, **81** typed
+instruments.
+
+### One unitary matrix, three flavours, and a sum that is exactly one (v4.23.0)
+
+A neutrino is produced in a **flavour** state and propagates in **mass** states, and one 3×3
+unitary matrix relates the two bases. Everything in this laboratory is a consequence of that
+single fact, and each consequence is checked against a route that shares no algebra with the
+kernel that produced it.
+
+The **1.27** of every textbook is not a fitted constant. The oscillation phase is Δm²L/(4E)
+in natural units; converting eV²·km/GeV to dimensionless with ħc gives 1e-15/(4ħc) =
+**1.2669327**, and that is where the number comes from. It is computed here from ħc and
+nothing else.
+
+Three stations, each drawing a different consequence of the one matrix:
+
+- **the probabilities along the baseline** — three curves, with the dashed line above them
+  being their sum. It is flat at one. Not approximately: over 720 configurations spanning
+  both mass orderings, both signs of the beam and all three initial flavours, the worst
+  |ΣP − 1| is **4.4e-16**. Nothing in the kernel normalises them; the sum is an *output* of
+  unitarity.
+- **the unitarity triangle** — the three terms of Σₖ U*ₑₖ U_μₖ laid head to tail. They
+  close (|Σ| = 3.7e-17), and the area they enclose is **exactly J/2**, the Jarlskog
+  invariant. Set δ_CP to zero on the slider and the triangle collapses to a line: no area,
+  no CP violation, and you can watch it happen.
+- **the flavour content of the mass states** — |U_αi|² as nine bars, every row and every
+  column summing to one. The same unitarity, seen a third way.
+
+**Found wrong, mine.** The CP-asymmetry sign convention was backwards. With
+J = Im(U_e1 U_μ2 U*_e2 U*_μ1) the closed form 16J·sinΔ₂₁·sinΔ₃₁·sinΔ₃₂ carries a **plus**
+for μ→e, τ→μ and e→τ and a minus for their reverses; I had written the two cases the wrong
+way round. The verifier caught it against the closed form at 240 configurations across all
+six off-diagonal channels, and the fixed version agrees to **1e-14**.
+
+**And a claim I made that was not true.** I had asserted the two-flavour formula differs
+from the three-flavour answer "by a few per cent" at T2K. It differs by **2.8e-4** there —
+the solar term has barely turned on at 295 km. The honest statement, which the check now
+makes, is that the size of the correction depends entirely on where you stand: 2.8e-4 at
+T2K, and **0.89** at 3439 km and 200 MeV, where the two-flavour formula is not an
+approximation of anything. Both numbers are returned by the instrument.
+
+The scales are arrived at rather than assumed. The first oscillation maximum for the
+atmospheric splitting at 0.6 GeV is at **303 km** and T2K's baseline is 295 km — that is why
+it was built there. At 4 MeV the same maximum is at **2.02 km**, which is where Daya Bay's
+far halls are. The MSW resonance density for the solar splitting at 10 MeV comes out at
+**1.1e25 cm⁻³** against a solar-core electron density near 6e25 — computed from G_F and ħc
+with no astrophysical input at all, which is why the solar neutrino problem was a matter
+effect and not a vacuum one.
+
+`docs/verify-neutrino-oscillation.cjs`: **19 checks, 0 failed**. **84** laboratories, **82**
+typed instruments.
+
+### Two phases of one condensate, and an average that is exactly two thirds (v4.24.0)
+
+Helium-3 is a fermion, so it can only become superfluid by pairing — and unlike an electron
+in a metal its pairs are in the L = 1, S = 1 channel, which makes the energy gap a
+**function on the Fermi surface** rather than a number. The laboratory's first station is
+that function, plotted radially: the surface *is* the gap.
+
+```
+A phase (Anderson–Brinkman–Morel):  Δ(θ) = Δ₀|sin θ|    two point nodes on l̂
+B phase (Balian–Werthamer):         Δ(θ) = Δ₀           fully gapped, isotropic
+```
+
+The mean square gap of the A phase over the sphere is ⟨sin²θ⟩ = **2/3 exactly**, and the
+fourth moment is **8/15**. Both are returned as rationals by the kernel and confirmed
+against a two-million-point quadrature of the sphere to 1e-9. That 2/3 is why the B phase,
+with the same Δ₀ in every direction, wins the bulk energy competition at low pressure and
+the A phase needs a field or a wall.
+
+**And the density of states has a closed form.** Averaging the BCS density of states over
+the sphere with Δ = Δ₀ sin θ gives, with a = E/Δ₀,
+
+```
+N(E)/N₀ = a · artanh(a)                for a ≤ 1
+N(E)/N₀ = a · ln((1+a)/√(a²−1))        for a ≥ 1
+```
+
+derived by substitution rather than sampled. At low energy that is **a² with a coefficient
+of exactly one** — the quadratic tail of a *point* node — where the B phase has nothing at
+all below the gap. That difference is why the A-phase heat capacity goes like T³ and the B
+phase is exponentially activated, which is how the two phases were told apart.
+
+**A verification trap worth naming.** Checking the sub-gap branch against a uniform-grid
+quadrature is worthless: the integrand has a square-root edge singularity, so a uniform grid
+converges like 1/√M and is off by 2e-2 at a = 0.05 even with two million samples — enough
+noise to hide a real error. The substitution u² = b² + s² removes the singularity exactly
+and the same integral becomes smooth; against *that* the closed form agrees to **4.9e-14**.
+The verifier uses the smooth variable below the gap and the direct grid above it, and says
+which is which.
+
+**One tolerance of mine was wrong, and the physics was not.** I checked the pair circulation
+quantum against the literature's 0.0661 mm²/s with a tolerance of 5e-5 and it "failed" at
+0.066152. The literature figure *is* that number quoted to three figures; the tolerance is
+now set to the precision of the quotation rather than tighter than it. The factor of two in
+h/(2m₃) is the whole evidence for pairing — h/m₃ alone would be 0.132, twice the
+measurement.
+
+The third station draws the two nodes as what they are: **Weyl points**, Berry monopoles of
+charge +1 and −1 whose sum on a closed Fermi surface is forced to zero. That is why a node
+cannot be removed alone — perturb the order parameter however you like and the nodes move,
+but they can only leave in pairs.
+
+Four typed Nexus relations tie it in: a **contrast** with `sc` (a superconductor's gap is a
+number; this one has a shape, and everything else carries straight across), an **exact**
+relation to `dfx` (the node charges are the same homotopy statement the defect atlas makes),
+a **representation** relation to `berry` (the same curvature, integrated over a different
+surface), and a **coupling** to `quasi` (which carries the helium-*4* circulation quantum
+built from an atomic mass rather than a pair mass).
+
+`docs/verify-helium-three.cjs`: **17 checks, 0 failed**. **85** laboratories, **83** typed
+instruments.
 
 ### What the remaining seven are
 

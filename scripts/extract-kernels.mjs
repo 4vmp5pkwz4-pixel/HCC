@@ -566,7 +566,29 @@ export const ROOTS = [
   /* ── AND THE MAJOR MOONS, WHICH RECOVER THEIR PARENTS' MASSES ─────────────
      Entered from their own literature values with no planet mass in sight, so
      Kepler's third law over them is a second route to Jupiter and Saturn. */
-  'MAJOR_MOONS', 'moonKeplerGM', 'moonOrbitalSpeed', 'moonBiggerThanMercury'
+  'MAJOR_MOONS', 'moonKeplerGM', 'moonOrbitalSpeed', 'moonBiggerThanMercury',
+  /* ── EINSTEIN RINGS ───────────────────────────────────────────────────────
+     The deflection laboratory says how far a ray bends; these say WHERE the
+     images are, which is a quadratic with three exact identities in it. */
+  'EL_G', 'EL_C', 'EL_MSUN', 'EL_PC', 'elEinsteinRadius', 'elImages',
+  'elMagnifications', 'elTotalMagnification', 'elSisEinsteinRadius',
+  'elSisImages', 'elSisMagnifications', 'elIsRing', 'elRingRadiusArcsec', 'elTimeDelay',
+  /* ── THE ACCRETION DISK ───────────────────────────────────────────────────
+     A temperature profile whose maximum is an exact rational multiple of the
+     inner edge, and a spectrum that is a power law because the profile is. */
+  'AD_SIGMA', 'AD_G', 'AD_C', 'AD_MSUN', 'AD_H', 'AD_KB', 'AD_MP', 'AD_SIGT',
+  'HE3_HBAR', 'HE3_KB', 'HE3_H', 'HE3_M3', 'HE3_GAMMA', 'HE3_BCS', 'HE3_KAPPA',
+  'he3Atanh', 'he3GapA', 'he3GapB', 'he3Gap', 'he3MeanSquareGap', 'he3MeanFourthGap',
+  'he3DosA', 'he3DosB', 'he3Dos', 'he3GapFromTc', 'he3TcFromGap', 'he3Coherence',
+  'he3Circulation', 'he3NodeCount', 'he3NodeCharge', 'he3TotalNodeCharge',
+  'he3HeatCapacityExponent', 'he3GapAnisotropy',
+  'NU_HBARC', 'NU_KM', 'NU_GF', 'NU_FLAVOURS', 'nuC', 'nuMul', 'nuAdd', 'nuConj', 'nuAbs2',
+  'nuPmns', 'nuUnitarityResidual', 'nuDelta', 'nuProb', 'nuProbRow',
+  'nuJarlskogAngles', 'nuJarlskogFromU', 'nuTriangle', 'nuTriangleArea', 'nuTriangleClosure',
+  'nuOscLength', 'nuFirstMaximum', 'nuTwoFlavour', 'nuMswDensity', 'nuMixingSquared',
+  'DISK_PEAK_RATIO', 'diskShape', 'diskPeakRadius', 'diskTemperature',
+  'diskPeakTemperature', 'diskIsco', 'diskEfficiency', 'diskLuminosity',
+  'diskEddington', 'diskSpectrum', 'diskSpectralSlope'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
