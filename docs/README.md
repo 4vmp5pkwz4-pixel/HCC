@@ -5940,6 +5940,73 @@ number rather than an impression.
 
 In-browser self-tests **773**, up from 764.
 
+### The scene keeps a window, and the descriptions speak three languages (v4.30.0)
+
+**The panels covered the viewport on a phone.** Reported from a real device with the
+laboratory catalogue above the Controls — the ordinary state in S³ — and the scene left in
+slivers between them.
+
+The cause: every sheet was capped **independently**. Three separate rules each granted a
+panel nearly the whole column between the topbar and the tab bar, which is correct for one
+sheet and ruinous for two. Each panel was individually well behaved and the pair was not.
+
+`--sheet-max` is a **shared, rubbery budget**: computed on the geometry tick from the room
+that actually exists, divided by the sheets that are actually open, weighted so the panel
+being used keeps most of it while its neighbour shrinks rather than disappears. Nothing is
+hidden; everything gets smaller, which is what a reader can recover from. 42% of the scene
+band is reserved and never spent.
+
+Measured after, with the catalogue and Controls both open:
+
+| viewport | scene free | sheets |
+|---|---|---|
+| 390 × 664 | **57.3 %** | 149 px + 149 px |
+| 360 × 780 | **52.5 %** | 189 px + 189 px |
+| 820 × 1180 | **59.0 %** | 328 px + 328 px |
+| 844 × 390 (landscape) | **88.0 %** | 112 px |
+
+Two things fell out on the way: the sheet count was taken from `PANEL_IDS`, which does not
+list `labPanel`, so the budget was divided by one while two sheets covered the screen — it
+is counted from the same live `.panel` set the occlusion meter measures. And the catalogue's
+own `--lab-max`, which knows where its top may go but nothing about the sheet beneath it,
+now clamps to the shared allowance so there is one authority.
+
+`FBS3R_QA.occlusion()` measures coverage on a 40 × 40 grid and `sheets()` reports the
+budget, so "the panels never cover the scene" is a number rather than an impression, and a
+self-test holds it.
+
+**And the descriptions now speak all three languages.** The names were trilingual since
+v4.29.0 while the descriptions — what a reader hovers a catalogue row for, and what the
+palette prints under every hit — were English only, on a project that offers a language
+switch.
+
+All **32** laboratory descriptions are translated into Russian and German, plus the panel
+summaries. They are translated rather than machine-rendered: these are statements about
+physics, and a mistranslation is a false claim in a language the reader may not
+double-check. Proper nouns are kept — Hopf, Berry, Chern, Willmore, Kramers–Kronig,
+Shakura–Sunyaev, Dzhanibekov — because renaming a theorem is not translation.
+
+```
+he3  en  two phases of one p-wave condensate: the gap drawn as the function on the
+         Fermi surface that it is …
+     ru  две фазы одного p-волнового конденсата: щель, нарисованная как функция на
+         поверхности Ферми, каковой она и является …
+     de  zwei Phasen eines p-Wellen-Kondensats: die Lücke, gezeichnet als die Funktion
+         auf der Fermi-Fläche, die sie ist …
+```
+
+The registry description is built once at module init and cannot be language-reactive, so
+`labDescL(id)` resolves it at the moment a row is written, with English as the fallback —
+a description written today is legible before it is translated tomorrow. The **search
+haystack carries all three**, so a reader looking for "Knoten" or "узлы" reaches the same
+laboratory as one looking for "node".
+
+`FBS3R_QA.i18n()` reports the coverage. What remains English is stated: the `LAB_ATLAS_DEFS`
+purposes and the declared `PREDICTION_TARGETS`, which are contract text rather than
+interface text.
+
+In-browser self-tests **779**, up from 773.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
