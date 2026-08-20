@@ -6049,6 +6049,64 @@ text, and named as such rather than left to be discovered.
 
 In-browser self-tests **780**.
 
+### The selector reaches the trisphere (v4.32.0)
+
+Asked whether the instruments moved out of the dock are actually *connected* to the
+projections — the solar system, the trisphere, FBS3R — or merely sitting beside them. The
+honest answer needed measuring, and measuring found the chain stopping one link short.
+
+**What was already connected:**
+
+```
+capacity.n_phi        → ladder.N          the selector fixes the φ-rung
+capacity.q            → edge.q
+bianchi.{α,β±}_final  → spectrum, creation, ebk
+ladder.omega          → dip.omega
+```
+
+**What was not:** Smith–Möbius is a bus node with no links, and Capacity flow is not a bus
+node at all. Neither has a partner declaring a quantity it shares, and inventing one would
+be worse than leaving it — so they are reported as unconnected rather than wired to
+something plausible.
+
+**And the link that mattered was missing.** The chain the capacity selector exists to close
+runs `capacity.q → n_phi → ladder.N → ladder.R`, and `R_N = ℓ_P φ^N` **is** the curvature
+radius that the redshift and multiple-imaging laboratories draw their geodesics against.
+The bus was refusing it, and refusing it for the right reason — its own error message says
+*"refused rather than rescaled, because the atlas was never given a conversion between
+them"*. The ladder answers in metres; the two S³ laboratories declare gigalight-years.
+
+So the atlas is given one. `HCC_UNIT_SCALE` declares exact factors between commensurable
+length units, written with their definitions beside them, and a link that crosses one
+**records the factor it used** — a number arriving over the bus can now say where it came
+from *and* what was done to it:
+
+```
+ladder.R = 1.6583e26 m  ×1.0570e-25  =  17.528 Gly  →  red.radius
+```
+
+Moving the capacity now moves the trisphere the reader is looking at, which is what "the
+instruments act on the projections" has to mean if it is to mean anything. A typed value
+still wins over the bus, so the redshift laboratory's own radius control is untouched.
+
+**Three faults of mine, each caught by an existing guard:**
+
+1. A self-test that called `hccBusLink` to prove a bad link is refused — and the link
+   **succeeded**, pushing a nineteenth edge onto the bus. A test that mutates the thing it
+   measures. It asks the pure resolver now.
+2. `HCC_LINK_ALIAS` is a `Map`, and I wrote two entries with the same key `ladder.R`. A Map
+   keeps only the last, so the redshift alias vanished silently. One source may feed several
+   inputs, so the value is a **list**.
+3. The proposer and the linker disagreed: `hccBusCandidates` demanded identical units while
+   `hccBusLink` accepted a declared conversion, so the two new links were legal to declare
+   and were never proposed — the guard comparing the lists reported *19 declared against 17
+   admissible*. They use one rule now.
+
+Every one of those was found by a check that already existed, which is the argument for
+writing them.
+
+In-browser self-tests **785**.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
