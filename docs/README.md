@@ -6107,6 +6107,64 @@ writing them.
 
 In-browser self-tests **785**.
 
+### A shared letter is not a shared quantity (v4.33.0)
+
+Asked to connect everything that can be connected to the Smith chart, and to audit the
+whole atlas for missing links. The audit came first, and it was blunt: **67 of 83 bus nodes
+had no link at all.**
+
+**The two instruments that were asked for now exist.** The impedance laboratory and the
+capacity flow both carried verified mathematics and neither had a typed contract, so
+neither was a node. Both instruments are existing kernels given a contract — no new physics:
+
+- **`imp`** — the Cayley map Γ = (z−1)/(z+1), its inverse, VSWR, return loss, the rapidity,
+  the lossy-line spiral, the stereographic lift, the quarter-wave transformer. `z = 4` gives
+  Γ = 0.6 and VSWR = 4 exactly, with the round trip and the |Γ| = 1 circle both at zero.
+- **`flow`** — CPL w(a), the reciprocal capacity factor, the phantom crossing, the exchange
+  current. Its own verifier has passed 31/31 since it was written.
+
+**And the connections were already proved.** This is the odd half of the story: two
+cross-laboratory identities sat in the boot self-tests, checked every start-up, with no way
+for anything to act on them.
+
+```
+η(U) = Γ(√(1+U²))          the wireless-transfer efficiency IS a Smith point
+artanh|Γ| = ½ ln VSWR      RF mismatch and relativistic β are one hyperbolic axis
+```
+
+So `imp` publishes `beta`, dimensionless, and the bus links it to `rel.beta` by its own
+rule — same name, same unit, no alias, **because it is the same number**. `z = 4` → |Γ| = 0.6
+→ rapidity ln 2, and VSWR = 4 is the square of the Doppler factor at β = 0.6. The reflection
+coefficient also feeds the SU(2) rotation the Smith–Möbius station performs on the same
+Riemann sphere.
+
+**Two independent routes now reach the same trisphere radius.** The φ-ladder arrives from a
+capacity and a rung, `R_N = ℓ_P φ^N`; the capacity flow arrives from the dark-energy
+density, `R_Λ = √(3/Λ)`. Neither knows about the other:
+
+```
+ladder  17.528465 Gly
+flow    17.528365 Gly      relative difference 5.7e-6
+```
+
+That is a measurement of the construction, not a tuning of it, and it is asserted as such.
+
+**And a proposal can now be refused in writing.** Adding `imp` made the bus propose
+`imp.beta → skyrmion.beta` — both called beta, both dimensionless, one the magnitude of a
+reflection coefficient and the other a skyrmion profile parameter. Wiring it would be
+exactly the fabrication the type check exists to make hard.
+
+This is the general answer to "connect everything": the audit found **55** same-name pairs
+and **1623** same-unit pairs, and almost all of them are `ebk.c` (a metric coefficient) meeting
+`dip.c` (the speed of light), or `te.M` meeting `bht.M`. Bulk-wiring them would invent
+physics in bulk. `HCC_NOT_LINKS` records a refusal with its reason, and the guard now asks
+for **declared + refused = admissible** — a stronger statement than "all admissible are
+declared", because it means every proposal has been answered rather than merely most of
+them, and a new instrument that opens a spurious coupling fails the build until someone
+says why.
+
+In-browser self-tests **793** · **85** instruments, up from 83.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
