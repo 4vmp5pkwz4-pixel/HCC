@@ -5790,6 +5790,80 @@ something the atlas now knows it must discharge and has not.
 `docs/verify-lambda-gates.cjs`: **21 checks, 0 failed**. In-browser self-tests **754**, up
 from 745.
 
+### Folding shrinks, and the instruments say what they are (v4.28.0)
+
+**The catalogue expanded off the screen and could not be closed.** Measured at 1440×620:
+unfolded the panel was 74 px tall with its top at y = 164; **folded it became 322 px with
+its top at y = −84** — above the screen, taking its own ✕ ▸ ◎ cluster to y = −73. "Не
+закрыть и не свернуть" is exactly right: the only controls that could undo the fold had
+left the viewport.
+
+The cause was mine, from v4.26.0. The folded cap was written as an independent constant,
+`min(52vh, 340px)`, while the unfolded state is clamped by anchor-aware rules. On a short
+window the constant was **larger** than the room above the anchor — and because the panel
+is bottom-anchored, a taller box grows *upward*.
+
+A panel cannot be given a height without being told where its top may go. `--lab-max` is
+now measured on the geometry tick — the room genuinely available between the topbar band
+and this panel's own anchor — and **both** states are driven from it, the folded cap being
+`min(budget, fold height)`. Folding can only ever shrink. Two further faults fell out:
+
+- the budget was computed only while the panel was visible, so it was unset exactly when
+  the first fold needed it. It is published at boot and on resize too.
+- the corner controls cancel the panel's own scroll through `--panel-scroll`, republished
+  at 4 Hz — but a *programmatic* smooth scroll changes scrollTop continuously, so for a few
+  hundred milliseconds after folding the cluster was drawn at the old offset. It now
+  follows the animation until scrollTop stops changing, bounded by a frame cap.
+
+The unfolded catalogue also got the room that is actually there: 133 px with 1379 px of
+content became a panel sized to its budget.
+
+**The five panels that are not laboratories now say so.** A reader asked what Capacity,
+Capacity flow, Zero-point, Bianchi IX and Smith–Möbius were doing in the top dock, and
+whether they belonged in the catalogue. **They do not, and the reason is worth stating.**
+An S³ laboratory is a *view*: a group in the three-sphere scene, a branch of `setS3View`, a
+route. These five are instruments with their own rendering surfaces and their own typed
+contracts — `smith.mobius`, `fbs.zero_point_ladder`, `capacity.conditional_selector`,
+`bianchi_ix.evolution` are all in the served catalogue — and each is **scoped**: three to a
+world, and two to *one specific laboratory*. Bianchi IX is a companion to the section
+station and Smith–Möbius to the impedance station; they are not peers of those
+laboratories, they are tools those laboratories bring with them.
+
+So the diagnosis differs from the proposal: the fault was not that they sat in the wrong
+place, it was that **nothing said what they were**. They were absent from the catalogue,
+the palette and the wrist picker alike, and a button in a dock with no explanation is
+indistinguishable from a stray. They are now declared in `ATTACHED_INSTRUMENTS`, listed at
+the foot of the catalogue under a heading that says they are not laboratories, searchable
+by name and by what they compute, and each wears a badge on its own face — *INSTRUMENT ·
+attached to FBS3R (world) · go there*. A self-test checks the declared attachment against
+`TOOL_REGISTRY`, so the badge and the scope rule cannot disagree.
+
+**And a tuned laboratory can now be sent.** The route carried a world and a laboratory and
+nothing else, so every control a reader moved was lost the moment they shared the link —
+you could say "look at the Einstein ring" and never "look at *this*", which for an atlas
+whose claim is reproducible measurement is the wrong way round.
+
+A link now carries the state keys the laboratory **owns**, taken from the same
+`PRED_STATE_PREFIX` the prediction contract uses, so the two cannot disagree about what its
+settings are:
+
+```
+#/world/s3/lab/adisk?s=adiskStation~spectrum!adiskLogM~9.4!adiskSpin~0.77!adiskEdd~0.55
+```
+
+Only what *changed* travels — a laboratory at its defaults encodes to the empty string.
+Verified end to end: tune the disk, navigate away to the solar system, follow the link, and
+all four settings come back exactly.
+
+**And a link may not write where it likes.** A URL is untrusted input, and this atlas
+refuses rather than clamps everywhere else it takes one. A link naming another laboratory's
+key has that key **refused and named**: `adiskSpin~0.25!nuDcp~9!bogus~1!heTh~1200` applies
+one and refuses three. A numeric field given a word is refused rather than written, so a
+hand-edited URL cannot put NaN into an instrument. `FBS3R_QA.navShare()`,
+`navShareFields()` and `navRestore()` expose the same thing to agents.
+
+In-browser self-tests **764**, up from 754.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
