@@ -6007,6 +6007,48 @@ interface text.
 
 In-browser self-tests **779**, up from 773.
 
+### The row is cleared, and all eighty-five speak (v4.31.0)
+
+**The five attached instruments are out of the top row.** Capacity, Capacity flow,
+Zero-point, Bianchi IX and Smith–Möbius were five of the fourteen buttons in the panel
+dock. In v4.28.0 they were declared, listed at the foot of the laboratory catalogue and
+made searchable — but the buttons were left in place, which was half the job and was
+reported as such.
+
+They are removed. A permanent dock button for each was both a crowded row and a promise the
+scope machinery then had to take back: these are instruments scoped to a world or to a
+single laboratory, so the button stayed while the panel could not be shown. They are
+reached where they belong — the catalogue, the command palette, and their own *go there*
+badge, each opening in the context it is attached to. The dock is down from **16 buttons to
+11**.
+
+The panel-deck guard fired on the change, correctly, and the exemption is written **by
+declaration** rather than by quietly shortening a list: the exempt set is exactly
+`ATTACHED_INSTRUMENTS`, and a second check asserts every exempted panel is still reachable.
+
+**And every laboratory now has a description in all three languages.** v4.30.0 translated
+32 of them and reported the job done; the count was taken over `LAB_DESC_EXTRA`, the map
+those 32 happened to live in, while **53 more** drew their description from
+`LAB_ATLAS_DEFS` and were still English in every tooltip and every palette hit. Counting
+coverage over the map instead of over the registry is how a gap hides behind a green check.
+
+All **85** are translated now, and both the self-test and `FBS3R_QA.i18n()` count over
+`S3_VIEW_NAMES` — the registry — so the same mistake cannot be made twice:
+
+```
+bhr  en  pixelwise Schwarzschild null-geodesic integration with explicit capture
+         and step diagnostics
+     ru  попиксельное интегрирование нулевых геодезических Шварцшильда с явной
+         диагностикой захвата и шага
+     de  pixelweise Integration Schwarzschildscher Nullgeodäten mit expliziter
+         Einfang- und Schrittdiagnostik
+```
+
+What remains English is the declared `PREDICTION_TARGETS` — contract text, not interface
+text, and named as such rather than left to be discovered.
+
+In-browser self-tests **780**.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
