@@ -5864,6 +5864,82 @@ hand-edited URL cannot put NaN into an instrument. `FBS3R_QA.navShare()`,
 
 In-browser self-tests **764**, up from 754.
 
+### A scene drawn for black does not survive a white sky (v4.29.0)
+
+**Light mode retuned the panels and left the scene alone.** Measured on the solar system in
+daylight: **mean luminance 227 with a standard deviation of 9** — a near-white field with
+the content lost inside it. Looking at the frame said the same in plainer terms: orbit
+rings drawn white on pale grey, star points white on white, the Sun a featureless white
+blob, constellation labels grey on grey.
+
+None of that is a palette mistake. It is a **category** mistake. Three techniques that are
+correct against black are meaningless against white:
+
+- **additive blending** adds light — added to white it does nothing at all, so every glow
+  and corona vanishes while still costing fill rate;
+- **bright thin lines** carry their contrast from the darkness behind them, so a white
+  orbit ring on parchment has essentially zero contrast;
+- **white points** for stars are invisible for the same reason.
+
+So light mode needs the line work **inverted, not recoloured**: strokes go dark, keeping
+their hue so the colour coding still identifies what they are. Gold `#d4af6a` becomes a
+dark gold, cyan `#7ee7ff` a dark cyan — same hue, lightness capped at 0.36. Lit surfaces
+are left alone; the hemisphere fill already handles those, and darkening a planet would be
+wrong. **2096 materials** retuned.
+
+Getting there took four measured corrections, three of them to my own fix:
+
+1. **The first pass darkened everything unlit — including the celestial dome.** An
+   almost-black inward-facing sphere is opaque, so it hid the daylight sky behind it and
+   the scene came out *darker than night*, from a pass written to brighten. A surface you
+   are inside is a background, not line work, and `BackSide` is exactly the signal that
+   says so. The Milky Way dome is now **faded** rather than inked — a trace of the galactic
+   band at the top of a bright sky is both pretty and honest.
+2. **Stars were being darkened.** Inverting a starfield draws grit on the sky. In daylight
+   the honest transform for a star is to fade it, and that is what happens.
+3. **The pass was not exactly reversible.** Five materials of 2063 refused to round-trip,
+   all reading opacity 0 before and 0.9 after — materials the atlas *animates*, whose
+   "original" is not a constant. A stash captured once at boot is a stale number that the
+   restore then writes over a live animation. Two disciplines fixed it: the stash is taken
+   when the pass **takes** the material rather than at boot, and the restore puts a value
+   back **only if the current value is still the one the pass wrote**. Anything an
+   animation has moved since is left alone. Now **0 of 2063** mismatch.
+4. **The pass followed its own bookkeeping instead of the theme.** Keying the re-apply off
+   `SCENE_THEME.day` meant anything that called it with `false` for its own reasons — the
+   boot self-tests probing reversibility, for one — left the flag down, and the atlas then
+   rendered the night sky under light panels for the rest of the session. `themeDay` is the
+   authority; the pass converges to it in both directions.
+
+The sky itself was rewritten too: the old stops were too close in value and too low in
+chroma and rendered as dishwater. `#a8ceef → #fffdf6` gives a clear blue zenith fading to a
+warm near-white horizon that dark ink reads against.
+
+**And the three languages.** The atlas offers English, Russian and German, so it was
+audited surface by surface:
+
+| surface | coverage |
+|---|---|
+| interface strings via `TT(en, ru, de)` | **1350 / 1352** — the two exceptions are the translator's own definition |
+| `{en, ru, de}` literals | **352 / 353** — the exception is a machine-facing diagnostic fallback |
+| laboratory **names** | **73 / 85** → now **85 / 85** |
+| attached instruments | **5 / 5** trilingual |
+| laboratory **descriptions** and prediction targets | **English only** |
+
+Twelve laboratory names existed only in English — helium-3, neutrino oscillation, the
+accretion disk, the Einstein ring, the embadon laboratory and all seven CIVP stations, the
+most recently added ones. A reader working in Russian met English names in the catalogue,
+the palette, the breadcrumb and the headset. All twelve are translated, and a self-test now
+checks the registry so a laboratory added tomorrow cannot ship untranslated — including a
+check that a translation is a *different string* rather than the English copied across to
+satisfy the test.
+
+The remaining gap is stated rather than hidden: the long-form scientific **descriptions**
+(43 `LAB_DESC_EXTRA` entries plus 58 `LAB_ATLAS_DEFS` rows) and the declared prediction
+targets are English only. `FBS3R_QA.i18n()` reports all of this as counts, so the gap is a
+number rather than an impression.
+
+In-browser self-tests **773**, up from 764.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
