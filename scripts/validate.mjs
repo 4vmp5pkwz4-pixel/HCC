@@ -789,6 +789,24 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── A CHECK THAT CANNOT RUN MUST SAY SO ─────────────────────────────────────
+   A self-test that asserts a POST-BOOT property cannot live inside runSelfTests(), which
+   runs long before the boot tail arrives in the opening world — run it there and it
+   manufactures a failure. But moving a bare ok(...) call down to the boot tail is worse:
+   ok is a local of runSelfTests, so it is a ReferenceError, the surrounding try/catch
+   eats it, and the test simply CEASES TO EXIST. The count fell by one and nothing said
+   why. selfTestLate/runLateSelfTests exist so that cannot happen again — but only if the
+   registrations are actually flushed, so that is what is checked here. */
+{ /* the declarations are not calls — count only the uses */
+  const reg = (html.match(/(?<!function\s)\bselfTestLate\(/g) || []).length;
+  const flush = (html.match(/(?<!function\s)\brunLateSelfTests\(\)/g) || []).length;
+  const decl = /function\s+runLateSelfTests\s*\(/.test(html) && /function\s+selfTestLate\s*\(/.test(html);
+  check(decl && reg >= 1 && flush === 1,
+    `${reg} post-boot self-test${reg === 1 ? '' : 's'} registered and flushed exactly once at the end of the boot`
+    + (!decl ? ' · MISSING: selfTestLate/runLateSelfTests are not declared' : '')
+    + (flush !== 1 ? ` · runLateSelfTests() is called ${flush} times — registered checks would be dropped or double-counted` : ''));
+}
+
 check(html.includes("{id:'C_top'") && html.includes('function civpCasimirGate(')
   && html.includes('function civpUltralocalDefect(') && html.includes('const CIVP_EXTERNAL=')
   && html.includes('verified_here:false'),

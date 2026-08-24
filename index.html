@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-escape-hatch-is-not-hidden-2026.08.24.1">
+<html lang="en" data-hcc-build="a-check-that-cannot-run-must-say-so-2026.08.24.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-escape-hatch-is-not-hidden-2026.08.24.1">
+<meta name="hcc-build" content="a-check-that-cannot-run-must-say-so-2026.08.24.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2033,7 +2033,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.34.1</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.35.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2230,8 +2230,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.34.1';
-const HCC_BUILD='the-escape-hatch-is-not-hidden-2026.08.24.1';
+const HCC_VERSION='4.35.0';
+const HCC_BUILD='a-check-that-cannot-run-must-say-so-2026.08.24.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7509,14 +7509,11 @@ function runSelfTests(){
       `μ_Routh = ${LAG_ROUTH.toFixed(10)} · every planet in this atlas is far below it, so all forty equilateral stations are stable and all twenty-four collinear ones are not`);
   }
 
-  { /* ── THE OPENING FRAME MUST BE TONE-MAPPED ───────────────────────────────── */
-    const dom=document.body.dataset.premiumDomain;
-    ok('the opening frame is tone-mapped. MEASURED with premium visuals stored ON — how a returning reader arrives — body.dataset.premiumDomain was UNSET at boot and only became a real domain after the first mode change. premiumApplyProfile is called from setMode and from setS3View, and at boot neither runs for the world the state already claims, so the palette, the tone mapping and the exposure were never applied to the opening frame',
-      !!dom && dom!=='?' && (dom==='off'||dom.length>1),
-      `premiumDomain at boot = "${dom||'UNSET'}" · premium visuals ${premiumVisualsEnabled?'on':'off'} · ` +
-      `the scene always DREW — draw calls were healthy at 1400 per two seconds — it drew untone-mapped, ` +
-      `which on a real GPU is a white screen, and switching modes "fixed" it because that is what finally ran the profile`);
-  }
+  /* the tone-mapping check has MOVED to the boot tail — see premiumApplyProfile there.
+     It asserts a post-boot property, and executing here, two thousand lines before the
+     boot tail runs, it could only ever measure the state before the thing it is checking
+     had happened. A test that runs too early does not report a defect, it manufactures
+     one. */
 
   { /* ── THE STRUCTURES, AND THE HOPF LINK ───────────────────────────────────── */
     const N10=fibNPow(10);
@@ -8612,6 +8609,33 @@ function runSelfTests(){
   return T;
 }
 let SELF_TESTS = [];   // populated at startup (see bottom) — exported in validation_report.json
+
+/* ── SOME FACTS ONLY EXIST AFTER THE BOOT ────────────────────────────────────
+   runSelfTests() runs long before the boot tail has finished arriving in the opening
+   world, so a check that asserts what the atlas looks like once it is OPEN cannot live
+   inside it. Run it there and it does not report a defect, it MANUFACTURES one; move the
+   bare ok(...) call down to the boot tail instead and it vanishes silently, because ok is
+   a local of runSelfTests and the surrounding try/catch eats the ReferenceError — which
+   is exactly what happened, and the test count fell by one with nothing to show for it.
+
+   Register post-boot checks HERE. They are ordinary self-tests — same shape, same report,
+   same export — they simply run once at the end of the boot, and a callback that THROWS
+   is recorded as a failing test rather than dropped. Nothing in this atlas is allowed to
+   disappear quietly; a check that cannot run must say so. */
+const SELF_TESTS_LATE=[];
+function selfTestLate(fn){ SELF_TESTS_LATE.push(fn); }
+function runLateSelfTests(){
+  const ok=(name,cond,detail)=>SELF_TESTS.push({name,pass:!!cond,detail:String(detail)});
+  for(const fn of SELF_TESTS_LATE){
+    try{ fn(ok); }
+    catch(e){ ok('a post-boot self-test ran instead of being silently dropped', false,
+                 `late self-test threw: ${e&&e.message||e}`); }
+  }
+  ok('every post-boot self-test that was registered actually reported',
+    SELF_TESTS_LATE.length>=1 && SELF_TESTS.length>=SELF_TESTS_LATE.length,
+    `${SELF_TESTS_LATE.length} registered · flushed once at the end of the boot, after the opening world exists`);
+  return SELF_TESTS;
+}
 
 /* ================================================================
    COSMOLOGICAL CYCLES, MOON, ECLIPSES & SEASONS
@@ -59809,6 +59833,36 @@ try{ frameOpeningWorld(); }catch(e){}
    An empty hash is not an instruction, and the opening state is stated last — like the
    palette and like the framing, and for the third time for the same reason. */
 try{ armIdleDrift(); }catch(e){}
+/* ── AND THE OPENING FRAME MUST BE TONE-MAPPED ───────────────────────────────
+   THE FOURTH TIME THIS BOOT TAIL HAS HAD TO SAY THE SAME THING, and the pattern is worth
+   naming rather than patching a fourth time: premiumApplyProfile runs from setMode and
+   from setS3View, and at boot NEITHER fires, because the state already claims the world
+   the reader is arriving in and both of those return early when nothing changed. So the
+   palette, the tone mapping and the exposure were never applied to the first frame.
+
+   MEASURED with premium visuals stored ON, which is how a returning reader arrives:
+   body.dataset.premiumDomain was UNSET, and the scene DREW — draw calls healthy at 1400
+   per two seconds — it drew untone-mapped, which on a real GPU is a blown-out white
+   screen. Switching modes "fixed" it, because switching modes is what finally ran the
+   profile.
+
+   The class: anything the atlas applies when the world CHANGES must also be applied once
+   when the world is simply ARRIVED IN. Idle drift, the opening frame, the panel state and
+   now the tone mapping were all the same omission wearing four different symptoms. */
+try{ premiumApplyProfile(true); }catch(e){}
+/* and the check that says so — registered, not called: a bare ok(...) here is not in
+   scope and would be swallowed. selfTestLate runs it after the boot, where the state
+   it asserts actually exists, and reports a throw as a failure instead of nothing. */
+selfTestLate(ok=>{
+  const dom=document.body.dataset.premiumDomain;
+      ok('the opening frame is tone-mapped. MEASURED with premium visuals stored ON — how a returning reader arrives — body.dataset.premiumDomain was UNSET at boot and only became a real domain after the first mode change. premiumApplyProfile is called from setMode and from setS3View, and at boot neither runs for the world the state already claims, so the palette, the tone mapping and the exposure were never applied to the opening frame',
+        !!dom && dom!=='?' && (dom==='off'||dom.length>1),
+        `premiumDomain at boot = "${dom||'UNSET'}" · premium visuals ${premiumVisualsEnabled?'on':'off'} · ` +
+        `the scene always DREW — draw calls were healthy at 1400 per two seconds — it drew untone-mapped, ` +
+        `which on a real GPU is a white screen, and switching modes "fixed" it because that is what finally ran the profile`);
+});
+runLateSelfTests();
+try{ buildInfo(); }catch(e){}   // re-render: the post-boot checks have now reported
 try{ atlasFrontDoor(); requestAnimationFrame(()=>{ atlasFrontDoor(); frameOpeningWorld();
   armIdleDrift();                       // …and again on the next frame, in case a deferred path settled the camera
   globalThis.HCC_BOOT_PANELS=PANEL_IDS.filter(id=>panelIsOpen(id));
