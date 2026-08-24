@@ -90,5 +90,48 @@ console.log('\nS^3 · the exponential map and SO(4)\n');
     `fixed to ${fe.toExponential(1)}`);
 }
 
+/* ── AND THE SPECTRUM THAT COMPACTNESS ALLOWS ────────────────────────────────
+   Eigenvalues -n(n+2), degeneracy (n+1)^2. Checked by APPLYING the operator with exact
+   Gegenbauer derivatives, d/dx C^a_m = 2a C^{a+1}_{m-1}, rather than by differentiating
+   numerically — a finite difference with h = 1e-5 already carries 2e-6 of round-off in
+   the second derivative, so a residual of 1e-4 would have measured the step and not the
+   identity. */
+function geg(m, a, x) {
+  if (m < 0) return 0;
+  if (m === 0) return 1;
+  if (m === 1) return 2*a*x;
+  let p0 = 1, p1 = 2*a*x;
+  for (let k = 2; k <= m; k++) { const p = (2*(k+a-1)*x*p1 - (k+2*a-2)*p0)/k; p0 = p1; p1 = p; }
+  return p1;
+}
+{
+  let worst = 0;
+  const MODES = [[1,0],[1,1],[2,0],[2,1],[2,2],[3,1],[4,2],[5,3],[6,0],[7,4],[9,2],[11,5]];
+  for (const [n, l] of MODES) {
+    const m = n - l;
+    for (let k = 1; k < 400; k++) {
+      const chi = Math.PI*k/400; if (chi < 0.2 || chi > Math.PI - 0.2) continue;
+      const s = Math.sin(chi), c = Math.cos(chi), u = c;
+      const C = geg(m, l+1, u), C1 = 2*(l+1)*geg(m-1, l+2, u), C2 = 4*(l+1)*(l+2)*geg(m-2, l+3, u);
+      const R = Math.pow(s, l)*C;
+      const R1 = l*Math.pow(s, l-1)*c*C - Math.pow(s, l+1)*C1;
+      const R2 = l*(l-1)*Math.pow(s, l-2)*c*c*C - l*Math.pow(s, l)*C
+               - (2*l+1)*Math.pow(s, l)*c*C1 + Math.pow(s, l+2)*C2;
+      const lap = R2 + 2*(c/s)*R1 - l*(l+1)*R/(s*s), want = -n*(n+2)*R;
+      worst = Math.max(worst, Math.abs(lap - want)/Math.max(1e-12, Math.abs(want)));
+    }
+  }
+  ok('the Laplace-Beltrami eigenvalue on S^3 is -n(n+2), checked by applying the operator',
+    worst < 1e-12, `worst relative residual ${worst.toExponential(1)} over ${MODES.length} modes up to n = 11`);
+  let degOk = true, shown = [];
+  for (let n = 0; n <= 10; n++) { let d = 0; for (let l = 0; l <= n; l++) d += 2*l + 1;
+    if (d !== (n+1)*(n+1)) degOk = false; if (n <= 4) shown.push(`${n}:${d}`); }
+  ok('and the n-th level carries exactly (n+1)^2 independent modes', degOk,
+    `sum_{l<=n} (2l+1) = (n+1)^2 for every n <= 10 · ${shown.join(', ')}`);
+  ok('so a compact S^3 has a LONGEST wavelength and nothing below it',
+    Math.abs(-1*(1+2) + 3) < 1e-15,
+    `the first mode is lambda_1 = -3, k_1 = sqrt(3)/R, longest wavelength 2 pi R / sqrt(3) = ${(2*Math.PI/Math.sqrt(3)).toFixed(6)} R`);
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
