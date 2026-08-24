@@ -86,7 +86,33 @@ const head = await page.evaluate(() => ({
   render: document.documentElement.dataset.hccRender,
   worlds: HCC_NAV.worlds().map(w => ({ id: w.id, title: w.title || w.id, route: w.route })),
   instruments: HCC_API.instruments.list().map(i => ({ ...i, describe: HCC_API.describe(i.id) })),
-  labs: HCC_API.labs.list()
+  labs: HCC_API.labs.list(),
+  /* ── THE BUS IS PART OF THE CONTRACT, NOT A BROWSER AFFORDANCE ────────────
+     Twenty-seven declared couplings, two refusals written down with their reasons, and a
+     surface that says why a laboratory is alone — all of it lived in the page and NONE of
+     it reached api/manifest.json, which is the file an agent actually reads. An agent
+     could describe every instrument here and still not know that the neutron-star mass
+     runs into four other laboratories, or that gw.total_mass → adisk.mass was examined
+     and refused because one input takes one source. Reachable through the website has to
+     mean reachable through the CONTRACT the website publishes. */
+  bus: (() => {
+    const B = HCC_API.bus;
+    const links = B.links();
+    const cand = B.candidates();
+    const isolated = B.isolated();
+    const nb = isolated.map(id => B.neighbourhood(id));
+    return {
+      links: links.map(l => ({ from: l.from, to: l.to, unit: l.unit, scale: l.scale, converted: !!l.converted })),
+      /* a proposal the atlas declined, and the sentence saying why — the refusals are as
+         much a part of what this atlas asserts as the links are */
+      refused: cand.filter(c => !links.some(l => l.from === c.from && l.to === c.to))
+        .map(c => ({ from: c.from, to: c.to, reason: HCC_API.bus.refusal ? HCC_API.bus.refusal(c.from, c.to) : null })),
+      isolated: nb.map(n => ({ id: n.id, distinctive_reach: n.distinctiveReach })),
+      counts: { admissible: cand.length, declared: links.length,
+        refused: cand.length - links.length, isolated: isolated.length,
+        isolated_dimensionless_only: nb.filter(n => n.distinctiveReach === 0).length }
+    };
+  })()
 }));
 
 if (head.render !== 'off') {
@@ -130,9 +156,12 @@ const manifest = {
     worlds: head.worlds.length, laboratories: labs.length, instruments: head.instruments.length,
     computational: labs.filter(l => l.kind === 'computational').length,
     parametric: labs.filter(l => l.kind === 'parametric').length,
-    visual: labs.filter(l => l.kind === 'visual').length
+    visual: labs.filter(l => l.kind === 'visual').length,
+    bus_links: head.bus.counts.declared, bus_refused: head.bus.counts.refused,
+    bus_isolated: head.bus.counts.isolated
   },
   worlds: head.worlds,
+  bus: head.bus,
   instruments: head.instruments.map(i => ({
     id: i.id, title: i.title, world: i.world, lab: i.lab, status: i.status,
     inputs: (i.describe && i.describe.inputs) || [], outputs: i.outputs || [],
