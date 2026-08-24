@@ -19,5 +19,14 @@ for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.t
   ok = run(`verifier ${f}`, `node docs/${f}`) && ok;
 ok = run('API contract + benchmark suite', 'node test/run-tests.mjs') && ok;
 ok = run('headless agent scenario', 'node scripts/demo-agent.mjs') && ok;
+/* ── AND THE ATLAS'S OWN EIGHT HUNDRED ASSERTIONS, WHICH NOTHING RAN ────────
+   validate.mjs checked that the string "runSelfTests" appeared in index.html — that the
+   suite EXISTED, not that it passed. Eight hundred checks, a green pipeline, and no
+   connection between the two. A failing assertion shipped for every release since the
+   seventy-second laboratory and nobody could have seen it.
+
+   It runs from two arrivals, because a world-gated clause is only a check in the world
+   that gates it, and every harness ever pointed at this page arrived in the same one. */
+ok = run("the atlas's own self-tests, from every arrival", 'node scripts/selftest.mjs') && ok;
 console.log(ok ? '\nCI: all green\n' : '\nCI: BLOCKED — a disagreement was found\n');
 process.exit(ok ? 0 : 1);
