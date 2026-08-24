@@ -160,12 +160,25 @@ for (const L of head.labs) {
     kind, instrument: row.instrument, parameters: row.params });
 }
 
-let commit = null;
-try { commit = execSync('git rev-parse HEAD', { cwd: ROOT }).toString().trim(); } catch { }
+/* ── A STAMP THAT IS FALSE THE INSTANT IT IS WRITTEN ────────────────────────
+   This file used to record `git rev-parse HEAD`. scripts/build-api.mjs already refuses
+   to do that and says why: a file that is GENERATED and then COMMITTED is written before
+   the commit it would have to name, so the snapshot can only ever record its own parent.
+   That is not a stamp that goes stale eventually — it is one that is wrong immediately.
+
+   And it had a cost beyond being wrong. It made `build-manifest.mjs --check` report
+   "stale" after every single commit, so api/manifest.json could not be added to the
+   workflow step that asserts the generated contracts are committed — the step covers
+   openapi, mcp and open-problems and pointedly not the manifest. That exclusion is how
+   the v4.34.1 regression reached main: build-api was skipped, the manifest silently lost
+   core, contracts and instruments_v2, and a reviewing bot found it after the merge.
+
+   The manifest identifies itself by version and build, which come from the document it
+   was measured from and are true of it. Nothing consumed the commit — checked. */
 
 const manifest = {
   schema: 'hcc.manifest/2',
-  version: head.version, build: head.build, commit,
+  version: head.version, build: head.build,
   generator: 'scripts/build-manifest.mjs — measured by walking every laboratory with ?render=0',
   counts: {
     worlds: head.worlds.length, laboratories: labs.length, instruments: head.instruments.length,
