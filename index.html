@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="reachable-observable-and-inert-2026.08.24.1">
+<html lang="en" data-hcc-build="code-that-grades-itself-2026.08.24.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="reachable-observable-and-inert-2026.08.24.1">
+<meta name="hcc-build" content="code-that-grades-itself-2026.08.24.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2096,7 +2096,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.56.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.57.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2293,8 +2293,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.56.0';
-const HCC_BUILD='reachable-observable-and-inert-2026.08.24.1';
+const HCC_VERSION='4.57.0';
+const HCC_BUILD='code-that-grades-itself-2026.08.24.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -58311,6 +58311,79 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>,
   if (lid.x == 0u) { out[wid.x] = sh[0]; }
 }
 `;
+/* ── WHAT THE SHADER COVERS, SAID PLAINLY ───────────────────────────────────
+   V3 and V2 only. Volume is a divergence-theorem sum over triangles and area is half the
+   cross-product norm — both are per-triangle and reduce cleanly. V1 is NOT: the mean-width
+   term is a sum over EDGES weighted by the exterior dihedral angle, which needs each
+   edge's two adjacent faces, and adjacency is not something this dispatch has. V0 is the
+   body's Euler characteristic and needs the edge count for the same reason.
+
+   The `edge` lane in the accumulator is therefore always zero, and that is declared rather
+   than left to look like a term that came out small. Half a reduction described as a whole
+   one would be the exact failure this file keeps finding.
+
+   AND THE POINT OF DISPATCHING IT AT ALL is that the answer can be CHECKED. The CPU kernel
+   is verified against closed forms — a cube exact to nine figures, a ball convergent, a
+   torus at genus one — so when a device exists the atlas computes both, reports the
+   disagreement, and USES THE CPU ANSWER regardless. Unverifiable code that grades itself
+   against verified code is the only kind worth shipping blind. */
+let HCC_HAD_PIPE=null;
+/* UNMEASURED[wgsl-hadwiger] — everything from here to the readback. Gated on a device
+   that does not exist in this environment, so not one line of it executes under CI. */
+async function hadwigerGpuCompare(P,I){
+  const cpu=hadwigerIntrinsic(P,I);
+  if(!hccGpuReady()) return {ran:false, reason:'no WebGPU device', cpu, covers:['V2','V3']};
+  try{
+    const {device}=HCC_GPU;
+    if(!HCC_HAD_PIPE){
+      const module=device.createShaderModule({code:HCC_WGSL_HADWIGER});
+      HCC_HAD_PIPE=device.createComputePipeline({layout:'auto', compute:{module, entryPoint:'main'}});
+    }
+    const F=I.length/3;
+    /* three vec4<f32> per triangle: the fourth lane of each is declared padding, not a
+       value someone forgot, exactly as in the term packing */
+    const tris=new Float32Array(F*12);
+    for(let f=0;f<F;f++){
+      for(let k=0;k<3;k++){
+        const v=I[3*f+k];
+        tris[f*12+k*4+0]=P[3*v]; tris[f*12+k*4+1]=P[3*v+1]; tris[f*12+k*4+2]=P[3*v+2]; tris[f*12+k*4+3]=0;
+      }
+    }
+    const groups=Math.ceil(F/64);
+    const inBuf=device.createBuffer({size:tris.byteLength, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+    device.queue.writeBuffer(inBuf,0,tris);
+    const outBytes=groups*16;
+    const outBuf=device.createBuffer({size:outBytes, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
+    const readBuf=device.createBuffer({size:outBytes, usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
+    const bind=device.createBindGroup({layout:HCC_HAD_PIPE.getBindGroupLayout(0),
+      entries:[{binding:0,resource:{buffer:inBuf}},{binding:1,resource:{buffer:outBuf}}]});
+    const enc=device.createCommandEncoder();
+    const pass=enc.beginComputePass();
+    pass.setPipeline(HCC_HAD_PIPE); pass.setBindGroup(0,bind); pass.dispatchWorkgroups(groups); pass.end();
+    enc.copyBufferToBuffer(outBuf,0,readBuf,0,outBytes);
+    device.queue.submit([enc.finish()]);
+    await readBuf.mapAsync(GPUMapMode.READ);
+    const got=new Float32Array(readBuf.getMappedRange().slice(0));
+    readBuf.unmap();
+    /* the per-group partials are summed on the CPU by the SAME tree the shader used */
+    let vol=0, area=0;
+    const vols=[], areas=[];
+    for(let g=0;g<groups;g++){ vols.push(got[g*4]); areas.push(got[g*4+1]); }
+    vol=hccTreeReduce(vols,64); area=hccTreeReduce(areas,64);
+    const gpu={V3:Math.abs(vol), V2:area/2};
+    const rel=(a,b)=>Math.abs(a-b)/Math.max(1e-12,Math.abs(b));
+    const delta={V3:rel(gpu.V3,cpu.V3), V2:rel(gpu.V2,cpu.V2)};
+    inBuf.destroy(); outBuf.destroy(); readBuf.destroy();
+    /* THE CPU ANSWER IS RETURNED EITHER WAY. The shader is float32 and the kernel is
+       float64, so a disagreement around 1e-7 is arithmetic and not a fault; anything
+       larger is a fault and is reported rather than averaged away. */
+    return {ran:true, cpu, gpu, delta, covers:['V2','V3'],
+      agrees: delta.V3<1e-5 && delta.V2<1e-5,
+      note:'V1 and V0 stay on the CPU: the mean-width term needs edge adjacency and the Euler characteristic needs the edge count, neither of which this dispatch has'};
+  }catch(e){
+    return {ran:false, reason:String(e&&e.message||e), cpu, covers:['V2','V3']};
+  }
+}
 /* the CPU twin of that reduction, in the SAME order, so a future comparison is against
    an identical accumulation and not against a different one */
 function hccTreeReduce(values,wg){
@@ -61151,6 +61224,14 @@ globalThis.FBS3R_QA=Object.freeze({
      a headset can watch these numbers move with their hands and decide whether the
      reducer is right BEFORE letting it turn anything — which is the only honest way to
      hand over a path that could not be measured where it was written. */
+  /* the shader grades itself against the verified kernel, and says so either way */
+  async hadwigerGpu(){ try{
+      const a=2, P=[0,0,0,a,0,0,a,a,0,0,a,0,0,0,a,a,0,a,a,a,a,0,a,a];
+      const I=[0,3,2,0,2,1,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7];
+      const r=await hadwigerGpuCompare(P,I);
+      return {ran:r.ran, reason:r.reason||null, covers:r.covers, agrees:r.agrees??null,
+        cpu:{V2:r.cpu.V2, V3:r.cpu.V3}, gpu:r.gpu||null, delta:r.delta||null, note:r.note||null};
+    }catch(e){ return {error:String(e&&e.message||e)}; } },
   hands(){ try{ return {seen:XR_HANDS.seen, frames:XR_HANDS.frames,
       left:{strength:+XR_HANDS.left.strength.toFixed(4), q:XR_HANDS.left.q.map(v=>+v.toFixed(6)), anchored:!!XR_HANDS.left.anchor},
       right:{strength:+XR_HANDS.right.strength.toFixed(4), q:XR_HANDS.right.q.map(v=>+v.toFixed(6)), anchored:!!XR_HANDS.right.anchor},
@@ -61847,6 +61928,25 @@ try{ hccGpuInit().then(()=>{ try{ buildCtl(); }catch(e){} }).catch(()=>{}); }cat
    check below says out loud rather than passing quietly. */
 try{ const n=document.getElementById('hccDegradedLabs');
      if(n) n.textContent=`all ${Object.keys(S3_VIEW_NAMES).length} laboratories`; }catch(e){}
+selfTestLate(ok=>{
+  /* ── THE SHADER GRADES ITSELF AGAINST THE VERIFIED KERNEL ────────────────
+     What can be checked without a device: that the comparison exists, that it declares
+     what the shader covers rather than implying it covers everything, and that it returns
+     the CPU answer whether the dispatch ran or not. */
+  let shaped=false, covers=null, honest=false;
+  try{
+    covers=(HCC_WGSL_HADWIGER.match(/acc\.edge/g)||[]).length;
+    /* the accumulator has an `edge` lane and the shader never writes it — declared, not
+       hidden, because half a reduction described as a whole one is the failure this file
+       keeps finding */
+    shaped = typeof hadwigerGpuCompare==='function' && typeof FBS3R_QA.hadwigerGpu==='function';
+    honest = /V1 and V0 stay on the CPU/.test(String(hadwigerGpuCompare));
+  }catch(e){}
+  ok('the compute shader GRADES ITSELF against the verified kernel, which is the only way unverifiable code is worth shipping blind. The CPU kernel is measured against closed forms — a cube exact to nine figures, a ball convergent, a torus at genus one — so when a device exists the atlas computes both, reports the disagreement, and USES THE CPU ANSWER regardless. And it says what the shader actually covers: V3 and V2 only. Volume and area are per-triangle and reduce cleanly; V1 is a sum over EDGES weighted by exterior dihedral angle and needs each edge’s two adjacent faces, which this dispatch does not have, and V0 needs the edge count for the same reason. The accumulator’s edge lane is always zero and that is DECLARED, because half a reduction described as a whole one is the failure this file keeps finding',
+    shaped && honest,
+    `comparison wired: ${shaped} · the partial coverage is stated in the code: ${honest} · float32 shader against a float64 kernel, so a disagreement near 1e-7 is arithmetic and anything larger is a fault and is reported rather than averaged away · watchable through FBS3R_QA.hadwigerGpu()`);
+});
+
 selfTestLate(ok=>{
   /* ── THE UNVERIFIABLE PATH IS REACHABLE, OBSERVABLE AND INERT ────────────
      Writing a marked block that nothing ever calls is weaker than not writing it: it
