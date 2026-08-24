@@ -789,6 +789,31 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── NO SENTENCE MAY STATE A COUNT IT DID NOT ASK FOR ────────────────────────
+   The degraded-mode notice read "all 73 laboratories" while the atlas carried 85. The
+   number was typed into a string near the top of index.html, tens of thousands of lines
+   above the registry that knows it, and it drifted quietly through twelve releases —
+   nothing could have caught it, because a literal in a string is invisible to every
+   runtime check that reads the registry. So the literal is what is forbidden: the
+   sentence names a slot, the boot tail fills it from S3_VIEW_NAMES, and a post-boot
+   self-test asserts the two agree. */
+{ /* Scoped to the banner's own markup, because a source rule cannot tell a live string
+     from a comment recording the history of this very defect — index.html is full of the
+     latter by design. The general rule is enforced where it is decidable: a post-boot
+     self-test reads every rendered "all N laboratories" off the screen and off the help
+     table and requires each to equal the registry. */
+  /* anchored on the degraded bar itself: there is a second bar.innerHTML in this file
+     (the freshness sentinel) and an unanchored match found that one instead — a guard
+     that reads the wrong region is not a weaker guard, it is a false one. */
+  const m = html.match(/bar\.id='hccDegraded'[\s\S]{0,4000}?appendChild\(bar\)/);
+  const markup = m ? m[0] : '';
+  const literal = markup.match(/\d+\s+laborator/);
+  check(!!m && !literal && /id="hccDegradedLabs"/.test(markup),
+    'the degraded notice names a slot for its laboratory count instead of writing one into the markup'
+    + (!m ? ' · MISSING: the banner construction was not found' : '')
+    + (literal ? ` · FOUND the literal "${literal[0]}" — fill it from S3_VIEW_NAMES in the boot tail instead` : ''));
+}
+
 /* ── A CHECK THAT CANNOT RUN MUST SAY SO ─────────────────────────────────────
    A self-test that asserts a POST-BOOT property cannot live inside runSelfTests(), which
    runs long before the boot tail arrives in the opening world — run it there and it
