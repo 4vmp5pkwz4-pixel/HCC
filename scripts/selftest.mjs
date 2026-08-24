@@ -52,11 +52,35 @@ const PORT = 8907;
 await new Promise(r => server.listen(PORT, r));
 
 let chromium;
-try { ({ chromium } = await import('/opt/node22/lib/node_modules/playwright/index.mjs')); }
-catch { try { ({ chromium } = await import('playwright')); }
-  catch { console.error('playwright not available; cannot run the self-tests.'); server.close(); process.exit(1); } }
+try { ({ chromium } = await import('playwright')); }
+catch { try { ({ chromium } = await import('/opt/node22/lib/node_modules/playwright/index.mjs')); }
+  catch {
+    console.error('playwright not available; cannot run the self-tests.');
+    console.error('  `npx playwright install chromium` downloads BROWSERS, not the package —');
+    console.error('  the runner also needs `npm install --no-save playwright` for this import.');
+    server.close(); process.exit(1); } }
 
-const browser = await chromium.launch({ executablePath: process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium' });
+/* ── AND THE BROWSER PATH MUST NOT BE ONE MACHINE'S ─────────────────────────
+   This passed executablePath: '/opt/pw-browsers/chromium' unconditionally — the path
+   THIS sandbox keeps Chromium at, and nowhere else. A CI runner keeps it wherever
+   playwright put it, so the hard-coded path would have failed the launch even after the
+   missing driver was fixed. Same fault as a hard-coded count: true on the machine it was
+   written on, false on the one that decides whether a release ships.
+
+   Nor is "pass it only if the file exists" enough, because it exists HERE and points at
+   a build this playwright version does not use. So the order is: let playwright resolve
+   its own browser first — that is what it is for and it is right on any runner — and
+   fall back to the explicit path only when that fails and the path is really there. */
+let browser;
+try { browser = await chromium.launch(); }
+catch (first) {
+  const PW_PATH = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium';
+  if (!existsSync(PW_PATH)) {
+    console.error(`could not launch a browser: ${String(first && first.message || first).split('\n')[0]}`);
+    server.close(); process.exit(1);
+  }
+  browser = await chromium.launch({ executablePath: PW_PATH });
+}
 
 /* the arrivals. render=0 keeps this fast and headless-safe; the deep link is the path a
    shared link takes, and it is the one that reaches the S³-gated clauses. */
