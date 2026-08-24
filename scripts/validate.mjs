@@ -768,6 +768,27 @@ check(html.includes('none of the six physical certificates is derived here')
    the gate that refuses a topological remainder, the no-go against factorising the
    residual trace, and the provenance line that says none of the three external results was
    verified here. A constraint recorded without its provenance is a claim. */
+/* ── A MANIFEST WITHOUT ITS AUGMENTATION IS A SILENTLY SMALLER PROMISE ───────
+   build-manifest.mjs writes the walked half; build-api.mjs adds the core half — the 18
+   implemented contracts with their schemas and falsifiers, the core provenance hash, and
+   the OpenAPI/MCP links. Running the first without the second leaves a manifest that
+   PARSES, VALIDATES and serves, and quietly tells every static client that the
+   computational service does not exist.
+
+   That is exactly what happened: the pipeline was shortened under a token budget, the
+   augmented fields were dropped, and nothing failed — a reviewer caught it after the
+   merge. Nothing structural stops a shortened pipeline, so the check belongs here, where
+   the shortened pipeline still has to pass. */
+{ const man = JSON.parse(readFileSync('api/manifest.json', 'utf8'));
+  const need = ['core', 'contracts', 'instruments_v2'];
+  const missing = need.filter(k => !man[k]);
+  const n = Array.isArray(man.instruments_v2) ? man.instruments_v2.length : 0;
+  check(missing.length === 0 && n >= 18
+    && !!man.counts?.core_labs && !!man.counts?.core_implemented,
+    `api/manifest.json carries its core augmentation — ${n} instruments_v2, core and contracts present`
+    + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
+}
+
 check(html.includes("{id:'C_top'") && html.includes('function civpCasimirGate(')
   && html.includes('function civpUltralocalDefect(') && html.includes('const CIVP_EXTERNAL=')
   && html.includes('verified_here:false'),
