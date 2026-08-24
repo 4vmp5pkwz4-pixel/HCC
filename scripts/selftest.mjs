@@ -94,13 +94,17 @@ const ARRIVALS = [
      more with the preference set, the same way it arrives once in S³ because a clause
      gated on a world is only a check in that world. */
   { name: 'reduced motion, at the reader\'s request', hash: '', reducedMotion: 'reduce' },
+  /* and a phone, for the same reason again: a clause gated on a VIEWPORT is only a check
+     at that viewport. The occlusion promise — that panels never fully cover the scene —
+     is meaningless at 1280x800, where nothing is close to covering anything. */
+  { name: 'a phone, 390x844', hash: '#/world/s3/lab/ns', viewport: { width: 390, height: 844 } },
 ];
 
 let worst = 0, grand = 0;
 const seen = new Map();          /* name → whether it EVER passed, so an arrival that skips
                                     a clause does not hide an arrival that fails it */
 for (const arrival of ARRIVALS) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 } });
   if (arrival.reducedMotion) await page.emulateMedia({ reducedMotion: arrival.reducedMotion });
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
