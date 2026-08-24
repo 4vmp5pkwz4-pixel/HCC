@@ -789,6 +789,33 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── A REFUSAL WITHOUT A REASON IS NOT A REFUSAL ─────────────────────────────
+   The quantity bus lived entirely in the page: twenty-seven declared couplings, two
+   refusals written down with their arguments, and a surface saying why a laboratory is
+   alone — none of it in api/manifest.json, which is the file an agent actually reads.
+   An agent could describe every instrument in this atlas and still not know that the
+   neutron-star mass reaches four other laboratories. "Reachable through the website"
+   has to mean reachable through the CONTRACT the website publishes.
+
+   And the refusals travel WITH their sentences. A declined coupling with no reason
+   beside it is indistinguishable from one nobody thought about, which is the whole
+   distinction this atlas spent a release learning to draw. */
+{ const man = JSON.parse(readFileSync('api/manifest.json', 'utf8'));
+  const bus = man.bus;
+  const mute = bus && Array.isArray(bus.refused)
+    ? bus.refused.filter(r => !r.reason || String(r.reason).trim().length < 20) : [];
+  const consistent = !!bus && Array.isArray(bus.links) && Array.isArray(bus.isolated)
+    && bus.links.length === man.counts?.bus_links
+    && bus.refused.length === man.counts?.bus_refused
+    && bus.isolated.length === man.counts?.bus_isolated;
+  check(!!bus && consistent && mute.length === 0,
+    `api/manifest.json publishes the quantity bus — ${bus ? bus.links.length : 0} declared, `
+    + `${bus ? bus.refused.length : 0} refused, ${bus ? bus.isolated.length : 0} isolated, every refusal carrying its reason`
+    + (!bus ? ' · MISSING: the manifest has no bus — run scripts/build-manifest.mjs' : '')
+    + (bus && !consistent ? ' · the bus arrays and counts.bus_* disagree' : '')
+    + (mute.length ? ` · ${mute.length} refusal(s) carry no stated reason: ${mute.map(r => r.from + ' → ' + r.to).join(', ')}` : ''));
+}
+
 /* ── NO SENTENCE MAY STATE A COUNT IT DID NOT ASK FOR ────────────────────────
    The degraded-mode notice read "all 73 laboratories" while the atlas carried 85. The
    number was typed into a string near the top of index.html, tens of thousands of lines
