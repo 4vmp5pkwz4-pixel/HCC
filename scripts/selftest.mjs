@@ -87,6 +87,13 @@ catch (first) {
 const ARRIVALS = [
   { name: 'default arrival (solar system)', hash: '' },
   { name: 'deep link into an S³ laboratory', hash: '#/world/s3/lab/ns' },
+  /* a clause gated on a PREFERENCE is only a check for readers who hold it. The
+     reduced-motion contract has two halves — a stylesheet rule and an early return inside
+     armIdleDrift — and the second is the kind that rots silently, because nothing notices
+     when a fifth caller appears that does not consult the flag. So the suite arrives once
+     more with the preference set, the same way it arrives once in S³ because a clause
+     gated on a world is only a check in that world. */
+  { name: 'reduced motion, at the reader\'s request', hash: '', reducedMotion: 'reduce' },
 ];
 
 let worst = 0, grand = 0;
@@ -94,6 +101,7 @@ const seen = new Map();          /* name → whether it EVER passed, so an arriv
                                     a clause does not hide an arrival that fails it */
 for (const arrival of ARRIVALS) {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  if (arrival.reducedMotion) await page.emulateMedia({ reducedMotion: arrival.reducedMotion });
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
   await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded' });
