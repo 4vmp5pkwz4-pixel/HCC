@@ -6165,6 +6165,25 @@ says why.
 
 In-browser self-tests **793** · **85** instruments, up from 83.
 
+### The escape hatch is not the thing that is hidden (v4.34.0)
+
+One change, chosen because it closes the atlas's longest-standing failing check rather than
+because it was the largest thing available.
+
+`#modeRow` is a horizontal scroller, and the **⋯ More** button — the one control whose whole
+job is to reveal what the row could not fit — was scrolling off its own right end. The boot
+check has reported it clipped on every run for as long as the row has been a scroller.
+
+It is the worst possible item to lose. Everything else in that row is reachable *through*
+it, and horizontal overflow gives no hint that anything further exists: a reader who cannot
+see the button has no way of knowing there is more.
+
+It is pinned to the right edge now, with a gradient so the buttons scrolling underneath do
+not read through it, declared for both themes — a transparent pin over parchment is the
+same bug wearing a lighter colour.
+
+Inherited self-test failures **4 → 3**. In-browser self-tests **793**.
+
 ### What the remaining seven are
 
 Of the seven that still declare no typed output, four are not physics and should not have
