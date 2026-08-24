@@ -789,6 +789,37 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── A GATE ON ONE MACHINE IS NOT A GATE ────────────────────────────────────
+   scripts/ci.mjs runs the atlas's eight hundred assertions. .github/workflows/core.yml
+   does NOT run scripts/ci.mjs — it hand-enumerates the same steps, and a duplicated list
+   drifts. It had already drifted the moment the self-test gate was written: the suite
+   gated the local run and not the one that decides whether a release ships, which is the
+   same defect as the suite existing and never being executed, one level up.
+
+   So the two are held together here. Neither file may carry the gate alone. */
+/* And it asks about EXECUTABLE commands, not about text. The first version of this
+   check searched the whole source, comments included, so `# run: node
+   scripts/selftest.mjs --list` would have satisfied it while executing nothing — the
+   guard reporting both gates present in precisely the drift it exists to prevent.
+   Caught in review, and it is the second time in one day: a commented-out
+   runLateSelfTests() call sailed through the same kind of text match earlier, and only
+   deleting the line outright made that guard fire.
+   A substring is not a call. Comments are stripped before either file is asked. */
+{ const stripJs = t => t.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const stripYaml = t => t.split('\n').filter(l => !/^\s*#/.test(l)).map(l => l.replace(/\s#.*$/, '')).join('\n');
+  const ciSrc = stripJs(readFileSync('scripts/ci.mjs', 'utf8'));
+  const wfPath = '.github/workflows/core.yml';
+  const wf = existsSync(wfPath) ? stripYaml(readFileSync(wfPath, 'utf8')) : '';
+  const inCi = /scripts\/selftest\.mjs/.test(ciSrc);
+  /* and in the workflow it must be a run: step, not a mention */
+  const inWf = /run:[^\n]*scripts\/selftest\.mjs/.test(wf)
+    || /run:\s*\|[\s\S]{0,400}?scripts\/selftest\.mjs/.test(wf);
+  check(inCi && inWf,
+    "the atlas's own self-tests gate BOTH the local run and the workflow that ships a release"
+    + (!inCi ? ' · MISSING from scripts/ci.mjs' : '')
+    + (!inWf ? ` · MISSING from ${wfPath} as an executable run: step — the suite would gate one machine and not the other` : ''));
+}
+
 /* ── A REFUSAL WITHOUT A REASON IS NOT A REFUSAL ─────────────────────────────
    The quantity bus lived entirely in the page: twenty-seven declared couplings, two
    refusals written down with their arguments, and a surface saying why a laboratory is
