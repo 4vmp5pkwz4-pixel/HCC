@@ -98,6 +98,10 @@ const ARRIVALS = [
      at that viewport. The occlusion promise — that panels never fully cover the scene —
      is meaningless at 1280x800, where nothing is close to covering anything. */
   { name: 'a phone, 390x844', hash: '#/world/s3/lab/ns', viewport: { width: 390, height: 844 } },
+  /* and the LIGHT palette, because the contrast correction only runs there. Shipping a
+     fix whose applied behaviour no arrival exercises is how the catalogue clamp survived:
+     the pure functions were checked, the result was not. */
+  { name: 'the light palette', hash: '#/world/s3/lab/ns', theme: 'day' },
 ];
 
 let worst = 0, grand = 0;
@@ -106,6 +110,11 @@ const seen = new Map();          /* name → whether it EVER passed, so an arriv
 for (const arrival of ARRIVALS) {
   const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 } });
   if (arrival.reducedMotion) await page.emulateMedia({ reducedMotion: arrival.reducedMotion });
+  /* the theme is remembered in localStorage, so it is set the way a returning reader
+     would already have it rather than by clicking a cycling button and hoping */
+  if (arrival.theme) await page.addInitScript(t => {
+    try { localStorage.setItem('lts-theme', t); } catch (e) { }
+  }, arrival.theme);
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
   await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded' });
