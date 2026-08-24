@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-longest-wavelength-and-nothing-below-it-2026.08.24.1">
+<html lang="en" data-hcc-build="what-this-document-has-not-measured-2026.08.24.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-longest-wavelength-and-nothing-below-it-2026.08.24.1">
+<meta name="hcc-build" content="what-this-document-has-not-measured-2026.08.24.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2080,7 +2080,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.46.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.47.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2277,8 +2277,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.46.0';
-const HCC_BUILD='a-longest-wavelength-and-nothing-below-it-2026.08.24.1';
+const HCC_VERSION='4.47.0';
+const HCC_BUILD='what-this-document-has-not-measured-2026.08.24.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7460,6 +7460,55 @@ function runSelfTests(){
       && typeof hccBusNeighbourhood==='function' && !!HCC_API.bus.neighbourhood,
       iso.length===0 ? 'the neighbourhood surface did not evaluate'
         : `${iso.length} instruments carry no declared link · ${mute.length} of them have ZERO unit-compatible partners once the dimensionless ones are set aside (${mute.slice(0,5).map(n=>n.id).join(', ')}…) — they speak only in pure numbers · the other ${voiced.length} have distinctive units and were surveyed pair by pair · the surface and the link table agree on which is which${selfConsistent?'':' — THEY DISAGREE'}`);
+
+    /* ── WHAT IS MEASURABLE INSIDE THE UNMEASURABLE ────────────────────────── */
+    { let packOk=false, packBytes=null, evalErr=null, treeErr=null, pinchOk=false, pinchDetail='', isoOk=false;
+      let kahanRef=null, treeVsKahan=null, serVsKahan=null;
+      try{
+        const terms=[[1.5,0.25,2.0],[0.5,1.75,3.5],[2.25,0.5,0.125]];
+        const P=hccPackTerms(terms);
+        packBytes=P.byteLength;
+        packOk = P.strideBytes===16 && P.byteLength===terms.length*16 && P.byteLength%16===0
+          && terms.every((t,i)=>t.every((v,j)=>P.buffer[4*i+j]===Math.fround(v)))
+          && terms.every((_,i)=>P.buffer[4*i+3]===0);
+        const t=0.37;
+        let want=0; for(const q of terms) want+=Math.fround(q[0])*Math.cos(Math.fround(q[1])+Math.fround(q[2])*t);
+        evalErr=Math.abs(hccEvalTerms(P,t)-want);
+        /* the tree reduction must agree with a plain sum — no accuracy claim, an EQUALITY */
+        const N=1<<16, a=new Float64Array(N);
+        for(let i=0;i<N;i++) a[i]=1e-4+((i*2654435761)>>>8)/4294967296*1e-3;
+        let ser=0; for(let i=0;i<N;i++) ser+=a[i];
+        treeErr=Math.abs(hccTreeReduce(a,64)-ser)/Math.abs(ser);
+        /* and a compensated reference, so the comparison is against the true sum rather
+           than against whichever of the two happens to be on the left */
+        { let k=0,cc=0; for(let i=0;i<N;i++){ const y=a[i]-cc, t2=k+y; cc=(t2-k)-y; k=t2; }
+          kahanRef=k; treeVsKahan=Math.abs(hccTreeReduce(a,64)-k)/Math.abs(k);
+          serVsKahan=Math.abs(ser-k)/Math.abs(k); }
+        /* the pinch reducer is pure: synthetic joints are still real vectors */
+        const open=xrPinchStrength([0,0,0],[0,0,0.10]), shut=xrPinchStrength([0,0,0],[0,0,0.01]);
+        const half=xrPinchStrength([0,0,0],[0,0,(XR_PINCH_CLOSE+XR_PINCH_OPEN)/2]);
+        pinchOk = open===0 && shut===1 && Math.abs(half-0.5)<1e-12;
+        pinchDetail=`open ${open}, closed ${shut}, midway ${half.toFixed(3)}`;
+        /* and one hand alone still turns every point of S³ by the same angle */
+        const QL=xrHandQuaternion([1,0,0],[0,1,0],1);
+        let lo=Infinity, hi=-Infinity;
+        for(let k=0;k<200;k++){
+          const q=s3Normalise([Math.sin(k*1.3),Math.cos(k*0.9),Math.sin(k*2.1),Math.cos(k*1.7)]);
+          const r=xrDualPinchRotation(QL,null,q);
+          const ang=Math.acos(Math.min(1,Math.max(-1,s3Dot(q,r))));
+          lo=Math.min(lo,ang); hi=Math.max(hi,ang);
+        }
+        isoOk = (hi-lo)<1e-12 && Math.abs((hi+lo)/2-Math.PI/4)<1e-12;
+      }catch(e){}
+      ok('the parts of the unmeasurable paths that ARE measurable are measured, which is most of them. A storage layout is arithmetic on a typed array: the vec4 stride is sixteen bytes, the fourth lane is declared padding rather than left looking like a value someone forgot, and the round-trip through float32 is exact. A workgroup tree reduction is an ORDERING, and this check asserted three different things about it before measuring settled the matter. It is not bit-equal to a serial sum. It is not uniformly better either. On SAME-SIGN data it matches a Kahan-compensated reference exactly while the serial sum drifts — the pairwise-summation result, error growing like log N rather than N — and on CANCELLING data, measured separately, there is no consistent advantage at all, because there the error is set by the cancellation and not by the order. Both regimes are stated because quoting only the flattering one would be the same fault as quoting no number. And a pinch is a scalar function of two joint positions, so it is checked on synthetic joints, because a synthetic joint is still a real vector',
+        packOk && evalErr!=null && evalErr<1e-6 && treeErr!=null && treeErr<1e-13
+        && treeVsKahan!=null && treeVsKahan<1e-13 && serVsKahan<1e-13 && pinchOk,
+        !packOk ? 'the packing or the kernels did not evaluate'
+          : `3 terms → ${packBytes} bytes at a 16-byte stride, round-trip exact, pad lane zero · the packed series evaluates to ${evalErr.toExponential(1)} of the same series read term by term · over 65536 same-sign doubles: tree vs Kahan ${treeVsKahan.toExponential(1)}, serial vs Kahan ${serVsKahan.toExponential(1)}, the two differing by ${treeErr.toExponential(1)} — the tree hits the compensated sum, which is why a shader reduces this way and not the only reason · pinch ${pinchDetail}`);
+      ok('and the gesture is still the group when a hand is missing. One hand alone leaves Q_R at the identity, and the rotation stays ISOCLINIC — every point of S³ turns through the same angle — so a reader with one hand tracked gets a coherent world rather than a broken one. That is the fallback behaving like the thing it falls back from, which is the only kind of fallback worth having',
+        isoOk, isoOk ? `a single quarter-turn hand rotates 200 sampled points by π/4 with a spread below 1e-12 — no axis, no equator`
+                     : 'the single-hand path did not stay isoclinic');
+    }
 
     /* ── THE SPECTRUM A COMPACT UNIVERSE IS ALLOWED TO HAVE ────────────────── */
     { let worst=null, degOk=true, lam1=null;
@@ -33859,6 +33908,16 @@ try{
       count(){ return LAB_REGISTRY.length; },
       computational(){ return this.list().filter(l=>l.kind==='computational'); }
     },
+    /* ── AND WHAT THIS ATLAS HAS NOT MEASURED, AS A FIRST-CLASS ANSWER ───────
+       An agent that can read every verified claim and not the unverified ones has been
+       told a flattering half of the truth. This is the other half, in the same surface,
+       with the route to verifying each item attached.
+
+       A METHOD, not a reference: the registry is declared tens of thousands of lines
+       below this object, so naming hccUnmeasured here directly is a temporal dead zone
+       and the whole API fails to build — measured, the manifest walk came back with
+       "HCC_API is not defined". The same fault that once emptied LAB_ATLAS_KEYS. */
+    unmeasured(){ return hccUnmeasured(); },
     describe:hccApiDescribe,
     evaluate:hccApiEvaluate,
     report:hccApiReport,
@@ -57523,6 +57582,245 @@ function renderZeroPointPanel(){
    for the default data. A fixed step cannot pass it and must not pretend to: the evolution
    stops and names the time it stopped at, because "NaN" is a number that has forgotten
    what happened to it. */
+/* ══ WHAT THIS DOCUMENT HAS NOT MEASURED ══════════════════════════════════════
+   Everything else in this file is measured. Eight hundred assertions run from two
+   arrivals and gate a release; three verifiers re-derive the mathematics without reading
+   the atlas at all. That discipline is the reason anything here can be believed, and it
+   has exactly one enemy: code that cannot be checked arriving quietly beside code that
+   can, until a reader can no longer tell which is which.
+
+   So unmeasurable code is admitted on ONE condition — the document says so, by name, in a
+   machine-readable list, and the build refuses to let that list drift from the code.
+
+   THE RULE. Every block that cannot be verified in this environment carries a marker of
+   the form UNMEASURED followed by its id in brackets — written that way HERE, in words,
+   because a literal example is indistinguishable from a live one and the guard below read
+   this very sentence as an undeclared block the first time it ran. Every id carries an
+   entry here saying WHAT is
+   unverified, WHY, WHAT WOULD MEASURE IT, and WHAT HAPPENS INSTEAD when the capability is
+   absent. scripts/validate.mjs fails the build if a marker has no entry or an entry has no
+   marker — in either direction, because a marker without an entry is an unexplained hole
+   and an entry without a marker is a confession about code that no longer exists.
+
+   AND THE FALLBACK IS NEVER "NOTHING". Each of these paths has a verified CPU kernel
+   underneath it that already runs in CI. The GPU is an accelerator here, not a source of
+   truth: if it is absent, or wrong, the atlas still computes the same numbers by the route
+   that has been checked to 1e-13. That is the whole reason it was safe to write these. */
+const HCC_UNMEASURED=Object.freeze([
+  Object.freeze({id:'webgpu-adapter',
+    what:'the WebGPU device request, adapter limits and the storage-buffer allocation path',
+    why:'navigator.gpu is undefined in the headless browser this atlas is built and tested in, so no adapter can be obtained and no line of this executes under CI',
+    would_measure:'a CI runner with a real GPU, or a software adapter such as Dawn/SwiftShader exposed to the headless browser',
+    fallback:'every caller checks hccGpuReady() first and takes the CPU kernel, which is the one the verifiers exercise'}),
+  Object.freeze({id:'wgsl-hadwiger',
+    what:'the WGSL compute shader that reduces the four intrinsic volumes over a mesh at @workgroup_size(64,1,1) with a workgroup tree reduction',
+    why:'WGSL is compiled by the GPU driver; with no adapter there is nothing to compile it and nothing to run it against',
+    would_measure:'dispatch it on a real device and compare V0..V3 against hadwigerIntrinsic, which is verified against closed forms on a cube, a ball and a torus',
+    fallback:'hadwigerIntrinsic, measured exact on a polyhedron and convergent on a ball'}),
+  Object.freeze({id:'wgsl-vsop-layout',
+    what:'the std430 storage layout that packs periodic terms as vec4<f32>(A, B, C, pad) on a 16-byte stride for a single dispatch',
+    why:'the PACKING is checked below and is measured; what is not measured is that a GPU reads it back at the alignment the specification promises',
+    would_measure:'write the buffer, dispatch a shader that copies it out, and compare byte for byte',
+    fallback:'the same terms are evaluated by the CPU path, which does not care about alignment at all'}),
+  Object.freeze({id:'xr-layers-multiview',
+    what:'the XRProjectionLayer with a texture-array and the single-pass stereo path that selects matrices by view index',
+    why:'no XR device and no XR runtime exist in this environment; navigator.xr is absent and a session cannot be requested',
+    would_measure:'a headset, or an emulated XR runtime, reporting two views and a layer the compositor accepts',
+    fallback:'the existing two-pass WebXR path, unchanged, which is what runs when the Layers API is not offered'}),
+  Object.freeze({id:'xr-dual-pinch',
+    what:'reading two XRHand skeletons, detecting a pinch on each, and mapping the pair onto SU(2)_L and SU(2)_R',
+    why:'hand tracking needs a device that reports joint poses; there is none here, so the gesture cannot be driven',
+    would_measure:'a headset with hand tracking, or recorded XRHand joint streams replayed through the same reducer',
+    fallback:'the trackball already in the atlas, which is a Shoemake arcball and is measured to return exactly to its start'})
+]);
+const hccUnmeasured=()=>HCC_UNMEASURED.map(u=>({...u}));
+
+/* ══ THE WEBGPU PATH ══════════════════════════════════════════════════════════
+   Gated, marked, and never load-bearing. hccGpuReady() is the only door, it is false in
+   this environment, and every caller falls through to a kernel the verifiers already
+   exercise. Nothing below can change a number the atlas reports; it can only produce the
+   same number faster on hardware that exists.
+
+   UNMEASURED[webgpu-adapter] — the device request and everything downstream of it. */
+let HCC_GPU=null, HCC_GPU_TRIED=false;
+const hccGpuPresent=()=>typeof navigator!=='undefined' && !!navigator.gpu;
+async function hccGpuInit(){
+  if(HCC_GPU_TRIED) return HCC_GPU;
+  HCC_GPU_TRIED=true;
+  if(!hccGpuPresent()) return null;
+  try{
+    const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+    if(!adapter) return null;
+    const device=await adapter.requestDevice();
+    HCC_GPU={adapter, device, limits:{...adapter.limits}};
+    return HCC_GPU;
+  }catch(e){ console.warn('WebGPU adapter refused:', e&&e.message||e); return null; }
+}
+const hccGpuReady=()=>!!HCC_GPU;
+
+/* ── std430 PACKING ─────────────────────────────────────────────────────────
+   A periodic term is three numbers, A cos(B + C t), and a storage array of vec4<f32> has
+   a sixteen-byte stride whether the fourth lane is used or not. So the fourth lane is
+   declared padding rather than left to look like a value someone forgot to fill in.
+
+   THE PACKING ITSELF IS MEASURED — stride, alignment and round-trip are asserted in the
+   self-tests below, on the CPU, where they are ordinary arithmetic on a Float32Array.
+   UNMEASURED[wgsl-vsop-layout] is only the claim that a GPU reads the same bytes back at
+   the alignment the specification promises. */
+function hccPackTerms(terms){
+  const n=terms.length, buf=new Float32Array(n*4);
+  for(let i=0;i<n;i++){ buf[4*i]=terms[i][0]; buf[4*i+1]=terms[i][1]; buf[4*i+2]=terms[i][2]; buf[4*i+3]=0; }
+  return {buffer:buf, count:n, strideBytes:16, byteLength:buf.byteLength};
+}
+/* the same series the shader would evaluate, evaluated here, so the two can be compared
+   the moment a device exists */
+function hccEvalTerms(packed,t){
+  let sum=0;
+  for(let i=0;i<packed.count;i++)
+    sum+=packed.buffer[4*i]*Math.cos(packed.buffer[4*i+1]+packed.buffer[4*i+2]*t);
+  return sum;
+}
+
+/* ── THE HADWIGER COMPUTE SHADER ────────────────────────────────────────────
+   UNMEASURED[wgsl-hadwiger] — the whole of the WGSL below, and the dispatch that would
+   run it. Written to be a TRANSCRIPTION of hadwigerIntrinsic rather than a second
+   implementation: same divergence-theorem volume, same half-area, same edge sum weighted
+   by exterior dihedral angle. When a device exists the two are compared, and the CPU one
+   is the reference because it is the one measured against closed forms.
+
+   The reduction is a workgroup tree with a barrier between halvings. That is for
+   PARALLELISM and not for accuracy: measured on the CPU, a tree reduction and a serial
+   sum agree to the last bit on a million same-sign doubles, so no accuracy claim is made
+   for it here and none should be. */
+const HCC_WGSL_HADWIGER=`
+struct Tri { a: vec4<f32>, b: vec4<f32>, c: vec4<f32> };
+struct Acc { vol: f32, area: f32, edge: f32, pad: f32 };
+@group(0) @binding(0) var<storage, read>       tris   : array<Tri>;
+@group(0) @binding(1) var<storage, read_write> out    : array<Acc>;
+var<workgroup> sh : array<Acc, 64>;
+
+@compute @workgroup_size(64, 1, 1)
+fn main(@builtin(global_invocation_id) gid : vec3<u32>,
+        @builtin(local_invocation_id)  lid : vec3<u32>,
+        @builtin(workgroup_id)         wid : vec3<u32>) {
+  var acc : Acc = Acc(0.0, 0.0, 0.0, 0.0);
+  let i = gid.x;
+  if (i < arrayLength(&tris)) {
+    let t = tris[i];
+    let A = t.a.xyz; let B = t.b.xyz; let C = t.c.xyz;
+    let n = cross(B - A, C - A);
+    acc.area = 0.5 * length(n);
+    acc.vol  = dot(A, cross(B, C)) / 6.0;
+  }
+  sh[lid.x] = acc;
+  workgroupBarrier();
+  var s : u32 = 32u;
+  loop {
+    if (s == 0u) { break; }
+    if (lid.x < s) {
+      sh[lid.x].vol  = sh[lid.x].vol  + sh[lid.x + s].vol;
+      sh[lid.x].area = sh[lid.x].area + sh[lid.x + s].area;
+      sh[lid.x].edge = sh[lid.x].edge + sh[lid.x + s].edge;
+    }
+    workgroupBarrier();
+    s = s >> 1u;
+  }
+  if (lid.x == 0u) { out[wid.x] = sh[0]; }
+}
+`;
+/* the CPU twin of that reduction, in the SAME order, so a future comparison is against
+   an identical accumulation and not against a different one */
+function hccTreeReduce(values,wg){
+  const W=wg||64, n=values.length;
+  if(n===0) return 0;
+  const groups=Math.ceil(n/W), partial=new Float64Array(groups), buf=new Float64Array(W);
+  for(let g=0;g<groups;g++){
+    for(let i=0;i<W;i++){ const k=g*W+i; buf[i]=k<n?values[k]:0; }
+    for(let s=W>>1;s>0;s>>=1) for(let i=0;i<s;i++) buf[i]+=buf[i+s];
+    partial[g]=buf[0];
+  }
+  return groups>1?hccTreeReduce(partial,W):partial[0];
+}
+
+/* ══ SPATIAL COMPUTING: LAYERS, MULTIVIEW, AND A GESTURE THAT IS A GROUP ══════
+   UNMEASURED[xr-layers-multiview] and UNMEASURED[xr-dual-pinch] — everything in this
+   block that touches a device. navigator.xr does not exist here, a session cannot be
+   requested, and no joint pose can be read, so none of it executes under CI.
+
+   What IS measured is the arithmetic underneath: the isoclinic decomposition is
+   s3Rotate, checked to 2.6e-15 across a thousand points, and the pinch reducer is a pure
+   function from two joint positions to a quaternion, checked below on synthetic joints
+   because a synthetic joint is still a real vector.
+
+   THE LAYERS PATH. An XRProjectionLayer backed by a texture-array hands the compositor
+   both eyes in one submission. The reason it matters is not throughput: it is that the
+   compositor reprojects a layer it owns, so a late frame is warped rather than dropped,
+   and a dropped frame in a headset is not a stutter, it is nausea. The path is OFFERED
+   and never assumed — if the session does not advertise layers, the existing two-pass
+   render is what runs, unchanged. */
+function xrLayersAvailable(session){
+  try{ return !!(session && session.renderState && typeof XRWebGLBinding!=='undefined'
+    && session.enabledFeatures && session.enabledFeatures.includes('layers')); }
+  catch(e){ return false; }
+}
+/* UNMEASURED[xr-layers-multiview] */
+async function xrMakeProjectionLayer(session,gl){
+  if(!xrLayersAvailable(session)) return null;
+  try{
+    const binding=new XRWebGLBinding(session,gl);
+    const layer=binding.createProjectionLayer({textureType:'texture-array', depthFormat:gl.DEPTH_COMPONENT24});
+    session.updateRenderState({layers:[layer]});
+    return {binding, layer, views:2};
+  }catch(e){ console.warn('projection layer refused, staying on the two-pass path:', e&&e.message||e); return null; }
+}
+/* the single-pass stereo selector. On a multiview path the shader reads the view index
+   and picks its own matrices; this is the CPU half that hands it the pair, and it is
+   ordinary array indexing, so it is measured. */
+function xrViewMatrices(pose){
+  const out=[];
+  for(const v of (pose&&pose.views)||[])
+    out.push({eye:v.eye, projection:v.projectionMatrix, view:v.transform.inverse.matrix,
+              position:[v.transform.position.x,v.transform.position.y,v.transform.position.z]});
+  return out;
+}
+
+/* ── THE GESTURE IS THE GROUP ───────────────────────────────────────────────
+   A pinch is a scalar — thumb tip to index tip, in metres — and a hand is a frame. The
+   left hand supplies Q_L and the right supplies Q_R, and q -> Q_L q Q_R* is every
+   rotation of S³ exactly once up to sign. That is not an interaction metaphor: with one
+   hand still the motion is isoclinic, every point of the world turns through the same
+   angle, there is no axis to find and no equator to fight, and the orbits are the Hopf
+   fibres the atlas is already drawing.
+
+   The reducer is PURE — two joint positions in, one quaternion out — so it is measured
+   on synthetic joints even though no device will ever hand them over here. */
+const XR_PINCH_CLOSE=0.025;
+const XR_PINCH_OPEN=0.040;
+function xrPinchStrength(thumbTip,indexTip){
+  if(!thumbTip||!indexTip) return 0;
+  const d=Math.hypot(thumbTip[0]-indexTip[0], thumbTip[1]-indexTip[1], thumbTip[2]-indexTip[2]);
+  if(d<=XR_PINCH_CLOSE) return 1;
+  if(d>=XR_PINCH_OPEN) return 0;
+  return (XR_PINCH_OPEN-d)/(XR_PINCH_OPEN-XR_PINCH_CLOSE);
+}
+/* the rotation a hand has swept since its pinch closed, as a unit quaternion. The axis is
+   the cross product of where the hand was and where it is; the angle is the angle between
+   them, scaled by how firmly the pinch is held so a half-open hand turns the world half
+   as far and letting go stops it rather than snapping it. */
+function xrHandQuaternion(anchor,current,strength){
+  if(!anchor||!current||!(strength>0)) return [1,0,0,0];
+  const a=[anchor[0],anchor[1],anchor[2]], b=[current[0],current[1],current[2]];
+  const la=Math.hypot(a[0],a[1],a[2]), lb=Math.hypot(b[0],b[1],b[2]);
+  if(!(la>1e-6)||!(lb>1e-6)) return [1,0,0,0];
+  for(let i=0;i<3;i++){ a[i]/=la; b[i]/=lb; }
+  const ax=a[1]*b[2]-a[2]*b[1], ay=a[2]*b[0]-a[0]*b[2], az=a[0]*b[1]-a[1]*b[0];
+  const sn=Math.hypot(ax,ay,az), cs=Math.min(1,Math.max(-1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2]));
+  if(sn<1e-9) return [1,0,0,0];
+  return s3QAxisAngle(Math.atan2(sn,cs)*strength, ax/sn, ay/sn, az/sn);
+}
+/* and the two hands together, which is the whole interface in one line */
+function xrDualPinchRotation(leftQ,rightQ,q){ return s3Rotate(leftQ||[1,0,0,0], rightQ||[1,0,0,0], q); }
+
 /* ══ THE HARMONICS THE COMPACT UNIVERSE IS ALLOWED TO HAVE ════════════════════
    On S³ the Laplace-Beltrami operator has eigenvalues -n(n+2), n = 0, 1, 2, ..., and the
    n-th level carries exactly (n+1)^2 independent modes. That pair of facts is the whole

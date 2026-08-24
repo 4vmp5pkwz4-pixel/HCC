@@ -789,6 +789,37 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── UNMEASURABLE CODE IS ADMITTED ONLY IF THE DOCUMENT SAYS SO ──────────────
+   Everything else in index.html is measured: eight hundred assertions from two arrivals
+   gate a release, three verifiers re-derive the mathematics without reading the atlas.
+   That discipline has one enemy — code that cannot be checked arriving quietly beside
+   code that can, until a reader cannot tell which is which.
+
+   So an UNMEASURED[id] marker must have a registry entry and a registry entry must have a
+   marker, IN BOTH DIRECTIONS. A marker with no entry is an unexplained hole. An entry
+   with no marker is a confession about code that is no longer there, which is worse than
+   silence because it reads as candour while describing nothing.
+
+   And each entry must say four things — what, why, what would measure it, what happens
+   instead — because "unverified" without a route to verifying it is not a disclosure, it
+   is a shrug. */
+{ const ids = [...html.matchAll(/UNMEASURED\[([a-z0-9-]+)\]/g)].map(m => m[1]);
+  const marked = new Set(ids);
+  const reg = [...html.matchAll(/id:\s*'([a-z0-9-]+)',\s*\n\s*what:/g)].map(m => m[1]);
+  const declared = new Set(reg);
+  const orphanMarkers = [...marked].filter(i => !declared.has(i));
+  const orphanEntries = [...declared].filter(i => !marked.has(i));
+  /* every entry carries all four fields */
+  const bodies = [...html.matchAll(/Object\.freeze\(\{id:'([a-z0-9-]+)',([\s\S]{0,1400}?)\}\)/g)];
+  const thin = bodies.filter(b => !(/what:/.test(b[2]) && /why:/.test(b[2])
+    && /would_measure:/.test(b[2]) && /fallback:/.test(b[2]))).map(b => b[1]);
+  check(declared.size > 0 && orphanMarkers.length === 0 && orphanEntries.length === 0 && thin.length === 0,
+    `${declared.size} unmeasurable block(s) declared, every one marked in the code and carrying what/why/would_measure/fallback`
+    + (orphanMarkers.length ? ` · MARKER WITHOUT AN ENTRY: ${orphanMarkers.join(', ')} — an unexplained hole` : '')
+    + (orphanEntries.length ? ` · ENTRY WITHOUT A MARKER: ${orphanEntries.join(', ')} — a confession about code that is not there` : '')
+    + (thin.length ? ` · INCOMPLETE ENTRY: ${thin.join(', ')} — "unverified" with no route to verifying it is a shrug, not a disclosure` : ''));
+}
+
 /* ── A GATE ON ONE MACHINE IS NOT A GATE ────────────────────────────────────
    scripts/ci.mjs runs the atlas's eight hundred assertions. .github/workflows/core.yml
    does NOT run scripts/ci.mjs — it hand-enumerates the same steps, and a duplicated list
@@ -818,6 +849,24 @@ check(html.includes('none of the six physical certificates is derived here')
     "the atlas's own self-tests gate BOTH the local run and the workflow that ships a release"
     + (!inCi ? ' · MISSING from scripts/ci.mjs' : '')
     + (!inWf ? ` · MISSING from ${wfPath} as an executable run: step — the suite would gate one machine and not the other` : ''));
+}
+
+/* ── AND THE UNMEASURED LIST TRAVELS INTO THE CONTRACT ───────────────────────
+   The registry in index.html is for a reader of the source. api/manifest.json is what an
+   agent reads, and an agent that can see every verified claim and none of the unverified
+   ones has been handed a flattering half of the truth. The same fault as the quantity bus
+   living only in the page, and the same fix: publish it, then refuse a build where it is
+   missing or where an entry has lost the route to verifying it. */
+{ const man = JSON.parse(readFileSync('api/manifest.json', 'utf8'));
+  const u = man.unmeasured;
+  const need = ['id', 'what', 'why', 'would_measure', 'fallback'];
+  const thin = Array.isArray(u) ? u.filter(e => need.some(k => !e[k] || String(e[k]).trim().length < 8)) : [];
+  check(Array.isArray(u) && u.length > 0 && thin.length === 0
+    && man.counts?.unmeasured_blocks === u.length,
+    `api/manifest.json publishes ${Array.isArray(u) ? u.length : 0} unmeasurable block(s), each with what/why/would_measure/fallback`
+    + (!Array.isArray(u) ? ' · MISSING: the manifest has no unmeasured list — run scripts/build-manifest.mjs' : '')
+    + (thin.length ? ` · INCOMPLETE: ${thin.map(e => e.id).join(', ')}` : '')
+    + (Array.isArray(u) && man.counts?.unmeasured_blocks !== u.length ? ' · the list and counts.unmeasured_blocks disagree' : ''));
 }
 
 /* ── A REFUSAL WITHOUT A REASON IS NOT A REFUSAL ─────────────────────────────

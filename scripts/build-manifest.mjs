@@ -110,6 +110,10 @@ const head = await page.evaluate(() => ({
      runs into four other laboratories, or that gw.total_mass → adisk.mass was examined
      and refused because one input takes one source. Reachable through the website has to
      mean reachable through the CONTRACT the website publishes. */
+  /* what the atlas has NOT measured, published beside what it has — an agent that can
+     read every verified claim and not the unverified ones has been told a flattering half
+     of the truth */
+  unmeasured: (HCC_API.unmeasured ? HCC_API.unmeasured() : []),
   bus: (() => {
     const B = HCC_API.bus;
     const links = B.links();
@@ -186,9 +190,10 @@ const manifest = {
     parametric: labs.filter(l => l.kind === 'parametric').length,
     visual: labs.filter(l => l.kind === 'visual').length,
     bus_links: head.bus.counts.declared, bus_refused: head.bus.counts.refused,
-    bus_isolated: head.bus.counts.isolated
+    bus_isolated: head.bus.counts.isolated, unmeasured_blocks: head.unmeasured.length
   },
   worlds: head.worlds,
+  unmeasured: head.unmeasured,
   bus: head.bus,
   instruments: head.instruments.map(i => ({
     id: i.id, title: i.title, world: i.world, lab: i.lab, status: i.status,
