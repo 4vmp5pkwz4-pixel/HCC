@@ -789,6 +789,25 @@ check(html.includes('none of the six physical certificates is derived here')
     + (missing.length ? ` · MISSING: ${missing.join(', ')} — run scripts/build-api.mjs after scripts/build-manifest.mjs` : ''));
 }
 
+/* ── A GATE ON ONE MACHINE IS NOT A GATE ────────────────────────────────────
+   scripts/ci.mjs runs the atlas's eight hundred assertions. .github/workflows/core.yml
+   does NOT run scripts/ci.mjs — it hand-enumerates the same steps, and a duplicated list
+   drifts. It had already drifted the moment the self-test gate was written: the suite
+   gated the local run and not the one that decides whether a release ships, which is the
+   same defect as the suite existing and never being executed, one level up.
+
+   So the two are held together here. Neither file may carry the gate alone. */
+{ const ciSrc = readFileSync('scripts/ci.mjs', 'utf8');
+  const wfPath = '.github/workflows/core.yml';
+  const wf = existsSync(wfPath) ? readFileSync(wfPath, 'utf8') : '';
+  const inCi = /scripts\/selftest\.mjs/.test(ciSrc);
+  const inWf = /scripts\/selftest\.mjs/.test(wf);
+  check(inCi && inWf,
+    "the atlas's own self-tests gate BOTH the local run and the workflow that ships a release"
+    + (!inCi ? ' · MISSING from scripts/ci.mjs' : '')
+    + (!inWf ? ` · MISSING from ${wfPath} — the suite would gate one machine and not the other` : ''));
+}
+
 /* ── A REFUSAL WITHOUT A REASON IS NOT A REFUSAL ─────────────────────────────
    The quantity bus lived entirely in the page: twenty-seven declared couplings, two
    refusals written down with their arguments, and a surface saying why a laboratory is
