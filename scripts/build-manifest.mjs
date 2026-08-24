@@ -69,8 +69,23 @@ if (!chromium) {
   server.close(); process.exit(CHECK ? 0 : 1);
 }
 
-const browser = await chromium.launch({
-  executablePath: process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium' });
+/* ── THE BROWSER PATH MUST NOT BE ONE MACHINE'S ────────────────────────────
+   Same fault, same file family, found while fixing it next door in
+   scripts/selftest.mjs: this passed a path that exists in ONE sandbox and nowhere
+   else. It has not bitten anyone only because no workflow runs this script — which
+   is not a defence, it is the reason it stayed. Playwright resolves its own browser
+   first, which is right on any machine that installed it; the explicit path is a
+   fallback taken only when that fails and the path is really there. */
+let browser;
+try { browser = await chromium.launch(); }
+catch (first) {
+  const PW_PATH = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium';
+  if (!existsSync(PW_PATH)) {
+    console.error(`could not launch a browser: ${String(first && first.message || first).split('\n')[0]}`);
+    server.close(); process.exit(CHECK ? 0 : 1);
+  }
+  browser = await chromium.launch({ executablePath: PW_PATH });
+}
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const errors = [];
 page.on('pageerror', e => errors.push(String(e.message)));
