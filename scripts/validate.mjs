@@ -851,6 +851,26 @@ check(html.includes('none of the six physical certificates is derived here')
     + (!inWf ? ` · MISSING from ${wfPath} as an executable run: step — the suite would gate one machine and not the other` : ''));
 }
 
+/* ── CONTRACT PROSE IS NOT INTERFACE TEXT ────────────────────────────────────
+   The unmeasured registry's what/why/would_measure/fallback fields are written for an
+   agent reading api/manifest.json. They are English on purpose, like PREDICTION_TARGETS,
+   and they are not translated. Rendering one of them into a panel therefore puts English
+   in front of a Russian or German reader — MEASURED, the capability note showed "every
+   caller checks hccGpuReady() first and takes the CPU kernel" in all three languages.
+
+   Each entry now also carries `kernel`, a bare function name, which is language-neutral
+   by construction and is the thing a reader can actually look up. The guard is that the
+   panel uses that field and not the prose one. */
+{ const html2 = html;
+  const entries = [...html2.matchAll(/Object\.freeze\(\{id:'([a-z0-9-]+)',[\s\S]{0,1600}?kernel:'([A-Za-z0-9_]+)'\}\)/g)];
+  const declared = (html2.match(/Object\.freeze\(\{id:'[a-z0-9-]+',\s*\n\s*what:/g) || []).length;
+  const rendersProse = /u\.fallback[\s\S]{0,40}?paths/.test(html2);
+  check(entries.length === declared && declared > 0 && !rendersProse,
+    `${entries.length} unmeasurable block(s) carry a language-neutral kernel name for the interface to show`
+    + (entries.length !== declared ? ` · ${declared - entries.length} entr(y/ies) have no kernel field — the panel would fall back to prose that is English in every language` : '')
+    + (rendersProse ? ' · the capability panel still renders the contract prose, which is untranslated by design' : ''));
+}
+
 /* ── AND THE UNMEASURED LIST TRAVELS INTO THE CONTRACT ───────────────────────
    The registry in index.html is for a reader of the source. api/manifest.json is what an
    agent reads, and an agent that can see every verified claim and none of the unverified
