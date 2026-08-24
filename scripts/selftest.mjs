@@ -102,6 +102,11 @@ const ARRIVALS = [
      fix whose applied behaviour no arrival exercises is how the catalogue clamp survived:
      the pure functions were checked, the result was not. */
   { name: 'the light palette', hash: '#/world/s3/lab/ns', theme: 'day' },
+  /* and premium visuals REMEMBERED ON, which is how a returning reader arrives. The tone
+     mapping, the domain palettes and the stage materials are all gated on it, and the
+     suite has only ever arrived with it off — so every clause about them has been
+     vacuous in every run this atlas has ever made. */
+  { name: 'premium visuals, remembered on', hash: '#/world/s3/lab/ns', premium: true },
 ];
 
 let worst = 0, grand = 0;
@@ -115,6 +120,9 @@ for (const arrival of ARRIVALS) {
   if (arrival.theme) await page.addInitScript(t => {
     try { localStorage.setItem('lts-theme', t); } catch (e) { }
   }, arrival.theme);
+  if (arrival.premium) await page.addInitScript(() => {
+    try { localStorage.setItem('s3.premiumVisuals', '1'); } catch (e) { }
+  });
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
   await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded' });
