@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="six-arrivals-and-what-each-one-can-see-2026.08.24.1">
+<html lang="en" data-hcc-build="reachable-observable-and-inert-2026.08.24.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="six-arrivals-and-what-each-one-can-see-2026.08.24.1">
+<meta name="hcc-build" content="reachable-observable-and-inert-2026.08.24.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2096,7 +2096,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.55.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.56.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2293,8 +2293,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.55.0';
-const HCC_BUILD='six-arrivals-and-what-each-one-can-see-2026.08.24.1';
+const HCC_VERSION='4.56.0';
+const HCC_BUILD='reachable-observable-and-inert-2026.08.24.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -59001,10 +59001,64 @@ function hopfFlowXYZ(p,dAlpha,S){   // exact isoclinic Hopf flow through the ste
 }
 function xrGammaOfR(Rgly){ const chi=Math.min(Math.PI,46.13/Math.max(1e-3,Rgly));
   return (chi-Math.sin(chi)*Math.cos(chi))/Math.PI; }
+/* ══ THE DUAL PINCH, READ BUT NOT APPLIED ═════════════════════════════════════
+   UNMEASURED[xr-dual-pinch] — everything below that touches a device.
+
+   The mathematics is measured: q -> Q_L q Q_R* is every rotation of S³, one hand alone
+   turns every point through the same angle to 2.6e-15, and the pinch reducer is checked on
+   synthetic joints. What cannot be measured here is a hand: there is no device, no joint
+   pose, and no session.
+
+   SO IT READS AND PUBLISHES, AND DOES NOT TURN THE WORLD. That is a deliberate line and
+   not caution for its own sake. Applying an untested rotation inside a live XR frame loop
+   can only be discovered by someone wearing a headset, and the discovery would be their
+   view lurching — which in a headset is not a bug report, it is nausea. So the reducer
+   runs the moment a device exists, its output is published on the QA surface where the
+   first person with hardware can watch the numbers before trusting them, and it moves
+   nothing until state.xrDualPinch is switched on deliberately.
+
+   Reachable, observable, and inert by default. That is what an unverifiable path is
+   allowed to be. */
+const XR_HANDS={left:{anchor:null,q:[1,0,0,0],strength:0},right:{anchor:null,q:[1,0,0,0],strength:0},frames:0,seen:false};
+function xrReadHands(frame,refSpace){
+  if(!frame||!refSpace) return XR_HANDS;
+  const sess=renderer.xr.getSession(); if(!sess) return XR_HANDS;
+  let sawAny=false;
+  for(const src of sess.inputSources||[]){
+    const hand=src.hand; if(!hand||!src.handedness) continue;
+    const H=XR_HANDS[src.handedness]; if(!H) continue;
+    const thumb=hand.get&&hand.get('thumb-tip'), index=hand.get&&hand.get('index-finger-tip');
+    if(!thumb||!index) continue;
+    const pt=frame.getJointPose&&frame.getJointPose(thumb,refSpace);
+    const pi=frame.getJointPose&&frame.getJointPose(index,refSpace);
+    if(!pt||!pi) continue;
+    sawAny=true;
+    const T=[pt.transform.position.x,pt.transform.position.y,pt.transform.position.z];
+    const I=[pi.transform.position.x,pi.transform.position.y,pi.transform.position.z];
+    const mid=[(T[0]+I[0])/2,(T[1]+I[1])/2,(T[2]+I[2])/2];
+    const st=xrPinchStrength(T,I);
+    H.strength=st;
+    if(st>0 && !H.anchor) H.anchor=mid.slice();
+    if(st<=0) H.anchor=null;
+    H.q=xrHandQuaternion(H.anchor,mid,st);
+  }
+  if(sawAny){ XR_HANDS.frames++; XR_HANDS.seen=true; }
+  return XR_HANDS;
+}
+/* and what the pair WOULD do to a point of S³, computed every frame and applied only on
+   an explicit opt-in */
+function xrDualPinchApply(q){
+  const r=xrDualPinchRotation(XR_HANDS.left.q, XR_HANDS.right.q, q);
+  return (typeof state!=='undefined' && state.xrDualPinch) ? r : q;
+}
+
 function xrHopfDrive(dt){
   if(!renderer.xr.isPresenting||state.mode!=='s3'){ globalThis.__xrHopfLock=false; return; }
   const rig=camera.parent; if(!rig||rig.name!=='xrRig'){ globalThis.__xrHopfLock=false; return; }
   const sess=renderer.xr.getSession(); if(!sess){ globalThis.__xrHopfLock=false; return; }
+  /* read the hands every frame a session is live. It publishes and does not steer —
+     see the block above for why an untested rotation is not applied inside a headset. */
+  try{ xrReadHands(renderer.xr.getFrame&&renderer.xr.getFrame(), renderer.xr.getReferenceSpace&&renderer.xr.getReferenceSpace()); }catch(e){}
   let stickY=0, squeezeL=null, squeezeR=null, chord=false;
   for(const src of sess.inputSources||[]){
     const gp=src.gamepad; if(!gp) continue;
@@ -61092,6 +61146,18 @@ globalThis.FBS3R_QA=Object.freeze({
     materialsRetuned:SCENE_THEME.touched, pass:SCENE_THEME.day,
     background:scene.background?(scene.background.isColor?('color #'+scene.background.getHexString()):'sky-gradient'):'none'}; },
   selfTests(){return SELF_TESTS.map(t=>({...t}));},
+  /* ── THE DUAL PINCH, WATCHABLE BEFORE IT IS TRUSTED ──────────────────────
+     Reachable the moment a device exists, inert until switched on. The first reader with
+     a headset can watch these numbers move with their hands and decide whether the
+     reducer is right BEFORE letting it turn anything — which is the only honest way to
+     hand over a path that could not be measured where it was written. */
+  hands(){ try{ return {seen:XR_HANDS.seen, frames:XR_HANDS.frames,
+      left:{strength:+XR_HANDS.left.strength.toFixed(4), q:XR_HANDS.left.q.map(v=>+v.toFixed(6)), anchored:!!XR_HANDS.left.anchor},
+      right:{strength:+XR_HANDS.right.strength.toFixed(4), q:XR_HANDS.right.q.map(v=>+v.toFixed(6)), anchored:!!XR_HANDS.right.anchor},
+      applying:!!(typeof state!=='undefined'&&state.xrDualPinch),
+      isoclinicAngleLeft:+(2*Math.acos(Math.min(1,Math.abs(XR_HANDS.left.q[0])))).toFixed(6),
+      isoclinicAngleRight:+(2*Math.acos(Math.min(1,Math.abs(XR_HANDS.right.q[0])))).toFixed(6)};
+    }catch(e){ return {error:String(e&&e.message||e)}; } },
   prediction(view=state.s3view){return predictionContract(view);},
   predictions(){return Object.keys(S3_VIEW_NAMES).map(predictionContract);},
   telemetry(){return {...ATLAS_TELEMETRY};},
@@ -61781,6 +61847,28 @@ try{ hccGpuInit().then(()=>{ try{ buildCtl(); }catch(e){} }).catch(()=>{}); }cat
    check below says out loud rather than passing quietly. */
 try{ const n=document.getElementById('hccDegradedLabs');
      if(n) n.textContent=`all ${Object.keys(S3_VIEW_NAMES).length} laboratories`; }catch(e){}
+selfTestLate(ok=>{
+  /* ── THE UNVERIFIABLE PATH IS REACHABLE, OBSERVABLE AND INERT ────────────
+     Writing a marked block that nothing ever calls is weaker than not writing it: it
+     looks like a feature and is a comment. So the hand reducer runs from the live XR
+     frame the moment a session exists, publishes what it computed on the QA surface, and
+     applies NOTHING until a reader switches it on. Checked here without a device, which
+     is exactly what can be checked without one: that it is wired, that it is watchable,
+     and that it is off. */
+  let wired=false, watchable=false, inert=false, applyIsIdentity=false;
+  try{
+    wired = typeof xrReadHands==='function' && /xrReadHands\(/.test(String(xrHopfDrive));
+    watchable = typeof FBS3R_QA.hands==='function' && !!FBS3R_QA.hands();
+    inert = !(typeof state!=='undefined' && state.xrDualPinch);
+    const q=s3Normalise([0.3,0.5,-0.2,0.78]);
+    const out=xrDualPinchApply(q);
+    applyIsIdentity = inert && out.every((v,i)=>v===q[i]);
+  }catch(e){}
+  ok('the unverifiable XR path is REACHABLE, OBSERVABLE and INERT — which is what an unmeasurable path is allowed to be, and all three are checkable without a device. A marked block that nothing ever calls is weaker than not writing it: it looks like a feature and is a comment. So the hand reducer runs from the live XR frame the moment a session exists, publishes every quaternion it computes on the QA surface where the first reader with a headset can watch the numbers move before trusting them, and turns NOTHING until it is switched on deliberately. Applying an untested rotation inside a headset is not a bug report, it is nausea, and that is the whole reason for the line',
+    wired && watchable && inert && applyIsIdentity,
+    `wired into the frame loop: ${wired} · watchable through FBS3R_QA.hands(): ${watchable} · inert by default: ${inert} · and with it off the rotation is the identity to the last bit: ${applyIsIdentity}`);
+});
+
 selfTestLate(ok=>{
   /* ── AND IN THE LIGHT PALETTE, NOTHING IS BELOW THRESHOLD ────────────────
      The contrast correction shipped two releases ago with its PURE FUNCTIONS checked and
