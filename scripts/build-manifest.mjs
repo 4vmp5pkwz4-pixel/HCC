@@ -197,7 +197,8 @@ const manifest = {
   bus: head.bus,
   instruments: head.instruments.map(i => ({
     id: i.id, title: i.title, world: i.world, lab: i.lab, status: i.status,
-    inputs: (i.describe && i.describe.inputs) || [], outputs: i.outputs || [],
+    inputs: (i.describe && i.describe.inputs) || [],
+    outputs: (i.describe && i.describe.outputs) || i.outputs || [],
     units: (i.describe && i.describe.units) || null,
     verifiers: (i.describe && i.describe.verifiers) || []
   })),
