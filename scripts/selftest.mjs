@@ -107,13 +107,27 @@ const ARRIVALS = [
      suite has only ever arrived with it off — so every clause about them has been
      vacuous in every run this atlas has ever made. */
   { name: 'premium visuals, remembered on', hash: '#/world/s3/lab/ns', premium: true },
+  /* AND A PHONE TURNED SIDEWAYS, which nothing here had ever done. Every landscape rule
+     in the stylesheet is gated on `(pointer:coarse) and (orientation:landscape)`, and the
+     arrival above is a 390x844 window with a MOUSE — so `pointer:coarse` never matched
+     and not one of those rules has ever been exercised by anything. Three of them lost
+     the cascade to a later block with one point more specificity, each time silently,
+     and the reader found it before the suite did: the catalogue held the left edge, the
+     controls held the right, and the scene was a 170-pixel strip between them.
+
+     hasTouch is what makes this arrival real. Without it the viewport is landscape and
+     the pointer is fine, which is a desktop window in a strange shape and exercises
+     nothing. */
+  { name: 'a phone turned sideways, 852x393', hash: '#/world/s3/lab/ns',
+    viewport: { width: 852, height: 393 }, touch: true },
 ];
 
 let worst = 0, grand = 0;
 const seen = new Map();          /* name → whether it EVER passed, so an arrival that skips
                                     a clause does not hide an arrival that fails it */
 for (const arrival of ARRIVALS) {
-  const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 } });
+  const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 },
+    ...(arrival.touch ? { hasTouch: true, isMobile: true } : {}) });
   if (arrival.reducedMotion) await page.emulateMedia({ reducedMotion: arrival.reducedMotion });
   /* the theme is remembered in localStorage, so it is set the way a returning reader
      would already have it rather than by clicking a cycling button and hoping */
