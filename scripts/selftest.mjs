@@ -97,7 +97,14 @@ const ARRIVALS = [
   /* and a phone, for the same reason again: a clause gated on a VIEWPORT is only a check
      at that viewport. The occlusion promise — that panels never fully cover the scene —
      is meaningless at 1280x800, where nothing is close to covering anything. */
-  { name: 'a phone, 390x844', hash: '#/world/s3/lab/ns', viewport: { width: 390, height: 844 } },
+  /* AND WITH TOUCH, because a phone has one. Without hasTouch this arrival is a narrow
+     desktop WINDOW: `(pointer:coarse)` does not match, so two blocks in the stylesheet
+     that are gated on it ALONE have never been exercised by anything, and the JS gate
+     `innerWidth<=900 || pointer:coarse` has only ever been reached down its left branch.
+     The landscape arrival below found what that costs; this closes the same hole in
+     portrait, where the reader actually spends their time. */
+  { name: 'a phone, 390x844', hash: '#/world/s3/lab/ns',
+    viewport: { width: 390, height: 844 }, touch: true },
   /* and the LIGHT palette, because the contrast correction only runs there. Shipping a
      fix whose applied behaviour no arrival exercises is how the catalogue clamp survived:
      the pure functions were checked, the result was not. */
@@ -107,13 +114,40 @@ const ARRIVALS = [
      suite has only ever arrived with it off — so every clause about them has been
      vacuous in every run this atlas has ever made. */
   { name: 'premium visuals, remembered on', hash: '#/world/s3/lab/ns', premium: true },
+  /* AND A PHONE TURNED SIDEWAYS, which nothing here had ever done. Every landscape rule
+     in the stylesheet is gated on `(pointer:coarse) and (orientation:landscape)`, and the
+     arrival above is a 390x844 window with a MOUSE — so `pointer:coarse` never matched
+     and not one of those rules has ever been exercised by anything. Three of them lost
+     the cascade to a later block with one point more specificity, each time silently,
+     and the reader found it before the suite did: the catalogue held the left edge, the
+     controls held the right, and the scene was a 170-pixel strip between them.
+
+     hasTouch is what makes this arrival real. Without it the viewport is landscape and
+     the pointer is fine, which is a desktop window in a strange shape and exercises
+     nothing. */
+  { name: 'a phone turned sideways, 852x393', hash: '#/world/s3/lab/ns',
+    viewport: { width: 852, height: 393 }, touch: true },
 ];
 
 let worst = 0, grand = 0;
 const seen = new Map();          /* name → whether it EVER passed, so an arrival that skips
                                     a clause does not hide an arrival that fails it */
+/* ── AND WHETHER IT EVER RAN AT ALL ─────────────────────────────────────────
+   A clause gated on a viewport reports "not applicable" everywhere the gate is shut,
+   and a clause that says that in EVERY arrival has never run once — it is a green line
+   in the report that measures nothing, and it is indistinguishable from a passing one.
+   That is exactly what the landscape clause was before this arrival existed: the phone
+   arrival was a narrow desktop WINDOW with a mouse, `(pointer:coarse)` never matched,
+   and the clause answered "not a landscape phone" in all six arrivals while counting
+   as six passes.
+
+   So the atlas prefixes such a detail with NOT APPLICABLE HERE, and this fails the run
+   if any clause carries that prefix in every arrival. It is a convention, not a list:
+   any future gated clause gets the same protection by using the same words. */
+const applied = new Map();       /* name → whether it EVER applied */
 for (const arrival of ARRIVALS) {
-  const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 } });
+  const page = await browser.newPage({ viewport: arrival.viewport || { width: 1280, height: 800 },
+    ...(arrival.touch ? { hasTouch: true, isMobile: true } : {}) });
   if (arrival.reducedMotion) await page.emulateMedia({ reducedMotion: arrival.reducedMotion });
   /* the theme is remembered in localStorage, so it is set the way a returning reader
      would already have it rather than by clicking a cycling button and hoping */
@@ -131,7 +165,11 @@ for (const arrival of ARRIVALS) {
   await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
   const res = await page.evaluate(() => {
     const T = (globalThis.FBS3R_QA && globalThis.FBS3R_QA.selfTests()) || [];
-    return { total: T.length, failed: T.filter(t => !t.pass).map(t => ({ name: t.name, detail: String(t.detail) })) };
+    return { total: T.length,
+      failed: T.filter(t => !t.pass).map(t => ({ name: t.name, detail: String(t.detail) })),
+      /* every clause and whether it ran here, so a clause that never runs anywhere
+         cannot pass by being permanently out of scope */
+      gated: T.map(t => ({ name: t.name, na: /NOT APPLICABLE HERE/.test(String(t.detail)) })) };
   });
   await page.close();
 
@@ -142,6 +180,7 @@ for (const arrival of ARRIVALS) {
   }
   grand = Math.max(grand, res.total);
   for (const f of res.failed) seen.set(f.name, f);
+  for (const g of res.gated) applied.set(g.name, (applied.get(g.name) || false) || !g.na);
   console.log(`· ${arrival.name} … ${res.total - res.failed.length}/${res.total} passed`
     + (res.failed.length ? ` · ${res.failed.length} FAILED` : '')
     + (errs.length ? ` · ${errs.length} page error(s)` : ''));
@@ -150,6 +189,15 @@ for (const arrival of ARRIVALS) {
 
 await browser.close();
 server.close();
+
+/* a clause that answered NOT APPLICABLE HERE in every single arrival has never run */
+const neverRan = [...applied.entries()].filter(([, ran]) => !ran).map(([name]) => name);
+if (neverRan.length) {
+  console.error(`\n${neverRan.length} clause(s) reported NOT APPLICABLE HERE in all ${ARRIVALS.length} arrivals — never once run, which is not a pass:`);
+  for (const n of neverRan) console.error(`  · ${LIST ? n : n.slice(0, 150)}`);
+  console.error('');
+  worst = 1;
+}
 
 if (seen.size) {
   console.error(`\n${seen.size} assertion(s) failed across ${ARRIVALS.length} arrivals:`);
