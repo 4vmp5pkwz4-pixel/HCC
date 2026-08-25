@@ -49,7 +49,7 @@ const c = 299792458, yr = 31557600, ly = c * yr, AU = 149597870700;
 const pc = (648000 / Math.PI) * AU, e = 1.602176634e-19;
 const EXPECT = {
   m: 1, km: 1e3, cm: 1e-2, mm: 1e-3, nm: 1e-9, fm: 1e-15,
-  AU, pc, kpc: 1000 * pc, Gly: 1e9 * ly, R_earth: 6.371e6,
+  AU, pc, kpc: 1000 * pc, Mpc: 1e6 * pc, Gly: 1e9 * ly, R_earth: 6.371e6,
   s: 1, ms: 1e-3, ns: 1e-9, d: 86400, yr,
   Hz: 1, kHz: 1e3, MHz: 1e6, GHz: 1e9, 'rad/s': 1 / (2 * Math.PI), 'Hz/s': 1,
   J: 1, erg: 1e-7, eV: e, ueV: e * 1e-6, meV: e * 1e-3, keV: e * 1e3, MeV: e * 1e6, GeV: e * 1e9,
@@ -82,9 +82,11 @@ const EXPECT = {
   ok('a light-year is c times the Julian year and a Gly is a billion of them, which is where 9.4607304725808e24 m comes from rather than from a table',
     Math.abs(TABLE.Gly.f / (1e9 * c * yr) - 1) < 1e-15,
     `c·yr = ${ly.toExponential(12)} m · Gly = ${TABLE.Gly.f.toExponential(12)} m`);
-  ok('a parsec is 648000/pi astronomical units, and the kiloparsec is a thousand of those',
-    Math.abs(TABLE.pc.f / pc - 1) < 1e-15 && Math.abs(TABLE.kpc.f / (1000 * pc) - 1) < 1e-15,
-    `pc = ${pc.toExponential(12)} m from AU = ${AU} m exactly`);
+  ok('a parsec is 648000/pi astronomical units, and the kilo- and megaparsec are a thousand and a million of those — the megaparsec matters here because it was one of the six conversions the bus used to carry by hand, and it is now a consequence of this line',
+    Math.abs(TABLE.pc.f / pc - 1) < 1e-15 && Math.abs(TABLE.kpc.f / (1000 * pc) - 1) < 1e-15
+    && Math.abs(TABLE.Mpc.f / (1e6 * pc) - 1) < 1e-15
+    && Math.abs(TABLE.Mpc.f / TABLE.kpc.f - 1000) < 1e-9,
+    `pc = ${pc.toExponential(12)} m from AU = ${AU} m exactly · Mpc/kpc = ${(TABLE.Mpc.f / TABLE.kpc.f).toPrecision(12)}`);
   ok('the electronvolt ladder is the elementary charge times powers of ten, with no rounding introduced between the rungs',
     ['ueV', 'meV', 'eV', 'keV', 'MeV', 'GeV'].every(u => Math.abs(TABLE[u].f / EXPECT[u] - 1) < 1e-15)
     && Math.abs(TABLE.GeV.f / TABLE.MeV.f - 1e3) < 1e-9
