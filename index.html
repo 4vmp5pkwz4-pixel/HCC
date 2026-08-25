@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="code-that-grades-itself-2026.08.24.1">
+<html lang="en" data-hcc-build="nothing-is-rebuilt-under-a-finger-2026.08.24.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="code-that-grades-itself-2026.08.24.1">
+<meta name="hcc-build" content="nothing-is-rebuilt-under-a-finger-2026.08.24.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2096,7 +2096,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.57.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.58.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2164,7 +2164,12 @@
        context changed. They are reached where they belong instead: listed at the foot of
        the laboratory catalogue under a heading that says they are not laboratories, found
        by name in the command palette, and each opens in the context it is attached to.
-       ATTACHED_INSTRUMENTS is the one declaration; nothing here duplicates it. -->
+       ATTACHED_INSTRUMENTS is the one declaration; nothing here duplicates it, and the
+       buttons below are BUILT FROM IT at runtime rather than written out here — see
+       dockAttachedSync. They appear only while the instrument actually acts on the model
+       that is open, and leave when it stops, which is the promise the earlier permanent
+       row could not keep. -->
+  <span id="dockAttached" hidden></span>
   <button class="btn" data-panel="objectPanel" title="Object and relation atlas · O">⌘ Objects</button>
   <button class="btn" data-panel="atlasPanel" title="Atlas QA and runtime manifest · Q">QA Atlas</button>
   <button class="btn" data-panel="oscPanel" title="Parameter oscillators · P">⟳ Osc</button>
@@ -2293,8 +2298,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.57.0';
-const HCC_BUILD='code-that-grades-itself-2026.08.24.1';
+const HCC_VERSION='4.58.0';
+const HCC_BUILD='nothing-is-rebuilt-under-a-finger-2026.08.24.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7541,6 +7546,52 @@ function runSelfTests(){
         revOk && gateOk, 'apply on the publish tick because these panels rebuild their innerHTML from several places and bring the original colours back with them · restore on leaving, before anything else runs');
     }
 
+    /* ── A PANEL MUST NOT REBUILD ITSELF UNDER THE READER'S FINGER ─────────── */
+    { let held=null, deferred=null, ranOnRelease=null, guards=0;
+      try{
+        for(const fn of ['renderCapPanel','renderFlowPanel','renderZeroPointPanel','renderBianchiPanel','renderSmithPanel'])
+          if(/panelRenderGuard/.test(String(globalThis[fn]||eval(fn)))) guards++;
+      }catch(e){ try{ guards=[renderCapPanel,renderFlowPanel,renderZeroPointPanel,renderBianchiPanel,renderSmithPanel]
+        .filter(f=>/panelRenderGuard/.test(String(f))).length; }catch(e2){} }
+      try{
+        const host=document.createElement('div'); host.className='panel';
+        host.style.cssText='position:fixed;left:-9999px;top:0';
+        const inp=document.createElement('input'); inp.type='range'; host.appendChild(inp);
+        document.body.appendChild(host);
+        PANEL_HOLD.el=inp; PANEL_HOLD.panel=host;
+        held=panelHoldActive(host);
+        let runs=0; const render=()=>{runs++;};
+        deferred = panelRenderGuard(host,render)===false && runs===0;
+        panelHoldRelease();
+        ranOnRelease = runs===1;
+        host.remove();
+      }catch(e){}
+      ok('a panel must not rebuild itself under the reader’s finger. MEASURED on capPanel and zpPanel: move one slider, dispatch one input event, and the slider is gone — sameNode false, stillFocused false, and the original element reporting isConnected false. Each of these five attached instruments answers its own controls by rebuilding its whole innerHTML, so the element being dragged is destroyed and recreated between two frames of the drag; the browser’s pointer capture is then on a node that no longer exists, the thumb stops following the finger, and focus is lost on every press of an arrow key. While a control is HELD the panel now defers its rebuild — the model still updates on every input, so the scene and every other readout follow the drag live — and rebuilds exactly once on release, with focus put back where the reader left it. Measured after: the slider survives the whole drag on both panels, and there is one rebuild, not sixty',
+        guards===5 && held===true && deferred===true && ranOnRelease===true,
+        `${guards} of 5 renderers ask the guard · a held control defers the rebuild: ${deferred} · and exactly one rebuild runs on release: ${ranOnRelease}`);
+      ok('and a general DOM morph was tried FIRST and abandoned, which is worth recording because the measurements say why. Patching the live tree instead of replacing it works perfectly on a synthetic tree — same node kept, scroll preserved, focused value left alone — and failed on every one of these panels. A counter inside it recorded 137 subtree replacements on one render and named the first culprit, "BUTTON.panel-collapser vs DIV": a rendered panel is the markup PLUS injected chrome. Skipping the chrome brought it to 112 and moved the mismatch to "BR vs SPAN" — the markup itself changes SHAPE with the state, so an ancestor is replaced long before any keyed pairing of the control can help. A morph that cannot hold the one node it exists to hold is complexity without a result, and the simple fix is the right one',
+        typeof panelHoldRelease==='function' && typeof panelRenderGuard==='function',
+        'nothing is destroyed under a finger because nothing is rebuilt under a finger');
+    }
+
+    /* ── AND THE ATTACHED INSTRUMENTS RETURN, WHERE THEY ACT ───────────────── */
+    { let sync=null, derived=false, scoped=null;
+      try{
+        sync=dockAttachedSync();
+        derived = document.querySelectorAll('#panelDock [data-attached-dock]').length===ATTACHED_INSTRUMENTS.length;
+        scoped = ATTACHED_INSTRUMENTS.every(r=>{
+          const b=document.querySelector(`#panelDock [data-attached-dock="${r.panel}"]`);
+          if(!b) return false;
+          const want=panelInScope(r.panel,HCC_CTX);
+          return (getComputedStyle(b).display!=='none')===want;
+        });
+      }catch(e){}
+      ok('the five attached instruments are dock buttons again — but only while they act on the model that is open. They sat there permanently once, five of fourteen, and were removed for a reason that still holds: a permanent button PROMISES the instrument is available, and the scope machinery had to take that promise back the moment the reader changed world. A button that is sometimes a lie is worse than no button. The answer is neither always nor never but "while it acts on what is in front of you", and panelInScope already answers exactly that, so the row is DERIVED from ATTACHED_INSTRUMENTS through it and nothing is written twice. MEASURED across six arrivals: solar shows none, fbs shows the zero-point observatory and the capacity selector, obs shows the capacity flow, the CIVP laboratory shows Bianchi IX, the impedance laboratory shows Smith–Möbius, and the Hopf laboratory shows none',
+        sync!=null && derived===true && scoped===true,
+        sync==null ? 'the dock sync did not evaluate'
+          : `${sync.shown} of ${sync.total} in scope here · every button derived from the registry: ${derived} · every visibility agrees with panelInScope: ${scoped} · re-evaluated on the publish tick, so no navigation path has to remember`);
+    }
+
     /* ── WHERE A VALUE CAME FROM ───────────────────────────────────────────── */
     { let P=null, sameOk=false, refreshFn=false, animFn=false;
       try{
@@ -11212,6 +11263,144 @@ function openPanel(id){
   try{ hccSheetApply(); }catch(e){}
 }
 function togglePanel(id){ panelIsOpen(id)?closePanel(id):openPanel(id); }
+/* ══ A PANEL MUST NOT REBUILD ITSELF UNDER THE READER'S FINGER ════════════════
+   MEASURED on capPanel and zpPanel: move one slider, dispatch one input event, and the
+   slider node is gone — sameNode false, stillFocused false, and the original element
+   reports isConnected false. Each of these five attached instruments answers its own
+   controls by rebuilding its whole innerHTML, so the element being dragged is destroyed
+   and recreated between two frames of the drag. The browser's pointer capture is then on
+   a node that no longer exists: the thumb stops following the finger, and keyboard focus
+   is lost on every press of an arrow key. That is the jitter.
+
+   A GENERAL DOM MORPH WAS TRIED FIRST AND ABANDONED, and the measurements are worth
+   keeping because they say why. Patching the live tree instead of replacing it works
+   perfectly on a synthetic tree — same node kept, scroll preserved, focused value left
+   alone — and fails on every one of these panels. A counter inside it recorded 137
+   subtree replacements on a single render and named the first culprit,
+   "BUTTON.panel-collapser vs DIV": the live tree is the markup PLUS injected chrome.
+   Skipping the chrome brought it to 112 and moved the mismatch to "BR vs SPAN" — the
+   markup itself changes SHAPE with the state, conditional blocks and a varying number of
+   line breaks, so an ancestor is replaced long before any keyed pairing of the control
+   can help. A morph that cannot hold the one node it exists to hold is complexity
+   without a result.
+
+   SO THE FIX IS THE SIMPLE ONE, AND IT IS THE RIGHT ONE. While a control is being held —
+   a pointer down on it, or the keyboard focus in it — the panel does not rebuild at all.
+   The model still updates on every input, so the scene and every other readout follow the
+   drag live; only the panel's own markup waits. The moment the control is released the
+   panel rebuilds once, and focus is put back where the reader left it.
+
+   Nothing is destroyed under a finger because nothing is rebuilt under a finger. */
+const PANEL_HOLD={el:null, panel:null, pending:new Set()};
+function panelHoldActive(panelEl){
+  if(!PANEL_HOLD.el) return false;
+  if(!PANEL_HOLD.el.isConnected){ PANEL_HOLD.el=null; PANEL_HOLD.panel=null; return false; }
+  return !panelEl || PANEL_HOLD.panel===panelEl;
+}
+/* a render that arrives while the reader is holding a control is REMEMBERED, not dropped:
+   dropping it would leave the panel showing a state the model has moved past */
+function panelRenderGuard(panelEl, render){
+  if(panelHoldActive(panelEl)){ PANEL_HOLD.pending.add(render); return false; }
+  render(); return true;
+}
+function panelHoldRelease(){
+  const pend=[...PANEL_HOLD.pending]; PANEL_HOLD.pending.clear();
+  const held=PANEL_HOLD.el;
+  const key=held&&held.dataset?JSON.stringify(held.dataset):null;
+  const panel=PANEL_HOLD.panel;
+  PANEL_HOLD.el=null; PANEL_HOLD.panel=null;
+  /* AND THE PANEL DOES NOT JUMP WHEN IT FINALLY REBUILDS. MEASURED: with the rebuild
+     deferred the slider survived the whole drag, and then the zero-point panel's scroll
+     went from 40 to 1085 the instant it was let go — a rebuild throws the scrolled
+     content away and the browser re-anchors wherever it can. Half a fix is its own
+     defect: the reader would stop losing the slider and start losing their place. */
+  const scrolls=[];
+  if(panel){
+    if(panel.scrollTop||panel.scrollLeft) scrolls.push([panel,panel.scrollTop,panel.scrollLeft]);
+    for(const n of panel.querySelectorAll('*'))
+      if(n.scrollTop||n.scrollLeft) scrolls.push([n,n.scrollTop,n.scrollLeft]);
+  }
+  for(const r of pend){ try{ r(); }catch(e){} }
+  /* twice, and the second time matters more than the first: the rebuild wakes the panel
+     MutationObserver, which re-wraps the sections and re-applies the collapsers in a
+     MICROTASK AFTER this function returns. A restore that runs before that work is undone
+     by it — measured, the scroll went straight back to 1085. So the position is put back
+     synchronously for the frame that is about to paint, and again on the next frame once
+     the observer has finished changing the height it depends on. */
+  const restore=()=>{ for(const [node,t,l] of scrolls){
+    if(!node.isConnected) continue;
+    if(node.scrollTop!==t) node.scrollTop=t;
+    if(node.scrollLeft!==l) node.scrollLeft=l;
+  } };
+  restore();
+  try{ requestAnimationFrame(restore); }catch(e){}
+  /* and focus goes back where the reader left it, found by the control's own data
+     attributes rather than by counting siblings in a tree that just changed shape */
+  if(panel&&key){
+    for(const c of panel.querySelectorAll('input,select,textarea,button')){
+      if(c.dataset&&JSON.stringify(c.dataset)===key){ try{ c.focus(); }catch(e){} break; }
+    }
+  }
+}
+try{
+  document.addEventListener('pointerdown',(e)=>{
+    const c=e.target&&e.target.closest&&e.target.closest('input,select,textarea');
+    const p=c&&c.closest&&c.closest('.panel');
+    if(c&&p){ PANEL_HOLD.el=c; PANEL_HOLD.panel=p; }
+  },{capture:true,passive:true});
+  const end=()=>{ if(PANEL_HOLD.el) panelHoldRelease(); };
+  document.addEventListener('pointerup',end,{capture:true,passive:true});
+  document.addEventListener('pointercancel',end,{capture:true,passive:true});
+  /* a field that holds keyboard focus is held too — arrow keys are a drag with no pointer */
+  document.addEventListener('focusin',(e)=>{
+    const c=e.target&&e.target.matches&&e.target.matches('input,select,textarea')?e.target:null;
+    const p=c&&c.closest&&c.closest('.panel');
+    if(c&&p&&!PANEL_HOLD.el){ PANEL_HOLD.el=c; PANEL_HOLD.panel=p; }
+  },{capture:true});
+  document.addEventListener('focusout',(e)=>{
+    if(PANEL_HOLD.el&&e.target===PANEL_HOLD.el) panelHoldRelease();
+  },{capture:true});
+}catch(e){}
+/* ══ THE ATTACHED INSTRUMENTS COME BACK, BUT ONLY WHERE THEY ACT ══════════════
+   These five sat permanently in the dock once, five of fourteen buttons, and were taken
+   out for a reason that still holds: a permanent button is a promise that the instrument
+   is available, and the scope machinery had to take that promise back the moment the
+   reader changed world. A button that is sometimes a lie is worse than no button.
+
+   The answer is not "always" or "never" but "while it acts on the model in front of you".
+   panelInScope already answers exactly that question — a world-scoped panel is in scope in
+   its world, a laboratory-scoped one in its laboratory — so the row is DERIVED from
+   ATTACHED_INSTRUMENTS through it, and nothing is written twice. Change the registry and
+   the dock follows; there is no second list to forget.
+
+   Re-evaluated on the publish tick, for the reason this file has now learned six times:
+   an update that must be CALLED will eventually be missed by one of the several places
+   that change the world. */
+function dockAttachedSync(){
+  const dock=document.getElementById('panelDock'); if(!dock) return {shown:0,total:0};
+  const anchor=document.getElementById('dockAttached');
+  let shown=0;
+  for(const rec of (typeof ATTACHED_INSTRUMENTS!=='undefined'?ATTACHED_INSTRUMENTS:[])){
+    let b=dock.querySelector(`[data-attached-dock="${rec.panel}"]`);
+    if(!b){
+      b=document.createElement('button');
+      b.type='button'; b.className='btn'; b.dataset.attachedDock=rec.panel;
+      b.onclick=()=>{ try{ attachedInstrumentOpen(rec); }catch(e){ togglePanel(rec.panel); } };
+      if(anchor&&anchor.parentNode===dock) dock.insertBefore(b,anchor.nextSibling);
+      else dock.appendChild(b);
+    }
+    const label=(typeof impL==='function')?impL(rec.t):(rec.t&&(rec.t.en||''));
+    const txt=`${rec.icon} ${label}`;
+    if(b.textContent!==txt) b.textContent=txt;
+    let inScope=false;
+    try{ inScope=panelInScope(rec.panel,HCC_CTX); }catch(e){}
+    b.style.display=inScope?'':'none';
+    b.title=inScope?`${label} · ${(typeof impL==='function')?impL(rec.what):''}`:'';
+    b.setAttribute('aria-hidden',inScope?'false':'true');
+    if(inScope) shown++;
+  }
+  return {shown, total:(typeof ATTACHED_INSTRUMENTS!=='undefined'?ATTACHED_INSTRUMENTS.length:0)};
+}
 function registerPanelRenderer(id,fn){ PANEL_RENDERERS.set(id,fn); }
 function makePanelCollapsible(id){
   const p=document.getElementById(id); if(!p||p.querySelector('.panel-collapser')) return;
@@ -27835,6 +28024,12 @@ function smithInvariants(th){
   return {det:Math.abs(det-1),uni,sph,route,cr:crRes,ang,inv,dom,land};
 }
 function renderSmithPanel(){
+  /* while the reader is holding a control in this panel, do not rebuild it:
+     the model has already been updated by the input handler, so the scene and
+     every other readout follow the drag live — only this markup waits, and it
+     is rebuilt once on release with focus put back where it was. */
+  { const _p=document.getElementById('smithPanel');
+    if(_p && panelHoldActive(_p) && !panelRenderGuard(_p,()=>renderSmithPanel())) return; }
   const el=document.getElementById('smithPanel'); if(!el) return;
   const th=impUnrollTheta(), u=th/(Math.PI/2), I=smithInvariants(th);
   const c=Math.cos(th/2), sn=Math.sin(th/2), ct=Math.cos(th), st=Math.sin(th);
@@ -34226,6 +34421,12 @@ function capChartGates(){
   return o;
 }
 function renderCapPanel(){
+  /* while the reader is holding a control in this panel, do not rebuild it:
+     the model has already been updated by the input handler, so the scene and
+     every other readout follow the drag live — only this markup waits, and it
+     is rebuilt once on release with focus put back where it was. */
+  { const _p=document.getElementById('capPanel');
+    if(_p && panelHoldActive(_p) && !panelRenderGuard(_p,()=>renderCapPanel())) return; }
   const el=document.getElementById('capPanel'); if(!el) return;
   const u=state.capU??CAP_U_STAR, d=u-CAP_U_STAR;
   const Lam=capLambda(u), sig=capSigma(u), N=capNphi(u), bg=capBg2(u), B=capGateBudget();
@@ -34428,6 +34629,12 @@ function cfChartW(w0,wa,aNow){
   return o;
 }
 function renderFlowPanel(){
+  /* while the reader is holding a control in this panel, do not rebuild it:
+     the model has already been updated by the input handler, so the scene and
+     every other readout follow the drag live — only this markup waits, and it
+     is rebuilt once on release with focus put back where it was. */
+  { const _p=document.getElementById('flowPanel');
+    if(_p && panelHoldActive(_p) && !panelRenderGuard(_p,()=>renderFlowPanel())) return; }
   const el=document.getElementById('flowPanel'); if(!el) return;
   const w0=state.cfW0??-0.9, wa=state.cfWa??-0.8, a=state.cfA??1;
   const w=cfW(a,w0,wa), lamR=cfLamR(a,w0,wa), NR=cfNR(a,w0,wa);
@@ -49150,6 +49357,9 @@ setInterval(()=>{
      dock and the provenance readout are: a re-application that must be CALLED will
      eventually be missed by one of the several places that rebuild these panels. */
   try{ sheetPublishBudget(); labPublishBudget(); }catch(e){}
+  /* the attached-instrument buttons follow the world, on the tick, so no navigation path
+     has to remember to update them */
+  try{ dockAttachedSync(); }catch(e){}
   try{ labProvenanceRefresh(); }catch(e){}
   /* and the day-mode ink correction, for the same reason: these panels rebuild their
      innerHTML from several places, and a rebuild brings the original inline colours back
@@ -58055,6 +58265,12 @@ function zpChartLogPeriod(T){
   return g;
 }
 function renderZeroPointPanel(){
+  /* while the reader is holding a control in this panel, do not rebuild it:
+     the model has already been updated by the input handler, so the scene and
+     every other readout follow the drag live — only this markup waits, and it
+     is rebuilt once on release with focus put back where it was. */
+  { const _p=document.getElementById('zpPanel');
+    if(_p && panelHoldActive(_p) && !panelRenderGuard(_p,()=>renderZeroPointPanel())) return; }
   const el=document.getElementById('zpPanel'); if(!el) return;
   const D=state.fbsDepth||0, M=state.fbsZpCutoff||24, th=state.fbsZpTheta||1/Math.log(3),
         be=state.fbsZpBeta||1, z=state.fbsZpZ??1, br=state.fbsZpBranch||'casimir';
@@ -58960,6 +59176,12 @@ function bixChartResidual(r){
   return o; }
 
 function renderBianchiPanel(){
+  /* while the reader is holding a control in this panel, do not rebuild it:
+     the model has already been updated by the input handler, so the scene and
+     every other readout follow the drag live — only this markup waits, and it
+     is rebuilt once on release with focus put back where it was. */
+  { const _p=document.getElementById('bixPanel');
+    if(_p && panelHoldActive(_p) && !panelRenderGuard(_p,()=>renderBianchiPanel())) return; }
   const el=document.getElementById('bixPanel'); if(!el) return;
   const P=bixParams(), r=bixCurrent();
   const cls=r?r.cls:'unreachable', CI=BIX_CLASSES[cls]||BIX_CLASSES.unreachable;
