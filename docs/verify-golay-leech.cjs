@@ -231,5 +231,130 @@ const leechIn = x => {
     out === 0 && checked === 196560, `${checked} vectors reduced, ${out} left a remainder`);
 }
 
+/* ── THE SYMMETRY THIS CONSTRUCTION GIVES, AGAINST THE ONE THE OBJECT HAS ──
+   Conway's Co0 is the automorphism group of the Leech lattice and it is TRANSITIVE
+   on the 196560 minimal vectors. That is a theorem and it is CITED, not measured:
+   nothing here computes the order of Co0. What is measured is the other side — how
+   many orbits the group THIS construction gives actually has.
+
+   And this file's construction is the icosahedron's, not the atlas's circulant, so
+   its automorphisms are the ICOSAHEDRON'S OWN. They are found by backtracking on the
+   adjacency graph — no rotation matrices, no quoted generators — and then every one
+   of them is applied to both halves and tested against all 4096 code words. All 120
+   survive: the full symmetry group of the icosahedron sits inside M24, and this file
+   watches it get there rather than being told.
+
+   The atlas derives 55 from its circulant and this derives 120 from its icosahedron.
+   Two constructions, two subgroups, two orbit counts, and neither is Co0. */
+{
+  /* the icosahedron graph, from the geometry already built above */
+  const adjacency = [];
+  for (let i = 0; i < 12; i++) { adjacency.push([]);
+    for (let j = 0; j < 12; j++) if (i !== j && adjacent(i, j)) adjacency[i].push(j); }
+  const autos = [];
+  {
+    const perm = new Array(12).fill(-1), used = new Array(12).fill(false);
+    const bt = k => {
+      if (k === 12) { autos.push(perm.slice()); return; }
+      for (let c = 0; c < 12; c++) {
+        if (used[c]) continue;
+        let fits = true;
+        for (let j = 0; j < k; j++)
+          if (adjacency[k].includes(j) !== adjacency[c].includes(perm[j])) { fits = false; break; }
+        if (!fits) continue;
+        perm[k] = c; used[c] = true; bt(k + 1); used[c] = false; perm[k] = -1;
+      }
+    };
+    bt(0);
+  }
+  ok('the icosahedron graph has 120 automorphisms and they are found by backtracking on the adjacency, not by quoting a generating set — twelve vertices, five neighbours each, and the count that falls out is the order of A5 x Z2',
+    autos.length === 120, `${autos.length} automorphisms of the 12-vertex graph`);
+  const preserves = q => {
+    for (const w of WORDS) { let o = 0;
+      for (let k = 0; k < 24; k++) if (w >> k & 1) o |= 1 << q[k];
+      if (!MEMBER.has(o)) return false; }
+    return true;
+  };
+  const lifted = autos.map(p => { const q = new Array(24);
+    for (let k = 0; k < 12; k++) { q[k] = p[k]; q[12 + k] = 12 + p[k]; } return q; });
+  const kept = lifted.filter(preserves);
+  ok('and EVERY ONE of them preserves the Golay code when applied to both halves, which is the icosahedron’s whole symmetry group landing inside M24 — tested word by word over all 4096 rather than assumed from the construction',
+    kept.length === 120, `${kept.length} of ${lifted.length} lift to code automorphisms`);
+  /* a small generating set, so the orbit walk does not carry 120 generators */
+  const key = p => p.join(',');
+  const gens = [];
+  {
+    const seen = new Set([key([...Array(24).keys()])]);
+    for (const g of kept) {
+      if (seen.has(key(g))) continue;
+      gens.push(g);
+      const st = [...seen].map(s => s.split(',').map(Number));
+      const grow = [];
+      for (const p of st) grow.push(p);
+      let frontier = [[...Array(24).keys()]];
+      seen.clear(); seen.add(key(frontier[0]));
+      while (frontier.length) { const next = [];
+        for (const p of frontier) for (const h of gens) { const q = p.map(x => h[x]);
+          const k = key(q); if (!seen.has(k)) { seen.add(k); next.push(q); } }
+        frontier = next; }
+      if (seen.size === 120) break;
+    }
+  }
+  ok('and a generating set is searched for rather than assumed: the walk below carries only as many generators as it takes to reach all 120',
+    gens.length >= 1 && gens.length <= 4, `${gens.length} generators reach the full group of 120`);
+  /* every minimal vector, indexed, then the orbit walk */
+  const V = [];
+  const push = f => { const v = new Int8Array(24); f(v); V.push(v); };
+  for (let i = 0; i < 24; i++) for (let j = i + 1; j < 24; j++)
+    for (const si of [4, -4]) for (const sj of [4, -4]) push(v => { v[i] = si; v[j] = sj; });
+  const octs = [...WORDS].filter(w => pop(w) === 8);
+  for (const o of octs) { const p = [];
+    for (let k = 0; k < 24; k++) if (o >> k & 1) p.push(k);
+    for (let s = 0; s < 256; s++) { if (pop(s) & 1) continue;
+      push(v => { for (let k = 0; k < 8; k++) v[p[k]] = (s >> k & 1) ? -2 : 2; }); } }
+  for (let i = 0; i < 24; i++) for (const w of WORDS)
+    push(v => { for (let k = 0; k < 24; k++) v[k] = (w >> k & 1) ? -1 : 1; v[i] = (w >> i & 1) ? 3 : -3; });
+  const N = V.length, CAP = 1 << 19, MASK = CAP - 1;
+  const K1 = new Int32Array(CAP), K2 = new Int32Array(CAP), K3 = new Int32Array(CAP);
+  const IX = new Int32Array(CAP).fill(-1);
+  const keyOf = a => { let h1 = 0, h2 = 0, h3 = 0;
+    for (let k = 0; k < 24; k++) { const c = a[k] + 4;
+      if (k < 8) h1 |= c << (4 * k); else if (k < 16) h2 |= c << (4 * (k - 8)); else h3 |= c << (4 * (k - 16)); }
+    return [h1, h2, h3]; };
+  const slot = (h1, h2, h3) => { let h = ((h1 * 0x9e3779b1) ^ (h2 * 0x85ebca6b) ^ (h3 * 0xc2b2ae35)) & MASK;
+    for (;;) { if (IX[h] < 0 || (K1[h] === h1 && K2[h] === h2 && K3[h] === h3)) return h; h = (h + 1) & MASK; } };
+  for (let i = 0; i < N; i++) { const [a, b, c] = keyOf(V[i]); const h = slot(a, b, c);
+    IX[h] = i; K1[h] = a; K2[h] = b; K3[h] = c; }
+  const out = new Int8Array(24);
+  const G = [...BASIS.map(c => ({ c })), ...gens.map(p => ({ p }))];
+  const image = (i, g) => { const v = V[i];
+    if (g.c !== undefined) { for (let k = 0; k < 24; k++) out[k] = (g.c >> k & 1) ? -v[k] : v[k]; }
+    else { for (let k = 0; k < 24; k++) out[g.p[k]] = v[k]; }
+    const [a, b, c2] = keyOf(out); return IX[slot(a, b, c2)]; };
+  const orbit = new Int32Array(N).fill(-1), stack = new Int32Array(N);
+  const shapeOf = i => i < 1104 ? 0 : (i < 1104 + 97152 ? 1 : 2);
+  const sizes = []; let nOrb = 0, escaped = 0, crossing = 0;
+  for (let s = 0; s < N; s++) {
+    if (orbit[s] >= 0) continue;
+    let top = 0; stack[top++] = s; orbit[s] = nOrb; let cnt = 0;
+    const shapes = new Set();
+    while (top) { const v = stack[--top]; cnt++; shapes.add(shapeOf(v));
+      for (const g of G) { const w = image(v, g);
+        if (w < 0) { escaped++; continue; }
+        if (orbit[w] < 0) { orbit[w] = nOrb; stack[top++] = w; } } }
+    if (shapes.size > 1) crossing++;
+    sizes.push(cnt); nOrb++;
+  }
+  const bound = 4096 * 120;
+  ok('and the orbit walk over ALL 196560 minimal vectors leaves a handful of orbits where Conway’s Co0 leaves ONE. That count is the exact size of the gap between the symmetry this construction hands you and the symmetry the object actually has: the transitivity of Co0 is a theorem cited here, and the number of orbits is measured here',
+    nOrb > 1 && nOrb < 40 && escaped === 0 && sizes.reduce((a, b) => a + b, 0) === 196560,
+    `${nOrb} orbits over ${N} vectors from ${G.length} generators (12 sign changes + ${gens.length} permutations) · ${escaped} escaped · sizes ${[...new Set(sizes)].sort((a, b) => a - b).join(', ')}`);
+  ok('no orbit crosses a shape, which a monomial group cannot do because it cannot change the multiset of absolute values — and that comes out of the walk rather than being assumed',
+    crossing === 0, `${crossing} of ${nOrb} orbits contain vectors of more than one shape`);
+  ok('and every orbit size divides the order of the monomial group, 4096 x 120 = 491520, which is the orbit-stabiliser theorem holding on a group this file built rather than quoted',
+    sizes.every(s => bound % s === 0),
+    `${bound} / sizes → ${[...new Set(sizes)].sort((a, b) => a - b).map(s => `${s}:${bound / s}`).join(' · ')}`);
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
