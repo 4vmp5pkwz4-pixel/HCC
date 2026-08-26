@@ -28,5 +28,14 @@ ok = run('headless agent scenario', 'node scripts/demo-agent.mjs') && ok;
    It runs from two arrivals, because a world-gated clause is only a check in the world
    that gates it, and every harness ever pointed at this page arrived in the same one. */
 ok = run("the atlas's own self-tests, from every arrival", 'node scripts/selftest.mjs') && ok;
+/* ── AND WHETHER THE LABORATORIES ARE STILL ALIVE ───────────────────────────
+   Three laboratories shipped as pictures that looked like systems, and the only thing
+   that caught it was a person saying so. The difference is measurable — how much
+   geometry is rebuilt and how many bodies move between one frame and the next — and
+   this walk measures every laboratory with RENDERING ON, which is why it cannot ride
+   along with the manifest walk that deliberately runs without a GPU. It reports two
+   numbers per laboratory and gates on one thing only: that the atlas as a whole has
+   not gone quiet. */
+ok = run('every laboratory measured for what it recomputes per frame', 'node scripts/liveness.mjs') && ok;
 console.log(ok ? '\nCI: all green\n' : '\nCI: BLOCKED — a disagreement was found\n');
 process.exit(ok ? 0 : 1);
