@@ -177,8 +177,16 @@ const REG = (() => {
     iso.length === 0,
     `${ids.length - iso.length} of ${ids.length} have a declared neighbour${iso.length ? ' · ISOLATED: ' + iso.join(', ') : ''} · ${edges.length} edges in the source table. The graph the page BUILDS from these holds 204 of them and leaves "nexus" isolated, which is right — the Nexus is the graph rather than a node in it — and the in-browser self-test measures that side.`);
 
+  /* THE COUNT WAS NEVER THE POINT AND PINNED THE GRAPH — and it was written down twice,
+     here and in the page's own suite, so one edge drawn between two laboratories failed
+     both.  What this sentence claims to check is that the neighbour list is built from
+     the relation OBJECTS: read as tuples the entries come back with no id and no kind,
+     and the clause below catches that whether there are four neighbours or five.  The
+     constant caught nothing except the next edge anybody drew — it fired the moment the
+     accretion disc gained a measured coupling to the neutron star — which is a
+     hand-written number standing in for the registry it was supposed to be reading. */
   ok('and the neighbour list reads the relation objects the atlas builds rather than the tuples its source literal is written as — reading the tuple shape reported all eighty-five as isolated, an always-empty "related" row, which is worse than no row because it asserts there is nothing nearby',
-    X.labNeighbours('adisk').length === 4
+    X.labNeighbours('adisk').length > 0
     && X.labNeighbours('adisk').every(n => n.id && n.kind && REGSET.has(n.id)),
     `adisk → ${X.labNeighbours('adisk').map(n => n.id + ' (' + n.kind + ')').join(', ')}`);
 
