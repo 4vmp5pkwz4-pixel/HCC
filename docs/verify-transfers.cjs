@@ -95,11 +95,18 @@ for (const L of LAWS) {
   const { r, o, missing } = find(L.route, L.out);
   if (missing) { ok(`${L.law} — as measured on ${L.out}`, false, missing); continue; }
   const got = o.slope;
-  const good = got !== null && Math.abs(got - want) < 1e-3 && (o.r2 === null || o.r2 > 0.9999);
-  ok(`${L.law} — and the atlas, driving ${L.route.split(' → ')[0]} through to ${L.out.split('.')[0]}, measures the same exponent without being told it`,
+  /* AND THE EXPONENT MUST BE CONSTANT, WHICH IS A STRONGER DEMAND THAN A GOOD FIT.
+     R^2 stays high for a gently curved line over a narrow range, so a law that is
+     quietly drifting can pass an R^2 test.  Each output is also fitted over the low
+     third and the high third of its live range; for a real power law those two slopes
+     are the same number, and the drift between them is asserted to be zero here. */
+  const good = got !== null && Math.abs(got - want) < 1e-3 && (o.r2 === null || o.r2 > 0.9999)
+    && (o.drift === null || o.drift === undefined || Math.abs(o.drift) < 1e-3);
+  ok(`${L.law} — and the atlas, driving ${L.route.split(' → ')[0]} through to ${L.out.split('.')[0]}, measures the same exponent without being told it, and measures the SAME one at both ends of the sweep`,
     good,
     `closed form here gives ${want.toFixed(6)} · the atlas measured ${got === null ? 'no slope' : got.toFixed(6)}`
     + (o.r2 !== null && o.r2 !== undefined ? ` at R^2 ${o.r2.toFixed(6)}` : '')
+    + (o.slope_low != null ? ` · ${o.slope_low.toFixed(4)} over the low third and ${o.slope_high.toFixed(4)} over the high third, drifting ${o.drift.toFixed(6)}` : '')
     + ` over ${r.live} live samples of ${r.samples}`);
 }
 
@@ -174,11 +181,26 @@ ok('and a slope is never published off a handful of surviving points. Two of the
 console.log('\n=== 3. What is NOT a law, and is not reported as one ===\n');
 
 const wd = doc.routes.find(r => r.name === 'ns.mass → wd.mass');
-const wdOut = wd && (wd.outputs || []).find(o => o.key === 'wd.mean_density');
-ok('a neutron-star mass into a white dwarf is NOT a clean power law and the file does not pretend it is. Non-relativistic degeneracy gives R proportional to M^(-1/3) and therefore a density going as M^2, but the fit comes out near three with a visibly imperfect R^2, because the sweep runs up to the Chandrasekhar limit where the relativistic correction takes over and the exponent is no longer constant. That is the physics, and the check is that the atlas has NOT reported a suspiciously exact number here',
-  !!wdOut && wdOut.r2 < 0.99 && wdOut.slope > 2 && wdOut.slope < 4,
-  wdOut ? `slope ${wdOut.slope.toFixed(4)} at R^2 ${wdOut.r2.toFixed(5)} — a real curve, not a power law`
+const wdRad = wd && (wd.outputs || []).find(o => o.key === 'wd.radius_km');
+const wdDen = wd && (wd.outputs || []).find(o => o.key === 'wd.mean_density');
+/* the non-relativistic degenerate star: P ~ rho^(5/3) balanced against gravity gives
+   R ~ M^(-1/3) exactly, and this file does not take that from the atlas either */
+const NONREL = -1 / 3;
+ok('a neutron-star mass into a white dwarf is NOT one power law, and saying only that hides the interesting half. Fitted end to end the radius comes back at -0.70 with a mediocre R^2, which is an average of two different physics and locates neither. Fitted over the LOW third of the mass range it comes back within a few percent of MINUS ONE THIRD — which is what non-relativistic degeneracy predicts, P proportional to rho^(5/3) balanced against gravity, and the atlas was never told it — and over the high third it runs away past minus four as the star approaches the Chandrasekhar limit and the electrons turn relativistic. The single number was hiding a law and its breakdown, and the two-ended fit finds both',
+  !!wdRad && wdRad.slope_low != null
+  && Math.abs(wdRad.slope_low - NONREL) < 0.1
+  && wdRad.slope_high < -2
+  && wdRad.drift < -2,
+  wdRad ? `radius: ${wdRad.slope_low.toFixed(4)} over the low third against the predicted ${NONREL.toFixed(4)}, `
+        + `${wdRad.slope_high.toFixed(4)} over the high third, drifting ${wdRad.drift.toFixed(3)} · `
+        + `end-to-end it fits ${wdRad.slope.toFixed(4)} at R^2 ${wdRad.r2.toFixed(4)}, which is neither`
         : 'the white-dwarf route is absent');
+ok('and the density follows it, as it must: rho goes as M/R^3, so an R exponent of -1/3 forces a density exponent of exactly 2 at low mass, and the atlas measures it there without being told — then that too runs away. Two outputs of one laboratory, measured independently, agreeing on where the simple description stops',
+  !!wdDen && wdDen.slope_low != null
+  && Math.abs(wdDen.slope_low - (1 - 3 * NONREL)) < 0.2
+  && wdDen.drift > 2,
+  wdDen ? `density: ${wdDen.slope_low.toFixed(4)} over the low third against the ${(1 - 3 * NONREL).toFixed(1)} forced by the radius exponent, `
+        + `${wdDen.slope_high.toFixed(3)} over the high third` : 'the density output is absent');
 
 const limp = doc.routes.filter(r => r.outputs && r.outputs.length && (r.moved || 0) <= 0.02);
 ok('and the couplings that carry NOTHING are in the file as first-class entries rather than omitted. A declared, verified, dimensionally sound coupling whose far end does not move is the thing this whole measurement exists to make visible, and leaving it out of the artifact would hide exactly what the artifact is for',

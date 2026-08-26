@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-station-you-can-search-for-2026.08.26.12">
+<html lang="en" data-hcc-build="where-the-law-stops-2026.08.26.13">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-station-you-can-search-for-2026.08.26.12">
+<meta name="hcc-build" content="where-the-law-stops-2026.08.26.13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.83.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.84.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.83.0';
-const HCC_BUILD='a-station-you-can-search-for-2026.08.26.12';
+const HCC_VERSION='4.84.0';
+const HCC_BUILD='where-the-law-stops-2026.08.26.13';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -35401,7 +35401,8 @@ try{
           from:HCC_LINKS[route[0]].from, to:HCC_LINKS[route[route.length-1]].to,
           samples:T.samples, live:T.live, refused:T.refused, failed:T.failed,
           xspan:T.xspan, fitable:T.fitable, moved:T.moved,
-          outputs:T.outputs.map(o=>({key:o.key, decades:o.yspan, slope:o.slope, r2:o.r2, n:o.n})),
+          outputs:T.outputs.map(o=>({key:o.key, decades:o.yspan, slope:o.slope, r2:o.r2, n:o.n,
+            slope_low:o.slope_low, slope_high:o.slope_high, drift:o.drift})),
           ms_per_sample:+(ms/n).toFixed(3)};
       }
     },
@@ -62227,11 +62228,36 @@ function scaleTransfer(samples,link){
   for(const s of live) for(const p of s.tgt){
     if(!keys.has(p.key)) keys.set(p.key,[]);
     keys.get(p.key).push({x:Math.log10(s.delivered),y:p.log}); }
+  /* ── ONE STRAIGHT LINE HIDES WHERE THE LAW STOPS ───────────────────────────
+     A neutron-star mass into a white dwarf fits at 3.108 with an R² of 0.92, and the
+     honest thing said about that so far was "not a power law". True, and useless: it
+     does not say WHERE it stops being one. A power law has a constant local slope; a
+     law with a correction has a slope that drifts, and fitting a single line through a
+     drifting slope returns an average of two different physics with a slightly poor R²
+     to show for it.
+
+     So each output is also fitted over the LOW third and the HIGH third of its live
+     range separately. Equal slopes mean the exponent is constant and the law holds
+     across the whole sweep — a stronger statement than a good R², because R² stays high
+     for a gently curved fit over a narrow range. Unequal slopes locate the breakdown:
+     they say the exponent is one thing down here and another up there, and where the
+     changeover is. Nothing is claimed about WHY; that is physics this measurement does
+     not do. */
   const outs=[];
   for(const [key,pts] of keys){
     if(pts.length<live.length*0.8) continue;
+    pts.sort((a,b)=>a.x-b.x);
     const f=fitable?scaleFit(pts.map(p=>p.x),pts.map(p=>p.y)):null;
+    let lo=null, hi=null;
+    if(f&&pts.length>=12){
+      const k=Math.max(4,Math.floor(pts.length/3));
+      const L=pts.slice(0,k), H=pts.slice(-k);
+      lo=scaleFit(L.map(p=>p.x),L.map(p=>p.y));
+      hi=scaleFit(H.map(p=>p.x),H.map(p=>p.y));
+    }
     outs.push({key, slope:f?f.slope:null, r2:f?f.r2:null, n:pts.length,
+      slope_low:lo?lo.slope:null, slope_high:hi?hi.slope:null,
+      drift:(lo&&hi)?(hi.slope-lo.slope):null,
       yspan:Math.max(...pts.map(p=>p.y))-Math.min(...pts.map(p=>p.y))});
   }
   outs.sort((a,b)=>b.yspan-a.yspan);
@@ -62551,7 +62577,15 @@ function scalesCascadeReadout(){
         +` · <b>${scaleSweepCost().toFixed(1)}</b> ms/${TT('sample','отсчёт','Probe')}<br>`
         +`${TT('the source itself spans','сам источник охватывает','die Quelle selbst umspannt')} <b>${(T?T.xspan:0).toFixed(3)}</b> ${TT('decades','декад','Dekaden')}${T&&!T.fitable?` — <span style="color:#ffd27a">${TT('too little for a log-log exponent to mean anything, so none is printed: this source is an INDEX, not a magnitude','слишком мало, чтобы двойной логарифмический показатель что-то значил, потому он не печатается: этот источник есть ИНДЕКС, а не величина','zu wenig fuer einen Exponenten')}</span>`:''}<br>`
         +(T&&T.outputs.length
-          ? T.outputs.slice(0,5).map(o=>`<b>${o.key}</b> ${TT('moves','двигается на','bewegt sich')} <b>${o.yspan.toFixed(3)}</b> ${TT('decades','декад','Dekaden')}${o.slope!=null?` · d log/d log = <b>${o.slope.toFixed(4)}</b> · R² ${o.r2.toFixed(4)}`:''}`).join('<br>')
+          ? T.outputs.slice(0,5).map(o=>`<b>${o.key}</b> ${TT('moves','двигается на','bewegt sich')} <b>${o.yspan.toFixed(3)}</b> ${TT('decades','декад','Dekaden')}${o.slope!=null?` · d log/d log = <b>${o.slope.toFixed(4)}</b> · R² ${o.r2.toFixed(4)}`:''}`
+              /* AND WHERE THE LAW STOPS, when it does. One line fitted end to end through
+                 a drifting exponent is an average of two different physics and locates
+                 neither; the low and high thirds locate both. */
+              +((o.drift!=null&&Math.abs(o.drift)>1e-3)
+                ? `<br>&nbsp;&nbsp;<span style="color:#ffd27a">${TT('NOT one exponent','НЕ один показатель','KEIN einzelner Exponent')}: <b>${o.slope_low.toFixed(3)}</b> ${TT('over the low third','по нижней трети','im unteren Drittel')} → <b>${o.slope_high.toFixed(3)}</b> ${TT('over the high third','по верхней трети','im oberen Drittel')} · ${TT('the simple law stops somewhere between','простой закон кончается где-то между','das einfache Gesetz endet dazwischen')}</span>`
+                : (o.drift!=null
+                  ? `<br>&nbsp;&nbsp;<span style="color:var(--dim)">${TT('the same exponent at both ends of the sweep — a power law across the whole range, which a good R² alone does not establish','тот же показатель на обоих концах прохода — степенной закон на всём диапазоне, чего один хороший R² не устанавливает','derselbe Exponent an beiden Enden des Durchlaufs')}</span>`
+                  : ''))).join('<br>')
           : `<span style="color:#ff8a6a">${TT('the target moved no output this sweep can place in SI — the coupling is declared, verified, dimensionally sound, and carries nothing measurable onto this axis','приёмник не сдвинул ни одного выхода, который этот проход может положить в СИ: связь объявлена, проверена, размерно безупречна и не несёт на эту ось ничего измеримого','das Ziel bewegte keine platzierbare Ausgabe')}</span>`)
       : `${TT('sweeping','идёт проход','laeuft')} <b>${SW.i}</b>/${SCALE_SWEEP_N} · <b>${scaleSweepCost().toFixed(1)}</b> ms/${TT('sample','отсчёт','Probe')} · ${TT('budget','бюджет','Budget')} ${Math.round(state.scalesBudget??6)} ms/${TT('frame','кадр','Bild')}`);
 }
