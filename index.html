@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="stations-you-can-ask-for-2026.08.26.8">
+<html lang="en" data-hcc-build="what-influence-is-worth-2026.08.26.9">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="stations-you-can-ask-for-2026.08.26.8">
+<meta name="hcc-build" content="what-influence-is-worth-2026.08.26.9">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.79.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.80.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.79.0';
-const HCC_BUILD='stations-you-can-ask-for-2026.08.26.8';
+const HCC_VERSION='4.80.0';
+const HCC_BUILD='what-influence-is-worth-2026.08.26.9';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -35258,6 +35258,42 @@ try{
        the registry it reads is declared far below this literal, and a property would
        be a temporal-dead-zone error that takes the whole API down with it. */
     scales(){ return scaleSurvey(); },
+    /* ── WHAT EVERY DECLARED INFLUENCE IS WORTH, ASKED FROM OUTSIDE ────────────
+       The cascade station measures this and prints it, and until now that was the only
+       place it existed: a number computed in front of one reader and thrown away. An
+       influence map that cannot be read without running a browser is not a published
+       fact about this atlas, it is a feature of one page. So the sweep is an instrument
+       like everything else here — routes enumerated, any of them measured on demand —
+       and scripts/transfers.mjs writes what it finds to api/transfers.json where an
+       independent verifier can disbelieve it. */
+    transfers:{
+      routes(){ return Array.from({length:scaleRouteCount()},(_,i)=>{
+        const r=scaleRoute(i);
+        return {index:i, name:scaleRouteName(i), hops:r?r.length:0,
+          from:r?HCC_LINKS[r[0]].from:null, to:r?HCC_LINKS[r[r.length-1]].to:null}; }); },
+      count(){ return scaleRouteCount(); },
+      /* SYNCHRONOUS AND SLOW ON PURPOSE. Evaluating an instrument in this atlas is
+         arithmetic, not a lookup — the slowest takes half a second — so a sweep of a
+         heavy pair blocks for tens of seconds, and the measured cost is returned with
+         the answer rather than hidden behind a spinner. The page's own station runs the
+         same sweep to a frame budget because a reader is watching; a build script is
+         not a reader. */
+      measure(i,samples){
+        const n=Math.max(8,Math.min(512,Math.round(samples||48)));
+        const route=scaleRoute(i);
+        if(!route) throw new Error(`there is no route ${i} — the atlas declares ${scaleRouteCount()}`);
+        const t0=performance.now(), out=[];
+        for(let k=0;k<n;k++){ const d=k/(n-1); out.push(scaleSweepSample(d,scaleWalk(route,d))); }
+        const T=scaleTransfer(out,i);
+        const ms=performance.now()-t0;
+        return {index:i, name:scaleRouteName(i), hops:route.length,
+          from:HCC_LINKS[route[0]].from, to:HCC_LINKS[route[route.length-1]].to,
+          samples:T.samples, live:T.live, refused:T.refused, failed:T.failed,
+          xspan:T.xspan, fitable:T.fitable, moved:T.moved,
+          outputs:T.outputs.map(o=>({key:o.key, decades:o.yspan, slope:o.slope, r2:o.r2, n:o.n})),
+          ms_per_sample:+(ms/n).toFixed(3)};
+      }
+    },
     siUnits(){ return {convertible:Object.keys(HCC_SI), refused:HCC_SI_REFUSED,
       not_a_scale:HCC_NOT_A_SCALE, kinds:HCC_SI_KINDS, base:HCC_SI_BASE}; },
     instruments:{
