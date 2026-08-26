@@ -37,6 +37,7 @@
    ========================================================================= */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -159,10 +160,33 @@ for (const r of routes) {
 }
 await browser.close(); server.close();
 
-const version = await (async () => JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8')))();
+const version = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
+
+/* ── A BUILD STRING IS NOT A GOOD ENOUGH STAMP, and the first version of this
+   staleness guard used one.  It caught the case where somebody changes the atlas
+   and bumps the build.  It missed the case where somebody changes an instrument
+   and does NOT — which is not hypothetical: a commit in this very branch changed
+   scripts and shipped without a bump, correctly, because the page was untouched.
+   An instrument gaining an output, losing an input or moving a declared domain
+   changes every sweep that drives it and need not touch the version at all.
+
+   So the stamp is a hash of what the sweeps actually depend on: every
+   instrument's id, inputs with their domains, and outputs with their units, as
+   api/manifest.json publishes them.  Any change to a declaration the sweep reads
+   changes the hash, bump or no bump, and the verifier recomputes it from the same
+   file in microseconds. */
+const instrumentFingerprint = () => {
+  const m = JSON.parse(readFileSync(join(ROOT, 'api', 'manifest.json'), 'utf8'));
+  const shape = (m.instruments || []).map(i => [i.id,
+    (i.inputs || []).map(f => [f.name, f.unit ?? null, f.type ?? null, f.default ?? null, f.min ?? null, f.max ?? null]),
+    (i.outputs || []).map(o => [o.name, o.unit ?? null])]);
+  shape.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+  return createHash('sha256').update(JSON.stringify(shape)).digest('hex').slice(0, 32);
+};
 const doc = {
   schema: 'hcc.transfers/1',
   version: version.version, build: version.build,
+  instruments_fingerprint: instrumentFingerprint(),
   generator: 'scripts/transfers.mjs — every declared route driven across the source\'s whole domain',
   samples: { start: SAMPLES, min_live: MIN_LIVE, cap: MAX_SAMPLES,
     note: 'each route records the count it actually ended at; a route whose target refuses '
@@ -188,7 +212,7 @@ const text = JSON.stringify(doc, null, 1) + '\n';
 if (CHECK) {
   if (!existsSync(OUT)) { console.error('api/transfers.json is missing.'); process.exit(1); }
   const old = JSON.parse(readFileSync(OUT, 'utf8'));
-  const strip = d => JSON.stringify({ ...d, version: 0, build: 0,
+  const strip = d => JSON.stringify({ ...d, version: 0, build: 0, instruments_fingerprint: 0,
     routes: d.routes.map(r => ({ ...r, ms_per_sample: 0 })) });
   if (strip(old) !== strip(doc)) {
     console.error('api/transfers.json disagrees with what the atlas measures now.');

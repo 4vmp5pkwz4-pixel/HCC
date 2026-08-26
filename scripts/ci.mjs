@@ -14,6 +14,17 @@ const run = (label, cmd) => {
 let ok = true;
 ok = run('the extracted kernels are in step with index.html', 'node scripts/extract-kernels.mjs --check') && ok;
 ok = run('regenerate the API contracts from the core', 'node scripts/build-api.mjs') && ok;
+/* ── AND THE MANIFEST IS COMPARED AGAINST THE ATLAS, WHICH IT NEVER WAS ─────
+   scripts/build-manifest.mjs has had a --check mode since it was written and
+   nothing ever ran it, because it could not pass: it compared its own output
+   against the committed file, and the committed file is not its output —
+   build-api.mjs enriches it afterwards. So it reported the manifest stale on a
+   clean tree, and was left out of CI instead of being fixed. It compares the
+   fields it actually writes now, and runs here. This matters beyond tidiness:
+   docs/verify-transfers.cjs fingerprints the instrument declarations FROM the
+   manifest to catch a stale influence map, and a stale manifest would have made
+   that fingerprint agree with itself. */
+ok = run('the manifest still matches the atlas it was walked from', 'node scripts/build-manifest.mjs --check') && ok;
 ok = run('static validator', 'node scripts/validate.mjs') && ok;
 for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.test(f)).sort())
   ok = run(`verifier ${f}`, `node docs/${f}`) && ok;

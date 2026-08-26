@@ -124,6 +124,33 @@ console.log('\n=== 2. And the file says what kind of file it is ===\n');
     doc.version === v.version && doc.build === v.build
       ? `measured at ${doc.version} / ${doc.build}`
       : `the artifact says ${doc.version} / ${doc.build} and the atlas says ${v.version} / ${v.build} — re-run scripts/transfers.mjs`);
+
+  /* ── AND A BUILD STRING IS NOT A GOOD ENOUGH STAMP ─────────────────────────
+     The check above catches somebody changing the atlas and bumping the build.
+     It misses somebody changing an INSTRUMENT and not bumping — which is not
+     hypothetical; a commit in this branch changed only scripts and shipped
+     without a bump, correctly, because the page was untouched.  An instrument
+     gaining an output, losing an input or moving a declared domain changes every
+     sweep that drives it and need not touch the version at all.
+
+     So the artifact also carries a hash of what the sweeps actually depend on:
+     every instrument's id, its inputs with their declared domains, its outputs
+     with their units, as api/manifest.json publishes them.  Recomputing it here
+     costs microseconds and no version discipline is relied on. */
+  const shape = (m) => {
+    const s = (m.instruments || []).map(i => [i.id,
+      (i.inputs || []).map(f => [f.name, f.unit ?? null, f.type ?? null, f.default ?? null, f.min ?? null, f.max ?? null]),
+      (i.outputs || []).map(o => [o.name, o.unit ?? null])]);
+    s.sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+    return require('crypto').createHash('sha256').update(JSON.stringify(s)).digest('hex').slice(0, 32);
+  };
+  const man = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'api', 'manifest.json'), 'utf8'));
+  const now = shape(man);
+  ok('and not merely from this BUILD but from these INSTRUMENTS. A version string is a promise somebody has to remember to keep, and an instrument that gains an output or moves a declared domain changes every sweep that drives it without touching the version at all. The artifact carries a hash of every instrument\'s inputs, domains, outputs and units as the manifest publishes them, so a declaration changing under a stale influence map is caught by arithmetic instead of by discipline',
+    doc.instruments_fingerprint === now,
+    doc.instruments_fingerprint === now
+      ? `${(man.instruments || []).length} instrument declarations hash to ${now}, which is what the artifact was measured against`
+      : `the artifact was measured against ${doc.instruments_fingerprint || '(no fingerprint — regenerate it)'} and the instruments now hash to ${now} — a declaration changed; re-run scripts/transfers.mjs`);
 }
 
 ok('every route the atlas declares is present, single hops and enumerated paths alike, and the counts in the header agree with the rows underneath them rather than being written separately',
