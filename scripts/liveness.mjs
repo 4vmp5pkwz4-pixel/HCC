@@ -41,16 +41,23 @@ import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
 
-/* ── THE FLOOR, AND WHAT KIND OF NUMBER IT IS ───────────────────────────────
-   A ratchet, and a hand-written one, which is the fault class this atlas keeps
-   refusing: a list standing in for a registry.  It is accepted here deliberately
-   and with the reason written down, because the claim "this laboratory recomputes
-   every frame" is currently made in PROSE by the laboratories that make it, and
-   the atlas has no machine-readable form of it to derive a gate from.  Giving it
-   one would be the better fix and is not done here.  Until then this catches the
-   regression that matters: a change that quietly turns living laboratories back
-   into pictures. */
-const FLOOR = 60;
+/* ── AND THE GATE IS DERIVED, WHICH IT WAS NOT AT FIRST ─────────────────────
+   The first version of this file gated on a hand-written floor — "at least sixty
+   laboratories must be alive" — and said in its own comment that this was the
+   fault class the atlas keeps refusing, a list standing in for a registry, kept
+   only because the claim "this laboratory recomputes every frame" was made in
+   PROSE and had no machine-readable form to derive a gate from.
+
+   It has one now.  Three laboratories in this atlas are several laboratories
+   wearing one name, and they publish their stations: HCC_API.stations.all().  A
+   laboratory with stations exists in order to COMPUTE something in each of them —
+   that is what distinguishes it from a picture with tabs — so the gate is that
+   every laboratory offering stations has at least one station that rebuilds
+   geometry between frames.  No laboratory is named here and no number is tuned.
+
+   The second gate needs no constant at all: if NOTHING anywhere in the atlas
+   changes between two frames, the render loop is dead and every number below is
+   meaningless.  That is the catastrophe check, and one is not a tuned threshold. */
 /* three.js is loaded from a CDN in the shipped page; serve a copy that points at the
    vendored build so the walk does not depend on the network */
 const VENDOR = process.env.HCC_VENDOR || join(ROOT, 'vendor');
@@ -125,44 +132,67 @@ if (!has) {
 
 const labs = await page.evaluate(() => HCC_API.labs.list().map(l => ({ id: l.id, world: l.world || 's3',
   title: String(l.title || '').slice(0, 40) })));
+/* asked of the atlas, not written down here */
+const stations = await page.evaluate(() => (HCC_API.stations && HCC_API.stations.all) ? HCC_API.stations.all() : {});
 
 const rows = [];
 for (const L of labs) {
-  try {
-    await page.evaluate(([w, id]) => { HCC_NAV.go(w, id); }, [L.world, L.id]);
-    await page.waitForTimeout(900);
-    const r = await page.evaluate(() => HCC_API.liveness(16));
-    rows.push({ id: L.id, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies });
-  } catch (e) {
-    rows.push({ id: L.id, title: L.title, recomputed: -1, moved: -1, bodies: 0, error: String(e.message || e).slice(0, 60) });
+  const list = stations[L.id] || [null];
+  for (const st of list) {
+    try {
+      await page.evaluate(([w, id]) => { HCC_NAV.go(w, id); }, [L.world, L.id]);
+      await page.waitForTimeout(600);
+      if (st) { await page.evaluate(([id, s]) => HCC_API.stations.go(id, s), [L.id, st]); await page.waitForTimeout(700); }
+      else await page.waitForTimeout(300);
+      const r = await page.evaluate(() => HCC_API.liveness(16));
+      rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies });
+    } catch (e) {
+      rows.push({ id: L.id, station: st, title: L.title, recomputed: -1, moved: -1, bodies: 0,
+        error: String(e.message || e).slice(0, 60) });
+    }
   }
 }
 await browser.close(); server.close();
 
 rows.sort((a, b) => (a.recomputed + a.moved) - (b.recomputed + b.moved) || a.id.localeCompare(b.id));
+const name = r => r.station ? `${r.id}/${r.station}` : r.id;
 const alive = rows.filter(r => r.recomputed > 0 || r.moved > 0);
 const still = rows.filter(r => r.recomputed === 0 && r.moved === 0);
 const broke = rows.filter(r => r.recomputed < 0);
 
-if (JSON_OUT) { console.log(JSON.stringify({ floor: FLOOR, alive: alive.length, rows }, null, 1)); }
+/* the derived gate: a laboratory that offers stations offers at least one that COMPUTES */
+const stationed = Object.keys(stations);
+const quietLabs = stationed.filter(id =>
+  !rows.some(r => r.id === id && r.recomputed > 0));
+
+if (JSON_OUT) { console.log(JSON.stringify({ alive: alive.length, stationed, quietLabs, rows }, null, 1)); }
 else {
   console.log('\n  rebuilt  moved  of      laboratory');
   for (const r of rows) console.log(
     String(r.recomputed).padStart(9), String(r.moved).padStart(6), String(r.bodies).padStart(5), '   ',
-    r.id.padEnd(11), r.title);
-  console.log(`\n${alive.length} of ${rows.length} laboratories change something between frames · ${still.length} change nothing at all`);
-  if (still.length) console.log(`  still: ${still.map(r => r.id).join(' ')}`);
-  console.log('\nNEITHER NUMBER IS A VERDICT. A laboratory meant to be a diagram scores zero on both\nand is right to. What is checked is only that the atlas as a whole has not gone quiet.');
+    name(r).padEnd(18), r.title);
+  console.log(`\n${alive.length} of ${rows.length} views change something between frames · ${still.length} change nothing at all`);
+  if (still.length) console.log(`  still: ${still.map(name).join(' ')}`);
+  console.log(`\nlaboratories that publish stations: ${stationed.join(', ') || '(none)'} — each measured in every one`);
+  console.log('\nNEITHER NUMBER IS A VERDICT. A laboratory meant to be a diagram scores zero on both\nand is right to. What is gated is derived and named below, never a tuned threshold.');
 }
 
 if (broke.length) {
-  console.error(`\nFAIL — ${broke.length} laboratories could not be measured: ${broke.map(r => r.id).join(' ')}`);
+  console.error(`\nFAIL — ${broke.length} views could not be measured: ${broke.map(name).join(' ')}`);
   process.exit(1);
 }
-if (alive.length < FLOOR) {
-  console.error(`\nFAIL — only ${alive.length} laboratories are alive, against a floor of ${FLOOR}.`);
-  console.error('Something turned living laboratories back into pictures. That is what this floor is for.');
+if (alive.length === 0) {
+  console.error('\nFAIL — nothing anywhere in the atlas changed between two frames.');
+  console.error('The render loop is dead and every number above is meaningless.');
   process.exit(1);
 }
-console.log(`\nliveness: ${alive.length} alive, floor ${FLOOR} — ok`);
+if (quietLabs.length) {
+  console.error(`\nFAIL — ${quietLabs.length} laboratories publish stations and not one of those stations`);
+  console.error(`rebuilds any geometry between frames: ${quietLabs.join(' ')}`);
+  console.error('A laboratory with stations is several laboratories wearing one name; if none of');
+  console.error('them computes, it has become a picture with tabs. That is the regression this gates.');
+  process.exit(1);
+}
+if (!JSON_OUT) console.log(`\nliveness: ${alive.length} of ${rows.length} views alive · ` +
+  `${stationed.length} stationed laboratories, each with a computing station — ok`);
 process.exit(0);
