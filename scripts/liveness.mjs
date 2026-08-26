@@ -33,13 +33,28 @@
    Usage:  node scripts/liveness.mjs [--json]
    ========================================================================= */
 
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { dirname, join, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const JSON_OUT = process.argv.includes('--json');
+const OUT = join(ROOT, 'api', 'liveness.json');
+
+/* ── AND THE TABLE IS PUBLISHED, WHICH IT WAS NOT ───────────────────────────
+   This walk ran on every build and printed its findings into a log nobody keeps.
+   The one measurement the whole rebuild of three laboratories was held to — is
+   this thing a system or a picture — was the only one the atlas did not write
+   down, while the manifest and the influence map both do.
+
+   WHAT IS PUBLISHED IS THE CLASSIFICATION, NOT THE RAW COUNTS.  How many
+   attributes happen to be marked dirty inside a sixteen-frame window is a real
+   measurement and a noisy one: it belongs in the log, where the walk prints it in
+   full, not in a committed file that would churn on every run without ever saying
+   anything new by doing so.  What is stable, and what the question actually asks,
+   is whether a view rebuilds geometry, whether it moves bodies, and how many
+   bodies it has to move. */
 
 /* ── AND THE GATE IS DERIVED, WHICH IT WAS NOT AT FIRST ─────────────────────
    The first version of this file gated on a hand-written floor — "at least sixty
@@ -193,6 +208,27 @@ if (quietLabs.length) {
   console.error('them computes, it has become a picture with tabs. That is the regression this gates.');
   process.exit(1);
 }
-if (!JSON_OUT) console.log(`\nliveness: ${alive.length} of ${rows.length} views alive · ` +
-  `${stationed.length} stationed laboratories, each with a computing station — ok`);
+if (!JSON_OUT) {
+  const version = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
+  const doc = {
+    schema: 'hcc.liveness/1',
+    version: version.version, build: version.build,
+    generator: 'scripts/liveness.mjs — every laboratory, in every station it publishes, with rendering ON',
+    note: 'rebuilds means buffer attributes were marked dirty between frames, so geometry was recomputed. '
+        + 'moves means world matrices changed, so rigid bodies were driven. NEITHER IS A VERDICT: a laboratory '
+        + 'meant to be a diagram is false on both and is right to be. The exact counts are deliberately not '
+        + 'here; the walk prints them in full, and a committed file carrying them would churn on every run '
+        + 'without ever saying anything new by doing so.',
+    counts: { views: rows.length, alive: alive.length, still: still.length,
+      stationed: stationed.length, stations: rows.filter(r => r.station).length },
+    views: rows.map(r => ({ lab: r.id, station: r.station || null,
+      rebuilds: r.recomputed > 0, moves: r.moved > 0, bodies: r.bodies }))
+      .sort((a, b) => a.lab.localeCompare(b.lab) || String(a.station).localeCompare(String(b.station)))
+  };
+  mkdirSync(dirname(OUT), { recursive: true });
+  writeFileSync(OUT, JSON.stringify(doc, null, 1) + '\n');
+  console.log(`\nliveness: ${alive.length} of ${rows.length} views alive · ` +
+    `${stationed.length} stationed laboratories, each with a computing station — ok`);
+  console.log(`api/liveness.json written: ${doc.counts.views} views, ${doc.counts.stations} of them stations`);
+}
 process.exit(0);
