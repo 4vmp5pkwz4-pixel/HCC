@@ -210,13 +210,44 @@ server.close();
 
 const text = JSON.stringify(manifest, null, 2) + '\n';
 if (CHECK) {
-  const prev = existsSync(OUT) ? readFileSync(OUT, 'utf8') : '';
-  const strip = t => t.replace(/"commit": "[^"]*"/, '"commit": "*"');
-  if (strip(prev) !== strip(text)) {
-    console.error('api/manifest.json is stale — run: node scripts/build-manifest.mjs');
+  /* ── --check COULD NEVER PASS, WHICH IS WHY NOTHING RAN IT ──────────────────
+     It compared this script's whole output, as text, against the committed file.
+     But the committed file is not this script's output: scripts/build-api.mjs
+     runs afterwards and ENRICHES it, adding `contracts`, `core`, `instruments_v2`
+     and two more counts.  So the comparison found five extra sections every time
+     and reported the manifest stale on a tree where nothing was stale — a check
+     that always fails is exactly as useless as one that always passes, and this
+     one had been quietly excluded from CI rather than fixed.
+
+     A comparison now runs over the keys THIS script owns, which is the question
+     it was always trying to ask: has the atlas drifted away from the manifest
+     section that walking the atlas produces.  Whatever a later stage adds is not
+     this stage's business and is left alone. */
+  const prev = existsSync(OUT) ? JSON.parse(readFileSync(OUT, 'utf8')) : {};
+  const mine = JSON.parse(text);
+  const ignore = new Set(['commit']);
+  /* AND THE ENRICHMENT REACHES INSIDE, so a key-by-key comparison is not enough
+     either: build-api adds core_implemented and core_labs into the SAME `counts`
+     object this script writes.  What has to hold is that everything this script
+     produces is present and unchanged in the committed file — extra fields, at
+     any depth, belong to whoever added them. */
+  const drift = [];
+  const walk = (a, b, path) => {
+    if (a && b && typeof a === 'object' && typeof b === 'object'
+        && !Array.isArray(a) && !Array.isArray(b)) {
+      for (const k of Object.keys(a)) walk(a[k], b[k], path ? `${path}.${k}` : k);
+    } else if (JSON.stringify(a) !== JSON.stringify(b)) drift.push(path);
+  };
+  for (const k of Object.keys(mine)) if (!ignore.has(k)) walk(mine[k], prev[k], k);
+  if (drift.length) {
+    console.error(`api/manifest.json is stale in ${drift.slice(0, 6).join(', ')}`
+      + `${drift.length > 6 ? ` and ${drift.length - 6} more` : ''} — run: node scripts/build-manifest.mjs`);
     process.exit(1);
   }
-  console.log(`api/manifest.json matches the code (${labs.length} laboratories).`);
+  const added = Object.keys(prev).filter(k => !(k in mine));
+  console.log(`api/manifest.json matches the code (${labs.length} laboratories, `
+    + `every field this script writes intact`
+    + `${added.length ? `; ${added.length} sections added later by build-api and left alone: ${added.join(', ')}` : ''}).`);
 } else {
   mkdirSync(join(ROOT, 'api'), { recursive: true });
   writeFileSync(OUT, text);

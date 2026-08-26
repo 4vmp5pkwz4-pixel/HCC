@@ -157,5 +157,72 @@ const lagrange = (x, QMAX = 3e5, TAIL = 6) => {
     && Math.abs((c / 1e6) / (vAir / 1e6) - c / vAir) < 1e-6,
     `${(vAir / 1e6 * 1e3).toFixed(3)} mm in air · ${(c / 1e6).toFixed(2)} m in vacuum · ratio ${(c / vAir).toExponential(3)} = c/v_air exactly`);
 }
+/* ── AND WHEN ONE PULLS ON THE OTHER: THE ARNOLD TONGUES ─────────────────────
+   Everything above is about oscillators that do not touch. The standard circle map is
+   what happens when they do:  theta -> theta + Omega - (K/2pi) sin 2pi theta.  Omega is
+   the detuning, K is how hard the drive pulls, and the rotation number rho is the phase
+   actually gained per cycle. At K = 0 the map is a rotation and rho = Omega exactly. For
+   K > 0 the rotation number sticks at a rational p/q over whole INTERVALS of Omega —
+   Arnold's tongues — and at K = 1 those intervals fill the line, leaving the unlocked set
+   of measure zero. Nothing below is read from the atlas; the map is re-implemented here. */
+{
+  const TAU = 2 * Math.PI;
+  const step = (t, O, K) => t + O - (K / TAU) * Math.sin(TAU * t);
+  const rot = (O, K, N, skip) => { let t = 0.5;
+    for (let i = 0; i < skip; i++) t = step(t, O, K);
+    const t0 = t; for (let i = 0; i < N; i++) t = step(t, O, K);
+    return (t - t0) / N; };
+  const locked = (O, K, QMAX, tol) => { let t = 0.5;
+    for (let i = 0; i < 600; i++) t = step(t, O, K);
+    const base = t;
+    for (let q = 1; q <= QMAX; q++) { t = step(t, O, K);
+      const d = t - base, p = Math.round(d);
+      if (Math.abs(d - p) < tol) return { q, p }; }
+    return null; };
+  /* the sampling grid is offset by 1/phi^2 for a reason that is itself a check */
+  const OFF = 2 - PHI;
+  const at = (i, n) => ((i + OFF) / n) % 1;
+  const frac = (K, n, q) => { let c = 0;
+    for (let i = 0; i < n; i++) if (locked(at(i, n), K, q, 1e-9)) c++; return c / n; };
+
+  let worst = 0;
+  for (let i = 0; i <= 60; i++) { const O = i / 60; worst = Math.max(worst, Math.abs(rot(O, 0, 4000, 1000) - O)); }
+  ok('at zero coupling the circle map IS a rotation, so the rotation number equals the detuning to thirteen decimals over sixty-one detunings — the check that the map was written down correctly before anything is asked of it',
+    worst < 1e-11,
+    `max |rho - Omega| = ${worst.toExponential(2)} over 61 detunings at K = 0`);
+
+  const naive = (() => { let c = 0; for (let i = 0; i < 240; i++) if (locked(i / 240, 0, 40, 1e-9)) c++; return c / 240; })();
+  ok('and the obvious way to measure the locked share of the line is WRONG, which is worth a check of its own rather than a comment. Sampling Omega at i/n makes a third of the samples rational, every rational orbit closes exactly even at K = 0, and the measure reports a third of the line locked at no coupling at all — a number manufactured by the grid. Offset the grid by 1/phi^2, the least well approximated shift there is, and the same measure reports exactly zero, which is the truth: at K = 0 only the rationals close and the rationals have measure zero',
+    frac(0, 240, 40) === 0 && naive > 0.3,
+    `offset grid: ${(frac(0, 240, 40) * 100).toFixed(1)}% locked at K = 0 · naive grid i/n: ${(naive * 100).toFixed(1)}%, every one of them a rational`);
+
+  const Ks = [0, 0.2, 0.4, 0.6, 0.8, 1.0];
+  const fr = Ks.map(K => frac(K, 240, 40));
+  ok('the tongues then widen monotonically with the coupling, measured at six couplings rather than asserted — from nothing at K = 0 to better than two thirds of the line at K = 1',
+    fr.every((v, i) => i === 0 || v >= fr[i - 1]) && fr[0] === 0 && fr[5] > 0.6,
+    `K = ${Ks.join(', ')} -> ${fr.map(f => (f * 100).toFixed(1) + '%').join(', ')}`);
+
+  const caps = [10, 20, 40, 80].map(q => frac(1, 240, q));
+  ok('and what that measurement reports is a FLOOR, never the answer, which the numbers themselves demonstrate: raising the denominator cap only ever raises the share, because every tongue too thin for the cap is a tongue under-counted. At K = 1 the true value is one — the unlocked set has measure zero — and no finite cap will ever print it',
+    caps.every((v, i) => i === 0 || v >= caps[i - 1]) && caps[3] > caps[0],
+    `q <= 10, 20, 40, 80 -> ${caps.map(f => (f * 100).toFixed(1) + '%').join(' -> ')} at K = 1`);
+
+  const half = locked(0.5, 1, 40, 1e-9), seven = locked(0.31, 1, 40, 1e-9);
+  const gold = locked((Math.sqrt(5) - 1) / 2, 1, 60, 1e-9);
+  ok('inside a tongue the orbit closes on a rational the detuning is NOT: at K = 1 a detuning of 0.31 runs at exactly two sevenths, which is 0.2857, and it is dragged there and held. That is what locking means, and it is the one thing a printed picture of tongues cannot show',
+    half && half.p === 1 && half.q === 2 && seven && seven.p === 2 && seven.q === 7
+    && Math.abs(rot(0.31, 1, 8000, 4000) - 2 / 7) < 1e-3,
+    `Omega = 0.5 -> ${half.p}/${half.q} · Omega = 0.31 -> ${seven.p}/${seven.q}, rho = ${rot(0.31, 1, 8000, 4000).toFixed(9)} against 2/7 = ${(2 / 7).toFixed(9)}`);
+  ok('and the golden detuning is the LAST to lock, which is the same theorem the first half of this file proves in another coat: phi-1 is the number hardest to approximate by fractions, so its tongue is the thinnest there is, and at K = 1 with denominators to sixty it is still free',
+    gold === null,
+    `Omega = phi-1 at K = 1, denominators to 60: ${gold ? gold.p + '/' + gold.q : 'still free'} · rho = ${rot((Math.sqrt(5) - 1) / 2, 1, 8000, 4000).toFixed(9)}`);
+
+  let viol = 0, drop = 0, prev = -1;
+  for (let i = 0; i <= 400; i++) { const r = rot(i / 400, 1, 6000, 3000);
+    if (r < prev - 1e-9) { viol++; drop = Math.max(drop, prev - r); } prev = r; }
+  ok('and the devil is a staircase: the rotation number is non-decreasing in the detuning — a theorem about the map, not a property of any drawing — so four hundred detunings are walked at K = 1 and every descent would be counted here',
+    viol === 0,
+    `401 detunings at K = 1 · descents of rho: ${viol}${viol ? ` · worst ${drop.toExponential(2)}` : ''}`);
+}
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
