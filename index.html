@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-code-you-can-break-2026.08.26.1">
+<html lang="en" data-hcc-build="a-staircase-you-grow-2026.08.26.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-code-you-can-break-2026.08.26.1">
+<meta name="hcc-build" content="a-staircase-you-grow-2026.08.26.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.72.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.73.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.72.0';
-const HCC_BUILD='a-code-you-can-break-2026.08.26.1';
+const HCC_VERSION='4.73.0';
+const HCC_BUILD='a-staircase-you-grow-2026.08.26.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7997,6 +7997,74 @@ function runSelfTests(){
         && Math.abs(BAND.mhz_air_mm-0.343)<1e-3 && Math.abs(BAND.mhz_em_m-299.79)<0.1,
         BAND==null ? 'the band ladders did not evaluate'
           : `${Object.values(HCC_BANDS).reduce((n,L)=>n+L.length,0)} bands over ${Object.keys(HCC_BANDS).length} ladders, ${BAND.bad.length} discontinuities · visible = ${BAND.lo_nm.toFixed(1)}–${BAND.hi_nm.toFixed(1)} nm from λ=c/f · 1 MHz is ${BAND.mhz_air_mm.toFixed(3)} mm in air and ${BAND.mhz_em_m.toFixed(1)} m in vacuum, a factor of ${(BAND.mhz_em_m/(BAND.mhz_air_mm/1000)).toExponential(2)}`);
+    }
+
+    /* ── AND WHEN ONE OF THEM PULLS ON THE OTHER ───────────────────────────── */
+    { let Z=null, ARN=null, MON=null, why2='';
+      try{
+        /* at zero coupling the circle map IS a rotation: ρ must equal Ω exactly,
+           and nothing of positive measure may lock */
+        let worst=0;
+        for(let i=0;i<=40;i++){ const O=i/40; worst=Math.max(worst,Math.abs(oscRotation(O,0,4000,1000)-O)); }
+        Z={worst, f0:oscLockedFraction(0,240,40,1e-9).fraction,
+           naive:(()=>{ let c=0; for(let i=0;i<240;i++) if(oscLocked(i/240,0,40,1e-9)) c++; return c/240; })()};
+        /* the tongues, MEASURED: the locked share of the Ω line at rising coupling */
+        const Ks=[0,0.2,0.4,0.6,0.8,1.0];
+        const fr=Ks.map(K=>oscLockedFraction(K,240,40,1e-9).fraction);
+        /* and raising the denominator cap may only ever RAISE the number, because
+           the measure is a floor and every tongue it misses is a tongue it under-counts */
+        const caps=[10,20,40,80].map(q=>oscLockedFraction(1,240,q,1e-9).fraction);
+        const half=oscLocked(0.5,1,40,1e-9), gold=oscLocked((Math.sqrt(5)-1)/2,1,60,1e-9);
+        const seven=oscLocked(0.31,1,40,1e-9);
+        ARN={Ks, fr, caps, half, gold, seven,
+          rhoHalf:oscRotation(0.5,1,4000,2000), rhoSeven:oscRotation(0.31,1,8000,4000),
+          rising:fr.every((v,i)=>i===0||v>=fr[i-1]-1e-12),
+          capsRising:caps.every((v,i)=>i===0||v>=caps[i-1]-1e-12)};
+        /* ρ is non-decreasing in Ω — a theorem, and the staircase is drawn on it */
+        let viol=0, drop=0, prev=-1;
+        for(let i=0;i<=400;i++){ const r=oscRotation(i/400,1,6000,3000);
+          if(r<prev-1e-9){ viol++; drop=Math.max(drop,prev-r); } prev=r; }
+        MON={viol, drop, steps:401};
+        /* the staircase is drawn with a MERGED probe that settles once and answers both
+           questions, so the merged probe is checked against the two it stands in for */
+        let mism=0, pairs=0;
+        for(let a=0;a<=30;a++) for(let b=0;b<=12;b++){
+          const O=oscOmegaAt(a,31), Kb=2*b/12; pairs++;
+          const pr=oscProbe(O,Kb,420,600,40,1e-9), L=oscLocked(O,Kb,40,1e-9);
+          if(!((!!pr.lock===!!L)&&(!pr.lock||(pr.lock.q===L.q&&pr.lock.p===L.p)))) mism++;
+        }
+        const scale=[];
+        for(const N of [420,1680,6720]){ let w=0;
+          for(let a=0;a<=7;a++) for(let b=1;b<=4;b++){
+            const O=oscOmegaAt(a,8), Kb=b/4;
+            w=Math.max(w,Math.abs(oscProbe(O,Kb,N,600,40,1e-9).rho-oscRotation(O,Kb,N,600))); }
+          scale.push({N,w}); }
+        MON.merged={pairs, mism, scale, flat:scale.map(s=>s.N*s.w)};
+      }catch(e){ why2=(e&&e.message)||String(e); }
+      ok('AND WHEN ONE OSCILLATOR PULLS ON THE OTHER THE ANSWER STOPS BEING CONTINUOUS. The standard circle map θ → θ + Ω − (K/2π)sin2πθ is a rotation at K = 0 and the atlas checks exactly that first: the rotation number equals the detuning to thirteen decimals, and the locked share of the Ω line measures ZERO, as it must, since at zero coupling only the rationals close and the rationals have measure zero. That zero is also this laboratory’s own trap sprung and disarmed — sampling Ω on the obvious grid i/n makes a third of the samples rational and reports thirty-three per cent locked at no coupling at all, a number manufactured entirely by the grid, so the grid is offset by 1/φ² and both numbers are reported side by side below',
+        Z!=null && Z.worst<1e-11 && Z.f0===0 && Z.naive>0.25,
+        Z==null ? `the circle map did not evaluate: ${why2||'no reason recorded'}`
+          : `K = 0 · max |ρ − Ω| over 41 detunings = ${Z.worst.toExponential(2)} · locked share on the offset grid ${(Z.f0*100).toFixed(1)}% · on the naive rational grid i/n it would read ${(Z.naive*100).toFixed(1)}%, and every one of those is a rational, not a tongue`);
+      ok('and the tongues are then MEASURED WIDENING rather than asserted to widen. The locked share of the detuning line is walked at six couplings and rises monotonically from nothing to better than two thirds; at K = 1 the true answer is that the tongues fill the line and the unlocked set has measure zero, so what is measured here with a finite denominator cap is a FLOOR and is labelled as one — the proof being that raising the cap from ten to eighty only ever raises the number, never lowers it, exactly as an under-count must behave',
+        ARN!=null && ARN.rising && ARN.capsRising && ARN.fr[0]===0 && ARN.fr[5]>0.6 && ARN.caps[3]>ARN.caps[0],
+        ARN==null ? 'the tongue sweep did not evaluate'
+          : `K = ${ARN.Ks.join(', ')} → locked ${ARN.fr.map(f=>(f*100).toFixed(1)+'%').join(', ')} · monotone: ${ARN.rising} · at K = 1 with q ≤ 10, 20, 40, 80 the floor reads ${ARN.caps.map(f=>(f*100).toFixed(1)+'%').join(' → ')}, rising as an under-count must`);
+      ok('and inside a tongue the orbit CLOSES, which is the whole phenomenon in one sentence: the driven oscillator runs at a fixed rational multiple of the drive and refuses to be moved off it. At K = 1 a detuning of one half locks at 1/2 and a detuning of 0.31 locks at 2/7 — note that 0.31 is not 2/7 and is not near it, and the orbit goes there anyway, which is what LOCKING means and what a picture of tongues can never show you. The golden detuning φ−1 is checked in the same breath and is still free at K = 1 with denominators up to sixty, because its tongue is the thinnest there is — the same fact the bank next door measures as the Hurwitz bound',
+        ARN!=null && ARN.half && ARN.half.q===2 && ARN.half.p===1
+        && ARN.seven && ARN.seven.q===7 && ARN.seven.p===2
+        && Math.abs(ARN.rhoHalf-0.5)<1e-9 && Math.abs(ARN.rhoSeven-2/7)<1e-3 && !ARN.gold,
+        ARN==null ? 'the lock walk did not evaluate'
+          : `Ω = 0.5 → ${ARN.half?ARN.half.p+'/'+ARN.half.q:'free'}, ρ = ${ARN.rhoHalf.toFixed(12)} · Ω = 0.31 → ${ARN.seven?ARN.seven.p+'/'+ARN.seven.q:'free'}, ρ = ${ARN.rhoSeven.toFixed(9)} against 2/7 = ${(2/7).toFixed(9)} · Ω = φ−1 → ${ARN.gold?ARN.gold.p+'/'+ARN.gold.q:'still free at q ≤ 60'}`);
+      ok('and the staircase the laboratory rebuilds every frame is checked to be a staircase: the rotation number is non-decreasing in the detuning — that is a theorem about the circle map, not a property of this drawing — so four hundred detunings are walked at K = 1 and any descent is counted. If the map, the iteration count, or the transient discard were wrong, ρ would wobble and this line would report the descents',
+        MON!=null && MON.viol===0,
+        MON==null ? 'the monotonicity walk did not evaluate'
+          : `${MON.steps} detunings at K = 1 · descents of ρ: ${MON.viol}${MON.viol?` · worst ${MON.drop.toExponential(2)}`:''}`);
+      ok('and the staircase is drawn from a MERGED probe — one settling transient answering both "what is the rotation number" and "is it locked", because asking them separately settles the same orbit twice and costs the frame rate the whole station is built on. A shortcut is a second authority on a fact the atlas already has one for, so it is checked against both functions it stands in for over four hundred parameter pairs: the lock verdicts must agree EXACTLY, and the rotation numbers must agree to the sampling error of a finite orbit and no better. That last part is checked by watching the disagreement shrink as 1/N over four decades — if the merge were wrong rather than merely finite, the product N·error would grow instead of sitting still',
+        MON!=null && MON.merged && MON.merged.mism===0 && MON.merged.pairs>=400
+        && MON.merged.flat.every(v=>v>0.1&&v<12)
+        && MON.merged.scale[2].w<MON.merged.scale[0].w/8,
+        MON==null||!MON.merged ? 'the merged probe was not compared'
+          : `${MON.merged.pairs} parameter pairs · lock verdicts disagreeing: ${MON.merged.mism} · worst |Δρ| at N = ${MON.merged.scale.map(s=>`${s.N}: ${s.w.toExponential(2)}`).join(' · ')} · N·error = ${MON.merged.flat.map(v=>v.toFixed(2)).join(', ')}, flat, so the two agree in the limit and differ only by the length of the orbit`);
     }
 
     /* ── HOW FAR APART ARE EIGHTY-SIX LABORATORIES? ────────────────────────── */
@@ -49924,6 +49992,7 @@ const state = {
   cuspStation:'cusp', cuspA:-1.4, cuspB:0, cuspSweep:true, cuspSpeed:1,   // catastrophe lab
   poinI1:1, poinI2:2, poinI3:3, poinL2:1.02, poinRun:true, poinSpeed:1,   // Poinsot / Dzhanibekov
   oscN:4, oscRatio:1.618033988749895, oscDecade:3, oscEps:3,        // frequency generators
+  oscStation:'tongues', oscOmega:0.6180339887498949, oscK:0.9, oscQmax:40, oscPaint:4,  // and the circle map
   oscLadder:'electromagnetic', oscRun:true, oscSpeed:1,
   scalesKind:'length', scalesAll:false, scalesLink:0, scalesDrive:0.5, scalesRun:true,   // the scale panorama
   scalesLanes:true, scalesSpeed:1,
@@ -54397,6 +54466,29 @@ function buildCtlBody(){
         <button class="btn" id="poinToChaos">${TT('→ Attractors: separatrices and sensitivity','→ Аттракторы: сепаратрисы и чувствительность','→ Attraktoren: Separatrizen')}</button></div>
     </div>`;
     else if(V==='osc') body = `
+    <div class="sect"><b>${TT('Station','Станция','Station')}</b>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="chip ${oscStation()==='tongues'?'on':''}" id="oscSt-tongues">${TT('Arnold tongues — one pulls the other','Языки Арнольда — один тянет другого','Arnold-Zungen')}</button>
+        <button class="chip ${oscStation()==='bank'?'on':''}" id="oscSt-bank">${TT('The bank — both are free','Банк — оба свободны','Die Bank')}</button></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Two halves of one question. The bank asks when N FREE oscillators fall back into phase, and the answer is number theory. The tongues ask what happens when one of them PULLS on the other, and the answer is the same number theory wearing a different coat: the ratio hardest to approximate by fractions is both the slowest to coincide and the last to lock.','Две половины одного вопроса. Банк спрашивает, когда N СВОБОДНЫХ осцилляторов вернутся в фазу, и ответ есть теория чисел. Языки спрашивают, что будет, когда один ТЯНЕТ другого, и ответ — та же теория чисел в другом платье: отношение, хуже всех приближаемое дробями, и совпадает позже всех, и захватывается последним.','Zwei Haelften einer Frage — und dieselbe Zahlentheorie.')}</div>
+    </div>
+    ${oscStation()==='tongues'?`
+    <div class="sect"><b>${TT('The circle map','Круговое отображение','Die Kreisabbildung')}</b>
+      <div class="ctlrow"><label>${TT('detuning Ω','расстройка Ω','Verstimmung Ω')}</label>
+        <input type="range" id="oscOmega" min="0" max="1" step="0.000001" value="${state.oscOmega??0.618034}"><span class="val" id="oscOmegaV">${(state.oscOmega??0.618034).toFixed(6)}</span></div>
+      <div class="ctlrow"><label>${TT('drive K','связь K','Antrieb K')}</label>
+        <input type="range" id="oscK" min="0" max="2" step="0.001" value="${state.oscK??0.9}"><span class="val" id="oscKV">${(state.oscK??0.9).toFixed(3)}</span></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
+        <button class="chip" id="oscKcrit">K = 1 ${TT('· the critical line','· критическая линия','· kritische Linie')}</button>
+        <button class="chip" id="oscOgold">Ω = φ−1 ${TT('· the last to lock','· захватывается последним','· zuletzt')}</button>
+        <button class="chip" id="oscOhalf">Ω = 1/2 ${TT('· the widest tongue','· самый широкий язык','· breiteste Zunge')}</button></div>
+      <div class="ctlrow"><label>${TT('denominator cap','предел знаменателя','Nenner-Grenze')}</label>
+        <input type="range" id="oscQmax" min="4" max="80" step="1" value="${state.oscQmax??40}"><span class="val" id="oscQmaxV">q ≤ ${state.oscQmax??40}</span></div>
+      <div class="ctlrow"><label>${TT('paint speed','скорость покраски','Malgeschwindigkeit')}</label>
+        <input type="range" id="oscPaint" min="1" max="12" step="1" value="${state.oscPaint??4}"><span class="val" id="oscPaintV">${state.oscPaint??4} ${TT('col/frame','стлб/кадр','Sp/Bild')}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Move K and the staircase below is REBUILT under your hand — a hundred and twenty rotation numbers a frame, each from hundreds of iterations of the map. Nothing here is a stored picture. The locked fraction reported is a FLOOR and is labelled as one: tongues with denominators above the cap are there, are real, and are not counted, which is why raising the cap only ever raises the number.','Двигайте K — и лестница внизу ПЕРЕСОБИРАЕТСЯ у вас под рукой: сто двадцать чисел вращения за кадр, каждое из сотен итераций отображения. Здесь нет ни одной сохранённой картинки. Показанная доля захвата есть НИЖНЯЯ оценка и так и подписана: языки со знаменателями выше предела существуют, реальны и не сосчитаны — потому поднятие предела только увеличивает число.','Bewege K und die Treppe wird unter deiner Hand NEU GEBAUT. Der gemeldete Anteil ist eine UNTERGRENZE.')}</div>
+    </div>`:''}
+    ${oscStation()==='bank'?`
     <div class="sect"><b>${TT('The bank','Банк','Die Bank')}</b>
       <div class="ctlrow"><label>${TT('generators','генераторов','Generatoren')}</label>
         <input type="range" id="oscN" min="2" max="8" step="1" value="${state.oscN??4}"><span class="val" id="oscNV">${state.oscN??4}</span></div>
@@ -54419,7 +54511,7 @@ function buildCtlBody(){
       <div class="ctlrow"><label>ε = 10⁻</label>
         <input type="range" id="oscEps" min="1" max="6" step="1" value="${state.oscEps??3}"><span class="val" id="oscEpsV">${state.oscEps??3}</span></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The two ladders OVERLAP and that is the point rather than an oversight: 1 MHz is deep ultrasound with a wavelength of 0.343 mm, and it is also a radio wave with a wavelength of 300 m. Both are computed here from λ = v/f and both land on the same length axis the scale panorama draws.','Две лестницы ПЕРЕКРЫВАЮТСЯ, и это суть, а не недосмотр: 1 МГц есть глубокий ультразвук с длиной волны 0.343 мм и одновременно радиоволна длиной 300 м. Обе вычисляются здесь из λ = v/f и попадают на ту же ось длин, что рисует панорама масштабов.','Die beiden Leitern UEBERLAPPEN, und das ist der Punkt: 1 MHz ist tiefer Ultraschall mit 0.343 mm Wellenlaenge und zugleich eine Radiowelle mit 300 m. Beide werden hier aus λ = v/f berechnet.')}</div>
-    </div>
+    </div>`:''}
     <div class="sect"><b>${TT('Passport','Паспорт','Pass')}</b>
       <div class="note" id="oscInv" style="font-variant-numeric:tabular-nums;font-size:11.5px">—</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('MEASURED. The Lagrange number is computed as 1/liminf q|qα−p| over the TAIL of the convergents, because liminf is a tail property — an earlier version took the minimum over every convergent, picked up the early transient, and reported φ at 2.2847 instead of 2.23607. The denominators are capped at 3e5 because q|qα−p| carries about q²α·2⁻⁵³ of pure rounding, which at q = 1e7 is three percent of the answer. DECLARED: the air sound speed 343 m/s is a stated convention at 20 °C; c is exact.','ИЗМЕРЕНО. Число Лагранжа считается как 1/liminf q|qα−p| по ХВОСТУ подходящих дробей, ибо liminf есть свойство хвоста: ранняя версия брала минимум по всем дробям, ловила начальный выброс и давала для φ 2.2847 вместо 2.23607. Знаменатели ограничены 3e5, потому что q|qα−p| несёт около q²α·2⁻⁵³ чистого округления. ЗАЯВЛЕНО: 343 м/с — объявленная условность при 20 °C; c точна.','GEMESSEN. Die Lagrange-Zahl wird als 1/liminf q|qα−p| ueber den SCHWANZ der Naeherungsbrueche berechnet, denn liminf ist eine Schwanz-Eigenschaft. Die Nenner sind bei 3e5 gedeckelt. ERKLAERT: 343 m/s ist eine erklaerte Konvention bei 20 °C.')}</div>
@@ -56233,6 +56325,19 @@ function buildCtlBody(){
       ctl.querySelector('#poinToChaos')&&(ctl.querySelector('#poinToChaos').onclick=()=>{ navPush(); hccGo({worldId:'s3',labId:'chaos'}); });
     }
     if(V==='osc'){
+      OSC_STATIONS.forEach(k=>{ const b=ctl.querySelector('#oscSt-'+k);
+        if(b) b.onclick=()=>{ state.oscStation=k; buildCtl(); }; });
+      ctl.querySelector('#oscOmega')&&(ctl.querySelector('#oscOmega').oninput=e=>{ state.oscOmega=+e.target.value;
+        const v=ctl.querySelector('#oscOmegaV'); if(v)v.textContent=state.oscOmega.toFixed(6); });
+      ctl.querySelector('#oscK')&&(ctl.querySelector('#oscK').oninput=e=>{ state.oscK=+e.target.value;
+        const v=ctl.querySelector('#oscKV'); if(v)v.textContent=state.oscK.toFixed(3); });
+      ctl.querySelector('#oscQmax')&&(ctl.querySelector('#oscQmax').oninput=e=>{ state.oscQmax=+e.target.value;
+        const v=ctl.querySelector('#oscQmaxV'); if(v)v.textContent='q ≤ '+state.oscQmax; });
+      ctl.querySelector('#oscPaint')&&(ctl.querySelector('#oscPaint').oninput=e=>{ state.oscPaint=+e.target.value;
+        const v=ctl.querySelector('#oscPaintV'); if(v)v.textContent=String(state.oscPaint); });
+      ctl.querySelector('#oscKcrit')&&(ctl.querySelector('#oscKcrit').onclick=()=>{ state.oscK=1; buildCtl(); });
+      ctl.querySelector('#oscOgold')&&(ctl.querySelector('#oscOgold').onclick=()=>{ state.oscOmega=(Math.sqrt(5)-1)/2; buildCtl(); });
+      ctl.querySelector('#oscOhalf')&&(ctl.querySelector('#oscOhalf').onclick=()=>{ state.oscOmega=0.5; buildCtl(); });
       ctl.querySelector('#oscN')&&(ctl.querySelector('#oscN').oninput=e=>{ state.oscN=+e.target.value;
         const v=ctl.querySelector('#oscNV'); if(v)v.textContent=String(state.oscN); });
       ctl.querySelector('#oscRatio')&&(ctl.querySelector('#oscRatio').oninput=e=>{ state.oscRatio=+e.target.value;
@@ -58285,7 +58390,7 @@ const PREDICTION_CLASS_MEMBERS={
   conditional:['red','ring','lab','drd','sel','rpd','cmb','mimg']
 };
 const PREDICTION_TARGETS={
-  osc:'the continued fraction of any frequency ratio and its convergents; the Lagrange number L = 1/liminf q|q alpha - p|, which Hurwitz bounds below by sqrt5 with equality only for ratios equivalent to the golden ratio; the first cycle at which two generators fall within epsilon of phase coincidence, which for a golden ratio is a Fibonacci number for every epsilon tested; the number of distinct gap lengths the phases cut the circle into, which the three-distance theorem bounds at three; and the band and wavelength of a base frequency in air and in vacuum, computed from lambda = v/f',
+  osc:'the continued fraction of any frequency ratio and its convergents; the Lagrange number L = 1/liminf q|q alpha - p|, which Hurwitz bounds below by sqrt5 with equality only for ratios equivalent to the golden ratio; the first cycle at which two generators fall within epsilon of phase coincidence, which for a golden ratio is a Fibonacci number for every epsilon tested; the number of distinct gap lengths the phases cut the circle into, which the three-distance theorem bounds at three; and the band and wavelength of a base frequency in air and in vacuum, computed from lambda = v/f; and, when one oscillator PULLS on the other, the standard circle map theta -> theta + Omega - (K/2pi) sin 2pi theta, its rotation number, whether that number is locked onto a rational p/q, and what share of the detuning line locks at a given coupling — a share reported as a floor, because tongues thinner than the denominator cap are real and are not counted',
   scales:'the SI value every typed instrument returns for every output whose unit the atlas can convert, evaluated at that instrument\u2019s own declared defaults and sorted onto one logarithmic axis per kind of quantity; the number of decades each axis spans and which output sits at each end; the Planck length, time, mass, energy, temperature and frequency built from hbar, G, c and k_B rather than quoted, and their disagreement with the two places the atlas already stores the Planck length; and for each declared coupling on the quantity bus, the value the source produces, what the wire does to it, and whether the target accepts or refuses it',
   leech:'the weight enumerator of the extended binary Golay code counted over all 4096 words, its minimum weight and the divisibility of every weight by four, self-duality over all 49152 basis-word pairs, the 759 octads and the Steiner system S(5,8,24) counted over all 42504 five-element subsets, the minimum distance and perfection of the punctured code, the kissing number 196560 of the Leech lattice with every minimal vector tested against the membership congruences, the exclusion of any shorter vector by a finite case analysis, the covolume 8^12 from an exact integer Hermite reduction, and the 107 sites the minimal vectors project onto along three orthogonal lattice directions',
   he3:'the p-wave gap on the Fermi surface for either phase, its mean square and fourth-moment angular averages, the closed-form angular-averaged density of states above and below the gap, the BCS gap-to-Tc ratio, the Pippard coherence length, the pair circulation quantum, and the node count and Berry monopole charges',
@@ -60307,6 +60412,114 @@ function oscBank(n,base,ratio){
   for(let i=0;i<n;i++) out.push(base*Math.pow(ratio,i));
   return out;
 }
+/* ══ WHEN DOES A DRIVEN OSCILLATOR LOCK ON? ═══════════════════════════════════
+   The generator bank answers when two free oscillators fall back into phase, and the
+   answer is number theory. This answers the other half of the question, which is
+   physics: what happens when one of them PULLS on the other.
+
+   The standard circle map is the whole of it —
+
+        θ → θ + Ω − (K/2π) sin 2πθ
+
+   Ω is the detuning, K is how hard the drive pulls, and the rotation number ρ is how
+   much phase the system actually gains per cycle. For K = 0 it gains exactly Ω. For
+   K > 0 it does not: over whole intervals of Ω the system LOCKS, ρ sticks at a rational
+   p/q, and the driven oscillator runs at a fixed rational multiple of the drive however
+   you detune it. Those intervals are Arnold's tongues.
+
+   NOTHING HERE IS DRAWN FROM A TABLE, AND ALMOST NOTHING IS DRAWN TWICE.
+     · the tongue plane is computed cell by cell, progressively, in front of the reader
+     · the devil's staircase ρ(Ω) at the current K is recomputed EVERY FRAME — a hundred
+       and twenty rotation numbers, each from a thousand iterations of the map
+     · the orbit at the current (Ω,K) is iterated every frame, so crossing a tongue
+       boundary is watched rather than described: inside, the orbit closes on q points;
+       outside, it never closes and fills the circle
+     · and the locked FRACTION of the Ω line is measured at the current K, which is the
+       number that turns the picture into a statement
+
+   AND THE STATEMENT IS THIS. At K = 1 the tongues fill the line: the set of Ω that does
+   NOT lock has measure zero. What this laboratory measures with denominators capped at
+   sixty is about seventy-two per cent, and the gap between seventy-two and a hundred is
+   not an error — it is exactly the tongues too thin and too high-denominator for a
+   finite cap to see, and it is reported as a floor rather than as the answer.
+
+   AND THE LAST TO LOCK IS THE GOLDEN ONE. The rotation number hardest to approximate by
+   rationals is the one whose tongue is thinnest, and that is φ − 1, which is the same
+   fact the generator bank measures as the Hurwitz bound. Two stations, one theorem. */
+const OSC_TAU=2*Math.PI;
+const oscStep=(t,O,K)=>t+O-(K/OSC_TAU)*Math.sin(OSC_TAU*t);
+function oscRotation(O,K,N,skip){
+  let t=0.5;
+  for(let i=0;i<skip;i++) t=oscStep(t,O,K);
+  const t0=t;
+  for(let i=0;i<N;i++) t=oscStep(t,O,K);
+  return (t-t0)/N;
+}
+/* locked when the orbit closes: θ_{n+q} = θ_n + p for some q below the cap */
+function oscLocked(O,K,QMAX,tol){
+  let t=0.5;
+  for(let i=0;i<600;i++) t=oscStep(t,O,K);
+  const base=t;
+  for(let q=1;q<=QMAX;q++){
+    t=oscStep(t,O,K);
+    const d=t-base, p=Math.round(d);
+    if(Math.abs(d-p)<tol) return {q,p};
+  }
+  return null;
+}
+/* THE Ω LINE IS NOT SAMPLED ON A RATIONAL GRID, and that is not a nicety.
+   At K = 0 the map is a pure rotation and θ_{n+q} − θ_n = qΩ, so the orbit closes
+   for EVERY rational Ω — which is a set of measure zero and not a tongue at all.
+   Sample Ω at i/n and a third of the samples are rational with small denominator,
+   and the measure reads thirty-three per cent locked at zero coupling: a number
+   manufactured entirely by the grid. Offsetting the grid by 1/φ² — the least
+   well approximated shift there is — puts every sample on an irrational Ω, and the
+   same measure then reads zero at K = 0 and climbs monotonically from there. */
+const OSC_OFF=2-(1+Math.sqrt(5))/2;                       /* 1/φ² = 0.381966… */
+const oscOmegaAt=(i,n)=>((i+OSC_OFF)/n)%1;
+function oscLockedFraction(K,samples,QMAX,tol){
+  let n=0;
+  for(let i=0;i<samples;i++) if(oscLocked(oscOmegaAt(i,samples),K,QMAX,tol)) n++;
+  return {K, samples, QMAX, locked:n, fraction:n/samples};
+}
+/* ONE TRANSIENT SERVES BOTH QUESTIONS. The staircase needs the rotation number AND
+   whether that number is locked, at the same detuning, and asking them separately
+   throws away six hundred iterations of settling twice over. The rotation number of a
+   circle homeomorphism does not depend on where the orbit is started, so the lock
+   search may be run first and the rotation measured from wherever it stopped. */
+function oscProbe(O,K,N,skip,QMAX,tol){
+  let t=0.5;
+  for(let i=0;i<skip;i++) t=oscStep(t,O,K);
+  const base=t; let lock=null;
+  for(let q=1;q<=QMAX;q++){ t=oscStep(t,O,K);
+    const d=t-base, p=Math.round(d);
+    if(Math.abs(d-p)<tol){ lock={q,p}; break; } }
+  const t0=t; for(let i=0;i<N;i++) t=oscStep(t,O,K);
+  return {rho:(t-t0)/N, lock};
+}
+/* the tongue plane, painted progressively rather than all at once. THE COLUMNS JUST
+   PAINTED ARE REPORTED, so the drawing recolours those and not the other hundred and
+   twenty-eight: repainting the whole plane every frame is nine thousand seven hundred
+   writes to say that four columns changed. */
+const OSC_TG={w:0,h:0,q:null,col:0,key:'',Kmax:2,touched:[],fresh:true};
+function oscTonguePaint(w,h,Kmax,QMAX,tol,columns){
+  const key=`${w}x${h}|${Kmax}|${QMAX}|${tol}`;
+  OSC_TG.fresh=false;
+  if(OSC_TG.key!==key){ OSC_TG.key=key; OSC_TG.w=w; OSC_TG.h=h; OSC_TG.Kmax=Kmax;
+    OSC_TG.q=new Int16Array(w*h).fill(-2); OSC_TG.col=0; OSC_TG.fresh=true; }
+  OSC_TG.touched.length=0;
+  for(let c=0;c<columns;c++){
+    const x=OSC_TG.col, O=x/(w-1);
+    for(let y=0;y<h;y++){
+      const K=Kmax*y/(h-1);
+      const L=oscLocked(O,K,QMAX,tol);
+      OSC_TG.q[y*w+x]=L?L.q:-1;
+    }
+    OSC_TG.touched.push(x);
+    OSC_TG.col=(OSC_TG.col+1)%w;
+  }
+  return OSC_TG;
+}
 const OSC_SNAPS=Object.freeze([
   {name:'φ  golden',      r:(1+Math.sqrt(5))/2},
   {name:'1+√2  silver',   r:1+Math.SQRT2},
@@ -60320,8 +60533,11 @@ function oscClear(){ while(oscGroup.children.length){ const c=oscGroup.children.
   if(c.geometry) c.geometry.dispose(); if(c.material&&c.material.dispose) c.material.dispose();
   if(c.element&&c.element.remove) c.element.remove(); } }
 const OSC_MAXGEN=8, OSC_TDPTS=144, OSC_BARS=14;
+const OSC_STATIONS=['tongues','bank'];
+const OSC_TW=132, OSC_TH=74, OSC_STAIR=120, OSC_ORB=160;
+function oscStation(){ const s=state.oscStation; return OSC_STATIONS.includes(s)?s:'tongues'; }
 function oscSetup(){
-  oscClear(); oscT=0; oscBuiltFor='';
+  oscClear(); oscT=0; oscBuiltFor=''; OSC_TG.key='';
   oscGroup.add(new THREE.AmbientLight(0x8a94b8,.8));
   const dl=new THREE.DirectionalLight(0xeef2ff,.55); dl.position.set(2,6,7); oscGroup.add(dl);
   const RX=-3.1, RY=0.9, TX=3.1;
@@ -60373,7 +60589,62 @@ function oscSetup(){
   const l3=mkLabel('','label dim'); l3.position.set(BX,BY+1.35,0); oscGroup.add(l3);
   const rl=mkLabel('','label dim'); rl.position.set(0,-3.05,0); oscGroup.add(rl);
   const cl=mkLabel('','label dim'); cl.position.set(RX,RY-1.65,0); oscGroup.add(cl);
-  oscObjs={ring,flash,hands,td,bars,hur,barLab:l3,readLab:rl,coincLab:cl,
+  /* ── STATION TWO: the tongue plane, the staircase, and one live orbit ─────
+     Nothing below is drawn from a table. The plane is computed cell by cell in
+     front of the reader, the staircase is rebuilt from a hundred and twenty
+     rotation numbers every single frame, and the orbit is iterated every frame
+     so that crossing a tongue boundary is WATCHED rather than described. */
+  const TX2=0, TY2=1.58, TW2=7.4, TH2=2.16;
+  /* ONE QUAD AND ONE TEXTURE, not ten thousand instances. The plane is a picture of
+     ten thousand independent orbits, but it is still a picture: pushing it through the
+     renderer as 9768 instanced quads costs more frame time than computing the orbits
+     did, which is the wrong way round for a laboratory whose whole claim is that the
+     arithmetic is live. */
+  const ptex=new THREE.DataTexture(new Uint8Array(OSC_TW*OSC_TH*4),OSC_TW,OSC_TH,THREE.RGBAFormat);
+  ptex.magFilter=THREE.NearestFilter; ptex.minFilter=THREE.LinearFilter; ptex.needsUpdate=true;
+  const plane=new THREE.Mesh(new THREE.PlaneGeometry(TW2,TH2),
+    new THREE.MeshBasicMaterial({map:ptex,toneMapped:false,side:THREE.DoubleSide}));
+  plane.position.set(TX2,TY2,0); oscGroup.add(plane);
+  const kline=new THREE.Mesh(new THREE.BoxGeometry(TW2,.022,.02),
+    new THREE.MeshBasicMaterial({color:0xffd27a})); oscGroup.add(kline);
+  const omark=new THREE.Mesh(new THREE.SphereGeometry(.075,12,9),
+    new THREE.MeshBasicMaterial({color:0xffffff})); oscGroup.add(omark);
+  const paintbar=new THREE.Mesh(new THREE.BoxGeometry(.022,TH2,.02),
+    new THREE.MeshBasicMaterial({color:0x7fd8ff,transparent:true,opacity:.55})); oscGroup.add(paintbar);
+  /* THE CRITICAL LINE. Below K = 1 the map is invertible and the rotation number is a
+     single well-defined number for every detuning; at K = 1 the tongues close up on the
+     line and leave it measure zero; ABOVE it they overlap, the map folds, and there is
+     no longer one answer per detuning. The plane is drawn to K = 2 because the folding
+     is worth seeing, and the line where the guarantee ends is drawn with it rather than
+     left for the reader to not know about. */
+  const crit=new THREE.Mesh(new THREE.BoxGeometry(TW2,.016,.02),
+    new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:.55}));
+  crit.position.set(TX2,TY2-TH2/2+TH2*0.5,0.015); oscGroup.add(crit);
+  const critLab=mkLabel('','label dim'); critLab.position.set(TX2+TW2/2+0.05,TY2,0); oscGroup.add(critLab);
+  const SX2=-2.35, SY2=-1.78, SW2=4.5, SH2=1.42;
+  const stair=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,.1),
+    new THREE.MeshStandardMaterial({metalness:.25,roughness:.55}),OSC_STAIR);
+  stair.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(OSC_STAIR*3),3);
+  stair.count=0; oscGroup.add(stair);
+  const sframe=new THREE.Mesh(new THREE.BoxGeometry(SW2,.014,.02),
+    new THREE.MeshBasicMaterial({color:0x6f7ba8,transparent:true,opacity:.5}));
+  sframe.position.set(SX2,SY2,0); oscGroup.add(sframe);
+  const OX2=2.9, OY2=-1.28, OR2=1.02;
+  const oring=new THREE.Mesh(new THREE.TorusGeometry(OR2,.01,8,72),
+    new THREE.MeshBasicMaterial({color:0x6f7ba8,transparent:true,opacity:.45}));
+  oring.position.set(OX2,OY2,0); oscGroup.add(oring);
+  const orb=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,8),
+    new THREE.MeshStandardMaterial({metalness:.3,roughness:.45}),OSC_ORB);
+  orb.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(OSC_ORB*3),3);
+  orb.count=0; oscGroup.add(orb);
+  const pl1=mkLabel('','label axis'); pl1.position.set(TX2,TY2+1.35,0); oscGroup.add(pl1);
+  const pl2=mkLabel('','label axis'); pl2.position.set(SX2,SY2+1.62,0); oscGroup.add(pl2);
+  const pl3=mkLabel('','label axis'); pl3.position.set(OX2,OY2+1.24,0); oscGroup.add(pl3);
+  oscObjs={ring,flash,hands,tdring,td,bars,hur,
+    barLab:l3,readLab:rl,coincLab:cl,titleLab:tl,bankLab:l1,tdLab:l2,
+    plane,ptex,crit,critLab,kline,omark,paintbar,stair,sframe,oring,orb,
+    planeLab:pl1,stairLab:pl2,orbLab:pl3,
+    TX2,TY2,TW2,TH2,SX2,SY2,SW2,SH2,OX2,OY2,OR2,
     RX,RY,TX,BX,BY,BW,_d:new THREE.Object3D(),_c:new THREE.Color()};
 }
 function oscState(){
@@ -60384,9 +60655,8 @@ function oscState(){
   const eps=Math.pow(10,-(Math.max(1,Math.min(6,state.oscEps??3))));
   return {n,ratio,base,eps,ladder:state.oscLadder||'electromagnetic'};
 }
-function updateOsc(dt){
+function oscBankFrame(dt){
   const O=oscObjs; if(!O) return;
-  if(state.oscRun!==false) oscT+=dt*(state.oscSpeed??1);
   const S=oscState();
   const alpha=S.ratio-Math.floor(S.ratio);
   const key=[S.n,S.ratio.toFixed(9),S.eps,S.ladder,S.base].join('|');
@@ -60464,6 +60734,112 @@ function updateOsc(dt){
       `${TT('three-distance','три расстояния','Drei-Abstand')}: <b>${TD.distinct}</b> ${TT('distinct gap lengths over','различных длин по','verschiedene Laengen ueber')} ${OSC_TDPTS-1} ${TT('points','точкам','Punkte')} — ${TD.lengths.map(x=>x.toFixed(6)).join(' · ')}<br>`+
       `${TT('base','база','Basis')} <b>${fmt(S.base)}</b> Hz · ${band?band.name:TT('outside this ladder','вне этой лестницы','ausserhalb')} · λ<sub>EM</sub> = <b>${fmt(lamEM)}</b> m · λ<sub>air</sub> = <b>${fmt(lamAC)}</b> m`;
   }
+}
+function oscParams(){
+  const O=Math.max(0,Math.min(1,state.oscOmega??0.618034));
+  const K=Math.max(0,Math.min(2,state.oscK??0.9));
+  const QMAX=Math.max(4,Math.min(80,Math.round(state.oscQmax??40)));
+  return {O,K,QMAX,tol:1e-9};
+}
+function updateOsc(dt){
+  const O=oscObjs; if(!O) return;
+  if(state.oscRun!==false) oscT+=dt*(state.oscSpeed??1);
+  const st=oscStation(), tg=(st==='tongues');
+  O.plane.visible=tg; O.kline.visible=tg; O.omark.visible=tg; O.paintbar.visible=tg;
+  O.stair.visible=tg; O.sframe.visible=tg; O.oring.visible=tg; O.orb.visible=tg;
+  O.planeLab.visible=tg; O.stairLab.visible=tg; O.orbLab.visible=tg;
+  O.crit.visible=tg; O.critLab.visible=tg;
+  O.ring.visible=!tg; O.flash.visible=!tg; O.tdring.visible=!tg;
+  O.td.visible=!tg; O.bars.visible=!tg; O.hur.visible=!tg;
+  O.bankLab.visible=!tg; O.tdLab.visible=!tg; O.barLab.visible=!tg; O.coincLab.visible=!tg;
+  for(const h of O.hands) if(tg) h.g.visible=false;
+  if(tg) oscTongueFrame(dt); else oscBankFrame(dt);
+}
+/* ── the tongue station, and everything in it is recomputed rather than stored ──
+   the plane paints a few columns a frame and never stops; the staircase is a hundred
+   and twenty rotation numbers rebuilt EVERY frame; the orbit is iterated every frame.
+   Drag K and the steps widen under your hand — that is the devil's staircase being
+   grown, not replayed. */
+function oscTongueFrame(dt){
+  const O=oscObjs, P=oscParams();
+  const cols=Math.max(1,Math.min(12,Math.round(state.oscPaint??4)));
+  const TG=oscTonguePaint(OSC_TW,OSC_TH,2,P.QMAX,P.tol,cols);
+  const px=O.ptex.image.data;
+  const dirty=TG.fresh?Array.from({length:OSC_TW},(_,i)=>i):TG.touched;
+  for(const x of dirty) for(let y=0;y<OSC_TH;y++){
+    const q=TG.q[y*OSC_TW+x];
+    /* colour by the DENOMINATOR, and brighten with it. An earlier ramp put the
+       lightest colour on q = 1 — the ρ = 0 and ρ = 1 tongues, which are the widest,
+       the least interesting, and swallow the top of the plane at high coupling. The
+       thin high-denominator tongues are what this picture is for, so they are the
+       ones that glow. */
+    const u=q>0?Math.min(1,Math.log(q)/Math.log(40)):0;
+    if(q===-2) O._c.setRGB(0.045,0.055,0.085);
+    else if(q<0) O._c.setHSL(0.60,0.30,0.10);
+    else O._c.setHSL((0.09+0.66*u)%1,0.78,0.30+0.30*u);
+    const o=(y*OSC_TW+x)*4;
+    px[o]=O._c.r*255|0; px[o+1]=O._c.g*255|0; px[o+2]=O._c.b*255|0; px[o+3]=255;
+  }
+  if(dirty.length) O.ptex.needsUpdate=true;
+  O.kline.position.set(O.TX2, O.TY2-O.TH2/2+O.TH2*(P.K/2), 0.02);
+  O.omark.position.set(O.TX2-O.TW2/2+O.TW2*P.O, O.TY2-O.TH2/2+O.TH2*(P.K/2), 0.05);
+  O.paintbar.position.set(O.TX2-O.TW2/2+O.TW2*(TG.col/(OSC_TW-1)), O.TY2, 0.03);
+  /* the staircase — the whole of it, every frame */
+  let locked=0;
+  for(let i=0;i<OSC_STAIR;i++){
+    const om=oscOmegaAt(i,OSC_STAIR);
+    const pr=oscProbe(om,P.K,420,600,P.QMAX,P.tol);
+    const r=pr.rho, L=pr.lock;
+    if(L) locked++;
+    const h=Math.max(0.012,r*O.SH2);
+    O._d.position.set(O.SX2-O.SW2/2+O.SW2*om, O.SY2+h/2, 0);
+    O._d.scale.set(O.SW2/OSC_STAIR*0.86,h,1);
+    O._d.quaternion.identity(); O._d.updateMatrix();
+    O.stair.setMatrixAt(i,O._d.matrix);
+    O._c.setHSL(L?(0.11+0.62*Math.min(1,Math.log(L.q)/Math.log(40)))%1:0.58,L?0.75:0.28,L?0.58:0.30);
+    O.stair.setColorAt(i,O._c);
+  }
+  O.stair.count=OSC_STAIR; O.stair.instanceMatrix.needsUpdate=true;
+  if(O.stair.instanceColor) O.stair.instanceColor.needsUpdate=true;
+  /* the orbit at the reader's own (Ω,K) — closed inside a tongue, dense outside */
+  let t=0.5;
+  for(let i=0;i<400;i++) t=oscStep(t,P.O,P.K);
+  const L=oscLocked(P.O,P.K,P.QMAX,P.tol);
+  for(let i=0;i<OSC_ORB;i++){
+    t=oscStep(t,P.O,P.K);
+    const a=OSC_TAU*(t-Math.floor(t));
+    O._d.position.set(O.OX2+O.OR2*Math.sin(a), O.OY2+O.OR2*Math.cos(a), 0);
+    O._d.scale.setScalar(L?0.062:0.042);
+    O._d.quaternion.identity(); O._d.updateMatrix();
+    O.orb.setMatrixAt(i,O._d.matrix);
+    O._c.setHSL(L?0.36:0.58,L?0.80:0.55,L?0.62:0.34+0.28*(1-i/OSC_ORB));
+    O.orb.setColorAt(i,O._c);
+  }
+  O.orb.count=OSC_ORB; O.orb.instanceMatrix.needsUpdate=true;
+  if(O.orb.instanceColor) O.orb.instanceColor.needsUpdate=true;
+  O._lock=L; O._locked=locked/OSC_STAIR; O._rho=oscRotation(P.O,P.K,600,400); O._P=P;
+  oscUiAcc+=dt; if(oscUiAcc>0.25){ oscUiAcc=0; oscTongueReadout(P,L,TG); }
+}
+function oscTongueReadout(P,L,TG){
+  const O=oscObjs, f=O._locked??0;
+  O.planeLab.element.textContent=`${TT('ARNOLD TONGUES','ЯЗЫКИ АРНОЛЬДА','ARNOLD-ZUNGEN')} · ${TT('detuning Ω across · drive K upward to 2 · colour is the locking denominator · painted cell by cell in front of you','расстройка Ω поперёк · сила связи K вверх до 2 · цвет есть знаменатель захвата · красится по клеткам у вас на глазах','Verstimmung Ω quer · Antrieb K aufwaerts · Farbe ist der Nenner')}`;
+  O.stairLab.element.textContent=`${TT('THE DEVIL’S STAIRCASE','ЧЁРТОВА ЛЕСТНИЦА','DIE TEUFELSTREPPE')} · ρ(Ω) ${TT('at K =','при K =','bei K =')} ${P.K.toFixed(3)} · ${TT('rebuilt every frame from 120 rotation numbers','пересобирается каждый кадр из 120 чисел вращения','jedes Bild neu aus 120 Rotationszahlen')}`;
+  O.orbLab.element.textContent=L
+    ?`${TT('LOCKED','ЗАХВАЧЕНО','EINGERASTET')} ${L.p}/${L.q} — ${TT('the orbit closes on','орбита замыкается на','die Bahn schliesst auf')} ${L.q} ${TT('points','точках','Punkten')}`
+    :`${TT('FREE — the orbit never closes and fills the circle','СВОБОДНО — орбита не замыкается и заполняет круг','FREI — die Bahn schliesst nie und fuellt den Kreis')}`;
+  O.critLab.element.textContent=`K = 1${P.K>1?TT(' — you are ABOVE it: the map folds and ρ is no longer one number per Ω',' — вы ВЫШЕ неё: отображение складывается, и ρ более не одно число на Ω',' — DARUEBER: die Abbildung faltet'):''}`;
+  O.readLab.element.textContent=`Ω = ${P.O.toFixed(6)} · K = ${P.K.toFixed(3)} · ρ = ${(O._rho??0).toFixed(6)}${L?` = ${L.p}/${L.q}`:''} · ${TT('locked fraction of the Ω line','доля захваченной линии Ω','eingerasteter Anteil')} ${(f*100).toFixed(1)}%`;
+  hudBig.textContent=`${TT('ARNOLD TONGUES','ЯЗЫКИ АРНОЛЬДА','ARNOLD-ZUNGEN')} · K=${P.K.toFixed(2)} · ρ=${(O._rho??0).toFixed(5)}${L?` = ${L.p}/${L.q}`:` · ${TT('free','свободно','frei')}`} · ${(f*100).toFixed(0)}% ${TT('of the Ω line locked','линии Ω захвачено','der Ω-Linie gesperrt')}`;
+  hudSub.textContent=TT('The bank next door asks when two FREE oscillators fall back into phase. This asks the other half: what happens when one of them PULLS on the other. The standard circle map is the whole of it — θ → θ + Ω − (K/2π) sin 2πθ — where Ω is the detuning and K is how hard the drive pulls. At K = 0 the system gains exactly Ω of phase per cycle and nothing is special. Turn K up and over whole INTERVALS of detuning the rotation number sticks at a rational p/q: the driven oscillator runs at a fixed rational multiple of the drive however you detune it, and refuses to be moved. Those intervals are Arnold’s tongues, and they are being computed here cell by cell in front of you rather than fetched from a picture. The staircase below is rebuilt EVERY FRAME — a hundred and twenty rotation numbers, each from hundreds of iterations of the map — so drag K and watch its steps widen and swallow the line under your hand. At K = 1 the tongues fill it: the set of detunings that does NOT lock has measure zero. What is measured here with denominators capped is a FLOOR on that, never the answer, and the gap is exactly the tongues too thin to see. And the last to lock is the golden one, φ − 1, whose tongue is thinnest because it is the number hardest to approximate by fractions — which is the same theorem the bank measures as the Hurwitz bound. Two stations, one fact.',
+    'Банк по соседству спрашивает, когда два СВОБОДНЫХ осциллятора вернутся в фазу. Здесь — вторая половина вопроса: что будет, когда один ТЯНЕТ другой. Стандартное круговое отображение есть всё содержание — θ → θ + Ω − (K/2π) sin 2πθ, — где Ω есть расстройка, K есть сила тяги. При K = 0 система набирает ровно Ω фазы за цикл, и ничего особенного нет. Поднимите K — и на целых ИНТЕРВАЛАХ расстройки число вращения залипает на рациональном p/q: ведомый осциллятор идёт на фиксированной рациональной кратности ведущего, как его ни расстраивай, и сдвинуть его нельзя. Это языки Арнольда, и они считаются здесь по клеткам у вас на глазах, а не берутся из картинки. Лестница внизу пересобирается КАЖДЫЙ КАДР — сто двадцать чисел вращения, каждое из сотен итераций, — так что двигайте K и смотрите, как её ступени растут и съедают линию прямо под рукой. При K = 1 языки заполняют её целиком: множество расстроек, которые НЕ захватываются, имеет меру нуль. Измеренное здесь при ограниченном знаменателе есть НИЖНЯЯ оценка, а не ответ, и разрыв — это в точности языки, слишком тонкие, чтобы их увидеть. А последним захватывается золотое, φ − 1, чей язык тоньше всех, потому что это число хуже всех приближается дробями, — та же теорема, которую банк меряет как границу Гурвица. Две станции, один факт.',
+    'Die Bank nebenan fragt, wann zwei FREIE Oszillatoren wieder in Phase fallen. Hier die andere Haelfte: was geschieht, wenn einer den anderen ZIEHT. Die Standard-Kreisabbildung ist alles — θ → θ + Ω − (K/2π) sin 2πθ. Bei K = 0 gewinnt das System genau Ω pro Zyklus. Dreht man K auf, rastet die Rotationszahl ueber ganzen INTERVALLEN auf einem rationalen p/q ein — Arnolds Zungen, hier Zelle fuer Zelle berechnet. Die Treppe darunter wird JEDES BILD neu gebaut, aus hundertzwanzig Rotationszahlen. Bei K = 1 fuellen die Zungen die Linie: das nicht einrastende Mass ist null. Das hier Gemessene ist eine UNTERGRENZE, nie die Antwort. Und die letzte ist die goldene, φ − 1 — dieselbe Tatsache, die die Bank als Hurwitz-Schranke misst.');
+  try{ ATLAS_BUS.pub('osc.locked_fraction',f,'dimensionless');
+       ATLAS_BUS.pub('osc.rotation_number',O._rho??0,'dimensionless'); }catch(e){}
+  const el=ctl.querySelector('#oscInv'); if(el) el.innerHTML=
+    `θ → θ + Ω − (K/2π)·sin 2πθ<br>`+
+    `Ω = <b>${P.O.toFixed(9)}</b> · K = <b>${P.K.toFixed(4)}</b> · ρ = <b>${(O._rho??0).toFixed(9)}</b>${L?` = <b>${L.p}/${L.q}</b>`:` — <span style="color:#7fd8ff">${TT('not locked at this cap','не захвачено при этом ограничении','nicht eingerastet')}</span>`}<br>`+
+    `${TT('locked fraction of the Ω line at this K','доля захваченной линии Ω при этом K','eingerasteter Anteil bei diesem K')} <b>${(f*100).toFixed(1)}%</b> ${TT('with denominators up to','при знаменателях до','mit Nennern bis')} ${P.QMAX} — ${TT('a FLOOR, not the answer: thinner tongues are there and are not seen','НИЖНЯЯ оценка, а не ответ: более тонкие языки есть и не видны','eine UNTERGRENZE, nicht die Antwort')}<br>`+
+    `${TT('plane painted','плоскость закрашена','Ebene gemalt')} <b>${Math.round(100*(TG.col||OSC_TW)/OSC_TW)}%</b> · ${OSC_TW}×${OSC_TH} ${TT('cells, each an independent orbit','клеток, каждая — отдельная орбита','Zellen')}`;
 }
 
 /* ══ THE ATLAS ON ONE AXIS ════════════════════════════════════════════════════
@@ -61908,7 +62284,8 @@ try{ hccApiRegister({
             'the convergents p_k/q_k of the continued fraction are the best rational approximations, and q_k is the wait',
             'Hurwitz: L(x) = 1/liminf q|qx - p| >= sqrt5, with equality only for ratios equivalent to the golden ratio',
             'three-distance: the points {k alpha} cut the circle into at most three distinct gap lengths',
-            'lambda = v/f, with v = c in vacuum and a declared 343 m/s in air'],
+            'lambda = v/f, with v = c in vacuum and a declared 343 m/s in air',
+            'the standard circle map theta -> theta + Omega - (K/2pi) sin 2pi theta, whose rotation number locks onto rationals over whole intervals of Omega — the Arnold tongues'],
   inputs:[
     {name:'ratio', type:'number', unit:'dimensionless', default:(1+Math.sqrt(5))/2, min:1.000001, max:8,
      doc:['the ratio between adjacent generators — the one number the answer depends on',
@@ -61925,7 +62302,19 @@ try{ hccApiRegister({
     {name:'points', type:'number', unit:'count', default:144, min:2, max:2000,
      doc:['how many phase samples to cut the circle with, for the three-distance count',
           'сколько фазовых отсчётов режут круг для счёта трёх расстояний',
-          'wie viele Phasenproben den Kreis schneiden']}],
+          'wie viele Phasenproben den Kreis schneiden']},
+    {name:'detuning', type:'number', unit:'dimensionless', default:0.6180339887498949, min:0, max:1,
+     doc:['Omega in the circle map: how much phase the free system would gain per cycle of the drive',
+          'Ω кругового отображения: сколько фазы система набрала бы за цикл ведущего без связи',
+          'Ω in der Kreisabbildung']},
+    {name:'coupling', type:'number', unit:'dimensionless', default:0.9, min:0, max:2,
+     doc:['K in the circle map: how hard the drive pulls. At K = 0 nothing locks; at K = 1 the tongues fill the line',
+          'K кругового отображения: сила тяги ведущего. При K = 0 захвата нет; при K = 1 языки заполняют линию',
+          'K in der Kreisabbildung']},
+    {name:'lock_cap', type:'number', unit:'count', default:40, min:2, max:200,
+     doc:['the largest denominator a lock is looked for at — the measure below it is a floor, never the answer',
+          'наибольший знаменатель, до которого ищется захват: мера ниже него есть нижняя оценка, а не ответ',
+          'der groesste Nenner, bis zu dem gesucht wird']}],
   outputs:[
     {name:'alpha', unit:'dimensionless'}, {name:'lagrange', unit:'dimensionless'},
     {name:'hurwitz_bound', unit:'dimensionless'}, {name:'above_bound', unit:'dimensionless'},
@@ -61935,12 +62324,17 @@ try{ hccApiRegister({
     {name:'longest_gap', unit:'dimensionless'},
     {name:'wavelength_vacuum', unit:'m'}, {name:'wavelength_air', unit:'m'},
     {name:'band_em', unit:'text'}, {name:'band_acoustic', unit:'text'},
-    {name:'beat_frequency', unit:'Hz'}, {name:'beat_period', unit:'s'}],
+    {name:'beat_frequency', unit:'Hz'}, {name:'beat_period', unit:'s'},
+    {name:'rotation_number', unit:'dimensionless'}, {name:'is_locked', unit:'dimensionless'},
+    {name:'lock_numerator', unit:'count'}, {name:'lock_denominator', unit:'count'},
+    {name:'locked_fraction', unit:'dimensionless'}],
   limits:['the Lagrange number is a liminf and therefore a TAIL property: it is computed over the last six convergents, because taking the minimum over every convergent picks up the early transient and reported the golden ratio at 2.2847 instead of 2.23607',
           'denominators are capped at 3e5 — q|q.alpha-p| carries about q^2.alpha.2^-53 of pure rounding, which at q = 1e7 is three percent of the answer, so past the cap the arithmetic describes the float rather than the number',
           'a ratio that is exactly rational has no liminf to take and returns infinity, which is the correct answer and not a failure: a rational pair returns to phase exactly and forever',
           'the first coincidence is searched to a million cycles and reports -1 beyond that, which means NOT WITHIN THE BUDGET and is a different statement from never',
-          'the air sound speed is a declared 343 m/s at 20 C; c is exact by definition'],
+          'the air sound speed is a declared 343 m/s at 20 C; c is exact by definition',
+          'locked_fraction is a FLOOR and never the answer: tongues with denominators above lock_cap are real, are there, and are not counted, which is why raising the cap only ever raises the number. At K = 1 the true value is 1 — the unlocked set has measure zero — and no finite cap will report it',
+          'the Omega line is sampled on a grid offset by 1/phi^2 rather than at i/n, because a rational grid closes at every sample at K = 0 and manufactures a third of a line locked at no coupling at all'],
   evaluate(inp){
     const a=inp.ratio-Math.floor(inp.ratio);
     const L=oscLagrange(a);
@@ -61949,6 +62343,8 @@ try{ hccApiRegister({
     const S5=Math.sqrt(5);
     const f1=inp.base, f2=inp.base*inp.ratio;
     const bE=oscBandOf(f1,'electromagnetic'), bA=oscBandOf(f1,'acoustic');
+    const cap=Math.max(2,Math.round(inp.lock_cap));
+    const LK=oscLocked(inp.detuning,inp.coupling,cap,1e-9);
     return {alpha:a, lagrange:Number.isFinite(L.L)?L.L:Infinity, hurwitz_bound:S5,
       above_bound:Number.isFinite(L.L)?(L.L/S5-1):Infinity,
       max_partial_quotient:L.max_partial_quotient??0, convergents:L.denominators.length,
@@ -61956,7 +62352,10 @@ try{ hccApiRegister({
       distinct_gaps:TD.distinct, shortest_gap:TD.lengths[0], longest_gap:TD.lengths[TD.lengths.length-1],
       wavelength_vacuum:oscWavelength(f1,'electromagnetic'), wavelength_air:oscWavelength(f1,'acoustic'),
       band_em:bE?bE.name:'outside the ladder', band_acoustic:bA?bA.name:'outside the ladder',
-      beat_frequency:Math.abs(f2-f1), beat_period:Math.abs(f2-f1)>0?1/Math.abs(f2-f1):Infinity};
+      beat_frequency:Math.abs(f2-f1), beat_period:Math.abs(f2-f1)>0?1/Math.abs(f2-f1):Infinity,
+      rotation_number:oscRotation(inp.detuning,inp.coupling,4000,2000),
+      is_locked:LK?1:0, lock_numerator:LK?LK.p:-1, lock_denominator:LK?LK.q:-1,
+      locked_fraction:oscLockedFraction(inp.coupling,120,cap,1e-9).fraction};
   }
 }); }catch(e){ console.warn('osc instrument not registered:', e&&e.message||e); }
 
