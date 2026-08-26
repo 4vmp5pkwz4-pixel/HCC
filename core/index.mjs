@@ -155,6 +155,24 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
   ['desi.covariance', 'no DESI covariance or evidence computation exists in this repository'],
   ['bianchi.spectral_consequence', 'the spectral consequence of Bianchi IX is not derived'],
   ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator'],
+  /* ── FOUND BY MEASURING, RECORDED AS A QUESTION ────────────────────────────
+     The atlas now measures, on every build, how much of each view it recomputes
+     between frames, and publishes the answer in api/liveness.json. A number of
+     views change nothing at all. That is not by itself a fault: a laboratory
+     meant to be a diagram scores zero and is right to, and several of them
+     plainly are meant to be diagrams.
+
+     The problem is that NOTHING DISTINGUISHES THE TWO. No laboratory can declare
+     that it is a diagram, so a still view and a laboratory that quietly stopped
+     computing are indistinguishable to every check the atlas has — and the
+     liveness gate can therefore only be derived for the three laboratories that
+     publish stations, because a station is the one place the atlas has a
+     machine-readable claim to hold a view to. Give a view a way to say what it
+     is meant to be, and the gate covers all of them.
+
+     Written down rather than acted on: rewriting laboratories on a measurement
+     whose meaning is exactly what is undeclared would be the wrong order. */
+  ['atlas.still_views', 'api/liveness.json records views that recompute no geometry and move no bodies between frames, and nothing declares which of them are diagrams by design and which are laboratories that stopped computing; without such a declaration the liveness gate can only be derived for the laboratories that publish stations'],
   /* ── ADDED AFTER THREE EXTERNAL RESULTS WERE REPORTED TO THE ATLAS ─────────
      Recorded as open problems rather than as achievements: each names something the atlas
      now knows it must discharge and has not. The external inputs themselves are logged in
