@@ -157,10 +157,24 @@ const REG = (() => {
     probes.every(([q]) => tokenHit(q)),
     probes.map(([q, id]) => `"${q}" → ${id}`).join(' · ') + ' · the catalogue filter used to match the title and the id and nothing else');
 
+  /* and the declaration table, for the same reason the registry list above reads it:
+     purpose and predictionTarget used to be literal keys in two maps and are now fields
+     on one declaration, so a parse that looked only at the maps reported the last three
+     laboratories as having no description at all. The regexes below find them where they
+     are RATHER than where they used to be, which is the whole difference between a check
+     that tracks the document and one that tracks the document as it was. */
+  const declBlock = html.match(/const LAB_DECLARATIONS=Object\.freeze\(\[([\s\S]*?)\n\]\);/);
+  const declDescribed = declBlock
+    ? [...declBlock[1].matchAll(/\{id:'([a-zA-Z0-9_]+)'/g)].map(x => x[1])
+        .filter(id => { const seg = declBlock[1].slice(declBlock[1].indexOf(`{id:'${id}'`));
+          const end = seg.indexOf("\n  {id:'"); const one = end < 0 ? seg : seg.slice(0, end);
+          return /purpose:'/.test(one) && /predictionTarget:'/.test(one); })
+    : [];
   const described = new Set([
     ...[...descExtra.matchAll(/^\s*([a-zA-Z0-9_]+):/gm)].map(x => x[1]),
     ...[...targets.matchAll(/^\s*([a-zA-Z0-9_]+):/gm)].map(x => x[1]),
     ...[...atlasDefs.matchAll(/\[\s*'[a-zA-Z0-9_]+'\s*,\s*'([a-zA-Z0-9_]+)'/g)].map(x => x[1]),
+    ...declDescribed,
   ]);
   const gap = REG.filter(v => !described.has(v));
   ok('and every laboratory carries a description somewhere the search can see it, so none of the eighty-five is findable by name alone',

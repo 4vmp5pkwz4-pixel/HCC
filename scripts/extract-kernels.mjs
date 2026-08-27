@@ -657,7 +657,10 @@ export const ROOTS = [
      The rung between a redshift and a distance. Three inputs of the Einstein-ring
      laboratory took a megaparsec and nothing in the atlas produced one. */
   'COSMO_C', 'COSMO_GYR_PER_INVH', 'cosmoSimpson', 'cosmoE', 'cosmoHubbleDistance',
-  'cosmoComoving', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak'
+  'cosmoComoving', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak',
+  /* and what arrives: the inverse square law and the magnitude scale */
+  'PHOT_L0', 'PHOT_LSUN', 'PHOT_PC', 'PHOT_ERG_W',
+  'photAbsolute', 'photModulus', 'photFlux', 'photApparent', 'photRatio'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
