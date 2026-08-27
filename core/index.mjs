@@ -145,6 +145,7 @@ const stubs = catalogue.map(L => {
 });
 
 export const NAMED_OPEN_PROBLEMS = Object.freeze([
+  ['atlas.a_frame_is_configured_by_whoever_touched_it_last', 'a reader zooming out of the Solar System stopped at the Oort cloud because THREE separate things could decide the camera\'s far limit and none of them owned it: hccGo skipped entering a world whose name state.mode already carried, so the solar frame never declared its limits; stabilizeCamera then invented a ceiling of minDistance x 1e6 from a non-finite one, which for the Sun\'s collision radius is 131,701 AU; and a boot self-test that walks into an S3 laboratory restored the VIEW it changed but not the FRAME, leaving a solar reader with an S3 laboratory\'s 180 AU ceiling. All three are fixed and a late clause now asserts the promise — the frame you stand in must reach the distance where the next one takes over. What is not fixed is the shape: the limits are still set by whoever calls setControlDistanceLimits last, from fourteen call sites, with no owner and no record of who decided'],
   ['edge.determinants', "primed functional determinants det'|∇²+m²| with tachyonic edge masses are not implemented"],
   ['edge.harish_chandra', 'the Harish-Chandra edge oscillator character is not implemented'],
   ['edge.so4_volume', 'the SO(4) volume factor is not implemented'],
