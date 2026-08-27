@@ -127,9 +127,21 @@ const head = await page.evaluate(() => ({
       refused: cand.filter(c => !links.some(l => l.from === c.from && l.to === c.to))
         .map(c => ({ from: c.from, to: c.to, reason: HCC_API.bus.refusal ? HCC_API.bus.refusal(c.from, c.to) : null })),
       isolated: nb.map(n => ({ id: n.id, distinctive_reach: n.distinctiveReach })),
+      /* ── AND THE INPUTS THAT HAD A CHOICE ────────────────────────────────────
+         One input has exactly one driver, so when several sources are admissible the
+         atlas must pick — and for the photometer's luminosity the quasar holds it only
+         because it was declared first. That was written into two refusal strings and
+         nowhere else. It is a structural fact about this bus, so it is published as
+         one: which inputs were contested, what was chosen, and what the alternatives
+         were. Not a claim that the choice was right, which the atlas cannot make; a
+         record that it was made in the open. */
+      contested: (B.contested ? B.contested() : []).map(r => ({
+        input: r.input, chosen: r.chosen, others: r.others, reasons: r.reasons })),
       counts: { admissible: cand.length, declared: links.length,
         refused: cand.length - links.length, isolated: isolated.length,
-        isolated_dimensionless_only: nb.filter(n => n.distinctiveReach === 0).length }
+        isolated_dimensionless_only: nb.filter(n => n.distinctiveReach === 0).length,
+        contested_inputs: (B.contested ? B.contested().length : 0),
+        sources_that_lost: (B.contested ? B.contested() : []).reduce((n, r) => n + r.others.length, 0) }
     };
   })()
 }));
