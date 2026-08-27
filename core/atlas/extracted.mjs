@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 778   ·   exported names: 863
-   extracted physics, sha256 786cd8f8c8e091e273a0ce305b2c1ac5fecddfe18168b8cc6594988c0762274c */
+   extracted physics, sha256 5221331d97e8d5ff37c6b4840f6be412e34a45dc186bc8e7c4c89fa5ded09ac9 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -4070,7 +4070,7 @@ function hccReachCompose(sens,tran){
       if(s===null||s===undefined) continue;
       legB.push({from:r.from, out:o.key, slope:s, hops:r.hops, route:r.name,
         r2:(o.r2_from_source!==null&&o.r2_from_source!==undefined)?o.r2_from_source:o.r2,
-        drift:o.drift, live:r.live});
+        drift:o.drift, live:r.live, stable:o.stable||null});
     }
   }
   /* ── AND A PRODUCT OF TWO NUMBERS IS NOT A LAW BECAUSE BOTH NUMBERS EXIST ──
@@ -4106,11 +4106,25 @@ function hccReachCompose(sens,tran){
   const verdict=(slope,r2,drift)=>{
     if(drift===null||drift===undefined) return {ok:null, why:'the far leg has too few live samples for the low-third and high-third fits that decide whether its exponent is constant, so this chain is UNJUDGED rather than false — sweep the route at more samples and it becomes decidable'};
     const rel=Math.abs(drift)/Math.max(0.05,Math.abs(slope));
-    if(rel>DRIFT_LIMIT) return {ok:false, why:`the exponent drifts by ${drift.toFixed(3)} across the sweep against a fitted ${slope.toFixed(3)} — it is one thing at the low end and another at the high one, so a single exponent describes neither`};
+    if(rel>DRIFT_LIMIT) return {ok:false, why:`the exponent drifts by ${drift.toFixed(3)} across the sweep against a fitted ${slope.toFixed(3)} — it is one thing at the low end and another at the high one, so a single exponent describes neither`, drifts:true};
     if(r2===null||r2===undefined) return {ok:null, why:'the exponent is constant across the sweep, but the quality of the single-line fit was not recorded'};
     if(r2<R2_FLOOR) return {ok:false, why:`the local exponent holds but the single line fits at R² ${r2.toFixed(4)}, below ${R2_FLOOR}`};
     return {ok:true, why:`the exponent is constant to ${Math.abs(drift).toFixed(3)} across the sweep and the line fits at R² ${r2.toFixed(4)}`};
   };
+  /* ── AND WHERE IT DOES HOLD, WHICH "NOT A POWER LAW" NEVER SAID ────────────
+     A white dwarf's radius goes as M^-0.36 at low mass and M^-5.05 near the
+     Chandrasekhar limit, and this file used to answer "not a power law" and stop. The
+     exponent is not missing; it is TWO exponents, and the interesting number is where
+     the first one stops. The transfer measurement now searches for the widest window
+     over which the local exponent does not change by more than the exponent itself —
+     the same rule this verdict uses, deliberately, so a leg cannot be a law by one
+     standard and not by another — and a chain that fails carries the window it would
+     have passed on, in the delivered quantity's own units rather than in the decades
+     the fit was taken in. */
+  const windowed=(b,a)=>{ const w=b.stable; if(!w||w.whole) return null;
+    return {from:w.from, to:w.to, decades:w.decades,
+      exponent:a.slope*w.slope, far_slope:w.slope,
+      r2:w.r2, samples:w.n, of:w.of}; };
   const chains=[];
   for(const a of legA) for(const b of legB) if(a.out===b.from){
     const vb=verdict(b.slope,b.r2,b.drift);
@@ -4138,9 +4152,10 @@ function hccReachCompose(sens,tran){
          third and high-third fits that decide whether the exponent is constant need
          more than that. The build densifies to three hundred and eighty-four and can
          judge it; the page at sixty-four cannot, and now says which. */
-      power_law:ok,
+      power_law:ok, holds_on:(ok===false&&vb.drifts)?windowed(b,a):null,
       why: ok===true ? `${va.why}; ${vb.why}`
-         : ok===false ? (vb.ok===false?vb.why:va.why)
+         : ok===false ? ((vb.ok===false?vb.why:va.why)
+             + ((vb.drifts&&windowed(b,a)) ? ` — it DOES hold where the coupling delivers ${windowed(b,a).from.toPrecision(4)} to ${windowed(b,a).to.toPrecision(4)}, ${windowed(b,a).decades.toFixed(2)} decades on ${windowed(b,a).samples} of ${windowed(b,a).of} live samples, with a composed exponent of ${windowed(b,a).exponent.toFixed(4)}` : ''))
          : (vb.ok===null?vb.why:va.why)});
   }
   chains.sort((x,y)=>Math.abs(y.exponent)-Math.abs(x.exponent)||x.control.localeCompare(y.control));

@@ -148,5 +148,34 @@ ok('and both legs are judged, which is why the near leg publishes its fit qualit
   (doc.chains || []).every(c => c.near_r2 !== undefined && c.far_r2 !== undefined),
   `near and far fit quality present on all ${(doc.chains || []).length} chains · near R² takes ${[...new Set((doc.chains || []).map(c => c.near_r2).filter(x => x != null).map(x => x.toFixed(4)))].sort().join(', ')}`);
 
+console.log('\n=== 5. And where a broken law still holds ===\n');
+
+const windowed = (doc.chains || []).filter(c => c.holds_on);
+ok('a chain verdicted NOT a power law now carries the range over which it is one. "No single exponent describes this" is true and is the least informative true thing that can be said: the exponent is not missing, it is two exponents, and the interesting number is where the first one stops',
+  windowed.length > 0
+  && windowed.every(c => c.power_law === false)
+  && windowed.every(c => c.holds_on.from > 0 && c.holds_on.to > c.holds_on.from)
+  && windowed.every(c => c.holds_on.samples < c.holds_on.of),
+  `${windowed.length} of the ${(doc.chains || []).filter(c => c.power_law === false).length} chains that are not power laws carry a located window, each strictly inside its own sweep`);
+
+const wd = (doc.chains || []).find(c => c.reaches === 'wd.radius_km' && c.holds_on);
+ok('and the white-dwarf radius is the case it was built for. The whole sweep drifts from about -0.36 to about -5.05 as the star runs out of radius at the Chandrasekhar limit, and the window that survives sits BELOW that limit',
+  !!wd && wd.holds_on.to < 1.4 && wd.holds_on.decades > 0.5,
+  wd ? `holds where the coupling delivers ${wd.holds_on.from.toPrecision(4)} to ${wd.holds_on.to.toPrecision(4)} solar masses — ${wd.holds_on.decades.toFixed(2)} decades, ${wd.holds_on.samples} of ${wd.holds_on.of} live samples — with a far-leg exponent of ${wd.holds_on.far_slope.toFixed(4)}`
+     : 'no located window on wd.radius_km');
+
+/* ── AND THE WINDOW IS NOT THE PHYSICAL REGIME ──────────────────────────────
+   This is the limitation, checked so that it cannot quietly stop being stated.
+   Non-relativistic degeneracy gives R proportional to M^(-1/3).  The low-third fit
+   lands near -0.36 because it looks at less; the widest window this rule admits
+   reaches almost to a solar mass and averages nearer -0.45.  Both are correct answers
+   to different questions, and a reader told only the second would think the atlas had
+   measured the degeneracy exponent and got it wrong. */
+ok('and it is NOT the physical regime, which is stated here rather than left for somebody to discover. The widest window this rule admits is wider than non-relativistic degeneracy and its exponent is correspondingly steeper than -1/3 — a tighter rule would return a window closer to the physics and would call fewer things laws everywhere else, and that trade is made in the open',
+  !!wd && Math.abs(wd.holds_on.far_slope) > 1 / 3
+  && Math.abs(wd.holds_on.far_slope + 1 / 3) > 0.05,
+  wd ? `the window exponent is ${wd.holds_on.far_slope.toFixed(4)} against a textbook -0.3333 — a miss of ${Math.abs(wd.holds_on.far_slope + 1 / 3).toFixed(4)}, in the direction a wider window must miss`
+     : 'not measurable without the window');
+
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
