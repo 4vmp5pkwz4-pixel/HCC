@@ -173,7 +173,13 @@ for (const arrival of ARRIVALS) {
      checks a reader should pay for on arrival. Raising this number does not make
      the atlas faster; it stops a measured, known cost from being reported as an
      intermittent failure. A genuine hang still fails, ninety seconds later. */
-  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
+  /* ── AND EVERY ARRIVAL ASKS FOR THE WHOLE SUITE ───────────────────────────
+     index.html defers its heaviest blocks unless ?fulltests=1 is asked for, because a
+     reader opening the atlas should not wait ten seconds for numbers a verifier in docs/
+     re-checks here anyway. This is the "here anyway": every arrival below asks for all of
+     them, so a release is gated on exactly what it was gated on before. The reader-mode
+     arrival at the end is the one that checks the deferral is real. */
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0&fulltests=1${arrival.hash}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForFunction(() => globalThis.HCC_API && document.documentElement.dataset.hccRender,
     null, { timeout: 30000 }).catch(() => { });
   await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
@@ -202,6 +208,77 @@ for (const arrival of ARRIVALS) {
 }
 
 await browser.close();
+
+/* ── AND ONE MORE ARRIVAL, THE WAY A READER ACTUALLY ARRIVES ────────────────
+   Every arrival above asked for ?fulltests=1, which is right for a release gate and
+   makes the seven of them blind to the thing the gate is supposed to protect: what
+   opening the atlas COSTS. index.html defers its heaviest blocks — the ones that
+   re-run a numerical experiment or walk the whole atlas — unless that parameter is
+   present, and nothing above would notice if a block were gated that should not have
+   been, or if the gate stopped working, or if a new ten-second check were added
+   without one.
+
+   So this arrival asks for nothing, and compares the two runs directly. Three things
+   must hold and none of them is a declared number that could drift:
+
+     · reader mode must cost less than the budget below, which is what makes the rule
+       enforced by measurement rather than by whoever remembers it;
+     · it must run strictly FEWER assertions than full mode, because a gate that defers
+       nothing is a gate that is not working;
+     · and it must still run MOST of them, because a suite that defers everything has
+       stopped checking the page the reader is looking at, which is the half of this
+       suite that is worth running on their machine and not on a build server.
+
+   The budget is stated here rather than inside the page because it is a property of
+   the release, not of the document — and because a page that measured its own budget
+   and passed itself is the check that always passes. */
+const READER_BUDGET_MS = 4500;
+const READER_MIN_SHARE = 0.6;
+{
+  const browser2 = await chromium.launch().catch(async () => {
+    const P = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium';
+    return chromium.launch({ executablePath: P });
+  });
+  const page = await browser2.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0#/world/s3/lab/ns`,
+    { waitUntil: 'domcontentloaded', timeout: 90000 });
+  await page.waitForFunction(() => globalThis.HCC_API && document.documentElement.dataset.hccRender,
+    null, { timeout: 30000 }).catch(() => { });
+  await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
+  const r = await page.evaluate(() => {
+    const T = (globalThis.FBS3R_QA && globalThis.FBS3R_QA.selfTests()) || [];
+    const c = HCC_API.selftest.cost();
+    return { total: T.length, failed: T.filter(t => !t.pass).length, ms: c.ms, mode: c.mode,
+      deferred: c.deferred_blocks };
+  });
+  await page.close(); await browser2.close();
+
+  const share = grand ? r.total / grand : 0;
+  console.log(`· reader mode, nothing asked for … ${r.total}/${grand} assertions in ${r.ms} ms`
+    + ` · ${r.deferred} block(s) deferred to CI`);
+  if (r.mode !== 'reader') {
+    console.error(`✗ the reader arrival reported mode "${r.mode}" — the gate is not reading the URL`);
+    worst = 1;
+  }
+  if (r.failed) { console.error(`✗ reader mode had ${r.failed} failing assertion(s)`); worst = 1; }
+  if (!(r.deferred > 0) || !(r.total < grand)) {
+    console.error(`✗ reader mode ran ${r.total} of ${grand} assertions with ${r.deferred} block(s) deferred`
+      + ' — nothing was deferred, so the gate is doing nothing');
+    worst = 1;
+  }
+  if (r.ms > READER_BUDGET_MS) {
+    console.error(`✗ opening the atlas costs ${r.ms} ms of self-tests, over the ${READER_BUDGET_MS} ms budget.`);
+    console.error('  Something heavy was added without if(!defer(...)) around it. HCC_API.selftest.slowest(10) names it.');
+    worst = 1;
+  }
+  if (share < READER_MIN_SHARE) {
+    console.error(`✗ reader mode kept only ${(share * 100).toFixed(1)}% of the suite, under the`
+      + ` ${(READER_MIN_SHARE * 100).toFixed(0)}% floor — the gate has been put around checks that`
+      + ' belong on the reader\'s machine, not only around the expensive ones');
+    worst = 1;
+  }
+}
+
 server.close();
 
 /* a clause that answered NOT APPLICABLE HERE in every single arrival has never run */
