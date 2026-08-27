@@ -93,8 +93,21 @@ const doc = {
         + 'than filtered out, because removing it would hide the finding; atlas.numerical_controls in the '
         + 'open-problem register is where it is written down.'
   },
+  power_law: 'AN EXPONENT IS NOT A LAW. Every chain here is the product of two measured '
+      + 'slopes, and the arithmetic was always right; what was missing is whether either '
+      + 'slope is CONSTANT across the range it was fitted on. A leg whose local exponent '
+      + 'drifts by more than the exponent itself is not a power law, and multiplying it '
+      + 'into a chain publishes a scaling that describes nothing. The worst case was this '
+      + 'atlas averaging away a breakdown it had itself located: the white-dwarf radius '
+      + 'runs as M^-0.36 at low mass and M^-5.05 near the Chandrasekhar limit, and the '
+      + 'chain into it read a tidy -0.478. Nothing is dropped — removing a chain would '
+      + 'hide the finding, the same reason ns.step stays — every chain carries power_law '
+      + 'and the reason in words, and only the ones verdicted true are scaling laws.',
   counts: { chains: chains.length, controls: controls.size,
-    laboratories_reached: reached.size, deepest_chain: deepest },
+    laboratories_reached: reached.size, deepest_chain: deepest,
+    power_law: chains.filter(c => c.power_law === true).length,
+    not_a_power_law: chains.filter(c => c.power_law === false).length,
+    unjudged: chains.filter(c => c.power_law !== true && c.power_law !== false).length },
   chains
 };
 const text = JSON.stringify(doc, null, 1) + '\n';
@@ -112,5 +125,5 @@ writeFileSync(OUT, text);
 console.log(`api/reach.json written: ${doc.counts.chains} chains from ${doc.counts.controls} turnable controls, `
   + `reaching ${doc.counts.laboratories_reached} laboratories, ${doc.counts.deepest_chain} deep`);
 for (const c of chains.slice(0, 6))
-  console.log(`  ${c.control} → ${c.reaches}  exponent ${c.exponent.toFixed(4)}  (${c.leg_control_to_output} × ${c.leg_output_to_far}, ${c.laboratories} laboratories)`);
+  console.log(`  ${c.control} → ${c.reaches}  exponent ${c.exponent.toFixed(4)}  (${c.laboratories} laboratories)  ${c.power_law === true ? 'a power law across its range' : c.power_law === false ? 'NOT a power law: ' + c.why.slice(0, 80) : 'unjudged'}`);
 process.exit(0);

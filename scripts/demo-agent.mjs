@@ -86,6 +86,57 @@ say(8, 'export a report that another machine can check');
 mkdirSync(new URL('../artifacts/', import.meta.url), { recursive: true });
 report.provenance = { core_version: health.core_version, git_commit: health.git_commit, code_sha256: health.code_sha256 };
 const out = new URL('../artifacts/agent-demo-report.json', import.meta.url);
+
+/* ── AND A GENERATED FILE THAT IS CHECKED IN MUST BE ABLE TO GO STALE LOUDLY ──
+   CI regenerates this report on every run and nothing ever compared the result to the
+   copy in the repository, so the checked-in file drifted: it recorded 146 open problems
+   and code hash 68aa52… while api/open-problems.json in the same commit carried 148 and
+   95963a…. Anyone reading the committed report — which is the point of committing it —
+   got an obsolete snapshot with no way to tell. Every other artifact here has a --check
+   that fails the build on drift; this one had none, and that is the whole difference
+   between a published measurement and a leftover.
+
+   Byte comparison is wrong for this file: generated_at and duration_ms are honestly
+   different on every run and would make the check fail always, which is as useless as
+   one that always passes. So the volatile fields are stripped from both sides and
+   everything that is DERIVED — the provenance hashes, the counts, the answers — must
+   agree. */
+/* Named one by one, and no wider. A filter that dropped anything looking like a time
+   would also drop a measured duration a laboratory REPORTS, and the check would stop
+   noticing the thing it exists for. These six are per-run identity and wall clock:
+   when the report was written, how long each call took, the uptime of a server that had
+   just started, and the run id and start/finish stamps the service assigns to every
+   evaluation. Everything else in this file is an ANSWER, and answers must agree. */
+const VOLATILE = new Set(['generated_at', 'duration_ms', 'uptime_s',
+  'run_id', 'started_at', 'finished_at']);
+const stable = v => Array.isArray(v) ? v.map(stable)
+  : (v && typeof v === 'object')
+    ? Object.fromEntries(Object.entries(v).filter(([k]) => !VOLATILE.has(k)).map(([k, x]) => [k, stable(x)]))
+    : v;
+
+if (process.argv.includes('--check')) {
+  let prev = null;
+  try { prev = JSON.parse(readFileSync(out, 'utf8')); }
+  catch { console.error('artifacts/agent-demo-report.json is missing or unreadable.'); shutdown(); server.close(); process.exit(1); }
+  const a = JSON.stringify(stable(prev), null, 1), b = JSON.stringify(stable(report), null, 1);
+  if (a !== b) {
+    console.error('\nartifacts/agent-demo-report.json is STALE — the committed report disagrees with what');
+    console.error('the service answers now, in everything except its timestamps.');
+    const pa = prev.provenance || {}, pb = report.provenance || {};
+    if (pa.code_sha256 !== pb.code_sha256)
+      console.error(`  committed code hash ${String(pa.code_sha256).slice(0, 12)}… · live ${String(pb.code_sha256).slice(0, 12)}…`);
+    const ca = (prev.steps || []).find(s => s.name === 'open_problems');
+    const cb = (report.steps || []).find(s => s.name === 'open_problems');
+    if (ca && cb && ca.value && cb.value && ca.value.count !== cb.value.count)
+      console.error(`  committed ${ca.value.count} open problems · live ${cb.value.count}`);
+    console.error('  Run `node scripts/demo-agent.mjs` and commit the result.\n');
+    shutdown(); server.close(); process.exit(1);
+  }
+  console.log('   artifacts/agent-demo-report.json matches what the service answers now.');
+  console.log('\ndone — no browser was opened at any point.\n');
+  shutdown(); server.close(); process.exit(0);
+}
+
 writeFileSync(out, JSON.stringify(report, null, 2) + '\n');
 console.log(`   wrote artifacts/agent-demo-report.json · ${report.steps.length} steps · ` +
   `every result carries commit ${health.git_commit.slice(0, 10)} and code hash ${health.code_sha256.slice(0, 12)}`);

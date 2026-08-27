@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 746   ·   exported names: 827
-   extracted physics, sha256 8190246df7ba2d3b3c704ec7c6b54d9be4d1f23312abccb1b22a1f432da7e489 */
+   extracted physics, sha256 8cf146d37f2a6a04b357358709e50e223b66f6323079f74d2afa632154bdb1d7 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -3956,7 +3956,9 @@ function hccReachCompose(sens,tran){
          change a contract outside consumers already read. */
       for(const m of row.moves||row.outputs||[])
         if(m.slope!==null&&m.slope!==undefined)
-          legA.push({input:`${ins.id}.${row.input}`, out:m.key, slope:m.slope});
+          legA.push({input:`${ins.id}.${row.input}`, out:m.key, slope:m.slope,
+            r2:(m.r2===null||m.r2===undefined)?null:m.r2,
+            covered:(m.covered===null||m.covered===undefined)?(row.covered??null):m.covered});
   const legB=[];
   for(const r of (tran&&tran.routes)||[]){
     if(!r.from||!r.outputs) continue;
@@ -3969,11 +3971,76 @@ function hccReachCompose(sens,tran){
         drift:o.drift, live:r.live});
     }
   }
+  /* ── AND A PRODUCT OF TWO NUMBERS IS NOT A LAW BECAUSE BOTH NUMBERS EXIST ──
+     This composed every non-null slope and published the product as an exponent —
+     including for legs the atlas's OWN measurement says are not power laws. The worst
+     of them: ns.central_density → wd.radius_km came out as a clean-looking -0.4783,
+     while the white-dwarf leg it multiplies has R² 0.84 and a local slope running from
+     -0.36 at the low end to -5.05 at the high one. That is the Chandrasekhar breakdown,
+     which this atlas LOCATED and then quietly averaged away into a scaling law that
+     does not exist. A reader was handed a number with no way to know it describes
+     nothing.
+
+     The chain is not dropped, because dropping it would hide the finding — the same
+     reason ns.step stays in this file. It carries a verdict instead, derived from
+     numbers that were already measured:
+
+       A LEG IS A POWER LAW ACROSS ITS RANGE WHEN ITS EXPONENT DOES NOT CHANGE BY AS
+       MUCH AS THE EXPONENT ITSELF, AND ITS SINGLE-LINE FIT IS GOOD.
+
+     |drift| <= |slope| is the first half and it is the sharper instrument, because R²
+     stays high for a gently curved fit over a narrow range. The cut is not tuned: over
+     the forty-four chains this atlas currently composes, relative drift takes the
+     values 0.000, 0.082, 0.087, 0.160, 0.161 — and then 2.753, 4.524, 6.671, 11.513.
+     Any threshold in that seventeen-fold gap gives the same partition; one is chosen
+     because it MEANS something rather than because it fits this data.
+
+     Both legs are judged, which is why sensitivity now publishes the near leg's R²: a
+     product with one half checked and the whole presented as checked is the silence
+     this is being written to end. A leg whose fit quality was never recorded is
+     'unjudged' and says so — not 'true', which is what a missing number defaults to
+     when nobody thinks about it. */
+  const DRIFT_LIMIT=1, R2_FLOOR=0.99;
+  const verdict=(slope,r2,drift)=>{
+    if(drift===null||drift===undefined) return {ok:null, why:'the far leg has too few live samples for the low-third and high-third fits that decide whether its exponent is constant, so this chain is UNJUDGED rather than false — sweep the route at more samples and it becomes decidable'};
+    const rel=Math.abs(drift)/Math.max(0.05,Math.abs(slope));
+    if(rel>DRIFT_LIMIT) return {ok:false, why:`the exponent drifts by ${drift.toFixed(3)} across the sweep against a fitted ${slope.toFixed(3)} — it is one thing at the low end and another at the high one, so a single exponent describes neither`};
+    if(r2===null||r2===undefined) return {ok:null, why:'the exponent is constant across the sweep, but the quality of the single-line fit was not recorded'};
+    if(r2<R2_FLOOR) return {ok:false, why:`the local exponent holds but the single line fits at R² ${r2.toFixed(4)}, below ${R2_FLOOR}`};
+    return {ok:true, why:`the exponent is constant to ${Math.abs(drift).toFixed(3)} across the sweep and the line fits at R² ${r2.toFixed(4)}`};
+  };
   const chains=[];
-  for(const a of legA) for(const b of legB) if(a.out===b.from) chains.push({
-    control:a.input, through:a.out, reaches:b.out, route:b.route,
-    exponent:a.slope*b.slope, leg_control_to_output:a.slope, leg_output_to_far:b.slope,
-    laboratories:1+b.hops, far_r2:b.r2, far_drift:b.drift, far_live:b.live});
+  for(const a of legA) for(const b of legB) if(a.out===b.from){
+    const vb=verdict(b.slope,b.r2,b.drift);
+    /* the near leg carries no drift measurement, so it is judged on its fit alone */
+    /* a slope fitted over a prefix of a declared domain is the exponent THERE, and
+       multiplying it into a chain claims it everywhere. Such a leg is not judged true. */
+    const cov=(a.covered===null||a.covered===undefined)?1:a.covered;
+    const va=(cov<0.999) ? {ok:null, why:`the near leg was swept only ${(cov*100).toFixed(1)}% of the way along its declared drive before the budget stopped it, so its exponent is the one it has THERE and nothing is known about the rest`}
+      : (a.r2===null||a.r2===undefined) ? {ok:null, why:'the near leg\u2019s fit quality was not recorded'}
+      : (a.r2>=R2_FLOOR ? {ok:true, why:`the near leg fits at R² ${a.r2.toFixed(4)}`}
+                        : {ok:false, why:`the near leg fits at only R² ${a.r2.toFixed(4)}`});
+    const ok=(va.ok===false||vb.ok===false) ? false : ((va.ok===true&&vb.ok===true) ? true : null);
+    chains.push({
+      control:a.input, through:a.out, reaches:b.out, route:b.route,
+      exponent:a.slope*b.slope, leg_control_to_output:a.slope, leg_output_to_far:b.slope,
+      laboratories:1+b.hops, near_r2:(a.r2===null||a.r2===undefined)?null:a.r2,
+      near_covered:cov,
+      far_r2:b.r2, far_drift:b.drift, far_live:b.live,
+      /* ── AND AN UNJUDGED CHAIN MUST NAME THE LEG IT COULD NOT JUDGE ────────
+         This reported the leg that PASSED. A three-laboratory chain measured live at
+         sixty-four samples came back "the near leg fits at R² 1.0000" and nothing else,
+         with power_law null — so the one field a reader would look at to find out what
+         is missing told them about the half that was fine. The far leg was the unjudged
+         one: at sixty-four samples that route delivers four live points, and the low-
+         third and high-third fits that decide whether the exponent is constant need
+         more than that. The build densifies to three hundred and eighty-four and can
+         judge it; the page at sixty-four cannot, and now says which. */
+      power_law:ok,
+      why: ok===true ? `${va.why}; ${vb.why}`
+         : ok===false ? (vb.ok===false?vb.why:va.why)
+         : (vb.ok===null?vb.why:va.why)});
+  }
   chains.sort((x,y)=>Math.abs(y.exponent)-Math.abs(x.exponent)||x.control.localeCompare(y.control));
   return chains;
 }

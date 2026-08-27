@@ -42,7 +42,24 @@ console.log('\n=== 2. The slicer copies; it never paraphrases ===\n');
   /* strip the generated header and the export list, then require every remaining
      declaration to occur verbatim in index.html */
   const body = MOD.slice(MOD.indexOf('*/') + 2, MOD.lastIndexOf('\nexport {'));
-  const decls = body.split('\n\n').map(s => s.trim()).filter(Boolean);
+  /* ── AND A BLANK LINE IS NOT A BOUNDARY ───────────────────────────────────
+     This split on '\n\n' because the extractor joins declarations with a blank line
+     and no declaration had ever contained one. That was an accident about the corpus,
+     not a property of the format, and the first function whose body carried a
+     paragraph break in a comment split into four pieces here — three of which were
+     English prose, reported as declarations that are neither declarations nor
+     statements, plus a header count that suddenly disagreed by exactly four.
+
+     The extractor's boundaries are recoverable without changing what it writes: a new
+     declaration begins at a blank line FOLLOWED BY one, at column zero. A blank line
+     inside a body is followed by indented code or by more of a comment, so it does not
+     end anything. */
+  const STARTS = /^(?:function|const|let|var|class)\b|^[A-Za-z_$][\w$]*\s*[.[]/;
+  const decls = body.split('\n\n').reduce((acc, part) => {
+    if (acc.length && !STARTS.test(part)) acc[acc.length - 1] += '\n\n' + part;
+    else acc.push(part);
+    return acc;
+  }, []).map(s => s.trim()).filter(Boolean);
   const missing = decls.filter(d => !HTML.includes(d));
   ok(`all ${decls.length} extracted declarations appear verbatim in index.html`,
     missing.length === 0,
