@@ -17,7 +17,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HTML = readFileSync(join(ROOT, 'index.html'), 'utf8');
@@ -643,6 +643,10 @@ export const ROOTS = [
      of two local exponents — and that the second leg must be fitted from the SOURCE and
      not from the last hop — is written once and read by both the page and the build. */
   'hccReachCompose',
+  /* PREMIUM_VIEW_DOMAINS is inside this closure, and folding LAB_DECLARATIONS into it
+     put a reference to labDeclIn in the emitted module that the roots did not carry.
+     The extractor listed it as "assumed free" and wrote the module anyway. */
+  'LAB_DECLARATIONS', 'LAB_DECL_BY_ID', 'labDeclNames', 'labDeclIn', 'labDeclIds',
   /* ── AND WHEN A CLOUD STOPS BEING A CLOUD ─────────────────────────────────
      The join the atlas was missing: seven instruments publish a temperature and
      four inputs take a mass, and nothing turned the first into the second. */
@@ -740,7 +744,39 @@ if (check) {
 }
 writeFileSync(target, out);
 
+/* ── AND THE MODULE MUST LOAD, WHICH THIS NEVER CHECKED ─────────────────────
+   This wrote a file and reported success on its byte count. Whether the file it had just
+   emitted could be IMPORTED was somebody else's problem, and the somebody was
+   scripts/build-api.mjs three steps later, failing with a raw stack trace about a name
+   nobody would connect to an extraction.
+
+   That is exactly what happened: folding a declaration table into PREMIUM_VIEW_DOMAINS
+   put a reference to labDeclIn inside this closure, the roots did not carry it, and this
+   script printed it in the "assumed free" line and wrote the module anyway. That line is
+   where a broken module hides — it is a list of names this script decided not to worry
+   about, and every one of them is either a genuine global or a defect.
+
+   So the emitted module is imported before this exits. A file that cannot be loaded is
+   not an extraction, and the error names the extraction rather than surfacing three steps
+   downstream as somebody else's ReferenceError. */
+{
+  const url = pathToFileURL(target).href + '?verify=' + out.length;
+  try { await import(url); }
+  catch (e) {
+    console.error(`extraction FAILED: core/atlas/extracted.mjs was written and does not load.`);
+    console.error(`  ${String(e && e.message || e).split('\n')[0]}`);
+    if (unresolved.length) {
+      console.error(`  names this script resolved outside the closure and assumed were globals:\n    ${unresolved.join(', ')}`);
+      console.error('  If the missing name is one of those, it is not a global — add it to ROOTS.');
+    } else {
+      console.error('  Nothing was assumed free, so the missing name is reached from inside a declaration');
+      console.error('  this script DID take: add it to ROOTS and the closure will carry it.');
+    }
+    process.exit(1);
+  }
+}
+
 console.log(`extracted ${ordered.length} declarations · ${exported.length} names · ` +
-  `${(out.length / 1024).toFixed(1)} KB${previous === out ? ' · unchanged' : ' · REWRITTEN'}`);
+  `${(out.length / 1024).toFixed(1)} KB${previous === out ? ' · unchanged' : ' · REWRITTEN'} · loads`);
 if (unresolved.length)
   console.log(`  references resolved outside the closure (assumed free): ${unresolved.join(', ')}`);
