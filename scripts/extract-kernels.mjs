@@ -648,7 +648,12 @@ export const ROOTS = [
      four inputs take a mass, and nothing turned the first into the second. */
   'JEANS_G', 'JEANS_KB', 'JEANS_MH', 'JEANS_MSUN', 'JEANS_PC', 'JEANS_YR',
   'jeansSound', 'jeansRho', 'jeansLength', 'jeansMass', 'jeansMassVirial',
-  'jeansFreeFall', 'jeansCollapses'
+  'jeansFreeFall', 'jeansCollapses',
+  /* ── AND HOW FAR IT IS ────────────────────────────────────────────────────
+     The rung between a redshift and a distance. Three inputs of the Einstein-ring
+     laboratory took a megaparsec and nothing in the atlas produced one. */
+  'COSMO_C', 'COSMO_GYR_PER_INVH', 'cosmoSimpson', 'cosmoE', 'cosmoHubbleDistance',
+  'cosmoComoving', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
