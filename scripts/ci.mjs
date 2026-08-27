@@ -27,6 +27,14 @@ ok = run('regenerate the API contracts from the core', 'node scripts/build-api.m
    manifest to catch a stale influence map, and a stale manifest would have made
    that fingerprint agree with itself. */
 ok = run('the manifest still matches the atlas it was walked from', 'node scripts/build-manifest.mjs --check') && ok;
+/* ── AND THE COMPOSITION OF THE TWO INFLUENCE MAPS ──────────────────────────
+   api/reach.json multiplies what a laboratory's own control does to its outputs by
+   what those outputs do to distant laboratories. It costs nothing — no browser, no
+   evaluation, pure arithmetic over two artifacts measured separately — so unlike
+   the two sweeps it feeds on, re-deriving it on every commit is free, and a
+   composition that no longer follows from its sources is exactly the thing that
+   would otherwise rot unnoticed. */
+ok = run('the composed reach still follows from the two maps it multiplies', 'node scripts/reach.mjs --check') && ok;
 ok = run('static validator', 'node scripts/validate.mjs') && ok;
 for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.test(f)).sort())
   ok = run(`verifier ${f}`, `node docs/${f}`) && ok;
