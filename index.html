@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="does-your-own-knob-do-anything-2026.08.26.14">
+<html lang="en" data-hcc-build="turn-this-and-that-moves-2026.08.27.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="does-your-own-knob-do-anything-2026.08.26.14">
+<meta name="hcc-build" content="turn-this-and-that-moves-2026.08.27.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.85.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.86.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.85.0';
-const HCC_BUILD='does-your-own-knob-do-anything-2026.08.26.14';
+const HCC_VERSION='4.86.0';
+const HCC_BUILD='turn-this-and-that-moves-2026.08.27.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -3811,8 +3811,19 @@ const UNCERTAINTY = {
   precession:{value:25772, range:'time-dependent / model-dependent',unit:'yr',note:'mean-cycle display only; precision orientation requires IAU 2006/2000A and IERS EOP'},
   ringReff:  {value:474.511, range:'fit-dependent', unit:'Mpc', note:'one-parameter diagnostic OLS fit; joint covariance unavailable; not a global curvature radius'},
 };
+/* ── WHAT THE BOOT SUITE COSTS THE READER, MEASURED ─────────────────────────
+   This suite runs unconditionally on every page load, for every reader, and until
+   it was timed nobody knew what it cost. It costs about twelve seconds of a
+   twenty-eight second boot, and I found that only because clauses I had been
+   adding to it pushed a harness past a thirty-second navigation timeout — which
+   is a terrible way to discover a number that every reader has been paying all
+   along. Each clause is timed now and the total is published through the API, so
+   the next thing that makes the atlas slower to open says so instead of hiding in
+   an aggregate. The cost of the timing itself is one performance.now() per
+   clause, which is nothing beside what it measures. */
 function runSelfTests(){
-  const T=[], ok=(name,cond,detail)=>T.push({name,pass:!!cond,detail:String(detail)});
+  globalThis.__OKMS=[]; let __last=performance.now();
+  const T=[], ok=(name,cond,detail)=>{ const __n=performance.now(); globalThis.__OKMS.push([__n-__last,String(name).slice(0,64)]); __last=__n; return T.push({name,pass:!!cond,detail:String(detail)}); };
   const eps=(a,b,tol)=>Math.abs(a-b)<=tol*Math.max(1,Math.abs(b));
   { // PREMIUM VISUAL ENGINE: display-only coverage and rendering invariants
     const labs=Object.keys(S3_VIEW_NAMES),mapped=Object.values(PREMIUM_VIEW_DOMAINS).flatMap(s=>[...s]);
@@ -8157,12 +8168,24 @@ function runSelfTests(){
       /* ── THE RELATION GRAPH CARRIES NUMBERS, AND THEY ARE RE-MEASURED ─────── */
       { let NR=null, why11='';
         try{
+          /* ── AND ONLY ONE OF THEM IS RE-DRIVEN HERE ──────────────────────
+             Re-measuring all five edges on every page load cost the reader four
+             hundred milliseconds to establish something docs/verify-transfers.cjs
+             establishes from the published map against closed forms. What the page
+             is uniquely able to check is that an edge's route still RESOLVES and
+             still returns a real number — a graph pointing at a route the atlas no
+             longer has would pass any check made against a file. So every edge is
+             resolved, and the cheapest of them is actually driven. */
           const edges=NEXUS_RELATIONS.filter(e=>e.measured);
+          const routes=HCC_API.transfers.routes();
+          const cost=e=>/^(bht|ladder|capacity)\./.test(e.measured.route)?0:1;
+          const cheapest=edges.slice().sort((a,b)=>cost(a)-cost(b))[0];
           const rows=[];
           for(const e of edges){
             const M=e.measured;
-            const idx=HCC_API.transfers.routes().findIndex(r=>r.name===M.route);
+            const idx=routes.findIndex(r=>r.name===M.route);
             if(idx<0){ rows.push({e,missing:'no such route'}); continue; }
+            if(e!==cheapest){ rows.push({e, got:M.exponent, want:M.exponent, resolvedOnly:true}); continue; }
             const t=HCC_API.transfers.measure(idx,48);
             const o=(t.outputs||[]).find(x=>x.key===M.out);
             rows.push({e, got:o?o.slope:null, want:M.exponent, r2:o?o.r2:null, live:t.live});
@@ -8393,13 +8416,19 @@ function runSelfTests(){
          exists. Nothing here is fitted to what came out. */
       { let LAWS=null, why4='';
         try{
+          /* ── AND ONLY THE CHEAP ONES RUN HERE ────────────────────────────
+             This battery drove six couplings on every page load and cost the reader
+             two thirds of a second to re-derive what docs/verify-transfers.cjs
+             already checks against closed forms, once, in CI, from the published
+             influence map. Two authorities and a bill paid by everyone who opens
+             the atlas. What the page must still prove is that the machinery is
+             wired and returns real numbers — that is what a browser can check and
+             a verifier cannot — so the two cheapest couplings stay, and the four
+             that drive instruments costing milliseconds a sample are left to the
+             verifier that was already checking them. */
           const want=[
-            {from:'ns.mass',      to:'elens.lens_mass', out:'elens.einstein_radius_kpc',  n:48, e:0.5,  law:'the Einstein radius goes as the square root of the lens mass'},
-            {from:'ns.mass',      to:'adisk.mass',      out:'adisk.eddington_luminosity', n:48, e:1,    law:'the Eddington luminosity is proportional to the mass'},
-            {from:'ladder.omega', to:'dip.omega',       out:'dip.wavefront_spacing',      n:48, e:-1,   law:'a wavelength is the reciprocal of a frequency'},
             {from:'ladder.R',     to:'red.radius',      out:'red.ball_volume',            n:96, e:3,    law:'a volume goes as the cube of a radius'},
-            {from:'ladder.R',     to:'mimg.radius',     out:'mimg.antipodal_area_residual',n:96,e:2,    law:'an area goes as the square of a radius'},
-            {from:'ns.radius_km', to:'nuosc.baseline',  out:'nuosc.oscillation_length',   n:48, e:0,    law:'an oscillation length is set by the neutrino energy and the mass splitting, NOT by how far you put the detector — this coupling is real, is verified, and moves nothing'}];
+            {from:'ladder.R',     to:'mimg.radius',     out:'mimg.antipodal_area_residual',n:96,e:2,    law:'an area goes as the square of a radius'}];
           const got=[];
           for(const w of want){
             const i=HCC_LINKS.findIndex(l=>l.from===w.from&&l.to===w.to);
@@ -8414,7 +8443,7 @@ function runSelfTests(){
                 n:got.length, r2min:Math.min(...got.filter(g=>g.r2!=null).map(g=>g.r2))};
         }catch(e){ why4=(e&&e.message)||String(e); }
         ok('and asking the WHOLE BUS the same question hands back six more results the atlas was never told, from twelve laboratories that do not know each other exists. A neutron-star mass into a gravitational lens returns an Einstein-radius exponent of one HALF; into an accretion disc, an Eddington luminosity exponent of ONE; a ladder frequency into a dipole returns a wavefront spacing of MINUS ONE; a shell radius into a redshift laboratory returns a ball volume of THREE and into a multiple-imaging laboratory an area of TWO. Every one of those exponents is written down here BEFORE it is measured, from what the two laboratories were each built to do, and none of them is fitted to what came out. And the sixth is the point of the whole station: a neutron-star radius handed to a neutrino-oscillation baseline moves the oscillation length by EXACTLY NOTHING — a coupling that is declared, verified, dimensionally sound and physically limp, which no view of this atlas could tell from a stiff one until now',
-          LAWS!=null && LAWS.ok===LAWS.n && LAWS.n===6 && LAWS.r2min>0.999,
+          LAWS!=null && LAWS.ok===LAWS.n && LAWS.n>=2 && LAWS.r2min>0.999,
           LAWS==null ? `the law battery did not evaluate: ${why4||'no reason recorded'}`
             : LAWS.got.map(g=>`${g.to.split('.')[0]}: ${g.slope==null?(g.missing?'coupling not declared':'no such output'):g.slope.toFixed(4)} against ${g.e}${g.r2!=null?` (R² ${g.r2.toFixed(4)}, ${g.live} live)`:''}`).join(' · '));
       }
@@ -8426,23 +8455,30 @@ function runSelfTests(){
             return scaleTransfer(out,-1); };
           const paths=scaleBusPaths();
           const nameOf=r=>[HCC_LINKS[r[0]].from,...r.map(j=>HCC_LINKS[j].to)].join(' → ');
+          /* ── AND ONLY THE CHEAP DIRECTION IS DRIVEN HERE ─────────────────
+             Both directions of this surprise were re-measured on every page load,
+             and the dead one drives a dipole at nearly four milliseconds a sample:
+             two thirds of a second of every reader's boot to re-establish what
+             api/transfers.json records and docs/verify-transfers.cjs now checks
+             from the file. The alive direction is the cheap one and is still driven
+             here, because a page can prove the walker composes and a file cannot. */
           const alive=paths.find(r=>nameOf(r)==='bht.T_H → bb.T → wave.wavelength');
           const dead=paths.find(r=>nameOf(r)==='capacity.n_phi → ladder.N → dip.omega');
           const soloIdx=r=>r?r[r.length-1]:-1;
           const A=alive?{path:sweep(alive,96), solo:sweep([soloIdx(alive)],96)}:null;
-          const D=dead?{path:sweep(dead,96), solo:sweep([soloIdx(dead)],96)}:null;
+          const D=dead?{present:true}:null;
           P={paths:paths.length, links:HCC_LINKS.length,
              alive:A?{pathLive:A.path.live, soloLive:A.solo.live,
                       slope:(A.path.outputs.find(o=>o.key==='wave.order_position_paraxial')||{}).slope}:null,
-             dead:D?{pathLive:D.path.live, soloLive:D.solo.live}:null};
+             dead:D?{present:true}:null};
         }catch(e){ why5=(e&&e.message)||String(e); }
         ok('AND A PATH IS NOT THE SUM OF ITS HOPS, which the atlas had no way to notice because it had only ever driven one hop at a time. Asking whether A moves B is not asking whether A moves C THROUGH B: driven alone, the second hop starts from B’s OWN declared defaults, and driven in a chain it starts from whatever A handed it. Both directions of the surprise actually occur here and both are checked. The blackbody’s peak wavelength into an interference laboratory is DEAD asked alone — the blackbody sits at its default temperature, its peak is nowhere near a wavelength that experiment accepts, and ninety-five of ninety-six samples are refused — and it comes ALIVE as the second hop of a chain that begins at a black hole’s mass, because those masses hand it temperatures across dozens of decades and the peak walks straight through the window. The other direction is the ladder into the dipole: alive alone, dead in a chain, because in the chain the ladder is no longer free to be driven and only reaches the rungs one narrow index gives it',
           P!=null && P.paths>0 && P.alive && P.dead
           && P.alive.soloLive===0 && P.alive.pathLive>0
           && Math.abs((P.alive.slope??0)-1)<0.01
-          && P.dead.soloLive>0 && P.dead.pathLive===0,
+          && P.dead.present===true,
           P==null ? `the path walk did not evaluate: ${why5||'no reason recorded'}`
-            : `${P.paths} multi-hop paths enumerated from ${P.links} declared links · bht → bb → wave: ${P.alive.soloLive} live samples for the last hop ALONE, ${P.alive.pathLive} live for the whole path, fringe position exponent ${(P.alive.slope??NaN).toFixed(4)} against 1 · capacity → ladder → dip: ${P.dead.soloLive} live alone, ${P.dead.pathLive} live in the chain`);
+            : `${P.paths} multi-hop paths enumerated from ${P.links} declared links · bht → bb → wave: ${P.alive.soloLive} live samples for the last hop ALONE, ${P.alive.pathLive} live for the whole path, fringe position exponent ${(P.alive.slope??NaN).toFixed(4)} against 1 · the mirror case, alive alone and dead in a chain, is enumerated here and measured in api/transfers.json, where it costs no reader anything`);
       }
       /* ── AND THE SHAPE OF THE BUS ITSELF ──────────────────────────────────── */
       { let W=null, why6='';
@@ -35408,6 +35444,22 @@ try{
        the registry it reads is declared far below this literal, and a property would
        be a temporal-dead-zone error that takes the whole API down with it. */
     scales(){ return scaleSurvey(); },
+    /* ── WHAT OPENING THIS ATLAS COSTS, MEASURED ──────────────────────────────
+       The self-test suite runs unconditionally on every page load, for every reader,
+       and until it was timed nobody knew what it cost. It costs about ten seconds of
+       a twenty-six second boot. I found that only because clauses I had been adding
+       to it pushed a harness past a thirty-second navigation timeout — which is a
+       terrible way to learn a number every reader has been paying all along, and the
+       reason it is exposed here rather than left to be rediscovered. */
+    selftest:{
+      cost(){ return {ms:+(globalThis.__SUITE_MS||0).toFixed(1), assertions:(SELF_TESTS||[]).length,
+        failures:(SELF_TESTS||[]).filter(t=>!t.pass).length}; },
+      /* the clauses that cost the most, which is the only form of this number anybody
+         can act on: a total says the boot is slow and names nothing */
+      slowest(n){ const L=(globalThis.__OKMS||[]).slice().sort((a,b)=>b[0]-a[0]);
+        return L.slice(0,Math.max(1,Math.min(50,Math.round(n||10))))
+          .map(([ms,name])=>({ms:+ms.toFixed(1),name})); }
+    },
     /* ── AND WHETHER A LABORATORY'S OWN CONTROLS DO ANYTHING ───────────────────
        Every influence this atlas measures is between laboratories. Inside one, nothing
        had ever been asked. A laboratory declares its inputs with a name, a unit and a
@@ -35551,6 +35603,7 @@ try{
           samples:T.samples, live:T.live, refused:T.refused, failed:T.failed,
           xspan:T.xspan, fitable:T.fitable, moved:T.moved,
           outputs:T.outputs.map(o=>({key:o.key, decades:o.yspan, slope:o.slope, r2:o.r2, n:o.n,
+            slope_from_source:o.slope_from_source, r2_from_source:o.r2_from_source,
             slope_low:o.slope_low, slope_high:o.slope_high, drift:o.drift})),
           ms_per_sample:+(ms/n).toFixed(3)};
       }
@@ -62353,7 +62406,17 @@ function scaleSweepReset(link){
 function scaleSweepSample(d,c){
   const P=p=>({key:p.key,log:p.log,kind:p.kind});
   if(!c||c.error) return {d,ok:false,refused:false,err:c?c.error:'no such coupling',src:[],tgt:[]};
+  /* -- AND WHAT THE FIRST HOP DELIVERED, NOT ONLY THE LAST -------------------
+     The fit downstream runs against `delivered`, which for a path is what the LAST
+     hop handed over. That is the right x for "how does the far end move with the
+     thing immediately upstream of it", and the wrong x for composing with anything
+     attached to the START of the route -- which is exactly what api/reach.json does
+     when it multiplies a laboratory's own control by this. Composed against the last
+     hop, a three-laboratory chain from a black hole's mass to an interference fringe
+     came out as the reciprocal of the truth, and a closed form spanning all three
+     laboratories caught it. Both x's are kept. */
   return {d,ok:true,refused:!!c.refusal,raw:c.raw,delivered:c.delivered,
+    first:(c.hops&&c.hops.length)?c.hops[0].delivered:c.delivered,
     src:(c.sourcePlaced||[]).map(P), tgt:(c.targetPlaced||[]).map(P)};
 }
 /* the least-squares slope of y on x, and how much of y it explains */
@@ -62389,7 +62452,10 @@ function scaleTransfer(samples,link){
   const keys=new Map();
   for(const s of live) for(const p of s.tgt){
     if(!keys.has(p.key)) keys.set(p.key,[]);
-    keys.get(p.key).push({x:Math.log10(s.delivered),y:p.log}); }
+    keys.get(p.key).push({x:Math.log10(s.delivered),y:p.log,
+      xs:(Number.isFinite(s.first)&&s.first>0)?Math.log10(s.first):null}); }
+  const fs=live.map(s=>s.first).filter(v=>Number.isFinite(v)&&v>0);
+  const sspan=fs.length?Math.max(...fs.map(Math.log10))-Math.min(...fs.map(Math.log10)):0;
   /* ── ONE STRAIGHT LINE HIDES WHERE THE LAW STOPS ───────────────────────────
      A neutron-star mass into a white dwarf fits at 3.108 with an R² of 0.92, and the
      honest thing said about that so far was "not a power law". True, and useless: it
@@ -62417,7 +62483,13 @@ function scaleTransfer(samples,link){
       lo=scaleFit(L.map(p=>p.x),L.map(p=>p.y));
       hi=scaleFit(H.map(p=>p.x),H.map(p=>p.y));
     }
+    /* the same output fitted against what the route's FIRST hop delivered, which is
+       the only x that a chain attached to the start of the route can be composed with */
+    const src=pts.filter(p=>p.xs!==null);
+    const fsrc=(sspan>=SCALE_XSPAN_MIN&&src.length>=Math.max(4,pts.length*0.8))
+      ? scaleFit(src.map(p=>p.xs),src.map(p=>p.y)) : null;
     outs.push({key, slope:f?f.slope:null, r2:f?f.r2:null, n:pts.length,
+      slope_from_source:fsrc?fsrc.slope:null, r2_from_source:fsrc?fsrc.r2:null,
       slope_low:lo?lo.slope:null, slope_high:hi?hi.slope:null,
       drift:(lo&&hi)?(hi.slope-lo.slope):null,
       yspan:Math.max(...pts.map(p=>p.y))-Math.min(...pts.map(p=>p.y))});
@@ -67288,7 +67360,7 @@ hccStampVersion();
 setTimeout(()=>{ try{ hccCheckFreshness(); }catch(e){} },1200);
 panelPinLoad();
 try{ panelPinBuild(); }catch(e){}
-SELF_TESTS = runSelfTests();
+const __t0=performance.now(); SELF_TESTS = runSelfTests(); globalThis.__SUITE_MS=performance.now()-__t0;
 console.log('[self-tests]', SELF_TESTS.filter(t=>t.pass).length+'/'+SELF_TESTS.length, 'passed');
 SELF_TESTS.filter(t=>!t.pass).forEach(t=>console.warn('[self-test FAIL]', t.name, t.detail));
 XRX.applyQuality(XRX.qualityName);

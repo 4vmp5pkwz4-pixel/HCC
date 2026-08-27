@@ -178,7 +178,26 @@ ok('and a slope is never published off a handful of surviving points. Two of the
   `${doc.counts.densified} routes had to be re-swept more densely · smallest live count behind any published slope: `
   + Math.min(...doc.routes.filter(r => (r.outputs || []).some(o => o.slope !== null)).map(r => r.live)));
 
-console.log('\n=== 3. What is NOT a law, and is not reported as one ===\n');
+console.log('\n=== 3. A path is not the sum of its hops, from the file ===\n');
+{
+  /* this was re-measured in the browser on every page load, at two thirds of a second
+     of every reader's boot, to establish something the artifact already records */
+  const byName = n => (doc.routes || []).find(r => r.name === n);
+  const alive = byName('bht.T_H → bb.T → wave.wavelength');
+  const aloneA = byName('bb.lambda_max → wave.wavelength');
+  const dead = byName('capacity.n_phi → ladder.N → dip.omega');
+  const aloneD = byName('ladder.omega → dip.omega');
+  ok('a coupling DEAD on its own comes alive as the second hop of a chain. The blackbody\'s peak wavelength into an interference laboratory is refused almost everywhere when the blackbody sits at its own default temperature; beginning the same chain at a black hole\'s mass hands it temperatures across dozens of decades and the peak walks through the window. Asking whether A moves B is not asking whether A moves C through B',
+    !!alive && !!aloneA && aloneA.live === 0 && alive.live > 0,
+    alive && aloneA ? `${aloneA.name}: ${aloneA.live} live of ${aloneA.samples} · as the second hop of ${alive.name}: ${alive.live} live of ${alive.samples}`
+      : 'one of the two routes is absent');
+  ok('and the mirror holds too, which is what makes it a fact about composition rather than a story about one coupling: the ladder into the dipole is alive when the ladder is free to be driven and dead when it is reachable only through the narrow index the capacity laboratory hands it',
+    !!dead && !!aloneD && aloneD.live > 0 && dead.live === 0,
+    dead && aloneD ? `${aloneD.name}: ${aloneD.live} live of ${aloneD.samples} · in the chain ${dead.name}: ${dead.live} live of ${dead.samples}`
+      : 'one of the two routes is absent');
+}
+
+console.log('\n=== 4. What is NOT a law, and is not reported as one ===\n');
 
 const wd = doc.routes.find(r => r.name === 'ns.mass → wd.mass');
 const wdRad = wd && (wd.outputs || []).find(o => o.key === 'wd.radius_km');

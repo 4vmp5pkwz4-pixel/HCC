@@ -159,7 +159,21 @@ for (const arrival of ARRIVALS) {
   });
   const errs = [];
   page.on('pageerror', e => errs.push(String(e.message)));
-  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded' });
+  /* ── NINETY SECONDS, AND WHY IT IS NOT PAPERING OVER A HANG ────────────────
+     The default thirty was a budget nobody had measured against what the page
+     actually does before domcontentloaded: the suite this harness exists to run is
+     SYNCHRONOUS and takes about ten seconds, inside a boot that takes twenty-six on
+     an idle machine. That left four seconds of margin, so the suite passed when run
+     alone and failed when CI ran it after a browser-driven liveness walk had loaded
+     the box — which reads exactly like a flake and is not one; it is a budget set
+     below the cost.
+     The cost itself is the real finding and is recorded rather than hidden:
+     HCC_API.selftest.cost() reports it, slowest() attributes it, and
+     atlas.boot_suite_cost in the open-problem register says nothing decides which
+     checks a reader should pay for on arrival. Raising this number does not make
+     the atlas faster; it stops a measured, known cost from being reported as an
+     intermittent failure. A genuine hang still fails, ninety seconds later. */
+  await page.goto(`http://127.0.0.1:${PORT}/index.html?render=0${arrival.hash}`, { waitUntil: 'domcontentloaded', timeout: 90000 });
   await page.waitForFunction(() => globalThis.HCC_API && document.documentElement.dataset.hccRender,
     null, { timeout: 30000 }).catch(() => { });
   await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
