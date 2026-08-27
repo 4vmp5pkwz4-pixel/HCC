@@ -54,7 +54,9 @@ const CHECK = process.argv.includes('--check');
    for several of these laboratories the input being swept IS the cost, a step
    count or a tolerance, and one evaluation at the far end of its declared domain
    can outlast any budget the whole instrument was given. */
-const SAMPLES = 10;
+/* nine live points at minimum are needed to fit a low third and a high third
+   separately, which is how a numerical control is told from a physical one */
+const SAMPLES = 12;
 const BUDGET_MS = 900;
 const HANG_MS = 20000;
 /* three.js is loaded from a CDN in the shipped page; serve a copy that points at the
@@ -172,6 +174,7 @@ await browser.close(); server.close();
 
 const flat = rows.flatMap(r => r.rows.map(w => ({ instrument: r.id, ...w })));
 const dead = flat.filter(w => w.dead === true);
+const saturating = flat.filter(w => w.saturates);
 const refused = flat.filter(w => w.dead === null && !w.unreturned);
 const unreturned = flat.filter(w => w.unreturned);
 const live = flat.filter(w => w.dead === false);
@@ -189,13 +192,34 @@ const doc = {
     moved: 'an output counts as moved when its range across the sweep exceeds 1e-12 of its own magnitude — '
       + 'relative, because an output of order 1e40 that changes by 1e20 has not moved' },
   counts: { instruments: rows.length, inputs: flat.length,
-    responding: live.length, dead: dead.length, refused: refused.length, unreturned: unreturned.length },
+    responding: live.length, dead: dead.length, refused: refused.length, unreturned: unreturned.length,
+    saturating: saturating.length },
+  /* -- WHAT SATURATES, WHICH IS NOT THE SAME AS WHAT IS NUMERICAL ------------
+     This was built to detect NUMERICAL controls -- a step, a count, a tolerance --
+     on the theory that one converges when refined while a physical dependence is a
+     power law with the same exponent at both ends.  The measurement is sound and
+     the label was wrong, and the measurement is what corrected it: it detects
+     SATURATION at one end of a declared domain, and a numerical control is only
+     one of the things that saturates.  It flags a grid resolution and a lattice
+     truncation, which are numerical, and also a drive frequency and a slice
+     radius, which are physical quantities whose response flattens at one end.
+     Saturation is necessary for a converged numerical control and nowhere near
+     sufficient for calling one, so this reports saturation and the question of
+     which inputs are numerical stays open in atlas.numerical_controls.
+
+     AND WHAT IS ABSENT HERE IS THE SHARPER RESULT.  An integration step that
+     saturates has converged; one that does not has not converged ANYWHERE in the
+     domain its laboratory declares -- which is why such a control can move an
+     output two laboratories away, and is a stronger statement than any label. */
+  saturating: saturating.map(w => ({ input: `${w.instrument}.${w.input}`, signature: w.saturates,
+    min: w.min, max: w.max })),
   dead: dead.map(w => ({ input: `${w.instrument}.${w.input}`, unit: w.unit ?? null, min: w.min, max: w.max,
     outputs_checked: w.responding === 0 ? undefined : undefined, live: w.live, refused: w.refused })),
   refused: refused.map(w => ({ input: `${w.instrument}.${w.input}`, why: w.why })),
   unreturned: unreturned.map(w => ({ input: `${w.instrument}.${w.input}`, min: w.min, max: w.max, why: w.why })),
   instruments: rows.map(r => ({ id: r.id, inputs: r.inputs,
     rows: r.rows.map(w => ({ input: w.input, dead: w.dead ?? null, unreturned: !!w.unreturned,
+      saturates: w.saturates ?? null, min: w.min ?? null, max: w.max ?? null,
       responding: w.responding ?? null, live: w.live ?? null, refused: w.refused ?? null,
       truncated: !!w.truncated,
       moves: (w.outputs || []).slice(0, 6).map(o => ({ key: o.key, decades: o.decades, slope: o.slope })) })) }))
@@ -221,6 +245,8 @@ console.log(`  ${doc.counts.responding} move at least one declared output`);
 console.log(`  ${doc.counts.dead} move NOTHING across their whole declared domain`);
 console.log(`  ${doc.counts.refused} had every value refused, so nothing was learned about them`);
 console.log(`  ${doc.counts.unreturned} did not return within ${HANG_MS / 1000} s at some declared value`);
+console.log(`  ${doc.counts.saturating} SATURATE at one end of their declared domain — necessary for a converged\n    numerical control and nowhere near sufficient for calling one`);
+for (const w of saturating) console.log(`      ${w.instrument}.${w.input} \u2014 ${w.saturates}`);
 if (dead.length) console.log(`\n  dead: ${dead.map(w => `${w.instrument}.${w.input}`).join(' · ')}`);
 if (unreturned.length) console.log(`  unreturned: ${unreturned.map(w => `${w.instrument}.${w.input}`).join(' · ')}`);
 console.log(`\npage errors during the walk: ${errors.length}`);

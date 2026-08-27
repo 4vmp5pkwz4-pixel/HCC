@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="turn-this-and-that-moves-2026.08.27.1">
+<html lang="en" data-hcc-build="what-saturates-is-not-what-is-numerical-2026.08.27.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="turn-this-and-that-moves-2026.08.27.1">
+<meta name="hcc-build" content="what-saturates-is-not-what-is-numerical-2026.08.27.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.86.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.87.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.86.0';
-const HCC_BUILD='turn-this-and-that-moves-2026.08.27.1';
+const HCC_VERSION='4.87.0';
+const HCC_BUILD='what-saturates-is-not-what-is-numerical-2026.08.27.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -35543,20 +35543,59 @@ try{
                has not moved and one of order 1e-40 that changes by 1e-41 has */
             const rel=scale>0?(mx-mn)/scale:0;
             const moved=rel>1e-12;
-            let slope=null, r2=null, dec=null;
+            let slope=null, r2=null, dec=null, sLo=null, sHi=null, conv=null;
             if(moved&&mn>0&&xs.every(x=>x>0)){
               const lx=xs.map(Math.log10), ly=ys.map(Math.log10);
               const f2=scaleFit(lx,ly);
               if(f2){ slope=f2.slope; r2=f2.r2; }
               dec=Math.log10(mx)-Math.log10(mn);
+              /* ── WHAT SATURATES, WHICH IS NOT THE SAME AS WHAT IS NUMERICAL ──
+                 I built this to detect NUMERICAL controls — a step, a count, a
+                 tolerance — on the theory that one converges when refined while a
+                 physical dependence is a power law with the same exponent at both
+                 ends. The measurement is sound and the label was wrong, and the
+                 measurement is what corrected it: what this detects is SATURATION at
+                 one end of a declared domain, and a numerical control is only one of
+                 the things that saturates. It flagged a grid resolution and a lattice
+                 truncation, which are numerical; it also flagged a drive frequency
+                 and a slice radius, which are physical quantities whose response
+                 simply flattens at one end. Saturation is necessary for a converged
+                 numerical control and nowhere near sufficient for calling one.
+
+                 So it reports saturation and says so, and the question of which
+                 inputs are numerical stays open, where it belongs.
+
+                 AND WHAT IT DOES NOT FLAG IS THE SHARPER RESULT. An integration step
+                 that saturates has converged; one that does not has not converged
+                 ANYWHERE in the domain its laboratory declares. That is a stronger
+                 statement than "this input is numerical", and it is the reason such a
+                 control can move an output two laboratories away.
+
+                 Which end saturates is not assumed either: both are tested. */
+              if(lx.length>=9){
+                const k=Math.max(3,Math.floor(lx.length/3));
+                const a=scaleFit(lx.slice(0,k),ly.slice(0,k));
+                const b=scaleFit(lx.slice(-k),ly.slice(-k));
+                if(a&&b){ sLo=a.slope; sHi=b.slope;
+                  const FLAT=0.05, LIVE=0.2;
+                  if(Math.abs(sLo)<FLAT&&Math.abs(sHi)>LIVE) conv='saturates at the low end';
+                  else if(Math.abs(sHi)<FLAT&&Math.abs(sLo)>LIVE) conv='saturates at the high end';
+                }
+              }
             }
             outs.push({key:`${id}.${o.name}`, moved, relative_span:rel,
-              decades:dec, slope, r2, lo:mn, hi:mx});
+              decades:dec, slope, r2, slope_low:sLo, slope_high:sHi, saturates:conv, lo:mn, hi:mx});
           }
           const responding=outs.filter(o=>o.moved).length;
+          /* the input's own verdict: it saturates when EVERY output it moves does,
+             and at the same end — a mixture is not saturation, it is two different
+             things happening at once and is reported as neither */
+          const cv=outs.filter(o=>o.moved&&o.saturates);
+          const ends=new Set(cv.map(o=>o.saturates));
+          const numeric=(responding>0&&cv.length===responding&&ends.size===1)?[...ends][0]:null;
           rows.push({input:f.name, unit:f.unit, min:f.min, max:f.max,
             samples:n, live:vals.length, refused, truncated:cut,
-            responding, dead:responding===0,
+            responding, dead:responding===0, saturates:numeric,
             outputs:outs.filter(o=>o.moved).map(o=>({key:o.key, decades:o.decades,
               slope:o.slope, r2:o.r2, relative_span:o.relative_span}))});
         }

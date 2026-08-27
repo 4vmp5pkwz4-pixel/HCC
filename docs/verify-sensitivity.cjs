@@ -152,7 +152,28 @@ ok('and the dead inputs are named in full, because a control a reader is invited
   `${doc.counts.dead} declared inputs move no declared output anywhere in their own domain: `
   + doc.dead.map(d => d.input).join(' · '));
 
-console.log('\n=== 4. Measured from THIS atlas, not an earlier one ===\n');
+console.log('\n=== 4. What saturates, and what that does and does not establish ===\n');
+
+ok('an input that SATURATES is reported as saturating and not as numerical, which is the label I set out to produce and the measurement refused. A converged numerical control does flatten at its fine end — but so does a physical quantity whose response simply stops changing, and this walk flagged a grid resolution and a lattice truncation alongside a drive frequency and a slice radius. Saturation is necessary for a converged solver control and nowhere near sufficient for calling one, so the artifact says what it measured rather than what I hoped it meant',
+  Array.isArray(doc.saturating)
+  && doc.saturating.length === doc.counts.saturating
+  && doc.saturating.every(w => /saturates at the (low|high) end/.test(w.signature)),
+  doc.counts.saturating
+    ? `${doc.counts.saturating} inputs saturate: ` + doc.saturating.map(w => `${w.input} (${w.signature})`).join(' · ')
+    : 'none');
+
+/* and the absence is the sharper finding, so it is checked rather than remarked on */
+{
+  const step = (doc.instruments || []).flatMap(i => (i.rows || [])
+    .filter(r => r.input === 'step').map(r => ({ ins: i.id, ...r })));
+  const nsStep = step.find(r => r.ins === 'ns');
+  ok('and an integration step that does NOT saturate has not converged anywhere in the domain its laboratory declares — a stronger statement than any label, and the reason such a control can move an output two laboratories away in api/reach.json. A declared numerical domain ought to contain the region where refining it stops changing the answer; nothing checks that it does, and atlas.unconverged_solver_domains is where that is written down',
+    !!nsStep && nsStep.dead === false && !nsStep.saturates,
+    nsStep ? `ns.step moves ${nsStep.responding} declared outputs and saturates at neither end of [${nsStep.min ?? '?'} … ${nsStep.max ?? '?'}]`
+      : 'the neutron-star step input is absent');
+}
+
+console.log('\n=== 5. Measured from THIS atlas, not an earlier one ===\n');
 {
   const v = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'version.json'), 'utf8'));
   ok('the artifact records the build it was measured at, and this refuses it when that disagrees — the walk takes many minutes, CI does not spend them on every commit, and a stale file agrees with physics perfectly well',
