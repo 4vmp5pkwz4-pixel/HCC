@@ -29,6 +29,11 @@ const bodyStart = HTML.indexOf('>', open) + 1;
 const bodyEnd = HTML.lastIndexOf('</script>');
 const SRC = HTML.slice(bodyStart, bodyEnd);
 
+/* the keywords a '/' can legally follow, where it opens a REGEX and never a division.
+   `p === ''` covers the start of the file; the punctuation set covers operators; this
+   covers the third case, which is the one that was missing. */
+const REGEX_AFTER = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete',
+  'void', 'throw', 'case', 'do', 'else', 'yield', 'await']);
 const BROWSER = new Set(['window', 'document', 'THREE', 'navigator', 'localStorage', 'location',
   'requestAnimationFrame', 'cancelAnimationFrame', 'HTMLElement', 'CanvasRenderingContext2D',
   'performance', 'fetch', 'getComputedStyle', 'MutationObserver', 'ResizeObserver', 'Image',
@@ -61,6 +66,21 @@ function scan(s) {
   let d = 0, i = 0;
   const prevSignificant = () => { let k = i - 1; while (k >= 0 && !code[k]) k--;
     while (k >= 0 && /\s/.test(s[k])) k--; return k >= 0 ? s[k] : ''; };
+  /* ── AND A KEYWORD IS NOT AN IDENTIFIER ──────────────────────────────────
+     `return /^https?:/.test(x)` was read as DIVISION, because the character before the
+     slash is the "n" of return and one character cannot tell a keyword from a variable.
+     Everything from that slash to the next one became code, the next slash opened a
+     phantom regex, and it swallowed four lines — including an `if(...){`. The brace was
+     never counted, its `}` was, and the depth of this file went to -1 and never came
+     back. Ten thousand lines after it were invisible to extraction: `topLevel` is
+     depth === 0, so no declaration in them existed as far as this script was concerned,
+     and naming one as a root reported that it is "not a top-level declaration" — a true
+     sentence about the parse and a false one about the file. Both halves of that are
+     fixed below: keywords are read as words, and the depth is checked. */
+  const prevWord = () => { let k = i - 1; while (k >= 0 && !code[k]) k--;
+    while (k >= 0 && /\s/.test(s[k])) k--;
+    const e = k; while (k >= 0 && /[\w$]/.test(s[k])) k--;
+    return e > k ? s.slice(k + 1, e + 1) : ''; };
   while (i < s.length) {
     const c = s[i], c2 = s.slice(i, i + 2);
     if (c2 === '//') { while (i < s.length && s[i] !== '\n') { depth[i] = d; i++; } continue; }
@@ -89,7 +109,7 @@ function scan(s) {
     }
     if (c === '/') {   // regex, but only where a regex can legally begin
       const p = prevSignificant();
-      if (p === '' || '(,=:[!&|?{};+-*%~^<>'.includes(p)) {
+      if (p === '' || '(,=:[!&|?{};+-*%~^<>'.includes(p) || REGEX_AFTER.has(prevWord())) {
         depth[i] = d; code[i] = 1; i++; let cls = false;
         while (i < s.length) { depth[i] = d;
           if (s[i] === '\\') { i += 2; continue; }
@@ -121,6 +141,31 @@ function scanHole(s, i, d) {
 }
 
 const { depth, code } = scan(SRC);
+/* ── AND THE PARSE MUST BALANCE, OR NOTHING BELOW IT IS TRUE ────────────────
+   The whole of this script rests on depth === 0 meaning "top level". If the mask
+   above loses a brace, depth is wrong from that point to the end of the file and
+   every declaration after it silently stops existing — which is what happened, for
+   ten thousand lines, until a root that was plainly there was reported missing.
+   A parse that has lost track says so now, at the line where it lost it, instead of
+   handing back an answer about a file it is no longer reading correctly. */
+{
+  let bad = -1;
+  for (let i = 0; i < SRC.length; i++) if (depth[i] < 0) { bad = i; break; }
+  const tail = SRC.length ? depth[SRC.length - 1] : 0;
+  if (bad >= 0 || tail !== 0) {
+    const at = bad >= 0 ? bad : SRC.length - 1;
+    const line = SRC.slice(0, at).split('\n').length;
+    console.error('extraction FAILED: the brace parse does not balance.');
+    console.error(bad >= 0
+      ? `  depth goes NEGATIVE at module line ${line} — a '{' was read as something else, or a '}' was counted twice`
+      : `  depth ends at ${tail} rather than 0 — a block was opened and never closed, as this script reads it`);
+    console.error(`  ${SRC.split('\n')[line - 1].trim().slice(0, 120)}`);
+    console.error('  Every declaration after that point is invisible to this extractor, so no');
+    console.error('  answer it gives about them can be trusted. Usually a regex literal read as');
+    console.error('  a division, or a division read as a regex — see REGEX_AFTER above.');
+    process.exit(1);
+  }
+}
 const topLevel = i => depth[i] === 0 && code[i] === 1;
 
 const IDENT = /(?<![.\w$])([A-Za-z_$][\w$]*)/g;
@@ -591,7 +636,13 @@ export const ROOTS = [
   'nuOscLength', 'nuFirstMaximum', 'nuTwoFlavour', 'nuMswDensity', 'nuMixingSquared',
   'DISK_PEAK_RATIO', 'diskShape', 'diskPeakRadius', 'diskTemperature',
   'diskPeakTemperature', 'diskIsco', 'diskEfficiency', 'diskLuminosity',
-  'diskEddington', 'diskSpectrum', 'diskSpectralSlope'
+  'diskEddington', 'diskSpectrum', 'diskSpectralSlope',
+  /* ── AND THE LAW THAT JOINS THE TWO MEASUREMENTS ──────────────────────────
+     scripts/reach.mjs used to carry its own copy of the composition and multiply two
+     artifacts on disk. It imports this one now, so the rule that a chain is the PRODUCT
+     of two local exponents — and that the second leg must be fitted from the SOURCE and
+     not from the last hop — is written once and read by both the page and the build. */
+  'hccReachCompose'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

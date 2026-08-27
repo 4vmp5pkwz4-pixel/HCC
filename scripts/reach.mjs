@@ -55,52 +55,21 @@ if (sens.build !== tran.build || sens.version !== tran.version) {
   process.exit(1);
 }
 
-/* every (instrument input → own output) exponent the sensitivity walk fitted */
-const legA = [];
-for (const ins of sens.instruments || [])
-  for (const row of ins.rows || [])
-    for (const m of row.moves || [])
-      if (m.slope !== null && m.slope !== undefined)
-        legA.push({ input: `${ins.id}.${row.input}`, out: m.key, slope: m.slope });
+/* ── THE LAW ITSELF LIVES IN index.html, NOT HERE ───────────────────────────
+   This file used to carry its own copy of the composition: two nested loops, a join
+   on a.out === b.from, a product, and the rule that the second leg must be fitted
+   from the SOURCE rather than from the last hop. The page needs the same law to
+   answer the same question live for a reader, and a law with two implementations is
+   a law that gets corrected in one of them — which is precisely how the first version
+   of this composition shipped a three-laboratory chain as its own reciprocal.
 
-/* ── AND THE SECOND LEG MUST START WHERE THE FIRST ONE ENDS ─────────────────
-   The transfers artifact fits each far output against what the LAST hop of its
-   route delivered, which is the right x for "how does the far end move with the
-   thing immediately upstream", and the wrong one here.  The first leg ends at what
-   the route's FIRST hop carries, so that is the x the two have in common.  For a
-   single hop they are the same quantity; for a path they are not, and composing
-   against the wrong one turned a three-laboratory chain from a black hole's mass
-   to an interference fringe into its own reciprocal.  A closed form spanning all
-   three laboratories caught it; the artifact now carries both fits and this reads
-   the one that joins. */
-const legB = [];
-for (const r of tran.routes || []) {
-  if (!r.from || !r.outputs) continue;
-  for (const o of r.outputs) {
-    const s = (o.slope_from_source !== null && o.slope_from_source !== undefined)
-      ? o.slope_from_source : (r.hops === 1 ? o.slope : null);
-    if (s === null || s === undefined) continue;
-    legB.push({ from: r.from, out: o.key, slope: s, hops: r.hops,
-      route: r.name, r2: (o.r2_from_source ?? o.r2), drift: o.drift, live: r.live });
-  }
-}
+   So hccReachCompose is written once, in index.html beside the transfer measurement
+   it composes, and sliced out by scripts/extract-kernels.mjs into the module below.
+   This script contributes what it always did: reading the two artifacts, and refusing
+   to compose them if they were measured at different builds. */
+import { hccReachCompose } from '../core/atlas/extracted.mjs';
 
-const chains = [];
-for (const a of legA)
-  for (const b of legB)
-    if (a.out === b.from) chains.push({
-      control: a.input,
-      through: a.out,
-      reaches: b.out,
-      route: b.route,
-      exponent: a.slope * b.slope,
-      leg_control_to_output: a.slope,
-      leg_output_to_far: b.slope,
-      laboratories: 1 + b.hops,
-      far_r2: b.r2, far_drift: b.drift, far_live: b.live
-    });
-
-chains.sort((x, y) => Math.abs(y.exponent) - Math.abs(x.exponent) || x.control.localeCompare(y.control));
+const chains = hccReachCompose(sens, tran);
 
 const controls = new Set(chains.map(c => c.control));
 const reached = new Set(chains.map(c => c.reaches.split('.')[0]));
