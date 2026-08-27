@@ -173,6 +173,15 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
      Written down rather than acted on: rewriting laboratories on a measurement
      whose meaning is exactly what is undeclared would be the wrong order. */
   ['atlas.still_views', 'api/liveness.json records views that recompute no geometry and move no bodies between frames, and nothing declares which of them are diagrams by design and which are laboratories that stopped computing; without such a declaration the liveness gate can only be derived for the laboratories that publish stations'],
+  /* ── FOUND BY SWEEPING EVERY DECLARED INPUT OF EVERY INSTRUMENT ────────────
+     Three findings, kept apart because they are three different states of not
+     knowing, and collapsing them would be the failure the measurement exists to
+     avoid. None of them accuses a laboratory of being wrong: each names something
+     the atlas cannot currently distinguish, which is a gap in what a laboratory is
+     able to DECLARE about itself rather than in what it computes. */
+  ['atlas.dead_inputs', 'api/sensitivity.json records declared numeric inputs across whose entire declared domain no declared output of the same instrument responds, with every other input at its default; nothing distinguishes an input the laboratory genuinely does not use from one whose effect never reaches a declared output, or from one that matters only in combination with another input the one-at-a-time sweep holds fixed'],
+  ['atlas.unevaluable_domains', 'api/sensitivity.json records declared input domains at some value of which the instrument does not return within twenty seconds; a declared domain ought to be a domain the instrument can be evaluated on, and nothing in the declaration says which values are affordable, so a reader or an agent driving the API cannot tell a slow call from one that will not come back'],
+  ['atlas.wholly_refused_inputs', 'api/sensitivity.json records declared inputs every value of which is refused when the other inputs sit at their declared defaults; the domains are individually legal and jointly unreachable, and nothing declares the constraint between them that makes them so'],
   /* ── ADDED AFTER THREE EXTERNAL RESULTS WERE REPORTED TO THE ATLAS ─────────
      Recorded as open problems rather than as achievements: each names something the atlas
      now knows it must discharge and has not. The external inputs themselves are logged in

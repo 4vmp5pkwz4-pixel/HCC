@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="where-the-law-stops-2026.08.26.13">
+<html lang="en" data-hcc-build="does-your-own-knob-do-anything-2026.08.26.14">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="where-the-law-stops-2026.08.26.13">
+<meta name="hcc-build" content="does-your-own-knob-do-anything-2026.08.26.14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.84.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.85.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.84.0';
-const HCC_BUILD='where-the-law-stops-2026.08.26.13';
+const HCC_VERSION='4.85.0';
+const HCC_BUILD='does-your-own-knob-do-anything-2026.08.26.14';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7968,6 +7968,45 @@ function runSelfTests(){
           && SN.refused===SN.ids.length && SN.unknown===true,
           SN==null ? `the station registry did not evaluate: ${why9||'no reason recorded'}`
             : `${SN.ids.length} laboratories publish ${SN.total} stations · ${SN.ids.map(id=>`${id}: ${SN.all[id].join('/')}`).join(' · ')} · unset and unknown both fall back to the first in all ${SN.clamp.length} · ${SN.refused} of ${SN.ids.length} refused an undeclared station name, and an undeclared laboratory was refused too`);
+      }
+      /* ── AND WHETHER A LABORATORY'S OWN CONTROLS DO ANYTHING ──────────────── */
+      { let SV=null, why13='';
+        try{
+          const S1=HCC_API.sensitivity;
+          /* the blackbody is the cheap witness: two inputs, closed-form outputs, and a
+             law this atlas already measures a completely different way */
+          const bb=S1.measure('bb',12,4000);
+          const T=(bb.rows||[]).find(r=>r.input==='T');
+          const ex=T&&(T.outputs||[]).find(o=>o.key==='bb.exitance');
+          const lm=T&&(T.outputs||[]).find(o=>o.key==='bb.lambda_max');
+          /* and one whose declared input genuinely moves nothing, swept alone */
+          const su=S1.measure('su2',10,4000);
+          const sl=(su.rows||[]).find(r=>r.input==='slerp_t');
+          /* refusing an undeclared field rather than silently sweeping nothing */
+          let refusedUnknown=false;
+          try{ S1.measure('bb',8,1000,'no_such_input'); }catch(e){ refusedUnknown=true; }
+          let refusedLab=false;
+          try{ S1.measure('no_such_instrument',8,1000); }catch(e){ refusedLab=true; }
+          SV={inputs:S1.inputs('bb').length,
+              exitance:ex?ex.slope:null, lambda:lm?lm.slope:null,
+              responding:T?T.responding:null,
+              slerpDead:sl?sl.dead:null, slerpResponding:sl?sl.responding:null,
+              refusedUnknown, refusedLab,
+              evals:bb.evaluations, ms:bb.ms};
+        }catch(e){ why13=(e&&e.message)||String(e); }
+        ok('AND WHETHER A LABORATORY\u2019S OWN CONTROLS DO ANYTHING IS NOW ASKED TOO. Every influence this atlas measures is BETWEEN laboratories — the bus declares which output feeds which input, and the influence map records what each coupling is worth. Inside one laboratory nothing had ever been asked: a laboratory declares its inputs with a name, a unit and a domain, and whether moving one of them across everything it declares actually MOVES any of its own outputs was taken on faith. Sweeping the blackbody on its own temperature returns the Stefan-Boltzmann four and the Wien minus one — the same two numbers the bus reaches by driving it from a black hole, by different code down a different path, which is the strongest kind of agreement there is',
+          SV!=null && SV.exitance!=null && Math.abs(SV.exitance-4)<1e-3
+          && SV.lambda!=null && Math.abs(SV.lambda+1)<1e-3 && SV.responding>=3,
+          SV==null ? `the sensitivity walk did not evaluate: ${why13||'no reason recorded'}`
+            : `sweeping bb.T moves ${SV.responding} of its declared outputs · exitance exponent ${SV.exitance.toFixed(6)} · peak wavelength ${SV.lambda.toFixed(6)} · ${SV.evals} evaluations in ${SV.ms} ms`);
+        ok('and a declared control that moves NOTHING is found and named rather than assumed absent. The spinor laboratory declares an interpolation parameter and every output it publishes is an invariant of the rotation rather than a point along it, so sweeping that parameter alone moves not one of them. That is not a claim the laboratory is wrong — it may be exactly right — it is the atlas being able to SAY it, which it could not before, and the reason it is worth saying is that a reader is invited to turn that control',
+          SV!=null && SV.slerpDead===true && SV.slerpResponding===0,
+          SV==null ? 'the dead-input case was not exercised'
+            : `su2.slerp_t: ${SV.slerpResponding} of the laboratory\u2019s declared outputs respond anywhere in its declared domain`);
+        ok('and the walk refuses what it cannot measure instead of returning an empty answer that looks like one: an input the instrument does not declare, and an instrument the atlas does not have, are both errors rather than a sweep of nothing that would report zero responding outputs and read exactly like a dead control',
+          SV!=null && SV.refusedUnknown===true && SV.refusedLab===true,
+          SV==null ? 'the refusals were not exercised'
+            : 'an undeclared input and an undeclared instrument are both refused, so neither can be mistaken for a control that does nothing');
       }
       /* ── AND WHETHER A LABORATORY IS ALIVE IS NOW A NUMBER ────────────────── */
       { let LV=null, why8='';
@@ -35369,6 +35408,116 @@ try{
        the registry it reads is declared far below this literal, and a property would
        be a temporal-dead-zone error that takes the whole API down with it. */
     scales(){ return scaleSurvey(); },
+    /* ── AND WHETHER A LABORATORY'S OWN CONTROLS DO ANYTHING ───────────────────
+       Every influence this atlas measures is between laboratories. Inside one, nothing
+       had ever been asked. A laboratory declares its inputs with a name, a unit and a
+       domain, and declares its outputs — and whether moving one of those inputs across
+       everything it declares actually MOVES any of those outputs was, until now, a
+       thing the atlas took on faith about itself.
+
+       It is the same question the quantity bus asks about couplings, one scale smaller,
+       and it has the same two interesting answers. An input across whose entire
+       declared range no output responds is dead: either the laboratory does not use it,
+       or it uses it somewhere that never reaches an output, and both are worth knowing
+       about a control a reader is invited to turn. And an input whose response is a
+       clean power law over the whole range says something a laboratory rarely states
+       out loud about its own internals.
+
+       ONE AT A TIME, AND THAT IS A LIMITATION RATHER THAN A METHOD. Each input is swept
+       with every other held at its declared default, so what is measured is the
+       response along one axis through the default point. An input that does nothing
+       alone but matters in combination with another will read dead here and is not.
+       Saying so is cheaper than pretending otherwise, and a full interaction sweep of
+       384 inputs is a different and much larger piece of work. */
+    sensitivity:{
+      inputs(id){
+        const sp=HCC_API_SPECS.get(id); if(!sp) throw new Error(`no instrument "${id}"`);
+        return (sp.inputs||[]).filter(f=>f.type==='number'
+          &&Number.isFinite(f.min)&&Number.isFinite(f.max)&&f.max>f.min)
+          .map(f=>({name:f.name, unit:f.unit||null, min:f.min, max:f.max,
+            decades:(f.min>0&&f.max>0)?Math.log10(f.max/f.min):0}));
+      },
+      /* ONE INPUT AT A TIME IS AN OPTION, because a laboratory that does not return
+         cannot be diagnosed by a walk that sweeps all of its inputs in one call: the
+         whole instrument reads as hung and no field is named. Sweeping the fields
+         separately, each under its own clock, says WHICH declared value the laboratory
+         cannot be evaluated at — which is the useful half of that finding. */
+      measure(id,samples,budgetMs,onlyInput){
+        const sp=HCC_API_SPECS.get(id); if(!sp) throw new Error(`no instrument "${id}"`);
+        const n=Math.max(6,Math.min(256,Math.round(samples||16)));
+        const budget=Math.max(0,budgetMs||0);
+        const base={}; for(const f of (sp.inputs||[]))
+          base[f.name]=(typeof f.default==='function'?f.default():f.default);
+        const fields=this.inputs(id).filter(f=>!onlyInput||f.name===onlyInput);
+        if(onlyInput&&!fields.length) throw new Error(`${id} declares no sweepable input "${onlyInput}"`);
+        const t0=performance.now();
+        const rows=[]; let capped=0, evals=0, truncated=0;
+        for(const f of fields){
+          if(budget&&performance.now()-t0>budget){ capped++; continue; }
+          const spec=(sp.inputs||[]).find(x=>x.name===f.name);
+          const xs=[], vals=[];
+          let refused=0, cut=false;
+          for(let k=0;k<n;k++){
+            /* ── THE BUDGET HAS TO BE CHECKED PER SAMPLE, NOT PER INPUT ─────────
+               Checked only between inputs, this walk ran for a quarter of an hour on
+               ninety-one instruments that cost two seconds to evaluate once between
+               them. The reason is worth keeping: FOR SOME LABORATORIES THE INPUT BEING
+               SWEPT IS THE COST. A step count, a point count, a tolerance driven to the
+               tight end of its declared domain — each is a declared input like any
+               other, and each makes the instrument orders of magnitude slower at the top
+               of its range than at the default the earlier timing measured. One sample
+               can outlast the entire budget the whole instrument was given, and did. */
+            if(budget&&performance.now()-t0>budget){ cut=true; truncated++; break; }
+            const d=k/(n-1), v=hccDriveAt(spec,d);
+            let out=null;
+            try{ out=hccApiEvaluate(id,{...base,[f.name]:v}); evals++; }
+            catch(e){ refused++; continue; }
+            xs.push(v); vals.push(out);
+          }
+          /* a truncated sweep saw only the cheap end of the range and must not be read
+             as evidence that the expensive end does nothing */
+          if(cut&&vals.length<4){ rows.push({input:f.name, unit:f.unit, min:f.min, max:f.max,
+            samples:n, live:vals.length, refused, truncated:true, dead:null,
+            why:'the budget ran out before enough of the range was seen — this input is not being called dead, it is being called unmeasured'}); continue; }
+          if(!vals.length){ rows.push({input:f.name, refused, live:0, outputs:[], dead:null,
+            why:'every value in the declared domain was refused, so nothing was learned about whether it does anything'}); continue; }
+          const outs=[];
+          for(const o of (sp.outputs||[])){
+            const ys=vals.map(v=>+v[o.name]).filter(y=>Number.isFinite(y));
+            if(ys.length<vals.length) continue;             /* a non-numeric output */
+            const mn=Math.min(...ys), mx=Math.max(...ys);
+            const scale=Math.max(Math.abs(mn),Math.abs(mx));
+            /* "moved" is RELATIVE, because an output of order 1e40 that changes by 1e20
+               has not moved and one of order 1e-40 that changes by 1e-41 has */
+            const rel=scale>0?(mx-mn)/scale:0;
+            const moved=rel>1e-12;
+            let slope=null, r2=null, dec=null;
+            if(moved&&mn>0&&xs.every(x=>x>0)){
+              const lx=xs.map(Math.log10), ly=ys.map(Math.log10);
+              const f2=scaleFit(lx,ly);
+              if(f2){ slope=f2.slope; r2=f2.r2; }
+              dec=Math.log10(mx)-Math.log10(mn);
+            }
+            outs.push({key:`${id}.${o.name}`, moved, relative_span:rel,
+              decades:dec, slope, r2, lo:mn, hi:mx});
+          }
+          const responding=outs.filter(o=>o.moved).length;
+          rows.push({input:f.name, unit:f.unit, min:f.min, max:f.max,
+            samples:n, live:vals.length, refused, truncated:cut,
+            responding, dead:responding===0,
+            outputs:outs.filter(o=>o.moved).map(o=>({key:o.key, decades:o.decades,
+              slope:o.slope, r2:o.r2, relative_span:o.relative_span}))});
+        }
+        const ms=performance.now()-t0;
+        return {id, lab:sp.lab||null, world:sp.world||null,
+          inputs:fields.length, measured:rows.length, capped, truncated,
+          dead:rows.filter(r=>r.dead===true).length,
+          unmeasured:rows.filter(r=>r.dead===null).length,
+          outputs:(sp.outputs||[]).length, evaluations:evals,
+          ms:+ms.toFixed(1), ms_per_evaluation:evals?+(ms/evals).toFixed(3):0,
+          rows};
+      }
+    },
     /* ── WHAT EVERY DECLARED INFLUENCE IS WORTH, ASKED FROM OUTSIDE ────────────
        The cascade station measures this and prints it, and until now that was the only
        place it existed: a number computed in front of one reader and thrown away. An
@@ -62002,6 +62151,23 @@ function scaleRouteName(i){ const r=scaleRoute(i); if(!r) return '—';
   const parts=[HCC_LINKS[r[0]].from];
   for(const j of r) parts.push(HCC_LINKS[j].to);
   return parts.join(' → '); }
+/* ── WHERE ON A DECLARED DOMAIN A DRIVE POSITION LANDS ───────────────────────
+   Extracted so there is ONE authority for it. The rule was written inline for the bus
+   sweep and the moment a second sweep needed it — the sensitivity walk, which drives a
+   laboratory's own inputs rather than its neighbours' — copying it would have been two
+   authorities on the question the whole correction was about.
+
+   A knob whose range is strictly positive and spans more than two decades is driven
+   GEOMETRICALLY, because a linear walk across fifty-three decades never visits
+   fifty-two of them: the black-hole laboratory declares a mass from 1e-8 to 1e45 kg and
+   a linear sweep is past every mass that matters before it has moved a
+   ten-thousand-trillionth of the way along. Everything else is driven linearly, because
+   a geometric walk across a range that includes or approaches zero is not a walk. */
+function hccDriveAt(field,d01){
+  const lo=field.min, hi=field.max;
+  const dec=(lo>0&&hi>0)?Math.log10(hi/lo):0;
+  return (dec>2)? lo*Math.pow(hi/lo,d01) : lo+(hi-lo)*d01;
+}
 /* the declared couplings, driven: move the SOURCE and watch the far end move */
 function scaleChain(idx,drive){ return scaleWalk([Math.round(idx)],drive); }
 function scaleWalk(route,drive){
@@ -62029,11 +62195,7 @@ function scaleWalk(route,drive){
      visits each decade equally — the same correction, in a different coat, as sampling
      a logarithmic axis on a logarithmic grid. */
   const d01=Math.max(0,Math.min(1,drive??0.5));
-  if(knob){
-    const dec=(knob.min>0&&knob.max>0)?Math.log10(knob.max/knob.min):0;
-    finp[knob.name]=(dec>2)? knob.min*Math.pow(knob.max/knob.min,d01)
-                           : knob.min+(knob.max-knob.min)*d01;
-  }
+  if(knob) finp[knob.name]=hccDriveAt(knob,d01);
   let fout=null, refusal=null;
   try{ fout=hccApiEvaluate(fid,finp); }
   catch(e){ return {link:L, error:`${fid} refused its own defaults: ${e&&e.message||e}`}; }
