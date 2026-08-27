@@ -642,7 +642,13 @@ export const ROOTS = [
      artifacts on disk. It imports this one now, so the rule that a chain is the PRODUCT
      of two local exponents — and that the second leg must be fitted from the SOURCE and
      not from the last hop — is written once and read by both the page and the build. */
-  'hccReachCompose'
+  'hccReachCompose',
+  /* ── AND WHEN A CLOUD STOPS BEING A CLOUD ─────────────────────────────────
+     The join the atlas was missing: seven instruments publish a temperature and
+     four inputs take a mass, and nothing turned the first into the second. */
+  'JEANS_G', 'JEANS_KB', 'JEANS_MH', 'JEANS_MSUN', 'JEANS_PC', 'JEANS_YR',
+  'jeansSound', 'jeansRho', 'jeansLength', 'jeansMass', 'jeansMassVirial',
+  'jeansFreeFall', 'jeansCollapses'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
