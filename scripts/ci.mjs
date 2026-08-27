@@ -40,6 +40,10 @@ for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.t
   ok = run(`verifier ${f}`, `node docs/${f}`) && ok;
 ok = run('API contract + benchmark suite', 'node test/run-tests.mjs') && ok;
 ok = run('headless agent scenario', 'node scripts/demo-agent.mjs') && ok;
+/* and the report it just wrote must be the one in the repository. CI regenerated this
+   file on every run and never compared it to the committed copy, so the committed copy
+   drifted two open problems and a code hash behind the artifacts beside it. */
+ok = run('the committed agent report is not stale', 'node scripts/demo-agent.mjs --check') && ok;
 /* ── AND THE ATLAS'S OWN EIGHT HUNDRED ASSERTIONS, WHICH NOTHING RAN ────────
    validate.mjs checked that the string "runSelfTests" appeared in index.html — that the
    suite EXISTED, not that it passed. Eight hundred checks, a green pipeline, and no

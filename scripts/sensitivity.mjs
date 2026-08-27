@@ -221,8 +221,16 @@ const doc = {
     rows: r.rows.map(w => ({ input: w.input, dead: w.dead ?? null, unreturned: !!w.unreturned,
       saturates: w.saturates ?? null, min: w.min ?? null, max: w.max ?? null,
       responding: w.responding ?? null, live: w.live ?? null, refused: w.refused ?? null,
-      truncated: !!w.truncated,
-      moves: (w.outputs || []).slice(0, 6).map(o => ({ key: o.key, decades: o.decades, slope: o.slope })) })) }))
+      truncated: !!w.truncated, covered: w.covered ?? null,
+      /* ── AND HOW WELL THAT SLOPE FITS, WHICH WAS MEASURED AND NOT PUBLISHED ────
+         The page fits this leg and records its R²; this file dropped it. That was
+         invisible until api/reach.json started multiplying this slope by another one:
+         the composition could judge the far leg, because transfers publishes its fit
+         quality, and could say nothing whatever about the near one. Half a product
+         judged and the whole thing presented as judged is the worse kind of silence,
+         so the number the measurement already had is now written down. */
+      moves: (w.outputs || []).slice(0, 6).map(o => ({ key: o.key, decades: o.decades,
+        slope: o.slope, r2: o.r2 ?? null, covered: o.covered ?? null })) })) }))
 };
 const text = JSON.stringify(doc, null, 1) + '\n';
 

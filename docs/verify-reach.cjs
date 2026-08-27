@@ -106,5 +106,47 @@ ok('and at least one such chain is actually present, so the caveat is about some
     ? `${solverRooted.length} chains are rooted at a solver control: ${[...new Set(solverRooted.map(c => c.control))].join(', ')}`
     : 'none found — if the atlas has learned to declare which inputs are numerical, this check has served its purpose and should be replaced by one that reads the declaration');
 
+console.log('\n=== 4. And a product of two numbers is not a law ===\n');
+
+/* This file used to check that every exponent equals its two factors and stop there.
+   It did, and the exponent still described nothing: ns.central_density → wd.radius_km
+   composed to a clean -0.4783 out of a white-dwarf leg whose local slope runs from
+   -0.36 at the low end to -5.05 at the high one. That is the Chandrasekhar breakdown,
+   which this atlas located and then averaged into a scaling law that does not exist. */
+
+const judged = (doc.chains || []).filter(c => c.power_law !== undefined);
+ok('every chain carries a verdict on whether it is a power law at all, not only an exponent. The arithmetic was already checked and that was never the risk: a product of two real numbers is always a real number, and it is a LAW only if both factors are constant across the ranges they were fitted on',
+  judged.length === (doc.chains || []).length && judged.every(c => typeof c.why === 'string' && c.why.length > 30),
+  `${judged.length}/${(doc.chains || []).length} chains verdicted, each with its reason in words`);
+
+const holds = (doc.chains || []).filter(c => c.power_law === true);
+const broken = (doc.chains || []).filter(c => c.power_law === false);
+ok('and the verdict SEPARATES rather than passing everything. If it called every chain a power law it would be a field nobody could act on, and if it called none of them one it would be the same',
+  holds.length > 0 && broken.length > 0,
+  `${holds.length} hold across their range · ${broken.length} do not · ${(doc.chains || []).length - holds.length - broken.length} unjudged`);
+
+/* the two the physics settles: Hawking against Stefan-Boltzmann is exactly -4 and
+   against Wien exactly +1, both from closed forms with no correction term anywhere in
+   the range. If the verdict called EITHER of those broken it would be too strict. */
+const sb = (doc.chains || []).find(c => c.control === 'bht.M' && c.reaches === 'bb.exitance');
+const wien = (doc.chains || []).find(c => c.control === 'bht.M' && c.reaches === 'bb.lambda_max');
+ok('the two chains physics settles are verdicted TRUE. T_H goes as 1/M with no correction term and Stefan-Boltzmann goes as T^4 with none either, so the composition is exactly -4 everywhere and a verdict that doubted it would be too strict to use',
+  !!sb && sb.power_law === true && Math.abs(sb.exponent + 4) < 1e-9
+  && !!wien && wien.power_law === true && Math.abs(wien.exponent - 1) < 1e-9,
+  sb && wien ? `bht.M → bb.exitance ${sb.exponent.toFixed(6)} (${sb.power_law}) · bht.M → bb.lambda_max ${wien.exponent.toFixed(6)} (${wien.power_law})`
+             : 'the two reference chains are not in the file');
+
+/* and the one physics says must NOT hold */
+const chandra = (doc.chains || []).filter(c => /^wd\.radius/.test(c.reaches));
+ok('and every chain into a white dwarf RADIUS is verdicted false. Non-relativistic degeneracy gives R ∝ M^(-1/3) and the atlas measures -0.3606 at the low-mass end, but the same sweep reaches -5.05 near the Chandrasekhar limit, where the star runs out of radius entirely. One exponent cannot be both, so a single number for that chain is a claim about a law that stops',
+  chandra.length > 0 && chandra.every(c => c.power_law === false)
+  && chandra.every(c => /drifts/.test(c.why || '')),
+  chandra.length ? `${chandra.length} chains into wd.radius_*, all verdicted false — "${chandra[0].why.slice(0, 110)}…"`
+                 : 'no white-dwarf radius chain present to test the verdict against');
+
+ok('and both legs are judged, which is why the near leg publishes its fit quality. A product with one half checked and the whole presented as checked is a worse silence than not checking at all, because the field looks like an answer',
+  (doc.chains || []).every(c => c.near_r2 !== undefined && c.far_r2 !== undefined),
+  `near and far fit quality present on all ${(doc.chains || []).length} chains · near R² takes ${[...new Set((doc.chains || []).map(c => c.near_r2).filter(x => x != null).map(x => x.toFixed(4)))].sort().join(', ')}`);
+
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);

@@ -135,9 +135,29 @@ ok('the counts in the header are the rows underneath them rather than a separate
 
 const rows = (doc.instruments || []).flatMap(i => (i.rows || []).map(r => ({ ins: i.id, ...r })));
 ok('a REFUSED input is never called dead. Every value in its declared domain was refused, so the sweep learned nothing about whether it does anything — recording that as "moves nothing" would be the artifact asserting a fact it does not have, which is the failure this whole file is built to avoid',
-  rows.filter(r => r.dead === null && !r.unreturned).every(r => r.responding === null || r.responding === 0)
+  rows.filter(r => r.dead === null && !r.unreturned && !r.truncated).every(r => r.responding === null || r.responding === 0)
   && doc.refused.every(r => typeof r.why === 'string' && r.why.length > 20),
   `${doc.counts.refused} inputs had every declared value refused, each carrying the reason in writing`);
+
+/* ── AND dead === null NOW HAS THREE CAUSES, WHICH IS WHY THE LINE ABOVE MOVED ──
+   It used to have two — everything refused, or the instrument never returned — and this
+   file could therefore read "dead is null" as "nothing was learned". A third arrived: a
+   sweep the budget cut short. That is not "nothing was learned", it is "something was
+   learned about part of the range", and the two claims a prefix cannot support are the
+   ones now withheld. A truncated sweep may report what MOVED, because movement over a
+   prefix is movement; it may not report that nothing moves, because it never reached the
+   rest, and it may not report saturation, which is a claim about both ends by
+   construction and the high end is exactly the end it did not see. */
+const cut = rows.filter(r => r.truncated);
+ok('a sweep the budget cut short never says the input is dead and never claims saturation, because a prefix of a declared domain is not the domain. An input whose effect begins late would be called dead by a walk that never got there, and "saturates at the high end" is unknowable from a walk that stopped in the middle — while what DID move over the prefix demonstrably moves, so that half is kept',
+  cut.every(r => r.dead !== true) && cut.every(r => !r.saturates)
+  && cut.every(r => r.covered === null || (r.covered >= 0 && r.covered <= 1)),
+  `${cut.length} truncated sweeps · none called dead · none claiming saturation · coverage recorded on ${cut.filter(r => r.covered !== null).length} of them`
+    + (cut.length ? ` · shortest reached ${(Math.min(...cut.map(r => r.covered ?? 1)) * 100).toFixed(1)}% of its declared drive` : ''));
+
+ok('and every slope it publishes says what it was fitted over, so a prefix cannot be read as a full-domain exponent by anything downstream. api/reach.json multiplies these slopes into chains, and a chain built on a prefix claims a scaling everywhere from a measurement taken in part of one place',
+  cut.every(r => (r.moves || []).every(m => m.covered !== undefined)),
+  `${cut.reduce((n, r) => n + (r.moves || []).length, 0)} slopes from truncated sweeps, each carrying its coverage`);
 
 ok('and an UNRETURNED input is not called dead either, and names the field rather than the laboratory. A declared domain ought to be a domain the instrument can actually be evaluated on; where it is not, the useful half of the finding is WHICH value, and a walk that swept every input in one call would have reported only that the whole laboratory hung',
   rows.filter(r => r.unreturned).every(r => r.dead === null)
