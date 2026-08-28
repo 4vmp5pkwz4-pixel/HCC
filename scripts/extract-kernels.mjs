@@ -663,7 +663,12 @@ export const ROOTS = [
   'photAbsolute', 'photModulus', 'photFlux', 'photApparent', 'photRatio',
   /* and whether any of it can be seen: the diffraction floor under every angle */
   'RES_AS', 'resBesselJ1', 'RES_J1_ZERO', 'RES_RAYLEIGH_K', 'resRayleigh',
-  'resAiry', 'resAiryX', 'resApertureFor', 'resDawes', 'RES_INSTRUMENTS'
+  'resAiry', 'resAiryX', 'resApertureFor', 'resDawes', 'RES_INSTRUMENTS',
+  /* and how long you must look for it: the one place in this atlas where a quantity
+     is discrete, and where the discreteness IS the noise */
+  'PHOTON_H', 'PHOTON_C', 'photonF0', 'photonEnergy', 'photonArea', 'photonRate',
+  'photonSNR', 'photonTimeFor', 'photonFluxOfMag', 'photonMagOfFlux',
+  'photonLimitingMag', 'photonPoisson', 'photonRng'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
