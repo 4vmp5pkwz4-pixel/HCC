@@ -660,7 +660,10 @@ export const ROOTS = [
   'cosmoComoving', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak',
   /* and what arrives: the inverse square law and the magnitude scale */
   'PHOT_L0', 'PHOT_LSUN', 'PHOT_PC', 'PHOT_ERG_W',
-  'photAbsolute', 'photModulus', 'photFlux', 'photApparent', 'photRatio'
+  'photAbsolute', 'photModulus', 'photFlux', 'photApparent', 'photRatio',
+  /* and whether any of it can be seen: the diffraction floor under every angle */
+  'RES_AS', 'resBesselJ1', 'RES_J1_ZERO', 'RES_RAYLEIGH_K', 'resRayleigh',
+  'resAiry', 'resAiryX', 'resApertureFor', 'resDawes', 'RES_INSTRUMENTS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
