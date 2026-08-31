@@ -685,7 +685,13 @@ export const ROOTS = [
   'SB_AS', 'SB_SR_PER_ASEC2', 'SB_L0', 'SB_PC', 'SB_TOLMAN_POWERS',
   'sbF0', 'sbI0', 'sbRadianceOfMu', 'sbMuOfRadiance', 'sbRadiance',
   'sbDiscSolidAngle', 'sbSolidAngleToAsec2', 'sbImageIrradiance', 'sbImagePhotonRate',
-  'sbTolmanExponent', 'sbDimming', 'sbDimmingMag', 'sbTiredLightDimming', 'sbContrast'
+  'sbTolmanExponent', 'sbDimming', 'sbDimmingMag', 'sbTiredLightDimming', 'sbContrast',
+  /* and every anyon there is: the modular data of thirteen models, computed */
+  'AZ_MODELS', 'AZ_BY_ID', 'AZ_UNIVERSAL',
+  'azFusion', 'azQuantumDim', 'azDims', 'azSpins', 'azS', 'azGauss',
+  'azVerlinde', 'azModular', 'azUniversal',
+  'azC', 'azCm', 'azCa', 'azMm', 'azDag', 'azPh', 'AZ_ID2',
+  'azBraidGens', 'azBloch', 'azBraidImage'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
