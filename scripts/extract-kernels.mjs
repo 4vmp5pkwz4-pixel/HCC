@@ -691,7 +691,14 @@ export const ROOTS = [
   'azFusion', 'azQuantumDim', 'azDims', 'azSpins', 'azS', 'azGauss',
   'azVerlinde', 'azModular', 'azUniversal',
   'azC', 'azCm', 'azCa', 'azMm', 'azDag', 'azPh', 'AZ_ID2',
-  'azBraidGens', 'azBloch', 'azBraidImage'
+  'azBraidGens', 'azBloch', 'azBraidImage',
+  /* and the chain from a knot to a computer: Kauffman bracket, Temperley-Lieb, the
+     Markov trace, the Jones polynomial, and a hunt for a braid word */
+  'JQ_A', 'jqPZero', 'jqPMono', 'jqPAdd', 'jqPMul', 'JQ_DELTA',
+  'jqIdentity', 'jqE', 'jqKey', 'jqCompose', 'jqUnit', 'jqMul', 'jqRho',
+  'jqClosureLoops', 'jqBracket', 'jqJones', 'jqPolyString', 'jqPolyEqual',
+  'jqCatalan', 'jqDelta', 'JQ_KNOTS',
+  'JQ_GATES', 'jqDist', 'jqGens', 'jqHuntExhaustive', 'jqHuntRandom'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
