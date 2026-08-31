@@ -369,6 +369,10 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* phorizon.horizon */
+  'HZ_LN2', 'hzJac', 'hzMv', 'hzStep', 'hzGS', 'hzRK', 'hzSpectrum', 'hzKY',
+  'hzHorizon', 'hzPesin', 'hzSpread', 'hzFirstPassage', 'hzStretch', 'hzBlocks',
+  'HZ_CLOCKS', 'HZ_SOURCES', 'hzGyroPair',
   /* bianchi_ix.evolution */
   'bixSeed', 'bixIntegrate', 'bixLyapunov', 'bixClassify',
   /* edge.admissibility_no_go */

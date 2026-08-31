@@ -98,10 +98,36 @@ console.log('\n=== 3. The closure is closed ===\n');
   const browser = ['window', 'document', 'THREE', 'navigator', 'localStorage', 'location',
     'devicePixelRatio', 'screen', 'history', 'HTMLElement', 'performance'];
   const called = ['requestAnimationFrame', 'cancelAnimationFrame', 'getComputedStyle', 'fetch', 'alert'];
+  /* AND THE SECOND TIME IT WAS WRONG IT WAS WRONG THE OTHER WAY. Tightened to require a
+     dereference, this still matched `twice the window. It is published so...` — a sentence
+     inside a doc string, where the full stop that follows the word is punctuation and not
+     a property access. Excluding the quote character before the name does not help; the
+     character before `window` there is a space, exactly as it would be in code.
+
+     A regex over a file cannot tell code from prose, so this stops trying: string and
+     template literals and comments are REMOVED first, and only what is left is grepped.
+     The doc strings of this atlas are long and full of English, and every one of them was
+     a place a browser global could hide from a reader while tripping a check. */
+  const stripLiterals = src => {
+    let out = '', i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
+      if (c === '/' && src[i + 1] === '*') { i += 2; while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) i++; i += 2; continue; }
+      if (c === "'" || c === '"' || c === '`') {
+        const q = c; i++;
+        while (i < src.length && src[i] !== q) { if (src[i] === '\\') i++; i++; }
+        i++; out += ' '; continue;
+      }
+      out += c; i++;
+    }
+    return out;
+  };
+  const CODE = stripLiterals(MOD);
   const found = [
-    ...browser.filter(g => new RegExp(`(?<![.\\w$'"])${g}\\s*\\.`).test(MOD)),
-    ...called.filter(g => new RegExp(`(?<![.\\w$'"])${g}\\s*\\(`).test(MOD)),
-    ...(/\bnew\s+(THREE|MutationObserver|ResizeObserver|Image|Worker)\b/.test(MOD) ? ['a renderer constructor'] : [])
+    ...browser.filter(g => new RegExp(`(?<![.\\w$])${g}\\s*\\.`).test(CODE)),
+    ...called.filter(g => new RegExp(`(?<![.\\w$])${g}\\s*\\(`).test(CODE)),
+    ...(/\bnew\s+(THREE|MutationObserver|ResizeObserver|Image|Worker)\b/.test(CODE) ? ['a renderer constructor'] : [])
   ];
   ok('and it dereferences or calls no browser global, so it runs wherever node runs',
     found.length === 0,
