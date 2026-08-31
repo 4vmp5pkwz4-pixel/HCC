@@ -680,7 +680,12 @@ export const ROOTS = [
   /* and how long it lasts: three clocks, twelve orders of magnitude apart */
   'TS_G', 'TS_C', 'TS_YR', 'TS_MSUN', 'TS_RSUN', 'TS_LSUN', 'TS_M_H', 'TS_M_HE',
   'tsEfficiency', 'tsDynamical', 'tsThermal', 'tsNuclear', 'tsGrowth',
-  'tsMeanDensity', 'tsFreeFall', 'tsBinding', 'tsOrdering'
+  'tsMeanDensity', 'tsFreeFall', 'tsBinding', 'tsOrdering',
+  /* and how bright it is per patch of sky, which nothing could ask before */
+  'SB_AS', 'SB_SR_PER_ASEC2', 'SB_L0', 'SB_PC', 'SB_TOLMAN_POWERS',
+  'sbF0', 'sbI0', 'sbRadianceOfMu', 'sbMuOfRadiance', 'sbRadiance',
+  'sbDiscSolidAngle', 'sbSolidAngleToAsec2', 'sbImageIrradiance', 'sbImagePhotonRate',
+  'sbTolmanExponent', 'sbDimming', 'sbDimmingMag', 'sbTiredLightDimming', 'sbContrast'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
