@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-list-you-can-choose-from-2026.08.31.26">
+<html lang="en" data-hcc-build="moved-is-closed-2026.08.31.27">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-list-you-can-choose-from-2026.08.31.26">
+<meta name="hcc-build" content="moved-is-closed-2026.08.31.27">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.110.1</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.110.2</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.110.1';
-const HCC_BUILD='a-list-you-can-choose-from-2026.08.31.26';
+const HCC_VERSION='4.110.2';
+const HCC_BUILD='moved-is-closed-2026.08.31.27';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -8530,7 +8530,7 @@ function runSelfTests(){
         sel.dispatchEvent(new Event('change'));
         const released=(CTL_DEFER===null);
         try{ sel.blur(); }catch(e){}
-        CTL_DEFER=null;
+        CTL_DEFER=null; CTL_FORCE=false;
         /* ── AND NOW THE PATH THE READER ACTUALLY WALKS ───────────────────────
            The first version of this clause called buildCtl directly and passed while
            the bug was still there, because the rebuild that closes the popup is not
@@ -8553,12 +8553,75 @@ function runSelfTests(){
         const ranAfterChange=(ran>=1);
         try{ sel2.blur(); }catch(e){}
         PANEL_HOLD.el=null; PANEL_HOLD.panel=null; PANEL_HOLD.pending.clear();
-        if(host2.parentElement) host2.remove();
-        const probe=ctl.querySelector('#__ddProbe');
-        if(probe&&probe.parentElement) probe.parentElement.remove();
+        try{ if(host2.parentElement) host2.remove(); }catch(e){}
+        try{ const probe=ctl.querySelector('#__ddProbe');
+          if(probe&&probe.parentElement) probe.parentElement.remove(); }catch(e){}
+        /* ── AND EVERY REFRESHER, NOT JUST THE TWO I HAPPENED TO FIND ─────────
+           A native popup dies if its element is replaced, MOVED, or has its subtree
+           rebuilt. Ten functions touch this panel and a MutationObserver wraps every
+           section by relocating its children into a body div. Each is driven against a
+           focused list and the node must come back identical and in the same parent. */
+        const host3=document.createElement('div'); host3.className='sect';
+        host3.innerHTML='<b>probe</b><div class="ctlrow"><select id="__ddSweep"><option value="a">a</option><option value="b">b</option></select></div>';
+        ctl.appendChild(host3);
+        const movers=[], trace=[]; let swept=0;
+        const refreshers=[
+          ['buildCtl', ()=>buildCtl()],
+          ['enhancePanelSections', ()=>{ if(typeof enhancePanelSections==='function') enhancePanelSections('ctl'); }],
+          ['makePanelCollapsible', ()=>{ if(typeof makePanelCollapsible==='function') makePanelCollapsible('ctl'); }],
+          ['panelPinBuild', ()=>{ if(typeof panelPinBuild==='function') panelPinBuild(); }],
+          ['enhancePrecision', ()=>{ if(typeof enhancePrecision==='function') enhancePrecision(ctl); }],
+          ['hccOrderCtlSections', ()=>{ if(typeof hccOrderCtlSections==='function') hccOrderCtlSections(); }],
+          ['labBrowserBuild', ()=>{ if(typeof labBrowserBuild==='function') labBrowserBuild(); }],
+          ['updCtlVals', ()=>{ if(typeof updCtlVals==='function') updCtlVals(); }],
+          ['ensureSheetGrip', ()=>{ if(typeof ensureSheetGrip==='function') ensureSheetGrip(); }]
+        ];
+        for(const [nm,fn] of refreshers){
+          let el=ctl.querySelector('#__ddSweep');
+          trace.push(nm+(el?'[in]':'[ABSENT before it ran]'));
+          if(!el){ movers.push(nm+' (already gone)'); break; }
+          el.focus();
+          const par=el.parentElement;
+          swept++;
+          try{ fn(); }catch(e){ movers.push(nm+' threw'); continue; }
+          const now=ctl.querySelector('#__ddSweep');
+          if(!now){ const any=document.getElementById('__ddSweep');
+            movers.push(nm+(any
+              ? ' moved it OUT of the panel'
+              : ' destroyed it')
+              +' [host3 still in ctl: '+ctl.contains(host3)
+              +' · host3 connected: '+host3.isConnected
+              +' · ctl is #ctl: '+(ctl===document.getElementById('ctl'))
+              +' · host3 html: '+String(host3.innerHTML).slice(0,90)+']'); }
+          else if(now!==el) movers.push(nm+' replaced it with a different node');
+          else if(now.parentElement!==par)
+            movers.push(nm+' moved it from <'+(par?par.tagName.toLowerCase()+'.'+par.className:'?')
+              +'> to <'+now.parentElement.tagName.toLowerCase()+'.'+now.parentElement.className+'>');
+        }
+        /* and the observer, which fires on any childList change in this panel */
+        { const el=ctl.querySelector('#__ddSweep');
+          if(el){ el.focus(); const par=el.parentElement;
+            const noise=document.createElement('div'); noise.className='sect';
+            noise.innerHTML='<b>noise</b><div class="ctlrow">x</div>';
+            ctl.appendChild(noise);
+            if(typeof enhancePanelSections==='function') enhancePanelSections('ctl');
+            if(typeof makePanelCollapsible==='function') makePanelCollapsible('ctl');
+            const now=ctl.querySelector('#__ddSweep');
+            swept++;
+            if(now!==el) movers.push('the section observer replaced it');
+            else if(now.parentElement!==par) movers.push('the section observer moved it');
+            try{ noise.remove(); }catch(e){} } }
+        try{ const h=ctl.querySelector('#__ddSweep');
+          if(h){ const sect=h.closest('.sect'); if(sect&&sect.parentElement) sect.remove(); } }catch(e){}
+        try{ if(host3.parentElement) host3.remove(); }catch(e){}
         DD={focused, same, deferred, released,
-            heldThroughUp, sameNode, ranAfterChange, queued:(queued===false)};
+            heldThroughUp, sameNode, ranAfterChange, queued:(queued===false),
+            movers, swept, trace};
       }catch(err){ whyD=(err&&err.message)||String(err); }
+      ok('AND NO PANEL REFRESHER MAY MOVE A FOCUSED LIST, which is the guarantee rather than the two mechanisms. Twice now I have found A cause, fixed it, and shipped — and a native popup is closed by ANY of: the element being replaced, the element being MOVED in the DOM, or its subtree being rebuilt. There are ten separate functions here that touch this panel and a MutationObserver that wraps every section into a body div by relocating its children, and one of them moving a list is enough. So every one of them is driven against a focused select and the node has to come back the same node, in the same parent. The check names whichever one fails rather than my having to guess again',
+        DD!=null && DD.movers.length===0,
+        DD==null ? `the refresher sweep did not evaluate: ${whyD||'no reason recorded'}`
+          : `${DD.swept} panel refreshers driven against a focused list${DD.movers.length?' · MOVED OR REPLACED IT: '+DD.movers.join(', ')+' · trace: '+DD.trace.join(' → '):' · none replaced it, none moved it, and the asynchronous section-wrapping observer left it where it was'}`);
       ok('AND THE REBUILD THAT ACTUALLY KILLED THE LIST IS THE ONE FLUSHED ON POINTERUP, which the first version of this check did not touch. The panel DEFERS a render while the reader holds a control and flushes it when the pointer comes up — right for a slider, where the release ends the drag, and wrong for a list, where the press OPENS the popup and the release arrives milliseconds later while the reader is still reading the options. Every deferred render then landed in the open list and replaced the element under it. This drives the real path: a pointerdown on a select, a render queued behind it, a pointerup — and the element must survive. Then a change, and the render must finally run',
         DD!=null && DD.heldThroughUp && DD.ranAfterChange && DD.sameNode,
         DD==null ? `the pointer path did not evaluate: ${whyD||'no reason recorded'}`
@@ -13566,7 +13629,22 @@ function enhancePanelSections(id){
   for(const sect of p.querySelectorAll('.sect')){
     const head=sect.firstElementChild;
     if(!head||head.tagName!=='B') continue;
+    /* ── AND NOT WHILE SOMETHING IN IT HAS FOCUS ──────────────────────────────
+       This wrap RELOCATES every sibling of the heading into a new body div, and moving
+       a focused element in the DOM blurs it. That blur is the first link of the chain
+       that closed the dropdown lists: the list is moved, so it blurs; the blur releases
+       the render the panel was holding; the release rebuilds the panel; the rebuild
+       destroys the element the popup belonged to. Two earlier fixes were aimed at the
+       later links and neither could reach this one, because the wrap is triggered by the
+       section observer on ANY childList change in the panel and has nothing to do with
+       the list at all.
+
+       A section holding the focus is left unwrapped for now. It is wrapped on the next
+       refresh, when the reader has moved on — the accordion is a convenience and the
+       control under their hand is not. */
     if(!sect.querySelector(':scope > .sectBody')){   // wrap once; re-renders rebuild from scratch
+      const a=document.activeElement;
+      if(a && a!==document.body && sect.contains(a)) continue;
       const body=document.createElement('div'); body.className='sectBody';
       while(head.nextSibling) body.appendChild(head.nextSibling);
       sect.appendChild(body);
@@ -59225,6 +59303,15 @@ let LAST_CTL_CONTEXT='';
 function hccOrderCtlSections(){
   if(!(innerWidth<=900||matchMedia('(pointer:coarse)').matches)) return;
   const el=typeof ctl!=='undefined'&&ctl; if(!el) return;
+  /* ── AND NOT WHILE SOMETHING IN IT HAS FOCUS ──────────────────────────────
+     This reorders the panel by re-appending every section through a fragment, which
+     RE-PARENTS them — and moving a focused element blurs it. Chrome says so in as many
+     words when the removal that follows fails: "Perhaps it was moved in a blur event
+     handler?". That blur is what closed the dropdown lists, by way of releasing the
+     render the panel was holding. The same guard as the section wrap: a panel holding
+     the focus is left in the order it is in, and reordered on the next refresh. */
+  { const a=document.activeElement;
+    if(a && a!==document.body && el.contains(a)) return; }
   try{
     const kids=[...el.children];
     if(kids.length<3) return;
