@@ -698,7 +698,12 @@ export const ROOTS = [
   'jqIdentity', 'jqE', 'jqKey', 'jqCompose', 'jqUnit', 'jqMul', 'jqRho',
   'jqClosureLoops', 'jqBracket', 'jqJones', 'jqPolyString', 'jqPolyEqual',
   'jqCatalan', 'jqDelta', 'JQ_KNOTS',
-  'JQ_GATES', 'jqDist', 'jqGens', 'jqHuntExhaustive', 'jqHuntRandom'
+  'JQ_GATES', 'jqDist', 'jqGens', 'jqHuntExhaustive', 'jqHuntRandom',
+  /* and the one question sixteen quantum laboratories never answered: when */
+  'QR_H', 'QR_HBAR', 'QR_KB', 'QR_C', 'QR_ME', 'QR_MU', 'QR_E', 'QR_EPS0', 'QR_BEC',
+  'qrLambdaT', 'qrDegeneracy', 'qrFermiEnergy', 'qrFermiT', 'qrFrozen',
+  'qrFreezeFrequency', 'qrCyclotron', 'qrLandau', 'qrAction', 'qrTunnel',
+  'qrTransmission', 'qrCasimir', 'qrCompton', 'qrBecT', 'qrCriteria', 'QR_SYSTEMS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
