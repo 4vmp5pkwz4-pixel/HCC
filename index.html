@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="what-does-a-bit-cost-2026.08.31.25">
+<html lang="en" data-hcc-build="a-list-you-can-choose-from-2026.08.31.26">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="what-does-a-bit-cost-2026.08.31.25">
+<meta name="hcc-build" content="a-list-you-can-choose-from-2026.08.31.26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2149,7 +2149,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.110.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.110.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2351,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.110.0';
-const HCC_BUILD='what-does-a-bit-cost-2026.08.31.25';
+const HCC_VERSION='4.110.1';
+const HCC_BUILD='a-list-you-can-choose-from-2026.08.31.26';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -8531,10 +8531,38 @@ function runSelfTests(){
         const released=(CTL_DEFER===null);
         try{ sel.blur(); }catch(e){}
         CTL_DEFER=null;
+        /* ── AND NOW THE PATH THE READER ACTUALLY WALKS ───────────────────────
+           The first version of this clause called buildCtl directly and passed while
+           the bug was still there, because the rebuild that closes the popup is not
+           requested through buildCtl — it is FLUSHED by the pointerup handler. A check
+           that exercises the fix instead of the fault is a check that cannot fail for
+           the reason it was written. */
+        const host2=document.createElement('div'); host2.className='sect';
+        host2.innerHTML='<select id="__ddPath"><option value="a">a</option><option value="b">b</option></select>';
+        ctl.appendChild(host2);
+        const sel2=ctl.querySelector('#__ddPath');
+        let ran=0;
+        sel2.focus();
+        sel2.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true}));
+        const queued=panelRenderGuard(ctl,()=>{ ran++; });
+        document.dispatchEvent(new PointerEvent('pointerup',{bubbles:true}));
+        const heldThroughUp=(ran===0);
+        const sameNode=(ctl.querySelector('#__ddPath')===sel2);
+        sel2.value='b';
+        sel2.dispatchEvent(new Event('change',{bubbles:true}));
+        const ranAfterChange=(ran>=1);
+        try{ sel2.blur(); }catch(e){}
+        PANEL_HOLD.el=null; PANEL_HOLD.panel=null; PANEL_HOLD.pending.clear();
+        if(host2.parentElement) host2.remove();
         const probe=ctl.querySelector('#__ddProbe');
         if(probe&&probe.parentElement) probe.parentElement.remove();
-        DD={focused, same, deferred, released};
+        DD={focused, same, deferred, released,
+            heldThroughUp, sameNode, ranAfterChange, queued:(queued===false)};
       }catch(err){ whyD=(err&&err.message)||String(err); }
+      ok('AND THE REBUILD THAT ACTUALLY KILLED THE LIST IS THE ONE FLUSHED ON POINTERUP, which the first version of this check did not touch. The panel DEFERS a render while the reader holds a control and flushes it when the pointer comes up — right for a slider, where the release ends the drag, and wrong for a list, where the press OPENS the popup and the release arrives milliseconds later while the reader is still reading the options. Every deferred render then landed in the open list and replaced the element under it. This drives the real path: a pointerdown on a select, a render queued behind it, a pointerup — and the element must survive. Then a change, and the render must finally run',
+        DD!=null && DD.heldThroughUp && DD.ranAfterChange && DD.sameNode,
+        DD==null ? `the pointer path did not evaluate: ${whyD||'no reason recorded'}`
+          : `a render queued behind an open list did not run on pointerup: ${DD.heldThroughUp} · the element survived it as the same node: ${DD.sameNode} · and choosing released it: ${DD.ranAfterChange}`);
       ok('AND A DROPDOWN NOW LETS YOU CHOOSE INSTEAD OF JUMPING. Every control panel here is rebuilt by assigning innerHTML, and a native list popup is torn down the instant its element is replaced — so any rebuild that happened while a list was OPEN closed it under the reader’s finger: a navigation, a station change, another control’s handler, a MutationObserver moving a section. From the outside that does not look like a rebuild, it looks like the list refusing to let you choose. The rebuild is DEFERRED while a list in the panel holds focus, and it is not deferred forever — the value is remembered and the moment it differs the reader has chosen and the rebuild runs at once. Delayed, never skipped',
         DD!=null && DD.focused && DD.same && DD.deferred && DD.released,
         DD==null ? `the dropdown probe did not evaluate: ${whyD||'no reason recorded'}`
@@ -13441,9 +13469,28 @@ try{
     const p=c&&c.closest&&c.closest('.panel');
     if(c&&p){ PANEL_HOLD.el=c; PANEL_HOLD.panel=p; }
   },{capture:true,passive:true});
-  const end=()=>{ if(PANEL_HOLD.el) panelHoldRelease(); };
+  /* ── A SELECT IS NOT A DRAG, AND THAT IS WHY THE LISTS WOULD NOT OPEN ──────
+     For a slider, pointerup means the drag is finished and every deferred rebuild can
+     safely run. For a <select> it means the LIST HAS JUST OPENED — the press opens the
+     popup and the release arrives milliseconds later, while the reader is still looking
+     at the options. Releasing the hold there flushed every pending render into the open
+     list and replaced the element under it, so the list appeared and vanished without
+     letting anything be chosen.
+
+     I fixed the wrong thing first. Deferring buildCtl while a select holds focus was a
+     real improvement and it is still here, and it did nothing for this: the rebuild that
+     kills the popup does not arrive through buildCtl at all, it is flushed by this line.
+     A select's interaction ends on CHANGE or on BLUR, and both release it below. */
+  const end=()=>{
+    if(!PANEL_HOLD.el) return;
+    if(PANEL_HOLD.el.tagName==='SELECT') return;   /* the list is open, not finished */
+    panelHoldRelease(); };
   document.addEventListener('pointerup',end,{capture:true,passive:true});
   document.addEventListener('pointercancel',end,{capture:true,passive:true});
+  /* choosing an option IS the end of the interaction, and the panel updates at once */
+  document.addEventListener('change',(e)=>{
+    if(PANEL_HOLD.el&&e.target===PANEL_HOLD.el) panelHoldRelease();
+  },{capture:true});
   /* a field that holds keyboard focus is held too — arrow keys are a drag with no pointer */
   document.addEventListener('focusin',(e)=>{
     const c=e.target&&e.target.matches&&e.target.matches('input,select,textarea')?e.target:null;
