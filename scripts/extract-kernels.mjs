@@ -668,7 +668,15 @@ export const ROOTS = [
      is discrete, and where the discreteness IS the noise */
   'PHOTON_H', 'PHOTON_C', 'photonF0', 'photonEnergy', 'photonArea', 'photonRate',
   'photonSNR', 'photonTimeFor', 'photonFluxOfMag', 'photonMagOfFlux',
-  'photonLimitingMag', 'photonPoisson', 'photonRng'
+  'photonLimitingMag', 'photonPoisson', 'photonRng',
+  /* and what pushes back: one Fermi-Dirac integral with the ideal gas and the
+     Chandrasekhar degenerate form as its two limits rather than as separate terms */
+  'EOS_KB', 'EOS_MU', 'EOS_ARAD', 'EOS_H', 'EOS_ME', 'EOS_C', 'EOS_G', 'EOS_MSUN',
+  'EOS_LAMC', 'EOS_MEC2', 'EOS_A0', 'EOS_LANE_EMDEN_3',
+  'eosFermi', 'eosPsiFor', 'eosNe', 'eosElectron', 'eosIdealE', 'eosX',
+  'eosFx', 'eosDegenerateT0', 'eosIon', 'eosRad', 'eosFermiT', 'eosState',
+  'eosGamma', 'eosGammaDegenerate', 'eosDominant', 'eosDensityFor',
+  'eosKur', 'eosKnr', 'eosLimitingMass'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
