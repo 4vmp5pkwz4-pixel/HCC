@@ -49,12 +49,12 @@ const c = 299792458, yr = 31557600, ly = c * yr, AU = 149597870700;
 const pc = (648000 / Math.PI) * AU, e = 1.602176634e-19;
 const EXPECT = {
   m: 1, km: 1e3, cm: 1e-2, mm: 1e-3, nm: 1e-9, fm: 1e-15,
-  AU, pc, kpc: 1000 * pc, Mpc: 1e6 * pc, Gly: 1e9 * ly, R_earth: 6.371e6,
+  AU, pc, kpc: 1000 * pc, Mpc: 1e6 * pc, Gly: 1e9 * ly, R_earth: 6.371e6, R_sun: 6.957e8,
   s: 1, ms: 1e-3, ns: 1e-9, d: 86400, yr,
   Hz: 1, kHz: 1e3, MHz: 1e6, GHz: 1e9, 'rad/s': 1 / (2 * Math.PI), 'Hz/s': 1,
   J: 1, erg: 1e-7, eV: e, ueV: e * 1e-6, meV: e * 1e-3, keV: e * 1e3, MeV: e * 1e6, GeV: e * 1e9,
   'J/m^3': 1, kg: 1, M_sun: 1.98892e30, 'kg/m^3': 1, 'kg m^-3': 1, 'kg/s': 1,
-  'cm^-3': 1e6, 'm^-3': 1,
+  'cm^-3': 1e6, 'm^-3': 1, 'M_sun/yr': 1.98892e30 / 31557600,
   K: 1, mK: 1e-3, uK: 1e-6, 'uK^2': 1e-12,
   'm/s': 1, 'km/s': 1e3, 'm^2/s': 1, W: 1, 'erg/s': 1e-7,
   'W/m^2': 1, 'W m^-2': 1, Pa: 1, V: 1, G: 1e-4, T: 1, Wb: 1,

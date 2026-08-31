@@ -676,7 +676,11 @@ export const ROOTS = [
   'eosFermi', 'eosPsiFor', 'eosNe', 'eosElectron', 'eosIdealE', 'eosX',
   'eosFx', 'eosDegenerateT0', 'eosIon', 'eosRad', 'eosFermiT', 'eosState',
   'eosGamma', 'eosGammaDegenerate', 'eosDominant', 'eosDensityFor',
-  'eosKur', 'eosKnr', 'eosLimitingMass'
+  'eosKur', 'eosKnr', 'eosLimitingMass',
+  /* and how long it lasts: three clocks, twelve orders of magnitude apart */
+  'TS_G', 'TS_C', 'TS_YR', 'TS_MSUN', 'TS_RSUN', 'TS_LSUN', 'TS_M_H', 'TS_M_HE',
+  'tsEfficiency', 'tsDynamical', 'tsThermal', 'tsNuclear', 'tsGrowth',
+  'tsMeanDensity', 'tsFreeFall', 'tsBinding', 'tsOrdering'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
