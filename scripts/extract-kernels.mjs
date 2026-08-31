@@ -703,7 +703,12 @@ export const ROOTS = [
   'QR_H', 'QR_HBAR', 'QR_KB', 'QR_C', 'QR_ME', 'QR_MU', 'QR_E', 'QR_EPS0', 'QR_BEC',
   'qrLambdaT', 'qrDegeneracy', 'qrFermiEnergy', 'qrFermiT', 'qrFrozen',
   'qrFreezeFrequency', 'qrCyclotron', 'qrLandau', 'qrAction', 'qrTunnel',
-  'qrTransmission', 'qrCasimir', 'qrCompton', 'qrBecT', 'qrCriteria', 'QR_SYSTEMS'
+  'qrTransmission', 'qrCasimir', 'qrCompton', 'qrBecT', 'qrCriteria', 'QR_SYSTEMS',
+  /* and what a bit costs: entropy published in three clusters and consumed in none */
+  'IL_KB', 'IL_HBAR', 'IL_H', 'IL_C', 'IL_G', 'IL_LN2', 'IL_MSUN', 'IL_E',
+  'ilPlanckArea', 'ilLandauer', 'ilLandauerEV', 'ilBitsFromJK', 'ilBitsFromNats',
+  'ilJKFromBits', 'ilBekenstein', 'ilHorizonEntropy', 'ilHolographicDensity',
+  'ilSchwarzschildArea', 'ilMargolus', 'ilBremermann', 'ilEntropyGap', 'IL_HOLDERS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
