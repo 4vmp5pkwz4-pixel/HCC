@@ -53,7 +53,8 @@ const EXPECT = {
   s: 1, ms: 1e-3, ns: 1e-9, d: 86400, yr,
   Hz: 1, kHz: 1e3, MHz: 1e6, GHz: 1e9, 'rad/s': 1 / (2 * Math.PI), 'Hz/s': 1,
   J: 1, erg: 1e-7, eV: e, ueV: e * 1e-6, meV: e * 1e-3, keV: e * 1e3, MeV: e * 1e6, GeV: e * 1e9,
-  'J/m^3': 1, kg: 1, M_sun: 1.98892e30, 'kg/m^3': 1, 'kg/s': 1, 'cm^-3': 1e6,
+  'J/m^3': 1, kg: 1, M_sun: 1.98892e30, 'kg/m^3': 1, 'kg m^-3': 1, 'kg/s': 1,
+  'cm^-3': 1e6, 'm^-3': 1,
   K: 1, mK: 1e-3, uK: 1e-6, 'uK^2': 1e-12,
   'm/s': 1, 'km/s': 1e3, 'm^2/s': 1, W: 1, 'erg/s': 1e-7,
   'W/m^2': 1, 'W m^-2': 1, Pa: 1, V: 1, G: 1e-4, T: 1, Wb: 1,
@@ -95,10 +96,14 @@ const EXPECT = {
   ok('rad/s is converted to Hz by exactly one factor of 2·pi and nothing else, which is the one conversion in this table that is a choice rather than a definition and is therefore the one worth stating out loud',
     Math.abs(TABLE['rad/s'].f * (2 * Math.PI) - 1) < 1e-15,
     `1 rad/s = ${TABLE['rad/s'].f.toPrecision(15)} Hz`);
-  ok('two spellings of one unit land on one axis: W/m^2 and W m^-2 carry the same kind and the same factor, because two spellings treated as two dimensions is how a bus starts believing two things are different',
-    TABLE['W/m^2'] && TABLE['W m^-2'] && TABLE['W/m^2'].kind === TABLE['W m^-2'].kind
-    && TABLE['W/m^2'].f === TABLE['W m^-2'].f,
-    `both are ${TABLE['W/m^2'] ? TABLE['W/m^2'].kind : '(missing)'}`);
+  ok('two spellings of one unit land on one axis: W/m^2 and W m^-2, and kg/m^3 and kg m^-3, each pair carrying the same kind and the same factor — because two spellings treated as two dimensions is how a bus starts believing two things are different. The second pair was NOT here until an output was renamed from one spelling to the other to make a coupling admissible, and a density that had appeared in a transfer route for releases silently stopped appearing: the table listed kg/m^3 and not kg m^-3, so everything published under the second spelling was invisible to the survey rather than refused by it',
+    [['W/m^2', 'W m^-2'], ['kg/m^3', 'kg m^-3']].every(([a, b]) =>
+      TABLE[a] && TABLE[b] && TABLE[a].kind === TABLE[b].kind && TABLE[a].f === TABLE[b].f),
+    `${TABLE['W/m^2'] ? TABLE['W/m^2'].kind : '(missing)'} and ${TABLE['kg/m^3'] ? TABLE['kg/m^3'].kind : '(missing)'}`);
+  ok('and a number density in inverse cubic metres is on the axis at all, which it was not: the table carried cm^-3 and not m^-3, so the one unit the Jeans criterion and the equation of state both trade in had no SI magnitude here. The two must differ by exactly a million, and the check is the factor rather than the presence, because a unit added with the wrong exponent is worse than a unit left out',
+    TABLE['m^-3'] && TABLE['cm^-3'] && Math.abs(TABLE['cm^-3'].f / TABLE['m^-3'].f - 1e6) < 1e-9
+    && TABLE['m^-3'].kind === TABLE['cm^-3'].kind,
+    `cm^-3 / m^-3 = ${TABLE['cm^-3'] && TABLE['m^-3'] ? (TABLE['cm^-3'].f / TABLE['m^-3'].f).toExponential(6) : '(missing)'} against 1e6`);
   ok('the area and volume units are the CUBE and SQUARE of the length unit they are named after, not a length with a different exponent written beside it',
     Math.abs(TABLE['Gly^2'].f / (TABLE.Gly.f ** 2) - 1) < 1e-12
     && Math.abs(TABLE['Gly^3'].f / (TABLE.Gly.f ** 3) - 1) < 1e-12,

@@ -120,12 +120,22 @@ const head = await page.evaluate(() => ({
     const cand = B.candidates();
     const isolated = B.isolated();
     const nb = isolated.map(id => B.neighbourhood(id));
+    /* ── ONE AUTHORITY FOR THE REFUSAL COUNT ──────────────────────────────────
+       This published the refusals as an ARRAY and the count as admissible minus
+       declared, which are two authorities for one number, and they disagreed by one the
+       moment a link was declared through an alias: an aliased coupling joins two
+       quantities whose NAMES differ, so it is declarable and was never a candidate, and
+       subtracting it from the candidates counts a refusal that does not exist. The count
+       is read off the array now, and the gap between the two — how many declared links
+       are not admissible on their own names — is published rather than absorbed. */
+    const refusedArr = cand.filter(c => !links.some(l => l.from === c.from && l.to === c.to))
+      .map(c => ({ from: c.from, to: c.to, reason: HCC_API.bus.refusal ? HCC_API.bus.refusal(c.from, c.to) : null }));
+    const byAlias = links.filter(l => !cand.some(c => c.from === l.from && c.to === l.to)).length;
     return {
       links: links.map(l => ({ from: l.from, to: l.to, unit: l.unit, scale: l.scale, converted: !!l.converted })),
       /* a proposal the atlas declined, and the sentence saying why — the refusals are as
          much a part of what this atlas asserts as the links are */
-      refused: cand.filter(c => !links.some(l => l.from === c.from && l.to === c.to))
-        .map(c => ({ from: c.from, to: c.to, reason: HCC_API.bus.refusal ? HCC_API.bus.refusal(c.from, c.to) : null })),
+      refused: refusedArr,
       isolated: nb.map(n => ({ id: n.id, distinctive_reach: n.distinctiveReach })),
       /* ── AND THE INPUTS THAT HAD A CHOICE ────────────────────────────────────
          One input has exactly one driver, so when several sources are admissible the
@@ -138,7 +148,7 @@ const head = await page.evaluate(() => ({
       contested: (B.contested ? B.contested() : []).map(r => ({
         input: r.input, chosen: r.chosen, others: r.others, reasons: r.reasons })),
       counts: { admissible: cand.length, declared: links.length,
-        refused: cand.length - links.length, isolated: isolated.length,
+        refused: refusedArr.length, declared_by_alias: byAlias, isolated: isolated.length,
         isolated_dimensionless_only: nb.filter(n => n.distinctiveReach === 0).length,
         contested_inputs: (B.contested ? B.contested().length : 0),
         sources_that_lost: (B.contested ? B.contested() : []).reduce((n, r) => n + r.others.length, 0) }
