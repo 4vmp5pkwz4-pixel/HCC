@@ -369,6 +369,10 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* circulation.same_theorem */
+  'CQ_H', 'CQ_E', 'CQ_U', 'CQ_M4', 'CQ_M3', 'CQ_CORE', 'cqKappa4', 'cqKappa3', 'cqPhi0',
+  'cqFeynman', 'cqAbrikosov', 'cqRotationPerTesla', 'cqSpacing', 'cqOmegaC1',
+  'cqRingSpeed', 'cqLattice', 'cqVTheta', 'cqProfile',
   /* clock.exchange */
   'CK_S', 'CK_R', 'CK_B', 'CK_REF', 'ckF', 'ckRK', 'ckMaxima', 'ckMapExponent',
   'ckBridge', 'CK_TIME_UNITS', 'ckHasClock', 'CK_CLOCKS',
