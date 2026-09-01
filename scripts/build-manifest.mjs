@@ -131,6 +131,10 @@ const head = await page.evaluate(() => ({
     const refusedArr = cand.filter(c => !links.some(l => l.from === c.from && l.to === c.to))
       .map(c => ({ from: c.from, to: c.to, reason: HCC_API.bus.refusal ? HCC_API.bus.refusal(c.from, c.to) : null }));
     const byAlias = links.filter(l => !cand.some(c => c.from === l.from && c.to === l.to)).length;
+    /* the candidates whose unit test was vacuous, so that the base rate can be seen */
+    const isDimless = u => !u || u === '1' || u === 'dimensionless' || u === 'count';
+    const dimless = cand.filter(c => isDimless(c.unit));
+    const dimlessRefused = dimless.filter(c => !links.some(l => l.from === c.from && l.to === c.to)).length;
     return {
       links: links.map(l => ({ from: l.from, to: l.to, unit: l.unit, scale: l.scale, converted: !!l.converted })),
       /* a proposal the atlas declined, and the sentence saying why — the refusals are as
@@ -147,8 +151,21 @@ const head = await page.evaluate(() => ({
          record that it was made in the open. */
       contested: (B.contested ? B.contested() : []).map(r => ({
         input: r.input, chosen: r.chosen, others: r.others, reasons: r.reasons })),
+      /* ── HOW MUCH OF THIS BUS RESTS ON A NAME ALONE ────────────────────────
+         A coupling is admissible when the unit matches AND the coordinate name
+         matches. Where the unit is DIMENSIONLESS the first condition is vacuous and
+         the name is carrying the whole proposal, so those candidates are counted
+         apart: a third of the bus rests on them and more than half of those are
+         refusals, against under a third for the candidates that carry a dimension.
+         The rate is published rather than described because two open problems in
+         this atlas predicted the trouble and neither could say how much of it
+         there was. */
       counts: { admissible: cand.length, declared: links.length,
         refused: refusedArr.length, declared_by_alias: byAlias, isolated: isolated.length,
+        on_a_name_alone: dimless.length,
+        on_a_name_alone_refused: dimlessRefused,
+        carrying_a_dimension: cand.length - dimless.length,
+        carrying_a_dimension_refused: refusedArr.length - dimlessRefused,
         isolated_dimensionless_only: nb.filter(n => n.distinctiveReach === 0).length,
         contested_inputs: (B.contested ? B.contested().length : 0),
         sources_that_lost: (B.contested ? B.contested() : []).reduce((n, r) => n + r.others.length, 0) }
