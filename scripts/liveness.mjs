@@ -160,9 +160,9 @@ for (const L of labs) {
       if (st) { await page.evaluate(([id, s]) => HCC_API.stations.go(id, s), [L.id, st]); await page.waitForTimeout(700); }
       else await page.waitForTimeout(300);
       const r = await page.evaluate(() => HCC_API.liveness(16));
-      rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies });
+      rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies, watched: r.watched });
     } catch (e) {
-      rows.push({ id: L.id, station: st, title: L.title, recomputed: -1, moved: -1, bodies: 0,
+      rows.push({ id: L.id, station: st, title: L.title, recomputed: -1, moved: -1, bodies: 0, watched: -1,
         error: String(e.message || e).slice(0, 60) });
     }
   }
@@ -208,6 +208,43 @@ if (quietLabs.length) {
   console.error('them computes, it has become a picture with tabs. That is the regression this gates.');
   process.exit(1);
 }
+/* ── AND A STATION THAT SHOWS WHAT THE LAST ONE SHOWED IS NOT A STATION ─────
+   The walk above proves that a stationed laboratory computes SOMEWHERE. It does not
+   prove that its stations differ, and they are the atlas's main claim about those
+   laboratories: three tabs, three things to look at. A station switch that silently
+   stops working -- a mistyped visibility flag, a branch that never fires -- leaves
+   every number here green while the reader clicks between three identical pictures.
+
+   So the signature is compared. Two stations of one laboratory that agree on all of
+   {bodies, geometry watched, geometry recomputed, bodies moved} are indistinguishable
+   to this instrument, and that is reported as a failure rather than left for somebody
+   to notice by eye. It is a necessary condition and not a sufficient one: two stations
+   could differ in these four numbers and still look alike. It catches the case where
+   the switch does nothing at all, which is the one that actually happens. */
+const sig = r => [r.bodies, r.watched, r.recomputed, r.moved].join('|');
+const twins = [];
+{
+  const byLab = new Map();
+  for (const r of rows) {
+    if (!r.station) continue;
+    if (!byLab.has(r.id)) byLab.set(r.id, []);
+    byLab.get(r.id).push(r);
+  }
+  for (const [lab, list] of byLab) {
+    for (let i = 0; i < list.length; i++) for (let j = i + 1; j < list.length; j++) {
+      if (sig(list[i]) === sig(list[j])) twins.push(`${lab}: ${list[i].station} == ${list[j].station} [${sig(list[i])}]`);
+    }
+  }
+}
+if (twins.length) {
+  console.error(`\nFAIL — ${twins.length} station pair(s) are indistinguishable from each other:`);
+  for (const t of twins) console.error(`  ${t}`);
+  console.error('A laboratory with stations promises the reader several things to look at. Two');
+  console.error('stations with the same body count, the same geometry watched, the same geometry');
+  console.error('recomputed and the same bodies moved are one station wearing two names.');
+  process.exit(1);
+}
+
 if (!JSON_OUT) {
   const version = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
   const doc = {
@@ -220,7 +257,8 @@ if (!JSON_OUT) {
         + 'here; the walk prints them in full, and a committed file carrying them would churn on every run '
         + 'without ever saying anything new by doing so.',
     counts: { views: rows.length, alive: alive.length, still: still.length,
-      stationed: stationed.length, stations: rows.filter(r => r.station).length },
+      stationed: stationed.length, stations: rows.filter(r => r.station).length,
+      indistinguishable_station_pairs: twins.length },
     views: rows.map(r => ({ lab: r.id, station: r.station || null,
       rebuilds: r.recomputed > 0, moves: r.moved > 0, bodies: r.bodies }))
       .sort((a, b) => a.lab.localeCompare(b.lab) || String(a.station).localeCompare(String(b.station)))
@@ -228,7 +266,8 @@ if (!JSON_OUT) {
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(doc, null, 1) + '\n');
   console.log(`\nliveness: ${alive.length} of ${rows.length} views alive · ` +
-    `${stationed.length} stationed laboratories, each with a computing station — ok`);
+    `${stationed.length} stationed laboratories, each with a computing station · ` +
+    `every one of ${rows.filter(r => r.station).length} stations distinguishable from its siblings — ok`);
   console.log(`api/liveness.json written: ${doc.counts.views} views, ${doc.counts.stations} of them stations`);
 }
 process.exit(0);
