@@ -369,6 +369,9 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* clock.exchange */
+  'CK_S', 'CK_R', 'CK_B', 'CK_REF', 'ckF', 'ckRK', 'ckMaxima', 'ckMapExponent',
+  'ckBridge', 'CK_TIME_UNITS', 'ckHasClock', 'CK_CLOCKS',
   /* phorizon.horizon */
   'HZ_LN2', 'hzJac', 'hzMv', 'hzStep', 'hzGS', 'hzRK', 'hzSpectrum', 'hzKY',
   'hzHorizon', 'hzPesin', 'hzSpread', 'hzFirstPassage', 'hzStretch', 'hzBlocks',
