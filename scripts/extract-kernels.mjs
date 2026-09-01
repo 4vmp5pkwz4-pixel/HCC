@@ -369,6 +369,12 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* lambda.as_a_length */
+  'LM_C', 'LM_G', 'LM_HBAR', 'LM_KB', 'LM_MPC', 'LM_GLY', 'LM_PARTICLE_GLY',
+  'lmPlanckArea', 'lmPlanckDensity', 'lmLambda', 'lmHubbleLength', 'lmDeSitter',
+  'lmArea', 'lmEntropy', 'lmBits', 'lmGibbonsHawking', 'lmVacuumDensity',
+  'lmVacuumEnergyDensity', 'lmPlanckRatio', 'lmLambdaInPlanckUnits', 'lmHorizons',
+  'LM_DENSITIES',
   /* circulation.same_theorem */
   'CQ_H', 'CQ_E', 'CQ_U', 'CQ_M4', 'CQ_M3', 'CQ_CORE', 'cqKappa4', 'cqKappa3', 'cqPhi0',
   'cqFeynman', 'cqAbrikosov', 'cqRotationPerTesla', 'cqSpacing', 'cqOmegaC1',
