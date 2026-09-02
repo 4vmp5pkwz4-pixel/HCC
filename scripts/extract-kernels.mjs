@@ -408,7 +408,7 @@ export const ROOTS = [
   /* lambda.as_a_length */
   'LM_C', 'LM_G', 'LM_HBAR', 'LM_KB', 'LM_MPC', 'LM_GLY', 'LM_PARTICLE_GLY',
   'lmPlanckArea', 'lmPlanckDensity', 'lmLambda', 'lmHubbleLength', 'lmDeSitter',
-  'lmArea', 'lmEntropy', 'lmBits', 'lmGibbonsHawking', 'lmVacuumDensity',
+  'lmArea', 'lmEntropy', 'lmBits', 'LM_OMEGA_LO', 'LM_OMEGA_HI', 'LM_OMEGA_N', 'lmOmegaAt', 'lmOmegaDepth', 'lmOmegaLocus', 'lmBitsTimesOmega', 'lmGibbonsHawking', 'lmVacuumDensity',
   'lmVacuumEnergyDensity', 'lmPlanckRatio', 'lmLambdaInPlanckUnits', 'lmHorizons',
   'LM_DENSITIES',
   /* circulation.same_theorem */
