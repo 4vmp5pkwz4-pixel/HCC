@@ -369,6 +369,14 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* nucleosynthesis.where_the_elements_came_from */
+  'NSY_MEV', 'NSY_U', 'NSY_EXCESS', 'NSY_ME', 'NSY_DM', 'NSY_TAU_N',
+  'NSY_BE8_UNBOUND', 'NSY_BE8_LIFETIME', 'NSY_Q_TRIPLE_ALPHA', 'NSY_HOYLE',
+  'NSY_ALPHA_LADDER', 'NSY_MAGIC_N', 'NSY_PEAKS', 'NSY_ENVIRONMENTS', 'NSY_SOLAR',
+  'nsyBindingPerNucleon', 'nsyQ', 'nsyFreezeRatio', 'nsyNeutronDecay',
+  'nsyHeliumFraction', 'nsyPrimordial', 'nsyHoyleAboveThreshold',
+  'nsyLadder', 'nsyMostBound', 'nsyPeakOffsets', 'nsyRegime', 'nsyEnvironment',
+  'NSY_ABUNDANCE', 'NSY_ABUNDANCE_KEYS', 'nsyAbundance', 'nsyLogAbundance', 'nsyPeakProminence',
   /* distance.ladder_and_the_two_hubble_constants */
   'DL_AU', 'DL_ARCSEC', 'DL_PARSEC', 'DL_PARSEC_SMALL', 'DL_LY', 'DL_C', 'DL_MPC',
   'DL_LSUN', 'DL_MBOL_SUN', 'DL_STARS', 'DL_CEPH_SLOPE', 'DL_CEPH_ZERO', 'DL_IA_M',
