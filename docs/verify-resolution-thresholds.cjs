@@ -17,7 +17,7 @@
    recomputed from those two things -- so nothing is inherited from the thing it
    is checking.
 
-   TWELVE THINGS ARE CHECKED.
+   THIRTEEN THINGS ARE CHECKED.
 
    1.  The Airy pattern is the Airy pattern: unit centre, first dark ring at
        3.8317, first bright ring 1.75 per cent of the peak.
@@ -41,6 +41,9 @@
    11. The dip rises monotonically from Sparrow to two limits, then does NOT --
        the Airy rings put the centre back on a bright ring.
    12. The ladder covers both thresholds and is ordered in depth.
+   13. And the peak search window has to be sized from the separation, or past
+       three limits it returns a diffraction ring and reports 98.9 per cent
+       where the answer is 99.6.
    ========================================================================== */
 'use strict';
 let pass = 0, fail = 0;
@@ -65,9 +68,13 @@ const J1_ZERO = (() => {
 const airy = r => { if (r < 1e-12) return 1; const v = 2 * J1(r) / r; return v * v; };
 const sum = (sep, x) => { const h = sep * J1_ZERO / 2; return airy(Math.abs(x + h)) + airy(Math.abs(x - h)); };
 const clamped = (sep, x) => Math.min(1, sum(sep, x));
-function dipOf(f, sep) {
+/* the search window is sized FROM the separation: the sources sit at
+   +/- sep*J1_ZERO/2, so a fixed window stops containing them and the peak search
+   silently returns a diffraction ring instead */
+function dipOf(f, sep, fixedWindow) {
   const c = f(sep, 0); let pk = 0;
-  for (let i = 0; i <= 4000; i++) { const x = -1.5 * J1_ZERO + 3 * J1_ZERO * i / 4000; const v = f(sep, x); if (v > pk) pk = v; }
+  const W = fixedWindow || (sep * J1_ZERO / 2 + 1.5 * J1_ZERO);
+  for (let i = 0; i <= 4000; i++) { const x = -W + 2 * W * i / 4000; const v = f(sep, x); if (v > pk) pk = v; }
   return pk <= 0 ? 0 : Math.max(0, 1 - c / pk);
 }
 const dip = sep => dipOf(sum, sep);
@@ -142,6 +149,15 @@ ok('and the ladder the laboratory stacks in depth spans 0.40 to 2.40 limits in n
     let mono = true; for (let k = 1; k < N; k++) if (!(z(sep(k)) < z(sep(k - 1)))) mono = false;
     return LO < SP && HI > 1 && mono && Math.abs(sep(4) - 1.4) < 1e-9; })(),
   `rungs 0.40 … 2.40 in nine steps · Sparrow ${SP.toFixed(4)} and Rayleigh 1.0000 both inside · depth strictly decreasing`);
+
+console.log('\n=== 13. And the window the peak is looked for in ===\n');
+
+ok('THE PEAK SEARCH WINDOW HAS TO BE SIZED FROM THE SEPARATION. The two sources sit at plus and minus sep/2 in units of the first dark ring, so a window fixed at 1.5 of those units stops containing them past three limits — and the search then returns the tallest diffraction ring it can see and calls it the peak. It does not crash and it does not look wrong: at a separation of four it reports 98.9 per cent where the answer is 99.6. The ladder this laboratory draws only runs to 2.4, so nothing DRAWN was ever affected; the slider reaches 4, and the number underneath it was',
+  (() => { const fixed = 1.5 * J1_ZERO;
+    const truncated = dipOf(sum, 4, fixed), sized = dipOf(sum, 4);
+    const okAt1 = Math.abs(dipOf(sum, 1, fixed) - dipOf(sum, 1)) < 1e-6;
+    return sized > truncated && Math.abs(truncated - 0.98885) < 5e-4 && Math.abs(sized - 0.99590) < 5e-4 && okAt1; })(),
+  `at four limits: fixed window ${(100 * dipOf(sum, 4, 1.5 * J1_ZERO)).toFixed(3)} per cent · sized window ${(100 * dipOf(sum, 4)).toFixed(3)} per cent · and the two agree exactly at one limit, which is why the ladder never showed it`);
 
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);

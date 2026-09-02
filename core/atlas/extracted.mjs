@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1173   ·   exported names: 1282
-   extracted physics, sha256 379122c62a44b7a9b47bdc71c699e2542b536913c5be623f9f2ced248176a5ac */
+   extracted physics, sha256 d59f3f00e2e649241b218ac779b6a669257ea878acaadebd2e6043ecd73d200f */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -4087,7 +4087,14 @@ const resPairSum=(sep,xv)=>{ const half=sep*RES_J1_ZERO/2;
   return resAiry(Math.abs(xv+half))+resAiry(Math.abs(xv-half)); };
 
 const resDipDepth=sep=>{ const c=resPairSum(sep,0); let pk=0;
-  for(let i=0;i<=2000;i++){ const xv=-1.5*RES_J1_ZERO+3*RES_J1_ZERO*i/2000;
+  /* THE WINDOW IS SIZED FROM THE SEPARATION, not fixed. The two sources sit at
+     +/- sep*RES_J1_ZERO/2, so a window of +/-1.5*RES_J1_ZERO stops containing
+     them past three limits and the peak search then returns a diffraction ring
+     instead of a peak -- reporting 98.9 per cent at the slider maximum of four
+     where the answer is 99.6. The ladder only runs to 2.4 so nothing drawn was
+     wrong, but the slider reaches 4 and the number under it was. */
+  const W=sep*RES_J1_ZERO/2+1.5*RES_J1_ZERO;
+  for(let i=0;i<=2000;i++){ const xv=-W+2*W*i/2000;
     const v=resPairSum(sep,xv); if(v>pk) pk=v; }
   return pk<=0?0:Math.max(0,1-c/pk); };
 
