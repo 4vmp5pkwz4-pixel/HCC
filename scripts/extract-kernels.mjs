@@ -369,6 +369,14 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* galaxy.rotation_curve_and_the_missing_mass */
+  'GR_G', 'GR_MSUN', 'GR_KPC', 'GR_PC', 'GR_C', 'GR_MPC', 'GR_A0', 'GR_HELIUM', 'GR_GALAXIES',
+  'grBessI0', 'grBessI1', 'grBessK0', 'grBessK1', 'grWronskian', 'grBesselResidual',
+  'grDiscV2', 'grDiscSigma0', 'grDiscV', 'grDiscPeak', 'grKeplerV', 'grGasV2',
+  'grNFWMass', 'grNFWV', 'grIsoV', 'grIsoAsymptote',
+  'grGalaxy', 'grBaryonicMass', 'grDecompose',
+  'grBTFRFit', 'grBTFRFromA0', 'grA0FromBTFR', 'grMondNu', 'grMondG', 'grRAR',
+  'grAccelerationScales',
   /* exoplanet.transit_wobble_zone */
   'XP_AU', 'XP_RSUN', 'XP_RJUP', 'XP_REARTH', 'XP_MJUP', 'XP_MEARTH', 'XP_DAY', 'XP_YR',
   'XP_G', 'XP_GMSUN', 'XP_MSUN_IMPLIED', 'XP_LSUN', 'XP_TSUN', 'XP_SIGMA', 'XP_HZ',
