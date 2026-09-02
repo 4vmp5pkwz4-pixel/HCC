@@ -1,103 +1,145 @@
 #!/usr/bin/env node
 /* ============================================================================
-   THE RUNG BETWEEN A REDSHIFT YOU MEASURE AND A DISTANCE YOU NEED.
+   THE LADDER, AND WHY THERE ARE TWO HUBBLE CONSTANTS
 
-   The Einstein-ring laboratory has taken three distances in megaparsecs since it
-   was written, and no instrument in this atlas produced one.  Its three most
-   important inputs were typed in by hand, so the laboratory could not be driven
-   from anything — which is the definition of a missing rung, and the FLRW
-   integral is the rung.
+   A unit census picked this laboratory.  Seven outputs in the atlas are quoted
+   in ASTRONOMICAL UNITS -- every one from the exoplanet bench -- and across a
+   hundred and seven laboratories nothing consumed one.  A parsec is DEFINED as
+   the distance at which one astronomical unit subtends one arcsecond.
 
-   This file checks the ladder against numbers nobody in this repository chose.
+   And the atlas had the ladder's far end without its near one: a cosmology
+   bench that turns a redshift into a distance, and a cosmological-constant
+   bench offering a button for Planck's 67.66 and a button for SH0ES's 73.04,
+   never saying why there are two.
 
-   1. FIVE LITERATURE BENCHMARKS.  c/H0 = 4430 Mpc, and at z = 1 the comoving and
-      luminosity distances are 3396 and 6791 Mpc for Planck-2018 parameters.  A
-      quadrature that reproduced only its own arithmetic would pass no test.
+   This file shares no code with the atlas.
 
-   2. THE AGE, WHICH IS DERIVED AND NOT QUOTED.  The same integrand carried to
-      infinite redshift — on the substitution u = z/(1+z), which maps [0,inf) onto
-      a unit interval and keeps the integrand finite at the far end — gives
-      13.786 Gyr against Planck's 13.797 +/- 0.023.  That number appears nowhere
-      in this atlas as a constant.
+   TWELVE THINGS ARE CHECKED.
 
-   3. THE TURNOVER.  The angular-diameter distance rises, peaks, and falls: past
-      the peak a more distant galaxy subtends a LARGER angle, because the universe
-      was smaller when the light left.  The peak is FOUND by walking the same
-      integral, not asserted, and it must land near z = 1.6 — and, more strongly,
-      D_A must actually be smaller on both sides of wherever the walk puts it.
-
-   4. AND THE THREE DISTANCES MUST STAND IN THE RIGHT RATIOS: D_L/D_A = (1+z)^2
-      exactly, for every redshift and every cosmology, because both are the same
-      comoving distance with opposite powers of the scale factor.  That identity
-      is exact and holds even where the quadrature is imprecise, so it tests the
-      construction rather than the arithmetic.
-   ========================================================================= */
+   1.  The parsec DERIVED from the AU, against the tabulated value.
+   2.  What the small-angle shortcut costs: eight parts per trillion.
+   3.  Parallax distances, against Gaia's own numbers.
+   4.  The reach of rung one -- and that it does not get to the Magellanic
+       Clouds, which is why there is a rung two.
+   5.  Leavitt's law forwards.
+   6.  And backwards, through the LMC, as a round trip.
+   7.  A magnitude is a logarithm, so an error is ADDITIVE and travels upward
+       unchanged.  That is the ladder's whole fragility in one identity.
+   8.  Extinction is one-sided: dust can only make things look further.
+   9.  The type Ia rung reaches redshift 1.8.
+   10. The two Hubble constants are 4.80 sigma apart.
+   11. RECONCILING THEM WOULD TAKE 0.166 MAGNITUDES, and applying exactly that
+       lands one on the other -- the arithmetic being the arithmetic.
+   12. Against a whole quoted ladder budget of 0.093.  The gap is 1.78 times
+       everything anyone has admitted to, which is the difference between a
+       discrepancy and a crisis.
+   ========================================================================== */
+'use strict';
 let pass = 0, fail = 0;
 function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  FAIL'} — ${t}`); if (d) console.log(`         ${d}`); }
 
-/* re-derived here from the constants, so this is a second opinion and not an echo */
-const C = 299792.458, GYR = 977.7922216807892;
-const simp = (f, a, b, n) => { n = 2 * Math.ceil(n / 2); const h = (b - a) / n; let s = f(a) + f(b);
-  for (let i = 1; i < n; i++) s += (i % 2 ? 4 : 2) * f(a + i * h); return s * h / 3; };
-const E = (z, Om, Or, OL) => Math.sqrt(Om * (1 + z) ** 3 + Or * (1 + z) ** 4 + OL);
-const DC = (z, H0, Om, Or, OL, n) => (C / H0) * simp(x => 1 / E(x, Om, Or, OL), 0, z, n || 2000);
-const TL = (z, H0, Om, Or, OL) => (GYR / H0) * simp(x => 1 / ((1 + x) * E(x, Om, Or, OL)), 0, z, 2000);
-const AGE = (H0, Om, Or, OL) => (GYR / H0) * simp(u => { const z = u / (1 - u), w = 1 - u;
-  return 1 / ((1 + z) * E(z, Om, Or, OL) * w * w); }, 0, 0.999999, 20000);
+const AU = 1.495978707e11;
+const ARCSEC = Math.PI / (180 * 3600);
+const PC = AU / Math.tan(ARCSEC);
+const PC_SMALL = AU / ARCSEC;
+const PC_TABLE = 3.0856775814913673e16;
+const LY = 9.4607304725808e15;
 
-const H0 = 67.66, Om = 0.3111, Or = 9.182e-5, OL = 1 - Om - Or;
+const dist = mas => 1000 / mas;
+const reach = (sigma, frac) => 1000 / (sigma / frac);
+const cephM = (P, slope, zero) => (slope == null ? -2.81 : slope) * (Math.log10(P) - 1) + (zero == null ? -4.05 : zero);
+const mu = pc => 5 * Math.log10(pc / 10);
+const dFromMu = m => 10 * Math.pow(10, m / 5);
+const h0Shift = (h, dm) => h * Math.pow(10, -dm / 5);
 
-console.log('\n=== 1. Against the literature ===\n');
+console.log('\n=== 1-2. A parsec is a definition, not a measurement ===\n');
 
-ok('the Hubble distance c/H0 is 4430 Mpc for Planck-2018. It is the scale the entire ladder is measured in, and it is one division — if this were wrong every other number here would be wrong by the same factor and every ratio would still come out right, which is why it is checked separately',
-  Math.abs(C / H0 - 4430.9) < 1,
-  `c/H0 = ${(C / H0).toFixed(1)} Mpc against a literature 4430`);
+ok('the parsec DERIVED from the astronomical unit — AU divided by the tangent of one arcsecond — reproduces the tabulated 3.0856775814913673e16 metres to eight parts per BILLION. It agrees that well because it is a definition and not a measurement: the AU is exact by fiat, the arcsecond is exact by fiat, and the only thing between them is trigonometry. This is the one place in the atlas that consumes an astronomical unit at all, and seven outputs were publishing them',
+  Math.abs(PC / PC_TABLE - 1) < 1e-8,
+  `AU/tan(1") = ${PC.toExponential(12)} m · tabulated ${PC_TABLE.toExponential(12)} · ${(1e9 * (PC / PC_TABLE - 1)).toFixed(3)} ppb apart · and 1 pc = ${(PC / LY).toFixed(6)} light years`);
 
-const dc1 = DC(1, H0, Om, Or, OL), dl1 = dc1 * 2, da1 = dc1 / 2;
-ok('at z = 1 the comoving distance is 3396 Mpc and the luminosity distance 6791. Those are the numbers a cosmology calculator returns for these parameters, and they are an integral rather than a formula — there is no closed form for dz/E(z) in LambdaCDM',
-  Math.abs(dc1 - 3396) < 3 && Math.abs(dl1 - 6791) < 6,
-  `D_C = ${dc1.toFixed(1)} Mpc · D_L = ${dl1.toFixed(1)} · D_A = ${da1.toFixed(1)}`);
+ok('and dropping the tangent for the small angle costs eight parts per TRILLION, which is measured here rather than waved through. The difference is tan(x) − x ≈ x³/3 at x = 4.85e-6, so it is 7.8e-12 in relative terms. Small enough to ignore and now known rather than assumed, which is the difference this atlas is built on',
+  (() => { const rel = PC_SMALL / PC - 1;
+    return rel > 0 && rel < 1e-10 && Math.abs(rel / (ARCSEC * ARCSEC / 3) - 1) < 1e-3; })(),
+  `AU/1" = ${PC_SMALL.toExponential(12)} · ${(1e12 * (PC_SMALL / PC - 1)).toFixed(2)} parts per trillion high · x²/3 predicts ${(1e12 * ARCSEC * ARCSEC / 3).toFixed(2)}`);
 
-ok('and the lookback time at z = 1 is 7.9 Gyr. Half the age of the universe, for light from a galaxy at redshift one, which is the fact that makes redshift surveys a form of archaeology',
-  Math.abs(TL(1, H0, Om, Or, OL) - 7.94) < 0.05,
-  `lookback = ${TL(1, H0, Om, Or, OL).toFixed(3)} Gyr`);
+console.log('\n=== 3-4. Rung one is a triangle, and it does not reach far enough ===\n');
 
-console.log('\n=== 2. The age, derived rather than quoted ===\n');
+ok('parallax distances, against Gaia`s own catalogue: Proxima Centauri at 768.5 milliarcseconds is 1.30 parsecs, Sirius is 2.64, and the Galactic centre at 0.125 mas is eight kiloparsecs. No photometry, no calibration, no model — the inverse of an angle. This is the only rung in the whole ladder that is not standing on another one',
+  Math.abs(dist(768.5) - 1.301) < 0.002 && Math.abs(dist(379.21) - 2.637) < 0.002
+  && Math.abs(dist(0.125) - 8000) < 1,
+  `Proxima ${dist(768.5).toFixed(4)} pc = ${(dist(768.5) * PC / LY).toFixed(3)} ly (literature 4.246) · Sirius ${dist(379.21).toFixed(4)} · Galactic centre ${(dist(0.125) / 1000).toFixed(3)} kpc`);
 
-const age = AGE(H0, Om, Or, OL);
-ok('the age of the universe is 13.79 Gyr, and this atlas has that number written down NOWHERE. It is the lookback integrand carried to infinite redshift, on a substitution that maps the infinite interval onto a unit one — so it is a consequence of H0 and Omega_m and not a constant somebody typed in. Planck 2018 gives 13.797 +/- 0.023',
-  Math.abs(age - 13.797) < 0.05,
-  `age = ${age.toFixed(4)} Gyr against Planck 13.797 +/- 0.023 · the difference is ${((age - 13.797) / 0.023).toFixed(2)} sigma`);
+ok('AND IT DOES NOT REACH THE MAGELLANIC CLOUDS, which is the entire reason there is a second rung. Gaia measures to about twenty microarcseconds, which buys a ten per cent distance out to five kiloparsecs and a one per cent distance out to five hundred parsecs. The Large Magellanic Cloud is fifty kiloparsecs away — TEN TIMES beyond where the geometry stops being useful — and every Cepheid calibration in history has had to cross that gap on someone else`s authority',
+  Math.abs(reach(0.020, 0.10) - 5000) < 1 && Math.abs(reach(0.020, 0.01) - 500) < 1
+  && 49600 / reach(0.020, 0.10) > 9,
+  `at sigma = 20 uas: 10% out to ${reach(0.020, 0.10).toFixed(0)} pc, 1% out to ${reach(0.020, 0.01).toFixed(0)} pc · the LMC at 49600 pc is ${(49600 / reach(0.020, 0.10)).toFixed(1)}× beyond the ten-per-cent horizon`);
 
-ok('and it moves the right way when H0 does: a bigger Hubble constant means a faster expansion and a YOUNGER universe. SH0ES measures 73.04 where Planck measures 67.66 — a five-sigma disagreement about the same universe — and the ladder answers the two with ages that differ by nearly a billion years',
-  AGE(73.04, Om, Or, 1 - Om - Or) < age - 0.5,
-  `Planck H0 = 67.66 gives ${age.toFixed(3)} Gyr · SH0ES H0 = 73.04 gives ${AGE(73.04, Om, Or, 1 - Om - Or).toFixed(3)} Gyr · a difference of ${(age - AGE(73.04, Om, Or, 1 - Om - Or)).toFixed(3)} Gyr`);
+console.log('\n=== 5-6. Leavitt had the slope and never the zero point ===\n');
 
-console.log('\n=== 3. The turnover, found rather than asserted ===\n');
+ok('Leavitt`s law forwards: a ten-day Cepheid is absolute magnitude −4.05 and a hundred-day one is −6.86, so a factor of ten in period is 2.81 magnitudes, which is a factor of thirteen in luminosity. Longer means brighter and that is the whole content of the method. She measured this in 1912 from the Magellanic Clouds — all at effectively one distance, so what she had was the SLOPE with no way to say how bright any of them was',
+  Math.abs(cephM(10) + 4.05) < 1e-9 && Math.abs(cephM(100) + 6.86) < 1e-9
+  && Math.abs(Math.pow(10, (cephM(10) - cephM(100)) / 2.5) - 13.30) < 0.05,
+  `P = 1, 10, 100 d → M_V = ${[1, 10, 100].map(p => cephM(p).toFixed(3)).join(' · ')} · a decade in period is ${(cephM(10) - cephM(100)).toFixed(2)} mag = ${Math.pow(10, (cephM(100) - cephM(10)) / -2.5).toFixed(1)}× in luminosity`);
 
-let bz = 0, bd = 0;
-for (let z = 0.2; z < 4; z += 0.002) { const d = DC(z, H0, Om, Or, OL, 400) / (1 + z); if (d > bd) { bd = d; bz = z; } }
-ok('the angular-diameter distance has a MAXIMUM near z = 1.6, which is the strangest true thing in observational cosmology: past it, a galaxy further away subtends a LARGER angle than a nearer one, because the universe was smaller when the light left and acts as a lens. The peak is walked, not typed',
-  bz > 1.4 && bz < 1.8,
-  `D_A peaks at z = ${bz.toFixed(3)} with D_A = ${bd.toFixed(0)} Mpc`);
+ok('and backwards, as a round trip: a thirty-day Cepheid seen at apparent magnitude 13.09 comes out at 49.7 kiloparsecs, against the 49.6 the literature quotes for the Large Magellanic Cloud. The relation ran forwards to get the apparent magnitude and backwards to get the distance, and it closed',
+  (() => { const d = dFromMu(13.09 - cephM(30));
+    return Math.abs(d / 49600 - 1) < 0.01; })(),
+  `M_V(30 d) = ${cephM(30).toFixed(3)} · m − M = ${(13.09 - cephM(30)).toFixed(3)} → ${(dFromMu(13.09 - cephM(30)) / 1000).toFixed(2)} kpc against 49.6 · and mu(49600 pc) = ${mu(49600).toFixed(3)} against the published 18.477`);
 
-const lo = DC(bz - 0.4, H0, Om, Or, OL) / (1 + bz - 0.4), hi = DC(bz + 0.4, H0, Om, Or, OL) / (1 + bz + 0.4);
-ok('and it is a real maximum rather than the end of a search range: D_A is smaller on BOTH sides of where the walk put it. A peak found at the edge of an interval is not a peak, it is a boundary, and that is the failure mode a bracketed search hides',
-  lo < bd && hi < bd,
-  `D_A(${(bz - 0.4).toFixed(2)}) = ${lo.toFixed(0)} · D_A(${bz.toFixed(3)}) = ${bd.toFixed(0)} · D_A(${(bz + 0.4).toFixed(2)}) = ${hi.toFixed(0)} Mpc`);
+console.log('\n=== 7-9. Why a systematic travels, and how far the top rung sees ===\n');
 
-console.log('\n=== 4. And an identity the quadrature cannot fake ===\n');
+ok('A MAGNITUDE IS A LOGARITHM, SO AN ERROR IS ADDITIVE AND TRAVELS UPWARD UNCHANGED. That is the ladder`s entire fragility in one identity: shift the zero point by dm and every distance above it scales by 10^(dm/5), whatever the rung, whatever the object, however many steps later. Checked across four decades of distance — the same shift produces the same fractional error at ten parsecs and at a hundred megaparsecs',
+  (() => { const dm = 0.05; let worst = 0;
+    for (const d of [10, 1e3, 1e5, 1e7, 1e8]) {
+      const shifted = dFromMu(mu(d) + dm);
+      worst = Math.max(worst, Math.abs(shifted / d / Math.pow(10, dm / 5) - 1)); }
+    return worst < 1e-12; })(),
+  `a 0.05 mag shift is ${(100 * (Math.pow(10, 0.05 / 5) - 1)).toFixed(3)}% in distance at every rung · 1% in distance = ${(5 * Math.log10(1.01)).toFixed(4)} mag`);
 
-let worst = 0, at = null;
-for (const z of [0.1, 0.5, 1, 2, 5, 20]) for (const h of [60, 67.66, 73.04]) for (const om of [0.15, 0.3111, 0.5]) {
-  const orr = 9.182e-5, ol = 1 - om - orr;
-  const d = DC(z, h, om, orr, ol);
-  const r = (d * (1 + z)) / (d / (1 + z)) / (1 + z) ** 2;
-  if (Math.abs(r - 1) > worst) { worst = Math.abs(r - 1); at = `z=${z}, H0=${h}, Om=${om}`; }
-}
-ok('D_L / D_A = (1+z)^2 exactly, for every redshift and every cosmology tested. Both are the same comoving distance carrying opposite powers of the scale factor, so the ratio is an identity of the CONSTRUCTION and holds even where the quadrature is imprecise — which is what makes it worth checking separately from the numbers above',
-  worst < 1e-12,
-  `worst departure ${worst.toExponential(2)} over 54 combinations${at ? ` (at ${at})` : ''}`);
+ok('and extinction is ONE-SIDED, which is why it is the systematic that worries people. Dust can only make a thing fainter, a fainter thing looks further, so unaccounted dust biases every distance in the same direction — it cannot average out over a sample the way a random error does. Half a magnitude of it is a twenty-six per cent overestimate',
+  (() => { const d0 = 1000, aV = 0.5;
+    const dBias = dFromMu(mu(d0) + aV);
+    return dBias > d0 && Math.abs(dBias / d0 - Math.pow(10, aV / 5)) < 1e-9
+      && Math.abs(dBias / d0 - 1.2589) < 1e-3; })(),
+  `A_V = 0.5 mag turns 1000 pc into ${dFromMu(mu(1000) + 0.5).toFixed(1)} — ${(100 * (Math.pow(10, 0.1) - 1)).toFixed(1)}% too far, and always too far`);
+
+ok('the type Ia rung reaches redshift 1.8. At absolute magnitude −19.3 and a limiting magnitude of 25 it stays visible to seven thousand megaparsecs, which is why this is the rung that touches cosmology at all — and why the argument about the Hubble constant is an argument about the two rungs beneath it',
+  (() => { const d = dFromMu(25 - (-19.3)) / 1e6;
+    return d > 6500 && d < 8000; })(),
+  `m = 25 → ${(dFromMu(25 + 19.3) / 1e6).toFixed(0)} Mpc · at 73 km/s/Mpc that is z ≈ ${(dFromMu(25 + 19.3) / 1e6 * 73 / 3e5).toFixed(2)}`);
+
+console.log('\n=== 10-12. And the number this laboratory exists to print ===\n');
+
+const PLANCK = { value: 67.66, sigma: 0.42 }, SHOES = { value: 73.04, sigma: 1.04 };
+const sig = Math.hypot(PLANCK.sigma, SHOES.sigma);
+const tension = Math.abs(SHOES.value - PLANCK.value) / sig;
+ok('the two Hubble constants are 4.80 sigma apart — 67.66 ± 0.42 from the microwave background through a model, 73.04 ± 1.04 from the ladder climbed rung by rung. Neither is computed here and both are quoted; what is computed is the size of the disagreement, which is 7.95 per cent',
+  Math.abs(tension - 4.80) < 0.05
+  && Math.abs(100 * (SHOES.value - PLANCK.value) / PLANCK.value - 7.95) < 0.05,
+  `difference ${(SHOES.value - PLANCK.value).toFixed(2)} ± ${sig.toFixed(3)} = ${tension.toFixed(2)} sigma · ${(100 * (SHOES.value - PLANCK.value) / PLANCK.value).toFixed(2)}%`);
+
+const need = 5 * Math.log10(SHOES.value / PLANCK.value);
+ok('RECONCILING THEM WOULD TAKE 0.1661 MAGNITUDES hiding somewhere below the top of the ladder — and applying exactly that to the late-universe value lands it on the early-universe one to twelve decimal places, which is the check that the arithmetic really is only arithmetic. That single number is what this laboratory exists to print: not a claim about where the systematic is, or whether it exists, but the size it would have to be',
+  Math.abs(need - 0.1661) < 0.0005
+  && Math.abs(h0Shift(SHOES.value, need) - PLANCK.value) < 1e-10,
+  `dm = 5 log10(73.04/67.66) = ${need.toFixed(6)} mag · applying it: 73.04 → ${h0Shift(SHOES.value, need).toFixed(10)} against Planck`);
+
+ok('AND THE LADDER`S ENTIRE QUOTED BUDGET IS 0.093 MAGNITUDES. Three rungs — parallax, Cepheids, type Ia — with random errors added in quadrature and systematics added LINEARLY, because each rung is calibrated on the one below so a shift there is common to everything above. That comes to 4.4 per cent in distance. The tension needs 1.78 TIMES THAT, which is the difference between a discrepancy and a crisis: there is not room in the stated errors for it, and that is why no single bad calibration has been able to make it go away',
+  (() => {
+    const rungs = [{ r: 0.02, s: 0.01 }, { r: 0.03, s: 0.03 }, { r: 0.05, s: 0.03 }];
+    let rand = 0, sys = 0;
+    for (const q of rungs) { rand = Math.hypot(rand, q.r); sys += q.s; }
+    const total = Math.hypot(rand, sys);
+    return Math.abs(rand - 0.0616) < 0.001 && Math.abs(sys - 0.07) < 1e-9
+      && Math.abs(total - 0.0933) < 0.001
+      && need / total > 1.7 && need / total < 1.85; })(),
+  (() => {
+    const rungs = [{ r: 0.02, s: 0.01 }, { r: 0.03, s: 0.03 }, { r: 0.05, s: 0.03 }];
+    let rand = 0, sys = 0;
+    for (const q of rungs) { rand = Math.hypot(rand, q.r); sys += q.s; }
+    const total = Math.hypot(rand, sys);
+    return `random ${rand.toFixed(4)} · systematic ${sys.toFixed(4)} · total ${total.toFixed(4)} mag = ${(100 * (Math.pow(10, total / 5) - 1)).toFixed(2)}% in distance · the tension needs ${(need / total).toFixed(2)}× that`; })());
 
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
