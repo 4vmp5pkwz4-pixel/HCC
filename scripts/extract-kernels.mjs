@@ -369,6 +369,12 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* stars.main_sequence_and_the_mass_to_light_ratio */
+  'HR_MSUN', 'HR_LSUN', 'HR_RSUN', 'HR_TSUN', 'HR_C', 'HR_G', 'HR_SIGMA', 'HR_YR', 'HR_GYR',
+  'HR_EPS', 'HR_FCORE', 'HR_KAPPA', 'HR_EDD_FRACTION',
+  'hrEddington', 'hrLuminosity', 'hrExponent', 'hrRadius', 'hrTemperature',
+  'hrLifetime', 'hrLifetimeGyr', 'hrTurnoff', 'hrRemnant', 'hrIMF',
+  'hrMassToLight', 'hrMassToLightNoRemnants', 'hrPopulation', 'hrSunCheck', 'hrGiantLight',
   /* galaxy.rotation_curve_and_the_missing_mass */
   'GR_G', 'GR_MSUN', 'GR_KPC', 'GR_PC', 'GR_C', 'GR_MPC', 'GR_A0', 'GR_HELIUM', 'GR_GALAXIES',
   'grBessI0', 'grBessI1', 'grBessK0', 'grBessK1', 'grWronskian', 'grBesselResidual',

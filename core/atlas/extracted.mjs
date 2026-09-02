@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 1074   ·   exported names: 1183
-   extracted physics, sha256 752d61042a64f13ab60d3c03c4a77664664a75e2d5f860f6086d8e4d2cf21b49 */
+   declarations: 1102   ·   exported names: 1211
+   extracted physics, sha256 8c941f93a4c330843746e6204c121acab057156cf1e3ceac1a2dfc09c5a6974b */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -336,6 +336,12 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Jeans-Kollaps · wenn sich eine Wolke nicht mehr traegt'},
    purpose:'the mass above which a gas cloud stops holding itself up and starts becoming a star',
    predictionTarget:'the isothermal sound speed sqrt(kT/(mu m_H)), the Jeans length c_s sqrt(pi/(G rho)) and the mass above which a uniform self-gravitating cloud is unstable, in BOTH conventions in common use — the sphere of diameter lambda_J and the virial form — with their ratio published rather than a choice made silently. Falsifiable against the standard cold-cloud values: 0.19 km/s at 10 K, 3.4e5 yr free-fall at n = 1e4 cm^-3, and a Jeans mass of a few solar masses there.'},
+  {id:'mainseq', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'exact',
+   title:{en:'The main sequence \u00b7 where stars live, and the ratio a galaxy hangs on',
+          ru:'\u0413\u043b\u0430\u0432\u043d\u0430\u044f \u043f\u043e\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u043d\u043e\u0441\u0442\u044c \u00b7 \u0433\u0434\u0435 \u0436\u0438\u0432\u0443\u0442 \u0437\u0432\u0451\u0437\u0434\u044b',
+          de:'Die Hauptreihe \u00b7 wo Sterne leben'},
+   purpose:'three laboratories in this atlas publish a luminosity in watts and across a hundred and six nothing had ever consumed one, while the galaxy bench declares in as many words that its largest uncertainty is a stellar mass-to-light ratio it had no way to compute',
+   predictionTarget:'the nuclear clock from a measured mass defect, the Eddington ceiling that makes the top of the sequence linear, the turnoff by bisection, and the mass-to-light ratio of a whole population by integrating an initial mass function. Falsifiable against numbers nobody here chose: the Sun`s main-sequence lifetime is 10.4 billion years, the turnoff at ten billion years is 1.01 solar masses, the mass-luminosity exponent is 2.3, 4, 3.5 and then exactly 1 where the sequence meets its Eddington limit at 83 per cent, and the mass-to-light ratio moves by a factor of sixty across the ages of real populations -- which is why there is no such number as the mass-to-light ratio.'},
   {id:'galrot', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'numerical',
    title:{en:'Galaxy rotation \u00b7 the mass you can see is not the mass that is there',
           ru:'\u0412\u0440\u0430\u0449\u0435\u043d\u0438\u0435 \u0433\u0430\u043b\u0430\u043a\u0442\u0438\u043a \u00b7 \u0432\u0438\u0434\u0438\u043c\u0430\u044f \u043c\u0430\u0441\u0441\u0430 \u2014 \u043d\u0435 \u0432\u0441\u044f \u043c\u0430\u0441\u0441\u0430',
@@ -2707,6 +2713,166 @@ const LM_DENSITIES=Object.freeze([
   {id:'vacuum',   rho:null,   t:['the vacuum, from Lambda','вакуум, из Лямбды','das Vakuum, aus Lambda']},
   {id:'igm',      rho:1e-27,  t:['the intergalactic medium','межгалактическая среда','das intergalaktische Medium']}
 ]);
+
+const HR_MSUN=1.98892e30;
+
+const HR_LSUN=3.828e26;
+
+const HR_RSUN=6.957e8;
+
+const HR_TSUN=5772;
+
+const HR_C=299792458;
+
+const HR_G=6.67430e-11;
+
+const HR_SIGMA=5.670374419e-8;
+
+const HR_YR=3.155693e7;
+
+const HR_GYR=1e9*HR_YR;
+
+const HR_EPS=0.007;
+
+const HR_FCORE=0.1;
+
+const HR_KAPPA=0.034;
+
+const hrEddington=m=>4*Math.PI*HR_G*m*HR_MSUN*HR_C/HR_KAPPA/HR_LSUN;
+
+const HR_EDD_FRACTION=0.833;
+
+function hrLuminosity(m){
+  if(!(m>0)) return 0;
+  if(m<0.43) return 0.23*Math.pow(m,2.3);
+  if(m<2)    return Math.pow(m,4);
+  if(m<55)   return 1.4*Math.pow(m,3.5);
+  return HR_EDD_FRACTION*hrEddington(m);
+}
+
+function hrExponent(m){
+  const h=1e-4;
+  const a=hrLuminosity(m*(1-h)), b=hrLuminosity(m*(1+h));
+  if(!(a>0&&b>0)) return NaN;
+  return (Math.log(b)-Math.log(a))/(Math.log(m*(1+h))-Math.log(m*(1-h)));
+}
+
+function hrRadius(m){ return (m<1)?Math.pow(m,0.8):Math.pow(m,0.57); }
+
+function hrTemperature(m){
+  const R=hrRadius(m);
+  return HR_TSUN*Math.pow(hrLuminosity(m)/(R*R),0.25);
+}
+
+function hrLifetime(m){
+  const L=hrLuminosity(m);
+  if(!(L>0)) return Infinity;
+  return HR_EPS*HR_FCORE*m*HR_MSUN*HR_C*HR_C/(L*HR_LSUN);
+}
+
+const hrLifetimeGyr=m=>hrLifetime(m)/HR_GYR;
+
+function hrTurnoff(ageGyr){
+  if(!(ageGyr>0)) return 200;
+  let lo=0.05, hi=200;
+  for(let i=0;i<200;i++){
+    const mid=Math.sqrt(lo*hi);
+    if(hrLifetimeGyr(mid)>ageGyr) lo=mid; else hi=mid;
+  }
+  return Math.sqrt(lo*hi);
+}
+
+function hrRemnant(m){
+  if(m<8) return 0.109*m+0.394;
+  if(m<25) return 1.4;
+  return 0.1*m;
+}
+
+function hrIMF(m,kind){
+  if(kind==='kroupa'){
+    if(m<0.08) return 0;
+    if(m<0.5)  return Math.pow(m/0.5,-1.3)*Math.pow(0.5,-2.3);
+    return Math.pow(m,-2.3);
+  }
+  return Math.pow(m,-2.35);
+}
+
+function hrMassToLight(ageGyr,opt){
+  const o=opt||{};
+  const kind=o.imf||'salpeter';
+  const lo=(o.m_min==null?0.1:o.m_min);
+  const hi=(o.m_max==null?100:o.m_max);
+  const N=(o.samples==null?4000:Math.round(o.samples));
+  const mto=hrTurnoff(ageGyr);
+  let mass=0, light=0, massAlive=0, nAlive=0, nDead=0;
+  const dx=(Math.log(hi)-Math.log(lo))/N;
+  for(let i=0;i<N;i++){
+    const x=Math.log(lo)+dx*(i+0.5);
+    const m=Math.exp(x);
+    const w=hrIMF(m,kind)*m*dx;
+    if(m<=mto){ mass+=w*m; massAlive+=w*m; light+=w*hrLuminosity(m); nAlive+=w; }
+    else { mass+=w*hrRemnant(m); nDead+=w; }
+  }
+  return {mass_to_light:(light>0)?mass/light:Infinity,
+    turnoff:mto, mass_total:mass, light_total:light,
+    mass_in_living_stars:massAlive, remnant_mass_fraction:(mass>0)?(mass-massAlive)/mass:0,
+    number_alive:nAlive, number_dead:nDead};
+}
+
+function hrMassToLightNoRemnants(ageGyr,opt){
+  const r=hrMassToLight(ageGyr,opt);
+  return (r.light_total>0)?r.mass_in_living_stars/r.light_total:Infinity;
+}
+
+function hrPopulation(n,kind,seed){
+  const out=[];
+  const N=Math.max(1,Math.round(n));
+  let s=(seed==null?20260902:seed)>>>0;
+  const rnd=()=>{ s=(Math.imul(s,1103515245)+12345)>>>0; return (s&0x7fffffff)/0x7fffffff; };
+  const lo=0.1, hi=100;
+  const a=(kind==='kroupa')?2.3:2.35;
+  for(let i=0;i<N;i++){
+    const u=1e-6+(1-2e-6)*rnd();
+    /* inverse CDF of a single power law between lo and hi */
+    const p=1-a;
+    const m=Math.pow(Math.pow(lo,p)+u*(Math.pow(hi,p)-Math.pow(lo,p)),1/p);
+    out.push(m);
+  }
+  out.sort((x,y)=>x-y);
+  return out;
+}
+
+function hrSunCheck(){
+  return {luminosity:hrLuminosity(1), lifetime_gyr:hrLifetimeGyr(1),
+    temperature:hrTemperature(1), radius:hrRadius(1),
+    eddington_ratio:hrLuminosity(1)/hrEddington(1)};
+}
+
+function hrGiantLight(ageGyr,windowFraction,brightening,opt){
+  const o=opt||{};
+  const kind=o.imf||'salpeter';
+  const lo=(o.m_min==null?0.1:o.m_min);
+  const hi=(o.m_max==null?100:o.m_max);
+  const N=(o.samples==null?4000:Math.round(o.samples));
+  const mto=hrTurnoff(ageGyr);
+  const dx=(Math.log(hi)-Math.log(lo))/N;
+  let msLight=0;
+  for(let i=0;i<N;i++){
+    const m=Math.exp(Math.log(lo)+dx*(i+0.5));
+    if(m<=mto) msLight+=hrIMF(m,kind)*m*dx*hrLuminosity(m);
+  }
+  const w=(windowFraction||0)*hrLifetimeGyr(mto);
+  if(!(w>0)||!(brightening>0)) return {ms_light:msLight, giant_light:0, ratio:0, mass_window_top:mto};
+  const mHi=hrTurnoff(Math.max(1e-9,ageGyr-w));
+  let nG=0;
+  for(let i=0;i<N;i++){
+    const m=Math.exp(Math.log(lo)+dx*(i+0.5));
+    if(m>mto&&m<=mHi) nG+=hrIMF(m,kind)*m*dx;
+  }
+  const gl=nG*brightening*hrLuminosity(mto);
+  return {ms_light:msLight, giant_light:gl, ratio:(msLight>0)?gl/msLight:Infinity,
+    mass_window_top:mHi, number_of_giants:nG, window_gyr:w};
+}
 
 const GR_G=6.67430e-11;
 
@@ -6000,5 +6166,5 @@ function hccReachCompose(sens,tran){
 }
 
 export {
-  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_D0, CMB_LMAX, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, DIP_PATTERN_EXACT, DISK_PEAK_RATIO, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_PARTICLE_GLY, LN_PHI, LOG10_PHI, LY_M, MAJOR_MOONS, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, PC_H, PHI, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbRecoverPure, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cuspRoots, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, hccReachCompose, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolographicDensity, ilHorizonEntropy, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilPlanckArea, ilSchwarzschildArea, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lmArea, lmBits, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, pcCreate, pcExtFlow, pcMu, pcMuBlock, photAbsolute, photApparent, photFlux, photModulus, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, pspDet, pspI4, pspMul, pspShadow, pspSympDefect, pspT4, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resRayleigh, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, wilQuad, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_D0, CMB_LMAX, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, DIP_PATTERN_EXACT, DISK_PEAK_RATIO, DISP_SYS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_PARTICLE_GLY, LN_PHI, LOG10_PHI, LY_M, MAJOR_MOONS, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, PC_H, PHI, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbRecoverPure, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cuspRoots, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, hccReachCompose, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolographicDensity, ilHorizonEntropy, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilPlanckArea, ilSchwarzschildArea, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lmArea, lmBits, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, pcCreate, pcExtFlow, pcMu, pcMuBlock, photAbsolute, photApparent, photFlux, photModulus, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, pspDet, pspI4, pspMul, pspShadow, pspSympDefect, pspT4, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resRayleigh, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, wilQuad, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };
