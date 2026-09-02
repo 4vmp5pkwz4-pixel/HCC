@@ -762,7 +762,7 @@ export const ROOTS = [
   /* and what a bit costs: entropy published in three clusters and consumed in none */
   'IL_KB', 'IL_HBAR', 'IL_H', 'IL_C', 'IL_G', 'IL_LN2', 'IL_MSUN', 'IL_E',
   'ilPlanckArea', 'ilLandauer', 'ilLandauerEV', 'ilBitsFromJK', 'ilBitsFromNats',
-  'ilJKFromBits', 'ilBekenstein', 'ilHorizonEntropy', 'ilHolographicDensity',
+  'ilJKFromBits', 'ilBekenstein', 'ilHorizonEntropy', 'ilHolographicDensity', 'IL_H0_KM_S_MPC', 'IL_MPC', 'ilHubbleRadius', 'ilHolderRadius', 'ilHolographicBound', 'ilOccupancy',
   'ilSchwarzschildArea', 'ilMargolus', 'ilBremermann', 'ilEntropyGap', 'IL_HOLDERS'
 ];
 
