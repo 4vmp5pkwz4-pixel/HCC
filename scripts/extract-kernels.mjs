@@ -710,9 +710,9 @@ export const ROOTS = [
      The rung between a redshift and a distance. Three inputs of the Einstein-ring
      laboratory took a megaparsec and nothing in the atlas produced one. */
   'COSMO_C', 'COSMO_GYR_PER_INVH', 'cosmoSimpson', 'cosmoE', 'cosmoHubbleDistance',
-  'cosmoComoving', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak',
+  'cosmoComoving', 'COSMO_OM_LO', 'COSMO_OM_HI', 'COSMO_OM_N', 'cosmoOmAt', 'cosmoOmDepth', 'cosmoMu', 'cosmoMuGap', 'cosmoLookback', 'cosmoAge', 'cosmoAngularPeak',
   /* and what arrives: the inverse square law and the magnitude scale */
-  'PHOT_L0', 'PHOT_LSUN', 'PHOT_PC', 'PHOT_ERG_W',
+  'PHOT_L0', 'PHOT_LSUN', 'PHOT_PC', 'photMu', 'PHOT_MU_LO', 'PHOT_MU_HI', 'photMuDepth', 'PHOT_ERG_W',
   'photAbsolute', 'photModulus', 'photFlux', 'photApparent', 'photRatio',
   /* and whether any of it can be seen: the diffraction floor under every angle */
   'RES_AS', 'resBesselJ1', 'RES_J1_ZERO', 'RES_RAYLEIGH_K', 'resRayleigh',
