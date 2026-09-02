@@ -369,6 +369,14 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* distance.ladder_and_the_two_hubble_constants */
+  'DL_AU', 'DL_ARCSEC', 'DL_PARSEC', 'DL_PARSEC_SMALL', 'DL_LY', 'DL_C', 'DL_MPC',
+  'DL_LSUN', 'DL_MBOL_SUN', 'DL_STARS', 'DL_CEPH_SLOPE', 'DL_CEPH_ZERO', 'DL_IA_M',
+  'DL_H0', 'DL_RUNGS',
+  'dLadDistanceFromParallax', 'dLadParallaxFromDistance', 'dLadParallaxReach',
+  'dLadCepheidM', 'dLadCepheidDistance', 'dLadModulus', 'dLadDistanceFromModulus',
+  'dLadModulusExtinguished', 'dLadIaReach', 'dLadTension', 'dLadH0FromShift',
+  'dLadShiftForH0', 'dLadFractionToMagnitudes', 'dLadMagnitudesToFraction', 'dLadChain',
   /* stars.main_sequence_and_the_mass_to_light_ratio */
   'HR_MSUN', 'HR_LSUN', 'HR_RSUN', 'HR_TSUN', 'HR_C', 'HR_G', 'HR_SIGMA', 'HR_YR', 'HR_GYR',
   'HR_EPS', 'HR_FCORE', 'HR_KAPPA', 'HR_EDD_FRACTION',
