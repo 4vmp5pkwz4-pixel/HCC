@@ -369,6 +369,12 @@ export const ROOTS = [
   'zpRung', 'zpTemperatureOf', 'levelR', 'ZPF', 'zpEqualTemperature',
   /* s3.spectral_operator · s3.ebk_quantisation · s3.particle_creation */
   'specSpectrum', 'ebkCompare', 'pcCreate',
+  /* exoplanet.transit_wobble_zone */
+  'XP_AU', 'XP_RSUN', 'XP_RJUP', 'XP_REARTH', 'XP_MJUP', 'XP_MEARTH', 'XP_DAY', 'XP_YR',
+  'XP_G', 'XP_GMSUN', 'XP_MSUN_IMPLIED', 'XP_LSUN', 'XP_TSUN', 'XP_SIGMA', 'XP_HZ',
+  'xpDepth', 'xpSemiMajor', 'xpPeriod', 'xpDuration', 'xpTransitProbability',
+  'xpRadialVelocity', 'xpEquilibriumT', 'xpLuminosity', 'xpHabitableZone', 'xpInZone',
+  'XP_SYSTEMS', 'xpSystem', 'xpLightCurve', 'xpOverlap', 'xpZoneStanding', 'xpFluxEarth',
   /* lambda.as_a_length */
   'LM_C', 'LM_G', 'LM_HBAR', 'LM_KB', 'LM_MPC', 'LM_GLY', 'LM_PARTICLE_GLY',
   'lmPlanckArea', 'lmPlanckDensity', 'lmLambda', 'lmHubbleLength', 'lmDeSitter',

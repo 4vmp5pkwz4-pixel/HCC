@@ -19,7 +19,8 @@
    Usage:  node scripts/selftest.mjs            fail on any failing assertion
            node scripts/selftest.mjs --list     print every failure in full
 */
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, writeFileSync, rmSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { join, extname, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,6 +37,34 @@ const html = !HAVE_VENDOR ? html0 : html0
   .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\/build\/three\.module\.js/g, './vendor/three/build/three.module.js')
   .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\/examples\/jsm\//g, './vendor/three/examples/jsm/')
   .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/@dimforge\/rapier3d-compat@0\.14\.0\/rapier\.es\.js/g, './vendor/rapier/rapier.es.js');
+
+/* ── PARSE BEFORE YOU LAUNCH A BROWSER ──────────────────────────────────────
+   A missing comma in an object literal cost forty minutes once: the page failed to
+   parse, every global went undefined, and the first thing that noticed was this
+   suite four minutes in, reporting "HCC_API is not defined" -- which names a symbol
+   and not a line.  scripts/validate.mjs has always run node --check on this same
+   module, but it runs LAST, after the whole pipeline.  A syntax error is cheap to
+   find and expensive to find late, so it is found here first, in about a second,
+   with the line number the parser already knew.
+   This check is proven both ways: a deliberately broken module must fail it, which
+   is how it was written -- by breaking one. */
+{
+  const m = html0.match(/<script type="module">([\s\S]*?)<\/script>/);
+  if (!m) { console.error('index.html has no inline ES module — nothing to test.'); process.exit(1); }
+  const tmp = join(ROOT, '.selftest-parse-check.mjs');
+  writeFileSync(tmp, m[1]);
+  let syntaxError = null;
+  try { execSync(`node --check ${JSON.stringify(tmp)}`, { stdio: 'pipe' }); }
+  catch (e) { syntaxError = String(e.stderr || e.stdout || e.message); }
+  rmSync(tmp, { force: true });
+  if (syntaxError) {
+    console.error('\n✗ index.html does not parse. Nothing below this line would have meant anything.\n');
+    console.error(syntaxError.split('\n').slice(0, 12).join('\n'));
+    console.error('\n  (the line number above is into the inline module, which begins at line '
+      + (html0.slice(0, html0.indexOf(m[0])).split('\n').length) + ' of index.html)\n');
+    process.exit(1);
+  }
+}
 
 const MIME = { '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json',
   '.wasm': 'application/wasm', '.html': 'text/html', '.css': 'text/css' };
