@@ -386,7 +386,7 @@ export const ROOTS = [
   'dLadModulusExtinguished', 'dLadIaReach', 'dLadTension', 'dLadH0FromShift',
   'dLadShiftForH0', 'dLadFractionToMagnitudes', 'dLadMagnitudesToFraction', 'dLadChain',
   /* stars.main_sequence_and_the_mass_to_light_ratio */
-  'HR_MSUN', 'SEIS_DNU_SUN', 'SEIS_NUMAX_SUN', 'SEIS_TEFF_SUN', 'SEIS_LOGG_SUN', 'SEIS_RHO_SUN', 'SEIS_G', 'seisDnu', 'seisNumax', 'seisRadius', 'seisMass', 'seisDensitySolar', 'seisDensity', 'seisLogg', 'seisTransitDensity', 'seisTransitDensitySolar', 'SEIS_EPS_SUN', 'SEIS_D02_SUN', 'seisMode', 'seisEchelleX', 'seisEnvelopeWidth', 'seisEnvelope', 'HR_LSUN', 'HR_RSUN', 'HR_TSUN', 'HR_C', 'HR_G', 'HR_SIGMA', 'HR_YR', 'HR_GYR',
+  'HR_MSUN', 'SEIS_DNU_SUN', 'GYRO_A', 'GYRO_B', 'GYRO_N', 'GYRO_BV_MIN', 'GYRO_SUN_BV', 'GYRO_SUN_PROT', 'GYRO_SUN_AGE_GYR', 'gyroColourTerm', 'gyroPeriod', 'gyroAgeMyr', 'gyroAgeGyr', 'gyroSkumanichRatio', 'GYRO_SKUMANICH_N', 'gyroFractionOfLife', 'SEIS_NUMAX_SUN', 'SEIS_TEFF_SUN', 'SEIS_LOGG_SUN', 'SEIS_RHO_SUN', 'SEIS_G', 'seisDnu', 'seisNumax', 'seisRadius', 'seisMass', 'seisDensitySolar', 'seisDensity', 'seisLogg', 'seisTransitDensity', 'seisTransitDensitySolar', 'SEIS_EPS_SUN', 'SEIS_D02_SUN', 'seisMode', 'seisEchelleX', 'seisEnvelopeWidth', 'seisEnvelope', 'HR_LSUN', 'HR_RSUN', 'HR_TSUN', 'HR_C', 'HR_G', 'HR_SIGMA', 'HR_YR', 'HR_GYR',
   'HR_EPS', 'HR_FCORE', 'HR_KAPPA', 'HR_EDD_FRACTION',
   'hrEddington', 'hrLuminosity', 'hrExponent', 'hrRadius', 'hrTemperature',
   'hrLifetime', 'hrLifetimeGyr', 'hrTurnoff', 'hrRemnant', 'hrIMF',
