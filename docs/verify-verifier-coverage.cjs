@@ -66,12 +66,20 @@ ok('every published artifact is guarded by SOMETHING — a verifier that reads i
   artifacts.every(a => watchedBy(a).length > 0 || reproduced(a)),
   artifacts.map(a => `${a.replace('.json', '')}:${watchedBy(a).length ? 'assert' : 'reproduce'}`).join(' · '));
 
-ok('AND THE TWO MECHANISMS ARE NOT THE SAME GUARANTEE. Reproduction regenerates a file and diffs it, which catches a stale or hand-edited artifact exactly and is BLIND TO A WRONG GENERATOR — a generator that is wrong today writes the same wrong answer twice and the diff comes back clean. Assertion has a verifier read the content and test it, which catches wrong content and is blind to whatever nobody thought to test. Neither subsumes the other, and the artifacts under reproduction alone have no check on whether the thing writing them is right',
+ok('AND THE TWO MECHANISMS ARE NOT THE SAME GUARANTEE. Reproduction regenerates a file and diffs it, which catches a stale or hand-edited artifact exactly and is BLIND TO A WRONG GENERATOR — a generator that is wrong today writes the same wrong answer twice and the diff comes back clean. Assertion has a verifier read the content and test it, which catches wrong content and is blind to whatever nobody thought to test. Neither subsumes the other. Every published artifact now has a verifier that reads its content, so none rests on reproduction alone, and this check enforces that rather than merely reporting it: an artifact added without one fails here. It previously required the opposite — at least one artifact in the weaker column, as evidence the two mechanisms were distinct — and that was a state of the world mistaken for an invariant, which failed at the moment the thing it measured became perfect',
   (() => { const assertOnly = artifacts.filter(a => watchedBy(a).length > 0);
     const reproOnly = artifacts.filter(a => watchedBy(a).length === 0 && reproduced(a));
-    return assertOnly.length >= 3 && reproOnly.length >= 1; })(),
+    /* This check used to require at least one artifact in the weaker column, as
+       evidence that the two mechanisms were distinct. That was a state of the
+       world written down as an invariant, and finishing the sweep broke it: the
+       check failed at the moment the thing it was measuring became perfect. The
+       invariant is now the stronger one — NO artifact rests on reproduction
+       alone — which locks the sweep in rather than merely describing it. */
+    return assertOnly.length >= 3 && reproOnly.length === 0; })(),
   (() => { const reproOnly = artifacts.filter(a => watchedBy(a).length === 0 && reproduced(a));
-    return `under reproduction alone: ${reproOnly.map(a => a.replace('.json', '')).join(', ')} — regenerating them proves only that they are not stale`; })());
+    return reproOnly.length === 0
+      ? `every one of the ${artifacts.length} published artifacts has a verifier that reads its content; none rests on reproduction alone`
+      : `STILL UNDER REPRODUCTION ALONE: ${reproOnly.map(a => a.replace('.json', '')).join(', ')} — regenerating them proves only that they are not stale`; })());
 
 ok('the artifacts this session gave a reading verifier to are still read — sensitivity by the exponents check, and the manifest, reach and transfers by theirs. Losing one would quietly move that artifact into the weaker column',
   ['sensitivity.json', 'manifest.json', 'reach.json', 'transfers.json'].every(a => watchedBy(a).length > 0),
