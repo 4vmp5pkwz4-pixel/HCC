@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1218   ·   exported names: 1327
-   extracted physics, sha256 234abe5b4ed032453509f7c2b10954f56cab0bb7345c3d8f4afa643dee7da121 */
+   extracted physics, sha256 03a6d4884ec12b4322c66193900c726d5216f729d3d4f5febe19aeead85338a2 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -366,6 +366,12 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Die Planeten anderer Sterne \u00b7 Transit, Wackeln und Zone'},
    purpose:'an atlas of a hundred and four laboratories that had measured a black hole horizon, a Jeans mass and a distance ladder contained the word exoplanet zero times, while six thousand of them are known',
    predictionTarget:'the transit depth as a ratio of areas, the semi-major axis by Kepler III from the MEASURED GM rather than G times a mass, the transit duration and probability, the reflex speed a spectrograph would see, the equilibrium temperature, and the four Kopparapu habitable-zone bounds with the flux the criteria are actually written in. Falsifiable against numbers nobody here chose: the Earth across the Sun is 84 parts per million and thirteen hours, its transit probability is one in two hundred, Jupiter moves the Sun at 12.5 metres a second and the Earth at nine centimetres, and Kepler-186 f receives 0.30 of Earth`s sunlight against the 0.32 its discoverers published.'},
+  {id:'seis', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'exact',
+   title:{en:'Asteroseismology \u00b7 the star rings, and the ringing gives its mass',
+          ru:'\u0410\u0441\u0442\u0440\u043e\u0441\u0435\u0439\u0441\u043c\u043e\u043b\u043e\u0433\u0438\u044f \u00b7 \u0437\u0432\u0435\u0437\u0434\u0430 \u0437\u0432\u0435\u043d\u0438\u0442',
+          de:'Asteroseismologie \u00b7 der Stern klingt'},
+   purpose:'the main sequence turns a mass into a radius through a MODEL and the transit bench measures a planet against a star it has to ASSUME, so neither can weigh a star it has not already decided about; the topic census over this atlas returned the word asteroseismology zero times',
+   predictionTarget:'the large frequency separation as the square root of the mean density and the frequency of maximum power as surface gravity over root temperature, inverted to give a mass and a radius with no stellar model in the chain, plus the mean density a TRANSIT gives from Kepler III alone. Falsifiable against numbers nobody here chose: the Sun rings at 135.1 and 3090 microhertz with log g 4.438, the relations invert to a solar mass and radius exactly, and the Earth crossing the Sun returns 1409.8 kg per cubic metre against the 1410.1 the solar mass and radius give -- two parts in ten thousand between two formulas sharing nothing but Newton, which is what makes the pair a check rather than a restatement.'},
   {id:'lam', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'exact',
    title:{en:'The cosmological constant, as a length \u00b7 and the horizon that is three horizons',
           ru:'\u043a\u043e\u0441\u043c\u043e\u043b\u043e\u0433\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u043f\u043e\u0441\u0442\u043e\u044f\u043d\u043d\u0430\u044f \u043a\u0430\u043a \u0434\u043b\u0438\u043d\u0430',
