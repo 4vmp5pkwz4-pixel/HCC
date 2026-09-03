@@ -82,6 +82,16 @@ const clashes = [...groups.entries()].filter(([, v]) => v.size > 1);
    them would create exactly zero new couplings, because in every case the
    coordinate NAMES do not match either, and the bus requires both. Changing four
    instrument contracts to buy nothing is churn, so it was not done.
+   AND NORMALISING A RUNTIME SPELLING BUYS NO COUPLING, which was predicted the
+   other way and measured. The bus counts are identical before and after the four
+   fixes -- 89 admissible, 56 declared, 37 refused -- because the bus graph is
+   computed over DECLARED inputs and outputs and a runtime publication is not in
+   it at all. That is the same structural fact recorded as an open problem when a
+   laboratory was found publishing into a bus that could not see it. The value of
+   the normalisation is that the vocabulary is now consistent, so a future
+   DECLARED input can match one of these publications; it is not that anything
+   became routable today.
+
    Note also that the convention is NOT uniform and must not be forced: "m/s" is
    the majority spelling with 21 declarations while "kg m^-3" uses the exponent
    form and "1/site" the leading one. Normalising everything to a single style
