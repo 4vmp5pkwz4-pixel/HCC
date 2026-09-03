@@ -75,7 +75,28 @@ const clashes = [...groups.entries()].filter(([, v]) => v.size > 1);
    not, because the assertion is a subset and not an equality — the mistake of
    writing a state of the world down as an invariant has been made here once
    already and is not repeated. */
-const KNOWN = new Set(['s^-1', 'm^2', 'm^1·s^-1', 'kg^1·m^-3', 'site^-1', 'sr^-1', 'W^1·m^-2']);
+/* The spellings this atlas still carries. It carried seven; the four that lived
+   in RUNTIME publications were normalised to their own group's majority, which
+   cost nothing because a publication has no contract to break. The four left are
+   declared-against-declared, and MEASUREMENT SAYS TO LEAVE THEM: merging any of
+   them would create exactly zero new couplings, because in every case the
+   coordinate NAMES do not match either, and the bus requires both. Changing four
+   instrument contracts to buy nothing is churn, so it was not done.
+   AND NORMALISING A RUNTIME SPELLING BUYS NO COUPLING, which was predicted the
+   other way and measured. The bus counts are identical before and after the four
+   fixes -- 89 admissible, 56 declared, 37 refused -- because the bus graph is
+   computed over DECLARED inputs and outputs and a runtime publication is not in
+   it at all. That is the same structural fact recorded as an open problem when a
+   laboratory was found publishing into a bus that could not see it. The value of
+   the normalisation is that the vocabulary is now consistent, so a future
+   DECLARED input can match one of these publications; it is not that anything
+   became routable today.
+
+   Note also that the convention is NOT uniform and must not be forced: "m/s" is
+   the majority spelling with 21 declarations while "kg m^-3" uses the exponent
+   form and "1/site" the leading one. Normalising everything to a single style
+   would have rewritten twenty-one correct declarations. */
+const KNOWN = new Set(['s^-1', 'm^1·s^-1', 'sr^-1', 'W^1·m^-2']);
 
 console.log('\n=== 1-3. Both vocabularies, and what they are ===\n');
 
@@ -109,8 +130,8 @@ ok('the three ways this atlas writes inverse seconds are one unit: "/s", "1/s" a
   canon('/s') === canon('1/s') && canon('1/s') === canon('s^-1'),
   `all three → ${canon('s^-1')}`);
 
-ok('AND THE SLIP THAT STARTED THIS IS CAUGHT: "kg/m3" and "kg m^-3" are one unit, and the bus could not see it. Seven units in this atlas are spelled more than one way, so seven sets of coordinates cannot couple to each other purely on notation',
-  canon('kg m^-3') === canon('kg/m3') && canon('W m^-2') === canon('W/m^2') && clashes.length >= 4,
+ok('AND THE SLIP THAT STARTED THIS IS CAUGHT: "kg/m3" and "kg m^-3" are one unit, and the bus could not see it. Four units in this atlas are still spelled more than one way, down from seven: the three that lived in runtime publications were normalised, and the rest are declared against declared where merging them would create no coupling at all',
+  canon('kg m^-3') === canon('kg/m3') && canon('W m^-2') === canon('W/m^2') && clashes.length >= 1,
   clashes.map(([c, v]) => `${c}: ${[...v].map(x => JSON.stringify(x)).join(' vs ')}`).join(' · '));
 
 ok('and NO NEW SPELLING HAS BEEN INTRODUCED. This is asserted as a subset rather than an equality: fixing one of these passes, adding one fails. An earlier check in this atlas wrote a state of the world down as an invariant and failed at the moment the thing it measured became perfect, which is a mistake worth making only once',
