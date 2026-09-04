@@ -78,6 +78,10 @@
     }
   }
   @supports (height:100dvh){ :root{ --vh100:100dvh } }
+  /* visualViewport is the final authority when a software keyboard or an in-app
+     browser changes the *visible* canvas without changing the layout viewport. JS
+     publishes these values below; the fallbacks keep the document fully CSS-only. */
+  :root{--visual-top:0px;--keyboard-h:0px}
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{width:100%;height:100%;height:100dvh;overflow:hidden;background:var(--bg);color:var(--txt);
     font:13px/1.5 var(--sans)}
@@ -1600,6 +1604,14 @@
        keep reporting an overlap that nobody can see.  Hiding it honestly means the
        measurement and the eye agree. */
     body.panel-open #hud{visibility:hidden!important}
+    /* A focused field must stay above the software keyboard. Browsers that resize the
+       visual viewport get an exact pixel value from syncVisualViewport(); browsers that
+       do not simply keep the zero fallback. This is deliberately portrait-only: the
+       landscape sheet is a side column and is already bounded by the visible height. */
+    body.keyboard-open:not(.phone-landscape) .panel{
+      bottom:calc(var(--tabs-h) + var(--insp-h) + var(--keyboard-h) + 10px)!important}
+    body.keyboard-open:not(.phone-landscape) #hccTabs,
+    body.keyboard-open:not(.phone-landscape) #hccInspector{transform:translateY(var(--keyboard-h))}
   }
   /* THE OLD BREADCRUMB GOES, and only a screenshot found it.  The geometric probe never
      reported it because #breadcrumb was not in the list of surfaces it compared — so two
@@ -13533,9 +13545,10 @@ function requestRendererResize(){
   rendererResizeRAF=requestAnimationFrame(()=>{rendererResizeRAF=0;rendererResizePending=true;});
 }
 function rendererViewportSize(){
+  const vv=window.visualViewport;
   return {
-    w:Math.max(2,Math.round(document.documentElement.clientWidth||innerWidth||2)),
-    h:Math.max(2,Math.round(innerHeight||document.documentElement.clientHeight||2)),
+    w:Math.max(2,Math.round(vv?.width||document.documentElement.clientWidth||innerWidth||2)),
+    h:Math.max(2,Math.round(vv?.height||innerHeight||document.documentElement.clientHeight||2)),
   };
 }
 function syncRendererViewport(){
@@ -13548,7 +13561,27 @@ function syncRendererViewport(){
 }
 addEventListener('resize',requestRendererResize,{passive:true});
 addEventListener('orientationchange',()=>setTimeout(requestRendererResize,80),{passive:true});
-window.visualViewport?.addEventListener('resize',requestRendererResize,{passive:true});
+/* One mobile viewport publisher for CSS, WebGL and sheets. `100dvh` still varies across
+   embedded browsers; VisualViewport reports the pixels the reader can actually see and
+   exposes the keyboard as the difference from the layout viewport. Keeping this in one
+   function prevents the renderer and interface from disagreeing during rotation. */
+function syncVisualViewport(){
+  const vv=window.visualViewport, root=document.documentElement;
+  const h=Math.max(1,Math.round(vv?.height||innerHeight));
+  const top=Math.max(0,Math.round(vv?.offsetTop||0));
+  const keyboard=Math.max(0,Math.round(innerHeight-h-top));
+  root.style.setProperty('--vh100',h+'px');
+  root.style.setProperty('--visual-top',top+'px');
+  root.style.setProperty('--keyboard-h',keyboard+'px');
+  document.body.classList.toggle('keyboard-open',keyboard>80);
+  document.body.classList.toggle('phone-landscape',innerWidth>innerHeight&&innerHeight<=560);
+  requestRendererResize();
+  try{ sheetPublishBudget(); labPublishBudget(); landscapeColumnLayout(); }catch(e){}
+}
+window.visualViewport?.addEventListener('resize',syncVisualViewport,{passive:true});
+window.visualViewport?.addEventListener('scroll',syncVisualViewport,{passive:true});
+addEventListener('orientationchange',()=>setTimeout(syncVisualViewport,80),{passive:true});
+syncVisualViewport();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)requestRendererResize();});
 if(window.ResizeObserver)new ResizeObserver(requestRendererResize).observe(app);
 
@@ -15296,22 +15329,17 @@ function ensureSheetGrip(){
   const p=document.getElementById('ctl'); if(!p||p.querySelector('.sheetGrip')) return;
   const g=document.createElement('div'); g.className='sheetGrip';
   g.title='Drag to resize · flick down to close';
+  g.setAttribute('role','separator'); g.setAttribute('aria-label','Resize controls sheet');
+  g.setAttribute('aria-orientation','horizontal'); g.tabIndex=0;
   p.insertBefore(g,p.firstChild);
-  if(ctlSheetPx) p.style.maxHeight=ctlSheetPx+'px';
-  let drag=null;
-  g.addEventListener('pointerdown',e=>{ drag={y:e.clientY,h:p.getBoundingClientRect().height};
-    try{g.setPointerCapture(e.pointerId);}catch(err){} e.preventDefault(); });
-  g.addEventListener('pointermove',e=>{ if(!drag) return;
-    const h=Math.min(innerHeight*.72,Math.max(64,drag.h+(drag.y-e.clientY)));
-    p.style.maxHeight=h+'px';
-    p.classList.toggle('mini',h<150); });
-  const end=e=>{ if(!drag) return;
-    const h=drag.h+(drag.y-e.clientY); drag=null;
-    // three-stop sheet: full ↕ MINI (the head section = the TIME REGULATOR strip) ↕ closed
-    if(h<64){ ctlSheetPx=null; p.style.maxHeight=''; p.classList.remove('mini'); closePanel('ctl'); }
-    else if(h<150){ ctlSheetPx=100; p.style.maxHeight='100px'; p.classList.add('mini'); }
-    else { p.classList.remove('mini'); ctlSheetPx=Math.min(innerHeight*.72,Math.max(150,h)); p.style.maxHeight=ctlSheetPx+'px'; } };
-  g.addEventListener('pointerup',end); g.addEventListener('pointercancel',()=>{drag=null;});
+  g.addEventListener('keydown',e=>{
+    const step=e.shiftKey?10:4, cur=hccSheetGet();
+    if(e.key==='ArrowUp'||e.key==='ArrowLeft'){hccSheetSet(cur+step);e.preventDefault();}
+    else if(e.key==='ArrowDown'||e.key==='ArrowRight'){hccSheetSet(cur-step);e.preventDefault();}
+    else if(e.key==='Home'){hccSheetSet(HCC_SHEET.min);e.preventDefault();}
+    else if(e.key==='End'){hccSheetSet(HCC_SHEET.max);e.preventDefault();}
+    else if(e.key==='Escape'){closePanel('ctl');e.preventDefault();}
+  });
 }
 for(const id of PANEL_IDS){
   const p=document.getElementById(id); if(!p) continue;
@@ -82737,14 +82765,22 @@ function hccSheetApply(){ hccSheetSet(hccSheetGet(),false); }
 (function hccWireSheetDrag(){
   let drag=null;
   const isCoarse=()=>innerWidth<=900||matchMedia('(pointer:coarse)').matches;
-  const gripHit=(el,e)=>{ const r=el.getBoundingClientRect();
-    return e.clientY-r.top<=34; };            /* the top strip of a sheet is its handle */
+  const gripHit=(el,e)=>{
+    /* Controls has a real, visible handle. Never turn its close/pin/header controls into
+       drag surfaces. Other generated sheets retain their empty top gutter, but all
+       interactive descendants are excluded for the same reason. */
+    if(e.target.closest?.('button,a,input,select,textarea,[role="button"]')) return false;
+    const real=e.target.closest?.('.sheetGrip');
+    if(el.id==='ctl') return !!real;
+    const r=el.getBoundingClientRect(); return e.clientY-r.top<=24;
+  };
   addEventListener('pointerdown',e=>{
     if(!isCoarse()) return;
     const el=e.target.closest&&e.target.closest('.panel');
     if(!el||!gripHit(el,e)) return;
     const land=matchMedia('(orientation:landscape)').matches;
-    drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:hccSheetGet(),land,moved:0,el};
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:hccSheetGet(),land,moved:0,el,
+      at:performance.now(),last:e.clientY,lastAt:performance.now(),velocity:0};
     try{ el.setPointerCapture(e.pointerId); }catch(x){}
     e.preventDefault();
   },{passive:false});
@@ -82753,13 +82789,18 @@ function hccSheetApply(){ hccSheetSet(hccSheetGet(),false); }
     const d=drag.land?(drag.x-e.clientX)/innerWidth*100    /* drag left = wider */
                      :(drag.y-e.clientY)/innerHeight*100;  /* drag up   = taller */
     drag.moved=Math.max(drag.moved,Math.abs(drag.land?e.clientX-drag.x:e.clientY-drag.y));
+    const now=performance.now(),dt=Math.max(1,now-drag.lastAt);
+    drag.velocity=(e.clientY-drag.last)/dt; drag.last=e.clientY; drag.lastAt=now;
     hccSheetSet(drag.start+d);
     e.preventDefault();
   },{passive:false});
   const end=e=>{
     if(!drag||drag.id!==e.pointerId) return;
     /* a tap, not a drag, toggles collapsed — the second use a handle should have */
-    if(drag.moved<6){
+    /* A decisive downward flick dismisses a portrait sheet, matching native bottom-sheet
+       muscle memory. Distance remains as a guard against noisy final velocity samples. */
+    if(!drag.land&&drag.moved>24&&drag.velocity>.55){ closePanel(drag.el.id); }
+    else if(drag.moved<6){
       const cur=hccSheetGet();
       hccSheetSet(cur<=18?(drag.land?38:32):15);
     }
