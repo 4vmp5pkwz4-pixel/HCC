@@ -81,7 +81,15 @@
   /* visualViewport is the final authority when a software keyboard or an in-app
      browser changes the *visible* canvas without changing the layout viewport. JS
      publishes these values below; the fallbacks keep the document fully CSS-only. */
-  :root{--visual-top:0px;--keyboard-h:0px}
+  :root{
+    --visual-top:0px;--keyboard-h:0px;
+    /* A named safe corridor lets every mobile layer use the same physical screen.
+       In particular, landscape iPhones put the home indicator and camera island on the
+       LEFT/RIGHT edges, not below the page; treating those pixels as ordinary width made
+       the first/last navigation targets and the side sheet look present while the device
+       made them awkward or impossible to touch. */
+    --safe-l:env(safe-area-inset-left,0px);--safe-r:env(safe-area-inset-right,0px)
+  }
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{width:100%;height:100%;height:100dvh;overflow:hidden;background:var(--bg);color:var(--txt);
     font:13px/1.5 var(--sans)}
@@ -659,7 +667,7 @@
       grid-template-columns:none;position:fixed;left:0;right:0;
       bottom:0;z-index:60;background:linear-gradient(180deg,rgba(10,13,20,.93),rgba(6,8,13,.98));
       border-top:1px solid rgba(212,175,106,.24);
-      padding-bottom:env(safe-area-inset-bottom,0px)}
+      padding:0 var(--safe-r) env(safe-area-inset-bottom,0px) var(--safe-l)}
     #hccTabs button{min-height:56px;min-width:0;background:none;border:0;color:#8ea1b8;
       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
       font:600 9.5px var(--sans);cursor:pointer;letter-spacing:.04em;
@@ -1699,11 +1707,12 @@
      sheet, and it states the whole geometry rather than patching part of it. */
   @media (pointer:coarse) and (orientation:landscape), (max-height:560px) and (pointer:coarse){
     #hccInspector{top:calc(var(--topbar-h,64px) + 6px)!important;bottom:auto!important;
-      right:8px!important;left:auto!important;z-index:39!important}
-    #hccCrumb{max-width:min(34vw,300px)!important;top:calc(var(--topbar-h,64px) + 6px)!important}
+      right:calc(8px + var(--safe-r))!important;left:auto!important;z-index:39!important}
+    #hccCrumb{left:calc(8px + var(--safe-l))!important;
+      max-width:min(34vw,300px)!important;top:calc(var(--topbar-h,64px) + 6px)!important}
     #ctl,#info,#atlasNav,#labPanel,#zpPanel,#bixPanel,#smithPanel,#capPanel,#flowPanel,#navPanel,
     #objectPanel,#atlasPanel,#oscPanel,#vectorPanel,#motionPanel,#xrCheck{
-      left:auto!important;right:8px!important;
+      left:auto!important;right:calc(8px + var(--safe-r))!important;
       top:calc(var(--topbar-h,64px) + 56px)!important;
       bottom:calc(var(--tabs-h) + 8px)!important;
       height:auto!important;max-height:none!important;
@@ -1790,7 +1799,8 @@
      spending the width to say where you are not. */
   @media (max-width:900px), (pointer:coarse){
     body.tabs-merged #hccInspector{display:none!important}
-    body.tabs-merged #hccTabs{padding:0 2px;gap:0}
+    body.tabs-merged #hccTabs{
+      padding:0 calc(var(--safe-r) + 2px) env(safe-area-inset-bottom,0px) calc(var(--safe-l) + 2px);gap:0}
     body.tabs-merged #hccTabs button{min-width:0;flex:1 1 0;padding-left:1px;padding-right:1px}
     body.tabs-merged #hccTabs button i{font-size:17px;line-height:1}
     body.tabs-merged #hccTabs button span{display:none}
@@ -66445,6 +66455,7 @@ const SHEET_RESERVE=0.42;          /* the fraction of the scene band that stays 
 function sheetPublishBudget(){
   const el=document.documentElement, cs=getComputedStyle(el);
   const num=n=>{ const v=parseFloat(cs.getPropertyValue(n)); return Number.isFinite(v)?v:0; };
+  const viewH=Math.max(1,Math.round(window.visualViewport?.height||innerHeight));
   const narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches;
   if(!narrow){ el.style.removeProperty('--sheet-max'); return null; }
   /* AND NOT IN LANDSCAPE, WHERE THERE ARE NO BOTTOM SHEETS TO BUDGET. This is a budget
@@ -66456,7 +66467,10 @@ function sheetPublishBudget(){
   if(phoneLandscape()){ el.style.removeProperty('--sheet-max'); return null; }
   const topBand=(num('--topbar-h')||64)+8;
   const bottomBand=num('--tabs-h')+num('--insp-h')+18;
-  const band=Math.max(160, innerHeight-topBand-bottomBand);
+  /* innerHeight can remain the layout viewport on iOS while Safari's controls or the
+     keyboard have already shortened what is visible. The sheet and renderer must budget
+     the same pixels or the last rows exist only behind browser chrome. */
+  const band=Math.max(160, viewH-topBand-bottomBand);
   /* how many bottom sheets are open right now */
   /* counted from the SAME set the occlusion meter measures — PANEL_IDS does not list
      labPanel, so counting through it reported one sheet open while two were covering the
@@ -66520,7 +66534,8 @@ function landscapeColumnLayout(){
   const cs=getComputedStyle(document.documentElement);
   const num=(n,d)=>{ const v=parseFloat(cs.getPropertyValue(n)); return Number.isFinite(v)?v:d; };
   const top=num('--topbar-h',64)+50;
-  const bottom=innerHeight-(num('--tabs-h',48)+8);
+  const viewH=Math.max(1,Math.round(window.visualViewport?.height||innerHeight));
+  const bottom=viewH-(num('--tabs-h',48)+8);
   const GAP=8;
   const band=Math.max(80, bottom-top);
   if(!open.length) return {band:Math.round(band), open:0};
