@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1254   ·   exported names: 1363
-   extracted physics, sha256 6a1f84a910191c052989be6325e5e67d66366347bdb74d4e5767f2e319a293dd */
+   extracted physics, sha256 ba2f7c800fc34e16ee2e1d691a61577da8459e7b008920a38c6058ba7ab2bb59 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -3176,16 +3176,21 @@ function windLifetime(m0, f, opt){
   const o=opt||{};
   const eps=(o.eps==null?HR_EPS:o.eps), fc=(o.fcore==null?HR_FCORE:o.fcore);
   const fuel=eps*fc*m0;                       /* in solar masses of c^2 */
-  let m=m0, burned=0, t=0, dt=(o.dt==null?1e3:o.dt);
-  let steps=0;
-  while(burned<fuel && t<2e10 && m>0.08 && steps<4e6){
+  /* THE STEP IS SIZED FROM THE ANSWER, NOT GROWN TOWARDS IT. A first version
+     multiplied dt by 1.5 every step past a threshold, which compounds: fifty
+     steps later the step was ten billion years and the integration overshot the
+     end of the star's life by more than the star. Scaling the step to the
+     uncorrected lifetime keeps every mass at the same relative resolution. */
+  const N=(o.steps==null?20000:Math.max(200,Math.round(o.steps)));
+  const dt=Math.max(1,hrLifetimeGyr(m0)*1e9*2/N);
+  let m=m0, burned=0, t=0, steps=0;
+  while(burned<fuel && steps<N*4 && m>0.08){
     const L=hrLuminosity(m);
     if(!(L>0)) break;
     burned+=L*WIND_LSUN*dt*WIND_YR/(WIND_MSUN*WIND_C*WIND_C);
     const vinf=windTerminalSpeed(m,hrRadius(m));
     m-=f*L*WIND_LSUN/(WIND_C*vinf)*WIND_YR/WIND_MSUN*dt;
     t+=dt; steps++;
-    if(steps>2000) dt*=1.5;
   }
   const naive=hrLifetimeGyr(m0)*1e9;
   return {years:t, naive_years:naive, ratio:(naive>0)?t/naive:null,
