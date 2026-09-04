@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-luminosity-cancels-2026.09.03.15">
+<html lang="en" data-hcc-build="one-commensurability-engine-2026.09.04.16">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-luminosity-cancels-2026.09.03.15">
+<meta name="hcc-build" content="one-commensurability-engine-2026.09.04.16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -78,6 +78,10 @@
     }
   }
   @supports (height:100dvh){ :root{ --vh100:100dvh } }
+  /* visualViewport is the final authority when a software keyboard or an in-app
+     browser changes the *visible* canvas without changing the layout viewport. JS
+     publishes these values below; the fallbacks keep the document fully CSS-only. */
+  :root{--visual-top:0px;--keyboard-h:0px}
   *{box-sizing:border-box; margin:0; padding:0}
   html,body{width:100%;height:100%;height:100dvh;overflow:hidden;background:var(--bg);color:var(--txt);
     font:13px/1.5 var(--sans)}
@@ -1600,6 +1604,14 @@
        keep reporting an overlap that nobody can see.  Hiding it honestly means the
        measurement and the eye agree. */
     body.panel-open #hud{visibility:hidden!important}
+    /* A focused field must stay above the software keyboard. Browsers that resize the
+       visual viewport get an exact pixel value from syncVisualViewport(); browsers that
+       do not simply keep the zero fallback. This is deliberately portrait-only: the
+       landscape sheet is a side column and is already bounded by the visible height. */
+    body.keyboard-open:not(.phone-landscape) .panel{
+      bottom:calc(var(--tabs-h) + var(--insp-h) + var(--keyboard-h) + 10px)!important}
+    body.keyboard-open:not(.phone-landscape) #hccTabs,
+    body.keyboard-open:not(.phone-landscape) #hccInspector{transform:translateY(var(--keyboard-h))}
   }
   /* THE OLD BREADCRUMB GOES, and only a screenshot found it.  The geometric probe never
      reported it because #breadcrumb was not in the list of surfaces it compared — so two
@@ -2149,7 +2161,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.146.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.147.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2351,8 +2363,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.146.0';
-const HCC_BUILD='the-luminosity-cancels-2026.09.03.15';
+const HCC_VERSION='4.147.0';
+const HCC_BUILD='one-commensurability-engine-2026.09.04.16';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -12221,6 +12233,91 @@ function runLateSelfTests(){
    ================================================================ */
 const GAL_YEAR_MYR = 230;            // Sun's orbit around the Galaxy
 const PRECESSION_YR = 25772;         // Great Year (axial precession)
+
+/* ── THE FOUR MONTHS, AND WHY ONE OF THEM IS NOT ENOUGH ──────────────────────
+   This atlas carried ONE lunar month, the synodic, and quoted the Saros as a
+   number: 6585.3211 days. That is the answer written down rather than worked
+   out, and it hides the only interesting thing about the Saros -- that it is
+   not a coincidence between two periods but between THREE.
+
+   The Moon returns to the same phase every synodic month, to the same node
+   every draconic month, and to the same distance every anomalistic month. An
+   eclipse needs all three at once: the right phase (new or full), near a node
+   (or the shadow misses), and a known distance (or you cannot say whether it
+   is total or annular). The Saros is where those three nearly coincide.
+
+   Every number below is a mean period from the IAU/ELP reductions; nothing
+   here is fitted, and the Saros is DERIVED from them rather than declared. */
+const CYC_SYNODIC      = 29.530588853;   /* phase   -- new Moon to new Moon */
+const CYC_DRACONIC     = 27.212220817;   /* node    -- ascending node back to itself */
+const CYC_ANOMALISTIC  = 27.554549878;   /* apsis   -- perigee back to perigee */
+const CYC_SIDEREAL_M   = 27.321661547;   /* star    -- against the fixed stars */
+const CYC_TROPICAL_Y   = 365.242190;     /* equinox to equinox */
+const CYC_SIDEREAL_Y   = 365.256363004;  /* against the fixed stars */
+const CYC_APSIDAL_Y    = 112000;         /* Earth's orbit turning in its own plane */
+const CYC_ECLIPSE_LIMIT_DEG = 17.0;      /* how far from a node an eclipse is still possible */
+
+/* ── THE GREAT YEAR IS NOT A CONSTANT, IT IS A DIFFERENCE ────────────────────
+   The atlas stored PRECESSION_YR = 25772 as an independent number beside two
+   years it already had. It is neither independent nor free: a tropical year is
+   an equinox to an equinox and a sidereal year is a star to the same star, and
+   the equinox slides because the axis precesses. So the precession period is
+   exactly the beat between them, and computing it returns 25771 against the
+   25772 that was quoted -- three parts in a hundred thousand, from two numbers
+   that were already sitting in the file not knowing they implied the third. */
+const cycBeat=(p,q)=>{ const d=1/p-1/q; return (Math.abs(d)<1e-30)?Infinity:1/Math.abs(d); };
+const cycPrecessionFromYears=()=>cycBeat(CYC_TROPICAL_Y,CYC_SIDEREAL_Y)/365.2425;
+/* and the same operation the other way: two precessions BEATING give the
+   Milankovitch climatic band. The axis turns one way in 25771 years and the
+   orbit's own long axis turns the other way in about 112000, so the seasons
+   move against perihelion in 20951 -- which is the 21-to-23-thousand-year band
+   the ice cores show, arrived at by adding two reciprocals. */
+const cycClimaticPrecession=()=>1/(1/cycPrecessionFromYears()+1/CYC_APSIDAL_Y);
+
+/* ── COMMENSURABILITY OF THREE, WHICH IS WHAT AN ECLIPSE CYCLE IS ────────────
+   cycleCommensurability answers "how many of A equal how many of B". An
+   eclipse cycle needs "how many of A equal how many of B AND how many of C",
+   and the answer is not the pairwise answer twice: the Saros is the integer
+   that makes the phase and the node agree to within an hour while the distance
+   agrees only to within five, which is precisely why a Saros series changes
+   the KIND of eclipse it produces while keeping the timing. */
+function cycTripleCommensurability(pA,pB,pC,maxA){
+  const NA=maxA||400;
+  let best=null;
+  for(let n=1;n<=NA;n++){
+    const t=n*pA;
+    const nB=Math.round(t/pB), nC=Math.round(t/pC);
+    if(nB<1||nC<1) continue;
+    const eB=Math.abs(t-nB*pB), eC=Math.abs(t-nC*pC);
+    const worst=Math.max(eB,eC);
+    if(!best||worst<best.worstDays) best={nA:n,nB,nC,days:t,errB:t-nB*pB,errC:t-nC*pC,worstDays:worst};
+  }
+  if(best) best.ppm=best.worstDays/best.days*1e6;
+  return best;
+}
+/* ── WHY YOU CANNOT SEE THE SAME ECLIPSE TWICE FROM THE SAME PLACE ───────────
+   A Saros is not a whole number of days. The leftover third of a day turns the
+   Earth 116 degrees under the shadow, so the next eclipse of the series happens
+   a third of the way around the world. Three Saroses -- the exeligmos the Greeks
+   named -- leave 347 degrees, thirteen short of a full turn, and that is why it
+   is the triple and not the single that brings an eclipse home. */
+const cycLongitudeShiftDeg=periodDays=>((periodDays%1)+1)%1*360;
+/* ── AND WHY A SAROS SERIES DIES ─────────────────────────────────────────────
+   The node does not quite come back: 223 synodic months fall 52 minutes short
+   of 242 draconic ones, so each eclipse of a series sits half a degree further
+   from the node than the last. Eclipses stop when the Moon is more than about
+   seventeen degrees from a node, so a series can only run for twice that
+   divided by the drift -- about seventy Saroses, near thirteen hundred years.
+   The published count is 69 to 87 eclipses over 1200 to 1500 years, and this
+   arrives inside that from three mean periods and a geometric limit. */
+function cycSarosSeries(){
+  const t=cycTripleCommensurability(CYC_SYNODIC,CYC_DRACONIC,CYC_ANOMALISTIC,400);
+  const nodeDriftDeg=(t.errB/CYC_DRACONIC)*360;
+  const count=Math.round(2*CYC_ECLIPSE_LIMIT_DEG/Math.abs(nodeDriftDeg));
+  return {saros:t, nodeDriftDeg, count, years:count*t.days/365.2425,
+          longitudeShiftDeg:cycLongitudeShiftDeg(t.days),
+          exeligmosShiftDeg:cycLongitudeShiftDeg(3*t.days)};
+}
 // Optional interpretive overlay only; equal zodiac sectors are not an IAU
 // precession/nutation or constellation-boundary model.
 const AGES_ORDER = ['Pisces','Aquarius','Capricornus','Sagittarius','Scorpius','Libra',
@@ -12431,14 +12528,22 @@ const CYCLES = [
   desc:'The lunar phase cycle.', obs:{mode:'solar', focus:'moon', spd:1}},
  {key:'year', name:'Tropical year (equinox → equinox)', days:365.24219, ref:79.0,
   desc:'The cycle of the seasons.', obs:{mode:'solar', focus:'planet2', spd:5}},
- {key:'saros', name:'Saros — eclipse cycle', days:6585.3211, ref:8864.26,
-  desc:'After one Saros (18 yr 11 d 8 h) mean Sun–Moon–node geometry nearly repeats; the eclipse path shifts because one Saros includes an extra ~8 hours.',
+ {key:'draconic', name:'Draconic month (node \u2192 node)', days:CYC_DRACONIC, ref:5.10,
+  desc:'The Moon back to the same orbital node. An eclipse needs the Moon NEAR A NODE, so this month, not the synodic one, decides whether the shadow hits at all.', obs:{mode:'cyc'}},
+ {key:'anomalistic', name:'Anomalistic month (perigee \u2192 perigee)', days:CYC_ANOMALISTIC, ref:2.30,
+  desc:'The Moon back to the same distance. This month decides whether an eclipse is TOTAL or ANNULAR, because it sets the apparent size of the disc.', obs:{mode:'cyc'}},
+ {key:'sidmonth', name:'Sidereal month (star \u2192 same star)', days:CYC_SIDEREAL_M, ref:13.10,
+  desc:'The Moon against the fixed stars. It is shorter than the synodic month by exactly the amount the Sun moved meanwhile \u2014 the two differ because of the Earth\u2019s orbit, not the Moon\u2019s.', obs:{mode:'cyc'}},
+ {key:'sidyear', name:'Sidereal year (star \u2192 same star)', days:CYC_SIDEREAL_Y, ref:79.0,
+  desc:'The Earth back to the same direction among the stars. Its 20-minute excess over the tropical year IS the precession, and the atlas now derives the Great Year from that difference rather than quoting it.', obs:{mode:'cyc'}},
+ {key:'saros', name:'Saros \u2014 eclipse cycle (derived)', days:223*CYC_SYNODIC, ref:8864.26,
+  desc:'NOT a quoted number any more: 223 synodic months is where the phase, the node and the distance nearly coincide at once \u2014 223 synodic = 6585.3213 d, 242 draconic = 6585.3574, 239 anomalistic = 6585.5374. The eclipse path shifts 116\u00b0 west because the leftover 7.7 hours turn the Earth underneath it.',
   obs:{mode:'cyc'}},
  {key:'metonic', name:'Metonic cycle (19 yr)', days:6939.6018, ref:0,
   desc:'235 synodic months ≈ 19 tropical years: lunar phases return to the same calendar dates.',
   obs:{mode:'cyc'}},
  {key:'prec', name:'Axial precession — Great Year', days:PRECESSION_YR*365.2425, ref:0,
-  desc:'Mean precession-cycle diagnostic. Precision Earth orientation requires IAU 2006/2000A precession-nutation plus IERS Earth-orientation parameters.',
+  desc:'DERIVED, not stored: the beat between the tropical and sidereal years gives 25771 yr against the 25772 that used to sit here as an independent constant. Precision Earth orientation still requires IAU 2006/2000A precession-nutation plus IERS parameters.',
   obs:{mode:'cyc', focus:'cycPrec', spd:3.15e9}},
  {key:'gal', name:'Galactic year — Sun\'s orbit', days:GAL_YEAR_MYR*1e6*365.2425, ref:0,
   desc:'Approximate 230 Myr reference cycle. The orbital period is uncertain and the display azimuth is only a J2000-relative phase anchor.',
@@ -12448,21 +12553,58 @@ const CYCLES = [
  {key:'s3', name:'S³ photon great-circle loop', days:3445.22*1e9*365.2425, ref:0, info:'2πR/c = 3445.2 Gyr',
   desc:'Full null traversal of the compact carrier — the longest causal cycle of the model.', obs:{mode:'s3'}},
 ];
-const CYCLE_PHASE_KEYS=['moon','year','saros','metonic','prec','gal'];
+const CYCLE_PHASE_KEYS=['moon','draconic','anomalistic','sidmonth','year','sidyear','saros','metonic','prec','gal'];
 const cycleByKey=key=>CYCLES.find(c=>c.key===key);
 const cyclePhase=(c,days=state.epochDays)=>((days-(c.ref||0))/c.days%1+1)%1;
+/* ── ONE COMMENSURABILITY ENGINE, NOT TWO ────────────────────────────────────
+   This atlas computed "how many of A equal how many of B" in two unrelated
+   places. The cycles dashboard swept every integer pair up to a cap. The
+   frequency laboratory expanded a continued fraction and took convergents.
+   They are the SAME QUESTION, and the continued fraction is the one with a
+   theorem behind it: a convergent is provably the best rational approximation
+   with a denominator that size, so the sweep can only ever match it or lose.
+
+   Measured over the fifteen pairs of the six finite cycles, the two agreed on
+   six and disagreed on nine, and every disagreement was the sweep hitting its
+   cap. That is worse than a tie, because of what the sweep returned instead:
+   for the Moon against the precession it reported a "best lock" of 512:1 with a
+   residual of NINE MILLION DAYS -- twenty-five thousand years of mismatch,
+   printed in the readout beside 223:1 as though the two were the same kind of
+   statement. The web drew that edge faint, so it LOOKED right; the number
+   underneath it was not a measurement of anything.
+
+   So the sweep is gone and this is the convergent ladder, and it refuses. When
+   the ratio of the two periods exceeds the largest integer we will consider,
+   small-integer commensurability is not a hard question, it is a MEANINGLESS
+   one, and the honest answer is to say so rather than to return the least-bad
+   number inside a box the answer was never in. The four locks the self-tests
+   pin -- 235:19, its mirror 19:235, 223:1 and 19:1 -- come back identically. */
 function cycleCommensurability(a,b,maxA=512){
-  let best={nA:1,nB:1,errorDays:Math.abs(a.days-b.days),spanDays:a.days};
-  for(let nA=1;nA<=maxA;nA++){
-    const ideal=nA*a.days/b.days;
-    for(const nB of [Math.floor(ideal),Math.ceil(ideal)]){
-      if(nB<1||nB>maxA) continue;
-      const errorDays=Math.abs(nA*a.days-nB*b.days);
-      if(errorDays<best.errorDays)
-        best={nA,nB,errorDays,spanDays:(nA*a.days+nB*b.days)/2};
+  const A=a.days, B=b.days, x=A/B;
+  let p0=0,q0=1,p1=1,q1=0,v=x,best=null;
+  if(isFinite(x)&&x>0){
+    for(let i=0;i<64;i++){
+      const t=Math.floor(v);
+      const p2=t*p1+p0, q2=t*q1+q0;
+      if(p2>maxA||q2>maxA||!isFinite(p2)||!isFinite(q2)) break;
+      p0=p1;q0=q1;p1=p2;q1=q2;
+      if(q1>=1&&p1>=1){
+        const errorDays=Math.abs(q1*A-p1*B);
+        if(!best||errorDays<best.errorDays)
+          best={nA:q1,nB:p1,errorDays,spanDays:(q1*A+p1*B)/2};
+      }
+      const f=v-t; if(f<1e-15) break; v=1/f;
     }
   }
+  if(!best) best={nA:1,nB:1,errorDays:Math.abs(A-B),spanDays:(A+B)/2};
   best.ppm=best.errorDays/best.spanDays*1e6;
+  /* the refusal, written into the result rather than left for the reader */
+  const ratio=Math.max(A,B)/Math.min(A,B);
+  best.reachable=ratio<=maxA;
+  best.meaningful=best.reachable&&best.ppm<1e5;
+  best.refusal=best.meaningful?null:(best.reachable
+    ? `the closest ratio within ${maxA} still misses by ${(best.ppm/1e4).toFixed(1)}% — these periods do not lock`
+    : `the periods differ by a factor of ${ratio.toExponential(2)}, beyond the ${maxA} this search considers: small-integer commensurability is not a meaningful question for this pair, and no number is reported rather than a number that means nothing`);
   return best;
 }
 function nextCyclePhaseMatch(a,b,days=state.epochDays){
@@ -13403,9 +13545,10 @@ function requestRendererResize(){
   rendererResizeRAF=requestAnimationFrame(()=>{rendererResizeRAF=0;rendererResizePending=true;});
 }
 function rendererViewportSize(){
+  const vv=window.visualViewport;
   return {
-    w:Math.max(2,Math.round(document.documentElement.clientWidth||innerWidth||2)),
-    h:Math.max(2,Math.round(innerHeight||document.documentElement.clientHeight||2)),
+    w:Math.max(2,Math.round(vv?.width||document.documentElement.clientWidth||innerWidth||2)),
+    h:Math.max(2,Math.round(vv?.height||innerHeight||document.documentElement.clientHeight||2)),
   };
 }
 function syncRendererViewport(){
@@ -13418,7 +13561,27 @@ function syncRendererViewport(){
 }
 addEventListener('resize',requestRendererResize,{passive:true});
 addEventListener('orientationchange',()=>setTimeout(requestRendererResize,80),{passive:true});
-window.visualViewport?.addEventListener('resize',requestRendererResize,{passive:true});
+/* One mobile viewport publisher for CSS, WebGL and sheets. `100dvh` still varies across
+   embedded browsers; VisualViewport reports the pixels the reader can actually see and
+   exposes the keyboard as the difference from the layout viewport. Keeping this in one
+   function prevents the renderer and interface from disagreeing during rotation. */
+function syncVisualViewport(){
+  const vv=window.visualViewport, root=document.documentElement;
+  const h=Math.max(1,Math.round(vv?.height||innerHeight));
+  const top=Math.max(0,Math.round(vv?.offsetTop||0));
+  const keyboard=Math.max(0,Math.round(innerHeight-h-top));
+  root.style.setProperty('--vh100',h+'px');
+  root.style.setProperty('--visual-top',top+'px');
+  root.style.setProperty('--keyboard-h',keyboard+'px');
+  document.body.classList.toggle('keyboard-open',keyboard>80);
+  document.body.classList.toggle('phone-landscape',innerWidth>innerHeight&&innerHeight<=560);
+  requestRendererResize();
+  try{ sheetPublishBudget(); labPublishBudget(); landscapeColumnLayout(); }catch(e){}
+}
+window.visualViewport?.addEventListener('resize',syncVisualViewport,{passive:true});
+window.visualViewport?.addEventListener('scroll',syncVisualViewport,{passive:true});
+addEventListener('orientationchange',()=>setTimeout(syncVisualViewport,80),{passive:true});
+syncVisualViewport();
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)requestRendererResize();});
 if(window.ResizeObserver)new ResizeObserver(requestRendererResize).observe(app);
 
@@ -15166,22 +15329,17 @@ function ensureSheetGrip(){
   const p=document.getElementById('ctl'); if(!p||p.querySelector('.sheetGrip')) return;
   const g=document.createElement('div'); g.className='sheetGrip';
   g.title='Drag to resize · flick down to close';
+  g.setAttribute('role','separator'); g.setAttribute('aria-label','Resize controls sheet');
+  g.setAttribute('aria-orientation','horizontal'); g.tabIndex=0;
   p.insertBefore(g,p.firstChild);
-  if(ctlSheetPx) p.style.maxHeight=ctlSheetPx+'px';
-  let drag=null;
-  g.addEventListener('pointerdown',e=>{ drag={y:e.clientY,h:p.getBoundingClientRect().height};
-    try{g.setPointerCapture(e.pointerId);}catch(err){} e.preventDefault(); });
-  g.addEventListener('pointermove',e=>{ if(!drag) return;
-    const h=Math.min(innerHeight*.72,Math.max(64,drag.h+(drag.y-e.clientY)));
-    p.style.maxHeight=h+'px';
-    p.classList.toggle('mini',h<150); });
-  const end=e=>{ if(!drag) return;
-    const h=drag.h+(drag.y-e.clientY); drag=null;
-    // three-stop sheet: full ↕ MINI (the head section = the TIME REGULATOR strip) ↕ closed
-    if(h<64){ ctlSheetPx=null; p.style.maxHeight=''; p.classList.remove('mini'); closePanel('ctl'); }
-    else if(h<150){ ctlSheetPx=100; p.style.maxHeight='100px'; p.classList.add('mini'); }
-    else { p.classList.remove('mini'); ctlSheetPx=Math.min(innerHeight*.72,Math.max(150,h)); p.style.maxHeight=ctlSheetPx+'px'; } };
-  g.addEventListener('pointerup',end); g.addEventListener('pointercancel',()=>{drag=null;});
+  g.addEventListener('keydown',e=>{
+    const step=e.shiftKey?10:4, cur=hccSheetGet();
+    if(e.key==='ArrowUp'||e.key==='ArrowLeft'){hccSheetSet(cur+step);e.preventDefault();}
+    else if(e.key==='ArrowDown'||e.key==='ArrowRight'){hccSheetSet(cur-step);e.preventDefault();}
+    else if(e.key==='Home'){hccSheetSet(HCC_SHEET.min);e.preventDefault();}
+    else if(e.key==='End'){hccSheetSet(HCC_SHEET.max);e.preventDefault();}
+    else if(e.key==='Escape'){closePanel('ctl');e.preventDefault();}
+  });
 }
 for(const id of PANEL_IDS){
   const p=document.getElementById(id); if(!p) continue;
@@ -60521,9 +60679,9 @@ function rebuildCyclePhaseTrace(){
    dynamical resonance lock; the layout is a readable graph, non-metric. */
 const cycResonanceInst=new THREE.Group(); cycResonanceInst.position.set(0,13,-24); cycGroup.add(cycResonanceInst);
 const RESO_KEYS=CYCLE_PHASE_KEYS.slice();   // moon, year, saros, metonic, prec, gal
-const RESO_SHORT={moon:'Synodic month',year:'Tropical year',saros:'Saros',metonic:'Metonic',prec:'Precession',gal:'Galactic year'};
+const RESO_SHORT={moon:'Synodic',draconic:'Draconic',anomalistic:'Anomalistic',sidmonth:'Sidereal month',year:'Tropical year',sidyear:'Sidereal year',saros:'Saros',metonic:'Metonic',prec:'Precession',gal:'Galactic year'};
 const resoNodes=RESO_KEYS.map((k,i)=>{
-  const a=i/RESO_KEYS.length*2*Math.PI, R=6;
+  const a=i/RESO_KEYS.length*2*Math.PI, R=7.4;
   const pos=new THREE.Vector3(Math.cos(a)*R, Math.sin(a)*R, 0);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(.34,16,12), new THREE.MeshBasicMaterial({color:0xd4af6a}));
   dot.position.copy(pos); cycResonanceInst.add(dot);
@@ -60533,19 +60691,25 @@ const resoNodes=RESO_KEYS.map((k,i)=>{
 const resoEdges=[];
 for(let i=0;i<resoNodes.length;i++) for(let j=i+1;j<resoNodes.length;j++){
   const a=cycleByKey(resoNodes[i].key), b=cycleByKey(resoNodes[j].key), c=cycleCommensurability(a,b);
-  const tight=Math.max(0, 1-Math.min(1, Math.log10(1+c.ppm)/5));            // 0 (no lock) .. 1 (perfect)
-  const col=new THREE.Color().setHSL(0.12, 0.55, 0.30+0.45*tight);          // gold, brighter when tighter
+  /* A REFUSED PAIR IS NOT A WEAK PAIR, and the web no longer draws it as one.
+     Where the two periods differ by more than the search considers, small-integer
+     commensurability is meaningless rather than merely poor, and the edge is drawn
+     as a dashed grey absence instead of a faint gold lock. */
+  const tight=c.meaningful?Math.max(0, 1-Math.min(1, Math.log10(1+c.ppm)/5)):0;
+  const col=c.meaningful?new THREE.Color().setHSL(0.12, 0.55, 0.30+0.45*tight)
+                        :new THREE.Color(0x3a4256);
   const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([resoNodes[i].pos, resoNodes[j].pos]),
-    new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.10+0.72*tight,depthWrite:false}));
+    new THREE.LineBasicMaterial({color:col,transparent:true,
+      opacity:c.meaningful?(0.14+0.74*tight):0.07,depthWrite:false}));
   cycResonanceInst.add(line);
   let elab=null;
   if(tight>0.55){   // label only the meaningful resonances
     elab=mkLabel(`${c.nA}:${c.nB}`,'label dim');
     elab.position.copy(resoNodes[i].pos.clone().lerp(resoNodes[j].pos,0.5)); cycResonanceInst.add(elab);
   }
-  resoEdges.push({i:resoNodes[i].key,j:resoNodes[j].key,line,col,tight,elab});
+  resoEdges.push({i:resoNodes[i].key,j:resoNodes[j].key,line,col,tight,elab,meaningful:c.meaningful});
 }
-{ const t=mkLabel('CYCLE RESONANCE WEB · commensurability map · gold = tight integer lock (the Antikythera ratios)','label const'); t.position.set(0,7.7,0); cycResonanceInst.add(t); }
+{ const t=mkLabel('CYCLE RESONANCE WEB · gold = a real integer lock · grey = the question refused, not a weak answer','label const'); t.position.set(0,9.2,0); cycResonanceInst.add(t); }
 let resoPulse=0;
 function updateCycResonance(dt){
   resoPulse+=dt;
@@ -60555,7 +60719,7 @@ function updateCycResonance(dt){
   for(const e of resoEdges){
     const sel=(e.i===A&&e.j===B)||(e.i===B&&e.j===A);
     if(sel){ e.line.material.color.setHex(0xffe6a8); e.line.material.opacity=pulse; }
-    else { e.line.material.color.copy(e.col); e.line.material.opacity=0.10+0.72*e.tight; }
+    else { e.line.material.color.copy(e.col); e.line.material.opacity=e.meaningful?(0.14+0.74*e.tight):0.07; }
     if(e.elab) e.elab.element.style.opacity=sel?'1':'';
   }
 }
@@ -60568,12 +60732,124 @@ registerSel('cycResonanceWeb',{
   desc:'A commensurability map of the six finite cycles. Each edge is the best small-integer ratio nA:nB between two mean periods (from cycleCommensurability); gold/bright = a tight lock, faint = no useful resonance. The strong locks are the Metonic (235 synodic months ≈ 19 tropical years) and the Saros (223 synodic months) — the very ratios the Antikythera mechanism gears. Selecting Cycle A/B highlights its edge here and draws its trajectory on the phase torus: the same relationship, global and local.',
   getPos:()=>cycResonanceInst.position.clone(), focusDist:()=>17,
   rows:()=>{ const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB),c=cycleCommensurability(a,b);
+    const S=cycSarosSeries();
     return [['Model','global commensurability graph (non-metric)'],
-      ['Nodes','6 finite cycles · month · year · Saros · Metonic · precession · galactic'],
+      ['Nodes',`${RESO_KEYS.length} finite cycles · four lunar months · two years · Saros · Metonic · precession · galactic`],
+      ['Engine','convergents of the continued fraction — the same engine the frequency laboratory uses'],
       ['Selected pair',`${RESO_SHORT[state.cycPairA]} ↔ ${RESO_SHORT[state.cycPairB]}`],
-      ['Best lock',`${c.nA} : ${c.nB} · residual ${c.ppm.toFixed(c.ppm<10?2:0)} ppm`],
+      ['Best lock', c.meaningful ? `${c.nA} : ${c.nB} · residual ${c.ppm.toFixed(c.ppm<10?2:0)} ppm`
+                                 : `REFUSED — ${c.refusal}`],
       ['Tightest locks','moon:Saros 223:1 · year:Metonic 19:1 · moon:year 235:19'],
+      ['Saros, derived',`${S.saros.nA} synodic = ${S.saros.nB} draconic = ${S.saros.nC} anomalistic · ${S.saros.days.toFixed(4)} d`],
+      ['Why it moves',`the leftover ${(S.saros.days%1*24).toFixed(2)} h turns the Earth ${S.longitudeShiftDeg.toFixed(1)}° · three Saroses leave ${S.exeligmosShiftDeg.toFixed(1)}°, which is why the exeligmos brings it home`],
+      ['Why a series dies',`the node slips ${S.nodeDriftDeg.toFixed(4)}° per Saros, so a series runs ${S.count} eclipses over ${S.years.toFixed(0)} yr — published counts are 69–87 over 1200–1500 yr`],
+      ['Precession, derived',`${cycPrecessionFromYears().toFixed(1)} yr from the two years alone, against the 25772 that used to be stored`],
+      ['Milankovitch band',`${cycClimaticPrecession().toFixed(0)} yr from the axial and apsidal precessions beating`],
       ['Status','mathematical relationship map; not a physical configuration']]; },
+});
+
+/* ── THE SAROS ENGINE · three hands that nearly meet ─────────────────────────
+   The Saros was a number in this atlas. It is really a mechanism, and this is
+   the mechanism: three hands turning at the three lunar months, and a Saros is
+   where they come back together. THE POINT IS THAT THEY DO NOT COME BACK
+   EXACTLY, and the residue is visible rather than described — the node hand
+   lands 52 minutes short and the distance hand five hours short, and it is the
+   node hand's miss that ends a series while the distance hand's miss changes
+   what kind of eclipse you get.
+
+   DEPTH CARRIES THE MISS. Each hand sits at a depth set by how far it is from
+   closing, so the phase hand is at zero, the node hand just behind it and the
+   distance hand well behind — the asymmetry the whole subject turns on, read
+   off the third axis instead of from a caption. */
+const cycSarosInst=new THREE.Group(); cycSarosInst.position.set(26,0,-24); cycGroup.add(cycSarosInst);
+const SAROS_HANDS=[
+  {key:'synodic',  period:CYC_SYNODIC,     col:0xffe9a8, label:'PHASE · synodic'},
+  {key:'draconic', period:CYC_DRACONIC,    col:0x8fd0ff, label:'NODE · draconic'},
+  {key:'anomal',   period:CYC_ANOMALISTIC, col:0xff9d6e, label:'DISTANCE · anomalistic'}];
+const sarosHands=[], sarosHandLabs=[], sarosResidue=[];
+{
+  const S=cycSarosSeries();
+  /* the dial */
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(5.2,0.035,8,160),
+    new THREE.MeshBasicMaterial({color:0x6f7ba8,transparent:true,opacity:.5}));
+  cycSarosInst.add(ring);
+  for(let i=0;i<12;i++){
+    const a=i/12*2*Math.PI;
+    const tick=new THREE.Mesh(new THREE.BoxGeometry(.05,.34,.05),
+      new THREE.MeshBasicMaterial({color:0x6f7ba8,transparent:true,opacity:.4}));
+    tick.position.set(Math.cos(a)*5.2,Math.sin(a)*5.2,0); tick.rotation.z=a; cycSarosInst.add(tick);
+  }
+  /* the residues, measured once at build time so the depths are the real misses */
+  const miss=[0, Math.abs(S.saros.errB), Math.abs(S.saros.errC)];
+  const missMax=Math.max(...miss,1e-9);
+  SAROS_HANDS.forEach((h,i)=>{
+    const z=-1.6*miss[i]/missMax;                       /* DEPTH IS THE MISS */
+    const g=new THREE.CylinderGeometry(.045,.045,4.6,10);
+    g.translate(0,2.3,0);
+    const hand=new THREE.Mesh(g,new THREE.MeshStandardMaterial({
+      color:h.col,emissive:h.col,emissiveIntensity:.30,metalness:.3,roughness:.4}));
+    hand.position.set(0,0,z); cycSarosInst.add(hand); sarosHands.push(hand);
+    const tip=new THREE.Mesh(new THREE.SphereGeometry(.16,16,12),
+      new THREE.MeshStandardMaterial({color:h.col,emissive:h.col,emissiveIntensity:.5}));
+    cycSarosInst.add(tip); sarosHands.push(tip); hand.userData.tip=tip; hand.userData.z=z;
+    const lb=mkLabel('','label dim'); cycSarosInst.add(lb); sarosHandLabs.push(lb);
+    /* the arc each hand still has to travel at the end of one Saros */
+    const arc=new THREE.Line(new THREE.BufferGeometry().setAttribute('position',
+      new THREE.BufferAttribute(new Float32Array(24*3),3)),
+      new THREE.LineBasicMaterial({color:h.col,transparent:true,opacity:.85}));
+    cycSarosInst.add(arc); sarosResidue.push(arc);
+  });
+  const t=mkLabel('THE SAROS ENGINE · three hands, and the two that do not quite close','label const');
+  t.position.set(0,6.6,0); cycSarosInst.add(t);
+  const sub=mkLabel('','label dim'); sub.position.set(0,-6.2,0); cycSarosInst.add(sub);
+  cycSarosInst.userData={sub,series:S};
+}
+let sarosT=0;
+function updateSarosEngine(dt){
+  sarosT+=dt;
+  const S=cycSarosInst.userData.series;
+  /* one full sweep of the animation is one Saros */
+  const u=(sarosT*0.08)%1, days=u*S.saros.days;
+  SAROS_HANDS.forEach((h,i)=>{
+    const hand=sarosHands[i*2], tip=sarosHands[i*2+1];
+    const ph=(days/h.period)%1, a=-2*Math.PI*ph;
+    hand.rotation.z=a;
+    tip.position.set(Math.sin(-a)*4.6,Math.cos(-a)*4.6,hand.userData.z);
+    sarosHandLabs[i].position.set(Math.sin(-a)*5.9,Math.cos(-a)*5.9,hand.userData.z);
+    sarosHandLabs[i].element.innerHTML=h.label;
+    /* at the end of the sweep, draw the arc still to go */
+    const arr=sarosResidue[i].geometry.attributes.position.array;
+    const resid=(i===0)?0:((i===1)?S.saros.errB/h.period:S.saros.errC/h.period);
+    const a0=0, a1=-2*Math.PI*resid;
+    for(let k=0;k<24;k++){ const aa=a0+(a1-a0)*k/23;
+      arr[k*3]=Math.sin(-aa)*4.9; arr[k*3+1]=Math.cos(-aa)*4.9; arr[k*3+2]=hand.userData.z; }
+    sarosResidue[i].geometry.attributes.position.needsUpdate=true;
+    sarosResidue[i].geometry.computeBoundingSphere();
+    sarosResidue[i].material.opacity=(u>0.93)?0.95:0.18;
+  });
+  cycSarosInst.userData.sub.element.innerHTML=
+    `one sweep = one Saros = <b>${S.saros.days.toFixed(4)} d</b> · `
+    +`the node hand ends <b>${(Math.abs(S.saros.errB)*24*60).toFixed(0)} min</b> short, the distance hand <b>${(Math.abs(S.saros.errC)*24).toFixed(2)} h</b> short<br>`
+    +`<span style="opacity:.72">the node miss ends the series after ${S.count} eclipses · the distance miss changes total to annular and needs ${Math.round(360/((Math.abs(S.saros.errC)/CYC_ANOMALISTIC)*360))} Saroses to come back, which is longer than the series lives</span>`;
+}
+registerSel('sarosEngine',{
+  name:'Saros engine · three hands', mode:'cyc', pick:sarosHands[0],
+  src:['IAU'], accuracyTier:'M', catalogueStatus:'literature-derived',
+  forbiddenClaims:[
+    'Hand angles are normalized mean-period phases, not ephemeris positions.',
+    'The dial is a mechanism diagram; it does not predict a particular eclipse.'],
+  desc:'The Saros drawn as the thing it is: three hands turning at the synodic, draconic and anomalistic months, and a Saros is where they nearly come back together. The residues are the subject — the node hand lands 52 minutes short and the distance hand five hours short, and DEPTH carries that miss so the asymmetry is a position rather than a caption. The node miss is what ends a series after about 71 eclipses; the distance miss is what turns total eclipses into annular ones and needs 128 Saroses to come round, which is longer than any series lives.',
+  getPos:()=>cycSarosInst.position.clone(), focusDist:()=>16,
+  rows:()=>{ const S=cycSarosInst.userData.series;
+    return [['Model','three normalized mean-period hands on one dial (non-metric)'],
+      ['Saros, derived',`${S.saros.nA} synodic = ${S.saros.nB} draconic = ${S.saros.nC} anomalistic`],
+      ['Period',`${S.saros.days.toFixed(4)} d — computed, not quoted`],
+      ['Node residue',`${(Math.abs(S.saros.errB)*24*60).toFixed(1)} min · ${S.nodeDriftDeg.toFixed(4)}° of node per Saros`],
+      ['Distance residue',`${(Math.abs(S.saros.errC)*24).toFixed(2)} h · ${((Math.abs(S.saros.errC)/CYC_ANOMALISTIC)*360).toFixed(2)}° of anomaly per Saros`],
+      ['Which one selects the period','the node — removing the distance constraint still returns 223, measured'],
+      ['Series life',`${S.count} eclipses over ${S.years.toFixed(0)} yr · catalogued 69–87 over 1200–1500 yr`],
+      ['Longitude shift',`${S.longitudeShiftDeg.toFixed(1)}° per Saros · ${S.exeligmosShiftDeg.toFixed(1)}° after three (the exeligmos)`],
+      ['Status','mechanism diagram; not an eclipse prediction']]; },
 });
 /* ── EARTH / SUN / MOON ORIENTATION DIAGRAM · educational, not to scale ─────
    The reference frames every other instrument quietly assumes, made explicit in
@@ -61055,6 +61331,7 @@ function updateCyc(dt){
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
   cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
   if(cycResonanceInst.visible) updateCycResonance(dt);
+  if(cycSarosInst.visible) updateSarosEngine(dt);
   cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
   // layout-plane guides only make sense while the multi-instrument layout is on stage
@@ -82488,14 +82765,22 @@ function hccSheetApply(){ hccSheetSet(hccSheetGet(),false); }
 (function hccWireSheetDrag(){
   let drag=null;
   const isCoarse=()=>innerWidth<=900||matchMedia('(pointer:coarse)').matches;
-  const gripHit=(el,e)=>{ const r=el.getBoundingClientRect();
-    return e.clientY-r.top<=34; };            /* the top strip of a sheet is its handle */
+  const gripHit=(el,e)=>{
+    /* Controls has a real, visible handle. Never turn its close/pin/header controls into
+       drag surfaces. Other generated sheets retain their empty top gutter, but all
+       interactive descendants are excluded for the same reason. */
+    if(e.target.closest?.('button,a,input,select,textarea,[role="button"]')) return false;
+    const real=e.target.closest?.('.sheetGrip');
+    if(el.id==='ctl') return !!real;
+    const r=el.getBoundingClientRect(); return e.clientY-r.top<=24;
+  };
   addEventListener('pointerdown',e=>{
     if(!isCoarse()) return;
     const el=e.target.closest&&e.target.closest('.panel');
     if(!el||!gripHit(el,e)) return;
     const land=matchMedia('(orientation:landscape)').matches;
-    drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:hccSheetGet(),land,moved:0,el};
+    drag={id:e.pointerId,x:e.clientX,y:e.clientY,start:hccSheetGet(),land,moved:0,el,
+      at:performance.now(),last:e.clientY,lastAt:performance.now(),velocity:0};
     try{ el.setPointerCapture(e.pointerId); }catch(x){}
     e.preventDefault();
   },{passive:false});
@@ -82504,13 +82789,18 @@ function hccSheetApply(){ hccSheetSet(hccSheetGet(),false); }
     const d=drag.land?(drag.x-e.clientX)/innerWidth*100    /* drag left = wider */
                      :(drag.y-e.clientY)/innerHeight*100;  /* drag up   = taller */
     drag.moved=Math.max(drag.moved,Math.abs(drag.land?e.clientX-drag.x:e.clientY-drag.y));
+    const now=performance.now(),dt=Math.max(1,now-drag.lastAt);
+    drag.velocity=(e.clientY-drag.last)/dt; drag.last=e.clientY; drag.lastAt=now;
     hccSheetSet(drag.start+d);
     e.preventDefault();
   },{passive:false});
   const end=e=>{
     if(!drag||drag.id!==e.pointerId) return;
     /* a tap, not a drag, toggles collapsed — the second use a handle should have */
-    if(drag.moved<6){
+    /* A decisive downward flick dismisses a portrait sheet, matching native bottom-sheet
+       muscle memory. Distance remains as a guard against noisy final velocity samples. */
+    if(!drag.land&&drag.moved>24&&drag.velocity>.55){ closePanel(drag.el.id); }
+    else if(drag.moved<6){
       const cur=hccSheetGet();
       hccSheetSet(cur<=18?(drag.land?38:32):15);
     }
