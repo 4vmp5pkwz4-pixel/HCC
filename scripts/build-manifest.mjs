@@ -102,6 +102,10 @@ const head = await page.evaluate(() => ({
   worlds: HCC_NAV.worlds().map(w => ({ id: w.id, title: w.title || w.id, route: w.route })),
   instruments: HCC_API.instruments.list().map(i => ({ ...i, describe: HCC_API.describe(i.id) })),
   labs: HCC_API.labs.list(),
+  /* Prepared simultaneous views are part of the agent contract, not merely buttons in
+     the browser. Publishing their typed buses and epistemic boundary lets an external
+     client discover the same comparisons without scraping control-panel markup. */
+  multiview: HCC_API.multiviewPresets ? HCC_API.multiviewPresets().filter(p => p.id === 'focusing') : [],
   /* ── THE BUS IS PART OF THE CONTRACT, NOT A BROWSER AFFORDANCE ────────────
      Twenty-seven declared couplings, two refusals written down with their reasons, and a
      surface that says why a laboratory is alone — all of it lived in the page and NONE of

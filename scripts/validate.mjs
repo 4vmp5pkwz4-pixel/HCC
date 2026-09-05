@@ -81,6 +81,19 @@ check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
   && html.includes('deployment(){return {...HCC_DEPLOYMENT};}'),
   'deployment identity is exposed through the read-only QA surface');
 
+/* Prepared immersive comparisons are also a machine contract. The causal-focusing
+   representation is useful to an external agent only if the static manifest exposes
+   the same four views and the epistemic boundary shown to a human in Multiview. */
+{
+  let man = null;
+  try { man = JSON.parse(readFileSync('api/manifest.json', 'utf8')); } catch {}
+  const focus = man && Array.isArray(man.multiview)
+    ? man.multiview.find(p => p.id === 'focusing') : null;
+  check(!!focus && ['nul','lens','gw','mimg'].every(v => focus.views.includes(v))
+    && focus.contract && focus.contract.en && focus.contract.ru && focus.contract.de,
+    'the causal-focusing immersive representation is published to external agents with four views and a trilingual contract');
+}
+
 /* 1 · JavaScript syntax (extract the inline module, strip imports) */
 {
   const m = html.match(/<script type="module">([\s\S]*?)<\/script>\s*<\/body>/);
@@ -138,6 +151,9 @@ check(html.includes('env(safe-area-inset'), 'iOS safe-area insets used');
 check(html.includes('viewport-fit=cover'), 'viewport-fit=cover declared');
 check(html.includes('touchPts'), 'pinch-gesture handler present');
 check(html.includes('#mBtns'), 'mobile bottom-sheet toggles present');
+check(html.includes('id="mobileBuildMark"') && html.includes('#mobileBuildMark{display:block')
+  && html.includes("mb.textContent=`v${HCC_VERSION}`"),
+  'the release version remains visibly stamped in the mobile top instrument');
 check(/#clock\{position:absolute;top:/.test(html)
   && /right:calc\([^;]*safe-area-inset-right/.test(html),
   'UTC clock is pinned to the safe-area-aware upper-right corner');
