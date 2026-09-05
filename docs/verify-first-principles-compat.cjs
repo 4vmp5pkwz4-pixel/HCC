@@ -4,9 +4,15 @@
 const fs=require('fs');
 const crypto=require('crypto');
 const assert=require('assert');
+const {execFileSync}=require('child_process');
 
 const manifest=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
-const transfers=JSON.parse(fs.readFileSync('api/transfers.json','utf8'));
+let baseManifest;
+try{
+  baseManifest=JSON.parse(execFileSync('git',['show','origin/main:api/manifest.json'],{encoding:'utf8'}));
+}catch(err){
+  throw new Error(`cannot read the current main manifest for compatibility comparison: ${err.message}`);
+}
 let pass=0;
 function ok(label,cond,detail=''){ assert.ok(cond,`${label}${detail?` — ${detail}`:''}`); pass++; console.log(`PASS — ${label}${detail?` · ${detail}`:''}`); }
 
@@ -19,9 +25,15 @@ function instrumentFingerprint(m){
 }
 
 const now=instrumentFingerprint(manifest);
-ok('first-principles release does not silently alter the legacy instrument contract',
-  now===transfers.instruments_fingerprint,
-  `current=${now} measured=${transfers.instruments_fingerprint}`);
+const base=instrumentFingerprint(baseManifest);
+ok('first-principles release preserves the current-main legacy instrument contract',
+  now===base,
+  `v4.151=${now} main=${base}`);
+
+const nowIds=(manifest.instruments||[]).map(i=>i.id).sort();
+const baseIds=(baseManifest.instruments||[]).map(i=>i.id).sort();
+ok('no legacy instrument is added, removed or renamed by the explanatory layer',
+  JSON.stringify(nowIds)===JSON.stringify(baseIds),`${nowIds.length} instruments`);
 
 ok('manifest exposes the first-principles schema',manifest.first_principles&&manifest.first_principles.schema==='hcc.first-principles/1');
 ok('every measured live laboratory has a first-principles contract',
