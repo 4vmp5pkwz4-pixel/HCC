@@ -66,7 +66,7 @@ try { ({ chromium } = await import('/opt/node22/lib/node_modules/playwright/inde
 catch { try { ({ chromium } = await import('playwright')); } catch { chromium = null; } }
 if (!chromium) {
   console.error('playwright not available; cannot build the manifest.');
-  server.close(); process.exit(CHECK ? 0 : 1);
+  server.close(); process.exit(1);
 }
 
 /* ── THE BROWSER PATH MUST NOT BE ONE MACHINE'S ────────────────────────────
@@ -82,7 +82,7 @@ catch (first) {
   const PW_PATH = process.env.PW_CHROMIUM || '/opt/pw-browsers/chromium';
   if (!existsSync(PW_PATH)) {
     console.error(`could not launch a browser: ${String(first && first.message || first).split('\n')[0]}`);
-    server.close(); process.exit(CHECK ? 0 : 1);
+    server.close(); process.exit(1);
   }
   browser = await chromium.launch({ executablePath: PW_PATH });
 }
@@ -136,7 +136,7 @@ const head = await page.evaluate(() => ({
     const dimless = cand.filter(c => isDimless(c.unit));
     const dimlessRefused = dimless.filter(c => !links.some(l => l.from === c.from && l.to === c.to)).length;
     return {
-      links: links.map(l => ({ from: l.from, to: l.to, unit: l.unit, scale: l.scale, converted: !!l.converted })),
+      links: links.map(l => ({ from: l.from, to: l.to, unit: l.unit, quantity_kind:l.quantity_kind||null, scale: l.scale, converted: !!l.converted })),
       /* a proposal the atlas declined, and the sentence saying why — the refusals are as
          much a part of what this atlas asserts as the links are */
       refused: refusedArr,

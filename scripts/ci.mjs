@@ -38,6 +38,7 @@ ok = run('the composed reach still follows from the two maps it multiplies', 'no
 ok = run('static validator', 'node scripts/validate.mjs') && ok;
 for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.test(f)).sort())
   ok = run(`verifier ${f}`, `node docs/${f}`) && ok;
+ok = run('observer markers follow the production Three.js geometry', 'node docs/verify-observer-scene.mjs') && ok;
 ok = run('API contract + benchmark suite', 'node test/run-tests.mjs') && ok;
 ok = run('headless agent scenario', 'node scripts/demo-agent.mjs') && ok;
 /* and the report it just wrote must be the one in the repository. CI regenerated this
