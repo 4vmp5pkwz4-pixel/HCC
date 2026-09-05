@@ -69,7 +69,8 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
 
   await page.getByRole('button',{name:'Dependency'}).click();
   const depText=await page.locator('.hccFpBody').innerText();
-  ok('Dependency view is driven by the unified typed graph',depText.includes('Unified Atlas graph')&&depText.includes('measured links'));
+  const depNorm=depText.toLowerCase();
+  ok('Dependency view is driven by the unified typed graph',depNorm.includes('unified atlas graph')&&depNorm.includes('typed neighborhood')&&depNorm.includes('measured links'));
 
   await page.getByRole('button',{name:'Anyon Observatory'}).click();
   ok('all five Anyon Observatory stations are visible',await page.locator('[data-station]').count()===5);
