@@ -1,0 +1,87 @@
+name: Reconcile v4.149 reach metadata
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-reach-v4149.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-v4149-reach
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: reconcile/4.149-semantic
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Confirm the independently observed RED state
+        run: |
+          set +e
+          node scripts/reach.mjs --check
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            echo '::error::api/reach.json was expected to be stale before this repair'
+            exit 1
+          fi
+
+      - name: Regenerate reach only from its declared sources
+        run: |
+          cp api/reach.json /tmp/reach-before.json
+          node scripts/reach.mjs
+          node scripts/reach.mjs --check
+
+      - name: Prove the numerical reach map is byte-semantically unchanged
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const assert = require('assert/strict');
+          const before = JSON.parse(fs.readFileSync('/tmp/reach-before.json','utf8'));
+          const after = JSON.parse(fs.readFileSync('api/reach.json','utf8'));
+          assert.equal(before.version, '4.148.1');
+          assert.equal(after.version, '4.149.0');
+          assert.equal(before.build, 'solar-gpu-safe-default-2026.09.05.1');
+          assert.equal(after.build, 'semantic-reconciliation-multiview-2026.09.05.2');
+          const strip = x => {
+            const y = structuredClone(x);
+            delete y.version;
+            delete y.build;
+            return y;
+          };
+          assert.deepEqual(strip(after), strip(before),
+            'Only top-level version/build metadata may change in reach.json');
+          console.log(`reach proof: ${after.counts.chains} chains unchanged; only release metadata advanced`);
+          NODE
+          git diff --check
+          git diff --stat -- api/reach.json
+
+      - name: Preserve the extracted composition law
+        run: node scripts/extract-kernels.mjs --check
+
+      - name: Commit only the regenerated derived artifact
+        run: |
+          test -z "$(git status --porcelain | grep -v '^ M api/reach.json$')" || {
+            echo '::error::repair changed something other than api/reach.json'
+            git status --short
+            exit 1
+          }
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/reach.json
+          git commit -m 'fix(reach): reconcile derived metadata for v4.149.0'
+          git push origin HEAD:reconcile/4.149-semantic
