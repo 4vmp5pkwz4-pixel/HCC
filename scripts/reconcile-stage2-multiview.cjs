@@ -30,9 +30,15 @@ const focusPreset = ` {id:'focusing', views:['nul','lens','gw','mimg'], bus:['nu
 `;
 html = mustReplace(html, " {id:'grsc', views:['bhr','bht','rpd','gw']", focusPreset + " {id:'grsc', views:['bhr','bht','rpd','gw']", 'MV_PRESETS insertion');
 
-const multiviewAnchor = "  multiview(){return {on:MV.on,n:MV.n,active:MV.active,sync:MV.sync,preset:MV.presetId,hudOwner:mvHudOwner(),\n    views:MV.views.slice(0,MV.n),rects:MV.rects.map(r=>({...r}))};},\n";
-const multiviewApi = multiviewAnchor + "  multiviewPresets(){return MV_PRESETS.map(p=>({id:p.id,views:p.views.slice(),bus:(p.bus||[]).slice(),\n    title:{...p.t},contract:{...p.w}}));},\n";
-html = mustReplace(html, multiviewAnchor, multiviewApi, 'HCC_API multiview method');
+/* The historical PR inserted this descriptor in the much later QA surface. The modern
+   manifest walker calls global HCC_API, whose public object is declared around its
+   siUnits/instruments/labs surface. A method body may safely close over MV_PRESETS even
+   though that const is initialized later, because the method is not called until boot is
+   complete; putting it here makes the promised external API real instead of merely
+   QA-readable. */
+const publicApiAnchor = "    siUnits(){ return {convertible:Object.keys(HCC_SI), refused:HCC_SI_REFUSED,\n      not_a_scale:HCC_NOT_A_SCALE, kinds:HCC_SI_KINDS, base:HCC_SI_BASE}; },\n    instruments:{\n";
+const publicApiWithMultiview = "    siUnits(){ return {convertible:Object.keys(HCC_SI), refused:HCC_SI_REFUSED,\n      not_a_scale:HCC_NOT_A_SCALE, kinds:HCC_SI_KINDS, base:HCC_SI_BASE}; },\n    multiviewPresets(){return MV_PRESETS.map(p=>({id:p.id,views:p.views.slice(),bus:(p.bus||[]).slice(),\n      title:{...p.t},contract:{...p.w}}));},\n    instruments:{\n";
+html = mustReplace(html, publicApiAnchor, publicApiWithMultiview, 'public HCC_API Multiview discovery surface');
 
 const versionCount = html.split(OLD_VERSION).length - 1;
 const buildCount = html.split(OLD_BUILD).length - 1;
@@ -61,11 +67,12 @@ agent = mustReplace(agent,
   'agent API example');
 agent = mustReplace(agent,
   '<h2 id="lh">Laboratories</h2>\n<div class="wrap"><table id="labs"><thead><tr>\n  <th>id</th><th>title</th><th>class</th><th>status</th><th>parameters</th><th>route</th>\n</tr></thead><tbody></tbody></table></div>\n\n<script>',
-  '<h2 id="lh">Laboratories</h2>\n<div class="wrap"><table id="labs"><thead><tr>\n  <th>id</th><th>title</th><th>class</th><th>status</th><th>parameters</th><th>route</th>\n</tr></thead><tbody></tbody></table></div>\n\n<h2 id="mh">Immersive representations</h2>\n<div class="wrap"><table id="multi"><thead><tr>\n  <th>id</th><th>title</th><th>simultaneous views</th><th>typed buses</th><th>contract</th>\n</tr></thead><tbody></tbody></table></div>\n\n<script>',
+  '<h2 id="lh">Laboratories</h2>\n<div class="wrap"><table id="labs"><thead><tr>\n  <th>id</th><th>title</th><th>simultaneous views</th><th>typed buses</th><th>contract</th>\n</tr></thead><tbody></tbody></table></div>\n\n<h2 id="mh">Immersive representations</h2>\n<div class="wrap"><table id="multi"><thead><tr>\n  <th>id</th><th>title</th><th>simultaneous views</th><th>typed buses</th><th>contract</th>\n</tr></thead><tbody></tbody></table></div>\n\n<script>',
   'agent immersive table');
 agent = mustReplace(agent,
   "      lb.appendChild(tr);\n    }\n  })\n",
-  "      lb.appendChild(tr);\n    }\n\n    el('mh').textContent = `Immersive representations · ${(m.multiview || []).length}`;\n    const mb = el('multi').tBodies[0];\n    for (const P of m.multiview || []) {\n      const tr = document.createElement('tr');\n      tr.innerHTML = `<td class=\"n\"><code>${esc(P.id)}</code></td>` +\n        `<td>${esc((P.title || {}).en)}</td>` +\n        `<td>${(P.views || []).map(v => `<code>${esc(v)}</code>`).join(' · ')}</td>` +\n        `<td>${(P.bus || []).map(v => `<code>${esc(v)}</code>`).join('<br>')}</td>` +\n        `<td>${esc((P.contract || {}).en)}</td>`;\n      mb.appendChild(tr);\n    }\n  })\n",
+  "      lb.appendChild(tr);\n    }\n\n    el('mh').textContent = `Immersive representations · ${(m.multiview || []).length}`;\n    const mb = el('multi').tBodies[0];\n    for (const P of m.multiview || []) {\n      const tr = document.createElement('tr');\n      tr.innerHTML = `<td class=\"n\"><code>${esc(P.id)}</code></td>` +\n        `<td>${esc((P.title || {}).en)}</td>` +\n        `<td>${(P.views || []).map(v => `<code>${esc(v)}</code>`).join(' · ')}</td>` +\n        `<td>${(P.bus || []).map(v => `<code>${esc(v)}</code>`).join('<br>')}</td>` +\n        `<td>${esc((P.contract || {}).en)}</td>`;\n      mb.appendChild(tr);
+    }\n  })\n",
   'agent immersive rows');
 fs.writeFileSync(AGENT, agent);
 
