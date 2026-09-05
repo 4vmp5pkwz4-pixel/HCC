@@ -18,7 +18,9 @@ assert(src.includes("return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;"),
   'configuration ownership must follow the active laboratory in any world');
 assert(!manifest.includes("HCC_NAV.go('s3', id)"),
   'manifest walker must not force every laboratory through S3');
-assert(/HCC_NAV\.go\(L\.world\s*\|\|\s*L\.parentWorld\s*\|\|\s*'s3',\s*id\)/.test(manifest),
-  'manifest walker must enter each laboratory through its declared parent world');
+assert(/page\.evaluate\(async \(\{id,world\}\) => \{[\s\S]*?HCC_NAV\.go\(world, id\)/.test(manifest),
+  'manifest walker must pass each declared parent world into the browser context explicitly');
+assert(/\{id:L\.id,\s*world:L\.world\s*\|\|\s*L\.parentWorld\s*\|\|\s*'s3'\}/.test(manifest),
+  'manifest walker must source the browser world from the laboratory registry');
 
 console.log('PASS — world-owned laboratory routing contract');
