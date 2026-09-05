@@ -1,0 +1,39 @@
+name: Diagnose liveness progress
+
+on:
+  push:
+    branches:
+      - reconcile/4.150-ancient-chronometry
+    paths:
+      - '.github/workflows/diagnose-liveness-progress.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Instrument the local checkout only
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const p='scripts/liveness.mjs';
+          let s=fs.readFileSync(p,'utf8');
+          const needle="      const r = await page.evaluate(() => HCC_API.liveness(16));";
+          if(!s.includes(needle)) throw new Error('liveness anchor not found');
+          s=s.replace(needle,"      console.log('LIVENESS_START',L.id,st||'-',new Date().toISOString());\n"+needle+"\n      console.log('LIVENESS_DONE',L.id,st||'-','recomputed='+r.recomputed,'moved='+r.moved,new Date().toISOString());");
+          fs.writeFileSync(p,s);
+          NODE
+      - name: Stream the exact render-on walk
+        run: timeout 25m node scripts/liveness.mjs
