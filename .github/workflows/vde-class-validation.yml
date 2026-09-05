@@ -1,0 +1,265 @@
+name: Pinned CLASS closed-S3 VDE validation
+
+on:
+  push:
+    branches:
+      - vde-class-validation-20260809
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout validation branch
+        uses: actions/checkout@v4
+
+      - name: Install numerical dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential python3 python3-numpy python3-scipy
+
+      - name: Clone and build pinned CLASS
+        run: |
+          set -euxo pipefail
+          PIN=e85808324f51fc694d12e3ed7439552a3c3f9540
+          git clone https://github.com/lesgourg/class_public.git class_public
+          cd class_public
+          git checkout "$PIN"
+          test "$(git rev-parse HEAD)" = "$PIN"
+          make -j2 class
+          ./class --help >/dev/null 2>&1 || true
+          echo "$PIN" > ../CLASS_PIN.txt
+
+      - name: Create closed-S3 control, VDE, null-limit and precision fixtures
+        run: |
+          set -euxo pipefail
+          mkdir -p validation/{control,vde,null,ref,analysis}
+
+          cat > validation/control.ini <<'EOF'
+          h = 0.674
+          omega_b = 0.02237
+          omega_cdm = 0.1200
+          A_s = 2.10e-9
+          n_s = 0.965
+          tau_reio = 0.054
+          Omega_k = -0.01
+          Omega_fld = 0
+          Omega_scf = 0
+          modes = s
+          ic = ad
+          gauge = synchronous
+          output = tCl,pCl,lCl,mPk
+          lensing = yes
+          l_max_scalars = 1200
+          P_k_max_h/Mpc = 1.0
+          z_pk = 0
+          root = validation/control/control_
+          overwrite_root = yes
+          write_background = yes
+          write_parameters = yes
+          write_warnings = yes
+          EOF
+
+          cat > validation/vde.ini <<'EOF'
+          h = 0.674
+          omega_b = 0.02237
+          omega_cdm = 0.1200
+          A_s = 2.10e-9
+          n_s = 0.965
+          tau_reio = 0.054
+          Omega_k = -0.01
+          Omega_fld = 0.05
+          fluid_equation_of_state = CLP
+          w0_fld = -0.6666666666666667
+          wa_fld = 0
+          cs2_fld = 1
+          use_ppf = no
+          Omega_scf = 0
+          modes = s
+          ic = ad
+          gauge = synchronous
+          output = tCl,pCl,lCl,mPk
+          lensing = yes
+          l_max_scalars = 1200
+          P_k_max_h/Mpc = 1.0
+          z_pk = 0
+          root = validation/vde/vde_
+          overwrite_root = yes
+          write_background = yes
+          write_parameters = yes
+          write_warnings = yes
+          EOF
+
+          cat > validation/null.ini <<'EOF'
+          h = 0.674
+          omega_b = 0.02237
+          omega_cdm = 0.1200
+          A_s = 2.10e-9
+          n_s = 0.965
+          tau_reio = 0.054
+          Omega_k = -0.01
+          Omega_fld = 1.e-10
+          fluid_equation_of_state = CLP
+          w0_fld = -0.6666666666666667
+          wa_fld = 0
+          cs2_fld = 1
+          use_ppf = no
+          Omega_scf = 0
+          modes = s
+          ic = ad
+          gauge = synchronous
+          output = tCl,pCl,lCl,mPk
+          lensing = yes
+          l_max_scalars = 1200
+          P_k_max_h/Mpc = 1.0
+          z_pk = 0
+          root = validation/null/null_
+          overwrite_root = yes
+          write_background = yes
+          write_parameters = yes
+          write_warnings = yes
+          EOF
+
+          sed 's#root = validation/vde/vde_#root = validation/ref/ref_#' validation/vde.ini > validation/ref.ini
+
+      - name: Execute pinned CLASS spectra
+        run: |
+          set -euxo pipefail
+          ./class_public/class validation/control.ini > validation/control/run.log 2>&1
+          ./class_public/class validation/null.ini    > validation/null/run.log 2>&1
+          ./class_public/class validation/vde.ini     > validation/vde/run.log 2>&1
+          ./class_public/class validation/ref.ini class_public/cl_ref.pre > validation/ref/run.log 2>&1
+
+      - name: Analyze null limit, convergence and first observables
+        run: |
+          cat > validation/analyze.py <<'PY'
+          from pathlib import Path
+          import json, math
+          import numpy as np
+
+          root = Path('validation')
+
+          def load(path):
+              return np.loadtxt(path, comments='#')
+
+          def rel_metrics(a,b, xcol=0, start=2):
+              n=min(len(a),len(b))
+              a=a[:n]; b=b[:n]
+              assert np.allclose(a[:,xcol],b[:,xcol],rtol=0,atol=1e-12)
+              out={}
+              for j in range(1,min(a.shape[1],b.shape[1])):
+                  denom=np.maximum(np.abs(b[:,j]),1e-300)
+                  rel=np.abs(a[:,j]-b[:,j])/denom
+                  rel=rel[start:]
+                  out[str(j)]={
+                      'max_rel':float(np.nanmax(rel)),
+                      'median_rel':float(np.nanmedian(rel)),
+                      'rms_rel':float(np.sqrt(np.nanmean(rel*rel)))
+                  }
+              return out
+
+          # CLASS names: *_cl.dat = unlensed; *_cl_lensed.dat = lensed when lensing=yes.
+          c_cl=load(root/'control/control_cl_lensed.dat')
+          n_cl=load(root/'null/null_cl_lensed.dat')
+          v_cl=load(root/'vde/vde_cl_lensed.dat')
+          r_cl=load(root/'ref/ref_cl_lensed.dat')
+
+          c_pk=load(root/'control/control_pk.dat')
+          n_pk=load(root/'null/null_pk.dat')
+          v_pk=load(root/'vde/vde_pk.dat')
+          r_pk=load(root/'ref/ref_pk.dat')
+
+          null_cl=rel_metrics(n_cl,c_cl,start=2)
+          null_pk=rel_metrics(n_pk,c_pk,start=0)
+          conv_cl=rel_metrics(v_cl,r_cl,start=2)
+          conv_pk=rel_metrics(v_pk,r_pk,start=0)
+
+          # Selected l and P(k) comparisons. Column 1 in cl_lensed is TT.
+          ells=[2,10,30,100,300,800,1200]
+          first=[]
+          by_l_c={int(row[0]):row for row in c_cl}
+          by_l_v={int(row[0]):row for row in v_cl}
+          for ell in ells:
+              if ell in by_l_c and ell in by_l_v:
+                  cc=by_l_c[ell]; vv=by_l_v[ell]
+                  first.append({
+                    'ell':ell,
+                    'TT_control':float(cc[1]),
+                    'TT_vde':float(vv[1]),
+                    'TT_ratio_vde_control':float(vv[1]/cc[1]),
+                    'EE_ratio_vde_control':float(vv[2]/cc[2]) if cc.shape[0]>2 and cc[2]!=0 else None,
+                    'TE_ratio_vde_control':float(vv[3]/cc[3]) if cc.shape[0]>3 and cc[3]!=0 else None,
+                  })
+
+          # Interpolate P(k) onto selected k values using log interpolation.
+          ks=np.array([1e-3,3e-3,1e-2,3e-2,0.1,0.3,0.8])
+          def loginterp(tab,k):
+              x=tab[:,0]; y=tab[:,1]
+              return float(np.exp(np.interp(np.log(k),np.log(x),np.log(y))))
+          pk_first=[]
+          for k in ks:
+              if k>=max(c_pk[0,0],v_pk[0,0]) and k<=min(c_pk[-1,0],v_pk[-1,0]):
+                  pc=loginterp(c_pk,k); pv=loginterp(v_pk,k)
+                  pk_first.append({'k_h_Mpc':float(k),'P_control':pc,'P_vde':pv,'ratio_vde_control':pv/pc})
+
+          # Read background final row and search headers only through values file if present.
+          summary={
+            'pin':Path('CLASS_PIN.txt').read_text().strip(),
+            'null_limit':{'Omega_fld':1e-10,'Cl':null_cl,'Pk':null_pk},
+            'convergence_default_vs_cl_ref':{'Cl':conv_cl,'Pk':conv_pk},
+            'first_Cl':first,
+            'first_Pk':pk_first,
+          }
+
+          # Conservative pass thresholds: null should scale linearly and be tiny;
+          # default-vs-cl_ref is a diagnostic, not an assumed pass unless measured.
+          null_max=max([m['max_rel'] for m in null_cl.values()]+[m['max_rel'] for m in null_pk.values()])
+          conv_max_cl=max(m['max_rel'] for m in conv_cl.values())
+          conv_max_pk=max(m['max_rel'] for m in conv_pk.values())
+          summary['validation']={
+            'null_max_relative':null_max,
+            'null_pass_lt_1e-7':bool(null_max<1e-7),
+            'convergence_max_relative_Cl':conv_max_cl,
+            'convergence_max_relative_Pk':conv_max_pk,
+            'convergence_report_only':True
+          }
+          (root/'analysis/validation_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+
+          with (root/'analysis/first_cl.csv').open('w') as f:
+              if first:
+                  cols=list(first[0]); f.write(','.join(cols)+'\n')
+                  for row in first: f.write(','.join(str(row[c]) for c in cols)+'\n')
+          with (root/'analysis/first_pk.csv').open('w') as f:
+              if pk_first:
+                  cols=list(pk_first[0]); f.write(','.join(cols)+'\n')
+                  for row in pk_first: f.write(','.join(str(row[c]) for c in cols)+'\n')
+
+          print(json.dumps(summary,indent=2,sort_keys=True))
+          if not summary['validation']['null_pass_lt_1e-7']:
+              raise SystemExit('NULL LIMIT FAILED')
+          PY
+          python3 validation/analyze.py | tee validation/analysis/analysis.log
+
+      - name: Build checksums and manifest
+        run: |
+          set -euxo pipefail
+          find validation -type f -print0 | sort -z | xargs -0 sha256sum > validation/analysis/SHA256SUMS.txt
+          {
+            echo "runner=$(uname -a)"
+            echo "gcc=$(gcc --version | head -1)"
+            echo "python=$(python3 --version)"
+            echo "class_pin=$(cat CLASS_PIN.txt)"
+          } > validation/analysis/environment.txt
+
+      - name: Upload validation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinned-class-closed-s3-vde-validation
+          path: |
+            CLASS_PIN.txt
+            validation/
+          retention-days: 30

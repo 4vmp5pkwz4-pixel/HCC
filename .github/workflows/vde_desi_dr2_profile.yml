@@ -1,0 +1,88 @@
+name: VDE DESI DR2 BAO profile likelihood
+
+on:
+  push:
+    branches:
+      - vde-class-validation-20260809
+    paths:
+      - '.github/workflows/vde_desi_dr2_profile.yml'
+      - 'vde_likelihood/desi_dr2_bao_vde_alt_bestfit.yaml'
+      - 'vde_likelihood/desi_dr2_bao_vde_null_bestfit.yaml'
+      - 'vde_likelihood/profile_lr.py'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/vde_desi_dr2_profile.yml'
+      - 'vde_likelihood/desi_dr2_bao_vde_alt_bestfit.yaml'
+      - 'vde_likelihood/desi_dr2_bao_vde_null_bestfit.yaml'
+      - 'vde_likelihood/profile_lr.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    env:
+      CLASS_COMMIT: e85808324f51fc694d12e3ed7439552a3c3f9540
+      COBAYA_PACKAGES_PATH: ${{ github.workspace }}/cobaya_packages
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned CLASS, Cobaya, and DESI DR2 BAO data
+        run: |
+          set -euxo pipefail
+          mkdir -p vde_likelihood/results/summary
+          git clone https://github.com/lesgourg/class_public.git class_public
+          cd class_public
+          git checkout "$CLASS_COMMIT"
+          test "$(git rev-parse HEAD)" = "$CLASS_COMMIT"
+          cd ..
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install numpy scipy matplotlib
+          python -m pip install ./class_public
+          python -m pip install 'cobaya==3.6.2'
+          python -m cobaya install bao.desi_dr2 --packages-path "$COBAYA_PACKAGES_PATH" --no-progress-bars
+          python - <<'PY' | tee vde_likelihood/results/summary/profile_versions.txt
+          import classy, cobaya
+          print('classy', classy.__version__)
+          print('cobaya', cobaya.__version__)
+          PY
+
+      - name: Fit alternative Omega_X >= 0
+        run: |
+          set -euxo pipefail
+          python -m cobaya run vde_likelihood/desi_dr2_bao_vde_alt_bestfit.yaml \
+            --packages-path "$COBAYA_PACKAGES_PATH" 2>&1 | tee vde_likelihood/results/summary/alt_minimize.log
+
+      - name: Fit nested null Omega_X = 0
+        run: |
+          set -euxo pipefail
+          python -m cobaya run vde_likelihood/desi_dr2_bao_vde_null_bestfit.yaml \
+            --packages-path "$COBAYA_PACKAGES_PATH" 2>&1 | tee vde_likelihood/results/summary/null_minimize.log
+
+      - name: Compute likelihood-ratio statistic
+        run: |
+          set -euxo pipefail
+          python vde_likelihood/profile_lr.py | tee vde_likelihood/results/summary/profile_lr.log
+
+      - name: Hash outputs
+        if: always()
+        run: |
+          set -euxo pipefail
+          find vde_likelihood/results -type f -print0 | sort -z | xargs -0 sha256sum > vde_likelihood/results/summary/PROFILE_SHA256SUMS.txt
+
+      - name: Upload profile artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: closed-s3-vde-desi-dr2-bao-profile-likelihood
+          path: vde_likelihood/results/
+          if-no-files-found: error
+          retention-days: 30
