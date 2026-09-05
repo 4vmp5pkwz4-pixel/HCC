@@ -41,8 +41,9 @@ check(
 check(
   /multiview\s*:/.test(buildManifest)
     && buildManifest.includes('HCC_API.multiviewPresets')
-    && buildManifest.includes("p.id === 'focusing'"),
-  'the manifest generator publishes the prepared focusing comparison from the runtime API instead of hand-maintaining generated JSON'
+    && buildManifest.includes("p.id === 'focusing'")
+    && buildManifest.includes('multiview: head.multiview'),
+  'the manifest generator both measures and writes the prepared focusing comparison instead of hand-maintaining generated JSON'
 );
 
 check(
