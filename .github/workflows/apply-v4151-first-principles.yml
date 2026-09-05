@@ -1,0 +1,138 @@
+name: Apply v4.151 First-Principles Atlas
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/first-principles-atlas-4.151
+    paths:
+      - scripts/patch-v4151-first-principles.cjs
+      - scripts/patch-v4151-braid-parser.cjs
+      - scripts/patch-v4151-manifest-compat.cjs
+      - scripts/patch-v4151-fibonacci-convention-bridge.cjs
+      - scripts/patch-v4151-integration-bus.cjs
+      - scripts/patch-v4151-visual.cjs
+      - scripts/patch-v4151-visual-behavior.cjs
+      - scripts/patch-v4151-visual-mount.cjs
+      - scripts/patch-v4151-validator-compat.cjs
+      - scripts/patch-v4151-navigation-selftests.cjs
+      - docs/verify-first-principles-atlas.cjs
+      - docs/verify-first-principles-compat.cjs
+      - docs/verify-fibonacci-convention-bridge.cjs
+      - docs/verify-fibonacci-braid-parser.cjs
+      - docs/verify-atlas-integration-bus.cjs
+      - docs/verify-first-principles-visual.cjs
+      - docs/verify-first-principles-browser.cjs
+      - docs/verify-openapi-artifact.cjs
+      - docs/verify-v4151-navigation-selftests.cjs
+      - package.json
+      - .github/workflows/apply-v4151-first-principles.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-v4151-first-principles
+  cancel-in-progress: true
+
+jobs:
+  apply-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/first-principles-atlas-4.151
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Apply deterministic v4.151 patches
+        run: |
+          node scripts/patch-v4151-first-principles.cjs
+          node scripts/patch-v4151-braid-parser.cjs
+          node scripts/patch-v4151-fibonacci-convention-bridge.cjs
+          node scripts/patch-v4151-visual.cjs
+          node scripts/patch-v4151-visual-behavior.cjs
+          node scripts/patch-v4151-integration-bus.cjs
+          node scripts/patch-v4151-visual-mount.cjs
+          node scripts/patch-v4151-manifest-compat.cjs
+          node scripts/patch-v4151-validator-compat.cjs
+          node scripts/patch-v4151-navigation-selftests.cjs
+
+      - name: Regenerate single-source kernels and machine contracts
+        run: |
+          node scripts/extract-kernels.mjs
+          node scripts/build-manifest.mjs
+          node scripts/build-api.mjs
+          node scripts/reach.mjs
+
+      - name: First-principles release gates
+        run: |
+          node docs/verify-first-principles-atlas.cjs
+          node docs/verify-fibonacci-braid-parser.cjs
+          node docs/verify-fibonacci-convention-bridge.cjs
+          node docs/verify-atlas-integration-bus.cjs
+          node docs/verify-first-principles-visual.cjs
+          node docs/verify-first-principles-compat.cjs
+          node docs/verify-openapi-artifact.cjs
+          node docs/verify-v4151-navigation-selftests.cjs
+          node docs/verify-first-principles-browser.cjs
+
+      - name: Existing static and semantic gates
+        run: npm test
+
+      - name: Repository verifiers that are live-contract safe on every release
+        run: |
+          fail=0
+          for f in docs/verify-*.cjs; do
+            case "$f" in
+              docs/verify-liveness.cjs|docs/verify-liveness-artifact.cjs|docs/verify-sensitivity.cjs|docs/verify-transfers.cjs)
+                echo "· $f … LONG-LIVED MEASUREMENT ARTIFACT — current-main compatibility is checked directly by verify-first-principles-compat.cjs; full remeasurement is a separate measurement release"
+                continue
+                ;;
+              docs/verify-first-principles-browser.cjs)
+                echo "· $f … already passed in the dedicated browser gate"
+                continue
+                ;;
+            esac
+            printf '· %s … ' "$f"
+            if node "$f" > /tmp/out.txt 2>&1; then
+              echo ok
+            else
+              echo FAILED
+              tail -50 /tmp/out.txt
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Generated contracts are internally consistent
+        run: |
+          node scripts/extract-kernels.mjs --check
+          node scripts/build-manifest.mjs --check
+          node scripts/reach.mjs --check
+          git diff --check
+
+      - name: Atlas self-tests
+        run: node scripts/selftest.mjs --list
+
+      - name: Commit verified release candidate
+        run: |
+          git config user.name "HCC Release Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html README.md version.json scripts/build-manifest.mjs scripts/validate.mjs \
+            core/atlas/extracted.mjs api .well-known agent.html
+          if git diff --cached --quiet; then
+            echo "No release candidate changes to commit."
+            exit 0
+          fi
+          git commit -m "release: v4.151.0 First-Principles Atlas"
+          git push origin HEAD:agent/first-principles-atlas-4.151

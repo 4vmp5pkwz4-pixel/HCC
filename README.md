@@ -494,3 +494,16 @@ correction, scene alignment and their verification.
 Three.js r160 (WebGL2, OrbitControls, CSS2DRenderer, logarithmic depth, GLSL
 raymarching), Cinzel + Manrope, a single-file browser runtime plus dependency-free
 Node validation. No application bundler is required.
+
+
+## First-Principles Atlas
+
+The live laboratory registry is authoritative: **113 laboratories across 7 worlds** at the
+v4.151.0 release boundary. The generated \`api/manifest.json\` is measured by walking the
+application headlessly; prose counts are descriptive, never an independent source of truth.
+
+Every measured laboratory now carries a fail-closed first-principles contract. Native space,
+dimension, coordinates, metric/form, projection, parameter semantics, units and provenance
+are exported when they are actually declared; missing scientific metadata is \`UNDECLARED\`
+rather than guessed. The Fibonacci anyon reference additionally exposes exact fusion data,
+quantum dimensions, F/R conventions, braid generators and independent closure residuals.
