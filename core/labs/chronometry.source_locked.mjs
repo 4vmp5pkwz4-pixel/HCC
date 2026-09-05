@@ -28,3 +28,30 @@ export function toDecimal(r, digits = 12) {
   return `${neg ? '-' : ''}${q}.${s}`;
 }
 export const calibrateFromDay = (partsPerDay, secondsPerDay = 86400n) => makeRational(secondsPerDay, partsPerDay);
+
+const REQUIRED_SOURCE_FIELDS = ['id','normalized_term','quantity_kind','tradition','text','operational_definition','epistemic_status','citation'];
+export function validateSourceRecord(record) {
+  if (!record || typeof record !== 'object') return false;
+  for (const key of REQUIRED_SOURCE_FIELDS) if (typeof record[key] !== 'string' || record[key].trim() === '') return false;
+  if (record.chain_to_day !== undefined && (!Array.isArray(record.chain_to_day) || record.chain_to_day.length === 0 || record.chain_to_day.some(x => !Number.isInteger(x) || x <= 0))) return false;
+  return true;
+}
+export function derivePartsPerDay(record) {
+  if (!validateSourceRecord(record)) throw new TypeError('invalid source record');
+  if (!Array.isArray(record.chain_to_day)) throw new RangeError('source record has no exact chain_to_day');
+  return record.chain_to_day.reduce((p, x) => p * BigInt(x), 1n);
+}
+export function groupDefinitionConflicts(records) {
+  const byTerm = Object.create(null);
+  for (const record of records) {
+    if (!validateSourceRecord(record)) throw new TypeError(`invalid source record: ${record && record.id ? record.id : 'unknown'}`);
+    const term = record.normalized_term;
+    (byTerm[term] ||= []).push(record);
+  }
+  const out = Object.create(null);
+  for (const [term, rs] of Object.entries(byTerm)) {
+    const signatures = new Set(rs.map(r => r.operational_definition.trim()));
+    if (rs.length > 1 && signatures.size > 1) out[term] = { ids: rs.map(r => r.id), definitions: [...signatures], conflicting: true };
+  }
+  return out;
+}
