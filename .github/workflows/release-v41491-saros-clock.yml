@@ -1,0 +1,157 @@
+name: Release v4.149.1 — Saros global clock
+
+on:
+  push:
+    branches:
+      - release/4.149.1-saros-clock-sync
+    paths:
+      - '.github/workflows/release-v41491-saros-clock.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-v41491-saros-clock
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/4.149.1-saros-clock-sync
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Patch the Saros engine onto the one Atlas epoch
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const p='index.html';
+          let s=fs.readFileSync(p,'utf8');
+          const old=`let sarosT=0;
+          function updateSarosEngine(dt){
+            sarosT+=dt;
+            const S=cycSarosInst.userData.series;
+            /* one full sweep of the animation is one Saros */
+            const u=(sarosT*0.08)%1, days=u*S.saros.days;`;
+          const neu=`function updateSarosEngine(){
+            const S=cycSarosInst.userData.series;
+            /* ONE UNIVERSE, ONE CLOCK.  The first implementation accumulated its own
+               render-frame time (sarosT += dt), so this instrument kept moving while the
+               Atlas was paused and ignored the global speed/epoch controls.  A Saros is a
+               relation among periods, not a separate clock.  Anchor the mechanism to the
+               same epochDays authority used by every other Cycles instrument.  Using the
+               full elapsed interval (rather than folding each Saros back to zero) also
+               preserves the real accumulated node/anomaly miss from one Saros to the next. */
+            const anchor=cycleByKey('saros')?.ref||0;
+            const epoch=Number.isFinite(state.epochDays)?state.epochDays:anchor;
+            const days=epoch-anchor;
+            const u=((days/S.saros.days)%1+1)%1;`;
+          if(!s.includes(old)) throw new Error('Saros independent-clock anchor not found exactly once');
+          if(s.indexOf(old)!==s.lastIndexOf(old)) throw new Error('Saros independent-clock anchor is not unique');
+          s=s.replace(old,neu);
+          const oldPhase=`const ph=(days/h.period)%1, a=-2*Math.PI*ph;`;
+          const newPhase=`const ph=((days/h.period)%1+1)%1, a=-2*Math.PI*ph;`;
+          if(!s.includes(oldPhase)) throw new Error('Saros phase anchor not found');
+          s=s.replace(oldPhase,newPhase);
+          s=s.replace('if(cycSarosInst.visible) updateSarosEngine(dt);','if(cycSarosInst.visible) updateSarosEngine();');
+          s=s.replace('one full sweep of the animation is one Saros','the dial is driven by the shared Cycles epoch; one Saros marks one recurrence interval');
+          s=s.replace('The Saros drawn as the thing it is: three hands turning at the synodic, draconic and anomalistic months, and a Saros is where they nearly come back together.',
+            'The Saros drawn as the thing it is: three hands evaluated at the shared Cycles epoch with synodic, draconic and anomalistic periods, and a Saros is where they nearly come back together.');
+          const oldSub='`one sweep = one Saros = <b>${S.saros.days.toFixed(4)} d</b> · `';
+          const newSub='`shared Atlas epoch · Saros phase <b>${(u*100).toFixed(1)}%</b> · recurrence ${S.saros.days.toFixed(4)} d · `';
+          if(!s.includes(oldSub)) throw new Error('Saros subtitle anchor not found');
+          s=s.replace(oldSub,newSub);
+          const oldVersion='4.149.0', newVersion='4.149.1';
+          const oldBuild='semantic-reconciliation-multiview-2026.09.05.2';
+          const newBuild='cycles-saros-global-clock-2026.09.05.1';
+          const vc=s.split(oldVersion).length-1, bc=s.split(oldBuild).length-1;
+          if(vc<2) throw new Error(`expected version anchors, found ${vc}`);
+          if(bc<3) throw new Error(`expected build anchors, found ${bc}`);
+          s=s.split(oldVersion).join(newVersion).split(oldBuild).join(newBuild);
+          if(/\bsarosT\b/.test(s)) throw new Error('private Saros frame clock survived patch');
+          if(!/function updateSarosEngine\(\)[\s\S]{0,1600}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
+          fs.writeFileSync(p,s);
+          const v=JSON.parse(fs.readFileSync('version.json','utf8'));
+          v.version=newVersion; v.build=newBuild; v.source='main';
+          fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n');
+          NODE
+          git diff --check
+
+      - name: Static regression contract — Saros has no private time authority
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const s=fs.readFileSync('index.html','utf8');
+          const assert=require('assert/strict');
+          assert(!/\bsarosT\b/.test(s),'private sarosT clock must not exist');
+          const m=s.match(/function updateSarosEngine\(\)\{([\s\S]*?)\n\}/);
+          assert(m,'updateSarosEngine() missing');
+          assert(m[1].includes('state.epochDays'),'Saros must derive from the global epoch');
+          assert(m[1].includes("cycleByKey('saros')"),'Saros must use the registered cycle anchor');
+          assert(m[1].includes('days=epoch-anchor'),'Saros hands must share one elapsed-time coordinate');
+          assert(s.includes("const HCC_VERSION='4.149.1'"),'release version missing');
+          assert(s.includes("const HCC_BUILD='cycles-saros-global-clock-2026.09.05.1'"),'release build missing');
+          console.log('Saros clock contract: one epoch authority, no frame-time accumulator.');
+          NODE
+
+      - name: Install exact dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Existing Atlas and Cycles contracts remain green
+        run: |
+          npm test
+          node docs/verify-cycles-mechanism.cjs
+          node docs/verify-solar-gpu-safe-default.cjs
+          node docs/verify-solar-webgl-buffer-lifetime.cjs
+
+      - name: Runtime proof — fixed epoch freezes hands, epoch change moves them
+        run: |
+          python3 -m http.server 8000 >/tmp/hcc-v41491-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          node - <<'NODE'
+          const {chromium}=require('playwright');
+          const assert=require('assert/strict');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:1280,height:800}});
+            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
+            await page.goto('http://127.0.0.1:8000/index.html?render=0',{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>typeof updateSarosEngine==='function'&&typeof state==='object'&&Array.isArray(sarosHands));
+            const r=await page.evaluate(()=>{
+              const anchor=cycleByKey('saros')?.ref||0;
+              state.epochDays=anchor+123.456;
+              updateSarosEngine();
+              const a=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              updateSarosEngine();
+              const b=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              state.epochDays+=17.25;
+              updateSarosEngine();
+              const c=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              return {a,b,c};
+            });
+            assert.deepEqual(r.b,r.a,'same epoch must freeze every sampled Saros transform');
+            assert(r.c.some((x,i)=>Math.abs(x-r.b[i])>1e-8),'changing shared epoch must move the Saros engine');
+            assert.equal(errors.length,0,'page errors: '+errors.join(' | '));
+            console.log('runtime Saros clock proof GREEN');
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+
+      - name: Commit v4.149.1 only after the fix is proven
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html version.json
+          git commit -m 'Release v4.149.1 — synchronize Saros Engine with Atlas time'
+          git push origin HEAD:release/4.149.1-saros-clock-sync
