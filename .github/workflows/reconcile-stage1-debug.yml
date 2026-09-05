@@ -22,21 +22,16 @@ jobs:
           node-version: '22'
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - name: Print compact-nav source neighborhoods
+      - name: Confirm desktop branch and current wiring
         shell: bash
         run: |
-          set -euo pipefail
-          for pattern in 'function hccTabsWire' 'function hccTabsPaint' 'function hccTabsSync' 'hccTabsWire()' 'hccTabsPaint(' 'aria-label'; do
-            echo "===== $pattern ====="
-            grep -nF "$pattern" index.html | head -20 || true
-          done
           node <<'NODE'
           const fs=require('fs');
           const s=fs.readFileSync('index.html','utf8').split('\n');
-          for(const needle of ['function hccTabsWire','function hccTabsPaint','function hccTabsSync']){
+          for(const needle of ['function hccTabsBuildMerged','function hccTabsWire','function hccTabsSync']){
             const i=s.findIndex(x=>x.includes(needle));
             console.log(`\n===== ${needle} @ ${i+1} =====`);
-            if(i>=0) console.log(s.slice(Math.max(0,i-8),i+85).map((x,j)=>`${Math.max(0,i-8)+j+1}: ${x}`).join('\n'));
+            if(i>=0) console.log(s.slice(Math.max(0,i-4),i+48).map((x,j)=>`${Math.max(0,i-4)+j+1}: ${x}`).join('\n'));
           }
           NODE
       - name: Inspect runtime compact-nav DOM on desktop and phone
@@ -55,22 +50,22 @@ jobs:
               const errors=[];
               page.on('pageerror',e=>errors.push(String(e)));
               await page.goto('http://127.0.0.1:8000/index.html',{waitUntil:'domcontentloaded'});
-              await page.waitForSelector('#hccTabs button');
+              await page.waitForSelector('#hccTabs button',{state:'attached'});
               await page.waitForTimeout(3500);
               const state=await page.evaluate(()=>({
                 width:innerWidth,
                 bodyClass:document.body.className,
+                merged:document.getElementById('hccTabs')?.dataset.merged||null,
                 tabs:[...document.querySelectorAll('#hccTabs button')].map(b=>({
-                  key:b.dataset.key||null,
+                  tab:b.dataset.tab||null,
+                  inspector:b.dataset.insptab||null,
                   aria:b.getAttribute('aria-label'),
                   title:b.getAttribute('title'),
                   current:b.getAttribute('aria-current'),
                   pressed:b.getAttribute('aria-pressed'),
                   text:b.textContent.trim(),
-                  paint:b.querySelector('b')?.textContent?.trim()||null,
                   glyphHidden:b.querySelector('i')?.getAttribute('aria-hidden')||null,
-                  display:getComputedStyle(b).display,
-                  outer:b.outerHTML
+                  display:getComputedStyle(b).display
                 }))
               }));
               console.log(`\n===== RUNTIME ${name} =====`);
