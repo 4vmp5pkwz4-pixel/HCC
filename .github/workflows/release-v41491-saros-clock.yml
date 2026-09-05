@@ -44,12 +44,11 @@ jobs:
           const neu=`function updateSarosEngine(){
             const S=cycSarosInst.userData.series;
             /* ONE UNIVERSE, ONE CLOCK.  The first implementation accumulated its own
-               render-frame time (sarosT += dt), so this instrument kept moving while the
-               Atlas was paused and ignored the global speed/epoch controls.  A Saros is a
-               relation among periods, not a separate clock.  Anchor the mechanism to the
-               same epochDays authority used by every other Cycles instrument.  Using the
-               full elapsed interval (rather than folding each Saros back to zero) also
-               preserves the real accumulated node/anomaly miss from one Saros to the next. */
+               render-frame time, so this instrument kept moving while the Atlas was
+               paused and ignored the global speed/epoch controls.  A Saros is a relation
+               among periods, not a separate clock.  Anchor the mechanism to the same
+               epochDays authority used by every other Cycles instrument.  Using the full
+               elapsed interval also preserves the real accumulated node/anomaly miss. */
             const anchor=cycleByKey('saros')?.ref||0;
             const epoch=Number.isFinite(state.epochDays)?state.epochDays:anchor;
             const days=epoch-anchor;
@@ -75,7 +74,8 @@ jobs:
           if(vc<2) throw new Error(`expected version anchors, found ${vc}`);
           if(bc<3) throw new Error(`expected build anchors, found ${bc}`);
           s=s.split(oldVersion).join(newVersion).split(oldBuild).join(newBuild);
-          if(/\blet\s+sarosT\b|\bsarosT\s*\+=/.test(s)) throw new Error('private Saros frame-clock code survived patch');
+          for(const dead of ['let sarosT=0;','function updateSarosEngine(dt){','const u=(sarosT*0.08)%1'])
+            if(s.includes(dead)) throw new Error(`private Saros frame-clock code survived: ${dead}`);
           if(!/function updateSarosEngine\(\)[\s\S]{0,1800}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
           fs.writeFileSync(p,s);
           const v=JSON.parse(fs.readFileSync('version.json','utf8'));
@@ -90,7 +90,8 @@ jobs:
           const fs=require('fs');
           const s=fs.readFileSync('index.html','utf8');
           const assert=require('assert/strict');
-          assert(!/\blet\s+sarosT\b|\bsarosT\s*\+=/.test(s),'private Saros frame-clock code must not exist');
+          for(const dead of ['let sarosT=0;','function updateSarosEngine(dt){','const u=(sarosT*0.08)%1'])
+            assert(!s.includes(dead),`private Saros frame-clock code remains: ${dead}`);
           const start=s.indexOf('function updateSarosEngine(){');
           assert(start>=0,'updateSarosEngine() missing');
           const body=s.slice(start,start+2400);
@@ -132,12 +133,13 @@ jobs:
               const anchor=cycleByKey('saros')?.ref||0;
               state.epochDays=anchor+123.456;
               updateSarosEngine();
-              const a=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              const sample=()=>sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              const a=sample();
               updateSarosEngine();
-              const b=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              const b=sample();
               state.epochDays+=17.25;
               updateSarosEngine();
-              const c=sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
+              const c=sample();
               return {a,b,c};
             });
             assert.deepEqual(r.b,r.a,'same epoch must freeze every sampled Saros transform');
