@@ -7,12 +7,10 @@ function once(src, from, to, name){
 }
 let s=fs.readFileSync('index.html','utf8');
 
-// 1) World-owned laboratory registry: Chronometry belongs to Cycles, not S3.
 s=once(s,
 "      route:`#/world/s3/lab/${id}`});\n  }\n  return out;\n})();",
 "      route:`#/world/s3/lab/${id}`});\n  }\n  out.push({id:'chronometry', parentWorld:'cyc', category:'maps',\n    title:'Ancient Chronometry Observatory',\n    description:'Source-locked comparative chronometry: exact textual relations, same-term definition conflicts, historical astronomy benchmarks, explicit hypotheses and falsification gates.',\n    status:'MODEL', capabilities:{xr:true}, defaultInspector:'inspect',\n    route:'#/world/cyc/lab/chronometry'});\n  return out;\n})();",'LAB_REGISTRY');
 
-// 2) Routes and navigation are world-generic rather than S3-special-cased.
 s=once(s,
 "function hccRoute(ctx=HCC_CTX){\n  return ctx.worldId==='s3'&&ctx.labId?`#/world/s3/lab/${ctx.labId}`:`#/world/${ctx.worldId}`; }",
 "function hccRoute(ctx=HCC_CTX){\n  return ctx.labId ? `#/world/${ctx.worldId}/lab/${ctx.labId}` : `#/world/${ctx.worldId}`; }",'hccRoute');
@@ -29,9 +27,8 @@ s=once(s,
 "  return HCC_CTX.worldId==='s3'&&HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;",
 "  return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;",'config owner');
 
-// 3) Native premium Three.js Chronometry observatory inside Cycles.
 const visual=`/* ══ ANCIENT CHRONOMETRY OBSERVATORY · SOURCE SPACE ↔ SCIENCE SPACE ════
-   This is deliberately one shared-clock instrument.  The geometry never owns a
+   This is deliberately one shared-clock instrument. The geometry never owns a
    private animation clock: all temporal placement is derived from state.epochDays.
    Brightness and proximity are explanatory graphics, never confidence scores. */
 const cycChronometryInst=new THREE.Group(); cycChronometryInst.position.set(-27,-14,-24); cycGroup.add(cycChronometryInst);
@@ -60,7 +57,6 @@ let chronometryPick=null, chronometryEpochMarker=null, chronometryEpochLab=null;
   mkNode(5.2,-3.3,platinum,'Shoushi · year / lunation');
   const pending=mkLabel('PENDING_EPOCH_CORRECTION','label const');pending.position.set(5.2,-4.65,.55);cycChronometryInst.add(pending);
   const noPhase=mkLabel('NO PHASE ANCHOR · period proximity is not phase consistency','label dim');noPhase.position.set(5.2,4.85,.55);cycChronometryInst.add(noPhase);
-  // Typed conduits: neutral lines only where a declared comparison exists.
   for(const y of [3.5,1.8,.1,-1.6,-3.3]){const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-.8,y,.25),new THREE.Vector3(.8,y,.25)]);const ln=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x8aa0b8,transparent:true,opacity:.38}));cycChronometryInst.add(ln);}
   const rail=new THREE.Mesh(new THREE.CylinderGeometry(.035,.035,8.0,10),platinum);rail.position.set(8.35,0,.55);cycChronometryInst.add(rail);
   chronometryEpochMarker=new THREE.Mesh(new THREE.SphereGeometry(.22,16,12),gold);chronometryEpochMarker.position.set(8.35,0,.72);cycChronometryInst.add(chronometryEpochMarker);
@@ -85,28 +81,28 @@ s=once(s,
 "const cycSarosInst=new THREE.Group(); cycSarosInst.position.set(26,0,-24); cycGroup.add(cycSarosInst);",
 visual+"\nconst cycSarosInst=new THREE.Group(); cycSarosInst.position.set(26,0,-24); cycGroup.add(cycSarosInst);",'Chronometry visual anchor');
 
-// Isolated frame camera and controls.
 s=once(s,
-"  } else if(state.cycFrame==='orientation'){
-    const p=cycOrientInst.position;",
-"  } else if(state.cycFrame==='chronometry'){\n    const p=cycChronometryInst.position;\n    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,4,25));\n    setControlDistanceLimits(5,120);\n  } else if(state.cycFrame==='orientation'){\n    const p=cycOrientInst.position;",'applyCycFrameView');
+`  } else if(state.cycFrame==='orientation'){
+    const p=cycOrientInst.position;`,
+`  } else if(state.cycFrame==='chronometry'){
+    const p=cycChronometryInst.position;
+    controls.target.copy(p); camera.position.copy(p).add(new THREE.Vector3(0,4,25));
+    setControlDistanceLimits(5,120);
+  } else if(state.cycFrame==='orientation'){
+    const p=cycOrientInst.position;`,'applyCycFrameView');
 
-// Frame selector in the Cycles control panel.
 s=once(s,
 "          <option value=\"orientation\" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>",
 "          <option value=\"chronometry\" ${state.cycFrame==='chronometry'?'selected':''}>⌛ Ancient chronometry</option>\n          <option value=\"orientation\" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>",'Cycles select');
 
-// Wrist navigation button.
 s=once(s,
 "['phase','phase'],['reso','resonance'],['orient','orientation'],['antik','antikythera']];",
 "['phase','phase'],['reso','resonance'],['chrono','chronometry'],['orient','orientation'],['antik','antikythera']];",'Cycles wrist nav');
 
-// Shared render-loop visibility + update.
 s=once(s,
 "  if(cycSarosInst.visible) updateSarosEngine();",
 "  cycChronometryInst.visible=frame==='hierarchy'||frame==='chronometry';\n  if(cycChronometryInst.visible) updateChronometryObservatory();\n  if(cycSarosInst.visible) updateSarosEngine();",'updateCyc');
 
-// Release identity.
 s=s.replaceAll('4.149.1','4.150.0').replaceAll('cycles-saros-global-clock-2026.09.05.1','ancient-chronometry-observatory-2026.09.05.1');
 fs.writeFileSync('index.html',s);
 
