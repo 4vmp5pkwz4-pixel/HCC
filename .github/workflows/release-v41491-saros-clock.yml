@@ -78,9 +78,17 @@ jobs:
             if(s.includes(dead)) throw new Error(`private Saros frame-clock code survived: ${dead}`);
           if(!/function updateSarosEngine\(\)[\s\S]{0,1800}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
           fs.writeFileSync(p,s);
+
           const v=JSON.parse(fs.readFileSync('version.json','utf8'));
           v.version=newVersion; v.build=newBuild; v.source='main';
           fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n');
+
+          /* No laboratory registry changed in this bugfix, so preserve the measured
+             manifest and advance only its release identity with the document it describes. */
+          const manifest=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
+          manifest.version=newVersion;
+          manifest.build=newBuild;
+          fs.writeFileSync('api/manifest.json',JSON.stringify(manifest,null,2)+'\n');
           NODE
           git diff --check
 
@@ -100,6 +108,9 @@ jobs:
           assert(body.includes('days=epoch-anchor'),'Saros hands must share one elapsed-time coordinate');
           assert(s.includes("const HCC_VERSION='4.149.1'"),'release version missing');
           assert(s.includes("const HCC_BUILD='cycles-saros-global-clock-2026.09.05.1'"),'release build missing');
+          const m=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
+          assert.equal(m.version,'4.149.1');
+          assert.equal(m.build,'cycles-saros-global-clock-2026.09.05.1');
           console.log('Saros clock contract: one epoch authority, no frame-time accumulator.');
           NODE
 
@@ -154,6 +165,6 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add index.html version.json
+          git add index.html version.json api/manifest.json
           git commit -m 'Release v4.149.1 — synchronize Saros Engine with Atlas time'
           git push origin HEAD:release/4.149.1-saros-clock-sync
