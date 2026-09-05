@@ -1,0 +1,83 @@
+name: Reconcile Stage 1 debug
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-stage1-debug.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Print compact-nav source neighborhoods
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pattern in 'function hccTabsWire' 'function hccTabsPaint' 'function hccTabsSync' 'hccTabsWire()' 'hccTabsPaint(' 'aria-label'; do
+            echo "===== $pattern ====="
+            grep -nF "$pattern" index.html | head -20 || true
+          done
+          node <<'NODE'
+          const fs=require('fs');
+          const s=fs.readFileSync('index.html','utf8').split('\n');
+          for(const needle of ['function hccTabsWire','function hccTabsPaint','function hccTabsSync']){
+            const i=s.findIndex(x=>x.includes(needle));
+            console.log(`\n===== ${needle} @ ${i+1} =====`);
+            if(i>=0) console.log(s.slice(Math.max(0,i-8),i+85).map((x,j)=>`${Math.max(0,i-8)+j+1}: ${x}`).join('\n'));
+          }
+          NODE
+      - name: Inspect runtime compact-nav DOM on desktop and phone
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 8000 >/tmp/hcc-http.log 2>&1 &
+          SERVER=$!
+          trap 'kill $SERVER || true' EXIT
+          node <<'NODE'
+          const { chromium } = require('playwright');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            for(const [name,viewport] of [['desktop',{width:1280,height:800}],['phone',{width:390,height:844}]]){
+              const page=await browser.newPage({viewport});
+              const errors=[];
+              page.on('pageerror',e=>errors.push(String(e)));
+              await page.goto('http://127.0.0.1:8000/index.html',{waitUntil:'domcontentloaded'});
+              await page.waitForSelector('#hccTabs button');
+              await page.waitForTimeout(3500);
+              const state=await page.evaluate(()=>({
+                width:innerWidth,
+                bodyClass:document.body.className,
+                tabs:[...document.querySelectorAll('#hccTabs button')].map(b=>({
+                  key:b.dataset.key||null,
+                  aria:b.getAttribute('aria-label'),
+                  title:b.getAttribute('title'),
+                  current:b.getAttribute('aria-current'),
+                  pressed:b.getAttribute('aria-pressed'),
+                  text:b.textContent.trim(),
+                  paint:b.querySelector('b')?.textContent?.trim()||null,
+                  glyphHidden:b.querySelector('i')?.getAttribute('aria-hidden')||null,
+                  display:getComputedStyle(b).display,
+                  outer:b.outerHTML
+                }))
+              }));
+              console.log(`\n===== RUNTIME ${name} =====`);
+              console.log(JSON.stringify(state,null,2));
+              if(errors.length) console.log('PAGE_ERRORS',errors);
+              await page.close();
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
