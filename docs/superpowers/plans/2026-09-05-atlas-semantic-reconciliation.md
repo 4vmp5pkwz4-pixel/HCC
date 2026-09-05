@@ -4,19 +4,19 @@
 
 **Goal:** Rebuild one coherent Atlas line from v4.148.1 while recovering valuable parallel work without regressing the Solar GPU safe default or the observer-distance corrections.
 
-**Architecture:** Treat current `main`/v4.148.1 as the release authority. Reconcile each historical line as a separate layer on `reconcile/4.149-semantic`, using three-way Git history when safe and semantic adaptation when a branch is too old or overlaps current architecture. Every layer gets a regression contract before integration and full CI before the next layer.
+**Architecture:** Treat current `main`/v4.148.1 as the release authority. Reconcile each historical line as a separate layer on `reconcile/4.149-semantic`. Prefer exact historical commits when they apply cleanly; use semantic adaptation when an old branch overlaps newer architecture. Every production layer gets a regression contract before integration and fresh validation before the next layer.
 
 **Tech Stack:** Single-file HTML/ES modules, Three.js, Node 22 validation, GitHub Actions, static JSON manifests, GitHub Pages.
 
-**Spec:** Repository history and PR contracts for #192–#199, open PRs #3/#61/#195/#197, and `agent/symmetry-discovery`.
+**Spec:** Repository history and PR contracts for #192–#199, open PRs #3/#61/#195/#197, and historical agent branches.
 
 ## Global Constraints
 
 - Current `v4.148.1` Solar N-body swarm remains opt-in (`astOn:false`); no reconciliation may restore automatic 65,536-particle allocation.
 - Observer-distance corrections from PR #198 remain authoritative: lensing uses angular-diameter distance while photometry retains luminosity distance.
-- Do not copy historical version/build identifiers or generated artifacts blindly; regenerate from the reconciled source.
+- Do not copy historical version/build identifiers or generated artifacts blindly; regenerate from reconciled source.
 - Preserve epistemic firewalls: relation overlays are non-metric; scientific candidate tests are not theorem claims; validation sidecars are not runtime evidence by themselves.
-- No layer moves to the next stage until `npm test` is freshly green on Node 22 CI.
+- Fresh current-main CI is authoritative over stale branch topology. A branch that is technically ahead may already have been semantically reimplemented.
 
 ---
 
@@ -24,82 +24,61 @@
 
 **Files:**
 - Create: `docs/verify-semantic-reconciliation-stage1.cjs`
-- Modify: `package.json`
-- Modify through a Git three-way merge: `index.html`
+- Modify: `package.json`, `index.html`
+- Guarded apply workflow: `.github/workflows/reconcile-stage1-apply.yml`
 
 **Interfaces:**
-- Consumes: v4.148.1 at `90aea7d32b4d6c9d859b3acd3268df5d4c721cf6`; historical merged line through `d2996c1b28453d023e52f88445c90c00e20fa0e9`.
-- Produces: VisualViewport publisher, safe-area-aware mobile chrome, keyboard/flick/keyboard-accessible sheets, compact-nav ARIA state, and curved non-metric typed-relation overlays with flow probes.
+- Consumes: v4.148.1 at `90aea7d32b4d6c9d859b3acd3268df5d4c721cf6` and exact PR heads #192/#193/#194/#196.
+- Produces: missing safe-area/zoom semantics, compact-nav ARIA state, curved non-metric typed-relation overlays and flow probes while retaining the already-present VisualViewport/sheet behavior.
 
-- [ ] Add a static verifier that fails on v4.148.1 because the four recovered contracts are absent.
-- [ ] Run CI and confirm the new verifier fails for the intended missing-contract reason.
-- [ ] Merge `claude/happy-faraday-4wqxhi` into the reconciliation branch using GitHub's three-way merge; do not modify `main`.
-- [ ] Run full CI and confirm the Stage-1 verifier plus the existing suite pass.
-- [ ] Confirm `astOn:false`, `verify-solar-gpu-safe-default.cjs`, and observer-distance release material remain present after the merge.
+- [x] Add a static verifier and verify RED on v4.148.1: existing validator green, four intended contracts missing.
+- [x] Reject whole-branch merge after PR #201 proves the long-lived branch is non-mergeable and over-broad.
+- [x] Cherry-pick only exact heads #192, #193, #194 and #196 in order under a conflict-stop workflow.
+- [x] Run pre-push `npm test`; Stage-1 verifier green; preserve `astOn:false` and `v4.148.1` identity.
+- [ ] Run/reproduce the full computational-core gate on the reconciled head and inspect observer/GPU checks before declaring Stage 1 complete.
 
-### Task 2: Reconcile Multiview/API from draft PR #195
-
-**Files:**
-- Modify: `index.html`, `agent.html`, `api/manifest.json`, `scripts/build-manifest.mjs`, `scripts/validate.mjs`, `version.json`, and generated API artifacts only as required by the current generators.
+### Task 2: Reconcile unique Multiview/API work from draft PR #195
 
 **Interfaces:**
-- Consumes: reconciled Task-1 mobile/a11y behavior.
-- Produces: discoverable `multiview.focusing`, `HCC_API.multiviewPresets()`, read-only QA access, and machine-readable immersive representations.
+- Consumes: reconciled Task-1 mobile/a11y behavior and the much newer current Multiview implementation.
+- Candidate unique outputs: machine-readable preset discovery (`multiview.focusing`, public read-only preset API, agent/manifest representation).
 
-- [ ] Add failing contract checks for `multiview.focusing` and public read-only preset discovery.
-- [ ] Port only unique PR #195 behavior; exclude duplicate mobile CSS and historical release identifiers.
-- [ ] Regenerate manifest/API outputs from final source.
-- [ ] Run full CI and agent-manifest consistency checks.
+- [ ] First prove which #195 contracts are genuinely absent from the current reconciled Atlas.
+- [ ] Add failing checks only for genuinely absent behavior.
+- [ ] Port only unique behavior; exclude duplicate mobile CSS, stale generated artifacts and historical release identity.
+- [ ] Regenerate machine-facing contracts from current generators and run consistency gates.
 
-### Task 3: Adapt Symmetry Discovery Chamber
+### Task 3: Semantic audit of historical Symmetry Discovery branch — no duplicate implementation
 
-**Files:**
-- Modify current Atlas/Nexus/Multiview registries and validation/docs according to the modern architecture; do not transplant obsolete counts or navigation code wholesale.
+Fresh v4.148.1 validation already proves the modern Atlas contains Symmetry Discovery end to end: five transformation spaces, finite-orbit scanner, perturbation semantics, diagnostics/export, Multiview, Atlas registration and epistemic firewall.
 
-**Interfaces:**
-- Consumes: current Nexus typed relations and Multiview APIs.
-- Produces: five deterministic transformation spaces, 20 candidates, nine benchmark invariants, controlled break perturbation, reproducible export, first-class Atlas/Nexus/Multiview wiring.
+- [ ] Diff the historical `agent/symmetry-discovery` intent against the current implementation for any *unique* contract not already covered.
+- [ ] If no unique behavior remains, record the branch as semantically absorbed and make no production change.
+- [ ] If a genuinely unique improvement remains, add a failing modern test before adapting only that improvement.
 
-- [ ] Add failing modern registry/epistemic-contract tests.
-- [ ] Port computational core and visualization against current registries.
-- [ ] Recompute current Nexus counts/relations rather than copying historical 64/102 literals.
-- [ ] Run full CI, mobile and reduced-motion checks.
+### Task 4: Semantic audit of old Field Lab PR #3 — retain current implementation
 
-### Task 4: Rebuild Field Lab on current navigation
+Fresh v4.148.1 validation already proves `field` is one of the seven modes and current Field Lab controls/handlers are present (`fieldModel`, run/reset, resolution/speed, vectors, sensor integration and export). The old PR #3 topbar rewrite is obsolete.
 
-**Files:**
-- Adapt the solver content from PR #3 into current world/lab registries and controls; retain current topbar architecture.
-
-**Interfaces:**
-- Produces: eight reduced-unit solver laboratories with explicit calibration/limit disclaimers.
-
-- [ ] Add failing tests for Field Lab registry reachability and solver contracts.
-- [ ] Port solver logic only; do not restore the obsolete PR #3 topbar rewrite.
-- [ ] Add current mobile/Atlas routing and validation.
-- [ ] Run full CI.
+- [ ] Compare PR #3 solver intent with the current Field Lab implementation.
+- [ ] Do not restore the historical topbar/layout rewrite.
+- [ ] Port nothing unless a specific solver capability is demonstrably absent and covered by a new failing test.
 
 ### Task 5: Preserve VDE as a validation sidecar
 
-**Files:**
-- Reconcile unique `.github/workflows/vde_*`, `vde_validation/*`, and `vde_likelihood/*` only where still reproducible and useful.
-
-**Interfaces:**
-- Produces: pinned CLASS/DESI validation infrastructure; does not add runtime claims to Atlas solely from sidecar output.
+**Files:** unique `.github/workflows/vde_*`, `vde_validation/*`, `vde_likelihood/*` only where still reproducible and useful.
 
 - [ ] Audit 19 unique commits and remove scratch-only duplication.
-- [ ] Port canonical workflows/scripts without coupling them to runtime application state.
-- [ ] Verify pinned versions, null-limit tests, reports, and artifact generation.
+- [ ] Port canonical validation workflows/scripts without coupling them to runtime application state.
+- [ ] Verify pinned versions, null-limit tests, DESI analysis and artifact generation.
+- [ ] Do not promote sidecar output into runtime scientific claims merely because the workflow passes.
 
 ### Task 6: Ancient Chronometry Phase B
 
-**Files:**
-- Consume PR #197 Phase-A files and `docs/ANCIENT_CHRONOMETRY_HANDOFF.md`; integrate against the then-current reconciled registries/API.
-
-**Interfaces:**
-- Produces: source-locked chronometry kernel, Jain/calendar profiles, historical astronomy benchmark registry, comparison/falsification firewall, and live Atlas route/UI.
+**Files:** consume PR #197 Phase-A files and `docs/ANCIENT_CHRONOMETRY_HANDOFF.md`; integrate against the final reconciled registries/API.
 
 - [ ] Run Phase-A exact-rational/falsification checks unchanged first.
 - [ ] Reuse the current commensurability authority instead of cloning an older engine.
-- [ ] Add live registry/route/UI only after the data path is green.
+- [ ] Add live registry/route/UI only after the pure data path is green.
 - [ ] Regenerate final artifacts and bump release identity once.
 - [ ] Run complete CI plus GPU/mobile/manifest/reach/liveness gates before proposing merge to `main`.
