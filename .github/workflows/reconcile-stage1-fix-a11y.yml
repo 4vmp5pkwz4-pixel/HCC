@@ -1,0 +1,96 @@
+name: Reconcile Stage 1 nav a11y fix
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-stage1-fix-a11y.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-stage1-fix-a11y
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: reconcile/4.149-semantic
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply the minimal lifecycle fix
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs=require('fs');
+          const path='index.html';
+          let s=fs.readFileSync(path,'utf8');
+          const oldWire=`function hccTabsWire(){
+  const n=document.getElementById('hccTabs'); if(!n) return;
+  /* The painted label is intentionally hidden on compact phones, but the destination
+     must never become anonymous to VoiceOver. Derive one accessible name from the same
+     translated label the reader sees elsewhere, and keep decorative glyphs silent. */
+  n.querySelectorAll('button').forEach(b=>{
+    const label=(b.querySelector('span')?.textContent||b.title||'').trim();
+    if(label){ b.setAttribute('aria-label',label); b.title=label; }
+    b.querySelector('i')?.setAttribute('aria-hidden','true');
+  });
+  n.querySelectorAll('[data-insptab]').forEach(b=>b.onclick=()=>{`;
+          const newWire=`/* Accessible naming belongs to the current nav DOM, not to the act of rebuilding it.
+   Desktop starts with the plain four-button markup and may never rebuild at all; mobile does.
+   Keeping this separate makes both paths obey the same accessibility contract. */
+function hccTabsA11y(n=document.getElementById('hccTabs')){
+  if(!n) return;
+  n.querySelectorAll('button').forEach(b=>{
+    const label=(b.querySelector('span')?.textContent||b.title||'').trim();
+    if(label){ b.setAttribute('aria-label',label); b.title=label; }
+    b.querySelector('i')?.setAttribute('aria-hidden','true');
+  });
+}
+function hccTabsWire(){
+  const n=document.getElementById('hccTabs'); if(!n) return;
+  hccTabsA11y(n);
+  n.querySelectorAll('[data-insptab]').forEach(b=>b.onclick=()=>{`;
+          const oldSync=`  try{ hccTabsBuildMerged(); }catch(e){}
+  if(n.dataset.merged==='1'){`;
+          const newSync=`  try{ hccTabsBuildMerged(); }catch(e){}
+  hccTabsA11y(n);
+  if(n.dataset.merged==='1'){`;
+          const count=(hay,needle)=>hay.split(needle).length-1;
+          if(count(s,oldWire)!==1) throw new Error('Expected exactly one hccTabsWire accessibility block');
+          if(count(s,oldSync)!==1) throw new Error('Expected exactly one hccTabsSync build transition');
+          s=s.replace(oldWire,newWire).replace(oldSync,newSync);
+          fs.writeFileSync(path,s);
+          NODE
+          git diff --check
+      - run: npm ci
+      - name: Static validation and Stage 1 contract
+        run: npm test
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Embedded browser self-tests
+        run: node scripts/selftest.mjs
+      - name: Preserve release and Solar GPU safety invariants
+        shell: bash
+        run: |
+          grep -F 'astOn:false' index.html >/dev/null
+          grep -F "const HCC_VERSION='4.148.1'" index.html >/dev/null
+          node docs/verify-solar-gpu-safe-default.cjs
+          node docs/verify-solar-webgl-buffer-lifetime.cjs
+      - name: Commit only after all gates are green
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'fix(a11y): name static desktop compact navigation'
+          git push origin HEAD:reconcile/4.149-semantic
