@@ -22,7 +22,8 @@ ok('existing anyon entropy transfer is preserved as a typed cross-lab edge',src.
 ok('cross-lab transfer is guarded by quantity and unit compatibility',src.includes('function hccAtlasTransfer')&&src.includes('quantity_kind_mismatch')&&src.includes('unit_mismatch')&&src.includes('converter_required'));
 ok('time synchronization is explicit and shared instead of another animation loop',busBlock.includes('function hccAtlasSetTime')&&busBlock.includes("type:'synchronizes'")&&!/requestAnimationFrame\s*\(/.test(busBlock));
 ok('multiview, chronometry, solar and XR are declared integration domains without being equated',src.includes("'multiview'")&&src.includes("'chronometry'")&&src.includes("'solar'")&&src.includes("'xr'")&&src.includes('does_not_assert_physical_equivalence'));
-ok('Lens reads contracts through the integration gateway',src.includes('const ATLAS=globalThis.HCC_ATLAS_INTEGRATION')&&src.includes('ATLAS.contract(selected)'));
+ok('Lens reads contracts through the integration gateway',/(?:const|let)\s+ATLAS\s*=\s*globalThis\.HCC_ATLAS_INTEGRATION/.test(src)&&src.includes('ATLAS.contract(selected)'));
+ok('readiness mount rebinds the authoritative gateway after HCC_API.ready',src.includes('ATLAS=globalThis.HCC_ATLAS_INTEGRATION||ATLAS')&&src.includes('HCC_API.ready'));
 ok('dependency view can query graph neighborhoods',src.includes('ATLAS.neighborhood(selected)'));
 ok('unknown metadata remains fail-closed',src.includes("const HCC_ATLAS_UNDECLARED='UNDECLARED'")&&src.includes('fail_closed:true'));
 
