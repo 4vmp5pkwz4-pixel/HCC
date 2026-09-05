@@ -479,7 +479,7 @@ npm run dev
 ```
 
 The preview serves the existing atlas. GitHub Pages continues to serve the static
-files directly. [Release 4.148.0](docs/RELEASE_4.148.md) documents the observer-distance
+files directly. [Release 4.148.1](docs/RELEASE_4.148.md) documents the observer-distance
 correction, scene alignment and their verification.
 
 ## FBS3R web sources

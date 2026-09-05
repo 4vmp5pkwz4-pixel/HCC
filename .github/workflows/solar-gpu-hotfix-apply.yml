@@ -1,0 +1,57 @@
+name: Apply Solar GPU safe-default hotfix
+
+on:
+  push:
+    branches:
+      - fix/solar-gpu-buffer-regression-4.148
+
+permissions:
+  contents: write
+
+jobs:
+  apply-hotfix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/solar-gpu-buffer-regression-4.148
+          fetch-depth: 0
+      - name: Patch source and patch-release identity
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('index.html')
+          s = p.read_text()
+          old = 'astOn:true'
+          n = s.count(old)
+          if n != 1:
+              raise SystemExit(f'Expected exactly one {old!r} in index.html, found {n}')
+          s = s.replace(old, 'astOn:false', 1)
+          p.write_text(s)
+
+          old_v, new_v = '4.148.0', '4.148.1'
+          old_b, new_b = 'observer-distance-consistency-2026.09.05.1', 'solar-gpu-safe-default-2026.09.05.1'
+          # These are live release-identity surfaces. Historical release notes stay historical.
+          live = [Path('index.html'), Path('version.json'), Path('README.md')]
+          live += sorted(Path('api').glob('*.json'))
+          for f in live:
+              if not f.exists():
+                  continue
+              t = f.read_text()
+              t2 = t.replace(old_v, new_v).replace(old_b, new_b)
+              if t2 != t:
+                  f.write_text(t2)
+          PY
+          git diff --check
+          git diff --stat
+      - name: Commit hotfix
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html version.json README.md api/*.json
+          git commit -m 'fix(solar): make 65k-particle GPU swarm opt-in (v4.148.1)'
+          git push origin HEAD:fix/solar-gpu-buffer-regression-4.148
