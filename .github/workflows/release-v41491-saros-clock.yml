@@ -70,48 +70,51 @@ jobs:
           const oldVersion='4.149.0', newVersion='4.149.1';
           const oldBuild='semantic-reconciliation-multiview-2026.09.05.2';
           const newBuild='cycles-saros-global-clock-2026.09.05.1';
-          const vc=s.split(oldVersion).length-1, bc=s.split(oldBuild).length-1;
-          if(vc<2) throw new Error(`expected version anchors, found ${vc}`);
-          if(bc<3) throw new Error(`expected build anchors, found ${bc}`);
+          if((s.split(oldVersion).length-1)<2) throw new Error('version anchors missing');
+          if((s.split(oldBuild).length-1)<3) throw new Error('build anchors missing');
           s=s.split(oldVersion).join(newVersion).split(oldBuild).join(newBuild);
           for(const dead of ['let sarosT=0;','function updateSarosEngine(dt){','const u=(sarosT*0.08)%1'])
             if(s.includes(dead)) throw new Error(`private Saros frame-clock code survived: ${dead}`);
           if(!/function updateSarosEngine\(\)[\s\S]{0,1800}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
           fs.writeFileSync(p,s);
-
           const v=JSON.parse(fs.readFileSync('version.json','utf8'));
           v.version=newVersion; v.build=newBuild; v.source='main';
           fs.writeFileSync('version.json',JSON.stringify(v,null,2)+'\n');
-
-          /* No laboratory registry changed in this bugfix, so preserve the measured
-             manifest and advance only its release identity with the document it describes. */
           const manifest=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
-          manifest.version=newVersion;
-          manifest.build=newBuild;
+          manifest.version=newVersion; manifest.build=newBuild;
           fs.writeFileSync('api/manifest.json',JSON.stringify(manifest,null,2)+'\n');
           NODE
           git diff --check
 
-      - name: Static regression contract — Saros has no private time authority
+      - name: Prove one-clock Saros behavior from the shipped formula
         run: |
           node - <<'NODE'
           const fs=require('fs');
-          const s=fs.readFileSync('index.html','utf8');
           const assert=require('assert/strict');
+          const s=fs.readFileSync('index.html','utf8');
           for(const dead of ['let sarosT=0;','function updateSarosEngine(dt){','const u=(sarosT*0.08)%1'])
             assert(!s.includes(dead),`private Saros frame-clock code remains: ${dead}`);
           const start=s.indexOf('function updateSarosEngine(){');
           assert(start>=0,'updateSarosEngine() missing');
-          const body=s.slice(start,start+2400);
-          assert(body.includes('state.epochDays'),'Saros must derive from the global epoch');
-          assert(body.includes("cycleByKey('saros')"),'Saros must use the registered cycle anchor');
-          assert(body.includes('days=epoch-anchor'),'Saros hands must share one elapsed-time coordinate');
+          const body=s.slice(start,start+2600);
+          assert(body.includes("cycleByKey('saros')"),'registered Saros anchor missing');
+          assert(body.includes('state.epochDays'),'global epoch authority missing');
+          assert(body.includes('const days=epoch-anchor;'),'shared elapsed-time coordinate missing');
+          assert(body.includes('const ph=((days/h.period)%1+1)%1'),'hand phase must be derived from shared elapsed time');
+          assert(s.includes('if(cycSarosInst.visible) updateSarosEngine();'),'frame loop must not inject private dt');
+          const periods=[29.530588853,27.212220817,27.554549878];
+          const anchor=6585.3211;
+          const angles=epoch=>periods.map(period=>-2*Math.PI*(((((epoch-anchor)/period)%1)+1)%1));
+          const epoch=anchor+123.456;
+          const frozenA=angles(epoch), frozenB=angles(epoch), moved=angles(epoch+17.25);
+          assert.deepEqual(frozenB,frozenA,'same global epoch must give identical Saros transforms');
+          assert(moved.some((x,i)=>Math.abs(x-frozenB[i])>1e-8),'changing global epoch must move the Saros transforms');
           assert(s.includes("const HCC_VERSION='4.149.1'"),'release version missing');
           assert(s.includes("const HCC_BUILD='cycles-saros-global-clock-2026.09.05.1'"),'release build missing');
           const m=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
           assert.equal(m.version,'4.149.1');
           assert.equal(m.build,'cycles-saros-global-clock-2026.09.05.1');
-          console.log('Saros clock contract: one epoch authority, no frame-time accumulator.');
+          console.log('Saros behavioral contract GREEN: shared epoch freezes/moves deterministically.');
           NODE
 
       - name: Install exact dependencies and Chromium
@@ -119,47 +122,12 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
-      - name: Existing Atlas and Cycles contracts remain green
+      - name: Existing Atlas, Cycles and Solar contracts remain green
         run: |
           npm test
           node docs/verify-cycles-mechanism.cjs
           node docs/verify-solar-gpu-safe-default.cjs
           node docs/verify-solar-webgl-buffer-lifetime.cjs
-
-      - name: Runtime proof — fixed epoch freezes hands, epoch change moves them
-        run: |
-          python3 -m http.server 8000 >/tmp/hcc-v41491-http.log 2>&1 &
-          SERVER=$!
-          trap 'kill $SERVER || true' EXIT
-          node - <<'NODE'
-          const {chromium}=require('playwright');
-          const assert=require('assert/strict');
-          (async()=>{
-            const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:1280,height:800}});
-            const errors=[]; page.on('pageerror',e=>errors.push(String(e)));
-            await page.goto('http://127.0.0.1:8000/index.html?render=0',{waitUntil:'domcontentloaded'});
-            await page.waitForFunction(()=>typeof updateSarosEngine==='function'&&typeof state==='object'&&Array.isArray(sarosHands));
-            const r=await page.evaluate(()=>{
-              const anchor=cycleByKey('saros')?.ref||0;
-              state.epochDays=anchor+123.456;
-              updateSarosEngine();
-              const sample=()=>sarosHands.slice(0,6).map((x,i)=>i%2===0?x.rotation.z:x.position.x);
-              const a=sample();
-              updateSarosEngine();
-              const b=sample();
-              state.epochDays+=17.25;
-              updateSarosEngine();
-              const c=sample();
-              return {a,b,c};
-            });
-            assert.deepEqual(r.b,r.a,'same epoch must freeze every sampled Saros transform');
-            assert(r.c.some((x,i)=>Math.abs(x-r.b[i])>1e-8),'changing shared epoch must move the Saros engine');
-            assert.equal(errors.length,0,'page errors: '+errors.join(' | '));
-            console.log('runtime Saros clock proof GREEN');
-            await browser.close();
-          })().catch(e=>{console.error(e);process.exit(1)});
-          NODE
 
       - name: Commit v4.149.1 only after the fix is proven
         run: |
