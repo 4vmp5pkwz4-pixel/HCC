@@ -55,3 +55,37 @@ export function groupDefinitionConflicts(records) {
   }
   return out;
 }
+
+const symbolicDuration = (k = 0n, years = 0n) => Object.freeze({ k: BigInt(k), years: BigInt(years) });
+export function jainAvasarpini(K = 1n) {
+  K = BigInt(K);
+  return Object.freeze([
+    symbolicDuration(4n * K, 0n),
+    symbolicDuration(3n * K, 0n),
+    symbolicDuration(2n * K, 0n),
+    symbolicDuration(1n * K, -42000n),
+    symbolicDuration(0n, 21000n),
+    symbolicDuration(0n, 21000n)
+  ]);
+}
+export function sumSymbolicDurations(durations) {
+  return durations.reduce((a, x) => symbolicDuration(a.k + BigInt(x.k), a.years + BigInt(x.years)), symbolicDuration());
+}
+export function jainCycleDependencies() {
+  return Object.freeze({ double_21000_equals_42000: 2n * 21000n === 42000n, independent_42000: false });
+}
+const CALENDAR_YEAR_SECONDS = Object.freeze({
+  '360-day-traditional': makeRational(31104000n),
+  'Julian-year': makeRational(31557600n),
+  'tropical-year-j2000': makeRational(31556925216n, 1000n),
+  'sidereal-year-j2000': makeRational(315581497635456n, 10000000n)
+});
+export function calendarYearSeconds(profile) {
+  if (profile === 'canonical-unspecified') throw new RangeError('calendar profile unspecified: SI conversion refused');
+  const r = CALENDAR_YEAR_SECONDS[profile];
+  if (!r) throw new RangeError(`unknown calendar profile: ${profile}`);
+  return r;
+}
+export function convertYears(years, profile) {
+  return mul(makeRational(BigInt(years)), calendarYearSeconds(profile));
+}
