@@ -89,3 +89,68 @@ export function calendarYearSeconds(profile) {
 export function convertYears(years, profile) {
   return mul(makeRational(BigInt(years)), calendarYearSeconds(profile));
 }
+
+export function boundedRationalScan(A, B, maxHarmonic = 12, explicitExpandedSearch = false) {
+  A = Number(A); B = Number(B);
+  if (!(A > 0) || !(B > 0) || !Number.isFinite(A) || !Number.isFinite(B)) throw new RangeError('periods must be finite and positive');
+  if (!Number.isInteger(maxHarmonic) || maxHarmonic < 1) throw new RangeError('maxHarmonic must be a positive integer');
+  if (maxHarmonic > 12 && !explicitExpandedSearch) throw new RangeError('expanded search above harmonic 12 requires explicitExpandedSearch');
+  let best = null;
+  for (let n = 1; n <= maxHarmonic; n++) {
+    for (let m = 1; m <= maxHarmonic; m++) {
+      const logResidual = Math.abs(Math.log((n * A) / (m * B)));
+      const complexity = n + m;
+      if (!best || logResidual < best.log_residual - 1e-15 || (Math.abs(logResidual - best.log_residual) <= 1e-15 && complexity < best.complexity)) {
+        best = { n, m, log_residual: logResidual, complexity };
+      }
+    }
+  }
+  return Object.freeze(best);
+}
+
+export function classifyCandidate(candidate) {
+  if (!candidate || typeof candidate !== 'object') throw new TypeError('candidate must be an object');
+  const reasons = [];
+  const independent = !(candidate.dependency && candidate.dependency.independent === false);
+  if (!independent) reasons.push('dependent_harmonic_not_independent_evidence');
+  const sameKind = candidate.ancient_quantity_kind && candidate.ancient_quantity_kind === candidate.modern_quantity_kind;
+  const samePhysical = candidate.same_physical_quantity === true;
+  const phaseTested = !!candidate.independent_phase;
+
+  if (candidate.relation_claim === 'identity' && !samePhysical) {
+    reasons.unshift('quantity_identity_missing');
+    return Object.freeze({ status: 'REJECTED', reasons, comparable: false, independent, phase_tested: phaseTested });
+  }
+  if (!sameKind && candidate.relation_claim !== 'analogy') {
+    reasons.push('quantity_kind_mismatch');
+    return Object.freeze({ status: 'REJECTED', reasons, comparable: false, independent, phase_tested: phaseTested });
+  }
+  if (candidate.relation_claim === 'historical_measurement') {
+    if (!samePhysical) {
+      reasons.push('same_physical_quantity_not_established');
+      return Object.freeze({ status: 'REJECTED', reasons, comparable: false, independent, phase_tested: phaseTested });
+    }
+    return Object.freeze({ status: 'HISTORICAL_MEASUREMENT', reasons, comparable: true, independent, phase_tested: phaseTested });
+  }
+  if (candidate.relation_claim === 'analogy') {
+    return Object.freeze({ status: 'ANALOGY', reasons, comparable: true, independent, phase_tested: phaseTested });
+  }
+  if (candidate.relation_claim === 'hypothesis' || candidate.relation_claim === 'identity') {
+    let status = 'HYPOTHESIS';
+    if (phaseTested && candidate.independent_phase.anchor_independent === true && Number.isFinite(candidate.independent_phase.residual) && Number.isFinite(candidate.independent_phase.tolerance) && candidate.independent_phase.residual <= candidate.independent_phase.tolerance) status = 'PHASE_CONSISTENT';
+    return Object.freeze({ status, reasons, comparable: true, independent, phase_tested: phaseTested });
+  }
+  reasons.push('unsupported_relation_claim');
+  return Object.freeze({ status: 'UNKNOWN', reasons, comparable: false, independent, phase_tested: phaseTested });
+}
+
+export function comparePeriods(candidate) {
+  const base = classifyCandidate(candidate);
+  if (base.status === 'REJECTED' || !base.comparable) return base;
+  const A = Number(candidate.ancient_value), B = Number(candidate.modern_value);
+  if (!(A > 0) || !(B > 0) || !Number.isFinite(A) || !Number.isFinite(B)) throw new RangeError('candidate periods must be finite and positive');
+  const maxHarmonic = candidate.max_harmonic === undefined ? 12 : candidate.max_harmonic;
+  const harmonic = boundedRationalScan(A, B, maxHarmonic, candidate.explicitExpandedSearch === true);
+  const relativeResidual = Math.abs(A - B) / Math.abs(B);
+  return Object.freeze({ ...base, relative_residual: relativeResidual, harmonic });
+}
