@@ -183,7 +183,7 @@ if (head.render !== 'off') {
 const labs = [];
 for (const L of head.labs) {
   const row = await page.evaluate(async id => {
-    HCC_NAV.go('s3', id);
+    HCC_NAV.go(L.world || L.parentWorld || 's3', id);
     await new Promise(r => setTimeout(r, 140));
     /* the configuration surface is harvested from the live controls, so it has to be
        asked for after the laboratory has built its panel — reading the cache first

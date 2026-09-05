@@ -43228,7 +43228,7 @@ function hccConfigHarvest(labId){
 }
 /* the current laboratory, in the terms the registries use */
 function hccConfigCurrentId(){
-  return HCC_CTX.worldId==='s3'&&HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;
+  return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;
 }
 /* WRITE.  Refuse an out-of-domain value rather than clamping it — the same rule the
    instrument layer states, applied to the same kind of quantity. */
@@ -82729,6 +82729,7 @@ const LAB_REGISTRY=(()=>{
       defaultInspector:'controls',
       route:`#/world/s3/lab/${id}`});
   }
+  out.push({id:'chronometry', parentWorld:'cyc', category:'inv', title:'Ancient Chronometry Observatory', description:'Source-locked comparative chronometry: textual definitions, historical astronomy, correspondence tests and explicit falsification boundaries.', status:'MODEL', capabilities:{xr:true}, defaultInspector:'controls', route:'#/world/cyc/lab/chronometry'});
   return out;
 })();
 const LAB_BY_ID=new Map(LAB_REGISTRY.map(l=>[l.id,l]));
@@ -82769,7 +82770,7 @@ try{ const f=JSON.parse(localStorage.getItem('hcc.fav')||'[]'); f.forEach(x=>HCC
 const hccSave=()=>{ try{ localStorage.setItem('hcc.fav',JSON.stringify([...HCC_FAV]));
   localStorage.setItem('hcc.recent',JSON.stringify(HCC_RECENT.slice(0,12))); }catch(e){} };
 function hccRoute(ctx=HCC_CTX){
-  return ctx.worldId==='s3'&&ctx.labId?`#/world/s3/lab/${ctx.labId}`:`#/world/${ctx.worldId}`; }
+  return ctx.labId ? `#/world/${ctx.worldId}/lab/${ctx.labId}` : `#/world/${ctx.worldId}`; }
 /* ══ THE STATE A LABORATORY OWNS, AND HOW IT TRAVELS ═════════════════════════
    PRED_STATE_PREFIX already says which state keys belong to which laboratory — it is what
    the prediction contract uses to decide what a laboratory can be asked about. The same
@@ -82835,7 +82836,7 @@ function hccParseRoute(h){
   const m=path.match(/^#\/world\/([a-z0-9]+)(?:\/lab\/([a-z0-9]+))?$/);
   if(!m) return null;
   const w=WORLD_BY_ID.get(m[1]); if(!w) return null;
-  if(m[2]&&!LAB_BY_ID.has(m[2])) return null;
+  if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }
   let blob=null;
   if(query){ const mm=query.match(/(?:^|&)s=([^&]*)/); if(mm) blob=mm[1]; }
   return {worldId:m[1], labId:m[2]||null, state:blob};
@@ -82875,7 +82876,8 @@ function hccGo(target,opts={}){
       if(state.s3view!==v){ try{ setS3View(v); }catch(e){} }
       const i=HCC_RECENT.indexOf(v); if(i>=0) HCC_RECENT.splice(i,1);
       HCC_RECENT.unshift(v); HCC_RECENT.length=Math.min(HCC_RECENT.length,12); hccSave();
-    } else HCC_CTX.labId=null;
+    } else if(labId&&worldId==='cyc'){ state.cycFrame='chronometry'; try{ applyCycFrameView(); }catch(e){} }
+    else HCC_CTX.labId=null;
     hccEnforceScope();                                   /* and again after it moved */
     /* ── AND THE SETTINGS THE LINK CARRIED ──────────────────────────────────
        Applied AFTER the laboratory is built, because setS3View resets a station to its
@@ -83070,7 +83072,7 @@ globalThis.hccBack=()=>hccBack();
 function hccBack(){
   const h=HCC_CTX.navigationHistory;
   if(h.length){ const t=h.pop(); hccGo(t,{history:false}); return true; }
-  if(HCC_CTX.labId){ hccGo({worldId:'s3',labId:null}); return true; }
+  if(HCC_CTX.labId){ hccGo({worldId:HCC_CTX.worldId,labId:null}); return true; }
   if(HCC_CTX.worldId!=='solar'){ hccGo({worldId:'solar'}); return true; }
   return false;
 }
