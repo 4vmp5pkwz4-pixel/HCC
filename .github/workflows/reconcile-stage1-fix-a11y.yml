@@ -1,0 +1,54 @@
+name: Reconcile Stage 1 nav a11y fix
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-stage1-fix-a11y.yml'
+      - 'scripts/reconcile-stage1-fix-a11y.cjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-stage1-fix-a11y
+  cancel-in-progress: false
+
+jobs:
+  fix:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: reconcile/4.149-semantic
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply the minimal lifecycle fix
+        run: |
+          node scripts/reconcile-stage1-fix-a11y.cjs
+          git diff --check
+      - run: npm ci
+      - name: Static validation and Stage 1 contract
+        run: npm test
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Embedded browser self-tests
+        run: node scripts/selftest.mjs
+      - name: Preserve release and Solar GPU safety invariants
+        run: |
+          grep -F 'astOn:false' index.html >/dev/null
+          grep -F "const HCC_VERSION='4.148.1'" index.html >/dev/null
+          node docs/verify-solar-gpu-safe-default.cjs
+          node docs/verify-solar-webgl-buffer-lifetime.cjs
+      - name: Commit only after all gates are green
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html
+          git commit -m 'fix(a11y): name static desktop compact navigation'
+          git push origin HEAD:reconcile/4.149-semantic
