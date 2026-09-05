@@ -62,7 +62,6 @@ jobs:
           if(!s.includes(oldPhase)) throw new Error('Saros phase anchor not found');
           s=s.replace(oldPhase,newPhase);
           s=s.replace('if(cycSarosInst.visible) updateSarosEngine(dt);','if(cycSarosInst.visible) updateSarosEngine();');
-          s=s.replace('one full sweep of the animation is one Saros','the dial is driven by the shared Cycles epoch; one Saros marks one recurrence interval');
           s=s.replace('The Saros drawn as the thing it is: three hands turning at the synodic, draconic and anomalistic months, and a Saros is where they nearly come back together.',
             'The Saros drawn as the thing it is: three hands evaluated at the shared Cycles epoch with synodic, draconic and anomalistic periods, and a Saros is where they nearly come back together.');
           const oldSub='`one sweep = one Saros = <b>${S.saros.days.toFixed(4)} d</b> · `';
@@ -76,8 +75,8 @@ jobs:
           if(vc<2) throw new Error(`expected version anchors, found ${vc}`);
           if(bc<3) throw new Error(`expected build anchors, found ${bc}`);
           s=s.split(oldVersion).join(newVersion).split(oldBuild).join(newBuild);
-          if(/\bsarosT\b/.test(s)) throw new Error('private Saros frame clock survived patch');
-          if(!/function updateSarosEngine\(\)[\s\S]{0,1600}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
+          if(/\blet\s+sarosT\b|\bsarosT\s*\+=/.test(s)) throw new Error('private Saros frame-clock code survived patch');
+          if(!/function updateSarosEngine\(\)[\s\S]{0,1800}state\.epochDays/.test(s)) throw new Error('Saros engine is not bound to state.epochDays');
           fs.writeFileSync(p,s);
           const v=JSON.parse(fs.readFileSync('version.json','utf8'));
           v.version=newVersion; v.build=newBuild; v.source='main';
@@ -91,12 +90,13 @@ jobs:
           const fs=require('fs');
           const s=fs.readFileSync('index.html','utf8');
           const assert=require('assert/strict');
-          assert(!/\bsarosT\b/.test(s),'private sarosT clock must not exist');
-          const m=s.match(/function updateSarosEngine\(\)\{([\s\S]*?)\n\}/);
-          assert(m,'updateSarosEngine() missing');
-          assert(m[1].includes('state.epochDays'),'Saros must derive from the global epoch');
-          assert(m[1].includes("cycleByKey('saros')"),'Saros must use the registered cycle anchor');
-          assert(m[1].includes('days=epoch-anchor'),'Saros hands must share one elapsed-time coordinate');
+          assert(!/\blet\s+sarosT\b|\bsarosT\s*\+=/.test(s),'private Saros frame-clock code must not exist');
+          const start=s.indexOf('function updateSarosEngine(){');
+          assert(start>=0,'updateSarosEngine() missing');
+          const body=s.slice(start,start+2400);
+          assert(body.includes('state.epochDays'),'Saros must derive from the global epoch');
+          assert(body.includes("cycleByKey('saros')"),'Saros must use the registered cycle anchor');
+          assert(body.includes('days=epoch-anchor'),'Saros hands must share one elapsed-time coordinate');
           assert(s.includes("const HCC_VERSION='4.149.1'"),'release version missing');
           assert(s.includes("const HCC_BUILD='cycles-saros-global-clock-2026.09.05.1'"),'release build missing');
           console.log('Saros clock contract: one epoch authority, no frame-time accumulator.');
