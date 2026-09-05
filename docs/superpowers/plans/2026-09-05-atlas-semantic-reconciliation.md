@@ -36,7 +36,7 @@
 - [x] Cherry-pick only exact heads #192, #193, #194 and #196 in order under a conflict-stop workflow.
 - [x] Run pre-push `npm test`; Stage-1 verifier green; preserve `astOn:false` and `v4.148.1` identity.
 - [x] Repair the recovered compact-navigation lifecycle so both static desktop DOM and rebuilt mobile DOM receive the same accessible names; guarded embedded browser self-tests and Solar GPU invariants are green before commit `a0de48d`.
-- [ ] Run the full computational-core gate from a user-authored clean-checkout trigger on the post-fix tree, including observer scene, API benchmarks, all embedded self-tests, liveness, service health and Docker image, before declaring Stage 1 complete.
+- [x] Run the full computational-core gate from user-authored clean-checkout commit `595f527`: extraction/regeneration, manifest/reach consistency, all verifiers, observer scene, API benchmarks, headless agent, embedded self-tests, per-frame liveness, service startup/health and Docker image all pass.
 
 ### Task 2: Reconcile unique Multiview/API work from draft PR #195
 
