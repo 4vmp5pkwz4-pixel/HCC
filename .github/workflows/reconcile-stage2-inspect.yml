@@ -1,0 +1,41 @@
+name: Reconcile Stage 2 inspect
+
+on:
+  push:
+    branches:
+      - reconcile/stage2-multiview-api
+    paths:
+      - '.github/workflows/reconcile-stage2-inspect.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Print exact modern insertion neighborhoods
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          for(const [file,needles] of Object.entries({
+            'index.html':['const MV_PRESETS','MV_PRESETS =','const HCC_API','globalThis.HCC_API','instruments:{','labs:{'],
+            'agent.html':['HCC_API.labs.list()','Measurable controls','function addRow','DOMContentLoaded'],
+            'scripts/build-manifest.mjs':['const head = await page.evaluate','labs: HCC_API.labs.list()','const manifest = {','worlds: head.worlds'],
+            'scripts/validate.mjs':['mobileBuildMark','MV_PRESETS','HCC_API.multiviewPresets']
+          })){
+            const lines=fs.readFileSync(file,'utf8').split('\n');
+            console.log(`\n######## ${file} ########`);
+            for(const needle of needles){
+              const hits=[];
+              lines.forEach((line,i)=>{if(line.includes(needle))hits.push(i)});
+              for(const i of hits.slice(0,6)){
+                console.log(`\n===== ${needle} @ ${i+1} =====`);
+                console.log(lines.slice(Math.max(0,i-8),i+24).map((x,j)=>`${Math.max(0,i-8)+j+1}: ${x}`).join('\n'));
+              }
+            }
+          }
+          NODE
