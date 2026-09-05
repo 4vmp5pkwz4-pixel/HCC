@@ -2,6 +2,7 @@
 const fs=require('fs');
 const assert=require('assert/strict');
 const src=fs.readFileSync('index.html','utf8');
+const manifest=fs.readFileSync('scripts/build-manifest.mjs','utf8');
 
 assert(src.includes("id:'chronometry', parentWorld:'cyc'"),
   'Chronometry must be registered as a Cycles-owned laboratory');
@@ -15,5 +16,9 @@ assert(src.includes("if(HCC_CTX.labId){ hccGo({worldId:HCC_CTX.worldId,labId:nul
   'Back must leave a laboratory without assuming S3');
 assert(src.includes("return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;"),
   'configuration ownership must follow the active laboratory in any world');
+assert(!manifest.includes("HCC_NAV.go('s3', id)"),
+  'manifest walker must not force every laboratory through S3');
+assert(/HCC_NAV\.go\(L\.world\s*\|\|\s*L\.parentWorld\s*\|\|\s*'s3',\s*id\)/.test(manifest),
+  'manifest walker must enter each laboratory through its declared parent world');
 
 console.log('PASS — world-owned laboratory routing contract');
