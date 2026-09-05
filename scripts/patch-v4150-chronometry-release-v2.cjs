@@ -15,13 +15,13 @@ s=rep(s,/(const LAB_REGISTRY=\(\(\)=>\{[\s\S]*?)(\n\s*return out;\n\}\)\(\);)/,
 
 s=rep(s,/function hccRoute\(ctx=HCC_CTX\)\{[\s\S]*?\n\}/,
 `function hccRoute(ctx=HCC_CTX){\n  return ctx.labId ? \`#/world/\${ctx.worldId}/lab/\${ctx.labId}\` : \`#/world/\${ctx.worldId}\`;\n}`,'hccRoute');
-s=rep(s,/\s*if\(m\[2\]&&!LAB_BY_ID\.has\(m\[2\]\)\) return null;/,
-"\n  if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }",'hccParseRoute parent check');
-s=rep(s,/\} else HCC_CTX\.labId=null;/,
+s=rep(s,/[^\n]*m\[2\][^\n]*LAB_BY_ID[^\n]*return null;[^\n]*/,
+"  if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }",'hccParseRoute parent check');
+s=rep(s,/\}\s*else\s+HCC_CTX\.labId\s*=\s*null\s*;/,
 `} else if(labId&&worldId==='cyc'){\n      HCC_CTX.labId=labId;\n      if(labId==='chronometry'){ state.cycFrame='chronometry'; try{ applyCycFrameView(); }catch(e){} }\n    } else HCC_CTX.labId=null;`,'hccGo Cycles lab');
-s=rep(s,/if\(HCC_CTX\.labId\)\{ hccGo\(\{worldId:'s3',labId:null\}\); return true; \}/,
+s=rep(s,/if\s*\(HCC_CTX\.labId\)\s*\{\s*hccGo\(\{worldId:'s3',labId:null\}\);\s*return true;\s*\}/,
 "if(HCC_CTX.labId){ hccGo({worldId:HCC_CTX.worldId,labId:null}); return true; }",'hccBack');
-s=rep(s,/return HCC_CTX\.worldId==='s3'&&HCC_CTX\.labId\?HCC_CTX\.labId:HCC_CTX\.worldId;/,
+s=rep(s,/return\s+HCC_CTX\.worldId==='s3'&&HCC_CTX\.labId\?HCC_CTX\.labId:HCC_CTX\.worldId\s*;/,
 'return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;','config owner');
 
 const visual=`/* ══ ANCIENT CHRONOMETRY OBSERVATORY · SOURCE SPACE ↔ SCIENCE SPACE ════
