@@ -35,7 +35,8 @@
 - [x] Reject whole-branch merge after PR #201 proves the long-lived branch is non-mergeable and over-broad.
 - [x] Cherry-pick only exact heads #192, #193, #194 and #196 in order under a conflict-stop workflow.
 - [x] Run pre-push `npm test`; Stage-1 verifier green; preserve `astOn:false` and `v4.148.1` identity.
-- [ ] Run/reproduce the full computational-core gate on the reconciled head and inspect observer/GPU checks before declaring Stage 1 complete.
+- [x] Repair the recovered compact-navigation lifecycle so both static desktop DOM and rebuilt mobile DOM receive the same accessible names; guarded embedded browser self-tests and Solar GPU invariants are green before commit `a0de48d`.
+- [ ] Run the full computational-core gate from a user-authored clean-checkout trigger on the post-fix tree, including observer scene, API benchmarks, all embedded self-tests, liveness, service health and Docker image, before declaring Stage 1 complete.
 
 ### Task 2: Reconcile unique Multiview/API work from draft PR #195
 
@@ -43,7 +44,7 @@
 - Consumes: reconciled Task-1 mobile/a11y behavior and the much newer current Multiview implementation.
 - Candidate unique outputs: machine-readable preset discovery (`multiview.focusing`, public read-only preset API, agent/manifest representation).
 
-- [ ] First prove which #195 contracts are genuinely absent from the current reconciled Atlas.
+- [x] Prove which #195 contracts are genuinely absent: the current reconciled Atlas has no `focusing` preset, no public `HCC_API.multiviewPresets()` discovery surface, and no agent/manifest representation for prepared immersive comparisons. Historical mobile/build-stamp material is duplicate or stale and is excluded.
 - [ ] Add failing checks only for genuinely absent behavior.
 - [ ] Port only unique behavior; exclude duplicate mobile CSS, stale generated artifacts and historical release identity.
 - [ ] Regenerate machine-facing contracts from current generators and run consistency gates.
