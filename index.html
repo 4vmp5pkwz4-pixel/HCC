@@ -6542,6 +6542,12 @@ function runSelfTests(){
   ok('Every explicit typed relation resolves to two registered objects',
     EXPLICIT_RELATIONS.every(([a,b])=>SELECT.has(a)&&SELECT.has(b)),
     EXPLICIT_RELATIONS.filter(([a,b])=>!SELECT.has(a)||!SELECT.has(b)).map(x=>x.slice(0,2).join('→')).join(', ')||'all endpoints resolve');
+  { const a=new THREE.Vector3(-2,.5,1),b=new THREE.Vector3(4,2,-3),v=new THREE.Vector3(.2,-.1,-1).normalize();
+    const p=selectionRelationCurve(a,b,3,v,24),mid=a.clone().lerp(b,.5);
+    ok('Typed relationship overlays are genuine bounded 3D orbits with exact scientific endpoints, not straight lines that can be mistaken for physical distance',
+      p.length===25&&p[0].distanceTo(a)<1e-12&&p.at(-1).distanceTo(b)<1e-12
+        &&p[12].distanceTo(mid)>1e-4&&p.every(q=>[q.x,q.y,q.z].every(Number.isFinite)),
+      `${p.length} samples · endpoint residuals ${p[0].distanceTo(a).toExponential(1)}, ${p.at(-1).distanceTo(b).toExponential(1)} · midpoint lift ${p[12].distanceTo(mid).toFixed(4)}`); }
   { /* ── THE DECK IS FOR GLOBAL TOOLS, AND FIVE OF THESE ARE NOT ────────────────
        Capacity, Capacity flow, Zero-point, Bianchi IX and Smith–Möbius are instruments
        SCOPED to a world or to a single laboratory. A permanent dock button for each was
@@ -13748,8 +13754,8 @@ function getObjectRelations(key){
   return out;
 }
 
-const selectionLinksGroup=new THREE.Group(); scene.add(selectionLinksGroup);
-let selectionLinksEnabled=true, selectionRelationLines=[];
+const selectionLinksGroup=new THREE.Group(); selectionLinksGroup.name='Typed relationship field';scene.add(selectionLinksGroup);
+let selectionLinksEnabled=true, selectionRelationLines=[],selectionRelationFlow=null;
 function safeSelectionPos(s){
   try{ const p=s?.getPos?.(); return p?.isVector3&&[p.x,p.y,p.z].every(Number.isFinite)?p:null; }
   catch(e){ return null; }
@@ -13759,16 +13765,46 @@ function selectableIsVisible(s){
   for(let o=s.pick;o;o=o.parent) if(o.visible===false) return false;
   return true;
 }
+/* A relationship is not a ruler.  Drawing every relation as a straight chord made the
+   overlay indistinguishable from a distance measurement and stacked coincident links on
+   top of one another.  This deterministic quadratic lift gives each typed relation its
+   own readable orbit while preserving the two exact registered endpoints.  The lift is
+   view-relative (therefore explicitly interface-only), bounded to 14% of the span and
+   stable for a given target key: camera motion reveals the spatial weave without moving
+   either scientific object. */
+function selectionRelationCurve(a,b,seed=0,viewDir=null,segments=24){
+  const chord=b.clone().sub(a),span=chord.length(),mid=a.clone().add(b).multiplyScalar(.5);
+  if(!(span>1e-9))return [a.clone(),b.clone()];
+  const sight=(viewDir?.isVector3?viewDir:new THREE.Vector3(0,0,-1)).clone().normalize();
+  let lift=new THREE.Vector3().crossVectors(chord,sight);
+  if(lift.lengthSq()<1e-10)lift.crossVectors(chord,new THREE.Vector3(0,1,0));
+  if(lift.lengthSq()<1e-10)lift.crossVectors(chord,new THREE.Vector3(1,0,0));
+  const side=(seed&1)?-1:1,amount=span*(.075+.013*(seed%6));
+  lift.normalize().multiplyScalar(amount*side);
+  const control=mid.add(lift),pts=[];
+  for(let i=0;i<=segments;i++){const t=i/segments,u=1-t;
+    pts.push(a.clone().multiplyScalar(u*u).addScaledVector(control,2*u*t).addScaledVector(b,t*t));}
+  return pts;
+}
 function rebuildSelectionLinks(){
   selectionLinksGroup.children.forEach(o=>{o.geometry?.dispose?.();o.material?.dispose?.();});
-  selectionLinksGroup.clear(); selectionRelationLines=[];
+  selectionLinksGroup.clear(); selectionRelationLines=[];selectionRelationFlow=null;
   const s=SELECT.get(selectedKey); if(!s||!selectionLinksEnabled) return;
-  for(const r of getObjectRelations(selectedKey).filter(r=>SELECT.get(r.target)?.mode===s.mode).slice(0,12)){
+  for(const [i,r] of getObjectRelations(selectedKey).filter(r=>SELECT.get(r.target)?.mode===s.mode).slice(0,12).entries()){
     const line=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineDashedMaterial({
       color:relationColor(r.kind),transparent:true,opacity:.72,dashSize:.8,gapSize:.45,
       depthTest:false,depthWrite:false}));
-    line.renderOrder=998; line.userData.relationTarget=r.target;
+    line.renderOrder=998; line.userData.relationTarget=r.target;line.userData.relationIndex=i;
     selectionLinksGroup.add(line); selectionRelationLines.push(line);
+  }
+  if(selectionRelationLines.length){
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(selectionRelationLines.length*3),3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(selectionRelationLines.length*3),3));
+    selectionRelationFlow=new THREE.Points(g,new THREE.PointsMaterial({size:MOBILE_GPU?3.5:5,sizeAttenuation:false,
+      vertexColors:true,transparent:true,opacity:.95,depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));
+    selectionRelationFlow.name='Typed relation flow probes';selectionRelationFlow.renderOrder=999;
+    selectionLinksGroup.add(selectionRelationFlow);
   }
 }
 function updateSelectionLinks(){
@@ -13776,15 +13812,23 @@ function updateSelectionLinks(){
   selectionLinksGroup.visible=!!s&&selectionLinksEnabled&&state.vectorRelations!==false&&state.vectorAdditional!==false&&s.mode===state.mode&&!state.landed&&selectableIsVisible(s);
   if(!selectionLinksGroup.visible) return;
   const a=safeSelectionPos(s); if(!a) return;
-  for(const line of selectionRelationLines){
+  const viewDir=new THREE.Vector3();camera.getWorldDirection(viewDir);
+  const flowPos=selectionRelationFlow?.geometry.getAttribute('position'),flowCol=selectionRelationFlow?.geometry.getAttribute('color');
+  const clock=performance.now()*.00012;
+  for(const [i,line] of selectionRelationLines.entries()){
     const target=SELECT.get(line.userData.relationTarget),b=safeSelectionPos(target);
     line.visible=!!b&&selectableIsVisible(target);
     if(b){
       const span=Math.max(a.distanceTo(b),1e-6);
       line.material.dashSize=span*.035;line.material.gapSize=span*.018;
-      lineSetPoints(line,[a,b]);lineComputeDistances(line);
-    }
+      const pts=selectionRelationCurve(a,b,line.userData.relationIndex||0,viewDir);
+      lineSetPoints(line,pts);lineComputeDistances(line);
+      const q=PREFERS_REDUCED_MOTION ? .5 : (clock+i*.173)%1,fi=Math.min(pts.length-2,Math.floor(q*(pts.length-1))),f=q*(pts.length-1)-fi;
+      const p=pts[fi].clone().lerp(pts[fi+1],f),c=new THREE.Color(line.material.color);
+      flowPos?.setXYZ(i,p.x,p.y,p.z);flowCol?.setXYZ(i,c.r,c.g,c.b);
+    }else{flowPos?.setXYZ(i,a.x,a.y,a.z);flowCol?.setXYZ(i,0,0,0);}
   }
+  if(flowPos){flowPos.needsUpdate=true;flowCol.needsUpdate=true;selectionRelationFlow.geometry.computeBoundingSphere();}
 }
 
 const selCard = document.getElementById('selCard');
