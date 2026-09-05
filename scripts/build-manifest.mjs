@@ -182,8 +182,8 @@ if (head.render !== 'off') {
 /* walk every laboratory and harvest the controls it declares */
 const labs = [];
 for (const L of head.labs) {
-  const row = await page.evaluate(async id => {
-    HCC_NAV.go('s3', id);
+  const row = await page.evaluate(async ({id,world}) => {
+    HCC_NAV.go(world, id);
     await new Promise(r => setTimeout(r, 140));
     /* the configuration surface is harvested from the live controls, so it has to be
        asked for after the laboratory has built its panel — reading the cache first
@@ -197,7 +197,7 @@ for (const L of head.labs) {
       params: schema.map(s => ({ id: s.id, label: s.label || null,
         min: (s.domain && s.domain.min !== undefined) ? s.domain.min : null,
         max: (s.domain && s.domain.max !== undefined) ? s.domain.max : null })) };
-  }, L.id);
+  }, {id:L.id, world:L.world || L.parentWorld || 's3'});
   const kind = row.instrument ? 'computational' : (row.params.length ? 'parametric' : 'visual');
   labs.push({ id: L.id, title: L.title, world: L.world, category: L.category, status: L.status,
     route: L.route, description: L.description || null,
