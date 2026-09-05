@@ -1,0 +1,96 @@
+name: Apply v4.150 world-owned laboratory routing
+
+on:
+  push:
+    branches:
+      - release/4.150.0-ancient-chronometry
+    paths:
+      - '.github/workflows/apply-v4150-world-lab-routing.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-v4150-world-lab-routing
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/4.150.0-ancient-chronometry
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Patch generic world-owned laboratory routing
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          function once(src,oldText,newText,label){
+            const n=src.split(oldText).length-1;
+            if(n!==1) throw new Error(`${label}: expected one anchor, found ${n}`);
+            return src.replace(oldText,newText);
+          }
+
+          const p='index.html';
+          let s=fs.readFileSync(p,'utf8');
+
+          s=once(s,
+            "      route:`#/world/s3/lab/${id}`});\n  }\n  return out;\n})();",
+            "      route:`#/world/s3/lab/${id}`});\n  }\n  out.push({id:'chronometry', parentWorld:'cyc', category:'inv', title:'Ancient Chronometry Observatory', description:'Source-locked comparative chronometry: textual definitions, historical astronomy, correspondence tests and explicit falsification boundaries.', status:'MODEL', capabilities:{xr:true}, defaultInspector:'controls', route:'#/world/cyc/lab/chronometry'});\n  return out;\n})();",
+            'LAB_REGISTRY extension');
+
+          s=once(s,
+            "function hccRoute(ctx=HCC_CTX){\n  return ctx.worldId==='s3'&&ctx.labId?`#/world/s3/lab/${ctx.labId}`:`#/world/${ctx.worldId}`;\n}",
+            "function hccRoute(ctx=HCC_CTX){\n  return ctx.labId ? `#/world/${ctx.worldId}/lab/${ctx.labId}` : `#/world/${ctx.worldId}`;\n}",
+            'generic route serializer');
+
+          s=once(s,
+            "  const w=WORLD_BY_ID.get(m[1]); if(!w) return null;\n  if(m[2]&&!LAB_BY_ID.has(m[2])) return null;",
+            "  const w=WORLD_BY_ID.get(m[1]); if(!w) return null;\n  if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }",
+            'route ownership parser');
+
+          s=once(s,
+            "    } else HCC_CTX.labId=null;\n    hccEnforceScope();",
+            "    } else if(labId&&worldId==='cyc'){ state.cycFrame='chronometry'; try{ applyCycFrameView(); }catch(e){} }\n    else HCC_CTX.labId=null;\n    hccEnforceScope();",
+            'Cycles laboratory activation');
+
+          s=once(s,
+            "  if(HCC_CTX.labId){ hccGo({worldId:'s3',labId:null}); return true; }",
+            "  if(HCC_CTX.labId){ hccGo({worldId:HCC_CTX.worldId,labId:null}); return true; }",
+            'generic laboratory back navigation');
+
+          s=once(s,
+            "  return HCC_CTX.worldId==='s3'&&HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;",
+            "  return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;",
+            'generic configuration owner');
+
+          fs.writeFileSync(p,s);
+
+          const mp='scripts/build-manifest.mjs';
+          let m=fs.readFileSync(mp,'utf8');
+          m=once(m,
+            "    HCC_NAV.go('s3', id);",
+            "    HCC_NAV.go(L.world || L.parentWorld || 's3', id);",
+            'manifest world-aware laboratory navigation');
+          fs.writeFileSync(mp,m);
+          NODE
+          git diff --check
+
+      - name: Prove routing contract and preserve current Atlas tests
+        run: |
+          node docs/verify-world-lab-routing.cjs
+          npm test
+
+      - name: Commit only proven routing changes
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html scripts/build-manifest.mjs
+          git commit -m 'feat(nav): support world-owned laboratories'
+          git push origin HEAD:release/4.150.0-ancient-chronometry
