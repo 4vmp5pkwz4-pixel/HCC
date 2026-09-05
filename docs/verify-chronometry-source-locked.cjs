@@ -28,6 +28,18 @@ const path = require('path');
   assert.equal(M.derivePartsPerDay(records[3]), 182250000n);
   assert.equal(M.derivePartsPerDay(records[4]), 2916000000n);
 
+  const aras = M.jainAvasarpini(1n);
+  assert.deepEqual(aras.map(x => [x.k, x.years]), [[4n,0n],[3n,0n],[2n,0n],[1n,-42000n],[0n,21000n],[0n,21000n]]);
+  const closure = M.sumSymbolicDurations(aras);
+  assert.deepEqual([closure.k, closure.years], [10n,0n]);
+  const dep = M.jainCycleDependencies();
+  assert.equal(dep.double_21000_equals_42000, true);
+  assert.equal(M.calendarYearSeconds('360-day-traditional').n, 31104000n);
+  assert.equal(M.calendarYearSeconds('360-day-traditional').d, 1n);
+  assert.equal(M.calendarYearSeconds('Julian-year').n, 31557600n);
+  assert.throws(() => M.calendarYearSeconds('canonical-unspecified'), /unspecified/);
+  assert.equal(M.convertYears(21000n, '360-day-traditional').n, 653184000000n);
+
   const registryPath = path.join(__dirname, 'data', 'ancient-chronometry-sources.json');
   const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
   assert.equal(registry.schema, 'hcc.ancient-chronometry-sources/1');
