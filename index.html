@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="semantic-reconciliation-multiview-2026.09.05.2">
+<html lang="en" data-hcc-build="cycles-saros-global-clock-2026.09.05.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="semantic-reconciliation-multiview-2026.09.05.2">
+<meta name="hcc-build" content="cycles-saros-global-clock-2026.09.05.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2201,7 +2201,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.149.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.149.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2403,8 +2403,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.149.0';
-const HCC_BUILD='semantic-reconciliation-multiview-2026.09.05.2';
+const HCC_VERSION='4.149.1';
+const HCC_BUILD='cycles-saros-global-clock-2026.09.05.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -60970,15 +60970,21 @@ const sarosHands=[], sarosHandLabs=[], sarosResidue=[];
   const sub=mkLabel('','label dim'); sub.position.set(0,-6.2,0); cycSarosInst.add(sub);
   cycSarosInst.userData={sub,series:S};
 }
-let sarosT=0;
-function updateSarosEngine(dt){
-  sarosT+=dt;
+function updateSarosEngine(){
   const S=cycSarosInst.userData.series;
-  /* one full sweep of the animation is one Saros */
-  const u=(sarosT*0.08)%1, days=u*S.saros.days;
+  /* ONE UNIVERSE, ONE CLOCK.  The first implementation accumulated its own
+     render-frame time, so this instrument kept moving while the Atlas was
+     paused and ignored the global speed/epoch controls.  A Saros is a relation
+     among periods, not a separate clock.  Anchor the mechanism to the same
+     epochDays authority used by every other Cycles instrument.  Using the full
+     elapsed interval also preserves the real accumulated node/anomaly miss. */
+  const anchor=cycleByKey('saros')?.ref||0;
+  const epoch=Number.isFinite(state.epochDays)?state.epochDays:anchor;
+  const days=epoch-anchor;
+  const u=((days/S.saros.days)%1+1)%1;
   SAROS_HANDS.forEach((h,i)=>{
     const hand=sarosHands[i*2], tip=sarosHands[i*2+1];
-    const ph=(days/h.period)%1, a=-2*Math.PI*ph;
+    const ph=((days/h.period)%1+1)%1, a=-2*Math.PI*ph;
     hand.rotation.z=a;
     tip.position.set(Math.sin(-a)*4.6,Math.cos(-a)*4.6,hand.userData.z);
     sarosHandLabs[i].position.set(Math.sin(-a)*5.9,Math.cos(-a)*5.9,hand.userData.z);
@@ -60994,7 +61000,7 @@ function updateSarosEngine(dt){
     sarosResidue[i].material.opacity=(u>0.93)?0.95:0.18;
   });
   cycSarosInst.userData.sub.element.innerHTML=
-    `one sweep = one Saros = <b>${S.saros.days.toFixed(4)} d</b> · `
+    `shared Atlas epoch · Saros phase <b>${(u*100).toFixed(1)}%</b> · recurrence ${S.saros.days.toFixed(4)} d · `
     +`the node hand ends <b>${(Math.abs(S.saros.errB)*24*60).toFixed(0)} min</b> short, the distance hand <b>${(Math.abs(S.saros.errC)*24).toFixed(2)} h</b> short<br>`
     +`<span style="opacity:.72">the node miss ends the series after ${S.count} eclipses · the distance miss changes total to annular and needs ${Math.round(360/((Math.abs(S.saros.errC)/CYC_ANOMALISTIC)*360))} Saroses to come back, which is longer than the series lives</span>`;
 }
@@ -61004,7 +61010,7 @@ registerSel('sarosEngine',{
   forbiddenClaims:[
     'Hand angles are normalized mean-period phases, not ephemeris positions.',
     'The dial is a mechanism diagram; it does not predict a particular eclipse.'],
-  desc:'The Saros drawn as the thing it is: three hands turning at the synodic, draconic and anomalistic months, and a Saros is where they nearly come back together. The residues are the subject — the node hand lands 52 minutes short and the distance hand five hours short, and DEPTH carries that miss so the asymmetry is a position rather than a caption. The node miss is what ends a series after about 71 eclipses; the distance miss is what turns total eclipses into annular ones and needs 128 Saroses to come round, which is longer than any series lives.',
+  desc:'The Saros drawn as the thing it is: three hands evaluated at the shared Cycles epoch with synodic, draconic and anomalistic periods, and a Saros is where they nearly come back together. The residues are the subject — the node hand lands 52 minutes short and the distance hand five hours short, and DEPTH carries that miss so the asymmetry is a position rather than a caption. The node miss is what ends a series after about 71 eclipses; the distance miss is what turns total eclipses into annular ones and needs 128 Saroses to come round, which is longer than any series lives.',
   getPos:()=>cycSarosInst.position.clone(), focusDist:()=>16,
   rows:()=>{ const S=cycSarosInst.userData.series;
     return [['Model','three normalized mean-period hands on one dial (non-metric)'],
@@ -61497,7 +61503,7 @@ function updateCyc(dt){
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
   cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
   if(cycResonanceInst.visible) updateCycResonance(dt);
-  if(cycSarosInst.visible) updateSarosEngine(dt);
+  if(cycSarosInst.visible) updateSarosEngine();
   cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
   // layout-plane guides only make sense while the multi-instrument layout is on stage
