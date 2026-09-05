@@ -1,0 +1,67 @@
+name: Reconcile Stage 1 apply
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-stage1-apply.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-stage1-apply
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out reconciliation branch with history
+        uses: actions/checkout@v4
+        with:
+          ref: reconcile/4.149-semantic
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Apply only the four lost PR heads
+        shell: bash
+        run: |
+          set -euo pipefail
+          commits=(
+            e78b9b314f7dea1fff0830abe364a9320858ecf1
+            2488cbccdef8ea88bfc36b41352e0632a9084b1a
+            d8418d26ef9d0cb47128a5abe4358de2cdfdcd1d
+            f7ad53403b23bee91f6b36c45d7f6e80e2591271
+          )
+          for sha in "${commits[@]}"; do
+            git fetch origin "$sha"
+            echo "=== cherry-pick $sha ==="
+            if ! git cherry-pick "$sha"; then
+              if test -n "$(git ls-files -u)"; then
+                echo 'CONFLICT: refusing automatic resolution'
+                git status --short
+                git diff --name-only --diff-filter=U
+                git diff --cc || true
+                exit 1
+              fi
+              echo 'Commit is already represented semantically; skipping empty pick.'
+              git cherry-pick --skip
+            fi
+          done
+
+      - name: Verify reconciled contracts before push
+        run: |
+          npm test
+          grep -F 'astOn:false' index.html >/dev/null
+          grep -F "const HCC_VERSION='4.148.1'" index.html >/dev/null
+
+      - name: Push verified Stage 1 result
+        run: git push origin HEAD:reconcile/4.149-semantic
