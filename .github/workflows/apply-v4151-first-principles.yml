@@ -1,0 +1,91 @@
+name: Apply v4.151 First-Principles Atlas
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - agent/first-principles-atlas-4.151
+    paths:
+      - scripts/patch-v4151-first-principles.cjs
+      - docs/verify-first-principles-atlas.cjs
+      - .github/workflows/apply-v4151-first-principles.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-v4151-first-principles
+  cancel-in-progress: false
+
+jobs:
+  apply-verify-commit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/first-principles-atlas-4.151
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Apply deterministic v4.151 patch
+        run: node scripts/patch-v4151-first-principles.cjs
+
+      - name: Regenerate single-source kernels and machine contracts
+        run: |
+          node scripts/extract-kernels.mjs
+          node scripts/build-manifest.mjs
+          node scripts/build-api.mjs
+          node scripts/reach.mjs
+
+      - name: First-principles release gate
+        run: node docs/verify-first-principles-atlas.cjs
+
+      - name: Existing static and semantic gates
+        run: npm test
+
+      - name: Every repository verifier
+        run: |
+          fail=0
+          for f in docs/verify-*.cjs; do
+            printf '· %s … ' "$f"
+            if node "$f" > /tmp/out.txt 2>&1; then
+              echo ok
+            else
+              echo FAILED
+              tail -50 /tmp/out.txt
+              fail=1
+            fi
+          done
+          exit $fail
+
+      - name: Generated contracts are internally consistent
+        run: |
+          node scripts/extract-kernels.mjs --check
+          node scripts/build-manifest.mjs --check
+          node scripts/reach.mjs --check
+          git diff --check
+
+      - name: Atlas self-tests
+        run: node scripts/selftest.mjs --list
+
+      - name: Commit verified release candidate
+        run: |
+          git config user.name "HCC Release Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html README.md version.json scripts/build-manifest.mjs \
+            core/atlas/extracted.mjs api .well-known agent.html
+          if git diff --cached --quiet; then
+            echo "No release candidate changes to commit."
+            exit 0
+          fi
+          git commit -m "release: v4.151.0 First-Principles Atlas"
+          git push origin HEAD:agent/first-principles-atlas-4.151
