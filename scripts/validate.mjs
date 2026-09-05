@@ -83,8 +83,9 @@ check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
 
 /* 1 · JavaScript syntax (extract the inline module, strip imports) */
 {
-  const m = html.match(/<script type="module">([\s\S]*?)<\/script>\s*<\/body>/);
-  check(!!m, 'inline ES module found');
+  const modules = [...html.matchAll(/<script type="module">([\s\S]*?)<\/script>/g)];
+  const m = modules.length === 1 ? modules[0] : null;
+  check(modules.length === 1, 'exactly one inline ES module found');
   if (m) {
     const js = m[1].replace(/^import .*$/gm, '');
     writeFileSync('/tmp/__lts_check.mjs', js);

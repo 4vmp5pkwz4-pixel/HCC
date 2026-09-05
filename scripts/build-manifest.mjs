@@ -180,6 +180,28 @@ if (head.render !== 'off') {
 }
 
 /* walk every laboratory and harvest the controls it declares */
+const FP_UNDECLARED = 'UNDECLARED';
+const FP_DIMENSION_OVERRIDES = Object.freeze({
+  anyzoo:{native_space:'unitary braided fusion category / fusion Hilbert space',native_dimension:'categorical; fusion-path Hilbert dimension',state_dimension:'model- and sector-dependent',display_dimension:'3D Atlas scene + 2D exact inspector',projection:'semantic embedding; non-metric',metric_or_form:'Hermitian inner product on fusion Hilbert space',coordinates:'fusion-tree basis',domain:'supported modular-category catalogue'},
+  jonesq:{native_space:'Temperley-Lieb/Jones representation space and braid group B_n',native_dimension:'representation-dependent finite Hilbert space',state_dimension:'representation-dependent',display_dimension:'3D Atlas scene + 2D exact inspector',projection:'semantic embedding; non-metric',metric_or_form:'unitary representation inner product where applicable',coordinates:'braid word / representation basis',domain:'declared Jones/Temperley-Lieb regime'}
+});
+function measuredFirstPrinciples(L, params){
+  const d=FP_DIMENSION_OVERRIDES[L.id]||{};
+  const descriptors=(params||[]).map(p=>({
+    id:p.id||FP_UNDECLARED,label:p.label||FP_UNDECLARED,symbol:p.symbol||FP_UNDECLARED,
+    role:p.role||FP_UNDECLARED,quantity_kind:p.quantity_kind||FP_UNDECLARED,
+    unit:p.unit||FP_UNDECLARED,dimensional_signature:p.dimensional_signature||FP_UNDECLARED,
+    domain:(p.min!==null||p.max!==null)?{min:p.min,max:p.max}:FP_UNDECLARED,
+    source_status:p.source_status||FP_UNDECLARED
+  }));
+  return {schema:'hcc.first-principles/1',native_space:d.native_space||FP_UNDECLARED,
+    native_dimension:d.native_dimension||FP_UNDECLARED,state_dimension:d.state_dimension||FP_UNDECLARED,
+    display_dimension:d.display_dimension||'3D Atlas render surface; not native-dimension evidence',
+    projection:d.projection||FP_UNDECLARED,metric_or_form:d.metric_or_form||FP_UNDECLARED,
+    coordinates:d.coordinates||FP_UNDECLARED,domain:d.domain||FP_UNDECLARED,
+    source_status:L.status||FP_UNDECLARED,parameters:descriptors};
+}
+
 const labs = [];
 for (const L of head.labs) {
   const row = await page.evaluate(async ({id,world}) => {
@@ -196,12 +218,23 @@ for (const L of head.labs) {
     return { id, kind: HCC_API.labs.get(id).kind, instrument: HCC_API.labs.get(id).instrument,
       params: schema.map(s => ({ id: s.id, label: s.label || null,
         min: (s.domain && s.domain.min !== undefined) ? s.domain.min : null,
-        max: (s.domain && s.domain.max !== undefined) ? s.domain.max : null })) };
+        max: (s.domain && s.domain.max !== undefined) ? s.domain.max : null })),
+      /* hcc.first-principles manifest compatibility: legacy instrument parameter shape preserved.  Rich semantics travel only in fp_params, so the long-lived
+         instrument fingerprint remains a checksum of the pre-existing public contract. */
+      fp_params: schema.map(s => ({ id: s.id, label: s.label || null,
+        min: (s.domain && s.domain.min !== undefined) ? s.domain.min : null,
+        max: (s.domain && s.domain.max !== undefined) ? s.domain.max : null,
+        symbol: s.symbol || null, role: s.role || null,
+        quantity_kind: s.quantity_kind || s.quantityKind || null,
+        unit: s.unit || s.units || null,
+        dimensional_signature: s.dimensional_signature || s.dimension || null,
+        source_status: s.source_status || s.status || null })) };
   }, {id:L.id, world:L.world || L.parentWorld || 's3'});
   const kind = row.instrument ? 'computational' : (row.params.length ? 'parametric' : 'visual');
   labs.push({ id: L.id, title: L.title, world: L.world, category: L.category, status: L.status,
     route: L.route, description: L.description || null,
-    kind, instrument: row.instrument, parameters: row.params });
+    kind, instrument: row.instrument, parameters: row.params,
+    first_principles: measuredFirstPrinciples(L, row.fp_params || row.params) });
 }
 
 /* ── A STAMP THAT IS FALSE THE INSTANT IT IS WRITTEN ────────────────────────
@@ -232,6 +265,15 @@ const manifest = {
     bus_links: head.bus.counts.declared, bus_refused: head.bus.counts.refused,
     bus_isolated: head.bus.counts.isolated, unmeasured_blocks: head.unmeasured.length
   },
+  first_principles: (() => {
+    const parameters=labs.flatMap(l=>l.first_principles.parameters);
+    const undeclaredParameters=parameters.filter(p=>p.role===FP_UNDECLARED||p.quantity_kind===FP_UNDECLARED||p.unit===FP_UNDECLARED).length;
+    return {schema:'hcc.first-principles/1',labs_total:labs.length,
+      labs_contracts:labs.filter(l=>!!l.first_principles).length,
+      labs_native_dimension_declared:labs.filter(l=>l.first_principles.native_dimension!==FP_UNDECLARED).length,
+      parameters_total:parameters.length,parameters_fully_declared:parameters.length-undeclaredParameters,
+      parameters_with_undeclared_semantics:undeclaredParameters,fail_closed:true};
+  })(),
   worlds: head.worlds,
   multiview: head.multiview,
   unmeasured: head.unmeasured,
