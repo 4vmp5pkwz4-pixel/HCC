@@ -1,0 +1,46 @@
+name: Refresh v4.150 reach baseline
+
+on:
+  push:
+    branches:
+      - release/4.150.0-ancient-chronometry
+    paths:
+      - '.github/workflows/refresh-v4150-reach.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: refresh-v4150-reach
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release/4.150.0-ancient-chronometry
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Regenerate reach from its declared source artifacts
+        run: |
+          node scripts/reach.mjs
+          node scripts/reach.mjs --check
+          git diff --check
+          test -n "$(git status --porcelain -- api/reach.json)"
+          test -z "$(git status --porcelain | grep -v '^ M api/reach.json$')" || {
+            echo '::error::reach regeneration changed files other than api/reach.json'
+            git status --short
+            exit 1
+          }
+      - name: Commit the derived baseline repair
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add api/reach.json
+          git commit -m 'fix(reach): regenerate composed reach baseline'
+          git push origin HEAD:release/4.150.0-ancient-chronometry
