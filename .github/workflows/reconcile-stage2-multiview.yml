@@ -1,0 +1,78 @@
+name: Reconcile Stage 2 Multiview API
+
+on:
+  push:
+    branches:
+      - reconcile/4.149-semantic
+    paths:
+      - '.github/workflows/reconcile-stage2-multiview.yml'
+      - 'scripts/reconcile-stage2-multiview.cjs'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: reconcile-stage2-multiview
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: reconcile/4.149-semantic
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install exact dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Apply only the Stage 2 semantic patch
+        run: |
+          node scripts/reconcile-stage2-multiview.cjs
+          git diff --check
+
+      - name: Regenerate the manifest from the live Atlas and enrich machine contracts
+        run: |
+          node scripts/build-manifest.mjs
+          node scripts/build-api.mjs
+          node scripts/build-manifest.mjs --check
+
+      - name: RED contracts must now be GREEN with all prior validation intact
+        run: npm test
+
+      - name: Extracted kernels remain synchronized
+        run: node scripts/extract-kernels.mjs --check
+
+      - name: Embedded browser self-tests from every arrival
+        run: node scripts/selftest.mjs --list
+
+      - name: Preserve Solar GPU and observer-distance invariants
+        run: |
+          grep -F 'astOn:false' index.html >/dev/null
+          grep -F "const HCC_VERSION='4.149.0'" index.html >/dev/null
+          grep -F "const HCC_BUILD='semantic-reconciliation-multiview-2026.09.05.2'" index.html >/dev/null
+          node docs/verify-solar-gpu-safe-default.cjs
+          node docs/verify-solar-webgl-buffer-lifetime.cjs
+          node docs/verify-observer-scene.mjs
+
+      - name: Generated core contracts are not stale
+        run: |
+          node scripts/build-api.mjs
+          git diff --exit-code -- api/openapi.json .well-known/mcp.json api/open-problems.json api/manifest.json
+
+      - name: Commit v4.149.0 only after every Stage 2 gate is green
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add index.html scripts/build-manifest.mjs agent.html version.json api/manifest.json
+          git commit -m 'feat(multiview): reconcile focusing discovery API in v4.149.0'
+          git push origin HEAD:reconcile/4.149-semantic
