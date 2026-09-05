@@ -102,6 +102,7 @@ const head = await page.evaluate(() => ({
   worlds: HCC_NAV.worlds().map(w => ({ id: w.id, title: w.title || w.id, route: w.route })),
   instruments: HCC_API.instruments.list().map(i => ({ ...i, describe: HCC_API.describe(i.id) })),
   labs: HCC_API.labs.list(),
+  multiview: HCC_API.multiviewPresets ? HCC_API.multiviewPresets().filter(p => p.id === 'focusing') : [],
   /* ── THE BUS IS PART OF THE CONTRACT, NOT A BROWSER AFFORDANCE ────────────
      Twenty-seven declared couplings, two refusals written down with their reasons, and a
      surface that says why a laboratory is alone — all of it lived in the page and NONE of
@@ -232,6 +233,7 @@ const manifest = {
     bus_isolated: head.bus.counts.isolated, unmeasured_blocks: head.unmeasured.length
   },
   worlds: head.worlds,
+  multiview: head.multiview,
   unmeasured: head.unmeasured,
   bus: head.bus,
   instruments: head.instruments.map(i => ({
