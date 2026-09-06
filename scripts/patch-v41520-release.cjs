@@ -38,4 +38,4 @@ manifest.build = BUILD;
 fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
 
 console.log(`Materialized HCC v${VERSION} · ${BUILD}`);
-// Release gate trigger: typed Integration API + shipped Time Fabric scope.
+// Release trigger: release-safe gates are authoritative; measured artifacts refresh on version commit.
