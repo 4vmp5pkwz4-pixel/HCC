@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="one-commensurability-engine-2026.09.04.16">
+<html lang="en" data-hcc-build="solar-phase-observatory-2026.09.06.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="one-commensurability-engine-2026.09.04.16">
+<meta name="hcc-build" content="solar-phase-observatory-2026.09.06.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2184,7 +2184,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.147.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.148.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2386,8 +2386,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.147.0';
-const HCC_BUILD='one-commensurability-engine-2026.09.04.16';
+const HCC_VERSION='4.148.0';
+const HCC_BUILD='solar-phase-observatory-2026.09.06.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -12650,6 +12650,19 @@ function nextCyclePhaseMatch(a,b,days=state.epochDays){
   let rel=f>0?mod(-delta):mod(delta);
   if(rel<1e-12) rel=1;
   return days+rel/Math.abs(f);
+}
+/* The phase solver is shared by Cycles and Solar rather than reimplemented in
+   either view.  `dir` makes phase stepping reversible while the tiny nudge keeps
+   an epoch already on the root from selecting itself again. */
+function cyclePhaseMatch(a,b,days=state.epochDays,dir=1){
+  if(!a?.days||!b?.days||a===b) return Infinity;
+  const f=1/a.days-1/b.days;
+  if(Math.abs(f)<1e-30) return Infinity;
+  const mod=x=>((x%1)+1)%1;
+  const d=days+Math.sign(dir||1)*Math.min(a.days,b.days)*1e-10;
+  const delta=cyclePhase(a,d)-cyclePhase(b,d);
+  const turns=dir>0?(f>0?mod(-delta):mod(delta)):(f>0?mod(delta):mod(-delta));
+  return d+Math.sign(dir||1)*(turns<1e-12?1:turns)/Math.abs(f);
 }
 function fmtCycleDays(days){
   if(!isFinite(days)) return '—';
@@ -60741,6 +60754,18 @@ cycPhaseLab.position.set(0,3.2,0); cycPhaseInst.add(cycPhaseLab);
 // dynamic axis labels naming which two cycles the torus is currently showing
 const cycPhaseLabA=mkLabel('','label dim'); cycPhaseLabA.position.set(6.0,0,0); cycPhaseInst.add(cycPhaseLabA);
 const cycPhaseLabB=mkLabel('','label dim'); cycPhaseLabB.position.set(4.0,1.8,0); cycPhaseInst.add(cycPhaseLabB);
+/* The same laboratory is available in the Solar System as an immersive model,
+   not merely as a link back to Cycles.  It has its own render objects but shares
+   the epoch, pair selection and solver, so switching tabs cannot fork reality. */
+const solarPhaseInst=new THREE.Group(); solarPhaseInst.position.set(0,8,-18); solarGroup.add(solarPhaseInst);
+const solarPhaseTorus=new THREE.Mesh(new THREE.TorusGeometry(4,1.55,22,120),
+  new THREE.MeshBasicMaterial({color:0x76cfff,wireframe:true,transparent:true,opacity:.34,depthWrite:false}));
+solarPhaseTorus.rotation.x=Math.PI/2;
+const solarPhaseTrace=new THREE.Line(new THREE.BufferGeometry(),
+  new THREE.LineBasicMaterial({color:0xffd879,transparent:true,opacity:.8,depthWrite:false}));
+const solarPhaseBead=new THREE.Mesh(new THREE.SphereGeometry(.24,18,12),new THREE.MeshBasicMaterial({color:0xffffff}));
+const solarPhaseLab=mkLabel('SOLAR PHASE OBSERVATORY · the Cycles solver in the live ephemeris','label const');
+solarPhaseLab.position.set(0,3.25,0); solarPhaseInst.add(solarPhaseTorus,solarPhaseTrace,solarPhaseBead,solarPhaseLab);
 function phaseTorusPoint(a,b){
   const A=2*Math.PI*a,B=2*Math.PI*b,R=4,r=1.55;
   return new THREE.Vector3((R+r*Math.cos(B))*Math.cos(A),r*Math.sin(B),(R+r*Math.cos(B))*Math.sin(A));
@@ -60756,7 +60781,27 @@ function rebuildCyclePhaseTrace(){
     pts.push(phaseTorusPoint(cyclePhase(a,d),cyclePhase(b,d)));
   }
   cycPhaseTrace.geometry.setFromPoints(pts);
+  solarPhaseTrace.geometry.setFromPoints(pts);
 }
+function updateSolarPhaseObservatory(){
+  solarPhaseInst.visible=state.mode==='solar'&&!!state.solarPhaseLab;
+  if(!solarPhaseInst.visible)return;
+  const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB); if(!a||!b)return;
+  solarPhaseBead.position.copy(phaseTorusPoint(cyclePhase(a),cyclePhase(b)));
+  solarPhaseInst.rotation.y+=0.0015;
+}
+registerSel('solarPhaseObservatory',{
+  name:'Solar phase-coincidence observatory',mode:'solar',pick:solarPhaseTorus,
+  src:['DERIVED'],accuracyTier:'M',catalogueStatus:'model-derived',
+  forbiddenClaims:['The torus is dimensionless and non-metric.','A mean-phase match is not by itself a physical conjunction, eclipse or resonance.'],
+  desc:'An immersive copy of the Cycles phase torus driven by the same pair selection, epoch and reversible coincidence solver inside the live Solar System.',
+  getPos:()=>solarPhaseInst.position.clone(),focusDist:()=>14,
+  rows:()=>{const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB),c=cycleCommensurability(a,b);
+    return [['Cycles',`${a.name} ↔ ${b.name}`],['Shared epoch',formatDeepDate(state.epochDays)+' UT'],
+      ['Phase separation',`${(Math.min(Math.abs(cyclePhase(a)-cyclePhase(b)),1-Math.abs(cyclePhase(a)-cyclePhase(b)))*360).toFixed(5)}°`],
+      ['Bounded ratio',c.meaningful?`${c.nA}:${c.nB} · ${c.ppm.toPrecision(4)} ppm`:`REFUSED — ${c.refusal}`],
+      ['Interpretation','mean-period phase diagnostic; not an event prediction']];}
+});
 
 /* ── CYCLE RESONANCE WEB · the global commensurability map ──────────────────
    The phase torus shows ONE pair's phase trajectory. This shows ALL of them at
@@ -65412,7 +65457,7 @@ const state = {
   cycYrPerSec: 1, cycSeasons: null,
   oortSpeed: 0.75, showOort: true, solarScaleLayer:'local', oortDensity: 0.7, solarJourney:false, solarApexLock:false,
   precModel:'ltp', timeDir:1, axisAnchorLock:false,   // Vondrák long-term precession · time arrow · axis-anchored camera
-  phaseLock:null, phaseRate:0, vecPlanetOn:{},        // stroboscopic phase lock · per-planet velocity arrows (default OFF)
+  phaseLock:null, phaseRate:0, solarPhaseLab:false, vecPlanetOn:{}, // shared Cycles phase observatory · stroboscopic lock
   motionLabDrive:false,                               // phone tilt drives the active laboratory's main parameter
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, qmHopf:true, // Quantum wave lab
@@ -68002,6 +68047,18 @@ function buildCtlBody(){
       <div class="note" id="phOut" style="font-variant-numeric:tabular-nums;font-size:11px"></div>`:''}
       <div class="note" style="font-size:10.5px;color:var(--dim)">A stroboscope for orbits, frame-rate aware (60 Hz, iPhone Pro 120 Hz, MacBook ProMotion — the REAL per-frame Δt is used): while the clock's per-frame advance stays under HALF the body's period, the locked body (or PAIR, via the true synodic period — Earth–Moon 29.53 d, Earth–Mars 780 d…) follows real time exactly. Beyond that Nyquist limit the sampled phase is physically aliased — so the lock HOLDS the body's phase rock-steady (zero monitor-rate jitter; you can click and select it mid-hyperspeed) and the Phase drive slider alone turns its orbit forward or backward (±periods per second). Exact incremental arithmetic — no smoothing, no filtering, and the aliasing is declared, not hidden.</div>
     </div>
+    <div class="sect"><b>Phase-coincidence observatory · shared with Cycles</b>
+      <div class="ctlrow"><label>Cycle A</label><select id="solarPairA" style="flex:1">
+        ${CYCLE_PHASE_KEYS.map(k=>`<option value="${k}" ${state.cycPairA===k?'selected':''}>${cycleByKey(k).name}</option>`).join('')}
+      </select></div>
+      <div class="ctlrow"><label>Cycle B</label><select id="solarPairB" style="flex:1">
+        ${CYCLE_PHASE_KEYS.map(k=>`<option value="${k}" ${state.cycPairB===k?'selected':''}>${cycleByKey(k).name}</option>`).join('')}
+      </select></div>
+      <div class="ctlrow"><label>Immersive 3D phase torus</label><input type="checkbox" id="solarPhaseShow" ${state.solarPhaseLab?'checked':''}></div>
+      <div class="ctlrow" style="gap:4px"><button class="btn" id="solarPrevMatch">← Previous match</button><button class="btn green" id="solarNextMatch">Next match →</button></div>
+      <div id="solarPhaseOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.5px">${cyclePairSummaryHTML()}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">This is the same normalized-phase solver, pair selection and epoch used by Cycles — not a look-alike implementation. A jump moves the live Solar System to the coincidence and pauses it. The torus is dimensionless and non-metric: coincidence of mean phases is a search hypothesis, not automatically a conjunction, eclipse or dynamical resonance.</div>
+    </div>
     <div class="sect"><b>Scale</b>
       <div class="ctlrow"><label>Planet size ×</label>
         <input type="range" id="psc" min="0" max="3.3" step="0.05" value="${Math.log10(state.planetScale)}">
@@ -68142,6 +68199,15 @@ function buildCtlBody(){
     ctl.querySelector('#phZero')&&(ctl.querySelector('#phZero').onclick=()=>{ state.phaseRate=0;
       const s=ctl.querySelector('#phRate'); if(s)s.value=0;
       const v=ctl.querySelector('#phRateV'); if(v)v.textContent='0.000 P/s'; });
+    const solarPairChange=e=>{ state[e.target.id==='solarPairA'?'cycPairA':'cycPairB']=e.target.value;
+      rebuildCyclePhaseTrace(); const o=ctl.querySelector('#solarPhaseOut');if(o)o.innerHTML=cyclePairSummaryHTML(); };
+    ctl.querySelector('#solarPairA').onchange=solarPairChange; ctl.querySelector('#solarPairB').onchange=solarPairChange;
+    ctl.querySelector('#solarPhaseShow').onchange=e=>{state.solarPhaseLab=e.target.checked;rebuildCyclePhaseTrace();};
+    const solarPhaseStep=dir=>{const d=cyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB),state.epochDays,dir);
+      if(isFinite(d)){state.epochDays=d;state.paused=true;const o=ctl.querySelector('#solarPhaseOut');if(o)o.innerHTML=cyclePairSummaryHTML();}};
+    ctl.querySelector('#solarPrevMatch').onclick=()=>solarPhaseStep(-1);
+    ctl.querySelector('#solarNextMatch').onclick=()=>solarPhaseStep(1);
+    rebuildCyclePhaseTrace();
     ctl.querySelector('#apexLock')&&(ctl.querySelector('#apexLock').onclick=()=>{ state.solarApexLock=!state.solarApexLock; buildCtl(); });
     ctl.querySelector('#axisAnchor')&&(ctl.querySelector('#axisAnchor').onclick=()=>{
       state.axisAnchorLock=!state.axisAnchorLock;
@@ -81659,6 +81725,7 @@ function tickBody(now, frame){
       }
     }
     updateCosmicFrame(camera.position.distanceTo(controls.target), T, geoShift);   // stitched axes + orientation spheres
+    updateSolarPhaseObservatory(); // shared Cycles laboratory, rendered inside the Solar world
 
     /* the Moon rides Earth's orbit (orbit exaggerated unless true scale) */
     {
