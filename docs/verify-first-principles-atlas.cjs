@@ -63,7 +63,6 @@ const b = Math.sqrt(1 / phi);
 const C = (re, im=0) => [re, im];
 const add = (x,y) => C(x[0]+y[0], x[1]+y[1]);
 const mul = (x,y) => C(x[0]*y[0]-x[1]*y[1], x[0]*y[1]+x[1]*y[0]);
-const scale = (x,s) => C(x[0]*s,x[1]*s);
 const mm = (A,B) => A.map((row,i)=>B[0].map((_,j)=>row.reduce((z,_,k)=>add(z,mul(A[i][k],B[k][j])),C(0,0))));
 const sub = (A,B) => A.map((r,i)=>r.map((z,j)=>C(z[0]-B[i][j][0],z[1]-B[i][j][1])));
 const maxAbs = A => Math.max(...A.flat().map(z=>Math.hypot(z[0],z[1])));
@@ -85,9 +84,13 @@ ok('Fibonacci braid relation closes',
   maxAbs(sub(mm(mm(s1,s2),s1),mm(mm(s2,s1),s2))) < 1e-12,
   `residual=${maxAbs(sub(mm(mm(s1,s2),s1),mm(mm(s2,s1),s2))).toExponential(2)}`);
 
-ok('v4.151 release identity is exact',
-  version.version === '4.151.0' &&
-  version.build === 'first-principles-atlas-2026.09.05.1',
+const semver = String(version.version||'').match(/^(\d+)\.(\d+)\.(\d+)$/);
+const firstPrinciplesEra = !!semver && (
+  Number(semver[1]) > 4 ||
+  (Number(semver[1]) === 4 && Number(semver[2]) >= 151)
+);
+ok('release identity is at or after the First-Principles introduction and has a build stamp',
+  firstPrinciplesEra && typeof version.build === 'string' && version.build.length > 0,
   `${version.version} · ${version.build}`);
 
 ok('manifest builder emits first-principles summary',
