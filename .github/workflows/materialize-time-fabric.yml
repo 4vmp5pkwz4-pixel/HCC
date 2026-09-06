@@ -1,0 +1,41 @@
+name: Materialize Time Fabric
+
+on:
+  push:
+    branches:
+      - feat/unified-atlas-time-4.152
+    paths:
+      - scripts/patch-v41520-time-fabric.cjs
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic Time Fabric patch
+        run: |
+          set -euo pipefail
+          node scripts/patch-v41520-time-fabric.cjs
+          git diff --check
+          node --check scripts/patch-v41520-time-fabric.cjs
+          node docs/verify-unified-atlas-time.cjs || true
+      - name: Commit materialized index
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html; then
+            echo "index.html already materialized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "feat(time): install browser AtlasTime authority"
+          git push origin HEAD:feat/unified-atlas-time-4.152
