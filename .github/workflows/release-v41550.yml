@@ -1,0 +1,114 @@
+name: Release v4.155.0 Predictive Reach Observatory
+
+on:
+  push:
+    branches:
+      - release/4.155.0-predictive-reach-observatory
+    paths:
+      - .github/workflows/release-v41550.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-v41550
+  cancel-in-progress: true
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    steps:
+      - name: Check out exact release branch
+        uses: actions/checkout@v4
+        with:
+          ref: release/4.155.0-predictive-reach-observatory
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies and Chromium
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Stamp v4.155.0 into the exact Atlas
+        run: node scripts/patch-v41550-release-identity.cjs
+      - name: Prove predictive reach semantics before measuring release
+        run: |
+          node docs/verify-predictive-reach-observatory.cjs
+          node docs/verify-chronometry-source-locked.cjs
+          node docs/verify-chronometry-falsification.cjs
+          node docs/verify-ancient-astronomy-benchmarks.cjs
+          node docs/verify-chronometry-workspace-v41540.cjs
+          node docs/verify-multiphase-solar-control.cjs
+          node docs/verify-unified-atlas-time.cjs
+          node docs/verify-linked-cycle-views.cjs
+          node scripts/extract-kernels.mjs --check
+      - name: Rebuild measured static manifest from running Atlas
+        run: node scripts/build-manifest.mjs
+      - name: Rebuild API and machine-facing contracts
+        run: node scripts/build-api.mjs
+      - name: Validate release identity and source contracts
+        run: |
+          npm test
+          node docs/verify-predictive-reach-observatory.cjs
+          node docs/verify-chronometry-workspace-v41540.cjs
+      - name: Re-measure liveness
+        run: node scripts/liveness.mjs
+      - name: Re-measure local sensitivity
+        run: node scripts/sensitivity.mjs
+      - name: Re-measure cross-laboratory transfers
+        run: node scripts/transfers.mjs
+      - name: Recompose end-to-end reach
+        run: node scripts/reach.mjs
+      - name: Regenerate browser-free agent report
+        run: node scripts/demo-agent.mjs
+      - name: Verify predictive artifact identity and law gates
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          (async()=>{
+            const reach=JSON.parse(fs.readFileSync('api/reach.json','utf8'));
+            if(reach.version!=='4.155.0'||reach.build!=='predictive-reach-observatory-2026.09.06.1') throw new Error('reach identity mismatch');
+            const M=await import('./core/prediction/reach-forecast.mjs');
+            const controls=M.listReachControls(reach);
+            if(!controls.length) throw new Error('reach exposes no controls');
+            let t=0,f=0,n=0;
+            for(const row of reach.chains){if(row.power_law===true)t++;else if(row.power_law===false)f++;else n++;}
+            if(!t||!f||!n) throw new Error(`expected accepted/rejected/unjudged reach chains; got ${t}/${f}/${n}`);
+            for(const control of controls){
+              const out=M.forecastReach(reach,control,.1,{version:reach.version,build:reach.build});
+              for(const r of out.results){
+                if(r.forecastability!=='SCALING_LAW'&&r.response_ratio!==null) throw new Error('unsupported chain emitted finite forecast');
+              }
+            }
+            console.log(`predictive reach artifact: ${reach.chains.length} chains · ${controls.length} controls · ${t} scaling / ${f} local-only / ${n} unjudged`);
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Verify measured artifacts and hygiene
+        run: |
+          node docs/verify-liveness-artifact.cjs
+          node docs/verify-sensitivity.cjs
+          node docs/verify-transfers.cjs
+          node scripts/reach.mjs --check
+          node scripts/demo-agent.mjs --check
+          node scripts/validate.mjs
+          node docs/verify-predictive-reach-observatory.cjs
+          node docs/verify-chronometry-source-locked.cjs
+          node docs/verify-chronometry-falsification.cjs
+          node docs/verify-ancient-astronomy-benchmarks.cjs
+          node docs/verify-chronometry-workspace-v41540.cjs
+          node docs/verify-multiphase-solar-control.cjs
+          node docs/verify-unified-atlas-time.cjs
+          git diff --check
+      - name: Commit coherent v4.155.0 release state
+        run: |
+          git config user.name "HCC Release Agent"
+          git config user.email "actions@users.noreply.github.com"
+          git add index.html version.json api .well-known/mcp.json artifacts/agent-demo-report.json
+          if git diff --cached --quiet; then
+            echo "No release state changes were produced."
+            exit 1
+          fi
+          git commit -m "release: v4.155.0 predictive reach observatory"
+          git push origin HEAD:release/4.155.0-predictive-reach-observatory
