@@ -5196,6 +5196,12 @@ function runSelfTests(){
   { const a=cycleByKey('moon'),b=cycleByKey('year'),d=nextCyclePhaseMatch(a,b,1234);
     const sep=Math.abs(cyclePhase(a,d)-cyclePhase(b,d));
     ok('Next normalized phase-match solver closes pair phase',Math.min(sep,1-sep)<1e-9,sep); }
+  { const a=cycleByKey('moon'),b=cycleByKey('year'),now=1234,
+      prev=previousCyclePhaseMatch(a,b,now),next=nextCyclePhaseMatch(a,b,now),beat=cycBeat(a.days,b.days);
+    const sep=Math.abs(cyclePhase(a,prev)-cyclePhase(b,prev));
+    ok('Phase-match search is time-symmetric: previous < now < next, both separated by exactly one relative-phase beat',
+      prev<now&&next>now&&Math.min(sep,1-sep)<1e-9&&Math.abs((next-prev)-beat)<beat*1e-10,
+      `${formatDeepDate(prev)} < ${formatDeepDate(now)} < ${formatDeepDate(next)} · Δ=${fmtCycleDays(next-prev)}`); }
   ok('Fractal boot palette is a registered palette and its uniform is in sync',
     (fractalPalette in FRACTAL_PALETTES)&&fractalUniforms.uPalette.value===FRACTAL_PALETTES[fractalPalette],fractalPalette);
   ok('Laniakea orientation streamlines terminate near reconstructed convergence region',
@@ -12642,14 +12648,56 @@ function cycleCommensurability(a,b,maxA=512){
     : `the periods differ by a factor of ${ratio.toExponential(2)}, beyond the ${maxA} this search considers: small-integer commensurability is not a meaningful question for this pair, and no number is reported rather than a number that means nothing`);
   return best;
 }
-function nextCyclePhaseMatch(a,b,days=state.epochDays){
-  const f=1/a.days-1/b.days;
-  if(Math.abs(f)<1e-30) return Infinity;
-  const delta=cyclePhase(a,days)-cyclePhase(b,days);
-  const mod=x=>((x%1)+1)%1;
-  let rel=f>0?mod(-delta):mod(delta);
-  if(rel<1e-12) rel=1;
-  return days+rel/Math.abs(f);
+/* Solve the unwrapped relative phase f·t+c=k directly.  The former implementation
+   subtracted a rounded fractional phase from a huge epoch and derived "previous" by
+   subtracting one beat from "next"; both lose digits in deep time.  Integer-lattice
+   selection gives a strict predecessor/successor without that cancellation. */
+function cyclePhaseMatchEpoch(a,b,days=state.epochDays,direction=1){
+  const f=1/a.days-1/b.days,c=-(a.ref||0)/a.days+(b.ref||0)/b.days;
+  if(!Number.isFinite(f)||Math.abs(f)<1e-30||!Number.isFinite(days))return Infinity;
+  const x=f*days+c,eps=32*Number.EPSILON*Math.max(1,Math.abs(x));
+  const k=direction<0
+    ?(f>0?Math.ceil(x-eps)-1:Math.floor(x+eps)+1)
+    :(f>0?Math.floor(x+eps)+1:Math.ceil(x-eps)-1);
+  const t=(k-c)/f;
+  return direction<0&&t<days||direction>=0&&t>days?t:Infinity;
+}
+const nextCyclePhaseMatch=(a,b,days=state.epochDays)=>cyclePhaseMatchEpoch(a,b,days,1);
+const previousCyclePhaseMatch=(a,b,days=state.epochDays)=>cyclePhaseMatchEpoch(a,b,days,-1);
+/* A phase match is a temporal configuration, not a disposable calculator result.
+   Keep the pair and its exact epoch together so changing worlds cannot silently turn
+   the discovery into "whatever time the other panel happened to show". */
+function setCyclePhaseConfiguration(direction=1){
+  const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);if(!a||!b)return false;
+  const d=direction<0?previousCyclePhaseMatch(a,b):nextCyclePhaseMatch(a,b);
+  if(!Number.isFinite(d))return false;
+  state.epochDays=d;state.paused=true;state.cycFrame='phase';state.cycShowPhaseTorus=true;
+  state.cycMatch={schema:1,kind:'mean-phase-match',a:a.key,b:b.key,epochDays:d,direction:direction<0?-1:1};
+  persistCycleWorkspace();refreshSeasons();rebuildCyclePhaseTrace();return true;
+}
+function pinCurrentCycleConfiguration(){
+  const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);if(!a||!b)return false;
+  state.cycMatch={schema:1,kind:'epoch-snapshot',a:a.key,b:b.key,epochDays:state.epochDays,direction:0};
+  persistCycleWorkspace();return true;
+}
+function cycleConfigurationHTML(){
+  const m=state.cycMatch;if(!m)return '';
+  const a=cycleByKey(m.a),b=cycleByKey(m.b);if(!a||!b||!Number.isFinite(m.epochDays))return '';
+  const drift=Math.abs(state.epochDays-m.epochDays)*86400;
+  const sep=Math.min(Math.abs(cyclePhase(a,m.epochDays)-cyclePhase(b,m.epochDays)),
+    1-Math.abs(cyclePhase(a,m.epochDays)-cyclePhase(b,m.epochDays)))*360;
+  const claim=m.kind==='mean-phase-match'?`mean-phase residual ${sep.toExponential(2)}°`:'current epoch snapshot · no coincidence claimed';
+  return `<b>⌖ ${a.name} ↔ ${b.name}</b><br>anchored epoch ${formatDeepDate(m.epochDays)} UT · ${claim} · `+
+    `timeline offset ${drift<.001?'0':drift.toPrecision(4)} s`;
+}
+function observeCycleConfigurationInSolar(){
+  if(!state.cycMatch)pinCurrentCycleConfiguration();const m=state.cycMatch;if(!m)return false;
+  state.epochDays=m.epochDays;state.paused=true;state.geocentric=true;
+  setMode('solar');setSolarScaleLayer('local');
+  const lunar=['moon','draconic','anomalistic','sidmonth','saros','metonic'].includes(m.a)
+    ||['moon','draconic','anomalistic','sidmonth','saros','metonic'].includes(m.b);
+  const s=SELECT.get(lunar?'moon':'planet2');if(s){selectKey(lunar?'moon':'planet2');focusOn(s);}
+  buildCtl();return true;
 }
 function fmtCycleDays(days){
   if(!isFinite(days)) return '—';
@@ -65357,6 +65405,20 @@ const ATLAS_LANG0=(()=>{ try{ const s=localStorage.getItem('atlasLang'); if(s&&A
 /* render-time i18n: TT(english, russian, german) → the string for the active language, English fallback.
    Wrap any user-visible literal in TT(...) and it re-renders on language change with zero extra plumbing. */
 function TT(en,ru,de){ const L=(state&&state.lang)||ATLAS_LANG0; return L==='ru'?(ru??en):L==='de'?(de??en):en; }
+const CYC_WORKSPACE_KEY='hcc-cycle-workspace-v1';
+const CYC_WORKSPACE0=(()=>{try{
+  const x=JSON.parse(localStorage.getItem(CYC_WORKSPACE_KEY)||'null');if(!x||x.schema!==1)return null;
+  const keys=new Set(CYCLE_PHASE_KEYS),frames=new Set(['hierarchy','helio','geo','gal','phase','resonance','orientation','antikythera']);
+  if(!keys.has(x.pairA)||!keys.has(x.pairB)||!frames.has(x.frame))return null;
+  const m=x.match;
+  if(m&&(!keys.has(m.a)||!keys.has(m.b)||!Number.isFinite(m.epochDays)
+    ||!['mean-phase-match','epoch-snapshot'].includes(m.kind)))return null;
+  return x;
+}catch(e){return null;}})();
+function persistCycleWorkspace(){try{localStorage.setItem(CYC_WORKSPACE_KEY,JSON.stringify({
+  schema:1,pairA:state.cycPairA,pairB:state.cycPairB,frame:state.cycFrame,
+  showPhaseTorus:state.cycShowPhaseTorus,match:state.cycMatch
+}));}catch(e){/* private browsing/storage denial must not disable the instrument */}}
 const state = {
   lang:ATLAS_LANG0,
   mode:'solar', fractalRot:0,   // 0..3 → 90°-step view rotation for the Fractal Explorer
@@ -65378,7 +65440,10 @@ const state = {
   ringOffset:0.0, ringThickness:0.12, ringProjection:'auto', ringPhase:0, ringRun:false, ringUiAcc:0,
   ringView:'observer', ringShowSpheres:true, ringShowVolume:true, ringShowFits:true,
   ringShowExtents:true, ringShowChord:false, ringShowPredicted:false, ringShowInset:false,
-  cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:true,
+  cycFrame:CYC_WORKSPACE0?.frame||'hierarchy', cycLinks:true,
+  cycShowPhaseTorus:CYC_WORKSPACE0?.showPhaseTorus!==false,
+  cycPairA:CYC_WORKSPACE0?.pairA||'moon', cycPairB:CYC_WORKSPACE0?.pairB||'year', cycShowAges:true,
+  cycMatch:CYC_WORKSPACE0?.match||null, // exact temporal workspace survives world switches and reloads
   drdX:10, drdTau:0.35, drdRun:true,   // DRD lab: x=R/ε and the PIR causal sweep
   // Hopfion lab: (p,q) charge, preimage count K, target-point distribution, scale,
   // fibre flow + target precession, mode (single/pair/ring) and its parameters
@@ -67985,6 +68050,11 @@ function buildCtlBody(){
         <button class="btn green" id="dateGo">Set</button></div>
       <div class="note" style="font-size:10px;color:var(--dim)">Text deep-time input: <b>2026-07-13 12:00</b> · <b>-100000-01-01</b> · <b>100000 BCE</b> · <b>1.5 Myr ago</b> · <b>J2000+250000y</b>. Press Enter or Set.</div>
     </div>
+    ${state.cycMatch?`<div class="sect" style="border-color:rgba(156,227,198,.45)"><b>Cycles · retained temporal configuration</b>
+      <div class="note" id="solarCycleConfiguration" style="font-variant-numeric:tabular-nums">${cycleConfigurationHTML()}</div>
+      <div class="ctlrow"><button class="btn green" id="solarRestoreCycle">↩ Return to this configuration in Cycles</button></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">The Solar System and Cycles are reading the same <code>epochDays</code>. Switching sections does not recompute, round or discard the selected phase coincidence.</div>
+    </div>`:''}
     <div class="sect"><b>Phase synchronisation — stroboscope</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>Mode</label>
         <button class="chip ${!state.phaseLock?'on':''}" data-phmode="off">Off</button>
@@ -68113,6 +68183,9 @@ function buildCtlBody(){
     ctl.querySelector('#today').onclick = ()=>{ state.epochDays = (Date.now()/86400000 + 2440587.5) - 2451545.0; };
     ctl.querySelector('#astOn')&&(ctl.querySelector('#astOn').onchange=e=>{ state.astOn=e.target.checked; });
     bindDeepDateControl(ctl.querySelector('#datePick'),ctl.querySelector('#dateGo'));
+    ctl.querySelector('#solarRestoreCycle')&&(ctl.querySelector('#solarRestoreCycle').onclick=()=>{
+      state.epochDays=state.cycMatch.epochDays;state.paused=true;setMode('cyc');applyCycFrameView();buildCtl();
+    });
     ctl.querySelector('#psc').oninput = e=>{ state.planetScale = 10**(+e.target.value); state.trueScale=false; ctl.querySelector('#tsc').checked=false; updCtlVals(); };
     ctl.querySelector('#tsc').onchange = e=>{ state.trueScale = e.target.checked; updCtlVals(); };
     ctl.querySelector('#orb').onchange = e=>{ state.showOrbits = e.target.checked; planetObjs.forEach(o=>o.line.visible=e.target.checked); };
@@ -68317,7 +68390,13 @@ function buildCtlBody(){
         ${CYCLE_PHASE_KEYS.map(k=>`<option value="${k}" ${state.cycPairB===k?'selected':''}>${cycleByKey(k).name}</option>`).join('')}
       </select></div>
       <div class="ctlrow"><label>3D phase torus</label><input type="checkbox" id="cycPhaseShow" ${state.cycShowPhaseTorus?'checked':''}></div>
-      <div class="ctlrow"><button class="btn green" id="cycNextMatch">→ Next normalized-phase match</button></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:5px">
+        <button class="btn" id="cycPrevMatch">← Previous match</button>
+        <button class="btn green" id="cycNextMatch">→ Next match</button></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:5px">
+        <button class="btn" id="cycPinNow">⌖ Pin configuration now</button>
+        <button class="btn green" id="cycObserveMatch">☉ Observe pinned configuration in Solar System</button></div>
+      ${state.cycMatch?`<div id="cycMatchAnchor" class="note" style="font-variant-numeric:tabular-nums;color:#9ce3c6">${cycleConfigurationHTML()}</div>`:''}
       <div id="cycPhaseOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.5px">${cyclePairSummaryHTML()}</div>
     </div>
 
@@ -68349,15 +68428,15 @@ function buildCtlBody(){
     ctl.querySelector('#cpause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
     ctl.querySelector('#ctoday').onclick = ()=>{ state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0; refreshSeasons(); buildCtl(); };
     bindDeepDateControl(ctl.querySelector('#cdate'),ctl.querySelector('#cdateGo'),refreshSeasons);
-    ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value; applyCycFrameView(); };
+    ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value;persistCycleWorkspace();applyCycFrameView(); };
     ctl.querySelector('#cycLinks').onchange=e=>state.cycLinks=e.target.checked;
-    ctl.querySelector('#cycPhaseShow').onchange=e=>state.cycShowPhaseTorus=e.target.checked;
-    const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;rebuildCyclePhaseTrace();updCtlVals();};
+    ctl.querySelector('#cycPhaseShow').onchange=e=>{state.cycShowPhaseTorus=e.target.checked;persistCycleWorkspace();};
+    const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;state.cycMatch=null;persistCycleWorkspace();rebuildCyclePhaseTrace();buildCtl();};
     ctl.querySelector('#cycPairA').onchange=pairChange; ctl.querySelector('#cycPairB').onchange=pairChange;
-    ctl.querySelector('#cycNextMatch').onclick=()=>{
-      const d=nextCyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB));
-      if(isFinite(d)){state.epochDays=d;state.paused=true;refreshSeasons();updCtlVals();}
-    };
+    ctl.querySelector('#cycPrevMatch').onclick=()=>{if(setCyclePhaseConfiguration(-1)){applyCycFrameView();buildCtl();}};
+    ctl.querySelector('#cycNextMatch').onclick=()=>{if(setCyclePhaseConfiguration(1)){applyCycFrameView();buildCtl();}};
+    ctl.querySelector('#cycPinNow').onclick=()=>{if(pinCurrentCycleConfiguration())buildCtl();};
+    ctl.querySelector('#cycObserveMatch').onclick=observeCycleConfigurationInSolar;
     rebuildCyclePhaseTrace();
 
     const ecSel=ctl.querySelector('#ecSel'), ecInfo=ctl.querySelector('#ecInfo');
@@ -74643,8 +74722,9 @@ function setMode(mode){
     setS3View(state.s3view);
     setChiRing(state.chi);
   } else if(mode==='cyc'){
-    camera.position.set(0,26,54); controls.target.set(0,1,0);
-    setControlDistanceLimits(4,320);
+    /* Returning through the top-level Cycles button must restore the chosen instrument,
+       not reset its camera to the hierarchy while the selector still says "phase". */
+    applyCycFrameView();
   } else if(mode==='fbs'){
     camera.position.set(0,7,26); controls.target.set(0,0,0);
     setControlDistanceLimits(2,400);
