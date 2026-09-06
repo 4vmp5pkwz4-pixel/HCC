@@ -130,6 +130,15 @@ check(html.includes("ru:") && html.includes("de:") && html.includes("en:"),
   check(n >= 15, `selection registry is rich (${n} registerSel call-sites ≥ 15)`);
   check(html.includes('selProv'), 'selection cards carry a provenance container');
   check(html.includes('SOURCE_MAP'), 'SOURCE_MAP provenance section present');
+  check(html.includes('function selectionRelationCurve(a,b,seed=0,viewDir=null,segments=24)')
+    && html.includes("selectionLinksGroup.name='Typed relationship field'")
+    && html.includes("selectionRelationFlow.name='Typed relation flow probes'")
+    && html.includes('lineSetPoints(line,pts);lineComputeDistances(line)'),
+    'typed relationships use named spatial curves with animated flow probes, not ruler-like straight chords');
+  check(html.includes('const q=PREFERS_REDUCED_MOTION ? .5 :')
+    && html.includes('depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending')
+    && html.includes('the relation line is an interface aid, not a distance measurement'),
+    'relationship motion respects reduced-motion and remains an explicitly non-metric overlay');
 }
 
 /* 6 · Mobile requirements */
@@ -144,6 +153,33 @@ check(/#clock\{position:absolute;top:/.test(html)
 check(html.includes('@media (max-width:420px)') && html.includes('#navCluster>#breadcrumb{left:auto;transform:none')
   && html.includes('id="activeLabControls"') && html.includes('_jumpActive') && html.includes('_revealActive'),
   'narrow phones separate title/clock/breadcrumb and jump to the newly selected laboratory controls');
+/* The mobile refinements are one system, not a collection of visual hints.  Guard the
+   semantic and geometry-bearing parts together so a later CSS cleanup cannot preserve
+   the appearance on a desktop emulator while regressing a real notched/zoomed iPhone. */
+check(!/user-scalable\s*=\s*no/i.test(html) && !/maximum-scale\s*=\s*1(?:\.0)?/i.test(html),
+  'the viewport keeps native pinch zoom available for accessibility');
+check(html.includes('--safe-l:env(safe-area-inset-left,0px)')
+  && html.includes('--safe-r:env(safe-area-inset-right,0px)')
+  && /#hccTabs\{[\s\S]{0,220}?var\(--safe-r\)[\s\S]{0,220}?var\(--safe-l\)/.test(html)
+  && /right:calc\(8px \+ var\(--safe-r\)\)!important/.test(html),
+  'landscape sheets and compact navigation share the left/right iPhone safe corridor');
+check(html.includes("b.setAttribute('aria-label',label)")
+  && html.includes("b.querySelector('i')?.setAttribute('aria-hidden','true')")
+  && html.includes("b.setAttribute('aria-current','page')"),
+  'compact icon navigation preserves names, silent decorative glyphs and one current-page state');
+check((html.match(/window\.visualViewport\?\.height\|\|innerHeight/g)||[]).length >= 2
+  && html.includes('overscroll-behavior:contain') && html.includes('-webkit-overflow-scrolling:touch'),
+  'sheet budgets follow the visual viewport and panels retain bounded native touch scrolling');
+check(html.includes('function setCyclePhaseConfiguration(direction=1)')
+  && html.includes('function observeCycleConfigurationInSolar()')
+  && html.includes('function pinCurrentCycleConfiguration()')
+  && html.includes('id="cycPrevMatch"') && html.includes('id="cycObserveMatch"') && html.includes('id="cycPinNow"')
+  && html.includes('id="solarRestoreCycle"'),
+  'Cycles keeps a bidirectional phase-match configuration and offers one-tap Solar observation and return');
+check(html.includes("cycMatch:CYC_WORKSPACE0?.match||null") && html.includes('function persistCycleWorkspace()')
+  && html.includes("state.epochDays=state.cycMatch.epochDays")
+  && /else if\(mode==='cyc'\)\{[\s\S]{0,360}?applyCycFrameView\(\)/.test(html),
+  'the shared epoch and selected Cycles frame survive top-level navigation and reloads');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
