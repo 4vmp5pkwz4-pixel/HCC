@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="unified-atlas-time-2026.09.06.1">
+<html lang="en" data-hcc-build="cycle-navigation-2026.09.06.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="unified-atlas-time-2026.09.06.1">
+<meta name="hcc-build" content="cycle-navigation-2026.09.06.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2201,7 +2201,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.152.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.152.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2405,8 +2405,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.152.0';
-const HCC_BUILD='unified-atlas-time-2026.09.06.1';
+const HCC_VERSION='4.152.1';
+const HCC_BUILD='cycle-navigation-2026.09.06.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -62247,6 +62247,35 @@ function jumpToEclipse(i){
   buildCtl();
   const s = SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
 }
+const HCC_CYCLE_VIEWS=[
+  ['hierarchy','All cycles','Все циклы','Alle Zyklen'],
+  ['helio','Seasons','Времена года','Jahreszeiten'],
+  ['geo','Precession','Прецессия','Präzession'],
+  ['gal','Galactic year','Галактический год','Galaktisches Jahr'],
+  ['phase','Phase space','Фазовое пространство','Phasenraum'],
+  ['resonance','Resonances · Saros','Резонансы · Сарос','Resonanzen · Saros'],
+  ['orientation','Reference planes','Опорные плоскости','Referenzebenen'],
+  ['antikythera','Antikythera','Антикитера','Antikythera'],
+  ['linked','Linked analysis','Связанный анализ','Verknüpfte Analyse'],
+  ['chronometry','Ancient chronometry','Древняя хронометрия','Antike Chronometrie']
+];
+function hccCycleNavigate(view){
+  if(view!=='solar'&&!HCC_CYCLE_VIEWS.some(v=>v[0]===view)) return false;
+  const worldId=view==='solar'?'solar':'cyc';
+  // AtlasTime owns the epoch and rate; view changes never write clock state.
+  if(worldId==='cyc') state.cycFrame=view;
+  hccGo({worldId,...(view==='chronometry'?{labId:'chronometry'}:{})});
+  if(worldId==='cyc') applyCycFrameView();
+  buildCtl();
+  return true;
+}
+function hccCycleNavigationHTML(){
+  return `<div class="sect"><b>${TT('One epoch · linked views','Одна эпоха · связанные виды','Eine Epoche · verbundene Ansichten')}</b>
+    <div class="ctlrow" style="flex-wrap:wrap;gap:6px">
+      <button class="chip ${state.mode==='solar'?'on':''}" data-cycle-view="solar" aria-pressed="${state.mode==='solar'}">${TT('Solar system','Солнечная система','Sonnensystem')}</button>
+      ${HCC_CYCLE_VIEWS.map(v=>`<button class="chip ${state.mode==='cyc'&&state.cycFrame===v[0]?'on':''}" data-cycle-view="${v[0]}" aria-pressed="${state.mode==='cyc'&&state.cycFrame===v[0]}">${TT(v[1],v[2],v[3])}</button>`).join('')}
+    </div><div class="note">${TT('Date, pause, direction and time rate travel with you. Each view retains its own scale and model limits.','Дата, пауза, направление и темп времени сохраняются. У каждого вида остаются свой масштаб и границы модели.','Datum, Pause, Richtung und Zeittempo bleiben erhalten. Jede Ansicht behält ihren Maßstab und ihre Modellgrenzen.')}</div></div>`;
+}
 function observeCycle(key){
   const go=(m)=>{ if(state.mode!==m) setMode(m); };
   switch(key){
@@ -68911,6 +68940,7 @@ function buildCtl(){
     _st=ctl.scrollTop, _rows=[...ctl.querySelectorAll('.chips,.radioRow')].map(r=>r.scrollLeft);
   LAST_CTL_CONTEXT=_context;
   buildCtlBody();
+  ctl.querySelectorAll('[data-cycle-view]').forEach(b=>b.onclick=()=>hccCycleNavigate(b.dataset.cycleView));
   /* the generated rail is wired in ONE place, after the body exists, because it is
      rendered in one place: every laboratory in the atlas passes through the same
      activeLabControls div and therefore gets every relationship the registries know */
@@ -68944,6 +68974,7 @@ function buildCtl(){
 function buildCtlBody(){
   if(state.mode==='solar'){
     ctl.innerHTML = `
+    ${hccCycleNavigationHTML()}
     <div class="sect"><b>Time</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="spd" min="-3" max="8.5" step="0.05" value="${Math.log10(Math.max(state.daysPerSec,1e-3))}">
@@ -69247,6 +69278,7 @@ function buildCtlBody(){
         <button class="btn" data-cyc="${c.key}" title="${c.desc}">👁</button></div>`;
     }).join('');
     ctl.innerHTML = `
+    ${hccCycleNavigationHTML()}
     <div class="sect"><b>Shared timeline</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="cspd" min="-1" max="9.5" step="0.05" value="${Math.log10(Math.max(state.cycYrPerSec,0.1))}">
@@ -69323,7 +69355,7 @@ function buildCtlBody(){
     ctl.querySelector('#cpause').onclick = ()=>{ setAtlasPaused(!state.paused,'cycles.pause'); buildCtl(); };
     ctl.querySelector('#ctoday').onclick = ()=>{ setAtlasEpoch((Date.now()/86400000+2440587.5)-2451545.0,'cycles.today'); refreshSeasons(); buildCtl(); };
     bindDeepDateControl(ctl.querySelector('#cdate'),ctl.querySelector('#cdateGo'),refreshSeasons);
-    ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value; applyCycFrameView(); };
+    ctl.querySelector('#cycFrame').onchange=e=>hccCycleNavigate(e.target.value);
     ctl.querySelector('#cycLinks').onchange=e=>state.cycLinks=e.target.checked;
     ctl.querySelector('#cycPhaseShow').onchange=e=>state.cycShowPhaseTorus=e.target.checked;
     const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;rebuildCyclePhaseTrace();updCtlVals();};
