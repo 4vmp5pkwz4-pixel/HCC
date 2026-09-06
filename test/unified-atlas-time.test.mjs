@@ -6,6 +6,19 @@ import {
   reduceEpochModulo,
   createAtlasTime,
 } from '../core/time/atlas-time.mjs';
+import {
+  TIME_DOMAIN_KIND,
+  STATE_SCOPE,
+  CLOCK_STATUS,
+  TIME_DOMAINS,
+  CLOCK_ADAPTERS,
+  STATE_SCOPES,
+  domainById,
+  findClockAdapter,
+  canPromoteToAtlasEpoch,
+  stateScopeById,
+  validateTimeRegistry,
+} from '../core/time/registry.mjs';
 
 assert.deepEqual(normalizeEpoch(1, 1.25), {day: 2, fraction: 0.25});
 assert.deepEqual(normalizeEpoch(1, -0.25), {day: 0, fraction: 0.75});
@@ -74,3 +87,46 @@ assert(Math.abs(
 ) < 1e-9);
 
 console.log('PASS — AtlasTime split-epoch kernel');
+
+assert.equal(Object.keys(TIME_DOMAIN_KIND).length, 7);
+assert.equal(Object.keys(STATE_SCOPE).length, 4);
+assert.equal(domainById('atlas.epoch').kind, 'ABSOLUTE_EPOCH');
+assert.equal(domainById('relativity.proper_time').kind, 'PHYSICAL_LOCAL_TIME');
+assert.equal(domainById('ks.regularizer_s').kind, 'PARAMETRIZATION_TIME');
+assert.equal(domainById('mixmaster.tau').kind, 'PARAMETRIZATION_TIME');
+assert.equal(domainById('standard_map.iteration').kind, 'ITERATION_INDEX');
+assert.equal(domainById('anderson.site').kind, 'SPATIAL_INDEX');
+assert.equal(domainById('render.monotonic').kind, 'RENDER_TIME');
+assert.equal(canPromoteToAtlasEpoch('atlas.epoch'), true);
+assert.equal(canPromoteToAtlasEpoch('solar.epoch'), true);
+assert.equal(canPromoteToAtlasEpoch('relativity.proper_time'), false);
+assert.equal(canPromoteToAtlasEpoch('standard_map.iteration'), false);
+
+const refused = findClockAdapter('anderson.site', 'atlas.epoch');
+assert.equal(refused.status, 'NO_EXCHANGE');
+assert.equal(refused.source, 'anderson.site');
+assert.equal(refused.target, 'atlas.epoch');
+assert(Object.isFrozen(refused));
+
+const lorenz = findClockAdapter('lorenz.poincare_iteration', 'lorenz.flow_time');
+assert.equal(lorenz.status, 'STATISTICAL');
+assert.equal(lorenz.meanReturnTime, 0.7509);
+assert.match(lorenz.provenance, /verify-clock-exchange/);
+assert.equal(lorenz.invertible, false);
+
+const proper = findClockAdapter('relativity.coordinate_time', 'relativity.proper_time');
+assert.equal(proper.status, 'MODEL_DEPENDENT');
+assert.equal(proper.invertible, true);
+
+assert.equal(stateScopeById('atlas.epoch').scope, 'GLOBAL_PHYSICS');
+assert.equal(stateScopeById('atlas.rate_days_per_second').scope, 'GLOBAL_PHYSICS');
+assert.equal(stateScopeById('atlas.paused').scope, 'GLOBAL_PHYSICS');
+assert.equal(stateScopeById('view.camera').scope, 'VIEW_ONLY');
+
+assert(Object.isFrozen(TIME_DOMAINS));
+assert(Object.isFrozen(CLOCK_ADAPTERS));
+assert(Object.isFrozen(STATE_SCOPES));
+assert.deepEqual(validateTimeRegistry(), {ok: true, domains: TIME_DOMAINS.length, adapters: CLOCK_ADAPTERS.length, scopes: STATE_SCOPES.length});
+assert.equal(CLOCK_STATUS.NO_EXCHANGE, 'NO_EXCHANGE');
+
+console.log('PASS — typed Atlas time-domain registry');
