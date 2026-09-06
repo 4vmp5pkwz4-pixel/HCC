@@ -9,7 +9,7 @@ function ok(name,cond,detail=''){
 }
 function has(x){ return s.includes(x); }
 
-console.log('=== v4.151.1 linked Cycles view contract ===');
+console.log('=== linked Cycles view contract (introduced in v4.151.1) ===');
 ok('linked-view schema marker exists', has("hcc.cycles-linked-view/1"));
 ok('Cycles exposes a dedicated linked analytical frame', /option value=["']linked["']/.test(s) && /state\.cycFrame===['"]linked['"]/.test(s));
 ok('linked view is one Three.js instrument owned by the Cycles scene', /const cycLinkedInst\s*=\s*new THREE\.Group\(\)/.test(s) && /cycGroup\.add\(cycLinkedInst\)/.test(s));
@@ -28,7 +28,9 @@ const linkedEnd=linkedStart>=0?s.indexOf('END LINKED CYCLES VIEW',linkedStart):-
 const block=linkedStart>=0?s.slice(linkedStart,linkedEnd>linkedStart?linkedEnd:linkedStart+18000):'';
 ok('linked runtime creates no private animation loop or timer', block && !/requestAnimationFrame|setAnimationLoop|setInterval|setTimeout/.test(block));
 ok('linked runtime does not rebuild line geometry per frame', block && !/updateCycLinkedView[\s\S]*setFromPoints/.test(block));
-ok('release identity is v4.151.1', /HCC_VERSION\s*=\s*['"]4\.151\.1['"]/.test(s));
+const vm=s.match(/HCC_VERSION\s*=\s*['"](\d+)\.(\d+)\.(\d+)['"]/);
+const versionAtLeast41511=!!vm && (Number(vm[1])>4 || (Number(vm[1])===4 && (Number(vm[2])>151 || (Number(vm[2])===151 && Number(vm[3])>=1))));
+ok('release preserves the linked-view contract introduced in v4.151.1',versionAtLeast41511,vm?`current ${vm[1]}.${vm[2]}.${vm[3]}`:'version missing');
 
 console.log(`\n${pass} passed · ${fail} failed`);
 if(fail) process.exit(1);
