@@ -2394,6 +2394,8 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createAtlasTime, epochDaysOf } from './core/time/atlas-time.mjs';
+import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTERS, STATE_SCOPES, domainById, findClockAdapter, canPromoteToAtlasEpoch } from './core/time/registry.mjs';
 
 /* THE VERSION LIVES HERE AND NOWHERE ELSE.
    It used to be typed into four places by hand — the <html> attribute, the <meta>
@@ -62251,7 +62253,6 @@ function observeCycle(key){
   buildCtl();
 }
 function updateCyc(dt){
-  if(!state.paused) state.epochDays += state.cycYrPerSec*365.2425*dt*(state.timeDir||1);
   const yrs = state.epochDays/365.2425;
   const frame=state.cycFrame||'hierarchy';
 
@@ -66383,6 +66384,51 @@ const state = {
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
   orbDen:1, orbPt:0.045, orbGlow:0.72,   // hydrogen-orbital cloud: density × / point size / glow
 };
+
+// HCC v4.152 Unified Atlas Time Fabric
+const HCC_TIME_FABRIC_SCHEMA='hcc.time-fabric/1';
+const atlasTime=createAtlasTime({
+  epochDays:state.epochDays,
+  rateDaysPerSecond:Math.abs(state.daysPerSec)*(state.timeDir<0?-1:1),
+  paused:state.paused,
+  source:'atlas.init'
+});
+let atlasFrameTime=atlasTime.snapshot();
+function atlasTimeSnapshot(){return atlasFrameTime;}
+function hccCompatSignedRate(){
+  const mag=state.mode==='cyc'?Math.abs(state.cycYrPerSec)*365.2425:Math.abs(state.daysPerSec);
+  return mag*(state.timeDir<0?-1:1);
+}
+function syncAtlasTimeCompat(snap){
+  state.epochDays=epochDaysOf(snap);
+  state.paused=snap.paused;
+  state.timeDir=snap.rateDaysPerSecond<0?-1:1;
+  if(state.mode==='cyc')state.cycYrPerSec=Math.abs(snap.rateDaysPerSecond)/365.2425;
+  else state.daysPerSec=Math.abs(snap.rateDaysPerSecond);
+  return snap;
+}
+/* Temporary migration bridge. Task 5 removes it after every legacy global time write has
+   been redirected. It imports changes made by existing UI handlers BEFORE the one root
+   advance, so the service is still the only frame authority while the migration is staged. */
+function adoptLegacyTimeControls(){
+  const cur=atlasTime.snapshot(),rate=hccCompatSignedRate();
+  if(Math.abs(epochDaysOf(cur)-state.epochDays)>1e-12 || cur.rateDaysPerSecond!==rate || cur.paused!==!!state.paused){
+    atlasFrameTime=atlasTime.transact({epochDays:state.epochDays,rateDaysPerSecond:rate,paused:!!state.paused},{source:'legacy.compat'});
+  }
+}
+function setAtlasEpoch(epochDays,source='atlas.setEpoch'){
+  atlasFrameTime=atlasTime.setEpoch(epochDays,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasRate(rateDaysPerSecond,source='atlas.setRate'){
+  atlasFrameTime=atlasTime.setRate(rateDaysPerSecond,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasPaused(paused,source='atlas.setPaused'){
+  atlasFrameTime=atlasTime.setPaused(paused,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasTime(patch,source='atlas.transaction'){
+  atlasFrameTime=atlasTime.transact(patch,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+
 /* ══ A TUNED LABORATORY YOU CANNOT SHARE IS A READING YOU CANNOT REPRODUCE ════
    The route carried a world and a laboratory and nothing else, so every control a reader
    moved was lost the moment they sent the link. You could say "look at the Einstein ring"
@@ -82290,7 +82336,10 @@ function tick(now, frame){
   }
 }
 function tickBody(now, frame){
-  const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (no backward time)
+  const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (render time)
+  adoptLegacyTimeControls();
+  atlasFrameTime=atlasTime.advanceFrame(dt,{source:'frame.root'});
+  syncAtlasTimeCompat(atlasFrameTime);
   if(typeof journeyTick==='function') journeyTick(dt);   // Atlas Coach grand-tour auto-advance
   if(rendererResizePending&&!renderer.xr.isPresenting)syncRendererViewport();
   if(webglContextLost){
@@ -82403,7 +82452,6 @@ function tickBody(now, frame){
 
   if(state.mode==='solar'){
     autoSolarScale(dt);
-    if(!state.paused) state.epochDays += state.daysPerSec*dt*(state.timeDir||1);
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
     orbitGeometryAcc+=dt;
