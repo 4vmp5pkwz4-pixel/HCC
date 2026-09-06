@@ -9,7 +9,10 @@ const {execFileSync}=require('child_process');
 const manifest=JSON.parse(fs.readFileSync('api/manifest.json','utf8'));
 let baseManifest;
 try{
-  baseManifest=JSON.parse(execFileSync('git',['show','origin/main:api/manifest.json'],{encoding:'utf8'}));
+  baseManifest=JSON.parse(execFileSync('git',['show','origin/main:api/manifest.json'],{
+    encoding:'utf8',
+    maxBuffer:64*1024*1024
+  }));
 }catch(err){
   throw new Error(`cannot read the current main manifest for compatibility comparison: ${err.message}`);
 }
@@ -28,7 +31,7 @@ const now=instrumentFingerprint(manifest);
 const base=instrumentFingerprint(baseManifest);
 ok('first-principles release preserves the current-main legacy instrument contract',
   now===base,
-  `v4.151=${now} main=${base}`);
+  `current=${now} main=${base}`);
 
 const nowIds=(manifest.instruments||[]).map(i=>i.id).sort();
 const baseIds=(baseManifest.instruments||[]).map(i=>i.id).sort();

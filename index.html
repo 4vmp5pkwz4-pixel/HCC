@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="first-principles-atlas-2026.09.05.1">
+<html lang="en" data-hcc-build="linked-cycle-views-2026.09.06.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="first-principles-atlas-2026.09.05.1">
+<meta name="hcc-build" content="linked-cycle-views-2026.09.06.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2201,7 +2201,7 @@
 <div id="sceneTransition" aria-hidden="true"></div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.151.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.151.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2403,8 +2403,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.151.0';
-const HCC_BUILD='first-principles-atlas-2026.09.05.1';
+const HCC_VERSION='4.151.1';
+const HCC_BUILD='linked-cycle-views-2026.09.06.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -14215,9 +14215,9 @@ function selectionContext(key,s){
     // shows it (the hierarchy shows everything), keep the frame and just focus — clicking
     // the Seasons dial used to force 'helio' and everything else vanished.
     const want = key==='cycGal'?'gal' : key==='cycPrec'?'geo' : key==='cycPhaseAtlas'?'phase'
-               : key==='cycResonanceWeb'?'resonance' : 'helio';
+               : key==='cycResonanceWeb'?'resonance' : key==='cycLinkedView'?'linked' : 'helio';
     const shows = { gal:['hierarchy','gal'], geo:['hierarchy','geo'], phase:['hierarchy','phase'],
-                    resonance:['hierarchy','resonance'], helio:['hierarchy','helio','geo'] }[want];
+                    resonance:['hierarchy','resonance'], linked:['linked'], helio:['hierarchy','helio','geo'] }[want];
     if(!shows.includes(state.cycFrame)) state.cycFrame=want;
   } else if(s.mode==='fractal'&&key.startsWith('fractal_')){
     setFractalType(key.slice(8),false);
@@ -61368,10 +61368,12 @@ for(let i=0;i<resoNodes.length;i++) for(let j=i+1;j<resoNodes.length;j++){
   resoEdges.push({i:resoNodes[i].key,j:resoNodes[j].key,line,col,tight,elab,meaningful:c.meaningful});
 }
 { const t=mkLabel('CYCLE RESONANCE WEB · gold = a real integer lock · grey = the question refused, not a weak answer','label const'); t.position.set(0,9.2,0); cycResonanceInst.add(t); }
-let resoPulse=0;
 function updateCycResonance(dt){
-  resoPulse+=dt;
-  const A=state.cycPairA, B=state.cycPairB, pulse=0.78+0.22*Math.sin(resoPulse*3);
+  const A=state.cycPairA, B=state.cycPairB;
+  const _ra=cycleByKey(A), _rb=cycleByKey(B);
+  const _pa=cycLinkedPhaseOf(_ra), _pb=cycLinkedPhaseOf(_rb);
+  const _raw=Math.abs(_pa-_pb), _phaseDistance=Math.min(_raw,1-_raw);
+  const pulse=0.78+0.22*Math.cos(2*Math.PI*_phaseDistance);
   resoNodes.forEach(n=>{ const sel=(n.key===A||n.key===B);
     n.dot.scale.setScalar(sel?1.5:1); n.dot.material.color.setHex(sel?0xffe6a8:0xd4af6a); });
   for(const e of resoEdges){
@@ -61405,6 +61407,131 @@ registerSel('cycResonanceWeb',{
       ['Milankovitch band',`${cycClimaticPrecession().toFixed(0)} yr from the axial and apsidal precessions beating`],
       ['Status','mathematical relationship map; not a physical configuration']]; },
 });
+
+
+/* ── HCC v4.151.1 · LINKED CYCLES ANALYTICAL VIEW ───────────────────────────
+   One selected cycle pair, one authoritative epoch, four explicitly named analytical
+   lenses. Edges are structural view links: this scene is not a physical causal graph. */
+const HCC_CYCLES_LINKED_VIEW_SCHEMA='hcc.cycles-linked-view/1';
+function cycLinkedPhaseOf(c){
+  if(!c || !(c.days>0) || !Number.isFinite(state.epochDays)) return 0;
+  const q=state.epochDays/c.days;
+  return ((q%1)+1)%1;
+}
+function cycLinkedPhaseDistance(a,b){
+  const d=Math.abs(a-b);
+  return Math.min(d,1-d);
+}
+function cycLinkedCommensurabilityText(c){
+  if(!c) return 'NO DECLARED INTEGER LOCK';
+  if(typeof c.label==='string'&&c.label) return c.label;
+  const nums=Object.entries(c).filter(([,v])=>Number.isFinite(v)).slice(0,4);
+  return nums.length?nums.map(([k,v])=>k+'='+fmt(v,6)).join(' · '):'STRUCTURAL RELATION AVAILABLE';
+}
+
+const cycLinkedInst=new THREE.Group(); cycGroup.add(cycLinkedInst);
+cycLinkedInst.userData.schema=HCC_CYCLES_LINKED_VIEW_SCHEMA;
+cycLinkedInst.userData.relation='STRUCTURAL VIEW LINK';
+
+const cycLinkedCore=new THREE.Group(); cycLinkedInst.add(cycLinkedCore);
+const cycLinkedRingA=new THREE.Mesh(
+  new THREE.TorusGeometry(2.05,.075,12,72),
+  new THREE.MeshBasicMaterial({color:0xe7c778,transparent:true,opacity:.9,depthWrite:false}));
+const cycLinkedRingB=new THREE.Mesh(
+  new THREE.TorusGeometry(1.48,.06,12,64),
+  new THREE.MeshBasicMaterial({color:0x79c7ff,transparent:true,opacity:.82,depthWrite:false}));
+cycLinkedRingB.rotation.x=Math.PI/2;
+cycLinkedCore.add(cycLinkedRingA,cycLinkedRingB);
+const cycLinkedMarkerA=new THREE.Mesh(new THREE.SphereGeometry(.16,14,10),new THREE.MeshBasicMaterial({color:0xffdc78}));
+const cycLinkedMarkerB=new THREE.Mesh(new THREE.SphereGeometry(.14,14,10),new THREE.MeshBasicMaterial({color:0x85d5ff}));
+cycLinkedCore.add(cycLinkedMarkerA,cycLinkedMarkerB);
+const cycLinkedHub=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,2),new THREE.MeshBasicMaterial({color:0xd9c5ff,wireframe:true,transparent:true,opacity:.72}));
+cycLinkedCore.add(cycLinkedHub);
+
+const cycLinkedNodeGeo=new THREE.SphereGeometry(.34,18,12);
+const cycLinkedSpecs=[
+  {key:'information',title:'02 · INTEGRATED INFORMATION',pos:new THREE.Vector3(-5.0,2.7,0),color:0x66d9ff},
+  {key:'complexity',title:'03 · INTEGRATED COMPLEXITY',pos:new THREE.Vector3(5.0,2.7,0),color:0xc6a7ff},
+  {key:'scaling',title:'04 · UNIFIED SCALING',pos:new THREE.Vector3(5.0,-2.7,0),color:0xf5c56b},
+  {key:'observer',title:'05 · OBSERVER SELECTION',pos:new THREE.Vector3(-5.0,-2.7,0),color:0x86efb5}
+];
+const cycLinkedNodes=new Map(), cycLinkedReadout=new Map();
+for(const spec of cycLinkedSpecs){
+  const node=new THREE.Mesh(cycLinkedNodeGeo,new THREE.MeshBasicMaterial({color:spec.color,transparent:true,opacity:.92}));
+  node.position.copy(spec.pos); cycLinkedInst.add(node); cycLinkedNodes.set(spec.key,node);
+  const title=mkLabel(spec.title,'label const'); title.position.copy(spec.pos).add(new THREE.Vector3(0,.72,0)); cycLinkedInst.add(title);
+  const read=mkLabel('—','label'); read.position.copy(spec.pos).add(new THREE.Vector3(0,-.65,0));
+  if(read.element){ read.element.dataset.cycLinkedReadout=spec.key; read.element.style.maxWidth='250px'; read.element.style.textAlign='center'; }
+  cycLinkedInst.add(read); cycLinkedReadout.set(spec.key,read);
+}
+const cycLinkedTitle=mkLabel('LINKED CYCLES · ONE EPOCH · FOUR ANALYTICAL LENSES','label const');
+cycLinkedTitle.position.set(0,4.25,0);cycLinkedInst.add(cycLinkedTitle);
+const cycLinkedFirewall=mkLabel('STRUCTURAL VIEW LINK · not IIT Φ · not a physical causal graph','label');
+cycLinkedFirewall.position.set(0,-4.15,0);cycLinkedInst.add(cycLinkedFirewall);
+function cycLinkedStaticLine(a,b,opacity=.28){
+  const g=new THREE.BufferGeometry().setFromPoints([a,b]);
+  const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xb9c8dd,transparent:true,opacity,depthWrite:false}));
+  cycLinkedInst.add(l); return l;
+}
+const _linkedZero=new THREE.Vector3(0,0,0);
+for(const spec of cycLinkedSpecs) cycLinkedStaticLine(_linkedZero,spec.pos,.34);
+for(let i=0;i<cycLinkedSpecs.length;i++) cycLinkedStaticLine(cycLinkedSpecs[i].pos,cycLinkedSpecs[(i+1)%cycLinkedSpecs.length].pos,.18);
+
+function cycLinkedSetReadout(key,text){
+  const o=cycLinkedReadout.get(key);
+  if(o&&o.element) o.element.textContent=text;
+}
+function updateCycLinkedView(){
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(!a||!b) return;
+  const pa=cycLinkedPhaseOf(a), pb=cycLinkedPhaseOf(b), d=cycLinkedPhaseDistance(pa,pb);
+  const information=Math.max(0,1-2*d);
+  const comm=cycleCommensurability(a,b);
+  const ratio=(a.days>0&&b.days>0)?b.days/a.days:NaN;
+  const logScale=ratio>0?Math.log10(ratio):NaN;
+  const pair=(a.name||a.label||a.key||state.cycPairA)+' ↔ '+(b.name||b.label||b.key||state.cycPairB);
+
+  const aa=2*Math.PI*pa, ab=2*Math.PI*pb;
+  cycLinkedMarkerA.position.set(2.05*Math.cos(aa),2.05*Math.sin(aa),0);
+  cycLinkedMarkerB.position.set(1.48*Math.cos(ab),0,1.48*Math.sin(ab));
+  cycLinkedRingA.rotation.z=aa;
+  cycLinkedRingB.rotation.y=ab;
+  cycLinkedHub.rotation.set(aa*.22,ab*.27,(aa-ab)*.18);
+  const syncGlow=.72+.28*information;
+  for(const node of cycLinkedNodes.values()) node.scale.setScalar(syncGlow);
+
+  cycLinkedSetReadout('information','phase proximity = '+fmt(information,5)+' · not IIT Φ');
+  cycLinkedSetReadout('complexity',cycLinkedCommensurabilityText(comm));
+  cycLinkedSetReadout('scaling','B/A = '+fmt(ratio,7)+' · log₁₀ = '+fmt(logScale,5));
+  cycLinkedSetReadout('observer',pair+' · epoch '+fmt(state.epochDays,3)+' d');
+}
+
+registerSel('cycLinkedView',{
+  name:'Linked analytical cycle view',mode:'cyc',tier:'M',kind:'representation',
+  accuracy:'representation / structural relation',
+  forbiddenClaims:[
+    'Integrated Information is a normalized phase-proximity view score, not IIT Φ.',
+    'Integrated Complexity reports selected commensurability structure, not a universal complexity measure.',
+    'Unified Scaling is the selected mean-period ratio/log-ratio, not a universal scaling law.',
+    'Layout and edges are non-metric STRUCTURAL VIEW LINK relations, not a physical causal graph.'
+  ],
+  desc:'Four synchronized analytical lenses over the currently selected Cycles pair, driven only by the authoritative Atlas epoch.',
+  getPos:()=>cycLinkedInst.position.clone(),focusDist:()=>15,
+  rows:()=>{
+    const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);
+    if(!a||!b) return [];
+    const pa=cycLinkedPhaseOf(a),pb=cycLinkedPhaseOf(b),ratio=b.days/a.days;
+    return [
+      ['schema',HCC_CYCLES_LINKED_VIEW_SCHEMA],
+      ['pair',(a.name||state.cycPairA)+' ↔ '+(b.name||state.cycPairB)],
+      ['phase distance',fmt(cycLinkedPhaseDistance(pa,pb),7)],
+      ['period ratio B/A',fmt(ratio,9)],
+      ['epoch',fmt(state.epochDays,6)+' d'],
+      ['relation','STRUCTURAL VIEW LINK']
+    ];
+  }
+});
+/* ── END LINKED CYCLES VIEW ───────────────────────────────────────────────── */
 
 /* ── THE SAROS ENGINE · three hands that nearly meet ─────────────────────────
    The Saros was a number in this atlas. It is really a mechanism, and this is
@@ -61720,6 +61847,11 @@ function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
 }
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
 function applyCycFrameView(){
+  if(state.cycFrame==='linked'){
+    const linked=SELECT.get('cycLinkedView');
+    if(linked) focusOn(linked);
+    return;
+  }
   if(state.mode!=='cyc') return;
   applySpatialGuideVisibility();   // layout-plane guides are frame-dependent (hidden on single-instrument stages)
   if(state.cycFrame==='phase'){
@@ -62137,6 +62269,8 @@ function updateCyc(dt){
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
   cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
   if(cycResonanceInst.visible) updateCycResonance(dt);
+  cycLinkedInst.visible = frame==='linked';
+  if(cycLinkedInst.visible) updateCycLinkedView();
   cycChronometryInst.visible=frame==='hierarchy'||frame==='chronometry';
   if(cycChronometryInst.visible) updateChronometryObservatory();
   if(cycSarosInst.visible) updateSarosEngine();
@@ -69019,7 +69153,8 @@ function buildCtlBody(){
           <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
           <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
           <option value="orientation" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>
-          <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
+          <option value="linked" ${state.cycFrame==='linked'?'selected':''}>⟲ Linked analytical view</option>
+              <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
         </select>
       </div>
       <div class="ctlrow"><label>Earth/Sun identity links</label><input type="checkbox" id="cycLinks" ${state.cycLinks?'checked':''}></div>
