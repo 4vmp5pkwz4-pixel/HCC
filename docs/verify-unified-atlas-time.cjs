@@ -18,6 +18,9 @@ function count(text, needle) {
   while ((at = text.indexOf(needle, at)) >= 0) { n++; at += needle.length; }
   return n;
 }
+function assignmentCount(field) {
+  return [...src.matchAll(new RegExp(`state\\.${field}\\s*=(?!=)`, 'g'))].length;
+}
 
 console.log('\n=== Unified Atlas Time Fabric browser contract ===\n');
 ok('browser declares exactly one Time Fabric schema marker',
@@ -35,6 +38,14 @@ ok('root runtime advances AtlasTime exactly once',
   `found ${count(src, 'atlasTime.advanceFrame(')}`);
 ok('frame snapshot is a first-class runtime value',
   src.includes('atlasFrameTime'));
+
+console.log('\n=== Single mutation gateway ===\n');
+for (const field of ['epochDays','daysPerSec','cycYrPerSec','paused','timeDir']) {
+  const n = assignmentCount(field);
+  ok(`${field} has exactly one compatibility projection write`, n === 1, `found ${n}`);
+}
+ok('temporary legacy time-control adoption bridge is gone', !src.includes('adoptLegacyTimeControls'));
+ok('no private global epoch increment remains', !/state\.epochDays\s*\+=/.test(src));
 
 console.log('\n=== Typed-clock firewall ===\n');
 ok('all seven time-domain kinds are declared',
