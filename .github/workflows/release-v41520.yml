@@ -1,0 +1,46 @@
+name: Release v4.152.0
+
+on:
+  push:
+    branches:
+      - feat/unified-atlas-time-4.152
+    paths:
+      - scripts/patch-v41520-release.cjs
+
+permissions:
+  contents: write
+
+jobs:
+  release-materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Materialize v4.152.0 identity
+        run: |
+          set -euo pipefail
+          node scripts/patch-v41520-release.cjs
+          node --check scripts/patch-v41520-release.cjs
+          git diff --check
+      - name: Verify release tree
+        run: |
+          set -euo pipefail
+          node scripts/validate.mjs
+          node docs/verify-unified-atlas-time.cjs
+          node scripts/ci.mjs
+      - name: Commit verified release tree
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html version.json api/manifest.json; then
+            echo "v4.152.0 identity already materialized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html version.json api/manifest.json
+          git commit -m "release: v4.152.0 unified Atlas time fabric"
+          git push origin HEAD:feat/unified-atlas-time-4.152
