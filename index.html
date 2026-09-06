@@ -5196,6 +5196,12 @@ function runSelfTests(){
   { const a=cycleByKey('moon'),b=cycleByKey('year'),d=nextCyclePhaseMatch(a,b,1234);
     const sep=Math.abs(cyclePhase(a,d)-cyclePhase(b,d));
     ok('Next normalized phase-match solver closes pair phase',Math.min(sep,1-sep)<1e-9,sep); }
+  { const a=cycleByKey('moon'),b=cycleByKey('year'),now=1234,
+      prev=previousCyclePhaseMatch(a,b,now),next=nextCyclePhaseMatch(a,b,now),beat=cycBeat(a.days,b.days);
+    const sep=Math.abs(cyclePhase(a,prev)-cyclePhase(b,prev));
+    ok('Phase-match search is time-symmetric: previous < now < next, both separated by exactly one relative-phase beat',
+      prev<now&&next>now&&Math.min(sep,1-sep)<1e-9&&Math.abs((next-prev)-beat)<beat*1e-10,
+      `${formatDeepDate(prev)} < ${formatDeepDate(now)} < ${formatDeepDate(next)} · Δ=${fmtCycleDays(next-prev)}`); }
   ok('Fractal boot palette is a registered palette and its uniform is in sync',
     (fractalPalette in FRACTAL_PALETTES)&&fractalUniforms.uPalette.value===FRACTAL_PALETTES[fractalPalette],fractalPalette);
   ok('Laniakea orientation streamlines terminate near reconstructed convergence region',
@@ -12650,6 +12656,39 @@ function nextCyclePhaseMatch(a,b,days=state.epochDays){
   let rel=f>0?mod(-delta):mod(delta);
   if(rel<1e-12) rel=1;
   return days+rel/Math.abs(f);
+}
+function previousCyclePhaseMatch(a,b,days=state.epochDays){
+  const beat=1/Math.abs(1/a.days-1/b.days),next=nextCyclePhaseMatch(a,b,days);
+  if(!Number.isFinite(next)||!Number.isFinite(beat))return Infinity;
+  const candidate=next-beat,tol=Math.max(1e-9,beat*1e-12);
+  return candidate<days-tol?candidate:candidate-beat;
+}
+/* A phase match is a temporal configuration, not a disposable calculator result.
+   Keep the pair and its exact epoch together so changing worlds cannot silently turn
+   the discovery into "whatever time the other panel happened to show". */
+function setCyclePhaseConfiguration(direction=1){
+  const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);if(!a||!b)return false;
+  const d=direction<0?previousCyclePhaseMatch(a,b):nextCyclePhaseMatch(a,b);
+  if(!Number.isFinite(d))return false;
+  state.epochDays=d;state.paused=true;state.cycFrame='phase';state.cycShowPhaseTorus=true;
+  state.cycMatch={a:a.key,b:b.key,epochDays:d,direction:direction<0?-1:1};
+  refreshSeasons();rebuildCyclePhaseTrace();return true;
+}
+function cycleConfigurationHTML(){
+  const m=state.cycMatch;if(!m)return '';
+  const a=cycleByKey(m.a),b=cycleByKey(m.b);if(!a||!b||!Number.isFinite(m.epochDays))return '';
+  const drift=Math.abs(state.epochDays-m.epochDays)*86400;
+  return `<b>⌖ ${a.name} ↔ ${b.name}</b><br>locked epoch ${formatDeepDate(m.epochDays)} UT · `+
+    `timeline offset ${drift<.001?'0':drift.toPrecision(4)} s`;
+}
+function observeCycleConfigurationInSolar(){
+  const m=state.cycMatch;if(!m)return false;
+  state.epochDays=m.epochDays;state.paused=true;state.geocentric=true;
+  setMode('solar');setSolarScaleLayer('local');
+  const lunar=['moon','draconic','anomalistic','sidmonth','saros','metonic'].includes(m.a)
+    ||['moon','draconic','anomalistic','sidmonth','saros','metonic'].includes(m.b);
+  const s=SELECT.get(lunar?'moon':'planet2');if(s){selectKey(lunar?'moon':'planet2');focusOn(s);}
+  buildCtl();return true;
 }
 function fmtCycleDays(days){
   if(!isFinite(days)) return '—';
@@ -65379,6 +65418,7 @@ const state = {
   ringView:'observer', ringShowSpheres:true, ringShowVolume:true, ringShowFits:true,
   ringShowExtents:true, ringShowChord:false, ringShowPredicted:false, ringShowInset:false,
   cycFrame:'hierarchy', cycLinks:true, cycShowPhaseTorus:true, cycPairA:'moon', cycPairB:'year', cycShowAges:true,
+  cycMatch:null,             // exact pair+epoch selected by the bidirectional phase-coincidence search
   drdX:10, drdTau:0.35, drdRun:true,   // DRD lab: x=R/ε and the PIR causal sweep
   // Hopfion lab: (p,q) charge, preimage count K, target-point distribution, scale,
   // fibre flow + target precession, mode (single/pair/ring) and its parameters
@@ -67985,6 +68025,11 @@ function buildCtlBody(){
         <button class="btn green" id="dateGo">Set</button></div>
       <div class="note" style="font-size:10px;color:var(--dim)">Text deep-time input: <b>2026-07-13 12:00</b> · <b>-100000-01-01</b> · <b>100000 BCE</b> · <b>1.5 Myr ago</b> · <b>J2000+250000y</b>. Press Enter or Set.</div>
     </div>
+    ${state.cycMatch?`<div class="sect" style="border-color:rgba(156,227,198,.45)"><b>Cycles · retained temporal configuration</b>
+      <div class="note" id="solarCycleConfiguration" style="font-variant-numeric:tabular-nums">${cycleConfigurationHTML()}</div>
+      <div class="ctlrow"><button class="btn green" id="solarRestoreCycle">↩ Return to this configuration in Cycles</button></div>
+      <div class="note" style="font-size:10px;color:var(--dim)">The Solar System and Cycles are reading the same <code>epochDays</code>. Switching sections does not recompute, round or discard the selected phase coincidence.</div>
+    </div>`:''}
     <div class="sect"><b>Phase synchronisation — stroboscope</b>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px"><label>Mode</label>
         <button class="chip ${!state.phaseLock?'on':''}" data-phmode="off">Off</button>
@@ -68113,6 +68158,9 @@ function buildCtlBody(){
     ctl.querySelector('#today').onclick = ()=>{ state.epochDays = (Date.now()/86400000 + 2440587.5) - 2451545.0; };
     ctl.querySelector('#astOn')&&(ctl.querySelector('#astOn').onchange=e=>{ state.astOn=e.target.checked; });
     bindDeepDateControl(ctl.querySelector('#datePick'),ctl.querySelector('#dateGo'));
+    ctl.querySelector('#solarRestoreCycle')&&(ctl.querySelector('#solarRestoreCycle').onclick=()=>{
+      state.epochDays=state.cycMatch.epochDays;state.paused=true;setMode('cyc');applyCycFrameView();buildCtl();
+    });
     ctl.querySelector('#psc').oninput = e=>{ state.planetScale = 10**(+e.target.value); state.trueScale=false; ctl.querySelector('#tsc').checked=false; updCtlVals(); };
     ctl.querySelector('#tsc').onchange = e=>{ state.trueScale = e.target.checked; updCtlVals(); };
     ctl.querySelector('#orb').onchange = e=>{ state.showOrbits = e.target.checked; planetObjs.forEach(o=>o.line.visible=e.target.checked); };
@@ -68317,7 +68365,11 @@ function buildCtlBody(){
         ${CYCLE_PHASE_KEYS.map(k=>`<option value="${k}" ${state.cycPairB===k?'selected':''}>${cycleByKey(k).name}</option>`).join('')}
       </select></div>
       <div class="ctlrow"><label>3D phase torus</label><input type="checkbox" id="cycPhaseShow" ${state.cycShowPhaseTorus?'checked':''}></div>
-      <div class="ctlrow"><button class="btn green" id="cycNextMatch">→ Next normalized-phase match</button></div>
+      <div class="ctlrow" style="flex-wrap:wrap;gap:5px">
+        <button class="btn" id="cycPrevMatch">← Previous match</button>
+        <button class="btn green" id="cycNextMatch">→ Next match</button></div>
+      <div class="ctlrow"><button class="btn green" id="cycObserveMatch" ${state.cycMatch?'':'disabled'}>☉ Observe exact configuration in Solar System</button></div>
+      ${state.cycMatch?`<div id="cycMatchAnchor" class="note" style="font-variant-numeric:tabular-nums;color:#9ce3c6">${cycleConfigurationHTML()}</div>`:''}
       <div id="cycPhaseOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.5px">${cyclePairSummaryHTML()}</div>
     </div>
 
@@ -68352,12 +68404,11 @@ function buildCtlBody(){
     ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value; applyCycFrameView(); };
     ctl.querySelector('#cycLinks').onchange=e=>state.cycLinks=e.target.checked;
     ctl.querySelector('#cycPhaseShow').onchange=e=>state.cycShowPhaseTorus=e.target.checked;
-    const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;rebuildCyclePhaseTrace();updCtlVals();};
+    const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;state.cycMatch=null;rebuildCyclePhaseTrace();buildCtl();};
     ctl.querySelector('#cycPairA').onchange=pairChange; ctl.querySelector('#cycPairB').onchange=pairChange;
-    ctl.querySelector('#cycNextMatch').onclick=()=>{
-      const d=nextCyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB));
-      if(isFinite(d)){state.epochDays=d;state.paused=true;refreshSeasons();updCtlVals();}
-    };
+    ctl.querySelector('#cycPrevMatch').onclick=()=>{if(setCyclePhaseConfiguration(-1)){applyCycFrameView();buildCtl();}};
+    ctl.querySelector('#cycNextMatch').onclick=()=>{if(setCyclePhaseConfiguration(1)){applyCycFrameView();buildCtl();}};
+    ctl.querySelector('#cycObserveMatch').onclick=observeCycleConfigurationInSolar;
     rebuildCyclePhaseTrace();
 
     const ecSel=ctl.querySelector('#ecSel'), ecInfo=ctl.querySelector('#ecInfo');
@@ -74643,8 +74694,9 @@ function setMode(mode){
     setS3View(state.s3view);
     setChiRing(state.chi);
   } else if(mode==='cyc'){
-    camera.position.set(0,26,54); controls.target.set(0,1,0);
-    setControlDistanceLimits(4,320);
+    /* Returning through the top-level Cycles button must restore the chosen instrument,
+       not reset its camera to the hierarchy while the selector still says "phase". */
+    applyCycFrameView();
   } else if(mode==='fbs'){
     camera.position.set(0,7,26); controls.target.set(0,0,0);
     setControlDistanceLimits(2,400);
