@@ -1,0 +1,1 @@
+Execution is performed only on a feature branch derived from the approved design/plan branch; main remains untouched until verified PR merge.
