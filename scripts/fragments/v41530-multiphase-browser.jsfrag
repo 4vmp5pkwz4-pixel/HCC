@@ -1,0 +1,198 @@
+/* ── HCC v4.153.0 · MULTIPHASE SOLAR CONTROL ────────────────────────────────
+   Cycles is a control plane over the ONE Atlas epoch, not another clock.
+   The phase solver is pure; this adapter supplies cycle definitions and the
+   existing Solar ephemeris, then commits a chosen epoch only through AtlasTime. */
+const HCC_MULTIPHASE_SOLAR_CONTROL_SCHEMA='hcc.multiphase-solar-control/1';
+const HCC_MULTIPHASE_PLANETS=Object.freeze([
+  {key:'sun',name:'Sun',glyph:'☉',index:null},
+  {key:'mercury',name:'Mercury',glyph:'☿',index:0},
+  {key:'venus',name:'Venus',glyph:'♀',index:1},
+  {key:'mars',name:'Mars',glyph:'♂',index:3},
+  {key:'jupiter',name:'Jupiter',glyph:'♃',index:4},
+  {key:'saturn',name:'Saturn',glyph:'♄',index:5},
+  {key:'uranus',name:'Uranus',glyph:'♅',index:6},
+  {key:'neptune',name:'Neptune',glyph:'♆',index:7}
+]);
+const HCC_MULTIPHASE_PLANET_RANGE=Object.freeze([
+  (Date.UTC(1800,0,1)/86400000+2440587.5)-2451545.0,
+  (Date.UTC(2051,0,1)/86400000+2440587.5)-2451545.0-1e-9
+]);
+const hccMultiPhaseState={
+  pairA:null,pairB:null,targetA:null,targetB:null,
+  planet:'none',planetTarget:0,toleranceDeg:0.5,windowYears:20,
+  extraTargets:Object.create(null),live:true,last:null
+};
+function hccCyclePhaseAt(c,epochDays){
+  if(!c||!(c.days>0)) return NaN;
+  const ref=Number.isFinite(Number(c.ref))?Number(c.ref):0;
+  return hccWrapPhase01((epochDays-ref)/c.days);
+}
+function hccPlanetGeocentricPhase(key,epochDays){
+  const p=HCC_MULTIPHASE_PLANETS.find(x=>x.key===key);
+  if(!p) return NaN;
+  const T=epochDays/36525;
+  const earth=planetEcl(PLANETS[2],T);
+  if(key==='sun') return hccWrapPhase01(Math.atan2(-earth.y,-earth.x)/(2*Math.PI));
+  const body=planetEcl(PLANETS[p.index],T);
+  return hccWrapPhase01(Math.atan2(body.y-earth.y,body.x-earth.x)/(2*Math.PI));
+}
+function hccEnsureMultiPhaseTargets(){
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(a&&hccMultiPhaseState.pairA!==state.cycPairA){
+    hccMultiPhaseState.pairA=state.cycPairA;
+    hccMultiPhaseState.targetA=hccCyclePhaseAt(a,state.epochDays);
+  }
+  if(b&&hccMultiPhaseState.pairB!==state.cycPairB){
+    hccMultiPhaseState.pairB=state.cycPairB;
+    hccMultiPhaseState.targetB=hccCyclePhaseAt(b,state.epochDays);
+  }
+}
+function hccBuildMultiPhaseConstraints(){
+  hccEnsureMultiPhaseTargets();
+  const out=[], tol=Math.max(1e-8,hccMultiPhaseState.toleranceDeg/360);
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(a&&a.days>0) out.push({id:'cycle:'+state.cycPairA,periodDays:a.days,refDays:Number(a.ref)||0,targetPhase:hccMultiPhaseState.targetA,tolerance:tol,weight:1});
+  if(b&&b.days>0&&state.cycPairB!==state.cycPairA) out.push({id:'cycle:'+state.cycPairB,periodDays:b.days,refDays:Number(b.ref)||0,targetPhase:hccMultiPhaseState.targetB,tolerance:tol,weight:1});
+  for(const [key,target] of Object.entries(hccMultiPhaseState.extraTargets)){
+    if(key===state.cycPairA||key===state.cycPairB) continue;
+    const c=cycleByKey(key);
+    if(c&&c.days>0) out.push({id:'cycle:'+key,periodDays:c.days,refDays:Number(c.ref)||0,targetPhase:target,tolerance:tol,weight:.8});
+  }
+  if(hccMultiPhaseState.planet!=='none'){
+    const key=hccMultiPhaseState.planet;
+    out.push({
+      id:'planet:'+key,
+      phaseAt:epoch=>hccPlanetGeocentricPhase(key,epoch),
+      targetPhase:hccMultiPhaseState.planetTarget,
+      tolerance:tol,weight:1.35,validRange:HCC_MULTIPHASE_PLANET_RANGE
+    });
+  }
+  return out;
+}
+function hccApplyMultiPhaseEpoch(epochDays,source='search'){
+  setAtlasEpoch(epochDays,'multiphase.'+source);
+  refreshSeasons();
+  rebuildCyclePhaseTrace();
+  return state.epochDays;
+}
+function hccRunMultiPhaseSearch(direction='nearest',forceApply=false){
+  const constraints=hccBuildMultiPhaseConstraints();
+  const result=hccSearchMultiPhase({
+    epochDays:state.epochDays,constraints,direction,
+    windowDays:Math.max(1/24,hccMultiPhaseState.windowYears*365.2425),
+    samples:hccMultiPhaseState.planet==='none'?896:640,refineSteps:36
+  });
+  hccMultiPhaseState.last=result;
+  const usable=result&&Number.isFinite(result.epochDays)&&result.status!=='NO_VALID_WINDOW'&&result.status!=='MODEL_LIMITED';
+  if(usable&&(forceApply||hccMultiPhaseState.live)) hccApplyMultiPhaseEpoch(result.epochDays,'multiphase.'+direction);
+  buildCtl();
+  return result;
+}
+function hccCaptureAllCyclePhases(){
+  const extras=Object.create(null);
+  for(const c of CYCLES){
+    if(c&&c.days>0&&c.key!==state.cycPairA&&c.key!==state.cycPairB) extras[c.key]=hccCyclePhaseAt(c,state.epochDays);
+  }
+  hccMultiPhaseState.extraTargets=extras;
+  hccMultiPhaseState.last=null;
+  buildCtl();
+}
+function hccSolarConfigurationText(epochDays=state.epochDays){
+  if(epochDays<HCC_MULTIPHASE_PLANET_RANGE[0]||epochDays>HCC_MULTIPHASE_PLANET_RANGE[1])
+    return 'Planet overlay: MODEL-LIMITED outside 1800–2050 · mean cycle constraints remain available.';
+  return HCC_MULTIPHASE_PLANETS.map(p=>{
+    const deg=hccPlanetGeocentricPhase(p.key,epochDays)*360;
+    return p.glyph+' '+deg.toFixed(1)+'°';
+  }).join(' · ');
+}
+function hccMultiPhaseResultText(){
+  const r=hccMultiPhaseState.last;
+  if(!r) return 'Set target phases or press PREVIOUS / NEAREST / NEXT.';
+  if(r.status==='NO_VALID_WINDOW') return 'NO VALID WINDOW · planetary model limits exclude this search interval.';
+  if(r.status==='MODEL_LIMITED') return 'MODEL-LIMITED · candidate lies outside a declared ephemeris range.';
+  const residuals=(r.residuals||[]).map(x=>(x.id||'phase').replace('cycle:','').replace('planet:','')+' '+(Math.abs(x.residual||0)*360).toFixed(3)+'°').join(' · ');
+  return r.status+' · epoch '+Number(r.epochDays).toFixed(6)+' d J2000 · RMS '+(Number(r.weightedRms)*360).toFixed(4)+'° · worst '+(Number(r.worstResidual)*360).toFixed(4)+'°'+(residuals?' · '+residuals:'');
+}
+function hccMultiPhaseControlHTML(){
+  hccEnsureMultiPhaseTargets();
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  const aName=a?(a.name||a.key):state.cycPairA, bName=b?(b.name||b.key):state.cycPairB;
+  const cycleBank=CYCLES.filter(c=>c&&c.days>0).map(c=>{
+    const primary=c.key===state.cycPairA||c.key===state.cycPairB;
+    const on=primary||Object.prototype.hasOwnProperty.call(hccMultiPhaseState.extraTargets,c.key);
+    return `<button class="chip ${on?'on':''}" data-mphase-cycle="${c.key}" ${primary?'disabled title="Primary A/B axis"':''}>${c.name||c.key}</button>`;
+  }).join('');
+  const planetOptions=['<option value="none">No planetary hand</option>'].concat(HCC_MULTIPHASE_PLANETS.map(p=>`<option value="${p.key}" ${hccMultiPhaseState.planet===p.key?'selected':''}>${p.glyph} ${p.name} · geocentric longitude</option>`)).join('');
+  const windows=[[.0821,'30 d'],[1,'1 yr'],[20,'20 yr'],[100,'100 yr'],[1e4,'10 kyr'],[1e6,'1 Myr'],[1e9,'1 Gyr']];
+  return `<div class="sect" data-mphase-panel data-schema="${HCC_MULTIPHASE_SOLAR_CONTROL_SCHEMA}">
+    <b>⟲ MULTIPHASE SOLAR CONTROL</b>
+    <div class="note">One Atlas epoch drives Cycles, Antikythera and the Solar System. Search minimizes circular phase error; it never invents an exact coincidence.</div>
+    <div class="ctlrow"><label>A · ${aName}</label><input type="range" min="0" max="1" step="0.0005" value="${hccMultiPhaseState.targetA??0}" data-mphase-target-a><span>${((hccMultiPhaseState.targetA??0)*360).toFixed(1)}°</span></div>
+    <div class="ctlrow"><label>B · ${bName}</label><input type="range" min="0" max="1" step="0.0005" value="${hccMultiPhaseState.targetB??0}" data-mphase-target-b><span>${((hccMultiPhaseState.targetB??0)*360).toFixed(1)}°</span></div>
+    <div class="note">Additional cycle locks · A/B stay the precision axes; any other finite cycle can join the same solve.</div>
+    <div class="chips" data-mphase-cycle-bank>${cycleBank}</div>
+    <div class="ctlrow" style="gap:6px"><button class="btn" data-mphase-action="capture-all">CAPTURE ALL CURRENT</button><button class="btn" data-mphase-action="clear-extra">CLEAR EXTRA</button></div>
+    <div class="ctlrow"><label>Antikythera / Solar hand</label><select data-mphase-planet>${planetOptions}</select></div>
+    <div class="ctlrow"><label>Target longitude</label><input type="range" min="0" max="360" step="0.1" value="${(hccMultiPhaseState.planetTarget*360).toFixed(1)}" data-mphase-planet-target ${hccMultiPhaseState.planet==='none'?'disabled':''}><span>${(hccMultiPhaseState.planetTarget*360).toFixed(1)}°</span></div>
+    <div class="ctlrow"><label>Phase tolerance</label><select data-mphase-tolerance>${[.1,.25,.5,1,2,5].map(v=>`<option value="${v}" ${hccMultiPhaseState.toleranceDeg===v?'selected':''}>${v}°</option>`).join('')}</select></div>
+    <div class="ctlrow"><label>Search window</label><select data-mphase-window>${windows.map(([v,n])=>`<option value="${v}" ${hccMultiPhaseState.windowYears===v?'selected':''}>± ${n}</option>`).join('')}</select></div>
+    <div class="ctlrow" style="gap:6px;flex-wrap:wrap"><button class="btn" data-mphase-action="previous">◀ PREVIOUS</button><button class="btn" data-mphase-action="nearest">◎ NEAREST</button><button class="btn" data-mphase-action="next">NEXT ▶</button><button class="btn" data-mphase-action="apply-last" ${hccMultiPhaseState.last?'':'disabled'}>APPLY RESULT</button></div>
+    <div class="ctlrow"><label>Live Solar link</label><input type="checkbox" data-mphase-live ${hccMultiPhaseState.live?'checked':''}><span>${hccMultiPhaseState.live?'ON · search moves AtlasTime':'OFF · preview only'}</span></div>
+    <div class="note" data-mphase-result>${hccMultiPhaseResultText()}</div>
+    <div class="note"><b>SOLAR CONFIGURATION</b><br>${hccSolarConfigurationText()}</div>
+    <button class="btn" style="width:100%;margin-top:7px" data-mphase-open-solar>OPEN SOLAR · SAME STATE</button>
+  </div>`;
+}
+function hccBindMultiPhaseControls(){
+  const panel=ctl.querySelector('[data-mphase-panel]');
+  if(!panel) return;
+  const rerun=()=>hccMultiPhaseState.live?hccRunMultiPhaseSearch('nearest'):buildCtl();
+  const ta=panel.querySelector('[data-mphase-target-a]');
+  const tb=panel.querySelector('[data-mphase-target-b]');
+  if(ta) ta.onchange=()=>{hccMultiPhaseState.targetA=Number(ta.value);rerun();};
+  if(tb) tb.onchange=()=>{hccMultiPhaseState.targetB=Number(tb.value);rerun();};
+  panel.querySelectorAll('[data-mphase-cycle]').forEach(btn=>btn.onclick=()=>{
+    const key=btn.dataset.mphaseCycle;
+    if(key===state.cycPairA||key===state.cycPairB) return;
+    if(Object.prototype.hasOwnProperty.call(hccMultiPhaseState.extraTargets,key)) delete hccMultiPhaseState.extraTargets[key];
+    else { const c=cycleByKey(key); if(c) hccMultiPhaseState.extraTargets[key]=hccCyclePhaseAt(c,state.epochDays); }
+    rerun();
+  });
+  const planet=panel.querySelector('[data-mphase-planet]');
+  if(planet) planet.onchange=()=>{
+    hccMultiPhaseState.planet=planet.value;
+    if(planet.value!=='none'&&state.epochDays>=HCC_MULTIPHASE_PLANET_RANGE[0]&&state.epochDays<=HCC_MULTIPHASE_PLANET_RANGE[1]) hccMultiPhaseState.planetTarget=hccPlanetGeocentricPhase(planet.value,state.epochDays);
+    hccMultiPhaseState.last=null; buildCtl();
+  };
+  const pt=panel.querySelector('[data-mphase-planet-target]');
+  if(pt) pt.onchange=()=>{hccMultiPhaseState.planetTarget=hccWrapPhase01(Number(pt.value)/360);rerun();};
+  const tol=panel.querySelector('[data-mphase-tolerance]');
+  if(tol) tol.onchange=()=>{hccMultiPhaseState.toleranceDeg=Number(tol.value);rerun();};
+  const win=panel.querySelector('[data-mphase-window]');
+  if(win) win.onchange=()=>{hccMultiPhaseState.windowYears=Number(win.value);buildCtl();};
+  const live=panel.querySelector('[data-mphase-live]');
+  if(live) live.onchange=()=>{hccMultiPhaseState.live=live.checked;buildCtl();};
+  panel.querySelectorAll('[data-mphase-action]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.mphaseAction;
+    if(action==='capture-all') return hccCaptureAllCyclePhases();
+    if(action==='clear-extra'){hccMultiPhaseState.extraTargets=Object.create(null);hccMultiPhaseState.last=null;return buildCtl();}
+    if(action==='apply-last'){
+      const r=hccMultiPhaseState.last;
+      if(r&&Number.isFinite(r.epochDays)&&r.status!=='NO_VALID_WINDOW'&&r.status!=='MODEL_LIMITED'){hccApplyMultiPhaseEpoch(r.epochDays,'multiphase.apply');buildCtl();}
+      return;
+    }
+    hccRunMultiPhaseSearch(action,true);
+  });
+  const open=panel.querySelector('[data-mphase-open-solar]');
+  if(open) open.onclick=()=>hccCycleNavigate('solar');
+  for(const id of ['cycPairA','cycPairB']){
+    const el=ctl.querySelector('#'+id);
+    if(el) el.addEventListener('change',()=>{
+      if(id==='cycPairA'){hccMultiPhaseState.pairA=null;hccMultiPhaseState.targetA=null;}
+      else {hccMultiPhaseState.pairB=null;hccMultiPhaseState.targetB=null;}
+      hccMultiPhaseState.last=null;
+      queueMicrotask(()=>buildCtl());
+    },{once:true});
+  }
+}
+/* ── END MULTIPHASE SOLAR CONTROL ─────────────────────────────────────────── */
