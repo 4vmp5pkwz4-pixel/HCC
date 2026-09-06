@@ -172,12 +172,14 @@ check((html.match(/window\.visualViewport\?\.height\|\|innerHeight/g)||[]).lengt
   'sheet budgets follow the visual viewport and panels retain bounded native touch scrolling');
 check(html.includes('function setCyclePhaseConfiguration(direction=1)')
   && html.includes('function observeCycleConfigurationInSolar()')
-  && html.includes('id="cycPrevMatch"') && html.includes('id="cycObserveMatch"')
+  && html.includes('function pinCurrentCycleConfiguration()')
+  && html.includes('id="cycPrevMatch"') && html.includes('id="cycObserveMatch"') && html.includes('id="cycPinNow"')
   && html.includes('id="solarRestoreCycle"'),
   'Cycles keeps a bidirectional phase-match configuration and offers one-tap Solar observation and return');
-check(html.includes("cycMatch:null") && html.includes("state.epochDays=state.cycMatch.epochDays")
+check(html.includes("cycMatch:CYC_WORKSPACE0?.match||null") && html.includes('function persistCycleWorkspace()')
+  && html.includes("state.epochDays=state.cycMatch.epochDays")
   && /else if\(mode==='cyc'\)\{[\s\S]{0,360}?applyCycFrameView\(\)/.test(html),
-  'the shared epoch and selected Cycles frame survive top-level Solar/Cycles navigation');
+  'the shared epoch and selected Cycles frame survive top-level navigation and reloads');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
