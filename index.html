@@ -12571,7 +12571,7 @@ function formatDeepDate(epochDays){
 function bindDeepDateControl(input,button,after){
   input.value=formatDeepDate(state.epochDays);const commit=()=>{const d=parseDeepDate(input.value);
     if(!Number.isFinite(d)){input.setCustomValidity('Use YYYY-MM-DD HH:MM, -100000-01-01, 1.5 Myr ago, or J2000+250000y');input.reportValidity();return;}
-    input.setCustomValidity('');state.epochDays=d;input.value=formatDeepDate(d);after?.();};
+    input.setCustomValidity('');setAtlasEpoch(d,'ui.deep-date');input.value=formatDeepDate(d);after?.();};
   button.onclick=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};
 }
 const eclDateStr=d=>formatDeepDate(d)+' UT';
@@ -62226,13 +62226,12 @@ function refreshSeasons(){
      <span class="et">${ev.name}</span>
      <button class="btn" data-sj="${i}">→</button></div>`).join('');
   if(sl) sl.querySelectorAll('[data-sj]').forEach(b=>b.onclick=()=>{
-    state.epochDays = state.cycSeasons.events[+b.dataset.sj].days; state.paused=true; buildCtl();
+    setAtlasTime({epochDays:state.cycSeasons.events[+b.dataset.sj].days,paused:true},'cycles.season-jump'); buildCtl();
   });
 }
 function jumpToEclipse(i){
   const ec = ECLIPSES[i];
-  state.epochDays = (ec.date.getTime()/86400000 + 2440587.5) - 2451545.0;
-  state.paused = true;
+  setAtlasTime({epochDays:(ec.date.getTime()/86400000 + 2440587.5) - 2451545.0,paused:true},'cycles.eclipse-jump');
   setMode('solar');
   state.trueScale = true;
   buildCtl();
@@ -62241,12 +62240,12 @@ function jumpToEclipse(i){
 function observeCycle(key){
   const go=(m)=>{ if(state.mode!==m) setMode(m); };
   switch(key){
-    case 'moon':   go('solar'); state.daysPerSec=1; state.paused=false; { const s=SELECT.get('moon'); if(s){selectKey('moon'); focusOn(s);} } break;
-    case 'year':   go('solar'); state.daysPerSec=10; state.paused=false; { const s=SELECT.get('planet2'); if(s){selectKey('planet2'); focusOn(s);} } break;
-    case 'saros':  go('cyc'); state.cycPairA='moon';state.cycPairB='saros';state.cycFrame='phase';state.cycYrPerSec=2;state.paused=false;applyCycFrameView();break;
-    case 'metonic':go('cyc'); state.cycPairA='moon';state.cycPairB='year';state.cycFrame='phase';state.cycYrPerSec=2;state.paused=false;applyCycFrameView();break;
-    case 'prec':   go('cyc'); state.cycPairA='year';state.cycPairB='prec';state.cycFrame='geo';state.cycYrPerSec=800;state.paused=false; { const s=SELECT.get('cycPrec'); if(s){selectKey('cycPrec'); focusOn(s);} } break;
-    case 'gal':    go('cyc'); state.cycPairA='year';state.cycPairB='gal';state.cycFrame='gal';state.cycYrPerSec=2e6;state.paused=false; { const s=SELECT.get('cycGal'); if(s){selectKey('cycGal'); focusOn(s);} } break;
+    case 'moon':   go('solar'); setAtlasTime({rateDaysPerSecond:1,paused:false},'cycles.observe.moon'); { const s=SELECT.get('moon'); if(s){selectKey('moon'); focusOn(s);} } break;
+    case 'year':   go('solar'); setAtlasTime({rateDaysPerSecond:10,paused:false},'cycles.observe.year'); { const s=SELECT.get('planet2'); if(s){selectKey('planet2'); focusOn(s);} } break;
+    case 'saros':  go('cyc'); state.cycPairA='moon';state.cycPairB='saros';state.cycFrame='phase';setAtlasTime({rateDaysPerSecond:2*365.2425,paused:false},'cycles.observe.saros');applyCycFrameView();break;
+    case 'metonic':go('cyc'); state.cycPairA='moon';state.cycPairB='year';state.cycFrame='phase';setAtlasTime({rateDaysPerSecond:2*365.2425,paused:false},'cycles.observe.metonic');applyCycFrameView();break;
+    case 'prec':   go('cyc'); state.cycPairA='year';state.cycPairB='prec';state.cycFrame='geo';setAtlasTime({rateDaysPerSecond:800*365.2425,paused:false},'cycles.observe.precession'); { const s=SELECT.get('cycPrec'); if(s){selectKey('cycPrec'); focusOn(s);} } break;
+    case 'gal':    go('cyc'); state.cycPairA='year';state.cycPairB='gal';state.cycFrame='gal';setAtlasTime({rateDaysPerSecond:2e6*365.2425,paused:false},'cycles.observe.galactic'); { const s=SELECT.get('cycGal'); if(s){selectKey('cycGal'); focusOn(s);} } break;
     case 'fbs':    go('fbs'); state.fbsCycle=true; state.fbsTarget=null; break;
     case 's3':     go('s3'); setS3View('sec'); state.photonRun=true; break;
   }
@@ -64646,21 +64645,20 @@ const XRX = (()=>{
   let tourMenuOpen=false;                       // wrist-menu tour list expander
   let menuStowed=false;                         // wrist menu stowed to a small gold dot (Y / left squeeze-tap recalls)
   let xrRide=null;                              // {key, off, snap} — the rig rides an object: saddle anything, view from anywhere
-  let rideSavedRate=null;                       // remembers time speed to restore on dismount
+  let rideSavedRate=null;                       // signed Atlas days/s to restore on dismount
   // Mounting an object = comfort mode: snap once, then damped follow, and if the sim clock
   // is racing (planet orbiting fast) auto-ease it to a viewable pace so nothing whips past
   // or shakes the wrist menu. Release restores the previous speed exactly.
   function rideMount(key, off){
     xrRide={key, off, snap:true};
     if(rideSavedRate==null){
-      if(state.mode==='solar' && state.daysPerSec>3){ rideSavedRate={m:'solar',v:state.daysPerSec}; state.daysPerSec=1; }
-      else if(state.mode==='cyc' && state.cycYrPerSec>3){ rideSavedRate={m:'cyc',v:state.cycYrPerSec}; state.cycYrPerSec=1; }
+      if(state.mode==='solar' && state.daysPerSec>3){ rideSavedRate=atlasTimeSnapshot().rateDaysPerSecond; setAtlasDaysPerSecond(1,'xr.ride.mount'); }
+      else if(state.mode==='cyc' && state.cycYrPerSec>3){ rideSavedRate=atlasTimeSnapshot().rateDaysPerSecond; setAtlasYearsPerSecond(1,'xr.ride.mount'); }
     }
   }
   function rideRelease(){
     xrRide=null;
-    if(rideSavedRate){ if(rideSavedRate.m==='solar') state.daysPerSec=rideSavedRate.v;
-      else if(rideSavedRate.m==='cyc') state.cycYrPerSec=rideSavedRate.v; rideSavedRate=null; }
+    if(rideSavedRate!==null){ setAtlasRate(rideSavedRate,'xr.ride.release'); rideSavedRate=null; }
   }
   let yPrev=false, aPrev=false;                 // Y/A button edge detectors
   /* object HALO — the trigger talks to the OBJECT, not to a window: first trigger
@@ -64715,10 +64713,10 @@ const XRX = (()=>{
     ]);
     rows.push([{label:'❄ Fractal', on:m==='fractal', cb:()=>xrSetMode('fractal')}]);
     if(m==='solar'||m==='cyc') rows.push([
-      {label:'⏸/▶', cb:()=>{state.paused=!state.paused;}},
-      {label:'t −', cb:()=>{ if(m==='solar') state.daysPerSec/=4; else state.cycYrPerSec/=4; }},
-      {label:'t +', cb:()=>{ if(m==='solar') state.daysPerSec*=4; else state.cycYrPerSec*=4; }},
-      {label:'⌂ today', cb:()=>{state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0;}},
+      {label:'⏸/▶', cb:()=>{setAtlasPaused(!state.paused,'xr.menu.pause');}},
+      {label:'t −', cb:()=>{ if(m==='solar') setAtlasDaysPerSecond(state.daysPerSec/4,'xr.menu.slower'); else setAtlasYearsPerSecond(state.cycYrPerSec/4,'xr.menu.slower'); }},
+      {label:'t +', cb:()=>{ if(m==='solar') setAtlasDaysPerSecond(state.daysPerSec*4,'xr.menu.faster'); else setAtlasYearsPerSecond(state.cycYrPerSec*4,'xr.menu.faster'); }},
+      {label:'⌂ today', cb:()=>{setAtlasEpoch((Date.now()/86400000+2440587.5)-2451545.0,'xr.menu.today');}},
     ]);
     if(m==='solar') rows.push([
       {label:'True scale', on:state.trueScale, cb:()=>{state.trueScale=!state.trueScale; refreshMenu();}},
@@ -66395,32 +66393,37 @@ const atlasTime=createAtlasTime({
 });
 let atlasFrameTime=atlasTime.snapshot();
 function atlasTimeSnapshot(){return atlasFrameTime;}
-function hccCompatSignedRate(){
-  const mag=state.mode==='cyc'?Math.abs(state.cycYrPerSec)*365.2425:Math.abs(state.daysPerSec);
-  return mag*(state.timeDir<0?-1:1);
-}
+// HCC v4.152 Global Time Mutation Gateway
 function syncAtlasTimeCompat(snap){
+  const mag=Math.abs(snap.rateDaysPerSecond);
   state.epochDays=epochDaysOf(snap);
+  state.daysPerSec=mag;
+  state.cycYrPerSec=mag/365.2425;
   state.paused=snap.paused;
-  state.timeDir=snap.rateDaysPerSecond<0?-1:1;
-  if(state.mode==='cyc')state.cycYrPerSec=Math.abs(snap.rateDaysPerSecond)/365.2425;
-  else state.daysPerSec=Math.abs(snap.rateDaysPerSecond);
+  state.timeDir=snap.rateDaysPerSecond<0?-1:snap.rateDaysPerSecond>0?1:(state.timeDir||1);
   return snap;
 }
-/* Temporary migration bridge. Task 5 removes it after every legacy global time write has
-   been redirected. It imports changes made by existing UI handlers BEFORE the one root
-   advance, so the service is still the only frame authority while the migration is staged. */
-function adoptLegacyTimeControls(){
-  const cur=atlasTime.snapshot(),rate=hccCompatSignedRate();
-  if(Math.abs(epochDaysOf(cur)-state.epochDays)>1e-12 || cur.rateDaysPerSecond!==rate || cur.paused!==!!state.paused){
-    atlasFrameTime=atlasTime.transact({epochDays:state.epochDays,rateDaysPerSecond:rate,paused:!!state.paused},{source:'legacy.compat'});
-  }
+function atlasTimeDirection(){return atlasTimeSnapshot().rateDaysPerSecond<0?-1:(state.timeDir||1);}
+function signedAtlasRate(magnitude,dir=atlasTimeDirection()){
+  magnitude=Math.abs(Number(magnitude));
+  if(!Number.isFinite(magnitude))throw new RangeError('Atlas time rate magnitude must be finite');
+  return magnitude*(dir<0?-1:1);
 }
 function setAtlasEpoch(epochDays,source='atlas.setEpoch'){
   atlasFrameTime=atlasTime.setEpoch(epochDays,{source});return syncAtlasTimeCompat(atlasFrameTime);
 }
 function setAtlasRate(rateDaysPerSecond,source='atlas.setRate'){
   atlasFrameTime=atlasTime.setRate(rateDaysPerSecond,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasDaysPerSecond(daysPerSecond,source='atlas.setRate.days'){
+  return setAtlasRate(signedAtlasRate(daysPerSecond),source);
+}
+function setAtlasYearsPerSecond(yearsPerSecond,source='atlas.setRate.years'){
+  return setAtlasRate(signedAtlasRate(Number(yearsPerSecond)*365.2425),source);
+}
+function toggleAtlasTimeDirection(source='atlas.toggleDirection'){
+  const snap=atlasTimeSnapshot(),mag=Math.abs(snap.rateDaysPerSecond);
+  return setAtlasRate(mag*(atlasTimeDirection()<0?1:-1),source);
 }
 function setAtlasPaused(paused,source='atlas.setPaused'){
   atlasFrameTime=atlasTime.setPaused(paused,{source});return syncAtlasTimeCompat(atlasFrameTime);
@@ -69004,10 +69007,10 @@ function buildCtlBody(){
       <div class="ctlrow"><button class="btn green" id="oortFocus">◎ View full cloud at true AU scale</button></div>
       <div class="note" style="font-size:10.5px">True-scale Solar navigation: 1 scene unit always equals 1 AU. Catalogue objects in the Solar cosmic layer use registered J2000 directions and distance-scaled anchors; uncertain extended structures retain explicit uncertainty labels. “Direction from frame origin” is available only where the catalogue frame is compatible. It is never a claim of an observation from arbitrary S³/FBS coordinates.</div>
     </div>`;
-    ctl.querySelector('#spd').oninput = e=>{ state.daysPerSec = 10**(+e.target.value); updCtlVals(); };
-    ctl.querySelector('#pause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
-    ctl.querySelector('#timeDir')&&(ctl.querySelector('#timeDir').onclick=()=>{ state.timeDir=(state.timeDir||1)*-1; buildCtl(); });
-    ctl.querySelector('#today').onclick = ()=>{ state.epochDays = (Date.now()/86400000 + 2440587.5) - 2451545.0; };
+    ctl.querySelector('#spd').oninput = e=>{ setAtlasDaysPerSecond(10**(+e.target.value),'solar.rate'); updCtlVals(); };
+    ctl.querySelector('#pause').onclick = ()=>{ setAtlasPaused(!state.paused,'solar.pause'); buildCtl(); };
+    ctl.querySelector('#timeDir')&&(ctl.querySelector('#timeDir').onclick=()=>{ toggleAtlasTimeDirection('solar.direction'); buildCtl(); });
+    ctl.querySelector('#today').onclick = ()=>{ setAtlasEpoch((Date.now()/86400000 + 2440587.5) - 2451545.0,'solar.today'); };
     ctl.querySelector('#astOn')&&(ctl.querySelector('#astOn').onchange=e=>{ state.astOn=e.target.checked; });
     bindDeepDateControl(ctl.querySelector('#datePick'),ctl.querySelector('#dateGo'));
     ctl.querySelector('#psc').oninput = e=>{ state.planetScale = 10**(+e.target.value); state.trueScale=false; ctl.querySelector('#tsc').checked=false; updCtlVals(); };
@@ -69048,7 +69051,7 @@ function buildCtlBody(){
     /* --- Prediction observatory: computed events; list + handlers survive panel rebuilds --- */
     const eclBind=()=>ctl.querySelectorAll('[data-eclgo]').forEach(b=>b.onclick=()=>{
       const e=(window._eclEvents||[])[+b.dataset.eclgo]; if(!e) return; navPush();
-      state.epochDays=e.d-0.06; state.paused=false; state.daysPerSec=0.02; state.timeDir=1;
+      setAtlasTime({epochDays:e.d-0.06,paused:false,rateDaysPerSecond:0.02},'solar.prediction.eclipse');
       const s=SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
       updCtlVals(); });
     const eclRender=(dir)=>{
@@ -69085,7 +69088,7 @@ function buildCtlBody(){
         window._skyEvents=evs;
         ctl.querySelectorAll('[data-skygo]').forEach(b=>b.onclick=()=>{
           const e=window._skyEvents[+b.dataset.skygo]; if(!e) return; navPush();
-          state.epochDays=e.d; state.paused=true; state.timeDir=1;
+          setAtlasTime({epochDays:e.d,paused:true,rateDaysPerSecond:Math.abs(atlasTimeSnapshot().rateDaysPerSecond)},'solar.prediction.sky');
           const a=state.skyPair.startsWith('opp')?+state.skyPair.slice(3):+state.skyPair.split(',')[0];
           const s=SELECT.get('planet'+a); if(s){ selectKey('planet'+a); focusOn(s); }
           updCtlVals(); });
@@ -69111,7 +69114,7 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-galcore]').forEach(b=>b.onclick=()=>dblFocus(b.dataset.galcore));
     ctl.querySelectorAll('[data-galray]').forEach(b=>b.onclick=()=>enterModelPortal(b.dataset.galray,true));
     ctl.querySelector('#galTimeMax')&&(ctl.querySelector('#galTimeMax').onclick=()=>{
-      state.daysPerSec=Math.pow(10,8.5);state.paused=false;state.timeDir=1;buildCtl();
+      setAtlasTime({rateDaysPerSecond:Math.pow(10,8.5),paused:false},'solar.galactic-max-rate');buildCtl();
     });
     const oortShow = ctl.querySelector('#oortShow');
     if (oortShow) oortShow.onchange = e => { state.showOort = e.target.checked; updateSolarScaleVisibility(); };
@@ -69241,11 +69244,11 @@ function buildCtlBody(){
       cycle. Eclipse jump pauses time at greatest eclipse, switches to true scale
       and selects the Moon — the golden syzygy line marks the alignment
       (lunar ephemeris ≈0.1°, geometry approximate). The phase torus and commensurability search use constant mean periods and are discovery diagnostics, not event predictions.</div>`;
-    ctl.querySelector('#cspd').oninput = e=>{ state.cycYrPerSec=10**(+e.target.value); updCtlVals(); };
-    ctl.querySelector('#ctimeDir')&&(ctl.querySelector('#ctimeDir').onclick=()=>{ state.timeDir=(state.timeDir||1)*-1; buildCtl(); });
+    ctl.querySelector('#cspd').oninput = e=>{ setAtlasYearsPerSecond(10**(+e.target.value),'cycles.rate'); updCtlVals(); };
+    ctl.querySelector('#ctimeDir')&&(ctl.querySelector('#ctimeDir').onclick=()=>{ toggleAtlasTimeDirection('cycles.direction'); buildCtl(); });
     ctl.querySelector('#ageLab').onchange = e=>{state.cycShowAges=e.target.checked;precInst.userData.ageLabels.forEach(l=>l.visible=e.target.checked);};
-    ctl.querySelector('#cpause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
-    ctl.querySelector('#ctoday').onclick = ()=>{ state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0; refreshSeasons(); buildCtl(); };
+    ctl.querySelector('#cpause').onclick = ()=>{ setAtlasPaused(!state.paused,'cycles.pause'); buildCtl(); };
+    ctl.querySelector('#ctoday').onclick = ()=>{ setAtlasEpoch((Date.now()/86400000+2440587.5)-2451545.0,'cycles.today'); refreshSeasons(); buildCtl(); };
     bindDeepDateControl(ctl.querySelector('#cdate'),ctl.querySelector('#cdateGo'),refreshSeasons);
     ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value; applyCycFrameView(); };
     ctl.querySelector('#cycLinks').onchange=e=>state.cycLinks=e.target.checked;
@@ -69254,7 +69257,7 @@ function buildCtlBody(){
     ctl.querySelector('#cycPairA').onchange=pairChange; ctl.querySelector('#cycPairB').onchange=pairChange;
     ctl.querySelector('#cycNextMatch').onclick=()=>{
       const d=nextCyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB));
-      if(isFinite(d)){state.epochDays=d;state.paused=true;refreshSeasons();updCtlVals();}
+      if(isFinite(d)){setAtlasTime({epochDays:d,paused:true},'cycles.phase-match');refreshSeasons();updCtlVals();}
     };
     rebuildCyclePhaseTrace();
 
@@ -76722,8 +76725,8 @@ const fsBtn = document.getElementById('fsBtn');
 const fsActive = ()=> !!(document.fullscreenElement || document.webkitFullscreenElement);
 const FS_OK = !!((document.fullscreenEnabled??true) &&
   (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen));
-function zenRate(){ return state.mode==='cyc'?{get:()=>state.cycYrPerSec,set:v=>state.cycYrPerSec=v,min:-2,max:7,unit:'yr/s'}
-  :{get:()=>state.daysPerSec,set:v=>state.daysPerSec=v,min:-3,max:8.5,unit:'d/s'}; }
+function zenRate(){ return state.mode==='cyc'?{get:()=>state.cycYrPerSec,set:v=>setAtlasYearsPerSecond(v,'zen.rate'),min:-2,max:7,unit:'yr/s'}
+  :{get:()=>state.daysPerSec,set:v=>setAtlasDaysPerSecond(v,'zen.rate'),min:-3,max:8.5,unit:'d/s'}; }
 function zenFmt(v,unit){ return (v>=1e5?v.toExponential(1):v>=100?Math.round(v):v>=1?v.toFixed(1):v.toPrecision(2))+' '+unit; }
 function zenSync(){
   const bar=document.getElementById('zenBar'); if(!bar) return;
@@ -76769,10 +76772,10 @@ addEventListener('keydown', e=>{
   if(bar){
     bar.querySelector('#zenSpd').addEventListener('input',e=>{ const R=zenRate();
       R.set(Math.pow(10,+e.target.value)); bar.querySelector('#zenSpdV').textContent=zenFmt(R.get(),R.unit); });
-    bar.querySelector('#zenPause').addEventListener('click',()=>{ state.paused=!state.paused;
+    bar.querySelector('#zenPause').addEventListener('click',()=>{ setAtlasPaused(!state.paused,'zen.pause');
       bar.querySelector('#zenPause').textContent=state.paused?'▶':'⏸'; });
     bar.querySelector('#zenDir')&&bar.querySelector('#zenDir').addEventListener('click',()=>{
-      state.timeDir=(state.timeDir||1)*-1;
+      toggleAtlasTimeDirection('zen.direction');
       bar.querySelector('#zenDir').textContent=state.timeDir<0?'⏪':'⏩'; });
     bar.querySelector('#zenExit').addEventListener('click',()=>toggleZen(false));
     setInterval(()=>{ if(document.body.classList.contains('zen')){ const d=bar.querySelector('#zenDate');
@@ -82337,7 +82340,6 @@ function tick(now, frame){
 }
 function tickBody(now, frame){
   const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (render time)
-  adoptLegacyTimeControls();
   atlasFrameTime=atlasTime.advanceFrame(dt,{source:'frame.root'});
   syncAtlasTimeCompat(atlasFrameTime);
   if(typeof journeyTick==='function') journeyTick(dt);   // Atlas Coach grand-tour auto-advance
