@@ -1,0 +1,142 @@
+/* ── HCC v4.154.0 · CHRONOMETRY + MULTIPHASE WORKSPACE ─────────────────────
+   Workspace persistence is VIEW/LAB state only. Restoring it never rewinds the
+   authoritative AtlasTime epoch. Ancient chronometry is source-locked and
+   fail-closed: same names may have incompatible definitions and historical
+   astronomy remains pending epoch correction until a real model supplies it. */
+const HCC_CHRONOMETRY_OBSERVATORY_SCHEMA='hcc.chronometry-observatory/1';
+const HCC_MULTIPHASE_WORKSPACE_SCHEMA='hcc.multiphase-workspace/2';
+const HCC_MULTIPHASE_WORKSPACE_KEY='hcc-multiphase-workspace-v2';
+
+function hccFiniteOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+function hccSaveMultiPhaseWorkspace(){
+  try{
+    const last=hccMultiPhaseState.last&&Number.isFinite(Number(hccMultiPhaseState.last.epochDays))?{
+      epochDays:Number(hccMultiPhaseState.last.epochDays),status:String(hccMultiPhaseState.last.status||''),
+      weightedRms:hccFiniteOrNull(hccMultiPhaseState.last.weightedRms),worstResidual:hccFiniteOrNull(hccMultiPhaseState.last.worstResidual),
+      residuals:Array.isArray(hccMultiPhaseState.last.residuals)?hccMultiPhaseState.last.residuals.map(r=>({id:String(r.id||''),residual:hccFiniteOrNull(r.residual)})):[]
+    }:null;
+    const payload={schema:HCC_MULTIPHASE_WORKSPACE_SCHEMA,pairA:state.cycPairA,pairB:state.cycPairB,
+      targetA:hccFiniteOrNull(hccMultiPhaseState.targetA),targetB:hccFiniteOrNull(hccMultiPhaseState.targetB),
+      planet:HCC_MULTIPHASE_PLANETS.some(p=>p.key===hccMultiPhaseState.planet)?hccMultiPhaseState.planet:'none',
+      planetTarget:hccFiniteOrNull(hccMultiPhaseState.planetTarget),toleranceDeg:hccFiniteOrNull(hccMultiPhaseState.toleranceDeg),
+      windowYears:hccFiniteOrNull(hccMultiPhaseState.windowYears),live:!!hccMultiPhaseState.live,
+      extraTargets:Object.fromEntries(Object.entries(hccMultiPhaseState.extraTargets||{}).filter(([k,v])=>cycleByKey(k)&&Number.isFinite(Number(v))).map(([k,v])=>[k,Number(v)])),
+      last};
+    localStorage.setItem(HCC_MULTIPHASE_WORKSPACE_KEY,JSON.stringify(payload));
+    return true;
+  }catch(_){ return false; }
+}
+function hccRestoreMultiPhaseWorkspace(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(HCC_MULTIPHASE_WORKSPACE_KEY)||'null');
+    if(!raw||raw.schema!==HCC_MULTIPHASE_WORKSPACE_SCHEMA) return false;
+    if(raw.pairA&&cycleByKey(raw.pairA)) state.cycPairA=raw.pairA;
+    if(raw.pairB&&cycleByKey(raw.pairB)) state.cycPairB=raw.pairB;
+    hccMultiPhaseState.pairA=state.cycPairA; hccMultiPhaseState.pairB=state.cycPairB;
+    hccMultiPhaseState.targetA=Number.isFinite(Number(raw.targetA))?hccWrapPhase01(Number(raw.targetA)):null;
+    hccMultiPhaseState.targetB=Number.isFinite(Number(raw.targetB))?hccWrapPhase01(Number(raw.targetB)):null;
+    if(raw.planet==='none'||HCC_MULTIPHASE_PLANETS.some(p=>p.key===raw.planet)) hccMultiPhaseState.planet=raw.planet;
+    if(Number.isFinite(Number(raw.planetTarget))) hccMultiPhaseState.planetTarget=hccWrapPhase01(Number(raw.planetTarget));
+    if(Number.isFinite(Number(raw.toleranceDeg))&&Number(raw.toleranceDeg)>=.1&&Number(raw.toleranceDeg)<=5) hccMultiPhaseState.toleranceDeg=Number(raw.toleranceDeg);
+    if(Number.isFinite(Number(raw.windowYears))&&Number(raw.windowYears)>0&&Number(raw.windowYears)<=1e9) hccMultiPhaseState.windowYears=Number(raw.windowYears);
+    hccMultiPhaseState.live=raw.live!==false;
+    hccMultiPhaseState.extraTargets=Object.create(null);
+    for(const [k,v] of Object.entries(raw.extraTargets||{})) if(cycleByKey(k)&&Number.isFinite(Number(v))) hccMultiPhaseState.extraTargets[k]=hccWrapPhase01(Number(v));
+    if(raw.last&&Number.isFinite(Number(raw.last.epochDays))) hccMultiPhaseState.last={...raw.last,epochDays:Number(raw.last.epochDays)};
+    // Deliberately NO setAtlasEpoch/state.epochDays assignment here: restore is workspace-only.
+    return true;
+  }catch(_){ return false; }
+}
+function hccResetMultiPhaseWorkspace(){
+  try{localStorage.removeItem(HCC_MULTIPHASE_WORKSPACE_KEY);}catch(_){}
+  hccMultiPhaseState.pairA=null; hccMultiPhaseState.pairB=null; hccMultiPhaseState.targetA=null; hccMultiPhaseState.targetB=null;
+  hccMultiPhaseState.planet='none'; hccMultiPhaseState.planetTarget=0; hccMultiPhaseState.toleranceDeg=.5; hccMultiPhaseState.windowYears=20;
+  hccMultiPhaseState.extraTargets=Object.create(null); hccMultiPhaseState.live=true; hccMultiPhaseState.last=null;
+  buildCtl();
+}
+hccRestoreMultiPhaseWorkspace();
+
+const hccChronometryState={view:'sources',sources:null,benchmarks:null,loading:false,error:null};
+async function hccLoadChronometryData(){
+  if(hccChronometryState.loading||(hccChronometryState.sources&&hccChronometryState.benchmarks)) return;
+  hccChronometryState.loading=true; hccChronometryState.error=null;
+  try{
+    const [s,b]=await Promise.all([
+      fetch('./docs/data/ancient-chronometry-sources.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('source registry '+r.status);return r.json();}),
+      fetch('./docs/data/ancient-astronomy-benchmarks.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('benchmark registry '+r.status);return r.json();})
+    ]);
+    if(s.schema!=='hcc.ancient-chronometry-sources/1'||b.schema!=='hcc.ancient-astronomy-benchmarks/1') throw new Error('chronometry schema mismatch');
+    hccChronometryState.sources=s; hccChronometryState.benchmarks=b;
+  }catch(e){ hccChronometryState.error=String(e&&e.message||e); }
+  finally{ hccChronometryState.loading=false; if(state.mode==='cyc') buildCtl(); }
+}
+function hccEscChrono(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function hccChronometrySourcesHTML(){
+  const rows=(hccChronometryState.sources?.records||[]);
+  if(!rows.length) return '<div class="note">Loading source-locked records…</div>';
+  const conflicts=hccChronometryConflicts(rows);
+  const conflictText=Object.entries(conflicts).map(([term,g])=>'<div class="note"><b>'+hccEscChrono(term)+'</b> · '+g.ids.length+' incompatible source definitions · no averaging</div>').join('');
+  return '<div class="note"><b>SAME TERM · DIFFERENT DEFINITION</b><br>Lexical equality is not quantity identity.</div>'+conflictText+
+    rows.map(r=>'<div class="note"><b>'+hccEscChrono(r.id)+'</b> · '+hccEscChrono(r.epistemic_status)+'<br>'+hccEscChrono(r.text)+' · '+hccEscChrono(r.chapter_or_verse)+'<br>'+hccEscChrono(r.operational_definition)+'</div>').join('');
+}
+function hccChronometryJainHTML(){
+  const aras=hccJainAvasarpini(1n), sum=hccSumSymbolicDurations(aras);
+  let comm='current Atlas commensurability engine unavailable for this registry view';
+  const pre=CYCLES.find(c=>c&&c.days>0&&/precession/i.test((c.name||'')+' '+(c.key||'')));
+  if(pre){
+    try{
+      const probe={key:'jain.21000y',name:'Jain 21 kyr candidate',days:21000*365.2425,ref:0};
+      const q=cycleCommensurability(probe,pre);
+      comm='Atlas cycleCommensurability reused · '+hccEscChrono(q&&typeof q==='object'?JSON.stringify(q):String(q));
+    }catch(_){ comm='Atlas cycleCommensurability reused; result shape not promoted into a scientific claim.'; }
+  }
+  return '<div class="note"><b>JAIN CYCLE CLOSURE</b><br>4K + 3K + 2K + (K − 42,000 y) + 21,000 y + 21,000 y = '+sum.k.toString()+'K + '+sum.years.toString()+' y</div>'+
+    '<div class="note"><b>DEPENDENCY FIREWALL</b><br>42,000 y = 2 × 21,000 y, so it is not independent evidence. 21 kyr remains HYPOTHESIS until independent phase/epoch tests pass.</div>'+
+    '<div class="note">'+comm+'</div>';
+}
+function hccChronometryAstronomyHTML(){
+  const rows=hccChronometryState.benchmarks?.records||[];
+  if(!rows.length) return '<div class="note">Loading historical astronomy benchmarks…</div>';
+  return '<div class="note"><b>PENDING_EPOCH_CORRECTION</b><br>These are source-locked historical values. None is silently compared with J2000.</div>'+
+    rows.map(r=>{const n=Number(BigInt(r.ancient_value.numerator))/Number(BigInt(r.ancient_value.denominator));return '<div class="note"><b>'+hccEscChrono(r.id)+'</b> · '+hccEscChrono(r.comparison_status)+'<br>'+n.toPrecision(12)+' '+hccEscChrono(r.unit)+' · source epoch '+hccEscChrono(r.source_epoch)+'<br>'+hccEscChrono(r.caveat)+'</div>';}).join('');
+}
+function hccChronometryFirewallHTML(){
+  const test=hccClassifyChronometryCandidate({relation_claim:'identity',ancient_quantity_kind:'length',modern_quantity_kind:'length',same_physical_quantity:false,ancient_label:'paramanu',modern_label:'electron Compton wavelength',ancient_value:2.42631023867e-12,modern_value:2.42631023867e-12});
+  return '<div class="note"><b>ANTI-APOPHENIA FIREWALL</b><br>paramāṇu ↔ electron Compton wavelength numerical equality test → <b>'+hccEscChrono(test.status)+'</b> · '+hccEscChrono((test.reasons||[]).join(', '))+'</div>'+
+    '<div class="note">quantity_identity_missing is evaluated before residual size. Numerical proximity alone never creates a physical relation.</div>';
+}
+function hccChronometryBodyHTML(){
+  if(hccChronometryState.error) return '<div class="note">DATA ERROR · '+hccEscChrono(hccChronometryState.error)+'</div>';
+  if(!hccChronometryState.sources||!hccChronometryState.benchmarks) return '<div class="note">Loading source-locked chronometry registry…</div>';
+  if(hccChronometryState.view==='jain') return hccChronometryJainHTML();
+  if(hccChronometryState.view==='astronomy') return hccChronometryAstronomyHTML();
+  if(hccChronometryState.view==='firewall') return hccChronometryFirewallHTML();
+  return hccChronometrySourcesHTML();
+}
+function hccChronometryControlHTML(){
+  return '<div class="sect" data-chronometry-observatory data-schema="'+HCC_CHRONOMETRY_OBSERVATORY_SCHEMA+'"><b>⌛ ANCIENT CHRONOMETRY OBSERVATORY</b>'+
+    '<div class="note">Source space ↔ science space. Exact textual arithmetic stays exact; historical values keep source epoch; cross-domain coincidences fail closed.</div>'+
+    '<div class="chips"><button class="chip '+(hccChronometryState.view==='sources'?'on':'')+'" data-chrono-view="sources">SOURCES</button><button class="chip '+(hccChronometryState.view==='jain'?'on':'')+'" data-chrono-view="jain">JAIN CYCLES</button><button class="chip '+(hccChronometryState.view==='astronomy'?'on':'')+'" data-chrono-view="astronomy">HISTORICAL ASTRONOMY</button><button class="chip '+(hccChronometryState.view==='firewall'?'on':'')+'" data-chrono-view="firewall">FALSIFICATION</button></div>'+
+    '<div data-chrono-body>'+hccChronometryBodyHTML()+'</div></div>';
+}
+function hccMultiPhaseWorkspaceHTML(){
+  return '<div class="sect" data-mphase-workspace data-schema="'+HCC_MULTIPHASE_WORKSPACE_SCHEMA+'"><b>WORKSPACE PERSISTENCE</b><div class="note">Targets, locks, planet hand, tolerance, window and preview candidate survive navigation/reload. Restoring never changes AtlasTime; only APPLY/search with Live ON may do that.</div><button class="btn" data-mphase-workspace-reset>RESET WORKSPACE</button></div>';
+}
+
+const hccMultiPhaseControlHTMLV41530=hccMultiPhaseControlHTML;
+hccMultiPhaseControlHTML=function(){ return hccMultiPhaseControlHTMLV41530()+hccMultiPhaseWorkspaceHTML()+hccChronometryControlHTML(); };
+const hccBindMultiPhaseControlsV41530=hccBindMultiPhaseControls;
+hccBindMultiPhaseControls=function(){
+  hccBindMultiPhaseControlsV41530();
+  const panel=ctl.querySelector('[data-mphase-panel]');
+  if(panel){
+    panel.addEventListener('change',()=>queueMicrotask(hccSaveMultiPhaseWorkspace));
+    panel.addEventListener('click',()=>queueMicrotask(hccSaveMultiPhaseWorkspace));
+  }
+  const reset=ctl.querySelector('[data-mphase-workspace-reset]'); if(reset) reset.onclick=hccResetMultiPhaseWorkspace;
+  const chrono=ctl.querySelector('[data-chronometry-observatory]');
+  if(chrono){
+    chrono.querySelectorAll('[data-chrono-view]').forEach(b=>b.onclick=()=>{hccChronometryState.view=b.dataset.chronoView;buildCtl();});
+    if(!hccChronometryState.sources&&!hccChronometryState.loading) hccLoadChronometryData();
+  }
+};
