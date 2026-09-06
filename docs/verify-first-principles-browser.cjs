@@ -30,7 +30,7 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
     const g=A.graph();
     const snap0=A.snapshot('anyzoo');
     const braid=A.operators.fibonacci.braid('1 2 -1 2');
-    A.setTime(12345.678,'browser-gate');
+    A.setEpochDays(12345.678,'browser-gate');
     const snap1=A.snapshot('anyzoo');
     const converted=A.transfer('anyzoo.topological_entanglement_entropy','infolab.entropy_nats',1.25,{converter:v=>v,provenance:'browser-gate-explicit-converter'});
     let refused=null;
@@ -44,7 +44,8 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
       measured:g.measured_bus_links,
       source:g.source,
       snapLinks:snap0.measured_bus_links,
-      time:snap1.time_seconds,
+      epochDays:snap1.atlas_time&&snap1.atlas_time.epoch_days_j2000,
+      timeSchema:snap1.atlas_time&&snap1.atlas_time.schema,
       braidLength:braid.length,
       converted:converted.converted,
       refused
@@ -57,7 +58,7 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
   ok('unified graph contains prepared multiview comparisons',integrated.multiview>=1);
   ok('measured manifest links are absorbed by the same graph',integrated.measured>=50&&integrated.snapLinks===integrated.measured);
   ok('integration graph records its manifest source identity',!!integrated.source&&integrated.source.source_manifest_version==='4.150.0');
-  ok('shared time frame propagates through one revisioned gateway',Math.abs(integrated.time-12345.678)<1e-9);
+  ok('typed Atlas epoch propagates through one revisioned gateway',integrated.timeSchema==='hcc.time-fabric/1'&&Math.abs(integrated.epochDays-12345.678)<1e-9);
   ok('Fibonacci braid operator executes through the shared gateway',integrated.braidLength===4);
   ok('explicit converter path produces a provenance-bearing typed transfer',integrated.converted===true);
   ok('incompatible or semantically undeclared transfer fails closed',!!integrated.refused);
