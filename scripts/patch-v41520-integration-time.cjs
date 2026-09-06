@@ -48,7 +48,7 @@ one(anchor,`${anchor}
 const HCC_TIME_FABRIC=Object.freeze({
   schema:HCC_TIME_FABRIC_SCHEMA,
   snapshot(){const s=atlasTimeSnapshot();return Object.freeze({...s,epochDaysJ2000:epochDaysOf(s)});},
-  setEpochDays(dayJ2000,provenance='time-fabric.api.setEpochDays'){setAtlasEpochDays(dayJ2000,provenance);return this.snapshot();},
+  setEpochDays(dayJ2000,provenance='time-fabric.api.setEpochDays'){setAtlasEpoch(dayJ2000,provenance);return this.snapshot();},
   setRateDaysPerSecond(rate,provenance='time-fabric.api.setRate'){setAtlasSignedRate(rate,provenance);return this.snapshot();},
   setPaused(paused,provenance='time-fabric.api.setPaused'){setAtlasPaused(paused,provenance);return this.snapshot();},
   adapter(source,target){return findClockAdapter(source,target);}
