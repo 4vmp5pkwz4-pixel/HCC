@@ -21,6 +21,11 @@ function count(text, needle) {
 function assignmentCount(field) {
   return [...src.matchAll(new RegExp(`state\\.${field}\\s*=(?!=)`, 'g'))].length;
 }
+function functionBlock(name, nextName) {
+  const a=src.indexOf(`function ${name}(`);
+  const b=src.indexOf(`function ${nextName}(`,a+1);
+  return a>=0&&b>a?src.slice(a,b):'';
+}
 
 console.log('\n=== Unified Atlas Time Fabric browser contract ===\n');
 ok('browser declares exactly one Time Fabric schema marker',
@@ -61,6 +66,14 @@ ok('runtime can report NO_EXCHANGE explicitly',
 console.log('\n=== Persistent-machine semantics ===\n');
 ok('navigation/state layer declares four scientific/view scopes',
   ['GLOBAL_PHYSICS','SHARED_PHYSICS','LAB_LOCAL','VIEW_ONLY'].every(scope => src.includes(scope)));
+ok('runtime owns an explicit state-scope registry', src.includes('HCC_STATE_SCOPE_REGISTRY'));
+ok('unknown mutable state fails closed instead of becoming view-only', src.includes('UNDECLARED_SCOPE'));
+const nav= functionBlock('navSnapshot','navPush');
+ok('ordinary Back snapshot contains no global time physics', nav && !/(epochDays|daysPerSec|cycYrPerSec|paused|timeDir)/.test(nav));
+const portal=functionBlock('captureModelPortalSnapshot','returnFromModelPortal');
+ok('Model Portal return snapshot contains no global time physics', portal && !/(epochDays|daysPerSec|cycYrPerSec|paused|timeDir)/.test(portal));
+const anim=src.slice(src.indexOf('const ANIM_EXTRA='),src.indexOf('function resetAnimated('));
+ok('Motion Reset excludes global time authority fields', anim && !/(daysPerSec|cycYrPerSec|epochDays|paused|timeDir)/.test(anim));
 ok('isolated compatibility entry exists', src.includes('isolateLabTime'));
 ok('rejoin Unified operation exists', src.includes('rejoinUnifiedTime'));
 ok('isolated epoch promotion is guarded by domain type',
