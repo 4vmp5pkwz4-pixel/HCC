@@ -64,13 +64,91 @@ function run(step) {
   });
 }
 
+/* ── AND THE RUN THAT DID NOT NEED TO HAPPEN ─────────────────────────────────
+   Running the graph in parallel took thirty-five minutes down to twenty-five.
+   The larger waste was never the ORDER, it was running it at all: a fix to a
+   display string, a comment, a resource hint — none of those can move a single
+   number in transfers.json or sensitivity.json, and each one paid twenty-five
+   minutes to confirm it.
+
+   --if-needed decides that in about seventy-four seconds instead, and the
+   argument is short enough to check. sensitivity evaluates instruments, which
+   are kernel math plus declared contracts. transfers routes declared contracts.
+   reach is pure arithmetic over those two. So if the extracted kernels are byte
+   for byte in step with index.html AND the manifest still matches the atlas it
+   was walked from, those three cannot have changed, and re-deriving them can
+   only reproduce the file already on disk.
+
+   TWO THINGS ARE NEVER SKIPPED. build-manifest and build-api are how we LEARN
+   whether anything moved, so they always run. And liveness is never skipped on
+   a release: it measures what each view recomputes per frame, which a rendering
+   edit moves without touching a kernel or a contract, and docs/verify-liveness-
+   artifact.cjs requires its release identity to equal version.json — so a
+   measurement of one build must never be stamped with the name of another.
+   It is skipped only when the release identity has not moved either.
+
+   This is a skip of WORK, not of a CHECK: every artifact it leaves alone is one
+   it has just proved current, and it says so by name. */
+const IF_NEEDED = process.argv.includes('--if-needed');
+
+function check(step, args) {
+  return new Promise(res => {
+    const p = spawn(process.execPath, [join(ROOT, 'scripts', `${step}.mjs`), ...args],
+      { cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    p.stdout.on('data', d => { out += d; });
+    p.stderr.on('data', d => { out += d; });
+    p.on('close', code => res({ ok: code === 0, out }));
+  });
+}
+
 try {
-  await run('build-manifest');
+  let skip = new Set();
+  if (IF_NEEDED) {
+    console.log(`${stamp()}  · deciding what is already current`);
+    const [k, m] = await Promise.all([
+      check('extract-kernels', ['--check']),
+      check('build-manifest', ['--check']),
+    ]);
+    const { readFileSync } = await import('node:fs');
+    const ver = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
+    const stamped = name => {
+      try {
+        const a = JSON.parse(readFileSync(join(ROOT, 'api', `${name}.json`), 'utf8'));
+        return a.version === ver.version && a.build === ver.build;
+      } catch { return false; }
+    };
+    if (k.ok && m.ok) {
+      /* --check just walked the page and found the manifest in step; walking it
+         again to write the identical bytes is the same seventy seconds twice */
+      skip.add('build-manifest');
+      const derived = ['transfers', 'sensitivity', 'reach'];
+      if (derived.every(stamped)) {
+        for (const d of derived) skip.add(d);
+        console.log(`${stamp()}  — kernels byte for byte, manifest in step: transfers, sensitivity and reach cannot have moved`);
+      } else {
+        console.log(`${stamp()}  — kernels and manifest are in step, but a derived artifact carries another release: rebuilding`);
+      }
+      if (stamped('liveness')) {
+        skip.add('liveness');
+        console.log(`${stamp()}  — liveness already carries ${ver.version} / ${ver.build}`);
+      } else {
+        console.log(`${stamp()}  — liveness is stamped for another release and must be re-measured`);
+      }
+    } else {
+      console.log(`${stamp()}  — ${!k.ok ? 'the kernels moved' : 'the manifest moved'}: full run`);
+    }
+  }
+  const maybe = step => skip.has(step)
+    ? Promise.resolve(console.log(`${stamp()}  ⊘ ${step} — proved current, not re-derived`))
+    : run(step);
+
+  await maybe('build-manifest');
   await run('build-api');
-  await Promise.all([run('transfers'), run('sensitivity'), run('liveness')]);
-  await run('reach');
+  await Promise.all([maybe('transfers'), maybe('sensitivity'), maybe('liveness')]);
+  await maybe('reach');
   await run('demo-agent');
-  console.log(`\n${stamp()}  pipeline complete`);
+  console.log(`\n${stamp()}  pipeline complete${skip.size ? ` · ${skip.size} artifact(s) proved current` : ''}`);
 } catch (e) {
   console.error(`\n${stamp()}  PIPELINE FAILED at ${e.message}`);
   process.exit(1);
