@@ -109,9 +109,14 @@ The core uses custom Fresnel/filament and particle shaders, deterministic
 `BufferGeometry`, parametric surfaces, sharp crystal probes and bounded
 instancing. Mobile budgets reduce only representative visual density; solver
 resolution, residuals, tolerances, classifications and exports do not change.
+The calibrated premium display pipeline is enabled on first launch: ACES filmic
+highlight roll-off, scene-aware HDR bloom, SMAA edge reconstruction and priority-based
+label decluttering share an adaptive off-screen resolution budget. An explicit user
+opt-out is persisted, and immersive WebXR bypasses the mono post-process chain in favor
+of the headset's stereo framebuffer, fixed foveation and adaptive Quest quality profiles.
 Inactive high-density station geometry is released outside Multiview, and the
 same native scene remains stereo-safe in XR. The separate cinematic stage is
-still an explicit setting and remains disabled by default. Attribution, the
+strictly display-only and never enters scientific selection or export state. Attribution, the
 station-by-station mapping, visual firewall and release gates are recorded in
 [`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md). Stellar lineage,
 best-of-both decisions and model boundaries are recorded in

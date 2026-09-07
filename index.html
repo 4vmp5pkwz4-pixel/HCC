@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="frontier-laboratory-2026.09.07.1">
+<html lang="en" data-hcc-build="precision-visual-pipeline-2026.09.07.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="frontier-laboratory-2026.09.07.1">
+<meta name="hcc-build" content="precision-visual-pipeline-2026.09.07.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2222,7 +2222,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.149.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.150.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2431,6 +2431,7 @@ import { XRHandModelFactory } from 'three/addons/webxr/XRHandModelFactory.js';
 import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* THE VERSION LIVES HERE AND NOWHERE ELSE.
@@ -2441,8 +2442,8 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.149.0';
-const HCC_BUILD='frontier-laboratory-2026.09.07.1';
+const HCC_VERSION='4.150.0';
+const HCC_BUILD='precision-visual-pipeline-2026.09.07.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4011,17 +4012,17 @@ function runSelfTests(){
     ok('Premium visual domains cover every S³ laboratory exactly once',
       mapped.length===labs.length&&unique.size===labs.length&&missing.length===0,
       `${unique.size}/${labs.length} mapped · missing ${missing.join(',')||'none'}`);
-    ok('Optional premium pipeline matches its saved switch while the bloom buffer stays inside its independent GPU budget',
+    ok('Premium-by-default pipeline respects an explicit opt-out while bloom and SMAA stay inside the independent GPU budget',
       renderer.outputColorSpace===THREE.SRGBColorSpace&&renderer.toneMapping===(premiumVisualsEnabled?THREE.ACESFilmicToneMapping:THREE.NoToneMapping)&&
       premiumComposerPixelRatio()<=renderer.getPixelRatio()+1e-12&&premiumComposerPixelRatio()<=PREMIUM_POST_MAX+1e-12,
-      `${premiumVisualsEnabled?'opt-in premium':'classic default'} · composer DPR ${premiumComposerPixelRatio().toFixed(2)} · display DPR ${renderer.getPixelRatio().toFixed(2)}`);
+      `${premiumVisualsEnabled?'premium default':'saved classic opt-out'} · bloom + SMAA · composer DPR ${premiumComposerPixelRatio().toFixed(2)} · display DPR ${renderer.getPixelRatio().toFixed(2)}`);
     ok('Cinematic laboratory stage is declared non-metric and isolated from scientific selection/export state',
       premiumStage.parent===scene&&/non-metric/i.test(premiumStage.name)&&premiumStage.children.length>=9&&(!premiumVisualsEnabled?!premiumStage.visible:true)&&
       !premiumStage.children.some(o=>o.userData?.pick||o.userData?.scientificValue),
       `${premiumStage.children.length} display-only layers · no selectable metric payload`);
     ok('Premium frame, transition, toggle and global CSS2D collision layer are mounted',
       !!document.getElementById('cinemaFrame')&&!!document.getElementById('sceneTransition')&&!!document.getElementById('premiumVisualsBtn')&&typeof premiumDeclutterLabels==='function',
-      'default-off switch · cinema frame · view reveal · priority decluttering');
+      'premium-default switch · cinema frame · view reveal · priority decluttering');
   }
   ok('Gamma(pi) = 1 (full sphere)', eps(Gamma(Math.PI),1,1e-12), Gamma(Math.PI));
   ok('Gamma(pi/2) = 1/2', eps(Gamma(Math.PI/2),.5,1e-12), Gamma(Math.PI/2));
@@ -12791,11 +12792,14 @@ const app = document.getElementById('app');
 const MOBILE_GPU=matchMedia('(pointer:coarse)').matches||matchMedia('(max-width:760px)').matches;
 const INITIAL_VIEW_W=Math.max(2,Math.round(document.documentElement.clientWidth||innerWidth||2));
 const INITIAL_VIEW_H=Math.max(2,Math.round(innerHeight||document.documentElement.clientHeight||2));
-/* The cinematic layer is an explicit opt-in. A fresh browser therefore gets
-   the exact pre-premium presentation; only a deliberate user choice persists. */
+/* The cinematic layer is preference-controlled. A fresh browser gets the calibrated
+   presentation, while a deliberate classic-mode opt-out remains persistent. */
 const PREMIUM_VISUALS_KEY='s3.premiumVisuals';
-let premiumVisualsEnabled=false;
-try{premiumVisualsEnabled=localStorage.getItem(PREMIUM_VISUALS_KEY)==='1';}catch(e){}
+/* The atlas now opens with its calibrated display pipeline rather than hiding its best
+   rendering behind a settings hunt.  An explicit previous opt-out remains authoritative:
+   this is a progressive default, not a preference reset. */
+let premiumVisualsEnabled=true;
+try{premiumVisualsEnabled=localStorage.getItem(PREMIUM_VISUALS_KEY)!=='0';}catch(e){}
 document.body.classList.toggle('premium-visuals',premiumVisualsEnabled);
 document.body.dataset.premiumVisuals=premiumVisualsEnabled?'on':'off';
 /* ── THE RENDERER IS OPTIONAL, AND THAT IS AN ARCHITECTURAL STATEMENT ────────
@@ -12954,16 +12958,16 @@ renderer.domElement.addEventListener('webglcontextlost',e=>{
   resetBloomComposer(false);premiumContextState(premiumVisualsEnabled);
   const h=document.getElementById('hudBig');if(h)h.textContent='WebGL context paused · restoring renderer';
 },{passive:false});
-/* HDR bloom post-chain: RenderPass -> UnrealBloomPass -> OutputPass on half-float
+/* HDR post-chain: RenderPass -> UnrealBloomPass -> SMAAPass -> OutputPass on half-float
    buffers, so additive glows above 1.0 bleed physically (energy-conserving mip
    kernel). PERCEPTUAL, not radiometric: intensities are display-relative, no SI
    luminance is claimed. Bypassed while an XR session presents (composer paths
    are not stereo-safe) and falls back to the direct render on any failure. */
-let bloomComposer=null, bloomPass=null, bloomFailed=false;
+let bloomComposer=null, bloomPass=null, smaaPass=null, bloomFailed=false;
 function premiumComposerPixelRatio(){return Math.min(renderer.getPixelRatio(),premiumPostQuality);}
 function resetBloomComposer(dispose=true){
   if(dispose&&bloomComposer){try{bloomComposer.dispose();}catch(e){}}
-  bloomComposer=null;bloomPass=null;
+  bloomComposer=null;bloomPass=null;smaaPass=null;
 }
 const PREMIUM_BLOOM_VIVID=new Set(['nul','nexus','hol','act','syd','hopf','hopfion','skyrmion','qm','qcd','gw','berry','bhr','pole','rsh']);
 const PREMIUM_BLOOM_QUIET=new Set(['kam','psp','noe','cau','disp','kin','he','nuc','qcrys']);
@@ -12991,6 +12995,12 @@ function ensureBloom(){
       :new THREE.Vector2(renderer.domElement.width,renderer.domElement.height);
     bloomPass=new UnrealBloomPass(sz,p.strength,p.radius,p.threshold);
     bloomComposer.addPass(bloomPass);
+    /* SMAA is the final geometry-preserving resolve.  Unlike simply increasing DPR it
+       targets diagonal/sub-pixel edges (orbits, grids and thin scientific curves) while
+       keeping the adaptive render budget bounded.  It is deliberately flat-screen only:
+       WebXR owns a stereo multisampled framebuffer and cannot share this composer. */
+    smaaPass=new SMAAPass(Math.max(2,sz.x*premiumComposerPixelRatio()),Math.max(2,sz.y*premiumComposerPixelRatio()));
+    bloomComposer.addPass(smaaPass);
     bloomComposer.addPass(new OutputPass());
   }catch(e){ bloomFailed=true; bloomComposer=null; }
   return bloomComposer;

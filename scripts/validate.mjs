@@ -517,33 +517,34 @@ check(html.includes('m.userData.supernovaStablePoints=true')
   'Supernova uses one bounded stable GPU point draw, explicit depth testing and a non-wrapping timeline');
 
 /* 23 · Premium visual engine: cinematic consistency without scientific mutation */
-check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
+check(html.includes('let premiumVisualsEnabled=true') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)!=='0'")
   && html.includes('renderer.toneMapping=premiumVisualsEnabled?THREE.ACESFilmicToneMapping:THREE.NoToneMapping'),
-  'classic presentation is the fresh-browser default and ACES is explicit opt-in');
+  'calibrated ACES presentation is the fresh-browser default and an explicit opt-out persists');
 check(html.includes('id="premiumVisualsBtn"') && html.includes('aria-pressed="false"')
   && html.includes('function setPremiumVisuals(') && html.includes("PREMIUM_VISUALS_KEY='s3.premiumVisuals'"),
-  'settings exposes one persistent Premium visuals switch, off by default');
+  'settings exposes one persistent Premium visuals switch');
 check(html.includes('const PREMIUM_POST_MAX=') && html.includes('function premiumPerformanceTick(')
   && html.includes("premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure')")
   && html.includes("premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery')"),
   'flat-screen bloom has bounded adaptive degradation and slow quality recovery');
 check(html.includes('function premiumBloomProfile(') && html.includes('function resetBloomComposer(')
-  && html.includes('premiumComposerPixelRatio()'),
-  'bloom profiles, independent buffer cap and recovery path are wired');
+  && html.includes('premiumComposerPixelRatio()') && html.includes('new SMAAPass(')
+  && html.includes('bloomComposer.addPass(smaaPass)'),
+  'bloom profiles, SMAA edge resolve, independent buffer cap and recovery path are wired');
 check(html.includes('function premiumDeclutterLabels(') && html.includes("classList.add('declutter-hidden')")
   && html.includes('premiumLabelPriority('),
   'global priority-based CSS2D collision management is wired');
 check(html.includes("premiumStage.name='Cinematic non-metric laboratory stage'")
   && html.includes('premiumStage.visible=premiumVisualsEnabled&&op>0&&!mv&&!xr&&!webglContextLost')
   && html.includes('premiumStage.visible=false; // a single camera-facing stage is invalid across four tile cameras'),
-  'cinematic stage is opt-in, explicitly non-metric and excluded from XR, Multiview and context-loss states');
+  'cinematic stage is preference-controlled, explicitly non-metric and excluded from XR, Multiview and context-loss states');
 check(html.includes('const PREMIUM_VIEW_DOMAINS=') && html.includes('premiumApplyProfile(')
   && html.includes("root.style.setProperty('--lab-accent'"),
   'laboratory-domain color direction is centralized and UI/scene synchronized');
 check(html.includes('#cinemaFrame,#sceneTransition{display:none}')
   && html.includes('body.premium-visuals #cinemaFrame') && html.includes('body.premium-visuals .panel')
   && html.includes('body.premium-visuals .label.declutter-hidden'),
-  'all premium UI, frame and label styling is scoped behind the opt-in body class');
+  'all premium UI, frame and label styling is scoped behind the premium body class');
 check(html.includes('id="cinemaFrame"') && html.includes('id="sceneTransition"')
   && html.includes('PREMIUM VISUAL ENGINE') && html.includes('@media(prefers-reduced-motion:reduce)'),
   'optional premium UI frame, transitions, responsive treatment and reduced-motion guard remain available');
