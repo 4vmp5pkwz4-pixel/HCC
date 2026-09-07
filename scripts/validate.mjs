@@ -131,6 +131,15 @@ check(html.includes("ru:") && html.includes("de:") && html.includes("en:"),
   check(n >= 15, `selection registry is rich (${n} registerSel call-sites ≥ 15)`);
   check(html.includes('selProv'), 'selection cards carry a provenance container');
   check(html.includes('SOURCE_MAP'), 'SOURCE_MAP provenance section present');
+  check(html.includes('function selectionRelationCurve(a,b,seed=0,viewDir=null,segments=24)')
+    && html.includes("selectionLinksGroup.name='Typed relationship field'")
+    && html.includes("selectionRelationFlow.name='Typed relation flow probes'")
+    && html.includes('lineSetPoints(line,pts);lineComputeDistances(line)'),
+    'typed relationships use named spatial curves with animated flow probes, not ruler-like straight chords');
+  check(html.includes('const q=PREFERS_REDUCED_MOTION ? .5 :')
+    && html.includes('depthTest:false,depthWrite:false,blending:THREE.AdditiveBlending')
+    && html.includes('the relation line is an interface aid, not a distance measurement'),
+    'relationship motion respects reduced-motion and remains an explicitly non-metric overlay');
 }
 
 /* 6 · Mobile requirements */
@@ -145,6 +154,23 @@ check(/#clock\{position:absolute;top:/.test(html)
 check(html.includes('@media (max-width:420px)') && html.includes('#navCluster>#breadcrumb{left:auto;transform:none')
   && html.includes('id="activeLabControls"') && html.includes('_jumpActive') && html.includes('_revealActive'),
   'narrow phones separate title/clock/breadcrumb and jump to the newly selected laboratory controls');
+/* The mobile refinements are one system, not a collection of visual hints.  Guard the
+   semantic and geometry-bearing parts together so a later CSS cleanup cannot preserve
+   the appearance on a desktop emulator while regressing a real notched/zoomed iPhone. */
+check(!/user-scalable\s*=\s*no/i.test(html) && !/maximum-scale\s*=\s*1(?:\.0)?/i.test(html),
+  'the viewport keeps native pinch zoom available for accessibility');
+check(html.includes('--safe-l:env(safe-area-inset-left,0px)')
+  && html.includes('--safe-r:env(safe-area-inset-right,0px)')
+  && /#hccTabs\{[\s\S]{0,220}?var\(--safe-r\)[\s\S]{0,220}?var\(--safe-l\)/.test(html)
+  && /right:calc\(8px \+ var\(--safe-r\)\)!important/.test(html),
+  'landscape sheets and compact navigation share the left/right iPhone safe corridor');
+check(html.includes("b.setAttribute('aria-label',label)")
+  && html.includes("b.querySelector('i')?.setAttribute('aria-hidden','true')")
+  && html.includes("b.setAttribute('aria-current','page')"),
+  'compact icon navigation preserves names, silent decorative glyphs and one current-page state');
+check((html.match(/window\.visualViewport\?\.height\|\|innerHeight/g)||[]).length >= 2
+  && html.includes('overscroll-behavior:contain') && html.includes('-webkit-overflow-scrolling:touch'),
+  'sheet budgets follow the visual viewport and panels retain bounded native touch scrolling');
 
 /* 7 · Core formulas exposed verbatim */
 for (const f of ['2*Math.PI*Math.PI', '(chi - 0.5*Math.sin(2*chi))', 'beta', 'l_P·φᴺ',
@@ -492,33 +518,34 @@ check(html.includes('m.userData.supernovaStablePoints=true')
   'Supernova uses one bounded stable GPU point draw, explicit depth testing and a non-wrapping timeline');
 
 /* 23 · Premium visual engine: cinematic consistency without scientific mutation */
-check(html.includes('let premiumVisualsEnabled=false') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)==='1'")
+check(html.includes('let premiumVisualsEnabled=true') && html.includes("localStorage.getItem(PREMIUM_VISUALS_KEY)!=='0'")
   && html.includes('renderer.toneMapping=premiumVisualsEnabled?THREE.ACESFilmicToneMapping:THREE.NoToneMapping'),
-  'classic presentation is the fresh-browser default and ACES is explicit opt-in');
+  'calibrated ACES presentation is the fresh-browser default and an explicit opt-out persists');
 check(html.includes('id="premiumVisualsBtn"') && html.includes('aria-pressed="false"')
   && html.includes('function setPremiumVisuals(') && html.includes("PREMIUM_VISUALS_KEY='s3.premiumVisuals'"),
-  'settings exposes one persistent Premium visuals switch, off by default');
+  'settings exposes one persistent Premium visuals switch');
 check(html.includes('const PREMIUM_POST_MAX=') && html.includes('function premiumPerformanceTick(')
   && html.includes("premiumSetPostQuality(premiumPostQuality-.14,'frame-pressure')")
   && html.includes("premiumSetPostQuality(premiumPostQuality+.08,'quality-recovery')"),
   'flat-screen bloom has bounded adaptive degradation and slow quality recovery');
 check(html.includes('function premiumBloomProfile(') && html.includes('function resetBloomComposer(')
-  && html.includes('premiumComposerPixelRatio()'),
-  'bloom profiles, independent buffer cap and recovery path are wired');
+  && html.includes('premiumComposerPixelRatio()') && html.includes('new SMAAPass(')
+  && html.includes('bloomComposer.addPass(smaaPass)'),
+  'bloom profiles, SMAA edge resolve, independent buffer cap and recovery path are wired');
 check(html.includes('function premiumDeclutterLabels(') && html.includes("classList.add('declutter-hidden')")
   && html.includes('premiumLabelPriority('),
   'global priority-based CSS2D collision management is wired');
 check(html.includes("premiumStage.name='Cinematic non-metric laboratory stage'")
   && html.includes('premiumStage.visible=premiumVisualsEnabled&&op>0&&!mv&&!xr&&!webglContextLost')
   && html.includes('premiumStage.visible=false; // a single camera-facing stage is invalid across four tile cameras'),
-  'cinematic stage is opt-in, explicitly non-metric and excluded from XR, Multiview and context-loss states');
+  'cinematic stage is preference-controlled, explicitly non-metric and excluded from XR, Multiview and context-loss states');
 check(html.includes('const PREMIUM_VIEW_DOMAINS=') && html.includes('premiumApplyProfile(')
   && html.includes("root.style.setProperty('--lab-accent'"),
   'laboratory-domain color direction is centralized and UI/scene synchronized');
 check(html.includes('#cinemaFrame,#sceneTransition{display:none}')
   && html.includes('body.premium-visuals #cinemaFrame') && html.includes('body.premium-visuals .panel')
   && html.includes('body.premium-visuals .label.declutter-hidden'),
-  'all premium UI, frame and label styling is scoped behind the opt-in body class');
+  'all premium UI, frame and label styling is scoped behind the premium body class');
 check(html.includes('id="cinemaFrame"') && html.includes('id="sceneTransition"')
   && html.includes('PREMIUM VISUAL ENGINE') && html.includes('@media(prefers-reduced-motion:reduce)'),
   'optional premium UI frame, transitions, responsive treatment and reduced-motion guard remain available');
