@@ -124,14 +124,16 @@ ok('THREE OF THE TWENTY-FIVE ARE SILENCED RATHER THAN DEAD, each by a specific c
   })(),
   'mainseq.giant_brightening · skyrmion.separation · scales.drive — all three recorded dead, all three revived by moving one other input off its default');
 
-ok('AND ONE IS NOT DEAD BY ANY READING. ladder.theta is recorded with dead true, responding 0 and an empty moves list, while the laboratory\'s own temperature_K runs from 7.778e-18 to 7.778e-8 across its declared domain — the same mantissa with the exponent ten higher, a clean unit slope over ten decades. An output moving by ten orders of magnitude is recorded as moving nothing',
+ok('AND ONE WAS NOT DEAD AT ALL, WHICH IS NOW ASSERTED AS THE REPAIR RATHER THAN THE DEFECT. ladder.theta was recorded dead with responding 0 and an empty moves list while the laboratory\'s own temperature_K ran across ten decades of it — because the instrument declared thirteen outputs and returned fourteen, and the sweep was never offered the one that moves. temperature_K is declared now and the sweep sees it: theta reports dead false with a responding output. THE FIRST VERSION OF THIS CHECK ASSERTED THE DEFECT — that the artifact still said dead — and so went red the moment the repair landed, which is a check encoding a state of the world as an invariant. That failure is already an open problem in this atlas and I wrote it again anyway. The permanent form is the one below: theta is alive, and it is alive because the output it moves is declared',
   (() => {
     const inst = (doc.instruments || []).find(i => i.id === 'ladder');
     const row = inst && (inst.rows || []).find(r => r.input === 'theta');
-    return !!row && row.dead === true && row.responding === 0
-        && Array.isArray(row.moves) && row.moves.length === 0;
+    const declared = /\{name:'temperature_K'/.test(src);
+    return !!row && row.dead === false && (row.responding || 0) >= 1 && declared;
   })(),
-  'the artifact still says dead:true, responding:0, moves:[] — measured against a live evaluation showing temperature_K proportional to theta across the whole domain');
+  (() => { const inst = (doc.instruments || []).find(i => i.id === 'ladder');
+    const row = inst && (inst.rows || []).find(r => r.input === 'theta');
+    return `dead:${row && row.dead} responding:${row && row.responding} — and temperature_K is in the contract, which is what made the difference`; })());
 
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);

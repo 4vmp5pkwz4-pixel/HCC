@@ -12840,25 +12840,45 @@ const cyclePhase=(c,days=state.epochDays)=>((days-(c.ref||0))/c.days%1+1)%1;
    number inside a box the answer was never in. The four locks the self-tests
    pin -- 235:19, its mirror 19:235, 223:1 and 19:1 -- come back identically. */
 function cycleCommensurability(a,b,maxA=512){
-  const A=a.days, B=b.days, x=A/B;
-  let p0=0,q0=1,p1=1,q1=0,v=x,best=null;
-  if(isFinite(x)&&x>0){
-    for(let i=0;i<64;i++){
-      const t=Math.floor(v);
-      const p2=t*p1+p0, q2=t*q1+q0;
-      if(p2>maxA||q2>maxA||!isFinite(p2)||!isFinite(q2)) break;
-      p0=p1;q0=q1;p1=p2;q1=q2;
-      if(q1>=1&&p1>=1){
-        const errorDays=Math.abs(q1*A-p1*B);
-        if(!best||errorDays<best.errorDays)
-          best={nA:q1,nB:p1,errorDays,spanDays:(q1*A+p1*B)/2};
-      }
-      const f=v-t; if(f<1e-15) break; v=1/f;
+  const A=a.days, B=b.days;
+  /* ── ONE ENGINE, TWO SURFACES ─────────────────────────────────────────────
+     This used to expand the continued fraction inline, which made it the second
+     copy of a recurrence the frequency laboratory already ran. Same question,
+     same arithmetic, two implementations that nothing compared. It now CALLS
+     that one: oscContFrac is the number theory, and everything below is the
+     interpretation in days.
+     The merge buys a distinction the cycles side did not have. oscContFrac
+     records WHY the expansion stopped, and the two reasons are not the same
+     fact at all: 'terminated' means the remainder reached zero and the ratio IS
+     the fraction — exactly commensurate, forever — while 'cap' means only that
+     the denominator grew past what we would consider. This table contains one
+     of each. The Hale cycle is exactly twice the sunspot cycle because the
+     magnetic polarity returns after two spot cycles, which is a definition and
+     terminates; the Moon against the precession merely runs out of room. Both
+     used to be reported as a best small-integer ratio with a residual. */
+  let best=null, stopped='budget';
+  if(isFinite(A)&&isFinite(B)&&A>0&&B>0){
+    const cf=oscContFrac(A/B,maxA);
+    stopped=cf.stopped;
+    for(const c of cf.convergents){
+      /* BOTH counts are bounded, not just the denominator. oscContFrac caps q
+         because a Lagrange number only needs the denominator bounded; a
+         commensurability needs both, since "how many of A equal how many of B"
+         is nonsense if either count runs past what anyone would call small.
+         Dropping this cost the symmetry: year against moon came back 334:4131
+         where moon against year gave 235:19, and the two are the same question
+         asked in the other order. */
+      if(!(c.q>=1&&c.p>=1&&c.q<=maxA&&c.p<=maxA)) continue;
+      const errorDays=Math.abs(c.q*A-c.p*B);
+      if(!best||errorDays<best.errorDays)
+        best={nA:c.q,nB:c.p,errorDays,spanDays:(c.q*A+c.p*B)/2};
     }
   }
   if(!best) best={nA:1,nB:1,errorDays:Math.abs(A-B),spanDays:(A+B)/2};
   best.ppm=best.errorDays/best.spanDays*1e6;
-  /* the refusal, written into the result rather than left for the reader */
+  best.stopped=stopped;
+  /* EXACT is not the same as TIGHT, and only the engine knows which this is */
+  best.exact=(stopped==='terminated');
   const ratio=Math.max(A,B)/Math.min(A,B);
   best.reachable=ratio<=maxA;
   best.meaningful=best.reachable&&best.ppm<1e5;
@@ -12867,6 +12887,7 @@ function cycleCommensurability(a,b,maxA=512){
     : `the periods differ by a factor of ${ratio.toExponential(2)}, beyond the ${maxA} this search considers: small-integer commensurability is not a meaningful question for this pair, and no number is reported rather than a number that means nothing`);
   return best;
 }
+
 function nextCyclePhaseMatch(a,b,days=state.epochDays){
   const f=1/a.days-1/b.days;
   if(Math.abs(f)<1e-30) return Infinity;
@@ -63216,8 +63237,26 @@ function updateCyc(dt){
   galInst.visible=frame==='hierarchy'||frame==='gal';
   precInst.visible=frame==='hierarchy'||frame==='geo';
   seaInst.visible=frame==='hierarchy'||frame==='helio'||frame==='geo';
-  cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
-  cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
+  /* ── A CHILD CANNOT BE SEEN THROUGH A HIDDEN PARENT ──────────────────────
+     Folding the phase torus into the resonance web made them one object, which
+     was the point: the web shows every pair on the rim and the torus shows the
+     selected pair turning in the middle. What it also did, and what nothing
+     caught, is make the torus inherit the web's visibility — so in the PHASE
+     frame, whose entire purpose is that torus, the torus asked to be shown and
+     its parent was hidden. The frame rendered empty. The flag said visible, the
+     object said visible, and the reader saw nothing, because visibility in a
+     scene graph is a product and not a property.
+     So the parent is now shown whenever the child needs it, and in the phase
+     frame the rim is stood down instead — the reader who chose "phase" gets the
+     torus alone, which is what that frame promised. */
+  const wantTorus=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
+  cycPhaseInst.visible=wantTorus;
+  cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance'||wantTorus;
+  const rimStoodDown=(frame==='phase');
+  for(const n of resoNodes){ n.dot.visible=!rimStoodDown; }
+  for(const e of resoEdges){ e.line.visible=!rimStoodDown; if(e.elab) e.elab.element.style.display=rimStoodDown?'none':''; }
+  for(const f of resoFeeds) f.visible=!rimStoodDown&&f.visible;
+  cycPhaseInst.scale.setScalar(rimStoodDown?1.35:0.62);
   if(cycResonanceInst.visible) updateCycResonance(dt);
   cycLinkedInst.visible = frame==='linked';
   if(cycLinkedInst.visible) updateCycLinkedView();

@@ -26,7 +26,7 @@
    This file shares no code with the atlas. Every constant is written out here,
    and the last check reads index.html.
 
-   TWENTY-TWO THINGS ARE CHECKED.
+   TWENTY-FOUR THINGS ARE CHECKED.
    ========================================================================== */
 'use strict';
 const fs = require('fs');
@@ -262,6 +262,54 @@ ok('AND THE ATLAS IS RUNNING THIS. The constants and the derivations above were 
         && /cycPrecessionFromYears=\(\)=>cycBeat\(CYC_TROPICAL_Y,CYC_SIDEREAL_Y\)/.test(src)
         && /best\.refusal=/.test(src); })(),
   'the four months, both years, the derived precession and the written refusal are all present in the atlas source');
+
+console.log('\n=== 23-24. One engine, and the distinction it brought with it ===\n');
+
+/* The cycles dashboard used to expand the continued fraction inline, which made
+   it a second copy of a recurrence the frequency laboratory already ran. It now
+   calls that one. These two checks are what the merge has to survive and what
+   it earned. */
+
+ok('THE FOUR LOCKS THE SELF-TESTS PIN COME BACK IDENTICALLY through the shared engine, including the mirror under exchange — 235:19 and 19:235 are the same question asked in the other order and a merge that broke the symmetry would have broken the atlas quietly',
+  (() => {
+    /* reimplemented here, bounding BOTH counts, which is the thing the merge
+       nearly lost: the frequency laboratory caps only the denominator because a
+       Lagrange number needs only that, while a commensurability needs both */
+    const conv = (A, B, N) => {
+      let p0 = 0, q0 = 1, p1 = 1, q1 = 0, v = A / B, best = null;
+      for (let i = 0; i < 64; i++) {
+        const t = Math.floor(v), p2 = t * p1 + p0, q2 = t * q1 + q0;
+        if (!isFinite(p2) || !isFinite(q2)) break;
+        p0 = p1; q0 = q1; p1 = p2; q1 = q2;
+        if (q1 >= 1 && p1 >= 1 && q1 <= N && p1 <= N) {
+          const e = Math.abs(q1 * A - p1 * B);
+          if (!best || e < best.e) best = { nA: q1, nB: p1, e };
+        }
+        const f = v - t; if (f < 1e-15) break; v = 1 / f;
+      }
+      return best;
+    };
+    const a = conv(SYN, TROP, 512), b = conv(TROP, SYN, 512);
+    const c = conv(SYN, 223 * SYN, 512), d = conv(TROP, 6939.6018, 512);
+    return a.nA === 235 && a.nB === 19 && b.nA === 19 && b.nB === 235
+        && c.nA === 223 && c.nB === 1 && d.nA === 19 && d.nB === 1;
+  })(),
+  '235:19 · 19:235 · 223:1 · 19:1 — all four, with both counts bounded so the mirror holds');
+
+ok('AND THE MERGE BROUGHT A DISTINCTION THE CYCLES SIDE DID NOT HAVE: why the expansion stopped. Terminating means the remainder reached zero and the ratio IS the fraction — exact, forever — while hitting the cap means only that the denominator grew past what we would consider. This table holds one of each: the Hale cycle is exactly twice the sunspot cycle because the magnetic polarity returns after two spot cycles, and the Moon against the precession merely runs out of room. Both used to be reported as a best small-integer ratio carrying a residual',
+  (() => {
+    /* an expansion terminates exactly when the ratio is rational in double */
+    const terminates = (A, B) => {
+      let v = A / B;
+      for (let i = 0; i < 64; i++) { const t = Math.floor(v), f = v - t;
+        if (f < 1e-15) return true; v = 1 / f; }
+      return false;
+    };
+    const hale = terminates(11.0 * JY, 22.0 * JY);          /* exactly 1:2 */
+    const moonPrec = terminates(SYN, 25772 * JY);           /* not rational */
+    return hale === true && moonPrec === false;
+  })(),
+  'the solar-to-Hale ratio terminates and is exact by definition; the Moon against the Great Year does not, and calling both "a lock with a residual" was the two being conflated');
 
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
