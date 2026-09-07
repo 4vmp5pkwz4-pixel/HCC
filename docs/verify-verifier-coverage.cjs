@@ -52,9 +52,22 @@ console.log('\n=== 1-3. How many verifiers can see the atlas at all ===\n');
 ok('there are verifiers, and the suite finds them the way ci.mjs does — every file matching docs/verify-*.cjs',
   verifiers.length >= 80, `${verifiers.length} verifiers`);
 
-ok('MOST OF THEM NEVER READ THE ATLAS. They implement the physics and check it against itself, which states what ought to be true and cannot state whether this code does it. A broken atlas is invisible to a file that never opens it, so calling those a second authority overstates what they buy',
-  selfContained.length > reading.length && reading.length >= 20,
-  `${reading.length} read the atlas · ${selfContained.length} are self-contained`);
+/* ── AND THIS CLAUSE MADE THE MISTAKE IT WARNS ABOUT SIX LINES LOWER ─────────
+   It required selfContained.length > reading.length -- "most of them never read
+   the atlas" -- and went RED the moment the split reached 64/64, which happened
+   because verifiers that DO read the atlas were added. The check failed for an
+   improvement in the thing it measures.
+   That is the identical error this file already documents in the artifact
+   clause below: a state of the world written down as an invariant, which breaks
+   when the world improves. The measurement was always worth reporting; it was
+   never a rule. What is a rule is the part that stays true whichever way the
+   ratio goes -- a self-contained verifier implements the physics and checks it
+   against itself, so it can say what ought to be true and never whether this
+   code does it, and a healthy suite keeps a substantial set that can actually
+   reach a regression. That floor is asserted; the split is reported. */
+ok('A SELF-CONTAINED VERIFIER IS NOT A SECOND AUTHORITY. It implements the physics and checks it against itself, which states what ought to be true and cannot state whether this code does it — a broken atlas is invisible to a file that never opens it. Both kinds are worth having and only one of them can catch a regression, so the split is reported here and the reading set is what carries a floor',
+  reading.length >= 20 && selfContained.length >= 1,
+  `${reading.length} read the atlas · ${selfContained.length} are self-contained · ${(100*reading.length/verifiers.length).toFixed(0)}% can reach a regression`);
 
 ok('and the ones that DO read it are the ones a regression can reach. That set must not shrink: it is the whole of the atlas`s exposure to disagreement',
   reading.length >= 25,
