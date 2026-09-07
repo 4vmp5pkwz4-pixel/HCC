@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1319   ·   exported names: 1429
-   extracted physics, sha256 5eac0414f2a97272d09b783a7d5e3257d71432a53e70422bd7814f0f83d97d5f */
+   extracted physics, sha256 4214caca7bc0823d4eab89fe166bf0aff865cb7954e200456dcef2706729122a */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -544,6 +544,24 @@ function cycleCommensurability(a,b,maxA=512){
   best.reachable=ratio<=maxA;
   best.maxTerm=maxA;              /* the bound the caller may quote beside a capped answer */
   best.meaningful=best.reachable&&best.ppm<1e5;
+  /* ── A TAUTOLOGY IS NOT A RESULT, AND ONLY THE ENGINE CAN SAY SO ONCE ──────
+     Some periods in this atlas are DEFINED as integer multiples of another:
+     the Saros is 223 synodic months and the Inex is 358 of them, declared on
+     the cycle entry as constructedFrom. Their ratio against the synodic month
+     terminates at exactly that integer -- the definition read back, carrying no
+     information about the sky at all.
+     The resonance web learned to draw those differently and computed the test
+     itself, which immediately made two answers to one question: the web said
+     "by construction" while the linked view, reading the same pair through this
+     same function, still said "exact by definition". That is the split this
+     engine was merged to end. The test belongs here, once, and every surface
+     inherits it. `informative` is the field a caller should gate a claim on:
+     meaningful says the question had an answer, informative says the answer was
+     not simply the input. */
+  const _ctA=a&&a.constructedFrom, _ctB=b&&b.constructedFrom;
+  best.tautology=!!((_ctA&&_ctA.key&&b&&_ctA.key===b.key)||(_ctB&&_ctB.key&&a&&_ctB.key===a.key));
+  best.constructedTimes=best.tautology?((_ctA&&_ctA.key===(b&&b.key))?_ctA.times:_ctB.times):null;
+  best.informative=best.meaningful&&!best.tautology;
   best.refusal=best.meaningful?null:(best.reachable
     ? `the closest ratio within ${maxA} still misses by ${(best.ppm/1e4).toFixed(1)}% — these periods do not lock`
     : `the periods differ by a factor of ${ratio.toExponential(2)}, beyond the ${maxA} this search considers: small-integer commensurability is not a meaningful question for this pair, and no number is reported rather than a number that means nothing`);

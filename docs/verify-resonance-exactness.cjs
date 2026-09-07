@@ -119,9 +119,30 @@ const ok=(label,cond,detail='')=>{assert.ok(cond,label+(detail?` — ${detail}`:
        c.exact===true && c.nA===1 && c.nB===d.times, `${c.nA}:${c.nB} · stopped=${c.stopped}`);
   }
 
-  /* and the drawing routes off that declaration rather than off a cycle name */
-  ok('the tautology is routed from the declared construction, not from a named pair',
-     /constructedFrom\?\.key===resoNodes\[[ij]\]\.key/.test(html));
+  /* ── AND THIS CLAUSE PINNED A LOCATION, NOT AN INVARIANT ──────────────────
+     It required the web to test constructedFrom against a rim node key, which
+     was true of the first implementation and stopped being true the moment the
+     test moved into cycleCommensurability itself — where it belongs, because
+     the web and the linked view were otherwise giving two answers to one
+     question. The check went red for the repair. What must hold is that the
+     verdict is DERIVED from the declaration and that the drawing reads the
+     engine rather than deciding for itself; where the derivation lives is an
+     implementation detail and is not the suite's business. */
+  ok('the engine derives the tautology from the declared construction, not from a cycle name',
+     /best\.tautology=.*constructedFrom|_ctA[\s\S]{0,200}best\.tautology/.test(html) &&
+     /best\.tautology=!!\(\(_ctA&&_ctA\.key/.test(html));
+  ok('and the drawing reads that one verdict instead of computing a second one',
+     /const constructed = c\.tautology;/.test(html));
+  /* FOUR surfaces read this one engine — the resonance edge, the linked view,
+     the phase-torus panel and the pair readout. Any of them answering for itself
+     is how "by construction" and "exact by definition" came to describe the same
+     pair on the same page, so all four are pinned here. */
+  const surfaces=[
+    ['the linked view', /if\(c\.tautology\) return/],
+    ['the phase-torus panel row', /c\.tautology\?`\$\{c\.nA\}:\$\{c\.nB\} · BY CONSTRUCTION/],
+    ['the selected-pair readout', /c\.tautology[\s\S]{0,80}commensurability BY CONSTRUCTION/],
+  ];
+  for(const [name,re] of surfaces) ok(`and ${name} reads the same verdict, so no two surfaces can disagree`, re.test(html));
   ok('and a constructed edge is labelled "by construction", never "exact"',
      /constructed\?`\$\{c\.nA\}:\$\{c\.nB\} by construction`/.test(html));
   ok('the panel separates the two, so a reader is never told bookkeeping is evidence',
