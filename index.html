@@ -33130,6 +33130,58 @@ const HR_EPS=0.007;
 const HR_FCORE=0.1;
 /* electron-scattering opacity for solar composition, which sets the Eddington
    ceiling: sigma_T / m_p times the hydrogen fraction term */
+/* ── COMPOSITION, AND THE CONSTANT THIS ATLAS WAS ALREADY USING ──────────────
+   Every stellar relation here is written for the Sun's composition and none of
+   them says so. hrLuminosity, hrRadius and hrTemperature carry no Z; the
+   turnoff mass, the gyrochronology colour term and the 1.278-against-1.314
+   coincidence shipped in 4.145.0 all rest on a solar mixture that nothing
+   declares. A census for "[Fe/H]" returns zero.
+
+   AND THE ATLAS WAS ALREADY CARRYING THE ANSWER WITHOUT SAYING SO. HR_KAPPA is
+   0.034, used for the Eddington limit, and 0.034 is exactly 0.02(1+X) at
+   X = 0.70: it is the ELECTRON SCATTERING opacity. That is the one opacity with
+   no metals in it at all — a free electron scatters a photon the same way
+   whether it came from hydrogen or from iron — so every Eddington number in
+   this atlas is already metallicity-blind, correctly, and by accident of
+   nobody having written down which opacity that constant is.
+
+   WHERE METALLICITY ENTERS IS THE OTHER ONE. Bound-free and free-free
+   absorption need an ion with bound states, so Kramers goes as Z(1+X)rho/T^3.5.
+   Which of the two dominates is not a modelling choice, it is arithmetic, and
+   setting them equal gives a locus that needs no stellar model at all:
+
+       rho_crit = 0.02 T^3.5 / (4e25 Z)
+
+   Above that density Kramers wins and the lifetime carries Z; below it
+   scattering wins and Z drops out of the problem entirely. Checked against
+   stars nobody here tuned: the Sun sits at 150 g/cm3 against a critical 0.57,
+   deep in the Kramers regime; a 15 solar-mass star sits at 8 against 8.55 and
+   has just crossed; a 40 solar-mass star is scattering-dominated outright.
+
+   SO THE METALLICITY DEPENDENCE OF A LIFETIME IS A CONSEQUENCE OF WHICH
+   OPACITY DOMINATES, not a correction factor bolted on. Massive stars are
+   metallicity-blind because of what their opacity IS. And the turnoff masses
+   this atlas publishes -- 1.31 solar at 4.57 Gyr -- sit far inside the regime
+   where Z matters, which is the finding: those numbers are composition
+   statements and were presented as if they were not. */
+const ZM_X_SUN = 0.7381;                 /* hydrogen mass fraction, GS98/AGSS09 */
+const ZM_Z_SUN = 0.0134;                 /* metal mass fraction */
+const ZM_KRAMERS_C = 4e25;               /* cgs, bound-free + free-free */
+const ZM_ES_C = 0.02;                    /* cgs, Thomson per (1+X) */
+const zmElectronScattering=x=>ZM_ES_C*(1+x);
+const zmKramers=(Z,x,rho,T)=>ZM_KRAMERS_C*Z*(1+x)*rho*Math.pow(Math.max(1,T),-3.5);
+const zmOpacity=(Z,x,rho,T)=>zmElectronScattering(x)+zmKramers(Z,x,rho,T);
+/* the locus where the two are equal -- no stellar model enters it */
+const zmCriticalDensity=(T,Z)=>ZM_ES_C*Math.pow(Math.max(1,T),3.5)/(ZM_KRAMERS_C*Math.max(1e-12,Z));
+const zmDominant=(Z,x,rho,T)=>zmKramers(Z,x,rho,T)>zmElectronScattering(x)?'kramers':'scattering';
+/* [Fe/H] is a logarithm relative to the Sun, and the atlas had no way to say it */
+const zmFeH=Z=>Math.log10(Math.max(1e-12,Z)/ZM_Z_SUN);
+const zmZfromFeH=feh=>ZM_Z_SUN*Math.pow(10,feh);
+/* AND THE CONSTANT ALREADY IN THE FILE, NAMED. HR_KAPPA is 0.034 and this
+   returns 0.034 at the hydrogen fraction the Eddington limit assumes, which is
+   how the identification is checked rather than asserted. */
+const zmEddingtonKappa=()=>zmElectronScattering(0.70);
+
 const HR_KAPPA=0.034;
 
 /* ── THE EDDINGTON CEILING, WHICH IS WHY THE TOP OF THE SEQUENCE IS LINEAR ────
