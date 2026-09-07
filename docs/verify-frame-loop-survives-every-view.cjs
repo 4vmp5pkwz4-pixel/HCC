@@ -47,7 +47,24 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
   const ok=(label,cond)=>{assert.ok(cond,label);pass++;console.log('PASS — '+label);};
   const server=await serve();
   const port=server.address().port;
-  const browser=await launchChromium(chromium,{headless:true,args:['--use-gl=swiftshader','--enable-unsafe-swiftshader']});
+  /* ── DO NOT FORCE SOFTWARE GL ─────────────────────────────────────────────
+     The first version of this file passed --use-gl=swiftshader because that is
+     what made it run in a container with no GPU. Not one other browser script
+     in this repository does that — liveness.mjs, selftest.mjs and
+     sensitivity.mjs all call chromium.launch() bare — and the reason showed up
+     on the first CI run: forcing software GL made "Every verifier" take
+     twenty-six minutes against a two-minute baseline, on a job whose whole
+     budget is thirty-five, and the run was heading for a timeout that would
+     have read as an unrelated failure. Chromium already falls back to
+     SwiftShader by itself when there is no GPU; asking for it explicitly only
+     removes the faster path where one exists. */
+  const browser=await launchChromium(chromium,{headless:true});
+
+  /* and a walk that grows one laboratory at a time must never again be the
+     reason a job dies at its limit: this fails loudly, here, well before it */
+  const DEADLINE=Date.now()+9*60*1000;
+  const withinBudget=()=>assert.ok(Date.now()<DEADLINE,
+    'the frame-loop walk exceeded its nine-minute budget — it is failing here rather than timing out the CI job, where the cause would be invisible');
   try{
     const ctx=await browser.newContext({viewport:{width:1280,height:820}});
     const page=await ctx.newPage();
@@ -79,7 +96,7 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
 
     for(const v of views){
       await page.click(`[data-cycle-view="${v}"]`);
-      await page.waitForTimeout(900);
+      await page.waitForTimeout(900); withinBudget();
       const n=await errCount();
       ok(`the frame loop survives the "${v}" view intact — no caught exception`, n===0);
     }
@@ -113,6 +130,46 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
     }
     ok(`the frame loop survives all ${worlds.length} worlds with the counter still at zero`,
        await errCount()===0);
+
+    /* ── AND EVERY LABORATORY, WHICH IS WHERE THIS CLASS ACTUALLY HIDES ───────
+       Eleven cycle views and seven worlds is a sample. The defect this file was
+       written for lived in ONE view of ONE laboratory and survived because
+       nothing ever entered it with the render loop running and then asked
+       whether the loop was still whole. There are a hundred and fourteen
+       laboratories. Each one is a route the atlas already publishes, so the walk
+       costs a loop over api/manifest.json and about a second apiece — cheap
+       against a per-frame exception nobody sees for a year.
+       The counter is read after EACH route, not once at the end, because "some
+       laboratory broke the loop" is a bug report and "civpsel broke the loop"
+       is a fix. */
+    const routes=await page.evaluate(()=>{
+      const L=(globalThis.HCC_API&&HCC_API.labs&&HCC_API.labs.list)?HCC_API.labs.list():[];
+      return L.map(l=>({id:l.id,route:l.route})).filter(l=>typeof l.route==='string'&&l.route.startsWith('#/'));
+    });
+    ok(`the atlas publishes a route for every laboratory (${routes.length})`, routes.length>=100);
+
+    const broke=[];
+    const captions=new Set();
+    let seen=await errCount();
+    for(const r of routes){
+      await page.evaluate(h=>{location.hash=h;},r.route);
+      await page.waitForTimeout(420); withinBudget();
+      captions.add(await page.evaluate(()=>((document.querySelector('#hudBig')||{}).textContent||'').trim()));
+      const n=await errCount();
+      if(n>seen){ broke.push(`${r.id} (+${n-seen})`); seen=n; }
+    }
+    /* ── A WALK THAT NAVIGATES NOWHERE PASSES A HUNDRED AND FOURTEEN TIMES ────
+       If setting location.hash did not move the atlas, every iteration above
+       would read the same zero and this file would report a clean sweep of a
+       place it never went. That is the shape of mistake this suite has already
+       made once — a counter that could not be read, coerced to zero, passing
+       with the defect in the file. So the walk has to prove it MOVED: the scene
+       caption is written per laboratory, and a walk that arrived somewhere
+       leaves a trail of many different ones. */
+    ok(`and the walk actually went somewhere — ${captions.size} distinct scene captions across ${routes.length} routes`,
+       captions.size>=Math.min(20,routes.length/4));
+    ok(`and the frame loop survives all ${routes.length} laboratories, entered one by one with rendering on`,
+       broke.length===0, broke.length?broke.join(', '):'no laboratory threw a caught frame exception');
 
     console.log(`\n${pass}/${pass} checks passed`);
   } finally {
