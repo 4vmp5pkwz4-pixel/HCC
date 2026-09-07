@@ -12757,7 +12757,7 @@ const CYCLES = [
  {key:'metonic', name:'Metonic cycle (19 yr)', days:6939.6018, ref:0,
   desc:'235 synodic months ≈ 19 tropical years: lunar phases return to the same calendar dates.',
   obs:{mode:'cyc'}},
- {key:'prec', name:'Axial precession — Great Year', days:PRECESSION_YR*365.2425, ref:0,
+ {key:'prec', name:'Axial precession — Great Year', days:cycPrecessionFromYears()*365.2425, ref:0,
   desc:'DERIVED, not stored: the beat between the tropical and sidereal years gives 25771 yr against the 25772 that used to sit here as an independent constant. Precision Earth orientation still requires IAU 2006/2000A precession-nutation plus IERS parameters.',
   obs:{mode:'cyc', focus:'cycPrec', spd:3.15e9}},
  {key:'gal', name:'Galactic year — Sun\'s orbit', days:GAL_YEAR_MYR*1e6*365.2425, ref:0,
@@ -40517,7 +40517,12 @@ function cosmicwebField(x,y,z){let phi=0,g=[0,0,0],h=[[0,0,0],[0,0,0],[0,0,0]];f
 function cosmicwebClass(h,a=.64,threshold=.42){/* Eigenvalues of the full symmetric deformation tensor, not its coordinate-dependent diagonal. */
   const m=h.map(r=>r.map(v=>-a*v));for(let sweep=0;sweep<9;sweep++){let p=0,q=1,b=Math.abs(m[0][1]);for(const [i,j] of [[0,2],[1,2]])if(Math.abs(m[i][j])>b){p=i;q=j;b=Math.abs(m[i][j]);}if(b<1e-12)break;const t=.5*Math.atan2(2*m[p][q],m[q][q]-m[p][p]),c=Math.cos(t),s=Math.sin(t),pp=c*c*m[p][p]-2*s*c*m[p][q]+s*s*m[q][q],qq=s*s*m[p][p]+2*s*c*m[p][q]+c*c*m[q][q];for(let k=0;k<3;k++)if(k!==p&&k!==q){const x=m[k][p],y=m[k][q];m[k][p]=m[p][k]=c*x-s*y;m[k][q]=m[q][k]=s*x+c*y;}m[p][p]=pp;m[q][q]=qq;m[p][q]=m[q][p]=0;}
   const eigen=[m[0][0],m[1][1],m[2][2]],collapsed=eigen.filter(v=>v>threshold).length;
-  const A=h.map((r,i)=>r.map((v,j)=>(i===j?1:0)+a*v)),det=A[0][0]*(A[1][1]*A[2][2]-A[1][2]*A[2][1])-A[0][1]*(A[1][0]*A[2][2]-A[1][2]*A[2][0])+A[0][2]*(A[1][0]*A[2][1]-A[1][1]*A[2][0]);return{collapsed,det,eigen};}
+  /* THE JACOBIAN OF THE MAP THAT IS ACTUALLY DRAWN. The displacement is
+     x = q - a grad(Phi), so d(x)/d(q) is I MINUS a times the Hessian. This built
+     I PLUS it, while the eigenvalues three lines above were already computed from
+     -a*h -- the same formula disagreeing with itself about a sign, which is why
+     the classification looked right while the determinant it publishes did not. */
+  const A=h.map((r,i)=>r.map((v,j)=>(i===j?1:0)-a*v)),det=A[0][0]*(A[1][1]*A[2][2]-A[1][2]*A[2][1])-A[0][1]*(A[1][0]*A[2][2]-A[1][2]*A[2][0])+A[0][2]*(A[1][0]*A[2][1]-A[1][1]*A[2][0]);return{collapsed,det,eigen};}
 function cosmicwebSetup(){
   labWipe(cosmicwebGroup);cosmicwebT=0;const points=[],classes=[],base=[];
   for(let iz=0;iz<CW_N;iz++)for(let iy=0;iy<CW_N;iy++)for(let ix=0;ix<CW_N;ix++){
@@ -40534,7 +40539,18 @@ function cosmicwebSetup(){
   cosmicwebObjs={cloud,base,classes,filaments,voids,nodes};
 }
 function updateCosmicweb(dt){const O=cosmicwebObjs;if(!O)return;cosmicwebT+=dt;const a=.64+.025*Math.sin(cosmicwebT*.35),P=O.cloud.geometry.attributes.position.array;let counts=[0,0,0,0],mass=0;
-  O.base.forEach((b,i)=>{P[i*3]=b.q[0]-a*b.F.g[0];P[i*3+1]=b.q[1]-a*b.F.g[1];P[i*3+2]=b.q[2]-a*b.F.g[2];const c=cosmicwebClass(b.F.h,a);counts[c.collapsed]++;mass+=1/Math.max(.08,Math.abs(c.det));});O.cloud.geometry.attributes.position.needsUpdate=true;
+  /* THE COLOUR IS THE CLASSIFICATION, SO IT HAS TO MOVE WITH IT. The growth
+     factor walks from 0.615 to 0.665 and this loop reclassifies every sample,
+     but the colour buffer was written once at setup and left there: between two
+     and three dozen of the 729 samples change class at the extremes, so the
+     legend named a kind of place the point had already stopped being. The count
+     in the readout was right and the picture under it was not. */
+  const CW_COL=[[0x30/255,0x4a/255,0x70/255],[0x56/255,0xa5/255,0xc8/255],[0xe0/255,0xb5/255,0x5d/255],[0xff/255,0xe4/255,0xa0/255]];
+  const CA=O.cloud.geometry.attributes.color&&O.cloud.geometry.attributes.color.array;
+  O.base.forEach((b,i)=>{P[i*3]=b.q[0]-a*b.F.g[0];P[i*3+1]=b.q[1]-a*b.F.g[1];P[i*3+2]=b.q[2]-a*b.F.g[2];const c=cosmicwebClass(b.F.h,a);counts[c.collapsed]++;mass+=1/Math.max(.08,Math.abs(c.det));
+    if(CA){const k=CW_COL[c.collapsed];CA[i*3]=k[0];CA[i*3+1]=k[1];CA[i*3+2]=k[2];}});
+  O.cloud.geometry.attributes.position.needsUpdate=true;
+  if(O.cloud.geometry.attributes.color) O.cloud.geometry.attributes.color.needsUpdate=true;
   O.voids.forEach((v,i)=>v.scale.setScalar(1+.035*Math.sin(cosmicwebT*.42+i)));O.filaments.forEach((f,i)=>f.material.opacity=.25+.12*Math.sin(cosmicwebT*.6+i*.7));
   cosmicwebUi+=dt;if(cosmicwebUi>.2){cosmicwebUi=0;const n=O.base.length;hudBig.textContent=`COSMIC WEB · growth a=${a.toFixed(3)} · ${O.nodes.length} knots · ${O.filaments.length} connected filaments`;hudSub.textContent=`One periodic Gaussian potential becomes ${counts[0]} void, ${counts[1]} sheet, ${counts[2]} filament and ${counts[3]} node samples under a shared collapse threshold. Rotate through the volume: translucent cages are under-dense basins, gold paths connect three-axis collapses. This is a first-order Zel’dovich laboratory, not an N-body run or observed survey.`;ATLAS_BUS.pub('cosmicweb.growth',+a.toFixed(5),'dimensionless');ATLAS_BUS.pub('cosmicweb.nodes',counts[3],'count');ATLAS_BUS.pub('cosmicweb.density_proxy',+(mass/n).toFixed(5),'dimensionless');}}
 
@@ -71340,6 +71356,9 @@ function buildCtlBody(){
         <button class="btn" id="cosmoToCmb">→ ${TT('the far end, z = 1089','дальний конец, z = 1089','das ferne Ende')}</button>
         <button class="btn" id="cosmoToRed">→ ${TT('the other redshift','другое красное смещение','die andere Rotverschiebung')}</button></div>
     </div>`;
+    else if(V==='cosmicweb') body = `
+    <div class="sect"><b>${TT('One displacement field, four kinds of place','Одно поле смещений, четыре рода мест','Ein Verschiebungsfeld, vier Arten von Orten')}</b>
+      <div class="note">${TT('This laboratory has no free parameter, and saying so is the honest panel. Every void, sheet, filament and node here is the SAME Zel\u2019dovich field read at a growth factor that walks on its own; the colour is how many axes have collapsed, which is counted from the eigenvalues rather than chosen. Nothing here is a slider because nothing here is a choice.','У этой лаборатории нет свободного параметра, и честная панель именно это и говорит. Всякая пустота, стена, филамент и узел здесь — ОДНО поле Зельдовича, прочитанное при факторе роста, который идёт сам; цвет есть число схлопнувшихся осей, оно посчитано по собственным значениям, а не выбрано. Здесь нет ползунков, потому что здесь нет выбора.','Dieses Labor hat keinen freien Parameter, und das zu sagen ist die ehrliche Anzeige. Die Farbe ist die Zahl der kollabierten Achsen, aus Eigenwerten gez\u00e4hlt, nicht gew\u00e4hlt.')}</div></div>`;
     else if(V==='jeans') body = `
     <div class="sect"><b>${TT('When does a cloud stop holding itself up?','Когда облако перестаёт себя держать?','Wann traegt sich eine Wolke nicht mehr?')}</b>
       <div class="ctlrow"><label>${TT('temperature','температура','Temperatur')} T (K)</label>
