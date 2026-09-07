@@ -369,6 +369,23 @@
     overflow:hidden;text-overflow:ellipsis;max-width:100%;white-space:nowrap}
   .busWire[disabled]{opacity:.45;cursor:default}
   .busNote{border-left:2px solid rgba(212,175,106,.35);padding-left:7px}
+  .observerDistances{margin:12px 0 16px;border:1px solid rgba(212,175,106,.25);border-radius:14px;
+    background:linear-gradient(145deg,rgba(212,175,106,.065),rgba(8,12,22,.25));overflow:hidden}
+  .observerDistance{display:grid;grid-template-columns:28px minmax(0,1fr);gap:4px 10px;
+    padding:12px 14px;border-bottom:1px solid rgba(212,175,106,.12)}
+  .observerSymbol{grid-row:span 2;font-family:Georgia,serif;font-size:20px;color:#a9d9f6;line-height:1.3}
+  .observerDistance[data-distance="angular"] .observerSymbol{color:var(--gold-2)}
+  .observerDistance[data-distance="luminosity"] .observerSymbol{color:#a7d9c4}
+  .observerMeaning{min-width:0;font-size:11px;line-height:1.4;color:var(--txt);overflow-wrap:anywhere}
+  .observerMeaning small{display:block;color:var(--dim);font-size:10px;line-height:1.45;margin-top:2px}
+  .observerValue{font-family:var(--mono,ui-monospace,monospace);font-variant-numeric:tabular-nums;
+    font-size:17px;line-height:1.5;letter-spacing:.015em;color:var(--txt)}
+  .observerValue small{font-size:10px;color:var(--dim);margin-left:7px}
+  .observerDuality{padding:11px 14px;font-size:11px;line-height:1.7;color:var(--gold-2);font-variant-numeric:tabular-nums}
+  .observerDuality small{display:block;color:var(--dim);font-size:10px;line-height:1.5;margin-top:3px}
+  body.day .observerDistances{background:linear-gradient(145deg,rgba(212,175,106,.13),rgba(255,255,255,.4))}
+  body.day .observerSymbol{color:#23607e}
+  body.day .observerDistance[data-distance="luminosity"] .observerSymbol{color:#24684f}
   /* provenance: three states, three weights, never three shades of the same thing —
      a reader must be able to tell them apart without comparing them side by side */
   .provNote{border-left:2px solid rgba(126,231,255,.34);padding-left:7px}
@@ -2423,6 +2440,8 @@
 </script>
 
 <script type="module">
+import {groupDefinitionConflicts as hccChronometryConflicts, jainAvasarpini as hccJainAvasarpini, sumSymbolicDurations as hccSumSymbolicDurations, classifyCandidate as hccClassifyChronometryCandidate} from './core/labs/chronometry.source_locked.mjs';
+import {wrap01 as hccWrapPhase01, evaluateMultiPhase as hccEvaluateMultiPhase, searchMultiPhase as hccSearchMultiPhase} from './core/cycles/multiphase-solver.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -2433,6 +2452,8 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { createAtlasTime, epochDaysOf } from './core/time/atlas-time.mjs';
+import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTERS, STATE_SCOPES, domainById, findClockAdapter, canPromoteToAtlasEpoch } from './core/time/registry.mjs';
 
 /* THE VERSION LIVES HERE AND NOWHERE ELSE.
    It used to be typed into four places by hand — the <html> attribute, the <meta>
@@ -4255,7 +4276,7 @@ function runSelfTests(){
     const uncat=LAB_REGISTRY.filter(L=>!LAB_CATEGORIES.some(c=>c[0]===L.category));
     ok('NAVIGATION · the registries close: every laboratory names a world that exists, every route is unique, every laboratory carries a category that is rendered and a sentence saying what it is for. Twenty-six laboratories had no description anywhere before this, so twenty-six cards in a catalogue would have shown a name with nothing under it',
       bad.length===0 && dup.length===0 && bare.length===0 && uncat.length===0
-      && LAB_REGISTRY.length===Object.keys(S3_VIEW_NAMES).length,
+       && LAB_BY_ID.size===LAB_REGISTRY.length && LAB_REGISTRY.every(L=>LAB_BY_ID.has(L.id)),
       `${LAB_REGISTRY.length} laboratories across ${LAB_CATEGORIES.length} categories in ${WORLD_REGISTRY.length} worlds · ${routes.length} routes, ${new Set(routes).size} distinct · ${bare.length} without a purpose line`);
     /* the route round trip, exercised rather than asserted */
     let rt=0;
@@ -6969,9 +6990,9 @@ function runSelfTests(){
     ok('and no laboratory is its own neighbour, and no edge points at anything the router cannot reach',
       Object.keys(S3_VIEW_NAMES).every(v=>labNeighbours(v).every(n=>n.id!==v&&!!S3_VIEW_NAMES[n.id])),
       `every edge lands on a registered laboratory · busiest node ${(()=>{let b='',n=0;for(const v of Object.keys(S3_VIEW_NAMES)){const k=labNeighbours(v).length;if(k>n){n=k;b=v;}}return b+' with '+n;})()}`); }
-  { const inPalette=(()=>{ try{ return LAB_REGISTRY.length; }catch(e){ return 0; } })();
+  { const inPalette=(()=>{ try{ return LAB_REGISTRY.filter(L=>L&&L.id&&L.route&&LAB_BY_ID.has(L.id)&&hccParseRoute(L.route)?.labId===L.id).length; }catch(e){ return 0; } })();
     ok('AND CHOOSING A LABORATORY IN THE COMMAND PALETTE ACTUALLY GOES THERE, which it did not. Measured: typing "Einstein ring laboratory" returned exactly one result and pressing it left the route at #/world/solar, the breadcrumb at "Atlas › Solar System" and the active laboratory at v-sec. Laboratories reached the palette only as scene markers, and the scene selector is not the router. They now have their own row whose action is hccGo — the one entry point that moves the route, the breadcrumb, the scene and the context together',
-      inPalette===Object.keys(S3_VIEW_NAMES).length,
+      inPalette===LAB_REGISTRY.length,
       `${inPalette} laboratories indexed for the palette, each routed through hccGo`);
     ok('and a laboratory can be found in the palette by what it DOES, not only by what it is called — the haystack carries the description, the declared prediction target, the domain and the status',
       (()=>{ const L=LAB_BY_ID.get('adisk'); if(!L) return false;
@@ -12697,7 +12718,7 @@ function formatDeepDate(epochDays){
 function bindDeepDateControl(input,button,after){
   input.value=formatDeepDate(state.epochDays);const commit=()=>{const d=parseDeepDate(input.value);
     if(!Number.isFinite(d)){input.setCustomValidity('Use YYYY-MM-DD HH:MM, -100000-01-01, 1.5 Myr ago, or J2000+250000y');input.reportValidity();return;}
-    input.setCustomValidity('');state.epochDays=d;input.value=formatDeepDate(d);after?.();};
+    input.setCustomValidity('');setAtlasEpoch(d,'ui.deep-date');input.value=formatDeepDate(d);after?.();};
   button.onclick=commit;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();commit();}};
 }
 const eclDateStr=d=>formatDeepDate(d)+' UT';
@@ -14385,9 +14406,9 @@ function selectionContext(key,s){
     // shows it (the hierarchy shows everything), keep the frame and just focus — clicking
     // the Seasons dial used to force 'helio' and everything else vanished.
     const want = key==='cycGal'?'gal' : key==='cycPrec'?'geo' : key==='cycPhaseAtlas'?'phase'
-               : key==='cycResonanceWeb'?'resonance' : 'helio';
+               : key==='cycResonanceWeb'?'resonance' : key==='cycLinkedView'?'linked' : 'helio';
     const shows = { gal:['hierarchy','gal'], geo:['hierarchy','geo'], phase:['hierarchy','phase'],
-                    resonance:['hierarchy','resonance'], helio:['hierarchy','helio','geo'] }[want];
+                    resonance:['hierarchy','resonance'], linked:['linked'], helio:['hierarchy','helio','geo'] }[want];
     if(!shows.includes(state.cycFrame)) state.cycFrame=want;
   } else if(s.mode==='fractal'&&key.startsWith('fractal_')){
     setFractalType(key.slice(8),false);
@@ -34078,6 +34099,441 @@ const AZ_MODELS=Object.freeze([
   {id:'ising',kind:'ising',n:3, name:['Ising · 1, σ, ψ · c = 1/2','Изинг · 1, σ, ψ · c = 1/2','Ising · 1, σ, ψ']}
 ]);
 const AZ_BY_ID=new Map(AZ_MODELS.map(m=>[m.id,m]));
+
+/* ── HCC v4.151 · FIRST-PRINCIPLES SCIENTIFIC CONTRACT ──────────────────────
+   This layer is intentionally downstream of the native solvers. It explains, audits and
+   composes the mathematics the Atlas already evaluates; it never promotes a visual
+   resemblance into an identity, coupling or theorem. Unknown metadata fails closed. */
+const HCC_FIRST_PRINCIPLES_SCHEMA = 'hcc.first-principles/1';
+const HCC_FP_UNDECLARED = 'UNDECLARED';
+
+const HCC_FIBONACCI_FIRST_PRINCIPLES = Object.freeze({
+  schema:HCC_FIRST_PRINCIPLES_SCHEMA,
+  model:'Fibonacci anyons',
+  charges:['1','tau'],
+  vacuum:'1',
+  duals:{'1':'1',tau:'tau'},
+  fusion_rules:['1 x 1 = 1','1 x tau = tau','tau x 1 = tau','tau x tau = 1 + tau'],
+  fusion_coefficients:{N_11_1:1,N_1tau_tau:1,N_tau1_tau:1,N_tautau_1:1,N_tautau_tau:1},
+  exact:{
+    phi:'phi = (1 + sqrt(5))/2',
+    phi_inv:'phi^-1 = (sqrt(5)-1)/2',
+    phi_inv_sqrt:'phi^-1/2 = sqrt((sqrt(5)-1)/2)',
+    total_dimension:'D = sqrt((5+sqrt(5))/2)',
+    fusion_matrix:'N_tau = [[0,1],[1,1]]',
+    characteristic:'lambda^2-lambda-1',
+    F:'F = [[phi^-1,phi^-1/2],[phi^-1/2,-phi^-1]]',
+    R1:'R_1 = exp(-4*pi*i/5)',
+    Rtau:'R_tau = exp(3*pi*i/5)',
+    R1_radical:'-(1+sqrt(5))/4 - i*sqrt(10-2*sqrt(5))/4',
+    Rtau_radical:'-(sqrt(5)-1)/4 + i*sqrt(10+2*sqrt(5))/4',
+    sigma1:'rho(sigma_1)=R',
+    sigma2:'rho(sigma_2)=F^-1 R F'
+  },
+  convention:{
+    basis:'((tau tau)_x tau)_tau with x in {1,tau}',
+    gauge:'standard real symmetric Fibonacci F gauge',
+    braiding:'display convention A: R_1=exp(-4*pi*i/5), R_tau=exp(3*pi*i/5); braid orientation convention is defined by the ordered exchange generator, not by an absolute handedness label',
+    core_braiding:'Atlas core native convention B: R_1_core = exp(4*pi*i/5), R_tau_core = exp(-3*pi*i/5)',
+    mirror:'mirror/orientation reversal sends every displayed R phase to its complex conjugate; R_core = conjugate(R_display)',
+    note:'F/R entries are convention-dependent; the Atlas-native braid orientation is the exact complex-conjugate representation of display convention A. Fusion multiplicities, quantum dimensions and closed topological observables are physical invariants.'
+  },
+  derivation:'basis change: reassociate with F, braid with R, return with F^-1; therefore rho(sigma_2)=F^-1 R F',
+  source_status:'standard Fibonacci modular-category data; universality statements remain EXTERNAL theorem claims unless separately verified.'
+});
+
+function hccFpC(re,im=0){ return [Number(re),Number(im)]; }
+function hccFpCAdd(a,b){ return [a[0]+b[0],a[1]+b[1]]; }
+function hccFpCMul(a,b){ return [a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]]; }
+function hccFpCConj(a){ return [a[0],-a[1]]; }
+function hccFpCAbs(a){ return Math.hypot(a[0],a[1]); }
+function hccFpMatMul(A,B){
+  return A.map((row,i)=>B[0].map((_,j)=>row.reduce((z,__,k)=>hccFpCAdd(z,hccFpCMul(A[i][k],B[k][j])),hccFpC(0,0))));
+}
+function hccFpMatDag(A){ return A[0].map((_,j)=>A.map(row=>hccFpCConj(row[j]))); }
+function hccFpMatIdentity(n){ return Array.from({length:n},(_,i)=>Array.from({length:n},(_,j)=>hccFpC(i===j?1:0,0))); }
+function hccFpMatResidual(A,B){
+  let m=0;
+  for(let i=0;i<A.length;i++) for(let j=0;j<A[i].length;j++)
+    m=Math.max(m,Math.hypot(A[i][j][0]-B[i][j][0],A[i][j][1]-B[i][j][1]));
+  return m;
+}
+
+function hccFibFirstPrinciples(){
+  const phi=(1+Math.sqrt(5))/2;
+  const phiInv=1/phi;
+  const phiInvSqrt=Math.sqrt(phiInv);
+  const D=Math.sqrt((5+Math.sqrt(5))/2);
+  const F=[[hccFpC(phiInv),hccFpC(phiInvSqrt)],[hccFpC(phiInvSqrt),hccFpC(-phiInv)]];
+  const R1=hccFpC(Math.cos(-4*Math.PI/5),Math.sin(-4*Math.PI/5));
+  const Rtau=hccFpC(Math.cos(3*Math.PI/5),Math.sin(3*Math.PI/5));
+  const R=[[R1,hccFpC(0)],[hccFpC(0),Rtau]];
+  /* HCC v4.151 · FIBONACCI CONVENTION BRIDGE. Convention A is the explicit pedagogical orientation used by this Lens.
+     The pre-existing exact fibonacci.anyons core uses the mirror braid orientation:
+     R_1_core = exp(4*pi*i/5), R_tau_core = exp(-3*pi*i/5), hence R_core = conjugate(R_display).
+     This is a braid orientation convention change, not a change in fusion data. */
+  const R_core=R.map(row=>row.map(hccFpCConj));
+  const sigma1=R;
+  const sigma2=hccFpMatMul(hccFpMatMul(hccFpMatDag(F),R),F);
+  const sigma1_core=R_core;
+  const sigma2_core=hccFpMatMul(hccFpMatMul(hccFpMatDag(F),R_core),F);
+  const lhs=hccFpMatMul(hccFpMatMul(sigma1,sigma2),sigma1);
+  const rhs=hccFpMatMul(hccFpMatMul(sigma2,sigma1),sigma2);
+  return {
+    ...HCC_FIBONACCI_FIRST_PRINCIPLES,
+    numerical:{phi,phi_inv:phiInv,phi_inv_sqrt:phiInvSqrt,D,F,R,R_core,sigma1,sigma2,sigma1_core,sigma2_core},
+    invariant_checks:{
+      phi_polynomial:Math.abs(phi*phi-phi-1),
+      F_involution:hccFpMatResidual(hccFpMatMul(F,F),hccFpMatIdentity(2)),
+      R1_modulus:Math.abs(hccFpCAbs(R1)-1),
+      Rtau_modulus:Math.abs(hccFpCAbs(Rtau)-1),
+      braid_relation:hccFpMatResidual(lhs,rhs),
+      core_display_conjugacy:Math.max(
+        hccFpMatResidual(sigma1_core,sigma1.map(row=>row.map(hccFpCConj))),
+        hccFpMatResidual(sigma2_core,sigma2.map(row=>row.map(hccFpCConj)))
+      )
+    }
+  };
+}
+
+function hccFibBraidWord(word){
+  const tokens=Array.isArray(word)?word:String(word||'').trim().split(/[\s,]+/).filter(Boolean).map(Number);
+  const fib=hccFibFirstPrinciples();
+  let U=hccFpMatIdentity(2);
+  for(const token of tokens){
+    if(![1,-1,2,-2].includes(token)) throw new RangeError('Fibonacci braid word accepts only ±1 and ±2 generators');
+    const base=Math.abs(token)===1?fib.numerical.sigma1:fib.numerical.sigma2;
+    const G=token>0?base:hccFpMatDag(base);
+    U=hccFpMatMul(U,G);
+  }
+  return {word:tokens,unitary:U,length:tokens.length,convention:fib.convention};
+}
+
+function hccMatrixDistancePhaseInvariant(A,B){
+  if(!Array.isArray(A)||!Array.isArray(B)||A.length!==B.length||!A.length) throw new TypeError('A and B must be same-size matrices');
+  const n=A.length;
+  const overlap=hccFpMatMul(hccFpMatDag(B),A).reduce((z,row,i)=>hccFpCAdd(z,row[i]),hccFpC(0,0));
+  const mag=hccFpCAbs(overlap);
+  const phase=mag>0?[overlap[0]/mag,overlap[1]/mag]:[1,0];
+  let sum=0;
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++){
+    const p=hccFpCMul(phase,B[i][j]);
+    const dr=A[i][j][0]-p[0], di=A[i][j][1]-p[1];
+    sum+=dr*dr+di*di;
+  }
+  const frobenius=Math.sqrt(sum);
+  return {phase,frobenius,normalized:frobenius/Math.sqrt(2*n),metric:'phase-invariant normalized Frobenius distance'};
+}
+
+const HCC_FP_DIMENSION_OVERRIDES=Object.freeze({
+  anyzoo:{
+    native_space:'unitary braided fusion category / fusion Hilbert space',
+    native_dimension:'categorical; state dimension is the number of admissible fusion paths',
+    state_dimension:'model- and charge-sector-dependent',
+    display_dimension:'3D Atlas scene + 2D exact inspector',
+    projection:'semantic embedding; explicitly non-metric',
+    metric_or_form:'Hermitian inner product on fusion Hilbert space',
+    coordinates:'fusion-tree basis; model-dependent',
+    domain:'supported modular-category catalogue; conventions declared per model'
+  },
+  jonesq:{
+    native_space:'Temperley-Lieb/Jones representation space and braid group B_n',
+    native_dimension:'representation-dependent finite Hilbert space',
+    state_dimension:'representation-dependent',
+    display_dimension:'3D Atlas scene + 2D exact inspector',
+    projection:'semantic embedding; explicitly non-metric',
+    metric_or_form:'unitary representation inner product where applicable',
+    coordinates:'braid word / representation basis',
+    domain:'declared Jones/Temperley-Lieb parameter regime'
+  }
+});
+
+function hccFpParameterDescriptor(s){
+  const domain=s&&s.domain?structuredClone(s.domain):HCC_FP_UNDECLARED;
+  return {
+    id:s&&s.id?String(s.id):HCC_FP_UNDECLARED,
+    label:s&&s.label?String(s.label):HCC_FP_UNDECLARED,
+    symbol:(s&&s.symbol)||HCC_FP_UNDECLARED,
+    role:(s&&s.role)||HCC_FP_UNDECLARED,
+    quantity_kind:(s&&(s.quantity_kind||s.quantityKind))||HCC_FP_UNDECLARED,
+    unit:(s&&(s.unit||s.units))||HCC_FP_UNDECLARED,
+    dimensional_signature:(s&&(s.dimensional_signature||s.dimension))||HCC_FP_UNDECLARED,
+    domain,
+    source_status:(s&&(s.source_status||s.status))||HCC_FP_UNDECLARED,
+    exact_value:(s&&s.exact_value!==undefined)?s.exact_value:HCC_FP_UNDECLARED,
+    default_value:(s&&s.default!==undefined)?s.default:HCC_FP_UNDECLARED
+  };
+}
+
+function hccFirstPrinciplesForLab(id){
+  const api=globalThis.HCC_API;
+  let lab=null, schema=[];
+  try{ lab=api&&api.labs&&api.labs.get?api.labs.get(id):null; }catch{}
+  try{ schema=api&&api.config&&api.config.schema?api.config.schema(id):[]; }catch{ schema=[]; }
+  const d=HCC_FP_DIMENSION_OVERRIDES[id]||{};
+  return {
+    schema:HCC_FIRST_PRINCIPLES_SCHEMA,
+    lab_id:id,
+    native_space:d.native_space||HCC_FP_UNDECLARED,
+    native_dimension:d.native_dimension||HCC_FP_UNDECLARED,
+    state_dimension:d.state_dimension||HCC_FP_UNDECLARED,
+    display_dimension:d.display_dimension||'3D Atlas render surface; this is not a claim about native physical dimension',
+    projection:d.projection||HCC_FP_UNDECLARED,
+    metric_or_form:d.metric_or_form||HCC_FP_UNDECLARED,
+    coordinates:d.coordinates||HCC_FP_UNDECLARED,
+    domain:d.domain||HCC_FP_UNDECLARED,
+    source_status:(lab&&lab.status)||HCC_FP_UNDECLARED,
+    parameters:Array.isArray(schema)?schema.map(hccFpParameterDescriptor):[]
+  };
+}
+
+function hccFirstPrinciplesAudit(){
+  const api=globalThis.HCC_API;
+  let labs=[];
+  try{ labs=api&&api.labs&&api.labs.list?api.labs.list():[]; }catch{ labs=[]; }
+  if(!Array.isArray(labs)) labs=[];
+  const contracts=labs.map(l=>hccFirstPrinciplesForLab(typeof l==='string'?l:l.id)).filter(c=>c.lab_id);
+  const parameters=contracts.flatMap(c=>c.parameters);
+  const dimensionDeclared=contracts.filter(c=>c.native_dimension!==HCC_FP_UNDECLARED).length;
+  const parameterDeclared=parameters.filter(p=>p.role!==HCC_FP_UNDECLARED&&p.quantity_kind!==HCC_FP_UNDECLARED&&p.unit!==HCC_FP_UNDECLARED).length;
+  return {
+    schema:HCC_FIRST_PRINCIPLES_SCHEMA,
+    labs_total:contracts.length,
+    labs_native_dimension_declared:dimensionDeclared,
+    parameters_total:parameters.length,
+    parameters_semantics_fully_declared:parameterDeclared,
+    undeclared_is_fail_closed:true,
+    contracts
+  };
+}
+
+globalThis.HCC_FIRST_PRINCIPLES=Object.freeze({
+  schema:HCC_FIRST_PRINCIPLES_SCHEMA,
+  fibonacci:hccFibFirstPrinciples,
+  braid:hccFibBraidWord,
+  gateDistance:hccMatrixDistancePhaseInvariant,
+  lab:hccFirstPrinciplesForLab,
+  audit:hccFirstPrinciplesAudit
+});
+/* ── END HCC v4.151 FIRST-PRINCIPLES CONTRACT ─────────────────────────────── */
+
+/* ── HCC v4.151 · ATLAS INTEGRATION BUS ────────────────────────────────────
+   One typed, revisioned state graph for laboratories, dimensions, projections, instruments,
+   measured bus links, chronology and multiviews. A graph edge is a declared operational
+   relation, never evidence that its endpoints are the same physical mechanism. Unknown
+   semantics fail closed. Existing solvers stay authoritative and are never duplicated. */
+const HCC_ATLAS_INTEGRATION_SCHEMA = 'hcc.atlas-integration/1';
+const HCC_ATLAS_UNDECLARED='UNDECLARED';
+const HCC_ATLAS_INTEGRATION_DOMAINS=Object.freeze(['multiview','chronometry','solar','xr','anyons','first-principles']);
+const HCC_ATLAS_DECLARED_LINKS=Object.freeze([{"from":"photon.limiting_magnitude","to":"rungs.limiting_magnitude","unit":"mag","quantity_kind":null,"scale":1,"converted":false},{"from":"quasi.circulation","to":"circ.circulation","unit":"m^2/s","quantity_kind":null,"scale":1,"converted":false},{"from":"chaos.lyapunov_max","to":"phorizon.lambda","unit":"1/time","quantity_kind":null,"scale":1,"converted":false},{"from":"capacity.n_phi","to":"ladder.N","unit":"rung","quantity_kind":null,"scale":1,"converted":false},{"from":"capacity.q","to":"edge.q","unit":"boundary degrees of freedom","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.alpha_final","to":"spectrum.alpha","unit":"ln(volume)/3","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_plus_final","to":"spectrum.beta_plus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_minus_final","to":"spectrum.beta_minus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.alpha_final","to":"creation.alpha","unit":"ln(volume)/3","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_plus_final","to":"creation.beta_plus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_minus_final","to":"creation.beta_minus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_plus_final","to":"ebk.beta_plus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_minus_final","to":"ebk.beta_minus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.p_plus_final","to":"creation.p_plus","unit":"momentum","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.p_minus_final","to":"creation.p_minus","unit":"momentum","quantity_kind":null,"scale":1,"converted":false},{"from":"cosmo.angular_diameter_distance","to":"elens.D_source","unit":"Mpc","quantity_kind":"angular_diameter_distance","scale":1,"converted":false},{"from":"qso.luminosity","to":"phot.luminosity","unit":"erg/s","quantity_kind":null,"scale":1,"converted":false},{"from":"elens.einstein_radius","to":"resolve.angular_size","unit":"rad","quantity_kind":null,"scale":1,"converted":false},{"from":"phot.flux","to":"photon.flux","unit":"W m^-2","quantity_kind":null,"scale":1,"converted":false},{"from":"cosmo.luminosity_distance","to":"phot.luminosity_distance","unit":"Mpc","quantity_kind":"luminosity_distance","scale":1,"converted":false},{"from":"cosmo.scale_factor","to":"flow.scale_factor","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"adisk.peak_temperature","to":"jeans.temperature","unit":"K","quantity_kind":null,"scale":1,"converted":false},{"from":"jeans.jeans_mass","to":"bht.M","unit":"kg","quantity_kind":null,"scale":1,"converted":false},{"from":"kin.pressure","to":"eos.pressure","unit":"Pa","quantity_kind":null,"scale":1,"converted":false},{"from":"eos.number_density","to":"jeans.number_density","unit":"m^-3","quantity_kind":null,"scale":1,"converted":false},{"from":"eos.number_density","to":"qregime.number_density","unit":"m^-3","quantity_kind":null,"scale":1,"converted":false},{"from":"bht.area","to":"infolab.area","unit":"m^2","quantity_kind":null,"scale":1,"converted":false},{"from":"anyzoo.topological_entanglement_entropy","to":"infolab.entropy_nats","unit":"nat","quantity_kind":null,"scale":1,"converted":false},{"from":"adisk.peak_temperature","to":"eos.temperature","unit":"K","quantity_kind":null,"scale":1,"converted":false},{"from":"wd.mean_density","to":"eos.density","unit":"kg m^-3","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.mass","to":"tscale.mass","unit":"M_sun","quantity_kind":null,"scale":1,"converted":false},{"from":"qso.luminosity","to":"tscale.luminosity","unit":"erg/s","quantity_kind":null,"scale":1,"converted":false},{"from":"qso.accretion_rate","to":"tscale.accretion_rate","unit":"M_sun/yr","quantity_kind":null,"scale":1,"converted":false},{"from":"bht.t_evap_yr","to":"tscale.age","unit":"yr","quantity_kind":null,"scale":1,"converted":false},{"from":"bb.exitance","to":"sbright.flux","unit":"W m^-2","quantity_kind":null,"scale":1,"converted":false},{"from":"bell.solid_angle","to":"sbright.solid_angle","unit":"sr","quantity_kind":null,"scale":1,"converted":false},{"from":"phot.apparent_magnitude","to":"sbright.apparent_magnitude","unit":"mag","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.mass","to":"wd.mass","unit":"M_sun","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.mass","to":"qso.mass","unit":"M_sun","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.mass","to":"adisk.mass","unit":"M_sun","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.mass","to":"elens.lens_mass","unit":"M_sun","quantity_kind":null,"scale":1,"converted":false},{"from":"bht.T_H","to":"bb.T","unit":"K","quantity_kind":null,"scale":1,"converted":false},{"from":"bb.lambda_max","to":"wave.wavelength","unit":"m","quantity_kind":null,"scale":1,"converted":false},{"from":"bhr.b_critical","to":"lens.b","unit":"r_s","quantity_kind":null,"scale":1,"converted":false},{"from":"ns.radius_km","to":"nuosc.baseline","unit":"km","quantity_kind":null,"scale":1,"converted":false},{"from":"ladder.omega","to":"dip.omega","unit":"rad/s","quantity_kind":null,"scale":1,"converted":false},{"from":"ladder.R","to":"red.radius","unit":"m","quantity_kind":null,"scale":1.0570008340246155e-25,"converted":false},{"from":"ladder.R","to":"mimg.radius","unit":"m","quantity_kind":null,"scale":1.0570008340246155e-25,"converted":false},{"from":"imp.beta","to":"rel.beta","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"imp.gamma_real","to":"smith.z_re","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"imp.gamma_imag","to":"smith.z_im","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"civpsel.q_star","to":"civpclo.q","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_plus_final","to":"mixmaster.beta_plus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.beta_minus_final","to":"mixmaster.beta_minus","unit":"1","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.p_plus_final","to":"mixmaster.p_plus","unit":"momentum","quantity_kind":null,"scale":1,"converted":false},{"from":"bianchi.p_minus_final","to":"mixmaster.p_minus","unit":"momentum","quantity_kind":null,"scale":1,"converted":false}]);
+const HCC_ATLAS_DECLARED_WORLDS=Object.freeze([{"id":"solar","title":"Solar"},{"id":"cyc","title":"Cycles"},{"id":"obs","title":"Observable"},{"id":"s3","title":"S³ · Hopf"},{"id":"fbs","title":"FBS3R"},{"id":"field","title":"Field Lab"},{"id":"fractal","title":"Fractal"}]);
+const HCC_ATLAS_DECLARED_MULTIVIEW=Object.freeze([{"id":"focusing","views":["nul","lens","gw","mimg"],"bus":["nul.nullity","lens.alpha","gw.strain"],"title":{"en":"Causal focusing · ray, bundle, tide, topology","ru":"Причинная фокусировка · луч, пучок, прилив, топология","de":"Kausale Fokussierung · Strahl, Bündel, Gezeit, Topologie"},"contract":{"en":"A prepared immersive comparison follows one question through four native 3-D spaces: what can make a null direction converge? The spinor tile establishes the null carrier, Schwarzschild lensing bends a congruence, a gravitational wave shears transverse separation, and the compact-S³ tile tests multiple paths. Shared orientation and simultaneous time make the comparison operational; no tile identifies local curvature, radiative shear or global topology as the same mechanism.","ru":"Подготовленное иммерсивное сравнение проводит один вопрос через четыре собственных 3D-пространства: что может заставить светоподобное направление сходиться? Спинор задаёт нулевой носитель, линза Шварцшильда изгибает конгруэнцию, гравитационная волна сдвигает поперечное разделение, а компактная S³ проверяет множественность путей. Общая ориентация и одновременное время делают сравнение рабочим; локальная кривизна, волновой сдвиг и глобальная топология не объявляются одним и тем же механизмом.","de":"Ein vorbereitetes immersives Vergleichsinstrument verfolgt eine Frage durch vier native 3-D-Räume: Was kann eine Nullrichtung fokussieren? Spinor, Schwarzschild-Linse, Gravitationswelle und kompakte S³-Pfade bleiben getrennte Verträge; gemeinsame Orientierung und simultane Zeit bedeuten keine physikalische Gleichsetzung."}}]);
+const HCC_ATLAS_LAB_META=Object.freeze({"he3":{"world":"s3","instrument":"he3","route":"#/world/s3/lab/he3","title":"Helium-3 superfluid · A and B"},"nuosc":{"world":"s3","instrument":"nuosc","route":"#/world/s3/lab/nuosc","title":"Neutrino oscillation · PMNS"},"adisk":{"world":"s3","instrument":"adisk","route":"#/world/s3/lab/adisk","title":"Accretion disk · Shakura–Sunyaev"},"elens":{"world":"s3","instrument":"elens","route":"#/world/s3/lab/elens","title":"Einstein ring · the lens equation"},"emb":{"world":"s3","instrument":"emb","route":"#/world/s3/lab/emb","title":"Embadon laboratory · Sym^N(CP¹)"},"civplock":{"world":"s3","instrument":"civplock","route":"#/world/s3/lab/civplock","title":"CIVP · CP¹ evaluation lock"},"civpcut":{"world":"s3","instrument":"civpcut","route":"#/world/s3/lab/civpcut","title":"CIVP · molecular cut"},"civpidx":{"world":"s3","instrument":"civpidx","route":"#/world/s3/lab/civpidx","title":"CIVP · Jones ladder"},"civpa4":{"world":"s3","instrument":"civpa4","route":"#/world/s3/lab/civpa4","title":"CIVP · A₄ transfer"},"civpsel":{"world":"s3","instrument":"civpsel","route":"#/world/s3/lab/civpsel","title":"CIVP · UV selector"},"civpcar":{"world":"s3","instrument":"civpcar","route":"#/world/s3/lab/civpcar","title":"CIVP · Berry carrier"},"civpclo":{"world":"s3","instrument":"civpclo","route":"#/world/s3/lab/civpclo","title":"CIVP · conditional closure"},"anyon":{"world":"s3","instrument":"anyon","route":"#/world/s3/lab/anyon","title":"Fibonacci anyon braiding"},"nexus":{"world":"s3","instrument":null,"route":"#/world/s3/lab/nexus","title":"Invariant Nexus"},"nul":{"world":"s3","instrument":"nul","route":"#/world/s3/lab/nul","title":"Spinor & Light-Cone Observatory"},"act":{"world":"s3","instrument":"act","route":"#/world/s3/lab/act","title":"Contact & Action Observatory"},"hol":{"world":"s3","instrument":"hol","route":"#/world/s3/lab/hol","title":"Holonomy Observatory"},"syd":{"world":"s3","instrument":null,"route":"#/world/s3/lab/syd","title":"Symmetry Discovery Chamber"},"sec":{"world":"s3","instrument":"ebk","route":"#/world/s3/lab/sec","title":"section"},"osc":{"world":"s3","instrument":"osc","route":"#/world/s3/lab/osc","title":"Frequency generators · phase coincidence"},"scales":{"world":"s3","instrument":"scales","route":"#/world/s3/lab/scales","title":"Scale panorama · Planck to Hubble"},"hopf":{"world":"s3","instrument":"anyon","route":"#/world/s3/lab/hopf","title":"Hopf fibres"},"leech":{"world":"s3","instrument":"leech","route":"#/world/s3/lab/leech","title":"Golay · Steiner · Leech Λ₂₄"},"eig":{"world":"s3","instrument":null,"route":"#/world/s3/lab/eig","title":"modes β"},"red":{"world":"s3","instrument":"red","route":"#/world/s3/lab/red","title":"redshift"},"ring":{"world":"s3","instrument":null,"route":"#/world/s3/lab/ring","title":"rings"},"lab":{"world":"s3","instrument":null,"route":"#/world/s3/lab/lab","title":"centre lab"},"bell":{"world":"s3","instrument":"bell","route":"#/world/s3/lab/bell","title":"Bell lune"},"drd":{"world":"s3","instrument":null,"route":"#/world/s3/lab/drd","title":"DRD info"},"sel":{"world":"s3","instrument":null,"route":"#/world/s3/lab/sel","title":"selector"},"hopfion":{"world":"s3","instrument":"hopfion","route":"#/world/s3/lab/hopfion","title":"Hopfion lab"},"skyrmion":{"world":"s3","instrument":"skyrmion","route":"#/world/s3/lab/skyrmion","title":"Skyrmion lab"},"quasi":{"world":"s3","instrument":"quasi","route":"#/world/s3/lab/quasi","title":"quasiparticles"},"atom":{"world":"s3","instrument":"atom","route":"#/world/s3/lab/atom","title":"elements"},"grav":{"world":"s3","instrument":"grav","route":"#/world/s3/lab/grav","title":"Gravitas 3-body"},"qm":{"world":"s3","instrument":"qm","route":"#/world/s3/lab/qm","title":"Quantum wave lab"},"qcd":{"world":"s3","instrument":"qcd","route":"#/world/s3/lab/qcd","title":"Chromodynamics lab"},"topo":{"world":"s3","instrument":"topo","route":"#/world/s3/lab/topo","title":"Topology atlas"},"sc":{"world":"s3","instrument":"sc","route":"#/world/s3/lab/sc","title":"Superconductivity lab"},"taub":{"world":"s3","instrument":"taub","route":"#/world/s3/lab/taub","title":"Taub-NUT lab"},"eot":{"world":"s3","instrument":"eot","route":"#/world/s3/lab/eot","title":"Extraordinary transmission"},"wave":{"world":"s3","instrument":"wave","route":"#/world/s3/lab/wave","title":"Wave optics lab"},"spin":{"world":"s3","instrument":"spin","route":"#/world/s3/lab/spin","title":"Quantum spin lab"},"rel":{"world":"s3","instrument":"rel","route":"#/world/s3/lab/rel","title":"Relativity lab"},"chaos":{"world":"s3","instrument":"chaos","route":"#/world/s3/lab/chaos","title":"Strange attractors"},"kin":{"world":"s3","instrument":"kin","route":"#/world/s3/lab/kin","title":"Kinetic theory"},"sh":{"world":"s3","instrument":"sh","route":"#/world/s3/lab/sh","title":"Spherical harmonics"},"kdv":{"world":"s3","instrument":"kdv","route":"#/world/s3/lab/kdv","title":"Soliton (KdV) lab"},"ret":{"world":"s3","instrument":"ret","route":"#/world/s3/lab/ret","title":"Resonant energy transfer"},"dip":{"world":"s3","instrument":"dip","route":"#/world/s3/lab/dip","title":"Dipole radiation"},"cp":{"world":"s3","instrument":"cp","route":"#/world/s3/lab/cp","title":"Charged particle"},"rd":{"world":"s3","instrument":"rd","route":"#/world/s3/lab/rd","title":"Reaction–diffusion"},"he":{"world":"s3","instrument":"he","route":"#/world/s3/lab/he","title":"Heat engine"},"bb":{"world":"s3","instrument":"bb","route":"#/world/s3/lab/bb","title":"Blackbody radiation"},"nuc":{"world":"s3","instrument":"nuc","route":"#/world/s3/lab/nuc","title":"Nuclear binding"},"lens":{"world":"s3","instrument":"lens","route":"#/world/s3/lab/lens","title":"Gravitational lensing"},"te":{"world":"s3","instrument":"te","route":"#/world/s3/lab/te","title":"Thermoelectric"},"gw":{"world":"s3","instrument":"gw","route":"#/world/s3/lab/gw","title":"Gravitational waves"},"pv":{"world":"s3","instrument":"pv","route":"#/world/s3/lab/pv","title":"Photovoltaic"},"su2":{"world":"s3","instrument":"su2","route":"#/world/s3/lab/su2","title":"SU(2) spinor"},"bht":{"world":"s3","instrument":"bht","route":"#/world/s3/lab/bht","title":"Black-hole thermodynamics"},"rpd":{"world":"s3","instrument":"rpd","route":"#/world/s3/lab/rpd","title":"RPD transformer"},"imp":{"world":"s3","instrument":"smith","route":"#/world/s3/lab/imp","title":"Impedance · Möbius · Smith"},"pole":{"world":"s3","instrument":"pole","route":"#/world/s3/lab/pole","title":"Complex-frequency poles"},"disp":{"world":"s3","instrument":"disp","route":"#/world/s3/lab/disp","title":"Dispersion · v_p vs v_g"},"berry":{"world":"s3","instrument":"berry","route":"#/world/s3/lab/berry","title":"Berry curvature · Chern"},"cusp":{"world":"s3","instrument":"cusp","route":"#/world/s3/lab/cusp","title":"Catastrophe · caustics"},"kam":{"world":"s3","instrument":"kam","route":"#/world/s3/lab/kam","title":"KAM · standard map"},"rsh":{"world":"s3","instrument":"rsh","route":"#/world/s3/lab/rsh","title":"Riemann sheet · poles"},"and":{"world":"s3","instrument":"and","route":"#/world/s3/lab/and","title":"Anderson · hyperbolic drift"},"psp":{"world":"s3","instrument":"psp","route":"#/world/s3/lab/psp","title":"Phase space · S³ shell · camel"},"dfx":{"world":"s3","instrument":"dfx","route":"#/world/s3/lab/dfx","title":"Defect atlas · πₙ"},"noe":{"world":"s3","instrument":"noe","route":"#/world/s3/lab/noe","title":"Noether · momentum maps"},"cau":{"world":"s3","instrument":"cau","route":"#/world/s3/lab/cau","title":"Causality · Kramers–Kronig"},"wil":{"world":"s3","instrument":"wil","route":"#/world/s3/lab/wil","title":"Willmore · Clifford torus"},"gate":{"world":"s3","instrument":"gate","route":"#/world/s3/lab/gate","title":"Prediction gate · refinement"},"cps":{"world":"s3","instrument":"cps","route":"#/world/s3/lab/cps","title":"Covariant phase space · Wald charges"},"poin":{"world":"s3","instrument":"poin","route":"#/world/s3/lab/poin","title":"Poinsot · Dzhanibekov"},"qcrys":{"world":"s3","instrument":"qcrys","route":"#/world/s3/lab/qcrys","title":"Quasicrystal · cut-and-project"},"cmb":{"world":"s3","instrument":"cmb","route":"#/world/s3/lab/cmb","title":"CMB low multipoles"},"mimg":{"world":"s3","instrument":"mimg","route":"#/world/s3/lab/mimg","title":"S³ multiple imaging"},"bhr":{"world":"s3","instrument":"bhr","route":"#/world/s3/lab/bhr","title":"Relativistic black hole"},"ns":{"world":"s3","instrument":"ns","route":"#/world/s3/lab/ns","title":"Neutron star (TOV)"},"sn":{"world":"s3","instrument":"sn","route":"#/world/s3/lab/sn","title":"Supernova"},"psr":{"world":"s3","instrument":"psr","route":"#/world/s3/lab/psr","title":"Pulsar"},"qso":{"world":"s3","instrument":"qso","route":"#/world/s3/lab/qso","title":"Quasar"},"rmhd":{"world":"s3","instrument":"rmhd","route":"#/world/s3/lab/rmhd","title":"Radiation–MHD & Helicity"},"wd":{"world":"s3","instrument":"wd","route":"#/world/s3/lab/wd","title":"White-dwarf degeneracy"},"jeans":{"world":"s3","instrument":"jeans","route":"#/world/s3/lab/jeans","title":"Jeans collapse · when a cloud stops holding itself up"},"origins":{"world":"s3","instrument":"origins","route":"#/world/s3/lab/origins","title":"Where the elements came from · three minutes, ten billion years, and one second"},"rungs":{"world":"s3","instrument":"rungs","route":"#/world/s3/lab/rungs","title":"The ladder · from a triangle to two Hubble constants"},"mainseq":{"world":"s3","instrument":"mainseq","route":"#/world/s3/lab/mainseq","title":"The main sequence · where stars live, and the ratio a galaxy hangs on"},"galrot":{"world":"s3","instrument":"galrot","route":"#/world/s3/lab/galrot","title":"Galaxy rotation · the mass you can see is not the mass that is there"},"exo":{"world":"s3","instrument":"exo","route":"#/world/s3/lab/exo","title":"The planets of other stars · a transit, a wobble, and a zone"},"seis":{"world":"s3","instrument":null,"route":"#/world/s3/lab/seis","title":"Asteroseismology · the star rings, and the ringing gives its mass"},"wind":{"world":"s3","instrument":null,"route":"#/world/s3/lab/wind","title":"Stellar wind · what a star loses while it burns"},"gyro":{"world":"s3","instrument":null,"route":"#/world/s3/lab/gyro","title":"Gyrochronology · how old is a star, and why a lifetime is not an age"},"lam":{"world":"s3","instrument":"lam","route":"#/world/s3/lab/lam","title":"The cosmological constant, as a length · and the horizon that is three horizons"},"cosmo":{"world":"s3","instrument":"cosmo","route":"#/world/s3/lab/cosmo","title":"Distance ladder · redshift to distance"},"phot":{"world":"s3","instrument":"phot","route":"#/world/s3/lab/phot","title":"Photometry · what a telescope actually sees"},"resolve":{"world":"s3","instrument":"resolve","route":"#/world/s3/lab/resolve","title":"Angular resolution · can it be seen at all"},"clock":{"world":"s3","instrument":"clock","route":"#/world/s3/lab/clock","title":"What is a clock · the exponent per WHAT, and when two clocks can be exchanged"},"phorizon":{"world":"s3","instrument":"phorizon","route":"#/world/s3/lab/phorizon","title":"The predictability horizon · how long a forecast lasts, and the five rates that cannot say"},"circ":{"world":"s3","instrument":"circ","route":"#/world/s3/lab/circ","title":"The same theorem twice · circulation in a superfluid, flux in a superconductor"},"infolab":{"world":"s3","instrument":"infolab","route":"#/world/s3/lab/infolab","title":"What does one bit cost · entropy, information and the price of forgetting"},"qregime":{"world":"s3","instrument":"qregime","route":"#/world/s3/lab/qregime","title":"Where does quantum begin · the nine conditions"},"jonesq":{"world":"s3","instrument":"jonesq","route":"#/world/s3/lab/jonesq","title":"From a knot to a computer · the Jones chain, walked"},"anyzoo":{"world":"s3","instrument":"anyzoo","route":"#/world/s3/lab/anyzoo","title":"The anyon zoo · every model and its modular data"},"sbright":{"world":"s3","instrument":"sbright","route":"#/world/s3/lab/sbright","title":"Surface brightness · why a bigger telescope does not help"},"tscale":{"world":"s3","instrument":"tscale","route":"#/world/s3/lab/tscale","title":"Timescales · how long does it last"},"eos":{"world":"s3","instrument":"eos","route":"#/world/s3/lab/eos","title":"Equation of state · what holds it up"},"photon":{"world":"s3","instrument":"photon","route":"#/world/s3/lab/photon","title":"Photon budget · how long must you look"},"chronometry":{"world":"cyc","instrument":"chronometry","route":"#/world/cyc/lab/chronometry","title":"Ancient Chronometry Observatory"}});
+const HCC_ATLAS_SOURCE=Object.freeze({source_manifest_version:"4.150.0",source_manifest_build:"ancient-chronometry-observatory-2026.09.05.1",provenance:'api/manifest.json'});
+let frameRevision=0;
+function hccAtlasTimeView(){
+  const svc=globalThis.HCC_TIME_FABRIC;
+  if(!svc||typeof svc.snapshot!=='function')return Object.freeze({available:false,schema:'hcc.time-fabric/1'});
+  const snap=svc.snapshot();
+  return Object.freeze({available:true,schema:'hcc.time-fabric/1',epoch_days_j2000:snap.epochDaysJ2000,rate_days_per_second:snap.rateDaysPerSecond,paused:snap.paused,revision:snap.revision,source:snap.source});
+}
+let hccAtlasFocusId=null;
+const hccAtlasListeners=new Set();
+
+function hccAtlasLabs(){
+  try{const xs=globalThis.HCC_API&&HCC_API.labs&&HCC_API.labs.list?HCC_API.labs.list():[];return Array.isArray(xs)?xs:[];}catch{return [];}
+}
+function hccAtlasInstruments(){
+  try{const xs=globalThis.HCC_API&&HCC_API.instruments&&HCC_API.instruments.list?HCC_API.instruments.list():[];return Array.isArray(xs)?xs:[];}catch{return [];}
+}
+function hccAtlasDescribe(id){
+  try{return globalThis.HCC_API&&HCC_API.describe?HCC_API.describe(id):null;}catch{return null;}
+}
+function hccAtlasLabId(x){return typeof x==='string'?x:(x&&x.id)||'';}
+function hccAtlasInstrumentId(x){return typeof x==='string'?x:(x&&x.id)||'';}
+function hccAtlasContract(labId){
+  try{return globalThis.HCC_FIRST_PRINCIPLES&&HCC_FIRST_PRINCIPLES.lab?HCC_FIRST_PRINCIPLES.lab(labId):{schema:'hcc.first-principles/1',lab_id:labId,source_status:HCC_ATLAS_UNDECLARED,parameters:[]};}
+  catch(error){return {schema:'hcc.first-principles/1',lab_id:labId,source_status:HCC_ATLAS_UNDECLARED,parameters:[],error:String(error)};}
+}
+function hccAtlasRuntimeLab(labId){try{return globalThis.HCC_API&&HCC_API.labs&&HCC_API.labs.get?HCC_API.labs.get(labId):null;}catch{return null;}}
+function hccAtlasNodeId(labId,kind,name){return labId+':'+kind+':'+name;}
+function hccAtlasDeclared(v){return v!==undefined&&v!==null&&v!==''&&v!==HCC_ATLAS_UNDECLARED;}
+
+function hccAtlasBuildGraph(){
+  const nodes=[];const edges=[];const seen=new Set(),edgeSeen=new Set();
+  const addNode=n=>{if(!n||!n.id||seen.has(n.id))return;seen.add(n.id);nodes.push(Object.freeze(n));};
+  const addEdge=e=>{if(!e||!e.from||!e.to)return;const k=[e.type,e.from,e.to].join('|');if(edgeSeen.has(k))return;edgeSeen.add(k);edges.push(Object.freeze(e));};
+
+  for(const w of HCC_ATLAS_DECLARED_WORLDS){
+    if(!w||!w.id)continue;
+    addNode({id:'world:'+w.id,type:'world',world_id:w.id,title:w.title||w.id,provenance:'api/manifest.json worlds'});
+  }
+  for(const p of HCC_ATLAS_DECLARED_MULTIVIEW){
+    if(!p||!p.id)continue;
+    const mid='multiview:'+p.id;
+    addNode({id:mid,type:'multiview',preset_id:p.id,title:p.title||p.id,contract:p.contract||HCC_ATLAS_UNDECLARED,provenance:'api/manifest.json multiview'});
+    for(const v of p.views||[])addEdge({type:'contains_view',from:mid,to:String(v),provenance:'api/manifest.json multiview'});
+    for(const bus of p.bus||[])addEdge({type:'observes_bus',from:mid,to:String(bus),provenance:'api/manifest.json multiview'});
+  }
+
+  for(const item of hccAtlasLabs()){
+    const id=hccAtlasLabId(item);if(!id)continue;
+    const c=hccAtlasContract(id),runtime=hccAtlasRuntimeLab(id)||{},meta=HCC_ATLAS_LAB_META[id]||{};
+    addNode({id,type:'laboratory',lab_id:id,title:(item&&item.title)||runtime.title||meta.title||id,status:c.source_status||HCC_ATLAS_UNDECLARED,route:meta.route||HCC_ATLAS_UNDECLARED});
+    const world=(item&&item.world)||meta.world;
+    if(world){
+      addNode({id:'world:'+world,type:'world',world_id:world,title:world,provenance:'live lab / manifest'});
+      addEdge({type:'belongs_to_world',from:id,to:'world:'+world});
+    }
+    const dimId=hccAtlasNodeId(id,'dimension','native');
+    addNode({id:dimId,type:'dimension',lab_id:id,value:c.native_dimension||HCC_ATLAS_UNDECLARED,native_space:c.native_space||HCC_ATLAS_UNDECLARED});
+    addEdge({type:'has_dimension',from:id,to:dimId});
+    const projId=hccAtlasNodeId(id,'projection','display');
+    addNode({id:projId,type:'projection',lab_id:id,value:c.projection||HCC_ATLAS_UNDECLARED,display_dimension:c.display_dimension||HCC_ATLAS_UNDECLARED});
+    addEdge({type:'projects_to',from:dimId,to:projId,claim:'representation-map-not-physical-identity'});
+    for(const p of Array.isArray(c.parameters)?c.parameters:[]){
+      const pid=hccAtlasNodeId(id,'parameter',p.id||p.name||'unknown');
+      addNode({id:pid,type:'parameter',lab_id:id,name:p.id||p.name||HCC_ATLAS_UNDECLARED,quantity_kind:p.quantity_kind||HCC_ATLAS_UNDECLARED,unit:p.unit||HCC_ATLAS_UNDECLARED,role:p.role||HCC_ATLAS_UNDECLARED,domain:p.domain||HCC_ATLAS_UNDECLARED});
+      addEdge({type:'controls',from:pid,to:id});
+    }
+  }
+
+  /* Live typed instruments come from the already-published HCC_API. They are graph nodes
+     and contracts, not copied solvers. */
+  for(const raw of hccAtlasInstruments()){
+    const id=hccAtlasInstrumentId(raw);if(!id)continue;
+    const desc=hccAtlasDescribe(id)||raw||{};
+    const iid='instrument:'+id;
+    addNode({id:iid,type:'instrument',instrument_id:id,title:desc.title||id,status:desc.status||HCC_ATLAS_UNDECLARED,source:'HCC_API.describe'});
+    const owningLab=Object.entries(HCC_ATLAS_LAB_META).find(([,m])=>m&&m.instrument===id);
+    if(owningLab)addEdge({type:'exposes_instrument',from:owningLab[0],to:iid,source:'HCC_API.describe'});
+    for(const p of desc.inputs||[]){
+      const name=p&&((p.name||p.id))?String(p.name||p.id):'';if(!name)continue;
+      const pid='instrument:'+id+':parameter:'+name;
+      addNode({id:pid,type:'parameter',instrument_id:id,name,quantity_kind:p.quantity_kind||p.quantityKind||HCC_ATLAS_UNDECLARED,unit:p.unit||HCC_ATLAS_UNDECLARED,role:'instrument-input',domain:p.domain||HCC_ATLAS_UNDECLARED,source:'HCC_API.describe'});
+      addEdge({type:'controls',from:pid,to:iid,source:'HCC_API.describe'});
+    }
+    for(const o of desc.outputs||[]){
+      const name=o&&((o.name||o.id))?String(o.name||o.id):'';if(!name)continue;
+      const oid='instrument:'+id+':output:'+name;
+      addNode({id:oid,type:'output',instrument_id:id,name,quantity_kind:o.quantity_kind||o.quantityKind||HCC_ATLAS_UNDECLARED,unit:o.unit||HCC_ATLAS_UNDECLARED,source:'HCC_API.describe'});
+      addEdge({type:'produces',from:iid,to:oid,source:'HCC_API.describe'});
+    }
+  }
+
+  /* Import every measured link from the manifest. This is the existing Atlas bus made
+     visible to the unified graph, not a second hand-maintained connectivity table. */
+  for(const link of HCC_ATLAS_DECLARED_LINKS){
+    if(!link||!link.from||!link.to)continue;
+    const from=String(link.from),to=String(link.to);
+    const fromParts=from.split('.'),toParts=to.split('.');
+    addNode({id:from,type:'output',lab_id:fromParts[0]||HCC_ATLAS_UNDECLARED,name:fromParts.slice(1).join('.')||from,quantity_kind:link.quantity_kind||HCC_ATLAS_UNDECLARED,unit:link.unit||HCC_ATLAS_UNDECLARED,provenance:'api/manifest.json bus.links'});
+    addNode({id:to,type:'parameter',lab_id:toParts[0]||HCC_ATLAS_UNDECLARED,name:toParts.slice(1).join('.')||to,quantity_kind:link.quantity_kind||HCC_ATLAS_UNDECLARED,unit:link.unit||HCC_ATLAS_UNDECLARED,role:'measured-bus-target',provenance:'api/manifest.json bus.links'});
+    addEdge({type:link.converted?'converts':'transfers',from,to,quantity_kind:link.quantity_kind||HCC_ATLAS_UNDECLARED,unit:link.unit||HCC_ATLAS_UNDECLARED,scale:link.scale===undefined?1:link.scale,converted:!!link.converted,provenance:'api/manifest.json bus.links'});
+  }
+
+  /* This bridge is kept explicit because it is central to the Anyon Observatory and is
+     also present in the measured manifest. Edge de-duplication prevents double counting. */
+  const az='anyzoo.topological_entanglement_entropy',inf='infolab.entropy_nats';
+  addNode({id:az,type:'output',lab_id:'anyzoo',name:'topological_entanglement_entropy',quantity_kind:'entropy',unit:'nat'});
+  addNode({id:inf,type:'parameter',lab_id:'infolab',name:'entropy_nats',quantity_kind:'entropy',unit:'nat',role:'input'});
+  addEdge({type:'converts',from:az,to:inf,quantity_kind:'entropy',unit:'nat',scale:1,provenance:'existing Atlas bus link'});
+
+  addNode({id:'operator:fibonacci.braid',type:'operator',domain:'anyons',source:'HCC_FIRST_PRINCIPLES.braid'});
+  addNode({id:'operator:fibonacci.gate-distance',type:'operator',domain:'anyons',source:'HCC_FIRST_PRINCIPLES.gateDistance'});
+  addEdge({type:'braids',from:'anyzoo',to:'operator:fibonacci.braid'});
+  addEdge({type:'compares',from:'operator:fibonacci.braid',to:'operator:fibonacci.gate-distance'});
+
+  const tv=hccAtlasTimeView();
+  if(tv.available)addNode({id:'time:atlas-epoch',type:'time-domain',domain_id:'atlas.epoch',kind:'ABSOLUTE_EPOCH',unit:'day[J2000]',quantity_kind:'absolute_epoch',value:tv.epoch_days_j2000,revision:tv.revision,provenance:'HCC_TIME_FABRIC'});
+  for(const domain of HCC_ATLAS_INTEGRATION_DOMAINS){
+    const did='domain:'+domain;addNode({id:did,type:'view-domain',domain,does_not_assert_physical_equivalence:true});
+  }
+  return Object.freeze({schema:HCC_ATLAS_INTEGRATION_SCHEMA,nodes:Object.freeze(nodes),edges:Object.freeze(edges),source:HCC_ATLAS_SOURCE,measured_bus_links:HCC_ATLAS_DECLARED_LINKS.length,fail_closed:true,does_not_assert_physical_equivalence:true});
+}
+function hccAtlasGraph(){return hccAtlasBuildGraph();}
+function hccAtlasResolve(id){const g=hccAtlasBuildGraph();return g.nodes.find(n=>n.id===id)||null;}
+function hccAtlasNeighborhood(id){
+  const g=hccAtlasBuildGraph();const prefix=id+':';
+  const edges=g.edges.filter(e=>e.from===id||e.to===id||e.from.startsWith(prefix)||e.to.startsWith(prefix));
+  const ids=new Set([id]);for(const e of edges){ids.add(e.from);ids.add(e.to);}
+  return Object.freeze({id,nodes:g.nodes.filter(n=>ids.has(n.id)),edges});
+}
+function hccAtlasEmit(type,payload){
+  const event=Object.freeze({schema:HCC_ATLAS_INTEGRATION_SCHEMA,type,revision:frameRevision,atlas_time:hccAtlasTimeView(),payload,provenance:'hcc.atlas-integration/1'});
+  for(const fn of [...hccAtlasListeners]){try{fn(event);}catch{}}
+  try{globalThis.dispatchEvent(new CustomEvent('hcc:atlas-integration',{detail:event}));}catch{}
+  return event;
+}
+function hccAtlasSubscribe(fn){if(typeof fn!=='function')throw new TypeError('subscriber must be a function');hccAtlasListeners.add(fn);return()=>hccAtlasListeners.delete(fn);}
+function hccAtlasSetTime(){
+  const err=new TypeError('setTime(seconds) is untyped and has been removed; use setEpochDays(dayJ2000, provenance)');
+  err.code='UNTYPED_TIME_REJECTED';throw err;
+}
+function hccAtlasSetEpochDays(dayJ2000,provenance='atlas-integration.setEpochDays'){
+  const svc=globalThis.HCC_TIME_FABRIC;if(!svc||typeof svc.setEpochDays!=='function')throw new Error('AtlasTime authority unavailable');
+  const snap=svc.setEpochDays(dayJ2000,provenance);frameRevision++;
+  hccAtlasEmit('time',{domain_id:'atlas.epoch',unit:'day[J2000]',epoch_days_j2000:snap.epochDaysJ2000,provenance});return snap;
+}
+function hccAtlasFocus(labId,provenance='ui-focus'){
+  const id=String(labId||'');if(!id)throw new RangeError('lab id required');hccAtlasFocusId=id;frameRevision++;
+  return hccAtlasEmit('focus',{lab_id:id,provenance});
+}
+function hccAtlasQuantityCompatibility(a,b){
+  if(!a||!b)return {ok:false,reason:'endpoint_missing'};
+  const ak=a.quantity_kind,bk=b.quantity_kind,au=a.unit,bu=b.unit;
+  if(hccAtlasDeclared(ak)&&hccAtlasDeclared(bk)&&ak!==bk)return {ok:false,reason:'quantity_kind_mismatch'};
+  if(hccAtlasDeclared(au)&&hccAtlasDeclared(bu)&&au!==bu)return {ok:false,reason:'unit_mismatch',requires:'converter_required'};
+  if(!hccAtlasDeclared(ak)||!hccAtlasDeclared(bk)||!hccAtlasDeclared(au)||!hccAtlasDeclared(bu))return {ok:false,reason:'converter_required'};
+  return {ok:true,reason:'compatible'};
+}
+function hccAtlasTransfer(fromId,toId,value,options={}){
+  const from=hccAtlasResolve(fromId),to=hccAtlasResolve(toId);const compat=hccAtlasQuantityCompatibility(from,to);
+  let out=value,converted=false;
+  if(!compat.ok){
+    if(typeof options.converter!=='function')throw Object.assign(new TypeError(compat.reason),{code:compat.reason,from:fromId,to:toId});
+    out=options.converter(value,from,to);converted=true;
+  }
+  frameRevision++;
+  const receipt=Object.freeze({from:fromId,to:toId,input:value,value:out,converted,unit:to&&to.unit||HCC_ATLAS_UNDECLARED,quantity_kind:to&&to.quantity_kind||HCC_ATLAS_UNDECLARED,revision:frameRevision,atlas_time:hccAtlasTimeView(),provenance:options.provenance||'typed-atlas-transfer'});
+  hccAtlasEmit('transfer',receipt);return receipt;
+}
+function hccAtlasSnapshot(labId=hccAtlasFocusId){
+  const id=labId||null,c=id?hccAtlasContract(id):null,g=hccAtlasBuildGraph();
+  return Object.freeze({schema:HCC_ATLAS_INTEGRATION_SCHEMA,frameRevision,atlas_time:hccAtlasTimeView(),lab_id:id,contract:c,parameters:c&&c.parameters||[],dimension:c&&c.native_dimension||HCC_ATLAS_UNDECLARED,projection:c&&c.projection||HCC_ATLAS_UNDECLARED,graph_counts:{nodes:g.nodes.length,edges:g.edges.length},source_manifest_version:HCC_ATLAS_SOURCE.source_manifest_version,source_manifest_build:HCC_ATLAS_SOURCE.source_manifest_build,measured_bus_links:g.measured_bus_links,provenance:'live Atlas API + api/manifest.json + first-principles contracts',fail_closed:true});
+}
+function hccAtlasAnyonBraid(word){
+  if(!globalThis.HCC_FIRST_PRINCIPLES||!HCC_FIRST_PRINCIPLES.braid)throw new Error('Fibonacci braid kernel unavailable');
+  const result=HCC_FIRST_PRINCIPLES.braid(word);frameRevision++;hccAtlasEmit('operator',{operator:'operator:fibonacci.braid',word,result});return result;
+}
+function hccAtlasAnyonGateDistance(A,B){
+  if(!globalThis.HCC_FIRST_PRINCIPLES||!HCC_FIRST_PRINCIPLES.gateDistance)throw new Error('gate-distance kernel unavailable');
+  const result=HCC_FIRST_PRINCIPLES.gateDistance(A,B);frameRevision++;hccAtlasEmit('operator',{operator:'operator:fibonacci.gate-distance',result});return result;
+}
+
+globalThis.HCC_ATLAS_INTEGRATION=Object.freeze({
+  schema:HCC_ATLAS_INTEGRATION_SCHEMA,
+  source:HCC_ATLAS_SOURCE,
+  domains:HCC_ATLAS_INTEGRATION_DOMAINS,
+  graph:hccAtlasGraph,
+  resolve:hccAtlasResolve,
+  neighborhood:hccAtlasNeighborhood,
+  contract:hccAtlasContract,
+  snapshot:hccAtlasSnapshot,
+  transfer:hccAtlasTransfer,
+  subscribe:hccAtlasSubscribe,
+  setTime:hccAtlasSetTime,
+  setEpochDays:hccAtlasSetEpochDays,
+  focus:hccAtlasFocus,
+  measuredLinks:()=>HCC_ATLAS_DECLARED_LINKS.slice(),
+  multiview:()=>HCC_ATLAS_DECLARED_MULTIVIEW.slice(),
+  worlds:()=>HCC_ATLAS_DECLARED_WORLDS.slice(),
+  operators:Object.freeze({fibonacci:Object.freeze({braid:hccAtlasAnyonBraid,gateDistance:hccAtlasAnyonGateDistance})}),
+  policy:Object.freeze({fail_closed:true,does_not_assert_physical_equivalence:true})
+});
+/* ── END HCC v4.151 ATLAS INTEGRATION BUS ────────────────────────────────── */
+
+
 /* ── THE FUSION RULES, from which everything else follows ── */
 function azFusion(m){
   const N=[];
@@ -39741,7 +40197,7 @@ function cosmoSetup(){
   const lc=mkLabel('comoving','label dim'), la=mkLabel('angular diameter — this one turns over','label'),
         ll=mkLabel('luminosity','label dim');
   lc.position.set(3.0,1.55,0); la.position.set(3.0,.35,0); ll.position.set(3.0,2.25,0);
-  cosmoGroup.add(lc,la,ll);
+  frame.add(lc,la,ll);
 
   /* a galaxy of fixed PROPER size, drawn at the angle it subtends */
   const gal=new THREE.Group(); gal.position.set(-4.3,.4,0); cosmoGroup.add(gal);
@@ -39762,11 +40218,11 @@ function cosmoSetup(){
     const g=new THREE.BufferGeometry();
     g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(COSMO_NC*3),3));
     const ln=new THREE.Line(g,new THREE.LineBasicMaterial({color:0x8fb0e0,transparent:true,opacity:.30}));
-    cosmoGroup.add(ln); omFam.push(ln);
-    const lb=mkLabel('','label dim'); cosmoGroup.add(lb); omLabs.push(lb);
+    frame.add(ln); omFam.push(ln);
+    const lb=mkLabel('','label dim'); frame.add(lb); omLabs.push(lb);
   }
-  const omGap=mkLabel('','label dim'); cosmoGroup.add(omGap);
-  cosmoObjs={cC,cA,cL,dC,dA,dL,peak,gal,disc,halo,read,ageLab,omFam,omLabs,omGap,
+  const omGap=mkLabel('','label dim'); frame.add(omGap);
+  cosmoObjs={frame,cC,cA,cL,lc,la,ll,dC,dA,dL,peak,gal,disc,halo,read,ageLab,omFam,omLabs,omGap,
              curveKey:'',famKey:'',peakZ:0,peakD:0,age:0};
 }
 /* the three curves depend on the COSMOLOGY, not on the redshift the reader is dragging,
@@ -39779,15 +40235,36 @@ function cosmoCurves(O,H0,Om){
   const Y=d=>-2.0+3.9*Math.min(1,Math.max(0,Math.log10(Math.max(1,d))/Math.log10(60000)));
   const put=(line,f)=>{ const a=line.geometry.attributes.position.array;
     for(let i=0;i<COSMO_NC;i++){ const z=Math.pow(1+COSMO_ZMAX,i/(COSMO_NC-1))-1;
-      a[i*3]=X(z); a[i*3+1]=Y(f(z)); a[i*3+2]=0; }
+      a[i*3]=X(z); a[i*3+1]=Y(f(z)); a[i*3+2]=cosmoOmDepth(Om); }
     line.geometry.attributes.position.needsUpdate=true; line.geometry.computeBoundingSphere(); };
   put(O.cC,z=>cosmoComoving(z,H0,Om,Or,OL,300));
   put(O.cA,z=>cosmoComoving(z,H0,Om,Or,OL,300)/(1+z));
   put(O.cL,z=>cosmoComoving(z,H0,Om,Or,OL,300)*(1+z));
   const pk=cosmoAngularPeak(H0,Om,Or,OL);
   O.peakZ=pk.z; O.peakD=pk.D_A; O.age=cosmoAge(H0,Om,Or,OL,4000);
-  O.peak.position.set(1.6+X(pk.z),Y(pk.D_A),0);
+  O.peak.position.set(X(pk.z),Y(pk.D_A),cosmoOmDepth(Om));
+  const end=cosmoComoving(COSMO_ZMAX,H0,Om,Or,OL,300);
+  O.lc.position.set(X(COSMO_ZMAX)+.18,Y(end),cosmoOmDepth(Om));
+  O.la.position.set(X(COSMO_ZMAX)+.18,Y(end/(1+COSMO_ZMAX)),cosmoOmDepth(Om));
+  O.ll.position.set(X(COSMO_ZMAX)+.18,Y(end*(1+COSMO_ZMAX)),cosmoOmDepth(Om));
   O.X=X; O.Y=Y;
+}
+function cosmoObserverReadout(z,H0,Om){
+  const Or=9.182e-5, DC=cosmoComoving(z,H0,Om,Or,1-Om-Or);
+  const values=[DC,DC/(1+z),DC*(1+z)];
+  const labels=[TT('Comoving distance','Сопутствующее расстояние','Mitbewegte Entfernung'),
+    TT('Angular-diameter distance','Угловое расстояние','Winkeldurchmesserentfernung'),
+    TT('Luminosity distance','Светимостное расстояние','Leuchtkraftentfernung')];
+  const purposes=[TT('Position in the comoving map','Положение на сопутствующей карте','Position auf der mitbewegten Karte'),
+    TT('Apparent size · gravitational lensing','Угловой размер · линзирование','Winkelgröße · Gravitationslinsen'),
+    TT('Brightness · received flux','Яркость · принимаемый поток','Helligkeit · empfangener Fluss')];
+  const locale=TT('en-US','ru-RU','de-DE');
+  return values.map((v,k)=>`<div class="observerDistance" data-distance="${['comoving','angular','luminosity'][k]}">
+    <span class="observerSymbol">D<sub>${['C','A','L'][k]}</sub></span>
+    <span class="observerMeaning">${labels[k]}<small>${purposes[k]}</small></span>
+    <span class="observerValue">${v.toLocaleString(locale,{maximumFractionDigits:2})}<small>Mpc</small></span></div>`).join('')
+    +`<div class="observerDuality">D<sub>L</sub> / D<sub>A</sub> = (1 + z)² = <strong>${((1+z)**2).toLocaleString(locale,{maximumFractionDigits:4})}</strong>
+    <small>${TT('Computed in flat ΛCDM · three meanings of distance','Расчёт в плоской ΛCDM · три смысла расстояния','Berechnet in flacher ΛCDM · drei Bedeutungen von Entfernung')}</small></div>`;
 }
 function updateCosmo(dt){
   if(!cosmoObjs) cosmoSetup();
@@ -39796,14 +40273,14 @@ function updateCosmo(dt){
   const z=state.cosmoZ??1, H0=state.cosmoH0??67.66, Om=state.cosmoOm??0.3111;
   const Or=9.182e-5, OL=1-Om-Or;
   cosmoCurves(O,H0,Om);
-  const DC=cosmoComoving(z,H0,Om,Or,OL,600), DA=DC/(1+z), DL=DC*(1+z);
+  const DC=cosmoComoving(z,H0,Om,Or,OL), DA=DC/(1+z), DL=DC*(1+z);
   /* THE MATTER DENSITY IS THE THIRD AXIS. The reader's three markers ride at the
      depth of their own Omega_m, among a family of luminosity-distance curves for
      the others — which is the comparison the 1998 measurement actually made. */
   const zc=cosmoOmDepth(Om);
-  O.dC.position.set(1.6+O.X(z),O.Y(DC),zc);
-  O.dA.position.set(1.6+O.X(z),O.Y(DA),zc);
-  O.dL.position.set(1.6+O.X(z),O.Y(DL),zc);
+  O.dC.position.set(O.X(z),O.Y(DC),zc);
+  O.dA.position.set(O.X(z),O.Y(DA),zc);
+  O.dL.position.set(O.X(z),O.Y(DL),zc);
   { const fk=`${H0}`;
     if(O.famKey!==fk){ O.famKey=fk;
       for(let k=0;k<COSMO_OM_N;k++){ const Omk=cosmoOmAt(k), OLk=1-Omk-Or;
@@ -39822,7 +40299,7 @@ function updateCosmo(dt){
       O.omFam[k].material.opacity=near?0.66:0.22;
       O.omLabs[k].element.className=near?'label':'label dim'; }
     const gap=cosmoMuGap(z,H0,Om,1.0,300);
-    O.omGap.position.set(1.6+O.X(z),O.Y(DL)+0.30,zc);
+    O.omGap.position.set(O.X(z),O.Y(DL)+0.30,zc);
     O.omGap.element.innerHTML=`Ω<sub>m</sub>=<b>${Om.toFixed(4)}</b> · against Ω<sub>m</sub>=1 this is <b>${gap>=0?'+':''}${gap.toFixed(3)}</b> mag at z=${z.toFixed(2)}`;
   }
   O.peak.rotation.z+=dt*1.2;
@@ -39839,9 +40316,16 @@ function updateCosmo(dt){
 
   O.ageLab.element.textContent=`the universe is ${O.age.toFixed(3)} Gyr old — integrated here, not looked up`;
   O.read.element.textContent=
-    `z = ${z.toFixed(3)} · a = ${(1/(1+z)).toFixed(4)} · D_C = ${DC.toFixed(0)} Mpc · D_A = ${DA.toFixed(0)} · D_L = ${DL.toFixed(0)} · `
-   +`lookback ${cosmoLookback(z,H0,Om,Or,OL,600).toFixed(2)} Gyr · μ = ${(5*Math.log10(DL*1e6/10)).toFixed(2)} mag`
-   +` · D_A peaks at z = ${O.peakZ.toFixed(3)}${past?' — you are PAST it: further away now means LARGER on the sky':''}`;
+    `z = ${z.toFixed(3)} · D_A ${DA.toFixed(1)} Mpc · D_L ${DL.toFixed(1)} Mpc · `
+   +TT('turnover','максимум D_A','Maximum D_A')+` z = ${O.peakZ.toFixed(3)}`;
+  const distanceCard=document.getElementById('cosmoDistances');
+  if(distanceCard){
+    const key=`${z}|${H0}|${Om}|${TT('en','ru','de')}`;
+    if(distanceCard.dataset.distanceKey!==key){
+      distanceCard.innerHTML=cosmoObserverReadout(z,H0,Om);
+      distanceCard.dataset.distanceKey=key;
+    }
+  }
   hudBig.textContent=`DISTANCE LADDER · z = ${z.toFixed(2)} · D_L = ${DL.toFixed(0)} Mpc · looking back ${cosmoLookback(z,H0,Om,Or,OL,600).toFixed(2)} Gyr`;
   hudSub.textContent='the angular-diameter distance rises, peaks near z = 1.6 and falls: past the turnover a more distant galaxy subtends a LARGER angle, because the universe was smaller when the light left';
   ATLAS_BUS.pub('cosmo.D_L',+DL.toFixed(1),'Mpc');
@@ -42483,12 +42967,79 @@ function hccApiDescribe(id){
   return {schema:'hcc.laboratory/1', id:sp.id, title:hccApiL(sp.title),
     world:sp.world||null, lab:sp.lab||null, status:sp.status,
     verifiers:sp.verifiers||[], formulas:sp.formulas||[],
-    inputs:sp.inputs.map(f=>({name:f.name, type:f.type, unit:f.unit||null,
+    inputs:sp.inputs.map(f=>({name:f.name, type:f.type, unit:f.unit||null, quantity_kind:f.quantity_kind||null,
       default:(typeof f.default==='function'?f.default():f.default),
       min:f.min??null, max:f.max??null, doc:hccApiL(f.doc)})),
-    outputs:(sp.outputs||[]).map(o=>({name:o.name, unit:o.unit||null, doc:hccApiL(o.doc)})),
+    outputs:(sp.outputs||[]).map(o=>({name:o.name, unit:o.unit||null, quantity_kind:o.quantity_kind||null, doc:hccApiL(o.doc)})),
     limits:(sp.limits||[]).map(hccApiL)};
 }
+/* ══ ANCIENT CHRONOMETRY · SOURCE-LOCKED BROWSER PROJECTION ════════════════
+   The exact arithmetic, source validation, conflict detection and falsification firewall
+   live in core/labs/chronometry.source_locked.mjs and are independently verified. The
+   browser needs a JSON-safe projection so agents, the manifest and the visual station can
+   inspect the same adjudicated cases without importing a second numerical authority.
+
+   IMPORTANT: these are source-qualified CASES, not a global table of units. A kṣaṇa in
+   Abhidharmakośa is not silently averaged with a kṣaṇa in the Bhāgavata; the same rule
+   holds for truṭi. Numerical proximity never promotes a historical expression to a
+   modern physical identity. */
+const CHRONOMETRY_CASES=Object.freeze({
+  'jain.avasarpini':Object.freeze({
+    case_id:'jain.avasarpini',status:'EXACT_TEXTUAL',quantity_kind:'symbolic_cycle_structure',
+    source:'Jain avasarpini closure',closure_k:10,closure_years:0,
+    dependent_42000:true,phase_consistent:false,comparison_status:'TEXTUAL_CLOSURE_ONLY'}),
+  'jain.precession_21000':Object.freeze({
+    case_id:'jain.precession_21000',status:'HYPOTHESIS',quantity_kind:'time_interval',
+    source:'Jain 21000-year terminal duration',ancient_years:21000,
+    dependent_42000:false,phase_consistent:false,comparison_status:'PHASE_ANCHOR_REQUIRED'}),
+  'jain.obliquity_42000':Object.freeze({
+    case_id:'jain.obliquity_42000',status:'HYPOTHESIS',quantity_kind:'time_interval',
+    source:'Jain structural 42000-year subtraction',ancient_years:42000,
+    dependent_42000:true,phase_consistent:false,comparison_status:'DEPENDENT_EVIDENCE'}),
+  'source.ksana_conflict':Object.freeze({
+    case_id:'source.ksana_conflict',status:'EXACT_TEXTUAL',quantity_kind:'source_definition_conflict',
+    source:'Abhidharmakosa III.88-89 + Bhagavata 3.11.7-8',definition_count:2,
+    dependent_42000:false,phase_consistent:false,comparison_status:'SAME_TERM_DIFFERENT_DEFINITION'}),
+  'source.truti_conflict':Object.freeze({
+    case_id:'source.truti_conflict',status:'EXACT_TEXTUAL',quantity_kind:'source_definition_conflict',
+    source:'Arthasastra II.20 + Bhagavata 3.11.6-8 + Siddhantasiromani',definition_count:3,
+    dependent_42000:false,phase_consistent:false,comparison_status:'SAME_TERM_DIFFERENT_DEFINITION'}),
+  'astronomy.epoch_correction':Object.freeze({
+    case_id:'astronomy.epoch_correction',status:'UNKNOWN',quantity_kind:'historical_period_benchmark',
+    source:'Aryabhata + Daming + Shoushi source-locked benchmark registry',benchmark_count:6,
+    dependent_42000:false,phase_consistent:false,comparison_status:'PENDING_EPOCH_CORRECTION'})
+});
+function chronometryCase(case_id){
+  const r=CHRONOMETRY_CASES[case_id];
+  if(!r) throw new RangeError('unknown chronometry case "'+case_id+'"; use one of '+Object.keys(CHRONOMETRY_CASES).join(', '));
+  return {...r};
+}
+hccApiRegister({
+  id:'chronometry', world:'cyc', lab:'chronometry',
+  title:['Ancient Chronometry Observatory · source-locked cases',
+         'Обсерватория древней хронометрии · источники зафиксированы',
+         'Observatorium antiker Chronometrie · quellengebundene Fälle'],
+  status:'SOURCE-LOCKED + FALSIFICATION-GATED; astronomy comparisons remain PENDING_EPOCH_CORRECTION',
+  verifiers:['docs/verify-chronometry-source-locked.cjs','docs/verify-chronometry-falsification.cjs','docs/verify-ancient-astronomy-benchmarks.cjs'],
+  formulas:[
+    'avasarpini = 4K + 3K + 2K + (K - 42000 y) + 21000 y + 21000 y = 10K',
+    '42000 y = 2 × 21000 y — dependent evidence, not a second independent coincidence'],
+  inputs:[{name:'case_id',type:'string',default:'jain.avasarpini',
+    doc:['Source-qualified case identifier','Идентификатор случая с привязкой к источнику','Quellengebundene Fall-ID']}],
+  outputs:[
+    {name:'status',unit:'1',quantity_kind:'epistemic_status',doc:['Adjudicated epistemic class','Эпистемический класс','Epistemische Klasse']},
+    {name:'dependent_42000',unit:'1',quantity_kind:'boolean',doc:['Whether the 42000-year datum is structurally dependent','Структурная зависимость 42000 лет','Strukturelle Abhängigkeit von 42000 Jahren']},
+    {name:'phase_consistent',unit:'1',quantity_kind:'boolean',doc:['True only after an independent phase-anchor test','Только после независимой фазовой проверки','Nur nach unabhängigem Phasenanker-Test']},
+    {name:'comparison_status',unit:'1',quantity_kind:'epistemic_status',doc:['Comparison gate state','Состояние сравнительного шлюза','Status des Vergleichsgatters']}],
+  limits:[
+    'Same-name historical units remain source-qualified; no averaging or universal SI identity is inferred.',
+    'Jain 21000 y ↔ climatic precession remains HYPOTHESIS until calendar, epoch, phase and look-elsewhere controls are satisfied.',
+    'Jain 42000 y is dependent evidence because 42000 = 2 × 21000 inside the textual closure.',
+    'All six Aryabhata/Daming/Shoushi bootstrap benchmarks remain PENDING_EPOCH_CORRECTION.',
+    'Cross-domain numerical proximity cannot create a quantity identity or quantity-bus link.'],
+  evaluate:({case_id})=>chronometryCase(case_id)
+});
+
 /* ══ THE QUANTITY BUS ════════════════════════════════════════════════════════
    Verified independently in docs/verify-quantity-bus.cjs (14/14).
 
@@ -42567,7 +43118,7 @@ const HCC_LINK_ALIAS=new Map([['capacity.n_phi','ladder.N'],['civpsel.q_star','c
      drives one input, and this atlas will not pretend that the distance to the lens and
      the distance to the source are the same number just because they share a unit. That
      is the fault the Jeans length committed against a wavelength one release ago. */
-  ['cosmo.luminosity_distance','elens.D_source'],
+  ['cosmo.angular_diameter_distance','elens.D_source'],
   /* ── AND WHAT ARRIVES, WHICH SIX LABORATORIES PUBLISHED AND NONE CONSUMED ──
      A pulsar's spin-down power, a quasar's Eddington limit and a supernova's light
      curve are all luminosities in erg/s, and every one of them stopped there. The
@@ -42964,7 +43515,7 @@ const HCC_NOT_LINKS=new Map([
   ['gw.total_mass|adisk.mass',
    'admissible, and refused on structure rather than on physics: adisk.mass is already driven by ns.mass, and one input takes exactly one source. The merger remnant is arguably the better authority — a neutron star truncates its own disk at the surface, well outside the ISCO — but two laboratories cannot both declare the same fact. Ask the disk directly for the other case.'],
 ]);
-const hccLinkRefusal=(from,to)=>HCC_NOT_LINKS.get(from+'|'+to)||null;
+const hccLinkRefusal=(from,to)=>HCC_NOT_LINKS.get(from+'|'+to)||hccQuantityRefusal(from,to);
 const HCC_UNIT_ALIAS=new Map([['—','1'],['dimensionless','1'],['','1'],['relative','1']]);
 /* ══ AND A CONVERSION IS NOT A RESCALE ═══════════════════════════════════════
    hccBusLink refuses a mismatch with the words "refused rather than rescaled, because the
@@ -43106,6 +43657,21 @@ function hccNameMatch(fromId,oName,toId,iName){
       || (()=>{ const a=HCC_LINK_ALIAS.get(`${fromId}.${oName}`), t=`${toId}.${iName}`;
             return Array.isArray(a)?a.includes(t):a===t; })();
 }
+/* A length unit does not identify an observer distance. Typed ports must agree on
+   quantity kind at both ends; legacy untyped pairs retain their existing contracts.
+   An explicit conversion may change the unit, never this physical meaning. */
+function hccQuantityCompatible(output,input){
+  const a=output?.quantity_kind||null, b=input?.quantity_kind||null;
+  return a===b;
+}
+function hccQuantityRefusal(from,to){
+  const [fid,on]=String(from).split('.'), [tid,inn]=String(to).split('.');
+  const o=HCC_API_SPECS.get(fid)?.outputs?.find(p=>p.name===on);
+  const i=HCC_API_SPECS.get(tid)?.inputs?.find(p=>p.name===inn);
+  if(!o||!i||hccQuantityCompatible(o,i)) return null;
+  return `${from} → ${to}: quantity kind mismatch (${o.quantity_kind||'unspecified'} → `+
+    `${i.quantity_kind||'unspecified'}). Matching units do not establish the same physical quantity.`;
+}
 /* ══ HOW FEW COUPLINGS ARE REAL, COUNTED ══════════════════════════════════════
    The bus admits a coupling on two tests: the units must convert, and the two
    quantities must be the same coordinate by name. The second test has always been
@@ -43159,7 +43725,7 @@ function hccBusSieve(){
           const key=`${fid}.${o.name}|${tid}.${inp.name}`;
           domainPairs.push(key);
           labPairs.add(`${fid}→${tid}`);
-          if(hccNameMatch(fid,o.name,tid,inp.name)){ name++; survivors.push(key); }
+          if(hccQuantityCompatible(o,inp)&&hccNameMatch(fid,o.name,tid,inp.name)){ name++; survivors.push(key); }
         }
       }
     }
@@ -43194,6 +43760,7 @@ function hccBusCandidates(){
              lists reported nineteen declared against seventeen admissible. One rule. */
           const k=hccUnitScale(o.unit,inp.unit);
           if(k===null) continue;
+          if(!hccQuantityCompatible(o,inp)) continue;
           if(!hccNameMatch(fid,o.name,tid,inp.name)) continue;
           out.push({from:`${fid}.${o.name}`, to:`${tid}.${inp.name}`, unit:hccUnitNorm(o.unit),
             toUnit:hccUnitNorm(inp.unit), scale:k, converted:k!==1});
@@ -43288,6 +43855,8 @@ function hccBusLink(from,to){
   if(scale===null) throw new TypeError(
     `${from} is in [${o.unit||'1'}] and ${to} is in [${inp.unit||'1'}] — refused rather than rescaled, `+
     `because the atlas was never given a conversion between them`);
+  const quantityRefusal=hccQuantityRefusal(from,to);
+  if(quantityRefusal) throw new TypeError(quantityRefusal);
   if(HCC_LINKS.some(l=>l.to===to)) throw new Error(
     `${to} is already driven by ${HCC_LINKS.find(l=>l.to===to).from} — one input, one source`);
   const edges=[...HCC_LINKS.map(l=>[l.from.split('.')[0],l.to.split('.')[0]]),[fid,tid]];
@@ -43295,7 +43864,7 @@ function hccBusLink(from,to){
     `${from} → ${to} would close a cycle; a bus with a cycle is an oscillator, not a machine`);
   const link={from,to,unit:hccUnitNorm(o.unit),
     /* what the value is in when it ARRIVES, and what was done to it on the way */
-    toUnit:hccUnitNorm(inp.unit), scale};
+    toUnit:hccUnitNorm(inp.unit), scale, quantity_kind:o.quantity_kind||null};
   HCC_LINKS.push(link); return link;
 }
 /* evaluate a laboratory with every linked input resolved by evaluating its source first,
@@ -43319,7 +43888,7 @@ function hccBusEvaluate(id,input,_seen){
     driven[iName]=+v*k;
     prov.push({input:iName, from:l.from, value:+v, unit:l.unit,
       delivered:+v*k, deliveredUnit:l.toUnit||l.unit,
-      scale:k, converted:k!==1, via:up.provenance});
+      scale:k, converted:k!==1, quantity_kind:l.quantity_kind||null, via:up.provenance});
   }
   const merged={...driven,...(input||{})};
   /* a value arriving over the bus is STILL an input: it goes through the same domain
@@ -43386,7 +43955,7 @@ function hccConfigHarvest(labId){
 }
 /* the current laboratory, in the terms the registries use */
 function hccConfigCurrentId(){
-  return HCC_CTX.worldId==='s3'&&HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;
+  return HCC_CTX.labId?HCC_CTX.labId:HCC_CTX.worldId;
 }
 /* WRITE.  Refuse an out-of-domain value rather than clamping it — the same rule the
    instrument layer states, applied to the same kind of quantity. */
@@ -44690,7 +45259,7 @@ const ATLAS_LATE_SPECS=[
             'flux ratio per magnitude = 10^(-0.4) = 1/2.512'],
   inputs:[{name:'luminosity', type:'number', unit:'erg/s', default:3.828e33, min:1e20, max:1e50,
            doc:['bolometric power emitted at the source','полная излучаемая мощность','abgestrahlte Leistung']},
-          {name:'luminosity_distance', type:'number', unit:'Mpc', default:4.84813681e-12, min:1e-14, max:1e5,
+          {name:'luminosity_distance', type:'number', unit:'Mpc', quantity_kind:'luminosity_distance', default:4.84813681e-12, min:1e-14, max:1e5,
            doc:['luminosity distance to it — one AU is 4.848e-12 Mpc','фотометрическое расстояние','Leuchtkraftentfernung']}],
   outputs:[{name:'flux', unit:'W m^-2', doc:['what arrives per square metre','сколько приходит на квадратный метр','Bestrahlungsstaerke']},
            {name:'flux_cgs', unit:'erg s^-1 cm^-2', doc:['the same in the units a spectrum is usually written in','то же в СГС','dasselbe in cgs']},
@@ -44731,10 +45300,10 @@ const ATLAS_LATE_SPECS=[
            doc:['Hubble constant today','постоянная Хаббла','Hubble-Konstante']},
           {name:'omega_m', type:'number', unit:'dimensionless', default:0.3111, min:0.05, max:0.95,
            doc:['matter density parameter','параметр плотности материи','Materiedichteparameter']}],
-  outputs:[{name:'comoving_distance', unit:'Mpc', doc:['comoving distance to the source','сопутствующее расстояние','mitbewegte Entfernung']},
-           {name:'angular_diameter_distance', unit:'Mpc', doc:['what decides the ANGLE a fixed size subtends','определяет угловой размер','Winkeldurchmesserentfernung']},
-           {name:'luminosity_distance', unit:'Mpc', doc:['what decides the BRIGHTNESS a fixed luminosity reaches you with','определяет наблюдаемую яркость','Leuchtkraftentfernung']},
-           {name:'hubble_distance', unit:'Mpc', doc:['c/H0, the scale of the whole ladder','c/H0','Hubble-Laenge']},
+  outputs:[{name:'comoving_distance', unit:'Mpc', quantity_kind:'comoving_distance', doc:['comoving distance to the source','сопутствующее расстояние','mitbewegte Entfernung']},
+           {name:'angular_diameter_distance', unit:'Mpc', quantity_kind:'angular_diameter_distance', doc:['what decides the ANGLE a fixed size subtends','определяет угловой размер','Winkeldurchmesserentfernung']},
+           {name:'luminosity_distance', unit:'Mpc', quantity_kind:'luminosity_distance', doc:['what decides the BRIGHTNESS a fixed luminosity reaches you with','определяет наблюдаемую яркость','Leuchtkraftentfernung']},
+           {name:'hubble_distance', unit:'Mpc', quantity_kind:'hubble_distance', doc:['c/H0, the scale of the whole ladder','c/H0','Hubble-Laenge']},
            {name:'lookback_time_gyr', unit:'Gyr', doc:['how long ago the light left','когда свет ушёл','Rueckblickzeit']},
            {name:'age_gyr', unit:'Gyr', doc:['age of the universe now, from the same integrand to infinite redshift','возраст Вселенной','Weltalter']},
            {name:'distance_modulus', unit:'mag', doc:['5 log10(D_L/10 pc), what an astronomer actually writes down','модуль расстояния','Entfernungsmodul']},
@@ -49658,13 +50227,13 @@ const ATLAS_LATE_SPECS=[
            doc:['the deflecting mass, for the point model','масса линзы','Linsenmasse']},
           {name:'velocity_dispersion', type:'number', unit:'m/s', default:250000, min:1000, max:2e6,
            doc:['the velocity dispersion, for the isothermal model','дисперсия скоростей','Geschwindigkeitsdispersion']},
-          {name:'D_lens', type:'number', unit:'Mpc', default:1000, min:0.001, max:1e5,
-           doc:['comoving-angular distance to the lens','расстояние до линзы','Entfernung zur Linse']},
-          {name:'D_source', type:'number', unit:'Mpc', default:2000, min:0.002, max:1e5,
-           doc:['and to the source','расстояние до источника','Entfernung zur Quelle']},
-          {name:'D_lens_source', type:'number', unit:'Mpc', default:1200, min:0.001, max:1e5,
-           doc:['and between them — which is NOT the difference of the other two in a curved universe, and is therefore its own input',
-                'и между ними — это не разность двух предыдущих','und zwischen beiden']}],
+          {name:'D_lens', type:'number', unit:'Mpc', quantity_kind:'angular_diameter_distance', default:1000, min:0.001, max:1e5,
+           doc:['angular-diameter distance from observer to lens','угловое расстояние от наблюдателя до линзы','Winkeldurchmesserentfernung zur Linse']},
+          {name:'D_source', type:'number', unit:'Mpc', quantity_kind:'angular_diameter_distance', default:2000, min:0.002, max:1e5,
+           doc:['angular-diameter distance from observer to source','угловое расстояние от наблюдателя до источника','Winkeldurchmesserentfernung zur Quelle']},
+          {name:'D_lens_source', type:'number', unit:'Mpc', quantity_kind:'angular_diameter_distance', default:1200, min:0.001, max:1e5,
+           doc:['angular-diameter distance from lens to source; not the difference of observer distances, even in flat expanding FLRW',
+                'угловое расстояние от линзы до источника; не разность двух предыдущих даже в плоской расширяющейся FLRW','Winkeldurchmesserentfernung von Linse zu Quelle; keine Differenz der Beobachterentfernungen']}],
   outputs:[{name:'einstein_radius', unit:'rad', doc:['theta_E for the chosen model','радиус Эйнштейна','Einstein-Radius']},
            {name:'einstein_radius_arcsec', unit:'arcsec', doc:['the same, in the unit lenses are measured in','то же в секундах дуги','dasselbe in Bogensekunden']},
            {name:'image_count', unit:'count', doc:['two for a point mass at every offset; one or two for an isothermal sphere','число изображений','Anzahl der Bilder']},
@@ -50130,6 +50699,8 @@ try{
     },
     siUnits(){ return {convertible:Object.keys(HCC_SI), refused:HCC_SI_REFUSED,
       not_a_scale:HCC_NOT_A_SCALE, kinds:HCC_SI_KINDS, base:HCC_SI_BASE}; },
+    multiviewPresets(){return MV_PRESETS.map(p=>({id:p.id,views:p.views.slice(),bus:(p.bus||[]).slice(),
+      title:{...p.t},contract:{...p.w}}));},
     instruments:{
       /* BOTH OF THESE WERE WRONG AND BOTH SHIPPED. An input field is keyed `name`, not
          `id`, so this listed [undefined, undefined, ...]; and `outputs` is an ARRAY of
@@ -51262,7 +51833,7 @@ function hccBusDeclareLinks(){
      see HCC_LINK_ALIAS for which route was chosen and why. */
   /* the rung between a redshift you measure and a distance you need — see
      HCC_LINK_ALIAS for why only the SOURCE distance is declared and not the lens */
-  L('cosmo.luminosity_distance','elens.D_source');
+  L('cosmo.angular_diameter_distance','elens.D_source');
   /* a luminosity and a distance make a flux, and a flux is what somebody measured */
   L('qso.luminosity','phot.luminosity');
   /* an angle, at last, with somewhere to go — see HCC_LINK_ALIAS */
@@ -51526,16 +52097,20 @@ function hccTabsBuildMerged(){
     + `<button data-tab="more"><i>⋯</i><span>${TT('More','Ещё','Mehr')}</span></button>`;
   hccTabsWire();
 }
-function hccTabsWire(){
-  const n=document.getElementById('hccTabs'); if(!n) return;
-  /* The painted label is intentionally hidden on compact phones, but the destination
-     must never become anonymous to VoiceOver. Derive one accessible name from the same
-     translated label the reader sees elsewhere, and keep decorative glyphs silent. */
+/* Accessible naming belongs to the current nav DOM, not to the act of rebuilding it.
+   Desktop starts with the plain four-button markup and may never rebuild at all; mobile does.
+   Keeping this separate makes both paths obey the same accessibility contract. */
+function hccTabsA11y(n=document.getElementById('hccTabs')){
+  if(!n) return;
   n.querySelectorAll('button').forEach(b=>{
     const label=(b.querySelector('span')?.textContent||b.title||'').trim();
     if(label){ b.setAttribute('aria-label',label); b.title=label; }
     b.querySelector('i')?.setAttribute('aria-hidden','true');
   });
+}
+function hccTabsWire(){
+  const n=document.getElementById('hccTabs'); if(!n) return;
+  hccTabsA11y(n);
   n.querySelectorAll('[data-insptab]').forEach(b=>b.onclick=()=>{
     for(const id of PANEL_IDS) try{ if(id!=='selCard') closePanel(id); }catch(e){}
     try{ hccSetInspector(b.dataset.insptab); }catch(e){}
@@ -51548,6 +52123,7 @@ function hccTabsSync(){
   const n=document.getElementById('hccTabs'); if(!n) return;
   document.body.classList.add('has-tabs');
   try{ hccTabsBuildMerged(); }catch(e){}
+  hccTabsA11y(n);
   if(n.dataset.merged==='1'){
     const cur=HCC_CTX.inspectorTab;
     n.querySelectorAll('[data-insptab]').forEach(b=>{
@@ -59605,6 +60181,11 @@ const MV_PRESETS=[
   w:{en:'The same angular-mode question is separated into four contracts: a synthetic CMB realization on S², its exact Y_lm basis, the conditional discrete spectrum of a round S³ carrier, and the matched-pattern path test. Simultaneous display is comparison, never topology evidence.',
      ru:'Один вопрос об угловых модах разделён на четыре контракта: синтетическая реализация CMB на S², точный базис Y_lm, условный дискретный спектр круглого носителя S³ и тест совпадающих паттернов по путям. Одновременный показ — сравнение, а не свидетельство топологии.',
      de:'Dieselbe Modenfrage wird in synthetischen CMB-Himmel, exakte Y_lm-Basis, bedingtes S³-Spektrum und Musterpfad-Test getrennt.'}},
+ {id:'focusing', views:['nul','lens','gw','mimg'], bus:['nul.nullity','lens.alpha','gw.strain'],
+  t:{en:'Causal focusing · ray, bundle, tide, topology',ru:'Причинная фокусировка · луч, пучок, прилив, топология',de:'Kausale Fokussierung · Strahl, Bündel, Gezeit, Topologie'},
+  w:{en:'A prepared immersive comparison follows one question through four native 3-D spaces: what can make a null direction converge? The spinor tile establishes the null carrier, Schwarzschild lensing bends a congruence, a gravitational wave shears transverse separation, and the compact-S³ tile tests multiple paths. Shared orientation and simultaneous time make the comparison operational; no tile identifies local curvature, radiative shear or global topology as the same mechanism.',
+     ru:'Подготовленное иммерсивное сравнение проводит один вопрос через четыре собственных 3D-пространства: что может заставить светоподобное направление сходиться? Спинор задаёт нулевой носитель, линза Шварцшильда изгибает конгруэнцию, гравитационная волна сдвигает поперечное разделение, а компактная S³ проверяет множественность путей. Общая ориентация и одновременное время делают сравнение рабочим; локальная кривизна, волновой сдвиг и глобальная топология не объявляются одним и тем же механизмом.',
+     de:'Ein vorbereitetes immersives Vergleichsinstrument verfolgt eine Frage durch vier native 3-D-Räume: Was kann eine Nullrichtung fokussieren? Spinor, Schwarzschild-Linse, Gravitationswelle und kompakte S³-Pfade bleiben getrennte Verträge; gemeinsame Orientierung und simultane Zeit bedeuten keine physikalische Gleichsetzung.'}},
  {id:'grsc', views:['bhr','bht','rpd','gw'], bus:['bhr.steps','rpd.sigma'],
   t:{en:'Horizons · geometry, thermodynamics, information, radiation',ru:'Горизонты · геометрия, термодинамика, информация, излучение',de:'Horizonte'},
   w:{en:'One surface seen as a lens, as a temperature, as a limit on what can be distinguished, and as a wave that escaped.',
@@ -61111,8 +61692,11 @@ const resoFeeds=[0,1].map(()=>{
 });
 let resoPulse=0;
 function updateCycResonance(dt){
-  resoPulse+=dt;
-  const A=state.cycPairA, B=state.cycPairB, pulse=0.78+0.22*Math.sin(resoPulse*3);
+  const A=state.cycPairA, B=state.cycPairB;
+  const _ra=cycleByKey(A), _rb=cycleByKey(B);
+  const _pa=cycLinkedPhaseOf(_ra), _pb=cycLinkedPhaseOf(_rb);
+  const _raw=Math.abs(_pa-_pb), _phaseDistance=Math.min(_raw,1-_raw);
+  const pulse=0.78+0.22*Math.cos(2*Math.PI*_phaseDistance);
   resoNodes.forEach(n=>{ const sel=(n.key===A||n.key===B);
     n.dot.scale.setScalar(sel?1.5:1); n.dot.material.color.setHex(sel?0xffe6a8:0xd4af6a); });
   /* draw the feeds from whichever two nodes are selected into the torus centre */
@@ -61155,6 +61739,131 @@ registerSel('cycResonanceWeb',{
       ['Status','mathematical relationship map; not a physical configuration']]; },
 });
 
+
+/* ── HCC v4.151.1 · LINKED CYCLES ANALYTICAL VIEW ───────────────────────────
+   One selected cycle pair, one authoritative epoch, four explicitly named analytical
+   lenses. Edges are structural view links: this scene is not a physical causal graph. */
+const HCC_CYCLES_LINKED_VIEW_SCHEMA='hcc.cycles-linked-view/1';
+function cycLinkedPhaseOf(c){
+  if(!c || !(c.days>0) || !Number.isFinite(state.epochDays)) return 0;
+  const q=state.epochDays/c.days;
+  return ((q%1)+1)%1;
+}
+function cycLinkedPhaseDistance(a,b){
+  const d=Math.abs(a-b);
+  return Math.min(d,1-d);
+}
+function cycLinkedCommensurabilityText(c){
+  if(!c) return 'NO DECLARED INTEGER LOCK';
+  if(typeof c.label==='string'&&c.label) return c.label;
+  const nums=Object.entries(c).filter(([,v])=>Number.isFinite(v)).slice(0,4);
+  return nums.length?nums.map(([k,v])=>k+'='+fmt(v,6)).join(' · '):'STRUCTURAL RELATION AVAILABLE';
+}
+
+const cycLinkedInst=new THREE.Group(); cycGroup.add(cycLinkedInst);
+cycLinkedInst.userData.schema=HCC_CYCLES_LINKED_VIEW_SCHEMA;
+cycLinkedInst.userData.relation='STRUCTURAL VIEW LINK';
+
+const cycLinkedCore=new THREE.Group(); cycLinkedInst.add(cycLinkedCore);
+const cycLinkedRingA=new THREE.Mesh(
+  new THREE.TorusGeometry(2.05,.075,12,72),
+  new THREE.MeshBasicMaterial({color:0xe7c778,transparent:true,opacity:.9,depthWrite:false}));
+const cycLinkedRingB=new THREE.Mesh(
+  new THREE.TorusGeometry(1.48,.06,12,64),
+  new THREE.MeshBasicMaterial({color:0x79c7ff,transparent:true,opacity:.82,depthWrite:false}));
+cycLinkedRingB.rotation.x=Math.PI/2;
+cycLinkedCore.add(cycLinkedRingA,cycLinkedRingB);
+const cycLinkedMarkerA=new THREE.Mesh(new THREE.SphereGeometry(.16,14,10),new THREE.MeshBasicMaterial({color:0xffdc78}));
+const cycLinkedMarkerB=new THREE.Mesh(new THREE.SphereGeometry(.14,14,10),new THREE.MeshBasicMaterial({color:0x85d5ff}));
+cycLinkedCore.add(cycLinkedMarkerA,cycLinkedMarkerB);
+const cycLinkedHub=new THREE.Mesh(new THREE.IcosahedronGeometry(.5,2),new THREE.MeshBasicMaterial({color:0xd9c5ff,wireframe:true,transparent:true,opacity:.72}));
+cycLinkedCore.add(cycLinkedHub);
+
+const cycLinkedNodeGeo=new THREE.SphereGeometry(.34,18,12);
+const cycLinkedSpecs=[
+  {key:'information',title:'02 · INTEGRATED INFORMATION',pos:new THREE.Vector3(-5.0,2.7,0),color:0x66d9ff},
+  {key:'complexity',title:'03 · INTEGRATED COMPLEXITY',pos:new THREE.Vector3(5.0,2.7,0),color:0xc6a7ff},
+  {key:'scaling',title:'04 · UNIFIED SCALING',pos:new THREE.Vector3(5.0,-2.7,0),color:0xf5c56b},
+  {key:'observer',title:'05 · OBSERVER SELECTION',pos:new THREE.Vector3(-5.0,-2.7,0),color:0x86efb5}
+];
+const cycLinkedNodes=new Map(), cycLinkedReadout=new Map();
+for(const spec of cycLinkedSpecs){
+  const node=new THREE.Mesh(cycLinkedNodeGeo,new THREE.MeshBasicMaterial({color:spec.color,transparent:true,opacity:.92}));
+  node.position.copy(spec.pos); cycLinkedInst.add(node); cycLinkedNodes.set(spec.key,node);
+  const title=mkLabel(spec.title,'label const'); title.position.copy(spec.pos).add(new THREE.Vector3(0,.72,0)); cycLinkedInst.add(title);
+  const read=mkLabel('—','label'); read.position.copy(spec.pos).add(new THREE.Vector3(0,-.65,0));
+  if(read.element){ read.element.dataset.cycLinkedReadout=spec.key; read.element.style.maxWidth='250px'; read.element.style.textAlign='center'; }
+  cycLinkedInst.add(read); cycLinkedReadout.set(spec.key,read);
+}
+const cycLinkedTitle=mkLabel('LINKED CYCLES · ONE EPOCH · FOUR ANALYTICAL LENSES','label const');
+cycLinkedTitle.position.set(0,4.25,0);cycLinkedInst.add(cycLinkedTitle);
+const cycLinkedFirewall=mkLabel('STRUCTURAL VIEW LINK · not IIT Φ · not a physical causal graph','label');
+cycLinkedFirewall.position.set(0,-4.15,0);cycLinkedInst.add(cycLinkedFirewall);
+function cycLinkedStaticLine(a,b,opacity=.28){
+  const g=new THREE.BufferGeometry().setFromPoints([a,b]);
+  const l=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xb9c8dd,transparent:true,opacity,depthWrite:false}));
+  cycLinkedInst.add(l); return l;
+}
+const _linkedZero=new THREE.Vector3(0,0,0);
+for(const spec of cycLinkedSpecs) cycLinkedStaticLine(_linkedZero,spec.pos,.34);
+for(let i=0;i<cycLinkedSpecs.length;i++) cycLinkedStaticLine(cycLinkedSpecs[i].pos,cycLinkedSpecs[(i+1)%cycLinkedSpecs.length].pos,.18);
+
+function cycLinkedSetReadout(key,text){
+  const o=cycLinkedReadout.get(key);
+  if(o&&o.element) o.element.textContent=text;
+}
+function updateCycLinkedView(){
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(!a||!b) return;
+  const pa=cycLinkedPhaseOf(a), pb=cycLinkedPhaseOf(b), d=cycLinkedPhaseDistance(pa,pb);
+  const information=Math.max(0,1-2*d);
+  const comm=cycleCommensurability(a,b);
+  const ratio=(a.days>0&&b.days>0)?b.days/a.days:NaN;
+  const logScale=ratio>0?Math.log10(ratio):NaN;
+  const pair=(a.name||a.label||a.key||state.cycPairA)+' ↔ '+(b.name||b.label||b.key||state.cycPairB);
+
+  const aa=2*Math.PI*pa, ab=2*Math.PI*pb;
+  cycLinkedMarkerA.position.set(2.05*Math.cos(aa),2.05*Math.sin(aa),0);
+  cycLinkedMarkerB.position.set(1.48*Math.cos(ab),0,1.48*Math.sin(ab));
+  cycLinkedRingA.rotation.z=aa;
+  cycLinkedRingB.rotation.y=ab;
+  cycLinkedHub.rotation.set(aa*.22,ab*.27,(aa-ab)*.18);
+  const syncGlow=.72+.28*information;
+  for(const node of cycLinkedNodes.values()) node.scale.setScalar(syncGlow);
+
+  cycLinkedSetReadout('information','phase proximity = '+fmt(information,5)+' · not IIT Φ');
+  cycLinkedSetReadout('complexity',cycLinkedCommensurabilityText(comm));
+  cycLinkedSetReadout('scaling','B/A = '+fmt(ratio,7)+' · log₁₀ = '+fmt(logScale,5));
+  cycLinkedSetReadout('observer',pair+' · epoch '+fmt(state.epochDays,3)+' d');
+}
+
+registerSel('cycLinkedView',{
+  name:'Linked analytical cycle view',mode:'cyc',tier:'M',kind:'representation',
+  accuracy:'representation / structural relation',
+  forbiddenClaims:[
+    'Integrated Information is a normalized phase-proximity view score, not IIT Φ.',
+    'Integrated Complexity reports selected commensurability structure, not a universal complexity measure.',
+    'Unified Scaling is the selected mean-period ratio/log-ratio, not a universal scaling law.',
+    'Layout and edges are non-metric STRUCTURAL VIEW LINK relations, not a physical causal graph.'
+  ],
+  desc:'Four synchronized analytical lenses over the currently selected Cycles pair, driven only by the authoritative Atlas epoch.',
+  getPos:()=>cycLinkedInst.position.clone(),focusDist:()=>15,
+  rows:()=>{
+    const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB);
+    if(!a||!b) return [];
+    const pa=cycLinkedPhaseOf(a),pb=cycLinkedPhaseOf(b),ratio=b.days/a.days;
+    return [
+      ['schema',HCC_CYCLES_LINKED_VIEW_SCHEMA],
+      ['pair',(a.name||state.cycPairA)+' ↔ '+(b.name||state.cycPairB)],
+      ['phase distance',fmt(cycLinkedPhaseDistance(pa,pb),7)],
+      ['period ratio B/A',fmt(ratio,9)],
+      ['epoch',fmt(state.epochDays,6)+' d'],
+      ['relation','STRUCTURAL VIEW LINK']
+    ];
+  }
+});
+/* ── END LINKED CYCLES VIEW ───────────────────────────────────────────────── */
+
 /* ── THE SAROS ENGINE · three hands that nearly meet ─────────────────────────
    The Saros was a number in this atlas. It is really a mechanism, and this is
    the mechanism: three hands turning at the three lunar months, and a Saros is
@@ -61168,6 +61877,148 @@ registerSel('cycResonanceWeb',{
    closing, so the phase hand is at zero, the node hand just behind it and the
    distance hand well behind — the asymmetry the whole subject turns on, read
    off the third axis instead of from a caption. */
+/* ══ ANCIENT CHRONOMETRY OBSERVATORY · SOURCE SPACE ↔ SCIENCE SPACE ═══════
+   This is deliberately TWO spaces.  The left half is provenance geometry: a term is
+   attached to the text that defines it, and same-name definitions are kept apart.  The
+   right half is quantity geometry: only typed time intervals enter the logarithmic rail.
+   A short Euclidean distance between the halves is NEVER evidence of physical identity.
+
+   DEPTH IS EPISTEMIC STATE, NOT DECORATION:
+     z =  0   exact textual/source definition
+     z = -1   hypothesis awaiting an independent phase anchor
+     z = -2   historical astronomy awaiting source-epoch correction
+
+   ONE UNIVERSE, ONE CLOCK: the only moving element is a display cursor derived from
+   state.epochDays.  It does not create or validate an ancient phase anchor. */
+const cycChronometryInst=new THREE.Group();
+cycChronometryInst.position.set(0,-13,-24); cycGroup.add(cycChronometryInst);
+const chronometrySourceNodes=[];
+const chronometryScienceNodes=[];
+let chronometryEpochNeedle=null;
+let chronometryEpochLab=null;
+let chronometryPick=null;
+function chronometryLine(a,b,color=0x6f7ba8,opacity=.45){
+  const g=new THREE.BufferGeometry().setFromPoints([a,b]);
+  return new THREE.Line(g,new THREE.LineBasicMaterial({color,transparent:true,opacity}));
+}
+function chronometryDot(x,y,z,color,scale=.19){
+  const m=new THREE.Mesh(new THREE.SphereGeometry(scale,18,12),
+    new THREE.MeshStandardMaterial({color,emissive:color,emissiveIntensity:.35,metalness:.45,roughness:.32}));
+  m.position.set(x,y,z); cycChronometryInst.add(m); return m;
+}
+function chronometryYearY(years){
+  /* display coordinate only: 1 day .. 100 kyr spans the useful historical rail */
+  const lo=Math.log10(1/365.2425), hi=Math.log10(1e5), q=Math.log10(Math.max(1/365.2425,years));
+  return -5+10*Math.max(0,Math.min(1,(q-lo)/(hi-lo)));
+}
+{
+  const sourceTitle=mkLabel('SOURCE SPACE · source-qualified definitions','label const');
+  sourceTitle.position.set(-7.2,6.5,0); cycChronometryInst.add(sourceTitle);
+  const sourceSub=mkLabel('Same term / different definition · conflicts remain split','label dim');
+  sourceSub.position.set(-7.2,5.8,0); cycChronometryInst.add(sourceSub);
+  const scienceTitle=mkLabel('SCIENCE SPACE · typed temporal comparisons','label const');
+  scienceTitle.position.set(7.1,6.5,0); cycChronometryInst.add(scienceTitle);
+  const scienceSub=mkLabel('position = log(period) · depth = epistemic state · distance is non-metric','label dim');
+  scienceSub.position.set(7.1,5.8,0); cycChronometryInst.add(scienceSub);
+
+  /* A thin central firewall is a visual boundary, not a conversion operator. */
+  const wall=chronometryLine(new THREE.Vector3(0,-6,0),new THREE.Vector3(0,6,0),0xd4af6a,.32);
+  cycChronometryInst.add(wall);
+  const wallLab=mkLabel('TYPE / PROVENANCE FIREWALL','label axis'); wallLab.position.set(0,5.4,.1); cycChronometryInst.add(wallLab);
+
+  const sourceRows=[
+    {id:'abhidharmakosa.ksana',term:'kṣaṇa',text:'Abhidharmakośa III.88–89',y:3.8,col:0x8fd0ff},
+    {id:'bhagavata.ksana',term:'kṣaṇa',text:'Bhāgavata 3.11.7–8',y:2.5,col:0x8fd0ff},
+    {id:'arthasastra.truti',term:'truṭi',text:'Arthaśāstra II.20',y:.8,col:0xc69aff},
+    {id:'bhagavata.truti',term:'truṭi',text:'Bhāgavata 3.11.6–8',y:-.5,col:0xc69aff},
+    {id:'siddhantasiromani.truti',term:'truṭi',text:'Siddhāntaśiromaṇi · source-qualified',y:-1.8,col:0xc69aff}
+  ];
+  for(const r of sourceRows){
+    const dot=chronometryDot(-7.2,r.y,0,r.col,.2); dot.userData={chronometrySource:r.id}; chronometrySourceNodes.push(dot);
+    const lab=mkLabel(r.term+' · '+r.text,'label major'); lab.position.set(-6.8,r.y,0); cycChronometryInst.add(lab);
+  }
+  /* Conflict braces: same spelling, explicitly not one unit. */
+  const kBrace=chronometryLine(new THREE.Vector3(-8.1,2.5,.05),new THREE.Vector3(-8.1,3.8,.05),0xffb36b,.9);
+  const tBrace=chronometryLine(new THREE.Vector3(-8.1,-1.8,.05),new THREE.Vector3(-8.1,.8,.05),0xffb36b,.9);
+  cycChronometryInst.add(kBrace,tBrace);
+  const kc=mkLabel('Same term / different definition','label axis'); kc.position.set(-8.2,3.15,.08); cycChronometryInst.add(kc);
+  const tc=mkLabel('Same term / different definition','label axis'); tc.position.set(-8.2,-.5,.08); cycChronometryInst.add(tc);
+
+  const sourceGate=mkLabel('No source-name averaging · no universal SI identity','label dim');
+  sourceGate.position.set(-7.2,-3.4,0); cycChronometryInst.add(sourceGate);
+
+  /* Science-space logarithmic rail.  These are comparable time intervals; their z depth
+     states what is known about the comparison, not how numerically close two values are. */
+  const railX=7.0;
+  const rail=chronometryLine(new THREE.Vector3(railX,-5,0),new THREE.Vector3(railX,5,0),0xd4af6a,.72);
+  cycChronometryInst.add(rail);
+  const ticks=[
+    {years:1/365.2425,label:'1 day'},{years:1,label:'1 year'},{years:100,label:'100 y'},
+    {years:1e4,label:'10 kyr'},{years:1e5,label:'100 kyr'}
+  ];
+  for(const q of ticks){
+    const y=chronometryYearY(q.years);
+    const tick=chronometryLine(new THREE.Vector3(railX-.18,y,0),new THREE.Vector3(railX+.18,y,0),0xd4af6a,.6);
+    cycChronometryInst.add(tick);
+    const l=mkLabel(q.label,'label dim'); l.position.set(railX+.45,y,0); cycChronometryInst.add(l);
+  }
+
+  const y21=chronometryYearY(21000), y42=chronometryYearY(42000);
+  const j21=chronometryDot(railX-1.25,y21,-1,0xffd27a,.24); chronometryScienceNodes.push(j21);
+  const j21l=mkLabel('Jain 21 kyr · HYPOTHESIS · NO PHASE ANCHOR','label major');
+  j21l.position.set(railX-1.0,y21,-1); cycChronometryInst.add(j21l);
+  const j42=chronometryDot(railX-1.25,y42,-1,0xff9d6e,.24); chronometryScienceNodes.push(j42);
+  const j42l=mkLabel('DEPENDENT · 42k = 2 × 21k','label major');
+  j42l.position.set(railX-1.0,y42,-1); cycChronometryInst.add(j42l);
+  const dep=chronometryLine(j21.position.clone(),j42.position.clone(),0xff9d6e,.72); cycChronometryInst.add(dep);
+
+  /* Six bootstrap astronomy records remain one pending-evaluation family until source
+     epoch correction exists.  Their display cluster is separated in depth (z=-2). */
+  const astroY=chronometryYearY(1);
+  const astro=chronometryDot(railX-1.25,astroY,-2,0x75c7ff,.27); chronometryScienceNodes.push(astro);
+  const astrol=mkLabel('Aryabhata · Daming · Shoushi · 6 benchmarks · PENDING_EPOCH_CORRECTION','label major');
+  astrol.position.set(railX-1.0,astroY,-2); cycChronometryInst.add(astrol);
+
+  /* Typed, explicitly non-equivalence conduits: source claim → admissible comparison
+     station.  They do NOT connect kṣaṇa/truṭi conflicts to unrelated modern scales. */
+  const jainSource=chronometryDot(-4.0,4.7,0,0xffd27a,.22);
+  const jainLab=mkLabel('Jain avasarpini · exact textual closure = 10K','label major');
+  jainLab.position.set(-3.7,4.7,0); cycChronometryInst.add(jainLab);
+  const c21=chronometryLine(jainSource.position.clone(),j21.position.clone(),0xffd27a,.32); cycChronometryInst.add(c21);
+  const c42=chronometryLine(jainSource.position.clone(),j42.position.clone(),0xff9d6e,.26); cycChronometryInst.add(c42);
+  const conduitLab=mkLabel('typed time-interval hypothesis · not identity','label axis');
+  conduitLab.position.set(2.0,3.7,-.5); cycChronometryInst.add(conduitLab);
+
+  /* Shared Atlas-epoch dial. It is a display cursor only: without an independent ancient
+     phase anchor it is forbidden to turn the 21 kyr hypothesis into phase consistency. */
+  const dialX=7.0,dialY=-4.2;
+  const dial=new THREE.Mesh(new THREE.TorusGeometry(1.25,.025,8,96),
+    new THREE.MeshBasicMaterial({color:0x6f7ba8,transparent:true,opacity:.6}));
+  dial.position.set(dialX,dialY,0); cycChronometryInst.add(dial);
+  chronometryEpochNeedle=new THREE.Group(); chronometryEpochNeedle.position.set(dialX,dialY,0); cycChronometryInst.add(chronometryEpochNeedle);
+  const ng=new THREE.CylinderGeometry(.025,.025,1.05,8); ng.translate(0,.525,0);
+  const needle=new THREE.Mesh(ng,new THREE.MeshStandardMaterial({color:0xffe9a8,emissive:0xffe9a8,emissiveIntensity:.35}));
+  chronometryEpochNeedle.add(needle);
+  chronometryEpochLab=mkLabel('Atlas epoch cursor · NO PHASE ANCHOR','label dim');
+  chronometryEpochLab.position.set(dialX,dialY-1.65,0); cycChronometryInst.add(chronometryEpochLab);
+
+  chronometryPick=new THREE.Mesh(new THREE.SphereGeometry(.42,20,14),
+    new THREE.MeshStandardMaterial({color:0xd4af6a,emissive:0xd4af6a,emissiveIntensity:.22,metalness:.7,roughness:.24}));
+  chronometryPick.position.set(0,0,.25); cycChronometryInst.add(chronometryPick);
+  const title=mkLabel('ANCIENT CHRONOMETRY OBSERVATORY · provenance before proximity','label const');
+  title.position.set(0,7.35,.2); cycChronometryInst.add(title);
+  cycChronometryInst.userData={sourceRows,scienceNodes:chronometryScienceNodes,epochLab:chronometryEpochLab};
+}
+function updateChronometryObservatory(){
+  const epoch=Number.isFinite(state.epochDays)?state.epochDays:0;
+  /* 25,772 y is the existing mean-precession diagnostic scale.  This dial is deliberately
+     labelled NO PHASE ANCHOR: it visualizes the current Atlas coordinate only. */
+  const phase=((((epoch/365.2425)/25772)%1)+1)%1;
+  if(chronometryEpochNeedle) chronometryEpochNeedle.rotation.z=-2*Math.PI*phase;
+  if(chronometryEpochLab?.element)
+    chronometryEpochLab.element.innerHTML='Atlas epoch cursor · '+(phase*360).toFixed(2)+'° display phase · <b>NO PHASE ANCHOR</b>';
+}
+
 const cycSarosInst=new THREE.Group(); cycSarosInst.position.set(26,0,-24); cycGroup.add(cycSarosInst);
 const SAROS_HANDS=[
   {key:'synodic',  period:CYC_SYNODIC,     col:0xffe9a8, label:'PHASE · synodic'},
@@ -61211,15 +62062,21 @@ const sarosHands=[], sarosHandLabs=[], sarosResidue=[];
   const sub=mkLabel('','label dim'); sub.position.set(0,-6.2,0); cycSarosInst.add(sub);
   cycSarosInst.userData={sub,series:S};
 }
-let sarosT=0;
-function updateSarosEngine(dt){
-  sarosT+=dt;
+function updateSarosEngine(){
   const S=cycSarosInst.userData.series;
-  /* one full sweep of the animation is one Saros */
-  const u=(sarosT*0.08)%1, days=u*S.saros.days;
+  /* ONE UNIVERSE, ONE CLOCK.  The first implementation accumulated its own
+     render-frame time, so this instrument kept moving while the Atlas was
+     paused and ignored the global speed/epoch controls.  A Saros is a relation
+     among periods, not a separate clock.  Anchor the mechanism to the same
+     epochDays authority used by every other Cycles instrument.  Using the full
+     elapsed interval also preserves the real accumulated node/anomaly miss. */
+  const anchor=cycleByKey('saros')?.ref||0;
+  const epoch=Number.isFinite(state.epochDays)?state.epochDays:anchor;
+  const days=epoch-anchor;
+  const u=((days/S.saros.days)%1+1)%1;
   SAROS_HANDS.forEach((h,i)=>{
     const hand=sarosHands[i*2], tip=sarosHands[i*2+1];
-    const ph=(days/h.period)%1, a=-2*Math.PI*ph;
+    const ph=((days/h.period)%1+1)%1, a=-2*Math.PI*ph;
     hand.rotation.z=a;
     tip.position.set(Math.sin(-a)*4.6,Math.cos(-a)*4.6,hand.userData.z);
     sarosHandLabs[i].position.set(Math.sin(-a)*5.9,Math.cos(-a)*5.9,hand.userData.z);
@@ -61235,7 +62092,7 @@ function updateSarosEngine(dt){
     sarosResidue[i].material.opacity=(u>0.93)?0.95:0.18;
   });
   cycSarosInst.userData.sub.element.innerHTML=
-    `one sweep = one Saros = <b>${S.saros.days.toFixed(4)} d</b> · `
+    `shared Atlas epoch · Saros phase <b>${(u*100).toFixed(1)}%</b> · recurrence ${S.saros.days.toFixed(4)} d · `
     +`the node hand ends <b>${(Math.abs(S.saros.errB)*24*60).toFixed(0)} min</b> short, the distance hand <b>${(Math.abs(S.saros.errC)*24).toFixed(2)} h</b> short<br>`
     +`<span style="opacity:.72">the node miss ends the series after ${S.count} eclipses · the distance miss changes total to annular and needs ${Math.round(360/((Math.abs(S.saros.errC)/CYC_ANOMALISTIC)*360))} Saroses to come back, which is longer than the series lives</span>`;
 }
@@ -61245,7 +62102,7 @@ registerSel('sarosEngine',{
   forbiddenClaims:[
     'Hand angles are normalized mean-period phases, not ephemeris positions.',
     'The dial is a mechanism diagram; it does not predict a particular eclipse.'],
-  desc:'The Saros drawn as the thing it is: three hands turning at the synodic, draconic and anomalistic months, and a Saros is where they nearly come back together. The residues are the subject — the node hand lands 52 minutes short and the distance hand five hours short, and DEPTH carries that miss so the asymmetry is a position rather than a caption. The node miss is what ends a series after about 71 eclipses; the distance miss is what turns total eclipses into annular ones and needs 128 Saroses to come round, which is longer than any series lives.',
+  desc:'The Saros drawn as the thing it is: three hands evaluated at the shared Cycles epoch with synodic, draconic and anomalistic periods, and a Saros is where they nearly come back together. The residues are the subject — the node hand lands 52 minutes short and the distance hand five hours short, and DEPTH carries that miss so the asymmetry is a position rather than a caption. The node miss is what ends a series after about 71 eclipses; the distance miss is what turns total eclipses into annular ones and needs 128 Saroses to come round, which is longer than any series lives.',
   getPos:()=>cycSarosInst.position.clone(), focusDist:()=>16,
   rows:()=>{ const S=cycSarosInst.userData.series;
     return [['Model','three normalized mean-period hands on one dial (non-metric)'],
@@ -61321,6 +62178,11 @@ function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
 }
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
 function applyCycFrameView(){
+  if(state.cycFrame==='linked'){
+    const linked=SELECT.get('cycLinkedView');
+    if(linked) focusOn(linked);
+    return;
+  }
   if(state.mode!=='cyc') return;
   applySpatialGuideVisibility();   // layout-plane guides are frame-dependent (hidden on single-instrument stages)
   if(state.cycFrame==='phase'){
@@ -61693,34 +62555,401 @@ function refreshSeasons(){
      <span class="et">${ev.name}</span>
      <button class="btn" data-sj="${i}">→</button></div>`).join('');
   if(sl) sl.querySelectorAll('[data-sj]').forEach(b=>b.onclick=()=>{
-    state.epochDays = state.cycSeasons.events[+b.dataset.sj].days; state.paused=true; buildCtl();
+    setAtlasTime({epochDays:state.cycSeasons.events[+b.dataset.sj].days,paused:true},'cycles.season-jump'); buildCtl();
   });
 }
 function jumpToEclipse(i){
   const ec = ECLIPSES[i];
-  state.epochDays = (ec.date.getTime()/86400000 + 2440587.5) - 2451545.0;
-  state.paused = true;
+  setAtlasTime({epochDays:(ec.date.getTime()/86400000 + 2440587.5) - 2451545.0,paused:true},'cycles.eclipse-jump');
   setMode('solar');
   state.trueScale = true;
   buildCtl();
   const s = SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
 }
+const HCC_CYCLE_VIEWS=[
+  ['hierarchy','All cycles','Все циклы','Alle Zyklen'],
+  ['helio','Seasons','Времена года','Jahreszeiten'],
+  ['geo','Precession','Прецессия','Präzession'],
+  ['gal','Galactic year','Галактический год','Galaktisches Jahr'],
+  ['phase','Phase space','Фазовое пространство','Phasenraum'],
+  ['resonance','Resonances · Saros','Резонансы · Сарос','Resonanzen · Saros'],
+  ['orientation','Reference planes','Опорные плоскости','Referenzebenen'],
+  ['antikythera','Antikythera','Антикитера','Antikythera'],
+  ['linked','Linked analysis','Связанный анализ','Verknüpfte Analyse'],
+  ['chronometry','Ancient chronometry','Древняя хронометрия','Antike Chronometrie']
+];
+function hccCycleNavigate(view){
+  if(view!=='solar'&&!HCC_CYCLE_VIEWS.some(v=>v[0]===view)) return false;
+  const worldId=view==='solar'?'solar':'cyc';
+  // AtlasTime owns the epoch and rate; view changes never write clock state.
+  if(worldId==='cyc') state.cycFrame=view;
+  hccGo({worldId,...(view==='chronometry'?{labId:'chronometry'}:{})});
+  if(worldId==='cyc') applyCycFrameView();
+  buildCtl();
+  return true;
+}
+function hccCycleNavigationHTML(){
+  return `<div class="sect"><b>${TT('One epoch · linked views','Одна эпоха · связанные виды','Eine Epoche · verbundene Ansichten')}</b>
+    <div class="ctlrow" style="flex-wrap:wrap;gap:6px">
+      <button class="chip ${state.mode==='solar'?'on':''}" data-cycle-view="solar" aria-pressed="${state.mode==='solar'}">${TT('Solar system','Солнечная система','Sonnensystem')}</button>
+      ${HCC_CYCLE_VIEWS.map(v=>`<button class="chip ${state.mode==='cyc'&&state.cycFrame===v[0]?'on':''}" data-cycle-view="${v[0]}" aria-pressed="${state.mode==='cyc'&&state.cycFrame===v[0]}">${TT(v[1],v[2],v[3])}</button>`).join('')}
+    </div><div class="note">${TT('Date, pause, direction and time rate travel with you. Each view retains its own scale and model limits.','Дата, пауза, направление и темп времени сохраняются. У каждого вида остаются свой масштаб и границы модели.','Datum, Pause, Richtung und Zeittempo bleiben erhalten. Jede Ansicht behält ihren Maßstab und ihre Modellgrenzen.')}</div></div>`;
+}
+/* ── HCC v4.154.0 · MULTIPHASE SOLAR CONTROL ────────────────────────────────
+   Cycles is a control plane over the ONE Atlas epoch, not another clock.
+   The phase solver is pure; this adapter supplies cycle definitions and the
+   existing Solar ephemeris, then commits a chosen epoch only through AtlasTime. */
+const HCC_MULTIPHASE_SOLAR_CONTROL_SCHEMA='hcc.multiphase-solar-control/1';
+const HCC_MULTIPHASE_PLANETS=Object.freeze([
+  {key:'sun',name:'Sun',glyph:'☉',index:null},
+  {key:'mercury',name:'Mercury',glyph:'☿',index:0},
+  {key:'venus',name:'Venus',glyph:'♀',index:1},
+  {key:'mars',name:'Mars',glyph:'♂',index:3},
+  {key:'jupiter',name:'Jupiter',glyph:'♃',index:4},
+  {key:'saturn',name:'Saturn',glyph:'♄',index:5},
+  {key:'uranus',name:'Uranus',glyph:'♅',index:6},
+  {key:'neptune',name:'Neptune',glyph:'♆',index:7}
+]);
+const HCC_MULTIPHASE_PLANET_RANGE=Object.freeze([
+  (Date.UTC(1800,0,1)/86400000+2440587.5)-2451545.0,
+  (Date.UTC(2051,0,1)/86400000+2440587.5)-2451545.0-1e-9
+]);
+const hccMultiPhaseState={
+  pairA:null,pairB:null,targetA:null,targetB:null,
+  planet:'none',planetTarget:0,toleranceDeg:0.5,windowYears:20,
+  extraTargets:Object.create(null),live:true,last:null
+};
+function hccCyclePhaseAt(c,epochDays){
+  if(!c||!(c.days>0)) return NaN;
+  const ref=Number.isFinite(Number(c.ref))?Number(c.ref):0;
+  return hccWrapPhase01((epochDays-ref)/c.days);
+}
+function hccPlanetGeocentricPhase(key,epochDays){
+  const p=HCC_MULTIPHASE_PLANETS.find(x=>x.key===key);
+  if(!p) return NaN;
+  const T=epochDays/36525;
+  const earth=planetEcl(PLANETS[2],T);
+  if(key==='sun') return hccWrapPhase01(Math.atan2(-earth.y,-earth.x)/(2*Math.PI));
+  const body=planetEcl(PLANETS[p.index],T);
+  return hccWrapPhase01(Math.atan2(body.y-earth.y,body.x-earth.x)/(2*Math.PI));
+}
+function hccEnsureMultiPhaseTargets(){
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(a&&hccMultiPhaseState.pairA!==state.cycPairA){
+    hccMultiPhaseState.pairA=state.cycPairA;
+    hccMultiPhaseState.targetA=hccCyclePhaseAt(a,state.epochDays);
+  }
+  if(b&&hccMultiPhaseState.pairB!==state.cycPairB){
+    hccMultiPhaseState.pairB=state.cycPairB;
+    hccMultiPhaseState.targetB=hccCyclePhaseAt(b,state.epochDays);
+  }
+}
+function hccBuildMultiPhaseConstraints(){
+  hccEnsureMultiPhaseTargets();
+  const out=[], tol=Math.max(1e-8,hccMultiPhaseState.toleranceDeg/360);
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  if(a&&a.days>0) out.push({id:'cycle:'+state.cycPairA,periodDays:a.days,refDays:Number(a.ref)||0,targetPhase:hccMultiPhaseState.targetA,tolerance:tol,weight:1});
+  if(b&&b.days>0&&state.cycPairB!==state.cycPairA) out.push({id:'cycle:'+state.cycPairB,periodDays:b.days,refDays:Number(b.ref)||0,targetPhase:hccMultiPhaseState.targetB,tolerance:tol,weight:1});
+  for(const [key,target] of Object.entries(hccMultiPhaseState.extraTargets)){
+    if(key===state.cycPairA||key===state.cycPairB) continue;
+    const c=cycleByKey(key);
+    if(c&&c.days>0) out.push({id:'cycle:'+key,periodDays:c.days,refDays:Number(c.ref)||0,targetPhase:target,tolerance:tol,weight:.8});
+  }
+  if(hccMultiPhaseState.planet!=='none'){
+    const key=hccMultiPhaseState.planet;
+    out.push({
+      id:'planet:'+key,
+      phaseAt:epoch=>hccPlanetGeocentricPhase(key,epoch),
+      targetPhase:hccMultiPhaseState.planetTarget,
+      tolerance:tol,weight:1.35,validRange:HCC_MULTIPHASE_PLANET_RANGE
+    });
+  }
+  return out;
+}
+function hccApplyMultiPhaseEpoch(epochDays,source='search'){
+  setAtlasEpoch(epochDays,'multiphase.'+source);
+  refreshSeasons();
+  rebuildCyclePhaseTrace();
+  return state.epochDays;
+}
+function hccRunMultiPhaseSearch(direction='nearest',forceApply=false){
+  const constraints=hccBuildMultiPhaseConstraints();
+  const result=hccSearchMultiPhase({
+    epochDays:state.epochDays,constraints,direction,
+    windowDays:Math.max(1/24,hccMultiPhaseState.windowYears*365.2425),
+    samples:hccMultiPhaseState.planet==='none'?896:640,refineSteps:36
+  });
+  hccMultiPhaseState.last=result;
+  const usable=result&&Number.isFinite(result.epochDays)&&result.status!=='NO_VALID_WINDOW'&&result.status!=='MODEL_LIMITED';
+  if(usable&&(forceApply||hccMultiPhaseState.live)) hccApplyMultiPhaseEpoch(result.epochDays,direction);
+  buildCtl();
+  return result;
+}
+function hccCaptureAllCyclePhases(){
+  const extras=Object.create(null);
+  for(const c of CYCLES){
+    if(c&&c.days>0&&c.key!==state.cycPairA&&c.key!==state.cycPairB) extras[c.key]=hccCyclePhaseAt(c,state.epochDays);
+  }
+  hccMultiPhaseState.extraTargets=extras;
+  hccMultiPhaseState.last=null;
+  buildCtl();
+}
+function hccSolarConfigurationText(epochDays=state.epochDays){
+  if(epochDays<HCC_MULTIPHASE_PLANET_RANGE[0]||epochDays>HCC_MULTIPHASE_PLANET_RANGE[1])
+    return 'Planet overlay: MODEL-LIMITED outside 1800–2050 · mean cycle constraints remain available.';
+  return HCC_MULTIPHASE_PLANETS.map(p=>{
+    const deg=hccPlanetGeocentricPhase(p.key,epochDays)*360;
+    return p.glyph+' '+deg.toFixed(1)+'°';
+  }).join(' · ');
+}
+function hccMultiPhaseResultText(){
+  const r=hccMultiPhaseState.last;
+  if(!r) return 'Set target phases or press PREVIOUS / NEAREST / NEXT.';
+  if(r.status==='NO_VALID_WINDOW') return 'NO VALID WINDOW · planetary model limits exclude this search interval.';
+  if(r.status==='MODEL_LIMITED') return 'MODEL-LIMITED · candidate lies outside a declared ephemeris range.';
+  const residuals=(r.residuals||[]).map(x=>(x.id||'phase').replace('cycle:','').replace('planet:','')+' '+(Math.abs(x.residual||0)*360).toFixed(3)+'°').join(' · ');
+  return r.status+' · epoch '+Number(r.epochDays).toFixed(6)+' d J2000 · RMS '+(Number(r.weightedRms)*360).toFixed(4)+'° · worst '+(Number(r.worstResidual)*360).toFixed(4)+'°'+(residuals?' · '+residuals:'');
+}
+function hccMultiPhaseControlHTML(){
+  hccEnsureMultiPhaseTargets();
+  const a=cycleByKey(state.cycPairA), b=cycleByKey(state.cycPairB);
+  const aName=a?(a.name||a.key):state.cycPairA, bName=b?(b.name||b.key):state.cycPairB;
+  const cycleBank=CYCLES.filter(c=>c&&c.days>0).map(c=>{
+    const primary=c.key===state.cycPairA||c.key===state.cycPairB;
+    const on=primary||Object.prototype.hasOwnProperty.call(hccMultiPhaseState.extraTargets,c.key);
+    return `<button class="chip ${on?'on':''}" data-mphase-cycle="${c.key}" ${primary?'disabled title="Primary A/B axis"':''}>${c.name||c.key}</button>`;
+  }).join('');
+  const planetOptions=['<option value="none">No planetary hand</option>'].concat(HCC_MULTIPHASE_PLANETS.map(p=>`<option value="${p.key}" ${hccMultiPhaseState.planet===p.key?'selected':''}>${p.glyph} ${p.name} · geocentric longitude</option>`)).join('');
+  const windows=[[.0821,'30 d'],[1,'1 yr'],[20,'20 yr'],[100,'100 yr'],[1e4,'10 kyr'],[1e6,'1 Myr'],[1e9,'1 Gyr']];
+  return `<div class="sect" data-mphase-panel data-schema="${HCC_MULTIPHASE_SOLAR_CONTROL_SCHEMA}">
+    <b>⟲ MULTIPHASE SOLAR CONTROL</b>
+    <div class="note">One Atlas epoch drives Cycles, Antikythera and the Solar System. Search minimizes circular phase error; it never invents an exact coincidence.</div>
+    <div class="ctlrow"><label>A · ${aName}</label><input type="range" min="0" max="1" step="0.0005" value="${hccMultiPhaseState.targetA??0}" data-mphase-target-a><span>${((hccMultiPhaseState.targetA??0)*360).toFixed(1)}°</span></div>
+    <div class="ctlrow"><label>B · ${bName}</label><input type="range" min="0" max="1" step="0.0005" value="${hccMultiPhaseState.targetB??0}" data-mphase-target-b><span>${((hccMultiPhaseState.targetB??0)*360).toFixed(1)}°</span></div>
+    <div class="note">Additional cycle locks · A/B stay the precision axes; any other finite cycle can join the same solve.</div>
+    <div class="chips" data-mphase-cycle-bank>${cycleBank}</div>
+    <div class="ctlrow" style="gap:6px"><button class="btn" data-mphase-action="capture-all">CAPTURE ALL CURRENT</button><button class="btn" data-mphase-action="clear-extra">CLEAR EXTRA</button></div>
+    <div class="ctlrow"><label>Antikythera / Solar hand</label><select data-mphase-planet>${planetOptions}</select></div>
+    <div class="ctlrow"><label>Target longitude</label><input type="range" min="0" max="360" step="0.1" value="${(hccMultiPhaseState.planetTarget*360).toFixed(1)}" data-mphase-planet-target ${hccMultiPhaseState.planet==='none'?'disabled':''}><span>${(hccMultiPhaseState.planetTarget*360).toFixed(1)}°</span></div>
+    <div class="ctlrow"><label>Phase tolerance</label><select data-mphase-tolerance>${[.1,.25,.5,1,2,5].map(v=>`<option value="${v}" ${hccMultiPhaseState.toleranceDeg===v?'selected':''}>${v}°</option>`).join('')}</select></div>
+    <div class="ctlrow"><label>Search window</label><select data-mphase-window>${windows.map(([v,n])=>`<option value="${v}" ${hccMultiPhaseState.windowYears===v?'selected':''}>± ${n}</option>`).join('')}</select></div>
+    <div class="ctlrow" style="gap:6px;flex-wrap:wrap"><button class="btn" data-mphase-action="previous">◀ PREVIOUS</button><button class="btn" data-mphase-action="nearest">◎ NEAREST</button><button class="btn" data-mphase-action="next">NEXT ▶</button><button class="btn" data-mphase-action="apply-last" ${hccMultiPhaseState.last?'':'disabled'}>APPLY RESULT</button></div>
+    <div class="ctlrow"><label>Live Solar link</label><input type="checkbox" data-mphase-live ${hccMultiPhaseState.live?'checked':''}><span>${hccMultiPhaseState.live?'ON · search moves AtlasTime':'OFF · preview only'}</span></div>
+    <div class="note" data-mphase-result>${hccMultiPhaseResultText()}</div>
+    <div class="note"><b>SOLAR CONFIGURATION</b><br>${hccSolarConfigurationText()}</div>
+    <button class="btn" style="width:100%;margin-top:7px" data-mphase-open-solar>OPEN SOLAR · SAME STATE</button>
+  </div>`;
+}
+function hccBindMultiPhaseControls(){
+  const panel=ctl.querySelector('[data-mphase-panel]');
+  if(!panel) return;
+  const rerun=()=>hccMultiPhaseState.live?hccRunMultiPhaseSearch('nearest'):buildCtl();
+  const ta=panel.querySelector('[data-mphase-target-a]');
+  const tb=panel.querySelector('[data-mphase-target-b]');
+  if(ta) ta.onchange=()=>{hccMultiPhaseState.targetA=Number(ta.value);rerun();};
+  if(tb) tb.onchange=()=>{hccMultiPhaseState.targetB=Number(tb.value);rerun();};
+  panel.querySelectorAll('[data-mphase-cycle]').forEach(btn=>btn.onclick=()=>{
+    const key=btn.dataset.mphaseCycle;
+    if(key===state.cycPairA||key===state.cycPairB) return;
+    if(Object.prototype.hasOwnProperty.call(hccMultiPhaseState.extraTargets,key)) delete hccMultiPhaseState.extraTargets[key];
+    else { const c=cycleByKey(key); if(c) hccMultiPhaseState.extraTargets[key]=hccCyclePhaseAt(c,state.epochDays); }
+    rerun();
+  });
+  const planet=panel.querySelector('[data-mphase-planet]');
+  if(planet) planet.onchange=()=>{
+    hccMultiPhaseState.planet=planet.value;
+    if(planet.value!=='none'&&state.epochDays>=HCC_MULTIPHASE_PLANET_RANGE[0]&&state.epochDays<=HCC_MULTIPHASE_PLANET_RANGE[1]) hccMultiPhaseState.planetTarget=hccPlanetGeocentricPhase(planet.value,state.epochDays);
+    hccMultiPhaseState.last=null; buildCtl();
+  };
+  const pt=panel.querySelector('[data-mphase-planet-target]');
+  if(pt) pt.onchange=()=>{hccMultiPhaseState.planetTarget=hccWrapPhase01(Number(pt.value)/360);rerun();};
+  const tol=panel.querySelector('[data-mphase-tolerance]');
+  if(tol) tol.onchange=()=>{hccMultiPhaseState.toleranceDeg=Number(tol.value);rerun();};
+  const win=panel.querySelector('[data-mphase-window]');
+  if(win) win.onchange=()=>{hccMultiPhaseState.windowYears=Number(win.value);buildCtl();};
+  const live=panel.querySelector('[data-mphase-live]');
+  if(live) live.onchange=()=>{hccMultiPhaseState.live=live.checked;buildCtl();};
+  panel.querySelectorAll('[data-mphase-action]').forEach(btn=>btn.onclick=()=>{
+    const action=btn.dataset.mphaseAction;
+    if(action==='capture-all') return hccCaptureAllCyclePhases();
+    if(action==='clear-extra'){hccMultiPhaseState.extraTargets=Object.create(null);hccMultiPhaseState.last=null;return buildCtl();}
+    if(action==='apply-last'){
+      const r=hccMultiPhaseState.last;
+      if(r&&Number.isFinite(r.epochDays)&&r.status!=='NO_VALID_WINDOW'&&r.status!=='MODEL_LIMITED'){hccApplyMultiPhaseEpoch(r.epochDays,'apply');buildCtl();}
+      return;
+    }
+    hccRunMultiPhaseSearch(action,false);
+  });
+  const open=panel.querySelector('[data-mphase-open-solar]');
+  if(open) open.onclick=()=>hccCycleNavigate('solar');
+  for(const id of ['cycPairA','cycPairB']){
+    const el=ctl.querySelector('#'+id);
+    if(el) el.addEventListener('change',()=>{
+      if(id==='cycPairA'){hccMultiPhaseState.pairA=null;hccMultiPhaseState.targetA=null;}
+      else {hccMultiPhaseState.pairB=null;hccMultiPhaseState.targetB=null;}
+      hccMultiPhaseState.last=null;
+      queueMicrotask(()=>buildCtl());
+    },{once:true});
+  }
+}
+/* ── END MULTIPHASE SOLAR CONTROL ─────────────────────────────────────────── */
+/* ── HCC v4.154.0 · CHRONOMETRY + MULTIPHASE WORKSPACE ─────────────────────
+   Workspace persistence is VIEW/LAB state only. Restoring it never rewinds the
+   authoritative AtlasTime epoch. Ancient chronometry is source-locked and
+   fail-closed: same names may have incompatible definitions and historical
+   astronomy remains pending epoch correction until a real model supplies it. */
+const HCC_CHRONOMETRY_OBSERVATORY_SCHEMA='hcc.chronometry-observatory/1';
+const HCC_MULTIPHASE_WORKSPACE_SCHEMA='hcc.multiphase-workspace/2';
+const HCC_MULTIPHASE_WORKSPACE_KEY='hcc-multiphase-workspace-v2';
+
+function hccFiniteOrNull(v){ const n=Number(v); return Number.isFinite(n)?n:null; }
+function hccSaveMultiPhaseWorkspace(){
+  try{
+    const last=hccMultiPhaseState.last&&Number.isFinite(Number(hccMultiPhaseState.last.epochDays))?{
+      epochDays:Number(hccMultiPhaseState.last.epochDays),status:String(hccMultiPhaseState.last.status||''),
+      weightedRms:hccFiniteOrNull(hccMultiPhaseState.last.weightedRms),worstResidual:hccFiniteOrNull(hccMultiPhaseState.last.worstResidual),
+      residuals:Array.isArray(hccMultiPhaseState.last.residuals)?hccMultiPhaseState.last.residuals.map(r=>({id:String(r.id||''),residual:hccFiniteOrNull(r.residual)})):[]
+    }:null;
+    const payload={schema:HCC_MULTIPHASE_WORKSPACE_SCHEMA,pairA:state.cycPairA,pairB:state.cycPairB,
+      targetA:hccFiniteOrNull(hccMultiPhaseState.targetA),targetB:hccFiniteOrNull(hccMultiPhaseState.targetB),
+      planet:HCC_MULTIPHASE_PLANETS.some(p=>p.key===hccMultiPhaseState.planet)?hccMultiPhaseState.planet:'none',
+      planetTarget:hccFiniteOrNull(hccMultiPhaseState.planetTarget),toleranceDeg:hccFiniteOrNull(hccMultiPhaseState.toleranceDeg),
+      windowYears:hccFiniteOrNull(hccMultiPhaseState.windowYears),live:!!hccMultiPhaseState.live,
+      extraTargets:Object.fromEntries(Object.entries(hccMultiPhaseState.extraTargets||{}).filter(([k,v])=>cycleByKey(k)&&Number.isFinite(Number(v))).map(([k,v])=>[k,Number(v)])),
+      last};
+    localStorage.setItem(HCC_MULTIPHASE_WORKSPACE_KEY,JSON.stringify(payload));
+    return true;
+  }catch(_){ return false; }
+}
+function hccRestoreMultiPhaseWorkspace(){
+  try{
+    const raw=JSON.parse(localStorage.getItem(HCC_MULTIPHASE_WORKSPACE_KEY)||'null');
+    if(!raw||raw.schema!==HCC_MULTIPHASE_WORKSPACE_SCHEMA) return false;
+    if(raw.pairA&&cycleByKey(raw.pairA)) state.cycPairA=raw.pairA;
+    if(raw.pairB&&cycleByKey(raw.pairB)) state.cycPairB=raw.pairB;
+    hccMultiPhaseState.pairA=state.cycPairA; hccMultiPhaseState.pairB=state.cycPairB;
+    hccMultiPhaseState.targetA=Number.isFinite(Number(raw.targetA))?hccWrapPhase01(Number(raw.targetA)):null;
+    hccMultiPhaseState.targetB=Number.isFinite(Number(raw.targetB))?hccWrapPhase01(Number(raw.targetB)):null;
+    if(raw.planet==='none'||HCC_MULTIPHASE_PLANETS.some(p=>p.key===raw.planet)) hccMultiPhaseState.planet=raw.planet;
+    if(Number.isFinite(Number(raw.planetTarget))) hccMultiPhaseState.planetTarget=hccWrapPhase01(Number(raw.planetTarget));
+    if(Number.isFinite(Number(raw.toleranceDeg))&&Number(raw.toleranceDeg)>=.1&&Number(raw.toleranceDeg)<=5) hccMultiPhaseState.toleranceDeg=Number(raw.toleranceDeg);
+    if(Number.isFinite(Number(raw.windowYears))&&Number(raw.windowYears)>0&&Number(raw.windowYears)<=1e9) hccMultiPhaseState.windowYears=Number(raw.windowYears);
+    hccMultiPhaseState.live=raw.live!==false;
+    hccMultiPhaseState.extraTargets=Object.create(null);
+    for(const [k,v] of Object.entries(raw.extraTargets||{})) if(cycleByKey(k)&&Number.isFinite(Number(v))) hccMultiPhaseState.extraTargets[k]=hccWrapPhase01(Number(v));
+    if(raw.last&&Number.isFinite(Number(raw.last.epochDays))) hccMultiPhaseState.last={...raw.last,epochDays:Number(raw.last.epochDays)};
+    // Deliberately NO setAtlasEpoch/state.epochDays assignment here: restore is workspace-only.
+    return true;
+  }catch(_){ return false; }
+}
+function hccResetMultiPhaseWorkspace(){
+  try{localStorage.removeItem(HCC_MULTIPHASE_WORKSPACE_KEY);}catch(_){}
+  hccMultiPhaseState.pairA=null; hccMultiPhaseState.pairB=null; hccMultiPhaseState.targetA=null; hccMultiPhaseState.targetB=null;
+  hccMultiPhaseState.planet='none'; hccMultiPhaseState.planetTarget=0; hccMultiPhaseState.toleranceDeg=.5; hccMultiPhaseState.windowYears=20;
+  hccMultiPhaseState.extraTargets=Object.create(null); hccMultiPhaseState.live=true; hccMultiPhaseState.last=null;
+  buildCtl();
+}
+hccRestoreMultiPhaseWorkspace();
+
+const hccChronometryState={view:'sources',sources:null,benchmarks:null,loading:false,error:null};
+async function hccLoadChronometryData(){
+  if(hccChronometryState.loading||(hccChronometryState.sources&&hccChronometryState.benchmarks)) return;
+  hccChronometryState.loading=true; hccChronometryState.error=null;
+  try{
+    const [s,b]=await Promise.all([
+      fetch('./docs/data/ancient-chronometry-sources.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('source registry '+r.status);return r.json();}),
+      fetch('./docs/data/ancient-astronomy-benchmarks.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw new Error('benchmark registry '+r.status);return r.json();})
+    ]);
+    if(s.schema!=='hcc.ancient-chronometry-sources/1'||b.schema!=='hcc.ancient-astronomy-benchmarks/1') throw new Error('chronometry schema mismatch');
+    hccChronometryState.sources=s; hccChronometryState.benchmarks=b;
+  }catch(e){ hccChronometryState.error=String(e&&e.message||e); }
+  finally{ hccChronometryState.loading=false; if(state.mode==='cyc') buildCtl(); }
+}
+function hccEscChrono(x){return String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function hccChronometrySourcesHTML(){
+  const rows=(hccChronometryState.sources?.records||[]);
+  if(!rows.length) return '<div class="note">Loading source-locked records…</div>';
+  const conflicts=hccChronometryConflicts(rows);
+  const conflictText=Object.entries(conflicts).map(([term,g])=>'<div class="note"><b>'+hccEscChrono(term)+'</b> · '+g.ids.length+' incompatible source definitions · no averaging</div>').join('');
+  return '<div class="note"><b>SAME TERM · DIFFERENT DEFINITION</b><br>Lexical equality is not quantity identity.</div>'+conflictText+
+    rows.map(r=>'<div class="note"><b>'+hccEscChrono(r.id)+'</b> · '+hccEscChrono(r.epistemic_status)+'<br>'+hccEscChrono(r.text)+' · '+hccEscChrono(r.chapter_or_verse)+'<br>'+hccEscChrono(r.operational_definition)+'</div>').join('');
+}
+function hccChronometryJainHTML(){
+  const aras=hccJainAvasarpini(1n), sum=hccSumSymbolicDurations(aras);
+  let comm='current Atlas commensurability engine unavailable for this registry view';
+  const pre=CYCLES.find(c=>c&&c.days>0&&/precession/i.test((c.name||'')+' '+(c.key||'')));
+  if(pre){
+    try{
+      const probe={key:'jain.21000y',name:'Jain 21 kyr candidate',days:21000*365.2425,ref:0};
+      const q=cycleCommensurability(probe,pre);
+      comm='Atlas cycleCommensurability reused · '+hccEscChrono(q&&typeof q==='object'?JSON.stringify(q):String(q));
+    }catch(_){ comm='Atlas cycleCommensurability reused; result shape not promoted into a scientific claim.'; }
+  }
+  return '<div class="note"><b>JAIN CYCLE CLOSURE</b><br>4K + 3K + 2K + (K − 42,000 y) + 21,000 y + 21,000 y = '+sum.k.toString()+'K + '+sum.years.toString()+' y</div>'+
+    '<div class="note"><b>DEPENDENCY FIREWALL</b><br>42,000 y = 2 × 21,000 y, so it is not independent evidence. 21 kyr remains HYPOTHESIS until independent phase/epoch tests pass.</div>'+
+    '<div class="note">'+comm+'</div>';
+}
+function hccChronometryAstronomyHTML(){
+  const rows=hccChronometryState.benchmarks?.records||[];
+  if(!rows.length) return '<div class="note">Loading historical astronomy benchmarks…</div>';
+  return '<div class="note"><b>PENDING_EPOCH_CORRECTION</b><br>These are source-locked historical values. None is silently compared with J2000.</div>'+
+    rows.map(r=>{const n=Number(BigInt(r.ancient_value.numerator))/Number(BigInt(r.ancient_value.denominator));return '<div class="note"><b>'+hccEscChrono(r.id)+'</b> · '+hccEscChrono(r.comparison_status)+'<br>'+n.toPrecision(12)+' '+hccEscChrono(r.unit)+' · source epoch '+hccEscChrono(r.source_epoch)+'<br>'+hccEscChrono(r.caveat)+'</div>';}).join('');
+}
+function hccChronometryFirewallHTML(){
+  const test=hccClassifyChronometryCandidate({relation_claim:'identity',ancient_quantity_kind:'length',modern_quantity_kind:'length',same_physical_quantity:false,ancient_label:'paramanu',modern_label:'electron Compton wavelength',ancient_value:2.42631023867e-12,modern_value:2.42631023867e-12});
+  return '<div class="note"><b>ANTI-APOPHENIA FIREWALL</b><br>paramāṇu ↔ electron Compton wavelength numerical equality test → <b>'+hccEscChrono(test.status)+'</b> · '+hccEscChrono((test.reasons||[]).join(', '))+'</div>'+
+    '<div class="note">quantity_identity_missing is evaluated before residual size. Numerical proximity alone never creates a physical relation.</div>';
+}
+function hccChronometryBodyHTML(){
+  if(hccChronometryState.error) return '<div class="note">DATA ERROR · '+hccEscChrono(hccChronometryState.error)+'</div>';
+  if(!hccChronometryState.sources||!hccChronometryState.benchmarks) return '<div class="note">Loading source-locked chronometry registry…</div>';
+  if(hccChronometryState.view==='jain') return hccChronometryJainHTML();
+  if(hccChronometryState.view==='astronomy') return hccChronometryAstronomyHTML();
+  if(hccChronometryState.view==='firewall') return hccChronometryFirewallHTML();
+  return hccChronometrySourcesHTML();
+}
+function hccChronometryControlHTML(){
+  return '<div class="sect" data-chronometry-observatory data-schema="'+HCC_CHRONOMETRY_OBSERVATORY_SCHEMA+'"><b>⌛ ANCIENT CHRONOMETRY OBSERVATORY</b>'+
+    '<div class="note">Source space ↔ science space. Exact textual arithmetic stays exact; historical values keep source epoch; cross-domain coincidences fail closed.</div>'+
+    '<div class="chips"><button class="chip '+(hccChronometryState.view==='sources'?'on':'')+'" data-chrono-view="sources">SOURCES</button><button class="chip '+(hccChronometryState.view==='jain'?'on':'')+'" data-chrono-view="jain">JAIN CYCLES</button><button class="chip '+(hccChronometryState.view==='astronomy'?'on':'')+'" data-chrono-view="astronomy">HISTORICAL ASTRONOMY</button><button class="chip '+(hccChronometryState.view==='firewall'?'on':'')+'" data-chrono-view="firewall">FALSIFICATION</button></div>'+
+    '<div data-chrono-body>'+hccChronometryBodyHTML()+'</div></div>';
+}
+function hccMultiPhaseWorkspaceHTML(){
+  return '<div class="sect" data-mphase-workspace data-schema="'+HCC_MULTIPHASE_WORKSPACE_SCHEMA+'"><b>WORKSPACE PERSISTENCE</b><div class="note">Targets, locks, planet hand, tolerance, window and preview candidate survive navigation/reload. Restoring never changes AtlasTime; only APPLY/search with Live ON may do that.</div><button class="btn" data-mphase-workspace-reset>RESET WORKSPACE</button></div>';
+}
+
+const hccMultiPhaseControlHTMLV41530=hccMultiPhaseControlHTML;
+hccMultiPhaseControlHTML=function(){ return hccMultiPhaseControlHTMLV41530()+hccMultiPhaseWorkspaceHTML()+hccChronometryControlHTML(); };
+const hccBindMultiPhaseControlsV41530=hccBindMultiPhaseControls;
+hccBindMultiPhaseControls=function(){
+  hccBindMultiPhaseControlsV41530();
+  const panel=ctl.querySelector('[data-mphase-panel]');
+  if(panel){
+    panel.addEventListener('change',()=>queueMicrotask(hccSaveMultiPhaseWorkspace));
+    panel.addEventListener('click',()=>queueMicrotask(hccSaveMultiPhaseWorkspace));
+  }
+  const reset=ctl.querySelector('[data-mphase-workspace-reset]'); if(reset) reset.onclick=hccResetMultiPhaseWorkspace;
+  const chrono=ctl.querySelector('[data-chronometry-observatory]');
+  if(chrono){
+    chrono.querySelectorAll('[data-chrono-view]').forEach(b=>b.onclick=()=>{hccChronometryState.view=b.dataset.chronoView;buildCtl();});
+    if(!hccChronometryState.sources&&!hccChronometryState.loading) hccLoadChronometryData();
+  }
+};
 function observeCycle(key){
   const go=(m)=>{ if(state.mode!==m) setMode(m); };
   switch(key){
-    case 'moon':   go('solar'); state.daysPerSec=1; state.paused=false; { const s=SELECT.get('moon'); if(s){selectKey('moon'); focusOn(s);} } break;
-    case 'year':   go('solar'); state.daysPerSec=10; state.paused=false; { const s=SELECT.get('planet2'); if(s){selectKey('planet2'); focusOn(s);} } break;
-    case 'saros':  go('cyc'); state.cycPairA='moon';state.cycPairB='saros';state.cycFrame='phase';state.cycYrPerSec=2;state.paused=false;applyCycFrameView();break;
-    case 'metonic':go('cyc'); state.cycPairA='moon';state.cycPairB='year';state.cycFrame='phase';state.cycYrPerSec=2;state.paused=false;applyCycFrameView();break;
-    case 'prec':   go('cyc'); state.cycPairA='year';state.cycPairB='prec';state.cycFrame='geo';state.cycYrPerSec=800;state.paused=false; { const s=SELECT.get('cycPrec'); if(s){selectKey('cycPrec'); focusOn(s);} } break;
-    case 'gal':    go('cyc'); state.cycPairA='year';state.cycPairB='gal';state.cycFrame='gal';state.cycYrPerSec=2e6;state.paused=false; { const s=SELECT.get('cycGal'); if(s){selectKey('cycGal'); focusOn(s);} } break;
+    case 'moon':   go('solar'); setAtlasTime({rateDaysPerSecond:1,paused:false},'cycles.observe.moon'); { const s=SELECT.get('moon'); if(s){selectKey('moon'); focusOn(s);} } break;
+    case 'year':   go('solar'); setAtlasTime({rateDaysPerSecond:10,paused:false},'cycles.observe.year'); { const s=SELECT.get('planet2'); if(s){selectKey('planet2'); focusOn(s);} } break;
+    case 'saros':  go('cyc'); state.cycPairA='moon';state.cycPairB='saros';state.cycFrame='phase';setAtlasTime({rateDaysPerSecond:2*365.2425,paused:false},'cycles.observe.saros');applyCycFrameView();break;
+    case 'metonic':go('cyc'); state.cycPairA='moon';state.cycPairB='year';state.cycFrame='phase';setAtlasTime({rateDaysPerSecond:2*365.2425,paused:false},'cycles.observe.metonic');applyCycFrameView();break;
+    case 'prec':   go('cyc'); state.cycPairA='year';state.cycPairB='prec';state.cycFrame='geo';setAtlasTime({rateDaysPerSecond:800*365.2425,paused:false},'cycles.observe.precession'); { const s=SELECT.get('cycPrec'); if(s){selectKey('cycPrec'); focusOn(s);} } break;
+    case 'gal':    go('cyc'); state.cycPairA='year';state.cycPairB='gal';state.cycFrame='gal';setAtlasTime({rateDaysPerSecond:2e6*365.2425,paused:false},'cycles.observe.galactic'); { const s=SELECT.get('cycGal'); if(s){selectKey('cycGal'); focusOn(s);} } break;
     case 'fbs':    go('fbs'); state.fbsCycle=true; state.fbsTarget=null; break;
     case 's3':     go('s3'); setS3View('sec'); state.photonRun=true; break;
   }
   buildCtl();
 }
 function updateCyc(dt){
-  if(!state.paused) state.epochDays += state.cycYrPerSec*365.2425*dt*(state.timeDir||1);
   const yrs = state.epochDays/365.2425;
   const frame=state.cycFrame||'hierarchy';
 
@@ -61738,7 +62967,11 @@ function updateCyc(dt){
   cycPhaseInst.visible=state.cycShowPhaseTorus&&(frame==='hierarchy'||frame==='phase')&&frame!=='antikythera';
   cycResonanceInst.visible = frame==='hierarchy'||frame==='resonance';
   if(cycResonanceInst.visible) updateCycResonance(dt);
-  if(cycSarosInst.visible) updateSarosEngine(dt);
+  cycLinkedInst.visible = frame==='linked';
+  if(cycLinkedInst.visible) updateCycLinkedView();
+  cycChronometryInst.visible=frame==='hierarchy'||frame==='chronometry';
+  if(cycChronometryInst.visible) updateChronometryObservatory();
+  if(cycSarosInst.visible) updateSarosEngine();
   cycOrientInst.visible = frame==='orientation';
   antikGroup.visible = frame==='antikythera';
   // layout-plane guides only make sense while the multi-instrument layout is on stage
@@ -64110,21 +65343,20 @@ const XRX = (()=>{
   let tourMenuOpen=false;                       // wrist-menu tour list expander
   let menuStowed=false;                         // wrist menu stowed to a small gold dot (Y / left squeeze-tap recalls)
   let xrRide=null;                              // {key, off, snap} — the rig rides an object: saddle anything, view from anywhere
-  let rideSavedRate=null;                       // remembers time speed to restore on dismount
+  let rideSavedRate=null;                       // signed Atlas days/s to restore on dismount
   // Mounting an object = comfort mode: snap once, then damped follow, and if the sim clock
   // is racing (planet orbiting fast) auto-ease it to a viewable pace so nothing whips past
   // or shakes the wrist menu. Release restores the previous speed exactly.
   function rideMount(key, off){
     xrRide={key, off, snap:true};
     if(rideSavedRate==null){
-      if(state.mode==='solar' && state.daysPerSec>3){ rideSavedRate={m:'solar',v:state.daysPerSec}; state.daysPerSec=1; }
-      else if(state.mode==='cyc' && state.cycYrPerSec>3){ rideSavedRate={m:'cyc',v:state.cycYrPerSec}; state.cycYrPerSec=1; }
+      if(state.mode==='solar' && state.daysPerSec>3){ rideSavedRate=atlasTimeSnapshot().rateDaysPerSecond; setAtlasDaysPerSecond(1,'xr.ride.mount'); }
+      else if(state.mode==='cyc' && state.cycYrPerSec>3){ rideSavedRate=atlasTimeSnapshot().rateDaysPerSecond; setAtlasYearsPerSecond(1,'xr.ride.mount'); }
     }
   }
   function rideRelease(){
     xrRide=null;
-    if(rideSavedRate){ if(rideSavedRate.m==='solar') state.daysPerSec=rideSavedRate.v;
-      else if(rideSavedRate.m==='cyc') state.cycYrPerSec=rideSavedRate.v; rideSavedRate=null; }
+    if(rideSavedRate!==null){ setAtlasRate(rideSavedRate,'xr.ride.release'); rideSavedRate=null; }
   }
   let yPrev=false, aPrev=false;                 // Y/A button edge detectors
   /* object HALO — the trigger talks to the OBJECT, not to a window: first trigger
@@ -64179,10 +65411,10 @@ const XRX = (()=>{
     ]);
     rows.push([{label:'❄ Fractal', on:m==='fractal', cb:()=>xrSetMode('fractal')}]);
     if(m==='solar'||m==='cyc') rows.push([
-      {label:'⏸/▶', cb:()=>{state.paused=!state.paused;}},
-      {label:'t −', cb:()=>{ if(m==='solar') state.daysPerSec/=4; else state.cycYrPerSec/=4; }},
-      {label:'t +', cb:()=>{ if(m==='solar') state.daysPerSec*=4; else state.cycYrPerSec*=4; }},
-      {label:'⌂ today', cb:()=>{state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0;}},
+      {label:'⏸/▶', cb:()=>{setAtlasPaused(!state.paused,'xr.menu.pause');}},
+      {label:'t −', cb:()=>{ if(m==='solar') setAtlasDaysPerSecond(state.daysPerSec/4,'xr.menu.slower'); else setAtlasYearsPerSecond(state.cycYrPerSec/4,'xr.menu.slower'); }},
+      {label:'t +', cb:()=>{ if(m==='solar') setAtlasDaysPerSecond(state.daysPerSec*4,'xr.menu.faster'); else setAtlasYearsPerSecond(state.cycYrPerSec*4,'xr.menu.faster'); }},
+      {label:'⌂ today', cb:()=>{setAtlasEpoch((Date.now()/86400000+2440587.5)-2451545.0,'xr.menu.today');}},
     ]);
     if(m==='solar') rows.push([
       {label:'True scale', on:state.trueScale, cb:()=>{state.trueScale=!state.trueScale; refreshMenu();}},
@@ -65682,7 +66914,7 @@ const state = {
   vectorMain:true,vectorAdditional:true,vectorAxes:true,vectorFields:true,
   vectorRelations:true,vectorFlows:true,vectorGuides:true,
   geocentric:false,             // Solar System reference frame: false=heliocentric, true=Earth-centred
-  daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0, astOn:true, bloomOn:true,
+  daysPerSec: 10, paused:false, epochDays: (Date.now()/86400000 + 2440587.5) - 2451545.0, astOn:false, bloomOn:true,
   planetScale: 600, sunScale: 24, trueScale:false, showOrbits:true,
   chi: S3.chiP, gyrPerSec: 20, photonT: 0, photonRun:true,
   s3view:'sec', hopfDensity:1, hopfFlow:true, hopfFlowSpd:1,
@@ -65848,6 +67080,119 @@ const state = {
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
   orbDen:1, orbPt:0.045, orbGlow:0.72,   // hydrogen-orbital cloud: density × / point size / glow
 };
+
+// HCC v4.152 Unified Atlas Time Fabric
+const HCC_TIME_FABRIC_SCHEMA='hcc.time-fabric/1';
+const atlasTime=createAtlasTime({
+  epochDays:state.epochDays,
+  rateDaysPerSecond:Math.abs(state.daysPerSec)*(state.timeDir<0?-1:1),
+  paused:state.paused,
+  source:'atlas.init'
+});
+let atlasFrameTime=atlasTime.snapshot();
+function atlasTimeSnapshot(){return atlasFrameTime;}
+const HCC_TIME_FABRIC=Object.freeze({
+  schema:HCC_TIME_FABRIC_SCHEMA,
+  snapshot(){const s=atlasTimeSnapshot();return Object.freeze({...s,epochDaysJ2000:epochDaysOf(s)});},
+  setEpochDays(dayJ2000,provenance='time-fabric.api.setEpochDays'){setAtlasEpoch(dayJ2000,provenance);return this.snapshot();},
+  setRateDaysPerSecond(rate,provenance='time-fabric.api.setRate'){setAtlasSignedRate(rate,provenance);return this.snapshot();},
+  setPaused(paused,provenance='time-fabric.api.setPaused'){setAtlasPaused(paused,provenance);return this.snapshot();},
+  adapter(source,target){return findClockAdapter(source,target);}
+});
+globalThis.HCC_TIME_FABRIC=HCC_TIME_FABRIC;
+globalThis.HCC_TIME_DIAGNOSTICS=Object.freeze({
+  schema:HCC_TIME_FABRIC_SCHEMA,
+  snapshot:()=>HCC_TIME_FABRIC.snapshot(),
+  domain:(id)=>domainById(id),
+  adapter:(source,target)=>findClockAdapter(source,target),
+  domains:()=>TIME_DOMAINS.slice(),
+  scopes:()=>STATE_SCOPES.slice(),
+  statuses:()=>({...CLOCK_STATUS})
+});
+// HCC v4.152 Global Time Mutation Gateway
+function syncAtlasTimeCompat(snap){
+  const mag=Math.abs(snap.rateDaysPerSecond);
+  state.epochDays=epochDaysOf(snap);
+  state.daysPerSec=mag;
+  state.cycYrPerSec=mag/365.2425;
+  state.paused=snap.paused;
+  state.timeDir=snap.rateDaysPerSecond<0?-1:snap.rateDaysPerSecond>0?1:(state.timeDir||1);
+  return snap;
+}
+function atlasTimeDirection(){return atlasTimeSnapshot().rateDaysPerSecond<0?-1:(state.timeDir||1);}
+function signedAtlasRate(magnitude,dir=atlasTimeDirection()){
+  magnitude=Math.abs(Number(magnitude));
+  if(!Number.isFinite(magnitude))throw new RangeError('Atlas time rate magnitude must be finite');
+  return magnitude*(dir<0?-1:1);
+}
+function setAtlasEpoch(epochDays,source='atlas.setEpoch'){
+  atlasFrameTime=atlasTime.setEpoch(epochDays,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasRate(rateDaysPerSecond,source='atlas.setRate'){
+  atlasFrameTime=atlasTime.setRate(rateDaysPerSecond,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasDaysPerSecond(daysPerSecond,source='atlas.setRate.days'){
+  return setAtlasRate(signedAtlasRate(daysPerSecond),source);
+}
+function setAtlasYearsPerSecond(yearsPerSecond,source='atlas.setRate.years'){
+  return setAtlasRate(signedAtlasRate(Number(yearsPerSecond)*365.2425),source);
+}
+function toggleAtlasTimeDirection(source='atlas.toggleDirection'){
+  const snap=atlasTimeSnapshot(),mag=Math.abs(snap.rateDaysPerSecond);
+  return setAtlasRate(mag*(atlasTimeDirection()<0?1:-1),source);
+}
+function setAtlasPaused(paused,source='atlas.setPaused'){
+  atlasFrameTime=atlasTime.setPaused(paused,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+function setAtlasTime(patch,source='atlas.transaction'){
+  atlasFrameTime=atlasTime.transact(patch,{source});return syncAtlasTimeCompat(atlasFrameTime);
+}
+
+// HCC v4.152 Persistent State Scope Registry
+const UNDECLARED_SCOPE='UNDECLARED_SCOPE';
+const HCC_STATE_SCOPE_KINDS=Object.freeze(['GLOBAL_PHYSICS','SHARED_PHYSICS','LAB_LOCAL','VIEW_ONLY']);
+const HCC_GLOBAL_PHYSICS_KEYS=new Set(['epochDays','daysPerSec','cycYrPerSec','paused','timeDir']);
+const HCC_VIEW_ONLY_KEYS=new Set(['mode','s3view','solarScaleLayer','selectedKey','activePanelId','fractalType']);
+const HCC_LAB_LOCAL_STORE=new Map();
+const HCC_STATE_SCOPE_REGISTRY=Object.freeze({
+  schema:'hcc.state-scopes/1',
+  kinds:HCC_STATE_SCOPE_KINDS,
+  globalPhysics:Object.freeze([...HCC_GLOBAL_PHYSICS_KEYS]),
+  viewOnly:Object.freeze([...HCC_VIEW_ONLY_KEYS]),
+  failClosed:true,
+  undeclared:UNDECLARED_SCOPE
+});
+function hccStateScope(key,labId=null){
+  key=String(key||'');
+  if(HCC_GLOBAL_PHYSICS_KEYS.has(key))return STATE_SCOPE.GLOBAL_PHYSICS;
+  if(HCC_VIEW_ONLY_KEYS.has(key))return STATE_SCOPE.VIEW_ONLY;
+  try{
+    if(typeof MV_LINKS!=='undefined'&&MV_LINKS.some(L=>(L.members||[]).some(m=>m&&m.k===key)))return STATE_SCOPE.SHARED_PHYSICS;
+  }catch{}
+  if(labId){
+    const p=String(labId).toLowerCase();
+    if(key.toLowerCase().startsWith(p))return STATE_SCOPE.LAB_LOCAL;
+  }
+  return UNDECLARED_SCOPE;
+}
+function persistLabLocalState(labId,keys){
+  labId=String(labId||'');if(!labId)return Object.freeze({});
+  const out={};
+  for(const key of Array.isArray(keys)?keys:[]){
+    if(hccStateScope(key,labId)===STATE_SCOPE.LAB_LOCAL && key in state){
+      const v=state[key];if(v===null||['number','string','boolean'].includes(typeof v))out[key]=v;
+    }
+  }
+  HCC_LAB_LOCAL_STORE.set(labId,Object.freeze({...out}));
+  return HCC_LAB_LOCAL_STORE.get(labId);
+}
+function restoreLabLocalState(labId){
+  const saved=HCC_LAB_LOCAL_STORE.get(String(labId||''));if(!saved)return 0;let n=0;
+  for(const [key,v] of Object.entries(saved))if(hccStateScope(key,labId)===STATE_SCOPE.LAB_LOCAL){state[key]=v;n++;}
+  return n;
+}
+
+
 /* ══ A TUNED LABORATORY YOU CANNOT SHARE IS A READING YOU CANNOT REPRODUCE ════
    The route carried a world and a laboratory and nothing else, so every control a reader
    moved was lost the moment they sent the link. You could say "look at the Einstein ring"
@@ -68254,6 +69599,8 @@ function buildCtl(){
     _st=ctl.scrollTop, _rows=[...ctl.querySelectorAll('.chips,.radioRow')].map(r=>r.scrollLeft);
   LAST_CTL_CONTEXT=_context;
   buildCtlBody();
+  ctl.querySelectorAll('[data-cycle-view]').forEach(b=>b.onclick=()=>hccCycleNavigate(b.dataset.cycleView));
+  hccBindMultiPhaseControls();
   /* the generated rail is wired in ONE place, after the body exists, because it is
      rendered in one place: every laboratory in the atlas passes through the same
      activeLabControls div and therefore gets every relationship the registries know */
@@ -68287,6 +69634,7 @@ function buildCtl(){
 function buildCtlBody(){
   if(state.mode==='solar'){
     ctl.innerHTML = `
+    ${hccCycleNavigationHTML()}
     <div class="sect"><b>Time</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="spd" min="-3" max="8.5" step="0.05" value="${Math.log10(Math.max(state.daysPerSec,1e-3))}">
@@ -68435,10 +69783,10 @@ function buildCtlBody(){
       <div class="ctlrow"><button class="btn green" id="oortFocus">◎ View full cloud at true AU scale</button></div>
       <div class="note" style="font-size:10.5px">True-scale Solar navigation: 1 scene unit always equals 1 AU. Catalogue objects in the Solar cosmic layer use registered J2000 directions and distance-scaled anchors; uncertain extended structures retain explicit uncertainty labels. “Direction from frame origin” is available only where the catalogue frame is compatible. It is never a claim of an observation from arbitrary S³/FBS coordinates.</div>
     </div>`;
-    ctl.querySelector('#spd').oninput = e=>{ state.daysPerSec = 10**(+e.target.value); updCtlVals(); };
-    ctl.querySelector('#pause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
-    ctl.querySelector('#timeDir')&&(ctl.querySelector('#timeDir').onclick=()=>{ state.timeDir=(state.timeDir||1)*-1; buildCtl(); });
-    ctl.querySelector('#today').onclick = ()=>{ state.epochDays = (Date.now()/86400000 + 2440587.5) - 2451545.0; };
+    ctl.querySelector('#spd').oninput = e=>{ setAtlasDaysPerSecond(10**(+e.target.value),'solar.rate'); updCtlVals(); };
+    ctl.querySelector('#pause').onclick = ()=>{ setAtlasPaused(!state.paused,'solar.pause'); buildCtl(); };
+    ctl.querySelector('#timeDir')&&(ctl.querySelector('#timeDir').onclick=()=>{ toggleAtlasTimeDirection('solar.direction'); buildCtl(); });
+    ctl.querySelector('#today').onclick = ()=>{ setAtlasEpoch((Date.now()/86400000 + 2440587.5) - 2451545.0,'solar.today'); };
     ctl.querySelector('#astOn')&&(ctl.querySelector('#astOn').onchange=e=>{ state.astOn=e.target.checked; });
     bindDeepDateControl(ctl.querySelector('#datePick'),ctl.querySelector('#dateGo'));
     ctl.querySelector('#psc').oninput = e=>{ state.planetScale = 10**(+e.target.value); state.trueScale=false; ctl.querySelector('#tsc').checked=false; updCtlVals(); };
@@ -68488,7 +69836,7 @@ function buildCtlBody(){
     /* --- Prediction observatory: computed events; list + handlers survive panel rebuilds --- */
     const eclBind=()=>ctl.querySelectorAll('[data-eclgo]').forEach(b=>b.onclick=()=>{
       const e=(window._eclEvents||[])[+b.dataset.eclgo]; if(!e) return; navPush();
-      state.epochDays=e.d-0.06; state.paused=false; state.daysPerSec=0.02; state.timeDir=1;
+      setAtlasTime({epochDays:e.d-0.06,paused:false,rateDaysPerSecond:0.02},'solar.prediction.eclipse');
       const s=SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
       updCtlVals(); });
     const eclRender=(dir)=>{
@@ -68525,7 +69873,7 @@ function buildCtlBody(){
         window._skyEvents=evs;
         ctl.querySelectorAll('[data-skygo]').forEach(b=>b.onclick=()=>{
           const e=window._skyEvents[+b.dataset.skygo]; if(!e) return; navPush();
-          state.epochDays=e.d; state.paused=true; state.timeDir=1;
+          setAtlasTime({epochDays:e.d,paused:true,rateDaysPerSecond:Math.abs(atlasTimeSnapshot().rateDaysPerSecond)},'solar.prediction.sky');
           const a=state.skyPair.startsWith('opp')?+state.skyPair.slice(3):+state.skyPair.split(',')[0];
           const s=SELECT.get('planet'+a); if(s){ selectKey('planet'+a); focusOn(s); }
           updCtlVals(); });
@@ -68551,7 +69899,7 @@ function buildCtlBody(){
     ctl.querySelectorAll('[data-galcore]').forEach(b=>b.onclick=()=>dblFocus(b.dataset.galcore));
     ctl.querySelectorAll('[data-galray]').forEach(b=>b.onclick=()=>enterModelPortal(b.dataset.galray,true));
     ctl.querySelector('#galTimeMax')&&(ctl.querySelector('#galTimeMax').onclick=()=>{
-      state.daysPerSec=Math.pow(10,8.5);state.paused=false;state.timeDir=1;buildCtl();
+      setAtlasTime({rateDaysPerSecond:Math.pow(10,8.5),paused:false},'solar.galactic-max-rate');buildCtl();
     });
     const oortShow = ctl.querySelector('#oortShow');
     if (oortShow) oortShow.onchange = e => { state.showOort = e.target.checked; updateSolarScaleVisibility(); };
@@ -68611,6 +69959,8 @@ function buildCtlBody(){
         <button class="btn" data-cyc="${c.key}" title="${c.desc}">👁</button></div>`;
     }).join('');
     ctl.innerHTML = `
+    ${hccCycleNavigationHTML()}
+     ${hccMultiPhaseControlHTML()}
     <div class="sect"><b>Shared timeline</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="cspd" min="-1" max="9.5" step="0.05" value="${Math.log10(Math.max(state.cycYrPerSec,0.1))}">
@@ -68639,7 +69989,8 @@ function buildCtlBody(){
           <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
           <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
           <option value="orientation" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>
-          <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
+          <option value="linked" ${state.cycFrame==='linked'?'selected':''}>⟲ Linked analytical view</option>
+              <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
         </select>
       </div>
       <div class="ctlrow"><label>Earth/Sun identity links</label><input type="checkbox" id="cycLinks" ${state.cycLinks?'checked':''}></div>
@@ -68680,20 +70031,20 @@ function buildCtlBody(){
       cycle. Eclipse jump pauses time at greatest eclipse, switches to true scale
       and selects the Moon — the golden syzygy line marks the alignment
       (lunar ephemeris ≈0.1°, geometry approximate). The phase torus and commensurability search use constant mean periods and are discovery diagnostics, not event predictions.</div>`;
-    ctl.querySelector('#cspd').oninput = e=>{ state.cycYrPerSec=10**(+e.target.value); updCtlVals(); };
-    ctl.querySelector('#ctimeDir')&&(ctl.querySelector('#ctimeDir').onclick=()=>{ state.timeDir=(state.timeDir||1)*-1; buildCtl(); });
+    ctl.querySelector('#cspd').oninput = e=>{ setAtlasYearsPerSecond(10**(+e.target.value),'cycles.rate'); updCtlVals(); };
+    ctl.querySelector('#ctimeDir')&&(ctl.querySelector('#ctimeDir').onclick=()=>{ toggleAtlasTimeDirection('cycles.direction'); buildCtl(); });
     ctl.querySelector('#ageLab').onchange = e=>{state.cycShowAges=e.target.checked;precInst.userData.ageLabels.forEach(l=>l.visible=e.target.checked);};
-    ctl.querySelector('#cpause').onclick = ()=>{ state.paused=!state.paused; buildCtl(); };
-    ctl.querySelector('#ctoday').onclick = ()=>{ state.epochDays=(Date.now()/86400000+2440587.5)-2451545.0; refreshSeasons(); buildCtl(); };
+    ctl.querySelector('#cpause').onclick = ()=>{ setAtlasPaused(!state.paused,'cycles.pause'); buildCtl(); };
+    ctl.querySelector('#ctoday').onclick = ()=>{ setAtlasEpoch((Date.now()/86400000+2440587.5)-2451545.0,'cycles.today'); refreshSeasons(); buildCtl(); };
     bindDeepDateControl(ctl.querySelector('#cdate'),ctl.querySelector('#cdateGo'),refreshSeasons);
-    ctl.querySelector('#cycFrame').onchange=e=>{ state.cycFrame=e.target.value; applyCycFrameView(); };
+    ctl.querySelector('#cycFrame').onchange=e=>hccCycleNavigate(e.target.value);
     ctl.querySelector('#cycLinks').onchange=e=>state.cycLinks=e.target.checked;
     ctl.querySelector('#cycPhaseShow').onchange=e=>state.cycShowPhaseTorus=e.target.checked;
     const pairChange=e=>{state[e.target.id==='cycPairA'?'cycPairA':'cycPairB']=e.target.value;rebuildCyclePhaseTrace();updCtlVals();};
     ctl.querySelector('#cycPairA').onchange=pairChange; ctl.querySelector('#cycPairB').onchange=pairChange;
     ctl.querySelector('#cycNextMatch').onclick=()=>{
       const d=nextCyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB));
-      if(isFinite(d)){state.epochDays=d;state.paused=true;refreshSeasons();updCtlVals();}
+      if(isFinite(d)){setAtlasTime({epochDays:d,paused:true},'cycles.phase-match');refreshSeasons();updCtlVals();}
     };
     rebuildCyclePhaseTrace();
 
@@ -69972,6 +71323,7 @@ function buildCtlBody(){
     </div>`;
     else if(V==='cosmo') body = `
     <div class="sect"><b>${TT('How far is it, and how long ago?','Как далеко и как давно?','Wie weit und wie lange her?')}</b>
+      <div class="observerDistances" id="cosmoDistances" role="group" aria-label="${TT('Three observer distances','Три расстояния наблюдателя','Drei Beobachterentfernungen')}">${cosmoObserverReadout(state.cosmoZ??1,state.cosmoH0??67.66,state.cosmoOm??0.3111)}</div>
       <div class="ctlrow"><label>${TT('redshift','красное смещение','Rotverschiebung')} z</label>
         <input type="range" id="cosmoZ" min="0.02" max="6" step="0.02" value="${state.cosmoZ??1}"><span class="val" id="cosmoZV">${(state.cosmoZ??1).toFixed(2)}</span></div>
       <div class="ctlrow"><label>H₀ (km s⁻¹ Mpc⁻¹)</label>
@@ -69984,7 +71336,7 @@ function buildCtlBody(){
         <button class="chip" id="cosmoPeak">${TT('→ sit on the turnover','→ встать на разворот','→ auf den Wendepunkt')}</button></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('Three curves, one operating point. The middle one — angular diameter — rises, peaks near z = 1.6 and comes back down, and the galaxy on the left is drawn at the angle it would really subtend: push past the turnover and it stops shrinking and starts growing, because the universe was smaller when the light left and works as a lens. The two presets are the two measurements of H₀ that disagree by five sigma; the ladder is the same, the answer is not.','Три кривые и одна рабочая точка. Средняя — угловое расстояние — растёт, достигает максимума около z = 1.6 и падает. Две предустановки — два измерения H₀, расходящиеся на пять сигма.','Drei Kurven, ein Arbeitspunkt.')}</div>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
-        <button class="btn" id="cosmoToElens">→ ${TT('the ring it feeds','кольцо, которое оно питает','der Ring')}</button>
+        <button class="btn" id="cosmoToElens">D_A → ${TT('Einstein ring','кольцо Эйнштейна','Einsteinring')}</button>
         <button class="btn" id="cosmoToCmb">→ ${TT('the far end, z = 1089','дальний конец, z = 1089','das ferne Ende')}</button>
         <button class="btn" id="cosmoToRed">→ ${TT('the other redshift','другое красное смещение','die andere Rotverschiebung')}</button></div>
     </div>`;
@@ -75497,8 +76849,7 @@ function showModelReturn(on){[modelReturnBtn,modelReturnMobileBtn].forEach(b=>{i
 function captureModelPortalSnapshot(){
   return {
     mode:state.mode,selectedKey,activePanelId,
-    state:{epochDays:state.epochDays,daysPerSec:state.daysPerSec,paused:state.paused,timeDir:state.timeDir,
-      solarScaleLayer:state.solarScaleLayer,s3view:state.s3view,cycFrame:state.cycFrame,
+    state:{solarScaleLayer:state.solarScaleLayer,s3view:state.s3view,cycFrame:state.cycFrame,
       fieldView:state.fieldView,fractalType:typeof fractalType==='string'?fractalType:null},
     camera:{position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),up:camera.up.toArray(),
       target:controls.target.toArray(),fov:camera.fov,minDistance:controls.minDistance,maxDistance:controls.maxDistance,
@@ -76160,8 +77511,8 @@ const fsBtn = document.getElementById('fsBtn');
 const fsActive = ()=> !!(document.fullscreenElement || document.webkitFullscreenElement);
 const FS_OK = !!((document.fullscreenEnabled??true) &&
   (document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen));
-function zenRate(){ return state.mode==='cyc'?{get:()=>state.cycYrPerSec,set:v=>state.cycYrPerSec=v,min:-2,max:7,unit:'yr/s'}
-  :{get:()=>state.daysPerSec,set:v=>state.daysPerSec=v,min:-3,max:8.5,unit:'d/s'}; }
+function zenRate(){ return state.mode==='cyc'?{get:()=>state.cycYrPerSec,set:v=>setAtlasYearsPerSecond(v,'zen.rate'),min:-2,max:7,unit:'yr/s'}
+  :{get:()=>state.daysPerSec,set:v=>setAtlasDaysPerSecond(v,'zen.rate'),min:-3,max:8.5,unit:'d/s'}; }
 function zenFmt(v,unit){ return (v>=1e5?v.toExponential(1):v>=100?Math.round(v):v>=1?v.toFixed(1):v.toPrecision(2))+' '+unit; }
 function zenSync(){
   const bar=document.getElementById('zenBar'); if(!bar) return;
@@ -76207,10 +77558,10 @@ addEventListener('keydown', e=>{
   if(bar){
     bar.querySelector('#zenSpd').addEventListener('input',e=>{ const R=zenRate();
       R.set(Math.pow(10,+e.target.value)); bar.querySelector('#zenSpdV').textContent=zenFmt(R.get(),R.unit); });
-    bar.querySelector('#zenPause').addEventListener('click',()=>{ state.paused=!state.paused;
+    bar.querySelector('#zenPause').addEventListener('click',()=>{ setAtlasPaused(!state.paused,'zen.pause');
       bar.querySelector('#zenPause').textContent=state.paused?'▶':'⏸'; });
     bar.querySelector('#zenDir')&&bar.querySelector('#zenDir').addEventListener('click',()=>{
-      state.timeDir=(state.timeDir||1)*-1;
+      toggleAtlasTimeDirection('zen.direction');
       bar.querySelector('#zenDir').textContent=state.timeDir<0?'⏪':'⏩'; });
     bar.querySelector('#zenExit').addEventListener('click',()=>toggleZen(false));
     setInterval(()=>{ if(document.body.classList.contains('zen')){ const d=bar.querySelector('#zenDate');
@@ -81774,7 +83125,9 @@ function tick(now, frame){
   }
 }
 function tickBody(now, frame){
-  const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (no backward time)
+  const dt = Math.min(Math.max((now-last)/1000, 0), .1); last = now;   // clamp ≥0 (render time)
+  atlasFrameTime=atlasTime.advanceFrame(dt,{source:'frame.root'});
+  syncAtlasTimeCompat(atlasFrameTime);
   if(typeof journeyTick==='function') journeyTick(dt);   // Atlas Coach grand-tour auto-advance
   if(rendererResizePending&&!renderer.xr.isPresenting)syncRendererViewport();
   if(webglContextLost){
@@ -81887,7 +83240,6 @@ function tickBody(now, frame){
 
   if(state.mode==='solar'){
     autoSolarScale(dt);
-    if(!state.paused) state.epochDays += state.daysPerSec*dt*(state.timeDir||1);
     const T = state.epochDays/36525;
     const ephWarn=jplEpochValid(state.epochDays)?'':' · WARNING: planetary positions extrapolated outside JPL 1800–2050';
     orbitGeometryAcc+=dt;
@@ -82990,6 +84342,7 @@ const LAB_REGISTRY=(()=>{
       defaultInspector:'controls',
       route:`#/world/s3/lab/${id}`});
   }
+  out.push({id:'chronometry', parentWorld:'cyc', category:'inv', title:'Ancient Chronometry Observatory', description:'Source-locked comparative chronometry: textual definitions, historical astronomy, correspondence tests and explicit falsification boundaries.', status:'MODEL', capabilities:{xr:true}, defaultInspector:'controls', route:'#/world/cyc/lab/chronometry'});
   return out;
 })();
 const LAB_BY_ID=new Map(LAB_REGISTRY.map(l=>[l.id,l]));
@@ -83030,7 +84383,7 @@ try{ const f=JSON.parse(localStorage.getItem('hcc.fav')||'[]'); f.forEach(x=>HCC
 const hccSave=()=>{ try{ localStorage.setItem('hcc.fav',JSON.stringify([...HCC_FAV]));
   localStorage.setItem('hcc.recent',JSON.stringify(HCC_RECENT.slice(0,12))); }catch(e){} };
 function hccRoute(ctx=HCC_CTX){
-  return ctx.worldId==='s3'&&ctx.labId?`#/world/s3/lab/${ctx.labId}`:`#/world/${ctx.worldId}`; }
+  return ctx.labId ? `#/world/${ctx.worldId}/lab/${ctx.labId}` : `#/world/${ctx.worldId}`; }
 /* ══ THE STATE A LABORATORY OWNS, AND HOW IT TRAVELS ═════════════════════════
    PRED_STATE_PREFIX already says which state keys belong to which laboratory — it is what
    the prediction contract uses to decide what a laboratory can be asked about. The same
@@ -83096,7 +84449,7 @@ function hccParseRoute(h){
   const m=path.match(/^#\/world\/([a-z0-9]+)(?:\/lab\/([a-z0-9]+))?$/);
   if(!m) return null;
   const w=WORLD_BY_ID.get(m[1]); if(!w) return null;
-  if(m[2]&&!LAB_BY_ID.has(m[2])) return null;
+  if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }
   let blob=null;
   if(query){ const mm=query.match(/(?:^|&)s=([^&]*)/); if(mm) blob=mm[1]; }
   return {worldId:m[1], labId:m[2]||null, state:blob};
@@ -83136,7 +84489,8 @@ function hccGo(target,opts={}){
       if(state.s3view!==v){ try{ setS3View(v); }catch(e){} }
       const i=HCC_RECENT.indexOf(v); if(i>=0) HCC_RECENT.splice(i,1);
       HCC_RECENT.unshift(v); HCC_RECENT.length=Math.min(HCC_RECENT.length,12); hccSave();
-    } else HCC_CTX.labId=null;
+    } else if(labId&&worldId==='cyc'){ state.cycFrame='chronometry'; try{ applyCycFrameView(); }catch(e){} }
+    else HCC_CTX.labId=null;
     hccEnforceScope();                                   /* and again after it moved */
     /* ── AND THE SETTINGS THE LINK CARRIED ──────────────────────────────────
        Applied AFTER the laboratory is built, because setS3View resets a station to its
@@ -83331,7 +84685,7 @@ globalThis.hccBack=()=>hccBack();
 function hccBack(){
   const h=HCC_CTX.navigationHistory;
   if(h.length){ const t=h.pop(); hccGo(t,{history:false}); return true; }
-  if(HCC_CTX.labId){ hccGo({worldId:'s3',labId:null}); return true; }
+  if(HCC_CTX.labId){ hccGo({worldId:HCC_CTX.worldId,labId:null}); return true; }
   if(HCC_CTX.worldId!=='solar'){ hccGo({worldId:'solar'}); return true; }
   return false;
 }
@@ -84118,12 +85472,12 @@ applyVectorSettings();                    // enforce the global vector contract 
    convention — cross-mode clocks, flow rates, the linked sweep. */
 const STATE0=(()=>{ const o={}; for(const k in state){ const v=state[k];
   if(typeof v==='number'||typeof v==='boolean'||typeof v==='string') o[k]=v; } return o; })();
-const ANIM_EXTRA=['daysPerSec','cycYrPerSec','fbsCycleSpeed','oortSpeed','laniakeaFlowSpeed',
+const ANIM_EXTRA=['fbsCycleSpeed','oortSpeed','laniakeaFlowSpeed',
   'phaseRate','hopfFlowSpd','hopfPrecSpd','rkzSpeed','tnSpeed','mvLinkSweep','mvLinkV',
   'heSweep','teSweep','bhtEvap','skSpeed','qpSpeed','fieldSpeed','gravRotFrame'];
 function animKeys(){
   const auto=Object.keys(STATE0).filter(k=>/(Speed|Spd|Rate|PerSec|Run|Sweep|Anim)$/.test(k));
-  return [...new Set([...auto,...ANIM_EXTRA.filter(k=>k in STATE0)])].sort();
+  return [...new Set([...auto,...ANIM_EXTRA.filter(k=>k in STATE0)])].filter(k=>!HCC_GLOBAL_PHYSICS_KEYS.has(k)).sort();
 }
 /* Returns what it actually changed, so the button can report rather than assert. */
 function resetAnimated(){
@@ -84732,5 +86086,116 @@ try{ requestAnimationFrame(()=>{ atlasFrontDoor(); frameOpeningWorld();
   globalThis.HCC_BOOT_PANELS=PANEL_IDS.filter(id=>panelIsOpen(id));
   globalThis.HCC_BOOT_MODE=state.mode; }); }catch(e){}
 </script>
+
+<!-- HCC v4.151 · FIRST-PRINCIPLES LENS
+     Universal exact-expression / dependency / geometry inspector and operational anyon stations.
+     It owns no scientific solver state and no animation loop; close destroys the entire panel. -->
+<style id="hccFpLensStyle">
+#hccFpTrigger{position:fixed;right:max(14px,env(safe-area-inset-right));bottom:max(14px,env(safe-area-inset-bottom));z-index:2147481200;border:1px solid rgba(220,230,242,.28);background:rgba(8,11,17,.86);color:#f5f7fb;border-radius:999px;padding:10px 14px;font:600 11px/1.1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;backdrop-filter:blur(16px);box-shadow:0 14px 48px rgba(0,0,0,.28);cursor:pointer}
+#hccFpTrigger:hover,#hccFpTrigger:focus-visible{border-color:rgba(255,255,255,.72);outline:none}
+#hccFpLens{position:fixed;inset:clamp(8px,2.2vw,26px);z-index:2147482000;display:grid;grid-template-rows:auto auto 1fr;max-width:1180px;margin:auto;background:linear-gradient(160deg,rgba(9,12,18,.975),rgba(13,17,25,.955));color:#eef2f8;border:1px solid rgba(230,236,245,.22);border-radius:22px;box-shadow:0 30px 120px rgba(0,0,0,.58);overflow:hidden;backdrop-filter:blur(28px);font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
+.hccFpHead{display:grid;grid-template-columns:minmax(0,1fr) minmax(180px,360px) auto;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid rgba(235,240,248,.12)}
+.hccFpEyebrow{font:600 10px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em;text-transform:uppercase;color:#aeb9c9}.hccFpTitle{font-size:16px;font-weight:650;letter-spacing:-.015em;margin-top:2px}.hccFpSelect{width:100%;min-width:0;background:#111722;color:#eef2f8;border:1px solid rgba(235,240,248,.17);border-radius:10px;padding:9px 10px}.hccFpClose{width:36px;height:36px;border-radius:50%;border:1px solid rgba(235,240,248,.16);background:transparent;color:#eef2f8;font-size:20px;cursor:pointer}
+.hccFpTabs{display:flex;gap:6px;overflow:auto;padding:10px 14px;border-bottom:1px solid rgba(235,240,248,.10);scrollbar-width:none}.hccFpTab{flex:0 0 auto;border:1px solid rgba(235,240,248,.12);background:rgba(255,255,255,.025);color:#aab5c5;border-radius:999px;padding:7px 11px;font:600 10px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}.hccFpTab[aria-selected="true"]{color:#fff;border-color:rgba(255,255,255,.42);background:rgba(255,255,255,.085)}
+.hccFpBody{overflow:auto;overscroll-behavior:contain;padding:16px 18px calc(20px + env(safe-area-inset-bottom));}.hccFpGrid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}.hccFpCard{grid-column:span 6;border:1px solid rgba(235,240,248,.115);background:rgba(255,255,255,.025);border-radius:16px;padding:14px;min-width:0}.hccFpCard.wide{grid-column:1/-1}.hccFpKicker{font:600 9px/1.2 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;color:#96a5b9;margin-bottom:7px}.hccFpMono{font:500 11px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre-wrap;overflow-wrap:anywhere}.hccFpExact,.fpExact{color:#f5f7fb}.hccFpEval,.fpEvaluated{color:#b8c4d4}.hccFpBadges{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.hccFpBadge,.fpDimensionBadge,.fpConventionBadge{border:1px solid rgba(235,240,248,.15);border-radius:999px;padding:5px 8px;font:600 9px/1 ui-monospace,SFMono-Regular,Menlo,monospace;color:#bdc8d7}.hccFpWarn{border-left:2px solid rgba(255,255,255,.44);padding:8px 10px;background:rgba(255,255,255,.035);font-size:11px;line-height:1.45;color:#c7d0dc}.hccFpTable{width:100%;border-collapse:collapse;font-size:11px}.hccFpTable th,.hccFpTable td{text-align:left;vertical-align:top;padding:7px;border-bottom:1px solid rgba(235,240,248,.08)}.hccFpTable th{font:600 9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:#98a6b8}
+.hccFpDag{display:flex;align-items:center;gap:7px;flex-wrap:wrap}.hccFpNode{border:1px solid rgba(235,240,248,.16);border-radius:12px;padding:9px 11px;background:rgba(255,255,255,.035);font:500 10px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}.hccFpArrow{color:#718198}.hccFpStationNav{display:flex;gap:7px;overflow:auto;margin-bottom:12px}.hccFpStationBtn{border:1px solid rgba(235,240,248,.13);background:transparent;color:#aab5c5;border-radius:10px;padding:8px 10px;white-space:nowrap;cursor:pointer}.hccFpStationBtn.active{color:#fff;border-color:rgba(255,255,255,.4);background:rgba(255,255,255,.07)}.hccFpControls{display:flex;gap:9px;flex-wrap:wrap;align-items:end;margin:10px 0}.hccFpField{display:grid;gap:5px;min-width:130px;flex:1}.hccFpField label{font:600 9px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em;text-transform:uppercase;color:#98a6b8}.hccFpField input,.hccFpField select{background:#101620;color:#eef2f8;border:1px solid rgba(235,240,248,.16);border-radius:9px;padding:8px}.hccFpBtn{border:1px solid rgba(235,240,248,.18);background:rgba(255,255,255,.045);color:#eef2f8;border-radius:9px;padding:8px 10px;cursor:pointer;font-size:11px}.hccFpMatrix{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-top:10px;max-width:620px}.hccFpCell{border:1px solid rgba(235,240,248,.11);border-radius:10px;padding:9px;font:500 10px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;overflow-wrap:anywhere}.hccFpBraidTrack{display:flex;gap:6px;overflow:auto;padding:10px 0}.hccFpCross{flex:0 0 auto;min-width:58px;text-align:center;border:1px solid rgba(235,240,248,.13);border-radius:12px;padding:9px 7px;font:600 11px ui-monospace,SFMono-Regular,Menlo,monospace}.hccFpFusionRows{display:grid;gap:6px;margin-top:10px}.hccFpFusionRow{display:grid;grid-template-columns:56px 1fr 1fr 1fr;gap:6px;align-items:center;font:500 10px ui-monospace,SFMono-Regular,Menlo,monospace}.hccFpFusionRow span{border-bottom:1px solid rgba(235,240,248,.07);padding:5px}.hccFpContrast{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.hccFpModel{border:1px solid rgba(235,240,248,.12);border-radius:14px;padding:12px}.hccFpModel h4{margin:0 0 8px;font-size:13px}.hccFpModel p{margin:5px 0;font-size:11px;line-height:1.45;color:#bdc7d5}
+@media(max-width:720px){#hccFpLens{inset:6px;border-radius:16px}.hccFpHead{grid-template-columns:1fr auto}.hccFpHead .hccFpSelect{grid-column:1/-1;grid-row:2}.hccFpBody{padding:12px}.hccFpCard{grid-column:1/-1}.hccFpContrast{grid-template-columns:1fr}.hccFpFusionRow{grid-template-columns:44px 1fr 1fr 1fr}.hccFpMatrix{grid-template-columns:1fr}.hccFpCell{min-height:44px}}
+@media(orientation:landscape) and (max-height:520px){#hccFpLens{inset:4px 8px}.hccFpHead{padding:8px 12px}.hccFpTabs{padding:6px 10px}.hccFpBody{padding:10px 12px}.hccFpCard{padding:10px}}
+@media(prefers-reduced-motion:reduce){#hccFpLens *,#hccFpTrigger{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+<script>
+(function(){
+'use strict';
+/* HCC v4.151 · FIRST-PRINCIPLES READINESS MOUNT
+   The Lens is a view over authoritative runtime contracts, so it mounts only after the
+   document and HCC_API readiness boundary. It never polls and never owns an animation loop. */
+async function hccFpMount(){
+if(document.getElementById('hccFpTrigger')) return;
+let ATLAS=globalThis.HCC_ATLAS_INTEGRATION;
+let FP=globalThis.HCC_FIRST_PRINCIPLES;
+try{if(globalThis.HCC_API&&HCC_API.ready)await HCC_API.ready({timeout:10000});}catch{}
+ATLAS=globalThis.HCC_ATLAS_INTEGRATION||ATLAS;
+FP=globalThis.HCC_FIRST_PRINCIPLES||FP;
+if(!FP||!ATLAS)throw new Error('First-Principles runtime or Atlas Integration Bus unavailable at readiness boundary');
+const esc=x=>String(x==null?'':x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=x=>Number.isFinite(Number(x))?Number(x).toPrecision(11):String(x);
+const cmplx=z=>{const re=Number(z&&z[0]||0),im=Number(z&&z[1]||0);return fmt(re)+(im>=0?' + ':' - ')+fmt(Math.abs(im))+' i';};
+const matrixHTML=M=>'<div class="hccFpMatrix">'+M.flat().map(z=>'<div class="hccFpCell">'+esc(cmplx(z))+'</div>').join('')+'</div>';
+function labs(){try{const x=globalThis.HCC_API&&HCC_API.labs&&HCC_API.labs.list?HCC_API.labs.list():[];return Array.isArray(x)?x:[];}catch{return [];}}
+function labId(x){return typeof x==='string'?x:(x&&x.id)||'';}
+/* HCC v4.151 · FIRST-PRINCIPLES VISUAL BEHAVIOR FIXES */
+function labLabel(x){if(typeof x==='string')return x;const t=x&&x.title;if(typeof t==='string')return t;if(t&&typeof t==='object')return t.en||t.ru||t.de||labId(x);return labId(x);}
+function inferLab(all){const h=decodeURIComponent(location.hash||'');const hit=all.find(x=>h.includes(labId(x)));return labId(hit)||'anyzoo';}
+
+const trigger=document.createElement('button');trigger.id='hccFpTrigger';trigger.type='button';trigger.setAttribute('aria-haspopup','dialog');trigger.textContent='∴ FIRST PRINCIPLES';document.body.appendChild(trigger);
+let lens=null,view='formula',station='fusion-tree',selected='anyzoo';
+
+function hccFpCloseLens(){if(lens){lens.remove();lens=null;}trigger.focus();}
+function hccFpOpenLens(){
+  if(lens){lens.querySelector('.hccFpClose').focus();return;}
+  const all=labs();selected=inferLab(all);
+  lens=document.createElement('section');lens.id='hccFpLens';lens.setAttribute('role','dialog');lens.setAttribute('aria-modal','true');lens.setAttribute('aria-label','First-Principles Atlas');
+  lens.innerHTML='<header class="hccFpHead"><div><div class="hccFpEyebrow">HCC · hcc.first-principles/1</div><div class="hccFpTitle">First-Principles Lens</div></div><select class="hccFpSelect" aria-label="Laboratory"></select><button class="hccFpClose" type="button" aria-label="Close">×</button></header><nav class="hccFpTabs" aria-label="First-Principles views"><button class="hccFpTab" data-view="formula">Formula</button><button class="hccFpTab" data-view="dependency">Dependency</button><button class="hccFpTab" data-view="geometry">Geometry</button><button class="hccFpTab" data-view="anyons">Anyon Observatory</button></nav><main class="hccFpBody"></main>';
+  document.body.appendChild(lens);
+  const sel=lens.querySelector('.hccFpSelect');const source=all.length?all:[{id:'anyzoo',title:'Anyon Zoo'}];
+  sel.innerHTML=source.map(x=>'<option value="'+esc(labId(x))+'">'+esc(labLabel(x))+' · '+esc(labId(x))+'</option>').join('');
+  if([...sel.options].some(o=>o.value===selected))sel.value=selected;else selected=sel.value;
+  sel.addEventListener('change',()=>{selected=sel.value;hccFpRender();});
+  lens.querySelector('.hccFpClose').addEventListener('click',hccFpCloseLens);
+  lens.querySelector('.hccFpTabs').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(!b)return;view=b.dataset.view;hccFpRender();});
+  lens.addEventListener('keydown',e=>{if(e.key==='Escape')hccFpCloseLens();});
+  hccFpRender();lens.querySelector('.hccFpClose').focus();
+}
+trigger.addEventListener('click',hccFpOpenLens);
+
+function contract(){try{return ATLAS&&ATLAS.contract?ATLAS.contract(selected):FP.lab(selected);}catch(e){return {lab_id:selected,native_space:'UNDECLARED',native_dimension:'UNDECLARED',state_dimension:'UNDECLARED',display_dimension:'UNDECLARED',projection:'UNDECLARED',metric_or_form:'UNDECLARED',coordinates:'UNDECLARED',domain:'UNDECLARED',parameters:[],error:String(e)};}}
+function fib(){return FP.fibonacci();}
+function badges(c){return '<div class="hccFpBadges"><span class="hccFpBadge fpDimensionBadge">native: '+esc(c.native_dimension)+'</span><span class="hccFpBadge">display: '+esc(c.display_dimension)+'</span><span class="hccFpBadge fpConventionBadge">status: '+esc(c.source_status)+'</span></div>';}
+function exactRows(F){const e=F.exact;return Object.keys(e).map(k=>'<div><span style="color:#8695a8">'+esc(k)+'</span>  '+esc(e[k])+'</div>').join('');}
+function hccFpRenderFormula(){
+ const c=contract(),F=fib();let special='';
+ if(selected==='anyzoo'||selected==='fibonacci.anyons')special='<article class="hccFpCard wide"><div class="hccFpKicker">Fibonacci exact reference</div><div class="hccFpMono fpExact">'+exactRows(F)+'</div><div class="hccFpBadges"><span class="hccFpBadge fpConventionBadge">Convention A · R₁=e⁻⁴πi/5 · Rτ=e³πi/5</span><span class="hccFpBadge fpConventionBadge">Atlas core native convention B · complex conjugate</span></div><div class="hccFpMono fpEvaluated">φ = '+fmt(F.numerical.phi)+'\nD = '+fmt(F.numerical.D)+'\nF²−I residual = '+fmt(F.invariant_checks.F_involution)+'\nbraid residual = '+fmt(F.invariant_checks.braid_relation)+'\ncore/display conjugacy = '+fmt(F.invariant_checks.core_display_conjugacy)+'</div></article>';
+ const ps=(c.parameters||[]);return '<div class="hccFpGrid"><article class="hccFpCard"><div class="hccFpKicker">Native mathematical contract</div>'+badges(c)+'<div class="hccFpMono fpExact">space = '+esc(c.native_space)+'\nmetric/form = '+esc(c.metric_or_form)+'\ncoordinates = '+esc(c.coordinates)+'\ndomain = '+esc(c.domain)+'</div></article><article class="hccFpCard"><div class="hccFpKicker">Projection contract</div><div class="hccFpMono fpEvaluated">native → display\n'+esc(c.projection)+'</div><div class="hccFpWarn">UNDECLARED means the Atlas refuses to infer a physical quantity from appearance.</div></article>'+special+'<article class="hccFpCard wide"><div class="hccFpKicker">Parameters · exact semantics where declared</div><div style="overflow:auto"><table class="hccFpTable"><thead><tr><th>id</th><th>symbol</th><th>role</th><th>kind</th><th>unit</th><th>domain/default</th></tr></thead><tbody>'+ps.map(p=>'<tr><td>'+esc(p.id)+'</td><td>'+esc(p.symbol)+'</td><td>'+esc(p.role)+'</td><td>'+esc(p.quantity_kind)+'</td><td>'+esc(p.unit)+'</td><td>'+esc(JSON.stringify(p.domain))+' / '+esc(p.default_value)+'</td></tr>').join('')+'</tbody></table></div></article></div>';
+}
+function hccFpRenderDependency(){
+ const c=contract();const F=fib();const isFib=selected==='anyzoo'||selected==='fibonacci.anyons';
+ const hood=ATLAS&&ATLAS.neighborhood?ATLAS.neighborhood(selected):{nodes:[],edges:[]};
+ const snap=ATLAS&&ATLAS.snapshot?ATLAS.snapshot(selected):null;
+ const graphRows=(hood.edges||[]).slice(0,28).map(e=>'<div class="hccFpNode">'+esc(e.type)+' · '+esc(e.from)+' → '+esc(e.to)+'</div>').join('<span class="hccFpArrow">↔</span>');
+ const chain=isFib?['braid unitary ρ(w)','ρ(σ₂)=F^-1 R F','F,R symbols','φ=(1+√5)/2','τ×τ=1+τ']:['observable / rendered result','laboratory equation','declared parameter semantics','primitive definitions / source status'];
+ return '<div class="hccFpGrid"><article class="hccFpCard wide"><div class="hccFpKicker">Unified Atlas graph · typed neighborhood</div><div class="hccFpDag">'+(graphRows||chain.map((x,i)=>'<div class="hccFpNode">'+esc(x)+'</div>'+(i<chain.length-1?'<span class="hccFpArrow">→</span>':'')).join(''))+'</div></article><article class="hccFpCard"><div class="hccFpKicker">Lab contract</div><div class="hccFpMono">'+esc(c.lab_id)+'\n'+esc(c.source_status)+'\nframe '+esc(snap?snap.frameRevision:'UNDECLARED')+' · measured links '+esc(snap?snap.measured_bus_links:'UNDECLARED')+'</div></article><article class="hccFpCard"><div class="hccFpKicker">Verification</div><div class="hccFpMono">'+(isFib?'φ polynomial · F involution · |R|=1 · Yang–Baxter\nresidual '+fmt(F.invariant_checks.braid_relation):'Typed graph edges are operational relations; they do not assert physical equivalence.')+'</div></article></div>';
+}
+function hccFpRenderGeometry(){
+ const c=contract();return '<div class="hccFpGrid"><article class="hccFpCard"><div class="hccFpKicker">Native geometry</div>'+badges(c)+'<div class="hccFpMono">space: '+esc(c.native_space)+'\ncoordinates: '+esc(c.coordinates)+'\nmetric/form: '+esc(c.metric_or_form)+'</div></article><article class="hccFpCard"><div class="hccFpKicker">Display map</div><div class="hccFpMono">projection: '+esc(c.projection)+'\ndisplay: '+esc(c.display_dimension)+'</div></article><article class="hccFpCard wide"><div class="hccFpWarn">no geometry binding declared — the Lens will not fabricate a correspondence between a rendered object and an undeclared physical variable.</div></article></div>';
+}
+
+function stationNav(){const xs=[['fusion-tree','Fusion Tree'],['fr-switch','F/R Basis Switch'],['braid-composer','Braid Composer'],['gate-comparator','Gate Comparator'],['model-contrast','Model Contrast']];return '<div class="hccFpStationNav">'+xs.map(x=>'<button type="button" class="hccFpStationBtn '+(station===x[0]?'active':'')+'" data-station="'+x[0]+'">'+x[1]+'</button>').join('')+'</div>';}
+function fusionRows(n){let vac=0,tau=1;const rows=[[1,vac,tau,vac+tau]];for(let k=2;k<=n;k++){const nextVac=tau;const nextTau=vac+tau;vac=nextVac;tau=nextTau;rows.push([k,vac,tau,vac+tau]);}return rows;}
+function renderFusionTree(){const n=Number(lens.querySelector('#fpFusionN')?.value||8);const rows=fusionRows(Math.max(1,Math.min(30,Math.floor(n))));return '<div class="hccFpControls"><div class="hccFpField"><label>τ anyons n</label><input id="fpFusionN" type="number" min="1" max="30" value="'+rows.length+'"></div></div><div class="hccFpMono fpExact">τ × τ = 1 + τ\nrecurrence: nextVac=tau; nextTau=vac+tau</div><div class="hccFpFusionRows"><div class="hccFpFusionRow"><span>n</span><span>→1 paths</span><span>→τ paths</span><span>total</span></div>'+rows.map(r=>'<div class="hccFpFusionRow"><span>'+r[0]+'</span><span>'+r[1]+'</span><span>'+r[2]+'</span><span>'+r[3]+'</span></div>').join('')+'</div><div class="hccFpWarn">Path count is Hilbert-space dimension for the declared fusion sector; it is not a particle count.</div>';}
+function matrixFor(mode){const F=fib();if(mode==='F')return {label:'REASSOCIATE · F (basis change; no physical exchange)',M:F.numerical.F,exact:F.exact.F};if(mode==='R')return {label:'BRAID · R (physical ordered exchange in Convention A)',M:F.numerical.R,exact:F.exact.R1+' ; '+F.exact.Rtau};if(mode==='Rcore')return {label:'BRAID · Atlas core native convention B = conjugate(A)',M:F.numerical.R_core,exact:'R_1_core = exp(4*pi*i/5); R_tau_core = exp(-3*pi*i/5)'};return {label:'F^-1 R F · exchange σ₂ after basis change',M:F.numerical.sigma2,exact:F.exact.sigma2};}
+function renderFr(mode){const x=matrixFor(mode||'sigma2');return '<div class="hccFpControls"><button class="hccFpBtn" data-fr="F">REASSOCIATE · F</button><button class="hccFpBtn" data-fr="R">BRAID · R</button><button class="hccFpBtn" data-fr="sigma2">F^-1 R F</button><button class="hccFpBtn" data-fr="Rcore">CORE ORIENTATION</button></div><div class="hccFpKicker">'+esc(x.label)+'</div><div class="hccFpMono fpExact">'+esc(x.exact)+'</div>'+matrixHTML(x.M)+'<div class="hccFpWarn">Convention A and Atlas core native convention B are mirror braid orientations: R_core = conjugate(R_display). Fusion data are unchanged.</div>';}
+function braidTrack(tokens){return '<div class="hccFpBraidTrack">'+tokens.map((t,i)=>'<div class="hccFpCross"><div>#'+(i+1)+'</div><div>σ<sub>'+Math.abs(t)+'</sub><sup>'+(t<0?'−1':'+1')+'</sup></div><div>'+(t<0?'↶':'↷')+'</div></div>').join('')+'</div>';}
+function renderBraid(word){let out;try{out=FP.braid(word||'1 2 -1 2');}catch(e){return '<div class="hccFpWarn">'+esc(e.message)+'</div>';}return '<div class="hccFpControls"><div class="hccFpField"><label>Braid word · generators ±1 ±2</label><input id="fpBraidWord" value="'+esc(out.word.join(' '))+'"></div><button class="hccFpBtn" id="fpBraidApply">COMPOSE</button></div><div class="hccFpMono fpExact">hccFibBraidWord · U = Π ρ(σᵢ)<sup>±1</sup> · inverse = dagger</div>'+braidTrack(out.word)+matrixHTML(out.unitary)+'<div class="hccFpMono fpEvaluated">length = '+out.length+' · Convention A; use Core Orientation in F/R station to inspect the conjugate representation.</div>';}
+const gates={I:[[[1,0],[0,0]],[[0,0],[1,0]]],X:[[[0,0],[1,0]],[[1,0],[0,0]]],H:null,T:null};
+function targetGate(id){if(id==='H'){const a=1/Math.sqrt(2);return [[[a,0],[a,0]],[[a,0],[-a,0]]];}if(id==='T'){const a=Math.PI/4;return [[[1,0],[0,0]],[[0,0],[Math.cos(a),Math.sin(a)]]];}return gates[id]||gates.I;}
+function renderGate(word,target){let B;try{B=FP.braid(word||'1 2 -1 2').unitary;}catch(e){return '<div class="hccFpWarn">'+esc(e.message)+'</div>';}const G=targetGate(target||'H');const d=FP.gateDistance(B,G);return '<div class="hccFpControls"><div class="hccFpField"><label>Braid word</label><input id="fpGateWord" value="'+esc(word||'1 2 -1 2')+'"></div><div class="hccFpField"><label>Target gate</label><select id="fpGateTarget">'+['I','X','H','T'].map(x=>'<option '+(x===(target||'H')?'selected':'')+'>'+x+'</option>').join('')+'</select></div><button class="hccFpBtn" id="fpGateApply">COMPARE</button></div><div class="hccFpMono fpExact">hccMatrixDistancePhaseInvariant · phase-invariant normalized Frobenius distance</div><div class="hccFpMono fpEvaluated">error = '+fmt(d.normalized)+'\noptimal global phase = '+esc(cmplx(d.phase))+'\nbraid length = '+String((word||'1 2 -1 2').trim().split(/\s+/).filter(Boolean).length)+'</div><div class="hccFpWarn">Finite braid comparison only. No convergence or universality is inferred from one approximation.</div>';}
+function renderContrast(){return '<div class="hccFpContrast"><article class="hccFpModel"><h4>Semion · Abelian</h4><p>Fusion channel is unique under exchange; braiding contributes a phase.</p><p>Non-Abelian state mixing: no.</p></article><article class="hccFpModel"><h4>Ising · non-Abelian</h4><p>Multiple fusion channels and noncommuting braid action.</p><p><strong>EXTERNAL theorem:</strong> Ising braiding alone is not computationally universal; extra resources are required.</p></article><article class="hccFpModel"><h4>Fibonacci · non-Abelian</h4><p>τ×τ=1+τ, fusion spaces grow by Fibonacci recurrence.</p><p><strong>EXTERNAL theorem:</strong> density/universality is sourced externally; this Atlas internally verifies only concrete finite braid matrices and residuals.</p></article></div><div class="hccFpWarn">Abelian/non-Abelian statistics and computational universality are different propositions.</div>';}
+function stationContent(){if(station==='fusion-tree')return renderFusionTree();if(station==='fr-switch')return renderFr('sigma2');if(station==='braid-composer')return renderBraid('1 2 -1 2');if(station==='gate-comparator')return renderGate('1 2 -1 2','H');return renderContrast();}
+function hccFpRenderAnyons(){return '<div class="hccFpGrid"><article class="hccFpCard wide"><div class="hccFpKicker">Anyon Computation Observatory · exact kernel, finite operations</div>'+stationNav()+'<div id="hccFpStation">'+stationContent()+'</div></article></div>';}
+function hccFpRender(){if(!lens)return;lens.querySelectorAll('.hccFpTab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.view===view)));const body=lens.querySelector('.hccFpBody');body.innerHTML=view==='formula'?hccFpRenderFormula():view==='dependency'?hccFpRenderDependency():view==='geometry'?hccFpRenderGeometry():hccFpRenderAnyons();if(view==='anyons')wireStation();}
+function wireStation(){const root=lens.querySelector('.hccFpBody');root.querySelectorAll('[data-station]').forEach(b=>b.addEventListener('click',()=>{station=b.dataset.station;hccFpRender();}));wireStationLocal();}
+function wireStationLocal(){const root=lens.querySelector('#hccFpStation');if(!root)return;const n=root.querySelector('#fpFusionN');if(n)n.addEventListener('change',()=>{root.innerHTML=renderFusionTree();wireStationLocal();});root.querySelectorAll('[data-fr]').forEach(b=>b.addEventListener('click',()=>{root.innerHTML=renderFr(b.dataset.fr);wireStationLocal();}));const ba=root.querySelector('#fpBraidApply');if(ba)ba.addEventListener('click',()=>{const w=root.querySelector('#fpBraidWord').value;root.innerHTML=renderBraid(w);wireStationLocal();});const ga=root.querySelector('#fpGateApply');if(ga)ga.addEventListener('click',()=>{const w=root.querySelector('#fpGateWord').value,t=root.querySelector('#fpGateTarget').value;root.innerHTML=renderGate(w,t);wireStationLocal();});}
+
+/* Names retained here as auditable bridges to the verified core functions:
+   hccFibBraidWord -> HCC_FIRST_PRINCIPLES.braid
+   hccMatrixDistancePhaseInvariant -> HCC_FIRST_PRINCIPLES.gateDistance */
+globalThis.hccFpOpenLens=hccFpOpenLens;globalThis.hccFpCloseLens=hccFpCloseLens;
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{void hccFpMount();},{once:true});
+else void hccFpMount();
+})();
+</script>
+<!-- END HCC v4.151 FIRST-PRINCIPLES LENS -->
+
 </body>
 </html>

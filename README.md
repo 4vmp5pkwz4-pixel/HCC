@@ -489,6 +489,19 @@ The implementation decisions and scientific rejection gates are recorded in
 npm test                      # or: node scripts/validate.mjs
 ```
 
+For the complete release checks and a local visual preview, use Node 22.12+:
+
+```bash
+npm ci
+npx playwright install --with-deps chromium
+node scripts/ci.mjs
+npm run dev
+```
+
+The preview serves the existing atlas. GitHub Pages continues to serve the static
+files directly. [Release 4.148.1](docs/RELEASE_4.148.md) documents the observer-distance
+correction, scene alignment and their verification.
+
 ## FBS3R web sources
 
 [figshare 28631525](https://figshare.com/articles/preprint/_sup_strong_Fractal_Bindu_S3_of_Reality_The_Golden_Ratio_as_the_Principle_of_Perfection_and_Harmony_in_Interdependent_Existence_strong_sup_/28631525) ·
@@ -501,3 +514,16 @@ npm test                      # or: node scripts/validate.mjs
 Three.js r160 (WebGL2, OrbitControls, CSS2DRenderer, logarithmic depth, GLSL
 raymarching), Cinzel + Manrope, a single-file browser runtime plus dependency-free
 Node validation. No application bundler is required.
+
+
+## First-Principles Atlas
+
+The live laboratory registry is authoritative: **113 laboratories across 7 worlds** at the
+v4.151.0 release boundary. The generated \`api/manifest.json\` is measured by walking the
+application headlessly; prose counts are descriptive, never an independent source of truth.
+
+Every measured laboratory now carries a fail-closed first-principles contract. Native space,
+dimension, coordinates, metric/form, projection, parameter semantics, units and provenance
+are exported when they are actually declared; missing scientific metadata is \`UNDECLARED\`
+rather than guessed. The Fibonacci anyon reference additionally exposes exact fusion data,
+quantum dimensions, F/R conventions, braid generators and independent closure residuals.

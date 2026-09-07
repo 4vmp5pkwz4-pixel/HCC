@@ -1,0 +1,84 @@
+'use strict';
+const fs = require('node:fs');
+
+const src = fs.readFileSync('index.html', 'utf8');
+const registry = fs.readFileSync('core/time/registry.mjs', 'utf8');
+let pass = 0, fail = 0;
+function ok(label, condition, detail = '') {
+  if (condition) {
+    pass++;
+    console.log(`  PASS — ${label}`);
+  } else {
+    fail++;
+    console.log(`  FAIL — ${label}${detail ? ` · ${detail}` : ''}`);
+  }
+}
+function count(text, needle) {
+  let n = 0, at = 0;
+  while ((at = text.indexOf(needle, at)) >= 0) { n++; at += needle.length; }
+  return n;
+}
+function assignmentCount(field) {
+  return [...src.matchAll(new RegExp(`state\\.${field}\\s*=(?!=)`, 'g'))].length;
+}
+function functionBlock(name, nextName) {
+  const a=src.indexOf(`function ${name}(`);
+  const b=src.indexOf(`function ${nextName}(`,a+1);
+  return a>=0&&b>a?src.slice(a,b):'';
+}
+
+console.log('\n=== Unified Atlas Time Fabric browser contract ===\n');
+ok('browser declares exactly one Time Fabric schema marker',
+  count(src, "HCC_TIME_FABRIC_SCHEMA='hcc.time-fabric/1'") === 1,
+  `found ${count(src, "HCC_TIME_FABRIC_SCHEMA='hcc.time-fabric/1'")}`);
+ok('browser imports the pure AtlasTime kernel',
+  src.includes("from './core/time/atlas-time.mjs'"));
+ok('browser imports the typed time registry',
+  src.includes("from './core/time/registry.mjs'"));
+ok('browser creates exactly one authoritative AtlasTime service',
+  count(src, 'createAtlasTime(') === 1,
+  `found ${count(src, 'createAtlasTime(')}`);
+ok('root runtime advances AtlasTime exactly once',
+  count(src, 'atlasTime.advanceFrame(') === 1,
+  `found ${count(src, 'atlasTime.advanceFrame(')}`);
+ok('frame snapshot is a first-class runtime value', src.includes('atlasFrameTime'));
+
+console.log('\n=== Single mutation gateway ===\n');
+for (const field of ['epochDays','daysPerSec','cycYrPerSec','paused','timeDir']) {
+  const n = assignmentCount(field);
+  ok(`${field} has exactly one compatibility projection write`, n === 1, `found ${n}`);
+}
+ok('temporary legacy time-control adoption bridge is gone', !src.includes('adoptLegacyTimeControls'));
+ok('no private global epoch increment remains', !/state\.epochDays\s*\+=/.test(src));
+
+console.log('\n=== Typed-clock firewall ===\n');
+ok('all seven time-domain kinds are declared',
+  ['ABSOLUTE_EPOCH','DERIVED_PERIODIC_PHASE','PHYSICAL_LOCAL_TIME','PARAMETRIZATION_TIME','ITERATION_INDEX','SPATIAL_INDEX','RENDER_TIME']
+    .every(kind => registry.includes(kind)));
+ok('legacy universal seconds bridge has been removed',
+  !src.includes('hccAtlasSharedTimeSeconds') && !src.includes("id:'time:shared'") && !src.includes("from:'time:shared'"));
+ok('same-dimension time values are not auto-synchronized',
+  !src.includes("decision:'synchronize',kind:'time:shared'") && !src.includes("type:'synchronizes',from:'time:shared'"));
+ok('typed registry reports NO_EXCHANGE explicitly',
+  registry.includes('NO_EXCHANGE') && registry.includes("relation:'none_declared'"));
+ok('legacy untyped Integration setTime fails closed',
+  src.includes('UNTYPED_TIME_REJECTED') && src.includes("setTime(seconds) is untyped"));
+ok('Integration API exposes typed Atlas epoch mutation',
+  src.includes('setEpochDays:hccAtlasSetEpochDays') && src.includes("domain_id:'atlas.epoch'"));
+ok('Time Fabric diagnostic surface exists', src.includes('HCC_TIME_DIAGNOSTICS'));
+
+console.log('\n=== Persistent-machine semantics ===\n');
+ok('navigation/state layer declares four scientific/view scopes',
+  ['GLOBAL_PHYSICS','SHARED_PHYSICS','LAB_LOCAL','VIEW_ONLY'].every(scope => src.includes(scope)));
+ok('runtime owns an explicit state-scope registry', src.includes('HCC_STATE_SCOPE_REGISTRY'));
+ok('unknown mutable state fails closed instead of becoming view-only', src.includes('UNDECLARED_SCOPE'));
+const nav= functionBlock('navSnapshot','navPush');
+ok('ordinary Back snapshot contains no global time physics', nav && !/(epochDays|daysPerSec|cycYrPerSec|paused|timeDir)/.test(nav));
+const portal=functionBlock('captureModelPortalSnapshot','returnFromModelPortal');
+ok('Model Portal return snapshot contains no global time physics', portal && !/(epochDays|daysPerSec|cycYrPerSec|paused|timeDir)/.test(portal));
+const anim=src.slice(src.indexOf('const ANIM_EXTRA='),src.indexOf('function resetAnimated('));
+ok('Motion Reset excludes global time authority fields', anim && !/(daysPerSec|cycYrPerSec|epochDays|paused|timeDir)/.test(anim));
+
+console.log('\nRelease scope: Unified AtlasTime authority, typed clock firewall, mutation gateway and persistent navigation semantics. Isolated lab-time compatibility remains a later capability and is not claimed by this release.');
+console.log(`\nUnified Atlas Time Fabric verifier: ${pass} passed, ${fail} failed\n`);
+process.exit(fail ? 1 : 0);
