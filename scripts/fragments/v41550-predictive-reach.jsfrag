@@ -1,0 +1,141 @@
+/* ── v4.155 Predictive Reach Observatory ────────────────────────────────────
+   Read-only intervention forecast over measured sensitivity → transfer → reach.
+   A finite ratio is emitted only when api/reach.json explicitly certifies the
+   composed chain as a scaling law. Local/rejected/unjudged derivatives remain
+   visible diagnostics and are never silently extrapolated. */
+const HCC_PREDICTIVE_OBSERVATORY_SCHEMA='hcc.predictive-reach-observatory/1';
+let predictiveReachArtifact=null;
+let predictiveReachError=null;
+let predictiveReachPromise=null;
+let predictiveControl='';
+let predictiveDelta=.10;
+
+function predictiveFmt(x,d=4){
+  const n=Number(x); if(!Number.isFinite(n)) return '—';
+  const a=Math.abs(n); return (a!==0&&(a>=1e5||a<1e-4))?n.toExponential(3):n.toFixed(d).replace(/\.0+$|(?<=\.\d*?)0+$/,'').replace(/\.$/,'');
+}
+function predictivePct(r){
+  const n=Number(r); if(!Number.isFinite(n)) return '—';
+  const p=(n-1)*100; return `${p>=0?'+':''}${predictiveFmt(p,3)}%`;
+}
+function predictiveDestinationLab(row){ return String(row?.reaches||'unknown').split('.')[0]||'unknown'; }
+function predictiveVerdictColor(v){ return v==='SCALING_LAW'?'#9fe8c0':v==='LOCAL_ONLY'?'#ffb45a':'#9fb0c8'; }
+
+async function predictiveLoadReach(){
+  if(predictiveReachArtifact) return predictiveReachArtifact;
+  if(predictiveReachPromise) return predictiveReachPromise;
+  predictiveReachPromise=(async()=>{
+    try{
+      const res=await fetch(`api/reach.json?v=${encodeURIComponent(HCC_BUILD)}`,{cache:'no-store'});
+      if(!res.ok) throw new Error(`reach HTTP ${res.status}`);
+      const reach=await res.json();
+      const gate=hccValidateReachArtifact(reach,{version:HCC_VERSION,build:HCC_BUILD});
+      if(!gate.ok) throw new Error(gate.error);
+      predictiveReachArtifact=reach; predictiveReachError=null;
+      const controls=hccListReachControls(reach);
+      if(!controls.includes(predictiveControl)) predictiveControl=controls[0]||'';
+      return reach;
+    }catch(e){ predictiveReachError=e instanceof Error?e:new Error(String(e)); throw predictiveReachError; }
+    finally{ predictiveReachPromise=null; }
+  })();
+  return predictiveReachPromise;
+}
+
+function predictiveSummaryHTML(F){
+  const S=F.control_semantics;
+  const kind=S.kind==='NUMERICAL_CONTROL'?'NUMERICAL CONTROL':'PHYSICAL / MODEL CONTROL';
+  const kcol=S.kind==='NUMERICAL_CONTROL'?'#ffb45a':'#9cc8ff';
+  return `<div class="sect" style="margin-top:8px;border-color:${kcol}55">
+    <div class="note"><b style="color:${kcol}">${esc(kind)}</b> · ${esc(S.reason)}</div>
+    <div class="chips" style="margin-top:7px">
+      <span class="chip" style="color:#9fe8c0">SCALING LAW ${F.counts.SCALING_LAW}</span>
+      <span class="chip" style="color:#ffb45a">LOCAL ONLY ${F.counts.LOCAL_ONLY}</span>
+      <span class="chip" style="color:#9fb0c8">UNJUDGED ${F.counts.UNJUDGED}</span>
+    </div>
+    <div class="note" style="font-size:10.5px;color:var(--dim)">Input intervention ×${predictiveFmt(F.input_ratio,4)}; symmetric diagnostic window ×${predictiveFmt(F.symmetric_input_ratio.low,4)}…×${predictiveFmt(F.symmetric_input_ratio.high,4)}. Endpoint ratios are deterministic model responses, not probability/confidence intervals.</div>
+  </div>`;
+}
+
+function predictiveRowHTML(row){
+  const c=predictiveVerdictColor(row.forecastability), e=row.evidence||{};
+  const law=row.forecastability==='SCALING_LAW';
+  const response=law?`<b style="color:${c}">×${predictiveFmt(row.response_ratio,5)} · ${predictivePct(row.response_ratio)}</b>
+      <div class="note" style="font-size:10px">symmetric endpoints ×${predictiveFmt(row.interval_ratio?.low,5)} … ×${predictiveFmt(row.interval_ratio?.high,5)}</div>`:
+      `<b style="color:${c}">${esc(row.forecastability)}</b><div class="note" style="font-size:10px">Finite intervention refused; local derivative retained only as a diagnostic.</div>`;
+  return `<div class="navCard" style="margin:6px 0;padding:8px;border-left:2px solid ${c}">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline"><b>${esc(row.reaches)}</b><span style="color:${c};font:700 9px var(--sans);letter-spacing:.08em">${esc(row.forecastability)}</span></div>
+    <div style="margin:5px 0">${response}</div>
+    <div class="note" style="font-size:10px"><b>route:</b> ${esc(row.route||`${row.through} → ${row.reaches}`)}<br>
+      <b>depth:</b> ${esc(String(row.laboratories??'—'))} labs · <b>exponent:</b> ${esc(predictiveFmt(row.exponent,6))} · <b>R² near/far:</b> ${esc(predictiveFmt(e.near_r2,4))} / ${esc(predictiveFmt(e.far_r2,4))} · <b>far drift:</b> ${esc(predictiveFmt(e.far_drift,4))}</div>
+    ${e.holds_on!=null?`<div class="note" style="font-size:10px"><b>holds on:</b> ${esc(typeof e.holds_on==='string'?e.holds_on:JSON.stringify(e.holds_on))}</div>`:''}
+    <div class="note" style="font-size:10px;color:var(--dim)">${esc(e.why||'No scaling-law justification recorded.')}</div>
+  </div>`;
+}
+
+function predictiveGroupsHTML(F){
+  const groups=new Map();
+  for(const row of F.results){ const k=predictiveDestinationLab(row); if(!groups.has(k))groups.set(k,[]); groups.get(k).push(row); }
+  return [...groups.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([lab,rows])=>{
+    const laws=rows.filter(x=>x.forecastability==='SCALING_LAW').length;
+    return `<details ${laws?'open':''} style="margin:6px 0"><summary style="cursor:pointer;color:var(--gold-2);font-weight:700">${esc(lab)} · ${rows.length} routes · ${laws} scalable</summary>${rows.sort((a,b)=>String(a.reaches).localeCompare(String(b.reaches))).map(predictiveRowHTML).join('')}</details>`;
+  }).join('')||'<div class="note">No measured reach chain starts from this control.</div>';
+}
+
+function predictiveExport(F){
+  const payload={schema:HCC_PREDICTIVE_OBSERVATORY_SCHEMA,generated:new Date().toISOString(),source:{version:HCC_VERSION,build:HCC_BUILD,artifact:'api/reach.json'},forecast:F};
+  const blob=new Blob([JSON.stringify(payload,null,2)+'\n'],{type:'application/json'}), a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download=`hcc-predictive-reach-${String(F.control||'control').replace(/[^a-z0-9_.-]+/gi,'_')}.json`; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+function predictiveWireControls(panel,F){
+  const sel=panel.querySelector('#predictiveControl'), range=panel.querySelector('#predictiveDelta'), num=panel.querySelector('#predictiveDeltaNum'), exp=panel.querySelector('#predictiveExport');
+  if(sel) sel.onchange=()=>{predictiveControl=sel.value;renderPredictiveObservatory();};
+  const applyDelta=v=>{const d=Math.max(0,Math.min(.9,Number(v)||0));predictiveDelta=d;renderPredictiveObservatory();};
+  if(range) range.oninput=()=>applyDelta(range.value);
+  if(num) num.onchange=()=>applyDelta(num.value);
+  if(exp) exp.onclick=()=>predictiveExport(F);
+}
+
+function renderPredictiveObservatory(){
+  const panel=document.getElementById('predictivePanel'); if(!panel)return;
+  if(!predictiveReachArtifact){
+    panel.innerHTML=`<h3>⌁ Predictive Reach Observatory</h3><div class="note">Loading measured reach network for v${esc(HCC_VERSION)}…</div>`;
+    makePanelCollapsible('predictivePanel');
+    predictiveLoadReach().then(()=>{if(panelIsOpen('predictivePanel'))renderPredictiveObservatory();}).catch(()=>{if(panelIsOpen('predictivePanel'))renderPredictiveObservatory();});
+    if(predictiveReachError) panel.innerHTML=`<h3>⌁ Predictive Reach Observatory</h3><div class="note" style="color:var(--warn)"><b>FAIL CLOSED</b> · ${esc(predictiveReachError.message)}</div>`;
+    return;
+  }
+  let F;
+  try{ F=hccForecastReach(predictiveReachArtifact,predictiveControl,predictiveDelta,{version:HCC_VERSION,build:HCC_BUILD}); }
+  catch(e){ panel.innerHTML=`<h3>⌁ Predictive Reach Observatory</h3><div class="note" style="color:var(--warn)"><b>FORECAST REFUSED</b> · ${esc(e?.message||e)}</div>`;makePanelCollapsible('predictivePanel');return; }
+  const controls=hccListReachControls(predictiveReachArtifact);
+  panel.innerHTML=`<h3>⌁ Predictive Reach Observatory</h3>
+    <div class="note">Measured cross-laboratory intervention map: sensitivity × transfer × reach. It exposes conditional model response and explicitly refuses unsupported extrapolation.</div>
+    <div class="sect" style="margin-top:8px"><div class="ctlrow"><label>Control</label><select id="predictiveControl" style="flex:1;min-width:150px">${controls.map(k=>`<option value="${esc(k)}" ${k===predictiveControl?'selected':''}>${esc(k)}</option>`).join('')}</select></div>
+      <div class="ctlrow"><label>Fractional change</label><input id="predictiveDelta" type="range" min="0" max="0.9" step="0.01" value="${predictiveDelta}" style="flex:1"><input id="predictiveDeltaNum" type="number" min="0" max="0.9" step="0.01" value="${predictiveDelta}" style="width:74px"><span class="note">±${predictiveFmt(predictiveDelta*100,1)}%</span></div>
+      <button class="btn" id="predictiveExport">Export audited JSON</button>
+    </div>
+    ${predictiveSummaryHTML(F)}
+    <div class="sect" style="margin-top:8px"><b>Reached observables</b>${predictiveGroupsHTML(F)}</div>
+    <div class="note" style="margin-top:8px;font-size:10px;color:var(--dim)">Source: api/reach.json · v${esc(HCC_VERSION)} · ${esc(HCC_BUILD)}. A scaling verdict is inherited from measured near/far sweeps; it is not upgraded here.</div>`;
+  makePanelCollapsible('predictivePanel'); predictiveWireControls(panel,F);
+}
+
+registerPanelRenderer('predictivePanel',renderPredictiveObservatory);
+const predictiveBtnEl=document.getElementById('predictiveBtn');
+if(predictiveBtnEl) predictiveBtnEl.addEventListener('click',()=>{openPanel('predictivePanel');document.getElementById('moreMenu')?.setAttribute('hidden','');});
+document.addEventListener('click',e=>{const b=e.target?.closest?.('[data-predictive-reach-open]');if(!b)return;e.preventDefault();openPanel('predictivePanel');});
+
+const predictiveStyle=document.createElement('style');
+predictiveStyle.textContent=`#predictivePanel{right:14px;left:auto;top:calc(var(--topbar-h,64px) + 50px);width:min(560px,calc(100vw - 28px));max-height:calc(var(--vh100) - var(--topbar-h,64px) - 64px);overflow:auto;font-size:11px;z-index:34}#predictivePanel h3{font-family:var(--serif);color:var(--gold);letter-spacing:1.4px;font-size:13px;margin-bottom:6px}@media(max-width:760px),(pointer:coarse){#predictivePanel{left:8px!important;right:8px!important;width:auto!important;top:auto!important;bottom:calc(var(--tabs-h,56px) + var(--insp-h,0px) + 10px)!important;max-height:58vh!important}}`;
+document.head.appendChild(predictiveStyle);
+
+globalThis.HCC_PREDICTIVE_OBSERVATORY=Object.freeze({
+  schema:HCC_PREDICTIVE_OBSERVATORY_SCHEMA,
+  status(){return {schema:this.schema,version:HCC_VERSION,build:HCC_BUILD,loaded:!!predictiveReachArtifact,error:predictiveReachError?.message||null,chains:predictiveReachArtifact?.chains?.length||0};},
+  async ready(){return predictiveLoadReach().then(()=>this);},
+  controls(){return predictiveReachArtifact?hccListReachControls(predictiveReachArtifact):[];},
+  chains(control){return predictiveReachArtifact?predictiveReachArtifact.chains.filter(x=>String(x.control)===String(control)):[];},
+  forecast(control,delta=.1){if(!predictiveReachArtifact)throw new Error('Predictive Observatory is not loaded; await HCC_PREDICTIVE_OBSERVATORY.ready()');return hccForecastReach(predictiveReachArtifact,control,delta,{version:HCC_VERSION,build:HCC_BUILD});}
+});

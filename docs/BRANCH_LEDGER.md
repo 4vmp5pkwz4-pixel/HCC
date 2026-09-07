@@ -89,3 +89,26 @@ have DELETED the number of lines shown, because it predates work main carries.
 | `vde-class-validation-20260809-scratch3` | `143683f` | BEHIND — taking it would delete 172481 lines | 2026-08-06 |
 | `vde-class-validation-20260809-scratch4` | `143683f` | BEHIND — taking it would delete 172481 lines | 2026-08-06 |
 | `vde-class-validation-20260809-test` | `143683f` | BEHIND — taking it would delete 172481 lines | 2026-08-06 |
+
+
+## What was taken from the branches that were left, and what was not
+
+Recorded 2026-09-07. Twenty-three branches remained after the merged ones were
+deleted. Every one of them carries an `index.html` older than main — 4.147 to
+4.155 against main's 4.157 — so none of them has page content worth taking
+wholesale. What they *did* have is files main never received.
+
+| branch | what it held that main lacked | taken? |
+|---|---|---|
+| `release/4.155.0-predictive-reach-observatory` | `core/prediction/reach-forecast.mjs`, its verifier, its fragment and patch, two design documents | **YES** — materialised onto 4.157.0 and verified in a browser: 23 scaling laws, 3 local-only, 5 unjudged for one control |
+| `reconcile/4.150-ancient-chronometry` | `docs/reconcile-ancient-phase-b-red.cjs` | **YES** — it failed one clause against main, which was a real gap, and is kept as `docs/verify-ancient-chronometry-contract.cjs` |
+| `vde-class-validation-20260809` | the whole DESI DR2 BAO / CLASS validation project | **YES** — `vde_likelihood/`, `vde_validation/` and its four workflows, retriggered to `workflow_dispatch` |
+| `vde-…-scratch`, `-scratch2`, `-scratch3`, `-scratch4`, `-test` | nothing: each is the branch above minus 1681 lines | no — subsets of what was taken |
+| `reconcile/4.149-semantic`, `reconcile/4.149-stage2-multiview`, `reconcile/stage2-multiview-api`, `reconcile/4.150-*` (workflows) | one-shot materialisation scripts and the CI jobs that ran them | no — spent tooling whose OUTPUT is in main; keeping a script that patches a file into a state it is already in adds a file that can only fail |
+| the four `*-codex/uberprufe-*`, `a2z49s-codex/-iphone` | nothing main lacks; all at 4.147–4.148 | no |
+| `agent/ancient-chronometry-observatory`, `agent/first-principles-visual-4.151` | nothing main lacks | no |
+| `design/unified-atlas-time-4.152`, `release/4.149.2-linked-cycle-views` | nothing at all — zero commits past their merge base | no |
+| `Normalisierung`, `claude/tender-bell-u90tra`, `codex-l0e9mh` | unrelated histories with no merge base and no `HCC_VERSION`; older parallel lines of the same file | no |
+
+Every tip SHA is in the table above this section, so anything judged wrongly here
+comes back with one command.
