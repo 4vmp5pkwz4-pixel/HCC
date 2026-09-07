@@ -5,6 +5,7 @@ const path=require('path');
 const http=require('http');
 const assert=require('assert');
 const {chromium}=require('playwright');
+const {launchChromium}=require('./lib/chromium.cjs');
 
 const ROOT=path.resolve(__dirname,'..');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
@@ -15,7 +16,7 @@ function serve(){return new Promise(resolve=>{const server=http.createServer((re
  const ok=(label,cond)=>{assert.ok(cond,label);pass++;console.log(`PASS — ${label}`);};
  try{
   server=await serve();const port=server.address().port;
-  browser=await chromium.launch({headless:true});
+  browser=await launchChromium(chromium,{headless:true});
   const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
   const page=await context.newPage();
   page.on('pageerror',e=>pageErrors.push(String(e)));

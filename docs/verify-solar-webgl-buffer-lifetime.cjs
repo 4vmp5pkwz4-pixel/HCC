@@ -50,6 +50,8 @@ function listen() {
   });
 }
 
+const {launchChromium} = require('./lib/chromium.cjs');
+
 (async () => {
   let chromium;
   try { ({chromium} = require('playwright')); }
@@ -61,7 +63,7 @@ function listen() {
   const port = await listen();
   let browser;
   try {
-    browser = await chromium.launch();
+    browser = await launchChromium(chromium);
     const page = await browser.newPage({viewport:{width:1280,height:800}});
     const pageErrors = [];
     page.on('pageerror', e => pageErrors.push(String(e && e.message || e)));
