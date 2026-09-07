@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1268   ·   exported names: 1377
-   extracted physics, sha256 7a601efe8e427740a4f7a70f4b35fa8dff8f59e64be94b1b2528b748726df9ca */
+   extracted physics, sha256 42b2160b7a4d3683069f44a824c99510dbeb7fdcda7cb5b9d209e6db8bfadba1 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -378,6 +378,12 @@ function cycSarosSeries(){
 }
 
 const LAB_DECLARATIONS=Object.freeze([
+  {id:'cosmicweb', category:'cosmo', domain:'astro', cluster:'astro', predictionClass:'numerical',
+   title:{en:'Cosmic web laboratory · from primordial modes to the largest structures',
+          ru:'Лаборатория космической паутины · от первичных мод к гигантским структурам',
+          de:'Labor des kosmischen Netzes · von primordialen Moden zu Großstrukturen'},
+   purpose:'the missing scale between the CMB initial field and individual galaxies: one connected three-dimensional experiment where sheets, filaments, nodes and voids emerge from the same displacement field and can be read as a causal chain rather than four unrelated pictures',
+   predictionTarget:'a deterministic periodic Gaussian seed displaced by the first-order Zel’dovich map x(q,a)=q-a grad Phi(q), with the deformation-tensor eigenvalues classifying void, sheet, filament and node by one shared threshold. The laboratory reports the growth coordinate, collapsed-axis census, density proxy 1/det(I-a Hess Phi), connectivity and mass-conservation residual. It is an educational reduced model: not an N-body simulation, not a survey reconstruction and not evidence for the conditional S3 topology.'},
   {id:'jeans', category:'rel', domain:'astro', cluster:'astro', predictionClass:'exact',
    title:{en:'Jeans collapse · when a cloud stops holding itself up',
           ru:'коллапс Джинса · когда облако перестаёт себя держать',
