@@ -43364,6 +43364,123 @@ const HCC_LINK_ALIAS=new Map([['capacity.n_phi','ladder.N'],['civpsel.q_star','c
    density and now draws a family of luminosity-distance curves against it.  The
    table currently holds PLANAR entries only, and the check below still allows
    pending ones, because the next census will find more. */
+/* ── CAUSAL CLAIMS, WRITTEN SO THEY CAN BE WRONG ─────────────────────────────
+   This atlas checks NUMBERS ferociously and PROSE not at all. A verifier asks
+   whether a value is right; nothing anywhere asks whether the sentence beside
+   it names the reason. The gap is not theoretical — it has been paid for twice
+   in one working session.
+
+   The first time, the stellar-wind laboratory said a wind lengthens a star's
+   life because it takes the envelope while the core keeps its fuel. Mutation
+   testing found that assumption INVISIBLE: delete it and every check still
+   passed, because the lengthening comes from the exponent (L falls as M^3.5
+   while the fuel falls as M) and not from the geometry at all. A true sentence
+   about the physics, doing no work in the result it was attached to.
+
+   The second time, a cycle description said the precession period was DERIVED
+   rather than stored while the cycle went on reading the stored constant. That
+   one an outside reviewer caught, and the open problem recording the first had
+   already been written before the second was committed. Writing down that a
+   class of defect exists does not stop you committing it again.
+
+   SO: a causal claim is a DECLARATION here, not a sentence. It names the
+   quantity it says is responsible and supplies the way to set that quantity
+   aside. The verifier neutralises the named cause and demands that the result
+   actually changes. A claim whose cause can be removed without consequence is
+   FALSE AS A CLAIM even when every number around it is right, and that is
+   exactly the failure prose alone cannot express.
+
+   What this does NOT do is decide whether the physics is true. It decides
+   whether the stated reason is load-bearing in the atlas's own arithmetic,
+   which is the part a machine can settle and the part that was going unchecked. */
+const HCC_BECAUSE=Object.freeze([
+  {id:'wind.lengthens',
+   claim:'a wind lengthens the main sequence because the luminosity falls faster than the fuel does — as M^3.5 against M — so the clock slows faster than the tank drains',
+   cause:'the steepness of the mass-luminosity relation',
+   /* the result: the lifetime ratio, corrected against uncorrected */
+   result:()=>{ const m=40,f=0.17; const r=windLifetime(m,f,{steps:8000});
+     return r.ratio; },
+   /* neutralised: a LINEAR mass-luminosity relation, so L falls exactly as the
+      fuel does and the exponent can no longer do the work */
+   neutralised:()=>{ const m=40,f=0.17;
+     const L0=hrLuminosity(m), save=hrLuminosity;
+     try{ /* eslint-disable no-global-assign */
+       const lin=mm=>L0*(mm/m);
+       return windLifetimeWith(lin,m,f);
+     } finally { void save; } },
+   expect:'shrinks', by:2.0,
+   note:'1.018 against 1.005 — the excess over unity falls by a factor of three when the exponent is taken away'},
+  {id:'wind.core_is_spared',
+   claim:'and the wind spares the CORE while taking the envelope, so the fuel survives the mass it removes — a second reason, weaker than the first, and both are real',
+   cause:'the fuel being fixed at birth rather than tracking the current mass',
+   /* THE CLAIM THIS TABLE CORRECTED TWICE. The laboratory first said the core
+      being spared was THE reason the life lengthens. Mutation testing found the
+      assumption invisible to every check, and the commit that followed said it
+      did NO work at all. Neutralised properly here, it turns out to do rather a
+      lot: removing it cuts the lengthening by 2.3, against the exponent's 3.4.
+      Both are load-bearing, neither alone, and the exponent carries more. The
+      first prose was too strong, the correction to it was too strong in the
+      other direction, and only the measurement is the right size. */
+   result:()=>windLifetime(40,0.17,{steps:8000}).ratio,
+   neutralised:()=>{ const m0=40,f=0.17,N=8000;
+     const naive=hrLifetimeGyr(m0)*1e9, dt=Math.max(1,naive*2/N);
+     let m=m0,burned=0,t=0,n=0;
+     while(n<N*4&&m>0.08){ const fuel=HR_EPS*HR_FCORE*m;   /* fuel tracks the mass */
+       if(burned>=fuel) break;
+       const L=hrLuminosity(m); if(!(L>0)) break;
+       burned+=L*WIND_LSUN*dt*WIND_YR/(WIND_MSUN*WIND_C*WIND_C);
+       m-=f*L*WIND_LSUN/(WIND_C*windTerminalSpeed(m,hrRadius(m)))*WIND_YR/WIND_MSUN*dt;
+       t+=dt;n++; }
+     return (naive>0)?t/naive:null; },
+   expect:'shrinks', by:2.0,
+   note:'1.0180 against 1.0078 — the excess falls by 2.3 where the exponent falls it by 3.4'},
+  {id:'cycles.eclipse_year_is_short',
+   claim:'the eclipse year is shorter than the tropical year because the nodes regress to meet the Sun',
+   cause:'the regression of the lunar nodes',
+   result:()=>CYC_TROPICAL_Y-cycNodalYear(),
+   /* neutralised: nodes that do not move at all */
+   neutralised:()=>CYC_TROPICAL_Y-1/(1/CYC_TROPICAL_Y+1/1e18),
+   expect:'vanishes',
+   note:'18.62 days against 1e-13 — the whole difference IS the regression'},
+  {id:'metallicity.massive_stars_blind',
+   claim:'massive stars are metallicity-blind because electron scattering dominates their opacity, and scattering carries no metals',
+   cause:'the dominance of electron scattering over Kramers',
+   /* the result: how much a hundredfold cut in Z moves the total opacity */
+   result:()=>{ const T=3.9e7,rho=3.5;
+     return Math.abs(zmOpacity(ZM_Z_SUN,0.70,rho,T)/zmOpacity(ZM_Z_SUN/100,0.70,rho,T)-1); },
+   /* neutralised: the same star at a density where Kramers dominates instead */
+   neutralised:()=>{ const T=3.9e7,rho=zmCriticalDensity(T,ZM_Z_SUN)*400;
+     return Math.abs(zmOpacity(ZM_Z_SUN,0.70,rho,T)/zmOpacity(ZM_Z_SUN/100,0.70,rho,T)-1); },
+   expect:'grows', by:100,
+   note:'a hundredfold cut in Z moves the opacity by 25 per cent where scattering rules and by 7920 where Kramers does'},
+  {id:'saros.selected_by_node',
+   claim:'the Saros is described by three lunar months but SELECTED by two, because the node closes forty times tighter than the distance and the minimum is deciding on the node',
+   cause:'the anomalistic month participating in the search',
+   result:()=>cycTripleCommensurability(CYC_SYNODIC,CYC_DRACONIC,CYC_ANOMALISTIC,400).nA,
+   /* neutralised: the distance constraint removed from the search entirely */
+   neutralised:()=>{ let best=null;
+     for(let n=1;n<=400;n++){ const t=n*CYC_SYNODIC, nB=Math.round(t/CYC_DRACONIC);
+       if(nB<1) continue; const e=Math.abs(t-nB*CYC_DRACONIC);
+       if(!best||e<best.e) best={n,e}; }
+     return best.n; },
+   expect:'unchanged',
+   note:'223 either way — the claim is that the distance is NOT selecting, and an unchanged answer is what makes it true'},
+]);
+/* the wind integrator with an injected mass-luminosity law, so the claim above
+   can be tested without reaching into the laboratory that makes it */
+function windLifetimeWith(lum,m0,f){
+  const fuel=HR_EPS*HR_FCORE*m0;
+  const N=8000, dt=Math.max(1,(HR_EPS*HR_FCORE*m0*HR_MSUN*HR_C*HR_C/(lum(m0)*HR_LSUN)/WIND_YR)*2/N);
+  let m=m0, burned=0, t=0, n=0;
+  while(burned<fuel && n<N*4 && m>0.08){
+    const L=lum(m); if(!(L>0)) break;
+    burned+=L*WIND_LSUN*dt*WIND_YR/(WIND_MSUN*WIND_C*WIND_C);
+    m-=f*L*WIND_LSUN/(WIND_C*windTerminalSpeed(m,hrRadius(m)))*WIND_YR/WIND_MSUN*dt;
+    t+=dt; n++;
+  }
+  const naive=HR_EPS*HR_FCORE*m0*HR_MSUN*HR_C*HR_C/(lum(m0)*HR_LSUN)/WIND_YR;
+  return (naive>0)?t/naive:null;
+}
 const HCC_FLAT_BY_DESIGN=new Map([
   ['updateBell', {kind:'planar', why:
     'the CHSH value is ONE NUMBER against one bound. The gauge has a single axis because the quantity has one, and the dot that rides it is the whole reading. A second axis would have to be invented and a third invented twice.'}],
