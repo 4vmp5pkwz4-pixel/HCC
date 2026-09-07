@@ -109,9 +109,14 @@ The core uses custom Fresnel/filament and particle shaders, deterministic
 `BufferGeometry`, parametric surfaces, sharp crystal probes and bounded
 instancing. Mobile budgets reduce only representative visual density; solver
 resolution, residuals, tolerances, classifications and exports do not change.
+The calibrated premium display pipeline is enabled on first launch: ACES filmic
+highlight roll-off, scene-aware HDR bloom, SMAA edge reconstruction and priority-based
+label decluttering share an adaptive off-screen resolution budget. An explicit user
+opt-out is persisted, and immersive WebXR bypasses the mono post-process chain in favor
+of the headset's stereo framebuffer, fixed foveation and adaptive Quest quality profiles.
 Inactive high-density station geometry is released outside Multiview, and the
 same native scene remains stereo-safe in XR. The separate cinematic stage is
-still an explicit setting and remains disabled by default. Attribution, the
+strictly display-only and never enters scientific selection or export state. Attribution, the
 station-by-station mapping, visual firewall and release gates are recorded in
 [`SPATIAL_LABS_REBUILD.md`](SPATIAL_LABS_REBUILD.md). Stellar lineage,
 best-of-both decisions and model boundaries are recorded in
@@ -148,6 +153,21 @@ Explicit path, structural-hypothesis and global lenses are available. Proposed
 bridges are ranked by a leave-one-declared-edge-out resource-allocation audit;
 they remain unadmitted curation prompts until a typed claim, source and review
 are supplied.
+
+## Cosmic Web Laboratory — the missing scale
+
+The cosmology world now closes the largest gap in the atlas: the interval between the
+primordial CMB field and a resolved galaxy. The **Cosmic Web Laboratory** is a native 3D
+Zel'dovich experiment in which one deterministic periodic potential drives every visible
+particle. Its gradient moves a Lagrangian lattice, while its deformation tensor classifies
+the same samples as voids, sheets, filaments or nodes. Gold connections therefore do not
+decorate a random point cloud: they join three-axis collapses produced by the shared field.
+
+The live instrument publishes its growth coordinate, node census and density proxy to the
+quantity bus, and the Invariant Nexus gives it explicitly bounded bridges to the CMB,
+galaxy-rotation, Jeans-collapse and lensing laboratories. This is deliberately a reduced
+first-order structure-formation model—not an N-body solver, observed-survey reconstruction,
+or evidence for the conditional S³ topology.
 
 ## Spinor & Light-Cone Observatory — from S³ phase to null infinity
 
