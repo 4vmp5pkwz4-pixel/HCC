@@ -147,6 +147,54 @@ const race = (p, ms, what) => Promise.race([p,
   new Promise((_, rej) => setTimeout(() => rej(new Error(what)), ms))]);
 
 const ids = await page.evaluate(() => HCC_API.instruments.list().map(x => x.id));
+
+/* ── AND WHILE THE PAGE IS OPEN, ASK WHAT IS RETURNED BUT NOT DECLARED ───────
+   An instrument declares its outputs and then returns an object, and the two
+   were never compared. The gap is not cosmetic: an undeclared output is
+   unreachable by every instrument this atlas owns — this sweep cannot sweep it,
+   the quantity bus cannot route it, the transfer walk cannot carry it. It is a
+   computation the atlas performs and cannot see.
+
+   It was found through a wrong answer rather than by looking. ladder.theta was
+   recorded as moving NOTHING across its whole declared domain; the sweep was
+   right about the thirteen outputs it had been given, and the fourteenth —
+   temperature_K, running from 7.778e-18 to 7.778e-8 across that same domain —
+   was never offered to it.
+
+   The check belongs HERE and not in a source parser. A first attempt read the
+   return literals as text and produced false positives on every instrument
+   whose return contains a nested object or a conditional, which is the same
+   lesson the display-path census taught: a census over the SHAPE of code yields
+   a list that has to be read one line at a time. This walk already holds both
+   halves in its hands, so it costs nothing and cannot be fooled by shape. */
+const contractGaps = await page.evaluate(async () => {
+  const rows = [];
+  for (const inst of HCC_API.instruments.list()) {
+    const id = inst.id;
+    let d; try { d = HCC_API.describe(id); } catch { continue; }
+    if (!d || !Array.isArray(d.outputs) || !d.outputs.length) continue;
+    const declared = new Set(d.outputs.map(o => o.name || o));
+    const base = {}; for (const x of (d.inputs || [])) base[x.name] = x.default;
+    let e; try { e = await HCC_API.evaluate(id, base); } catch { continue; }
+    if (!e || typeof e !== 'object') continue;
+    const keys = Object.keys(e);
+    const undeclared = keys.filter(k => !declared.has(k) && Number.isFinite(e[k]));
+    const unreturned = [...declared].filter(k => !keys.includes(k));
+    if (undeclared.length || unreturned.length) rows.push({ id, undeclared, unreturned });
+  }
+  return rows;
+});
+if (contractGaps.length) {
+  console.error('\nFAIL — an instrument returned a number it does not declare, or declared one it does not return.');
+  console.error('  An undeclared output is unsweepable, unroutable and uncarryable — invisible to every');
+  console.error('  instrument here — and a declared one never returned advertises a quantity that does not exist.');
+  for (const g of contractGaps) console.error(`  ${g.id}:`
+    + (g.undeclared.length ? ` returns undeclared [${g.undeclared.join(', ')}]` : '')
+    + (g.unreturned.length ? ` declares unreturned [${g.unreturned.join(', ')}]` : ''));
+  await browser.close(); server.close();
+  process.exit(1);
+}
+console.log(`  every instrument returns exactly what it declares — checked while the page was open`);
 const rows = [];
 for (const id of ids) {
   const fields = await page.evaluate(i => HCC_API.sensitivity.inputs(i), id).catch(() => []);
