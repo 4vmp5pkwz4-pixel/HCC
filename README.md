@@ -149,6 +149,21 @@ bridges are ranked by a leave-one-declared-edge-out resource-allocation audit;
 they remain unadmitted curation prompts until a typed claim, source and review
 are supplied.
 
+## Cosmic Web Laboratory — the missing scale
+
+The cosmology world now closes the largest gap in the atlas: the interval between the
+primordial CMB field and a resolved galaxy. The **Cosmic Web Laboratory** is a native 3D
+Zel'dovich experiment in which one deterministic periodic potential drives every visible
+particle. Its gradient moves a Lagrangian lattice, while its deformation tensor classifies
+the same samples as voids, sheets, filaments or nodes. Gold connections therefore do not
+decorate a random point cloud: they join three-axis collapses produced by the shared field.
+
+The live instrument publishes its growth coordinate, node census and density proxy to the
+quantity bus, and the Invariant Nexus gives it explicitly bounded bridges to the CMB,
+galaxy-rotation, Jeans-collapse and lensing laboratories. This is deliberately a reduced
+first-order structure-formation model—not an N-body solver, observed-survey reconstruction,
+or evidence for the conditional S³ topology.
+
 ## Spinor & Light-Cone Observatory — from S³ phase to null infinity
 
 **Spinor & Light-Cone Observatory** exposes one exact representation chain
