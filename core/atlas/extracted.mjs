@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1319   ·   exported names: 1429
-   extracted physics, sha256 07c31a1f7cb08064089289e74d16db198d9cca1de67e5ef0b259149617274334 */
+   extracted physics, sha256 5eac0414f2a97272d09b783a7d5e3257d71432a53e70422bd7814f0f83d97d5f */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -464,7 +464,7 @@ const CYCLES = [
   desc:'The Earth back to the same direction among the stars. Its 20-minute excess over the tropical year IS the precession, and the atlas now derives the Great Year from that difference rather than quoting it.', obs:{mode:'cyc'}},
  {key:'nodyear', name:'Eclipse year (Sun \u2192 same node)', days:cycNodalYear(), ref:6.20,
   desc:'The year an ECLIPSE keeps. The nodes slide backwards, so the Sun meets one sooner than it finishes a lap: 346.62 d, and that is DERIVED here from the tropical year and the nodal regression to eight significant figures. The regression period, 18.61 yr, is the nutation period \u2014 the same orbit seen from the other end.', obs:{mode:'cyc'}},
- {key:'inex', name:'Inex \u2014 the other eclipse cycle', days:cycInexDays(), ref:0,
+ {key:'inex', name:'Inex \u2014 the other eclipse cycle', days:cycInexDays(), ref:0, constructedFrom:{key:'moon',times:358},
   desc:'358 lunations. It closes on 388.5 draconic months \u2014 a HALF-integer \u2014 so the Moon returns to the OPPOSITE node, which is the whole point and is destroyed by rounding it to 389. It closes to 4.4 minutes against the Saros\u2019s 52, drifts twelve times slower, and its series run 850 eclipses over 24600 years against 71 over 1280.', obs:{mode:'cyc'}},
  {key:'mercperi', name:'Mercury\u2019s perihelion \u2014 the cycle relativity predicts', days:cycPerihelionPeriodYears(MERC_A,MERC_E,MERC_PERIOD_D)*365.2425, ref:0,
   desc:'Every other cycle here is a period somebody measured. This one general relativity PREDICTS: 6\u03c0GM/(ac\u00b2(1\u2212e\u00b2)) per lap, which is 42.98 arcseconds a century against a residual measured at 42.98 \u00b1 0.04. Read as a period it is 3.0 million years. The same formula gives the Earth 34 million against the 112 thousand its apsidal line already takes from planetary pull \u2014 three tenths of a per cent \u2014 which is why Mercury was the only place the term was visible.', obs:{mode:'cyc'}},
@@ -478,7 +478,7 @@ const CYCLES = [
   desc:'Sunspot number returning, about 11 years.', obs:{mode:'cyc'}},
  {key:'hale', name:'Hale cycle \u2014 magnetic polarity', days:CYC_HALE_YR*365.2425, ref:0,
   desc:'The Sun\u2019s magnetic polarity returns only after TWO spot cycles, so this is exactly twice the one above. The integer 2 here is a definition rather than a coincidence, which makes it the control case for every other ratio in this table.', obs:{mode:'cyc'}},
- {key:'saros', name:'Saros \u2014 eclipse cycle (derived)', days:223*CYC_SYNODIC, ref:8864.26,
+ {key:'saros', name:'Saros \u2014 eclipse cycle (derived)', days:223*CYC_SYNODIC, ref:8864.26, constructedFrom:{key:'moon',times:223},
   desc:'NOT a quoted number any more: 223 synodic months is where the phase, the node and the distance nearly coincide at once \u2014 223 synodic = 6585.3213 d, 242 draconic = 6585.3574, 239 anomalistic = 6585.5374. The eclipse path shifts 116\u00b0 west because the leftover 7.7 hours turn the Earth underneath it.',
   obs:{mode:'cyc'}},
  {key:'metonic', name:'Metonic cycle (19 yr)', days:6939.6018, ref:0,
