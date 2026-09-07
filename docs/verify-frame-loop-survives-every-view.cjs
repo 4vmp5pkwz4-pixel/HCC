@@ -44,7 +44,13 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
 
 (async()=>{
   let pass=0;
-  const ok=(label,cond)=>{assert.ok(cond,label);pass++;console.log('PASS — '+label);};
+  /* the third argument was accepted by callers and silently dropped, so this
+     file reported "55 of 61 stations" as a pass and never said which six it had
+     not entered. A check that passes while quietly not covering part of its
+     subject is the same shape as a check that cannot fail: print the detail. */
+  const ok=(label,cond,detail='')=>{assert.ok(cond,label+(detail?` — ${detail}`:''));pass++;
+    console.log('PASS — '+label+(detail?`\n         ${detail}`:''));};
+  const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
   const server=await serve();
   const port=server.address().port;
   /* ── DO NOT FORCE SOFTWARE GL ─────────────────────────────────────────────
@@ -62,9 +68,9 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
 
   /* and a walk that grows one laboratory at a time must never again be the
      reason a job dies at its limit: this fails loudly, here, well before it */
-  const DEADLINE=Date.now()+9*60*1000;
+  const DEADLINE=Date.now()+14*60*1000;
   const withinBudget=()=>assert.ok(Date.now()<DEADLINE,
-    'the frame-loop walk exceeded its nine-minute budget — it is failing here rather than timing out the CI job, where the cause would be invisible');
+    'the frame-loop walk exceeded its fourteen-minute budget — it is failing here rather than timing out the CI job, where the cause would be invisible');
   try{
     const ctx=await browser.newContext({viewport:{width:1280,height:820}});
     const page=await ctx.newPage();
@@ -170,6 +176,92 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
        captions.size>=Math.min(20,routes.length/4));
     ok(`and the frame loop survives all ${routes.length} laboratories, entered one by one with rendering on`,
        broke.length===0, broke.length?broke.join(', '):'no laboratory threw a caught frame exception');
+
+    /* ── AND THE STATIONS, WHICH IS WHERE THIS DEFECT ACTUALLY HID ────────────
+       The walk above enters one arrival per laboratory. That is not where the
+       ReferenceError this file was written for lived: it lived in the NINTH VIEW
+       of the cycles laboratory, and a walk that only ever arrives would never
+       have reached it. Twenty-four laboratories publish sixty-one stations in
+       HCC_STATIONS, and until now nothing entered any of them with the render
+       loop running.
+       The registry is read from the source rather than retyped, so a station
+       added tomorrow is walked tomorrow without editing this file — and if the
+       parse ever returns nothing, that is a failure here rather than a silent
+       walk of zero stations reporting success. */
+    const stationBlockStart=html.indexOf('const HCC_STATIONS=Object.freeze({');
+    assert.ok(stationBlockStart>0,'HCC_STATIONS is missing from the source');
+    const stationBlock=html.slice(stationBlockStart, html.indexOf('\n});', stationBlockStart));
+    const stationLabs=[...stationBlock.matchAll(/(\w+)\s*:\s*\{key:'(\w+)',\s*list:Object\.freeze\(\[([^\]]*)\]\)/g)]
+      .map(m=>({lab:m[1],key:m[2],list:m[3].split(',').map(x=>x.trim().replace(/'/g,'')).filter(Boolean)}));
+    const stationTotal=stationLabs.reduce((n,l)=>n+l.list.length,0);
+    ok(`the station registry parses: ${stationLabs.length} laboratories publishing ${stationTotal} stations`,
+       stationLabs.length>=10 && stationTotal>=30);
+
+    const routeOf=id=>(routes.find(r=>r.id===id)||{}).route;
+    const stationBroke=[], stationMissed=[];
+    let stationsEntered=0;
+    let sseen=await errCount();
+    for(const L of stationLabs){
+      const route=routeOf(L.lab);
+      if(!route){ stationMissed.push(`${L.lab} (no route)`); continue; }
+      await page.evaluate(h=>{location.hash=h;},route);
+      await page.waitForTimeout(500);
+      for(const st of L.list){
+        /* the chip that switches a station is identified by its own name; the
+           laboratories do not share one prefix, so match on the suffix */
+        const clicked=await page.evaluate(name=>{
+          const b=[...document.querySelectorAll('button[id]')].find(x=>x.id.endsWith('-'+name)||x.id.endsWith('St-'+name));
+          if(!b) return false;
+          b.click(); return true;
+        }, st);
+        if(!clicked){ stationMissed.push(`${L.lab}/${st}`); continue; }
+        stationsEntered++;
+        await page.waitForTimeout(420);
+        withinBudget();
+        const n=await errCount();
+        if(n>sseen){ stationBroke.push(`${L.lab}/${st} (+${n-sseen})`); sseen=n; }
+      }
+    }
+    /* EVERY declared station must be openable. This is not a ratio calibrated on
+       today's atlas: the registry is what the search index is built from, so a
+       reader who searches a station's terms is sent to a laboratory that must be
+       able to show it. Six stations across wind, gyro and seis were declared,
+       indexed, and had no control anywhere -- their geometry was built on load
+       and hidden on every frame. A station nobody can open is not a station. */
+    ok(`and every declared station can actually be opened — ${stationsEntered} of ${stationTotal}`,
+       stationsEntered === stationTotal,
+       stationMissed.length?`NOT reachable from the control panel: ${stationMissed.join(', ')}`:'every declared station had a control');
+    ok(`and the frame loop survives every station it could enter`,
+       stationBroke.length===0, stationBroke.length?stationBroke.join(', '):'no station threw a caught frame exception');
+
+    /* ── AND A CHIP THAT SETS A KEY NOTHING READS WOULD ALSO PASS ─────────────
+       The three laboratories above now have a control supplied by the registry.
+       That the button exists proves nothing: what must be true is that pressing
+       it CHANGES WHAT IS DRAWN. Each of the three is checked by counting the
+       labels on screen in each of its stations and requiring the readings to
+       differ -- the two stations of a laboratory draw different parts of it, so
+       identical screens would mean the key is still going nowhere. */
+    const drew=[];
+    for(const lab of ['wind','gyro','seis']){
+      const R=stationLabs.find(L=>L.lab===lab); const route=routeOf(lab);
+      if(!R||!route) continue;
+      await page.evaluate(h=>{location.hash=h;},route);
+      await page.waitForTimeout(700);
+      const shots=[];
+      for(const st of R.list){
+        await page.evaluate(id=>{const b=document.getElementById(id); if(b) b.click();},`hccSt-${lab}-${st}`);
+        await page.waitForTimeout(900);
+        shots.push(await page.evaluate(()=>{
+          const vis=e=>{const r=e.getBoundingClientRect();const c=getComputedStyle(e);
+            return r.width>0&&r.height>0&&c.display!=='none';};
+          return [...document.querySelectorAll('.label')].filter(vis).length;
+        }));
+      }
+      drew.push({lab,shots,differs:new Set(shots).size>1});
+    }
+    ok('and each newly reachable station DRAWS something different, so the control reaches the scene rather than only the state',
+       drew.length>0 && drew.every(d=>d.differs),
+       drew.map(d=>`${d.lab}: ${d.shots.join(' → ')} labels`).join(' · '));
 
     console.log(`\n${pass}/${pass} checks passed`);
   } finally {
