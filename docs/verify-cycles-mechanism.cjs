@@ -26,7 +26,7 @@
    This file shares no code with the atlas. Every constant is written out here,
    and the last check reads index.html.
 
-   SIXTEEN THINGS ARE CHECKED.
+   TWENTY-TWO THINGS ARE CHECKED.
    ========================================================================== */
 'use strict';
 const fs = require('fs');
@@ -212,7 +212,46 @@ ok('WHAT IT DOES INSTEAD IS SET THE KIND OF ECLIPSE, and that is measurable rath
     return Math.abs(perSaros - 2.82) < 0.15 && circuit > 110 && circuit < 145 && life < circuit; })(),
   `${((selectN(true).eC / ANO) * 360).toFixed(2)}° per Saros → a full circuit in ${Math.round(360 / ((selectN(true).eC / ANO) * 360))} Saroses, against a series life of ${Math.round(2 * LIMIT / Math.abs(selectN(true).eB / DRA * 360))} — the series ends before the distance returns`);
 
-console.log('\n=== 16. The atlas read back ===\n');
+console.log('\n=== 16-21. The year the eclipses keep, and the other eclipse cycle ===\n');
+
+const NODREG = 6798.383;
+const nodalYear = () => 1 / (1 / TROP + 1 / NODREG);
+
+ok('THE ECLIPSE YEAR IS DERIVABLE AND LANDS ON EIGHT SIGNIFICANT FIGURES. Neither the tropical nor the sidereal year is the one an eclipse keeps: the nodes slide backwards, so the Sun reaches one sooner than it finishes a lap. One over the sum of the reciprocals of the tropical year and the nodal regression gives 346.620074 against a tabulated 346.620076',
+  Math.abs(nodalYear() - 346.620076) / 346.620076 < 1e-7,
+  `${nodalYear().toFixed(6)} d derived against 346.620076 tabulated — agreement to ${(-Math.log10(Math.abs(nodalYear() - 346.620076) / 346.620076)).toFixed(1)} figures`);
+
+ok('and the regression period in that derivation is somebody else\'s constant: 6798.383 days is 18.61 years, which is the NUTATION period. The number that decides where eclipses can happen is the number that decides how the pole nods, because they are one orbit seen from two ends',
+  Math.abs(NODREG / JY - 18.61) < 0.01,
+  `${(NODREG / JY).toFixed(3)} yr — the 18.6-year nutation period, arriving unbidden in an eclipse calculation`);
+
+ok('THE SAROS IS REACHED A SECOND TIME FROM THE OTHER END: nineteen eclipse years is the same interval the Moon reaches in 223 synodic months. Two independent routes to one number, one counting the MOON back to a node and the other counting the SUN',
+  (() => { const solar = 19 * nodalYear(), lunar = 223 * SYN;
+    return Math.abs(solar - lunar) / lunar < 1e-4; })(),
+  `solar route ${(19 * nodalYear()).toFixed(4)} d against lunar route ${(223 * SYN).toFixed(4)} d`);
+
+ok('AND THEY ARE NOT EQUALLY GOOD, WHICH IS THE POINT. The lunar route closes to 52 minutes and the solar route only to eleven hours — twelve times worse. Two routes to one number is not two confirmations, and an atlas that printed both without saying which is tighter would be manufacturing agreement out of a coarser measurement',
+  (() => { const R = Math.abs(19 * nodalYear() - 223 * SYN) / Math.abs(223 * SYN - 242 * DRA);
+    return R > 10 && R < 16; })(),
+  `the solar route is ${(Math.abs(19 * nodalYear() - 223 * SYN) / Math.abs(223 * SYN - 242 * DRA)).toFixed(1)}x looser — stated, not averaged away`);
+
+ok('THE INEX CLOSES ON A HALF-INTEGER AND THAT IS ITS DEFINITION. 358 lunations meet 388.5 draconic months to within 4.4 minutes, so the Moon returns to the OPPOSITE node. Rounding that 388.5 to 389 does not approximate the inex, it destroys it: the residual jumps from four minutes to thirteen days',
+  (() => { const inex = 358 * SYN;
+    const half = Math.abs(inex - 388.5 * DRA) * 24 * 60;
+    const whole = Math.abs(inex - 389 * DRA) * 24 * 60;
+    return half < 6 && whole > 10000 && whole / half > 1000; })(),
+  `against 388.5 draconic months the miss is ${(Math.abs(358 * SYN - 388.5 * DRA) * 24 * 60).toFixed(2)} min; against 389 it is ${(Math.abs(358 * SYN - 389 * DRA) / 1).toFixed(2)} days`);
+
+ok('so the inex outlives the Saros by twenty to one, and the two DRIFT IN OPPOSITE DIRECTIONS — which is why the pair spans the whole eclipse panorama instead of covering the same ground twice. The Saros series runs 71 eclipses over 1280 years drifting one way; the inex runs 850 over 24600 drifting the other',
+  (() => {
+    const sD = (223 * SYN - 242 * DRA) / DRA * 360;
+    const iD = (358 * SYN - 388.5 * DRA) / DRA * 360;
+    const sN = Math.round(2 * LIMIT / Math.abs(sD)), iN = Math.round(2 * LIMIT / Math.abs(iD));
+    return sD * iD < 0 && iN / sN > 8 && sN > 60 && sN < 85 && iN > 700 && iN < 1000;
+  })(),
+  `Saros ${(223 * SYN - 242 * DRA) / DRA * 360 > 0 ? '+' : ''}${((223 * SYN - 242 * DRA) / DRA * 360).toFixed(4)}°/cycle · inex ${((358 * SYN - 388.5 * DRA) / DRA * 360).toFixed(4)}°/cycle — opposite signs, and the inex series is ${(Math.round(2 * LIMIT / Math.abs((358 * SYN - 388.5 * DRA) / DRA * 360)) / Math.round(2 * LIMIT / Math.abs((223 * SYN - 242 * DRA) / DRA * 360))).toFixed(0)}x longer`);
+
+console.log('\n=== 22. The atlas read back ===\n');
 
 ok('AND THE ATLAS IS RUNNING THIS. The constants and the derivations above were written from scratch here; this check opens index.html and confirms the four months, the two years and the derived precession are the same ones there, so the agreement is between two authorities rather than one authority and its echo',
   (() => { const src = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
