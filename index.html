@@ -61706,8 +61706,13 @@ const resoFeeds=[0,1].map(()=>{
   const ln=new THREE.Line(g,new THREE.LineBasicMaterial({color:0xffe6a8,transparent:true,opacity:.5}));
   cycResonanceInst.add(ln); return ln;
 });
-let resoPulse=0;
 function updateCycResonance(dt){
+  /* THE HIGHLIGHT MEANS SOMETHING NOW. It used to breathe on a private
+     accumulator -- a decorative sine that said only "this edge is selected".
+     Driven from the shared Cycles epoch instead, the pulse IS the phase distance
+     between the two selected cycles, so a bright steady edge is a pair standing
+     near coincidence and a dim one is a pair drifting apart. The rim reports the
+     same relationship the torus in the middle is drawing. */
   const A=state.cycPairA, B=state.cycPairB;
   const _ra=cycleByKey(A), _rb=cycleByKey(B);
   const _pa=cycLinkedPhaseOf(_ra), _pb=cycLinkedPhaseOf(_rb);
@@ -61715,7 +61720,8 @@ function updateCycResonance(dt){
   const pulse=0.78+0.22*Math.cos(2*Math.PI*_phaseDistance);
   resoNodes.forEach(n=>{ const sel=(n.key===A||n.key===B);
     n.dot.scale.setScalar(sel?1.5:1); n.dot.material.color.setHex(sel?0xffe6a8:0xd4af6a); });
-  /* draw the feeds from whichever two nodes are selected into the torus centre */
+  /* the two feeds that say, without a caption, that the lit edge and the turning
+     torus are one statement */
   { const na=resoNodes.find(n=>n.key===A), nb=resoNodes.find(n=>n.key===B);
     [na,nb].forEach((n,k)=>{ const arr=resoFeeds[k].geometry.attributes.position.array;
       if(n){ arr[0]=n.pos.x; arr[1]=n.pos.y; arr[2]=n.pos.z; arr[3]=0; arr[4]=0; arr[5]=0;
@@ -69839,7 +69845,16 @@ function buildCtlBody(){
     ctl.querySelector('#solarPairA').onchange=solarPairChange; ctl.querySelector('#solarPairB').onchange=solarPairChange;
     ctl.querySelector('#solarPhaseShow').onchange=e=>{state.solarPhaseLab=e.target.checked;rebuildCyclePhaseTrace();};
     const solarPhaseStep=dir=>{const d=cyclePhaseMatch(cycleByKey(state.cycPairA),cycleByKey(state.cycPairB),state.epochDays,dir);
-      if(isFinite(d)){state.epochDays=d;state.paused=true;const o=ctl.querySelector('#solarPhaseOut');if(o)o.innerHTML=cyclePairSummaryHTML();}};
+      /* THROUGH THE TIME FABRIC, NOT AROUND IT. This wrote state.epochDays and
+         state.paused directly, which is how the atlas used to move its clock and is
+         no longer: there is one typed setter now, it records a provenance, and the
+         compatibility projection is the ONLY place allowed to assign these fields.
+         A second writer means the fabric can be told one time while the scene shows
+         another, and nothing downstream can tell which is authoritative. */
+      if(isFinite(d)){
+        try{ HCC_TIME_FABRIC.setPaused(true,'cycles.phase-step'); hccAtlasSetEpochDays(d,'cycles.phase-step'); }
+        catch(e){ /* fabric not ready: leave the clock alone rather than fork it */ }
+        const o=ctl.querySelector('#solarPhaseOut');if(o)o.innerHTML=cyclePairSummaryHTML();}};
     ctl.querySelector('#solarPrevMatch').onclick=()=>solarPhaseStep(-1);
     ctl.querySelector('#solarNextMatch').onclick=()=>solarPhaseStep(1);
     rebuildCyclePhaseTrace();
