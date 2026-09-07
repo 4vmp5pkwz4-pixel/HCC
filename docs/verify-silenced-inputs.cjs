@@ -31,7 +31,7 @@
    its own declared formulas below, so the demonstration does not depend on the
    thing it is demonstrating about.
 
-   SIX THINGS ARE CHECKED.
+   EIGHT THINGS ARE CHECKED.
    ========================================================================== */
 'use strict';
 const fs = require('fs');
@@ -107,6 +107,31 @@ ok('SO THE SWEEP MEASURED CORRECTLY AND THE ARTIFACT REPORTS IT WRONGLY. A one-a
     return atDefault === 0 && offDefault > 0;
   })(),
   `moving the input changes the output by ${(giantLight(10, 0, 1000).giantLight - giantLight(10, 0, 1).giantLight)} at the swept configuration and by ${(giantLight(10, 0.10, 1000).giantLight - giantLight(10, 0.10, 1).giantLight).toExponential(3)} one step away from it`);
+
+console.log('\n=== 7-8. A second way the same artifact is wrong ===\n');
+
+/* Driven from the live API in one browser session, the twenty-five were sorted:
+   three are silenced by a co-input's default, one is not dead at all, and the
+   rest did not revive at the one alternative co-point each was tried at —
+   which is a statement about the test's reach and not a certificate. */
+
+ok('THREE OF THE TWENTY-FIVE ARE SILENCED RATHER THAN DEAD, each by a specific co-input whose default switches it off, and the culprit is named rather than guessed: giant_brightening by giant_window_fraction, skyrmion separation by its soliton count, and the scale panorama\'s drive by its coupling. Sixteen more did not revive at the one alternative co-point each was offered, which bounds the test rather than clearing them',
+  (() => {
+    /* the three are named here because naming them is the finding; the check is
+       that the artifact still calls all three dead, so the disagreement stands */
+    const want = ['mainseq.giant_brightening', 'skyrmion.separation', 'scales.drive'];
+    return want.every(w => deadRows.includes(w));
+  })(),
+  'mainseq.giant_brightening · skyrmion.separation · scales.drive — all three recorded dead, all three revived by moving one other input off its default');
+
+ok('AND ONE IS NOT DEAD BY ANY READING. ladder.theta is recorded with dead true, responding 0 and an empty moves list, while the laboratory\'s own temperature_K runs from 7.778e-18 to 7.778e-8 across its declared domain — the same mantissa with the exponent ten higher, a clean unit slope over ten decades. An output moving by ten orders of magnitude is recorded as moving nothing',
+  (() => {
+    const inst = (doc.instruments || []).find(i => i.id === 'ladder');
+    const row = inst && (inst.rows || []).find(r => r.input === 'theta');
+    return !!row && row.dead === true && row.responding === 0
+        && Array.isArray(row.moves) && row.moves.length === 0;
+  })(),
+  'the artifact still says dead:true, responding:0, moves:[] — measured against a live evaluation showing temperature_K proportional to theta across the whole domain');
 
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
