@@ -5,17 +5,31 @@ const path=require('path');
 const http=require('http');
 const assert=require('assert');
 const {chromium}=require('playwright');
+const {launchChromium}=require('./lib/chromium.cjs');
 
 const ROOT=path.resolve(__dirname,'..');
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.json':'application/json; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp'};
-function serve(){return new Promise(resolve=>{const server=http.createServer((req,res)=>{try{let p=decodeURIComponent(new URL(req.url,'http://x').pathname);if(p==='/'||p==='')p='/index.html';const f=path.resolve(ROOT,'.'+p);if(!f.startsWith(ROOT+path.sep))throw new Error('forbidden');const st=fs.statSync(f);const file=st.isDirectory()?path.join(f,'index.html'):f;res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream','cache-control':'no-store'});fs.createReadStream(file).pipe(res);}catch(e){res.writeHead(404);res.end('not found');}});server.listen(0,'127.0.0.1',()=>resolve(server));});}
+/* The shipped page imports three.js from a CDN. A container with no route to
+   that CDN could not run this check at all, so it was left to CI — which means
+   the local gate was quietly incomplete about the one laboratory whose whole
+   subject is what the atlas can prove about itself. scripts/build-manifest.mjs
+   has always served a copy pointed at the vendored build for exactly this
+   reason; this does the same, and falls back to the shipped URLs untouched when
+   there is no vendor directory, so CI still exercises the real import path. */
+const VENDOR=path.join(ROOT,'vendor');
+const HTML=(()=>{const raw=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+  return !fs.existsSync(VENDOR)?raw:raw
+    .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\/build\/three\.module\.js/g,'./vendor/three/build/three.module.js')
+    .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/three@0\.160\.0\/examples\/jsm\//g,'./vendor/three/examples/jsm/')
+    .replace(/https:\/\/cdn\.jsdelivr\.net\/npm\/@dimforge\/rapier3d-compat@0\.14\.0\/rapier\.es\.js/g,'./vendor/rapier/rapier.es.js');})();
+function serve(){return new Promise(resolve=>{const server=http.createServer((req,res)=>{try{let p=decodeURIComponent(new URL(req.url,'http://x').pathname);if(p==='/'||p==='')p='/index.html';if(p==='/index.html'){res.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});return res.end(HTML);}const f=path.resolve(ROOT,'.'+p);if(!f.startsWith(ROOT+path.sep))throw new Error('forbidden');const st=fs.statSync(f);const file=st.isDirectory()?path.join(f,'index.html'):f;res.writeHead(200,{'content-type':types[path.extname(file)]||'application/octet-stream','cache-control':'no-store'});fs.createReadStream(file).pipe(res);}catch(e){res.writeHead(404);res.end('not found');}});server.listen(0,'127.0.0.1',()=>resolve(server));});}
 
 (async()=>{
  let browser,server;const pageErrors=[];let pass=0;
  const ok=(label,cond)=>{assert.ok(cond,label);pass++;console.log(`PASS — ${label}`);};
  try{
   server=await serve();const port=server.address().port;
-  browser=await chromium.launch({headless:true});
+  browser=await launchChromium(chromium,{headless:true});
   const context=await browser.newContext({viewport:{width:390,height:844},reducedMotion:'reduce'});
   const page=await context.newPage();
   page.on('pageerror',e=>pageErrors.push(String(e)));

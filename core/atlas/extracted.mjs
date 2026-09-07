@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1319   ·   exported names: 1429
-   extracted physics, sha256 28cb9cad1cfcabd421a6637fda6041f8e465041857e544538240099b4d797523 */
+   extracted physics, sha256 07c31a1f7cb08064089289e74d16db198d9cca1de67e5ef0b259149617274334 */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -542,6 +542,7 @@ function cycleCommensurability(a,b,maxA=512){
   best.exact=(stopped==='terminated');
   const ratio=Math.max(A,B)/Math.min(A,B);
   best.reachable=ratio<=maxA;
+  best.maxTerm=maxA;              /* the bound the caller may quote beside a capped answer */
   best.meaningful=best.reachable&&best.ppm<1e5;
   best.refusal=best.meaningful?null:(best.reachable
     ? `the closest ratio within ${maxA} still misses by ${(best.ppm/1e4).toFixed(1)}% — these periods do not lock`

@@ -97,6 +97,27 @@ check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
   }
 }
 
+/* 1b · Nothing that resolves a module may precede the import map.
+   An import map is only honoured if it is registered before ANY module
+   resolution begins, and <link rel="modulepreload"> is a module resolution.
+   Ten preload hints were added to <head> above the map to start the three.js
+   fetches during the HTML parse; the browser locked an empty map, ignored the
+   real one, and the whole atlas died on "Failed to resolve module specifier
+   three" — a blank page from a pure performance change. The ordering is the
+   entire contract, it is invisible in the diff, and it is one string compare. */
+{
+  const map = html.indexOf('<script type="importmap">');
+  const preloads = [...html.matchAll(/<link[^>]+rel="modulepreload"[^>]*>/g)];
+  const modules = [...html.matchAll(/<script type="module"/g)];
+  const earliestModule = modules.length ? modules[0].index : Infinity;
+  const offenders = preloads.filter(p => p.index < map);
+  check(map > -1, 'the import map is present');
+  check(offenders.length === 0,
+    `no modulepreload precedes the import map (${preloads.length} preload hints, all below it)`);
+  check(map < earliestModule,
+    'and the import map precedes every module script, which is what makes it apply at all');
+}
+
 /* 2 · The current UI intentionally ships complete EN/RU/DE localization. */
 check(html.includes("ru:") && html.includes("de:") && html.includes("en:"),
   'English, Russian and German localization dictionaries are present');
