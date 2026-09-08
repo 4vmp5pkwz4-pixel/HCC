@@ -178,6 +178,18 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
       ok(`the "${v}" frame puts on screen every instrument it declares, none of them behind a hidden parent`,
          undelivered.length===0,
          `owes ${owed.length}: ${owed.map(i=>i.name+(i.onScreen?'':' ✗NOT ON SCREEN')).join(', ')||'nothing'}`);
+      /* ── AND SHOWS NOTHING IT DOES NOT DECLARE ─────────────────────────────
+         The other half of the same promise, and the half that failed twice by
+         eye before it was ever checked: the Saros engine, whose .visible was
+         never assigned anywhere, stood in EVERY cycles frame; and the layout
+         guides, which stand down for two single-instrument stages and had nobody
+         add the third. Both shipped and were caught on a screenshot. A frame that
+         owes two instruments and shows three has not kept its promise either. */
+      const foreign=rep.foreign||[];
+      ok(`and the "${v}" frame shows nothing it does not declare`,
+         foreign.length===0,
+         foreign.length?`FURNITURE FROM ELSEWHERE: ${[...new Set(foreign.map(x=>x.owner))].join(', ')} — e.g. "${foreign[0].text}"`
+                       :'every label on screen belongs to an instrument this frame owes');
     }
 
     /* ── WHAT WOULD CATCH A COLLAPSED VIEW, AND WHY IT IS NOT HERE ───────────
