@@ -101,7 +101,10 @@ ok('AND THE SUMMARY IS NON-TRIVIAL. A file in which everything was alive, or not
    quietly vanish from the artifact and let the same misreading happen again. */
 ok('every view carries the third reading, so a still-looking view can be told from a broken one',
   V.every(v => Object.prototype.hasOwnProperty.call(v, 'pixels')),
-  `${V.filter(v => v.pixels !== null).length} of ${V.length} measured`);
+  `${V.filter(v => v.pixels !== null).length} of ${V.length} measured — it is taken only where the other two counters are silent, which is the only place it says anything`);
+ok('and it is present for EVERY view that neither rebuilds nor moves, which is where it is the whole evidence',
+  V.filter(v => !v.rebuilds && !v.moves).every(v => v.pixels !== null),
+  `${V.filter(v => !v.rebuilds && !v.moves).length} still views, all measured`);
 
 {
   const still  = V.filter(v => !v.rebuilds && !v.moves);
