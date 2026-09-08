@@ -177,13 +177,23 @@ for (const L of labs) {
          identical, and a view can shimmer while its physics is frozen. What it
          adds is the ability to tell a diagram that is STILL BY DESIGN from a
          diagram that is still because it broke, which the first two cannot. */
+      /* ── AND IT IS ONLY TAKEN WHERE IT SAYS ANYTHING ──────────────────────
+         The first version screenshotted all 151 views twice and cost four minutes
+         for it. For a view that already rebuilds geometry or moves a body the
+         answer is known before the shot is taken — it is alive, and a pixel
+         comparison adds nothing. The reading exists to separate a STILL view that
+         is alive through its materials from one that has stopped, so it is taken
+         exactly where the other two counters are silent. Everything else reports
+         null, which is honest: not measured, rather than measured as true. */
       let pixels = null;
-      try {
-        const a = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
-        await page.waitForTimeout(420);
-        const b = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
-        pixels = Buffer.compare(a, b) === 0 ? 0 : 1;
-      } catch { pixels = null; }
+      if (r.recomputed === 0 && r.moved === 0) {
+        try {
+          const a = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
+          await page.waitForTimeout(420);
+          const b = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
+          pixels = Buffer.compare(a, b) === 0 ? 0 : 1;
+        } catch { pixels = null; }
+      }
       rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies, watched: r.watched, pixels });
     } catch (e) {
       rows.push({ id: L.id, station: st, title: L.title, recomputed: -1, moved: -1, bodies: 0, watched: -1,

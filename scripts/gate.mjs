@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FULL = process.argv.includes('--full');
+if (FULL) process.env.HCC_WALK = 'full';   /* the exhaustive walks are part of --full, not of every run */;
 const t0 = Date.now();
 const el = () => ((Date.now() - t0) / 1000).toFixed(0).padStart(4) + 's';
 let failed = 0;
@@ -90,5 +91,5 @@ try {
     return `${m[1]} assertions, 0 failures`;
   });
 
-  console.log(`\n${el()}  GREEN${FULL ? '' : '  (add --full for the self-test)'}`);
+  console.log(`\n${el()}  GREEN${FULL ? '' : '  — browser walks SAMPLED; --full walks every laboratory and adds the self-test'}`);
 } catch { console.log(`\n${el()}  RED`); process.exit(1); }

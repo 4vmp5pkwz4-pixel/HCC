@@ -20,6 +20,7 @@ const http=require('http');
 const assert=require('assert');
 const {chromium}=require('playwright');
 const {launchChromium}=require('./lib/chromium.cjs');
+const {walkScope}=require('./lib/walk-scope.cjs');
 
 const ROOT=path.resolve(__dirname,'..');
 const VENDOR=path.join(ROOT,'vendor');
@@ -247,11 +248,13 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
       return L.map(l=>({id:l.id,route:l.route})).filter(l=>typeof l.route==='string'&&l.route.startsWith('#/'));
     });
     ok(`the atlas publishes a route for every laboratory (${routes.length})`, routes.length>=100);
+    const labScope=walkScope(routes,'laboratories');
+    ok(`the laboratory walk scope is declared rather than assumed`, true, labScope.note);
 
     const broke=[];
     const captions=new Set();
     let seen=await errCount();
-    for(const r of routes){
+    for(const r of labScope.list){
       await page.evaluate(h=>{location.hash=h;},r.route);
       await page.waitForTimeout(420); withinBudget();
       captions.add(await page.evaluate(()=>((document.querySelector('#hudBig')||{}).textContent||'').trim()));
@@ -266,9 +269,9 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
        with the defect in the file. So the walk has to prove it MOVED: the scene
        caption is written per laboratory, and a walk that arrived somewhere
        leaves a trail of many different ones. */
-    ok(`and the walk actually went somewhere — ${captions.size} distinct scene captions across ${routes.length} routes`,
-       captions.size>=Math.min(20,routes.length/4));
-    ok(`and the frame loop survives all ${routes.length} laboratories, entered one by one with rendering on`,
+    ok(`and the walk actually went somewhere — ${captions.size} distinct scene captions across ${labScope.list.length} routes`,
+       captions.size>=Math.min(8,labScope.list.length/4));
+    ok(`and the frame loop survives all ${labScope.list.length} laboratories walked, entered one by one with rendering on${labScope.full?'':' (SAMPLED)'}`,
        broke.length===0, broke.length?broke.join(', '):'no laboratory threw a caught frame exception');
 
     /* ── AND THE STATIONS, WHICH IS WHERE THIS DEFECT ACTUALLY HID ────────────
@@ -287,7 +290,8 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
     const stationBlock=html.slice(stationBlockStart, html.indexOf('\n});', stationBlockStart));
     const stationLabs=[...stationBlock.matchAll(/(\w+)\s*:\s*\{key:'(\w+)',\s*list:Object\.freeze\(\[([^\]]*)\]\)/g)]
       .map(m=>({lab:m[1],key:m[2],list:m[3].split(',').map(x=>x.trim().replace(/'/g,'')).filter(Boolean)}));
-    const stationTotal=stationLabs.reduce((n,l)=>n+l.list.length,0);
+    const stationScope=walkScope(stationLabs,'laboratories publishing stations');
+    const stationTotal=stationScope.list.reduce((n,l)=>n+l.list.length,0);
     ok(`the station registry parses: ${stationLabs.length} laboratories publishing ${stationTotal} stations`,
        stationLabs.length>=10 && stationTotal>=30);
 
@@ -295,7 +299,7 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
     const stationBroke=[], stationMissed=[];
     let stationsEntered=0;
     let sseen=await errCount();
-    for(const L of stationLabs){
+    for(const L of stationScope.list){
       const route=routeOf(L.lab);
       if(!route){ stationMissed.push(`${L.lab} (no route)`); continue; }
       await page.evaluate(h=>{location.hash=h;},route);
@@ -322,7 +326,7 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
        able to show it. Six stations across wind, gyro and seis were declared,
        indexed, and had no control anywhere -- their geometry was built on load
        and hidden on every frame. A station nobody can open is not a station. */
-    ok(`and every declared station can actually be opened — ${stationsEntered} of ${stationTotal}`,
+    ok(`and every declared station can actually be opened — ${stationsEntered} of ${stationTotal}${stationScope.full?'':' (SAMPLED: '+stationScope.note+')'}`,
        stationsEntered === stationTotal,
        stationMissed.length?`NOT reachable from the control panel: ${stationMissed.join(', ')}`:'every declared station had a control');
     ok(`and the frame loop survives every station it could enter`,

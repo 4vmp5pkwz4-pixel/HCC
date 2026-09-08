@@ -26,6 +26,7 @@ const http=require('node:http');
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const {launchChromium}=require('./lib/chromium.cjs');
+const {walkScope}=require('./lib/walk-scope.cjs');
 
 const ROOT=path.resolve(__dirname,'..');
 const VENDOR=path.join(ROOT,'vendor');
@@ -72,9 +73,16 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
     /* a settle long enough for a laboratory to rebuild and write its own caption:
        a 600 ms walk reports the PREVIOUS laboratory's caption and would accuse
        sixty innocent laboratories — measured, and the reason this is 2600 */
+    /* the seven CIVP laboratories are always walked — they are the defect this file
+       was written for — and the rest take a deterministic stride unless HCC_WALK=full */
+    const civpIds=['civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'];
+    const rest=labs.filter(l=>!civpIds.includes(l.id));
+    const scope=walkScope(rest,'laboratories');
+    const toWalk=labs.filter(l=>civpIds.includes(l.id)).concat(scope.list);
+    ok('the walk scope is declared rather than assumed, and the CIVP seven are always in it', true, scope.note);
     const wearers=[];
     const civp={};
-    for(const L of labs){
+    for(const L of toWalk){
       await page.evaluate(h=>{location.hash=h;},L.route);
       await page.waitForTimeout(2600);
       const r=await page.evaluate(()=>{
