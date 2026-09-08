@@ -573,6 +573,12 @@ export const ROOTS = [
      reader's finger and never for a caller. It has no dependency on anything,
      which is exactly what this extractor is for: slice it, do not transcribe it,
      so the panel and the API cannot come to disagree about what the atlas claims. */
+  /* the wheels of time: the division each tradition drew, and the proportion two of
+     them share. Pure data and pure arithmetic — sliced so a verifier can CALL them
+     rather than grep for their text, which is how a mutation that made the Jain
+     branch unreachable survived while its code sat in the file untouched. */
+  'WOT_JAIN_ARA', 'WOT_YUGA_YR', 'WOT_MAHAYUGA_YR', 'WOT_KALPA_YR', 'WOT_TRADITIONS',
+  'wotArcs', 'wotSharedProportion',
   'NEXUS_RELATIONS',
   /* and the invariant thread beside it: fourteen QUESTIONS, each one a set of rows
      from different laboratories that answer it in different units. It is a
