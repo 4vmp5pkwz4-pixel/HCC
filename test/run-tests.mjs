@@ -120,6 +120,16 @@ console.log('\n=== 2. Statuses are load-bearing ===\n');
     && /carries an evidence tier/.test(cnotier.body.note || ''),
     cnotier.body.note);
 
+  const ciso = await get('/api/v1/connections');
+  ok('the surface distinguishes bus isolation from being connected by NOTHING, which are different numbers and were reported as one',
+    ciso.body.counts.isolated_laboratories === undefined
+    && ciso.body.counts.isolated_on_the_bus > 50
+    && ciso.body.counts.laboratories_touched + ciso.body.counts.connected_by_nothing === ciso.body.counts.laboratories_known
+    && ciso.body.connected_by_nothing.every(x => typeof x.reason === 'string' && x.reason.length > 40),
+    `${ciso.body.counts.isolated_on_the_bus} isolated on the bus · ${ciso.body.counts.laboratories_touched}`
+    + ` of ${ciso.body.counts.laboratories_known} laboratories touched by something · `
+    + `${ciso.body.counts.connected_by_nothing} connected by nothing, each carrying its reason`);
+
   const cmiss = await get('/api/v1/connections/definitely-not-a-lab');
   ok('and a laboratory nothing connects to is TOLD SO, so an empty list is never mistaken for an absence of edges',
     cmiss.code === 200 && cmiss.body.counts.returned === 0 && typeof cmiss.body.note === 'string'
