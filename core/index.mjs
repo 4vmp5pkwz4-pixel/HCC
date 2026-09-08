@@ -38,7 +38,7 @@ import { RELATIONS as GB_RELATIONS, SOURCES as GB_SOURCES, SCHEMA as GB_SCHEMA }
 /* and the atlas's own typed relation graph, SLICED out of index.html by
    scripts/extract-kernels.mjs rather than transcribed, so the panel a reader
    clicks and the edges an agent is served are one array. */
-import { NEXUS_RELATIONS } from './atlas/extracted.mjs';
+import { NEXUS_RELATIONS, INVARIANT_THREAD } from './atlas/extracted.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -314,7 +314,7 @@ export const CORE = {
      answer says so in a field rather than throwing or quietly returning fewer
      connections: a surface that degrades silently is worse than one that refuses. */
   connections({ lab = null, kind = null, tier = null } = {}) {
-    const KINDS = ['route', 'refusal', 'sourced', 'typed'];
+    const KINDS = ['route', 'refusal', 'sourced', 'typed', 'family'];
     /* ── SEVENTY-ONE EPISTEMIC STATUSES IS NOT A VOCABULARY ────────────────────
        The typed edges carry a status each, written by hand as the edge was
        written, and there turn out to be SEVENTY-ONE distinct ones over 336 edges
@@ -364,6 +364,24 @@ export const CORE = {
     for (const r of NEXUS_RELATIONS) out.push({ kind: 'typed', id: r.id, from: r.a, to: r.b,
       relation: r.type, directed: r.directed, claim: r.label, evidence: r.claim,
       epistemic_status: r.status, evidence_tier: tierOf(r.status), measured: r.measured });
+    /* ── A FAMILY IS A DIFFERENT RELATION FROM AN EDGE ─────────────────────────
+       An edge says two laboratories are related. A FAMILY says several of them
+       are answering the same question and disagree about what the answer even
+       IS — the Lyapunov exponent under one symbol on four different clocks, a
+       galaxy weighed two ways, a constant measured early and late. Each row
+       names the bus key that carries its number, so an agent can walk from the
+       question to the live quantity, and the family declares whether it is ONE
+       NUMBER (an identity) or a question several numbers answer (a relation).
+       Reporting that distinction is the point: five of these looked like
+       identities until somebody measured the units. */
+    for (const f of INVARIANT_THREAD) out.push({ kind: 'family', id: f.id,
+      family_kind: f.kind, unit_of: f.unitOf,
+      claim: (f.t && (f.t.en || f.t)) || f.id,
+      evidence: (f.rel && (f.rel.en || f.rel)) || null,
+      units: [...new Set((f.rows || []).map(r => r.unit))],
+      one_number: (f.kind === 'identity'),
+      rows: (f.rows || []).map(r => ({ lab: r.lab, key: r.k,
+        name: (r.n && (r.n.en || r.n)) || null, unit: r.unit })) });
     for (const r of GB_RELATIONS) out.push({ kind: 'sourced', id: r.id, claim_kind: r.kind,
       view: r.view, title: r.title, claim: r.text,
       sources: (r.sources || []).map(id => ({ id, ...(GB_SOURCES[id] || { missing: true }) })) });
@@ -377,7 +395,8 @@ export const CORE = {
     const known = (manifest && Array.isArray(manifest.labs)) ? manifest.labs.map(l => l.id || l) : [];
     const touchedSet = new Set();
     for (const c of out) { if (c.from) touchedSet.add(String(c.from).split('.')[0]);
-                           if (c.to) touchedSet.add(String(c.to).split('.')[0]); }
+                           if (c.to) touchedSet.add(String(c.to).split('.')[0]);
+                           for (const r of c.rows || []) if (r.lab) touchedSet.add(r.lab); }
     const isolation = { known: known.length, touched: known.filter(l => touchedSet.has(l)).length,
       ids: known.filter(l => !touchedSet.has(l)) };
 
@@ -397,7 +416,8 @@ export const CORE = {
     let labNote = null;
     if (lab) {
       const hit = c => String(c.from || '').split('.')[0] === lab || String(c.to || '').split('.')[0] === lab
-        || c.id === lab || c.view === lab;
+        || c.id === lab || c.view === lab
+        || (c.rows || []).some(r => r.lab === lab);
       const before = rows.length; rows = rows.filter(hit);
       if (rows.length === 0) labNote = `nothing connects to "${lab}" in ${before} connection(s) of this kind — `
         + (isolation.ids.includes(lab)
@@ -418,6 +438,9 @@ export const CORE = {
         refusal: out.filter(c => c.kind === 'refusal').length,
         sourced: out.filter(c => c.kind === 'sourced').length,
         typed: out.filter(c => c.kind === 'typed').length,
+        family: out.filter(c => c.kind === 'family').length,
+        family_rows: INVARIANT_THREAD.reduce((n, f) => n + (f.rows || []).length, 0),
+        families_that_are_one_number: INVARIANT_THREAD.filter(f => f.kind === 'identity').length,
         relation_kinds: [...new Set(NEXUS_RELATIONS.map(r => r.type))].sort(),
         epistemic_statuses: [...new Set(NEXUS_RELATIONS.map(r => r.status))].sort(),
         by_evidence_tier: Object.fromEntries(TIER_NAMES.map(t =>
