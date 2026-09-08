@@ -107,6 +107,70 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
       ok(`the frame loop survives the "${v}" view intact — no caught exception`, n===0);
     }
 
+    /* ── AND NO VIEW MAY BE A COPY OF ANOTHER ────────────────────────────────
+       Surviving the frame is not the same as showing something. Earlier today
+       the PHASE frame rendered the hierarchy's content — its own instrument was
+       a child of a hidden parent — and nothing caught it, because the loop was
+       intact and the labels on screen were somebody's. Two views with the same
+       label set are one view with two buttons.
+       This walks them again and requires every set to be distinct, and the HUD
+       to name the frame the reader chose, which is what a collapsed view stops
+       doing first. */
+    const drawnByView=new Map();
+    for(const v of views){
+      if(v==='solar') continue;
+      await page.click(`[data-cycle-view="${v}"]`);
+      await page.waitForTimeout(1400);
+      withinBudget();
+      const shot=await page.evaluate(()=>{
+        const vis=e=>{const r=e.getBoundingClientRect();const c=getComputedStyle(e);
+          return r.width>0&&r.height>0&&c.display!=='none';};
+        const labs=[...document.querySelectorAll('.label')].filter(vis).map(e=>e.textContent.trim());
+        return {n:labs.length, sig:labs.slice().sort().join('|'),
+                hud:((document.querySelector('#hudBig')||{}).textContent||'').trim()};
+      });
+      const twin=[...drawnByView.entries()].find(([,x])=>x.sig===shot.sig);
+      ok(`the "${v}" view draws a set of its own rather than another view's`,
+         !twin, twin?`IDENTICAL to "${twin[0]}" — ${shot.n} labels`:`${shot.n} labels on screen`);
+      drawnByView.set(v,shot);
+      ok(`and its caption names the frame the reader chose`,
+         new RegExp(v,'i').test(shot.hud), shot.hud.slice(0,72));
+    }
+
+    /* ── AND DISTINCT WAS NOT THE INVARIANT EITHER ───────────────────────────
+       The clause above was written to catch the phase frame collapsing into the
+       hierarchy, and a mutation run proved it does not: reverting that fix
+       leaves phase showing SEVEN labels instead of eighty-eight, which is a
+       different set, so "distinct" passes on the broken page. The check would
+       have shipped describing a guarantee it does not give.
+       What actually separates a working view from a collapsed one is that the
+       working view brings something of its OWN. A frame whose every visible
+       label also appears in some other frame has contributed nothing but a
+       button — it is showing the neighbours' furniture. That is derivable from
+       the walk itself, with no threshold to calibrate and nothing to keep in
+       step with the atlas. */
+    /* ── WHAT WOULD CATCH A COLLAPSED VIEW, AND WHY IT IS NOT HERE ───────────
+       The clause above asserts only that no two frames draw the SAME set. That
+       is worth having and it is weaker than it sounds, and the weakness was
+       measured rather than guessed: reverting the phase-frame fix from earlier
+       today leaves phase showing seven labels instead of eighty-eight, which is
+       still a different set, so this passes on the broken page.
+       Two stronger clauses were written and both were wrong. Comparing labels
+       verbatim made every time-varying readout unique, because the clock
+       advances between one frame and the next -- four frames passed on a
+       timestamp. Comparing label SHAPES fixed that and then failed "helio",
+       correctly: helio isolates the seasonal dial, which the hierarchy also
+       shows, so a focus view legitimately draws a subset and nothing of its own.
+       "Brings something no other frame has" is false by design here.
+       What would actually catch it is per-frame: THIS frame must show the
+       instrument it exists to show. updateCyc knows that -- it sets
+       cycPhaseInst.visible from the frame -- but only as control flow, not as
+       data, so nothing outside it can ask. Making the frame-to-instrument map a
+       declaration, the way HCC_STATIONS declares stations, would make it
+       checkable. That is a change to the atlas rather than to this file and it
+       is recorded in the open problems, not smuggled in here as a clause that
+       looks stronger than it is. */
+
     /* the linked view is the one that failed, and the failure was invisible from
        the counter alone until you asked whether the view had actually drawn */
     await page.click('[data-cycle-view="linked"]');
