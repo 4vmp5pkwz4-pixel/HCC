@@ -11,8 +11,15 @@ assert(!/chronometryT\s*\+=/.test(src),
   'Chronometry may not own a private render-frame clock');
 assert(/state\.epochDays/.test((src.match(/function updateChronometryObservatory\(\)[\s\S]{0,5000}/)||[''])[0]),
   'Chronometry update must derive its time marker from the shared Atlas epoch');
-assert(src.includes("frame==='chronometry'"),
-  'Cycles must expose an isolated Chronometry frame');
+/* this matched the string frame==='chronometry' anywhere in the file, which was
+   a proxy for "the frame exists" and stopped being one when the frame conditions
+   became a declaration. What "expose" actually means is that a reader can CHOOSE
+   it, so assert the thing a reader touches: the frame is offered in the Cycles
+   view list, and the frame chip carries it. */
+assert(/HCC_CYCLE_VIEWS=\[[\s\S]{0,1200}\['chronometry'/.test(src),
+  'Cycles must offer the Chronometry frame in its view list, where a reader can choose it');
+assert(/<option value="chronometry"/.test(src),
+  'and in the engineering frame selector beside the other frames');
 assert(src.includes('Same term / different definition'),
   'source space must make same-name definition conflicts explicit');
 assert(src.includes('PENDING_EPOCH_CORRECTION'),
@@ -23,8 +30,15 @@ assert(src.includes('DEPENDENT · 42k = 2 × 21k'),
   'the 42 kyr Jain datum must visibly carry its dependency status');
 assert(src.includes('NO PHASE ANCHOR'),
   'the 21 kyr comparison must visibly refuse phase consistency');
-assert(/cycChronometryInst\.visible\s*=\s*frame==='hierarchy'\|\|frame==='chronometry'/.test(src),
-  'Chronometry must be visible in hierarchy and its isolated frame only');
+/* This pinned the literal assignment `cycChronometryInst.visible = frame===...`,
+   which was the only record of the fact until the frame-to-instrument map became
+   a declaration. The assignment is made from CYC_FRAME_INSTRUMENTS now, so the
+   old regex went red for a change that made the same fact MORE legible, not
+   less. What matters is the frames the instrument is declared for — assert that
+   in the declaration, where it now lives, rather than in a line of control flow
+   that no longer exists. */
+assert(/\{name:'cycChronometryInst',\s*frames:\['hierarchy','chronometry'\]/.test(src),
+  'Chronometry must be declared for the hierarchy and its isolated frame only');
 assert(src.includes('if(cycChronometryInst.visible) updateChronometryObservatory();'),
   'Cycles render loop must update the station through the shared clock');
 

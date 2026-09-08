@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-station-nobody-can-open-2026.09.07.7">
+<html lang="en" data-hcc-build="what-a-frame-owes-the-reader-2026.09.08.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-station-nobody-can-open-2026.09.07.7">
+<meta name="hcc-build" content="what-a-frame-owes-the-reader-2026.09.08.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2255,7 +2255,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.161.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.162.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2499,8 +2499,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.161.0';
-const HCC_BUILD='a-station-nobody-can-open-2026.09.07.7';
+const HCC_VERSION='4.162.0';
+const HCC_BUILD='what-a-frame-owes-the-reader-2026.09.08.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -63593,6 +63593,47 @@ globalThis.HCC_PREDICTIVE_OBSERVATORY=Object.freeze({
   chains(control){return predictiveReachArtifact?predictiveReachArtifact.chains.filter(x=>String(x.control)===String(control)):[];},
   forecast(control,delta=.1){if(!predictiveReachArtifact)throw new Error('Predictive Observatory is not loaded; await HCC_PREDICTIVE_OBSERVATORY.ready()');return hccForecastReach(predictiveReachArtifact,control,delta,{version:HCC_VERSION,build:HCC_BUILD});}
 });
+/* The frames each cycle instrument belongs to. Read by updateCyc to assign
+   visibility and by HCC_CYCLE_FRAMES so a check can ask what a frame owes. */
+const CYC_FRAME_INSTRUMENTS=[
+  {name:'galInst',            frames:['hierarchy','gal'],                obj:galInst},
+  {name:'precInst',           frames:['hierarchy','geo'],                obj:precInst},
+  {name:'seaInst',            frames:['hierarchy','helio','geo'],        obj:seaInst},
+  {name:'cycLinkedInst',      frames:['linked'],                         obj:cycLinkedInst},
+  {name:'cycChronometryInst', frames:['hierarchy','chronometry'],        obj:cycChronometryInst},
+  {name:'cycOrientInst',      frames:['orientation'],                    obj:cycOrientInst},
+  {name:'antikGroup',         frames:['antikythera'],                    obj:antikGroup},
+  /* the torus and the web are one object and carry an extra condition each, so
+     their frames are declared here and their flags are assigned below rather
+     than by the loop — the declaration still says what each frame owes */
+  /* the torus and the web carry a further condition each, and the condition is a
+     PREDICATE rather than a sentence: a check that is handed prose has to skip
+     the entry, and skipping is how the first version of that check could never
+     have failed for the phase frame — the one frame it was written for. */
+  {name:'cycPhaseInst',       frames:['hierarchy','phase'],              obj:cycPhaseInst,
+   when:()=>!!state.cycShowPhaseTorus, why:'the reader can stand the torus down'},
+  {name:'cycResonanceInst',   frames:['hierarchy','resonance','phase'],  obj:cycResonanceInst,
+   when:f=>f!=='phase'||!!state.cycShowPhaseTorus, why:'in the phase frame the web is present only as the torus parent'},
+];
+/* ── A FACT NOBODY CAN ASK FOR CANNOT BE CHECKED ──────────────────────────────
+   Same lesson as ATLAS_TELEMETRY: the counter existed and was unreachable, so
+   nothing read it. This exposes what each frame owes and what is ACTUALLY on
+   screen — visibility as the product over ancestors it really is, not the flag
+   on the object — so a frame that promises an instrument and does not deliver
+   it is a question anything can ask. */
+globalThis.HCC_CYCLE_FRAMES=()=>{
+  const onScreen=o=>{ for(let p=o;p;p=p.parent) if(p.visible===false) return false; return true; };
+  const frame=state.cycFrame||'hierarchy';
+  /* owedNow is the whole point: the runtime evaluates the condition, so a caller
+     never has to interpret it and never has to skip an entry it cannot parse. */
+  return {frame, instruments:CYC_FRAME_INSTRUMENTS.map(d=>{
+    const inFrame=d.frames.includes(frame);
+    let cond=true; try{ cond=d.when?!!d.when(frame):true; }catch(e){ cond=true; }
+    return { name:d.name, frames:d.frames.slice(), owedHere:inFrame,
+      owedNow:inFrame&&cond, conditionHolds:cond, why:d.why||null,
+      flag:!!d.obj.visible, onScreen:onScreen(d.obj) };
+  })};
+};
 function updateCyc(dt){
   const yrs = state.epochDays/365.2425;
   const frame=state.cycFrame||'hierarchy';
@@ -63605,9 +63646,19 @@ function updateCyc(dt){
   else if(frame==='geo'){ precInst.position.set(10,0,0); seaInst.position.set(-10,0,0); }
   else { precInst.position.set(27,0,0); seaInst.position.set(-27,0,0); }
   galInst.scale.setScalar(1); precInst.scale.setScalar(.96); seaInst.scale.setScalar(1);
-  galInst.visible=frame==='hierarchy'||frame==='gal';
-  precInst.visible=frame==='hierarchy'||frame==='geo';
-  seaInst.visible=frame==='hierarchy'||frame==='helio'||frame==='geo';
+  /* ── WHICH INSTRUMENT A FRAME OWES THE READER, AS DATA ────────────────────
+     These assignments were the only record of what each frame is FOR, and they
+     were control flow: a dozen lines of `x.visible = frame===a||frame===b`
+     scattered through a per-frame update. Nothing outside this function could
+     ask which instrument the PHASE frame owes you, which is why the phase frame
+     could render the hierarchy's scene for as long as it did — the flag said
+     visible, the object said visible, and no check could state what the frame
+     had promised, so no check could notice it had not delivered.
+     The map is a declaration now, and it is LOAD-BEARING: the visibility below
+     is assigned from it, so it cannot drift into decoration. A frame added
+     without an entry shows none of these instruments, loudly, rather than
+     silently inheriting whatever the previous frame left. */
+  for(const d of CYC_FRAME_INSTRUMENTS) d.obj.visible = d.frames.includes(frame);
   /* ── A CHILD CANNOT BE SEEN THROUGH A HIDDEN PARENT ──────────────────────
      Folding the phase torus into the resonance web made them one object, which
      was the point: the web shows every pair on the rim and the torus shows the
@@ -63629,10 +63680,8 @@ function updateCyc(dt){
   for(const f of resoFeeds) f.visible=!rimStoodDown&&f.visible;
   cycPhaseInst.scale.setScalar(rimStoodDown?1.35:0.62);
   if(cycResonanceInst.visible) updateCycResonance(dt);
-  cycLinkedInst.visible = frame==='linked';
-  if(cycLinkedInst.visible) updateCycLinkedView();
-  cycChronometryInst.visible=frame==='hierarchy'||frame==='chronometry';
-  if(cycChronometryInst.visible) updateChronometryObservatory();
+  if(cycLinkedInst.visible) updateCycLinkedView();   /* visibility assigned from CYC_FRAME_INSTRUMENTS */
+  if(cycChronometryInst.visible) updateChronometryObservatory();   /* visibility assigned from CYC_FRAME_INSTRUMENTS */
   if(cycSarosInst.visible) updateSarosEngine();
   /* ── THE CYCLES ENTER THE BUS, WHICH THEY HAD NEVER DONE ─────────────────
      Some fifty laboratories publish quantities the atlas can route; this whole
@@ -63658,8 +63707,6 @@ function updateCyc(dt){
         +cycPerihelionPeriodYears(MERC_A,MERC_E,MERC_PERIOD_D).toFixed(0),'yr');
     }catch(e){}
   }
-  cycOrientInst.visible = frame==='orientation';
-  antikGroup.visible = frame==='antikythera';
   // layout-plane guides only make sense while the multi-instrument layout is on stage
   spatialGuides.cyc.visible = state.showGuides&&state.vectorGuides!==false && frame!=='antikythera' && frame!=='orientation';
   if(frame==='antikythera') antikUpdate(state.epochDays);

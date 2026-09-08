@@ -20,7 +20,14 @@ ok('all linked motion is derived from the authoritative Cycles epoch', /function
 ok('resonance highlighting is synchronized to the same epoch rather than a private accumulator', !/let resoPulse\s*=/.test(s) && /function updateCycResonance\([^)]*\)[\s\S]{0,900}cycLinkedPhaseOf/.test(s));
 ok('linked view carries an epistemic firewall', has('STRUCTURAL VIEW LINK') && has('not IIT Φ') && has('not a physical causal graph'));
 ok('linked object is globally selectable and focusable', /registerSel\(['"]cycLinkedView['"]/.test(s) && /key===['"]cycLinkedView['"]\?['"]linked['"]/.test(s));
-ok('Cycles update loop owns linked visibility and update', /cycLinkedInst\.visible\s*=\s*frame===['"]linked['"]/.test(s) && /cycLinkedInst\.visible[^\n]*\n?[^\n]*updateCycLinkedView/.test(s));
+/* the literal assignment this used to match is gone: which frames own which
+   instrument is a declaration now, and the visibility is assigned from it. The
+   invariant is unchanged — the linked view belongs to the linked frame and the
+   cycles loop drives it — so it is asserted against the declaration. */
+ok('the linked view is declared to the linked frame, and the Cycles loop drives it from that',
+   /\{name:'cycLinkedInst',\s*frames:\['linked'\]/.test(s)
+   && /for\(const d of CYC_FRAME_INSTRUMENTS\) d\.obj\.visible = d\.frames\.includes\(frame\);/.test(s)
+   && /if\(cycLinkedInst\.visible\) updateCycLinkedView\(\);/.test(s));
 ok('camera framing recognizes linked view', /function applyCycFrameView\(\)[\s\S]{0,1500}cycFrame===['"]linked['"]/.test(s));
 
 const linkedStart=s.indexOf('hcc.cycles-linked-view/1');
