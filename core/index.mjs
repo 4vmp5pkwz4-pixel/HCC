@@ -381,7 +381,13 @@ export const CORE = {
       units: [...new Set((f.rows || []).map(r => r.unit))],
       one_number: (f.kind === 'identity'),
       rows: (f.rows || []).map(r => ({ lab: r.lab, key: r.k,
-        name: (r.n && (r.n.en || r.n)) || null, unit: r.unit })) });
+        name: (r.n && (r.n.en || r.n)) || null, unit: r.unit,
+        /* SOME QUANTITIES ONLY EXIST IN ONE STATION OF THEIR LABORATORY. The spin
+           laboratory has four and publishes a different number in each, so nothing
+           can see all four at once; the supernova publishes its shock speed only in
+           the remnant domain. A caller told only the laboratory would open it, find
+           nothing, and conclude the quantity is missing. */
+        station: r.at || null })) });
     for (const r of GB_RELATIONS) out.push({ kind: 'sourced', id: r.id, claim_kind: r.kind,
       view: r.view, title: r.title, claim: r.text,
       sources: (r.sources || []).map(id => ({ id, ...(GB_SOURCES[id] || { missing: true }) })) });
