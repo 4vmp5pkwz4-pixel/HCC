@@ -72,5 +72,53 @@ ok('Dirichlet is named in the source as the reason, rather than the threshold ap
   /Dirichlet's approximation theorem read in this atlas's own units/.test(src),
   'a threshold with no stated basis is a preference wearing a number');
 
-console.log('\n' + (fail ? ('✖ ' + fail + ' FAILED, ' + pass + ' passed') : ('✔ ALL ' + pass + ' CHECKS PASSED')));
-process.exit(fail ? 1 : 0);
+/* ── AND THE VERDICT REACHES THE READER, NOT ONLY THE WEB ────────────────── */
+ok('the three readouts a reader opens carry the verdict, not just the edge label',
+  (src.match(/cycSurpriseText\(c,a,b\)/g) || []).length >= 3,
+  'the linked view’s own text, the linked panel’s bounded ratio, and the resonance panel’s best lock');
+ok('and the "tightest locks" row is COMPUTED rather than typed beside the engine that computes it',
+  /function cycMostSurprisingLocks/.test(src)
+  && !/'Tightest locks','moon:Saros 223:1/.test(src)
+  && /Most surprising locks/.test(src),
+  'a hand-written list ranked by the criterion this file just showed cannot tell a resonance from an accident');
+ok('the ranking reports what it EXCLUDED, because a ranking that quietly drops rows cannot be checked',
+  /out\.stipulated=\(out\.stipulated\|\|0\)\+1/.test(src)
+  && /excluded for resting on a period carried as a whole number of years/.test(src),
+  'sixteen of forty pairs rest on a stipulated period');
+
+/* ── A THIRD WAY A LOCK IS ARITHMETIC, AND THE TEST IS EXACTNESS ──────────── */
+ok('a lock resting on a period carried as a whole number of years is named as arithmetic',
+  /ARITHMETIC, NOT A RESONANCE/.test(src) && /function cycRoundYears/.test(src),
+  'the solar cycle is 11 years because somebody wrote 11, not because anybody measured it to seven figures');
+ok('and the test is EXACTNESS, not smallness — a tolerance for near-misses catches the Metonic',
+  /const CYC_ROUND_YEAR_PPM=1e-6;/.test(src)
+  && /float noise, not a tolerance for near-misses/.test(src),
+  'the Metonic sits 0.82 ppm from nineteen years and that is the discovery, not a convention');
+ok('and the unit itself is not a stipulation',
+  /if\(n<2\) return null;/.test(src),
+  'the tropical year is 0.9999992 of a tropical year, and flagging it silenced the verdict on most pairs');
+
+/* ── AND THE SEPARATION IS MEASURED, NOT ASSERTED ─────────────────────────── */
+(async () => {
+  try {
+    const K = await import('../core/atlas/extracted.mjs');
+    const yearsOf = k => { const c = K.cycleByKey(k); const y = c.days / 365.2425;
+      return { y, n: Math.round(y), rel: Math.abs(y - Math.round(y)) / Math.max(1, Math.round(y)) * 1e6 }; };
+    const stipulated = ['solar', 'hale', 'obliq', 'eccS', 'eccL', 'gal'].map(yearsOf);
+    const measured = ['mercperi', 'metonic', 'prec', 'saros'].map(yearsOf);
+    const worstStipulated = Math.max(...stipulated.map(x => x.rel));
+    const closestMeasured = Math.min(...measured.map(x => x.rel));
+    ok('every stipulated period lands on its integer EXACTLY, and the nearest measured one is orders of magnitude away',
+      worstStipulated === 0 && closestMeasured > 0.1,
+      `stipulated: all ${stipulated.length} at ${worstStipulated} ppm from the integer · `
+      + `nearest measured: ${closestMeasured.toFixed(3)} ppm — the line at 1e-6 separates them with six orders of margin`);
+    const met = yearsOf('metonic');
+    ok('and the Metonic cycle is on the MEASURED side of that line, where it belongs',
+      met.rel > 1e-6 && met.n === 19,
+      `metonic = ${met.y.toFixed(9)} yr, ${met.rel.toFixed(3)} ppm from 19 — nineteen years to within a few hours, which is the discovery`);
+  } catch (e) {
+    ok('the stipulated/measured separation is measured from the sliced kernels', false, 'could not evaluate: ' + e.message);
+  }
+  console.log('\n' + (fail ? ('✖ ' + fail + ' FAILED, ' + pass + ' passed') : ('✔ ALL ' + pass + ' CHECKS PASSED')));
+  process.exit(fail ? 1 : 0);
+})();
