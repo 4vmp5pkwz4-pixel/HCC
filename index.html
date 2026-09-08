@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="which-station-the-number-lives-in-2026.09.08.16">
+<html lang="en" data-hcc-build="what-the-bus-refused-to-carry-2026.09.08.17">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="which-station-the-number-lives-in-2026.09.08.16">
+<meta name="hcc-build" content="what-the-bus-refused-to-carry-2026.09.08.17">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2255,7 +2255,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.178.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.179.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2502,8 +2502,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.178.0';
-const HCC_BUILD='which-station-the-number-lives-in-2026.09.08.16';
+const HCC_VERSION='4.179.0';
+const HCC_BUILD='what-the-bus-refused-to-carry-2026.09.08.17';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -15515,9 +15515,16 @@ function busDrivenHTML(v){
   if(!v) return '';
   let specs=[];
   try{ specs=[...HCC_API_SPECS.values()].filter(sp=>(sp.lab||sp.id)===v); }catch(e){ return ''; }
-  if(!specs.length) return '';
+  /* THE EARLY RETURN HERE HID A WHOLE LABORATORY'S REFUSALS. This function bailed
+     out when a laboratory had no API SPEC, because without one there is nothing to
+     evaluate and no arrivals to draw. But a refusal is not an evaluation — it is a
+     sentence about a coupling — and the distance-ladder laboratory has one
+     (ladder.pressure → eos.pressure) and no spec, so it showed nothing at all.
+     Measured before and after: with the panel properly rebuilt, ladder went from
+     zero refusal rows to one, and no laboratory shows a row it does not touch. */
+  const noSpecs=!specs.length;
   const rows=[], feeds=[];
-  for(const sp of specs){
+  for(const sp of (noSpecs?[]:specs)){
     /* cheap first: does anything drive this instrument at all? */
     let driven=[];
     try{ driven=HCC_LINKS.filter(l=>String(l.to).split('.')[0]===sp.id); }catch(e){ driven=[]; }
@@ -15544,7 +15551,37 @@ function busDrivenHTML(v){
       feeds.push({to:l.to, dstLab, from:l.from, unit:l.unit});
     }
   }
-  if(!rows.length&&!feeds.length) return '';
+  /* ── AND WHAT THE BUS REFUSED TO CARRY HERE ────────────────────────────────
+     The atlas finds a coupling admissible — the units agree, the coordinate names
+     agree, the target's domain accepts the value — and then DECLINES it, writing
+     down why. There are dozens of those, each with a sentence: a second driver for
+     an input that takes one, a name collision between two different quantities, a
+     conversion nobody declared. Every one of them has been readable by an agent
+     over the API and provable by a boot assertion, and a reader standing in the
+     laboratory it concerns has never been shown one.
+     A refusal is the more informative half of a bus. An arrival says two
+     laboratories agree; a refusal says the atlas looked at a connection somebody
+     would reasonably expect and decided against it, and states the grounds. That is
+     the thing a reader cannot reconstruct alone. */
+  /* AND THE ENDPOINTS ARE MATCHED THE WAY THE ARRIVALS ARE, WHICH IS NOT THE VIEW ID.
+     The first draft compared a refusal's endpoint prefix against the VIEW id, and a
+     bus id is not a view id — the arrivals a few lines above resolve a view to its
+     specs and then match on sp.id for exactly this reason. A laboratory whose bus id
+     differs from its view id would have shown no refusals at all and looked simply
+     unrefused, which is the most misleading state this panel could be in. */
+  const busIds=new Set([v]);
+  try{ for(const sp of specs) busIds.add(sp.id); }catch(e){}
+  const refusals=[];
+  try{
+    for(const [key,reason] of HCC_NOT_LINKS){
+      const [from,to]=String(key).split('|');
+      const fl=String(from).split('.')[0], tl=String(to).split('.')[0];
+      if(!busIds.has(fl) && !busIds.has(tl)) continue;
+      refusals.push({from,to,reason:String(reason&&reason.why||reason||''),
+        outgoing:busIds.has(fl)});
+    }
+  }catch(e){}
+  if(!rows.length&&!feeds.length&&!refusals.length) return '';
   const fmt=x=>(x==null||!Number.isFinite(+x))?'—'
     :(Math.abs(+x)>=1e5||(Math.abs(+x)<1e-3&&+x!==0))?(+x).toExponential(4):(+x).toPrecision(6);
   /* A NUMBER MUST NOT BREAK ACROSS LINES. The first version laid the input, the
@@ -15570,13 +15607,33 @@ function busDrivenHTML(v){
       <span style="opacity:.55">drives</span> <span style="opacity:.8">${esc(f.to)}</span>
     </div>`).join('');
   return `
-    <div class="sect"><b>${TT('What the bus delivers here, and what leaves',
-        'Что шина приносит сюда и что уходит','Was der Bus hier liefert und was geht')}</b>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">${TT(
+    <div class="sect"><b>${(rows.length||feeds.length)?TT('What the bus delivers here, and what leaves',
+        'Что шина приносит сюда и что уходит','Was der Bus hier liefert und was geht')
+        :TT('What the bus refused to carry here','Что шина отказалась нести сюда','Was der Bus hier nicht getragen hat')}</b>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${(rows.length||feeds.length)?TT(
         'Every number below was computed by evaluating the laboratory it came from, and every laboratory behind that one, at this moment. The bus has carried these since it was written and there has never been anywhere to watch one arrive. A row is a route: press it and you are standing where the number was made.',
         'Каждое число ниже вычислено вычислением той лаборатории, откуда оно пришло, и всех лабораторий за ней. Строка — это маршрут: нажмите, и вы окажетесь там, где число было получено.',
-        'Jede Zahl unten wurde berechnet, indem das Labor ausgewertet wurde, aus dem sie stammt.')}</div>
+        'Jede Zahl unten wurde berechnet, indem das Labor ausgewertet wurde, aus dem sie stammt.')
+        :''}</div>
       ${inRows}${outRows}
+      ${refusals.length?`
+      <div style="margin-top:9px;padding-top:7px;border-top:1px solid rgba(255,255,255,.09)">
+        <b style="font-size:11px;color:#ff9d7a">${TT('And what it declined to carry, with the reason',
+          'И что она отказалась нести — с причиной','Und was er nicht getragen hat — mit Begründung')}</b>
+        <div class="note" style="font-size:10px;color:var(--dim)">${TT(
+          'Each of these was found ADMISSIBLE — the units agree and the target accepts the value — and refused anyway. The sentence is the grounds. An arrival says two laboratories agree; a refusal says the atlas considered a connection you would reasonably expect and decided against it.',
+          'Каждая из них признана ДОПУСТИМОЙ — единицы согласуются, цель принимает значение — и всё же отклонена. Предложение — это основание.',
+          'Jede galt als ZULÄSSIG und wurde dennoch abgelehnt; der Satz nennt die Gründe.')}</div>
+        ${refusals.map(r=>`
+        <div class="navRow" data-nexjump="${esc(String(r.outgoing?r.to:r.from).split('.')[0])}"
+             style="display:block;line-height:1.45;opacity:.93">
+          <div><span style="color:#ff7a7a">⊘</span> <span style="opacity:.8">${esc(r.from)}</span>
+            <span style="opacity:.55">→</span> <span style="opacity:.8">${esc(r.to)}</span></div>
+          <div style="font-size:10.2px;opacity:.82;margin-left:14px">${esc(r.reason)}</div>
+        </div>`).join('')}
+        <div class="note" style="font-size:10px;color:var(--dim)">${refusals.length} ${
+          TT('refusal(s) touching this laboratory','отказ(ов), касающихся этой лаборатории','Ablehnung(en) zu diesem Labor')}</div>
+      </div>`:''}
     </div>`;
 }
 function nexusRailHTML(v){
