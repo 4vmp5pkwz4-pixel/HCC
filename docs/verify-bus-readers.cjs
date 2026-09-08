@@ -120,8 +120,14 @@ ok('and the panel wires that jump to the cycles router rather than the s3 one',
 const di=src.indexOf('const CYC_FRAME_INSTRUMENTS=[');
 const decl=src.slice(di, src.indexOf('\n];', di));
 const saros=decl.match(/\{name:'cycSarosInst',\s*frames:\[([^\]]*)\]/);
+/* THIS CHECK ALSO ASSERTED 'hierarchy', WHICH WAS A COMPOSITION DECISION AND NOT
+   THE CLAIM. What it exists to defend is that a frame whose CHIP names an instrument
+   shows that instrument — the Saros engine was once in no frame at all and stood in
+   every one of them. That is unchanged and still enforced. The hierarchy half came
+   from the overview being "the stage that shows everything", and that stage was
+   measured at seven instruments and 165 labels, which has no reader. */
 ok('the frame chip that reads "Resonances · Saros" shows the Saros engine',
-  !!saros && /'resonance'/.test(saros[1]) && /'hierarchy'/.test(saros[1]),
+  !!saros && /'resonance'/.test(saros[1]),
   saros?('cycSarosInst frames: '+saros[1]):'the declaration no longer names cycSarosInst');
 
 /* ── A ROW WHOSE NUMBER LIVES IN ONE STATION HAS TO SAY WHICH ────────────────
