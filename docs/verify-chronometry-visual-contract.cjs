@@ -39,7 +39,13 @@ assert(src.includes('NO PHASE ANCHOR'),
    that no longer exists. */
 assert(/\{name:'cycChronometryInst',\s*frames:\['hierarchy','chronometry'\]/.test(src),
   'Chronometry must be declared for the hierarchy and its isolated frame only');
-assert(src.includes('if(cycChronometryInst.visible) updateChronometryObservatory();'),
-  'Cycles render loop must update the station through the shared clock');
+/* This matched one literal line. Adding the symbol columns changed it from
+   `if(cycChronometryInst.visible) updateChronometryObservatory();` to a block
+   that also drives the numerals, and the clause went red for a change that made
+   the laboratory do MORE of what the clause is about. What must hold is that the
+   Cycles loop drives the observatory and does so gated on the instrument's own
+   visibility — not the exact punctuation between those two facts. */
+assert(/if\(cycChronometryInst\.visible\)\s*\{?[^;\n]*updateChronometryObservatory\(\)/.test(src),
+  'Cycles render loop must update the station through the shared clock, gated on its own visibility');
 
 console.log('PASS — Ancient Chronometry 3D visual contract');

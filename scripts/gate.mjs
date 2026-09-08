@@ -89,7 +89,18 @@ try {
     for (const f of CI_FAST_VERIFIERS) {
       execFileSync(process.execPath, [join(ROOT, 'docs', f)], { stdio: 'pipe' });
     }
-    return `${CI_FAST_VERIFIERS.length} contracts`;
+    /* ── AND ITS THIRD STEP, WHICH WAS THE ONE THAT WAS RED ─────────────────
+       The first version of this step ran the workflow's two named verifiers and
+       stopped, because those were the two `run: node docs/…` lines I read. The
+       workflow has a third step — `npm test` — and that was the one failing, on
+       main, for four merges: verify-chronometry-visual-contract asserted the
+       LITERAL line `if(cycChronometryInst.visible) updateChronometryObservatory();`
+       and the symbol columns changed it to a block that also drives the numerals.
+       Red for a change that made the laboratory do more of what the clause is
+       about, and invisible to me because I had mirrored two of three steps.
+       It costs eight seconds. Mirroring a workflow means mirroring all of it. */
+    execSync('npm test', { cwd: ROOT, stdio: 'pipe' });
+    return `${CI_FAST_VERIFIERS.length} contracts + npm test`;
   });
 
   step('96 verifiers', () => {
