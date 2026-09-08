@@ -25,8 +25,15 @@
 const fs = require('node:fs'), path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 let pass = 0, fail = 0;
+/* A FAILING CHECK MUST NOT PRINT THE SENTENCE WRITTEN FOR THE PASSING CASE.
+   Twelve details in one day were computed unconditionally, so a red check argued
+   against its own verdict — filed as atlas.a_failure_message_can_argue_against_
+   its_own_verdict. This is the structural remedy rather than a thirteenth hand fix:
+   a detail that was written as an expectation is LABELLED as one when the check
+   fails, so no failure line can ever read as a reassurance. A detail built from
+   what actually went wrong reads the same either way and loses nothing. */
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); }
-  else { fail++; console.log('  FAIL — ' + n + (d ? ' :: ' + d : '')); } };
+  else { fail++; console.log('  FAIL — ' + n + (d ? ' :: EXPECTED ' + d : '')); } };
 
 (async () => {
   const { CORE } = await import('../core/index.mjs');

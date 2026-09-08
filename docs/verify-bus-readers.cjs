@@ -27,8 +27,15 @@ const fs=require('fs'), path=require('path');
 const file=path.join(__dirname,'..','index.html');
 const src=fs.readFileSync(file,'utf8');
 let pass=0, fail=0;
+/* A FAILING CHECK MUST NOT PRINT THE SENTENCE WRITTEN FOR THE PASSING CASE.
+   Twelve details in one day were computed unconditionally, so a red check argued
+   against its own verdict — filed as atlas.a_failure_message_can_argue_against_
+   its_own_verdict. This is the structural remedy rather than a thirteenth hand fix:
+   a detail that was written as an expectation is LABELLED as one when the check
+   fails, so no failure line can ever read as a reassurance. A detail built from
+   what actually went wrong reads the same either way and loses nothing. */
 const ok=(name,cond,detail)=>{ if(cond){pass++;console.log('  PASS — '+name+(detail?' :: '+detail:''));}
-  else {fail++;console.log('  FAIL — '+name+(detail?' :: '+detail:''));} };
+  else {fail++;console.log('  FAIL — '+name+(detail?' :: EXPECTED '+detail:''));} };
 
 /* ── every key the atlas publishes ─────────────────────────────────────────── */
 const pubs=[...src.matchAll(/ATLAS_BUS\.pub\('([A-Za-z0-9_.]+)'/g)].map(m=>m[1]);
