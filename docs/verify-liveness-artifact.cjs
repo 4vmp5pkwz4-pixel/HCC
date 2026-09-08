@@ -90,5 +90,34 @@ ok('AND THE SUMMARY IS NON-TRIVIAL. A file in which everything was alive, or not
   alive > 0 && still > 0 && alive > still && alive / V.length > 0.5 && still / V.length > 0.05,
   `${alive} alive and ${still} still — ${(100 * alive / V.length).toFixed(1)}% of views recompute something, and the remainder is large enough to be a finding rather than a rounding`);
 
+/* ── THE THIRD READING MUST NOT GO SILENT ────────────────────────────────────
+   RECOMPUTED and MOVED were read as a verdict they explicitly disclaim: twenty-five
+   views scoring zero on both were taken for static pictures and lined up to be
+   "given motion". Driving every control of the least promising of them and
+   comparing the RENDERED IMAGE showed all four self-animating and responding, and
+   the full walk then showed all twenty-five alive — through materials, shaders and
+   inherited rotation, none of which dirties a buffer or moves a watched body.
+   PIXELS is that third, orthogonal reading, and these clauses exist so it cannot
+   quietly vanish from the artifact and let the same misreading happen again. */
+ok('every view carries the third reading, so a still-looking view can be told from a broken one',
+  V.every(v => Object.prototype.hasOwnProperty.call(v, 'pixels')),
+  `${V.filter(v => v.pixels !== null).length} of ${V.length} measured`);
+
+{
+  const still  = V.filter(v => !v.rebuilds && !v.moves);
+  const shimmer = still.filter(v => v.pixels === true);
+  const frozen  = still.filter(v => v.pixels === false);
+  ok('and a view that neither rebuilds nor moves is not thereby dead — the artifact says which of them are alive anyway',
+    still.length === 0 || shimmer.length + frozen.length === still.length,
+    `${still.length} neither rebuild nor move · ${shimmer.length} alive through materials · ${frozen.length} render an identical image`);
+  /* NOT a threshold and NOT a verdict: a frozen view may be a diagram that is
+     right to be still. What it may not be is unnamed — a view whose image never
+     changes is the one shape the other two counters cannot distinguish from a
+     laboratory that broke, so it is listed by name for a person to judge. */
+  ok('and any view whose image never changes is named rather than folded into a count',
+    frozen.length === 0 || frozen.every(v => v.lab),
+    frozen.length ? `frozen: ${frozen.map(v => v.lab + (v.station ? '/' + v.station : '')).join(' ')}` : 'none render an identical image between frames');
+}
+
 console.log(`\n${pass}/${pass + fail} checks passed\n`);
 process.exit(fail ? 1 : 0);
