@@ -30,6 +30,18 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/* ── WHAT CI's FAST WORKFLOW RUNS, RUN HERE FIRST ────────────────────────────
+   A commit went to main red because the local loop ran scripts/validate.mjs and
+   the CI `validate` workflow runs two verifiers BESIDE it — and one of them, the
+   linked-cycles contract, failed. It failed for a reason worth keeping: it
+   required cycFrame==='linked' within 1500 characters of the start of
+   applyCycFrameView, and two new frames given their own camera framing above it
+   pushed the branch past that budget. A proximity assertion, red for a feature it
+   has no opinion on.
+   The gap that let it ship is the one addressed here: `--quick` now runs exactly
+   what the fast CI workflow runs, in the same order, so a green quick gate means
+   the same thing locally as it does there. It costs about a second. */
+const CI_FAST_VERIFIERS = ['verify-multiphase-solar-control.cjs', 'verify-linked-cycle-views.cjs'];
 const FULL = process.argv.includes('--full');
 if (FULL) process.env.HCC_WALK = 'full';   /* the exhaustive walks are part of --full, not of every run */;
 const t0 = Date.now();
@@ -69,6 +81,15 @@ try {
   step('validate', () => {
     execFileSync(process.execPath, [join(ROOT, 'scripts/validate.mjs')], { stdio: 'pipe' });
     return '';
+  });
+
+  /* the two verifiers CI's fast workflow runs beside validate — a green quick
+     gate has to mean the same thing here as it does there */
+  step("what CI's fast workflow runs", () => {
+    for (const f of CI_FAST_VERIFIERS) {
+      execFileSync(process.execPath, [join(ROOT, 'docs', f)], { stdio: 'pipe' });
+    }
+    return `${CI_FAST_VERIFIERS.length} contracts`;
   });
 
   step('96 verifiers', () => {
