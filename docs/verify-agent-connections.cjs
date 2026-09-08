@@ -134,6 +134,50 @@ const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS —
     noTier.counts.returned === 0 && /carries an evidence tier/.test(noTier.note || ''),
     noTier.note || 'no note');
 
+  /* ── WHAT IS CONNECTED BY NOTHING, AND WHY THE OLD NUMBER WAS MISLEADING ─── */
+  ok('the two isolation numbers are named for what they each count, and they are not the same number',
+    all.counts.isolated_on_the_bus > 50
+    && all.counts.connected_by_nothing < all.counts.isolated_on_the_bus
+    && all.counts.laboratories_touched + all.counts.connected_by_nothing === all.counts.laboratories_known
+    && all.counts.isolated_laboratories === undefined,
+    (all.counts.isolated_laboratories !== undefined
+       ? 'the misleading isolated_laboratories field is back in the payload — it counts bus isolation under a name that reads as total isolation · '
+       : '')
+    + (all.counts.laboratories_touched + all.counts.connected_by_nothing !== all.counts.laboratories_known
+       ? `the census does not close: ${all.counts.laboratories_touched} touched + ${all.counts.connected_by_nothing} isolated ≠ ${all.counts.laboratories_known} known · `
+       : '')
+    + `${all.counts.isolated_on_the_bus} isolated ON THE BUS · but across all four kinds `
+    + `${all.counts.laboratories_touched} of ${all.counts.laboratories_known} laboratories are touched, `
+    + `so ${all.counts.connected_by_nothing} is connected by nothing`);
+
+  /* THE RULE THAT KEEPS THIS HONEST. A laboratory nothing connects to must either
+     GET a connection or CARRY a reason. Inventing an edge to flatten the count is
+     the failure this atlas spends its verifiers preventing, so the alternative is
+     made cheap and the silence is made expensive. */
+  const unexplained = all.connected_by_nothing.filter(x => !x.reason || x.reason.length < 40);
+  ok('and a laboratory connected by nothing carries a written reason — an edge is never invented to flatten the count',
+    unexplained.length === 0,
+    unexplained.length ? ('connected by nothing and unexplained: ' + unexplained.map(x => x.lab).join(' '))
+      : all.connected_by_nothing.map(x => x.lab).join(' ') + ' — each with its reason stated');
+
+  /* four different empty answers, each saying which it is */
+  const notes = {
+    isolated: CORE.connections({ lab: all.connected_by_nothing[0] && all.connected_by_nothing[0].lab }).note,
+    filtered: CORE.connections({ lab: 'eos', kind: 'sourced' }).note,
+    typo: CORE.connections({ lab: 'definitely-not-a-lab' }).note };
+  ok('an empty result says WHICH kind of empty it is: isolated, filtered out, or a name that does not exist',
+    /NOTHING connects to it in any of the four kinds/.test(notes.isolated || '')
+    && /the filter you combined with it is what emptied the result/.test(notes.filtered || '')
+    && /check the spelling/.test(notes.typo || ''),
+    /* the detail names which of the three notes failed to distinguish itself */
+    [!/NOTHING connects to it in any of the four kinds/.test(notes.isolated || '')
+       && 'the isolated note does not say so: "' + String(notes.isolated).slice(0, 60) + '"',
+     !/the filter you combined with it is what emptied the result/.test(notes.filtered || '')
+       && 'the filtered note does not say so: "' + String(notes.filtered).slice(0, 60) + '"',
+     !/check the spelling/.test(notes.typo || '')
+       && 'the unknown-name note does not say so: "' + String(notes.typo).slice(0, 60) + '"'
+    ].filter(Boolean).join(' · ') || 'three distinguishable notes for three different reasons a list is empty');
+
   /* ── ONE SOURCE: no second implementation anywhere ───────────────────────── */
   const server = fs.readFileSync(path.join(ROOT, 'server/server.mjs'), 'utf8');
   const route = /\/api\/v1\/connections'[\s\S]{0,400}?CORE\.connections\(/.test(server);

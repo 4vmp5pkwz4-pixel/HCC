@@ -67,6 +67,23 @@ function coreHash() {
 }
 export const PROVENANCE = Object.freeze({ commit: gitCommit(), code_sha256: coreHash() });
 
+/* ── A LABORATORY MAY BE CONNECTED BY NOTHING, BUT NOT SILENTLY ───────────────
+   Exactly one of the atlas's 114 laboratories is touched by no connection of any
+   kind, and it is the relation graph itself: the Invariant Nexus is the map, not
+   a place on it. That is a defensible reason and it is written down rather than
+   left for a caller to infer from an absence.
+   NO EDGE IS INVENTED TO MAKE THIS NUMBER SMALLER. Drawing a relation so that a
+   count looks better is the failure this atlas spends its verifiers preventing.
+   The rule is the other one: a laboratory nothing connects to must either GET a
+   connection or CARRY a reason, and a verifier fails when an isolated laboratory
+   has neither. */
+export const ISOLATION_NOTES = Object.freeze({
+  nexus: 'the Invariant Nexus IS this graph — the laboratory that draws every typed '
+       + 'edge in the atlas. It is the map rather than a place on it, so it has no '
+       + 'edges of its own, and giving it some to flatten a count would be drawing '
+       + 'a relation nobody claims.'
+});
+
 export const EVIDENCE_TIERS = [
   ['theorem',     /theorem|exact/],
   ['measured',    /measured|validated|observation|established/],
@@ -351,6 +368,19 @@ export const CORE = {
       view: r.view, title: r.title, claim: r.text,
       sources: (r.sources || []).map(id => ({ id, ...(GB_SOURCES[id] || { missing: true }) })) });
 
+    /* ── WHAT IS TOUCHED BY NOTHING, ACROSS EVERY KIND ────────────────────────
+       Measured over the whole answer rather than over one kind of it. The
+       laboratory list comes from the same generated manifest the bus half does,
+       so this counts the atlas's own laboratories and not the node core's
+       separate registry — two different populations, and mixing them would make
+       the number meaningless. */
+    const known = (manifest && Array.isArray(manifest.labs)) ? manifest.labs.map(l => l.id || l) : [];
+    const touchedSet = new Set();
+    for (const c of out) { if (c.from) touchedSet.add(String(c.from).split('.')[0]);
+                           if (c.to) touchedSet.add(String(c.to).split('.')[0]); }
+    const isolation = { known: known.length, touched: known.filter(l => touchedSet.has(l)).length,
+      ids: known.filter(l => !touchedSet.has(l)) };
+
     /* a filter that silently matches nothing is how a caller concludes a laboratory
        is unconnected when it only misspelled the name, so an unknown one is named */
     let rows = out;
@@ -370,8 +400,13 @@ export const CORE = {
         || c.id === lab || c.view === lab;
       const before = rows.length; rows = rows.filter(hit);
       if (rows.length === 0) labNote = `nothing connects to "${lab}" in ${before} connection(s) of this kind — `
-        + (LABS.has(lab) ? 'it is a laboratory of this core, and the bus reports it isolated'
-                         : 'and it is not a laboratory id either; check the spelling');
+        + (isolation.ids.includes(lab)
+            ? `it is a laboratory of this atlas and NOTHING connects to it in any of the four kinds; `
+              + `it is one of ${isolation.ids.length} such (${isolation.ids.join(', ')})`
+            : known.includes(lab) ? 'it is a laboratory of this atlas and something does connect to it — '
+                                    + 'the filter you combined with it is what emptied the result'
+            : LABS.has(lab) ? 'it is a laboratory of the node core, whose registry is separate from the atlas laboratories these edges are drawn over'
+                            : 'and it is not a laboratory id in either registry; check the spelling');
     }
     return { schema: 'hcc.connections/1', core_version: CORE_VERSION,
       git_commit: PROVENANCE.commit, code_sha256: PROVENANCE.code_sha256,
@@ -387,7 +422,22 @@ export const CORE = {
         epistemic_statuses: [...new Set(NEXUS_RELATIONS.map(r => r.status))].sort(),
         by_evidence_tier: Object.fromEntries(TIER_NAMES.map(t =>
           [t, NEXUS_RELATIONS.filter(r => tierOf(r.status) === t).length])),
-        isolated_laboratories: bus ? (Array.isArray(bus.isolated) ? bus.isolated.length : bus.isolated) : null },
+        /* ── TWO ISOLATION NUMBERS, AND THEY ARE NOT THE SAME NUMBER ──────────
+           This payload shipped reporting isolated_laboratories: 67, which is the
+           BUS isolation — laboratories no declared coupling and no refusal
+           touches. In a payload that now carries four kinds of connection it
+           reads as "sixty-seven laboratories are unreachable", and that is false:
+           measured across all four kinds, 113 of the 114 laboratories are touched
+           by something and exactly ONE is connected by nothing. A field whose
+           name is broader than what it measures is how a caller draws a
+           conclusion the data does not support, so both are named for what they
+           actually count and the misleading one is gone. */
+        isolated_on_the_bus: bus ? (Array.isArray(bus.isolated) ? bus.isolated.length : bus.isolated) : null,
+        connected_by_nothing: isolation.ids.length,
+        laboratories_touched: isolation.touched,
+        laboratories_known: isolation.known },
+      connected_by_nothing: isolation.ids.map(id => ({ lab: id,
+        reason: ISOLATION_NOTES[id] || null })),
       connections: rows };
   },
   openProblems() {
