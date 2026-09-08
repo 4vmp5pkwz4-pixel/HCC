@@ -23,8 +23,15 @@ const fs = require('node:fs'), path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 let pass = 0, fail = 0;
+/* A FAILING CHECK MUST NOT PRINT THE SENTENCE WRITTEN FOR THE PASSING CASE.
+   Twelve details in one day were computed unconditionally, so a red check argued
+   against its own verdict — filed as atlas.a_failure_message_can_argue_against_
+   its_own_verdict. This is the structural remedy rather than a thirteenth hand fix:
+   a detail that was written as an expectation is LABELLED as one when the check
+   fails, so no failure line can ever read as a reassurance. A detail built from
+   what actually went wrong reads the same either way and loses nothing. */
 const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS — ' + name + (detail ? ' :: ' + detail : '')); }
-  else { fail++; console.log('  FAIL — ' + name + (detail ? ' :: ' + detail : '')); } };
+  else { fail++; console.log('  FAIL — ' + name + (detail ? ' :: EXPECTED ' + detail : '')); } };
 
 /* ── the six dependency-free tests, actually executed ──────────────────────── */
 const run = spawnSync(process.execPath, ['--test', 'test/galactic-butterfly.test.mjs'],
