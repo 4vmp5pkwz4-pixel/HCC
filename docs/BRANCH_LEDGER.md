@@ -112,3 +112,21 @@ wholesale. What they *did* have is files main never received.
 
 Every tip SHA is in the table above this section, so anything judged wrongly here
 comes back with one command.
+
+
+## Final pass — 2026-09-08, the eight that were left
+
+The merged branches were deleted by the owner. Eight remained; every one is now
+either applied or measured as superseded, so all eight are safe to delete.
+
+| branch | verdict |
+|---|---|
+| `release/4.155.0-predictive-reach-observatory` | **APPLIED.** `core/prediction/reach-forecast.mjs`, its verifier, fragment and patch are in main and the observatory ships. Confirmed by file presence, not by memory. |
+| `vde-class-validation-20260809` | **APPLIED.** `vde_likelihood/` and `vde_validation/` are in main, with the four workflows filed as provenance under `vde_validation/workflows/` because the CI policy allows exactly two persistent workflows. |
+| `1pvk5v-codex/…`, `7xl63e-codex/…`, `kdgre6-codex/…`, `kymcln-codex/…` | **NOTHING TO APPLY.** v4.147.0 against main's 4.170.0. Zero files main lacks. What they would add to `index.html` is the retired four-tab bar — `data-tab="atlas"/"controls"/"inspect"/"more"` — which main replaced with Atlas · Controls · Theory · Objects · Data. Taking them reverts the interface. |
+| `a2z49s-codex/-iphone` | **NOTHING TO APPLY.** v4.148.0. Zero new files; its additions are superseded clock-instrument CSS. |
+| `codex-l0e9mh` | **NOTHING TO APPLY.** No `HCC_VERSION` at all — a pre-4.x document with its own `<html>` head and topbar. An older parallel line, not a change to this one. |
+
+Measured, not assumed: file lists compared against `origin/main`, versions read
+out of each branch's own `index.html`, and the `index.html` additions inspected
+with version stamps and comments filtered out so only real content remained.
