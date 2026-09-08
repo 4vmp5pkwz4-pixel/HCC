@@ -21,6 +21,7 @@
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs'), path = require('node:path');
 const ROOT = path.join(__dirname, '..');
+const A = require('./lib/atlas-source.cjs');
 
 let pass = 0, fail = 0;
 /* A FAILING CHECK MUST NOT PRINT THE SENTENCE WRITTEN FOR THE PASSING CASE.
@@ -48,18 +49,24 @@ ok('the explorer kernel tests RUN, and this is where they run',
 
 /* ── and the contract the tests do not state ───────────────────────────────── */
 const src = fs.readFileSync(path.join(ROOT, 'core/cycles/galactic-butterfly.mjs'), 'utf8');
-const sourceIds = [...src.matchAll(/^\s{2}([a-z0-9]+):\{title:/gm)].map(m => m[1]);
-const sourceUrls = [...src.matchAll(/^\s{2}([a-z0-9]+):\{title:'[^']*',url:'(https?:\/\/[^']+)',kind:'([^']+)'/gm)];
+/* read through docs/lib/atlas-source.cjs, which counts each construct a second way
+   and throws when a pattern matches fewer rows than the file contains — the remedy
+   for the three subset-matching patterns of mine that passed in one day, one of
+   them in this very file */
+const sources = A.sourcedSources(src);
+const sourceIds = sources.map(s0 => s0.id);
+const sourceUrls = sources.filter(s0 => /^https?:\/\//.test(s0.url) && s0.kind);
 ok('every declared source carries a title, a URL and a kind — a citation with no link is not provenance',
   sourceIds.length >= 17 && sourceUrls.length === sourceIds.length,
   sourceUrls.length + ' of ' + sourceIds.length + ' sources fully formed');
 
 /* the id may carry a digit or a hyphen ('galactic-year', '1987-2012'), which the
    first draft of this pattern did not allow -- it matched ten of twelve and would
-   have called that whole. Anchored on the row() constructor, not on a guess. */
-const rows = [...src.matchAll(/^\s*row\('([A-Za-z0-9-]+)','([A-Z_]+)','([a-z]+)'/gm)];
-const cited = [...src.matchAll(/\[((?:'[a-z0-9]+',?)+)\]\),?$/gm)]
-  .flatMap(m => m[1].split(',').map(s => s.replace(/'/g, '').trim())).filter(Boolean);
+   have called that whole. The library reads them now and refuses a subset. */
+const rowObjs = A.sourcedConnections(src);
+const rows = rowObjs.map(r => [null, r.id, r.kind, r.view]);
+const citations = A.sourcedCitations(src);
+const cited = citations.flatMap(r => r.cites);
 const unknown = [...new Set(cited)].filter(id => !sourceIds.includes(id));
 ok('every citation resolves to a source that exists',
   rows.length >= 12 && unknown.length === 0,
@@ -84,9 +91,7 @@ ok('no connection points at a view the explorer does not have',
   badView.length === 0,
   badView.length ? badView.join(' ') : rows.length + ' connections across ' + new Set(rows.map(r => r[3])).size + ' views: ' + [...new Set(rows.map(r => r[3]))].join(' '));
 
-const uncited = rows.map(r => r[1]).filter(id => {
-  const i = src.indexOf("row('" + id + "'"); const j = src.indexOf("\n row(", i + 1);
-  return !/\[(?:'[a-z0-9]+',?)+\]\)/.test(src.slice(i, j < 0 ? src.length : j)); });
+const uncited = citations.filter(r => !r.cites.length).map(r => r.id);
 ok('and not one of them is unsourced — the explorer\'s whole claim is that it cites',
   uncited.length === 0, uncited.length ? ('no source: ' + uncited.join(' ')) : 'every connection carries at least one');
 

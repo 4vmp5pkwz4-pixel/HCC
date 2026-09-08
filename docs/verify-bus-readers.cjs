@@ -24,6 +24,11 @@
  * simply not a connection, and the atlas said it was.
  */
 const fs=require('fs'), path=require('path');
+/* the declarations are read through one library that counts its subject a second
+   way and THROWS when a pattern matches fewer rows than exist — see
+   docs/lib/atlas-source.cjs. Three patterns of mine in one day silently matched a
+   subset and reported it as a whole; none of them can do that through this. */
+const A=require('./lib/atlas-source.cjs');
 const file=path.join(__dirname,'..','index.html');
 const src=fs.readFileSync(file,'utf8');
 let pass=0, fail=0;
@@ -38,7 +43,7 @@ const ok=(name,cond,detail)=>{ if(cond){pass++;console.log('  PASS — '+name+(d
   else {fail++;console.log('  FAIL — '+name+(detail?' :: EXPECTED '+detail:''));} };
 
 /* ── every key the atlas publishes ─────────────────────────────────────────── */
-const pubs=[...src.matchAll(/ATLAS_BUS\.pub\('([A-Za-z0-9_.]+)'/g)].map(m=>m[1]);
+const pubs=A.busPublications(src);
 const keys=[...new Set(pubs)].sort();
 
 /* a key is READ when its name appears somewhere other than its own pub() calls.
@@ -88,13 +93,12 @@ ok('and every one of them has a reader',
 /* ── the thread itself: shape, and where its rows send the reader ──────────── */
 const ti=src.indexOf('const INVARIANT_THREAD=[');
 const thread=src.slice(ti, src.indexOf('\n];', ti));
-/* [a-z]+ MISSED A FAMILY CALLED h0, and this is the SECOND time today an id
-   pattern in a check of mine refused a digit — the explorer verifier matched ten
-   of twelve connections the same way this morning. An id pattern that encodes
-   what I expect ids to look like tests my expectation, not the file. */
-const famIds=[...thread.matchAll(/\{id:'([a-z0-9]+)', kind:'(identity|relation)'/g)].map(m=>[m[1],m[2]]);
-ok('the invariant thread carries eighteen families, one of them an identity',
-  famIds.length===18 && famIds.filter(f=>f[1]==='identity').length===1,
+/* [a-z]+ MISSED A FAMILY CALLED h0, and it was the second of three such patterns
+   in one day. They are all gone: the library reads them, and a pattern that matches
+   fewer families than the file contains throws rather than reporting a subset. */
+const famIds=A.threadFamilies(src).map(f=>[f.id,f.kind]);
+ok('the invariant thread carries nineteen families, one of them an identity',
+  famIds.length===19 && famIds.filter(f=>f[1]==='identity').length===1,
   famIds.length+' families: '+famIds.map(f=>f[0]+'/'+f[1]).join(' · '));
 
 /* A ROW'S JUMP MUST GO WHERE THE NUMBER IS MADE. Rows marked cyc:1 are published
@@ -132,17 +136,13 @@ ok('the frame chip that reads "Resonances · Saros" shows the Saros engine',
    spin.P1, berry → spin.berry −0.549, bell → spin.CHSH 2.828 (which is 2√2, the
    Tsirelson bound), remnant → sn.vshock. */
 const GATED = ['spin', 'sn'];
-/* AND THIS PATTERN WAS WRONG TWICE BEFORE IT WAS RIGHT — THE THIRD TIME TODAY.
-   [a-z_0-9]+ for the key refused spin.CHSH and sn.L, matching four rows of eleven
-   and reporting that as whole. The same shape as [a-z]+ missing a family called h0
-   this morning, and as the connection pattern that matched ten of twelve. Character
-   classes written from what I expect names to look like test my expectation. */
-const gatedRows = [...thread.matchAll(/\{k:'([A-Za-z]+)\.([A-Za-z_0-9]+)',lab:'([a-z]+)'[^}]*\}/g)]
-  .filter(m => GATED.includes(m[3]));
-const noStation = gatedRows.filter(m => !/,at:'/.test(m[0]));
+/* AND THIS PATTERN WAS WRONG TWICE BEFORE IT WAS RIGHT — the third of the three.
+   It reads through the library now, which counts the rows a second way. */
+const gatedRows = A.threadRows(src).filter(r => GATED.includes(r.lab));
+const noStation = gatedRows.filter(r => !r.station);
 ok('every row of a station-gated laboratory names the station its number lives in',
   gatedRows.length >= 7 && noStation.length === 0,
-  noStation.length ? ('no station declared: ' + noStation.map(m => m[1] + '.' + m[2]).join(' '))
+  noStation.length ? ('no station declared: ' + noStation.map(r => r.key).join(' '))
     : gatedRows.length < 7 ? ('only ' + gatedRows.length + ' rows matched the row pattern — it is refusing rows that exist')
     : gatedRows.length + ' rows across ' + GATED.join(' and ') + ', each naming its station');
 
