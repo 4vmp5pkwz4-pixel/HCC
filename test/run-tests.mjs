@@ -120,6 +120,30 @@ console.log('\n=== 2. Statuses are load-bearing ===\n');
     && /carries an evidence tier/.test(cnotier.body.note || ''),
     cnotier.body.note);
 
+  /* ── AND WHAT THE ATLAS HAS MEASURED ABOUT ITSELF ───────────────────────── */
+  const ms = await get('/api/v1/measurements');
+  ok('GET /api/v1/measurements serves what walking the atlas measured — including which inputs are DEAD, which no contract reveals',
+    ms.code === 200 && ms.body.measurements.sensitivity.dead.length >= 20
+    && ms.body.measurements.reach.chains.length > 400
+    && ms.body.measurements.transfers.routes.length > 100
+    && ms.body.measurements.liveness.views.length > 100,
+    `${ms.body.measurements.sensitivity.dead.length} inputs that are declared, typed, in-domain and INERT · `
+    + `${ms.body.measurements.reach.chains.length} composed chains · ${ms.body.measurements.transfers.routes.length} routes · `
+    + `${ms.body.measurements.liveness.views.length} views`);
+
+  ok('every artifact reports its own release stamp, so a DATED measurement cannot be read as a fresh one',
+    Object.values(ms.body.artifacts).every(a => 'measured_on_this_release' in a)
+    && Object.values(ms.body.artifacts).some(a => a.measured_on_this_release === false),
+    Object.entries(ms.body.artifacts).map(([k, a]) =>
+      k + (a.measured_on_this_release ? '' : ' (DATED ' + a.version + ')')).join(' · '));
+
+  const msBad = await get('/api/v1/measurements?kind=bogus');
+  const msOne = await get('/api/v1/measurements/sensitivity');
+  ok('one artifact can be asked for by name, and an unknown kind is refused with the known ones named',
+    msOne.code === 200 && msOne.body.measurements.sensitivity
+    && msBad.code === 422 && /sensitivity, transfers, reach, liveness/.test(msBad.body.error.message),
+    `/measurements/sensitivity → ${msOne.code} · kind=bogus → ${msBad.code} ${msBad.body.error.code}`);
+
   const cfam = await get('/api/v1/connections?kind=family');
   ok('the invariant thread is served too — a QUESTION several laboratories answer, which is a different relation from an edge',
     cfam.code === 200 && cfam.body.counts.family >= 14
