@@ -118,6 +118,51 @@ check(html.includes('globalThis.HCC_DEPLOYMENT=HCC_DEPLOYMENT')
     'and the import map precedes every module script, which is what makes it apply at all');
 }
 
+/* 1c · Every S³ laboratory is routed to an update, or the build fails.
+   The S³ tick is a chain of else-if branches on state.s3view ending in an else
+   that rotates the eigenmode sphere and writes the eigenmode caption. A
+   laboratory whose view matches no branch does not fail — it silently runs that
+   fallback, and a reader standing in "A₄ transfer" is told `Eigenmode β = 4`.
+   Eight laboratories were in that state: the seven CIVP stations and Fibonacci
+   anyon braiding. For CIVP it cost more than a caption — updateCivp holds the
+   only publications of civp.residual, civp.delta_lock, civp.index and
+   civp.q_star, and it was called from a branch where civpGroup.visible is false,
+   so those values never left the laboratory that computes them.
+   Nothing announced any of it. This makes the next one a red build.
+   The chain is read between explicit markers rather than by line number, and the
+   laboratory list comes from HCC_ATLAS_LAB_META — the same record the routes and
+   the manifest are built from — so neither side can be quietly edited to agree. */
+{
+  const B = html.indexOf('HCC:S3-VIEW-ROUTER:BEGIN');
+  const E = html.indexOf('HCC:S3-VIEW-ROUTER:END');
+  check(B > 0 && E > B, 'the S³ view router is marked, so its branches can be read');
+  if (B > 0 && E > B) {
+    const seg = html.slice(B, E);
+    const routed = new Set([...seg.matchAll(/state\.s3view==='(\w+)'/g)].map(m => m[1]));
+    /* The CIVP stations are routed by a lookup rather than seven literals, so the
+       lookup has to be recognised — but the first version of this tested for the
+       lookup ANYWHERE in the chain, which `false && CIVP_VIEW_STATION[state.s3view]`
+       still satisfies. Disabling the branch kept the build green. It matches the
+       live branch head now: mutation-checked in both directions. */
+    const civpRouted = /\}\s*else if\(CIVP_VIEW_STATION\[state\.s3view\]\)\s*\{/.test(seg);
+    const civp = ['civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'];
+    if (civpRouted) civp.forEach(k => routed.add(k));
+    check(routed.size > 60, `the router carries ${routed.size} branches`);
+
+    let meta = null;
+    try { meta = JSON.parse(html.match(/const HCC_ATLAS_LAB_META=Object\.freeze\((\{.*?\})\);/s)[1]); }
+    catch { meta = null; }
+    check(!!meta, 'HCC_ATLAS_LAB_META parses, so the laboratory list is readable');
+    if (meta) {
+      const s3 = Object.entries(meta).filter(([, v]) => v && v.world === 's3').map(([k]) => k);
+      /* `eig` is the laboratory the fallback belongs to; every other one must be routed */
+      const unrouted = s3.filter(k => k !== 'eig' && !routed.has(k));
+      check(unrouted.length === 0,
+        `every S³ laboratory is routed to its own update (${s3.length} laboratories, ${unrouted.length} unrouted${unrouted.length ? ': ' + unrouted.join(', ') : ''})`);
+    }
+  }
+}
+
 /* 2 · The current UI intentionally ships complete EN/RU/DE localization. */
 check(html.includes("ru:") && html.includes("de:") && html.includes("en:"),
   'English, Russian and German localization dictionaries are present');
