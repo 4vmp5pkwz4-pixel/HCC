@@ -143,10 +143,12 @@ export const TOOLS = [
     inputSchema: { type: 'object', required: ['lab_id', 'result'],
       properties: { lab_id: { type: 'string' }, result: { type: 'object' }, format: { type: 'string', enum: ['json', 'csv'] } }, additionalProperties: false },
     call: a => CORE.export(a.lab_id, a.result, a.format || 'json') },
-  { name: 'list_connections', description: 'How laboratories connect: ROUTES the quantity bus carries (a number actually travels), REFUSALS the bus found admissible and declined with the reason it gives, and SOURCED connections typed by what kind of claim they are (measurement, calendar arithmetic, morphological analogy, modern cultural interpretation) carrying the URLs they rest on. Filter by laboratory or by kind. An unknown kind is refused with the known ones named.',
+  { name: 'list_connections', description: 'How laboratories connect, in the four forms this atlas has. TYPED: 336 hand-written edges over 113 laboratories, each with the KIND of relationship (exact, invariant, representation, coupling, limit, causal, analogy, contrast), the claim somebody wrote, and its epistemic status — served with a derived evidence_tier (theorem, measured, model, analogy, conditional, context, literature, open) so "only theorem-grade edges" is answerable without parsing seventy-one free-text statuses. ROUTE: the quantity bus carries a number along it. REFUSAL: the bus found the coupling admissible and DECLINED it, carrying the sentence saying why — the boundary an agent can plan around. SOURCED: a cited connection with its URLs and its claim kind. Filter by laboratory, kind or tier; an unknown value is refused with the known ones named.',
     inputSchema: { type: 'object', properties: { lab: { type: 'string' },
-      kind: { type: 'string', enum: ['route', 'refusal', 'sourced'] } }, additionalProperties: false },
-    call: a => CORE.connections({ lab: a.lab || null, kind: a.kind || null }) },
+      kind: { type: 'string', enum: ['route', 'refusal', 'sourced', 'typed'] },
+      tier: { type: 'string', enum: ['theorem', 'measured', 'open', 'analogy', 'conditional', 'model', 'literature', 'context', 'unclassified'] } },
+      additionalProperties: false },
+    call: a => CORE.connections({ lab: a.lab || null, kind: a.kind || null, tier: a.tier || null }) },
   { name: 'list_open_problems', description: 'Every declared gap in the atlas, machine-readable, including the ones it carried only in prose.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     call: () => CORE.openProblems() }
@@ -264,7 +266,7 @@ export const server = createServer(async (req, res) => {
        rather than answered with an empty list that reads like an absence of edges. */
     if (p === '/api/v1/connections') {
       const q = new URL(req.url, 'http://x').searchParams;
-      try { return json(res, 200, CORE.connections({ lab: q.get('lab'), kind: q.get('kind') })); }
+      try { return json(res, 200, CORE.connections({ lab: q.get('lab'), kind: q.get('kind'), tier: q.get('tier') })); }
       catch (e) { return json(res, httpCodeFor(e), errBody(e)); }
     }
     m = p.match(/^\/api\/v1\/connections\/([^/]+)$/);

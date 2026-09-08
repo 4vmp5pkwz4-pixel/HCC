@@ -565,6 +565,15 @@ export const ROOTS = [
   'actLam', 'actDLam', 'actAlpha', 'actDAlpha', 'actXi1', 'actXi2', 'actHopf',
   'actProj4', 'actDProj4', 'actReebPath', 'actEllipsoidPath', 'actLegendrianPath',
   'actContactResidual', 'actGauge', 'actApprox',
+  /* ── THE TYPED RELATION GRAPH ────────────────────────────────────────────────
+     Three hundred and thirty-six edges, each with a kind, a claim somebody wrote
+     by hand and an epistemic status, and until now they existed only inside the
+     document. An agent could read every laboratory contract this atlas serves and
+     not learn that any two of them are related, because the graph was drawn for a
+     reader's finger and never for a caller. It has no dependency on anything,
+     which is exactly what this extractor is for: slice it, do not transcribe it,
+     so the panel and the API cannot come to disagree about what the atlas claims. */
+  'NEXUS_RELATIONS',
   /* syd stops HERE, and the reason is worth recording rather than working around:
      SYD_WORLDS defines each world's state, its sample points and its group action by
      building THREE.Vector3 objects, so the discovery engine cannot be lifted out without

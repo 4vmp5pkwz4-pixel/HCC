@@ -91,6 +91,35 @@ console.log('\n=== 2. Statuses are load-bearing ===\n');
     && cbad.code === 422 && /route, refusal, sourced/.test(cbad.body.error.message),
     `kind=refusal → ${cf.body.counts.returned} · kind=bogus → ${cbad.code} ${cbad.body.error.code}`);
 
+  /* ── THE TYPED GRAPH, AND WHETHER AN AGENT CAN WEIGH AN EDGE ────────────── */
+  const ct = await get('/api/v1/connections?kind=typed');
+  ok('the atlas\'s own typed relation graph is served, with the KIND of relationship and the claim somebody wrote for it',
+    ct.code === 200 && ct.body.counts.typed > 300
+    && ct.body.connections.every(c => c.from && c.to && c.relation && c.claim && c.evidence)
+    && ct.body.counts.relation_kinds.length >= 8,
+    `${ct.body.counts.typed} edges · ${ct.body.counts.relation_kinds.join(' ')}`);
+
+  ok('and every one of them carries an evidence tier, because seventy-one free-text statuses is not a vocabulary an agent can filter on',
+    ct.body.connections.every(c => typeof c.evidence_tier === 'string' && c.evidence_tier.length > 0)
+    && ct.body.counts.by_evidence_tier.unclassified === 0
+    && Object.entries(ct.body.counts.by_evidence_tier).filter(([t, n]) => t !== 'unclassified' && n > 0).length >= 7,
+    `${ct.body.counts.epistemic_statuses.length} distinct statuses → `
+    + Object.entries(ct.body.counts.by_evidence_tier).filter(([, n]) => n).map(([t, n]) => `${t} ${n}`).join(' · '));
+
+  const cth = await get('/api/v1/connections?tier=theorem');
+  const cbadtier = await get('/api/v1/connections?tier=bogus');
+  ok('"only the theorem-grade edges" is now a question with an answer, and an unknown tier is refused with the known ones named',
+    cth.code === 200 && cth.body.counts.returned === ct.body.counts.by_evidence_tier.theorem
+    && cth.body.connections.every(c => c.evidence_tier === 'theorem')
+    && cbadtier.code === 422 && /known tiers:/.test(cbadtier.body.error.message),
+    `tier=theorem → ${cth.body.counts.returned} edges · tier=bogus → ${cbadtier.code}`);
+
+  const cnotier = await get('/api/v1/connections?kind=route&tier=theorem');
+  ok('and asking for a tier on a kind that carries none is TOLD SO, rather than answered with an empty list that reads as "there are none"',
+    cnotier.code === 200 && cnotier.body.counts.returned === 0
+    && /carries an evidence tier/.test(cnotier.body.note || ''),
+    cnotier.body.note);
+
   const cmiss = await get('/api/v1/connections/definitely-not-a-lab');
   ok('and a laboratory nothing connects to is TOLD SO, so an empty list is never mistaken for an absence of edges',
     cmiss.code === 200 && cmiss.body.counts.returned === 0 && typeof cmiss.body.note === 'string'
