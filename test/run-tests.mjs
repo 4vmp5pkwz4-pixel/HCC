@@ -4,6 +4,13 @@
 import { readFileSync } from 'node:fs';
 import { server, shutdown } from '../server/server.mjs';
 import { CORE, LABS } from '../core/index.mjs';
+/* THE TOOL COUNT IS READ, NOT TYPED. Three assertions here said "nine tools" and
+   `=== 9`, so adding a tenth turned three checks red for a change that added a
+   capability — the same defect class as a check pinned to a literal line. What must
+   hold is that every surface advertises the SAME tools the server actually has, and
+   that the count agrees across all three of them. */
+import { TOOLS } from '../server/server.mjs';
+const TOOL_NAMES = TOOLS.map(t => t.name).sort();
 
 let pass = 0, fail = 0;
 const ok = (t, c, d = '') => { c ? pass++ : fail++; console.log(`${c ? '  PASS' : '  FAIL'} — ${t}${d ? '\n         ' + d : ''}`); };
@@ -34,8 +41,9 @@ console.log('\n=== 1. The service answers without a browser ===\n');
     d.code === 200 && d.body.outputs.every(o => o.name && o.unit !== undefined && !/^\d+$/.test(o.name)),
     `outputs: ${d.body.outputs.map(o => o.name + '[' + o.unit + ']').join(', ')}`);
   const r = await get('/openapi.json'), m = await get('/.well-known/mcp.json');
-  ok('/openapi.json is OpenAPI 3.1 and /.well-known/mcp.json advertises the nine tools over Streamable HTTP',
-    r.code === 200 && r.body.openapi === '3.1.0' && m.code === 200 && m.body.tools.length === 9 &&
+  ok('/openapi.json is OpenAPI 3.1 and /.well-known/mcp.json advertises exactly the tools the server has, over Streamable HTTP',
+    r.code === 200 && r.body.openapi === '3.1.0' && m.code === 200 &&
+    m.body.tools.map(t => t.name).sort().join() === TOOL_NAMES.join() &&
     m.body.transport.jsonrpc === '2.0' && m.body.transport.endpoint === '/mcp' && m.body.transport.legacy.deprecated === true,
     `${Object.keys(r.body.paths).length} paths · tools: ${m.body.tools.map(t => t.name).join(', ')}`);
   const root = await fetch(B + '/', { redirect: 'manual' });
@@ -57,6 +65,37 @@ console.log('\n=== 2. Statuses are load-bearing ===\n');
     op.code === 200 && op.body.count > 80 &&
     ['edge.H_boundary_q', 'capacity.selector', 'phi.physical_origin', 'desi.covariance'].every(id => op.body.problems.some(p => p.lab_id === id)),
     `${op.body.count} open problems · includes H_{∂,q}, the capacity selector, the physical origin of φ and DESI covariance`);
+
+  /* ── AND HOW ANY OF THEM RELATE, WHICH NO TOOL COULD SAY ─────────────────── */
+  const cx = await get('/api/v1/connections');
+  ok('GET /api/v1/connections answers how laboratories connect, in all three of the forms this atlas has',
+    cx.code === 200 && cx.body.counts.route > 40 && cx.body.counts.refusal > 20
+    && cx.body.counts.sourced >= 12 && cx.body.connections.length === cx.body.counts.total,
+    `${cx.body.counts.total} connections · ${cx.body.counts.route} routes the bus carries · `
+    + `${cx.body.counts.refusal} it found admissible and REFUSED · ${cx.body.counts.sourced} sourced · `
+    + `${cx.body.counts.isolated_laboratories} laboratories nothing connects to`);
+
+  ok('a refusal carries the sentence saying why, because "no" without a reason is not an answer an agent can act on',
+    cx.body.connections.filter(c => c.kind === 'refusal').every(c => typeof c.evidence === 'string' && c.evidence.length > 40),
+    `every one of ${cx.body.counts.refusal} refusals states its grounds`);
+
+  ok('a sourced connection carries its claim KIND and a resolvable URL for every source it cites',
+    cx.body.connections.filter(c => c.kind === 'sourced').every(c => !!c.claim_kind && c.sources.length > 0
+      && c.sources.every(sc => /^https?:\/\//.test(sc.url || '') && !sc.missing)),
+    'an agent can tell a measurement from a modern cultural interpretation without reading the prose');
+
+  const cf = await get('/api/v1/connections?kind=refusal');
+  const cbad = await get('/api/v1/connections?kind=bogus');
+  ok('the kind filter narrows, and an unknown kind is REFUSED with the known ones named rather than answered with an empty list',
+    cf.code === 200 && cf.body.counts.returned === cx.body.counts.refusal
+    && cbad.code === 422 && /route, refusal, sourced/.test(cbad.body.error.message),
+    `kind=refusal → ${cf.body.counts.returned} · kind=bogus → ${cbad.code} ${cbad.body.error.code}`);
+
+  const cmiss = await get('/api/v1/connections/definitely-not-a-lab');
+  ok('and a laboratory nothing connects to is TOLD SO, so an empty list is never mistaken for an absence of edges',
+    cmiss.code === 200 && cmiss.body.counts.returned === 0 && typeof cmiss.body.note === 'string'
+    && cmiss.body.note.includes('check the spelling'),
+    cmiss.body.note);
 }
 
 console.log('\n=== 3. The numbers the acceptance criteria name ===\n');
@@ -196,9 +235,11 @@ console.log('\n=== 9. MCP over Streamable HTTP, JSON-RPC 2.0 ===\n');
 
   const list = await rpc('tools/list', {}, 2);
   const names = list.body.result.tools.map(t => t.name);
-  ok('tools/list advertises nine tools, including the sweep the first transport never had',
-    names.length === 9 && names.includes('sweep_lab') && list.body.result.tools.every(t => t.inputSchema.type === 'object'),
-    names.join(', '));
+  ok('tools/list advertises exactly the tools this server has — the sweep the first transport never had, and the connections nine tools could not describe',
+    names.slice().sort().join() === TOOL_NAMES.join()
+    && names.includes('sweep_lab') && names.includes('list_connections')
+    && list.body.result.tools.every(t => t.inputSchema.type === 'object'),
+    `${names.length} tools: ${names.join(', ')}`);
 
   const sw = await rpc('tools/call', { name: 'sweep_lab',
     arguments: { lab_id: 'fibonacci.anyons', parameter: 'n', values: [1, 2, 3, 4, 5, 6, 7, 8] } }, 3);
@@ -216,7 +257,7 @@ console.log('\n=== 9. MCP over Streamable HTTP, JSON-RPC 2.0 ===\n');
 
   const unknown = await rpc('tools/call', { name: 'no_such_tool', arguments: {} }, 5);
   ok('an unknown tool is a JSON-RPC error with the available names attached',
-    unknown.body.error.code === -32602 && unknown.body.error.data.available.length === 9,
+    unknown.body.error.code === -32602 && unknown.body.error.data.available.slice().sort().join() === TOOL_NAMES.join(),
     unknown.body.error.message);
 
   const notify = await fetch(B + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json' },

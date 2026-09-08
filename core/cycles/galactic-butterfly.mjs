@@ -55,7 +55,7 @@ export const RELATIONS=Object.freeze([
  row('eclipses','ASTRONOMY','sky','Eclipses · phase and nodes','Затмения · фазы и узлы','Finsternisse · Phasen und Knoten',
  'The Dresden Codex contains eclipse tables. Actual eclipses require syzygy near a lunar orbital node. The Saros recurrence is approximate; local visibility needs shadow geometry, not a symbol or calendar phase alone.',
  'Дрезденский кодекс содержит таблицы затмений. Физическое условие — сизигия вблизи узла лунной орбиты. Повторение Сароса приближённое; местная видимость требует расчёта тени, а не одного символа или календарной фазы.',
- 'Der Dresdner Kodex enthält Finsternistafeln. Reale Finsternisse benötigen Syzygie nahe einem Mondbahnknoten. Die Saros-Wiederkehr ist angenähert; lokale Sichtbarkeit verlangt Schattengeometrie.',['dresden','eclipse']),
+ 'Der Dresdner Kodex enthält Finsternistafeln. Reale Finsternisse benötigen Syzygie nahe einem Mondbahnknoten. Die Saros-Wiederkehr ist angenähert; lokale Sichtbarkeit verlangt Schattengeometrie.',['dresden','eclipse','eclipse2027']),
  row('solar','OBSERVED_PATTERN','solar','Solar butterfly · 11 / 22 years','Солнечная бабочка · 11 / 22 года','Sonnenschmetterling · 11 / 22 Jahre',
  'Sunspot emergence migrates toward the equator during an approximately 11-year activity cycle; magnetic polarity has a roughly 22-year cycle. The displayed points are synthetic examples of this pattern, not measured spots.',
  'Области появления пятен смещаются к экватору в течение примерно 11-летнего цикла активности; магнитная полярность имеет цикл около 22 лет. Здесь точки синтетические: они объясняют закономерность, а не изображают измеренные пятна.',

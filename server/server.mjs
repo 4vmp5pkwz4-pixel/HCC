@@ -143,6 +143,10 @@ export const TOOLS = [
     inputSchema: { type: 'object', required: ['lab_id', 'result'],
       properties: { lab_id: { type: 'string' }, result: { type: 'object' }, format: { type: 'string', enum: ['json', 'csv'] } }, additionalProperties: false },
     call: a => CORE.export(a.lab_id, a.result, a.format || 'json') },
+  { name: 'list_connections', description: 'How laboratories connect: ROUTES the quantity bus carries (a number actually travels), REFUSALS the bus found admissible and declined with the reason it gives, and SOURCED connections typed by what kind of claim they are (measurement, calendar arithmetic, morphological analogy, modern cultural interpretation) carrying the URLs they rest on. Filter by laboratory or by kind. An unknown kind is refused with the known ones named.',
+    inputSchema: { type: 'object', properties: { lab: { type: 'string' },
+      kind: { type: 'string', enum: ['route', 'refusal', 'sourced'] } }, additionalProperties: false },
+    call: a => CORE.connections({ lab: a.lab || null, kind: a.kind || null }) },
   { name: 'list_open_problems', description: 'Every declared gap in the atlas, machine-readable, including the ones it carried only in prose.',
     inputSchema: { type: 'object', properties: {}, additionalProperties: false },
     call: () => CORE.openProblems() }
@@ -251,6 +255,21 @@ export const server = createServer(async (req, res) => {
       active, max_active: MAX_ACTIVE, max_retained: MAX_RETAINED,
       runs: [...RUNS.values()].map(r => ({ run_id: r.run_id, lab_id: r.lab_id, state: r.state,
         progress: r.progress, created_at: r.created_at })) });
+
+    /* HOW ANYTHING CONNECTS TO ANYTHING. Nine tools could enumerate, run, sweep and
+       validate laboratories and not one could say how two of them are related, so an
+       agent could read every laboratory in this atlas and still not know that the bus
+       refuses thirty-seven couplings it found admissible, or on what grounds. Both
+       filters are optional; an unknown kind is REFUSED with the known ones named,
+       rather than answered with an empty list that reads like an absence of edges. */
+    if (p === '/api/v1/connections') {
+      const q = new URL(req.url, 'http://x').searchParams;
+      try { return json(res, 200, CORE.connections({ lab: q.get('lab'), kind: q.get('kind') })); }
+      catch (e) { return json(res, httpCodeFor(e), errBody(e)); }
+    }
+    m = p.match(/^\/api\/v1\/connections\/([^/]+)$/);
+    if (m) { try { return json(res, 200, CORE.connections({ lab: decodeURIComponent(m[1]) })); }
+      catch (e) { return json(res, httpCodeFor(e), errBody(e)); } }
 
     if (p === '/api/v1/open-problems' || p === '/api/open-problems.json')
       return json(res, 200, CORE.openProblems());
