@@ -91,6 +91,25 @@ ok('the widening is recorded as a correction rather than presented as the origin
 ok('and agreement is reported, never scored — the reader judges',
    /Agreement is yours to judge/.test(html) && /does not score it/.test(html));
 
+/* ── THE STATEMENT THE ENERGY BUDGET ACTUALLY MAKES ──────────────────────────
+   A mean power in erg/s is a number; set beside what Sgr A* CAN emit and what it
+   emits now it becomes the argument. Eddington for 4.154e6 M☉ is 5.2e44 erg/s and
+   the present output is of order 1e36, so the bubbles need the centre to have run
+   near 1e-4 Eddington — some 1e5 times brighter than today. That contrast is the
+   case for the accretion story and equally its difficulty, which is why the driver
+   stays refused. */
+const MSUN=num(/const SGRA_MASS_MSUN=([\d.e+]+)/);
+const LNOW=num(/const SGRA_L_NOW_ERG_S=([\de+.]+)/);
+const EDD=num(/const EDDINGTON_PER_MSUN=([\d.e+]+)/);
+ok('Sgr A* carries the GRAVITY mass and an explicitly order-of-magnitude present output',
+   Math.abs(MSUN-4.154e6)/4.154e6<0.01 && LNOW>0 && /order of magnitude only/.test(html),
+   `${MSUN.toExponential(3)} M☉ · L_now ~${LNOW.toExponential(0)} erg/s`);
+ok('and the energy budget is expressed as a fraction of Eddington and a ratio to today, not as a bare number',
+   /fermiEddingtonFraction/.test(html) && /fermiBrighterThanNow/.test(html),
+   `Eddington ${(EDD*MSUN).toExponential(2)} erg/s`);
+ok('the contrast is stated and the driver is still refused two lines below it',
+   /A quiescent hole today, an AGN-like output then/.test(html) && /the driver is not decided here/.test(html));
+
 const pubs=(html.match(/ATLAS_BUS\.pub\('fermi\.(\w+)'/g)||[]).map(x=>x.split("'")[1]);
 ok(`and it publishes ${pubs.length} quantities onto the bus from inside itself`, pubs.length>=4, pubs.join(' '));
 
