@@ -160,7 +160,31 @@ for (const L of labs) {
       if (st) { await page.evaluate(([id, s]) => HCC_API.stations.go(id, s), [L.id, st]); await page.waitForTimeout(700); }
       else await page.waitForTimeout(300);
       const r = await page.evaluate(() => HCC_API.liveness(16));
-      rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies, watched: r.watched });
+      /* ── AND A THIRD NUMBER, BECAUSE TWO WERE READ AS A VERDICT ────────────
+         The header above says plainly that neither RECOMPUTED nor MOVED is a
+         verdict and that a diagram is right to score zero on both. It was read
+         as one anyway — by me: twenty-five views scoring zero on both were taken
+         for static pictures and lined up to be "given motion". Driving every
+         control of the four least promising and comparing the RENDERED IMAGE
+         showed all four both self-animating and responding. Nothing was inert.
+         Neither counter can see that, and not because they are wrong: a shader
+         that advances a uniform, a material whose colour is a function of time,
+         a group rotated by its parent — none of these dirties a buffer or moves
+         a watched body, and all of them are visibly alive.
+         PIXELS is the orthogonal one: does the rendered image differ between two
+         frames with nothing touched. It is not a verdict either, and for the
+         opposite reason to the others — a view can be alive and momentarily
+         identical, and a view can shimmer while its physics is frozen. What it
+         adds is the ability to tell a diagram that is STILL BY DESIGN from a
+         diagram that is still because it broke, which the first two cannot. */
+      let pixels = null;
+      try {
+        const a = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
+        await page.waitForTimeout(420);
+        const b = await page.screenshot({ clip: { x: 340, y: 130, width: 880, height: 620 } });
+        pixels = Buffer.compare(a, b) === 0 ? 0 : 1;
+      } catch { pixels = null; }
+      rows.push({ id: L.id, station: st, title: L.title, recomputed: r.recomputed, moved: r.moved, bodies: r.bodies, watched: r.watched, pixels });
     } catch (e) {
       rows.push({ id: L.id, station: st, title: L.title, recomputed: -1, moved: -1, bodies: 0, watched: -1,
         error: String(e.message || e).slice(0, 60) });
@@ -186,8 +210,12 @@ else {
   for (const r of rows) console.log(
     String(r.recomputed).padStart(9), String(r.moved).padStart(6), String(r.bodies).padStart(5), '   ',
     name(r).padEnd(18), r.title);
-  console.log(`\n${alive.length} of ${rows.length} views change something between frames · ${still.length} change nothing at all`);
-  if (still.length) console.log(`  still: ${still.map(name).join(' ')}`);
+  const shimmer = rows.filter(r => r.recomputed === 0 && r.moved === 0 && r.pixels > 0);
+  const frozen  = rows.filter(r => r.recomputed === 0 && r.moved === 0 && r.pixels === 0);
+  console.log(`\n${alive.length} of ${rows.length} views change something between frames · ${still.length} rebuild nothing and move nothing`);
+  if (still.length) console.log(`  neither rebuilds nor moves: ${still.map(name).join(' ')}`);
+  if (shimmer.length) console.log(`  ...of which ${shimmer.length} ARE alive, through materials rather than geometry: ${shimmer.map(name).join(' ')}`);
+  if (frozen.length)  console.log(`  ...and ${frozen.length} render an identical image between frames: ${frozen.map(name).join(' ')}`);
   console.log(`\nlaboratories that publish stations: ${stationed.join(', ') || '(none)'} — each measured in every one`);
   console.log('\nNEITHER NUMBER IS A VERDICT. A laboratory meant to be a diagram scores zero on both\nand is right to. What is gated is derived and named below, never a tuned threshold.');
 }
@@ -260,7 +288,13 @@ if (!JSON_OUT) {
       stationed: stationed.length, stations: rows.filter(r => r.station).length,
       indistinguishable_station_pairs: twins.length },
     views: rows.map(r => ({ lab: r.id, station: r.station || null,
-      rebuilds: r.recomputed > 0, moves: r.moved > 0, bodies: r.bodies }))
+      rebuilds: r.recomputed > 0, moves: r.moved > 0, bodies: r.bodies,
+      /* the third, orthogonal reading: did the rendered image differ between two
+         frames with nothing touched. null where the shot could not be taken.
+         A view with rebuilds:false, moves:false and pixels:true is alive through
+         its materials — twenty-five views were in exactly that state and were
+         mistaken for static pictures until the image was compared. */
+      pixels: r.pixels === null ? null : r.pixels > 0 }))
       .sort((a, b) => a.lab.localeCompare(b.lab) || String(a.station).localeCompare(String(b.station)))
   };
   mkdirSync(dirname(OUT), { recursive: true });
