@@ -60,6 +60,20 @@ const openapi = {
       responses: { 200: { description: 'text/event-stream' } } } },
     '/api/v1/open-problems': { get: { summary: 'every declared gap, machine-readable',
       responses: { 200: { description: 'ok' } } } },
+    /* the surface that says how laboratories are RELATED, which nine tools could not */
+    '/api/v1/connections': { get: {
+      summary: 'how laboratories connect: routes the bus carries, couplings it refused and why, and sourced connections typed by what kind of claim they are',
+      parameters: [
+        { name: 'lab', in: 'query', required: false, schema: { type: 'string' },
+          description: 'only connections touching this laboratory. A name that matches nothing is answered with a note saying so, never with a bare empty list.' },
+        { name: 'kind', in: 'query', required: false,
+          schema: { type: 'string', enum: ['route', 'refusal', 'sourced'] },
+          description: 'route — a number travels the edge; refusal — admissible and declined, carrying the reason; sourced — a cited connection with its URLs and its claim kind' }],
+      responses: { 200: { description: 'ok' },
+        422: { description: 'an unknown kind, refused with the known kinds named' } } } },
+    '/api/v1/connections/{lab}': { get: { summary: 'every connection touching one laboratory',
+      parameters: [{ name: 'lab', in: 'path', required: true, schema: { type: 'string' } }],
+      responses: { 200: { description: 'ok' } } } },
     '/api/v1/runs': { get: { summary: 'every retained job, with the active and retained bounds',
       responses: { 200: { description: 'ok' } } } },
     '/mcp': { post: { summary: 'MCP over Streamable HTTP, JSON-RPC 2.0: initialize, ping, tools/list, tools/call',
