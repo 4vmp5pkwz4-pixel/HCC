@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="who-reads-the-bus-2026.09.08.10">
+<html lang="en" data-hcc-build="butterfly-connections-2026.09.08.11">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="who-reads-the-bus-2026.09.08.10">
+<meta name="hcc-build" content="butterfly-connections-2026.09.08.11">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2255,7 +2255,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.171.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.172.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2474,7 +2474,10 @@
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/XRControllerModelFactory.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/XRHandModelFactory.js" crossorigin>
 
+<link rel="stylesheet" href="./visual/galactic-butterfly.css">
 <script type="module">
+import {createButterflyScene, butterflyControlsHTML, VIEWS as BUTTERFLY_VIEWS} from './visual/galactic-butterfly.mjs';
+import {epochSummary as butterflyEpochSummary, RELATIONS as BUTTERFLY_RELATIONS, SOURCES as BUTTERFLY_SOURCES} from './core/cycles/galactic-butterfly.mjs';
 import {validateReachArtifact as hccValidateReachArtifact, controlSemantics as hccControlSemantics, listReachControls as hccListReachControls, forecastReach as hccForecastReach} from './core/prediction/reach-forecast.mjs';
 import {groupDefinitionConflicts as hccChronometryConflicts, jainAvasarpini as hccJainAvasarpini, sumSymbolicDurations as hccSumSymbolicDurations, classifyCandidate as hccClassifyChronometryCandidate} from './core/labs/chronometry.source_locked.mjs';
 import {wrap01 as hccWrapPhase01, evaluateMultiPhase as hccEvaluateMultiPhase, searchMultiPhase as hccSearchMultiPhase} from './core/cycles/multiphase-solver.mjs';
@@ -2499,8 +2502,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.171.0';
-const HCC_BUILD='who-reads-the-bus-2026.09.08.10';
+const HCC_VERSION='4.172.0';
+const HCC_BUILD='butterfly-connections-2026.09.08.11';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -63240,6 +63243,11 @@ function orientPole(tiltDeg,tiltAxis,col,label,len=5.4){
 // frame the camera on the phase torus when its view is chosen (it sits off the hierarchy origin)
 function applyCycFrameView(){
   if(state.mode!=='cyc') return;
+  if(hccButterflySyncVisibility()){
+    updateGalacticButterfly();
+    controls.target.set(0,0,0);camera.position.set(0,hccButterflyState.view==='venus'?12:5,17);
+    setControlDistanceLimits(2,90);armIdleDrift();return;
+  }
   applySpatialGuideVisibility();   // layout-plane guides are frame-dependent (hidden on single-instrument stages)
   /* ── A FRAME THAT NEVER FRAMED ANYTHING ─────────────────────────────────
      The linked view was the one frame handled BEFORE this function did any of
@@ -63665,6 +63673,102 @@ function jumpToEclipse(i){
   buildCtl();
   const s = SELECT.get('moon'); if(s){ selectKey('moon'); focusOn(s); }
 }
+
+/* Galactic Butterfly · one Cycles instrument / one AtlasTime / one renderer. */
+const hccButterflyState={view:'sky',detail:false,expansion:1,revision:0};
+const hccButterflyEphemeris=day=>{
+  const earth=planetEcl(PLANETS[2],day/36525),venus=planetEcl(PLANETS[1],day/36525);
+  return {earth:[earth.x,earth.y,earth.z],venus:[venus.x,venus.y,venus.z]};
+};
+function hccButterflyXRLabel(text){
+  const canvas=document.createElement('canvas');canvas.width=768;canvas.height=128;
+  const ctx=canvas.getContext('2d');if(!ctx)return new THREE.Group();
+  ctx.font='26px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#dfecfa';
+  const words=String(text).split(' '),lines=[];let line='';
+  for(const word of words){const next=(line?line+' ':'')+word;if(ctx.measureText(next).width>740&&line){lines.push(line);line=word;}else line=next;}
+  if(line)lines.push(line);
+  lines.slice(0,3).forEach((s,i)=>ctx.fillText(s,384,64+(i-(Math.min(lines.length,3)-1)/2)*32));
+  const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:texture,transparent:true,depthWrite:false}));
+  sprite.scale.set(6.5,6.5/6,1);sprite.visible=false;return sprite;
+}
+const hccButterflyScene=createButterflyScene({THREE,label:mkLabel,xrLabel:hccButterflyXRLabel,ephemeris:hccButterflyEphemeris});
+const cycButterflyExplorerInst=hccButterflyScene.group;
+// One Cycles root for AR placement, including both the existing instruments and this view.
+const hccCyclesStage=new THREE.Group();scene.add(hccCyclesStage);hccCyclesStage.add(cycGroup,cycButterflyExplorerInst);
+let hccButterflyReadoutAt=0;
+function hccButterflySyncVisibility(){
+  const active=state.mode==='cyc'&&state.cycFrame==='butterfly-explorer';
+  cycButterflyExplorerInst.visible=active;
+  cycGroup.visible=state.mode==='cyc'&&!active;
+  if(active)spatialGuides.cyc.visible=false;
+  return active;
+}
+function hccButterflyEvents(){
+  const isoDay=iso=>new Date(iso).getTime()/86400000-10957.5;
+  return [
+    {day:isoDay('1987-08-16T00:00:00Z'),label:'1987-08-16 · '+TT('Harmonic Convergence · cultural date','Гармоническая конвергенция · культурная дата','Harmonische Konvergenz · Kulturdatum')},
+    {day:isoDay('2010-11-09T00:00:00Z'),label:'2010-11-09 · '+TT('Fermi bubbles · discovery announcement','Пузыри Ферми · объявление открытия','Fermi-Blasen · Bekanntgabe der Entdeckung')},
+    {day:isoDay('2012-12-21T00:00:00Z'),label:'2012-12-21 · '+TT('Long Count date · midnight marker','Дата Длинного счёта · отметка полуночи','Langzählungsdatum · Mitternachtsmarke')},
+    ...ECLIPSES.map(e=>({day:e.date.getTime()/86400000-10957.5,label:e.date.toISOString().slice(0,10)+' · '+e.type+' '+TT('solar eclipse · catalogue UT','солнечное затмение · UT каталога','Sonnenfinsternis · Katalog-UT')}))
+  ];
+}
+function hccButterflyControls(){
+  return butterflyControlsHTML({...hccButterflyState,lang:state.lang,day:state.epochDays,paused:state.paused,
+    rate:atlasTimeSnapshot().rateDaysPerSecond,events:hccButterflyEvents(),dateLabel:daysToDateStr(state.epochDays)});
+}
+function hccButterflyChooseView(view){
+  if(!BUTTERFLY_VIEWS.some(v=>v[0]===view))return false;
+  hccButterflyState.view=view;hccButterflyState.revision++;
+  hccCycleNavigate('butterfly-explorer');return true;
+}
+function hccButterflyApplyDay(day){
+  if(!Number.isFinite(day))return;
+  setAtlasTime({epochDays:day,paused:true},'butterfly.selected-date');
+  hccButterflyState.revision++;buildCtl();
+}
+function hccButterflyBindControls(){
+  const root=ctl.querySelector('[data-butterfly-panel]');if(!root)return;
+  root.querySelectorAll('[data-bf-view]').forEach(b=>b.onclick=()=>hccButterflyChooseView(b.dataset.bfView));
+  root.querySelector('[data-bf-pause]').onclick=()=>{setAtlasPaused(!state.paused,'butterfly.pause');buildCtl();};
+  root.querySelector('[data-bf-now]').onclick=()=>hccButterflyApplyDay(Date.now()/86400000-10957.5);
+  root.querySelector('[data-bf-frame]').onclick=()=>{hccButterflyState.revision++;applyCycFrameView();};
+  root.querySelector('[data-bf-rate]').onchange=e=>{if(e.target.value!=='keep')setAtlasRate(Number(e.target.value),'butterfly.rate');};
+  root.querySelector('[data-bf-date]').onchange=e=>{const d=Date.parse(e.target.value+'T00:00:00Z');if(Number.isFinite(d))hccButterflyApplyDay(d/86400000-10957.5);};
+  root.querySelector('[data-bf-detail]').onchange=e=>{hccButterflyState.detail=e.target.checked;};
+  const expansion=root.querySelector('[data-bf-expansion]');if(expansion)expansion.oninput=e=>{hccButterflyState.expansion=Number(e.target.value);};
+  root.querySelector('[data-bf-solar]').onclick=()=>hccCycleNavigate('solar');
+  root.querySelector('[data-bf-fermi]').onclick=()=>hccCycleNavigate('butterfly');
+  root.querySelector('[data-bf-share]').onclick=async()=>{
+    const url=new URL(location.href);url.hash='#/world/cyc?butterfly='+hccButterflyState.view+'&day='+String(state.epochDays);
+    const feedback=root.querySelector('[data-bf-feedback]');
+    try{await navigator.clipboard.writeText(url.href);feedback.textContent=TT('View and date copied','Вид и дата скопированы','Ansicht und Datum kopiert');}
+    catch{feedback.textContent=url.href;}
+  };
+  const events=hccButterflyEvents();root.querySelectorAll('[data-bf-event]').forEach(b=>b.onclick=()=>hccButterflyApplyDay(events[Number(b.dataset.bfEvent)].day));
+}
+function updateGalacticButterfly(){
+  hccButterflySyncVisibility();
+  const snapshot=hccButterflyScene.update(hccButterflyState.view,state.epochDays,{...hccButterflyState,lang:state.lang,xr:renderer.xr.isPresenting});
+  hudBig.textContent=TT('Galactic Butterfly','Галактическая бабочка','Galaktischer Schmetterling')+' · '+BUTTERFLY_VIEWS.find(v=>v[0]===hccButterflyState.view)[state.lang==='ru'?2:state.lang==='de'?3:1];
+  hudSub.textContent=TT('Shared Atlas date · source-backed connections · reference and schematic models are labelled','Общая дата Atlas · связи с источниками · опорные и схематические модели обозначены','Gemeinsames Atlas-Datum · Quellenbelege · Referenzmodelle und Schemata gekennzeichnet');
+  if(performance.now()-hccButterflyReadoutAt>200){
+    hccButterflyReadoutAt=performance.now();
+    const clock=ctl.querySelector('[data-bf-clock]');if(clock)clock.textContent=daysToDateStr(state.epochDays);
+    const status=ctl.querySelector('[data-bf-status]');if(status)status.textContent=snapshot.planetaryStatus==='OUT_OF_RANGE'
+      ?TT('Planetary positions unavailable outside 1800–2050. Reference geometry remains available.','Положения планет недоступны вне 1800–2050. Опорная геометрия остаётся доступной.','Planetenpositionen außerhalb 1800–2050 nicht verfügbar. Referenzgeometrie bleibt verfügbar.')
+      :TT('JPL approximation · 1800–2050 · use Horizons for precision epochs','Приближение JPL · 1800–2050 · точные эпохи: Horizons','JPL-Näherung · 1800–2050 · präzise Epochen: Horizons');
+  }
+}
+globalThis.HCC_GALACTIC_BUTTERFLY=Object.freeze({
+  schema:'hcc.galactic-butterfly/1',
+  views:()=>BUTTERFLY_VIEWS.map(v=>({id:v[0],en:v[1],ru:v[2],de:v[3]})),
+  relations:()=>JSON.parse(JSON.stringify(BUTTERFLY_RELATIONS)),
+  sources:()=>JSON.parse(JSON.stringify(BUTTERFLY_SOURCES)),
+  snapshot:()=>({...butterflyEpochSummary(state.epochDays),view:hccButterflyState.view,geometry:hccButterflyScene.stats()}),
+  open:(view='sky')=>hccButterflyChooseView(view)
+});
+
 const HCC_CYCLE_VIEWS=[
   ['hierarchy','All cycles','Все циклы','Alle Zyklen'],
   ['helio','Seasons','Времена года','Jahreszeiten'],
@@ -63676,7 +63780,8 @@ const HCC_CYCLE_VIEWS=[
   ['antikythera','Antikythera','Антикитера','Antikythera'],
   ['butterfly','Galactic butterfly','Галактическая бабочка','Galaktischer Schmetterling'],
   ['linked','Linked analysis','Связанный анализ','Verknüpfte Analyse'],
-  ['chronometry','Ancient chronometry','Древняя хронометрия','Antike Chronometrie']
+  ['chronometry','Ancient chronometry','Древняя хронометрия','Antike Chronometrie'],
+  ['butterfly-explorer','Butterfly · connections','Бабочка · атлас связей','Schmetterling · Bezüge']
 ];
 function hccCycleNavigate(view){
   if(view!=='solar'&&!HCC_CYCLE_VIEWS.some(v=>v[0]===view)) return false;
@@ -64241,6 +64346,7 @@ const CYC_FRAME_INSTRUMENTS=[
   {name:'galInst',            frames:['hierarchy','gal'],                obj:galInst},
   {name:'precInst',           frames:['hierarchy','geo'],                obj:precInst},
   {name:'seaInst',            frames:['hierarchy','helio','geo'],        obj:seaInst},
+  {name:'cycButterflyExplorerInst', frames:['butterfly-explorer'], obj:cycButterflyExplorerInst},
   {name:'cycLinkedInst',      frames:['linked'],                         obj:cycLinkedInst},
   {name:'cycChronometryInst', frames:['hierarchy','chronometry'],        obj:cycChronometryInst},
   {name:'cycOrientInst',      frames:['orientation'],                    obj:cycOrientInst},
@@ -66509,7 +66615,7 @@ const XRX = (()=>{
   }
   function placeRigForMode(){
     if(XRTEST){ rig.position.set(0,0,0); rig.rotation.set(0,0,0); moveSpeed=2; return; }
-    const d = RIG_DEFAULTS[state.mode]||RIG_DEFAULTS.solar;
+    const d = state.mode==='cyc'&&state.cycFrame==='butterfly-explorer'?{pos:[0,2,14],speed:3}:(RIG_DEFAULTS[state.mode]||RIG_DEFAULTS.solar);
     rig.position.set(...d.pos); rig.rotation.set(0,0,0);
     moveSpeed = d.speed;
   }
@@ -66611,7 +66717,7 @@ const XRX = (()=>{
     }
     anchoredGroup=null;
   }
-  const modeGroup = ()=>({solar:solarGroup,obs:obsGroup,s3:s3Group,fbs:fbsGroup,cyc:cycGroup}[state.mode]||solarGroup);
+  const modeGroup = ()=>({solar:solarGroup,obs:obsGroup,s3:s3Group,fbs:fbsGroup,cyc:hccCyclesStage}[state.mode]||solarGroup);
   function placeAtReticle(){
     if(!reticle?.visible || !anchoredGroup) return;
     const p=new THREE.Vector3(), q=new THREE.Quaternion(), s=new THREE.Vector3();
@@ -66845,6 +66951,7 @@ const XRX = (()=>{
       const fbtn=([lbl,f])=>({label:lbl, on:state.cycFrame===f, cb:()=>{state.cycFrame=f; applyCycFrameView(); refreshMenu();}});
       rows.push(CYCF.slice(0,4).map(fbtn));
       rows.push(CYCF.slice(4).map(fbtn));
+      rows.push([{label:'Butterfly atlas',on:state.cycFrame==='butterfly-explorer',cb:()=>{hccButterflyChooseView(hccButterflyState.view);if(xrMode!=='ar')placeRigForMode();dockPanel(ctrlPanel);refreshXRControls();refreshMenu();}}]);
     }
     if(m==='obs') rows.push([
       {label:'Atlas', on:cosmosGroup.visible, cb:()=>{cosmosGroup.visible=!cosmosGroup.visible; refreshMenu();}},
@@ -67045,7 +67152,21 @@ const XRX = (()=>{
   function refreshXRControls(){
     if(!ctrlPanel.visible) return;
     const rows=[], lines=[], R=refreshXRControls;
-    if(state.mode==='s3' && state.s3view==='skyrmion'){
+    if(state.mode==='cyc'&&state.cycFrame==='butterfly-explorer'){
+      lines.push('Galactic Butterfly · '+daysToDateStr(state.epochDays));
+      lines.push(hccButterflyState.view==='solar'?'Synthetic solar pattern · no event forecast':hccButterflyState.view==='nebula'||hccButterflyState.view==='galaxy'?'Schematic lobes · not a 3D reconstruction':'J2000 reference · approximate ephemeris 1800–2050');
+      for(const chunk of [BUTTERFLY_VIEWS.slice(0,3),BUTTERFLY_VIEWS.slice(3)])rows.push(chunk.map(v=>({label:v[1],on:hccButterflyState.view===v[0],cb:()=>{hccButterflyChooseView(v[0]);R();}})));
+      rows.push([{label:state.paused?'Play':'Pause',cb:()=>{setAtlasPaused(!state.paused,'butterfly.xr.pause');R();}},
+        {label:'Today',cb:()=>{hccButterflyApplyDay(Date.now()/86400000-10957.5);R();}},
+        {label:'Reframe',cb:()=>{hccButterflyState.revision++;if(xrMode!=='ar')placeRigForMode();R();}}]);
+      rows.push([{label:'−1 yr',cb:()=>{hccButterflyApplyDay(state.epochDays-365.25);R();}},
+        {label:'+1 yr',cb:()=>{hccButterflyApplyDay(state.epochDays+365.25);R();}},
+        {label:'30 d/s',cb:()=>{setAtlasRate(30,'butterfly.xr.rate');R();}}]);
+      rows.push([{label:'Detail',on:hccButterflyState.detail,cb:()=>{hccButterflyState.detail=!hccButterflyState.detail;R();}},
+        {label:'Solar System',cb:()=>{xrSetMode('solar');R();}}]);
+      if(hccButterflyState.view==='nebula')rows.push([{label:'Expand −',cb:()=>{hccButterflyState.expansion=Math.max(.5,hccButterflyState.expansion-.1);R();}},
+        {label:'Expand +',cb:()=>{hccButterflyState.expansion=Math.min(1.3,hccButterflyState.expansion+.1);R();}}]);
+    } else if(state.mode==='s3' && state.s3view==='skyrmion'){
       lines.push('§N_sk='+skQ.toFixed(2)+' · '+(state.skDim==='3d'?('3D '+state.sk3dType):state.skType)+
                  ' · γ='+(state.skHel/Math.PI).toFixed(2)+'π · E='+skE.tot.toFixed(1));
       rows.push([
@@ -71371,6 +71492,10 @@ function buildCtlBody(){
     // Initial visibility
     updateSolarScaleVisibility();
   }
+  else if(state.mode==='cyc'&&state.cycFrame==='butterfly-explorer'){
+    ctl.innerHTML=hccButterflyControls()+hccCycleNavigationHTML();
+    hccButterflyBindControls();
+  }
   else if(state.mode==='cyc'){
     const ecOpts = ECLIPSES.map((e,i)=>{
       const past = (e.date.getTime()/86400000+2440587.5)-2451545 < state.epochDays ? '✓ ' : '';
@@ -71424,6 +71549,8 @@ function buildCtlBody(){
               <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
           <option value="chronometry" ${state.cycFrame==='chronometry'?'selected':''}>𓎼 Ancient chronometry</option>
           <option value="butterfly" ${state.cycFrame==='butterfly'?'selected':''}>⧗ Galactic butterfly · Fermi bubbles</option>
+          <option value="butterfly-explorer" ${state.cycFrame==='butterfly-explorer'?'selected':''}>Butterfly · connections</option>
+
         </select>
       </div>
       <!-- ── SAYING WHAT THE VIEW IS, WHERE THE VIEW IS CHOSEN ────────────────
@@ -77808,6 +77935,7 @@ function setMode(mode){
   fbsGroup.visible   = mode==='fbs';
   fieldGroup.visible = mode==='field';
   cycGroup.visible   = mode==='cyc';
+  hccButterflySyncVisibility();
   labelRenderer.domElement.style.display = mode==='fractal' ? 'none':'block';
   document.querySelectorAll('.modebtn').forEach(b=>b.classList.toggle('active', b.dataset.mode===mode));
   controls.enabled = true; controls.enableZoom = true; controls.enableRotate=true; controls.enablePan = true;
@@ -85340,7 +85468,8 @@ function tickBody(now, frame){
     state.s3view=_mvSaved;
   }
   else if(state.mode==='cyc'){
-    updateCyc(dt);
+    if(state.cycFrame==='butterfly-explorer')updateGalacticButterfly();
+    else {hccButterflySyncVisibility();updateCyc(dt);}
   }
   else if(state.mode==='fbs'){
     updateFBS(dt);
@@ -85923,6 +86052,7 @@ try{ const f=JSON.parse(localStorage.getItem('hcc.fav')||'[]'); f.forEach(x=>HCC
 const hccSave=()=>{ try{ localStorage.setItem('hcc.fav',JSON.stringify([...HCC_FAV]));
   localStorage.setItem('hcc.recent',JSON.stringify(HCC_RECENT.slice(0,12))); }catch(e){} };
 function hccRoute(ctx=HCC_CTX){
+  if(ctx.worldId==='cyc'&&!ctx.labId&&state.cycFrame==='butterfly-explorer')return '#/world/cyc?butterfly='+hccButterflyState.view;
   return ctx.labId ? `#/world/${ctx.worldId}/lab/${ctx.labId}` : `#/world/${ctx.worldId}`; }
 /* ══ THE STATE A LABORATORY OWNS, AND HOW IT TRAVELS ═════════════════════════
    PRED_STATE_PREFIX already says which state keys belong to which laboratory — it is what
@@ -85992,7 +86122,15 @@ function hccParseRoute(h){
   if(m[2]){ const L=LAB_BY_ID.get(m[2]); if(!L||L.parentWorld!==m[1]) return null; }
   let blob=null;
   if(query){ const mm=query.match(/(?:^|&)s=([^&]*)/); if(mm) blob=mm[1]; }
-  return {worldId:m[1], labId:m[2]||null, state:blob};
+  const route={worldId:m[1], labId:m[2]||null, state:blob};
+  if(m[1]==='cyc'&&!m[2]){
+    const p=new URLSearchParams(query),view=p.get('butterfly');
+    if(BUTTERFLY_VIEWS.some(v=>v[0]===view)){
+      route.butterfly=view;
+      const day=p.get('day');if(day!==null&&day.trim()!==''&&Number.isFinite(Number(day))&&Math.abs(Number(day))<Number.MAX_SAFE_INTEGER-1)route.butterflyDay=Number(day);
+    }
+  }
+  return route;
 }
 /* THE SEVEN STEPS, in one place, so choosing a laboratory anywhere does all of them:
    resolve the parent world, drop panels that cannot survive it, switch the world,
@@ -86005,6 +86143,10 @@ function hccGo(target,opts={}){
     let worldId=target.worldId, labId=target.labId||null;
     if(labId){ const L=LAB_BY_ID.get(labId); if(!L){ labId=null; } else worldId=L.parentWorld; }
     if(!WORLD_BY_ID.get(worldId)) worldId='solar';
+    if(target.butterfly&&worldId==='cyc'&&BUTTERFLY_VIEWS.some(v=>v[0]===target.butterfly)){
+      hccButterflyState.view=target.butterfly;state.cycFrame='butterfly-explorer';
+      if(Number.isFinite(target.butterflyDay))setAtlasTime({epochDays:target.butterflyDay,paused:true},'butterfly.route');
+    }
     const prev={worldId:HCC_CTX.worldId,labId:HCC_CTX.labId};
     if(opts.history!==false&&(prev.worldId!==worldId||prev.labId!==labId))
       HCC_CTX.navigationHistory.push(prev);
@@ -86031,6 +86173,7 @@ function hccGo(target,opts={}){
       HCC_RECENT.unshift(v); HCC_RECENT.length=Math.min(HCC_RECENT.length,12); hccSave();
     } else if(labId&&worldId==='cyc'){ state.cycFrame='chronometry'; try{ applyCycFrameView(); }catch(e){} }
     else HCC_CTX.labId=null;
+    if(worldId==='cyc'&&state.cycFrame==='butterfly-explorer')applyCycFrameView();
     hccEnforceScope();                                   /* and again after it moved */
     /* ── AND THE SETTINGS THE LINK CARRIED ──────────────────────────────────
        Applied AFTER the laboratory is built, because setS3View resets a station to its
