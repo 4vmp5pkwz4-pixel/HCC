@@ -68,9 +68,9 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
 
   /* and a walk that grows one laboratory at a time must never again be the
      reason a job dies at its limit: this fails loudly, here, well before it */
-  const DEADLINE=Date.now()+14*60*1000;
+  const DEADLINE=Date.now()+18*60*1000;
   const withinBudget=()=>assert.ok(Date.now()<DEADLINE,
-    'the frame-loop walk exceeded its fourteen-minute budget — it is failing here rather than timing out the CI job, where the cause would be invisible');
+    'the frame-loop walk exceeded its eighteen-minute budget — it is failing here rather than timing out the CI job, where the cause would be invisible');
   try{
     const ctx=await browser.newContext({viewport:{width:1280,height:820}});
     const page=await ctx.newPage();
@@ -149,6 +149,36 @@ function serve(){return new Promise(res=>{const s=http.createServer((rq,rs)=>{
        button — it is showing the neighbours' furniture. That is derivable from
        the walk itself, with no threshold to calibrate and nothing to keep in
        step with the atlas. */
+    /* ── AND NOW THE FRAME MUST DELIVER WHAT IT DECLARES ─────────────────────
+       This is the clause the three failed attempts below were reaching for.
+       CYC_FRAME_INSTRUMENTS declares which instruments each frame owes the
+       reader, and HCC_CYCLE_FRAMES reports what is actually ON SCREEN —
+       visibility as the product over every ancestor, which is what it really is,
+       not the flag on the object. The phase frame's collapse was exactly this
+       gap: the flag said visible, the object said visible, and a hidden parent
+       meant nothing was drawn. A promise and a delivery, compared. */
+    const frameDebt=[];
+    for(const v of views){
+      if(v==='solar') continue;
+      await page.click(`[data-cycle-view="${v}"]`);
+      await page.waitForTimeout(1100);
+      withinBudget();
+      const rep=await page.evaluate(()=>globalThis.HCC_CYCLE_FRAMES?HCC_CYCLE_FRAMES():null);
+      assert.ok(rep&&Array.isArray(rep.instruments),
+        'HCC_CYCLE_FRAMES is not reachable — the frame-to-instrument map cannot be read, so nothing below would be measuring anything');
+      /* owedNow, not owedHere: the runtime has already evaluated each condition,
+         so nothing is skipped here. The first version of this clause skipped any
+         entry carrying a condition — and both of the phase frame's instruments
+         carry one, so it could not have failed for the frame it was written for.
+         A mutation run is the only reason that is not still true. */
+      const owed=rep.instruments.filter(i=>i.owedNow);
+      const undelivered=owed.filter(i=>!i.onScreen);
+      if(undelivered.length) frameDebt.push(`${v}: ${undelivered.map(i=>i.name).join(', ')}`);
+      ok(`the "${v}" frame puts on screen every instrument it declares, none of them behind a hidden parent`,
+         undelivered.length===0,
+         `owes ${owed.length}: ${owed.map(i=>i.name+(i.onScreen?'':' ✗NOT ON SCREEN')).join(', ')||'nothing'}`);
+    }
+
     /* ── WHAT WOULD CATCH A COLLAPSED VIEW, AND WHY IT IS NOT HERE ───────────
        The clause above asserts only that no two frames draw the SAME set. That
        is worth having and it is weaker than it sounds, and the weakness was
