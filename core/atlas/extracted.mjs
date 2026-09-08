@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1336   ·   exported names: 1447
-   extracted physics, sha256 77893a16c95e9ba881e6c76e386b6a9dfcc34630ba52b8efd0e400b84d8c53ba */
+   extracted physics, sha256 78ea080af7e8f104fb0d53cb0d9824b2d5a788466bfa27e14c3320f386faad6a */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -632,6 +632,38 @@ function cycleCommensurability(a,b,maxA=512){
   const _ctA=a&&a.constructedFrom, _ctB=b&&b.constructedFrom;
   best.tautology=!!((_ctA&&_ctA.key&&b&&_ctA.key===b.key)||(_ctB&&_ctB.key&&a&&_ctB.key===a.key));
   best.constructedTimes=best.tautology?((_ctA&&_ctA.key===(b&&b.key))?_ctA.times:_ctB.times):null;
+  /* ── HOW TIGHT IS NOT HOW SURPRISING, AND ONLY ONE OF THEM IS EVIDENCE ─────
+     This engine reported how CLOSELY a pair locks and never how CHEAPLY that was
+     bought. It cannot be told apart by tightness, because tightness is guaranteed:
+     for ANY two periods, a convergent with integers p and q misses by an amount of
+     order B/q, which in parts per million of the span is about
+
+         1e6 / (p·q)
+
+     That is Dirichlet's approximation theorem read in this atlas's own units, not a
+     fitted rule. So 497:499 locking to 2.4 ppm is not a resonance — it is precisely
+     what integers that size buy for any pair at all — while 235:19 locking to 26 ppm
+     with integers twenty-five times smaller is eight times better than its size
+     buys, and THAT is the Metonic cycle.
+
+     Measured over the seven fundamental periods, sorted by this ratio: the draconic
+     against the anomalistic month is 29 times better than its size buys, the synodic
+     against the anomalistic 28, the Metonic 8.5 — and 497:499, 535:493 and 569:230
+     come out at 1.7, 1.3 and 0.3, meaning at or below what chance provides. The web
+     was labelling all of them.
+
+     `dirichlet` is the scale, `surprise` is the ratio, and a caller that wants to
+     say "these two periods are commensurate" should gate on the second. */
+  /* AND THE SCALE DOES NOT APPLY WHEN ONE OF THE INTEGERS IS 1. Dirichlet bounds the
+     error of approximating a ratio by p/q with q bounded; at q=1 there is no
+     approximation happening — the claim is simply "A is n times B", which is a
+     statement about MAGNITUDE and not about commensurability. Computing the ratio
+     there produced surprise values up to 1.9 MILLION and put them at the top of a
+     list meant to rank resonances. Measured before shipping, which is the only
+     reason it is not in the file. Those pairs are named for what they are. */
+  best.oneSided=Math.min(best.nA,best.nB)===1;
+  best.dirichlet=best.oneSided?null:1e6/Math.max(1,best.nA*best.nB);
+  best.surprise=(best.oneSided||!(best.ppm>0))?null:best.dirichlet/best.ppm;
   best.informative=best.meaningful&&!best.tautology;
   best.refusal=best.meaningful?null:(best.reachable
     ? `the closest ratio within ${maxA} still misses by ${(best.ppm/1e4).toFixed(1)}% — these periods do not lock`
