@@ -45,7 +45,7 @@ const occurrences=k=>{
 const pubCount=k=>pubs.filter(x=>x===k).length;
 const orphans=keys.filter(k=>occurrences(k)<=pubCount(k));
 
-const CEILING=177;   /* 200 before the invariant thread was given four families */
+const CEILING=151;   /* 200 → 177 → 151, as the thread was given families that read them */
 console.log('\nQUANTITY BUS — WHO READS WHAT');
 console.log('  published keys ......... '+keys.length);
 console.log('  read somewhere ......... '+(keys.length-orphans.length));
@@ -76,14 +76,18 @@ ok('every key the thread now reads is actually published by a laboratory',
     :(CLOSED.length+' keys, each one produced by a pub() call in the atlas'));
 ok('and every one of them has a reader',
   stillOrphan.length===0,
-  stillOrphan.length?('still unread: '+stillOrphan.join(' ')):'23 orphans closed by the four new families');
+  stillOrphan.length?('still unread: '+stillOrphan.join(' ')):CLOSED.length+' named keys, each with a reader');
 
 /* ── the thread itself: shape, and where its rows send the reader ──────────── */
 const ti=src.indexOf('const INVARIANT_THREAD=[');
 const thread=src.slice(ti, src.indexOf('\n];', ti));
-const famIds=[...thread.matchAll(/\{id:'([a-z]+)', kind:'(identity|relation)'/g)].map(m=>[m[1],m[2]]);
-ok('the invariant thread carries ten families, one of them an identity',
-  famIds.length===10 && famIds.filter(f=>f[1]==='identity').length===1,
+/* [a-z]+ MISSED A FAMILY CALLED h0, and this is the SECOND time today an id
+   pattern in a check of mine refused a digit — the explorer verifier matched ten
+   of twelve connections the same way this morning. An id pattern that encodes
+   what I expect ids to look like tests my expectation, not the file. */
+const famIds=[...thread.matchAll(/\{id:'([a-z0-9]+)', kind:'(identity|relation)'/g)].map(m=>[m[1],m[2]]);
+ok('the invariant thread carries fourteen families, one of them an identity',
+  famIds.length===14 && famIds.filter(f=>f[1]==='identity').length===1,
   famIds.length+' families: '+famIds.map(f=>f[0]+'/'+f[1]).join(' · '));
 
 /* A ROW'S JUMP MUST GO WHERE THE NUMBER IS MADE. Rows marked cyc:1 are published
@@ -109,5 +113,36 @@ ok('the frame chip that reads "Resonances · Saros" shows the Saros engine',
   !!saros && /'resonance'/.test(saros[1]) && /'hierarchy'/.test(saros[1]),
   saros?('cycSarosInst frames: '+saros[1]):'the declaration no longer names cycSarosInst');
 
-console.log('\n'+(fail?('✖ '+fail+' FAILED, '+pass+' passed'):('✔ ALL '+pass+' CHECKS PASSED')));
-process.exit(fail?1:0);
+/* ── AND THE ONE CLAIM THESE FAMILIES MAKE ABOUT THE ATLAS ITSELF ──────────
+   The stellar-age family says in the interface that its two turnoff masses are
+   NOT independent — that both come out of one function, one pinned to the Sun's
+   age and one following the reader's. That is a statement about this code, put in
+   front of a reader, so it is measured here rather than believed. If the two ever
+   became genuinely independent the sentence would be wrong in the other direction,
+   and this fails either way. */
+(async () => {
+  try {
+    const ex = await import('../core/atlas/extracted.mjs');
+    const atSun = ex.hrTurnoff(4.57);
+    const spread = [1, 4.57, 10].map(a => ex.hrTurnoff(a));
+    ok('the stellar-age family\'s claim about ITSELF holds: one function, two ages, equal at the Sun\'s',
+      Math.abs(atSun - 1.31358) < 1e-4
+      && spread[0] > spread[1] && spread[1] > spread[2],
+      /* FOURTH TIME TODAY: a detail computed unconditionally prints the sentence it
+         would print on success while the check fails, and argues against its own
+         verdict. It is a habit rather than an accident, so this one is built from
+         what is actually wrong. */
+      [Math.abs(atSun - 1.31358) >= 1e-4
+         && `hrTurnoff(4.57) = ${atSun.toFixed(5)} M☉, which is NOT the 1.31358 gyro.turnoff_mass publishes — `
+            + 'the two are no longer one function, or the function changed',
+       !(spread[0] > spread[1] && spread[1] > spread[2])
+         && `the turnoff mass does not fall with age: ${spread.map(x => x.toFixed(3)).join(' > ')} at 1, 4.57, 10 Gyr`
+      ].filter(Boolean).join(' · ')
+      || `hrTurnoff(4.57) = ${atSun.toFixed(5)} M☉, which is what gyro.turnoff_mass publishes · `
+         + `and it falls with age: ${spread.map(x => x.toFixed(3)).join(' > ')} at 1, 4.57, 10 Gyr`);
+  } catch (e) {
+    ok('the stellar-age family\'s claim about ITSELF holds', false, 'could not evaluate: ' + e.message);
+  }
+  console.log('\n'+(fail?('✖ '+fail+' FAILED, '+pass+' passed'):('✔ ALL '+pass+' CHECKS PASSED')));
+  process.exit(fail?1:0);
+})();
