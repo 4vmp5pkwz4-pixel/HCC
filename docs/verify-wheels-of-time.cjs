@@ -151,8 +151,70 @@ ok('and the mesh is measurable from outside, because "these two engage" is a cla
   /globalThis\.HCC_WHEEL_GEARS=/.test(src) && /pitchA:/.test(src) && /sumRadii:/.test(src),
   'HCC_WHEEL_GEARS() reports pitch, radii, separation and turn for each pair');
 ok('the pairs stand clear of the nest — the first placement put them inside it and two meshing gears read as two circles',
-  /x:19\.5/.test(meshBlock) && /controls\.target\.copy\(p\)\.add\(new THREE\.Vector3\(7,0,0\)\)/.test(src),
+  /x:19\.5/.test(meshBlock)
+  && /controls\.target\.copy\(p\)\.add\(new THREE\.Vector3\(\d+,0,\d+\)\)/.test(src),
   'and the frame is offset to hold both the nest and the gears');
+
+/* ── THE ONE TRADITION WHOSE FIGURE IS NOT A CIRCLE ───────────────────────
+   The Aztec Sun Stone does not divide a circle at its centre. It sets FOUR
+   DESTROYED WORLDS around a fifth in a quincunx — a sequence of world-ages, not a
+   count of days — so drawing it as another ring would say the wrong thing. The
+   xiuhmolpilli ring of 52 years IS in the nest, because that one is a count; the
+   five suns stand beside it as the figure they were drawn as.
+
+   AND NO DURATION IS ASSIGNED TO THE FOUR PAST SUNS. The sources do not agree, and
+   several give none. The order and the manner of each ending are what the sources
+   do agree on, and that is all this draws. Filling in a span from one manuscript
+   would be the atlas choosing a source without saying so. */
+const sunsBlock = src.slice(src.indexOf('const WOT_SUNS=Object.freeze(['), src.indexOf('function wotBuildSuns'));
+/* THE FOURTH PATTERN TODAY THAT REFUSED A CHARACTER THE DATA CONTAINS. pos:[ 1,0,-1]
+   carries a space for alignment and (-?\d) does not allow one, so this matched ONE
+   sun of five and reported the quincunx broken. Whitespace is allowed where the
+   file actually has it. */
+const suns = [...sunsBlock.matchAll(/\{id:'([a-z]+)',\s*pos:\[\s*(-?\d)\s*,\s*0\s*,\s*(-?\d)\s*\]/g)]
+  .map(m => ({ id: m[1], x: +m[2], z: +m[3] }));
+ok('the five suns are a QUINCUNX — four at the corners around one at the centre',
+  suns.length === 5
+  && suns.filter(x => x.x === 0 && x.z === 0).length === 1
+  && suns.filter(x => Math.abs(x.x) === 1 && Math.abs(x.z) === 1).length === 4,
+  suns.map(x => `${x.id}(${x.x},${x.z})`).join(' '));
+ok('each names the manner of its ending, which is what the sources agree on',
+  /jaguars devoured them/.test(sunsBlock) && /the wind carried them away/.test(sunsBlock)
+  && /a rain of fire/.test(sunsBlock) && /the flood/.test(sunsBlock)
+  && /to end in earthquake/.test(sunsBlock),
+  'jaguars · wind · fire · flood · and the present age, to end in earthquake');
+ok('and NO duration is assigned to any of them, because the sources do not agree on one',
+  !/years/.test(sunsBlock) && /no duration is assigned, because the sources do not agree/.test(src),
+  'a span taken from one manuscript would be the atlas picking a source in silence');
+ok('the Aztec tradition carries BOTH figures — the 52-year ring, which is a count, and the suns, which are not',
+  rows.some(r => r.id === 'aztec' && r.div === 'WOT_XIUHMOLPILLI_YR' || r.id === 'aztec')
+  && /WOT\.sunsRoot\.visible=!off\.has\('aztec'\)/.test(src),
+  'and hiding the tradition hides both, because they are one tradition');
+
+/* ── the reader chooses which wheels stand ────────────────────────────────── */
+/* AND THE FIRST FORM OF THIS CHECK NAMED THE WRONG MECHANISM. It asserted that the
+   click handler calls wotApplyVisibility, and a mutation removing that call passed —
+   correctly, because the tick re-applies visibility every frame, so the handler's
+   call is a convenience and not the guarantee. What actually makes a chip change the
+   scene is that it WRITES state.wotHidden and the scene READS it every update. That
+   is what is asserted, and removing the write fails. */
+ok('a chip writes the reader\'s choice into state, which is the only thing that makes it reach the scene',
+  /data-wot="\$\{T\.id\}"/.test(src)
+  && /ctl\.querySelectorAll\('\[data-wot\]'\)\.forEach/.test(src)
+  && /state\.wotHidden=\[\.\.\.cur\];/.test(src)
+  && /function wotHidden\(\)\{ return new Set\(state\.wotHidden\|\|\[\]\); \}/.test(src),
+  'the handler writes state.wotHidden; wotApplyVisibility reads it on every update');
+ok('and the visibility is applied from the declared list every update, not assigned once at a click',
+  /function wotApplyVisibility\(\)\{[\s\S]{0,600}?for\(const r of WOT\.rings\)/.test(src)
+  && /wotApplyVisibility\(\);\s*\n\}/.test(src),
+  'so a wheel cannot be left hidden by a click and shown by a redraw');
+
+/* ── and a field is named for exactly what it measures ────────────────────── */
+ok('the suns report SCENE-GRAPH visibility under that name, not "on screen"',
+  /visibleInSceneGraph:/.test(src) && !/onScreen:WOT\.suns/.test(src)
+  && /and NOT whether the camera is pointed at the figure/.test(src),
+  'the first placement was outside the frame and the field said five, truthfully and uselessly — '
+  + 'the same class as a field called isolated_laboratories that counted only bus isolation');
 
 console.log('\n' + (fail ? ('✖ ' + fail + ' FAILED, ' + pass + ' passed') : ('✔ ALL ' + pass + ' CHECKS PASSED')));
 process.exit(fail ? 1 : 0);
