@@ -178,6 +178,39 @@ const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS —
        && 'the unknown-name note does not say so: "' + String(notes.typo).slice(0, 60) + '"'
     ].filter(Boolean).join(' · ') || 'three distinguishable notes for three different reasons a list is empty');
 
+  /* ── A FAMILY IS A DIFFERENT RELATION FROM AN EDGE ───────────────────────── */
+  const fams = all.connections.filter(c => c.kind === 'family');
+  ok('the invariant thread reaches the agent surface whole — the questions, not just the edges',
+    all.counts.family === ex.INVARIANT_THREAD.length && fams.length >= 14
+    && all.counts.family_rows === ex.INVARIANT_THREAD.reduce((n, f) => n + f.rows.length, 0),
+    `${all.counts.family} families carrying ${all.counts.family_rows} rows`);
+  ok('every family says whether it is ONE NUMBER or a question several numbers answer, and only one of them is one number',
+    fams.every(f => typeof f.one_number === 'boolean')
+    && fams.filter(f => f.one_number).length === all.counts.families_that_are_one_number
+    && all.counts.families_that_are_one_number === 1,
+    `${all.counts.families_that_are_one_number} identity · ${fams.length - all.counts.families_that_are_one_number} relation`);
+  ok('and the identity is the only family whose rows are all in ONE unit — which is what makes the claim checkable',
+    fams.filter(f => f.one_number).every(f => f.units.length === 1)
+    && fams.filter(f => !f.one_number && f.units.length === 1).length <= 1,
+    (fams.filter(f => f.one_number && f.units.length !== 1).length
+       ? 'a family claiming ONE NUMBER whose rows are not all in one unit: '
+         + fams.filter(f => f.one_number && f.units.length !== 1).map(f => f.id + ' in ' + f.units.join('/')).join(', ')
+       : fams.filter(f => !f.one_number).length === 0
+         ? 'every family claims to be one number, so there is nothing left to be a relation'
+         : fams.filter(f => f.one_number).map(f => f.id + ' in ' + f.units[0]).join(', ')
+           + ' · relation families span '
+           + Math.max(...fams.filter(f => !f.one_number).map(f => f.units.length)) + ' units at most'));
+  ok('every family row names the laboratory AND the bus key carrying its number, so a question can be walked to a live quantity',
+    fams.every(f => f.rows.length > 0 && f.rows.every(r => r.lab && r.key && r.unit)),
+    (fams.some(f => f.rows.some(r => !r.lab || !r.key || !r.unit))
+       ? (fams.flatMap(f => f.rows.filter(r => !r.lab || !r.key || !r.unit).map(r =>
+            f.id + ': ' + ['lab', 'key', 'unit'].filter(k => !r[k]).join(' and ') + ' missing')).slice(0, 4).join(' · '))
+       : `${all.counts.family_rows} rows, each with a laboratory, a bus key and a unit`));
+  const gyro = CORE.connections({ lab: 'gyro' });
+  ok('and a laboratory that appears only inside a family is reachable by the laboratory filter',
+    gyro.counts.returned > 0 && gyro.connections.some(c => c.kind === 'family'),
+    `gyro: ${gyro.counts.returned} connection(s), ${gyro.connections.filter(c => c.kind === 'family').length} of them families`);
+
   /* ── ONE SOURCE: no second implementation anywhere ───────────────────────── */
   const server = fs.readFileSync(path.join(ROOT, 'server/server.mjs'), 'utf8');
   const route = /\/api\/v1\/connections'[\s\S]{0,400}?CORE\.connections\(/.test(server);

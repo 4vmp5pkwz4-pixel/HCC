@@ -120,6 +120,14 @@ console.log('\n=== 2. Statuses are load-bearing ===\n');
     && /carries an evidence tier/.test(cnotier.body.note || ''),
     cnotier.body.note);
 
+  const cfam = await get('/api/v1/connections?kind=family');
+  ok('the invariant thread is served too — a QUESTION several laboratories answer, which is a different relation from an edge',
+    cfam.code === 200 && cfam.body.counts.family >= 14
+    && cfam.body.connections.every(f => f.rows.length > 0 && f.rows.every(r => r.lab && r.key && r.unit))
+    && cfam.body.counts.families_that_are_one_number === 1,
+    `${cfam.body.counts.family} families carrying ${cfam.body.counts.family_rows} rows · `
+    + `exactly ${cfam.body.counts.families_that_are_one_number} of them is ONE NUMBER, the rest are questions`);
+
   const ciso = await get('/api/v1/connections');
   ok('the surface distinguishes bus isolation from being connected by NOTHING, which are different numbers and were reported as one',
     ciso.body.counts.isolated_laboratories === undefined

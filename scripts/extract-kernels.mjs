@@ -574,6 +574,13 @@ export const ROOTS = [
      which is exactly what this extractor is for: slice it, do not transcribe it,
      so the panel and the API cannot come to disagree about what the atlas claims. */
   'NEXUS_RELATIONS',
+  /* and the invariant thread beside it: fourteen QUESTIONS, each one a set of rows
+     from different laboratories that answer it in different units. It is a
+     different relation from a typed edge — an edge says two laboratories are
+     related, a family says several of them are answering the same question and
+     disagree about what the answer even is — and it was as invisible to a caller
+     as the graph was. */
+  'INVARIANT_THREAD',
   /* syd stops HERE, and the reason is worth recording rather than working around:
      SYD_WORLDS defines each world's state, its sample points and its group action by
      building THREE.Vector3 objects, so the discovery engine cannot be lifted out without
