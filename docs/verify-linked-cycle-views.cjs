@@ -28,7 +28,23 @@ ok('the linked view is declared to the linked frame, and the Cycles loop drives 
    /\{name:'cycLinkedInst',\s*frames:\['linked'\]/.test(s)
    && /for\(const d of CYC_FRAME_INSTRUMENTS\) d\.obj\.visible = d\.frames\.includes\(frame\);/.test(s)
    && /if\(cycLinkedInst\.visible\) updateCycLinkedView\(\);/.test(s));
-ok('camera framing recognizes linked view', /function applyCycFrameView\(\)[\s\S]{0,1500}cycFrame===['"]linked['"]/.test(s));
+/* ── A PROXIMITY ASSERTION IS NOT AN INVARIANT ───────────────────────────────
+   This required cycFrame==='linked' to appear within 1500 characters of the
+   start of applyCycFrameView. That was true when the linked branch was the first
+   one there, and it stopped being true when two more frames — chronometry and
+   the galactic butterfly — were given their own framing above it. Nothing about
+   the linked view changed; it moved down the file, and the check went red for a
+   feature it has no opinion on.
+   What must hold is that applyCycFrameView HAS a linked branch and that the
+   branch frames the camera. Read the function body and look inside it, with no
+   budget on where in the body the branch happens to sit. */
+{
+  const i = s.indexOf('function applyCycFrameView()');
+  const body = i < 0 ? '' : s.slice(i, s.indexOf('\narmIdleDrift();', i) > 0 ? s.indexOf('\n}', s.indexOf('cycFrame===\'geo\'', i)) : i + 12000);
+  const branch = body.slice(body.indexOf("cycFrame==='linked'"));
+  ok('camera framing recognizes linked view, wherever in the function that branch sits',
+     body.includes("cycFrame==='linked'") && /camera\.position\.copy\(p\)/.test(branch.slice(0, 400)));
+}
 
 const linkedStart=s.indexOf('hcc.cycles-linked-view/1');
 const linkedEnd=linkedStart>=0?s.indexOf('END LINKED CYCLES VIEW',linkedStart):-1;
