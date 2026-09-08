@@ -35,6 +35,10 @@ import civpclosure from './labs/civp.closure.mjs';
    not three, not the DOM — so the same twelve rows the browser draws are the twelve
    rows this service hands an agent, rather than a transcription of them. */
 import { RELATIONS as GB_RELATIONS, SOURCES as GB_SOURCES, SCHEMA as GB_SCHEMA } from './cycles/galactic-butterfly.mjs';
+/* and the atlas's own typed relation graph, SLICED out of index.html by
+   scripts/extract-kernels.mjs rather than transcribed, so the panel a reader
+   clicks and the edges an agent is served are one array. */
+import { NEXUS_RELATIONS } from './atlas/extracted.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(HERE, '..');
@@ -62,6 +66,20 @@ function coreHash() {
   return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));
 }
 export const PROVENANCE = Object.freeze({ commit: gitCommit(), code_sha256: coreHash() });
+
+export const EVIDENCE_TIERS = [
+  ['theorem',     /theorem|exact/],
+  ['measured',    /measured|validated|observation|established/],
+  ['open',        /\bopen\b|missing|epistemic-boundary/],
+  ['analogy',     /analogy/],
+  ['conditional', /conditional|hypothesis|scenario/],
+  ['model',       /model|phenomenological|effective|semiclassical|framework/],
+  ['literature',  /literature/],
+  ['context',     /context|bridge|limit|regime|scale|hierarchy|representation|coupling|causal|contrast|invariant|principle|parameter|method|object-class|physics/]];
+export const evidenceTierOf = st => { const s0 = String(st || ''); 
+  for (const [name, re] of EVIDENCE_TIERS) if (re.test(s0)) return name;
+  return 'unclassified'; };
+
 
 /* the eighteen implemented instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
@@ -278,8 +296,31 @@ export const CORE = {
      atlas headlessly — it is not typed anywhere. When that file is absent the
      answer says so in a field rather than throwing or quietly returning fewer
      connections: a surface that degrades silently is worse than one that refuses. */
-  connections({ lab = null, kind = null } = {}) {
-    const KINDS = ['route', 'refusal', 'sourced'];
+  connections({ lab = null, kind = null, tier = null } = {}) {
+    const KINDS = ['route', 'refusal', 'sourced', 'typed'];
+    /* ── SEVENTY-ONE EPISTEMIC STATUSES IS NOT A VOCABULARY ────────────────────
+       The typed edges carry a status each, written by hand as the edge was
+       written, and there turn out to be SEVENTY-ONE distinct ones over 336 edges
+       — model-analogy, mathematical-analogy, structural-analogy,
+       statistical-analogy, semiclassical-analogy, group-analogy and analogy are
+       seven of them. A reader parses that fine. An agent cannot: filtering on a
+       free-text field with seventy-one values and near-synonyms is guesswork, and
+       "give me only the theorem-grade edges" was unanswerable.
+       The statuses are NOT rewritten here. Rewriting somebody's stated status to
+       fit a scheme is re-authoring their claim, and the exact word chosen is
+       often the point. Each edge is given a TIER beside its status instead — the
+       raw string is served unchanged, and the tier is derived from it by a
+       declared, ordered rule that a verifier re-runs. Precedence matters and is
+       stated rather than implied: a status naming a theorem is theorem-grade
+       whatever else it also names. An unclassified status is COUNTED and
+       reported, so this mapping cannot quietly swallow a status it did not
+       anticipate — which is the only way a derived field is safe to publish. */
+    const TIERS = EVIDENCE_TIERS;
+    const tierOf = evidenceTierOf;
+    const TIER_NAMES = [...TIERS.map(t => t[0]), 'unclassified'];
+    if (tier !== null && !TIER_NAMES.includes(tier))
+      throw Object.assign(new Error(`no evidence tier "${tier}" — known tiers: ${TIER_NAMES.join(', ')}`),
+        { code: 'BAD_INPUT' });
     if (kind !== null && !KINDS.includes(kind))
       throw Object.assign(new Error(`no connection kind "${kind}" — known kinds: ${KINDS.join(', ')}`),
         { code: 'BAD_INPUT' });
@@ -296,6 +337,16 @@ export const CORE = {
       for (const r of bus.refused || []) out.push({ kind: 'refusal', from: r.from, to: r.to,
         claim: 'admissible and declined', evidence: r.reason });
     }
+    /* THE GRAPH THE ATLAS DRAWS FOR A READER, SERVED TO A CALLER. Every edge
+       carries the kind of relationship it is (an exactness, an invariant, an
+       analogy, a limit, a causal claim, a contrast), the sentence somebody wrote
+       for it, and the EPISTEMIC STATUS of that sentence — a theorem is not a model
+       input and neither is a literature-derived comparison. That last field is why
+       this is worth serving: it lets an agent weigh an edge instead of merely
+       traversing it. */
+    for (const r of NEXUS_RELATIONS) out.push({ kind: 'typed', id: r.id, from: r.a, to: r.b,
+      relation: r.type, directed: r.directed, claim: r.label, evidence: r.claim,
+      epistemic_status: r.status, evidence_tier: tierOf(r.status), measured: r.measured });
     for (const r of GB_RELATIONS) out.push({ kind: 'sourced', id: r.id, claim_kind: r.kind,
       view: r.view, title: r.title, claim: r.text,
       sources: (r.sources || []).map(id => ({ id, ...(GB_SOURCES[id] || { missing: true }) })) });
@@ -304,6 +355,15 @@ export const CORE = {
        is unconnected when it only misspelled the name, so an unknown one is named */
     let rows = out;
     if (kind) rows = rows.filter(c => c.kind === kind);
+    /* the tier filter applies only where a tier exists, and SAYS so rather than
+       returning nothing: a route on the quantity bus has no epistemic status to
+       tier, so asking for theorem-grade routes is a question with no answer and
+       an empty list would read as "there are none" */
+    let tierNote = null;
+    if (tier) { const tierable = rows.filter(c => c.evidence_tier !== undefined);
+      if (tierable.length === 0) tierNote = `no connection of this kind carries an evidence tier — `
+        + `only typed edges do, and this filter selected ${rows.length} connection(s) that do not`;
+      rows = tierable.filter(c => c.evidence_tier === tier); }
     let labNote = null;
     if (lab) {
       const hit = c => String(c.from || '').split('.')[0] === lab || String(c.to || '').split('.')[0] === lab
@@ -315,12 +375,18 @@ export const CORE = {
     }
     return { schema: 'hcc.connections/1', core_version: CORE_VERSION,
       git_commit: PROVENANCE.commit, code_sha256: PROVENANCE.code_sha256,
-      kinds: KINDS, filter: { lab, kind }, note: labNote,
+      kinds: KINDS, evidence_tiers: TIER_NAMES, filter: { lab, kind, tier },
+      note: [labNote, tierNote].filter(Boolean).join(' · ') || null,
       bus_status: busStatus, sourced_schema: GB_SCHEMA,
       counts: { total: out.length, returned: rows.length,
         route: out.filter(c => c.kind === 'route').length,
         refusal: out.filter(c => c.kind === 'refusal').length,
         sourced: out.filter(c => c.kind === 'sourced').length,
+        typed: out.filter(c => c.kind === 'typed').length,
+        relation_kinds: [...new Set(NEXUS_RELATIONS.map(r => r.type))].sort(),
+        epistemic_statuses: [...new Set(NEXUS_RELATIONS.map(r => r.status))].sort(),
+        by_evidence_tier: Object.fromEntries(TIER_NAMES.map(t =>
+          [t, NEXUS_RELATIONS.filter(r => tierOf(r.status) === t).length])),
         isolated_laboratories: bus ? (Array.isArray(bus.isolated) ? bus.isolated.length : bus.isolated) : null },
       connections: rows };
   },
