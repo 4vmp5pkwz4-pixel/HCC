@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1321   ·   exported names: 1431
-   extracted physics, sha256 037082070b6af54e0313e0638eceed965c52f35ee32e7de76aac1da91e842dfb */
+   extracted physics, sha256 3a00c7763076dcfc50628bdb5346dda8890b8d5c6fde9e3486726a92f8c5b71b */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -763,7 +763,7 @@ const INVARIANT_THREAD=[
        de:'Alle drei können sich nicht stetig ändern; eine Zahl sind sie nicht.'},
   rows:[{k:'sc.vortices',lab:'sc',unit:'count',n:{en:'Abrikosov vortices × Φ₀ (π₁)',ru:'вихри Абрикосова × Φ₀ (π₁)',de:'Abrikosov-Wirbel × Φ₀ (π₁)'}},
         {k:'su2.w',lab:'su2',unit:'count',n:{en:'SU(2) winding (π₃)',ru:'намотка SU(2) (π₃)',de:'SU(2)-Windung (π₃)'}},
-        {k:'spin.berry',lab:'spin',unit:'rad',n:{en:'Berry holonomy on the Hopf bundle',ru:'голономия Берри на расслоении Хопфа',de:'Berry-Holonomie am Hopf-Bündel'}}]},
+        {k:'spin.berry',lab:'spin',unit:'rad',at:'Berry phase',n:{en:'Berry holonomy on the Hopf bundle',ru:'голономия Берри на расслоении Хопфа',de:'Berry-Holonomie am Hopf-Bündel'}}]},
  {id:'chaos', kind:'relation', unitOf:'mixed',
   t:{en:'Lyapunov λ — one symbol, and THREE different clocks',ru:'Ляпунов λ — один символ и ТРОЕ разных часов',de:'Lyapunov λ — ein Symbol, DREI verschiedene Uhren'},
   rel:{en:'This family said "one invariant" until the clock laboratory measured it. The strange attractor publishes per unit of its own time, the three-body problem per unit of τ, and the standard map per ITERATION of a kicked rotor whose kick period nothing here names. Three clocks and one symbol. Only one exchange rate in this atlas is measured — a flow against the map of its section, where the conversion is the mean return time — and it is at the clock laboratory. The fourth row is a DURATION, the reciprocal use these rates are put to, and it is here to show what the exponent buys rather than to be compared with one.',
@@ -898,7 +898,61 @@ const INVARIANT_THREAD=[
         {k:'gyro.age',lab:'gyro',unit:'Gyr',n:{en:'gyrochronological age, from the slowing spin',ru:'гирохронологический возраст — из замедления вращения',de:'gyrochronologisches Alter'}},
         {k:'mainseq.main_sequence_lifetime',lab:'mainseq',unit:'s',n:{en:'and how long the star has to live at all',ru:'и сколько звезде вообще отпущено',de:'und wie lange der Stern lebt'}},
         {k:'seis.density',lab:'seis',unit:'kg m^-3',n:{en:'asteroseismic density — no isochrone anywhere in it',ru:'астросейсмическая плотность — без изохрон',de:'asteroseismische Dichte'}},
-        {k:'seis.logg',lab:'seis',unit:'dex',n:{en:'and the surface gravity from the same frequencies',ru:'и сила тяжести из тех же частот',de:'und die Schwerebeschleunigung'}}]}
+        {k:'seis.logg',lab:'seis',unit:'dex',n:{en:'and the surface gravity from the same frequencies',ru:'и сила тяжести из тех же частот',de:'und die Schwerebeschleunigung'}}]},
+ /* ── FOUR MORE, AND THREE OF THEM CROSS LABORATORIES ───────────────────────
+    The families above mostly gather one laboratory's own outputs. These reach
+    across: a supernova beside the nucleosynthesis that names what it makes, a
+    Bell violation beside an anyonic braid, a magnetised plasma beside the wind
+    that leaves a star. A question two laboratories answer is worth more than a
+    question one answers well. */
+ {id:'origins', kind:'relation', unitOf:'mixed',
+  t:{en:'Where the elements came from — and the two places that made them are not the same place',ru:'Откуда взялись элементы — и два места их рождения не одно место',de:'Woher die Elemente kamen — und die zwei Orte sind nicht derselbe'},
+  rel:{en:'Helium was made in the first minutes, by a neutron-to-proton ratio frozen out of a 1.29 MeV mass difference nobody chose. Everything heavier than that was made in stars, and the triple-alpha resonance that opens the path to carbon is a 7.65 MeV coincidence that has been called fine-tuning for seventy years. The most bound nucleus per nucleon sets where fusion stops paying, and the supernova rows beside it are one star finishing the job — its bolometric output, the fraction of gamma rays still trapped, and the shock that scatters the result. Different epochs, different physics, one periodic table.',
+       ru:'Гелий сделан в первые минуты — отношением нейтронов к протонам, замороженным разностью масс 1,29 МэВ, которую никто не выбирал. Всё тяжелее сделано в звёздах, а тройной альфа-резонанс, открывающий путь к углероду, — совпадение при 7,65 МэВ. Самое связанное ядро задаёт, где синтез перестаёт окупаться, а строки сверхновой рядом — одна звезда, доделывающая работу.',
+       de:'Helium entstand in den ersten Minuten, alles Schwerere in Sternen — verschiedene Epochen, verschiedene Physik, ein Periodensystem.'},
+  rows:[{k:'origins.primordial_helium',lab:'origins',unit:'mass fraction',n:{en:'primordial helium, from the first minutes',ru:'первичный гелий — из первых минут',de:'primordiales Helium'}},
+        {k:'origins.neutron_proton_difference',lab:'origins',unit:'MeV',n:{en:'the mass difference that froze the ratio',ru:'разность масс, заморозившая отношение',de:'die Massendifferenz'}},
+        {k:'origins.triple_alpha_q',lab:'origins',unit:'MeV',n:{en:'the triple-alpha resonance that opens carbon',ru:'тройной альфа-резонанс, открывающий углерод',de:'die Triple-Alpha-Resonanz'}},
+        {k:'origins.most_bound_per_nucleon',lab:'origins',unit:'MeV',n:{en:'and where fusion stops paying',ru:'и где синтез перестаёт окупаться',de:'und wo die Fusion aufhört zu lohnen'}},
+        {k:'origins.solar_metal_fraction',lab:'origins',unit:'mass fraction',n:{en:'what the Sun ended up made of',ru:'из чего в итоге состоит Солнце',de:'woraus die Sonne besteht'}},
+        {k:'sn.L',lab:'sn',unit:'erg/s',at:'transient',n:{en:'one star finishing the job — bolometric output',ru:'одна звезда, доделывающая работу — болометрическая светимость',de:'ein Stern, der die Arbeit beendet'}},
+        {k:'sn.fgamma',lab:'sn',unit:'1',at:'transient',n:{en:'the fraction of its gamma rays still trapped',ru:'доля гамма-квантов, ещё удержанных',de:'der noch eingefangene Gammaanteil'}},
+        {k:'sn.vshock',lab:'sn',unit:'km/s',at:'remnant',n:{en:'and the shock that scatters the result',ru:'и ударная волна, разносящая результат',de:'und der Schock, der das Ergebnis verstreut'}}]},
+ {id:'nonclassical', kind:'relation', unitOf:'mixed',
+  t:{en:'Two numbers classical physics is not allowed to produce',ru:'Два числа, которых классическая физика не вправе выдать',de:'Zwei Zahlen, die klassische Physik nicht liefern darf'},
+  rel:{en:'A CHSH correlation above 2 cannot come from any local hidden-variable account, and the quantum ceiling is 2√2 — the atlas prints the bound beside the number so the reader sees how much room is left. The anyon rows are a different impossibility: braiding two Fibonacci anyons produces fusion probabilities that no classical exchange can reproduce, and the unitarity row is the arithmetic check that the braid conserved probability while doing it. Neither is evidence for the other; they are two independent places where the classical account runs out, and this thread holds them side by side rather than merging them.',
+       ru:'Корреляция CHSH выше 2 не может возникнуть ни из какой локальной теории со скрытыми параметрами, а квантовый потолок — 2√2; атлас печатает границу рядом с числом. Строки анионов — другая невозможность: плетение фибоначчиевых анионов даёт вероятности слияния, невоспроизводимые классическим обменом, а строка унитарности проверяет сохранение вероятности. Одно не доказывает другое.',
+       de:'Eine CHSH-Korrelation über 2 stammt aus keiner lokalen Theorie; das Flechten von Fibonacci-Anyonen ist eine zweite, unabhängige Unmöglichkeit.'},
+  rows:[{k:'spin.CHSH',lab:'spin',unit:'≤2√2',at:'bell · CHSH',n:{en:'CHSH — above 2 nothing local can explain it',ru:'CHSH — выше 2 локально необъяснимо',de:'CHSH — über 2 lokal unerklärbar'}},
+        {k:'spin.P1',lab:'spin',unit:'excited pop',at:'Rabi oscillation',n:{en:'the excited population it is read from',ru:'возбуждённая населённость, из которой он читается',de:'die angeregte Besetzung'}},
+        {k:'spin.omega',lab:'spin',unit:'γB',at:'Larmor precession',n:{en:'and the drive that produced it',ru:'и накачка, его породившая',de:'und der Antrieb'}},
+        {k:'anyon.p_tau',lab:'anyon',unit:'probability',n:{en:'a Fibonacci braid fusing to τ',ru:'фибоначчиево плетение, сливающееся в τ',de:'ein Fibonacci-Zopf, der zu τ fusioniert'}},
+        {k:'anyon.p_trivial',lab:'anyon',unit:'probability',n:{en:'and to the vacuum',ru:'и в вакуум',de:'und ins Vakuum'}},
+        {k:'anyon.braid_length',lab:'anyon',unit:'crossings',n:{en:'over this many crossings',ru:'за столько пересечений',de:'über so viele Kreuzungen'}},
+        {k:'anyon.unitarity',lab:'anyon',unit:'norm',n:{en:'and the check that probability survived the braid',ru:'и проверка сохранения вероятности',de:'und die Erhaltungsprüfung'}}]},
+ {id:'cmberror', kind:'relation', unitOf:'mixed',
+  t:{en:'The part of the microwave sky that no better telescope can fix',ru:'Та часть реликтового неба, которую не исправит лучший телескоп',de:'Der Teil des Mikrowellenhimmels, den kein besseres Teleskop behebt'},
+  rel:{en:'Cosmic variance is not a measurement error: there is ONE sky, and at low multipole there are only a handful of independent modes in it, so the uncertainty is irreducible however long anyone observes. The fraction it contributes is published beside the observed sky fraction and the fit residual, which ARE measurement quantities and do improve. Keeping the three apart is the whole discipline of the laboratory — and the anomaly rows below them, an axis separation and a low-power ratio, are quantities a reader may find striking and the atlas declines to call significant, because with that few modes striking is cheap.',
+       ru:'Космическая дисперсия — не ошибка измерения: небо одно, и на малых мультиполях независимых мод в нём считанные единицы, так что неопределённость неустранима, сколько ни наблюдай. Её доля публикуется рядом с долей неба и невязкой подгонки — а те ЯВЛЯЮТСЯ измерительными и улучшаются. Строки аномалий ниже атлас отказывается называть значимыми.',
+       de:'Kosmische Varianz ist kein Messfehler: Es gibt EINEN Himmel, und bei kleinen Multipolen nur wenige unabhängige Moden.'},
+  rows:[{k:'cmb.cv_frac',lab:'cmb',unit:'fraction',n:{en:'cosmic variance — irreducible, one sky',ru:'космическая дисперсия — неустранима, небо одно',de:'kosmische Varianz — irreduzibel'}},
+        {k:'cmb.f_sky',lab:'cmb',unit:'fraction',n:{en:'the sky fraction actually observed',ru:'наблюдаемая доля неба',de:'der beobachtete Himmelsanteil'}},
+        {k:'cmb.residual',lab:'cmb',unit:'relative',n:{en:'and the fit residual, which does improve',ru:'и невязка подгонки, которая улучшается',de:'und das Fit-Residuum'}},
+        {k:'cmb.D_model',lab:'cmb',unit:'microK^2',n:{en:'the model power at the selected multipole',ru:'модельная мощность на выбранном мультиполе',de:'die Modellleistung'}},
+        {k:'cmb.axis_sep',lab:'cmb',unit:'deg',n:{en:'an axis separation the atlas will not call significant',ru:'разделение осей, которое атлас не назовёт значимым',de:'eine Achsentrennung ohne Signifikanzanspruch'}},
+        {k:'cmb.q_ratio',lab:'cmb',unit:'D2/Dplateau',n:{en:'and a low-power ratio it will not either',ru:'и отношение низкой мощности — тоже',de:'und ein Niedrigleistungsverhältnis'}}]},
+ {id:'magnetised', kind:'relation', unitOf:'mixed',
+  t:{en:'A magnetised plasma decides how fast it can rearrange itself, and how much a star loses',ru:'Замагниченная плазма решает, как быстро перестроиться и сколько звезда потеряет',de:'Ein magnetisiertes Plasma entscheidet über Umordnung und Sternverlust'},
+  rel:{en:'The Alfvén speed is the rate at which a magnetic field can carry information through the fluid it is frozen into, and reconnection is what happens when the freezing fails — the field lines cut and rejoin, converting field energy to heat and motion. The wind rows are the same physics at the surface of a star: a terminal speed the radiation drives the outflow to, an efficiency, and the fraction of the star that leaves over its life. One is why the field cannot hold, the other is what the star pays for it.',
+       ru:'Альфвеновская скорость — темп, с которым магнитное поле переносит информацию через вмороженную в него жидкость, а пересоединение — то, что происходит, когда вмороженность отказывает. Строки ветра — та же физика на поверхности звезды: конечная скорость, эффективность и доля звезды, уходящая за жизнь.',
+       de:'Die Alfvén-Geschwindigkeit ist die Rate, mit der ein Feld Information trägt; Rekonnexion ist, was geschieht, wenn das Einfrieren versagt.'},
+  rows:[{k:'rmhd.vA',lab:'rmhd',unit:'normalized',n:{en:'Alfvén speed — how fast the field can talk',ru:'альфвеновская скорость — как быстро поле говорит',de:'Alfvén-Geschwindigkeit'}},
+        {k:'rmhd.reconnection',lab:'rmhd',unit:'rate',n:{en:'and the rate at which the freezing fails',ru:'и темп отказа вмороженности',de:'und die Rate des Versagens'}},
+        {k:'rmhd.compression',lab:'rmhd',unit:'ratio',n:{en:'how much the fluid is squeezed doing it',ru:'насколько при этом сжата жидкость',de:'wie stark komprimiert'}},
+        {k:'wind.terminal_speed',lab:'wind',unit:'km/s',n:{en:'the same physics at a stellar surface',ru:'та же физика на поверхности звезды',de:'dieselbe Physik an der Sternoberfläche'}},
+        {k:'wind.efficiency',lab:'wind',unit:'1',n:{en:'the efficiency radiation drives it with',ru:'эффективность, с которой её гонит излучение',de:'die Effizienz der Strahlung'}},
+        {k:'wind.fraction_lost',lab:'wind',unit:'1',n:{en:'and the fraction of the star that leaves',ru:'и доля звезды, которая уходит',de:'und der verlorene Sternanteil'}},
+        {k:'wind.ceiling',lab:'wind',unit:'Msun/yr',n:{en:'against the ceiling on losing it',ru:'против потолка на эту потерю',de:'gegen die Obergrenze'}}]}
 ];
 
 function mulberry(seed){ return ()=>{ seed|=0; seed=seed+0x6D2B79F5|0;

@@ -45,7 +45,7 @@ const occurrences=k=>{
 const pubCount=k=>pubs.filter(x=>x===k).length;
 const orphans=keys.filter(k=>occurrences(k)<=pubCount(k));
 
-const CEILING=151;   /* 200 → 177 → 151, as the thread was given families that read them */
+const CEILING=123;   /* 200 → 177 → 151 → 123, as the thread was given families that read them */
 console.log('\nQUANTITY BUS — WHO READS WHAT');
 console.log('  published keys ......... '+keys.length);
 console.log('  read somewhere ......... '+(keys.length-orphans.length));
@@ -86,8 +86,8 @@ const thread=src.slice(ti, src.indexOf('\n];', ti));
    of twelve connections the same way this morning. An id pattern that encodes
    what I expect ids to look like tests my expectation, not the file. */
 const famIds=[...thread.matchAll(/\{id:'([a-z0-9]+)', kind:'(identity|relation)'/g)].map(m=>[m[1],m[2]]);
-ok('the invariant thread carries fourteen families, one of them an identity',
-  famIds.length===14 && famIds.filter(f=>f[1]==='identity').length===1,
+ok('the invariant thread carries eighteen families, one of them an identity',
+  famIds.length===18 && famIds.filter(f=>f[1]==='identity').length===1,
   famIds.length+' families: '+famIds.map(f=>f[0]+'/'+f[1]).join(' · '));
 
 /* A ROW'S JUMP MUST GO WHERE THE NUMBER IS MADE. Rows marked cyc:1 are published
@@ -112,6 +112,42 @@ const saros=decl.match(/\{name:'cycSarosInst',\s*frames:\[([^\]]*)\]/);
 ok('the frame chip that reads "Resonances · Saros" shows the Saros engine',
   !!saros && /'resonance'/.test(saros[1]) && /'hierarchy'/.test(saros[1]),
   saros?('cycSarosInst frames: '+saros[1]):'the declaration no longer names cycSarosInst');
+
+/* ── A ROW WHOSE NUMBER LIVES IN ONE STATION HAS TO SAY WHICH ────────────────
+   Four rows came up unmeasured on a render, and every one belonged to a laboratory
+   that publishes the quantity in ONE of its stations. The spin laboratory has four
+   stations — larmor, rabi, berry, bell — and publishes a different number in each,
+   so this thread can never show all four of its rows at once; the supernova
+   publishes its shock speed only in the remnant domain. "Open the lab to measure"
+   sent a reader to the right laboratory and left them to find the station by
+   trying them all. Every row of a station-gated laboratory must name its station,
+   and the names were verified in a browser: larmor → spin.omega 1.3, rabi →
+   spin.P1, berry → spin.berry −0.549, bell → spin.CHSH 2.828 (which is 2√2, the
+   Tsirelson bound), remnant → sn.vshock. */
+const GATED = ['spin', 'sn'];
+/* AND THIS PATTERN WAS WRONG TWICE BEFORE IT WAS RIGHT — THE THIRD TIME TODAY.
+   [a-z_0-9]+ for the key refused spin.CHSH and sn.L, matching four rows of eleven
+   and reporting that as whole. The same shape as [a-z]+ missing a family called h0
+   this morning, and as the connection pattern that matched ten of twelve. Character
+   classes written from what I expect names to look like test my expectation. */
+const gatedRows = [...thread.matchAll(/\{k:'([A-Za-z]+)\.([A-Za-z_0-9]+)',lab:'([a-z]+)'[^}]*\}/g)]
+  .filter(m => GATED.includes(m[3]));
+const noStation = gatedRows.filter(m => !/,at:'/.test(m[0]));
+ok('every row of a station-gated laboratory names the station its number lives in',
+  gatedRows.length >= 7 && noStation.length === 0,
+  noStation.length ? ('no station declared: ' + noStation.map(m => m[1] + '.' + m[2]).join(' '))
+    : gatedRows.length < 7 ? ('only ' + gatedRows.length + ' rows matched the row pattern — it is refusing rows that exist')
+    : gatedRows.length + ' rows across ' + GATED.join(' and ') + ', each naming its station');
+
+/* AND THE ROW HAS TO SHOW IT. A mutation deleting the station from the RENDER left
+   every declaration intact and this file green — a check on the data that never
+   looks at what reaches the reader. The unmeasured branch must carry it. */
+const unmeasuredBranch = src.slice(Math.max(0, src.indexOf('open the lab to measure') - 800),
+                                   src.indexOf('open the lab to measure') + 600);
+ok('and the row RENDERS that station, so it reaches the reader rather than only the file',
+  /r\.at\?/.test(unmeasuredBranch) && /station:/.test(unmeasuredBranch),
+  /r\.at\?/.test(unmeasuredBranch) ? 'the "open the lab to measure" branch names the station when the row declares one'
+    : 'the station is declared on rows and never rendered — a reader still has to guess');
 
 /* ── AND THE ONE CLAIM THESE FAMILIES MAKE ABOUT THE ATLAS ITSELF ──────────
    The stellar-age family says in the interface that its two turnoff masses are
