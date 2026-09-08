@@ -216,5 +216,50 @@ ok('the suns report SCENE-GRAPH visibility under that name, not "on screen"',
   'the first placement was outside the frame and the field said five, truthfully and uselessly — '
   + 'the same class as a field called isolated_laboratories that counted only bus isolation');
 
+/* ── TWO INSTRUMENTS IN ONE WORLD, AND ONE OF THEM WAS WRONG ──────────────
+   The chronometry laboratory and the wheels both compute a phase for tzolk'in,
+   haab', the sexagenary cycle and the Egyptian civil year. Nobody had ever asked
+   whether they agree. With the clock PAUSED — otherwise the comparison measures how
+   long you waited between the two publications — three of the four disagreed:
+
+     tzolk'in       agreed to 0.0007 of a turn, which is publication timing
+     haab'          agreed to 0.0005
+     Egyptian civil DISAGREED BY 35.2 DAYS
+     sexagenary     disagreed by 4.1 years
+
+   THE EGYPTIAN ONE WAS A DEFECT AND THE ARITHMETIC NAMED IT. Chronometry counted
+   from the Nabonassar era, Julian day 1448638; the wheels counted from the MAYA
+   correlation, 584283; and (1448638 − 584283) mod 365 = 35 exactly. The wheels were
+   wrong. Every wheel had taken its zero from the Maya constant, which is right for
+   the two Maya wheels because it IS their era and wrong everywhere else.
+
+   THE SEXAGENARY ONE WAS NOT A DEFECT. The cycle is applied to both days and years
+   in Chinese reckoning: chronometry computes epochDays mod 60, a 60-DAY count, and
+   the wheel turns once per 60 YEARS. Both are real and they are different
+   quantities — which neither said, and two numbers under one name is how a reader
+   concludes the atlas contradicts itself. */
+ok('each wheel counts from its OWN era where the atlas has one, not from one constant borrowed for all',
+  /const WOT_EPOCHS=Object\.freeze\(\{maya:MAYA_GMT_JDN, haab:MAYA_GMT_JDN, egypt:EGY_NABONASSAR_JDN\}\)/.test(src)
+  && /WOT_EPOCHS\[T\.id\]\?\?MAYA_GMT_JDN/.test(src),
+  'the Maya correlation is the Maya era and nobody else’s');
+
+/* ONE CONSTANT, TWO READERS. The era was a bare literal inside the chronometry
+   publish and an origin inside the wheels, which is two authorities for one number
+   and exactly how they came to disagree. */
+const literalUses = (src.match(/1448638/g) || []).length;
+const commentUses = (src.match(/1448638/g) || []).filter((_, i) => true).length;
+const decl = /const EGY_NABONASSAR_JDN=1448638;/.test(src);
+const chronReads = /chronJDN\(state\.epochDays\)-EGY_NABONASSAR_JDN/.test(src);
+ok('the Nabonassar era is declared ONCE and read by name at both instruments',
+  decl && chronReads && /egypt:EGY_NABONASSAR_JDN/.test(src),
+  decl ? (chronReads ? 'chronometry and the wheels read the same named constant'
+                     : 'chronometry still carries the era as a bare literal')
+       : 'the era is not declared as a constant at all');
+
+ok('and the two sexagenary quantities each say which they are — a 60-day count and a 60-year one',
+  /counted in YEARS/.test(src) && /a 60-DAY count/.test(src)
+  && /they are different quantities/.test(src),
+  'both are real Chinese reckoning; under one name they read as a contradiction');
+
 console.log('\n' + (fail ? ('✖ ' + fail + ' FAILED, ' + pass + ' passed') : ('✔ ALL ' + pass + ' CHECKS PASSED')));
 process.exit(fail ? 1 : 0);
