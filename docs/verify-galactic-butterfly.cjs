@@ -1,0 +1,72 @@
+#!/usr/bin/env node
+'use strict';
+/* ── THE ONE EVENT IN A LABORATORY OF CYCLES ─────────────────────────────────
+   Everything else in Cycles repeats and can be counted by waiting. The Fermi
+   bubbles happened once, so the only clock is height over speed — and nobody has
+   measured the outflow speed directly, which is why the literature argues about
+   the age rather than quoting it. The instrument therefore reports the age as a
+   FUNCTION of the speed the reader sets and asserts none of its own, and these
+   checks exist to keep it that way.
+
+   The geometry is checked against the number the literature quotes, and so is the
+   place where the geometry stops working: R0·tan(b) gives 9.75 kpc at fifty
+   degrees, which matches the ~10 kpc quoted, and 46 kpc at eighty, against the
+   ~14 kpc eROSITA measures. The second number is not published — the X-ray extent
+   is carried as a measurement and the tangent is refused up there. */
+const fs=require('node:fs');
+const path=require('node:path');
+const assert=require('node:assert/strict');
+const ROOT=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+let pass=0;
+const ok=(l,c,d='')=>{assert.ok(c,l+(d?` — ${d}`:''));pass++;console.log('PASS — '+l+(d?`\n         ${d}`:''));};
+const num=re=>{const m=html.match(re);assert.ok(m,`missing: ${re}`);return Number(m[1]);};
+
+const R0=num(/const FERMI_R0_KPC=([\d.]+)/);
+const LAT=num(/const FERMI_LAT_DEG=([\d.]+)/);
+const XR=num(/const FERMI_EROSITA_HEIGHT_KPC=([\d.]+)/);
+const VALID=num(/const FERMI_TANGENT_VALID_DEG=([\d.]+)/);
+const VMIN=num(/const FERMI_V_MIN_KMS=([\d.]+)/), VMAX=num(/const FERMI_V_MAX_KMS=([\d.]+)/);
+const KPC=3.0856775814913673e16, MYR=3.15576e13;
+const h=(lat,r0)=>Math.abs(r0*Math.tan(lat*Math.PI/180));
+const age=(hh,v)=>hh*KPC/v/MYR;
+
+ok('the Sun–centre distance is the GRAVITY value, not a round number',
+   Math.abs(R0-8.178)<0.01, `${R0} kpc`);
+ok('and the lobe height it gives at the quoted latitude matches the ~10 kpc in the literature',
+   Math.abs(h(LAT,R0)-9.75)<0.15, `${LAT}° → ${h(LAT,R0).toFixed(2)} kpc`);
+
+/* the refusal, which is the part most worth guarding */
+ok('the tangent is refused where it diverges rather than extrapolated',
+   VALID<80 && VALID>=55, `valid to ${VALID}°; at 80° it would return ${h(80,R0).toFixed(0)} kpc`);
+ok('and the X-ray extent is carried as a MEASUREMENT, not derived from a latitude',
+   Math.abs(XR-14)<0.5 && /measured extent — not derived from an angle/.test(html), `${XR} kpc`);
+ok('the divergence is stated where the constant is, so the next reader does not re-derive it',
+   /against the ~14 kpc eROSITA actually measures/.test(html));
+
+/* the age is a function of a choice, and the choice is the reader's */
+ok('the age is reported across the whole span of speeds the literature argues',
+   VMIN>0 && VMAX>VMIN, `${VMIN}–${VMAX} km/s → ${age(h(LAT,R0),VMAX).toFixed(1)}–${age(h(LAT,R0),VMIN).toFixed(1)} Myr`);
+ok('and the atlas asserts no age of its own — the speed is a control, not a constant',
+   /id="fermiV"/.test(html) && /state\.fermiVKmS/.test(html),
+   'outflow speed is a slider; the age follows from it');
+ok('the driver is refused: two mechanisms give lobes of this energy and the instrument names neither',
+   /the driver is not decided here/.test(html));
+
+/* it is a first-class frame, by the machinery that exists for that */
+ok('the butterfly is declared to its own frame, so its visibility is assigned from the declaration',
+   /\{name:'cycButterflyInst',\s*frames:\['butterfly'\]/.test(html));
+ok('and it is offered to the reader in the view list and the frame selector',
+   /\['butterfly','Galactic butterfly'/.test(html) && /<option value="butterfly"/.test(html));
+ok('and it is framed by the camera rather than inheriting whichever frame came before',
+   /if\(state\.cycFrame==='butterfly'\)\{[\s\S]{0,240}camera\.position\.copy\(p\)/.test(html));
+
+/* the defect the new frame exposed on its first render */
+ok('the Saros engine is declared too — it was assigned nowhere, so it stood in EVERY cycles frame',
+   /\{name:'cycSarosInst',\s*frames:\['hierarchy'\]/.test(html),
+   'a THREE.Group is born visible; nothing ever wrote cycSarosInst.visible');
+
+const pubs=(html.match(/ATLAS_BUS\.pub\('fermi\.(\w+)'/g)||[]).map(x=>x.split("'")[1]);
+ok(`and it publishes ${pubs.length} quantities onto the bus from inside itself`, pubs.length>=4, pubs.join(' '));
+
+console.log(`\n${pass}/${pass} checks passed`);

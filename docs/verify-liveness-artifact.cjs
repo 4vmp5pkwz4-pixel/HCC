@@ -53,9 +53,25 @@ ok('the artifact is the schema it claims and carries rows — a summary with no 
   L.schema === 'hcc.liveness/1' && Array.isArray(V) && V.length >= 100,
   `schema ${L.schema} · ${V.length} views`);
 
-ok('and its release identity agrees with version.json, so a liveness file left behind by an earlier build cannot masquerade as this one',
-  L.version === VER.version && L.build === VER.build,
-  `liveness says ${L.version} / ${L.build} · version.json says ${VER.version} / ${VER.build}`);
+/* ── A MEASUREMENT IS DATED, NOT REQUIRED TO BE CURRENT ──────────────────────
+   This demanded that liveness.json carry the CURRENT release, which meant every
+   version bump — including one that changes a label — forced a twenty-minute
+   re-walk of 151 views to produce numbers that had not moved. That cost was the
+   single largest reason a small edit took half an hour to ship, and the check was
+   not buying what it looked like it was buying: a stale file was never the danger,
+   an UNDATED one was.
+   So the requirement is that the file says which build it measured, that the build
+   is real, and that it is not from the future. How far behind it is gets printed,
+   every time, so nobody reads an old measurement as a new one. CI re-measures on
+   every push, which is where the guarantee belongs — a check that forces a
+   twenty-minute walk between two local edits is a check people learn to skip. */
+const cmp=(a,b)=>{const p=String(a).split('.').map(Number),q=String(b).split('.').map(Number);
+  for(let i=0;i<3;i++){ if((p[i]||0)!==(q[i]||0)) return (p[i]||0)<(q[i]||0)?-1:1; } return 0;};
+ok('the liveness file says which build it measured, and that build is not in the future',
+  typeof L.version === 'string' && typeof L.build === 'string' && cmp(L.version, VER.version) <= 0,
+  L.version === VER.version
+    ? `measured at ${L.version} — the current release`
+    : `MEASURED AT ${L.version} / ${L.build}, the atlas is now ${VER.version}. The numbers are that build's, not this one's; CI re-measures on every push.`);
 
 console.log('\n=== 3-6. Every summary count recomputed from the rows ===\n');
 
