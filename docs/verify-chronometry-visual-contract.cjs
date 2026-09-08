@@ -37,8 +37,20 @@ assert(src.includes('NO PHASE ANCHOR'),
    less. What matters is the frames the instrument is declared for — assert that
    in the declaration, where it now lives, rather than in a line of control flow
    that no longer exists. */
-assert(/\{name:'cycChronometryInst',\s*frames:\['hierarchy','chronometry'\]/.test(src),
-  'Chronometry must be declared for the hierarchy and its isolated frame only');
+/* AND THEN IT PINNED THE FRAME LIST ITSELF, which is a DECISION rather than an
+   invariant, and the decision has been superseded. Chronometry was in the overview
+   because the overview was "the stage that shows everything" — back when several of
+   these instruments had nowhere else to be. Measured since: that stage carried seven
+   instruments and 165 visible labels, which has no reader. Chronometry has had its
+   own frame for many releases and is reachable from the grouped chips under "What
+   people drew", so taking it off the overview costs a reader nothing and gives them
+   a legible overview.
+   What must hold is that the observatory IS declared — an instrument in no frame is
+   an instrument nobody can reach — and that its own frame is one of them. Which
+   OTHER frames it appears in is a composition choice this file has no opinion on. */
+const chronDecl = src.match(/\{name:'cycChronometryInst',\s*frames:\[([^\]]*)\]/);
+assert(chronDecl && /'chronometry'/.test(chronDecl[1]),
+  'Chronometry must be declared for its own frame at least — an instrument in no frame is unreachable');
 /* This matched one literal line. Adding the symbol columns changed it from
    `if(cycChronometryInst.visible) updateChronometryObservatory();` to a block
    that also drives the numerals, and the clause went red for a change that made
