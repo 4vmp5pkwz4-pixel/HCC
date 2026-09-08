@@ -66,6 +66,31 @@ ok('the Saros engine is declared too — it was assigned nowhere, so it stood in
    /\{name:'cycSarosInst',\s*frames:\['hierarchy'\]/.test(html),
    'a THREE.Group is born visible; nothing ever wrote cycSarosInst.visible');
 
+/* ── THE WITNESSES, AND WHAT THEY COST ───────────────────────────────────────
+   A kinematic age can be tuned to anything by moving the speed, so on its own it
+   is a parametrisation rather than evidence. What makes the bubbles datable is
+   that other things point at the same moment by methods sharing no assumption:
+   the Magellanic Stream's ionisation needs a Sgr A* flare ~3.5 Myr ago, and the
+   young stellar disc within a parsec is ~6 Myr old.
+   ASKING THEM WHAT SPEED THEY REQUIRE CORRECTED THIS FILE'S OWN CONSTANT. They
+   demand 2723 and 1588 km/s, and the encoded band stopped at 1500 — so either
+   the witnesses were irrelevant or the band was wrong, and it was the band. The
+   fast-outflow models run to several thousand km/s and it is exactly those the
+   young dates require. That is the finding, not a fudge to make numbers meet. */
+const MAG=num(/const FERMI_MAGELLANIC_FLARE_MYR=([\d.]+)/);
+const BURST=num(/const FERMI_GC_STARBURST_MYR=([\d.]+)/);
+const speedFor=d=>h(LAT,R0)*KPC/(d*MYR);
+ok('two independent dates are carried, neither of which assumes an outflow speed',
+   Math.abs(MAG-3.5)<0.01 && Math.abs(BURST-6)<0.01,
+   `Magellanic Stream ionisation ${MAG} Myr · young stellar disc ${BURST} Myr`);
+ok('and the speed band reaches what those dates require, which the first version did not',
+   VMAX >= speedFor(MAG),
+   `they demand ${speedFor(MAG).toFixed(0)} and ${speedFor(BURST).toFixed(0)} km/s; the band runs to ${VMAX}`);
+ok('the widening is recorded as a correction rather than presented as the original intent',
+   /THE BAND WAS TOO NARROW, WHICH THE WITNESSES SHOWED/.test(html));
+ok('and agreement is reported, never scored — the reader judges',
+   /Agreement is yours to judge/.test(html) && /does not score it/.test(html));
+
 const pubs=(html.match(/ATLAS_BUS\.pub\('fermi\.(\w+)'/g)||[]).map(x=>x.split("'")[1]);
 ok(`and it publishes ${pubs.length} quantities onto the bus from inside itself`, pubs.length>=4, pubs.join(' '));
 
