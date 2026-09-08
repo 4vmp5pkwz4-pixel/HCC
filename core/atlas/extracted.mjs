@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1336   ·   exported names: 1447
-   extracted physics, sha256 9a31d16f4a76b7ced0bce6b1964241a84274fdc154762093f157aba6388cf021 */
+   extracted physics, sha256 77893a16c95e9ba881e6c76e386b6a9dfcc34630ba52b8efd0e400b84d8c53ba */
 
 const S3 = {
   R:          548.324513026856,     // Gly — curvature radius of S³
@@ -461,12 +461,18 @@ const WOT_TRADITIONS=Object.freeze([
    t:{en:'Maya · haab’, 18 months of 20 + 5',ru:'Майя · хааб, 18 месяцев по 20 + 5',de:'Maya · Haab’'}, colour:0xffb05e},
   {id:'aztec',   div:52,   unitDays:365.25,   turnDays:52*365.2422,  phase:'epoch',
    t:{en:'Aztec · xiuhmolpilli, 52 years',ru:'Ацтеки · шиумольпилли, 52 года',de:'Azteken · Xiuhmolpilli'}, colour:0xff8f6b},
+  /* THE SEXAGENARY CYCLE IS APPLIED TO BOTH DAYS AND YEARS, and this atlas publishes
+     both without either saying which: the chronometry laboratory computes epochDays
+     mod 60, a 60-DAY count, and this wheel turns once per 60 YEARS. Both are real
+     Chinese reckoning and they are different quantities. Each says which it is now,
+     because two numbers under one name is how a reader concludes the atlas
+     contradicts itself. */
   {id:'chinese', div:60,   unitDays:365.2422, turnDays:60*365.2422,  phase:'epoch',
-   t:{en:'Chinese · 10 stems × 12 branches',ru:'Китай · 10 стволов × 12 ветвей',de:'China · 10 Stämme × 12 Zweige'}, colour:0xffe08a},
+   t:{en:'Chinese · 10 stems × 12 branches, counted in YEARS',ru:'Китай · 10 стволов × 12 ветвей, счёт по ГОДАМ',de:'China · 10 Stämme × 12 Zweige, in JAHREN'}, colour:0xffe08a},
   {id:'tibetan', div:WOT_RABJUNG_YR, unitDays:365.2422, turnDays:WOT_RABJUNG_YR*365.2422, phase:'epoch',
    t:{en:'Tibetan · rabjung, 60 years',ru:'Тибет · рабджунг, 60 лет',de:'Tibet · Rabjung'}, colour:0xc9a7ff},
   {id:'egypt',   div:WOT_DECANS, unitDays:10, turnDays:EGY_CIVIL_YEAR, phase:'epoch',
-   t:{en:'Egypt · 36 decans of 10 days',ru:'Египет · 36 деканов по 10 дней',de:'Ägypten · 36 Dekane'}, colour:0x9ee6ff},
+   t:{en:'Egypt · 36 decans of 10 days, from the Nabonassar era',ru:'Египет · 36 деканов по 10 дней, от эры Набонассара',de:'Ägypten · 36 Dekane, ab der Nabonassar-Ära'}, colour:0x9ee6ff},
   {id:'greek',   div:19,   unitDays:365.2422, turnDays:19*365.2422,  phase:'epoch',
    t:{en:'Greece · Metonic, 19 years = 235 months',ru:'Греция · Метонов цикл, 19 лет = 235 месяцев',de:'Griechenland · Meton'}, colour:0x8fd6c0},
   {id:'stone',   div:WOT_AUBREY_HOLES, unitDays:365.2422, turnDays:WOT_AUBREY_HOLES*365.2422, phase:'epoch',
