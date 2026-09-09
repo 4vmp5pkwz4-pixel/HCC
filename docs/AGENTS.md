@@ -1,5 +1,12 @@
 # HCC for machines
 
+## Public scientific workspace · 4.190.0
+
+Start with `../api/agent.json` and `../llms.txt` for the public static SDK. `../agent.html` offers search, exact instrument contracts, conditional scaling and local forecast evaluation. The public Pages origin hosts no POST/MCP compute server. The HTTP/MCP routes below apply to the self-hosted server.
+
+Core 1.4 adds `prediction.holdout_audit`: 19 server kernels are now available. It shares `core/prediction/forecast-audit.mjs` with the static SDK, requires a chronological holdout, reports baseline skill and per-horizon errors, and never authenticates caller-supplied observations. Counts in the historic overview below describe the original 12-kernel extraction; current counts are in `api/manifest.json` and live health.
+
+
 The atlas is a visual instrument. **The core is not.** Every number the atlas draws that has
 a computational contract is produced by `core/`, which is pure ESM with no DOM, no
 Three.js, no animation frame and no WebGL — and is reachable over HTTP and MCP.

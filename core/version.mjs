@@ -13,6 +13,6 @@
            civp.closure), SLICED OUT OF the atlas's new seven-station laboratory rather than
            retyped beside it. The mathematics is written where index.html draws it; these
            contracts import core/atlas/extracted.mjs and contain no arithmetic of their own. */
-export const CORE_VERSION = '1.3.0';
+export const CORE_VERSION = '1.4.0';
 export const CORE_SCHEMA  = 'hcc.core/1';
 export const RESULT_SCHEMA = 'hcc.result/2';
