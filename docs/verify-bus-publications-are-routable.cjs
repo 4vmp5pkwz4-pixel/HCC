@@ -103,9 +103,12 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
 /* v4.192.0 measured it first at 232 unrouted and 40 routable. v4.193.0 declared
    instrument contracts for the wheels of time and the cycles of the sky — the two
    largest stations that had none — and twenty publications became routable by the
-   same rule that had judged them unroutable. */
-const BUS_UNROUTED_CEILING = 212;
-const BUS_ROUTABLE_FLOOR = 60;
+   same rule that had judged them unroutable. v4.194.0 declared four more —
+   asteroseismology, gyrochronology, the radiative wind and the Fermi bubbles — and
+   repaired seven unit spellings the conversion table did not know, for another
+   twenty-three. Stations with no contract at all: 15, then 13, then 9. */
+const BUS_UNROUTED_CEILING = 189;
+const BUS_ROUTABLE_FLOOR = 83;
 const unrouted = rows.length - routable;
 
 ok('every publication site in the source is judged, none skipped',
