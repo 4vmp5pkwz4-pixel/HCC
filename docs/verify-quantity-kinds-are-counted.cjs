@@ -47,7 +47,7 @@ const singleton = [...kinds.values()].filter(n => n === 1).length;
 
 /* THE FLOOR ONLY RISES. It is over how many declared outputs carry a kind, and the
    only way to move it is to state, for a real output, what measurement it is. */
-const KINDED_OUTPUTS_FLOOR = 70;
+const KINDED_OUTPUTS_FLOOR = 118;
 
 ok('every declared output is counted, kinded or not',
   outputs > 1300 && outputs === kinded + (outputs - kinded),
