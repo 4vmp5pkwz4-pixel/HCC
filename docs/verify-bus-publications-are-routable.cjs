@@ -134,7 +134,9 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    name as not being quantities at all, which is the other honest way a station leaves
    this list. v4.196.0 declared the seven calendar phases the chronometry observatory
    had always computed and never declared, which is the FIRST repair of the large half:
-   a station holding a contract that did not name what it publishes.
+   a station holding a contract that did not name what it publishes. v4.198.0 did the
+   second and the proof was on one line: the galaxy-rotation laboratory published nine
+   fields of the object its OWN instrument returns, under nine different names.
    Stations with no contract at all: 15, then 13, then 9, then 5. */
 /* THE BASIS CHANGED FROM CALL SITES TO KEYS AT v4.197.0, AND THAT IS NOT A
    REGRESSION. Until then a key published from two places was counted twice: 272
@@ -142,14 +144,14 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    two. Removing pole.Q's duplicate — a repair — lowered a floor that may only rise,
    which is what a floor over the wrong quantity does. These numbers are over KEYS
    and are not comparable to the ones before them; from here they move the one way. */
-const BUS_UNROUTED_CEILING = 179;
-const BUS_ROUTABLE_FLOOR = 90;
+const BUS_UNROUTED_CEILING = 171;
+const BUS_ROUTABLE_FLOOR = 98;
 /* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
    written reason is finished work, not debt, and counting it with the merely
    undeclared ones lets the total fall for the wrong reason. This ceiling is over the
    publications that want a declaration and have not got one, and it is the number
    that actually has to reach zero. */
-const BUS_UNDECLARED_CEILING = 172;
+const BUS_UNDECLARED_CEILING = 164;
 const unrouted = rows.length - routable;
 
 ok('every published key in the source is judged, none skipped',
