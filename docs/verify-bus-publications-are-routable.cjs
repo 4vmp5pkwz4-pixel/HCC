@@ -123,15 +123,18 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    repaired seven unit spellings the conversion table did not know, for another
    twenty-three. v4.195.0 declared the Earth`s axis and REFUSED seven publications by
    name as not being quantities at all, which is the other honest way a station leaves
-   this list. Stations with no contract at all: 15, then 13, then 9, then 5. */
-const BUS_UNROUTED_CEILING = 187;
-const BUS_ROUTABLE_FLOOR = 85;
+   this list. v4.196.0 declared the seven calendar phases the chronometry observatory
+   had always computed and never declared, which is the FIRST repair of the large half:
+   a station holding a contract that did not name what it publishes.
+   Stations with no contract at all: 15, then 13, then 9, then 5. */
+const BUS_UNROUTED_CEILING = 180;
+const BUS_ROUTABLE_FLOOR = 92;
 /* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
    written reason is finished work, not debt, and counting it with the merely
    undeclared ones lets the total fall for the wrong reason. This ceiling is over the
    publications that want a declaration and have not got one, and it is the number
    that actually has to reach zero. */
-const BUS_UNDECLARED_CEILING = 180;
+const BUS_UNDECLARED_CEILING = 173;
 const unrouted = rows.length - routable;
 
 ok('every publication site in the source is judged, none skipped',

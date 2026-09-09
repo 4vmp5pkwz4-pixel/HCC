@@ -59,7 +59,19 @@ const assert=require('assert/strict');
   assert(src.includes("'docs/verify-chronometry-falsification.cjs'"));
   assert(src.includes("'docs/verify-ancient-astronomy-benchmarks.cjs'"));
   assert(/name:'case_id'/.test(src),'Chronometry API must expose a case_id input');
-  assert(/evaluate:\s*\(\{case_id\}\)\s*=>/.test(src),'Chronometry API must evaluate the declared case, not a hidden default');
+  /* THIS PINNED THE PUNCTUATION AND NOT THE RULE. It required the evaluate to
+     destructure exactly `{case_id}` and nothing else, so declaring a SECOND input —
+     the epoch, which the laboratory had always computed seven calendar phases from
+     and never declared — turned it red against a correct contract. The rule it means
+     is that the case comes from the declared input rather than a default chosen
+     inside: so the evaluate must take case_id out of its argument, and must hand THAT
+     to chronometryCase rather than calling it bare or with a literal. Written that
+     way, it passes for any set of inputs and still fails for the fault it names. */
+  const ev=(src.match(/evaluate:\s*\(\{([^}]*)\}\)\s*=>([\s\S]{0,240})/)||[]);
+  assert(ev[1]&&/\bcase_id\b/.test(ev[1]),
+    'Chronometry API must take case_id from its declared input');
+  assert(ev[2]&&/chronometryCase\(\s*case_id\s*\)/.test(ev[2]),
+    'Chronometry API must evaluate the declared case, not a hidden default');
 
   console.log('PASS — source-locked Chronometry Atlas/API contract');
 })().catch(e=>{console.error(e);process.exit(1)});
