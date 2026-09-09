@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="one-instant-seven-systems-declared-2026.09.09.1">
+<html lang="en" data-hcc-build="a-key-with-two-authors-2026.09.09.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="one-instant-seven-systems-declared-2026.09.09.1">
+<meta name="hcc-build" content="a-key-with-two-authors-2026.09.09.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.196.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.197.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.196.0';
-const HCC_BUILD='one-instant-seven-systems-declared-2026.09.09.1';
+const HCC_VERSION='4.197.0';
+const HCC_BUILD='a-key-with-two-authors-2026.09.09.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -26259,9 +26259,24 @@ function busRoutability(key,unit){
   if(pu&&du&&pu!==du) return {key:k,lab,name,routable:false,reason:'unit_disagrees',published:pu,declared:du};
   return {key:k,lab,name,routable:true,reason:'routable',unit:du||pu};
 }
-const ATLAS_BUS={ _d:new Map(), _t:new Map(), _r:new Map(),
-  pub(k,v,unit){ this._d.set(k,{v,unit:unit||''}); this._t.set(k,performance.now());
-    const verdict=busRoutability(k,unit); this._r.set(k,verdict); return verdict; },
+const ATLAS_BUS={ _d:new Map(), _t:new Map(), _r:new Map(), _u:new Map(),
+  /* ── AND A KEY WRITTEN UNDER TWO UNITS HAS TWO AUTHORS ──────────────────────
+     pub overwrites without complaint, which is right for a live value republished
+     every frame and wrong for a key two different places write. The two are
+     indistinguishable by value — a value changing is what a live quantity does — and
+     they are NOT indistinguishable by unit: a key whose unit string changes has been
+     written by two authors who disagree about what it holds, and no amount of
+     re-publication does that. Found by the census that measures it: pole.Q was
+     published twice in one block, twelve lines apart, once as 'Q' to four decimals
+     and once as 'loaded Q' to two, and the second silently overwrote the first every
+     tick — so the line commented "canonical Q of the invariant thread" never reached
+     a reader, and nothing anywhere could have said so. */
+  pub(k,v,unit){ const u=unit||'';
+    const first=this._u.get(k);
+    if(first===undefined) this._u.set(k,u);
+    else if(first!==u) this._u.set(k,{first,then:u,conflict:true});
+    this._d.set(k,{v,unit:u}); this._t.set(k,performance.now());
+    const verdict=busRoutability(k,u); this._r.set(k,verdict); return verdict; },
   get(k){ const e=this._d.get(k); return e?e.v:null; },
   age(k){ const t=this._t.get(k); return t===undefined?Infinity:(performance.now()-t)/1000; },
   all(){ const o={}; for(const [k,e] of this._d) o[k]={...e,age:+this.age(k).toFixed(1)}; return o; },
@@ -26296,12 +26311,17 @@ function HCC_BUS_ROUTABILITY(){
     if(!publishedKeys.has(`${id}.${o.name}`)) unpublished.push(`${id}.${o.name}`); }catch(e){}
   const routable=rows.filter(r=>r.routable).length;
   const deliberate=rows.filter(r=>r.reason==='not_a_quantity').length;
+  const twoAuthors=[];
+  for(const [k,u] of ATLAS_BUS._u) if(u&&u.conflict) twoAuthors.push({key:k,first:u.first,then:u.then});
   return {schema:'hcc.bus-routability/1',
     published:rows.length, routable, unrouted:rows.length-routable,
     /* THE DEBT IS THE ACCIDENTAL HALF AND ONLY THAT. A publication refused by name
        with a written reason is finished work; counting it with the ones that are
        merely undeclared makes the total go down for the wrong reason. */
     unrouted_deliberately:deliberate, unrouted_for_want_of_a_declaration:rows.length-routable-deliberate,
+    /* a key whose unit string changed has been written by two authors who disagree
+       about what it holds, and the later one wins in silence */
+    keys_written_under_two_units:twoAuthors.length, written_under_two_units:twoAuthors,
     fraction_routable:rows.length?+(routable/rows.length).toFixed(4):0,
     reasons, why:BUS_REASONS,
     laboratories:Object.values(labs).sort((a,b)=>(b.published-b.routable)-(a.published-a.routable)),
@@ -56796,7 +56816,14 @@ function updatePole(dt){
       'Every resonance in this atlas is the SAME analytic object: one pole and one zero in the complex frequency plane. The pole depth is the linewidth (FWHM=γ) and the ringdown time (τ=2/γ) at once — resonance in frequency and decay in time are one number. What you MEASURE is only the real-axis slice (gold). Slide the zero onto the real axis and the measured dip hits EXACTLY zero: critical coupling, perfect absorption — the same statement as impedance matching in the Möbius·Smith lab. Slide it sideways and the line becomes Fano-asymmetric with q=2Δ/γ. Sink the pole and you are in the black-hole quasinormal-ringdown regime. Driven oscillators, plasmon resonances, Rabi doublets, barrier resonances and ringdowns are all this one picture. DECLARED: the plasmon line in this atlas is a symmetric Lorentzian (no measured q), and the Josephson station has no RCSJ circuit, so no pole is claimed for it.',
       'Каждый резонанс этого атласа — ОДИН И ТОТ ЖЕ аналитический объект: полюс и нуль в плоскости комплексной частоты. Глубина полюса — это одновременно ширина линии (FWHM=γ) и время звона (τ=2/γ): резонанс по частоте и затухание во времени — одно число. Измеряется же только вещественный срез (золото). Сдвинь нуль на вещественную ось — измеряемый провал достигает РОВНО нуля: критическая связь, полное поглощение — то же самое утверждение, что согласование импеданса в лаборатории Мёбиуса·Смита. Сдвинь его вбок — линия становится асимметричной по Фано с q=2Δ/γ. Утопи полюс — и это режим квазинормального звона чёрной дыры. Вынужденные осцилляторы, плазмонные резонансы, дублеты Раби, резонансы барьера и звон — всё это одна картина. ЗАЯВЛЕНО: плазмонная линия в атласе — симметричный лоренциан (измеренного q нет), а у станции Джозефсона нет RCSJ-контура, поэтому полюс для неё не заявляется.',
       'Jede Resonanz dieses Atlas ist DASSELBE analytische Objekt: ein Pol und eine Nullstelle in der komplexen Frequenzebene. Die Poltiefe ist zugleich Linienbreite (FWHM=γ) und Ringdown-Zeit (τ=2/γ) — Resonanz in der Frequenz und Zerfall in der Zeit sind eine Zahl. Gemessen wird nur der reelle Schnitt (Gold). Schiebe die Nullstelle auf die reelle Achse und der gemessene Einbruch erreicht GENAU null: kritische Kopplung, perfekte Absorption — dieselbe Aussage wie Impedanzanpassung im Möbius·Smith-Labor. Schiebe sie seitwärts und die Linie wird Fano-asymmetrisch mit q=2Δ/γ. Versenke den Pol und du bist im quasinormalen Ringdown-Regime. ERKLÄRT: die Plasmonlinie des Atlas ist ein symmetrischer Lorentzian (kein gemessenes q); die Josephson-Station hat keinen RCSJ-Kreis, daher wird dafür kein Pol behauptet.');
-    ATLAS_BUS.pub('pole.Q',+Q.toFixed(2),'loaded Q');
+    /* THE SECOND PUBLICATION OF pole.Q IS GONE. It sat twelve lines below the first,
+       in the same block and the same tick, carrying the same Q rounded to two
+       decimals under the unit 'loaded Q' — so it overwrote the canonical four-decimal
+       value on every frame and the line above, which calls itself the canonical Q of
+       the invariant thread, never reached a reader. Two digits and a unit lost in
+       silence, and found only once the bus was made to notice a key written under two
+       units. The loaded Q of a resonator is not a different quantity from its Q here:
+       the same expression produced both. */
     const el=ctl.querySelector('#poleInv'); if(el) el.innerHTML=
       `${TT('pole','полюс','Pol')} p=<b>${P.p[0].toFixed(4)} − ${(-P.p[1]).toFixed(4)}i</b> · ${TT('zero','нуль','Nullstelle')} z=<b>${P.z[0].toFixed(4)} ${P.z[1]>=0?'+':'−'} ${Math.abs(P.z[1]).toFixed(4)}i</b><br>`+
       `Q=ω₀/γ=<b>${Q.toFixed(2)}</b> · FWHM=γ=<b>${P.g.toFixed(4)}</b> · τ=2/γ=<b>${tau.toFixed(2)}</b> · |r(ω₀)|=<b>${onres.toFixed(5)}</b> ${onres<1e-4?'→ <b style="color:#9fe8c0">'+TT('PERFECT ABSORPTION','ПОЛНОЕ ПОГЛОЩЕНИЕ','PERFEKTE ABSORPTION')+'</b>':''}<br>`+
@@ -89365,6 +89392,28 @@ try{ const n=document.getElementById('hccDegradedLabs');
    source, which is the one thing this atlas may not do. It is MEASURED instead — any
    two wheels that agree to within a millionth of a turn across four widely separated
    epochs are named, so a coincidence introduced later cannot ship unnoticed either. */
+/* ══ A KEY WRITTEN UNDER TWO UNITS HAS TWO AUTHORS, AND THE LATER ONE WINS ═════
+   This exercises the detector on the bus rather than trusting that it is wired: two
+   probes into one key under two different unit strings must be caught, one probe
+   republished under the same unit must NOT be — because republishing a live value
+   every frame is what a live value does, and a detector that called that a conflict
+   would fire on almost every key in the atlas. Both probes are removed again. */
+selfTestLate(ok=>{
+  let caught=null, quiet=null, why='';
+  try{
+    const A='selftest.two_authors', B='selftest.one_author';
+    ATLAS_BUS.pub(A,1,'Q'); ATLAS_BUS.pub(A,1,'loaded Q');
+    ATLAS_BUS.pub(B,1,'Q'); ATLAS_BUS.pub(B,2,'Q');
+    caught=ATLAS_BUS._u.get(A); quiet=ATLAS_BUS._u.get(B);
+    for(const k of [A,B]) for(const m of [ATLAS_BUS._d,ATLAS_BUS._t,ATLAS_BUS._r,ATLAS_BUS._u]) m.delete(k);
+  }catch(e){ why=String(e&&e.message||e); }
+  ok('AND THE BUS NOTICES WHEN ONE KEY HAS TWO AUTHORS, WHICH IS HOW pole.Q WAS FOUND. pub overwrites without complaint, and that is right for a value republished every frame and wrong for a key two different places write. The two cannot be told apart by VALUE — a value changing is what a live quantity does — and they can be told apart by UNIT: a key whose unit string changes has been written by two authors who disagree about what it holds, and no amount of re-publication does that. pole.Q was published twice in one block, twelve lines apart, as Q to four decimals and as loaded Q to two, and the second overwrote the first every tick, so the line calling itself the canonical Q of the invariant thread never reached a reader',
+    why==='' && !!(caught&&caught.conflict) && caught.first==='Q' && caught.then==='loaded Q'
+    && quiet==='Q',
+    why!=='' ? ('the two-author probe threw: '+why)
+      : `a key published under two unit strings is caught (${caught?caught.first+' then '+caught.then:'NOT CAUGHT'}) and a key republished with a new VALUE under the same unit is not (${JSON.stringify(quiet)}) · both probes removed`);
+});
+
 /* ══ TWO ROUTES TO ONE CALENDAR PHASE, AND NOBODY HAD EVER COMPARED THEM ═══════
    The wheels of time and the chronometry observatory both compute where the tzolk`in,
    the haab and the Egyptian civil year stand at a given instant, by different code
