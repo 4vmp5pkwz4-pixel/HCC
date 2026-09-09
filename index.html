@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="scientific-agent-workspace-2026.09.09.1">
+<html lang="en" data-hcc-build="bus-routability-2026.09.09.1">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="scientific-agent-workspace-2026.09.09.1">
+<meta name="hcc-build" content="bus-routability-2026.09.09.1">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.191.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.192.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.191.0';
-const HCC_BUILD='scientific-agent-workspace-2026.09.09.1';
+const HCC_VERSION='4.192.0';
+const HCC_BUILD='bus-routability-2026.09.09.1';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -9109,6 +9109,38 @@ function runSelfTests(){
           : `${BD.boards} laboratories show a board · ${BD.arrivals} arrivals and ${BD.departures} departures over ${BD.links} declared links, with ${BD.offstage} landing on an instrument whose laboratory the S3 registry does not list · ${BD.numbers} of the arrivals carry a live number and the rest name a source that does not evaluate at its own defaults · ${BD.missing} links with nowhere to be seen · the bus reaches ${BD.targets} laboratories as a target and leaves ${BD.sources} as a source`);
     }
 
+    /* ── AND A READER STANDING IN A LABORATORY CAN SEE WHAT LEAVES IT AND WHAT DOES NOT ── */
+    if(!defer('what a laboratory publishes is drawn beside what the bus can carry')) {
+      let PB=null, whyP='';
+      try{
+        /* MEASURED ON THE RENDER, NOT ON THE DATA. A census that reads ATLAS_BUS and
+           reports a number proves nothing about what a reader is shown; this publishes
+           two probes into a REGISTERED laboratory — one the contract declares and one
+           it does not — draws the panel, and reads the drawn text back. The probes are
+           removed afterwards, so the atlas is left exactly as it was found. */
+        const host=[...HCC_API_SPECS.values()].find(sp=>S3_VIEW_NAMES[sp.lab||sp.id]&&(sp.outputs||[]).length);
+        const view=host&&(host.lab||host.id);
+        const good=host&&host.outputs[0], goodKey=host&&`${host.id}.${good.name}`;
+        const badKey=host&&`${host.id}.__no_such_output__`;
+        const had=new Set(ATLAS_BUS._d.keys());
+        if(host){ ATLAS_BUS.pub(goodKey,1,good.unit||''); ATLAS_BUS.pub(badKey,1,'1'); }
+        const html=host?(busDrivenHTML(view)||''):'';
+        for(const k of [goodKey,badKey]) if(k&&!had.has(k))
+          for(const m of [ATLAS_BUS._d,ATLAS_BUS._t,ATLAS_BUS._r]) m.delete(k);
+        PB={view, goodKey, badKey,
+          drawnRoutable:(html.match(/>▸</g)||[]).length,
+          drawnUnrouted:(html.match(/>◦</g)||[]).length,
+          namesGood:goodKey?html.includes(esc(good.name)):false,
+          namesBad:html.includes('__no_such_output__'),
+          givesReason:html.includes('undeclared output')&&html.includes('two vocabularies for the same laboratory')};
+      }catch(e){ whyP=String(e&&e.message||e); }
+      ok('AND THE GAP BETWEEN PUBLISHING AND ROUTING IS DRAWN WHERE IT MATTERS, WHICH IS NOT THE CONSOLE. A census an agent can query is not a thing a reader can see, and the reader is the one standing in front of the numbers. Every laboratory panel now lists what that station puts on the wire and marks each value routable or not, with the sentence saying why — most often that the bus and the contract are two names for one quantity. This is measured ON THE RENDERED TEXT with two probes, one declared and one not, and both are removed again',
+        PB!=null && PB.drawnRoutable>=1 && PB.drawnUnrouted>=1
+        && PB.namesGood && PB.namesBad && PB.givesReason,
+        PB==null ? ('the publication board did not render: '+whyP)
+          : `laboratory "${PB.view}" drew ${PB.drawnRoutable} routable and ${PB.drawnUnrouted} unroutable publication row(s), naming ${PB.goodKey} and ${PB.badKey} and giving the grounds for the refusal`);
+    }
+
     /* ── EVERY RELATIONSHIP THE ATLAS KNOWS IS NOW A ROUTE ─────────────────── */
     if(!defer('every declared relation is reachable from the panel')) {
       let RR=null, whyR='';
@@ -11599,6 +11631,24 @@ function runSelfTests(){
       && typeof HCC_API.capabilities==='function' && HCC_API.labs.count()===LAB_REGISTRY.length
       && HCC_API.instruments.count()===HCC_API_SPECS.size,
       `labs.list() ${HCC_API.labs.count()} · instruments.list() ${HCC_API.instruments.count()} · the two catalogues are named for what they are, because list() returning nine looked like the catalogue of the atlas and was the catalogue of the specs`);
+
+    /* ── AND PUBLISHING IS NOT BEING ROUTABLE, WHICH NOTHING HERE COULD SAY ──── */
+    { /* the probe proves pub() returns a verdict, then leaves the bus exactly as it
+         found it — a self-test that permanently adds an unroutable key to the census
+         would be measuring itself. */
+      const probe=ATLAS_BUS.pub('selftest.routability_probe',1,'1');
+      for(const m of [ATLAS_BUS._d,ATLAS_BUS._t,ATLAS_BUS._r]) m.delete('selftest.routability_probe');
+      const R=HCC_BUS_ROUTABILITY();
+      ok('A PUBLICATION IS NOT A COUPLING, AND FOR THE WHOLE LIFE OF THIS BUS NOTHING COULD TELL THE TWO APART. pub() took a name, a value and a unit from any station whatsoever and returned NOTHING, so a laboratory could publish for a hundred releases into a registry that would never route it and the count of publications was read as the count of couplings. It now RETURNS the verdict — contract present, output declared under exactly this name, unit as declared — and this census answers in both directions at any moment. The source-wide count is held under a falling ceiling by docs/verify-bus-publications-are-routable.cjs, which runs THIS function`s rule over the contract table the atlas generates by walking itself, so the check and its subject stay one authority',
+        R.schema==='hcc.bus-routability/1' && typeof R.published==='number'
+        && R.published===R.routable+R.unrouted
+        && Object.keys(R.reasons).every(k=>k in R.why)
+        && probe && typeof probe==='object' && probe.reason==='no_contract' && probe.routable===false,
+        `${R.published} publication(s) live on the bus at this moment, ${R.routable} routable, ${R.unrouted} not `
+        + `(${Object.entries(R.reasons).map(([k,n])=>k+' '+n).join(', ')||'none yet'}) · `
+        + `${R.declared_but_never_published} declared output(s) that nothing publishes · `
+        + `the live figure counts only what has run — the whole-source count is 272 published, 40 routable`);
+    }
 
     ok('the first attempt at this fit produced c·v = −7.31, a negative central charge, and the cause is worth keeping: odd rings are FRUSTRATED — an antiferromagnet on an odd cycle cannot satisfy every bond — so E₀/N alternates strongly with parity and a two-point fit across N = 9 and N = 10 mixes two different sequences. The laboratory now offers only even rings, and says why',
       true,
@@ -15744,7 +15794,30 @@ function busDrivenHTML(v){
         outgoing:busIds.has(fl)});
     }
   }catch(e){}
-  if(!rows.length&&!feeds.length&&!refusals.length) return '';
+  /* ── AND WHAT THIS LABORATORY PUTS ON THE WIRE THAT THE BUS CANNOT CARRY ────
+     A publication is not a coupling. The station names a quantity, a value and a
+     unit, and unless its instrument contract declares an output of exactly that name
+     in exactly that unit, hccBusLink can never take it as a source — it is a
+     READING: live, real, worth drawing, and going nowhere. Two hundred and
+     thirty-two of the atlas's two hundred and seventy-two publications are in that
+     state, and until this shipped no reader and no check could tell which.
+     The commonest cause is not an absent contract. It is that the bus and the
+     contract are two vocabularies for the same laboratory — sn.L on the wire against
+     the declared sn.luminosity, bht.TH against bht.T_H — which is two authorities
+     for one fact, written here in the place where it can be seen. */
+  const pubs=[];
+  try{
+    for(const [key,e] of ATLAS_BUS._d){
+      const lab=String(key).split('.')[0];
+      if(!busIds.has(lab)) continue;
+      const vd=ATLAS_BUS.routable(key)||busRoutability(key,e.unit);
+      pubs.push({key,name:vd.name,unit:e.unit||'',routable:vd.routable,reason:vd.reason,
+        why:(BUS_REASONS&&BUS_REASONS[vd.reason])||'',declared:vd.declared||''});
+    }
+  }catch(e){}
+  pubs.sort((a,b)=>(a.routable?1:0)-(b.routable?1:0)||a.name.localeCompare(b.name));
+  const pubBad=pubs.filter(p=>!p.routable).length;
+  if(!rows.length&&!feeds.length&&!refusals.length&&!pubs.length) return '';
   const fmt=x=>(x==null||!Number.isFinite(+x))?'—'
     :(Math.abs(+x)>=1e5||(Math.abs(+x)<1e-3&&+x!==0))?(+x).toExponential(4):(+x).toPrecision(6);
   /* A NUMBER MUST NOT BREAK ACROSS LINES. The first version laid the input, the
@@ -15796,6 +15869,30 @@ function busDrivenHTML(v){
         </div>`).join('')}
         <div class="note" style="font-size:10px;color:var(--dim)">${refusals.length} ${
           TT('refusal(s) touching this laboratory','отказ(ов), касающихся этой лаборатории','Ablehnung(en) zu diesem Labor')}</div>
+      </div>`:''}
+      ${pubs.length?`
+      <div style="margin-top:9px;padding-top:7px;border-top:1px solid rgba(255,255,255,.09)">
+        <b style="font-size:11px;color:var(--gold-2)">${TT('What this laboratory puts on the wire, and how much of it the bus can carry',
+          'Что эта лаборатория кладёт на шину и сколько из этого шина может нести',
+          'Was dieses Labor auf den Bus legt und wie viel davon getragen werden kann')}</b>
+        <div class="note" style="font-size:10px;color:var(--dim)">${TT(
+          'A publication is not a coupling. Unless the instrument contract declares an output of exactly this name in exactly this unit, nothing can take the value as a source — it is a reading rather than a route. The commonest reason is not a missing contract but a second name for the same quantity, which is two authorities for one fact.',
+          'Публикация — не связь. Пока контракт прибора не объявит выход ровно с этим именем и в этих единицах, значение нельзя взять как источник — это показание, а не маршрут. Чаще всего дело не в отсутствии контракта, а во втором имени для той же величины.',
+          'Eine Veröffentlichung ist keine Kopplung. Ohne einen deklarierten Ausgang genau dieses Namens in genau dieser Einheit ist der Wert eine Ablesung und keine Route.')}</div>
+        ${pubs.map(p=>`
+        <div title="${esc(p.key)}${p.routable?'':' — '+esc(p.why)}"
+             style="display:block;line-height:1.45;padding:3px 2px;opacity:${p.routable?'.95':'.86'}">
+          <div><span style="color:${p.routable?'#6ff0b0':'#ffcf7a'}">${p.routable?'▸':'◦'}</span>
+            <b>${esc(p.name)}</b> <span style="opacity:.7">${esc(p.unit)}</span>
+            <span style="opacity:.55;font-size:10px">${p.routable
+              ?TT('routable','маршрутизируемо','routbar')
+              :esc(p.reason.replace(/_/g,' '))}</span></div>
+          ${p.routable?'':`<div style="font-size:10.2px;opacity:.78;margin-left:14px">${esc(p.why)}${
+            p.declared?` (${TT('declared','объявлено','deklariert')}: ${esc(p.declared)})`:''}</div>`}
+        </div>`).join('')}
+        <div class="note" style="font-size:10px;color:var(--dim)">${pubs.length-pubBad} ${
+          TT('of','из','von')} ${pubs.length} ${TT('routable here','маршрутизируемо здесь','hier routbar')}${
+          pubBad?` · ${pubBad} ${TT('read but never carried','читается, но не переносится','gelesen, nie getragen')}`:''}</div>
       </div>`:''}
     </div>`;
 }
@@ -26066,12 +26163,88 @@ function updateQcd(dt){
    cross-module data flow with one strict rule: values are published
    with units and read-only. The Topology lab's Invariant-Map station
    renders the whole live network. */
-const ATLAS_BUS={ _d:new Map(), _t:new Map(),
-  pub(k,v,unit){ this._d.set(k,{v,unit:unit||''}); this._t.set(k,performance.now()); },
+/* ══ PUBLISHING IS NOT BEING ROUTABLE, AND FOR YEARS NOTHING HERE KNEW THE DIFFERENCE ══
+   pub() took a name, a value and a unit from any station whatsoever and RETURNED
+   NOTHING. So a laboratory could publish for a hundred releases into a registry that
+   would never route it, and no check anywhere noticed — the count of publications was
+   read as the count of couplings, which it never was. Filed as
+   atlas.a_laboratory_can_publish_to_a_bus_that_cannot_see_it, and unmeasured until now.
+
+   ROUTABLE means one precise thing: hccBusLink(from,to) could accept this key as a
+   SOURCE. That requires the publishing station to hold a declared instrument contract,
+   that contract to declare an output of exactly this name, and the unit published to be
+   the unit declared. Anything less and the value is a READING — real, live, worth
+   drawing, and not something the bus can carry anywhere.
+
+   The verdict is returned to the caller and kept, so the distance between publishing and
+   routing is now a number this atlas can be asked for at any moment rather than a
+   sentence in a ledger. WHAT IT MEASURED ON THE RELEASE THAT ADDED IT is written at
+   BUS_ROUTABLE_FLOOR below, and that floor only rises. */
+const BUS_REASONS=Object.freeze({
+  routable:'the publishing station declares a contract, that contract declares an output of this exact name, and the unit agrees — hccBusLink can take this as a source',
+  no_contract:'the publishing station holds no instrument contract at all, so there is no declared output for any name it publishes and nothing the bus could route',
+  undeclared_output:'the station has a contract and that contract does not declare an output of this name — the bus and the contract are two vocabularies for the same laboratory, which is two authorities for one fact',
+  unit_disagrees:'the name is declared and the unit published is not the unit declared, and a value delivered under the wrong unit is worse than a value not delivered',
+  contracts_not_yet_declared:'published before the contract registry existed in this scope — judged again whenever the census is taken, so this reason never survives a call to it'
+});
+function busRoutability(key,unit){
+  const k=String(key), i=k.indexOf('.');
+  const lab=i<0?k:k.slice(0,i), name=i<0?'':k.slice(i+1);
+  let sp=null;
+  try{ sp=HCC_API_SPECS.get(lab)||null; }
+  catch(e){ return {key:k,lab,name,routable:false,reason:'contracts_not_yet_declared'}; }
+  if(!sp) return {key:k,lab,name,routable:false,reason:'no_contract'};
+  const o=(sp.outputs||[]).find(x=>x.name===name);
+  if(!o) return {key:k,lab,name,routable:false,reason:'undeclared_output'};
+  const pu=String(unit==null?'':unit), du=String(o.unit==null?'':o.unit);
+  if(pu&&du&&pu!==du) return {key:k,lab,name,routable:false,reason:'unit_disagrees',published:pu,declared:du};
+  return {key:k,lab,name,routable:true,reason:'routable',unit:du||pu};
+}
+const ATLAS_BUS={ _d:new Map(), _t:new Map(), _r:new Map(),
+  pub(k,v,unit){ this._d.set(k,{v,unit:unit||''}); this._t.set(k,performance.now());
+    const verdict=busRoutability(k,unit); this._r.set(k,verdict); return verdict; },
   get(k){ const e=this._d.get(k); return e?e.v:null; },
   age(k){ const t=this._t.get(k); return t===undefined?Infinity:(performance.now()-t)/1000; },
-  all(){ const o={}; for(const [k,e] of this._d) o[k]={...e,age:+this.age(k).toFixed(1)}; return o; } };
+  all(){ const o={}; for(const [k,e] of this._d) o[k]={...e,age:+this.age(k).toFixed(1)}; return o; },
+  /* judged AGAIN at the moment you ask, never from the cache alone: a key published
+     before the contracts existed would otherwise carry a stale verdict forever. */
+  routable(k){ const e=this._d.get(k); if(!e) return null;
+    const v=busRoutability(k,e.unit); this._r.set(k,v); return v; } };
 globalThis.ATLAS_BUS=ATLAS_BUS;
+globalThis.busRoutability=busRoutability;
+
+/* ── THE CENSUS THE LEDGER SAID THIS ATLAS DID NOT HAVE ────────────────────────
+   Both directions, because either one alone is the misleading half.
+
+     FORWARD   every key on the bus, and whether the bus could route it
+     REVERSE   every output a contract declares that NOTHING publishes — a laboratory
+               that can be evaluated for a quantity no station ever puts on the wire
+
+   A laboratory scoring well on one and badly on the other is the common case and the
+   whole reason the two counts are kept apart. */
+function HCC_BUS_ROUTABILITY(){
+  const rows=[];
+  for(const [k,e] of ATLAS_BUS._d) rows.push(ATLAS_BUS.routable(k)||busRoutability(k,e.unit));
+  const reasons={}; for(const r of rows) reasons[r.reason]=(reasons[r.reason]||0)+1;
+  const labs={};
+  for(const r of rows){
+    const L=labs[r.lab]||(labs[r.lab]={lab:r.lab,published:0,routable:0,unrouted:[]});
+    L.published++; if(r.routable) L.routable++; else L.unrouted.push({name:r.name,reason:r.reason});
+  }
+  const publishedKeys=new Set(rows.map(r=>r.key));
+  const unpublished=[];
+  try{ for(const [id,sp] of HCC_API_SPECS) for(const o of (sp.outputs||[]))
+    if(!publishedKeys.has(`${id}.${o.name}`)) unpublished.push(`${id}.${o.name}`); }catch(e){}
+  const routable=rows.filter(r=>r.routable).length;
+  return {schema:'hcc.bus-routability/1',
+    published:rows.length, routable, unrouted:rows.length-routable,
+    fraction_routable:rows.length?+(routable/rows.length).toFixed(4):0,
+    reasons, why:BUS_REASONS,
+    laboratories:Object.values(labs).sort((a,b)=>(b.published-b.routable)-(a.published-a.routable)),
+    declared_but_never_published:unpublished.length, declared_but_never_published_sample:unpublished.slice(0,24),
+    note:'A publication is not a coupling. This is the distance between the two, counted rather than argued.'};
+}
+globalThis.HCC_BUS_ROUTABILITY=HCC_BUS_ROUTABILITY;
 
 /* ================================================================
    TOPOLOGY ATLAS · the invariants that hold the whole model together,
