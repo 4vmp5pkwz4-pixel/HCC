@@ -80,7 +80,7 @@ const empty = literal.filter(r => r.unit === '').length;
 /* THE CEILING ONLY FALLS. Moving a caption out of the unit field and into the readout
    lowers it; so does teaching the atlas a spelling it should have known. */
 const PROSE_UNIT_CEILING = 17;
-const BUILT_UNIT_CEILING = 13;
+const BUILT_UNIT_CEILING = 0;
 
 ok('every publication site is read, and the ones whose unit is assembled at runtime are counted apart',
   rows.length >= 260 && rows.length === literal.length + built.length,
@@ -117,11 +117,23 @@ ok('a publication may state a unit and a note, so a caption is moved rather than
 ok('and the note reaches the reader, beside the unit rather than instead of it',
   /p\.note\?/.test(src) && /esc\(p\.note\)/.test(src),
   'the laboratory panel prints the note beside the unit');
-ok('every note that exists is a literal, because a caption assembled at runtime is the thing this measures',
-  noted.every(r => r.note !== null),
-  noted.filter(r => r.note === null).length
-    ? `${noted.filter(r => r.note === null).length} note(s) built at runtime: ` + noted.filter(r => r.note === null).map(r => r.key).join(' ')
-    : `all ${noted.length} note(s) are written at the call`);
+/* THIS ASKED THE WRONG FIELD FOR THE WRONG PROPERTY, AND WENT RED THE MOMENT THE
+   THING IT WANTED ACTUALLY HAPPENED. It required every NOTE to be a literal, on the
+   reasoning that a caption assembled at runtime is the fault being measured. It is
+   not: a caption assembled at runtime is what a note is FOR — "at 0.85 fm", "after
+   three turns", the name of the system being integrated. What must be a literal is
+   the UNIT, because that is the field the bus matches on and a coordinate cannot be
+   decided while the page is running. So the property moves to the field it belongs
+   to, and the runtime notes are counted rather than forbidden. */
+const builtNotes = noted.filter(r => r.note === null);
+ok('every UNIT is a literal, because a coordinate cannot be decided while the page is running',
+  built.length === 0,
+  built.length ? `${built.length} site(s) still assemble the unit: ` + built.map(r => r.key).join(' ')
+    : `all ${rows.length} publication(s) state their unit at the call`);
+ok('and a note may be assembled at runtime, because saying which system or which distance is what a note is for',
+  builtNotes.length >= 0,
+  `${noted.length} publication(s) carry a note, ${builtNotes.length} of them built at runtime: `
+  + (builtNotes.slice(0, 6).map(r => r.key).join(' ') || 'none'));
 
 ok('the atlas exposes the same census as one named global',
   /function HCC_UNIT_VOCABULARY\(\)/.test(src) && /globalThis\.HCC_UNIT_VOCABULARY=HCC_UNIT_VOCABULARY/.test(src),
