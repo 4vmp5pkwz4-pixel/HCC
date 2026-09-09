@@ -147,14 +147,14 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    two. Removing pole.Q's duplicate — a repair — lowered a floor that may only rise,
    which is what a floor over the wrong quantity does. These numbers are over KEYS
    and are not comparable to the ones before them; from here they move the one way. */
-const BUS_UNROUTED_CEILING = 169;
-const BUS_ROUTABLE_FLOOR = 101;
+const BUS_UNROUTED_CEILING = 167;
+const BUS_ROUTABLE_FLOOR = 103;
 /* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
    written reason is finished work, not debt, and counting it with the merely
    undeclared ones lets the total fall for the wrong reason. This ceiling is over the
    publications that want a declaration and have not got one, and it is the number
    that actually has to reach zero. */
-const BUS_UNDECLARED_CEILING = 162;
+const BUS_UNDECLARED_CEILING = 160;
 const unrouted = rows.length - routable;
 
 ok('every published key in the source is judged, none skipped',
@@ -224,6 +224,20 @@ ok('and a key republished with a new value under the SAME unit is not called a c
 const poleQ = (src.match(/ATLAS_BUS\.pub\('pole\.Q'/g) || []).length;
 ok('pole.Q is published once, from the line that calls itself canonical',
   poleQ === 1, `${poleQ} publication site(s) for pole.Q — two of them meant the second silently won`);
+
+/* ── AND A PAIR THAT IS EQUAL AND IS NOT THE SAME QUANTITY ───────────────────
+   Walking every laboratory and comparing each unroutable key to the declared outputs
+   of its own laboratory matched twelve pairs at the default settings, and two were
+   real. The rest were zero equalling zero, or a ratio of one beside a normalised
+   speed of one — and one was sharper than either: a late-time Hubble constant equal
+   to the same constant AFTER a zero-point shift whose default is zero. It is named in
+   the source rather than left in a commit message, because it is exactly the shape
+   that walk rewards and must not be acted on. */
+const nearMiss = src.indexOf('const HCC_EQUAL_BUT_NOT_THE_SAME=Object.freeze({');
+ok('a pair that is equal at the defaults and is not the same quantity is named, with why',
+  nearMiss > 0 && /shifted_h0/.test(src.slice(nearMiss, nearMiss + 1200))
+  && src.slice(nearMiss, nearMiss + 1200).length > 600,
+  'HCC_EQUAL_BUT_NOT_THE_SAME records the near-miss and the setting at which it stops being one');
 
 ok('and it counts BOTH directions, because either half alone is the misleading one',
   /declared_but_never_published/.test(src) && /fraction_routable/.test(src),
