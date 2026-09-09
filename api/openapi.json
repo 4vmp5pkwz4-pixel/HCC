@@ -2,14 +2,16 @@
   "openapi": "3.1.0",
   "info": {
     "title": "HCC computational core",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "Every laboratory behind one contract: describe, run, sweep, validate, export, cancel. No browser, no WebGL, no animation frame. Statuses are load-bearing: NOT_IMPLEMENTED is returned in place of a plausible number, and a synthetic self-test is never reported as an empirical result."
   },
   "servers": [
     {
-      "url": "/"
+      "url": "http://127.0.0.1:8974",
+      "description": "Default self-hosted compute server. The public GitHub Pages site serves static files and does not host these POST endpoints."
     }
   ],
+  "x-hcc-static-discovery": "./agent.json",
   "paths": {
     "/api/v1/health": {
       "get": {
@@ -1487,7 +1489,7 @@
             "description": "golden-registry coordinate ln(q/pi)/(2 ln phi)"
           },
           "n_phi_rung": {
-            "type": "string",
+            "type": "object",
             "unit": null,
             "description": "nearest rung, and whether the sector sits on it within 0.1"
           },
@@ -1790,7 +1792,7 @@
             "description": "departure from the exact trace identity, recomputed live"
           },
           "level_count": {
-            "type": "string",
+            "type": "object",
             "unit": null,
             "description": "distinct levels and total states"
           }
@@ -3178,6 +3180,188 @@
             "type": "string",
             "unit": null,
             "description": "what the current certificate state does and does not establish"
+          }
+        }
+      },
+      "prediction.holdout_audit.input": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "title": "HCC chronological forecast evaluation",
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "model_id",
+          "dataset",
+          "records"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "records"
+              ],
+              "properties": {
+                "records": {
+                  "contains": {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "lower"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "upper"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "nominal_coverage"
+              ],
+              "properties": {
+                "records": {
+                  "items": {
+                    "required": [
+                      "lower",
+                      "upper"
+                    ]
+                  }
+                }
+              }
+            },
+            "else": {
+              "not": {
+                "required": [
+                  "nominal_coverage"
+                ]
+              }
+            }
+          }
+        ],
+        "properties": {
+          "schema": {
+            "const": "hcc.forecast-evaluation-input/1"
+          },
+          "model_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "dataset": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "source",
+              "unit"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "kind": {
+                "enum": [
+                  "observational",
+                  "synthetic"
+                ]
+              },
+              "source": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "unit": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            }
+          },
+          "nominal_coverage": {
+            "type": "number",
+            "exclusiveMinimum": 0,
+            "exclusiveMaximum": 1
+          },
+          "records": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 10000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "training_end",
+                "issued_at",
+                "target_at",
+                "actual",
+                "predicted",
+                "baseline"
+              ],
+              "dependentRequired": {
+                "lower": [
+                  "upper"
+                ],
+                "upper": [
+                  "lower"
+                ]
+              },
+              "properties": {
+                "training_end": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$",
+                  "description": "Latest information available to BOTH model and baseline. UTC ISO timestamp."
+                },
+                "issued_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$",
+                  "description": "Declared issue time. UTC ISO timestamp."
+                },
+                "target_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$",
+                  "description": "Target observation time, strictly after issue time. UTC ISO timestamp."
+                },
+                "actual": {
+                  "type": "number"
+                },
+                "predicted": {
+                  "type": "number"
+                },
+                "baseline": {
+                  "type": "number"
+                },
+                "lower": {
+                  "type": "number"
+                },
+                "upper": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "prediction.holdout_audit.output": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "audit"
+        ],
+        "properties": {
+          "audit": {
+            "type": "object",
+            "unit": null,
+            "description": "Complete holdout audit; MAE/RMSE/bias and interval score carry dataset.unit; skill and coverage are dimensionless."
           }
         }
       }

@@ -6,8 +6,7 @@ const NUMERICAL_CONTROLS = new Map([
 ]);
 
 function finiteNumber(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : null;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
 function cloneIdentity(identity = {}) {
@@ -37,6 +36,9 @@ export function validateReachArtifact(reach, identity = null) {
   }
   if (!Array.isArray(reach.chains)) {
     return { ok: false, error: 'reach chains must be an array' };
+  }
+  if (reach.chains.some(c => !c || typeof c !== 'object' || Array.isArray(c))) {
+    return { ok: false, error: 'every reach chain must be an object' };
   }
   if (identity) {
     const expected = cloneIdentity(identity);
@@ -80,15 +82,15 @@ function intervalForExponent(exponent, delta) {
   const hiInput = 1 + delta;
   const u = Math.pow(loInput, a);
   const v = Math.pow(hiInput, a);
-  if (!Number.isFinite(u) || !Number.isFinite(v)) return null;
+  if (!Number.isFinite(u) || !Number.isFinite(v) || u <= 0 || v <= 0) return null;
   return { low: Math.min(u, v), high: Math.max(u, v) };
 }
 
 export function forecastReach(reach, control, delta = 0.1, identity = null) {
   const verdict = validateReachArtifact(reach, identity);
   if (!verdict.ok) throw new Error(verdict.error);
-  const d = Number(delta);
-  if (!Number.isFinite(d) || d < 0 || d >= 1) {
+  const d = finiteNumber(delta);
+  if (d === null || d < 0 || d >= 1) {
     throw new RangeError('delta must be finite and satisfy 0 <= delta < 1 so the symmetric lower input ratio stays positive');
   }
   const key = String(control || '');
@@ -116,6 +118,8 @@ export function forecastReach(reach, control, delta = 0.1, identity = null) {
       laboratories: finiteNumber(chain.laboratories),
       exponent,
       forecastability: cls,
+      domain_status: 'NOT_ESTABLISHED_FOR_INTERVENTION',
+      interpretation: semantics.kind === 'NUMERICAL_CONTROL' ? 'NUMERICAL_SENSITIVITY' : 'CONDITIONAL_MODEL_SCALING',
       response_ratio: responseRatio,
       interval_ratio: intervalRatio,
       evidence: evidence(chain)
@@ -129,6 +133,12 @@ export function forecastReach(reach, control, delta = 0.1, identity = null) {
     source: { schema: reach.schema, version: reach.version, build: reach.build },
     control: key,
     control_semantics: semantics,
+    empirical_validation: false,
+    uncertainty: {
+      kind: 'PARAMETER_SCENARIO',
+      coverage_probability: null,
+      note: 'Endpoints propagate the chosen input perturbation through a fitted scaling exponent. They are not a confidence or prediction interval. Exponent uncertainty, model discrepancy and validity of the requested intervention are not established by this artifact.'
+    },
     delta: d,
     input_ratio: 1 + d,
     symmetric_input_ratio: { low: 1 - d, high: 1 + d },

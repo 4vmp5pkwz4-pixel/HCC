@@ -15,7 +15,7 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
-const run = spawnSync(process.execPath, ['--test', 'test/galactic-butterfly-scene.test.mjs'],
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/galactic-butterfly-scene.test.mjs'],
   { cwd: ROOT, encoding: 'utf8' });
 const out = (run.stdout || '') + (run.stderr || '');
 process.stdout.write(out);

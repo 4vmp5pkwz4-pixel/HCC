@@ -4,6 +4,8 @@ const fs = require('fs');
 const html = fs.readFileSync('index.html', 'utf8');
 const buildManifest = fs.readFileSync('scripts/build-manifest.mjs', 'utf8');
 const agent = fs.readFileSync('agent.html', 'utf8');
+const workspace = fs.readFileSync('assets/scientific-workspace.mjs', 'utf8');
+const agentSDK = fs.readFileSync('api/agent-client.mjs', 'utf8');
 const manifest = JSON.parse(fs.readFileSync('api/manifest.json', 'utf8'));
 let failures = 0;
 
@@ -50,7 +52,9 @@ check(
   agent.includes('HCC_API.multiviewPresets();')
     && agent.includes('id="multi"')
     && agent.includes('Immersive representations')
-    && agent.includes('m.multiview || []'),
+    && agent.includes('assets/scientific-workspace.mjs')
+    && workspace.includes('session.multiview.map')
+    && agentSDK.includes('multiview:manifest.multiview||[]'),
   'agent.html documents and renders prepared immersive representations from api/manifest.json'
 );
 

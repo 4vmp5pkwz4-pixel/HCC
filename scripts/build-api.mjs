@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { CORE, LABS } from '../core/index.mjs';
 import { CORE_VERSION } from '../core/version.mjs';
 import { STATUS_DOC } from '../core/status.mjs';
+import { AUDIT_INPUT_SCHEMA } from '../core/prediction/forecast-audit.mjs';
 /* the tool table is IMPORTED from the server, not restated here. It used to be written out
    twice — once for the descriptor and once for the endpoint — and two copies of a contract
    means the older one is wrong and nothing says which. Importing server.mjs starts no
@@ -27,7 +28,8 @@ const openapi = {
     description: 'Every laboratory behind one contract: describe, run, sweep, validate, export, cancel. ' +
       'No browser, no WebGL, no animation frame. Statuses are load-bearing: NOT_IMPLEMENTED is returned ' +
       'in place of a plausible number, and a synthetic self-test is never reported as an empirical result.' },
-  servers: [{ url: '/' }],
+  servers: [{ url: 'http://127.0.0.1:8974', description: 'Default self-hosted compute server. The public GitHub Pages site serves static files and does not host these POST endpoints.' }],
+  'x-hcc-static-discovery': './agent.json',
   paths: {
     '/api/v1/health': { get: { summary: 'liveness, version, commit and code hash',
       responses: { 200: { description: 'ok' } } } },
@@ -146,6 +148,8 @@ const mcp = {
     legacy: { endpoint: '/mcp/call', method: 'POST', deprecated: true,
       note: 'plain POST {tool, arguments}; superseded by JSON-RPC 2.0 at /mcp and kept working for clients that already depend on it' } },
   tools: TOOLS.map(t => ({ name: t.name, description: t.description, inputSchema: t.inputSchema })),
+  deployment: { requires_self_hosted_server: true, public_pages_endpoint: null,
+    start: 'node server/server.mjs', static_discovery: '../api/agent.json' },
   statuses: STATUS_DOC
 };
 writeFileSync(join(ROOT, '.well-known/mcp.json'), JSON.stringify(mcp, null, 2) + '\n');
@@ -176,7 +180,8 @@ if (existsSync(mpath)) {
      commit it would name. The health endpoint reports the commit live; the manifest reports
      the code hash, which is true of the bytes it was built from and stays true. */
   man.core = { version: CORE_VERSION, code_sha256: CORE.provenance.code_sha256 };
-  man.contracts = { openapi: '/openapi.json', mcp: '/.well-known/mcp.json', open_problems: '/api/open-problems.json' };
+  man.contracts = { base: 'site-root', openapi: './api/openapi.json', mcp: './.well-known/mcp.json', open_problems: './api/open-problems.json',
+    agent: './api/agent.json', sdk: './api/agent-client.mjs', forecast_audit_schema: './api/forecast-audit.schema.json' };
   man.instruments_v2 = described.filter(d => d.inputs.length || d.outputs.length).map(d => ({
     id: d.id, title: d.title, status: d.status, model_id: d.model_id,
     inputs: d.inputs, outputs: d.outputs,
@@ -187,5 +192,26 @@ if (existsSync(mpath)) {
   man.counts.core_implemented = described.filter(d => d.status !== 'NOT_IMPLEMENTED').length;
   writeFileSync(mpath, JSON.stringify(man, null, 2) + '\n');
 }
+writeFileSync(join(ROOT,'api/forecast-audit.schema.json'),JSON.stringify(AUDIT_INPUT_SCHEMA,null,2)+'\n');
+const identity=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));
+const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:identity.build,
+  base:'Paths below are relative to the Atlas site root, one directory above this file.',
+  access:{public_http_compute:false,public_mcp_endpoint:null,authentication_required:false,
+    static_read:true,local_esm_compute:true,site_mutation:false},
+  resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
+    reach:'./api/reach.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
+    forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
+  operations:[
+    {name:'discover',transport:'esm',description:'Release identity, capabilities, counts, worlds and scaling controls.'},
+    {name:'search',transport:'esm',description:'Search instrument contracts by query, world and status.'},
+    {name:'describe',transport:'esm',description:'Inputs, outputs, units, domains and verifier references from the manifest.'},
+    {name:'forecast',transport:'esm',description:'Conditional scaling scenarios. No empirical confidence or intervention domain guarantee.'},
+    {name:'audit',transport:'esm',description:'Chronological holdout metrics, baseline skill, interval scoring, horizon groups and replayable SHA-256 input.'}
+  ],
+  self_hosted:{command:'node server/server.mjs',default_origin:'http://127.0.0.1:8974',openapi:'./api/openapi.json',mcp_path:'/mcp',
+    tools:TOOLS.map(t=>t.name),forecast_lab:'prediction.holdout_audit'},
+  evidence_policy:['Synthetic validation does not establish empirical accuracy.','Supplied timestamps are declarations, not proof of prior registration.',
+    'Unknown values remain null; refused requests produce no plausible replacement result.']};
+writeFileSync(join(ROOT,'api/agent.json'),JSON.stringify(agent,null,2)+'\n');
 console.log(`openapi ${Object.keys(openapi.paths).length} paths · mcp ${mcp.tools.length} tools · ` +
   `open problems ${op.count} · manifest instruments_v2 ${described.filter(d => d.inputs.length).length}`);

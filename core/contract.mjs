@@ -39,9 +39,21 @@ const unitsOf = defs => Object.fromEntries((defs || []).map(d => [d.name, d.unit
 
 /* refuse, never clamp — the atlas's oldest rule, now enforced in one place */
 export function coerceInputs(spec, raw = {}) {
+  if (spec.strict_inputs) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw domainError('input must be an object');
+    for (const key of Object.keys(raw)) if (!(spec.inputs || []).some(d => d.name === key))
+      throw domainError(`unknown input "${key}"`);
+    for (const d of spec.inputs || []) {
+      const v = raw[d.name];
+      if (v === undefined) continue;
+      const valid = d.type === 'array' ? Array.isArray(v) : d.type === 'object' ? v !== null && typeof v === 'object' && !Array.isArray(v) : typeof v === d.type;
+      if (!valid) throw domainError(`input "${d.name}" must be ${d.type}`);
+    }
+  }
   const out = {}, warnings = [];
   for (const d of spec.inputs || []) {
     let v = raw[d.name];
+    if (v === undefined && d.optional) continue;
     if (v === undefined || v === null) {
       v = typeof d.default === 'function' ? d.default() : d.default;
       if (v === undefined) throw domainError(`missing required input "${d.name}"`, { input: d.name });
@@ -74,10 +86,11 @@ export const sha256 = s => createHash('sha256').update(s).digest('hex');
 export function defineLab(spec) {
   const jsonSchema = defs => ({
     type: 'object', additionalProperties: false,
-    required: (defs || []).filter(d => d.default === undefined).map(d => d.name),
+    required: (defs || []).filter(d => d.default === undefined && !d.optional).map(d => d.name),
     properties: Object.fromEntries((defs || []).map(d => [d.name, {
       type: d.type === 'number' ? 'number' : d.type === 'boolean' ? 'boolean' :
-            d.type === 'array' ? 'array' : 'string',
+            d.type === 'array' ? 'array' : d.type === 'object' ? 'object' : 'string',
+      ...(d.schema || {}),
       ...(d.min !== undefined ? { minimum: d.min } : {}),
       ...(d.max !== undefined ? { maximum: d.max } : {}),
       ...(d.enum ? { enum: d.enum } : {}),
@@ -100,7 +113,7 @@ export function defineLab(spec) {
           min: d.min, max: d.max, enum: d.enum, description: d.doc || '' })),
         outputs: (spec.outputs || []).map(d => ({ name: d.name, type: d.type || 'number',
           unit: d.unit ?? null, description: d.doc || '' })),
-        input_schema: jsonSchema(spec.inputs),
+        input_schema: spec.input_schema || jsonSchema(spec.inputs),
         output_schema: jsonSchema(spec.outputs),
         assumptions: spec.assumptions || [],
         domain_of_validity: spec.domain_of_validity || [],

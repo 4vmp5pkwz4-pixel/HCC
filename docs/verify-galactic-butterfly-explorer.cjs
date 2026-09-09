@@ -35,7 +35,7 @@ const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS —
   else { fail++; console.log('  FAIL — ' + name + (detail ? ' :: EXPECTED ' + detail : '')); } };
 
 /* ── the six dependency-free tests, actually executed ──────────────────────── */
-const run = spawnSync(process.execPath, ['--test', 'test/galactic-butterfly.test.mjs'],
+const run = spawnSync(process.execPath, ['--test', '--test-reporter=tap', 'test/galactic-butterfly.test.mjs'],
   { cwd: ROOT, encoding: 'utf8' });
 const out = (run.stdout || '') + (run.stderr || '');
 const n = (re) => { const m = out.match(re); return m ? Number(m[1]) : null; };
