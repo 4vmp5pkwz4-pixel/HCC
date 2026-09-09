@@ -81,12 +81,39 @@ function busPublicationUnits(src) {
     let depth = 1, k = start;
     while (k < src.length && depth > 0) { const c = src[k];
       if (c === '(') depth++; else if (c === ')') depth--; k++; }
-    const args = src.slice(start, k - 1);
-    const lit = args.match(/,\s*'([^']*)'\s*$/);
-    out.push({ key: m[1], unit: lit ? lit[1] : null, literal: !!lit });
+    const args = splitArgs(src.slice(start, k - 1));
+    /* args here are what FOLLOWS the key: value, unit, and optionally a note. */
+    const unitArg = args.length > 1 ? args[1].trim() : '';
+    const noteArg = args.length > 2 ? args[2].trim() : '';
+    const lit = unitArg.match(/^'([^']*)'$/);
+    const nlit = noteArg.match(/^'([^']*)'$/);
+    out.push({ key: m[1], unit: lit ? lit[1] : null, literal: !!lit,
+      note: nlit ? nlit[1] : (noteArg ? null : ''), has_note: !!noteArg });
   }
   census('busPublicationUnits', out.length, countOf(src, "ATLAS_BUS.pub('"), null);
   return out;
+}
+
+/* SPLIT ON TOP-LEVEL COMMAS ONLY. The value argument is an expression that contains
+   commas, parentheses, brackets and quoted strings of its own — toFixed calls, object
+   literals, ternaries — so a plain split on "," cuts it in the middle. And taking the
+   LAST quoted literal instead, which this file did first, silently began reading the
+   NOTE the moment pub() grew a fourth argument: the caption count stopped moving while
+   twelve captions were being converted, which is how it was found. The unit is the
+   argument in position, not the last string that happens to be there. */
+function splitArgs(s) {
+  const parts = []; let depth = 0, quote = null, buf = '';
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (quote) { buf += c; if (c === quote && s[i - 1] !== '\\') quote = null; continue; }
+    if (c === "'" || c === '"' || c === '`') { quote = c; buf += c; continue; }
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    if (c === ',' && depth === 0) { parts.push(buf); buf = ''; continue; }
+    buf += c;
+  }
+  parts.push(buf);
+  return parts;
 }
 
 /* ── the sourced connections of the galactic butterfly explorer ────────────── */
