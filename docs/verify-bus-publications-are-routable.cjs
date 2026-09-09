@@ -196,7 +196,11 @@ ok('and the two kinds of gap are kept apart, because they are not the same repai
    body of pub(), and the body contains braces — it publishes an object literal — so
    the check went red against a correct implementation. A check pinned to punctuation
    tests the punctuation. The body is cut out by its two ends and read. */
-const pubBody = (() => { const a = src.indexOf('pub(k,v,unit){');
+/* SLICED BY WHERE THE METHOD STARTS, NOT BY ITS ARGUMENT LIST. This cut at the exact
+   text 'pub(k,v,unit){' and went red the day pub() grew a fourth argument for the
+   caption — against a correct implementation, for the second time in this file. The
+   method is found by its name and the slice runs to the next method. */
+const pubBody = (() => { const a = src.indexOf('pub(k,v,unit');
   const b = src.indexOf('\n  get(k){', a); return a > 0 && b > a ? src.slice(a, b) : ''; })();
 ok('ATLAS_BUS.pub returns the verdict instead of nothing, so a publication is judged as it happens',
   /busRoutability\(/.test(pubBody) && /return\s+verdict/.test(pubBody),
@@ -209,7 +213,7 @@ ok('the census is reachable from outside as one named global',
    places write. The unit string is what separates them, and pole.Q is what it found:
    published twice in one block, as Q to four decimals and as loaded Q to two, the
    second overwriting the first every tick. */
-const pubBody2 = (() => { const a = src.indexOf('pub(k,v,unit){');
+const pubBody2 = (() => { const a = src.indexOf('pub(k,v,unit');
   const b = src.indexOf('\n  get(k){', a); return a > 0 && b > a ? src.slice(a, b) : ''; })();
 ok('the bus records the unit each key was FIRST published under, so a second author cannot overwrite in silence',
   pubBody2.includes('this._u.get(k)') && pubBody2.includes('conflict:true'),

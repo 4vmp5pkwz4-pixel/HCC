@@ -79,7 +79,7 @@ const empty = literal.filter(r => r.unit === '').length;
 
 /* THE CEILING ONLY FALLS. Moving a caption out of the unit field and into the readout
    lowers it; so does teaching the atlas a spelling it should have known. */
-const PROSE_UNIT_CEILING = 91;
+const PROSE_UNIT_CEILING = 79;
 const BUILT_UNIT_CEILING = 13;
 
 ok('every publication site is read, and the ones whose unit is assembled at runtime are counted apart',
@@ -105,6 +105,23 @@ ok('the gap resolves to named spellings rather than one number',
 ok('a publication with no unit at all is read as dimensionless by an explicit alias rather than by accident',
   known.has('') && aliasKeys.includes('') ,
   `${empty} publication(s) state an empty unit, and HCC_UNIT_ALIAS maps '' to '1' in writing beside '—' and 'dimensionless'`);
+
+/* ── AND THE FOURTH ARGUMENT, WHICH IS HOW THE CEILING FALLS WITHOUT LOSING ANYTHING ──
+   A caption cannot be paid down by deleting what it says: a reader wants to know a
+   braid is counted in crossings. pub() takes a unit AND a note, so the unit becomes a
+   coordinate and the caption stays a caption. */
+const noted = rows.filter(r => r.has_note);
+ok('a publication may state a unit and a note, so a caption is moved rather than deleted',
+  /pub\(k,v,unit,note\)/.test(src) && /note:note\|\|''/.test(src),
+  `pub(key, value, unit, note) · ${noted.length} publication(s) carry a note today`);
+ok('and the note reaches the reader, beside the unit rather than instead of it',
+  /p\.note\?/.test(src) && /esc\(p\.note\)/.test(src),
+  'the laboratory panel prints the note beside the unit');
+ok('every note that exists is a literal, because a caption assembled at runtime is the thing this measures',
+  noted.every(r => r.note !== null),
+  noted.filter(r => r.note === null).length
+    ? `${noted.filter(r => r.note === null).length} note(s) built at runtime: ` + noted.filter(r => r.note === null).map(r => r.key).join(' ')
+    : `all ${noted.length} note(s) are written at the call`);
 
 ok('the atlas exposes the same census as one named global',
   /function HCC_UNIT_VOCABULARY\(\)/.test(src) && /globalThis\.HCC_UNIT_VOCABULARY=HCC_UNIT_VOCABULARY/.test(src),
