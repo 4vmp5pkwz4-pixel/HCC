@@ -64,10 +64,25 @@ ok('the contract table carries every instrument with its declared outputs',
   specs.size >= 100 && [...specs.values()].every(s => Array.isArray(s.outputs)),
   `${specs.size} instruments, ${[...specs.values()].reduce((n, s) => n + s.outputs.length, 0)} declared outputs`);
 
-/* ── run the atlas's rule over the atlas's contracts ───────────────────────── */
+/* ── run the atlas's rule over the atlas's contracts ─────────────────────────
+   The rule consults two tables: the contracts, which come from the manifest, and the
+   list of publications refused BY NAME as not being quantities at all. Both are cut
+   out of the atlas rather than restated, so a publication that stops being refused
+   there stops being refused here on the same edit. */
+const nqStart = src.indexOf('const HCC_NOT_QUANTITIES=Object.freeze({');
+const nqEnd = src.indexOf('\n});', nqStart);
+ok('the deliberately unroutable publications are declared in one frozen table',
+  nqStart > 0 && nqEnd > nqStart, 'const HCC_NOT_QUANTITIES=Object.freeze({...})');
 const ctx = vm.createContext({ HCC_API_SPECS: specs });
-vm.runInContext(ruleSrc + '\n;globalThis.__r = busRoutability;', ctx);
+vm.runInContext(src.slice(nqStart, nqEnd + 4) + '\n' + ruleSrc + '\n;globalThis.__r = busRoutability;'
+  + '\n;globalThis.__nq = HCC_NOT_QUANTITIES;', ctx);
 const judge = ctx.__r;
+const NQ = ctx.__nq;
+const thinReasons = Object.entries(NQ).filter(([, why]) => String(why).length < 100);
+ok('and each one carries a reason long enough to be a reason rather than a label',
+  Object.keys(NQ).length >= 5 && thinReasons.length === 0,
+  thinReasons.length ? `${thinReasons.length} refusal(s) with almost no reason: ${thinReasons.map(r => r[0]).join(' ')}`
+    : `${Object.keys(NQ).length} refused by name, shortest reason ${Math.min(...Object.values(NQ).map(w => String(w).length))} chars`);
 
 /* THE SELF-TEST'S OWN PROBE IS NOT A PUBLICATION, AND IT IS EXCLUDED BY NAME RATHER
    THAN BY BEING HIDDEN. The boot suite proves pub() returns a verdict by publishing
@@ -106,9 +121,17 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    same rule that had judged them unroutable. v4.194.0 declared four more —
    asteroseismology, gyrochronology, the radiative wind and the Fermi bubbles — and
    repaired seven unit spellings the conversion table did not know, for another
-   twenty-three. Stations with no contract at all: 15, then 13, then 9. */
-const BUS_UNROUTED_CEILING = 189;
-const BUS_ROUTABLE_FLOOR = 83;
+   twenty-three. v4.195.0 declared the Earth`s axis and REFUSED seven publications by
+   name as not being quantities at all, which is the other honest way a station leaves
+   this list. Stations with no contract at all: 15, then 13, then 9, then 5. */
+const BUS_UNROUTED_CEILING = 187;
+const BUS_ROUTABLE_FLOOR = 85;
+/* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
+   written reason is finished work, not debt, and counting it with the merely
+   undeclared ones lets the total fall for the wrong reason. This ceiling is over the
+   publications that want a declaration and have not got one, and it is the number
+   that actually has to reach zero. */
+const BUS_UNDECLARED_CEILING = 180;
 const unrouted = rows.length - routable;
 
 ok('every publication site in the source is judged, none skipped',
@@ -120,6 +143,11 @@ ok('the number of publications the bus cannot route is at or below its ceiling, 
 ok('the number it can route is at or above its floor, and the floor only rises',
   routable >= BUS_ROUTABLE_FLOOR,
   `routable ${routable} against floor ${BUS_ROUTABLE_FLOOR}`);
+const deliberate = rows.filter(r => r.reason === 'not_a_quantity').length;
+ok('and the debt is counted apart from the deliberate refusals, so it cannot fall for the wrong reason',
+  (unrouted - deliberate) <= BUS_UNDECLARED_CEILING && deliberate === Object.keys(NQ).length,
+  `${unrouted - deliberate} publication(s) want a declaration and have not got one, against ceiling ${BUS_UNDECLARED_CEILING}`
+  + ` · ${deliberate} refused by name, which is finished work rather than debt`);
 
 /* ── the gap is legible, not just counted: which laboratories, and why ─────── */
 const byLab = new Map();
