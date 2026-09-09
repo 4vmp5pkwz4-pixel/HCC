@@ -100,8 +100,12 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
 
 /* ── AND THE GAP, COUNTED ──────────────────────────────────────────────────────
    Raise the floor and lower the ceiling when the work is done; never the reverse. */
-const BUS_UNROUTED_CEILING = 232;
-const BUS_ROUTABLE_FLOOR = 40;
+/* v4.192.0 measured it first at 232 unrouted and 40 routable. v4.193.0 declared
+   instrument contracts for the wheels of time and the cycles of the sky — the two
+   largest stations that had none — and twenty publications became routable by the
+   same rule that had judged them unroutable. */
+const BUS_UNROUTED_CEILING = 212;
+const BUS_ROUTABLE_FLOOR = 60;
 const unrouted = rows.length - routable;
 
 ok('every publication site in the source is judged, none skipped',
