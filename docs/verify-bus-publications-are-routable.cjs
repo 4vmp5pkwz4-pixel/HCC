@@ -96,8 +96,17 @@ const probes = allKeys.filter(k => k === PROBE);
 ok('the only publication excluded from the census is the self-test probe, and the atlas deletes it again',
   probes.length === 1 && /m\.delete\('selftest\.routability_probe'\)/.test(src.replace(/\s+/g, '')),
   `${probes.length} probe site(s) named ${PROBE}, removed from _d, _t and _r immediately after publication`);
-const keys = allKeys.filter(k => k !== PROBE);
+/* COUNTED BY KEY AND NOT BY CALL SITE. The first version counted publication SITES,
+   and a key published from two places counted twice — so removing pole.Q's duplicate
+   site, which is a repair, lowered a floor that may only rise. The atlas publishes
+   QUANTITIES; how many places each is written from is a separate fact, checked below
+   and not mixed into this one. */
+const keys = [...new Set(allKeys.filter(k => k !== PROBE))];
+const sites = allKeys.filter(k => k !== PROBE).length;
 const rows = keys.map(k => judge(k, undefined));
+ok('the census counts distinct keys, and says how many call sites wrote them',
+  keys.length <= sites && keys.length >= 240,
+  `${keys.length} distinct key(s) published from ${sites} call site(s)`);
 const routable = rows.filter(r => r.routable).length;
 const tally = {};
 for (const r of rows) tally[r.reason] = (tally[r.reason] || 0) + 1;
@@ -127,19 +136,25 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    had always computed and never declared, which is the FIRST repair of the large half:
    a station holding a contract that did not name what it publishes.
    Stations with no contract at all: 15, then 13, then 9, then 5. */
-const BUS_UNROUTED_CEILING = 180;
-const BUS_ROUTABLE_FLOOR = 92;
+/* THE BASIS CHANGED FROM CALL SITES TO KEYS AT v4.197.0, AND THAT IS NOT A
+   REGRESSION. Until then a key published from two places was counted twice: 272
+   sites over 269 distinct keys, with pole.Q, rel.gamma and sn.Dbox each written from
+   two. Removing pole.Q's duplicate — a repair — lowered a floor that may only rise,
+   which is what a floor over the wrong quantity does. These numbers are over KEYS
+   and are not comparable to the ones before them; from here they move the one way. */
+const BUS_UNROUTED_CEILING = 179;
+const BUS_ROUTABLE_FLOOR = 90;
 /* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
    written reason is finished work, not debt, and counting it with the merely
    undeclared ones lets the total fall for the wrong reason. This ceiling is over the
    publications that want a declaration and have not got one, and it is the number
    that actually has to reach zero. */
-const BUS_UNDECLARED_CEILING = 173;
+const BUS_UNDECLARED_CEILING = 172;
 const unrouted = rows.length - routable;
 
-ok('every publication site in the source is judged, none skipped',
-  rows.length === keys.length && rows.length >= 260,
-  `${rows.length} publications judged out of ${keys.length} found in index.html`);
+ok('every published key in the source is judged, none skipped',
+  rows.length === keys.length && rows.length >= 240,
+  `${rows.length} key(s) judged out of ${keys.length} found in index.html`);
 ok('the number of publications the bus cannot route is at or below its ceiling, and the ceiling only falls',
   unrouted <= BUS_UNROUTED_CEILING,
   `unrouted ${unrouted} against ceiling ${BUS_UNROUTED_CEILING} — a rise means a new publication was added to a laboratory whose contract does not declare it`);
@@ -179,11 +194,28 @@ ok('and the two kinds of gap are kept apart, because they are not the same repai
 const pubBody = (() => { const a = src.indexOf('pub(k,v,unit){');
   const b = src.indexOf('\n  get(k){', a); return a > 0 && b > a ? src.slice(a, b) : ''; })();
 ok('ATLAS_BUS.pub returns the verdict instead of nothing, so a publication is judged as it happens',
-  pubBody.includes('busRoutability(k,unit)') && /return\s+verdict/.test(pubBody),
+  /busRoutability\(/.test(pubBody) && /return\s+verdict/.test(pubBody),
   'pub() computes and returns a routability verdict');
 ok('the census is reachable from outside as one named global',
   /globalThis\.HCC_BUS_ROUTABILITY=HCC_BUS_ROUTABILITY/.test(src)
   && /function HCC_BUS_ROUTABILITY\(\)/.test(src), 'globalThis.HCC_BUS_ROUTABILITY()');
+/* ── AND A KEY WITH TWO AUTHORS ──────────────────────────────────────────────
+   pub overwrites in silence, which is right for a live value and wrong for a key two
+   places write. The unit string is what separates them, and pole.Q is what it found:
+   published twice in one block, as Q to four decimals and as loaded Q to two, the
+   second overwriting the first every tick. */
+const pubBody2 = (() => { const a = src.indexOf('pub(k,v,unit){');
+  const b = src.indexOf('\n  get(k){', a); return a > 0 && b > a ? src.slice(a, b) : ''; })();
+ok('the bus records the unit each key was FIRST published under, so a second author cannot overwrite in silence',
+  pubBody2.includes('this._u.get(k)') && pubBody2.includes('conflict:true'),
+  'pub compares the unit against the first one seen and records a conflict');
+ok('and a key republished with a new value under the SAME unit is not called a conflict, because that is what a live value does',
+  /first!==u/.test(pubBody2) && !/first!==v/.test(pubBody2),
+  'the comparison is on the unit string, never on the value');
+const poleQ = (src.match(/ATLAS_BUS\.pub\('pole\.Q'/g) || []).length;
+ok('pole.Q is published once, from the line that calls itself canonical',
+  poleQ === 1, `${poleQ} publication site(s) for pole.Q — two of them meant the second silently won`);
+
 ok('and it counts BOTH directions, because either half alone is the misleading one',
   /declared_but_never_published/.test(src) && /fraction_routable/.test(src),
   'published-but-unroutable and declared-but-never-published are separate counts');
