@@ -79,7 +79,7 @@ const empty = literal.filter(r => r.unit === '').length;
 
 /* THE CEILING ONLY FALLS. Moving a caption out of the unit field and into the readout
    lowers it; so does teaching the atlas a spelling it should have known. */
-const PROSE_UNIT_CEILING = 79;
+const PROSE_UNIT_CEILING = 65;
 const BUILT_UNIT_CEILING = 13;
 
 ok('every publication site is read, and the ones whose unit is assembled at runtime are counted apart',
