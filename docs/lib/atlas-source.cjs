@@ -65,6 +65,30 @@ function busPublications(src) {
   return out;
 }
 
+/* ── and the UNIT each publication states, which needs the call sliced ────────
+   A regex over the whole call cannot find the third argument: the second argument is
+   an expression that contains commas, parentheses and quoted strings of its own. The
+   call is cut by BALANCED PARENTHESES from the key onward, and the unit is the
+   trailing quoted literal of what is inside. A site whose unit is not a literal —
+   built by concatenation, or a variable — is reported as such rather than guessed at,
+   because a caption assembled at runtime is exactly the thing this measures. */
+function busPublicationUnits(src) {
+  const out = [];
+  const re = new RegExp(`ATLAS_BUS\\.pub\\('(${ID})',`, 'g');
+  let m;
+  while ((m = re.exec(src))) {
+    const start = m.index + m[0].length;
+    let depth = 1, k = start;
+    while (k < src.length && depth > 0) { const c = src[k];
+      if (c === '(') depth++; else if (c === ')') depth--; k++; }
+    const args = src.slice(start, k - 1);
+    const lit = args.match(/,\s*'([^']*)'\s*$/);
+    out.push({ key: m[1], unit: lit ? lit[1] : null, literal: !!lit });
+  }
+  census('busPublicationUnits', out.length, countOf(src, "ATLAS_BUS.pub('"), null);
+  return out;
+}
+
 /* ── the sourced connections of the galactic butterfly explorer ────────────── */
 function sourcedConnections(src) {
   const out = [...src.matchAll(new RegExp(`^\\s*row\\('(${ID})','([A-Z_]+)','(${ID})'`, 'gm'))]
@@ -96,5 +120,5 @@ function sourcedCitations(src) {
   return out;
 }
 
-module.exports = { ID, census, threadFamilies, threadRows, busPublications,
+module.exports = { ID, census, threadFamilies, threadRows, busPublications, busPublicationUnits,
   sourcedConnections, sourcedSources, sourcedCitations };
