@@ -79,7 +79,14 @@ const empty = literal.filter(r => r.unit === '').length;
 
 /* THE CEILING ONLY FALLS. Moving a caption out of the unit field and into the readout
    lowers it; so does teaching the atlas a spelling it should have known. */
-const PROSE_UNIT_CEILING = 17;
+/* FIVE ARE LEFT AND EACH IS A DECISION RATHER THAN A LOOKUP, which is why the
+   ceiling stops here rather than at zero: a temperature captioned ∝kT on a bench that
+   declares joules, an entropy rate in bits per unit time where the laboratory declares
+   nats, a mean return time per iteration, a diffusion in units of 2π² per iteration,
+   and rmhd.rt, which is omega SQUARED and is deliberately spelled rate^2 because the
+   contract already carries the root under its own name. Each needs somebody to say
+   what that bench's scale IS. */
+const PROSE_UNIT_CEILING = 5;
 const BUILT_UNIT_CEILING = 0;
 
 ok('every publication site is read, and the ones whose unit is assembled at runtime are counted apart',
