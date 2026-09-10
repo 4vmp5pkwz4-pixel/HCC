@@ -156,5 +156,21 @@ ok('the cap fraction is computed and is NOT used as an information fraction anyw
     'they are maps of different fields at different epochs, not q maps of one field on one slice');
 }
 
+/* ── and the three theorems that had only numbers now have pictures ───────── */
+{
+  const drawn = [
+    ['the thin-layer ladder', /singular values in powers/, /Math\.pow\(eps,\s*2\*k\)/, /\(L-k\+1\)\*\(L-k\+1\)/],
+    ['the monotone two-shell curve', /strictly monotone/, /tomoRatio\(R,d1,d2,Lr\)/, /tomoRadiusFromRatio\(gRef/],
+    ['the degeneracy bars', /it MOVES/, /it does NOT/, /tomoDegeneracy\(Ld,chi0,chi,P0\)/],
+  ];
+  for (const [name, ...pats] of drawn)
+    ok(`${name} is drawn from the same functions the readout uses, not from a sketch of them`,
+      pats.every(p => p.test(src)),
+      pats.map((p, i) => (p.test(src) ? '' : `missing pattern ${i + 1}`)).filter(Boolean).join(', ') || 'every element present in the live source');
+  ok('and what the scene actually contains is askable, so a theorem with no picture and a picture with no theorem can be told apart',
+    /drawn:\(\(\)=>\{/.test(src) && /if\(!_tomoExtra\.length\) tomoBuild\(\)/.test(src),
+    'HCC_SHELL_CENSUS builds the group on demand and counts what is in it');
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
