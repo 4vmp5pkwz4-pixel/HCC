@@ -24,7 +24,7 @@ ok('the tomography was cut out of index.html rather than copied beside it',
   S.length > 3000 && /tomoRadiusFromRatio/.test(S), `${S.length} chars of live source`);
 
 const ctx = vm.createContext({ Math, Object, Array, Number, console, JSON, globalThis: {} });
-const T = vm.runInContext(S + '\n({tomoBinom,TOMO_N,tomoRank,tomoNull,tomoRankBySector,tomoShellDesign,tomoH,tomoJ,tomoLambdaCoefficient,tomoLambdaMin,tomoRadial,tomoMixing,tomoDegeneracy,tomoRatio,tomoRadiusFromRatio,tomoFisher,tomoCapFraction,tomoConfluentNull,tomoContaminationBound,tomoFlatLimit,TOMO_OBSTRUCTIONS})', ctx, { timeout: 20000 });
+const T = vm.runInContext(S + '\n({tomoBinom,TOMO_N,tomoRank,tomoNull,tomoRankBySector,tomoShellDesign,tomoH,tomoJ,tomoLambdaCoefficient,tomoLambdaMin,tomoRadial,tomoMixing,tomoDegeneracy,tomoRatio,tomoRadiusFromRatio,tomoFisher,tomoCapFraction,tomoConfluentNull,tomoContaminationBound,tomoFlatLimit,TOMO_OBSTRUCTIONS,tomoPrice})', ctx, { timeout: 20000 });
 
 /* ── Theorem 1 and 2: the rank bound and the null space ──────────────────── */
 ok('the band dimension is the paper`s N_j = (j+1)(j+2)(2j+3)/6, and it is zero below zero so the edges need no special case',
@@ -197,6 +197,20 @@ ok('the cap fraction is computed and is NOT used as an information fraction anyw
     T.TOMO_OBSTRUCTIONS.filter(o => !o.computable).length === 3 &&
     T.TOMO_OBSTRUCTIONS.every(o => o.what && o.effect && o.note),
     T.TOMO_OBSTRUCTIONS.map(o => o.id).join(', ') + ' — an unknown relative gain makes the observable b·g(R), and no precision in the ratio removes that');
+}
+
+/* ── and the price no estimator can avoid ─────────────────────────────────── */
+{
+  const p1 = T.tomoPrice(4, 1, 1.1, 0.01, 1), p2 = T.tomoPrice(4, 5, 1.1, 0.01, 1);
+  ok('A RANK STATEMENT SAYS WHICH DIRECTIONS ARE LOST AND NOT WHAT THAT COSTS. Where a null direction exists, two fields differing by it have identical data distributions, so for ANY estimator the larger of their two risks is at least the amplitude — and where q has reached L+1 nothing is null and the floor is returned as nothing rather than as a zero that reads like a bound',
+    p1.null_dimension === 30 && p1.estimator_floor === 1 &&
+    p2.null_dimension === 0 && p2.estimator_floor === null,
+    `at L = 4 one map leaves ${p1.null_dimension} null directions and the floor applies; five maps leave ${p2.null_dimension} and it does not`);
+  ok('and the resolved layer`s weakest direction carries a Cramér–Rao variance that grows as ε^(−2L), so the cost of injectivity is a number rather than an adjective',
+    Math.abs(T.tomoPrice(3, 1, 1.1, 0.02, 1).cramer_rao_weakest /
+             T.tomoPrice(3, 1, 1.1, 0.04, 1).cramer_rao_weakest - Math.pow(2, 6)) < 1e-6 &&
+    p1.growth_exponent === 8,
+    `halving the layer at L = 3 multiplies the weakest variance by ${(T.tomoPrice(3, 1, 1.1, 0.02, 1).cramer_rao_weakest / T.tomoPrice(3, 1, 1.1, 0.04, 1).cramer_rao_weakest).toFixed(1)}, which is two to the sixth`);
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
