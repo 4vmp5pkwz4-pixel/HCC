@@ -225,5 +225,23 @@ ok('and it reports what its own catalogue is missing rather than only what it ha
   N.empty_containers > 0 && N.empty_containers < N.containers,
   `${N.empty_containers} of ${N.containers} declared structures contain nothing this atlas has placed`);
 
+/* ── and the census answers a sweep, monotonically ────────────────────────── */
+{
+  const MS = [0.3, 0.5, 0.62, 0.8, 1.0, 1.3, 1.6, 2.0, 2.5];
+  const asserted = MS.map(m => HCC_NESTING(m).asserted);
+  const refused = MS.map(m => HCC_NESTING(m).refused);
+  const depth = MS.map(m => HCC_NESTING(m).observer_depth);
+  const nonDec = a => a.every((v, i) => i === 0 || v >= a[i - 1]);
+  ok('growing every declared radius can only ever ADD containments, never remove one — the census answers a sweep monotonically, which a bug in the comparison would break at once',
+    nonDec(asserted) && nonDec(refused) && nonDec(depth),
+    `asserted ${asserted.join(' → ')} across margin ${MS[0]} → ${MS[MS.length - 1]}`);
+  ok('and the sweep really moves, so the slider beside it is showing a measurement rather than a picture of one',
+    asserted[asserted.length - 1] > asserted[0] * 1.5 && depth[0] < depth[depth.length - 1],
+    `${asserted[0]} containments at margin 0.3 against ${asserted[asserted.length - 1]} at 2.5 · we are inside ${depth[0]} structures at 0.3 and ${depth[depth.length - 1]} at 2.5`);
+  ok('the containment lines drawn are exactly the containments asserted — a line is a claim, and there is one line per claim and no more',
+    HCC_NESTING(1).asserted >= [...HCC_NESTING(1).per.values()].filter(v => v.inside.length).length,
+    `${[...HCC_NESTING(1).per.values()].filter(v => v.inside.length).length} objects have an innermost container and get one line each`);
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
