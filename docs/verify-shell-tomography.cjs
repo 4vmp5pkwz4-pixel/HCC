@@ -143,5 +143,18 @@ ok('the cap fraction is computed and is NOT used as an information fraction anyw
   Math.abs(T.tomoCapFraction(Math.PI) - 1) < 1e-12 && !/cap_fraction[^;]*rank/.test(src),
   'f(π) = 1 · a volume fraction does not determine the rank or the singular values of a sky operator');
 
+/* ── and the verdict reaches every screen the atlas draws ─────────────────── */
+{
+  const built = (src.match(/screenSphere\(/g) || []).length - 1;   // minus the definition
+  ok('every observer-centred screen is collected as it is built, in the one constructor they all go through, so a shell added later cannot arrive without the verdict',
+    /SHELL_SCREENS\.push\(/.test(src) &&
+    /rows:\(\)=>rows\.concat\(shellTomographyRows\(selKey\)\)/.test(src) && built >= 6,
+    `${built} screens built through screenSphere, each one appending its own rank row`);
+  ok('and the JOINT bound over those screens is computed and refused in writing, which is a different thing from not computing it',
+    /joint_claimed:false/.test(src) && /joint_refusal:/.test(src) &&
+    /maps of different fields at different epochs/.test(src),
+    'they are maps of different fields at different epochs, not q maps of one field on one slice');
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
