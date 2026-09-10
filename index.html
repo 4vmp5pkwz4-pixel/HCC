@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="every-co-location-accounted-for-2026.09.10.9">
+<html lang="en" data-hcc-build="one-wall-one-shape-2026.09.10.10">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="every-co-location-accounted-for-2026.09.10.9">
+<meta name="hcc-build" content="one-wall-one-shape-2026.09.10.10">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.221.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.222.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.221.0';
-const HCC_BUILD='every-co-location-accounted-for-2026.09.10.9';
+const HCC_VERSION='4.222.0';
+const HCC_BUILD='one-wall-one-shape-2026.09.10.10';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -18574,7 +18574,7 @@ function catWorkerGet(){
 function catLoadDemo(){
   const spec=[];
   for(const s of COSMOS){ const p=COSMOS_POS.get(s.key); if(!p) continue;
-    const flat=s.type==='wall'?[1,0.5,0.35]:[1,1,1];
+    const flat=structureAxisRatio(s).ratio;
     spec.push({x:p.x,y:p.y,z:p.z,r:Math.max(s.size/2,0.06),fx:flat[0],fy:flat[1],fz:flat[2],
       hollow:s.type==='void',w:Math.max(s.size,0.05)}); }
   catWorkerGet().postMessage({type:'synth',spec,count:200000,seed:20260716,label:'synthetic demo (COSMOS-sampled)'});
@@ -19157,12 +19157,54 @@ function galaxyStars(s,r){
   }
   return grp;
 }
+/* ── A RENDERING CONSTANT IS NOT A SHAPE, AND THIS ONE WAS TWO ───────────────
+   Ten structures are typed 'wall', and every one of them was drawn flattened by the
+   same hard-coded triple. The triple was written in THREE places as 1 : 0.5 : 0.35
+   and in a FOURTH as 1 : 0.45 : 0.25 — so the same wall had one shape in the cosmic
+   atlas and a different shape in the solar frame, and nothing could notice, because
+   a reader never sees both at once.
+
+   The published dimensions of these structures are nothing like either triple. The
+   CfA2 Great Wall is 500 by 300 by 15 million light years, which is 1 : 0.6 : 0.03:
+   a sheet twenty times thinner than the convention drew it. The Local Sheet is about
+   10 by 10 by 1.5 megaparsecs. Those two are the only ones in the catalogue whose
+   three dimensions are published, and they are declared here with their source.
+
+   AND THE ORIENTATION IS STILL A CONVENTION, WHICH IS SAID RATHER THAN QUIETLY
+   FIXED. Declaring 500 : 300 : 15 and then laying it along the scene axes is a
+   measurement of the RATIO and an invention of the direction. The ratio is now
+   measured; the direction is not, and the census counts zero structures with an
+   asserted orientation so that nobody reads one out of the picture. What would
+   close that is a published position angle and inclination per structure, the way
+   the fifteen oriented galaxies already carry them. */
+const STRUCTURE_SHAPE_CONVENTION=Object.freeze([1,0.5,0.35]);
+const HCC_STRUCTURE_SHAPE=Object.freeze({
+  cfa2gw:{axes:[500,300,15], unit:'Mly',
+    source:'Geller & Huchra 1989 — 500 long, 300 wide, 15 thick'},
+  localsheet:{axes:[10,10,1.5], unit:'Mpc',
+    source:'Tully et al. 2008 — about 10 Mpc across and 1.5 Mpc thick'}});
+function structureAxisRatio(s){
+  const d=HCC_STRUCTURE_SHAPE[s.key];
+  if(d){ const m=Math.max(...d.axes);
+    return {ratio:d.axes.map(x=>x/m), kind:'measured', source:d.source}; }
+  if(s.type==='wall') return {ratio:STRUCTURE_SHAPE_CONVENTION.slice(), kind:'convention',
+    source:'no published thickness for this structure; the atlas draws every such wall with one declared flattening and asserts nothing by it'};
+  return {ratio:[1,1,1], kind:'round', source:'no elongation is asserted'};
+}
+globalThis.HCC_STRUCTURE_SHAPES=()=>{
+  const rows=COSMOS.map(s=>({key:s.key, type:s.type, ...structureAxisRatio(s)}));
+  const walls=rows.filter(r=>r.type==='wall');
+  return {walls:walls.length, measured:rows.filter(r=>r.kind==='measured').length,
+    convention:rows.filter(r=>r.kind==='convention').length,
+    orientationAsserted:0,
+    detail:rows.filter(r=>r.kind!=='round').map(r=>r.key+' '+r.kind+' ['+r.ratio.map(v=>v.toFixed(3)).join(', ')+']')};
+};
 const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map(), COSMOS_DUST=[];
 // Per-structure "dust" cloud: a realistic galaxy-density profile (denser core; voids = hollow shells),
 // scaled to each structure's true extent. Visualisation only — positions are not new measurements.
 function cosmicDust(s,r){
   const n=Math.min(2400,Math.max(260,Math.round(r*820))), isVoid=s.type==='void';
-  const flat = s.type==='wall' ? [1,0.5,0.35] : [1,1,1];
+  const flat = structureAxisRatio(s).ratio;
   const pos=new Float32Array(n*3), col=new Float32Array(n*3);
   const c0=new THREE.Color(s.col), c1=new THREE.Color(0xffffff);
   const seed=(s.key||'x').split('').reduce((a,c)=>(a*131+c.charCodeAt(0))|0,0x9e37), rng=mulberry(seed);
@@ -19220,7 +19262,10 @@ for(const s of COSMOS){
     const pts=[]; for(let k=0;k<=72;k++){const a=-1.0+k/72*2.0; pts.push(new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),0));}
     body=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:s.col,transparent:true,opacity:.9})); body.lookAt(new THREE.Vector3());
   } else if(s.type==='wall'){
-    body=new THREE.Mesh(new THREE.SphereGeometry(1,18,12), new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:(s.size>=0.8?.075:.16),depthWrite:false})); body.scale.set(r, r*0.5, r*0.35);
+    const sh=structureAxisRatio(s);
+    body=new THREE.Mesh(new THREE.SphereGeometry(1,18,12), new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:(s.size>=0.8?.075:.16),depthWrite:false}));
+    body.scale.set(r*sh.ratio[0], r*sh.ratio[1], r*sh.ratio[2]);
+    g.userData.axisRatio=sh.ratio; g.userData.axisKind=sh.kind;
   } else if(s.type==='void'){
     // underdensity / repeller: a dim hollow shell + dark interior — the visual grammar of ABSENCE,
     // deliberately distinct from the bright wireframes of overdensities.
@@ -19290,6 +19335,10 @@ for(const s of COSMOS){
         ? [['Disc orientation','inclination '+s.incl.toFixed(1)+'° · position angle '+s.pa.toFixed(0)+'° (north through east)'],
            ['Drawn as','oriented exponential disc at TRUE diameter · the pin is an angular marker, not a size']]
         : isGalaxy?[['Disc orientation','not declared — drawn round, and no shape is asserted']]:[]),
+      ...(s.type==='wall'?[(()=>{ const sh=structureAxisRatio(s);
+        return ['Drawn shape', sh.ratio.map(v=>v.toFixed(2)).join(' : ')+' — '+
+          (sh.kind==='measured'?'axis RATIO from published dimensions ('+sh.source+'); the ORIENTATION is still this atlas\u2019s convention and is not asserted'
+                               :sh.source)]; })()]:[]),
       ...nestingRows(s.key),
       ['Status',isGalaxy?(s.group==='Virgo Cluster'?'member drawn at the CLUSTER distance — its own redshift is dominated by peculiar velocity':'published position and distance'):s.reconstruction?'probabilistic velocity-field reconstruction':s.centroidKnown===false?'field midpoint / uncertain':'approximate extended-object centre'],
       ['Source',s.note] ],
@@ -20694,7 +20743,12 @@ COSMOS.forEach(s=>{
   const isCompact=s.type==='compact'||/black-hole|AGN|little red dot/i.test(s.type||'');
   const r=(isCompact?THREE.MathUtils.clamp(dist*.006,2e-6,.018):Math.max(s.size*.5,.012))*GLY_AU;
   const body=new THREE.Mesh(new THREE.SphereGeometry(1,20,12),new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:s.centroidKnown===false?.18:.3,depthWrite:false}));
-  body.scale.set(r,s.type==='wall'?r*.45:r,s.type==='wall'?r*.25:r);
+  /* ONE AUTHORITY, READ HERE TOO. This line held 1 : 0.45 : 0.25 while the cosmic
+     atlas held 1 : 0.5 : 0.35, so a wall changed shape when the reader changed
+     layer — the second value nobody could see beside the first. */
+  { const sh=structureAxisRatio(s);
+    body.scale.set(r*sh.ratio[0], r*sh.ratio[1], r*sh.ratio[2]);
+    g.userData.axisRatio=sh.ratio; g.userData.axisKind=sh.kind; }
   const dot=new THREE.Mesh(new THREE.SphereGeometry(isCompact?Math.max(r*.55,1.2e-6*GLY_AU):Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.85,depthWrite:false}));
   const labelText=s.key==='gr'?'Lopez GA / GR / BR field midpoint · uncertain'
     :`${s.name}${s.centroidKnown===false?' · field midpoint / uncertain':''}`;
@@ -54383,6 +54437,17 @@ selfTestLate(ok=>{
       cycPhaseInst.position.copy(keep); cycPhaseInst.updateWorldMatrix(true,false);
       return c<1e-6; }catch(e){ return false; } })(),
     'the web stands at ('+cycResonanceInst.position.toArray().join(', ')+') and cancelling that offset puts the torus at the world origin, which is where the phase frame points the camera');
+  ok('THE SAME WALL HAD TWO DIFFERENT SHAPES DEPENDING ON WHICH LAYER YOU LOOKED AT IT IN. Ten structures are typed `wall` and every one was flattened by a hard-coded triple — written in three places as 1 : 0.5 : 0.35 and in a fourth as 1 : 0.45 : 0.25 — so a wall changed shape when the reader changed frame, and nothing could notice, because nobody sees both at once. All four sites read one table now, and the two structures whose three dimensions are actually published carry their measured ratio instead: the CfA2 Great Wall is 1 : 0.6 : 0.03, a sheet twenty times thinner than the convention drew it',
+    (()=>{ try{ let same=0, checked=0;
+      for(const s2 of COSMOS){ if(s2.type!=='wall') continue;
+        const a=COSMOS_GROUPS.get(s2.key), b=(typeof solarCosmicObjects!=='undefined'?(solarCosmicObjects.find(o=>o.s.key===s2.key)||{}).g:null);
+        if(!a||!b||!a.userData.axisRatio||!b.userData.axisRatio) continue; checked++;
+        if(a.userData.axisRatio.every((v,i)=>Math.abs(v-b.userData.axisRatio[i])<1e-12)) same++; }
+      const sh=HCC_STRUCTURE_SHAPES();
+      return checked>0 && same===checked && sh.measured>=2 && sh.orientationAsserted===0; }catch(e){ return false; } })(),
+    (()=>{ try{ const sh=HCC_STRUCTURE_SHAPES();
+      return `${sh.walls} walls · ${sh.measured} carry an axis ratio from published dimensions, ${sh.convention} the declared convention · ${sh.orientationAsserted} assert an orientation, because declaring a ratio and then laying it along the scene axes measures the shape and invents the direction`;
+    }catch(e){ return String(e); } })());
   ok('AND THE CO-LOCATION CENSUS CAN NOW TELL A CATALOGUE FROM AN ACCIDENT, WHICH IS WHAT IT COULD NOT DO WHEN IT WAS WRITTEN. It counted eleven groups standing in the same place and could assert nothing from the number, because the groups it walked were anonymous and most co-locations in a catalogue are CORRECT. The discrimination needed no guessing in the end: every group whose position is computed from a declared right ascension, declination and distance now says so, and every instrument whose position is a hand-typed stage coordinate says that — both taken off declarations that already existed. EVERY ONE OF THE ELEVEN IS NOW ACCOUNTED FOR: seven are the catalogue speaking, four are a graph layout putting two markers on one point because two refusals join the same pair of nodes, and none is a collision. The ceiling on unidentified ones fell twelve to five to zero across three releases, and it fell by declaring where positions come from rather than by looking harder',
     (()=>{ try{ const p=HCC_PLACEMENT();
       return p.stageCollisions===0 && p.undeclaredCollisions===0 && p.declaredOrigin>=200; }catch(e){ return false; } })(),
