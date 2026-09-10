@@ -147,14 +147,14 @@ ok('every reason the rule can return is declared, with a sentence rather than a 
    two. Removing pole.Q's duplicate — a repair — lowered a floor that may only rise,
    which is what a floor over the wrong quantity does. These numbers are over KEYS
    and are not comparable to the ones before them; from here they move the one way. */
-const BUS_UNROUTED_CEILING = 167;
-const BUS_ROUTABLE_FLOOR = 103;
+const BUS_UNROUTED_CEILING = 165;   /* 167 → 165: the ladder declared the two Hubble constants it had been publishing */
+const BUS_ROUTABLE_FLOOR = 138;     /* 103 → 138 across the releases that gave publications contracts */
 /* AND THE DEBT IS THE ACCIDENTAL HALF ALONE. A publication refused by name with a
    written reason is finished work, not debt, and counting it with the merely
    undeclared ones lets the total fall for the wrong reason. This ceiling is over the
    publications that want a declaration and have not got one, and it is the number
    that actually has to reach zero. */
-const BUS_UNDECLARED_CEILING = 160;
+const BUS_UNDECLARED_CEILING = 158; /* 160 → 158, the same two */
 const unrouted = rows.length - routable;
 
 ok('every published key in the source is judged, none skipped',
