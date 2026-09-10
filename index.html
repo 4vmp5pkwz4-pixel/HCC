@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-ladder-declared-its-distances-2026.09.10.13">
+<html lang="en" data-hcc-build="what-a-sky-map-can-and-cannot-tell-you-2026.09.10.14">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-ladder-declared-its-distances-2026.09.10.13">
+<meta name="hcc-build" content="what-a-sky-map-can-and-cannot-tell-you-2026.09.10.14">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.225.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.226.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.225.0';
-const HCC_BUILD='the-ladder-declared-its-distances-2026.09.10.13';
+const HCC_VERSION='4.226.0';
+const HCC_BUILD='what-a-sky-map-can-and-cannot-tell-you-2026.09.10.14';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19302,6 +19302,165 @@ function hflowBusLine(){
     `The largest single departure is ${(+B.get('localflow.worst_residual')).toFixed(0)} km/s. `+
     `${B.get('localflow.galaxies_with_velocity')} catalogue entries carry a velocity.`;
 }
+/* ══ S³ SHELL TOMOGRAPHY ═══════════════════════════════════════════════════════
+   Preece & Batenin, "Field reconstruction and curvature identifiability from
+   spherical maps in a closed spatial geometry" (9 September 2026), implemented as
+   arithmetic rather than quoted as a result.
+
+   The atlas has drawn shells on a three-sphere since it began, and has never once
+   been able to say WHAT A SHELL CAN AND CANNOT TELL YOU. This laboratory answers
+   that in four exact statements, each of which is a computation here:
+
+     · q sky maps of a band-limited field leave exactly N(L−q) field directions
+       unidentifiable, whatever the maps are, so long as the observation commutes
+       with rotations about the observer. Angular resolution cannot buy radial
+       rank. L+1 distinct non-polar shells are necessary AND sufficient.
+     · There is a shell design that attains that minimum with every singular value
+       exactly one — the Gauss–Chebyshev nodes of the second kind, χ_j = jπ/(L+2).
+     · A resolved layer of half-width ε is injective, and pays for it: its weakest
+       squared singular value falls as ε^(2L), with a coefficient this file
+       computes in closed form and checks against the paper`s own table.
+     · A SINGLE MAP HAS ZERO FISHER INFORMATION ABOUT ITS OWN ANGULAR RADIUS once
+       an unrestricted positive band spectrum is profiled out — and TWO calibrated
+       shells recover the curvature radius from their highest sector alone, without
+       recovering the field and without knowing the band power.
+
+   Every number below is derived from the paper`s equations. Nothing is a fit and
+   nothing is a quoted result: the verifier reproduces the published coefficient
+   table to eight figures from these functions. */
+function tomoBinom(n,k){ if(k<0||k>n) return 0; let r=1;
+  for(let i=1;i<=k;i++) r=r*(n-k+i)/i; return Math.round(r); }
+/* N_j = (j+1)(j+2)(2j+3)/6, the dimension of the complete band through degree j,
+   and zero below zero — the convention the rank bound needs to stay exact at the
+   edges rather than special-cased there. */
+const TOMO_N=j=>j<0?0:(j+1)*(j+2)*(2*j+3)/6;
+function tomoRank(L,q){ return TOMO_N(L)-TOMO_N(Math.max(-1,L-q)); }
+function tomoNull(L,q){ return TOMO_N(Math.max(-1,L-q)); }
+/* the rank bound written as the paper writes it, sector by sector, so the two
+   forms can be compared rather than one being trusted */
+function tomoRankBySector(L,q){ let r=0;
+  for(let l=0;l<=L;l++) r+=(2*l+1)*Math.min(q,L-l+1); return r; }
+/* Gauss–Chebyshev of the second kind: L+1 shells, every singular value one */
+function tomoShellDesign(L){ const out=[];
+  for(let j=1;j<=L+1;j++){ const chi=j*Math.PI/(L+2);
+    out.push({j, chi, w:2/(L+2)*Math.sin(chi)*Math.sin(chi)}); }
+  return out; }
+/* h_L(1/2) from the leading Legendre coefficient, and J_L(c) in closed form —
+   neither needs a quadrature, which is the point of the paper`s appendix */
+function tomoH(L){ const c=tomoBinom(2*L,L); return Math.pow(2,2*L)/((2*L+1)*c*c); }
+function tomoJ(L,c){ let s2=0;
+  for(let r=0;r<=L;r++) s2+=tomoBinom(2*L,2*r)*Math.pow(c,2*L-2*r)*tomoBinom(2*r,r)/(Math.pow(4,r)*(r+1));
+  return s2; }
+function tomoLambdaCoefficient(L,chi0){
+  return Math.pow(Math.sin(chi0),2*L)*tomoH(L)/tomoJ(L,Math.cos(chi0)); }
+function tomoLambdaMin(L,chi0,eps){ return tomoLambdaCoefficient(L,chi0)*Math.pow(eps,2*L); }
+/* Gegenbauer by its three-term recurrence, and the exact normalisation of the
+   radial factor: r_nl(θ) = a_nl sin^l θ C^(l+1)_(n−l)(cos θ) */
+function tomoGegenbauer(k,alpha,t){
+  if(k<0) return 0; if(k===0) return 1; if(k===1) return 2*alpha*t;
+  let a=1,b=2*alpha*t;
+  for(let i=2;i<=k;i++){ const c=(2*t*(i+alpha-1)*b-(i+2*alpha-2)*a)/i; a=b; b=c; }
+  return b; }
+function tomoRadial(n,l,chi){
+  let lg=2*l*Math.LN2;                                    // ln 2^(2l)
+  for(let i=2;i<=n-l;i++) lg+=Math.log(i);                // (n−l)!
+  lg+=Math.log(n+1);
+  for(let i=2;i<=l;i++) lg+=2*Math.log(i);                // (l!)^2
+  for(let i=2;i<=n+l+1;i++) lg-=Math.log(i);              // (n+l+1)!
+  return Math.exp(lg/2)*Math.pow(Math.sin(chi),l)*tomoGegenbauer(n-l,l+1,Math.cos(chi)); }
+/* the mixing matrix M_ln(χ) = r_nl(χ)^2, upper triangular with positive diagonal,
+   which is exactly why the degeneracy below exists */
+function tomoMixing(L,chi){ const M=[];
+  for(let l=0;l<=L;l++){ const row=[];
+    for(let n=0;n<=L;n++) row.push(n<l?0:Math.pow(tomoRadial(n,l,chi),2));
+    M.push(row); }
+  return M; }
+function tomoSolveUpper(M,c){ const L=c.length-1, x=new Array(L+1).fill(0);
+  for(let i=L;i>=0;i--){ let s2=c[i];
+    for(let j=i+1;j<=L;j++) s2-=M[i][j]*x[j];
+    x[i]=s2/M[i][i]; }
+  return x; }
+/* THE DEGENERACY, COMPUTED RATHER THAN ASSERTED. Move the shell to χ and solve
+   M(χ)P(χ) = M(χ₀)P⁰. If every component stays positive, the whole Gaussian sky
+   distribution is unchanged and the Fisher information for χ is exactly zero. */
+function tomoDegeneracy(L,chi0,chi,P0){
+  const M0=tomoMixing(L,chi0), M=tomoMixing(L,chi);
+  const C0=M0.map(row=>row.reduce((a,v,i)=>a+v*P0[i],0));
+  const P=tomoSolveUpper(M,C0);
+  const C=M.map(row=>row.reduce((a,v,i)=>a+v*P[i],0));
+  let resid=0; for(let i=0;i<=L;i++) resid=Math.max(resid,Math.abs(C[i]-C0[i])/Math.max(1e-300,Math.abs(C0[i])));
+  return {P, C0, C, residual:resid, positive:P.every(v=>v>0)}; }
+/* TWO SHELLS, ONE RADIUS. g(R) = [sin(d2/R)/sin(d1/R)]^L is strictly decreasing in
+   the admissible branch, from κ^L at R→∞ down to 0 at R = d2/π, so the inversion is
+   a bisection with a guaranteed unique root rather than a fit. */
+function tomoRatio(R,d1,d2,L){ return Math.pow(Math.sin(d2/R)/Math.sin(d1/R),L); }
+function tomoRadiusFromRatio(g,d1,d2,L){
+  const kappa=d2/d1, target=Math.pow(g,1/L);
+  if(!(target>0&&target<kappa)) return null;               // outside the branch
+  let lo=1e-12, hi=Math.PI/kappa-1e-12;                    // x = d1/R
+  for(let i=0;i<200;i++){ const x=(lo+hi)/2;
+    const f=Math.sin(kappa*x)/Math.sin(x);
+    if(f>target) lo=x; else hi=x; }
+  return d1/((lo+hi)/2); }
+function tomoFisher(R,d1,d2,L,aNorm,s1,s2){
+  const g=tomoRatio(R,d1,d2,L), h=R*1e-6;
+  const gp=(tomoRatio(R+h,d1,d2,L)-tomoRatio(R-h,d1,d2,L))/(2*h);
+  const den=s2*s2+g*g*s1*s1;
+  return {g, gPrime:gp, I_g:aNorm*aNorm/den, I_R:gp*gp*aNorm*aNorm/den}; }
+/* the cap fraction the paper names explicitly as NOT an information fraction */
+function tomoCapFraction(chi){ return (chi-Math.sin(chi)*Math.cos(chi))/Math.PI; }
+/* Everything in this readout is computed at the settings the sliders are at, so a
+   reader moving them is not looking at a picture of a theorem — they are looking at
+   the theorem. */
+function tomoPanelText(){
+  const L=Math.max(0,Math.min(8,state.tomoL|0)), q=Math.max(1,state.tomoQ|0);
+  const eps=Math.pow(10,state.tomoEpsLog), T=HCC_SHELL_TOMOGRAPHY(L,q,state.tomoChi0,eps);
+  const lost=T.null_dimension;
+  const R2=tomoRadiusFromRatio(tomoRatio(10,3,6,Math.max(1,L)),3,6,Math.max(1,L));
+  return `Band <b>L = ${L}</b> holds <b>${T.band_dimension}</b> field directions. `+
+    `<b>${q}</b> sky map${q===1?'':'s'} of it can see <b>${T.rank}</b> of them and <b>${lost}</b> are lost — `+
+    `${lost===0?'nothing is lost, because q has reached L+1':'and no amount of angular resolution recovers one of them'}. `+
+    `<b>${L+1}</b> shells are necessary and sufficient.<br>`+
+    `A resolved layer of half-width <b>ε = ${eps.toExponential(1)}</b> IS injective, and pays for it: its weakest squared singular value is `+
+    `<b>${T.lambda_min.toExponential(2)}</b> — the coefficient ${T.lambda_coefficient.toExponential(3)} times ε<sup>${2*L}</sup> — so the inverse costs a condition number of <b>${T.condition_number.toExponential(2)}</b>.<br>`+
+    `Two calibrated shells at d₁ = 3 and d₂ = 6 recover a radius of <b>${R2==null?'—':R2.toFixed(6)}</b> from their highest sector alone, `+
+    `without the field and without the band power. And ONE map, at any resolution, has exactly zero information about its own radius once a free positive spectrum is profiled out.`;
+}
+function hccTomographyPublish(){
+  const T=HCC_SHELL_TOMOGRAPHY(4,1,1.1,0.01);
+  const R=tomoRadiusFromRatio(tomoRatio(10,3,6,4),3,6,4);
+  ATLAS_BUS.pub('tomography.band_dimension',T.band_dimension,'count','field directions in the complete band through degree L');
+  ATLAS_BUS.pub('tomography.rank',T.rank,'count','how many of them q sky maps can see');
+  ATLAS_BUS.pub('tomography.null_dimension',T.null_dimension,'count','and how many are lost whatever the maps are');
+  ATLAS_BUS.pub('tomography.shells_needed',T.shells_needed,'count','distinct non-polar shells that are necessary AND sufficient');
+  ATLAS_BUS.pub('tomography.lambda_coefficient',T.lambda_coefficient,'1','the leading coefficient of the weakest thin-layer mode');
+  ATLAS_BUS.pub('tomography.condition_number',T.condition_number,'1','what a resolved layer of that width costs to invert');
+  ATLAS_BUS.pub('tomography.two_shell_recovery_error',Math.abs(R/10-1),'1','the two-shell inversion reproducing the radius it was given');
+  return T;
+}
+/* Read back off the bus, in the panel of the laboratory whose whole subject is
+   which curvature radius the data allow. Full literal keys. */
+function tomoBusLine(){
+  const B=ATLAS_BUS, n=B.get('tomography.band_dimension'); if(n==null) return '';
+  return `ON THE BUS, at the reference setting L = 4, one map, χ₀ = 1.1, ε = 0.01: `+
+    `${n} field directions in the band, ${B.get('tomography.rank')} of them visible to one map, `+
+    `${B.get('tomography.null_dimension')} lost, ${B.get('tomography.shells_needed')} shells necessary and sufficient · `+
+    `weakest thin-layer coefficient ${(+B.get('tomography.lambda_coefficient')).toExponential(4)}, `+
+    `condition number ${(+B.get('tomography.condition_number')).toExponential(2)} · `+
+    `and the two-shell inversion returns the radius it was given to ${(+B.get('tomography.two_shell_recovery_error')).toExponential(1)}.`;
+}
+globalThis.HCC_SHELL_TOMOGRAPHY=(L,q,chi0,eps)=>{
+  L=L==null?4:L; q=q==null?1:q; chi0=chi0==null?1.1:chi0; eps=eps==null?0.01:eps;
+  const design=tomoShellDesign(L);
+  return {L, q, band_dimension:TOMO_N(L), rank:tomoRank(L,q), null_dimension:tomoNull(L,q),
+    rank_by_sector:tomoRankBySector(L,q),
+    shells_needed:L+1, design:design.map(d=>({chi:+d.chi.toFixed(6), w:+d.w.toFixed(6)})),
+    design_weight_sum:+design.reduce((a,d)=>a+d.w,0).toFixed(12),
+    lambda_coefficient:tomoLambdaCoefficient(L,chi0),
+    lambda_min:tomoLambdaMin(L,chi0,eps),
+    condition_number:1/Math.sqrt(tomoLambdaMin(L,chi0,eps)),
+    cap_fraction:tomoCapFraction(chi0)};
+};
 const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map(), COSMOS_DUST=[];
 // Per-structure "dust" cloud: a realistic galaxy-density profile (denser core; voids = hollow shells),
 // scaled to each structure's true extent. Visualisation only — positions are not new measurements.
@@ -23217,6 +23376,71 @@ function updateDrdDistance(dt){
    transform T(r) — a comparison language, never a topology theorem.
    ---------------------------------------------------------------- */
 const selGroup=new THREE.Group(); selGroup.visible=false; s3Group.add(selGroup);
+/* ── THE SHELL TOMOGRAPHY, DRAWN ────────────────────────────────────────────
+   The selector view has always asked WHICH radius the data allow. This draws what
+   a shell can and cannot see, at true angular position: a 2-sphere at angular
+   radius χ inside a three-sphere of radius R has embedding radius R sin χ, so the
+   shells swell to the equator and shrink again toward the antipode — which is why
+   a design that spaces them evenly in χ does NOT space them evenly in size, and
+   why the outermost shells of a high band are nearly on top of one another.
+
+   The shells shown are the Gauss–Chebyshev design: χ_j = jπ/(L+2), the unique
+   L+1 positions at which the observation is a perfect isometry. Their thickness
+   is their quadrature weight, so the picture carries the number.
+
+   Beneath them the kernel polynomial P_q(cos θ) = Π(cos θ − cos χ_j) is drawn as a
+   radial curve. Its ROOTS are the chosen shells, and the field directions that
+   die are exactly P_q times a band of degree L−q — so a reader sees the null space
+   as a curve touching zero at each shell rather than as a dimension count. */
+const tomoGroup=new THREE.Group(); tomoGroup.visible=false; selGroup.add(tomoGroup);
+let _tomoShells=[], _tomoCurve=null, _tomoLab=null, _tomoDirty=true;
+const TOMO_R_SCENE=6.2;
+function tomoBuild(){
+  for(const o of _tomoShells){ tomoGroup.remove(o.mesh); o.mesh.geometry.dispose(); if(o.lab) tomoGroup.remove(o.lab); }
+  _tomoShells=[];
+  const L=Math.max(0,Math.min(8,state.tomoL|0)), design=tomoShellDesign(L);
+  const wMax=Math.max(...design.map(d=>d.w));
+  for(const d of design){
+    /* embedding radius R sin χ — the shell's TRUE size inside the three-sphere,
+       not its coordinate χ, which is what makes the crowding at large L honest */
+    const r=TOMO_R_SCENE*Math.sin(d.chi);
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r,1e-3),30,18),
+      new THREE.MeshBasicMaterial({color:0x8fd0ff,wireframe:true,transparent:true,
+        opacity:0.10+0.28*(d.w/wMax),depthWrite:false}));
+    mesh.userData.noGrade=true; tomoGroup.add(mesh);
+    const lab=mkLabel(`χ${d.j} = ${(d.chi/Math.PI).toFixed(3)}π · w ${d.w.toFixed(3)}`,'label dim');
+    lab.position.set(0,r,0); tomoGroup.add(lab);
+    _tomoShells.push({mesh, lab, chi:d.chi, w:d.w});
+  }
+  /* the kernel polynomial, as a radial curve whose zeros ARE the shells */
+  const q=Math.max(1,Math.min(L+2,state.tomoQ|0)), used=design.slice(0,q);
+  const pts=[]; let pmax=1e-9;
+  const vals=[];
+  for(let i=0;i<=240;i++){ const th=Math.PI*i/240;
+    let p=1; for(const d of used) p*=(Math.cos(th)-Math.cos(d.chi));
+    vals.push({th,p}); pmax=Math.max(pmax,Math.abs(p)); }
+  /* plotted against the SHELL RADIUS, not against θ, so its zeros land exactly on
+     the drawn spheres: x = R sin θ is where the shell at χ = θ is, and the height is
+     the polynomial. A reader can lay a ruler from a zero of the gold curve to the
+     wireframe it touches. */
+  for(const v of vals){
+    pts.push(new THREE.Vector3(TOMO_R_SCENE*Math.sin(v.th), TOMO_R_SCENE*0.42*(v.p/pmax), 0));
+  }
+  if(_tomoCurve){ tomoGroup.remove(_tomoCurve); _tomoCurve.geometry.dispose(); }
+  _tomoCurve=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0xd4af6a,transparent:true,opacity:.85,depthWrite:false}));
+  _tomoCurve.userData.noGrade=true; tomoGroup.add(_tomoCurve);
+  if(_tomoLab) tomoGroup.remove(_tomoLab);
+  const T=HCC_SHELL_TOMOGRAPHY(L,q,state.tomoChi0,Math.pow(10,state.tomoEpsLog));
+  _tomoLab=mkLabel(`SHELL TOMOGRAPHY · band L=${L} holds ${T.band_dimension} directions · ${q} map${q===1?'':'s'} see ${T.rank} · ${T.null_dimension} are lost · ${L+1} shells are necessary and sufficient`,'label major');
+  _tomoLab.position.set(0,TOMO_R_SCENE*1.28,0); tomoGroup.add(_tomoLab);
+  _tomoDirty=false;
+}
+function updateTomography(){
+  tomoGroup.visible=!!state.tomoShow && state.mode==='s3' && state.s3view==='sel';
+  if(!tomoGroup.visible) return;
+  if(_tomoDirty) tomoBuild();
+}
 let selShells=[], selLight=null, selLightRim=null, selCore=null, selCoreGlow=null,
     selSigmaLab=null, selLightLab=null, selCoreLab=null, selScreenMark=null, selScreenLab=null,
     selUiAcc=0, selDirty=true;
@@ -54398,6 +54622,111 @@ try{ hccApiRegister({
   }
 }); }catch(e){}
 
+/* ══ AND THE PAPER, ASKABLE ════════════════════════════════════════════════════ */
+try{ hccApiRegister({
+  id:'tomography', world:'s3', lab:'sel',
+  title:['Shell tomography — what a sky map can and cannot tell you about a closed geometry',
+         'Томография оболочек — что карта неба может и чего не может сказать о замкнутой геометрии',
+         'Schalen-Tomographie — was eine Himmelskarte ueber eine geschlossene Geometrie sagen kann'],
+  status:'IMPLEMENTED FROM THE DERIVATIONS, NOT QUOTED FROM THE RESULT. Preece & Batenin, 9 September 2026. Every number here is computed from the paper`s equations by this atlas, and the verifier reproduces the paper`s own coefficient table to the last printed digit, its exact shell ranks for 0 <= L <= 8, its degeneracy test at chi = 0.9, and its two-shell inversion at d1 = 3, d2 = 6, R = 10.',
+  verifiers:['docs/verify-shell-tomography.cjs','docs/verify-bus-publications-are-routable.cjs'],
+  formulas:['N_j = (j+1)(j+2)(2j+3)/6, and zero below zero',
+            'rank <= N_L - N_(L-q) for any q rotation-equivariant scalar channels',
+            'ker B_q = P_q(cos theta) H_(<=L-q), with P_q the polynomial whose roots are the shells',
+            'Gauss-Chebyshev design chi_j = j pi/(L+2), w_j = 2 sin^2(chi_j)/(L+2): every singular value one',
+            'lambda_min ~ sin^(2L)(chi_0) h_L(w) / J_L(cos chi_0) * eps^(2L)',
+            'g(R) = [sin(d2/R)/sin(d1/R)]^L, strictly decreasing, so the radius is unique'],
+  inputs:[
+    {name:'band_L', type:'number', unit:'count', quantity_kind:'count',
+      default:()=>4, min:0, max:8,
+      doc:['the exact upper spectral edge. It is an ASSUMPTION about the field and not a consequence of compactness — compactness alone leaves infinitely many eigenmodes, and the paper says so before it uses the cutoff',
+           'точная верхняя граница спектра — это предположение о поле, а не следствие компактности',
+           'die exakte obere Spektralkante — eine Annahme, keine Folge der Kompaktheit']},
+    {name:'maps_q', type:'number', unit:'count', quantity_kind:'count',
+      default:()=>1, min:1, max:10,
+      doc:['how many sky maps are taken. Sweeping it is the theorem: the lost dimension is N(L-q) and reaches zero exactly at q = L+1, so the last shell that matters is the (L+1)th and the one after it buys nothing',
+           'сколько карт неба взято — потерянная размерность равна N(L−q) и обращается в ноль ровно при q = L+1',
+           'wie viele Himmelskarten genommen werden']},
+    {name:'layer_epsilon', type:'number', unit:'1', quantity_kind:'ratio',
+      default:()=>0.01, min:1e-4, max:0.3,
+      doc:['the half-width of a RESOLVED radial layer, which is injective where a single averaged map is not — and pays for it, because its weakest squared singular value falls as this to the power 2L',
+           'полуширина разрешённого радиального слоя: он инъективен, но слабейшее сингулярное число падает как ε^(2L)',
+           'die Halbbreite einer aufgeloesten radialen Schicht']},
+    {name:'shell_angle', type:'number', unit:'1', quantity_kind:'ratio',
+      default:()=>1.1, min:0.05, max:3.09,
+      doc:['the angular radius of that layer in radians, which is dimensionless. The paper`s own table is computed at 1.1',
+           'угловой радиус слоя в радианах — величина безразмерная; таблица статьи посчитана при 1.1',
+           'der Winkelradius der Schicht im Bogenmass']}],
+  outputs:[
+    {name:'band_dimension', unit:'count', quantity_kind:'count', doc:['field directions in the complete band','направлений поля в полной полосе','Feldrichtungen im vollen Band']},
+    {name:'rank', unit:'count', quantity_kind:'count', doc:['how many of them the maps can see','сколько из них видят карты','wie viele davon die Karten sehen']},
+    {name:'null_dimension', unit:'count', quantity_kind:'count', doc:['and how many are lost whatever the maps are','и сколько теряется при любых картах','und wie viele verloren gehen']},
+    {name:'shells_needed', unit:'count', quantity_kind:'count', doc:['distinct non-polar shells necessary AND sufficient','различных неполярных оболочек — необходимо И достаточно','notwendige und hinreichende Schalen']},
+    {name:'lambda_coefficient', unit:'1', quantity_kind:'ratio', doc:['the leading coefficient of the weakest thin-layer mode','ведущий коэффициент слабейшей моды тонкого слоя','der fuehrende Koeffizient der schwaechsten Mode']},
+    {name:'condition_number', unit:'1', quantity_kind:'ratio', doc:['what inverting a layer of that width costs','во сколько обходится обращение слоя такой ширины','was die Inversion kostet']},
+    {name:'two_shell_recovery_error', unit:'1', quantity_kind:'ratio', doc:['the two-shell inversion reproducing the radius it was given','обратная задача по двум оболочкам воспроизводит заданный радиус','die Zwei-Schalen-Inversion reproduziert den gegebenen Radius']}],
+  limits:[
+    ['THIS IS NOT A DETECTION OF SPATIAL CURVATURE AND NOT A DERIVATION OF COSMIC ACCELERATION. The paper says so in its own abstract and the atlas repeats it here. Every statement is conditional on a specified observation operator: complete angular coverage, a known common centre, values of one field on one spatial slice. Real maps lie on a past light cone and involve source evolution, line-of-sight integrals, lensing and selection, and those must be in a forward model before any observational use.',
+     'Это не обнаружение кривизны и не вывод космического ускорения: все утверждения условны при заданном операторе наблюдения.',
+     'Dies ist kein Nachweis von Kruemmung.'],
+    ['THE EXACT UPPER SPECTRAL EDGE IS AN ASSUMPTION AND IT IS LOAD-BEARING. If modes above L are present they contribute to the highest angular sector with different radial factors, and the common-vector relation the two-shell reconstruction rests on need not hold. An angular low-pass filter does NOT impose the three-dimensional cutoff. Neither a sharp cutoff nor its location has been established.',
+     'Точный верхний край спектра — несущее предположение; угловой фильтр его не обеспечивает.',
+     'Die exakte obere Spektralkante ist eine tragende Annahme.'],
+    ['A SINGLE MAP HAS EXACTLY ZERO LOCAL FISHER INFORMATION ABOUT ITS OWN ANGULAR RADIUS once an unrestricted positive band spectrum is profiled out, and there is a further exact antipodal ambiguity because M(pi - chi) = M(chi). This is a statement about a pure shell-value model on a fixed complete finite band. It is NOT a no-go theorem for curvature measurements using the actual microwave background, whose acoustic transfer functions, polarization and priors supply other structure.',
+     'Одна карта не несёт локальной информации о собственном радиусе, но это не запрет на измерение кривизны по реликтовому фону.',
+     'Eine einzelne Karte traegt keine lokale Information ueber ihren Radius.'],
+    ['AN ASSUMED VOLUME FRACTION IS NOT AN INFORMATION FRACTION, and the cap fraction is computed here only to say so. It does not determine the rank or the noise-conditioned singular values of a sky-transfer operator, and analytic continuation from an open volume does not imply continuation from one embedded two-sphere — the explicit kernel is a counterexample.',
+     'Доля объёма не есть доля информации, и шапочная доля вычисляется здесь только чтобы это сказать.',
+     'Ein Volumenanteil ist kein Informationsanteil.'],
+    ['THE PAPER IS A RESEARCH DRAFT WHOSE AUTHOR REVIEW IS OUTSTANDING, and its own verification section says so. What this atlas can assert is that its arithmetic reproduces the paper`s published numbers; it cannot and does not assert that the paper`s physical conclusions are correct.',
+     'Статья — исследовательский черновик, авторская проверка не завершена; атлас утверждает лишь воспроизводимость арифметики.',
+     'Das Papier ist ein Forschungsentwurf.']],
+  evaluate(inp){
+    const L=Math.max(0,Math.min(8,Math.round(inp.band_L)));
+    const q=Math.max(1,Math.round(inp.maps_q));
+    const T=HCC_SHELL_TOMOGRAPHY(L,q,inp.shell_angle,inp.layer_epsilon);
+    const Lr=Math.max(1,L), R=tomoRadiusFromRatio(tomoRatio(10,3,6,Lr),3,6,Lr);
+    return {band_dimension:T.band_dimension, rank:T.rank, null_dimension:T.null_dimension,
+      shells_needed:T.shells_needed, lambda_coefficient:T.lambda_coefficient,
+      condition_number:T.condition_number,
+      two_shell_recovery_error:R==null?1:Math.abs(R/10-1)};
+  }
+}); }catch(e){}
+
+selfTestLate(ok=>{
+  let T;
+  try{ T=hccTomographyPublish(); }catch(e){ ok('the shell tomography runs and reaches the bus',false,String(e&&e.message||e)); return; }
+  ok('THE ATLAS HAS DRAWN SHELLS ON A THREE-SPHERE SINCE IT BEGAN AND COULD NEVER SAY WHAT ONE SEES. Preece & Batenin`s rank bound, implemented rather than quoted: a band through degree L holds N_L directions, q sky maps of it leave exactly N(L−q) unidentifiable whatever the maps are, and angular resolution buys none of them back. Computed two independent ways — sector by sector, and as N_L minus N(L−q) — and the two agree for every case the paper checked',
+    (()=>{ let n=0,a=0; for(let L=0;L<=8;L++) for(let q=1;q<=L+2;q++){ n++; if(tomoRankBySector(L,q)===tomoRank(L,q)) a++; }
+      return n===a && tomoRank(4,1)===25 && tomoNull(4,1)===30 && TOMO_N(4)===55; })(),
+    `${TOMO_N(4)} directions at L = 4, one map sees ${tomoRank(4,1)} and ${tomoNull(4,1)} are lost · the two rank formulas agree on all 54 cases over 0 ≤ L ≤ 8`);
+  ok('and L+1 shells are necessary AND sufficient, with a design at which every singular value is exactly one — the Gauss–Chebyshev nodes of the second kind, whose weights this atlas computes and finds to sum to one',
+    [0,1,3,6,8].every(L=>tomoNull(L,L+1)===0 && (L===0||tomoNull(L,L)>0) &&
+      Math.abs(tomoShellDesign(L).reduce((a,d)=>a+d.w,0)-1)<1e-12),
+    `at L = 4 the shells are χ = ${tomoShellDesign(4).map(d=>(d.chi/Math.PI).toFixed(3)+'π').join(', ')} and their weights sum to ${tomoShellDesign(4).reduce((a,d)=>a+d.w,0).toFixed(12)}`);
+  ok('THE THIN-LAYER COEFFICIENT REPRODUCES THE PAPER`S OWN PRINTED TABLE, computed here from h_L and J_L in closed form with no quadrature anywhere — and at the equator with L = 1 it lands on the four-thirds the paper states in its text',
+    Math.abs(tomoLambdaCoefficient(1,1.1)-0.58091171)<5e-9 &&
+    Math.abs(tomoLambdaCoefficient(4,1.1)-0.0024629588)<5e-11 &&
+    Math.abs(tomoLambdaCoefficient(1,Math.PI/2)-4/3)<1e-12,
+    `c₁ = ${tomoLambdaCoefficient(1,1.1).toFixed(8)} against 0.58091171 printed, c₄ = ${tomoLambdaCoefficient(4,1.1).toExponential(8)} against 2.4629588e-3 · a resolved layer is injective and its weakest mode falls as ε^(2L)`);
+  ok('A SINGLE MAP HAS EXACTLY ZERO LOCAL INFORMATION ABOUT ITS OWN RADIUS, which is computed here rather than believed: move the shell, re-solve for the band powers, and the entire Gaussian sky covariance is unchanged with every power still positive. And the antipodal ambiguity M(π−χ) = M(χ) is left standing, because it is real',
+    (()=>{ let w=0,pos=true;
+      for(let L=1;L<=7;L++){ const P0=Array.from({length:L+1},(_,i)=>1/(1+i));
+        const d=tomoDegeneracy(L,0.9,0.90001,P0); w=Math.max(w,d.residual); if(!d.positive) pos=false; }
+      const a=tomoMixing(3,0.8), b=tomoMixing(3,Math.PI-0.8); let m=0;
+      for(let i=0;i<a.length;i++) for(let j=0;j<a.length;j++) m=Math.max(m,Math.abs(a[i][j]-b[i][j]));
+      return w<1e-9 && pos && m<1e-12; })(),
+    'covariance residual below 1e-9 for every band from 1 to 7 at the paper`s own χ = 0.9 and 0.90001, every compensating spectrum positive, and M(π−χ) equal to M(χ) to machine precision');
+  ok('AND TWO CALIBRATED SHELLS RECOVER THE CURVATURE RADIUS FROM THEIR HIGHEST SECTOR ALONE — without the field, without the band power, and without the realization coefficients. The paper`s own test, and the closed form at κ = 2 agrees with the monotone bisection that does not need one',
+    (()=>{ let w=0; for(const L of [1,2,4,7]){ const g=tomoRatio(10,3,6,L);
+        const back=tomoRadiusFromRatio(g,3,6,L); if(back==null) return false;
+        w=Math.max(w,Math.abs(back/10-1)); }
+      const g3=tomoRatio(10,3,6,3);
+      return w<1e-9 && Math.abs(3/Math.acos(Math.pow(g3,1/3)/2)/tomoRadiusFromRatio(g3,3,6,3)-1)<1e-9
+        && tomoRadiusFromRatio(Math.pow(2.5,2),3,6,2)===null; })(),
+    `d₁ = 3, d₂ = 6, R = 10 recovered to ${Math.abs(tomoRadiusFromRatio(tomoRatio(10,3,6,4),3,6,4)/10-1).toExponential(1)} at L = 4 · a ratio outside the branch is refused rather than fitted`);
+});
+
 /* ══ AND THE LADDER'S OWN NUMBER, MEASURED INSTEAD OF QUOTED ═══════════════════ */
 try{ hccApiRegister({
   id:'localflow', world:'obs', lab:'rungs',
@@ -72474,6 +72803,7 @@ const state = {
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
   nestingMargin:1, showNesting:true, nestingDepthColours:false,
+  tomoL:4, tomoQ:1, tomoShow:true, tomoEpsLog:-2, tomoChi0:1.1,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
   orbDen:1, orbPt:0.045, orbGlow:0.72,   // hydrogen-orbital cloud: density × / point size / glow
@@ -78704,6 +79034,19 @@ function buildCtlBody(){
       <div class="note" style="font-size:10.5px;color:var(--dim)">Tap any element on the SPHERICAL PERIODIC TABLE (latitude = period, longitude = group, colour = block: s gold · p blue · d violet · f teal). Nucleus R=1.2·A^⅓ fm with Z protons + (A−Z) neutrons; shells from the Aufbau configuration incl. every known ground-state exception (Cr, Cu, Nb–Pd, Ag, La–Ce, Gd, Pt, Au, Ac–Np, Cm, Lr); shell radii are Slater n²/Z_eff estimates — a declared model, not measurements. Filled subshells are drawn spherical (Unsöld's theorem). True scale is honest: the atom is ~10⁵ nuclei wide.</div>
     </div>`;
     else if(V==='sel') body = `
+    <div class="sect"><b>Shell tomography — what a sky map can and cannot tell you</b>
+      <div class="ctlrow"><label>Show shells</label><input type="checkbox" id="tomoShow" ${state.tomoShow!==false?'checked':''}></div>
+      <div class="ctlrow"><label>Band L</label><input type="range" id="tomoL" min="0" max="8" step="1" value="${state.tomoL}">
+        <span id="tomoLV" style="min-width:18px;text-align:right">${state.tomoL}</span></div>
+      <div class="ctlrow"><label>Maps q</label><input type="range" id="tomoQ" min="1" max="10" step="1" value="${state.tomoQ}">
+        <span id="tomoQV" style="min-width:18px;text-align:right">${state.tomoQ}</span></div>
+      <div class="ctlrow" title="Half-width of a resolved radial layer. Its weakest squared singular value falls as this to the power 2L."><label>Layer ε = 10^</label>
+        <input type="range" id="tomoEps" min="-4" max="-0.5" step="0.05" value="${state.tomoEpsLog}">
+        <span id="tomoEpsV" style="min-width:34px;text-align:right">${state.tomoEpsLog.toFixed(2)}</span></div>
+      <div class="note" id="tomoOut" style="font-variant-numeric:tabular-nums;font-size:11px">${tomoPanelText()}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">${tomoBusLine()}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Preece &amp; Batenin 2026, implemented as arithmetic rather than quoted. A band through degree L holds N_L = (L+1)(L+2)(2L+3)/6 directions; q sky maps of it, however they are made, leave exactly N_(L−q) of them unidentifiable so long as the observation commutes with rotations about the observer — angular resolution cannot buy radial rank. The shells drawn are the Gauss–Chebyshev design χ_j = jπ/(L+2), the unique L+1 positions at which the observation is a perfect isometry, drawn at their TRUE embedding radius R sin χ and thickened by their quadrature weight. The gold curve is the kernel polynomial, whose roots are the shells: the lost directions are exactly that polynomial times a band of degree L−q.</div>
+    </div>
     <div class="sect"><b>Curvature-input ledger — R_curv = c/(H₀√|Ω_K|)</b>
       <div class="chips">${SEL_LEDGER.map((L,i)=>`<button class="chip ${state.selLedger===i?'on':''}" data-selled="${i}">${L.key==='canon'?'★ 548.3 canonical':L.name.split('·')[0].trim()+' '+Math.round(L.R)+' Gly'}</button>`).join('')}</div>
       <div id="selLedOut" class="note" style="font-variant-numeric:tabular-nums;font-size:11.5px"></div>
@@ -80617,6 +80960,14 @@ function buildCtlBody(){
           (ELEM_FACTS[state.atZ-1]?`<br><span style="color:var(--dim)">${ELEM_FACTS[state.atZ-1]}</span>`:''); }
     }
     if(V==='sel'){
+      const tomoRefresh=()=>{ _tomoDirty=true; const o=ctl.querySelector('#tomoOut'); if(o)o.innerHTML=tomoPanelText(); };
+      ctl.querySelector('#tomoShow')&&(ctl.querySelector('#tomoShow').onchange=e=>{ state.tomoShow=e.target.checked; });
+      ctl.querySelector('#tomoL')&&(ctl.querySelector('#tomoL').oninput=e=>{ state.tomoL=+e.target.value;
+        const v=ctl.querySelector('#tomoLV'); if(v)v.textContent=state.tomoL; tomoRefresh(); });
+      ctl.querySelector('#tomoQ')&&(ctl.querySelector('#tomoQ').oninput=e=>{ state.tomoQ=+e.target.value;
+        const v=ctl.querySelector('#tomoQV'); if(v)v.textContent=state.tomoQ; tomoRefresh(); });
+      ctl.querySelector('#tomoEps')&&(ctl.querySelector('#tomoEps').oninput=e=>{ state.tomoEpsLog=+e.target.value;
+        const v=ctl.querySelector('#tomoEpsV'); if(v)v.textContent=state.tomoEpsLog.toFixed(2); tomoRefresh(); });
       ctl.querySelectorAll('[data-selled]').forEach(b=>b.onclick=()=>{ setCurvLedger(+b.dataset.selled); buildCtl(); });
       ctl.querySelector('#selDom').onchange=e=>{ state.selDomain=+e.target.value; selDirty=true; };
       ctl.querySelectorAll('[data-selsec]').forEach(b=>b.onclick=()=>{ state.selSector=b.dataset.selsec; selDirty=true; buildCtl(); });
@@ -89182,7 +89533,7 @@ function tickBody(now, frame){
     } else if(state.s3view==='drd'){
       updateDrd(dt);
     } else if(state.s3view==='sel'){
-      fbsAnimT+=dt; updateSel(dt);
+      fbsAnimT+=dt; updateSel(dt); updateTomography();
     } else if(state.s3view==='hopfion'){
       fbsAnimT+=dt; updateHopfion(dt);
     } else if(state.s3view==='skyrmion'){
