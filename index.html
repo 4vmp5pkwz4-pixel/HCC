@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-mass-of-everything-we-are-bound-to-2026.09.10.3">
+<html lang="en" data-hcc-build="the-nesting-made-interactive-2026.09.10.4">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-mass-of-everything-we-are-bound-to-2026.09.10.3">
+<meta name="hcc-build" content="the-nesting-made-interactive-2026.09.10.4">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.215.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.216.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.215.0';
-const HCC_BUILD='the-mass-of-everything-we-are-bound-to-2026.09.10.3';
+const HCC_VERSION='4.216.0';
+const HCC_BUILD='the-nesting-made-interactive-2026.09.10.4';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19392,8 +19392,9 @@ function nestingRows(key){
    atlas has placed inside nothing. Refused overlaps are NOT drawn — a line is a
    claim, and the whole discipline of the census is that those are not claims.
    One merged draw call, like the sightlines above it. */
-{
-  const N=HCC_NESTING(1), pos=[], col=[];
+let _nestingLines=null;
+function rebuildNestingLines(margin){
+  const N=HCC_NESTING(margin==null?1:margin), pos=[], col=[];
   for(const [k,v] of N.per){
     if(!v.inside.length) continue;
     const p = k==='observer' ? new THREE.Vector3() : COSMOS_POS.get(k);
@@ -19405,8 +19406,48 @@ function nestingRows(key){
   const ng=new THREE.BufferGeometry();
   ng.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
   ng.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
-  const nl=new THREE.LineSegments(ng,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.22,depthWrite:false}));
-  nl.userData.hccNesting=true; cosmosGroup.add(nl);
+  if(_nestingLines){ _nestingLines.geometry.dispose(); _nestingLines.geometry=ng; }
+  else{
+    _nestingLines=new THREE.LineSegments(ng,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.22,depthWrite:false}));
+    _nestingLines.userData.hccNesting=true; _nestingLines.userData.noGrade=true; cosmosGroup.add(_nestingLines);
+  }
+  _nestingLines.userData.segments=pos.length/6;
+  return N;
+}
+rebuildNestingLines(1);
+/* ── AND THE DEPTH, AS COLOUR ─────────────────────────────────────────────
+   The census returns a small whole number for every placed object — how many
+   declared structures contain it — and a small whole number is the one thing a
+   colour scale can carry without lying. Nothing is interpolated and nothing is
+   normalised: depth 0 is the cold grey of an object this atlas places inside
+   nothing, and each step up is a step warmer. Sweeping the margin beside it makes
+   the whole field breathe, and what breathes is a measurement. Restoring is exact
+   — every marker keeps its published colour and gets it back on toggle-off. */
+const NESTING_DEPTH_COLOURS=Object.freeze([0x5a6478,0x6f9ac4,0x8fd0b0,0xffd08a,0xffa060,0xff7a6a]);
+function applyNestingDepthColours(on,margin){
+  const N=on?HCC_NESTING(margin==null?1:margin):null;
+  for(const g of COSMOS_DUST){
+    const s=g.userData.s; if(!s) continue;
+    let col;
+    if(on){ const e=N.per.get(s.key);
+      col=new THREE.Color(NESTING_DEPTH_COLOURS[Math.min(e?e.depth:0,NESTING_DEPTH_COLOURS.length-1)]); }
+    else col=new THREE.Color(s.col);
+    g.traverse(o=>{ if(o.userData.noGrade) return;
+      if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); });
+  }
+}
+/* The live readout. Everything in it is measured at the margin the slider is at,
+   so a reader moving the slider is not looking at a picture of a census — they are
+   looking at the census. */
+function nestingPanelNote(margin){
+  const m=margin==null?1:margin, N=HCC_NESTING(m), o=N.per.get('observer');
+  const names=k=>{ const s=COSMOS.find(x=>x.key===k); return s?s.name:k; };
+  return `At margin <b>${m.toFixed(2)}</b>: <b>${N.asserted}</b> containments asserted, <b>${N.refused}</b> overlaps refused in writing, `+
+    `deepest nesting <b>${N.max_depth}</b> (${names(N.deepest)}), <b>${N.empty_containers}</b> of ${N.containers} structures holding nothing placed here. `+
+    `<b>We are inside ${o.depth===0?'nothing':o.depth===1?'one structure: '+names(o.inside[0].key):o.depth+' structures: '+o.inside.map(x=>names(x.key)).join(', ')}.</b> `+
+    (o.notAsserted.length?`${o.notAsserted.length} further sphere${o.notAsserted.length===1?'':'s'} reach${o.notAsserted.length===1?'es':''} us and ${o.notAsserted.length===1?'is':'are'} refused — `+
+      o.notAsserted.map(x=>names(x.key)+' ('+x.reason.replace(/_/g,' ')+')').join(' · ')+'. ':'')+
+    `Our own membership survives down to margin ${HCC_NESTING(1).observer_exit_margin.toFixed(3)} and no lower.`;
 }
 
 /* ── AND THE CENSUS CHECKS ITSELF AT BOOT ───────────────────────────────────
@@ -19438,6 +19479,10 @@ selfTestLate(ok=>{
   ok('a disc inclination and a position angle fix a disc in three dimensions, and the basis built from them is orthonormal — measured here, at both limits, rather than trusted',
     Math.abs(B.major.dot(B.normal))<1e-12 && Math.abs(faceOn.normal.dot(L)+1)<1e-12 && Math.abs(edgeOn.normal.dot(L))<1e-12,
     `M31 |major·normal| ${Math.abs(B.major.dot(B.normal)).toExponential(1)} · face-on normal·L ${faceOn.normal.dot(L).toFixed(12)} · edge-on ${edgeOn.normal.dot(L).toExponential(1)}`);
+  ok('AND THE CENSUS NOW ANSWERS A SWEEP, MONOTONICALLY, WHICH IS WHAT MAKES THE SLIDER BESIDE IT A MEASUREMENT RATHER THAN A PICTURE OF ONE. Growing every declared radius can only ever ADD a containment and never remove one, so the count must rise with the margin at every step, and a wrong comparison would break that at the first one',
+    (()=>{ const MS=[0.3,0.5,0.62,0.8,1,1.3,1.6,2,2.5], a=MS.map(m=>HCC_NESTING(m).asserted);
+      return a.every((v,i)=>i===0||v>=a[i-1]) && a[a.length-1]>a[0]*1.5; })(),
+    `asserted ${[0.3,0.5,0.8,1,1.6,2.5].map(m=>HCC_NESTING(m).asserted).join(' → ')} across margin 0.3 → 2.5 · we are inside ${HCC_NESTING(0.3).observer_depth} structures at 0.3 and ${HCC_NESTING(2.5).observer_depth} at 2.5`);
   ok('and the census reports what its own catalogue is missing, not only what it holds — most declared structures contain nothing this atlas has placed, which is a fact about the catalogue and never about the Universe',
     N.empty_containers>0 && N.empty_containers<N.containers,
     `${N.empty_containers} of ${N.containers} containers hold nothing placed here · deepest nesting ${N.max_depth} at ${N.deepest}`);
@@ -71734,6 +71779,7 @@ const state = {
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
   showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
+  nestingMargin:1, showNesting:true, nestingDepthColours:false,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
   orbDen:1, orbPt:0.045, orbGlow:0.72,   // hydrogen-orbital cloud: density × / point size / glow
@@ -74840,7 +74886,9 @@ function buildCtlBody(){
     </div>
     <div class="sect"><b>Cosmic Atlas · real structures (1 unit = 1 Gly)</b>
       <div class="ctlrow"><label>Show atlas</label><input type="checkbox" id="cosmosShow" ${cosmosGroup.visible?'checked':''}></div>
-      <div class="chips">${COSMOS.map(s=>`<button class="chip" data-cosmos="${s.key}" title="${s.name}">${({virgo:'Virgo',coma:'Coma',greatatt:'Great Attractor',laniakea:'Laniakea',shapley:'Shapley',vela:'Vela',sloan:'Sloan Wall',sloanboa:'Sloan BoA',gr:'Giant Ring',ga:'Giant Arc',br:'Big Ring',hcb:'HCB GRB overdensity',perseus:'Perseus-Pisces',hercules:'Hercules SC',bootes:'Boötes SC',pcf:'Pisces-Cetus',dipolerep:'Dipole Repeller',localvoid:'Local Void',bootesvoid:'Boötes Void',spw:'South Pole Wall',saraswati:'Saraswati',quipu:'Quipu ★',ngc4874:'NGC 4874',ngc4889:'NGC 4889',ngc4911:'NGC 4911',fornaxvoid:'Fornax Void',sculptorvoid:'Sculptor Void',capricornusvoid:'Capricornus Void',microscopiumvoid:'Microscopium Void',coronaborealisvoid:'Corona Borealis Void',canismajorvoid:'Canis Major Void',columbavoid:'Columba Void',eridanusvoid:'Eridanus Supervoid'})[s.key] || s.name}</button>`).join('')}</div>
+      <div class="chips">${COSMOS.filter(s=>s.type!=='galaxy').map(s=>`<button class="chip" data-cosmos="${s.key}" title="${s.name}">${({virgo:'Virgo',coma:'Coma',greatatt:'Great Attractor',laniakea:'Laniakea',shapley:'Shapley',vela:'Vela',sloan:'Sloan Wall',sloanboa:'Sloan BoA',gr:'Giant Ring',ga:'Giant Arc',br:'Big Ring',hcb:'HCB GRB overdensity',perseus:'Perseus-Pisces',hercules:'Hercules SC',bootes:'Boötes SC',pcf:'Pisces-Cetus',dipolerep:'Dipole Repeller',localvoid:'Local Void',bootesvoid:'Boötes Void',spw:'South Pole Wall',saraswati:'Saraswati',quipu:'Quipu ★',ngc4874:'NGC 4874',ngc4889:'NGC 4889',ngc4911:'NGC 4911',fornaxvoid:'Fornax Void',sculptorvoid:'Sculptor Void',capricornusvoid:'Capricornus Void',microscopiumvoid:'Microscopium Void',coronaborealisvoid:'Corona Borealis Void',canismajorvoid:'Canis Major Void',columbavoid:'Columba Void',eridanusvoid:'Eridanus Supervoid'})[s.key] || s.name}</button>`).join('')}</div>
+      <div class="note" style="color:var(--gold-2);margin-top:6px"><b>Galaxies — exact J2000 positions, true diameters</b></div>
+      <div class="chips">${COSMOS.filter(s=>s.type==='galaxy').map(s=>`<button class="chip" data-cosmos="${s.key}" title="${s.name} · ${s.morph||'morphology not declared'} · ${s.dMly<1?(s.dMly*1000).toFixed(0)+' kly':s.dMly+' Mly'}">${s.name.split(' · ')[0]}</button>`).join('')}</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Click a chip to fly to that structure; click its marker/label for distance, redshift &amp; size. Catalogue markers use registered sky directions and distance-scaled anchors in this observer-centred comoving atlas. The selection card can add a direction-from-origin reference in compatible Solar/Observable frames; it deliberately refuses incompatible S³/FBS projections. Observed + reconstruction data; not a topology claim.</div>
     </div>
     <div class="sect"><b>Structure rendering</b>
@@ -74848,6 +74896,15 @@ function buildCtlBody(){
       <div class="ctlrow" title="Technique of Ménard & Shtarkman's Map of the Observable Universe (JHU 2022): colour = distance"><label>Lookback colours (Map of the Universe)</label><input type="checkbox" id="lookbackCol" ${state.obsLookback?'checked':''}></div>
       <div class="ctlrow" title="The map famously ends at the wall of CMB light — Planck-palette ΔT mottling, exaggerated for visibility"><label>CMB wall on S²_LSS</label><input type="checkbox" id="cmbWall" ${state.obsCmbTex?'checked':''}></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Each structure as a galaxy-density dust cloud (denser core; voids = hollow shells), scaled to its published extent. Off = schematic wireframes. Lookback grading: blue-white nearby → gold mid-distance → red far field (display only; published colours restore on toggle-off). CMB wall: procedural Planck-palette anisotropies, ~10⁻⁵ fluctuations exaggerated — visualisation, not the measured a_ℓm.</div>
+    </div>
+    <div class="sect"><b>Nesting — what actually contains what</b>
+      <div class="ctlrow"><label>Containment lines</label><input type="checkbox" id="nestShow" ${state.showNesting!==false?'checked':''}></div>
+      <div class="ctlrow"><label>Colour by measured depth</label><input type="checkbox" id="nestCol" ${state.nestingDepthColours?'checked':''}></div>
+      <div class="ctlrow" title="A multiplier on every declared half-extent. The extents are the shakiest numbers in the catalogue, and this says how much of the nesting survives being wrong about them."><label>Radius margin</label>
+        <input type="range" id="nestMargin" min="0.3" max="2.5" step="0.01" value="${state.nestingMargin||1}">
+        <span id="nestMarginV" style="font-variant-numeric:tabular-nums;min-width:34px;text-align:right">${(state.nestingMargin||1).toFixed(2)}</span></div>
+      <div class="note" id="nestNote" style="font-size:10.5px">${nestingPanelNote(state.nestingMargin||1)}</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Each line runs from a placed object to the centre of the SMALLEST structure that contains it — |p − c| ≤ margin × R — computed in the one J2000 frame every marker is already in. A line is a claim, so refused overlaps are never drawn: a container that does not know its own centre, or a wall whose long half-extent swung round as a sphere reaches places the wall does not, is recorded with its reason instead. Depth colours are a small whole number and are not interpolated: cold grey = inside nothing, each step warmer = one more structure. Membership is a statement about positions and declared extents; it is not a binding-energy calculation.</div>
     </div>
     <div class="sect"><b>Laniakea / Cosmicflows reconstruction</b>
       <div class="ctlrow"><label>Flow streamlines</label><input type="checkbox" id="lanFlows" ${state.showLaniakeaFlows?'checked':''}></div>
@@ -74884,6 +74941,14 @@ function buildCtlBody(){
     ctl.querySelector('#cosDust').onchange=e=>{state.showCosmicDust=e.target.checked;updateCosmicDust();};
     ctl.querySelector('#lookbackCol').onchange=e=>{state.obsLookback=e.target.checked;applyLookbackColours(state.obsLookback);};
     ctl.querySelector('#cmbWall').onchange=e=>{state.obsCmbTex=e.target.checked;applyCmbWall(state.obsCmbTex);};
+    ctl.querySelector('#nestShow')&&(ctl.querySelector('#nestShow').onchange=e=>{ state.showNesting=e.target.checked; if(_nestingLines)_nestingLines.visible=e.target.checked; });
+    ctl.querySelector('#nestCol')&&(ctl.querySelector('#nestCol').onchange=e=>{ state.nestingDepthColours=e.target.checked; applyNestingDepthColours(e.target.checked,state.nestingMargin||1); });
+    ctl.querySelector('#nestMargin')&&(ctl.querySelector('#nestMargin').oninput=e=>{
+      const m=+e.target.value; state.nestingMargin=m;
+      rebuildNestingLines(m);
+      if(state.nestingDepthColours) applyNestingDepthColours(true,m);
+      const v=ctl.querySelector('#nestMarginV'); if(v)v.textContent=m.toFixed(2);
+      const n=ctl.querySelector('#nestNote'); if(n)n.innerHTML=nestingPanelNote(m); });
     ctl.querySelector('#lanFlows').onchange=e=>state.showLaniakeaFlows=e.target.checked;
     ctl.querySelector('#lanDens').oninput=e=>state.laniakeaFlowDensity=+e.target.value;
     ctl.querySelector('#lanSpeed').oninput=e=>state.laniakeaFlowSpeed=+e.target.value;
