@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="what-breaks-the-reconstruction-2026.09.10.17">
+<html lang="en" data-hcc-build="the-price-no-estimator-can-avoid-2026.09.10.18">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="what-breaks-the-reconstruction-2026.09.10.17">
+<meta name="hcc-build" content="the-price-no-estimator-can-avoid-2026.09.10.18">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.229.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.230.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.229.0';
-const HCC_BUILD='what-breaks-the-reconstruction-2026.09.10.17';
+const HCC_VERSION='4.230.0';
+const HCC_BUILD='the-price-no-estimator-can-avoid-2026.09.10.18';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -19428,6 +19428,34 @@ function tomoFisher(R,d1,d2,L,aNorm,s1,s2){
   const gp=(tomoRatio(R+h,d1,d2,L)-tomoRatio(R-h,d1,d2,L))/(2*h);
   const den=s2*s2+g*g*s1*s1;
   return {g, gPrime:gp, I_g:aNorm*aNorm/den, I_R:gp*gp*aNorm*aNorm/den}; }
+/* ── AND THE PRICE NO ESTIMATOR CAN AVOID ──────────────────────────────────
+   A rank statement says which directions are lost. It does not say what that
+   costs, and the two are not the same sentence. The paper closes the gap in one
+   step: for Gaussian noise of positive-definite covariance the Fisher matrix is
+   T*N⁻¹T, so its kernel IS the kernel of T. Take any unit null direction v and
+   any amplitude a — the fields u + av and u − av then have IDENTICAL data
+   distributions, and for ANY estimator the larger of their two mean squared
+   errors is at least a², because the average of two risks equals the risk about
+   their midpoint plus a². No cleverness removes it and no prior removes it
+   without adding information from outside.
+
+   The resolved layer has the companion statement. Its weakest direction carries
+   a Cramér–Rao variance of sigma squared over lambda_min, which therefore grows
+   as epsilon to the minus 2L: the layer is injective at every positive width and
+   the cost of that injectivity is a number, not an adjective. */
+function tomoPrice(L,q,chi0,eps,sigma){
+  const nul=tomoNull(L,q), lam=tomoLambdaMin(L,chi0,eps);
+  return {
+    null_dimension:nul,
+    /* per unit amplitude of a null direction; meaningless where nothing is null,
+       and returned as null there rather than as a zero that reads like a bound */
+    estimator_floor:nul>0?1:null,
+    cramer_rao_weakest:sigma*sigma/lam,
+    growth_exponent:2*L,
+    note:nul>0
+      ? 'two fields differing by a null direction of amplitude a are indistinguishable in distribution, so some estimator error is at least a — this is a floor on the WORST of the two risks and not an average'
+      : 'q has reached L+1: nothing is null, and this floor does not apply'};
+}
 /* ── WHAT BREAKS THE RECONSTRUCTION ────────────────────────────────────────
    The paper devotes a section to it, and an instrument that carries the positive
    results without the conditions under which they fail is worse than one that
@@ -19521,6 +19549,9 @@ function hccTomographyPublish(){
   ATLAS_BUS.pub('tomography.lambda_coefficient',T.lambda_coefficient,'1','the leading coefficient of the weakest thin-layer mode');
   ATLAS_BUS.pub('tomography.condition_number',T.condition_number,'1','what a resolved layer of that width costs to invert');
   ATLAS_BUS.pub('tomography.two_shell_recovery_error',Math.abs(R/10-1),'1','the two-shell inversion reproducing the radius it was given');
+  { const p=tomoPrice(4,1,1.1,0.01,1);
+    ATLAS_BUS.pub('tomography.cramer_rao_weakest',p.cramer_rao_weakest,'1','variance in the weakest resolved-layer direction at unit noise, which grows as the layer thins');
+    ATLAS_BUS.pub('tomography.estimator_floor',p.estimator_floor==null?0:p.estimator_floor,'1','the error no estimator avoids per unit amplitude of a null direction, and zero exactly when nothing is null'); }
   return T;
 }
 /* Read back off the bus, in the panel of the laboratory whose whole subject is
@@ -19532,7 +19563,9 @@ function tomoBusLine(){
     `${B.get('tomography.null_dimension')} lost, ${B.get('tomography.shells_needed')} shells necessary and sufficient · `+
     `weakest thin-layer coefficient ${(+B.get('tomography.lambda_coefficient')).toExponential(4)}, `+
     `condition number ${(+B.get('tomography.condition_number')).toExponential(2)} · `+
-    `and the two-shell inversion returns the radius it was given to ${(+B.get('tomography.two_shell_recovery_error')).toExponential(1)}.`;
+    `and the two-shell inversion returns the radius it was given to ${(+B.get('tomography.two_shell_recovery_error')).toExponential(1)} · `+
+    `the weakest resolved-layer direction carries a Cramér–Rao variance of ${(+B.get('tomography.cramer_rao_weakest')).toExponential(2)} at unit noise, `+
+    `and where a null direction exists no estimator does better than ${B.get('tomography.estimator_floor')} per unit of its amplitude.`;
 }
 /* ── THE ATLAS'S OWN SCREENS, COUNTED — AND THE CLAIM IT REFUSES TO MAKE ────
    Six observer-centred screens are drawn: the surface of last scattering, the
@@ -54856,7 +54889,9 @@ try{ hccApiRegister({
     {name:'shells_needed', unit:'count', quantity_kind:'count', doc:['distinct non-polar shells necessary AND sufficient','различных неполярных оболочек — необходимо И достаточно','notwendige und hinreichende Schalen']},
     {name:'lambda_coefficient', unit:'1', quantity_kind:'ratio', doc:['the leading coefficient of the weakest thin-layer mode','ведущий коэффициент слабейшей моды тонкого слоя','der fuehrende Koeffizient der schwaechsten Mode']},
     {name:'condition_number', unit:'1', quantity_kind:'ratio', doc:['what inverting a layer of that width costs','во сколько обходится обращение слоя такой ширины','was die Inversion kostet']},
-    {name:'two_shell_recovery_error', unit:'1', quantity_kind:'ratio', doc:['the two-shell inversion reproducing the radius it was given','обратная задача по двум оболочкам воспроизводит заданный радиус','die Zwei-Schalen-Inversion reproduziert den gegebenen Radius']}],
+    {name:'two_shell_recovery_error', unit:'1', quantity_kind:'ratio', doc:['the two-shell inversion reproducing the radius it was given','обратная задача по двум оболочкам воспроизводит заданный радиус','die Zwei-Schalen-Inversion reproduziert den gegebenen Radius']},
+    {name:'cramer_rao_weakest', unit:'1', quantity_kind:'ratio', doc:['the variance in the weakest resolved-layer direction at unit noise','дисперсия в слабейшем направлении разрешённого слоя при единичном шуме','die Varianz in der schwaechsten Richtung']},
+    {name:'estimator_floor', unit:'1', quantity_kind:'ratio', doc:['the error no estimator avoids per unit amplitude of a null direction, and zero exactly when nothing is null','ошибка, которой не избежит никакая оценка на единицу амплитуды нулевого направления','der Fehler, den kein Schaetzer vermeidet']}],
   limits:[
     ['THIS IS NOT A DETECTION OF SPATIAL CURVATURE AND NOT A DERIVATION OF COSMIC ACCELERATION. The paper says so in its own abstract and the atlas repeats it here. Every statement is conditional on a specified observation operator: complete angular coverage, a known common centre, values of one field on one spatial slice. Real maps lie on a past light cone and involve source evolution, line-of-sight integrals, lensing and selection, and those must be in a forward model before any observational use.',
      'Это не обнаружение кривизны и не вывод космического ускорения: все утверждения условны при заданном операторе наблюдения.',
@@ -54881,7 +54916,9 @@ try{ hccApiRegister({
     return {band_dimension:T.band_dimension, rank:T.rank, null_dimension:T.null_dimension,
       shells_needed:T.shells_needed, lambda_coefficient:T.lambda_coefficient,
       condition_number:T.condition_number,
-      two_shell_recovery_error:R==null?1:Math.abs(R/10-1)};
+      two_shell_recovery_error:R==null?1:Math.abs(R/10-1),
+      ...(()=>{ const p=tomoPrice(L,q,inp.shell_angle,inp.layer_epsilon,1);
+        return {cramer_rao_weakest:p.cramer_rao_weakest, estimator_floor:p.estimator_floor==null?0:p.estimator_floor}; })()};
   }
 }); }catch(e){}
 
@@ -54914,6 +54951,12 @@ selfTestLate(ok=>{
       return C.screens>=6 && C.per_shell_rank===tomoRank(C.band_L,1) && shellTomographyRows(C.names[0]).length===1; }catch(e){ return false; } })(),
     (()=>{ try{ const C=HCC_SHELL_CENSUS();
       return `${C.screens} screens · each sees ${C.per_shell_rank} of ${C.band_dimension} directions at L = ${C.band_L} and loses ${C.per_shell_lost} · ${C.shells_that_would_suffice} would suffice`; }catch(e){ return String(e); } })());
+  ok('AND A RANK STATEMENT SAYS WHICH DIRECTIONS ARE LOST, NOT WHAT THAT COSTS — so the atlas now says both. For Gaussian noise the Fisher matrix is T*N⁻¹T, so its kernel IS the kernel of T: two fields differing by a null direction of amplitude a have identical data distributions, and for ANY estimator the larger of their two risks is at least a. Where q has reached L+1 nothing is null, and the floor is returned as nothing rather than as a zero that would read like a bound',
+    (()=>{ try{ const p1=tomoPrice(4,1,1.1,0.01,1), p2=tomoPrice(4,5,1.1,0.01,1);
+      return p1.null_dimension===30 && p1.estimator_floor===1 && p2.null_dimension===0 && p2.estimator_floor===null
+        && Math.abs(tomoPrice(3,1,1.1,0.02,1).cramer_rao_weakest/tomoPrice(3,1,1.1,0.04,1).cramer_rao_weakest-64)<1e-6;
+    }catch(e){ return false; } })(),
+    `at L = 4 one map leaves 30 null directions and the floor applies, five maps leave none and it does not · halving a layer at L = 3 multiplies the weakest Cramér–Rao variance by ${(tomoPrice(3,1,1.1,0.02,1).cramer_rao_weakest/tomoPrice(3,1,1.1,0.04,1).cramer_rao_weakest).toFixed(0)}, which is two to the sixth`);
   ok('AND THE ATLAS CARRIES WHAT BREAKS THE RECONSTRUCTION, NOT ONLY WHAT IT ACHIEVES. A jet is worth shells exactly — orders 0 through s−1 at ONE radius impose a root of multiplicity s and lose the same N(L−s) directions that s distinct shells would. The leakage bound is the paper`s and refuses to return a number where the identity gives none. The nearly-flat expansion is checked by its own departure, which scales as K² across four decades. And the three obstructions that are NOT computable — an unknown relative gain, source evolution, distances obtained by assuming the curvature under test — are DECLARED, because an instrument that carries the positive results without the conditions under which they fail is worse than one that carries neither',
     (()=>{ try{ let n=0,a=0;
       for(let L=0;L<=6;L++) for(let k=1;k<=L+2;k++){ n++;
