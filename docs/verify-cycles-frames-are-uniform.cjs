@@ -40,9 +40,17 @@ ok('and nothing hides the entire cycGroup to show one frame',
   !/function hccButterflySyncVisibility/.test(src)
   && !/cycGroup\.visible=state\.mode==='cyc'&&!active/.test(src),
   'that was a second authority over a fact the declaration table owns');
-ok('the declaration table is what makes it visible, as for every other instrument',
-  /\{name:'cycButterflyExplorerInst', frames:\['butterfly-explorer'\]/.test(src),
-  'one list, thirteen frames, no exceptions');
+/* Pinned to the invariant rather than to the exact contents of the array: the
+   explorer must be IN the one declaration table and its own frame must be among
+   the frames that show it. Requiring the array to read exactly ['butterfly-explorer']
+   went red the day a combined stage was declared on every instrument — correct code,
+   red check, which is the failure mode this file exists to prevent one level up. */
+{
+  const row = (src.match(/\{name:'cycButterflyExplorerInst',\s*frames:\[([^\]]*)\]/) || [])[1];
+  ok('the declaration table is what makes it visible, as for every other instrument',
+    !!row && /'butterfly-explorer'/.test(row),
+    row ? `frames: [${row}] — one list, no exceptions` : 'no cycButterflyExplorerInst row in the table at all');
+}
 
 const ctlBranch = /else if\(state\.mode==='cyc'&&state\.cycFrame==='butterfly-explorer'\)\{\s*\n\s*ctl\.innerHTML=/.test(src);
 ok('the control panel is BUILT THE SAME WAY for all thirteen frames',
