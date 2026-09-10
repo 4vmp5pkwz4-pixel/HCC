@@ -24,8 +24,12 @@ ok('linked object is globally selectable and focusable', /registerSel\(['"]cycLi
    instrument is a declaration now, and the visibility is assigned from it. The
    invariant is unchanged — the linked view belongs to the linked frame and the
    cycles loop drives it — so it is asserted against the declaration. */
+/* AND IT WAS STILL PINNED TO THE PUNCTUATION OF THE ARRAY, not to what the array
+   means. Requiring it to read exactly ['linked'] went red the day a combined stage
+   was declared on every instrument — correct code, red check. The invariant is that
+   'linked' is AMONG the frames that show it. */
 ok('the linked view is declared to the linked frame, and the Cycles loop drives it from that',
-   /\{name:'cycLinkedInst',\s*frames:\['linked'\]/.test(s)
+   /\{name:'cycLinkedInst',\s*frames:\[[^\]]*'linked'[^\]]*\]/.test(s)
    && /for\(const d of CYC_FRAME_INSTRUMENTS\) d\.obj\.visible = d\.frames\.includes\(frame\);/.test(s)
    && /if\(cycLinkedInst\.visible\) updateCycLinkedView\(\);/.test(s));
 /* ── A PROXIMITY ASSERTION IS NOT AN INVARIANT ───────────────────────────────

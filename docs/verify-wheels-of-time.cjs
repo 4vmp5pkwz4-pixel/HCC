@@ -87,9 +87,18 @@ ok('and the atlas claims no borrowing and no astronomy from it',
   'neither claim is in evidence here, and the file says so where a reader will meet it');
 
 /* ── it is an instrument of the frame system, not a loose group ───────────── */
-ok('the wheels are declared in the frame table that governs visibility',
-  /\{name:'cycWheelsInst',\s*frames:\['wheels'\]/.test(src),
-  'so the frame cannot open wearing another instrument’s furniture');
+/* PINNED TO THE INVARIANT, NOT TO THE PUNCTUATION. This required the frames array
+   to read exactly ['wheels'], so it went red the day a combined stage was added that
+   legitimately shows every instrument — correct code, red check, which is worse than
+   no check. What matters is that the wheels are IN the table and that the wheels
+   frame is one of the frames that shows them. */
+{
+  const row = (src.match(/\{name:'cycWheelsInst',\s*frames:\[([^\]]*)\]/) || [])[1];
+  ok('the wheels are declared in the frame table that governs visibility, and the wheels frame is one of the frames that shows them',
+    !!row && /'wheels'/.test(row),
+    row ? `frames: [${row}] — so the frame cannot open wearing another instrument’s furniture`
+        : 'no cycWheelsInst row in CYC_FRAME_INSTRUMENTS at all');
+}
 ok('and the frame FRAMES itself and returns, as every other branch does',
   /const p=cycWheelsInst\.position;[\s\S]{0,320}?setControlDistanceLimits\(9,\d+\);[\s\S]{0,60}?return;/.test(src),
   'the first draft set a camera without returning and the default overwrote it');
