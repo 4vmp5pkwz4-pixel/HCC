@@ -57,7 +57,10 @@ const occurrences=k=>{
 const pubCount=k=>pubs.filter(x=>x===k).length;
 const orphans=keys.filter(k=>occurrences(k)<=pubCount(k));
 
-const CEILING=123;   /* 200 → 177 → 151 → 123, as the thread was given families that read them */
+const CEILING=116;   /* 200 → 177 → 151 → 123 → 116, as the thread was given families that read them.
+                        The last step was not new readers: the ceiling had been sitting seven above
+                        the measured number, and a ceiling with slack in it is a ceiling that lets the
+                        next seven orphans through unremarked. It is pulled down onto the measurement. */
 console.log('\nQUANTITY BUS — WHO READS WHAT');
 console.log('  published keys ......... '+keys.length);
 console.log('  read somewhere ......... '+(keys.length-orphans.length));
