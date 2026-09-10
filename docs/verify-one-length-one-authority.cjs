@@ -8,16 +8,17 @@
  * a scale is "about the size of". COSMOS is the catalogue that draws the real
  * structures at real positions. Seventeen subjects appear in two of them at once.
  *
- * Eleven agreed to within two per cent, ten of them to within half — which is the
- * whole argument, because a number typed twice and agreeing today is a number that
- * can disagree tomorrow with nothing in the atlas to notice. Six did not:
+ * Thirteen agreed to within two per cent, eleven of them to within half — which is
+ * the whole argument, because a number typed twice and agreeing today is a number
+ * that can disagree tomorrow with nothing in the atlas to notice. Seven did not:
  *
  *   · the South Pole Wall, out by 1.0570 — exactly 10²⁵ divided by 9.4607×10²⁴,
  *     which is 1.37 gigalightyears converted with a ROUND gigalightyear;
  *   · Laniakea, out by 0.508 — a radius written where a diameter was meant, with
  *     two authorities against one saying so;
- *   · Virgo, Coma, the Great Attractor and Shapley, each one authority against
- *     one, measuring genuinely different things under one name.
+ *   · Virgo, Coma, the Great Attractor, Shapley and the Local Supercluster, each
+ *     one authority against one, measuring genuinely different things under one
+ *     name.
  *
  * This runs the reconciliation out of index.html and checks all of it: that the
  * gaps were what they were, that the provable two were repaired, that the four
@@ -88,16 +89,16 @@ ok('and a ROUND ten-to-the-twenty-five would have been 5.70% too large — which
 /* ── the census ───────────────────────────────────────────────────────────── */
 ok('every declared pairing resolves to a row that actually exists in the table it names',
   R.unfound === 0 && R.pairs === PAIRS.length, `${R.pairs} pairings, ${R.unfound} unresolved`);
-const PAIR_FLOOR = 17, DERIVED_FLOOR = 13;
+const PAIR_FLOOR = 20, DERIVED_FLOOR = 15;
 ok('the number of subjects known to be stated twice is at or above its floor, and the floor only rises',
   R.pairs >= PAIR_FLOOR, `${R.pairs} shared subjects against floor ${PAIR_FLOOR}`);
 ok('the number of rows that no longer hold a typed length is at or above its floor',
   R.derived >= DERIVED_FLOOR, `${R.derived} derived from one authority, ${R.declared} disagreements declared`);
 const agree = t => R.rows.filter(r => r.found !== false && Math.abs(r.ratio - 1) <= t).length;
-ok('ten of the seventeen agreed to within half a per cent before anything was touched, and eleven within two — the reason to do this at all',
-  agree(0.005) === 10 && agree(0.02) === 11,
+ok('eleven of the twenty agreed to within half a per cent before anything was touched, and thirteen within two — the reason to do this at all',
+  agree(0.005) === 11 && agree(0.02) === 13,
   `${agree(0.005)} agree at 0.5%, ${agree(0.02)} at 2%, ${agree(0.5)} at 50% — and the two repairs bring the derived rows to ${R.derived}`);
-ok('and the six that did not are not all inside until the tolerance is loosened past eighty per cent, which is how a definition is told from a rounding',
+ok('and the seven that did not are not all inside until the tolerance is loosened past eighty per cent, which is how a definition is told from a rounding',
   agree(0.5) < R.pairs && agree(0.85) === R.pairs,
   `all ${R.pairs} only agree once 85% is called agreement`);
 
@@ -116,8 +117,8 @@ ok('the widest gap closed is that one, and it is named rather than reported as a
 
 /* ── the four that were LEFT ──────────────────────────────────────────────── */
 const LEFT = PAIRS.filter(p => !p.derive);
-ok('four disagreements are left standing, and every one of them carries a written reason',
-  LEFT.length === 4 && LEFT.every(p => typeof p.reason === 'string' && p.reason.length > 60),
+ok('five disagreements are left standing, and every one of them carries a written reason',
+  LEFT.length === 5 && LEFT.every(p => typeof p.reason === 'string' && p.reason.length > 60),
   LEFT.map(p => p.row).join(' · '));
 ok('the widest gap LEFT is wider than the widest gap closed, which is the point of leaving it',
   R.worst_declared > R.worst_healed && /Shapley/.test(R.worst_declared_row),
@@ -125,25 +126,53 @@ ok('the widest gap LEFT is wider than the widest gap closed, which is the point 
 ok('Shapley is out by a factor no radius-and-diameter confusion produces, so it is not treated as one',
   rowOf('Shapley concentration').ratio < 0.25,
   `ratio ${rowOf('Shapley concentration').ratio.toFixed(4)} — the ladder holds the dense core, the catalogue the whole complex`);
+/* Looked up in the table each row actually lives in. Written against PHI_ATLAS
+   alone, this passed for four releases and went red the first time a disagreement
+   was left in the comparator instead — a check that can only see one of the two
+   places it is about. */
 ok('and every row that was left keeps the number it had — nothing was quietly nudged toward agreement',
   LEFT.every(p => {
-    const before = BEFORE_PHI.flatMap(([, rows]) => rows).find(r => r[0] === p.row);
-    const after = PHI_ATLAS.flatMap(([, rows]) => rows).find(r => r[0] === p.row);
-    return before && after && before[1] === after[1];
-  }), `${LEFT.length} rows untouched to the last digit`);
+    const before = p.table === 'PHI_ATLAS'
+      ? BEFORE_PHI.flatMap(([, rows]) => rows).find(r => r[0] === p.row)
+      : BEFORE_REFS.find(r => r[1] === p.row);
+    const after = p.table === 'PHI_ATLAS'
+      ? PHI_ATLAS.flatMap(([, rows]) => rows).find(r => r[0] === p.row)
+      : SCALE_REFS.find(r => r[1] === p.row);
+    const bv = p.table === 'PHI_ATLAS' ? before && before[1] : before && before[0];
+    const av = p.table === 'PHI_ATLAS' ? after && after[1] : after && after[0];
+    return bv != null && bv === av;
+  }), `${LEFT.length} rows untouched to the last digit, across both tables`);
 
 /* ── and the repaired rows cannot drift again ─────────────────────────────── */
-ok('every derived row now equals its authority exactly, so the two can never disagree again',
-  PAIRS.filter(p => p.derive).every(p => {
-    const after = p.table === 'PHI_ATLAS'
-      ? PHI_ATLAS.flatMap(([, rows]) => rows).find(r => r[0] === p.row)[1]
-      : SCALE_REFS.find(r => r[1] === p.row)[0];
-    const authority = p.cosmos ? built.COSMOS.find(x => x.key === p.cosmos).size * GLY
-      : p.derived === 's3_radius' ? S3.R * GLY
+/* Every lookup here is guarded, and that is not defensiveness for its own sake: a
+   mutation that DELETED a paired structure from the catalogue made this throw
+   instead of going red, and a check that crashes tells a reader less than one that
+   names what is missing. The failures that came before it were correct; this one
+   was silent. */
+{
+  const missing = [];
+  const equal = PAIRS.filter(p => p.derive).every(p => {
+    const row = p.table === 'PHI_ATLAS'
+      ? PHI_ATLAS.flatMap(([, rows]) => rows).find(r => r[0] === p.row)
+      : SCALE_REFS.find(r => r[1] === p.row);
+    if (!row) { missing.push(`row "${p.row}" absent from ${p.table}`); return false; }
+    const after = p.table === 'PHI_ATLAS' ? row[1] : row[0];
+    let authority = null;
+    if (p.cosmos) {
+      const c = built.COSMOS.find(x => x.key === p.cosmos);
+      if (!c) { missing.push(`catalogue key "${p.cosmos}" absent from COSMOS`); return false; }
+      authority = c.size * GLY;
+    } else authority = p.derived === 's3_radius' ? S3.R * GLY
       : p.derived === 's3_antipode' ? S3.Dcausal * GLY
       : p.derived === 's3_circumference' ? S3.Circ * GLY : C_DH_GLY * GLY;
-    return after === authority;
-  }), `${R.derived} rows equal to their authority to the last bit, not to a tolerance`);
+    if (after !== authority) { missing.push(`"${p.row}" holds ${after} against authority ${authority}`); return false; }
+    return true;
+  });
+  ok('every derived row now equals its authority exactly, so the two can never disagree again',
+    equal, equal
+      ? `${R.derived} rows equal to their authority to the last bit, not to a tolerance`
+      : missing.slice(0, 3).join(' · '));
+}
 
 /* ── a repaired length reorders a ladder, and that must stay true ─────────── */
 ok('every group of the ladder still ascends after the repair, because the ordering is recomputed from the values',
