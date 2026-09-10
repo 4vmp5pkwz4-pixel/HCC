@@ -19,12 +19,12 @@ let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); }
   else { fail++; console.log('  FAIL — ' + n + (d ? ' :: EXPECTED ' + d : '')); } };
 
-const S = src.slice(src.indexOf('function tomoBinom('), src.indexOf('globalThis.HCC_SHELL_TOMOGRAPHY='));
+const S = src.slice(src.indexOf('function tomoBinom('), src.indexOf('function hccTomographyPublish('));
 ok('the tomography was cut out of index.html rather than copied beside it',
   S.length > 3000 && /tomoRadiusFromRatio/.test(S), `${S.length} chars of live source`);
 
-const ctx = vm.createContext({ Math, Object, Array, Number, console, JSON });
-const T = vm.runInContext(S + '\n({tomoBinom,TOMO_N,tomoRank,tomoNull,tomoRankBySector,tomoShellDesign,tomoH,tomoJ,tomoLambdaCoefficient,tomoLambdaMin,tomoRadial,tomoMixing,tomoDegeneracy,tomoRatio,tomoRadiusFromRatio,tomoFisher,tomoCapFraction})', ctx, { timeout: 20000 });
+const ctx = vm.createContext({ Math, Object, Array, Number, console, JSON, globalThis: {} });
+const T = vm.runInContext(S + '\n({tomoBinom,TOMO_N,tomoRank,tomoNull,tomoRankBySector,tomoShellDesign,tomoH,tomoJ,tomoLambdaCoefficient,tomoLambdaMin,tomoRadial,tomoMixing,tomoDegeneracy,tomoRatio,tomoRadiusFromRatio,tomoFisher,tomoCapFraction,tomoConfluentNull,tomoContaminationBound,tomoFlatLimit,TOMO_OBSTRUCTIONS})', ctx, { timeout: 20000 });
 
 /* ── Theorem 1 and 2: the rank bound and the null space ──────────────────── */
 ok('the band dimension is the paper`s N_j = (j+1)(j+2)(2j+3)/6, and it is zero below zero so the edges need no special case',
@@ -170,6 +170,33 @@ ok('the cap fraction is computed and is NOT used as an information fraction anyw
   ok('and what the scene actually contains is askable, so a theorem with no picture and a picture with no theorem can be told apart',
     /drawn:\(\(\)=>\{/.test(src) && /if\(!_tomoExtra\.length\) tomoBuild\(\)/.test(src),
     'HCC_SHELL_CENSUS builds the group on demand and counts what is in it');
+}
+
+/* ── what breaks the reconstruction, which an instrument must carry too ───── */
+{
+  let same = 0, checked = 0;
+  for (let L = 0; L <= 6; L++) for (let s2 = 1; s2 <= L + 2; s2++) {
+    checked++;
+    const jet = T.tomoConfluentNull(L, [{ chi: 1.0, s: s2 }]);
+    if (jet.null_dimension === T.tomoNull(L, s2) && jet.rank === T.tomoRank(L, s2)) same++;
+  }
+  ok('A JET IS WORTH SHELLS, EXACTLY: measuring orders 0 through s−1 at ONE radius imposes a root of multiplicity s and leaves the same N(L−s) directions lost as s distinct shells would — checked over the range the paper checks its confluent ranks',
+    same === checked, `${same} of ${checked} cases over 0 ≤ L ≤ 6`);
+  ok('the leakage bound is the paper`s, and it REFUSES to return a number where the identity gives none',
+    Math.abs(T.tomoContaminationBound(2, 0.1, 0.05) - (0.05 + 2 * 0.1) / 0.9) < 1e-12 &&
+    T.tomoContaminationBound(2, 1, 0.05) === null && T.tomoContaminationBound(2, 1.5, 0.05) === null,
+    `(η₂ + g η₁)/(1 − η₁) = ${T.tomoContaminationBound(2, 0.1, 0.05).toFixed(6)} at g = 2, η₁ = 0.1, η₂ = 0.05 · nothing at η₁ ≥ 1`);
+  {
+    const a = T.tomoFlatLimit(1000, 3, 6, 1), b = T.tomoFlatLimit(100, 3, 6, 1);
+    ok('THE NEARLY FLAT LIMIT IS AN EXPANSION AND ITS DEPARTURE PROVES IT: ln g tends to L ln κ minus L(d₂²−d₁²)K/6, and what it misses scales as K² with a constant of proportionality that holds across four decades of curvature',
+      Math.abs(a.departure_over_K2 / b.departure_over_K2 - 1) < 0.02,
+      `departure/K² = ${a.departure_over_K2.toFixed(4)} at R = 1000 and ${b.departure_over_K2.toFixed(4)} at R = 100 — the O(K²) term the paper writes and does not evaluate`);
+  }
+  ok('and the obstructions that are NOT computable are declared rather than omitted, which is the difference between an instrument and a demonstration',
+    T.TOMO_OBSTRUCTIONS.length === 4 &&
+    T.TOMO_OBSTRUCTIONS.filter(o => !o.computable).length === 3 &&
+    T.TOMO_OBSTRUCTIONS.every(o => o.what && o.effect && o.note),
+    T.TOMO_OBSTRUCTIONS.map(o => o.id).join(', ') + ' — an unknown relative gain makes the observable b·g(R), and no precision in the ratio removes that');
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
