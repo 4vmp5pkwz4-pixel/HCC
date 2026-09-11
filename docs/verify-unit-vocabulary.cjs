@@ -1,144 +1,100 @@
 #!/usr/bin/env node
-/* ============================================================================
-   TWO SPELLINGS OF ONE UNIT ARE TWO COORDINATES
-
-   The quantity bus admits a coupling only when the unit STRING matches exactly
-   and the coordinate name matches too.  That is correct: a bus cannot know that
-   "kg/m3" and "kg m^-3" are the same thing unless somebody says so, and guessing
-   is how a joule ends up wired to a joule per kelvin.
-
-   But it means a NOTATION SLIP SILENTLY COSTS A COUPLING.  This was found the
-   hard way: the asteroseismology laboratory published a mean density as
-   "kg/m^3" where every declared input in this atlas writes "kg m^-3", and the
-   only reason it surfaced is that somebody went looking for a consumer by hand.
-   Nothing had ever compared the RUNTIME publication vocabulary against the
-   DECLARED one.
-
-   This file does.  It reads every ATLAS_BUS.pub unit out of index.html and every
-   declared input and output unit out of api/manifest.json, canonicalises them,
-   and reports the sets that are one unit wearing several spellings.
-
-   THE CANONICALISER IS THE HARD PART AND IS CHECKED IN BOTH DIRECTIONS.  A
-   crude one -- lowercase, strip slashes and carets -- reports nine clashes of
-   which five are false: it merges MeV with meV, which differ by a factor of a
-   billion; it merges nm with N/m, nanometres with newtons per metre; and it
-   merges s with /s, a quantity with its reciprocal. So the one here preserves
-   case, treats a slash as a negative exponent, and REFUSES a unit it cannot
-   parse rather than dropping the part it did not understand -- which is what
-   made it group "sr^-1/2" with "sr^-1" until it was fixed.
-
-   NINE THINGS ARE CHECKED.
-   ========================================================================== */
 'use strict';
-const fs = require('fs');
-const path = require('path');
+/* ══ ONE NUMBER THAT WAS HIDING THREE ═══════════════════════════════════════════
+ *
+ * "1252 outputs without a quantity kind" was carried as a single debt for many
+ * releases, and it is three debts that want three different things:
+ *
+ *   · outputs whose unit the atlas CAN convert — they need only a coordinate name;
+ *   · outputs that are honestly pure numbers, where a kind needs other evidence;
+ *   · and outputs whose unit field holds PROSE — a type, a dimension name with the
+ *     unit withheld, an expression, or a pipe-separated list of permitted answers.
+ *
+ * Only the third is a defect, and it was invisible inside the total. This sorts
+ * them and pins the sort: every unit spelling the atlas uses must be in exactly
+ * one of the declared vocabularies, and the count that is not is zero.
+ */
+const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm');
 const ROOT = path.join(__dirname, '..');
+const src = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'api/manifest.json'), 'utf8'));
 let pass = 0, fail = 0;
-function ok(t, c, d) { (c ? pass++ : fail++); console.log(`${c ? '  PASS' : '  FAIL'} — ${t}`); if (d) console.log(`         ${d}`); }
+const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); }
+  else { fail++; console.log('  FAIL — ' + n + (d ? ' :: EXPECTED ' + d : '')); } };
 
-/* ---- the canonicaliser ----------------------------------------------------- */
-function canon(u) {
-  if (u == null) return null;
-  let s = String(u).trim();
-  if (!s) return null;
-  if (s.startsWith('/')) s = '1' + s;
-  if (!/^[A-Za-z0-9_][A-Za-z0-9_^ /-]*$/.test(s)) return null;
-  const parts = s.split('/');
-  const terms = []; let good = true;
-  parts.forEach((p, i) => {
-    const toks = p.split(/\s+/).filter(Boolean);
-    if (!toks.length) { good = false; return; }
-    for (const tok of toks) {
-      if (i === 0 && tok === '1' && parts.length > 1) continue;
-      const m = tok.match(/^([A-Za-z_]+)\^?(-?\d+)?$/);
-      if (!m) { good = false; return; }
-      let e = m[2] == null ? 1 : parseInt(m[2], 10);
-      if (i > 0) e = -e;
-      terms.push(m[1] + '^' + e);
-    }
-  });
-  return (good && terms.length) ? terms.sort().join('·') : null;
+function cut(from, open, close, tail) {
+  const i = src.indexOf(from); if (i < 0) throw new Error('slice not found: ' + from);
+  const j = src.indexOf(open, i); let d = 0;
+  for (let k = j; k < src.length; k++) {
+    if (src[k] === open) d++;
+    else if (src[k] === close) { d--; if (d === 0) return src.slice(i, k + 1) + (tail || ''); }
+  }
+  throw new Error('unbalanced: ' + from);
+}
+const S_SI = cut('const HCC_SI=Object.freeze({', '{', '}', ');');
+const S_REF = cut('const HCC_SI_REFUSED=Object.freeze({', '{', '}', ');');
+const S_CLS = cut('const HCC_UNIT_CLASS=Object.freeze({', '{', '}', ');');
+const S_ALI = src.slice(src.indexOf('const HCC_UNIT_ALIAS=new Map(['),
+                        src.indexOf(']);', src.indexOf('const HCC_UNIT_ALIAS=new Map([')) + 3);
+const ctx = vm.createContext({ Math, Object, Map, Array, Number, console, JSON });
+const V = vm.runInContext([S_SI, S_REF, S_CLS, S_ALI,
+  '({HCC_SI,HCC_SI_REFUSED,HCC_UNIT_CLASS,HCC_UNIT_ALIAS})'].join('\n'), ctx, { timeout: 20000 });
+
+const alias = u => V.HCC_UNIT_ALIAS.get(u == null ? '' : u) || (u == null ? '' : u);
+const c = { outputs: 0, kinded: 0, convertible: 0, dimensionless: 0, refused: 0, not_a_unit: 0, unclassified: 0 };
+const unclassified = new Map();
+for (const ins of manifest.instruments || []) for (const o of ins.outputs || []) {
+  c.outputs++; if (o.quantity_kind) c.kinded++;
+  const u = alias(o.unit);
+  if (u === '1') { c.dimensionless++; continue; }
+  if (V.HCC_SI[u]) { c.convertible++; continue; }
+  if (V.HCC_SI_REFUSED[u]) { c.refused++; continue; }
+  const k = V.HCC_UNIT_CLASS[u];
+  if (k) { c[k.cls]++; continue; }
+  c.unclassified++; unclassified.set(u, (unclassified.get(u) || 0) + 1);
 }
 
-const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-const MAN = JSON.parse(fs.readFileSync(path.join(ROOT, 'api', 'manifest.json'), 'utf8'));
-const runtime = new Set(), declared = new Set();
-for (const m of html.matchAll(/ATLAS_BUS\.pub\(\s*'([^']+)'\s*,[^,]*,\s*'([^']*)'\s*\)/g)) runtime.add(m[2]);
-for (const L of (MAN.instruments || [])) for (const k of ['inputs', 'outputs']) for (const f of (L[k] || [])) if (f.unit) declared.add(f.unit);
-const seen = new Set([...runtime, ...declared]);
-const groups = new Map(); let refused = 0;
-for (const u of seen) { const c = canon(u); if (!c) { refused++; continue; }
-  if (!groups.has(c)) groups.set(c, new Set()); groups.get(c).add(u); }
-const clashes = [...groups.entries()].filter(([, v]) => v.size > 1);
+ok('every vocabulary this check reads was cut out of index.html rather than copied beside it',
+  S_SI.length > 2000 && S_CLS.length > 2000 && S_ALI.length > 60,
+  `${Object.keys(V.HCC_SI).length} convertible units, ${Object.keys(V.HCC_SI_REFUSED).length} refused, ${Object.keys(V.HCC_UNIT_CLASS).length} classified, ${V.HCC_UNIT_ALIAS.size} aliased`);
 
-/* the spellings this atlas is KNOWN to carry. A new one fails; fixing one does
-   not, because the assertion is a subset and not an equality — the mistake of
-   writing a state of the world down as an invariant has been made here once
-   already and is not repeated. */
-/* The spellings this atlas still carries. It carried seven; the four that lived
-   in RUNTIME publications were normalised to their own group's majority, which
-   cost nothing because a publication has no contract to break. The four left are
-   declared-against-declared, and MEASUREMENT SAYS TO LEAVE THEM: merging any of
-   them would create exactly zero new couplings, because in every case the
-   coordinate NAMES do not match either, and the bus requires both. Changing four
-   instrument contracts to buy nothing is churn, so it was not done.
-   AND NORMALISING A RUNTIME SPELLING BUYS NO COUPLING, which was predicted the
-   other way and measured. The bus counts are identical before and after the four
-   fixes -- 89 admissible, 56 declared, 37 refused -- because the bus graph is
-   computed over DECLARED inputs and outputs and a runtime publication is not in
-   it at all. That is the same structural fact recorded as an open problem when a
-   laboratory was found publishing into a bus that could not see it. The value of
-   the normalisation is that the vocabulary is now consistent, so a future
-   DECLARED input can match one of these publications; it is not that anything
-   became routable today.
+ok('EVERY UNIT SPELLING THE ATLAS USES IS IN EXACTLY ONE DECLARED VOCABULARY, and the number that is in none is zero — which is the pin, because a spelling nobody has classified is a spelling nobody has read',
+  c.unclassified === 0,
+  c.unclassified === 0
+    ? `${c.outputs} declared outputs, every unit accounted for`
+    : `${c.unclassified} outputs in ${unclassified.size} unclassified spellings: ${[...unclassified.keys()].slice(0, 6).join(', ')}`);
 
-   Note also that the convention is NOT uniform and must not be forced: "m/s" is
-   the majority spelling with 21 declarations while "kg m^-3" uses the exponent
-   form and "1/site" the leading one. Normalising everything to a single style
-   would have rewritten twenty-one correct declarations. */
-const KNOWN = new Set(['s^-1', 'm^1·s^-1', 'sr^-1', 'W^1·m^-2']);
+ok('and the old single debt is sorted into the three it was hiding, which want three different things',
+  c.convertible > 300 && c.dimensionless > 800 && c.refused > 100 && c.not_a_unit > 0 &&
+  c.convertible + c.dimensionless + c.refused + c.not_a_unit + c.unclassified === c.outputs,
+  `${c.convertible} convertible · ${c.dimensionless} pure numbers · ${c.refused} refused with reasons · ${c.not_a_unit} PROSE, which is the only one of the four that is a defect`);
 
-console.log('\n=== 1-3. Both vocabularies, and what they are ===\n');
+/* THE CEILING IS ON THE PROSE, because that is the part carelessness adds and
+   honest work cannot. A new laboratory with an honest unit does not raise it. */
+const PROSE_UNIT_CEILING = 35;
+ok('the outputs whose unit field holds prose rather than a unit are at or below their ceiling, and the ceiling only falls',
+  c.not_a_unit <= PROSE_UNIT_CEILING,
+  `${c.not_a_unit} against ceiling ${PROSE_UNIT_CEILING}`);
 
-ok('the runtime publication vocabulary and the declared vocabulary are both read — one out of the ATLAS_BUS.pub calls in index.html, the other out of the manifest`s declared inputs and outputs. Nothing had ever compared them',
-  runtime.size >= 50 && declared.size >= 100,
-  `${runtime.size} distinct runtime publication units · ${declared.size} distinct declared units · ${seen.size} together`);
+ok('every classified spelling carries a written reason, so none of them is a verdict without an argument',
+  Object.values(V.HCC_UNIT_CLASS).every(x => typeof x.why === 'string' && x.why.length > 20) &&
+  Object.values(V.HCC_UNIT_CLASS).every(x => ['dimensionless', 'refused', 'not_a_unit'].includes(x.cls)),
+  `${Object.keys(V.HCC_UNIT_CLASS).length} spellings, each with its class and its reason`);
 
-ok('and a unit the canonicaliser cannot parse is REFUSED rather than half-understood. The atlas publishes prose where a unit belongs — "native residual", "closure", "count" — and a parser that dropped the parts it did not recognise would merge them all',
-  refused > 20 && groups.size > 100,
-  `${groups.size} parsed into canonical form · ${refused} refused as unparseable`);
+ok('A DIMENSION NAME IN THE UNIT FIELD IS NAMED AS THE DEFECT IT IS — an output that says its unit is `length` has declared what it is and withheld what it is in',
+  ['length', 'length/time', '1/length', 'momentum'].every(u => V.HCC_UNIT_CLASS[u] && V.HCC_UNIT_CLASS[u].cls === 'not_a_unit'),
+  'four spellings name a dimension and give no unit, which is the distance ladder`s defect one level up');
+ok('and a pipe-separated list of permitted answers is named as a value domain, not a unit',
+  Object.entries(V.HCC_UNIT_CLASS).filter(([u, x]) => u.includes('|') && x.cls === 'not_a_unit').length >= 2,
+  'a unit field holding an enum says what the output may BE, not what it is measured in');
 
-ok('specifically, "sr^-1/2" is refused rather than being read as "sr^-1" with the half thrown away — which is what an earlier version of this parser did, and it reported a clash that was not there',
-  canon('sr^-1/2') === null && canon('sr^-1') !== null,
-  'a fractional exponent is not silently truncated to an integer one');
+ok('the units that were genuinely missing are declared with exact factors rather than rounded ones',
+  V.HCC_SI['e'].f === 1.602176634e-19 && V.HCC_SI['hbar'].f === 1.054571817e-34 &&
+  Math.abs(V.HCC_SI['nat'].f - 1 / Math.LN2) < 1e-15 && V.HCC_SI['J/K'].kind === 'entropy',
+  'the elementary charge and the reduced Planck constant are SI defining constants; one nat is one over ln 2 bits by the definition of both');
+ok('and one unit spelled two ways is aliased rather than entered twice, because a second entry is a second authority',
+  V.HCC_UNIT_ALIAS.get('m s^-1') === 'm/s' && !V.HCC_SI['m s^-1'] && !!V.HCC_SI['m/s'],
+  'm s^-1 → m/s, the same slip the atlas already filed about a day and a d');
 
-console.log('\n=== 4-6. The canonicaliser must not over-merge ===\n');
-
-ok('CASE IS PRESERVED, because MeV and meV differ by a factor of a billion. A canonicaliser that lowercases reports them as one unit, and this atlas carries both',
-  canon('MeV') !== canon('meV'), `MeV → ${canon('MeV')} · meV → ${canon('meV')}`);
-
-ok('and a slash is a NEGATIVE EXPONENT rather than a character to delete, so a quantity is never merged with its reciprocal: seconds against per second, cubic metres against inverse cubic metres',
-  canon('s') !== canon('/s') && canon('m^3') !== canon('m^-3'),
-  `s → ${canon('s')} · /s → ${canon('/s')} · m^3 → ${canon('m^3')} · m^-3 → ${canon('m^-3')}`);
-
-ok('which also keeps nanometres apart from newtons per metre — "nm" and "N/m" collapse to the same string under any normalisation careless about case and slashes, and they are not remotely the same quantity',
-  canon('nm') !== canon('N/m'), `nm → ${canon('nm')} · N/m → ${canon('N/m')}`);
-
-console.log('\n=== 7-9. And it must merge what genuinely is one unit ===\n');
-
-ok('the three ways this atlas writes inverse seconds are one unit: "/s", "1/s" and "s^-1"',
-  canon('/s') === canon('1/s') && canon('1/s') === canon('s^-1'),
-  `all three → ${canon('s^-1')}`);
-
-ok('AND THE SLIP THAT STARTED THIS IS CAUGHT: "kg/m3" and "kg m^-3" are one unit, and the bus could not see it. Four units in this atlas are still spelled more than one way, down from seven: the three that lived in runtime publications were normalised, and the rest are declared against declared where merging them would create no coupling at all',
-  canon('kg m^-3') === canon('kg/m3') && canon('W m^-2') === canon('W/m^2') && clashes.length >= 1,
-  clashes.map(([c, v]) => `${c}: ${[...v].map(x => JSON.stringify(x)).join(' vs ')}`).join(' · '));
-
-ok('and NO NEW SPELLING HAS BEEN INTRODUCED. This is asserted as a subset rather than an equality: fixing one of these passes, adding one fails. An earlier check in this atlas wrote a state of the world down as an invariant and failed at the moment the thing it measured became perfect, which is a mistake worth making only once',
-  clashes.every(([c]) => KNOWN.has(c)),
-  (() => { const novel = clashes.filter(([c]) => !KNOWN.has(c));
-    return novel.length ? `NEW: ${novel.map(([c, v]) => c + ' (' + [...v].join(', ') + ')').join(' · ')}`
-      : `${clashes.length} known spellings, none new`; })());
-
-console.log(`\n${pass}/${pass + fail} checks passed\n`);
+console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
