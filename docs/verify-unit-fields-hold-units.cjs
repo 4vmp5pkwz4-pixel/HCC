@@ -43,12 +43,22 @@ function slice(startMark, endMark, from) {
 }
 const siSrc = slice('const HCC_SI=Object.freeze({', '\n});');
 const refSrc = slice('const HCC_SI_REFUSED=', '\n});');
-/* THE ALIAS TABLE IS ONE LINE AND THE SLICE MUST NOT LEAVE IT. Reaching for the next
-   "\n]);" ran forty thousand lines past the end and swallowed the SI table whole,
-   which the sandbox then refused as a duplicate declaration. Cut to the end of its
-   own line. */
-const aliasSrc = (() => { const a = src.indexOf('const HCC_UNIT_ALIAS=new Map([');
-  if (a < 0) return ''; const b = src.indexOf('\n', a); return src.slice(a, b); })();
+/* THE ALIAS TABLE IS A DECLARATION AND THE SLICE MUST BE ITS SHAPE, NOT ITS SHAPE
+   ON ONE DAY. Reaching for the next "\n]);" once ran forty thousand lines past the
+   end and swallowed the SI table whole; cutting to the end of the FIRST LINE fixed
+   that and broke the day the table grew to two lines, leaving a half expression the
+   sandbox could not parse. Both were punctuation. The declaration is bounded by its
+   own brackets, so the brackets are counted. */
+const aliasSrc = (() => {
+  const a = src.indexOf('const HCC_UNIT_ALIAS=new Map(');
+  if (a < 0) return '';
+  let d = 0;
+  for (let i = src.indexOf('(', a); i < src.length; i++) {
+    if (src[i] === '(') d++;
+    else if (src[i] === ')') { d--; if (d === 0) return src.slice(a, i + 1) + ';'; }
+  }
+  return '';
+})();
 ok('the three unit vocabularies are found in the source rather than restated here',
   siSrc.length > 100 && refSrc.length > 100 && aliasSrc.length > 10,
   'HCC_SI, HCC_SI_REFUSED and HCC_UNIT_ALIAS are each sliced out and evaluated');
