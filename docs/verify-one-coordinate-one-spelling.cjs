@@ -67,5 +67,36 @@ ok('and a coordinate used exactly once is reported rather than pinned, because i
   singles.length > 0 && singles.length < count.size / 2,
   `${singles.length} of ${count.size} coordinates are used once: ${singles.slice(0, 5).map(([k]) => k).join(', ')}`);
 
+/* ── AND THE SAME DEFECT ONE FIELD OVER, WHERE THE RULE IS DIFFERENT ─────────
+   The bus compares the UNIT as a string too, so a unit spelled two ways refuses
+   couplings just as silently. It had happened: 'J s' was entered as a second row
+   while 'J·s' was already there, one release after the comment forbidding exactly
+   that was written.
+   THE NORMALISER HERE MUST NOT LOWERCASE, and that is the whole difference from
+   the kinds. MeV and meV are a megaelectronvolt and a millielectronvolt; they
+   differ by a factor of a thousand million, they are both declared, and a
+   case-insensitive check would call them one unit and be catastrophically wrong. */
+{
+  const siBlock = src.slice(src.indexOf('const HCC_SI=Object.freeze({'),
+                            src.indexOf('\n});', src.indexOf('const HCC_SI=Object.freeze({')));
+  const declared = [...siBlock.matchAll(/'([^']+)':\{kind:/g)].map(m => m[1]);
+  const sep = u => u.replace(/[ ·*]/g, '');          // separators only — never the case
+  const groups = new Map();
+  for (const u of declared) {
+    const k = sep(u);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(u);
+  }
+  const dup = [...groups.values()].filter(v => v.length > 1);
+  ok('NO UNIT IS DECLARED TWICE UNDER TWO SPELLINGS, because the bus compares the unit as a string and a second entry refuses couplings as silently as a second kind does',
+    dup.length === 0,
+    dup.length === 0 ? `${declared.length} declared units, ${groups.size} after separators are ignored`
+                     : dup.map(v => v.join(' | ')).join(' · '));
+  ok('and the unit normaliser deliberately does NOT ignore case, which the kind normaliser does — MeV and meV are both declared, differ by a factor of a thousand million, and a case-insensitive check would call them one unit',
+    declared.includes('MeV') && declared.includes('meV') &&
+    !/toLowerCase/.test(String(sep)) ,
+    'a megaelectronvolt and a millielectronvolt are not a spelling difference');
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
