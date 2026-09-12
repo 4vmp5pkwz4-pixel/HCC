@@ -2663,6 +2663,18 @@ const S3 = {
   chiP:       0.08412,              // rad — D_particle / R
   GammaObs:   1.2613777438877e-4,   // volume fraction of the observable domain
 };
+/* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM. The two outer values are tied to
+   the canonical S³ modulus rather than copied numerically: the observer-centred
+   projection is allowed to pass the 548-Gly curvature-radius proxy before the
+   atlas changes topology view, then returns only after crossing back inside it.
+   The 8%/6% overlap is hysteresis, not a physical shell thickness. */
+const SCALE_SEAMS=Object.freeze({
+  solarObsOutGly:26,
+  obsSolarInGly:0.020,
+  obsS3OutGly:S3.R*1.08,
+  s3ObsInGly:S3.R*0.94,
+  s3UnitGly:100
+});
 const Gamma = chi => (chi - 0.5*Math.sin(2*chi)) / Math.PI;       // exact S³ ball volume fraction
 const screenArea = chi => 4*Math.PI*S3.R*S3.R*Math.sin(chi)**2;  // A(χ) = 4πR²sin²χ
 /* Geometric–Causal–Spectral layer (Preece & Batenin 2026, S3-GCS):
@@ -22587,7 +22599,7 @@ function autoSolarScale(dt){
      to a different instrument mid-gesture. The chain still offers it and the
      checkbox in the Solar panel decides. Off, the zoom simply stops at the cosmic
      layer`s own limit, which is where it stopped before the hand-off existed. */
-  if(layer==='cosmic' && d>26*GLY_AU && state.autoScaleHandoff!==false){
+  if(layer==='cosmic' && d>SCALE_SEAMS.solarObsOutGly*GLY_AU && state.autoScaleHandoff!==false){
     _autoScaleCd=2.0;
     // STRICT position/scale continuity across the mode seam: keep the view direction
     // and map the radius 1:1 (solar AU → obs units of 1 Gly). No teleport, no reframe.
@@ -76049,9 +76061,9 @@ function buildCtlBody(){
         <input type="checkbox" id="orb" ${state.showOrbits?'checked':''}></div>
       <div class="ctlrow"><label>Galactic journey · helices</label>
         <input type="checkbox" id="solarJourney" ${state.solarJourney?'checked':''}></div>
-      <div class="ctlrow" title="Zooming out past the cosmic-web layer hands the view over to the Observable Universe mode, keeping the direction and mapping the radius 1:1. Turn this off to stay in the Solar frame."><label>Auto hand-off to Observable Universe</label>
+      <div class="ctlrow" title="Continuous world-scale chain: Solar System → Milky Way → Local Group → giant structures → Observable Universe → finite S³ carrier. Direction and physical radius are preserved at both mode seams."><label>Auto world-scale hand-offs</label>
         <input type="checkbox" id="autoHandoff" ${state.autoScaleHandoff!==false?'checked':''}></div>
-      <div class="note" style="font-size:10.5px;color:var(--dim)">The zoom chain runs Solar System → Milky Way → Local Group → Cosmic web, and past the last of those it can continue INTO the Observable Universe mode — same sky, same direction, one unit becoming one gigalightyear. That last step changes which instrument you are in, so it is yours to allow: off, the zoom stops at the cosmic layer instead.</div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">The zoom chain is continuous in both directions: Solar System → Milky Way → Local Group → cosmic web and named giant structures → Observable Universe → the canonical 548.3-Gly curvature-radius proxy → the finite S³ carrier. The last view has finite proper volume 2π²R³ but no outer wall (∂S³_R = ∅). Turn automatic hand-offs off to keep the current world instrument fixed.</div>
       ${state.solarJourney?`<div class="note" style="font-size:10.5px;color:var(--dim)">The Sun really travels its galactic orbit at 232 km/s toward ℓ≈90° (Cygnus) — true scale, 48.9 AU per year — so the planets trace genuine helices chasing it. Speed time up and the spirals stretch out. Direction is computed from the same J2000 frame as everything else (ŷ_gal = ẑ_NGP×x̂_GC).</div>`:''}
       <div class="ctlrow"><label>Motion vectors · velocity &amp; axes atlas</label>
         <input type="checkbox" id="motionVecs" ${state.showMotionVectors?'checked':''}></div>
@@ -82857,7 +82869,9 @@ function setMode(mode){
     camera.position.set(0,55,118); controls.target.set(0,0,0);
     // near limit must dive BELOW the 0.02-Gly Solar hand-off radius, or the
     // return leg of the Observable↔Solar chain is unreachable (one-way trap)
-    setControlDistanceLimits(0.012,1600);   // 12 Mly … outside the 548-Gly curvature shell
+    setControlDistanceLimits(SCALE_SEAMS.obsSolarInGly*0.6, SCALE_SEAMS.obsS3OutGly*1.35);
+    // The outer limit deliberately reaches beyond the canonical curvature-radius proxy,
+    // so the reader sees the 548-Gly shell before the global finite-S³ hand-off.
   } else if(mode==='s3'){
     camera.position.set(0,8,17); controls.target.set(0,0,0);
     setControlDistanceLimits(.5,120);
@@ -90187,9 +90201,24 @@ function tickBody(now, frame){
       else { const dObs=camera.position.distanceTo(controls.target);
         const homeAim=controls.target.length()<0.08;
         // breadcrumb for the return leg: the chain is two-way and says so while you dive
-        if(homeAim && dObs<0.8 && dObs>=0.02)
-          hudBig.textContent=`→ home galaxy ${ (dObs*1000).toFixed(0) } Mly — keep zooming: hand-off to the Solar scale chain at 20 Mly`;
-        if(homeAim && dObs<0.02){
+        if(homeAim && dObs<0.8 && dObs>=SCALE_SEAMS.obsSolarInGly)
+          hudBig.textContent=`→ home galaxy ${ (dObs*1000).toFixed(0) } Mly — keep zooming: hand-off to the Solar scale chain at ${(SCALE_SEAMS.obsSolarInGly*1000).toFixed(0)} Mly`;
+        if(homeAim && dObs>SCALE_SEAMS.obsS3OutGly && state.autoScaleHandoff!==false){
+          const dir=camera.position.clone().sub(controls.target);
+          if(dir.lengthSq()<1e-12) dir.set(0.4,0.3,1);
+          dir.normalize();
+          _autoScaleCd=2.0;
+          // The observer-centred R³ projection has now shown the canonical curvature
+          // modulus. Continue into the actual compact-carrier instrument: S³ has finite
+          // volume 2π²R³ but NO outer boundary (∂S³_R = ∅). Preserve direction and
+          // physical camera radius exactly while changing display units 1 Gly → 1/100.
+          state.s3view='sec'; setMode('s3');
+          controls.target.set(0,0,0);
+          camera.position.copy(dir).multiplyScalar(dObs/SCALE_SEAMS.s3UnitGly);
+          syncCameraClipping(true);
+          hudBig.textContent=`Scale ↑ finite S³ carrier — R=${S3.R.toFixed(1)} Gly · V=2π²R³=${S3.V.toExponential(3)} Gly³ · boundaryless`;
+        }
+        if(homeAim && dObs<SCALE_SEAMS.obsSolarInGly){
           const dir=camera.position.clone().sub(controls.target).normalize();
           _autoScaleCd=2.0;
           // STRICT continuity: same direction, radius mapped 1:1 (obs Gly → solar AU)
@@ -90202,6 +90231,23 @@ function tickBody(now, frame){
     }
   }
   else if(state.mode==='s3'){
+    // Reverse leg of the same seam. Only the global section participates: zooming a
+    // specialist S³ laboratory must never throw the reader into another instrument.
+    if(state.s3view==='sec' && !state.landed && !renderer.xr.isPresenting && !focusAnim){
+      if(_autoScaleCd>0) _autoScaleCd-=dt;
+      else { const dS3=camera.position.distanceTo(controls.target), homeAim=controls.target.length()<0.08;
+        if(homeAim && dS3*SCALE_SEAMS.s3UnitGly<SCALE_SEAMS.s3ObsInGly){
+          const dir=camera.position.clone().sub(controls.target);
+          if(dir.lengthSq()<1e-12) dir.set(0.4,0.3,1);
+          dir.normalize();
+          _autoScaleCd=2.0;
+          setMode('obs'); controls.target.set(0,0,0);
+          camera.position.copy(dir).multiplyScalar(dS3*SCALE_SEAMS.s3UnitGly);
+          syncCameraClipping(true);
+          hudBig.textContent='Scale ↓ observer-centred Universe — curvature ledger, giant structures, particle horizon, then the Solar scale chain';
+        }
+      }
+    }
     /* MULTIVIEW: step every visible laboratory in the SAME frame with the SAME dt,
        active tile LAST so its HUD text is the one left standing. */
     const _mvSaved=state.s3view;
