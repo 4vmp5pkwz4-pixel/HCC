@@ -1,21 +1,19 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 const p='index.html';let s=readFileSync(p,'utf8');
 function once(oldText,newText,label){const n=s.split(oldText).length-1;if(n!==1)throw new Error(`${label}: expected exactly one match, found ${n}`);s=s.replace(oldText,newText);console.log(`patched: ${label}`);}
+function rxOnce(re,repl,label){const m=s.match(re);if(!m||m.length!==1)throw new Error(`${label}: anchor not found`);s=s.replace(re,repl);console.log(`patched: ${label}`);}
 
-once("  atlasPanel:{scope:'global',label:'Atlas'},\n  morePanel:{scope:'global',label:'More'},","  atlasPanel:{scope:'global',label:'Atlas'},\n  predictivePanel:{scope:'global',label:'Predictive foundation'},\n  morePanel:{scope:'global',label:'More'},",'predictive panel scope');
-
-once('<button class="panelDockBtn" data-panel="atlasPanel" title="Atlas"><span>⌕</span><b>Atlas</b></button>\n    <button class="panelDockBtn" data-panel="morePanel" title="More"><span>⋯</span><b>More</b></button>','<button class="panelDockBtn" data-panel="atlasPanel" title="Atlas"><span>⌕</span><b>Atlas</b></button>\n    <button class="panelDockBtn" data-panel="predictivePanel" title="Predictive foundation"><span>⌁</span><b>Predict</b></button>\n    <button class="panelDockBtn" data-panel="morePanel" title="More"><span>⋯</span><b>More</b></button>','predictive panel recall control');
+rxOnce(/atlasPanel:\{scope:'global',label:'Atlas'\},/,m=>m+"\n  predictivePanel:{scope:'global',label:'Predictive foundation'},",'predictive panel scope');
+rxOnce(/(<button class="panelDockBtn" data-panel="atlasPanel"[^>]*><span>[^<]*<\/span><b>Atlas<\/b><\/button>)/,m=>m+'\n    <button class="panelDockBtn" data-panel="predictivePanel" title="Predictive foundation"><span>⌁</span><b>Predict</b></button>','predictive panel recall control');
 
 once("    const known=Object.keys(S3_VIEW_NAMES).filter(v=>v!=='nexus').sort(),declared=[...NEXUS_VIEWS].sort();\n    ok('Invariant Nexus covers every pre-existing S³ laboratory exactly once across six disciplinary clusters',","    const known=LAB_REGISTRY.map(x=>x.id).filter(v=>v!=='nexus').sort(),declared=[...NEXUS_VIEWS].sort();\n    ok('Invariant Nexus covers every registered laboratory except itself exactly once across six disciplinary clusters',",'nexus registry authority');
 
-once("  ['bhr','qso','coupling','black-hole environment ↔ accretion source','The quasar station adds accretion and beaming around an idealized compact-object environment.','model-context'],\n",'', 'duplicate bhr-qso typed edge');
-
-once('  const STACK_N=32, stackLabs=[];','  const STACK_N=HCC_SI_KINDS.length, stackLabs=[];','scale-axis capacity follows quantity registry');
+rxOnce(/^\s*\['bhr','qso','coupling','black-hole environment ↔ accretion source'.*?\],\s*$/m,'','duplicate bhr-qso typed edge');
+rxOnce(/const STACK_N=32,\s*stackLabs=\[\];/,'const STACK_N=HCC_SI_KINDS.length, stackLabs=[];','scale-axis capacity follows quantity registry');
 
 const start=s.indexOf("function nexusStructuralCalibration(kind='all'){");
 const end=s.indexOf('function nexusEnsureHypothesisLayer(){',start);
 if(start<0||end<0)throw new Error('nexusStructuralCalibration boundaries not found');
-const oldFn=s.slice(start,end);
 const newFn=`function nexusStructuralCalibration(kind='all'){
   if(NEXUS_CV_CACHE.has(kind))return NEXUS_CV_CACHE.get(kind);
   const held=NEXUS_RELATIONS.filter(e=>kind==='all'||e.type===kind),pairs=new Map();
@@ -34,8 +32,7 @@ const newFn=`function nexusStructuralCalibration(kind='all'){
   const out={scheme:'leave-one-declared-endpoint-pair-out resource-allocation score',kind,tested,declared_pairs:pairs.size,recall_at_1:tested?hit1/tested:0,recall_at_5:tested?hit5/tested:0,mean_reciprocal_rank:tested?mrr/tested:0,calibration_status:'internal graph-reconstruction diagnostic; not physical validation'};NEXUS_CV_CACHE.set(kind,out);return out;
 }
 `;
-s=s.slice(0,start)+newFn+s.slice(end);
-console.log('patched: multigraph-aware nexus calibration');
+s=s.slice(0,start)+newFn+s.slice(end);console.log('patched: multigraph-aware nexus calibration');
 
 once("    ok('Invariant Nexus: spectral embedding is finite/deterministic and held-edge calibration reports bounded reconstruction scores',\n      E.positions.size===NEXUS_VIEWS.length&&[...E.positions.values()].every(p=>[p.x,p.y,p.z].every(Number.isFinite))&&[C.recall_at_1,C.recall_at_5,C.mean_reciprocal_rank].every(x=>x>=0&&x<=1)&&C.tested===NEXUS_RELATIONS.length,","    ok('Invariant Nexus: spectral embedding is finite/deterministic and held-pair calibration reports bounded reconstruction scores for every declared endpoint pair',\n      E.positions.size===NEXUS_VIEWS.length&&[...E.positions.values()].every(p=>[p.x,p.y,p.z].every(Number.isFinite))&&[C.recall_at_1,C.recall_at_5,C.mean_reciprocal_rank].every(x=>x>=0&&x<=1)&&C.tested===C.declared_pairs,",'spectral calibration invariant');
 
