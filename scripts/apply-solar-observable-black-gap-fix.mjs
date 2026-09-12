@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 
+// One-shot TDD repair: the value below is in Gly, so 26 Mly must be 0.026 Gly.
 const path='index.html';
 let src=fs.readFileSync(path,'utf8');
 const before='  solarObsOutGly:26,';
