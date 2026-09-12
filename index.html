@@ -22505,6 +22505,54 @@ function advanceScaleLayer(layer){
   updateSolarScaleVisibility(); syncCameraClipping(true); updateBreadcrumb();
   if(typeof buildCtl==='function'){ try{ buildCtl(); }catch(e){} }
 }
+
+/* HCC_SCALE_SEAM_CROSSFADE_V1
+   The Solar and Observable instruments use different scene representations.
+   Position and scale are mapped exactly at the seam; this transient canvas keeps
+   the last rendered outgoing frame above the incoming scene long enough for the
+   eye to integrate the two representations instead of seeing a one-frame cut. */
+let _scaleSeamGhost=null, _scaleSeamGhostTimer=0;
+function beginScaleSeamCrossfade(ms=680){
+  if(renderer.xr.isPresenting) return;
+  const src=renderer.domElement;
+  if(!src || !src.width || !src.height) return;
+  try{
+    if(_scaleSeamGhost){ _scaleSeamGhost.remove(); _scaleSeamGhost=null; }
+    if(_scaleSeamGhostTimer){ clearTimeout(_scaleSeamGhostTimer); _scaleSeamGhostTimer=0; }
+    const rect=src.getBoundingClientRect();
+    if(rect.width<2 || rect.height<2) return;
+    const ghost=document.createElement('canvas');
+    ghost.width=src.width; ghost.height=src.height;
+    ghost.dataset.hccScaleSeamGhost='1';
+    ghost.setAttribute('aria-hidden','true');
+    const ctx=ghost.getContext('2d',{alpha:true});
+    if(!ctx) return;
+    ctx.drawImage(src,0,0,ghost.width,ghost.height);
+    const reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const duration=reduced?120:ms;
+    Object.assign(ghost.style,{
+      position:'fixed',left:rect.left+'px',top:rect.top+'px',
+      width:rect.width+'px',height:rect.height+'px',margin:'0',
+      pointerEvents:'none',opacity:'1',zIndex:'1',
+      transition:'opacity '+duration+'ms cubic-bezier(.22,.61,.36,1)',
+      willChange:'opacity',contain:'strict'
+    });
+    document.body.appendChild(ghost);
+    _scaleSeamGhost=ghost;
+    const dispose=()=>{
+      if(_scaleSeamGhost===ghost) _scaleSeamGhost=null;
+      ghost.remove();
+    };
+    ghost.addEventListener('transitionend',dispose,{once:true});
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      if(ghost.isConnected) ghost.style.opacity='0';
+    }));
+    _scaleSeamGhostTimer=setTimeout(dispose,duration+260);
+  }catch(err){
+    if(_scaleSeamGhost){ _scaleSeamGhost.remove(); _scaleSeamGhost=null; }
+  }
+}
+
 function autoSolarScale(dt){
   if(state.landed || renderer.xr.isPresenting) return;
   // in-galaxy sky (Milky Way band, catalogue stars, constellation art) fades out
@@ -22604,6 +22652,7 @@ function autoSolarScale(dt){
     // STRICT position/scale continuity across the mode seam: keep the view direction
     // and map the radius 1:1 (solar AU → obs units of 1 Gly). No teleport, no reframe.
     const dir=camera.position.clone().sub(controls.target).normalize();
+    beginScaleSeamCrossfade();
     setMode('obs');
     controls.target.set(0,0,0);
     camera.position.copy(dir).multiplyScalar(d/GLY_AU);
@@ -90222,6 +90271,7 @@ function tickBody(now, frame){
           const dir=camera.position.clone().sub(controls.target).normalize();
           _autoScaleCd=2.0;
           // STRICT continuity: same direction, radius mapped 1:1 (obs Gly → solar AU)
+          beginScaleSeamCrossfade();
           setMode('solar'); state.solarScaleLayer='cosmic'; advanceScaleLayer('cosmic');
           controls.target.set(0,0,0);
           camera.position.copy(dir.multiplyScalar(Math.max(dObs,0.008)*GLY_AU));
