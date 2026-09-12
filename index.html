@@ -22483,6 +22483,11 @@ function updateSolarScaleVisibility(){
    it, and zooming back IN steps the layers down again with hysteresis. The scale
    chips / selecting a planet still reframe deliberately (setSolarScaleLayer). */
 let _autoScaleCd=0, _skyFadeMats=null;
+/* The world seam is an OVERLAP, not two unrelated gates. Keep both thresholds in
+   the unit used by the Observable scene so reversing the wheel after a hand-off
+   immediately follows the same piece of the scale axis. The small hysteresis band
+   prevents OrbitControls damping from bouncing between worlds at the boundary. */
+const ATLAS_SCALE_SEAM=Object.freeze({outGly:26,inGly:22,cooldown:0.35});
 function advanceScaleLayer(layer){
   state.solarScaleLayer=layer;
   // seamless variant: visibility, clipping and zoom limits only — camera & target stay
@@ -22587,8 +22592,8 @@ function autoSolarScale(dt){
      to a different instrument mid-gesture. The chain still offers it and the
      checkbox in the Solar panel decides. Off, the zoom simply stops at the cosmic
      layer`s own limit, which is where it stopped before the hand-off existed. */
-  if(layer==='cosmic' && d>26*GLY_AU && state.autoScaleHandoff!==false){
-    _autoScaleCd=2.0;
+  if(layer==='cosmic' && d>ATLAS_SCALE_SEAM.outGly*GLY_AU && state.autoScaleHandoff!==false){
+    _autoScaleCd=ATLAS_SCALE_SEAM.cooldown;
     // STRICT position/scale continuity across the mode seam: keep the view direction
     // and map the radius 1:1 (solar AU → obs units of 1 Gly). No teleport, no reframe.
     const dir=camera.position.clone().sub(controls.target).normalize();
@@ -90187,15 +90192,15 @@ function tickBody(now, frame){
       else { const dObs=camera.position.distanceTo(controls.target);
         const homeAim=controls.target.length()<0.08;
         // breadcrumb for the return leg: the chain is two-way and says so while you dive
-        if(homeAim && dObs<0.8 && dObs>=0.02)
-          hudBig.textContent=`→ home galaxy ${ (dObs*1000).toFixed(0) } Mly — keep zooming: hand-off to the Solar scale chain at 20 Mly`;
-        if(homeAim && dObs<0.02){
+        if(homeAim && dObs<ATLAS_SCALE_SEAM.outGly && dObs>=ATLAS_SCALE_SEAM.inGly)
+          hudBig.textContent=`Scale seam · ${dObs.toFixed(1)} Gly — keep zooming inward to re-enter the nested atlas`;
+        if(homeAim && dObs<ATLAS_SCALE_SEAM.inGly){
           const dir=camera.position.clone().sub(controls.target).normalize();
-          _autoScaleCd=2.0;
+          _autoScaleCd=ATLAS_SCALE_SEAM.cooldown;
           // STRICT continuity: same direction, radius mapped 1:1 (obs Gly → solar AU)
           setMode('solar'); state.solarScaleLayer='cosmic'; advanceScaleLayer('cosmic');
           controls.target.set(0,0,0);
-          camera.position.copy(dir.multiplyScalar(Math.max(dObs,0.008)*GLY_AU));
+          camera.position.copy(dir.multiplyScalar(dObs*GLY_AU));
           syncCameraClipping(true);
           hudBig.textContent='Scale ↓ Cosmic web — continuing inward to the Milky Way, the Oort cloud, the planets';
         } }
