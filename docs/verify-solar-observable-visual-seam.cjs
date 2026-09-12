@@ -108,7 +108,7 @@ function serve(){return new Promise(resolve=>{
   const server=await serve();
   const browser=await launchChromium(chromium,{headless:true});
   try{
-    const ctx=await browser.newContext({viewport:{width:1280,height:820},deviceScaleFactor:1});
+    const ctx=await browser.newContext({viewport:{width:1280,height:820},deviceScaleFactor:1,reducedMotion:'no-preference'});
     const page=await ctx.newPage();
     const errors=[];
     page.on('pageerror',e=>errors.push(String(e&&e.message||e)));
