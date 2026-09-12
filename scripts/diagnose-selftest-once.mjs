@@ -32,7 +32,7 @@ try{
   const pageErrors=[];
   page.on('pageerror',e=>pageErrors.push(String(e)));
   page.on('console',msg=>{ if(msg.type()==='error') console.error('[console]',msg.text()); });
-  const url=`http://${host}:${port}/index.html?fulltests=1`;
+  const url=`http://${host}:${port}/index.html`;
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
   await page.waitForFunction(()=>Array.isArray(globalThis.HCC_SELFTEST_RESULTS),null,{timeout:120000});
   await page.waitForTimeout(250);
