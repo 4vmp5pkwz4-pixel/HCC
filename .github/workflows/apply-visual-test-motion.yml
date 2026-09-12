@@ -1,0 +1,38 @@
+name: Apply visual seam test motion mode
+
+on:
+  push:
+    branches:
+      - fix/solar-observable-visual-seam-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/solar-observable-visual-seam-20260912
+      - name: Make full crossfade timing deterministic
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('docs/verify-solar-observable-visual-seam.cjs')
+          s=p.read_text()
+          old="const ctx=await browser.newContext({viewport:{width:1280,height:820},deviceScaleFactor:1});"
+          new="const ctx=await browser.newContext({viewport:{width:1280,height:820},deviceScaleFactor:1,reducedMotion:'no-preference'});"
+          if old not in s and new not in s:
+              raise SystemExit('Playwright context anchor not found')
+          p.write_text(s.replace(old,new))
+          PY
+      - name: Commit deterministic visual test
+        run: |
+          if git diff --quiet -- docs/verify-solar-observable-visual-seam.cjs; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/verify-solar-observable-visual-seam.cjs
+          git commit -m 'test: force normal motion for seam crossfade timing'
+          git push origin HEAD:fix/solar-observable-visual-seam-20260912
