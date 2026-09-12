@@ -7,11 +7,11 @@ function check(name,cond,detail=''){
 }
 const rMatch=src.match(/R:\s*([0-9.]+),\s*\/\/ Gly — curvature radius of S³/);
 const R=rMatch?Number(rMatch[1]):NaN;
-const expectedOut=R*0.94, expectedIn=R*0.88;
+const expectedOut=R*1.08, expectedIn=R*0.94;
 check('canonical S3 curvature radius is readable and finite',Number.isFinite(R)&&R>500&&R<600,`R=${R}`);
-check('one scale-seam authority exists',src.includes('const SCALE_SEAMS=Object.freeze({')&&src.includes('obsS3OutGly:S3.R*0.94')&&src.includes('s3ObsInGly:S3.R*0.88')&&src.includes('s3UnitGly:100'));
-check('Observable outward seam lies beyond the particle horizon but inside the canonical curvature radius',expectedOut>S3Particle(src)&&expectedOut<R,`out=${expectedOut.toFixed(3)} Gly`);
-check('S3 return seam is inside the outward seam and still outside the particle horizon',expectedIn<expectedOut&&expectedIn>S3Particle(src),`in=${expectedIn.toFixed(3)} Gly`);
+check('one scale-seam authority exists',src.includes('const SCALE_SEAMS=Object.freeze({')&&src.includes('obsS3OutGly:S3.R*1.08')&&src.includes('s3ObsInGly:S3.R*0.94')&&src.includes('s3UnitGly:100'));
+check('Observable outward seam lies beyond the canonical curvature-radius proxy so the shell is seen before the topology handoff',expectedOut>R&&expectedOut<R*1.15,`out=${expectedOut.toFixed(3)} Gly`);
+check('S3 return seam is inside the outward seam but still beyond the particle horizon',expectedIn<expectedOut&&expectedIn>S3Particle(src),`in=${expectedIn.toFixed(3)} Gly`);
 check('Solar to Observable uses the shared seam authority',src.includes("d>SCALE_SEAMS.solarObsOutGly*GLY_AU"));
 check('Observable to Solar uses the shared seam authority',src.includes('dObs<SCALE_SEAMS.obsSolarInGly'));
 check('Observable to finite S3 carrier has an outward handoff',src.includes('dObs>SCALE_SEAMS.obsS3OutGly')&&src.includes("state.s3view='sec'; setMode('s3')")&&src.includes('dObs/SCALE_SEAMS.s3UnitGly'));
