@@ -20,9 +20,8 @@ if(mutated){
   assert.notStrictEqual(html,before,'mutation requested but the 0.026-Gly production seam was not found');
 }
 
-/* The verifier needs to drive the REAL camera and REAL transition function without
-   adding a testing API to production. Inject a tiny hook into the served copy of the
-   main module only. It calls the same autoSolarScale() that the frame loop calls. */
+/* Drive the real camera and the real production hand-off without adding a test API
+   to production. The hook is injected only into the HTML copy served by this test. */
 const anchor='try{\n  window.HCC_API={';
 assert.ok(html.includes(anchor),'main-module HCC_API anchor not found; visual seam hook has nowhere safe to attach');
 const hook=String.raw`
@@ -53,10 +52,12 @@ globalThis.__HCC_VISUAL_SEAM__={
       tickErrors:Number((globalThis.ATLAS_TELEMETRY||{}).tickErrors||0)
     };
   },
+  ghost(){
+    const g=document.querySelector('[data-hcc-scale-seam-ghost]');
+    if(!g) return {present:false,opacity:0};
+    return {present:true,opacity:Number(getComputedStyle(g).opacity)||0};
+  },
   sample(){
-    /* Measure actual scene pixels, not DOM presence. A direct render to the default
-       framebuffer is deliberate: it asks whether the active Three.js scene contains
-       visible energy at this camera, which is exactly what a black scale corridor loses. */
     renderer.setRenderTarget(null);
     renderer.render(scene,camera);
     const gl=renderer.getContext();
@@ -106,10 +107,9 @@ function serve(){return new Promise(resolve=>{
   const tag=mutated?'broken-26gly':'current';
   const server=await serve();
   const browser=await launchChromium(chromium,{headless:true});
-  let page;
   try{
     const ctx=await browser.newContext({viewport:{width:1280,height:820},deviceScaleFactor:1});
-    page=await ctx.newPage();
+    const page=await ctx.newPage();
     const errors=[];
     page.on('pageerror',e=>errors.push(String(e&&e.message||e)));
     await page.goto(`http://127.0.0.1:${server.address().port}/`,{waitUntil:'domcontentloaded',timeout:90000});
@@ -117,9 +117,9 @@ function serve(){return new Promise(resolve=>{
     await page.evaluate(async()=>{ if(HCC_API.ready) await HCC_API.ready({timeout:30000}); });
     await page.waitForTimeout(1000);
 
-    async function shot(gly,name){
+    async function settledShot(gly,name){
       const placed=await page.evaluate(g=>globalThis.__HCC_VISUAL_SEAM__.placeSolarGly(g),gly);
-      await page.waitForTimeout(700);
+      await page.waitForTimeout(850);
       const state=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.read());
       const pixels=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.sample());
       await page.screenshot({path:path.join(OUT,`${tag}-${name}.png`),fullPage:false});
@@ -127,9 +127,25 @@ function serve(){return new Promise(resolve=>{
       return {state,pixels};
     }
 
-    const pre=await shot(0.025,'025gly-pre-seam');
-    const post=await shot(0.027,'027gly-post-seam');
-    const corridor=await shot(0.5,'500mly-corridor-probe');
+    /* Establish a real visible Solar frame, then cross the seam and sample the DOM
+       composite while the old rendered frame should be dissolving over Observable. */
+    const pre=await settledShot(0.025,'025gly-pre-seam');
+    const placedPost=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.placeSolarGly(0.027));
+    await page.waitForTimeout(90);
+    const ghostEarly=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.ghost());
+    await page.screenshot({path:path.join(OUT,`${tag}-027gly-blend-090ms.png`),fullPage:false});
+    await page.waitForTimeout(260);
+    const ghostMid=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.ghost());
+    await page.screenshot({path:path.join(OUT,`${tag}-027gly-blend-350ms.png`),fullPage:false});
+    await page.waitForTimeout(550);
+    const postState=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.read());
+    const postPixels=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.sample());
+    const ghostSettled=await page.evaluate(()=>globalThis.__HCC_VISUAL_SEAM__.ghost());
+    await page.screenshot({path:path.join(OUT,`${tag}-027gly-post-seam.png`),fullPage:false});
+    const post={state:postState,pixels:postPixels};
+    console.log(`027gly-transition: ${JSON.stringify({placedPost,ghostEarly,ghostMid,ghostSettled,state:postState,pixels:postPixels})}`);
+
+    const corridor=await settledShot(0.5,'500mly-corridor-probe');
 
     assert.strictEqual(pre.state.mode,'solar','25 Mly must still be rendered by the Solar cosmic layer');
     assert.strictEqual(post.state.mode,'obs','27 Mly must already be rendered by Observable Universe — no black hand-off gap');
@@ -139,6 +155,16 @@ function serve(){return new Promise(resolve=>{
     assert.strictEqual(corridor.state.tickErrors,0,'corridor probe accumulated tick errors');
     assert.strictEqual(errors.length,0,`browser raised page errors: ${errors.join(' | ')}`);
 
+    /* The former fix removed the black corridor but still hard-cut between two very
+       different scene representations. Requiring the outgoing frame ghost proves the
+       user now sees a temporal blend rather than a one-frame visual discontinuity. */
+    assert.ok(ghostEarly.present && ghostEarly.opacity>0.15,
+      `Solar→Observable must retain the outgoing rendered frame just after hand-off; got ${JSON.stringify(ghostEarly)}`);
+    assert.ok(ghostMid.present && ghostMid.opacity>0.02 && ghostMid.opacity<ghostEarly.opacity,
+      `crossfade must be visibly decaying through the seam; early=${JSON.stringify(ghostEarly)} mid=${JSON.stringify(ghostMid)}`);
+    assert.ok(!ghostSettled.present || ghostSettled.opacity<0.01,
+      `crossfade overlay must be removed after settling; got ${JSON.stringify(ghostSettled)}`);
+
     for(const [name,s] of [['25 Mly',pre],['27 Mly',post],['500 Mly',corridor]]){
       assert.ok(Number.isFinite(s.pixels.meanPeak)&&s.pixels.peak>0,`${name} framebuffer could not be measured`);
       assert.ok(s.pixels.litFraction>0.00005,`${name} framebuffer is effectively black (${s.pixels.litFraction})`);
@@ -146,8 +172,9 @@ function serve(){return new Promise(resolve=>{
     const seamRatio=Math.max(pre.pixels.litFraction,post.pixels.litFraction)/Math.max(1e-9,Math.min(pre.pixels.litFraction,post.pixels.litFraction));
     assert.ok(seamRatio<80,`visible-pixel occupancy collapses across the seam by ${seamRatio.toFixed(1)}×`);
 
-    console.log(`PASS — rendered Solar→Observable seam: 25 Mly solar, 27 Mly observable, 500 Mly observable`);
+    console.log('PASS — rendered Solar→Observable seam: 25 Mly solar, 27 Mly observable, 500 Mly observable');
     console.log(`PASS — visual occupancy stays non-black; seam occupancy ratio ${seamRatio.toFixed(2)}×`);
+    console.log(`PASS — outgoing Solar frame crossfades over Observable: opacity ${ghostEarly.opacity.toFixed(3)} → ${ghostMid.opacity.toFixed(3)} → 0`);
     console.log(`screenshots — ${path.relative(ROOT,OUT)}/${tag}-*.png`);
   } finally {
     await browser.close().catch(()=>{});
