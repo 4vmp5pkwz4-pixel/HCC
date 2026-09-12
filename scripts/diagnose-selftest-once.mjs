@@ -4,8 +4,7 @@ import net from 'node:net';
 
 const host='127.0.0.1';
 const port=4179;
-const server=spawn(process.execPath,['scripts/serve.mjs'],{
-  env:{...process.env,HCC_HOST:host,HCC_PORT:String(port)},
+const server=spawn('python3',['-m','http.server',String(port),'--bind',host],{
   stdio:['ignore','pipe','pipe']
 });
 let serverLog='';
