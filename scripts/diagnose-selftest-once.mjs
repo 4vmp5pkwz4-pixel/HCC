@@ -28,24 +28,24 @@ let browser;
 try{
   await waitPort();
   browser=await chromium.launch({headless:true});
-  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  const page=await browser.newPage({viewport:{width:1280,height:800}});
   const pageErrors=[];
-  page.on('pageerror',e=>pageErrors.push(String(e)));
+  page.on('pageerror',e=>pageErrors.push(String(e.message||e)));
   page.on('console',msg=>{ if(msg.type()==='error') console.error('[console]',msg.text()); });
-  const url=`http://${host}:${port}/index.html`;
+  const url=`http://${host}:${port}/index.html?render=0&fulltests=1`;
   await page.goto(url,{waitUntil:'domcontentloaded',timeout:90000});
-  await page.waitForFunction(()=>Array.isArray(globalThis.HCC_SELFTEST_RESULTS),null,{timeout:120000});
-  await page.waitForTimeout(250);
+  await page.waitForFunction(()=>globalThis.HCC_API && document.documentElement.dataset.hccRender,null,{timeout:30000}).catch(()=>{});
+  await page.evaluate(async()=>{ await HCC_API.ready({timeout:15000}); });
   const result=await page.evaluate(()=>{
-    const rows=globalThis.HCC_SELFTEST_RESULTS||[];
+    const rows=(globalThis.FBS3R_QA && globalThis.FBS3R_QA.selfTests())||[];
     return {
       total:rows.length,
-      failed:rows.filter(r=>!r.pass).map(r=>({name:r.name,detail:r.detail??null})),
-      tail:rows.slice(-20).map(r=>({name:r.name,pass:!!r.pass,detail:r.detail??null}))
+      failed:rows.filter(r=>!r.pass).map(r=>({name:r.name,detail:String(r.detail)})),
+      cost:globalThis.HCC_API?.selftest?.cost?.()||null
     };
   });
   console.log(JSON.stringify({url,pageErrors,...result},null,2));
-  if(pageErrors.length || result.failed.length) process.exitCode=1;
+  if(pageErrors.length || result.failed.length || result.total===0) process.exitCode=1;
 } finally {
   if(browser) await browser.close();
   server.kill('SIGTERM');
