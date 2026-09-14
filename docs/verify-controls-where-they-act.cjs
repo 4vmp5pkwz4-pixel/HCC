@@ -139,5 +139,55 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'a control whose output is partly invisible from here must say so, or the reader concludes it is broken');
 }
 
+/* 5 ── a panel you scroll is a panel you search by hand */
+{ const fin = cut('function ctlApplyFilter(root){', '\nfunction ctlFinderHTML');
+  ok('the controls panel can be filtered, and the filter reads the body as well as the heading',
+    /const hit=\(sect\.textContent\|\|''\)\.toLowerCase\(\)\.includes\(q\);/.test(fin)
+    && /sect\.style\.display=hit\?'':'none';/.test(fin),
+    'a reader looking for a control knows what it DOES, not which section somebody filed it under — so "diffusivity" has to find it inside "Physical coefficients"');
+
+  ok('a match opens itself, so the hit is visible rather than merely present',
+    /if\(hit\)\{ shown\+\+; sect\.classList\.remove\('collapsed'\); \}/.test(fin),
+    'a filter that leaves the one matching section folded has answered the question and hidden the answer');
+
+  ok('and clearing it restores the fold state the reader left, rather than a default',
+    /sect\.dataset\.foldWas===undefined/.test(fin)
+    && /sect\.classList\.toggle\('collapsed', sect\.dataset\.foldWas==='1'\)/.test(fin),
+    'the filter is a lens, not an edit — it must give back exactly what it borrowed');
+
+  ok('filtering to nothing says so, instead of leaving a bare bar over an empty panel',
+    /No section in this world mentions/.test(src)
+    && /nothing has been turned off/.test(src),
+    'an empty panel under a filter bar looks exactly like a panel that has broken');
+
+  ok('the filter is never persisted, because a panel that came back filtered is a panel with controls missing and no sign of why',
+    !/SECT_STATE\.set\([^)]*CTL_FIND/.test(src)
+    && !/localStorage[^;]*ctlFind/i.test(src)
+    && /the filter is never persisted/.test(src),
+    'fold state persists and is discoverable from the chevron; a hidden filter is neither');
+
+  ok('folding every section writes through to the persisted state, or the next rebuild would undo it',
+    /SECT_STATE\.set\('ctl\|'\+state\.mode\+'\|'\+head\.textContent\.trim\(\), on\?'0':'1'\)/.test(src),
+    'a fold-all that lasts until the next re-render is a fold-all that does not work');
+
+  ok('the bar is mounted where every rebuild passes, not in one of the dozen callers that rebuild the panel',
+    /if\(id==='ctl' && !p\.querySelector\(':scope > \.ctlFind'\)\)\{/.test(src)
+    && /it is the one place that sees\s*\n\s+them all/.test(src),
+    'a bar installed by one caller is a bar that disappears when any of the others runs');
+}
+
+/* 6 ── two sections sharing a name shared their fold state */
+{ ok('the duplicate S³ heading is gone, because the accordion was using the heading as a key',
+    (src.match(/<b>\$\{TT\('S³ Laboratory'/g) || []).length
+      + (src.match(/<b>S³ Laboratory<\/b>/g) || []).length === 1
+    && /S³ laboratory views/.test(src)
+    && /A duplicate label is not a\s*\n\s+cosmetic fault when something downstream is using the label as a key/.test(src),
+    'the launcher and the view switcher both rendered in the S³ world under one gold title, and collapsing either wrote the other\'s state');
+
+  ok('and the key really is the heading, which is why the collision mattered',
+    /const key=id\+'\|'\+state\.mode\+'\|'\+head\.textContent\.trim\(\);/.test(src),
+    'panel + mode + heading — so two headings that match are one entry');
+}
+
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

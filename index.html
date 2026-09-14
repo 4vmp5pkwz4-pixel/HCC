@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-control-that-cannot-act-2026.09.14.22">
+<html lang="en" data-hcc-build="a-panel-you-scroll-is-a-panel-you-search-2026.09.14.22">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-control-that-cannot-act-2026.09.14.22">
+<meta name="hcc-build" content="a-panel-you-scroll-is-a-panel-you-search-2026.09.14.22">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -911,6 +911,20 @@
   .sect.collapsed>b{margin-bottom:0}
   .sect.collapsed>b::after{content:'▸';color:var(--gold-2)}
   .sect.collapsed>.sectBody{display:none}
+  /* the filter bar sticks to the top of the panel, because a control you have to
+     scroll back up to reach is a control you stop using */
+  .ctlFind{position:sticky;top:0;z-index:6;display:flex;align-items:center;gap:5px;
+    padding:6px 0 7px;margin-bottom:2px;
+    background:linear-gradient(180deg,rgba(8,11,20,.98) 72%,rgba(8,11,20,0));
+    border-bottom:1px solid rgba(212,175,106,.12)}
+  .ctlFind input[type=search]{flex:1 1 auto;min-width:0;background:rgba(10,14,24,.92);
+    border:1px solid var(--gold-dim);color:var(--txt);border-radius:8px;
+    padding:5px 9px;font:400 12px var(--sans)}
+  .ctlFind input[type=search]:focus{outline:none;border-color:var(--gold);
+    box-shadow:0 0 10px rgba(212,175,106,.2)}
+  .ctlFind .btn{padding:4px 8px;font-size:11px;flex:0 0 auto}
+  .ctlFindCount{flex:0 0 auto;font:600 9.5px var(--sans);letter-spacing:.6px;
+    text-transform:uppercase;color:var(--dim);white-space:nowrap}
   /* quiet ghost buttons: secondary chrome recedes so the 3D scene stays the hero;
      hover/active/on states carry the gold — the resting state only whispers it */
   .btn{background:rgba(10,14,24,.5);border:1px solid rgba(212,175,106,.22);color:var(--txt);
@@ -2314,7 +2328,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.255.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.256.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2564,8 +2578,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.255.0';
-const HCC_BUILD='a-control-that-cannot-act-2026.09.14.22';
+const HCC_VERSION='4.256.0';
+const HCC_BUILD='a-panel-you-scroll-is-a-panel-you-search-2026.09.14.22';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -17989,8 +18003,107 @@ function makePanelCollapsible(id){
    "settings" shows a slim stack of headings instead of a scene-burying sheet; the
    user's own choices are remembered per panel+mode for the session. UI-only. */
 const SECT_STATE=new Map();   // `${panelId}|${mode}|${title}` -> '1' expanded / '0' collapsed
+/* ══ A PANEL YOU SCROLL IS A PANEL YOU SEARCH BY HAND ═════════════════════════
+   MEASURED, across the six worlds, on a 760-pixel viewport:
+
+     world   sections  controls   height     screens of scrolling
+     solar      13        147      6544 px        8.6
+     obs        13        183      5522 px        7.3
+     field      10         92      3024 px        4.0
+     s3         14         93      7495 px        9.9
+     cycles     14        153      7775 px       10.2
+     φ-ladder   15        354     10212 px       13.4
+
+   Three hundred and fifty-four controls in one flat column. The sections have
+   folded since long before this — the gold heading is the toggle, and the state
+   persists per world — but there has never been a way to FIND one among fifteen
+   without scrolling past the other fourteen. Folding shortens the column; it does
+   not tell you which heading you want.
+
+   So: type, and the panel keeps only the sections that match. The filter reads
+   the heading AND the body, so "diffusivity" finds it inside "Physical
+   coefficients" — a reader looking for a control knows what it DOES, not which
+   section somebody filed it under. Matching sections open themselves so the hit
+   is visible rather than merely present.
+
+   The two buttons beside it are there because folding fifteen sections one at a
+   time is the same problem in a smaller costume.
+
+   NOTHING HERE HIDES A CONTROL PERMANENTLY. An empty box restores every section
+   to the fold state the reader left it in, and the filter is never persisted:
+   a panel that came back filtered would be a panel with controls missing and no
+   sign of why, which is exactly the defect this is meant to end. */
+const CTL_FIND={ q:'' };
+function ctlSections(root){
+  return [...root.querySelectorAll(':scope > .sect')];
+}
+function ctlApplyFilter(root){
+  const q=CTL_FIND.q.trim().toLowerCase();
+  let shown=0, total=0;
+  for(const sect of ctlSections(root)){
+    total++;
+    if(!q){ sect.style.display=''; sect.classList.toggle('collapsed', sect.dataset.foldWas==='1'); continue; }
+    /* remember the reader's own fold state once, before the filter touches it */
+    if(sect.dataset.foldWas===undefined)
+      sect.dataset.foldWas=sect.classList.contains('collapsed')?'1':'0';
+    const hit=(sect.textContent||'').toLowerCase().includes(q);
+    sect.style.display=hit?'':'none';
+    if(hit){ shown++; sect.classList.remove('collapsed'); }
+  }
+  const out=root.querySelector('#ctlFindCount');
+  if(out) out.textContent=q?`${shown} of ${total}`:`${total} sections`;
+  const clear=root.querySelector('#ctlFindClear');
+  if(clear) clear.hidden=!q;
+  /* filtering to nothing left a bare filter bar over an empty panel, which looks
+     exactly like a panel that has broken. Say what happened and how to undo it. */
+  let empty=root.querySelector(':scope > .ctlFindEmpty');
+  if(q&&shown===0){
+    if(!empty){ empty=document.createElement('div'); empty.className='note ctlFindEmpty';
+      empty.style.cssText='font-size:11px;color:var(--dim);padding:10px 2px';
+      root.querySelector(':scope > .ctlFind').after(empty); }
+    empty.innerHTML=`No section in this world mentions <b>${esc(CTL_FIND.q.trim())}</b>.
+      ${total} sections were searched, heading and body. Clear the box to bring them back —
+      nothing has been turned off.`;
+  } else if(empty) empty.remove();
+}
+function ctlFinderHTML(){
+  return `<div class="ctlFind">
+    <input type="search" id="ctlFind" placeholder="Filter controls…" value="${esc(CTL_FIND.q)}"
+      autocomplete="off" autocapitalize="off" spellcheck="false"
+      title="Type to keep only the sections that mention it — heading or body. Escape clears.">
+    <button class="btn" id="ctlFindClear" ${CTL_FIND.q?'':'hidden'} title="Clear the filter">✕</button>
+    <span class="ctlFindCount" id="ctlFindCount"></span>
+    <button class="btn" id="ctlFoldAll" title="Fold every section in this world">⌃ all</button>
+    <button class="btn" id="ctlOpenAll" title="Open every section in this world">⌄ all</button>
+  </div>`;
+}
+function ctlBindFinder(root){
+  const inp=root.querySelector('#ctlFind'); if(!inp) return;
+  inp.oninput=e=>{ CTL_FIND.q=e.target.value; ctlApplyFilter(root); };
+  inp.onkeydown=e=>{ if(e.key==='Escape'){ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.blur(); } };
+  const cl=root.querySelector('#ctlFindClear');
+  if(cl) cl.onclick=()=>{ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.focus(); };
+  const fold=on=>{ for(const sect of ctlSections(root)){
+      sect.classList.toggle('collapsed',on);
+      const head=sect.querySelector(':scope > b');
+      /* write through to the persisted state, or the next rebuild undoes it */
+      if(head) try{ SECT_STATE.set('ctl|'+state.mode+'|'+head.textContent.trim(), on?'0':'1'); }catch(e){}
+      sect.dataset.foldWas=on?'1':'0'; } };
+  const fa=root.querySelector('#ctlFoldAll'); if(fa) fa.onclick=()=>fold(true);
+  const oa=root.querySelector('#ctlOpenAll'); if(oa) oa.onclick=()=>fold(false);
+  ctlApplyFilter(root);
+}
 function enhancePanelSections(id){
   const p=document.getElementById(id); if(!p) return;
+  /* the finder is mounted here rather than inside buildCtl because the panel is
+     rebuilt from innerHTML by a dozen different callers, and a bar that only one
+     of them installs is a bar that disappears when any of the others runs. This
+     function already runs after every rebuild — it is the one place that sees
+     them all. */
+  if(id==='ctl' && !p.querySelector(':scope > .ctlFind')){
+    p.insertAdjacentHTML('afterbegin', ctlFinderHTML());
+    ctlBindFinder(p);
+  }
   // Mobile default: keep sections expanded from the top until (and including) the first
   // CONTENT section. A section whose body is only a .radioRow is a view SWITCHER
   // (e.g. "S³ Laboratory": Section/Hopf/Modes/...) — it must not use up the expansion
@@ -18029,6 +18142,9 @@ function enhancePanelSections(id){
     head.onclick=()=>{ SECT_STATE.set(key, sect.classList.toggle('collapsed')?'0':'1'); };
     if(budgetOpen&&!isSwitcher) budgetOpen=false;   // switchers stay free; first content section ends the run
   }
+  /* a rebuild replaces the sections, so whatever the reader had typed has to be
+     re-applied to the new ones or the panel silently un-filters itself */
+  if(id==='ctl') try{ ctlApplyFilter(p); }catch(e){}
 }
 /* Rubber bottom-sheet grip (phones): drag the gold bar to resize the Controls sheet
    between a slim strip and ~70% of the screen; flick it below ~110px to dismiss.
@@ -83574,7 +83690,15 @@ function buildCtlBody(){
       ${misses.length?`<div class="note" style="font-size:10px;color:var(--dim);margin-top:5px">${TT('out of reach','вне досягаемости','außer Reichweite')}: ${misses.map(E=>{ const R=invAtlasRange(E);
         return `${esc(E.id)} <span style="opacity:.7">[${R.lo.toExponential(2)} … ${R.hi.toExponential(2)}]</span>`; }).join(' · ')}</div>`:''}`}
       </div>`; })()}
-    <div class="sect"><b>S³ Laboratory</b>
+    <!-- ── TWO SECTIONS SHARED ONE NAME, AND THE ACCORDION SHARED THEIR STATE ──
+         This heading read "S³ Laboratory", which is also the heading of the
+         launcher section inserted by ensureS3LauncherSection(). Both render in the
+         S³ world, so the panel showed the same gold title twice — and worse, the
+         accordion keys sections by panel + mode + heading, so the two collided:
+         collapsing one wrote the other's state. A duplicate label is not a
+         cosmetic fault when something downstream is using the label as a key.
+         This one is the VIEW switcher; the launcher is the launcher. -->
+    <div class="sect"><b>${TT('S³ laboratory views','Виды лаборатории S³','S³-Laboransichten')}</b>
       <div class="radioRow">
         <button class="btn ${V==='civplock'?'on':''}" id="v-civplock">◆ ${TT('CIVP · CP¹ evaluation lock','CIVP · замок на CP¹','CIVP · CP¹-Schloss')}</button>
         <button class="btn ${V==='civpcut'?'on':''}" id="v-civpcut">◈ ${TT('CIVP · molecular cut','CIVP · молекулярный срез','CIVP · molekularer Schnitt')}</button>
