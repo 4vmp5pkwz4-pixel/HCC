@@ -5198,6 +5198,51 @@ function runSelfTests(){
         `rank ${A.rank} either way · ${A.basis.length} vectors either way · the vectors themselves differ, so reporting a basis as canonical would have been a lie the arithmetic never told`);
     }
   }
+  { /* THE FILTER IS A LENS, AND THIS IS THE ONLY PLACE THAT CAN PROVE IT.
+       docs/verify-controls-where-they-act.cjs asserts that the fold-all handler
+       writes through to SECT_STATE, and that assertion was GREEN for the whole
+       period in which folding did not survive a world switch — because the line
+       it names existed and something else undid its effect. A static check reads
+       source; it cannot run a rebuild. This can.
+
+       The lens property, stated so it can fail: running the no-query path of
+       ctlApplyFilter over a section the filter has never touched must leave that
+       section's fold exactly as it found it. Break that and every rebuild wipes
+       the reader's folds, which is precisely the bug this replaces. */
+    const probe=document.createElement('div');
+    const mk=(name,collapsed)=>{ const s=document.createElement('div');
+      s.className='sect'+(collapsed?' collapsed':'');
+      s.innerHTML='<b>'+name+'</b><div class="sectBody">body</div>';
+      probe.appendChild(s); return s; };
+    const folded=mk('probe folded',true), open=mk('probe open',false);
+    let threw=null; try{ ctlApplyFilter(probe); }catch(e){ threw=e; }
+    ok('THE FILTER GIVES BACK EXACTLY WHAT IT BORROWED, and a section it never touched keeps the fold the reader left',
+      !threw && folded.classList.contains('collapsed') && !open.classList.contains('collapsed')
+      && folded.dataset.foldWas===undefined && open.dataset.foldWas===undefined,
+      threw?('threw: '+threw.message)
+        :`two sections the filter has never seen, one folded and one open, survive its no-query pass unchanged and pick up no foldWas record · the static check that this writes through to SECT_STATE was green all through the period when folding did not survive a world switch, because the line it named existed and this pass undid its effect`);
+    /* ── AND IT MUST BORROW ONCE, NOT ONCE PER PASS ───────────────────────
+       The first version of this check filtered, then cleared, and passed. It was
+       too weak, and a mutation proved it: make the record line re-record on every
+       filtered pass instead of only the first, and nothing went red — because one
+       pass records the same value either way.
+
+       Two passes is not a contrived case, it is the ordinary one. enhancePanelSections
+       calls ctlApplyFilter after EVERY rebuild, so a filtered panel that rebuilds
+       gets a second pass while the hit is open — and a record taken then says
+       "open", so clearing restores open and the reader's fold is gone. */
+    { CTL_FIND.q='probe folded'; ctlApplyFilter(probe);
+      const hidOther=open.style.display==='none', openedHit=!folded.classList.contains('collapsed');
+      ctlApplyFilter(probe);            // the rebuild, arriving while the filter is up
+      ctlApplyFilter(probe);            // and another, because two is not a special number
+      CTL_FIND.q=''; ctlApplyFilter(probe);
+      ok('and it borrows ONCE however many rebuilds arrive while the filter is up, so clearing still returns the reader’s own fold',
+        hidOther && openedHit
+        && folded.classList.contains('collapsed') && !open.classList.contains('collapsed')
+        && open.style.display==='' && folded.dataset.foldWas===undefined,
+        `filtered, then two further passes standing in for rebuilds, then cleared: the folded section came back FOLDED. Recording on every pass instead of the first would have captured it open on pass two and restored it open — a mutation that does exactly that passes the static check, which is why this one is here`);
+    }
+  }
   { /* THE SCALING BENCH — one engine, and the three answers that are not a law. */
     const det=hccSolveFor(['energy','mass density','time','length'],'length');
     ok('The bench is the engine both derived laws were special cases of, and it returns the same answer they did',
