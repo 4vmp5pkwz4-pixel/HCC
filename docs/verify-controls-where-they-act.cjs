@@ -150,10 +150,23 @@ const cut = (a, b) => { const i = src.indexOf(a);
     /if\(hit\)\{ shown\+\+; sect\.classList\.remove\('collapsed'\); \}/.test(fin),
     'a filter that leaves the one matching section folded has answered the question and hidden the answer');
 
+  /* ── THIS CHECK PASSED ON BROKEN BEHAVIOUR ─────────────────────────────────
+     It asserted that the two strings appeared: the `foldWas===undefined` record
+     and the `toggle('collapsed', foldWas==='1')` restore. Both did. But the
+     restore ran UNCONDITIONALLY in the no-query branch, so on a freshly rebuilt
+     panel — where foldWas is undefined — it evaluated false and unfolded every
+     section, overwriting the state the accordion had restored from SECT_STATE
+     two lines earlier.
+     MEASURED: fold everything in the Field Lab (10 of 10, 509 px), leave the
+     world, come back — 0 of 10, 3074 px. The presence of a line is not the
+     behaviour of a line, which is the whole defect this file exists to catch, and
+     I committed one. The check now requires the restore to be GUARDED. */
   ok('and clearing it restores the fold state the reader left, rather than a default',
-    /sect\.dataset\.foldWas===undefined/.test(fin)
-    && /sect\.classList\.toggle\('collapsed', sect\.dataset\.foldWas==='1'\)/.test(fin),
-    'the filter is a lens, not an edit — it must give back exactly what it borrowed');
+    /if\(sect\.dataset\.foldWas!==undefined\)\{/.test(fin)
+    && /sect\.classList\.toggle\('collapsed', sect\.dataset\.foldWas==='1'\);/.test(fin)
+    && /delete sect\.dataset\.foldWas;/.test(fin)
+    && /A lens that rewrites what it looks at is not a lens/.test(src),
+    'the filter is a lens, not an edit — if it never touched a section\'s fold it has nothing to give back, and touching it anyway destroyed the persisted state on every rebuild');
 
   ok('filtering to nothing says so, instead of leaving a bare bar over an empty panel',
     /No section in this world mentions/.test(src)
