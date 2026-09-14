@@ -176,6 +176,24 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'a bar installed by one caller is a bar that disappears when any of the others runs');
 }
 
+{ const fin = cut('function ctlApplyFilter(root){', '\nfunction ctlFinderHTML');
+  ok('the filter comes off when the world changes, because it is a lens on what is in front of you',
+    /if\(CTL_FIND\.mode!==nowMode\)\{/.test(fin)
+    && /CTL_FIND\.q='';/.test(fin)
+    && /Changing world replaces what the lens is pointed at, so the\s*\n\s+lens comes off/.test(src),
+    'MEASURED before: typing "coefficients" in the Field Lab and switching to Solar left 0 of 13 sections showing — a panel the reader did not empty');
+
+  ok('and it reads the mode through a guard, because this runs inside a const\'s temporal dead zone at boot',
+    /let nowMode=null; try\{ nowMode=state\.mode; \}catch\(e\)\{ nowMode=CTL_FIND\.mode; \}/.test(fin)
+    && /took the\s*\n\s+whole page down the first time this line was written without the try/.test(src),
+    'touching a const in its TDZ throws a ReferenceError rather than giving undefined — the first version of the world-switch clear killed the page, and only a boot run caught it');
+
+  ok('but it survives a panel rebuild, which is a different thing entirely',
+    /if\(id==='ctl'\) try\{ ctlApplyFilter\(p\); \}catch\(e\)\{\}/.test(src)
+    && /re-applied to the new ones or the panel silently un-filters itself/.test(src),
+    'a rebuild replaces the sections under the same filter; a world switch replaces what the filter is about');
+}
+
 /* 6 ── two sections sharing a name shared their fold state */
 { ok('the duplicate S³ heading is gone, because the accordion was using the heading as a key',
     (src.match(/<b>\$\{TT\('S³ Laboratory'/g) || []).length
