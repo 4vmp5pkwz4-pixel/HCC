@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="seven-atmospheres-and-the-fibre-over-the-pole-2026.09.14.4">
+<html lang="en" data-hcc-build="the-post-pass-that-was-not-a-camera-2026.09.14.5">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="seven-atmospheres-and-the-fibre-over-the-pole-2026.09.14.4">
+<meta name="hcc-build" content="the-post-pass-that-was-not-a-camera-2026.09.14.5">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.238.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.239.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2473,6 +2473,7 @@
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/SMAAPass.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/OutputPass.js" crossorigin>
+<link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/postprocessing/ShaderPass.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/XRControllerModelFactory.js" crossorigin>
 <link rel="modulepreload" href="https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/XRHandModelFactory.js" crossorigin>
 
@@ -2493,6 +2494,7 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { createAtlasTime, epochDaysOf } from './core/time/atlas-time.mjs';
 import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTERS, STATE_SCOPES, domainById, findClockAdapter, canPromoteToAtlasEpoch } from './core/time/registry.mjs';
 
@@ -2504,8 +2506,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.238.0';
-const HCC_BUILD='seven-atmospheres-and-the-fibre-over-the-pole-2026.09.14.4';
+const HCC_VERSION='4.239.0';
+const HCC_BUILD='the-post-pass-that-was-not-a-camera-2026.09.14.5';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4312,6 +4314,47 @@ function runSelfTests(){
       &&Object.values(HCC_ATM.refused).every(r=>r.length>60),
       `no shell on ${noAir.join(', ')} · ${Object.keys(HCC_ATM.refused).length} refusals, each with a reason · `
       +'a blue limb on Mercury would be a lie told in the most persuasive medium this instrument has');
+  }
+  { /* THE CAMERA — three laws, and the field angle taken from the projection itself. */
+    /* the composer is built on the first rendered frame, and the suite runs before
+       one — so the check builds it the same way the render path does rather than
+       reporting an empty chain and calling that a failure */
+    try{ ensureBloom(); }catch(e){}
+    const P=bloomComposer?bloomComposer.passes.map(x=>x.constructor.name):[];
+    const iS=P.indexOf('SMAAPass'), iO=P.lastIndexOf('OutputPass'), iX=P.indexOf('ShaderPass');
+    ok('The camera sits after the resolve and before the encode, and only where premium visuals are on',
+      !premiumVisualsEnabled ? iX<0 : (iX>iS&&iX<iO&&iS>=0&&iO>=0),
+      P.join(' → ')+` · it works on the display buffer alone, and no number the atlas reports passes through it`);
+    if(opticsPass){
+      const t=opticsSyncField();
+      const pm=camera.projectionMatrix.elements;
+      const want=[1/pm[0], 1/pm[5]];
+      const corner=Math.atan(Math.hypot(t.x,t.y));
+      const cos4=Math.pow(Math.cos(corner),4);
+      ok('The vignetting knows the field angle from the projection matrix, so the law is right at every aspect rather than at one',
+        Math.abs(t.x-want[0])<1e-6&&Math.abs(t.y-want[1])<1e-6
+        &&Math.abs(t.y-Math.tan(camera.fov*Math.PI/360))<1e-6
+        &&Math.abs(t.x/t.y-camera.aspect)<1e-6,
+        `half-field tangents ${t.x.toFixed(4)}, ${t.y.toFixed(4)} · corner ${(corner*180/Math.PI).toFixed(1)}° · `
+        +`cos⁴ = ${cos4.toFixed(4)} of centre, and the exponent is the four the optics gives: aperture, sensor, and the inverse square of a longer path`);
+      ok('The exponent is derived and the fraction applied is declared, which are two different numbers and both are stated',
+        HCC_OPTICS.vignetteLaw===4&&HCC_OPTICS.vignetteApplied>0&&HCC_OPTICS.vignetteApplied<1
+        &&/float v=cosT\*cosT\*cosT\*cosT;/.test(HCC_OPTICS_SHADER.fragmentShader),
+        `the law puts the corner at ${cos4.toFixed(3)}; ${(100*HCC_OPTICS.vignetteApplied).toFixed(0)}% of it is drawn, `
+        +`so the corner reads ${(1-HCC_OPTICS.vignetteApplied*(1-cos4)).toFixed(3)} — a real lens is corrected in the barrel and again in software`);
+      ok('The grain is photon shot noise, so it is loudest where the picture is darkest — the law the usual overlay has backwards',
+        /col\+=n\*uGrain\*sqrt\(max\(L,uFloor\)\);/.test(HCC_OPTICS_SHADER.fragmentShader)
+        &&HCC_OPTICS.grainSigma>0&&HCC_OPTICS.grainFloor>0&&HCC_OPTICS.grainFloor<HCC_OPTICS.grainSigma,
+        `σ = √N, so absolute grain grows as √L while grain RELATIVE to the signal falls as 1/√L · `
+        +`at L=0.05 that is ${(1/Math.sqrt(0.05)).toFixed(1)}× the relative noise it has at L=1`);
+      ok('The lateral colour is zero on the optical axis and linear in field height, in wavelength order',
+        /vec2 dir=c\*uAbb\*2\.0;/.test(HCC_OPTICS_SHADER.fragmentShader)
+        &&/texture2D\(tDiffuse, vUv\+dir\)\.r/.test(HCC_OPTICS_SHADER.fragmentShader)
+        &&/texture2D\(tDiffuse, vUv\)\.g/.test(HCC_OPTICS_SHADER.fragmentShader)
+        &&/texture2D\(tDiffuse, vUv-dir\)\.b/.test(HCC_OPTICS_SHADER.fragmentShader),
+        `${(HCC_OPTICS.aberration*2*100).toFixed(2)}% of a frame width at the corner and exactly nothing at the centre · `
+        +'a constant offset across the whole frame is not aberration, it is a mistake with a lens-shaped name');
+    }
   }
   { /* THE SUN — an Eddington grey atmosphere, and the identities it cannot break.
        The atlas opens on this star. It was one flat colour on a sphere, which threw
@@ -13989,11 +14032,11 @@ renderer.domElement.addEventListener('webglcontextlost',e=>{
    kernel). PERCEPTUAL, not radiometric: intensities are display-relative, no SI
    luminance is claimed. Bypassed while an XR session presents (composer paths
    are not stereo-safe) and falls back to the direct render on any failure. */
-let bloomComposer=null, bloomPass=null, smaaPass=null, bloomFailed=false;
+let bloomComposer=null, bloomPass=null, smaaPass=null, opticsPass=null, bloomFailed=false;
 function premiumComposerPixelRatio(){return Math.min(renderer.getPixelRatio(),premiumPostQuality);}
 function resetBloomComposer(dispose=true){
   if(dispose&&bloomComposer){try{bloomComposer.dispose();}catch(e){}}
-  bloomComposer=null;bloomPass=null;smaaPass=null;
+  bloomComposer=null;bloomPass=null;smaaPass=null;opticsPass=null;
 }
 const PREMIUM_BLOOM_VIVID=new Set(['nul','nexus','hol','act','syd','hopf','hopfion','skyrmion','qm','qcd','gw','berry','bhr','pole','rsh']);
 const PREMIUM_BLOOM_QUIET=new Set(['kam','psp','noe','cau','disp','kin','he','nuc','qcrys']);
@@ -14009,6 +14052,92 @@ function premiumBloomProfile(){
     :PREMIUM_BLOOM_QUIET.has(state.s3view)?{strength:.34,radius:.47,threshold:.8}
     :{strength:.52,radius:.6,threshold:.7};
 }
+/* ══ THE POST PASS THAT WAS NOT A CAMERA ═══════════════════════════════════════
+   Bloom, SMAA and a tone map, and then the image went straight to the screen as
+   though it had been captured by nothing at all. Every real instrument that has
+   ever recorded this sky put three things into the picture, and all three are laws
+   rather than looks.
+
+   NATURAL VIGNETTING IS EXACTLY cos⁴θ. One cosine from the foreshortened aperture,
+   one from the foreshortened sensor element, and two from the inverse square of the
+   longer oblique path: four, and not an adjustable curve. At this camera`s 55°
+   vertical field the corner sits at 46.7° on a 16:9 frame, so the law puts the
+   corner at 0.221 of the centre — and on 21:9 at 0.133, on 1:1 at 0.421, because the
+   corner angle is a function of the aspect and nothing else. The atlas computes the
+   angle from the projection matrix rather than from the screen radius, so the
+   falloff is right at every aspect and every field of view instead of at one.
+
+   It is applied at a DECLARED FRACTION. A real lens is corrected in the barrel and
+   again in software, and a fifth of the frame at a fifth of the brightness is a
+   photograph rather than an instrument. The exact value is reported; what is drawn
+   is a stated part of it.
+
+   GRAIN IS PHOTON SHOT NOISE, WHICH MEANS IT LIVES IN THE SHADOWS. Arrivals are
+   Poisson, so σ = √N and the noise RELATIVE to the signal goes as 1/√N: absolute
+   grain grows with brightness, visible grain falls with it. A uniform overlay of
+   noise — which is what almost every film-grain shader does — has the law exactly
+   backwards, and looks like dirt on the screen instead of like a photograph.
+
+   LATERAL COLOUR IS ZERO ON AXIS AND LINEAR IN FIELD HEIGHT. A lens focuses short
+   wavelengths at a different magnification from long ones, so the three channels
+   are displaced radially in wavelength order, by an amount proportional to the
+   distance from the optical axis — which is why a constant RGB offset across the
+   whole frame, the other thing almost every shader does, is not aberration at all.
+
+   NONE OF IT TOUCHES A MEASUREMENT. This is the display buffer after tone mapping;
+   no number the atlas reports passes through here. */
+const HCC_OPTICS=Object.freeze({
+  vignetteLaw:4,          // the exponent is derived, not chosen
+  vignetteApplied:0.42,   // ...and this fraction of it is what is drawn
+  grainSigma:0.055,       // shot-noise amplitude at unit signal
+  grainFloor:0.012,       // below this the noise would be quantisation, not photons
+  aberration:0.0016,      // lateral colour at the frame corner, in screen widths
+  source:'cos^4 natural vignetting; Poisson shot noise sigma = sqrt(N); lateral colour linear in field height'});
+/* ONE PLACE THAT COMPUTES THE FIELD ANGLE. The frame calls it and so does the boot
+   suite, because a check that recomputes the thing it is checking is checking its own
+   arithmetic. The tangents come straight out of the live projection matrix, so the
+   vignetting law follows a changed field of view or aspect rather than being right on
+   the one screen it was written on. */
+function opticsSyncField(){
+  if(!opticsPass) return null;
+  const pm=camera.projectionMatrix.elements;
+  const t=opticsPass.uniforms.uTanHalf.value;
+  t.set(1/Math.max(pm[0],1e-6), 1/Math.max(pm[5],1e-6));
+  return t;
+}
+const HCC_OPTICS_SHADER={
+  uniforms:{ tDiffuse:{value:null}, uTime:{value:0}, uTanHalf:{value:new THREE.Vector2(0.52,0.52)},
+    uVig:{value:HCC_OPTICS.vignetteApplied}, uGrain:{value:HCC_OPTICS.grainSigma},
+    uFloor:{value:HCC_OPTICS.grainFloor}, uAbb:{value:HCC_OPTICS.aberration} },
+  vertexShader:`varying vec2 vUv; void main(){ vUv=uv;
+    gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`
+    uniform sampler2D tDiffuse; uniform float uTime; uniform vec2 uTanHalf;
+    uniform float uVig; uniform float uGrain; uniform float uFloor; uniform float uAbb;
+    varying vec2 vUv;
+    float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
+    void main(){
+      vec2 c=vUv-0.5;
+      /* LATERAL COLOUR: radial, zero on axis, linear in field height, and the three
+         channels in wavelength order — red magnified most, blue least */
+      vec2 dir=c*uAbb*2.0;
+      vec3 col=vec3(
+        texture2D(tDiffuse, vUv+dir).r,
+        texture2D(tDiffuse, vUv).g,
+        texture2D(tDiffuse, vUv-dir).b);
+      /* NATURAL VIGNETTING: the field angle from the projection itself, so the law is
+         right at every aspect ratio rather than at the one it was tuned on */
+      vec2 t=c*2.0*uTanHalf;
+      float cosT=inversesqrt(1.0+dot(t,t));
+      float v=cosT*cosT*cosT*cosT;                 // cos^4, the exponent the optics gives
+      col*=mix(1.0, v, uVig);
+      /* SHOT NOISE: sigma = sqrt(N), so the grain scales with the square root of the
+         signal and is therefore LOUDEST, relatively, where the picture is darkest */
+      float L=max(dot(col,vec3(0.2126,0.7152,0.0722)),0.0);
+      float n=hash(gl_FragCoord.xy+vec2(uTime*61.7,uTime*37.3))-0.5;
+      col+=n*uGrain*sqrt(max(L,uFloor));
+      gl_FragColor=vec4(max(col,0.0),1.0);
+    }`};
 function ensureBloom(){
   if(bloomComposer||bloomFailed) return bloomComposer;
   try{
@@ -14027,6 +14156,10 @@ function ensureBloom(){
        WebXR owns a stereo multisampled framebuffer and cannot share this composer. */
     smaaPass=new SMAAPass(Math.max(2,sz.x*premiumComposerPixelRatio()),Math.max(2,sz.y*premiumComposerPixelRatio()));
     bloomComposer.addPass(smaaPass);
+    /* the camera, after the resolve and before the encode: it works on the
+       display buffer alone and no number the atlas reports passes through it */
+    if(premiumVisualsEnabled){ opticsPass=new ShaderPass(HCC_OPTICS_SHADER);
+      bloomComposer.addPass(opticsPass); }
     bloomComposer.addPass(new OutputPass());
   }catch(e){ bloomFailed=true; bloomComposer=null; }
   return bloomComposer;
@@ -90673,6 +90806,7 @@ function tickBody(now, frame){
   premiumPerformanceTick(dt);
   HCC_STAR_UNIFORMS.uTime.value+=dt;
   SUN_UNIFORMS.uTime.value+=dt;   // granulation turns over in about eight minutes of its own time
+  if(opticsPass){ opticsPass.uniforms.uTime.value+=dt; opticsSyncField(); }
   sunCorona.position.copy(sunMesh.position);
   sunCorona.scale.setScalar(sunMesh.scale.x);
   sunCorona.quaternion.copy(camera.quaternion);   // square to the ray, or it is not a projection
