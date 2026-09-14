@@ -34,9 +34,12 @@ const cut = (a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i);
   if (i < 0 || j < 0) throw new Error('could not cut ' + a.slice(0, 40)); return src.slice(i, j); };
 
 const API = (() => {
+    /* the bench engine sits ahead of both derived laws and they are calls into it,
+       so the cut starts there: a slice that began at the blast wave would hand this
+       file a hccBlastExponents whose hccSolveFor did not exist */
   const code = cut('const HCC_DIM=', '/* ══ TWENTY-NINE')
     + cut('function hccNullBasis', 'function hccDirectionCensus')
-    + cut('/* ══ THE SOLVER', '/* and four that must FAIL')
+    + cut('/* ══ THE SCALING BENCH', '/* and four that must FAIL')
     + '\nreturn {hccDiffusionExponents, hccDiffusionSlope, hccLinearFit, HCC_DIFFUSION, HCC_DIFF_NU};';
   return new Function(code)();
 })();
