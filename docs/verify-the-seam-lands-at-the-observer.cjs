@@ -54,7 +54,15 @@ ok('the Observable side stays centred on the origin, because that world IS obser
 
 /* ── the map, as arithmetic ──────────────────────────────────────────────────── */
 const K = Number((src.match(/s3UnitGly:(\d+)/) || [])[1]);
-const R = Number((src.match(/R:\s*([\d.]+),\s*\/\/ Gly — curvature radius of S³/) || [])[1]);
+/* read a numeric literal until the carrier constants became computed from the
+ * published curvature marginal. Run the reconstruction instead: the seam has to
+ * land on the radius the atlas uses, not on the way it is written. */
+const R = (() => {
+  const i = src.indexOf('/* ══ THE CONDITIONAL RECONSTRUCTION');
+  const j = src.indexOf('/* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM.');
+  if (i < 0 || j < 0) throw new Error('reconstruction block not found');
+  return new Function(src.slice(i, j) + '\nreturn S3.R;')();
+})();
 const RU = R / 100;
 ok('the unit ratio across the seam is the one the two worlds declare',
   K === 100 && Math.abs(RU - R / 100) < 1e-12,
