@@ -137,11 +137,22 @@ ok('coincident kinds are drawn as one point with both names, which is what a tab
   && /const r=DIMSPACE\.dot\*\(shared\?1\.9:1\.25\)\*\(dimless\?2\.2:1\);/.test(src),
   'in a table those are three pairs of rows nobody would think to compare; in the lattice they are one dot with two names');
 
-ok('the lattice and the field solver take the world in turn, decided in one place',
-  /function dimSpaceApply\(\)\{/.test(src)
-  && /fieldGroup\.visible=\(state\.mode==='field'\)&&!on;/.test(src)
+/* ── THIS CHECK USED TO NAME TWO INSTRUMENTS AND THERE ARE NOW THREE ───────────
+ * It read `fieldGroup.visible=(state.mode==='field')&&!on;` — the exact line that
+ * decided between the solver's lattice and this one. The blast wave then moved into
+ * the same volume, the decision became a three-way one, and that line stopped
+ * existing. The check was right about the PRINCIPLE and wrong about the spelling, so
+ * it is rewritten to ask the principle: one function, and only one, decides which
+ * instrument in that volume is visible. A check pinned to a line of code fails when
+ * the code is improved, which trains the next reader to delete checks. */
+ok('the lattice, the solver and the blast wave take the world in turn, decided in one place',
+  /function dimSpaceApply\(\)\{ fieldWorldApply\(\); \}/.test(src)
+  && /function fieldWorldApply\(modeNow\)\{/.test(src)
+  && /dimSpace\.visible=dims;/.test(src)
+  && /fieldGroup\.visible=inField&&!blast&&!dims;/.test(src)
+  && (src.match(/fieldGroup\.visible\s*=/g) || []).length === 2   // the declaration, and that one line
   && /if\(dimSpace\.visible\)\{ const C=dimSpace\.userData\.census\|\|hccPiCensus\(\);/.test(src),
-  'the solver rewrites its own visibility and its own caption every frame, so hiding its pieces would be a second authority arguing with the first sixteen times a second');
+  'the solver rewrites its own visibility every frame, so hiding its pieces would be a second authority arguing with the first sixteen times a second — and with three instruments sharing the volume the single writer matters more, not less');
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
