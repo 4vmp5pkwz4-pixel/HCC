@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-solvers-own-diffusion-2026.09.14.16">
+<html lang="en" data-hcc-build="the-scaling-bench-2026.09.14.17">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-solvers-own-diffusion-2026.09.14.16">
+<meta name="hcc-build" content="the-scaling-bench-2026.09.14.17">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2314,7 +2314,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.251.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.252.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2564,8 +2564,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.251.0';
-const HCC_BUILD='the-solvers-own-diffusion-2026.09.14.16';
+const HCC_VERSION='4.252.0';
+const HCC_BUILD='the-scaling-bench-2026.09.14.17';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4818,6 +4818,45 @@ function runSelfTests(){
         A.rank===B.rank&&A.basis.length===B.basis.length&&differs,
         `rank ${A.rank} either way · ${A.basis.length} vectors either way · the vectors themselves differ, so reporting a basis as canonical would have been a lie the arithmetic never told`);
     }
+  }
+  { /* THE SCALING BENCH — one engine, and the three answers that are not a law. */
+    const det=hccSolveFor(['energy','mass density','time','length'],'length');
+    ok('The bench is the engine both derived laws were special cases of, and it returns the same answer they did',
+      det&&det.status==='determined'&&det.law==='length ∝ energy^1/5 · mass density^-1/5 · time^2/5'
+      &&Math.abs(det.exponents.time-0.4)<1e-12,
+      `${det?det.law:'no law'} · hccBlastExponents and hccDiffusionExponents were identical line for line apart from one constant, and are now calls into this`);
+    ok('and both of those still answer exactly as they did before they became calls into it',
+      (()=>{ const b=hccBlastExponents(), d=hccDiffusionExponents();
+        return b&&d&&Math.abs(b.energy-0.2)<1e-12&&Math.abs(b['mass density']+0.2)<1e-12
+          &&Math.abs(b.time-0.4)<1e-12&&Math.abs(d.diffusivity-0.5)<1e-12&&Math.abs(d.time-0.5)<1e-12
+          &&JSON.stringify(b.vector)==='[-1,1,-2,5]'&&JSON.stringify(d.vector)==='[-1,-1,2]'; })(),
+      'a refactor that changes an answer is not a refactor, so both are pinned to the vectors and exponents they returned before it');
+    /* it rediscovers a law nobody told it about */
+    { const e=hccSolveFor(['energy','mass','speed'],'energy'),
+            c=hccSolveFor(['pressure','mass density','speed'],'speed');
+      ok('Given three quantities and nothing else, it writes E = mc² and the speed of sound',
+        e.status==='determined'&&e.law==='energy ∝ mass^1 · speed^2'
+        &&c.status==='determined'&&c.law==='speed ∝ pressure^1/2 · mass density^-1/2',
+        `${e.law} · ${c.law} — the second is the first thing this atlas has derived that it was not already carrying`); }
+    /* AND THE THREE ANSWERS THAT ARE NOT A LAW, which is what makes it an instrument */
+    { const none=hccSolveFor(['length','time'],'length'),
+            many=hccSolveFor(['energy','mass','speed','time','length'],'energy'),
+            gone=hccSolveFor(['energy','mass','speed','entropy'],'entropy');
+      ok('It refuses in three different ways, and a bench that answers every question has answered none of them',
+        none.status==='independent'&&none.exponents===null
+        &&many.status==='underdetermined'&&many.groups===2&&many.exponents===null
+        &&gone.status==='absent'&&gone.exponents===null,
+        `{length, time} → independent, so no relation among them CAN exist · {energy, mass, speed, time, length} → ${many.groups} groups, so the shape is not determined and choosing one would be inventing physics · solving for a quantity the group does not contain → absent`);
+      ok('and it refuses the malformed question too rather than returning something shaped like an answer',
+        hccSolveFor(['energy'],'energy')===null&&hccSolveFor(['energy','mass'],'speed')===null
+        &&hccSolveFor(['energy','not a quantity','mass','speed'],'energy').status==='determined',
+        'one quantity is not a relation · a target that was never picked is not a target · an unknown name is dropped rather than poisoning the matrix');
+    }
+    /* the exponents are integers over integers and are printed as such */
+    ok('The exponents print as the fractions the integer arithmetic actually produced',
+      hccRatio(0.4)==='2/5'&&hccRatio(-0.2)==='-1/5'&&hccRatio(0.5)==='1/2'
+      &&hccRatio(2)==='2'&&hccRatio(1/3)==='1/3',
+      '2/5 rather than 0.4000000000000001 · the null space is computed over the integers and the display has no business hiding that');
   }
   { /* THE BLAST WAVE — the first time the dimension table predicts a number that
        photographs can contradict, and the window in which it does not. */
@@ -39131,6 +39170,65 @@ function hccDirectionCensus(){
     compoundVectors:compound, K, basis,
     caveat:'a dimensionless group is a direction in which a relation COULD exist; Buckingham gives a necessary condition and never a sufficient one, so none of these is a discovered law'};
 }
+/* ══ THE SCALING BENCH: ANY QUANTITIES, THE GROUPS THEY ADMIT, THE LAW THEY IMPLY ══
+   Twice now this atlas has derived a power law by hand — R = ξ(Et²/ρ)^(1/5) for the
+   blast wave, L = (Dt)^(1/2) for the diffusing pulse — and both times the function
+   that did it was the SAME FUNCTION with a different constant at the top. Not
+   similar: identical, line for line, apart from which list of kinds it read and
+   which comment sat at the end.
+
+   Duplication is the atlas saying what it wants to be. So this is the one engine,
+   the two are now calls into it, and because it is general the reader can make the
+   call themselves: choose any quantities from the thirty-four, choose which one to
+   solve for, and read off the exponents.
+
+   WHAT IT WILL AND WILL NOT DO, because a bench that answers every question has
+   answered none of them:
+
+     ONE GROUP     — the exponents are determined and the law has a unique shape.
+                     This is the case the blast wave and the diffusing pulse are in,
+                     and it is the only case where dimensional analysis nearly hands
+                     you a law.
+     NONE          — the quantities are dimensionally independent and NO relation
+                     among them can exist. That is a real and useful answer: it
+                     says stop looking.
+     TWO OR MORE   — the shape is NOT determined. Any function of the groups will
+                     do, and dimensional analysis has run out of things to say. The
+                     bench reports the count and refuses to pick one, because
+                     picking one would be inventing physics with a straight face.
+
+   AND THE CONSTANT IS NEVER GIVEN. Every law this bench produces is correct up to a
+   dimensionless factor it cannot know: ξ took an integration of the gas dynamics,
+   2ν took the Gaussian solution. A reader who takes an exponent from here has
+   something real; a reader who takes a prediction has half of one. */
+function hccSolveFor(kinds, target){
+  const K=(kinds||[]).filter(k=>HCC_KIND_DIM[k]);
+  if(K.length<2||!K.includes(target)) return null;
+  const nb=hccNullBasis(K), n=nb.basis.length;
+  const base={kinds:K, target, groups:n, basis:nb.basis, rank:nb.rank};
+  if(n===0) return Object.assign(base,{status:'independent', exponents:null,
+    note:'these quantities are dimensionally independent, so no relation among them can exist — which is a real answer and not a failure'});
+  if(n>1) return Object.assign(base,{status:'underdetermined', exponents:null,
+    note:`${n} independent groups, so the shape is not determined: any function of them satisfies the units, and choosing one would be inventing physics`});
+  const v=nb.basis[0], iT=K.indexOf(target), T=v[iT];
+  if(!T) return Object.assign(base,{status:'absent', exponents:null,
+    note:`the one group does not involve ${target} at all, so it cannot be solved for it`});
+  const ex={};
+  K.forEach((k,j)=>{ if(k!==target) ex[k]=-v[j]/T; });
+  return Object.assign(base,{status:'determined', vector:v.slice(), exponents:ex,
+    law:target+' ∝ '+K.filter(k=>k!==target&&ex[k]!==0)
+      .map(k=>k+'^'+hccRatio(ex[k])).join(' · '),
+    note:'correct up to a dimensionless constant this cannot give — ξ took an integration of the gas dynamics, 2ν took the Gaussian solution'});
+}
+/* exponents come out of integer arithmetic, so they print as the fractions they are
+   rather than as 0.4000000000000001 */
+function hccRatio(x, maxDen=24){
+  if(!isFinite(x)) return String(x);
+  if(Math.abs(x-Math.round(x))<1e-12) return String(Math.round(x));
+  for(let d=2;d<=maxDen;d++){ const n=x*d;
+    if(Math.abs(n-Math.round(n))<1e-9) return `${Math.round(n)}/${d}`; }
+  return x.toFixed(4);
+}
 /* ══ THE BLAST WAVE THE ATLAS DERIVES, AND THE WINDOW WHERE IT IS TRUE ════════
    Everything above this line sorts dimensionless groups. This USES one, and it is
    the first place in the atlas where the dimension table predicts a measurable
@@ -39188,14 +39286,10 @@ const HCC_SEDOV=Object.freeze({
 });
 /* the exponents, READ OUT of the null space and never written down */
 function hccBlastExponents(){
-  const K=HCC_SEDOV.kinds, nb=hccNullBasis(K);
-  if(nb.basis.length!==1) return null;              // more than one group = not this law
-  const v=nb.basis[0], iL=K.indexOf('length'), L=v[iL];
-  if(!L) return null;
-  const out={groups:nb.basis.length, vector:v.slice(), kinds:K};
-  K.forEach((k,j)=>{ if(k!=='length') out[k]=-v[j]/L; });
-  return out;                                        // {energy:1/5, 'mass density':-1/5, time:2/5}
-}
+  const r=hccSolveFor(HCC_SEDOV.kinds,'length');
+  if(!r||r.status!=='determined') return null;       // more than one group = not this law
+  return Object.assign({groups:r.groups, vector:r.vector, kinds:r.kinds}, r.exponents);
+}                                                    // {energy:1/5, 'mass density':-1/5, time:2/5}
 /* the self-similar interior, by RK4 in ln λ inward from the shock */
 function hccSedovProfile(gamma, steps, lamMin){
   const g=gamma||HCC_SEDOV.gammaAir, N=steps||HCC_SEDOV.steps, lm=lamMin||HCC_SEDOV.lamMin;
@@ -39371,14 +39465,10 @@ const HCC_DIFFUSION=Object.freeze({
   stabilityFactor:6  /* the 3D 7-point Laplacian attains −12, and explicit Euler needs α·dt·12 ≤ 2 */
 });
 function hccDiffusionExponents(){
-  const K=HCC_DIFFUSION.kinds, nb=hccNullBasis(K);
-  if(nb.basis.length!==1) return null;
-  const v=nb.basis[0], iL=K.indexOf('length'), L=v[iL];
-  if(!L) return null;
-  const out={groups:nb.basis.length, vector:v.slice(), kinds:K};
-  K.forEach((k,j)=>{ if(k!=='length') out[k]=-v[j]/L; });
-  return out;                                   // {diffusivity:1/2, time:1/2}
-}
+  const r=hccSolveFor(HCC_DIFFUSION.kinds,'length');
+  if(!r||r.status!=='determined') return null;
+  return Object.assign({groups:r.groups, vector:r.vector, kinds:r.kinds}, r.exponents);
+}                                               // {diffusivity:1/2, time:1/2}
 /* least squares with the coefficient of determination, because a slope without one
    is a line drawn through whatever was there */
 function hccLinearFit(pairs){
@@ -73603,6 +73693,92 @@ function diffMarkTick(dt){
   else DIFFMARK.predicted.visible=false;
   diffMark.userData.readout=q;
 }
+/* ── THE BENCH AS A CONTROL, AND THE FOUR ANSWERS IT CAN GIVE ─────────────────
+   The presets are not decoration: they are one example of each answer the engine
+   can return, so a reader who clicks all four has seen the whole behaviour rather
+   than the happy path. Two of them are laws this atlas derived and then measured;
+   one is a law it rediscovers from nothing but units; one is a refusal. */
+const BENCH={ picked:['energy','mass density','time','length'], target:'length',
+  presets:[
+    ['Blast wave',   ['energy','mass density','time','length'],'length'],
+    ['Diffusion',    ['diffusivity','time','length'],'length'],
+    ['Mass–energy',  ['energy','mass','speed'],'energy'],
+    ['Sound speed',  ['pressure','mass density','speed'],'speed'],
+    ['A refusal',    ['length','time'],'length'],
+    ['Too free',     ['energy','mass','speed','time','length'],'energy']] };
+function benchResult(){ return hccSolveFor(BENCH.picked, BENCH.target); }
+function benchRender(){
+  const el=document.getElementById('benchOut'); if(!el) return;
+  const r=benchResult();
+  if(!r){ el.innerHTML='<b>Pick at least two quantities, and solve for one of them.</b>'; return; }
+  const tone=r.status==='determined'?'var(--ok,#7ef9a0)':'var(--dim)';
+  el.innerHTML=`<b style="color:${tone}">${esc(r.status==='determined'?r.law:r.status)}</b><br>
+    <span style="color:var(--dim)">${esc(r.note)}</span><br>
+    <span style="color:var(--dim)">${r.kinds.length} quantities · rank ${r.rank} · ${r.groups} independent dimensionless group${r.groups===1?'':'s'}</span>`;
+  try{ if(dimSpace.visible) dimSpaceBenchApply(); }catch(e){}
+}
+function benchBind(root){
+  root.querySelectorAll('[data-bench-kind]').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.benchKind, i=BENCH.picked.indexOf(k);
+    if(i<0) BENCH.picked.push(k); else BENCH.picked.splice(i,1);
+    if(!BENCH.picked.includes(BENCH.target)) BENCH.target=BENCH.picked[0]||'';
+    buildCtl(); });
+  root.querySelectorAll('[data-bench-preset]').forEach(b=>b.onclick=()=>{
+    const p=BENCH.presets[+b.dataset.benchPreset];
+    BENCH.picked=p[1].slice(); BENCH.target=p[2]; buildCtl(); });
+  const t=root.querySelector('#benchTarget');
+  if(t) t.onchange=e=>{ BENCH.target=e.target.value; benchRender(); };
+}
+function benchPanelHTML(){
+  const ks=Object.keys(HCC_KIND_DIM);
+  return `<div class="sect" style="border-top:1px solid rgba(255,255,255,.14);margin-top:12px">
+    <b>Scaling bench · your own quantities</b>
+    <div class="note" style="font-size:10.4px;color:var(--dim)">Choose any quantities and one to solve for. One group and the exponents are determined; none and no relation can exist; two or more and the shape is not determined, so the bench says so rather than choosing. Every law here is correct up to a dimensionless constant it cannot give.</div>
+    <div class="radioRow" style="flex-wrap:wrap;gap:4px;margin:6px 0">
+      ${BENCH.presets.map((p,i)=>`<button class="chip" data-bench-preset="${i}">${esc(p[0])}</button>`).join('')}</div>
+    <div style="max-height:132px;overflow:auto;display:flex;flex-wrap:wrap;gap:3px;
+                padding:5px;border:1px solid rgba(255,255,255,.10);border-radius:6px">
+      ${ks.map(k=>`<button class="chip ${BENCH.picked.includes(k)?'on':''}" data-bench-kind="${esc(k)}"
+         style="font-size:10px;padding:2px 6px">${esc(k)}</button>`).join('')}</div>
+    <div class="ctlrow" style="margin-top:6px"><label>Solve for</label>
+      <select id="benchTarget" style="flex:1">${BENCH.picked.map(k=>
+        `<option value="${esc(k)}" ${BENCH.target===k?'selected':''}>${esc(k)}</option>`).join('')}</select></div>
+    <div class="note" id="benchOut" style="font-variant-numeric:tabular-nums"></div>
+  </div>`;
+}
+/* ── AND THE ANSWER IN THE LATTICE ────────────────────────────────────────────
+   The dimension lattice already draws every quantity as a point and every compound
+   group as a dim violet loop. The bench's own group is drawn over that in gold, and
+   the quantities it chose are ringed — so the abstract answer and the picture are
+   the same object seen twice, which is the only reason to have both. */
+let benchLoop=null, benchDots=null;
+function dimSpaceBenchApply(){
+  if(benchLoop){ dimSpace.remove(benchLoop);
+    benchLoop.geometry.dispose(); benchLoop.material.dispose(); benchLoop=null; }
+  if(benchDots){ dimSpace.remove(benchDots);
+    benchDots.traverse(o=>{ if(o.geometry)o.geometry.dispose(); if(o.material)o.material.dispose(); });
+    benchDots=null; }
+  const r=benchResult(); if(!r) return;
+  const S=DIMSPACE.scale, at=k=>{ const d=HCC_KIND_DIM[k];
+    return new THREE.Vector3(d[0],d[1],d[2]).multiplyScalar(S); };
+  /* the chosen quantities, ringed whatever the answer — the choice is worth seeing
+     even when the engine refuses */
+  benchDots=new THREE.Group();
+  for(const k of r.kinds){ if(!HCC_KIND_DIM[k]) continue;
+    const m=new THREE.Mesh(new THREE.SphereGeometry(DIMSPACE.dot*2.6,16,12),
+      new THREE.MeshBasicMaterial({color:k===r.target?0xffaa00:0x00f0ff,
+        transparent:true,opacity:.30,depthWrite:false}));
+    m.position.copy(at(k)); benchDots.add(m); }
+  dimSpace.add(benchDots);
+  if(r.status!=='determined'||!r.vector) return;
+  const pts=[]; r.vector.forEach((p,j)=>{ if(p!==0) pts.push(at(r.kinds[j])); });
+  if(pts.length<3) return;                     // two points are a segment, not a loop
+  pts.push(pts[0].clone());
+  benchLoop=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({color:0xffaa00,transparent:true,opacity:.85,
+      depthTest:false,depthWrite:false}));
+  benchLoop.renderOrder=995; dimSpace.add(benchLoop);
+}
 /* ── ONE WORLD, THREE INSTRUMENTS, ONE DECISION ───────────────────────────────
    The Field Lab's diffusion lattice, the dimension lattice and the blast wave all
    fill the same cubic metres, and drawn together the seventeen-cubed point cloud
@@ -78919,6 +79095,9 @@ function buildCtl(){
       <div class="note" style="font-size:10.5px;color:var(--dim)">Every view in this atlas is an orbit about a point somebody else chose. Free flight lets you go and stand somewhere instead — inside the cosmic web, between the Hopf fibres, off to one side of the Galaxy. Velocity is in world units per second, so the same gesture covers the same ground whatever the frame rate; release decays exponentially with a time constant of 0.42 s, so the stopping distance from any speed is exactly that speed times 0.42 s; and the same ceiling that bounds the zoom bounds the flight.</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Solar System → Milky Way → Local Group → giant structures → Observable Universe → the finite S³ carrier, and every step back. Across both mode seams the direction is preserved and the radius maps one to one, and zooming out of the Observable Universe now lands you AT THE OBSERVER on the carrier rather than at its centre — the cap you just left is centred on that point. Off, nothing moves you but you.</div>
     </div>`);
+  /* the bench is appended like the scale chain: after the per-mode body, so it is
+     at the bottom of the panel in every world rather than only where somebody put it */
+  try{ ctl.insertAdjacentHTML('beforeend', benchPanelHTML()); benchBind(ctl); benchRender(); }catch(e){}
   { const cb=ctl.querySelector('#scaleChainAll');
     if(cb) cb.onchange=e=>{ state.scaleChain=e.target.checked; }; }
   { const fb=ctl.querySelector('#freeFly');
