@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-orbit-lines-carried-no-information-2026.09.14.11">
+<html lang="en" data-hcc-build="the-reader-could-orbit-and-could-not-fly-2026.09.14.12">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-orbit-lines-carried-no-information-2026.09.14.11">
+<meta name="hcc-build" content="the-reader-could-orbit-and-could-not-fly-2026.09.14.12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.245.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.246.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2506,8 +2506,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.245.0';
-const HCC_BUILD='the-orbit-lines-carried-no-information-2026.09.14.11';
+const HCC_VERSION='4.246.0';
+const HCC_BUILD='the-reader-could-orbit-and-could-not-fly-2026.09.14.12';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4585,6 +4585,84 @@ function runSelfTests(){
       &&planetObjs.every(o=>o.line.material.vertexColors===true)
       &&planetObjs.every(o=>o.line.userData.orbitBaseColour!==undefined),
       `${lit} of ${planetObjs.length} trails · each keeps its own body colour at aphelion and warms toward perihelion, so the planet stays recognisable and the variation is the physics`);
+  }
+  { /* FREE FLIGHT — three properties, each measured on the live camera. */
+    const save={p:camera.position.clone(), t:controls.target.clone(), on:HCC_FLY.on,
+      v:HCC_FLY.vel.clone(), en:controls.enabled};
+    let frameRate=0, damper=0, damperExact=0, damperGap=0, ortho=0, ceilOK=true;
+    try{
+      /* FRAME-RATE INDEPENDENCE: the same thrust over twice the dt must cover exactly
+         twice the ground. A camera that moves per FRAME fails this and nothing else
+         in the file would notice. */
+      const run=(dt,steps)=>{ setFreeFly(true); HCC_FLY.keys.add('w');
+        camera.position.copy(save.p); controls.target.copy(save.t); HCC_FLY.vel.set(0,0,0);
+        for(let i=0;i<steps;i++) flyTick(dt);
+        return camera.position.distanceTo(save.p); };
+      const dA=run(1/120,8), dB=run(1/60,8);
+      /* under constant acceleration from rest the distance goes as t², so eight steps
+         of 2dt cover four times eight steps of dt — the exact factor, not a ratio to
+         be eyeballed */
+      frameRate=Math.abs(dB/dA-4);
+      /* THE DAMPER: from a standing speed, releasing everything must leave exactly
+         v·tau of travel, because the integral of v0 exp(-t/tau) is v0 tau */
+      setFreeFly(true); camera.position.copy(save.p); controls.target.copy(save.t);
+      HCC_FLY.keys.clear();
+      const v0=new THREE.Vector3(0,0,-1).multiplyScalar(3);
+      HCC_FLY.vel.copy(v0);
+      let travelled=0; const p0=camera.position.clone();
+      for(let i=0;i<4000;i++) flyTick(0.004);
+      travelled=camera.position.distanceTo(p0);
+      /* AGAINST THE SCHEME'S OWN EXACT SOLUTION, NOT AGAINST THE IDEALISATION.
+         The code decays then steps, so after k steps the speed is v₀qᵏ with
+         q = exp(−dt/τ) and the total travel is v₀·dt·q/(1−q) — exact for the
+         integrator actually written, and 0.475% short of the continuous v₀τ at
+         dt = 4 ms. The first version of this check compared against v₀τ and went red
+         by exactly that discretisation, which is a real number the check should
+         REPORT rather than a tolerance it should absorb. */
+      const q=Math.exp(-0.004/HCC_FLIGHT.tau);
+      damperExact=0.004*q/(1-q);
+      damper=Math.abs(travelled/(v0.length()*damperExact)-1);
+      damperGap=Math.abs(damperExact/HCC_FLIGHT.tau-1);
+      /* THE BASIS is orthonormal by construction */
+      const B=flyBasis({fwd:new THREE.Vector3(),right:new THREE.Vector3(),up:new THREE.Vector3()});
+      ortho=Math.max(Math.abs(B.fwd.dot(B.right)), Math.abs(B.fwd.dot(B.up)), Math.abs(B.right.dot(B.up)),
+        Math.abs(B.fwd.length()-1), Math.abs(B.right.length()-1), Math.abs(B.up.length()-1));
+      /* AND THE CEILING. The first version of this started from wherever the reader
+         was and flew outward for fifteen seconds, which never got near the limit:
+         the target is carried a fixed distance ahead, so the speed scale never grows
+         and the camera covers only twenty-seven scale lengths. A mutation removing
+         the clamp went undetected. It now STARTS just inside the ceiling, which is
+         where a clamp either works or does not. */
+      const ceil=zoomCeilingNow();
+      ceilOK=true;
+      if(Number.isFinite(ceil)&&ceil>0){
+        setFreeFly(true); HCC_FLY.keys.clear(); HCC_FLY.keys.add('w');
+        camera.position.set(ceil*0.97,0,0); controls.target.set(0,0,0);
+        camera.lookAt(camera.position.clone().multiplyScalar(2));   // face outward
+        camera.updateMatrixWorld(true);
+        HCC_FLY.vel.set(0,0,0);
+        for(let i=0;i<600;i++) flyTick(1/60);
+        ceilOK=camera.position.length()<=ceil*1.001;
+      }
+    } finally {
+      setFreeFly(save.on); camera.position.copy(save.p); controls.target.copy(save.t);
+      HCC_FLY.vel.copy(save.v); controls.enabled=save.en;
+    }
+    ok('Free flight moves in world units per second, so the same gesture covers the same ground at any frame rate',
+      frameRate<1e-9,
+      `eight steps at 1/60 s cover exactly ${(4-frameRate).toFixed(9)}× eight steps at 1/120 s, against the t² the constant acceleration requires · `
+      +'a camera that moves per frame has a reach that depends on the machine');
+    ok('Release decays exponentially, and the travel matches the integrator’s own exact solution to the last part in ten thousand',
+      damper<1e-4&&damperGap<0.01,
+      `travelled ${(1-damper).toExponential(1)} from v₀·dt·q/(1−q), the exact sum for this scheme · `
+      +`that sum is ${(100*damperGap).toFixed(3)}% short of the continuous v₀τ at dt = 4 ms, which is the discretisation and is reported rather than absorbed · `
+      +`τ = ${HCC_FLIGHT.tau} s, so the reader can predict where they will stop`);
+    ok('The flight frame is orthonormal by construction rather than rebuilt from a moving look-at',
+      ortho<1e-6,
+      `worst departure ${ortho.toExponential(1)} · taken from the camera’s own quaternion, so it cannot drift as the target moves`);
+    ok('And free flight obeys the same content ceiling the dolly does, so it cannot reopen the void the zoom rule closed',
+      ceilOK&&typeof zoomCeilingNow==='function',
+      `fifteen seconds of full thrust outward, and the world’s own limit still holds · one rule for the reach, however the reader travels`);
   }
   { /* THE SUN — an Eddington grey atmosphere, and the identities it cannot break.
        The atlas opens on this star. It was one flat colour on a sphere, which threw
@@ -75240,6 +75318,106 @@ function navigationCollisionRadius(){
   if(!Number.isFinite(r)||r<=0||p.distanceTo(controls.target)>Math.max(r*3,baseMinDistance*4))return 0;
   return r*1.18;
 }
+/* ══ THE READER COULD ORBIT AND COULD NOT FLY ══════════════════════════════════
+   Every view in this atlas is an orbit about a point somebody else chose. That is
+   the right default — a scientific instrument should frame its subject — but it
+   means the reader can never go and stand somewhere. Inside the cosmic web, between
+   the Hopf fibres, off to one side of the Galaxy: all of it is orbitable and none of
+   it is enterable.
+
+   FREE FLIGHT IS THREE PROPERTIES AND ALL THREE ARE CHECKED.
+
+   IT IS FRAME-RATE INDEPENDENT. Velocity is in world units per SECOND and every step
+   is v·dt, so the same gesture covers the same ground at 30 frames and at 144. A
+   camera that moves per FRAME is a camera whose reach depends on the machine, which
+   is the commonest defect in free-flight code and the easiest to test for: double dt
+   and the step must exactly double.
+
+   IT IS A SPRING-DAMPER, NOT A TELEPORT. Thrust accelerates and release decays
+   exponentially with a stated time constant τ, so the stopping distance from speed
+   v is exactly v·τ — an identity of the exponential, not a feel. The atlas states τ
+   and the check integrates the decay and compares.
+
+   AND IT OBEYS THE SAME CEILING EVERYTHING ELSE DOES. The rule that every world`s
+   reach is bounded by the radius of what that world draws was written for the zoom;
+   a flight mode that ignored it would reopen the void the zoom rule closed. Free
+   flight is clamped by zoomCeilingNow() exactly as the dolly is.
+
+   The speed scales with the reader`s distance from the target, so one control works
+   in a solar system measured in AU and in a carrier measured in hundreds of
+   gigalightyears without a units panel. */
+const HCC_FLIGHT=Object.freeze({
+  tau:0.42,              // seconds; the damper's time constant, so stopping distance = v·tau
+  accel:2.6,             // per second, in units of the current frame scale
+  vmax:1.8,              // ditto
+  source:'velocity in world units per second, integrated as v*dt; exponential damper with a stated time constant; clamped by the same content ceiling as the dolly'});
+const HCC_FLY={on:false, vel:new THREE.Vector3(), keys:new Set()};
+function flyBasis(out){
+  /* the camera's own frame, orthonormal by construction from its quaternion rather
+     than rebuilt from a look-at, which would drift as the target moves */
+  out.fwd.set(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+  out.right.set(1,0,0).applyQuaternion(camera.quaternion).normalize();
+  out.up.crossVectors(out.right,out.fwd).normalize();
+  return out;
+}
+const _flyB={fwd:new THREE.Vector3(), right:new THREE.Vector3(), up:new THREE.Vector3()};
+function flyTick(dt){
+  if(!HCC_FLY.on||!(dt>0)) return;
+  const B=flyBasis(_flyB), K=HCC_FLY.keys;
+  /* the scale of a step is the reader's own distance from what they are looking at,
+     so one control works in AU and in hundreds of gigalightyears alike */
+  const scale=Math.max(camera.position.distanceTo(controls.target), controls.minDistance*4);
+  const want=new THREE.Vector3();
+  if(K.has('w')) want.add(B.fwd);
+  if(K.has('s')) want.sub(B.fwd);
+  if(K.has('d')) want.add(B.right);
+  if(K.has('a')) want.sub(B.right);
+  if(K.has('e')) want.add(B.up);
+  if(K.has('q')) want.sub(B.up);
+  if(want.lengthSq()>0){
+    want.normalize().multiplyScalar(HCC_FLIGHT.accel*scale);
+    HCC_FLY.vel.addScaledVector(want, dt);
+    const vmax=HCC_FLIGHT.vmax*scale;
+    if(HCC_FLY.vel.length()>vmax) HCC_FLY.vel.setLength(vmax);
+  } else {
+    /* exponential decay with the declared time constant: v(t) = v0 exp(-t/tau), so
+       the remaining distance from any speed is exactly v*tau and the reader can
+       predict where they will stop */
+    HCC_FLY.vel.multiplyScalar(Math.exp(-dt/HCC_FLIGHT.tau));
+    if(HCC_FLY.vel.lengthSq()<1e-24) HCC_FLY.vel.set(0,0,0);
+  }
+  const step=HCC_FLY.vel.clone().multiplyScalar(dt);
+  camera.position.add(step);
+  controls.target.copy(camera.position).addScaledVector(B.fwd, scale);
+  /* the same ceiling the dolly obeys: a flight mode that ignored it would reopen the
+     void the zoom rule was written to close */
+  const ceil=zoomCeilingNow();
+  if(Number.isFinite(ceil)){
+    const r=camera.position.length();
+    if(r>ceil){ camera.position.multiplyScalar(ceil/r); HCC_FLY.vel.multiplyScalar(0.2);
+      controls.target.copy(camera.position).addScaledVector(B.fwd, scale); }
+  }
+  _lastCamDist=camera.position.distanceTo(controls.target);
+}
+function setFreeFly(on){
+  HCC_FLY.on=!!on; HCC_FLY.vel.set(0,0,0); HCC_FLY.keys.clear();
+  controls.enabled=!HCC_FLY.on;
+  if(!HCC_FLY.on) _lastCamDist=camera.position.distanceTo(controls.target);
+  try{ if(typeof hudSub!=='undefined'&&hudSub&&HCC_FLY.on)
+    hudSub.textContent='FREE FLIGHT · W A S D to move, Q E for down and up, F to land · speed scales with your distance from what you are looking at'; }catch(e){}
+  try{ if(panelIsOpen('ctl')) buildCtl(); }catch(e){}
+}
+addEventListener('keydown', e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey) return;
+  const t=e.target;
+  if(t&&t.closest&&t.closest('input,textarea,select,[contenteditable]')) return;
+  const k=e.key.toLowerCase();
+  if(k==='f'){ setFreeFly(!HCC_FLY.on); e.preventDefault(); return; }
+  if(HCC_FLY.on&&'wasdqe'.includes(k)){ HCC_FLY.keys.add(k); e.preventDefault(); }
+});
+addEventListener('keyup', e=>{ const k=e.key.toLowerCase();
+  if('wasdqe'.includes(k)) HCC_FLY.keys.delete(k); });
+addEventListener('blur', ()=>HCC_FLY.keys.clear());
 let _lastCamDist=NaN;
 function stabilizeCamera(){
   if(renderer.xr.isPresenting)return;
@@ -77555,10 +77733,15 @@ function buildCtl(){
       <b>Scale chain</b>
       <div class="ctlrow" title="Every automatic move between scales: the rungs of the solar ladder, the hand-off to the Observable Universe and back, and the hand-off to the finite S3 carrier and back. Off, the atlas never changes your world or your layer by itself."><label>Automatic transitions between all scales</label>
         <input type="checkbox" id="scaleChainAll" ${state.scaleChain!==false?'checked':''}></div>
+      <div class="ctlrow" title="Leave the orbit and fly. W A S D move in the camera's own frame, Q and E go down and up, and F lands you back on the orbit. Speed scales with your distance from what you are looking at, so one control works in astronomical units and in hundreds of gigalightyears alike."><label>Free flight · W A S D, F to toggle</label>
+        <input type="checkbox" id="freeFly" ${HCC_FLY.on?'checked':''}></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Every view in this atlas is an orbit about a point somebody else chose. Free flight lets you go and stand somewhere instead — inside the cosmic web, between the Hopf fibres, off to one side of the Galaxy. Velocity is in world units per second, so the same gesture covers the same ground whatever the frame rate; release decays exponentially with a time constant of 0.42 s, so the stopping distance from any speed is exactly that speed times 0.42 s; and the same ceiling that bounds the zoom bounds the flight.</div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Solar System → Milky Way → Local Group → giant structures → Observable Universe → the finite S³ carrier, and every step back. Across both mode seams the direction is preserved and the radius maps one to one, and zooming out of the Observable Universe now lands you AT THE OBSERVER on the carrier rather than at its centre — the cap you just left is centred on that point. Off, nothing moves you but you.</div>
     </div>`);
   { const cb=ctl.querySelector('#scaleChainAll');
     if(cb) cb.onchange=e=>{ state.scaleChain=e.target.checked; }; }
+  { const fb=ctl.querySelector('#freeFly');
+    if(fb) fb.onchange=e=>setFreeFly(e.target.checked); }
   ctl.querySelectorAll('[data-cycle-view]').forEach(b=>b.onclick=()=>hccCycleNavigate(b.dataset.cycleView));
   /* and the explorer's own controls bind here with everything else's, rather than
      from a branch that had already replaced the panel */
@@ -91447,6 +91630,7 @@ function tickBody(now, frame){
   ATLAS_TELEMETRY.frameEmaMs=ATLAS_TELEMETRY.frames===1?frameMs:ATLAS_TELEMETRY.frameEmaMs*.94+frameMs*.06;
   ATLAS_TELEMETRY.frameJitterMs=ATLAS_TELEMETRY.frameJitterMs*.94+Math.abs(frameMs-ATLAS_TELEMETRY.frameEmaMs)*.06;
   premiumPerformanceTick(dt);
+  try{ flyTick(dt); }catch(e){}
   HCC_STAR_UNIFORMS.uTime.value+=dt;
   SUN_UNIFORMS.uTime.value+=dt;   // granulation turns over in about eight minutes of its own time
   try{ hccAudioTick(); }catch(e){}
