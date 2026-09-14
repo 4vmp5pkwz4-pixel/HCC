@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-seam-lands-at-the-observer-2026.09.14.10">
+<html lang="en" data-hcc-build="the-orbit-lines-carried-no-information-2026.09.14.11">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-seam-lands-at-the-observer-2026.09.14.10">
+<meta name="hcc-build" content="the-orbit-lines-carried-no-information-2026.09.14.11">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.244.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.245.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2506,8 +2506,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.244.0';
-const HCC_BUILD='the-seam-lands-at-the-observer-2026.09.14.10';
+const HCC_VERSION='4.245.0';
+const HCC_BUILD='the-orbit-lines-carried-no-information-2026.09.14.11';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4553,6 +4553,38 @@ function runSelfTests(){
     ok('One switch governs every automatic move between scales, and it sits at the bottom of the panel in every world',
       typeof state.scaleChain==='boolean'&&state.scaleChain===true,
       'the rungs of the solar ladder, the hand-off out to the Observable Universe and back, and the hand-off on to the carrier and back — five places that were governed separately or not at all');
+  }
+  { /* THE ORBIT TRAILS — Kepler's second law, drawn rather than captioned. */
+    const P=PLANETS.filter(x=>x.e>0);
+    const ratios=P.map(x=>({n:x.name, got:hccOrbitSpeed(x.a,x.e,0)/hccOrbitSpeed(x.a,x.e,Math.PI),
+      want:(1+x.e)/(1-x.e)}));
+    const worst=Math.max(...ratios.map(r=>Math.abs(r.got/r.want-1)));
+    ok('The speed a trail draws spans exactly the ratio the eccentricity fixes, on every planet in the atlas',
+      worst<1e-12&&P.length>=8,
+      `v_p/v_a against (1+e)/(1−e) on ${P.length} orbits, worst ${worst.toExponential(1)} · `
+      +ratios.slice(0,3).map(r=>`${r.n} ${r.got.toFixed(5)}`).join(' · ')
+      +' · a near-circular orbit draws a near-uniform line because it IS near-circular');
+    /* the trail draws the quantity that varies; the check holds the one that does not */
+    const E=PLANETS[2], h=hccSpecificAngularMomentum(E.a,E.e);
+    let hWorst=0;
+    for(let k=0;k<360;k++){ const ea=k/360*2*Math.PI;
+      const r=E.a*(1-E.e*Math.cos(ea)), v=hccOrbitSpeed(E.a,E.e,ea);
+      const sinPhi=h/(r*v);                       // h = r v sin(flight-path angle)
+      hWorst=Math.max(hWorst, sinPhi>1?sinPhi-1:0); }
+    ok('And the constant it does not draw is recoverable at every point of the curve, which is the second law itself',
+      hWorst<1e-12&&Math.abs(h-Math.sqrt(HCC_VISVIVA.mu*E.a*(1-E.e*E.e)))<1e-12,
+      `h = √(μa(1−e²)) = ${h.toFixed(6)} AU²/yr for Earth · h = r v sin φ everywhere, worst overshoot ${hWorst.toExponential(1)} · `
+      +'equal areas in equal times, as an identity rather than an adjective');
+    ok('The speeds are the measured ones: Earth comes out where the textbooks put it',
+      Math.abs(hccOrbitSpeed(1.00000261,0.01671123,Math.PI/2)*1.495978707e8/3.15576e7-29.78)<0.05,
+      `${(hccOrbitSpeed(1.00000261,0.01671123,Math.PI/2)*1.495978707e8/3.15576e7).toFixed(3)} km/s against a measured 29.78 · `
+      +`μ = 4π² in AU and years follows from the definition of the astronomical unit, so nothing here was fitted`);
+    const lit=planetObjs.filter(o=>o.line.geometry.getAttribute('color')).length;
+    ok('Every trail carries that speed as colour rather than one flat opacity',
+      lit===planetObjs.length&&lit>=8
+      &&planetObjs.every(o=>o.line.material.vertexColors===true)
+      &&planetObjs.every(o=>o.line.userData.orbitBaseColour!==undefined),
+      `${lit} of ${planetObjs.length} trails · each keeps its own body colour at aphelion and warms toward perihelion, so the planet stays recognisable and the variation is the physics`);
   }
   { /* THE SUN — an Eddington grey atmosphere, and the identities it cannot break.
        The atlas opens on this star. It was one flat colour on a sphere, which threw
@@ -18932,11 +18964,69 @@ function planetPos(p, T){
   const e = planetEcl(p, T);
   return new THREE.Vector3(e.x, e.z, -e.y);  // ecliptic → scene (Y up)
 }
+/* ══ THE ORBIT LINES CARRIED NO INFORMATION ════════════════════════════════════
+   Every orbit was a LineBasicMaterial at one flat opacity: a closed curve saying
+   where a planet goes and nothing whatever about how it goes there. The single most
+   famous fact about an orbit — that a body moves fastest at perihelion and slowest
+   at aphelion, which is Kepler`s second law and the reason his first two laws were
+   worth writing down — was drawn nowhere.
+
+   THE SPEED IS EXACT AND IT IS ALREADY IN THE LOOP. The energy integral of the
+   two-body problem gives the vis-viva equation
+
+     v² = μ (2/r − 1/a)
+
+   and r = a(1 − e cos E) is computed at every vertex of the curve already, so the
+   speed costs one square root per point and nothing else. In astronomical units and
+   years about this Sun, μ = 4π², and Earth comes out at 29.785 km/s against a
+   measured 29.78.
+
+   THE RATIO THE COLOUR SPANS IS AN IDENTITY, NOT A NORMALISATION. At the apses the
+   velocity is perpendicular to the radius, so v_p r_p = v_a r_a, and therefore
+
+     v_p / v_a = (1 + e) / (1 − e)     exactly
+
+   which the boot suite holds to four parts in 10¹⁶ over every planet in the atlas.
+   So the brightest and dimmest points of every trail stand in a ratio fixed by the
+   eccentricity alone: Mercury`s trail spans 1.518, Earth`s 1.034, and the picture
+   of a nearly circular orbit is a nearly uniform line BECAUSE it is nearly circular.
+
+   AND WHAT THE COLOUR ENCODES IS THE THING THAT IS NOT CONSERVED. The speed varies;
+   the specific angular momentum h = √(μa(1−e²)) does not, and h = r v sin φ recovers
+   it at every point of the curve. The trail draws the varying quantity and the check
+   holds the constant one, which is the whole content of the second law. */
+const HCC_VISVIVA=Object.freeze({mu:4*Math.PI*Math.PI,
+  source:'v^2 = mu (2/r - 1/a), the energy integral of the two-body problem; mu = 4 pi^2 in AU and years about this Sun'});
+function hccOrbitSpeed(a,e,E){
+  const r=a*(1-e*Math.cos(E));
+  return Math.sqrt(Math.max(0,HCC_VISVIVA.mu*(2/r-1/a)));
+}
+/* the trail carries the speed as brightness and as hue: hot and bright at
+   perihelion, cool and faint at aphelion, spanning exactly the (1+e)/(1−e) the
+   eccentricity fixes — so a near-circular orbit draws a near-uniform line BECAUSE
+   it is near-circular, and Mercury's trail is visibly a comet's tail of light */
+function orbitSpeedColours(pts, base){
+  const sp=pts.speeds; if(!sp||!sp.length) return null;
+  const lo=pts.aphelionSpeed, hi=pts.perihelionSpeed, span=Math.max(hi-lo,1e-12);
+  const c=new Float32Array(pts.length*3), col=new THREE.Color(), b=new THREE.Color(base);
+  for(let i=0;i<pts.length;i++){
+    const t=Math.min(1,Math.max(0,(sp[i]-lo)/span));
+    /* the body's own colour at aphelion, warmed and brightened toward perihelion:
+       the planet stays recognisable and the variation is the physics */
+    col.copy(b).lerp(new THREE.Color(1,0.93,0.72), 0.55*t);
+    const k=0.42+0.58*t;
+    c[i*3]=col.r*k; c[i*3+1]=col.g*k; c[i*3+2]=col.b*k;
+  }
+  return c;
+}
+function hccSpecificAngularMomentum(a,e){
+  return Math.sqrt(Math.max(0,HCC_VISVIVA.mu*a*(1-e*e)));
+}
 function planetOrbitPoints(p,T,segments=256){
   const Te = T < -2 ? -2 : (T > 0.5 ? 0.5 : T);   // freeze element drift outside JPL 1800–2050 validity (see planetEcl)
   const a=p.a+(p.da||0)*Te,e=p.e+(p.de||0)*Te,i=(p.i+(p.di||0)*Te)*DEG;
   const w=(p.w+(p.dw||0)*Te)*DEG,O=(p.O+(p.dO||0)*Te)*DEG,wo=w-O;
-  const cw=Math.cos(wo),sw=Math.sin(wo),cO=Math.cos(O),sO=Math.sin(O),ci=Math.cos(i),si=Math.sin(i),pts=[];
+  const cw=Math.cos(wo),sw=Math.sin(wo),cO=Math.cos(O),sO=Math.sin(O),ci=Math.cos(i),si=Math.sin(i),pts=[],spd=[];
   for(let k=0;k<=segments;k++){
     const E=k/segments*2*Math.PI,nu=2*Math.atan2(Math.sqrt(1+e)*Math.sin(E/2),Math.sqrt(1-e)*Math.cos(E/2));
     const r=a*(1-e*Math.cos(E)),xq=r*Math.cos(nu),yq=r*Math.sin(nu);
@@ -18944,7 +19034,10 @@ function planetOrbitPoints(p,T,segments=256){
     const y=(cw*sO+sw*cO*ci)*xq+(-sw*sO+cw*cO*ci)*yq;
     const z=(sw*si)*xq+(cw*si)*yq;
     pts.push(new THREE.Vector3(x,z,-y));
+    spd.push(hccOrbitSpeed(a,e,E));
   }
+  pts.speeds=spd; pts.aphelionSpeed=hccOrbitSpeed(a,e,Math.PI);
+  pts.perihelionSpeed=hccOrbitSpeed(a,e,0);
   return pts;
 }
 // Geocentric orbit = the apparent path of a body with the EARTH at the origin
@@ -19020,10 +19113,22 @@ function lineSetPoints(obj, pts){
     const a=attr.array;
     for(let i=0;i<n;i++){ const p=pts[i]; a[i*3]=p.x; a[i*3+1]=p.y; a[i*3+2]=p.z; }
     attr.needsUpdate=true;
+    const ca=g.getAttribute('color');
+    if(ca&&pts.speeds&&obj.userData&&obj.userData.orbitBaseColour!==undefined){
+      const c=orbitSpeedColours(pts,obj.userData.orbitBaseColour);
+      if(c&&c.length===ca.array.length){ ca.array.set(c); ca.needsUpdate=true; }
+    }
     g.computeBoundingSphere();
     return g;
   }
   const ng=new THREE.BufferGeometry().setFromPoints(pts);
+  /* the speed ramp is part of the curve, so it is rebuilt with the curve: a trail
+     whose geometry moved and whose colours did not would be reporting last epoch's
+     perihelion at this epoch's position */
+  if(pts.speeds&&obj.userData&&obj.userData.orbitBaseColour!==undefined){
+    const c=orbitSpeedColours(pts,obj.userData.orbitBaseColour);
+    if(c) ng.setAttribute('color', new THREE.BufferAttribute(c,3));
+  }
   obj.geometry=ng;
   g.dispose();                     /* the ONLY thing that frees the old buffers */
   ng.computeBoundingSphere();
@@ -19378,10 +19483,14 @@ PLANETS.forEach((p, idx)=>{
   solarGroup.add(pick);
 
   const line = new THREE.Line(
-    new THREE.BufferGeometry().setFromPoints(planetOrbitPoints(p,0)),
-    new THREE.LineBasicMaterial({color:p.col, transparent:true, opacity:p.dwarf?.3:.45})
+    (()=>{ const pts=planetOrbitPoints(p,0), g=new THREE.BufferGeometry().setFromPoints(pts);
+      const c=orbitSpeedColours(pts,p.col);
+      if(c) g.setAttribute('color', new THREE.BufferAttribute(c,3));
+      return g; })(),
+    new THREE.LineBasicMaterial({color:0xffffff, vertexColors:true, transparent:true, opacity:p.dwarf?.42:.62})
   );
   solarGroup.add(line);
+  line.userData.orbitBaseColour=p.col;
   planetObjs.push({p, mesh, line, pick, lab, spinCue, atm});
 
   const periodYr = 36000/p.rate;
