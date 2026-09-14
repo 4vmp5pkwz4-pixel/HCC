@@ -42,7 +42,11 @@ function cutBalanced(from, open, close, tail) {
   }
   throw new Error('unbalanced: ' + from);
 }
-const S_S3     = cutBalanced('const S3 = {', '{', '}', ';');
+/* S3's eleven constants are computed from the published curvature marginal now,
+ * so the cut takes the reconstruction that produces them rather than an object
+ * literal that no longer exists. */
+const S_S3     = src.slice(src.indexOf('/* ══ THE CONDITIONAL RECONSTRUCTION'),
+                           src.indexOf('/* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM.'));
 const S_GAL    = cutBalanced('const GALAXIES=Object.freeze([', '[', ']', ');');
 const S_COSMOS = cutBalanced('const COSMOS = [', '[', ']', ';');
 const S_GALRD  = cutBalanced('function galacticRaDec(lDeg,bDeg){', '{', '}');

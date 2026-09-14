@@ -37,15 +37,29 @@ let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); }
   else { fail++; console.log('  FAIL — ' + n + (d ? ' :: EXPECTED ' + d : '')); } };
 
-const R = Number((src.match(/R:\s*([\d.]+),\s*\/\/ Gly — curvature radius of S³/) || [])[1]);
+/* this read a numeric literal out of the source. The carrier constants are now
+ * computed from the published curvature marginal, so there is no literal to read
+ * and the whole file measured NaN. Run the atlas's reconstruction instead — the
+ * ride has to run on the radius the atlas actually uses, not on its spelling. */
+const R = (() => {
+  const i = src.indexOf('/* ══ THE CONDITIONAL RECONSTRUCTION');
+  const j = src.indexOf('/* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM.');
+  if (i < 0 || j < 0) throw new Error('reconstruction block not found');
+  return new Function(src.slice(i, j) + '\nreturn S3.R;')();
+})();
 const RU = R / 100;
 const pos = a => [RU * Math.sin(a), RU * Math.cos(a), 0];
 const tan = a => [Math.cos(a), -Math.sin(a), 0];
 const dot = (u, v) => u.reduce((s, x, i) => s + x * v[i], 0);
 const nrm = u => Math.hypot(...u);
 
+/* the window used to be 500 < R < 600, drawn around the v38 fiducial, and it
+ * would have rejected any corrected modulus — the opposite of what this check is
+ * for. What must hold is that the ride runs on the radius the atlas publishes. */
 ok('the curvature radius the ride runs on is the atlas\'s own, read from the page',
-  Number.isFinite(R) && R > 500 && R < 600 && /const HCC_RIDE=Object\.freeze\(\{/.test(src),
+  Number.isFinite(R) && R > 0
+  && Math.abs(R - 886.591695332) / R < 1e-11
+  && /const HCC_RIDE=Object\.freeze\(\{/.test(src),
   `R = ${R} Gly, so one circuit is ${(2 * Math.PI * R).toFixed(1)} Gyr and the antipode is at ${(Math.PI * R).toFixed(1)}`);
 
 /* ── 1. the heading ──────────────────────────────────────────────────────────── */

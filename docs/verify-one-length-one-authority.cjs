@@ -48,8 +48,21 @@ const S_PHI    = cutBalanced('const PHI_ATLAS=[', '[', ']', ';');
 const S_REFS   = cutBalanced('const SCALE_REFS = [', '[', ']', ';');
 const S_COSMOS = cutBalanced('const COSMOS = [', '[', ']', ';');
 const S_GAL    = cutBalanced('const GALAXIES=Object.freeze([', '[', ']', ');');
-const S_S3     = cutBalanced('const S3 = {', '{', '}', ';');
+/* S3 was eleven constants typed into an object literal; it is now COMPUTED from
+ * the published curvature marginal, so the cut has to take the reconstruction
+ * that produces it rather than a `const S3 = {` that no longer exists. Cutting
+ * only the object would have given this file an S3 whose values came from
+ * nowhere — and it did not fail quietly, it failed at the cut, which is why the
+ * bound is a named declaration and not a line number. */
+const S_S3     = src.slice(src.indexOf('/* ══ THE CONDITIONAL RECONSTRUCTION'),
+                           src.indexOf('/* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM.'));
 const S_SI     = cutBalanced('const HCC_SI=Object.freeze({', '{', '}', ');');
+/* the light-year, which the ladder rows convert with. It lives one declaration
+ * after the reconstruction and the sandbox needs it by name: PHI_ATLAS now holds
+ * `S3.R*GLY_M` where it used to hold a literal, so leaving it out made the cut
+ * succeed and the evaluation fail — further from the mistake than a missing cut. */
+const S_GLY    = src.slice(src.indexOf('const LY_M = HCC_S3C.ly'),
+                           src.indexOf('\n', src.indexOf('const LY_M = HCC_S3C.ly')));
 const S_GALRD  = cutBalanced('function galacticRaDec(lDeg,bDeg){', '{', '}');
 const S_CDH    = src.slice(src.indexOf('const C_DH_GLY = '), src.indexOf('\n', src.indexOf('const C_DH_GLY = ')));
 /* The reconciliation itself, from its first declaration to the end of the IIFE that
@@ -67,7 +80,7 @@ const ctx = vm.createContext(sandbox);
    snapshotted first. Reading them afterwards would measure the repair agreeing
    with itself, which is not a measurement. */
 const built = vm.runInContext([
-  S_S3, S_SI, S_CDH, S_GALRD,
+  S_S3, S_GLY, S_SI, S_CDH, S_GALRD,
   'const VELA_EQ=galacticRaDec(272.5,0), DIPOLE_EQ=galacticRaDec(94,-16), LOCALVOID_EQ=galacticRaDec(60,15);',
   S_PHI, S_REFS, S_GAL, S_COSMOS,
   'for(const s of COSMOS) if(s.dGly==null && s.dMly!=null) s.dGly=s.dMly/1000;',
@@ -95,9 +108,22 @@ ok('the number of subjects known to be stated twice is at or above its floor, an
 ok('the number of rows that no longer hold a typed length is at or above its floor',
   R.derived >= DERIVED_FLOOR, `${R.derived} derived from one authority, ${R.declared} disagreements declared`);
 const agree = t => R.rows.filter(r => r.found !== false && Math.abs(r.ratio - 1) <= t).length;
-ok('eleven of the twenty agreed to within half a per cent before anything was touched, and thirteen within two — the reason to do this at all',
-  agree(0.005) === 11 && agree(0.02) === 13,
-  `${agree(0.005)} agree at 0.5%, ${agree(0.02)} at 2%, ${agree(0.5)} at 50% — and the two repairs bring the derived rows to ${R.derived}`);
+/* ── THIS COUNT FELL BY TWO AND THAT IS THE RELEASE WORKING ──────────────────
+ * It read `agree(0.005) === 11 && agree(0.02) === 13` and now measures 9 and 11.
+ * Nothing disagreed: the two S³ curvature-radius rows — one in PHI_ATLAS, one in
+ * SCALE_REFS — used to hold 5.187e27 and 5.2e27, two numbers typed independently
+ * that happened to agree to a quarter of a per cent. Both now read S3.R*GLY_M,
+ * so they are ONE authority written twice rather than two that concur, and a pair
+ * with no independent typing has no "before" to agree in. The derived count rose
+ * by the same two, from 13 to 15.
+ *
+ * So the historical claim is restated rather than retuned: what is left is the
+ * number of shared lengths this atlas still states twice independently, and every
+ * release that derives another one should push it DOWN. A check whose expected
+ * value only ever moves in the direction of the work is a check worth keeping. */
+ok('nine of the eighteen still-independent shared lengths agree to within half a per cent, and eleven within two — two fewer than before, because two more rows became derived',
+  agree(0.005) === 9 && agree(0.02) === 11 && R.derived === 15,
+  `${agree(0.005)} agree at 0.5%, ${agree(0.02)} at 2%, ${agree(0.5)} at 50% · ${R.derived} rows now derived from one authority, up from 13 when the S³ radius was typed into two tables`);
 ok('and the seven that did not are not all inside until the tolerance is loosened past eighty per cent, which is how a definition is told from a rounding',
   agree(0.5) < R.pairs && agree(0.85) === R.pairs,
   `all ${R.pairs} only agree once 85% is called agreement`);
