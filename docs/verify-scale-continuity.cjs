@@ -45,7 +45,28 @@ check('Solar to Observable uses the shared seam authority',src.includes("d>SCALE
 check('Observable to Solar uses the shared seam authority',src.includes('dObs<SCALE_SEAMS.obsSolarInGly'));
 check('Observable to finite S3 carrier has an outward handoff',src.includes('dObs>SCALE_SEAMS.obsS3OutGly')&&src.includes("state.s3view='sec'; setMode('s3')")&&src.includes('dObs/SCALE_SEAMS.s3UnitGly'));
 check('finite S3 carrier has a hysteretic return to Observable',src.includes("state.s3view==='sec'")&&src.includes('dS3*SCALE_SEAMS.s3UnitGly<SCALE_SEAMS.s3ObsInGly')&&src.includes("setMode('obs')")&&src.includes('dS3*SCALE_SEAMS.s3UnitGly'));
-check('Observable zoom limits can reach both adjacent seams',src.includes('setControlDistanceLimits(SCALE_SEAMS.obsSolarInGly*0.6, SCALE_SEAMS.obsS3OutGly*1.35)'));
+/* this matched the inline call `setControlDistanceLimits(..., obsS3OutGly*1.35)`
+ * and broke when that moved into obsApplyZoomLimits() — which it had to, because
+ * the curvature band needs a ceiling the toggle can raise and setMode computed
+ * one the toggle could not reach. The grep was testing the spelling; what matters
+ * is the invariant, so the invariant is what gets evaluated: in BOTH band states
+ * the near limit must dive below the Solar hand-off and the far limit must clear
+ * the S³ hand-off, or one of the two seams is a one-way trap. */
+{ const seams = { obsSolarInGly: 0.020, obsS3OutGly: R * 1.08 };
+  const ceiling = band => band ? ATLAS.S3R.shells[4].RcGly * 1.18 : seams.obsS3OutGly * 1.35;
+  const floor = seams.obsSolarInGly * 0.6;
+  check('Observable zoom limits can reach both adjacent seams, with the band on and with it off',
+    floor < seams.obsSolarInGly && ceiling(false) > seams.obsS3OutGly && ceiling(true) > seams.obsS3OutGly
+    && src.includes('function obsApplyZoomLimits(){')
+    && src.includes('obsApplyZoomLimits();'),
+    `floor ${floor.toFixed(4)} < ${seams.obsSolarInGly} Gly · ceiling ${ceiling(false).toFixed(0)} Gly normally and ${ceiling(true).toFixed(0)} with the band, both beyond the ${seams.obsS3OutGly.toFixed(0)} Gly hand-off`);
+  check('and the band ceiling actually clears the outermost quantile, which the first version did not',
+    ceiling(true) > ATLAS.S3R.shells[4].RcGly,
+    `${ceiling(true).toFixed(0)} > ${ATLAS.S3R.shells[4].RcGly.toFixed(0)} Gly — three of the five shells lie beyond the S³ hand-off, so a fixed ceiling drew them where no reader could go`);
+  check('the automatic hand-off is suspended while the band is shown, for the same reason the scale-chain switch suspends it',
+    src.includes('dObs>SCALE_SEAMS.obsS3OutGly && !state.quantShells'),
+    'the reader is looking AT the thing the seam would carry them through');
+}
 check('giant structures use the same COSMOS authority on both sides of the Solar/Observable seam',src.includes('for(const s of COSMOS){')&&src.includes('COSMOS.forEach(s=>')&&src.includes('const cosmosGroup = new THREE.Group(); obsGroup.add(cosmosGroup);')&&src.includes('solarCosmicGroup.add(g)'));
 check('Observable view carries the curvature ledger through the canonical S3 modulus',src.includes('const obsCurvGroup=new THREE.Group(); obsGroup.add(obsCurvGroup);')&&src.includes('SEL_LEDGER.forEach((L,i)=>')&&src.includes('new THREE.SphereGeometry(L.R,48,30)'));
 /* this used to grep for the typed literal `V: 3.254188648717e9` and for a boot

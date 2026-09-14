@@ -99,7 +99,12 @@ ok('and angles survive it too, which a scale-only map would also have to prove',
 const SITES = [
   ['the solar ladder steps', /if\(state\.scaleChain===false\) return;/],
   ['the hand-off out to the Observable Universe', /d>SCALE_SEAMS\.solarObsOutGly\*GLY_AU && state\.autoScaleHandoff!==false && state\.scaleChain!==false/],
-  ['the hand-off on to the finite carrier', /dObs>SCALE_SEAMS\.obsS3OutGly && state\.autoScaleHandoff!==false && state\.scaleChain!==false/],
+  /* this site also carries !state.quantShells — while the curvature band is drawn
+     the reader is looking AT the thing the seam would carry them through, and three
+     of its five shells lie beyond the hand-off radius. The gate that matters to this
+     check is still there; the pattern allows the extra condition rather than
+     forbidding it, because a gate may be narrowed and must not be removed. */
+  ['the hand-off on to the finite carrier', /dObs>SCALE_SEAMS\.obsS3OutGly && [^;]*state\.autoScaleHandoff!==false && state\.scaleChain!==false/],
   ['the return from the Observable Universe', /dObs<SCALE_SEAMS\.obsSolarInGly && state\.scaleChain!==false/],
   ['the return from the carrier', /dS3\*SCALE_SEAMS\.s3UnitGly<SCALE_SEAMS\.s3ObsInGly && state\.scaleChain!==false/]];
 const missing = SITES.filter(([, re]) => !re.test(src)).map(([n]) => n);
