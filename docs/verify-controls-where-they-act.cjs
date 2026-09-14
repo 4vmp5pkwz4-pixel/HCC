@@ -194,6 +194,18 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'a rebuild replaces the sections under the same filter; a world switch replaces what the filter is about');
 }
 
+{ ok('the phone sheet\'s drag handle outranks the filter bar, which is stacked above it in the same scroller',
+    /#ctl \.sheetGrip\{display:block;position:sticky;top:-14px;z-index:8;/.test(src)
+    && /#ctl \.ctlFind\{top:6px;z-index:6\}/.test(src)
+    && /a covered handle is a sheet\s*\n\s+that cannot be resized/.test(src),
+    'the handle is 18px tall and sticks at −14, so the bar starts below it and loses the z fight outright');
+
+  ok('and the source says this one was reasoned rather than measured, because the mobile path is unreachable headlessly',
+    /This could not be\s*\n\s+exercised headlessly: MOBILE_GPU is a device-capability flag, not a\s*\n\s+viewport width/.test(src)
+    && /The\s*\n\s+geometry is therefore reasoned from these two rules, not measured/.test(src),
+    'a probe at 400px reported grip:null — the sheet never builds in the test browser, and claiming a measurement that did not happen is worse than admitting the gap');
+}
+
 /* 6 ── two sections sharing a name shared their fold state */
 { ok('the duplicate S³ heading is gone, because the accordion was using the heading as a key',
     (src.match(/<b>\$\{TT\('S³ Laboratory'/g) || []).length
