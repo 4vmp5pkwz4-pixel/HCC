@@ -112,11 +112,37 @@ ok('one switch governs every automatic move between scales, and each of the five
   missing.length === 0 && /scaleChain:true/.test(src),
   `${SITES.length} transitions, each named and each gated` + (missing.length ? ` · UNGATED: ${missing.join(', ')}` : ''));
 
+/* ── THIS PINNED THE HEADING, AND THE HEADING WAS THE BUG ────────────────────
+ * It required the literal `<b>Scale chain</b>` inside the appended block. That
+ * block had grown to nine controls of which ONE was about the scale chain — the
+ * rest were a dimension lattice, a curvature band, a blast wave and its two
+ * sliders, a diffusion marker, a panel theme and free flight — so the heading
+ * named a fraction of its own contents, and six of the nine could not act in
+ * whichever world the reader was standing in. The heading is now "Navigation &
+ * appearance" and holds only what is global; the instruments moved to the worlds
+ * that draw them.
+ *
+ * What this check is FOR is that the scale-chain switch is reachable from every
+ * world — appended after the per-mode body rather than buried in one mode's
+ * template. That invariant is unchanged, so it is what gets asserted, and the
+ * heading is left free to tell the truth. */
 ok('and it is appended after the per-mode body, so it is at the bottom of the panel in every world',
-  /ctl\.insertAdjacentHTML\('beforeend', `[\s\S]{0,200}<b>Scale chain<\/b>/.test(src)
-  && /id="scaleChainAll"/.test(src)
-  && /cb\.onchange=e=>\{ state\.scaleChain=e\.target\.checked; \}/.test(src),
-  'a switch that lives in one mode\'s template is a switch the reader cannot find from the others');
+  (() => {
+    /* a character-distance window was the first form of this and it broke on a
+       longer heading, which is the wrong thing to be sensitive to. What matters
+       is that the control sits inside an appended template rather than inside a
+       mode branch — so find the appending call before it and require that the
+       template literal has not been closed in between. */
+    const at = src.indexOf('id="scaleChainAll"');
+    if (at < 0) return false;
+    const call = src.lastIndexOf("ctl.insertAdjacentHTML('beforeend', `", at);
+    if (call < 0) return false;
+    const between = src.slice(call, at);
+    return !between.includes('`)') && !/\bstate\.mode\s*===/.test(between);
+  })()
+  && /cb\.onchange=e=>\{ state\.scaleChain=e\.target\.checked; \}/.test(src)
+  && !/<b>Scale chain<\/b>[\s\S]{0,3000}id="blastOn"/.test(src),
+  'a switch that lives in one mode\'s template is a switch the reader cannot find from the others — and a heading that names one of the nine controls under it is a different lie');
 
 ok('the panel says what the switch does and what the seam now promises',
   /lands you AT THE OBSERVER on the carrier rather than at its centre/.test(src)
