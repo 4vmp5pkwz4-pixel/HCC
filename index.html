@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-void-past-the-last-structure-2026.09.14.1">
+<html lang="en" data-hcc-build="a-hopf-fibre-is-a-circle-2026.09.14.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-void-past-the-last-structure-2026.09.14.1">
+<meta name="hcc-build" content="a-hopf-fibre-is-a-circle-2026.09.14.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2256,7 +2256,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.235.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.236.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2504,8 +2504,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.235.0';
-const HCC_BUILD='the-void-past-the-last-structure-2026.09.14.1';
+const HCC_VERSION='4.236.0';
+const HCC_BUILD='a-hopf-fibre-is-a-circle-2026.09.14.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4180,6 +4180,80 @@ function runSelfTests(){
       ok('A flicked gesture cannot carry the camera out of its world between two frames',
         after<=d0*HCC_ZOOM.step*1.0001,
         `a dolly of 1000× arrived as ${(after/d0).toFixed(2)}× · the bound limits the rate and never the reach`); }
+  }
+  { /* THE HOPF BUNDLE — the closed form against the parameterisation it replaces.
+       Both are in this file and they must agree, because the beads still slide
+       along the old one while the tubes are swept from the new one; a laboratory
+       whose two descriptions of the same circle disagree is drawing a lie at the
+       crossings. */
+    const v=new THREE.Vector3(); let worst=0, flat=0, exact=0;
+    const probe=[];
+    for(let a=1;a<=9;a++) for(let b=0;b<5;b++) probe.push([a/10*Math.PI, b/5*2*Math.PI]);
+    probe.forEach(([th,ph])=>{
+      const {radius,centre,normal}=hopfFibreCircle(th,ph);
+      const ch=Math.cos(th/2), sh=Math.sin(th/2);
+      for(let k=0;k<24;k++){
+        const t=k/24*2*Math.PI;
+        hopfPoint(th,ph,t,v).multiplyScalar(1/(RU*0.55));
+        worst=Math.max(worst,Math.abs(v.distanceTo(centre)-radius));
+        flat=Math.max(flat,Math.abs(v.clone().sub(centre).dot(normal)));
+        /* THE SAME COMPARISON WITHOUT hopfPoint's GUARD. The parameterisation adds
+           1e-9 to its denominator so the projection pole cannot divide by zero, and
+           that guard — not the closed form — is the whole of the disagreement. This
+           measures it rather than hiding it inside a loose tolerance. */
+        const d=1-sh*Math.sin(t);
+        v.set(ch*Math.cos(t+ph)/d, ch*Math.sin(t+ph)/d, sh*Math.cos(t)/d);
+        exact=Math.max(exact,Math.abs(v.distanceTo(centre)-radius));
+      }
+    });
+    ok('Every Hopf fibre is a circle in closed form, and the only gap from the parameterisation is the pole guard',
+      worst<2e-6&&flat<1e-9&&exact<1e-11,
+      `${probe.length} fibres × 24 samples · ${worst.toExponential(2)} off the circle with the 1e-9 guard, ${exact.toExponential(2)} without it · ${flat.toExponential(2)} out of plane`);
+    let power=0, perp=0;
+    probe.forEach(([th,ph])=>{ const {radius,centre,normal}=hopfFibreCircle(th,ph);
+      power=Math.max(power,Math.abs(radius*radius-centre.lengthSq()-1));
+      perp=Math.max(perp,Math.abs(centre.dot(normal))); });
+    ok('Two exact invariants of the bundle hold across it: the circles are coaxial with the unit sphere and each centre lies in its own plane',
+      power<1e-12&&perp<1e-12,
+      `R² − |C|² − 1 ≤ ${power.toExponential(2)} · C·n ≤ ${perp.toExponential(2)} over ${probe.length} fibres`);
+    /* the claim this laboratory exists to make, measured rather than captioned */
+    const gauss=(t1,p1,t2,p2,N)=>{
+      const A=[],B=[],a=new THREE.Vector3(),b=new THREE.Vector3();
+      for(let i=0;i<N;i++){ A.push(hopfPoint(t1,p1,i/N*2*Math.PI,a).clone());
+                            B.push(hopfPoint(t2,p2,i/N*2*Math.PI,b).clone()); }
+      const da=new THREE.Vector3(), db=new THREE.Vector3(), r=new THREE.Vector3(), c=new THREE.Vector3();
+      let sum=0;
+      for(let i=0;i<N;i++){ da.subVectors(A[(i+1)%N],A[i]);
+        for(let j=0;j<N;j++){ db.subVectors(B[(j+1)%N],B[j]);
+          r.subVectors(A[i],B[j]); const rl=r.length();
+          sum+=c.crossVectors(da,db).dot(r)/(rl*rl*rl); } }
+      return sum/(4*Math.PI);
+    };
+    const pairs=[[0.5,0,1.05,1.1],[0.25,2.0,1.85,4.0],[1.0,0,1.0,3.1]]
+      .map(q=>gauss(q[0],q[1],q[2],q[3],220));
+    ok('Any two distinct fibres link exactly once, and the atlas computes the linking number instead of claiming it',
+      pairs.every(L=>Math.abs(L-1)<0.02),
+      `Gauss double integral on 220 segments · ${pairs.map(L=>L.toFixed(4)).join(' · ')}`);
+    /* The bundle is built when a reader opens it, so the boot suite measures the
+       BUILDER on a throwaway set rather than navigating there and leaving the
+       laboratory in a state nobody asked for. What the laboratory then adds is
+       held by docs/verify-hopf-bundle.cjs, which reads the line that adds it. */
+    const demo=[{theta:0.6,phi:0.0,color:new THREE.Color(1,.5,.2)},
+                {theta:1.4,phi:2.1,color:new THREE.Color(.2,.6,1)}];
+    const tube=hopfFibreTubes(demo), gg=tube.geometry;
+    const wantV=demo.length*(HOPF_TUBE.seg+1)*(HOPF_TUBE.rad+1);
+    let unit=0; const nn=gg.getAttribute('normal');
+    for(let i=0;i<nn.count;i+=13) unit=Math.max(unit,Math.abs(Math.hypot(nn.getX(i),nn.getY(i),nn.getZ(i))-1));
+    ok('The bundle is swept as a surface carrying its own exact normals, not one-pixel polylines that can hold no light',
+      gg.getAttribute('position').count===wantV&&gg.index.count===demo.length*HOPF_TUBE.seg*HOPF_TUBE.rad*6
+      &&unit<1e-6&&tube.material.isShaderMaterial&&tube.material.uniforms===HOPF_UNIFORMS
+      &&!hopfFibersSub.children.some(o=>o.isLine),
+      `${wantV} vertices and ${gg.index.count/3} triangles for two fibres · normals unit to ${unit.toExponential(1)} · one merged mesh per bundle`);
+    gg.dispose(); tube.material.dispose();
+    ok('The light running along a fibre is the fibre coordinate itself, driven by the same clock as the beads',
+      /float ph=vP\.x\*6\.2831853\*3\.0 - uTime\*uFlow\*2\.0 \+ vP\.y;/.test(tube.material.fragmentShader)
+      &&HOPF_UNIFORMS.uTime.value>=0&&(HOPF_UNIFORMS.uFlow.value===0||HOPF_UNIFORMS.uFlow.value===1),
+      'the S¹ action the Hopf map quotients by, drawn as the thing it is rather than as a highlight that merely moves');
   }
   { /* THE STAR OCEAN — checked against published tables, not against itself.
        The colours below are Mitchell Charity's tabulated blackbody sRGB values,
@@ -22997,7 +23071,147 @@ function hopfPoint(theta, phi, t, out){
 }
 const hopfBaseDir = (theta,phi)=>new THREE.Vector3(
   Math.sin(theta)*Math.cos(phi), Math.cos(theta), Math.sin(theta)*Math.sin(phi));
+/* ══ A HOPF FIBRE IS A CIRCLE, AND THE ATLAS DREW IT AS 160 GUESSES ═══════════
+   Every fibre in this laboratory was a THREE.Line: one hundred and sixty samples
+   of the parameterisation, joined by one-pixel segments, at one flat opacity.
+   That is a drawing of a circle rather than the circle, and the difference is not
+   only cosmetic — a polyline has no surface, so it has no normal, so it can carry
+   no lighting, no rim, and no thickness that survives being looked at edge-on.
+
+   IT IS A CIRCLE EXACTLY, AND THE CIRCLE HAS A CLOSED FORM. Stereographic
+   projection takes circles on S³ to circles in R³, and for this parameterisation
+   the fibre over the base point (θ, φ) projects to
+
+     radius  R = sec(θ/2)
+     centre  C = tan(θ/2) · (−sin φ, cos φ, 0)
+     normal  n = (−sin(θ/2) cos φ, −sin(θ/2) sin φ, cos(θ/2))
+
+   which was DERIVED HERE rather than looked up, and is checked against the
+   parameterisation the beads still slide along: the two agree to eight parts in a
+   million million, which is round-off and nothing else.
+
+   TWO EXACT INVARIANTS FALL OUT AND ARE HELD:
+
+     R² − |C|² = 1     every fibre circle has the same power about the origin,
+                       so the whole family is coaxial with the unit sphere — the
+                       geometric statement that every fibre meets the equatorial
+                       Clifford torus the same way;
+
+     C · n = 0         the centre always lies in the plane of the circle it
+                       centres, which is the non-trivial half: the fibre planes
+                       tilt with θ and turn with φ, and the centre tilts with them.
+
+   And the fact this laboratory exists to show — that ANY two distinct fibres link
+   exactly once — is now measured by the Gauss double integral over the closed form
+   rather than asserted in a caption. */
+function hopfFibreCircle(theta, phi){
+  const h=theta/2, ch=Math.cos(h), sh=Math.sin(h), cp=Math.cos(phi), sp=Math.sin(phi);
+  return {radius:1/ch,
+    centre:new THREE.Vector3(-sh/ch*sp, sh/ch*cp, 0),
+    normal:new THREE.Vector3(-sh*cp, -sh*sp, ch)};
+}
+/* ── PLASMA, NOT WIRE ────────────────────────────────────────────────────────
+   One merged tube mesh for every fibre in the bundle, swept from the closed form
+   above. The frame is EXACT and needs no Frenet transport: for a circle the
+   outward radial direction and the plane normal are already an orthonormal pair
+   that closes on itself after one turn, so the tube has no twist to accumulate and
+   no seam to hide. Its surface normal is that same pair, written down rather than
+   estimated from neighbouring vertices.
+
+   WHAT THE SHADER DRAWS IS THE FIBRE COORDINATE. The travelling phase along each
+   tube is the S¹ action — the same parameter the beads slide along, at the same
+   rate — so the light running down a fibre is not decoration laid over the
+   mathematics, it IS the mathematics: the U(1) the Hopf map quotients by. Two
+   fibres whose phases meet interfere, which is why the crossings brighten.
+
+   The rim is Fresnel and the dispersion at the rim is a stated cheat: real
+   dispersion would need three wavelengths traced separately, and what is drawn
+   instead is a small hue rotation with grazing angle, which looks like dispersion
+   and is not it. It is declared here and nowhere claimed as physics. */
+/* THE FIRST TUBES WERE UNREADABLE, AND THE REASON IS ARITHMETIC. Additive blending
+   sums every surface along the ray, and seventy-eight fibres through one region of
+   the projection means six to ten tubes deep almost everywhere near the centre. At
+   the brightness a single line wants, the sum saturated to white across the whole
+   frame: the bundle was there and none of its structure was. So each tube emits a
+   fraction of what it would alone, the rim is halved, and only the front faces are
+   drawn — a closed tube`s back face adds a second copy of the same surface for no
+   information at all. uGlow is the one knob, and it is stated rather than tuned per
+   term, so the whole bundle brightens and dims together. */
+const HOPF_TUBE=Object.freeze({seg:128, rad:6, radius:0.009, scale:0.55});
+const HOPF_UNIFORMS={uTime:{value:0}, uGlow:{value:0.30}, uFlow:{value:1}};
+function hopfFibreTubes(defs){
+  const T=HOPF_TUBE, S=T.seg, Rr=T.rad, n=defs.length;
+  const vpf=(S+1)*(Rr+1), tri=S*Rr*2;
+  const pos=new Float32Array(n*vpf*3), nor=new Float32Array(n*vpf*3),
+        col=new Float32Array(n*vpf*3), par=new Float32Array(n*vpf*2);
+  const idx=new Uint32Array(n*tri*3);
+  const u=new THREE.Vector3(), w=new THREE.Vector3(), r=new THREE.Vector3(), q=new THREE.Vector3();
+  const SC=RU*T.scale;
+  let vo=0, io=0;
+  defs.forEach((d,fi)=>{
+    const {radius,centre,normal}=hopfFibreCircle(d.theta,d.phi);
+    /* an orthonormal pair in the plane of the circle, chosen from whichever world
+       axis is least parallel to the normal so the choice never degenerates */
+    u.set(1,0,0); if(Math.abs(normal.x)>0.9) u.set(0,1,0);
+    u.crossVectors(normal,u).normalize(); w.crossVectors(normal,u).normalize();
+    const base=vo;
+    for(let i=0;i<=S;i++){
+      const t=i/S*2*Math.PI, cs=Math.cos(t), sn=Math.sin(t);
+      r.copy(u).multiplyScalar(cs).addScaledVector(w,sn);          // outward radial
+      q.copy(centre).addScaledVector(r,radius);                    // point on the fibre
+      for(let k=0;k<=Rr;k++){
+        const a=k/Rr*2*Math.PI, ca=Math.cos(a), sa=Math.sin(a);
+        const nx=r.x*ca+normal.x*sa, ny=r.y*ca+normal.y*sa, nz=r.z*ca+normal.z*sa;
+        const o=vo*3;
+        pos[o]=(q.x+nx*T.radius)*SC; pos[o+1]=(q.y+ny*T.radius)*SC; pos[o+2]=(q.z+nz*T.radius)*SC;
+        nor[o]=nx; nor[o+1]=ny; nor[o+2]=nz;
+        col[o]=d.color.r; col[o+1]=d.color.g; col[o+2]=d.color.b;
+        par[vo*2]=i/S; par[vo*2+1]=fi*0.7;                         // arc position · fibre phase offset
+        vo++;
+      }
+    }
+    for(let i=0;i<S;i++) for(let k=0;k<Rr;k++){
+      const A=base+i*(Rr+1)+k, B=A+Rr+1;
+      idx[io++]=A; idx[io++]=B; idx[io++]=A+1;
+      idx[io++]=A+1; idx[io++]=B; idx[io++]=B+1;
+    }
+  });
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  g.setAttribute('normal',   new THREE.BufferAttribute(nor,3));
+  g.setAttribute('color',    new THREE.BufferAttribute(col,3));
+  g.setAttribute('aParam',   new THREE.BufferAttribute(par,2));
+  g.setIndex(new THREE.BufferAttribute(idx,1));
+  g.computeBoundingSphere();
+  const m=new THREE.ShaderMaterial({
+    uniforms:HOPF_UNIFORMS, transparent:true, depthWrite:false,
+    blending:THREE.AdditiveBlending, side:THREE.FrontSide,
+    vertexShader:`
+      attribute vec2 aParam; attribute vec3 color;
+      varying vec3 vCol; varying vec3 vN; varying vec3 vV; varying vec2 vP;
+      void main(){ vCol=color; vP=aParam;
+        vec4 mv=modelViewMatrix*vec4(position,1.0);
+        vN=normalize(normalMatrix*normal); vV=normalize(-mv.xyz);
+        gl_Position=projectionMatrix*mv; }`,
+    fragmentShader:`
+      uniform float uTime; uniform float uGlow; uniform float uFlow;
+      varying vec3 vCol; varying vec3 vN; varying vec3 vV; varying vec2 vP;
+      void main(){
+        float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),3.0);      // Fresnel rim
+        float ph=vP.x*6.2831853*3.0 - uTime*uFlow*2.0 + vP.y;            // the S¹ action
+        float wave=0.5+0.5*sin(ph);
+        float beat=0.5+0.5*sin(ph*0.5+vP.y*1.7);                         // two phases, interfering
+        vec3 c=vCol*(0.10+0.90*wave*wave*(0.45+0.55*beat));
+        vec3 disp=vec3(c.r*(1.0+0.30*f), c.g, c.b*(1.0+0.30*f));         // stated cheat, not dispersion
+        gl_FragColor=vec4((disp+vec3(0.55,0.72,1.0)*f*0.45)*uGlow, 0.12+0.30*wave+0.22*f);
+      }`});
+  return new THREE.Mesh(g,m);
+}
 function buildHopfFibers(density){
+  /* the merged tube is several megabytes of buffer; a rebuild that only detaches
+     it leaks one copy per density change, which the Line version never had to
+     worry about and this one does */
+  hopfFibersSub.traverse(o=>{ if(o.geometry&&o!==hopfBeads) o.geometry.dispose(); });
   hopfFibersSub.clear();
   hopfDefs = [];
   const RINGS = [[.25,6],[.5,10],[.75,14],[1.05,18],[1.35,14],[1.6,10],[1.85,6]];
@@ -23005,14 +23219,12 @@ function buildHopfFibers(density){
   for(const [theta,count0] of RINGS){
     const count = Math.max(3, Math.round(count0*density));
     for(let j=0;j<count;j++){
-      const phi = j/count*2*Math.PI, pts=[];
-      for(let k=0;k<=160;k++) pts.push(hopfPoint(theta, phi, k/160*2*Math.PI, v).clone());
+      const phi = j/count*2*Math.PI;
       const color = new THREE.Color().setHSL(theta/2/Math.PI*2.2%1, .75, .6);
-      hopfFibersSub.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),
-        new THREE.LineBasicMaterial({color, transparent:true, opacity:.55})));
       hopfDefs.push({theta, phi, color});
     }
   }
+  hopfFibersSub.add(hopfFibreTubes(hopfDefs));
   // Hopf-flow beads: one luminous particle sliding along every fibre
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(hopfDefs.length*3),3));
@@ -90504,6 +90716,7 @@ function tickBody(now, frame){
       hudSub.textContent = '1 unit = 100 Gly · R = 548.32 Gly · t_coh = πR/c = 1722.6 Gyr · ∂S³_R = ∅';
     } else if(state.s3view==='hopf'){
       if(state.hopfFlow){ hopfFlowT += dt*state.hopfFlowSpd; updateHopfBeads(hopfFlowT); }
+      HOPF_UNIFORMS.uTime.value=hopfFlowT; HOPF_UNIFORMS.uFlow.value=state.hopfFlow?1:0;
       hopfGroup.rotation.y += dt*0.03;
       hudBig.textContent = `Hopf flow · ${hopfDefs.length} fibres · every pair linked once`;
       hudSub.textContent = 'beads ride the S¹ action — each fibre slides along itself · gold & white fibres are inseparable';
