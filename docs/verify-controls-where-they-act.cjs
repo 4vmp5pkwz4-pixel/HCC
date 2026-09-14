@@ -206,6 +206,19 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'a probe at 400px reported grip:null — the sheet never builds in the test browser, and claiming a measurement that did not happen is worse than admitting the gap');
 }
 
+{ const sel = cut('function ctlSections(root){', '\nfunction ctlApplyFilter');
+  ok('the filter reaches every section, at whatever depth somebody nested it',
+    /root\.querySelectorAll\('\.sect'\)/.test(sel)
+    && /!el\.parentElement\.closest\('\.sect'\)/.test(sel)
+    && !/:scope > \.sect/.test(sel),
+    'MEASURED in S³: a bare div of 5087 px stood between the panel and six of its sections — 68% of the panel, outside a `:scope > .sect` selector entirely, so fold-all left it at 5992 px while every other world dropped under 1100 and the filter could hide none of it');
+
+  ok('and a section inside a section still folds with its parent rather than being pulled out of it',
+    /!el\.parentElement\.closest\('\.sect'\)/.test(sel)
+    && /Nesting is still respected/.test(src),
+    'depth is somebody\'s markup decision; it is not a statement about which controls the reader wants hidden');
+}
+
 /* 6 ── two sections sharing a name shared their fold state */
 { ok('the duplicate S³ heading is gone, because the accordion was using the heading as a key',
     (src.match(/<b>\$\{TT\('S³ Laboratory'/g) || []).length
