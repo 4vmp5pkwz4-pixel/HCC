@@ -144,6 +144,31 @@ ok('and the integral is discriminating: a fibre against a circle that is NOT one
     return Math.abs(s / (4 * Math.PI)) < 5e-3; })(),
   'a measurement that returns the same answer for linked and unlinked curves is not a measurement');
 
+/* ── 4. the centre of the projection, which a reader asked about ─────────────── */
+const pole = [0, 1.1, 3.9, 5.5].map(ph => circ(0, ph));
+ok('the fibre over the pole of the base sphere is the unit circle about the origin, for every φ and to the last bit',
+  pole.every(c => c.R === 1 && nrm(c.C) === 0 && c.N[2] === 1 && c.N[0] === 0 && c.N[1] === 0),
+  'one point on the base has one fibre above it, so φ is degenerate there — radius exactly 1, centre exactly the origin, normal exactly the polar axis');
+
+ok('the family spirals onto that circle at the rate the small-angle expansion gives, which is why the knot at the centre is tight',
+  [0.25, 0.1, 0.01, 0.001].every(th => { const c = circ(th, 1.0);
+    return Math.abs((c.R - 1) / (th * th / 8) - 1) < 0.02
+        && Math.abs(nrm(c.C) / (th / 2) - 1) < 0.02
+        && Math.abs(nrm(c.C) / (c.R - 1) - 4 / th) < 0.05; }),
+  'R − 1 = θ²/8 and |C| = θ/2, so the centre offset outruns the radius change by 4/θ: at the innermost drawn ring θ = 0.25 that is 16 to one');
+
+ok('at the far pole the fibre straightens into a line, and R² − |C|² = 1 is exactly what says so',
+  [3.0, 3.1, 3.14, 3.1415].every(th => { const c = circ(th, 0), gap = c.R - nrm(c.C);
+    return Math.abs(gap - 1 / (c.R + Math.sqrt(c.R * c.R - 1))) < 1e-9; }),
+  'R − |C| = 1/(R + √(R²−1)) → 0 as R diverges: a circle whose radius and centre offset differ by less and less, with their squares differing by exactly one, is a circle flattening into a straight line through the origin');
+
+ok('neither degenerate limit is swept as a tube, and the one that is finite is drawn as a declared reference',
+  /const RINGS = \[\[\.25,6\]/.test(src)
+  && /const c=hopfFibreCircle\(0,0\), pts=\[\];/.test(src)
+  && /axis\.userData\.hopfPoleFibre=\{radius:c\.radius, centre:c\.centre\.toArray\(\), normal:c\.normal\.toArray\(\)\};/.test(src)
+  && /fibre over the pole · the unit circle, exactly/.test(src),
+  'the rings run from θ = 0.25 to 1.85, so neither the unit circle nor the straight line is tubed; the unit circle is drawn once, because it is the axis the whole bundle is wound around');
+
 /* ── 4. what the laboratory actually puts in the scene ───────────────────────── */
 ok('the bundle is one merged swept mesh added at one line, and no polyline is left anywhere in it',
   /hopfFibersSub\.add\(hopfFibreTubes\(hopfDefs\)\)/.test(src)
