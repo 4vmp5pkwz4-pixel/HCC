@@ -103,10 +103,23 @@ ok('and the frame FRAMES itself and returns, as every other branch does',
   /const p=cycWheelsInst\.position;[\s\S]{0,320}?setControlDistanceLimits\(9,\d+\);[\s\S]{0,60}?return;/.test(src),
   'the first draft set a camera without returning and the default overwrote it');
 
-/* ── the update runs in the tick, where dt exists ─────────────────────────── */
-ok('the wheels update from the tick loop rather than from the frame-change handler',
-  /if\(frame==='wheels'\)\{\s*\n\s*updateWheelsOfTime\(\);\s*\n\s*wotBusT\+=dt;/.test(src),
-  'a frame-change handler has no dt, and the first draft threw into the tick’s own catch');
+/* ── the update runs in the tick, where dt exists ───────────────────────────
+ * AND THIS CLAUSE WAS PINNED TO A SPELLING, NOT TO WHAT IT NAMES. It required the
+ * literal `if(frame==='wheels')`, which is a GATE, while the sentence above it is
+ * about WHERE the update runs. The two came apart the moment the wheels were put
+ * on the shared "all models" stage: that stage is a different frame name, so the
+ * frame gate froze them there — measured, by sampling the instrument's transforms
+ * on the stage and again in its own frame, as "in its own frame: moves | on the
+ * all-models stage: FROZEN" — and the fix, gating on .visible instead, failed this
+ * check although it is the correction the check's own sentence asks for.
+ *
+ * So it now asserts the sentence: the call sits in the tick, beside the dt the
+ * frame-change handler does not have, and the gate is that the instrument is on
+ * stage rather than that somebody named the frame it is standing in. */
+ok('the wheels update from the tick loop rather than from the frame-change handler, and they run because they are ON STAGE rather than because a frame was named',
+  /if\(cycWheelsInst\.visible\)\{\s*\n\s*updateWheelsOfTime\(\);\s*\n\s*wotBusT\+=dt;/.test(src)
+  && !/if\(frame==='wheels'\)\{\s*\n\s*updateWheelsOfTime/.test(src),
+  'a frame-change handler has no dt, and the first draft threw into the tick’s own catch; a frame NAME froze the instrument on every stage nobody had remembered to name');
 ok('a publish that fails is RECORDED rather than swallowed',
   /WOT\.publishError=String\(e&&e\.message\|\|e\);/.test(src)
   && /globalThis\.HCC_WHEELS=/.test(src),

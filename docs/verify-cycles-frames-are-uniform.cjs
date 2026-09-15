@@ -60,10 +60,18 @@ ok('the control panel is BUILT THE SAME WAY for all thirteen frames',
 ok('and its controls bind where every other frame’s bind',
   /if\(state\.cycFrame==='butterfly-explorer'\)\{ try\{ hccButterflyBindControls\(\); \}catch\(e\)\{\} \}/.test(src),
   'not from a branch that had already thrown the panel away');
-ok('it ticks from updateCyc like the others rather than replacing the call',
-  /if\(frame==='butterfly-explorer'\) updateGalacticButterfly\(\);/.test(src)
+/* ── AND THIS ONE WAS PINNED TO THE GATE, NOT TO THE TICK IT NAMES ──────────
+ * It required the literal `if(frame==='butterfly-explorer')`. The sentence is
+ * about ticking from updateCyc rather than from a replacement call; the regex was
+ * about which frame name opens the gate. The two parted company on the shared
+ * "all models" stage — a different frame name — where the explorer was measured
+ * moving in its own frame and FROZEN on the stage, and the correction that fixed
+ * it failed this check although the sentence asks for exactly that correction. */
+ok('it ticks from updateCyc like the others rather than replacing the call, and it runs because it is ON STAGE rather than because a frame was named',
+  /if\(cycButterflyExplorerInst\.visible\) updateGalacticButterfly\(\);/.test(src)
+  && !/if\(frame==='butterfly-explorer'\) updateGalacticButterfly\(\);/.test(src)
   && !/if\(state\.cycFrame==='butterfly-explorer'\)updateGalacticButterfly\(\);\s*\n\s*else \{/.test(src),
-  'one tick path for the world, not one path and an exception');
+  'one tick path for the world, not one path and an exception — and not a gate that freezes the instrument on every stage nobody remembered to name');
 ok('and it frames itself in the ordinary place, with the ordinary shape',
   /if\(state\.cycFrame==='butterfly-explorer'\)\{[\s\S]{0,400}?setControlDistanceLimits\(2,90\);[\s\S]{0,60}?return;\s*\n\s*\}/.test(src)
   && !/if\(hccButterflySyncVisibility\(\)\)\{/.test(src),
