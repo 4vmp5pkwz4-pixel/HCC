@@ -72,8 +72,14 @@ ok('it ticks from updateCyc like the others rather than replacing the call, and 
   && !/if\(frame==='butterfly-explorer'\) updateGalacticButterfly\(\);/.test(src)
   && !/if\(state\.cycFrame==='butterfly-explorer'\)updateGalacticButterfly\(\);\s*\n\s*else \{/.test(src),
   'one tick path for the world, not one path and an exception — and not a gate that freezes the instrument on every stage nobody remembered to name');
-ok('and it frames itself in the ordinary place, with the ordinary shape',
-  /if\(state\.cycFrame==='butterfly-explorer'\)\{[\s\S]{0,400}?setControlDistanceLimits\(2,90\);[\s\S]{0,60}?return;\s*\n\s*\}/.test(src)
+/* ── AND THIS ONE PINNED THE TYPED DISTANCE, NOT THE SHAPE IT NAMES ─────────
+ * It required the literal `setControlDistanceLimits(2, 90)` inside the branch. The
+ * sentence is about the branch having the ordinary SHAPE — frame here, return here,
+ * after the guides, like every other frame. The typed pair is now the FALLBACK: the
+ * frame is solved from the instruments it declares, and the typed camera is what it
+ * falls back to if they cannot be measured. So the clause asserts the shape. */
+ok('and it frames itself in the ordinary place, with the ordinary shape — solved from what the frame declares, with the typed camera kept as the fallback',
+  /if\(state\.cycFrame==='butterfly-explorer'\)\{[\s\S]{0,900}?cycFrameLook\('butterfly-explorer'[\s\S]{0,400}?setControlDistanceLimits\(2,90\);[\s\S]{0,120}?return;\s*\n\s*\}/.test(src)
   && !/if\(hccButterflySyncVisibility\(\)\)\{/.test(src),
   'it used to return out of the TOP of the framing function, before the guides');
 
