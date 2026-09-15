@@ -49,14 +49,25 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
 { /* 1. THE GOAL EXISTS, IS RECORDED BY EVERY FRAMING, AND IS DROPPED BY A GESTURE */
   ok('A FRAMING RECORDS THE DISTANCE IT MEANT, and the governor keeps asking for it one rate-limited step per frame instead of truncating the move and forgetting it',
-    /function hccCameraGoal\(d, frames\)\{\s*\n\s*_camGoal=\(Number\.isFinite\(d\)&&d>1e-12\)\?d:NaN;/.test(src)
+    /function hccCameraGoal\(d, frames\)\{\s*\n\s*_camGoalPending=false;[\s\S]{0,120}?_camGoal=\(Number\.isFinite\(d\)&&d>1e-12\)\?d:NaN;/.test(src)
     && /const _goalLive=Number\.isFinite\(_camGoal\);\s*\n\s*if\(_goalLive\)\{/.test(src)
     && /else dist=_camGoal;/.test(src),
     'one variable, set by the framing and read by the bound');
-  ok('and every framing records it, because the one function they all call to declare their limits is called immediately after they place the camera — forty-five places, and not one of them a gesture',
-    /try\{ const d=camera\.position\.distanceTo\(controls\.target\); if\(d>1e-9\) hccCameraGoal\(d\); \}catch\(e\)\{\}\s*\n\s*baseMinDistance=/.test(src)
+/* ── AND THE CAPTURE IS DEFERRED BY ONE GOVERNOR PASS ───────────────────────
+ * The first form read the camera distance inside setControlDistanceLimits, on the
+ * assumption that a framing declares its limits immediately AFTER placing the
+ * camera. Forty-six callers, and not all of them do: the Observable → Solar seam
+ * calls advanceScaleLayer(), which declares limits, and only then writes the
+ * camera out to the cosmic web — so the goal was recorded at the distance the
+ * camera was about to leave and the governor dragged it back there. The hand-off
+ * arrived at the wrong scale, which is the exact failure a goal exists to prevent.
+ * Whatever order a framing works in, by the next pass the placement is finished. */
+  ok('and every framing records it, because the one function they all call to declare their limits marks the intent and the governor captures it once the placement is finished — whatever order that framing does its work in',
+    /_camGoalPending=true;\s*\n\s*baseMinDistance=/.test(src)
+    && /if\(_camGoalPending\)\{\s*\n\s*_camGoalPending=false;/.test(src)
+    && /_camGoalPending=false;\s+\/\* an explicit goal outranks a deferred capture \*\//.test(src)
     && (src.match(/setControlDistanceLimits\(/g) || []).length > 40,
-    `${(src.match(/setControlDistanceLimits\(/g) || []).length} calls to setControlDistanceLimits, every one of them a framing declaring where it has just put the camera`);
+    `${(src.match(/setControlDistanceLimits\(/g) || []).length} calls to setControlDistanceLimits, every one of them a framing — and an explicit paced goal outranks the deferred capture, because that caller has said what it wants in so many words`);
   ok('and a gesture on the 3D view abandons it at once, so the atlas never argues with a reader who has taken the camera',
     /hccCameraGoalClear\(\);\s+\/\* the reader is steering; the atlas stops asking \*\//.test(src)
     && /function disarmIdleDrift\(e\)\{/.test(src),
