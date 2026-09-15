@@ -49,8 +49,9 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
 { /* 1. THE GOAL EXISTS, IS RECORDED BY EVERY FRAMING, AND IS DROPPED BY A GESTURE */
   ok('A FRAMING RECORDS THE DISTANCE IT MEANT, and the governor keeps asking for it one rate-limited step per frame instead of truncating the move and forgetting it',
-    /function hccCameraGoal\(d\)\{ _camGoal=\(Number\.isFinite\(d\)&&d>1e-12\)\?d:NaN; \}/.test(src)
-    && /const _goalLive=Number\.isFinite\(_camGoal\);\s*\n\s*if\(_goalLive\) dist=_camGoal;/.test(src),
+    /function hccCameraGoal\(d, frames\)\{\s*\n\s*_camGoal=\(Number\.isFinite\(d\)&&d>1e-12\)\?d:NaN;/.test(src)
+    && /const _goalLive=Number\.isFinite\(_camGoal\);\s*\n\s*if\(_goalLive\)\{/.test(src)
+    && /else dist=_camGoal;/.test(src),
     'one variable, set by the framing and read by the bound');
   ok('and every framing records it, because the one function they all call to declare their limits is called immediately after they place the camera — forty-five places, and not one of them a gesture',
     /try\{ const d=camera\.position\.distanceTo\(controls\.target\); if\(d>1e-9\) hccCameraGoal\(d\); \}catch\(e\)\{\}\s*\n\s*baseMinDistance=/.test(src)
@@ -96,6 +97,24 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && /if\(Math\.abs\(B\.radius\/_cycFramedR-1\)<0\.22\) return false;/.test(src)
     && /cycAtlasApply\(false\); cycAtlasApply\(true\); applyCycFrameView\(\);/.test(src),
     'and never while the reader is steering');
+}
+
+{ /* 4. A SEAM IS NOT A FRAMING EITHER, AND THE SECTION OPENS ON OUR OWN UNIVERSE */
+  ok('AND A SEAM GLIDES ACROSS ITS CHANGE OF SCALE. The Observable ↔ S³ map multiplies or divides the camera radius by a hundred; the ordinary rate bound covers that in four frames, which is the jump cut a reader cannot connect to the sphere they just left',
+    /crossFrames:48/.test(src)
+    && /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src)
+    && /hccCameraGoal\(dS3\*SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src),
+    'both legs ask for the crossing over 48 frames — 1.10× each, paced in frames rather than seconds so a slow machine shows the same intermediate states');
+  ok('and the pacing bounds the camera in BOTH directions, because the seam divides the radius on the way out and multiplies it on the way back and only growth was ever bounded',
+    /if\(_camGoalStep>1&&Number\.isFinite\(_lastCamDist\)&&_lastCamDist>0\)\s*\n\s*dist=THREE\.MathUtils\.clamp\(_camGoal,_lastCamDist\/_camGoalStep,_lastCamDist\*_camGoalStep\);/.test(src)
+    && /_camGoalStep=Math\.pow\(ratio, 1\/Math\.max\(2,frames\)\);/.test(src),
+    'the factor is derived from the distance to cover and the frames asked for, not typed');
+  ok('and the S³ section aims at the observable cap from above the carrier instead of at the centre of the model, which is where every S³ view landed and which this atlas already calls a place no chain of scales leads to',
+    /function hccS3SectionView\(\)\{/.test(src)
+    && /controls\.target\.copy\(O\);\s*\n\s*camera\.position\.copy\(dir\)\.multiplyScalar\(d\);/.test(src)
+    && /\} else if\(v==='sec'\)\{/.test(src)
+    && /const d=RU\/Math\.sin\(Math\.max\(0\.2,0\.36\*Math\.min\(vFov,hFov\)\)\);/.test(src),
+    'the distance is solved so the whole carrier stands under the cap, against the narrower field of view — the same framing on a phone held upright');
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);

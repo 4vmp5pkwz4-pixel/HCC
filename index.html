@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-framing-is-not-a-gesture-2026.09.15.07">
+<html lang="en" data-hcc-build="the-section-opens-on-our-own-universe-2026.09.15.08">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-framing-is-not-a-gesture-2026.09.15.07">
+<meta name="hcc-build" content="the-section-opens-on-our-own-universe-2026.09.15.08">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2340,7 +2340,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.262.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.263.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2590,8 +2590,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.262.0';
-const HCC_BUILD='a-framing-is-not-a-gesture-2026.09.15.07';
+const HCC_VERSION='4.263.0';
+const HCC_BUILD='the-section-opens-on-our-own-universe-2026.09.15.08';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -3104,7 +3104,15 @@ const SCALE_SEAMS=Object.freeze({
   obsSolarInGly:0.020,
   obsS3OutGly:S3.R*1.08,
   s3ObsInGly:S3.R*0.94,
-  s3UnitGly:100
+  s3UnitGly:100,
+  /* HOW MANY FRAMES THE CROSSING TAKES. The map across this seam changes the camera
+     radius by a factor of a hundred, and the governor that paces the camera works in
+     frames rather than seconds — so a slow machine takes longer in wall-clock and
+     shows the same number of intermediate states, which is the point. Forty-eight
+     frames is 1.10× per frame across a hundredfold change: a glide the eye can
+     follow, where four frames is a cut the reader cannot connect to the sphere they
+     just left. */
+  crossFrames:48
 });
 const Gamma = chi => (chi - 0.5*Math.sin(2*chi)) / Math.PI;       // exact S³ ball volume fraction
 const screenArea = chi => 4*Math.PI*S3.R*S3.R*Math.sin(chi)**2;  // A(χ) = 4πR²sin²χ
@@ -7354,6 +7362,45 @@ function runSelfTests(){
       typeof cycStageForFrame==='function'
       && /cycStageForFrame\(state\.cycFrame\|\|'hierarchy'\)/.test(String(applyCycFrameView)),
       'one function decides where everything stands, and the camera calls it first');
+  }
+  { /* ══ THE SECTION OPENS ON OUR OWN UNIVERSE, AND A SEAM GLIDES ══════════════ */
+    const keep={p:camera.position.clone(), t:controls.target.clone(),
+      min:controls.minDistance, max:controls.maxDistance, goal:_camGoal, step:_camGoalStep, last:_lastCamDist};
+    try{
+      const V=hccS3SectionView();
+      const O=hccObserverOnCarrier();
+      /* the aim is the observable cap, and the whole carrier is inside the frame */
+      const vFov=(camera.fov||50)*Math.PI/180;
+      const hFov=2*Math.atan(Math.tan(vFov/2)*(camera.aspect||1.6));
+      const half=Math.asin(Math.min(1, RU/camera.position.length()));
+      ok('THE SECTION OPENS ON OUR OWN UNIVERSE RATHER THAN ON THE MIDDLE OF THE MODEL. Every S³ view landed on controls.target.set(0,0,0) — the centre of the carrier, which this atlas already calls, one seam away, a place no chain of scales leads to. The seam that zooms out of the Observable world was corrected to land at the observer and SELECTING the same view never was, so the two routes to it disagreed',
+        controls.target.distanceTo(O)<1e-9 && camera.position.y>RU
+        && half<Math.min(vFov,hFov)/2*0.92 && V.distance>RU*0.5,
+        `aimed at the observer at (0, ${RU.toFixed(2)}, 0) from ${camera.position.length().toFixed(1)} above the carrier centre · the sphere subtends ${(2*half*180/Math.PI).toFixed(1)}° inside a ${(Math.min(vFov,hFov)*180/Math.PI).toFixed(0)}° field, so the cap is aimed at and the whole carrier stands under it`);
+      /* AND A SEAM GLIDES INSTEAD OF CUTTING. Exercised, because a pacing that is
+         written and not applied looks exactly like one that is. */
+      controls.target.set(0,0,0); camera.position.set(0,0,1000); _lastCamDist=1000;
+      controls.minDistance=0.001; controls.maxDistance=1e7;
+      hccCameraGoal(10, SCALE_SEAMS.crossFrames);
+      const step=_camGoalStep, path=[];
+      for(let i=0;i<SCALE_SEAMS.crossFrames+8;i++){ stabilizeCamera(); path.push(camera.position.distanceTo(controls.target)); }
+      const arrivedAt=path.findIndex(v=>Math.abs(v/10-1)<0.01)+1;
+      const monotone=path.slice(1,arrivedAt).every((v,i)=>v<path[i]+1e-9);
+      ok('and a seam GLIDES across its change of scale instead of cutting: the map multiplies or divides the camera radius by a hundred, and covering that in the four frames the ordinary rate bound allows is the jump cut a reader cannot connect to the sphere they just left',
+        Math.abs(step-Math.pow(100,1/SCALE_SEAMS.crossFrames))<1e-6
+        && arrivedAt===SCALE_SEAMS.crossFrames && monotone,
+        `a hundredfold crossing paced over ${SCALE_SEAMS.crossFrames} frames at ${step.toFixed(4)}× each, arriving on frame ${arrivedAt} — and monotonically, so no frame of it goes backwards`);
+      /* and the pacing is symmetric, which the growth-only bound never was */
+      controls.target.set(0,0,0); camera.position.set(0,0,10); _lastCamDist=10;
+      hccCameraGoal(1000, SCALE_SEAMS.crossFrames);
+      let out=0; for(let i=0;i<SCALE_SEAMS.crossFrames+8;i++){ stabilizeCamera(); if(!out&&Math.abs(camera.position.distanceTo(controls.target)/1000-1)<0.01) out=i+1; }
+      ok('and it is paced in BOTH directions, because the seam divides the radius on the way out and multiplies it on the way back, and only one of those was ever bounded',
+        out===SCALE_SEAMS.crossFrames,
+        `outward and return both arrive on frame ${out} — the inward leg used to be a single-frame cut because the bound below only ever limited growth`);
+    } catch(e){ ok('the section view and the paced seam can be exercised', false, String(e&&e.message||e)); }
+    finally{ camera.position.copy(keep.p); controls.target.copy(keep.t);
+      controls.minDistance=keep.min; controls.maxDistance=keep.max;
+      _camGoal=keep.goal; _camGoalStep=keep.step; _lastCamDist=keep.last; }
   }
   { // CATASTROPHE: the fold set, the swallowtail's degenerate critical points, the Kelvin angle
     ok('Catastrophe: on the cusp fold 4a³+27b²=0 the cubic has a repeated root (the two equilibria merge)',
@@ -25448,6 +25495,23 @@ function capMesh(chi, color, opacity){
    strongest statement available — not merely the radius preserved, but the whole
    configuration, to the last bit. */
 function hccObserverOnCarrier(){ return new THREE.Vector3(0, RU, 0); }
+/* The section's own composition, derived rather than typed: the observer is the aim,
+   and the distance is the one that holds the whole carrier inside the narrower field
+   of view — so the same framing works on a phone held upright. The direction is the
+   only editorial choice, and it is nearly the pole with enough tilt to keep the limb
+   of the sphere visible under the cap instead of looking straight down an axis. */
+function hccS3SectionView(){
+  const O=hccObserverOnCarrier();
+  const vFov=(camera.fov||50)*Math.PI/180;
+  const hFov=2*Math.atan(Math.tan(vFov/2)*(camera.aspect||1.6));
+  const d=RU/Math.sin(Math.max(0.2,0.36*Math.min(vFov,hFov)));
+  const dir=new THREE.Vector3(0.21,0.95,0.24).normalize();
+  controls.target.copy(O);
+  camera.position.copy(dir).multiplyScalar(d);   /* measured from the CENTRE, so the
+                                                    carrier is held in frame beneath */
+  setControlDistanceLimits(RU*0.05, RU*24);
+  return {aim:O.clone(), distance:camera.position.distanceTo(O), sphereDistance:d};
+}
 const obsCap = capMesh(S3.chiP, 0x53b1ff, .85);
 {
   const lab = mkLabel(`observable Universe · θ = ${S3.thetaPdeg.toFixed(2)}° · Γ = ${(100*S3.GammaObs).toFixed(5)} %`,'label major','s3cap');
@@ -68526,6 +68590,22 @@ function setS3View(v,opt={}){
     state.ringShowSpheres = true; // make universe spheres (observer-centered ct0/LSS/ph + global S³) visible by default in rings tab
     setRingView(state.ringView);
     updateRingLab();
+  } else if(v==='sec'){
+    /* ── THE SECTION OPENS ON OUR OWN UNIVERSE, NOT ON THE MIDDLE OF THE MODEL ──
+       Every S³ view landed on controls.target.set(0,0,0) — the centre of the
+       carrier, which renders as a dark sphere and is, in this atlas's own words
+       one file away, "a place the reader has never been and which no chain of
+       scales leads to". The seam that zooms out of the Observable world was fixed
+       to land at the observer for exactly that reason; SELECTING the section from
+       a chip, the catalogue or the palette was never fixed with it, so the two
+       routes to the same view disagreed about where that view looks.
+
+       It looks at the observable cap, from above the pole it sits on, far enough
+       back that the whole carrier stands under it — which is the one composition
+       that shows what the section is FOR: our entire observable Universe as a
+       speck on a finite three-sphere. */
+    hccS3SectionView();
+    stabilizeCamera();syncCameraClipping(true);
   } else {
     const preset=scientificCameraPreset(v);
     controls.target.set(0,0,0);camera.position.set(...preset);setControlDistanceLimits(.4,180);
@@ -78884,9 +78964,30 @@ let _lastCamDist=NaN;
    asking on the atlas's behalf, one rate-limited step per frame, until it arrives.
    The reach is kept and the motion stays smooth — which is the behaviour the bound
    claimed all along. A reader's gesture on the view abandons the goal at once. */
-let _camGoal=NaN;
-function hccCameraGoal(d){ _camGoal=(Number.isFinite(d)&&d>1e-12)?d:NaN; }
-function hccCameraGoalClear(){ _camGoal=NaN; }
+let _camGoal=NaN, _camGoalStep=0;
+/* ── AND A SEAM IS NOT A FRAMING EITHER ──────────────────────────────────────
+   A frame change should arrive promptly: three or four rate-limited steps and the
+   reader is there. A SEAM is a different event — the map across the Observable ↔ S³
+   seam multiplies or divides the camera radius by a hundred, and covering that in
+   four frames is the jump cut the reader described as "too fast, out of proportion
+   with the sphere". So a goal may name the number of frames it wants to take, and
+   the per-frame factor is derived from the distance it has to cover: ask for a
+   hundredfold crossing over forty-eight frames and each frame moves by 1.10×, which
+   is a glide the eye can follow across a change of scale it could not otherwise
+   believe. Nothing is timed in seconds — this paces by FRAMES, so a slow machine
+   takes longer in wall-clock and shows the same number of intermediate states. */
+function hccCameraGoal(d, frames){
+  _camGoal=(Number.isFinite(d)&&d>1e-12)?d:NaN;
+  _camGoalStep=0;
+  if(Number.isFinite(_camGoal)&&frames>1){
+    try{
+      const now=camera.position.distanceTo(controls.target);
+      if(now>1e-12){ const ratio=Math.max(_camGoal/now, now/_camGoal);
+        if(ratio>1.0001) _camGoalStep=Math.pow(ratio, 1/Math.max(2,frames)); }
+    }catch(e){}
+  }
+}
+function hccCameraGoalClear(){ _camGoal=NaN; _camGoalStep=0; }
 function stabilizeCamera(){
   if(renderer.xr.isPresenting)return;
   if(!finiteVector(camera.position)||!finiteVector(controls.target)||!finiteVector(camera.up)){
@@ -78931,7 +79032,14 @@ function stabilizeCamera(){
        the rate bound then truncated the move with nothing left to re-ask. The goal
        is compared against what is actually APPLIED. */
     const _goalLive=Number.isFinite(_camGoal);
-    if(_goalLive) dist=_camGoal;
+    if(_goalLive){
+      /* a paced goal is bounded in BOTH directions, so a crossing that divides the
+         radius by a hundred glides as well as one that multiplies it — the growth-only
+         bound below left the inward leg of every seam a single-frame jump cut */
+      if(_camGoalStep>1&&Number.isFinite(_lastCamDist)&&_lastCamDist>0)
+        dist=THREE.MathUtils.clamp(_camGoal,_lastCamDist/_camGoalStep,_lastCamDist*_camGoalStep);
+      else dist=_camGoal;
+    }
     const asked=dist;                    // what the gesture asked for, kept for the compare
     if(Number.isFinite(_lastCamDist)&&_lastCamDist>0&&dist>_lastCamDist*HCC_ZOOM.step)
       dist=_lastCamDist*HCC_ZOOM.step;
@@ -95855,7 +95963,11 @@ function tickBody(now, frame){
              a place no chain of scales leads to */
           { const O=hccObserverOnCarrier();
             controls.target.copy(O);
-            camera.position.copy(O).addScaledVector(dir, dObs/SCALE_SEAMS.s3UnitGly); }
+            camera.position.copy(O).addScaledVector(dir, dObs/SCALE_SEAMS.s3UnitGly);
+            /* and the atlas keeps asking until the camera is at the mapped radius:
+               the per-frame dolly bound truncates a placement that asks once, and
+               this seam's whole claim is that the radius maps exactly */
+            hccCameraGoal(dObs/SCALE_SEAMS.s3UnitGly, SCALE_SEAMS.crossFrames); }
           syncCameraClipping(true);
           hudBig.textContent=`Scale ↑ finite S³ carrier — R=${S3.R.toFixed(1)} Gly · V=2π²R³=${S3.V.toExponential(3)} Gly³ · boundaryless`;
         }
@@ -95886,7 +95998,18 @@ function tickBody(now, frame){
           dir.normalize();
           _autoScaleCd=2.0;
           setMode('obs'); controls.target.set(0,0,0);   // the Observable world IS observer-centred
+          /* ── AND THIS LEG WAS ARRIVING THIRTY-EIGHT TIMES TOO CLOSE ───────────
+             The map across this seam multiplies the camera radius by a hundred —
+             one carrier unit is a hundred gigalightyears — and the governor's
+             per-frame dolly bound allows 2.6× of growth in a frame. A placement
+             that asks once was therefore clamped to 2.6 of the 100 it asked for
+             and never asked again: the reader crossed into the Observable world
+             at 1/38 of the radius this seam claims to preserve exactly, which is
+             why the hand-off read as too fast and out of proportion with the
+             sphere it had just left. The goal keeps asking; the bound still
+             paces it, so the crossing is a glide rather than a jump cut. */
           camera.position.copy(dir).multiplyScalar(dS3*SCALE_SEAMS.s3UnitGly);
+          hccCameraGoal(dS3*SCALE_SEAMS.s3UnitGly, SCALE_SEAMS.crossFrames);
           syncCameraClipping(true);
           hudBig.textContent='Scale ↓ observer-centred Universe — curvature ledger, giant structures, particle horizon, then the Solar scale chain';
         }
