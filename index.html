@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="an-instrument-with-no-switch-2026.09.15.02">
+<html lang="en" data-hcc-build="what-have-i-changed-2026.09.15.03">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="an-instrument-with-no-switch-2026.09.15.02">
+<meta name="hcc-build" content="what-have-i-changed-2026.09.15.03">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -925,6 +925,9 @@
   .ctlFind .btn{padding:4px 8px;font-size:11px;flex:0 0 auto}
   .ctlFindCount{flex:0 0 auto;font:600 9.5px var(--sans);letter-spacing:.6px;
     text-transform:uppercase;color:var(--dim);white-space:nowrap}
+  .ctlDrift{flex:0 0 auto;font:600 9.5px var(--sans);letter-spacing:.6px;
+    text-transform:uppercase;color:var(--warn);white-space:nowrap;cursor:pointer}
+  .ctlDrift:hover{color:var(--gold-2)}
   /* quiet ghost buttons: secondary chrome recedes so the 3D scene stays the hero;
      hover/active/on states carry the gold — the resting state only whispers it */
   .btn{background:rgba(10,14,24,.5);border:1px solid rgba(212,175,106,.22);color:var(--txt);
@@ -2337,7 +2340,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.257.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.258.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2587,8 +2590,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.257.0';
-const HCC_BUILD='an-instrument-with-no-switch-2026.09.15.02';
+const HCC_VERSION='4.258.0';
+const HCC_BUILD='what-have-i-changed-2026.09.15.03';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -5242,6 +5245,48 @@ function runSelfTests(){
         && open.style.display==='' && folded.dataset.foldWas===undefined,
         `filtered, then two further passes standing in for rebuilds, then cleared: the folded section came back FOLDED. Recording on every pass instead of the first would have captured it open on pass two and restored it open — a mutation that does exactly that passes the static check, which is why this one is here`);
     }
+  }
+  { /* WHAT HAVE I CHANGED — exercised as a round trip, because the presence of a
+       function is not the behaviour of one. Take a snapshot, move a control, and
+       the atlas must name it with both values and put it back. */
+    const saved=HCC_DRIFT.base;
+    try{
+      hccDriftSnapshot();
+      const clean=hccControlDrift();
+      ok('WITH NOTHING TOUCHED THE ATLAS REPORTS NOTHING CHANGED, which the first exclusion set could not manage',
+        !!clean && clean.changed.length===0 && clean.tracked>600,
+        clean?`${clean.tracked} settings tracked, ${clean.changed.length} changed · the first version listed one before anybody had touched anything, because cycYrPerSec is written on entering the cycles world and the measurement had only visited three`
+             :'no snapshot');
+      /* move two controls of different types and require both to be named */
+      const b0=state.luxHolo, n0=state.fieldAlpha;
+      state.luxHolo=!b0; state.fieldAlpha=(n0||0.16)+0.2;
+      const d=hccControlDrift();
+      const keys=d?d.changed.map(x=>x.key):[];
+      ok('and when two settings move, it names both, with the value each had and the value it has',
+        d && d.changed.length===2 && keys.includes('luxHolo') && keys.includes('fieldAlpha')
+        && d.changed.every(c=>c.was!==c.now),
+        `${keys.join(', ')} · a boolean and a number, each carrying was → now`);
+      /* and the revert is a real revert, not a repaint */
+      hccDriftRevert('luxHolo'); hccDriftRevert('fieldAlpha');
+      const after=hccControlDrift();
+      ok('and reverting puts the VALUES back, so the report empties rather than the list being cleared',
+        state.luxHolo===b0 && state.fieldAlpha===n0 && after && after.changed.length===0,
+        'a revert that emptied the list without restoring the value would report exactly the same thing and be a lie');
+      /* the exclusion set is a measurement and every entry carries its reason */
+      /* the first form of this asserted only the SIZE, and a mutation that renamed
+         one entry kept the size at seven and went green. The set is a measurement
+         result, so it is pinned by NAME: drop one and this fails, add one without
+         re-measuring and this fails, which is the point — the list may only change
+         when somebody has run the measurement again. */
+      const EXPECT=['cycSeasons','cycYrPerSec','epochDays','fbsPulse','mode','photonT','predictionRefs'];
+      ok('every untracked setting is named with why it is untracked, because one of them costs a real change',
+        HCC_DRIFT_SELF.size===EXPECT.length
+        && EXPECT.every(k=>HCC_DRIFT_SELF.has(k))
+        && [...HCC_DRIFT_SELF].every(([k,why])=>typeof why==='string'&&why.length>18)
+        && HCC_DRIFT_SELF.has('cycYrPerSec'),
+        `${HCC_DRIFT_SELF.size} untracked · cycYrPerSec is a real control the atlas also writes on world entry, so a deliberate change to it goes unlisted — stated in the panel rather than hidden`);
+    }catch(e){ ok('the drift report runs',false,String(e&&e.message||e)); }
+    finally{ HCC_DRIFT.base=saved; }
   }
   { /* THE SCALING BENCH — one engine, and the three answers that are not a law. */
     const det=hccSolveFor(['energy','mass density','time','length'],'length');
@@ -18157,6 +18202,9 @@ function ctlApplyFilter(root){
   if(out) out.textContent=q?`${shown} of ${total}`:`${total} sections`;
   const clear=root.querySelector('#ctlFindClear');
   if(clear) clear.hidden=!q;
+  /* the drift count rides the filter bar so it is visible from every world without
+     opening anything. It is written by hccDriftBadge and by nothing else. */
+  try{ hccDriftBadge(); }catch(e){}
   /* filtering to nothing left a bare filter bar over an empty panel, which looks
      exactly like a panel that has broken. Say what happened and how to undo it. */
   let empty=root.querySelector(':scope > .ctlFindEmpty');
@@ -18176,6 +18224,7 @@ function ctlFinderHTML(){
       title="Type to keep only the sections that mention it — heading or body. Escape clears.">
     <button class="btn" id="ctlFindClear" ${CTL_FIND.q?'':'hidden'} title="Clear the filter">✕</button>
     <span class="ctlFindCount" id="ctlFindCount"></span>
+    <span class="ctlDrift" id="ctlDrift" hidden title="Settings that have left the state this page opened in. Click to see them, each with the value it had and a button to put it back."></span>
     <button class="btn" id="ctlFoldAll" title="Fold every section in this world">⌃ all</button>
     <button class="btn" id="ctlOpenAll" title="Open every section in this world">⌄ all</button>
   </div>`;
@@ -18186,6 +18235,9 @@ function ctlBindFinder(root){
   inp.onkeydown=e=>{ if(e.key==='Escape'){ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.blur(); } };
   const cl=root.querySelector('#ctlFindClear');
   if(cl) cl.onclick=()=>{ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.focus(); };
+  const badge=root.querySelector('#ctlDrift');
+  if(badge) badge.onclick=()=>{ CTL_FIND.q='what you have changed';
+    inp.value=CTL_FIND.q; ctlApplyFilter(root); };
   const fold=on=>{ for(const sect of ctlSections(root)){
       sect.classList.toggle('collapsed',on);
       const head=sect.querySelector(':scope > b');
@@ -56981,6 +57033,12 @@ try{
       return new Promise((res,rej)=>{
         const poll=()=>{
           if(up()){ try{ document.documentElement.dataset.hccCore='ready'; }catch(e){}
+            /* the baseline for "what have I changed" is taken HERE and once: the
+               page is live, every boot write and any restored preference has
+               landed, and no reader has touched anything yet. Earlier would bake
+               in a half-built state; later would quietly adopt the reader's own
+               first change as the default it is measured against. */
+            try{ if(!HCC_DRIFT.base) hccDriftSnapshot(); }catch(e){}
             return res(this); }
           if(Date.now()>deadline) return rej(Object.assign(new Error('HCC core not ready'),
             {code:'TIMEOUT', health:this.health()}));
@@ -79862,6 +79920,7 @@ function buildCtl(){
      and that works in every world. Its gold loop is drawn in the dimension
      lattice, so the caption says where to look rather than leaving the reader to
      wonder why nothing appeared. */
+  try{ ctl.insertAdjacentHTML('beforeend', hccDriftPanelHTML()); hccDriftBind(ctl); }catch(e){}
   try{ ctl.insertAdjacentHTML('beforeend', benchPanelHTML()); benchBind(ctl); benchRender(); }catch(e){}
   { const cb=ctl.querySelector('#scaleChainAll');
     if(cb) cb.onchange=e=>{ state.scaleChain=e.target.checked; }; }
@@ -79941,6 +80000,164 @@ function buildCtl(){
     [...active.querySelectorAll(':scope > .sect')].slice(0,2).forEach(sect=>{const head=sect.firstElementChild;if(!head)return;
       sect.classList.remove('collapsed');SECT_STATE.set(`ctl|${state.mode}|${head.textContent.trim()}`,'1');}); };
   requestAnimationFrame(()=>{ _revealActive();_restore();requestAnimationFrame(()=>{_revealActive();_restore();}); });
+}
+/* ══ THE ONE PART OF THIS ATLAS THAT KNEW NOTHING ABOUT ITSELF ════════════════
+   This file measures everything. Whether a laboratory is alive, by counting the
+   buffer versions that advanced between two frames. Whether its units close,
+   whether its dimension table has the rank it claims, which of its own checks
+   are tautologies. It records its refusals and names its own defects.
+
+   The CONTROL SURFACE was the exception. Eight hundred and thirty-one keys of
+   state behind three hundred and fifty-four controls in the widest world, and a
+   reader standing in front of them could not ask the one question that matters
+   after ten minutes of use: WHAT HAVE I CHANGED? Nor put one thing back without
+   hunting for the control that moved it. A measurement shown under a slider
+   somebody nudged twenty minutes ago and forgot is not obviously a measurement
+   of anything.
+
+   So the panel can now state its own deviation. A snapshot is taken once, after
+   boot settles and before any interaction, and every control that has left it is
+   named, shown with both values, and revertible on its own.
+
+   WHICH KEYS COUNT IS A MEASUREMENT, NOT A GUESS. Plenty of state moves without
+   anybody touching it — the clock, the camera, caches, whatever the running
+   simulation writes back. Those are not controls, and listing them would bury
+   the reader's own three changes under forty of the atlas's. So the exclusion
+   set below was obtained by booting the page, touching nothing, waiting, and
+   recording what moved. HCC_DRIFT_SELF holds that result; anything in it is the
+   atlas changing its own mind and is never reported as the reader's doing. */
+const HCC_DRIFT={ base:null, takenAt:0 };
+try{ globalThis.__DRIFT={snap:()=>hccDriftSnapshot(), read:(all)=>hccControlDrift(all)}; }catch(e){}
+/* filled from a measurement — see the note above and the probe that produced it */
+const HCC_DRIFT_SELF=Object.freeze(new Map([
+  ['epochDays',      'the clock — advances every frame, in every world'],
+  ['cycSeasons',     'the season table, recomputed from the clock'],
+  ['cycYrPerSec',    'the cycles time rate, which the atlas also sets on entering that world'],
+  ['fbsPulse',       'the phi-ladder pulse phase'],
+  ['photonT',        'the photon on the great circle'],
+  ['predictionRefs', 'a structure filled in lazily on first use'],
+  ['mode',           'where you are standing, not a setting you chose']
+]));
+/* ── SEVEN, AND THE FIRST MEASUREMENT FOUND THREE ────────────────────────────
+   The first version of this list was taken by booting, sitting still in three
+   worlds and recording what moved: epochDays, fbsPulse, mode. It shipped a badge
+   reading "1 changed" before the reader had touched anything, because cycYrPerSec
+   is written on entering the cycles world and nobody had been there.
+   Measured properly — snapshot at readiness, then visit EVERY world touching no
+   control — the set is seven, and a second pass over all seven worlds adds none.
+   That convergence is the reason to believe it is complete.
+
+   ONE OF THEM IS AN HONEST LOSS. cycYrPerSec is a real control: a reader can set
+   the cycles time rate deliberately, and because the atlas also writes it on
+   world entry it cannot be told apart from drift here. Excluding it means that
+   one deliberate change goes unlisted. The panel names every excluded key and
+   why, so a reader who wonders where their change went can read the answer rather
+   than conclude the feature is broken. */
+function hccDriftSnapshot(){
+  try{ const o={}; for(const k of Object.keys(state)){ const v=state[k];
+      if(v===null||typeof v!=='object'){ o[k]=v; continue; }
+      try{ o[k]=JSON.stringify(v); }catch(e){ /* not comparable — skip */ } }
+    HCC_DRIFT.base=o; HCC_DRIFT.takenAt=Date.now(); return Object.keys(o).length; }
+  catch(e){ return 0; }
+}
+/* every control that has left the snapshot, with both values */
+function hccControlDrift(includeSelf){
+  const B=HCC_DRIFT.base; if(!B) return null;
+  const out=[];
+  for(const k of Object.keys(B)){
+    if(!includeSelf&&HCC_DRIFT_SELF.has(k)) continue;
+    const cur=state[k];
+    const now=(cur===null||typeof cur!=='object')?cur:(()=>{ try{ return JSON.stringify(cur); }catch(e){ return undefined; } })();
+    if(now===undefined&&B[k]===undefined) continue;
+    if(now!==B[k]) out.push({key:k, was:B[k], now});
+  }
+  out.sort((a,b)=>a.key<b.key?-1:1);
+  return {changed:out, tracked:Object.keys(B).length, self:HCC_DRIFT_SELF.size};
+}
+function hccDriftRevert(key){
+  const B=HCC_DRIFT.base; if(!B||!(key in B)) return false;
+  const v=B[key];
+  try{ const cur=state[key];
+    state[key]=(cur!==null&&typeof cur==='object'&&typeof v==='string')?JSON.parse(v):v;
+    return true; }catch(e){ return false; }
+}
+/* ── AND THE PANEL SAYS IT, IN THE PANEL, WHERE THE CONTROLS ARE ─────────────
+   Not a debug readout. The count sits in the filter bar so it is visible from
+   every world without opening anything, and the list names each change with the
+   value it had, the value it has, and a button that puts that one back.
+
+   The wording is careful about what it does NOT cover. The clock and the world
+   you are standing in move without you and are excluded by measurement, so the
+   note says so rather than letting the reader believe the list is exhaustive. */
+/* ── ONE WRITER FOR THE COUNT ────────────────────────────────────────────────
+   The badge was first computed inside ctlApplyFilter, which runs on a panel
+   rebuild. A control that changes state without rebuilding the panel — most of
+   them — left it stale, and it read "2 changed" beside a list of four. A number
+   shown in two places from two moments is the defect this file keeps finding, so
+   there is one function that writes it and one clock that calls it. */
+let HCC_DRIFT_ACC=0, HCC_DRIFT_SHOWN=-1;
+function hccDriftBadge(){
+  const el=document.getElementById('ctlDrift'); if(!el) return 0;
+  let n=0; try{ const d=hccControlDrift(); n=d?d.changed.length:0; }catch(e){ n=0; }
+  el.hidden=!n; if(n) el.textContent='◆ '+n+' changed';
+  /* ── AND THE LIST HAS TO FOLLOW THE COUNT ─────────────────────────────────
+     The badge ticks on its own clock; the list is markup, built when the panel
+     is built. Most controls change state WITHOUT rebuilding the panel — the
+     theme switch is one — so the badge read 2 beside a list of 1. That is the
+     same two-authorities defect as before with the roles swapped, and the fix is
+     not a second clock but a rebuild when, and only when, the count moves.
+     Not while something in the panel has focus: rebuilding under a reader's
+     hand is how the dropdowns were closed once already. */
+  if(n!==HCC_DRIFT_SHOWN){
+    HCC_DRIFT_SHOWN=n;
+    try{ const p=document.getElementById('ctl');
+      const a=document.activeElement;
+      if(p && p.scrollHeight>0 && !(a && a!==document.body && p.contains(a))) buildCtl();
+    }catch(e){}
+  }
+  return n;
+}
+function hccDriftTick(dt){
+  HCC_DRIFT_ACC+=dt; if(HCC_DRIFT_ACC<0.5) return; HCC_DRIFT_ACC=0;
+  try{ hccDriftBadge(); }catch(e){}
+}
+function hccDriftFmt(v){
+  if(v===true) return 'on'; if(v===false) return 'off';
+  if(v===null) return 'none';
+  if(typeof v==='number') return Number.isInteger(v)?String(v):String(+v.toFixed(4));
+  const s=String(v); return s.length>22?s.slice(0,21)+'…':s;
+}
+function hccDriftPanelHTML(){
+  const d=hccControlDrift(); if(!d) return '';
+  if(!d.changed.length) return `<div class="sect"><b>${TT('What you have changed','Что вы изменили','Was Sie geändert haben')}</b>
+    <div class="note" style="font-size:10.4px;color:var(--dim)">${TT('Nothing. All','Ничего. Все','Nichts. Alle')} ${d.tracked} ${TT('tracked settings are as the atlas opened them. The clock and the world you are in are not tracked — they move without you.','отслеживаемых настроек — такие же, какими атлас открылся. Часы и текущий мир не отслеживаются: они меняются без вас.','verfolgten Einstellungen sind unverändert.')}</div></div>`;
+  return `<div class="sect"><b>${TT('What you have changed','Что вы изменили','Was Sie geändert haben')} · ${d.changed.length}</b>
+    <div class="note" style="font-size:10.4px;color:var(--dim)">${TT('Measured against the snapshot taken when this page became live — after every boot write, before you touched anything.','Сравнение со снимком, взятым в момент готовности страницы — после всех записей загрузки и до первого касания.','Gemessen gegen den Schnappschuss beim Start.')}</div>
+    <details style="margin-top:4px"><summary style="cursor:pointer;font-size:10.2px;color:var(--dim)">${TT('Seven settings are not tracked, and one of them costs a real change','Семь настроек не отслеживаются, и одна из них стоит настоящего изменения','Sieben Einstellungen werden nicht verfolgt')}</summary>
+      <div class="note" style="font-size:10.1px;color:var(--dim)">${[...HCC_DRIFT_SELF].map(([k,why])=>`<b>${esc(k)}</b> — ${esc(why)}`).join('<br>')}<br><br>${TT('These move without you, so listing them would bury your own changes. The set was measured — snapshot at readiness, then every world visited touching no control — and a second pass added none. The cost is cycYrPerSec: it is a real control, and because the atlas also writes it, a deliberate change to the cycles time rate will not appear above.','Они меняются без вас, и перечислять их значило бы похоронить ваши собственные изменения. Набор измерен — снимок в момент готовности, затем обход всех миров без единого касания, и второй проход не добавил ничего. Цена — cycYrPerSec: это настоящий контрол, и поскольку атлас пишет его сам, осознанное изменение темпа времени в циклах выше не появится.','Diese bewegen sich ohne Sie.')}</div></details>
+    ${d.changed.map(c=>`<div class="ctlrow" style="gap:6px;align-items:baseline">
+      <label style="flex:1 1 auto;font-variant-numeric:tabular-nums">${esc(c.key)}
+        <span style="color:var(--dim)">${esc(hccDriftFmt(c.was))} → </span><b>${esc(hccDriftFmt(c.now))}</b></label>
+      <button class="btn" data-drift-revert="${esc(c.key)}" style="padding:2px 8px;font-size:10.5px"
+        title="${esc(TT('Put this one back to '+hccDriftFmt(c.was),'Вернуть это значение к '+hccDriftFmt(c.was),'Zurücksetzen'))}">↺</button>
+    </div>`).join('')}
+    <div class="ctlrow" style="margin-top:5px"><button class="btn warn" id="driftRevertAll">↺ ${TT('put all','вернуть всё','alles')} ${d.changed.length} ${TT('back','назад','zurück')}</button></div>
+  </div>`;
+}
+function hccDriftBind(root){
+  root.querySelectorAll('[data-drift-revert]').forEach(b=>b.onclick=()=>{
+    try{ hccDriftRevert(b.dataset.driftRevert); hccDriftApply(); }catch(e){} });
+  const all=root.querySelector('#driftRevertAll');
+  if(all) all.onclick=()=>{ try{ const d=hccControlDrift();
+    if(d) for(const c of d.changed) hccDriftRevert(c.key);
+    hccDriftApply(); }catch(e){} };
+}
+/* reverting a value is not the same as the scene noticing. The atlas rebuilds its
+   world from state on a mode re-entry, so that is what is used rather than a list
+   of per-key apply calls which would go stale the moment a control was added. */
+function hccDriftApply(){
+  try{ setMode(state.mode); }catch(e){}
+  try{ buildCtl(); }catch(e){}
 }
 function buildCtlBody(){
   if(state.mode==='solar'){
@@ -94613,6 +94830,7 @@ function tickBody(now, frame){
        a control that moved a number and left the geometry alone would be the defect */
     if(blastWave.visible) blastWave.scale.setScalar(Math.pow(Math.max(1e-4,BLAST.tFrac),hccBlastExponents().time));
     try{ diffMarkTick(dt); }catch(e){}
+  try{ hccDriftTick(dt); }catch(e){}
     if(state.fieldView==='causal'){
       const d=CAUSAL.diagnostics();hudBig.textContent=`Causal relation observatory · ${d.nodes} nodes · ${d.typedRelations+d.crossModeRelations} typed links`;
       hudSub.textContent='non-metric explanatory graph · select any node to trace evidence, models and cross-scale relations';
