@@ -83,8 +83,14 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && /const dIn=inGap\/\(2\*w\), dOut=around\/\(6\*w\);/.test(src),
     'measured: 84 % deep in a at the 3:1 and −11 % in r, which is noise');
   ok('and the taxonomy changes across the belt as it really does — silicaceous inward, carbonaceous outward, crossing over near 2.7 AU — as a smooth mix rather than a step, because the two populations overlap',
+    /* the two ends of the taxonomy became UNIFORMS when the Kuiper belt was added,
+     * because one shader now draws both populations — silicaceous to carbonaceous
+     * here, ultra-red to neutral there. The clause is about the belt having a
+     * taxonomy at all and about it being a mix rather than a step; where the two
+     * colours are declared is the shader's business. */
     /type\[i\]=1\/\(1\+Math\.exp\(-\(a-2\.72\)\/0\.16\)\);/.test(src)
-    && /vec3 sType = vec3\(0\.86,0\.74,0\.58\);/.test(src),
+    && /uColA:\{value:new THREE\.Color\(0\.86,0\.74,0\.58\)\}/.test(src)
+    && /vCol = mix\(uColA, uColB, clamp\(aType,0\.0,1\.0\)\);/.test(src),
     'the old belt was one flat grey');
 }
 
