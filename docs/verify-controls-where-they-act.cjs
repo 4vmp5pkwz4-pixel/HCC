@@ -232,6 +232,33 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'depth is somebody\'s markup decision; it is not a statement about which controls the reader wants hidden');
 }
 
+/* 5b ── an instrument with no switch at all */
+{ const eng = cut('function fbsSpectroApply(){', '\n}');
+  ok('the phi-ladder spectrometer has a switch, which it did not have when it was reported as a fault',
+    /state\.fbsSpectro:false|fbsSpectro:false/.test(src)
+    && /id="fbsSpectroOn"/.test(src)
+    && /const on=!!state\.fbsSpectro&&state\.mode==='fbs';/.test(eng)
+    && /fbsSpectro\.visible=on;/.test(eng),
+    'it was built on entering the world and never hidden — thirty-six bars, a ring, an arrow and two labels standing permanently through the phi-shells they measure, with no way to put them away');
+
+  ok('and it is OFF by default, because its verdict is a null result',
+    /fbsSpectro:false/.test(src)
+    && !/fbsSpectro:true/.test(src),
+    'every bin near the same height carries one bit — nothing here — and a null result is not worth the most prominent object on the stage');
+
+  ok('but the FINDING is not hidden with the drawing: the verdict stays in the panel either way',
+    /function fbsSpectroVerdict\(\)\{/.test(src)
+    && /Does the ladder mean anything\?/.test(src)
+    && /The rungs are a COORDINATE, not a law/.test(src)
+    && /does not survive its own test, and that is a result rather than an embarrassment/.test(src),
+    'hiding a drawing must not quietly retire the measurement — the ladder of this atlas fails its own test, and that stays on the page in words');
+
+  ok('the mount hands to that one authority rather than force-building on entry',
+    /try\{ fbsSpectroApply\(\); \}catch\(e\)\{\}/.test(src)
+    && !/if\(!fbsSpectro\.children\.length\) buildSpectrometer/.test(src.replace(/\/\*[\s\S]*?\*\//g,'')),
+    'setMode used to build it unconditionally, which is how an instrument ends up with no off switch');
+}
+
 /* 6 ── two sections sharing a name shared their fold state */
 { ok('the duplicate S³ heading is gone, because the accordion was using the heading as a key',
     (src.match(/<b>\$\{TT\('S³ Laboratory'/g) || []).length
