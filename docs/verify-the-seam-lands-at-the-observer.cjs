@@ -38,10 +38,21 @@ ok('the observer on the carrier is one function and one point',
   && (src.match(/hccObserverOnCarrier\(\)/g) || []).length >= 4,
   'the cap is centred there and its passport returns the same point, so there is one authority and not two');
 
+/* The placement is unchanged; what follows it is not. Both legs now also record the
+ * mapped radius as a CAMERA GOAL, because the governor's per-frame dolly bound
+ * truncates a placement that asks once — the return leg multiplies the radius by a
+ * hundred and was arriving at 2.6 of it, one thirty-eighth of the distance this seam
+ * claims to preserve exactly. The clause is about WHERE the leg aims, so the block
+ * it matches is allowed to carry that line. */
 ok('the outward leg targets the observer instead of the centre of the carrier',
-  /\{ const O=hccObserverOnCarrier\(\);\s*\n\s*controls\.target\.copy\(O\);\s*\n\s*camera\.position\.copy\(O\)\.addScaledVector\(dir, dObs\/SCALE_SEAMS\.s3UnitGly\); \}/.test(src)
+  /\{ const O=hccObserverOnCarrier\(\);\s*\n\s*controls\.target\.copy\(O\);\s*\n\s*camera\.position\.copy\(O\)\.addScaledVector\(dir, dObs\/SCALE_SEAMS\.s3UnitGly\);/.test(src)
+  && /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\); \}/.test(src)
   && !/state\.s3view='sec'; setMode\('s3'\);\s*\n\s*controls\.target\.set\(0,0,0\);/.test(src),
   'the cap you have just zoomed out of is centred on that point; the origin of the projection is somewhere no chain of scales leads');
+ok('and both legs keep asking until the camera is at the radius the map gives it, because a seam that claims an exact ratio and lands at one thirty-eighth of it is not a seam',
+  /hccCameraGoal\(dObs\/SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src)
+  && /hccCameraGoal\(dS3\*SCALE_SEAMS\.s3UnitGly, SCALE_SEAMS\.crossFrames\);/.test(src),
+  'the outward leg divides by a hundred and the return leg multiplies by it; only the growth was being clamped, which is why only the return leg read as wrong — and both are now paced over the same number of frames, so the crossing is a glide in either direction');
 
 ok('and the return leg measures its distance from the observer too',
   /const dS3=camera\.position\.distanceTo\(_O\), homeAim=controls\.target\.distanceTo\(_O\)<RU\*0\.08;/.test(src)
