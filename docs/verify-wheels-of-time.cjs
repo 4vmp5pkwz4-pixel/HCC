@@ -126,9 +126,20 @@ ok('a publish that fails is RECORDED rather than swallowed',
   'the same defect this atlas already carries once, where a whole mode published nothing and raised no error');
 
 /* ── every label names its own ring ───────────────────────────────────────── */
-ok('the labels are spread around the nest instead of stacking on one radius',
-  /const la=\(i\/n\)\*Math\.PI\*2\*0\.82\+0\.22;/.test(src),
-  'eleven on one radius left the declutter pass showing three');
+/* ── AND THIS PINNED THE FIRST FIX, NOT THE PROBLEM IT SOLVED ───────────────
+ * It matched the exact bearing expression of the first attempt — spreading the
+ * labels over 82 % of a turn at each ring's OWN radius. Measured again once the
+ * turn lengths made every label longer, that still left three of the eleven
+ * standing: the inner labels sat INSIDE the nest, across the rings they name and
+ * across each other. The fix was the radius, not the bearing. The clause asserts
+ * what it is named for — that no two names share a place — by requiring both a
+ * per-label bearing AND one common radius outside the whole nest. */
+ok('the labels are spread around the nest instead of stacking on one radius, and they stand OUTSIDE it rather than across the rings they name',
+  /const la=\(i\/n\)\*Math\.PI\*2\+0\.18;/.test(src)
+  && /const RIM=2\.0\+\(n-1\)\*0\.86\+0\.62;/.test(src)
+  && /label\.position\.set\(Math\.cos\(la\)\*\(RIM\+1\.25\),0\.05,Math\.sin\(la\)\*\(RIM\+1\.25\)\);/.test(src)
+  && /the leader, so a name at the rim still points at the ring it names/.test(src),
+  'eleven on one radius left the declutter pass showing three; eleven at their own radii left it showing three again');
 
 /* ── AND THE TWO PAIRS THAT GENUINELY MESH ────────────────────────────────
    A concentric ring says a culture divided the circle into n. It does not say what
@@ -162,9 +173,17 @@ ok('the two gears COUNTER-rotate, each at one turn per its own count',
   /M\.ga\.rotation\.y= \(d\/unit\/M\.a\.n\)\*Math\.PI\*2;/.test(src)
   && /M\.gb\.rotation\.y=-\(d\/unit\/M\.b\.n\)\*Math\.PI\*2;/.test(src),
   'a pair turning the same way would not be a mesh, and the ratio 365:260 is the engagement condition');
+/* ── THIS PINNED A CAPTION, NOT THE COMPUTATION IT NAMES ────────────────────
+ * It required the phrase "where they arrive, not what is written on them" in a
+ * SCENE LABEL. That sentence moved to the wheels panel when the stage was measured
+ * and found to be keeping three of its eleven ring names: eleven labels, a title
+ * and three caption sentences were competing for a few hundred pixels, and the
+ * declutter pass was choosing between them. The fact is unchanged and the sentence
+ * is still in the atlas — the clause now asserts the computation and looks for the
+ * sentence where a reader can actually read it. */
 ok('the closing count is COMPUTED by the atlas\'s own lcm rather than written on the gears',
   /const closes=chronLCM\(M\.a\.n,M\.b\.n\);/.test(src)
-  && /where they arrive, not what is written on them/.test(src),
+  && /A meshing pair closes where the two wheels arrive, not where it is written on them/.test(src),
   'lcm(260,365) = 18980 and lcm(10,12) = 60 — where the pair arrives');
 ok('the teeth are one instanced mesh per gear, not 625 draw calls for a wheel looked at once',
   /new THREE\.InstancedMesh\(new THREE\.BoxGeometry/.test(gearFn),
@@ -206,8 +225,8 @@ ok('each names the manner of its ending, which is what the sources agree on',
   && /to end in earthquake/.test(sunsBlock),
   'jaguars · wind · fire · flood · and the present age, to end in earthquake');
 ok('and NO duration is assigned to any of them, because the sources do not agree on one',
-  !/years/.test(sunsBlock) && /no duration is assigned, because the sources do not agree/.test(src),
-  'a span taken from one manuscript would be the atlas picking a source in silence');
+  !/years/.test(sunsBlock) && /no duration is assigned to the five suns, because the sources do not agree on one/.test(src),
+  'a span taken from one manuscript would be the atlas picking a source in silence — and the sentence saying so is in the panel, not in a scene label the declutter pass can drop');
 ok('the Aztec tradition carries BOTH figures — the 52-year ring, which is a count, and the suns, which are not',
   rows.some(r => r.id === 'aztec' && r.div === 'WOT_XIUHMOLPILLI_YR' || r.id === 'aztec')
   && /WOT\.sunsRoot\.visible=!off\.has\('aztec'\)/.test(src),
