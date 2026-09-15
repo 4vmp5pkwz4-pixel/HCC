@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-belt-has-gaps-2026.09.15.10">
+<html lang="en" data-hcc-build="every-object-can-be-asked-2026.09.15.11">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-belt-has-gaps-2026.09.15.10">
+<meta name="hcc-build" content="every-object-can-be-asked-2026.09.15.11">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2444,7 +2444,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.265.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.266.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -2728,8 +2728,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.265.0';
-const HCC_BUILD='the-belt-has-gaps-2026.09.15.10';
+const HCC_VERSION='4.266.0';
+const HCC_BUILD='every-object-can-be-asked-2026.09.15.11';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4452,7 +4452,7 @@ const FBS_EPOCHS = [
   {key:'au', short:'AU', N:levelOf(1.495978707e11), name:'1 AU — Earth orbit',           time:null,
    desc:'Solar-system scale: the astronomical unit.'},
   {key:'ly', short:'Light-yr', N:levelOf(LY_M),           name:'One light-year',               time:null,
-   desc:'Interstellar scale.'},
+   desc:'Interstellar scale: the distance light covers in a Julian year, 9.4607×10¹⁵ m. It is the rung where the ladder stops describing objects and starts describing the space between them — the nearest star is four of these away, and nothing at this scale is bound to anything at the last.'},
   {key:'mw', short:'Galaxy', N:levelOf(4.96e20),        name:'Milky Way scale',              time:null,
    desc:'Galactic scale (~52 kly). Note: in FBS3R this nearly coincides with the recombination level N = 266.'},
   {key:'rec', short:'CMB·266', N:FBS.Nrec, name:'Published recombination-level label — N = 266',
@@ -7643,6 +7643,29 @@ function runSelfTests(){
           Math.abs(a2-A[0])<Math.abs(a2)*1.5e-7,
           `replaying the seed reproduces the first asteroid's semi-major axis to the precision the buffer holds: ${a2.toFixed(9)} against ${A[0].toFixed(9)} stored as float32`); }
     } else ok('the asteroid belt is built as a population', false, 'solarBeltPoints is null');
+  }
+  if(!defer('every object can be asked')){
+    /* ══ EVERY OBJECT IN THE ATLAS CAN BE ASKED ════════════════════════════════
+       The panel is only half of it: an object is reachable if its information can
+       be PRODUCED when somebody asks for it. Measured by asking all of them. */
+    const bad=[], thin=[], threw=[];
+    for(const [k,sel] of SELECT){
+      let rows=null;
+      try{ rows = typeof sel.rows==='function' ? sel.rows() : (sel.rows||null); }
+      catch(e){ threw.push(k+': '+String(e&&e.message||e).slice(0,44)); continue; }
+      if(!rows||!rows.length) bad.push(k);
+      const d=sel.desc?String(sel.desc).length:0;
+      if(d<20) thin.push(k+' ('+d+')');
+    }
+    ok('EVERY REGISTERED OBJECT IN THE ATLAS CAN BE ASKED FOR ITS INFORMATION, and that is exercised by asking all of them rather than by trusting that a panel exists. Forty could not: every Lagrange point of every planet threw a null-property error on the frame it reads,  its rows read a rotating frame that lagUpdate fills in and lagUpdate returns early unless the Lagrange stations are visible — so in every world but the Solar System the information was there and unreachable',
+      threw.length===0 && bad.length===0 && SELECT.size>600,
+      threw.length?('threw: '+threw.slice(0,4).join(' · '))
+        :bad.length?('no rows: '+bad.slice(0,8).join(', '))
+        :`${SELECT.size} objects asked, ${SELECT.size} answered — the guard used to check that the MARK existed and then read a field of the FRAME, which is a different object`);
+    ok('and every one of them says in prose what it is, not only what its equation is: five came back under twenty characters and four were solver families whose whole description was twelve characters of "∂u/∂t = α∇²u"',
+      thin.length===0,
+      thin.length?('still thin: '+thin.slice(0,6).join(', '))
+        :`${SELECT.size} descriptions, none under twenty characters — the equations are still printed, on the line the panel already prints them on`);
   }
   { // CATASTROPHE: the fold set, the swallowtail's degenerate critical points, the Kelvin angle
     ok('Catastrophe: on the cusp fold 4a³+27b²=0 the cubic has a repeated root (the two equilibria merge)',
@@ -19711,7 +19734,26 @@ function lagBuild(){
         getPos:()=>{ const m=LAG_MARKS.find(x=>x.key===key); return m?m.group.position.clone():new THREE.Vector3(); },
         focusDist:()=>0.35,
         rows:()=>{ const m=LAG_MARKS.find(x=>x.key===key); if(!m) return [];
-          const P=lagPoints(mu)[k], F=m.frame;
+          /* ── THE GUARD CHECKED THE WRONG THING ──────────────────────────────
+             This asked whether the MARK exists and then read m.frame.a. The frame
+             is filled in by lagUpdate, which returns early unless the Lagrange
+             stations are visible — so in every world but the Solar System, and in
+             the Solar System before the stations are switched on, m.frame was null
+             and this panel threw "Cannot read properties of null (reading 'a')".
+
+             Measured by asking all 680 registered objects for their rows: forty of
+             them — every Lagrange point of every planet — could not answer. The
+             information existed and the panel could not reach it.
+
+             The frame is a function of the epoch and nothing else, so it is
+             computed here when the tick has not left one behind. An object's
+             information should not depend on whether something else has run. */
+          const P=lagPoints(mu)[k];
+          let F=m.frame;
+          if(!F||!Number.isFinite(F.a)){ try{ F=lagFrame(p, state.epochDays/36525); }catch(e){ F=null; } }
+          if(!F||!Number.isFinite(F.a)) return [['pair',`Sun–${p.name}`],['μ',mu.toExponential(6)],
+            ['x (rotating frame)',P[0].toFixed(9)],['y (rotating frame)',P[1].toFixed(9)],
+            ['frame','not available at this epoch']];
           const C=2*lagOmega(P[0],P[1],mu);
           const dPl=Math.abs(Math.hypot(P[0]-(1-mu),P[1]))*F.a;
           return [['pair',`Sun–${p.name}`],['μ',mu.toExponential(6)],
@@ -76441,6 +76483,24 @@ function fieldWorldApply(modeNow){
 function dimSpaceApply(){ fieldWorldApply(); }
 { const d=new THREE.DirectionalLight(0xffedcf,.75); d.position.set(5,9,7); fieldGroup.add(d); }
 const FIELD=(()=>{
+  /* ── AN EQUATION IS NOT A DESCRIPTION ────────────────────────────────────
+     The selection card of every solver family carried FIELD.equations[model] as
+     its description — twelve characters of "∂u/∂t = α∇²u" where every other
+     object in the atlas carries a sentence saying what the thing is and what it
+     does not claim. Measured by asking all 680 registered objects for their
+     description, five came back under twenty characters and four of them were
+     these. The equation stays, on its own line where the panel already prints it;
+     this is the prose that was missing. */
+  const modelDesc={
+    heat:'Isotropic diffusion on a uniform Cartesian lattice, solved with a second-order 7-point Laplacian and homogeneous Dirichlet faces. The diffusivity is a reduced number, not a material property: nothing here is calibrated to a substance, and the rate you see is the rate the stability condition allows.',
+    wave:'The damped scalar wave equation, explicit in time on the same lattice. Reduced units throughout — the speed is a lattice speed and not a sound speed, and the damping is a numerical choice rather than a measured loss.',
+    gray:'The Gray–Scott reaction–diffusion system, two coupled species with feed and kill rates. The patterns are the genuine Turing regimes of that model and not an image of any chemistry: F and k are dimensionless and no reactor is being simulated.',
+    electro:'The electrostatic Poisson equation solved on the lattice, with the field as the negative gradient of the potential. A static solution with no magnetism and no retardation — it is Coulomb\u2019s law in a box, not Maxwell\u2019s equations.',
+    gravity:'The Newtonian Poisson equation, identical in form to the electrostatic one but with the opposite sign of the source — which is exactly why gravity has no shielding and electrostatics does. Reduced units; no relativity anywhere in it.',
+    quantum:'A Schrödinger-type evolution in reduced units, split-step on the lattice with a chosen potential. The wavefunction is complex and its modulus is drawn; this is a numerical demonstrator of the linear equation, not a many-body or relativistic solver.',
+    fhn:'The FitzHugh–Nagumo excitable medium, a two-variable caricature of a nerve impulse. It reproduces the excitable and oscillatory regimes of that caricature and makes no claim about any tissue.',
+    ising:'The Ising model on the lattice with Metropolis dynamics at a chosen temperature. What it shows is the statistical mechanics of that model — ordering, domains and critical slowing — and not the magnetism of any material.'
+  };
   const equations={
     heat:'∂u/∂t = α∇²u',
     wave:'∂²u/∂t² = c²∇²u − γ∂u/∂t',
@@ -76451,6 +76511,18 @@ const FIELD=(()=>{
     fhn:'∂u/∂t=D∇²u+u−u³/3−v+I; ∂v/∂t=ε(u+a−bv)',
     ising:'H = −JΣ⟨ij⟩sᵢsⱼ; P(flip)=min(1,e^(−ΔE/T))',
   };
+  /* the description a selection card shows: the prose, then the equation the panel
+     already prints elsewhere, so the two cannot drift apart in wording */
+  /* reads the LOCAL table, never the FIELD const it is being built inside: the
+     first form said FIELD.equations[m] and threw a TDZ ReferenceError during module
+     evaluation — which killed the page before LAB_BY_ID existed, so the error the
+     reader saw was "Cannot access 'LAB_BY_ID' before initialization" and named
+     nothing about this. The two tables are the same object; this one is in scope. */
+  function fieldModelDesc(m){
+    const eq=equations[m]||'';
+    const d=modelDesc[m]||'';
+    return d? (d+' Equation as solved: '+eq+'.') : eq;
+  }
   const presets={
     heat:[['pulse','Central pulse'],['twin','Hot / cold pair'],['plane','Thermal interface']],
     wave:[['pulse','Point impulse'],['standing','Standing cavity'],['collision','Colliding packets']],
@@ -76719,7 +76791,7 @@ const FIELD=(()=>{
     const law=hccLinearFit(out.map(o=>[Math.log(o.alpha),Math.log(o.slope)]));
     return {rows:out, exponent:law.slope, r2:law.r2};
   }
-  return {build,reset,update,visual,diagnostics,exportSnapshot,selfTest,equations,presets,
+  return {build,reset,update,visual,diagnostics,exportSnapshot,selfTest,equations,modelDesc,fieldModelDesc,presets,
     diffusionProbe,diffusionSweep,liveMoment,get N(){return N;}};
 })();
 registerSel('fieldAtlas',{name:'Universal 3D field laboratory',mode:'field',desc:'Eight reduced-unit reference laboratories: finite-difference PDEs plus a periodic 3D Ising Monte Carlo lattice, deterministic presets, live numerical diagnostics and optional device-sensor source coupling.',
@@ -76732,7 +76804,7 @@ const FIELD_PORTALS=(()=>{
   models.forEach((model,i)=>{const q=i/models.length*Math.PI*2,r=5.35,p=new THREE.Vector3(Math.cos(q)*r,-4.55,Math.sin(q)*r),col=new THREE.Color().setHSL(i/models.length,.68,.62);
     const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(.25,1),new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:.24,roughness:.32}));mesh.position.copy(p);mesh.userData.selKey='fieldModel_'+model;group.add(mesh);
     const lab=mkLabel(names[model],'label axis');lab.position.copy(p).add(new THREE.Vector3(0,.42,0));group.add(lab);items.set(model,{mesh,lab,col});
-    registerSel('fieldModel_'+model,{name:names[model]+' 3D laboratory',mode:'field',desc:FIELD.equations[model],pick:mesh,labelEl:lab.element,getPos:()=>mesh.position.clone(),focusDist:5,
+    registerSel('fieldModel_'+model,{name:names[model]+' 3D laboratory',mode:'field',desc:FIELD.fieldModelDesc(model),pick:mesh,labelEl:lab.element,getPos:()=>mesh.position.clone(),focusDist:5,
       rows:()=>[['Equation',FIELD.equations[model]],['Experiment presets',(FIELD.presets[model]||[]).map(x=>x[1]).join(' · ')],['Numerics',model==='ising'?'Metropolis Monte Carlo · periodic lattice':'finite differences · bounded grid']],
       src:['PDE','DERIVED'],accuracyTier:'M',formulas:[FIELD.equations[model]],onSelect:()=>{if(state.mode!=='field')return;state.fieldView='solver';state.fieldModel=model;
         if(!(FIELD.presets[model]||[]).some(x=>x[0]===state.fieldPreset))state.fieldPreset=FIELD.presets[model]?.[0]?.[0];FIELD.reset();sync();if(panelIsOpen('ctl'))buildCtl();}});
