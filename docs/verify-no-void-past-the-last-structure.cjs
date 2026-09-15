@@ -100,9 +100,15 @@ ok('the mark only rises inside one world and is cleared on entry, so a ceiling n
   && (src.match(/resetContentMark\(\)/g) || []).length >= 3,
   'geometry arrives late — a laboratory builds on first entry, the Oort cloud fades in');
 
+/* The write is now also unconditional while a FRAMING is in flight — a framing asks
+ * once where a gesture asks every frame, so on the step that finally fits inside the
+ * bound nothing else would have moved the camera and the move stopped one step short
+ * of the distance the atlas had solved for. The comparison against `asked` is what
+ * this clause is about and is unchanged; the extra term is named so the two reasons
+ * for writing the camera stay distinguishable. */
 ok('the rate bound is compared against what the gesture asked for, not against the number the bound itself just wrote',
   /const asked=dist;/.test(src)
-  && /if\(Math\.abs\(safe-asked\)>Math\.max\(1e-12,asked\*1e-8\)\)camera\.position\.copy/.test(src)
+  && /if\(_goalLive\|\|Math\.abs\(safe-asked\)>Math\.max\(1e-12,asked\*1e-8\)\)camera\.position\.copy/.test(src)
   && !/if\(Math\.abs\(safe-dist\)>Math\.max\(1e-12,dist\*1e-8\)\)camera\.position\.copy/.test(src),
   'the first version wrote its answer into dist and then tested dist against itself, so it computed the right number every frame and never moved the camera');
 

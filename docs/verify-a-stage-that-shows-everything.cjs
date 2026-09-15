@@ -103,17 +103,22 @@ function balanced(from, open, close) {
   ok('and the stage re-measures when something on it has grown, because several of these are built on demand: an unbuilt group measures as nothing, the fallback radius is 4, and the slot scale then comes out as an ENLARGEMENT — the wheels stood 72 units across a 14-unit slot',
     /function cycAtlasStale\(\)\{/.test(src)
     && /if\(r>CYC_ATLAS_SLOT_R\*1\.73\*1\.5\) return true;/.test(src)
-    && /if\(cycAtlasStale\(\)\)\{ cycAtlasApply\(false\); cycAtlasApply\(true\); \}/.test(src),
-    'measured as a size, not as a child count — a count recorded on the first pass is already the built count');
+    && /if\(cycAtlasStale\(\)\)\{ cycAtlasApply\(false\); cycAtlasApply\(true\); applyCycFrameView\(\); \}/.test(src),
+    'measured as a size, not as a child count — a count recorded on the first pass is already the built count — and the camera is re-solved, because the layout it was solved for has just changed');
   ok('and every label inside every instrument stands down here and is kept down, because instruments built on demand add labels after the stand-down ran — measured on screen as "Stonehenge · 56 Aubrey holes" written across its neighbours',
     /if\(o\.visible\)\{ o\.visible=false; o\.userData\._cycAtlasHid=true; \}/.test(src)
     && /if\(cycAtlasHideT>0\.5\)\{ cycAtlasHideT=0;/.test(src)
     && /lab\.visible = galInst\.visible && state\.showLabels!==false && !lab\.userData\._cycAtlasHid;/.test(src),
     'including the galaxy\u2019s own arm names, which are re-shown every tick and would otherwise have overridden the stand-down');
+/* The solve has since moved into cycFrameSolveDistance, which every cycles frame
+ * now shares — the stage was the first frame to need it and is no longer the only
+ * one. The clause is about the distance being solved rather than typed, so it reads
+ * the shared solver and checks the stage goes through it. */
   ok('and the camera distance is SOLVED from the field of view rather than tuned: three typed multipliers were tried and all three cropped the rule, which is the one landmark the time axis exists to reach',
-    /const d=R\/Math\.sin\(Math\.max\(0\.2,Math\.min\(vFov,hFov\)\)\/2\);/.test(src)
-    && /const hFov=2\*Math\.atan\(Math\.tan\(vFov\/2\)\*\(camera\.aspect\|\|1\.6\)\);/.test(src),
-    'the narrower of the two fields, so the stage fits a phone held upright as well as a desk');
+    /return radius\*\(pad\|\|1\.14\)\/Math\.sin\(Math\.max\(0\.2,Math\.min\(vFov,hFov\)\)\/2\);/.test(src)
+    && /const hFov=2\*Math\.atan\(Math\.tan\(vFov\/2\)\*\(camera\.aspect\|\|1\.6\)\);/.test(src)
+    && /cycFrameLook\('atlas', new THREE\.Vector3\(0,1\.05,0\.86\), \{pad:1\.30, lift:-0\.16, far:4\}\)/.test(src),
+    'the narrower of the two fields, so the stage fits a phone held upright as well as a desk — and the stage is solved by the same function as every other frame');
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);
