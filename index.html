@@ -7495,7 +7495,7 @@ function runSelfTests(){
       min:controls.minDistance, max:controls.maxDistance, goal:_camGoal, last:_lastCamDist};
     try{
       controls.target.set(0,0,0);
-      camera.position.set(0,0,10); _lastCamDist=10; controls.minDistance=0.01; controls.maxDistance=1e6;
+      camera.position.set(0,0,10); _lastCamDist=10; hccCommitControlDistanceLimits(0.01,1e6,{owner:'selftest-camera',reason:'isolated governor exercise',unit:'scene',source:'selftest',record:false});
       hccCameraGoal(200);                                   /* twenty times away */
       const path=[];
       for(let i=0;i<8;i++){ stabilizeCamera(); path.push(+camera.position.distanceTo(controls.target).toFixed(2)); }
@@ -7519,7 +7519,7 @@ function runSelfTests(){
         'disarmIdleDrift — the atlas’s own record of the reader taking control — clears the goal before anything else it does');
     } catch(e){ ok('the camera goal can be exercised', false, String(e&&e.message||e)); }
     finally{ camera.position.copy(keep.p); controls.target.copy(keep.t);
-      controls.minDistance=keep.min; controls.maxDistance=keep.max; _camGoal=keep.goal; _lastCamDist=keep.last; }
+      hccCommitControlDistanceLimits(keep.min,keep.max,{owner:'selftest-camera',reason:'restore isolated camera exercise',unit:'scene',source:'selftest-restore',record:false}); _camGoal=keep.goal; _lastCamDist=keep.last; }
   }
   { /* ══ A FRAME FRAMES WHAT IT DECLARES ═══════════════════════════════════════ */
     const frames=HCC_CYCLE_VIEWS.map(v=>v[0]);
@@ -7556,7 +7556,7 @@ function runSelfTests(){
       /* AND A SEAM GLIDES INSTEAD OF CUTTING. Exercised, because a pacing that is
          written and not applied looks exactly like one that is. */
       controls.target.set(0,0,0); camera.position.set(0,0,1000); _lastCamDist=1000;
-      controls.minDistance=0.001; controls.maxDistance=1e7;
+      hccCommitControlDistanceLimits(0.001,1e7,{owner:'selftest-camera',reason:'paced seam exercise',unit:'scene',source:'selftest',record:false});
       hccCameraGoal(10, SCALE_SEAMS.crossFrames);
       const step=_camGoalStep, path=[];
       for(let i=0;i<SCALE_SEAMS.crossFrames+8;i++){ stabilizeCamera(); path.push(camera.position.distanceTo(controls.target)); }
@@ -7575,7 +7575,7 @@ function runSelfTests(){
         `outward and return both arrive on frame ${out} — the inward leg used to be a single-frame cut because the bound below only ever limited growth`);
     } catch(e){ ok('the section view and the paced seam can be exercised', false, String(e&&e.message||e)); }
     finally{ camera.position.copy(keep.p); controls.target.copy(keep.t);
-      controls.minDistance=keep.min; controls.maxDistance=keep.max;
+      hccCommitControlDistanceLimits(keep.min,keep.max,{owner:'selftest-camera',reason:'restore isolated camera exercise',unit:'scene',source:'selftest-restore',record:false});
       _camGoal=keep.goal; _camGoalStep=keep.step; _lastCamDist=keep.last; }
   }
   { /* ══ THE TIME MACHINE, AND THE TWO WAYS A CROSSING CAME LOOSE ══════════════ */
@@ -16503,17 +16503,70 @@ function zoomCeilingNow(){
   if(HCC_ZOOM.uncapped.includes(zoomWorldKey())) return Math.max(_declaredMax, lo);
   return THREE.MathUtils.clamp(_declaredMax, lo, r*HCC_ZOOM.ceiling);
 }
-function applyZoomCeiling(){
-  const m=zoomCeilingNow();
-  if(Number.isFinite(m)&&m>baseMinDistance*1.01) controls.maxDistance=m;
-}
 let _cameraLimitSeq=0;
 let _cameraLimitAuthority=Object.freeze({
-  schema:'hcc.camera-limits/1',seq:0,owner:'boot',reason:'initial controls state',unit:'scene',
-  world:'boot',view:'boot',min:null,declaredMax:null,effectiveMax:null
+  schema:'hcc.camera-limits/2',seq:0,owner:'boot',reason:'initial controls state',unit:'scene',
+  source:'boot',world:'boot',view:'boot',requestedMin:null,requestedMax:null,min:null,declaredMax:null,effectiveMax:null
 });
 function hccCameraLimitAuthority(){ return {..._cameraLimitAuthority}; }
 globalThis.HCC_CAMERA_LIMIT_AUTHORITY=hccCameraLimitAuthority;
+function hccCameraLimitUnit(){
+  if(state.mode==='solar') return 'AU';
+  if(state.mode==='obs') return 'Gly';
+  if(state.mode==='s3') return 'carrier-scene';
+  return 'model-scene';
+}
+function hccCameraLimitFrameMeta(meta){
+  const m=(meta&&typeof meta==='object')?meta:{};
+  const mode=state.mode||'unknown';
+  const view=mode==='s3'?(state.s3view||'sec')
+    :mode==='cyc'?(state.cycFrame||'hierarchy')
+    :mode==='solar'?(state.solarScaleLayer||'local')
+    :mode==='fractal'?(fractalType||'unknown'):mode;
+  return {
+    owner:String(m.owner||('frame:'+mode+':'+view)),
+    reason:String(m.reason||'frame reach declaration'),
+    unit:String(m.unit||hccCameraLimitUnit()),
+    source:String(m.source||'frame-declaration'),
+    world:zoomWorldKey(),view,
+    requestedMin:m.requestedMin??null,requestedMax:m.requestedMax??null,
+    declaredMax:m.declaredMax??_declaredMax,
+    record:m.record!==false
+  };
+}
+function hccCameraLimitCurrentMeta(overrides){
+  const a=_cameraLimitAuthority;
+  return hccCameraLimitFrameMeta({
+    owner:a.owner,unit:a.unit,
+    requestedMin:a.requestedMin,requestedMax:a.requestedMax,declaredMax:_declaredMax,
+    ...(overrides||{})
+  });
+}
+function hccCommitControlDistanceLimits(min,max,meta){
+  const m=hccCameraLimitFrameMeta(meta);
+  const lo=(Number.isFinite(min)&&min>0)?min:Math.max(Number.isFinite(controls.minDistance)?controls.minDistance:1e-4,1e-12);
+  const hi=max===Infinity?Infinity:((Number.isFinite(max)&&max>lo)?max:Math.max(lo*1.01,lo*1e6));
+  controls.minDistance=lo;
+  controls.maxDistance=hi;
+  if(m.record){
+    _cameraLimitAuthority=Object.freeze({
+      schema:'hcc.camera-limits/2',seq:++_cameraLimitSeq,
+      owner:m.owner,reason:m.reason,unit:m.unit,source:m.source,
+      world:m.world,view:m.view,
+      requestedMin:m.requestedMin,requestedMax:m.requestedMax,
+      min:lo,declaredMax:m.declaredMax,effectiveMax:hi
+    });
+  }
+  return {min:lo,max:hi};
+}
+function applyZoomCeiling(meta){
+  const m=zoomCeilingNow();
+  if(Number.isFinite(m)&&m>baseMinDistance*1.01){
+    const p=meta?hccCameraLimitFrameMeta(meta):hccCameraLimitCurrentMeta();
+    return hccCommitControlDistanceLimits(controls.minDistance,m,{...p,source:'content-aware-ceiling'});
+  }
+  return {min:controls.minDistance,max:controls.maxDistance};
+}
 function setControlDistanceLimits(min,max,meta){
   /* ── THE INTENT IS THE FINAL PLACEMENT, NOT THE FIRST CALL ─────────────────
      This read the camera distance HERE, on the assumption that a framing declares
@@ -16531,23 +16584,14 @@ function setControlDistanceLimits(min,max,meta){
      because that caller has said what it wants in so many words. */
   _camGoalPending=true;
   baseMinDistance=Math.max(Number.isFinite(min)?min:1e-4,1e-12);
-  controls.minDistance=baseMinDistance;
   _declaredMax=Math.max(Number.isFinite(max)?max:baseMinDistance*1e6,baseMinDistance*1.01);
-  controls.maxDistance=_declaredMax;
-  applyZoomCeiling();
-  const m=(meta&&typeof meta==='object')?meta:{};
-  _cameraLimitAuthority=Object.freeze({
-    schema:'hcc.camera-limits/1',
-    seq:++_cameraLimitSeq,
-    owner:String(m.owner||'legacy-unattributed'),
-    reason:String(m.reason||'unspecified framing'),
-    unit:String(m.unit||'scene'),
-    world:zoomWorldKey(),
-    view:state.mode==='s3'?(state.s3view||'sec'):state.mode==='cycles'?(state.cycFrame||'hierarchy'):(state.mode||'unknown'),
-    min:controls.minDistance,
-    declaredMax:_declaredMax,
-    effectiveMax:controls.maxDistance
+  const p=hccCameraLimitFrameMeta({
+    ...(meta&&typeof meta==='object'?meta:{}),
+    requestedMin:min,requestedMax:max,declaredMax:_declaredMax,
+    source:'declared-frame-limits'
   });
+  hccCommitControlDistanceLimits(baseMinDistance,_declaredMax,p);
+  applyZoomCeiling({...p,source:'content-aware-ceiling'});
 }
 /* ── A SELF-TEST THAT WALKS INTO A LABORATORY MUST PUT THE ROOM BACK ────────
    Two clauses build an S3 laboratory to prove it is not empty on first arrival, and
@@ -16571,7 +16615,8 @@ function labWalkFrame(){
 function labWalkRestore(f){
   try{ setS3View(f.view); }catch(e){}
   camera.position.copy(f.pos); controls.target.copy(f.tgt);
-  baseMinDistance=f.base; controls.minDistance=f.min; controls.maxDistance=f.max;
+  baseMinDistance=f.base;
+  hccCommitControlDistanceLimits(f.min,f.max,{owner:'selftest-lab-walk',reason:'restore pre-walk camera frame',unit:hccCameraLimitUnit(),source:'selftest-restore',record:false});
 }
 
 /* ================================================================
@@ -79938,7 +79983,9 @@ function stabilizeCamera(){
     }
   }
   if(!state.landed){
-    controls.minDistance=Math.max(baseMinDistance,navigationCollisionRadius());
+    const collisionMin=Math.max(baseMinDistance,navigationCollisionRadius());
+    if(controls.minDistance!==collisionMin)
+      hccCommitControlDistanceLimits(collisionMin,controls.maxDistance,hccCameraLimitCurrentMeta({reason:'navigation collision floor',source:'collision-floor'}));
     const off=camera.position.clone().sub(controls.target);
     let dist=off.length();
     const min=Number.isFinite(controls.minDistance)&&controls.minDistance>0?controls.minDistance:1e-4;
@@ -90270,7 +90317,7 @@ function captureModelPortalSnapshot(){
       fieldView:state.fieldView,fractalType:typeof fractalType==='string'?fractalType:null},
     camera:{position:camera.position.toArray(),quaternion:camera.quaternion.toArray(),up:camera.up.toArray(),
       target:controls.target.toArray(),fov:camera.fov,minDistance:controls.minDistance,maxDistance:controls.maxDistance,
-      autoRotate:controls.autoRotate,autoRotateSpeed:controls.autoRotateSpeed,idleDrift}
+      limitAuthority:hccCameraLimitAuthority(),autoRotate:controls.autoRotate,autoRotateSpeed:controls.autoRotateSpeed,idleDrift}
   };
 }
 function returnFromModelPortal(){
@@ -90282,7 +90329,7 @@ function returnFromModelPortal(){
   else if(snap.mode==='fractal'&&snap.state.fractalType)setFractalType(snap.state.fractalType,false);
   camera.position.fromArray(snap.camera.position);camera.quaternion.fromArray(snap.camera.quaternion);
   camera.up.fromArray(snap.camera.up);camera.fov=snap.camera.fov;camera.updateProjectionMatrix();
-  controls.target.fromArray(snap.camera.target);controls.minDistance=snap.camera.minDistance;controls.maxDistance=snap.camera.maxDistance;
+  controls.target.fromArray(snap.camera.target);hccCommitControlDistanceLimits(snap.camera.minDistance,snap.camera.maxDistance,{...(snap.camera.limitAuthority||{}),reason:'restore model-portal camera frame',source:'model-portal-restore'});
   clearFocus();controls.update();
   camera.position.fromArray(snap.camera.position);camera.quaternion.fromArray(snap.camera.quaternion);camera.up.fromArray(snap.camera.up);
   controls.target.fromArray(snap.camera.target);controls.autoRotate=snap.camera.autoRotate;controls.autoRotateSpeed=snap.camera.autoRotateSpeed;idleDrift=snap.camera.idleDrift;
