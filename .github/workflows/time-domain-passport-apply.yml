@@ -1,0 +1,42 @@
+name: Apply Time Passport once
+
+on:
+  push:
+    branches:
+      - chatgpt/time-domain-passport
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/time-domain-passport
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply deterministic clock-domain patch
+        run: node scripts/apply-time-domain-passport.mjs
+      - name: Remove one-shot machinery before policy validation
+        run: |
+          rm .github/workflows/time-domain-passport-apply.yml
+          rm scripts/apply-time-domain-passport.mjs
+      - name: Regenerate extracted kernel
+        run: node scripts/extract-kernels.mjs
+      - name: Verify Time Passport directly
+        run: node docs/verify-time-domain-passport.cjs
+      - name: Run lightweight affected-system validation
+        run: npm test
+      - name: Commit clean result
+        run: |
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Make Time Machine clock domains explicit"
+          git push origin HEAD:chatgpt/time-domain-passport
