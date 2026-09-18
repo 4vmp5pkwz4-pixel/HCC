@@ -23,3 +23,5 @@ The reduced Euler-top kernel is exact; the renderer is not yet the full classica
 - Reduced dynamics: exact Jacobi kernel, invariants verified numerically to machine-scale tolerance.
 - Attitude: illustrative until reconstruction is upgraded and verified.
 - Classical Poinsot: not claimed until invariable-plane/herpolhode geometry exists.
+
+Trigger note: synchronize against current main.
