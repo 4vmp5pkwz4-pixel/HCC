@@ -38,7 +38,7 @@ ok('content ceiling uses the same writer rather than becoming a second authority
 ok('collision floor uses the same writer and only records when the effective floor changes',
   /const collisionMin=Math\.max\(baseMinDistance,navigationCollisionRadius\(\)\);[\s\S]{0,260}controls\.minDistance!==collisionMin[\s\S]{0,260}hccCommitControlDistanceLimits\(collisionMin,controls\.maxDistance,hccCameraLimitCurrentMeta/.test(src));
 
-ok('self-tests exercise the real writer without becoming the user's last authority',
+ok("self-tests exercise the real writer without becoming the user's last authority",
   count(/source:'selftest'/g)>=2
   && count(/source:'selftest-restore'/g)>=2
   && count(/record:false/g)>=4);
