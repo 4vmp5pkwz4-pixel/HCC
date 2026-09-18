@@ -158,7 +158,7 @@ const maxWrites=(s.match(/controls\.maxDistance\s*=/g)||[]).length;
 if(minWrites!==1||maxWrites!==1) throw new Error(`raw writer closure failed min=${minWrites} max=${maxWrites}`);
 if(/legacy-unattributed|unspecified framing/.test(s)) throw new Error('legacy provenance fallback remains');
 
-const live=[]; block=false;
+const live=[]; let block=false;
 for(const line of s.split(/\r?\n/)){
   if(block){if(line.includes('*/'))block=false;continue;}
   const ba=line.indexOf('/*'),ca=line.indexOf('setControlDistanceLimits(');
