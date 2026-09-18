@@ -67,3 +67,5 @@ ok('existing single-write time gateway remains intact',
 
 console.log(`\ntime-domain passport: ${pass} passed, ${fail} failed`);
 process.exitCode=fail?1:0;
+
+// PR synchronize trigger for audited giant-source patch.
