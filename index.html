@@ -16507,10 +16507,12 @@ function applyZoomCeiling(){
   const m=zoomCeilingNow();
   if(Number.isFinite(m)&&m>baseMinDistance*1.01) controls.maxDistance=m;
 }
-let _cameraLimitSeq=0;
+let _cameraLimitSeq=0, _cameraLimitBlocked=0;
+let _cameraCrossScaleLock=false;
 let _cameraLimitAuthority=Object.freeze({
-  schema:'hcc.camera-limits/1',seq:0,owner:'boot',reason:'initial controls state',unit:'scene',
-  world:'boot',view:'boot',min:null,declaredMax:null,effectiveMax:null
+  schema:'hcc.camera-limits/2',seq:0,owner:'boot',reason:'initial controls state',unit:'scene',
+  world:'boot',view:'boot',min:null,declaredMax:null,effectiveMax:null,
+  accepted:true,blockedBy:null,blockedCount:0
 });
 function hccCameraLimitAuthority(){ return {..._cameraLimitAuthority}; }
 globalThis.HCC_CAMERA_LIMIT_AUTHORITY=hccCameraLimitAuthority;
@@ -16528,26 +16530,61 @@ function setControlDistanceLimits(min,max,meta){
      its work in, by the time the next pass runs the placement is finished and the
      distance standing there is the one that was meant. An explicit hccCameraGoal
      call — a seam asking for a paced crossing — cancels the pending capture,
-     because that caller has said what it wants in so many words. */
+     because that caller has said what it wants in so many words.
+
+     DURING A PACED CROSS-SCALE SEAM, AN ANONYMOUS CALL MAY NOT TAKE OWNERSHIP.
+     The scale chain legitimately changes coordinate units while the crossing is in
+     flight, so attributed Solar/Observable/S³ owners remain allowed. What is blocked
+     is only a legacy call that cannot say what subsystem it represents. This turns
+     the old last-caller-wins failure into an inspectable refusal without freezing
+     ordinary laboratory framing or changing any seam threshold. */
+  const m=(meta&&typeof meta==='object')?meta:{};
+  const owner=String(m.owner||'legacy-unattributed');
+  if(_cameraCrossScaleLock && owner==='legacy-unattributed'){
+    _cameraLimitBlocked++;
+    _cameraLimitAuthority=Object.freeze({
+      schema:'hcc.camera-limits/2',
+      seq:++_cameraLimitSeq,
+      owner,
+      reason:String(m.reason||'unspecified framing'),
+      unit:String(m.unit||'scene'),
+      world:zoomWorldKey(),
+      view:state.mode==='s3'?(state.s3view||'sec'):state.mode==='cycles'?(state.cycFrame||'hierarchy'):(state.mode||'unknown'),
+      min:controls.minDistance,
+      declaredMax:_declaredMax,
+      effectiveMax:controls.maxDistance,
+      requestedMin:min,
+      requestedMax:max,
+      accepted:false,
+      blockedBy:'active-cross-scale-goal',
+      blockedCount:_cameraLimitBlocked
+    });
+    return false;
+  }
   _camGoalPending=true;
   baseMinDistance=Math.max(Number.isFinite(min)?min:1e-4,1e-12);
   controls.minDistance=baseMinDistance;
   _declaredMax=Math.max(Number.isFinite(max)?max:baseMinDistance*1e6,baseMinDistance*1.01);
   controls.maxDistance=_declaredMax;
   applyZoomCeiling();
-  const m=(meta&&typeof meta==='object')?meta:{};
   _cameraLimitAuthority=Object.freeze({
-    schema:'hcc.camera-limits/1',
+    schema:'hcc.camera-limits/2',
     seq:++_cameraLimitSeq,
-    owner:String(m.owner||'legacy-unattributed'),
+    owner,
     reason:String(m.reason||'unspecified framing'),
     unit:String(m.unit||'scene'),
     world:zoomWorldKey(),
     view:state.mode==='s3'?(state.s3view||'sec'):state.mode==='cycles'?(state.cycFrame||'hierarchy'):(state.mode||'unknown'),
     min:controls.minDistance,
     declaredMax:_declaredMax,
-    effectiveMax:controls.maxDistance
+    effectiveMax:controls.maxDistance,
+    requestedMin:min,
+    requestedMax:max,
+    accepted:true,
+    blockedBy:null,
+    blockedCount:_cameraLimitBlocked
   });
+  return true;
 }
 /* ── A SELF-TEST THAT WALKS INTO A LABORATORY MUST PUT THE ROOM BACK ────────
    Two clauses build an S3 laboratory to prove it is not empty on first arrival, and
@@ -79905,8 +79942,9 @@ function hccCameraGoal(d, frames){
         if(ratio>1.0001) _camGoalStep=Math.pow(ratio, 1/Math.max(2,frames)); }
     }catch(e){}
   }
+  _cameraCrossScaleLock=Number.isFinite(_camGoal)&&_camGoalStep>1&&frames===SCALE_SEAMS.crossFrames;
 }
-function hccCameraGoalClear(){ _camGoal=NaN; _camGoalStep=0; _camGoalPending=false; }
+function hccCameraGoalClear(){ _camGoal=NaN; _camGoalStep=0; _camGoalPending=false; _cameraCrossScaleLock=false; }
 function stabilizeCamera(){
   if(renderer.xr.isPresenting)return;
   if(!finiteVector(camera.position)||!finiteVector(controls.target)||!finiteVector(camera.up)){
@@ -79988,7 +80026,7 @@ function stabilizeCamera(){
       dist=_lastCamDist*HCC_ZOOM.step;
     const safe=THREE.MathUtils.clamp(dist,min,max);
     _lastCamDist=safe;
-    if(Number.isFinite(_camGoal)&&Math.abs(safe/_camGoal-1)<0.004) _camGoal=NaN;   /* arrived */
+    if(Number.isFinite(_camGoal)&&Math.abs(safe/_camGoal-1)<0.004){ _camGoal=NaN; _cameraCrossScaleLock=false; }   /* arrived */
     /* compared against what was ASKED, not against what this function already decided:
        the first version of the rate bound wrote its answer into `dist` and then tested
        `dist` against itself, so it computed the right number every frame and never once
