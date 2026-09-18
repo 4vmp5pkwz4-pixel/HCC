@@ -58,8 +58,17 @@ replace_once('core/index.mjs',
 
 
 # A dated reach artifact remains usable only when its freshness metadata is coherent.
-sub_once('core/prediction/reach-forecast.mjs',
-    r"  if \\(identity\\) \\{\\n    const expected = cloneIdentity\\(identity\\);[\\s\\S]*?\\n  \\}\\n  return \\{ ok: true, error: null \\};",
+replace_once('core/prediction/reach-forecast.mjs',
+    """  if (identity) {
+    const expected = cloneIdentity(identity);
+    if (expected.version && reach.version !== expected.version) {
+      return { ok: false, error: `reach version mismatch: ${String(reach.version)} != ${expected.version}` };
+    }
+    if (expected.build && reach.build !== expected.build) {
+      return { ok: false, error: `reach build mismatch: ${String(reach.build)} != ${expected.build}` };
+    }
+  }
+  return { ok: true, error: null };""",
     """  if (identity) {
     const expected = cloneIdentity(identity);
     const sameVersion = !expected.version || reach.version === expected.version;
