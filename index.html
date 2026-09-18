@@ -188,6 +188,7 @@
   .ctxCell+.ctxCell::before{content:'';position:absolute;left:0;top:25%;height:50%;width:1px;background:var(--border)}
   #ctxMode{color:var(--gold-2);font-family:var(--serif);letter-spacing:1.6px}
   #ctxSpace{max-width:330px;color:#c6cede}
+  #ctxScale{max-width:260px;color:#b7cfe8}
   #ctxPerf{font-variant-numeric:tabular-nums;color:#9ce3c6}
   #contextRail[data-health="warm"] #ctxPerf{color:var(--warn)}
   #contextRail[data-health="hot"] #ctxPerf{color:#ff8f82}
@@ -1467,7 +1468,7 @@
   @media (max-width:480px){
     #contextRail{top:calc(var(--topbar-h,64px) + 5px);max-width:calc(100vw - 16px)}
     .ctxCell{padding:5px 8px;font-size:7.8px;letter-spacing:.75px}
-    #ctxSpace{max-width:42vw} #ctxPerf{display:none}
+    #ctxSpace{max-width:38vw} #ctxScale{max-width:44vw} #ctxPerf{display:none}
     .scoregrid{grid-template-columns:1fr}
     .relrow{grid-template-columns:minmax(0,1fr) auto;align-items:start}
     .relkind,.relclaim{grid-column:1}
@@ -3272,7 +3273,7 @@ function hccS3Eigen(n,rec){
 }
 /* ONE AUTHORITY FOR EVERY WORLD-SCALE SEAM. The two outer values are tied to
    the canonical S³ modulus rather than copied numerically: the observer-centred
-   projection is allowed to pass the 548-Gly curvature-radius proxy before the
+   projection is allowed to pass the canonical curvature-radius proxy before the
    atlas changes topology view, then returns only after crossing back inside it.
    The 8%/6% overlap is hysteresis, not a physical shell thickness. */
 const SCALE_SEAMS=Object.freeze({
@@ -89671,12 +89672,56 @@ const CONTEXT_META={
   field:['Field laboratory','state / phase space · solver grid','reduced calibrated units'],
   fractal:['Fractal explorer','C² / R⁴ · projected manifold','semantic infinite zoom']
 };
+function hccScalePassport(){
+  const mode=state.mode||'solar';
+  const layer=state.solarScaleLayer||'local';
+  const fmt=(x,d=3)=>Number.isFinite(x)?(Math.abs(x)>=100?x.toFixed(1):x.toFixed(d)):'—';
+  const make=(kind,compact,detail,extra={})=>({
+    schema:'hcc.scale-passport/1',mode,world:zoomWorldKey(),kind,compact,detail,...extra
+  });
+  if(mode==='solar'){
+    const out=SCALE_SEAMS.solarObsOutGly;
+    const layerName=({local:'Solar System',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'})[layer]||layer;
+    const compact=layer==='cosmic'?`AU · Obs seam ${fmt(out)} Gly`:`1u=1 AU · ${layerName}`;
+    return make('metric+semantic-layer',compact,
+      `metric R³ scene with semantic framing layers; internal Solar layers change framing, not the underlying direction field; the Observable handoff is navigation, not a physical boundary. Outward seam: ${fmt(out)} Gly.`,
+      {unit:'AU',layer,seams:{outward:{to:'obs',value:out,unit:'Gly',kind:'navigation-handoff'}}});
+  }
+  if(mode==='obs'){
+    const inward=SCALE_SEAMS.obsSolarInGly, outward=SCALE_SEAMS.obsS3OutGly;
+    return make('metric+representation-seams',
+      `1u=1 Gly · Solar↙ ${fmt(inward)} · S³↗ ${fmt(outward)}`,
+      `observer-centred comoving display; inward Solar handoff at ${fmt(inward)} Gly; outward S³ handoff enters a conditional carrier representation at ${fmt(outward)} Gly through a similarity map. The overlap is navigation hysteresis, not a physical boundary or shell thickness.`,
+      {unit:'Gly',seams:{inward:{to:'solar',value:inward,unit:'Gly'},outward:{to:'s3',value:outward,unit:'Gly',kind:'representation-handoff'}}});
+  }
+  if(mode==='s3'){
+    const inward=SCALE_SEAMS.s3ObsInGly, unit=SCALE_SEAMS.s3UnitGly;
+    return make('conditional-reconstruction',
+      `1u=${fmt(unit,0)} Gly · conditional S³`,
+      `conditional reconstruction; stereographic carrier display with 1 scene unit = ${fmt(unit,0)} Gly; not established global topology. Return seam to the Observable representation: ${fmt(inward)} Gly. The hysteresis is navigation, not shell thickness.`,
+      {unitGly:unit,seams:{inward:{to:'obs',value:inward,unit:'Gly',kind:'representation-handoff'}},epistemic:'conditional reconstruction'});
+  }
+  if(mode==='cyc') return make('clock-coordination','clock-linked · no spatial seam',
+    'no spatial seam; shared epoch coordinates instruments; it does not make their clock meanings identical.',
+    {unit:'instrument-specific time/phase'});
+  if(mode==='fbs') return make('ansatz-scale','N-scale · ×φ ansatz · non-metric',
+    'ansatz/model scale coordinate N with ×φ steps; not a measured ruler or universal law.',
+    {unit:'N / phi-step',epistemic:'ansatz'});
+  if(mode==='field') return make('model-space','reduced/model units · no metric seam',
+    'reduced/model units; no cross-world metric identity. Solver coordinates remain local to the active model.',
+    {unit:'model-specific'});
+  if(mode==='fractal') return make('semantic-zoom','semantic zoom · non-metric',
+    'semantic zoom; not physical distance. Iteration depth and projection scale are display/model coordinates.',
+    {unit:'semantic'});
+  return make('local-model','local model units','local model coordinates; no implicit cross-world metric identity.');
+}
+globalThis.HCC_SCALE_PASSPORT=()=>hccScalePassport();
 let contextRailAt=0;
 function updateContextRail(force=false){
   const now=performance.now(); if(!force&&now-contextRailAt<500)return; contextRailAt=now;
   const rail=document.getElementById('contextRail'); if(!rail)return;
   const meta=CONTEXT_META[state.mode]||CONTEXT_META.solar;
-  let name=meta[0], space=meta[1], scale=meta[2];
+  let name=meta[0], space=meta[1];
   if(state.mode==='s3'){
     const v=state.s3view||'sec'; name=S3_VIEW_NAMES?.[v]||name;
     space=({hopf:'S¹ ↪ S³ → S² · Hopf bundle',psp:'H(q,p)=E ⊂ R⁴ · S³ energy shell',
@@ -89684,11 +89729,15 @@ function updateContextRail(force=false){
       topo:'homotopy · fibre · linking invariants',berry:'U(1) bundle · parameter space'}[v]||space);
   } else if(state.mode==='solar'&&state.solarScaleLayer!=='local'){
     const layer=state.solarScaleLayer||'local'; name=({galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'})[layer]||name;
-    scale='semantic gateway · directions invariant';
   } else if(state.mode==='fractal'){ name=(typeof fractalType==='string'?fractalType:name).replace(/3d$/i,' 3D'); }
+  const passport=hccScalePassport();
   document.getElementById('ctxMode').textContent=name;
   document.getElementById('ctxSpace').textContent=space;
-  document.getElementById('ctxScale').textContent=scale;
+  const scaleEl=document.getElementById('ctxScale');
+  scaleEl.textContent=passport.compact; scaleEl.title=passport.detail; scaleEl.dataset.scaleKind=passport.kind;
+  scaleEl.setAttribute('aria-label','Scale passport: '+passport.detail);
+  rail.dataset.scaleKind=passport.kind;
+  rail.setAttribute('aria-label','Current scientific context. '+name+'. '+space+'. Scale passport: '+passport.detail);
   const ms=ATLAS_TELEMETRY.frameEmaMs||0, fps=ms?Math.min(999,1000/ms):0;
   document.getElementById('ctxPerf').textContent=fps?`${fps.toFixed(0)} fps · ${ms.toFixed(1)} ms`:'warming optics';
   rail.dataset.health=fps&&fps<35?'hot':fps&&fps<58?'warm':'cool';
