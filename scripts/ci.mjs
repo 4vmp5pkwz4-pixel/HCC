@@ -83,7 +83,7 @@ ok = run('every laboratory measured for what it recomputes per frame', 'node scr
   } else {
     const yml = readFileSync(WF, 'utf8');
     const scripts = [...new Set(RAN.flatMap(c => [...c.matchAll(/(?:scripts|test|docs)\/[\w.-]+\.(?:mjs|cjs)/g)].map(m => m[0])))]
-      .filter(s => !s.startsWith('docs/verify-'));   /* the verifier sweep is a loop on both sides */
+      .filter(s => !s.startsWith('docs/verify-'));   /* the verifier census is delegated to one shared runner */
     const missing = scripts.filter(s => !yml.includes(s));
     const okWf = missing.length === 0;
     process.stdout.write('· every gate here is also a gate in the shipping workflow … ');
