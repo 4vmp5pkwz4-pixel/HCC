@@ -1,0 +1,39 @@
+name: v4.270 one-shot clean repair
+on:
+  push:
+    branches:
+      - chatgpt/v4.270-self-description-authority-clean
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Apply bounded repair
+        run: python3 scripts/v4270-clean.py
+      - name: Remove one-shot harness before policy checks
+        run: |
+          rm .github/workflows/v4270-clean.yml
+          rm scripts/v4270-clean.py
+      - name: Regenerate contracts and verify release
+        run: |
+          node scripts/build-api.mjs
+          npm run test:release
+          git diff --check
+      - name: Commit verified v4.270
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Self-description has one authority · v4.270.0"
+          git push origin HEAD:chatgpt/v4.270-self-description-authority-clean
