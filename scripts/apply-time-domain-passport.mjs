@@ -4,14 +4,14 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const path='index.html';
 let s=readFileSync(path,'utf8');
 
-const anchor=\`function hccTimeUnits(world){
+const anchor=`function hccTimeUnits(world){
   const ids=TIME_WORLD_UNITS[world||state.mode]||TIME_WORLD_UNITS.solar;
   return ids.map(id=>TIME_UNIT_DEFS.find(u=>u.key===id)).filter(Boolean);
 }
-\`;
+`;
 if(!s.includes(anchor)) throw new Error('time-units anchor missing');
 
-const passport=String.raw\`
+const passport=String.raw`
 /* ── TIME DOMAIN PASSPORT ─────────────────────────────────────────────────────
    AtlasTime is one mutation authority, NOT one physical interpretation.
 
@@ -78,48 +78,48 @@ function hccTimePassport(){
   return make('local-coordinate','local time','LOCAL MODEL TIME','Local model/display coordinate; no implicit cross-world physical time identity.');
 }
 globalThis.HCC_TIME_PASSPORT=()=>hccTimePassport();
-\`;
+`;
 
 s=s.replace(anchor,anchor+passport);
 
-const snap=\`  let snap=null; try{ snap=atlasTimeSnapshot(); }catch(e){ return; }
+const snap=`  let snap=null; try{ snap=atlasTimeSnapshot(); }catch(e){ return; }
   const paused=!!snap.paused;
-\`;
+`;
 if(!s.includes(snap)) throw new Error('time snapshot anchor missing');
-s=s.replace(snap,\`  let snap=null; try{ snap=atlasTimeSnapshot(); }catch(e){ return; }
+s=s.replace(snap,`  let snap=null; try{ snap=atlasTimeSnapshot(); }catch(e){ return; }
   const timePassport=hccTimePassport();
   el.dataset.timeDomain=timePassport.domain;
   el.setAttribute('aria-label','Time machine. '+timePassport.detail);
   const paused=!!snap.paused;
-\`);
+`);
 
-const date=\`  const d=document.getElementById('tmDate'); if(d) d.textContent=simDateString();
-\`;
+const date=`  const d=document.getElementById('tmDate'); if(d) d.textContent=simDateString();
+`;
 if(!s.includes(date)) throw new Error('tmDate anchor missing');
-s=s.replace(date,\`  const d=document.getElementById('tmDate'); if(d){ d.textContent=simDateString(); d.title=timePassport.detail; }
-\`);
+s=s.replace(date,`  const d=document.getElementById('tmDate'); if(d){ d.textContent=simDateString(); d.title=timePassport.detail; }
+`);
 
-const sub=\`    sub.textContent='J2000 '+(jd<0?'−':'+')+Math.abs(jd).toFixed(6)+' d · '
+const sub=`    sub.textContent='J2000 '+(jd<0?'−':'+')+Math.abs(jd).toFixed(6)+' d · '
       +(jd/365.2425).toFixed(3)+' yr · '+hccTmFmtRate(snap.rateDaysPerSecond)
       +' · '+TT('step','шаг','Schritt')+' '+nexusLang(u.t);
-\`;
+`;
 if(!s.includes(sub)) throw new Error('tmSub anchor missing');
-s=s.replace(sub,\`    sub.textContent=timePassport.axisLabel+' · J2000 '+(jd<0?'−':'+')+Math.abs(jd).toFixed(6)+' d · '
+s=s.replace(sub,`    sub.textContent=timePassport.axisLabel+' · J2000 '+(jd<0?'−':'+')+Math.abs(jd).toFixed(6)+' d · '
       +(jd/365.2425).toFixed(3)+' yr · '+hccTmFmtRate(snap.rateDaysPerSecond)
       +' · '+TT('step','шаг','Schritt')+' '+nexusLang(u.t);
     sub.title=timePassport.detail;
-\`);
+`);
 
-const note=\`    } else { note.textContent=''; el.style.opacity=''; }
-\`;
+const note=`    } else { note.textContent=''; el.style.opacity=''; }
+`;
 if(!s.includes(note)) throw new Error('tmNote anchor missing');
-s=s.replace(note,\`    } else {
+s=s.replace(note,`    } else {
       note.textContent=timePassport.compact;
       note.title=timePassport.detail;
       note.dataset.timeDomain=timePassport.domain;
       el.style.opacity='';
     }
-\`);
+`);
 
 writeFileSync(path,s);
 console.log('Applied hcc.time-passport/1 to Time Machine');
