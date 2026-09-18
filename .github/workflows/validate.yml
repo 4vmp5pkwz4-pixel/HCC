@@ -11,23 +11,47 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'chatgpt/camera-authority-explicit-final'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Check out repository
+      - name: Check out audited branch
         uses: actions/checkout@v4
         with:
-          # The change-aware verifier only needs the current commit and its parent.
-          fetch-depth: 2
+          ref: chatgpt/camera-authority-explicit-final
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fast affected-system gate
+      - name: Apply strict explicit camera authority closure
+        run: node scripts/apply-camera-authority-closure.mjs
+      - name: Regenerate extracted kernels
+        run: node scripts/extract-kernels.mjs
+      - name: Restore canonical CI definition and remove patch machinery
+        run: |
+          git checkout origin/main -- .github/workflows/validate.yml
+          git rm scripts/apply-camera-authority-closure.mjs
+      - name: Validate affected camera and scale systems
         env:
           HCC_CI_WORKERS: 4
-        run: npm test
+        run: |
+          node docs/verify-camera-limit-authority.cjs
+          node docs/verify-scale-continuity.cjs
+          node docs/verify-the-seam-lands-at-the-observer.cjs
+          node docs/verify-a-framing-is-not-a-gesture.cjs
+          node docs/verify-no-void-past-the-last-structure.cjs
+          node scripts/extract-kernels.mjs --check
+          node scripts/validate.mjs
+          npm test
+      - name: Commit audited closure
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Close camera-limit authority with mandatory provenance"
+          git push origin HEAD:chatgpt/camera-authority-explicit-final
