@@ -69,7 +69,14 @@ if (workflowNames.includes('validate.yml')) {
     /^\s{2}cancel-in-progress:\s*true\s*$/m.test(concurrency),
     'Validate atlas must cancel superseded runs',
   );
-  requirePolicy(validate.includes('run: npm test'), 'Validate atlas must run the quick source test suite');
+  requirePolicy(validate.includes('fetch-depth: 0'), 'Validate atlas must fetch enough history for path-scoped PR validation');
+  requirePolicy(validate.includes("github.event_name == 'pull_request'"), 'Validate atlas must distinguish pull-request validation from main pushes');
+  requirePolicy(validate.includes('HCC_BASE_SHA:'), 'Validate atlas must pass the pull-request base SHA to the fast gate');
+  requirePolicy(validate.includes('run: npm run test:pr'), 'Validate atlas pull requests must run the path-scoped fast gate');
+  requirePolicy(validate.includes("github.event_name == 'push'"), 'Validate atlas must retain a full post-merge main audit');
+  requirePolicy(validate.includes('run: npm test'), 'Validate atlas main pushes must retain the full source suite');
+  requirePolicy(!/if:\s*github\.event_name == 'pull_request'[\s\S]{0,240}run:\s*npm test(?:\s|$)/.test(validate),
+    'Pull requests must not run the full source suite by default');
 
   for (const forbidden of ['scripts/liveness.mjs', 'scripts/selftest.mjs', 'playwright', 'docker build']) {
     requirePolicy(!validate.includes(forbidden), `Validate atlas contains heavy command: ${forbidden}`);
@@ -87,4 +94,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('CI policy verified: Pages + quick validation automatic; Computational core manual.');
+console.log('CI policy verified: path-scoped PR gate + full main audit automatic; Computational core manual.');
