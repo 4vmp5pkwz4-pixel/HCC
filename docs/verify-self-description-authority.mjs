@@ -13,6 +13,7 @@ ok('README has no historical release boundary presented as live census',!/\d+ la
 const lm=llms.match(/\b(\d+)\s+laboratories\b/);
 ok('llms.txt carries no stale laboratory authority',!lm||Number(lm[1])===manifest.counts.laboratories,lm?lm[1]:'structural wording');
 ok('MCP prose carries no frozen laboratory count',!/over\s+\d+\s+laboratories/i.test(server));
+ok('MCP measurement prose carries no frozen walk counts',!/SENSITIVITY:\s*\d+ inputs|REACH:\s*\d+ composed chains/i.test(server));
 const payload=CORE.openProblems(); const probs=payload.problems||payload.open_problems||[];
 const find=id=>probs.find(p=>p.lab_id===id)||{};
 const liv=find('atlas.liveness_is_measured_on_an_older_release').problem||'';
@@ -28,7 +29,7 @@ for(const kind of ['sensitivity','transfers','reach','liveness']){
 const measured=CORE.measurements();
 for(const kind of ['sensitivity','transfers','reach','liveness']){
   const a=json('api/'+kind+'.json'), s=measured.artifacts[kind], fresh=a.version===release.version&&a.build===release.build;
-  ok('CORE '+kind+' freshness agrees with artifact',s?.version===a.version&&s?.build===a.build&&s?.measured_on_this_release===fresh);
+  ok('CORE '+kind+' freshness agrees with artifact',s?.version===a.version&&s?.build===a.build&&s?.measured_release?.version===a.version&&s?.measured_release?.build===a.build&&s?.current_release?.version===release.version&&s?.current_release?.build===release.build&&s?.measured_on_this_release===fresh&&s?.stale===!fresh);
 }
 ok('CORE reports current atlas build',measured.atlas_release===release.version&&measured.atlas_build===release.build);
 console.log('\n  '+pass+' passed, '+fail+' failed');
