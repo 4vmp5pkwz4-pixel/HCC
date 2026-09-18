@@ -127,6 +127,7 @@ if (fullMode) {
 
   route(/\b(camera|setcontroldistancelimits|scale_seams|hcc_zoom|far[- ]?plane|near[- ]?plane|observer seam|black void)\b/, [
     'docs/verify-the-camera.cjs',
+    'docs/verify-camera-limit-authority.cjs',
     'docs/verify-scale-continuity.cjs',
     'docs/verify-the-seam-lands-at-the-observer.cjs',
     'docs/verify-no-void-past-the-last-structure.cjs',
