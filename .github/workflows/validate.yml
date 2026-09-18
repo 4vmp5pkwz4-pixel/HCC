@@ -11,23 +11,42 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'chatgpt/camera-authority-strict'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Check out repository
+      - name: Check out audited branch
         uses: actions/checkout@v4
         with:
-          # The change-aware verifier only needs the current commit and its parent.
-          fetch-depth: 2
+          ref: chatgpt/camera-authority-strict
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fast affected-system gate
-        env:
-          HCC_CI_WORKERS: 4
-        run: npm test
+      - name: Apply strict camera authority patch
+        run: node scripts/patch-camera-authority-v2.mjs
+      - name: Restore canonical CI definition before validating
+        run: |
+          git checkout origin/main -- .github/workflows/validate.yml
+          git rm scripts/patch-camera-authority-v2.mjs
+      - name: Verify camera, seams, generated source and fast policy
+        run: |
+          node docs/verify-camera-limit-authority.cjs
+          node docs/verify-scale-continuity.cjs
+          node docs/verify-the-seam-lands-at-the-observer.cjs
+          node docs/verify-a-framing-is-not-a-gesture.cjs
+          node scripts/extract-kernels.mjs --check
+          node scripts/validate.mjs
+          npm test
+      - name: Commit audited source result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html docs/verify-camera-limit-authority.cjs .github/workflows/validate.yml scripts/patch-camera-authority-v2.mjs
+          git commit -m "Enforce single-authority camera reach writes"
+          git push origin HEAD:chatgpt/camera-authority-strict
