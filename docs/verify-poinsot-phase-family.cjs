@@ -1,4 +1,4 @@
-const X=require('./load-extracted.cjs')();
+(async()=>{ const X=await import('../core/atlas/extracted.mjs');
 const out=[]; const ok=(n,c,d='')=>out.push([c?'PASS':'FAIL',n,d]);
 const I1=1,I2=2,I3=3,E=1;
 const fam=X.poinPhaseFamily(I1,I2,I3,E);
@@ -17,3 +17,5 @@ ok('every rendered-family sample remains on the exact momentum quadric',worstL<1
 ok('one computed period closes every phase-family curve',worstClosure<1e-8,`worst ${worstClosure}`);
 for(const [s,n,d] of out) console.log(s,n,d);
 if(out.some(x=>x[0]==='FAIL')) process.exit(1);
+
+})().catch(e=>{console.error(e);process.exit(1);});
