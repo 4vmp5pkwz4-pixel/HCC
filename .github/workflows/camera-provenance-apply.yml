@@ -1,0 +1,38 @@
+name: Apply camera provenance patch
+
+on:
+  push:
+    branches:
+      - chatgpt/camera-limit-provenance
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/camera-limit-provenance
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply source-of-truth patch
+        run: node scripts/apply-camera-limit-provenance.mjs
+      - name: Run focused camera continuity checks
+        run: |
+          node docs/verify-camera-limit-authority.cjs
+          node docs/verify-scale-continuity.cjs
+          node docs/verify-the-seam-lands-at-the-observer.cjs
+      - name: Remove one-shot machinery and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply-camera-limit-provenance.mjs .github/workflows/camera-provenance-apply.yml
+          git add index.html
+          git commit -m "Apply camera-limit provenance to Atlas source"
+          git push
