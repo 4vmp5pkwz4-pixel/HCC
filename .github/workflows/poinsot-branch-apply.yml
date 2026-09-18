@@ -1,0 +1,158 @@
+name: Apply Poinsot renderer on branch
+on:
+  push:
+    branches: [chatgpt/poinsot-render-clean]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/poinsot-render-clean
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Patch source-of-truth Poinsot runtime
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("index.html")
+          s=p.read_text()
+
+          omega="""function poinOmega(P,t){ const J=jacobiSCD(P.tau*t,P.k);
+            return P.hi ? [P.A*J.cn, P.B*J.sn, P.C*J.dn] : [P.A*J.dn, P.B*J.sn, P.C*J.cn]; }"""
+          phase="""
+          /* Exact reduced phase portrait for the renderer: every curve is generated from the
+             same Jacobi kernel as the live orbit. This makes the stable-loop families and
+             near-separatrix opening a computed object rather than a decorative sketch. */
+          function poinPhaseFamily(I1,I2,I3,E=1,ratios=[.62,.76,.88,.96,.985,1.015,1.04,1.12,1.24,1.38],samples=320){
+            const out=[], lo=2*E*I1, hi=2*E*I3;
+            for(const ratio of ratios){
+              const L2=2*E*I2*ratio;
+              if(!(L2>lo&&L2<hi)) continue;
+              const P=poinSolve(I1,I2,I3,E,L2), K=agmKExtracted(P.k), period=4*K/Math.max(1e-12,P.tau), points=[];
+              for(let j=0;j<=samples;j++) points.push(poinOmega(P,period*j/samples));
+              out.push({ratio,L2,k:P.k,period,near_separatrix:Math.abs(ratio-1)<.05,points});
+            }
+            return out;
+          }
+          function agmKExtracted(k){ let a=1,b=Math.sqrt(Math.max(0,1-k*k)); for(let i=0;i<60;i++){ const a1=(a+b)/2,b1=Math.sqrt(a*b); a=a1;b=b1;if(Math.abs(a-b)<1e-17)break;} return Math.PI/(2*a); }
+          """
+          phase='\n'.join(line[10:] if line.startswith('          ') else line for line in phase.splitlines())
+          if "function poinPhaseFamily(" not in s:
+              if s.count(omega)!=1: raise SystemExit(f"poinOmega anchor count {s.count(omega)}")
+              s=s.replace(omega,omega+phase,1)
+
+          old="""  // the polhode family: closed loops near I₁ and I₃, giant figure-eights near I₂
+            const polGrp=new THREE.Group(); poinGroup.add(polGrp);"""
+          new="""  // Reduced Euler-top phase portrait from the same exact Jacobi kernel as the live orbit.
+            const polGrp=new THREE.Group(); poinGroup.add(polGrp);
+            const phaseFamily=poinPhaseFamily(I1,I2,I3,E,[0.60,0.78,0.94,0.985,1.015,1.06,1.22,1.40],320);
+            for(const q of phaseFamily){
+              const pts=q.points.map(w=>new THREE.Vector3(w[0]*S,w[1]*S,w[2]*S));
+              const mat=new THREE.LineBasicMaterial({color:q.near_separatrix?0xff8a6a:0x78bfff,transparent:true,opacity:q.near_separatrix?.38:.16,depthWrite:false});
+              const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat);
+              line.userData={kind:'polhode-family',L2_over_2EI2:q.ratio,exact_reduced:true}; polGrp.add(line);
+              const anti=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>p.clone().multiplyScalar(-1))),mat.clone());
+              anti.userData={kind:'polhode-family-antipode',L2_over_2EI2:q.ratio,exact_reduced:true}; polGrp.add(anti);
+            }"""
+          old='\n'.join(line[10:] if line.startswith('          ') else line for line in old.splitlines())
+          new='\n'.join(line[10:] if line.startswith('          ') else line for line in new.splitlines())
+          if s.count(old)!=1: raise SystemExit(f"polhode anchor count {s.count(old)}")
+          s=s.replace(old,new,1)
+
+          reps=[
+            ("  // the body itself, so the FLIP is visible as a flip",
+             "  // Schematic first-order attitude reconstruction; the exact object above is reduced ω-space."),
+            ("  body.position.set(0,-2.6,0); body.scale.setScalar(0.62);",
+             """  body.position.set(0,-2.6,0); body.scale.setScalar(0.62);
+            const bodyStatus=mkLabel(TT('attitude: illustrative integration','ориентация: иллюстративное интегрирование','Orientierung: illustrative Integration'),'label dim');
+            bodyStatus.position.set(0,-3.25,0); poinGroup.add(bodyStatus);"""),
+            ("POINSOT · DZHANIBEKOV — ω lives on the intersection of two ellipsoids",
+             "EULER TOP · DZHANIBEKOV — exact reduced ω-space"),
+            ("ПУАНСО · ДЖАНИБЕКОВ — ω живёт на пересечении двух эллипсоидов",
+             "ВОЛЧОК ЭЙЛЕРА · ДЖАНИБЕКОВ — точное редуцированное ω-пространство"),
+            ("POINSOT · DSHANIBEKOW — ω lebt auf dem Schnitt zweier Ellipsoide",
+             "EULER-KREISEL · DSHANIBEKOW — exakter reduzierter ω-Raum"),
+            ("  // integrate the body attitude from ω so the tumble is literal",
+             "  // Illustrative first-order attitude integration only; not the classical Poinsot rolling construction."),
+            ("The motion here is the exact Jacobi-elliptic solution, not an integration, so the two invariants hold to machine precision.",
+             "The reduced ω-trajectory here is the exact Jacobi-elliptic solution; the wingnut pose below is only an illustrative first-order attitude integration. The two reduced invariants hold to machine precision."),
+            ("Движение здесь — точное решение в эллиптических функциях Якоби, а не интегрирование, поэтому оба инварианта держатся до машинной точности.",
+             "Редуцированная ω-траектория здесь — точное решение в эллиптических функциях Якоби; ориентация гайки ниже — лишь иллюстративное интегрирование первого порядка. Два редуцированных инварианта держатся до машинной точности."),
+            ("Die Bewegung ist die exakte Jacobi-Lösung, keine Integration.",
+             "Die reduzierte ω-Bahn ist die exakte Jacobi-Lösung; die Körperorientierung darunter ist nur eine illustrative Integration erster Ordnung.")
+          ]
+          for a,b in reps:
+              if s.count(a)!=1: raise SystemExit(f"anchor count {s.count(a)} for {a[:80]}")
+              s=s.replace(a,b,1)
+
+          clock="    O.readLab.element.textContent=`L²/2EI₂=${ratio.toFixed(4)} · k=${P.k.toFixed(4)} · ${TT('flip period','период переворота','Flip-Periode')} 4K(k)/τ=${period.toFixed(2)}`;"
+          clock_new="    O.readLab.element.textContent=`t_lab=${poinT.toFixed(2)} · ${TT('local normalized time','локальное нормированное время','lokale normierte Zeit')} · L²/2EI₂=${ratio.toFixed(4)} · k=${P.k.toFixed(4)} · ${TT('flip period','период переворота','Flip-Periode')} 4K(k)/τ=${period.toFixed(2)}`;"
+          if s.count(clock)!=1: raise SystemExit(f"clock anchor count {s.count(clock)}")
+          s=s.replace(clock,clock_new,1)
+
+          p.write_text(s)
+          PY
+
+      - name: Regenerate extracted kernel from source
+        run: |
+          node scripts/extract-kernels.mjs
+          node scripts/extract-kernels.mjs --check
+
+      - name: Strengthen Poinsot verifier and ledger
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          v=Path("docs/verify-poinsot-phase-family.cjs")
+          s=v.read_text()
+          insert="""
+          ok('renderer derives its family from the canonical poinPhaseFamily kernel',
+            src.includes('const phaseFamily=poinPhaseFamily(I1,I2,I3,E') &&
+            src.includes("exact_reduced:true"));
+          ok('visible title says exact reduced omega-space rather than claiming the full classical Poinsot construction',
+            src.includes('EULER TOP · DZHANIBEKOV — exact reduced ω-space') &&
+            !src.includes('POINSOT · DZHANIBEKOV — ω lives on the intersection of two ellipsoids'));
+          ok('first-order attitude is visibly labelled illustrative and the HUD limits the exact claim to reduced omega',
+            src.includes("attitude: illustrative integration") &&
+            src.includes('Illustrative first-order attitude integration only; not the classical Poinsot rolling construction.') &&
+            src.includes('The reduced ω-trajectory here is the exact Jacobi-elliptic solution') &&
+            !src.includes('The motion here is the exact Jacobi-elliptic solution, not an integration'));
+          ok('the lab clock is explicitly local normalized time rather than silently masquerading as Atlas/J2000 time',
+            src.includes('t_lab=') && src.includes("local normalized time"));
+          """
+          insert='\n'.join(line[10:] if line.startswith('          ') else line for line in insert.splitlines())
+          anchor="for(const [s,n,d] of out) console.log(s,n,d);"
+          if "renderer derives its family from the canonical poinPhaseFamily kernel" not in s:
+              if s.count(anchor)!=1: raise SystemExit('verifier anchor missing')
+              s=s.replace(anchor,insert+"\n"+anchor,1)
+              v.write_text(s)
+
+          ledger=Path("docs/POINSOT_VISUALIZATION_CLOSURE.md")
+          t=ledger.read_text()
+          t=t.replace("- The rendered blue/gold quadrics and live trail are body-frame ω-space.\n- `polGrp` exists but is not populated on current main.\n- The wingnut attitude is first-order quaternion stepping from exact reduced ω(t); it is not the exact reconstruction phase.\n- The lab uses local `poinT / poinSpeed`, not the Atlas Time Machine.",
+                      "- The rendered blue/gold quadrics, live trail, and computed polhode family are body-frame ω-space.\n- `polGrp` is populated from the canonical `poinPhaseFamily` / Jacobi kernel on both sides of the separatrix.\n- The wingnut attitude remains first-order quaternion stepping and is visibly labelled illustrative; it is not the exact reconstruction phase.\n- The lab exposes `t_lab` as local normalized time; it is not silently identified with Atlas/J2000/cosmic time.")
+          t=t.replace("1. Populate `polGrp` from the exact kernel with a family of admissible L² trajectories, including both stable-loop regimes and near-separatrix curves.\n2. Add the classical Poinsot invariable plane and herpolhode, or narrow the visible title so a body-frame-only view cannot claim the rolling construction.\n3. Replace/augment the illustrative attitude",
+                      "1. CLOSED — populate `polGrp` from the exact kernel across both stable-loop regimes and near the separatrix.\n2. PARTIAL — the visible title is narrowed to exact reduced ω-space; classical invariable-plane/herpolhode geometry remains open.\n3. Replace/augment the illustrative attitude")
+          t=t.replace("4. Give the local lab clock explicit provenance or bind it to the Atlas Time Machine without mixing incompatible time coordinates.",
+                      "4. PARTIAL — local `t_lab` provenance is explicit; a future Atlas Time Machine mapping must remain typed and must not mix incompatible time coordinates.")
+          ledger.write_text(t)
+          PY
+
+      - name: Validate
+        run: npm test
+
+      - name: Commit branch result and remove one-shot workflow
+        run: |
+          rm .github/workflows/poinsot-branch-apply.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html core/atlas/extracted.mjs docs/verify-poinsot-phase-family.cjs docs/POINSOT_VISUALIZATION_CLOSURE.md .github/workflows/poinsot-branch-apply.yml
+          git commit -m "Render Poinsot reduced phase space with explicit provenance"
+          git push origin HEAD:chatgpt/poinsot-render-clean
