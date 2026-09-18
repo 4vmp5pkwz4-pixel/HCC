@@ -1,0 +1,52 @@
+name: Apply visual dock fix
+
+on:
+  push:
+    branches:
+      - chatgpt/visual-audit-matrix
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/visual-audit-matrix
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply measured dock fix
+        run: node scripts/apply-visual-dock-fix.mjs
+      - name: Install visual audit runtime
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Re-run rendered visual audit
+        id: audit
+        continue-on-error: true
+        run: npm run test:visual
+      - name: Upload corrected visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcc-visual-audit-dock-fix
+          path: artifacts/visual-audit
+          if-no-files-found: error
+      - name: Remove one-shot machinery and commit source
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm scripts/apply-visual-dock-fix.mjs .github/workflows/visual-dock-fix.yml
+          git add index.html
+          git commit -m "Keep desktop panels above the measured Time Machine"
+          git push
+      - name: Preserve visual audit failure
+        if: ${{ always() && steps.audit.outcome == 'failure' }}
+        run: exit 1
