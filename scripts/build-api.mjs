@@ -194,6 +194,20 @@ if (existsSync(mpath)) {
 }
 writeFileSync(join(ROOT,'api/forecast-audit.schema.json'),JSON.stringify(AUDIT_INPUT_SCHEMA,null,2)+'\n');
 const identity=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));
+const measurementKinds=['sensitivity','transfers','reach','liveness'];
+for (const kind of measurementKinds) {
+  const p=join(ROOT,'api/'+kind+'.json'); if (!existsSync(p)) continue;
+  const measured=JSON.parse(readFileSync(p,'utf8'));
+  const measuredRelease={version:measured.version||null,build:measured.build||null};
+  const currentRelease={version:identity.version||null,build:identity.build||null};
+  const fresh=measuredRelease.version===currentRelease.version && measuredRelease.build===currentRelease.build;
+  measured.measured_release=measuredRelease;
+  measured.current_release=currentRelease;
+  measured.measured_on_this_release=fresh;
+  measured.stale=!fresh;
+  measured.release_lag={measured_release:measuredRelease.version,current_release:currentRelease.version};
+  writeFileSync(p,JSON.stringify(measured,null,2)+'\n');
+}
 const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:identity.build,
   base:'Paths below are relative to the Atlas site root, one directory above this file.',
   access:{public_http_compute:false,public_mcp_endpoint:null,authentication_required:false,

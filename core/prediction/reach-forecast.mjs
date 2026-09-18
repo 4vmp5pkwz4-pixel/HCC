@@ -42,11 +42,28 @@ export function validateReachArtifact(reach, identity = null) {
   }
   if (identity) {
     const expected = cloneIdentity(identity);
-    if (expected.version && reach.version !== expected.version) {
-      return { ok: false, error: `reach version mismatch: ${String(reach.version)} != ${expected.version}` };
+    const sameVersion = !expected.version || reach.version === expected.version;
+    const sameBuild = !expected.build || reach.build === expected.build;
+    const fresh = sameVersion && sameBuild;
+    const current = reach.current_release || null;
+    const measured = reach.measured_release || null;
+    if (!fresh && (!current || !measured)) {
+      return { ok: false, error: 'dated reach artifact lacks explicit freshness metadata' };
     }
-    if (expected.build && reach.build !== expected.build) {
-      return { ok: false, error: `reach build mismatch: ${String(reach.build)} != ${expected.build}` };
+    if (current && ((expected.version && current.version !== expected.version) || (expected.build && current.build !== expected.build))) {
+      return { ok: false, error: 'reach current_release does not match Atlas identity' };
+    }
+    if (measured && (measured.version !== (reach.version ?? null) || measured.build !== (reach.build ?? null))) {
+      return { ok: false, error: 'reach measured_release does not match its walk-time stamp' };
+    }
+    if (typeof reach.measured_on_this_release === 'boolean' && reach.measured_on_this_release !== fresh) {
+      return { ok: false, error: 'reach measured_on_this_release contradicts its release stamps' };
+    }
+    if (typeof reach.stale === 'boolean' && reach.stale !== !fresh) {
+      return { ok: false, error: 'reach stale flag contradicts its release stamps' };
+    }
+    if (!fresh && (reach.measured_on_this_release !== false || reach.stale !== true)) {
+      return { ok: false, error: 'dated reach artifact is not explicitly marked stale' };
     }
   }
   return { ok: true, error: null };
@@ -130,7 +147,7 @@ export function forecastReach(reach, control, delta = 0.1, identity = null) {
   return {
     schema: 'hcc.predictive-reach-forecast/1',
     status: chains.length ? 'OK' : 'NO_REACH',
-    source: { schema: reach.schema, version: reach.version, build: reach.build },
+    source: { schema: reach.schema, version: reach.version, build: reach.build, measured_on_this_release: reach.measured_on_this_release ?? null, stale: reach.stale ?? null, current_release: reach.current_release || null },
     control: key,
     control_semantics: semantics,
     empirical_validation: false,

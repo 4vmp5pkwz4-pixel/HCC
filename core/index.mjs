@@ -73,10 +73,12 @@ export const PROVENANCE = Object.freeze({ commit: gitCommit(), code_sha256: core
    fails the build over when it disagrees with the document. The node core has its
    own version and they are not the same number; comparing an artifact against the
    wrong one would report every artifact stale forever. */
-function CORE_VERSION_OF_ATLAS() {
-  try { return JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8')).version || null; }
-  catch { return null; }
+function CORE_RELEASE_OF_ATLAS() {
+  try { const r = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
+    return { version: r.version || null, build: r.build || null }; }
+  catch { return { version: null, build: null }; }
 }
+function CORE_VERSION_OF_ATLAS() { return CORE_RELEASE_OF_ATLAS().version; }
 
 /* ── A LABORATORY MAY BE CONNECTED BY NOTHING, BUT NOT SILENTLY ───────────────
    Exactly one of the atlas's 114 laboratories is touched by no connection of any
@@ -210,11 +212,11 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
   ['atlas.a_publication_can_exist_only_in_one_station',
    'Seven quantities are published by laboratories that have several stations and publish a different number in each — the spin laboratory has four and can never show all four of its thread rows at once. Those rows now name their station, verified by clicking to each in a browser. Nothing DERIVES that gating: it is declared by hand on each row, so a new station-gated publication will be silent until somebody renders it and notices.'],
   ['atlas.liveness_is_measured_on_an_older_release',
-   'Of the four measured artifacts, liveness carries release 4.164.0 while the others carry the current one, because regenerating it walks every view and costs about twenty minutes. It is served with measured_on_this_release: false so no agent reads it as fresh, which is honest but not the same as current. Nothing in the repository decides WHEN a dated artifact has drifted far enough to be worth the walk.'],
+   'Each measured artifact carries its own walk-time release stamp and is served with measured_on_this_release, so dated evidence is explicit rather than rewritten as current. The remaining gap is policy: nothing in the repository decides WHEN a dated artifact has drifted far enough to require an expensive re-walk.'],
   ['atlas.one_hundred_and_twenty_three_publications_have_no_reader',
    'The quantity bus publishes 257 keys and 123 of them are named nowhere but the pub() call that creates them — down from 200, closed by giving the invariant thread families that read them. A verifier holds a ceiling that only falls. The remaining ones are mostly single-laboratory internals, and no criterion says which of them SHOULD have a reader and which are legitimately private to their instrument.'],
   ['atlas.observability_is_diffraction_only', 'the resolution laboratory puts a diffraction floor under every angle this atlas publishes, and diffraction is the only thing it models. No atmosphere, no seeing, no adaptive optics, no detector sampling, no photon noise and no exposure time — so an angle it calls resolvable may be unreachable for reasons this atlas cannot see, and the eye is already a worked example: 7 mm gives 19.8 arcsec by diffraction and human acuity is about 60, because the retina samples too coarsely to use the aperture it has. What is missing is the photon budget: whether enough light arrives in a plausible exposure. The photometry laboratory computes the flux and nothing joins the two, so the atlas can say an angle is above the floor and cannot say whether it is above the noise'],
-  ['atlas.a_frame_is_configured_by_whoever_touched_it_last', 'a reader zooming out of the Solar System stopped at the Oort cloud because THREE separate things could decide the camera\'s far limit and none of them owned it: hccGo skipped entering a world whose name state.mode already carried, so the solar frame never declared its limits; stabilizeCamera then invented a ceiling of minDistance x 1e6 from a non-finite one, which for the Sun\'s collision radius is 131,701 AU; and a boot self-test that walks into an S3 laboratory restored the VIEW it changed but not the FRAME, leaving a solar reader with an S3 laboratory\'s 180 AU ceiling. All three are fixed and a late clause now asserts the promise — the frame you stand in must reach the distance where the next one takes over. What is not fixed is the shape: the limits are still set by whoever calls setControlDistanceLimits last, from fourteen call sites, with no owner and no record of who decided'],
+  ['atlas.a_frame_is_configured_by_whoever_touched_it_last', 'a reader zooming out of the Solar System stopped at the Oort cloud because THREE separate things could decide the camera\'s far limit and none of them owned it: hccGo skipped entering a world whose name state.mode already carried, so the solar frame never declared its limits; stabilizeCamera then invented a ceiling of minDistance x 1e6 from a non-finite one, which for the Sun\'s collision radius is 131,701 AU; and a boot self-test that walks into an S3 laboratory restored the VIEW it changed but not the FRAME, leaving a solar reader with an S3 laboratory\'s 180 AU ceiling. All three are fixed and a late clause now asserts the promise — the frame you stand in must reach the distance where the next one takes over. What is not fixed is the shape: the limits are still set by whoever calls setControlDistanceLimits last, from every call site of setControlDistanceLimits, with no owner and no record of who decided'],
   ['edge.determinants', "primed functional determinants det'|∇²+m²| with tachyonic edge masses are not implemented"],
   ['edge.harish_chandra', 'the Harish-Chandra edge oscillator character is not implemented'],
   ['edge.so4_volume', 'the SO(4) volume factor is not implemented'],
@@ -222,7 +224,7 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
   ['edge.H_boundary_q', 'H_{∂,q} does not exist as a fully specified operator; the recursion operator is a registry, not a selector'],
   ['capacity.selector', 'the capacity selector does not select N = 292; the scheme gate is q0 written backwards'],
   ['phi.physical_origin', 'no physical operator produces φ; R_N = ℓ_P φ^N is a declared ansatz'],
-  ['desi.covariance', 'no DESI covariance or evidence computation exists in this repository'],
+  ['desi.covariance', 'the atlas runtime has no DESI inverse-covariance kernel and no Bayesian evidence Z; off-atlas vde_likelihood/ and vde_validation/ contain executed BAO-only Cobaya pilot analyses with Ω_k fixed, and those conditional pilots are not an atlas covariance layer or a topology detection'],
   ['bianchi.spectral_consequence', 'the spectral consequence of Bianchi IX is not derived'],
   ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator'],
   /* ── FOUND BY MEASURING, RECORDED AS A QUESTION ────────────────────────────
@@ -592,7 +594,8 @@ export const CORE = {
         /* the honest field: a measurement from an earlier release is still a
            measurement, and saying which release is the only thing that keeps it
            from being read as a fresh one */
-        measured_on_this_release: (j.version || null) === CORE_VERSION_OF_ATLAS(),
+        measured_on_this_release: (() => { const r = CORE_RELEASE_OF_ATLAS();
+          return (j.version || null) === r.version && (j.build || null) === r.build; })(),
         status: 'read from api/' + k + '.json' };
       out[k] = { counts: j.counts || null,
         ...(k === 'sensitivity' ? { dead: j.dead || [], saturating: j.saturating || [],
@@ -626,7 +629,7 @@ export const CORE = {
     return { schema: 'hcc.measurements/1', core_version: CORE_VERSION,
       git_commit: PROVENANCE.commit, code_sha256: PROVENANCE.code_sha256,
       kinds: KINDS, filter: { kind, lab }, note: labNote,
-      atlas_release: CORE_VERSION_OF_ATLAS(), artifacts: stamps,
+      atlas_release: CORE_VERSION_OF_ATLAS(), atlas_build: CORE_RELEASE_OF_ATLAS().build, artifacts: stamps,
       measurements: filtered };
   },
   openProblems() {
