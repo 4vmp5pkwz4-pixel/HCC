@@ -12,8 +12,8 @@
  * ONE BAR, IN EVERY WORLD — and it is present everywhere because everywhere was
  * MEASURED to move with the clock: each world was entered, the epoch advanced by
  * forty thousand days, and the whole visible scene graph hashed before and after.
- * All seven moved, and so did all 113 laboratories when the same measurement was
- * run over every one of them. "For which it is relevant" turns out to be
+ * Every declared world moved, and so did every laboratory in the measurement census
+ * when the same measurement was run over them. "For which it is relevant" turns out to be
  * everywhere, and that is a measurement rather than a convenience.
  *
  * It keeps no second copy of anything. Every control writes through setAtlasTime
@@ -97,7 +97,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     /function hccTimeRelevantHere\(\)\{/.test(src)
     && /HCC_TIME_STILL_LABS/.test(src)
     && /this laboratory does not read the clock — measured, not assumed/.test(src),
-    'measured over all 113 laboratories and all seven worlds: every one of them moves when the epoch does, so the set is empty because nothing was found still — and the mechanism stays for the first instrument that is genuinely not about time');
+    'the measured still-lab set is empty because nothing in the current measurement census was found still — and the mechanism stays for the first instrument that is genuinely not about time');
 }
 
 console.log(`\n  ${pass} passed, ${fail} failed`);

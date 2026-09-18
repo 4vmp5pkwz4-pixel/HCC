@@ -14,6 +14,7 @@ const lm=llms.match(/\b(\d+)\s+laboratories\b/);
 ok('llms.txt carries no stale laboratory authority',!lm||Number(lm[1])===manifest.counts.laboratories,lm?lm[1]:'structural wording');
 ok('MCP prose carries no frozen laboratory count',!/over\s+\d+\s+laboratories/i.test(server));
 ok('MCP measurement prose carries no frozen walk counts',!/SENSITIVITY:\s*\d+ inputs|REACH:\s*\d+ composed chains/i.test(server));
+ok('Time Machine verifier carries no frozen laboratory census',!/all\s+\d+\s+laborator(?:y|ies)|\d+\s+laborator(?:y|ies)/i.test(read('docs/verify-the-time-machine.cjs')));
 const payload=CORE.openProblems(); const probs=payload.problems||payload.open_problems||[];
 const find=id=>probs.find(p=>p.lab_id===id)||{};
 const liv=find('atlas.liveness_is_measured_on_an_older_release').problem||'';
