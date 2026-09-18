@@ -69,7 +69,11 @@ if (workflowNames.includes('validate.yml')) {
     /^\s{2}cancel-in-progress:\s*true\s*$/m.test(concurrency),
     'Validate atlas must cancel superseded runs',
   );
-  requirePolicy(validate.includes('run: npm test'), 'Validate atlas must run the quick source test suite');\n  requirePolicy(!validate.includes('verify-multiphase-solar-control.cjs') && !validate.includes('verify-linked-cycle-views.cjs'),\n    'Validate atlas must not duplicate individual verifier steps outside the parallel quick suite');\n  requirePolicy(/timeout-minutes:\\s*6/.test(validate), 'Validate atlas quick gate must keep a six-minute fail-fast budget');
+  requirePolicy(validate.includes('run: npm test'), 'Validate atlas must run the quick source test suite');
+  requirePolicy(!validate.includes('verify-multiphase-solar-control.cjs') && !validate.includes('verify-linked-cycle-views.cjs'),
+    'Validate atlas must not duplicate individual verifier steps outside the parallel quick suite');
+  requirePolicy(/timeout-minutes:\s*6/.test(validate),
+    'Validate atlas quick gate must keep a six-minute fail-fast budget');
 
   for (const forbidden of ['scripts/liveness.mjs', 'scripts/selftest.mjs', 'playwright', 'docker build']) {
     requirePolicy(!validate.includes(forbidden), `Validate atlas contains heavy command: ${forbidden}`);
