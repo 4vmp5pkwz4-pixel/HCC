@@ -100,7 +100,7 @@ ok('and the atlas claims no borrowing and no astronomy from it',
         : 'no cycWheelsInst row in CYC_FRAME_INSTRUMENTS at all');
 }
 ok('and the frame FRAMES itself and returns, as every other branch does',
-  /const p=cycWheelsInst\.position;[\s\S]{0,320}?setControlDistanceLimits\(9,\d+\);[\s\S]{0,60}?return;/.test(src),
+  /const p=cycWheelsInst\.position;[\s\S]{0,320}?setControlDistanceLimits\(9,\d+,hccCameraLimitContext\('frame declaration'\)\);[\s\S]{0,60}?return;/.test(src),
   'the first draft set a camera without returning and the default overwrote it');
 
 /* ── the update runs in the tick, where dt exists ───────────────────────────
