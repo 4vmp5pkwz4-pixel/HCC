@@ -1,0 +1,30 @@
+name: Poinsot context extraction
+on:
+  push:
+    branches: [chatgpt/poinsot-classical-construction]
+permissions:
+  contents: write
+jobs:
+  extract:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Poinsot runtime context
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          s=Path("index.html").read_text()
+          keys=["function poinSetup","function updatePoin","poinSetup=(", "updatePoin=("]
+          pos=max([s.find(k) for k in keys])
+          if pos < 0:
+              pos=s.find("polGrp")
+          if pos < 0: raise SystemExit("Poinsot runtime not found")
+          a=max(0,pos-12000); b=min(len(s),pos+26000)
+          Path("docs/POINSOT_RUNTIME_CONTEXT.tmp.txt").write_text(s[a:b])
+          PY
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add docs/POINSOT_RUNTIME_CONTEXT.tmp.txt
+          git commit -m "Extract Poinsot runtime context for audited upgrade"
+          git push
