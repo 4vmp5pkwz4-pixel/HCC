@@ -133,6 +133,8 @@ if (fullMode) {
     'docs/verify-the-seam-lands-at-the-observer.cjs',
     'docs/verify-no-void-past-the-last-structure.cjs',
     'docs/verify-a-framing-is-not-a-gesture.cjs',
+    'docs/verify-wheels-of-time.cjs',
+    'docs/verify-cycles-frames-are-uniform.cjs',
   ]);
 
   route(/\b(time machine|atlastime|setatlastime|setatlasepoch|epochdays|chronometr|j2000)\b/, [
