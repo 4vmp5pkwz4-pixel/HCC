@@ -61,8 +61,8 @@ const cases=[
   {name:'observable-desktop',viewport:{width:1440,height:900},world:'obs'},
   {name:'s3-section-desktop',viewport:{width:1440,height:900},world:'s3',lab:'sec'},
   {name:'poinsot-desktop',viewport:{width:1440,height:900},world:'s3',lab:'poin'},
-  {name:'s3-phone-portrait',viewport:{width:390,height:844},touch:true,world:'s3',lab:'ns'},
-  {name:'s3-phone-landscape',viewport:{width:852,height:393},touch:true,world:'s3',lab:'ns'},
+  {name:'s3-phone-portrait',viewport:{width:390,height:844},touch:true,world:'s3',lab:'ns',panelState:'controls-only'},
+  {name:'s3-phone-landscape',viewport:{width:852,height:393},touch:true,world:'s3',lab:'ns',panelState:'controls-only'},
 ];
 
 const report={
@@ -104,6 +104,18 @@ async function openCase(spec){
     await page.waitForTimeout(1000);
   }else{
     await page.waitForTimeout(700);
+  }
+
+  /* A visual baseline must name its UI state. Programmatic world arrival can race the
+     catalogue's once-per-arrival offer, so mobile reference shots explicitly use the
+     controls-only state rather than accepting whichever transient panel happened to win. */
+  if(spec.panelState==='controls-only'){
+    await page.evaluate(()=>{
+      const close=document.querySelector('#labPanel .closeBtn');
+      const panel=document.getElementById('labPanel');
+      if(close&&panel&&getComputedStyle(panel).display!=='none') close.click();
+    });
+    await page.waitForTimeout(250);
   }
 
   const metrics=await page.evaluate(()=>{
