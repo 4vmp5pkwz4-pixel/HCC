@@ -67,6 +67,10 @@ if (workflowNames.includes('core.yml')) {
     core.includes('node scripts/liveness.mjs'),
     'manual Computational core must retain the full laboratory liveness audit',
   );
+  requirePolicy(
+    core.includes('npm run test:visual') && core.includes('actions/upload-artifact@v4'),
+    'manual Computational core must retain rendered visual audit evidence',
+  );
 }
 
 if (workflowNames.includes('validate.yml')) {
