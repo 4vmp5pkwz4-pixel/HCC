@@ -1,0 +1,49 @@
+name: Apply Time Passport PR closure
+
+on:
+  pull_request_target:
+    types: [edited]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.pull_request.number == 379 && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/time-domain-passport
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply audited Time Passport closure
+        run: |
+          node scripts/apply-time-domain-passport.mjs
+          node scripts/extract-kernels.mjs
+          rm -f .github/workflows/time-domain-passport-apply.yml
+          rm -f scripts/apply-time-domain-passport.mjs
+      - name: Validate final PR tree
+        env:
+          HCC_CI_WORKERS: 4
+        run: |
+          node docs/verify-time-domain-passport.cjs
+          npm test
+      - name: Commit final PR tree
+        run: |
+          git diff --check
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "Make Time Machine clock domains explicit"
+          git push origin HEAD:chatgpt/time-domain-passport
+      - name: Remove this one-shot workflow from main
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          git rm .github/workflows/time-domain-passport-pr-apply.yml
+          git commit -m "Remove Time Passport PR apply workflow"
+          git push origin main
