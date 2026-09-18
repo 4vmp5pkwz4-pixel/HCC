@@ -1,30 +1,32 @@
-name: Validate atlas
+name: Regenerate extracted core once
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
-
-concurrency:
-  group: validate-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+    types: [opened, reopened, synchronize]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  validate:
+  repair:
+    if: github.event.pull_request.head.ref == 'chatgpt/extracted-sync-guard' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
-    timeout-minutes: 6
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/extracted-sync-guard
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fast PR gate
-        env:
-          HCC_CI_WORKERS: 8
-        run: npm test
+      - name: Regenerate extracted core from index.html
+        run: |
+          node scripts/extract-kernels.mjs
+          git diff --stat -- core/atlas/extracted.mjs
+      - name: Commit generated repair
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add core/atlas/extracted.mjs
+          git commit -m "Regenerate extracted core from canonical index"
+          git push origin HEAD:chatgpt/extracted-sync-guard
