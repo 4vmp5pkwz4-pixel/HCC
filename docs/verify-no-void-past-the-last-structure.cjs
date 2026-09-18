@@ -85,10 +85,10 @@ ok('the star oceans are excluded as scenery, and sprites as markers',
   'a sky painted on the inside of a shell is not a place, and a pin that says "something is over there" is not the something');
 
 ok('the ceiling is derived on every entry and re-derived as content arrives, not once and forgotten',
-  /function applyZoomCeiling\(\)\{/.test(src)
-  && (src.match(/applyZoomCeiling\(\)/g) || []).length >= 4
+  /function applyZoomCeiling\(meta\)\{/.test(src)
+  && (src.match(/applyZoomCeiling\(/g) || []).length >= 4
   && /_zoomRefresh-=dt;/.test(src),
-  `${(src.match(/applyZoomCeiling\(\)/g) || []).length} sites: world entry, rung change, the frame loop, and the definition`);
+  `${(src.match(/applyZoomCeiling\(/g) || []).length} sites: world entry, rung change, the frame loop, and the definition — arguments may carry provenance without changing the invariant`);
 
 ok('the re-measurement runs only from inside the content, which is the whole defence against the runaway',
   /if\(camera\.position\.distanceTo\(controls\.target\)<=worldContentRadius\(\)\)\{/.test(src),
