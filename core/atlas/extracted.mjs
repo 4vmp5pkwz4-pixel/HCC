@@ -5731,6 +5731,22 @@ function poinSolve(I1,I2,I3,E,L2){
 function poinOmega(P,t){ const J=jacobiSCD(P.tau*t,P.k);
   return P.hi ? [P.A*J.cn, P.B*J.sn, P.C*J.dn] : [P.A*J.dn, P.B*J.sn, P.C*J.cn]; }
 
+/* Exact reduced phase portrait for the renderer: every curve is generated from the
+   same Jacobi kernel as the live orbit.  This makes the stable-loop families and
+   near-separatrix opening a computed object rather than a decorative sketch. */
+function poinPhaseFamily(I1,I2,I3,E=1,ratios=[.62,.76,.88,.96,.985,1.015,1.04,1.12,1.24,1.38],samples=320){
+  const out=[], lo=2*E*I1, hi=2*E*I3;
+  for(const ratio of ratios){
+    const L2=2*E*I2*ratio;
+    if(!(L2>lo&&L2<hi)) continue;
+    const P=poinSolve(I1,I2,I3,E,L2), K=agmKExtracted(P.k), period=4*K/Math.max(1e-12,P.tau), points=[];
+    for(let j=0;j<=samples;j++) points.push(poinOmega(P,period*j/samples));
+    out.push({ratio,L2,k:P.k,period,near_separatrix:Math.abs(ratio-1)<.05,points});
+  }
+  return out;
+}
+function agmKExtracted(k){ let a=1,b=Math.sqrt(Math.max(0,1-k*k)); for(let i=0;i<60;i++){ const a1=(a+b)/2,b1=Math.sqrt(a*b); a=a1;b=b1;if(Math.abs(a-b)<1e-17)break;} return Math.PI/(2*a); }
+
 const QC_TAU=(1+Math.sqrt(5))/2;
 
 function qcBasis(){ const t=QC_TAU, c=-1/t;
