@@ -117,9 +117,11 @@ ok('every connection declares one of the vocabulary\'s kinds, and every kind in 
 
 /* ── and both halves of the split are wired, in a workflow that can run them ─ */
 const pkg = fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8');
+const quickRunner = fs.readFileSync(path.join(ROOT, 'scripts/run-quick-verifiers.mjs'), 'utf8');
 ok('the dependency-free half runs in the workflow that runs on every push',
-  /verify-galactic-butterfly-explorer\.cjs/.test(pkg),
-  'named in package.json test:source, which is what validate.yml runs');
+  /run-quick-verifiers\.mjs/.test(pkg)
+  && /verify-galactic-butterfly-explorer\.cjs/.test(quickRunner),
+  'package.json delegates to the quick runner, and the quick runner names this verifier');
 ok('and the scene half has a verifier of its own, so the seventh test is not dropped',
   fs.existsSync(path.join(ROOT, 'docs/verify-galactic-butterfly-scene.cjs'))
   && fs.existsSync(path.join(ROOT, 'test/galactic-butterfly-scene.test.mjs')),
