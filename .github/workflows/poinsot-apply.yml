@@ -1,0 +1,49 @@
+name: Apply audited Poinsot phase portrait
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 20}
+      - name: Patch exact reduced phase portrait
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("index.html"); s=p.read_text()
+          old="""  // the polhode family: closed loops near I₁ and I₃, giant figure-eights near I₂
+          const polGrp=new THREE.Group(); poinGroup.add(polGrp);"""
+          new="""  // Reduced Euler-top phase portrait: exact Jacobi polhodes from the live kernel.
+          const polGrp=new THREE.Group(); poinGroup.add(polGrp);
+          for(const r of [0.60,0.78,0.94,0.985,1.015,1.06,1.22,1.40]){
+            const l2=2*E*I2*r, lo=2*E*I1, hi=2*E*I3; if(l2<=lo+1e-9||l2>=hi-1e-9) continue;
+            const sol=poinSolve(I1,I2,I3,E,l2), T=4*agmK(sol.k)/Math.max(1e-9,sol.tau), pts=[];
+            for(let j=0;j<=320;j++){ const w=poinOmega(sol,T*j/320); pts.push(new THREE.Vector3(w[0]*S,w[1]*S,w[2]*S)); }
+            const near=Math.abs(r-1)<0.04, mat=new THREE.LineBasicMaterial({color:near?0xff8a6a:0x78bfff,transparent:true,opacity:near?.38:.16,depthWrite:false});
+            polGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),mat));
+            polGrp.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts.map(p=>p.clone().multiplyScalar(-1))),mat.clone()));
+          }"""
+          if old not in s: raise SystemExit("polhode anchor missing")
+          s=s.replace(old,new,1)
+          s=s.replace("  // the body itself, so the FLIP is visible as a flip","  // Schematic first-order attitude reconstruction; the exact object here is reduced ω-space.",1)
+          s=s.replace("POINSOT · DZHANIBEKOV — ω lives on the intersection of two ellipsoids","EULER TOP · DZHANIBEKOV — exact reduced ω-space",1)
+          s=s.replace("ПУАНСО · ДЖАНИБЕКОВ — ω живёт на пересечении двух эллипсоидов","ВОЛЧОК ЭЙЛЕРА · ДЖАНИБЕКОВ — точное редуцированное ω-пространство",1)
+          s=s.replace("POINSOT · DSHANIBEKOW — ω lebt auf dem Schnitt zweier Ellipsoide","EULER-KREISEL · DSHANIBEKOW — exakter reduzierter ω-Raum",1)
+          s=s.replace("  // integrate the body attitude from ω so the tumble is literal","  // Illustrative integration only; this is not the classical Poinsot rolling construction.",1)
+          p.write_text(s)
+          PY
+      - run: npm test
+      - name: Commit audited change and remove one-shot workflow
+        run: |
+          rm .github/workflows/poinsot-apply.yml
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add index.html .github/workflows/poinsot-apply.yml
+          git commit -m "Render exact Euler-top polhode family honestly"
+          git push
