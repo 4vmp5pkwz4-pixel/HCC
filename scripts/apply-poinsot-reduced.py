@@ -30,3 +30,5 @@ new_comment="  // Illustrative first-order attitude reconstruction from exact re
 assert old_comment in s
 s=s.replace(old_comment,new_comment,1)
 p.write_text(s)
+
+# one-shot branch patcher
