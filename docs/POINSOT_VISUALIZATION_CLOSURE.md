@@ -2,28 +2,19 @@
 
 Status: ACTIVE IMPLEMENTATION LEDGER
 
-The reduced Euler-top kernel is exact; the current renderer is not yet the full classical Poinsot construction. This ledger prevents the red-team findings from being lost while each change is made in independently verifiable increments.
+The reduced Euler-top kernel is exact; this increment does not claim the full classical Poinsot construction.
 
-## Verified current state
-- `poinSolve / poinOmega / jacobiSCD` implement the two Jacobi-elliptic branches around `L² = 2 E I₂`.
-- The rendered blue/gold quadrics and live trail are body-frame ω-space.
-- `polGrp` exists but is not populated on current main.
-- The wingnut attitude is first-order quaternion stepping from exact reduced ω(t); it is not the exact reconstruction phase.
-- The lab uses local `poinT / poinSpeed`, not the Atlas Time Machine.
-- The typed `poin → psr` relation is structural analogy, not a neutron-star dynamics claim.
+## Closed in this increment
+- The previously empty `polGrp` is populated from the same `poinSolve / poinOmega` Jacobi solution as the live reduced orbit.
+- The rendered family spans both sides of `L² = 2 E I₂`, including near-separatrix trajectories.
+- The visible title now identifies the scene as **reduced Euler-top ω-space** rather than the complete classical Poinsot rolling construction.
+- The body attitude remains explicitly documented as illustrative first-order reconstruction, not exact attitude reconstruction.
+- A permanent verifier independently checks both quadratic invariants and one-period closure for every rendered family ratio, and checks that the renderer uses the canonical exact kernel.
 
-## Closure sequence
-1. Populate `polGrp` from the exact kernel with a family of admissible L² trajectories, including both stable-loop regimes and near-separatrix curves.
-2. Add the classical Poinsot invariable plane and herpolhode, or narrow the visible title so a body-frame-only view cannot claim the rolling construction.
-3. Replace/augment the illustrative attitude with reconstruction from the exact reduced motion plus the spatial-L reconstruction phase; until then label it illustrative/integrated.
-4. Give the local lab clock explicit provenance or bind it to the Atlas Time Machine without mixing incompatible time coordinates.
-5. Expose E/I₁/I₃ only when their typed semantics and admissible-domain guards remain fail-closed.
-6. Add synchronized multiview: ω-space | classical rolling construction | k(L²) / period, with one state authority.
-7. Preserve the pulsar bridge as structural analogy; do not add dissipation, magnetic torque, elasticity, superfluidity or crust physics to the Euler-top contract.
-
-## Acceptance
-- Existing invariant verifier remains < 1e-12.
-- New phase-family verifier samples every rendered family curve from the same exact kernel.
-- No second hidden dynamics kernel is introduced.
-- Any attitude labelled exact must be tested against the reconstruction theorem.
-- Visual verification distinguishes reduced Euler-top geometry from classical Poinsot rolling.
+## Still open
+1. Classical Poinsot invariable plane, contact point, rolling ellipsoid and herpolhode.
+2. Reconstruction about fixed spatial angular momentum `L`, with convergence/error verification before any EXACT attitude label.
+3. Explicit local-time provenance or a declared mapping from canonical Atlas time to dimensionless Euler-top time; never identify this with J2000/cosmic time.
+4. Typed/admissible controls for additional inertias or energy only if they preserve `2 E I₁ < L² < 2 E I₃`.
+5. Synchronized multiview from one state authority: reduced ω-space | classical Poinsot | separatrix diagnostic.
+6. Preserve `poin → psr` as structural analogy, not neutron-star dynamics.
