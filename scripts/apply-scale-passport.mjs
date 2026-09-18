@@ -46,23 +46,23 @@ function hccScalePassport(){
   if(mode==='solar'){
     const out=SCALE_SEAMS.solarObsOutGly;
     const layerName=({local:'Solar System',galactic:'Milky Way',andromeda:'Local Group',cosmic:'Cosmic web'})[layer]||layer;
-    const compact=layer==='cosmic'?\\`AU · Obs seam \\${fmt(out)} Gly\\`:\\`1u=1 AU · \\${layerName}\\`;
+    const compact=layer==='cosmic'?\`AU · Obs seam \${fmt(out)} Gly\`:\`1u=1 AU · \${layerName}\`;
     return make('metric+semantic-layer',compact,
-      \\`metric R³ scene with semantic framing layers; internal Solar layers change framing, not the underlying direction field; the Observable handoff is navigation, not a physical boundary. Outward seam: \\${fmt(out)} Gly.\\`,
+      \`metric R³ scene with semantic framing layers; internal Solar layers change framing, not the underlying direction field; the Observable handoff is navigation, not a physical boundary. Outward seam: \${fmt(out)} Gly.\`,
       {unit:'AU',layer,seams:{outward:{to:'obs',value:out,unit:'Gly',kind:'navigation-handoff'}}});
   }
   if(mode==='obs'){
     const inward=SCALE_SEAMS.obsSolarInGly, outward=SCALE_SEAMS.obsS3OutGly;
     return make('metric+representation-seams',
-      \\`1u=1 Gly · Solar↙ \\${fmt(inward)} · S³↗ \\${fmt(outward)}\\`,
-      \\`observer-centred comoving display; inward Solar handoff at \\${fmt(inward)} Gly; outward S³ handoff enters a conditional carrier representation at \\${fmt(outward)} Gly through a similarity map. The overlap is navigation hysteresis, not a physical boundary or shell thickness.\\`,
+      \`1u=1 Gly · Solar↙ \${fmt(inward)} · S³↗ \${fmt(outward)}\`,
+      \`observer-centred comoving display; inward Solar handoff at \${fmt(inward)} Gly; outward S³ handoff enters a conditional carrier representation at \${fmt(outward)} Gly through a similarity map. The overlap is navigation hysteresis, not a physical boundary or shell thickness.\`,
       {unit:'Gly',seams:{inward:{to:'solar',value:inward,unit:'Gly'},outward:{to:'s3',value:outward,unit:'Gly',kind:'representation-handoff'}}});
   }
   if(mode==='s3'){
     const inward=SCALE_SEAMS.s3ObsInGly, unit=SCALE_SEAMS.s3UnitGly;
     return make('conditional-reconstruction',
-      \\`1u=\\${fmt(unit,0)} Gly · conditional S³\\`,
-      \\`conditional reconstruction; stereographic carrier display with 1 scene unit = \\${fmt(unit,0)} Gly; not established global topology. Return seam to the Observable representation: \\${fmt(inward)} Gly. The hysteresis is navigation, not shell thickness.\\`,
+      \`1u=\${fmt(unit,0)} Gly · conditional S³\`,
+      \`conditional reconstruction; stereographic carrier display with 1 scene unit = \${fmt(unit,0)} Gly; not established global topology. Return seam to the Observable representation: \${fmt(inward)} Gly. The hysteresis is navigation, not shell thickness.\`,
       {unitGly:unit,seams:{inward:{to:'obs',value:inward,unit:'Gly',kind:'representation-handoff'}},epistemic:'conditional reconstruction'});
   }
   if(mode==='cyc') return make('clock-coordination','clock-linked · no spatial seam',
