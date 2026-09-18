@@ -56,6 +56,83 @@ replace_once('core/index.mjs',
     "atlas_release: CORE_VERSION_OF_ATLAS(), artifacts: stamps,",
     "atlas_release: CORE_VERSION_OF_ATLAS(), atlas_build: CORE_RELEASE_OF_ATLAS().build, artifacts: stamps,")
 
+
+# A dated reach artifact remains usable only when its freshness metadata is coherent.
+sub_once('core/prediction/reach-forecast.mjs',
+    r"  if \\(identity\\) \\{\\n    const expected = cloneIdentity\\(identity\\);[\\s\\S]*?\\n  \\}\\n  return \\{ ok: true, error: null \\};",
+    """  if (identity) {
+    const expected = cloneIdentity(identity);
+    const sameVersion = !expected.version || reach.version === expected.version;
+    const sameBuild = !expected.build || reach.build === expected.build;
+    const fresh = sameVersion && sameBuild;
+    const current = reach.current_release || null;
+    const measured = reach.measured_release || null;
+    if (!fresh && (!current || !measured)) {
+      return { ok: false, error: 'dated reach artifact lacks explicit freshness metadata' };
+    }
+    if (current && ((expected.version && current.version !== expected.version) || (expected.build && current.build !== expected.build))) {
+      return { ok: false, error: 'reach current_release does not match Atlas identity' };
+    }
+    if (measured && (measured.version !== (reach.version ?? null) || measured.build !== (reach.build ?? null))) {
+      return { ok: false, error: 'reach measured_release does not match its walk-time stamp' };
+    }
+    if (typeof reach.measured_on_this_release === 'boolean' && reach.measured_on_this_release !== fresh) {
+      return { ok: false, error: 'reach measured_on_this_release contradicts its release stamps' };
+    }
+    if (typeof reach.stale === 'boolean' && reach.stale !== !fresh) {
+      return { ok: false, error: 'reach stale flag contradicts its release stamps' };
+    }
+    if (!fresh && (reach.measured_on_this_release !== false || reach.stale !== true)) {
+      return { ok: false, error: 'dated reach artifact is not explicitly marked stale' };
+    }
+  }
+  return { ok: true, error: null };""")
+replace_once('core/prediction/reach-forecast.mjs',
+    "source: { schema: reach.schema, version: reach.version, build: reach.build },",
+    "source: { schema: reach.schema, version: reach.version, build: reach.build, measured_on_this_release: reach.measured_on_this_release ?? null, stale: reach.stale ?? null, current_release: reach.current_release || null },")
+
+# Existing measurement verifier must compare both version and build.
+replace_once('docs/verify-agent-measurements.cjs',
+    "const release = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;",
+    "const release = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8'));")
+replace_once('docs/verify-agent-measurements.cjs',
+    "all.atlas_release === release,",
+    "all.atlas_release === release.version && all.atlas_build === release.build,")
+replace_once('docs/verify-agent-measurements.cjs',
+    "const wrongStamp = KINDS.filter(k => all.artifacts[k].measured_on_this_release !== (onDisk[k].version === release));",
+    "const wrongStamp = KINDS.filter(k => all.artifacts[k].measured_on_this_release !== (onDisk[k].version === release.version && onDisk[k].build === release.build));")
+
+# Regression test: coherent dated reach is usable; contradictory metadata is refused.
+agent_test=text('test/agent-client.test.mjs')
+dated_test=r'''
+
+test('SDK accepts coherently dated reach and rejects contradictory freshness metadata',async t=>{
+  let bad=false;
+  const server=createServer((req,res)=>{
+    res.setHeader('content-type','application/json');
+    const identity={version:'new',build:'new'};
+    if(req.url.endsWith('version.json')) return res.end(JSON.stringify(identity));
+    if(req.url.endsWith('manifest.json')) return res.end(JSON.stringify({schema:'hcc.manifest/2',...identity,instruments:[],counts:{instruments:0},worlds:[],labs:[],multiview:[]}));
+    if(req.url.endsWith('reach.json')) {
+      const reach={schema:'hcc.reach/1',version:'old',build:'old',chains:[],measured_release:{version:'old',build:'old'},current_release:identity,measured_on_this_release:false,stale:true,release_lag:{measured_release:'old',current_release:'new'}};
+      if(bad) reach.measured_on_this_release=true;
+      return res.end(JSON.stringify(reach));
+    }
+    res.writeHead(404);res.end('{}');
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const {connectAtlas}=await import('../api/agent-client.mjs');
+  const url='http://127.0.0.1:'+server.address().port+'/';
+  const sdk=await connectAtlas(url);
+  assert.ok(sdk);
+  bad=true;
+  await assert.rejects(()=>connectAtlas(url),/contradicts|freshness|stale/);
+});
+'''
+if "SDK accepts coherently dated reach" not in agent_test:
+    write('test/agent-client.test.mjs',agent_test+dated_test)
+
 marker="const identity=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));"
 stamp="""const identity=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));
 const measurementKinds=['sensitivity','transfers','reach','liveness'];
