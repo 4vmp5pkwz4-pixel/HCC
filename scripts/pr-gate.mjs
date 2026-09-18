@@ -28,7 +28,17 @@ const indexDiff = changed.includes('index.html')
 console.log(`PR fast gate · ${changed.length} changed file(s) · base ${base.slice(0,12)}`);
 
 run('CI policy', 'node', ['scripts/verify-ci-policy.mjs']);
-run('physics extraction drift guard', 'node', ['scripts/extract-kernels.mjs','--check']);
+try {
+  execFileSync('node', ['scripts/extract-kernels.mjs','--check'], { stdio: ['ignore','pipe','pipe'], encoding:'utf8' });
+  console.log('· physics extraction drift guard … ok');
+} catch (e) {
+  console.log('· physics extraction drift guard … FAILED');
+  console.log(String(e.stderr || e.stdout || '').trim());
+  execFileSync('node', ['scripts/extract-kernels.mjs'], { stdio: ['ignore','pipe','pipe'], encoding:'utf8' });
+  const delta = git('diff','--','core/atlas/extracted.mjs');
+  console.log('Generated delta that must be committed:\n' + delta.slice(0,12000));
+  process.exit(1);
+}
 run('static validator', 'node', ['scripts/validate.mjs']);
 run('self-description authority', 'node', ['docs/verify-self-description-authority.mjs']);
 
