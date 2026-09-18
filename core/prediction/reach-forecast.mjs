@@ -27,7 +27,8 @@ export function controlSemantics(control) {
   };
 }
 
-export function validateReachArtifact(reach, identity = null) {
+export function validateReachArtifact(reach, identity) {
+  if (!identity || typeof identity !== 'object') return { ok: false, error: 'Atlas identity is required to validate reach freshness' };
   if (!reach || typeof reach !== 'object' || Array.isArray(reach)) {
     return { ok: false, error: 'reach artifact must be an object' };
   }
@@ -40,8 +41,9 @@ export function validateReachArtifact(reach, identity = null) {
   if (reach.chains.some(c => !c || typeof c !== 'object' || Array.isArray(c))) {
     return { ok: false, error: 'every reach chain must be an object' };
   }
-  if (identity) {
+  {
     const expected = cloneIdentity(identity);
+    if (!expected.version || !expected.build) return { ok: false, error: 'Atlas identity requires version and build' };
     const sameVersion = !expected.version || reach.version === expected.version;
     const sameBuild = !expected.build || reach.build === expected.build;
     const fresh = sameVersion && sameBuild;
@@ -69,8 +71,8 @@ export function validateReachArtifact(reach, identity = null) {
   return { ok: true, error: null };
 }
 
-export function listReachControls(reach) {
-  const verdict = validateReachArtifact(reach);
+export function listReachControls(reach, identity) {
+  const verdict = validateReachArtifact(reach, identity);
   if (!verdict.ok) throw new Error(verdict.error);
   return [...new Set(reach.chains.map(c => String(c && c.control || '')).filter(Boolean))].sort();
 }
@@ -103,7 +105,7 @@ function intervalForExponent(exponent, delta) {
   return { low: Math.min(u, v), high: Math.max(u, v) };
 }
 
-export function forecastReach(reach, control, delta = 0.1, identity = null) {
+export function forecastReach(reach, control, delta = 0.1, identity) {
   const verdict = validateReachArtifact(reach, identity);
   if (!verdict.ok) throw new Error(verdict.error);
   const d = finiteNumber(delta);
