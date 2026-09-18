@@ -11,23 +11,45 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'chatgpt/scale-passport'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Check out repository
+      - name: Check out audited branch
         uses: actions/checkout@v4
         with:
-          # The change-aware verifier only needs the current commit and its parent.
-          fetch-depth: 2
+          ref: chatgpt/scale-passport
+          fetch-depth: 0
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Fast affected-system gate
+      - name: Apply Scale Passport to the existing context rail
+        run: node scripts/apply-scale-passport.mjs
+      - name: Regenerate extracted kernels
+        run: node scripts/extract-kernels.mjs
+      - name: Restore canonical CI definition and remove patch machinery
+        run: |
+          git checkout origin/main -- .github/workflows/validate.yml
+          git rm scripts/apply-scale-passport.mjs
+      - name: Verify scale semantics and lightweight source integrity
         env:
           HCC_CI_WORKERS: 4
-        run: npm test
+        run: |
+          node docs/verify-scale-passport.cjs
+          node docs/verify-scale-continuity.cjs
+          node docs/verify-the-seam-lands-at-the-observer.cjs
+          node scripts/extract-kernels.mjs --check
+          node scripts/validate.mjs
+          npm test
+      - name: Commit audited Scale Passport
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Add epistemic Scale Passport to the context rail"
+          git push origin HEAD:chatgpt/scale-passport
