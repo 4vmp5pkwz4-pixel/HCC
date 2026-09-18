@@ -44,8 +44,8 @@ requirePolicy(
 requirePolicy(pkg.scripts?.test === 'npm run test:quick',
   `npm test must stay on test:quick, found: ${pkg.scripts?.test || 'missing'}`);
 requirePolicy(
-  pkg.scripts?.['test:quick'] === 'node scripts/verify-ci-policy.mjs && node scripts/validate.mjs && node scripts/run-quick-verifiers.mjs',
-  'test:quick must remain policy + static validation + affected-system verifier routing',
+  pkg.scripts?.['test:quick'] === 'node scripts/verify-ci-policy.mjs && node scripts/verify-extracted-sync.mjs && node scripts/validate.mjs && node scripts/run-quick-verifiers.mjs',
+  'test:quick must remain policy + extracted-core sync + static validation + affected-system verifier routing',
 );
 requirePolicy(
   pkg.scripts?.['test:source'] === 'HCC_VERIFY_ALL=1 npm run test:quick',
