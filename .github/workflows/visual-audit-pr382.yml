@@ -1,0 +1,73 @@
+name: Close visual audit PR once
+
+on:
+  pull_request_target:
+    types: [edited, synchronize]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  close:
+    if: github.event.pull_request.number == 382 && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: chatgpt/visual-audit-first-closure
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Apply measured desktop Time Machine clearance
+        run: |
+          node scripts/apply-desktop-time-clearance.mjs
+          node scripts/extract-kernels.mjs
+          rm scripts/apply-desktop-time-clearance.mjs
+
+      - name: Verify source and affected systems
+        env:
+          HCC_CI_WORKERS: 4
+        run: |
+          node docs/verify-time-machine-clearance.cjs
+          npm test
+
+      - name: Install rendered-audit browser
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Render all 12 canonical visual states
+        run: npm run test:visual
+
+      - name: Publish screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hcc-visual-audit-pr382
+          path: artifacts/visual-audit
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Commit clean product and audit changes
+        if: success()
+        run: |
+          rm -rf artifacts/visual-audit
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Close desktop Time Machine overlap with rendered evidence"
+          git push origin HEAD:chatgpt/visual-audit-first-closure
+
+      - name: Remove this one-shot bridge from main
+        if: always()
+        run: |
+          git fetch origin main
+          git checkout -B main origin/main
+          git rm .github/workflows/visual-audit-pr382.yml
+          git commit -m "Remove visual audit PR bridge"
+          git push origin main
