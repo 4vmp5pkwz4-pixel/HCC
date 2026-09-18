@@ -49,6 +49,7 @@ const allChecks = [
   "docs/verify-the-sun.cjs",
   "docs/verify-planetary-atmospheres.cjs",
   "docs/verify-the-camera.cjs",
+  "docs/verify-camera-limit-authority.cjs",
   "docs/verify-riding-the-photon.cjs",
   "docs/verify-harmonices-mundi.cjs",
   "docs/verify-the-ladder-is-not-a-law.cjs",
@@ -127,6 +128,7 @@ if (fullMode) {
 
   route(/\b(camera|setcontroldistancelimits|scale_seams|hcc_zoom|far[- ]?plane|near[- ]?plane|observer seam|black void)\b/, [
     'docs/verify-the-camera.cjs',
+    'docs/verify-camera-limit-authority.cjs',
     'docs/verify-scale-continuity.cjs',
     'docs/verify-the-seam-lands-at-the-observer.cjs',
     'docs/verify-no-void-past-the-last-structure.cjs',
