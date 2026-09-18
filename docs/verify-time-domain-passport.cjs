@@ -69,3 +69,5 @@ console.log(`\ntime-domain passport: ${pass} passed, ${fail} failed`);
 process.exitCode=fail?1:0;
 
 // PR synchronize trigger for audited giant-source patch.
+
+// observable PR-event trigger for the self-healing source patch.
