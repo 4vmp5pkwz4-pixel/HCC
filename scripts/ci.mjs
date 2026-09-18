@@ -2,7 +2,7 @@
 /* One command that rebuilds every generated artifact from scratch and refuses to pass if
    anything disagrees: contracts, verifiers, API tests, headless walk. */
 import { execSync } from 'node:child_process';
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -36,8 +36,7 @@ ok = run('the manifest still matches the atlas it was walked from', 'node script
    would otherwise rot unnoticed. */
 ok = run('the composed reach still follows from the two maps it multiplies', 'node scripts/reach.mjs --check') && ok;
 ok = run('static validator', 'node scripts/validate.mjs') && ok;
-for (const f of readdirSync(join(ROOT, 'docs')).filter(f => /^verify-.*\.cjs$/.test(f)).sort())
-  ok = run(`verifier ${f}`, `node docs/${f}`) && ok;
+ok = run('every dependency-free docs verifier, in a bounded parallel census', 'node scripts/run-doc-verifier-census.mjs') && ok;
 ok = run('observer markers follow the production Three.js geometry', 'node docs/verify-observer-scene.mjs') && ok;
 ok = run('API contract + benchmark suite', 'node test/run-tests.mjs') && ok;
 ok = run('headless agent scenario', 'node scripts/demo-agent.mjs') && ok;
@@ -84,7 +83,7 @@ ok = run('every laboratory measured for what it recomputes per frame', 'node scr
   } else {
     const yml = readFileSync(WF, 'utf8');
     const scripts = [...new Set(RAN.flatMap(c => [...c.matchAll(/(?:scripts|test|docs)\/[\w.-]+\.(?:mjs|cjs)/g)].map(m => m[0])))]
-      .filter(s => !s.startsWith('docs/verify-'));   /* the verifier sweep is a loop on both sides */
+      .filter(s => !s.startsWith('docs/verify-'));   /* the verifier census is delegated to one shared runner */
     const missing = scripts.filter(s => !yml.includes(s));
     const okWf = missing.length === 0;
     process.stdout.write('· every gate here is also a gate in the shipping workflow … ');
