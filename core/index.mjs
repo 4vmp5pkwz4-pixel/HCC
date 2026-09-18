@@ -591,11 +591,16 @@ export const CORE = {
       if (!j) { out[k] = null; stamps[k] = { status: why }; continue; }
       stamps[k] = { version: j.version || null, build: j.build || null,
         generator: j.generator || null,
+        measured_release: j.measured_release || { version: j.version || null, build: j.build || null },
+        current_release: j.current_release || CORE_RELEASE_OF_ATLAS(),
         /* the honest field: a measurement from an earlier release is still a
            measurement, and saying which release is the only thing that keeps it
            from being read as a fresh one */
         measured_on_this_release: (() => { const r = CORE_RELEASE_OF_ATLAS();
           return (j.version || null) === r.version && (j.build || null) === r.build; })(),
+        stale: (() => { const r = CORE_RELEASE_OF_ATLAS();
+          return (j.version || null) !== r.version || (j.build || null) !== r.build; })(),
+        release_lag: j.release_lag || { measured_release: j.version || null, current_release: CORE_VERSION_OF_ATLAS() },
         status: 'read from api/' + k + '.json' };
       out[k] = { counts: j.counts || null,
         ...(k === 'sensitivity' ? { dead: j.dead || [], saturating: j.saturating || [],
