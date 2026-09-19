@@ -45,6 +45,7 @@ export default defineLab({
     'V_eff = ||v||_1 / ||v||_infinity',
     '||Pi_K v||_infinity / ||v||_infinity <= min(1, N_K V_eff / [3 Vol])',
     'Tr(Pi_K 1_Omega Pi_K) = N_K Vol(Omega)/Vol(S3_R)',
+    'Cap_(K,rho)(Omega) <= floor[N_K Vol(Omega)/(rho Vol(S3_R))]',
     '||Pi_K v||_2^2 / ||v||_2^2 <= min(1, N_K Vol(Omega)/Vol(S3_R)) for supp(v) subset Omega',
     '|<Pi_K v, curl Pi_K v>| <= [(K+2)/R] [N_K/(3 Vol)] ||v||_1^2'
   ],
@@ -126,6 +127,9 @@ export default defineLab({
       if (!Number.isFinite(reqEnergyRaw) || reqEnergyRaw > Number.MAX_SAFE_INTEGER)
         throw domainError('necessary energy rank exceeds the exact integer range of this kernel', { required_modes: reqEnergyRaw });
       const reqEnergy = Math.max(1, Math.ceil(reqEnergyRaw));
+      const rho = i.eta * i.eta;
+      const capRaw = trace / rho;
+      const capSafe = Number.isFinite(capRaw) && capRaw <= Number.MAX_SAFE_INTEGER;
       energy = {
         available: true,
         support_fraction: fraction,
@@ -133,7 +137,10 @@ export default defineLab({
         l2_energy_fraction_upper_bound: energySq,
         l2_norm_fraction_upper_bound: Math.sqrt(energySq),
         required_modes_for_l2_norm_fraction: reqEnergy,
-        minimum_K_for_l2_norm_fraction: minCurlLevelForRank(reqEnergy)
+        minimum_K_for_l2_norm_fraction: minCurlLevelForRank(reqEnergy),
+        rho_localisation_threshold: rho,
+        local_spectral_capacity_upper_bound: capSafe ? Math.floor(capRaw) : null,
+        local_spectral_capacity_exceeds_safe_integer: !capSafe
       };
     }
 
@@ -189,7 +196,9 @@ export default defineLab({
       run(L) { const R = 2, V = 2 * PI * PI * R ** 3, frac = 1e-4;
         const o = L.run({ R, K: 5, l1_norm: 0.01, linf_norm: 2, eta: 0.7, support_volume: frac * V }, { provenance: {} }).outputs;
         const want = curlBandCount(5) * frac, got = o.energy_concentration.concentration_trace;
-        return { pass: Math.abs(got - want) < 1e-14 && o.energy_concentration.l2_energy_fraction_upper_bound <= 1,
-          detail: `trace ${got.toFixed(12)} = N_5*${frac}` }; } }
+        const capWant = Math.floor(want / (0.7 * 0.7));
+        return { pass: Math.abs(got - want) < 1e-14 && o.energy_concentration.l2_energy_fraction_upper_bound <= 1
+            && o.energy_concentration.local_spectral_capacity_upper_bound === capWant,
+          detail: `trace ${got.toFixed(12)} = N_5*${frac}; capacity <= ${capWant}` }; } }
   ]
 });
