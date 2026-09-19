@@ -27,6 +27,13 @@ for (const K of [0,1,5,20]) for (const frac of [1e-9,1e-4,0.2,1]) {
 }
 ok('Slepian trace/energy range', traceOK, 'all deterministic sweeps inside [0,1] after min');
 
+let capOK = true;
+for (const K of [0,1,5,20]) for (const frac of [1e-6,1e-3,0.2]) for (const rho of [0.01,0.1,0.5,1]) {
+  const trace = N(K) * frac, cap = Math.floor(trace / rho);
+  if (cap * rho > trace + 1e-12 || (cap + 1) * rho <= trace - 1e-12) capOK = false;
+}
+ok('local spectral capacity floor bound', capOK, 'q rho <= Shannon number < (q+1) rho');
+
 for (const h of [1e-5,1e-3,0.0099]) {
   const beta = 1.5-h, amp=0.5+h;
   ok(`packet exponents h=${h}`, Math.abs((beta-amp)-(1-2*h))<1e-14 && Math.abs(beta/2-(0.75-h/2))<1e-14,
