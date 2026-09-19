@@ -58,7 +58,7 @@ export default defineLab({
     'R > 0',
     '0 <= K <= 100000 and K integer',
     '0 < eta <= 1',
-    'l1_norm >= 0 and linf_norm > 0',
+    'l1_norm > 0 and linf_norm > 0',
     'if supplied, 0 < support_volume <= Vol(S3_R)'
   ],
   falsifiers: [
@@ -75,7 +75,7 @@ export default defineLab({
       doc: 'radius of the round three-sphere in any consistent length unit' },
     { name: 'K', type: 'number', unit: 'curl level', default: 5, min: 0, max: 100000,
       doc: 'largest retained curl level; MUST be an integer' },
-    { name: 'l1_norm', type: 'number', unit: 'field*length^3', default: 1e-3, min: 0, max: 1e300,
+    { name: 'l1_norm', type: 'number', unit: 'field*length^3', default: 1e-3, min: 1e-300, max: 1e300,
       doc: 'L1 norm of the vector field' },
     { name: 'linf_norm', type: 'number', unit: 'field', default: 1, min: 1e-300, max: 1e300,
       doc: 'L-infinity norm of the vector field' },
@@ -109,7 +109,10 @@ export default defineLab({
     const Veff = i.l1_norm / i.linf_norm;
     const peakAbs = cK * i.l1_norm;
     const peakFrac = Math.min(1, cK * Veff);
-    const reqPeak = Math.max(1, Math.ceil(3 * i.eta * V / Math.max(Veff, Number.MIN_VALUE)));
+    const reqPeakRaw = 3 * i.eta * V / Veff;
+    if (!Number.isFinite(reqPeakRaw) || reqPeakRaw > Number.MAX_SAFE_INTEGER)
+      throw domainError('necessary peak rank exceeds the exact integer range of this kernel', { required_modes: reqPeakRaw });
+    const reqPeak = Math.max(1, Math.ceil(reqPeakRaw));
     const kPeak = minCurlLevelForRank(reqPeak);
     const maxCurl = (i.K + 2) / i.R;
     const hel = maxCurl * cK * i.l1_norm * i.l1_norm;
@@ -119,7 +122,10 @@ export default defineLab({
       const fraction = i.support_volume / V;
       const trace = NK * fraction;
       const energySq = Math.min(1, trace);
-      const reqEnergy = Math.max(1, Math.ceil(i.eta * i.eta / fraction));
+      const reqEnergyRaw = i.eta * i.eta / fraction;
+      if (!Number.isFinite(reqEnergyRaw) || reqEnergyRaw > Number.MAX_SAFE_INTEGER)
+        throw domainError('necessary energy rank exceeds the exact integer range of this kernel', { required_modes: reqEnergyRaw });
+      const reqEnergy = Math.max(1, Math.ceil(reqEnergyRaw));
       energy = {
         available: true,
         support_fraction: fraction,
