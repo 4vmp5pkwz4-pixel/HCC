@@ -167,7 +167,116 @@ ok('and at k = 1 the products 𝒱C are 10/3 and 50/3 — the two values the sou
   Math.abs(C1s - 10 / 3) < 1e-10 && Math.abs(C1o - 50 / 3) < 1e-10,
   `𝒱C(same) = ${C1s.toFixed(12)} against 10/3 · 𝒱C(opposite) = ${C1o.toFixed(12)} against 50/3`);
 
-console.log('\n=== 5. THE ONE SHELL THAT NEVER DECAYS ===\n');
+console.log('\n=== 5. THE KILLING CARRIER, AND WHAT MAKES THE SPACE REDUCING ===\n');
+
+/* On 𝒦 ⊕ E_{k,σ} the unforced motion is NOT a scalar amplitude law: the shell is
+   carried by the flow of a fixed Killing field while it decays. Φ_t^Y is a
+   two-sided unit-quaternion rotation, and the substantive claim is that carrying
+   the shell leaves it INSIDE the shell — which is what an exact reducing space
+   means. That is checked by taking the curl of the carried field, again by
+   ambient differences, and finding the same μ.
+
+   THE FIRST FORM OF THIS CHECK PROVED NOTHING. It differenced the closed form and
+   then subtracted the transport term it had itself defined as that same
+   difference, so the residual was zero by construction at any weights whatsoever
+   — an identity dressed as a measurement. What survives is the part the
+   construction cannot arrange: the carried field's curl. */
+{ const qm = (a, b) => [a[0]*b[0]-a[1]*b[1]-a[2]*b[2]-a[3]*b[3],
+                        a[0]*b[1]+a[1]*b[0]+a[2]*b[3]-a[3]*b[2],
+                        a[0]*b[2]-a[1]*b[3]+a[2]*b[0]+a[3]*b[1],
+                        a[0]*b[3]+a[1]*b[2]-a[2]*b[1]+a[3]*b[0]];
+  const qc = a => [a[0], -a[1], -a[2], -a[3]];
+  const axis = (i, ang) => { const o = [Math.cos(ang), 0, 0, 0]; o[i+1] = Math.sin(ang); return o; };
+  const dot4 = (a, b) => a[0]*b[0] + a[1]*b[1] + a[2]*b[2] + a[3]*b[3];
+  const FR = [[[0,-1,0,0],[1,0,0,0],[0,0,0,-1],[0,0,1,0]],
+              [[0,0,-1,0],[0,0,0,1],[1,0,0,0],[0,-1,0,0]],
+              [[0,0,0,-1],[0,0,-1,0],[0,1,0,0],[1,0,0,0]]];
+  const Y = (a, q) => FR[a].map(r => r[0]*q[0] + r[1]*q[1] + r[2]*q[2] + r[3]*q[3]);
+  const EPS = (a, b, c) => ((a - b) * (b - c) * (c - a)) / 2;
+  const H = 1e-5;
+  const along = (q, d, e) => { const p = [0,1,2,3].map(i => Math.cos(e)*q[i] + Math.sin(e)*d[i]),
+        n = Math.hypot(p[0],p[1],p[2],p[3]); return [p[0]/n,p[1]/n,p[2]/n,p[3]/n]; };
+  const myCurl = (F, q) => { const T = [0,1,2].map(a => Y(a, q)), g = [];
+    for (let b = 0; b < 3; b++) { const vp = F(along(q, T[b], H)), vm = F(along(q, T[b], -H));
+      let d = [0,1,2,3].map(i => (vp[i] - vm[i]) / (2*H));
+      const n = dot4(d, q); g.push(d.map((x, i) => x - n*q[i])); }
+    const c = [0,1,2].map(a => { let t = 0;
+      for (let b = 0; b < 3; b++) for (let d2 = 0; d2 < 3; d2++) { const e = EPS(a,b,d2); if (e) t += e*dot4(g[b], T[d2]); }
+      return t; });
+    const out = [0,0,0,0]; for (let a = 0; a < 3; a++) for (let i = 0; i < 4; i++) out[i] += c[a]*T[a][i];
+    return out; };
+  const PTS = [[0.3,-0.5,0.62,0.4], [0.1,0.7,-0.3,0.63], [-0.44,0.2,0.5,0.71]]
+    .map(q => { const n = Math.hypot(q[0],q[1],q[2],q[3]); return q.map(x => x/n); });
+
+  let carriedCurl = 0, isoN = 0, isoD = 0, weightBad = [];
+  for (const R of [1, 2.2]) for (const k of [1, 2, 3]) for (const sg of [1, -1]) {
+    const mu = sg * (k + 2) / R;
+    const w = S(`s3nsCarrierWeights(${k},${sg},${R})`);
+    /* the weights this file derives, from the paper's own formula for Y */
+    if (Math.abs(w.same - (1 - 2/(R*mu))) > 1e-12 || Math.abs(w.opposite - (1 + 2/(R*mu))) > 1e-12)
+      weightBad.push(`k=${k} σ=${sg} R=${R}`);
+    /* and at σ = +1 they must be the one-shell criterion's a_k and b_k */
+    if (sg > 0 && R === 1 && (Math.abs(w.same - k/(k+2)) > 1e-12 || Math.abs(w.opposite - (k+4)/(k+2)) > 1e-12))
+      weightBad.push(`criterion k=${k}`);
+    if (k !== 2 || sg !== 1 || R !== 1) continue;
+    const shell = S(`s3nsShell(${k},${sg})`), comp = S(`s3nsShellElement(s3nsShell(${k},${sg}),4242)`);
+    const vel = vm.runInContext('s3nsVelocity', ctx);
+    for (const t of [0, 0.4, 1.1]) {
+      const rot = S(`s3nsCarrierRotors(${k},${sg},${R},${t},1)`);
+      const F = q => { const p = qm(qm(qc(rot.alpha), q), qc(rot.beta));
+        return qm(qm(rot.alpha, vel(shell, comp, p, [0,0,0,0])), rot.beta); };
+      for (const q of PTS) { const c = myCurl(F, q), f = F(q), sc = Math.hypot(f[0],f[1],f[2],f[3]) || 1;
+        for (let i = 0; i < 4; i++) carriedCurl = Math.max(carriedCurl, Math.abs(c[i] - mu*f[i]) / sc); }
+      /* and Φ_t^Y has to be an isometry, or none of this is a motion of the sphere */
+      for (const q of PTS) { const P = S(`s3nsCarryPoint(s3nsCarrierRotors(${k},${sg},${R},${t},1),[${q}])`);
+        isoN = Math.max(isoN, Math.abs(Math.hypot(P[0],P[1],P[2],P[3]) - 1));
+        for (const r of PTS) { const Rq = S(`s3nsCarryPoint(s3nsCarrierRotors(${k},${sg},${R},${t},1),[${r}])`);
+          isoD = Math.max(isoD, Math.abs(dot4(P, Rq) - dot4(q, r))); } } } }
+
+  ok('CARRYING THE SHELL LEAVES IT INSIDE THE SHELL — the curl of (Φ_t^Y)_* v, taken by ambient differences at three times and three points, comes back at the SAME μ, which is exactly what makes 𝒦 ⊕ E_{k,σ} an exact reducing space rather than a space that merely contains a solution at t = 0',
+    carriedCurl < 1e-7,
+    `worst relative residual ${carriedCurl.toExponential(2)} over 9 (t, point) pairs at k = 2`);
+  ok('and Φ_t^Y IS A MOTION OF THE SPHERE: a two-sided unit-quaternion rotation preserves both the norm and every inner product, to machine precision — so the carried picture is the same field seen from a turning frame and not a distortion of it',
+    isoN < 1e-14 && isoD < 1e-14,
+    `worst norm drift ${isoN.toExponential(2)}, worst inner-product drift ${isoD.toExponential(2)}`);
+  ok('and the carrier`s two weights are 1 ∓ 2/(Rμ) at every shell, sign and radius — which at σ = +1 are the one-shell criterion`s k/(k+2) and (k+4)/(k+2), so the flow that carries the shell and the condition that closes it are the same two numbers',
+    weightBad.length === 0,
+    weightBad.length ? weightBad.slice(0, 4).join(' · ')
+      : [1, 2, 3].map(k => `k=${k}: ${(k/(k+2)).toFixed(6)} and ${((k+4)/(k+2)).toFixed(6)}`).join(' \u00b7 '));
+
+  /* A TWO-SIDED ROTATION IS AN ISOMETRY WHATEVER ITS TWO ROTORS ARE, and the
+     carried field is an eigenfield for any of them — so the two checks above pass
+     for a carrier that is not Y's flow at all. What identifies Y is its two
+     weights on its two SIDES, and that is pinned here against rotors this file
+     builds for itself. */
+  { const bad = [];
+    /* the reader's dial is a GAIN on both weights, so it is swept too — a rotor
+       that silently ignores it turns at the wrong rate for every setting but one */
+    for (const R of [1, 2.2]) for (const k of [1, 3]) for (const sg of [1, -1])
+    for (const t of [0.37, 1.9]) for (const g of [1, 0.6, 1.4]) {
+      const mu2 = sg * (k + 2) / R, w = { same: 1 - 2/(R*mu2), opposite: 1 + 2/(R*mu2) };
+      const rot = S(`s3nsCarrierRotors(${k},${sg},${R},${t},${g})`);
+      const wantA = axis(0, g * w.same * t), wantB = axis(1, g * w.opposite * t);
+      for (let i = 0; i < 4; i++) {
+        if (Math.abs(rot.alpha[i] - wantA[i]) > 1e-12) bad.push(`α k=${k} σ=${sg} R=${R} g=${g}`);
+        if (Math.abs(rot.beta[i] - wantB[i]) > 1e-12) bad.push(`β k=${k} σ=${sg} R=${R} g=${g}`); }
+      /* and the point is carried with α on the LEFT and β on the RIGHT — the two
+         sides are the two chiralities and swapping them is a different flow */
+      for (const q of PTS) { const got = S(`s3nsCarryPoint(s3nsCarrierRotors(${k},${sg},${R},${t},${g}),[${q}])`);
+        const want = qm(qm(rot.alpha, q), rot.beta);
+        for (let i = 0; i < 4; i++) if (Math.abs(got[i] - want[i]) > 1e-12) bad.push(`carry k=${k} g=${g}`); } }
+    ok('AND THE CARRIER IS Y`S FLOW AND NOT MERELY SOME ROTATION — the left rotor turns at 1 − 2/(Rμ) and the right one at 1 + 2/(Rμ), on their own axes, and the point is carried with one on each side: a single weight, a single axis or a single side is still an isometry, still leaves the shell invariant, and is still the wrong motion',
+      bad.length === 0,
+      bad.length ? [...new Set(bad)].slice(0, 4).join(' \u00b7 ')
+        : 'rotors and carry rebuilt here from the paper`s Y at two radii, two shells, both signs and two times'); } }
+
+ok('and the laboratory ANIMATES that closed form rather than claiming to have integrated the equation, which it says in its own contract',
+  /THE CARRIED SOLUTION IS ANIMATED, NOT INTEGRATED/.test(src)
+  && /s3nsCarryPoint\(rot,\[Q\[i\*4\]/.test(src)
+  && /name:'carrier_weight_same'/.test(src),
+  'the refusal is in the instrument, the carrier moves the stored S³ points, and both weights are published outputs');
+
+console.log('\n=== 6. THE ONE SHELL THAT NEVER DECAYS ===\n');
 
 const kappas = [0, 1, 2, 3, 4, 5].map(k => S(`s3nsKappa(${k},1)`));
 ok('κ_k VANISHES AT k = 0 AND NOWHERE ELSE, which is the whole reason the Hopf fibration is a steady flow: the Stokes eigenvalue of its shell is zero, so e^{−νκt} never moves',
@@ -177,7 +286,7 @@ ok('and the shells above it decay at a rate that is quadratic in k rather than l
   Math.abs(kappas[4] - 32) < 1e-12 && Math.abs(kappas[5] - 45) < 1e-12,
   'κ_k = k(k+4): 0, 5, 12, 21, 32, 45 — measured off the operator A = curl² − 4/R², not written down');
 
-console.log('\n=== 6. THE BAND A SINGULAR PEAK WOULD HAVE TO OUTGROW ===\n');
+console.log('\n=== 7. THE BAND A SINGULAR PEAK WOULD HAVE TO OUTGROW ===\n');
 
 let brute = 0; const bruteRanks = [];
 for (let K = 0; K <= 8; K++) { brute += 2 * (K + 1) * (K + 3); bruteRanks.push(brute); }
@@ -201,7 +310,7 @@ ok('and both sharp projector norms are built from that rank and the volume alone
   && N2 === 52,
   `‖Π₂‖₁→∞ = ${(52 / (3 * V)).toFixed(9)} and ‖Π₂‖₂→∞ = ${Math.sqrt(52 / (3 * V)).toFixed(9)} at R = 1, 𝒱 = 2π² = ${V.toFixed(6)}`);
 
-console.log('\n=== 7. THE RESONANCE GATE IS A GATE, NOT A LABEL ===\n');
+console.log('\n=== 8. THE RESONANCE GATE IS A GATE, NOT A LABEL ===\n');
 
 /* a gate that lets everything through is not a gate; these two cases are chosen
    because one is forced open by the spins and the other is forced shut */
@@ -213,7 +322,7 @@ ok('and it shuts on the high shells a low pair cannot reach, so it constrains th
   S('s3nsCGGate(0,1,0,1,2,1)') === false && S('s3nsCGGate(1,1,1,1,2,1)') === true,
   'two Hopf fields cannot feed E_{2,+}; two k = 1 shells can');
 
-console.log('\n=== 8. THE MIXED-ORDER MONOID, AGAINST A BRUTE-FORCE SET ===\n');
+console.log('\n=== 9. THE MIXED-ORDER MONOID, AGAINST A BRUTE-FORCE SET ===\n');
 
 const monoid = [[2, 3, 12], [3, 5, 20], [4, 7, 12]].map(([p, q, L]) => {
   const brute = new Set();
@@ -229,7 +338,7 @@ ok('and the largest order the semigroup omits is the Frobenius number pq − p �
   && S('s3nsFrobenius(4,7)') === 17 && S('s3nsGapCount(4,7)') === 9,
   '⟨3,5⟩ omits 4 integers, the largest 7 · ⟨4,7⟩ omits 9, the largest 17');
 
-console.log('\n=== 9. THE EXTERIOR RECURSION, RUN RATHER THAN QUOTED ===\n');
+console.log('\n=== 10. THE EXTERIOR RECURSION, RUN RATHER THAN QUOTED ===\n');
 
 const h = 0.005, B = S(`s3nsBPoly(6,${h})`);
 const at = (poly, x) => poly.reduce((s, c, i) => s + c * Math.pow(x, i), 0);
@@ -244,7 +353,7 @@ ok('and B_m(−2a) lands on (−4(1−h²))^m/m!, so the homogeneous channel sum
   chanOff.length === 0, chanOff.length ? 'orders off: ' + chanOff.join(' ')
     : `Σ zᵐB_m(−2a) = e^{−4(1−h²)z} evaluated to 7 orders at h = ${h}`);
 
-console.log('\n=== 10. THE TORUS SECTOR IS TWO SCALAR HEAT EQUATIONS ===\n');
+console.log('\n=== 11. THE TORUS SECTOR IS TWO SCALAR HEAT EQUATIONS ===\n');
 
 const jac = (n, al, be, s) => S(`s3nsJacobi(${n},${al},${be},${1 - 2 * s})`);
 const e = 1e-5; let jworst = 0;
@@ -258,7 +367,7 @@ ok('and the sharp unforced decay rate of that sector is 12ν/R², which is 4ν·
   Math.abs(S('s3nsTorusEig(1,1)') - 12) < 1e-12 && S('s3nsTorusEig(0,1)') === 0,
   'λ_n = 4n(n+2)/R²: 0, 12, 32, 60 — the constant sector is the Killing cone and does not decay');
 
-console.log('\n=== 11. WHAT THE LABORATORY REFUSES, IN THE PAGE ITSELF ===\n');
+console.log('\n=== 12. WHAT THE LABORATORY REFUSES, IN THE PAGE ITSELF ===\n');
 
 ok('the laboratory is registered as a world-owned laboratory with a camera, a router branch and a scene, rather than as a declaration nothing draws',
   /s3shellGroup\.visible = \(v==='s3shell'\);/.test(src)
