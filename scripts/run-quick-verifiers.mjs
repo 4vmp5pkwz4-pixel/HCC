@@ -72,6 +72,7 @@ const allChecks = [
   "docs/verify-a-framing-is-not-a-gesture.cjs",
   "docs/verify-the-time-machine.cjs",
   "docs/verify-time-domain-passport.cjs",
+  "docs/verify-time-machine-clearance.cjs",
   "docs/verify-poinsot-phase-family.cjs",
   "docs/verify-the-belt-has-gaps.cjs",
   "docs/verify-every-object-can-be-asked.cjs",
@@ -162,6 +163,7 @@ if (fullMode) {
   route(/\b(time machine|time passport|time-domain|atlastime|setatlastime|setatlasepoch|epochdays|chronometr|j2000|cosmic age|lookback|phi-time)\b/, [
     'docs/verify-the-time-machine.cjs',
     'docs/verify-time-domain-passport.cjs',
+    'docs/verify-time-machine-clearance.cjs',
     'docs/verify-chronometry-atlas-contract.cjs',
     'docs/verify-chronometry-visual-contract.cjs',
   ]);
