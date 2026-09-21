@@ -63,12 +63,12 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     + dead.slice(0, 2).map(d => `${d.input} over [${d.min}, ${d.max}]`).join(', '));
 
   /* ── THE STAMP: a dated artifact must say it is dated ────────────────────── */
-  const release = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8')).version;
+  const release = JSON.parse(fs.readFileSync(path.join(ROOT, 'version.json'), 'utf8'));
   ok('the answer compares each artifact against the ATLAS release, not the node core\'s own version',
-    all.atlas_release === release,
+    all.atlas_release === release.version && all.atlas_build === release.build,
     `atlas ${all.atlas_release} · the node core carries a different number and comparing against it `
     + 'would report every artifact stale forever');
-  const wrongStamp = KINDS.filter(k => all.artifacts[k].measured_on_this_release !== (onDisk[k].version === release));
+  const wrongStamp = KINDS.filter(k => all.artifacts[k].measured_on_this_release !== (onDisk[k].version === release.version && onDisk[k].build === release.build));
   ok('and every artifact says truthfully whether it was measured on THIS release',
     wrongStamp.length === 0,
     wrongStamp.length ? ('stamp disagrees with the file for: ' + wrongStamp.join(' '))

@@ -43,3 +43,49 @@ test('SDK refuses mixed release data and HTTP failures',async t=>{
   fail=true;
   await assert.rejects(()=>connectAtlas(url),/HTTP 503/);
 });
+
+
+test('SDK accepts coherently dated reach and rejects contradictory freshness metadata',async t=>{
+  let bad=false;
+  const server=createServer((req,res)=>{
+    res.setHeader('content-type','application/json');
+    const identity={version:'new',build:'new'};
+    if(req.url.endsWith('version.json')) return res.end(JSON.stringify(identity));
+    if(req.url.endsWith('manifest.json')) return res.end(JSON.stringify({schema:'hcc.manifest/2',...identity,instruments:[],counts:{instruments:0},worlds:[],labs:[],multiview:[]}));
+    if(req.url.endsWith('reach.json')) {
+      const reach={schema:'hcc.reach/1',version:'old',build:'old',chains:[],measured_release:{version:'old',build:'old'},current_release:identity,measured_on_this_release:false,stale:true,release_lag:{measured_release:'old',current_release:'new'}};
+      if(bad) reach.measured_on_this_release=true;
+      return res.end(JSON.stringify(reach));
+    }
+    res.writeHead(404);res.end('{}');
+  });
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const {connectAtlas}=await import('../api/agent-client.mjs');
+  const url='http://127.0.0.1:'+server.address().port+'/';
+  const sdk=await connectAtlas(url);
+  assert.ok(sdk);
+  bad=true;
+  await assert.rejects(()=>connectAtlas(url),/contradicts|freshness|stale/);
+});
+
+
+test('direct reach APIs fail closed without release identity and reject partial identity',async()=>{
+  const {validateReachArtifact,listReachControls,forecastReach}=await import('../core/prediction/reach-forecast.mjs');
+  const reach={schema:'hcc.reach/1',version:'old',build:'old',chains:[],measured_release:{version:'old',build:'old'},current_release:{version:'new',build:'new'},measured_on_this_release:false,stale:true};
+  assert.equal(validateReachArtifact(reach).ok,false);
+  assert.match(validateReachArtifact(reach).error,/identity is required/i);
+  assert.throws(()=>listReachControls(reach),/identity is required/i);
+  assert.throws(()=>forecastReach(reach,'x'),/identity is required/i);
+  assert.equal(validateReachArtifact(reach,{version:'new'}).ok,false);
+  assert.match(validateReachArtifact(reach,{version:'new'}).error,/requires version and build/i);
+});
+
+test('direct reach APIs accept coherent dated evidence only with explicit current identity',async()=>{
+  const {validateReachArtifact,listReachControls,forecastReach}=await import('../core/prediction/reach-forecast.mjs');
+  const identity={version:'new',build:'new'};
+  const reach={schema:'hcc.reach/1',version:'old',build:'old',chains:[],measured_release:{version:'old',build:'old'},current_release:identity,measured_on_this_release:false,stale:true};
+  assert.equal(validateReachArtifact(reach,identity).ok,true);
+  assert.deepEqual(listReachControls(reach,identity),[]);
+  assert.equal(forecastReach(reach,'x',.1,identity).source.stale,true);
+});

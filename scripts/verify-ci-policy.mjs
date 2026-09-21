@@ -4,6 +4,7 @@ const workflowDirectory = new URL('../.github/workflows/', import.meta.url);
 const workflowNames = readdirSync(workflowDirectory)
   .filter((name) => /\.ya?ml$/.test(name))
   .sort();
+const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 
 const failures = [];
 const requirePolicy = (condition, message) => {
@@ -39,6 +40,22 @@ requirePolicy(
   `only core.yml and validate.yml may be persistent workflows; found: ${workflowNames.join(', ')}`,
 );
 
+/* Ordinary development must stay lightweight by construction. */
+requirePolicy(pkg.scripts?.test === 'npm run test:quick',
+  `npm test must stay on test:quick, found: ${pkg.scripts?.test || 'missing'}`);
+requirePolicy(
+  pkg.scripts?.['test:quick'] === 'node scripts/verify-ci-policy.mjs && node scripts/validate.mjs && node scripts/run-quick-verifiers.mjs',
+  'test:quick must remain policy + static validation + affected-system verifier routing',
+);
+requirePolicy(
+  pkg.scripts?.['test:source'] === 'HCC_VERIFY_ALL=1 npm run test:quick',
+  'test:source must explicitly request the complete verifier census',
+);
+requirePolicy(
+  typeof pkg.scripts?.['test:release'] === 'string' && pkg.scripts['test:release'].startsWith('npm run test:source'),
+  'release validation must begin with the complete source audit',
+);
+
 if (workflowNames.includes('core.yml')) {
   const core = readWorkflow('core.yml');
   const events = keysAtIndent(topLevelBlock(core, 'on'), 2);
@@ -69,10 +86,22 @@ if (workflowNames.includes('validate.yml')) {
     /^\s{2}cancel-in-progress:\s*true\s*$/m.test(concurrency),
     'Validate atlas must cancel superseded runs',
   );
-  requirePolicy(validate.includes('run: npm test'), 'Validate atlas must run the quick source test suite');
+  requirePolicy(validate.includes('fetch-depth: 2'),
+    'Validate atlas must fetch only the current commit and its parent for impact routing');
+  requirePolicy(validate.includes('HCC_CI_WORKERS: 4'),
+    'Validate atlas must keep bounded verifier parallelism');
+  requirePolicy(validate.includes('run: npm test'),
+    'Validate atlas must run the lightweight default test command');
+  requirePolicy(/timeout-minutes:\s*5/.test(validate),
+    'Validate atlas must keep a five-minute fail-fast budget');
+  requirePolicy((validate.match(/^\s*run:/gm) || []).length === 1,
+    'Validate atlas must keep one command step; subsystem checks belong in the router');
 
-  for (const forbidden of ['scripts/liveness.mjs', 'scripts/selftest.mjs', 'playwright', 'docker build']) {
-    requirePolicy(!validate.includes(forbidden), `Validate atlas contains heavy command: ${forbidden}`);
+  for (const forbidden of [
+    'test:source', 'test:release', 'docs/verify-', 'scripts/liveness.mjs',
+    'scripts/selftest.mjs', 'playwright', 'docker build',
+  ]) {
+    requirePolicy(!validate.includes(forbidden), `Validate atlas contains heavy/direct command: ${forbidden}`);
   }
 }
 
@@ -87,4 +116,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log('CI policy verified: Pages + quick validation automatic; Computational core manual.');
+console.log('CI policy verified: affected-system validation automatic; complete source/render audits explicit.');

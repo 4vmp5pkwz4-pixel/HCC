@@ -1,24 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { forecastReach } from '../core/prediction/reach-forecast.mjs';
+const REACH_IDENTITY={version:'fixture',build:'fixture'};
+const reachFixture=chains=>({schema:'hcc.reach/1',version:'fixture',build:'fixture',chains,measured_release:REACH_IDENTITY,current_release:REACH_IDENTITY,measured_on_this_release:true,stale:false});
 
 test('missing exponents do not manufacture a constant scaling law', () => {
   for (const exponent of [null, undefined, '', false, [], '2']) {
-    const r = forecastReach({schema:'hcc.reach/1',chains:[{control:'x',power_law:true,exponent}]}, 'x');
+    const r = forecastReach(reachFixture([{control:'x',power_law:true,exponent}]), 'x', .1, REACH_IDENTITY);
     assert.equal(r.results[0].response_ratio, null);
     assert.equal(r.results[0].exponent, null);
   }
 });
 
 test('missing evidence stays unknown, and model endpoints carry no probability', () => {
-  const r = forecastReach({schema:'hcc.reach/1',chains:[{control:'x',power_law:true,exponent:2,far_r2:null}]}, 'x');
+  const r = forecastReach(reachFixture([{control:'x',power_law:true,exponent:2,far_r2:null}]), 'x', .1, REACH_IDENTITY);
   assert.equal(r.results[0].evidence.far_r2, null);
   assert.equal(r.uncertainty.kind, 'PARAMETER_SCENARIO');
   assert.equal(r.uncertainty.coverage_probability, null);
   assert.equal(r.empirical_validation, false);
 });
 test('underflow never turns a positive power-law endpoint into a physical zero',()=>{
-  const f=forecastReach({schema:'hcc.reach/1',chains:[{control:'x',power_law:true,exponent:1000}]},'x',.9);
+  const f=forecastReach(reachFixture([{control:'x',power_law:true,exponent:1000}]),'x',.9,REACH_IDENTITY);
   assert.equal(f.results[0].interval_ratio,null);
   assert.equal(f.results[0].response_ratio,null);
 });

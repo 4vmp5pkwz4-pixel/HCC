@@ -23,7 +23,7 @@ Two entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
-| `index.html` | the atlas — **85** laboratories across 7 worlds, **83** typed instruments, **113** φ-ladder objects, WebXR | yes |
+| `index.html` | the atlas — **118** laboratories across 7 worlds, **129** typed instruments, φ-ladder, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
 
 The newest laboratories are the **seven CIVP stations** — the CP¹ evaluation lock, the
@@ -518,8 +518,7 @@ Node validation. No application bundler is required.
 
 ## First-Principles Atlas
 
-The live laboratory registry is authoritative: **113 laboratories across 7 worlds** at the
-v4.151.0 release boundary. The generated \`api/manifest.json\` is measured by walking the
+The live census is api/manifest.json (counts.laboratories, counts.instruments, counts.worlds) at the release declared by version.json. The generated \`api/manifest.json\` is measured by walking the
 application headlessly; prose counts are descriptive, never an independent source of truth.
 
 Every measured laboratory now carries a fail-closed first-principles contract. Native space,
