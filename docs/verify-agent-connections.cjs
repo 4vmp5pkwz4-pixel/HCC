@@ -105,7 +105,7 @@ const ok = (name, cond, detail) => { if (cond) { pass++; console.log('  PASS —
        && 'precedence broken: theorem-bound → ' + evidenceTierOf('theorem-bound')
     ].filter(Boolean).join(' · ') || 'the fallback is reachable and the precedence holds: theorem-bound → theorem');
 
-  ok('SEVENTY-ONE free-text statuses are reduced to a tier an agent can filter on, and nothing falls through',
+  ok('SEVENTY-FOUR free-text statuses are reduced to a tier an agent can filter on, and nothing falls through',
     statuses.length > 40 && tiers.unclassified === 0
     && typed.every(c => typeof c.evidence_tier === 'string'),
     `${statuses.length} distinct statuses → ${Object.entries(tiers).filter(([, n]) => n).map(([t, n]) => t + ' ' + n).join(' · ')}`);

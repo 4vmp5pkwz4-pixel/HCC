@@ -84,6 +84,15 @@ for (const m of sitesBlock.matchAll(/'([a-z_0-9.]+)'\s*:\s*\[\s*'(\w+)'\s*,\s*(n
     .matchAll(/\{id:\s*'(\w+)'/g)].map(m => m[1]));
   const labs = new Set([...balanced('const S3_VIEW_NAMES', '{', '}')
     .matchAll(/(?:^|[{,\s])([A-Za-z_]\w*)\s*:\s*'/g)].map(m => m[1]));
+  /* AND THE HALF OF THE REGISTRY THAT IS NOT A LITERAL. S3_VIEW_NAMES ends in a
+     spread of labDeclNames(...), so every laboratory declared through
+     LAB_DECLARATIONS was invisible to this check — which nothing noticed while no
+     formula addressed one. The page builds its registry from both; so does this. */
+  const declared = [...balanced('const LAB_DECLARATIONS=Object.freeze([', '[', ']')
+    .matchAll(/\{\s*id:\s*'([A-Za-z_]\w*)'/g)].map(m => m[1]);
+  if (declared.length < 20) throw new Error('the declared-laboratory sweep found only ' + declared.length
+    + ' ids, which is fewer than this atlas has had for many releases — the pattern has stopped matching');
+  for (const id of declared) labs.add(id);
   labs.add('chronometry');                       /* the one laboratory outside S³ */
   const badWorld = [...sites].filter(([, s]) => !worlds.has(s.world)).map(([id, s]) => id + '→' + s.world);
   const badLab = [...sites].filter(([, s]) => s.lab && !labs.has(s.lab)).map(([id, s]) => id + '→' + s.lab);

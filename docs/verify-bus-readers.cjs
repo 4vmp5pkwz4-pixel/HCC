@@ -100,8 +100,8 @@ const thread=src.slice(ti, src.indexOf('\n];', ti));
    in one day. They are all gone: the library reads them, and a pattern that matches
    fewer families than the file contains throws rather than reporting a subset. */
 const famIds=A.threadFamilies(src).map(f=>[f.id,f.kind]);
-ok('the invariant thread carries nineteen families, one of them an identity',
-  famIds.length===19 && famIds.filter(f=>f[1]==='identity').length===1,
+ok('the invariant thread carries twenty families, one of them an identity',
+  famIds.length===20 && famIds.filter(f=>f[1]==="identity").length===1,
   famIds.length+' families: '+famIds.map(f=>f[0]+'/'+f[1]).join(' · '));
 
 /* A ROW'S JUMP MUST GO WHERE THE NUMBER IS MADE. Rows marked cyc:1 are published
