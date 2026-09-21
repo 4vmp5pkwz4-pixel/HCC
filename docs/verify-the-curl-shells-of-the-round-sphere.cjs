@@ -134,17 +134,24 @@ ok('and the published dimension and the closed form are kept as TWO numbers rath
 
 console.log('\n=== 4. THE KILLING INTERACTION COEFFICIENTS, AND THE IDENTITY THEY CANNOT SATISFY BY ACCIDENT ===\n');
 
+/* BOTH SIGNS, BECAUSE ONE SIGN IS NOT A SWEEP. This check ran at σ = +1 only for
+   six releases, and the same-chirality bracket's cross term carries the sign of
+   the frame the shell was built in — [X_a,X_b] = +2ε X_c on the left-invariant
+   frame against −2ε Y_c on the right-invariant one. The σ = −1 coefficients were
+   therefore wrong by up to twenty-one per cent and nothing looked. */
 const kc = [];
-for (let k = 1; k <= 4; k++) kc.push(Object.assign({ k }, S(`s3nsKillingCoefficients(${k},1)`)));
+for (let k = 1; k <= 4; k++) for (const sg of [1, -1])
+  kc.push(Object.assign({ k, sg }, S(`s3nsKillingCoefficients(${k},${sg})`)));
 const V1 = 2 * Math.PI * Math.PI;
 const bsWant = k => k * k * (k + 4) / (4 * (k + 2) * V1);
 const boWant = k => k * (k + 4) * (k + 4) / (4 * (k + 2) * V1);
 const rel = (a, b) => Math.abs(a - b) / Math.max(1e-30, Math.abs(b));
 const offB = kc.filter(c => rel(c.bs, bsWant(c.k)) > 1e-10 || rel(c.bo, boWant(c.k)) > 1e-10);
 ok('b_s AND b_o ARE MEASURED FROM BRACKETS AND LAND ON THEIR CLOSED FORMS — same-chirality Killing fields are constants in the shell`s own frame, opposite-chirality ones commute with it, and neither sum knows what it is supposed to equal',
-  offB.length === 0 && kc.length === 4,
-  offB.length ? offB.map(c => `k=${c.k}: ${c.bs.toExponential(6)} vs ${bsWant(c.k).toExponential(6)}`).join(' · ')
-    : kc.map(c => `k=${c.k}: b_s ${c.bs.toExponential(6)}, b_o ${c.bo.toExponential(6)}`).join(' · '));
+  offB.length === 0 && kc.length === 8,
+  offB.length ? offB.map(c => `k=${c.k} σ=${c.sg}: ${c.bs.toExponential(6)} vs ${bsWant(c.k).toExponential(6)}`).join(' · ')
+    : kc.filter(c => c.sg > 0).map(c => `k=${c.k}: b_s ${c.bs.toExponential(6)}, b_o ${c.bo.toExponential(6)}`).join(' · ')
+      + ' — and identical at σ = −1, as the theory requires');
 const offSum = kc.filter(c => rel(c.bs + c.bo, c.k * (c.k + 4) / (2 * V1)) > 1e-10);
 /* the laboratory also PUBLISHES the closed forms beside the measurement, in the
    reader's own panel, as the thing the measurement is compared against; a wrong
@@ -158,11 +165,23 @@ ok('and the closed forms the panel shows BESIDE the measurement are themselves r
 
 ok('AND THEIR SUM IS κ_k/(2𝒱), which is the check worth having: two independently measured sums have no way to land on one Stokes eigenvalue unless the construction is right',
   offSum.length === 0,
-  offSum.length ? offSum.map(c => `k=${c.k}: ${(c.bs + c.bo).toExponential(9)} vs ${(c.k * (c.k + 4) / (2 * V1)).toExponential(9)}`).join(' · ')
-    : kc.map(c => `k=${c.k}: b_s+b_o = ${(c.bs + c.bo).toExponential(9)} = κ/(2𝒱)`).join(' · '));
+  offSum.length ? offSum.map(c => `k=${c.k} σ=${c.sg}: ${(c.bs + c.bo).toExponential(9)} vs ${(c.k * (c.k + 4) / (2 * V1)).toExponential(9)}`).join(' · ')
+    : kc.filter(c => c.sg > 0).map(c => `k=${c.k}: b_s+b_o = ${(c.bs + c.bo).toExponential(9)} = κ/(2𝒱)`).join(' · '));
 /* the addendum reports these two from an independent quaternion-coordinate
    calculation on S³_1; they are the only external numbers in this file */
-const C1s = (1 + 1) * (1 + 3) * kc[0].bs * V1, C1o = (1 + 1) * (1 + 3) * kc[0].bo * V1;
+const kc1 = kc.find(c => c.k === 1 && c.sg > 0);
+const C1s = (1 + 1) * (1 + 3) * kc1.bs * V1, C1o = (1 + 1) * (1 + 3) * kc1.bo * V1;
+/* and the two signs have to AGREE, which is the shape the omission had: a
+   coefficient that is wrong on one side only passes every check that looks at
+   the other */
+{ const split = [];
+  for (let k = 1; k <= 4; k++) { const a = kc.find(c => c.k === k && c.sg > 0), b = kc.find(c => c.k === k && c.sg < 0);
+    if (rel(a.bs, b.bs) > 1e-12 || rel(a.bo, b.bo) > 1e-12) split.push(`k=${k}`); }
+  ok('AND THE TWO HELICITIES GIVE THE SAME TWO COEFFICIENTS — the Killing interaction does not know the sign of the shell it acts on, so a construction that is right on one side and wrong on the other fails here rather than passing on the side that was looked at',
+    split.length === 0,
+    split.length ? 'differ at ' + split.join(' · ')
+      : 'b_s and b_o agree between σ = +1 and σ = −1 at every k tested, to machine precision'); }
+
 ok('and at k = 1 the products 𝒱C are 10/3 and 50/3 — the two values the source addendum reports from a quaternion calculation this laboratory does not perform',
   Math.abs(C1s - 10 / 3) < 1e-10 && Math.abs(C1o - 50 / 3) < 1e-10,
   `𝒱C(same) = ${C1s.toFixed(12)} against 10/3 · 𝒱C(opposite) = ${C1o.toFixed(12)} against 50/3`);

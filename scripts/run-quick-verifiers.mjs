@@ -82,6 +82,7 @@ const allChecks = [
   "docs/verify-where-the-curvature-enters.cjs",
   "docs/verify-no-finite-sector-can-hold-it.cjs",
   "docs/verify-the-sphere-had-only-half-a-spectrum.cjs",
+  "docs/verify-the-chiral-law.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
 
@@ -132,12 +133,13 @@ if (fullMode) {
      all read ONE construction, so a change to any of its names has to prove all
      five. Their own file names are routed by the rule above; these are the
      SUBJECT words, which is what a change to the laboratories looks like. */
-  route(/\b(s3ns|s3shell|s3torus|s3tube|s3escape|curl shell|beltrami|killing carrier|band rank|clebsch|jacobi|frobenius|ebin|deformation tensor)\b/, [
+  route(/\b(s3ns|s3shell|s3torus|s3tube|s3escape|s3kb|curl shell|beltrami|killing|chiral|casimir|grassmann|band rank|clebsch|jacobi|frobenius|ebin|deformation tensor)\b/, [
     'docs/verify-the-curl-shells-of-the-round-sphere.cjs',
     'docs/verify-the-torus-that-solves-completely.cjs',
     'docs/verify-where-the-curvature-enters.cjs',
     'docs/verify-no-finite-sector-can-hold-it.cjs',
     'docs/verify-the-sphere-had-only-half-a-spectrum.cjs',
+    'docs/verify-the-chiral-law.cjs',
     'docs/verify-hopf-bundle.cjs',
   ]);
 
