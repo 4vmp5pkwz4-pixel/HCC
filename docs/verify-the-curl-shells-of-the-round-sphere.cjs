@@ -338,6 +338,31 @@ ok('and the largest order the semigroup omits is the Frobenius number pq − p �
   && S('s3nsFrobenius(4,7)') === 17 && S('s3nsGapCount(4,7)') === 9,
   '⟨3,5⟩ omits 4 integers, the largest 7 · ⟨4,7⟩ omits 9, the largest 17');
 
+/* THE DIAL CANNOT OFFER AN IRRATIONAL NUMBER, so every h a reader sets makes 2h a
+   ratio and BOTH laws are always available — the question is which describes the
+   range being looked at. A laboratory that quotes the linear law below the
+   Frobenius number prints a wrong number from a correct formula, which is the
+   failure mode this whole file exists to catch. */
+{ const rows = [], bad = [];
+  for (const h of [0.005, 0.0025, 0.0075, 0.0099, 0.001, 0.0035]) {
+    const r = S(`s3nsOrderRatio(${2 * h})`);
+    /* this file reduces the same ratio for itself */
+    let x = Math.round(2 * h * 100000), y = 100000;
+    while (y) { const t = x % y; x = y; y = t; }
+    const g = Math.abs(x) || 1, p = Math.round(2 * h * 100000) / g, q = 100000 / g;
+    if (r.p !== p || r.q !== q) bad.push(`h=${h}: ${r.p}/${r.q} ≠ ${p}/${q}`);
+    if (r.gaps !== (p !== 1 && q !== 1)) bad.push(`h=${h}: gaps`);
+    if (r.gaps && (r.frobenius !== p * q - p - q || Math.abs(r.linearFrom - (p*q-p-q+1)/q) > 1e-12))
+      bad.push(`h=${h}: threshold`);
+    if (!r.gaps && (r.frobenius !== null || r.linearFrom !== 0)) bad.push(`h=${h}: no-gap case`);
+    /* and where the law applies, it must equal the brute-force count exactly */
+    const L = 8, brute = S(`s3nsMonoidCount(${2 * h},${L})`);
+    if (L >= r.linearFrom) { const lin = Math.floor(r.q * L) + 1 - S(`s3nsGapCount(${r.p},${r.q})`);
+      if (lin !== brute) bad.push(`h=${h}: law ${lin} ≠ counted ${brute}`); }
+    rows.push(`h=${h}: 2h=${r.p}/${r.q}, ${L >= r.linearFrom ? 'exact at L=8' : `needs L ≥ ${r.linearFrom.toFixed(1)}`}`); }
+  ok('AND THE LINEAR LAW IS ONLY QUOTED WHERE IT HOLDS — every h the dial offers makes 2h a ratio, and the laboratory reports the exact count above the Frobenius threshold and refuses to quote it below, where the collisions have not begun to matter and the count is still quadratic',
+    bad.length === 0, bad.length ? bad.slice(0, 3).join(' · ') : rows.join(' · ')); }
+
 console.log('\n=== 10. THE EXTERIOR RECURSION, RUN RATHER THAN QUOTED ===\n');
 
 const h = 0.005, B = S(`s3nsBPoly(6,${h})`);

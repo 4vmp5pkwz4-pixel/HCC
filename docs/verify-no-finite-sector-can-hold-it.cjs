@@ -186,6 +186,36 @@ ok('and the two weights of the exact reduced evolution, 1 ∓ 2/(Rμ), ARE the o
   wBad.length ? wBad.join(' · ')
     : [1, 3, 5].map(k => `k=${k}: ${(k/(k+2)).toFixed(6)} and ${((k+4)/(k+2)).toFixed(6)}`).join(' · '));
 
+/* THE ADDENDUM'S OTHER BARRIER, which is frequency-INDEPENDENT: with a derivative
+   estimate in hand, the number of COMPLETE shells is bounded below however high
+   those shells sit. It is a different statement from the rank bounds — a few very
+   high shells already carry a large total rank, and this one says that does not
+   help. */
+{ const h = 0.005, eta = 0.5, R = 1.3, V = S(`s3nsVolume(${R})`);
+  const rows = [], bad = [];
+  for (const lt of [-2, -4, -6, -8]) { const tau = Math.pow(10, lt), c = S(`s3nsCoreScales(${tau},${h})`);
+    const lap1 = c.l1 / tau;                         /* the declared derivative input */
+    const M = S(`s3nsShellCountBound(${eta},${c.peak},${lap1},${R})`);
+    /* re-derived here from the inverse-Hodge shell weight the theorem uses */
+    const want = 3 * V * eta / (R * R) * c.peak / lap1;
+    if (Math.abs(M - want) / want > 1e-12) bad.push(`τ=${tau}`);
+    rows.push({ tau, M }); }
+  const slope = (Math.log(rows[3].M) - Math.log(rows[0].M))
+              / (Math.log(rows[3].tau) - Math.log(rows[0].tau));
+  ok('THE SHELL-COUNT BARRIER IS FREQUENCY-INDEPENDENT AND STILL DIVERGES — M ≥ 3𝒱η‖v‖∞/(R²‖Δ₁v‖₁) grows as τ^{−1/2+h}, so no FIXED number of complete shells keeps a fixed fraction of the core peak however high their frequencies are, which the rank bounds alone do not say',
+    bad.length === 0 && Math.abs(slope - (-0.5 + h)) < 1e-9 && rows[3].M > rows[0].M,
+    bad.length ? bad.join(' · ')
+      : `M = ${rows.map(r => r.M.toFixed(0)).join(' → ')} across τ = 10⁻² → 10⁻⁸, slope ${slope.toFixed(5)} against −1/2 + h = ${(-0.5 + h).toFixed(5)}`);
+  /* THE PHRASE ALONE IS NOT THE PANEL. "shell-count barrier" occurs twice in the
+     page — once in the instrument's own refusal about the derivative estimate —
+     so a regex for it passes while the reader's panel says nothing at all. What
+     is pinned is the line that COMPUTES it and the sentence that prints it. */
+  ok('and the laboratory publishes it beside the two rank bounds, because a reader shown only a rank would conclude that enough high shells could do the job',
+    /const lap1=c\.l1\/tau, M=s3nsShellCountBound\(eta,c\.peak,lap1,R\);/.test(src)
+    && /shell-count barrier: with/.test(src)
+    && /frequency-independent, so no fixed number of shells keeps the peak/.test(src),
+    'the escape panel computes the barrier from the core it is already showing, and prints it with its exponent'); }
+
 console.log('\n=== 4. THE GATE IS A GATE ===\n');
 
 let open = 0, total = 0;

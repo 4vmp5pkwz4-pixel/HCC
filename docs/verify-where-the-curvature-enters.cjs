@@ -143,6 +143,34 @@ ok('and the curvature part of the swirl operator IS the polynomial R⁻²P(𝔈)
     return Math.abs(diff - want) / (1 + Math.abs(want)) < 1e-6; }))),
   'ℒ_R^θ − ℒ₀^θ = R⁻²P(𝔈) on every monomial tested, at two curvature radii');
 
+/* A PLOT THAT NORMALISES BY ITS OWN ROUNDING FLOOR DRAWS NOISE AS STRUCTURE, and
+   λ = 1 is exactly where that happens: r is the Killing field ∂_θ so the flat
+   operator vanishes identically, and P(1) = −(1−1)(1+3) = 0 so the curvature term
+   vanishes too. Both are zero, the largest value on the plot is then the rounding
+   floor of a second difference, and dividing by it fills the frame. */
+{ const vanish = [], alive = [];
+  for (const R of [1.2, 2.6]) for (const lam of [1, 0.5, 2, 3]) {
+    let big = 0, ref = 1e-30;
+    for (let i = 1; i <= 100; i++) { const r = 0.7 * R * i / 100, wr = Math.pow(r/R, lam) * R;
+      big = Math.max(big, Math.abs(S(`s3nsSwirlFlat((x=>Math.pow(x/${R},${lam})*${R}),${r})`)),
+        Math.abs(S(`s3nsSwirlOp((x=>Math.pow(x/${R},${lam})*${R}),${r},${R})`)
+               - S(`s3nsSwirlFlat((x=>Math.pow(x/${R},${lam})*${R}),${r})`)));
+      ref = Math.max(ref, Math.abs(wr) / (r * r)); }
+    (big < 1e-7 * ref ? vanish : alive).push(`R=${R} λ=${lam}`); }
+  ok('THE KILLING EXPONENT IS THE ONE PLACE BOTH OPERATORS VANISH IDENTICALLY, and it is the one place a normalised plot would be drawing its own rounding floor at full scale — λ = 1 falls below the floor at every radius tested and every other exponent stays well above it',
+    vanish.length === 2 && vanish.every(v => / λ=1$/.test(v)) && alive.length === 6,
+    `below the floor: ${vanish.join(', ')} · above it: ${alive.join(', ')}`);
+  ok('and the laboratory DRAWS NOTHING there and says why, rather than filling the frame with amplified noise',
+    /const vanishes=\(big<1e-7\*ref\);/.test(src)
+    && /BOTH OPERATORS VANISH IDENTICALLY AT THIS EXPONENT/.test(src)
+    && /draw\(\(\)=>0,0x8fd8e8,1\); draw\(\(\)=>0,0xe98291,1\); draw\(\(\)=>0,0xe8c77a,1\);/.test(src)
+    /* AND THE REFERENCE HAS TO BE AN OPERATOR SCALE. ℒ carries two derivatives, so
+       what a value of it should be compared against is |w|/r² and not |w|: a
+       threshold against the function itself compares two different kinds of
+       quantity and is a floor only by accident of the numbers chosen. */
+    && /ref=Math\.max\(ref,Math\.abs\(w\(r\)\)\/\(r\*r\)\);/.test(src),
+    'the scale is compared against what the operator would be at this amplitude — |w|/r², which is the dimension ℒ has — before anything is divided by it'); }
+
 console.log('\n=== 4. THE EXTERIOR CANNOT BE LEFT TO THE WAVES ===\n');
 
 const hs = [0.0005, 0.005, 0.0099];
@@ -162,7 +190,7 @@ console.log('\n=== 5. WHAT IS IN THE PAGE, AND WHAT IT REFUSES ===\n');
 ok('the laboratory is wired as a laboratory — a camera, a router branch, a scene and a lazy build',
   /s3tubeGroup\.visible = \(v==='s3tube'\);/.test(src)
   && /state\.s3view==='s3tube'/.test(src)
-  && /v==='s3tube'\?\[0,-\.4,13\.0\]:/.test(src)
+  && /v==='s3tube'\?\[0,-\.25,13\.8\]:/.test(src)
   && /if\(v==='s3tube'&&!s3tubeObjs\)\{ s3tubeSetup\(\); \}/.test(src),
   'visibility, router, camera preset and lazy build are all present');
 ok('and the three things this chart does NOT do are written down: where the chart ends, that the obstructions are about a TRANSPLANTED profile rather than a spherical solution, and that the large-R expansion is not the operator',
