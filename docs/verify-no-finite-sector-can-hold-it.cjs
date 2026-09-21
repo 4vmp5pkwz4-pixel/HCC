@@ -228,7 +228,113 @@ ok('and the gate is NECESSARY and not sufficient, which the laboratory says in w
   /THE GATE IS NECESSARY, NOT SUFFICIENT/.test(src),
   'the refusal is in the instrument contract');
 
-console.log('\n=== 5. WHAT THE PAGE REFUSES ===\n');
+console.log('\n=== 5. THE GLOBAL EMBEDDING, AND THE POLE IT HAS AT THREE ===\n');
+
+/* Summing the same sharp constant over ALL shells instead of a finite band
+   telescopes, because (k+1)(k+3)/(k+2)^s is j^{2−s} − j^{−s} with j = k+2. The
+   total is 2[ζ(s−2) − ζ(s)], convergent exactly when s > 3. */
+{ const zbad = [];
+  for (const [s2, want] of [[2, Math.PI*Math.PI/6], [4, Math.pow(Math.PI,4)/90],
+                            [3, 1.2020569031595943], [1.5, 2.612375348685488]])
+    if (Math.abs(S(`s3nsZeta(${s2})`) - want) > 1e-12) zbad.push(`ζ(${s2})`);
+  /* AND EVERY CORRECTION TERM IT CARRIES HAS TO BE REACHABLE. Dropping one term
+     at a time must degrade the answer: if it does not, that coefficient is a
+     number no argument can see, and carrying it is the same defect as a guard
+     that cannot run. Measured here term by term. */
+  const ladder = [1, 2, 3, 4].map(M => {
+    let worst = 0;
+    for (const [s2, want] of [[1.5, 2.612375348685488], [2, Math.PI*Math.PI/6],
+                              [3, 1.2020569031595943], [4, Math.pow(Math.PI,4)/90]])
+      worst = Math.max(worst, Math.abs(S(`s3nsZeta(${s2},24,${M})`) - want));
+    return worst; });
+  if (!ladder.every((e, i) => i === 0 || e < ladder[i-1])) zbad.push('a correction term that changes nothing');
+  if (ladder[3] > 2e-15) zbad.push('the last term does not reach the floor');
+  if (S('S3NS_BERN').length !== 4) zbad.push(`${S('S3NS_BERN').length} coefficients carried, four are reachable`);
+  ok('THE ZETA FUNCTION THIS BOUND IS BUILT FROM IS RIGHT, checked against two closed forms and two tabulated values — and every correction term it carries is shown to earn its place, because a sharp constant computed from a wrong special function is a sharp-looking constant',
+    zbad.length === 0,
+    zbad.length ? zbad.join(' · ')
+      : `ζ(2) = π²/6, ζ(4) = π⁴/90, ζ(3) and ζ(3/2) to 1e-12 · and each correction term earns its place: `
+        + ladder.map((e, i) => `${i+1}→${e.toExponential(1)}`).join(', ') + ' — four reach the floor and the table stops there');
+
+  /* the telescoping sum, brute-forced. NEAR s = 3 THE TAIL CONVERGES TOO SLOWLY
+     TO CHECK BY SUMMATION — at s = 3.5 a partial sum to 3·10⁵ is still 0.2 per
+     cent short — so the comparison is made where the sum actually converges, and
+     the threshold behaviour is checked separately by the pole below. */
+  const rows = [], off = [];
+  for (const s2 of [4.5, 5, 6.5, 8]) {
+    const brute = S(`s3nsShellSum(${s2},300000)`), closed = S(`s3nsShellSumClosed(${s2})`);
+    if (rel(brute, closed) > 1e-7) off.push(`s=${s2}: ${brute} vs ${closed}`);
+    rows.push(`s=${s2}: ${closed.toFixed(8)}`); }
+  ok('AND THE SHELL DIMENSIONS TELESCOPE ONTO 2[ζ(s−2) − ζ(s)] — summed term by term over three hundred thousand shells and compared with the closed form, where the series converges fast enough for a partial sum to mean anything',
+    off.length === 0, off.length ? off.join(' · ') : rows.join(' · '));
+
+  /* the constant, and its pole */
+  const cbad = [];
+  for (const R of [1, 2.2]) for (const s2 of [3.5, 4, 6]) {
+    const want = Math.pow(R, s2 - 3) / (3 * Math.PI * Math.PI) * (S(`s3nsZeta(${s2 - 2})`) - S(`s3nsZeta(${s2})`));
+    if (rel(S(`s3nsEmbeddingConstant(${s2},${R})`), want) > 1e-12) cbad.push(`R=${R} s=${s2}`); }
+  if (S('s3nsEmbeddingConstant(3,1)') !== Infinity || S('s3nsEmbeddingConstant(2.5,1)') !== Infinity)
+    cbad.push('finite at or below three');
+  const approach = [1e-2, 1e-3, 1e-4, 1e-6].map(e => e * S(`s3nsEmbeddingConstant(${3 + e},2.2)`));
+  const residue = 1 / (3 * Math.PI * Math.PI);
+  const errs = approach.map(a => Math.abs(a - residue));
+  ok('THE EMBEDDING CONSTANT IS R^{s−3}(ζ(s−2) − ζ(s))/3π², IT IS REFUSED AT AND BELOW s = 3, AND (s−3)C_s CONVERGES ON 1/3π² — a residue that does not depend on R at all, approached here over four decades',
+    cbad.length === 0 && errs.every((e, i) => i === 0 || e < errs[i - 1]) && errs[3] < 1e-7
+    && Math.abs(S('s3nsEmbeddingResidue()') - residue) < 1e-15,
+    cbad.length ? cbad.join(' · ')
+      : `(s−3)C_s at s = 3+ε: ${approach.map(a => a.toFixed(8)).join(', ')} against 1/3π² = ${residue.toFixed(8)}`);
+  ok('and the pole is marked as a statement about a FAMILY of constants rather than an endpoint theorem, because a residue at three is exactly the shape of a result somebody would read as one',
+    /THE ZETA POLE IS NOT AN ENDPOINT THEOREM/.test(src)
+    && /No W\^\{3,1\} to BMO embedding, no Trudinger-Moser inequality and no sharp endpoint constant follows from the pole alone/.test(src),
+    'the refusal names the three things that do not follow'); }
+
+console.log('\n=== 6. THE INEQUALITY IS ATTAINED, AND WHAT THAT COSTS ===\n');
+
+/* "The constant is sharp" is a claim about a field that either exists or does
+   not, so the extremizer is BUILT and asked whether it attains the bound. */
+{ const rows = [], off = [];
+  const V = S('s3nsVolume(1)');
+  for (const k of [1, 2, 3, 4]) { const N = (k + 1) * (k + 3), c = N / (3 * V);
+    let x = [0.31, -0.52, 0.60, 0.52]; const n = Math.hypot(...x); x = x.map(v => v / n);
+    const ex = S(`s3nsShellExtremizer(${k},1,[${x}],[0.6,-0.8,0])`);
+    const evalP = vm.runInContext('s3nsEvalPoly', ctx), fdot = vm.runInContext('s3nsFieldDot', ctx);
+    const at = Math.hypot(...[0,1,2].map(a => evalP(ex.components[a], ex.degree, x)));
+    const norm2 = fdot(ex.components, ex.components, ex.degree);
+    /* the sup has to be AT the point the extremizer was built at */
+    let sup = 0, seed = 9182;
+    const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let t = 0; t < 3000; t++) { let p = [rnd()*2-1, rnd()*2-1, rnd()*2-1, rnd()*2-1];
+      const l = Math.hypot(...p); p = p.map(v => v / l);
+      const m = Math.hypot(...[0,1,2].map(a => evalP(ex.components[a], ex.degree, p)));
+      if (m > sup) sup = m; }
+    if (rel(at, c) > 1e-9 || rel(norm2, c) > 1e-9 || sup > at * (1 + 1e-9)) off.push(`k=${k}`);
+    if (rel(norm2 / (at * at), S(`s3nsUncertaintyBound(${N},1)`)) > 1e-9) off.push(`k=${k} ratio`);
+    rows.push(`k=${k}: ‖w‖₂²/‖w‖∞² = ${(norm2/(at*at)).toFixed(6)} = 3𝒱/N`); }
+  ok('THE SHARP CONCENTRATION INEQUALITY IS ATTAINED — the reproducing-kernel field has ‖w‖₂² = |w(x)| = N/3𝒱 exactly, its supremum over three thousand points is at the point it was built at, and the ratio hits 3𝒱/N with no slack',
+    off.length === 0, off.length ? [...new Set(off)].join(' · ') : rows.join(' · '));
+
+  /* AND THAT SAME FIELD IS A COUNTEREXAMPLE. It lives in ONE shell, so its
+     spectral entropy is zero, while its peak grows without bound with k. */
+  const ce = [10, 20, 40, 80].map(k => S(`s3nsEntropyCounterexample(${k},1)`));
+  ok('AND IT IS A COUNTEREXAMPLE TO THE ENTROPY HOPE — unit energy, spectral entropy exactly zero at every k, and a peak that grows without bound — so no lower bound of the form S ≳ log‖u‖∞ follows from bounded energy and projector estimates alone',
+    ce.every(c => c.energy === 1 && c.spectralEntropy === 0)
+    && ce.every((c, i) => i === 0 || c.peak > ce[i-1].peak)
+    && ce[3].peak > 2 * ce[0].peak
+    /* AND THE PEAK IS THE SHARP CONSTANT ITSELF, not merely something that grows:
+       the extremizer's height is exactly √(N/3𝒱), which is what makes it both the
+       equality case above and the counterexample here. A peak off by a scale
+       factor still grows and still has zero entropy, and would be a different
+       field. */
+    && [10, 20, 40, 80].every((k, i) => rel(ce[i].peak * ce[i].peak,
+         (k + 1) * (k + 3) / (3 * S('s3nsVolume(1)'))) < 1e-12)
+    && /BOUNDED ENERGY AND AN UNBOUNDED PEAK DO NOT FORCE SPECTRAL ENTROPY/.test(src),
+    `peaks ${ce.map(c => c.peak.toFixed(4)).join(' → ')} at k = 10, 20, 40, 80 — each exactly √(N/3𝒱) — entropy 0 throughout`);
+  ok('and the coherence ratio Γ vanishes on EVERY pressure-linear sector — every signed shell and the whole maximal torus — so Γ → 0 is not a spectral dichotomy and implies no concentration in one Beltrami shell',
+    S('s3nsCoherenceRatio()') === 0
+    && /Gamma going to zero is not a spectral dichotomy and implies no concentration in one Beltrami shell/.test(src),
+    'Q(u,u) = 0 on a shell by the Beltrami cancellation, so the numerator is identically zero there'); }
+
+console.log('\n=== 7. WHAT THE PAGE REFUSES ===\n');
 
 ok('the laboratory is wired as a laboratory — a camera, a router branch, a scene and a lazy build',
   /s3escGroup\.visible = \(v==='s3escape'\);/.test(src)
