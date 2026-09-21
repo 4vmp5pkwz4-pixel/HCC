@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1347   ·   exported names: 1458
-   extracted physics, sha256 7cdc1f155065513ef9f0ec6df551f7ee8ae9b4bde25d596e6af4912efd0b9687 */
+   extracted physics, sha256 20bbb7ba5e8c12d7d23511aa881b0162a75fccef3db99ec14c9a8654cf1ad9f8 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -811,6 +811,12 @@ function cycleCommensurability(a,b,maxA=512){
 }
 
 const LAB_DECLARATIONS=Object.freeze([
+  {id:'s3torus', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
+   title:{en:'The maximal torus of S\u00b3 \u00b7 where this fluid becomes two scalar heat equations',
+          ru:'\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0442\u043e\u0440 S\u00b3 \u00b7 \u0433\u0434\u0435 \u044d\u0442\u0430 \u0436\u0438\u0434\u043a\u043e\u0441\u0442\u044c \u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u0441\u044f \u0434\u0432\u0443\u043c\u044f \u0441\u043a\u0430\u043b\u044f\u0440\u043d\u044b\u043c\u0438 \u0443\u0440\u0430\u0432\u043d\u0435\u043d\u0438\u044f\u043c\u0438 \u0442\u0435\u043f\u043b\u0430',
+          de:'Der maximale Torus von S\u00b3 \u00b7 wo diese Str\u00f6mung zu zwei skalaren W\u00e4rmeleitungsgleichungen wird'},
+   purpose:'the Clifford torus is drawn in this atlas as a Willmore minimiser and nowhere as a symmetry, while it is the one sector in which the Navier\u2013Stokes equation on S\u00b3 solves completely \u2014 and it is also where that sector turns out to be the SAME object as the curl shells next door, because the Jacobi level n is the shell index 2n',
+   predictionTarget:'the complete G\u2080-invariant incompressible family u = \u03b1(s)\u2202_\u03b8 + \u03b2(s)\u2202_z on s = r\u00b2/R\u00b2, with its three identities re-evaluated by central differences along great circles rather than recited: that the Jacobi bases P_n^{(1,0)}(1\u22122s) and P_n^{(0,1)}(1\u22122s) diagonalise both reduced operators at \u2212n(n+2), so the unforced sector is two scalar heat equations at \u03bb_n = 4\u03bdn(n+2)/R\u00b2; that the ENTIRE convective term is a gradient, with \u2016\u2207_u u + grad p\u2016 vanishing against p_s = R\u00b2\u03b1\u00b2/2 \u2212 \u03b2\u00b2/2; and that curl e_n^\u03b8 = 2(n+1)e_n^z, which puts e_n^\u03b8 \u00b1 R e_n^z in the curl shell E_{2n,\u00b1}. Falsifiable against numbers nobody here chose: the pressure identity closes to 5e-9 relative to |u|\u00b2, the chiral curl to 5e-9, the Jacobi residual to 1e-6 at the stated step, \u03bb\u2080 = 0 so the Killing cone never decays, and the sharp rate of the whole sector is 12\u03bd/R\u00b2 \u2014 attained on n = 1 and nowhere lower.'},
   {id:'s3shell', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'Navier\u2013Stokes on the round three-sphere \u00b7 curl shells, Beltrami solutions and spectral escape',
           ru:'\u041d\u0430\u0432\u044c\u0435\u2013\u0421\u0442\u043e\u043a\u0441 \u043d\u0430 \u043a\u0440\u0443\u0433\u043b\u043e\u0439 \u0442\u0440\u0451\u0445\u0441\u0444\u0435\u0440\u0435 \u00b7 \u0432\u0438\u0445\u0440\u0435\u0432\u044b\u0435 \u043e\u0431\u043e\u043b\u043e\u0447\u043a\u0438 \u0438 \u0441\u043f\u0435\u043a\u0442\u0440\u0430\u043b\u044c\u043d\u044b\u0439 \u043f\u043e\u0431\u0435\u0433',
@@ -1236,6 +1242,10 @@ const INVARIANT_THREAD=[
         {k:'s3ns.kappa',lab:'s3shell',unit:'R^-2',n:{en:'the Stokes eigenvalue that sets its decay, zero at k = 0 alone',ru:'собственное значение Стокса, задающее затухание; нуль только при k = 0',de:'der Stokes-Eigenwert, der das Abklingen setzt'}},
         {k:'s3ns.helicity_per_energy',lab:'s3shell',unit:'R^-1',n:{en:'and the helicity per unit energy, which is exactly 2μ at every instant',ru:'и спиральность на единицу энергии — ровно 2μ в каждый момент',de:'und die Helizität pro Energie, stets genau 2μ'}},
         {k:'s3ns.amplitude',lab:'s3shell',unit:'1',n:{en:'the amplitude itself, e^{−νκt}, which at k = 0 never leaves one',ru:'сама амплитуда e^{−νκt}, которая при k = 0 не покидает единицу',de:'die Amplitude selbst, die bei k = 0 nie eins verlässt'}},
+        {k:'s3torus.shell_index',lab:'s3torus',unit:'count',n:{en:'and the torus sector next door names the shell it lives in: k = 2n',ru:'и соседний секторный тор называет оболочку, в которой живёт: k = 2n',de:'und der Torussektor nennt seine Schale: k = 2n'}},
+        {k:'s3torus.jacobi_level',lab:'s3torus',unit:'R^-2',n:{en:'its own decay exponent, 4n(n+2)/R², which is the same spectrum read on a torus',ru:'его собственный показатель затухания 4n(n+2)/R² — тот же спектр, прочитанный на торе',de:'sein eigener Abklingexponent 4n(n+2)/R²'}},
+        {k:'s3torus.sharp_rate',lab:'s3torus',unit:'R^-2',n:{en:'and the sharp rate 12ν/R², attained on n = 1 and nowhere lower',ru:'и острая скорость 12ν/R², достигаемая при n = 1 и нигде ниже',de:'und die scharfe Rate 12ν/R²'}},
+        {k:'s3torus.pressure_residual',lab:'s3torus',unit:'1',n:{en:'with the residual that says the nonlinearity really is a gradient',ru:'и остаток, говорящий, что нелинейность действительно градиент',de:'mit dem Residuum, das die Gradienteneigenschaft belegt'}},
         {k:'s3ns.band_rank',lab:'s3shell',unit:'count',n:{en:'the rank of the whole band below the cutoff — the number a singular peak has to outgrow',ru:'ранг всей полосы ниже обрезания — число, которое сингулярный пик обязан перерасти',de:'der Rang des ganzen Bandes unter der Abschneidung'}}]}
 ];
 
@@ -7344,6 +7354,13 @@ const NEXUS_RELATIONS=[
   ['qso','adisk','limit','the ceiling on what accretion can convert at all','A quasar luminosity is a rate of energy release; the accretion disc laboratory says what fraction of rest energy that release can BE — 1 − sqrt(8/9) = 5.72% at the Schwarzschild ISCO, an order of magnitude above nuclear fusion and still a ceiling. The Eddington limit bounds the rate, the efficiency bounds the conversion, and they are different bounds on different things.','theorem'],
   ['qso','bhr','coupling','one mass, two questions','The quasar laboratory turns a black-hole mass into the luminosity at which radiation pressure wins; the ray-tracing laboratory turns the same mass into the geodesics light follows near it. The mass is the shared coordinate and nothing else about the two calculations is shared.','coupling'],
   ['chronometry','adisk','contrast','a defined count against a physical constant','The Calendar Round is exactly 18980 days because somebody defined 260 and 365; the radiative efficiency is exactly 1 − sqrt(8/9) because the Schwarzschild metric has an innermost stable circular orbit at 6GM/c². Both are exact and only one of them is about the world — which is the distinction this atlas spends most of its verifiers defending.','theorem'],
+  /* ── AND THE CLIFFORD TORUS WAS ALWAYS A SYMMETRY ───────────────────────────
+     The same surface the Willmore laboratory minimises is the symmetry the torus
+     laboratory reduces by; and the reduction meets the shells at k = 2n. */
+  ['s3torus','s3shell','coupling','the Jacobi level IS the shell index','This is the one place the two laboratories are the SAME object. A torus mode e_n^theta and its axial partner e_n^z satisfy curl e_n^theta = 2(n+1) e_n^z, so the combination e_n^theta +/- R e_n^z is an eigenfield of curl with mu = 2(n+1)/R — which is (k+2)/R at k = 2n. The sector that solves completely sits inside the spectrum that measures escape, at even shell indices only, and each laboratory measures that identity rather than citing the other.','exact-identity'],
+  ['s3torus','wil','coupling','one surface, two questions','The Willmore laboratory asks which torus in S^3 minimises the bending energy and answers with the Clifford torus. This laboratory asks what a fluid does when it is invariant under that torus`s two circles and answers with two scalar heat equations. The object is identical; the questions share nothing except it, which is why the pair is worth drawing rather than asserting.','object-class'],
+  ['s3torus','sh','coupling','Jacobi is what Legendre becomes with a weight','The spherical-harmonic laboratory diagonalises the Laplacian on the two-sphere in Legendre polynomials. The reduced torus operators here are Jacobi operators with weights s and 1-s, and Legendre is the case where both weights are one. Same Sturm-Liouville argument, two different measures, and the eigenvalue -n(n+2) is what the extra dimension costs.','method-transfer'],
+  ['s3torus','kdv','contrast','a nonlinearity absorbed, and a nonlinearity that survives','The soliton laboratory exists because a nonlinear term refuses to go away and instead balances dispersion. Here the nonlinear term goes away completely: on a torus-invariant field the convective term is an exact gradient and the pressure eats all of it. The contrast is the point — integrability by cancellation is not integrability by balance, and only one of the two leaves a soliton behind.','physics-contrast'],
   /* ── THE HOPF BUNDLE WAS ALWAYS A FLUID ─────────────────────────────────────
      This atlas drew the Hopf fibration for a hundred laboratories as a picture of
      a bundle. It is also, exactly, the k = 0 curl shell of the Navier-Stokes
