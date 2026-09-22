@@ -207,11 +207,27 @@ const cut = (a, b) => { const i = src.indexOf(a);
     'a rebuild replaces the sections under the same filter; a world switch replaces what the filter is about');
 }
 
-{ ok('the phone sheet\'s drag handle outranks the filter bar, which is stacked above it in the same scroller',
-    /#ctl \.sheetGrip\{display:block;position:sticky;top:-14px;z-index:8;/.test(src)
-    && /#ctl \.ctlFind\{top:6px;z-index:6\}/.test(src)
+/* ── AND THEN A THIRD THING WANTED THE SAME LINE ────────────────────────────
+   The z fight between the grip and the filter bar was settled by giving them two
+   different sticky tops in the same scroller. Then the panel header rail arrived,
+   sticky at the top of that same scroller and opaque, and painted over both: the
+   filter bar's fold controls measured 299 px² under the pin in 35 of 42 states,
+   and the grip was under an opaque background again — the exact fault its own
+   comment records being fixed once before. Three things claiming one line is not
+   settled by a third top; it is settled by there being ONE line. The grip joins
+   the rail and takes the width the buttons do not, and the filter bar starts
+   where the rail ENDS, at a height that is declared rather than guessed. */
+{ ok('the phone sheet\'s drag handle shares the header rail with the panel buttons instead of fighting it for the same sticky line, and the filter bar starts where that rail ends',
+    /const PANEL_RAIL_ROLES=\['sheetGrip','closeBtn','foldBtn','pinBtn','panel-collapser'\];/.test(src)
+    && /\.panel \.panelRail > \.sheetGrip, \.panelRail > \.sheetGrip\{\s*\n\s+order:0;flex:1 1 auto!important/.test(src)
+    && /#ctl \.ctlFind\{top:calc\(var\(--hdr-btn\) \+ 10px\);z-index:6\}/.test(src)
     && /a covered handle is a sheet\s*\n\s+that cannot be resized/.test(src),
-    'the handle is 18px tall and sticks at −14, so the bar starts below it and loses the z fight outright');
+    'one header line: the grip stretches, the buttons sit at its right-hand end, and the filter bar begins below it');
+
+  ok('and the rule that placed the grip on its own still stands underneath, so a run in which the adoption pass never fires degrades to the geometry it replaced rather than to nothing',
+    /#ctl \.sheetGrip\{display:block;position:sticky;top:-14px;z-index:8;/.test(src)
+    && /If the adoption pass never runs the buttons keep their corner and the old\s*\n\s+geometry/.test(src),
+    'a fallback that is worse is still a fallback; a fallback that is nothing is a blank header');
 
   ok('and the source says this one was reasoned rather than measured, because the mobile path is unreachable headlessly',
     /This could not be\s*\n\s+exercised headlessly: MOBILE_GPU is a device-capability flag, not a\s*\n\s+viewport width/.test(src)

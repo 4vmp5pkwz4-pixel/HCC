@@ -33,7 +33,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
 { /* 1. THE TWO CONTROLS THAT WERE UNDER THE MINIMUM IN BOTH ORIENTATIONS */
   ok('A TOUCH TARGET IS TWO-DIMENSIONAL. The rule set a minimum height and two controls were under the minimum in the other direction — the oscillator step buttons at 22 px wide and the rate slider at 22 px tall, in every viewport measured',
-    /\.oscBtn\{min-width:44px\}/.test(src)
+    /\.oscBtn\{min-width:44px;min-height:44px\}/.test(src)
     && /#tmRate input\[type=range\]\{height:44px\}/.test(src)
     && /\.btn,\.chip,button\.pinBtn,#labPanel \.foldBtn,\.oscBtn,\.modebtn\{min-height:44px\}/.test(src),
     'the height rule that was already there, and the width and the input it never named');

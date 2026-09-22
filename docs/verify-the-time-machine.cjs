@@ -77,15 +77,33 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 }
 
 { /* 4. THE INTERFACE MAKES ROOM FOR IT */
-  ok('and the interface makes room for it from ONE measured variable rather than from five guesses: the bar measures itself and everything that stood on the bottom edge stands on the bar instead',
+  /* ── AND THE BAR IS NOT THE ONLY THING ON THE FLOOR ────────────────────────
+     The first form of this check asked that everything read --tm-h, and that was
+     right while the bar sat at bottom:0. It sat at bottom:0 ON TOP OF the
+     navigation bar: measured on six iPhone viewports, 100 per cent of #hccTabs
+     covered in 42 of 42 states, by a bar with twice its z-index. The bar now
+     stands ON the navigation bar, which means the floor is a SUM, and a sum that
+     nine rules add up by hand is nine constants waiting to disagree. There are
+     two composed insets and everything below reads one of them. */
+  ok('and the interface makes room for it from COMPOSED bands rather than from five guesses: --tabs-h is the floor, --tm-h is what stands on it, --insp-h is what stands on that, and nothing adds them up by hand',
     /document\.documentElement\.style\.setProperty\('--tm-h', h\+'px'\)/.test(src)
-    && /#hud\{bottom:calc\(var\(--tm-h\) \+ 14px\)!important\}/.test(src)
-    && /#helpFab\{right:16px;bottom:calc\(var\(--tm-h,0px\) \+ 16px\)\}/.test(src)
-    && /#hccFpTrigger\{bottom:calc\(var\(--tm-h,0px\) \+ max\(14px,env\(safe-area-inset-bottom\)\)\)\}/.test(src),
-    'the world caption, the three floating buttons, the coach, the hierarchy map and the first-principles pill all read the same height');
+    && /--bottom-band:calc\(var\(--tabs-h,0px\) \+ var\(--tm-h,0px\)\)/.test(src)
+    && /--sheet-floor:calc\(var\(--tabs-h,0px\) \+ var\(--tm-h,0px\) \+ var\(--insp-h,0px\)\)/.test(src)
+    && /#timeMachine\{position:fixed;left:0;right:0;bottom:var\(--tabs-h,0px\)/.test(src)
+    && /#hud\{bottom:calc\(var\(--bottom-band\) \+ 14px\)!important\}/.test(src)
+    && /#helpFab\{right:16px;bottom:calc\(var\(--bottom-band\) \+ 16px\)\}/.test(src),
+    'the world caption, the three floating buttons, the coach and the hierarchy map all read the same composed inset');
+  ok('and no rule left in the file adds the floor up for itself — that is what made the Controls sheet end 43 px inside the clock the moment the clock moved',
+    !/calc\(var\(--tabs-h\) \+ var\(--insp-h\)/.test(src)
+    && !/bottom:calc\(var\(--tabs-h,48px\) \+ 8px\)/.test(src),
+    'every floor expression in the stylesheet is --bottom-band or --sheet-floor');
   ok('and the first-principles pill is moved from where its own rule is declared, because that rule sits in a later style block and won on source order — measured on screen, the pill sat across the bar’s J2000 control',
-    src.indexOf('#hccFpTrigger{bottom:calc(var(--tm-h,0px)') > src.indexOf('#hccFpTrigger{position:fixed'),
-    'declared after it, so it cannot lose again');
+    src.lastIndexOf('#hccFpTrigger{bottom:min(calc(var(--stack-top)') > src.indexOf('#hccFpTrigger{position:fixed'),
+    'declared after it, so it cannot lose again — the LAST declaration is the one the cascade uses, so that is the one this asks about');
+  ok('and the pill stands on the TOP of the sheet stack rather than on the floor plus one term of it, and is clamped so a tall stack cannot push it off the screen',
+    /--stack-top:calc\(var\(--sheet-floor\) \+ 10px \+ var\(--ctl-h,0px\) \+ var\(--lab-h,0px\)\)/.test(src)
+    && /#hccFpTrigger\{bottom:min\(calc\(var\(--stack-top\) \+ 10px\),\s*\n\s*calc\(var\(--vh100\) - var\(--topbar-h,64px\) - 58px\)\)\}/.test(src),
+    'measured before the clamp: the pill was 55 per cent cut away by the top of the screen');
   ok('and the bar reshapes itself for a phone and for a phone held sideways, rather than being hidden there',
     /@media\(max-width:760px\)\{\s*\n\s*#timeMachine\{flex-wrap:wrap/.test(src)
     && /@media\(max-height:460px\) and \(orientation:landscape\)\{\s*\n\s*#timeMachine\{padding-top:3px/.test(src),

@@ -99,7 +99,15 @@ await page.evaluate(async () => { await HCC_API.ready({ timeout: 15000 }); });
 const head = await page.evaluate(() => ({
   version: HCC_API.version, build: HCC_API.build,
   render: document.documentElement.dataset.hccRender,
-  worlds: HCC_NAV.worlds().map(w => ({ id: w.id, title: w.title || w.id, route: w.route })),
+  /* A WORLD IS A DOOR AND A DOOR SAYS WHERE IT GOES.  This read w.route and w.d
+     from a registry that declared neither, so every world shipped with route
+     undefined (dropped by JSON) and no description at all — the one level of the
+     atlas above the 119 described laboratories was the level with nothing written
+     on it.  Both are declared in WORLD_REGISTRY now and both are carried here. */
+  worlds: HCC_NAV.worlds().map(w => ({ id: w.id, title: w.title || w.id,
+    route: w.route || ('#/world/' + w.id),
+    description: Array.isArray(w.d) ? w.d[0] : (w.d || null),
+    description_i18n: Array.isArray(w.d) ? { en: w.d[0], ru: w.d[1], de: w.d[2] } : null })),
   instruments: HCC_API.instruments.list().map(i => ({ ...i, describe: HCC_API.describe(i.id) })),
   labs: HCC_API.labs.list(),
   multiview: HCC_API.multiviewPresets ? HCC_API.multiviewPresets().filter(p => p.id === 'focusing') : [],
