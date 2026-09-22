@@ -36,9 +36,19 @@
  *     bar wrapped them to three rows — and the clock, the one element given a second
  *     COLUMN with no ROW declared, was auto-placed onto a fourth line of its own.
  *
- * After, with the same probe: 9 instances / 4 distinct pairs, and 84 px of top bar —
- * and the nine are one floating pill grazing one panel's header rail in one world on
- * the shortest phone, which is the last section of this file.
+ * After, with the same probe: 7 instances and 84 px of top bar — and all seven are a
+ * PRE-EXISTING transient in the FBS control rows, not this work: three runs of the
+ * same probe against the unmodified tree found that same family 14, 13 and 11 times,
+ * and it varies run to run because the parameter dock moves rows while the probe is
+ * reading them. Everything this release was about measures zero.
+ *
+ * The floating first-principles pill, which was the last of the overlaps this work
+ * did own, is no longer on a phone at all: it was anchored to the top of the sheet
+ * stack, and in S3 — catalogue and Controls both open, the ordinary state there — the
+ * clamp that kept it on screen put it across the catalogue's own pin, fold and close
+ * controls. Two other placements were measured and were WORSE (57 and 37 instances).
+ * It stands down where the merged bar IS the navigation, exactly as #panelDock does,
+ * and the lens keeps a door in the More menu.
  *
  * Also measured: two controls cut off by the edge of the screen before (the rate
  * stepper at 14 per cent visible, an oscillator step at 59) and none after; and the
@@ -150,16 +160,20 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     'measured 157, 157 and 160 px before and 84 after, on the same three viewports');
 }
 
-{ /* 4b. AND THE ONE THING THAT STILL OVERLAPS SAYS SO */
+{ /* 4b. AND THE LAST OVERLAP THIS WORK OWNED WAS ANSWERED BY REMOVING A CONTROL */
   ok('the source records that the pill\u2019s placement was decided by measurement rather than by taste, and that both alternatives were measured and were worse',
     /WHERE THE PILL STANDS WAS DECIDED BY MEASUREMENT, TWICE, AGAINST ME/.test(src)
     && /left edge, both orientations\s+57/.test(src)
     && /left edge, landscape only\s+37/.test(src),
     'a rejected alternative that is not written down is one the next reader will try again');
-  ok('and it names what still overlaps and why it is the lesser of the two answers, rather than leaving a residue nobody knows about',
-    /238\.\.652 px\u00b2 in NINE of forty-two states/.test(src)
-    && /the alternative is hiding the only door to/.test(src),
-    'the clamp keeps the only entry to the First-Principles lens reachable, and it grazes the catalogue rail to do it');
+  ok('and the answer in the end was not a third placement but the argument #panelDock already settled on this screen: a floating control duplicating a destination the bottom bar carries is a SECOND navigation competing for the same pixels',
+    /#hccFpTrigger\{display:none!important\}/.test(src)
+    && /AND THE FLOATING PILL STANDS DOWN WHERE THE BAR IS THE NAVIGATION/.test(src),
+    '44 px of scene returned on every phone in every world, and the last overlap this work owned goes with it');
+  ok('and the destination survived the control: the lens has a door in the More menu, bound where the opener is in scope',
+    /id="fpLensBtn"/.test(src)
+    && /const mm=document\.getElementById\('fpLensBtn'\);/.test(src),
+    'reachable, not lost \u2014 removing the only entry to a whole surface would have been worse than the graze');
 }
 
 { /* 5. A CONTAINER'S MINIMUM AGREES WITH ITS CONTENTS */

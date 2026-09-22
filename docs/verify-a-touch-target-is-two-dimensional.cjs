@@ -46,9 +46,25 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('and the minimum is about the POINTER rather than about the width, so a phone held sideways gets it too — 844 px wide is not a narrow viewport, and the same control was 44×44 in portrait and 34×32 in landscape',
     i > 0 && !(i > narrow && i < narrowEnd)
     && /#timeMachine \.tmBtn\{min-width:44px;min-height:44px\}/.test(src)
-    && /#tmUnits \.tmBtn\{min-width:44px;min-height:44px;padding:4px 8px\}/.test(src)
-    && /#hccFpTrigger\{min-height:44px\}/.test(src),
-    'the coarse-pointer block stands outside the narrow-width block, and covers the transport, the unit chips, the slider and the first-principles pill');
+    && /#tmUnits \.tmBtn\{min-width:44px;min-height:44px;padding:4px 8px\}/.test(src),
+    'the coarse-pointer block stands outside the narrow-width block, and covers the transport, the unit chips and the slider');
+  /* ── AND A CONTROL THAT IS GONE NEEDS A DOOR, NOT A MINIMUM ────────────────
+     The first-principles pill used to be in the list above, with a 44 px minimum
+     on a coarse pointer. It is no longer on a phone at all: it was anchored to
+     the top of the bottom-sheet stack and in S³ — where the catalogue and the
+     Controls are both open, which is the ordinary state there — the stack fills
+     the column and the clamp that kept the pill on screen put it over that
+     stack, across the catalogue's own pin, fold and close controls. Two other
+     placements were measured and were worse. So the pill stands down where the
+     merged bar IS the navigation, exactly as #panelDock does, and the lens keeps
+     a door in the More menu. The invariant is no longer "the pill is 44 px": it
+     is "the lens is still reachable, and by a control that is". */
+  ok('and the control that was REMOVED from the phone kept its destination: the first-principles lens has a door in the More menu, at the 44 px the menu gives every one of its buttons',
+    /#hccFpTrigger\{display:none!important\}/.test(src)
+    && /id="fpLensBtn"/.test(src)
+    && /const mm=document\.getElementById\('fpLensBtn'\);/.test(src)
+    && /#panelDock button,#modeRow \.modebtn,#moreMenu button\{min-height:44px!important\}/.test(src),
+    'a floating control that duplicates a destination the bottom bar already carries is a second navigation competing for the same pixels');
   ok('and the class invented for the new control is told to obey the rule the old ones obey, because a new class opts out of every one of them by default',
     /#timeMachine \.tmBtn\{min-width:34px;min-height:34px;padding:4px 7px;font-size:11px\}/.test(src)
     && !/#timeMachine \.tmBtn\{min-width:30px;min-height:30px/.test(src),
