@@ -85,6 +85,7 @@ const allChecks = [
   "docs/verify-no-finite-sector-can-hold-it.cjs",
   "docs/verify-the-sphere-had-only-half-a-spectrum.cjs",
   "docs/verify-the-chiral-law.cjs",
+  "docs/verify-the-paired-hopf-lock.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
 
@@ -142,6 +143,7 @@ if (fullMode) {
     'docs/verify-no-finite-sector-can-hold-it.cjs',
     'docs/verify-the-sphere-had-only-half-a-spectrum.cjs',
     'docs/verify-the-chiral-law.cjs',
+    'docs/verify-the-paired-hopf-lock.cjs',
     'docs/verify-hopf-bundle.cjs',
   ]);
 
