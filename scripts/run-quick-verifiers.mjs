@@ -75,7 +75,9 @@ const allChecks = [
   "docs/verify-poinsot-phase-family.cjs",
   "docs/verify-the-belt-has-gaps.cjs",
   "docs/verify-every-object-can-be-asked.cjs",
+  "docs/verify-everything-says-what-it-is.cjs",
   "docs/verify-a-touch-target-is-two-dimensional.cjs",
+  "docs/verify-the-phone-is-one-stack.cjs",
   "docs/verify-between-neptune-and-the-cloud.cjs",
   "docs/verify-the-curl-shells-of-the-round-sphere.cjs",
   "docs/verify-the-torus-that-solves-completely.cjs",
@@ -211,6 +213,7 @@ if (fullMode) {
     'docs/verify-quantity-kinds-are-counted.cjs',
     'docs/verify-the-global-inventory.cjs',
     'docs/verify-every-object-can-be-asked.cjs',
+    'docs/verify-everything-says-what-it-is.cjs',
     'docs/verify-self-description-authority.mjs',
   ]);
 
@@ -218,6 +221,11 @@ if (fullMode) {
     'docs/verify-a-touch-target-is-two-dimensional.cjs',
     'docs/verify-a-framing-is-not-a-gesture.cjs',
     'docs/verify-the-time-machine.cjs',
+    'docs/verify-the-phone-is-one-stack.cjs',
+  ]);
+
+  route(/\b(description|describes|doc|docs|world|worlds|says what)\b/, [
+    'docs/verify-everything-says-what-it-is.cjs',
   ]);
 
   route(/\b(free flight|riding the photon|holographic|dimension space|blast wave|diffusion|scaling bench)\b/, [
@@ -244,6 +252,7 @@ if (fullMode) {
       'docs/verify-controls-where-they-act.cjs',
       'docs/verify-every-formula-has-an-address.cjs',
       'docs/verify-every-object-can-be-asked.cjs',
+      'docs/verify-everything-says-what-it-is.cjs',
       'docs/verify-a-stage-that-shows-everything.cjs',
       'docs/verify-a-framing-is-not-a-gesture.cjs',
       'docs/verify-a-touch-target-is-two-dimensional.cjs',
@@ -259,6 +268,7 @@ if (fullMode) {
       'docs/verify-controls-where-they-act.cjs',
       'docs/verify-every-formula-has-an-address.cjs',
       'docs/verify-every-object-can-be-asked.cjs',
+      'docs/verify-everything-says-what-it-is.cjs',
       'docs/verify-a-stage-that-shows-everything.cjs',
       'docs/verify-a-framing-is-not-a-gesture.cjs',
       'docs/verify-unit-vocabulary.cjs',
