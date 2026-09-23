@@ -78,7 +78,11 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && !/bottom:calc\(var\(--tabs-h\) \+ 6px\)!important/.test(src),
     'every floor expression resolves through --bottom-band or --sheet-floor');
   ok('and the shared sheet budget counts the same floor the sheets stand on, rather than a shorter one',
-    /const bottomBand=num\('--tabs-h'\)\+num\('--tm-h'\)\+num\('--insp-h'\)\+18;/.test(src)
+    /* the Inspector strip counts only where it is shown — merged into the tab bar on a
+       phone its 52 px were an empty floor under every sheet — and the strip's own
+       variable is published from the same test, so the sheets stand on the same floor */
+    /const bottomBand=num\('--tabs-h'\)\+num\('--tm-h'\)\+\(inspShown\?52:0\)\+18;/.test(src)
+    && /el\.style\.setProperty\('--insp-h',inspShown\?'52px':'0px'\);/.test(src)
     && /const bottom=viewH-\(num\('--tabs-h',48\)\+num\('--tm-h',0\)\+8\);/.test(src),
     'the portrait budget and the landscape column both');
 }

@@ -62,6 +62,18 @@ function checks(src) {
     && /#tmUnits \.tmUnitSel\{display:block!important;width:100%!important/.test(final)
     && /id="tmRateSlider"[^>]*data-no-osc/.test(src) && /class="tmBtn tmUnitSel" id="tmUnitSel"/.test(src);
   r.fabs = /#helpFab\{bottom:calc\(var\(--bottom-band\) \+ 12px\)!important\}/.test(final);
+  /* 5b. the scene first on an upright phone */
+  r.sceneFirst = /function hccPhonePortrait\(\)\{/.test(src)
+    && /if\(hccPhonePortrait\(\)\)\{\n    if\(id==='selCard'\)\{ try\{ closeAllPanels\('selCard'\); \}catch\(e\)\{\} \}\n    try\{ if\(LAB_BROWSER_OPEN\) labBrowserSetOpen\(false\); \}catch\(e\)\{\} \}/.test(src)
+    && /if\(!hccPhonePortrait\(\)\) openPanel\('ctl'\);   \/\/ an upright phone opens on the scene/.test(src)
+    && /if\(hccPhonePortrait\(\)\)\{ hccTabsSync\(\); return; \}/.test(src)
+    && /if\(hccPhonePortrait\(\)\)\{ try\{ closeAllPanels\(\); \}catch\(e\)\{\} return; \}/.test(src)
+    && /LAB_BROWSER_OPEN=!hccPhonePortrait\(\);/.test(src);
+  r.sheetBudget = /const usable=band\*\(1-\(hccPhonePortrait\(\)\?0\.5:SHEET_RESERVE\)\);/.test(src)
+    && /el\.style\.setProperty\('--insp-h',inspShown\?'52px':'0px'\);/.test(src)
+    && /band\*\(inst\?0\.50:0\.42\)\/innerHeight/.test(src);
+  const longCls = (src.match(/\.hcc-label-long\{[^}]*\}/) || [''])[0];
+  r.labelsHide = !!longCls && !/display/.test(longCls);
   /* 6. a measurement is not a display setting */
   r.probeGrid = /const G=o\.grid\|\|17;\n    if\(!u\|\|N!==G\) build\(G\); else reset\(\);/.test(src) && /grid:gridUsed/.test(src);
   return r;
@@ -81,6 +93,9 @@ ok('on a phone held upright the seven worlds are their signs and all of them fit
 ok('the rate scale spans the whole width of a phone held upright, the units are one picker, and the scale no longer grows an oscillator chip', base.scale);
 ok('the floating help button stands on the bars instead of on the first tab', base.fabs);
 ok('the diffusion probe measures on its own 17³ lattice everywhere, so a phone and a desktop give the same answer', base.probeGrid);
+ok('on an upright phone the scene comes first: one sheet at a time (catalogue, Controls and the selection card displace each other), and nothing opens a sheet unasked — not the boot, not a world button, not an arrival', base.sceneFirst);
+ok('and an open sheet is budgeted from the SCENE band (breadcrumb to time machine), opening at 42 % of it and never past 62 %, with the hidden Inspector strip no longer counted as floor', base.sheetBudget);
+ok('a long scene label is restyled without touching `display`, so the label renderer can still hide the captions of every world that is not on screen', base.labelsHide);
 
 const MUT = [
   ['the governor rebuilds the composer mid-crossing again', s => s.replace('  hccSeamTick(dt);\n  if(hccSeamQuiet>0) return;\n', ''), 'seamGuard'],
@@ -91,6 +106,9 @@ const MUT = [
   ['the catalogue anchor loses its floor', s => s.replace('--lp-bottom:max(calc(var(--sheet-floor) + 10px), min(', '--lp-bottom:min((').replace('--lp-bottom:max(calc(var(--sheet-floor) + 10px), min(', '--lp-bottom:min(('), 'catalogueFloor'],
   ['labels stay wider than their buttons', s => s.replace("el.style.whiteSpace='normal'", "el.style.whiteSpace='nowrap'"), 'fitter'],
   ['the scale shares its row again', s => s.replace('#tmRate{order:4!important;flex:1 1 100%!important;', '#tmRate{order:4!important;flex:1 1 96px!important;'), 'scale'],
+  ['a world button opens Controls over the new world again', s => s.replace("if(hccPhonePortrait()){ try{ closeAllPanels(); }catch(e){} return; }", ''), 'sceneFirst'],
+  ['the sheet may take most of the band again', s => s.replace('(hccPhonePortrait()?0.5:SHEET_RESERVE)', 'SHEET_RESERVE'), 'sheetBudget'],
+  ['the long-label class overrides display again', s => s.replace('.hcc-label-long{white-space:normal!important;', '.hcc-label-long{display:block!important;white-space:normal!important;'), 'labelsHide'],
   ['the probe measures on the display lattice again', s => s.replace('const G=o.grid||17;', 'const G=resolution();'), 'probeGrid'],
 ];
 const caught = MUT.map(([n, f, k]) => { const v = f(SRC); return [n, v !== SRC && base[k] === true && checks(v)[k] === false]; });

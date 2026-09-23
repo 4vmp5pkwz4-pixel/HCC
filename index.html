@@ -2752,6 +2752,15 @@
 @media (pointer:coarse){
   #hccDegraded a,#hccDegraded button{min-height:44px;min-width:44px;display:inline-flex;align-items:center;justify-content:center}
 }
+/* on an upright phone the filter strip is ONE row: the field, its clear button and the
+   "changed" badge. A 167-px sheet whose rail, filter row and counter took 110 px had two
+   lines left for the controls it exists to show; fold-all and open-all are a desktop
+   convenience, and the section count is what the list below already shows. */
+@media (max-width:760px) and (orientation:portrait){
+  .ctlFind::after{display:none!important}
+  .ctlFind #ctlFoldAll,.ctlFind #ctlOpenAll,.ctlFind .ctlFindCount{display:none!important}
+  .ctlFind .ctlDrift{order:3!important;flex:0 0 auto!important;font-size:10px}
+}
 /* the unit picker is a phone control; a wide screen keeps its chips */
 #tmUnits .tmUnitSel{display:none}
 /* a phone held sideways has the width for one row, and the scale takes all of it that
@@ -2846,9 +2855,12 @@
   /* ── A SCENE LABEL IS A LABEL, NOT A PARAGRAPH ─────────────────────────────
      Long labels (hccFitText marks them) wrap inside a readable width instead of
      running across the screen in wide-tracked capitals. */
+  /* no `display` here, ever: the label renderer hides a label of another world by
+     setting display:none on it, and a display declared !important in this class once
+     overrode that and left the Observable world's captions floating over the Solar one */
   .hcc-label-long{white-space:normal!important;max-width:64vw!important;letter-spacing:.4px!important;
     font-size:10px!important;line-height:1.25!important;text-align:center;
-    display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+    max-height:3.8em!important;overflow:hidden!important}
 }
 </style>
 </head>
@@ -14712,8 +14724,13 @@ function runSelfTests(){
     const head=(document.querySelector('#ctl .sect b')||{}).textContent||'';
     const s3=HCC_CTX.worldId==='s3';
     ok('choosing a section of the atlas presents that section\u2019s controls — open, compact, and scrolled to its first real parameter rather than to the panel\u2019s own heading. MEASURED before: entering Solar left Controls closed, and pressing a section you were already in toggled it shut with nothing to bring it back. Pressing a section is a request to work with that model, so the answer is its settings',
-      shown(c)&&typeof hccPresentControls==='function'&&typeof hccScrollToFirstParameter==='function',
-      `world ${HCC_CTX.worldId} · Controls ${shown(c)?'open':'CLOSED'} · heading "${head.slice(0,44)}"`);
+      /* ...EXCEPT ON A PHONE HELD UPRIGHT, where the reader asked, with screenshots, for the
+         opposite: arriving must SHOW the world, and a sheet opened unasked covered it. There
+         the section's controls are one tap away on the ⚙ tab, and they must NOT be open. */
+      (hccPhonePortrait()
+        ? !shown(c)&&!!document.querySelector('#hccTabs [data-tab="controls"],#hccTabs [data-insptab="controls"]')
+        : shown(c))&&typeof hccPresentControls==='function'&&typeof hccScrollToFirstParameter==='function',
+      `world ${HCC_CTX.worldId} · Controls ${shown(c)?'open':'CLOSED'}${hccPhonePortrait()?' — an upright phone: the scene first, Controls one tap away on ⚙':''} · heading "${head.slice(0,44)}"`);
     /* the S³ heading must not appear anywhere else */
     ok('and the S³ launcher section leaves when S³ does. MEASURED before: it was inserted into the controls panel and never removed, so FBS3R came up headed "S³ Laboratory" with its own first parameter pushed below the fold — a section belonging to one world outliving the world. The gate is the registry, not a DOM node: testing "are there laboratory buttons anywhere" answers yes in every world once they have been moved into the catalogue',
       s3 || !document.getElementById('labLaunchSect'),
@@ -19572,7 +19589,11 @@ function renderAtlasPanel(){
   p.querySelector('#atlasValidation').onclick=XRX.exportValidationReport;
   p.querySelector('#atlasRefresh').onclick=renderAtlasPanel;
   p.querySelectorAll('[data-invjump]').forEach(b=>b.onclick=()=>{ const v=b.dataset.invjump;
-    navPush(); if(state.mode!=='s3') setMode('s3'); setS3View(v); openPanel('ctl'); buildCtl(); });
+    navPush(); if(state.mode!=='s3') setMode('s3'); setS3View(v);
+    /* a laboratory chosen on an upright phone is SHOWN: the catalogue steps aside and its
+       controls wait on ⚙ rather than opening over the laboratory just chosen */
+    if(hccPhonePortrait()){ try{ labBrowserSetOpen(false); closeAllPanels(); }catch(e){} buildCtl(); return; }
+    openPanel('ctl'); buildCtl(); });
   p.querySelectorAll('[data-cycjump]').forEach(b=>b.onclick=()=>{
     navPush(); hccCycleNavigate(b.dataset.cycjump); openPanel('ctl'); });
   p.querySelector('#atlasPhysDebug').onclick=togglePhysDebug;
@@ -19711,9 +19732,21 @@ function panelEscape(){
   closePanel(id);
   return {blurred:false, closed:id};
 }
+/* ══ ON A PHONE HELD UPRIGHT THE SCENE COMES FIRST ════════════════════════════
+   "Panels have plastered over the scene completely" — and they had: at 390 × 664 the
+   top chrome takes 140 px, the time machine and the tab bar 161, and the catalogue,
+   Controls and the selection card could all be open at once in the 363 px between,
+   leaving the scene nothing. So on an upright phone ONE sheet is open at a time — the
+   catalogue, Controls and the selection card displace each other — nothing opens a
+   sheet unasked, and the sheet is capped at half of the scene band (sheetPublishBudget). */
+function hccPhonePortrait(){
+  return (innerWidth<=760||matchMedia('(pointer:coarse)').matches)&&innerHeight>innerWidth*1.15; }
 function openPanel(id){
   const p=document.getElementById(id);
   if(!p||(id==='selCard'&&!selectedKey)) return;
+  if(hccPhonePortrait()){
+    if(id==='selCard'){ try{ closeAllPanels('selCard'); }catch(e){} }
+    try{ if(LAB_BROWSER_OPEN) labBrowserSetOpen(false); }catch(e){} }
   if(id!=='selCard'){ closeAllPanels(id); activePanelId=id; }   // selCard coexists with the active deck panel so lists don't vanish
   p.style.display='block';
   makePanelCollapsible(id);
@@ -87985,8 +88018,17 @@ function sheetPublishBudget(){
      that was describing the wrong geometry. A budget that does not apply is answered
      with "does not apply", not with a number. */
   if(phoneLandscape()){ el.style.removeProperty('--sheet-max'); return null; }
-  const topBand=(num('--topbar-h')||64)+8;
-  const bottomBand=num('--tabs-h')+num('--tm-h')+num('--insp-h')+18;
+  /* the top of the band is where the top chrome ENDS — the breadcrumb included, which
+     the topbar height alone left out — and the Inspector strip counts only when it is
+     shown: merged into the tab bar on a phone it is not, and its 52 px stood as an empty
+     floor between every sheet and the time machine */
+  let chromeBottom=(num('--topbar-h')||64);
+  try{ for(const id of ['topbar','hccCrumb','breadcrumb']){ const e=document.getElementById(id);
+      if(e&&getComputedStyle(e).display!=='none'){ const r=e.getBoundingClientRect(); if(r.height>0&&r.bottom<viewH*0.5) chromeBottom=Math.max(chromeBottom,r.bottom); } } }catch(e){}
+  const topBand=chromeBottom+8;
+  let inspShown=false; try{ const ins=document.getElementById('hccInspector'); inspShown=!!ins&&getComputedStyle(ins).display!=='none'&&ins.getBoundingClientRect().height>1; }catch(e){}
+  el.style.setProperty('--insp-h',inspShown?'52px':'0px');
+  const bottomBand=num('--tabs-h')+num('--tm-h')+(inspShown?52:0)+18;
   /* innerHeight can remain the layout viewport on iOS while Safari's controls or the
      keyboard have already shortened what is visible. The sheet and renderer must budget
      the same pixels or the last rows exist only behind browser chrome. */
@@ -87999,10 +88041,15 @@ function sheetPublishBudget(){
   try{ for(const p of document.querySelectorAll('.panel')){
     if(getComputedStyle(p).display!=='none'&&p.getBoundingClientRect().height>1) open++; } }catch(e){}
   if(open<1) open=1;
-  const usable=band*(1-SHEET_RESERVE);
+  /* an upright phone keeps HALF of the scene band clear, whatever is open */
+  const usable=band*(1-(hccPhonePortrait()?0.5:SHEET_RESERVE));
   /* one sheet may take the whole allowance; two share it with the active one favoured;
      more than two and they divide evenly, because at that point none of them is the point */
-  const per=(open===1)?usable:(open===2?usable*0.60:usable/open);
+  let per=(open===1)?usable:(open===2?usable*0.60:usable/open);
+  if(hccPhonePortrait()){
+    /* one sheet, opening at 42 % of the band so 58 % of the scene stays in view, and
+       allowed to be dragged up to 62 % — never the whole column */
+    per=band*0.62; }
   el.style.setProperty('--sheet-max',Math.max(112,Math.round(per))+'px');
   el.style.setProperty('--sheet-band',Math.round(band)+'px');
   return {band:Math.round(band), open, per:Math.round(per), reserve:SHEET_RESERVE};
@@ -88575,7 +88622,8 @@ function labBrowserWorldTick(){
   if(w!=='s3'){ LAB_BROWSER_OPEN=false; return; }
   /* fold it first so it arrives as the rail rather than as a wall of 72 buttons */
   try{ if(!LAB_BROWSER_FOLDED) labBrowserFold(true); }catch(e){}
-  LAB_BROWSER_OPEN=true;
+  /* offered on arrival — except on an upright phone, where arriving means seeing */
+  LAB_BROWSER_OPEN=!hccPhonePortrait();
   try{ labBrowserBuild(); }catch(e){}
 }
 function labBrowserInScope(){
@@ -88593,6 +88641,7 @@ function labBrowserApplyVisibility(){
 }
 function labBrowserSetOpen(on){
   LAB_BROWSER_OPEN=!!on;
+  if(on&&hccPhonePortrait()){ try{ closeAllPanels(); }catch(e){} }
   const el=document.getElementById('labPanel'); if(!el) return;
   labBrowserApplyVisibility();
   if(!labBrowserInScope()) return;
@@ -97315,6 +97364,10 @@ document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=(
      breadcrumb and the URL changing with it — which is exactly how the old shell drifted
      into six navigation controls that each knew a different amount. */
   hccGo({worldId:b.dataset.mode, labId:b.dataset.mode==='s3'?'sec':null});
+  /* on a phone held upright the new world is SHOWN, not covered: its controls are one
+     tap away on the bar below (⚙), and opening them unasked put a sheet over the very
+     thing the reader had just travelled to */
+  if(hccPhonePortrait()){ try{ closeAllPanels(); }catch(e){} return; }
   openPanel('ctl');
   try{ hccScrollToFirstParameter('ctl'); }catch(e){}
 });
@@ -97361,7 +97414,7 @@ applyAudienceMode(state.atlasAudience);
 /* ---------------- mobile layout ---------------- */
 const isMobile = MOBILE_GPU;
 if(isMobile){
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 1.35));  // stable thermal/GPU budget on phones
+  renderer.setPixelRatio(HCC_SAFE_GPU?1:Math.min(devicePixelRatio, 1.35));  // stable thermal/GPU budget on phones
   requestRendererResize();
   closeAllPanels();
 }else{
@@ -97383,7 +97436,7 @@ function atlasFrontDoor(){
   try{
     if(state.mode!=='solar' && !location.hash) setMode('solar');
     closeAllPanels();          // pinned panels are restored by the pin observer
-    openPanel('ctl');
+    if(!hccPhonePortrait()) openPanel('ctl');   // an upright phone opens on the scene
   }catch(e){ console.warn('[front door]',e); }
 }
 document.getElementById('mCtl').onclick=()=>togglePanel('ctl');
@@ -98424,7 +98477,7 @@ function hccFitText(){
       if(!el.title){ el._hccFit.title=''; el.title=txt; } } }
   /* where the caption stands: under whichever of the top chrome reaches lowest */
   try{ let b=0; for(const id of ['topbar','hccCrumb','breadcrumb']){ const e=document.getElementById(id);
-      if(e&&e.offsetParent!==null){ const r=e.getBoundingClientRect(); if(r.height>0&&r.bottom<innerHeight*0.5) b=Math.max(b,r.bottom); } }
+      if(e&&getComputedStyle(e).display!=='none'){ const r=e.getBoundingClientRect(); if(r.height>0&&r.bottom<innerHeight*0.5) b=Math.max(b,r.bottom); } }
     if(b>0) document.documentElement.style.setProperty('--hud-top',Math.round(b+6)+'px'); }catch(e){}
   /* scene labels: a label longer than a caption should be gets a readable width */
   const narrow=vw<=900||matchMedia('(pointer:coarse)').matches;
@@ -106337,6 +106390,13 @@ function hccSheetGet(){
      default is written INTO the variable here, so var(--sheet-h, ...) never sees it. */
   let inst=false;
   try{ inst=PARAM_DOCK_PANELS.some(id=>panelIsOpen(id)); }catch(e){}
+  /* ON AN UPRIGHT PHONE THE DEFAULT IS A SHARE OF THE SCENE BAND, NOT OF THE SCREEN.
+     32vh and 50vh are 212 and 332 px of a 664-px Safari viewport whose scene band —
+     between the breadcrumb and the time machine — is 369 px: the instrument default
+     left the scene 37 px. 42 % of the band for a list, 50 % for an instrument. */
+  try{ if(!land&&hccPhonePortrait()){
+    const band=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--sheet-band'))||innerHeight*0.55;
+    return Math.max(HCC_SHEET.min||10, Math.round(1000*band*(inst?0.50:0.42)/innerHeight)/10); } }catch(e){}
   return inst ? (land?46:50) : (land?38:32);
 }
 function hccSheetSet(v,save=true){
@@ -106451,6 +106511,7 @@ function hccPresentControls(){
   HCC_LAST_WORLD_CTL=w;
   try{
     if(!panelInScope('ctl',HCC_CTX)) return;
+    if(hccPhonePortrait()){ hccTabsSync(); return; }   // arriving on a phone means seeing
     openPanel('ctl');
     hccScrollToFirstParameter('ctl');
     hccTabsSync(); hccRenderInspector();
@@ -107972,7 +108033,10 @@ selfTestLate(ok=>{
     const wantMode=routed?routed[1].toLowerCase():'solar';
     const panels=boot?boot.filter(id=>id!=='selCard').join():null;
     ok('The atlas opens on one declared state and not on whichever boot path ran last: the world the route asked for, the Controls at hand, and no panel covering the scene. This clause spent its whole life in the early suite, where HCC_BOOT_PANELS did not exist yet — it answered "the front door has not run" in every arrival and counted as a pass, a green line measuring nothing, found the day the runner learnt that a clause which never applies has never run. And the moment it became real it failed five arrivals out of seven, because it demanded the Solar System of visits that had deep-linked into a laboratory: it had been written for one arrival and believed for all of them',
-      !!boot && globalThis.HCC_BOOT_MODE===wantMode && panels==='ctl',
+      /* "Controls at hand" is an open sheet on a screen with room for one beside the
+         scene, and the ⚙ tab one tap away on an upright phone, where an open sheet at boot
+         is exactly the "panel covering the scene" this clause forbids */
+      !!boot && globalThis.HCC_BOOT_MODE===wantMode && panels===(hccPhonePortrait()?'':'ctl'),
       boot?`route ${routed?routed[1]:'(none)'} → expected mode ${wantMode}, boot mode ${globalThis.HCC_BOOT_MODE} · open at boot: ${boot.join(', ')||'none'}`
           :'the front door still has not published its state by the post-boot checks, which is now a FAILURE rather than a shrug');
   }
