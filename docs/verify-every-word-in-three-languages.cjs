@@ -47,6 +47,8 @@ const D = T.hccTxLoad();
 { /* 2 and 3 */
   const tx = (s, L) => T.hccTx(s, L);
   ok('an exact entry is found in both languages', tx('Blast wave', 'ru') === 'Взрывная волна' && tx('Blast wave', 'de') === 'Druckwelle');
+  ok('the runtime masks numbers exactly as the corpus was collected, so "M31" and "J2000" meet the dictionary keys "M3{#}" and "J2{#}"',
+    /const HCC_TX_NUM=\/\(\?<!\[A-Za-z_\]\)/.test(src));
   ok('a readout translates whatever its value: the numbers are masked, looked up and put back where they were',
     tx('Blast wave · 12 BCE', 'ru') === 'Взрывная волна · 12 до н. э.' && tx('BCS gap Δ(0) = 1.764·k_B·T_c = 1.51 meV', 'de') === 'BCS-Lücke Δ(0) = 1.764·k_B·T_c = 1.51 meV',
     tx('Blast wave · 12 BCE', 'ru'));
@@ -66,7 +68,10 @@ const D = T.hccTxLoad();
   /* a unit is COVERED when the dictionary resolves every piece of it — a German name that
      is spelled as in English is covered, a sentence with one clause left in English is not */
   const worth = s => /(?<![A-Za-z_.])[A-Za-z][a-z]{2,}/.test(s) && !/[А-Яа-яЁё]/.test(s);
+  /* the corpus carries its numbers masked; a digit is put back in each slot so the unit
+     meets the runtime as the page would show it, masking included */
   const covered = (s, L, lvl = 0) => {
+    if (lvl === 0) s = s.replace(/\{#\}/g, '7.5');
     if (!worth(s) || T.hccTxPiece(s, L) != null) return true;
     for (let i = lvl; i < T.HCC_TX_SPLITS.length; i++) {
       const parts = s.split(T.HCC_TX_SPLITS[i]); if (parts.length < 2) continue;
