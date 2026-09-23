@@ -343,8 +343,11 @@ check(html.includes('fbsDensExp'), 'density exponent control exists');
 check(html.includes('Tier 2'), 'tier labelling for speculative exploration exists');
 check(html.includes('Sensitivity Observatory'), 'Sensitivity Observatory exists');
 check(html.includes('φ-Ladder Walk') && html.includes('Density Chamber'), 'FBS3R experiences wired');
-check(html.includes('Sky zodiac constellations') && /Precession Age Wheel/i.test(html),
-  'zodiac layers renamed & separated (sky vs age wheel)');
+/* The sky zodiac is no longer a label on a 600 AU sphere: it is the 3D layer at measured
+   distances. What this check protects is unchanged — the sky figures and the astrological
+   Precession Age Wheel are two different layers and the interface says so. */
+check(html.includes("Zodiac · true 3D distances") && /The Precession Age Wheel in Cycles &amp; Events is a DIFFERENT interpretive layer|The Precession Age Wheel in Cycles & Events is a DIFFERENT interpretive layer/.test(html),
+  'zodiac layers separated (sky zodiac in 3D vs the Precession Age Wheel)');
 check(html.includes('not a duplicate'), 'layer-distinction tooltips exist');
 check(html.includes('SKY_NAME_ELS') && html.includes('label deconfliction'),
   'distance-based label deconfliction exists');
