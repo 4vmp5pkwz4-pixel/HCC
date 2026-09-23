@@ -160,7 +160,8 @@ const PC_AU = 648000 / Math.PI;
     /camera\.position\.copy\(to\); hccCameraGoal\(to\.length\(\),84\);/.test(src) && /hccCameraGoal\(L,84\)/.test(src),
     'see the depth · back to the Sun · one figure from the side');
   ok('brightness is computed from WHERE THE CAMERA IS: each star carries its absolute magnitude and the shader sizes it by the magnitude seen from there, which is the catalogue V exactly from the Sun',
-    /absM\[k\]=s\.V\+5\+5\*Math\.log10\(plx\/1000\);/.test(src) && /float m=aAbsMag\+5\.0\*log\(dPc\/10\.0\)\/log\(10\.0\);/.test(src),
+    /absM\[k\]=s\.V\+5\+5\*Math\.log10\(plx\/1000\);/.test(src) && /m=aMag\+5\.0\*log\(dPc\/10\.0\)\/log\(10\.0\);/.test(src)
+    && /const mat=hccStarMaterial\(\{abs:true\}\);/.test(src),
     'M = V + 5 + 5 log ϖ″ and m = M + 5 log(d/10 pc)');
   ok('and the layer can be asked: a diagnostics handle for scripts and an instrument whose outputs include the depth-to-width ratio and the tide error of linear motion',
     /globalThis\.HCC_ZODIAC3D=Object\.freeze\(\{/.test(src) && /id:'zod3d', world:'solar', lab:'zod3d',/.test(src)
