@@ -73,10 +73,16 @@ ok('the axis ratio is why the Galaxy is a band, and it comes from the measured s
   Math.abs(G.hR / G.hz - 8.67) < 0.05,
   `h_R/h_z = ${(G.hR / G.hz).toFixed(2)} · a disc that many times wider than thick can only look like a band from inside it`);
 
-ok('the dust sits inside the stars, which is why the rift cuts the bulge instead of bounding it',
+/* The rift used to be 430 dark clouds dropped at random with this scale height. It is
+   now the OBSERVED rift — the holes of the measured isophotes — so the check asks two
+   things: that the integral still carries the dust inside the stars, and that no cloud
+   is placed at random any more. */
+ok('the dust sits inside the stars, which is why the rift cuts the bulge instead of bounding it — and the rift drawn is the observed one, not clouds placed at random',
   G.hzD < G.hz && Math.abs(G.hzD / G.hz - 0.417) < 0.01
-  && /HCC_GALAXY\.hzDust\/HCC_GALAXY\.hz/.test(src),
-  `dust h_z is ${(G.hzD / G.hz).toFixed(3)} of the stellar one, and the drawn clouds use that ratio rather than a separate number`);
+  && /Math\.exp\(-Math\.abs\(z\)\/G\.hzDust\)/.test(src)
+  && /id="hcc-mw-iso"/.test(src) && /const isoAt=\(l,b\)=>/.test(src)
+  && !/for\(let i=0;i<430\*K;i\+\+\)/.test(src) && !/rgba\(6,5,9,/.test(src),
+  `dust h_z is ${(G.hzD / G.hz).toFixed(3)} of the stellar one inside the integral; the rift is the holes of the measured isophotes (d3-celestial mw.json)`);
 
 const hw = l => { const pk = col(l, 0, G.cov);
   for (let b = 0.25; b < 60; b += 0.25) if (col(l, b, G.cov) < pk / 2) return b; return 60; };
@@ -85,8 +91,9 @@ ok('the width of the band at each longitude is a consequence of the same integra
   `half-intensity half-width ${hw(0).toFixed(1)}° toward the centre, ${hw(90).toFixed(1)}° at ℓ=90°, ${hw(180).toFixed(1)}° toward the anticentre`);
 
 /* ── what the page draws ─────────────────────────────────────────────────────── */
-ok('every texel of the panorama reads that integral rather than a blob',
-  /const t=Math\.pow\(Math\.max\(0,hccGalacticBrightness\(l,b\)\),0\.62\);/.test(src)
+ok('every texel of the panorama reads that integral rather than a blob — weighted by the observed isophotes, never by a random one',
+  /const t=Math\.pow\(Math\.max\(0,hccGalacticBrightness\(l,b\)\),0\.62\)\*\(ISO\?\(0\.28\+0\.72\*isoAt\(l,b\)\):1\);/.test(src)
+  && !/dense stellar speckle/.test(src)
   && !/const bulge=Math\.exp\(-\(\(u-W\/2\)\*\*2\)\/\(2\*\(W\*0\.15\)\*\*2\)\);/.test(src),
   'the fifteen hundred Gaussians at H*0.034 with a bulge at W*0.15 are gone, and the numbers that replaced them were all measured by somebody');
 

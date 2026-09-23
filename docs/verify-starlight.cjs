@@ -179,9 +179,14 @@ ok('the old flat blue survives only in the comment that records it, and no mater
   `${blue.length} mention, zero constructors`);
 
 const fields = [...src.matchAll(/\.add\(starfield\((\d+),\s*[^)]*\)\)/g)].map(m => Number(m[1]));
-ok('every sky in the instrument is built by the one constructor, so none can be left behind at the old colour',
-  fields.length >= 4 && fields.every(n => n > 0),
-  `${fields.length} skies · ${fields.reduce((a, b) => a + b, 0)} stars · ${fields.join(' + ')}`);
+/* There were four, and the fourth was 72 000 random points on a 660-AU shell around the
+   Sun — inside the Oort cloud, which starts at 2 000 AU, while the nearest real star is
+   268 000 AU away. The Solar world's sky is now the measured catalogue, so the count of
+   procedural skies is three and the check asks, as well, that the fourth stays gone. */
+ok('every procedural sky in the instrument is built by the one constructor, so none can be left behind at the old colour — and the Solar world has none: its sky is the measured Hipparcos catalogue',
+  fields.length >= 3 && fields.every(n => n > 0) && !/skyGroup\.add\(starfield\(/.test(src)
+  && /function hip3dBuild\(\)/.test(src) && /const HCC_SKY_HIP=\{count:\d+/.test(src),
+  `${fields.length} procedural skies · ${fields.reduce((a, b) => a + b, 0)} stars · ${fields.join(' + ')} · the Solar world draws HCC_SKY_HIP`);
 
 ok('the per-star size attribute is read by a shader rather than written and ignored',
   /setAttribute\('aSize'/.test(src) && /attribute float aSize;/.test(src)

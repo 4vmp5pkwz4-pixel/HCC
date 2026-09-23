@@ -88,6 +88,7 @@ const allChecks = [
   "docs/verify-the-paired-hopf-lock.cjs",
   "docs/verify-the-zodiac-has-depth.cjs",
   "docs/verify-a-star-is-a-point.cjs",
+  "docs/verify-no-star-in-the-oort-cloud.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -229,10 +230,11 @@ if (fullMode) {
     'docs/verify-the-phone-is-one-stack.cjs',
   ]);
 
-  route(/\b(zodiac|constellation|constellations|parallax|proper motion|gaia|hipparcos|simbad|starpm|space motion|ecliptic|star|stars|psf|point.spread|twinkle|scintillation|airmass|glow|bloom)\b/, [
+  route(/\b(zodiac|constellation|constellations|parallax|proper motion|gaia|hipparcos|simbad|starpm|space motion|ecliptic|star|stars|psf|point.spread|twinkle|scintillation|airmass|glow|bloom|oort|milky way|starfield|sky)\b/, [
     'docs/verify-the-zodiac-has-depth.cjs',
     'docs/verify-a-star-is-a-point.cjs',
     'docs/verify-colour-temperature.cjs',
+    'docs/verify-no-star-in-the-oort-cloud.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

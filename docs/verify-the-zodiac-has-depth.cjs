@@ -143,13 +143,16 @@ const PC_AU = 648000 / Math.PI;
 }
 
 { /* 6. THE STRUCTURAL FIXES */
-  ok('the flat sphere no longer draws the zodiac: both of its construction loops skip the zodiac constellations, so nothing is drawn twice at two distances',
-    (src.match(/if\(con\.z\) return;/g) || []).length >= 2 && /THE ZODIAC IS NO LONGER DRAWN HERE/.test(src),
-    'stars, names, figure lines and selections of the twelve are built by the 3D layer only');
+  /* Both loops now return before drawing ANY constellation: every other figure stands at
+     its measured distances too (sky3dGroup), so the sphere carries directions only. */
+  const conLoops = [...src.matchAll(/CONSTELLATIONS\.forEach\(\(con,\s*ci\)=>\{[\s\S]{0,900}?\n\s*return;/g)].length;
+  ok('the flat sphere no longer draws the zodiac — nor any figure: both of its construction loops return before drawing, so nothing is drawn twice at two distances',
+    conLoops >= 2 && /THE ZODIAC IS NO LONGER DRAWN HERE/.test(src) && !/if\(con\.z\) return;/.test(src),
+    `${conLoops} construction loops return first · stars, names, figure lines and selections are built by the 3D layers only`);
   ok('the layer is updated from the unconditional part of the solar frame, not the local-scale branch, so it is there from inside the planets to across the Galaxy',
-    /const localScale = \(state\.solarScaleLayer\|\|'local'\)==='local';[\s\S]{0,3000}try\{ updateZodiac3d\(dt\); \}/.test(src)
-    && /skyGroup\.visible = localScale && camDist < 1200;[\s\S]{0,400}updateZodiac3d\(dt\)/.test(src),
-    'placed next to the line that hides the 600 AU sphere, which is the line that used to hide the zodiac');
+    /const localScale = \(state\.solarScaleLayer\|\|'local'\)==='local';[\s\S]{0,5000}try\{ updateZodiac3d\(dt\); \}/.test(src)
+    && /skyGroup\.visible = localScale && skyFade>0\.004;[\s\S]{0,600}updateZodiac3d\(dt\)/.test(src),
+    'placed next to the line that fades the sky at infinity, which is the line that used to hide the zodiac');
   ok('and the thousand-light-year Sun marker on the spiral arms is bounded by ANGLE — from 905 pc it was 307 pc in radius and every zodiac star nearer than that was inside an opaque ball',
     /mwSunDot\.scale\.setScalar\(Math\.max\(1e-9,Math\.min\(1,0\.006\*ds\/\(1000\*LY_AU\)\)\)\)/.test(src),
     'never more than 0.34° in radius, and never larger than the 1000 ly the galactic views were built for');
