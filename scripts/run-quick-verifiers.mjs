@@ -89,6 +89,7 @@ const allChecks = [
   "docs/verify-the-zodiac-has-depth.cjs",
   "docs/verify-a-star-is-a-point.cjs",
   "docs/verify-no-star-in-the-oort-cloud.cjs",
+  "docs/verify-the-phone-keeps-its-scene.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -228,6 +229,7 @@ if (fullMode) {
     'docs/verify-a-framing-is-not-a-gesture.cjs',
     'docs/verify-the-time-machine.cjs',
     'docs/verify-the-phone-is-one-stack.cjs',
+    'docs/verify-the-phone-keeps-its-scene.cjs',
   ]);
 
   route(/\b(zodiac|constellation|constellations|parallax|proper motion|gaia|hipparcos|simbad|starpm|space motion|ecliptic|star|stars|psf|point.spread|twinkle|scintillation|airmass|glow|bloom|oort|milky way|starfield|sky)\b/, [
