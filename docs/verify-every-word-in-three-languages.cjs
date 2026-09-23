@@ -31,7 +31,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   else { fail++; console.log('  FAIL — ' + n + (d ? ' :: ' + d : '')); } };
 const between = (a, b) => { const i = src.indexOf(a); const j = src.indexOf(b, i); return i < 0 || j < 0 ? '' : src.slice(i, j); };
 /* the coverage floor: raise it when a batch lands, never lower it */
-const FLOOR = { ru: 0.14, de: 0.14 };
+const FLOOR = { ru: 0.68, de: 0.68 };
 
 { /* 1 */
   const r = cp.spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'build-i18n.mjs'), '--check'], { encoding: 'utf8' });
