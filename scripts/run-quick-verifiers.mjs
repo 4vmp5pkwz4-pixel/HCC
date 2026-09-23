@@ -86,6 +86,7 @@ const allChecks = [
   "docs/verify-the-sphere-had-only-half-a-spectrum.cjs",
   "docs/verify-the-chiral-law.cjs",
   "docs/verify-the-paired-hopf-lock.cjs",
+  "docs/verify-the-zodiac-has-depth.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
 
@@ -224,6 +225,11 @@ if (fullMode) {
     'docs/verify-a-framing-is-not-a-gesture.cjs',
     'docs/verify-the-time-machine.cjs',
     'docs/verify-the-phone-is-one-stack.cjs',
+  ]);
+
+  route(/\b(zodiac|constellation|constellations|parallax|proper motion|gaia|hipparcos|simbad|starpm|space motion|ecliptic)\b/, [
+    'docs/verify-the-zodiac-has-depth.cjs',
+    'docs/verify-colour-temperature.cjs',
   ]);
 
   route(/\b(description|describes|doc|docs|world|worlds|says what)\b/, [
