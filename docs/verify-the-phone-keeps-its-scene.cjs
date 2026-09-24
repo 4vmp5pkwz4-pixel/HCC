@@ -64,14 +64,14 @@ function checks(src) {
   r.fabs = /#helpFab\{bottom:calc\(var\(--bottom-band\) \+ 12px\)!important\}/.test(final);
   /* 5b. the scene first on an upright phone */
   r.sceneFirst = /function hccPhonePortrait\(\)\{/.test(src)
-    && /if\(hccPhonePortrait\(\)\)\{\n    if\(id==='selCard'\)\{ try\{ closeAllPanels\('selCard'\); \}catch\(e\)\{\} \}\n    try\{ if\(LAB_BROWSER_OPEN\) labBrowserSetOpen\(false\); \}catch\(e\)\{\} \}/.test(src)
+    && /if\(hccPhonePortrait\(\)\)\{\n    try\{ if\(LAB_BROWSER_OPEN\) labBrowserSetOpen\(false\); \}catch\(e\)\{\} \}/.test(src) && /const pair=hccPhonePortrait\(\)/.test(src)
     && /if\(!hccPhonePortrait\(\)\) openPanel\('ctl'\);   \/\/ an upright phone opens on the scene/.test(src)
     && /if\(hccPhonePortrait\(\)\)\{ hccTabsSync\(\); return; \}/.test(src)
     && /if\(hccPhonePortrait\(\)\)\{ try\{ closeAllPanels\(\); \}catch\(e\)\{\} return; \}/.test(src)
     && /LAB_BROWSER_OPEN=!hccPhonePortrait\(\);/.test(src);
   r.sheetBudget = /const usable=band\*\(1-\(hccPhonePortrait\(\)\?0\.5:SHEET_RESERVE\)\);/.test(src)
     && /el\.style\.setProperty\('--insp-h',inspShown\?'52px':'0px'\);/.test(src)
-    && /band\*\(inst\?0\.50:0\.42\)\/innerHeight/.test(src);
+    && /band\*\(withInfo\?0\.32:\(inst\?0\.50:0\.42\)\)\/innerHeight/.test(src);
   const longCls = (src.match(/\.hcc-label-long\{[^}]*\}/) || [''])[0];
   r.labelsHide = !!longCls && !/display/.test(longCls);
   /* 6. a measurement is not a display setting */
