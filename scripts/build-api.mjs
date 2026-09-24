@@ -194,7 +194,7 @@ if (existsSync(mpath)) {
 }
 writeFileSync(join(ROOT,'api/forecast-audit.schema.json'),JSON.stringify(AUDIT_INPUT_SCHEMA,null,2)+'\n');
 const identity=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));
-const measurementKinds=['sensitivity','transfers','reach','liveness'];
+const measurementKinds=['sensitivity','transfers','reach','liveness','invariants'];
 for (const kind of measurementKinds) {
   const p=join(ROOT,'api/'+kind+'.json'); if (!existsSync(p)) continue;
   const measured=JSON.parse(readFileSync(p,'utf8'));

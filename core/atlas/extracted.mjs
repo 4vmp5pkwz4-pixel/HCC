@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1360   ·   exported names: 1471
-   extracted physics, sha256 0bfe6f565a4060f54b8124bdf41c6c70bd2c7feed6b0cb40756873897f32282d */
+   extracted physics, sha256 e5b1203b2eb91506a8c7e6386499314bb0c0fd2cdd51da60ce29632a31ccb44d */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -3961,6 +3961,9 @@ function invEig(S){ const n=S.length, A=S.map(r=>r.slice()), V=A.map((r,i)=>r.ma
   return {vals:A.map((r,i)=>r[i]), vecs:V}; }
 
 function invNull(cols){ const k=cols.length, M=cols[0].length, mu=[], sd=[];
+  /* a relation among k features needs more than k distinct points to mean anything: on two
+     distinct values any line fits, and a laboratory with a discrete input would 'obey' it */
+  { const seen=new Set(); for(let t=0;t<M;t++) seen.add(cols.map(c=>c[t].toPrecision(10)).join('|')); if(seen.size<k+3) return null; }
   for(const c of cols){ const m=c.reduce((a,b)=>a+b,0)/M; let v=0; for(const x of c) v+=(x-m)*(x-m); mu.push(m); sd.push(Math.sqrt(v/M)); }
   if(sd.some(s=>!(s>0))) return null;
   const S=[]; for(let i=0;i<k;i++){ S.push([]); for(let j=0;j<k;j++){ let s=0; for(let t=0;t<M;t++) s+=(cols[i][t]-mu[i])*(cols[j][t]-mu[j]); S[i].push(s/(M*sd[i]*sd[j])); } }
@@ -3968,7 +3971,7 @@ function invNull(cols){ const k=cols.length, M=cols[0].length, mu=[], sd=[];
   const v=E.vecs.map(r=>r[m]); if(v.some(x=>Math.abs(x)<1e-4)) return null;   /* every feature must take part */
   const a=v.map((x,i)=>x/sd[i]); let cm=0; const cs=[]; for(let t=0;t<M;t++){ let s=0; for(let i=0;i<k;i++) s+=a[i]*cols[i][t]; cs.push(s); cm+=s; } cm/=M;
   let sp=0; for(const s of cs) sp=Math.max(sp,Math.abs(s-cm)); const scale=Math.max(...a.map((x,i)=>Math.abs(x)*(Math.abs(mu[i])+sd[i])));
-  return {lam:Math.max(0,E.vals[m]), a, c:cm, spread:sp/(scale||1)}; }
+  return {lam:Math.max(0,E.vals[m]), a, c:cm, spread:sp/(scale||1), scale}; }
 
 function invRational(a){ const nz=a.filter(x=>Math.abs(x)>0); if(!nz.length) return null;
   for(const piv of nz) for(let q=1;q<=12;q++){ const b=a.map(x=>x/piv*q); if(b.every(x=>Math.abs(x-Math.round(x))<1e-6*Math.max(1,Math.abs(x)))&&b.every(x=>Math.abs(Math.round(x))<=24)){
@@ -3980,20 +3983,25 @@ function invFind(feats,opts){ opts=opts||{}; const names=Object.keys(feats), n=n
   const covered=[]; const sub=(start,k,acc)=>{ if(acc.length===k){ if(covered.some(s=>s.every(x=>acc.includes(x)))) return;
       const r=invNull(acc.map(i=>feats[names[i]])); if(!r) return; const exact=r.spread<tol;
       const ra0=invRational(r.a), aa=(ra0||r.a).map(Math.abs); if(aa.some(x=>x===0)||Math.max(...aa)/Math.min(...aa)>1e4) return;
-      if(exact||r.spread<(opts.loose||0)){ covered.push(acc.slice()); const ra=ra0; out.push({terms:acc.map(i=>names[i]),a:ra||r.a.map(x=>x/r.a[0]),rational:!!ra,c:ra?r.c*ra[0]/r.a[0]:r.c/r.a[0],spread:r.spread,exact}); }
+      if(exact||r.spread<(opts.loose||0)){ covered.push(acc.slice()); const ra=ra0; const cc=ra?r.c*ra[0]/r.a[0]:r.c/r.a[0], sc=r.scale*Math.abs(ra?ra[0]/r.a[0]:1/r.a[0]);
+        out.push({terms:acc.map(i=>names[i]),a:ra||r.a.map(x=>x/r.a[0]),rational:!!ra,c:Math.abs(cc)<1e-9*sc?0:cc,spread:r.spread,exact}); }
       return; }
     for(let i=start;i<n;i++){ acc.push(i); sub(i+1,k,acc); acc.pop(); if(out.length>=(opts.cap||40)) return; } };
   for(let k=2;k<=maxK;k++) sub(0,k,[]);
   return out; }
 
-function invClosedForm(v){ if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E]];
+function invClosedForm(v){ if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√5',Math.sqrt(5)],['φ',(1+Math.sqrt(5))/2],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E]];
   for(const [nm,b] of B) for(const inv of [false,true]) for(let q=1;q<=64;q++){ const p=Math.round(x*q/(inv?1/b:b)); if(p<1||p>512) continue; const val=p/q*(inv?1/b:b);
     if(Math.abs(val-x)<1e-10*x){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const num=(P===1&&nm&&!inv?'':P)+(inv?'':nm), den=(Q===1?'':Q)+(inv?nm:'');
       return (s<0?'−':'')+(num||'1')+(den?'/'+(inv&&Q!==1?'('+den+')':den):''); } }
   /* a square root: x² = (p/q) π^k, which is where conventions that mix radii and diameters land */
+  const PHI_=(1+Math.sqrt(5))/2;
+  for(const [x2,flip] of [[x*x,false],[1/(x*x),true]]) for(const [r5,r5n] of [[1,''],[Math.sqrt(5),'√5·']]) for(let k=-4;k<=4;k++){ if(k===0) continue; const b=r5*Math.pow(PHI_,k); for(let q=1;q<=12;q++){ const p=Math.round(x2*q/b); if(p<1||p>64) continue;
+      if(Math.abs(p/q*b-x2)<2e-10*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const pk='φ'+(Math.abs(k)===1?'':({2:'²',3:'³',4:'⁴'})[Math.abs(k)]);
+        const inner=r5n+(k>0?`${P===1?'':P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`); return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
   for(const [x2,flip] of [[x*x,false],[1/(x*x),true]]) for(let k=-6;k<=6;k++){ const b=Math.pow(Math.PI,k); for(let q=1;q<=32;q++){ const p=Math.round(x2*q/b); if(p<1||p>4096) continue;
       if(Math.abs(p/q*b-x2)<2e-10*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g, pk=k===0?'':(k===1?'π':'π'+({2:'²',3:'³',4:'⁴',5:'⁵',6:'⁶'})[Math.abs(k)]);
-        const inner=k>=0?`${P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`; return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
+        const inner=k>=0?`${P===1&&pk?'':P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`; return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
   return null; }
 
 const INV_PHYS=[['G',6.6743e-11],['c',299792458],['h',6.62607015e-34],['ħ',1.054571817e-34],['k_B',1.380649e-23],['m_p',1.67262192369e-27],['m_e',9.1093837015e-31],['e',1.602176634e-19],['σ_SB',5.670374419e-8]];

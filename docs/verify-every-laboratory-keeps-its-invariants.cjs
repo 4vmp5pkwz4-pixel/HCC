@@ -79,7 +79,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     evaluate: /function invSample\(id,along,cb\)\{[\s\S]*?const r=pspEval\(id,inp\); if\(r\) rows\.push\(r\);/.test(SRC),
     cap: /performance\.now\(\)-t0>8000&&rows\.length>=12/.test(SRC),
     residuals: /if\(RES\.test\(k\)&&m<1e-3\)\{ out\.residuals\.push\(\{name:k,max:m\}\); continue; \}/.test(SRC),
-    api: /globalThis\.HCC_INVARIANTS=Object\.freeze\(\{find:/.test(SRC),
+    api: /globalThis\.HCC_INVARIANTS=Object\.freeze\(\{across:[\s\S]{0,400}find:/.test(SRC),
   };
   const miss = Object.entries(wires).filter(([, v]) => !v).map(([k]) => k);
   ok('the wiring: a section in every parameter space, answers through HCC_API.evaluate, an eight-second cap, residuals reported not searched', miss.length === 0, miss.join(', '));
