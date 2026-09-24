@@ -119,6 +119,7 @@ for (const id of ids) {
         return out; }, [id, along]), HANG_MS, 'hang');
     } catch (e) { await fresh(); return { verdict: 'UNRETURNED', note: String(e.message).slice(0, 80) }; }
   };
+  row.integer_inputs = await page.evaluate(id => { try { return HCC_PSPACE.integers(id); } catch (e) { return []; } }, id).catch(() => []);
   row.across = await ask(null);
   /* the symmetry itself: the scalings that move nothing, applied at random points before they are believed */
   try { row.symmetries = await race(page.evaluate(id => { const S = HCC_INVARIANTS.symmetries(id); return Array.isArray(S) ? S.map(x => ({ inputs: x.inputs, k: x.k.map(v => +(+v).toPrecision(6)), rational: x.rational, verified: x.verified, trials: x.trials, dead: x.dead })) : null; }, id), HANG_MS, 'hang'); }
@@ -177,6 +178,7 @@ const out = { schema: 'hcc.invariants/1', version: identity.version, build: iden
     hidden_symmetries: rows.filter(r => r.across.hidden_symmetries).length,
     scaling_symmetries: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.verified && !x.dead).length, 0),
     dead_inputs: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.dead).length, 0),
+    undeclared_integer_inputs: rows.reduce((a, r) => a + (r.integer_inputs || []).length, 0),
     conserved_along_a_clock: rows.filter(r => r.along && ((r.along.sums || []).length || (r.along.constants || []).length)).length,
     links_asked: cross.length, links_with_cross_laws: cross.filter(c => c.verdict === 'FOUND' && ((c.products || []).length || (c.sums || []).length)).length,
     chains_asked: through.length, chains_with_laws: through.filter(c => c.verdict === 'FOUND').length },
