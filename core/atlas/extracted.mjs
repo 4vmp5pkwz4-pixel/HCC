@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1371   ·   exported names: 1482
-   extracted physics, sha256 56a7b2a84f2e7a0f609b8b7a971d8d304f85bb0a1d823dfc3a5526bd351839de */
+   extracted physics, sha256 d7682fb00c8a5037fb7f45477e17d95a7aafbd7998b1df7d75d1e750f694fb6b */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -3995,12 +3995,12 @@ function invFind(feats,opts){ opts=opts||{}; const names=Object.keys(feats), n=n
   for(let k=2;k<=maxK;k++) sub(0,k,[]);
   return out; }
 
-function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√5',Math.sqrt(5)],['φ',(1+Math.sqrt(5))/2],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E],['π/x_W',Math.PI/4.965114231744276],['π²/x_W',Math.PI*Math.PI/4.965114231744276]];   /* x_W = 5(1−e^{−x_W}) = 4.9651…, Wien's root: every peak-wavelength law carries it */
+function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√5',Math.sqrt(5)],['φ',(1+Math.sqrt(5))/2],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E],['π/x_W',Math.PI/4.965114231744276],['π²/x_W',Math.PI*Math.PI/4.965114231744276],['ln 2',Math.LN2]];   /* x_W = 5(1−e^{−x_W}) = 4.9651…, Wien's root: every peak-wavelength law carries it */
   /* denominators to 256 (1/240, the Casimir number) only at full precision: at 3e-8 they would
      name one random number in fifty, at 1e-10 one in five thousand */
   const QMAX=tol<=1e-10?256:64;
   for(const [nm,b] of B) for(const inv of [false,true]) for(let q=1;q<=QMAX;q++){ const p=Math.round(x*q/(inv?1/b:b)); if(p<1||p>512) continue; const val=p/q*(inv?1/b:b);
-    if(Math.abs(val-x)<tol*x){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const num=(P===1&&nm&&!inv?'':P)+(inv?'':nm), den=(Q===1?'':Q)+(inv?nm:'');
+    if(Math.abs(val-x)<tol*x){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const num=(P===1&&nm&&!inv?'':P)+(inv?'':(P!==1&&/^ln/.test(nm)?'·':'')+nm), den=(Q===1?'':Q)+(inv?nm:'');
       return (s<0?'−':'')+(num||'1')+(den?'/'+(inv&&Q!==1?'('+den+')':den):''); } }
   /* a square root: x² = (p/q) π^k, which is where conventions that mix radii and diameters land */
   const PHI_=(1+Math.sqrt(5))/2;
