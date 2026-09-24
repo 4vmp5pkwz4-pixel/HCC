@@ -93,6 +93,7 @@ const allChecks = [
   "docs/verify-the-arms-have-their-stars.cjs",
   "docs/verify-every-object-opens-its-pictures.cjs",
   "docs/verify-the-giant-structures-are-made-of-galaxies.cjs",
+  "docs/verify-the-earth-stands-true.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -243,6 +244,7 @@ if (fullMode) {
     'docs/verify-the-arms-have-their-stars.cjs',
     'docs/verify-every-object-opens-its-pictures.cjs',
     'docs/verify-the-giant-structures-are-made-of-galaxies.cjs',
+    'docs/verify-the-earth-stands-true.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
