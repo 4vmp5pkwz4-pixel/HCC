@@ -104,6 +104,7 @@ const allChecks = [
   "docs/verify-every-laboratory-keeps-its-invariants.cjs",
   "docs/verify-the-atlas-of-invariants.cjs",
   "docs/verify-the-nexus-is-a-structure.cjs",
+  "docs/verify-the-hierarchy-of-every-invariant.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -265,6 +266,7 @@ if (fullMode) {
     'docs/verify-every-laboratory-keeps-its-invariants.cjs',
     'docs/verify-the-atlas-of-invariants.cjs',
     'docs/verify-the-nexus-is-a-structure.cjs',
+    'docs/verify-the-hierarchy-of-every-invariant.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
