@@ -84,7 +84,20 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   const miss = Object.entries(wires).filter(([, v]) => !v).map(([k]) => k);
   ok('the wiring: a section in every parameter space, answers through HCC_API.evaluate, an eight-second cap, residuals reported not searched', miss.length === 0, miss.join(', '));
 
+  /* 4b · the phase portrait: the same contract read as motion, with an anti-alias window */
+  const phase = /function pspPhaseSample\(cb\)\{/.test(SRC) && /data-pm="phase"/.test(SRC)
+    && /best=\{lo,hi,w\}; if\(r1<0\.2&&r2!=null&&r2<0\.65\*r1\+1e-9\) return best;/.test(SRC);
+  /* the criterion itself, on a signal that aliases: sin(2π·t·1000) sampled at 60 and 120 points over
+     the whole of [0,1] is a stroboscope; over 1/1000 of it, it is one smooth period */
+  const rough = (fn, lo, hi, n) => { const v = []; for (let k = 0; k < n; k++) v.push(fn(lo + (hi - lo) * k / (n - 1))); const rg = Math.max(...v) - Math.min(...v); const st = v.slice(1).map((x, i) => Math.abs(x - v[i])).sort((a, b) => a - b); return st[st.length >> 1] / rg; };
+  const sig = t => Math.sin(2 * Math.PI * 1000.37 * t), accept = (lo, hi) => { const r1 = rough(sig, lo, hi, 60), r2 = rough(sig, lo, hi, 120); return r1 < 0.2 && r2 < 0.65 * r1; };
+  ok('the phase portrait refuses a stroboscope: the window is accepted only when doubling the samples halves the step — the whole domain of a fast clock is rejected, a period-sized window accepted',
+    phase && !accept(0, 1) && !accept(0, 0.1) && accept(0, 0.001), `whole: ${accept(0, 1)} · 1/10: ${accept(0, 0.1)} · 1/1000: ${accept(0, 0.001)}`);
+
   /* 5 · mutations */
+  const acceptOne = (lo, hi) => rough(sig, lo, hi, 60) < 0.2;
+  ok('MUTATION — a one-resolution smoothness test is fooled by the stroboscope and is caught', [0.1, 0.01].some(w => acceptOne(0, w)) || acceptOne(0, 1),
+    `accepted at one resolution: ${[1, 0.1, 0.01].filter(w => acceptOne(0, w)).join(', ') || 'none'}`);
   const loose = x => { for (let q = 1; q <= 64; q++) { const p = Math.round(x * q); if (p >= 1 && Math.abs(p / q - x) < 1e-3 * x) return `${p}/${q}`; } return null; };
   seed = 11; let namedLoose = 0; for (let i = 0; i < 400; i++) if (loose(0.1 + 10 * rnd())) namedLoose++;
   ok('MUTATION — a closed-form reader with a loose tolerance names random numbers and is caught', namedLoose > 50, `${namedLoose} of 400 named at 1e-3`);
