@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-endpoint-on-trial-2026.09.24.25">
+<html lang="en" data-hcc-build="the-law-of-every-laboratory-2026.09.24.26">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-endpoint-on-trial-2026.09.24.25">
+<meta name="hcc-build" content="the-law-of-every-laboratory-2026.09.24.26">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2916,7 +2916,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.311.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.312.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3207,8 +3207,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.311.0';
-const HCC_BUILD='the-endpoint-on-trial-2026.09.24.25';
+const HCC_VERSION='4.312.0';
+const HCC_BUILD='the-law-of-every-laboratory-2026.09.24.26';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -45473,7 +45473,93 @@ function invAnalyse(rows,opts){ opts=opts||{}; const names=Object.keys(rows[0]||
   if(Aname.length>=1){ out.sums=invFind(FA,{maxK:3,tol:opts.tol||1e-9,loose:opts.loose||0,cap:30})
       /* a sum relation that is only a product relation in disguise (x and x² with no partner) is dropped */
       .filter(r=>!(r.terms.length===2&&r.terms[1]===r.terms[0]+'²')); }
+  /* and, when the inputs that produced each answer are known, what each output IS as a function of them */
+  if(opts.X) out.laws=invLaws(rows,opts.X,{units:opts.units});
   return out; }
+/* ── THE LAW OF A LABORATORY: each output as a function of the inputs that moved ──────────
+   The finder above asks which combinations of OUTPUTS never move. This asks the other
+   question — what an output IS, as a function of the inputs: first a power law over every
+   positive input at once (one least-squares solve in logarithms, exponents read as
+   rationals), then the smallest sum of at most three terms from a fixed library of
+   single-input functions (x, x², x³, √x, x^{3/2}, x^{5/2}, x^{1/3}, x^{2/3}, 1/x, 1/x²,
+   ln x; cos and sin of x and x/2 for an angle; x·y for a pair). A law is EXACT when its
+   worst residual is below 1e-9 of the output, and HOLDS TO a stated size below 1e-5; every
+   coefficient is then read as a closed form or left as a number. It is fitted only when
+   there are three more distinct answers than it has parameters, so an exact fit is never
+   an accident of counting. */
+function invLsq(cols,y){ /* least squares by modified Gram–Schmidt on scaled columns: cols[j][t], y[t] */
+  const k=cols.length, M=y.length, sc=cols.map(c=>{ let m=0; for(const v of c) m=Math.max(m,Math.abs(v)); return m||1; });
+  const Q=cols.map((c,j)=>c.map(v=>v/sc[j])), R=Array.from({length:k},()=>new Array(k).fill(0));
+  for(let j=0;j<k;j++){ for(let i=0;i<j;i++){ let d=0; for(let t=0;t<M;t++) d+=Q[i][t]*Q[j][t]; R[i][j]=d; for(let t=0;t<M;t++) Q[j][t]-=d*Q[i][t]; }
+    let n=0; for(let t=0;t<M;t++) n+=Q[j][t]*Q[j][t]; n=Math.sqrt(n); if(!(n>1e-12)) return null; R[j][j]=n; for(let t=0;t<M;t++) Q[j][t]/=n; }
+  const qy=Q.map(q=>{ let d=0; for(let t=0;t<M;t++) d+=q[t]*y[t]; return d; }), b=new Array(k).fill(0);
+  for(let j=k-1;j>=0;j--){ let s=qy[j]; for(let i=j+1;i<k;i++) s-=R[j][i]*b[i]; b[j]=s/R[j][j]; }
+  const coef=b.map((v,j)=>v/sc[j]); let mx=0; for(let t=0;t<M;t++){ let f=0; for(let j=0;j<k;j++) f+=coef[j]*cols[j][t]; mx=Math.max(mx,Math.abs(y[t]-f)); }
+  return {coef,res:mx}; }
+function invRat1(x,qmax){ if(Math.abs(x)<1e-7) return [0,1]; for(let q=1;q<=(qmax||12);q++){ const p=Math.round(x*q); if(Math.abs(p/q-x)<1e-6*Math.max(1,Math.abs(x))&&Math.abs(p)<=48) return [p,q]; } return null; }
+function invLawLib(X,names,units){ const L=[]; const angle=n=>/^rad/.test(String(units&&units[n]||''));
+  for(const n of names){ const v=X.map(r=>r[n]), pos=v.every(x=>x>0);
+    const add=(tag,p,f)=>L.push({tag,input:n,p,col:v.map(f)});
+    add(n,1,x=>x); add(n+'²',2,x=>x*x); add(n+'³',3,x=>x*x*x);
+    if(pos){ add('√'+n,0.5,Math.sqrt); add(n+'^{3/2}',1.5,x=>x*Math.sqrt(x)); add(n+'^{5/2}',2.5,x=>x*x*Math.sqrt(x)); add(n+'^{1/3}',1/3,Math.cbrt); add(n+'^{2/3}',2/3,x=>Math.cbrt(x*x));
+      add('1/'+n,-1,x=>1/x); add('1/'+n+'²',-2,x=>1/(x*x)); add('ln '+n,'ln',Math.log); }
+    if(angle(n)){ add('cos '+n,'cos',Math.cos); add('sin '+n,'sin',Math.sin); add('cos('+n+'/2)','cos/2',x=>Math.cos(x/2)); add('sin('+n+'/2)','sin/2',x=>Math.sin(x/2)); } }
+  if(names.length<=5) for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++){ const a=names[i], b=names[j]; L.push({tag:a+'·'+b,input:a+','+b,p:'xy',col:X.map(r=>r[a]*r[b])}); }
+  return L; }
+function invLaws(rows,X,opts){ opts=opts||{}; const tol=opts.tol||1e-9, loose=opts.loose||1e-5, out=[]; if(!rows||!X||rows.length!==X.length||rows.length<6) return out;
+  const M=rows.length, RES=/(^|_)(drift|residual|check|error|delta)(_|$)|^delta_|_residual$/;
+  const ins=Object.keys(X[0]||{}).filter(n=>X.every(r=>Number.isFinite(r[n]))).filter(n=>{ const v=X.map(r=>r[n]), m=Math.max(...v.map(Math.abs)); return Math.max(...v)-Math.min(...v)>1e-12*(m||1); });
+  if(!ins.length) return out;
+  const distinct=new Set(X.map(r=>ins.map(n=>r[n]).join('|'))).size;
+  const outs=Object.keys(rows[0]||{}).filter(k=>!RES.test(k)&&rows.every(r=>typeof r[k]==='number'&&Number.isFinite(r[k]))).filter(k=>{ const v=rows.map(r=>r[k]), m=Math.max(...v.map(Math.abs)); return m>0&&Math.max(...v)-Math.min(...v)>1e-5*m; });
+  const lib=invLawLib(X,ins,opts.units);
+  const one=new Array(M).fill(1);
+  for(const k of outs){ const y=rows.map(r=>r[k]), ym=Math.max(...y.map(Math.abs)); let law=null;
+    /* 1 · a power law over every positive input at once */
+    const P=ins.filter(n=>X.every(r=>r[n]>0)), sgn=Math.sign(y[0]);
+    if(P.length&&y.every(v=>Math.sign(v)===sgn&&v!==0)&&distinct>=P.length+4){ const ly=y.map(v=>Math.log(Math.abs(v))), cols=[one,...P.map(n=>X.map(r=>Math.log(r[n])))], f=invLsq(cols,ly);
+      if(f&&f.res<Math.log1p(loose)){ let a=f.coef.slice(1), c=f.coef[0], rat=true; const ra=a.map(x=>invRat1(x));
+        if(ra.every(Boolean)){ const a2=ra.map(([p,q])=>p/q), d=ly.map((v,t)=>v-P.reduce((s,n,i)=>s+a2[i]*Math.log(X[t][n]),0)), mu=d.reduce((s,v)=>s+v,0)/M, sp=Math.max(...d)-Math.min(...d);
+          if(sp<2*Math.log1p(loose)){ a=a2; c=mu; f.res=sp/2; } else rat=false; } else rat=false;
+        const used=P.filter((n,i)=>a[i]!==0&&Math.abs(a[i])>1e-7);
+        if(used.length){ const C=sgn*Math.exp(c), spread=Math.expm1(f.res);
+          law={out:k,kind:'power',C,cform:invClosedFormPhys(C),terms:used.map(n=>{ const i=P.indexOf(n); return {input:n,p:a[i],pq:rat?ra[i]:null}; }),rational:rat,exact:spread<tol,spread,free:ins.filter(n=>!used.includes(n))}; } } }
+    /* 2 · the smallest sum of at most three library terms, plus a constant — for the output, and
+       where that is not exact for its square and its reciprocal (M² = 1 + ZT is exact where
+       M ≈ √ZT only holds): an exact law in a transform beats an approximate one in the output */
+    if(!law||!law.exact){ const pow=law; const need=s=>distinct>=s+4, snapR=v=>{ const r=invRat1(v,12); return r?r[0]/r[1]:null; };
+      const search=(T)=>{ const yT=y.map(T.f); if(!yT.every(Number.isFinite)) return null; const ymT=Math.max(...yT.map(Math.abs)); if(!(ymT>0)) return null; let best=null;
+        const fit=S=>{ const f=invLsq([one,...S.map(j=>lib[j].col)],yT); if(!f) return null; return {S,coef:f.coef,rel:f.res/ymT}; };
+        const accept=f=>f&&f.rel<loose&&f.coef.slice(1).every((bb,i)=>{ const col=lib[f.S[i]].col; let m=0; for(const v of col) m=Math.max(m,Math.abs(v)); return Math.abs(bb)*m>1e-7*ymT; });
+        for(let s=1;s<=3&&!best;s++){ if(!need(s+1)) break; let cands=[];
+          if(s===1) for(let j=0;j<lib.length;j++) cands.push([j]);
+          else if(s===2) for(let i=0;i<lib.length;i++) for(let j=i+1;j<lib.length;j++) cands.push([i,j]);
+          else { /* three terms: the forty best pairs, each extended by one more term */
+            const pr=[]; for(let i=0;i<lib.length;i++) for(let j=i+1;j<lib.length;j++){ const f=fit([i,j]); if(f) pr.push(f); } pr.sort((p,q)=>p.rel-q.rel);
+            const seen=new Set(); for(const p of pr.slice(0,40)) for(let j=0;j<lib.length;j++){ if(p.S.includes(j)) continue; const S=[...p.S,j].sort((u,v)=>u-v), key=S.join(); if(!seen.has(key)){ seen.add(key); cands.push(S); } } }
+          for(const S of cands){ const f=fit(S); if(accept(f)&&(!best||f.rel<best.rel)) best=f; } }
+        if(!best) return null;
+        /* an approximate law is offered with simple coefficients only if they hold as well: each
+           coefficient to a fraction with denominator ≤ 12, the constant to zero, re-checked on the
+           same answers and kept only if the worst residual stays within twice the free fit */
+        if(best.rel>=tol){ const b2=best.coef.map((v,i)=>{ if(i===0){ const m=Math.max(...best.S.map(j=>Math.max(...lib[j].col.map(Math.abs)))); return Math.abs(v)<1e-4*ymT?0:(snapR(v)??v); } return snapR(v)??v; });
+          let mx=0; for(let t=0;t<M;t++){ let f=b2[0]; best.S.forEach((j,i)=>{ f+=b2[i+1]*lib[j].col[t]; }); mx=Math.max(mx,Math.abs(yT[t]-f)); }
+          if(mx/ymT<=Math.max(2*best.rel,1e-12)&&mx/ymT<loose){ best={...best,coef:b2,rel:mx/ymT,snapped:true}; } }
+        return best; };
+      const TR=[{tag:'',f:v=>v},{tag:'²',f:v=>v*v},{tag:'⁻¹',f:v=>1/v}];
+      let pick=null, pickT=null; for(const T of TR){ const r=search(T); if(!r) continue; if(r.rel<tol){ pick=r; pickT=T; break; } if(!pick&&T.tag==='') { pick=r; pickT=T; } }
+      /* an approximate power law never hides an exact sum; between two approximations the closer stands */
+      if(pick&&(pick.rel<tol||!pow||pick.rel<pow.spread)){ const best=pick, c0=Math.abs(best.coef[0])<1e-9*ym?0:best.coef[0];
+        law={out:k,kind:'sum',of:pickT.tag,c:c0,cform:c0?invClosedFormPhys(c0):'0',terms:best.S.map((j,i)=>({tag:lib[j].tag,input:lib[j].input,p:lib[j].p,b:best.coef[i+1],form:invClosedFormPhys(best.coef[i+1])})),exact:best.rel<tol,spread:best.rel,snapped:!!best.snapped,
+          free:ins.filter(n=>!best.S.some(j=>String(lib[j].input).split(',').includes(n)))}; } }
+    if(law){ law.text=invLawText(law); out.push(law); } }
+  return out; }
+/* a law as one line of text: y = C · x^a · …  or  y = b₁·f₁ + b₂·f₂ + c */
+function invLawText(L){ const num=(v,f)=>f?String(f).replace(/^1 · /,''):(+v.toPrecision(6)).toString();
+  if(L.kind==='power'){ const pw=t=>t.p===1?t.input:t.input+'^'+(t.pq&&t.pq[1]!==1?t.pq[0]+'/'+t.pq[1]:(t.pq?t.pq[0]:+t.p.toFixed(4)));
+    return L.out+' = '+(L.cform==='1'?'':num(L.C,L.cform)+' · ')+L.terms.map(pw).join(' · '); }
+  const tm=[...L.terms].sort((a,b)=>(typeof b.p==='number'?b.p:0)-(typeof a.p==='number'?a.p:0)).map(t=>(t.form==='1'?'':t.form==='−1'?'−':num(t.b,t.form)+'·')+t.tag); if(L.c){ const cs=num(L.c,L.cform); if(/^[−-]/.test(tm[0])) tm.unshift(cs); else tm.push(cs); }
+  return L.out+(L.of||'')+' = '+tm.join(' + ').replace(/\+ [−-]/g,'− ').replace(/·(\S)/g,'·$1'); }
 /* ── the browser half: sample a laboratory through its contract, then analyse ── */
 const INV_TIME=/^(t|time|tau|tauMax|days|iterations|orbit_steps|steps|epoch_days|epoch_year|age|lyapunov_steps)$/;
 PSP.invJob=0;
@@ -45481,12 +45567,12 @@ function invSample(id,along,cb){ const D=pspDesc(id); if(!D){ cb(null); return; 
   const base=id===PSP.id?{...PSP.cur}:{}; for(const f of D.inputs) if(base[f.name]===undefined) base[f.name]=f.default;
   const t0=performance.now(); pspEval(id,base); const ms=Math.max(0.02,performance.now()-t0), M=Math.max(16,Math.min(48,Math.floor(4000/ms)));
   let seed=20260924; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
-  const rows=[], job=++PSP.invJob; let k=0; const step=()=>{ if(job!==PSP.invJob) return; const tEnd=performance.now()+24;
+  const rows=[], X=[], job=++PSP.invJob; let k=0; const step=()=>{ if(job!==PSP.invJob) return; const tEnd=performance.now()+24;
     while(rows.length<M&&k<M*3&&performance.now()<tEnd){ const inp={...base}; for(const f of vary) inp[f.name]=pspSnap(id,f.name,pspAt(f,along?Math.min(1,(rows.length+rnd())/M):rnd())); k++;
-      const r=pspEval(id,inp); if(r) rows.push(r); }
+      const r=pspEval(id,inp); if(r){ rows.push(r); X.push(Object.fromEntries(vary.map(f=>[f.name,inp[f.name]]))); } }
     const pr=document.getElementById('invProg'); if(pr) pr.textContent=rows.length<M&&k<M*3?`${rows.length}/${M}`:'';
     const late=performance.now()-t0>8000&&rows.length>=12;   /* a slow laboratory gets eight seconds, and says how many answers that bought */
-    if(rows.length<M&&k<M*3&&!late){ setTimeout(step,0); return; } cb(rows.length>=8?rows:null,{M,ms,vary:vary.map(f=>f.name)}); };
+    if(rows.length<M&&k<M*3&&!late){ setTimeout(step,0); return; } cb(rows.length>=8?rows:null,{M,ms,vary:vary.map(f=>f.name),X,units:Object.fromEntries(D.inputs.map(f=>[f.name,f.unit]))}); };
   step(); }
 const INV_SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻','.':'·'};
 function invPow(name,a){ if(a===1) return esc(name); const s=String(Number.isInteger(a)?a:+a.toFixed(4)); return `${esc(name)}<sup>${s}</sup>`; }
@@ -45505,14 +45591,15 @@ function invHTML(A,meta){ if(!A) return `<div style="color:#ff9a86">${TT('too fe
   const along=meta&&meta.vary&&meta.vary.length===1;
   return `<div style="color:var(--dim);margin:3px 0">${A.samples} ${TT('answers','ответов','Antworten')} ${along?`${TT('along','вдоль','entlang')} <b>${esc(meta.vary[0])}</b>${INV_TIME.test(meta.vary[0])?' — '+TT('a trajectory: what stays fixed here is CONSERVED','траектория: то, что здесь неизменно, СОХРАНЯЕТСЯ','eine Bahn: was hier fest bleibt, ist ERHALTEN'):''}`:TT('across the whole declared domain','по всему объявленному домену','über die ganze Domäne')} · ${A.moving} ${TT('outputs move','выходов меняются','Ausgänge bewegen sich')} · <b>${A.nullity}</b> ${TT('independent product relations among them','независимых мультипликативных связей между ними','unabhängige Produktrelationen')}</div>
     ${meta&&meta.vary&&A.rank!=null&&A.rank<meta.vary.length&&A.rank>0?`<div style="border-left:3px solid #b99cff;padding-left:6px;margin:3px 0"><b style="color:#d9c8ff">${TT('Hidden symmetry','Скрытая симметрия','Verborgene Symmetrie')}</b> — ${TT('its outputs span only','её выходы охватывают лишь','ihre Ausgänge spannen nur')} <b>${A.rank}</b> ${TT('dimensions while','измерений, хотя','Dimensionen, während')} <b>${meta.vary.length}</b> ${TT('inputs were varied: the laboratory depends on','входов варьировались: лаборатория зависит лишь от','Eingänge variiert wurden: das Labor hängt nur von')} ${A.rank} ${TT('combinations of them, and','их комбинаций, и','Kombinationen ab, und')} ${meta.vary.length-A.rank} ${TT('direction(s) in its input space change nothing it computes.','направлени(е/я) в пространстве входов не меняют ничего из вычисляемого.','Richtung(en) im Eingaberaum ändern nichts.')}${A.symmetries?invSymHTML(A.symmetries):''}</div>`:''}
+    ${A.laws&&A.laws.length?`<div style="border-left:3px solid #7fe0a8;padding-left:6px;margin:3px 0"><b style="color:#bff5d6">${TT('Laws — what each output IS, found from the inputs','Законы — чем является каждый выход, найдено по входам','Gesetze — was jeder Ausgang IST, aus den Eingängen gefunden')}</b>${A.laws.slice(0,12).map(L=>`<div style="margin-left:8px;font-family:ui-monospace,monospace">${esc(invLawText(L))} · ${ex(L)}${L.free&&L.free.length?` <span style="color:var(--dim)">· ${TT('free of','не зависит от','frei von')} ${L.free.map(esc).join(', ')}</span>`:''}</div>`).join('')}${A.laws.length>12?`<div style="color:var(--dim);margin-left:8px">… ${A.laws.length-12} ${TT('more','ещё','weitere')}</div>`:''}</div>`:''}
     ${A.constants.length?`<div><b>${TT('Invariant values','Неизменные величины','Invariante Werte')}</b> — ${A.constants.map(c=>`${esc(c.name)} = ${pspFmt(c.value)}${c.form?` <b style="color:#ffd58a">= ${esc(c.form)}</b>`:''}${c.exact?'':` <span style="color:#ffd58a">(${TT('conserved to','сохраняется до','erhalten bis')} ${c.spread.toExponential(1)} — ${TT('the integrator\'s own error','собственная ошибка интегратора','der eigene Integratorfehler')})</span>`}`).join(' · ')}</div>`:''}
     ${A.residuals&&A.residuals.length?`<div style="color:var(--dim)">${TT('Its own residuals, largest over the sample','Собственные невязки, наибольшие по выборке','Eigene Residuen, größte in der Stichprobe')}: ${A.residuals.map(x=>`${esc(x.name)} ≤ ${pspFmt(x.max)}`).join(' · ')}</div>`:''}
     ${A.aliases.length?`<div style="color:var(--dim)">${TT('One quantity in two units','Одна величина в двух единицах','Eine Größe in zwei Einheiten')}: ${A.aliases.map(x=>`${esc(x.name)} = ${esc(x.of)} × ${pspFmt(x.factor)}${x.form?` (${esc(x.form)})`:''}`).join(' · ')}</div>`:''}
     ${prod.length?`<div style="margin-top:3px"><b>${TT('Product invariants','Мультипликативные инварианты','Produktinvarianten')}</b>${prod.map(r=>`<div style="margin-left:8px">${r.terms.map((t,i)=>invPow(t,r.a[i])).join(' · ')} = ${pspFmt(r.value)}${r.form?` <b style="color:#ffd58a">= ${esc(r.form)}</b>`:''}${r.exact?invPlanckHTML(r.terms,r.a,r.value,invUnitOfLab(PSP.id)):''} · ${ex(r)}</div>`).join('')}${A.products.length>prod.length?`<div style="color:var(--dim);margin-left:8px">… ${A.products.length-prod.length} ${TT('more, all combinations of these','ещё — все комбинации этих','weitere')}</div>`:''}</div>`:''}
     ${A.sums.length?`<div style="margin-top:3px"><b>${TT('Quadratic and linear invariants','Квадратичные и линейные инварианты','Quadratische und lineare Invarianten')}</b>${A.sums.slice(0,10).map(r=>`<div style="margin-left:8px">${r.terms.map((t,i)=>`${i&&r.a[i]>=0?'+ ':''}${r.a[i]<0?'− ':''}${Math.abs(r.a[i])===1?'':pspFmt(Math.abs(r.a[i]))+'·'}${esc(t)}`).join(' ')} = ${pspFmt(r.c)} · ${ex(r)}</div>`).join('')}</div>`:''}
-    ${!A.constants.length&&!A.products.length&&!A.sums.length?`<div>${TT('No exact relation among the outputs at this resolution: every output carries independent information here.','Точных связей между выходами не найдено: каждый выход несёт здесь независимую информацию.','Keine exakte Relation: jeder Ausgang trägt unabhängige Information.')}</div>`:''}`; }
+    ${!A.constants.length&&!A.products.length&&!A.sums.length&&!(A.laws&&A.laws.length)?`<div>${TT('No exact relation among the outputs at this resolution: every output carries independent information here.','Точных связей между выходами не найдено: каждый выход несёт здесь независимую информацию.','Keine exakte Relation: jeder Ausgang trägt unabhängige Information.')}</div>`:''}`; }
 function invRun(){ const d=document.getElementById('hccPspace'); if(!d) return; const sel=d.querySelector('#invAlong'), along=sel?sel.value||null:null, out=d.querySelector('#invOut'); if(out) out.innerHTML=`<span id="invProg" style="color:#ffd58a"></span>`;
-  invSample(PSP.id,along,(rows,meta)=>{ const A=rows?invAnalyse(rows):null; if(A&&!along&&A.rank!=null&&meta&&A.rank<meta.vary.length){ try{ A.symmetries=invSymmetries(PSP.id,PSP.cur); }catch(e){} } PSP.inv={id:PSP.id,along,A,meta}; const o=document.querySelector('#hccPspace #invOut'); if(o) o.innerHTML=invHTML(A,meta); if(PSP.mode==='phase') pspDraw(); }); }
+  invSample(PSP.id,along,(rows,meta)=>{ const A=rows?invAnalyse(rows,{X:meta.X,units:meta.units}):null; if(A&&!along&&A.rank!=null&&meta&&A.rank<meta.vary.length){ try{ A.symmetries=invSymmetries(PSP.id,PSP.cur); }catch(e){} } PSP.inv={id:PSP.id,along,A,meta}; const o=document.querySelector('#hccPspace #invOut'); if(o) o.innerHTML=invHTML(A,meta); if(PSP.mode==='phase') pspDraw(); }); }
 /* ACROSS THE BUS. A declared link says one laboratory's output IS another's input. Drive the
    first across its domain, carry the value over (converted where the link converts), and ask
    the finder about the two laboratories' outputs TOGETHER: a relation whose terms come from
@@ -45576,7 +45663,7 @@ function invAcross(link,cb){ invChain([link],R=>cb(R&&{...R,link})); }
 function invChains2(){ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){ return []; } const out=[];
   for(const a of L) for(const b of L){ const B=a.to.split('.')[0]; if(b.from.split('.')[0]===B&&b.to.split('.')[0]!==a.from.split('.')[0]) out.push([a,b]); } return out; }
 globalThis.HCC_INVARIANTS=Object.freeze({symmetries:id=>invSymmetries(id,null), chains:()=>invChains2().map(p=>p.map(l=>l.from+'→'+l.to)), chain:(...ft)=>new Promise(res=>{ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){} const path=ft.map(x=>{ const [a,b]=x.split('→'); return L.find(l=>l.from===a&&l.to===b); }); if(path.some(x=>!x)){ res(null); return; } invChain(path,res); }), across:(from,to)=>new Promise(res=>{ let L=null; try{ L=HCC_API.bus.links().find(l=>l.from===from&&l.to===to); }catch(e){} if(!L){ res(null); return; } invAcross(L,res); }),
-  find:(id,along)=>new Promise(res=>invSample(id||PSP.id,along||null,(rows,meta)=>{ const A=rows?invAnalyse(rows):null; res(A?{...A,meta}:null); })),
+  find:(id,along)=>new Promise(res=>invSample(id||PSP.id,along||null,(rows,meta)=>{ const A=rows?invAnalyse(rows,{X:meta.X,units:meta.units}):null; if(A&&meta){ delete meta.X; } res(A?{...A,meta}:null); })),
   last:()=>PSP.inv?{id:PSP.inv.id,along:PSP.inv.along,...(PSP.inv.A||{})}:null});
 
 
@@ -45601,6 +45688,13 @@ function invUniversality(A){ const groups={}, UP=invUnitOfPrefixed();
   for(const c of (A.through_a_middle_laboratory||[])) for(const p of (c.products||[])) add(c.chain.join(' ⇒ '),p.terms,p.exponents,p.value,UP);
   const place=w=>w.split(/[ .]/)[0];
   return Object.entries(groups).map(([units,rows])=>({units,rows,places:[...new Set(rows.map(r=>place(r.where)))]})).filter(g=>g.places.length>=2).sort((a,b)=>b.places.length-a.places.length||b.rows.length-a.rows.length); }
+/* ONE SHAPE, MANY LABORATORIES: an exact power law read without its names — the multiset of its
+   exponents (T⁴ and ω_p² are shapes 4 and 2; λ ∝ T^{1/2} n^{-1/2} is ½·−½) — shared by at least
+   three laboratories is one law written in several places */
+function invLawShapes(A){ const G={};
+  for(const L of (A.laboratories||[])) for(const l of ((L.across||{}).laws||[])){ if(!l.exact||l.kind!=='power'||!l.exponents) continue;
+    const e=Object.values(l.exponents).map(String).sort(), shape=e.map(x=>'x^'+x).join(' · '); (G[shape]=G[shape]||[]).push({lab:L.id,law:l.law}); }
+  return Object.entries(G).map(([shape,rows])=>({shape,rows,labs:[...new Set(rows.map(r=>r.lab))]})).filter(g=>g.labs.length>=3).sort((a,b)=>b.labs.length-a.labs.length); }
 async function hccInvariantAtlasOpen(filter){
   document.getElementById('hccInvAtlas')?.remove();
   const d=document.createElement('div'); d.id='hccInvAtlas'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','Atlas of invariants');
@@ -45616,7 +45710,8 @@ async function hccInvariantAtlasOpen(filter){
     const exact=(a.products||[]).filter(p=>p.exact&&!p.form).slice(0,2).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join(' · ')} = ${pspFmt(p.value)}${invPlanckHTML(p.terms,p.exponents,p.value,uo,1e-10)}`);
     const sums=(a.sums||[]).filter(r=>r.exact).slice(0,2).map(r=>r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')+` = ${pspFmt(r.value)}`);
     const cons=t&&t.verdict==='FOUND'?[...(t.sums||[]).filter(r=>r.exact).slice(0,3).map(r=>r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')), ...(t.constants||[]).filter(c=>!c.exact).slice(0,3).map(c=>`${esc(c.name)} (${TT('to','до','bis')} ${c.spread})`)]:[];
-    const body=[named.length?named.join(' · '):'', exact.length?exact.join(' · '):'', sums.length?sums.join(' · '):'',
+    const laws=(a.laws||[]).filter(l=>l.exact).slice(0,4).map(l=>`<span style="font-family:ui-monospace,monospace;color:#bff5d6">⊨ ${esc(l.law)}</span>`);
+    const body=[laws.length?laws.join('<br>'):'', named.length?named.join(' · '):'', exact.length?exact.join(' · '):'', sums.length?sums.join(' · '):'',
       a.hidden_symmetries?`<b style="color:#d9c8ff">${TT('hidden symmetry','скрытая симметрия','verborgene Symmetrie')}</b>: ${TT('rank','ранг','Rang')} ${a.rank} ${TT('of','из','von')} ${(a.varied||[]).length} ${TT('inputs','входов','Eingängen')}`:'',
       ...(L.symmetries||[]).filter(x=>x.verified&&!x.dead).map(x=>`<b style="color:#d9c8ff">✓ ${TT('invariant under','инвариантна относительно','invariant unter')}</b> ${x.inputs.map((n,i)=>x.k[i]?`${esc(n)} → λ${sup(x.k[i])}·${esc(n)}`:'').filter(Boolean).join(', ')}`),
       cons.length?`<b style="color:#7fe0a8">${TT('conserved along','сохраняется вдоль','erhalten entlang')} ${esc(t.clock)}</b>: ${cons.join(' · ')}`:''].filter(Boolean);
@@ -45624,7 +45719,7 @@ async function hccInvariantAtlasOpen(filter){
     return `<div class="note" style="margin:4px 0;border-left:3px solid ${col}" data-ia="${esc(L.id)}"><div style="display:flex;gap:6px;align-items:baseline"><b style="flex:1">${esc(L.id)} <span style="font-weight:400;color:var(--dim)">· ${esc(name)}</span></b><span style="color:${col};font-size:10.5px">${v}</span><button class="btn" data-iago="${esc(L.id)}" style="padding:1px 6px">⧉</button></div>
       ${body.length?`<div style="font-size:11.5px;margin-top:2px">${body.join('<br>')}</div>`:`<div style="font-size:11px;color:var(--dim)">${v==='NONE'?TT('every output carries independent information here','каждый выход несёт здесь независимую информацию','jeder Ausgang trägt unabhängige Information'):v==='THIN'?TT('too few answers inside the domain','слишком мало ответов внутри домена','zu wenige Antworten'):v==='UNRETURNED'?TT('an answer outlasted the clock','ответ не уложился во время','eine Antwort überschritt die Zeit'):''}</div>`}</div>`; };
   const render=()=>{ const UP=invUnitOfPrefixed(); const q=(d.querySelector('#iaQ').value||'').toLowerCase(); const L=(A.laboratories||[]).filter(x=>!q||JSON.stringify(x).toLowerCase().includes(q));
-    const rank=x=>{ const a=x.across||{}; return -(((a.constants||[]).filter(c=>c.form).length+(a.products||[]).filter(p=>p.form).length)*3+(a.hidden_symmetries?4:0)+((x.along&&x.along.verdict==='FOUND')?3:0)+(a.products||[]).length*0.1); };
+    const rank=x=>{ const a=x.across||{}; return -(((a.constants||[]).filter(c=>c.form).length+(a.products||[]).filter(p=>p.form).length)*3+(a.hidden_symmetries?4:0)+((x.along&&x.along.verdict==='FOUND')?3:0)+(a.products||[]).length*0.1+(a.laws||[]).filter(l=>l.exact).length*0.5); };
     d.querySelector('#iaB').innerHTML=`<div style="color:var(--dim)">${TT('Recorded by scripts/invariants.mjs on','Записано scripts/invariants.mjs в версии','Aufgezeichnet auf')} v${esc(A.version||'?')}${stale?` · <span style="color:#ffd58a">${TT('this page is','эта страница —','diese Seite ist')} v${HCC_VERSION}: ${TT('each row\'s ⧉ recomputes it live','⧉ в каждой строке пересчитывает её вживую','⧉ rechnet live nach')}</span>`:''}</div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;font-size:12px">${[[C.laboratories,TT('laboratories asked','лабораторий опрошено','Labore befragt')],[C.found,TT('keep something','что-то сохраняют','bewahren etwas')],[C.exact_relations,TT('exact relations','точных связей','exakte Relationen')],[C.named_constants,TT('named in closed form','названо в замкнутой форме','geschlossen benannt')],[C.hidden_symmetries,TT('hidden symmetries','скрытых симметрий','verborgene Symmetrien')],[C.conserved_along_a_clock,TT('conserve along a clock','сохраняют вдоль часов','erhalten entlang einer Uhr')],[C.links_with_cross_laws,TT('bus links carry a law','связей шины несут закон','Buslinks tragen ein Gesetz')],[C.scaling_symmetries,TT('scaling symmetries, applied and confirmed','масштабных симметрий, применённых и подтверждённых','Skalensymmetrien, bestätigt')],[C.chains_with_laws,TT('three-laboratory chains carry a law','цепочек из трёх лабораторий несут закон','Dreier-Ketten tragen ein Gesetz')]].map(([n,t])=>`<span><b style="font-size:16px;color:#d9c8ff">${n??'—'}</b> ${t}</span>`).join('')}</div>
       ${(A.across_the_bus||[]).some(c=>(c.products||[]).length||(c.sums||[]).length)&&!q?`<h3 style="margin:10px 0 2px;color:#d9c8ff">⇄ ${TT('Laws across the bus','Законы через шину','Gesetze über den Bus')}</h3><div style="color:var(--dim);font-size:11px">${TT('A declared link carries one laboratory\'s output into another\'s input; driven across the first one\'s domain, these relations hold among the outputs of BOTH — laws neither laboratory states alone.','Объявленная связь несёт выход одной лаборатории во вход другой; при прогоне первой по её домену эти соотношения держатся между выходами ОБЕИХ — законы, которых ни одна лаборатория не утверждает в одиночку.','Relationen zwischen den Ausgängen BEIDER Labore.')}</div>
@@ -45633,6 +45728,9 @@ async function hccInvariantAtlasOpen(filter){
         ${(A.through_a_middle_laboratory||[]).filter(c=>c.verdict==='FOUND').map(c=>`<div class="note" style="margin:3px 0;border-left:3px solid #7fe0d0"><b>${c.chain.map(x=>esc(x.replace('→',' → '))).join(' ⇒ ')}</b><br><span style="font-size:11.5px">${[...(c.aliases||[]).slice(0,2).map(x=>`${esc(x.name)} = ${esc(x.of)} × ${x.form?`<b style="color:#ffd58a">${esc(x.form)}</b>`:pspFmt(x.factor)}${x.form?'':invPlanckHTML([x.name,x.of],[1,-1],x.factor,UP,1e-10)}`),...(c.products||[]).slice(0,2).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join(' · ')} = ${p.form?`<b style="color:#ffd58a">${esc(p.form)}</b>`:pspFmt(p.value)}${p.form?'':invPlanckHTML(p.terms,p.exponents,p.value,UP,1e-10)}`)].join('<br>')}</span></div>`).join('')}`:''}
       ${!q?(()=>{ const U=invUniversality(A); if(!U.length) return ''; return `<h3 style="margin:10px 0 2px;color:#d9c8ff">≡ ${TT('One law, many laboratories','Один закон — много лабораторий','Ein Gesetz, viele Labore')}</h3><div style="color:var(--dim);font-size:11px">${TT('Every exact relation written in Planck units: those whose constants carry the same combination of G, c, ħ and k_B are the same law wherever the atlas found them, and their pure numbers are the conventions each laboratory chose.','Каждая точная связь в планковских единицах: те, чьи константы несут одну и ту же комбинацию G, c, ħ и k_B, — один и тот же закон, где бы атлас его ни нашёл, а их чистые числа — конвенции, выбранные каждой лабораторией.','Jede exakte Relation in Planck-Einheiten: gleiche Kombination von G, c, ħ, k_B heißt gleiches Gesetz.')}</div>
         ${U.slice(0,10).map(g=>`<div class="note" style="margin:3px 0;border-left:3px solid #b9e3ff"><b style="color:#b9e3ff">∝ ${esc(g.units)}</b> <span style="color:var(--dim);font-size:10.5px">· ${g.places.length} ${TT('places','мест','Orte')}: ${g.places.map(esc).join(', ')}</span><br><span style="font-size:11.5px">${g.rows.slice(0,6).map(r=>`<span style="color:var(--dim)">${esc(r.where)}</span> ${r.terms.map((n,i)=>esc(n)+sup(r.exps[i])).join(' · ')} = <b style="color:#ffd58a">${r.form?esc(r.form):pspFmt(r.pure)}</b>`).join('<br>')}</span></div>`).join('')}`; })():''}
+      ${!q&&C.laws_exact!=null?(()=>{ const S=invLawShapes(A); return `<h3 style="margin:10px 0 2px;color:#bff5d6">⊨ ${TT('Laws from the inputs','Законы по входам','Gesetze aus den Eingängen')}</h3><div style="color:var(--dim);font-size:11px">${TT('What each output IS as a function of the inputs that moved — a power law over all of them at once, else the smallest sum of at most three library terms, for the output or its square or reciprocal; exact below 1e-9.','Чем является каждый выход как функция изменявшихся входов — степенной закон по всем сразу, иначе наименьшая сумма не более трёх библиотечных членов, для выхода, его квадрата или обратной величины; точно до 1e-9.','Was jeder Ausgang als Funktion der Eingänge IST.')}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;font-size:12px">${[[C.laws_exact,TT('exact laws','точных законов','exakte Gesetze')],[C.laws_named,TT('every coefficient named','все коэффициенты названы','alle Koeffizienten benannt')],[C.laboratories_with_a_law,TT('laboratories with a law','лабораторий с законом','Labore mit Gesetz')],[C.silent_laboratories_that_now_speak,TT('silent laboratories that now speak','молчавших лабораторий заговорили','stumme Labore sprechen')]].map(([v,t])=>`<span><b style="font-size:15px;color:#bff5d6">${v??'—'}</b> ${t}</span>`).join('')}</div>
+        ${S.slice(0,8).map(g=>`<div class="note" style="margin:3px 0;border-left:3px solid #7fe0a8"><b style="color:#bff5d6">∝ ${esc(g.shape)}</b> <span style="color:var(--dim);font-size:10.5px">· ${g.labs.length} ${TT('laboratories','лабораторий','Labore')}: ${g.labs.map(esc).join(', ')}</span><br><span style="font-size:11.5px;font-family:ui-monospace,monospace">${g.rows.slice(0,4).map(r=>`${esc(r.lab)}: ${esc(r.law)}`).join('<br>')}</span></div>`).join('')}`; })():''}
       <h3 style="margin:10px 0 2px;color:#d9c8ff">∮ ${TT('Within each laboratory','Внутри каждой лаборатории','In jedem Labor')}</h3>
       ${[...L].sort((a,b)=>rank(a)-rank(b)).map(rowHTML).join('')}`;
     d.querySelectorAll('[data-iago]').forEach(b=>b.onclick=()=>{ d.remove(); hccPspaceOpen(b.dataset.iago); setTimeout(()=>{ try{ document.querySelector('#hccPspace #invGo')?.click(); }catch(e){} },400); }); };
@@ -45644,14 +45742,14 @@ async function labInvSummaryFill(host,V){ if(!host) return; let inst=null; try{ 
   if(!INV_ATLAS){ try{ INV_ATLAS=await (await fetch('api/invariants.json',{cache:'no-store'})).json(); }catch(e){ return; } }
   const L=(INV_ATLAS.laboratories||[]).find(r=>r.id===inst); if(!L||!host.isConnected) return; const a=L.across||{};
   const sup=x=>{ const v=+x; if(v===1) return ''; return `<sup>${Number.isInteger(v)?v:+v.toFixed(3)}</sup>`; };
-  const items=[...(a.constants||[]).filter(c=>c.form).slice(0,2).map(c=>`${esc(c.name)} = <b style="color:#ffd58a">${esc(c.form)}</b>`),
+  const items=[...(a.laws||[]).filter(l=>l.exact).slice(0,3).map(l=>'⊨ '+esc(l.law)), ...(a.constants||[]).filter(c=>c.form).slice(0,2).map(c=>`${esc(c.name)} = <b style="color:#ffd58a">${esc(c.form)}</b>`),
     ...(a.products||[]).filter(p=>p.form).slice(0,3).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join('·')} = <b style="color:#ffd58a">${esc(p.form)}</b>`),
     ...(L.symmetries||[]).filter(x=>x.verified&&!x.dead).map(x=>`<b style="color:#d9c8ff">${TT('symmetry','симметрия','Symmetrie')}</b> ${x.inputs.map((n,i)=>x.k[i]?`${esc(n)}→λ${sup(x.k[i])}${esc(n)}`:'').filter(Boolean).join(', ')}`),
     ...((L.along&&L.along.verdict==='FOUND')?(L.along.sums||[]).filter(r=>r.exact).slice(0,2).map(r=>`<b style="color:#7fe0a8">${TT('conserved','сохраняется','erhalten')}</b> ${r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+':''}${r.coefficients[i]<0?'−':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))}${esc(n)}`).join(' ')}`):[])];
   if(!items.length&&!(a.products||[]).length) return;
   /* ONE BUTTON, not a panel: the Controls of a laboratory are its own; what the census found is a
      press away — its count here, its contents in the tooltip and in the atlas */
-  const n=(a.products||[]).length+(a.sums||[]).length+(L.symmetries||[]).filter(x=>x.verified&&!x.dead).length;
+  const n=(a.products||[]).length+(a.sums||[]).length+(L.symmetries||[]).filter(x=>x.verified&&!x.dead).length+(a.laws||[]).filter(l=>l.exact).length;
   host.innerHTML=`<button class="btn" type="button" data-inv-atlas title="${esc(items.map(x=>x.replace(/<[^>]+>/g,'')).join('\n'))}">∮ ${n}</button>`;
   host.querySelector('[data-inv-atlas]').onclick=()=>hccInvariantAtlasOpen(inst); }
 globalThis.HCC_INVARIANT_ATLAS=Object.freeze({open:f=>hccInvariantAtlasOpen(f)});
@@ -45695,6 +45793,11 @@ async function hccDiscoveriesOpen(){ document.getElementById('hccDisc')?.remove(
       poinC.length?poinC.slice(0,2).map(r=>r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')+` = <b style="color:#ffd58a">${pspFmt(r.value)}</b>`).join('<br>'):rel(null),
       TT('Only ω(t) of a free rigid body was given; the finder returned two independent quadratic invariants — the energy and angular-momentum ellipsoids — and the phase portrait shows the polhode on their intersection.','Дана только ω(t) свободного твёрдого тела; поиск вернул два независимых квадратичных инварианта — эллипсоиды энергии и момента, — а фазовый портрет показывает полодию на их пересечении.','Nur ω(t) gegeben; zwei quadratische Invarianten gefunden.'),
       [['◴ poin',psp('poin',{mode:'phase',inv:true})]]],
+    ['⊨',TT('What an output IS: laws read from the inputs','Чем является выход: законы, прочитанные по входам','Was ein Ausgang IST: Gesetze aus den Eingängen'),
+      (()=>{ const lw=(id,o)=>((lab(id).across||{}).laws||[]).find(l=>l.output===o&&l.exact); const P=[['cau','f_sum_exact'],['su2','w'],['sh','multiplicity'],['te','M'],['bb','exitance']].map(([id,o])=>[id,lw(id,o)]);
+        return P.some(x=>x[1])?P.map(([id,l])=>l?`<span style="font-family:ui-monospace,monospace">${esc(id)}: <b style="color:#bff5d6">${esc(l.law)}</b></span>`:`${esc(id)}: ${rel(null)}`).join('<br>'):rel(null); })(),
+      TT('The finder had only asked which combinations of OUTPUTS never move, so a laboratory whose outputs are independent looked silent. Asked what each output is as a function of the inputs, the laboratories return the Thomas–Reiche–Kuhn f-sum rule, the 2l + 1 of angular momentum, the half angle that makes a spinor need 4π, Stefan–Boltzmann with σ named, and M² = 1 + ZT — exact, where M ≈ √ZT would only have held to 10⁻⁶.','Искатель спрашивал лишь, какие комбинации ВЫХОДОВ неизменны, и лаборатория с независимыми выходами казалась немой. Спрошенные, чем является каждый выход как функция входов, лаборатории возвращают правило сумм Томаса–Райхе–Куна, 2l + 1 углового момента, половинный угол, из-за которого спинору нужно 4π, закон Стефана–Больцмана с названной σ и M² = 1 + ZT — точно, тогда как M ≈ √ZT держалось бы лишь до 10⁻⁶.','Gefragt, was jeder Ausgang als Funktion der Eingänge ist, geben die Labore die f-Summenregel, 2l + 1, den halben Winkel des Spinors, Stefan–Boltzmann und M² = 1 + ZT zurück.'),
+      [['⊨ atlas',atlas('')],['⧉ cau',psp('cau',{inv:true})],['⧉ su2',psp('su2',{inv:true})]]],
     ['λ',TT('A symmetry nobody declared','Симметрия, которую никто не объявлял','Eine nie erklärte Symmetrie'),
       pSym?`(T, n, μ) → (λ${sup(pSym.k[0])}T, λ${sup(pSym.k[1])}n, λ${sup(pSym.k[2])}μ)`:rel(null),
       TT('The Jeans laboratory has three inputs and depends on only two combinations of them, T/μ and nμ. The finder named the direction that changes nothing and applied it at random points before believing it.','У лаборатории Джинса три входа, а зависит она лишь от двух их комбинаций, T/μ и nμ. Поисковик назвал направление, которое ничего не меняет, и применил его в случайных точках, прежде чем поверить.','Das Jeans-Labor hängt nur von T/μ und nμ ab.'),
