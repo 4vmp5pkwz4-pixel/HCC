@@ -97,6 +97,7 @@ const allChecks = [
   "docs/verify-the-sky-turns-with-the-day.cjs",
   "docs/verify-the-light-has-its-sources.cjs",
   "docs/verify-the-measured-universe-on-the-ladder.cjs",
+  "docs/verify-every-object-has-its-rung.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -251,6 +252,7 @@ if (fullMode) {
     'docs/verify-the-sky-turns-with-the-day.cjs',
     'docs/verify-the-light-has-its-sources.cjs',
     'docs/verify-the-measured-universe-on-the-ladder.cjs',
+    'docs/verify-every-object-has-its-rung.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

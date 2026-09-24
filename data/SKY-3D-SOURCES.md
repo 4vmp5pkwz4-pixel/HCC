@@ -204,6 +204,32 @@ value. Before the placeholder shell was removed, the galaxies gave R ≈ 0.82 at
 which is possible only if nearly all of them share one distance (section 4). The check is
 `docs/verify-the-measured-universe-on-the-ladder.cjs`.
 
+## 7. Everything at rung N (`HCC_RUNG`)
+
+A coordinate is worth what it lets you index, and N is the one index that runs through
+every world of the atlas.
+
+**What a rung gathers.** For any rung, the inspector collects:
+- what the rung is: R, the co-scaled time t = R/c, the photon of that wavelength, ρ/ρ_P,
+  F_N, and the rung's Casimir energy and density;
+- the φ-atlas scales on it, each with its door into the laboratory where that physics lives;
+- the bodies of the Solar System whose size, orbit or period falls on it. A period T enters
+  at its light-distance cT, so the year sits exactly on the light year's rung (N = 242.92);
+- every measured object whose distance from the Sun falls on it, with the census of the
+  rung.
+
+**What has a rung.** Every object with a length has one:
+- the radius of the Earth is at N = 199.03;
+- the astronomical unit, at 219.95;
+- Betelgeuse's distance, at 255.8;
+- M87's distance, at 279.9.
+
+"φ On the ladder" on any card opens the inspector at the object's rung. In the FBS3R world,
+the φ-shells glow with the number of measured objects on them.
+
+A rung is a shared scale, never a shared cause. The check is
+`docs/verify-every-object-has-its-rung.cjs`.
+
 ## Sources and attribution
 
 - **Hipparcos**: ESA (1997), *The Hipparcos and Tycho Catalogues*, ESA SP-1200, and
