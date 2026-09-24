@@ -157,6 +157,7 @@ block=('/* DSO3D-DATA-BEGIN */\n'
  '   RA u16 (2^16 per turn) · Dec i16 (32767 per quarter turn) · log10(d/kpc)+2 u16 ×8000 · V u8 ×10 · class u8\n'
  '   (0 E/S0 · 1 early spiral · 2 late spiral · 3 irregular/dwarf · 4 active · 5 interacting · 6 unclassified) */\n'
  f'const DSO3D_GAL={{count:{len(gal)},sha256:\'{sha}\',b64:\'{base64.b64encode(bytes(buf)).decode()}\'}};\n'
+ f'const DSO3D_GALZ={json.dumps([int(round(r["z"]*1e5)) if 0<r["z"]<50 else 0 for r in gal],separators=(",",":"))};  /* redshift ×1e5 per galaxy record, 0 = none */\n'
  f'const DSO3D_GAL_NAMES={json.dumps(names,separators=(",",":"),ensure_ascii=False)};\n'
  f'const DSO3D_LOCAL={json.dumps(local,separators=(",",":"),ensure_ascii=False)};\n'
  '/* DSO3D-DATA-END */')
