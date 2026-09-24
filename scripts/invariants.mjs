@@ -114,7 +114,11 @@ for (const id of ids) {
           aliases: A.aliases.map(a => ({ name: a.name, of: a.of, factor: f(a.factor), form: a.form || null })),
           products: A.products.slice(0, 24).map(r => ({ terms: r.terms, exponents: r.a.map(f), value: f(r.value), form: r.form || null, exact: r.exact, spread: f(r.spread) })),
           sums: A.sums.slice(0, 16).map(r => ({ terms: r.terms, coefficients: r.a.map(f), value: f(r.c), exact: r.exact, spread: f(r.spread) })),
-          residuals: (A.residuals || []).map(x => ({ name: x.name, max: f(x.max) })) };
+          residuals: (A.residuals || []).map(x => ({ name: x.name, max: f(x.max) })),
+          /* the law of each output: what it IS as a function of the inputs that moved */
+          laws: (A.laws || []).map(L => ({ output: L.out, law: L.text, kind: L.kind, exact: L.exact, spread: f(L.spread), free: L.free,
+            ...(L.kind === 'power' ? { constant: f(L.C), form: L.cform || null, exponents: Object.fromEntries(L.terms.map(t => [t.input, t.pq ? t.pq[0] + (t.pq[1] === 1 ? '' : '/' + t.pq[1]) : f(t.p)])) }
+              : { terms: L.terms.map(t => ({ term: t.tag, coefficient: f(t.b), form: t.form || null })), constant: f(L.c), form: L.cform || null }) })) };
         if (A.rank != null && A.meta && A.rank < A.meta.vary.length && A.rank > 0) out.hidden_symmetries = A.meta.vary.length - A.rank;
         return out; }, [id, along]), HANG_MS, 'hang');
     } catch (e) { await fresh(); return { verdict: 'UNRETURNED', note: String(e.message).slice(0, 80) }; }
@@ -171,7 +175,8 @@ const cnt = k => rows.filter(r => r.across.verdict === k).length;
 const out = { schema: 'hcc.invariants/1', version: identity.version, build: identity.build,
   generator: 'scripts/invariants.mjs — the page\'s own invariant finder (HCC_INVARIANTS.find) run on every laboratory, across its declared domain and along its clock where it has one',
   method: { samples: 'up to 48 per question, deterministic seed, eight-second cap per question', exact: 'relative spread below 1e-9 at every sample', named: 'closed forms to 1e-10 (rational × π^k, roots, φ, √5, one CODATA constant); nothing is named that is not numerically that value; values are recorded to 15 digits so the page can name them to the same standard',
-    guard: 'a relation among k features needs k+3 distinct points; a laboratory\'s own residuals are reported by size, never searched' },
+    guard: 'a relation among k features needs k+3 distinct points; a laboratory\'s own residuals are reported by size, never searched',
+    laws: 'each moving output as a function of the inputs that moved: a power law over every positive input at once (exponents read as rationals), else the smallest sum of at most three library terms plus a constant; exact below 1e-9 of the output, holding below 1e-5; fitted only with three more distinct answers than parameters' },
   counts: { laboratories: rows.length, found: cnt('FOUND'), none: cnt('NONE'), thin: cnt('THIN'), unreturned: cnt('UNRETURNED'),
     named_constants: rows.reduce((a, r) => a + ((r.across.constants || []).filter(c => c.form).length + (r.across.products || []).filter(p => p.form).length), 0),
     exact_relations: rows.reduce((a, r) => a + (r.across.products || []).filter(p => p.exact).length + (r.across.sums || []).filter(p => p.exact).length, 0),
@@ -181,7 +186,12 @@ const out = { schema: 'hcc.invariants/1', version: identity.version, build: iden
     undeclared_integer_inputs: rows.reduce((a, r) => a + (r.integer_inputs || []).length, 0),
     conserved_along_a_clock: rows.filter(r => r.along && ((r.along.sums || []).length || (r.along.constants || []).length)).length,
     links_asked: cross.length, links_with_cross_laws: cross.filter(c => c.verdict === 'FOUND' && ((c.products || []).length || (c.sums || []).length)).length,
-    chains_asked: through.length, chains_with_laws: through.filter(c => c.verdict === 'FOUND').length },
+    chains_asked: through.length, chains_with_laws: through.filter(c => c.verdict === 'FOUND').length,
+    laws_exact: rows.reduce((a, r) => a + (r.across.laws || []).filter(L => L.exact).length, 0),
+    laws_holding: rows.reduce((a, r) => a + (r.across.laws || []).filter(L => !L.exact).length, 0),
+    laws_named: rows.reduce((a, r) => a + (r.across.laws || []).filter(L => L.exact && (L.kind === 'power' ? L.form : L.terms.every(t => t.form))).length, 0),
+    laboratories_with_a_law: rows.filter(r => (r.across.laws || []).length).length,
+    silent_laboratories_that_now_speak: rows.filter(r => r.across.verdict === 'NONE' && (r.across.laws || []).length).length },
   errors: [...new Set(errors)].slice(0, 20), laboratories: rows, across_the_bus: cross, through_a_middle_laboratory: through };
 writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
 console.log(JSON.stringify(out.counts));
