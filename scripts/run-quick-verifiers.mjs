@@ -99,6 +99,7 @@ const allChecks = [
   "docs/verify-the-measured-universe-on-the-ladder.cjs",
   "docs/verify-every-object-has-its-rung.cjs",
   "docs/verify-the-labs-read-the-atlas.cjs",
+  "docs/verify-what-the-catalogues-say.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -255,6 +256,7 @@ if (fullMode) {
     'docs/verify-the-measured-universe-on-the-ladder.cjs',
     'docs/verify-every-object-has-its-rung.cjs',
     'docs/verify-the-labs-read-the-atlas.cjs',
+    'docs/verify-what-the-catalogues-say.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
