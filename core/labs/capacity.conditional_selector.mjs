@@ -45,7 +45,8 @@ export default defineLab({
               'docs/verify-capacity-gate-budget.cjs (7/7)'],
   open_problems: [
     'capacity.selector — the capacity selector does not select N = 292; the scheme gate is q0 written backwards',
-    'phi.physical_origin — nothing here derives phi; N_phi is a coordinate on a declared registry'
+    'phi.physical_origin — nothing here derives phi; N_phi is a coordinate on a declared registry',
+    'ladder.endpoint_derivation — tried in the atlas (⊢ The endpoint on trial, docs/verify-the-endpoint-on-trial.cjs): the variational selector is minimised at its own parameter q* (circular; q* lies within 1 sigma of the Planck 2018 value, N = 291.94 vs 291.92 +/- 0.015); the spectral APS recursion closes at N = 9.29; the Casimir = de Sitter closure at N = -6.59 (the Planck scale); the horizon entropy has no extremum; and the shift symmetry R_{N+1} = phi R_N proves no functional of the ladder alone can select a rung. Deriving the endpoint requires deriving the dimensionless number Lambda l_P^2 = 2.89e-122 — the cosmological-constant problem.'
   ],
   cost_hint: 'fast',
   inputs: [
