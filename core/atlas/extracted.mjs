@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1347   ·   exported names: 1458
-   extracted physics, sha256 29e809a3799971f0119e9a29aa4820dd8714d78015149f023ef80ca2388a6ca2 */
+   extracted physics, sha256 cbbd902990650959c1c716e57721251773ed88e24753f1387ec93b0d123dfa87 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7393,7 +7393,6 @@ const NEXUS_RELATIONS=[
      ceiling, and every one of those is somebody else's subject here. An edge is
      the only way a reader standing at one of them learns the other exists. */
   ['qso','adisk','limit','the ceiling on what accretion can convert at all','A quasar luminosity is a rate of energy release; the accretion disc laboratory says what fraction of rest energy that release can BE — 1 − sqrt(8/9) = 5.72% at the Schwarzschild ISCO, an order of magnitude above nuclear fusion and still a ceiling. The Eddington limit bounds the rate, the efficiency bounds the conversion, and they are different bounds on different things.','theorem'],
-  ['qso','bhr','coupling','one mass, two questions','The quasar laboratory turns a black-hole mass into the luminosity at which radiation pressure wins; the ray-tracing laboratory turns the same mass into the geodesics light follows near it. The mass is the shared coordinate and nothing else about the two calculations is shared.','coupling'],
   ['chronometry','adisk','contrast','a defined count against a physical constant','The Calendar Round is exactly 18980 days because somebody defined 260 and 365; the radiative efficiency is exactly 1 − sqrt(8/9) because the Schwarzschild metric has an innermost stable circular orbit at 6GM/c². Both are exact and only one of them is about the world — which is the distinction this atlas spends most of its verifiers defending.','theorem'],
   ['s3tube','s3shell','coupling','one sphere, two charts, and only one of them hides the curvature','The shell laboratory works globally, in quaternionic frames where the curvature never appears explicitly because the invariant frame carries it. This chart works locally, around one great circle, where the curvature appears as named terms one can point at. They describe the same manifold: the tube`s Killing field d_theta is an element of the k = 0 shell, and the exact operator here is the same Ebin-Marsden operator whose eigenvalue there is kappa_k.','representation-contrast'],
   ['s3tube','s3torus','coupling','the same chart, closed up','The torus laboratory uses exactly these coordinates and then asks for global smoothness at BOTH ends, which turns A(r) into r*alpha(s) and B(r) into beta(s) and the two radial operators into Jacobi operators in s = r^2/R^2. This laboratory keeps the chart open, inside a strict tube, which is where the source construction lives and where the curvature terms can be read one at a time.','object-class'],
@@ -7715,7 +7714,9 @@ const NEXUS_RELATIONS=[
   ['bht','bhr','representation','χ=0 horizon ↔ Schwarzschild rays','At zero spin the thermodynamic horizon station and ray marcher share the same Schwarzschild mass; nonzero Kerr spin is not propagated into the Schwarzschild ray solver.','model-identity-at-limit'],
   ['bht','rpd','contrast','entropy law ↔ distinguishability framework','The RPD station reframes operational distinctions around a horizon but proves no recovery theorem.','research-framework'],
   ['bhr','lens','representation','null geodesics ↔ lens observables','Both integrate Schwarzschild null geometry at different visualization and approximation levels.','model-bridge'],
-  ['bhr','qso','coupling','black-hole environment ↔ accretion source','The quasar station adds accretion and beaming around an idealized compact-object environment.','model-context'],
+  /* one edge, not two: a later pass added the same pair and type again with a better claim, and the
+     Nexus self-test caught the duplicate typed edge. The better claim now stands on the one edge. */
+  ['bhr','qso','coupling','one mass, two questions','The quasar laboratory turns a black-hole mass into the luminosity at which radiation pressure wins; the ray-tracing laboratory turns the same mass into the geodesics light follows near it, and the quasar station adds accretion and beaming around that idealized environment. The mass is the shared coordinate and nothing else about the two calculations is shared.','model-context'],
   ['qso','bht','coupling','mass scale ↔ horizon thermodynamics','A quasar mass parameter can initialize the idealized horizon relations without making the accretion flow Schwarzschild-isolated.','parameter-bridge'],
   ['qso','lens','coupling','background beacon ↔ intervening lens','Quasars can be lensed background beacons; source and lens remain distinct catalogue roles.','observation-context'],
   ['ns','sn','causal','core collapse → compact remnant','A core-collapse scenario can produce a neutron-star remnant under progenitor-dependent conditions.','scenario-causal'],
