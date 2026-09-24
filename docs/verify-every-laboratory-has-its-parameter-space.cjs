@@ -117,6 +117,13 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     derivedSays && Math.abs(T(1.50) - 3794) < 5 && Math.abs(T(0.65) - 5778) < 5, `Betelgeuse B−V 1.50 → ${T(1.50).toFixed(0)} K by the same relation`);
   const cat = /function pspCatalogue\(\)\{/.test(SRC) && /try\{ pspCatalogue\(\); \}catch\(e\)\{ PSP\.objs=null; \}/.test(SRC) && /pspDrawObjects\(g,\(tx,ty,h\)=>pspProject\(tx-0\.5,ty-0\.5,h\*0\.62-0\.31,W,H\),hN\);/.test(SRC);
   ok('the catalogue stands on the law: fed objects are drawn on the surface at the height the laboratory computes for them', cat);
+  /* and from the 3D atlas: a selected object opens in the laboratories with its numbers already in */
+  const selMap = [['sun', 'sun'], ['planet4', 'planet_Jupiter'], ['hip_27989', 'hip_27989'], ['sky3d_star_32349', 'hip_32349'], ['zod3d_star_91262', 'hip_91262'], ['dso_12', 'gal_12'], ['qso_3', 'qso_3']];
+  const fk = (() => { try { const src = SRC.match(/function feedKeyForSel\(key\)\{[\s\S]*?\n  return null; \}/)[0]; return new Function('PLANETS', 'DSO3D_GAL_NAMES', src + ';return feedKeyForSel;')([{ name: 'Mercury' }, { name: 'Venus' }, { name: 'Earth' }, { name: 'Mars' }, { name: 'Jupiter' }], {}); } catch (e) { return null; } })();
+  const wired = /acts\.push\(\[`⧉ \$\{TT\('In the laboratories','В лабораториях','In den Laboren'\)\} · \$\{n\}`,\(\)=>feedPickerOpen\(fk\)\]\)/.test(SRC)
+    && /if\(opts\.load\)\{ const o=feedObjects\(\)\.find\(x=>x\.key===opts\.load\);/.test(SRC);
+  ok('a selected object of the 3D atlas opens in the laboratories with its own numbers: the Sun, a planet, a star under any of its three keys, a galaxy, a quasar',
+    fk && selMap.every(([k, v]) => fk(k) === v) && wired, fk ? selMap.map(([k]) => `${k} → ${fk(k)}`).join(' · ') : 'feedKeyForSel not found');
   ok('MUTATION — a slot into an input that does not exist is caught', !slotOk([{ id: 'tscale', input: 'mass_kg', prop: 'mass_kg' }]));
   ok('MUTATION — a luminosity fed in solar units where erg/s is declared is caught', !slotOk([{ id: 'tscale', input: 'luminosity', prop: 'lum_ergs', conv: true }]) && !slotOk([{ id: 'wind', input: 'luminosity_solar', prop: 'lum_ergs', conv: false }]));
 
