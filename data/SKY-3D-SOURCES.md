@@ -57,7 +57,7 @@ d3-celestial `mw.json`. They are scan-filled column by column in galactic coordi
 ## 4. The local universe, galaxy by galaxy (`DSO3D_GAL`, `DSO3D_LOCAL`)
 
 The giant structures of the Solar world were drawn only as volumes. What fills them is
-now drawn too: **53 829 galaxies** at their catalogued distances out to 333 Mpc, in their
+now drawn too: **4 341 galaxies** at their catalogued distances out to 333 Mpc, in their
 real directions. With them the Local Group, the Virgo and Fornax clusters, the Great
 Attractor, Perseus–Pisces and Coma appear because the galaxies are where they are, not
 because a shape was placed there. `docs/verify-the-giant-structures-are-made-of-galaxies.cjs`
@@ -80,6 +80,16 @@ distance the camera is looking at.
   and M87 (Mei et al. 2007). The catalogue had put NGC 6822 at 1.25 Mpc instead of 459 kpc
   and IC 1613 at 1.61 Mpc instead of 755 kpc. It had no distance for the SMC, Leo I,
   Leo II or WLM.
+- **The placeholder shell is left out.** In the catalogue, 49 489 galaxies have no redshift
+  (z = 99, its "unknown"), no distance uncertainty, and a distance between 30 and 42 Mpc. That
+  puts 92 % of its galaxies with a distance on one sphere, 36 ± 4 Mpc about the Sun. This is a fill value, not a
+  measurement.
+  - Every galaxy with a real distance outside that band has a redshift it agrees with: the
+    median d/D_C(z) is 1.00 for z > 0.01.
+  - The φ-ladder periodogram (section 6) exposed the shell. Those galaxies gave R ≈ 0.82 at
+    every period, which is possible only if nearly all of them share one distance.
+  - The 108 galaxies without a redshift elsewhere carry individual distances, most of them in
+    the Local Volume, and stay.
 - **Left out.** IC 359 is left out because the catalogue puts it at 0.1 kpc, inside the
   Galaxy. For the same reason, no cluster or nebula nearer than 10 pc is drawn.
 - **Designations.** Every object carries all the designations the catalogue gives it. They are
@@ -109,6 +119,90 @@ Controls has a switch for the layer: *Galaxies and nebulae · real 3D*.
   distances are compiled from NED and HyperLEDA. Stellarium is © the Stellarium team,
   GPL-2.0+. Only the measured numbers are taken.
 - **Rebuild**: `python3 scripts/build-dso-3d.py <stellarium-data>/usr/share/stellarium/nebulae/default/catalog.dat`
+
+## 5. The quasars, the light census and the light field (`QSO3D`, `HCC_LIGHT`)
+
+**The quasars.** 5 959 quasars are drawn in the cosmic layer at their comoving distances, out
+to z = 4.5. Each has its own card: redshift, comoving distance, light-travel time and
+luminosity.
+- **Source.** The catalogue shipped inside Stellarium 23.4, drawn from Véron-Cetty & Véron
+  (2010), *A catalogue of quasars and active nuclei, 13th ed.*, A&A 518, A10, limited to
+  V ≤ 18. `scripts/build-quasars-3d.py` extracts it from the Stellarium binary. It scans the
+  binary's zlib streams for the Qt resource, so no Qt tooling is needed. Hashes:
+  - `.deb` `stellarium_23.4-2build3_amd64.deb`:
+    `6cf830b585b32d729d3dc4fdf6601553fefebcad7cb1135c7c39dc09eca459cf`
+  - the resource: `baf0ea0f234b142cea52f18127d830e86c4327145d36acce3cac01abb4f9e6e2`
+- **Selection.** Only entries with catalogue M ≤ −23 are kept, the catalogue's own definition
+  of a quasar. The fainter nuclei are Seyferts, whose light sits in galaxies the galaxy
+  catalogue already holds.
+- **Cosmology.** Flat ΛCDM with H₀ = 67.4 and Ωm = 0.315, the same model as the rest of the
+  cosmic layer. This gives D_C(z = 1) = 3401 Mpc and a light-travel time of 7.95 Gyr.
+- **Absolute magnitudes.** M_V is recomputed for every quasar, V − 5 log₁₀(D_L/10 pc) − K,
+  with K for α_ν = −0.5. The card shows the catalogue's own M beside it. The median offset
+  is −0.47 mag: the catalogue's M is a B-band value in its own cosmology, and for quasars
+  B − V ≈ 0.3.
+
+**The light census.** The census asks: inside a sphere of radius R about us, what share of
+the light comes from galaxies and what share from quasars? It gives three answers, and the
+first is the fair one.
+
+1. **The 1/Vmax luminosity density** (Schmidt 1968). Each source is weighted by the volume
+   inside R in which its own list would still have caught it. The galaxy list with measured
+   distances is complete to V ≈ 12: its counts rise with the Euclidean slope up to there
+   and flatten by 13. The quasar list is complete to V ≈ 17.5. This gives an unbiased
+   luminosity density for each class.
+   - Galaxies: ≈ 2.2 × 10⁸ L☉ Mpc⁻³ in V.
+   - Quasars: 0.16 % of the local light inside 100 Mpc, 0.064 % inside 200 Mpc and 0.032 %
+     inside 333 Mpc.
+
+   Both lists are compilations, not all-sky surveys, so both densities are lower bounds.
+2. **Volume-limited.** Only sources bright enough that both lists would see them anywhere
+   inside R. That is the luminous end, where quasars weigh far more: 19 % above M = −23.0 at
+   100 Mpc and 44 % above −24.5 at 200 Mpc. This answer is shown only when both classes
+   have such a source.
+3. **The catalogue totals.** These favour whichever list reaches fainter.
+
+Inside a region 50 million light years across there is no quasar, and all the light is
+starlight: 106 galaxies. The nearest quasar is 97 Mpc away, or 317 million light years.
+
+**The light field.** The light field is a sphere 200 million light years across, centred on
+us, sampled on a grid of 48 cells a side. It holds the V-band light of the 273 galaxies with
+M ≤ −20.43. Those galaxies are bright enough to be seen from anywhere in the sphere, so the
+field does not fade with distance merely because the catalogue does. The field is
+smoothed with a Gaussian of 2.4 Mpc, and cells above three times the mean are drawn as a
+glow. The glow is the large-scale distribution of the light itself: the Local Sheet, the
+Virgo cluster, the Fornax–Eridanus cloud and the filaments between them.
+
+The census and the field are checked by `docs/verify-the-light-has-its-sources.cjs`, which
+recomputes them from the embedded catalogues and runs three mutations.
+
+## 6. The measured universe on the φ-ladder (`HCC_PHI_CENSUS`)
+
+The golden ladder N = ln(d / ℓ_P) / ln φ was tested on 113 literature scales and found to be
+a coordinate, not a law. Here every distance from the Sun that this atlas has measured is
+placed on it: 26 160 in all, on rungs 245 to 292.
+- 15 223 Hipparcos stars (ϖ/σϖ ≥ 5);
+- 637 clusters and nebulae;
+- 4 341 galaxies;
+- 5 959 quasars.
+
+**The census.** The census shows how many objects, and how much V-band light, lie on each
+rung. Each φ-shell card in the FBS3R world now says what the atlas has measured at that
+distance.
+
+**The periodogram.** With tens of thousands of values, a naive Rayleigh test is the wrong
+question. The smooth run of numbers with distance leaks into every period, so the naive test
+calls φ "significant" (p = 1 × 10⁻⁴), and √e and 2 as well. The question is asked instead the
+way a spectrum is read: R at ln φ is ranked among 421 periods from 0.30 to 0.72.
+- φ does not stand out. Its rank p is 0.28 overall.
+- It stays unremarkable within each class: stars 0.71, clusters 0.77, galaxies 0.33,
+  quasars 0.44.
+- The measured distances do not sit on the golden rungs. The ladder stays a coordinate.
+
+**What the periodogram exposed.** The periodogram is also what exposed the catalogue's fill
+value. Before the placeholder shell was removed, the galaxies gave R ≈ 0.82 at every period,
+which is possible only if nearly all of them share one distance (section 4). The check is
+`docs/verify-the-measured-universe-on-the-ladder.cjs`.
 
 ## Sources and attribution
 
