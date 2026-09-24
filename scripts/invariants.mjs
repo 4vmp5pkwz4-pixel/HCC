@@ -146,6 +146,23 @@ for (const l of links) {
   cross.push({ from: l.from, to: l.to, ...r });
   process.stdout.write(`${l.from} → ${l.to}: ${r.verdict}\n`);
 }
+/* THROUGH A MIDDLE LABORATORY: every two-link chain the bus admits; only relations between the
+   FIRST and the LAST laboratory are recorded — three laboratories, two of which never meet */
+const chains = await page.evaluate(() => HCC_INVARIANTS.chains());
+const through = [];
+for (const c of chains) {
+  let r;
+  try {
+    r = await race(page.evaluate(async c => { const R = await HCC_INVARIANTS.chain(...c); if (!R) return { verdict: 'THIN' }; if (R.thin) return { verdict: 'THIN', samples: R.samples, refused: R.refused };
+      const f = x => +(+x).toPrecision(8);
+      const o = { samples: R.samples, refused: R.refused,
+        products: R.products.slice(0, 10).map(p => ({ terms: p.terms, exponents: p.a.map(f), value: f(p.value), form: p.form || null, exact: p.exact })),
+        aliases: R.aliases.map(x => ({ name: x.name, of: x.of, factor: f(x.factor), form: x.form || null })) };
+      o.verdict = (o.products.length || o.aliases.length) ? 'FOUND' : 'NONE'; return o; }, c), HANG_MS, 'hang');
+  } catch (e) { await fresh(); r = { verdict: 'UNRETURNED' }; }
+  through.push({ chain: c, ...r });
+  process.stdout.write(`${c.join(' ⇒ ')}: ${r.verdict}\n`);
+}
 await browser.close(); server.close();
 
 const identity = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
@@ -161,7 +178,8 @@ const out = { schema: 'hcc.invariants/1', version: identity.version, build: iden
     scaling_symmetries: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.verified && !x.dead).length, 0),
     dead_inputs: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.dead).length, 0),
     conserved_along_a_clock: rows.filter(r => r.along && ((r.along.sums || []).length || (r.along.constants || []).length)).length,
-    links_asked: cross.length, links_with_cross_laws: cross.filter(c => c.verdict === 'FOUND' && ((c.products || []).length || (c.sums || []).length)).length },
-  errors: [...new Set(errors)].slice(0, 20), laboratories: rows, across_the_bus: cross };
+    links_asked: cross.length, links_with_cross_laws: cross.filter(c => c.verdict === 'FOUND' && ((c.products || []).length || (c.sums || []).length)).length,
+    chains_asked: through.length, chains_with_laws: through.filter(c => c.verdict === 'FOUND').length },
+  errors: [...new Set(errors)].slice(0, 20), laboratories: rows, across_the_bus: cross, through_a_middle_laboratory: through };
 writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
 console.log(JSON.stringify(out.counts));

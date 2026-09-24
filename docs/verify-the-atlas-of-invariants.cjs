@@ -62,6 +62,17 @@ const TP = (link('adisk.peak_temperature', 'eos.temperature').products || []).fi
 ok('and a disk\'s peak temperature carried into the equation of state keeps T⁴/P_rad = 3c/(4σ), named', TP && TP.form === '3/4 · c σ_SB⁻¹' && Math.abs(TP.value / (3 * c / (4 * sigma)) - 1) < 1e-6,
   TP ? `${TP.value.toExponential(6)} = ${TP.form}` : 'not found');
 
+/* 3a · THROUGH A MIDDLE LABORATORY: a Jeans mass into the black-hole laboratory, its Hawking
+   temperature into Planck's — the cloud's mass fixes the wavelength at which its hole would glow
+   brightest. The factor is recomputed from CODATA and Wien's b: λ_max / M = b · 8πG k_B / (ħc³) */
+const WIEN_B = 2.897771955e-3;
+const ch = (J.through_a_middle_laboratory || []).find(x => x.chain.join('|') === 'jeans.jeans_mass→bht.M|bht.T_H→bb.T');
+const al = ch && (ch.aliases || []).find(a => a.name === 'bb.lambda_max' && a.of === 'jeans.jeans_mass');
+const wienHawking = WIEN_B * 8 * Math.PI * G * kB / (hbar * c ** 3);
+ok('through a middle laboratory: Jeans → Hawking → Planck makes the cloud\'s mass fix its hole\'s Wien peak, λ_max = (b·8πG k_B/ħc³)·M — found by the census, recomputed here',
+  al && Math.abs(al.factor / wienHawking - 1) < 1e-5 && J.counts.chains_with_laws === (J.through_a_middle_laboratory || []).filter(x => x.verdict === 'FOUND').length,
+  al ? `${al.factor.toExponential(6)} m/kg against ${wienHawking.toExponential(6)} · ${J.counts.chains_with_laws}/${J.counts.chains_asked} two-link chains carry a law` : 'not found');
+
 /* 3b · the symmetries: named, applied at random points by the page, recorded — and applied once
    more here, to the Jeans kernel itself */
 const js = (lab('jeans').symmetries || []).find(x => x.verified && !x.dead);

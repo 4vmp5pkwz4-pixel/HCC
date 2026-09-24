@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-symmetries-each-laboratory-keeps-2026.09.24.15">
+<html lang="en" data-hcc-build="laws-through-a-middle-laboratory-2026.09.24.16">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-symmetries-each-laboratory-keeps-2026.09.24.15">
+<meta name="hcc-build" content="laws-through-a-middle-laboratory-2026.09.24.16">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2916,7 +2916,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.301.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.302.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3207,8 +3207,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.301.0';
-const HCC_BUILD='the-symmetries-each-laboratory-keeps-2026.09.24.15';
+const HCC_VERSION='4.302.0';
+const HCC_BUILD='laws-through-a-middle-laboratory-2026.09.24.16';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -45422,28 +45422,37 @@ function invSymmetries(id,cur){ const D=pspDesc(id); if(!D) return null; const i
   return out; }
 function invSymHTML(S){ if(!S||!S.length) return ''; const sup=k=>{ if(k===1) return ''; const t=Number.isInteger(k)?String(k):String(+k.toFixed(3)); return `<sup>${t}</sup>`; };
   return S.map(x=>x.dead?`<div style="margin-left:8px;color:var(--dim)">○ ${esc(x.inputs[x.k.findIndex(v=>v!==0)])} ${TT('acts on no output here — a dead input at this point, not a symmetry','не действует здесь ни на один выход — мёртвый вход в этой точке, а не симметрия','wirkt hier auf keinen Ausgang — ein toter Eingang')}${x.verified?'':' ('+TT('locally','локально','lokal')+')'}</div>`:`<div style="margin-left:8px">${x.verified?'✓':'?'} ${TT('invariant under','инвариантна относительно','invariant unter')} ${x.inputs.map((n,i)=>x.k[i]===0?'':`${esc(n)} → λ${sup(x.k[i])}·${esc(n)}`).filter(Boolean).join(', ')} <span style="color:${x.verified?'#7fe0a8':'#ffd58a'}">— ${x.verified?`${TT('applied at','применено в','angewandt an')} ${x.trials} ${TT('random points (λ = 2, 0.3): every output unchanged','случайных точках (λ = 2, 0.3): все выходы неизменны','Zufallspunkten: alle Ausgänge unverändert')}`:`${TT('local only','только локально','nur lokal')} (${x.fails}/${x.trials})`}</span></div>`).join(''); }
-function invAcross(link,cb){ const [ai,ao]=link.from.split('.'), [bi,bn]=link.to.split('.'); const DA=pspDesc(ai), DB=pspDesc(bi); if(!DA||!DB){ cb(null); return; }
-  const insA=pspNum(DA).filter(f=>!pspIsControl(f)), fB=DB.inputs.find(f=>f.name===bn); if(!insA.length||!fB){ cb(null); return; }
-  const bA={}, bB={}; for(const f of DA.inputs) bA[f.name]=f.default; for(const f of DB.inputs) bB[f.name]=f.default;
-  const t0=performance.now(); const r0=pspEval(ai,bA); if(r0&&Number.isFinite(r0[ao])){ const v0=r0[ao]*(link.converted?link.scale:1); if(v0>=fB.min&&v0<=fB.max) pspEval(bi,{...bB,[bn]:v0}); }
-  const ms=Math.max(0.02,performance.now()-t0), M=Math.max(16,Math.min(40,Math.floor(3000/ms)));
-  const outA=r0?Object.keys(r0).filter(k=>typeof r0[k]==='number'):[]; const keepA=[ao,...outA.filter(k=>k!==ao)].slice(0,6);
+function invChain(path,cb){ const hops=path.map(l=>({from:l.from.split('.'),to:l.to.split('.'),scale:l.converted?l.scale:1}));
+  for(let i=1;i<hops.length;i++) if(hops[i].from[0]!==hops[i-1].to[0]){ cb(null); return; }
+  const labs=[hops[0].from[0],...hops.map(h=>h.to[0])], Ds=labs.map(pspDesc); if(Ds.some(d=>!d)){ cb(null); return; }
+  const ins0=pspNum(Ds[0]).filter(f=>!pspIsControl(f)); if(!ins0.length){ cb(null); return; }
+  const bases=Ds.map(D=>{ const b={}; for(const f of D.inputs) b[f.name]=f.default; return b; }), dom=hops.map((h,i)=>Ds[i+1].inputs.find(f=>f.name===h.to[1]));
+  if(dom.some(f=>!f)){ cb(null); return; }
+  /* one pass through the chain: every laboratory's answer, or the hop that refused */
+  const run=inp=>{ const outs=[]; let r=pspEval(labs[0],inp); if(!r) return {refused:0}; outs.push(r);
+    for(let i=0;i<hops.length;i++){ const v=r[hops[i].from[1]]*hops[i].scale, f=dom[i]; if(!Number.isFinite(v)||!(v>=f.min&&v<=f.max)) return {refused:i+1};
+      r=pspEval(labs[i+1],{...bases[i+1],[f.name]:v}); if(!r) return {refused:i+1}; outs.push(r); } return {outs}; };
+  const t0=performance.now(); run(bases[0]); const ms=Math.max(0.02,performance.now()-t0), M=Math.max(16,Math.min(40,Math.floor(3000/ms)));
   let seed=424242; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
   const rows=[]; let k=0, refused=0; const job=++PSP.invJob;
+  const keepFirst=o=>{ const ks=Object.keys(o).filter(q=>typeof o[q]==='number'); return [hops[0].from[1],...ks.filter(q=>q!==hops[0].from[1])].slice(0,6); };
   const step=()=>{ if(job!==PSP.invJob) return; const tEnd=performance.now()+24;
-    while(rows.length<M&&k<M*6&&performance.now()<tEnd){ k++; const inp={...bA}; for(const f of insA) inp[f.name]=pspAt(f,rnd());
-      const ra=pspEval(ai,inp); if(!ra||!Number.isFinite(ra[ao])) continue; const v=ra[ao]*(link.converted?link.scale:1);
-      if(!(v>=fB.min&&v<=fB.max)){ refused++; continue; } const rb=pspEval(bi,{...bB,[bn]:v}); if(!rb) { refused++; continue; }
-      const row={}; for(const n of keepA) if(typeof ra[n]==='number') row[ai+'.'+n]=ra[n]; let nb=0; for(const n of Object.keys(rb)) if(typeof rb[n]==='number'&&nb<10){ row[bi+'.'+n]=rb[n]; nb++; } rows.push(row); }
+    while(rows.length<M&&k<M*6&&performance.now()<tEnd){ k++; const inp={...bases[0]}; for(const f of ins0) inp[f.name]=pspAt(f,rnd());
+      const R=run(inp); if(!R.outs){ if(R.refused) refused++; continue; }
+      const row={}; R.outs.forEach((o,i)=>{ const ks=i===0?keepFirst(o):Object.keys(o).filter(q=>typeof o[q]==='number').slice(0,i===R.outs.length-1?10:6); for(const q of ks) if(typeof o[q]==='number') row[labs[i]+'.'+q]=o[q]; }); rows.push(row); }
     if(rows.length<M&&k<M*6&&!(performance.now()-t0>8000&&rows.length>=12)){ setTimeout(step,0); return; }
-    if(rows.length<10){ cb({link,samples:rows.length,refused,thin:true}); return; }
-    /* keys present in every row only */
+    if(rows.length<10){ cb({path,labs,samples:rows.length,refused,thin:true}); return; }
     const keys=Object.keys(rows[0]).filter(q=>rows.every(r=>typeof r[q]==='number'&&Number.isFinite(r[q]))), R=rows.map(r=>Object.fromEntries(keys.map(q=>[q,r[q]])));
-    const A=invAnalyse(R), both=terms=>terms.some(t=>t.startsWith(ai+'.'))&&terms.some(t=>t.replace(/²$/,'').startsWith(bi+'.'));
-    cb({link,samples:rows.length,refused,products:A.products.filter(r=>both(r.terms)),sums:A.sums.filter(r=>both(r.terms)),
-      aliases:A.aliases.filter(x=>both([x.name,x.of])),constants:A.constants.filter(c=>c.name.startsWith(bi+'.'))}); };
+    const A=invAnalyse(R), first=labs[0]+'.', last=labs[labs.length-1]+'.', span=terms=>terms.some(t=>t.startsWith(first))&&terms.some(t=>t.replace(/²$/,'').startsWith(last));
+    cb({path,labs,samples:rows.length,refused,products:A.products.filter(r=>span(r.terms)),sums:A.sums.filter(r=>span(r.terms)),
+      aliases:A.aliases.filter(x=>span([x.name,x.of])),constants:A.constants.filter(c=>c.name.startsWith(last))}); };
   step(); }
-globalThis.HCC_INVARIANTS=Object.freeze({symmetries:id=>invSymmetries(id,null), across:(from,to)=>new Promise(res=>{ let L=null; try{ L=HCC_API.bus.links().find(l=>l.from===from&&l.to===to); }catch(e){} if(!L){ res(null); return; } invAcross(L,res); }),
+/* one link is a chain of one */
+function invAcross(link,cb){ invChain([link],R=>cb(R&&{...R,link})); }
+/* the two-link chains the bus admits: the middle laboratory takes one value and gives another */
+function invChains2(){ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){ return []; } const out=[];
+  for(const a of L) for(const b of L){ const B=a.to.split('.')[0]; if(b.from.split('.')[0]===B&&b.to.split('.')[0]!==a.from.split('.')[0]) out.push([a,b]); } return out; }
+globalThis.HCC_INVARIANTS=Object.freeze({symmetries:id=>invSymmetries(id,null), chains:()=>invChains2().map(p=>p.map(l=>l.from+'→'+l.to)), chain:(...ft)=>new Promise(res=>{ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){} const path=ft.map(x=>{ const [a,b]=x.split('→'); return L.find(l=>l.from===a&&l.to===b); }); if(path.some(x=>!x)){ res(null); return; } invChain(path,res); }), across:(from,to)=>new Promise(res=>{ let L=null; try{ L=HCC_API.bus.links().find(l=>l.from===from&&l.to===to); }catch(e){} if(!L){ res(null); return; } invAcross(L,res); }),
   find:(id,along)=>new Promise(res=>invSample(id||PSP.id,along||null,(rows,meta)=>{ const A=rows?invAnalyse(rows):null; res(A?{...A,meta}:null); })),
   last:()=>PSP.inv?{id:PSP.inv.id,along:PSP.inv.along,...(PSP.inv.A||{})}:null});
 
@@ -45479,9 +45488,11 @@ async function hccInvariantAtlasOpen(filter){
   const render=()=>{ const q=(d.querySelector('#iaQ').value||'').toLowerCase(); const L=(A.laboratories||[]).filter(x=>!q||JSON.stringify(x).toLowerCase().includes(q));
     const rank=x=>{ const a=x.across||{}; return -(((a.constants||[]).filter(c=>c.form).length+(a.products||[]).filter(p=>p.form).length)*3+(a.hidden_symmetries?4:0)+((x.along&&x.along.verdict==='FOUND')?3:0)+(a.products||[]).length*0.1); };
     d.querySelector('#iaB').innerHTML=`<div style="color:var(--dim)">${TT('Recorded by scripts/invariants.mjs on','Записано scripts/invariants.mjs в версии','Aufgezeichnet auf')} v${esc(A.version||'?')}${stale?` · <span style="color:#ffd58a">${TT('this page is','эта страница —','diese Seite ist')} v${HCC_VERSION}: ${TT('each row\'s ⧉ recomputes it live','⧉ в каждой строке пересчитывает её вживую','⧉ rechnet live nach')}</span>`:''}</div>
-      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;font-size:12px">${[[C.laboratories,TT('laboratories asked','лабораторий опрошено','Labore befragt')],[C.found,TT('keep something','что-то сохраняют','bewahren etwas')],[C.exact_relations,TT('exact relations','точных связей','exakte Relationen')],[C.named_constants,TT('named in closed form','названо в замкнутой форме','geschlossen benannt')],[C.hidden_symmetries,TT('hidden symmetries','скрытых симметрий','verborgene Symmetrien')],[C.conserved_along_a_clock,TT('conserve along a clock','сохраняют вдоль часов','erhalten entlang einer Uhr')],[C.links_with_cross_laws,TT('bus links carry a law','связей шины несут закон','Buslinks tragen ein Gesetz')],[C.scaling_symmetries,TT('scaling symmetries, applied and confirmed','масштабных симметрий, применённых и подтверждённых','Skalensymmetrien, bestätigt')]].map(([n,t])=>`<span><b style="font-size:16px;color:#d9c8ff">${n??'—'}</b> ${t}</span>`).join('')}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;margin:6px 0;font-size:12px">${[[C.laboratories,TT('laboratories asked','лабораторий опрошено','Labore befragt')],[C.found,TT('keep something','что-то сохраняют','bewahren etwas')],[C.exact_relations,TT('exact relations','точных связей','exakte Relationen')],[C.named_constants,TT('named in closed form','названо в замкнутой форме','geschlossen benannt')],[C.hidden_symmetries,TT('hidden symmetries','скрытых симметрий','verborgene Symmetrien')],[C.conserved_along_a_clock,TT('conserve along a clock','сохраняют вдоль часов','erhalten entlang einer Uhr')],[C.links_with_cross_laws,TT('bus links carry a law','связей шины несут закон','Buslinks tragen ein Gesetz')],[C.scaling_symmetries,TT('scaling symmetries, applied and confirmed','масштабных симметрий, применённых и подтверждённых','Skalensymmetrien, bestätigt')],[C.chains_with_laws,TT('three-laboratory chains carry a law','цепочек из трёх лабораторий несут закон','Dreier-Ketten tragen ein Gesetz')]].map(([n,t])=>`<span><b style="font-size:16px;color:#d9c8ff">${n??'—'}</b> ${t}</span>`).join('')}</div>
       ${(A.across_the_bus||[]).some(c=>(c.products||[]).length||(c.sums||[]).length)&&!q?`<h3 style="margin:10px 0 2px;color:#d9c8ff">⇄ ${TT('Laws across the bus','Законы через шину','Gesetze über den Bus')}</h3><div style="color:var(--dim);font-size:11px">${TT('A declared link carries one laboratory\'s output into another\'s input; driven across the first one\'s domain, these relations hold among the outputs of BOTH — laws neither laboratory states alone.','Объявленная связь несёт выход одной лаборатории во вход другой; при прогоне первой по её домену эти соотношения держатся между выходами ОБЕИХ — законы, которых ни одна лаборатория не утверждает в одиночку.','Relationen zwischen den Ausgängen BEIDER Labore.')}</div>
         ${(A.across_the_bus||[]).filter(c=>(c.products||[]).length||(c.sums||[]).length).map(c=>`<div class="note" style="margin:3px 0;border-left:3px solid #b99cff"><b>${esc(c.from)} → ${esc(c.to)}</b> <span style="color:var(--dim);font-size:10.5px">· ${c.samples} ${TT('carried answers','перенесённых ответов','übertragene Antworten')}</span><br><span style="font-size:11.5px">${(c.products||[]).slice(0,3).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join(' · ')} = ${p.form?`<b style="color:#ffd58a">${esc(p.form)}</b>`:pspFmt(p.value)}`).join('<br>')}${(c.sums||[]).slice(0,1).map(r=>'<br>'+r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')+` = ${pspFmt(r.value)}`).join('')}</span></div>`).join('')}`:''}
+      ${(A.through_a_middle_laboratory||[]).some(c=>c.verdict==='FOUND')&&!q?`<h3 style="margin:10px 0 2px;color:#d9c8ff">⇄⇄ ${TT('Laws through a middle laboratory','Законы через среднюю лабораторию','Gesetze durch ein mittleres Labor')}</h3><div style="color:var(--dim);font-size:11px">${TT('Two links in a row: the first laboratory drives the second, the second drives the third. These relations join the FIRST and the LAST — two laboratories that never meet.','Две связи подряд: первая лаборатория питает вторую, вторая — третью. Эти соотношения связывают ПЕРВУЮ и ПОСЛЕДНЮЮ — две лаборатории, которые никогда не встречаются.','Zwei Links hintereinander: Relationen zwischen dem ERSTEN und dem LETZTEN Labor.')}</div>
+        ${(A.through_a_middle_laboratory||[]).filter(c=>c.verdict==='FOUND').map(c=>`<div class="note" style="margin:3px 0;border-left:3px solid #7fe0d0"><b>${c.chain.map(x=>esc(x.replace('→',' → '))).join(' ⇒ ')}</b><br><span style="font-size:11.5px">${[...(c.aliases||[]).slice(0,2).map(x=>`${esc(x.name)} = ${esc(x.of)} × ${x.form?`<b style="color:#ffd58a">${esc(x.form)}</b>`:pspFmt(x.factor)}`),...(c.products||[]).slice(0,2).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join(' · ')} = ${p.form?`<b style="color:#ffd58a">${esc(p.form)}</b>`:pspFmt(p.value)}`)].join('<br>')}</span></div>`).join('')}`:''}
       <h3 style="margin:10px 0 2px;color:#d9c8ff">∮ ${TT('Within each laboratory','Внутри каждой лаборатории','In jedem Labor')}</h3>
       ${[...L].sort((a,b)=>rank(a)-rank(b)).map(rowHTML).join('')}`;
     d.querySelectorAll('[data-iago]').forEach(b=>b.onclick=()=>{ d.remove(); hccPspaceOpen(b.dataset.iago); setTimeout(()=>{ try{ document.querySelector('#hccPspace #invGo')?.click(); }catch(e){} },400); }); };
