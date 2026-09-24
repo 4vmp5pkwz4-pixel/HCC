@@ -788,7 +788,9 @@ export const ROOTS = [
   'ilSchwarzschildArea', 'ilMargolus', 'ilBremermann', 'ilEntropyGap', 'IL_HOLDERS',
   /* the parameter space: its grid, its law fit and its fraction reader, so the file that
      checks them runs the code the reader runs */
-  'pspLog', 'pspAt', 'pspTof', 'pspFrac', 'pspFit'
+  'pspLog', 'pspAt', 'pspTof', 'pspFrac', 'pspFit',
+  /* the invariant finder: pure arithmetic on sample tables */
+  'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
