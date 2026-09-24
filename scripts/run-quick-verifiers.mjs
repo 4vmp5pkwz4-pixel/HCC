@@ -94,6 +94,7 @@ const allChecks = [
   "docs/verify-every-object-opens-its-pictures.cjs",
   "docs/verify-the-giant-structures-are-made-of-galaxies.cjs",
   "docs/verify-the-earth-stands-true.cjs",
+  "docs/verify-the-sky-turns-with-the-day.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -245,6 +246,7 @@ if (fullMode) {
     'docs/verify-every-object-opens-its-pictures.cjs',
     'docs/verify-the-giant-structures-are-made-of-galaxies.cjs',
     'docs/verify-the-earth-stands-true.cjs',
+    'docs/verify-the-sky-turns-with-the-day.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
