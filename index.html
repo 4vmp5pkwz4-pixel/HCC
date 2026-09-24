@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="arms-traced-by-their-stars-2026.09.24.1">
+<html lang="en" data-hcc-build="stand-on-any-star-2026.09.24.2">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="arms-traced-by-their-stars-2026.09.24.1">
+<meta name="hcc-build" content="stand-on-any-star-2026.09.24.2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2898,7 +2898,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.287.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.288.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3187,8 +3187,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.287.0';
-const HCC_BUILD='arms-traced-by-their-stars-2026.09.24.1';
+const HCC_VERSION='4.288.0';
+const HCC_BUILD='stand-on-any-star-2026.09.24.2';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -27344,6 +27344,7 @@ function autoSolarScale(dt){
     }
   }
   if(focusAnim) return;
+  if(HCC_STAND) return;          /* standing on another star: the scale chain must not pull the camera home */
   _autoScaleCd-=dt; if(_autoScaleCd>0) return;
   const order=['local','galactic','andromeda','cosmic'], layer=state.solarScaleLayer||'local', i=order.indexOf(layer);
   if(i<0) return;
@@ -41934,7 +41935,7 @@ function updateZodiac3d(dt){
     if(zod3dTrail){ zod3dTrail.line.visible=on; zod3dTrail.line.material.opacity=0.9*f; } }
   zod3dApplyFocus();
   const labOn=f>0.15, foc=state.zod3dFocus||null;
-  for(const [con,l] of Object.entries(O.conLab)) l.visible=labOn&&(!foc||con===foc);
+  for(const [con,l] of Object.entries(O.conLab)) l.visible=labOn&&!HCC_STAND&&(!foc||con===foc);
   zod3dUi+=dt;
   const refreshText=zod3dUi>0.5; if(refreshText) zod3dUi=0;
   for(const [i,l] of O.starLab){ const k=O.index.get(i), s=O.placed[k];
@@ -43814,6 +43815,7 @@ globalThis.HCC_SKY_HIP3D=Object.freeze({
 function updateSky3d(dt){
   const epJ=2000+(state.epochDays||0)/365.25, dSun=camera.position.length();
   try{ mwtUpdate(); }catch(e){ if(!mwtUpdate._w){ mwtUpdate._w=1; console.warn('arm tracers:',e); } }
+  try{ sunStarUpdate(); }catch(e){}
   /* the same angular fade for every layer placed in parsecs: a 150-pc neighbourhood
      that is smaller than a fraction of a degree is handed to the Galaxy model */
   const ang=150*ZOD3D_PC_AU/Math.max(dSun,1);
@@ -43839,7 +43841,7 @@ function updateSky3d(dt){
   O.figL.material.opacity=O.figL.userData.op0*f;
   O.figL.visible=constGroup.visible!==false;
   /* a constellation is a figure seen from HERE; beyond 1.5 kpc its name is clutter */
-  const labOn=f>0.15&&dSun<1500*ZOD3D_PC_AU;
+  const labOn=f>0.15&&dSun<1500*ZOD3D_PC_AU&&!HCC_STAND;   // a figure's name belongs to the Sun's sky
   for(const l of Object.values(O.conLab)) l.visible=labOn&&constGroup.visible!==false;
   for(const [i,l] of O.starLab){ const s=O.placed[O.index.get(i)]; l.visible=labOn&&s.V<2.1; }
 }
@@ -43889,7 +43891,7 @@ function mwtBuild(){
   for(const it of items){
     const lab=mkLabel(hccL(it.o.n),'label star'); lab.position.copy(it.p); mwtGroup.add(lab); it.lab=lab;
     const fmt=(x,d)=>Number.isFinite(x)?x.toFixed(d):'—';
-    registerSel('mwt_'+it.o.key,{name:()=>hccL(it.o.n),mode:'solar',labelEl:lab.element,
+    registerSel('mwt_'+it.o.key,{name:()=>hccL(it.o.n),photoQuery:it.o.n[0].replace(/ · .*$/,''),mode:'solar',labelEl:lab.element,
       src:['GAIA','ASTRO'],accuracyTier:'B',catalogueStatus:'literature-derived',
       coords:{frame:'ICRS',raDeg:it.o.ra,decDeg:it.o.de,epoch:2000},
       desc:(it.o.note?it.o.note.charAt(0).toUpperCase()+it.o.note.slice(1)+'. ':'')+'Placed at its measured distance in its real direction; the arm it belongs to is read off the model, not assumed.',
@@ -43925,6 +43927,67 @@ globalThis.HCC_MW_TRACERS=Object.freeze({
     return g&&{R:g.R, arm:g.arm&&g.arm.key, offKpc:g.off}; }
 });
 
+
+
+/* ══ STAND ON ANOTHER STAR ═══════════════════════════════════════════════════════
+   Every star in this atlas with a measured distance can be stood on. The camera is set
+   down just beyond the star, looking back along the line to the Sun, and everything
+   else follows from positions that were already exact: the constellations come apart
+   into the depth they always had, the zodiac is no longer a belt, and the Sun is a
+   star like any other — drawn with its own absolute magnitude, 4.83, at the distance
+   it really is from there. Orbiting turns the view about a point a few thousand AU in
+   front of the camera, so dragging LOOKS AROUND from the star instead of flying off it.
+   The time machine keeps running: every star keeps its proper motion from there too. */
+const HCC_SUN_M=4.83;
+const sunStarGroup=new THREE.Group(); sunStarGroup.name='sun-as-a-star'; solarGroup.add(sunStarGroup);
+let sunStarObj=null, HCC_STAND=null;
+function sunStarBuild(){ if(sunStarObj) return;
+  const c=bbColor(5772), pts=new THREE.Points(hccStarGeometry(new Float32Array(3),new Float32Array(c),new Float32Array([HCC_SUN_M])),hccStarMaterial({abs:true}));
+  pts.frustumCulled=false; sunStarGroup.add(pts);
+  const lab=mkLabel('☉ Sun','label star'); sunStarGroup.add(lab);
+  sunStarObj={pts,lab}; }
+function sunStarUpdate(){
+  const dPc=camera.position.length()/ZOD3D_PC_AU, on=state.mode==='solar'&&dPc>0.3;
+  sunStarGroup.visible=on; if(!on) return; sunStarBuild();
+  const m=HCC_STAR_PSF.appMag(HCC_SUN_M,dPc);
+  sunStarObj.lab.element.textContent=`☉ ${TT('Sun','Солнце','Sonne')} · m ${m.toFixed(1)}`;
+  if(HCC_STAND) hccStandBanner(); }
+function hccStandable(key){
+  if(!/^(hip_|sky3d_star_|zod3d_star_|star_|mwt_)/.test(key)) return false;
+  const s=SELECT.get(key); if(!s||!s.getPos) return false;
+  if(/^mwt_/.test(key)){ const it=(typeof MWT_OBJECTS!=='undefined')&&MWT_OBJECTS.find(o=>'mwt_'+o.key===key); if(!it||it.kind!=='star') return false; }
+  try{ return s.getPos().length()>0.5*ZOD3D_PC_AU; }catch(e){ return false; } }
+function hccStandAt(key){
+  const s=SELECT.get(key); if(!hccStandable(key)) return false;
+  if(state.mode!=='solar') setMode('solar');
+  try{ clearFocus(); }catch(e){}
+  const p=s.getPos(), back=p.clone().normalize();
+  /* the LOCAL layer: its sky of stars is what is being looked at; the galactic layer
+     would draw the Galaxy's particle disc around the camera as a white fog */
+  if((state.solarScaleLayer||'local')!=='local') advanceScaleLayer('local');
+  const cam=p.clone().addScaledVector(back,0.03*ZOD3D_PC_AU);
+  HCC_STAND={key,name:(typeof s.name==='function'?s.name():s.name),pos:p.clone()};
+  camera.position.copy(cam);
+  controls.target.copy(cam).addScaledVector(back,-0.02*ZOD3D_PC_AU);   // a pivot just in front, toward the Sun
+  hccCameraGoal(camera.position.distanceTo(controls.target),6); syncCameraClipping(true);
+  hccStandBanner(true); return true; }
+function hccStandBack(){
+  HCC_STAND=null; document.getElementById('hccStandBar')?.remove();
+  try{ advanceScaleLayer('local'); }catch(e){}
+  controls.target.set(0,0,0); camera.position.set(0,26,52); hccCameraGoal(camera.position.length(),6); syncCameraClipping(true); }
+function hccStandBanner(force){
+  let d=document.getElementById('hccStandBar');
+  if(!d){ if(!force) return; d=document.createElement('div'); d.id='hccStandBar'; d.setAttribute('role','status');
+    d.style.cssText='position:fixed;left:50%;transform:translateX(-50%);top:var(--hud-top,120px);z-index:125;max-width:min(92vw,560px);padding:8px 10px 8px 14px;border-radius:14px;background:rgba(8,11,19,.9);border:1px solid rgba(212,175,106,.5);color:#e9e2cf;font:12.5px/1.4 system-ui,sans-serif;display:flex;gap:10px;align-items:center';
+    const t=document.createElement('span'); t.className='t'; const b=document.createElement('button'); b.className='btn'; b.style.minHeight='40px';
+    b.onclick=()=>hccStandBack(); d.append(t,b); document.body.appendChild(d); }
+  if(!HCC_STAND) return;
+  const dPc=HCC_STAND.pos.length()/ZOD3D_PC_AU, m=HCC_STAR_PSF.appMag(HCC_SUN_M,camera.position.length()/ZOD3D_PC_AU);
+  d.querySelector('.t').textContent=TT(`☆ Standing at ${HCC_STAND.name} · ${dPc.toFixed(dPc<100?1:0)} pc from the Sun · the Sun here is m = ${m.toFixed(1)}${m>6.5?', too faint for the naked eye':''}`,
+    `☆ Вы на ${HCC_STAND.name} · ${dPc.toFixed(dPc<100?1:0)} пк от Солнца · Солнце отсюда m = ${m.toFixed(1)}${m>6.5?', не видно невооружённым глазом':''}`,
+    `☆ Sie stehen bei ${HCC_STAND.name} · ${dPc.toFixed(dPc<100?1:0)} pc von der Sonne · die Sonne hier: m = ${m.toFixed(1)}${m>6.5?', mit bloßem Auge unsichtbar':''}`);
+  d.querySelector('button').textContent=TT('☉ Back to the Sun','☉ Назад к Солнцу','☉ Zurück zur Sonne'); }
+globalThis.HCC_STAND_AT=Object.freeze({stand:k=>hccStandAt(k), back:()=>hccStandBack(), where:()=>HCC_STAND&&{key:HCC_STAND.key,distPc:HCC_STAND.pos.length()/ZOD3D_PC_AU}});
 
 /* ── WHAT A STAR LOSES WHILE IT BURNS ────────────────────────────────────────
    Every lifetime in this atlas is computed as if a star kept its mass. It does
@@ -98071,6 +98134,57 @@ function wikiUrl(key,s){
   const clean=nm.replace(/\s*[·•|].*$/,'').replace(/\s*[–-]\s.*$/,'').replace(/\s*\(.*?\)\s*/g,'').trim();
   return 'https://en.wikipedia.org/wiki/Special:Search?search='+encodeURIComponent(clean||nm);
 }
+
+/* ══ EVERY SKY OBJECT OPENS ITS OWN PICTURES ══════════════════════════════════════
+   Photographs and 3D models from the agencies that made them, fetched when asked and
+   never copied: the NASA Image and Video Library (public API, no key, CORS-open; NASA
+   imagery is generally public domain), and doors into the ESA/Hubble, ESA/Webb and ESO
+   archives, NASA 3D Resources and — for the Sun, the planets and their moons — NASA's
+   Eyes on the Solar System, which is a 3D model of the real system at the real date. */
+const HCC_EYES=new Set(['sun','mercury','venus','earth','moon','mars','jupiter','saturn','uranus','neptune','pluto','io','europa','ganymede','callisto','titan','enceladus','triton','phobos','deimos','ceres','vesta','charon','miranda','titania','oberon','rhea','iapetus','dione','tethys','mimas']);
+function hccIsSkyObject(key,s){ if(!s||(s.mode!=='solar'&&s.mode!=='obs')) return false;
+  return !/Atlas$|^fieldModel_|^annot_|^lab_/.test(key); }
+function hccMediaQuery(key,s){
+  let q=s.photoQuery||(typeof s.name==='function'?s.name():s.name)||'';
+  q=String(q).replace(/[^\p{L}\p{N}\s'’.\-+*]/gu,' ').replace(/\s+/g,' ').trim();
+  if(/^HIP \d+$/.test(q)) return '';
+  return q; }
+function hccMediaOpen(key){
+  const s=SELECT.get(key); if(!s) return;
+  const q=hccMediaQuery(key,s), enc=encodeURIComponent(q), first=(q.split(' ')[0]||'').toLowerCase();
+  document.getElementById('hccMedia')?.remove();
+  const d=document.createElement('div'); d.id='hccMedia'; d.setAttribute('role','dialog');
+  d.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9000;width:min(94vw,760px);max-height:84vh;overflow:auto;padding:14px 14px 12px;border-radius:16px;background:rgba(8,11,19,.97);border:1px solid rgba(212,175,106,.5);color:#e9e2cf;font:13px/1.45 system-ui,sans-serif;box-shadow:0 18px 60px rgba(0,0,0,.7)';
+  const h=document.createElement('div'); h.style.cssText='display:flex;align-items:center;gap:10px;margin-bottom:8px';
+  const t=document.createElement('b'); t.style.cssText='flex:1;font-size:15px;color:var(--gold-2,#f1dda6)'; t.textContent=`🖼 ${q||objectName(s)} — ${TT('photographs and 3D','фотографии и 3D','Fotografien und 3D')}`;
+  const x=document.createElement('button'); x.className='btn'; x.textContent='✕'; x.onclick=()=>d.remove(); h.append(t,x);
+  const grid=document.createElement('div'); grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:6px 0 10px';
+  const note=document.createElement('div'); note.style.cssText='font-size:11px;color:var(--dim,#9aa);margin-bottom:8px';
+  const links=document.createElement('div'); links.style.cssText='display:flex;flex-wrap:wrap;gap:6px';
+  const L=(label,url)=>{ const a=document.createElement('a'); a.className='btn'; a.href=url; a.target='_blank'; a.rel='noopener'; a.textContent=label; a.style.textDecoration='none'; links.appendChild(a); };
+  if(HCC_EYES.has(first)||key==='sun'||key==='moon') L(TT('🪐 3D · NASA Eyes on the Solar System','🪐 3D · NASA Eyes on the Solar System','🪐 3D · NASA Eyes on the Solar System'),'https://eyes.nasa.gov/apps/solar-system/#/'+(key==='sun'?'sun':key==='moon'?'moon':first));
+  if(q){ L('NASA Images ↗','https://images.nasa.gov/search?q='+enc);
+    L('ESA/Hubble ↗','https://esahubble.org/images/archive/search/?q='+enc);
+    L('ESA/Webb ↗','https://esawebb.org/images/archive/search/?q='+enc);
+    L('ESO ↗','https://www.eso.org/public/images/archive/search/?q='+enc);
+    L('NASA 3D Resources ↗','https://science.nasa.gov/3d-resources/?search='+enc); }
+  d.append(h,grid,note,links); document.body.appendChild(d);
+  if(!q){ note.textContent=TT('This object has no name an archive can search for; the atlas does not guess one.','У объекта нет имени, по которому можно искать в архивах; атлас его не придумывает.','Dieses Objekt hat keinen Namen, nach dem ein Archiv suchen kann; der Atlas erfindet keinen.'); return; }
+  note.textContent=TT('Loading from the NASA Image and Video Library…','Загрузка из NASA Image and Video Library…','Lade aus der NASA Image and Video Library…');
+  fetch('https://images-api.nasa.gov/search?media_type=image&q='+enc).then(r=>r.ok?r.json():Promise.reject(r.status)).then(j=>{
+    const items=(j.collection&&j.collection.items||[]).filter(it=>it.links&&it.links[0]&&it.data&&it.data[0]).slice(0,12);
+    note.textContent=items.length?TT(`${items.length} photographs · NASA Image and Video Library · NASA imagery is generally public domain; each opens with its own credit`,
+      `${items.length} фото · NASA Image and Video Library · снимки NASA, как правило, общественное достояние; у каждого своя подпись автора`,
+      `${items.length} Fotos · NASA Image and Video Library · NASA-Bilder sind in der Regel gemeinfrei; jedes öffnet mit eigenem Nachweis`)
+      :TT('The NASA library has no photograph under this name; the archives below may.','В библиотеке NASA нет снимков под этим именем; архивы ниже могут их иметь.','Die NASA-Bibliothek hat unter diesem Namen kein Foto; die Archive unten vielleicht.');
+    for(const it of items){ const a=document.createElement('a'); a.href='https://images.nasa.gov/details/'+encodeURIComponent(it.data[0].nasa_id); a.target='_blank'; a.rel='noopener';
+      a.title=it.data[0].title||''; a.style.cssText='display:block;border-radius:10px;overflow:hidden;border:1px solid rgba(212,175,106,.25);background:#05070c;aspect-ratio:4/3';
+      const img=document.createElement('img'); img.loading='lazy'; img.src=it.links[0].href; img.alt=it.data[0].title||''; img.style.cssText='width:100%;height:100%;object-fit:cover;display:block';
+      a.appendChild(img); grid.appendChild(a); } })
+  .catch(()=>{ note.textContent=TT('The NASA library could not be reached from this browser; the links below open the official archives.','Библиотека NASA недоступна из этого браузера; ссылки ниже открывают официальные архивы.','Die NASA-Bibliothek ist von diesem Browser aus nicht erreichbar; die Links unten öffnen die offiziellen Archive.'); });
+}
+globalThis.HCC_MEDIA=Object.freeze({open:k=>hccMediaOpen(k), query:k=>{ const s=SELECT.get(k); return s?hccMediaQuery(k,s):null; }});
+
 function renderNextActions(key){
   const box=document.getElementById('selNextActions'), tip=document.getElementById('selCardTip');
   if(!box) return;
@@ -98086,6 +98200,8 @@ function renderNextActions(key){
   const origin=state.modelPortalOrigin,originPortal=origin&&portalForKey(origin);
   if(originPortal&&(key===originPortal.labKey||key===originPortal.secondary?.[0]))
     acts.push(['↩ Return to exact atlas view',()=>returnFromModelPortal()]);
+  if(hccIsSkyObject(key,s)) acts.unshift([TT('🖼 Photographs & 3D — NASA · ESA · ESO','🖼 Фото и 3D — NASA · ESA · ESO','🖼 Fotos & 3D — NASA · ESA · ESO'),()=>hccMediaOpen(key)]);
+  if(hccStandable(key)) acts.unshift([TT('☆ Stand on this star — see the sky from here','☆ Встать на эту звезду — увидеть небо отсюда','☆ Auf diesen Stern stellen — den Himmel von hier sehen'),()=>hccStandAt(key)]);
   acts.push([portal?'◎ Approach → 3D model':'◎ Focus',()=>portal?dblFocus(key):focusOn(s)]);
   acts.push([ORBIT.on&&followSel===s?'⏹ Stop orbit':'↻ Orbit',()=>{ focusOn(s); toggleOrbit(); }]);
   acts.push(['▭ Raw Contract',()=>setSelTab('Raw Contract')]);
