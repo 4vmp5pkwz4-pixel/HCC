@@ -107,7 +107,7 @@ for (const id of ids) {
     try {
       return await race(page.evaluate(async ([id, along]) => {
         const A = await HCC_INVARIANTS.find(id, along); if (!A) return { verdict: 'THIN' };
-        const f = x => +(+x).toPrecision(8);
+        const f = x => +(+x).toPrecision(15);
         const out = { verdict: (A.constants.length || A.products.length || A.sums.length || A.aliases.length) ? 'FOUND' : 'NONE',
           samples: A.samples, moving: A.moving, nullity: A.nullity, rank: A.rank, varied: A.meta ? A.meta.vary : [],
           constants: A.constants.map(c => ({ name: c.name, value: f(c.value), form: c.form || null, exact: c.exact, ...(c.exact ? {} : { spread: f(c.spread) }) })),
@@ -136,7 +136,7 @@ for (const l of links) {
   let r;
   try {
     r = await race(page.evaluate(async ([a, b]) => { const R = await HCC_INVARIANTS.across(a, b); if (!R) return { verdict: 'THIN' }; if (R.thin) return { verdict: 'THIN', samples: R.samples, refused: R.refused };
-      const f = x => +(+x).toPrecision(8);
+      const f = x => +(+x).toPrecision(15);
       const o = { samples: R.samples, refused: R.refused,
         products: R.products.slice(0, 12).map(p => ({ terms: p.terms, exponents: p.a.map(f), value: f(p.value), form: p.form || null, exact: p.exact })),
         sums: R.sums.slice(0, 6).map(p => ({ terms: p.terms, coefficients: p.a.map(f), value: f(p.c), exact: p.exact })),
@@ -154,7 +154,7 @@ for (const c of chains) {
   let r;
   try {
     r = await race(page.evaluate(async c => { const R = await HCC_INVARIANTS.chain(...c); if (!R) return { verdict: 'THIN' }; if (R.thin) return { verdict: 'THIN', samples: R.samples, refused: R.refused };
-      const f = x => +(+x).toPrecision(8);
+      const f = x => +(+x).toPrecision(15);
       const o = { samples: R.samples, refused: R.refused,
         products: R.products.slice(0, 10).map(p => ({ terms: p.terms, exponents: p.a.map(f), value: f(p.value), form: p.form || null, exact: p.exact })),
         aliases: R.aliases.map(x => ({ name: x.name, of: x.of, factor: f(x.factor), form: x.form || null })) };
@@ -169,7 +169,7 @@ const identity = JSON.parse(readFileSync(join(ROOT, 'version.json'), 'utf8'));
 const cnt = k => rows.filter(r => r.across.verdict === k).length;
 const out = { schema: 'hcc.invariants/1', version: identity.version, build: identity.build,
   generator: 'scripts/invariants.mjs — the page\'s own invariant finder (HCC_INVARIANTS.find) run on every laboratory, across its declared domain and along its clock where it has one',
-  method: { samples: 'up to 48 per question, deterministic seed, eight-second cap per question', exact: 'relative spread below 1e-9 at every sample', named: 'closed forms to 1e-10 (rational × π^k, roots, φ, √5, one CODATA constant); nothing is named that is not numerically that value',
+  method: { samples: 'up to 48 per question, deterministic seed, eight-second cap per question', exact: 'relative spread below 1e-9 at every sample', named: 'closed forms to 1e-10 (rational × π^k, roots, φ, √5, one CODATA constant); nothing is named that is not numerically that value; values are recorded to 15 digits so the page can name them to the same standard',
     guard: 'a relation among k features needs k+3 distinct points; a laboratory\'s own residuals are reported by size, never searched' },
   counts: { laboratories: rows.length, found: cnt('FOUND'), none: cnt('NONE'), thin: cnt('THIN'), unreturned: cnt('UNRETURNED'),
     named_constants: rows.reduce((a, r) => a + ((r.across.constants || []).filter(c => c.form).length + (r.across.products || []).filter(p => p.form).length), 0),

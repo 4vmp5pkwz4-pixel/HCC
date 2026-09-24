@@ -85,6 +85,23 @@ const jk = js && Object.fromEntries(js.inputs.map((n, i) => [n, js.k[i] / js.k[0
   ok('the census names the Jeans symmetry (T, n, μ) → (λT, λ⁻¹n, λμ), confirmed by the page and confirmed again here on the kernel; its symmetry count is its rows\'',
     jk && jk.temperature === 1 && jk.number_density === -1 && jk.mean_molecular_weight === 1 && again && J.counts.scaling_symmetries === nSym,
     `${J.counts.scaling_symmetries} scaling symmetries across the atlas · ${J.counts.dead_inputs} dead inputs named as such`);
+
+  /* 3c · ONE LAW, MANY LABORATORIES: the census relations in Planck units, grouped by the
+     combination of G, c, ħ, k_B their constants carry. The horizon law r·T ∝ ħc/k_B must appear
+     for BOTH kinds of horizon, with the numbers recomputed here from their definitions:
+     Schwarzschild r = 2GM/c², T = ħc³/(8πGMk_B) → r·T = ħc/(4πk_B);
+     de Sitter r = c/H, T = ħH/(2πk_B) → r·T = ħc/(2πk_B). And the free-fall law t²ρG appears in
+     several laboratories, each with its own convention. */
+  const unitOf = lab => n => { const i = MAN.instruments.find(x => x.id === lab); const o = i && i.outputs.find(o => o.name === n); return o && o.unit; };
+  const groups = {};
+  for (const L of J.laboratories) for (const p of ((L.across || {}).products || [])) if (p.exact) { const P = K.invPlanck(p.terms, p.exponents, p.value, unitOf(L.id), 1e-10); if (P && !P.why && !P.dimensionless) (groups[P.units] = groups[P.units] || []).push({ lab: L.id, P, p }); }
+  const hor = groups['c ħ k_B⁻¹'] || [];
+  const bh = hor.find(x => x.lab === 'bht'), ds = hor.find(x => x.lab === 'lam');
+  const ff = groups['G⁻¹'] || [], ffLabs = [...new Set(ff.map(x => x.lab))];
+  const pureOK = (x, v) => x && Math.abs(Math.abs(x.P.pure) - v) < 1e-7 * v;
+  ok('one law, many laboratories: the horizon law r·T = ħc/k_B × {1/4π for a black hole, 1/2π for de Sitter} is found in both, recomputed from their definitions; the free-fall law t²ρG in ' + ffLabs.length + ' laboratories',
+    pureOK(bh, 1 / (4 * Math.PI)) && pureOK(ds, 1 / (2 * Math.PI)) && ffLabs.length >= 3 && /function invUniversality\(A\)\{/.test(SRC),
+    `black hole ${bh ? (bh.P.form || bh.P.pure) : '—'} · de Sitter ${ds ? (ds.P.form || ds.P.pure) : '—'} · free fall in ${ffLabs.join(', ')}: ${ff.filter(x => x.P.form).slice(0, 4).map(x => x.P.form).join(', ')}`);
   finish();
 })();
 function finish(){
