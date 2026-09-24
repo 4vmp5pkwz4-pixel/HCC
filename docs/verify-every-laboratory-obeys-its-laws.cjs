@@ -19,8 +19,10 @@
  *   6. the census: every law it records is recomputed from its own text at its own inputs'
  *      sampled values where the atlas knows the closed form (the f-sum rule, 2l + 1, the
  *      half angle, Stefan–Boltzmann, M² = 1 + ZT), and the counts match the rows
- *   7. MUTATIONS: a finder that accepts at 5 % finds a law in noise; a finder without the
- *      transform keeps the approximate √ZT — each caught
+ *   7. an approximate law must be a SIMPLE one — every exponent rational, every coefficient
+ *      named: a free fit that holds to 1e-6 on a domain six decades wide describes the domain
+ *   8. MUTATIONS: a finder that accepts at 5 % finds a law in a wobble; a finder without the
+ *      transform loses M² = ZT + 1 — each caught
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -95,7 +97,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   { const [Y, X] = ztRows(), src = invLaws.toString(), cut = "const TR=[{tag:'',f:v=>v},{tag:'²',f:v=>v*v},{tag:'⁻¹',f:v=>1/v}];";
     const mut = new Function('invLsq', 'invRat1', 'invLawLib', 'invLawText', 'invClosedFormPhys', 'return ' + src.replace(cut, "const TR=[{tag:'',f:v=>v}];"))(K.invLsq, K.invRat1, K.invLawLib, K.invLawText, K.invClosedFormPhys);
     const m = mut(Y, X)[0], good = invLaws(Y, X)[0];
-    ok('MUTATION — a finder without the transform keeps the approximate √ZT and is caught', src.includes(cut) && good && good.exact && good.of === '²' && m && !m.exact, m ? m.text + ' (holds to ' + m.spread.toExponential(1) + ')' : 'none'); }
+    ok('MUTATION — a finder without the transform loses the exact law: what is left is √ZT with free coefficients, which is not offered as a law at all — caught', src.includes(cut) && good && good.exact && good.of === '²' && !(m && m.exact), m ? m.text + ' (holds to ' + m.spread.toExponential(1) + ')' : 'no law offered for M'); }
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();

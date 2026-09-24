@@ -76,7 +76,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 4 · wiring */
   const wires = {
     section: /<b>∮ \$\{TT\('Invariants','Инварианты','Invarianten'\)\}<\/b>/.test(SRC) && /const ig=d\.querySelector\('#invGo'\); if\(ig\) ig\.onclick=\(\)=>invRun\(\);/.test(SRC),
-    evaluate: /function invSample\(id,along,cb\)\{[\s\S]*?const r=pspEval\(id,inp\); if\(r\) rows\.push\(r\);/.test(SRC),
+    evaluate: /function invSample\(id,along,cb\)\{[\s\S]*?const r=pspEval\(id,inp\); if\(r\)\{ rows\.push\(r\);/.test(SRC),
     cap: /performance\.now\(\)-t0>8000&&rows\.length>=12/.test(SRC),
     residuals: /if\(RES\.test\(k\)&&m<1e-3\)\{ out\.residuals\.push\(\{name:k,max:m\}\); continue; \}/.test(SRC),
     api: /globalThis\.HCC_INVARIANTS=Object\.freeze\(\{symmetries:[\s\S]{0,1500}across:[\s\S]{0,600}find:/.test(SRC),

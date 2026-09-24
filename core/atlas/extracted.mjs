@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1371   ·   exported names: 1482
-   extracted physics, sha256 d05fed9b121bef66361f20475661a91af4705d6f1d67fe048cca407fc38ee1e9 */
+   extracted physics, sha256 b7397628ea4d1fbaec9b682a21ca679b43f0c4690af17062ae5d619e49e615bb */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -4013,6 +4013,8 @@ function invClosedFormPhys(v){ const f0=invClosedForm(v); if(f0) return f0; if(!
   const sup=p=>({'-2':'⁻²','-1':'⁻¹','2':'²','1':'','0.5':'^½','-0.5':'^−½'})[String(p)];
   for(const [n,c] of INV_PHYS) for(const p of [1,-1,2,-2,0.5,-0.5]){ const f=invClosedForm(v/Math.pow(c,p)); if(f&&Math.abs(v/Math.pow(c,p))<1e6&&Math.abs(v/Math.pow(c,p))>1e-6) return `${f} · ${n}${sup(p)}`; }
   for(let i=0;i<INV_PHYS.length;i++) for(let j=i+1;j<INV_PHYS.length;j++) for(const p of [1,-1]) for(const q of [1,-1]){ const [n1,c1]=INV_PHYS[i], [n2,c2]=INV_PHYS[j], x=v/Math.pow(c1,p)/Math.pow(c2,q);
+    /* h/ħ is 2π, a pure number: a pair whose units cancel names nothing */
+    if(n1==='h'&&n2==='ħ'&&p===-q) continue;
     if(!(Math.abs(x)<1e6&&Math.abs(x)>1e-6)) continue; const f=invClosedForm(x); if(f) return `${f} · ${n1}${sup(p)} ${n2}${sup(q)}`; }
   return null; }
 
@@ -4122,7 +4124,9 @@ function invLaws(rows,X,opts){ opts=opts||{}; const tol=opts.tol||1e-9, loose=op
     /* 2 · the smallest sum of at most three library terms, plus a constant — for the output, and
        where that is not exact for its square and its reciprocal (M² = 1 + ZT is exact where
        M ≈ √ZT only holds): an exact law in a transform beats an approximate one in the output */
-    if(!law||!law.exact){ const pow=law; const need=s=>distinct>=s+4, snapR=v=>{ const r=invRat1(v,12); return r?r[0]/r[1]:null; };
+    const lawNamed=l=>l.kind==='power'?(l.rational&&!!l.cform):(l.terms.every(t=>t.form)&&(l.c===0||!!l.cform));
+    if(law&&!law.exact&&!lawNamed(law)) law=null;
+    if(!law||!law.exact){ const pow=law; const need=s=>distinct>=s+4, snapR=(v,e)=>{ for(let q=1;q<=12;q++){ const p=Math.round(v*q); if(Math.abs(p)<=48&&Math.abs(p/q-v)<e*Math.max(1,Math.abs(v))) return p/q; } return null; };
       const search=(T)=>{ const yT=y.map(T.f); if(!yT.every(Number.isFinite)) return null; const ymT=Math.max(...yT.map(Math.abs)); if(!(ymT>0)) return null; let best=null;
         const fit=S=>{ const f=invLsq([one,...S.map(j=>lib[j].col)],yT); if(!f) return null; return {S,coef:f.coef,rel:f.res/ymT}; };
         const accept=f=>f&&f.rel<loose&&f.coef.slice(1).every((bb,i)=>{ const col=lib[f.S[i]].col; let m=0; for(const v of col) m=Math.max(m,Math.abs(v)); return Math.abs(bb)*m>1e-7*ymT; });
@@ -4134,12 +4138,13 @@ function invLaws(rows,X,opts){ opts=opts||{}; const tol=opts.tol||1e-9, loose=op
             const seen=new Set(); for(const p of pr.slice(0,40)) for(let j=0;j<lib.length;j++){ if(p.S.includes(j)) continue; const S=[...p.S,j].sort((u,v)=>u-v), key=S.join(); if(!seen.has(key)){ seen.add(key); cands.push(S); } } }
           for(const S of cands){ const f=fit(S); if(accept(f)&&(!best||f.rel<best.rel)) best=f; } }
         if(!best) return null;
-        /* an approximate law is offered with simple coefficients only if they hold as well: each
-           coefficient to a fraction with denominator ≤ 12, the constant to zero, re-checked on the
-           same answers and kept only if the worst residual stays within twice the free fit */
-        if(best.rel>=tol){ const b2=best.coef.map((v,i)=>{ if(i===0){ const m=Math.max(...best.S.map(j=>Math.max(...lib[j].col.map(Math.abs)))); return Math.abs(v)<1e-4*ymT?0:(snapR(v)??v); } return snapR(v)??v; });
+        /* coefficients are offered simple where they hold as well: each to a fraction with
+           denominator ≤ 12, the constant to zero, re-checked on the same answers — an exact law
+           must stay below 1e-9 (a least-squares 1 + 1e-9 is 1, not h/2πħ), an approximate one
+           within the tolerance it claims */
+        { const e=Math.min(1e-3,Math.max(1e-6,100*best.rel)), b2=best.coef.map((v,i)=>i===0&&Math.abs(v)<1e-4*ymT?0:(snapR(v,e)??v));
           let mx=0; for(let t=0;t<M;t++){ let f=b2[0]; best.S.forEach((j,i)=>{ f+=b2[i+1]*lib[j].col[t]; }); mx=Math.max(mx,Math.abs(yT[t]-f)); }
-          if(mx/ymT<=Math.max(2*best.rel,1e-12)&&mx/ymT<loose){ best={...best,coef:b2,rel:mx/ymT,snapped:true}; } }
+          const lim=best.rel<tol?tol:loose; if(mx/ymT<lim&&b2.some((v,i)=>v!==best.coef[i])) best={...best,coef:b2,rel:Math.max(best.rel,mx/ymT),snapped:true}; }
         return best; };
       const TR=[{tag:'',f:v=>v},{tag:'²',f:v=>v*v},{tag:'⁻¹',f:v=>1/v}];
       let pick=null, pickT=null; for(const T of TR){ const r=search(T); if(!r) continue; if(r.rel<tol){ pick=r; pickT=T; break; } if(!pick&&T.tag==='') { pick=r; pickT=T; } }
@@ -4147,6 +4152,10 @@ function invLaws(rows,X,opts){ opts=opts||{}; const tol=opts.tol||1e-9, loose=op
       if(pick&&(pick.rel<tol||!pow||pick.rel<pow.spread)){ const best=pick, c0=Math.abs(best.coef[0])<1e-9*ym?0:best.coef[0];
         law={out:k,kind:'sum',of:pickT.tag,c:c0,cform:c0?invClosedFormPhys(c0):'0',terms:best.S.map((j,i)=>({tag:lib[j].tag,input:lib[j].input,p:lib[j].p,b:best.coef[i+1],form:invClosedFormPhys(best.coef[i+1])})),exact:best.rel<tol,spread:best.rel,snapped:!!best.snapped,
           free:ins.filter(n=>!best.S.some(j=>String(lib[j].input).split(',').includes(n)))}; } }
+    /* an approximate law is a law the numerics blur, so it must be a SIMPLE law: every exponent
+       rational and every coefficient named — a fit that holds to 1e-6 with free coefficients on a
+       domain six decades wide is a description of the domain, not a law */
+    if(law&&!law.exact&&!lawNamed(law)) law=null;
     if(law){ law.text=invLawText(law); out.push(law); } }
   return out; }
 
