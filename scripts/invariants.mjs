@@ -120,6 +120,9 @@ for (const id of ids) {
     } catch (e) { await fresh(); return { verdict: 'UNRETURNED', note: String(e.message).slice(0, 80) }; }
   };
   row.across = await ask(null);
+  /* the symmetry itself: the scalings that move nothing, applied at random points before they are believed */
+  try { row.symmetries = await race(page.evaluate(id => { const S = HCC_INVARIANTS.symmetries(id); return Array.isArray(S) ? S.map(x => ({ inputs: x.inputs, k: x.k.map(v => +(+v).toPrecision(6)), rational: x.rational, verified: x.verified, trials: x.trials, dead: x.dead })) : null; }, id), HANG_MS, 'hang'); }
+  catch (e) { await fresh(); row.symmetries = null; }
   const clock = await page.evaluate(id => { try { const d = HCC_API.describe(id); const f = (d.inputs || []).find(x => x.type === 'number' && /^(t|time|tau|tauMax|days|epoch_days|epoch_year|age)$/.test(x.name)); return f ? f.name : null; } catch { return null; } }, id);
   if (clock) { row.along = { clock, ...(await ask(clock)) }; }
   rows.push(row);
@@ -155,6 +158,8 @@ const out = { schema: 'hcc.invariants/1', version: identity.version, build: iden
     named_constants: rows.reduce((a, r) => a + ((r.across.constants || []).filter(c => c.form).length + (r.across.products || []).filter(p => p.form).length), 0),
     exact_relations: rows.reduce((a, r) => a + (r.across.products || []).filter(p => p.exact).length + (r.across.sums || []).filter(p => p.exact).length, 0),
     hidden_symmetries: rows.filter(r => r.across.hidden_symmetries).length,
+    scaling_symmetries: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.verified && !x.dead).length, 0),
+    dead_inputs: rows.reduce((a, r) => a + (r.symmetries || []).filter(x => x.dead).length, 0),
     conserved_along_a_clock: rows.filter(r => r.along && ((r.along.sums || []).length || (r.along.constants || []).length)).length,
     links_asked: cross.length, links_with_cross_laws: cross.filter(c => c.verdict === 'FOUND' && ((c.products || []).length || (c.sums || []).length)).length },
   errors: [...new Set(errors)].slice(0, 20), laboratories: rows, across_the_bus: cross };

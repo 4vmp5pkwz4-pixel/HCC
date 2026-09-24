@@ -62,6 +62,21 @@ const TP = (link('adisk.peak_temperature', 'eos.temperature').products || []).fi
 ok('and a disk\'s peak temperature carried into the equation of state keeps T⁴/P_rad = 3c/(4σ), named', TP && TP.form === '3/4 · c σ_SB⁻¹' && Math.abs(TP.value / (3 * c / (4 * sigma)) - 1) < 1e-6,
   TP ? `${TP.value.toExponential(6)} = ${TP.form}` : 'not found');
 
+/* 3b · the symmetries: named, applied at random points by the page, recorded — and applied once
+   more here, to the Jeans kernel itself */
+const js = (lab('jeans').symmetries || []).find(x => x.verified && !x.dead);
+const jk = js && Object.fromEntries(js.inputs.map((n, i) => [n, js.k[i] / js.k[0]]));
+(async () => {
+  const K = await import(path.join(ROOT, 'core', 'atlas', 'extracted.mjs'));
+  const again = jk && [3, 0.25].every(lam => { const T = 40, n = 1e8, mu = 2.33, s = x => Math.pow(lam, x);
+    return Math.abs(K.jeansMass(T * s(jk.temperature), n * s(jk.number_density), mu * s(jk.mean_molecular_weight)) / K.jeansMass(T, n, mu) - 1) < 1e-12; });
+  const nSym = J.laboratories.reduce((a, r) => a + (r.symmetries || []).filter(x => x.verified && !x.dead).length, 0);
+  ok('the census names the Jeans symmetry (T, n, μ) → (λT, λ⁻¹n, λμ), confirmed by the page and confirmed again here on the kernel; its symmetry count is its rows\'',
+    jk && jk.temperature === 1 && jk.number_density === -1 && jk.mean_molecular_weight === 1 && again && J.counts.scaling_symmetries === nSym,
+    `${J.counts.scaling_symmetries} scaling symmetries across the atlas · ${J.counts.dead_inputs} dead inputs named as such`);
+  finish();
+})();
+function finish(){
 /* 4 · the page */
 const page = /async function hccInvariantAtlasOpen\(filter\)\{/.test(SRC) && /fetch\('api\/invariants\.json',\{cache:'no-store'\}\)/.test(SRC) && /add\('Atlas of invariants',/.test(SRC) && /\['∮','Atlas of invariants',/.test(SRC)
   && /const measurementKinds=\['sensitivity','transfers','reach','liveness','invariants'\];/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'build-api.mjs'), 'utf8'));
@@ -74,3 +89,4 @@ const mtBad = mtVal * 1.001;
 ok('MUTATION — a cross-bus constant altered by one part in a thousand is caught', !(Math.abs(mtBad / hawking - 1) < 1e-4));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
+}

@@ -790,7 +790,7 @@ export const ROOTS = [
      checks them runs the code the reader runs */
   'pspLog', 'pspAt', 'pspTof', 'pspFrac', 'pspFit',
   /* the invariant finder: pure arithmetic on sample tables */
-  'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse'
+  'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse', 'invNullBasis'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
