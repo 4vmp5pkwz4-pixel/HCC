@@ -93,5 +93,32 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   const loose = a => { for (let q = 1; q <= 6; q++) { const p = Math.round(a * q); if (Math.abs(a - p / q) < 0.05) return q === 1 ? String(p) : `${p}/${q}`; } return null; };
   ok('MUTATION — a fraction reader with a loose tolerance is caught', loose(1.633) !== null && pspFrac(1.633) === null);
 
+  /* 7 · the measured universe feeds the laboratories */
+  const MAN = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'api', 'manifest.json'), 'utf8'));
+  const slotSrc = (SRC.match(/const FEED_SLOTS=\[([\s\S]*?)\];/) || [0, ''])[1];
+  const slots = [...slotSrc.matchAll(/\['([a-z0-9]+)','([A-Za-z_]+)','([a-z_]+)'(,v=>v\/FEED_LSUN_ERG)?\]/g)].map(m => ({ id: m[1], input: m[2], prop: m[3], conv: !!m[4] }));
+  const PU = { teff: 'K', mass_msun: 'M_sun', mass_kg: 'kg', radius_rsun: 'R_sun', lum_ergs: 'erg/s', dl_mpc: 'Mpc', dA_mpc: 'Mpc', ang_rad: 'rad', vmag: 'mag', flux: 'W m^-2', bv: 'mag', plx: 'mas', eplx: 'mas', a_m: 'm', ecc: 'dimensionless', period_d: 'd' };
+  const unitOf = (id, inp) => { const i = MAN.instruments.find(x => x.id === id); const f = i && i.inputs.find(x => x.name === inp); return f ? f.unit : null; };
+  const slotOk = sl => sl.every(q => { const u = unitOf(q.id, q.input); return u != null && (q.conv ? u === 'L_sun' && PU[q.prop] === 'erg/s' : u === PU[q.prop]); });
+  const bad = slots.filter(q => !slotOk([q])).map(q => `${q.id}.${q.input}←${q.prop} (${unitOf(q.id, q.input)} vs ${PU[q.prop]})`);
+  ok('every feed slot names a real laboratory input whose declared unit is the unit of the property it receives',
+    slots.length >= 20 && bad.length === 0, bad.length ? bad.join(' · ') : `${slots.length} slots into ${new Set(slots.map(q => q.id)).size} laboratories, units matched against api/manifest.json`);
+  const prov = /function feedSupply\(id,obj\)[\s\S]*?inDomain:v>=f\.min&&v<=f\.max/.test(SRC) && /for\(const q of sup\) if\(q\.inDomain\) PSP\.cur\[q\.input\]=q\.value;/.test(SRC) && /outside the declared domain: refused, not clamped/.test(SRC);
+  ok('an object is fed only inside the contract: out of domain is named refused, never clamped', prov);
+  const sun = /add\('sun','Sun','sun',\{teff:\[5772,M,'IAU 2015 B3 nominal'\],mass_msun:\[1,M\],mass_kg:\[FEED_MSUN_KG,M\],radius_rsun:\[1,M\],lum_ergs:\[FEED_LSUN_ERG,M,'IAU 2015 B3 nominal'\]/.test(SRC) && /FEED_LSUN_ERG=3\.828e33/.test(SRC);
+  const pk = JSON.parse('{' + ((SRC.match(/const FEED_PLANET_KG=\{([^}]*)\}/) || [0, ''])[1]).replace(/([A-Za-z]+):/g, '"$1":') + '}');
+  const tot = Object.values(pk).reduce((a, b) => a + b, 0);
+  ok('the Sun carries the IAU 2015 nominal values, and the planets their measured masses — together 2.67 × 10²⁷ kg, 1/745 of the Sun',
+    sun && Math.abs(tot / 2.668e27 - 1) < 0.01 && Math.abs(pk.Earth / 5.9722e24 - 1) < 1e-4, `Σ planets ${tot.toExponential(4)} kg`);
+  /* a derived value says HOW: T from B−V by Ballesteros, recomputed here for Betelgeuse's colour */
+  const T = bv => 4600 * (1 / (0.92 * bv + 1.7) + 1 / (0.92 * bv + 0.62));
+  const derivedSays = ['B−V → T_eff, Ballesteros 2012', 'Stefan–Boltzmann from L and T_eff', 'main sequence, L ∝ M^3.5', 'V-BAND luminosity from M_V — not bolometric', 'z → D_L, ΛCDM H0 67.4 Ωm 0.315', 'V scaled to the Sun — assumes a solar spectrum'].every(t => SRC.includes(t));
+  ok('every derived property says how it was derived; a galaxy\'s and a quasar\'s luminosity say they are V-band',
+    derivedSays && Math.abs(T(1.50) - 3794) < 5 && Math.abs(T(0.65) - 5778) < 5, `Betelgeuse B−V 1.50 → ${T(1.50).toFixed(0)} K by the same relation`);
+  const cat = /function pspCatalogue\(\)\{/.test(SRC) && /try\{ pspCatalogue\(\); \}catch\(e\)\{ PSP\.objs=null; \}/.test(SRC) && /pspDrawObjects\(g,\(tx,ty,h\)=>pspProject\(tx-0\.5,ty-0\.5,h\*0\.62-0\.31,W,H\),hN\);/.test(SRC);
+  ok('the catalogue stands on the law: fed objects are drawn on the surface at the height the laboratory computes for them', cat);
+  ok('MUTATION — a slot into an input that does not exist is caught', !slotOk([{ id: 'tscale', input: 'mass_kg', prop: 'mass_kg' }]));
+  ok('MUTATION — a luminosity fed in solar units where erg/s is declared is caught', !slotOk([{ id: 'tscale', input: 'luminosity', prop: 'lum_ergs', conv: true }]) && !slotOk([{ id: 'wind', input: 'luminosity_solar', prop: 'lum_ergs', conv: false }]));
+
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();
