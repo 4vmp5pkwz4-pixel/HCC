@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1366   ·   exported names: 1477
-   extracted physics, sha256 cbf256bc94271129d12df9c1362391b3c67969f1ef2c9f5128518d2d8325cd7f */
+   extracted physics, sha256 57bfc0664d6d72d9ccae314ddff34b769d2beac6045d935cd69a261455af7a75 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -3990,7 +3990,7 @@ function invFind(feats,opts){ opts=opts||{}; const names=Object.keys(feats), n=n
   for(let k=2;k<=maxK;k++) sub(0,k,[]);
   return out; }
 
-function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√5',Math.sqrt(5)],['φ',(1+Math.sqrt(5))/2],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E]];
+function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√5',Math.sqrt(5)],['φ',(1+Math.sqrt(5))/2],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E],['π/x_W',Math.PI/4.965114231744276],['π²/x_W',Math.PI*Math.PI/4.965114231744276]];   /* x_W = 5(1−e^{−x_W}) = 4.9651…, Wien's root: every peak-wavelength law carries it */
   /* denominators to 256 (1/240, the Casimir number) only at full precision: at 3e-8 they would
      name one random number in fifty, at 1e-10 one in five thousand */
   const QMAX=tol<=1e-10?256:64;

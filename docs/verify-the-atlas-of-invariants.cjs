@@ -102,6 +102,14 @@ const jk = js && Object.fromEntries(js.inputs.map((n, i) => [n, js.k[i] / js.k[0
   ok('one law, many laboratories: the horizon law r·T = ħc/k_B × {1/4π for a black hole, 1/2π for de Sitter} is found in both, recomputed from their definitions; the free-fall law t²ρG in ' + ffLabs.length + ' laboratories',
     pureOK(bh, 1 / (4 * Math.PI)) && pureOK(ds, 1 / (2 * Math.PI)) && ffLabs.length >= 3 && /function invUniversality\(A\)\{/.test(SRC),
     `black hole ${bh ? (bh.P.form || bh.P.pure) : '—'} · de Sitter ${ds ? (ds.P.form || ds.P.pure) : '—'} · free fall in ${ffLabs.join(', ')}: ${ff.filter(x => x.P.form).slice(0, 4).map(x => x.P.form).join(', ')}`);
+  /* 3d · the discoveries as a journey: numbers read live from this census, Wien's root named */
+  const disc = /async function hccDiscoveriesOpen\(\)\{/.test(SRC) && /add\('What the atlas found by itself',/.test(SRC) && /\['✦','What the atlas found by itself',/.test(SRC)
+    && /const U=invUniversality\(A\), fam=u=>U\.find\(g=>g\.units===u\);/.test(SRC);
+  const wien = K.invClosedForm(16 * Math.PI ** 2 / 4.965114231744276) === '16π²/x_W' && K.invClosedForm(2 * Math.PI / 4.965114231744276) === '2π/x_W';
+  /* named to 1e-9: the laboratory's Wien constant b is CODATA's, given to ten digits, so the exact root agrees to 5e-10 */
+  const alW = al && K.invPlanck(['l', 'M'], [1, -1], al.factor, n => ({ l: 'm', M: 'kg' })[n], 1e-9);
+  ok('the discoveries are a journey whose numbers come from this census, and Wien\'s root x_W = 5(1−e^{−x_W}) is named: the cloud-to-colour law is λ_max = (16π²/x_W)·(G/c²)·M',
+    disc && wien && alW && alW.form === '16π²/x_W' && alW.units === 'G c⁻²', alW ? `${alW.form} · ${alW.units}` : 'not named');
   finish();
 })();
 function finish(){
