@@ -70,7 +70,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
   /* 5 · wiring */
   const wires = {
-    'the laboratory\'s own Controls': /\$\{\(\(\)=>\{ try\{ return hccInstrumentFor\(V\)\?`<div class="ctlrow" style="margin-top:5px"><button class="btn" id="labPspace"/.test(SRC) && /const pb=sect\.querySelector\('#labPspace'\); if\(pb\) pb\.onclick=\(\)=>\{ try\{ hccPspaceOpen\(hccInstrumentFor\(V\)\);/.test(SRC),
+    'the laboratory\'s own Controls': /\$\{\(\(\)=>\{ try\{ return hccInstrumentFor\(V\)\?`<div class="ctlrow" style="margin-top:4px;gap:4px"><button class="btn" id="labPspace"/.test(SRC) && /const pb=sect\.querySelector\('#labPspace'\); if\(pb\) pb\.onclick=\(\)=>\{ try\{ hccPspaceOpen\(hccInstrumentFor\(V\)\);/.test(SRC),
     'the palette': /add\('Parameter space','every laboratory as a surface/.test(SRC),
     'the navigator': /\['⧉','Parameter space',/.test(SRC),
     'answers only through HCC_API.evaluate': /function pspEval\(id,inp\)\{ try\{ const r=HCC_API\.evaluate\(id,inp\);/.test(SRC),
