@@ -54,6 +54,53 @@ through Cygnus and Aquila and the Coalsack beside Crux. The isophotes come from
 d3-celestial `mw.json`. They are scan-filled column by column in galactic coordinates
 (IAU J2000 north galactic pole), then smoothed with a Gaussian of σ = 1°.
 
+## 4. The local universe, galaxy by galaxy (`DSO3D_GAL`, `DSO3D_LOCAL`)
+
+The giant structures of the Solar world were drawn only as volumes. What fills them is
+now drawn too: **53 829 galaxies** at their catalogued distances out to 333 Mpc, in their
+real directions. With them the Local Group, the Virgo and Fornax clusters, the Great
+Attractor, Perseus–Pisces and Coma appear because the galaxies are where they are, not
+because a shape was placed there. `docs/verify-the-giant-structures-are-made-of-galaxies.cjs`
+measures this against the same cone pointed in 400 other directions: within 6° of M87 at
+12–25 Mpc there are 73 times as many galaxies as in an average cone, and within 2° of the
+centre of Coma at 85–125 Mpc there are 127 times as many.
+
+Each galaxy is an 8-byte record: RA (u16), Dec (i16), log₁₀(d/kpc)+2 (u16, ×8000, so
+0.029 % in distance), V (u8, ×10) and a morphology class. A galaxy is drawn as a soft
+disc of its own size, taken as 30 kpc·√(L/L₋₂₁), when that disc is resolved, and as a
+point otherwise. The brightness of a point falls as L/d², relative to the galaxies at the
+distance the camera is looking at.
+
+- **Beyond ~10 Mpc** most distances come from the redshift through the Hubble law. A card
+  gives the redshift when the catalogue has one.
+- **Twenty-one distances** that the catalogue has wrong or does not give are replaced by
+  the published measurement, and each card names it. These are the Magellanic Clouds
+  (Pietrzyński et al. 2019; Graczyk et al. 2020), eighteen Local Group dwarfs
+  (McConnachie 2012), NGC 1569 (Grocholski et al. 2008), Centaurus A (Harris et al. 2010)
+  and M87 (Mei et al. 2007). The catalogue had put NGC 6822 at 1.25 Mpc instead of 459 kpc
+  and IC 1613 at 1.61 Mpc instead of 755 kpc. It had no distance for the SMC, Leo I,
+  Leo II or WLM.
+- **Left out.** IC 359 is left out because the catalogue puts it at 0.1 kpc, inside the
+  Galaxy. For the same reason, no cluster or nebula nearer than 10 pc is drawn.
+- **M31** is not drawn a second time. Its point would stand on the M31 model the atlas
+  already has, and a pick on it opens that model's card.
+
+Around and inside the Milky Way stand its own **637 clusters and nebulae** with catalogued
+distances. They include all 127 globular clusters, forming a halo from 2.2 to 82.6 kpc.
+They are shown at galactic scale.
+
+When the galaxies are on, the uncertainty volumes of the structures step back. A volume
+the camera is inside is not drawn as a wireframe: from within, its cage would cover the
+whole view and show nothing about the structure. Its label still says where it is.
+Controls has a switch for the layer: *Galaxies and nebulae · real 3D*.
+
+- **Source**: the Stellarium 23.4 deep-sky catalogue, format 3.20, from the same package
+  as above: `usr/share/stellarium/nebulae/default/catalog.dat`, SHA-256
+  `6629ddf3ad04586339caf1f0cc4a590006d53a527b8821ba163b7fb2387371dc`. Its redshifts and
+  distances are compiled from NED and HyperLEDA. Stellarium is © the Stellarium team,
+  GPL-2.0+. Only the measured numbers are taken.
+- **Rebuild**: `python3 scripts/build-dso-3d.py <stellarium-data>/usr/share/stellarium/nebulae/default/catalog.dat`
+
 ## Sources and attribution
 
 - **Hipparcos**: ESA (1997), *The Hipparcos and Tycho Catalogues*, ESA SP-1200, and
