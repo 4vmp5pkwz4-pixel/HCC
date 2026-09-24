@@ -102,6 +102,7 @@ const allChecks = [
   "docs/verify-what-the-catalogues-say.cjs",
   "docs/verify-every-laboratory-has-its-parameter-space.cjs",
   "docs/verify-every-laboratory-keeps-its-invariants.cjs",
+  "docs/verify-the-atlas-of-invariants.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -261,6 +262,7 @@ if (fullMode) {
     'docs/verify-what-the-catalogues-say.cjs',
     'docs/verify-every-laboratory-has-its-parameter-space.cjs',
     'docs/verify-every-laboratory-keeps-its-invariants.cjs',
+    'docs/verify-the-atlas-of-invariants.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
