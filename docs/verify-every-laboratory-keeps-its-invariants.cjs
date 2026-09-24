@@ -79,7 +79,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     evaluate: /function invSample\(id,along,cb\)\{[\s\S]*?const r=pspEval\(id,inp\); if\(r\) rows\.push\(r\);/.test(SRC),
     cap: /performance\.now\(\)-t0>8000&&rows\.length>=12/.test(SRC),
     residuals: /if\(RES\.test\(k\)&&m<1e-3\)\{ out\.residuals\.push\(\{name:k,max:m\}\); continue; \}/.test(SRC),
-    api: /globalThis\.HCC_INVARIANTS=Object\.freeze\(\{symmetries:[\s\S]{0,200}across:[\s\S]{0,400}find:/.test(SRC),
+    api: /globalThis\.HCC_INVARIANTS=Object\.freeze\(\{symmetries:[\s\S]{0,1500}across:[\s\S]{0,600}find:/.test(SRC),
   };
   const miss = Object.entries(wires).filter(([, v]) => !v).map(([k]) => k);
   ok('the wiring: a section in every parameter space, answers through HCC_API.evaluate, an eight-second cap, residuals reported not searched', miss.length === 0, miss.join(', '));
@@ -104,7 +104,20 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('the symmetry is named, not only counted: the null space of the Jeans Jacobian is exactly (T, n, μ) → (λT, λ⁻¹n, λμ), and the page applies each symmetry at random points before it shows it',
     symOk, nb ? `null vector ${nb.join(', ')}` : `${NB.length} vectors`);
 
+  /* 4d · every dimensional invariant in Planck units: G, c, ħ, k_B fix the exponents from the
+     declared units, and what is left is a pure number the finder names */
+  const hb = 1.054571817e-34, cc = 299792458, GG = 6.6743e-11, kk = 1.380649e-23, U = { M: 'kg', T: 'K', t: 's', rho: 'kg m^-3', P: 'Pa', lam: 'm', cs: 'm s^-1' };
+  const P1 = K.invPlanck(['M', 'T'], [1, 1], hb * cc ** 3 / (8 * Math.PI * GG * kk), n => U[n]);
+  const P2 = K.invPlanck(['T', 'P'], [4, -1], 45 * hb ** 3 * cc ** 3 / (Math.PI ** 2 * kk ** 4), n => U[n]);
+  const tf = K.jeansFreeFall(1e9, 2.33), rh = K.jeansRho(1e9, 2.33), P3 = K.invPlanck(['t', 'rho'], [2, 1], tf * tf * rh, n => U[n]);
+  const planckOk = P1 && P1.form === '1/(8π)' && P1.units === 'G⁻¹ c³ ħ k_B⁻¹' && P2 && P2.form === '45/π²' && P3 && P3.form === '3π/32' && P3.units === 'G⁻¹'
+    && K.invUnitDim('km s^-1 Mpc^-1').dim.join() === '0,0,-1,0' && K.invUnitDim('mag') === null;
+  ok('every dimensional invariant is written in Planck units: M·T_H = (1/8π)·ħc³/(G k_B), T⁴/P_rad = (45/π²)·ħ³c³/k_B⁴, t_ff²ρ = (3π/32)/G — exponents solved from the declared units, the pure number named',
+    planckOk, P1 && P2 && P3 ? `${P1.form} · ${P1.units} ; ${P2.form} · ${P2.units} ; ${P3.form} · ${P3.units} (t_ff²ρ from the Jeans kernel)` : 'failed');
+
   /* 5 · mutations */
+  const Pm = K.invPlanck(['M', 'T'], [1, 1], hb * cc ** 3 / (8 * Math.PI * GG * kk), n => ({ M: 'g', T: 'K' })[n]);
+  ok('MUTATION — a mass declared in grams where kilograms are meant moves the pure number by 1000 and loses its name', Pm && Pm.form !== '1/(8π)', Pm ? `pure ${Pm.pure.toPrecision(6)}` : '');
   ok('MUTATION — a null space taken with a loose tolerance finds symmetries that are not there', K.invNullBasis(EJ, 2).length > 1, `${K.invNullBasis(EJ, 2).length} vectors when pivots under 2 are discarded`);
   const acceptOne = (lo, hi) => rough(sig, lo, hi, 60) < 0.2;
   ok('MUTATION — a one-resolution smoothness test is fooled by the stroboscope and is caught', [0.1, 0.01].some(w => acceptOne(0, w)) || acceptOne(0, 1),
