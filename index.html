@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-measured-universe-feeds-the-laboratories-2026.09.24.11">
+<html lang="en" data-hcc-build="every-laboratory-keeps-its-invariants-2026.09.24.12">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-measured-universe-feeds-the-laboratories-2026.09.24.11">
+<meta name="hcc-build" content="every-laboratory-keeps-its-invariants-2026.09.24.12">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2916,7 +2916,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.297.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.298.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3207,8 +3207,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.297.0';
-const HCC_BUILD='the-measured-universe-feeds-the-laboratories-2026.09.24.11';
+const HCC_VERSION='4.298.0';
+const HCC_BUILD='every-laboratory-keeps-its-invariants-2026.09.24.12';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -44901,6 +44901,12 @@ function pspFrac(a,tol){ tol=tol||0.004; for(let q=1;q<=6;q++){ const p=Math.rou
 function pspDesc(id){ try{ return HCC_API.describe(id); }catch(e){ return null; } }
 function pspNum(D){ return (D?D.inputs:[]).filter(f=>f.type==='number'&&f.min!=null&&f.max!=null&&f.max>f.min); }
 function pspLog(f){ return f.min>0&&f.max/f.min>=100; }
+/* NUMERICAL CONTROLS: an integration step, a sample count, a quadrature order. Sweeping one
+   measures the solver, not the physics (the open problem atlas.numerical_controls names it),
+   and at the far end of its domain a single answer can take tens of seconds. They are held at
+   their defaults unless the reader puts one on an axis on purpose. */
+const PSP_CONTROL=/^(step|dt|steps|iterations|orbits|orbit_steps|samples|segments|quadrature|curve_samples|imf_samples|lyapunov_steps|sites|seed|points|levels|lock_cap|resolution|grid|n_samples)$/;
+function pspIsControl(f){ return PSP_CONTROL.test(f.name)||/^(count|samples)$/.test(String(f.unit||'')); }
 /* clamped: exp(ln min) can land one ulp below min, and the contract refuses that — the edge of the
    domain would read as a wall the model never built */
 function pspAt(f,t){ if(t<=0) return f.min; if(t>=1) return f.max; const v=pspLog(f)?Math.exp(Math.log(f.min)+t*(Math.log(f.max)-Math.log(f.min))):f.min+t*(f.max-f.min); return Math.max(f.min,Math.min(f.max,v)); }
@@ -44950,7 +44956,8 @@ function pspGrid(done){ const id=PSP.id, D=pspDesc(id), ins=pspNum(D); const fx=
      still leaves the page alive between answers */
   let k=0; const K=N*NY; const step=()=>{ if(job!==PSP.job) return; const tEnd=performance.now()+24;
     while(k<K&&performance.now()<tEnd){ const i=Math.floor(k/NY), j=k%NY, inp={...PSP.cur,[PSP.x]:G.xv[i]}; if(fy) inp[PSP.y]=G.yv[j];
-      const r=pspEval(id,inp), z=r&&r[PSP.z]; if(Number.isFinite(z)) G.z[i][j]=z; else G.refused++; k++; }
+      const tc=performance.now(), r=pspEval(id,inp), z=r&&r[PSP.z]; if(Number.isFinite(z)) G.z[i][j]=z; else G.refused++; k++;
+      if(performance.now()-tc>1500){ G.stopped={at:k,of:K,ms:performance.now()-tc}; k=K; } }
     const pr=document.getElementById('pspProg'); if(pr) pr.textContent=k<K?`${TT('evaluating','вычисление','Auswertung')} ${Math.round(100*k/K)} % · ${N}×${NY} · ${pspFmt(t1)} ms ${TT('per answer','на ответ','pro Antwort')}`:`${N}×${NY} · ${pspFmt(t1)} ms ${TT('per answer','на ответ','pro Antwort')}`;
     if(k<K){ setTimeout(step,0); return; }
     const vals=[]; for(const r of G.z) for(const v of r) if(v!=null) vals.push(v);
@@ -45046,7 +45053,8 @@ function pspCatHTML(){ const O=PSP.objs; if(!O||!O.length) return ''; const c={}
     <span style="color:var(--dim)">${TT('Each is drawn at the height the laboratory computes from all of its own fed properties; one off the surface differs from the bead in an input that is not on the axes.','Каждый нарисован на высоте, которую лаборатория вычисляет из всех его поданных свойств; объект вне поверхности отличается от бусины входом, которого нет на осях.','Jedes auf der Höhe, die das Labor aus allen seinen Eigenschaften berechnet.')}</span></div>`; }
 function pspLawHTML(){ return pspLawCore()+pspCatHTML(); }
 function pspLawCore(){ const G=PSP.G; if(!G) return ''; const F=G.fit, pct=G.refused/(G.N*G.NY);
-  const floorNote=G.clipped?`<div style="color:var(--dim)">${TT('the floor holds everything more than 24 decades below the peak, and exact zeros (underflow): the law is fitted only above it','пол содержит всё, что ниже пика более чем на 24 порядка, и точные нули (антипереполнение): закон подгоняется только выше него','der Boden hält alles mehr als 24 Dekaden unter dem Gipfel; das Gesetz wird nur darüber angepasst')}</div>`:'';
+  const stopNote=G.stopped?`<div style="color:#ffd58a">${TT('stopped after','остановлено после','angehalten nach')} ${G.stopped.at}/${G.stopped.of} ${TT('cells: one answer took','ячеек: один ответ занял','Zellen: eine Antwort dauerte')} ${(G.stopped.ms/1000).toFixed(1)} s ${TT('— the unevaluated cells are left empty, not guessed','— невычисленные ячейки оставлены пустыми, а не угаданы','— ungerechnete Zellen bleiben leer')}</div>`:'';
+  const floorNote=stopNote+(G.clipped?`<div style="color:var(--dim)">${TT('the floor holds everything more than 24 decades below the peak, and exact zeros (underflow): the law is fitted only above it','пол содержит всё, что ниже пика более чем на 24 порядка, и точные нули (антипереполнение): закон подгоняется только выше него','der Boden hält alles mehr als 24 Dekaden unter dem Gipfel; das Gesetz wird nur darüber angepasst')}</div>`:'');
   const where=floorNote+(G.refused?`<div style="color:#ff9a86">${TT('refused on','отказ на','verweigert auf')} ${(100*pct).toFixed(0)} % ${TT('of the grid — the red floor is where this model does not answer, by its own contract','сетки — красный пол там, где модель по собственному контракту не отвечает','des Gitters — der rote Boden ist, wo das Modell laut Vertrag nicht antwortet')}</div>`:'');
   if(!G.fy) return `<div>${TT('One numeric input: the laboratory is a curve.','Один числовой вход: лаборатория — кривая.','Ein Eingang: das Labor ist eine Kurve.')}</div>${where}`;
   if(!F) return `<div><b>${TT('No power law is asked of this output','Степенной закон от этого выхода не требуется','Kein Potenzgesetz gefragt')}</b> — ${G.flat?TT('it does not move across these two domains.','он не меняется в этих двух доменах.','er bewegt sich in diesen Domänen nicht.'):TT('it changes sign, crosses zero or spans less than 1.5 decades, so a logarithmic law would be a category error. The matrix below gives the local structure.','он меняет знак, проходит через ноль или охватывает меньше 1,5 порядка — логарифмический закон был бы ошибкой категории. Локальную структуру даёт матрица ниже.','er wechselt das Vorzeichen oder überspannt weniger als 1,5 Dekaden; die Matrix unten gibt die lokale Struktur.')}</div>${where}`;
@@ -45084,7 +45092,8 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
   if(!opts.keep||PSP.id!==id){ PSP.id=id; PSP.cur={}; for(const f of D.inputs) PSP.cur[f.name]=f.default; Object.assign(PSP.cur,opts.set||{});
     const outs=pspOutputs(id,D); /* where the catalogue can stand on the surface, the axes open on the inputs it feeds */
     const fed=feedSlotsFor(id).map(q=>q[1]).filter((n,k,a)=>a.indexOf(n)===k&&ins.some(f=>f.name===n));
-    PSP.x=opts.x&&ins.some(f=>f.name===opts.x)?opts.x:(fed[0]||(ins[0]&&ins[0].name)); PSP.y=(fed.find(n=>n!==PSP.x))||(ins.find(f=>f.name!==PSP.x)||{}).name||null;
+    const phys=ins.filter(f=>!pspIsControl(f)), pool=phys.length?phys:ins;
+    PSP.x=opts.x&&ins.some(f=>f.name===opts.x)?opts.x:(fed[0]||(pool[0]&&pool[0].name)); PSP.y=(fed.find(n=>n!==PSP.x))||(pool.find(f=>f.name!==PSP.x)||ins.find(f=>f.name!==PSP.x)||{}).name||null;
     /* the default output is the one the first input moves most, so the surface opens on something */
     { const t0=performance.now(); pspEval(id,PSP.cur); PSP.msPer=Math.max(0.02,performance.now()-t0); }
     PSP.z=opts.z&&outs.includes(opts.z)?opts.z:(()=>{ const J=PSP.msPer<15?pspJacobian(id,D,PSP.cur):null; let best=outs[0],bv=-1; if(J) for(const o of outs){ const s=J.ins.reduce((a,n)=>a+Math.abs((J.E[n]&&J.E[n][o]&&J.E[n][o].e)||0),0); if(s>bv&&Number.isFinite(s)){ bv=s; best=o; } } return best; })();
@@ -45097,7 +45106,7 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
   const all=[]; try{ for(const x of HCC_API.list()){ const k=x.id||x; const dd=pspDesc(k); if(dd&&pspNum(dd).length) all.push([k,dd.title]); } }catch(e){}
   const opt=(arr,sel)=>arr.map(n=>`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`).join('');
   const outs=pspOutputs(id,D), lab=D.lab&&typeof S3_VIEW_NAMES!=='undefined'&&S3_VIEW_NAMES[D.lab]?D.lab:null;
-  const slider=f=>{ const t=pspTof(f,PSP.cur[f.name]); return `<div style="display:flex;align-items:center;gap:6px;margin:1px 0"><span style="flex:0 0 38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${f.name===PSP.x?'#ffd58a':f.name===PSP.y?'#8fd0ff':'#cdd'}" title="${esc(f.doc||'')}">${esc(f.name)}</span>
+  const slider=f=>{ const t=pspTof(f,PSP.cur[f.name]); return `<div style="display:flex;align-items:center;gap:6px;margin:1px 0"><span style="flex:0 0 38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${f.name===PSP.x?'#ffd58a':f.name===PSP.y?'#8fd0ff':pspIsControl(f)?'#8a93a6':'#cdd'}" title="${esc((pspIsControl(f)?TT('numerical control — held at its default; sweeping it measures the solver, not the physics. ','численная настройка — держится по умолчанию; её перебор измеряет решатель, а не физику. ','numerische Steuergröße — auf dem Standard gehalten. '):'')+(f.doc||''))}">${pspIsControl(f)?'⚙ ':''}${esc(f.name)}</span>
       <input type="range" min="0" max="1000" value="${Math.round(1000*Math.max(0,Math.min(1,t)))}" data-ps="${esc(f.name)}" style="flex:1 1 auto;min-width:60px;width:auto;margin:0"><span style="flex:0 0 76px;text-align:right;font-variant-numeric:tabular-nums" data-psv="${esc(f.name)}">${pspFmt(PSP.cur[f.name])}</span></div>`; };
   d.innerHTML=`<style>#hccPspace input[type=range]{-webkit-appearance:none;appearance:none;height:20px;background:transparent;cursor:pointer}
       #hccPspace input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;background:linear-gradient(90deg,rgba(68,1,84,.9),rgba(33,145,140,.9),rgba(253,231,37,.9))}
@@ -45126,8 +45135,12 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
         <div style="font-size:10.5px;color:var(--dim);margin-top:4px">${TT('Evaluated by the laboratory itself through HCC_API.evaluate, inside each declared domain; nothing drawn here is interpolated between answers it did not give.','Вычислено самой лабораторией через HCC_API.evaluate внутри каждого объявленного домена; ничто здесь не интерполировано между ответами, которых она не давала.','Vom Labor selbst über HCC_API.evaluate ausgewertet, nur innerhalb der Domänen.')}</div></div></div>
     <div style="margin-top:8px"><b>${TT('The Jacobian at the bead','Якобиан в бусине','Die Jacobi-Matrix an der Perle')}</b> <span style="color:var(--dim)">— ${TT('every output\'s elasticity ∂ln Z/∂ln x to every input: a 1 % change in the column moves the row by that many %. Exact fractions are printed as fractions. Click a cell to put it on the surface.','эластичность ∂ln Z/∂ln x каждого выхода по каждому входу: изменение столбца на 1 % сдвигает строку на столько %. Точные дроби печатаются дробями. Клик по ячейке выводит её на поверхность.','Elastizität jedes Ausgangs nach jedem Eingang; Klick setzt sie auf die Fläche.')}</span>
       <div id="pspMat" style="overflow:auto;max-height:230px"></div></div>
+    <div style="margin-top:8px"><b>∮ ${TT('Invariants','Инварианты','Invarianten')}</b> <span style="color:var(--dim)">— ${TT('which combinations of the outputs never move: sampled across the domain, or along one input — along a clock, what stays fixed is conserved','какие комбинации выходов не меняются никогда: по всему домену или вдоль одного входа — вдоль часов неизменное есть сохраняющееся','welche Kombinationen der Ausgänge sich nie bewegen')}</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><select id="invAlong"><option value="">${TT('across the whole domain','по всему домену','über die ganze Domäne')}</option>${ins.map(f=>`<option value="${esc(f.name)}"${PSP.inv&&PSP.inv.id===id&&PSP.inv.along===f.name?' selected':''}>${TT('along','вдоль','entlang')} ${esc(f.name)}${INV_TIME.test(f.name)?' ⏱':''}</option>`).join('')}</select><button class="btn" id="invGo">∮ ${TT('find the invariants','найти инварианты','Invarianten finden')}</button></div>
+      <div id="invOut" style="font-size:11.5px;margin-top:3px">${PSP.inv&&PSP.inv.id===id?invHTML(PSP.inv.A,PSP.inv.meta):''}</div></div>
     <div style="margin-top:6px"><b>⇄ ${TT('The bus','Шина','Der Bus')}</b> <span style="color:var(--dim)">— ${TT('a door carries the value computed here into the next laboratory\'s parameter space','дверь переносит вычисленное здесь значение в пространство параметров следующей лаборатории','eine Tür trägt den hier berechneten Wert in den nächsten Parameterraum')}</span><div id="pspBus"></div></div>`;
   d.querySelector('#pspX').onclick=()=>{ PSP.job++; PSP.play=false; d.remove(); };
+  { const ig=d.querySelector('#invGo'); if(ig) ig.onclick=()=>invRun(); }
   const labB=d.querySelector('#pspLab'); if(labB) labB.onclick=()=>{ PSP.play=false; d.remove(); try{ navPush(); }catch(e){} hccGo({worldId:'s3',labId:lab}); };
   d.querySelector('#pspId').onchange=e=>{ PSP.loaded=null; hccPspaceOpen(e.target.value); };
   { const os=d.querySelector('#pspObj'); if(os) os.onchange=e=>{ const o=feedObjects().find(x=>x.key===e.target.value); if(!o){ PSP.loaded=null; pspOpenAt(); return; }
@@ -45165,6 +45178,144 @@ globalThis.HCC_PSPACE=Object.freeze({open:(id,o)=>hccPspaceOpen(id,o), state:()=
   fit:(id,x,y,z,n)=>{ const D=pspDesc(id), ins=pspNum(D), fx=ins.find(f=>f.name===x), fy=ins.find(f=>f.name===y); if(!fx||!fy) return null; const c={}; for(const f of D.inputs) c[f.name]=f.default; n=n||15;
     const G={N:n,NY:n,xv:[],yv:[],z:[],xlog:pspLog(fx),ylog:pspLog(fy)}; for(let i=0;i<n;i++){ G.xv.push(pspAt(fx,i/(n-1))); G.yv.push(pspAt(fy,i/(n-1))); G.z.push([]); for(let j=0;j<n;j++){ const r=pspEval(id,{...c,[x]:pspAt(fx,i/(n-1)),[y]:pspAt(fy,j/(n-1))}); G.z[i].push(r&&Number.isFinite(r[z])?r[z]:null); } }
     const vals=G.z.flat().filter(v=>v!=null); G.zlog=vals.length>0&&(vals.every(v=>v>0)||vals.every(v=>v<0)); return pspFit(G); }});
+
+/* ══ THE INVARIANTS A LABORATORY KEEPS, FOUND RATHER THAN DECLARED ════════════════
+   A law says how an output moves when an input moves. An INVARIANT is the opposite
+   question: which combination of the outputs does not move at all. Some are famous and
+   some are nobody's business, and the atlas has never been asked for either — each
+   laboratory states the ones its author knew. This asks every laboratory the same way:
+
+     · sample it at many points — across its whole declared domain, or along ONE input,
+       which for a laboratory with a clock is a trajectory through its phase space;
+     · look for exact relations among its outputs: products of powers that stay fixed
+       (ln-linear), and sums of the outputs and their squares that stay fixed (the shape
+       energy and angular momentum take along a rigid body's motion);
+     · keep only the smallest ones (no relation is reported whose support contains a
+       smaller relation already found), make the coefficients small integers when they
+       are, and report the constant and how well it held.
+
+   A relation is found from the smallest eigenvalue of the correlation matrix of a few
+   standardised features; "exact" means that eigenvalue is at the floor of double
+   precision, and anything looser is reported with the residual it actually has — an
+   integrator's drift is a number, not a verdict. Nothing is fitted: a relation either
+   holds at every sample or it is not reported. */
+function invEig(S){ const n=S.length, A=S.map(r=>r.slice()), V=A.map((r,i)=>r.map((_,j)=>i===j?1:0));
+  for(let sweep=0;sweep<60;sweep++){ let off=0; for(let p=0;p<n;p++) for(let q=p+1;q<n;q++) off+=A[p][q]*A[p][q]; if(off<1e-30) break;
+    for(let p=0;p<n;p++) for(let q=p+1;q<n;q++){ if(Math.abs(A[p][q])<1e-300) continue; const th=(A[q][q]-A[p][p])/(2*A[p][q]), t=Math.sign(th||1)/(Math.abs(th)+Math.sqrt(th*th+1)), c=1/Math.sqrt(t*t+1), s=t*c;
+      for(let k=0;k<n;k++){ const akp=A[k][p], akq=A[k][q]; A[k][p]=c*akp-s*akq; A[k][q]=s*akp+c*akq; }
+      for(let k=0;k<n;k++){ const apk=A[p][k], aqk=A[q][k]; A[p][k]=c*apk-s*aqk; A[q][k]=s*apk+c*aqk; }
+      for(let k=0;k<n;k++){ const vkp=V[k][p], vkq=V[k][q]; V[k][p]=c*vkp-s*vkq; V[k][q]=s*vkp+c*vkq; } } }
+  return {vals:A.map((r,i)=>r[i]), vecs:V}; }
+/* the null direction of a few feature columns: smallest eigenvalue of their correlation
+   matrix, the vector mapped back to the original scale, and the constant it holds */
+function invNull(cols){ const k=cols.length, M=cols[0].length, mu=[], sd=[];
+  for(const c of cols){ const m=c.reduce((a,b)=>a+b,0)/M; let v=0; for(const x of c) v+=(x-m)*(x-m); mu.push(m); sd.push(Math.sqrt(v/M)); }
+  if(sd.some(s=>!(s>0))) return null;
+  const S=[]; for(let i=0;i<k;i++){ S.push([]); for(let j=0;j<k;j++){ let s=0; for(let t=0;t<M;t++) s+=(cols[i][t]-mu[i])*(cols[j][t]-mu[j]); S[i].push(s/(M*sd[i]*sd[j])); } }
+  const E=invEig(S); let m=0; for(let i=1;i<k;i++) if(E.vals[i]<E.vals[m]) m=i;
+  const v=E.vecs.map(r=>r[m]); if(v.some(x=>Math.abs(x)<1e-4)) return null;   /* every feature must take part */
+  const a=v.map((x,i)=>x/sd[i]); let cm=0; const cs=[]; for(let t=0;t<M;t++){ let s=0; for(let i=0;i<k;i++) s+=a[i]*cols[i][t]; cs.push(s); cm+=s; } cm/=M;
+  let sp=0; for(const s of cs) sp=Math.max(sp,Math.abs(s-cm)); const scale=Math.max(...a.map((x,i)=>Math.abs(x)*(Math.abs(mu[i])+sd[i])));
+  return {lam:Math.max(0,E.vals[m]), a, c:cm, spread:sp/(scale||1)}; }
+/* small integers when the coefficients are small integers in disguise */
+function invRational(a){ const nz=a.filter(x=>Math.abs(x)>0); if(!nz.length) return null;
+  for(const piv of nz) for(let q=1;q<=12;q++){ const b=a.map(x=>x/piv*q); if(b.every(x=>Math.abs(x-Math.round(x))<1e-6*Math.max(1,Math.abs(x)))&&b.every(x=>Math.abs(Math.round(x))<=24)){
+      let r=b.map(Math.round); const g=r.reduce((u,v)=>{ u=Math.abs(u); v=Math.abs(v); while(v){ [u,v]=[v,u%v]; } return u; },0)||1; r=r.map(x=>x/g);
+      if(r.filter(x=>x<0).length>r.filter(x=>x>0).length) r=r.map(x=>-x); return r; } }
+  return null; }
+/* the search: every subset of up to maxK features, smallest first, minimal supports only */
+function invFind(feats,opts){ opts=opts||{}; const names=Object.keys(feats), n=names.length, out=[], maxK=Math.min(opts.maxK||4,n), tol=opts.tol||1e-9;
+  const covered=[]; const sub=(start,k,acc)=>{ if(acc.length===k){ if(covered.some(s=>s.every(x=>acc.includes(x)))) return;
+      const r=invNull(acc.map(i=>feats[names[i]])); if(!r) return; const exact=r.spread<tol;
+      const ra0=invRational(r.a), aa=(ra0||r.a).map(Math.abs); if(aa.some(x=>x===0)||Math.max(...aa)/Math.min(...aa)>1e4) return;
+      if(exact||r.spread<(opts.loose||0)){ covered.push(acc.slice()); const ra=ra0; out.push({terms:acc.map(i=>names[i]),a:ra||r.a.map(x=>x/r.a[0]),rational:!!ra,c:ra?r.c*ra[0]/r.a[0]:r.c/r.a[0],spread:r.spread,exact}); }
+      return; }
+    for(let i=start;i<n;i++){ acc.push(i); sub(i+1,k,acc); acc.pop(); if(out.length>=(opts.cap||40)) return; } };
+  for(let k=2;k<=maxK;k++) sub(0,k,[]);
+  return out; }
+/* a constant is named only when it is one of a few simple closed forms to 1e-10 */
+function invClosedForm(v){ if(!(Number.isFinite(v)&&v!==0)) return null; const s=Math.sign(v), x=Math.abs(v); const B=[['',1],['π',Math.PI],['√2',Math.SQRT2],['√3',Math.sqrt(3)],['√π',Math.sqrt(Math.PI)],['π²',Math.PI*Math.PI],['√(2π)',Math.sqrt(2*Math.PI)],['e',Math.E]];
+  for(const [nm,b] of B) for(const inv of [false,true]) for(let q=1;q<=64;q++){ const p=Math.round(x*q/(inv?1/b:b)); if(p<1||p>512) continue; const val=p/q*(inv?1/b:b);
+    if(Math.abs(val-x)<1e-10*x){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const num=(P===1&&nm&&!inv?'':P)+(inv?'':nm), den=(Q===1?'':Q)+(inv?nm:'');
+      return (s<0?'−':'')+(num||'1')+(den?'/'+(inv&&Q!==1?'('+den+')':den):''); } }
+  /* a square root: x² = (p/q) π^k, which is where conventions that mix radii and diameters land */
+  for(const [x2,flip] of [[x*x,false],[1/(x*x),true]]) for(let k=-6;k<=6;k++){ const b=Math.pow(Math.PI,k); for(let q=1;q<=32;q++){ const p=Math.round(x2*q/b); if(p<1||p>4096) continue;
+      if(Math.abs(p/q*b-x2)<2e-10*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g, pk=k===0?'':(k===1?'π':'π'+({2:'²',3:'³',4:'⁴',5:'⁵',6:'⁶'})[Math.abs(k)]);
+        const inner=k>=0?`${P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`; return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
+  return null; }
+/* and with the physical constants the laboratories themselves use (CODATA 2018): a single
+   constant to a power, or two to the first — named only to 1e-11 */
+const INV_PHYS=[['G',6.6743e-11],['c',299792458],['h',6.62607015e-34],['ħ',1.054571817e-34],['k_B',1.380649e-23],['m_p',1.67262192369e-27],['m_e',9.1093837015e-31],['e',1.602176634e-19],['σ_SB',5.670374419e-8]];
+function invClosedFormPhys(v){ const f0=invClosedForm(v); if(f0) return f0; if(!(Number.isFinite(v)&&v!==0)) return null;
+  const sup=p=>({'-2':'⁻²','-1':'⁻¹','2':'²','1':'','0.5':'^½','-0.5':'^−½'})[String(p)];
+  for(const [n,c] of INV_PHYS) for(const p of [1,-1,2,-2,0.5,-0.5]){ const f=invClosedForm(v/Math.pow(c,p)); if(f&&Math.abs(v/Math.pow(c,p))<1e6&&Math.abs(v/Math.pow(c,p))>1e-6) return `${f} · ${n}${sup(p)}`; }
+  for(let i=0;i<INV_PHYS.length;i++) for(let j=i+1;j<INV_PHYS.length;j++) for(const p of [1,-1]) for(const q of [1,-1]){ const [n1,c1]=INV_PHYS[i], [n2,c2]=INV_PHYS[j], x=v/Math.pow(c1,p)/Math.pow(c2,q);
+    if(!(Math.abs(x)<1e6&&Math.abs(x)>1e-6)) continue; const f=invClosedForm(x); if(f) return `${f} · ${n1}${sup(p)} ${n2}${sup(q)}`; }
+  return null; }
+/* the whole analysis of one sample set: constants, aliases (the same quantity in other units),
+   product relations, sum-of-squares relations, and the dimension of the relation space */
+function invAnalyse(rows,opts){ opts=opts||{}; const names=Object.keys(rows[0]||{}).filter(k=>rows.every(r=>typeof r[k]==='number'&&Number.isFinite(r[k])));
+  const out={samples:rows.length,constants:[],aliases:[],products:[],sums:[],nullity:0,moving:0};
+  /* a laboratory's own residuals (drifts, checks, deltas) are diagnostics: reported by their
+     size, never searched for relations — noise at 1e-16 correlates with anything */
+  out.residuals=[]; const RES=/(^|_)(drift|residual|check|error|delta)(_|$)|^delta_|_residual$/;
+  const moving=[]; for(const k of names){ const v=rows.map(r=>r[k]), m=Math.max(...v.map(Math.abs)); const sp=Math.max(...v)-Math.min(...v);
+    if(RES.test(k)&&m<1e-3){ out.residuals.push({name:k,max:m}); continue; }
+    if(m===0||sp<=1e-12*m){ out.constants.push({name:k,value:v[0],form:invClosedFormPhys(v[0]),exact:true}); }
+    else if(sp<=1e-5*m){ out.constants.push({name:k,value:v.reduce((a,b)=>a+b,0)/v.length,form:null,exact:false,spread:sp/m}); }
+    else moving.push(k); }
+  out.moving=moving.length;
+  /* products: outputs of one sign; an alias pass first so a quantity in two units is one feature */
+  let L=moving.filter(k=>rows.every(r=>r[k]>0)||rows.every(r=>r[k]<0)); const F={}; for(const k of L) F[k]=rows.map(r=>Math.log(Math.abs(r[k])));
+  const drop=new Set(); for(let i=0;i<L.length;i++) for(let j=i+1;j<L.length;j++){ if(drop.has(L[j])||drop.has(L[i])) continue; const d=F[L[i]].map((x,t)=>x-F[L[j]][t]), sp=Math.max(...d)-Math.min(...d);
+      if(sp<1e-10){ drop.add(L[j]); out.aliases.push({name:L[j],of:L[i],factor:Math.exp(-d[0]),form:invClosedFormPhys(Math.exp(-d[0]))}); } }
+  L=L.filter(k=>!drop.has(k)).slice(0,16); const FL={}; for(const k of L) FL[k]=F[k];
+  if(L.length>=2){ out.products=invFind(FL,{maxK:L.length<=12?4:3,tol:opts.tol||1e-9,loose:opts.loose||0,cap:60})
+      .map(r=>({...r,value:Math.exp(r.c),form:invClosedFormPhys(Math.exp(r.c))}));
+    /* how many independent relations there are: the null dimension of all of them together */
+    const cols=L.map(k=>FL[k]), M=rows.length, mu=cols.map(c=>c.reduce((a,b)=>a+b,0)/M), sd=cols.map((c,i)=>Math.sqrt(c.reduce((a,b)=>a+(b-mu[i])**2,0)/M));
+    const S=cols.map((ci,i)=>cols.map((cj,j)=>{ let s=0; for(let t=0;t<M;t++) s+=(ci[t]-mu[i])*(cj[t]-mu[j]); return s/(M*sd[i]*sd[j]); }));
+    out.nullity=invEig(S).vals.filter(x=>x<1e-10).length;
+    /* the rank says something about the inputs only when EVERY moving output took part */
+    out.rank=(L.length+out.aliases.length===moving.length)?L.length-out.nullity:null; }
+  /* sums of outputs and their squares: the form energy and angular momentum take */
+  const Aname=moving.filter(k=>!drop.has(k)).slice(0,8), FA={}; for(const k of Aname){ FA[k]=rows.map(r=>r[k]); FA[k+'²']=rows.map(r=>r[k]*r[k]); }
+  if(Aname.length>=1){ out.sums=invFind(FA,{maxK:3,tol:opts.tol||1e-9,loose:opts.loose||0,cap:30})
+      /* a sum relation that is only a product relation in disguise (x and x² with no partner) is dropped */
+      .filter(r=>!(r.terms.length===2&&r.terms[1]===r.terms[0]+'²')); }
+  return out; }
+/* ── the browser half: sample a laboratory through its contract, then analyse ── */
+const INV_TIME=/^(t|time|tau|tauMax|days|iterations|orbit_steps|steps|epoch_days|epoch_year|age|lyapunov_steps)$/;
+PSP.invJob=0;
+function invSample(id,along,cb){ const D=pspDesc(id); if(!D){ cb(null); return; } const ins=pspNum(D), vary=along?ins.filter(f=>f.name===along):ins.filter(f=>!pspIsControl(f));
+  const base=id===PSP.id?{...PSP.cur}:{}; for(const f of D.inputs) if(base[f.name]===undefined) base[f.name]=f.default;
+  const t0=performance.now(); pspEval(id,base); const ms=Math.max(0.02,performance.now()-t0), M=Math.max(16,Math.min(48,Math.floor(4000/ms)));
+  let seed=20260924; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+  const rows=[], job=++PSP.invJob; let k=0; const step=()=>{ if(job!==PSP.invJob) return; const tEnd=performance.now()+24;
+    while(rows.length<M&&k<M*3&&performance.now()<tEnd){ const inp={...base}; for(const f of vary) inp[f.name]=pspAt(f,along?Math.min(1,(rows.length+rnd())/M):rnd()); k++;
+      const r=pspEval(id,inp); if(r) rows.push(r); }
+    const pr=document.getElementById('invProg'); if(pr) pr.textContent=rows.length<M&&k<M*3?`${rows.length}/${M}`:'';
+    const late=performance.now()-t0>8000&&rows.length>=12;   /* a slow laboratory gets eight seconds, and says how many answers that bought */
+    if(rows.length<M&&k<M*3&&!late){ setTimeout(step,0); return; } cb(rows.length>=8?rows:null,{M,ms,vary:vary.map(f=>f.name)}); };
+  step(); }
+const INV_SUP={'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻','.':'·'};
+function invPow(name,a){ if(a===1) return esc(name); const s=String(Number.isInteger(a)?a:+a.toFixed(4)); return `${esc(name)}<sup>${s}</sup>`; }
+function invHTML(A,meta){ if(!A) return `<div style="color:#ff9a86">${TT('too few answers inside the declared domain to look for invariants','слишком мало ответов внутри домена для поиска инвариантов','zu wenige Antworten in der Domäne')}</div>`;
+  const ex=r=>r.exact?`<span style="color:#7fe0a8">${TT('exact','точно','exakt')} · ${r.spread.toExponential(0)}</span>`:`<span style="color:#ffd58a">${TT('holds to','держится до','hält bis')} ${r.spread.toExponential(1)}</span>`;
+  const prod=[...A.products].sort((a,b)=>a.terms.length-b.terms.length||a.a.reduce((s,x)=>s+Math.abs(x),0)-b.a.reduce((s,x)=>s+Math.abs(x),0)).slice(0,14);
+  const along=meta&&meta.vary&&meta.vary.length===1;
+  return `<div style="color:var(--dim);margin:3px 0">${A.samples} ${TT('answers','ответов','Antworten')} ${along?`${TT('along','вдоль','entlang')} <b>${esc(meta.vary[0])}</b>${INV_TIME.test(meta.vary[0])?' — '+TT('a trajectory: what stays fixed here is CONSERVED','траектория: то, что здесь неизменно, СОХРАНЯЕТСЯ','eine Bahn: was hier fest bleibt, ist ERHALTEN'):''}`:TT('across the whole declared domain','по всему объявленному домену','über die ganze Domäne')} · ${A.moving} ${TT('outputs move','выходов меняются','Ausgänge bewegen sich')} · <b>${A.nullity}</b> ${TT('independent product relations among them','независимых мультипликативных связей между ними','unabhängige Produktrelationen')}</div>
+    ${meta&&meta.vary&&A.rank!=null&&A.rank<meta.vary.length&&A.rank>0?`<div style="border-left:3px solid #b99cff;padding-left:6px;margin:3px 0"><b style="color:#d9c8ff">${TT('Hidden symmetry','Скрытая симметрия','Verborgene Symmetrie')}</b> — ${TT('its outputs span only','её выходы охватывают лишь','ihre Ausgänge spannen nur')} <b>${A.rank}</b> ${TT('dimensions while','измерений, хотя','Dimensionen, während')} <b>${meta.vary.length}</b> ${TT('inputs were varied: the laboratory depends on','входов варьировались: лаборатория зависит лишь от','Eingänge variiert wurden: das Labor hängt nur von')} ${A.rank} ${TT('combinations of them, and','их комбинаций, и','Kombinationen ab, und')} ${meta.vary.length-A.rank} ${TT('direction(s) in its input space change nothing it computes.','направлени(е/я) в пространстве входов не меняют ничего из вычисляемого.','Richtung(en) im Eingaberaum ändern nichts.')}</div>`:''}
+    ${A.constants.length?`<div><b>${TT('Invariant values','Неизменные величины','Invariante Werte')}</b> — ${A.constants.map(c=>`${esc(c.name)} = ${pspFmt(c.value)}${c.form?` <b style="color:#ffd58a">= ${esc(c.form)}</b>`:''}${c.exact?'':` <span style="color:#ffd58a">(${TT('conserved to','сохраняется до','erhalten bis')} ${c.spread.toExponential(1)} — ${TT('the integrator\'s own error','собственная ошибка интегратора','der eigene Integratorfehler')})</span>`}`).join(' · ')}</div>`:''}
+    ${A.residuals&&A.residuals.length?`<div style="color:var(--dim)">${TT('Its own residuals, largest over the sample','Собственные невязки, наибольшие по выборке','Eigene Residuen, größte in der Stichprobe')}: ${A.residuals.map(x=>`${esc(x.name)} ≤ ${pspFmt(x.max)}`).join(' · ')}</div>`:''}
+    ${A.aliases.length?`<div style="color:var(--dim)">${TT('One quantity in two units','Одна величина в двух единицах','Eine Größe in zwei Einheiten')}: ${A.aliases.map(x=>`${esc(x.name)} = ${esc(x.of)} × ${pspFmt(x.factor)}${x.form?` (${esc(x.form)})`:''}`).join(' · ')}</div>`:''}
+    ${prod.length?`<div style="margin-top:3px"><b>${TT('Product invariants','Мультипликативные инварианты','Produktinvarianten')}</b>${prod.map(r=>`<div style="margin-left:8px">${r.terms.map((t,i)=>invPow(t,r.a[i])).join(' · ')} = ${pspFmt(r.value)}${r.form?` <b style="color:#ffd58a">= ${esc(r.form)}</b>`:''} · ${ex(r)}</div>`).join('')}${A.products.length>prod.length?`<div style="color:var(--dim);margin-left:8px">… ${A.products.length-prod.length} ${TT('more, all combinations of these','ещё — все комбинации этих','weitere')}</div>`:''}</div>`:''}
+    ${A.sums.length?`<div style="margin-top:3px"><b>${TT('Quadratic and linear invariants','Квадратичные и линейные инварианты','Quadratische und lineare Invarianten')}</b>${A.sums.slice(0,10).map(r=>`<div style="margin-left:8px">${r.terms.map((t,i)=>`${i&&r.a[i]>=0?'+ ':''}${r.a[i]<0?'− ':''}${Math.abs(r.a[i])===1?'':pspFmt(Math.abs(r.a[i]))+'·'}${esc(t)}`).join(' ')} = ${pspFmt(r.c)} · ${ex(r)}</div>`).join('')}</div>`:''}
+    ${!A.constants.length&&!A.products.length&&!A.sums.length?`<div>${TT('No exact relation among the outputs at this resolution: every output carries independent information here.','Точных связей между выходами не найдено: каждый выход несёт здесь независимую информацию.','Keine exakte Relation: jeder Ausgang trägt unabhängige Information.')}</div>`:''}`; }
+function invRun(){ const d=document.getElementById('hccPspace'); if(!d) return; const sel=d.querySelector('#invAlong'), along=sel?sel.value||null:null, out=d.querySelector('#invOut'); if(out) out.innerHTML=`<span id="invProg" style="color:#ffd58a"></span>`;
+  invSample(PSP.id,along,(rows,meta)=>{ const A=rows?invAnalyse(rows):null; PSP.inv={id:PSP.id,along,A,meta}; const o=document.querySelector('#hccPspace #invOut'); if(o) o.innerHTML=invHTML(A,meta); }); }
+globalThis.HCC_INVARIANTS=Object.freeze({find:(id,along)=>new Promise(res=>invSample(id||PSP.id,along||null,(rows,meta)=>{ const A=rows?invAnalyse(rows):null; res(A?{...A,meta}:null); })),
+  last:()=>PSP.inv?{id:PSP.inv.id,along:PSP.inv.along,...(PSP.inv.A||{})}:null});
 
 /* ══ STAND ON ANOTHER STAR ═══════════════════════════════════════════════════════
    Every star in this atlas with a measured distance can be stood on. The camera is set
