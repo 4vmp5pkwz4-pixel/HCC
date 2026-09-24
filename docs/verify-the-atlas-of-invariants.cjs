@@ -102,6 +102,16 @@ const jk = js && Object.fromEntries(js.inputs.map((n, i) => [n, js.k[i] / js.k[0
   ok('one law, many laboratories: the horizon law r·T = ħc/k_B × {1/4π for a black hole, 1/2π for de Sitter} is found in both, recomputed from their definitions; the free-fall law t²ρG in ' + ffLabs.length + ' laboratories',
     pureOK(bh, 1 / (4 * Math.PI)) && pureOK(ds, 1 / (2 * Math.PI)) && ffLabs.length >= 3 && /function invUniversality\(A\)\{/.test(SRC),
     `black hole ${bh ? (bh.P.form || bh.P.pure) : '—'} · de Sitter ${ds ? (ds.P.form || ds.P.pure) : '—'} · free fall in ${ffLabs.join(', ')}: ${ff.filter(x => x.P.form).slice(0, 4).map(x => x.P.form).join(', ')}`);
+  /* 3e · INTEGERS NOBODY DECLARED: inputs a contract calls real and the laboratory treats as whole —
+     refused as a fraction, or rounded silently — learned by the page and sampled on integers. The
+     defect laboratory, THIN while its winding was sampled as a real, now shows what it is about:
+     a harmonic perturbation cannot change the winding. */
+  const ints = id => lab(id).integer_inputs || [];
+  const dfxS = ((lab('dfx').across || {}).sums || []).find(r => r.exact && r.terms.length === 2 && r.terms.includes('winding') && r.terms.includes('unperturbed_winding') && r.value === 0);
+  ok('integers nobody declared are learned (a winding, a mass number, a harmonic degree), and the defect laboratory then shows its point: winding = unperturbed winding, exactly',
+    ints('dfx').includes('bare_winding') && ints('nuc').includes('Z') && ints('sh').includes('l') && lab('dfx').across.verdict === 'FOUND' && dfxS && J.counts.undeclared_integer_inputs === J.laboratories.reduce((a, r) => a + (r.integer_inputs || []).length, 0),
+    `${J.counts.undeclared_integer_inputs} undeclared integer inputs · dfx: ${ints('dfx').join(', ')} · nuc: ${ints('nuc').join(', ')} · sh: ${ints('sh').join(', ')}`);
+
   /* 3d · the discoveries as a journey: numbers read live from this census, Wien's root named */
   const disc = /async function hccDiscoveriesOpen\(\)\{/.test(SRC) && /add\('What the atlas found by itself',/.test(SRC) && /\['✦','What the atlas found by itself',/.test(SRC)
     && /const U=invUniversality\(A\), fam=u=>U\.find\(g=>g\.units===u\);/.test(SRC);
