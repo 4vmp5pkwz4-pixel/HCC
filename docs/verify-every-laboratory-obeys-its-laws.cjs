@@ -21,7 +21,9 @@
  *      half angle, Stefan–Boltzmann, M² = 1 + ZT), and the counts match the rows
  *   7. an approximate law must be a SIMPLE one — every exponent rational, every coefficient
  *      named: a free fit that holds to 1e-6 on a domain six decades wide describes the domain
- *   8. MUTATIONS: a finder that accepts at 5 % finds a law in a wobble; a finder without the
+ *   8. and what it found wrong: the KdV laboratory took I₃ by a central difference on a spectral
+ *      grid, 2–5 % from ⅕Σc^{5/2}; it now takes it on its own modes, to 1e-5
+ *   9. MUTATIONS: a finder that accepts at 5 % finds a law in a wobble; a finder without the
  *      transform loses M² = ZT + 1 — each caught
  */
 const fs = require('node:fs'), path = require('node:path');
@@ -90,6 +92,18 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('the wiring: sampling keeps the inputs of every answer, the analysis asks for laws when it has them, the panel shows them first',
     /rows\.push\(r\); X\.push\(Object\.fromEntries\(vary\.map\(f=>\[f\.name,inp\[f\.name\]\]\)\)\);/.test(SRC) && /if\(opts\.X\) out\.laws=invLaws\(rows,opts\.X,\{units:opts\.units\}\);/.test(SRC)
     && /Laws — what each output IS, found from the inputs/.test(SRC) && /invAnalyse\(rows,\{X:meta\.X,units:meta\.units\}\)/.test(SRC));
+
+  /* 7b · what the law finder found wrong in a laboratory: the KdV laboratory evolved its field on
+     256 Fourier modes and took I₃'s derivative by a central difference at dx = 0.23. The finder read
+     I₁ = 2Σ√c to 1e-9 there and nothing for I₃; the continuum value is ⅕Σc^{5/2}, derived HERE:
+     ∫u³ = (4/15)c^{5/2}, ∫u_x² = (2/15)c^{5/2}, so ∫(u³ − ½u_x²) = ⅕ c^{5/2} per soliton */
+  { const pairs = [[5, 2], [6, 5.5], [9, 4], [12, 7], [14.8, 11]], I3c = (a, b) => 0.2 * (a ** 2.5 + b ** 2.5);
+    const spec = pairs.map(([a, b]) => Math.abs(K.kdvInvariants(K.kdvTwoSoliton(a, b, -20, -8)).I3 / I3c(a, b) - 1));
+    const N = 256, L = 60, dx = L / N, fd = pairs.map(([a, b]) => { const u = K.kdvTwoSoliton(a, b, -20, -8); let I3 = 0;
+      for (let i = 0; i < N; i++) { const ux = (u[(i + 1) % N] - u[(i - 1 + N) % N]) / (2 * dx); I3 += (u[i] ** 3 - 0.5 * ux * ux) * dx; } return Math.abs(I3 / I3c(a, b) - 1); });
+    ok('the KdV laboratory now takes I₃ on its own 256 modes: I₃ = ⅕Σc^{5/2} to 1e-5 for separated solitons up to c = 15 — and the central difference it replaced (MUTATION) is off by more than one per cent, caught',
+      Math.max(...spec) < 1e-5 && Math.max(...fd) > 1e-2 && /u_x on the SAME 256 modes the evolution uses/.test(SRC),
+      `spectral worst ${Math.max(...spec).toExponential(1)} · central difference worst ${(100 * Math.max(...fd)).toFixed(1)} %`); }
 
   /* 8 · mutations */
   { const X = [], Y = []; for (let s = 0; s < 40; s++) { const a = 1 + rnd(); X.push({ a }); Y.push({ n: a * (1 + 0.02 * Math.sin(50 * a)) }); }

@@ -35202,7 +35202,12 @@ function kdvSetup(){
   kdvObjs={surf,geo,front,readLab:rl,inv0:kdvInvariants(kdvU),_c:new THREE.Color()};
 }
 function kdvInvariants(u){ const dx=KDV_L/KDV_N; let I1=0,I2=0,I3=0;
-  for(let i=0;i<KDV_N;i++){ const ux=(u[(i+1)%KDV_N]-u[(i-1+KDV_N)%KDV_N])/(2*dx);
+  /* u_x on the SAME 256 modes the evolution uses (ik·û, the Nyquist mode dropped): a central
+     difference at dx = 0.23 misread a c = 15 soliton (width ≈ 0.5) and put I₃ 2–5 % above its
+     continuum value ⅕Σc^{5/2} — found by the law finder, which read I₁ = 2Σ√c to 1e-9 here */
+  const fr=Float64Array.from(u), fi=new Float64Array(KDV_N); qmFFT(fr,fi,false);
+  for(let i=0;i<KDV_N;i++){ const k=i===KDV_N/2?0:_kdvK[i], a=fr[i]; fr[i]=-k*fi[i]; fi[i]=k*a; } qmFFT(fr,fi,true);
+  for(let i=0;i<KDV_N;i++){ const ux=fr[i];
     I1+=u[i]*dx; I2+=u[i]*u[i]*dx; I3+=(u[i]**3-0.5*ux*ux)*dx; }
   return {I1,I2,I3}; }
 function updateKdv(dt){
@@ -61879,7 +61884,7 @@ const ATLAS_LATE_SPECS=[
            {name:'I2', unit:'dimensionless', doc:['the second conserved quantity of the KdV hierarchy, the momentum ∫u² — it must not drift, and watching whether it does is how the integrator is judged',
              'второй сохраняющийся интеграл иерархии КдФ, импульс ∫u²: он не должен уплывать, и именно по этому судят об интеграторе',
              'die zweite Erhaltungsgroesse der KdV-Hierarchie, der Impuls ∫u²']},
-           {name:'I3', unit:'dimensionless', doc:['the third conserved quantity, the energy — the first invariant a scheme that is not symplectic loses, and therefore the sharper test of the two',
+           {name:'I3', unit:'dimensionless', doc:['the third conserved quantity, the energy — the first invariant a scheme that is not symplectic loses, and therefore the sharper test of the two; its derivative is taken on the same 256 modes as the evolution, so for separated solitons it equals ⅕Σc^{5/2} to 1e-5',
              'третий сохраняющийся интеграл, энергия: первый инвариант, который теряет несимплектическая схема, и потому более острый из двух тестов',
              'die dritte Erhaltungsgroesse, die Energie']},
            {name:'I1_drift', unit:'dimensionless', doc:['|I1(t) - I1(0)|','дрейф I1','Drift I1']},
@@ -61891,6 +61896,8 @@ const ATLAS_LATE_SPECS=[
            {name:'steps', unit:'dimensionless', doc:['how many steps were taken','число шагов','Schritte']}],
   limits:[['The domain is periodic with length 60 and 256 modes. A soliton faster than about c = 16 is not resolved by 256 modes and the drift will say so; that is why the domain caps there.',
            'Область периодическая, длина 60, 256 мод.','Periodisches Gebiet, 256 Moden.'],
+          ['MEASURED by the law finder across the domain: I1 equals 2(√c1 + √c2) to 1e-9 wherever the two initial solitons do not overlap (at c = 0.2 the slow one is 4.5 wide and its tail reaches the other: 1e-3); I2 departs from ⅔Σc^{3/2} by up to 5e-3 for c ≈ 15 over t ≈ 4 at the default step — the integrator, which I2_drift reports.',
+           'ИЗМЕРЕНО искателем законов: I1 = 2(√c1 + √c2) до 1e-9, пока солитоны не перекрываются; I2 отходит от ⅔Σc^{3/2} до 5e-3 при c ≈ 15 и t ≈ 4 на шаге по умолчанию — это интегратор, и I2_drift это показывает.','Vom Gesetzesfinder gemessen: I1 = 2(√c1 + √c2) bis 1e-9 ohne Überlapp; I2 weicht bis 5e-3 ab (Integrator).'],
           ['The drift is a property of the integrator and the step, not of the KdV equation, whose invariants are exactly constant. Reporting the drift rather than asserting conservation is the point.',
            'Дрейф — свойство интегратора, а не уравнения.','Die Drift gehört zum Integrator.']],
   ev:i=>{const u0=kdvTwoSoliton(i.c1,i.c2,-20,-8), a=kdvInvariants(u0),

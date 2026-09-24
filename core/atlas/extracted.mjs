@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1371   ·   exported names: 1482
-   extracted physics, sha256 b7397628ea4d1fbaec9b682a21ca679b43f0c4690af17062ae5d619e49e615bb */
+   extracted physics, sha256 56a7b2a84f2e7a0f609b8b7a971d8d304f85bb0a1d823dfc3a5526bd351839de */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -2063,7 +2063,12 @@ function kdvTwoSoliton(c1,c2,x1,x2){
 }
 
 function kdvInvariants(u){ const dx=KDV_L/KDV_N; let I1=0,I2=0,I3=0;
-  for(let i=0;i<KDV_N;i++){ const ux=(u[(i+1)%KDV_N]-u[(i-1+KDV_N)%KDV_N])/(2*dx);
+  /* u_x on the SAME 256 modes the evolution uses (ik·û, the Nyquist mode dropped): a central
+     difference at dx = 0.23 misread a c = 15 soliton (width ≈ 0.5) and put I₃ 2–5 % above its
+     continuum value ⅕Σc^{5/2} — found by the law finder, which read I₁ = 2Σ√c to 1e-9 here */
+  const fr=Float64Array.from(u), fi=new Float64Array(KDV_N); qmFFT(fr,fi,false);
+  for(let i=0;i<KDV_N;i++){ const k=i===KDV_N/2?0:_kdvK[i], a=fr[i]; fr[i]=-k*fi[i]; fi[i]=k*a; } qmFFT(fr,fi,true);
+  for(let i=0;i<KDV_N;i++){ const ux=fr[i];
     I1+=u[i]*dx; I2+=u[i]*u[i]*dx; I3+=(u[i]**3-0.5*ux*ux)*dx; }
   return {I1,I2,I3}; }
 
