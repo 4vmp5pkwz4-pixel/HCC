@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="every-laboratory-keeps-its-invariants-2026.09.24.12">
+<html lang="en" data-hcc-build="the-phase-portrait-of-every-laboratory-2026.09.24.13">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="every-laboratory-keeps-its-invariants-2026.09.24.12">
+<meta name="hcc-build" content="the-phase-portrait-of-every-laboratory-2026.09.24.13">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2916,7 +2916,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.298.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.299.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3207,8 +3207,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.298.0';
-const HCC_BUILD='every-laboratory-keeps-its-invariants-2026.09.24.12';
+const HCC_VERSION='4.299.0';
+const HCC_BUILD='the-phase-portrait-of-every-laboratory-2026.09.24.13';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -44993,10 +44993,48 @@ function pspDrawObjects(g,at,hN){ if(!PSP.objs) return; g.font='10px system-ui';
   for(const o of PSP.objs){ const h=Math.max(0,Math.min(1,hN(o.z))), p=at(o.tx,o.ty,h); if(!p) continue; const big=o.cls==='sun'||o.cls==='planet'||PSP_FAMOUS.test(o.name);
     g.fillStyle=pspObjCol(o); g.globalAlpha=big?1:0.8; g.beginPath(); g.arc(p[0],p[1],big?3.6:1.8,0,7); g.fill(); g.globalAlpha=1;
     if(big){ g.strokeStyle='rgba(0,0,0,.7)'; g.lineWidth=1; g.stroke(); g.fillStyle='#fff'; g.fillText(o.name,p[0]+5,p[1]-4); } } }
+/* ◴ THE PHASE PORTRAIT: three outputs as one curve while a single input — a clock, or any
+   input — runs across its domain. A laboratory with a conserved quantity draws a closed
+   curve; one that relaxes draws a spiral; a chaotic one fills a region. The same contract,
+   read as motion. */
+/* THE WINDOW. A clock whose domain holds thousands of periods, sampled at a few hundred
+   points, draws chords, not a curve — aliasing. So the window is chosen by looking: from the
+   whole domain it shrinks tenfold around the bead until successive samples move the outputs
+   smoothly (the median step of a 60-point probe under a fifth of their range AND halving when the probe doubles — a stroboscopic alias looks smooth at one resolution and not at two), and the portrait says which window it is. */
+function pspPhaseWindow(id,f,P,ms){ const cur=PSP.cur[f.name], t0=pspTof(f,cur); let best={lo:0,hi:1,w:1};
+  if(ms*180*8>4000) return best;
+  const probe=(lo,hi,n)=>{ const v=[]; for(let k=0;k<n;k++){ const r=pspEval(id,{...PSP.cur,[f.name]:pspAt(f,lo+(hi-lo)*k/(n-1))}); if(r&&Number.isFinite(r[P.a])&&Number.isFinite(r[P.b])) v.push([r[P.a],r[P.b],P.c?r[P.c]:0]); }
+    if(v.length<n/3) return null; let rough=0;
+    for(let c=0;c<3;c++){ const col=v.map(x=>x[c]), rg=Math.max(...col)-Math.min(...col); if(!(rg>0)) continue; const st=col.slice(1).map((x,i)=>Math.abs(x-col[i])).sort((a,b)=>a-b); rough=Math.max(rough,st[st.length>>1]/rg); }
+    return rough; };
+  /* a smooth curve halves its step when the samples double; a stroboscopic alias does not */
+  for(let e=0;e<=7;e++){ const w=Math.pow(10,-e), lo=Math.max(0,Math.min(1-w,t0-w/2)), hi=lo+w, r1=probe(lo,hi,60); if(r1==null) continue; const r2=probe(lo,hi,120);
+    best={lo,hi,w}; if(r1<0.2&&r2!=null&&r2<0.65*r1+1e-9) return best; }
+  return best; }
+function pspPhaseSample(cb){ const id=PSP.id, D=pspDesc(id), ins=pspNum(D), P=PSP.phase; const f=ins.find(x=>x.name===P.along); if(!f){ cb(); return; }
+  const t0=performance.now(); pspEval(id,PSP.cur); const ms=Math.max(0.02,performance.now()-t0), M=Math.max(40,Math.min(700,Math.floor(2500/ms)));
+  const Wd=pspPhaseWindow(id,f,P,ms); P.win={from:pspAt(f,Wd.lo),to:pspAt(f,Wd.hi),w:Wd.w};
+  const pts=[], job=++PSP.job; let k=0; const step=()=>{ if(job!==PSP.job) return; const tEnd=performance.now()+24;
+    while(k<M&&performance.now()<tEnd){ const tv=pspAt(f,Wd.lo+(Wd.hi-Wd.lo)*k/(M-1)), r=pspEval(id,{...PSP.cur,[f.name]:tv}); k++;
+      if(r&&[P.a,P.b,P.c].every(n=>!n||Number.isFinite(r[n]))) pts.push([r[P.a],r[P.b],P.c?r[P.c]:0,k/(M-1)]); }
+    const pr=document.getElementById('pspProg'); if(pr) pr.textContent=k<M?`${TT('tracing','трассировка','Verfolgung')} ${Math.round(100*k/M)} %`:`${pts.length} ${TT('points along','точек вдоль','Punkte entlang')} ${P.along}`;
+    if(k<M){ setTimeout(step,0); return; } P.pts=pts; cb(); };
+  step(); }
+function pspDrawPhase(g,W,H){ const P=PSP.phase; if(!P||!P.pts||!P.pts.length){ g.fillStyle='#9aa'; g.fillText(TT('no trajectory inside the declared domain','нет траектории внутри объявленного домена','keine Bahn in der Domäne'),20,30); return; }
+  const lo=[0,1,2].map(k=>Math.min(...P.pts.map(p=>p[k]))), hi=[0,1,2].map(k=>Math.max(...P.pts.map(p=>p[k]))), nz=k=>hi[k]>lo[k]?(v=>(v-lo[k])/(hi[k]-lo[k])-0.5):(()=>0);
+  const N=[nz(0),nz(1),nz(2)], pr=p=>pspProject(N[0](p[0]),N[1](p[1]),P.c?N[2](p[2])*0.62:-0.31,W,H), fl=p=>pspProject(N[0](p[0]),N[1](p[1]),-0.31,W,H);
+  g.strokeStyle='rgba(160,180,220,.35)'; g.beginPath(); [[-.5,-.5],[.5,-.5],[.5,.5],[-.5,.5],[-.5,-.5]].forEach(([u,v],k)=>{ const q=pspProject(u,v,-0.31,W,H); k?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]); }); g.stroke();
+  if(P.c){ g.strokeStyle='rgba(150,160,190,.28)'; g.beginPath(); P.pts.forEach((p,i)=>{ const q=fl(p); i?g.lineTo(q[0],q[1]):g.moveTo(q[0],q[1]); }); g.stroke(); }
+  g.lineWidth=1.6; for(let i=1;i<P.pts.length;i++){ const a=pr(P.pts[i-1]), b=pr(P.pts[i]); g.strokeStyle=pspCol(P.pts[i][3],0.9); g.beginPath(); g.moveTo(a[0],a[1]); g.lineTo(b[0],b[1]); g.stroke(); } g.lineWidth=1;
+  const s=pr(P.pts[0]); g.fillStyle='#fff'; g.beginPath(); g.arc(s[0],s[1],4,0,7); g.fill();
+  g.fillStyle='#b8c4d8'; g.textAlign='center'; const ax=(u,v,t)=>{ const q=pspProject(u,v,-0.31,W,H); g.fillText(t,q[0],q[1]); };
+  ax(0,-0.66,`${P.a} [${pspFmt(lo[0])} … ${pspFmt(hi[0])}] →`); ax(0.68,0,`${P.b} [${pspFmt(lo[1])} … ${pspFmt(hi[1])}] →`);
+  g.textAlign='left'; if(P.c) g.fillText(`↑ ${P.c} [${pspFmt(lo[2])} … ${pspFmt(hi[2])}]`,12,18);
+  g.fillText(`${TT('colour','цвет','Farbe')}: ${P.along} ${pspFmt(P.win?P.win.from:NaN)} → ${pspFmt(P.win?P.win.to:NaN)}${P.win&&P.win.w<1?` (${TT('window','окно','Fenster')} ${P.win.w} ${TT('of the domain, chosen so the curve is smooth','домена, выбрано так, чтобы кривая была гладкой','der Domäne, so gewählt, dass die Kurve glatt ist')})`:''} · ${TT('white dot: start','белая точка: начало','weißer Punkt: Anfang')}`,12,H-8); }
 function pspProject(u,v,w,W,H){ const cy=Math.cos(PSP.yaw), sy=Math.sin(PSP.yaw), cp=Math.cos(PSP.pitch), sp=Math.sin(PSP.pitch), S=Math.min(W,H)*0.78;
   const X=u*cy-v*sy, Y=u*sy+v*cy; return [W/2+S*X, H*0.56-S*(w*cp+Y*sp), Y*cp-w*sp]; }
 function pspDraw(){ const C=document.getElementById('pspC'); if(!C) return; const g=C.getContext('2d'), W=C.width, H=C.height, G=PSP.G;
-  g.clearRect(0,0,W,H); if(!G) return; g.font='11px system-ui'; g.lineWidth=1;
+  g.clearRect(0,0,W,H); g.font='11px system-ui'; g.lineWidth=1; if(PSP.mode==='phase'){ pspDrawPhase(g,W,H); return; } if(!G) return;
   const hN=v=>(G.f(v)-G.fmin)/(G.fmax-G.fmin), levels=10;
   if(PSP.mode==='map'||!G.fy){ /* the map, or the curve when the laboratory has one input */
     const L=64,R=W-16,T=16,B=H-40;
@@ -45077,6 +45115,8 @@ function pspBusHTML(){ let pub=[],drv=[]; try{ pub=HCC_API.bus.publishes(PSP.id)
   if(!pub.length&&!drv.length) return `<div style="color:var(--dim)">${TT('Not on the quantity bus — nothing else in the atlas shares a coordinate with it.','Не на шине величин — ничто в атласе не делит с ней координату.','Nicht am Größenbus.')}</div>`;
   return `${pub.length?`<div>${TT('Carries its value into','Несёт своё значение в','Trägt seinen Wert in')}: ${pub.map(l=>b(l,true)).join('')}</div>`:''}${drv.length?`<div>${TT('Driven by','Питается от','Gespeist von')}: ${drv.map(l=>b(l,false)).join('')}</div>`:''}`; }
 function pspRefresh(recompute){ const d=document.getElementById('hccPspace'); if(!d) return; const D=pspDesc(PSP.id);
+  if(recompute!==false&&PSP.mode==='phase'){ const fill=()=>pspJacobianAsync(PSP.id,D,PSP.cur,J=>{ PSP.J=J; if(!document.getElementById('hccPspace')) return; d.querySelector('#pspMat').innerHTML=pspMatrixHTML(); d.querySelector('#pspBus').innerHTML=pspBusHTML(); pspWire(); });
+    if(PSP.phase&&!PSP.phase.pts) pspPhaseSample(()=>{ pspDraw(); fill(); }); else { pspDraw(); fill(); } return; }
   if(recompute!==false){ PSP.J=null; pspGrid(()=>{ pspDraw(); d.querySelector('#pspLaw').innerHTML=pspLawHTML(); if(!PSP.play) pspJacobianAsync(PSP.id,D,PSP.cur,J=>{ PSP.J=J; if(!document.getElementById('hccPspace')) return; d.querySelector('#pspMat').innerHTML=pspMatrixHTML(); d.querySelector('#pspBus').innerHTML=pspBusHTML(); pspWire(); }); }); }
   else pspDraw(); }
 function pspWire(){ const d=document.getElementById('hccPspace'); if(!d) return;
@@ -45106,6 +45146,8 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
   const all=[]; try{ for(const x of HCC_API.list()){ const k=x.id||x; const dd=pspDesc(k); if(dd&&pspNum(dd).length) all.push([k,dd.title]); } }catch(e){}
   const opt=(arr,sel)=>arr.map(n=>`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`).join('');
   const outs=pspOutputs(id,D), lab=D.lab&&typeof S3_VIEW_NAMES!=='undefined'&&S3_VIEW_NAMES[D.lab]?D.lab:null;
+  if(!PSP.phase||PSP.phase.id!==id){ const clk=ins.find(f=>INV_TIME.test(f.name))||ins.find(f=>f.name===PSP.x)||ins[0], mv=outs.slice(0,3);
+    PSP.phase={id,along:clk&&clk.name,a:mv[0],b:mv[1]||mv[0],c:mv[2]||'',pts:null}; }
   const slider=f=>{ const t=pspTof(f,PSP.cur[f.name]); return `<div style="display:flex;align-items:center;gap:6px;margin:1px 0"><span style="flex:0 0 38%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:${f.name===PSP.x?'#ffd58a':f.name===PSP.y?'#8fd0ff':pspIsControl(f)?'#8a93a6':'#cdd'}" title="${esc((pspIsControl(f)?TT('numerical control — held at its default; sweeping it measures the solver, not the physics. ','численная настройка — держится по умолчанию; её перебор измеряет решатель, а не физику. ','numerische Steuergröße — auf dem Standard gehalten. '):'')+(f.doc||''))}">${pspIsControl(f)?'⚙ ':''}${esc(f.name)}</span>
       <input type="range" min="0" max="1000" value="${Math.round(1000*Math.max(0,Math.min(1,t)))}" data-ps="${esc(f.name)}" style="flex:1 1 auto;min-width:60px;width:auto;margin:0"><span style="flex:0 0 76px;text-align:right;font-variant-numeric:tabular-nums" data-psv="${esc(f.name)}">${pspFmt(PSP.cur[f.name])}</span></div>`; };
   d.innerHTML=`<style>#hccPspace input[type=range]{-webkit-appearance:none;appearance:none;height:20px;background:transparent;cursor:pointer}
@@ -45119,8 +45161,9 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
     ${opts.note?`<div class="note" style="border-left:3px solid #ffd58a;margin:4px 0">${esc(opts.note)}</div>`:''}
     <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px">
       <div style="flex:1 1 560px;min-width:280px"><canvas id="pspC" width="620" height="430" style="width:100%;background:radial-gradient(ellipse at 50% 60%,rgba(40,60,110,.25),rgba(0,0,0,0));border-radius:10px;touch-action:none;cursor:grab"></canvas>
-        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><button class="chip${PSP.mode==='surface'?' on':''}" data-pm="surface">◭ ${TT('surface','поверхность','Fläche')}</button><button class="chip${PSP.mode==='map'?' on':''}" data-pm="map">▦ ${TT('map','карта','Karte')}</button>
-          <span style="color:var(--dim)">${TT('drag to turn · click to move the bead','тяните — поворот · клик — переставить бусину','ziehen zum Drehen · klicken setzt die Perle')}</span><span id="pspProg" style="color:#ffd58a"></span></div></div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><button class="chip${PSP.mode==='surface'?' on':''}" data-pm="surface">◭ ${TT('surface','поверхность','Fläche')}</button><button class="chip${PSP.mode==='map'?' on':''}" data-pm="map">▦ ${TT('map','карта','Karte')}</button><button class="chip${PSP.mode==='phase'?' on':''}" data-pm="phase" title="${TT('three outputs as one curve while one input runs across its domain','три выхода как одна кривая, пока один вход пробегает свой домен','drei Ausgänge als eine Kurve')}">◴ ${TT('phase portrait','фазовый портрет','Phasenporträt')}</button>
+          <span style="color:var(--dim)">${TT('drag to turn · click to move the bead','тяните — поворот · клик — переставить бусину','ziehen zum Drehen · klicken setzt die Perle')}</span><span id="pspProg" style="color:#ffd58a"></span></div>
+        ${PSP.mode==='phase'?`<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-top:3px">◴ ${TT('along','вдоль','entlang')} <select id="phAl">${opt(ins.map(f=>f.name),PSP.phase.along)}</select> ${['a','b','c'].map(k=>`<select data-ph="${k}">${k==='c'?`<option value="">— ${TT('2D','2D','2D')} —</option>`:''}${opt(outs,PSP.phase[k])}</select>`).join('')}</div>`:''}</div>
       <div style="flex:1 1 300px;min-width:260px">
         <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 6px;align-items:center">
           <span style="color:#ffd58a">X</span><select id="pspSX">${opt(ins.map(f=>f.name),PSP.x)}</select>
@@ -45136,7 +45179,7 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
     <div style="margin-top:8px"><b>${TT('The Jacobian at the bead','Якобиан в бусине','Die Jacobi-Matrix an der Perle')}</b> <span style="color:var(--dim)">— ${TT('every output\'s elasticity ∂ln Z/∂ln x to every input: a 1 % change in the column moves the row by that many %. Exact fractions are printed as fractions. Click a cell to put it on the surface.','эластичность ∂ln Z/∂ln x каждого выхода по каждому входу: изменение столбца на 1 % сдвигает строку на столько %. Точные дроби печатаются дробями. Клик по ячейке выводит её на поверхность.','Elastizität jedes Ausgangs nach jedem Eingang; Klick setzt sie auf die Fläche.')}</span>
       <div id="pspMat" style="overflow:auto;max-height:230px"></div></div>
     <div style="margin-top:8px"><b>∮ ${TT('Invariants','Инварианты','Invarianten')}</b> <span style="color:var(--dim)">— ${TT('which combinations of the outputs never move: sampled across the domain, or along one input — along a clock, what stays fixed is conserved','какие комбинации выходов не меняются никогда: по всему домену или вдоль одного входа — вдоль часов неизменное есть сохраняющееся','welche Kombinationen der Ausgänge sich nie bewegen')}</span>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><select id="invAlong"><option value="">${TT('across the whole domain','по всему домену','über die ganze Domäne')}</option>${ins.map(f=>`<option value="${esc(f.name)}"${PSP.inv&&PSP.inv.id===id&&PSP.inv.along===f.name?' selected':''}>${TT('along','вдоль','entlang')} ${esc(f.name)}${INV_TIME.test(f.name)?' ⏱':''}</option>`).join('')}</select><button class="btn" id="invGo">∮ ${TT('find the invariants','найти инварианты','Invarianten finden')}</button></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><select id="invAlong"><option value="">${TT('across the whole domain','по всему домену','über die ganze Domäne')}</option>${ins.map(f=>`<option value="${esc(f.name)}"${(PSP.inv&&PSP.inv.id===id)?(PSP.inv.along===f.name?' selected':''):(INV_TIME.test(f.name)&&f===ins.find(x=>INV_TIME.test(x.name))?' selected':'')}>${TT('along','вдоль','entlang')} ${esc(f.name)}${INV_TIME.test(f.name)?' ⏱':''}</option>`).join('')}</select><button class="btn" id="invGo">∮ ${TT('find the invariants','найти инварианты','Invarianten finden')}</button></div>
       <div id="invOut" style="font-size:11.5px;margin-top:3px">${PSP.inv&&PSP.inv.id===id?invHTML(PSP.inv.A,PSP.inv.meta):''}</div></div>
     <div style="margin-top:6px"><b>⇄ ${TT('The bus','Шина','Der Bus')}</b> <span style="color:var(--dim)">— ${TT('a door carries the value computed here into the next laboratory\'s parameter space','дверь переносит вычисленное здесь значение в пространство параметров следующей лаборатории','eine Tür trägt den hier berechneten Wert in den nächsten Parameterraum')}</span><div id="pspBus"></div></div>`;
   d.querySelector('#pspX').onclick=()=>{ PSP.job++; PSP.play=false; d.remove(); };
@@ -45151,10 +45194,13 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
   d.querySelector('#pspSW').onchange=e=>{ PSP.w=e.target.value||null; };
   d.querySelector('#pspPlay').onclick=()=>{ if(!PSP.w){ const s=d.querySelector('#pspSW'); if(s.options.length>1){ s.selectedIndex=1; PSP.w=s.value; } }
     if(!PSP.w) return; PSP.play=!PSP.play; d.querySelector('#pspPlay').textContent=PSP.play?'❚❚':'▶'; if(PSP.play) pspPlayTick(); else pspRefresh(); };
-  d.querySelectorAll('[data-pm]').forEach(b=>b.onclick=()=>{ PSP.mode=b.dataset.pm; d.querySelectorAll('[data-pm]').forEach(x=>x.classList.toggle('on',x===b)); pspDraw(); });
+  d.querySelectorAll('[data-pm]').forEach(b=>b.onclick=()=>{ const was=PSP.mode; PSP.mode=b.dataset.pm; if(PSP.mode==='phase'||was==='phase'){ pspOpenAt(); return; } d.querySelectorAll('[data-pm]').forEach(x=>x.classList.toggle('on',x===b)); pspDraw(); });
+  { const al=d.querySelector('#phAl'); if(al) al.onchange=e=>{ PSP.phase.along=e.target.value; PSP.phase.pts=null; pspOpenAt(); };
+    d.querySelectorAll('[data-ph]').forEach(sel=>sel.onchange=e=>{ PSP.phase[sel.dataset.ph]=e.target.value; PSP.phase.pts=null; pspOpenAt(); }); }
   let deb=null; d.querySelectorAll('[data-ps]').forEach(r=>r.oninput=()=>{ const f=ins.find(x=>x.name===r.dataset.ps); PSP.cur[f.name]=pspAt(f,+r.value/1000);
     d.querySelector(`[data-psv="${f.name}"]`).textContent=pspFmt(PSP.cur[f.name]);
-    clearTimeout(deb); if(f.name===PSP.x||f.name===PSP.y){ pspDraw(); deb=setTimeout(()=>pspJacobianAsync(PSP.id,D,PSP.cur,J=>{ PSP.J=J; d.querySelector('#pspMat').innerHTML=pspMatrixHTML(); d.querySelector('#pspBus').innerHTML=pspBusHTML(); pspWire(); }),120); }
+    clearTimeout(deb); if(PSP.mode==='phase'){ PSP.phase.pts=null; deb=setTimeout(()=>pspRefresh(),200); return; }
+    if(f.name===PSP.x||f.name===PSP.y){ pspDraw(); deb=setTimeout(()=>pspJacobianAsync(PSP.id,D,PSP.cur,J=>{ PSP.J=J; d.querySelector('#pspMat').innerHTML=pspMatrixHTML(); d.querySelector('#pspBus').innerHTML=pspBusHTML(); pspWire(); }),120); }
     else deb=setTimeout(()=>pspRefresh(),160); });
   /* the pointer: drag turns the surface, a click without a drag moves the bead */
   const C=d.querySelector('#pspC'); let drag=null;
