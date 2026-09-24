@@ -124,6 +124,12 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     && /if\(opts\.load\)\{ const o=feedObjects\(\)\.find\(x=>x\.key===opts\.load\);/.test(SRC);
   ok('a selected object of the 3D atlas opens in the laboratories with its own numbers: the Sun, a planet, a star under any of its three keys, a galaxy, a quasar',
     fk && selMap.every(([k, v]) => fk(k) === v) && wired, fk ? selMap.map(([k]) => `${k} → ${fk(k)}`).join(' · ') : 'feedKeyForSel not found');
+  /* ◭ the surface as an object of the 3D atlas: the same grid, contours and catalogue, built as
+     geometry beside the view, removed through labWipe so no caption is orphaned */
+  const sculpt = /function lawSculptBuild\(\)\{/.test(SRC) && /grp\.add\(new THREE\.Mesh\(geo,new THREE\.MeshBasicMaterial\(\{vertexColors:true/.test(SRC)
+    && /pspMarch\(G,i,j,lv,hN,\(a,b\)=>\{ seg\.push\(/.test(SRC) && /function lawSculptRemove\(\)\{ if\(!LAW_SCULPT\) return; try\{ labWipe\(LAW_SCULPT\.group\); \}catch\(e\)\{\} scene\.remove\(LAW_SCULPT\.group\);/.test(SRC)
+    && /const sb=d\.querySelector\('#pspSculpt'\); if\(sb\) sb\.onclick=/.test(SRC);
+  ok('the law leaves its window: the same surface, contours and catalogue built as an object of the 3D atlas beside the view, and taken away without orphaned captions', sculpt);
   ok('MUTATION — a slot into an input that does not exist is caught', !slotOk([{ id: 'tscale', input: 'mass_kg', prop: 'mass_kg' }]));
   ok('MUTATION — a luminosity fed in solar units where erg/s is declared is caught', !slotOk([{ id: 'tscale', input: 'luminosity', prop: 'lum_ergs', conv: true }]) && !slotOk([{ id: 'wind', input: 'luminosity_solar', prop: 'lum_ergs', conv: false }]));
 
