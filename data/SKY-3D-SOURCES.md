@@ -82,6 +82,15 @@ distance the camera is looking at.
   Leo II or WLM.
 - **Left out.** IC 359 is left out because the catalogue puts it at 0.1 kpc, inside the
   Galaxy. For the same reason, no cluster or nebula nearer than 10 pc is drawn.
+- **Designations.** Every object carries all the designations the catalogue gives it. They are
+  searched by the palette and sent to the photo archives:
+  - M, NGC, IC and Caldwell;
+  - Melotte, Collinder, Trumpler, Stock and Ruprecht;
+  - Barnard, Sh 2, LBN, LDN, vdB and RCW;
+  - Abell, HCG, UGC, PGC, PN G and SNR G.
+
+  Fifty famous nebulae and clusters also carry the name photographs are filed under, such as
+  Hyades, Cave Nebula and Omega Centauri. No object is left as a bare "DSO" number.
 - **M31** is not drawn a second time. Its point would stand on the M31 model the atlas
   already has, and a pick on it opens that model's card.
 

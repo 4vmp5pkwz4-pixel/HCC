@@ -43,12 +43,43 @@ def morph_class(r):
     if any(k in m for k in ('a','ab','b')) and not any(k in m for k in ('c','d')): return 1
     if m.startswith(('S','SA','SB','SAB')): return 2
     return 6                                      # no morphology given
+# every designation a record carries, in the order archives search them best: Messier,
+# NGC, IC, Caldwell, the open-cluster lists, Barnard, Sharpless, the nebula lists, the
+# galaxy lists, planetary and remnant designations, then the rest
+DESIG=[('M','M{}'),('NGC','NGC {}'),('IC','IC {}'),('C','Caldwell {}'),('Mel','Melotte {}'),('Cr','Collinder {}'),
+  ('Tr','Trumpler {}'),('St','Stock {}'),('Ru','Ruprecht {}'),('B','Barnard {}'),('Sh2','Sh 2-{}'),('LBN','LBN {}'),
+  ('LDN','LDN {}'),('VdB','vdB {}'),('RCW','RCW {}'),('Ced','Ced {}'),('Arp','Arp {}'),('VV','VV {}'),('ACO','Abell {}'),
+  ('HCG','HCG {}'),('UGC','UGC {}'),('PGC','PGC {}'),('PK','PK {}'),('PNG','PN G{}'),('SNRG','SNR G{}'),('ESO','ESO {}'),
+  ('VdBH','vdBH {}'),('DWB','DWB {}'),('VdBHa','vdB-Ha {}')]
+def desigs(r):
+    out=[]
+    for k,f in DESIG:
+        v=r.get(k)
+        if v and str(v).strip() not in ('','0'): out.append(f.format(str(v).strip()))
+    return out
 def name(r):
-    for k,p in (('M','M'),('NGC','NGC '),('IC','IC '),('UGC','UGC '),('PGC','PGC ')):
-        if r[k]: return p+str(r[k])
-    for k in ('ESO','Ced','PK','PNG'):
-        if r[k]: return k+' '+r[k]
-    return 'DSO '+str(r['nb'])
+    d=desigs(r)
+    return d[0] if d else 'DSO '+str(r['nb'])
+# the names the objects are known by, which is what photographs are filed under
+FAMOUS={'M1':'Crab Nebula','M6':'Butterfly Cluster','M7':'Ptolemy Cluster','M8':'Lagoon Nebula','M11':'Wild Duck Cluster',
+ 'M13':'Hercules Globular Cluster','M16':'Eagle Nebula','M17':'Omega Nebula','M20':'Trifid Nebula','M24':'Sagittarius Star Cloud',
+ 'M27':'Dumbbell Nebula','M42':'Orion Nebula','M43':"De Mairan's Nebula",'M44':'Beehive Cluster','M45':'Pleiades',
+ 'M57':'Ring Nebula','M76':'Little Dumbbell Nebula','M97':'Owl Nebula','NGC 7000':'North America Nebula',
+ 'NGC 6960':'Veil Nebula','NGC 6992':'Veil Nebula','Barnard 33':'Horsehead Nebula','NGC 2237':'Rosette Nebula',
+ 'NGC 7293':'Helix Nebula','NGC 6543':"Cat's Eye Nebula",'NGC 3372':'Carina Nebula','NGC 5139':'Omega Centauri',
+ 'NGC 104':'47 Tucanae','NGC 869':'Double Cluster','NGC 884':'Double Cluster','Melotte 25':'Hyades',
+ 'NGC 2070':'Tarantula Nebula','IC 1396':"Elephant's Trunk Nebula",'NGC 1499':'California Nebula','IC 1805':'Heart Nebula',
+ 'IC 1848':'Soul Nebula','NGC 6888':'Crescent Nebula','NGC 2392':'Eskimo Nebula','NGC 3242':'Ghost of Jupiter',
+ 'NGC 7009':'Saturn Nebula','IC 418':'Spirograph Nebula','NGC 2024':'Flame Nebula','NGC 1977':'Running Man Nebula',
+ 'NGC 7635':'Bubble Nebula','NGC 281':'Pacman Nebula','IC 2118':'Witch Head Nebula','NGC 6302':'Bug Nebula',
+ 'NGC 6357':'Lobster Nebula','NGC 6334':"Cat's Paw Nebula",'NGC 2359':"Thor's Helmet",'IC 5146':'Cocoon Nebula',
+ 'Collinder 399':'Coathanger','Melotte 111':'Coma Star Cluster','Melotte 20':'Alpha Persei Cluster',
+ 'IC 2602':'Southern Pleiades','NGC 4755':'Jewel Box','NGC 3532':'Wishing Well Cluster','NGC 2264':'Christmas Tree Cluster',
+ 'Sh 2-155':'Cave Nebula','Caldwell 99':'Coalsack Nebula','Barnard 72':'Snake Nebula','NGC 7662':'Blue Snowball Nebula','Sh 2-240':'Spaghetti Nebula'}
+def famous(r):
+    for d in desigs(r):
+        if d in FAMOUS: return FAMOUS[d]
+    return None
 # Distances the catalogue gets wrong or leaves out, for galaxies of the Local Group and a
 # few landmarks, replaced by the published measurement (kpc). Each one must be found, or
 # the build stops.
@@ -103,14 +134,14 @@ for r in gal:
 names={}
 for i,r in enumerate(gal):
     if r['M'] or r['NGC'] or r['IC'] or r['dist']<3000 or name(r) in COMMON:
-        names[i]=[name(r),(r['mt'] or '').strip(),round(r['z'],6) if 0<r['z']<50 else None,COMMON.get(name(r)),r.get('dsrc')]
+        names[i]=[name(r),(r['mt'] or '').strip(),round(r['z'],6) if 0<r['z']<50 else None,COMMON.get(name(r)) or famous(r),r.get('dsrc'),desigs(r)[1:6]]
 # the Galaxy's own objects: clusters and nebulae with a distance
 KIND={7:'globular',6:'open',5:'cluster',11:'planetary',12:'dark',13:'reflection',15:'emission',16:'cluster+nebula',17:'HII',18:'SNR',19:'ISM'}
 local=[]
 for r in recs:
     if r['ot'] in KIND and r['dist']>=0.01 and r['dist']<200:     # under 10 pc is a catalogue error (IC 1871 at 0)
         local.append([name(r),KIND[r['ot']],round(math.degrees(r['ra']),4),round(math.degrees(r['dec']),4),round(r['dist'],4),
-                      round(r['v'],2) if r['v']<50 else None, r['M'] or 0])
+                      round(r['v'],2) if r['v']<50 else None, r['M'] or 0, famous(r), desigs(r)[1:6]])
 block=('/* DSO3D-DATA-BEGIN */\n'
  f'/* {len(gal)} galaxies and {len(local)} clusters and nebulae of the Galaxy, from the Stellarium 23.4 deep-sky\n'
  f'   catalogue (format {ver}; SHA-256 of catalog.dat {sha}). Galaxy records, 8 bytes, little-endian:\n'

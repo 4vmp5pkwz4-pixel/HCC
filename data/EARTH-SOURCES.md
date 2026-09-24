@@ -45,8 +45,11 @@ against −19.26° / 37.39° E computed independently.
   - The latitude and longitude come from the device (GNSS), or are typed in.
   - The place is fixed in the Earth's own frame, so it turns with the Earth.
   - The eye stands at the geocentric latitude, 1.5 m above the ground.
-  - It also stands 0.86 km higher, the amount by which the 192-facet globe falls inside the
-    true sphere. This keeps the facets from rising above the horizon.
+  - The globe's own facets are not drawn under your feet. At 1 AU from the origin a float32
+    position has steps of 17.8 km, and the ground near the eye broke into spikes along the
+    horizon. The ground is drawn by the sky dome instead, below the horizon lowered by the
+    dip for the eye's height (0.40° at 150 m). The dome and the Earth are placed through
+    `modelViewMatrix`, which three.js forms in float64 on the CPU.
 - **Up.** "Up" is the geodetic vertical of WGS84 (f = 1/298.257223563). At 45° it leans
   0.192° from the radius.
 - **North.** North is the Earth's precessed pole projected onto the horizon.
@@ -70,6 +73,37 @@ against −19.26° / 37.39° E computed independently.
   of that second.
 - **Refraction.** Refraction is **not** applied to the drawn sky. Its size (Sæmundsson) at
   the centre of the view is shown instead: about 35′ at the horizon, and under 1′ above 45°.
+
+## Day, twilight and night
+
+When you stand on the Earth, the sky is lit by the Sun wherever the Sun is.
+
+**Limiting magnitude.** The Sun's altitude sets the naked-eye limiting magnitude, from the
+standard twilight sequence:
+
+| Sun's altitude | stage | limiting magnitude |
+|---|---|---|
+| above +10° | daylight | −3.5 (only Venus, the Moon and the Sun) |
+| 0° | sunset | −2 |
+| −6° | end of civil twilight | 2 |
+| −12° | end of nautical twilight | 5 |
+| −18° | end of astronomical twilight | 6.5 |
+
+Every star layer is dimmed by 6.5 minus this limit, through one uniform in the shared star
+shader.
+
+**The dome.** A dome drawn about the eye does three things:
+- above the horizon, it covers what the sky outshines, and leaves the Sun and the Moon open;
+- below the horizon, it is the ground;
+- during twilight, the horizon on the Sun's side turns orange.
+
+**Clock.** Landing drops the clock to real time, one second per second, so the sky turns at
+15° an hour. Leaving restores the rate you flew with, unless you changed it while standing.
+
+The readout gives:
+- the Sun's altitude;
+- the twilight stage;
+- the limiting magnitude.
 
 ## The World Magnetic Model 2025 (`hccWMM`)
 
