@@ -39,7 +39,7 @@ const read = s => {
 };
 const byName = (D, nm) => { const k = Object.keys(D.names).find(i => D.names[i][0] === nm); return k == null ? null : { ...D.rec(+k), meta: D.names[k] }; };
 const D = read(SRC);
-ok('the galaxies are embedded and decode to the declared count', D && D.n === D.count && D.count > 50000,
+ok('the galaxies are embedded and decode to the declared count', D && D.n === D.count && D.count > 4000,
   D ? `${D.count} galaxies declared · ${D.n} records of 8 bytes · catalogue SHA-256 ${D.sha.slice(0, 12)}…` : 'no DSO3D block');
 if (!D) { console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(1); }
 
@@ -70,6 +70,16 @@ const fixed = Object.values(D.names).filter(v => v[4]);
 ok('every replaced distance names the measurement on its card', fixed.length >= 20 && fixed.every(v => /\(\d{4}\), .+ — /.test(v[4])),
   `${fixed.length} replaced: ${fixed.slice(0, 5).map(v => (v[3] || v[0])).join(', ')}, …`);
 
+/* no placeholder shell: the catalogue gave 49 489 galaxies without a redshift a fill distance
+   of 36 +- 4 Mpc; if they came back, a single 1.3x window of distance would hold most galaxies */
+const shellFrac = D2 => { const ds = []; for (let i = 0; i < D2.n; i++) ds.push(Math.log(D2.rec(i).d)); ds.sort((a, b) => a - b);
+  let best = 0, j = 0; for (let i = 0; i < ds.length; i++) { while (ds[i] - ds[j] > Math.log(1.3)) j++; best = Math.max(best, i - j + 1); } return best / ds.length; };
+const sf = shellFrac(D);
+ok('no placeholder shell: no window of distance 1.3 times wide holds more than a fifth of the galaxies', sf < 0.2,
+  `densest 1.3× window holds ${(100 * sf).toFixed(1)} % (the catalogue's fill value had put ${(100 * 49489 / 53828).toFixed(0)} % of its galaxies at 36 ± 4 Mpc)`);
+const B = fs.readFileSync(path.join(ROOT, 'scripts', 'build-dso-3d.py'), 'utf8');
+ok('and the builder leaves the fill value out by one stated rule: no redshift, no uncertainty, 30–42 Mpc',
+  /placeholder=\[r for r in recs if r\['ot'\] in \(0,1,2,3\) and not \(0<r\['z'\]<50\) and r\['diste'\]<=0 and 30000<=r\['dist'\]<=42000/.test(B));
 let nearest = Infinity; for (let i = 0; i < D.n; i++) nearest = Math.min(nearest, D.rec(i).d);
 ok('no galaxy stands inside the Galaxy', nearest >= 20, `nearest ${nearest.toFixed(1)} kpc (the Sagittarius dwarf, 26 kpc); the catalogue's IC 359 at 0.1 kpc is left out`);
 

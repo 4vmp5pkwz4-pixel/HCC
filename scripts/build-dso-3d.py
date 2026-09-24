@@ -121,7 +121,16 @@ assert len(fixed)==len(FIX_BY_NAME), ('a corrected galaxy was not found', len(fi
 # no galaxy lies within 20 kpc of the Sun (the nearest, the Sagittarius dwarf, is at 26 kpc);
 # a catalogue distance under that is an error, and the galaxy is left out rather than drawn inside the Galaxy
 bad=[name(r) for r in recs if r['ot'] in (0,1,2,3) and 0<r['dist']<20]
-gal=[r for r in recs if r['ot'] in (0,1,2,3) and r['dist']>=20 and (r['v']<50 or r['b']<50)]
+# THE PLACEHOLDER SHELL. 49 489 galaxies of the catalogue carry no redshift (z = 99, the
+# catalogue's "unknown"), no distance uncertainty, and a distance between 30 and 42 Mpc — 92 %
+# of its galaxies with a distance, on one sphere 36 +- 4 Mpc about the Sun. That is not a measurement; it
+# is a fill value. Every galaxy with a real distance outside that band has a redshift it
+# agrees with (median d/D_C(z) = 1.00 for z > 0.01), so the rule is exactly this: no
+# redshift, no uncertainty, and inside the band -> left out. The 108 galaxies without a
+# redshift elsewhere carry individual distances (the Local Volume) and stay.
+placeholder=[r for r in recs if r['ot'] in (0,1,2,3) and not (0<r['z']<50) and r['diste']<=0 and 30000<=r['dist']<=42000 and name(r) not in FIX_BY_NAME]
+ph=set(id(r) for r in placeholder)
+gal=[r for r in recs if r['ot'] in (0,1,2,3) and r['dist']>=20 and (r['v']<50 or r['b']<50) and id(r) not in ph]
 gal.sort(key=lambda r:r['dist'])
 buf=bytearray()
 for r in gal:
@@ -156,5 +165,5 @@ a=h.find('/* DSO3D-DATA-BEGIN */'); z=h.find('/* DSO3D-DATA-END */')
 assert a>=0 and z>a, 'markers not found'
 h=h[:a]+block+h[z+len('/* DSO3D-DATA-END */'):]
 open(html,'w',encoding='utf8').write(h)
-print('corrected:',fixed); print('left out (distance under 20 kpc):',bad)
+print('corrected:',fixed); print('left out (distance under 20 kpc):',bad); print('left out (placeholder shell, no redshift, 30-42 Mpc):',len(placeholder))
 print(f'galaxies {len(gal)} · named {len(names)} · local objects {len(local)} · block {len(block)//1024} KiB · {sha[:12]}')
