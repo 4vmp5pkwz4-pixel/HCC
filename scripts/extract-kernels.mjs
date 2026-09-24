@@ -785,7 +785,10 @@ export const ROOTS = [
   'IL_KB', 'IL_HBAR', 'IL_H', 'IL_C', 'IL_G', 'IL_LN2', 'IL_MSUN', 'IL_E',
   'ilPlanckArea', 'ilLandauer', 'ilLandauerEV', 'ilBitsFromJK', 'ilBitsFromNats',
   'ilJKFromBits', 'ilBekenstein', 'ilHorizonEntropy', 'ilHolographicDensity', 'IL_H0_KM_S_MPC', 'IL_MPC', 'ilHubbleRadius', 'ilHolderRadius', 'ilHolographicBound', 'ilOccupancy',
-  'ilSchwarzschildArea', 'ilMargolus', 'ilBremermann', 'ilEntropyGap', 'IL_HOLDERS'
+  'ilSchwarzschildArea', 'ilMargolus', 'ilBremermann', 'ilEntropyGap', 'IL_HOLDERS',
+  /* the parameter space: its grid, its law fit and its fraction reader, so the file that
+     checks them runs the code the reader runs */
+  'pspLog', 'pspAt', 'pspTof', 'pspFrac', 'pspFit'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
