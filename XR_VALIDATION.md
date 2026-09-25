@@ -33,6 +33,29 @@ honest capability matrix.
 | Fractal Explorer in XR | ❌ excluded by design | fullscreen mono raymarch is not stereo-safe; auto-switches to Solar |
 | Flat-screen cinematic precision stage | ✅ intentionally excluded | one camera-facing plane is invalid for stereo eyes; native laboratory geometry remains |
 
+## Emulated-headset audit (v4.315)
+
+`node scripts/xr-audit.mjs` drives the atlas in IWER's emulated **Meta Quest 3** (IWER 2.5,
+MIT; looked for in `vendor/iwer/`, `node_modules/iwer/build/` or `HCC_IWER`) through every
+world, opens the object card, Status, Controls, Measure and Debug windows at once, and writes
+every visible panel as an angular rectangle about the head to `docs/xr-audit.json`.
+`docs/verify-the-headset-is-usable.cjs` recomputes the overlaps from those rectangles.
+
+What the audit found, and what changed:
+
+| Defect | Measured | Now |
+|---|---|---|
+| Ghost panels ("panels stick together") | a canvas that changed height kept its first GPU texture; the old layout showed under the new one | a new size is a new texture |
+| Overlapping windows | card × status, controls × debug overlapped in the arc | one content window, the others on a tab strip — 0 overlaps in every world |
+| Illegible text | body text ≈ 0.5° (0.5 m panels at 1.27 m) | ≈ 1.1–1.2° (0.9–1.0 m windows at 1.1 m) |
+| Solar System | reader 40 m from the Sun (1 AU = 1 m), Earth a 2.6-cm ball | an orrery: 1 AU = 2 m (Inner), 0.22 m (Outer), 0.1 m (Kuiper); Sun 3.4 m ahead at waist height; guides larger than the room hidden; planets named |
+| Mode switching | the old world's card and selection stayed; the orrery leaked | card closes, Controls/Status re-read, orrery restored on leaving Solar and on session end |
+| Field Lab in VR | Controls offered the soliton labs | its own deck: eight equations, presets, run, structure, slice, SOR, T_c |
+| Wrist menu | ragged rows, an unrenderable ⏸ glyph | a four-cell grid with section headers (Worlds · Time · Orrery · Tools · Session) |
+
+The emulator measures geometry in the reader's frame; it has no lenses, comfort or real
+hands, so the manual checklist below still applies on a device.
+
 ## Manual XR checklist (Quest 3, Meta Quest Browser, HTTPS)
 
 1. Header shows 🥽 VR (and ◈ MR) only on XR-capable browsers.
