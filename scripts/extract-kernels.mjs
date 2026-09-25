@@ -790,7 +790,7 @@ export const ROOTS = [
      checks them runs the code the reader runs */
   'pspLog', 'pspAt', 'pspTof', 'pspFrac', 'pspFit',
   /* the invariant finder: pure arithmetic on sample tables */
-  'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse', 'invNullBasis', 'invUnitDim', 'invPlanckSolve', 'invPlanck', 'invLsq', 'invRat1', 'invLawLib', 'invLaws', 'invLawText', 'fsGrad', 'fsIso', 'fsTri', 'fsFieldLine', 'fsIsingWalls', 'fsColor', 'fsSliceRGBA', 'fsWolff', 'fsCrossing', 'fsWidest'
+  'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse', 'invNullBasis', 'invUnitDim', 'invPlanckSolve', 'invPlanck', 'invLsq', 'invRat1', 'invLawLib', 'invLaws', 'invLawText', 'fsGrad', 'fsIso', 'fsTri', 'fsFieldLine', 'fsIsingWalls', 'fsColor', 'fsSliceRGBA', 'fsWolff', 'fsCrossing', 'fsWidest', 'invSepBasis', 'invSepSubsets', 'invSepRational', 'invSepCoefLaw', 'invSeparable', 'invSepText'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

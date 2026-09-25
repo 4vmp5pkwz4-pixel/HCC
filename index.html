@@ -45430,11 +45430,13 @@ function hccPspaceOpen(id,opts){ opts=opts||{};
     <div style="margin-top:8px"><b>${TT('The Jacobian at the bead','Якобиан в бусине','Die Jacobi-Matrix an der Perle')}</b> <span style="color:var(--dim)">— ${TT('every output\'s elasticity ∂ln Z/∂ln x to every input: a 1 % change in the column moves the row by that many %. Exact fractions are printed as fractions. Click a cell to put it on the surface.','эластичность ∂ln Z/∂ln x каждого выхода по каждому входу: изменение столбца на 1 % сдвигает строку на столько %. Точные дроби печатаются дробями. Клик по ячейке выводит её на поверхность.','Elastizität jedes Ausgangs nach jedem Eingang; Klick setzt sie auf die Fläche.')}</span>
       <div id="pspMat" style="overflow:auto;max-height:230px"></div></div>
     <div style="margin-top:8px"><b>∮ ${TT('Invariants','Инварианты','Invarianten')}</b> <span style="color:var(--dim)">— ${TT('which combinations of the outputs never move: sampled across the domain, or along one input — along a clock, what stays fixed is conserved','какие комбинации выходов не меняются никогда: по всему домену или вдоль одного входа — вдоль часов неизменное есть сохраняющееся','welche Kombinationen der Ausgänge sich nie bewegen')}</span>
-      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><select id="invAlong"><option value="">${TT('across the whole domain','по всему домену','über die ganze Domäne')}</option>${ins.map(f=>`<option value="${esc(f.name)}"${(PSP.inv&&PSP.inv.id===id)?(PSP.inv.along===f.name?' selected':''):(INV_TIME.test(f.name)&&f===ins.find(x=>INV_TIME.test(x.name))?' selected':'')}>${TT('along','вдоль','entlang')} ${esc(f.name)}${INV_TIME.test(f.name)?' ⏱':''}</option>`).join('')}</select><button class="btn" id="invGo">∮ ${TT('find the invariants','найти инварианты','Invarianten finden')}</button></div>
-      <div id="invOut" style="font-size:11.5px;margin-top:3px">${PSP.inv&&PSP.inv.id===id?invHTML(PSP.inv.A,PSP.inv.meta):''}</div></div>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:3px"><select id="invAlong"><option value="">${TT('across the whole domain','по всему домену','über die ganze Domäne')}</option>${ins.map(f=>`<option value="${esc(f.name)}"${(PSP.inv&&PSP.inv.id===id)?(PSP.inv.along===f.name?' selected':''):(INV_TIME.test(f.name)&&f===ins.find(x=>INV_TIME.test(x.name))?' selected':'')}>${TT('along','вдоль','entlang')} ${esc(f.name)}${INV_TIME.test(f.name)?' ⏱':''}</option>`).join('')}</select><button class="btn" id="invGo">∮ ${TT('find the invariants','найти инварианты','Invarianten finden')}</button><button class="btn" id="invSep" title="${TT('the law one variable at a time: hold every input but one, find the law in that one, then the law of each of its coefficients in a second input — polynomials, parity and rational functions included','закон по одной переменной: все входы кроме одного зафиксированы, найден закон по нему, затем закон каждого коэффициента по второму входу — с многочленами, чётностью и дробно-рациональными функциями','das Gesetz Variable für Variable')}">∂ ${TT('separate variables','разделить переменные','Variablen trennen')}</button></div>
+      <div id="invOut" style="font-size:11.5px;margin-top:3px">${PSP.inv&&PSP.inv.id===id?invHTML(PSP.inv.A,PSP.inv.meta):''}</div><div id="invSepOut" style="font-size:11.5px;margin-top:3px"></div></div>
     <div style="margin-top:6px"><b>⇄ ${TT('The bus','Шина','Der Bus')}</b> <span style="color:var(--dim)">— ${TT('a door carries the value computed here into the next laboratory\'s parameter space','дверь переносит вычисленное здесь значение в пространство параметров следующей лаборатории','eine Tür trägt den hier berechneten Wert in den nächsten Parameterraum')}</span><div id="pspBus"></div></div>`;
   d.querySelector('#pspX').onclick=()=>{ PSP.job++; PSP.play=false; d.remove(); };
   { const ig=d.querySelector('#invGo'); if(ig) ig.onclick=()=>invRun(); }
+  { const is=d.querySelector('#invSep'); if(is) is.onclick=()=>{ const o=d.querySelector('#invSepOut'); o.innerHTML=`<span style="color:#ffd58a">${TT('separating…','разделение…','trenne…')}</span>`;
+      setTimeout(()=>{ const R=invSeparableFor(PSP.id); o.innerHTML=invSepHTML(R); },30); }; }
   { const sb=d.querySelector('#pspSculpt'); if(sb) sb.onclick=()=>{ if(lawSculptBuild()){ PSP.job++; PSP.play=false; d.remove(); } }; }
   const labB=d.querySelector('#pspLab'); if(labB) labB.onclick=()=>{ PSP.play=false; d.remove(); try{ navPush(); }catch(e){} hccGo({worldId:'s3',labId:lab}); };
   d.querySelector('#pspId').onchange=e=>{ PSP.loaded=null; hccPspaceOpen(e.target.value); };
@@ -45697,7 +45699,8 @@ function invLawLib(X,names,units){ const L=[]; const angle=n=>/^rad/.test(String
     const add=(tag,p,f)=>L.push({tag,input:n,p,col:v.map(f)});
     add(n,1,x=>x); add(n+'²',2,x=>x*x); add(n+'³',3,x=>x*x*x);
     if(pos){ add('√'+n,0.5,Math.sqrt); add(n+'^{3/2}',1.5,x=>x*Math.sqrt(x)); add(n+'^{5/2}',2.5,x=>x*x*Math.sqrt(x)); add(n+'^{1/3}',1/3,Math.cbrt); add(n+'^{2/3}',2/3,x=>Math.cbrt(x*x));
-      add('1/'+n,-1,x=>1/x); add('1/'+n+'²',-2,x=>1/(x*x)); add('ln '+n,'ln',Math.log); }
+      add('1/'+n,-1,x=>1/x); add('1/'+n+'²',-2,x=>1/(x*x)); add('ln '+n,'ln',Math.log);
+      add('1/√'+n,-0.5,x=>1/Math.sqrt(x)); add(n+'^{-1/3}',-1/3,x=>1/Math.cbrt(x)); add(n+'^{-2/3}',-2/3,x=>1/Math.cbrt(x*x)); add(n+'^{-3/2}',-1.5,x=>1/(x*Math.sqrt(x))); add('1/'+n+'³',-3,x=>1/(x*x*x)); add('1/'+n+'⁴',-4,x=>1/(x*x*x*x)); }
     if(angle(n)){ add('cos '+n,'cos',Math.cos); add('sin '+n,'sin',Math.sin); add('cos('+n+'/2)','cos/2',x=>Math.cos(x/2)); add('sin('+n+'/2)','sin/2',x=>Math.sin(x/2)); } }
   if(names.length<=5) for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++){ const a=names[i], b=names[j]; L.push({tag:a+'·'+b,input:a+','+b,p:'xy',col:X.map(r=>r[a]*r[b])}); }
   return L; }
@@ -45762,6 +45765,103 @@ function invLawText(L){ const num=(v,f)=>f?String(f).replace(/^1 · /,''):(+v.to
     return L.out+' = '+(L.cform==='1'?'':num(L.C,L.cform)+' · ')+L.terms.map(pw).join(' · '); }
   const tm=[...L.terms].sort((a,b)=>(typeof b.p==='number'?b.p:0)-(typeof a.p==='number'?a.p:0)).map(t=>(t.form==='1'?'':t.form==='−1'?'−':num(t.b,t.form)+'·')+t.tag); if(L.c){ const cs=num(L.c,L.cform); if(/^[−-]/.test(tm[0])) tm.unshift(cs); else tm.push(cs); }
   return L.out+(L.of||'')+' = '+tm.join(' + ').replace(/\+ [−-]/g,'− ').replace(/·(\S)/g,'·$1'); }
+/* ── THE LAW, ONE VARIABLE AT A TIME ─────────────────────────────────────────────────
+   Where no closed form in all the inputs at once is found, a physicist separates variables:
+   hold every input but one, find the law in that one, then ask how each of its coefficients
+   depends on the input that was held. invSeparable does exactly that, with the laboratory
+   itself as the oracle (f is called at chosen points, not at random ones):
+     · the INNER law in y at each of K fixed values of x: either the smallest subset (≤ 5) of a
+       basis {1, y, y², y³, 1/y, 1/y², √y, 1/√y, y^{±1/3}, y^{2/3}, ln y, (−1)^y for integers}
+       exact at EVERY fixed x, or a rational function P(y)/Q(y) of the smallest total degree
+       (≤ 6), found as the exact null vector of y·Q − P = 0
+     · the OUTER law of every coefficient in x, by the atlas's own invLaws (power law or ≤ 3
+       library terms, for c, c² or 1/c), with an even/odd split for an integer x
+   It is how the Bethe–Weizsäcker mass formula, a five-term law with a pairing term that
+   depends on the parity of both A and Z, comes back from the nuclear laboratory's numbers. */
+function invSepBasis(integer, positive){ const B=[['1',y=>1],['y',y=>y],['y²',y=>y*y],['y³',y=>y*y*y]];
+  if(positive) B.push(['1/y',y=>1/y],['1/y²',y=>1/(y*y)],['√y',y=>Math.sqrt(y)],['1/√y',y=>1/Math.sqrt(y)],['y^{1/3}',y=>Math.cbrt(y)],['y^{-1/3}',y=>1/Math.cbrt(y)],['y^{2/3}',y=>Math.cbrt(y*y)],['ln y',y=>Math.log(y)]);
+  if(integer) B.push(['(−1)^y',y=>(Math.round(y)%2===0)?1:-1]);
+  return B; }
+function invSepSubsets(n,k){ const o=[]; const r=(s,a)=>{ if(a.length===k){ o.push(a.slice()); return; } for(let i=s;i<n;i++){ a.push(i); r(i+1,a); a.pop(); } }; r(0,[]); return o; }
+/* exact rational P/Q through the points (smallest p + q), coefficients normalised to Q's lowest term = 1 */
+function invSepRational(xs,ys,tol){ /* uses invEig (Jacobi) from the invariant finder */ const ym=Math.max(...ys.map(Math.abs))||1;
+  for(let tot=1;tot<=6;tot++) for(let q=1;q<=tot;q++){ const p=tot-q, nc=p+1+q+1; if(xs.length<nc+4) continue;
+    const xm=Math.max(...xs.map(Math.abs))||1, cols=[];
+    for(let j=0;j<=p;j++) cols.push(xs.map(x=>Math.pow(x/xm,j)));
+    for(let k=0;k<=q;k++) cols.push(xs.map((x,t)=>-ys[t]/ym*Math.pow(x/xm,k)));
+    /* the homogeneous null vector: smallest eigenvector of the Gram matrix of unit-norm columns */
+    const nrm=cols.map(c=>Math.sqrt(c.reduce((u,v)=>u+v*v,0))||1), U=cols.map((c,i)=>c.map(v=>v/nrm[i]));
+    const G=U.map(ci=>U.map(cj=>ci.reduce((u,v,t)=>u+v*cj[t],0))), E=invEig(G); let mi=0; for(let i=1;i<E.vals.length;i++) if(E.vals[i]<E.vals[mi]) mi=i;
+    const vec=E.vecs.map(row=>row[mi]).map((v,i)=>v/nrm[i]);
+    const a=vec.slice(0,p+1), b=vec.slice(p+1); const k0=b.findIndex(v=>Math.abs(v)>1e-9*Math.max(...b.map(Math.abs))); if(k0<0) continue;
+    let s0=b[k0], A=a.map((v,j)=>v/s0*ym/Math.pow(xm,j)), Bq=b.map((v,k)=>v/s0/Math.pow(xm,k));
+    /* refine with Q's k0-th coefficient fixed at 1: a LINEAR least-squares problem (no squared condition
+       number), so the coefficients come back to ~1e-12 and their laws in the outer variable can be read */
+    { const u=xs.map(x=>x/xm), all=[]; for(let j=0;j<=p;j++) all.push(['a',j]); for(let k=0;k<=q;k++) if(k!==k0) all.push(['b',k]);
+      const colOf=([w,k])=>w==='a'?u.map(v=>Math.pow(v,k)):u.map((v,t)=>-ys[t]/ym*Math.pow(v,k)), rhs=u.map((v,t)=>ys[t]/ym*Math.pow(v,k0));
+      const fit=I=>{ const g=invLsq(I.map(colOf),rhs); if(!g) return null; const A2=new Array(p+1).fill(0), B2=new Array(q+1).fill(0); B2[k0]=1; I.forEach(([w,k],i)=>{ if(w==='a') A2[k]=g.coef[i]; else B2[k]=g.coef[i]; });
+        let mx=0; for(let t=0;t<xs.length;t++){ const P=A2.reduce((s1,v,j)=>s1+v*Math.pow(u[t],j),0), Q=B2.reduce((s1,v,k)=>s1+v*Math.pow(u[t],k),0); mx=Math.max(mx,Math.abs(ys[t]/ym-P/Q)); } return {A2,B2,rel:mx}; };
+      /* a linear refit with Q's k0-th term fixed (no squared condition number), then every term that can
+         go while the fit stays exact goes — structural zeros, the same in every row */
+      let I=all.slice(), g=fit(I);
+      if(g){ let dropped=true; while(dropped&&I.length>1){ dropped=false; const c=I.map(([w,k])=>Math.abs(w==='a'?g.A2[k]:g.B2[k]));
+          const order=I.map((t,i)=>i).sort((x,y)=>c[x]-c[y]);
+          for(const i of order){ const I2=I.filter((_,j)=>j!==i), g2=fit(I2); if(g2&&g2.rel<tol){ I=I2; g=g2; dropped=true; break; } } }
+        A=g.A2.map((v,j)=>v*ym/Math.pow(xm,j-k0)); Bq=g.B2.map((v,k)=>v/Math.pow(xm,k-k0)); } }
+    let mx=0; for(let t=0;t<xs.length;t++){ const P=A.reduce((u,v,j)=>u+v*Math.pow(xs[t],j),0), Q=Bq.reduce((u,v,k)=>u+v*Math.pow(xs[t],k),0); mx=Math.max(mx,Math.abs(ys[t]-P/Q)); }
+    if(mx/ym<tol) return {p,q,A,B:Bq,rel:mx/ym}; }
+  return null; }
+/* the outer law of one coefficient series: zero, a constant (named when it can be), or a law in x */
+function invSepCoefLaw(cs,X,tol,scale){ const cm=Math.max(...cs.map(Math.abs)); if(!(cm>(scale||0)*1e-9)||!(cm>1e-300)) return '0';
+  const mean=cs.reduce((u,v)=>u+v,0)/cs.length, sp=Math.max(...cs)-Math.min(...cs);
+  if(sp<=1e-9*Math.abs(mean)) return invClosedFormPhys(mean)||String(+mean.toPrecision(8));
+  const l=invLaws(cs.map(c=>({c})),X,{tol}).find(l=>l.out==='c'); if(!l) return null;
+  return l.of==='²'?'√('+l.text.replace(/^c² = /,'')+')':l.of==='⁻¹'?'1/('+l.text.replace(/^c⁻¹ = /,'')+')':l.text.replace(/^c = /,''); }
+function invSeparable(f,inner,outer,opts){ opts=opts||{}; const tol=opts.tol||1e-9, K=opts.K||22, n=opts.n||26;
+  const grid=(d,m)=>{ const out=[]; const lo=d.min, hi=d.max; if(d.integer){ const st=Math.max(1,2*Math.floor((hi-lo)/(2*m))+1); for(let v=lo;v<=hi&&out.length<m*2;v+=st) out.push(v); return out; }
+    const logs=lo>0&&hi/lo>30; for(let k=0;k<m;k++){ const u=(k+0.5)/m; out.push(logs?lo*Math.pow(hi/lo,u):lo+(hi-lo)*u); } return out; };
+  const xs=grid(outer,K), rows=[];
+  for(const x of xs){ const ys=[], vs=[]; for(const y of grid(inner,n)){ let v=null; try{ v=f(x,y); }catch(e){ v=null; } if(Number.isFinite(v)){ ys.push(y); vs.push(v); } }
+    if(ys.length>=10) rows.push({x,ys,vs}); }
+  if(rows.length<6) return null;
+  /* 1 · a basis subset exact at every fixed x */
+  const B=invSepBasis(!!inner.integer, rows.every(r=>r.ys.every(y=>y>0)));
+  for(let k=1;k<=5;k++){ for(const S of invSepSubsets(B.length,k)){ let ok=true; const C=[];
+      for(const r of rows){ if(r.ys.length<k+4){ ok=false; break; } const cols=S.map(j=>r.ys.map(B[j][1])), ym=Math.max(...r.vs.map(Math.abs))||1, g=invLsq(cols,r.vs); if(!g||g.res/ym>tol){ ok=false; break; } C.push(g.coef); }
+      if(!ok) continue;
+      /* the outer law of every coefficient; an integer outer is also tried even and odd apart */
+      const terms=S.map((j,ci)=>{ const cs=C.map(c=>c[ci]), cm=Math.max(...cs.map(Math.abs));
+        if(!(cm>1e-12)) return {basis:B[j][0], zero:true};
+        const X=rows.map(r=>({x:r.x})), whole=invSepCoefLaw(cs,X,tol);
+        if(whole!=null) return {basis:B[j][0], law:whole, exact:true};
+        if(outer.integer){ const part=pred=>{ const I=rows.map((r,t)=>t).filter(t=>pred(rows[t].x)); if(I.every(t=>Math.abs(cs[t])<1e-9*cm)) return '0';
+            return invSepCoefLaw(I.map(t=>cs[t]),I.map(t=>({x:rows[t].x})),tol); };
+          const ev=part(x=>Math.round(x)%2===0), od=part(x=>Math.round(x)%2!==0); if(ev&&od) return {basis:B[j][0], even:ev, odd:od, exact:true, kind:'parity'}; }
+        return {basis:B[j][0], law:null, values:cs.slice(0,4)}; }).filter(t=>!t.zero);
+      return {mode:'basis', inner:inner.name, outer:outer.name, terms, complete:terms.every(t=>t.law||t.even), rows:rows.length}; } }
+  /* 2 · a rational function of the inner variable */
+  const R0=rows.map(r=>invSepRational(r.ys,r.vs,tol));
+  if(R0.every(Boolean)&&R0.every(r=>r.p===R0[0].p&&r.q===R0[0].q)){ const p=R0[0].p, q=R0[0].q, X=rows.map(r=>({x:r.x}));
+    /* ONE normalisation for every row — the lowest power of the denominator that is present in all of
+       them — or the coefficient series along x are not comparable (at small ω0 the constant term
+       ω0⁴ is tiny but still there, and a row normalised on ω² instead would break the series) */
+    { const ymx=Math.max(...rows.map(r=>Math.max(...r.ys.map(Math.abs)))); let k0=q;
+      for(let k=0;k<=q;k++){ if(R0.every(r=>{ const c=r.B.map((v,j)=>Math.abs(v)*Math.pow(ymx,j)); return c[k]>1e-13*Math.max(...c); })){ k0=k; break; } }
+      for(const r of R0){ const d=r.B[k0]; r.A=r.A.map(v=>v/d); r.B=r.B.map(v=>v/d); } }
+    /* a coefficient whose term never contributes more than 1e-9 of the largest term is a numerical zero */
+    /* a term is a numerical zero only if it is negligible in EVERY row (relative to that row's
+       largest term over the sampled inner range) */
+    const rel=(row,key,j)=>{ const ymx=Math.max(...rows[row].ys.map(Math.abs)), arr=R0[row][key], c=arr.map((v,k)=>Math.abs(v)*Math.pow(ymx,k)); return c[j]/Math.max(...c); };
+    const negligible=(key,j)=>R0.every((_,row)=>rel(row,key,j)<1e-9);
+    const num=R0[0].A.map((_,j)=>negligible('A',j)?'0':invSepCoefLaw(R0.map(r=>r.A[j]),X,tol)), den=R0[0].B.map((_,k)=>negligible('B',k)?'0':invSepCoefLaw(R0.map(r=>r.B[k]),X,tol));
+    return {mode:'rational', inner:inner.name, outer:outer.name, p, q, num, den, complete:num.every(v=>v!=null)&&den.every(v=>v!=null), rows:rows.length}; }
+  return null; }
+/* one line of text for a separable law */
+function invSepText(S,out){ if(!S) return ''; const x=S.outer, y=S.inner, sub=(t,v)=>String(t).replace(/\bx\b/g,v);
+  const coef=t=>{ const c=t.law?sub(t.law,x):t.even?`[${x} even: ${sub(t.even,x)} · odd: ${sub(t.odd,x)}]`:'?'; return '('+c+')'; };
+  if(S.mode==='basis') return out+' = '+S.terms.map(t=>coef(t)+(t.basis==='1'?'':'·'+t.basis.replace(/y/g,y))).join(' + ');
+  const poly=(arr,deg)=>arr.map((c,j)=>c==='0'?null:(c==='1'&&j>0?'':'('+(c?sub(c,x):'?')+')'+(j===0?'':'·'))+(j===0?'':y+(j===1?'':'^'+j))).filter(Boolean).join(' + ');
+  return `${out} = [${poly(S.num)}] / [${poly(S.den)}]`; }
 /* ── the browser half: sample a laboratory through its contract, then analyse ── */
 const INV_TIME=/^(t|time|tau|tauMax|days|iterations|orbit_steps|steps|epoch_days|epoch_year|age|lyapunov_steps)$/;
 PSP.invJob=0;
@@ -45864,7 +45964,27 @@ function invAcross(link,cb){ invChain([link],R=>cb(R&&{...R,link})); }
 /* the two-link chains the bus admits: the middle laboratory takes one value and gives another */
 function invChains2(){ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){ return []; } const out=[];
   for(const a of L) for(const b of L){ const B=a.to.split('.')[0]; if(b.from.split('.')[0]===B&&b.to.split('.')[0]!==a.from.split('.')[0]) out.push([a,b]); } return out; }
-globalThis.HCC_INVARIANTS=Object.freeze({symmetries:id=>invSymmetries(id,null), chains:()=>invChains2().map(p=>p.map(l=>l.from+'→'+l.to)), chain:(...ft)=>new Promise(res=>{ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){} const path=ft.map(x=>{ const [a,b]=x.split('→'); return L.find(l=>l.from===a&&l.to===b); }); if(path.some(x=>!x)){ res(null); return; } invChain(path,res); }), across:(from,to)=>new Promise(res=>{ let L=null; try{ L=HCC_API.bus.links().find(l=>l.from===from&&l.to===to); }catch(e){} if(!L){ res(null); return; } invAcross(L,res); }),
+/* the laboratory as the oracle for invSeparable: every ordered pair of its varied inputs (inner,
+   outer), the others held at their defaults, for every output that has no law in all its inputs.
+   A slow laboratory is given a budget of evaluations, and says when it ran out. */
+function invSepHTML(R){ if(!R) return ''; if(R.skipped) return `<div style="color:#ffd58a">${esc(R.why)}</div>`;
+  if(!R.laws.length) return `<div style="color:var(--dim)">${TT('No separable law: no output is a polynomial, parity or rational function in one input with coefficients that are laws in another.','Разделимого закона нет: ни один выход не является многочленом, функцией чётности или дробно-рациональной функцией одного входа с коэффициентами-законами другого.','Kein trennbares Gesetz.')}</div>`;
+  return `<div style="border-left:3px solid #ffd58a;padding-left:6px;margin:3px 0"><b style="color:#ffd58a">∂ ${TT('Laws one variable at a time','Законы по одной переменной','Gesetze Variable für Variable')}</b>${R.laws.map(l=>`<div style="margin-left:8px;font-family:ui-monospace,monospace">${esc(l.text)}${Object.keys(l.fixed||{}).length?` <span style="color:var(--dim)">· ${TT('at','при','bei')} ${Object.entries(l.fixed).map(([k,v])=>esc(k)+' = '+pspFmt(v)).join(', ')}</span>`:''} <span style="color:#7fe0a8">${l.mode==='rational'?TT('rational · exact','дробно-рационально · точно','rational · exakt'):TT('exact','точно','exakt')}</span></div>`).join('')}</div>`; }
+function invSeparableFor(id,outs,opts){ opts=opts||{}; const D=pspDesc(id); if(!D) return null; const INT=pspIntegers(id);
+  const ins=pspNum(D).filter(f=>!pspIsControl(f)&&Number.isFinite(f.min)&&Number.isFinite(f.max)&&f.max>f.min).slice(0,4);
+  const base={}; for(const f of D.inputs) base[f.name]=f.default;
+  const t0=performance.now(); pspEval(id,base); const ms=Math.max(0.02,performance.now()-t0);
+  if(ms*600>(opts.budgetMs||6000)) return {id, skipped:true, why:'one answer takes '+ms.toFixed(1)+' ms — too slow for 600 evaluations per pair'};
+  const RES=/(^|_)(drift|residual|check|error|delta)(_|$)|^delta_|_residual$/;
+  const want=(outs&&outs.length?outs:(D.outputs||[]).map(o=>o.name)).filter(n=>!RES.test(n)), found={}, cache=new Map();
+  for(const out of want){ for(const inner of ins) for(const outer of ins){ if(inner===outer||found[out]) continue;
+      const f=(x,y)=>{ const key=outer.name+'='+x+'|'+inner.name+'='+y; let r=cache.get(key); if(r===undefined){ r=pspEval(id,{...base,[outer.name]:x,[inner.name]:y}); cache.set(key,r); } const v=r&&r[out]; if(typeof v!=='number'||!Number.isFinite(v)) throw 0; return v; };
+      let S=null; try{ S=invSeparable(f,{name:inner.name,min:inner.min,max:inner.max,integer:INT.has(inner.name)},{name:outer.name,min:outer.min,max:outer.max,integer:INT.has(outer.name)},{}); }catch(e){ S=null; }
+      /* a constant is not a law: one term, the basis 1, a coefficient that does not involve x */
+      if(S&&S.mode==='basis'&&S.terms.length===1&&S.terms[0].basis==='1'&&!/\bx\b/.test(S.terms[0].law||'')) S=null;
+      if(S&&S.complete){ const fixed={}; for(const g of ins) if(g!==inner&&g!==outer) fixed[g.name]=base[g.name]; found[out]={...S, output:out, fixed, text:invSepText(S,out)}; } } }
+  return {id, laws:Object.values(found), ms}; }
+globalThis.HCC_INVARIANTS=Object.freeze({separable:(id,outs,o)=>invSeparableFor(id||PSP.id,outs,o), symmetries:id=>invSymmetries(id,null), chains:()=>invChains2().map(p=>p.map(l=>l.from+'→'+l.to)), chain:(...ft)=>new Promise(res=>{ let L=[]; try{ L=HCC_API.bus.links(); }catch(e){} const path=ft.map(x=>{ const [a,b]=x.split('→'); return L.find(l=>l.from===a&&l.to===b); }); if(path.some(x=>!x)){ res(null); return; } invChain(path,res); }), across:(from,to)=>new Promise(res=>{ let L=null; try{ L=HCC_API.bus.links().find(l=>l.from===from&&l.to===to); }catch(e){} if(!L){ res(null); return; } invAcross(L,res); }),
   find:(id,along)=>new Promise(res=>invSample(id||PSP.id,along||null,(rows,meta)=>{ const A=rows?invAnalyse(rows,{X:meta.X,units:meta.units}):null; if(A&&meta){ delete meta.X; } res(A?{...A,meta}:null); })),
   last:()=>PSP.inv?{id:PSP.inv.id,along:PSP.inv.along,...(PSP.inv.A||{})}:null});
 
@@ -45925,8 +46045,9 @@ async function hccInvariantAtlasOpen(filter){
     const exact=(a.products||[]).filter(p=>p.exact&&!p.form).slice(0,2).map(p=>`${p.terms.map((n,i)=>esc(n)+sup(p.exponents[i])).join(' · ')} = ${pspFmt(p.value)}${invPlanckHTML(p.terms,p.exponents,p.value,uo,1e-10)}`);
     const sums=(a.sums||[]).filter(r=>r.exact).slice(0,2).map(r=>r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')+` = ${pspFmt(r.value)}`);
     const cons=t&&t.verdict==='FOUND'?[...(t.sums||[]).filter(r=>r.exact).slice(0,3).map(r=>r.terms.map((n,i)=>`${i&&r.coefficients[i]>=0?'+ ':''}${r.coefficients[i]<0?'− ':''}${Math.abs(r.coefficients[i])===1?'':pspFmt(Math.abs(r.coefficients[i]))+'·'}${esc(n)}`).join(' ')), ...(t.constants||[]).filter(c=>!c.exact).slice(0,3).map(c=>`${esc(c.name)} (${TT('to','до','bis')} ${c.spread})`)]:[];
+    const seps=(Array.isArray(L.separable)?L.separable:[]).slice(0,3).map(l=>`<span style="font-family:ui-monospace,monospace;color:#ffe2a8"><b style="color:#ffd58a" title="${TT('found one variable at a time','найден по одной переменной','Variable für Variable gefunden')}">∂</b> ${esc(l.law)}</span>`);
     const laws=(a.laws||[]).filter(l=>l.exact).slice(0,4).map(l=>{ const u=invUniqueOf(L.id,l.output); return `<span style="font-family:ui-monospace,monospace;color:#bff5d6">${u&&u.cls==='forced'?`<b style="color:#ffd58a" title="${TT('the only formula units allow with','единственная формула, допускаемая размерностями с','die einzige Formel mit')} ${esc((u.by||[]).join(', ')||'—')}${u.Kform?' · '+esc(u.Kform):''}">∃!</b>`:'⊨'} ${esc(l.law)}</span>`; });
-    const body=[laws.length?laws.join('<br>'):'', named.length?named.join(' · '):'', exact.length?exact.join(' · '):'', sums.length?sums.join(' · '):'',
+    const body=[laws.length?laws.join('<br>'):'', seps.length?seps.join('<br>'):'', named.length?named.join(' · '):'', exact.length?exact.join(' · '):'', sums.length?sums.join(' · '):'',
       a.hidden_symmetries?`<b style="color:#d9c8ff">${TT('hidden symmetry','скрытая симметрия','verborgene Symmetrie')}</b>: ${TT('rank','ранг','Rang')} ${a.rank} ${TT('of','из','von')} ${(a.varied||[]).length} ${TT('inputs','входов','Eingängen')}`:'',
       ...(L.symmetries||[]).filter(x=>x.verified&&!x.dead).map(x=>`<b style="color:#d9c8ff">✓ ${TT('invariant under','инвариантна относительно','invariant unter')}</b> ${x.inputs.map((n,i)=>x.k[i]?`${esc(n)} → λ${sup(x.k[i])}·${esc(n)}`:'').filter(Boolean).join(', ')}`),
       cons.length?`<b style="color:#7fe0a8">${TT('conserved along','сохраняется вдоль','erhalten entlang')} ${esc(t.clock)}</b>: ${cons.join(' · ')}`:''].filter(Boolean);
