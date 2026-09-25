@@ -109,6 +109,7 @@ const allChecks = [
   "docs/verify-every-laboratory-obeys-its-laws.cjs",
   "docs/verify-the-shape-of-a-field.cjs",
   "docs/verify-the-laws-of-a-field.cjs",
+  "docs/verify-the-headset-is-usable.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -275,6 +276,7 @@ if (fullMode) {
     'docs/verify-every-laboratory-obeys-its-laws.cjs',
     'docs/verify-the-shape-of-a-field.cjs',
     'docs/verify-the-laws-of-a-field.cjs',
+    'docs/verify-the-headset-is-usable.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
