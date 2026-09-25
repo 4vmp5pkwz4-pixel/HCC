@@ -112,6 +112,7 @@ const allChecks = [
   "docs/verify-the-headset-is-usable.cjs",
   "docs/verify-the-map-of-the-universe.cjs",
   "docs/verify-the-only-possible-laws.cjs",
+  "docs/verify-the-controls-are-rubber.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -281,6 +282,7 @@ if (fullMode) {
     'docs/verify-the-headset-is-usable.cjs',
     'docs/verify-the-map-of-the-universe.cjs',
     'docs/verify-the-only-possible-laws.cjs',
+    'docs/verify-the-controls-are-rubber.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

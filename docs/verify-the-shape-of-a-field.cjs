@@ -19,7 +19,7 @@
  *   5. the Ising walls: with periodic faces there are 3N³ bonds, so E/N³ = −3 + 2W/N³
  *      EXACTLY for every configuration — the wall area is the energy
  *   6. the wiring: the structure view is the default, the excitable medium is drawn above
- *      its boundary value, the old arrows give way to field lines, and HCC_FIELD opens it
+ *      its boundary value, the arrows obey their own checkbox, and HCC_FIELD opens it
  *   7. MUTATIONS: midpoint instead of linear interpolation on each edge, and walls counted
  *      without the periodic wrap, are each caught
  */
@@ -71,8 +71,8 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('the Ising walls, one dual plaquette per antiparallel bond: E/N³ = −3 + 2W/N³ exactly, for random, ordered and nearly-ordered lattices of four sizes', cases.every(c => Math.abs(c.lhs - c.rhs) < 1e-12), cases.map(c => `${c.n}³: ${c.lhs.toFixed(5)}`).join(' · '));
 
   /* 6 · wiring */
-  ok('the wiring: the structure view is the default, the excitable medium is drawn above its boundary value, the arrows give way to field lines, HCC_FIELD opens it, and the Ising readout states the identity',
-    /fieldDraw:'structure',fieldSlice:true/.test(SRC) && /if\(model==='fhn'\) return \{A:2,levels:\[1\.3,0\.4\]/.test(SRC) && /vectors\.visible=cloud&&/.test(SRC)
+  ok('the wiring: the structure view is the default, the excitable medium is drawn above its boundary value, the arrows obey their own checkbox beside the field lines, HCC_FIELD opens it, and the Ising readout states the identity',
+    /fieldDraw:'structure',fieldSlice:true/.test(SRC) && /if\(model==='fhn'\) return \{A:2,levels:\[1\.3,0\.4\]/.test(SRC) && /vectors\.visible=!!state\.fieldVectors/.test(SRC)
     && /globalThis\.HCC_FIELD=Object\.freeze\(/.test(SRC) && /the wall area IS the energy/.test(SRC) && /const S=fsIso\(q,N,lev,G,sp,phase\)/.test(SRC));
 
   /* 7 · mutations */
