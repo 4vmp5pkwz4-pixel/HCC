@@ -187,6 +187,7 @@ if (existsSync(mpath)) {
     inputs: d.inputs, outputs: d.outputs,
     input_schema: d.input_schema, output_schema: d.output_schema,
     assumptions: d.assumptions, domain_of_validity: d.domain_of_validity,
+    ...(d.sweep_max_points !== 4096 ? { sweep_max_points: d.sweep_max_points } : {}),
     falsifiers: d.falsifiers, verifiers: d.verifiers, open_problems: d.open_problems }));
   man.counts.core_labs = LABS.size;
   man.counts.core_implemented = described.filter(d => d.status !== 'NOT_IMPLEMENTED').length;
