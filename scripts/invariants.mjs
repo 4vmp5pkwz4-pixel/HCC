@@ -125,6 +125,11 @@ for (const id of ids) {
   };
   row.integer_inputs = await page.evaluate(id => { try { return HCC_PSPACE.integers(id); } catch (e) { return []; } }, id).catch(() => []);
   row.across = await ask(null);
+  /* the law one variable at a time, for every output the all-inputs finder left without one */
+  try { const have = (row.across.laws || []).map(l => l.output), consts = (row.across.constants || []).map(c => c.name);
+    row.separable = await race(page.evaluate(([id, skip]) => { const R = HCC_INVARIANTS.separable(id); if (!R) return null; if (R.skipped) return { skipped: true, why: R.why };
+      return R.laws.filter(l => !skip.includes(l.output)).map(l => ({ output: l.output, law: l.text, mode: l.mode, inner: l.inner, outer: l.outer, fixed: l.fixed })); }, [id, [...have, ...consts]]), HANG_MS, 'hang'); }
+  catch (e) { await fresh(); row.separable = null; }
   /* the symmetry itself: the scalings that move nothing, applied at random points before they are believed */
   try { row.symmetries = await race(page.evaluate(id => { const S = HCC_INVARIANTS.symmetries(id); return Array.isArray(S) ? S.map(x => ({ inputs: x.inputs, k: x.k.map(v => +(+v).toPrecision(6)), rational: x.rational, verified: x.verified, trials: x.trials, dead: x.dead })) : null; }, id), HANG_MS, 'hang'); }
   catch (e) { await fresh(); row.symmetries = null; }
@@ -191,7 +196,9 @@ const out = { schema: 'hcc.invariants/1', version: identity.version, build: iden
     laws_holding: rows.reduce((a, r) => a + (r.across.laws || []).filter(L => !L.exact).length, 0),
     laws_named: rows.reduce((a, r) => a + (r.across.laws || []).filter(L => L.exact && (L.kind === 'power' ? L.form : L.terms.every(t => t.form))).length, 0),
     laboratories_with_a_law: rows.filter(r => (r.across.laws || []).length).length,
-    silent_laboratories_that_now_speak: rows.filter(r => r.across.verdict === 'NONE' && (r.across.laws || []).length).length },
+    silent_laboratories_that_now_speak: rows.filter(r => r.across.verdict === 'NONE' && ((r.across.laws || []).length || (Array.isArray(r.separable) && r.separable.length))).length,
+    separable_laws: rows.reduce((a, r) => a + (Array.isArray(r.separable) ? r.separable.length : 0), 0),
+    laboratories_with_a_separable_law: rows.filter(r => Array.isArray(r.separable) && r.separable.length).length },
   errors: [...new Set(errors)].slice(0, 20), laboratories: rows, across_the_bus: cross, through_a_middle_laboratory: through };
 writeFileSync(OUT, JSON.stringify(out, null, 1) + '\n');
 console.log(JSON.stringify(out.counts));
