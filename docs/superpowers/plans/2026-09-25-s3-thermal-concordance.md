@@ -38,7 +38,7 @@
 - [x] Run `node --test test/s3-thermal-concordance.test.mjs` and confirm failures come from missing exports.
 - [x] Implement input validation and the neutrino integral by even-panel composite Simpson on `[0,40]` with `Math.exp(-q)` tail-safe evaluation; include one massive species of 0.06 eV and `N_eff-1` effectively massless species.
 - [x] Derive Ω_γ, Ω_ν, Ω_cb and Ω_de, normalize E(0)=1 by exact closure, and return the thermal observables and provenance/status; reject non-finite or impossible inputs instead of clamping.
-- [x] Run the focused test until green, then `git add core/cosmology/s3-thermal-concordance.mjs test/s3-thermal-concordance.test.mjs && git commit -m "feat: calculate sourced S3 thermal density budget"`.
+- [x] Run the focused test until green and include the kernel and tests in the combined feature commit.
 
 ### Task 2: Distances and the observational ratio
 
@@ -50,7 +50,7 @@
 - [x] Run the focused test and read the expected assertion failures.
 - [x] Compute `E(z)` from the Task 1 budget and CPL factor, numerically integrate `D_C` using Simpson, then calculate round-S³ distances, angular arc, thermal ratio and the observational ratio. Refuse distance calculations beyond the first antipode.
 - [x] Re-run the focused suite and check `R0` agrees with `S3R.Rc` at canonical inputs within 1e-12 relative.
-- [x] Commit the focused implementation and tests with `git commit -am "feat: link S3 expansion to observed distance ratios"`.
+- [x] Include the distance implementation and tests in the combined feature commit.
 
 ### Task 3: Agent contract, documentation and generated artifacts
 
@@ -63,9 +63,9 @@
 - [x] Implement the lab contract with finite input bounds, equations, units, source links, caveats and independent self-tests; register it in `IMPLEMENTED`, add its file to `coreHash`, and mention its machine ID in the `sec` coverage notes if scientifically relevant.
 - [x] Document the primary sources, Gaussian-marginal caveat, neutrino convention, DESI comparison without covariance, and unsolved layers in `docs/S3_THERMAL_CONCORDANCE.md`.
 - [x] Run `node scripts/build-api.mjs`, `node --test test/s3-thermal-concordance.test.mjs`, `npm test`, `node test/run-tests.mjs`, and `node scripts/extract-kernels.mjs --check`; inspect generated diffs for unrelated changes.
-- [x] Commit the lab, docs, tests and necessary generated artifacts with `git commit -m "feat: expose S3 thermal concordance to agents"`.
+- [x] Commit the lab, docs, tests and generated artifacts, followed by a review-fix commit for finite outputs, schemas and sweep bounds.
 
 ## Final verification
 
-- [ ] Inspect `git diff main...HEAD`, run all focused and repository quick checks afresh, and check status/working tree.
-- [ ] Push the branch and open a draft PR describing mathematical identities, observed inputs, conditional steps, test evidence and known omissions; leave release and merge decisions to the repository's normal review path.
+- [x] Inspect the diff against main, run all focused and repository quick checks afresh, and check status/working tree.
+- [x] Publish the branch and open draft PR #426 describing mathematical identities, observed inputs, conditional steps, test evidence and known omissions; leave release and merge decisions to the repository's normal review path.
