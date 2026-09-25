@@ -115,6 +115,7 @@ const allChecks = [
   "docs/verify-the-controls-are-rubber.cjs",
   "docs/verify-the-law-one-variable-at-a-time.cjs",
   "docs/verify-the-galaxy-turns.cjs",
+  "docs/verify-the-cosmic-web.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -287,6 +288,7 @@ if (fullMode) {
     'docs/verify-the-controls-are-rubber.cjs',
     'docs/verify-the-law-one-variable-at-a-time.cjs',
     'docs/verify-the-galaxy-turns.cjs',
+    'docs/verify-the-cosmic-web.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

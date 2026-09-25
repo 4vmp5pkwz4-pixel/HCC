@@ -44273,6 +44273,7 @@ function dsoUpdate(){
   u.uRef.value=Math.max(1e6,camera.position.distanceTo(controls.target));
   dsoObjs.lpts.visible=Ly==='galactic';
   for(const l of dsoObjs.labs) l.visible=Ly==='galactic';
+  try{ webSkelUpdate(); }catch(e){ if(!webSkelUpdate._w){ webSkelUpdate._w=1; console.warn('cosmic web:',e); } }
   try{ lightFieldUpdate(); }catch(e){ if(!lightFieldUpdate._w){ lightFieldUpdate._w=1; console.warn('light field:',e); } }
 }
 function dsoPickAt(cx,cy){
@@ -44884,6 +44885,8 @@ globalThis.HCC_ATLAS_MAGS=Object.freeze({count:()=>atlasMagIndex().length, find:
        stars have been stirred more: the dispersion climbs with B−V (Parenago), and the
        lag in V climbs with the dispersion squared (Strömberg's asymmetric drift), whose
        intercept is the Sun's motion relative to the Local Standard of Rest.
+     · THE COSMIC WEB — the galaxies' projected two-point function against randoms through the
+       same window, Peebles's power law through it, and the minimal spanning tree (below).
      · THE LUMINOSITY FUNCTION — galaxies weighted by 1/Vmax, fitted with Schechter's form.
      · QUASARS IN REDSHIFT — where the brightest of them were, and when. */
 const STAT_MG=[[-0.0548755604,-0.8734370902,-0.4838350155],[0.4941094279,-0.4448296300,0.7469822445],[-0.8676661490,-0.1980763734,0.4559837762]];
@@ -44987,6 +44990,74 @@ function statOortWave(G,x,nb){ nb=nb||24; const s=new Array(nb).fill(0), w=new A
     s[k]+=ww*y; w[k]+=ww; n[k]++; P.push([k,y,ww]); }
   const m=s.map((v,k)=>w[k]>0?v/w[k]:NaN); for(const [k,y,ww] of P) q[k]+=ww*ww*(y-m[k])**2;
   return m.map((v,k)=>({l:(k+0.5)*360/nb,y:v,se:w[k]>0?Math.sqrt(q[k])/w[k]:NaN,n:n[k]})); }
+/* ══ THE COSMIC WEB, MEASURED ON THE ATLAS'S OWN GALAXIES ═══════════════════════
+   4 341 galaxies with measured distances are enough to ask the question of Totsuji &
+   Kihara (1969) and Peebles (1974): how much more likely is a neighbour at distance r than
+   in a random universe? ξ(r) = (DD − 2DR + RR)/RR (Landy & Szalay 1993), with D the
+   galaxies and R a random catalogue drawn through the same window. Two honest
+   complications, both handled here rather than hidden:
+     · the distances carry errors of order 20 %, and an error moves a galaxy ALONG the line
+       of sight, never across it. So pairs are counted by their separation across the line
+       of sight r_p and along it π, and summed over π < π_max: the projected function
+       w_p(r_p) = 2 ∫ ξ(r_p, π) dπ does not care where along the sight line a galaxy sits.
+       For ξ = (r/r₀)^−γ it is exactly w_p = r_p (r₀/r_p)^γ Γ(½) Γ((γ−1)/2) / Γ(γ/2).
+     · "random" has to mean random THROUGH THE SAME WINDOW. The randoms take their
+       distances from the galaxies (the radial selection of a magnitude limit) and their
+       directions from a smooth mask — the declination coverage in bands and the zone of
+       avoidance in |b| — never from the galaxies' own directions, which would copy the
+       Local Supercluster into the randoms and subtract it back out.
+   Then the web's skeleton: the minimal spanning tree (Barrow, Bhavsar & Sonoda 1985), the
+   shortest set of edges joining every galaxy, which is the filaments drawn by no one. */
+function webLogGamma(x){ const c=[676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(x<0.5) return Math.log(Math.PI/Math.sin(Math.PI*x))-webLogGamma(1-x); x-=1; let a=0.99999999999980993; const t=x+7.5; for(let i=0;i<8;i++) a+=c[i]/(x+i+1); return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a); }
+/* w_p = r_p · H(γ) · (r₀/r_p)^γ */
+const webWpH=g=>Math.exp(webLogGamma(0.5)+webLogGamma((g-1)/2)-webLogGamma(g/2));
+/* pair counts in (r_p, π) over a cell list; π along the pair's mean direction */
+function webPairCounts(A,B,same,o){ const NB=o.nb, e0=Math.log10(o.rpMin), step=Math.log10(o.rpMax/o.rpMin)/NB, NPI=Math.round(o.piMax/o.dpi), cell=Math.hypot(o.rpMax,o.piMax);
+  const h=Array.from({length:NB},()=>new Float64Array(NPI)), M=new Map(), key=(a,b,c)=>a+','+b+','+c;
+  for(let j=0;j<B.length;j++){ const p=B[j], k=key(Math.floor(p[0]/cell),Math.floor(p[1]/cell),Math.floor(p[2]/cell)); let L=M.get(k); if(!L){ L=[]; M.set(k,L); } L.push(j); }
+  for(let i=0;i<A.length;i++){ const p=A[i], cx=Math.floor(p[0]/cell), cy=Math.floor(p[1]/cell), cz=Math.floor(p[2]/cell);
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const L=M.get(key(cx+dx,cy+dy,cz+dz)); if(!L) continue;
+      for(const j of L){ if(same&&j<=i) continue; const q=B[j], s0=p[0]-q[0], s1=p[1]-q[1], s2=p[2]-q[2], m0=p[0]+q[0], m1=p[1]+q[1], m2=p[2]+q[2], mn=Math.hypot(m0,m1,m2)||1;
+        const pi=Math.abs(s0*m0+s1*m1+s2*m2)/mn; if(pi>=o.piMax) continue; const rp=Math.sqrt(Math.max(0,s0*s0+s1*s1+s2*s2-pi*pi)); if(rp<o.rpMin||rp>=o.rpMax) continue;
+        const k=Math.floor((Math.log10(rp)-e0)/step); if(k>=0&&k<NB) h[k][Math.min(NPI-1,Math.floor(pi/o.dpi))]++; } } }
+  return h; }
+/* Landy–Szalay in (r_p, π), summed to w_p; also ξ(s) in redshift... in DISTANCE space from the same counts is not
+   needed — w_p is the statistic the distance errors cannot touch */
+function webWp(D,R,o){ o=Object.assign({nb:14,rpMin:0.3,rpMax:30,piMax:20,dpi:2},o||{});
+  const DD=webPairCounts(D,D,true,o), DR=webPairCounts(D,R,false,o), RR=webPairCounts(R,R,true,o), N=D.length, NR=R.length, nDD=N*(N-1)/2, nDR=N*NR, nRR=NR*(NR-1)/2;
+  const e0=Math.log10(o.rpMin), step=Math.log10(o.rpMax/o.rpMin)/o.nb;
+  return DD.map((row,k)=>{ let w=0, dd=0; row.forEach((d,j)=>{ const rr=RR[k][j]/nRR; dd+=d; if(rr>0) w+=2*o.dpi*((d/nDD)-2*DR[k][j]/nDR+rr)/rr; });
+    return {rp:Math.pow(10,e0+(k+0.5)*step),wp:w,dd,se:dd>0?w/Math.sqrt(dd)+2*o.piMax/Math.sqrt(dd):NaN}; }); }
+/* the power law through w_p: log w_p = log(H(γ) r₀^γ) + (1 − γ) log r_p */
+function webPowerFit(B,lo,hi){ const P=B.filter(b=>b.rp>=lo&&b.rp<=hi&&b.wp>0); if(P.length<3) return null; const X=P.map(b=>Math.log10(b.rp)), Y=P.map(b=>Math.log10(b.wp));
+  const mx=X.reduce((a,b)=>a+b,0)/X.length, my=Y.reduce((a,b)=>a+b,0)/Y.length; let sxy=0, sxx=0; X.forEach((x,i)=>{ sxy+=(x-mx)*(Y[i]-my); sxx+=(x-mx)**2; });
+  const slope=sxy/sxx, g=1-slope; if(!(g>1.05)) return {gamma:g,r0:NaN,n:P.length}; const amp=Math.pow(10,my-slope*mx); return {gamma:g,r0:Math.pow(amp/webWpH(g),1/g),n:P.length,lo,hi}; }
+/* r₀ with γ held at Peebles's 1.8 */
+function webR0At(B,g,lo,hi){ const P=B.filter(b=>b.rp>=lo&&b.rp<=hi&&b.wp>0); if(!P.length) return NaN; const H=webWpH(g);
+  const lr=P.reduce((a,b)=>a+Math.log10(b.wp/(b.rp*H))/g+Math.log10(b.rp),0)/P.length; return Math.pow(10,lr); }
+/* Prim's minimal spanning tree, O(N²) with no heap — 4 341 points, eighteen million distances */
+function webMST(P){ const n=P.length, inT=new Uint8Array(n), best=new Float64Array(n).fill(Infinity), from=new Int32Array(n).fill(-1), E=[]; if(!n) return E; best[0]=0;
+  for(let it=0;it<n;it++){ let u=-1, bu=Infinity; for(let i=0;i<n;i++) if(!inT[i]&&best[i]<bu){ bu=best[i]; u=i; } if(u<0) break; inT[u]=1; if(from[u]>=0) E.push([from[u],u,bu]);
+    const p=P[u]; for(let i=0;i<n;i++){ if(inT[i]) continue; const q=P[i], d=Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); if(d<best[i]){ best[i]=d; from[i]=u; } } }
+  return E; }
+/* the skeleton: prune every branch shorter than k edges, keep what is left (Barrow et al. 1985) */
+function webPrune(E,n,k){ const adj=Array.from({length:n},()=>[]); E.forEach((e,idx)=>{ adj[e[0]].push(idx); adj[e[1]].push(idx); });
+  const alive=new Uint8Array(E.length).fill(1), deg=adj.map(a=>a.length);
+  for(let round=0;round<k;round++){ const leaves=[]; for(let v=0;v<n;v++) if(deg[v]===1) leaves.push(v);
+    for(const v of leaves){ for(const idx of adj[v]) if(alive[idx]){ alive[idx]=0; const w=E[idx][0]===v?E[idx][1]:E[idx][0]; deg[v]--; deg[w]--; break; } } }
+  return E.filter((_,i)=>alive[i]); }
+/* randoms through the window: distances drawn from the galaxies, directions from a SMOOTH mask — the declination
+   coverage in twelve bands of equal area and an acceptance in |b| in 10° bands below 30° (the zone of avoidance) */
+function webRandoms(G,n,seed){ let s=seed||5; const rnd=()=>{ s=(s*16807)%2147483647; return s/2147483647; };
+  const gb=e=>Math.abs(Math.asin(Math.max(-1,Math.min(1,STAT_MG[2][0]*e[0]+STAT_MG[2][1]*e[1]+STAT_MG[2][2]*e[2]))))*180/Math.PI;
+  const dec=new Array(12).fill(0), bN=new Array(9).fill(0); for(const g of G){ dec[Math.min(11,Math.floor((g.e[2]+1)/2*12))]++; bN[Math.min(8,Math.floor(gb(g.e)/10))]++; }
+  const bArea=bN.map((_,k)=>Math.sin((k+1)*Math.PI/18)-Math.sin(k*Math.PI/18)), dens=bN.map((m,k)=>m/bArea[k]), top=Math.max(...dens.slice(3)), acc=dens.map((v,k)=>k<3?Math.min(1,v/top):1);
+  const cum=[]; { let c=0; const t=dec.reduce((a,b)=>a+b,0); for(const m of dec){ c+=m/t; cum.push(c); } }
+  const R=[]; for(let i=0;i<n;i++){ const d=G[Math.floor(rnd()*G.length)].d; for(let tries=0;tries<1000;tries++){ const u=rnd(); let k=0; while(k<11&&u>cum[k]) k++;
+      const sd=-1+2*(k+rnd())/12, cd=Math.sqrt(Math.max(0,1-sd*sd)), ra=2*Math.PI*rnd(), e=[cd*Math.cos(ra),cd*Math.sin(ra),sd];
+      if(rnd()<acc[Math.min(8,Math.floor(gb(e)/10))]){ R.push([e[0]*d,e[1]*d,e[2]*d]); break; } } }
+  return {R,acc,dec}; }
 function statCountsSlope(vals,lo,hi){ const xs=[],ys=[]; for(let m=lo;m<=hi+1e-9;m+=0.5){ const n=vals.filter(v=>v<=m).length; if(n>0){ xs.push(m); ys.push(Math.log10(n)); } }
   const mx=xs.reduce((a,b)=>a+b,0)/xs.length, my=ys.reduce((a,b)=>a+b,0)/ys.length; let a=0,c=0; xs.forEach((x,i)=>{ a+=(x-mx)*(ys[i]-my); c+=(x-mx)**2; }); return {slope:a/c,xs,ys}; }
 function statCounts(){ dsoBuild(); qso3dBuild(); let S=[]; try{ S=hip3dDecode(); }catch(e){}
@@ -45004,7 +45075,7 @@ function hccStatsOpen(station){
   document.getElementById('hccStats')?.remove();
   const d=document.createElement('div'); d.id='hccStats'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','What the catalogues say');
   d.style.cssText='position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:9000;width:min(96vw,820px);max-height:88vh;overflow:auto;padding:14px 16px 12px;border-radius:16px;background:rgba(8,11,19,.97);border:1px solid rgba(212,175,106,.5);color:#e9e2cf;font:13px/1.5 system-ui,sans-serif;box-shadow:0 20px 60px rgba(0,0,0,.6)';
-  const ST=[['counts',TT('Number counts','Подсчёты','Zählungen')],['sun',TT('The Sun\'s motion','Движение Солнца','Sonnenbewegung')],['oort',TT('The Galaxy turns','Галактика вращается','Die Galaxis dreht sich')],['colour',TT('Velocity vs colour','Скорость и цвет','Geschwindigkeit & Farbe')],['lf',TT('Luminosity function','Функция светимости','Leuchtkraftfunktion')],['qz',TT('Quasars in redshift','Квазары по z','Quasare nach z')]];
+  const ST=[['counts',TT('Number counts','Подсчёты','Zählungen')],['sun',TT('The Sun\'s motion','Движение Солнца','Sonnenbewegung')],['oort',TT('The Galaxy turns','Галактика вращается','Die Galaxis dreht sich')],['web',TT('The cosmic web','Космическая паутина','Das kosmische Netz')],['colour',TT('Velocity vs colour','Скорость и цвет','Geschwindigkeit & Farbe')],['lf',TT('Luminosity function','Функция светимости','Leuchtkraftfunktion')],['qz',TT('Quasars in redshift','Квазары по z','Quasare nach z')]];
   let cur=station||'sun';
   d.innerHTML=`<div style="display:flex;align-items:center;gap:10px"><b style="flex:1;font-size:15px;color:var(--gold-2,#f1dda6)">📈 ${TT('What the catalogues say','Что говорят каталоги','Was die Kataloge sagen')}</b><button class="btn" id="stX">✕</button></div>
     <div id="stTabs" style="display:flex;flex-wrap:wrap;gap:4px;margin:8px 0">${ST.map(([k,t])=>`<button class="chip" data-st="${k}">${t}</button>`).join('')}</div>
@@ -45060,6 +45131,19 @@ function hccStatsOpen(station){
         ${TT('Shells','Слои','Schalen')}: ${F.shells.map(s=>`${s.lo}–${s.hi} kpc (${s.n}): A ${s.A.toFixed(1)}, B ${s.B.toFixed(1)}, V ${s.V.toFixed(1)}`).join(' · ')} — ${TT('the nearest shell is the Gould Belt\'s own expansion, not the Galaxy\'s; beyond 150 pc A and B settle','ближайший слой — собственное расширение пояса Гулда, а не Галактики; дальше 150 пк A и B устанавливаются','die nächste Schale ist der Gould-Gürtel; jenseits 150 pc stabilisieren sich A und B')}.<br>
         <span style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-top:4px">${[['sun','☉ '+TT('as seen from the Sun','как видно с Солнца','von der Sonne aus')],['lsr','⟳ '+TT('reflex removed: the shear','без отражения: сдвиг','ohne Reflex: Scherung')],['peculiar','✳ '+TT('model removed: the ellipsoid','без модели: эллипсоид','ohne Modell: Ellipsoid')],['off','✕ 3D']].map(([k,t])=>`<button class="chip" data-flow="${k}">${t}</button>`).join('')}</span>`;
       T.querySelectorAll('[data-flow]').forEach(b=>b.onclick=()=>{ galFlowShow(b.dataset.flow); if(b.dataset.flow!=='off') d.remove(); }); }
+    else if(cur==='web'){ const W=statWeb(); if(!W){ T.textContent='—'; return; } const A=axes(-0.6,1.5,-1,2.3,'log₁₀ r_p (Mpc)','log₁₀ w_p (Mpc)'), f=W.fit, h=0.674;
+      /* Davis & Peebles 1983 (CfA): ξ = (r / 5.4 h⁻¹ Mpc)^−1.77, projected the same way */
+      const plot=(r0,gm,colr,dash)=>{ const H=webWpH(gm); g.strokeStyle=colr; g.lineWidth=dash?1:2; g.setLineDash(dash?[5,4]:[]); g.beginPath(); for(let x=-0.6;x<=1.5001;x+=0.05){ const rp=Math.pow(10,x), y=Math.log10(rp*H*Math.pow(r0/rp,gm)); x>-0.6?g.lineTo(A.X(x),A.Y(y)):g.moveTo(A.X(x),A.Y(y)); } g.stroke(); g.setLineDash([]); g.lineWidth=1; };
+      plot(5.4/h,1.77,'rgba(255,255,255,.45)',true); if(f&&f.r0>0) plot(f.r0,f.gamma,'#8fd0ff',false);
+      g.strokeStyle='rgba(212,175,106,.3)'; g.beginPath(); g.moveTo(A.X(Math.log10(0.5)),A.Y(-1)); g.lineTo(A.X(Math.log10(0.5)),A.Y(2.3)); g.moveTo(A.X(1),A.Y(-1)); g.lineTo(A.X(1),A.Y(2.3)); g.stroke();
+      for(const b of W.bins){ if(!(b.wp>0)) continue; g.fillStyle='#f1dda6'; g.beginPath(); g.arc(A.X(Math.log10(b.rp)),A.Y(Math.log10(b.wp)),4,0,7); g.fill(); }
+      g.fillStyle='#8fd0ff'; g.fillText(`${TT('this atlas','этот атлас','dieser Atlas')}: γ = ${f.gamma.toFixed(2)}, r₀ = ${f.r0.toFixed(2)} Mpc`,A.X(0.55),A.Y(2.1)); g.fillStyle='rgba(255,255,255,.6)'; g.fillText('CfA (Davis & Peebles 1983): γ = 1.77, r₀ = 5.4 h⁻¹ Mpc',A.X(0.55),A.Y(1.9));
+      const sh=100*(1-W.mst.mean/W.mst.meanRandom);
+      T.innerHTML=`${TT('How much likelier is a neighbour than chance?','Насколько сосед вероятнее случайного?','Wie viel wahrscheinlicher ist ein Nachbar als der Zufall?')} <b>${W.n}</b> ${TT('galaxies with measured distances against','галактик с измеренными расстояниями против','Galaxien mit gemessenen Entfernungen gegen')} ${W.nr} ${TT('randoms drawn through the same window — distances from the galaxies, directions from a smooth mask (declination bands, the zone of avoidance) — counted by the separation ACROSS the line of sight r_p, where a 20 % distance error cannot move a galaxy, and summed along it to π = 20 Mpc (Landy & Szalay 1993).','случайных точек через то же окно — расстояния от галактик, направления из гладкой маски (полосы склонений, зона избегания), — пары считаются по разнесению ПОПЕРЁК луча зрения r_p, куда 20-процентная ошибка расстояния не сдвигает галактику, и суммируются вдоль него до π = 20 Мпк (Landy & Szalay 1993).','Zufallspunkte durch dasselbe Fenster, gezählt nach dem Abstand QUER zur Sichtlinie r_p, wo ein 20-%-Entfernungsfehler nichts verschiebt (Landy & Szalay 1993).')}<br>
+        <b style="color:#8fd0ff">${TT('Peebles\'s law','Закон Пиблса','Peebles\' Gesetz')}</b> ξ = (r/r₀)^−γ, ${TT('projected exactly','спроецированный точно','exakt projiziert')} w_p = r_p (r₀/r_p)^γ Γ(½)Γ((γ−1)/2)/Γ(γ/2): ${TT('over','на','über')} 0.5–10 Mpc γ = <b>${f.gamma.toFixed(2)}</b>, r₀ = <b>${f.r0.toFixed(2)}</b> Mpc; ${TT('over','на','über')} 0.5–6 Mpc γ = <b>${W.fit6.gamma.toFixed(2)}</b>; ${TT('with γ held at 1.8','при γ = 1,8','mit γ = 1,8')}, r₀ = <b>${W.r0at18.toFixed(2)}</b> Mpc = ${(W.r0at18*h).toFixed(2)} h⁻¹ Mpc. CfA: 1.77 ${TT('and','и','und')} 5.4 h⁻¹ Mpc. ${TT('The slope is the universal one; the amplitude is lower, as it should be for a list rich in dwarfs, which cluster less than L* galaxies, and because distance errors beyond π_max carry pairs out of the sum — so this r₀ is a lower bound.','Наклон — универсальный; амплитуда ниже, как и должно быть для списка, богатого карликами, которые скучиваются слабее галактик L*, и потому что ошибки расстояний за π_max уносят пары из суммы — так что этот r₀ — нижняя граница.','Die Steigung ist die universelle; die Amplitude ist niedriger (viele Zwerge, und Entfernungsfehler jenseits π_max) — dieses r₀ ist eine Untergrenze.')}<br>
+        <b style="color:#ffd58a">${TT('The skeleton','Скелет','Das Skelett')}</b>: ${TT('the minimal spanning tree joins all','минимальное остовное дерево соединяет все','der minimale Spannbaum verbindet alle')} ${W.n} ${TT('galaxies with','галактик','Galaxien mit')} ${W.mst.edges.length} ${TT('edges, median','рёбрами, медиана','Kanten, Median')} ${W.mst.median.toFixed(2)} Mpc, ${TT('mean','среднее','Mittel')} ${W.mst.mean.toFixed(2)} Mpc — ${TT('against','против','gegen')} ${W.mst.meanRandom.toFixed(2)} ${TT('for as many randoms through the same window: clustering makes the tree','для стольких же случайных точек через то же окно: скучивание делает дерево','für ebenso viele Zufallspunkte: Häufung macht den Baum')} <b>${sh.toFixed(0)} %</b> ${TT('shorter','короче','kürzer')}. ${TT('Pruned of every branch shorter than five edges (Barrow, Bhavsar & Sonoda 1985),','Без ветвей короче пяти рёбер (Barrow, Bhavsar & Sonoda 1985)','Ohne Äste unter fünf Kanten (Barrow, Bhavsar & Sonoda 1985)')} ${W.mst.skeleton.length} ${TT('edges remain: the filaments, drawn by no one.','рёбер остаются: филаменты, нарисованные никем.','Kanten bleiben: die Filamente, von niemandem gezeichnet.')}<br>
+        <span style="display:inline-flex;gap:4px;flex-wrap:wrap;margin-top:4px"><button class="chip" data-web="on">🕸 ${TT('the skeleton in 3D','скелет в 3D','das Skelett in 3D')}</button><button class="chip" data-web="off">✕ 3D</button></span>`;
+      T.querySelectorAll('[data-web]').forEach(b=>b.onclick=()=>{ webSkelShow(b.dataset.web==='on'); if(b.dataset.web==='on') d.remove(); }); }
     else if(cur==='colour'){ const R=statColourBins(); const A=axes(-0.2,1.0,0,70,'B − V','km/s');
       g.fillStyle='#9fc7ff'; for(const b of R.bins){ g.beginPath(); g.arc(A.X(b.bv),A.Y(b.sigma),4,0,7); g.fill(); }
       g.fillStyle='#d4af6a'; for(const b of R.bins){ g.beginPath(); g.arc(A.X(b.bv),A.Y(b.V),4,0,7); g.fill(); }
@@ -45079,7 +45163,8 @@ function hccStatsOpen(station){
 }
 globalThis.HCC_STATS=Object.freeze({open:s=>hccStatsOpen(s), solarMotion:()=>{ const m=statSolarMotion(statStars()); return {...m,...statApex(m)}; }, colour:()=>{ const R=statColourBins(); return {U0:R.U0,V0:R.V0,W0:R.W0,k:R.k,bins:R.bins.map(b=>({bv:b.bv,n:b.n,sigma:b.sigma,U:b.U,V:b.V,W:b.W}))}; },
   counts:()=>{ const c=statCounts(); return Object.fromEntries(Object.entries(c).map(([k,v])=>[k,{slope:v.slope,range:v.range,n:v.n}])); }, lf:()=>statLuminosityFunction().fit, quasarZ:()=>statQuasarZ(),
-  oort:()=>{ const F=statOort(); if(!F) return null; const {G,...o}=F; return o; }, flow:f=>{ if(f!==undefined) galFlowShow(f); return {frame:galFlowGroup.userData.frame||"off",streaks:galFlowGroup.userData.count||0,visible:galFlowGroup.visible}; }});
+  oort:()=>{ const F=statOort(); if(!F) return null; const {G,...o}=F; return o; },
+  web:()=>{ const W=statWeb(); if(!W) return null; return {n:W.n,nr:W.nr,bins:W.bins,fit:W.fit,fit6:W.fit6,r0at18:W.r0at18,mst:{n:W.mst.edges.length,skeleton:W.mst.skeleton.length,mean:W.mst.mean,meanRandom:W.mst.meanRandom,median:W.mst.median}}; }, skeleton:on=>{ if(on!==undefined) webSkelShow(on); return {on:!!webSkelGroup.userData.on,edges:webSkelGroup.userData.count||0,visible:webSkelGroup.visible}; }, flow:f=>{ if(f!==undefined) galFlowShow(f); return {frame:galFlowGroup.userData.frame||"off",streaks:galFlowGroup.userData.count||0,visible:galFlowGroup.visible}; }});
 /* the measurement, once: every star with ϖ/σϖ ≥ 5 within a kiloparsec (≈ 15 000 of them) */
 let STAT_OORT=null;
 function statOort(){ if(STAT_OORT) return STAT_OORT; let S=[]; try{ S=hip3dDecode(); }catch(e){ return null; }
@@ -45142,12 +45227,44 @@ function galFlowUpdate(epJ){ const want=state.galFlow||'off';
 /* frame the neighbourhood from above the Galactic plane — both the reflex stream and the shear lie in it */
 function galFlowShow(frame){ state.galFlow=frame||'off'; if(frame==='off'){ galFlowBuild('off'); return; }
   state.showHip3d=true; try{ if(state.mode!=='solar') setMode('solar'); }catch(e){}
-  try{ setSolarScaleLayer('galactic'); }catch(e){}
+  try{ advanceScaleLayer('galactic'); }catch(e){}
   const up=galToScene([0,0,1],new THREE.Vector3()), back=galToScene([-1,0,0],new THREE.Vector3());
   controls.target.set(0,0,0); camera.position.copy(up.multiplyScalar(820).add(back.multiplyScalar(120))).multiplyScalar(ZOD3D_PC_AU);
   /* placed, not walked: the governor would otherwise pull the camera back to where it was and walk it out through the local layer */
   try{ hccCameraGoalClear(); _lastCamDist=camera.position.distanceTo(controls.target); syncCameraClipping(true); }catch(e){}
   galFlowBuild(frame); }
+/* the measurement on this atlas's galaxies, once: w_p against randoms twice as many, and the tree against a tree of
+   randoms (the same count, the same window) — clustering is what makes the real tree shorter */
+let STAT_WEB=null;
+function statWeb(){ if(STAT_WEB) return STAT_WEB; try{ dsoBuild(); }catch(e){ return null; }
+  const D2R=Math.PI/180, G=dsoObjs.G.map(g=>{ const a=g.ra*D2R, d=g.de*D2R; return {e:[Math.cos(d)*Math.cos(a),Math.cos(d)*Math.sin(a),Math.sin(d)],d:g.dK/1000}; });
+  const D=G.map(g=>g.e.map(x=>x*g.d)), {R}=webRandoms(G,2*G.length,5), B=webWp(D,R), fit=webPowerFit(B,0.5,10), fit6=webPowerFit(B,0.5,6);
+  const E=webMST(D), Er=webMST(R.slice(0,G.length)), mean=A=>A.reduce((a,e)=>a+e[2],0)/A.length, sk=webPrune(E,D.length,5);
+  STAT_WEB={n:D.length,nr:R.length,bins:B,fit,fit6,r0at18:webR0At(B,1.8,0.5,10),mst:{edges:E,skeleton:sk,mean:mean(E),meanRandom:mean(Er),median:E.map(e=>e[2]).sort((a,b)=>a-b)[E.length>>1]}};
+  return STAT_WEB; }
+/* the tree in the scene, where the galaxies are drawn: every edge dim, the skeleton that survives pruning bright,
+   short edges gold and long ones blue */
+const webSkelGroup=new THREE.Group(); webSkelGroup.name='cosmic-web-mst'; dsoGroup.add(webSkelGroup);
+function webSkelBuild(on){
+  while(webSkelGroup.children.length){ const o=webSkelGroup.children.pop(); if(o.geometry) o.geometry.dispose(); if(o.material) o.material.dispose(); }
+  webSkelGroup.userData.on=!!on; webSkelGroup.userData.count=0; if(!on) return; const W=statWeb(); if(!W) return;
+  const pos=dsoObjs.pts.geometry.attributes.position.array, skel=new Set(W.mst.skeleton.map(e=>e[0]+'-'+e[1]));
+  for(const [list,op] of [[W.mst.edges.filter(e=>!skel.has(e[0]+'-'+e[1])),0.28],[W.mst.skeleton,0.9]]){ const P=[], C=[];
+    for(const [i,j,L] of list){ const t=Math.max(0,Math.min(1,Math.log10(L/0.5)/Math.log10(40))), c=[1-0.55*t,0.82-0.2*t,0.45+0.55*t];
+      P.push(pos[3*i],pos[3*i+1],pos[3*i+2],pos[3*j],pos[3*j+1],pos[3*j+2]); C.push(...c,...c); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(C,3));
+    const L=new THREE.LineSegments(g,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:op,depthWrite:false})); L.frustumCulled=false; L.name=op>0.5?'cosmic-web-skeleton':'cosmic-web-tree'; webSkelGroup.add(L); }
+  webSkelGroup.userData.count=W.mst.edges.length; }
+function webSkelUpdate(){ const want=!!state.webSkeleton; if(webSkelGroup.userData.on!==want) webSkelBuild(want); webSkelGroup.visible=want; }
+/* framed from the supergalactic north pole (l 47.37°, b +6.32°, de Vaucouleurs 1953), 170 Mpc out: the Local
+   Supercluster is seen face-on and its filaments lie flat; placed, not walked, as the Galaxy's flow is */
+function webSkelShow(on){ state.webSkeleton=!!on; state.showDso3d=true;
+  /* the SEAMLESS layer change (limits, visibility, the content ceiling re-read), then the camera placed, not walked */
+  if(on){ try{ if(state.mode!=='solar') setMode('solar'); advanceScaleLayer('cosmic'); }catch(e){}
+    const l=47.37*Math.PI/180, b=6.32*Math.PI/180, n=galToScene([Math.cos(b)*Math.cos(l),Math.cos(b)*Math.sin(l),Math.sin(b)],new THREE.Vector3());
+    controls.target.set(0,0,0); camera.position.copy(n).multiplyScalar(170e6*ZOD3D_PC_AU);
+    try{ hccCameraGoalClear(); _lastCamDist=camera.position.distanceTo(controls.target); syncCameraClipping(true); }catch(e){} }
+  webSkelBuild(!!on); }
 
 /* ══ THE MEASURED UNIVERSE FEEDS THE LABORATORIES ══════════════════════════════
    A laboratory's inputs are numbers with units, and this atlas holds several thousand
@@ -46307,6 +46424,10 @@ async function hccDiscoveriesOpen(){ document.getElementById('hccDisc')?.remove(
       STAT_OORT?`A = <b style="color:#ffd58a">${STAT_OORT.A.toFixed(1)}</b>, B = <b style="color:#ffd58a">${STAT_OORT.B.toFixed(1)}</b> km/s/kpc · −B/(A−B) = <b style="color:#ffd58a">${STAT_OORT.lindblad.toFixed(3)}</b> · σ<sub>V</sub>²/σ<sub>U</sub>² = <b style="color:#ffd58a">${STAT_OORT.ellipsoid.ratio.toFixed(3)}</b> · Ω₀ = ${STAT_OORT.Omega.toFixed(1)} km/s/kpc`:TT('measured on opening — about three seconds over 15 000 stars','измеряется при открытии — около трёх секунд по 15 000 звёздам','wird beim Öffnen gemessen — etwa drei Sekunden über 15 000 Sterne'),
       TT('The proper motions of the Hipparcos stars within a kiloparsec, fitted with the first-order velocity field of a rotating disc, return Oort\'s constants — the shear and the vorticity of the Galaxy where the Sun is — within the Gaia-era values. Then a second, independent measurement from the same stars: the dispersion tensor of what the fit leaves over. Epicycle theory says the velocity ellipsoid\'s axis ratio σ_V²/σ_U² must equal −B/(A−B), a number made only of the mean flow\'s gradient; here the two agree to a few per cent. And the Galaxy\'s angular velocity from stars a few hundred parsecs away agrees with the drift of Sgr A* across the sky, eight kiloparsecs off.','Собственные движения звёзд Hipparcos в пределах килопарсека, подогнанные полем скоростей вращающегося диска первого порядка, дают постоянные Оорта — сдвиг и завихрённость Галактики там, где Солнце, — в пределах значений эпохи Gaia. Затем второе, независимое измерение по тем же звёздам: тензор дисперсии того, что осталось после подгонки. Теория эпициклов требует, чтобы отношение осей эллипсоида скоростей σ_V²/σ_U² было равно −B/(A−B) — числу, составленному только из градиента среднего течения; здесь они совпадают до нескольких процентов. А угловая скорость Галактики по звёздам в нескольких сотнях парсек согласуется с дрейфом Sgr A* по небу в восьми килопарсеках.','Die Eigenbewegungen der Hipparcos-Sterne innerhalb eines Kiloparsec liefern Oorts Konstanten; die Dispersion der Residuen erfüllt Lindblads Relation σ_V²/σ_U² = −B/(A−B) auf wenige Prozent, und Ω₀ stimmt mit der Bewegung von Sgr A* überein.'),
       [['⟳ '+TT('the double wave','двойная волна','die Doppelwelle'),()=>{ d.remove(); HCC_STATS.open('oort'); }],['⟳ 3D',()=>{ d.remove(); galFlowShow('lsr'); }]]],
+    ['🕸',TT('The slope of the universe, from 4 341 galaxies','Наклон Вселенной — по 4 341 галактике','Die Steigung des Universums, aus 4 341 Galaxien'),
+      STAT_WEB?`γ = <b style="color:#ffd58a">${STAT_WEB.fit.gamma.toFixed(2)}</b> · r₀ = <b style="color:#ffd58a">${STAT_WEB.r0at18.toFixed(1)}</b> Mpc (γ 1.8) · ${TT('tree','дерево','Baum')} <b style="color:#ffd58a">${(100*(1-STAT_WEB.mst.mean/STAT_WEB.mst.meanRandom)).toFixed(0)} %</b> ${TT('shorter than chance','короче случайного','kürzer als Zufall')}`:TT('measured on opening — about three seconds','измеряется при открытии — около трёх секунд','wird beim Öffnen gemessen — etwa drei Sekunden'),
+      TT('Counted by their separation across the line of sight — where a twenty per cent distance error cannot move them — the galaxies this atlas holds cluster as a power law of slope close to the 1.8 Peebles found in the first catalogues, and their minimal spanning tree is a quarter shorter than one through random points in the same window. The amplitude is lower than for bright galaxies, as a list rich in dwarfs should be, and the verifier shows what happens when randoms borrow the galaxies\' own directions: the Local Supercluster is subtracted from itself.','Если считать галактики по разнесению поперёк луча зрения — где двадцатипроцентная ошибка расстояния их не сдвигает, — галактики этого атласа скучиваются по степенному закону с наклоном, близким к 1,8, найденному Пиблсом в первых каталогах, а их минимальное остовное дерево на четверть короче дерева случайных точек в том же окне. Амплитуда ниже, чем у ярких галактик, как и должно быть для списка, богатого карликами; проверка показывает, что бывает, если случайные точки берут направления самих галактик: Местное сверхскопление вычитается само из себя.','Quer zur Sichtlinie gezählt, häufen sich die Galaxien dieses Atlas nach einem Potenzgesetz mit einer Steigung nahe Peebles\' 1,8; ihr minimaler Spannbaum ist ein Viertel kürzer als einer durch Zufallspunkte.'),
+      [['🕸 w_p(r_p)',()=>{ d.remove(); HCC_STATS.open('web'); }],['🕸 3D',()=>{ d.remove(); webSkelShow(true); }]]],
     ['◈',TT('Three laws read off a drawn field','Три закона, прочитанные с нарисованного поля','Drei Gesetze, abgelesen vom gezeichneten Feld'),
       `${TT('widest isotherm','самая широкая изотерма','breiteste Isotherme')}: <b style="color:#ffd58a">r² = ⟨r²⟩</b> · Gauss: <b style="color:#ffd58a">Φ/Q → 1</b> · T<sub>c</sub> = <b style="color:#ffd58a">${FIELD_TC&&FIELD_TC.Tc!=null?FIELD_TC.Tc.toFixed(3):'4.513'}</b> ${FIELD_TC&&FIELD_TC.Tc!=null?TT('(measured on this page)','(измерено на этой странице)','(hier gemessen)'):TT('(measured by the verifier; press ⊙ to measure here)','(измерено верификатором; нажмите ⊙, чтобы измерить здесь)','(vom Prüfer gemessen)')}`,
       TT('Once the Field Lab draws surfaces instead of dots, the drawing becomes an instrument. A fixed isotherm of a diffusing pulse is widest exactly when its radius squared equals ⟨r²⟩ of the whole distribution — for any diffusivity, level or initial width. The flux of −∇u through an equipotential equals the charge it encloses, so Gauss\'s law read off the surface is also a meter of how far the Poisson relaxation has converged. And the Binder cumulants of 8³ and 16³ Ising lattices, updated by Wolff clusters, cross at T_c ≈ 4.51 J/k_B — the three-dimensional critical point, measured rather than quoted.',
@@ -101245,7 +101366,7 @@ const CMDK = (()=>{
     add('What the atlas found by itself','discoveries · horizon law · Hawking from a cloud · energy ellipsoids · hidden symmetry · открытия','✦',()=>hccDiscoveriesOpen());
     add('Atlas of invariants','what every laboratory keeps · conserved quantities · hidden symmetries · closed forms · атлас инвариантов','∮',()=>hccInvariantAtlasOpen());
     add('Parameter space','every laboratory as a surface · power laws · Jacobian · bus · пространство параметров · законы','⧉',()=>hccPspaceOpen());
-    add('What the catalogues say','number counts · the Sun\'s motion · Oort constants A B · galactic rotation · Lindblad · вращение Галактики · velocity vs colour · luminosity function · quasars · статистика','📈',()=>hccStatsOpen());
+    add('What the catalogues say','number counts · the Sun\'s motion · Oort constants A B · galactic rotation · Lindblad · вращение Галактики · cosmic web · correlation function ξ(r) · Peebles · minimal spanning tree · космическая паутина · velocity vs colour · luminosity function · quasars · статистика','📈',()=>hccStatsOpen());
     add('Time · now','the present moment · сейчас','⏱',()=>{ try{ setAtlasTime({epochDays:hccNowEpochDays(),paused:false},'palette.now'); }catch(e){} });
     add('Time · real time','one second per second · реальное время','⏱',()=>HCC_TIME_FABRIC.setRateDaysPerSecond(1/86400,'palette.realTime'));
     add('First-Principles navigator','every world, laboratory and journey · навигатор','∴',()=>globalThis.hccFpOpenLens&&hccFpOpenLens());
@@ -112120,6 +112241,7 @@ const NAV_TRIPS=[
   ['∮','Atlas of invariants','what every laboratory keeps: exact relations, constants in closed form, hidden symmetries, quantities conserved along a clock',()=>globalThis.HCC_INVARIANT_ATLAS&&HCC_INVARIANT_ATLAS.open()],
   ['⧉','Parameter space','any laboratory\'s output over any two inputs as a surface, the power law it obeys, its Jacobian, and doors that carry the value on',()=>globalThis.HCC_PSPACE&&HCC_PSPACE.open()],
   ['⟳','The Galaxy turns, read off 15 000 stars','Oort\'s constants from Hipparcos proper motions, the rotation drawn in 3D in three frames, and Lindblad\'s relation holding between two moments of one catalogue',()=>globalThis.HCC_STATS&&HCC_STATS.open('oort')],
+  ['🕸','The cosmic web, measured','Peebles\'s law from 4 341 galaxies — the projected two-point function against randoms through the same window — and the minimal spanning tree drawn in 3D',()=>globalThis.HCC_STATS&&HCC_STATS.open('web')],
   ['📈','What the catalogues say','the Sun\'s motion from proper motions, Strömberg\'s drift, the luminosity function, the number counts',()=>globalThis.HCC_STATS&&HCC_STATS.open()],
 ];
 function hccFpRenderNav(){
