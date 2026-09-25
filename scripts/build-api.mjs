@@ -213,7 +213,7 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
   access:{public_http_compute:false,public_mcp_endpoint:null,authentication_required:false,
     static_read:true,local_esm_compute:true,site_mutation:false},
   resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
-    reach:'./api/reach.json',invariants:'./api/invariants.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
+    reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
     forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
   operations:[
     {name:'discover',transport:'esm',description:'Release identity, capabilities, counts, worlds and scaling controls.'},
