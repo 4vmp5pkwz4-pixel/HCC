@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1382   ·   exported names: 1493
-   extracted physics, sha256 da9d580240f824fc50c4a26794d587a5381220edc338575c10e0010003c8cdca */
+   extracted physics, sha256 b62e52f98739b5f21c3c73da2e539ca8282ee4781dbd9c3ee15ed172fc944645 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -4008,7 +4008,7 @@ function invClosedForm(v,tol){ tol=tol||1e-10; if(!(Number.isFinite(v)&&v!==0)) 
       if(Math.abs(p/q*b-x2)<2*tol*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g; const pk='φ'+(Math.abs(k)===1?'':({2:'²',3:'³',4:'⁴'})[Math.abs(k)]);
         const inner=r5n+(k>0?`${P===1?'':P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`); return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
   for(const [x2,flip] of [[x*x,false],[1/(x*x),true]]) for(let k=-6;k<=6;k++){ const b=Math.pow(Math.PI,k); for(let q=1;q<=32;q++){ const p=Math.round(x2*q/b); if(p<1||p>4096) continue;
-      if(Math.abs(p/q*b-x2)<2*tol*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g, pk=k===0?'':(k===1?'π':'π'+({2:'²',3:'³',4:'⁴',5:'⁵',6:'⁶'})[Math.abs(k)]);
+      if(Math.abs(p/q*b-x2)<2*tol*x2){ const g=((u,w)=>{ while(w){ [u,w]=[w,u%w]; } return u; })(p,q), P=p/g, Q=q/g, pk=k===0?'':(Math.abs(k)===1?'π':'π'+({2:'²',3:'³',4:'⁴',5:'⁵',6:'⁶'})[Math.abs(k)]);
         const inner=k>=0?`${P===1&&pk?'':P}${pk}${Q===1?'':'/'+Q}`:`${P}/${Q===1?'':Q}${pk}`; return (s<0?'−':'')+(flip?'1/':'')+'√('+inner+')'; } } }
   return null; }
 
