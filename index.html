@@ -24504,20 +24504,26 @@ function hflowRows(){
     const gb=hflowGalactic(s2.ra,s2.dec);
     return {key:s2.key, name:s2.name, mpc:s2.dMly/1000*MPC_PER_GLY, cz:s2.cz,
       czLG:s2.cz+HFLOW_APEX_KMS*Math.sin(gb.l*DEG)*Math.cos(gb.b*DEG),
+      /* the CMB frame: the Sun's dipole, Planck 2018, 369.82 km/s toward l 264.02°, b +48.25° */
+      czCMB:s2.cz+369.82*(Math.cos(gb.b*DEG)*Math.cos(48.253*DEG)*Math.cos((gb.l-264.021)*DEG)+Math.sin(gb.b*DEG)*Math.sin(48.253*DEG)),
       bound:!!s2.bound, virgo:s2.group==='Virgo Cluster'};
   });
 }
 function hflowFit(minMpc, includeBound, includeVirgo, frame){
   const rows=hflowRows().filter(r=>r.mpc>=minMpc && (includeBound||!r.bound) && (includeVirgo||!r.virgo));
   if(!rows.length) return {n:0, h0:0, rms:0, worst:null, rows:[]};
-  const v=r=>frame==='heliocentric'?r.cz:r.czLG;
+  const v=r=>frame==='heliocentric'?r.cz:frame==='cmb'?r.czCMB:r.czLG;
   let sxy=0, sxx=0;
   for(const r of rows){ sxy+=r.mpc*v(r); sxx+=r.mpc*r.mpc; }
   const h0=sxy/sxx;
   let ss=0, worst=null, wr=0;
   for(const r of rows){ const res=v(r)-h0*r.mpc; ss+=res*res;
     if(Math.abs(res)>wr){ wr=Math.abs(res); worst=r.key+' by '+res.toFixed(0)+' km/s'; } }
-  return {n:rows.length, h0, rms:Math.sqrt(ss/rows.length), worst, rows};
+  /* and its uncertainty, which the laboratory audit found was never stated: the formal standard error of a slope
+     through the origin, and the jackknife, which sees that three Coma members carry most of the weight */
+  const n=rows.length, se=n>1?Math.sqrt(ss/((n-1)*sxx)):NaN, loo=rows.map(r=>(sxy-r.mpc*v(r))/(sxx-r.mpc*r.mpc)), lm=loo.reduce((a,b)=>a+b,0)/n;
+  const seJack=n>1?Math.sqrt((n-1)/n*loo.reduce((a,b)=>a+(b-lm)**2,0)):NaN, wmax=Math.max(...rows.map(r=>r.mpc*r.mpc))/sxx;
+  return {n, h0, rms:Math.sqrt(ss/n), worst, rows, se, seJack, nEff:sxx*sxx/rows.reduce((a,r)=>a+r.mpc**4,0), wmax};
 }
 globalThis.HCC_HUBBLE_FLOW=()=>{
   const base=hflowFit(3,false,true,'lg'), noVirgo=hflowFit(3,false,false,'lg');
@@ -24525,7 +24531,8 @@ globalThis.HCC_HUBBLE_FLOW=()=>{
   return {galaxies_with_velocity:hflowRows().length,
     h0:base.h0, n:base.n, rms:base.rms, worst:base.worst,
     h0_without_virgo:noVirgo.h0, rms_without_virgo:noVirgo.rms, n_without_virgo:noVirgo.n,
-    h0_heliocentric:helio.h0, rms_heliocentric:helio.rms,
+    h0_heliocentric:helio.h0, rms_heliocentric:helio.rms, h0_cmb:hflowFit(3,false,true,'cmb').h0,
+    se:base.se, se_jackknife:base.seJack, n_effective:base.nEff,
     h0_including_bound:withBound.h0, n_including_bound:withBound.n,
     /* AND THE BOUND ONES ARE SHOWN, NOT ARGUED. Adding them barely moves the fit —
        a through-origin fit weights by distance squared and they are the nearest
@@ -69420,10 +69427,10 @@ try{ hccApiRegister({
     {name:'scatter_without_virgo', unit:'km/s', quantity_kind:'velocity', doc:['and what dropping them does to the scatter — the difference IS the infall','и что это делает с разбросом — разница и есть падение внутрь','und was das mit der Streuung macht']},
     {name:'galaxies_with_velocity', unit:'count', quantity_kind:'count', doc:['catalogue entries carrying a measured radial velocity at all','записи каталога, несущие измеренную лучевую скорость','Katalogeintraege mit gemessener Radialgeschwindigkeit']}],
   limits:[
-    ['THE FRAME CORRECTION IS A CONVENTION AND IS NOT DERIVED HERE. A heliocentric velocity carries the Sun`s own motion, which at these distances is comparable to the flow, so the standard v_LG = v_helio + 300 sin l cos b is applied. Both frames are published so a reader can see what the correction is worth: it moves the answer by about a fifth of a kilometre per second per megaparsec, which is less than the scatter and is reported rather than assumed negligible.',
+    ['THE FRAME CORRECTION IS A CONVENTION AND IS NOT DERIVED HERE. A heliocentric velocity carries the Sun`s own motion, which at these distances is comparable to the flow, so the standard v_LG = v_helio + 300 sin l cos b is applied. Both frames are published so a reader can see what the correction is worth: it moves the answer by about a sixth of a kilometre per second per megaparsec (0.16) between the heliocentric and Local Group frames. At the depth that carries the weight it is not small: the CMB frame, the standard one at Coma`s 7 000 km/s, gives 76.3 against 72.5 — a frame systematic near 4 km/s/Mpc, larger than the formal error of 2.6 and comparable to the jackknife`s 4.9, because three Coma members carry 94 % of the weight (an effective 3.4 galaxies of 20). All of it is published beside the fit (HCC_HUBBLE_FLOW: h0_cmb, se, se_jackknife, n_effective), measured by the laboratory audit.',
      'Поправка на систему отсчёта — соглашение, а не вывод; публикуются обе системы.',
      'Die Rahmenkorrektur ist eine Konvention und wird nicht hier hergeleitet.'],
-    ['A THROUGH-ORIGIN FIT BARELY NOTICES THE BOUND GALAXIES, SO THE EXCLUSION IS SHOWN PER GALAXY INSTEAD OF IN THE TOTAL. M31, M33 and the two Clouds are gravitationally bound to us and their velocities are orbital — which is the entire reason M31 approaches at all. Including them moves the fit by hundredths, because the fit weights by distance squared and they are the nearest things in the catalogue. Each one`s OWN ratio is what shows it: M31 returns a Hubble constant of about minus eighty.',
+    ['A THROUGH-ORIGIN FIT BARELY NOTICES THE BOUND GALAXIES, SO THE EXCLUSION IS SHOWN PER GALAXY INSTEAD OF IN THE TOTAL. M31, M33 and the two Clouds are gravitationally bound to us and their velocities are orbital — which is the entire reason M31 approaches at all. Including them moves the fit by thousandths (0.004), because the fit weights by distance squared and they are the nearest things in the catalogue. Each one`s OWN ratio is what shows it: M31 returns a Hubble constant of about minus eighty.',
      'Подгонка через начало почти не замечает связанные галактики, поэтому исключение показано для каждой отдельно.',
      'Der Fit durch den Ursprung bemerkt die gebundenen Galaxien kaum.'],
     ['TWENTY GALAXIES ARE NOT A COSMOLOGICAL SAMPLE AND THIS IS NOT A MEASUREMENT OF H0. It is what this atlas`s own catalogue says when asked, and the agreement with the quoted late-time value is a check on the catalogue rather than evidence about the Universe. The scatter is four hundred kilometres a second, which is what a sample this size and this near is worth.',
@@ -88088,6 +88095,11 @@ const XRX = (()=>{
       {label:'❄ Fractal', on:m==='fractal', cb:()=>xrSetMode('fractal')},
       ...(globalThis.HCC_UMAP&&HCC_UMAP.xrToggle?[{label:'▦ Map', on:!!HCC_UMAP.xrOn(), cb:()=>{ try{ HCC_UMAP.xrToggle(); }catch(e){} refreshMenu(); }}]:[]),
     ]);
+    /* what the catalogues measured, standing in the scene they were measured on: the stars' own motion in three
+       frames and the galaxies' spanning tree — state only, the headset keeps its own view */
+    if(m==='solar'){ const F=['off','sun','lsr','peculiar'], f=state.galFlow||'off'; rows.push('Catalogues'); rows.push([
+      {label:'⟳ Flow '+({off:'off',sun:'☉',lsr:'shear',peculiar:'✳'}[f]||'off'), on:f!=='off', cb:()=>{ state.galFlow=F[(F.indexOf(f)+1)%F.length]; state.showHip3d=true; refreshMenu(); }},
+      {label:'🕸 Web', on:!!state.webSkeleton, cb:()=>{ state.webSkeleton=!state.webSkeleton; state.showDso3d=true; refreshMenu(); }}]); }
     if(m==='solar'||m==='cyc') rows.push('Time');
     if(m==='solar'||m==='cyc') rows.push([
       {label:state.paused?'▶ Play':'Pause', on:!state.paused, cb:()=>{setAtlasPaused(!state.paused,'xr.menu.pause'); refreshMenu();}},

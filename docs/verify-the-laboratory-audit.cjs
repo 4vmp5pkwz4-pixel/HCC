@@ -14,7 +14,8 @@
  *      is said, and the residual numbers in the limit text are recomputed here from AME2020
  *   3. earth — the legacy linear engine is refused beyond ±1000 years, and the pole arc is
  *      atan2(|a×b|, a·b): acos of a dot product returns exactly 0 a fraction of a day away
- *   4. localflow — evaluate() now returns all seven declared outputs, not four
+ *   4. localflow — evaluate() now returns all seven declared outputs, not four, and the frame
+ *      (heliocentric, Local Group, CMB) and the fit's own uncertainty are published
  *   5. spectrum — the lowest level and the gap are taken over j ≤ 2 whatever j_max is (at
  *      j_max = ½ the lowest was wrong on most of the β-plane), and the level list no longer
  *      changes with α, which is an exact overall factor
@@ -60,6 +61,9 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   { const i0 = SRC.indexOf("id:'localflow', world:'obs'"), block = SRC.slice(i0, SRC.indexOf('}); }catch(e){}', i0)), declared = [...block.slice(block.indexOf('outputs:['), block.indexOf('limits:[')).matchAll(/\{name:'([a-z_]+)'/g)].map(m => m[1]);
     const ret = block.slice(block.indexOf('evaluate(inp){')), missing = declared.filter(nm => !new RegExp('\\b' + nm + ':').test(ret));
     ok('localflow: every one of the seven declared outputs is returned by evaluate(), the without-Virgo pair following the reader\'s own d_min', declared.length === 7 && missing.length === 0 && /N=hflowFit\(inp\.min_distance_mpc, false, false, 'lg'\)/.test(ret), `declared ${declared.length} · missing ${missing.join(', ') || 'none'}`); }
+
+  { ok('localflow: the frame is a declared systematic now — the CMB frame (Planck dipole 369.82 km/s toward l 264.02°, b +48.25°) beside the LG and heliocentric ones, the formal and jackknife errors and the effective number of galaxies published, and the prose magnitudes corrected (a sixth, thousandths)',
+      /czCMB:s2\.cz\+369\.82\*/.test(SRC) && /seJack=n>1\?Math\.sqrt\(\(n-1\)\/n\*/.test(SRC) && /h0_cmb:hflowFit\(3,false,true,'cmb'\)\.h0/.test(SRC) && /about a sixth of a kilometre per second per megaparsec \(0\.16\)/.test(SRC) && /moves the fit by thousandths \(0\.004\)/.test(SRC)); }
 
   /* 5 · spectrum */
   { let wrongLow = 0, wrongGap = 0, n = 0; for (let i = 0; i <= 10; i++) for (let j = 0; j <= 10; j++) { const bp = -2.5 + 0.5 * i, bm = -3 + 0.6 * j, S6 = K.specSpectrum(0, bp, bm, 6); n++;
