@@ -793,7 +793,7 @@ export const ROOTS = [
   'invEig', 'invNull', 'invRational', 'invFind', 'invClosedForm', 'invClosedFormPhys', 'invAnalyse', 'invNullBasis', 'invUnitDim', 'invPlanckSolve', 'invPlanck', 'invLsq', 'invRat1', 'invLawLib', 'invLaws', 'invLawText', 'fsGrad', 'fsIso', 'fsTri', 'fsFieldLine', 'fsIsingWalls', 'fsColor', 'fsSliceRGBA', 'fsWolff', 'fsCrossing', 'fsWidest', 'invSepBasis', 'invSepSubsets', 'invSepRational', 'invSepCoefLaw', 'invSeparable', 'invSepText',
   /* the Galaxy's rotation from the embedded proper motions: pure arithmetic on star records */
   'STAT_MG', 'statToGal', 'STAT_KMS', 'statGalRow', 'statOortRows', 'statSolveN', 'statOortSolve', 'statOortPred', 'statOortEllipsoid', 'statOortDerived', 'statOortFit', 'statOortWave',
-  'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms'
+  'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

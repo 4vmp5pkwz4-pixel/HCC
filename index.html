@@ -35176,6 +35176,9 @@ function kdvNonlin(hr,hi){   // N(û) = −3ik·FFT(u²), computed in the real f
   for(let i=0;i<KDV_N;i++){ nr[i]=3*_kdvK[i]*ui[i]; ni[i]=-3*_kdvK[i]*ur[i]; }
   return [nr,ni];
 }
+/* the measured stability region of kdvEvolve on 256 modes over the declared domain (c ≤ 16, t ≤ 6): dt·max(c) ≤ 0.008
+   and dt ≤ 0.0025 — the default (c1 = 5, dt = 0.0016) sits on the first line */
+const KDV_STABLE_DTC=0.008, KDV_STABLE_DT=0.0025;
 function kdvEvolve(u,dt,nsteps){   // integrating-factor RK4, rebased each call (t=0) → no large-t precision loss
   let vr=Float64Array.from(u), vi=new Float64Array(KDV_N); qmFFT(vr,vi,false);
   const applyE=(r,im,tt,sg)=>{ const or=new Float64Array(KDV_N),oi=new Float64Array(KDV_N);
@@ -36370,12 +36373,15 @@ function updateNuc(dt){
   const bpa=Math.max(0,nucBperA(A,Z)), N=A-Z;
   O.marker.position.set(O.mapN(N),O.mapB(bpa)+0.06,O.mapZ(Z));
   nucUiAcc+=dt; if(nucUiAcc>0.25){ nucUiAcc=0;
-    const be=nucBE(A,Z), peak=O.peakB, drop=peak-bpa;
-    const regime=A<O.peakA?'FUSION region — merging toward iron releases energy':A>O.peakA?'FISSION region — splitting toward iron releases energy':'the iron peak — the most tightly bound matter, the ash of stellar burning';
-    hudBig.textContent=`NUCLEAR BINDING · A=${A} Z=${Z} · B/A=${bpa.toFixed(3)} MeV · total B=${be.toFixed(1)} MeV`;
+    /* the summit is a BAND, not a nucleus: this formula puts it at Fe-58 with Ni-62 1.6 keV behind, the measured masses
+       at Ni-62 with Fe-56 4 keV behind — iron-56 was labelled a fusion fuel here, told energy would be freed 'reaching Fe'
+       (found by the laboratory audit). And below A ≈ 12 the liquid drop fails outright: the deuteron comes out unbound. */
+    const be=nucBE(A,Z), peak=O.peakB, drop=peak-bpa, summit=Math.abs(A-O.peakA)<=6, bpaS=be/A;
+    const regime=be<0?'UNBOUND IN THE LIQUID-DROP MODEL — the formula fails for the lightest nuclei (the deuteron, measured at +2.22 MeV, comes out at −4.66)':summit?'the iron–nickel summit — Fe-58 in this formula, Ni-62 in the measured masses; the ash of stellar burning, nothing left to release':A<O.peakA?'FUSION region — merging toward the iron–nickel summit releases energy':'FISSION region — splitting toward the iron–nickel summit releases energy';
+    hudBig.textContent=`NUCLEAR BINDING · A=${A} Z=${Z} · B/A=${bpaS.toFixed(3)} MeV · total B=${be.toFixed(1)} MeV`;
     hudSub.textContent='the single most important curve in energy science: B/A peaks at iron, so BOTH fusion of light nuclei and fission of heavy nuclei walk energy downhill toward the peak. The gap to the peak (Δ(B/A)·A) is the energy released as E=Δm·c². '+regime+'. The liquid-drop model is a smooth fit — it omits the shell "magic numbers" and fails for the lightest nuclei.';
     ATLAS_BUS.pub('nuc.BperA',+bpa.toFixed(3),'MeV');
-    const el=ctl.querySelector('#nucInv'); if(el) el.innerHTML=`A=<b>${A}</b> · Z=<b>${Z}</b> (${state.nucZmode==='manual'?'manual':'most stable'}) · B/A=<b>${bpa.toFixed(3)}</b> MeV · total binding B=<b>${be.toFixed(1)}</b> MeV<br>distance below the iron peak Δ(B/A)=<b>${drop.toFixed(3)}</b> MeV/nucleon → ${(drop*A).toFixed(0)} MeV would be freed reaching Fe · ${regime.split(' —')[0]}`;
+    const el=ctl.querySelector('#nucInv'); if(el) el.innerHTML=`A=<b>${A}</b> · Z=<b>${Z}</b> (${state.nucZmode==='manual'?'manual':'most stable'}) · B/A=<b>${bpa.toFixed(3)}</b> MeV · total binding B=<b>${be.toFixed(1)}</b> MeV<br>${be<0?`<b>unbound in the liquid-drop model</b> (B/A = ${bpaS.toFixed(3)} MeV)`:summit?`at the iron–nickel summit (Δ(B/A) = ${drop.toFixed(3)} MeV/nucleon to this formula's Fe-58)`:`distance below the summit Δ(B/A)=<b>${drop.toFixed(3)}</b> MeV/nucleon → ${(drop*A).toFixed(0)} MeV would be freed reaching it`} · ${regime.split(' —')[0]}`;
   }
 }
 
@@ -58711,23 +58717,24 @@ function specEig(Ain){
   }
   return A.map((r,i)=>r[i]).sort((a,b)=>a-b);
 }
+/* TWO REPAIRS FROM THE LABORATORY AUDIT. The lowest level needs the j ≤ 1 blocks and the gap the j ≤ 2 blocks, and
+   j_max was only a cost knob: at j_max = ½ the lowest was wrong on 92 % of the β-plane and at j_max = 1 the gap on
+   82 %, silently. Those two are now always taken over j ≤ 2 (cheap), whatever is requested. And levels were merged
+   within an ABSOLUTE 1e-9 whenever |λ| < 1, so the degeneracy structure changed with α, which is an exact overall
+   factor; the tolerance now scales with the largest coefficient, as α does. */
 function specSpectrum(al,bp,bm,jMax){
-  const c=specC(al,bp,bm), blocks=[];
-  for(let t=1;t<=Math.round(2*jMax);t++){ const j=t/2;
-    const ev=specEig(specBlock(j,c));
-    blocks.push({j, ev, blockDim:ev.length, spectator:Math.round(2*j)+1,
-      total:(Math.round(2*j)+1)*(Math.round(2*j)+1)}); }
-  const all=blocks.flatMap(b=>b.ev.map(e=>({e, j:b.j, mult:b.spectator})));
-  all.sort((x,y)=>x.e-y.e);
-  const distinct=[];
-  for(const x of all){
-    const last=distinct[distinct.length-1];
-    if(last&&Math.abs(x.e-last.value)<=1e-9*Math.max(1,Math.abs(x.e))) last.multiplicity+=x.mult;
-    else distinct.push({value:x.e, multiplicity:x.mult, j:x.j});
-  }
+  const c=specC(al,bp,bm), blocks=[], low=[], T=Math.round(2*jMax), tol=1e-10*Math.max(Math.abs(c[0]),Math.abs(c[1]),Math.abs(c[2]));
+  for(let t=1;t<=Math.max(T,4);t++){ const j=t/2;
+    const ev=specEig(specBlock(j,c)), B={j, ev, blockDim:ev.length, spectator:Math.round(2*j)+1,
+      total:(Math.round(2*j)+1)*(Math.round(2*j)+1)};
+    if(t<=T) blocks.push(B); if(t<=4) low.push(B); }
+  const levels=L=>{ const all=L.flatMap(b=>b.ev.map(e=>({e, j:b.j, mult:b.spectator}))); all.sort((x,y)=>x.e-y.e);
+    const D=[]; for(const x of all){ const last=D[D.length-1];
+      if(last&&Math.abs(x.e-last.value)<=tol) last.multiplicity+=x.mult; else D.push({value:x.e, multiplicity:x.mult, j:x.j}); } return D; };
+  const distinct=levels(blocks), L2=levels(low);
   return {c, blocks, distinct,
-    lowest:distinct.length?distinct[0].value:null,
-    gap:distinct.length>1?distinct[1].value-distinct[0].value:null,
+    lowest:L2.length?L2[0].value:null,
+    gap:L2.length>1?L2[1].value-L2[0].value:null,
     /* the trace identity, recomputed live rather than quoted, so a broken build says so */
     traceResidual:(()=>{ let w=0;
       for(const b of blocks){ const tr=b.ev.reduce((a,x)=>a+x,0);
@@ -61148,7 +61155,7 @@ hccApiRegister({
      doc:['anisotropy coordinate beta_-; zero alone leaves c1 = c2, an axially symmetric top',
           'координата анизотропии β₋; ноль оставляет c₁ = c₂ — аксиально-симметричный волчок','Anisotropie β₋']},
     {name:'j_max', type:'number', unit:'spin', default:2, min:0.5, max:12,
-     doc:['highest half-integer spin block to diagonalise. Blocks are (2j+1)-dimensional and the cost is cubic in that, so this is the only knob that costs anything',
+     doc:['highest half-integer spin block to diagonalise for the level list; the lowest level and the gap are always taken over j ≤ 2, where they live, whatever is asked here. Blocks are (2j+1)-dimensional and the cost is cubic in that, so this is the only knob that costs anything',
           'наибольший спиновый блок','höchster Spin-Block']}],
   outputs:[
     {name:'c', unit:'a_i^-2', doc:['the three inverse squared scale factors that define the top','три обратных квадрата масштабных факторов','die drei Faktoren']},
@@ -61441,8 +61448,8 @@ const ATLAS_LATE_SPECS=[
            {name:'most_bound_Z', unit:'dimensionless', doc:['the Z that maximises B/A at this A','наиболее связанное Z','stabilstes Z']},
            {name:'per_nucleon_at_best_Z', unit:'MeV', doc:['B/A at that Z','B/A при этом Z','B/A dort']},
            {name:'pairing', unit:'MeV', doc:['the pairing term delta at this (A,Z)','спаривательное слагаемое','Paarungsterm']}],
-  limits:[['A fitted liquid-drop model. It has no shell structure, so it misses the magic numbers entirely, and its residuals against measured masses reach several MeV near closed shells.',
-           'Подогнанная капельная модель: оболочечной структуры нет, магические числа не воспроизводятся.',
+  limits:[['A fitted liquid-drop model. It has no shell structure, so it misses the magic numbers entirely. Against the 23 measured masses with A ≥ 12 that this atlas carries (AME2020), its rms residual is 3.9 MeV and the largest is +13.0 MeV at uranium-238, which is not at a closed shell; doubly-magic lead-208 is off by only −2.2. Below A ≈ 12 it fails outright: the deuteron comes out UNBOUND (−4.66 MeV against +2.22 measured) and helium-4 19 % short, so the light presets show the limit of the formula, not nuclear physics. And it puts the summit of the binding curve at iron-58, where the measured masses put nickel-62 (measured by the laboratory audit).',
+           'Подогнанная капельная модель: оболочечной структуры нет, магические числа не воспроизводятся; среднеквадратичный остаток по 23 измеренным массам (A ≥ 12) — 3,9 МэВ, наибольший +13,0 МэВ у урана-238; ниже A ≈ 12 формула не работает (дейтрон выходит несвязанным), а вершину кривой она ставит на железо-58, а не на никель-62.',
            'Angepasstes Tröpfchenmodell ohne Schalenstruktur.'],
           ['Z >= A is refused: a nucleus cannot have more protons than nucleons.',
            'Z >= A отвергается.','Z >= A wird abgelehnt.']],
@@ -62505,29 +62512,32 @@ const ATLAS_LATE_SPECS=[
            doc:['how long to integrate; the drift is reported for this interval and for no other',
                 'время интегрирования','Integrationszeit']},
           {name:'dt', type:'number', unit:'dimensionless', default:0.0016, min:0.0001, max:0.005,
-           doc:['the step; halving it should cut the drift by roughly sixteen, which is the fourth order',
-                'шаг; уменьшение вдвое должно снизить дрейф примерно в шестнадцать раз','Schrittweite']}],
+           doc:['the step; halving it cuts the I3 drift by about thirty (≈ dt⁵ with the stiff linear part integrated exactly) while the run is stable; steps with dt·max(c1, c2) > 0.008 or dt > 0.0025 are refused, because there the integrating-factor RK4 is unstable and returned NaN or an energy of the wrong sign (measured by the laboratory audit)',
+                'шаг; уменьшение вдвое снижает дрейф I3 примерно в тридцать раз; шаги с dt·max(c1, c2) > 0,008 или dt > 0,0025 отвергаются — там схема неустойчива','Schrittweite']}],
   outputs:[{name:'I1', unit:'dimensionless', doc:['mass, at the end of the interval','масса в конце интервала','Masse']},
-           {name:'I2', unit:'dimensionless', doc:['the second conserved quantity of the KdV hierarchy, the momentum ∫u² — it must not drift, and watching whether it does is how the integrator is judged',
+           {name:'I2', unit:'dimensionless', doc:['the second conserved quantity of the KdV hierarchy, the momentum ∫u² — conserved by the KdV equation but NOT by its 256-mode pseudo-spectral image: aliasing gives dI2/dt = −6Δx Σ u·D(u²) ≠ 0, so for c ≳ 8 its drift has a spatial floor (6.5e-3 at c = 16 over t = 1) that no step removes (measured by the laboratory audit)',
              'второй сохраняющийся интеграл иерархии КдФ, импульс ∫u²: он не должен уплывать, и именно по этому судят об интеграторе',
              'die zweite Erhaltungsgroesse der KdV-Hierarchie, der Impuls ∫u²']},
-           {name:'I3', unit:'dimensionless', doc:['the third conserved quantity, the energy — the first invariant a scheme that is not symplectic loses, and therefore the sharper test of the two; its derivative is taken on the same 256 modes as the evolution, so for separated solitons it equals ⅕Σc^{5/2} to 1e-5',
+           {name:'I3', unit:'dimensionless', doc:['the third conserved quantity, the energy — and, taken with the same spectral derivative as the evolution, EXACTLY the Hamiltonian of the 256-mode system, so its drift is pure time-stepping error and falls to zero with the step — the clean judge of the integrator; for separated solitons it equals ⅕Σc^{5/2} to 1e-5',
              'третий сохраняющийся интеграл, энергия: первый инвариант, который теряет несимплектическая схема, и потому более острый из двух тестов',
              'die dritte Erhaltungsgroesse, die Energie']},
            {name:'I1_drift', unit:'dimensionless', doc:['|I1(t) - I1(0)|','дрейф I1','Drift I1']},
            {name:'I2_drift', unit:'dimensionless', doc:['|I2(t) - I2(0)|','дрейф I2','Drift I2']},
-           {name:'I3_drift', unit:'dimensionless', doc:['|I3(t) - I3(0)| — the largest of the three, because I3 carries a derivative',
+           {name:'I3_drift', unit:'dimensionless', doc:['|I3(t) - I3(0)| — pure time-stepping error (I3 is the exact semi-discrete Hamiltonian); smaller than I2_drift wherever the aliasing floor of I2 dominates',
              'дрейф I3, наибольший из трёх','Drift I3']},
            {name:'peak_amplitude', unit:'dimensionless', doc:['max u at the end; for a clean two-soliton state it is c1/2 once they have separated',
              'максимум u в конце','Spitzenamplitude']},
            {name:'steps', unit:'dimensionless', doc:['how many steps were taken','число шагов','Schritte']}],
   limits:[['The domain is periodic with length 60 and 256 modes. A soliton faster than about c = 16 is not resolved by 256 modes and the drift will say so; that is why the domain caps there.',
            'Область периодическая, длина 60, 256 мод.','Periodisches Gebiet, 256 Moden.'],
-          ['MEASURED by the law finder across the domain: I1 equals 2(√c1 + √c2) to 1e-9 wherever the two initial solitons do not overlap (at c = 0.2 the slow one is 4.5 wide and its tail reaches the other: 1e-3); I2 departs from ⅔Σc^{3/2} by up to 5e-3 for c ≈ 15 over t ≈ 4 at the default step — the integrator, which I2_drift reports.',
+          ['MEASURED across the domain: I1 equals 2(√c1 + √c2) up to what the periodic cell cuts off — I1 is linear in u, so overlap cannot touch it; the c1 soliton starts ten units from the seam at x = −30 and for small c1 its tail is truncated there (−5.4e-3 at c1 = 0.2, −2e-5 at c1 = 1, 1e-8 at c1 = 3). I2 departs from ⅔Σc^{3/2} through the aliasing floor described under I2, and I3 is exact to the step. Both corrections were found by the laboratory audit, which also mapped the unstable steps now refused.',
            'ИЗМЕРЕНО искателем законов: I1 = 2(√c1 + √c2) до 1e-9, пока солитоны не перекрываются; I2 отходит от ⅔Σc^{3/2} до 5e-3 при c ≈ 15 и t ≈ 4 на шаге по умолчанию — это интегратор, и I2_drift это показывает.','Vom Gesetzesfinder gemessen: I1 = 2(√c1 + √c2) bis 1e-9 ohne Überlapp; I2 weicht bis 5e-3 ab (Integrator).'],
           ['The drift is a property of the integrator and the step, not of the KdV equation, whose invariants are exactly constant. Reporting the drift rather than asserting conservation is the point.',
            'Дрейф — свойство интегратора, а не уравнения.','Die Drift gehört zum Integrator.']],
-  ev:i=>{const u0=kdvTwoSoliton(i.c1,i.c2,-20,-8), a=kdvInvariants(u0),
+  ev:i=>{ /* the integrating-factor RK4 is unstable above this line (NaN, or an energy of the wrong sign at the edge of the
+      declared domain — mapped by the laboratory audit and re-measured): the step is refused there, not answered */
+    if(i.dt*Math.max(i.c1,i.c2)>KDV_STABLE_DTC||i.dt>KDV_STABLE_DT) throw new RangeError(`dt = ${i.dt} is unstable for max(c1, c2) = ${Math.max(i.c1,i.c2)}: the integrating-factor RK4 needs dt·max(c) ≤ ${KDV_STABLE_DTC} and dt ≤ ${KDV_STABLE_DT} — take dt ≤ ${Math.min(KDV_STABLE_DT,KDV_STABLE_DTC/Math.max(i.c1,i.c2)).toPrecision(3)}`);
+    const u0=kdvTwoSoliton(i.c1,i.c2,-20,-8), a=kdvInvariants(u0),
       steps=Math.max(0,Math.round(i.time/i.dt)),
       u=steps?kdvEvolve(u0,i.dt,steps):u0, b=kdvInvariants(u);
     let pk=-Infinity; for(let k=0;k<u.length;k++) if(u[k]>pk) pk=u[k];
@@ -69423,9 +69433,13 @@ try{ hccApiRegister({
      'Члены Девы нарисованы на расстоянии скопления — именно поэтому их остатки здесь честны.',
      'Die Virgo-Mitglieder stehen auf der Distanz des Haufens.']],
   evaluate(inp){
-    const F=hflowFit(inp.min_distance_mpc, false, inp.include_virgo>=0.5, 'lg');
+    /* all SEVEN declared outputs: the three without-Virgo and catalogue numbers were published on the bus at
+       d_min = 3 only and never returned here, so describe() promised seven and evaluate() delivered four
+       (found by the laboratory audit) — now they follow the reader's own d_min */
+    const F=hflowFit(inp.min_distance_mpc, false, inp.include_virgo>=0.5, 'lg'), N=hflowFit(inp.min_distance_mpc, false, false, 'lg');
     return {hubble_constant:F.h0, galaxies_fitted:F.n, scatter:F.rms,
-      worst_residual:F.rows.length?Math.max(...F.rows.map(r=>Math.abs(r.czLG-F.h0*r.mpc))):0};
+      worst_residual:F.rows.length?Math.max(...F.rows.map(r=>Math.abs(r.czLG-F.h0*r.mpc))):0,
+      hubble_constant_without_virgo:N.h0, scatter_without_virgo:N.rms, galaxies_with_velocity:hflowRows().length};
   }
 }); }catch(e){}
 
@@ -69903,7 +69917,7 @@ try{ hccApiRegister({
     {name:'equinox_drift', unit:'deg', quantity_kind:'angle', doc:['the vernal direction`s drift on the J2000 ecliptic plane; null under the legacy engine, which does not model it','дрейф точки весеннего равноденствия; для устаревшего механизма не определён','die Drift des Fruehlingspunktes']},
     {name:'model_used', unit:'ltp|iau', quantity_kind:'precession_model', doc:['which engine answered, returned rather than assumed','какой механизм ответил — возвращается, а не подразумевается','welche Maschine geantwortet hat']}],
   limits:[
-    ['THE LEGACY ENGINE IS LINEAR AND IS HONEST ONLY NEAR J2000. Constant rates in right ascension and declination are a good description for a few centuries and a bad one for a few millennia; the panel says so in the readout and this says so here. It is offered because it is what the atlas drew for years and removing it would hide a comparison rather than make one.',
+    ['THE LEGACY ENGINE IS LINEAR AND IS HONEST ONLY NEAR J2000, AND IS REFUSED BEYOND ±1000 YEARS: there its pole arc leaves the precession cone altogether (178° at −30 000 against the 49° the cone allows). Constant rates in right ascension and declination are a good description for a few centuries and a bad one for a few millennia; the panel says so in the readout and this says so here. It is offered because it is what the atlas drew for years and removing it would hide a comparison rather than make one.',
      'Устаревший механизм линеен и честен лишь вблизи J2000; он предлагается потому, что атлас годами рисовал именно его.',
      'Die Legacy-Maschine ist linear und nur nahe J2000 ehrlich.'],
     ['THE EQUINOX DRIFT IS NOT DEFINED UNDER THE LEGACY ENGINE and comes back null rather than as a number computed some other way. A null that says "this model does not answer that" is worth more than a value borrowed from a model the reader did not choose.',
@@ -69914,18 +69928,22 @@ try{ hccApiRegister({
      'Eine Schiefe ist kein Klima.']],
   evaluate(inp){
     const y=inp.epoch_year, m=(inp.model==='iau')?'iau':'ltp';
+    /* the legacy engine is refused where it stops being a precession: its linear rates carry the pole straight
+       across the sky instead of round the cone about the ecliptic pole, 178° from J2000 at −30 000 where the cone
+       allows at most 49° (measured by the laboratory audit) — a thousand years is where it is still honest */
+    if(m==='iau'&&Math.abs(y-2000)>1000) throw new RangeError('the legacy linear engine is honest only within ±1000 years of J2000 — beyond that its pole leaves the precession cone; ask model ltp');
     if(m==='iau'){
       const T=(y-2000)/100;
       /* the same linear display rates the panel uses, and the pole arc measured the
          same way: the angle between the direction of date and the J2000 direction */
       const ra=(-0.641*T)*Math.PI/180, dec=(90-0.557*T)*Math.PI/180;
       const v=[Math.cos(dec)*Math.cos(ra), Math.cos(dec)*Math.sin(ra), Math.sin(dec)];
-      const dot=Math.max(-1,Math.min(1,v[2]));
-      return {eps:23.4393, poleShift:Math.acos(dot)*180/Math.PI, equinox_drift:null, model_used:'iau'};
+      /* the arc as atan2(|a×b|, a·b): acos of a dot product near 1 returned exactly 0 a day from J2000 */
+      return {eps:23.4393, poleShift:Math.atan2(Math.hypot(v[0],v[1]),v[2])*180/Math.PI, equinox_drift:null, model_used:'iau'};
     }
     const a=ltpEqu(y), b=ltpEqu(2000);
-    const dot=Math.max(-1,Math.min(1,a[0]*b[0]+a[1]*b[1]+a[2]*b[2]));
-    return {eps:ltpObliquityRad(y)*180/Math.PI, poleShift:Math.acos(dot)*180/Math.PI,
+    const dot=a[0]*b[0]+a[1]*b[1]+a[2]*b[2], cr=Math.hypot(a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]);
+    return {eps:ltpObliquityRad(y)*180/Math.PI, poleShift:Math.atan2(cr,dot)*180/Math.PI,
       equinox_drift:ltpEquinoxLonDeg(y), model_used:'ltp'};
   }
 }); }catch(e){}
@@ -77606,7 +77624,7 @@ const NEXUS_RELATIONS=[
   ['phorizon','infolab','coupling','one makes information, the other prices it','Pesin: a chaotic system produces entropy at the sum of its positive exponents, which for Lorenz is 1.30 bits per unit time. The information laboratory says what a bit costs to erase. Together they say what it costs to keep up with a chaotic system, and the horizon is exactly the time to spend an initial information budget at that rate: t = log2(Delta/eps_0) divided by h_KS in bits.','measured-invariant'],
   ['phorizon','sec','coupling','an exponent that publishes its own verdict','The mixmaster instrument in the section view measures a Lyapunov exponent at one window and at twice the window, and says whether the two agree. Where they do not, the chaos is in the coordinates rather than in the geometry and the exponent decays like ln T / T. It is the one rate in this atlas whose admissibility is decided by a MEASUREMENT rather than by a unit, and the horizon refuses it for exactly that reason: this bus binds a driver once, and a driver that has to be rebound on every evaluation is not one.','epistemic-boundary'],
   ['phorizon','kam','analogy','two ways of losing a trajectory','The standard map is exactly symplectic and loses nothing to volume contraction, so its chaos is pure stretching and folding on a torus. A dissipative attractor loses volume everywhere and still separates neighbours. Both have a horizon and only one of them has an attractor.','model-analogy'],
-  ['origins','nuc','exact','the curve that says where fusion stops, and what stops there','The nuclear laboratory computes the binding energy per nucleon and finds its peak. This one climbs that curve one helium at a time and shows what the peak MEANS: every alpha capture releases energy until the curve turns over, and then there is nothing left to release and the star has run out of fuel while still being a star. Both laboratories agree on the arithmetic and this one adds the finding neither had stated — the peak is NICKEL-62 at 8.7945 MeV per nucleon, not iron-56, which is four kiloelectronvolts short and is merely the most abundant end point.','exact'],
+  ['origins','nuc','contrast','the curve that says where fusion stops, and what stops there','The nuclear laboratory computes the binding energy per nucleon and finds its peak. This one climbs that curve one helium at a time and shows what the peak MEANS: every alpha capture releases energy until the curve turns over, and then there is nothing left to release and the star has run out of fuel while still being a star. The two do NOT agree on where the summit is, and the disagreement is the lesson: the measured masses this one uses put NICKEL-62 first at 8.7945 MeV per nucleon, with iron-56 four kiloelectronvolts short and merely the most abundant end point; the five-term liquid-drop formula of the nuclear laboratory puts IRON-58 first at 8.8648, nickel-62 1.6 keV behind and iron-56 eighth — a smooth formula cannot resolve kiloelectronvolts, the shells do (found by the laboratory audit).','model vs measurement'],
   ['origins','atom','causal','every configuration in that table, and where each one was made','The elements laboratory holds the electron configuration of all ninety-odd naturally occurring elements and says nothing about their origin. Hydrogen and helium are three minutes old; carbon through iron were made inside stars over ten billion years; the gold is one second old and was made when two neutron stars touched. That is not a decoration on the periodic table, it is a second axis through it, and the atlas had one axis.','model-input'],
   ['origins','sn','causal','the nickel a silicon-burning core makes, and the iron it becomes','A silicon-burning core makes nickel-56 rather than iron-56 because it has equal numbers of protons and neutrons and no time to make anything else. The supernova laboratory then watches that nickel decay through cobalt to iron and computes the light curve it powers. This laboratory is the reason the nickel is there, and the two together run from a mass excess to an observed brightness.','model-input'],
   ['origins','mainseq','limit','the ladder stops where the star does','The main sequence burns hydrogen and prices the clock that decides how long. This laboratory takes the ash and climbs: helium to carbon through a resonance that had to be predicted, then one alpha at a time to nickel. What connects them is that the SAME binding curve sets both — the 0.7 per cent mass defect the nuclear clock runs on is the first step of the ladder drawn here, and the turnover at nickel is why no star has ever run past it.','model-input'],

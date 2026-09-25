@@ -46,7 +46,7 @@ export default defineLab({
     { name: 'beta_minus', type: 'number', unit: 'dimensionless', default: 0.0, min: -3, max: 3,
       doc: 'anisotropy coordinate beta_-; zero alone leaves c1 = c2, an axially symmetric top' },
     { name: 'j_max', type: 'number', unit: 'spin', default: 2, min: 0.5, max: 12,
-      doc: 'highest half-integer spin block to diagonalise' }
+      doc: 'highest half-integer spin block to diagonalise for the level list and its multiplicities; the lowest level and the gap are always taken over j <= 2, the blocks they live in, whatever is asked here' }
   ],
   outputs: [
     { name: 'c', type: 'array', unit: 'a_i^-2', doc: 'the three inverse squared scale factors' },
