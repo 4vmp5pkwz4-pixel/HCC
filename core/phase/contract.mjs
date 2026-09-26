@@ -102,6 +102,7 @@ export function definePhaseSpace(spec) {
     domain: spec.domain ?? UNDECLARED,
     epistemic: spec.epistemic ?? UNDECLARED,
     adapter: spec.adapter ?? null,
+    state_validator: typeof spec.state_validator === 'function' ? spec.state_validator : null,
     metadata: spec.metadata ?? {}
   });
 }
@@ -114,6 +115,13 @@ export function assertFiniteNativeState(contract, state) {
     if (!(coord.id in state)) continue;
     if (!finite(state[coord.id]))
       return phaseRefusal('NON_FINITE_STATE', `native coordinate "${coord.id}" must be finite`, { coordinate: coord.id, value: state[coord.id] });
+  }
+  if (typeof contract.state_validator === 'function') {
+    const verdict = contract.state_validator(state);
+    if (verdict && verdict.status === 'REFUSED') return verdict;
+    if (verdict === false) return phaseRefusal('CONSTRAINT_VIOLATION', `native state violates a declared constraint of phase space \"${contract.id}\"`, { lab_id: contract.id });
+    if (verdict && typeof verdict === 'object' && verdict.pass === false)
+      return phaseRefusal(verdict.code || 'CONSTRAINT_VIOLATION', verdict.message || `native state violates a declared constraint of phase space \"${contract.id}\"`, verdict.detail ?? null);
   }
   return state;
 }
