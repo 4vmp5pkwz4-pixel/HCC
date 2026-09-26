@@ -76,6 +76,43 @@ an independent goodness-of-fit, a sigma tension, or a topology test. The
 model returns `comparison.available: false` with null model ratio and
 difference at other redshifts.
 
+## The correlated DESI distance pair
+
+The additional machine ID `s3.lya_distance_likelihood` scores the same
+conditional S³ forward model against the *two-dimensional* DESI DR2 Lyα
+distance summary, using the correlation actually reported in Equation 26.
+The observations are versioned as `desi.dr2.lya_full_shape.eq26.v3` in
+`core/cosmology/desi-dr2-lya.mjs`. In the order `(D_M/r_d, D_H/r_d)` the
+measured vector is `(39.32, 8.600)` and the covariance is
+
+```text
+C = [[0.1089,    0.0049005],
+     [0.0049005, 0.004356 ]].
+```
+
+The lab uses `χ²=(prediction−measurement)ᵀ C⁻¹ (prediction−measurement)`
+and reports `log_likelihood_relative=−χ²/2`. This bivariate Gaussian is
+an **approximation to the published distance contour**, not DESI's full
+profile likelihood. The sound horizon `r_d_Mpc` is a required external
+input; this homogeneous background does not predict the drag epoch.
+
+```js
+import { CORE } from './core/index.mjs';
+const fit = CORE.run('s3.lya_distance_likelihood', { r_d_Mpc: 147 });
+console.log(fit.outputs.observation.id, fit.outputs.chi2);
+// Compare alternative conditional parameter points with CORE.sweep(...).
+```
+
+The result exposes measured and predicted vectors, residuals, covariance,
+distance predictions in Mpc, scalar CSV fields, and source metadata. The
+earlier ratio-only result retains `significance:null`. Here `χ²` is a
+**within-sample likelihood value at supplied parameters**: the default
+H₀, Ωₘ and Ω_K come from a fit that used these Lyα data. Their
+cross-covariance with the distance pair is not published in this record.
+Neither `χ²` nor its difference between a few hand-picked S³ points is
+an independent significance, probability of S³, or Bayesian evidence;
+`independent_significance` and `topology_evidence` remain `null`.
+
 ## Scope and next measurements
 
 Status `CONDITIONAL` applies to the full lab: the blackbody and geometry
@@ -84,7 +121,9 @@ assumption is unverified. The solver gives a homogeneous FLRW background.
 It does not calculate acoustic transfer functions, recombination, CMB
 anisotropies, perturbation growth, inhomogeneities, baryon feedback or
 topology-dependent matched circles. To constrain all these layers, attach
-versioned observation vectors and their joint covariances; cross-check a
-curved Boltzmann calculation; predict S³ eigenmodes/sky signatures; and fit
-alternative topologies with explicit priors. No finite model can establish
-every physical parameter as exactly known from current observations.
+additional independent observation vectors and cross-dataset covariances;
+calibrate `r_d` with baryon density and recombination; cross-check a curved
+Boltzmann calculation; predict S³ eigenmodes/sky signatures; and fit
+alternative topologies with explicit priors. The DESI Lyα pair alone has a
+2×2 covariance here, not the full survey likelihood. No finite model can
+establish every physical parameter as exactly known from current observations.

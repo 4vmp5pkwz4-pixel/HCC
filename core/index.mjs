@@ -18,6 +18,7 @@ import capsel from './labs/capacity.conditional_selector.mjs';
 import edgeng from './labs/edge.admissibility_no_go.mjs';
 import specop from './labs/s3.spectral_operator.mjs';
 import thermalConcordanceLab from './labs/s3.thermal_concordance.mjs';
+import lyaDistanceLikelihood from './labs/s3.lya_distance_likelihood.mjs';
 import bixevo from './labs/bianchi_ix.evolution.mjs';
 import pcreate from './labs/s3.particle_creation.mjs';
 import ebkq from './labs/s3.ebk_quantisation.mjs';
@@ -56,12 +57,12 @@ function gitCommit() {
 function coreHash() {
   const files = ['contract.mjs','status.mjs','version.mjs','index.mjs',
     'math/complex.mjs','math/poly.mjs','math/elliptic.mjs','math/lstsq.mjs',
-    'atlas/extracted.mjs','cosmology/s3-thermal-concordance.mjs',
+    'atlas/extracted.mjs','cosmology/s3-thermal-concordance.mjs','cosmology/desi-dr2-lya.mjs',
     'labs/smith.mobius.mjs','labs/smith.fit_series_rlc.mjs',
     'labs/smith.identify_resonances.mjs','labs/smith.wireless_transfer.mjs',
     'labs/fbs.zero_point_ladder.mjs','labs/fibonacci.anyons.mjs',
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
-    'labs/s3.spectral_operator.mjs','labs/s3.thermal_concordance.mjs','labs/bianchi_ix.evolution.mjs',
+    'labs/s3.spectral_operator.mjs','labs/s3.thermal_concordance.mjs','labs/s3.lya_distance_likelihood.mjs','labs/bianchi_ix.evolution.mjs',
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
     'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
     'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs',
@@ -114,7 +115,7 @@ export const evidenceTierOf = st => { const s0 = String(st || '');
 
 /* the implemented instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
-  zpl, anyons, capsel, edgeng, specop, thermalConcordanceLab, bixevo, pcreate, ebkq,
+  zpl, anyons, capsel, edgeng, specop, thermalConcordanceLab, lyaDistanceLikelihood, bixevo, pcreate, ebkq,
   cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
@@ -126,7 +127,7 @@ const IMPLEMENTED = [mobius, rlc, ident, wpt,
    pretending the stub computes would be the lie the whole taxonomy exists to prevent. */
 const COVERED_BY = new Map([
   ['anyon', ['fibonacci.anyons']],
-  ['sec', ['s3.spectral_operator', 's3.thermal_concordance', 'bianchi_ix.evolution', 's3.particle_creation', 's3.ebk_quantisation']],
+  ['sec', ['s3.spectral_operator', 's3.thermal_concordance', 's3.lya_distance_likelihood', 'bianchi_ix.evolution', 's3.particle_creation', 's3.ebk_quantisation']],
   ['imp', ['smith.mobius', 'smith.fit_series_rlc', 'smith.identify_resonances', 'smith.wireless_transfer']]
 ]);
 
@@ -225,7 +226,7 @@ export const NAMED_OPEN_PROBLEMS = Object.freeze([
   ['edge.H_boundary_q', 'H_{∂,q} does not exist as a fully specified operator; the recursion operator is a registry, not a selector'],
   ['capacity.selector', 'the capacity selector does not select N = 292; the scheme gate is q0 written backwards'],
   ['phi.physical_origin', 'no physical operator produces φ; R_N = ℓ_P φ^N is a declared ansatz'],
-  ['desi.covariance', 'the atlas runtime has no DESI inverse-covariance kernel and no Bayesian evidence Z; off-atlas vde_likelihood/ and vde_validation/ contain executed BAO-only Cobaya pilot analyses with Ω_k fixed, and those conditional pilots are not an atlas covariance layer or a topology detection'],
+  ['desi.covariance', 's3.lya_distance_likelihood now evaluates the correlated 2x2 DESI DR2 Lyα distance summary, but the full DESI inverse-covariance, cross-covariance with DESI-derived fitted parameters and Bayesian topology evidence Z are unavailable; off-atlas vde_likelihood/ and vde_validation/ contain BAO-only Cobaya pilots with Ω_k fixed, not a topology detection'],
   ['bianchi.spectral_consequence', 'the spectral consequence of Bianchi IX is not derived'],
   ['bianchi.csv_reproducibility', 'docs/data/bianchi-ix-trajectories.csv is not byte-reproducible from its generator'],
   /* ── FOUND BY MEASURING, RECORDED AS A QUESTION ────────────────────────────

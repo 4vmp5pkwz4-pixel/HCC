@@ -12,7 +12,11 @@
            civp.embadon_measure, civp.finite_index, civp.finite_carrier, civp.uv_selector,
            civp.closure), SLICED OUT OF the atlas's new seven-station laboratory rather than
            retyped beside it. The mathematics is written where index.html draws it; these
-           contracts import core/atlas/extracted.mjs and contain no arithmetic of their own. */
-export const CORE_VERSION = '1.4.0';
+           contracts import core/atlas/extracted.mjs and contain no arithmetic of their own.
+
+   1.5.0 — adds the DESI DR2 Lyα Equation 26 correlated distance-pair Gaussian
+           likelihood term for the conditional round-S³ background, with an explicit
+           drag-epoch sound-horizon input and no topology-evidence claim. */
+export const CORE_VERSION = '1.5.0';
 export const CORE_SCHEMA  = 'hcc.core/1';
 export const RESULT_SCHEMA = 'hcc.result/2';

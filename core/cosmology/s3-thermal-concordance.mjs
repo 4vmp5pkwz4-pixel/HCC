@@ -173,8 +173,10 @@ export function thermalConcordance(options = {}) {
     },
     comparison,
     provenance: {
-      curvature_input: 'S3R.Ok: median of a Gaussian approximation to the DESI 1D curvature marginal, conditioned on Omega_k < 0',
-      observational_inputs: 'DESI DR2 arXiv:2607.27410v3 Table 3 and Equation 26; T_cmb Fixsen arXiv:0911.1955',
+      curvature_input: Omega_k === S3R.Ok
+        ? 'S3R.Ok: median of a Gaussian approximation to the DESI 1D curvature marginal, conditioned on Omega_k < 0'
+        : 'caller-specified Omega_k < 0 for the round-S³ scenario',
+      observational_inputs: 'Default H0 and Omega_m: DESI DR2 arXiv:2607.27410v3 Table 3; default T_cmb: Fixsen arXiv:0911.1955; overrides are caller inputs. Ly-alpha comparison: DESI Equation 26.',
       constants: 'HCC_S3C extracted verbatim from index.html',
       neutrinos: m_nu_eV > 0
         ? 'one massive thermal species and N_eff-1 effective massless species; 512-panel Simpson on q in [0,40]'
