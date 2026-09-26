@@ -295,6 +295,10 @@
   #ctlCorner{position:fixed;z-index:41;width:18px;height:18px;cursor:nesw-resize;touch-action:none;border-radius:4px;
     background:linear-gradient(225deg,rgba(241,221,166,.9) 0 30%,transparent 31%);opacity:.75}
   #ctlCorner:hover{opacity:1}
+  #selCorner{position:fixed;z-index:41;width:18px;height:18px;cursor:nwse-resize;touch-action:none;border-radius:4px;display:none;
+    background:linear-gradient(135deg,rgba(241,221,166,.9) 0 30%,transparent 31%);opacity:.75}
+  #selCorner:hover{opacity:1}
+  #selCard .selGrip{display:none}
   body.ctl-shown #atlasCoach{visibility:hidden}
   #ctl .ctlFind{flex-wrap:wrap;row-gap:3px}
   #info{right:14px;top:calc(var(--topbar-h,64px) + 46px);width:336px;
@@ -312,7 +316,7 @@
   #selName::after{content:'▸';margin-left:auto;color:var(--gold-dim);font-size:11px;transition:transform .15s}
   #selCard:not(.collapsed) #selName::after{transform:rotate(90deg)}
   #selCard.collapsed{max-height:none;padding-bottom:12px}
-  #selCard.collapsed > :not(h3):not(.panel-collapser):not(#selPeek){display:none!important}
+  #selCard.collapsed > :not(h3):not(.panel-collapser):not(#selPeek):not(.selGrip){display:none!important}
   /* ── THE CARD NEVER BLANKETS WHAT IT DESCRIBES ────────────────────────────────
      A first tap on a phone opened the whole scientific passport over the whole model. The card
      now has two states and remembers which one the reader chose: a PEEK — the name, one line,
@@ -2928,7 +2932,7 @@
   @media (max-width:760px),(pointer:coarse) and (max-height:520px){
     html body #selCard{top:auto!important;left:8px!important;right:8px!important;width:auto!important;height:auto!important;
       bottom:calc(var(--bottom-band,0px) + var(--labbar-h,58px) + 16px)!important;
-      max-height:min(46vh,calc(var(--vh100,100dvh) - var(--hud-top,140px) - var(--bottom-band,0px) - 96px))!important;
+      max-height:min(var(--sel-h,46vh),calc(var(--vh100,100dvh) - var(--hud-top,140px) - var(--bottom-band,0px) - var(--labbar-h,58px) - 28px))!important;
       overflow:auto!important;overscroll-behavior:contain;transform:none!important;border-radius:18px!important;
       box-shadow:0 -8px 28px rgba(0,0,0,.45)!important}
     html body #selCard.collapsed{max-height:none!important;overflow:hidden!important;padding:8px 10px 8px 14px!important}
@@ -2942,7 +2946,10 @@
     html body #selCard:not(.collapsed) #selPeek{display:flex!important;position:absolute!important;top:10px!important;right:10px;margin:0}
     html body #selCard.collapsed #selPeek{position:static}
     html body #selCard.collapsed #selName{padding-right:0;min-height:0}
-    html body #selCard::before{content:'';display:block;width:40px;height:4px;margin:-2px auto 6px;border-radius:999px;background:rgba(212,175,106,.45)}
+    html body #selCard .selGrip{display:block;height:18px;margin:-8px -10px 2px;touch-action:none;cursor:ns-resize;position:relative}
+    html body #selCard .selGrip::after{content:'';position:absolute;left:50%;top:7px;width:44px;height:5px;margin-left:-22px;border-radius:999px;
+      background:linear-gradient(90deg,rgba(212,175,106,.25),rgba(241,221,166,.7),rgba(212,175,106,.25))}
+    html body #selCard #selName{touch-action:none}
   }
   @media (orientation:portrait) and (max-width:760px){
     body #info,body #selCard{top:var(--hud-top,140px)!important;bottom:auto!important;
@@ -3137,6 +3144,7 @@
   <button data-tab="more" aria-label="More"><i aria-hidden="true">⋯</i><span>More</span></button>
 </nav>
 <div id="selCard" class="panel">
+  <div class="selGrip" role="separator" aria-orientation="horizontal" tabindex="0" aria-label="Resize the card"></div>
   <h3 id="selName"></h3>
   <div id="selPeek" aria-live="polite"><span class="pkSub" id="selPeekSub"></span>
     <button type="button" class="pkBtn" id="selPeekGo" aria-label="Fly to it">◎</button>
@@ -18062,21 +18070,67 @@ function selCardDoors(){ const b=document.getElementById('selPeekOpen'); if(!b) 
 function selCardSetExpanded(on){ selCardExpanded=!!on; selCard.classList.toggle('collapsed',!selCardExpanded); selCardDoors();
   try{ localStorage.setItem(SEL_CARD_KEY,selCardExpanded?'1':'0'); }catch(e){}
   if(selCardExpanded) selCard.scrollTop=0; try{ requestHierarchyLayout(); }catch(e){} }
+const SEL_H_KEY='hcc.selCard.h.v1', SEL_UI_KEY='hcc.selCard.ui.v1';
+let selCardJustDragged=0, selCardH=(()=>{ try{ const v=parseFloat(localStorage.getItem(SEL_H_KEY)); return Number.isFinite(v)?v:null; }catch(e){ return null; } })();
+/* the tallest the open card may be on a phone: the scene band less a strip of model above it */
+function selCardCap(){ const cs=getComputedStyle(document.documentElement), vh=window.visualViewport?.height||innerHeight;
+  const band=parseFloat(cs.getPropertyValue('--bottom-band'))||0, bar=parseFloat(cs.getPropertyValue('--labbar-h'))||58, top=parseFloat(cs.getPropertyValue('--hud-top'))||140;
+  return Math.max(140, vh-band-bar-28-top); }
+function selCardHeight(px,save=true){ if(px==null){ selCard.style.removeProperty('--sel-h'); return null; }
+  const h=Math.round(Math.max(110,Math.min(selCardCap(),px))); selCard.style.setProperty('--sel-h',h+'px'); selCardH=h;
+  if(save) try{ localStorage.setItem(SEL_H_KEY,String(h)); }catch(e){} return h; }
+function selCardCornerInit(){ if(document.getElementById('selCorner')) return;
+  const c=document.createElement('div'); c.id='selCorner'; c.setAttribute('role','separator'); c.setAttribute('aria-label','Resize the selection card');
+  c.title='Drag to resize the card · double-click to restore its size'; document.body.appendChild(c);
+  let ui={}; try{ ui=JSON.parse(localStorage.getItem(SEL_UI_KEY)||'{}')||{}; }catch(e){}
+  const apply=()=>{ if(SEL_CARD_PHONE.matches){ selCard.style.width=''; selCard.style.maxHeight=''; return; }
+    selCard.style.width=ui.w?ui.w+'px':''; selCard.style.maxHeight=ui.h?ui.h+'px':''; };
+  const place=()=>{ const on=!SEL_CARD_PHONE.matches&&getComputedStyle(selCard).display!=='none'; c.style.display=on?'block':'none'; if(!on) return;
+    const r=selCard.getBoundingClientRect(); c.style.left=(r.left-4)+'px'; c.style.top=(r.top-4)+'px'; };
+  setInterval(place,250); addEventListener('resize',()=>{ apply(); place(); }); apply();
+  let d=null; c.addEventListener('pointerdown',e=>{ e.preventDefault(); const r=selCard.getBoundingClientRect(); d={x:e.clientX,y:e.clientY,w:r.width,h:r.height}; try{ c.setPointerCapture(e.pointerId); }catch(x){} });
+  c.addEventListener('pointermove',e=>{ if(!d) return; const W=Math.max(240,Math.min(innerWidth*0.9,d.w-(e.clientX-d.x))), H=Math.max(90,Math.min(innerHeight-90,d.h-(e.clientY-d.y)));
+    selCard.style.width=W+'px'; selCard.style.maxHeight=H+'px'; place(); });
+  c.addEventListener('pointerup',()=>{ if(!d) return; const r=selCard.getBoundingClientRect(); ui={w:Math.round(r.width),h:Math.round(r.height)}; d=null;
+    try{ localStorage.setItem(SEL_UI_KEY,JSON.stringify(ui)); }catch(e){} });
+  c.addEventListener('dblclick',()=>{ ui={}; try{ localStorage.removeItem(SEL_UI_KEY); }catch(e){} apply(); place(); }); }
 function selCardPeekText(s){ const rows=[...document.querySelectorAll('#selTable tr')].slice(0,2).map(r=>[...r.cells].map(c=>c.textContent.trim()));
   const kv=rows.filter(r=>r.length>=2&&r[1]).map(r=>r[1]).join(' · ');
   return kv || String((s&&s.desc)||'').split(/(?<=[.;])\s/)[0].slice(0,140); }
-(()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>selCardSetExpanded(!selCardExpanded));
+(()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>{ if(performance.now()-selCardJustDragged<400) return; selCardSetExpanded(!selCardExpanded); });
   const on=(id,f)=>{ const b=document.getElementById(id); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); f(); }); };
   on('selPeekGo',()=>document.getElementById('selFocus')?.click());
   on('selPeekOpen',()=>selCardSetExpanded(!selCardExpanded));
   on('selPeekX',()=>document.getElementById('selClear')?.click());
-  /* a swipe on the card: up opens, down folds, and down from the peek lets the object go */
-  let y0=null, x0=0, top0=0;
-  selCard.addEventListener('touchstart',e=>{ const t=e.touches[0]; y0=t.clientY; x0=t.clientX; top0=selCard.scrollTop; },{passive:true});
-  selCard.addEventListener('touchend',e=>{ if(y0==null) return; const t=e.changedTouches[0], dy=t.clientY-y0, dx=t.clientX-x0; y0=null;
-    if(Math.abs(dy)<44||Math.abs(dy)<1.4*Math.abs(dx)) return;
-    if(dy<0&&!selCardExpanded) selCardSetExpanded(true);
-    else if(dy>0&&top0<=0){ if(selCardExpanded) selCardSetExpanded(false); else document.getElementById('selClear')?.click(); } },{passive:true}); })();
+  /* ── THE CARD IS RUBBER, LIKE EVERY OTHER SHEET ──────────────────────────────────────────
+     On a phone its grip (or its name) drags the open card's height continuously, from the peek
+     to the whole scene band less a strip of model, and the height is remembered. A tap on the
+     grip folds or opens; a flick down folds (and from the peek lets the object go); a flick up
+     opens to the full height; released below 110 px it folds. On a desktop the gold corner at
+     its top left drags width and height, remembered; a double-click restores them. */
+  let drag=null;
+  const grip=selCard.querySelector('.selGrip'), name=document.getElementById('selName');
+  const start=e=>{ if(!SEL_CARD_PHONE.matches||e.target.closest('button')) return; const r=selCard.getBoundingClientRect();
+    drag={id:e.pointerId,y0:e.clientY,h0:r.height,was:selCardExpanded,moved:0,last:e.clientY,at:performance.now(),v:0,top0:selCard.scrollTop};
+    try{ e.currentTarget.setPointerCapture(e.pointerId); }catch(x){} };
+  const move=e=>{ if(!drag||drag.id!==e.pointerId) return; const dy=e.clientY-drag.y0; drag.moved=Math.max(drag.moved,Math.abs(dy));
+    const now=performance.now(); drag.v=(e.clientY-drag.last)/Math.max(1,now-drag.at); drag.last=e.clientY; drag.at=now;
+    if(drag.moved<6) return;
+    if(!selCardExpanded&&dy<-8){ selCardSetExpanded(true); }
+    if(selCardExpanded) selCardHeight(drag.h0-dy,false); e.preventDefault(); };
+  const end=e=>{ if(!drag||drag.id!==e.pointerId) return; const d=drag; drag=null;
+    if(d.moved<6){ if(e.currentTarget===grip) selCardSetExpanded(!selCardExpanded); return; }
+    selCardJustDragged=performance.now();
+    const h=selCard.getBoundingClientRect().height;
+    if(d.v>0.6||h<110){ if(d.was&&selCardExpanded) selCardSetExpanded(false); else if(!d.was&&d.top0<=0) document.getElementById('selClear')?.click(); else selCardSetExpanded(false); return; }
+    if(d.v<-0.6){ selCardSetExpanded(true); selCardHeight(selCardCap()); return; }
+    if(selCardExpanded) selCardHeight(h); };
+  for(const el of [grip,name]) if(el){ el.addEventListener('pointerdown',start); el.addEventListener('pointermove',move,{passive:false}); el.addEventListener('pointerup',end); el.addEventListener('pointercancel',end); }
+  if(grip) grip.addEventListener('keydown',e=>{ const h=selCard.getBoundingClientRect().height;
+    if(e.key==='ArrowUp'){ selCardSetExpanded(true); selCardHeight(h+24); e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ if(h-24<110) selCardSetExpanded(false); else selCardHeight(h-24); e.preventDefault(); }
+    else if(e.key==='Enter'||e.key===' '){ selCardSetExpanded(!selCardExpanded); e.preventDefault(); } });
+  selCardHeight(selCardH,false); selCardCornerInit(); })();
 const selMarker = (()=>{   // pulsing ring marker that tracks the selected object
   const g = new THREE.RingGeometry(.85, 1, 48);
   const m = new THREE.MeshBasicMaterial({color:0xf1dda6, side:THREE.DoubleSide, transparent:true, opacity:.9, depthTest:false});
@@ -111434,6 +111488,7 @@ function hccSheetApply(){ hccSheetSet(hccSheetGet(),false); }
     if(e.target.closest?.('button,a,input,select,textarea,[role="button"]')) return false;
     const real=e.target.closest?.('.sheetGrip');
     if(el.id==='ctl') return !!real;
+    if(el.id==='selCard') return false;              /* the selection card carries its own rubber (THE CARD IS RUBBER) */
     const r=el.getBoundingClientRect(); return e.clientY-r.top<=24;
   };
   addEventListener('pointerdown',e=>{
