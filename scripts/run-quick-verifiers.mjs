@@ -130,6 +130,8 @@ const allChecks = [
   "docs/verify-the-filter-folds-into-one-key.cjs",
   "docs/verify-the-atlas-knows-its-own-shape.cjs",
   "docs/verify-the-black-holes-are-traced.cjs",
+  "docs/verify-deep-time.cjs",
+  "docs/verify-spacetime-boosted-live.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -317,6 +319,8 @@ if (fullMode) {
     'docs/verify-the-filter-folds-into-one-key.cjs',
     'docs/verify-the-atlas-knows-its-own-shape.cjs',
     'docs/verify-the-black-holes-are-traced.cjs',
+    'docs/verify-deep-time.cjs',
+    'docs/verify-spacetime-boosted-live.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
