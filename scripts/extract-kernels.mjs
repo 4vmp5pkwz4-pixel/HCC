@@ -795,6 +795,7 @@ export const ROOTS = [
   'STAT_MG', 'statToGal', 'STAT_KMS', 'statGalRow', 'statOortRows', 'statSolveN', 'statOortSolve', 'statOortPred', 'statOortEllipsoid', 'statOortDerived', 'statOortFit', 'statOortWave', 'galLocalCurve', 'galOmegaR', 'galResonanceR', 'galResonances', 'galResonanceNumber', 'galArmBand',
   'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT',
   'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
+  'DT_HUBBLE_GYR_PER_KMSMPC', 'DT_COSMO', 'dtLnA', 'dtAgeGyrAtA', 'dtAgeGyrAtLnA', 'DT_T0_GYR', 'dtCmbLog10K', 'dtBlackHoleFate', 'lgRadialOrbit', 'lgSeparationAt', 'lgTiming', 'bhtEvapYr', 'bhtTH', 'bhtLum',
   'BH_SHADOW_K', 'BH_GM_C2_MSUN_M', 'BH_MUAS', 'bhShadowMicroarcsec', 'EHT_RINGS', 'bhrTraceJS',
   'atlasRelGraph', 'atlasBetti', 'atlasJacobi', 'atlasLaplacian', 'atlasFiedler', 'atlasBusOrder',
   'NSF_EP', 'NSF_EM', 'nsfMake', 'nsfKilling', 'nsfShellPart', 'nsfVelocity', 'nsfResidual', 'nsfResidualCurl', 'nsfUniform', 'nsfStep', 'nsfExactMeans', 'nsfFacts',
