@@ -123,7 +123,7 @@ for (const id of ids) {
         return out; }, [id, along]), HANG_MS, 'hang');
     } catch (e) { await fresh(); return { verdict: 'UNRETURNED', note: String(e.message).slice(0, 80) }; }
   };
-  row.integer_inputs = await page.evaluate(id => { try { return HCC_PSPACE.integers(id); } catch (e) { return []; } }, id).catch(() => []);
+  row.integer_inputs = await page.evaluate(id => { try { return HCC_PSPACE.integers(id,{census:true}); } catch (e) { return []; } }, id).catch(() => []);
   row.across = await ask(null);
   /* the law one variable at a time, for every output the all-inputs finder left without one */
   try { const have = (row.across.laws || []).map(l => l.output), consts = (row.across.constants || []).map(c => c.name);

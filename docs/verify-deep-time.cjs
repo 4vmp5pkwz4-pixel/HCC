@@ -49,7 +49,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
   /* 5 · wiring */
   ok('wiring: M31 moves along the cycloid only beyond a year from now (so every test of the present still holds), the cards carry the fates, and the bht laboratory has its atlas-clock mode',
-    /if\(Math\.abs\(yrs\)<=1\) m31Physical\.position\.copy\(GAL_DATA\.m31\.pos\);/.test(SRC) && /\['Fate',\(\(\)=>\{ const F=dtBlackHoleFate\(GAL_DATA\.gc\.bhMassSolar\);/.test(SRC) && /\['Falling toward us',/.test(SRC) && /id="bhtClock"/.test(SRC) && /if\(state\.bhtClock&&O\.station==='evaporation'\)\{ const age=DT_T0_GYR\*1e9/.test(SRC));
+    /if\(Math\.abs\(yrs\)<=1\)\{ m31Physical\.position\.copy\(GAL_DATA\.m31\.pos\);/.test(SRC) && /\['Fate',\(\(\)=>\{ const F=dtBlackHoleFate\(GAL_DATA\.gc\.bhMassSolar\);/.test(SRC) && /\['Falling toward us',/.test(SRC) && /id="bhtClock"/.test(SRC) && /if\(state\.bhtClock&&O\.station==='evaporation'\)\{ const age=DT_T0_GYR\*1e9/.test(SRC));
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();

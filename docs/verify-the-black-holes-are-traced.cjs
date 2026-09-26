@@ -66,7 +66,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 6 · wiring and honesty */
   ok('the disk is phase-locked to the ISCO clock, the gateway says it is MAGNIFIED, the cartoon is gone, and the holes can be visited from the toolbox and HCC_BH',
     /U\.uOrb\.value=2\*Math\.PI\*\(\(\(\(state\.epochDays%span\)\+span\)%span\)\/p\);/.test(SRC) && /MAGNIFIED: a 4500-ly drawing of a hole light-minutes across/.test(SRC)
-    && !/new THREE\.TorusGeometry\(R\*\.50,R\*\.045,12,96\)/.test(SRC) && /const traced=bhgGateway\(1\.6\*R\);/.test(SRC) && /globalThis\.HCC_BH=Object\.freeze\(\{view:/.test(SRC) && /TT\('Sgr A\*, traced — as the EHT saw it'/.test(SRC));
+    && !/new THREE\.TorusGeometry\(R\*\.50,R\*\.045,12,96\)/.test(SRC) && /const traced=bhgGateway\(1\.6\*R\);/.test(SRC) && /globalThis\.HCC_BH=Object\.freeze\(\{[^\n]*view:\(which,d\)=>bhShow\(which\|\|'sgra',d\)/.test(SRC) && /TT\('Sgr A\*, traced — as the EHT saw it'/.test(SRC));
 
   /* 7 · mutation */
   { const beta = 1 / Math.sqrt(2 * 5), gam = 1 / Math.sqrt(1 - beta * beta), tv = -1, Dold = 1 / (gam * (1 - beta * tv)), Dnew = 1 / (gam * (1 + beta * tv));
