@@ -67,6 +67,10 @@ if (workflowNames.includes('core.yml')) {
     core.includes('node scripts/liveness.mjs'),
     'manual Computational core must retain the full laboratory liveness audit',
   );
+  requirePolicy(
+    core.includes('npm run test:visual') && core.includes('actions/upload-artifact@v4'),
+    'manual Computational core must retain rendered visual audit evidence',
+  );
 }
 
 if (workflowNames.includes('validate.yml')) {
@@ -99,7 +103,7 @@ if (workflowNames.includes('validate.yml')) {
 
   for (const forbidden of [
     'test:source', 'test:release', 'docs/verify-', 'scripts/liveness.mjs',
-    'scripts/selftest.mjs', 'playwright', 'docker build',
+    'scripts/selftest.mjs', 'test:visual', 'visual-audit.mjs', 'playwright', 'docker build',
   ]) {
     requirePolicy(!validate.includes(forbidden), `Validate atlas contains heavy/direct command: ${forbidden}`);
   }
