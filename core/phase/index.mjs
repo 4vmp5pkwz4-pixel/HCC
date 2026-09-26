@@ -2,3 +2,5 @@ export { UNDECLARED, definePhaseSpace, defineInvariant, defineConstraint, define
 export { PHASE_STATUS, phaseRefusal } from './refusals.mjs';
 export { createPhaseRegistry } from './registry.mjs';
 export { probeInvariant } from './invariant-probe.mjs';
+export { phaseFingerprint } from './fingerprint.mjs';
+export { discoverCandidateBridges } from './candidates.mjs';
