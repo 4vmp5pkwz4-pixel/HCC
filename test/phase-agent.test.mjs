@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { createPhaseService, definePhaseBridge } from '../core/phase/index.mjs';
 import { INITIAL_PHASE_SPACES } from '../core/phase-adapters/index.mjs';
 
+const MOTIVATED_RELATION=[{from:'nsflow',to:'heat'}];
+
 test('phase service exposes exactly the five initial spaces',()=>{
   const p=createPhaseService();
   assert.deepEqual(INITIAL_PHASE_SPACES.map(x=>x.id).sort(),['act','heat','hol','nsflow','rel']);
@@ -17,20 +19,26 @@ test('unknown phase-space laboratory fails explicitly',()=>{
 });
 
 test('candidate bridges remain noncanonical and hidden by default',()=>{
-  const p=createPhaseService();
+  const p=createPhaseService({nexusRelations:MOTIVATED_RELATION});
   const hidden=p.bridges();
   assert.deepEqual(hidden.candidates,[]);
   assert.equal(hidden.canonical.length,0);
   const visible=p.bridges({includeCandidates:true});
   assert.ok(visible.candidates.length>0);
   assert.ok(visible.candidates.every(x=>x.noncanonical===true&&x.review_required===true));
+  assert.ok(visible.candidates.some(x=>[x.source,x.target].sort().join('|')==='heat|nsflow'));
   assert.equal(p.bridges().canonical.length,0,'candidate discovery must not mutate the canonical registry');
 });
 
-test('compare without a canonical bridge refuses even when a candidate exists',()=>{
+test('candidate discovery does not invent a bridge when no structural or declared relation motivates one',()=>{
   const p=createPhaseService();
-  const visible=p.bridges({includeCandidates:true});
-  const c=visible.candidates[0];
+  assert.deepEqual(p.bridges({includeCandidates:true}).candidates,[]);
+});
+
+test('compare without a canonical bridge refuses even when a candidate exists',()=>{
+  const p=createPhaseService({nexusRelations:MOTIVATED_RELATION});
+  const c=p.bridges({includeCandidates:true}).candidates.find(x=>[x.source,x.target].sort().join('|')==='heat|nsflow');
+  assert.ok(c);
   const r=p.compare(c.source,c.target,{});
   assert.equal(r.status,'REFUSED'); assert.equal(r.code,'NO_REGISTERED_BRIDGE'); assert.equal(r.detail.candidate_exists,true);
 });
