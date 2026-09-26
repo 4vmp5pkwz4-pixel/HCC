@@ -3,7 +3,7 @@
 **Date:** 2026-09-26  
 **Repository:** `4vmp5pkwz4-pixel/HCC`  
 **Base release:** HCC v4.327.0  
-**Status:** Approved design, implementation not yet started
+**Status:** Design approved in chat; awaiting written-spec review before implementation planning
 
 ## 1. Purpose
 
@@ -57,10 +57,11 @@ The first implementation will provide:
 6. explicit bridge definitions between state spaces;
 7. bridge checks for invariant preservation, flow compatibility, and geometric-structure preservation where declared;
 8. explicit refusal diagnostics;
-9. JSON export;
-10. agent/MCP discovery of phase-space contracts and bridges;
-11. a first user-facing Phase Lens inside the Atlas/Nexus UI;
-12. adapters for a deliberately small set of mathematically strong existing laboratories.
+9. deterministic rule-based candidate bridge discovery after hard compatibility filters;
+10. JSON export;
+11. four additive agent/MCP phase-space operations;
+12. a first user-facing Phase Lens inside the Atlas/Nexus UI;
+13. adapters for a deliberately small set of mathematically strong existing laboratories.
 
 ### 3.2 Initial adapters
 
@@ -70,7 +71,7 @@ The first release targets representative systems with genuinely different mathem
 - **Holonomy Observatory** — closed-path return maps and group-valued invariants;
 - **Contact & Action Observatory** — Reeb/contact flow, return maps, action and Legendrian constraints;
 - **Relativity laboratory** — Minkowski state/event transformations and Lorentz invariants;
-- **one dissipative Field Lab solver** — selected from heat, damped wave, Gray–Scott, FitzHugh–Nagumo, or another existing deterministic solver whose state and dissipation semantics are already clear.
+- **Heat solver from Field Lab** — a deterministic dissipative PDE reference used specifically to exercise monotone/balance-law semantics rather than falsely classify dissipation as conservation.
 
 The purpose of the initial adapter set is heterogeneity: conservative, dissipative, map-based, group-valued, contact-geometric, relativistic, and field-state examples must coexist under one contract without being falsely identified.
 
@@ -84,11 +85,12 @@ The first release will not:
 - force every laboratory into canonical Hamiltonian coordinates;
 - assign Lyapunov exponents where sampling or dynamics do not justify them;
 - call a visualization coordinate a physical phase-space coordinate;
-- compute Poincaré sections for systems without a valid return construction;
+- compute Poincare sections for systems without a valid return construction;
 - treat graph embeddings as phase spaces;
 - replace existing laboratory-specific solvers;
 - replace observational calibration or empirical validation;
-- merge distinct clock semantics into a single physical time variable.
+- merge distinct clock semantics into a single physical time variable;
+- use machine learning to infer bridge status in the first release.
 
 ## 4. Canonical Model
 
@@ -430,9 +432,9 @@ Refusals may be displayed in the UI and exposed through MCP. They must never be 
 
 ## 9. Candidate Bridge Discovery
 
-Candidate discovery is intentionally weaker than relation creation.
+Candidate discovery is intentionally weaker than relation creation and is deterministic and non-ML in the first release.
 
-The candidate engine may use:
+The candidate engine may use only declared or independently computed features:
 
 - matching invariant kinds;
 - matching symmetry groups;
@@ -440,12 +442,12 @@ The candidate engine may use:
 - matching group actions;
 - compatible dimensions/units;
 - shared return-map structure;
-- shared spectral signatures;
+- compatible declared spectral signatures when both adapters expose them;
 - compatible time semantics;
 - existing Nexus neighborhoods;
 - existing quantity-bus routes.
 
-It produces a ranked set of hypotheses only after hard compatibility filters.
+Hard incompatibilities are applied before ranking. The ranking itself is a transparent weighted rule over named features, and the export must expose every contributing term. No learned embedding or opaque score is permitted in the first release.
 
 A candidate record must include:
 
@@ -454,6 +456,7 @@ A candidate record must include:
 - which checks remain unproven;
 - which existing edges or sources motivated it;
 - evidence tier;
+- transparent ranking terms;
 - required human/scientific review action.
 
 No candidate is inserted into the canonical Nexus relation registry automatically.
@@ -548,12 +551,12 @@ core/
     holonomy.mjs
     contact-action.mjs
     relativity.mjs
-    <field-lab>.mjs
+    field-heat.mjs
 ```
 
-Generated machine-readable artifacts should live under `api/` and remain generated rather than hand-edited.
+Generated machine-readable artifacts live under `api/` and remain generated rather than hand-edited.
 
-A likely first artifact is:
+The first generated artifact is:
 
 ```text
 api/phase-space.json
@@ -561,24 +564,20 @@ api/phase-space.json
 
 containing registered spaces, invariants, bridge contracts, fingerprints, release metadata, and freshness status.
 
-A second optional generated artifact may contain candidate bridges if and only if it is clearly labelled noncanonical and review-required.
+Candidate bridges are included in the same artifact under a separate `candidates` section explicitly marked `noncanonical: true` and `review_required: true`. This avoids a second artifact and keeps the provenance boundary visible.
 
 ## 13. Agent and MCP Interface
 
-The agent layer should expose phase-space capabilities without requiring WebGL.
+The agent layer exposes phase-space capabilities without requiring WebGL through four additive operations:
 
-Proposed operations:
+- `describe_phase_space(lab_id)` — return the canonical phase contract, invariants, constraints, time semantics and freshness metadata;
+- `probe_invariant(lab_id, invariant_id, input?)` — evaluate the declared invariant/monotone/constraint diagnostic through the adapter and return the provenance envelope;
+- `compare_phase_spaces(lab_a, lab_b)` — run hard compatibility checks and explicit registered bridge checks, returning exact/conditional/analogy/refused results without creating a relation;
+- `list_phase_bridges(lab_a?, lab_b?, status?, include_candidates=false)` — enumerate canonical registered bridges and, only when explicitly requested, noncanonical candidates.
 
-- `describe_phase_space(lab_id)`;
-- `list_invariants(lab_id?, kind?)`;
-- `probe_invariant(lab_id, invariant_id, input?)`;
-- `compare_phase_spaces(lab_a, lab_b)`;
-- `list_phase_bridges(lab_a?, lab_b?, status?)`;
-- `list_candidate_bridges(lab_id?)`.
+These are additive MCP tools. Existing `describe_lab`, `run_lab`, and `list_connections` remain backward compatible; `describe_lab` may include a discoverability pointer to the phase-space contract but is not required to duplicate the full phase payload.
 
-These may be implemented either as new MCP tools or as extensions of existing `describe_lab`, `run_lab`, and `list_connections` if that produces a cleaner stable API. The implementation plan will choose the minimal compatible surface.
-
-Every operation must carry release/version metadata and freshness status.
+Every operation carries release/version metadata and freshness status.
 
 ## 14. Validation Strategy
 
@@ -594,7 +593,8 @@ Test pure engine behavior independently of the browser:
 - missing geometric structure is refused rather than inferred;
 - exact representation bridge passes its pullback check;
 - deliberately incorrect bridge fails;
-- candidate discovery never creates a canonical edge.
+- candidate discovery never creates a canonical edge;
+- candidate ranking exports every contributing deterministic term.
 
 ### 14.2 Adapter tests
 
@@ -605,6 +605,8 @@ Each initial adapter must provide at least:
 - one declared invariant or constraint;
 - one independent verification path where the underlying lab already has one;
 - deterministic replay parameters.
+
+The Heat adapter must additionally demonstrate a monotone/balance-law quantity whose correct classification is not `conserved`.
 
 ### 14.3 Cross-domain tests
 
@@ -641,7 +643,9 @@ The first IPSE release cannot ship unless all of the following hold:
 7. generated artifacts carry release freshness metadata;
 8. tests include at least one deliberate false-positive trap;
 9. visual similarity cannot upgrade relation status;
-10. the documentation explicitly distinguishes phase-space fingerprint similarity from physical equivalence.
+10. the documentation explicitly distinguishes phase-space fingerprint similarity from physical equivalence;
+11. the Heat adapter proves by test that a dissipative monotone is not promoted to an invariant;
+12. agent operations return refusal objects rather than plausible substitutes when a comparison is ill-posed.
 
 ## 16. Interaction with Existing HCC Systems
 
@@ -691,8 +695,8 @@ The first implementation is successful when a user or agent can select a support
 
 1. what its native state is;
 2. how that state evolves;
-3. what is constrained or invariant;
-4. how well the invariant is preserved in the current run;
+3. what is constrained, conserved, monotone, or invariant;
+4. how well the declared diagnostic is satisfied in the current run;
 5. which other registered laboratories have an explicit phase relation to it;
 6. which proposed relations are only structural candidates;
 7. which comparisons are refused and why;
