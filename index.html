@@ -1046,6 +1046,20 @@
   .ctlDrift{flex:0 0 auto;font:600 9.5px var(--sans);letter-spacing:.6px;
     text-transform:uppercase;color:var(--warn);white-space:nowrap;cursor:pointer}
   .ctlDrift:hover{color:var(--gold-2)}
+  /* ── THE FILTER FOLDS INTO ONE KEY ─────────────────────────────────────────────
+     A strip that is always there was the wrong shape for a sheet the reader can make small:
+     on a phone the grip, the rail and a sticky filter row of field, ✕, A−, A+, ¶ took the whole
+     of a short sheet and left none of it for the controls it exists to reach. The strip now
+     lives behind one key in the rail — ⌕, with the number of changed settings on it — and
+     opens on a tap or on "/", and closing it clears the filter, so a folded filter can never
+     be hiding sections nobody can see. */
+  #ctl:not(.ctl-find-open) > .ctlFind{display:none!important}
+  .panelRail > .ctlFindBtn{order:0}
+  .ctlFindBtn{border-radius:8px;border:1px solid rgba(212,175,106,.32);background:rgba(212,175,106,.08);color:var(--gold-2);font:700 21px/1 var(--sans)!important;cursor:pointer}
+  .ctlFindBtn:hover{background:rgba(212,175,106,.22);color:#fff}
+  #ctl.ctl-find-open .ctlFindBtn{background:rgba(212,175,106,.32);color:#fff;border-color:var(--gold)}
+  .ctlFindBtn[data-n]::before{content:attr(data-n);position:absolute;top:-5px;right:-5px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;
+    background:var(--warn,#ffb070);color:#1a1206;font:700 9.5px/15px var(--sans);text-align:center;box-sizing:border-box}
   /* quiet ghost buttons: secondary chrome recedes so the 3D scene stays the hero;
      hover/active/on states carry the gold — the resting state only whispers it */
   .btn{background:rgba(10,14,24,.5);border:1px solid rgba(212,175,106,.22);color:var(--txt);
@@ -2112,6 +2126,12 @@
       /* the same shared budget: see --sheet-max above. Two sheets each granted the full
          column is what covered the scene. */
       max-height:var(--sheet-max, max(132px, calc(var(--vh100) - var(--topbar-h,64px) - var(--sheet-floor) - 30px)))!important}
+    /* ── A ZOOMED SHEET STANDS ON THE SAME FLOOR ─────────────────────────────
+       Controls carries zoom:var(--ctl-zoom) (0.86 on a small screen), and CSS zoom
+       multiplies the panel's OWN offsets too: bottom:171px became 147 px and the last
+       row of a short sheet sank under the time machine. Divided back out, the floor is
+       the floor at every zoom. */
+    #ctl{bottom:calc((var(--sheet-floor) + 10px) / var(--ctl-zoom,1))!important}
     #panelDock button,#modeRow .modebtn,#moreMenu button{min-height:44px!important}
     #hccInspector{bottom:calc(var(--bottom-band) + 6px)!important;top:auto!important}
     /* THE DOCK GOES AWAY ON A PHONE, and that is the honest answer rather than a
@@ -20221,7 +20241,7 @@ const SECT_STATE=new Map();   // `${panelId}|${mode}|${title}` -> '1' expanded /
    to the fold state the reader left it in, and the filter is never persisted:
    a panel that came back filtered would be a panel with controls missing and no
    sign of why, which is exactly the defect this is meant to end. */
-const CTL_FIND={ q:'', mode:null };
+const CTL_FIND={ q:'', mode:null, open:false };
 /* ── THE FILTER MUST REACH EVERY SECTION, NOT EVERY CHILD ────────────────────
    This read `:scope > .sect` — sections that are direct children of the panel.
    MEASURED in the S³ world: a bare div of 5087 px sits between the panel and six
@@ -20319,10 +20339,25 @@ function ctlFinderHTML(){
     <button class="btn" id="ctlOpenAll" title="Open every section in this world">⌄ all</button>
   </div>`;
 }
+/* the one key the filter folds into (THE FILTER FOLDS INTO ONE KEY) */
+function ctlFindKey(p){ if(!p||panelRailBtn(p,'ctlFindBtn')) return;
+  const b=document.createElement('button'); b.type='button'; b.className='ctlFindBtn'; b.textContent='⌕';
+  b.title='Filter the controls (/) — the number is how many settings you have changed';   /* plain: this can run before the language state exists */
+  b.setAttribute('aria-label',b.title); b.onclick=e=>{ e.stopPropagation(); ctlFindToggle(); };
+  p.appendChild(b); try{ panelRailSync(p); }catch(e){} try{ hccDriftBadge(); }catch(e){} }
+function ctlFindToggle(force){ const p=document.getElementById('ctl'); if(!p) return;
+  CTL_FIND.open=force===undefined?!(CTL_FIND.open||!!CTL_FIND.q):!!force;
+  const inp=p.querySelector('#ctlFind');
+  if(!CTL_FIND.open&&CTL_FIND.q){ CTL_FIND.q=''; if(inp) inp.value=''; try{ ctlApplyFilter(p); }catch(e){} }
+  p.classList.toggle('ctl-find-open',CTL_FIND.open);
+  if(CTL_FIND.open&&inp){ try{ inp.focus({preventScroll:true}); }catch(e){ inp.focus(); } p.scrollTop=0; } }
+addEventListener('keydown',e=>{ if(e.key!=='/'||e.ctrlKey||e.metaKey||e.altKey) return; const a=document.activeElement;
+  if(a&&(a.tagName==='INPUT'||a.tagName==='TEXTAREA'||a.isContentEditable)) return;
+  try{ if(!panelIsOpen('ctl')) return; }catch(x){ return; } e.preventDefault(); ctlFindToggle(true); });
 function ctlBindFinder(root){
   const inp=root.querySelector('#ctlFind'); if(!inp) return;
   inp.oninput=e=>{ CTL_FIND.q=e.target.value; ctlApplyFilter(root); };
-  inp.onkeydown=e=>{ if(e.key==='Escape'){ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.blur(); } };
+  inp.onkeydown=e=>{ if(e.key==='Escape'){ const had=!!CTL_FIND.q; CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.blur(); if(!had) ctlFindToggle(false); } };
   const cl=root.querySelector('#ctlFindClear');
   if(cl) cl.onclick=()=>{ CTL_FIND.q=''; inp.value=''; ctlApplyFilter(root); inp.focus(); };
   const badge=root.querySelector('#ctlDrift');
@@ -20353,6 +20388,7 @@ function enhancePanelSections(id){
     p.insertAdjacentHTML('afterbegin', ctlFinderHTML());
     ctlBindFinder(p);
   }
+  if(id==='ctl'){ ctlFindKey(p); p.classList.toggle('ctl-find-open',CTL_FIND.open||!!CTL_FIND.q); }
   // Mobile default: keep sections expanded from the top until (and including) the first
   // CONTENT section. A section whose body is only a .radioRow is a view SWITCHER
   // (e.g. "S³ Laboratory": Section/Hopf/Modes/...) — it must not use up the expansion
@@ -69733,11 +69769,11 @@ try{ hccApiRegister({
     'Ricci flow on the round S³: g(t) = (1 − 4t/R²) g, extinct at t = R²/4'],
   inputs:[
     {name:'k', type:'number', unit:'1', quantity_kind:'count', default:()=>1, min:1, max:4, doc:['the curl shell index k: the carried field lies in E_{k,σ}','индекс вихревой оболочки k: переносимое поле лежит в E_{k,σ}','der Schalenindex k']},
-    {name:'sigma', type:'number', unit:'1', quantity_kind:'sign', default:()=>1, min:-1, max:1, doc:['the helicity sign σ of the shell, +1 or −1','знак спиральности σ оболочки, +1 или −1','das Helizitätsvorzeichen σ']},
+    {name:'sigma', type:'number', unit:'1', quantity_kind:'count', default:()=>1, min:-1, max:1, doc:['the helicity sign σ of the shell, +1 or −1','знак спиральности σ оболочки, +1 или −1','das Helizitätsvorzeichen σ']},
     {name:'gain', type:'number', unit:'1', quantity_kind:'rate', default:()=>0.55, min:0, max:2, doc:['the strength g of the rigid Killing rotation K = g(i q + q j)','сила жёсткого вращения Киллинга K = g(i q + q j)','die Stärke g der starren Killing-Drehung']},
     {name:'amp', type:'number', unit:'1', quantity_kind:'amplitude', default:()=>3.2, min:0.01, max:10, doc:['the amplitude a of the carried shell field at t = 0','амплитуда a переносимого поля оболочки при t = 0','die Amplitude a des getragenen Schalenfelds']},
-    {name:'nu', type:'number', unit:'1', quantity_kind:'diffusivity', default:()=>0.02, min:0.0001, max:1, doc:['the kinematic viscosity ν, in units of R²/time','кинематическая вязкость ν','die kinematische Viskosität ν']},
-    {name:'t', type:'number', unit:'1', quantity_kind:'time', default:()=>0.37, min:0, max:100, doc:['the time at which the residual and the energies are evaluated','момент, в который вычисляются невязка и энергии','der Zeitpunkt der Auswertung']}],
+    {name:'nu', type:'number', unit:'1', quantity_kind:'ratio', default:()=>0.02, min:0.0001, max:1, doc:['the kinematic viscosity ν, in units of R²/time','кинематическая вязкость ν','die kinematische Viskosität ν']},
+    {name:'t', type:'number', unit:'1', quantity_kind:'time_interval', default:()=>0.37, min:0, max:100, doc:['the time at which the residual and the energies are evaluated','момент, в который вычисляются невязка и энергии','der Zeitpunkt der Auswertung']}],
   outputs:[
     {name:'stokes_eigenvalue', unit:'1', quantity_kind:'ratio', doc:['the Stokes eigenvalue κ_k = k(k+4) of the shell, the rate of its viscous decay per unit ν','собственное значение Стокса κ_k = k(k+4) оболочки — скорость её вязкого затухания на единицу ν','der Stokes-Eigenwert κ_k = k(k+4) der Schale']},
     {name:'shell_dimension', unit:'1', quantity_kind:'count', doc:['the dimension (k+1)(k+3) of the signed curl shell the carried field lives in','размерность (k+1)(k+3) знаковой вихревой оболочки, в которой живёт переносимое поле','die Dimension (k+1)(k+3) der Schale']},
@@ -92380,7 +92416,7 @@ function panelPinApply(el){
    written later joins the row without that path being told about it.
    panelRailBtn is how everything else asks for one of these buttons, because
    ':scope > .pinBtn' stopped being true the moment the rail existed. */
-const PANEL_RAIL_ROLES=['sheetGrip','closeBtn','foldBtn','pinBtn','panel-collapser'];
+const PANEL_RAIL_ROLES=['sheetGrip','ctlFindBtn','closeBtn','foldBtn','pinBtn','panel-collapser'];
 /* a DECLARATION and not a const: makePanelCollapsible asks for a rail button sixty
    thousand lines above this, and a const would still be in its temporal dead zone
    there.  Measured — the first run threw "Cannot access 'panelRailBtn' before
@@ -94719,6 +94755,7 @@ function hccDriftBadge(){
   const el=document.getElementById('ctlDrift'); if(!el) return 0;
   let n=0; try{ const d=hccControlDrift(); n=d?d.changed.length:0; }catch(e){ n=0; }
   el.hidden=!n; if(n) el.textContent='◆ '+n+' changed';
+  { const k=document.querySelector('#ctl .ctlFindBtn'); if(k){ if(n) k.dataset.n=String(n); else delete k.dataset.n; } }
   /* ── AND THE LIST HAS TO FOLLOW THE COUNT ─────────────────────────────────
      The badge ticks on its own clock; the list is markup, built when the panel
      is built. Most controls change state WITHOUT rebuilding the panel — the

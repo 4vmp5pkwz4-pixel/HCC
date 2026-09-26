@@ -218,7 +218,7 @@ const cut = (a, b) => { const i = src.indexOf(a);
    the rail and takes the width the buttons do not, and the filter bar starts
    where the rail ENDS, at a height that is declared rather than guessed. */
 { ok('the phone sheet\'s drag handle shares the header rail with the panel buttons instead of fighting it for the same sticky line, and the filter bar starts where that rail ends',
-    /const PANEL_RAIL_ROLES=\['sheetGrip','closeBtn','foldBtn','pinBtn','panel-collapser'\];/.test(src)
+    /const PANEL_RAIL_ROLES=\['sheetGrip','ctlFindBtn','closeBtn','foldBtn','pinBtn','panel-collapser'\];/.test(src)   /* the filter's own key joined the rail (verify-the-filter-folds-into-one-key) */
     && /\.panel \.panelRail > \.sheetGrip, \.panelRail > \.sheetGrip\{\s*\n\s+order:0;flex:1 1 auto!important/.test(src)
     && /#ctl \.ctlFind\{top:calc\(var\(--hdr-btn\) \+ 10px\);z-index:6\}/.test(src)
     && /a covered handle is a sheet\s*\n\s+that cannot be resized/.test(src),
