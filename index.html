@@ -312,7 +312,22 @@
   #selName::after{content:'▸';margin-left:auto;color:var(--gold-dim);font-size:11px;transition:transform .15s}
   #selCard:not(.collapsed) #selName::after{transform:rotate(90deg)}
   #selCard.collapsed{max-height:none;padding-bottom:12px}
-  #selCard.collapsed > :not(h3):not(.panel-collapser){display:none!important}
+  #selCard.collapsed > :not(h3):not(.panel-collapser):not(#selPeek){display:none!important}
+  /* ── THE CARD NEVER BLANKETS WHAT IT DESCRIBES ────────────────────────────────
+     A first tap on a phone opened the whole scientific passport over the whole model. The card
+     now has two states and remembers which one the reader chose: a PEEK — the name, one line,
+     and ◎ fly · ⤢ open · ✕ close, sitting on the laboratory bar like a mini-player — and an
+     OPEN sheet that rises from the same place but stops at under half the screen, so the model
+     is always in view above it. A swipe up opens, a swipe down folds (and from the peek closes). */
+  #selPeek{display:none;align-items:center;gap:6px;margin-top:2px}
+  #selPeek .pkSub{flex:1 1 auto;min-width:0;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #selPeek .pkBtn{flex:0 0 auto;min-width:36px;min-height:36px;border-radius:999px;border:1px solid rgba(212,175,106,.35);
+    background:rgba(212,175,106,.10);color:var(--gold-2);font-size:15px;line-height:1;cursor:pointer;padding:0}
+  #selPeek .pkBtn:active{background:rgba(212,175,106,.3)}
+  #selCard.collapsed #selPeek{display:flex}
+  #selCard:not(.collapsed) #selPeek .pkSub{display:none}
+  #selCard:not(.collapsed) #selPeek{justify-content:flex-end;position:sticky;top:0;z-index:3}
+
   #selCard{right:14px;bottom:14px;width:336px;display:none;z-index:35;
     max-height:calc(var(--vh100) - var(--topbar-h,64px) - 64px);overflow:auto}
   .prov-f,.prov-s{overflow-wrap:anywhere}
@@ -2910,6 +2925,25 @@
      On an iPhone the information sheet sat low, under the time machine, where nothing in
      it could be read. It now hangs from under the breadcrumb and takes the column down
      to Controls (or to the time machine when Controls is closed). */
+  @media (max-width:760px),(pointer:coarse) and (max-height:520px){
+    html body #selCard{top:auto!important;left:8px!important;right:8px!important;width:auto!important;height:auto!important;
+      bottom:calc(var(--bottom-band,0px) + var(--labbar-h,58px) + 16px)!important;
+      max-height:min(46vh,calc(var(--vh100,100dvh) - var(--hud-top,140px) - var(--bottom-band,0px) - 96px))!important;
+      overflow:auto!important;overscroll-behavior:contain;transform:none!important;border-radius:18px!important;
+      box-shadow:0 -8px 28px rgba(0,0,0,.45)!important}
+    html body #selCard.collapsed{max-height:none!important;overflow:hidden!important;padding:8px 10px 8px 14px!important}
+    html body #selCard.collapsed > .panelRail,html body #selCard.collapsed > .pinBtn,html body #selCard.collapsed > .panel-collapser{display:none!important}
+    html body #selCard.collapsed #selName{font-size:13.5px;margin:0}
+    body.selcard-up .fab{display:none!important}
+    /* one row of doors, not two: on a phone the card's own ◎ ⤢ ✕ replace the generic pin and hide rail */
+    html body #selCard > .panelRail,html body #selCard > .pinBtn,html body #selCard > .panel-collapser{display:none!important}
+    html body #selCard #selName{padding-right:132px;min-height:36px}
+    html body #selCard #selName::after{display:none}
+    html body #selCard:not(.collapsed) #selPeek{display:flex!important;position:absolute!important;top:10px!important;right:10px;margin:0}
+    html body #selCard.collapsed #selPeek{position:static}
+    html body #selCard.collapsed #selName{padding-right:0;min-height:0}
+    html body #selCard::before{content:'';display:block;width:40px;height:4px;margin:-2px auto 6px;border-radius:999px;background:rgba(212,175,106,.45)}
+  }
   @media (orientation:portrait) and (max-width:760px){
     body #info,body #selCard{top:var(--hud-top,140px)!important;bottom:auto!important;
       left:8px!important;right:8px!important;width:auto!important;height:auto!important;
@@ -3104,6 +3138,10 @@
 </nav>
 <div id="selCard" class="panel">
   <h3 id="selName"></h3>
+  <div id="selPeek" aria-live="polite"><span class="pkSub" id="selPeekSub"></span>
+    <button type="button" class="pkBtn" id="selPeekGo" aria-label="Fly to it">◎</button>
+    <button type="button" class="pkBtn" id="selPeekOpen" aria-label="Show the full card">⤢</button>
+    <button type="button" class="pkBtn" id="selPeekX" aria-label="Close">✕</button></div>
   <div id="selTabs"></div>
   <div class="desc" id="selDesc"></div>
   <div id="selPaneSummary"><table id="selTable"></table></div>
@@ -18013,9 +18051,32 @@ function updateSelectionLinks(){
 }
 
 const selCard = document.getElementById('selCard');
-let selCardExpanded=true;    // scientific passport is visible on first selection; user may collapse it
-(()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>{
-  selCardExpanded=!selCardExpanded; selCard.classList.toggle('collapsed',!selCardExpanded); }); })();
+/* the reader's own choice is remembered; with none, a phone starts on the PEEK and a desktop on the open card */
+const SEL_CARD_KEY='hcc.selCard.expanded.v1', SEL_CARD_PHONE=matchMedia('(max-width:760px),(pointer:coarse) and (max-height:520px)');
+let selCardExpanded=(()=>{ try{ const v=localStorage.getItem(SEL_CARD_KEY); if(v==='1'||v==='0') return v==='1'; }catch(e){} return !SEL_CARD_PHONE.matches; })();
+function selCardDoors(){ const b=document.getElementById('selPeekOpen'); if(!b) return; b.textContent=selCardExpanded?'▾':'▴';
+  const t=selCardExpanded?TT('Fold to one line','Свернуть в строку','Auf eine Zeile falten'):TT('Show the full card','Показать всю карточку','Ganze Karte zeigen'); b.title=t; b.setAttribute('aria-label',t);
+  const g=document.getElementById('selPeekGo'), x=document.getElementById('selPeekX');
+  if(g){ const tg=TT('Fly to it','Перелететь к объекту','Hinfliegen'); g.title=tg; g.setAttribute('aria-label',tg); }
+  if(x){ const tx=TT('Close','Закрыть','Schließen'); x.title=tx; x.setAttribute('aria-label',tx); } }
+function selCardSetExpanded(on){ selCardExpanded=!!on; selCard.classList.toggle('collapsed',!selCardExpanded); selCardDoors();
+  try{ localStorage.setItem(SEL_CARD_KEY,selCardExpanded?'1':'0'); }catch(e){}
+  if(selCardExpanded) selCard.scrollTop=0; try{ requestHierarchyLayout(); }catch(e){} }
+function selCardPeekText(s){ const rows=[...document.querySelectorAll('#selTable tr')].slice(0,2).map(r=>[...r.cells].map(c=>c.textContent.trim()));
+  const kv=rows.filter(r=>r.length>=2&&r[1]).map(r=>r[1]).join(' · ');
+  return kv || String((s&&s.desc)||'').split(/(?<=[.;])\s/)[0].slice(0,140); }
+(()=>{ const n=document.getElementById('selName'); if(n) n.addEventListener('click',()=>selCardSetExpanded(!selCardExpanded));
+  const on=(id,f)=>{ const b=document.getElementById(id); if(b) b.addEventListener('click',e=>{ e.stopPropagation(); f(); }); };
+  on('selPeekGo',()=>document.getElementById('selFocus')?.click());
+  on('selPeekOpen',()=>selCardSetExpanded(!selCardExpanded));
+  on('selPeekX',()=>document.getElementById('selClear')?.click());
+  /* a swipe on the card: up opens, down folds, and down from the peek lets the object go */
+  let y0=null, x0=0, top0=0;
+  selCard.addEventListener('touchstart',e=>{ const t=e.touches[0]; y0=t.clientY; x0=t.clientX; top0=selCard.scrollTop; },{passive:true});
+  selCard.addEventListener('touchend',e=>{ if(y0==null) return; const t=e.changedTouches[0], dy=t.clientY-y0, dx=t.clientX-x0; y0=null;
+    if(Math.abs(dy)<44||Math.abs(dy)<1.4*Math.abs(dx)) return;
+    if(dy<0&&!selCardExpanded) selCardSetExpanded(true);
+    else if(dy>0&&top0<=0){ if(selCardExpanded) selCardSetExpanded(false); else document.getElementById('selClear')?.click(); } },{passive:true}); })();
 const selMarker = (()=>{   // pulsing ring marker that tracks the selected object
   const g = new THREE.RingGeometry(.85, 1, 48);
   const m = new THREE.MeshBasicMaterial({color:0xf1dda6, side:THREE.DoubleSide, transparent:true, opacity:.9, depthTest:false});
@@ -18049,8 +18110,9 @@ function selectKey(key){
   document.getElementById('selProv').innerHTML = fh + sh;
   renderSelectionContract();
   openPanel('selCard');
-  selCard.classList.toggle('collapsed', !selCardExpanded);   // default to a compact name-only card
+  selCard.classList.toggle('collapsed', !selCardExpanded);   // the reader's remembered state (a phone starts on the peek)
   updateSelCard();
+  try{ document.getElementById('selPeekSub').textContent=selCardPeekText(s); selCardDoors(); }catch(e){}
   renderSelectionRelations();
   buildSelTabs();
   // Public mode always opens the gentle Summary tab; Expert keeps the last tab per object.
@@ -45993,7 +46055,10 @@ function pspEval(id,inp){ try{ const r=HCC_API.evaluate(id,inp); return (r&&type
    learned as one: sampled on integers, left out of the Jacobian and of every symmetry. */
 const PSP_INT={};
 function pspIntegers(id){ if(PSP_INT[id]) return PSP_INT[id]; const D=pspDesc(id), set=new Set(); PSP_INT[id]=set; if(!D) return set;
-  const base={}; for(const f of D.inputs) base[f.name]=f.default; const t0=performance.now(); pspEval(id,base); if(performance.now()-t0>30) return set;
+  const base={}; for(const f of D.inputs) base[f.name]=f.default;
+  /* the cost gate reads the BEST of three: a first evaluation on a cold JIT or a busy machine is not the laboratory's cost,
+     and a gate on one timing made the census forget a winding number whenever the machine was slow */
+  let best=Infinity; for(let k=0;k<3&&best>30;k++){ const t0=performance.now(); pspEval(id,base); best=Math.min(best,performance.now()-t0); } if(best>30) return set;
   for(const f of pspNum(D)){ const d=+f.default; if(!Number.isInteger(d)) continue; const v=d+0.5<=f.max?d+0.5:d-0.5; if(!(v>=f.min&&v<=f.max)) continue;
     let r=null; try{ r=HCC_API.evaluate(id,{...base,[f.name]:v}); }catch(e){ if(/integer|whole number|must be an int/i.test(String(e&&e.message))) set.add(f.name); continue; }
     /* and one that is ROUNDED silently: nothing moves between d and d ± 0.49, something moves at d ± 1 */
@@ -93150,18 +93215,24 @@ function labBarPlace(b){ const vh=window.visualViewport?.height||innerHeight;
   else if(b.style.left){ b.style.left=''; b.style.transform=''; b.style.width=''; }
   const br=b.getBoundingClientRect(); let top=vh;
   try{ const tm=document.getElementById('timeMachine'); if(tm&&getComputedStyle(tm).display!=='none'){ const r=tm.getBoundingClientRect(); if(r.height>0) top=Math.min(top,r.top); } }catch(e){}
+  /* only a sheet that actually reaches down into the bar's own band lifts it: the selection card is built to sit ON the bar */
+  const natTop=top-8-br.height;
   for(const id of ['ctl','labPanel','info','objectPanel','selCard','atlasNav','navPanel','hud']){ const e=document.getElementById(id); if(!e) continue;
     const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(!(r.height>0&&r.width>0)) continue;
-    const overlapX=r.right>br.left+4&&r.left<br.right-4; if(overlapX&&r.bottom>vh*0.45&&r.top>vh*0.3) top=Math.min(top,r.top); }
+    const overlapX=r.right>br.left+4&&r.left<br.right-4; if(overlapX&&r.bottom>vh*0.45&&r.top>vh*0.3&&r.bottom>natTop+4) top=Math.min(top,r.top); }
+  document.documentElement.style.setProperty('--labbar-h',Math.round(br.height)+'px');
+  { const sc=document.getElementById('selCard'), up=!!sc&&getComputedStyle(sc).display!=='none'; document.body.classList.toggle('selcard-up',up); }
   const bottom=Math.max(8,Math.round(vh-top+8)); if(b.style.bottom!==bottom+'px') b.style.bottom=bottom+'px';
   /* when a sheet has risen under the bar, the floating buttons would stand on the sheet's content: they step aside */
   let band=0; try{ const tm=document.getElementById('timeMachine'); band=tm?Math.max(0,vh-tm.getBoundingClientRect().top):0; }catch(e){}
   document.body.classList.toggle('labbar-sheet',bottom>band+40);
-  const tip=document.getElementById('lbTip'); if(tip&&!tip.hidden) tip.style.bottom=(bottom+56)+'px'; }
+  const tip=document.getElementById('lbTip'); if(tip&&!tip.hidden){ let tb=bottom+56;
+    const sc=document.getElementById('selCard'); if(sc&&getComputedStyle(sc).display!=='none'){ const r=sc.getBoundingClientRect(); if(r.height>0) tb=Math.max(tb,Math.round(vh-r.top+8)); }
+    tip.style.bottom=tb+'px'; } }
 function labBarTick(){ const b=document.getElementById('labBar'); if(!b) return; labBarInit();
   let w=null; try{ w=HCC_CTX.worldId; }catch(e){}
   const hide=!w||state.landed||(renderer.xr&&renderer.xr.isPresenting)||document.body.classList.contains('zen');
-  if(b.hidden!==!!hide) b.hidden=!!hide; document.body.classList.toggle('labbar-on',!hide); if(hide) return;
+  if(b.hidden!==!!hide) b.hidden=!!hide; document.body.classList.toggle('labbar-on',!hide); if(hide){ document.documentElement.style.setProperty('--labbar-h','-8px'); return; }
   const n=labBarCount(), inLab=w==='s3', v=state.s3view, mv=(typeof MV!=='undefined'&&MV.on);
   const L=labBarOrder(), i=inLab?L.indexOf(v):-1;
   const cnt=b.querySelector('#lbCount'); if(cnt.textContent!==String(n)) cnt.textContent=String(n);
