@@ -31,3 +31,11 @@ test('contact-only geometry refuses a symplectic-preservation request',()=>{
   const r=evaluatePhaseBridge(bridge,a,b,{});
   assert.equal(r.status,'REFUSED'); assert.equal(r.code,'MISSING_GEOMETRY');
 });
+
+test('metaplectic double-cover return keeps representation status and cross-domain analogy',()=>{
+  const m=contactActionPhaseAdapter().metadata.metaplectic_double_cover;
+  assert.equal(m.two_pi,-1);
+  assert.equal(m.four_pi,1);
+  assert.equal(m.status,'representation');
+  assert.equal(m.cross_domain_status,'analogy');
+});

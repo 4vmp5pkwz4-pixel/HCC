@@ -45,6 +45,7 @@ export function contactActionPhaseAdapter(){
     projections:[],
     domain:{assumptions:['standard contact form on the declared S3 model carrier','declared Reeb/ellipsoid/Legendrian constructions']},
     epistemic:{status:'derived',caveat:'Contact structure is not silently promoted to symplectic structure; cross-lab equivalence requires an explicit map.'},
+    metadata:{metaplectic_double_cover:{two_pi:-1,four_pi:1,status:'representation',cross_domain_status:'analogy',source_relation:'act↔su2 Nexus edge'}},
     state_validator:validateUnitS3,
     adapter:Object.freeze({tau:ACT_TAU,dot:actDot,norm:actNorm,scale:actScale,J:actJ,alpha:actAlpha,dAlpha:actDAlpha,contactResidual:actContactResidual,reebPath:actReebPath,ellipsoidPath:actEllipsoidPath,legendrianPath:actLegendrianPath})
   });
