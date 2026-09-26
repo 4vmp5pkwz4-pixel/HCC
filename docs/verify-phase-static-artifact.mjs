@@ -10,9 +10,11 @@ const FILE=join(ROOT,'api','phase-space.json');
 const generated=JSON.stringify(buildPhaseSnapshot(),null,2)+'\n';
 
 if(!existsSync(FILE)){
-  console.error('PHASE_ARTIFACT_BASE64_BEGIN');
-  console.error(Buffer.from(generated,'utf8').toString('base64'));
-  console.error('PHASE_ARTIFACT_BASE64_END');
+  const b64=Buffer.from(generated,'utf8').toString('base64'), width=3000;
+  const chunks=[]; for(let i=0;i<b64.length;i+=width) chunks.push(b64.slice(i,i+width));
+  console.error(`PHASE_ARTIFACT_CHUNKS_BEGIN ${chunks.length}`);
+  chunks.forEach((chunk,i)=>console.error(`PHASE_ARTIFACT_CHUNK ${String(i+1).padStart(3,'0')}/${String(chunks.length).padStart(3,'0')} ${chunk}`));
+  console.error('PHASE_ARTIFACT_CHUNKS_END');
   assert.fail('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
 }
 const actual=readFileSync(FILE,'utf8');
