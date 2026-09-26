@@ -124,7 +124,8 @@ export function defineLab(spec) {
            extracted from it, so an agent that lands on a NOT_IMPLEMENTED entry is told where
            the computation lives instead of concluding there is none */
         covered_by: spec.covered_by || [],
-        cost_hint: spec.cost_hint || 'fast'
+        cost_hint: spec.cost_hint || 'fast',
+        sweep_max_points: spec.max_sweep_points ?? 4096
       };
     },
     run(raw, ctx = {}) {
@@ -148,7 +149,8 @@ export function defineLab(spec) {
       const { parameter, values, ...base } = raw || {};
       if (!parameter || !Array.isArray(values))
         throw domainError('sweep requires "parameter" and an array of "values"');
-      if (values.length > 4096) throw domainError('sweep is capped at 4096 points');
+      const maxPoints = spec.max_sweep_points ?? 4096;
+      if (values.length > maxPoints) throw domainError(`sweep is capped at ${maxPoints} points`);
       const rows = values.map(v => {
         try { const r = this.run({ ...base, [parameter]: v }, ctx);
           return { [parameter]: v, ok: true, outputs: r.outputs }; }

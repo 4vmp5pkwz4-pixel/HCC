@@ -22,7 +22,13 @@ ok('liveness problem is structural, not version-frozen',liv.includes('measured_o
 const cam=find('atlas.a_frame_is_configured_by_whoever_touched_it_last').problem||'';
 ok('camera problem does not freeze a call-site count',cam.includes('setControlDistanceLimits')&&!/\b\d+\s+call sites\b/i.test(cam));
 const desi=find('desi.covariance').problem||'';
-ok('DESI problem separates runtime gap from off-atlas pilots',!existsSync('vde_likelihood')||(/inverse-covariance kernel/i.test(desi)&&/vde_likelihood\//.test(desi)&&/not an atlas covariance layer/i.test(desi)&&!/no DESI covariance or evidence computation exists in this repository/i.test(desi)));
+const pair=CORE.run('s3.lya_distance_likelihood',{r_d_Mpc:147}).outputs;
+ok('DESI pair covariance is callable while the full survey likelihood and topology evidence remain open',
+  pair.covariance_matrix.length===2&&pair.covariance_matrix[0].length===2
+  &&pair.covariance_matrix[0][1]!==0&&Number.isFinite(pair.chi2)
+  &&pair.independent_significance===null&&pair.topology_evidence===null
+  &&/full DESI inverse-covariance/i.test(desi)&&/cross-covariance/i.test(desi)
+  &&(!existsSync('vde_likelihood')||(/vde_likelihood\//.test(desi)&&/not a topology detection/i.test(desi))));
 for(const kind of ['sensitivity','transfers','reach','liveness']){
   const a=json('api/'+kind+'.json'); const fresh=a.version===release.version&&a.build===release.build;
   ok(kind+' freshness stamp is derived',a.measured_release?.version===a.version&&a.measured_release?.build===a.build&&a.current_release?.version===release.version&&a.current_release?.build===release.build&&a.measured_on_this_release===fresh&&a.stale===!fresh&&a.release_lag?.measured_release===a.version&&a.release_lag?.current_release===release.version);

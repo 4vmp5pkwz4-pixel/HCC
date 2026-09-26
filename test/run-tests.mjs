@@ -291,8 +291,19 @@ console.log('\n=== 8. The eight kernels extracted from the atlas, not retyped fr
 
   const stub = await get('/api/v1/labs/atlas.sec');
   ok('a visual laboratory with no kernel of its own POINTS at the kernels extracted from it instead of looking empty',
-    stub.body.status === 'NOT_IMPLEMENTED' && stub.body.covered_by.length === 4,
+    stub.body.status === 'NOT_IMPLEMENTED' &&
+    ['s3.spectral_operator', 's3.thermal_concordance', 'bianchi_ix.evolution',
+      's3.particle_creation', 's3.ebk_quantisation'].every(id => stub.body.covered_by.includes(id)) &&
+    stub.body.covered_by.every(id => LABS.has(id) && CORE.describe(id).status !== 'NOT_IMPLEMENTED'),
     `atlas.sec → ${stub.body.covered_by.join(', ')}`);
+
+  const conditionalS3 = await post('/api/v1/labs/s3.thermal_concordance/runs', { input: { z: 2.33 } });
+  const openS3 = await post('/api/v1/labs/s3.thermal_concordance/runs', { input: { Omega_k: 0.002 } });
+  ok('the conditional S³ thermal model is callable over HTTP and refuses open geometry',
+    conditionalS3.code === 200 && conditionalS3.body.status === 'CONDITIONAL' &&
+    conditionalS3.body.outputs.comparison.significance === null &&
+    openS3.code === 422 && openS3.body.error.code === 'DOMAIN_ERROR',
+    `D_H/D_M=${conditionalS3.body.outputs.comparison.model_ratio.toFixed(6)} · open geometry → ${openS3.code}`);
 }
 
 console.log('\n=== 9. MCP over Streamable HTTP, JSON-RPC 2.0 ===\n');
