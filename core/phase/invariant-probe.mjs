@@ -39,6 +39,8 @@ export function probeInvariant(contract, invariantId, sample = {}) {
     classification: inv.kind === 'monotone' || inv.kind === 'balance' ? 'monotone' : inv.kind };
 
   if (sample.state && sample.vectorField !== undefined) {
+    const dynamicsKind = typeof contract.dynamics === 'object' && contract.dynamics ? contract.dynamics.kind : contract.dynamics;
+    if (dynamicsKind !== 'continuous') return phaseRefusal('DYNAMICS_KIND_MISMATCH', `differential invariant diagnostics require continuous dynamics, not "${dynamicsKind}"`, { lab_id: contract.id, dynamics_kind: dynamicsKind });
     if (typeof inv.gradient !== 'function') return phaseRefusal('NO_GRADIENT', `invariant "${inv.id}" has no declared gradient`, { invariant_id: inv.id });
     const grad = inv.gradient(sample.state);
     const vf = typeof sample.vectorField === 'function' ? sample.vectorField(sample.state) : sample.vectorField;
