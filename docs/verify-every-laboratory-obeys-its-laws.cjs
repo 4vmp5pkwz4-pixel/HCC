@@ -84,9 +84,11 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
     hits.every(h => h[1]), hits.filter(h => !h[1]).map(h => h[0] + ' → ' + h[2]).join(' ; ') || hits.map(h => h[2]).join(' ; '));
   const n = C.counts, rows = C.laboratories;
   const exact = rows.reduce((a, r) => a + ((r.across || {}).laws || []).filter(l => l.exact).length, 0), withLaw = rows.filter(r => ((r.across || {}).laws || []).length).length;
-  const speak = rows.filter(r => r.across && r.across.verdict === 'NONE' && (r.across.laws || []).length).map(r => r.id);
-  ok('the counts are the rows: exact laws, laboratories with a law, and the silent laboratories that now speak', n.laws_exact === exact && n.laboratories_with_a_law === withLaw && n.silent_laboratories_that_now_speak === speak.length && exact > 100,
-    `${exact} exact laws in ${withLaw} of ${rows.length} laboratories · ${n.laws_holding} holding · ${n.laws_named} with every coefficient named · the silent that speak: ${speak.join(', ')}`);
+  /* a silent laboratory speaks through either finder: a law in all its inputs, or one found a variable at a time */
+  const sep = r => Array.isArray(r.separable) && r.separable.length, speak = rows.filter(r => r.across && r.across.verdict === 'NONE' && ((r.across.laws || []).length || sep(r))).map(r => r.id);
+  const sepLaws = rows.reduce((a, r) => a + (sep(r) ? r.separable.length : 0), 0), sepLabs = rows.filter(sep).length;
+  ok('the counts are the rows: exact laws, laboratories with a law, and the silent laboratories that now speak', n.laws_exact === exact && n.laboratories_with_a_law === withLaw && n.silent_laboratories_that_now_speak === speak.length && exact > 100 && n.separable_laws === sepLaws && n.laboratories_with_a_separable_law === sepLabs,
+    `${exact} exact laws in ${withLaw} of ${rows.length} laboratories · ${n.laws_holding} holding · ${n.laws_named} with every coefficient named · the silent that speak: ${speak.join(', ')} · a variable at a time: ${sepLaws} laws in ${sepLabs}`);
 
   /* 7 · wiring */
   ok('the wiring: sampling keeps the inputs of every answer, the analysis asks for laws when it has them, the panel shows them first',

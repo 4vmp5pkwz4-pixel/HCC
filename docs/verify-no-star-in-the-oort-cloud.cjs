@@ -19,9 +19,10 @@
  *   3. the distances are the published ones, star by star, for stars whose parallaxes
  *      are known independently of this build (Sirius, Vega, α Cen A, Polaris,
  *      Betelgeuse, Rigel, Arcturus, Procyon)
- *   4. the motion is the straight line the card says it is: over ten thousand years a
- *      star turns through its proper motion times the time, and a placed star's
- *      distance grows only by the Pythagorean amount a transverse motion allows
+ *   4. the motion is the straight line the card says it is, TO FIRST ORDER: over ten
+ *      thousand years a star turns through its proper motion times the time, and a placed
+ *      star's distance grows only by the Pythagorean amount a transverse motion allows —
+ *      to within 3Ωt, the bend the ride on the Galaxy adds (2026-09-26)
  *   5. the page no longer builds a random sky in the Solar world, the sky at infinity
  *      rides with the camera and fades between 0.05 and 0.5 pc, and the Oort cloud's
  *      own tracer points are soft haze, not star-like squares
@@ -50,14 +51,16 @@ class V3 { constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z
 
 /* the runtime's own decoder and motion law, run here straight out of the page */
 function runtime(src, hip) {
-  const code = between(src, 'const HIP3D_GOOD=', 'function hip3dBuild(')
-    + between(src, 'function hip3dPosAt(', 'function hip3dPlace(');
+  /* the motion law now includes the ride on the Galaxy (galRide and its frame), so that is cut out of the page too */
+  const ride = between(src, 'const GAL_RIDE=', 'function galSceneToEq(') + (src.match(/^const STAT_MG=.*$/m) || [''])[0] + '\n' + (src.match(/^const statToGal=.*$/m) || [''])[0] + '\n';
+  const code = ride + between(src, 'const HIP3D_GOOD=', 'function hip3dBuild(')
+    + between(src, 'function hip3dRide(', 'function hip3dPlace(');
   if (!code) return null;
-  const f = new Function('THREE', 'OBLIQ', 'DEG', 'HCC_SKY_HIP', 'HCC_SKY_HIP_NAMES', 'ZOD3D_PC_AU', 'solarGroup', 'atob',
+  const f = new Function('THREE', 'OBLIQ', 'DEG', 'HCC_SKY_HIP', 'HCC_SKY_HIP_NAMES', 'ZOD3D_PC_AU', 'solarGroup', 'atob', 'GAL_YEAR_MYR',
     code.replace(/^const hip3dGroup=.*$/m, '').replace(/^let hip3d=.*$/m, '')
     + '\nreturn {decode:hip3dDecode, posAt:hip3dPosAt, GOOD:HIP3D_GOOD};');
   return f({ Vector3: V3, Group: class { constructor() { this.name = ''; } } }, OBLIQ, DEG, hip, NAMES, PC_AU, { add() {} },
-    s => Buffer.from(s, 'base64').toString('binary'));
+    s => Buffer.from(s, 'base64').toString('binary'), 230);
 }
 
 function checks(src, report) {
@@ -110,7 +113,10 @@ function checks(src, report) {
       worstTurn = Math.max(worstTurn, Math.abs(turn - want) / want);
       if (s.placed) { const d0 = a.length(), d1 = b.length(), dw = d0 * Math.hypot(1, mu * t / 3.6e6 * DEG);
         worstDist = Math.max(worstDist, Math.abs(d1 - dw) / dw); } }
-    r.line = n > 50 && worstTurn < 1e-6 && worstDist < 1e-6;
+    /* the straight line is the FIRST-ORDER term: beyond a year the star rides the Galaxy, which bends it by no more than
+       Ωt ≈ 2.7e-4 over ten thousand years (Coriolis and tide on the relative motion) — so the bound is 3Ωt, not 1e-6 */
+    const bend = 3 * (2 * Math.PI / 230) * 1e-2;
+    r.line = n > 50 && worstTurn < bend && worstDist < bend;
     say('the motion is the straight line the card declares: over ten thousand years every fast star turns through arctan(μt), and a placed star recedes only by the Pythagorean amount a transverse velocity allows — no radial velocity is invented',
       r.line, `${n} stars with μ > 0.2″/yr · worst turn error ${worstTurn.toExponential(1)} · worst distance error ${worstDist.toExponential(1)} (relative)`);
   }
@@ -138,7 +144,7 @@ const base = checks(SRC, true);
     ['the sky is pinned to the Sun again', s => s.replace('skyGroup.position.copy(solarGroup.worldToLocal(_skyCamLocal.copy(camera.position)));', ''), 'infinity'],
     ['a distance is drawn for any parallax above zero', s => s.replace('const HIP3D_GOOD=5;', 'const HIP3D_GOOD=0.01;'), 'beyond'],
     ['one parallax is decoded ten times too large', s => s.replace('plx:dv.getUint32(o+16,true)/100', 'plx:dv.getUint32(o+16,true)/10'), 'published'],
-    ['motion is applied as if it were in arcseconds', s => s.replace('const HIP3D_MAS=Math.PI/180/3.6e6;', 'const HIP3D_MAS=Math.PI/180/3.6e3;'), 'line'],
+    ['motion is applied as if it were in arcseconds (in the J2000 line and in the ride)', s => s.replace('const HIP3D_MAS=Math.PI/180/3.6e6;', 'const HIP3D_MAS=Math.PI/180/3.6e3;').replace('k=4.740470446*s.dPc/1000;', 'k=4.740470446*s.dPc;'), 'line'],
     ['the cloud is drawn in hard squares again', s => s.replace('map:oortMistTex(),', ''), 'haze'],
   ];
   const caught = MUT.map(([n, f, k]) => { const v = f(SRC); const changed = v !== SRC; const r = changed ? checks(v, false) : {};

@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 1382   ·   exported names: 1493
-   extracted physics, sha256 b62e52f98739b5f21c3c73da2e539ca8282ee4781dbd9c3ee15ed172fc944645 */
+   declarations: 1425   ·   exported names: 1537
+   extracted physics, sha256 81f20afc6df65259a8c2ab439fa212945fc9c791d7ea142ff57141ee830a7881 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -1321,6 +1321,45 @@ const moonOrbitalSpeed=(aKm,Pd)=>2*Math.PI*aKm/(Math.abs(Pd)*86400);
 
 const moonBiggerThanMercury=r=>r>2439.7;
 
+const GAL_RIDE=Object.freeze({Om:2*Math.PI/GAL_YEAR_MYR, A:14.45*1.0227121650537077e-3, nu:Math.sqrt(4*Math.PI*4.498502151469554e-3*0.1),
+  R0:8178, sunUVW:[11.1,12.24,7.25], KMS:1.0227121650537077});
+
+function galHill(X0,Y0,Z0,vX,vY,vZ,t,P){ const Om=P.Om, k2=4*Om*(Om-P.A), k=Math.sqrt(k2), nu=P.nu, c=Math.cos(k*t), s=Math.sin(k*t);
+  const Xg=(2*Om*vY+4*Om*Om*X0)/k2, X=Xg+(X0-Xg)*c+vX/k*s, iX=Xg*t+(X0-Xg)*s/k+vX/k2*(1-c);
+  return [X, Y0+(vY+2*Om*X0)*t-2*Om*iX, Z0*Math.cos(nu*t)+vZ/nu*Math.sin(nu*t)]; }
+
+function galFrameAngle(epochDays){ const gd=GAL_YEAR_MYR*1e6*365.2425; return -2*Math.PI*(((epochDays%gd)+gd)%gd)/gd; }
+
+function galPolarState(d,v,P){ const K=P.KMS, Om=P.Om, R0=P.R0;   /* d: position from the Sun (pc); v: INERTIAL velocity about the centre (km/s) */
+  /* position about the centre in (ê_out, ê_rot): the centre is at +R₀ along x̂ from the Sun, ê_out = −x̂, ê_rot = ŷ */
+  const po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po), cf=Math.cos(f), sf=Math.sin(f);
+  /* rotating-frame velocity: inertial minus Ω×r with Ω along the SOUTH pole (clockwise from the north), in (ê_out, ê_rot) */
+  const uo=-v[0]*K, ur=v[1]*K, wo=uo+Om*pr, wr=ur-Om*po;   /* (ê_out, ê_rot) turn counter-clockwise at Ω: w = u − Ω ẑ′×r */
+  return {X:R-R0, Y:R0*f, Z:d[2], vX:wo*cf+wr*sf, vY:R0*(-wo*sf+wr*cf)/R, vZ:v[2]*K}; }
+
+function galRingOf(q,P){ const R=P.R0+q[0], f=q[1]/P.R0; return [R*Math.cos(f), R*Math.sin(f), q[2]]; }
+
+function galSunVel(P){ const S=P.sunUVW; return [S[0],S[1],S[2]]; }
+
+function galRide(d,v,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), va=[v[0]+sv[0],v[1]+sv[1],v[2]+sv[2]];
+  const circ=[0,P.Om*P.R0/P.KMS,0];                     /* the LSR's own inertial velocity at the Sun, in km/s: toward l 90° */
+  const a=galPolarState(d,[va[0]+circ[0],va[1]+circ[1],va[2]],P), b=galPolarState([0,0,0],[sv[0]+circ[0],sv[1]+circ[1],sv[2]],P);
+  const A=galRingOf(galHill(a.X,a.Y,a.Z,a.vX,a.vY,a.vZ,tMyr,P),P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), x=-(A[0]-B[0]), y=A[1]-B[1];
+  return [x*ca-y*sa, x*sa+y*ca, A[2]-B[2]]; }
+
+function galRideHalo(d,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), b=galPolarState([0,0,0],[sv[0],sv[1]+P.Om*P.R0/P.KMS,sv[2]],P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), sx=-B[0], sy=B[1], Sx=sx*ca-sy*sa, Sy=sx*sa+sy*ca;   /* the Sun about the centre, inertial */
+  return [(d[0]-P.R0)-Sx, d[1]-Sy, d[2]-B[2]]; }
+
+function galCircularVel(d,P){ P=P||GAL_RIDE; const K=P.KMS, Om=P.Om, R0=P.R0, S=P.sunUVW, po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po);
+  const V=(Om*R0+(Om-2*P.A)*(R-R0))/K;                  /* km/s */
+  return [V*Math.sin(f)-S[0], V*Math.cos(f)-(Om*R0/K+S[1]), -S[2]]; }
+
+function galRideEq(pEq,vEq,epJ,kind,P){ const d=statToGal(pEq), t=(epJ-2000)/1e6;
+  const g=kind==='halo'?galRideHalo(d,t,P):galRide(d,kind==='disc'?galCircularVel(d,P):statToGal(vEq),t,P);
+  return [0,1,2].map(j=>STAT_MG[0][j]*g[0]+STAT_MG[1][j]*g[1]+STAT_MG[2][j]*g[2]); }
+
 const bellE=th=>-Math.cos(th);
 
 const bellLuneOmega=th=>2*(Math.PI-th);
@@ -1741,6 +1780,41 @@ function topoHopfPair(th1,th2,ph1,ph2,N){
   return [topoHopfPts(th1,ph1,N,1.9), topoHopfPts(th2,ph2,N,1.9)];
 }
 
+const TOPO_GENUS={R:[0.62,0.80,0.98], cx:[-2.05,0,2.12], k:0.22, L:4.4};
+
+function topoGenusField(N,r,G){ G=G||TOPO_GENUS; const q=new Float32Array(N*N*N), s=2*G.L/(N-1), h=(N-1)/2;
+  for(let z=0;z<N;z++) for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const X=(x-h)*s, Y=(y-h)*s, Z=(z-h)*s; let d=Infinity;
+    for(let i=0;i<3;i++){ const di=Math.hypot(Math.hypot(X-G.cx[i],Z)-G.R[i],Y)-r;
+      if(d===Infinity) d=di; else { const hh=Math.max(0,Math.min(1,0.5+0.5*(di-d)/G.k)); d=di*(1-hh)+d*hh-G.k*hh*(1-hh); } }   /* polynomial smooth minimum */
+    q[(z*N+y)*N+x]=-d; }
+  return {q,s}; }
+
+function topoMeshTopology(pos){ const n=pos.length/3, key=new Map(), id=new Int32Array(n); let V=0;
+  for(let i=0;i<n;i++){ const k=Math.round(pos[3*i]*1e5)+','+Math.round(pos[3*i+1]*1e5)+','+Math.round(pos[3*i+2]*1e5); let v=key.get(k); if(v===undefined){ v=V++; key.set(k,v); } id[i]=v; }
+  const E=new Set(), ang=new Float64Array(V), area=new Float64Array(V), par=new Int32Array(V).map((_,i)=>i), find=a=>{ while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; };
+  let F=0;
+  for(let t=0;t<n/3;t++){ const a=id[3*t], b=id[3*t+1], c=id[3*t+2]; if(a===b||b===c||a===c) continue; F++;
+    for(const [u,v] of [[a,b],[b,c],[c,a]]){ E.add(u<v?u*V+v:v*V+u); const ru=find(u), rv=find(v); if(ru!==rv) par[ru]=rv; }
+    const P=k=>[pos[3*(3*t+k)],pos[3*(3*t+k)+1],pos[3*(3*t+k)+2]], p=[P(0),P(1),P(2)];
+    const cr=(u,v)=>[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]], sub=(u,v)=>[u[0]-v[0],u[1]-v[1],u[2]-v[2]];
+    const A2=Math.hypot(...cr(sub(p[1],p[0]),sub(p[2],p[0])));
+    [a,b,c].forEach((v,k)=>{ const e1=sub(p[(k+1)%3],p[k]), e2=sub(p[(k+2)%3],p[k]);
+      ang[v]+=Math.atan2(Math.hypot(...cr(e1,e2)),e1[0]*e2[0]+e1[1]*e2[1]+e1[2]*e2[2]); area[v]+=A2/6; }); }
+  let deficit=0, comps=new Set(); const K=new Float32Array(n);
+  for(let v=0;v<V;v++){ deficit+=2*Math.PI-ang[v]; comps.add(find(v)); }
+  /* the COLOUR is the deficit density smoothed over neighbours (marching tetrahedra make the raw one speckled); the sum above is untouched */
+  let kv=new Float64Array(V); for(let v=0;v<V;v++) kv[v]=area[v]>0?(2*Math.PI-ang[v])/area[v]:0;
+  const EA=[...E]; for(let it=0;it<4;it++){ const s2=Float64Array.from(kv), c2=new Float64Array(V).fill(1); for(const e of EA){ const u=Math.floor(e/V), w=e%V; s2[u]+=kv[w]; s2[w]+=kv[u]; c2[u]++; c2[w]++; } for(let v=0;v<V;v++) kv[v]=s2[v]/c2[v]; }
+  for(let i=0;i<n;i++) K[i]=kv[id[i]];
+  const chi=V-E.size+F, c=comps.size;
+  return {V,E:E.size,F,chi,components:c,genus:c-chi/2,deficit,gaussBonnet:deficit/(2*Math.PI),K}; }
+
+function topoFibration(lats,per,N){ const F=[]; lats.forEach((th,i)=>{ for(let j=0;j<per;j++){ const ph=2*Math.PI*(j+0.5*(i%2))/per; F.push({th,ph,pts:topoHopfPts(th,ph,N||96,1.9)}); } }); return F; }
+
+function topoAllPairs(F){ let lo=Infinity, hi=-Infinity, n=0, worst=0;
+  for(let i=0;i<F.length;i++) for(let j=i+1;j<F.length;j++){ const l=topoLinkPure(F[i].pts,F[j].pts); lo=Math.min(lo,l); hi=Math.max(hi,l); worst=Math.max(worst,Math.abs(Math.abs(l)-1)); n++; }
+  return {pairs:n,min:lo,max:hi,worst}; }
+
 const SC_MATS=[
   {id:'Al', name:'Aluminium', Tc:1.18, lam:50,  type:'I'},
   {id:'Pb', name:'Lead',      Tc:7.19, lam:37,  type:'I'},
@@ -2034,6 +2108,8 @@ function kdvNonlin(hr,hi){   // N(û) = −3ik·FFT(u²), computed in the real f
   for(let i=0;i<KDV_N;i++){ nr[i]=3*_kdvK[i]*ui[i]; ni[i]=-3*_kdvK[i]*ur[i]; }
   return [nr,ni];
 }
+
+const KDV_STABLE_DTC=0.008, KDV_STABLE_DT=0.0025;
 
 function kdvEvolve(u,dt,nsteps){   // integrating-factor RK4, rebased each call (t=0) → no large-t precision loss
   let vr=Float64Array.from(u), vi=new Float64Array(KDV_N); qmFFT(vr,vi,false);
@@ -3938,6 +4014,109 @@ const gyroAgeColourError=(bv,periodDays,dbv)=>{ const d=(dbv==null?0.05:dbv);
   const a0=gyroAgeMyr(bv,periodDays);
   return (a0>0)?gyroAgeMyr(bv-d,periodDays)/a0:null; };
 
+const STAT_MG=[[-0.0548755604,-0.8734370902,-0.4838350155],[0.4941094279,-0.4448296300,0.7469822445],[-0.8676661490,-0.1980763734,0.4559837762]];
+
+const statToGal=v=>STAT_MG.map(r=>r[0]*v[0]+r[1]*v[1]+r[2]*v[2]);
+
+const STAT_KMS=4.740470446;
+
+function statGalRow(st){ const D=Math.PI/180, a=st.ra*D, d=st.de*D, ca=Math.cos(a), sa=Math.sin(a), cd=Math.cos(d), sd=Math.sin(d);
+  const r=statToGal([cd*ca,cd*sa,sd]), ea=statToGal([-sa,ca,0]), ed=statToGal([-sd*ca,-sd*sa,cd]);
+  const l=Math.atan2(r[1],r[0]), b=Math.asin(Math.max(-1,Math.min(1,r[2]))), dk=1/st.plx, v=[0,1,2].map(k=>STAT_KMS*dk*(st.pmra*ea[k]+st.pmde*ed[k]));
+  const el=[-Math.sin(l),Math.cos(l),0], eb=[-Math.sin(b)*Math.cos(l),-Math.sin(b)*Math.sin(l),Math.cos(b)];
+  return {hip:st.hip,bv:st.bv,l,b,d:dk,r,el,eb,vl:v[0]*el[0]+v[1]*el[1]+v[2]*el[2],vb:v[0]*eb[0]+v[1]*eb[1]+v[2]*eb[2]}; }
+
+function statOortRows(g){ const {l,b,d}=g, sl=Math.sin(l), cl=Math.cos(l), sb=Math.sin(b), cb=Math.cos(b), s2=Math.sin(2*l), c2=Math.cos(2*l);
+  return [[sl,-cl,0,d*cb*c2,d*cb,-d*cb*s2,0],[cl*sb,sl*sb,-cb,-d*sb*cb*s2,0,-d*sb*cb*c2,-d*sb*cb]]; }
+
+function statSolveN(A,b){ const n=b.length, M=A.map((r,i)=>[...r,b[i]]);
+  for(let c=0;c<n;c++){ let p=c; for(let r=c+1;r<n;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r; [M[c],M[p]]=[M[p],M[c]];
+    for(let r=0;r<n;r++){ if(r===c) continue; const f=M[r][c]/M[c][c]; for(let k=c;k<=n;k++) M[r][k]-=f*M[c][k]; } }
+  return M.map((r,i)=>r[n]/r[i]); }
+
+function statOortSolve(G){ const A=Array.from({length:7},()=>new Array(7).fill(0)), b=new Array(7).fill(0);
+  for(const g of G){ const R=statOortRows(g); for(let e=0;e<2;e++){ const r=R[e], y=e?g.vb:g.vl; for(let i=0;i<7;i++){ if(!r[i]) continue; b[i]+=r[i]*y; for(let j=0;j<7;j++) A[i][j]+=r[i]*r[j]; } } }
+  return statSolveN(A,b); }
+
+function statOortPred(g,x){ const R=statOortRows(g); return [0,1].map(e=>R[e].reduce((s,v,i)=>s+v*x[i],0)); }
+
+function statOortEllipsoid(G,x){ const I=[[0,0],[1,1],[2,2],[0,1],[0,2],[1,2]], A=Array.from({length:6},()=>new Array(6).fill(0)), b=new Array(6).fill(0);
+  for(const g of G){ const p=statOortPred(g,x), rl=g.vl-p[0], rb=g.vb-p[1], q=[0,1,2].map(k=>rl*g.el[k]+rb*g.eb[k]), P=[0,1,2].map(i=>[0,1,2].map(j=>(i===j?1:0)-g.r[i]*g.r[j]));
+    for(let i=0;i<3;i++) for(let j=i;j<3;j++){ const row=I.map(([k,l])=>k===l?P[i][k]*P[j][l]:P[i][k]*P[j][l]+P[i][l]*P[j][k]), y=q[i]*q[j];
+      for(let a=0;a<6;a++){ b[a]+=row[a]*y; for(let c=0;c<6;c++) A[a][c]+=row[a]*row[c]; } } }
+  const s=statSolveN(A,b); return {UU:s[0],VV:s[1],WW:s[2],UV:s[3],UW:s[4],VW:s[5],sU:Math.sqrt(s[0]),sV:Math.sqrt(s[1]),sW:Math.sqrt(s[2]),ratio:s[1]/s[0],vertex:0.5*Math.atan2(2*s[3],s[0]-s[1])*180/Math.PI}; }
+
+function statOortDerived(x,R0){ const [U,V,W,A,B,C,K]=x, Om=A-B, k2=-4*B*Om;
+  return {U,V,W,A,B,C,K,Omega:Om,V0:Om*(R0||8.178),dVdR:-(A+B),kappa:k2>0?Math.sqrt(k2):NaN,kappaOmega:k2>0?Math.sqrt(k2)/Om:NaN,lindblad:-B/Om,
+    M:[[K+C,A-B],[A+B,K-C]],det:K*K-C*C-A*A+B*B,vorticity:2*B,divergence:2*K,shear:Math.hypot(A,C),speed:Math.hypot(U,V,W),
+    apexL:((Math.atan2(V,U)*180/Math.PI)+360)%360,apexB:Math.atan2(W,Math.hypot(U,V))*180/Math.PI}; }
+
+function statOortFit(G0,o){ o=o||{}; let G=G0.slice(), x=statOortSolve(G), sig=NaN;
+  for(let it=0;it<(o.clip==null?8:o.clip);it++){ const r=G.map(g=>{ const p=statOortPred(g,x); return Math.hypot(g.vl-p[0],g.vb-p[1]); });
+    sig=Math.sqrt(r.reduce((s,v)=>s+v*v,0)/r.length/2); const keep=G.filter((g,i)=>r[i]<(o.nsig||3)*Math.SQRT2*sig); if(keep.length===G.length) break; G=keep; x=statOortSolve(G); }
+  const out=statOortDerived(x,o.R0), E=statOortEllipsoid(G,x); out.ellipsoid=E; out.n0=G0.length; out.n=G.length; out.sigma=sig; out.G=G;
+  const nb=o.boot==null?60:o.boot; if(nb>1){ let seed=o.seed||7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+    const keys=['U','V','W','A','B','C','K','Omega','V0','dVdR','kappa','kappaOmega','lindblad','det','apexL','apexB','speed','ratio'], S=Object.fromEntries(keys.map(k=>[k,[]]));
+    for(let k=0;k<nb;k++){ const R=Array.from({length:G.length},()=>G[Math.floor(rnd()*G.length)]), y=statOortSolve(R), dd=statOortDerived(y,o.R0);
+      dd.ratio=o.bootEllipsoid===false?NaN:statOortEllipsoid(R,y).ratio; for(const q of keys) S[q].push(dd[q]); }
+    out.err=Object.fromEntries(keys.map(q=>{ const v=S[q].filter(Number.isFinite); if(v.length<2) return [q,NaN]; const m=v.reduce((a,c)=>a+c,0)/v.length; return [q,Math.sqrt(v.reduce((a,c)=>a+(c-m)**2,0)/(v.length-1))]; })); }
+  return out; }
+
+function statOortWave(G,x,nb){ nb=nb||24; const s=new Array(nb).fill(0), w=new Array(nb).fill(0), q=new Array(nb).fill(0), n=new Array(nb).fill(0), P=[];
+  for(const g of G){ const cb=Math.cos(g.b), dc=g.d*cb; if(!(dc>0)) continue; const y=(g.vl-(x[0]*Math.sin(g.l)-x[1]*Math.cos(g.l)))/dc, L=((g.l*180/Math.PI)+360)%360, k=Math.min(nb-1,Math.floor(L/(360/nb))), ww=dc*dc;
+    s[k]+=ww*y; w[k]+=ww; n[k]++; P.push([k,y,ww]); }
+  const m=s.map((v,k)=>w[k]>0?v/w[k]:NaN); for(const [k,y,ww] of P) q[k]+=ww*ww*(y-m[k])**2;
+  return m.map((v,k)=>({l:(k+0.5)*360/nb,y:v,se:w[k]>0?Math.sqrt(q[k])/w[k]:NaN,n:n[k]})); }
+
+function webLogGamma(x){ const c=[676.5203681218851,-1259.1392167224028,771.32342877765313,-176.61502916214059,12.507343278686905,-0.13857109526572012,9.9843695780195716e-6,1.5056327351493116e-7];
+  if(x<0.5) return Math.log(Math.PI/Math.sin(Math.PI*x))-webLogGamma(1-x); x-=1; let a=0.99999999999980993; const t=x+7.5; for(let i=0;i<8;i++) a+=c[i]/(x+i+1); return 0.5*Math.log(2*Math.PI)+(x+0.5)*Math.log(t)-t+Math.log(a); }
+
+const webWpH=g=>Math.exp(webLogGamma(0.5)+webLogGamma((g-1)/2)-webLogGamma(g/2));
+
+function webPairCounts(A,B,same,o){ const NB=o.nb, e0=Math.log10(o.rpMin), step=Math.log10(o.rpMax/o.rpMin)/NB, NPI=Math.round(o.piMax/o.dpi), cell=Math.hypot(o.rpMax,o.piMax);
+  const h=Array.from({length:NB},()=>new Float64Array(NPI)), M=new Map(), key=(a,b,c)=>a+','+b+','+c;
+  for(let j=0;j<B.length;j++){ const p=B[j], k=key(Math.floor(p[0]/cell),Math.floor(p[1]/cell),Math.floor(p[2]/cell)); let L=M.get(k); if(!L){ L=[]; M.set(k,L); } L.push(j); }
+  for(let i=0;i<A.length;i++){ const p=A[i], cx=Math.floor(p[0]/cell), cy=Math.floor(p[1]/cell), cz=Math.floor(p[2]/cell);
+    for(let dx=-1;dx<=1;dx++) for(let dy=-1;dy<=1;dy++) for(let dz=-1;dz<=1;dz++){ const L=M.get(key(cx+dx,cy+dy,cz+dz)); if(!L) continue;
+      for(const j of L){ if(same&&j<=i) continue; const q=B[j], s0=p[0]-q[0], s1=p[1]-q[1], s2=p[2]-q[2], m0=p[0]+q[0], m1=p[1]+q[1], m2=p[2]+q[2], mn=Math.hypot(m0,m1,m2)||1;
+        const pi=Math.abs(s0*m0+s1*m1+s2*m2)/mn; if(pi>=o.piMax) continue; const rp=Math.sqrt(Math.max(0,s0*s0+s1*s1+s2*s2-pi*pi)); if(rp<o.rpMin||rp>=o.rpMax) continue;
+        const k=Math.floor((Math.log10(rp)-e0)/step); if(k>=0&&k<NB) h[k][Math.min(NPI-1,Math.floor(pi/o.dpi))]++; } } }
+  return h; }
+
+function webWp(D,R,o){ o=Object.assign({nb:14,rpMin:0.3,rpMax:30,piMax:20,dpi:2},o||{});
+  const DD=webPairCounts(D,D,true,o), DR=webPairCounts(D,R,false,o), RR=webPairCounts(R,R,true,o), N=D.length, NR=R.length, nDD=N*(N-1)/2, nDR=N*NR, nRR=NR*(NR-1)/2;
+  const e0=Math.log10(o.rpMin), step=Math.log10(o.rpMax/o.rpMin)/o.nb;
+  return DD.map((row,k)=>{ let w=0, dd=0; row.forEach((d,j)=>{ const rr=RR[k][j]/nRR; dd+=d; if(rr>0) w+=2*o.dpi*((d/nDD)-2*DR[k][j]/nDR+rr)/rr; });
+    return {rp:Math.pow(10,e0+(k+0.5)*step),wp:w,dd,se:dd>0?w/Math.sqrt(dd)+2*o.piMax/Math.sqrt(dd):NaN}; }); }
+
+function webPowerFit(B,lo,hi){ const P=B.filter(b=>b.rp>=lo&&b.rp<=hi&&b.wp>0); if(P.length<3) return null; const X=P.map(b=>Math.log10(b.rp)), Y=P.map(b=>Math.log10(b.wp));
+  const mx=X.reduce((a,b)=>a+b,0)/X.length, my=Y.reduce((a,b)=>a+b,0)/Y.length; let sxy=0, sxx=0; X.forEach((x,i)=>{ sxy+=(x-mx)*(Y[i]-my); sxx+=(x-mx)**2; });
+  const slope=sxy/sxx, g=1-slope; if(!(g>1.05)) return {gamma:g,r0:NaN,n:P.length}; const amp=Math.pow(10,my-slope*mx); return {gamma:g,r0:Math.pow(amp/webWpH(g),1/g),n:P.length,lo,hi}; }
+
+function webR0At(B,g,lo,hi){ const P=B.filter(b=>b.rp>=lo&&b.rp<=hi&&b.wp>0); if(!P.length) return NaN; const H=webWpH(g);
+  const lr=P.reduce((a,b)=>a+Math.log10(b.wp/(b.rp*H))/g+Math.log10(b.rp),0)/P.length; return Math.pow(10,lr); }
+
+function webMST(P){ const n=P.length, inT=new Uint8Array(n), best=new Float64Array(n).fill(Infinity), from=new Int32Array(n).fill(-1), E=[]; if(!n) return E; best[0]=0;
+  for(let it=0;it<n;it++){ let u=-1, bu=Infinity; for(let i=0;i<n;i++) if(!inT[i]&&best[i]<bu){ bu=best[i]; u=i; } if(u<0) break; inT[u]=1; if(from[u]>=0) E.push([from[u],u,bu]);
+    const p=P[u]; for(let i=0;i<n;i++){ if(inT[i]) continue; const q=P[i], d=Math.hypot(p[0]-q[0],p[1]-q[1],p[2]-q[2]); if(d<best[i]){ best[i]=d; from[i]=u; } } }
+  return E; }
+
+function webPrune(E,n,k){ const adj=Array.from({length:n},()=>[]); E.forEach((e,idx)=>{ adj[e[0]].push(idx); adj[e[1]].push(idx); });
+  const alive=new Uint8Array(E.length).fill(1), deg=adj.map(a=>a.length);
+  for(let round=0;round<k;round++){ const leaves=[]; for(let v=0;v<n;v++) if(deg[v]===1) leaves.push(v);
+    for(const v of leaves){ for(const idx of adj[v]) if(alive[idx]){ alive[idx]=0; const w=E[idx][0]===v?E[idx][1]:E[idx][0]; deg[v]--; deg[w]--; break; } } }
+  return E.filter((_,i)=>alive[i]); }
+
+function webRandoms(G,n,seed){ let s=seed||5; const rnd=()=>{ s=(s*16807)%2147483647; return s/2147483647; };
+  const gb=e=>Math.abs(Math.asin(Math.max(-1,Math.min(1,STAT_MG[2][0]*e[0]+STAT_MG[2][1]*e[1]+STAT_MG[2][2]*e[2]))))*180/Math.PI;
+  const dec=new Array(12).fill(0), bN=new Array(9).fill(0); for(const g of G){ dec[Math.min(11,Math.floor((g.e[2]+1)/2*12))]++; bN[Math.min(8,Math.floor(gb(g.e)/10))]++; }
+  const bArea=bN.map((_,k)=>Math.sin((k+1)*Math.PI/18)-Math.sin(k*Math.PI/18)), dens=bN.map((m,k)=>m/bArea[k]), top=Math.max(...dens.slice(3)), acc=dens.map((v,k)=>k<3?Math.min(1,v/top):1);
+  const cum=[]; { let c=0; const t=dec.reduce((a,b)=>a+b,0); for(const m of dec){ c+=m/t; cum.push(c); } }
+  const R=[]; for(let i=0;i<n;i++){ const d=G[Math.floor(rnd()*G.length)].d; for(let tries=0;tries<1000;tries++){ const u=rnd(); let k=0; while(k<11&&u>cum[k]) k++;
+      const sd=-1+2*(k+rnd())/12, cd=Math.sqrt(Math.max(0,1-sd*sd)), ra=2*Math.PI*rnd(), e=[cd*Math.cos(ra),cd*Math.sin(ra),sd];
+      if(rnd()<acc[Math.min(8,Math.floor(gb(e)/10))]){ R.push([e[0]*d,e[1]*d,e[2]*d]); break; } } }
+  return {R,acc,dec}; }
+
 function pspFrac(a,tol){ tol=tol||0.004; for(let q=1;q<=6;q++){ const p=Math.round(a*q); if(Math.abs(a-p/q)<tol) return q===1?String(p):`${p}/${q}`; } return null; }
 
 function pspLog(f){ return f.min>0&&f.max/f.min>=100; }
@@ -4103,7 +4282,8 @@ function invLawLib(X,names,units){ const L=[]; const angle=n=>/^rad/.test(String
     const add=(tag,p,f)=>L.push({tag,input:n,p,col:v.map(f)});
     add(n,1,x=>x); add(n+'²',2,x=>x*x); add(n+'³',3,x=>x*x*x);
     if(pos){ add('√'+n,0.5,Math.sqrt); add(n+'^{3/2}',1.5,x=>x*Math.sqrt(x)); add(n+'^{5/2}',2.5,x=>x*x*Math.sqrt(x)); add(n+'^{1/3}',1/3,Math.cbrt); add(n+'^{2/3}',2/3,x=>Math.cbrt(x*x));
-      add('1/'+n,-1,x=>1/x); add('1/'+n+'²',-2,x=>1/(x*x)); add('ln '+n,'ln',Math.log); }
+      add('1/'+n,-1,x=>1/x); add('1/'+n+'²',-2,x=>1/(x*x)); add('ln '+n,'ln',Math.log);
+      add('1/√'+n,-0.5,x=>1/Math.sqrt(x)); add(n+'^{-1/3}',-1/3,x=>1/Math.cbrt(x)); add(n+'^{-2/3}',-2/3,x=>1/Math.cbrt(x*x)); add(n+'^{-3/2}',-1.5,x=>1/(x*Math.sqrt(x))); add('1/'+n+'³',-3,x=>1/(x*x*x)); add('1/'+n+'⁴',-4,x=>1/(x*x*x*x)); }
     if(angle(n)){ add('cos '+n,'cos',Math.cos); add('sin '+n,'sin',Math.sin); add('cos('+n+'/2)','cos/2',x=>Math.cos(x/2)); add('sin('+n+'/2)','sin/2',x=>Math.sin(x/2)); } }
   if(names.length<=5) for(let i=0;i<names.length;i++) for(let j=i+1;j<names.length;j++){ const a=names[i], b=names[j]; L.push({tag:a+'·'+b,input:a+','+b,p:'xy',col:X.map(r=>r[a]*r[b])}); }
   return L; }
@@ -4169,6 +4349,93 @@ function invLawText(L){ const num=(v,f)=>f?String(f).replace(/^1 · /,''):(+v.to
     return L.out+' = '+(L.cform==='1'?'':num(L.C,L.cform)+' · ')+L.terms.map(pw).join(' · '); }
   const tm=[...L.terms].sort((a,b)=>(typeof b.p==='number'?b.p:0)-(typeof a.p==='number'?a.p:0)).map(t=>(t.form==='1'?'':t.form==='−1'?'−':num(t.b,t.form)+'·')+t.tag); if(L.c){ const cs=num(L.c,L.cform); if(/^[−-]/.test(tm[0])) tm.unshift(cs); else tm.push(cs); }
   return L.out+(L.of||'')+' = '+tm.join(' + ').replace(/\+ [−-]/g,'− ').replace(/·(\S)/g,'·$1'); }
+
+function invSepBasis(integer, positive){ const B=[['1',y=>1],['y',y=>y],['y²',y=>y*y],['y³',y=>y*y*y]];
+  if(positive) B.push(['1/y',y=>1/y],['1/y²',y=>1/(y*y)],['√y',y=>Math.sqrt(y)],['1/√y',y=>1/Math.sqrt(y)],['y^{1/3}',y=>Math.cbrt(y)],['y^{-1/3}',y=>1/Math.cbrt(y)],['y^{2/3}',y=>Math.cbrt(y*y)],['ln y',y=>Math.log(y)]);
+  if(integer) B.push(['(−1)^y',y=>(Math.round(y)%2===0)?1:-1]);
+  return B; }
+
+function invSepSubsets(n,k){ const o=[]; const r=(s,a)=>{ if(a.length===k){ o.push(a.slice()); return; } for(let i=s;i<n;i++){ a.push(i); r(i+1,a); a.pop(); } }; r(0,[]); return o; }
+
+function invSepRational(xs,ys,tol){ /* uses invEig (Jacobi) from the invariant finder */ const ym=Math.max(...ys.map(Math.abs))||1;
+  for(let tot=1;tot<=6;tot++) for(let q=1;q<=tot;q++){ const p=tot-q, nc=p+1+q+1; if(xs.length<nc+4) continue;
+    const xm=Math.max(...xs.map(Math.abs))||1, cols=[];
+    for(let j=0;j<=p;j++) cols.push(xs.map(x=>Math.pow(x/xm,j)));
+    for(let k=0;k<=q;k++) cols.push(xs.map((x,t)=>-ys[t]/ym*Math.pow(x/xm,k)));
+    /* the homogeneous null vector: smallest eigenvector of the Gram matrix of unit-norm columns */
+    const nrm=cols.map(c=>Math.sqrt(c.reduce((u,v)=>u+v*v,0))||1), U=cols.map((c,i)=>c.map(v=>v/nrm[i]));
+    const G=U.map(ci=>U.map(cj=>ci.reduce((u,v,t)=>u+v*cj[t],0))), E=invEig(G); let mi=0; for(let i=1;i<E.vals.length;i++) if(E.vals[i]<E.vals[mi]) mi=i;
+    const vec=E.vecs.map(row=>row[mi]).map((v,i)=>v/nrm[i]);
+    const a=vec.slice(0,p+1), b=vec.slice(p+1); const k0=b.findIndex(v=>Math.abs(v)>1e-9*Math.max(...b.map(Math.abs))); if(k0<0) continue;
+    let s0=b[k0], A=a.map((v,j)=>v/s0*ym/Math.pow(xm,j)), Bq=b.map((v,k)=>v/s0/Math.pow(xm,k));
+    /* refine with Q's k0-th coefficient fixed at 1: a LINEAR least-squares problem (no squared condition
+       number), so the coefficients come back to ~1e-12 and their laws in the outer variable can be read */
+    { const u=xs.map(x=>x/xm), all=[]; for(let j=0;j<=p;j++) all.push(['a',j]); for(let k=0;k<=q;k++) if(k!==k0) all.push(['b',k]);
+      const colOf=([w,k])=>w==='a'?u.map(v=>Math.pow(v,k)):u.map((v,t)=>-ys[t]/ym*Math.pow(v,k)), rhs=u.map((v,t)=>ys[t]/ym*Math.pow(v,k0));
+      const fit=I=>{ const g=invLsq(I.map(colOf),rhs); if(!g) return null; const A2=new Array(p+1).fill(0), B2=new Array(q+1).fill(0); B2[k0]=1; I.forEach(([w,k],i)=>{ if(w==='a') A2[k]=g.coef[i]; else B2[k]=g.coef[i]; });
+        let mx=0; for(let t=0;t<xs.length;t++){ const P=A2.reduce((s1,v,j)=>s1+v*Math.pow(u[t],j),0), Q=B2.reduce((s1,v,k)=>s1+v*Math.pow(u[t],k),0); mx=Math.max(mx,Math.abs(ys[t]/ym-P/Q)); } return {A2,B2,rel:mx}; };
+      /* a linear refit with Q's k0-th term fixed (no squared condition number), then every term that can
+         go while the fit stays exact goes — structural zeros, the same in every row */
+      let I=all.slice(), g=fit(I);
+      if(g){ let dropped=true; while(dropped&&I.length>1){ dropped=false; const c=I.map(([w,k])=>Math.abs(w==='a'?g.A2[k]:g.B2[k]));
+          const order=I.map((t,i)=>i).sort((x,y)=>c[x]-c[y]);
+          for(const i of order){ const I2=I.filter((_,j)=>j!==i), g2=fit(I2); if(g2&&g2.rel<tol){ I=I2; g=g2; dropped=true; break; } } }
+        A=g.A2.map((v,j)=>v*ym/Math.pow(xm,j-k0)); Bq=g.B2.map((v,k)=>v/Math.pow(xm,k-k0)); } }
+    let mx=0; for(let t=0;t<xs.length;t++){ const P=A.reduce((u,v,j)=>u+v*Math.pow(xs[t],j),0), Q=Bq.reduce((u,v,k)=>u+v*Math.pow(xs[t],k),0); mx=Math.max(mx,Math.abs(ys[t]-P/Q)); }
+    if(mx/ym<tol) return {p,q,A,B:Bq,rel:mx/ym}; }
+  return null; }
+
+function invSepCoefLaw(cs,X,tol,scale){ const cm=Math.max(...cs.map(Math.abs)); if(!(cm>(scale||0)*1e-9)||!(cm>1e-300)) return '0';
+  const mean=cs.reduce((u,v)=>u+v,0)/cs.length, sp=Math.max(...cs)-Math.min(...cs);
+  if(sp<=1e-9*Math.abs(mean)) return invClosedFormPhys(mean)||String(+mean.toPrecision(8));
+  const l=invLaws(cs.map(c=>({c})),X,{tol}).find(l=>l.out==='c'); if(!l) return null;
+  return l.of==='²'?'√('+l.text.replace(/^c² = /,'')+')':l.of==='⁻¹'?'1/('+l.text.replace(/^c⁻¹ = /,'')+')':l.text.replace(/^c = /,''); }
+
+function invSeparable(f,inner,outer,opts){ opts=opts||{}; const tol=opts.tol||1e-9, K=opts.K||22, n=opts.n||26;
+  const grid=(d,m)=>{ const out=[]; const lo=d.min, hi=d.max; if(d.integer){ const st=Math.max(1,2*Math.floor((hi-lo)/(2*m))+1); for(let v=lo;v<=hi&&out.length<m*2;v+=st) out.push(v); return out; }
+    const logs=lo>0&&hi/lo>30; for(let k=0;k<m;k++){ const u=(k+0.5)/m; out.push(logs?lo*Math.pow(hi/lo,u):lo+(hi-lo)*u); } return out; };
+  const xs=grid(outer,K), rows=[];
+  for(const x of xs){ const ys=[], vs=[]; for(const y of grid(inner,n)){ let v=null; try{ v=f(x,y); }catch(e){ v=null; } if(Number.isFinite(v)){ ys.push(y); vs.push(v); } }
+    if(ys.length>=10) rows.push({x,ys,vs}); }
+  if(rows.length<6) return null;
+  /* 1 · a basis subset exact at every fixed x */
+  const B=invSepBasis(!!inner.integer, rows.every(r=>r.ys.every(y=>y>0)));
+  for(let k=1;k<=5;k++){ for(const S of invSepSubsets(B.length,k)){ let ok=true; const C=[];
+      for(const r of rows){ if(r.ys.length<k+4){ ok=false; break; } const cols=S.map(j=>r.ys.map(B[j][1])), ym=Math.max(...r.vs.map(Math.abs))||1, g=invLsq(cols,r.vs); if(!g||g.res/ym>tol){ ok=false; break; } C.push(g.coef); }
+      if(!ok) continue;
+      /* the outer law of every coefficient; an integer outer is also tried even and odd apart */
+      const terms=S.map((j,ci)=>{ const cs=C.map(c=>c[ci]), cm=Math.max(...cs.map(Math.abs));
+        if(!(cm>1e-12)) return {basis:B[j][0], zero:true};
+        const X=rows.map(r=>({x:r.x})), whole=invSepCoefLaw(cs,X,tol);
+        if(whole!=null) return {basis:B[j][0], law:whole, exact:true};
+        if(outer.integer){ const part=pred=>{ const I=rows.map((r,t)=>t).filter(t=>pred(rows[t].x)); if(I.every(t=>Math.abs(cs[t])<1e-9*cm)) return '0';
+            return invSepCoefLaw(I.map(t=>cs[t]),I.map(t=>({x:rows[t].x})),tol); };
+          const ev=part(x=>Math.round(x)%2===0), od=part(x=>Math.round(x)%2!==0); if(ev&&od) return {basis:B[j][0], even:ev, odd:od, exact:true, kind:'parity'}; }
+        return {basis:B[j][0], law:null, values:cs.slice(0,4)}; }).filter(t=>!t.zero);
+      return {mode:'basis', inner:inner.name, outer:outer.name, terms, complete:terms.every(t=>t.law||t.even), rows:rows.length}; } }
+  /* 2 · a rational function of the inner variable */
+  const R0=rows.map(r=>invSepRational(r.ys,r.vs,tol));
+  if(R0.every(Boolean)&&R0.every(r=>r.p===R0[0].p&&r.q===R0[0].q)){ const p=R0[0].p, q=R0[0].q, X=rows.map(r=>({x:r.x}));
+    /* ONE normalisation for every row — the lowest power of the denominator that is present in all of
+       them — or the coefficient series along x are not comparable (at small ω0 the constant term
+       ω0⁴ is tiny but still there, and a row normalised on ω² instead would break the series) */
+    { const ymx=Math.max(...rows.map(r=>Math.max(...r.ys.map(Math.abs)))); let k0=q;
+      for(let k=0;k<=q;k++){ if(R0.every(r=>{ const c=r.B.map((v,j)=>Math.abs(v)*Math.pow(ymx,j)); return c[k]>1e-13*Math.max(...c); })){ k0=k; break; } }
+      for(const r of R0){ const d=r.B[k0]; r.A=r.A.map(v=>v/d); r.B=r.B.map(v=>v/d); } }
+    /* a coefficient whose term never contributes more than 1e-9 of the largest term is a numerical zero */
+    /* a term is a numerical zero only if it is negligible in EVERY row (relative to that row's
+       largest term over the sampled inner range) */
+    const rel=(row,key,j)=>{ const ymx=Math.max(...rows[row].ys.map(Math.abs)), arr=R0[row][key], c=arr.map((v,k)=>Math.abs(v)*Math.pow(ymx,k)); return c[j]/Math.max(...c); };
+    const negligible=(key,j)=>R0.every((_,row)=>rel(row,key,j)<1e-9);
+    const num=R0[0].A.map((_,j)=>negligible('A',j)?'0':invSepCoefLaw(R0.map(r=>r.A[j]),X,tol)), den=R0[0].B.map((_,k)=>negligible('B',k)?'0':invSepCoefLaw(R0.map(r=>r.B[k]),X,tol));
+    return {mode:'rational', inner:inner.name, outer:outer.name, p, q, num, den, complete:num.every(v=>v!=null)&&den.every(v=>v!=null), rows:rows.length}; }
+  return null; }
+
+function invSepText(S,out){ if(!S) return ''; const x=S.outer, y=S.inner, sub=(t,v)=>String(t).replace(/\bx\b/g,v);
+  const coef=t=>{ const c=t.law?sub(t.law,x):t.even?`[${x} even: ${sub(t.even,x)} · odd: ${sub(t.odd,x)}]`:'?'; return '('+c+')'; };
+  if(S.mode==='basis') return out+' = '+S.terms.map(t=>coef(t)+(t.basis==='1'?'':'·'+t.basis.replace(/y/g,y))).join(' + ');
+  const poly=(arr,deg)=>arr.map((c,j)=>c==='0'?null:(c==='1'&&j>0?'':'('+(c?sub(c,x):'?')+')'+(j===0?'':'·'))+(j===0?'':y+(j===1?'':'^'+j))).filter(Boolean).join(' + ');
+  return `${out} = [${poly(S.num)}] / [${poly(S.den)}]`; }
 
 function invNullBasis(A,tol){ const m=A.length, n=A[0].length, M=A.map(r=>r.slice()), piv=[]; let row=0;
   for(let c=0;c<n&&row<m;c++){ let p=row; for(let r=row+1;r<m;r++) if(Math.abs(M[r][c])>Math.abs(M[p][c])) p=r; if(Math.abs(M[p][c])<tol) continue;
@@ -5498,22 +5765,18 @@ function specEig(Ain){
 }
 
 function specSpectrum(al,bp,bm,jMax){
-  const c=specC(al,bp,bm), blocks=[];
-  for(let t=1;t<=Math.round(2*jMax);t++){ const j=t/2;
-    const ev=specEig(specBlock(j,c));
-    blocks.push({j, ev, blockDim:ev.length, spectator:Math.round(2*j)+1,
-      total:(Math.round(2*j)+1)*(Math.round(2*j)+1)}); }
-  const all=blocks.flatMap(b=>b.ev.map(e=>({e, j:b.j, mult:b.spectator})));
-  all.sort((x,y)=>x.e-y.e);
-  const distinct=[];
-  for(const x of all){
-    const last=distinct[distinct.length-1];
-    if(last&&Math.abs(x.e-last.value)<=1e-9*Math.max(1,Math.abs(x.e))) last.multiplicity+=x.mult;
-    else distinct.push({value:x.e, multiplicity:x.mult, j:x.j});
-  }
+  const c=specC(al,bp,bm), blocks=[], low=[], T=Math.round(2*jMax), tol=1e-10*Math.max(Math.abs(c[0]),Math.abs(c[1]),Math.abs(c[2]));
+  for(let t=1;t<=Math.max(T,4);t++){ const j=t/2;
+    const ev=specEig(specBlock(j,c)), B={j, ev, blockDim:ev.length, spectator:Math.round(2*j)+1,
+      total:(Math.round(2*j)+1)*(Math.round(2*j)+1)};
+    if(t<=T) blocks.push(B); if(t<=4) low.push(B); }
+  const levels=L=>{ const all=L.flatMap(b=>b.ev.map(e=>({e, j:b.j, mult:b.spectator}))); all.sort((x,y)=>x.e-y.e);
+    const D=[]; for(const x of all){ const last=D[D.length-1];
+      if(last&&Math.abs(x.e-last.value)<=tol) last.multiplicity+=x.mult; else D.push({value:x.e, multiplicity:x.mult, j:x.j}); } return D; };
+  const distinct=levels(blocks), L2=levels(low);
   return {c, blocks, distinct,
-    lowest:distinct.length?distinct[0].value:null,
-    gap:distinct.length>1?distinct[1].value-distinct[0].value:null,
+    lowest:L2.length?L2[0].value:null,
+    gap:L2.length>1?L2[1].value-L2[0].value:null,
     /* the trace identity, recomputed live rather than quoted, so a broken build says so */
     traceResidual:(()=>{ let w=0;
       for(const b of blocks){ const tr=b.ev.reduce((a,x)=>a+x,0);
@@ -7703,7 +7966,7 @@ const NEXUS_RELATIONS=[
   ['phorizon','infolab','coupling','one makes information, the other prices it','Pesin: a chaotic system produces entropy at the sum of its positive exponents, which for Lorenz is 1.30 bits per unit time. The information laboratory says what a bit costs to erase. Together they say what it costs to keep up with a chaotic system, and the horizon is exactly the time to spend an initial information budget at that rate: t = log2(Delta/eps_0) divided by h_KS in bits.','measured-invariant'],
   ['phorizon','sec','coupling','an exponent that publishes its own verdict','The mixmaster instrument in the section view measures a Lyapunov exponent at one window and at twice the window, and says whether the two agree. Where they do not, the chaos is in the coordinates rather than in the geometry and the exponent decays like ln T / T. It is the one rate in this atlas whose admissibility is decided by a MEASUREMENT rather than by a unit, and the horizon refuses it for exactly that reason: this bus binds a driver once, and a driver that has to be rebound on every evaluation is not one.','epistemic-boundary'],
   ['phorizon','kam','analogy','two ways of losing a trajectory','The standard map is exactly symplectic and loses nothing to volume contraction, so its chaos is pure stretching and folding on a torus. A dissipative attractor loses volume everywhere and still separates neighbours. Both have a horizon and only one of them has an attractor.','model-analogy'],
-  ['origins','nuc','exact','the curve that says where fusion stops, and what stops there','The nuclear laboratory computes the binding energy per nucleon and finds its peak. This one climbs that curve one helium at a time and shows what the peak MEANS: every alpha capture releases energy until the curve turns over, and then there is nothing left to release and the star has run out of fuel while still being a star. Both laboratories agree on the arithmetic and this one adds the finding neither had stated — the peak is NICKEL-62 at 8.7945 MeV per nucleon, not iron-56, which is four kiloelectronvolts short and is merely the most abundant end point.','exact'],
+  ['origins','nuc','contrast','the curve that says where fusion stops, and what stops there','The nuclear laboratory computes the binding energy per nucleon and finds its peak. This one climbs that curve one helium at a time and shows what the peak MEANS: every alpha capture releases energy until the curve turns over, and then there is nothing left to release and the star has run out of fuel while still being a star. The two do NOT agree on where the summit is, and the disagreement is the lesson: the measured masses this one uses put NICKEL-62 first at 8.7945 MeV per nucleon, with iron-56 four kiloelectronvolts short and merely the most abundant end point; the five-term liquid-drop formula of the nuclear laboratory puts IRON-58 first at 8.8648, nickel-62 1.6 keV behind and iron-56 eighth — a smooth formula cannot resolve kiloelectronvolts, the shells do (found by the laboratory audit).','model vs measurement'],
   ['origins','atom','causal','every configuration in that table, and where each one was made','The elements laboratory holds the electron configuration of all ninety-odd naturally occurring elements and says nothing about their origin. Hydrogen and helium are three minutes old; carbon through iron were made inside stars over ten billion years; the gold is one second old and was made when two neutron stars touched. That is not a decoration on the periodic table, it is a second axis through it, and the atlas had one axis.','model-input'],
   ['origins','sn','causal','the nickel a silicon-burning core makes, and the iron it becomes','A silicon-burning core makes nickel-56 rather than iron-56 because it has equal numbers of protons and neutrons and no time to make anything else. The supernova laboratory then watches that nickel decay through cobalt to iron and computes the light curve it powers. This laboratory is the reason the nickel is there, and the two together run from a mass excess to an observed brightness.','model-input'],
   ['origins','mainseq','limit','the ladder stops where the star does','The main sequence burns hydrogen and prices the clock that decides how long. This laboratory takes the ash and climbs: helium to carbon through a resonance that had to be predicted, then one alpha at a time to nickel. What connects them is that the SAME binding curve sets both — the 0.7 per cent mass defect the nuclear clock runs on is the first step of the ladder drawn here, and the turnover at nickel is why no star has ever run past it.','model-input'],
@@ -8440,5 +8703,5 @@ function hccReachCompose(sens,tran){
 }
 
 export {
-  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_D0, CMB_LMAX, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, DIP_PATTERN_EXACT, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_ERF, HCC_S3C, HCC_S3R, HCC_S3_GLY, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOG10_PHI, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, NEXUS_RELATIONS, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbRecoverPure, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoHopfPair, topoHopfPts, topoLinkPure, tovSolve, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_D0, CMB_LMAX, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, DIP_PATTERN_EXACT, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GAL_RIDE, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_ERF, HCC_S3C, HCC_S3R, HCC_S3_GLY, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, KDV_STABLE_DT, KDV_STABLE_DTC, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOG10_PHI, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, NEXUS_RELATIONS, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, STAT_KMS, STAT_MG, TOPO_GENUS, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbRecoverPure, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, galCircularVel, galFrameAngle, galHill, galPolarState, galRide, galRideEq, galRideHalo, galRingOf, galSunVel, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invSepBasis, invSepCoefLaw, invSepRational, invSepSubsets, invSepText, invSeparable, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spinFibrePure, spinHopfProject, spinRodrigues, statGalRow, statOortDerived, statOortEllipsoid, statOortFit, statOortPred, statOortRows, statOortSolve, statOortWave, statSolveN, statToGal, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoAllPairs, topoFibration, topoGenusField, topoHopfPair, topoHopfPts, topoLinkPure, topoMeshTopology, tovSolve, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, webLogGamma, webMST, webPairCounts, webPowerFit, webPrune, webR0At, webRandoms, webWp, webWpH, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };
