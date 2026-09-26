@@ -19,7 +19,8 @@
  *      every pair of twelve fibres, |Lk| = 1
  *   7. the layout: every laboratory on S³, the core on the flat torus η = π/4, each step
  *      of chain distance one torus further in
- *   8. the wiring: declared once, routed, drawn, in the API, related to the core stations
+ *   8. the wiring: declared once, routed, drawn, in the API, related to the core stations —
+ *      and every laboratory's S³ line opens it with that laboratory pinned
  *   9. MUTATIONS: the multiplicity without the subtraction, and a geodesic by straight
  *      interpolation, are each caught
  */
@@ -78,6 +79,10 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   ok('the wiring: declared once (so it reaches every registry), routed, drawn, in the API, and related to the core stations it draws',
     /\{id:'tri', category:'hopf', domain:'quantum', cluster:'dynamics', predictionClass:'exact',/.test(SRC) && /triGroup\.visible = \(v==='tri'\);/.test(SRC) && /state\.s3view==='tri'\)\{\n\s*fbsAnimT\+=dt; updateTri\(dt\);/.test(SRC)
     && /id:'tri', world:'s3', lab:'tri',/.test(SRC) && /\['tri','hopf','representation'/.test(SRC) && /\['tri','eig','invariant'/.test(SRC) && /function triCensus\(\)\{/.test(SRC) && /\['triAtlas','tri',triGroup,/.test(SRC));
+
+  /* 8b · every laboratory leads to it */
+  ok('and every laboratory leads to it: the S³ line in each laboratory\'s panel has ⬡, which opens the Trisphere with that laboratory pinned and its chain lit — the pin survives the pointer moving away',
+    /data-trimap="\$\{v\}"/.test(SRC) && /state\.triFocus=b\.dataset\.trimap; hccGo\(\{worldId:'s3', labId:'tri'\}\)/.test(SRC) && /O\.pin=state\.triFocus; triHighlight\(O\.pin\)/.test(SRC) && /triNearest\(e\.clientX,e\.clientY,14\)\|\|triObjs\.pin\|\|null/.test(SRC));
 
   /* 9 · mutations */
   { const src = triFacts.toString(), cut = 'harmonicDim:b(n+3,3)-b(n+1,3)'; const mut = new Function('return ' + src.replace(cut, 'harmonicDim:b(n+3,3)'))();

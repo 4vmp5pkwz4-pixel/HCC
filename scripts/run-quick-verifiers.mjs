@@ -123,6 +123,7 @@ const allChecks = [
   "docs/verify-the-laboratory-bar.cjs",
   "docs/verify-the-milky-way-is-alive.cjs",
   "docs/verify-the-trisphere.cjs",
+  "docs/verify-andromeda-is-alive.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -303,6 +304,7 @@ if (fullMode) {
     'docs/verify-the-laboratory-bar.cjs',
     'docs/verify-the-milky-way-is-alive.cjs',
     'docs/verify-the-trisphere.cjs',
+    'docs/verify-andromeda-is-alive.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
