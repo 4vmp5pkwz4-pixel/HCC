@@ -7747,7 +7747,7 @@ function runSelfTests(){
     const gd=GAL_YEAR_MYR*1e6*365.2425, q=new THREE.Quaternion(), v=new THREE.Vector3();
     let worst=0, poleDrift=0;
     for(const ep of [0, gd*0.13, gd*0.5, gd*2.7, gd*1234.567, 4.7e12]){
-      const th=2*Math.PI*(((ep%gd)+gd)%gd)/gd; q.setFromAxisAngle(GAL_DATA.pole.dir,th);
+      const th=galFrameAngle(ep); q.setFromAxisAngle(GAL_DATA.pole.dir,th);
       const disk=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the disk actually is
       const axis=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the axis anchor now goes
       worst=Math.max(worst,axis.distanceTo(disk)/GAL_DATA.gc.pos.length());
@@ -7756,6 +7756,10 @@ function runSelfTests(){
       const R0=8.2*3261.56*63241.077;
       worst=Math.max(worst,Math.abs(disk.length()-GAL_DATA.gc.pos.length())/GAL_DATA.gc.pos.length());
     }
+    { /* and the disc turns the RIGHT way: the Sun moves toward l = 90°, so a quarter of a galactic year on the centre is
+         seen toward l = 270° — it turned the other way until 2026-09-26 */
+      const g=GAL_DATA.gc.pos.clone().applyQuaternion(q.setFromAxisAngle(GAL_DATA.pole.dir,galFrameAngle(gd/4))).normalize(), l270=raDecDir(138.0043/15,-48.3299).normalize(), l90=raDecDir(318.0043/15,48.3299).normalize();
+      ok('Galactic rotation sense: a quarter galactic year on, the centre is seen toward l = 270° — the Sun moves toward l = 90° (Cygnus), clockwise from the north Galactic pole', g.dot(l270)>0.99&&g.dot(l90)<-0.99, `cos to l 270° = ${g.dot(l270).toFixed(4)}`); }
     ok('Galactic scale: the axis anchor, the disk and the Sun→GC link stay phase-locked at every epoch (no detachment at high time rates)',
       worst<1e-12 && poleDrift<1e-12, `max relative detachment=${worst.toExponential(1)} · pole invariance=${poleDrift.toExponential(1)}`); }
   { // FRAME COHERENCE: everything that annotates the Earth must use the epoch the Earth is DRAWN at,
@@ -25524,6 +25528,70 @@ const GAL_DATA={
 GAL_DATA.gc.dir=raDecDir(GAL_DATA.gc.ra/15,GAL_DATA.gc.dec).normalize();
 GAL_DATA.gc.pos=GAL_DATA.gc.dir.clone().multiplyScalar(GAL_DATA.gc.distLy*LY_AU);
 GAL_DATA.pole.dir=raDecDir(GAL_DATA.pole.ra/15,GAL_DATA.pole.dec).normalize();
+/* ══ THE NEIGHBOURHOOD RIDES THE GALAXY ════════════════════════════════════════════
+   The Galaxy turns clockwise seen from its north pole: the Sun moves toward l = 90°
+   (Cygnus), so seen from the Sun the Galactic centre drifts toward l = 270°. The disc
+   was drawn turning the other way until 2026-09-26 — the centre drifted toward Cygnus
+   — and the stars flew in straight lines beside it while the arms wheeled past them.
+   Both are repaired here from one clock.
+   A star near the Sun is not on a straight line; it is on an EPICYCLE about a guiding
+   centre that circles the Galaxy. In the frame turning with the local standard of rest,
+   x outward from the centre, y along the rotation, z to the pole, Hill's equations are
+   exact to first order in distance:
+        ẍ − 2Ω ẏ − 4ΩA x = 0,     ÿ + 2Ω ẋ = 0,     z̈ + ν² z = 0
+   with Ω the angular velocity (one turn per galactic year, the rate the disc is drawn
+   at), A the Oort constant this atlas MEASURED from its own Hipparcos proper motions
+   (What the catalogues say · the Galaxy turns, 14.45 km/s/kpc), and ν = √(4πGρ₀) the
+   vertical frequency of the midplane density ρ₀ = 0.1 M☉/pc³ (Holmberg & Flynn 2000).
+   The closed form is an ellipse of axis ratio κ/2Ω on a guiding centre that shears away
+   at −2Ax, κ² = 4Ω(Ω − A). The Sun rides its own epicycle, (U, V, W)☉ = (11.1, 12.24,
+   7.25) km/s relative to the LSR (Schönrich, Binney & Dehnen 2010), and every star is
+   drawn relative to it. The guiding centres are carried on CIRCLES (y is an arc of the
+   ring at R₀ + x, not a tangent line), so over gigayears the neighbourhood does what it
+   does: it shears into arcs and phase-mixes into rings at its own radii. */
+const GAL_RIDE=Object.freeze({Om:2*Math.PI/GAL_YEAR_MYR, A:14.45*1.0227121650537077e-3, nu:Math.sqrt(4*Math.PI*4.498502151469554e-3*0.1),
+  R0:8178, sunUVW:[11.1,12.24,7.25], KMS:1.0227121650537077});                  /* Myr⁻¹, Myr⁻¹, Myr⁻¹, pc, km/s, pc/Myr per km/s */
+/* Hill's closed form: (X outward, Y along rotation, Z to the pole) in pc and pc/Myr, t in Myr */
+function galHill(X0,Y0,Z0,vX,vY,vZ,t,P){ const Om=P.Om, k2=4*Om*(Om-P.A), k=Math.sqrt(k2), nu=P.nu, c=Math.cos(k*t), s=Math.sin(k*t);
+  const Xg=(2*Om*vY+4*Om*Om*X0)/k2, X=Xg+(X0-Xg)*c+vX/k*s, iX=Xg*t+(X0-Xg)*s/k+vX/k2*(1-c);
+  return [X, Y0+(vY+2*Om*X0)*t-2*Om*iX, Z0*Math.cos(nu*t)+vZ/nu*Math.sin(nu*t)]; }
+/* the frame angle of the disc at an epoch: −Ωt about the north Galactic pole, modulo FIRST so it is exact at any depth */
+function galFrameAngle(epochDays){ const gd=GAL_YEAR_MYR*1e6*365.2425; return -2*Math.PI*(((epochDays%gd)+gd)%gd)/gd; }
+/* the epicycle is carried in POLAR coordinates about the centre — X = R − R₀, Y = R₀φ — so a J2000 state maps in
+   exactly and the guiding centres move on circles, not on the tangent line: in the frame turning with the LSR */
+function galPolarState(d,v,P){ const K=P.KMS, Om=P.Om, R0=P.R0;   /* d: position from the Sun (pc); v: INERTIAL velocity about the centre (km/s) */
+  /* position about the centre in (ê_out, ê_rot): the centre is at +R₀ along x̂ from the Sun, ê_out = −x̂, ê_rot = ŷ */
+  const po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po), cf=Math.cos(f), sf=Math.sin(f);
+  /* rotating-frame velocity: inertial minus Ω×r with Ω along the SOUTH pole (clockwise from the north), in (ê_out, ê_rot) */
+  const uo=-v[0]*K, ur=v[1]*K, wo=uo+Om*pr, wr=ur-Om*po;   /* (ê_out, ê_rot) turn counter-clockwise at Ω: w = u − Ω ẑ′×r */
+  return {X:R-R0, Y:R0*f, Z:d[2], vX:wo*cf+wr*sf, vY:R0*(-wo*sf+wr*cf)/R, vZ:v[2]*K}; }
+function galRingOf(q,P){ const R=P.R0+q[0], f=q[1]/P.R0; return [R*Math.cos(f), R*Math.sin(f), q[2]]; }   /* (out, rot, z) about the centre */
+/* the Sun's own inertial velocity relative to the LSR point, in the Galactic basis (x → centre): (U, V, W) */
+function galSunVel(P){ const S=P.sunUVW; return [S[0],S[1],S[2]]; }
+/* a star's position relative to the Sun at t Myr from J2000, in the Galactic basis (x → centre, y → l 90°, z → NGP), pc,
+   from its J2000 relative position (pc) and INERTIAL relative velocity (km/s). The Sun rides its own epicycle. */
+function galRide(d,v,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), va=[v[0]+sv[0],v[1]+sv[1],v[2]+sv[2]];
+  const circ=[0,P.Om*P.R0/P.KMS,0];                     /* the LSR's own inertial velocity at the Sun, in km/s: toward l 90° */
+  const a=galPolarState(d,[va[0]+circ[0],va[1]+circ[1],va[2]],P), b=galPolarState([0,0,0],[sv[0]+circ[0],sv[1]+circ[1],sv[2]],P);
+  const A=galRingOf(galHill(a.X,a.Y,a.Z,a.vX,a.vY,a.vZ,tMyr,P),P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), x=-(A[0]-B[0]), y=A[1]-B[1];
+  return [x*ca-y*sa, x*sa+y*ca, A[2]-B[2]]; }
+/* a halo object (a globular cluster) is at rest in the Galaxy: only the Sun moves round it, on the same epicycle */
+function galRideHalo(d,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), b=galPolarState([0,0,0],[sv[0],sv[1]+P.Om*P.R0/P.KMS,sv[2]],P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), sx=-B[0], sy=B[1], Sx=sx*ca-sy*sa, Sy=sx*sa+sy*ca;   /* the Sun about the centre, inertial */
+  return [(d[0]-P.R0)-Sx, d[1]-Sy, d[2]-B[2]]; }
+/* a disc object with no measured motion is put on its circular orbit: the rotation curve at its radius, V(R) = ΩR₀ +
+   (Ω − 2A)(R − R₀) — the slope −(A + B) with B = A − Ω — along its own azimuth, less the Sun's inertial velocity */
+function galCircularVel(d,P){ P=P||GAL_RIDE; const K=P.KMS, Om=P.Om, R0=P.R0, S=P.sunUVW, po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po);
+  const V=(Om*R0+(Om-2*P.A)*(R-R0))/K;                  /* km/s */
+  return [V*Math.sin(f)-S[0], V*Math.cos(f)-(Om*R0/K+S[1]), -S[2]]; }
+/* the sky layers are equatorial underneath: a J2000 position (pc) and velocity (km/s), equatorial, ridden to epoch
+   epJ and handed back equatorial — through the same ICRS → Galactic rotation the catalogue station uses */
+function galRideEq(pEq,vEq,epJ,kind,P){ const d=statToGal(pEq), t=(epJ-2000)/1e6;
+  const g=kind==='halo'?galRideHalo(d,t,P):galRide(d,kind==='disc'?galCircularVel(d,P):statToGal(vEq),t,P);
+  return [0,1,2].map(j=>STAT_MG[0][j]*g[0]+STAT_MG[1][j]*g[1]+STAT_MG[2][j]*g[2]); }
+/* scene (the ecliptic frame raDecDir draws in) → equatorial, the inverse of hip3dEqToScene */
+function galSceneToEq(v){ const ce=Math.cos(OBLIQ), se=Math.sin(OBLIQ); return [v.x, -se*v.y-ce*v.z, ce*v.y-se*v.z]; }
 GAL_DATA.m31.dir=raDecDir(GAL_DATA.m31.ra/15,GAL_DATA.m31.dec).normalize();
 GAL_DATA.m31.pos=GAL_DATA.m31.dir.clone().multiplyScalar(GAL_DATA.m31.distLy*LY_AU);
 
@@ -26099,8 +26167,7 @@ const _cfQ=new THREE.Quaternion(), _cfV=new THREE.Vector3();
    at high time rates. modulo-FIRST keeps the phase exact at Gyr-deep epochs (see the animate loop). */
 let _earthDispT=null;                    // set each frame by the animate loop to the epoch the Earth MESH uses
 function earthDisplayT(){ return _earthDispT!=null?_earthDispT:(state.epochDays/36525); }
-function galSpinQuat(out){ const galDays=GAL_YEAR_MYR*1e6*365.2425;
-  const th=2*Math.PI*(((state.epochDays%galDays)+galDays)%galDays)/galDays;
+function galSpinQuat(out){ const th=galFrameAngle(state.epochDays);
   return (out||new THREE.Quaternion()).setFromAxisAngle(GAL_DATA.pole.dir,th); }
 function updateCosmicFrame(d,T,geoShift){
   buildCosmicFrame();
@@ -41813,7 +41880,15 @@ function zod3dToScene(p,out){ const ce=Math.cos(OBLIQ), se=Math.sin(OBLIQ);
   return (out||new THREE.Vector3()).set(p[0], zc, -yc); }
 /* the full astrometric state of one star at a Julian epoch, as an observer at the
    Solar System barycentre SEES it then: direction, distance, motion, light time */
+/* beyond two thousand years the named stars ride the Galaxy too (galRide), from their own rigorous J2000 state — the
+   straight line of starpm is its first-order term, so the two join without a seam */
 function zod3dState(s,epJ){
+  if(Math.abs(epJ-2000)>2000){ const a=zod3dStateLinear(s,2000), b=a&&zod3dStateLinear(s,2001); if(!a||!b) return null;
+    if(!s._ride){ const pc=ZOD3D_PC_AU; s._ride={p:a.posAU.map(x=>x/pc), v:a.posAU.map((x,i)=>(b.posAU[i]-x)/pc*1e6/GAL_RIDE.KMS)}; }
+    const e=galRideEq(s._ride.p,s._ride.v,epJ,null), r=Math.hypot(e[0],e[1],e[2]);
+    return {...a, raDeg:((Math.atan2(e[1],e[0])*180/Math.PI)+360)%360, decDeg:Math.asin(e[2]/r)*180/Math.PI, distPc:r, plxMas:1000/r, posAU:e.map(x=>x*ZOD3D_PC_AU), rideGalaxy:true}; }
+  return zod3dStateLinear(s,epJ); }
+function zod3dStateLinear(s,epJ){
   const plx=zod3dPlacedPlx(s); if(plx==null) return null;
   const de=s.de*Math.PI/180;
   const r=z3Starpm(s.ra*Math.PI/180, de, (s.pmra/3.6e6)*Math.PI/180/Math.cos(de),
@@ -42135,14 +42210,17 @@ function updateZodiac3d(dt){
   let f=THREE.MathUtils.clamp((ang-0.004)/(0.02-0.004),0,1);
   if(Math.abs(epJ-2000)>ZOD3D_DOMAIN_YR) f*=0.35;
   O.pts.material.uniforms.uFade.value=f;
-  for(const l of [O.figZ,O.figO,O.barL]) l.material.opacity=l.userData.op0*f;
+  /* a figure is a pattern of ONE epoch: once the Galaxy has carried its stars apart (a few hundred thousand years to a few
+     million) the lines no longer outline anything, so they dissolve with it — the stars stay, riding the disc */
+  const dis=1-THREE.MathUtils.smoothstep(Math.abs(epJ-2000),3e5,3e6);
+  for(const l of [O.figZ,O.figO,O.barL]) l.material.opacity=l.userData.op0*f*dis;
   /* A LINE OF SIGHT IS ONLY INFORMATIVE FROM OFF THE LINE. Drawn from inside the
      planetary system the 148 lines are seen almost end-on from 50 AU away and fan
      out across the middle of the view — measured on the first render, they covered
      the Sun. They appear as the camera leaves the Solar System (0.5 pc) and are at
      full strength by 5 pc, where a figure first opens up. */
   const out=THREE.MathUtils.clamp(Math.log10(Math.max(dSun,1)/1.03e5)/1,0,1);
-  O.sight.material.opacity=O.sight.userData.op0*f*out*(state.zod3dSight===false?0:1);
+  O.sight.material.opacity=O.sight.userData.op0*f*out*dis*(state.zod3dSight===false?0:1);
   O.sight.visible=out>0.01;
   O.barL.visible=state.zod3dBars!==false;
   { const on=state.zod3dTrails===true;
@@ -43931,7 +44009,12 @@ function hip3dBuild(){
 }
 /* straight-line motion: r(t) = d·(u + ω t) for a placed star, the direction
    normalise(u + ω t) for the rest — ω is the proper motion as a vector */
+/* a placed star rides the Galaxy (galRide): the straight line is its first-order term, and within a year of J2000 the
+   line is kept — the two agree to far below a star's own size there. A star with no distance stays a direction. */
+function hip3dRide(s){ if(s._ride) return s._ride; const a=s.ra*DEG, d=s.de*DEG, ca=Math.cos(a), sa=Math.sin(a), cd=Math.cos(d), sd=Math.sin(d), k=4.740470446*s.dPc/1000;
+  return s._ride={p:[cd*ca*s.dPc, cd*sa*s.dPc, sd*s.dPc], v:[k*(-sa*s.pmra-sd*ca*s.pmde), k*(ca*s.pmra-sd*sa*s.pmde), k*cd*s.pmde]}; }
 function hip3dPosAt(s,epJ,out){ const t=epJ-2000;
+  if(s.placed&&Math.abs(t)>1){ const r=hip3dRide(s), e=galRideEq(r.p,r.v,epJ,null); return hip3dEqToScene(e[0],e[1],e[2],out).multiplyScalar(ZOD3D_PC_AU); }
   out.set(s.u[0]+s.w[0]*t, s.u[1]+s.w[1]*t, s.u[2]+s.w[2]*t);
   return s.placed?out.multiplyScalar(s.dPc*ZOD3D_PC_AU):out.normalize(); }
 function hip3dPlace(epJ){
@@ -44056,7 +44139,7 @@ function updateSky3d(dt){
   const O=sky3dObjs;
   if(!(Math.abs(epJ-sky3dEpoch)<0.25)) sky3dPlace(epJ);
   O.pts.material.uniforms.uFade.value=f;
-  O.figL.material.opacity=O.figL.userData.op0*f;
+  O.figL.material.opacity=O.figL.userData.op0*f*(1-THREE.MathUtils.smoothstep(Math.abs(epJ-2000),3e5,3e6));   /* the figure dissolves as the Galaxy carries its stars apart */
   O.figL.visible=constGroup.visible!==false;
   /* a constellation is a figure seen from HERE; beyond 1.5 kpc its name is clutter */
   const labOn=f>0.15&&dSun<1500*ZOD3D_PC_AU&&!HCC_STAND;   // a figure's name belongs to the Sun's sky
@@ -44126,12 +44209,13 @@ function mwtBuild(){
           if(g.arm) r.push(['Nearest arm of the model',`${hccL([g.arm.name,g.arm.name,g.arm.name])} · ${fmt(g.off,2)} kpc from its track`]); }
         return r; }});
   }
-  mwtObjs={items,pts};
+  mwtObjs={items,pts,rideEp:2000,ride:items.map((it,k)=>{ const a=it.o.ra*DEG, d=it.o.de*DEG, pc=it.o.dKpc*1000; return {k,p:it.p,lab:it.lab,kind:'disc',eq:[Math.cos(d)*Math.cos(a)*pc,Math.cos(d)*Math.sin(a)*pc,Math.sin(d)*pc]}; })};
 }
 function mwtUpdate(){
   const L=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showMwTracers!==false&&(L==='galactic'||L==='andromeda');
   mwtGroup.visible=on; if(!on) return;
   mwtBuild();
+  { const ep=2000+(state.epochDays||0)/365.25; if(!(Math.abs(ep-(mwtObjs.rideEp??2000))<1000)){ mwtObjs.rideEp=ep; try{ galRideLayer(mwtObjs.ride,mwtObjs.pts,ep); }catch(e){} } }
   mwtObjs.pts.material.uniforms.uFade.value=L==='andromeda'?0.6:1;
   for(const it of mwtObjs.items) it.lab.visible=L==='galactic'&&(it.o.kind==='star'||it.o.dKpc>1.2||it.o.key==='m42');
 }
@@ -44244,12 +44328,13 @@ function dsoBuild(){
   /* the Galaxy's own objects */
   const L=DSO3D_LOCAL.filter(r=>!DSO_MWT_M.has(r[6])), ln=L.length;
   const lp=new Float32Array(ln*3), lc=new Float32Array(ln*3), lm=new Float32Array(ln), labs=[];
+  const LOC=[];
   L.forEach((r,k)=>{ v.copy(raDecDir(r[2]/15,r[3])).multiplyScalar(r[4]*1000*ZOD3D_PC_AU); lp.set([v.x,v.y,v.z],k*3);
     const t=r[1]==='globular'?5200:r[1]==='planetary'?16000:r[1]==='dark'?3000:r[1]==='open'?9000:r[1]==='SNR'?9000:14000;
     const cc=bbColor(t); if(r[1]==='HII'||r[1]==='emission'){ cc[0]=1; cc[1]=0.55; cc[2]=0.7; } lc.set(cc,k*3);
     lm[k]=r[1]==='globular'?3.0:r[1]==='dark'?5.2:3.6;
-    const p=v.clone();
-    if(r[6]||r[1]==='globular'&&r[5]!=null&&r[5]<8.5){ const lab=mkLabel(r[0],'label star'); lab.position.copy(p); dsoGroup.add(lab); labs.push(lab); }
+    const p=v.clone(), a0=r[2]*DEG, d0=r[3]*DEG, pc=r[4]*1000, loc={k, p, eq:[Math.cos(d0)*Math.cos(a0)*pc, Math.cos(d0)*Math.sin(a0)*pc, Math.sin(d0)*pc], kind:r[1]==='globular'?'halo':'disc', lab:null}; LOC.push(loc);
+    if(r[6]||r[1]==='globular'&&r[5]!=null&&r[5]<8.5){ const lab=mkLabel(r[0],'label star'); lab.position.copy(p); dsoGroup.add(lab); labs.push(lab); loc.lab=lab; }
     registerSel('dsol_'+k,{name:r[7]?`${r[7]} · ${r[0]}`:r[0],mode:'solar',layer:'galactic',src:['ASTRO'],accuracyTier:'B',catalogueStatus:'literature-derived',
       media:{name:r[7]||r[0],ids:[r[0],...(r[8]||[])],kind:'dso'},
       coords:{frame:'ICRS',raDeg:r[2],decDeg:r[3],epoch:2000},
@@ -44262,7 +44347,7 @@ function dsoBuild(){
   });
   const lpts=new THREE.Points(hccStarGeometry(lp,lc,lm),hccStarMaterial({abs:false}));
   lpts.frustumCulled=false; lpts.name='dso-milky-way-objects'; dsoGroup.add(lpts);
-  dsoObjs={G,pts,lpts,labs};
+  dsoObjs={G,pts,lpts,labs,local:LOC,rideEp:2000};
 }
 /* With the galaxies drawn, the volumes around them step back: a wireframe says where a
    structure is and how uncertain its extent is, and the points now say what fills it.
@@ -44278,10 +44363,19 @@ function dsoVolumes(k){
     if(e.cage){ const out=e.o.worldToLocal(_dsoCam.copy(camera.position)).length()>=e.o.geometry.parameters.radius; if(e.o.visible!==out) e.o.visible=out; }
     const val=e.a*(e.o.isMesh&&!e.m.wireframe?k*k:k); if(e.m.opacity!==val) e.m.opacity=val; }   // solid markers step back further
 }
+/* THE GALAXY'S OWN OBJECTS RIDE IT TOO: nebulae, open clusters and the arm tracers on circular orbits at their own radii
+   (galCircularVel), globular clusters at rest in the halo while the Sun moves round them (galRideHalo) — so at high time
+   rates they stay with the arms they belong to instead of hanging where J2000 left them */
+function galRideLayer(list,pts,epJ){ const A=pts.geometry.attributes.position.array, v=new THREE.Vector3(), near=Math.abs(epJ-2000)<1;
+  for(const it of list){ const e=near?it.eq:galRideEq(it.eq,null,epJ,it.kind); hip3dEqToScene(e[0],e[1],e[2],v).multiplyScalar(ZOD3D_PC_AU);
+    A[it.k*3]=v.x; A[it.k*3+1]=v.y; A[it.k*3+2]=v.z; it.p.copy(v); if(it.lab) it.lab.position.copy(v); }
+  pts.geometry.attributes.position.needsUpdate=true; }
+function dsoLocalPlace(epJ){ const O=dsoObjs; if(!O||!O.local||Math.abs(epJ-O.rideEp)<1000) return; O.rideEp=epJ; galRideLayer(O.local,O.lpts,epJ); }
 function dsoUpdate(){
   const Ly=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showDso3d!==false&&Ly!=='local';
   dsoVolumes(on&&Ly!=="galactic"?0.22:1);
   dsoGroup.visible=on; if(!on) return; dsoBuild();
+  try{ dsoLocalPlace(2000+(state.epochDays||0)/365.25); }catch(e){ if(!dsoLocalPlace._w){ dsoLocalPlace._w=1; console.warn('galactic ride (deep sky):',e); } }
   const u=dsoObjs.pts.material.uniforms; u.uViewH.value=renderer.domElement.clientHeight||innerHeight;
   u.uRef.value=Math.max(1e6,camera.position.distanceTo(controls.target));
   dsoObjs.lpts.visible=Ly==='galactic';
@@ -108937,8 +109031,7 @@ function tickBody(now, frame){
       // raw angle reaches ~1e9 rad where double-precision trig loses the phase — the
       // disk would visibly desynchronise from the vector atlas. epochDays%period is
       // exact in doubles, so the rotation stays phase-locked at ANY epoch.
-      const galDays = GAL_YEAR_MYR*1e6*365.2425;
-      const galTheta = 2*Math.PI * (((state.epochDays%galDays)+galDays)%galDays) / galDays;
+      const galTheta = galFrameAngle(state.epochDays);   /* clockwise from the north Galactic pole: the centre drifts toward l 270° */
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
