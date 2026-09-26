@@ -21283,8 +21283,8 @@ function earthAxisQuaternion(Tcenturies){
    Vondrák, Capitaine & Wallace 2011, A&A 534 A22 (+ 2012 Corrigendum, A&A 541 C1).
    Validity is DECLARED, not hoped: agrees with IAU 2006 to <100 µas through the
    20th–21st centuries, a few arcsec over the historical period, a few 0.1° at the
-   ±200,000-yr fit boundary; beyond ±200 kyr the series is the paper's quasi-periodic
-   extrapolation — smooth and bounded for any epoch, but an extrapolation and labelled so. */
+   ±200,000-yr fit boundary. Beyond ±200 kyr the series itself runs away (its polynomial part: the pole falls onto
+   the equator by ±1 Myr) and is NOT used there — see ltpEquExt below, which continues on the precession cone. */
 const LTP_S=Math.PI/(180*3600), LTP_EPS0=84381.406*LTP_S;
 const LTP_EQU_POL=[[5453.282155,0.4252841,-0.00037173,-0.000000152],
                    [-73750.930350,-0.7675452,-0.00018725,0.000000231]];
@@ -21345,11 +21345,58 @@ function ltpEquinoxLonDeg(epj){          // vernal-direction drift measured on t
   const ye=Math.cos(LTP_EPS0)*g[1]+Math.sin(LTP_EPS0)*g[2];                  // rotate into ecliptic J2000
   return Math.atan2(ye,g[0])/DEG;
 }
+/* ══ BEYOND THE FIT: THE AXIS KEEPS PRECESSING ═════════════════════════════════════
+   The Vondrák series is a fit over ±200 000 years and its polynomial part runs away
+   outside it: measured here, the obliquity climbs to 28.5° at +500 000 and the pole of
+   date falls onto the equator at ±1 000 000 (ε → 0) — the axis "fell over" and stayed.
+   The header above called the extrapolation bounded; it was not. Beyond the window the
+   atlas now continues with the two motions that are known to go on for millions of
+   years, joined to the fit at its boundary with no jump:
+     · the axis turns about the ecliptic pole at the general precession, one turn in
+       25 772 years, in the sense the fit is turning at the boundary;
+     · the obliquity breathes between 22.1° and 24.5° with the 41 000-year period
+       (Milanković; Laskar et al. 2004), phased to the fit's own value and slope there;
+     · the ecliptic keeps the fit's periodic terms, its polynomial frozen at the boundary.
+   The legacy linear engine is carried the same way beyond ±1000 years, on its own cone.
+   Everything past the window is an EXTRAPOLATION and the readout says so. */
+const PREC_EXT={P:25772, Pe:41040, epsMean:23.32*DEG, epsAmp:1.2*DEG, ltpEdge:200000, iauEdge:1000};
+const _v3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], _dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2], _nrm=a=>{ const n=Math.hypot(a[0],a[1],a[2]); return [a[0]/n,a[1]/n,a[2]/n]; };
+/* the ecliptic past the window: its periodic terms at the epoch, its polynomial held at the edge */
+function ltpEclExt(epj){ const dt=epj-2000, E=PREC_EXT.ltpEdge; if(Math.abs(dt)<=E) return ltpEcl(epj);
+  const tb=(Math.sign(dt)*E)/100, t=dt/100; let p=0,q=0; const w=2*Math.PI*t;
+  for(const P of LTP_ECL_PER){ const a=w/P[0],s=Math.sin(a),c=Math.cos(a); p+=c*P[1]+s*P[3]; q+=c*P[2]+s*P[4]; }
+  let ww=1; for(let i=0;i<4;i++){ p+=LTP_ECL_POL[0][i]*ww; q+=LTP_ECL_POL[1][i]*ww; ww*=tb; }
+  p*=LTP_S; q*=LTP_S; let z2=1-p*p-q*q; z2=z2<0?0:Math.sqrt(z2); const s=Math.sin(LTP_EPS0), c=Math.cos(LTP_EPS0);
+  return [p, -q*c-z2*s, -q*s+z2*c]; }
+/* the edge state of an engine: the pole, the ecliptic pole, the obliquity, its slope and the sense of turn there */
+function precEdge(poleAt,eclAt,edgeEpj){ const h=Math.sign(edgeEpj-2000)*10, p=poleAt(edgeEpj), e=eclAt(edgeEpj), p2=poleAt(edgeEpj-h), e2=eclAt(edgeEpj-h);
+  const eps=Math.acos(Math.max(-1,Math.min(1,_dot(p,e)))), eps2=Math.acos(Math.max(-1,Math.min(1,_dot(p2,e2))));
+  const u1=_nrm(p.map((x,i)=>x-_dot(p,e)*e[i])), u2=_v3(e,u1), q=p2.map((x,i)=>x-_dot(p2,e)*e[i]);
+  const turn=Math.sign(_dot(q,u2))*-Math.sign(h);            /* +1 if the pole turns from u1 toward u2 as time runs forward */
+  return {p,e,eps,dEps:(eps-eps2)/h,u1,turn:turn||-1}; }
+/* the continued pole: on the cone about the ecliptic pole of date, obliquity on the 41-kyr cycle phased to the edge */
+function precContinue(E,eclAt,epj,edgeEpj,breathe){ const t=epj-edgeEpj, e=eclAt(epj), X=PREC_EXT;
+  let eps=E.eps; if(breathe){ const amp=Math.max(X.epsAmp,Math.abs(E.eps-X.epsMean)+1e-9), c0=Math.max(-1,Math.min(1,(E.eps-X.epsMean)/amp));
+    const ph0=Math.acos(c0)*(E.dEps>0?-1:1);               /* d/dt cos(ωt+φ) = −ω sin φ has the sign of the edge slope */
+    eps=X.epsMean+amp*Math.cos(2*Math.PI*t/X.Pe+ph0); }
+  const u1=_nrm(E.u1.map((x,i)=>x-_dot(E.u1,e)*e[i])), u2=_v3(e,u1), a=E.turn*2*Math.PI*t/X.P, ca=Math.cos(a), sa=Math.sin(a);
+  return [0,1,2].map(i=>Math.cos(eps)*e[i]+Math.sin(eps)*(ca*u1[i]+sa*u2[i])); }
+let _precEdgeCache={};
+function ltpEquExt(epj){ const dt=epj-2000, X=PREC_EXT; if(Math.abs(dt)<=X.ltpEdge) return ltpEqu(epj);
+  const edge=2000+Math.sign(dt)*X.ltpEdge, key='ltp'+edge; const E=_precEdgeCache[key]||(_precEdgeCache[key]=precEdge(ltpEqu,ltpEcl,edge));
+  return precContinue(E,ltpEclExt,epj,edge,true); }
+function ltpObliquityExtRad(epj){ const a=ltpEquExt(epj), b=ltpEclExt(epj); return Math.acos(Math.max(-1,Math.min(1,_dot(a,b)))); }
+/* the legacy engine's own linear pole, and the same continuation on its own fixed cone beyond ±1000 years */
+function iauPoleEq(epj){ const T=(epj-2000)/100, ra=(-0.641*T)*DEG, dec=(90-0.557*T)*DEG; return [Math.cos(dec)*Math.cos(ra),Math.cos(dec)*Math.sin(ra),Math.sin(dec)]; }
+function iauPoleExt(epj){ const dt=epj-2000, X=PREC_EXT; if(Math.abs(dt)<=X.iauEdge) return iauPoleEq(epj);
+  const edge=2000+Math.sign(dt)*X.iauEdge, key='iau'+edge, e0=()=>ltpEcl(2000); const E=_precEdgeCache[key]||(_precEdgeCache[key]=precEdge(iauPoleEq,e0,edge));
+  return precContinue(E,e0,epj,edge,false); }
 /* the ACTIVE precession engine: state.precModel = 'ltp' (Vondrák long-term, default)
    or 'iau' (the legacy linear NAIF display rates, honest only within a few centuries) */
 function earthPoleDir(Tcenturies){
-  if((state.precModel||'ltp')==='ltp') return eqVecToScene(ltpEqu(2000+Tcenturies*100)).normalize();
-  return raDecDir((-0.641*Tcenturies)/15,90-0.557*Tcenturies).normalize();
+  /* both engines continue past their windows on the precession cone (ltpEquExt, iauPoleExt): the axis never falls over */
+  if((state.precModel||'ltp')==='ltp') return eqVecToScene(ltpEquExt(2000+Tcenturies*100)).normalize();
+  return eqVecToScene(iauPoleExt(2000+Tcenturies*100)).normalize();
 }
 function earthAxisQuaternionActive(Tcenturies){
   return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),earthPoleDir(Tcenturies));
@@ -25951,9 +25998,9 @@ function updateSolarVectors(T,geoShift){
   if(_svPrec){ _svPrec.visible=!!state.showSpinAxes && state.vectorAxes!==false&&state.vectorAdditional!==false&&local;
     if(_svPrec.userData.lab) _svPrec.userData.lab.visible=!MOBILE_GPU;
     if(_svPrec.visible && _svPrec.userData.ring){
-      // the cone breathes with the engine: Vondrák ε(t) varies ≈22.9°–24.4° over ±200 kyr
+      // the cone breathes with the engine: Vondrák ε(t) varies ≈22.14°–24.52° over ±200 kyr, and on the 41-kyr cycle beyond it
       const ltp=(state.precModel||'ltp')==='ltp';
-      const eps=ltp?ltpObliquityRad(2000+state.epochDays/365.25):23.4393*DEG;
+      const eps=ltp?ltpObliquityExtRad(2000+state.epochDays/365.25):23.4393*DEG;
       const k=Math.sin(eps)/Math.sin(23.44*DEG);
       _svPrec.userData.ring.scale.set(k,1,k);
       _svPrec.userData.ring.position.y=Math.cos(eps)*1.9;
@@ -108971,11 +109018,10 @@ function tickBody(now, frame){
       if(po){
         const epj=2000+state.epochDays/365.25, ltp=(state.precModel||'ltp')==='ltp';
         let raD,dec;
-        if(ltp){ const v=ltpEqu(epj); raD=((Math.atan2(v[1],v[0])/DEG)%360+360)%360; dec=Math.asin(Math.max(-1,Math.min(1,v[2])))/DEG; }
-        else { raD=((-0.641*T)%360+360)%360; dec=90-0.557*T; }
-        const eps=ltp?ltpObliquityRad(epj)/DEG:23.4393;
-        const gam=ltp?ltpEquinoxLonDeg(epj):null;
-        const far=Math.abs(epj-2000)>200000;
+        { const v=ltp?ltpEquExt(epj):iauPoleExt(epj); raD=((Math.atan2(v[1],v[0])/DEG)%360+360)%360; dec=Math.asin(Math.max(-1,Math.min(1,v[2])))/DEG; }   /* the continued pole in both engines */
+        const far=Math.abs(epj-2000)>(ltp?200000:1000);
+        const eps=ltp?ltpObliquityExtRad(epj)/DEG:23.4393;
+        const gam=ltp&&!far?ltpEquinoxLonDeg(epj):null;
         // PRECESSION PROTRACTOR: the measured angle between the pole of date and the
         // J2000 pole — the axis's own arc, in degrees, live (works with either engine)
         const dPole=earthPoleDir(T).angleTo(earthPoleDir(0))/DEG;
@@ -108983,7 +109029,7 @@ function tickBody(now, frame){
         ATLAS_BUS.pub('earth.poleShift',+dPole.toFixed(3),'deg');
         po.innerHTML=`epoch J${epj.toFixed(1)} · pole of date RA ${raD.toFixed(3)}° Dec ${dec.toFixed(3)}° (J2000 frame)`+
           `<br><b>protractor: pole moved ${dPole.toFixed(3)}° from J2000</b> · ε(t) = ${eps.toFixed(4)}°${gam!==null?` · equinox drift γ = ${gam.toFixed(3)}° on the J2000 ecliptic`:''}`+
-          (far&&ltp?`<br><b style="color:#ffd27f">beyond the ±200 kyr fit — bounded quasi-periodic EXTRAPOLATION</b>`:'')+
+          (far?`<br><b style="color:#ffd27f">beyond the ${ltp?'±200 kyr fit':'±1000-yr linear window'} — EXTRAPOLATION on the precession cone: one turn in 25 772 yr about the ecliptic pole${ltp?', ε on the 41-kyr cycle between 22.1° and 24.5°':''}</b>`:'')+
           (!ltp&&Math.abs(T)>3?`<br><b style="color:#ffd27f">linear model ${Math.abs(T).toFixed(0)} centuries from J2000 — switch to Vondrák for honesty</b>`:'');
       }
     }
