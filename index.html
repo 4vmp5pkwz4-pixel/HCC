@@ -26740,11 +26740,35 @@ registerSel('solarGC',{name:GAL_DATA.gc.name,mode:'solar',pick:gcDot,labelEl:gcL
   getPos:()=>milkyWayPhysical.getWorldPosition(new THREE.Vector3()),focusDist:()=>6500*LY_AU,
   rows:()=>[['J2000 centre','RA 17h45m40.04s · Dec −28°56′10.2″'],['Sun–centre distance','26,700 ly'],['Black-hole mass',`${GAL_DATA.gc.bhMassSolar.toExponential(3)} M☉`],['Schwarzschild radius',`${gcBHModel.userData.rsAU.toFixed(5)} AU`],['Photon-sphere radius',`${gcBHModel.userData.photonSphereAU.toFixed(5)} AU`],['ISCO clock',`${(gcBHModel.userData.iscoPeriodDays*24*60).toFixed(2)} min · global epoch locked`],['Shadow, predicted',`2√27·GM/(c²D) = ${bhShadowMicroarcsec(GAL_DATA.gc.bhMassSolar,GAL_DATA.gc.distLy*9.4607304725808e15).toFixed(1)} μas from this atlas's mass and distance — EHT 2022 measured the ring at 51.8 ± 2.3 μas`],
     ['Fate',(()=>{ const F=dtBlackHoleFate(GAL_DATA.gc.bhMassSolar); return `T_H = ${F.TH.toExponential(2)} K, colder than the CMB, so it GROWS — absorbing ${F.absorbKgPerS.toExponential(1)} kg/s against ${F.emitKgPerS.toExponential(1)} kg/s emitted — until the universe cools below T_H in ${(F.crossYears/1e9).toFixed(0)} billion years (ΛCDM, this atlas's H₀ and Ω_m). Only then does it evaporate, over ${F.evapYears.toExponential(1)} years: ${F.decadesBeyond.toFixed(0)} decades beyond the clock's edge (${F.clockEdgeYears.toExponential(1)} yr)`; })()],
+    ['On the atlas clock',(()=>{ try{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), T=lgMergerTimeline(O), h=bbhPeakStrain(GAL_DATA.gc.bhMassSolar,GAL_DATA.m31.bhMassSolar,GAL_DATA.gc.distLy*9.4607304725808e15);
+      return `galaxies collide at +${(T.tGal/1e9).toFixed(3)} Gyr (radial timing), the nucleus sinks by dynamical friction in ${(T.tDf/1e6).toFixed(0)} Myr (ln Λ = ${T.lnL.toFixed(2)}; r₀ = 1 kpc, v_c = 250 km/s declared), the holes merge at +${(T.tBH/1e9).toFixed(3)} Gyr (final parsec assumed crossed), and the wave passes the Sun ~26 700 yr later with h ≈ ${h.toExponential(1)} — the Earth–Sun distance breathing by ≈ ${(h*1.495978707e11/2).toFixed(1)} m`; }catch(e){ return '—'; } })()],
     ['Last merger',(()=>{ try{ const B=bbhBudget(GAL_DATA.gc.bhMassSolar,GAL_DATA.m31.bhMassSolar); return `with M31*, after the galaxies merge: ${(100*B.Erad).toFixed(2)} % of 1.44×10⁸ M☉ radiated as gravitational waves (${B.EradJ.toExponential(1)} J), remnant spin ${B.af.toFixed(3)}, recoil ${B.vkick.toFixed(1)} km/s, ringdown at ${(B.fQNM*1e6).toFixed(0)} μHz — see the laboratory "The last merger"`; }catch(e){ return '—'; } })()],
     ['Disk orientation',`${SGRA_TILT_DEG}° from face-on, clockwise on the sky (GRAVITY 2018; EHT 2022 disfavours i > 50°); the tilt's azimuth is declared, not measured`],
     ['Image','traced: every pixel a Schwarzschild null geodesic — shadow, photon ring at b = √27 GM/c², lensed far side of the disk, Doppler-beamed approaching limb'],
     ['Gateway scale','MAGNIFIED: a 4500-ly drawing of a hole light-minutes across; its shape is exact in units of GM/c²; the physical core remains true AU scale'],['Scale','1 scene unit = 1 AU']]});
 
+/* the merger on the clock (THE MERGER ON THE ATLAS CLOCK): the remnant replaces the pair, M31's disc fades into the remnant nobody
+   here models, and the gravitational-wave front leaves the centre at exactly c */
+let GW_FRONT=null;
+function mergerOnClock(yrs){ const N=M31_PHASE, merged=!!N&&N.phase==='merged', sinking=!!N&&N.phase==='sinking';
+  m31BHModel.visible=!merged; m31Lab.visible=!merged;
+  gcLab.element.textContent=merged?'Sgr A* + M31* · the remnant · 1.44×10⁸ M☉, a = 0.094':'Sgr A* · Galactic centre · 26,700 ly';
+  const fade=merged?0.25:sinking?1-0.75*(1-N.rKpc/LG_NUCLEUS.r0Kpc):1;
+  for(const o of [M31_LIVING.stars,M31_LIVING.glow]) if(o&&o.material.uniforms.uFade) o.material.uniforms.uFade.value=fade;
+  const on=merged&&N.frontLy<3e6;
+  if(on&&!GW_FRONT){ const g=new THREE.RingGeometry(0.965,1.0,256,1); g.rotateX(-Math.PI/2);
+    GW_FRONT=new THREE.Group(); GW_FRONT.name='gw-front';
+    const ring=new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xe8d8ff,transparent:true,opacity:0.9,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending}));
+    const shell=new THREE.Mesh(new THREE.SphereGeometry(1,48,24),new THREE.MeshBasicMaterial({color:0xb9a8ff,transparent:true,opacity:0.05,wireframe:true,depthWrite:false}));
+    const lab=mkLabel('','label dim'); lab.position.set(0,0.05,1); GW_FRONT.add(ring,shell,lab); GW_FRONT.userData={ring,shell,lab}; milkyWayPhysical.add(GW_FRONT); }
+  if(GW_FRONT){ GW_FRONT.visible=on; if(on){ const R=Math.max(1,N.frontLy)*LY_AU; GW_FRONT.scale.setScalar(R); GW_FRONT.userData.lab.position.set(0,0.06,1);
+      GW_FRONT.userData.ring.material.opacity=Math.min(1,Math.pow(26700/Math.max(26700,N.frontLy),0.5)); GW_FRONT.userData.ring.material.color.setHex(0xf2e6ff);
+      const passed=N.frontLy>=26700;
+      GW_FRONT.userData.lab.element.textContent=`gravitational-wave front · c·Δt = ${N.frontLy<1e4?N.frontLy.toFixed(0):N.frontLy.toExponential(2)} ly${passed?' · has passed the Sun':''}`; } } }
+/* watch it happen: the clock set 500 years before the holes merge, running 2 000 years a second, the Galaxy seen from above */
+function mergerWatch(){ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), T=lgMergerTimeline(O);
+  try{ HCC_TIME_FABRIC.setEpochDays(Math.round((T.tBH-500)*365.25),'merger-watch'); HCC_TIME_FABRIC.setRateDaysPerSecond(2000*365.25,'merger-watch'); HCC_TIME_FABRIC.setPaused(false,'merger-watch'); }catch(e){}
+  try{ mwLivingShow(); }catch(e){} return T; }
 /* a hole seen as we see it: the camera on our own line of sight to it, at distRs gravitational radii of the traced gateway */
 function bhShow(which,distRs){ const m=which==='m31'?m31BHModel:gcBHModel, layer=which==='m31'?'andromeda':'galactic';
   try{ if(state.mode!=='solar') setMode('solar'); advanceScaleLayer(layer); }catch(e){}
@@ -26752,7 +26776,7 @@ function bhShow(which,distRs){ const m=which==='m31'?m31BHModel:gcBHModel, layer
   const c=solarGroup.worldToLocal(T.getWorldPosition(new THREE.Vector3())), s=T.getWorldScale(new THREE.Vector3()).x, d=c.clone().normalize();
   controls.target.copy(c); camera.position.copy(c).addScaledVector(d,-(distRs||60)*s);
   try{ hccCameraGoalClear(); _lastCamDist=camera.position.distanceTo(controls.target); syncCameraClipping(true); }catch(e){} }
-globalThis.HCC_BH=Object.freeze({view:(which,d)=>bhShow(which||'sgra',d), shadow:()=>EHT_RINGS.map(r=>({...r, predictedMuas:r.key==='sgra'?bhShadowMicroarcsec(GAL_DATA.gc.bhMassSolar,GAL_DATA.gc.distLy*9.4607304725808e15)
+globalThis.HCC_BH=Object.freeze({watchMerger:()=>{ const T=mergerWatch(); return {...T}; }, timeline:()=>{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)); return {...lgMergerTimeline(O)}; }, view:(which,d)=>bhShow(which||'sgra',d), shadow:()=>EHT_RINGS.map(r=>({...r, predictedMuas:r.key==='sgra'?bhShadowMicroarcsec(GAL_DATA.gc.bhMassSolar,GAL_DATA.gc.distLy*9.4607304725808e15)
   :bhShadowMicroarcsec(r.massSolar,0.0548e9*9.4607304725808e15)}))});
 /* ── Milky Way spiral-arm label layer · SCHEMATIC literature reconstruction ──
    Logarithmic-spiral arm tracks (pitch ≈12.5°) with labels; NOT exact arm
@@ -27034,7 +27058,7 @@ m31Physical.name='solar:m31'; m31Physical.userData.placedBy='catalogue';
   const B=galaxyDiscBasis(GAL_DATA.m31.ra,GAL_DATA.m31.dec,GAL_DATA.m31.inclination,GAL_DATA.m31.pa);
   orientDisk(m31Physical,B.major,B.normal);
 }
-let M31_ORBIT=null, M31_NOW=null; const M31_REL0=GAL_DATA.m31.pos.clone().sub(GAL_DATA.gc.pos);
+let M31_ORBIT=null, M31_NOW=null, M31_PHASE=null; const M31_REL0=GAL_DATA.m31.pos.clone().sub(GAL_DATA.gc.pos);
 const m31BaseQuat=m31Physical.quaternion.clone(),_m31SpinQ=new THREE.Quaternion(),_localY=new THREE.Vector3(0,1,0);
 const m31Spiral=galaxySpiral(76000,2,13000,0x9db8e8,3101,4.8); m31Physical.add(m31Spiral,guideCircle(76000*LY_AU,0x9db8e8,.25,256));
 /* ══ ANDROMEDA, ALIVE ═══════════════════════════════════════════════════════════════════
@@ -57483,6 +57507,35 @@ function bbhBudget(m1s,m2s){ const P=bbhParams(m1s,m2s), R=bbhRemnant(P.eta), tM
   const Mc=P.Mc*BBH_MSUN, tauAt=f=>(5/256)*Math.pow(BBH_G*Mc/BBH_C**3,-5/3)*Math.pow(Math.PI*f,-8/3);
   return {...P, ...R, tM, MfSun:Mf, EradSun:P.M*R.Erad, EradJ:P.M*R.Erad*BBH_MSUN*BBH_C**2, fISCO, fQNM, tauQNM, qnm:Q,
     yearsFromPTA:tauAt(1e-8)/BBH_YR, yearsFromLISAedge:tauAt(1e-4)/BBH_YR, lisaEdgeAbove:1e-4>fQNM}; }
+/* ══ THE MERGER ON THE ATLAS CLOCK ════════════════════════════════════════════════════════
+   What happens to the two central holes as the clock runs, each phase a pure function of the
+   epoch — no step is integrated, so the state is the same at one day per second and at a billion
+   years per second:
+     1. APPROACH — M31 falls along the Kahn–Woltjer cycloid until the radial collapse (above);
+     2. SINKING — the merged galaxy is NOT modelled; the Milky Way's nucleus (Sgr A* inside its
+        nuclear star cluster, 2.5×10⁷ M☉, Schödel et al. 2014) sinks to the centre of the M31-
+        dominated remnant by Chandrasekhar dynamical friction in a singular isothermal sphere,
+        t_df = (1.17/ln Λ) r₀² v_c / (G M) (Binney & Tremaine 2008, eq. 8.13), with r²(t) falling
+        linearly — from r₀ = 1 kpc in a remnant of v_c = 250 km/s, both declared rather than measured;
+     3. THE FINAL PARSEC is assumed crossed promptly (stated: it may stall), and the last years
+        are the Peters inspiral of the laboratory "The last merger";
+     4. MERGER — a gravitational-wave front leaves the centre at exactly c, carrying 5.2×10⁵² J,
+        and passes the Sun ~26 700 years later with a strain of ~10⁻¹¹. */
+const LG_NUCLEUS=Object.freeze({mSgrA:4.15e6, mNSC:2.5e7, vcKms:250, r0Kpc:1.0});
+const LG_G_KPC=4.30091e-6, LG_KPC_PER_KMS_YR=977.7922216807891e6;       /* G in kpc (km/s)² / M☉ · one kpc/(km/s) in years */
+function lgDynFrictionYears(Msun,vcKms,r0Kpc){ const lnL=Math.log(r0Kpc*vcKms*vcKms/(LG_G_KPC*Msun));
+  return {years:1.17/lnL*r0Kpc*r0Kpc*vcKms/(LG_G_KPC*Msun)*LG_KPC_PER_KMS_YR, lnL}; }
+/* the hand-over is where the infalling cycloid itself crosses r₀, so the position never jumps: cos η₁ = 1 − r₀/A on the infall branch */
+function lgMergerTimeline(O){ const N=LG_NUCLEUS, D=lgDynFrictionYears(N.mSgrA+N.mNSC,N.vcKms,N.r0Kpc), r0=N.r0Kpc*LG_MPC_M/1000;
+  const eta1=2*Math.PI-Math.acos(1-r0/O.A), t1=(O.B*(eta1-Math.sin(eta1))-O.t0)/LG_YR_S;
+  return {tGal:t1, tCollapse:O.collapse_years, tDf:D.years, lnL:D.lnL, tBH:t1+D.years}; }
+function lgNucleusAt(O,years){ const T=lgMergerTimeline(O);
+  if(years<T.tGal) return {phase:'approach', T};
+  if(years<T.tBH) return {phase:'sinking', rKpc:LG_NUCLEUS.r0Kpc*Math.sqrt(1-(years-T.tGal)/T.tDf), T};
+  return {phase:'merged', since:years-T.tBH, frontLy:(years-T.tBH), T}; }                 /* the front has travelled c·Δt: one light-year per year */
+/* the peak strain of the merger wave at distance r (quadrupole, at the ISCO frequency) */
+function bbhPeakStrain(m1s,m2s,rMeters){ const B=bbhBudget(m1s,m2s), Mc=B.Mc*BBH_MSUN;
+  return 4/rMeters*Math.pow(BBH_G*Mc/BBH_C**2,5/3)*Math.pow(Math.PI*B.fISCO/BBH_C,2/3); }
 const bbhGroup=new THREE.Group(); bbhGroup.visible=false; s3Group.add(bbhGroup);
 let bbhObjs=null, bbhUi=0;
 const BBH_UNIT=0.1, BBH_A0=20, BBH_R=150;           /* scene units per GM/c³ of the total mass · starting separation · membrane half-size, both in M */
@@ -104156,6 +104209,7 @@ function toolsDefs(){ const click=id=>()=>{ const b=document.getElementById(id);
       ['⬡',TT('The Trisphere','Трисфера','Die Trisphäre'),()=>{ try{ hccGo({worldId:'s3',labId:'tri'}); }catch(e){} }],
       ['🌀',TT('Navier–Stokes on S³, integrated','Навье–Стокс на S³, проинтегрированный','Navier–Stokes auf S³, integriert'),()=>{ try{ hccGo({worldId:'s3',labId:'nsflow'}); }catch(e){} }],
       ['⊛',TT('The last merger · Sgr A* + M31*','Последнее слияние · Sgr A* + M31*','Die letzte Verschmelzung · Sgr A* + M31*'),()=>{ try{ hccGo({worldId:'s3',labId:'bbh'}); }catch(e){} }],
+      ['⏩',TT('Watch the holes merge on the atlas clock','Смотреть слияние дыр на часах атласа','Die Verschmelzung auf der Atlasuhr ansehen'),()=>{ try{ mergerWatch(); }catch(e){} }],
       ['🌀',TT('The Galaxy from above','Галактика сверху','Die Galaxis von oben'),()=>{ try{ mwLivingShow(); }catch(e){} }],
       ['🌌',TT('Andromeda, as we see it','Андромеда, как мы её видим','Andromeda, wie wir sie sehen'),()=>{ try{ m31LivingShow(false); }catch(e){} }],
       ['◎',TT('Andromeda from above','Андромеда сверху','Andromeda von oben'),()=>{ try{ m31LivingShow(true); }catch(e){} }],
@@ -110787,8 +110841,11 @@ function tickBody(now, frame){
       m31Physical.quaternion.copy(m31BaseQuat).multiply(_m31SpinQ.setFromAxisAngle(_localY,m31Theta));
       /* M31 falls along the atlas's own timing cycloid (DEEP TIME); within a year of now it stands exactly on its catalogue position */
       try{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), yrs=(state.epochDays||0)/365.25;
-        if(Math.abs(yrs)<=1) m31Physical.position.copy(GAL_DATA.m31.pos);
-        else { const S=lgSeparationAt(O,yrs); M31_NOW=S; const f=S.merged?0:S.rMpc/(O.r0/LG_MPC_M); m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(M31_REL0,f); } }catch(e){}
+        if(Math.abs(yrs)<=1){ m31Physical.position.copy(GAL_DATA.m31.pos); M31_PHASE=null; }
+        else { const S=lgSeparationAt(O,yrs); M31_NOW=S; const N=lgNucleusAt(O,yrs); M31_PHASE=N;
+          if(N.phase==='approach'){ const f=S.rMpc/(O.r0/LG_MPC_M); m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(M31_REL0,f); }
+          else { const r=(N.phase==='sinking'?N.rKpc:0)*MILKY_WAY.KPC_LY*LY_AU; m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(M31_REL0.clone().normalize(),r); } }
+        mergerOnClock(yrs); }catch(e){}
       try{ m31LivingUpdate(); }catch(e){ if(!m31LivingUpdate._w){ m31LivingUpdate._w=1; console.warn('living M31:',e); } }
       updateGalacticBlackHoleModels();
     }
