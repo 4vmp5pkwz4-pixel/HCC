@@ -1,0 +1,87 @@
+const LENSES = Object.freeze([
+  'state_space',
+  'flow_or_operator',
+  'symmetry_group',
+  'invariant_or_monotone',
+  'spectrum_or_index',
+  'compactness_or_escape',
+  'critical_set_or_singularity',
+  'certificate_and_provenance',
+]);
+
+export function buildSharedReality({ identity, agent, invariants, openProblems, kevalin }) {
+  if (!identity?.version || !identity?.build) throw new TypeError('release identity is required');
+  if (!agent?.resources || !invariants?.counts || !Number.isInteger(openProblems?.count)) {
+    throw new TypeError('agent, invariant census and open-problem registry are required');
+  }
+  if (!Array.isArray(kevalin?.evidence_priority)) throw new TypeError('KEVALIN evidence priority is required');
+
+  return {
+    schema: 'hcc.shared-reality/1',
+    version: identity.version,
+    build: identity.build,
+    purpose: 'One release-bound machine-readable starting state for agents: what exists, what was measured, what stays open, and which claims must not be promoted beyond their evidence.',
+    bootstrap_order: [
+      './version.json',
+      './api/agent.json',
+      './api/reality.json',
+      './api/manifest.json',
+      './api/invariants.json',
+      './api/open-problems.json',
+      './kevalin/manifest.json',
+    ],
+    generated_from: {
+      release: './version.json',
+      agent: './api/agent.json',
+      manifest: './api/manifest.json',
+      invariants: './api/invariants.json',
+      open_problems: './api/open-problems.json',
+      continuity: './kevalin/manifest.json',
+    },
+    snapshot: {
+      typed_instruments: invariants.counts.laboratories,
+      laboratories_with_invariants: invariants.counts.found,
+      exact_relations: invariants.counts.exact_relations,
+      conserved_along_a_clock: invariants.counts.conserved_along_a_clock,
+      undeclared_integer_inputs: invariants.counts.undeclared_integer_inputs,
+      open_problems: openProblems.count,
+    },
+    evidence_priority: [...kevalin.evidence_priority],
+    claim_boundaries: {
+      navier_stokes_s3: {
+        atlas_scope: 'exact_nonstationary_solution_family_on_round_s3',
+        atlas_instrument: 'nsflow',
+        supporting_instruments: ['s3kb', 's3shell', 's3escape', 'tri', 's3lock'],
+        general_clay_solution: false,
+        rule: 'An exact solution family and a measured PDE residual do not establish regularity or blow-up for all smooth three-dimensional data.',
+      },
+      invariant_census: {
+        source: './api/invariants.json',
+        theorem_outside_declared_domain: false,
+        rule: 'A relation promoted by the finder is evidence inside the declared sampled contract; theorem status outside that scope requires an independent proof.',
+      },
+      trisphere: {
+        atlas_instrument: 'tri',
+        physical_universe_topology_evidence: false,
+        rule: 'A mathematically exact S3 representation is not observational evidence that the physical Universe has S3 topology.',
+      },
+    },
+    research_protocol: {
+      id: 'millennium-cross-invariant-pass',
+      purpose: 'Compare difficult problems through a common grammar without asserting that distinct mathematical problems are physically or mathematically identical.',
+      lenses: [...LENSES],
+      cross_problem_identity_claim: false,
+      promotion_rule: 'hypothesis -> reproducible numerical or symbolic evidence -> independently checked lemma -> proof/formalization where applicable; no stage may be skipped by analogy',
+      atlas_use: 'Use parameter spaces, phase portraits, invariant search, bus links, refusals and open-problem records as a hypothesis engine; preserve every failed bridge as evidence against over-unification.',
+    },
+    continuity: {
+      manifest: './kevalin/manifest.json',
+      protocol: './kevalin/CONTINUITY_PROTOCOL.md',
+      private_chain_of_thought: 'does_not_persist',
+      durable_state: 'public_artifacts_tests_provenance_and_explicit_handoffs',
+      rule: 'Verify the current release before trusting any prior model summary or memory.',
+    },
+  };
+}
+
+export { LENSES as SHARED_REALITY_LENSES };

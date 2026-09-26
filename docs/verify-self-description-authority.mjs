@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, existsSync } from 'node:fs';
 import { CORE } from '../core/index.mjs';
+import { buildSharedReality } from '../core/reality/shared-reality.mjs';
 const read=p=>readFileSync(p,'utf8'), json=p=>JSON.parse(read(p));
 let pass=0,fail=0;
 const ok=(n,c,d='')=>{if(c){pass++;console.log('  PASS — '+n+(d?' :: '+d:''));}else{fail++;console.log('  FAIL — '+n+(d?' :: '+d:''));}};
@@ -33,5 +34,29 @@ for(const kind of ['sensitivity','transfers','reach','liveness']){
   ok('CORE '+kind+' freshness agrees with artifact',s?.version===a.version&&s?.build===a.build&&s?.measured_release?.version===a.version&&s?.measured_release?.build===a.build&&s?.current_release?.version===release.version&&s?.current_release?.build===release.build&&s?.measured_on_this_release===fresh&&s?.stale===!fresh);
 }
 ok('CORE reports current atlas build',measured.atlas_release===release.version&&measured.atlas_build===release.build);
+
+/* The shared reality is not a second authority. It is a deterministic projection of the
+   authorities above, so a later model cannot keep reading a stale hand-written worldview. */
+const agent=json('api/agent.json'), invariants=json('api/invariants.json'), openProblems=json('api/open-problems.json');
+const kevalin=json('kevalin/manifest.json'), reality=json('api/reality.json');
+const derived=buildSharedReality({identity:release,agent,invariants,openProblems,kevalin});
+ok('shared reality is exactly reproducible from current authorities',JSON.stringify(reality)===JSON.stringify(derived));
+ok('agent discovery points at the shared reality',agent.resources?.reality==='./api/reality.json');
+ok('KEVALIN continuity points at the same shared reality',kevalin.shared_reality==='/api/reality.json');
+ok('shared reality carries the current release identity',reality.version===release.version&&reality.build===release.build);
+ok('shared reality carries the measured invariant census, not a frozen count',
+  reality.snapshot?.typed_instruments===invariants.counts?.laboratories&&
+  reality.snapshot?.laboratories_with_invariants===invariants.counts?.found&&
+  reality.snapshot?.exact_relations===invariants.counts?.exact_relations&&
+  reality.snapshot?.open_problems===openProblems.count);
+ok('exact S3 Navier–Stokes sector is not promoted to the general Clay problem',
+  reality.claim_boundaries?.navier_stokes_s3?.atlas_scope==='exact_nonstationary_solution_family_on_round_s3'&&
+  reality.claim_boundaries?.navier_stokes_s3?.general_clay_solution===false);
+ok('mathematical S3 representation is not promoted to physical topology evidence',
+  reality.claim_boundaries?.trisphere?.physical_universe_topology_evidence===false);
+ok('cross-problem research grammar preserves non-identity',
+  reality.research_protocol?.cross_problem_identity_claim===false&&
+  Array.isArray(reality.research_protocol?.lenses)&&reality.research_protocol.lenses.length===8);
+
 console.log('\n  '+pass+' passed, '+fail+' failed');
 process.exit(fail?1:0);
