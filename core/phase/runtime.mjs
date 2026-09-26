@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { sha256 } from '../contract.mjs';
 import { CORE_VERSION } from '../version.mjs';
-import { PROVENANCE } from '../index.mjs';
+import { PROVENANCE as BASE_PROVENANCE } from '../base-index.mjs';
 import { NEXUS_RELATIONS } from '../atlas/extracted.mjs';
 import { createPhaseService } from './service.mjs';
 
@@ -21,12 +21,19 @@ export function phaseCodeHash(){
   const parts=PHASE_SOURCE_FILES.map(f=>readFileSync(join(CORE_DIR,f),'utf8'));
   return sha256(parts.join('\n'));
 }
+export function baseCoreCodeHash(){
+  const baseImplementation=readFileSync(join(CORE_DIR,'base-index.mjs'),'utf8');
+  return sha256(`${BASE_PROVENANCE.code_sha256}\n${baseImplementation}`);
+}
+export function combinedCoreCodeHash(){
+  return sha256(`${baseCoreCodeHash()}\n${phaseCodeHash()}`);
+}
 function release(){try{const r=JSON.parse(readFileSync(join(ROOT,'version.json'),'utf8'));return {version:r.version||null,build:r.build||null};}catch{return {version:null,build:null};}}
 function routes(){try{const m=JSON.parse(readFileSync(join(ROOT,'api/manifest.json'),'utf8'));return m.bus?.links||[];}catch{return [];}}
 
 export function phaseIdentity(){
-  const r=release(), phase=phaseCodeHash(), base=PROVENANCE.code_sha256;
-  return Object.freeze({...r,core_version:CORE_VERSION,base_core_code_sha256:base,phase_code_sha256:phase,code_sha256:sha256(`${base}\n${phase}`)});
+  const r=release(), phase=phaseCodeHash(), base=baseCoreCodeHash();
+  return Object.freeze({...r,core_version:CORE_VERSION,base_core_code_sha256:base,phase_code_sha256:phase,code_sha256:combinedCoreCodeHash()});
 }
 export function createHccPhaseService(){
   const identity=phaseIdentity();
