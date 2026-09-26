@@ -4,3 +4,4 @@ export { createPhaseRegistry } from './registry.mjs';
 export { probeInvariant } from './invariant-probe.mjs';
 export { phaseFingerprint } from './fingerprint.mjs';
 export { discoverCandidateBridges } from './candidates.mjs';
+export { PHASE_BRIDGE_STATUSES, definePhaseBridge, evaluatePhaseBridge } from './bridges.mjs';
