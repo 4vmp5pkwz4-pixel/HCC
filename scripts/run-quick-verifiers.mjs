@@ -119,6 +119,7 @@ const allChecks = [
   "docs/verify-the-laboratory-audit.cjs",
   "docs/verify-the-stars-ride-the-galaxy.cjs",
   "docs/verify-the-axis-keeps-precessing.cjs",
+  "docs/verify-topology-made-visible.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -295,6 +296,7 @@ if (fullMode) {
     'docs/verify-the-laboratory-audit.cjs',
     'docs/verify-the-stars-ride-the-galaxy.cjs',
     'docs/verify-the-axis-keeps-precessing.cjs',
+    'docs/verify-topology-made-visible.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

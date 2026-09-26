@@ -33607,6 +33607,55 @@ function topoHopfPair(th1,th2,ph1,ph2,N){
 function topoGaussLink(A,B){
   return topoLinkPure(A.map(v=>[v.x,v.y,v.z]), B.map(v=>[v.x,v.y,v.z]));
 }
+/* ── A SURFACE WHOSE HOLES OPEN ONE BY ONE: Gauss–Bonnet made visible ─────────────
+   Three tori in a chain, major radii 0.62, 0.80 and 0.98, blended by a smooth minimum
+   into one surface, with a common tube radius r. While r exceeds a torus's major radius
+   its hole is filled; lower r and the holes open one at a time, largest first, until
+   the chain parts into three separate rings. The surface is extracted by the same
+   marching tetrahedra the Field Lab draws with, and two numbers are read off the
+   triangles themselves, never from the recipe:
+        χ = V − E + F                   (Euler, by counting)
+        Σ_v (2π − Σ angles at v) = 2πχ  (Gauss–Bonnet, discrete: exact for any closed
+                                          triangulation, not an approximation)
+   so the total curvature is QUANTISED: it cannot change while the surface deforms,
+   however much the shape does, and it jumps by exactly 4π when a hole opens. */
+const TOPO_GENUS={R:[0.62,0.80,0.98], cx:[-2.05,0,2.12], k:0.22, L:4.4};
+function topoGenusField(N,r,G){ G=G||TOPO_GENUS; const q=new Float32Array(N*N*N), s=2*G.L/(N-1), h=(N-1)/2;
+  for(let z=0;z<N;z++) for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const X=(x-h)*s, Y=(y-h)*s, Z=(z-h)*s; let d=Infinity;
+    for(let i=0;i<3;i++){ const di=Math.hypot(Math.hypot(X-G.cx[i],Z)-G.R[i],Y)-r;
+      if(d===Infinity) d=di; else { const hh=Math.max(0,Math.min(1,0.5+0.5*(di-d)/G.k)); d=di*(1-hh)+d*hh-G.k*hh*(1-hh); } }   /* polynomial smooth minimum */
+    q[(z*N+y)*N+x]=-d; }
+  return {q,s}; }
+/* Euler and Gauss–Bonnet read off a triangle soup: vertices welded by position, edges counted, components by union–find,
+   and the angle deficit at every vertex — whose sum is exactly 2πχ — kept per soup vertex so it can colour the surface */
+function topoMeshTopology(pos){ const n=pos.length/3, key=new Map(), id=new Int32Array(n); let V=0;
+  for(let i=0;i<n;i++){ const k=Math.round(pos[3*i]*1e5)+','+Math.round(pos[3*i+1]*1e5)+','+Math.round(pos[3*i+2]*1e5); let v=key.get(k); if(v===undefined){ v=V++; key.set(k,v); } id[i]=v; }
+  const E=new Set(), ang=new Float64Array(V), area=new Float64Array(V), par=new Int32Array(V).map((_,i)=>i), find=a=>{ while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; };
+  let F=0;
+  for(let t=0;t<n/3;t++){ const a=id[3*t], b=id[3*t+1], c=id[3*t+2]; if(a===b||b===c||a===c) continue; F++;
+    for(const [u,v] of [[a,b],[b,c],[c,a]]){ E.add(u<v?u*V+v:v*V+u); const ru=find(u), rv=find(v); if(ru!==rv) par[ru]=rv; }
+    const P=k=>[pos[3*(3*t+k)],pos[3*(3*t+k)+1],pos[3*(3*t+k)+2]], p=[P(0),P(1),P(2)];
+    const cr=(u,v)=>[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]], sub=(u,v)=>[u[0]-v[0],u[1]-v[1],u[2]-v[2]];
+    const A2=Math.hypot(...cr(sub(p[1],p[0]),sub(p[2],p[0])));
+    [a,b,c].forEach((v,k)=>{ const e1=sub(p[(k+1)%3],p[k]), e2=sub(p[(k+2)%3],p[k]);
+      ang[v]+=Math.atan2(Math.hypot(...cr(e1,e2)),e1[0]*e2[0]+e1[1]*e2[1]+e1[2]*e2[2]); area[v]+=A2/6; }); }
+  let deficit=0, comps=new Set(); const K=new Float32Array(n);
+  for(let v=0;v<V;v++){ deficit+=2*Math.PI-ang[v]; comps.add(find(v)); }
+  /* the COLOUR is the deficit density smoothed over neighbours (marching tetrahedra make the raw one speckled); the sum above is untouched */
+  let kv=new Float64Array(V); for(let v=0;v<V;v++) kv[v]=area[v]>0?(2*Math.PI-ang[v])/area[v]:0;
+  const EA=[...E]; for(let it=0;it<4;it++){ const s2=Float64Array.from(kv), c2=new Float64Array(V).fill(1); for(const e of EA){ const u=Math.floor(e/V), w=e%V; s2[u]+=kv[w]; s2[w]+=kv[u]; c2[u]++; c2[w]++; } for(let v=0;v<V;v++) kv[v]=s2[v]/c2[v]; }
+  for(let i=0;i<n;i++) K[i]=kv[id[i]];
+  const chi=V-E.size+F, c=comps.size;
+  return {V,E:E.size,F,chi,components:c,genus:c-chi/2,deficit,gaussBonnet:deficit/(2*Math.PI),K}; }
+/* ── THE HOPF FIBRATION, ALL OF IT THAT FITS ON A SCREEN ──────────────────────────
+   Points of the base S² on a few latitudes; each lifts to a great circle of S³, drawn by
+   the same stereographic projection as the linking station. Fibres over one latitude
+   fill a torus, and the tori nest. The theorem the picture makes checkable: EVERY two
+   distinct fibres link exactly once — measured here on every pair drawn. */
+function topoFibration(lats,per,N){ const F=[]; lats.forEach((th,i)=>{ for(let j=0;j<per;j++){ const ph=2*Math.PI*(j+0.5*(i%2))/per; F.push({th,ph,pts:topoHopfPts(th,ph,N||96,1.9)}); } }); return F; }
+function topoAllPairs(F){ let lo=Infinity, hi=-Infinity, n=0, worst=0;
+  for(let i=0;i<F.length;i++) for(let j=i+1;j<F.length;j++){ const l=topoLinkPure(F[i].pts,F[j].pts); lo=Math.min(lo,l); hi=Math.max(hi,l); worst=Math.max(worst,Math.abs(Math.abs(l)-1)); n++; }
+  return {pairs:n,min:lo,max:hi,worst}; }
 /* shared lab-group wipe: geometries, materials AND CSS2D label DOM nodes —
    forgetting the labels leaked hundreds of DOM elements per slider scrub and
    read as a GPU freeze (the CSS2D renderer composites every orphan each frame) */
@@ -33627,10 +33676,40 @@ function topoClear(){
 }
 function topoSetup(){
   topoClear(); topoT=0;
-  const st=state.topoStation||'link';
+  const st=state.topoStation||'fibration';
   const mkLine=(pts,col,op=.9)=>{ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([...pts,pts[0]]),
       new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));
     topoGroup.add(l); return l; };
+  const tube=(pts,col,rad,op=1)=>{ const c=new THREE.CatmullRomCurve3(pts.map(p=>Array.isArray(p)?new THREE.Vector3(p[0],p[1],p[2]):p),true);
+    const m=new THREE.Mesh(new THREE.TubeGeometry(c,Math.max(64,pts.length),rad,7,true),new THREE.MeshStandardMaterial({color:col,emissive:new THREE.Color(col).multiplyScalar(0.42),roughness:0.35,metalness:0.25,transparent:op<1,opacity:op}));
+    topoGroup.add(m); return m; };
+  const lights=()=>{ topoGroup.add(new THREE.AmbientLight(0x8090b0,.55)); const dl=new THREE.DirectionalLight(0xfff2dc,1.05); dl.position.set(4,6,5); topoGroup.add(dl); const rl=new THREE.DirectionalLight(0x7fb8ff,.45); rl.position.set(-5,-2,-4); topoGroup.add(rl); };
+  if(st==='fibration'){
+    lights();
+    /* four latitudes of the base S², twelve points each: forty-eight fibres on four nested tori, hue = longitude */
+    const lats=[0.5,0.98,1.46,1.94], F=topoFibration(lats,12,120), col=f=>new THREE.Color().setHSL(((f.ph/(2*Math.PI))%1+1)%1,0.78,0.34+0.22*(f.th/Math.PI));
+    /* the bundle in a frame of its own, scaled so all four tori and the base sphere sit in one view */
+    const bundle=new THREE.Group(); bundle.scale.setScalar(0.62); topoGroup.add(bundle);
+    for(const f of F) bundle.add(tube(f.pts,col(f),0.03));
+    /* the base S², small, beside it: every dot is one circle upstairs, in the same colour */
+    const base=new THREE.Group(); base.position.set(3.6,1.6,0); base.scale.setScalar(1.35); topoGroup.add(base);
+    base.add(new THREE.Mesh(new THREE.SphereGeometry(0.62,32,20),new THREE.MeshBasicMaterial({color:0x1b3a66,wireframe:true,transparent:true,opacity:.35})));
+    const bp=f=>new THREE.Vector3(Math.sin(f.th)*Math.cos(f.ph),Math.cos(f.th),Math.sin(f.th)*Math.sin(f.ph)).multiplyScalar(0.62);
+    for(const f of F){ const d=new THREE.Mesh(new THREE.SphereGeometry(0.034,8,6),new THREE.MeshBasicMaterial({color:col(f)})); d.position.copy(bp(f)); base.add(d); }
+    const bl=mkLabel('the base S² · each point ↦ one circle','label axis'); bl.position.set(3.6,2.75,0); topoGroup.add(bl);
+    const probe=new THREE.Mesh(new THREE.SphereGeometry(0.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})); base.add(probe);
+    const tl=mkLabel('THE HOPF FIBRATION · S³ → S² · every fibre is a great circle, the fibres over one latitude fill a torus, and the tori nest','label const'); tl.position.set(0,4.2,0); topoGroup.add(tl);
+    const lk=mkLabel('measuring every pair…','label major'); lk.position.set(0,3.4,0); topoGroup.add(lk);
+    topoObjs={st,F,lkLab:lk,probe,base,bp,bundle,moving:null,pairs:null,acc:0}; topoDirty=true;
+  } else if(st==='genus'){
+    lights();
+    const tl=mkLabel('GAUSS–BONNET · ∮K dA = 2πχ · the total curvature is quantised: it cannot change while the surface bends, and jumps by 4π when a hole opens','label const'); tl.position.set(0,4.4,0); topoGroup.add(tl);
+    const lk=mkLabel('…','label major'); lk.position.set(0,3.6,0); topoGroup.add(lk);
+    const mesh=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.42,metalness:0.18,side:THREE.DoubleSide}));
+    /* tilted so the holes face the reader — edge-on, a genus is invisible */
+    const tilt=new THREE.Group(); tilt.rotation.x=-1.32; tilt.add(mesh); mesh.scale.setScalar(0.78); topoGroup.add(tilt);
+    topoObjs={st,mesh,lkLab:lk,r:null,acc:0}; topoDirty=true;
+  } else
   if(st==='link'){
     const mode=state.topoLinkMode||'hopf';
     let A,B;
@@ -33647,7 +33726,7 @@ function topoSetup(){
     } else {
       A=topoHopfFibre(1.2,0); B=topoHopfFibre(state.topoThB??2.1,state.topoPhB??1.5);
     }
-    mkLine(A,0xf5c964); mkLine(B,0x8fb8ff);
+    lights(); tube(A,0xf5c964,0.035); tube(B,0x8fb8ff,0.035);   /* tubes, lit: the over-and-under of a link is what the eye must read */
     const tl=mkLabel('GAUSS LINKING INTEGRAL · Lk = (1/4π)∮∮ (dr₁×dr₂)·r̂/|r|²','label const'); tl.position.set(0,4.2,0); topoGroup.add(tl);
     const lk=mkLabel('computing…','label major'); lk.position.set(0,3.3,0); topoGroup.add(lk);
     topoObjs={st,A,B,lkLab:lk}; topoDirty=true;
@@ -33696,8 +33775,36 @@ function topoSetup(){
 const _tpD=new THREE.Object3D(), _tpV=new THREE.Vector3(), _tpU=new THREE.Vector3(0,1,0),
       _tpE1=new THREE.Vector3(), _tpE2=new THREE.Vector3(), _tpDir=new THREE.Vector3();
 function updateTopo(dt){
-  if(!topoObjs||topoObjs.st!==(state.topoStation||'link')) topoSetup();
+  if(!topoObjs||topoObjs.st!==(state.topoStation||'fibration')) topoSetup();
   topoT+=dt; const O=topoObjs;
+  if(O.st==='fibration'){
+    /* every pair measured once, a few frames after the station opens (1128 Gauss integrals, a fraction of a second) */
+    if(topoDirty&&topoT>0.3){ topoDirty=false; const P=topoAllPairs(O.F); O.pairs=P;
+      O.lkLab.element.textContent=`all ${P.pairs} pairs of the ${O.F.length} fibres drawn link EXACTLY once: |Lk| = 1 ± ${P.worst.toExponential(1)} · sign ${P.max<0?'−':'+'} for every pair — the one integer that makes π₃(S²) = ℤ`;
+      ATLAS_BUS.pub('topo.hopf_pairs_linked',P.pairs,'count','pairs of drawn Hopf fibres measured to link once'); }
+    /* one base point wanders over S²; its fibre, white, sweeps through the bundle — a loop downstairs traces a torus upstairs */
+    O.acc+=dt; if(O.acc>1/20){ O.acc=0; const th=1.45+1.05*Math.sin(topoT*0.23), ph=topoT*0.41;
+      O.probe.position.copy(O.bp({th,ph}));
+      if(O.moving){ O.bundle.remove(O.moving); O.moving.geometry.dispose(); O.moving.material.dispose(); }
+      const pts=topoHopfPts(th,ph,120,1.9).map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+      O.moving=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),140,0.05,8,true),new THREE.MeshBasicMaterial({color:0xffffff})); O.bundle.add(O.moving); }
+    O.bundle.rotation.y+=dt*0.05;
+    hudBig.textContent=`TOPOLOGY · the Hopf fibration · ${O.F.length} fibres${O.pairs?` · ${O.pairs.pairs} pairs, every one linked once`:''}`;
+    hudSub.textContent='S³ is a bundle of circles over S²: no two circles meet, yet every two are linked — the white fibre follows a point wandering on the small sphere';
+  } else if(O.st==='genus'){
+    const auto=state.topoGenusAuto!==false; O.acc+=dt;
+    const r=auto?0.72+0.5*Math.cos(topoT*0.16):(state.topoGenusR??1.1);
+    if((topoDirty||(auto&&O.acc>0.45))&&(O.r===null||Math.abs(r-O.r)>0.004)){ topoDirty=false; O.acc=0; O.r=r;
+      const N=auto?46:60, f=topoGenusField(N,r), S=fsIso(f.q,N,0,null,f.s), M=topoMeshTopology(S.pos), n=S.vertices, col=new Float32Array(n*3), K0=1.2;
+      for(let i=0;i<n;i++){ const k=Math.tanh(M.K[i]/K0), a=Math.abs(k); if(k>=0){ col[3*i]=0.35+0.6*a; col[3*i+1]=0.32+0.45*a; col[3*i+2]=0.3+0.05*a; } else { col[3*i]=0.3-0.12*a; col[3*i+1]=0.32+0.3*a; col[3*i+2]=0.36+0.6*a; } }
+      const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(S.pos,3)); g.setAttribute('normal',new THREE.BufferAttribute(S.nrm,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3));
+      O.mesh.geometry.dispose(); O.mesh.geometry=g; O.M=M;
+      O.lkLab.element.textContent=`r = ${r.toFixed(3)} · χ = V − E + F = ${M.V} − ${M.E} + ${M.F} = ${M.chi} · Σ angle deficits / 2π = ${M.gaussBonnet.toFixed(9)} · genus ${M.genus}${M.components>1?` in ${M.components} pieces`:''}`;
+      ATLAS_BUS.pub('topo.euler_characteristic',M.chi,'dimensionless','V − E + F of the drawn surface'); }
+    O.mesh.rotation.y+=dt*0.12;
+    hudBig.textContent=`TOPOLOGY · Gauss–Bonnet · χ = ${O.M?O.M.chi:'…'} · genus ${O.M?O.M.genus:'…'}`;
+    hudSub.textContent='gold where the surface curves like a sphere, blue where it saddles; however it bends, the total is 2πχ — and χ changes only when a hole opens';
+  } else
   if(O.st==='link'){
     if(topoDirty){ topoDirty=false; topoLk=topoGaussLink(O.A,O.B);
       const near=Math.round(topoLk), err=Math.abs(topoLk-near);
@@ -89887,7 +89994,7 @@ const state = {
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, qmHopf:true, // Quantum wave lab
   qcdMode:'meson', qcdR:0.8, qcdQ:10, qcdInstQ:1,                        // Chromodynamics lab (+ instanton station)
-  topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
+  topoStation:'fibration', topoGenusR:1.1, topoGenusAuto:true, topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
   scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
   eotA0:600, eotLam:700,                                                // Extraordinary transmission
@@ -95132,10 +95239,10 @@ function buildCtlBody(){
     else if(V==='topo') body = `
     <div class="sect"><b>Topology atlas — pick a station</b>
       <div class="chips">
-        ${[['link','Gauss linking · live integral'],['hairy','Poincaré–Hopf · hairy ball'],['map','Invariant map · live network']].map(([k,l])=>
-          `<button class="chip ${(state.topoStation||'link')===k?'on':''}" data-topost="${k}">${l}</button>`).join('')}
+        ${[['fibration','Hopf fibration · every pair linked'],['genus','Gauss–Bonnet · holes open'],['link','Gauss linking · live integral'],['hairy','Poincaré–Hopf · hairy ball'],['map','Invariant map · live network']].map(([k,l])=>
+          `<button class="chip ${(state.topoStation||'fibration')===k?'on':''}" data-topost="${k}">${l}</button>`).join('')}
       </div>
-      ${(state.topoStation||'link')==='link'?`
+      ${(state.topoStation||'fibration')==='link'?`
       <div class="ctlrow"><label>Configuration</label>
         ${[['hopf','two Hopf fibres'],['coil','m-coil'],['unlink','separated']].map(([k,l])=>
           `<button class="chip ${(state.topoLinkMode||'hopf')===k?'on':''}" data-topolm="${k}">${l}</button>`).join('')}</div>
@@ -95146,12 +95253,18 @@ function buildCtlBody(){
       <div class="ctlrow"><label>Fibre B latitude θ</label>
         <input type="range" id="topoThB" min="0.3" max="2.8" step="0.02" value="${state.topoThB}"><span class="val" id="topoThBV">${state.topoThB.toFixed(2)}</span></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Move fibre B anywhere — the integral must stay EXACTLY 1: two distinct Hopf fibres always link once. That single integer generates π₃(S²) and underwrites the hopfion lab.</div>`:''}`:''}
-      ${(state.topoStation||'link')==='hairy'?`
+      ${(state.topoStation||'fibration')==='fibration'?`
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Forty-eight points on four latitudes of the small sphere, each lifted to its circle in S³ and drawn through the stereographic projection. Circles over one latitude fill a torus; the tori nest; and the Gauss integral of every one of the 1 128 pairs is measured when the station opens — each comes back ±1, never 0, never 2. The white circle belongs to the white point wandering on the small sphere.</div>`:''}
+      ${(state.topoStation||'fibration')==='genus'?`
+      <div class="ctlrow"><label>Sweep the tube radius</label><button class="chip ${state.topoGenusAuto!==false?'on':''}" id="topoGenusAuto">${state.topoGenusAuto!==false?'⏸ sweeping':'▶ sweep'}</button></div>
+      <div class="ctlrow"><label>Tube radius r</label><input type="range" id="topoGenusR" min="0.2" max="1.3" step="0.005" value="${state.topoGenusR??1.1}"><span class="val" id="topoGenusRV">${(state.topoGenusR??1.1).toFixed(3)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Three tori of major radius 0.62, 0.80 and 0.98 blended into one surface. Above r ≈ 0.88 every hole is filled: a sphere, χ = 2. Lower r and the holes open one at a time, largest first — near r ≈ 0.88, 0.68 and 0.53, a little below each torus's own radius because the blend thickens the joints — χ = 0, −2, −4, until near 0.25 the chain parts. Both numbers are read off the triangles: V − E + F by counting, and the sum of angle deficits, which equals 2πχ exactly for any closed triangulation. Colour is the curvature at each vertex: gold like a sphere, blue like a saddle.</div>`:''}
+      ${(state.topoStation||'fibration')==='hairy'?`
       <div class="ctlrow"><label>Field on S²</label>
         ${[['dipole','∂/∂θ · two +1 zeros'],['rotation','rotation · two +1'],['index2','one +2 zero']].map(([k,l])=>
           `<button class="chip ${(state.topoField||'dipole')===k?'on':''}" data-topofd="${k}">${l}</button>`).join('')}</div>`:''}
     </div>
-    ${(state.topoStation||'link')==='map'?`
+    ${(state.topoStation||'fibration')==='map'?`
     <div class="sect"><b>Invariant network — LIVE cross-module data (ATLAS BUS)</b>
       <div class="note" id="topoBus" style="font-variant-numeric:tabular-nums;font-size:11.5px">visit any lab — its invariants appear here and stay live</div>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
@@ -98272,6 +98385,9 @@ function buildCtlBody(){
     if(V==='topo'){
       ctl.querySelectorAll('[data-topost]').forEach(b=>b.onclick=()=>{ state.topoStation=b.dataset.topost; topoSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-topolm]').forEach(b=>b.onclick=()=>{ state.topoLinkMode=b.dataset.topolm; topoSetup(); buildCtl(); });
+      ctl.querySelector('#topoGenusAuto')&&(ctl.querySelector('#topoGenusAuto').onclick=()=>{ state.topoGenusAuto=state.topoGenusAuto===false; topoDirty=true; buildCtl(); });
+      ctl.querySelector('#topoGenusR')&&(ctl.querySelector('#topoGenusR').oninput=e=>{ state.topoGenusR=+e.target.value; state.topoGenusAuto=false; topoDirty=true;
+        const v=ctl.querySelector('#topoGenusRV'); if(v)v.textContent=state.topoGenusR.toFixed(3); const a=ctl.querySelector('#topoGenusAuto'); if(a){ a.classList.remove('on'); a.textContent='▶ sweep'; } });
       ctl.querySelectorAll('[data-topofd]').forEach(b=>b.onclick=()=>{ state.topoField=b.dataset.topofd; topoSetup(); buildCtl(); });
       ctl.querySelector('#topoM')&&(ctl.querySelector('#topoM').oninput=e=>{ state.topoM=+e.target.value;
         const v=ctl.querySelector('#topoMV'); if(v)v.textContent=state.topoM; topoSetup(); });
