@@ -48,7 +48,7 @@ export function createPhaseService({spaces=INITIAL_PHASE_SPACES,bridges=[],nexus
       const generated={version:identity.version??current.version,build:identity.build??current.build};
       const same=generated.version===current.version&&generated.build===current.build;
       return jsonSafe({schema:'hcc.phase-space/1',version:generated.version,build:generated.build,core_version:identity.core_version??null,
-        code_sha256:identity.code_sha256??null,generator:'core/phase/service.mjs',generated_release:generated,current_release:current,
+        code_sha256:identity.code_sha256??null,base_core_code_sha256:identity.base_core_code_sha256??null,phase_code_sha256:identity.phase_code_sha256??null,generator:'core/phase/service.mjs',generated_release:generated,current_release:current,
         generated_on_this_release:same,stale:!same,counts:{spaces:registry.listSpaces().length,bridges:registry.listBridges().length,candidates:candidates.length},
         spaces:registry.listSpaces(),bridges:registry.listBridges(),candidates});
     },
