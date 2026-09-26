@@ -3,6 +3,16 @@ import { UNDECLARED } from './contract.mjs';
 
 const labOf = x => String(x || '').split('.')[0];
 const pairKey = (a,b) => a < b ? `${a}|${b}` : `${b}|${a}`;
+const relationEndpoints = r => [
+  r?.from ?? r?.a ?? r?.source ?? null,
+  r?.to ?? r?.b ?? r?.target ?? null
+];
+const relationPairs = rows => new Set(
+  (rows || [])
+    .map(relationEndpoints)
+    .filter(([a,b]) => a && b)
+    .map(([a,b]) => pairKey(labOf(a),labOf(b)))
+);
 
 function intervalOf(space){
   const x=space.domain;
@@ -29,8 +39,8 @@ function intersection(a,b){ const B=new Set(b); return [...new Set(a)].filter(x=
 export function discoverCandidateBridges({registry,nexusRelations=[],quantityRoutes=[]}={}){
   if(!registry || typeof registry.listSpaces!=='function') throw new TypeError('phase registry is required');
   const spaces=[...registry.listSpaces()].sort((a,b)=>a.id.localeCompare(b.id));
-  const nexus=new Set((nexusRelations||[]).map(r=>pairKey(labOf(r.from),labOf(r.to))));
-  const routes=new Set((quantityRoutes||[]).map(r=>pairKey(labOf(r.from),labOf(r.to))));
+  const nexus=relationPairs(nexusRelations);
+  const routes=relationPairs(quantityRoutes);
   const out=[];
   for(let i=0;i<spaces.length;i++) for(let j=i+1;j<spaces.length;j++){
     const a=spaces[i], b=spaces[j];
