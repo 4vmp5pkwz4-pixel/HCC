@@ -70,3 +70,6 @@ if (fail) process.exit(1);
 /* The Nexus verifier also exercises the IPSE candidate bridge against the real a/b
    relation shape so candidate discovery cannot drift onto a synthetic from/to surrogate. */
 execFileSync(process.execPath, [path.join(__dirname, 'verify-phase-candidate-grounding.mjs')], { stdio: 'inherit' });
+/* Until Task 13 gives IPSE its own change-aware route, the same routed Nexus gate also
+   pins the generated phase artifact. This is deliberately temporary integration glue. */
+execFileSync(process.execPath, [path.join(__dirname, 'verify-phase-static-artifact.mjs')], { stdio: 'inherit' });
