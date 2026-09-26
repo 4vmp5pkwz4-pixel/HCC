@@ -26472,6 +26472,85 @@ const mwArms=new THREE.Group(); milkyWayPhysical.add(mwArms);
 function mwSolarSunAzimuth(){ milkyWayPhysical.updateWorldMatrix(true,false);
   const s=milkyWayPhysical.worldToLocal(new THREE.Vector3(0,0,0)); return Math.atan2(s.z,s.x); }
 const MW_SOLAR_AZ0=mwSolarSunAzimuth();
+/* ══ THE MILKY WAY, ALIVE ════════════════════════════════════════════════════════
+   The disc in the Solar world was a picture: one cloud of points turned rigidly about
+   the Sun, arms and all, so at a fast clock the whole Galaxy swung round us like a
+   painted wheel. A disc does not turn like that. Every star goes round the centre at
+   its own angular rate — Ω(R) = V/R on a flat curve, faster inside, slower outside —
+   and the ARMS are not made of stars at all: they are a density wave turning at its
+   own pattern speed Ωp, and the stars stream through them. What lights an arm is the
+   young, hot stars born as gas enters it, which burn out before they have gone far.
+
+   So the disc is drawn as that. 90 000 stars (40 000 on a phone) are placed from the
+   disc's own structural parameters — exponential discs thin and thick, a boxy bulge
+   along the bar — and each is carried by the shader at Ω(R) − Ω₀ in this frame, which
+   turns with the Sun (so the Sun's own radius stands still, the inside overtakes it and
+   the outside falls behind: differential rotation, visibly). A third of them are young:
+   they shine only where the m-armed wave is at that instant, so the arms move at
+   Ωp − Ω₀ THROUGH the stars — near corotation (8.2 kpc here, the Sun's own radius)
+   almost with them, far inside and outside visibly past them. The arms wind to TRAIL
+   the rotation, as every observed spiral does. */
+const MW_SOLAR_WIND=-1;                  /* trailing under the corrected sense of rotation (arm tracers: η Carinae lands in Sagittarius–Carina) */
+const MW_LIVING={N:null, obj:null};
+function mwLivingBuild(){ if(MW_LIVING.obj) return MW_LIVING.obj;
+  const N=(typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU)?40000:90000, rnd=mulberry(20260926), M=MILKY_WAY;
+  const aR=new Float32Array(N), aP=new Float32Array(N), aZ=new Float32Array(N), aK=new Float32Array(N), aS=new Float32Array(N), pos=new Float32Array(N*3);
+  const gauss=()=>Math.sqrt(-2*Math.log(rnd()+1e-12))*Math.cos(2*Math.PI*rnd()), lap=h=>(rnd()<0.5?-1:1)*h*Math.log(1/(rnd()+1e-12));
+  const bar=M.barAngleDeg*Math.PI/180;
+  for(let i=0;i<N;i++){ const u=rnd(); let R,phi,z,k;
+    if(u<0.11){ /* the boxy bulge, elongated along the bar */
+      const a=gauss()*M.barHalf*0.42, b=gauss()*M.bulge*0.7; const x=a*Math.cos(bar)-b*Math.sin(bar), y=a*Math.sin(bar)+b*Math.cos(bar);
+      R=Math.hypot(x,y); phi=Math.atan2(y,x)+MW_SOLAR_AZ0+Math.PI; z=gauss()*M.bulge*0.45; k=2; }
+    else { const thick=rnd()<M.fThick, h=thick?M.hRthick:M.hR;
+      do{ R=-h*Math.log((rnd()+1e-12)*(rnd()+1e-12)); } while(R>M.Rmax);        /* R e^{−R/h}: an exponential disc */
+      phi=2*Math.PI*rnd(); z=lap(thick?M.hZthick:M.hZthin*(0.35+0.65*R/M.R0)); k=thick?0:(rnd()<0.36?1:0); }
+    aR[i]=R; aP[i]=phi; aZ[i]=z; aK[i]=k; aS[i]=rnd(); }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  g.setAttribute('aR',new THREE.BufferAttribute(aR,1)); g.setAttribute('aP',new THREE.BufferAttribute(aP,1)); g.setAttribute('aZ',new THREE.BufferAttribute(aZ,1));
+  g.setAttribute('aK',new THREE.BufferAttribute(aK,1)); g.setAttribute('aS',new THREE.BufferAttribute(aS,1));
+  const arms=M.arms.slice(0,5), armR=new Float32Array(5), armT=new Float32Array(5); arms.forEach((a,i)=>{ armR[i]=a.R; armT[i]=Math.tan((a.pitchDeg||M.pitchDeg)*Math.PI/180); });
+  const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
+    uniforms:{uT:{value:0}, uOm0:{value:2*Math.PI/GAL_YEAR_MYR}, uOmP:{value:M.OmegaP*MW_KMS_KPC_TO_RAD_MYR}, uR0:{value:M.R0}, uKpc:{value:M.KPC_LY*LY_AU},
+      uAz0:{value:MW_SOLAR_AZ0}, uWind:{value:MW_SOLAR_WIND}, uArmR:{value:armR}, uArmT:{value:armT}, uPx:{value:typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU?1.7:2.2}, uFade:{value:1}},
+    vertexShader:`attribute float aR,aP,aZ,aK,aS; uniform float uT,uOm0,uOmP,uR0,uKpc,uAz0,uWind,uPx; uniform float uArmR[5],uArmT[5];
+      varying vec3 vC; varying float vA;
+      float wrapPi(float a){ return a-6.2831853*floor((a+3.14159265)/6.2831853); }
+      void main(){
+        float om=uOm0*uR0/max(aR,1.0);                                   /* flat curve outside 1 kpc, solid body inside */
+        float phi=aP+(om-uOm0)*uT;                                        /* in the frame that turns with the Sun */
+        vec3 p=vec3(aR*cos(phi),aZ,aR*sin(phi))*uKpc;
+        /* the density wave: nearest arm crest at this radius, in the pattern's own frame */
+        float d=10.0; for(int i=0;i<5;i++){ float crest=uAz0+uWind*log(max(aR,0.2)/uArmR[i])/uArmT[i]+(uOmP-uOm0)*uT;
+          d=min(d,abs(wrapPi(phi-crest))*aR*(i==4?1.6:1.0)); }
+        float w=exp(-d*d/0.16);                                           /* ~0.4 kpc wide */
+        vec3 old=mix(vec3(1.0,0.78,0.52),vec3(1.0,0.9,0.75),aS);
+        vec3 young=mix(vec3(0.55,0.72,1.0),vec3(0.8,0.9,1.0),aS);
+        float lum; if(aK>1.5){ vC=vec3(1.0,0.72,0.42); lum=0.55+0.4*aS; }
+        else if(aK>0.5){ vC=young; lum=0.05+1.5*w; }                       /* young stars live only in the wave */
+        else { vC=old; lum=0.28+0.22*w+0.1*aS; }
+        vA=lum; vec4 mv=modelViewMatrix*vec4(p,1.0); gl_Position=projectionMatrix*mv;
+        gl_PointSize=uPx*(0.7+0.9*lum); }`,
+    fragmentShader:`uniform float uFade; varying vec3 vC; varying float vA;
+      void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; float s=exp(-r*14.0);
+        gl_FragColor=vec4(vC*vA*s*uFade,1.0); }`});
+  const P=new THREE.Points(g,mat); P.frustumCulled=false; P.name='milky-way-living-disc'; P.userData.count=N;
+  milkyWayPhysical.add(P); MW_LIVING.obj=P; MW_LIVING.N=N; return P; }
+/* the whole disc seen from above its north pole, placed rather than walked (as the flow and the web are) */
+function mwLivingShow(){ try{ if(state.mode!=='solar') setMode('solar'); advanceScaleLayer('galactic'); }catch(e){}
+  milkyWayPhysical.updateWorldMatrix(true,false);
+  const gc=milkyWayPhysical.getWorldPosition(new THREE.Vector3()), up=new THREE.Vector3(0,1,0).applyQuaternion(milkyWayPhysical.getWorldQuaternion(new THREE.Quaternion()));
+  const tgt=solarGroup.worldToLocal(gc.clone()).multiplyScalar(0.55);                  /* between the Sun and the centre */
+  controls.target.copy(tgt); camera.position.copy(tgt).addScaledVector(up,78000*LY_AU).addScaledVector(tgt.clone().normalize(),-22000*LY_AU);
+  try{ hccCameraGoalClear(); _lastCamDist=camera.position.distanceTo(controls.target); syncCameraClipping(true); }catch(e){} }
+globalThis.HCC_MW=Object.freeze({view:()=>mwLivingShow(), state:()=>({stars:MW_LIVING.N, on:state.mwLiving!==false, wind:MW_SOLAR_WIND,
+  omega0:2*Math.PI/GAL_YEAR_MYR, omegaP:MILKY_WAY.OmegaP*MW_KMS_KPC_TO_RAD_MYR, corotationKpc:mwCorotationKpc()}), set:on=>{ state.mwLiving=!!on; }});
+/* per frame: the one clock drives the stars (Ω(R) − Ω₀) and the arms (Ωp − Ω₀), both in the frame that turns with the Sun */
+function mwLivingUpdate(){ const on=state.mwLiving!==false; if(on) mwLivingBuild(); const P=MW_LIVING.obj;
+  const tMyr=(state.epochDays||0)/365.25/1e6;
+  if(P){ P.visible=on; P.material.uniforms.uT.value=tMyr; }
+  try{ mwSpiral.visible=!on; }catch(e){}
+  /* the schematic arm tracks ride the same wave, so the drawn arms and the lit arms stay one pattern */
+  try{ mwArms.rotation.y=-((MILKY_WAY.OmegaP*MW_KMS_KPC_TO_RAD_MYR)-(2*Math.PI/GAL_YEAR_MYR))*tMyr; }catch(e){} }
 { MILKY_WAY.arms.forEach(arm=>{
     const tp=arm.pitchDeg?Math.tan(arm.pitchDeg*DEG):MW_TAN_PITCH;
     const pts=[];
@@ -26483,7 +26562,7 @@ const MW_SOLAR_AZ0=mwSolarSunAzimuth();
       const half=arm.minor?1.0:2.8, dth=-half+i/200*2*half;
       const rk=arm.R*Math.exp(tp*dth);                        // kpc
       if(rk<2.6||rk>MILKY_WAY.Rmax*1.1) continue;
-      const a=MW_SOLAR_AZ0+dth, r=rk*MILKY_WAY.KPC_LY;
+      const a=MW_SOLAR_AZ0+MW_SOLAR_WIND*dth, r=rk*MILKY_WAY.KPC_LY;
       pts.push(new THREE.Vector3(Math.cos(a)*r*LY_AU,0,Math.sin(a)*r*LY_AU));
     }
     if(pts.length<2) return;
@@ -26495,8 +26574,9 @@ const MW_SOLAR_AZ0=mwSolarSunAzimuth();
 // Sun position on the Orion Arm (≈8.2 kpc / 26,700 ly from the centre) — computed in the disk's local frame
 milkyWayPhysical.updateWorldMatrix(true,false);
 const mwSunDot=new THREE.Mesh(new THREE.SphereGeometry(1000*LY_AU,12,8),new THREE.MeshBasicMaterial({color:0xfff2c4}));
-mwSunDot.position.copy(milkyWayPhysical.worldToLocal(new THREE.Vector3(0,0,0))); mwArms.add(mwSunDot);
-{ const sl=mkLabel('☉ Solar System · Orion Arm','label major'); sl.position.copy(mwSunDot.position).add(new THREE.Vector3(0,2400*LY_AU,0)); mwArms.add(sl); }
+/* the Sun is NOT part of the arm pattern: the pattern turns at Ωp − Ω₀, the Sun stands still in this frame */
+mwSunDot.position.copy(milkyWayPhysical.worldToLocal(new THREE.Vector3(0,0,0))); milkyWayPhysical.add(mwSunDot);
+{ const sl=mkLabel('☉ Solar System · Orion Arm','label major'); sl.position.copy(mwSunDot.position).add(new THREE.Vector3(0,2400*LY_AU,0)); milkyWayPhysical.add(sl); }
 registerSel('mwSpiralArms',{name:'Milky Way spiral arms (schematic)',mode:'solar',pick:mwSunDot,
   src:['ASTRO'],accuracyTier:'D',catalogueStatus:'literature-derived',
   forbiddenClaims:['exact spiral-arm boundaries','externally observed exact Milky Way shape','precise pitch angle as measured'],
@@ -44391,7 +44471,7 @@ function mwtArmOf(p){
     const K=MILKY_WAY.KPC_LY*LY_AU, R=Math.hypot(q.x,q.z)/K, th=Math.atan2(q.z,q.x);
     let best=null;
     for(const arm of MILKY_WAY.arms){ const tp=arm.pitchDeg?Math.tan(arm.pitchDeg*DEG):MW_TAN_PITCH;
-      const ta=MW_SOLAR_AZ0+Math.log(Math.max(R,0.2)/arm.R)/tp; let d=((th-ta)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
+      const ta=MW_SOLAR_AZ0+MW_SOLAR_WIND*Math.log(Math.max(R,0.2)/arm.R)/tp; let d=((th-ta)%(2*Math.PI)+3*Math.PI)%(2*Math.PI)-Math.PI;
       const perp=Math.abs(R*d*Math.sin(Math.atan(tp)));
       if(!best||perp<best.perp) best={arm,perp}; }
     return {R, z:q.y/K, arm:best&&best.arm, off:best?best.perp:null}; }catch(e){ return null; }
@@ -45529,7 +45609,8 @@ function galFlowBuild(frame){
     pos.push(p3.x,p3.y,p3.z,p3.x+v3.x*K,p3.y+v3.y*K,p3.z+v3.z*K); col.push(C[0]*.12,C[1]*.12,C[2]*.12,C[0],C[1],C[2]); }
   const seg=(P,Cc,op,name)=>{ const geo=new THREE.BufferGeometry(); geo.setAttribute('position',new THREE.Float32BufferAttribute(P,3)); geo.setAttribute('color',new THREE.Float32BufferAttribute(Cc,3));
     const L=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:op,depthWrite:false})); L.frustumCulled=false; L.name=name; galFlowGroup.add(L); return L; };
-  seg(pos,col,.42,'galactic-flow-'+frame); galFlowGroup.userData.count=pos.length/6;
+  const LS=seg(pos,col,.42,'galactic-flow-'+frame); galFlowGroup.userData.count=pos.length/6;
+  if(frame==='sun') LS.userData.stars=F.G.map(g=>hip3d.byHip.get(g.hip)).filter(s=>s&&s.placed);   /* ridden with the clock, see galFlowUpdate */
   /* the measured shear field M·r on a 100-pc grid in the plane, with arrowheads: the model the stars average to */
   if(frame==='lsr'){ const P=[], Cc=[], w=new THREE.Vector3(), n=galToScene([0,0,1],new THREE.Vector3());
     for(let i=-6;i<=6;i++) for(let j=-6;j<=6;j++){ if(!i&&!j) continue; const X=i*0.1, Y=j*0.1, vx=(x[6]+x[5])*X+(x[3]-x[4])*Y, vy=(x[3]+x[4])*X+(x[6]-x[5])*Y;
@@ -45548,9 +45629,23 @@ function galFlowBuild(frame){
     peculiar:TT('model removed: the velocity ellipsoid','без модели: эллипсоид скоростей','ohne Modell: das Geschwindigkeitsellipsoid')}[frame];
   const nl=mkLabel(`${note} · ${TT('streaks','штрихи','Striche')} ${GALFLOW_TAU_MYR} Myr${frame==='lsr'?` · ${TT('grid','сетка','Gitter')} M·r ${GALFLOW_GRID_MYR} Myr`:''}`,'label dim'); galToScene([0,0,1],p3); nl.position.copy(p3.multiplyScalar(260*ZOD3D_PC_AU)); nl.name='galactic-flow-note'; galFlowGroup.add(nl);
 }
+/* THE STREAKS MOVE WITH THEIR STARS. Built once at J2000 they stood still while the stars rode on: at a fast clock the
+   trails hung where the stars had been. In the frame seen from the Sun a streak is now the star's own ridden path, from
+   where it IS to where it will be half a million years on, redrawn as the clock runs; the two decomposed frames (reflex
+   removed, model removed) are statements about the J2000 velocities, so they turn with the disc and fade after a few
+   hundred thousand years rather than pretending to be later measurements. */
+let GALFLOW_EP=2000, GALFLOW_T=0;
+function galFlowRide(epJ){ const L=galFlowGroup.getObjectByName('galactic-flow-sun'); if(!L||!L.userData.stars) return;
+  const A=L.geometry.attributes.position.array, v=new THREE.Vector3(), w=new THREE.Vector3(), tau=GALFLOW_TAU_MYR*1e6; let k=0;
+  for(const s of L.userData.stars){ hip3dPosAt(s,epJ,v); hip3dPosAt(s,epJ+tau,w); A[k++]=v.x; A[k++]=v.y; A[k++]=v.z; A[k++]=w.x; A[k++]=w.y; A[k++]=w.z; }
+  L.geometry.attributes.position.needsUpdate=true; GALFLOW_EP=epJ; }
 function galFlowUpdate(epJ){ const want=state.galFlow||'off';
-  if(galFlowGroup.userData.frame!==want) galFlowBuild(want);
-  galFlowGroup.visible=want!=='off'&&Math.abs(epJ-2000)<ZOD3D_DOMAIN_YR; }
+  if(galFlowGroup.userData.frame!==want){ galFlowBuild(want); GALFLOW_EP=2000; }
+  const dt=Math.abs(epJ-2000);
+  if(want==='sun'){ galFlowGroup.quaternion.identity(); const now=performance.now(); if(Math.abs(epJ-GALFLOW_EP)>2e3&&now-GALFLOW_T>250){ GALFLOW_T=now; try{ galFlowRide(epJ); }catch(e){} } }
+  else if(want!=='off'){ try{ galFlowGroup.quaternion.copy(galSpinQuat(new THREE.Quaternion())); }catch(e){}
+    const f=1-THREE.MathUtils.smoothstep(dt,2e5,1e6); galFlowGroup.traverse(o=>{ if(o.material&&o.material.userData.op0==null) o.material.userData.op0=o.material.opacity; if(o.material) o.material.opacity=o.material.userData.op0*f; }); }
+  galFlowGroup.visible=want!=='off'&&(want==='sun'||dt<1e6); }
 /* frame the neighbourhood from above the Galactic plane — both the reflex stream and the shear lie in it */
 function galFlowShow(frame){ state.galFlow=frame||'off'; if(frame==='off'){ galFlowBuild('off'); return; }
   state.showHip3d=true; try{ if(state.mode!=='solar') setMode('solar'); }catch(e){}
@@ -102776,6 +102871,7 @@ function toolsDefs(){ const click=id=>()=>{ const b=document.getElementById(id);
       ['📡',TT('Sensors','Сенсоры','Sensoren'),panel('motionPanel')],
       ['🥽',TT('XR check','XR-проверка','XR-Prüfung'),panel('xrCheck')],
       ['📈',TT('Catalogues','Каталоги','Kataloge'),()=>{ try{ hccStatsOpen(); }catch(e){} }],
+      ['🌀',TT('The Galaxy from above','Галактика сверху','Die Galaxis von oben'),()=>{ try{ mwLivingShow(); }catch(e){} }],
       ['▦',TT('Map of the Universe','Карта Вселенной','Karte des Universums'),()=>{ try{ umapOpen(); }catch(e){} }],
       ['∮',TT('Invariants','Инварианты','Invarianten'),()=>{ try{ HCC_INVARIANT_ATLAS.open(); }catch(e){} }],
       ['✓',TT('QA atlas','Проверки','QA-Atlas'),panel('atlasPanel')]]] ]; }
@@ -109391,6 +109487,7 @@ function tickBody(now, frame){
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
+      try{ mwLivingUpdate(); }catch(e){ if(!mwLivingUpdate._w){ mwLivingUpdate._w=1; console.warn('living disc:',e); } }
       if(galacticLinks[0]){ lineSetPoints(galacticLinks[0][0],[_galZero, milkyWayPhysical.position]);
         galacticLinks[0][1].position.copy(milkyWayPhysical.position).multiplyScalar(.5); }   // the label must ride the moving link too
       // M31 has differential rotation, so 250 Myr is only an explicit display-phase
