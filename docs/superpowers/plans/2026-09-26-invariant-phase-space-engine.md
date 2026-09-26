@@ -4,11 +4,13 @@
 
 **Goal:** Add a typed Invariant Phase-Space Engine (IPSE) that lets HCC describe native state spaces, probe declared invariants and monotones, evaluate explicit phase bridges, refuse ill-posed comparisons, expose the results to agents, and inspect them through a Phase Lens without promoting structural similarity into physical identity.
 
-**Architecture:** Add a browser-independent `core/phase/` substrate with adapters that translate existing authoritative laboratory state into one canonical phase contract. The engine remains read-only with respect to the Invariant Nexus and Quantity Bus; it can propose noncanonical candidates, but only explicit registered bridges can carry exact/verified/conditional status. Generated API artifacts and MCP tools are derived from the same core objects so UI, agent and static discovery cannot drift.
+**Architecture:** Add a browser-independent `core/phase/` substrate with adapters that translate existing authoritative laboratory state into one canonical phase contract. The engine remains read-only with respect to the Invariant Nexus and Quantity Bus; it may propose noncanonical candidates, but only explicit registered bridges can carry exact/verified/conditional status. Generated API artifacts and MCP tools are derived from the same core objects so UI, agent and static discovery cannot drift.
 
 **Tech Stack:** Node.js >=18, ECMAScript modules, built-in `node:test`, existing HCC generated API pipeline, existing single-file Atlas UI (`index.html`), existing MCP server and verifier router.
 
 **Spec:** `docs/superpowers/specs/2026-09-26-invariant-phase-space-engine-design.md`
+
+**Target release:** HCC `4.328.0`, build family `invariant-phase-space-engine-2026.09.26`.
 
 ## Global Constraints
 
@@ -24,6 +26,7 @@
 - Phase-space residuals are model-consistency diagnostics, not empirical calibration.
 - The first dissipative adapter is the existing Heat solver.
 - The first agent surface is exactly four additive operations: `describe_phase_space`, `probe_invariant`, `compare_phase_spaces`, and `list_phase_bridges`.
+- The release target for this branch is `4.328.0`; do not silently retarget the branch during execution.
 
 ## Review Focus
 
@@ -38,24 +41,22 @@
 ## File Structure
 
 ### New core files
-
 - `core/phase/contract.mjs` — canonical phase-space, invariant, constraint and projection validators.
-- `core/phase/refusals.mjs` — structured `REFUSED` result constructor and compatibility error codes.
+- `core/phase/refusals.mjs` — structured `REFUSED` results and compatibility error codes.
 - `core/phase/registry.mjs` — immutable registry of phase contracts and explicit bridges.
 - `core/phase/invariant-probe.mjs` — scalar, differential, discrete-map and monotonicity diagnostics.
 - `core/phase/fingerprint.mjs` — deterministic structural fingerprints.
 - `core/phase/bridges.mjs` — explicit bridge validation and evaluation.
 - `core/phase/candidates.mjs` — deterministic hard-filtered candidate discovery.
 - `core/phase/index.mjs` — public phase-engine exports.
-- `core/phase-adapters/navier-stokes-s3.mjs` — S³ Navier–Stokes/Euler adapter backed by extracted atlas kernels.
-- `core/phase-adapters/holonomy.mjs` — Holonomy Observatory adapter.
-- `core/phase-adapters/contact-action.mjs` — Contact & Action adapter.
-- `core/phase-adapters/relativity.mjs` — Minkowski/Lorentz adapter.
-- `core/phase-adapters/field-heat.mjs` — dissipative Heat adapter.
-- `core/phase-adapters/index.mjs` — initial adapter registry.
+- `core/phase-adapters/navier-stokes-s3.mjs`
+- `core/phase-adapters/holonomy.mjs`
+- `core/phase-adapters/contact-action.mjs`
+- `core/phase-adapters/relativity.mjs`
+- `core/phase-adapters/field-heat.mjs`
+- `core/phase-adapters/index.mjs`
 
 ### New tests
-
 - `test/phase-contract.test.mjs`
 - `test/phase-probe.test.mjs`
 - `test/phase-bridges.test.mjs`
@@ -68,52 +69,34 @@
 - `test/phase-agent.test.mjs`
 
 ### Existing files modified
-
-- `core/index.mjs` — expose the phase engine and include its source files in `code_sha256`.
-- `server/server.mjs` — add the four phase MCP tools.
-- `scripts/build-api.mjs` — generate `api/phase-space.json` and include the additive agent/MCP surface in generated discovery.
-- `scripts/run-quick-verifiers.mjs` — route IPSE changes through phase unit tests and the relevant scientific verifiers.
-- `api/agent.json`, `api/openapi.json`, `.well-known/mcp.json`, `api/manifest.json` — generated, never hand-edited.
-- `index.html` — Phase Lens UI and adapter-facing visual inspection hooks only; no duplicated phase mathematics.
-- `README.md`, `SCIENTIFIC_CONTRACT.md`, `version.json` — public contract/release documentation after implementation passes.
+- `core/index.mjs` — expose the phase engine and include phase sources in `code_sha256`.
+- `server/server.mjs` — add four phase MCP tools.
+- `scripts/build-api.mjs` — generate `api/phase-space.json` and additive discovery surfaces.
+- `scripts/run-quick-verifiers.mjs` — route IPSE changes through phase/scientific verification.
+- `scripts/extract-kernels.mjs` — only if an authoritative existing atlas kernel needed by an adapter is not currently exported.
+- `api/agent.json`, `api/openapi.json`, `.well-known/mcp.json`, `api/manifest.json` — generated only.
+- `index.html` — Phase Lens UI and source-authority exports where required; no duplicated phase mathematics.
+- `README.md`, `SCIENTIFIC_CONTRACT.md`, `version.json` — public contract and release metadata.
 
 ---
 
 ### Task 1: Canonical phase contract and fail-closed refusal primitives
 
-**Files:**
-- Create: `core/phase/contract.mjs`
-- Create: `core/phase/refusals.mjs`
-- Create: `test/phase-contract.test.mjs`
+**Files:** Create `core/phase/contract.mjs`, `core/phase/refusals.mjs`, `test/phase-contract.test.mjs`.
 
 **Interfaces:**
-- Produces: `definePhaseSpace(spec) -> frozen PhaseSpaceContract`
-- Produces: `defineInvariant(spec) -> frozen InvariantContract`
-- Produces: `defineConstraint(spec) -> frozen ConstraintContract`
-- Produces: `defineProjection(spec) -> frozen ProjectionContract`
-- Produces: `phaseRefusal(code, message, detail = null) -> { status:'REFUSED', code, message, detail }`
-- Produces: `assertFiniteNativeState(contract, state)` which returns the state or a refusal object.
+- `definePhaseSpace(spec) -> frozen PhaseSpaceContract`
+- `defineInvariant(spec) -> frozen InvariantContract`
+- `defineConstraint(spec) -> frozen ConstraintContract`
+- `defineProjection(spec) -> frozen ProjectionContract`
+- `phaseRefusal(code, message, detail = null) -> { status:'REFUSED', code, message, detail }`
+- `assertFiniteNativeState(contract, state) -> state | refusal`
 
-- [ ] **Step 1: Write failing contract tests**
-
-Assert that a minimal finite static phase contract freezes successfully; missing required ids/types fail; unknown structure remains `UNDECLARED`; `NaN`/infinite native coordinates are refused; display-only coordinates are marked ineligible for invariant checks.
-
-- [ ] **Step 2: Run the tests and verify failure**
-
-Run: `node --test test/phase-contract.test.mjs`
-Expected: FAIL because `core/phase/contract.mjs` and `refusals.mjs` do not exist.
-
-- [ ] **Step 3: Implement the minimal validators and refusal constructor**
-
-`definePhaseSpace` must normalize only declared metadata, preserve native/display coordinate roles, and reject duplicate coordinate/invariant ids. It must not infer metric, symplectic/contact structure, dimension, units, or time semantics.
-
-- [ ] **Step 4: Run the tests and verify pass**
-
-Run: `node --test test/phase-contract.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests for minimal valid contract, missing ids/types, duplicate ids, `UNDECLARED`, non-finite state refusal and display-only exclusion.
+- [ ] Run `node --test test/phase-contract.test.mjs`; expect FAIL because implementation is absent.
+- [ ] Implement validators/refusals without inferring geometry, dimension, units or time semantics.
+- [ ] Run `node --test test/phase-contract.test.mjs`; expect PASS.
+- [ ] Commit:
 ```bash
 git add core/phase/contract.mjs core/phase/refusals.mjs test/phase-contract.test.mjs
 git commit -m "feat: add canonical phase-space contracts"
@@ -121,77 +104,37 @@ git commit -m "feat: add canonical phase-space contracts"
 
 ### Task 2: Registry and invariant probe
 
-**Files:**
-- Create: `core/phase/registry.mjs`
-- Create: `core/phase/invariant-probe.mjs`
-- Create: `core/phase/index.mjs`
-- Create: `test/phase-probe.test.mjs`
+**Files:** Create `core/phase/registry.mjs`, `core/phase/invariant-probe.mjs`, `core/phase/index.mjs`, `test/phase-probe.test.mjs`.
 
 **Interfaces:**
-- Consumes: Task 1 contracts/refusals.
-- Produces: `createPhaseRegistry({ spaces = [], bridges = [] })` with `getSpace(id)`, `listSpaces()`, `getBridge(id)`, `listBridges(filter)`.
-- Produces: `probeInvariant(contract, invariantId, sample) -> PhaseDiagnostic`.
-- `sample` supports `{ state }`, `{ initialState, state }`, `{ state, vectorField }`, or `{ state, nextState }` according to invariant/evolution class.
+- `createPhaseRegistry({ spaces = [], bridges = [] })` with `getSpace(id)`, `listSpaces()`, `getBridge(id)`, `listBridges(filter)`.
+- `probeInvariant(contract, invariantId, sample) -> PhaseDiagnostic`.
+- `sample` forms: `{ state }`, `{ initialState, state }`, `{ state, vectorField }`, `{ state, nextState }` as allowed by the declared evolution/invariant class.
 
-- [ ] **Step 1: Write failing probe tests**
-
-Cover exact scalar conservation, deliberate drift, discrete-map delta, differential `gradI·F`, monotone decrease, unknown invariant refusal, and refusal when the requested diagnostic uses display-only state.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-probe.test.mjs`
-Expected: FAIL because registry/probe are absent.
-
-- [ ] **Step 3: Implement registry and probe**
-
-Raw dimensional diagnostics remain raw. Normalized residuals use only the invariant's declared normalization policy; no display range or inferred scale is allowed.
-
-- [ ] **Step 4: Verify pass**
-
-Run: `node --test test/phase-probe.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests for exact scalar conservation, deliberate drift, discrete-map delta, `gradI·F`, monotone decrease, unknown invariant refusal and display-only refusal.
+- [ ] Run `node --test test/phase-probe.test.mjs`; expect FAIL.
+- [ ] Implement registry/probe; normalized residuals use only declared normalization policy.
+- [ ] Run `node --test test/phase-probe.test.mjs`; expect PASS.
+- [ ] Commit:
 ```bash
 git add core/phase/registry.mjs core/phase/invariant-probe.mjs core/phase/index.mjs test/phase-probe.test.mjs
 git commit -m "feat: probe declared phase invariants"
 ```
 
-### Task 3: Structural phase fingerprints and candidate discovery
+### Task 3: Structural fingerprints and deterministic candidate discovery
 
-**Files:**
-- Create: `core/phase/fingerprint.mjs`
-- Create: `core/phase/candidates.mjs`
-- Create: `test/phase-candidates.test.mjs`
-- Modify: `core/phase/index.mjs`
+**Files:** Create `core/phase/fingerprint.mjs`, `core/phase/candidates.mjs`, `test/phase-candidates.test.mjs`; modify `core/phase/index.mjs`.
 
 **Interfaces:**
-- Consumes: `PhaseSpaceContract`, registry.
-- Produces: `phaseFingerprint(contract) -> frozen fingerprint`.
-- Produces: `discoverCandidateBridges({ registry, nexusRelations = [], quantityRoutes = [] }) -> CandidateBridge[]`.
-- Every candidate returns `noncanonical:true`, `review_required:true`, `score`, `terms`, `passed`, `unproven`, `motivated_by`.
+- `phaseFingerprint(contract) -> frozen fingerprint`
+- `discoverCandidateBridges({ registry, nexusRelations = [], quantityRoutes = [] }) -> CandidateBridge[]`
+- Each candidate: `noncanonical:true`, `review_required:true`, `score`, `terms`, `passed`, `unproven`, `motivated_by`.
 
-- [ ] **Step 1: Write failing deterministic-candidate tests**
-
-Two identical inputs must produce byte-for-byte equivalent sorted candidates; candidates with incompatible physical dimensions or no domain overlap must be filtered before ranking; `terms` must expose every score contribution; no registry mutation is permitted.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-candidates.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement fingerprint and deterministic ranking**
-
-Only declared features participate. Similarity never changes relation status and cannot create a canonical bridge.
-
-- [ ] **Step 4: Verify pass**
-
-Run: `node --test test/phase-candidates.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests proving deterministic ordering, hard rejection of dimension/domain incompatibility, explicit score terms and zero registry mutation.
+- [ ] Run `node --test test/phase-candidates.test.mjs`; expect FAIL.
+- [ ] Implement fingerprint/ranking using declared features only.
+- [ ] Run `node --test test/phase-candidates.test.mjs`; expect PASS.
+- [ ] Commit:
 ```bash
 git add core/phase/fingerprint.mjs core/phase/candidates.mjs core/phase/index.mjs test/phase-candidates.test.mjs
 git commit -m "feat: discover reviewable phase candidates"
@@ -199,36 +142,18 @@ git commit -m "feat: discover reviewable phase candidates"
 
 ### Task 4: Typed phase bridge evaluator
 
-**Files:**
-- Create: `core/phase/bridges.mjs`
-- Create: `test/phase-bridges.test.mjs`
-- Modify: `core/phase/index.mjs`
+**Files:** Create `core/phase/bridges.mjs`, `test/phase-bridges.test.mjs`; modify `core/phase/index.mjs`.
 
 **Interfaces:**
-- Produces: `definePhaseBridge(spec) -> frozen PhaseBridgeContract`.
-- Produces: `evaluatePhaseBridge(bridge, sourceContract, targetContract, sample = {}) -> PhaseBridgeReport`.
-- Supported statuses: `EXACT_MAP`, `NUMERICALLY_VERIFIED_MAP`, `CONDITIONAL_MAP`, `STRUCTURAL_ANALOGY`, `CANDIDATE_BRIDGE`, `REFUSED`.
+- `definePhaseBridge(spec) -> frozen PhaseBridgeContract`
+- `evaluatePhaseBridge(bridge, sourceContract, targetContract, sample = {}) -> PhaseBridgeReport`
+- statuses: `EXACT_MAP`, `NUMERICALLY_VERIFIED_MAP`, `CONDITIONAL_MAP`, `STRUCTURAL_ANALOGY`, `CANDIDATE_BRIDGE`, `REFUSED`.
 
-- [ ] **Step 1: Write failing bridge tests**
-
-Cover exact invariant pullback, deliberately incorrect pullback, incompatible units/dimensions, numerically equal but semantically incompatible time parameters, missing geometric structure, explicit time reparameterization, and display-projection-only similarity. The last five must fail closed with structured refusal codes.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-bridges.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement bridge definition/evaluation**
-
-The evaluator runs hard compatibility checks before numeric comparison. It may evaluate invariant, flow, and geometric-structure checks only when the bridge explicitly declares the corresponding maps/verifiers.
-
-- [ ] **Step 4: Verify pass**
-
-Run: `node --test test/phase-bridges.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests for exact/incorrect pullback, incompatible units/dimensions, incompatible time semantics, missing geometry, explicit time reparameterization, and projection-only similarity.
+- [ ] Run `node --test test/phase-bridges.test.mjs`; expect FAIL.
+- [ ] Implement hard compatibility checks before any numeric comparison; evaluate only explicitly declared maps/verifiers.
+- [ ] Run `node --test test/phase-bridges.test.mjs`; expect PASS.
+- [ ] Commit:
 ```bash
 git add core/phase/bridges.mjs core/phase/index.mjs test/phase-bridges.test.mjs
 git commit -m "feat: evaluate typed phase-space bridges"
@@ -236,208 +161,89 @@ git commit -m "feat: evaluate typed phase-space bridges"
 
 ### Task 5: S³ Navier–Stokes/Euler adapter
 
-**Files:**
-- Create: `core/phase-adapters/navier-stokes-s3.mjs`
-- Create: `test/phase-adapters-s3.test.mjs`
+**Files:** Create `core/phase-adapters/navier-stokes-s3.mjs`, `test/phase-adapters-s3.test.mjs`; modify `scripts/extract-kernels.mjs` and `index.html` only if the needed existing `nsf*` symbols are not exported; regenerate `core/atlas/extracted.mjs` through the extractor.
 
-**Interfaces:**
-- Consumes: authoritative extracted S³ Navier–Stokes kernels from `core/atlas/extracted.mjs` (`nsf*` family already generated from `index.html`).
-- Produces: `navierStokesS3PhaseAdapter() -> PhaseSpaceContract`.
-- Declares S³/native quaternion state, physical/model time exactly as the existing laboratory does, divergence/tangent constraints, and only invariants/balance quantities already justified by the underlying lab.
+**Interface:** `navierStokesS3PhaseAdapter() -> PhaseSpaceContract` backed by the existing generated `nsf*` authority.
 
-- [ ] **Step 1: Write failing adapter tests**
-
-Verify state remains on S³, existing exact carried solution residual is reproduced through the adapter rather than reimplemented, invalid non-unit native state is refused, and viscous energy decay is not called conserved.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-adapters-s3.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Export only the required generated `nsf*` kernels from `core/atlas/extracted.mjs` through the existing extractor authority, then implement the adapter**
-
-Do not hand-edit `core/atlas/extracted.mjs`; if exports are missing, modify the extractor/source authority so regeneration produces them.
-
-- [ ] **Step 4: Verify adapter and extraction integrity**
-
-Run: `node --test test/phase-adapters-s3.test.mjs && node docs/verify-navier-stokes-on-s3-integrated.cjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests for S³ normalization, reproduced existing exact-solution residual, non-unit native-state refusal, and viscous energy classified as decay/balance rather than conserved.
+- [ ] Run `node --test test/phase-adapters-s3.test.mjs`; expect FAIL.
+- [ ] Export only required authoritative `nsf*` symbols via `scripts/extract-kernels.mjs` if needed; never hand-edit `core/atlas/extracted.mjs`.
+- [ ] Implement the adapter without duplicating the solver equations.
+- [ ] Run `node --test test/phase-adapters-s3.test.mjs && node docs/verify-navier-stokes-on-s3-integrated.cjs`; expect PASS.
+- [ ] Commit:
 ```bash
-git add core/phase-adapters/navier-stokes-s3.mjs test/phase-adapters-s3.test.mjs scripts core/atlas/extracted.mjs index.html
+git add core/phase-adapters/navier-stokes-s3.mjs test/phase-adapters-s3.test.mjs scripts/extract-kernels.mjs core/atlas/extracted.mjs index.html
 git commit -m "feat: adapt S3 fluid dynamics to phase space"
 ```
+If `scripts/extract-kernels.mjs`, `core/atlas/extracted.mjs` or `index.html` are unchanged, omit them from `git add`.
 
 ### Task 6: Holonomy adapter
 
-**Files:**
-- Create: `core/phase-adapters/holonomy.mjs`
-- Create: `test/phase-adapters-holonomy.test.mjs`
+**Files:** Create `core/phase-adapters/holonomy.mjs`, `test/phase-adapters-holonomy.test.mjs`.
 
-**Interfaces:**
-- Produces: `holonomyPhaseAdapter() -> PhaseSpaceContract`.
-- Declares path/return-map semantics and group-valued invariants already present in the Holonomy Observatory; does not recast them as a continuous Hamiltonian flow.
+**Interface:** `holonomyPhaseAdapter() -> PhaseSpaceContract` with path/return-map semantics and existing group-valued invariants; no invented continuous Hamiltonian flow.
 
-- [ ] **Step 1: Write failing tests**
-
-Pin S² Levi-Civita return, Berry/Pancharatnam group phase, SU(2) trace/conjugacy behavior, and refusal when a continuous-flow diagnostic is requested from a return-map-only declaration.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-adapters-holonomy.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement adapter against existing authoritative kernels**
-
-- [ ] **Step 4: Verify pass**
-
-Run: `node --test test/phase-adapters-holonomy.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add core/phase-adapters/holonomy.mjs test/phase-adapters-holonomy.test.mjs
-git commit -m "feat: adapt holonomy observatory to phase space"
-```
+- [ ] Write failing tests for S² Levi-Civita return, Berry/Pancharatnam phase, SU(2) trace/conjugacy behavior, and refusal of a continuous-flow diagnostic for a return-map-only contract.
+- [ ] Run `node --test test/phase-adapters-holonomy.test.mjs`; expect FAIL.
+- [ ] Implement against existing authoritative kernels/identities only.
+- [ ] Run `node --test test/phase-adapters-holonomy.test.mjs`; expect PASS.
+- [ ] Commit `core/phase-adapters/holonomy.mjs` and its test as `feat: adapt holonomy observatory to phase space`.
 
 ### Task 7: Contact & Action adapter
 
-**Files:**
-- Create: `core/phase-adapters/contact-action.mjs`
-- Create: `test/phase-adapters-contact.test.mjs`
+**Files:** Create `core/phase-adapters/contact-action.mjs`, `test/phase-adapters-contact.test.mjs`.
 
-**Interfaces:**
-- Produces: `contactActionPhaseAdapter() -> PhaseSpaceContract`.
-- Declares contact/Reeb carrier, return/action diagnostics, Legendrian constraints and any exact normalization from the existing observatory.
+**Interface:** `contactActionPhaseAdapter() -> PhaseSpaceContract` with contact/Reeb carrier, return/action diagnostics and declared Legendrian constraints.
 
-- [ ] **Step 1: Write failing tests**
-
-Verify Reeb/contact normalization and action diagnostics; reject symplectic-preservation requests when only contact structure is declared; preserve the existing 2π/4π metaplectic distinction only as its declared representation result.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-adapters-contact.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement adapter**
-
-- [ ] **Step 4: Verify pass**
-
-Run: `node --test test/phase-adapters-contact.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add core/phase-adapters/contact-action.mjs test/phase-adapters-contact.test.mjs
-git commit -m "feat: adapt contact and action dynamics"
-```
+- [ ] Write failing tests for contact normalization/action diagnostics, rejection of undeclared symplectic preservation, and preservation of the existing 2π/4π metaplectic representation distinction only at its declared status.
+- [ ] Run `node --test test/phase-adapters-contact.test.mjs`; expect FAIL.
+- [ ] Implement adapter.
+- [ ] Run `node --test test/phase-adapters-contact.test.mjs`; expect PASS.
+- [ ] Commit as `feat: adapt contact and action dynamics`.
 
 ### Task 8: Relativity adapter
 
-**Files:**
-- Create: `core/phase-adapters/relativity.mjs`
-- Create: `test/phase-adapters-relativity.test.mjs`
+**Files:** Create `core/phase-adapters/relativity.mjs`, `test/phase-adapters-relativity.test.mjs`.
+
+**Interface:** `relativityPhaseAdapter() -> PhaseSpaceContract` with native Minkowski state, frame semantics, Lorentz transformation family, causal structure and interval invariants.
+
+- [ ] Write failing tests for interval preservation across timelike/null/spacelike samples, determinant/sign requirements, frame metadata, and refusal to treat the visual 2+1 projection as full native 3+1 state.
+- [ ] Run `node --test test/phase-adapters-relativity.test.mjs`; expect FAIL.
+- [ ] Implement against the existing Lorentz/boost authority.
+- [ ] Run `node --test test/phase-adapters-relativity.test.mjs && node docs/verify-spacetime-boosted-live.cjs`; expect PASS.
+- [ ] Commit as `feat: adapt Lorentz state to phase space`.
+
+### Task 9: Heat adapter and initial adapter registry
+
+**Files:** Create `core/phase-adapters/field-heat.mjs`, `core/phase-adapters/index.mjs`, `test/phase-adapters-heat.test.mjs`.
 
 **Interfaces:**
-- Produces: `relativityPhaseAdapter() -> PhaseSpaceContract`.
-- Declares Minkowski event/vector state, frame semantics, Lorentz transformation family, causal structure and interval invariants from the existing relativity laboratory.
+- `heatPhaseAdapter() -> PhaseSpaceContract`
+- `INITIAL_PHASE_SPACES` containing the five initial adapters.
 
-- [ ] **Step 1: Write failing tests**
-
-Verify Lorentz interval preservation for timelike/null/spacelike samples, determinant/sign requirements, frame metadata, and refusal of a bridge that treats visual 2+1 display coordinates as the full native 3+1 state.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-adapters-relativity.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement adapter against the existing boost authority**
-
-- [ ] **Step 4: Verify pass plus existing live-spacetime verifier**
-
-Run: `node --test test/phase-adapters-relativity.test.mjs && node docs/verify-spacetime-boosted-live.cjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add core/phase-adapters/relativity.mjs test/phase-adapters-relativity.test.mjs
-git commit -m "feat: adapt Lorentz state to phase space"
-```
-
-### Task 9: Heat adapter and dissipative control case
-
-**Files:**
-- Create: `core/phase-adapters/field-heat.mjs`
-- Create: `test/phase-adapters-heat.test.mjs`
-- Create: `core/phase-adapters/index.mjs`
-
-**Interfaces:**
-- Produces: `heatPhaseAdapter() -> PhaseSpaceContract`.
-- Produces: `INITIAL_PHASE_SPACES` from the five initial adapters.
-
-- [ ] **Step 1: Write failing heat tests**
-
-Verify the Heat solver's declared energy/norm diagnostic is monotone or balance-law according to the existing solver, never conserved; invalid timestep/domain is refused; visual grid scaling does not alter the native diagnostic.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-adapters-heat.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Implement the Heat adapter and adapter index**
-
-- [ ] **Step 4: Verify pass plus field solver authority**
-
-Run: `node --test test/phase-adapters-heat.test.mjs && node docs/verify-the-solvers-own-diffusion.cjs && node docs/verify-the-laws-of-a-field.cjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add core/phase-adapters/field-heat.mjs core/phase-adapters/index.mjs test/phase-adapters-heat.test.mjs
-git commit -m "feat: add dissipative heat phase adapter"
-```
+- [ ] Write failing tests proving Heat energy/norm diagnostic is monotone/balance-law, invalid timestep/domain is refused, and visual grid scaling does not alter native diagnostics.
+- [ ] Run `node --test test/phase-adapters-heat.test.mjs`; expect FAIL.
+- [ ] Implement Heat adapter and adapter registry.
+- [ ] Run `node --test test/phase-adapters-heat.test.mjs && node docs/verify-the-solvers-own-diffusion.cjs && node docs/verify-the-laws-of-a-field.cjs`; expect PASS.
+- [ ] Commit as `feat: add dissipative heat phase adapter`.
 
 ### Task 10: Integrate IPSE into CORE and generate one truthful static artifact
 
-**Files:**
-- Modify: `core/index.mjs`
-- Modify: `scripts/build-api.mjs`
-- Create generated: `api/phase-space.json`
-- Create: `test/phase-agent.test.mjs`
+**Files:** Modify `core/index.mjs`, `scripts/build-api.mjs`; create generated `api/phase-space.json`; create `test/phase-agent.test.mjs`.
 
 **Interfaces:**
 - `CORE.phase.describe(labId)`
 - `CORE.phase.probe(labId, invariantId, input = {})`
 - `CORE.phase.compare(labA, labB, input = {})`
 - `CORE.phase.bridges({ labA = null, labB = null, status = null, includeCandidates = false })`
-- Static artifact schema: `hcc.phase-space/1` with `version`, `build`, `core_version`, `code_sha256`, `current_release`, `measured_on_this_release`, `stale`, `spaces`, `bridges`, and `candidates` (`noncanonical:true`, `review_required:true`).
+- `api/phase-space.json` schema `hcc.phase-space/1` containing release/core identity, freshness, spaces, bridges and noncanonical candidates.
 
-- [ ] **Step 1: Write failing CORE/artifact tests**
-
-Assert five initial spaces exist; unknown lab is refused/not-found explicitly; candidate rows stay noncanonical; generated artifact and live CORE agree on ids/statuses; a deliberately old artifact is exposed as stale and cannot be used as a current verified bridge.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-agent.test.mjs`
-Expected: FAIL.
-
-- [ ] **Step 3: Integrate phase files into `coreHash()` and `CORE`, then generate `api/phase-space.json` from live core objects**
-
-Do not hand-edit the generated artifact.
-
-- [ ] **Step 4: Verify pass and regeneration stability**
-
-Run: `node --test test/phase-agent.test.mjs && node scripts/build-api.mjs && git diff --exit-code api/phase-space.json`
-Expected: PASS and no diff after regeneration.
-
-- [ ] **Step 5: Commit**
-
+- [ ] Write failing tests for five initial spaces, explicit unknown-lab failure, noncanonical candidate separation, live/static id/status agreement and stale-artifact behavior.
+- [ ] Run `node --test test/phase-agent.test.mjs`; expect FAIL.
+- [ ] Add every new phase/adaptor source to `coreHash()` and expose `CORE.phase`.
+- [ ] Generate `api/phase-space.json` from live core objects; never hand-edit it.
+- [ ] Run `node --test test/phase-agent.test.mjs && node scripts/build-api.mjs && git diff --exit-code api/phase-space.json`; expect PASS/no regeneration drift.
+- [ ] Commit:
 ```bash
 git add core/index.mjs scripts/build-api.mjs api/phase-space.json test/phase-agent.test.mjs
 git commit -m "feat: publish phase-space registry"
@@ -445,11 +251,7 @@ git commit -m "feat: publish phase-space registry"
 
 ### Task 11: Add the four MCP phase operations
 
-**Files:**
-- Modify: `server/server.mjs`
-- Modify: `scripts/build-api.mjs`
-- Modify: `test/phase-agent.test.mjs`
-- Generated: `.well-known/mcp.json`, `api/openapi.json`, `api/agent.json`, `api/manifest.json`
+**Files:** Modify `server/server.mjs`, `scripts/build-api.mjs`, `test/phase-agent.test.mjs`; regenerate `.well-known/mcp.json`, `api/openapi.json`, `api/agent.json`, `api/manifest.json`.
 
 **Interfaces:**
 - `describe_phase_space({lab_id})`
@@ -457,143 +259,49 @@ git commit -m "feat: publish phase-space registry"
 - `compare_phase_spaces({lab_a, lab_b, input?})`
 - `list_phase_bridges({lab_a?, lab_b?, status?, include_candidates?})`
 
-- [ ] **Step 1: Add failing MCP tests**
-
-Assert all four tools appear in `TOOLS`, reject unknown labs/invariants with structured errors, default `include_candidates` to false, and preserve `REFUSED` results rather than substituting plausible values.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node --test test/phase-agent.test.mjs`
-Expected: FAIL for missing MCP tools.
-
-- [ ] **Step 3: Add the four additive tools and generated OpenAPI/discovery surfaces**
-
-Existing MCP tool behavior remains byte-compatible except for additive discovery entries.
-
-- [ ] **Step 4: Regenerate and verify**
-
-Run: `node scripts/build-api.mjs && node --test test/phase-agent.test.mjs test/agent-client.test.mjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add server/server.mjs scripts/build-api.mjs test/phase-agent.test.mjs .well-known/mcp.json api/openapi.json api/agent.json api/manifest.json
-git commit -m "feat: expose phase-space MCP tools"
-```
+- [ ] Add failing tests that all four tools exist, unknown ids fail explicitly, `include_candidates` defaults false, and `REFUSED` is returned rather than substituted.
+- [ ] Run `node --test test/phase-agent.test.mjs`; expect FAIL for missing tools.
+- [ ] Add the four tools to the single `TOOLS` authority and generated OpenAPI/discovery outputs.
+- [ ] Run `node scripts/build-api.mjs && node --test test/phase-agent.test.mjs test/agent-client.test.mjs`; expect PASS.
+- [ ] Commit generated and source files as `feat: expose phase-space MCP tools`.
 
 ### Task 12: Phase Lens UI
 
-**Files:**
-- Modify: `index.html`
-- Create: `docs/verify-the-phase-lens.cjs`
-- Modify: `scripts/run-quick-verifiers.mjs`
+**Files:** Modify `index.html`; create `docs/verify-the-phase-lens.cjs`; modify `scripts/run-quick-verifiers.mjs`.
+
+**Interface:** Phase Lens from supported laboratory/Nexus inspection state, with local phase summary, invariant slice, bridge inspector and explicit refusal presentation. The UI consumes phase authority; it does not duplicate formulas.
+
+- [ ] Write failing verifier for carrier/state, evolution parameter, constraints/invariants, validity domain, bridge status, candidate label, projection label and refusal reason. Exact/candidate/refused grammar must remain distinguishable without color.
+- [ ] Run `node docs/verify-the-phase-lens.cjs`; expect FAIL.
+- [ ] Implement thin visual projections; visual quality controls must not alter state/residual/tolerance/status/export.
+- [ ] Run `node docs/verify-the-phase-lens.cjs && node docs/verify-nexus-carries-every-kind.cjs && node docs/verify-every-laboratory-keeps-its-invariants.cjs && node docs/verify-the-atlas-of-invariants.cjs`; expect PASS.
+- [ ] Commit as `feat: add invariant phase lens`.
+
+### Task 13: CI routing, scientific contract and release `4.328.0`
+
+**Files:** Modify `package.json`, `scripts/run-quick-verifiers.mjs`, `README.md`, `SCIENTIFIC_CONTRACT.md`, `version.json`; regenerate all affected `api/` and `.well-known/` artifacts plus extracted/manifest authority through existing build scripts.
 
 **Interfaces:**
-- UI entry: `Phase Lens` from supported laboratory/Nexus inspection state.
-- Views: local phase summary, invariant slice, bridge inspector, explicit refusal presentation.
-- Data authority: live browser-side phase contracts/adapters or generated `api/phase-space.json`; UI must not duplicate formulas used by core diagnostics.
+- Add `test:phase`: `node --test test/phase-*.test.mjs`.
+- Quick verifier routing runs phase tests whenever `core/phase/`, `core/phase-adapters/`, phase MCP tools, `api/phase-space.json` or Phase Lens symbols change.
+- Set release `version` to `4.328.0` and build to `invariant-phase-space-engine-2026.09.26.43`.
+- Docs repeat that phase similarity does not establish physical identity and S³ remains a conditional reconstruction, not detected topology.
 
-- [ ] **Step 1: Write failing structural verifier**
-
-Verify the UI exposes carrier/state space, evolution parameter, constraints/invariants, validity domain, bridge status labels, noncanonical candidate label, explicit projection label, and a refusal reason. Verify exact/candidate/refused connections have distinct textual grammar independent of color.
-
-- [ ] **Step 2: Verify failure**
-
-Run: `node docs/verify-the-phase-lens.cjs`
-Expected: FAIL because Phase Lens is absent.
-
-- [ ] **Step 3: Implement Phase Lens with thin projections only**
-
-No visual quality control may alter a solver state, residual, tolerance, bridge status, or export.
-
-- [ ] **Step 4: Run focused UI/scientific verification**
-
-Run: `node docs/verify-the-phase-lens.cjs && node docs/verify-nexus-carries-every-kind.cjs && node docs/verify-every-laboratory-keeps-its-invariants.cjs && node docs/verify-the-atlas-of-invariants.cjs`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add index.html docs/verify-the-phase-lens.cjs scripts/run-quick-verifiers.mjs
-git commit -m "feat: add invariant phase lens"
-```
-
-### Task 13: Route phase tests through CI and complete release contract
-
-**Files:**
-- Modify: `package.json`
-- Modify: `scripts/run-quick-verifiers.mjs`
-- Modify: `README.md`
-- Modify: `SCIENTIFIC_CONTRACT.md`
-- Modify: `version.json`
-- Generated files from `scripts/build-api.mjs` and existing manifest/extraction builders.
-
-**Interfaces:**
-- Add `test:phase` script: `node --test test/phase-*.test.mjs`.
-- Quick verifier router must run phase tests whenever `core/phase/`, `core/phase-adapters/`, phase MCP tools, `api/phase-space.json`, or Phase Lens symbols change.
-- Release docs must repeat the firewall: phase similarity does not establish physical identity; S³ remains conditional reconstruction, not detected topology.
-
-- [ ] **Step 1: Add failing CI-policy expectation for phase changes**
-
-Make a router test/fixture or deterministic self-check showing an IPSE-path change schedules `test:phase` and the Phase Lens verifier.
-
-- [ ] **Step 2: Implement CI routing and release documentation/version bump**
-
-Use the next repository release version chosen according to the project's existing versioning sequence at implementation time; update all generated artifacts from source authority rather than by hand.
-
-- [ ] **Step 3: Run complete phase and release verification**
-
-Run: `npm run test:phase`
-Expected: PASS.
-
-Run: `npm run test:source`
-Expected: PASS.
-
-Run: `npm run test:release`
-Expected: PASS.
-
-- [ ] **Step 4: Confirm generated tree is clean**
-
-Run the existing extraction/API/manifest generation commands used by `scripts/validate.mjs`, then `git status --short`.
-Expected: no uncommitted generated drift.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add package.json scripts/run-quick-verifiers.mjs README.md SCIENTIFIC_CONTRACT.md version.json api .well-known core/atlas/extracted.mjs index.html
-git commit -m "release: integrate invariant phase-space engine"
-```
+- [ ] Add a failing deterministic router/self-check proving an IPSE-path change schedules phase tests and the Phase Lens verifier.
+- [ ] Add `test:phase`, CI routing, docs and exact release metadata `4.328.0` / `invariant-phase-space-engine-2026.09.26.43`.
+- [ ] Regenerate all machine-facing artifacts from source authority.
+- [ ] Run `npm run test:phase`; expect PASS.
+- [ ] Run `npm run test:source`; expect PASS.
+- [ ] Run `npm run test:release`; expect PASS.
+- [ ] Run existing extraction/API/manifest generation once more and `git status --short`; expect no generated drift apart from intended staged release files.
+- [ ] Commit as `release: integrate invariant phase-space engine`.
 
 ### Task 14: Whole-branch verification before integration
 
-**Files:**
-- No new product files unless verification finds a defect; any fix must be committed separately with a focused message.
+**Files:** No product changes unless verification reveals a defect. Any defect fix is a separate focused commit.
 
-**Interfaces:**
-- Consumes the complete IPSE branch.
-- Produces verification evidence only; no claim of success without command output.
-
-- [ ] **Step 1: Run the phase suite**
-
-Run: `npm run test:phase`
-Expected: PASS.
-
-- [ ] **Step 2: Run the complete source verifier census**
-
-Run: `npm run test:source`
-Expected: PASS.
-
-- [ ] **Step 3: Run release verification**
-
-Run: `npm run test:release`
-Expected: PASS.
-
-- [ ] **Step 4: Inspect diff against `main`**
-
-Run: `git diff --check main...HEAD && git diff --stat main...HEAD`
-Expected: no whitespace errors; only spec/plan, IPSE core/adapters/tests, generated agent artifacts, UI/verifier, and release docs/version changes.
-
-- [ ] **Step 5: Commit verification-only fixes if required**
-
-If a verification defect exists, fix only that defect, rerun its failing command plus Tasks 14.1–14.4, and commit with a focused `fix:` message. If nothing fails, create no empty commit.
+- [ ] Run `npm run test:phase`; expect PASS.
+- [ ] Run `npm run test:source`; expect PASS.
+- [ ] Run `npm run test:release`; expect PASS.
+- [ ] Run `git diff --check main...HEAD && git diff --stat main...HEAD`; expect no whitespace errors and scope limited to IPSE/spec/plan/generated outputs/release docs.
+- [ ] If a defect is found, fix only that defect, rerun all four checks and commit it with a focused `fix:` message. If nothing fails, create no empty commit.
