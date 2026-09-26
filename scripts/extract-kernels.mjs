@@ -794,6 +794,7 @@ export const ROOTS = [
   /* the Galaxy's rotation from the embedded proper motions: pure arithmetic on star records */
   'STAT_MG', 'statToGal', 'STAT_KMS', 'statGalRow', 'statOortRows', 'statSolveN', 'statOortSolve', 'statOortPred', 'statOortEllipsoid', 'statOortDerived', 'statOortFit', 'statOortWave',
   'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT',
+  'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
   'GAL_RIDE', 'galHill', 'galFrameAngle', 'galPolarState', 'galRingOf', 'galSunVel', 'galRide', 'galRideHalo', 'galCircularVel', 'galRideEq',
   'TOPO_GENUS', 'topoGenusField', 'topoMeshTopology', 'topoFibration', 'topoAllPairs'
 ];

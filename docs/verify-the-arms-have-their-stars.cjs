@@ -27,9 +27,9 @@ const rows = Object.entries(REF).map(([k, [l, b]]) => { const o = O.find(x => x.
   const [gl, gb] = gal(o.ra, o.de); return [k, Math.max(Math.abs(((gl - l + 540) % 360) - 180), Math.abs(gb - b))]; });
 ok('the positions are the published ones: galactic coordinates recomputed from the embedded RA/Dec agree with SIMBAD to 0.01°',
   rows.every(([, e]) => e < 0.011), rows.map(([k, e]) => `${k} ${e.toFixed(4)}°`).join(' · '));
-const anchored = s => /const MW_SOLAR_AZ0=mwSolarSunAzimuth\(\);/.test(s) && /const a=MW_SOLAR_AZ0\+dth, r=rk\*MILKY_WAY\.KPC_LY;/.test(s)
-  && /const ta=MW_SOLAR_AZ0\+Math\.log\(Math\.max\(R,0\.2\)\/arm\.R\)\/tp;/.test(s);
+const anchored = s => /const MW_SOLAR_AZ0=mwSolarSunAzimuth\(\);/.test(s) && /const a=MW_SOLAR_AZ0\+MW_SOLAR_WIND\*dth, r=rk\*MILKY_WAY\.KPC_LY;/.test(s)
+  && /const ta=MW_SOLAR_AZ0\+MW_SOLAR_WIND\*Math\.log\(Math\.max\(R,0\.2\)\/arm\.R\)\/tp;/.test(s);
 ok('the Solar world\'s arms start from the Sun\'s own azimuth in the disc frame, and the tracers are measured against the same arms', anchored(SRC));
-const mut = SRC.replace('const a=MW_SOLAR_AZ0+dth, r=rk*MILKY_WAY.KPC_LY;', 'const a=MILKY_WAY.sunAzimuth+dth, r=rk*MILKY_WAY.KPC_LY;');
+const mut = SRC.replace('const a=MW_SOLAR_AZ0+MW_SOLAR_WIND*dth, r=rk*MILKY_WAY.KPC_LY;', 'const a=MILKY_WAY.sunAzimuth+MW_SOLAR_WIND*dth, r=rk*MILKY_WAY.KPC_LY;');
 ok('and the 63° anchor, put back, is caught', mut !== SRC && !anchored(mut));
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
