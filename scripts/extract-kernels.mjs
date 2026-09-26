@@ -795,6 +795,8 @@ export const ROOTS = [
   'STAT_MG', 'statToGal', 'STAT_KMS', 'statGalRow', 'statOortRows', 'statSolveN', 'statOortSolve', 'statOortPred', 'statOortEllipsoid', 'statOortDerived', 'statOortFit', 'statOortWave', 'galLocalCurve', 'galOmegaR', 'galResonanceR', 'galResonances', 'galResonanceNumber', 'galArmBand',
   'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT',
   'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
+  'NSF_EP', 'NSF_EM', 'nsfMake', 'nsfKilling', 'nsfShellPart', 'nsfVelocity', 'nsfResidual', 'nsfResidualCurl', 'nsfUniform', 'nsfStep', 'nsfExactMeans', 'nsfFacts',
+  's3nsVelocity', 's3nsShell', 's3nsShellElement', 's3nsCovariant', 's3nsNumCurl', 's3nsQMul', 's3nsQConj', 's3nsQAxis', 's3nsCarrierWeights', 's3nsTangentStep', 's3nsFrameVec', 's3nsDot4',
   'GAL_RIDE', 'galHill', 'galFrameAngle', 'galPolarState', 'galRingOf', 'galSunVel', 'galRide', 'galRideHalo', 'galCircularVel', 'galRideEq',
   'TOPO_GENUS', 'topoGenusField', 'topoMeshTopology', 'topoFibration', 'topoAllPairs'
 ];
