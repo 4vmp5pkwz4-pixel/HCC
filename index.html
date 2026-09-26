@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-galaxy-turns-2026.09.25.34">
+<html lang="en" data-hcc-build="the-neighbourhood-rides-2026.09.26.35">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-galaxy-turns-2026.09.25.34">
+<meta name="hcc-build" content="the-neighbourhood-rides-2026.09.26.35">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -2922,7 +2922,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.319.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.320.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3213,8 +3213,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.319.0';
-const HCC_BUILD='the-galaxy-turns-2026.09.25.34';
+const HCC_VERSION='4.320.0';
+const HCC_BUILD='the-neighbourhood-rides-2026.09.26.35';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -7747,7 +7747,7 @@ function runSelfTests(){
     const gd=GAL_YEAR_MYR*1e6*365.2425, q=new THREE.Quaternion(), v=new THREE.Vector3();
     let worst=0, poleDrift=0;
     for(const ep of [0, gd*0.13, gd*0.5, gd*2.7, gd*1234.567, 4.7e12]){
-      const th=2*Math.PI*(((ep%gd)+gd)%gd)/gd; q.setFromAxisAngle(GAL_DATA.pole.dir,th);
+      const th=galFrameAngle(ep); q.setFromAxisAngle(GAL_DATA.pole.dir,th);
       const disk=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the disk actually is
       const axis=GAL_DATA.gc.pos.clone().applyQuaternion(q);          // where the axis anchor now goes
       worst=Math.max(worst,axis.distanceTo(disk)/GAL_DATA.gc.pos.length());
@@ -7756,6 +7756,10 @@ function runSelfTests(){
       const R0=8.2*3261.56*63241.077;
       worst=Math.max(worst,Math.abs(disk.length()-GAL_DATA.gc.pos.length())/GAL_DATA.gc.pos.length());
     }
+    { /* and the disc turns the RIGHT way: the Sun moves toward l = 90°, so a quarter of a galactic year on the centre is
+         seen toward l = 270° — it turned the other way until 2026-09-26 */
+      const g=GAL_DATA.gc.pos.clone().applyQuaternion(q.setFromAxisAngle(GAL_DATA.pole.dir,galFrameAngle(gd/4))).normalize(), l270=raDecDir(138.0043/15,-48.3299).normalize(), l90=raDecDir(318.0043/15,48.3299).normalize();
+      ok('Galactic rotation sense: a quarter galactic year on, the centre is seen toward l = 270° — the Sun moves toward l = 90° (Cygnus), clockwise from the north Galactic pole', g.dot(l270)>0.99&&g.dot(l90)<-0.99, `cos to l 270° = ${g.dot(l270).toFixed(4)}`); }
     ok('Galactic scale: the axis anchor, the disk and the Sun→GC link stay phase-locked at every epoch (no detachment at high time rates)',
       worst<1e-12 && poleDrift<1e-12, `max relative detachment=${worst.toExponential(1)} · pole invariance=${poleDrift.toExponential(1)}`); }
   { // FRAME COHERENCE: everything that annotates the Earth must use the epoch the Earth is DRAWN at,
@@ -21279,8 +21283,8 @@ function earthAxisQuaternion(Tcenturies){
    Vondrák, Capitaine & Wallace 2011, A&A 534 A22 (+ 2012 Corrigendum, A&A 541 C1).
    Validity is DECLARED, not hoped: agrees with IAU 2006 to <100 µas through the
    20th–21st centuries, a few arcsec over the historical period, a few 0.1° at the
-   ±200,000-yr fit boundary; beyond ±200 kyr the series is the paper's quasi-periodic
-   extrapolation — smooth and bounded for any epoch, but an extrapolation and labelled so. */
+   ±200,000-yr fit boundary. Beyond ±200 kyr the series itself runs away (its polynomial part: the pole falls onto
+   the equator by ±1 Myr) and is NOT used there — see ltpEquExt below, which continues on the precession cone. */
 const LTP_S=Math.PI/(180*3600), LTP_EPS0=84381.406*LTP_S;
 const LTP_EQU_POL=[[5453.282155,0.4252841,-0.00037173,-0.000000152],
                    [-73750.930350,-0.7675452,-0.00018725,0.000000231]];
@@ -21341,11 +21345,58 @@ function ltpEquinoxLonDeg(epj){          // vernal-direction drift measured on t
   const ye=Math.cos(LTP_EPS0)*g[1]+Math.sin(LTP_EPS0)*g[2];                  // rotate into ecliptic J2000
   return Math.atan2(ye,g[0])/DEG;
 }
+/* ══ BEYOND THE FIT: THE AXIS KEEPS PRECESSING ═════════════════════════════════════
+   The Vondrák series is a fit over ±200 000 years and its polynomial part runs away
+   outside it: measured here, the obliquity climbs to 28.5° at +500 000 and the pole of
+   date falls onto the equator at ±1 000 000 (ε → 0) — the axis "fell over" and stayed.
+   The header above called the extrapolation bounded; it was not. Beyond the window the
+   atlas now continues with the two motions that are known to go on for millions of
+   years, joined to the fit at its boundary with no jump:
+     · the axis turns about the ecliptic pole at the general precession, one turn in
+       25 772 years, in the sense the fit is turning at the boundary;
+     · the obliquity breathes between 22.1° and 24.5° with the 41 000-year period
+       (Milanković; Laskar et al. 2004), phased to the fit's own value and slope there;
+     · the ecliptic keeps the fit's periodic terms, its polynomial frozen at the boundary.
+   The legacy linear engine is carried the same way beyond ±1000 years, on its own cone.
+   Everything past the window is an EXTRAPOLATION and the readout says so. */
+const PREC_EXT={P:25772, Pe:41040, epsMean:23.32*DEG, epsAmp:1.2*DEG, ltpEdge:200000, iauEdge:1000};
+const _v3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]], _dot=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2], _nrm=a=>{ const n=Math.hypot(a[0],a[1],a[2]); return [a[0]/n,a[1]/n,a[2]/n]; };
+/* the ecliptic past the window: its periodic terms at the epoch, its polynomial held at the edge */
+function ltpEclExt(epj){ const dt=epj-2000, E=PREC_EXT.ltpEdge; if(Math.abs(dt)<=E) return ltpEcl(epj);
+  const tb=(Math.sign(dt)*E)/100, t=dt/100; let p=0,q=0; const w=2*Math.PI*t;
+  for(const P of LTP_ECL_PER){ const a=w/P[0],s=Math.sin(a),c=Math.cos(a); p+=c*P[1]+s*P[3]; q+=c*P[2]+s*P[4]; }
+  let ww=1; for(let i=0;i<4;i++){ p+=LTP_ECL_POL[0][i]*ww; q+=LTP_ECL_POL[1][i]*ww; ww*=tb; }
+  p*=LTP_S; q*=LTP_S; let z2=1-p*p-q*q; z2=z2<0?0:Math.sqrt(z2); const s=Math.sin(LTP_EPS0), c=Math.cos(LTP_EPS0);
+  return [p, -q*c-z2*s, -q*s+z2*c]; }
+/* the edge state of an engine: the pole, the ecliptic pole, the obliquity, its slope and the sense of turn there */
+function precEdge(poleAt,eclAt,edgeEpj){ const h=Math.sign(edgeEpj-2000)*10, p=poleAt(edgeEpj), e=eclAt(edgeEpj), p2=poleAt(edgeEpj-h), e2=eclAt(edgeEpj-h);
+  const eps=Math.acos(Math.max(-1,Math.min(1,_dot(p,e)))), eps2=Math.acos(Math.max(-1,Math.min(1,_dot(p2,e2))));
+  const u1=_nrm(p.map((x,i)=>x-_dot(p,e)*e[i])), u2=_v3(e,u1), q=p2.map((x,i)=>x-_dot(p2,e)*e[i]);
+  const turn=Math.sign(_dot(q,u2))*-Math.sign(h);            /* +1 if the pole turns from u1 toward u2 as time runs forward */
+  return {p,e,eps,dEps:(eps-eps2)/h,u1,turn:turn||-1}; }
+/* the continued pole: on the cone about the ecliptic pole of date, obliquity on the 41-kyr cycle phased to the edge */
+function precContinue(E,eclAt,epj,edgeEpj,breathe){ const t=epj-edgeEpj, e=eclAt(epj), X=PREC_EXT;
+  let eps=E.eps; if(breathe){ const amp=Math.max(X.epsAmp,Math.abs(E.eps-X.epsMean)+1e-9), c0=Math.max(-1,Math.min(1,(E.eps-X.epsMean)/amp));
+    const ph0=Math.acos(c0)*(E.dEps>0?-1:1);               /* d/dt cos(ωt+φ) = −ω sin φ has the sign of the edge slope */
+    eps=X.epsMean+amp*Math.cos(2*Math.PI*t/X.Pe+ph0); }
+  const u1=_nrm(E.u1.map((x,i)=>x-_dot(E.u1,e)*e[i])), u2=_v3(e,u1), a=E.turn*2*Math.PI*t/X.P, ca=Math.cos(a), sa=Math.sin(a);
+  return [0,1,2].map(i=>Math.cos(eps)*e[i]+Math.sin(eps)*(ca*u1[i]+sa*u2[i])); }
+let _precEdgeCache={};
+function ltpEquExt(epj){ const dt=epj-2000, X=PREC_EXT; if(Math.abs(dt)<=X.ltpEdge) return ltpEqu(epj);
+  const edge=2000+Math.sign(dt)*X.ltpEdge, key='ltp'+edge; const E=_precEdgeCache[key]||(_precEdgeCache[key]=precEdge(ltpEqu,ltpEcl,edge));
+  return precContinue(E,ltpEclExt,epj,edge,true); }
+function ltpObliquityExtRad(epj){ const a=ltpEquExt(epj), b=ltpEclExt(epj); return Math.acos(Math.max(-1,Math.min(1,_dot(a,b)))); }
+/* the legacy engine's own linear pole, and the same continuation on its own fixed cone beyond ±1000 years */
+function iauPoleEq(epj){ const T=(epj-2000)/100, ra=(-0.641*T)*DEG, dec=(90-0.557*T)*DEG; return [Math.cos(dec)*Math.cos(ra),Math.cos(dec)*Math.sin(ra),Math.sin(dec)]; }
+function iauPoleExt(epj){ const dt=epj-2000, X=PREC_EXT; if(Math.abs(dt)<=X.iauEdge) return iauPoleEq(epj);
+  const edge=2000+Math.sign(dt)*X.iauEdge, key='iau'+edge, e0=()=>ltpEcl(2000); const E=_precEdgeCache[key]||(_precEdgeCache[key]=precEdge(iauPoleEq,e0,edge));
+  return precContinue(E,e0,epj,edge,false); }
 /* the ACTIVE precession engine: state.precModel = 'ltp' (Vondrák long-term, default)
    or 'iau' (the legacy linear NAIF display rates, honest only within a few centuries) */
 function earthPoleDir(Tcenturies){
-  if((state.precModel||'ltp')==='ltp') return eqVecToScene(ltpEqu(2000+Tcenturies*100)).normalize();
-  return raDecDir((-0.641*Tcenturies)/15,90-0.557*Tcenturies).normalize();
+  /* both engines continue past their windows on the precession cone (ltpEquExt, iauPoleExt): the axis never falls over */
+  if((state.precModel||'ltp')==='ltp') return eqVecToScene(ltpEquExt(2000+Tcenturies*100)).normalize();
+  return eqVecToScene(iauPoleExt(2000+Tcenturies*100)).normalize();
 }
 function earthAxisQuaternionActive(Tcenturies){
   return new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),earthPoleDir(Tcenturies));
@@ -25524,6 +25575,70 @@ const GAL_DATA={
 GAL_DATA.gc.dir=raDecDir(GAL_DATA.gc.ra/15,GAL_DATA.gc.dec).normalize();
 GAL_DATA.gc.pos=GAL_DATA.gc.dir.clone().multiplyScalar(GAL_DATA.gc.distLy*LY_AU);
 GAL_DATA.pole.dir=raDecDir(GAL_DATA.pole.ra/15,GAL_DATA.pole.dec).normalize();
+/* ══ THE NEIGHBOURHOOD RIDES THE GALAXY ════════════════════════════════════════════
+   The Galaxy turns clockwise seen from its north pole: the Sun moves toward l = 90°
+   (Cygnus), so seen from the Sun the Galactic centre drifts toward l = 270°. The disc
+   was drawn turning the other way until 2026-09-26 — the centre drifted toward Cygnus
+   — and the stars flew in straight lines beside it while the arms wheeled past them.
+   Both are repaired here from one clock.
+   A star near the Sun is not on a straight line; it is on an EPICYCLE about a guiding
+   centre that circles the Galaxy. In the frame turning with the local standard of rest,
+   x outward from the centre, y along the rotation, z to the pole, Hill's equations are
+   exact to first order in distance:
+        ẍ − 2Ω ẏ − 4ΩA x = 0,     ÿ + 2Ω ẋ = 0,     z̈ + ν² z = 0
+   with Ω the angular velocity (one turn per galactic year, the rate the disc is drawn
+   at), A the Oort constant this atlas MEASURED from its own Hipparcos proper motions
+   (What the catalogues say · the Galaxy turns, 14.45 km/s/kpc), and ν = √(4πGρ₀) the
+   vertical frequency of the midplane density ρ₀ = 0.1 M☉/pc³ (Holmberg & Flynn 2000).
+   The closed form is an ellipse of axis ratio κ/2Ω on a guiding centre that shears away
+   at −2Ax, κ² = 4Ω(Ω − A). The Sun rides its own epicycle, (U, V, W)☉ = (11.1, 12.24,
+   7.25) km/s relative to the LSR (Schönrich, Binney & Dehnen 2010), and every star is
+   drawn relative to it. The guiding centres are carried on CIRCLES (y is an arc of the
+   ring at R₀ + x, not a tangent line), so over gigayears the neighbourhood does what it
+   does: it shears into arcs and phase-mixes into rings at its own radii. */
+const GAL_RIDE=Object.freeze({Om:2*Math.PI/GAL_YEAR_MYR, A:14.45*1.0227121650537077e-3, nu:Math.sqrt(4*Math.PI*4.498502151469554e-3*0.1),
+  R0:8178, sunUVW:[11.1,12.24,7.25], KMS:1.0227121650537077});                  /* Myr⁻¹, Myr⁻¹, Myr⁻¹, pc, km/s, pc/Myr per km/s */
+/* Hill's closed form: (X outward, Y along rotation, Z to the pole) in pc and pc/Myr, t in Myr */
+function galHill(X0,Y0,Z0,vX,vY,vZ,t,P){ const Om=P.Om, k2=4*Om*(Om-P.A), k=Math.sqrt(k2), nu=P.nu, c=Math.cos(k*t), s=Math.sin(k*t);
+  const Xg=(2*Om*vY+4*Om*Om*X0)/k2, X=Xg+(X0-Xg)*c+vX/k*s, iX=Xg*t+(X0-Xg)*s/k+vX/k2*(1-c);
+  return [X, Y0+(vY+2*Om*X0)*t-2*Om*iX, Z0*Math.cos(nu*t)+vZ/nu*Math.sin(nu*t)]; }
+/* the frame angle of the disc at an epoch: −Ωt about the north Galactic pole, modulo FIRST so it is exact at any depth */
+function galFrameAngle(epochDays){ const gd=GAL_YEAR_MYR*1e6*365.2425; return -2*Math.PI*(((epochDays%gd)+gd)%gd)/gd; }
+/* the epicycle is carried in POLAR coordinates about the centre — X = R − R₀, Y = R₀φ — so a J2000 state maps in
+   exactly and the guiding centres move on circles, not on the tangent line: in the frame turning with the LSR */
+function galPolarState(d,v,P){ const K=P.KMS, Om=P.Om, R0=P.R0;   /* d: position from the Sun (pc); v: INERTIAL velocity about the centre (km/s) */
+  /* position about the centre in (ê_out, ê_rot): the centre is at +R₀ along x̂ from the Sun, ê_out = −x̂, ê_rot = ŷ */
+  const po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po), cf=Math.cos(f), sf=Math.sin(f);
+  /* rotating-frame velocity: inertial minus Ω×r with Ω along the SOUTH pole (clockwise from the north), in (ê_out, ê_rot) */
+  const uo=-v[0]*K, ur=v[1]*K, wo=uo+Om*pr, wr=ur-Om*po;   /* (ê_out, ê_rot) turn counter-clockwise at Ω: w = u − Ω ẑ′×r */
+  return {X:R-R0, Y:R0*f, Z:d[2], vX:wo*cf+wr*sf, vY:R0*(-wo*sf+wr*cf)/R, vZ:v[2]*K}; }
+function galRingOf(q,P){ const R=P.R0+q[0], f=q[1]/P.R0; return [R*Math.cos(f), R*Math.sin(f), q[2]]; }   /* (out, rot, z) about the centre */
+/* the Sun's own inertial velocity relative to the LSR point, in the Galactic basis (x → centre): (U, V, W) */
+function galSunVel(P){ const S=P.sunUVW; return [S[0],S[1],S[2]]; }
+/* a star's position relative to the Sun at t Myr from J2000, in the Galactic basis (x → centre, y → l 90°, z → NGP), pc,
+   from its J2000 relative position (pc) and INERTIAL relative velocity (km/s). The Sun rides its own epicycle. */
+function galRide(d,v,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), va=[v[0]+sv[0],v[1]+sv[1],v[2]+sv[2]];
+  const circ=[0,P.Om*P.R0/P.KMS,0];                     /* the LSR's own inertial velocity at the Sun, in km/s: toward l 90° */
+  const a=galPolarState(d,[va[0]+circ[0],va[1]+circ[1],va[2]],P), b=galPolarState([0,0,0],[sv[0]+circ[0],sv[1]+circ[1],sv[2]],P);
+  const A=galRingOf(galHill(a.X,a.Y,a.Z,a.vX,a.vY,a.vZ,tMyr,P),P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), x=-(A[0]-B[0]), y=A[1]-B[1];
+  return [x*ca-y*sa, x*sa+y*ca, A[2]-B[2]]; }
+/* a halo object (a globular cluster) is at rest in the Galaxy: only the Sun moves round it, on the same epicycle */
+function galRideHalo(d,tMyr,P){ P=P||GAL_RIDE; const sv=galSunVel(P), b=galPolarState([0,0,0],[sv[0],sv[1]+P.Om*P.R0/P.KMS,sv[2]],P), B=galRingOf(galHill(b.X,b.Y,b.Z,b.vX,b.vY,b.vZ,tMyr,P),P);
+  const al=-P.Om*tMyr, ca=Math.cos(al), sa=Math.sin(al), sx=-B[0], sy=B[1], Sx=sx*ca-sy*sa, Sy=sx*sa+sy*ca;   /* the Sun about the centre, inertial */
+  return [(d[0]-P.R0)-Sx, d[1]-Sy, d[2]-B[2]]; }
+/* a disc object with no measured motion is put on its circular orbit: the rotation curve at its radius, V(R) = ΩR₀ +
+   (Ω − 2A)(R − R₀) — the slope −(A + B) with B = A − Ω — along its own azimuth, less the Sun's inertial velocity */
+function galCircularVel(d,P){ P=P||GAL_RIDE; const K=P.KMS, Om=P.Om, R0=P.R0, S=P.sunUVW, po=R0-d[0], pr=d[1], R=Math.hypot(po,pr), f=Math.atan2(pr,po);
+  const V=(Om*R0+(Om-2*P.A)*(R-R0))/K;                  /* km/s */
+  return [V*Math.sin(f)-S[0], V*Math.cos(f)-(Om*R0/K+S[1]), -S[2]]; }
+/* the sky layers are equatorial underneath: a J2000 position (pc) and velocity (km/s), equatorial, ridden to epoch
+   epJ and handed back equatorial — through the same ICRS → Galactic rotation the catalogue station uses */
+function galRideEq(pEq,vEq,epJ,kind,P){ const d=statToGal(pEq), t=(epJ-2000)/1e6;
+  const g=kind==='halo'?galRideHalo(d,t,P):galRide(d,kind==='disc'?galCircularVel(d,P):statToGal(vEq),t,P);
+  return [0,1,2].map(j=>STAT_MG[0][j]*g[0]+STAT_MG[1][j]*g[1]+STAT_MG[2][j]*g[2]); }
+/* scene (the ecliptic frame raDecDir draws in) → equatorial, the inverse of hip3dEqToScene */
+function galSceneToEq(v){ const ce=Math.cos(OBLIQ), se=Math.sin(OBLIQ); return [v.x, -se*v.y-ce*v.z, ce*v.y-se*v.z]; }
 GAL_DATA.m31.dir=raDecDir(GAL_DATA.m31.ra/15,GAL_DATA.m31.dec).normalize();
 GAL_DATA.m31.pos=GAL_DATA.m31.dir.clone().multiplyScalar(GAL_DATA.m31.distLy*LY_AU);
 
@@ -25883,9 +25998,9 @@ function updateSolarVectors(T,geoShift){
   if(_svPrec){ _svPrec.visible=!!state.showSpinAxes && state.vectorAxes!==false&&state.vectorAdditional!==false&&local;
     if(_svPrec.userData.lab) _svPrec.userData.lab.visible=!MOBILE_GPU;
     if(_svPrec.visible && _svPrec.userData.ring){
-      // the cone breathes with the engine: Vondrák ε(t) varies ≈22.9°–24.4° over ±200 kyr
+      // the cone breathes with the engine: Vondrák ε(t) varies ≈22.14°–24.52° over ±200 kyr, and on the 41-kyr cycle beyond it
       const ltp=(state.precModel||'ltp')==='ltp';
-      const eps=ltp?ltpObliquityRad(2000+state.epochDays/365.25):23.4393*DEG;
+      const eps=ltp?ltpObliquityExtRad(2000+state.epochDays/365.25):23.4393*DEG;
       const k=Math.sin(eps)/Math.sin(23.44*DEG);
       _svPrec.userData.ring.scale.set(k,1,k);
       _svPrec.userData.ring.position.y=Math.cos(eps)*1.9;
@@ -26099,8 +26214,7 @@ const _cfQ=new THREE.Quaternion(), _cfV=new THREE.Vector3();
    at high time rates. modulo-FIRST keeps the phase exact at Gyr-deep epochs (see the animate loop). */
 let _earthDispT=null;                    // set each frame by the animate loop to the epoch the Earth MESH uses
 function earthDisplayT(){ return _earthDispT!=null?_earthDispT:(state.epochDays/36525); }
-function galSpinQuat(out){ const galDays=GAL_YEAR_MYR*1e6*365.2425;
-  const th=2*Math.PI*(((state.epochDays%galDays)+galDays)%galDays)/galDays;
+function galSpinQuat(out){ const th=galFrameAngle(state.epochDays);
   return (out||new THREE.Quaternion()).setFromAxisAngle(GAL_DATA.pole.dir,th); }
 function updateCosmicFrame(d,T,geoShift){
   buildCosmicFrame();
@@ -33493,6 +33607,55 @@ function topoHopfPair(th1,th2,ph1,ph2,N){
 function topoGaussLink(A,B){
   return topoLinkPure(A.map(v=>[v.x,v.y,v.z]), B.map(v=>[v.x,v.y,v.z]));
 }
+/* ── A SURFACE WHOSE HOLES OPEN ONE BY ONE: Gauss–Bonnet made visible ─────────────
+   Three tori in a chain, major radii 0.62, 0.80 and 0.98, blended by a smooth minimum
+   into one surface, with a common tube radius r. While r exceeds a torus's major radius
+   its hole is filled; lower r and the holes open one at a time, largest first, until
+   the chain parts into three separate rings. The surface is extracted by the same
+   marching tetrahedra the Field Lab draws with, and two numbers are read off the
+   triangles themselves, never from the recipe:
+        χ = V − E + F                   (Euler, by counting)
+        Σ_v (2π − Σ angles at v) = 2πχ  (Gauss–Bonnet, discrete: exact for any closed
+                                          triangulation, not an approximation)
+   so the total curvature is QUANTISED: it cannot change while the surface deforms,
+   however much the shape does, and it jumps by exactly 4π when a hole opens. */
+const TOPO_GENUS={R:[0.62,0.80,0.98], cx:[-2.05,0,2.12], k:0.22, L:4.4};
+function topoGenusField(N,r,G){ G=G||TOPO_GENUS; const q=new Float32Array(N*N*N), s=2*G.L/(N-1), h=(N-1)/2;
+  for(let z=0;z<N;z++) for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const X=(x-h)*s, Y=(y-h)*s, Z=(z-h)*s; let d=Infinity;
+    for(let i=0;i<3;i++){ const di=Math.hypot(Math.hypot(X-G.cx[i],Z)-G.R[i],Y)-r;
+      if(d===Infinity) d=di; else { const hh=Math.max(0,Math.min(1,0.5+0.5*(di-d)/G.k)); d=di*(1-hh)+d*hh-G.k*hh*(1-hh); } }   /* polynomial smooth minimum */
+    q[(z*N+y)*N+x]=-d; }
+  return {q,s}; }
+/* Euler and Gauss–Bonnet read off a triangle soup: vertices welded by position, edges counted, components by union–find,
+   and the angle deficit at every vertex — whose sum is exactly 2πχ — kept per soup vertex so it can colour the surface */
+function topoMeshTopology(pos){ const n=pos.length/3, key=new Map(), id=new Int32Array(n); let V=0;
+  for(let i=0;i<n;i++){ const k=Math.round(pos[3*i]*1e5)+','+Math.round(pos[3*i+1]*1e5)+','+Math.round(pos[3*i+2]*1e5); let v=key.get(k); if(v===undefined){ v=V++; key.set(k,v); } id[i]=v; }
+  const E=new Set(), ang=new Float64Array(V), area=new Float64Array(V), par=new Int32Array(V).map((_,i)=>i), find=a=>{ while(par[a]!==a){ par[a]=par[par[a]]; a=par[a]; } return a; };
+  let F=0;
+  for(let t=0;t<n/3;t++){ const a=id[3*t], b=id[3*t+1], c=id[3*t+2]; if(a===b||b===c||a===c) continue; F++;
+    for(const [u,v] of [[a,b],[b,c],[c,a]]){ E.add(u<v?u*V+v:v*V+u); const ru=find(u), rv=find(v); if(ru!==rv) par[ru]=rv; }
+    const P=k=>[pos[3*(3*t+k)],pos[3*(3*t+k)+1],pos[3*(3*t+k)+2]], p=[P(0),P(1),P(2)];
+    const cr=(u,v)=>[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]], sub=(u,v)=>[u[0]-v[0],u[1]-v[1],u[2]-v[2]];
+    const A2=Math.hypot(...cr(sub(p[1],p[0]),sub(p[2],p[0])));
+    [a,b,c].forEach((v,k)=>{ const e1=sub(p[(k+1)%3],p[k]), e2=sub(p[(k+2)%3],p[k]);
+      ang[v]+=Math.atan2(Math.hypot(...cr(e1,e2)),e1[0]*e2[0]+e1[1]*e2[1]+e1[2]*e2[2]); area[v]+=A2/6; }); }
+  let deficit=0, comps=new Set(); const K=new Float32Array(n);
+  for(let v=0;v<V;v++){ deficit+=2*Math.PI-ang[v]; comps.add(find(v)); }
+  /* the COLOUR is the deficit density smoothed over neighbours (marching tetrahedra make the raw one speckled); the sum above is untouched */
+  let kv=new Float64Array(V); for(let v=0;v<V;v++) kv[v]=area[v]>0?(2*Math.PI-ang[v])/area[v]:0;
+  const EA=[...E]; for(let it=0;it<4;it++){ const s2=Float64Array.from(kv), c2=new Float64Array(V).fill(1); for(const e of EA){ const u=Math.floor(e/V), w=e%V; s2[u]+=kv[w]; s2[w]+=kv[u]; c2[u]++; c2[w]++; } for(let v=0;v<V;v++) kv[v]=s2[v]/c2[v]; }
+  for(let i=0;i<n;i++) K[i]=kv[id[i]];
+  const chi=V-E.size+F, c=comps.size;
+  return {V,E:E.size,F,chi,components:c,genus:c-chi/2,deficit,gaussBonnet:deficit/(2*Math.PI),K}; }
+/* ── THE HOPF FIBRATION, ALL OF IT THAT FITS ON A SCREEN ──────────────────────────
+   Points of the base S² on a few latitudes; each lifts to a great circle of S³, drawn by
+   the same stereographic projection as the linking station. Fibres over one latitude
+   fill a torus, and the tori nest. The theorem the picture makes checkable: EVERY two
+   distinct fibres link exactly once — measured here on every pair drawn. */
+function topoFibration(lats,per,N){ const F=[]; lats.forEach((th,i)=>{ for(let j=0;j<per;j++){ const ph=2*Math.PI*(j+0.5*(i%2))/per; F.push({th,ph,pts:topoHopfPts(th,ph,N||96,1.9)}); } }); return F; }
+function topoAllPairs(F){ let lo=Infinity, hi=-Infinity, n=0, worst=0;
+  for(let i=0;i<F.length;i++) for(let j=i+1;j<F.length;j++){ const l=topoLinkPure(F[i].pts,F[j].pts); lo=Math.min(lo,l); hi=Math.max(hi,l); worst=Math.max(worst,Math.abs(Math.abs(l)-1)); n++; }
+  return {pairs:n,min:lo,max:hi,worst}; }
 /* shared lab-group wipe: geometries, materials AND CSS2D label DOM nodes —
    forgetting the labels leaked hundreds of DOM elements per slider scrub and
    read as a GPU freeze (the CSS2D renderer composites every orphan each frame) */
@@ -33513,10 +33676,40 @@ function topoClear(){
 }
 function topoSetup(){
   topoClear(); topoT=0;
-  const st=state.topoStation||'link';
+  const st=state.topoStation||'fibration';
   const mkLine=(pts,col,op=.9)=>{ const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints([...pts,pts[0]]),
       new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op}));
     topoGroup.add(l); return l; };
+  const tube=(pts,col,rad,op=1)=>{ const c=new THREE.CatmullRomCurve3(pts.map(p=>Array.isArray(p)?new THREE.Vector3(p[0],p[1],p[2]):p),true);
+    const m=new THREE.Mesh(new THREE.TubeGeometry(c,Math.max(64,pts.length),rad,7,true),new THREE.MeshStandardMaterial({color:col,emissive:new THREE.Color(col).multiplyScalar(0.42),roughness:0.35,metalness:0.25,transparent:op<1,opacity:op}));
+    topoGroup.add(m); return m; };
+  const lights=()=>{ topoGroup.add(new THREE.AmbientLight(0x8090b0,.55)); const dl=new THREE.DirectionalLight(0xfff2dc,1.05); dl.position.set(4,6,5); topoGroup.add(dl); const rl=new THREE.DirectionalLight(0x7fb8ff,.45); rl.position.set(-5,-2,-4); topoGroup.add(rl); };
+  if(st==='fibration'){
+    lights();
+    /* four latitudes of the base S², twelve points each: forty-eight fibres on four nested tori, hue = longitude */
+    const lats=[0.5,0.98,1.46,1.94], F=topoFibration(lats,12,120), col=f=>new THREE.Color().setHSL(((f.ph/(2*Math.PI))%1+1)%1,0.78,0.34+0.22*(f.th/Math.PI));
+    /* the bundle in a frame of its own, scaled so all four tori and the base sphere sit in one view */
+    const bundle=new THREE.Group(); bundle.scale.setScalar(0.62); topoGroup.add(bundle);
+    for(const f of F) bundle.add(tube(f.pts,col(f),0.03));
+    /* the base S², small, beside it: every dot is one circle upstairs, in the same colour */
+    const base=new THREE.Group(); base.position.set(3.6,1.6,0); base.scale.setScalar(1.35); topoGroup.add(base);
+    base.add(new THREE.Mesh(new THREE.SphereGeometry(0.62,32,20),new THREE.MeshBasicMaterial({color:0x1b3a66,wireframe:true,transparent:true,opacity:.35})));
+    const bp=f=>new THREE.Vector3(Math.sin(f.th)*Math.cos(f.ph),Math.cos(f.th),Math.sin(f.th)*Math.sin(f.ph)).multiplyScalar(0.62);
+    for(const f of F){ const d=new THREE.Mesh(new THREE.SphereGeometry(0.034,8,6),new THREE.MeshBasicMaterial({color:col(f)})); d.position.copy(bp(f)); base.add(d); }
+    const bl=mkLabel('the base S² · each point ↦ one circle','label axis'); bl.position.set(3.6,2.75,0); topoGroup.add(bl);
+    const probe=new THREE.Mesh(new THREE.SphereGeometry(0.06,12,8),new THREE.MeshBasicMaterial({color:0xffffff})); base.add(probe);
+    const tl=mkLabel('THE HOPF FIBRATION · S³ → S² · every fibre is a great circle, the fibres over one latitude fill a torus, and the tori nest','label const'); tl.position.set(0,4.2,0); topoGroup.add(tl);
+    const lk=mkLabel('measuring every pair…','label major'); lk.position.set(0,3.4,0); topoGroup.add(lk);
+    topoObjs={st,F,lkLab:lk,probe,base,bp,bundle,moving:null,pairs:null,acc:0}; topoDirty=true;
+  } else if(st==='genus'){
+    lights();
+    const tl=mkLabel('GAUSS–BONNET · ∮K dA = 2πχ · the total curvature is quantised: it cannot change while the surface bends, and jumps by 4π when a hole opens','label const'); tl.position.set(0,4.4,0); topoGroup.add(tl);
+    const lk=mkLabel('…','label major'); lk.position.set(0,3.6,0); topoGroup.add(lk);
+    const mesh=new THREE.Mesh(new THREE.BufferGeometry(),new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.42,metalness:0.18,side:THREE.DoubleSide}));
+    /* tilted so the holes face the reader — edge-on, a genus is invisible */
+    const tilt=new THREE.Group(); tilt.rotation.x=-1.32; tilt.add(mesh); mesh.scale.setScalar(0.78); topoGroup.add(tilt);
+    topoObjs={st,mesh,lkLab:lk,r:null,acc:0}; topoDirty=true;
+  } else
   if(st==='link'){
     const mode=state.topoLinkMode||'hopf';
     let A,B;
@@ -33533,7 +33726,7 @@ function topoSetup(){
     } else {
       A=topoHopfFibre(1.2,0); B=topoHopfFibre(state.topoThB??2.1,state.topoPhB??1.5);
     }
-    mkLine(A,0xf5c964); mkLine(B,0x8fb8ff);
+    lights(); tube(A,0xf5c964,0.035); tube(B,0x8fb8ff,0.035);   /* tubes, lit: the over-and-under of a link is what the eye must read */
     const tl=mkLabel('GAUSS LINKING INTEGRAL · Lk = (1/4π)∮∮ (dr₁×dr₂)·r̂/|r|²','label const'); tl.position.set(0,4.2,0); topoGroup.add(tl);
     const lk=mkLabel('computing…','label major'); lk.position.set(0,3.3,0); topoGroup.add(lk);
     topoObjs={st,A,B,lkLab:lk}; topoDirty=true;
@@ -33582,8 +33775,34 @@ function topoSetup(){
 const _tpD=new THREE.Object3D(), _tpV=new THREE.Vector3(), _tpU=new THREE.Vector3(0,1,0),
       _tpE1=new THREE.Vector3(), _tpE2=new THREE.Vector3(), _tpDir=new THREE.Vector3();
 function updateTopo(dt){
-  if(!topoObjs||topoObjs.st!==(state.topoStation||'link')) topoSetup();
+  if(!topoObjs||topoObjs.st!==(state.topoStation||'fibration')) topoSetup();
   topoT+=dt; const O=topoObjs;
+  if(O.st==='fibration'){
+    /* every pair measured once, a few frames after the station opens (1128 Gauss integrals, a fraction of a second) */
+    if(topoDirty&&topoT>0.3){ topoDirty=false; const P=topoAllPairs(O.F); O.pairs=P;
+      O.lkLab.element.textContent=`all ${P.pairs} pairs of the ${O.F.length} fibres drawn link EXACTLY once: |Lk| = 1 ± ${P.worst.toExponential(1)} · sign ${P.max<0?'−':'+'} for every pair — the one integer that makes π₃(S²) = ℤ`; }
+    /* one base point wanders over S²; its fibre, white, sweeps through the bundle — a loop downstairs traces a torus upstairs */
+    O.acc+=dt; if(O.acc>1/20){ O.acc=0; const th=1.45+1.05*Math.sin(topoT*0.23), ph=topoT*0.41;
+      O.probe.position.copy(O.bp({th,ph}));
+      if(O.moving){ O.bundle.remove(O.moving); O.moving.geometry.dispose(); O.moving.material.dispose(); }
+      const pts=topoHopfPts(th,ph,120,1.9).map(p=>new THREE.Vector3(p[0],p[1],p[2]));
+      O.moving=new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts,true),140,0.05,8,true),new THREE.MeshBasicMaterial({color:0xffffff})); O.bundle.add(O.moving); }
+    O.bundle.rotation.y+=dt*0.05;
+    hudBig.textContent=`TOPOLOGY · the Hopf fibration · ${O.F.length} fibres${O.pairs?` · ${O.pairs.pairs} pairs, every one linked once`:''}`;
+    hudSub.textContent='S³ is a bundle of circles over S²: no two circles meet, yet every two are linked — the white fibre follows a point wandering on the small sphere';
+  } else if(O.st==='genus'){
+    const auto=state.topoGenusAuto!==false; O.acc+=dt;
+    const r=auto?0.72+0.5*Math.cos(topoT*0.16):(state.topoGenusR??1.1);
+    if((topoDirty||(auto&&O.acc>0.45))&&(O.r===null||Math.abs(r-O.r)>0.004)){ topoDirty=false; O.acc=0; O.r=r;
+      const N=auto?46:60, f=topoGenusField(N,r), S=fsIso(f.q,N,0,null,f.s), M=topoMeshTopology(S.pos), n=S.vertices, col=new Float32Array(n*3), K0=1.2;
+      for(let i=0;i<n;i++){ const k=Math.tanh(M.K[i]/K0), a=Math.abs(k); if(k>=0){ col[3*i]=0.35+0.6*a; col[3*i+1]=0.32+0.45*a; col[3*i+2]=0.3+0.05*a; } else { col[3*i]=0.3-0.12*a; col[3*i+1]=0.32+0.3*a; col[3*i+2]=0.36+0.6*a; } }
+      const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(S.pos,3)); g.setAttribute('normal',new THREE.BufferAttribute(S.nrm,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3));
+      O.mesh.geometry.dispose(); O.mesh.geometry=g; O.M=M;
+      O.lkLab.element.textContent=`r = ${r.toFixed(3)} · χ = V − E + F = ${M.V} − ${M.E} + ${M.F} = ${M.chi} · Σ angle deficits / 2π = ${M.gaussBonnet.toFixed(9)} · genus ${M.genus}${M.components>1?` in ${M.components} pieces`:''}`; }
+    O.mesh.rotation.y+=dt*0.12;
+    hudBig.textContent=`TOPOLOGY · Gauss–Bonnet · χ = ${O.M?O.M.chi:'…'} · genus ${O.M?O.M.genus:'…'}`;
+    hudSub.textContent='gold where the surface curves like a sphere, blue where it saddles; however it bends, the total is 2πχ — and χ changes only when a hole opens';
+  } else
   if(O.st==='link'){
     if(topoDirty){ topoDirty=false; topoLk=topoGaussLink(O.A,O.B);
       const near=Math.round(topoLk), err=Math.abs(topoLk-near);
@@ -41813,7 +42032,15 @@ function zod3dToScene(p,out){ const ce=Math.cos(OBLIQ), se=Math.sin(OBLIQ);
   return (out||new THREE.Vector3()).set(p[0], zc, -yc); }
 /* the full astrometric state of one star at a Julian epoch, as an observer at the
    Solar System barycentre SEES it then: direction, distance, motion, light time */
+/* beyond two thousand years the named stars ride the Galaxy too (galRide), from their own rigorous J2000 state — the
+   straight line of starpm is its first-order term, so the two join without a seam */
 function zod3dState(s,epJ){
+  if(Math.abs(epJ-2000)>2000){ const a=zod3dStateLinear(s,2000), b=a&&zod3dStateLinear(s,2001); if(!a||!b) return null;
+    if(!s._ride){ const pc=ZOD3D_PC_AU; s._ride={p:a.posAU.map(x=>x/pc), v:a.posAU.map((x,i)=>(b.posAU[i]-x)/pc*1e6/GAL_RIDE.KMS)}; }
+    const e=galRideEq(s._ride.p,s._ride.v,epJ,null), r=Math.hypot(e[0],e[1],e[2]);
+    return {...a, raDeg:((Math.atan2(e[1],e[0])*180/Math.PI)+360)%360, decDeg:Math.asin(e[2]/r)*180/Math.PI, distPc:r, plxMas:1000/r, posAU:e.map(x=>x*ZOD3D_PC_AU), rideGalaxy:true}; }
+  return zod3dStateLinear(s,epJ); }
+function zod3dStateLinear(s,epJ){
   const plx=zod3dPlacedPlx(s); if(plx==null) return null;
   const de=s.de*Math.PI/180;
   const r=z3Starpm(s.ra*Math.PI/180, de, (s.pmra/3.6e6)*Math.PI/180/Math.cos(de),
@@ -42135,14 +42362,17 @@ function updateZodiac3d(dt){
   let f=THREE.MathUtils.clamp((ang-0.004)/(0.02-0.004),0,1);
   if(Math.abs(epJ-2000)>ZOD3D_DOMAIN_YR) f*=0.35;
   O.pts.material.uniforms.uFade.value=f;
-  for(const l of [O.figZ,O.figO,O.barL]) l.material.opacity=l.userData.op0*f;
+  /* a figure is a pattern of ONE epoch: once the Galaxy has carried its stars apart (a few hundred thousand years to a few
+     million) the lines no longer outline anything, so they dissolve with it — the stars stay, riding the disc */
+  const dis=1-THREE.MathUtils.smoothstep(Math.abs(epJ-2000),3e5,3e6);
+  for(const l of [O.figZ,O.figO,O.barL]) l.material.opacity=l.userData.op0*f*dis;
   /* A LINE OF SIGHT IS ONLY INFORMATIVE FROM OFF THE LINE. Drawn from inside the
      planetary system the 148 lines are seen almost end-on from 50 AU away and fan
      out across the middle of the view — measured on the first render, they covered
      the Sun. They appear as the camera leaves the Solar System (0.5 pc) and are at
      full strength by 5 pc, where a figure first opens up. */
   const out=THREE.MathUtils.clamp(Math.log10(Math.max(dSun,1)/1.03e5)/1,0,1);
-  O.sight.material.opacity=O.sight.userData.op0*f*out*(state.zod3dSight===false?0:1);
+  O.sight.material.opacity=O.sight.userData.op0*f*out*dis*(state.zod3dSight===false?0:1);
   O.sight.visible=out>0.01;
   O.barL.visible=state.zod3dBars!==false;
   { const on=state.zod3dTrails===true;
@@ -43929,9 +44159,14 @@ function hip3dBuild(){
   hip3d={S,near,far,nearPts,farPts,byHip:new Map(S.map(s=>[s.hip,s]))};
   hip3dEpoch=NaN; hip3dMaskKey='';
 }
-/* straight-line motion: r(t) = d·(u + ω t) for a placed star, the direction
+/* near J2000, straight-line motion: r(t) = d·(u + ω t) for a placed star (and beyond, galRide below), the direction
    normalise(u + ω t) for the rest — ω is the proper motion as a vector */
+/* a placed star rides the Galaxy (galRide): the straight line is its first-order term, and within a year of J2000 the
+   line is kept — the two agree to far below a star's own size there. A star with no distance stays a direction. */
+function hip3dRide(s){ if(s._ride) return s._ride; const a=s.ra*DEG, d=s.de*DEG, ca=Math.cos(a), sa=Math.sin(a), cd=Math.cos(d), sd=Math.sin(d), k=4.740470446*s.dPc/1000;
+  return s._ride={p:[cd*ca*s.dPc, cd*sa*s.dPc, sd*s.dPc], v:[k*(-sa*s.pmra-sd*ca*s.pmde), k*(ca*s.pmra-sd*sa*s.pmde), k*cd*s.pmde]}; }
 function hip3dPosAt(s,epJ,out){ const t=epJ-2000;
+  if(s.placed&&Math.abs(t)>1){ const r=hip3dRide(s), e=galRideEq(r.p,r.v,epJ,null); return hip3dEqToScene(e[0],e[1],e[2],out).multiplyScalar(ZOD3D_PC_AU); }
   out.set(s.u[0]+s.w[0]*t, s.u[1]+s.w[1]*t, s.u[2]+s.w[2]*t);
   return s.placed?out.multiplyScalar(s.dPc*ZOD3D_PC_AU):out.normalize(); }
 function hip3dPlace(epJ){
@@ -43983,7 +44218,7 @@ function hip3dRegister(s){
     desc:s.placed
       ?`${hip3dLabel(s)}${con?' in '+con:''}: a Hipparcos star at its measured distance, moving with the atlas clock at its measured proper motion.`
       :`${hip3dLabel(s)}${con?' in '+con:''}: a Hipparcos star whose parallax is not measured to five standard errors, so no distance is drawn — it stays a direction on the sky at infinity, moving by its proper motion.`,
-    formulas:['d = 1/ϖ (ϖ in arcsec → d in pc), drawn only when ϖ/σϖ ≥ 5','M = V + 5 + 5 log₁₀ ϖ″','r(t) = d·(û + ω t) — straight-line motion, ω the proper motion as a vector','v_t = 4.74047 · μ″ · d_pc km/s'],
+    formulas:['d = 1/ϖ (ϖ in arcsec → d in pc), drawn only when ϖ/σϖ ≥ 5','M = V + 5 + 5 log₁₀ ϖ″','r(t) = d·(û + ω t) near J2000 — the first-order term; beyond a year the star rides the Galaxy: Hill\'s epicycle about a guiding centre on its circle, with this atlas\'s own Oort A','v_t = 4.74047 · μ″ · d_pc km/s'],
     forbiddenClaims:['the point size is the stellar radius','a parallax below five standard errors is a known distance','a zero radial velocity is a measured one'],
     getPos:where,
     focusDist:()=>s.placed?Math.max(2e4,s.dPc*ZOD3D_PC_AU*0.06):RSKY*0.12,
@@ -44056,7 +44291,7 @@ function updateSky3d(dt){
   const O=sky3dObjs;
   if(!(Math.abs(epJ-sky3dEpoch)<0.25)) sky3dPlace(epJ);
   O.pts.material.uniforms.uFade.value=f;
-  O.figL.material.opacity=O.figL.userData.op0*f;
+  O.figL.material.opacity=O.figL.userData.op0*f*(1-THREE.MathUtils.smoothstep(Math.abs(epJ-2000),3e5,3e6));   /* the figure dissolves as the Galaxy carries its stars apart */
   O.figL.visible=constGroup.visible!==false;
   /* a constellation is a figure seen from HERE; beyond 1.5 kpc its name is clutter */
   const labOn=f>0.15&&dSun<1500*ZOD3D_PC_AU&&!HCC_STAND;   // a figure's name belongs to the Sun's sky
@@ -44126,12 +44361,13 @@ function mwtBuild(){
           if(g.arm) r.push(['Nearest arm of the model',`${hccL([g.arm.name,g.arm.name,g.arm.name])} · ${fmt(g.off,2)} kpc from its track`]); }
         return r; }});
   }
-  mwtObjs={items,pts};
+  mwtObjs={items,pts,rideEp:2000,ride:items.map((it,k)=>{ const a=it.o.ra*DEG, d=it.o.de*DEG, pc=it.o.dKpc*1000; return {k,p:it.p,lab:it.lab,kind:'disc',eq:[Math.cos(d)*Math.cos(a)*pc,Math.cos(d)*Math.sin(a)*pc,Math.sin(d)*pc]}; })};
 }
 function mwtUpdate(){
   const L=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showMwTracers!==false&&(L==='galactic'||L==='andromeda');
   mwtGroup.visible=on; if(!on) return;
   mwtBuild();
+  { const ep=2000+(state.epochDays||0)/365.25; if(!(Math.abs(ep-(mwtObjs.rideEp??2000))<1000)){ mwtObjs.rideEp=ep; try{ galRideLayer(mwtObjs.ride,mwtObjs.pts,ep); }catch(e){} } }
   mwtObjs.pts.material.uniforms.uFade.value=L==='andromeda'?0.6:1;
   for(const it of mwtObjs.items) it.lab.visible=L==='galactic'&&(it.o.kind==='star'||it.o.dKpc>1.2||it.o.key==='m42');
 }
@@ -44244,12 +44480,13 @@ function dsoBuild(){
   /* the Galaxy's own objects */
   const L=DSO3D_LOCAL.filter(r=>!DSO_MWT_M.has(r[6])), ln=L.length;
   const lp=new Float32Array(ln*3), lc=new Float32Array(ln*3), lm=new Float32Array(ln), labs=[];
+  const LOC=[];
   L.forEach((r,k)=>{ v.copy(raDecDir(r[2]/15,r[3])).multiplyScalar(r[4]*1000*ZOD3D_PC_AU); lp.set([v.x,v.y,v.z],k*3);
     const t=r[1]==='globular'?5200:r[1]==='planetary'?16000:r[1]==='dark'?3000:r[1]==='open'?9000:r[1]==='SNR'?9000:14000;
     const cc=bbColor(t); if(r[1]==='HII'||r[1]==='emission'){ cc[0]=1; cc[1]=0.55; cc[2]=0.7; } lc.set(cc,k*3);
     lm[k]=r[1]==='globular'?3.0:r[1]==='dark'?5.2:3.6;
-    const p=v.clone();
-    if(r[6]||r[1]==='globular'&&r[5]!=null&&r[5]<8.5){ const lab=mkLabel(r[0],'label star'); lab.position.copy(p); dsoGroup.add(lab); labs.push(lab); }
+    const p=v.clone(), a0=r[2]*DEG, d0=r[3]*DEG, pc=r[4]*1000, loc={k, p, eq:[Math.cos(d0)*Math.cos(a0)*pc, Math.cos(d0)*Math.sin(a0)*pc, Math.sin(d0)*pc], kind:r[1]==='globular'?'halo':'disc', lab:null}; LOC.push(loc);
+    if(r[6]||r[1]==='globular'&&r[5]!=null&&r[5]<8.5){ const lab=mkLabel(r[0],'label star'); lab.position.copy(p); dsoGroup.add(lab); labs.push(lab); loc.lab=lab; }
     registerSel('dsol_'+k,{name:r[7]?`${r[7]} · ${r[0]}`:r[0],mode:'solar',layer:'galactic',src:['ASTRO'],accuracyTier:'B',catalogueStatus:'literature-derived',
       media:{name:r[7]||r[0],ids:[r[0],...(r[8]||[])],kind:'dso'},
       coords:{frame:'ICRS',raDeg:r[2],decDeg:r[3],epoch:2000},
@@ -44262,7 +44499,7 @@ function dsoBuild(){
   });
   const lpts=new THREE.Points(hccStarGeometry(lp,lc,lm),hccStarMaterial({abs:false}));
   lpts.frustumCulled=false; lpts.name='dso-milky-way-objects'; dsoGroup.add(lpts);
-  dsoObjs={G,pts,lpts,labs};
+  dsoObjs={G,pts,lpts,labs,local:LOC,rideEp:2000};
 }
 /* With the galaxies drawn, the volumes around them step back: a wireframe says where a
    structure is and how uncertain its extent is, and the points now say what fills it.
@@ -44278,10 +44515,19 @@ function dsoVolumes(k){
     if(e.cage){ const out=e.o.worldToLocal(_dsoCam.copy(camera.position)).length()>=e.o.geometry.parameters.radius; if(e.o.visible!==out) e.o.visible=out; }
     const val=e.a*(e.o.isMesh&&!e.m.wireframe?k*k:k); if(e.m.opacity!==val) e.m.opacity=val; }   // solid markers step back further
 }
+/* THE GALAXY'S OWN OBJECTS RIDE IT TOO: nebulae, open clusters and the arm tracers on circular orbits at their own radii
+   (galCircularVel), globular clusters at rest in the halo while the Sun moves round them (galRideHalo) — so at high time
+   rates they stay with the arms they belong to instead of hanging where J2000 left them */
+function galRideLayer(list,pts,epJ){ const A=pts.geometry.attributes.position.array, v=new THREE.Vector3(), near=Math.abs(epJ-2000)<1;
+  for(const it of list){ const e=near?it.eq:galRideEq(it.eq,null,epJ,it.kind); hip3dEqToScene(e[0],e[1],e[2],v).multiplyScalar(ZOD3D_PC_AU);
+    A[it.k*3]=v.x; A[it.k*3+1]=v.y; A[it.k*3+2]=v.z; it.p.copy(v); if(it.lab) it.lab.position.copy(v); }
+  pts.geometry.attributes.position.needsUpdate=true; }
+function dsoLocalPlace(epJ){ const O=dsoObjs; if(!O||!O.local||Math.abs(epJ-O.rideEp)<1000) return; O.rideEp=epJ; galRideLayer(O.local,O.lpts,epJ); }
 function dsoUpdate(){
   const Ly=state.solarScaleLayer||'local', on=state.mode==='solar'&&state.showDso3d!==false&&Ly!=='local';
   dsoVolumes(on&&Ly!=="galactic"?0.22:1);
   dsoGroup.visible=on; if(!on) return; dsoBuild();
+  try{ dsoLocalPlace(2000+(state.epochDays||0)/365.25); }catch(e){ if(!dsoLocalPlace._w){ dsoLocalPlace._w=1; console.warn('galactic ride (deep sky):',e); } }
   const u=dsoObjs.pts.material.uniforms; u.uViewH.value=renderer.domElement.clientHeight||innerHeight;
   u.uRef.value=Math.max(1e6,camera.position.distanceTo(controls.target));
   dsoObjs.lpts.visible=Ly==='galactic';
@@ -71834,6 +72080,9 @@ function updateDfx(dt){
       O.stat={E,res};
     }
   }
+  /* the explanation was a paragraph laid over the very field it explains: the HUD now carries its first sentence, and the
+     whole of it stays one hover away (title) */
+  function dfxLead(t){ const m=String(t).match(/^.{40,}?[.](?=\s)/); hudSub.title=t; return m?m[0]:t; }
   if(st==='hedgehog') O.hed.rotation.y+=dt*0.14;
   if(st==='vortex') O.vor.rotation.y+=dt*0.09;
   dfxUiAcc+=dt; if(dfxUiAcc>0.3){ dfxUiAcc=0; const S=O.stat||{};
@@ -71841,23 +72090,23 @@ function updateDfx(dt){
       const locked=S.minAmp>1e-6;
       O.readV.element.textContent=`π₁(S¹) · ∮dφ/2π = ${(S.w??0).toFixed(6)} · q = ${S.q} · |ψ| ${TT('on the loop','на контуре','auf der Schleife')} = ${(S.minAmp??0).toFixed(4)}`;
       hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₁(S¹)=ℤ · ${TT('measured winding','измеренная намотка','gemessene Windung')} = ${(S.w??0).toFixed(6)} · ${TT('deformation','деформация','Deformation')} ε = ${eps.toFixed(2)}`;
-      hudSub.textContent=TT('A superfluid, a superconductor and a cosmic string carry the same defect for the same reason: their order parameter is a phase, its space is a circle, and π₁ of a circle is the integers. The colour wheel below IS that phase, the brightness is |ψ| — which must vanish on the core, and does — and the green staircase is the phase accumulated as you walk the gold loop once. After a full turn the staircase has risen by exactly the winding number, and this is measured from the field, not drawn from the label. Now turn the deformation up. Push the phase around as violently as you like: the staircase writhes, the colours churn, the measured integer does not move by so much as 1e-6. That refusal is what the word topological means. It has one precise boundary, and the lab shows it — the integer can only change where the order parameter leaves its manifold, so |ψ| on the loop is reported beside it. Shrink the loop into the core, where |ψ| → 0, and the winding stops being defined at all.',
+      hudSub.textContent=dfxLead(TT('A superfluid, a superconductor and a cosmic string carry the same defect for the same reason: their order parameter is a phase, its space is a circle, and π₁ of a circle is the integers. The colour wheel below IS that phase, the brightness is |ψ| — which must vanish on the core, and does — and the green staircase is the phase accumulated as you walk the gold loop once. After a full turn the staircase has risen by exactly the winding number, and this is measured from the field, not drawn from the label. Now turn the deformation up. Push the phase around as violently as you like: the staircase writhes, the colours churn, the measured integer does not move by so much as 1e-6. That refusal is what the word topological means. It has one precise boundary, and the lab shows it — the integer can only change where the order parameter leaves its manifold, so |ψ| on the loop is reported beside it. Shrink the loop into the core, where |ψ| → 0, and the winding stops being defined at all.',
         'Сверхтекучая жидкость, сверхпроводник и космическая струна несут один и тот же дефект по одной причине: их параметр порядка есть фаза, её пространство — окружность, а π₁ окружности есть целые числа. Цветовой круг внизу И ЕСТЬ эта фаза, яркость есть |ψ| — которая обязана обращаться в нуль на сердцевине и обращается, — а зелёная лестница есть фаза, накопленная при одном обходе золотого контура. После полного оборота лестница поднимается ровно на число намотки, и это измерено по полю, а не взято из подписи. Теперь увеличь деформацию. Крути фазу как угодно яростно: лестница извивается, цвета бурлят, измеренное целое не сдвигается и на 1e-6. Этот отказ и означает слово «топологический». У него одна точная граница, и лаборатория её показывает: целое может измениться только там, где параметр порядка покидает своё многообразие, поэтому рядом сообщается |ψ| на контуре. Стяни контур в сердцевину, где |ψ| → 0, и намотка перестанет быть определена вовсе.',
-        'Suprafluid, Supraleiter und kosmischer String tragen denselben Defekt aus demselben Grund: der Ordnungsparameter ist eine Phase, ihr Raum ein Kreis, und π₁ des Kreises sind die ganzen Zahlen. Das Farbrad IST diese Phase, die Helligkeit |ψ|, die grüne Treppe die entlang der goldenen Schleife akkumulierte Phase — nach einem Umlauf genau um die Windungszahl gestiegen, aus dem Feld gemessen. Dreh die Deformation auf: die Treppe windet sich, die ganze Zahl bewegt sich nicht um 1e-6. Sie kann sich nur dort ändern, wo der Ordnungsparameter seine Mannigfaltigkeit verlässt — daher steht |ψ| daneben.');
+        'Suprafluid, Supraleiter und kosmischer String tragen denselben Defekt aus demselben Grund: der Ordnungsparameter ist eine Phase, ihr Raum ein Kreis, und π₁ des Kreises sind die ganzen Zahlen. Das Farbrad IST diese Phase, die Helligkeit |ψ|, die grüne Treppe die entlang der goldenen Schleife akkumulierte Phase — nach einem Umlauf genau um die Windungszahl gestiegen, aus dem Feld gemessen. Dreh die Deformation auf: die Treppe windet sich, die ganze Zahl bewegt sich nicht um 1e-6. Sie kann sich nur dort ändern, wo der Ordnungsparameter seine Mannigfaltigkeit verlässt — daher steht |ψ| daneben.'));
       ATLAS_BUS.pub('dfx.winding',+(S.w??0).toFixed(6),'');
     } else if(st==='hedgehog'){
       O.readH.element.textContent=`π₂(S²) · (1/4π)∮ n·(∂ₐn×∂_b n) = ${(S.deg??0).toFixed(6)} · d = ${S.d}`;
       hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₂(S²)=ℤ · ${TT('measured degree','измеренная степень','gemessener Grad')} = ${(S.deg??0).toFixed(6)} · ${TT('deformation','деформация','Deformation')} ε = ${eps.toFixed(2)}`;
-      hudSub.textContent=TT('When the order parameter is a direction rather than a phase, its space is a sphere and π₂ of a sphere is again the integers — so the medium admits point defects: hedgehogs in a ferromagnet, monopoles in a grand unified theory. The invariant is the degree, the number of times the field wraps the sphere of directions, and it is measured here as a signed solid angle summed over a triangulation of the enclosing surface, which is the discrete form of (1/4π)∮n·(∂n×∂n). Every direction is painted as a colour, so a degree-two map visibly runs the entire colour sphere twice while you look at a single enclosing surface. Deform it and the count stands still. The same integral, applied to the magnetisation of a thin film, is what people count when they count skyrmions, and the same theorem says a ferromagnet cannot have a stable line defect while a superfluid cannot have a stable point defect — the table decides, not the material.',
+      hudSub.textContent=dfxLead(TT('When the order parameter is a direction rather than a phase, its space is a sphere and π₂ of a sphere is again the integers — so the medium admits point defects: hedgehogs in a ferromagnet, monopoles in a grand unified theory. The invariant is the degree, the number of times the field wraps the sphere of directions, and it is measured here as a signed solid angle summed over a triangulation of the enclosing surface, which is the discrete form of (1/4π)∮n·(∂n×∂n). Every direction is painted as a colour, so a degree-two map visibly runs the entire colour sphere twice while you look at a single enclosing surface. Deform it and the count stands still. The same integral, applied to the magnetisation of a thin film, is what people count when they count skyrmions, and the same theorem says a ferromagnet cannot have a stable line defect while a superfluid cannot have a stable point defect — the table decides, not the material.',
         'Когда параметр порядка есть направление, а не фаза, его пространство есть сфера, а π₂ сферы снова есть целые числа — значит, среда допускает точечные дефекты: ежи в ферромагнетике, монополи в теории великого объединения. Инвариант есть степень, число обёртываний сферы направлений, и он измеряется здесь знаковым телесным углом, просуммированным по триангуляции охватывающей поверхности, — дискретная форма (1/4π)∮n·(∂n×∂n). Каждое направление окрашено, поэтому отображение степени два на глазах пробегает всю цветовую сферу дважды на одной охватывающей поверхности. Деформируй — счёт стоит на месте. Тот же интеграл, применённый к намагниченности плёнки, и есть то, что считают, когда считают скирмионы; и та же теорема говорит, что у ферромагнетика не может быть устойчивого линейного дефекта, а у сверхтекучей жидкости — точечного. Решает таблица, а не материал.',
-        'Ist der Ordnungsparameter eine Richtung, so ist sein Raum eine Sphäre und π₂ wieder ℤ — das Medium erlaubt Punktdefekte: Igel im Ferromagneten, Monopole in der GUT. Die Invariante ist der Grad, hier als vorzeichenbehafteter Raumwinkel über eine Triangulierung gemessen — die diskrete Form von (1/4π)∮n·(∂n×∂n). Jede Richtung ist eine Farbe, ein Grad-2-Feld überstreicht die Farbsphäre sichtbar zweimal. Deformation ändert die Zahl nicht.');
+        'Ist der Ordnungsparameter eine Richtung, so ist sein Raum eine Sphäre und π₂ wieder ℤ — das Medium erlaubt Punktdefekte: Igel im Ferromagneten, Monopole in der GUT. Die Invariante ist der Grad, hier als vorzeichenbehafteter Raumwinkel über eine Triangulierung gemessen — die diskrete Form von (1/4π)∮n·(∂n×∂n). Jede Richtung ist eine Farbe, ein Grad-2-Feld überstreicht die Farbsphäre sichtbar zweimal. Deformation ändert die Zahl nicht.'));
       ATLAS_BUS.pub('dfx.degree',+(S.deg??0).toFixed(6),'');
     } else {
       O.readW.element.textContent=`π₀ · ${TT('two disconnected vacua','два несвязных вакуума','zwei getrennte Vakua')} · ${TT('tension','натяжение','Spannung')} σ = ${(S.E??0).toFixed(9)} = 2√2/3`;
       hudBig.textContent=`${TT('DEFECT ATLAS','АТЛАС ДЕФЕКТОВ','DEFEKT-ATLAS')} · π₀ = ℤ₂ · σ = ${(S.E??0).toFixed(9)} · 2√2/3 = ${(2*Math.SQRT2/3).toFixed(9)}`;
-      hudSub.textContent=TT('The simplest entry in the table needs no continuous symmetry at all. If the ground states form a disconnected set — π₀ non-trivial — then a region that chose one of them cannot be deformed into a region that chose another without paying, and what stands between them is a wall. Here the potential is the double well ¼(φ²−1)², the wall is φ = tanh(x/√2), and it is not a sketch: it solves φ″ = φ³ − φ exactly, and integrating its energy density gives a tension of 2√2/3 to nine decimals, a closed number that no simulation was tuned to reach. The gold curve is that energy density, ½ sech⁴, localised on the wall and nowhere else. Cosmology inherits this line of the table directly: a symmetry that breaks to a disconnected vacuum makes domain walls, and their tension is why most such theories are ruled out by the sky.',
+      hudSub.textContent=dfxLead(TT('The simplest entry in the table needs no continuous symmetry at all. If the ground states form a disconnected set — π₀ non-trivial — then a region that chose one of them cannot be deformed into a region that chose another without paying, and what stands between them is a wall. Here the potential is the double well ¼(φ²−1)², the wall is φ = tanh(x/√2), and it is not a sketch: it solves φ″ = φ³ − φ exactly, and integrating its energy density gives a tension of 2√2/3 to nine decimals, a closed number that no simulation was tuned to reach. The gold curve is that energy density, ½ sech⁴, localised on the wall and nowhere else. Cosmology inherits this line of the table directly: a symmetry that breaks to a disconnected vacuum makes domain walls, and their tension is why most such theories are ruled out by the sky.',
         'Простейшая строка таблицы не требует никакой непрерывной симметрии. Если основные состояния образуют несвязное множество — π₀ нетривиальна, — то область, выбравшая одно из них, не может быть непрерывно переведена в область, выбравшую другое, без платы, и между ними стоит стенка. Здесь потенциал есть двойная яма ¼(φ²−1)², стенка есть φ = tanh(x/√2), и это не набросок: она точно решает φ″ = φ³ − φ, а интеграл её плотности энергии даёт натяжение 2√2/3 с девятью знаками — замкнутое число, под которое ничего не подгонялось. Золотая кривая и есть эта плотность, ½ sech⁴, локализованная на стенке и нигде более. Космология наследует эту строку напрямую: симметрия, ломающаяся к несвязному вакууму, рождает доменные стенки, и именно их натяжение исключает большинство таких теорий по наблюдениям неба.',
-        'Der einfachste Eintrag der Tabelle braucht gar keine kontinuierliche Symmetrie. Ist die Menge der Grundzustände unzusammenhängend — π₀ nichttrivial —, so steht zwischen zwei Wahlen eine Wand. Das Potential ist die Doppelmulde ¼(φ²−1)², die Wand ist φ = tanh(x/√2): sie löst φ″ = φ³ − φ exakt, und ihre Energiedichte integriert sich auf die Spannung 2√2/3 — auf neun Stellen, ohne jede Anpassung. Die Kosmologie erbt diese Zeile direkt.');
+        'Der einfachste Eintrag der Tabelle braucht gar keine kontinuierliche Symmetrie. Ist die Menge der Grundzustände unzusammenhängend — π₀ nichttrivial —, so steht zwischen zwei Wahlen eine Wand. Das Potential ist die Doppelmulde ¼(φ²−1)², die Wand ist φ = tanh(x/√2): sie löst φ″ = φ³ − φ exakt, und ihre Energiedichte integriert sich auf die Spannung 2√2/3 — auf neun Stellen, ohne jede Anpassung. Die Kosmologie erbt diese Zeile direkt.'));
       ATLAS_BUS.pub('dfx.tension',+(S.E??0).toFixed(6),'');
     }
     const el=ctl.querySelector('#dfxInv'); if(el){ const S2=O.stat||{};
@@ -89746,7 +89995,7 @@ const state = {
   gravPreset:'fig8', gravRun:true, gravSpeed:1, gravRotFrame:false, showLagrange:false, gwE0:0.55,
   qmMode:'harmonic', qmRun:true, qmSpeed:1, qmK0:1.4, qmV0:1.5, qmWigner:true, qmHopf:true, // Quantum wave lab
   qcdMode:'meson', qcdR:0.8, qcdQ:10, qcdInstQ:1,                        // Chromodynamics lab (+ instanton station)
-  topoStation:'link', topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
+  topoStation:'fibration', topoGenusR:1.1, topoGenusAuto:true, topoLinkMode:'hopf', topoM:2, topoThB:2.1, topoPhB:1.5, topoField:'dipole',   // Topology atlas
   scStation:'meissner', scMat:'Nb', scV:1, scB:0.05,                    // Superconductivity lab
   tnStation:'orbit', tnN:0.6, tnSquash:0.55, tnSpeed:1,                 // Taub-NUT lab
   eotA0:600, eotLam:700,                                                // Extraordinary transmission
@@ -94991,10 +95240,10 @@ function buildCtlBody(){
     else if(V==='topo') body = `
     <div class="sect"><b>Topology atlas — pick a station</b>
       <div class="chips">
-        ${[['link','Gauss linking · live integral'],['hairy','Poincaré–Hopf · hairy ball'],['map','Invariant map · live network']].map(([k,l])=>
-          `<button class="chip ${(state.topoStation||'link')===k?'on':''}" data-topost="${k}">${l}</button>`).join('')}
+        ${[['fibration','Hopf fibration · every pair linked'],['genus','Gauss–Bonnet · holes open'],['link','Gauss linking · live integral'],['hairy','Poincaré–Hopf · hairy ball'],['map','Invariant map · live network']].map(([k,l])=>
+          `<button class="chip ${(state.topoStation||'fibration')===k?'on':''}" data-topost="${k}">${l}</button>`).join('')}
       </div>
-      ${(state.topoStation||'link')==='link'?`
+      ${(state.topoStation||'fibration')==='link'?`
       <div class="ctlrow"><label>Configuration</label>
         ${[['hopf','two Hopf fibres'],['coil','m-coil'],['unlink','separated']].map(([k,l])=>
           `<button class="chip ${(state.topoLinkMode||'hopf')===k?'on':''}" data-topolm="${k}">${l}</button>`).join('')}</div>
@@ -95005,12 +95254,18 @@ function buildCtlBody(){
       <div class="ctlrow"><label>Fibre B latitude θ</label>
         <input type="range" id="topoThB" min="0.3" max="2.8" step="0.02" value="${state.topoThB}"><span class="val" id="topoThBV">${state.topoThB.toFixed(2)}</span></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">Move fibre B anywhere — the integral must stay EXACTLY 1: two distinct Hopf fibres always link once. That single integer generates π₃(S²) and underwrites the hopfion lab.</div>`:''}`:''}
-      ${(state.topoStation||'link')==='hairy'?`
+      ${(state.topoStation||'fibration')==='fibration'?`
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Forty-eight points on four latitudes of the small sphere, each lifted to its circle in S³ and drawn through the stereographic projection. Circles over one latitude fill a torus; the tori nest; and the Gauss integral of every one of the 1 128 pairs is measured when the station opens — each comes back ±1, never 0, never 2. The white circle belongs to the white point wandering on the small sphere.</div>`:''}
+      ${(state.topoStation||'fibration')==='genus'?`
+      <div class="ctlrow"><label>Sweep the tube radius</label><button class="chip ${state.topoGenusAuto!==false?'on':''}" id="topoGenusAuto">${state.topoGenusAuto!==false?'⏸ sweeping':'▶ sweep'}</button></div>
+      <div class="ctlrow"><label>Tube radius r</label><input type="range" id="topoGenusR" min="0.2" max="1.3" step="0.005" value="${state.topoGenusR??1.1}"><span class="val" id="topoGenusRV">${(state.topoGenusR??1.1).toFixed(3)}</span></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim)">Three tori of major radius 0.62, 0.80 and 0.98 blended into one surface. Above r ≈ 0.88 every hole is filled: a sphere, χ = 2. Lower r and the holes open one at a time, largest first — near r ≈ 0.88, 0.68 and 0.53, a little below each torus's own radius because the blend thickens the joints — χ = 0, −2, −4, until near 0.25 the chain parts. Both numbers are read off the triangles: V − E + F by counting, and the sum of angle deficits, which equals 2πχ exactly for any closed triangulation. Colour is the curvature at each vertex: gold like a sphere, blue like a saddle.</div>`:''}
+      ${(state.topoStation||'fibration')==='hairy'?`
       <div class="ctlrow"><label>Field on S²</label>
         ${[['dipole','∂/∂θ · two +1 zeros'],['rotation','rotation · two +1'],['index2','one +2 zero']].map(([k,l])=>
           `<button class="chip ${(state.topoField||'dipole')===k?'on':''}" data-topofd="${k}">${l}</button>`).join('')}</div>`:''}
     </div>
-    ${(state.topoStation||'link')==='map'?`
+    ${(state.topoStation||'fibration')==='map'?`
     <div class="sect"><b>Invariant network — LIVE cross-module data (ATLAS BUS)</b>
       <div class="note" id="topoBus" style="font-variant-numeric:tabular-nums;font-size:11.5px">visit any lab — its invariants appear here and stay live</div>
       <div class="ctlrow" style="flex-wrap:wrap;gap:4px">
@@ -98131,6 +98386,9 @@ function buildCtlBody(){
     if(V==='topo'){
       ctl.querySelectorAll('[data-topost]').forEach(b=>b.onclick=()=>{ state.topoStation=b.dataset.topost; topoSetup(); buildCtl(); });
       ctl.querySelectorAll('[data-topolm]').forEach(b=>b.onclick=()=>{ state.topoLinkMode=b.dataset.topolm; topoSetup(); buildCtl(); });
+      ctl.querySelector('#topoGenusAuto')&&(ctl.querySelector('#topoGenusAuto').onclick=()=>{ state.topoGenusAuto=state.topoGenusAuto===false; topoDirty=true; buildCtl(); });
+      ctl.querySelector('#topoGenusR')&&(ctl.querySelector('#topoGenusR').oninput=e=>{ state.topoGenusR=+e.target.value; state.topoGenusAuto=false; topoDirty=true;
+        const v=ctl.querySelector('#topoGenusRV'); if(v)v.textContent=state.topoGenusR.toFixed(3); const a=ctl.querySelector('#topoGenusAuto'); if(a){ a.classList.remove('on'); a.textContent='▶ sweep'; } });
       ctl.querySelectorAll('[data-topofd]').forEach(b=>b.onclick=()=>{ state.topoField=b.dataset.topofd; topoSetup(); buildCtl(); });
       ctl.querySelector('#topoM')&&(ctl.querySelector('#topoM').oninput=e=>{ state.topoM=+e.target.value;
         const v=ctl.querySelector('#topoMV'); if(v)v.textContent=state.topoM; topoSetup(); });
@@ -108877,11 +109135,10 @@ function tickBody(now, frame){
       if(po){
         const epj=2000+state.epochDays/365.25, ltp=(state.precModel||'ltp')==='ltp';
         let raD,dec;
-        if(ltp){ const v=ltpEqu(epj); raD=((Math.atan2(v[1],v[0])/DEG)%360+360)%360; dec=Math.asin(Math.max(-1,Math.min(1,v[2])))/DEG; }
-        else { raD=((-0.641*T)%360+360)%360; dec=90-0.557*T; }
-        const eps=ltp?ltpObliquityRad(epj)/DEG:23.4393;
-        const gam=ltp?ltpEquinoxLonDeg(epj):null;
-        const far=Math.abs(epj-2000)>200000;
+        { const v=ltp?ltpEquExt(epj):iauPoleExt(epj); raD=((Math.atan2(v[1],v[0])/DEG)%360+360)%360; dec=Math.asin(Math.max(-1,Math.min(1,v[2])))/DEG; }   /* the continued pole in both engines */
+        const far=Math.abs(epj-2000)>(ltp?200000:1000);
+        const eps=ltp?ltpObliquityExtRad(epj)/DEG:23.4393;
+        const gam=ltp&&!far?ltpEquinoxLonDeg(epj):null;
         // PRECESSION PROTRACTOR: the measured angle between the pole of date and the
         // J2000 pole — the axis's own arc, in degrees, live (works with either engine)
         const dPole=earthPoleDir(T).angleTo(earthPoleDir(0))/DEG;
@@ -108889,7 +109146,7 @@ function tickBody(now, frame){
         ATLAS_BUS.pub('earth.poleShift',+dPole.toFixed(3),'deg');
         po.innerHTML=`epoch J${epj.toFixed(1)} · pole of date RA ${raD.toFixed(3)}° Dec ${dec.toFixed(3)}° (J2000 frame)`+
           `<br><b>protractor: pole moved ${dPole.toFixed(3)}° from J2000</b> · ε(t) = ${eps.toFixed(4)}°${gam!==null?` · equinox drift γ = ${gam.toFixed(3)}° on the J2000 ecliptic`:''}`+
-          (far&&ltp?`<br><b style="color:#ffd27f">beyond the ±200 kyr fit — bounded quasi-periodic EXTRAPOLATION</b>`:'')+
+          (far?`<br><b style="color:#ffd27f">beyond the ${ltp?'±200 kyr fit':'±1000-yr linear window'} — EXTRAPOLATION on the precession cone: one turn in 25 772 yr about the ecliptic pole${ltp?', ε on the 41-kyr cycle between 22.1° and 24.5°':''}</b>`:'')+
           (!ltp&&Math.abs(T)>3?`<br><b style="color:#ffd27f">linear model ${Math.abs(T).toFixed(0)} centuries from J2000 — switch to Vondrák for honesty</b>`:'');
       }
     }
@@ -108937,8 +109194,7 @@ function tickBody(now, frame){
       // raw angle reaches ~1e9 rad where double-precision trig loses the phase — the
       // disk would visibly desynchronise from the vector atlas. epochDays%period is
       // exact in doubles, so the rotation stays phase-locked at ANY epoch.
-      const galDays = GAL_YEAR_MYR*1e6*365.2425;
-      const galTheta = 2*Math.PI * (((state.epochDays%galDays)+galDays)%galDays) / galDays;
+      const galTheta = galFrameAngle(state.epochDays);   /* clockwise from the north Galactic pole: the centre drifts toward l 270° */
       _galQ.setFromAxisAngle(GAL_DATA.pole.dir, galTheta);
       milkyWayPhysical.position.copy(GAL_DATA.gc.pos).applyQuaternion(_galQ);
       milkyWayPhysical.quaternion.copy(_galQ).multiply(mwBaseQuat);
