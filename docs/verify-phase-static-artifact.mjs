@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { buildPhaseSnapshot } from '../core/phase/runtime.mjs';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
@@ -10,11 +11,8 @@ const FILE=join(ROOT,'api','phase-space.json');
 const generated=JSON.stringify(buildPhaseSnapshot(),null,2)+'\n';
 
 if(!existsSync(FILE)){
-  const b64=Buffer.from(generated,'utf8').toString('base64'), width=3000;
-  const chunks=[]; for(let i=0;i<b64.length;i+=width) chunks.push(b64.slice(i,i+width));
-  console.error(`PHASE_ARTIFACT_CHUNKS_BEGIN ${chunks.length}`);
-  chunks.forEach((chunk,i)=>console.error(`PHASE_ARTIFACT_CHUNK ${String(i+1).padStart(3,'0')}/${String(chunks.length).padStart(3,'0')} ${chunk}`));
-  console.error('PHASE_ARTIFACT_CHUNKS_END');
+  const packed=gzipSync(Buffer.from(generated,'utf8'),{level:9}).toString('base64');
+  console.error(`PHASE_ARTIFACT_GZIP_BASE64 ${packed}`);
   assert.fail('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
 }
 const actual=readFileSync(FILE,'utf8');
