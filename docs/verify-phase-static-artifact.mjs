@@ -12,7 +12,8 @@ const generated=JSON.stringify(buildPhaseSnapshot(),null,2)+'\n';
 
 if(!existsSync(FILE)){
   const packed=brotliCompressSync(Buffer.from(generated,'utf8'),{params:{[constants.BROTLI_PARAM_QUALITY]:11}}).toString('base64');
-  console.error(`PHASE_ARTIFACT_BR_BASE64 ${packed}`);
+  const width=640, total=Math.ceil(packed.length/width);
+  for(let i=0;i<total;i++) console.error(`PHASE_ARTIFACT_BR_CHUNK ${String(i+1).padStart(3,'0')}/${String(total).padStart(3,'0')} ${packed.slice(i*width,(i+1)*width)}`);
   assert.fail('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
 }
 const actual=readFileSync(FILE,'utf8');
