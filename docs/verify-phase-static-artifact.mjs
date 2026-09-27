@@ -14,7 +14,8 @@ if(!existsSync(FILE)){
   const packed=brotliCompressSync(Buffer.from(generated,'utf8'),{params:{[constants.BROTLI_PARAM_QUALITY]:11}}).toString('base64');
   const width=640, total=Math.ceil(packed.length/width);
   for(let i=0;i<total;i++) console.error(`PHASE_ARTIFACT_BR_CHUNK ${String(i+1).padStart(3,'0')}/${String(total).padStart(3,'0')} ${packed.slice(i*width,(i+1)*width)}`);
-  assert.fail('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
+  console.error('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
+  process.exit(1);
 }
 const actual=readFileSync(FILE,'utf8');
 assert.equal(actual,generated,'api/phase-space.json drifted from the live phase runtime');
