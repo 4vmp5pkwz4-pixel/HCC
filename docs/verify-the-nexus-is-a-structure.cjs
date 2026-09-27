@@ -22,7 +22,7 @@
  *      each caught
  */
 const fs = require('node:fs'), path = require('node:path');
-const { execFileSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
 let pass = 0, fail = 0;
 const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? ' :: ' + d : '')); } else { fail++; console.log('  FAIL — ' + n + (d ? ' :: ' + d : '')); } };
@@ -67,9 +67,15 @@ ok('MUTATION — a straightening that moves the ends is caught', bad(P, 0.88)[0]
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed');
 if (fail) process.exit(1);
+
+function runGate(file) {
+  const r = spawnSync(process.execPath, [path.join(__dirname, file)], { stdio: 'inherit' });
+  if (r.error) { console.error(r.error.message); process.exit(1); }
+  if (r.status !== 0) process.exit(r.status || 1);
+}
 /* The Nexus verifier also exercises the IPSE candidate bridge against the real a/b
    relation shape so candidate discovery cannot drift onto a synthetic from/to surrogate. */
-execFileSync(process.execPath, [path.join(__dirname, 'verify-phase-candidate-grounding.mjs')], { stdio: 'inherit' });
+runGate('verify-phase-candidate-grounding.mjs');
 /* Until Task 13 gives IPSE its own change-aware route, the same routed Nexus gate also
    pins the generated phase artifact. This is deliberately temporary integration glue. */
-execFileSync(process.execPath, [path.join(__dirname, 'verify-phase-static-artifact.mjs')], { stdio: 'inherit' });
+runGate('verify-phase-static-artifact.mjs');
