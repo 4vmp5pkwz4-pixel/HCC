@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, constants } from 'node:zlib';
 import { buildPhaseSnapshot } from '../core/phase/runtime.mjs';
 
 const ROOT=join(dirname(fileURLToPath(import.meta.url)),'..');
@@ -11,8 +11,8 @@ const FILE=join(ROOT,'api','phase-space.json');
 const generated=JSON.stringify(buildPhaseSnapshot(),null,2)+'\n';
 
 if(!existsSync(FILE)){
-  const packed=gzipSync(Buffer.from(generated,'utf8'),{level:9}).toString('base64');
-  console.error(`PHASE_ARTIFACT_GZIP_BASE64 ${packed}`);
+  const packed=brotliCompressSync(Buffer.from(generated,'utf8'),{params:{[constants.BROTLI_PARAM_QUALITY]:11}}).toString('base64');
+  console.error(`PHASE_ARTIFACT_BR_BASE64 ${packed}`);
   assert.fail('api/phase-space.json is missing; generate it from buildPhaseSnapshot()');
 }
 const actual=readFileSync(FILE,'utf8');
