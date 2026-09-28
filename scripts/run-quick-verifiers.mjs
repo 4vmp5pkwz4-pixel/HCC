@@ -139,6 +139,7 @@ const allChecks = [
   "docs/verify-the-web-has-relief.cjs",
   "docs/verify-the-cmb-sky.cjs",
   "docs/verify-the-real-local-web.cjs",
+  "docs/verify-back-is-always-there.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -335,6 +336,7 @@ if (fullMode) {
     'docs/verify-the-web-has-relief.cjs',
     'docs/verify-the-cmb-sky.cjs',
     'docs/verify-the-real-local-web.cjs',
+    'docs/verify-back-is-always-there.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
