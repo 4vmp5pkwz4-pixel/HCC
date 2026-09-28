@@ -4,8 +4,8 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 1596   ·   exported names: 1722
-   extracted physics, sha256 19c383c8dbb645481a18e4deb5f7583e4b16dddbef2f5f6de3f030e647c1e795 */
+   declarations: 1649   ·   exported names: 1775
+   extracted physics, sha256 30f9c70d3f543ab6842787b5f29bb841f459d0ae6224487c102f1ae707b52982 */
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -203,6 +203,177 @@ FBS.Ns3 = Math.log(S3.R*GLY_M/FBS.lP)/LN_PHI;
 FBS.Nobs = Math.log(S3.Dparticle*GLY_M/FBS.lP)/LN_PHI;
 
 const levelR   = N => FBS.lP*Math.exp(N*LN_PHI);
+
+const PHI_ATLAS=[
+ ['Quanta & particles',[
+  ['Planck length ℓ_P',1.616255e-35,null,'the ladder origin, N=0'],
+  ['Electron (point-like, r < 10⁻²² m bound)',1e-22,'qm','no substructure ever observed — an experimental BOUND, not a size'],
+  ['Quark size (exp. upper bound)',1e-19,'qcd','no substructure seen above this'],
+  ['Electroweak scale ħc/246 GeV',8e-19,null,'Higgs vacuum length'],
+  ['Higgs Compton wavelength',1.5759e-18,'qcd','ħ/(m_H c) at 125.25 GeV — a length set by a MASS rather than by an experimental bound'],
+  ['W boson Compton wavelength',2.455e-18,'qcd','ħ/(m_W c) — the range of the weak force, and the reason it is weak'],
+  ['Tau Compton wavelength',1.1105e-16,'qm','ħ/(m_τ c) — the heaviest lepton'],
+  ['Neutron charge RMS radius',8e-16,'qcd','udd baryon; free neutron β-decays in ~880 s'],
+  ['Proton charge radius',8.414e-16,'qcd','CODATA 2018: 0.8414 fm'],
+  ['Pion Compton wavelength',1.46e-15,'qcd','range of the nuclear force'],
+  ['Muon Compton wavelength',1.8676e-15,'qm','ħ/(m_μ c) — the middle lepton, between the pion and the classical electron radius'],
+  ['Classical electron radius',2.818e-15,'qm','e²/4πε₀mc²'],
+  ['Iron-56 nucleus radius',4.591e-15,'nuc','r₀A^(1/3) at the peak of the binding curve: the most bound nucleus there is, and where fusion stops paying'],
+  ['Uranium-238 nucleus',7.44e-15,'atom92','1.2·A^⅓ fm'],
+  ['Electron Compton wavelength',2.426e-12,'qm','ħ/mc — the length scale of QED'],
+  ['Neutrino Compton wavelength (0.1 eV)',1.24e-05,null,'ħ/mc for the lightest known massive particle — quantum fuzziness at hair-width scale']]],
+ ['Atoms & chemistry',[
+  ['Bohr radius a₀',5.2918e-11,'atom1','hydrogen ground state'],
+  ['Caesium atom (largest)',2.65e-10,'atom55','empirical radius'],
+  ['Water molecule',2.75e-10,'atom8','O–H bond geometry'],
+  ['Icosahedral quasicrystal spacing',4.56e-10,'qcrys','the quasilattice constant of i-AlPdMn — five-fold order at a spacing no periodic crystal may have'],
+  ['DNA double-helix diameter',2e-09,null,'B-form, 2 nm'],
+  ['Protein (haemoglobin)',5.5e-09,null,'globular ⌀'],
+  ['Magnetic length at 10 T',8.113e-09,'berry','√(ħ/eB) — the length the quantum Hall effect quantises on, where a Chern number becomes a conductance']]],
+ ['Radiation & light',[
+  ['γ-ray (1 MeV)',1.24e-12,'qm','nuclear transitions'],
+  ['X-ray (Cu Kα)',1.54e-10,'atom29','crystallography workhorse'],
+  ['Ultraviolet (UV-C)',2.5e-07,'eot','germicidal band'],
+  ['Violet light (400 nm)',4e-07,'eot','shortest wavelength the eye sees'],
+  ['Blackbody peak at 5772 K',5.0204e-07,'bb','Wien displacement at the solar photosphere — why the Sun is the colour it is'],
+  ['Green light (550 nm)',5.5e-07,'eot','peak of solar spectrum & the eye'],
+  ['Red light (700 nm)',7e-07,'eot','longest visible photon'],
+  ['Telecom band (1550 nm)',1.55e-06,'disp','where fibre loss is least and dispersion is engineered rather than suffered'],
+  ['Blackbody peak at 300 K',9.6592e-06,'bb','Wien displacement at room temperature: everything here is glowing in the infrared'],
+  ['Thermal infrared',1e-05,null,'300 K body emission'],
+  ['CMB peak wavelength',0.001063,'obs','2.725 K blackbody'],
+  ['Hydrogen 21-cm line',0.211,'solarGal','maps the Galaxy\'s spiral arms'],
+  ['Radio at 1 GHz',0.2998,'imp','a third-metre wave — where a circuit stops being lumped and starts being a transmission line'],
+  ['FM radio',3,null,'~100 MHz'],
+  ['GW150914 wavelength',2e+06,'gw','c / 150 Hz at peak strain']]],
+ ['Quasiparticles',[
+  ['Superfluid vortex core ξ (He-II)',1e-10,'quasi','healing length'],
+  ['Exciton a*_B (GaAs)',1.18e-08,'quasi','hydrogenic, ε/μ scaled'],
+  ['SC coherence length ξ (Nb)',3.8e-08,'sc','Cooper-pair size'],
+  ['London depth λ_L (Nb)',3.9e-08,'sc','Meissner screening'],
+  ['Magnetic skyrmion (typ.)',5e-08,'skyrmion','FeGe/MnSi family'],
+  ['Abrikosov lattice a (0.05 T)',2.18e-07,'sc','√(2Φ₀/√3B)'],
+  ['Plasmonic hole array a₀',6e-07,'eot','Ebbesen resonance period'],
+  ['Silicon solar-cell thickness',0.00018,'pv','thick enough to absorb, thin enough for a carrier to escape — the engineering compromise as a length'],
+  ['Thermoelectric leg',0.001,'te','the length a temperature difference is dropped across, which is what sets the figure of merit in practice']]],
+ ['Life & nature',[
+  ['Virus (influenza)',1e-07,null,'enveloped RNA virus'],
+  ['Bacterium (E. coli)',2e-06,null,'prokaryote length'],
+  ['Red blood cell',7.5e-06,null,'biconcave disc'],
+  ['Human hair width',7e-05,null,'~70 µm'],
+  ['Turing pattern wavelength',0.001,'rd','the spacing a reaction–diffusion system selects for itself — the instability behind a leopard and a chemical stripe alike'],
+  ['Human height',1.7,null,'the observer\'s own scale'],
+  ['Blue whale',30,null,'largest animal ever'],
+  ['Mount Everest',8849,null,'tallest mountain']]],
+ ['Worlds & compact objects',[
+  ['Solar Schwarzschild radius',2954.0,'bht','2GM☉/c² — the Sun as a black hole, three kilometres across'],
+  ['Neutron star radius',12000.0,null,'~12 km of nuclear-density matter; a teaspoon weighs a mountain'],
+  ['Stellar black-hole horizon (10 M☉)',29500.0,'gw','Schwarzschild 2GM/c² — the GW inspiral lab merges these'],
+  ['Photon sphere (10 M☉)',44310.0,'bhr','1.5 R_s, where light orbits: the ring the raymarcher draws is this circle seen from outside'],
+  ['Enceladus',252100.0,'enceladus','two hundred and fifty kilometres of ice, venting water into space'],
+  ['Pluto radius',1188300.0,'p8','the beloved dwarf planet'],
+  ['Triton',1353400.0,'triton','the only large moon that orbits backwards — a captured Kuiper belt object'],
+  ['Europa',1560800.0,'europa','ice over an ocean with more liquid water than Earth has'],
+  ['Moon radius',1737400.0,'moon','our companion, ¼ of Earth across'],
+  ['Io',1821600.0,'io','the most volcanically active body in the system'],
+  ['Callisto',2410300.0,'callisto','four billion years of craters, essentially unchanged'],
+  ['Mercury radius',2439700.0,'p0','iron world of extremes'],
+  ['Titan',2574700.0,'titan','LARGER THAN MERCURY, and the only moon with a thick atmosphere'],
+  ['Ganymede',2634100.0,'ganymede','the largest moon there is — larger than Mercury, and with its own magnetic field'],
+  ['Mars radius',3389500.0,'p3','the next world we will walk on'],
+  ['White dwarf radius (Sirius B)',5800000.0,'wd','an Earth-sized star held up by electron degeneracy — a fractal neighbour of our own planet, and nothing else about them alike'],
+  ['Venus radius',6051800.0,'p1','Earth\'s twin under a runaway greenhouse'],
+  ['Earth radius',6371000.0,'earth','home'],
+  ['Neptune radius',24622000.0,'p7','windiest world known'],
+  ['Uranus radius',25362000.0,'p6','rolls on its side'],
+  ['Intermediate black hole (10⁴ M☉)',29500000.0,null,'the missing-link class'],
+  ['Pulsar light cylinder (P = 1 s)',47713000.0,'psr','cP/2π, where co-rotation would reach the speed of light and the magnetosphere must open'],
+  ['Saturn radius',58232000.0,'p5','the ringed giant'],
+  ['Jupiter radius',69911000.0,'jupiter','largest planet'],
+  ['Sun radius',695700000.0,'sun','the star we orbit'],
+  ['Sun–Earth L1/L2 offset',1500000000.0,'lag','SOHO · JWST station'],
+  ['Sgr A* horizon',12300000000.0,'gc','4.15×10⁶ M☉ black hole at our Galaxy\'s heart'],
+  ['Astronomical unit',149598000000.0,'solar','Earth–Sun distance'],
+  ['Red supergiant progenitor',500000000000.0,'sn','the star that will collapse — larger than the orbit of Mars, and gone in seconds'],
+  ['Heliopause',18000000000000.0,'oort','~120 AU, solar-wind edge'],
+  ['M87* horizon',19200000000000.0,null,'6.5×10⁹ M☉ — the first black hole ever imaged'],
+  ['Light-year',9460700000000000.0,'oort','light in one year'],
+  ['Oort cloud outer edge',1.5e+16,'oort','~100,000 AU']]],
+ ['Galaxies & giant structures',[
+  ['Solar flare current sheet',1e+07,'rmhd','the Sweet–Parker layer where reconnection happens: thin, and the whole difficulty is how thin'],
+  ['Quasar broad-line region',1000000000000000.0,'qso','the gas that gives a quasar its lines, orbiting a hole a thousandth of its size'],
+  ['Parsec',3.0857e+16,'solarGal','1″ parallax'],
+  ['Galaxy-scale Einstein radius',1.5e+20,'lens','a few kiloparsecs — the ring a foreground galaxy draws around a source behind it'],
+  ['Milky Way radius',4.9e+20,'solarGal','~52,000 ly disk of 200+ billion stars'],
+  ['Distance to Andromeda',2.4e+22,'m31','2.537 Mly — closest great spiral'],
+  ['Local Group radius',5e+22,'m31','~5 Mly, our gravitational family'],
+  ['Coma cluster extent',6.2e+22,'obs','thousands of galaxies; where dark matter was first inferred (Zwicky 1933)'],
+  ['Virgo cluster extent',6.8e+22,'obs','heart of our supercluster'],
+  ['Great Attractor region',3e+23,'cosmic','the flow convergence Laniakea falls toward (approx extent)'],
+  ['Shapley concentration',4e+23,'obs','densest known supercluster (approx extent)'],
+  ['Laniakea supercluster',2.5e+24,'cosmic','our basin of attraction'],
+  ['Boötes void',3.1e+24,'obs','~330 Mly of near-emptiness'],
+  ['BAO standard ruler',4.63e+24,'obs','150 Mpc sound horizon frozen into the galaxy map'],
+  ['Sloan Great Wall',1.3e+25,'obs','1.38 Gly filament'],
+  ['KBC local void',1.9e+25,'obs','the ~2 Gly underdensity we may inhabit (reconstruction)'],
+  ['Giant Ring (Lopez & Clowes 2026)',2.592e+25,'ring','840 Mpc across, and the reason this atlas has a ring laboratory at all'],
+  ['Hercules–Corona Borealis GW',9.5e+25,'obs','largest known structure']]],
+ ['Horizons & the Universe',[
+  ['Hubble radius c/H₀',1.372e+26,'obs','expansion e-folding scale'],
+  ['de Sitter horizon from Λ',1.6473e+26,'civpsel','√(3/Λ) at the measured cosmological constant — the radius the capacity selector arrives at from a different direction entirely'],
+  ['Last-scattering surface (comoving)',4.3046e+26,'cmb','where the microwave background was emitted, a shell around us at 45.5 Gly'],
+  ['Particle horizon',4.4e+26,'obs','the observable radius, 46.5 Gly'],
+  ['S³ curvature radius (conditional median)',S3.R*GLY_M,'sel',S3.R.toFixed(1)+' Gly — the conditional-median trisphere modulus, on a branch holding 1.4% of the posterior'],
+  ['S³ antipode (πR)',1.6295e+28,'mimg','half the great circle: where every geodesic leaving here reconverges, and where the far side looks larger rather than smaller'],
+  ['Full S³ circumference 2πR',3.259e+28,'s3','the whole closed universe']]],
+];
+
+const PHI_AUDIT_P=Object.freeze({P0:Math.log((1+Math.sqrt(5))/2), lo:0.30, hi:0.72, n:211, M:400, kMax:8, win:3});
+
+function phiAuditZ(xs,P){ let C=0,S=0; for(const x of xs){ const a=2*Math.PI*x/P; C+=Math.cos(a); S+=Math.sin(a); } const K=xs.length; return {Z:(C*C+S*S)/K, C:Math.hypot(C,S), phase:((Math.atan2(S,C)/(2*Math.PI))%1+1)%1}; }
+
+function phiAuditLogI0(x){ x=Math.abs(x); if(x<15){ let t=1, s=1; for(let k=1;k<200;k++){ t*=(x/2)*(x/2)/(k*k); s+=t; if(t<s*1e-17) break; } return Math.log(s); }
+  return x-0.5*Math.log(2*Math.PI*x)+Math.log(1+1/(8*x)+9/(128*x*x)+225/(3072*x*x*x)); }
+
+function phiAuditLnB(xs,P,kMax){ const K=xs.length, C=phiAuditZ(xs,P).C, n=400, km=kMax||PHI_AUDIT_P.kMax, h=km/n, L=[];
+  for(let i=0;i<=n;i++){ const k=i*h; L.push(phiAuditLogI0(k*C)-K*phiAuditLogI0(k)+Math.log(i===0||i===n?0.5:1)); }
+  const m=Math.max(...L); let s=0; for(const v of L) s+=Math.exp(v-m); return m+Math.log(s*h/km); }
+
+function phiAuditWindows(xs,P,w){ const lo=Math.min(...xs), hi=Math.max(...xs), out=[];
+  for(let s=lo;s<=hi+1e-9;s+=w/2){ let C=0,S=0,G=0; for(const x of xs){ const g=Math.exp(-0.5*((x-s)/w)**2); if(g<1e-6) continue; const a=2*Math.PI*x/P; C+=g*Math.cos(a); S+=g*Math.sin(a); G+=g*g; }
+    if(G>=1) out.push({s, Z:(C*C+S*S)/G, n:G}); }
+  return out; }
+
+function phiAuditGauss(rnd){ let u=0,v=0; while(u===0) u=rnd(); v=rnd(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+
+function phiAuditSigma(p){ if(!(p>0)) return Infinity; if(p>=1) return 0;
+  const a=[-39.69683028665376,220.9460984245205,-275.9285104469687,138.357751867269,-30.66479806614716,2.506628277459239], b=[-54.47609879822406,161.5858368580409,-155.6989798598866,66.80131188771972,-13.28068155288572],
+    c=[-0.007784894002430293,-0.3223964580411365,-2.400758277161838,-2.549732539343734,4.374664141464968,2.938163982698783], d=[0.007784695709041462,0.3224671290700398,2.445134137142996,3.754408661907416];
+  const f=t=>{ if(t<0.02425){ const r=Math.sqrt(-2*Math.log(t)); return (((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5])/((((d[0]*r+d[1])*r+d[2])*r+d[3])*r+1); }
+    if(t>1-0.02425){ const r=Math.sqrt(-2*Math.log(1-t)); return -(((((c[0]*r+c[1])*r+c[2])*r+c[3])*r+c[4])*r+c[5])/((((d[0]*r+d[1])*r+d[2])*r+d[3])*r+1); }
+    const r=t-0.5, r2=r*r; return (((((a[0]*r2+a[1])*r2+a[2])*r2+a[3])*r2+a[4])*r2+a[5])*r/(((((b[0]*r2+b[1])*r2+b[2])*r2+b[3])*r2+b[4])*r2+1); };
+  return Math.max(0,-f(p)); }
+
+function phiAudit(xs,opt){ opt={...PHI_AUDIT_P,...(opt||{})}; const P0=opt.P0, rnd=mulberry(opt.seed||0x9e3779b9), K=xs.length, grid=[]; for(let i=0;i<opt.n;i++) grid.push(opt.lo+(opt.hi-opt.lo)*i/(opt.n-1));
+  const zmax=ys=>{ let m=0, at=0; for(const P of grid){ const z=phiAuditZ(ys,P).Z; if(z>m){ m=z; at=P; } } return {Z:m, P:at}; }, wmax=ys=>Math.max(0,...phiAuditWindows(ys,P0,opt.win).map(w=>w.Z));
+  const obs={...phiAuditZ(xs,P0), lnB:phiAuditLnB(xs,P0,opt.kMax), best:zmax(xs), win:phiAuditWindows(xs,P0,opt.win)}; obs.wmax=Math.max(0,...obs.win.map(w=>w.Z));
+  /* THE SECOND CONTROL. The smoothed null erases every structure narrower than ln φ, periodic or not — a catalogue
+     whose selection piles objects into a few narrow bands beats it at almost any period. So a ladder must also
+     stand out among the periods of the SAME data: the rank of Z(ln φ) in the periodogram over 0.30–0.72. */
+  obs.rank=grid.filter(P=>phiAuditZ(xs,P).Z>=obs.Z).length/grid.length;
+  const S={Z:[], Zmax:[], lnB:[], wmax:[]};
+  for(let m=0;m<opt.M;m++){ const ys=xs.map(x=>x+P0*phiAuditGauss(rnd)); S.Z.push(phiAuditZ(ys,P0).Z); S.Zmax.push(zmax(ys).Z); S.lnB.push(phiAuditLnB(ys,P0,opt.kMax)); S.wmax.push(wmax(ys)); }
+  const frac=(A,v)=>(1+A.filter(a=>a>=v).length)/(A.length+1), mean=A=>A.reduce((a,v)=>a+v,0)/A.length;
+  /* beyond 1/M: the surrogate Z at a fixed period is exponential (Rayleigh) with a scale θ fitted as its mean; the
+     global maximum over N_eff independent periods then has p = 1 − (1 − e^{−Z/θ})^{N_eff}, with N_eff fitted so
+     that this law reproduces the surrogates' own median maximum */
+  const theta=mean(S.Z), pTail=Math.exp(-obs.Z/theta), medMax=[...S.Zmax].sort((a,b)=>a-b)[Math.floor(S.Zmax.length/2)], Neff=Math.max(1,Math.log(0.5)/Math.log(1-Math.exp(-medMax/theta)));
+  const pGlobalTail=-Math.expm1(Neff*Math.log1p(-pTail));   /* not 1 − (1 − p)^N, which is 0 for a small p */
+  return {K, P0, obs, theta, Neff, pLocal:frac(S.Z,obs.Z), pGlobal:frac(S.Zmax,obs.Z), pBayes:frac(S.lnB,obs.lnB), pWindow:frac(S.wmax,obs.wmax),
+    pTail, pGlobalTail, sigmaLocal:phiAuditSigma(pTail), sigmaGlobal:phiAuditSigma(pGlobalTail), fiveSigma:pGlobalTail<2.87e-7, rank:obs.rank,
+    ladder:pGlobalTail<2.87e-7&&obs.rank<=0.02, lumpy:pGlobalTail<2.87e-7&&obs.rank>0.02, naiveP:Math.exp(-obs.Z), lnBnull:mean(S.lnB), M:opt.M}; }
+
+function phiLadderScales(){ const out=[]; for(const [,rows] of PHI_ATLAS) for(const r of rows) if(r[1]>0) out.push(Math.log(r[1])); return out; }
 
 const ZPF={
   HBAR:1.054571817e-34, C:2.99792458e8, G:6.67430e-11, KB:1.380649e-23,
@@ -823,6 +994,12 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Die letzte Verschmelzung der Lokalen Gruppe · Sgr A* und M31*'},
    purpose:'the atlas carries both central black holes and lets M31 fall toward us, and had never followed the story to its end: here the two holes spiral together in the gravitational-wave regime, the wave they send is drawn on the orbital plane at its retarded time, and the remnant rings down — with what is computed exactly, what comes from numerical-relativity fits and what is not computed at all kept apart',
    predictionTarget:'from the two masses alone: the symmetric mass ratio η = 0.02796 and chirp mass, the Peters time to coalescence, the radiated fraction 0.200 % (2.9×10⁵ M☉c², 5.2×10⁵² J), the remnant spin 0.094, the recoil 8.6 km/s, the ISCO frequency 30.5 μHz, the l = m = 2 ringdown at 86 μHz with a 2.25-hour damping time, and the 40 Myr the pair spends in the pulsar-timing band. Falsifiable against numbers nobody here chose: equal masses must give 4.8 % radiated, spin 0.687 and zero recoil, and the largest recoil of non-spinning holes is 175 km/s near q = 0.36.'},
+  {id:'s3gamma', category:'geom', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
+   title:{en:'Space forms S³/Γ · their spectra, and whether the sky could show them',
+          ru:'Пространственные формы S³/Γ · их спектры и может ли небо их показать',
+          de:'Raumformen S³/Γ · ihre Spektren, und ob der Himmel sie zeigen könnte'},
+   purpose:'if the universe is a three-sphere it may be one only up to identification — the Poincaré dodecahedral, octahedral, tetrahedral, prism and lens spaces — and the atlas described that only as a concept: here their Laplace spectra are computed exactly from the Spin(4) dictionary by a character sum, the images of the observer are drawn (the 600-cell for the Poincaré space), and whether matched circles could appear in the sky is decided against this atlas\u2019s own curvature posterior',
+   predictionTarget:'the Laplace multiplicities m_k = (k+1)(1/|Γ|)Σχ_{k/2}(g): the Poincaré space keeps only k = 0, 12, 20, 24, 30, 32, …, the octahedral first k = 8, the tetrahedral k = 6; Weyl\u2019s law Σm_k/Σ(k+1)² → 1/|Γ|; matched circles need θ_min R < 2χ_LSS — R < 144 Gly for the Poincaré space, below the atlas\u2019s whole 95% posterior band (414–4540 Gly), while lens spaces of order p ≳ 29 would still show circles'},
   {id:'discover', category:'inv', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'The Discovery Explorer · what this atlas has found, confirmed and corrected',
           ru:'Исследователь открытий · что атлас нашёл, подтвердил и исправил',
@@ -1382,6 +1559,58 @@ function cmbPlanckianXYZ(T){ const h=6.62607015e-34, c=299792458, k=1.380649e-23
 
 function cmbPlanckianRGB(T){ const q=cmbPlanckianXYZ(T), lin=[3.2406*q.X-1.5372*q.Y-0.4986*q.Z, -0.9689*q.X+1.8758*q.Y+0.0415*q.Z, 0.0557*q.X-0.2040*q.Y+1.0570*q.Z].map(v=>Math.max(0,v)),
     m=Math.max(...lin), enc=v=>{ v/=m; return v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055; }; return lin.map(enc); }
+
+const CT_COSMO=(()=>{ const h=HCC_S3R.H0_km/100, Or=2.4728e-5*Math.pow(HCC_S3R.T_cmb/2.7255,4)*(1+0.2271*HCC_S3R.N_eff)/(h*h);
+  return Object.freeze({h, Om:HCC_S3R.Omega_m, Or, OL:1-HCC_S3R.Omega_m-Or, tH:977.7922216807891/HCC_S3R.H0_km, cH:299792.458/HCC_S3R.H0_km*3.2615637771674333e-3}); })();
+
+const ctE=z=>{ const C=CT_COSMO, a=1+z; return Math.sqrt(C.Or*a*a*a*a+C.Om*a*a*a+C.OL); };
+
+let CT_TABLE=null;
+
+function ctTable(){ if(CT_TABLE) return CT_TABLE; const C=CT_COSMO, n=4000, lmax=Math.log(1+1e6), zs=new Float64Array(n+1), chi=new Float64Array(n+1), age=new Float64Array(n+1);
+  for(let i=0;i<=n;i++) zs[i]=Math.expm1(i/n*lmax);
+  for(let i=1;i<=n;i++){ const z0=zs[i-1], z1=zs[i], f=z=>1/ctE(z); chi[i]=chi[i-1]+0.5*(f(z0)+f(z1))*(z1-z0); }
+  /* the age: t(z) = ∫_z^∞ dz'/((1+z')H); from the top down, with the radiation-era tail t(z_max) = 1/(2H₀√Ω_r (1+z)²) */
+  const g=z=>1/((1+z)*ctE(z)); age[n]=1/(2*Math.sqrt(C.Or)*Math.pow(1+zs[n],2));
+  for(let i=n-1;i>=0;i--) age[i]=age[i+1]+0.5*(g(zs[i])+g(zs[i+1]))*(zs[i+1]-zs[i]);
+  for(let i=0;i<=n;i++){ chi[i]*=C.cH; age[i]*=C.tH; }
+  CT_TABLE={zs, chi, age, n}; return CT_TABLE; }
+
+function ctInterp(xs,ys,x){ const n=xs.length-1; if(x<=xs[0]) return ys[0]; if(x>=xs[n]) return ys[n]; let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(xs[m]<=x) lo=m; else hi=m; }
+  const t=(x-xs[lo])/(xs[hi]-xs[lo]); return ys[lo]+t*(ys[hi]-ys[lo]); }
+
+function ctChiOfZ(z){ const T=ctTable(); return ctInterp(T.zs,T.chi,z); }
+
+function ctZOfChi(chiGly){ const T=ctTable(); return ctInterp(T.chi,T.zs,chiGly); }
+
+function ctAgeOfZ(z){ const T=ctTable(); return ctInterp(T.zs,T.age,z); }
+
+const CT_T0=()=>ctAgeOfZ(0);
+
+function ctSFR(z){ return 0.015*Math.pow(1+z,2.7)/(1+Math.pow((1+z)/2.9,5.6)); }
+
+const CT_EPOCHS=Object.freeze([
+  {id:'plasma', z:[1089.9,1e6], en:'the opaque plasma', ru:'непрозрачная плазма', de:'das undurchsichtige Plasma'},
+  {id:'recomb', z:[1089.9,1089.9], en:'recombination — the light we see as the CMB', ru:'рекомбинация — свет, который мы видим как реликт', de:'Rekombination — das Licht des CMB'},
+  {id:'dark', z:[20,1089.9], en:'the dark ages', ru:'тёмные века', de:'das dunkle Zeitalter'},
+  {id:'dawn', z:[10,20], en:'cosmic dawn — the first stars', ru:'космический рассвет — первые звёзды', de:'kosmische Morgendämmerung'},
+  {id:'reion', z:[5.5,10], en:'reionization', ru:'реионизация', de:'Reionisation'},
+  {id:'noon', z:[1,5.5], en:'cosmic noon — most stars are born', ru:'космический полдень — рождается большинство звёзд', de:'kosmischer Mittag'},
+  {id:'late', z:[0,1], en:'the accelerating, ageing universe', ru:'ускоряющаяся, стареющая Вселенная', de:'das beschleunigte, alternde Universum'}]);
+
+function ctEpochOfZ(z){ return CT_EPOCHS.find(e=>e.id!=='recomb'&&z>=e.z[0]&&z<e.z[1])||CT_EPOCHS[CT_EPOCHS.length-1]; }
+
+function ctColorAtTime(tGyr){ const t0=CT_T0(); const zOfT=t=>{ const T=ctTable(); return ctInterp(Array.from(T.age).reverse(),Array.from(T.zs).reverse(),t); };
+  if(tGyr>t0){ const f=1-Math.exp(-(tGyr-t0)/4.5), c0=[1.0,0.68,0.28], c1=[1.0,0.42,0.18], b=(0.3+0.7*ctSFR(0)/ctSFR(1.86))*Math.exp(-(tGyr-t0)/4.5);
+    return {rgb:c0.map((v,i)=>v+(c1[i]-v)*f), b:Math.max(0.05,b), z:-1, epoch:'future'}; }
+  const z=zOfT(Math.max(1e-9,tGyr));
+  if(z>=20){ const T=HCC_S3R.T_cmb*(1+z), rgb=cmbPlanckianRGB(Math.min(Math.max(T,1000),20000)),   /* below ~1000 K the eye sees no colour, only the fading: the hue is held, the brightness falls */ b=z>=1089.9?1:Math.max(0.06,Math.min(1,Math.pow(Math.max(0,(T-600)/2400),1.4)));
+    return {rgb, b, z, epoch:ctEpochOfZ(z).id, T}; }
+  const K=[[20,[0.62,0.3,1.0]],[10,[0.38,0.4,1.0]],[6,[0.25,0.58,1.0]],[2,[0.4,0.85,1.0]],[0.63,[1.0,0.84,0.42]],[0,[1.0,0.68,0.28]]];
+  let i=0; while(i<K.length-2&&z<K[i+1][0]) i++; const [za,ca]=K[i], [zb,cb]=K[i+1], w=Math.max(0,Math.min(1,(za-z)/(za-zb)));
+  return {rgb:ca.map((v,k)=>v+(cb[k]-v)*w), b:0.3+0.7*ctSFR(z)/ctSFR(1.86), z, epoch:ctEpochOfZ(z).id}; }
+
+function ctColorAtChi(chiGly,dtYears){ const z=ctZOfChi(Math.max(0,chiGly)); return ctColorAtTime(ctAgeOfZ(z)+(dtYears||0)/1e9); }
 
 const MPC_PER_GLY = 306.601;
 
@@ -6367,8 +6596,12 @@ const DISCOVERIES=Object.freeze([
    numbers:{spinPairs:169}},
   {id:'seam', kind:'found', domain:'self', v:'4.330.0', labs:['cmb','sh','tri'], verifier:'docs/verify-the-atlas-knows-its-own-shape.cjs',
    en:'The seam of the atlas is the harmonic analysis of a sphere', ru:'Шов атласа — гармонический анализ сферы', de:'Die Naht des Atlas ist die harmonische Analyse einer Sphäre',
-   claim:'The first mode of the atlas’s own relation Laplacian cuts it, with no label consulted, into the observed sky and the sphere. The cosmic microwave background and the spherical harmonics stand ON that seam — both among the five laboratories nearest zero of the Fiedler vector, more than five times below the median — and which of them is nearest moves as relations are added.',
-   numbers:{fiedlerMedianRatio:10}},
+   claim:'The first mode of the atlas’s own relation Laplacian cuts it, with no label consulted, into the observed sky and the sphere. The spherical harmonics stand ON that seam, among the five laboratories nearest zero of the Fiedler vector. The cosmic microwave background stood there too (4th nearest) until v4.335, when the space-form laboratory declared that the CMB can show the topology of S³/Γ: that one causal relation carried it across the seam to the sphere side (|v| from 1.6×10⁻³ to 4.7×10⁻³, still 3.6× below the median). The atlas moved the CMB toward the sphere at the moment it learned the CMB could see the sphere’s shape.',
+   numbers:{fiedlerMedianRatio:3.6, cmbBefore:1.6e-3, cmbAfter:4.7e-3}},
+  {id:'phiAudit', kind:'tested', domain:'self', v:'4.335.0', labs:['rungs'], verifier:'docs/verify-the-ladder-audit.cjs',
+   en:'The golden ladder, audited against the catalogue itself — with the trap it nearly fell into', ru:'Золотая лестница, проверенная против самого каталога, — и ловушка, в которую она чуть не попала', de:'Die goldene Leiter, gegen den Katalog selbst geprüft — mit der Falle',
+   claim:'Two controls, both required. First, smoothed surrogates of the catalogue itself (not uniform phases), with the look-elsewhere effect over every period 0.30–0.72, a tail extrapolation to 5σ, Morlet windows along the ladder and a calibrated Bayes factor. Second, the rank of ln φ among the periods of the same data — because the smoothed null erases every structure narrower than ln φ, periodic or not, and a catalogue piled into narrow bands by its selection beats it at any period. A planted ladder passes both (12.9σ, rank 0); a banded, non-periodic sample passes the first at 6.4σ and fails the second (rank 70%) and is declared lumpy. The atlas\u2019s 113 literature scales: Z(ln φ) = 1.86, p = 0.15 (≈ 1σ), ln B = −2.7 against −3.3. In the page, the 5 959 quasars beat the smoothed catalogue at 6.2σ yet ln φ ranks at 43% of the periods — selection, not a golden ladder. φ does not stand out: the ladder is a coordinate.',
+   numbers:{Z:1.86, pLocal:0.15, lnB:-2.72, quasarRank:0.43}},
   {id:'burgers', kind:'found', domain:'flow', v:'4.331.0', labs:['cosmicweb','nsflow'], verifier:'docs/verify-the-web-has-relief.cjs',
    en:'The cosmic web is Navier–Stokes without pressure', ru:'Космическая паутина — это Навье–Стокс без давления', de:'Das kosmische Netz ist Navier–Stokes ohne Druck',
    claim:'The Zel’dovich map is the inviscid limit of Burgers’ equation, solved exactly by Hopf–Cole: before shell crossing the two agree to 1.2×10⁻⁴; after it Burgers’ Lagrangian map jumps from −q_s to q_s with q_s = t sin q_s, exactly where the three Zel’dovich streams meet — the shock holds the matter they share (60% at t = 2).',
@@ -6409,6 +6642,22 @@ const DISCOVERIES=Object.freeze([
    en:'An exact Navier–Stokes flow on S³, put back into the equation', ru:'Точное течение Навье–Стокса на S³, подставленное в уравнение', de:'Eine exakte Navier–Stokes-Strömung auf S³',
    claim:'u = K + a e^{−νκt}(Φ_t^Y)_*v₀ satisfies the Navier–Stokes equation on the round S³: the curl of its residual is at the level of the differencing error (< 10⁻⁶ relative) for four shells and both helicities, while carrying the shell the wrong way leaves a residual of order one. The Millennium problem is named open.',
    numbers:{residual:1e-6}},
+  {id:'pdsSpectrum', kind:'confirms', domain:'sphere', v:'4.335.0', labs:['s3gamma','su2'], verifier:'docs/verify-the-space-forms.cjs',
+   en:'The Poincaré space keeps no mode between 0 and 12', ru:'Пространство Пуанкаре не держит мод между 0 и 12', de:'Der Poincaré-Raum hat keine Mode zwischen 0 und 12',
+   claim:'From the Spin(4) dictionary alone — a character sum over the nine conjugacy classes of the binary icosahedral group — the Laplace modes of S³/I* are k = 0, 12, 20, 24, 30, 32, 36, 40, … with multiplicity k+1, the Molien series of I*; the octahedral space starts at k = 8, the tetrahedral at k = 6; and Σm_k/Σ(k+1)² tends to 1/|Γ| (Weyl).',
+   numbers:{firstMode:12, order:120}},
+  {id:'pdsHidden', kind:'found', domain:'cosmo', v:'4.335.0', labs:['s3gamma','cmb'], verifier:'docs/verify-the-space-forms.cjs',
+   en:'On this atlas\u2019s own curvature, the Poincaré space would be invisible', ru:'При кривизне самого атласа пространство Пуанкаре было бы невидимо', de:'Bei der eigenen Krümmung des Atlas wäre der Poincaré-Raum unsichtbar',
+   claim:'Matched circles need θ_min R < 2χ_LSS: for the Poincaré space R < 144 Gly, for the octahedral 115, the tetrahedral 86 — all below the atlas\u2019s entire 95% curvature band (414–4540 Gly). Only lens spaces of order p ≳ 29 could still show circles. A circle search on the real sky can therefore test the atlas\u2019s curvature branch, not only the topology.',
+   numbers:{RmaxPDS:143.6, band:414}},
+  {id:'cssEngine', kind:'confirms', domain:'cosmo', v:'4.335.0', labs:['s3gamma','cmb'], verifier:'docs/verify-the-circles-in-the-sky.cjs',
+   en:'A circle search that finds what is there and nothing else', ru:'Поиск окружностей, который находит то, что есть, и ничего больше', de:'Eine Kreissuche, die findet, was da ist, und sonst nichts',
+   claim:'The matched-circle statistic of Cornish, Spergel & Starkman over back-to-back pairs, every twist and both orientations by two FFTs, coarse to fine. The back-to-back circle is the antipode of its partner run backwards, n′(φ) = −n(−φ), so every even multipole matches itself — the low modes along the circle must go (unfiltered, a pure quadrupole sky scores S = 1). With them dropped, the Monte Carlo null is S ≈ 0.60–0.73 with σ = 0.025, and pairs injected with the Poincaré twist are recovered at their own radius, within 0.5° of their centre and at ψ = 38° for 36°, 10–13σ above it. It runs in the page on the atlas\u2019s CAMB sky; the measured Planck sky is the open lead.',
+   numbers:{sigma:0.025, zInj34:10.0, zInj68:13.2}},
+  {id:'epochChain', kind:'confirms', domain:'cosmo', v:'4.335.0', labs:['cmb','cosmo'], verifier:'docs/verify-the-colour-of-cosmic-time.cjs',
+   en:'Distance is time, in one colour — and it lands where CAMB does', ru:'Расстояние — это время в одном цвете, и оно совпадает с CAMB', de:'Entfernung ist Zeit, in einer Farbe',
+   claim:'The atlas\u2019s own distance–epoch chain with radiation puts last scattering at χ = 45.121 Gly against CAMB\u2019s 45.133 (0.03%), the age at 13.7069 Gyr against 13.7072, recombination at 371 kyr; the colour of cosmic time at recombination is exactly the wall\u2019s 2973 K glow.',
+   numbers:{chi:45.121, camb:45.133}},
   {id:'reach', kind:'found', domain:'sphere', v:'4.325.0', labs:['tri','hopf'], verifier:'docs/verify-the-trisphere.cjs',
    en:'120 of 121 laboratories reach S³', ru:'120 из 121 лабораторий достигают S³', de:'120 von 121 Laboren erreichen S³',
    claim:'Through the relations the atlas declares, 120 of its 121 laboratories reach the three-sphere; the longest chain has 4 steps, and the Hopf fibres are the station most chains run through.',
@@ -6431,8 +6680,10 @@ const DISCOVERY_LEADS=Object.freeze([
   {id:'planck-real', en:'Put the MEASURED Planck sky on the wall', step:'when a Planck SMICA/Commander map is reachable, replace the realization with it and keep the realization as the ΛCDM control; test the low-ℓ anomalies against the embedded spectrum', about:'sigmat'},
   {id:'homog-survey', en:'Find the local web in a homogeneous survey', step:'2MRS (K < 11.75) would remove the band-pass compromise: fit a proper selection function and recover Hydra–Centaurus and Shapley, which the compilation under-samples', about:'localweb'},
   {id:'orbit-plane', en:'Constrain the orbital plane of Andromeda', step:'take the direction of the tangential velocity from the Gaia/HST proper motion instead of the Galactic-pole assumption and redo the tails', about:'flyby'},
-  {id:'seam-drift', en:'Watch the seam move as the atlas grows', step:'record the Fiedler vector at every release (the CMB was nearest at 376 relations, the harmonics at 377) and publish its drift as an invariant of the atlas’s own growth', about:'seam'},
+  {id:'seam-drift', en:'Watch the seam move as the atlas grows', step:'record the Fiedler vector at every release (the CMB was nearest at 376 relations, the harmonics at 377; at 384 one relation — s3gamma → cmb, causal — carried the CMB to the sphere side) and publish its drift as an invariant of the atlas’s own growth', about:'seam'},
   {id:'spin-ns', en:'Spin(4) selection rules for the nonlinear term', step:'the Clebsch–Gordan content of (curl shell) ⊗ (curl shell) says which triads the Navier–Stokes nonlinearity can couple — derive it and test it against the numerical interaction coefficients', about:'spin4'},
+  {id:'qso-bands', en:'Name the quasar catalogue’s narrow bands', step:'the 5 959 VCV quasars beat the smoothed catalogue at 6.2σ with ln φ unremarkable among the periods (rank 43%, best period 0.664): locate the bands in ln d, map them to redshift, and test them against the emission-line windows that pile quasars at particular z (the Karlsson peaks) — then subtract that selection and audit again', about:'phiAudit'},
+  {id:'css-real', en:'Run the circle search on the real sky', step:'the engine is built, filtered and calibrated on the embedded realization (cssEngine); what remains is Planck SMICA with its mask, the ISW/Doppler decorrelation in the null, and non-back-to-back pairs for inhomogeneous spaces. A detection would pin R < 144 Gly for the Poincaré space and contradict the atlas\u2019s curvature branch.', about:'pdsHidden'},
   {id:'burgers-3d', en:'Adhesion in three dimensions', step:'replace the Zel’dovich particles in the relief by the 3-D adhesion model (Hopf–Cole on the grid) so the walls stop passing through each other', about:'burgers'}]);
 
 function discoveryById(id){ return DISCOVERIES.find(d=>d.id===id)||null; }
@@ -6440,6 +6691,126 @@ function discoveryById(id){ return DISCOVERIES.find(d=>d.id===id)||null; }
 function discoveryGraph(){ const E=[], D=DISCOVERIES;
   for(let i=0;i<D.length;i++) for(let j=i+1;j<D.length;j++){ const shared=D[i].labs.filter(l=>D[j].labs.includes(l)); if(shared.length) E.push({a:D[i].id, b:D[j].id, via:shared}); }
   return E; }
+
+const SG_GROUPS=Object.freeze((()=>{ const P=Math.PI, cyc=p=>{ const c=[]; for(let m=0;m<p;m++) c.push([2*P*m/p,1]); return c; },
+  dih=n=>{ const c=[]; for(let m=0;m<2*n;m++) c.push([P*m/n,1]); c.push([P/2,2*n]); return c; };
+  return [
+    {id:'S3', name:'S³ itself', order:1, classes:[[0,1]], note:'no identification'},
+    {id:'L5', name:'lens space L(5,1)', order:5, classes:cyc(5)},
+    {id:'L12', name:'lens space L(12,1)', order:12, classes:cyc(12)},
+    {id:'L60', name:'lens space L(60,1)', order:60, classes:cyc(60)},
+    {id:'D3', name:'prism space S³/D*₃', order:12, classes:dih(3)},
+    {id:'Tstar', name:'tetrahedral space S³/T*', order:24, classes:[[0,1],[P,1],[P/2,6],[P/3,8],[2*P/3,8]]},
+    {id:'Ostar', name:'octahedral space S³/O*', order:48, classes:[[0,1],[P,1],[P/4,6],[3*P/4,6],[P/2,18],[P/3,8],[2*P/3,8]]},
+    {id:'Istar', name:'Poincaré dodecahedral space S³/I*', order:120, classes:[[0,1],[P,1],[P/5,12],[2*P/5,12],[3*P/5,12],[4*P/5,12],[P/3,20],[2*P/3,20],[P/2,30]]}]; })());
+
+function sgChi(j,th){ const s=Math.sin(th); if(Math.abs(s)<1e-12) return Math.cos(th)>0?2*j+1:Math.pow(-1,Math.round(2*j))*(2*j+1); return Math.sin((2*j+1)*th)/s; }
+
+function sgGroup(id){ return SG_GROUPS.find(g=>g.id===id)||SG_GROUPS[0]; }
+
+function sgInvariantDim(g,j){ let s=0, n=0; for(const [th,c] of g.classes){ s+=c*sgChi(j,th); n+=c; } return s/n; }
+
+function sgSpectrum(id,kmax){ const g=sgGroup(id), out=[]; for(let k=0;k<=kmax;k++){ const d=sgInvariantDim(g,k/2), m=Math.round(d)*(k+1); out.push({k, lambda:k*(k+2), mult:m, dimInv:d}); } return out; }
+
+function sgFirstMode(id){ const s=sgSpectrum(id,120); const f=s.find(x=>x.k>0&&x.mult>0); return f?f.k:null; }
+
+function sgThetaMin(id){ const g=sgGroup(id); let m=Infinity; for(const [th] of g.classes){ const a=Math.min(th,2*Math.PI-th); if(a>1e-9) m=Math.min(m,a); } return m; }
+
+function sgCircles(id,RGly,chiGly){ const th=sgThetaMin(id), d=th*RGly; if(!isFinite(th)) return {exists:false, RmaxGly:Infinity};
+  const RmaxGly=2*chiGly/th; if(d>=2*chiGly) return {exists:false, RmaxGly, dGly:d};
+  const ca=Math.tan(d/(2*RGly))/Math.tan(chiGly/RGly); return {exists:ca<=1, RmaxGly, dGly:d, alphaDeg:Math.acos(Math.max(-1,Math.min(1,ca)))*180/Math.PI}; }
+
+function sgOrbit(id){ const P=Math.PI, q=(a,b,c,d)=>[a,b,c,d], mul=(x,y)=>[x[0]*y[0]-x[1]*y[1]-x[2]*y[2]-x[3]*y[3], x[0]*y[1]+x[1]*y[0]+x[2]*y[3]-x[3]*y[2], x[0]*y[2]-x[1]*y[3]+x[2]*y[0]+x[3]*y[1], x[0]*y[3]+x[1]*y[2]-x[2]*y[1]+x[3]*y[0]];
+  const gens={S3:[], L5:[q(Math.cos(P/5),Math.sin(P/5),0,0)], L12:[q(Math.cos(P/12),Math.sin(P/12),0,0)], L60:[q(Math.cos(P/60),Math.sin(P/60),0,0)],
+    D3:[q(Math.cos(P/3),Math.sin(P/3),0,0), q(0,0,1,0)], Tstar:[q(0.5,0.5,0.5,0.5), q(0,1,0,0)], Ostar:[q(Math.SQRT1_2,Math.SQRT1_2,0,0), q(0.5,0.5,0.5,0.5)],
+    Istar:[q(0.5,0.5,0.5,0.5), q((1+Math.sqrt(5))/4,0.5,(Math.sqrt(5)-1)/4,0)]}[id]||[];
+  /* a lens generator is written at half its angle: squared, it is e^{2πi/p}, which moves every point by 2π/p */
+  const G=id.startsWith('L')?gens.map(g=>mul(g,g)):gens;
+  const seen=[[1,0,0,0]], key=v=>v.map(x=>Math.round(x*1e6)).join(','), set=new Set([key(seen[0])]);
+  for(let it=0;it<seen.length&&seen.length<200;it++) for(const g of G){ const n=mul(seen[it],g), k=key(n); if(!set.has(k)){ set.add(k); seen.push(n); } }
+  return seen; }
+
+function sgPosteriorBelow(RGly,shells,probes){ const P=probes||[0.025,0.16,0.5,0.84,0.975], R=shells.map(s=>s.RcGly);
+  if(RGly<=R[0]) return {p:P[0], bound:'<'}; if(RGly>=R[R.length-1]) return {p:P[P.length-1], bound:'>'};
+  for(let i=0;i<R.length-1;i++) if(RGly<=R[i+1]){ const t=(Math.log(RGly)-Math.log(R[i]))/(Math.log(R[i+1])-Math.log(R[i])); return {p:P[i]+t*(P[i+1]-P[i]), bound:'='}; }
+  return {p:1, bound:'='}; }
+
+function cssBasis(c){ const a=Math.abs(c[2])<0.9?[0,0,1]:[1,0,0], e1=[c[1]*a[2]-c[2]*a[1], c[2]*a[0]-c[0]*a[2], c[0]*a[1]-c[1]*a[0]], l=Math.hypot(...e1);
+  const u=e1.map(v=>v/l), w=[c[1]*u[2]-c[2]*u[1], c[2]*u[0]-c[0]*u[2], c[0]*u[1]-c[1]*u[0]]; return [u,w]; }
+
+const CSS_TRIG=new Map();
+
+function cssTrig(n){ let t=CSS_TRIG.get(n); if(!t){ const c=new Float64Array(n), s=new Float64Array(n); for(let i=0;i<n;i++){ c[i]=Math.cos(2*Math.PI*i/n); s[i]=Math.sin(2*Math.PI*i/n); } t={c,s}; CSS_TRIG.set(n,t); } return t; }
+
+function cssCircle(T,c,alphaRad,n){ const [u,w]=cssBasis(c), ca=Math.cos(alphaRad), sa=Math.sin(alphaRad), out=new Float64Array(n), tr=cssTrig(n), p=[0,0,0];
+  for(let i=0;i<n;i++){ const cf=tr.c[i], sf=tr.s[i]; p[0]=ca*c[0]+sa*(cf*u[0]+sf*w[0]); p[1]=ca*c[1]+sa*(cf*u[1]+sf*w[1]); p[2]=ca*c[2]+sa*(cf*u[2]+sf*w[2]); out[i]=T(p); }
+  let m=0; for(let i=0;i<n;i++) m+=out[i]; m/=n; for(let i=0;i<n;i++) out[i]-=m;   /* the circle's own mean is not a match */
+  return out; }
+
+function cssMatch(t1,t2,mMin){ const n=t1.length, m0=Math.max(1,mMin|0), zr=Float64Array.from(t1), zi=Float64Array.from(t2), xr=new Float64Array(n), xi=new Float64Array(n), tr=cssTrig(n);
+  lssFFT1(zr,zi,0,1,n,false); let e=0;
+  for(let k=0;k<n;k++){ if(Math.min(k,n-k)<m0) continue; const j=(n-k)%n, Ar=(zr[k]+zr[j])/2, Ai=(zi[k]-zi[j])/2, Br=(zi[k]+zi[j])/2, Bi=-(zr[k]-zr[j])/2;
+    e+=Ar*Ar+Ai*Ai+Br*Br+Bi*Bi;
+    const c1r=Ar*Br+Ai*Bi, c1i=Ai*Br-Ar*Bi, pr=Ar*Br-Ai*Bi, pi=Ar*Bi+Ai*Br, c2r=pr*tr.c[k]+pi*tr.s[k], c2i=pi*tr.c[k]-pr*tr.s[k];
+    xr[k]=c1r-c2i; xi[k]=c1i+c2r; }
+  if(e<=0) return {S:0,psi:0,flip:false};
+  lssFFT1(xr,xi,0,1,n,true); let best={S:-Infinity,psi:0,flip:false};   /* Parseval: Σt² = Σ|A|²/n, and the inverse is unnormalised — the n's cancel */
+  for(let s=0;s<n;s++){ const a=2*xr[s]/e, b=2*xi[s]/e; if(a>best.S) best={S:a,psi:s*360/n,flip:false}; if(b>best.S) best={S:b,psi:s*360/n,flip:true}; }
+  return best; }
+
+const CSS_HP_DEG=15;
+
+function cssMMin(alphaRad,hpDeg){ return Math.max(1,Math.floor(360*Math.sin(alphaRad)/(hpDeg||CSS_HP_DEG))); }
+
+function cssDirections(N){ const out=[]; for(let i=0;i<N;i++){ const z=1-(i+0.5)/N, r=Math.sqrt(1-z*z), ph=i*2.399963229728653; out.push([r*Math.cos(ph), r*Math.sin(ph), z]); } return out; }
+
+function cssGridSampler(g,w,h){ const f=n=>{ const th=Math.acos(Math.max(-1,Math.min(1,n[2]))); let ph=Math.atan2(n[1],n[0]); if(ph<0) ph+=2*Math.PI;
+    const x=ph/(2*Math.PI)*w-0.5, y=Math.max(0,Math.min(h-1.0001,th/Math.PI*h-0.5)), i0=Math.floor(x), j0=Math.floor(y), fx=x-i0, fy=y-j0, I=k=>((k%w)+w)%w;
+    const a=g[j0*w+I(i0)], b=g[j0*w+I(i0+1)], c=g[(j0+1)*w+I(i0)], d=g[(j0+1)*w+I(i0+1)]; return (a*(1-fx)+b*fx)*(1-fy)+(c*(1-fx)+d*fx)*fy; };
+  f.grid=g; f.w=w; f.h=h; return f; }
+
+function cssGridSky(vals,W,H,box){ const w=W/box|0, h=H/box|0, g=new Float64Array(w*h);
+  for(let j=0;j<h;j++) for(let i=0;i<w;i++){ let s=0; for(let b=0;b<box;b++){ const row=(j*box+b)*W+i*box; for(let a=0;a<box;a++) s+=vals[row+a]; } g[j*w+i]=s/(box*box); }
+  return cssGridSampler(g,w,h); }
+
+function cssRasterize(T,w,h){ const g=new Float64Array(w*h); for(let j=0;j<h;j++){ const th=(j+0.5)/h*Math.PI, st=Math.sin(th), ct=Math.cos(th);
+    for(let i=0;i<w;i++){ const ph=(i+0.5)/w*2*Math.PI; g[j*w+i]=T([st*Math.cos(ph), st*Math.sin(ph), ct]); } } return cssGridSampler(g,w,h); }
+
+function cssRandomSky(seed,nWaves,lmax){ const rnd=mulberry(seed|0), W=[];
+  for(let i=0;i<nWaves;i++){ const z=2*rnd()-1, r=Math.sqrt(1-z*z), p=2*Math.PI*rnd(), l=2+rnd()*(lmax-2); W.push({k:[r*Math.cos(p)*l, r*Math.sin(p)*l, z*l], ph:2*Math.PI*rnd(), a:1/Math.sqrt(l)}); }
+  return n=>{ let s=0; for(const w of W) s+=w.a*Math.cos(w.k[0]*n[0]+w.k[1]*n[1]+w.k[2]*n[2]+w.ph); return s; }; }
+
+function cssInject(T,c,alphaDeg,psiDeg,deltaDeg){ const a=alphaDeg*Math.PI/180, psi=psiDeg*Math.PI/180, d=(deltaDeg||2.5)*Math.PI/180, m=[-c[0],-c[1],-c[2]], [u,w]=cssBasis(c), [u2,w2]=cssBasis(m);
+  return n=>{ const cosr=n[0]*m[0]+n[1]*m[1]+n[2]*m[2], r=Math.acos(Math.max(-1,Math.min(1,cosr))), off=Math.abs(r-a); if(off>d) return T(n);
+    const px=n[0]*u2[0]+n[1]*u2[1]+n[2]*u2[2], py=n[0]*w2[0]+n[1]*w2[1]+n[2]*w2[2], f=Math.atan2(py,px), g=-f+psi, ca=Math.cos(a), sa=Math.sin(a);
+    const src=[ca*c[0]+sa*(Math.cos(g)*u[0]+Math.sin(g)*w[0]), ca*c[1]+sa*(Math.cos(g)*u[1]+Math.sin(g)*w[1]), ca*c[2]+sa*(Math.cos(g)*u[2]+Math.sin(g)*w[2])];
+    const wgt=0.5*(1+Math.cos(Math.PI*off/d)); return wgt*T(src)+(1-wgt)*T(n); }; }
+
+function cssBestAt(T,aDeg,dirs,n){ const a=aDeg*Math.PI/180; let best={S:-Infinity, psi:0, flip:false, c:dirs[0]};
+  const mm=cssMMin(a); for(const c of dirs){ const m=cssMatch(cssCircle(T,c,a,n), cssCircle(T,[-c[0],-c[1],-c[2]],a,n), mm); if(m.S>best.S) best={...m, c}; }
+  return {alphaDeg:aDeg, ...best}; }
+
+function cssRefine(T,hit,n,stepDeg,steps,daDeg){ let best=hit; const [u,w]=cssBasis(hit.c), st=stepDeg*Math.PI/180, dA=daDeg||0.5;
+  for(let q=-2;q<=2;q++) for(let i=-steps;i<=steps;i++) for(let j=-steps;j<=steps;j++){ const da=q*dA, v=[hit.c[0]+st*(i*u[0]+j*w[0]), hit.c[1]+st*(i*u[1]+j*w[1]), hit.c[2]+st*(i*u[2]+j*w[2])], l=Math.hypot(...v), c=v.map(x=>x/l), a=(hit.alphaDeg+da)*Math.PI/180;
+    const m=cssMatch(cssCircle(T,c,a,n), cssCircle(T,[-c[0],-c[1],-c[2]],a,n), cssMMin(a)); if(m.S>best.S) best={...m, c, alphaDeg:hit.alphaDeg+da}; }
+  return best; }
+
+function cssExpected(id,RGly,chiGly){ const c=sgCircles(id,RGly,chiGly); if(!c.exists) return {exists:false, RmaxGly:c.RmaxGly};
+  return {exists:true, alphaDeg:c.alphaDeg, psiDeg:sgThetaMin(id)*180/Math.PI, RmaxGly:c.RmaxGly}; }
+
+function cssTopAt(T,aDeg,dirs,n,K){ const a=aDeg*Math.PI/180, top=[], mm=cssMMin(a);
+  for(const c of dirs){ const m=cssMatch(cssCircle(T,c,a,n), cssCircle(T,[-c[0],-c[1],-c[2]],a,n), mm);
+    if(top.length<K||m.S>top[top.length-1].S){ top.push({...m, c, alphaDeg:aDeg}); top.sort((x,y)=>y.S-x.S); if(top.length>K) top.pop(); } }
+  return top; }
+
+function cssSearch2(Tc,Tf,opt){ opt=opt||{}; const dirs=cssDirections(opt.nDir||3000), nc=opt.nc||128, nf=opt.nf||256, K=opt.K||6, out=[];
+  for(let a=(opt.a0||20); a<=(opt.a1||80)+1e-9; a+=(opt.da||3)){ let best=null;
+    for(const h of cssTopAt(Tc,a,dirs,nc,K)){ const r=cssRefine(Tf,h,nf,1,2); if(!best||r.S>best.S) best=r; }
+    out.push({...cssRefine(Tf,best,nf,0.35,2,0.25), alphaGrid:a}); }
+  return out; }
+
+function cssSearchGrid(T,opt){ opt=opt||{}; const dirs=cssDirections(opt.nDir||1500), n=opt.n||128, out=[];
+  for(let a=(opt.a0||10); a<=(opt.a1||88)+1e-9; a+=(opt.da||3)) out.push(cssBestAt(T,a,dirs,n)); return out; }
 
 function atlasRelGraph(rels){ const V=[...new Set(rels.flatMap(r=>[r[0],r[1]]))].sort(), ix=new Map(V.map((v,i)=>[v,i])), seen=new Map();
   for(const r of rels){ if(r[0]===r[1]) continue; const k=r[0]<r[1]?r[0]+'|'+r[1]:r[1]+'|'+r[0]; if(!seen.has(k)) seen.set(k,[ix.get(r[0]),ix.get(r[1]),[]]); seen.get(k)[2].push(r[2]); }
@@ -8721,6 +9092,9 @@ const NEXUS_RELATIONS=[
   ['bbh','gw','coupling','the same law, for the two holes this atlas holds','The gravitational-wave laboratory computes the inspiral of any pair; this one runs it for Sgr A* and M31* to the end, and adds the merger and the ringdown.','theorem'],
   ['bbh','bht','coupling','what the remnant is','The remnant is a Kerr hole of 1.44×10⁸ solar masses with spin 0.094; its temperature, area and lifetime are the thermodynamics laboratory\'s.','theorem'],
   ['bbh','bhr','representation','the holes, traced','The relativistic laboratory traces one Schwarzschild hole pixel by pixel; the two here are drawn at their true horizon sizes in units of the total mass.','theorem'],
+  ['s3gamma','su2','representation','which spins survive the identification','The Laplace modes of S³/Γ are the Γ-invariant vectors of the Spin(4) representations (k/2, k/2): the multiplicity is a character sum over Γ\u2019s conjugacy classes, and the Poincaré space keeps nothing between k = 0 and k = 12.','exact-representation'],
+  ['s3gamma','cmb','causal','the topology the sky would have to show','A space form leaves two fingerprints on the microwave sky: missing large-scale modes and matched circles; both are decided here against this atlas\u2019s own curvature posterior, which puts the Poincaré space\u2019s circles out of reach.','conditional-model'],
+  ['s3gamma','nsflow','representation','the same dictionary, for scalars and for fluids','The fluid\u2019s curl shells and the space forms\u2019 harmonics are read off the same Spin(4) representations: a flow on S³/Γ may only use the Γ-invariant parts of its shells.','exact-representation'],
   ['discover','tri','representation','the ledger of findings and the map of what reaches S³','The trisphere places every laboratory by its distance from S³; the explorer places every finding by its domain and joins those that share a laboratory — two maps of the same atlas, one of its structure and one of what it has learned.','exact-representation'],
   ['discover','lgmerge','coupling','a discovery that corrects the atlas','The explorer draws the Local Group\u2019s probable flyby as a revision of the atlas\u2019s own radial collision, linked in red: the ledger records not only what was found but what was unlearned.','model-input'],
   ['lgmerge','bbh','causal','the holes can merge only if the galaxies do','The last-merger laboratory follows Sgr A* and M31* from the gravitational-wave regime to the ringdown; whether that story happens at all is decided here, by the galaxies\u2019 orbit under dynamical friction — on today\u2019s data most futures are a flyby.','model-input'],
@@ -9542,5 +9916,5 @@ function hccReachCompose(sens,tran){
 }
 
 export {
-  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BBH_C, BBH_G, BBH_MSUN, BBH_YR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BH_GM_C2_MSUN_M, BH_MUAS, BH_SHADOW_K, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_CAMB, CMB_COLOR_RANGE_MUK, CMB_D0, CMB_LMAX, CMB_PLANCK_CMAP, CMB_T_EMIT, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, DIP_PATTERN_EXACT, DISCOVERIES, DISCOVERY_DOMAINS, DISCOVERY_LEADS, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, DT_COSMO, DT_HUBBLE_GYR_PER_KMSMPC, DT_T0_GYR, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EHT_RINGS, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GAL_RIDE, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_ERF, HCC_S3C, HCC_S3R, HCC_S3_GLY, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, KDV_STABLE_DT, KDV_STABLE_DTC, LAB_CLOCK_MAX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LGM_G, LGM_GAL, LGM_GC, LGM_GYR, LGM_LNL, LGM_M31, LGM_NGP, LGM_OBS, LGM_RCOAL, LG_C, LG_G, LG_G_KPC, LG_KPC_PER_KMS_YR, LG_MPC_M, LG_MSUN, LG_NUCLEUS, LG_YR_S, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOCAL_WEB_META, LOG10_PHI, LSS_A, LSS_BIAS, LSS_C, LSS_D1, LSS_DINF, LSS_PRIM, LSS_TWEB_TH, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, MPC_PER_GLY, NEXUS_RELATIONS, NSF_EM, NSF_EP, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3NS_CURL, S3NS_FRAME_L, S3NS_FRAME_R, S3NS_GRAM, S3NS_MONO, S3NS_SHELL, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, STAT_KMS, STAT_MG, TOPO_GENUS, TRI_ETA_CORE, TRI_ETA_MIN, TRI_ETA_STEP, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atlasBetti, atlasBusOrder, atlasFiedler, atlasJacobi, atlasLaplacian, atlasRelGraph, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bbhAOfTau, bbhBudget, bbhFgw, bbhParams, bbhPeakStrain, bbhPhase, bbhQNM, bbhRemnant, bbhTauOfA, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhShadowMicroarcsec, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bhtLum, bhtTH, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, burgersHopfCole, burgersShockHalfWidth, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbAcoustic, cmbCIE, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbD, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbPlanckColor, cmbPlanckianRGB, cmbPlanckianXYZ, cmbRecoverPure, cmbSigmaT, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, discoveryById, discoveryGraph, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, dtAgeGyrAtA, dtAgeGyrAtLnA, dtBlackHoleFate, dtCmbLog10K, dtLnA, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, galArmBand, galCircularVel, galFrameAngle, galHill, galLocalCurve, galOmegaR, galPolarState, galResonanceNumber, galResonanceR, galResonances, galRide, galRideEq, galRideHalo, galRingOf, galSunVel, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invSepBasis, invSepCoefLaw, invSepRational, invSepSubsets, invSepText, invSeparable, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lgDynFrictionYears, lgMergerTimeline, lgNucleusAt, lgRadialOrbit, lgSeparationAt, lgTiming, lgmAccel, lgmCross, lgmDot, lgmErf, lgmEvents, lgmGeometry, lgmHaloRho, lgmHaloSigma, lgmMonteCarlo, lgmNorm, lgmOrbit, lgmPotential, lgmSampleDisc, lgmStars, lgmTotalMass, lgmUnit, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, lssEig3, lssFFT1, lssFFT3, lssGrowth, lssGrowthRate, lssGrowthRaw, lssGrowthSeen, lssKIdx, lssNonlinearR, lssPower, lssRealize, lssRelief, lssReliefCensus, lssSample, lssSigma, lssSigma2Raw, lssStructureSpec, lssTopHat, lssTransfer, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsfExactMeans, nsfFacts, nsfKilling, nsfMake, nsfResidual, nsfResidualCurl, nsfShellPart, nsfStep, nsfUniform, nsfVelocity, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, ppCorrelationDimension, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, s3nsCarrierWeights, s3nsCovariant, s3nsCurlLevel, s3nsCurlMatrix, s3nsDot4, s3nsEps, s3nsEvalPoly, s3nsFieldDot, s3nsFrame, s3nsFrameDeriv, s3nsFrameVec, s3nsGammaHalf, s3nsGram, s3nsHarmonic, s3nsInvert, s3nsMono, s3nsMonoIntegral, s3nsNull, s3nsNumCurl, s3nsPolyDot, s3nsQAxis, s3nsQConj, s3nsQMul, s3nsShell, s3nsShellElement, s3nsTangentStep, s3nsVelocity, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spin4C, spin4Scalar, spin4Shell, spinFibrePure, spinHopfProject, spinRodrigues, statGalRow, statOortDerived, statOortEllipsoid, statOortFit, statOortPred, statOortRows, statOortSolve, statOortWave, statSolveN, statToGal, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoAllPairs, topoFibration, topoGenusField, topoHopfPair, topoHopfPts, topoLinkPure, topoMeshTopology, tovSolve, triFacts, triGeodesic, triHopf, triLayout, triPoint, triProject, triRotate, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, webLogGamma, webMST, webPairCounts, webPowerFit, webPrune, webR0At, webRandoms, webWp, webWpH, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BBH_C, BBH_G, BBH_MSUN, BBH_YR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BH_GM_C2_MSUN_M, BH_MUAS, BH_SHADOW_K, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_CAMB, CMB_COLOR_RANGE_MUK, CMB_D0, CMB_LMAX, CMB_PLANCK_CMAP, CMB_T_EMIT, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CSS_HP_DEG, CSS_TRIG, CT_COSMO, CT_EPOCHS, CT_T0, CT_TABLE, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, DIP_PATTERN_EXACT, DISCOVERIES, DISCOVERY_DOMAINS, DISCOVERY_LEADS, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, DT_COSMO, DT_HUBBLE_GYR_PER_KMSMPC, DT_T0_GYR, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EHT_RINGS, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GAL_RIDE, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_ERF, HCC_S3C, HCC_S3R, HCC_S3_GLY, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, KDV_STABLE_DT, KDV_STABLE_DTC, LAB_CLOCK_MAX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LGM_G, LGM_GAL, LGM_GC, LGM_GYR, LGM_LNL, LGM_M31, LGM_NGP, LGM_OBS, LGM_RCOAL, LG_C, LG_G, LG_G_KPC, LG_KPC_PER_KMS_YR, LG_MPC_M, LG_MSUN, LG_NUCLEUS, LG_YR_S, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOCAL_WEB_META, LOG10_PHI, LSS_A, LSS_BIAS, LSS_C, LSS_D1, LSS_DINF, LSS_PRIM, LSS_TWEB_TH, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, MPC_PER_GLY, NEXUS_RELATIONS, NSF_EM, NSF_EP, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_ATLAS, PHI_AUDIT_P, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3NS_CURL, S3NS_FRAME_L, S3NS_FRAME_R, S3NS_GRAM, S3NS_MONO, S3NS_SHELL, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SG_GROUPS, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, STAT_KMS, STAT_MG, TOPO_GENUS, TRI_ETA_CORE, TRI_ETA_MIN, TRI_ETA_STEP, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atlasBetti, atlasBusOrder, atlasFiedler, atlasJacobi, atlasLaplacian, atlasRelGraph, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bbhAOfTau, bbhBudget, bbhFgw, bbhParams, bbhPeakStrain, bbhPhase, bbhQNM, bbhRemnant, bbhTauOfA, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhShadowMicroarcsec, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bhtLum, bhtTH, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, burgersHopfCole, burgersShockHalfWidth, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbAcoustic, cmbCIE, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbD, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbPlanckColor, cmbPlanckianRGB, cmbPlanckianXYZ, cmbRecoverPure, cmbSigmaT, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cssBasis, cssBestAt, cssCircle, cssDirections, cssExpected, cssGridSampler, cssGridSky, cssInject, cssMMin, cssMatch, cssRandomSky, cssRasterize, cssRefine, cssSearch2, cssSearchGrid, cssTopAt, cssTrig, ctAgeOfZ, ctChiOfZ, ctColorAtChi, ctColorAtTime, ctE, ctEpochOfZ, ctInterp, ctSFR, ctTable, ctZOfChi, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, discoveryById, discoveryGraph, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, dtAgeGyrAtA, dtAgeGyrAtLnA, dtBlackHoleFate, dtCmbLog10K, dtLnA, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, galArmBand, galCircularVel, galFrameAngle, galHill, galLocalCurve, galOmegaR, galPolarState, galResonanceNumber, galResonanceR, galResonances, galRide, galRideEq, galRideHalo, galRingOf, galSunVel, gateAnalyse, gateRun, gateRunAll, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invSepBasis, invSepCoefLaw, invSepRational, invSepSubsets, invSepText, invSeparable, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lgDynFrictionYears, lgMergerTimeline, lgNucleusAt, lgRadialOrbit, lgSeparationAt, lgTiming, lgmAccel, lgmCross, lgmDot, lgmErf, lgmEvents, lgmGeometry, lgmHaloRho, lgmHaloSigma, lgmMonteCarlo, lgmNorm, lgmOrbit, lgmPotential, lgmSampleDisc, lgmStars, lgmTotalMass, lgmUnit, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, lssEig3, lssFFT1, lssFFT3, lssGrowth, lssGrowthRate, lssGrowthRaw, lssGrowthSeen, lssKIdx, lssNonlinearR, lssPower, lssRealize, lssRelief, lssReliefCensus, lssSample, lssSigma, lssSigma2Raw, lssStructureSpec, lssTopHat, lssTransfer, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsfExactMeans, nsfFacts, nsfKilling, nsfMake, nsfResidual, nsfResidualCurl, nsfShellPart, nsfStep, nsfUniform, nsfVelocity, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, phiAudit, phiAuditGauss, phiAuditLnB, phiAuditLogI0, phiAuditSigma, phiAuditWindows, phiAuditZ, phiLadderScales, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, ppCorrelationDimension, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, s3nsCarrierWeights, s3nsCovariant, s3nsCurlLevel, s3nsCurlMatrix, s3nsDot4, s3nsEps, s3nsEvalPoly, s3nsFieldDot, s3nsFrame, s3nsFrameDeriv, s3nsFrameVec, s3nsGammaHalf, s3nsGram, s3nsHarmonic, s3nsInvert, s3nsMono, s3nsMonoIntegral, s3nsNull, s3nsNumCurl, s3nsPolyDot, s3nsQAxis, s3nsQConj, s3nsQMul, s3nsShell, s3nsShellElement, s3nsTangentStep, s3nsVelocity, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, sgChi, sgCircles, sgFirstMode, sgGroup, sgInvariantDim, sgOrbit, sgPosteriorBelow, sgSpectrum, sgThetaMin, shNlm, shPlm, shY, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spin4C, spin4Scalar, spin4Shell, spinFibrePure, spinHopfProject, spinRodrigues, statGalRow, statOortDerived, statOortEllipsoid, statOortFit, statOortPred, statOortRows, statOortSolve, statOortWave, statSolveN, statToGal, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoAllPairs, topoFibration, topoGenusField, topoHopfPair, topoHopfPts, topoLinkPure, topoMeshTopology, tovSolve, triFacts, triGeodesic, triHopf, triLayout, triPoint, triProject, triRotate, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, webLogGamma, webMST, webPairCounts, webPowerFit, webPrune, webR0At, webRandoms, webWp, webWpH, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };
