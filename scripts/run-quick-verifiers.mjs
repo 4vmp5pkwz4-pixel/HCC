@@ -149,6 +149,7 @@ const allChecks = [
   "docs/verify-the-wiener-filter.cjs",
   "docs/verify-the-ghost-sky.cjs",
   "docs/verify-the-hypothesis-engine.cjs",
+  "docs/verify-the-reproducibility-tracks.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -357,6 +358,7 @@ if (fullMode) {
     'docs/verify-the-wiener-filter.cjs',
     'docs/verify-the-ghost-sky.cjs',
     'docs/verify-the-hypothesis-engine.cjs',
+    'docs/verify-the-reproducibility-tracks.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

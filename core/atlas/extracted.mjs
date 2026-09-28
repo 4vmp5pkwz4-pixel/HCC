@@ -4,8 +4,12 @@
    Editing this file instead of index.html would create the second copy the extractor
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
-   declarations: 1678   ·   exported names: 1804
-   extracted physics, sha256 0b3c26cb197bcdfd27cd953af639df8c90dda1fce4f694c22289be06930913fe */
+   declarations: 1706   ·   exported names: 1832
+   extracted physics, sha256 94fb4c3e65a54fb9fc2be038551891989a23bf02a3c220a392a0245de5dfb6b1 */
+
+const HCC_VERSION='4.336.0';
+
+const HCC_BUILD='seeing-through-the-mask-2026.09.28.53';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -373,7 +377,7 @@ function phiAudit(xs,opt){ opt={...PHI_AUDIT_P,...(opt||{})}; const P0=opt.P0, r
     pTail, pGlobalTail, sigmaLocal:phiAuditSigma(pTail), sigmaGlobal:phiAuditSigma(pGlobalTail), fiveSigma:pGlobalTail<2.87e-7, rank:obs.rank,
     ladder:pGlobalTail<2.87e-7&&obs.rank<=0.02, lumpy:pGlobalTail<2.87e-7&&obs.rank>0.02, naiveP:Math.exp(-obs.Z), lnBnull:mean(S.lnB), M:opt.M}; }
 
-function hypScales(){ const out=[]; for(const [grp,rows] of PHI_ATLAS) for(const r of rows) if(r[1]>0) out.push({name:r[0], L:r[1], group:grp}); return out; }
+function hypScales(){ const out=[]; for(const [grp,rows] of phiAtlasRows()) for(const r of rows) if(r[1]>0) out.push({name:r[0], L:r[1], group:grp}); return out; }
 
 function hypFind(q){ if(typeof q==='number') return {name:String(q), L:q, group:null}; const n=Number(q); if(isFinite(n)&&n>0) return {name:String(q), L:n, group:null};
   const S=hypScales(), t=String(q).trim().toLowerCase(); return S.find(x=>x.name.toLowerCase()===t)||S.find(x=>x.name.toLowerCase().startsWith(t))||S.find(x=>x.name.toLowerCase().includes(t))||null; }
@@ -392,7 +396,9 @@ function hypRatio(a,b,opt){ opt=opt||{}; const A=hypFind(a), B=hypFind(b); if(!A
   const verdictC=D.delta<=0.1&&survives===0?verdict+' — and it dies under every change of convention tried (radius ↔ diameter, π): a property of how the lengths were defined':verdict;
   return {a:A.name, b:B.name, ratio:r, N:D.N, n:D.n, delta:D.delta, precisionNeeded:D.delta*Math.log((1+Math.sqrt(5))/2), pPair, pairs, expectedAsClose:pPair*pairs, conventions:conv, survivesConventions:survives, family, verdict:verdictC}; }
 
-function phiLadderScales(){ const out=[]; for(const [,rows] of PHI_ATLAS) for(const r of rows) if(r[1]>0) out.push(Math.log(r[1])); return out; }
+function phiAtlasRows(){ void HCC_SCALE_RECONCILIATION; return PHI_ATLAS; }
+
+function phiLadderScales(){ const out=[]; for(const [,rows] of phiAtlasRows()) for(const r of rows) if(r[1]>0) out.push(Math.log(r[1])); return out; }
 
 const ZPF={
   HBAR:1.054571817e-34, C:2.99792458e8, G:6.67430e-11, KB:1.380649e-23,
@@ -999,6 +1005,23 @@ function cycleCommensurability(a,b,maxA=512){
     : `the periods differ by a factor of ${ratio.toExponential(2)}, beyond the ${maxA} this search considers: small-integer commensurability is not a meaningful question for this pair, and no number is reported rather than a number that means nothing`);
   return best;
 }
+
+const SCALE_REFS = [
+ [1.616e-35,'the Planck length'],[1e-18,'an electroweak distance'],[8.4e-16,'a proton'],
+ [5.3e-11,'a hydrogen atom'],[2e-9,'a DNA helix width'],[1e-7,'a virus'],[1e-5,'a living cell'],
+ [1e-3,'a grain of sand'],[1.7,'a human'],[300,'the Eiffel Tower'],[8848,'Mount Everest'],
+ [3.47e6,'the Moon'],[1.27e7,'the Earth'],[1.39e9,'the Sun'],[3.84e8,'the Earth–Moon distance'],
+ [7.5e9,'the Proxima Centauri b orbit'],[1.5e10,'the TRAPPIST-1 system'],
+ [1.5e11,'the Earth–Sun distance'],[5.9e12,'the Solar System (Pluto orbit)'],
+ [3.9e14,'the approximate Ton 618 Schwarzschild diameter'],
+ [9.46e15,'one light-year'],[3.8e16,'the Pillars of Creation'],[4.0e16,'the distance to Proxima Centauri'],
+ [9.5e17,'a stellar nursery'],[4.7e20,'the Milky Way'],[2.4e22,'the distance to Andromeda'],
+ [1.6e24,'the Virgo Supercluster'],[4.9e24,'the Laniakea Supercluster'],
+ [9.5e24,'the BOSS Great Wall'],[1.37e25,'the South Pole Wall'],[3.8e25,'the Huge-LQG quasar group'],
+ [4.4e26,'the observable Universe'],[S3.R*GLY_M,'the S³ curvature radius'],
+];
+
+const DEG = Math.PI/180;
 
 const LAB_DECLARATIONS=Object.freeze([
   {id:'tri', category:'hopf', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
@@ -1731,7 +1754,361 @@ function wfExperiment(opt){ const L=opt.L||64, C=opt.C, G=shtGrid(L), A=shtPixAr
   return {L, G:{nt:G.nt, np:G.np, x:Array.from(G.x)}, truth:tmap, data:d, mask, wf:W.map, resid, iter:W.iter, residual:W.residual, fskyWF:W.fsky, fsky, sigma2,
     corrIn:corr(p=>!mask[p]), corrOut:corr(p=>!!mask[p]), C:Array.from(C), pseudo:Array.from(pc), master:Array.from(master), naive:Array.from(naive), mcMaster:Array.from(mM), mcNaive:Array.from(mN), R}; }
 
+const C_DH_GLY = 299792.458/67.4/306.601;
+
 const MPC_PER_GLY = 306.601;
+
+function galacticRaDec(lDeg,bDeg){
+  const l=lDeg*DEG,b=bDeg*DEG,g=[Math.cos(b)*Math.cos(l),Math.cos(b)*Math.sin(l),Math.sin(b)];
+  const m=[[-.0548755604,.4941094279,-.8676661490],[-.8734370902,-.4448296300,-.1980763734],[-.4838350155,.7469822445,.4559837762]];
+  const e=m.map(r=>r[0]*g[0]+r[1]*g[1]+r[2]*g[2]);
+  let ra=Math.atan2(e[1],e[0])/DEG; if(ra<0) ra+=360;
+  return {ra,dec:Math.asin(e[2])*1/DEG};
+}
+
+const VELA_EQ=galacticRaDec(272.5,0);
+
+const DIPOLE_EQ=galacticRaDec(94,-16);
+
+const LOCALVOID_EQ=galacticRaDec(60,15);
+
+const GALAXIES=Object.freeze([
+  {key:'m31', name:'M31 · Andromeda Galaxy', ra:10.684708, dec:41.268750, dMly:2.537, size:0.00022, cz:-301, bound:true, type:'galaxy', morph:'SA(s)b', incl:77.5, pa:38.0, group:'Local Group',
+    col:0xaecbff, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(s)b · Local Group · 220 kly across · the nearest great spiral · Cepheid+TRGB 0.778 Mpc · approaching at 110 km/s'},
+  {key:'m33', name:'M33 · Triangulum Galaxy', ra:23.462100, dec:30.660175, dMly:2.73, size:6e-05, cz:-179, bound:true, type:'galaxy', morph:'SA(s)cd', incl:54.0, pa:23.0, group:'Local Group',
+    col:0x9fd8e8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(s)cd · Local Group · 60 kly across · third-largest Local Group member · water-maser proper motion ties it to M31'},
+  {key:'lmc', name:'Large Magellanic Cloud', ra:80.894200, dec:-69.756100, dMly:0.163, size:3.2e-05, cz:278, bound:true, type:'galaxy', morph:'SB(s)m', incl:34.7, pa:170.0, group:'Local Group',
+    col:0xffd8a0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SB(s)m · Local Group · 32 kly across · 49.6 kpc · the eclipsing-binary distance anchor of the cosmic ladder (1% precision)'},
+  {key:'smc', name:'Small Magellanic Cloud', ra:13.158300, dec:-72.800300, dMly:0.199, size:1.8e-05, cz:158, bound:true, type:'galaxy', morph:'SB(s)m pec', incl:51.0, pa:45.0, group:'Local Group',
+    col:0xffc890, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SB(s)m pec · Local Group · 18 kly across · 61 kpc · tidally distorted by the LMC; the Magellanic Stream trails both'},
+  {key:'m32', name:'M32 · NGC 221', ra:10.674250, dec:40.865169, dMly:2.65, size:8e-06, type:'galaxy', morph:'cE2', group:'Local Group',
+    col:0xd8c0a0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'cE2 · Local Group · 8 kly across · compact elliptical satellite of M31 · a stripped former disc galaxy'},
+  {key:'m110', name:'M110 · NGC 205', ra:10.091917, dec:41.685278, dMly:2.69, size:1.7e-05, type:'galaxy', morph:'E5 pec', group:'Local Group',
+    col:0xc8d0e0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'E5 pec · Local Group · 17 kly across · dwarf elliptical satellite of M31 with a young central population'},
+  {key:'ngc6822', name:'NGC 6822 · Barnard’s Galaxy', ra:296.234167, dec:-14.802778, dMly:1.63, size:7e-06, type:'galaxy', morph:'IB(s)m', group:'Local Group',
+    col:0xa8e0b8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'IB(s)m · Local Group · 7 kly across · Hubble’s 1925 proof that spiral nebulae lie outside the Milky Way began with its Cepheids'},
+  {key:'ic10', name:'IC 10', ra:5.072500, dec:59.291389, dMly:2.2, size:5e-06, type:'galaxy', morph:'dIrr', group:'Local Group',
+    col:0xffb8a0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dIrr · Local Group · 5 kly across · the only Local Group starburst · heavily reddened behind the Galactic plane'},
+  {key:'ic1613', name:'IC 1613', ra:16.199130, dec:2.117780, dMly:2.38, size:1e-05, type:'galaxy', morph:'IAB(s)m', group:'Local Group',
+    col:0xa8d8e0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'IAB(s)m · Local Group · 10 kly across · metal-poor irregular · a Cepheid and RR Lyrae calibrator'},
+  {key:'wlm', name:'WLM · DDO 221', ra:0.492500, dec:-15.461111, dMly:3.04, size:8e-06, type:'galaxy', morph:'IB(s)m', group:'Local Group',
+    col:0x98d0c0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'IB(s)m · Local Group · 8 kly across · Wolf–Lundmark–Melotte · an isolated Local Group irregular on the outskirts'},
+  {key:'ngc185', name:'NGC 185', ra:9.741583, dec:48.337222, dMly:2.05, size:8e-06, type:'galaxy', morph:'dE3 pec', group:'Local Group',
+    col:0xc0c8d8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dE3 pec · Local Group · 8 kly across · M31 satellite · a dwarf elliptical with a Seyfert-2 nucleus'},
+  {key:'ngc147', name:'NGC 147', ra:8.300417, dec:48.508750, dMly:2.53, size:1e-05, type:'galaxy', morph:'dE5 pec', group:'Local Group',
+    col:0xc8c0c8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dE5 pec · Local Group · 10 kly across · M31 satellite · bound pair with NGC 185'},
+  {key:'sagdeg', name:'Sagittarius Dwarf Spheroidal', ra:283.831250, dec:-30.545278, dMly:0.065, size:1e-05, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xe0b0d0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 10 kly across · being torn apart by the Milky Way · its tidal stream wraps the whole sky'},
+  {key:'fornaxdw', name:'Fornax Dwarf Spheroidal', ra:39.997083, dec:-34.449167, dMly:0.46, size:6e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xd0b8e0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 6 kly across · the most luminous Milky Way dwarf spheroidal · hosts six globular clusters'},
+  {key:'sculptordw', name:'Sculptor Dwarf Spheroidal', ra:15.039167, dec:-33.709167, dMly:0.29, size:3e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xd8c0e0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 3 kly across · the first dwarf spheroidal ever found (Shapley 1938)'},
+  {key:'dracodw', name:'Draco Dwarf', ra:260.051667, dec:57.915278, dMly:0.25, size:3e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xc0b0e0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 3 kly across · one of the most dark-matter-dominated galaxies known (M/L in the hundreds)'},
+  {key:'umidw', name:'Ursa Minor Dwarf', ra:227.285417, dec:67.222500, dMly:0.225, size:2e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xb8b0d8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 2 kly across · an ancient, purely old-population satellite'},
+  {key:'leo1', name:'Leo I', ra:152.117083, dec:12.306389, dMly:0.82, size:3e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xd8c8b0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 3 kly across · the most distant likely-bound Milky Way satellite · hosts a candidate central black hole'},
+  {key:'leo2', name:'Leo II', ra:168.370000, dec:22.151667, dMly:0.69, size:2e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xd0c0a8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 2 kly across · a quiet, old satellite beyond Leo I’s orbit'},
+  {key:'carinadw', name:'Carina Dwarf', ra:100.402917, dec:-50.966111, dMly:0.33, size:2e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xc8b8c0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 2 kly across · episodic star formation in a satellite that should have had none'},
+  {key:'sextansdw', name:'Sextans Dwarf', ra:153.262500, dec:-1.614722, dMly:0.28, size:4e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xc0b8b0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 4 kly across · very low surface brightness · found only in 1990 on photographic plates'},
+  {key:'phoenixdw', name:'Phoenix Dwarf', ra:27.776667, dec:-44.444722, dMly:1.44, size:2e-06, type:'galaxy', morph:'dIrr/dSph', group:'Local Group',
+    col:0xd8b8a0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dIrr/dSph · Local Group · 2 kly across · a transition-type dwarf: gas nearly gone, star formation nearly stopped'},
+  {key:'sagdig', name:'SagDIG · Sagittarius Dwarf Irregular', ra:292.495833, dec:-17.678056, dMly:3.39, size:4e-06, type:'galaxy', morph:'IB(s)m', group:'Local Group',
+    col:0xa0d0b0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'IB(s)m · Local Group · 4 kly across · among the most metal-poor Local Group galaxies · near the far edge of the group'},
+  {key:'tucanadw', name:'Tucana Dwarf', ra:340.456667, dec:-64.419444, dMly:3.2, size:3e-06, type:'galaxy', morph:'dSph', group:'Local Group',
+    col:0xc8c0d0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dSph · Local Group · 3 kly across · an isolated dwarf spheroidal at the Local Group boundary — no large host nearby'},
+  {key:'aquariusdw', name:'Aquarius Dwarf · DDO 210', ra:311.717500, dec:-12.847778, dMly:3.2, size:2e-06, type:'galaxy', morph:'dIrr', group:'Local Group',
+    col:0xa8c8c0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'dIrr · Local Group · 2 kly across · gas-rich and isolated on the far edge of the Local Group'},
+  {key:'ngc253', name:'NGC 253 · Sculptor Galaxy', ra:11.888060, dec:-25.288333, dMly:11.4, size:9e-05, cz:243, type:'galaxy', morph:'SAB(s)c', incl:76.0, pa:52.0, group:'nearby group / field',
+    col:0xffd0a0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SAB(s)c · nearby group / field · 90 kly across · the brightest member of the Sculptor Group · a nuclear starburst driving a superwind'},
+  {key:'m81', name:'M81 · Bode’s Galaxy', ra:148.888220, dec:69.065290, dMly:11.8, size:9e-05, cz:-34, type:'galaxy', morph:'SA(s)ab', incl:59.0, pa:157.0, group:'nearby group / field',
+    col:0xbfd8ff, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(s)ab · nearby group / field · 90 kly across · grand-design spiral anchoring the M81 Group · interacting with M82'},
+  {key:'m82', name:'M82 · Cigar Galaxy', ra:148.968460, dec:69.679700, dMly:11.5, size:3.7e-05, cz:203, type:'galaxy', morph:'I0 edge-on', incl:80.0, pa:65.0, group:'nearby group / field',
+    col:0xffb090, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'I0 edge-on · nearby group / field · 37 kly across · the archetypal starburst · a bipolar Hα superwind driven by the M81 encounter'},
+  {key:'cena', name:'Centaurus A · NGC 5128', ra:201.365063, dec:-43.019113, dMly:12.4, size:6e-05, cz:547, type:'galaxy', morph:'S0 pec', group:'nearby group / field',
+    col:0xffc0b0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'S0 pec · nearby group / field · 60 kly across · the nearest radio galaxy · a dust-lane merger remnant with a 5.5×10⁷ M☉ black hole'},
+  {key:'m83', name:'M83 · Southern Pinwheel', ra:204.253820, dec:-29.865761, dMly:14.7, size:5.5e-05, cz:513, type:'galaxy', morph:'SAB(s)c', incl:24.0, pa:45.0, group:'nearby group / field',
+    col:0x9fe0c0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SAB(s)c · nearby group / field · 55 kly across · a barred grand-design spiral with an exceptional supernova rate'},
+  {key:'m94', name:'M94 · NGC 4736', ra:192.721210, dec:41.120433, dMly:16.0, size:5e-05, cz:308, type:'galaxy', morph:'SA(r)ab', incl:35.0, pa:116.0, group:'nearby group / field',
+    col:0xd8d0a0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(r)ab · nearby group / field · 50 kly across · a bright inner starburst ring · anchor of the Canes Venatici I group'},
+  {key:'m64', name:'M64 · Black Eye Galaxy', ra:194.182083, dec:21.682917, dMly:17.0, size:5.4e-05, cz:408, type:'galaxy', morph:'SA(rs)ab', incl:60.0, pa:115.0, group:'nearby group / field',
+    col:0xc8b8a8, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(rs)ab · nearby group / field · 54 kly across · counter-rotating gas disc — the signature of an absorbed satellite'},
+  {key:'m106', name:'M106 · NGC 4258', ra:184.739583, dec:47.304000, dMly:23.5, size:0.000135, cz:448, type:'galaxy', morph:'SAB(s)bc', incl:67.0, pa:150.0, group:'nearby group / field',
+    col:0xb0d0e8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SAB(s)bc · nearby group / field · 135 kly across · its nuclear water megamaser gives a geometric distance independent of every rung above it'},
+  {key:'m101', name:'M101 · Pinwheel Galaxy', ra:210.802270, dec:54.348950, dMly:20.9, size:0.00017, cz:241, type:'galaxy', morph:'SAB(rs)cd', incl:18.0, pa:39.0, group:'nearby group / field',
+    col:0xc0e0ff, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SAB(rs)cd · nearby group / field · 170 kly across · a nearly face-on giant spiral · lopsided by past encounters'},
+  {key:'m51', name:'M51a · Whirlpool Galaxy', ra:202.469575, dec:47.195258, dMly:23.0, size:7.6e-05, cz:463, type:'galaxy', morph:'SA(s)bc pec', incl:22.0, pa:172.0, group:'nearby group / field',
+    col:0xb8d8f0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(s)bc pec · nearby group / field · 76 kly across · the first nebula seen to be spiral (Rosse 1845) · in collision with NGC 5195'},
+  {key:'m104', name:'M104 · Sombrero Galaxy', ra:189.997633, dec:-11.623056, dMly:29.3, size:5e-05, cz:1024, type:'galaxy', morph:'SA(s)a', incl:84.0, pa:90.0, group:'nearby group / field',
+    col:0xe8dcc0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'SA(s)a · nearby group / field · 50 kly across · an almost edge-on dust lane around an enormous bulge and halo of globular clusters'},
+  {key:'ngc1068', name:'NGC 1068 · M77', ra:40.669625, dec:-0.013294, dMly:47.0, size:0.00012, cz:1137, type:'galaxy', morph:'(R)SA(rs)b', incl:40.0, pa:70.0, group:'nearby group / field',
+    col:0xffc8d0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn disc as an image \u2014 it is the declared inclination and position angle rendered as an oriented exponential disc, not resolved photometry.'],
+    note:'(R)SA(rs)b · nearby group / field · 120 kly across · the archetypal Seyfert 2 · where the unified AGN model was tested by spectropolarimetry'},
+  {key:'ngc4038', name:'NGC 4038 · Antennae', ra:180.471250, dec:-18.868056, dMly:45.0, size:5e-05, cz:1642, type:'galaxy', morph:'SB(s)m pec', group:'nearby group / field',
+    col:0xffb0c0, srcTags:['ASTRO'], accuracyTier:'B', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'SB(s)m pec · nearby group / field · 50 kly across · a major merger caught in progress · tidal tails a hundred kiloparsecs long'},
+  {key:'m49', name:'M49 · NGC 4472', ra:187.444917, dec:8.000417, dMly:53.5, size:0.000157, cz:997, type:'galaxy', morph:'E2', group:'Virgo Cluster',
+    col:0xe0e0f0, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy\u2019s marker distance as its own measured distance \u2014 Virgo members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.','Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'E2 · Virgo Cluster · 157 kly across · the brightest Virgo galaxy · anchor of the southern Virgo subcluster'},
+  {key:'m84', name:'M84 · NGC 4374', ra:186.265637, dec:12.886983, dMly:53.5, size:0.000105, cz:1060, type:'galaxy', morph:'E1', group:'Virgo Cluster',
+    col:0xd8d8ec, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy\u2019s marker distance as its own measured distance \u2014 Virgo members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.','Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'E1 · Virgo Cluster · 105 kly across · a radio-loud elliptical in Markarian’s Chain near the Virgo core'},
+  {key:'m86', name:'M86 · NGC 4406', ra:186.549167, dec:12.946111, dMly:53.5, size:0.00012, cz:-244, type:'galaxy', morph:'S0', group:'Virgo Cluster',
+    col:0xd0d4e8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy\u2019s marker distance as its own measured distance \u2014 Virgo members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.','Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'S0 · Virgo Cluster · 120 kly across · falling through Virgo at 1500 km/s toward us — one of the few blueshifted Messier galaxies'},
+  {key:'m60', name:'M60 · NGC 4649', ra:190.916562, dec:11.552611, dMly:53.5, size:0.00012, cz:1117, type:'galaxy', morph:'E2', group:'Virgo Cluster',
+    col:0xdcd8e8, srcTags:['ASTRO'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy\u2019s marker distance as its own measured distance \u2014 Virgo members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.','Do not read the drawn spheroid as a measured shape \u2014 no disc inclination or position angle is declared for this object.'],
+    note:'E2 · Virgo Cluster · 120 kly across · a giant elliptical on the eastern Virgo edge, paired with NGC 4647'},
+]);
+
+const COSMOS = [
+  {key:'virgo',   name:'Virgo Cluster',         ra:186.63, dec: 12.72, dGly:0.054, size:0.013, type:'cluster',     col:0xbfe0ff, note:'nearest massive cluster · 16.5 Mpc'},
+  {key:'coma',    name:'Coma Cluster (Abell 1656)', ra:194.95, dec: 27.98, dGly:0.321, z:0.0231, size:0.020, type:'cluster', col:0xbfe0ff, srcTags:['LSS'], note:'Abell 1656 · z=0.0231 (NED) ≈ 100 Mpc / ~327 Mly — corrected from a prior 99 Mly that conflated Mpc and Mly'},
+  {key:'greatatt',name:'Great Attractor region',ra:243.55, dec:-60.84, dGly:0.22,  size:0.05,  type:'attractor',   col:0xff7a6a, reconstruction:true, note:'Norma / Hydra–Centaurus direction · streamline convergence is reconstruction- and smoothing-scale-dependent'},
+  {key:'laniakea',name:'Laniakea flow basin',   ra:200.0,  dec:-42.0,  dGly:0.16,  size:0.52,  type:'supercluster',col:0x9ad8a6, reconstruction:true, note:'2014 peculiar-velocity basin containing the Milky Way; CF4 gives slight probabilistic preference for inclusion in the larger Shapley basin'},
+  {key:'shapley', name:'Shapley concentration', ra:201.4,  dec:-31.0,  dGly:0.65,  size:0.25,  type:'supercluster',col:0xffd080, reconstruction:true, note:'major nearby mass concentration · large-scale streamline convergence candidate'},
+  {key:'vela',    name:'Vela concentration',    ra:VELA_EQ.ra,dec:VELA_EQ.dec,dGly:0.915, size:0.677, type:'supercluster',col:0xff9d70, reconstruction:true, galLon:272.5, galLat:0, note:'CF4++ 2026 hybrid reconstruction · double-core Vela concentration · 189 h⁻¹ Mpc distance · characteristic radius 70 h⁻¹ Mpc; displayed scale converts with h=0.674'},
+  {key:'sloan',   name:'Sloan Great Wall',      ra:195.0,  dec:  0.0,  z:0.073,    size:1.38,  type:'wall',        col:0xd0b0ff, note:'observed wall at z≈0.07–0.09 · ~1.38 Gly long; not identical to reconstructed Sloan-region basins of attraction'},
+  {key:'sloanboa',name:'Sloan Basin of Attraction',ra:195.0,dec:0.0,z:0.073,      size:1.89,  type:'supercluster',col:0x9f80d8, reconstruction:true, centroidKnown:false, srcTags:['FLOW'], note:'Pomarède et al. June 2026 probabilistic CF4 reconstruction · by far the largest basin in its study region · diameter ~0.13c; marker centre is an approximate display anchor'},
+  {key:'gr',      name:'Giant Ring field',      ra:220.0,  dec: 45.0,  z:0.802,    size:2.74,  type:'field',       col:0x7ef0c2, note:'Lopez & Clowes 2026 · 4.73σ · 840 Mpc; marker is display midpoint of the approximate Figure 9 RA/Dec bounds, not a measured centroid', centroidKnown:false},
+  {key:'ga',      name:'Giant Arc field',       ra:220.0,  dec: 45.0,  z:0.802,    size:3.07,  type:'field',       col:0xf1dda6, note:'Lopez+ 2022 · 4.5σ · 940 Mpc; exact catalogue centroid not encoded in the attached paper', centroidKnown:false},
+  {key:'br',      name:'Big Ring field',        ra:220.0,  dec: 45.0,  z:0.802,    size:1.31,  type:'field',       col:0x77b7ff, note:'Lopez+ 2024 · 4.10σ · 400 Mpc; exact catalogue centroid not encoded in the attached paper', centroidKnown:false},
+  {key:'hcb',     name:'Hercules–Corona Borealis GRB overdensity', ra:240.0, dec:40.0, z:1.9, size:10, type:'wall',col:0xff9de0, centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid. THIS STRUCTURE HAS NO CENTRE TO KNOW: it is a statistical excess of gamma-ray burst DIRECTIONS in a redshift slice, and a point process defined by a significance test has no centre of mass — the "centre" would be the centroid of whichever sample the test admitted.',
+      'Do not treat the overdensity as an established physical wall: the significance is sensitive to the trials factor and to the burst selection function.'],
+    note:'putative northern GRB overdensity · z≈1.6–2.1 · extent/physical-wall interpretation unresolved · the marker is a display anchor in the region of the excess, and no centroid is claimed because a point-process excess does not have one'},
+  // Additional well-known structures between local galaxies/clusters and the z≈0.802 giant complex (inter-galactic to supercluster scales)
+  {key:'perseus', name:'Perseus-Pisces Supercluster', ra:25.0, dec:35.0, dGly:0.23, size:0.18, type:'supercluster', col:0x9ad8ff, note:'major nearby filamentary supercluster · ~70 h⁻¹ Mpc'},
+  {key:'norma',   name:'Norma Cluster (ACO 3627)',   ra:243.9, dec:-60.9, dGly:0.22, size:0.02, type:'cluster', col:0xffa080, note:'the massive cluster at the heart of the Great Attractor region · ~68 Mpc, behind the Galactic plane'},
+  {key:'centaurus',name:'Centaurus Cluster (A3526)', ra:192.2, dec:-41.3, dGly:0.17, size:0.016, type:'cluster', col:0xbfe0ff, note:'nearest large cluster after Virgo · anchor of the Hydra–Centaurus complex'},
+  {key:'pavoindus',name:'Pavo–Indus Supercluster',   ra:315.0, dec:-60.0, dGly:0.235, size:0.10, type:'supercluster', col:0x9ad8a6, note:'southern neighbour supercluster · one wall of the Local Void'},
+  {key:'ophsc',   name:'Ophiuchus Supercluster',     ra:258.1, dec:-23.4, dGly:0.37, size:0.08, type:'supercluster', col:0xffc890, note:'hidden behind the Galactic bulge · hosts the Ophiuchus cluster (site of the most energetic known AGN outburst)'},
+  {key:'horret',  name:'Horologium–Reticulum Supercluster', ra:49.0, dec:-50.0, dGly:0.9, size:0.55, type:'supercluster', col:0xd0c0ff, note:'one of the most massive structures within 1 Gly · dozens of rich clusters'},
+  {key:'crbsc',   name:'Corona Borealis Supercluster', ra:232.0, dec:28.9, dGly:1.0, size:0.13, type:'supercluster', col:0xffd0b0, note:'compact, likely collapsing supercluster at z≈0.07'},
+  {key:'kbc',     name:'KBC / Local Hole (debated)', ra:0, dec:0, dGly:0.001, size:2.0, type:'void', col:0x6a78c0, reconstruction:true, centroidKnown:false, note:'Keenan–Barger–Cowie 2013: a proposed ~2 Gly-diameter local underdensity CENTRED NEAR US (drawn as the sphere around the observer) · amplitude and tension with ΛCDM remain debated'},
+  {key:'hercules',name:'Hercules Supercluster',     ra:240.0, dec:30.0, dGly:0.48, size:0.15, type:'supercluster', col:0xffb070, note:'rich supercluster complex · bridges toward the Sloan region'},
+  {key:'bootes',  name:'Bootes Supercluster',       ra:215.0, dec:25.0, dGly:0.31, size:0.12, type:'supercluster', col:0xd0b0ff, note:'prominent supercluster in the direction of the giant ring field'},
+  {key:'pcf',     name:'Pisces-Cetus Filament',     ra:30.0,  dec:-10.0, dGly:0.09, size:0.35, type:'wall',        col:0x8fb4d8, note:'one of the longest known nearby filaments · connects several superclusters'},
+  // ── Underdensities & dynamical repeller (the cosmic web is overdensity + void) ──
+  {key:'dipolerep', name:'Dipole Repeller',          ra:DIPOLE_EQ.ra, dec:DIPOLE_EQ.dec, dGly:0.68, size:0.49, type:'void', col:0x6a78c0, reconstruction:true, srcTags:['FLOW'], galLon:94, galLat:-16,
+    note:'Hoffman, Pomarède, Tully & Courtois 2017 (Nature Astronomy) · CF3 location l=94° b=−16°, ~14,000 km/s · a supervoid whose repulsion is closely anti-aligned (μ≈−0.99) with the Shapley attractor; together they drive ~half the Local Group CMB-dipole motion'},
+  {key:'localvoid', name:'Local Void',               ra:LOCALVOID_EQ.ra, dec:LOCALVOID_EQ.dec, dGly:0.08, size:0.15, type:'void', col:0x5f6a96, srcTags:['FLOW'], galLon:60, galLat:15, centroidKnown:false,
+    note:'Tully et al. · the large underdense region bounding the Local Group; the Milky Way sits on its expanding edge. Direction is an approximate bounding anchor (the void is extended and partly behind the Galactic plane)'},
+  {key:'bootesvoid', name:'Boötes Void',             ra:222.5, dec:46.0, z:0.052, size:0.33, type:'void', col:0x707aa8, srcTags:['LSS'],
+    note:'Kirshner, Oemler, Schechter & Shectman 1981 · one of the first great voids found · ~330 Mly diameter, centred ~700 Mly away, containing only ~60 known galaxies where ~2000 are expected'},
+  {key:'spw',     name:'South Pole Wall',            ra:0.0,   dec:-83.0, dGly:0.50, size:1.37, type:'wall', col:0xb8e0ff, reconstruction:true, srcTags:['FLOW'],
+    note:'Pomarède, Tully, Graziani, Courtois, Hoffman & Lezmy 2020 (ApJ 897 133) · CF3 peculiar-velocity reconstruction · density peak coincident with the celestial South Pole, cz≈12,000 km/s (~500 Mly) · extent ~0.11c, comparable to the Sloan Great Wall at half the distance'},
+  {key:'saraswati', name:'Saraswati Supercluster',   ra:354.4, dec:0.27, z:0.28, size:0.65, type:'wall', col:0xffc999, srcTags:['LSS'],
+    note:'Bagchi et al. 2017 (ApJ 844 25) · Stripe 82 (SDSS), direction of Pisces · wall-like, ≥200 Mpc across, ≥43 clusters, ~2×10¹⁶ M☉, core anchored on Abell 2631 (z=0.277)'},
+  {key:'quipu',   name:'Quipu superstructure',       ra:60.0,  dec:-5.0,  z:0.045, size:1.30, type:'wall', col:0xff6a8a, srcTags:['LSS'], centroidKnown:false,
+    note:'Böhringer, Chon, Trümper & Kraan-Korteweg 2025 (A&A; arXiv:2501.19236) · CLASSIX X-ray clusters, z=0.028–0.065 · ~428 Mpc long (~1.3 Gly), ~2×10¹⁷ M☉ — the largest local structure known to date. Marker is a display anchor near the filament mid-track (Pictor→Carina→Puppis→Columba→Lepus→Eridanus→Taurus→Triangulum→Perseus); not a 3D centroid'},
+  // ── THE STRUCTURES THE ATLAS COULD NAME BUT NOT POINT AT ────────────────────
+  // The scale comparator has called the Virgo Supercluster, the BOSS Great Wall and
+  // the Huge-LQG sizes since long before any of this, and the catalogue could not
+  // put a marker on one of them. A thing an atlas can name and cannot point at is
+  // a caption, not an object. These are placed at their published directions and
+  // redshifts, and the ones whose centroid is a field midpoint say so.
+  {key:'localsupercluster', name:'Virgo (Local) Supercluster', ra:186.63, dec:12.72, dGly:0.054, size:0.1076,
+    type:'supercluster', col:0x9fd8c0, srcTags:['ASTRO'], accuracyTier:'C', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read the drawn radius as a boundary — the Local Supercluster has no edge, and published diameters run from about 33 to 55 megaparsecs depending on the membership criterion.',
+      'Do not read our position relative to this sphere as settled: the atlas`s own numbers put us three parts in a thousand OUTSIDE it, which is a statement about two uncertain figures and not a discovery.'],
+    note:'de Vaucouleurs` Local Supercluster · centred on the Virgo Cluster, which is why the marker sits exactly where Virgo does · 33 Mpc across on the most-cited figure · we are near its edge, and the atlas`s own arithmetic puts us just outside it'},
+  {key:'localsheet', name:'Local Sheet', ra:186.63, dec:12.72, dGly:0.0, size:0.0326,
+    type:'wall', col:0x8fb8d8, srcTags:['FLOW'], accuracyTier:'D', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the drawn flattening as the measured orientation — this atlas`s wall grammar flattens every wall along one scene axis, and the Local Sheet lies in the supergalactic plane, which that grammar cannot express.',
+      'Do not read the marker position as a centroid: the Local Sheet contains us, and where its centre lies is not encoded here.'],
+    note:'Tully et al. 2008 · the flattened structure the Local Group sits inside, about 10 Mpc across and 1.5 Mpc thick, defining the Local Velocity Anomaly · drawn centred on the observer because that is where we are in it, and its orientation is NOT asserted'},
+  {key:'cfa2gw', name:'CfA2 Great Wall', ra:195.0, dec:28.0, dGly:0.20, size:0.50,
+    type:'wall', col:0xc0d8ff, srcTags:['LSS'], accuracyTier:'D', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid — the wall spans nine hours of right ascension and the anchor is a display midpoint.'],
+    note:'Geller & Huchra 1989 · the first structure found large enough to embarrass the surveys that found it · ~500 Mly long, 300 wide, 15 thick, at ~200 Mly · the Coma Cluster is its densest knot'},
+  {key:'bossgw', name:'BOSS Great Wall', ra:180.0, dec:23.0, z:0.47, size:1.00,
+    type:'wall', col:0xb0c8f0, srcTags:['LSS'], accuracyTier:'D', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid — the complex spans sixty degrees of right ascension and this is a display midpoint.',
+      'Do not treat the complex as one bound structure: it is a system of superclusters identified together, and whether it is dynamically one object is unresolved.'],
+    note:'Lietzen, Tempel, Liivamägi, Montero-Dorta et al. 2016 (A&A 588 L4) · SDSS-III BOSS · a complex of superclusters at z≈0.47 spanning about a gigalightyear · the scale comparator has quoted its size for releases and the catalogue could not point at it until now'},
+  {key:'hugelqg', name:'Huge-LQG (U1.27)', ra:164.0, dec:12.0, z:1.27, size:4.0443,
+    type:'field', col:0xd8b8ff, srcTags:['LSS'], accuracyTier:'D', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid — it is a display midpoint of the quasar group`s sky region.',
+      'Do not present the group as a proven physical structure: its significance, and whether a large quasar group traces one bound object at all, remain contested against the cosmological principle.'],
+    note:'Clowes, Harris, Raghunathan, Campusano, Söchting & Graham 2013 (MNRAS 429 2910) · 73 quasars at mean z=1.27 · characteristic size 500 Mpc, longest dimension 1240 Mpc · the largest structure claimed at the time and disputed ever since'},
+  {key:'cclqg', name:'Clowes–Campusano LQG (U1.28)', ra:161.75, dec:5.17, z:1.28, size:2.05,
+    type:'field', col:0xc8a8f0, srcTags:['LSS'], accuracyTier:'D', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid — it is a display midpoint of the group`s sky region.',
+      'Do not present the group as a proven physical structure.'],
+    note:'Clowes & Campusano 1991 · 34 quasars at z≈1.28, ~630 Mpc across · the neighbour of the Huge-LQG at nearly the same redshift, and the reason the pair is argued about together'},
+  {key:'hyperion', name:'Hyperion proto-supercluster', ra:150.1, dec:2.2, z:2.45, size:0.49,
+    type:'field', col:0xffb8d8, srcTags:['LSS'], accuracyTier:'C', catalogueStatus:'external-required', centroidKnown:false,
+    forbiddenClaims:['Do not read the marker as a centroid — the anchor is the COSMOS survey field, not a measured centre of mass.',
+      'Do not call it a supercluster: at z=2.45 it has not collapsed, and what is identified is an overdensity that may become one.'],
+    note:'Cucciati et al. 2018 (A&A 619 A49) · VIMOS Ultra-Deep Survey, COSMOS field · the largest and most massive proto-structure known at z>2, about 150 comoving Mpc across, still expanding with the Hubble flow'},
+  // ── Coma Cluster (Abell 1656) member galaxies — shown at the CLUSTER distance,
+  // not each member's redshift (intra-cluster peculiar velocities dominate). ──
+  // These three were typed 'cluster' until v4.213.0, and it was not a label
+  // problem. The containment census reads a cluster as a CONTAINER, so with
+  // NGC 4874 declared a cluster of half-extent 0.002 Gly and sitting 0.0006 Gly
+  // from the Coma centre, the census concluded that the Coma Cluster is inside
+  // NGC 4874. A galaxy is not a container, and the measurement is what proved
+  // the type wrong.
+  {key:'ngc4874', name:'NGC 4874 · Coma cD', ra:194.8988, dec:27.9594, dMly:321, z:0.02416, size:0.00026, morph:'cD · E0', group:'Coma Cluster', cz:7176, type:'galaxy', col:0xa8d4ff, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy’s marker distance as its own measured distance — Coma members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.',
+      'Do not read the drawn spheroid as a measured shape — no disc inclination or position angle is declared for this object.'],
+    note:'Central dominant (cD) galaxy near the Coma core · cz≈7176 km/s · enormous globular-cluster system · member of Abell 1656'},
+  {key:'ngc4889', name:'NGC 4889 · Coma brightest cD', ra:195.0337, dec:27.9770, dMly:321, z:0.02153, size:0.000239, morph:'E4', group:'Coma Cluster', cz:6495, type:'galaxy', col:0xbfe0ff, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy’s marker distance as its own measured distance — Coma members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.',
+      'Do not read the drawn spheroid as a measured shape — no disc inclination or position angle is declared for this object.'],
+    note:'Brightest Coma galaxy · cz≈6495 km/s · hosts one of the most massive measured black holes (~2×10¹⁰ M☉, McConnell+ 2011) · member of Abell 1656'},
+  {key:'ngc4911', name:'NGC 4911 · Coma spiral', ra:195.0479, dec:27.7903, dMly:321, z:0.02660, size:0.00013, morph:'SA(rs)bc', group:'Coma Cluster', cz:7976, type:'galaxy', col:0x9ad0c0, srcTags:['LSS'], accuracyTier:'A', catalogueStatus:'literature-derived',
+    forbiddenClaims:['Do not read this galaxy’s marker distance as its own measured distance — Coma members are drawn at the CLUSTER distance because intra-cluster peculiar velocities dominate their redshifts.',
+      'Do not read the drawn spheroid as a measured shape — no disc inclination or position angle is declared for this object.'],
+    note:'Gas-rich grand-design spiral on the Coma outskirts · cz≈7976 km/s · ram-pressure / tidal features · member of Abell 1656'},
+  // ── Nearby Void Atlas — constellation-named underdensities (approximate; direction
+  // follows the constellation, centroid/extent are survey- and void-finder-dependent). ──
+  {key:'fornaxvoid', name:'Fornax Void', ra:50.0, dec:-32.0, dGly:0.10, size:0.10, type:'void', col:0x5f6a96, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby southern underdensity toward Fornax · approximate atlas anchor; boundary depends on the galaxy survey and void-finder used'},
+  {key:'sculptorvoid', name:'Sculptor Void', ra:8.0, dec:-33.0, dGly:0.13, size:0.11, type:'void', col:0x646f9c, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Sculptor · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'capricornusvoid', name:'Capricornus Void', ra:315.0, dec:-18.0, dGly:0.16, size:0.12, type:'void', col:0x5a6794, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Capricornus · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'microscopiumvoid', name:'Microscopium Void', ra:318.0, dec:-36.0, dGly:0.18, size:0.12, type:'void', col:0x606ca0, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Microscopium · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'coronaborealisvoid', name:'Corona Borealis Void', ra:235.0, dec:30.0, dGly:0.22, size:0.13, type:'void', col:0x687398, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Underdensity toward Corona Borealis · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'canismajorvoid', name:'Canis Major Void', ra:105.0, dec:-22.0, dGly:0.12, size:0.11, type:'void', col:0x5c6896, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Canis Major · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'columbavoid', name:'Columba Void', ra:86.0, dec:-35.0, dGly:0.14, size:0.11, type:'void', col:0x626d9a, srcTags:['ASTRO'], centroidKnown:false,
+    forbiddenClaims:['Do not assert a hard void boundary or exact volume — nearby-void extents are survey- and definition-dependent.'],
+    note:'Nearby underdensity toward Columba · approximate atlas anchor; survey- and definition-dependent extent'},
+  {key:'eridanusvoid', name:'Eridanus Supervoid · Cold-Spot region', ra:49.0, dec:-19.0, z:0.16, size:0.55, type:'void', col:0x6a78c0, srcTags:['LSS'], centroidKnown:false,
+    forbiddenClaims:['Do not claim the supervoid definitively explains the CMB Cold Spot — the ISW association is debated.','Do not assert a precise void boundary.'],
+    note:'Szapudi et al. 2015 (MNRAS) · large supervoid toward the CMB Cold Spot (l≈209°, b≈−57°) · z≈0.15–0.25, radius ~100–150 Mpc · proposed (and debated) partial ISW contribution to the Cold Spot · the marker is the published DIRECTION anchor: a void`s centre is the position of a density minimum, and where that minimum sits moves with the smoothing scale and the void-finder, so no centroid is claimed'},
+  // ---- real compact objects: black holes, neutron stars, a supernova — exact J2000 directions;
+  // ---- for objects inside/near the Milky Way the radial offset at 1 unit = 1 Gly is far below
+  // ---- marker size, so the marker shows the true DIRECTION with the distance in the note.
+  {key:'sgrabh',  name:'Sgr A* — Milky Way SMBH',  ra:266.4168, dec:-29.0078, dGly:2.67e-5, size:0.02, type:'compact', col:0xd8c2ff, srcTags:['IAU'],
+    note:'4.15×10⁶ M☉ (GRAVITY 2019; EHT 2022 image) · 8.18 kpc · J2000 direction exact — coincides with the atlas\u2019 IAU Sgr A* axis · thermodynamics live in the Black-hole lab (Sgr A* preset)'},
+  {key:'m87bh',   name:'M87* — EHT black hole',    ra:187.7059, dec: 12.3911, dGly:0.0548,  size:0.02, type:'compact', col:0xd8c2ff, srcTags:['LSS'],
+    note:'6.5×10⁹ M☉ (EHT 2019, first horizon image) · 16.8 Mpc · sits INSIDE the Virgo Cluster marker — M87 is Virgo\u2019s central galaxy (3D offset here 0.0013 Gly, real and correct)'},
+  {key:'ton618bh',name:'TON 618 — ultramassive BH',ra:187.1040, dec: 31.4770, z:2.219,      size:0.05, type:'compact', col:0xc9a8ff, srcTags:['LSS'],
+    note:'~4–66×10¹⁰ M☉ (mass method-dependent; declared) · z=2.219 quasar → comoving distance from the atlas\u2019 own E(z) integrator · its horizon scale is a preset of the Black-hole lab and a rung of the φ-ladder'},
+  {key:'cygx1',   name:'Cygnus X-1 — first stellar BH', ra:299.5903, dec:35.2016, dGly:7.24e-6, size:0.015, type:'compact', col:0xb8d0ff, srcTags:['LSS'],
+    note:'21.2 M☉ black hole + O-supergiant (Miller-Jones 2021 VLBI: 2.22 kpc) · the 1964 X-ray source that settled the Thorne–Hawking bet · direction exact; inside the Milky Way at this scale'},
+  {key:'crabpsr', name:'Crab Pulsar (PSR B0531+21)', ra:83.6332, dec:22.0145, dGly:6.52e-6, size:0.015, type:'compact', col:0x8fe0ff, srcTags:['ASTRO'],
+    note:'P=33.4 ms, spun by the SN of 1054 AD · 2.0 kpc · its B, age and spin-down power are the live Crab preset of the Pulsar lab (3.8×10¹² G, ~1.3 kyr, 4.5×10³⁸ erg/s)'},
+  {key:'sn1987a', name:'SN 1987A (LMC)',           ra:83.8667, dec:-69.2697, dGly:1.68e-4, size:0.015, type:'compact', col:0xffb060, srcTags:['ASTRO'],
+    note:'the nearest modern supernova (23 Feb 1987, LMC, 51.4 kpc) · the Supernova lab opens its declared ⁵⁶Co-tail/remnant reference; it is not a calibrated reconstruction of the early shock-cooling or recombination light curve · neutrinos arrived hours before the optical light'},
+  {key:'j0740ns', name:'PSR J0740+6620 — 2.08 M☉ NS', ra:115.1919, dec:66.3421, dGly:3.72e-6, size:0.015, type:'compact', col:0x9fe8d8, srcTags:['ASTRO'],
+    note:'the most massive precisely-measured neutron star (2.08±0.07 M☉, Fonseca 2021 · NICER radius ~12.4 km) · 1.14 kpc · ABOVE the toy-EOS TOV maximum in the Neutron-star lab — the observational proof real nuclear matter is stiffer (declared there)'},
+  // Nature 2026 JWST little-red-dot black-hole seed — a single high-z AGN, NOT a large-scale structure.
+  {key:'a2744_qso1', name:'Abell 2744−QSO1 / Little Red Dot BH Seed', ra:3.5798375, dec:-30.4015733, z:7.04,
+    size:0.01, type:'high-z AGN / little red dot / black-hole seed', col:0xff8a5c, srcTags:['JWST_LRD'],
+    accuracyTier:'A', catalogueStatus:'literature-derived',
+    dataProvenance:{
+      jwstProgramId:'5015',
+      jwstInstrument:'NIRSpec IFU',
+      mastPortalUrl:'https://mast.stsci.edu/portal/Mashup/Clients/Mast/Portal.html',
+      mastSearchHint:'JWST Program ID 5015; Instrument NIRSpec; RA 00:14:19.161; Dec -30:24:05.664',
+      dataAccess:'MAST Portal / MAST API; metadata only in browser runtime',
+      reducedProducts:'Zenodo reduced products; do not embed FITS cubes',
+      modellingCode:'MOKA3D',
+      natureArticleDoi:'10.1038/s41586-026-10579-4'},
+    forbiddenClaims:[
+      'Do not treat as a large-scale structure.',
+      'Do not infer topology from this object.',
+      'Do not claim primordial black-hole proof.',
+      'Do not convert lensed image-plane morphology into source-plane morphology without lens model.',
+      'Do not load FITS cubes directly in browser runtime.'],
+    note:'Juodžbalis et al. 2026 (Nature); JWST/NIRSpec IFU; z=7.04; MOKA3D direct dynamical log(MBH/Msun)=7.7±0.3; strongly lensed image A; programme ID 5015'},
+  ...GALAXIES,
+];
 
 const LSS_PRIM=Object.freeze({ns:0.9649, sigma8:0.8111, source:'Planck 2018 VI, TT,TE,EE+lowE+lensing'});
 
@@ -6721,14 +7098,18 @@ const DISCOVERIES=Object.freeze([
    en:'The ghost sky: the Milky Way seen again, if space were S³/Γ', ru:'Небо призраков: Млечный Путь, видимый снова, будь пространство S³/Γ', de:'Der Geisterhimmel: die Milchstraße noch einmal',
    claim:'Light in S³ runs on great circles, so the sky of S³/Γ is computed in closed form: every catalogue structure q and its images g·q, each at R·arccos(Re g·q), seen at its own epoch. The observer\u2019s own images are the group — for the Poincaré space 12 Milky Ways at 36°·R, 20 at 60°, 12 at 72°, 30 at 90° … — and they enter the light horizon exactly when R < χ_LSS/θ_min = 71.8 Gly, half the radius (143.6) at which matched circles appear: circles can exist in a universe whose ghosts are all hidden, never the reverse.',
    numbers:{RghostPDS:71.81, RcirclesPDS:143.62}},
+  {id:'twoHosts', kind:'revises', domain:'self', v:'4.337.0', labs:['discover','rungs'], verifier:'docs/verify-the-reproducibility-tracks.cjs',
+   en:'The first replay on two hosts caught the atlas disagreeing with itself', ru:'Первое воспроизведение на двух хостах поймало атлас на расхождении с самим собой', de:'Die erste Wiedergabe auf zwei Hosts fing den Atlas beim Widerspruch mit sich selbst',
+   claim:'A reproducibility track sealed in Node and replayed in the page broke at once: the φ-ladder audit gave Z(ln φ) = 1.855 in the extracted core and 2.048 in the atlas. The page derives a dozen ladder rows at load from its own authorities (S³ radius, Hubble radius, the catalogue\u2019s extents — Laniakea was a radius written for a diameter), the core had been reading the typed literals, and the extractor could not have carried the derivation anyway: it read ...GALAXIES as a member access. Both repaired; the two hosts now agree on all 113 scales and on the fingerprint, and the published numbers moved (p = 0.15 → 0.13). The verdict did not: the ladder stays a coordinate.',
+   numbers:{Zcore:1.855, Zpage:2.048, rows:113}},
   {id:'wiener', kind:'confirms', domain:'cosmo', v:'4.336.0', labs:['cmb','sh'], verifier:'docs/verify-the-wiener-filter.cjs',
    en:'Seeing the sky through its mask: the Wiener filter and the MASTER spectrum', ru:'Видеть небо сквозь маску: фильтр Винера и спектр MASTER', de:'Den Himmel durch die Maske sehen: Wiener-Filter und MASTER',
    claim:'On an exact Gauss–Legendre transform (round trip to 10⁻¹³), the Wiener filter solved by preconditioned conjugate gradients is the textbook C/(C+N)·a_obs to 10⁻¹⁵ on the full sky; masked, its error is uncorrelated with it over many skies (ρ = 0.001, the orthogonality principle of a posterior mean) while the naive cut-sky estimate\u2019s is not (ρ = −0.71), and it paints the holes with the large scales (correlation ≈ 0.5 inside the mask). The MASTER coupling is exact — columns built through the apodised mask equal the 3j formula to 3×10⁻¹⁵ — and over 300 masked skies MASTER is unbiased (χ²/dof 1.14) while dividing by f_sky is not (21.4; ℓ = 2, 3 read 24% low).',
    numbers:{rho:0.0012, chiMaster:1.14, chiNaive:21.4}},
   {id:'phiAudit', kind:'tested', domain:'self', v:'4.335.0', labs:['rungs'], verifier:'docs/verify-the-ladder-audit.cjs',
    en:'The golden ladder, audited against the catalogue itself — with the trap it nearly fell into', ru:'Золотая лестница, проверенная против самого каталога, — и ловушка, в которую она чуть не попала', de:'Die goldene Leiter, gegen den Katalog selbst geprüft — mit der Falle',
-   claim:'Two controls, both required. First, smoothed surrogates of the catalogue itself (not uniform phases), with the look-elsewhere effect over every period 0.30–0.72, a tail extrapolation to 5σ, Morlet windows along the ladder and a calibrated Bayes factor. Second, the rank of ln φ among the periods of the same data — because the smoothed null erases every structure narrower than ln φ, periodic or not, and a catalogue piled into narrow bands by its selection beats it at any period. A planted ladder passes both (12.9σ, rank 0); a banded, non-periodic sample passes the first at 6.4σ and fails the second (rank 70%) and is declared lumpy. The atlas\u2019s 113 literature scales: Z(ln φ) = 1.86, p = 0.15 (≈ 1σ), ln B = −2.7 against −3.3. In the page, the 5 959 quasars beat the smoothed catalogue at 6.2σ yet ln φ ranks at 43% of the periods — selection, not a golden ladder. φ does not stand out: the ladder is a coordinate.',
-   numbers:{Z:1.86, pLocal:0.15, lnB:-2.72, quasarRank:0.43}},
+   claim:'Two controls, both required. First, smoothed surrogates of the catalogue itself (not uniform phases), with the look-elsewhere effect over every period 0.30–0.72, a tail extrapolation to 5σ, Morlet windows along the ladder and a calibrated Bayes factor. Second, the rank of ln φ among the periods of the same data — because the smoothed null erases every structure narrower than ln φ, periodic or not, and a catalogue piled into narrow bands by its selection beats it at any period. A planted ladder passes both (12.9σ, rank 0); a banded, non-periodic sample passes the first at 6.4σ and fails the second (rank 70%) and is declared lumpy. The atlas\u2019s 113 literature scales (as the page reconciles them): Z(ln φ) = 2.05, p = 0.13 (≈ 1σ), ln B = −2.6 against −3.3. In the page, the 5 959 quasars beat the smoothed catalogue at 6.2σ yet ln φ ranks at 43% of the periods — selection, not a golden ladder. φ does not stand out: the ladder is a coordinate.',
+   numbers:{Z:2.048, pLocal:0.129, lnB:-2.58, quasarRank:0.43}},
   {id:'burgers', kind:'found', domain:'flow', v:'4.331.0', labs:['cosmicweb','nsflow'], verifier:'docs/verify-the-web-has-relief.cjs',
    en:'The cosmic web is Navier–Stokes without pressure', ru:'Космическая паутина — это Навье–Стокс без давления', de:'Das kosmische Netz ist Navier–Stokes ohne Druck',
    claim:'The Zel’dovich map is the inviscid limit of Burgers’ equation, solved exactly by Hopf–Cole: before shell crossing the two agree to 1.2×10⁻⁴; after it Burgers’ Lagrangian map jumps from −q_s to q_s with q_s = t sin q_s, exactly where the three Zel’dovich streams meet — the shock holds the matter they share (60% at t = 2).',
@@ -6815,6 +7196,70 @@ const DISCOVERY_LEADS=Object.freeze([
   {id:'burgers-3d', en:'Adhesion in three dimensions', step:'replace the Zel’dovich particles in the relief by the 3-D adhesion model (Hopf–Cole on the grid) so the walls stop passing through each other', about:'burgers'}]);
 
 function discoveryById(id){ return DISCOVERIES.find(d=>d.id===id)||null; }
+
+const TRACK_SCHEMA='hcc.track/1';
+
+const TRACK_OPS=Object.freeze({
+  'cosmic.chi':{doc:'comoving distance to redshift z (Gly), the atlas chain with radiation', run:a=>({chiGly:ctChiOfZ(+a.z)})},
+  'cosmic.t0':{doc:'the age of the universe (Gyr) on the atlas chain', run:()=>({t0Gyr:CT_T0()})},
+  'cmb.camb':{doc:'what the Boltzmann code (CAMB) says: distance to last scattering (Gly) and the age (Gyr)', run:()=>({DAstarGly:CMB_CAMB.meta.derived.DAstar*3.2615637771674333, ageGyr:CMB_CAMB.meta.derived.age})},
+  'cmb.acoustic':{doc:'the acoustic scale ℓ_A = π/θ*', run:()=>{ const A=cmbAcoustic(); return {lA:A.lA, thetaStarDeg:A.thetaStarDeg}; }},
+  'cmb.sigmaT':{doc:'rms of the CMB sky through a Gaussian beam (μK)', run:a=>({sigmaT:cmbSigmaT(+a.fwhmArcmin||5)})},
+  'lss.dinf':{doc:'the asymptotic growth factor D∞ of ΛCDM', run:()=>({Dinf:LSS_DINF})},
+  'space.firstMode':{doc:'the lowest Laplace mode k > 0 surviving on S³/Γ', run:a=>({k:sgFirstMode(String(a.id))})},
+  'space.circles':{doc:'the radius below which S³/Γ shows matched circles (Gly)', run:a=>{ const c=sgCircles(String(a.id),+a.R||100,ctChiOfZ(1089.89)); return {RmaxGly:c.RmaxGly}; }},
+  'ghost.rmax':{doc:'the radius below which the observer’s own images enter the horizon (Gly)', run:a=>({RmaxGly:ghostRmax(String(a.id),ctChiOfZ(1089.89))})},
+  'ghost.self':{doc:'the observer’s images: angles (deg) and multiplicities', run:a=>({classes:ghostSelfDistances(String(a.id),1).map(x=>[Math.round(x.deg*1e6)/1e6,x.n])})},
+  'bbh.budget':{doc:'a black-hole merger from two masses: η, radiated fraction, final spin, recoil (km/s)', run:a=>{ const B=bbhBudget(+a.m1,+a.m2); return {eta:B.eta, Erad:B.Erad, af:B.af, vkick:B.vkick}; }},
+  'phi.audit':{doc:'the φ-ladder auditor on the 113 literature scales', run:a=>{ const R=phiAudit(phiLadderScales(),{M:Math.min(400,+a.M||200)}); return {K:R.K, Z:R.obs.Z, pLocal:R.pLocal, rank:R.rank, lnB:R.obs.lnB, fiveSigma:R.fiveSigma?1:0}; }},
+  'hyp.ratio':{doc:'a coincidence as a hypothesis: log_φ of a ratio, its rung distance, the catalogue null', run:a=>{ const r=hypRatio(String(a.a),String(a.b),{family:false}); return r.error?{error:r.error}:{N:r.N, delta:r.delta, pPair:r.pPair, survives:r.survivesConventions}; }},
+  'atlas.betti':{doc:'the relation graph of the atlas: components and first Betti number', run:()=>{ const B=atlasBetti(atlasRelGraph(NEXUS_RELATIONS.map(r=>[r.a??r[0],r.b??r[1],r.type??r[2]]))); return {b0:B.b0, b1:B.b1, V:B.V, E:B.E}; }},
+  'wf.experiment':{doc:'the Wiener filter and MASTER on a masked CAMB sky (L ≤ 48)', run:a=>{ const L=Math.max(8,Math.min(48,+a.L||24)), C=new Array(L+1).fill(0); for(let l=2;l<=L;l++) C[l]=2*Math.PI*cmbD(l,'TT')/(l*(l+1));
+    const E=wfExperiment({L, C, seed:+a.seed||3, bDeg:+a.bDeg||20, lN:+a.lN||Math.round(0.7*L), R:0, holes:[]}); return {iter:E.iter, fsky:E.fsky, corrIn:E.corrIn, corrOut:E.corrOut}; }}});
+
+function trackCanon(v){ if(typeof v==='number') return isFinite(v)?Number(v.toPrecision(8)).toString():String(v); if(v===null||typeof v!=='object') return JSON.stringify(v);
+  if(Array.isArray(v)) return '['+v.map(trackCanon).join(',')+']'; return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+trackCanon(v[k])).join(',')+'}'; }
+
+function trackFingerprint(outputs){ const s=trackCanon(outputs); let h=0x811c9dc5; for(let i=0;i<s.length;i++){ h^=s.charCodeAt(i); h=Math.imul(h,0x01000193)>>>0; } return h.toString(16).padStart(8,'0'); }
+
+function trackEncode(t){ const b=new TextEncoder().encode(JSON.stringify(t)); let s=''; for(const x of b) s+=String.fromCharCode(x); return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+
+function trackDecode(str){ let s=String(str||'').trim(); const i=s.indexOf('track='); if(i>=0) s=s.slice(i+6); s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='=';
+  const bin=atob(s), b=new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) b[k]=bin.charCodeAt(k); const t=JSON.parse(new TextDecoder().decode(b));
+  if(!t||t.schema!==TRACK_SCHEMA||!Array.isArray(t.steps)) throw new Error('not a '+TRACK_SCHEMA+' track'); return t; }
+
+function trackRun(t){ const out=[], results=[]; let ok=true;
+  for(let i=0;i<t.steps.length;i++){ const st=t.steps[i];
+    if(st.op!=='call'){ out.push({i, op:st.op, screen:true}); continue; }
+    const O=Object.prototype.hasOwnProperty.call(TRACK_OPS,st.fn)?TRACK_OPS[st.fn]:null;
+    if(!O){ ok=false; out.push({i, op:'call', fn:st.fn, ok:false, err:'unknown operation — a track may only call TRACK_OPS'}); continue; }
+    let got; try{ got=O.run(st.args&&typeof st.args==='object'?JSON.parse(JSON.stringify(st.args)):{}); }catch(e){ ok=false; out.push({i, op:'call', fn:st.fn, ok:false, err:String(e&&e.message||e)}); continue; }
+    results.push({fn:st.fn, got}); const checks=[];
+    for(const [k,e] of Object.entries(st.expect||{})){ const g=got[k], v=e&&typeof e==='object'&&'value' in e?e.value:e, tol=e&&typeof e==='object'&&'tol' in e?+e.tol:0;
+      const pass=typeof v==='number'?(typeof g==='number'&&Math.abs(g-v)<=tol+1e-12*Math.abs(v)):trackCanon(g)===trackCanon(v); checks.push({key:k, got:g, want:v, tol, pass}); if(!pass) ok=false; }
+    out.push({i, op:'call', fn:st.fn, ok:checks.every(c=>c.pass), got, checks}); }
+  const fp=trackFingerprint(results); return {ok, steps:out, fingerprint:fp, fingerprintMatch:t.fingerprint?t.fingerprint===fp:null}; }
+
+const DISCOVERY_TRACKS=Object.freeze({
+  ghostSky:[{op:'nav', world:'s3', lab:'s3gamma'},{op:'state', set:{sgId:'Istar', sgR:57}},
+    {op:'call', fn:'ghost.rmax', args:{id:'Istar'}, expect:{RmaxGly:{value:71.81, tol:0.01}}},{op:'call', fn:'space.circles', args:{id:'Istar'}, expect:{RmaxGly:{value:143.62, tol:0.01}}},
+    {op:'call', fn:'ghost.self', args:{id:'Istar'}, expect:{classes:[[0,1],[36,12],[60,20],[72,12],[90,30],[108,12],[120,20],[144,12],[180,1]]}}],
+  pdsSpectrum:[{op:'nav', world:'s3', lab:'s3gamma'},{op:'call', fn:'space.firstMode', args:{id:'Istar'}, expect:{k:12}},{op:'call', fn:'space.firstMode', args:{id:'Ostar'}, expect:{k:8}},{op:'call', fn:'space.firstMode', args:{id:'Tstar'}, expect:{k:6}}],
+  pdsHidden:[{op:'nav', world:'s3', lab:'s3gamma'},{op:'call', fn:'space.circles', args:{id:'Istar'}, expect:{RmaxGly:{value:143.6, tol:0.1}}}],
+  epochChain:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'cosmic.chi', args:{z:1089.9}, expect:{chiGly:{value:45.121, tol:0.005}}},{op:'call', fn:'cmb.camb', expect:{DAstarGly:{value:45.133, tol:0.005}}}],
+  age:[{op:'nav', world:'s3', lab:'cosmo'},{op:'call', fn:'cosmic.t0', expect:{t0Gyr:{value:13.7069, tol:0.001}}},{op:'call', fn:'cmb.camb', expect:{ageGyr:{value:13.70716, tol:0.0001}}}],
+  eett:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'cmb.acoustic', expect:{lA:{value:300.87, tol:0.01}}}],
+  sigmat:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'cmb.sigmaT', args:{fwhmArcmin:5}, expect:{sigmaT:{value:109.331, tol:0.001}}}],
+  dinf:[{op:'nav', world:'s3', lab:'cosmicweb'},{op:'call', fn:'lss.dinf', expect:{Dinf:{value:1.396767, tol:1e-6}}}],
+  bbhend:[{op:'nav', world:'s3', lab:'bbh'},{op:'call', fn:'bbh.budget', args:{m1:4.15e6, m2:1.4e8}, expect:{eta:{value:0.02796, tol:1e-5}, vkick:{value:8.6, tol:0.05}}}],
+  twoHosts:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, Z:{value:2.0478, tol:0.0005}}}],
+  phiAudit:[{op:'nav', world:'s3', lab:'rungs'},{op:'call', fn:'phi.audit', args:{M:200}, expect:{K:113, fiveSigma:0, Z:{value:2.0478, tol:0.0005}}},
+    {op:'call', fn:'hyp.ratio', args:{a:'Proton charge radius', b:'Bohr'}, expect:{delta:{value:0.039, tol:0.001}, survives:0}}],
+  betti:[{op:'nav', world:'s3', lab:'tri'},{op:'call', fn:'atlas.betti', expect:{b0:1}}],
+  wiener:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'wf.experiment', args:{L:24, seed:3}, expect:{fsky:{value:0.658, tol:0.02}}}]});
+
+function discoveryTrack(id){ const steps=DISCOVERY_TRACKS[id]; if(!steps) return null; const d=discoveryById(id);
+  return {schema:TRACK_SCHEMA, id:'discovery:'+id, title:d?d.en:id, atlas:{version:HCC_VERSION, build:HCC_BUILD}, discovery:id, steps:steps.map(s=>JSON.parse(JSON.stringify(s)))}; }
 
 function discoveryGraph(){ const E=[], D=DISCOVERIES;
   for(let i=0;i<D.length;i++) for(let j=i+1;j<D.length;j++){ const shared=D[i].labs.filter(l=>D[j].labs.includes(l)); if(shared.length) E.push({a:D[i].id, b:D[j].id, via:shared}); }
@@ -7309,6 +7754,197 @@ function windLifetimeWith(lum,m0,f){
   const naive=HR_EPS*HR_FCORE*m0*HR_MSUN*HR_C*HR_C/(lum(m0)*HR_LSUN)/WIND_YR;
   return (naive>0)?t/naive:null;
 }
+
+const HCC_SI=Object.freeze({
+  /* length → m */
+  'm':{kind:'length',f:1}, 'km':{kind:'length',f:1e3}, 'cm':{kind:'length',f:1e-2},
+  'mm':{kind:'length',f:1e-3}, 'nm':{kind:'length',f:1e-9}, 'fm':{kind:'length',f:1e-15},
+  'AU':{kind:'length',f:1.495978707e11}, 'pc':{kind:'length',f:3.0856775814913673e16},
+  'kpc':{kind:'length',f:3.0856775814913673e19}, 'Mpc':{kind:'length',f:3.0856775814913673e22}, 'Gly':{kind:'length',f:9.4607304725808e24},
+  /* the light year, which this table had never held while carrying a gigalightyear
+     for releases. It is that number over a billion and is written as such rather
+     than typed again, because a second literal is a second authority. */
+  'ly':{kind:'length',f:9.4607304725808e24/1e9},
+  'R_earth':{kind:'length',f:6.371e6}, 'R_sun':{kind:'length',f:6.957e8},
+  /* area → m², volume → m³. A square of a length is a DIFFERENT quantity and gets its
+     own axis rather than a factor of two in somebody's logarithm. */
+  'Gly^2':{kind:'area',f:9.4607304725808e24**2}, 'm^2':{kind:'area',f:1},
+  'Gly^3':{kind:'volume',f:9.4607304725808e24**3}, 'm^3':{kind:'volume',f:1},
+  'm^-2':{kind:'inverse area',f:1},
+  /* ── UNITS THE ATLAS USED AND HAD NEVER DECLARED ──────────────────────────
+     A census of every declared output unit found a hundred and sixty-nine
+     outputs, in forty-two distinct spellings, whose unit was in neither this
+     table nor the refusal beside it. Some of those spellings are prose and are
+     refused below; these are not. They are ordinary SI, and every factor here is
+     exact rather than rounded: the elementary charge and the reduced Planck
+     constant are SI defining constants, and one nat is one over the natural
+     logarithm of two bits by the definition of both. */
+  'J/K':{kind:'entropy',f:1}, 'm/s^2':{kind:'acceleration',f:1},
+  'A/m^2':{kind:'current density',f:1},
+  'C':{kind:'charge',f:1}, 'e':{kind:'charge',f:1.602176634e-19},
+  'hbar':{kind:'action',f:1.054571817e-34},
+  'bit':{kind:'information',f:1}, 'nat':{kind:'information',f:1/Math.LN2},
+  'erg s^-1 cm^-2':{kind:'intensity',f:1e-3},
+  /* the Hubble unit, which three laboratories publish in and the table had never
+     held: a kilometre per second per megaparsec is a reciprocal time, and the
+     factor is one thousand metres over the megaparsec already declared above */
+  'km s^-1 Mpc^-1':{kind:'inverse time',f:1e3/3.0856775814913673e22},
+  /* time → s */
+  's':{kind:'time',f:1}, 'ms':{kind:'time',f:1e-3}, 'ns':{kind:'time',f:1e-9},
+  'd':{kind:'time',f:86400}, 'yr':{kind:'time',f:31557600},
+  /* frequency → Hz. rad/s is an ANGULAR frequency and carries the 2π, which is a
+     conversion the atlas WAS given and is therefore allowed to make. */
+  'Hz':{kind:'frequency',f:1}, 'kHz':{kind:'frequency',f:1e3},
+  'MHz':{kind:'frequency',f:1e6}, 'GHz':{kind:'frequency',f:1e9},
+  'rad/s':{kind:'frequency',f:1/(2*Math.PI)},
+  'Hz/s':{kind:'frequency drift',f:1},
+  /* energy → J */
+  'J':{kind:'energy',f:1}, 'erg':{kind:'energy',f:1e-7},
+  'eV':{kind:'energy',f:1.602176634e-19}, 'ueV':{kind:'energy',f:1.602176634e-25},
+  'meV':{kind:'energy',f:1.602176634e-22}, 'keV':{kind:'energy',f:1.602176634e-16},
+  'MeV':{kind:'energy',f:1.602176634e-13}, 'GeV':{kind:'energy',f:1.602176634e-10},
+  'J/m^3':{kind:'energy density',f:1},
+  /* mass → kg */
+  'kg':{kind:'mass',f:1}, 'M_sun':{kind:'mass',f:1.98892e30},
+  /* ── ONE UNIT, TWO SPELLINGS, AND THE TABLE KNEW ONLY ONE ─────────────────
+     W/m^2 and W m^-2 are both here and have been since the intensity join was made, so
+     the pattern was already known. Mass density was not: instruments wrote both kg/m^3
+     and kg m^-3 and this table listed only the first, so every density published under
+     the second spelling was invisible to the scale survey, to the panorama and to every
+     transfer sweep — not refused, not counted as isolated, simply absent. It was found
+     by RENAMING one output to the other spelling to make a coupling admissible and
+     watching a check that had nothing to do with units go red: the white dwarf's density
+     stopped appearing in a route it had been in for releases. Number density was missing
+     outright — the table had cm^-3 and not m^-3, which is the unit the Jeans criterion
+     and the equation of state both trade in. */
+  'kg/m^3':{kind:'mass density',f:1}, 'kg m^-3':{kind:'mass density',f:1},
+  'kg/s':{kind:'mass rate',f:1}, 'M_sun/yr':{kind:'mass rate',f:1.98892e30/31557600},
+  'cm^-3':{kind:'number density',f:1e6}, 'm^-3':{kind:'number density',f:1},
+  /* temperature → K, and the squared temperature the CMB power spectrum is written in */
+  'K':{kind:'temperature',f:1}, 'mK':{kind:'temperature',f:1e-3}, 'uK':{kind:'temperature',f:1e-6},
+  'uK^2':{kind:'squared temperature',f:1e-12},
+  /* and the rest, one axis per dimension, each with its SI base */
+  'm/s':{kind:'speed',f:1}, 'km/s':{kind:'speed',f:1e3},
+  'm^2/s':{kind:'diffusivity',f:1},
+  'W':{kind:'power',f:1}, 'erg/s':{kind:'power',f:1e-7},
+  /* TWO SPELLINGS OF ONE UNIT, and they must land on one axis. Two spellings treated as
+     two dimensions is exactly how a bus starts believing two things are different. */
+  'W/m^2':{kind:'intensity',f:1}, 'W m^-2':{kind:'intensity',f:1},
+  /* ── AND THE PER-SOLID-ANGLE DIMENSION, WHICH NOTHING COULD PLACE ─────────
+     Five outputs across three laboratories carried a solid angle and six carried a
+     magnitude, and this table knew neither, so an entire dimension of the atlas sat
+     outside the panorama and outside every transfer sweep. A steradian is dimensionless
+     in SI, and this file already REFUSED it in writing for exactly that reason — and I
+     added it to the axis anyway, which the atlas's own check caught by finding one unit
+     both convertible and refused. The refusal was right and stands: a steradian is a
+     ratio of an area to the square of a radius and belongs with the other dimensionless
+     outputs. What DOES go on the axis is the radiance itself, at its own kind, because
+     the alternative is that a radiance and an intensity look like one quantity to a
+     machine. The bus is unaffected either way: it matches declared unit STRINGS and has
+     never needed this table to couple two laboratories. */
+  'W m^-2 sr^-1':{kind:'radiance',f:1}, 'W m^-3 sr^-1':{kind:'spectral radiance',f:1},
+  'm^-2 s^-1':{kind:'areal rate',f:1},
+  'Pa':{kind:'pressure',f:1}, 'V':{kind:'voltage',f:1},
+  'G':{kind:'magnetic field',f:1e-4}, 'T':{kind:'magnetic field',f:1},
+  'Wb':{kind:'magnetic flux',f:1},
+  'kg m/s':{kind:'momentum',f:1}, 'J·s':{kind:'action',f:1},
+  /* ── THREE UNITS THE ATLAS MEASURES IN AND COULD NOT SPELL ─────────────────
+     Declaring four more stations as instruments required saying what their numbers
+     are in, and three of the answers were not in this table at all. A star`s age is
+     in gigayears, an outflow`s age is in megayears, and an oscillation spacing is in
+     microhertz — quantities this atlas has computed and drawn for releases, in units
+     it could not convert. They are the same omission as m^-3, which was missing while
+     cm^-3 was present: the table held the spellings somebody happened to need first. */
+  'Myr':{kind:'time',f:3.15576e13}, 'Gyr':{kind:'time',f:3.15576e16},
+  'uHz':{kind:'frequency',f:1e-6},
+  /* and one alias, for the same reason W m^-2 stands beside W/m^2 and kg m^-3 beside
+     kg/m^3: two spellings of one unit are two coordinates until somebody says they
+     are not, and the wind laboratory publishes the second spelling. */
+  'km s^-1':{kind:'speed',f:1e3},
+  /* the hour, added for the reason the gigayear was: a transit duration is quoted in
+     hours, this atlas computes it in hours, and the table could not convert it */
+  'h':{kind:'time',f:3600}
+});
+
+const HCC_GLY_M=HCC_SI['Gly'].f;
+
+const SCALE_AUTHORITIES=Object.freeze({
+  s3_radius:       ()=>S3.R*HCC_GLY_M,
+  s3_antipode:     ()=>S3.Dcausal*HCC_GLY_M,
+  s3_circumference:()=>S3.Circ*HCC_GLY_M,
+  hubble_radius:   ()=>C_DH_GLY*HCC_GLY_M });
+
+function scaleCosmosExtent(key){ const s=COSMOS.find(x=>x.key===key); return s&&s.size>0?s.size*HCC_GLY_M:null; }
+
+const HCC_SAME_LENGTH=Object.freeze([
+  {table:'PHI_ATLAS', row:'S³ curvature radius (conditional median)', derived:'s3_radius', derive:true},
+  {table:'PHI_ATLAS', row:'S³ antipode (πR)',                derived:'s3_antipode',      derive:true},
+  {table:'PHI_ATLAS', row:'Full S³ circumference 2πR',       derived:'s3_circumference', derive:true},
+  {table:'SCALE_REFS',row:'the S³ curvature radius',         derived:'s3_radius',        derive:true},
+  {table:'PHI_ATLAS', row:'Hubble radius c/H₀',              derived:'hubble_radius',    derive:true},
+  {table:'PHI_ATLAS', row:'Boötes void',                     cosmos:'bootesvoid', derive:true},
+  {table:'PHI_ATLAS', row:'Sloan Great Wall',                cosmos:'sloan',      derive:true},
+  {table:'PHI_ATLAS', row:'KBC local void',                  cosmos:'kbc',        derive:true},
+  {table:'PHI_ATLAS', row:'Giant Ring (Lopez & Clowes 2026)',cosmos:'gr',         derive:true},
+  {table:'PHI_ATLAS', row:'Hercules–Corona Borealis GW',     cosmos:'hcb',        derive:true},
+  {table:'SCALE_REFS',row:'the Laniakea Supercluster',       cosmos:'laniakea',   derive:true},
+  {table:'PHI_ATLAS', row:'Laniakea supercluster',           cosmos:'laniakea',   derive:true,
+    repaired:'a radius written where a diameter was meant — the catalogue and SCALE_REFS independently give the same 0.52 Gly across, two authorities to one'},
+  {table:'SCALE_REFS',row:'the South Pole Wall',             cosmos:'spw',        derive:true,
+    repaired:'converted with a ROUND 10²⁵ metres per gigalightyear instead of the 9.4607×10²⁴ this atlas`s own unit table declares — the ratio was 1.0570, which is exactly that mistake'},
+  {table:'SCALE_REFS',row:'the BOSS Great Wall',             cosmos:'bossgw',     derive:true},
+  {table:'SCALE_REFS',row:'the Huge-LQG quasar group',       cosmos:'hugelqg',    derive:true},
+  {table:'SCALE_REFS',row:'the Virgo Supercluster',          cosmos:'localsupercluster', derive:false,
+    reason:'the comparator has 0.169 Gly and the catalogue 0.108, a ratio of 1.57, and neither is wrong. The Local Supercluster has no edge: published diameters run from about 33 megaparsecs on the classical de Vaucouleurs membership to over 50 on looser ones, and the two rows picked different ends of that range. One authority each, nothing to break the tie, and a boundary that does not exist cannot be measured into agreement'},
+  {table:'PHI_ATLAS', row:'Virgo cluster extent',            cosmos:'virgo',      derive:false,
+    reason:'the ladder holds something close to the virial radius, 2.2 Mpc, and the catalogue holds a drawn diameter. One authority each, no third to break the tie, and the ratio is 0.55 rather than the 0.50 a clean radius-and-diameter confusion would give'},
+  {table:'PHI_ATLAS', row:'Coma cluster extent',             cosmos:'coma',       derive:false,
+    reason:'the same shape of disagreement at a ratio of 0.33 — the ladder near the virial radius, the catalogue a drawn diameter. Neither is wrong for what it is measuring and nothing here can say which the row meant'},
+  {table:'PHI_ATLAS', row:'Great Attractor region',          cosmos:'greatatt',   derive:false,
+    reason:'a ratio of 0.63, which is neither a radius nor a diameter of the other. The Great Attractor has no boundary: its extent is whatever smoothing scale the reconstruction used, and the two tables used different ones'},
+  {table:'PHI_ATLAS', row:'Shapley concentration',           cosmos:'shapley',    derive:false,
+    reason:'a ratio of 0.169, which no radius-and-diameter confusion produces. The ladder holds the dense core, about 13 Mpc; the catalogue holds the whole supercluster complex. Two different objects sharing one name'}]);
+
+const HCC_SCALE_RECONCILIATION=(()=>{
+  const rows=[]; let derived=0, declared=0, worstH=0, worstHRow='', worstD=0, worstDRow='';
+  for(const p of HCC_SAME_LENGTH){
+    const authority = p.cosmos ? scaleCosmosExtent(p.cosmos) : SCALE_AUTHORITIES[p.derived]();
+    let typed=null, apply=null;
+    if(p.table==='PHI_ATLAS'){
+      for(const [,group] of PHI_ATLAS) for(const r of group) if(r[0]===p.row){ typed=r[1]; apply=v=>{ r[1]=v; }; }
+    } else {
+      for(const r of SCALE_REFS) if(r[1]===p.row){ typed=r[0]; apply=v=>{ r[0]=v; }; }
+    }
+    if(typed==null||authority==null){ rows.push({...p,found:false}); continue; }
+    const ratio=typed/authority, off=Math.abs(ratio-1);
+    if(p.derive){ if(off>worstH){ worstH=off; worstHRow=p.row; } apply(authority); derived++; }
+    else        { if(off>worstD){ worstD=off; worstDRow=p.row; } declared++; }
+    rows.push({table:p.table,row:p.row,typed,authority,ratio,derived:!!p.derive,
+      found:true, note:p.repaired||p.reason||''});
+  }
+  /* AND A LADDER IS SORTED BY ITS VALUES, SO REPAIRING A VALUE MOVES A RUNG.
+     The boot suite asserts that every φ-atlas group ascends, and it went red the
+     moment Laniakea doubled: at 2.5e24 it sat below the Boötes void and the BAO
+     ruler, and at its true 4.92e24 it belongs above both. The ordering was never an
+     independent fact about the ladder — it is a property of the numbers — so it is
+     recomputed from them rather than maintained by hand, and the count of rungs that
+     moved is published, because a repair that changes nothing visible is a repair
+     nobody can check. */
+  let moved=0;
+  for(const [,group] of PHI_ATLAS){
+    const before=group.map(r=>r[0]);
+    group.sort((a,b)=>a[1]-b[1]);
+    group.forEach((r,i)=>{ if(r[0]!==before[i]) moved++; });
+  }
+  { const before=SCALE_REFS.map(r=>r[1]);
+    SCALE_REFS.sort((a,b)=>a[0]-b[0]);
+    SCALE_REFS.forEach((r,i)=>{ if(r[1]!==before[i]) moved++; }); }
+  return Object.freeze({rows:Object.freeze(rows), pairs:rows.length, derived, declared,
+    worst_healed:worstH, worst_healed_row:worstHRow,
+    worst_declared:worstD, worst_declared_row:worstDRow, rungs_moved:moved,
+    gigalightyear:HCC_GLY_M,
+    unfound:rows.filter(r=>r.found===false).length});
+})();
 
 const PHI_R=(1+Math.sqrt(5))/2;
 
@@ -9825,7 +10461,9 @@ function fsSliceRGBA(q,N,axis,f,S,scale,levels){ const out=new Uint8Array(S*S*4)
     out[o+3]=line?250:Math.round(90+150*Math.min(1,Math.abs(v)/(scale||1))); }
   return out; }
 
-const LAB_DOMAIN_ORDER=['invariance','geometry','dynamics','quantum','waves','thermo','astro','other'];
+const LAB_SKETCHES=new Set(['anyon','sec','red','lab','cp','noe','disp','qcd','nuosc','scales','grav','origins','rungs','wind','gyro','cosmo','phot','resolve','clock','phorizon','anyzoo','sbright','tscale','eos','photon','infolab','galrot','exo','seis','jonesq','qregime','s3escape','gate','osc','mimg','jeans','sn','spin']);
+
+const LAB_DOMAIN_ORDER=['invariance','geometry','dynamics','quantum','waves','thermo','astro','other','sketch'];
 
 function xrLabIds(){
   const all=Object.keys(S3_VIEW_NAMES);
@@ -9865,7 +10503,7 @@ function xrLabShort(v,max){
 }
 
 const XR_DOM_SHORT={invariance:'⟲ Invar',geometry:'◇ Geom',dynamics:'↻ Dyn',quantum:'⚛ Quant',
-  waves:'∿ Waves',thermo:'♨ Therm',astro:'✦ Astro',other:'· Other'};
+  waves:'∿ Waves',thermo:'♨ Therm',astro:'✦ Astro',other:'· Other',sketch:'✎ Sketch'};
 
 function xrDomShort(d){ return XR_DOM_SHORT[d]||d; }
 
@@ -9904,6 +10542,7 @@ function labDomainOf(v){
   /* The suite overrides the visual-identity registry for GROUPING only; the palette
      registry is left untouched so nothing about how these laboratories look changes. */
   if(INVARIANCE_VIEWS.includes(v)) return 'invariance';
+  if(LAB_SKETCHES.has(v)) return 'sketch';
   for(const [k,set] of Object.entries(PREMIUM_VIEW_DOMAINS)) if(set.has(v)) return k;
   return 'other';
 }
@@ -10062,5 +10701,5 @@ function hccReachCompose(sens,tran){
 }
 
 export {
-  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BBH_C, BBH_G, BBH_MSUN, BBH_YR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BH_GM_C2_MSUN_M, BH_MUAS, BH_SHADOW_K, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_CAMB, CMB_COLOR_RANGE_MUK, CMB_D0, CMB_LMAX, CMB_PLANCK_CMAP, CMB_T_EMIT, CONF_EXC, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CSS_HP_DEG, CSS_TRIG, CT_COSMO, CT_EPOCHS, CT_T0, CT_TABLE, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, DIP_PATTERN_EXACT, DISCOVERIES, DISCOVERY_DOMAINS, DISCOVERY_LEADS, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, DT_COSMO, DT_HUBBLE_GYR_PER_KMSMPC, DT_T0_GYR, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EHT_RINGS, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GAL_RIDE, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_ERF, HCC_S3C, HCC_S3R, HCC_S3_GLY, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, KDV_STABLE_DT, KDV_STABLE_DTC, LAB_CLOCK_MAX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LENS_BCRIT, LENS_RS, LGM_G, LGM_GAL, LGM_GC, LGM_GYR, LGM_LNL, LGM_M31, LGM_NGP, LGM_OBS, LGM_RCOAL, LG_C, LG_G, LG_G_KPC, LG_KPC_PER_KMS_YR, LG_MPC_M, LG_MSUN, LG_NUCLEUS, LG_YR_S, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOCAL_WEB_META, LOG10_PHI, LSS_A, LSS_BIAS, LSS_C, LSS_D1, LSS_DINF, LSS_PRIM, LSS_TWEB_TH, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, MPC_PER_GLY, NEXUS_RELATIONS, NSF_EM, NSF_EP, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_ATLAS, PHI_AUDIT_P, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3NS_CURL, S3NS_FRAME_L, S3NS_FRAME_R, S3NS_GRAM, S3NS_MONO, S3NS_SHELL, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SG_GROUPS, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, STAT_KMS, STAT_MG, TOPO_GENUS, TRI_ETA_CORE, TRI_ETA_MIN, TRI_ETA_STEP, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WF_LNF, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atlasBetti, atlasBusOrder, atlasFiedler, atlasJacobi, atlasLaplacian, atlasRelGraph, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bbhAOfTau, bbhBudget, bbhFgw, bbhParams, bbhPeakStrain, bbhPhase, bbhQNM, bbhRemnant, bbhTauOfA, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhShadowMicroarcsec, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bhtLum, bhtTH, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, burgersHopfCole, burgersShockHalfWidth, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbAcoustic, cmbCIE, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbD, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbPlanckColor, cmbPlanckianRGB, cmbPlanckianXYZ, cmbRecoverPure, cmbSigmaT, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cssBasis, cssBestAt, cssCircle, cssDirections, cssExpected, cssGridSampler, cssGridSky, cssInject, cssMMin, cssMatch, cssRandomSky, cssRasterize, cssRefine, cssSearch2, cssSearchGrid, cssTopAt, cssTrig, ctAgeOfZ, ctChiOfZ, ctColorAtChi, ctColorAtTime, ctE, ctEpochOfZ, ctInterp, ctSFR, ctTable, ctZOfChi, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, discoveryById, discoveryGraph, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, dtAgeGyrAtA, dtAgeGyrAtLnA, dtBlackHoleFate, dtCmbLog10K, dtLnA, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, galArmBand, galCircularVel, galFrameAngle, galHill, galLocalCurve, galOmegaR, galPolarState, galResonanceNumber, galResonanceR, galResonances, galRide, galRideEq, galRideHalo, galRingOf, galSunVel, gateAnalyse, gateRun, gateRunAll, ghostImages, ghostQMul, ghostRaDec, ghostRmax, ghostSelfDistances, ghostVec, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hypDelta, hypFind, hypRatio, hypScales, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invSepBasis, invSepCoefLaw, invSepRational, invSepSubsets, invSepText, invSeparable, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lgDynFrictionYears, lgMergerTimeline, lgNucleusAt, lgRadialOrbit, lgSeparationAt, lgTiming, lgmAccel, lgmCross, lgmDot, lgmErf, lgmEvents, lgmGeometry, lgmHaloRho, lgmHaloSigma, lgmMonteCarlo, lgmNorm, lgmOrbit, lgmPotential, lgmSampleDisc, lgmStars, lgmTotalMass, lgmUnit, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, lssEig3, lssFFT1, lssFFT3, lssGrowth, lssGrowthRate, lssGrowthRaw, lssGrowthSeen, lssKIdx, lssNonlinearR, lssPower, lssRealize, lssRelief, lssReliefCensus, lssSample, lssSigma, lssSigma2Raw, lssStructureSpec, lssTopHat, lssTransfer, masterCoupling, masterMaskCoeffs, masterPseudoCl, masterSolve, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsfExactMeans, nsfFacts, nsfKilling, nsfMake, nsfResidual, nsfResidualCurl, nsfShellPart, nsfStep, nsfUniform, nsfVelocity, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, phiAudit, phiAuditGauss, phiAuditLnB, phiAuditLogI0, phiAuditSigma, phiAuditWindows, phiAuditZ, phiLadderScales, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, ppCorrelationDimension, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, s3nsCarrierWeights, s3nsCovariant, s3nsCurlLevel, s3nsCurlMatrix, s3nsDot4, s3nsEps, s3nsEvalPoly, s3nsFieldDot, s3nsFrame, s3nsFrameDeriv, s3nsFrameVec, s3nsGammaHalf, s3nsGram, s3nsHarmonic, s3nsInvert, s3nsMono, s3nsMonoIntegral, s3nsNull, s3nsNumCurl, s3nsPolyDot, s3nsQAxis, s3nsQConj, s3nsQMul, s3nsShell, s3nsShellElement, s3nsTangentStep, s3nsVelocity, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, sgChi, sgCircles, sgFirstMode, sgGroup, sgInvariantDim, sgOrbit, sgPosteriorBelow, sgSpectrum, sgThetaMin, shNlm, shPlm, shY, shtAnalysis, shtCl, shtGauss, shtGrid, shtIdx, shtLambda, shtPixArea, shtRealize, shtRing, shtSynth, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spin4C, spin4Scalar, spin4Shell, spinFibrePure, spinHopfProject, spinRodrigues, statGalRow, statOortDerived, statOortEllipsoid, statOortFit, statOortPred, statOortRows, statOortSolve, statOortWave, statSolveN, statToGal, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoAllPairs, topoFibration, topoGenusField, topoHopfPair, topoHopfPts, topoLinkPure, topoMeshTopology, tovSolve, triFacts, triGeodesic, triHopf, triLayout, triPoint, triProject, triRotate, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, webLogGamma, webMST, webPairCounts, webPowerFit, webPrune, webR0At, webRandoms, webWp, webWpH, wf3j2, wfExperiment, wfMask, wienerFilter, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
+  ACT_TAU, AD_C, AD_G, AD_H, AD_KB, AD_MP, AD_MSUN, AD_SIGMA, AD_SIGT, AUFBAU, AZ_BY_ID, AZ_ID2, AZ_MODELS, AZ_UNIVERSAL, BAB_SAR, BBH_C, BBH_G, BBH_MSUN, BBH_YR, BB_C, BB_C2, BB_H, BB_KB, BB_SIG, BELL_TSIRELSON, BHT_G, BHT_MSUN, BHT_XPEAK, BHT_YR, BHT_c, BHT_h, BHT_hbar, BHT_kB, BH_GM_C2_MSUN_M, BH_MUAS, BH_SHADOW_K, BIX_A, BIX_B, BIX_B2, BIX_C, BIX_C2, BIX_LY_CUT, BIX_LY_W0, CAP_BG2, CAP_D_H0, CAP_D_OMEGA, CAP_GATES, CAP_H0, CAP_LAM_OBS, CAP_LAM_SIG, CAP_LP, CAP_NU, CAP_N_PHI, CAP_OMEGA_L, CAP_PHI, CAP_Q_STAR, CAP_U_STAR, CAP_XI, CAU_H, CAU_N, CAU_STRIDE, CAU_WMAX, CHAOS_SYS, CIVP_CERTIFICATES, CIVP_EXTERNAL, CIVP_GOLD, CIVP_LEDGER, CIVP_LP, CIVP_NULL_PHASE, CIVP_PHI, CIVP_STATIONS, CK_B, CK_CLOCKS, CK_R, CK_REF, CK_S, CK_TIME_UNITS, CMB_CAMB, CMB_COLOR_RANGE_MUK, CMB_D0, CMB_LMAX, CMB_PLANCK_CMAP, CMB_T_EMIT, CONF_EXC, COSMOS, COSMO_C, COSMO_GYR_PER_INVH, COSMO_OM_HI, COSMO_OM_LO, COSMO_OM_N, CPS_EXTREMAL_TOL, CQ_CORE, CQ_E, CQ_H, CQ_M3, CQ_M4, CQ_U, CSS_HP_DEG, CSS_TRIG, CT_COSMO, CT_EPOCHS, CT_T0, CT_TABLE, CYCLES, CYC_ANOMALISTIC, CYC_APSIDAL_Y, CYC_ARCSEC_PER_RAD, CYC_DRACONIC, CYC_EARTH_A, CYC_EARTH_E, CYC_EARTH_P, CYC_ECC_LONG_YR, CYC_ECC_SHORT_YR, CYC_ECLIPSE_LIMIT_DEG, CYC_HALE_YR, CYC_INEX_DRACONIC_HALVES, CYC_INEX_LUNATIONS, CYC_NODAL_Y, CYC_NODE_REGRESSION, CYC_OBLIQUITY_YR, CYC_SIDEREAL_M, CYC_SIDEREAL_Y, CYC_SOLAR_YR, CYC_SYNODIC, CYC_TROPICAL_Y, C_DH_GLY, DEG, DIPOLE_EQ, DIP_PATTERN_EXACT, DISCOVERIES, DISCOVERY_DOMAINS, DISCOVERY_LEADS, DISCOVERY_TRACKS, DISK_PEAK_RATIO, DISP_SYS, DL_ARCSEC, DL_AU, DL_C, DL_CEPH_SLOPE, DL_CEPH_ZERO, DL_H0, DL_IA_M, DL_LSUN, DL_LY, DL_MBOL_SUN, DL_MPC, DL_PARSEC, DL_PARSEC_SMALL, DL_RUNGS, DL_STARS, DT_COSMO, DT_HUBBLE_GYR_PER_KMSMPC, DT_T0_GYR, EDGE_LNDET_UNIT, EDGE_SPECIES, EDGE_ZETA0_SCALAR, EDGE_ZETA_PRIME_M1, EGY_CIVIL_YEAR, EHT_RINGS, EL_C, EL_G, EL_MSUN, EL_PC, EOS_A0, EOS_ARAD, EOS_C, EOS_G, EOS_H, EOS_KB, EOS_LAMC, EOS_LANE_EMDEN_3, EOS_ME, EOS_MEC2, EOS_MSUN, EOS_MU, EOT_AMAX, EOT_AMIN, EOT_LMAX, EOT_LMIN, FBS, FIB_D, FIB_F, FIB_FR, FIB_N3, FIB_PHI, FIB_R1, FIB_RT, FIB_S1, FIB_S2, FRAC_RULES, FS_TETS, GALAXIES, GAL_RIDE, GAL_YEAR_MYR, GATE_CLAIMS, GATE_TOL, GLY_M, GRAV_CS, GRAV_DS, GRAV_TH, GR_A0, GR_C, GR_G, GR_GALAXIES, GR_HELIUM, GR_KPC, GR_MPC, GR_MSUN, GR_PC, GW_C, GW_G, GW_MSUN, GYRO_A, GYRO_B, GYRO_BALL_A, GYRO_BALL_K, GYRO_BALL_P, GYRO_BALL_Q, GYRO_BV_MIN, GYRO_N, GYRO_SKUMANICH_N, GYRO_SUN_AGE_GYR, GYRO_SUN_BV, GYRO_SUN_PROT, HCC_BECAUSE, HCC_BUILD, HCC_ERF, HCC_GLY_M, HCC_S3C, HCC_S3R, HCC_S3_GLY, HCC_SAME_LENGTH, HCC_SCALE_RECONCILIATION, HCC_SI, HCC_VERSION, HE3_BCS, HE3_GAMMA, HE3_H, HE3_HBAR, HE3_KAPPA, HE3_KB, HE3_M3, HOL_TAU, HR_C, HR_EDD_FRACTION, HR_EPS, HR_FCORE, HR_G, HR_GYR, HR_KAPPA, HR_LSUN, HR_MSUN, HR_RSUN, HR_SIGMA, HR_TSUN, HR_YR, HZ_CLOCKS, HZ_LN2, HZ_SOURCES, IL_C, IL_E, IL_G, IL_H, IL_H0_KM_S_MPC, IL_HBAR, IL_HOLDERS, IL_KB, IL_LN2, IL_MPC, IL_MSUN, INVARIANCE_SUITE, INVARIANCE_VIEWS, INVARIANT_THREAD, INV_PHYS, INV_PLANCK, INV_UNIT, JEANS_G, JEANS_KB, JEANS_MH, JEANS_MSUN, JEANS_PC, JEANS_YR, JQ_A, JQ_DELTA, JQ_GATES, JQ_KNOTS, KDV_HW, KDV_L, KDV_N, KDV_NX, KDV_STABLE_DT, KDV_STABLE_DTC, LAB_CLOCK_MAX, LAB_DECLARATIONS, LAB_DECL_BY_ID, LAB_DOMAIN_ORDER, LAB_SKETCHES, LENS_BCRIT, LENS_RS, LGM_G, LGM_GAL, LGM_GC, LGM_GYR, LGM_LNL, LGM_M31, LGM_NGP, LGM_OBS, LGM_RCOAL, LG_C, LG_G, LG_G_KPC, LG_KPC_PER_KMS_YR, LG_MPC_M, LG_MSUN, LG_NUCLEUS, LG_YR_S, LM_C, LM_DENSITIES, LM_G, LM_GLY, LM_HBAR, LM_KB, LM_MPC, LM_OMEGA_HI, LM_OMEGA_LO, LM_OMEGA_N, LM_PARTICLE_GLY, LN_PHI, LOCALVOID_EQ, LOCAL_WEB_META, LOG10_PHI, LSS_A, LSS_BIAS, LSS_C, LSS_D1, LSS_DINF, LSS_PRIM, LSS_TWEB_TH, LY_M, MAJOR_MOONS, MAYA_HAAB, MAYA_TZOLKIN, MERC_A, MERC_C, MERC_E, MERC_GM_SUN, MERC_PERIOD_D, MPC_PER_GLY, NEXUS_RELATIONS, NSF_EM, NSF_EP, NSY_ABUNDANCE, NSY_ABUNDANCE_KEYS, NSY_ALPHA_LADDER, NSY_BE8_LIFETIME, NSY_BE8_UNBOUND, NSY_DM, NSY_ENVIRONMENTS, NSY_EXCESS, NSY_HOYLE, NSY_MAGIC_N, NSY_ME, NSY_MEV, NSY_PEAKS, NSY_Q_TRIPLE_ALPHA, NSY_SOLAR, NSY_TAU_N, NSY_U, NS_GAM, NS_K, NS_KM, NUC_aA, NUC_aC, NUC_aP, NUC_aS, NUC_aV, NU_FLAVOURS, NU_GF, NU_HBARC, NU_KM, OSC_QMAX, OSC_TAIL, PC_H, PHI, PHI_ATLAS, PHI_AUDIT_P, PHI_R, PHOTON_C, PHOTON_H, PHOT_ERG_W, PHOT_L0, PHOT_LSUN, PHOT_MU_HI, PHOT_MU_LO, PHOT_PC, POLE_PRESETS, POLE_W0, PREMIUM_VIEW_DOMAINS, PSP_J, PSP_MAPS, PSR_PRESETS, PV_DIL, PV_SIG, PV_TSUN, PV_c, PV_h, PV_kB, PV_q, QCD_AS, QCD_BRK, QCD_FM, QCD_HC, QCD_SIG, QC_TAU, QM_DX, QM_L, QM_N, QP_A0_NM, QP_RY_MEV, QR_BEC, QR_C, QR_E, QR_EPS0, QR_H, QR_HBAR, QR_KB, QR_ME, QR_MU, QR_SYSTEMS, QSO_ETA, REL_S, RES_AS, RES_FAM_HI, RES_FAM_LO, RES_FAM_N, RES_INSTRUMENTS, RES_J1_ZERO, RES_RAYLEIGH_K, RPD_N, RPD_RCAR, RPD_RHMAX, RSH_C, RSH_HBARC, RSH_MN, S3, S3NS_CURL, S3NS_FRAME_L, S3NS_FRAME_R, S3NS_GRAM, S3NS_MONO, S3NS_SHELL, S3R, S3_UNIT_VOLUME, S3_VIEW_I18N, S3_VIEW_NAMES, S3kernel, SB_AS, SB_L0, SB_PC, SB_SR_PER_ASEC2, SB_TOLMAN_POWERS, SCALE_AUTHORITIES, SCALE_REFS, SC_KB_MEV, SC_KJ, SC_MATS, SC_PHI0, SEIS_D02_SUN, SEIS_DNU_SUN, SEIS_EPS_SUN, SEIS_G, SEIS_LOGG_SUN, SEIS_NUMAX_SUN, SEIS_RHO_SUN, SEIS_TEFF_SUN, SG_GROUPS, SN_C, SN_DAY, SN_DIFF_BETA, SN_ECO, SN_ENI, SN_KB, SN_MP, SN_MSUNG, SN_PC, SN_SIGMA, SN_ST_XI, SN_TAUCO, SN_TAUNI, SN_YEAR, STAT_KMS, STAT_MG, TOPO_GENUS, TRACK_OPS, TRACK_SCHEMA, TRI_ETA_CORE, TRI_ETA_MIN, TRI_ETA_STEP, TS_C, TS_G, TS_LSUN, TS_MSUN, TS_M_H, TS_M_HE, TS_RSUN, TS_YR, VELA_EQ, WD_C, WD_G, WD_MSUN, WD_RSUN_KM, WF_LNF, WIND_C, WIND_G, WIND_LSUN, WIND_MSUN, WIND_RSUN, WIND_VINF_OVER_VESC, WIND_YR, WOT_AUBREY_HOLES, WOT_DECANS, WOT_JAIN_ARA, WOT_KALPA_YR, WOT_MAHAYUGA_YR, WOT_NER, WOT_RABJUNG_YR, WOT_SOSS, WOT_TRADITIONS, WOT_YUGA_YR, XP_AU, XP_DAY, XP_G, XP_GMSUN, XP_HZ, XP_LSUN, XP_MEARTH, XP_MJUP, XP_MSUN_IMPLIED, XP_REARTH, XP_RJUP, XP_RSUN, XP_SIGMA, XP_SYSTEMS, XP_TSUN, XP_YR, XR_DOM_SHORT, ZM_ES_C, ZM_KRAMERS_C, ZM_X_SUN, ZM_Z_SUN, ZPF, ZP_TH_BUDGET, _gAx, _gAy, _kdvK, _shFact, actAlpha, actApprox, actClamp01, actContactResidual, actDAlpha, actDLam, actDProj4, actDot, actEllipsoidPath, actGauge, actGcd, actHopf, actJ, actJ4, actLam, actLegendrianPath, actNorm, actProj4, actReebPath, actScale, actWrap, actXi1, actXi2, andGamma, andRng, andThouless, atlasBetti, atlasBusOrder, atlasFiedler, atlasJacobi, atlasLaplacian, atlasRelGraph, atomConfig, azBloch, azBraidGens, azBraidImage, azC, azCa, azCm, azDag, azDims, azFusion, azGauss, azMm, azModular, azPh, azQuantumDim, azS, azSpins, azUniversal, azVerlinde, bbPlanck, bbhAOfTau, bbhBudget, bbhFgw, bbhParams, bbhPeakStrain, bbhPhase, bbhQNM, bbhRemnant, bbhTauOfA, bellCHSH, bellE, bellHolonomy, bellLuneOmega, berryChernFHS, berryD, berryF, berryGap, berryN, bhShadowMicroarcsec, bhrTraceJS, bhtArea, bhtEvapYr, bhtKerr, bhtLum, bhtTH, bixBetas, bixClassify, bixD2V, bixDV, bixExtFlow, bixFlow, bixHtau, bixIntegrate, bixJAC, bixJacobian, bixLapse, bixLyapExp, bixLyapunov, bixSeed, bixShear, bixStep, bixV, burgersHopfCole, burgersShockHalfWidth, capBg2, capGamma, capGammaD, capGateBudget, capLambda, capNphi, capSigma, cauChiIm, cauG, cauKK, cauSum, chaosRK4, civpA4, civpADE, civpAddMultNoGo, civpAdmissible, civpAndreief, civpBergman, civpBorelWeil, civpBosonic, civpBoundedGrowth, civpC, civpCabs, civpCadd, civpCapacity, civpCapacityFromLambda, civpCapelli, civpCapelliGate, civpCarrier, civpCasimirDecompose, civpCasimirGate, civpCdiv, civpCentralWeight, civpClosure, civpCmul, civpCohomology, civpCornerModes, civpCrossRatio, civpCscale, civpCsub, civpDeSitter, civpDet, civpDiagnostics, civpDiffQuotient, civpDivisibleNoGo, civpEffectiveDivisor, civpEliminate, civpEntropyBridge, civpEvalMatrix, civpExportData, civpFibFibre, civpFirstLaw, civpFuzzyNoGo, civpGluing, civpHankel, civpHopf, civpJacobi, civpJonesSpectrum, civpKappa, civpLadderNoGo, civpLeakage, civpLerp, civpLock, civpMatrixTower, civpNormDivisor, civpPolarisation, civpProfile, civpProjectiveNoGo, civpRankProfile, civpResidual, civpReweight, civpRigidity, civpRing, civpSaddle, civpSelect, civpSeq, civpShapeNorm, civpShapeQuotient, civpSphere, civpStep, civpTate, civpTol, civpTopResponse, civpTopStability, civpTower, civpTwoWitness, civpUltralocalDefect, civpVacuumShift, civpVandermonde, civpWindow, civpZeroNoGo, ckBridge, ckF, ckHasClock, ckMapExponent, ckMaxima, ckRK, cmbAcoustic, cmbCIE, cmbClOf, cmbCoeffKey, cmbCoeffsPure, cmbD, cmbDl, cmbDlOf, cmbGaussian, cmbHash01, cmbMaskAllows, cmbPlanckColor, cmbPlanckianRGB, cmbPlanckianXYZ, cmbRecoverPure, cmbSigmaT, cmbSumL, cosmoAge, cosmoAngularPeak, cosmoComoving, cosmoE, cosmoHubbleDistance, cosmoLookback, cosmoMu, cosmoMuGap, cosmoOmAt, cosmoOmDepth, cosmoSimpson, cpBorisPure, cpFieldPure, cpsAlpha, cpsCurl, cpsDA, cpsKN, cpsPathIntegral, cqAbrikosov, cqFeynman, cqKappa3, cqKappa4, cqLattice, cqOmegaC1, cqPhi0, cqProfile, cqRingSpeed, cqRotationPerTesla, cqSpacing, cqVTheta, cssBasis, cssBestAt, cssCircle, cssDirections, cssExpected, cssGridSampler, cssGridSky, cssInject, cssMMin, cssMatch, cssRandomSky, cssRasterize, cssRefine, cssSearch2, cssSearchGrid, cssTopAt, cssTrig, ctAgeOfZ, ctChiOfZ, ctColorAtChi, ctColorAtTime, ctE, ctEpochOfZ, ctInterp, ctSFR, ctTable, ctZOfChi, cuspRoots, cycBeat, cycClimaticPrecession, cycEclipseSeries2, cycInexDays, cycInexSeries, cycLongitudeShiftDeg, cycNodalYear, cycNutationYears, cycPerihelionArcsecPerCentury, cycPerihelionPeriodYears, cycPerihelionShift, cycPrecessionFromYears, cycRelativisticShare, cycSarosRouteRatio, cycSarosSeries, cycSarosSeries2, cycSarosSolarRoute, cycTripleCommensurability, cycleByKey, cycleCommensurability, cyclePhase, dLadCepheidDistance, dLadCepheidM, dLadChain, dLadDistanceFromModulus, dLadDistanceFromParallax, dLadFractionToMagnitudes, dLadH0FromShift, dLadIaReach, dLadMagnitudesToFraction, dLadModulus, dLadModulusExtinguished, dLadParallaxFromDistance, dLadParallaxReach, dLadShiftForH0, dLadTension, dfxDegree, dfxHedge, dfxOmega, dfxPerturb, dfxPhase, dfxWinding, dipHalfPower, dipLarmorRel, dipPattern, dipPatternIntegral, dipPatternNorm, dipRayleighRatio, dipWavefrontSpacing, discoveryById, discoveryGraph, discoveryTrack, diskEddington, diskEfficiency, diskIsco, diskLuminosity, diskPeakRadius, diskPeakTemperature, diskShape, diskSpectralSlope, diskSpectrum, diskTemperature, dtAgeGyrAtA, dtAgeGyrAtLnA, dtBlackHoleFate, dtCmbLog10K, dtLnA, ebkAction, ebkCompare, ebkLevel, edgeA1, edgeAPS, edgeBr, edgeEisenstein, edgeEtaAbs, edgeKL, edgeKappaNeeded, edgeMu, edgeNaiveRoot, edgePval, edgeRdiag, edgeRootWith, edgeZeta0, edgeZetaEff, edgeZetaFromSpecies, elEinsteinRadius, elImages, elIsRing, elMagnifications, elRingRadiusArcsec, elSisEinsteinRadius, elSisImages, elSisMagnifications, elTimeDelay, elTotalMagnification, emBaseQ, emFibreLoop, emFibreTangentPure, emHopfPtPure, emNullResidual, emProjTangent, emRightI, emRightJ, embBraidQ, embCollisionPoint, embDiscriminant, embFormFromRoots, embFubiniStudy, embIsoclinicAngle, embMatchRoots, embMoment, embMonodromy, embPositions, embProject4, embRootsOfMonic, embRot4, embSeparation, embSphereFromZ, embTorusAngles, embWeights, embZFromSphere, eosDegenerateT0, eosDensityFor, eosDominant, eosElectron, eosFermi, eosFermiT, eosFx, eosGamma, eosGammaDegenerate, eosIdealE, eosIon, eosKnr, eosKur, eosLimitingMass, eosNe, eosPsiFor, eosRad, eosState, eosX, eotEpsM, eotLamRes, fibAdd, fibAxiomCache, fibAxioms, fibBraid, fibC, fibExp, fibFR, fibFsym, fibFusion, fibHexagon, fibMM, fibMonodromy, fibMul, fibPentagon, fibSMatrix, fracBoxCount, fracBuild, fracCellCount, fracDimension, fracExactDimension, fracMeasuredDimension, fsColor, fsCrossing, fsFieldLine, fsGrad, fsIsingWalls, fsIso, fsSliceRGBA, fsTri, fsWidest, fsWolff, galArmBand, galCircularVel, galFrameAngle, galHill, galLocalCurve, galOmegaR, galPolarState, galResonanceNumber, galResonanceR, galResonances, galRide, galRideEq, galRideHalo, galRingOf, galSunVel, galacticRaDec, gateAnalyse, gateRun, gateRunAll, ghostImages, ghostQMul, ghostRaDec, ghostRmax, ghostSelfDistances, ghostVec, grA0FromBTFR, grAccelerationScales, grBTFRFit, grBTFRFromA0, grBaryonicMass, grBessI0, grBessI1, grBessK0, grBessK1, grBesselResidual, grDecompose, grDiscPeak, grDiscSigma0, grDiscV, grDiscV2, grGalaxy, grGasV2, grIsoAsymptote, grIsoV, grKeplerV, grMondG, grMondNu, grNFWMass, grNFWV, grRAR, grWronskian, gravAccel, gravInvariants, gravRmin, gravStep, gwChirpMass, gwDfdt, gwFisco, gwMergerTime, gwPetersRates, gwStokes, gwTau, gyroAgeColourError, gyroAgeGyr, gyroAgeMyr, gyroBVFromTeff, gyroBreakTeff, gyroColourTerm, gyroFractionOfLife, gyroPeriod, gyroSkumanichRatio, gyroTeffFromBV, hccErfc, hccInvPhi, hccPhi, hccReachCompose, hccS3Reconstruct, hccSimpsonLog, hccTruncQuantile, he3Atanh, he3Circulation, he3Coherence, he3Dos, he3DosA, he3DosB, he3Gap, he3GapA, he3GapAnisotropy, he3GapB, he3GapFromTc, he3HeatCapacityExponent, he3MeanFourthGap, he3MeanSquareGap, he3NodeCharge, he3NodeCount, he3TcFromGap, he3TotalNodeCharge, heCyclePure, hfDerrick, hfEnergyPure, hfEnergySlab, hfFieldN, hfHopfCharge, hfPreimage, hfScaled, hfWMagOfTheta, holBerryWilson, holBoostX, holBoostY, holM2Det, holM2Inv, holM2Mul, holM3Det, holM3Mul, holM3Vec, holMobiusApply, holPt, holQ, holQArray, holQAxis, holQInv, holQMul, holQNorm, holTransportPure, holWrap, hrEddington, hrExponent, hrGiantLight, hrIMF, hrLifetime, hrLifetimeGyr, hrLuminosity, hrMassToLight, hrMassToLightNoRemnants, hrPopulation, hrRadius, hrRemnant, hrSunCheck, hrTemperature, hrTurnoff, hypDelta, hypFind, hypRatio, hypScales, hzBlocks, hzFirstPassage, hzGS, hzGyroPair, hzHorizon, hzJac, hzKY, hzMv, hzPesin, hzRK, hzSpectrum, hzSpread, hzStep, hzStretch, ilBekenstein, ilBitsFromJK, ilBitsFromNats, ilBremermann, ilEntropyGap, ilHolderRadius, ilHolographicBound, ilHolographicDensity, ilHorizonEntropy, ilHubbleRadius, ilJKFromBits, ilLandauer, ilLandauerEV, ilMargolus, ilOccupancy, ilPlanckArea, ilSchwarzschildArea, invAnalyse, invClosedForm, invClosedFormPhys, invEig, invFind, invLawLib, invLawText, invLaws, invLsq, invNull, invNullBasis, invPlanck, invPlanckSolve, invRat1, invRational, invSepBasis, invSepCoefLaw, invSepRational, invSepSubsets, invSepText, invSeparable, invUnitDim, jacobiSCD, jeansCollapses, jeansFreeFall, jeansLength, jeansMass, jeansMassVirial, jeansRho, jeansSound, jqBracket, jqCatalan, jqClosureLoops, jqCompose, jqDelta, jqDist, jqE, jqGens, jqHuntExhaustive, jqHuntRandom, jqIdentity, jqJones, jqKey, jqMul, jqPAdd, jqPMono, jqPMul, jqPZero, jqPolyEqual, jqPolyString, jqRho, jqUnit, kamLyapunov, kamStep, kdvEvolve, kdvGridX, kdvInvariants, kdvNonlin, kdvSech, kdvSoliton, kdvTwoSoliton, kinEntropyPure, kinInitPure, kinKS, kinMBPdf, kinMaxwellCdf, kinMoments, kinPacking, kinPressure, kinRandDir, kinSampleMeanSpeed, kinStepPure, kinWallSide, kinZ, kinZCarnahanStarling, labDeclIds, labDeclIn, labDeclNames, labDomainOf, labNamesAllLangs, lensAlpha, lensPeriU, levelR, lgDynFrictionYears, lgMergerTimeline, lgNucleusAt, lgRadialOrbit, lgSeparationAt, lgTiming, lgmAccel, lgmCross, lgmDot, lgmErf, lgmEvents, lgmGeometry, lgmHaloRho, lgmHaloSigma, lgmMonteCarlo, lgmNorm, lgmOrbit, lgmPotential, lgmSampleDisc, lgmStars, lgmTotalMass, lgmUnit, lmArea, lmBits, lmBitsTimesOmega, lmDeSitter, lmEntropy, lmGibbonsHawking, lmHorizons, lmHubbleLength, lmLambda, lmLambdaInPlanckUnits, lmOmegaAt, lmOmegaDepth, lmOmegaLocus, lmPlanckArea, lmPlanckDensity, lmPlanckRatio, lmVacuumDensity, lmVacuumEnergyDensity, lnRedshift, lssEig3, lssFFT1, lssFFT3, lssGrowth, lssGrowthRate, lssGrowthRaw, lssGrowthSeen, lssKIdx, lssNonlinearR, lssPower, lssRealize, lssRelief, lssReliefCensus, lssSample, lssSigma, lssSigma2Raw, lssStructureSpec, lssTopHat, lssTransfer, masterCoupling, masterMaskCoeffs, masterPseudoCl, masterSolve, mathErf, mathErfc, moonBiggerThanMercury, moonKeplerGM, moonOrbitalSpeed, mulberry, noeEig4, noeFock, noeGram, noeInvariants, noeJ, noeOrbit, nsfExactMeans, nsfFacts, nsfKilling, nsfMake, nsfResidual, nsfResidualCurl, nsfShellPart, nsfStep, nsfUniform, nsfVelocity, nsyAbundance, nsyBindingPerNucleon, nsyEnvironment, nsyFreezeRatio, nsyHeliumFraction, nsyHoyleAboveThreshold, nsyLadder, nsyLogAbundance, nsyMostBound, nsyNeutronDecay, nsyPeakOffsets, nsyPeakProminence, nsyPrimordial, nsyQ, nsyRegime, nuAbs2, nuAdd, nuC, nuConj, nuDelta, nuFirstMaximum, nuJarlskogAngles, nuJarlskogFromU, nuMixingSquared, nuMswDensity, nuMul, nuOscLength, nuPmns, nuProb, nuProbRow, nuTriangle, nuTriangleArea, nuTriangleClosure, nuTwoFlavour, nuUnitarityResidual, nucBE, nucBestZ, nucBperA, nulC, nulCDot, nulCMulExp, nulCVecFromMat, nulCabs, nulCadd, nulCarg, nulCconj, nulCdiv, nulClamp01, nulCmul, nulCrossRatio, nulCscale, nulCsub, nulDot, nulMapply, nulMatFromVec, nulMaxVec, nulMdag, nulMdet, nulMmul, nulMobius, nulMouter, nulMscale, nulSL2, nulSpinDir, nulSpinNorm, nulSpinNormalize, nulSpinor, nulTransformVec, nulVecFromHermitian, nulWrap, nulZeta, oscContFrac, pcCreate, pcExtFlow, pcMu, pcMuBlock, phiAtlasRows, phiAudit, phiAuditGauss, phiAuditLnB, phiAuditLogI0, phiAuditSigma, phiAuditWindows, phiAuditZ, phiLadderScales, photAbsolute, photApparent, photFlux, photModulus, photMu, photMuDepth, photRatio, photonArea, photonEnergy, photonF0, photonFluxOfMag, photonLimitingMag, photonMagOfFlux, photonPoisson, photonRate, photonRng, photonSNR, photonTimeFor, poinOmega, poinSolve, poleR, ppCorrelationDimension, pspAt, pspDet, pspFit, pspFrac, pspI4, pspLog, pspMul, pspShadow, pspSympDefect, pspT4, pspTof, psrB, psrLsd, psrRvm, psrTau, pvCell, pvFlux, qcBasis, qcBuild, qcCompletenessResidual, qcDot3, qcFiveFold, qcGram, qcInflation, qcMatMul6, qcMinSeparation, qcOrderResidual, qcRadialCount, qcRot3, qcSplitResidual, qcTraceSplit, qcdAlphaS, qcdV, qmFFT, qmGaussian, qmHarmonic, qmK, qmMoments, qmPropagate, qmX, qpCirculation, qpCirculationFromLoop, qpExcitonBinding, qpExcitonInvariant, qpExcitonRadius, qpMagnonOmega, qpMagnonStiffness, qpOpticalAtZero, qpPhononOmega, qpPhononOmega2, qpPolaronEnergy, qpPolaronMass, qpSoundSpeed, qpVortexSpeed, qpZoneGap, qrAction, qrBecT, qrCasimir, qrCompton, qrCriteria, qrCyclotron, qrDegeneracy, qrFermiEnergy, qrFermiT, qrFreezeFrequency, qrFrozen, qrLambdaT, qrLandau, qrTransmission, qrTunnel, qsoLEdd, rdTuring, relBoostPts, relGamma, resAiry, resAiryX, resApertureFor, resBesselJ1, resDawes, resDipDepth, resFamSep, resFamZ, resPairSum, resRayleigh, resSepInLambdaOverD, resSparrow, retAccel, retAnalytic, retBeatTime, retDrivenAmp, retEnergyPure, retLeapfrog, retOmegaAnti, retOmegaSym, retPeakAmp, retPeakOmega, retWirelessEta, retWirelessEtaAlt, retWirelessU, rmhdAlfven, rmhdRT, rmhdShock, rmhdSweetParker, rpdArea, rpdCounts, rpdIext, rpdLayer, rpdRh, rshCdiv, rshCmul, rshErePole, rshS, rshSigma, s3AngularDiameterDistance, s3AngularSize, s3ArcLong, s3ArcShort, s3BallVolume, s3KernelFlatLimit, s3Magnification, s3SphereArea, s3nsCarrierWeights, s3nsCovariant, s3nsCurlLevel, s3nsCurlMatrix, s3nsDot4, s3nsEps, s3nsEvalPoly, s3nsFieldDot, s3nsFrame, s3nsFrameDeriv, s3nsFrameVec, s3nsGammaHalf, s3nsGram, s3nsHarmonic, s3nsInvert, s3nsMono, s3nsMonoIntegral, s3nsNull, s3nsNumCurl, s3nsPolyDot, s3nsQAxis, s3nsQConj, s3nsQMul, s3nsShell, s3nsShellElement, s3nsTangentStep, s3nsVelocity, sbContrast, sbDimming, sbDimmingMag, sbDiscSolidAngle, sbF0, sbI0, sbImageIrradiance, sbImagePhotonRate, sbMuOfRadiance, sbRadiance, sbRadianceOfMu, sbSolidAngleToAsec2, sbTiredLightDimming, sbTolmanExponent, scFluxQuanta, scGapMeV, scJosephsonGHz, scaleCosmosExtent, seisDensity, seisDensitySolar, seisDnu, seisEchelleX, seisEnvelope, seisEnvelopeWidth, seisLogg, seisMass, seisMode, seisNumax, seisRadius, seisTransitDensity, seisTransitDensitySolar, sgChi, sgCircles, sgFirstMode, sgGroup, sgInvariantDim, sgOrbit, sgPosteriorBelow, sgSpectrum, sgThetaMin, shNlm, shPlm, shY, shtAnalysis, shtCl, shtGauss, shtGrid, shtIdx, shtLambda, shtPixArea, shtRealize, shtRing, shtSynth, skBPField, skBergLuscher, skBogomolny, skEnergyPure, skGyrovector, skHallAngle, skSampleBP, skSolidAngle, skThieleSolve, slaterZeff, snDecayFractions, snLradio, snRadioComponents, specBlock, specC, specEig, specSpectrum, spin4C, spin4Scalar, spin4Shell, spinFibrePure, spinHopfProject, spinRodrigues, statGalRow, statOortDerived, statOortEllipsoid, statOortFit, statOortPred, statOortRows, statOortSolve, statOortWave, statSolveN, statToGal, su2axang, su2conj, su2mul, su2slerp, sydAngle, sydC, sydCDiv, sydCMul, sydCSub, sydCrossRatio, sydEvalPoly, sydHash, sydJacobiEig, sydMobiusBase, sydMonomialNames, sydMonomials, sydRREF, sydSplitPoly, sydStereoPt, teCOP, teEta, teMroot, tnAccPure, tnConeAngle, tnConeCos, tnCross, tnDot, tnEnergy, tnNorm, tnPoincare, tnRK4, tnSquashOf, tnUnit, tnV, topoAllPairs, topoFibration, topoGenusField, topoHopfPair, topoHopfPts, topoLinkPure, topoMeshTopology, tovSolve, trackCanon, trackDecode, trackEncode, trackFingerprint, trackRun, triFacts, triGeodesic, triHopf, triLayout, triPoint, triProject, triRotate, tsBinding, tsDynamical, tsEfficiency, tsFreeFall, tsGrowth, tsMeanDensity, tsNuclear, tsOrdering, tsThermal, volMeasure, waveGratingSin, waveIntensity, waveOrderZ, waveOrderZAsym, waveOrderZFar, wavePeaks, waveProfile, waveSlitCenters, waveSlitMinSin, waveSlitMinSinCont, waveSources, wdMch, wdRadiusKm, webLogGamma, webMST, webPairCounts, webPowerFit, webPrune, webR0At, webRandoms, webWp, webWpH, wf3j2, wfExperiment, wfMask, wienerFilter, wilQuad, windCeilingMsunYr, windEfficiency, windEscapeSpeed, windFractionLost, windLifetime, windLifetimeWith, windMomentumCeiling, windTerminalSpeed, wotArcs, wotSharedProportion, xpDepth, xpDuration, xpEquilibriumT, xpFluxEarth, xpHabitableZone, xpInZone, xpLightCurve, xpLuminosity, xpOverlap, xpPeriod, xpRadialVelocity, xpSemiMajor, xpSystem, xpTransitProbability, xpZoneStanding, xrDomShort, xrLabHeadCounts, xrLabIds, xrLabPickerPlan, xrLabRecent, xrLabRemember, xrLabShort, zmCriticalDensity, zmDominant, zmEddingtonKappa, zmElectronScattering, zmFeH, zmKramers, zmOpacity, zmZfromFeH, zpActionInvariant, zpBareEnergy, zpBose, zpCasimirAction, zpCasimirCompactness, zpCasimirDensity, zpCasimirEnergy, zpCompactness, zpEqualTemperature, zpHopfCharges, zpMeanModeEnergy, zpModeEnergy, zpModeTemperature, zpOmega, zpRung, zpShellEnergy, zpTemperatureOf, zpThermalScalarFactor, zpThermalTermsNeeded
 };
