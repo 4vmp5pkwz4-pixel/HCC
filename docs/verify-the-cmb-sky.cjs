@@ -78,7 +78,7 @@ const jpegSize = b => { for (let i = 2; i < b.length;) { if (b[i] !== 0xFF) retu
   /* 7 · wiring */
   ok('wiring: the wall shader reads the log-depth buffer and has its three modes, the controls choose them, the laboratory shows the spectra, and HCC_CMB_SKY answers',
     /function cmbSkyMaterial\(opacity\)[\s\S]{0,2600}#include <logdepthbuf_pars_fragment>/.test(SRC) && /if\(uMode<0\.5\)\{ col=planck\(dT\(vUv,0\.0\)\); \}/.test(SRC) && /data-cmbsky="\$\{m\}"/.test(SRC)
-    && /\$\{cmbSpectrumSect\(\)\}`;/.test(SRC) && /globalThis\.HCC_CMB_SKY=Object\.freeze/.test(SRC) && /try\{ cmbSkyTick\(dt\); \}catch\(e\)\{\}/.test(SRC) && /<!-- CMB_SKY:BEGIN -->/.test(SRC));
+    && /\$\{cmbSpectrumSect\(\)\}(\$\{wfSect\(\)\})?`;/.test(SRC) && /globalThis\.HCC_CMB_SKY=Object\.freeze/.test(SRC) && /try\{ cmbSkyTick\(dt\); \}catch\(e\)\{\}/.test(SRC) && /<!-- CMB_SKY:BEGIN -->/.test(SRC));
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();
