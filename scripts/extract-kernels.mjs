@@ -168,7 +168,9 @@ const { depth, code } = scan(SRC);
 }
 const topLevel = i => depth[i] === 0 && code[i] === 1;
 
-const IDENT = /(?<![.\w$])([A-Za-z_$][\w$]*)/g;
+/* a name after ONE dot is a member (a.b, a?.b) and not a reference; a name after THREE is a spread (...GALAXIES)
+   and is one — missing it left COSMOS without the galaxies it spreads in, and the emitted module failed to load */
+const IDENT = /(?<![\w$])(?<!(?:^|[^.])\.)([A-Za-z_$][\w$]*)/g;
 
 /* ── ONE DECLARATOR WALKER, USED TWICE ───────────────────────────────────────
    `const a = 1, b = f(x), {c, d} = o` binds four names; `const g = (N, M = 1) => …` binds
@@ -804,6 +806,7 @@ export const ROOTS = [
   'shtIdx', 'shtGauss', 'shtLambda', 'shtGrid', 'shtRing', 'shtSynth', 'shtAnalysis', 'shtPixArea', 'shtCl', 'shtRealize', 'wfMask', 'wienerFilter', 'WF_LNF', 'wf3j2', 'masterCoupling', 'masterSolve', 'masterMaskCoeffs', 'masterPseudoCl', 'wfExperiment',
   'ghostQMul', 'ghostVec', 'ghostRaDec', 'ghostImages', 'ghostSelfDistances', 'ghostRmax',
   'hypScales', 'hypFind', 'hypDelta', 'hypRatio',
+  'TRACK_SCHEMA', 'TRACK_OPS', 'trackCanon', 'trackFingerprint', 'trackEncode', 'trackDecode', 'trackRun', 'DISCOVERY_TRACKS', 'discoveryTrack',
   'DISCOVERY_DOMAINS', 'DISCOVERIES', 'DISCOVERY_LEADS', 'discoveryById', 'discoveryGraph',
   'LGM_G', 'LGM_GYR', 'LGM_GAL', 'LGM_OBS', 'LGM_LNL', 'LGM_RCOAL', 'lgmTotalMass', 'lgmAccel', 'lgmPotential', 'lgmHaloRho', 'lgmHaloSigma', 'lgmErf', 'lgmOrbit', 'lgmEvents', 'lgmMonteCarlo', 'LGM_GC', 'LGM_NGP', 'LGM_M31', 'lgmUnit', 'lgmCross', 'lgmDot', 'lgmNorm', 'lgmGeometry', 'lgmSampleDisc', 'lgmStars',
   'CT_COSMO', 'ctE', 'ctTable', 'ctInterp', 'ctChiOfZ', 'ctZOfChi', 'ctAgeOfZ', 'CT_T0', 'ctSFR', 'CT_EPOCHS', 'ctEpochOfZ', 'ctColorAtTime', 'ctColorAtChi',
