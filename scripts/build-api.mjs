@@ -214,13 +214,16 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
     static_read:true,local_esm_compute:true,site_mutation:false},
   resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
     reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
+    live_bridge:'./api/live-agent-bridge.mjs',
     forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
   operations:[
     {name:'discover',transport:'esm',description:'Release identity, capabilities, counts, worlds and scaling controls.'},
     {name:'search',transport:'esm',description:'Search instrument contracts by query, world and status.'},
     {name:'describe',transport:'esm',description:'Inputs, outputs, units, domains and verifier references from the manifest.'},
     {name:'forecast',transport:'esm',description:'Conditional scaling scenarios. No empirical confidence or intervention domain guarantee.'},
-    {name:'audit',transport:'esm',description:'Chronological holdout metrics, baseline skill, interval scoring, horizon groups and replayable SHA-256 input.'}
+    {name:'audit',transport:'esm',description:'Chronological holdout metrics, baseline skill, interval scoring, horizon groups and replayable SHA-256 input.'},
+    {name:'measure_s3',transport:'esm',description:'Conditional round spatial S3 geodesic distance for two native R4 points, with explicit radius and unit.'},
+    {name:'live_navigation',transport:'same-page-esm',description:'Opt-in bridge to the existing HCC_API/HCC_NAV page interfaces; no public HTTP mutation endpoint.'}
   ],
   self_hosted:{command:'node server/server.mjs',default_origin:'http://127.0.0.1:8974',openapi:'./api/openapi.json',mcp_path:'/mcp',
     tools:TOOLS.map(t=>t.name),forecast_lab:'prediction.holdout_audit'},

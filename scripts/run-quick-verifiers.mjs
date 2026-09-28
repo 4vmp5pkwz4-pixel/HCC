@@ -146,7 +146,9 @@ const allChecks = [
   "docs/verify-self-description-authority.mjs"
 ];
 
-const agentJob = { args: ['--test', 'test/forecast-audit.test.mjs', 'test/agent-client.test.mjs'], label: 'agent unit tests' };
+const agentJob = { args: ['--test', 'test/forecast-audit.test.mjs', 'test/agent-client.test.mjs',
+  'test/agent-discovery.test.mjs',
+  'test/s3-geometry.test.mjs', 'test/live-agent-bridge.test.mjs'], label: 'agent unit tests' };
 const known = new Set(allChecks);
 const selected = new Set();
 
