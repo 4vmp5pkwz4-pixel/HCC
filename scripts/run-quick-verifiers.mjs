@@ -134,6 +134,7 @@ const allChecks = [
   "docs/verify-spacetime-boosted-live.cjs",
   "docs/verify-the-last-merger.cjs",
   "docs/verify-the-merger-on-the-clock.cjs",
+  "docs/verify-one-clock-for-the-laboratories.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -325,6 +326,7 @@ if (fullMode) {
     'docs/verify-spacetime-boosted-live.cjs',
     'docs/verify-the-last-merger.cjs',
     'docs/verify-the-merger-on-the-clock.cjs',
+    'docs/verify-one-clock-for-the-laboratories.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
