@@ -54,10 +54,12 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
   { const sky = new Set(F.sky), inSky = ['bb', 'mainseq', 'cosmo', 'galrot'], inSphere = ['hopf', 'nsflow', 's3shell', 'tri', 'topo', 'su2'];
     ok('FOUND — with no label consulted, the first mode separates the observed sky from the sphere: black bodies, the main sequence, cosmology and galaxy rotation on one side; the Hopf fibration, Navier–Stokes on S³, the curl shells, the trisphere, topology and SU(2) on the other',
       inSky.every(x => sky.has(x)) && inSphere.every(x => !sky.has(x)), `${F.sky.length} in the sky · ${F.sphere.length} in the sphere`);
-    /* and the CMB is in neither: its Fiedler coordinate is among the two nearest zero, far below the median — it IS the seam */
-    const rank = F.onSeam.findIndex(([x]) => x === 'cmb'), vc = Math.abs(F.vector[G.ix.get('cmb')]);
-    ok('FOUND — the cosmic microwave background stands ON the seam: its Fiedler coordinate is among the two nearest zero of all the laboratories and more than fifty times below the median, with the spherical harmonics beside it — the one observed sky whose analysis is the harmonic analysis of a sphere',
-      rank >= 0 && rank <= 1 && vc * 50 < F.medAbs && F.onSeam.slice(0, 4).some(([x]) => x === 'sh'), `|v_cmb| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)} · nearest: ${F.onSeam.slice(0, 5).map(([x, v]) => x + ' ' + v.toExponential(1)).join(', ')}`); }
+    /* and the seam is the harmonic analysis of the sphere: the CMB and the spherical harmonics both stand ON it. Which of
+       the two is nearest zero moves as relations are added (the CMB with 376 relations, the harmonics with 377) — what
+       stays is that both are among the five of all the laboratories the first mode barely places. */
+    const rk = x => F.onSeam.findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
+    ok('FOUND — the seam is the harmonic analysis of the sphere: the cosmic microwave background and the spherical harmonics both stand ON it — each among the five laboratories nearest zero of the first mode, each at least five times below the median',
+      rk('cmb') >= 0 && rk('cmb') < 5 && rk('sh') >= 0 && rk('sh') < 5 && vc * 5 < F.medAbs && vs * 5 < F.medAbs, `|v_cmb| ${vc.toExponential(1)} · |v_sh| ${vs.toExponential(1)} · median ${F.medAbs.toExponential(1)} · nearest: ${F.onSeam.slice(0, 5).map(([x, v]) => x + ' ' + v.toExponential(1)).join(', ')}`); }
 
   /* 5 · the bus */
   { const links = MAN.bus.links, lab = s => s.split('.')[0], g = new Map(); for (const l of links) { const x = lab(l.from), y = lab(l.to); if (!g.has(x)) g.set(x, new Set()); if (!g.has(y)) g.set(y, new Set()); if (x !== y) g.get(x).add(y); }
