@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-real-local-web-2026.09.28.49">
+<html lang="en" data-hcc-build="back-is-always-there-2026.09.28.50">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-real-local-web-2026.09.28.49">
+<meta name="hcc-build" content="back-is-always-there-2026.09.28.50">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -702,6 +702,10 @@
   #hccCrumb button:hover{color:var(--gold-2);border-color:var(--gold)}
   #hccCrumb button.on{color:#f3e6c6;border-color:rgba(212,175,106,.5)}
   #hccCrumb i{color:#5d6e86;font-style:normal;padding:0 1px}
+  #hccCrumb button.crumbBack{flex:0 0 auto;min-width:34px;font-size:15px;font-weight:700;color:#f1dda6;border-color:rgba(241,221,166,.55)}
+  #hccCrumb button.crumbBack.off{opacity:.38;cursor:default}
+  /* the floating Back is retired: Back is the trail's first element, always visible */
+  #navCluster>#navBackBtn{display:none!important}
   #atlasNav{left:14px;top:calc(var(--topbar-h,64px) + 44px);width:396px;
     max-height:calc(var(--vh100) - var(--topbar-h,64px) - 62px);overflow:auto;z-index:37}
   #atlasNav .aWorlds{display:flex;flex-wrap:wrap;gap:5px;margin:6px 0 8px}
@@ -3043,7 +3047,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.333.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.333.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3355,8 +3359,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.333.0';
-const HCC_BUILD='the-real-local-web-2026.09.28.49';
+const HCC_VERSION='4.333.1';
+const HCC_BUILD='back-is-always-there-2026.09.28.50';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -4225,8 +4229,9 @@ function navSnapshot(){
     fbsDepth:state.fbsDepth, ft:(typeof fractalType!=='undefined')?fractalType:null,
     cam:camera.position.toArray(), tgt:controls.target.toArray() };
 }
+const NAV_SEQ={n:0};   /* one clock for both back-stacks, so Back always undoes the LATEST jump */
 function navPush(){
-  try{ NAV_STACK.push(navSnapshot()); if(NAV_STACK.length>60) NAV_STACK.shift();
+  try{ const snap=navSnapshot(); snap.seq=++NAV_SEQ.n; NAV_STACK.push(snap); if(NAV_STACK.length>60) NAV_STACK.shift();
     const b=document.getElementById('navBackBtn'); if(b) b.style.display='block';
   }catch(e){}
 }
@@ -94348,6 +94353,7 @@ function labDockTick(dt){
   labDockAcc+=dt; if(labDockAcc<0.25) return; labDockAcc=0;
   try{ paramDockTick(); }catch(e){}
   try{ hccPresentControls(); labBrowserWorldTick(); labBrowserApplyVisibility(); }catch(e){}
+  try{ navBackSync(); }catch(e){}
   try{ labBarTick(); }catch(e){ if(!labBarTick._w){ labBarTick._w=1; console.warn('lab bar:',e); } }
   /* laboratories build their scenes on demand, so material created AFTER a theme change
      would still be wearing night colours. The pass is idempotent — every material carries
@@ -112694,7 +112700,7 @@ function panelInScope(id,ctx){
 const HCC_CTX={worldId:'solar', labId:null, inspectorTab:'controls',
   selectedObjectId:null, openPanels:[], navigationHistory:[]};
 globalThis.HCC_CTX=HCC_CTX;
-globalThis.HCC_NAV={go:(w,l)=>hccGo({worldId:w,labId:l||null}),back:()=>hccBack(),
+globalThis.HCC_NAV={go:(w,l)=>hccGo({worldId:w,labId:l||null}),back:()=>navUnifiedBack(),
   route:()=>hccRoute(), worlds:()=>WORLD_REGISTRY.map(w=>({...w})),
   lang:()=>state.lang||'en', categories:()=>LAB_CATEGORIES.map(([id,t])=>({id,t:[...t]})),
   /* every selectable object of every world, by name — what the First-Principles
@@ -112812,6 +112818,7 @@ function hccGo(target,opts={}){
       if(Number.isFinite(target.butterflyDay))setAtlasTime({epochDays:target.butterflyDay,paused:true},'butterfly.route');
     }
     const prev={worldId:HCC_CTX.worldId,labId:HCC_CTX.labId};
+    try{ prev.seq=++NAV_SEQ.n; prev.cam=camera.position.toArray(); prev.tgt=controls.target.toArray(); }catch(e){}   /* ordered with the camera stack, and the view kept */
     if(opts.history!==false&&(prev.worldId!==worldId||prev.labId!==labId))
       HCC_CTX.navigationHistory.push(prev);
     HCC_CTX.worldId=worldId; HCC_CTX.labId=labId;
@@ -113040,6 +113047,25 @@ function hccEnforceScope(){
   try{ hccPresentControls(); }catch(e){}
 }
 globalThis.hccBack=()=>hccBack();
+/* one Back for both stacks: the camera-exact stack first, then the route history, then up the hierarchy */
+function navCanGoBack(){ try{ return NAV_STACK.length>0||HCC_CTX.navigationHistory.length>0||!!HCC_CTX.labId||HCC_CTX.worldId!=='solar'; }catch(e){ return false; } }
+function navUnifiedBack(){ const h=HCC_CTX.navigationHistory, a=NAV_STACK.length?NAV_STACK[NAV_STACK.length-1].seq||0:-1, b=h.length?h[h.length-1].seq||0:-1;
+  let r=false;
+  if(b>=0&&b>a-1){
+    /* a route step (a world or a laboratory): go there by the route, so the trail and the scene agree; if the same
+       jump also saved the exact camera (navPush just before hccGo), that camera is the one restored */
+    const t=h.pop(); let cam=t.cam, tgt=t.tgt;
+    if(a>=0&&b-a===1){ const snap=NAV_STACK.pop(); cam=snap.cam; tgt=snap.tgt; }
+    hccGo(t,{history:false});
+    if(cam) setTimeout(()=>{ try{ if(HCC_CTX.worldId===t.worldId&&HCC_CTX.labId===t.labId){ camera.position.fromArray(cam); controls.target.fromArray(tgt); syncCameraClipping(true); } }catch(e){} },420);
+    r=true; }
+  else if(a>=0){ try{ navBack(); r=true; }catch(e){} }   /* a jump inside the same place: the camera stack alone */
+  else r=hccBack();
+  try{ hccRenderBreadcrumb(); }catch(e){} return r; }
+let NAV_BACK_LAST=null;
+function navBackSync(){ const can=navCanGoBack(); if(can===NAV_BACK_LAST) return; NAV_BACK_LAST=can;
+  const b=document.querySelector('#hccCrumb [data-crumb="back"]'); if(!b){ try{ hccRenderBreadcrumb(); }catch(e){} return; }
+  b.classList.toggle('off',!can); }
 function hccBack(){
   const h=HCC_CTX.navigationHistory;
   if(h.length){ const t=h.pop(); hccGo(t,{history:false}); return true; }
@@ -113060,9 +113086,16 @@ function hccRenderBreadcrumb(){
      than two whole names do.  The dropped segments are not lost — Atlas is one tap away
      on the bar below, and the world is one tap above. */
   const narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches;
-  el.innerHTML=(narrow?seg.slice(-2):seg).join('<i>›</i>');
+  /* BACK IS ALWAYS THERE. It used to be a floating button shown only when one of the two back-stacks had
+     something in it — and most transitions (the world tabs, the lab bar, the trail itself) fed the other stack,
+     so after them it was hidden, and when it did show it sat UNDER this trail. Now it is the trail's first
+     element on every screen: it restores the exact camera when the jump saved one, otherwise it walks the
+     route history, then lab → world → Solar. With nowhere to go it stays visible and says so. */
+  const canBack=navCanGoBack();
+  el.innerHTML=`<button data-crumb="back" class="crumbBack${canBack?'':' off'}" aria-label="${TT('Back','Назад','Zurück')}" title="${canBack?TT('Back — to exactly where you came from','Назад — точно туда, откуда пришли','Zurück — genau dorthin, woher Sie kamen'):TT('Nothing to go back to — this is the start','Некуда возвращаться — это начало','Kein Zurück — hier ist der Anfang')}">←</button>`+(narrow?seg.slice(-2):seg).join('<i>›</i>');
   el.querySelectorAll('[data-crumb]').forEach(b=>b.onclick=()=>{
     const k=b.dataset.crumb;
+    if(k==='back'){ navUnifiedBack(); return; }
     if(k==='atlas'){ try{ openPanel('atlasNav'); }catch(e){} hccAtlasOpen(true); }
     else if(k==='world') hccGo({worldId:HCC_CTX.worldId,labId:null});
     else if(k==='cat'){ hccAtlasOpen(true,b.dataset.cat); }
