@@ -136,6 +136,7 @@ const allChecks = [
   "docs/verify-the-merger-on-the-clock.cjs",
   "docs/verify-one-clock-for-the-laboratories.cjs",
   "docs/verify-the-fluid-modes-are-spins.cjs",
+  "docs/verify-the-web-has-relief.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -329,6 +330,7 @@ if (fullMode) {
     'docs/verify-the-merger-on-the-clock.cjs',
     'docs/verify-one-clock-for-the-laboratories.cjs',
     'docs/verify-the-fluid-modes-are-spins.cjs',
+    'docs/verify-the-web-has-relief.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

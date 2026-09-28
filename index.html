@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-bar-stays-on-the-clock-2026.09.28.46">
+<html lang="en" data-hcc-build="the-web-has-relief-2026.09.28.47">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-bar-stays-on-the-clock-2026.09.28.46">
+<meta name="hcc-build" content="the-web-has-relief-2026.09.28.47">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3043,7 +3043,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.330.1</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.331.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3349,8 +3349,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.330.1';
-const HCC_BUILD='the-bar-stays-on-the-clock-2026.09.28.46';
+const HCC_VERSION='4.331.0';
+const HCC_BUILD='the-web-has-relief-2026.09.28.47';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -23819,6 +23819,7 @@ function applyLookbackColours(on){
     const z=s.z!=null?s.z:(s.dGly!=null?COORD.zFromComoving(s.dGly):0);
     const col=on?lookbackColor(z):new THREE.Color(s.col);
     g.traverse(o=>{ if(o.userData.noGrade) return;
+      if(o.material&&o.material.uniforms&&o.material.uniforms.uTint) o.material.uniforms.uTint.value.copy(col);
       if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); });
   }
 }
@@ -25145,6 +25146,225 @@ globalThis.HCC_SHELL_TOMOGRAPHY=(L,q,chi0,eps)=>{
     condition_number:1/Math.sqrt(tomoLambdaMin(L,chi0,eps)),
     cap_fraction:tomoCapFraction(chi0)};
 };
+/* ══ THE WEB HAS RELIEF: ΛCDM INITIAL CONDITIONS, THE ZEL'DOVICH MAP AND THE GROWTH OF STRUCTURE ══════════
+   A supercluster, a wall or a void drawn as a wireframe ellipsoid says where it is and how big; it says
+   nothing of what it is made of. What it is made of is the same thing everywhere: a Gaussian random field
+   with the ΛCDM power spectrum, grown by gravity. So each giant structure is now drawn as a REALIZATION of
+   that field, constrained to be the kind of thing it is, and moved by the map that describes the first
+   collapse of cold matter:
+     · the spectrum P(k) = A kⁿˢ T²(k) — Eisenstein & Hu (1998) no-wiggle transfer function, the atlas's own
+       H₀ = 68.43, Ω_m = 0.305, ω_b = 0.02237, and Planck 2018 nₛ = 0.9649, σ₈ = 0.8111 fixing A;
+     · the growth factor D(a) of flat ΛCDM, D ∝ E(a)∫da/(aE)³ — integrated, not fitted, and read off the
+       atlas clock: run it back and the web dissolves into the near-uniform early universe, run it forward
+       and it FREEZES, because Λ stops growth at D∞/D₀ (computed below, and checked);
+     · the Zel'dovich map x = q + D(t)·s(q), s = ∇∇⁻²δ, truncated at the non-linear scale (TZA; Coles,
+       Melott & Shandarin 1993), with the local kind of place — void, sheet, filament, node — given by how
+       many eigenvalues of the deformation tensor have crossed D·λ = 1 (shell crossing), and the density by
+       1/|Π(1 − Dλᵢ)|;
+     · the constraint by Hoffman & Ribak (1991): a supercluster is the field conditioned to a smoothed peak,
+       a wall to a sheet of peaks across its plane, a void to a trough — the conditional mean plus the
+       random residual, exact for a Gaussian field.
+   NONE OF THIS IS A RECONSTRUCTION of the galaxies in these structures: it is the statistics of the
+   universe, shaped to the declared kind, extent and orientation of each. What is exact is the physics.
+   And the map is Navier–Stokes: the Zel'dovich approximation is the inviscid limit of the ADHESION model,
+   Burgers' equation — Navier–Stokes without pressure, for a potential flow — which the Hopf–Cole
+   transformation solves exactly through the heat equation (Gurbatov & Saichev 1984; Gurbatov, Saichev &
+   Shandarin 1989). Before shell crossing the two coincide; after it, Burgers makes a shock where the Zel'dovich
+   streams cross, and the mass it collects is exactly what the streams share (checked below, in one dimension). */
+const LSS_PRIM=Object.freeze({ns:0.9649, sigma8:0.8111, source:'Planck 2018 VI, TT,TE,EE+lowE+lensing'});
+const LSS_C=Object.freeze({h:HCC_S3R.H0_km/100, Om:HCC_S3R.Omega_m, OL:1-HCC_S3R.Omega_m, wb:HCC_S3R.omega_b, Tcmb:HCC_S3R.T_cmb});
+/* Eisenstein & Hu 1998, eqs. 26–31 (no baryon wiggles); k in h/Mpc */
+function lssTransfer(kh,C){ C=C||LSS_C; const h=C.h, wm=C.Om*h*h, fb=C.wb/wm, th=C.Tcmb/2.7,
+    s=44.5*Math.log(9.83/wm)/Math.sqrt(1+10*Math.pow(C.wb,0.75)),
+    aG=1-0.328*Math.log(431*wm)*fb+0.38*Math.log(22.3*wm)*fb*fb, k=kh*h,
+    G=C.Om*h*(aG+(1-aG)/(1+Math.pow(0.43*k*s,4))), q=kh*th*th/G,
+    L0=Math.log(2*Math.E+1.8*q), C0=14.2+731/(1+62.5*q);
+  return L0/(L0+C0*q*q); }
+const lssTopHat=x=>x<1e-4?1-x*x/10:3*(Math.sin(x)-x*Math.cos(x))/(x*x*x);
+/* σ²(R) = (1/2π²)∫ k² P(k) W²(kR) dk, Simpson in ln k; filt 'tophat' | 'gauss' */
+function lssSigma2Raw(R,filt,C){ const n=1600, a=Math.log(1e-5), b=Math.log(2e2), hh=(b-a)/n; let s=0;
+  for(let i=0;i<=n;i++){ const lk=a+i*hh, k=Math.exp(lk), T=lssTransfer(k,C), W=filt==='gauss'?Math.exp(-0.5*k*k*R*R):lssTopHat(k*R),
+      f=k*k*k*Math.pow(k,LSS_PRIM.ns)*T*T*W*W, w=(i===0||i===n)?1:(i%2?4:2); s+=w*f; }
+  return s*hh/3/(2*Math.PI*Math.PI); }
+const LSS_A=LSS_PRIM.sigma8*LSS_PRIM.sigma8/lssSigma2Raw(8,'tophat');
+function lssPower(kh,C){ return LSS_A*Math.pow(kh,LSS_PRIM.ns)*Math.pow(lssTransfer(kh,C),2); }
+function lssSigma(R,filt,C){ return Math.sqrt(LSS_A*lssSigma2Raw(R,filt||'tophat',C)); }
+/* the non-linear scale today: the Gaussian radius at which σ = 1, by bisection */
+function lssNonlinearR(C){ let lo=0.05, hi=50; for(let i=0;i<60;i++){ const m=Math.sqrt(lo*hi); if(lssSigma(m,'gauss',C)>1) lo=m; else hi=m; } return Math.sqrt(lo*hi); }
+/* the linear growth factor of flat ΛCDM, D(a) = (5Ω_m/2) E(a) ∫₀ᵃ da'/(a'E)³, normalised to D(1) = 1 */
+function lssGrowthRaw(a,C){ C=C||LSS_C; if(!(a>0)) return 0; const lnA=Math.min(Math.log(a),40), n=800, lo=-30, hh=(lnA-lo)/n; let s=0;
+  for(let i=0;i<=n;i++){ const x=Math.exp(lo+i*hh), aE=Math.sqrt(C.Om/x+C.OL*x*x), f=x/(aE*aE*aE), w=(i===0||i===n)?1:(i%2?4:2); s+=w*f; }
+  const I=s*hh/3, E=Math.sqrt(C.Om/Math.pow(Math.exp(lnA),3)+C.OL);
+  return 2.5*C.Om*E*I; }
+const LSS_D1=lssGrowthRaw(1);
+function lssGrowth(a,C){ return lssGrowthRaw(a,C)/(C?lssGrowthRaw(1,C):LSS_D1); }
+/* f = dlnD/dlna, by the exact identity f = −3/2 + … avoided: central difference in ln a */
+function lssGrowthRate(a,C){ const e=1e-4; return (Math.log(lssGrowthRaw(a*Math.exp(e),C))-Math.log(lssGrowthRaw(a*Math.exp(-e),C)))/(2*e); }
+const LSS_DINF=lssGrowth(Math.exp(40));
+/* ── the grid: an in-place radix-2 complex FFT along every axis of an N³ box ── */
+function lssFFT1(re,im,off,stride,n,inv){ for(let i=1,j=0;i<n;i++){ let b=n>>1; for(;j&b;b>>=1) j^=b; j^=b;
+    if(i<j){ const a=off+i*stride, c=off+j*stride; let t=re[a]; re[a]=re[c]; re[c]=t; t=im[a]; im[a]=im[c]; im[c]=t; } }
+  for(let len=2;len<=n;len<<=1){ const ang=(inv?2:-2)*Math.PI/len, wr=Math.cos(ang), wi=Math.sin(ang);
+    for(let i=0;i<n;i+=len){ let cr=1, ci=0; for(let j=0;j<len/2;j++){ const a=off+(i+j)*stride, c=off+(i+j+len/2)*stride,
+        xr=re[c]*cr-im[c]*ci, xi=re[c]*ci+im[c]*cr; re[c]=re[a]-xr; im[c]=im[a]-xi; re[a]+=xr; im[a]+=xi; const t=cr*wr-ci*wi; ci=cr*wi+ci*wr; cr=t; } } } }
+function lssFFT3(re,im,N,inv){ const N2=N*N;
+  for(let z=0;z<N;z++) for(let y=0;y<N;y++) lssFFT1(re,im,z*N2+y*N,1,N,inv);
+  for(let z=0;z<N;z++) for(let x=0;x<N;x++) lssFFT1(re,im,z*N2+x,N,N,inv);
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++) lssFFT1(re,im,y*N+x,N2,N,inv);
+  if(inv){ const s=1/(N2*N); for(let i=0;i<re.length;i++){ re[i]*=s; im[i]*=s; } } }
+const lssKIdx=(i,N)=>i<=N/2?i:i-N;
+/* A constrained realization. opt = {N, L (Mpc/h), seed, Rs (truncation, Mpc/h), constraints:[{x:[3] Mpc/h from the centre, R, nu}]}
+   Returns the density, displacement and deformation tensor on the grid, all at D = 1 (today). */
+function lssRealize(opt){ const N=opt.N, L=opt.L, V=L*L*L, N3=N*N*N, dk=2*Math.PI/L, Rs=opt.Rs||0, rnd=mulberry(opt.seed|0);
+  const re=new Float64Array(N3), im=new Float64Array(N3);
+  for(let i=0;i<N3;i+=2){ const u=Math.max(1e-300,rnd()), v=rnd(), r=Math.sqrt(-2*Math.log(u)); re[i]=r*Math.cos(2*Math.PI*v); if(i+1<N3) re[i+1]=r*Math.sin(2*Math.PI*v); }
+  lssFFT3(re,im,N,false);
+  const kx=new Float64Array(N3), ky=new Float64Array(N3), kz=new Float64Array(N3), Pk=new Float64Array(N3);
+  for(let z=0,i=0;z<N;z++) for(let y=0;y<N;y++) for(let x=0;x<N;x++,i++){ const a=lssKIdx(x,N)*dk, b=lssKIdx(y,N)*dk, c=lssKIdx(z,N)*dk, k=Math.hypot(a,b,c);
+    const edge=x===N/2||y===N/2||z===N/2;   /* the Nyquist planes carry no derivative: zeroed, so ∇·s = −δ and tr d = δ hold exactly */
+    kx[i]=a; ky[i]=b; kz[i]=c; Pk[i]=(i===0||edge)?0:lssPower(k)*Math.exp(-k*k*Rs*Rs); const amp=Math.sqrt(Pk[i]/V)/Math.sqrt(N3); re[i]*=amp; im[i]*=amp; }
+  /* δ(x) = Σ_k δ_k e^{ik·x}; a constraint is C = Σ_k δ_k W(kR) e^{ik·x₀} with a Gaussian window; Hoffman–Ribak:
+     δ_k ← δ_k + (P_k/V) Σ_ij W_i e^{−ik·x_i} Ξ⁻¹_ij (c_j − C_j),  Ξ_ij = Σ_k (P_k/V) W_i W_j cos k·(x_i − x_j) */
+  const cons=(opt.constraints||[]).map(c=>({...c, W:new Float64Array(N3)})), m=cons.length, info=[];
+  if(m){ const cs=cons.map(()=>new Float64Array(N3)), sn=cons.map(()=>new Float64Array(N3));
+    cons.forEach((c,a)=>{ for(let i=0;i<N3;i++){ const k2=kx[i]*kx[i]+ky[i]*ky[i]+kz[i]*kz[i], p=kx[i]*c.x[0]+ky[i]*c.x[1]+kz[i]*c.x[2]; c.W[i]=Math.exp(-0.5*k2*c.R*c.R); cs[a][i]=Math.cos(p); sn[a][i]=Math.sin(p); } });
+    const X=Array.from({length:m},()=>new Float64Array(m)), Cv=new Float64Array(m), meas=a=>{ let s=0; const W=cons[a].W, C=cs[a], S=sn[a]; for(let i=0;i<N3;i++) s+=W[i]*(re[i]*C[i]-im[i]*S[i]); return s; };
+    for(let a=0;a<m;a++){ Cv[a]=meas(a); for(let b=a;b<m;b++){ let s=0; const Wa=cons[a].W, Wb=cons[b].W; for(let i=0;i<N3;i++) if(Pk[i]) s+=Pk[i]*Wa[i]*Wb[i]*(cs[a][i]*cs[b][i]+sn[a][i]*sn[b][i]); X[a][b]=X[b][a]=s/V; } }
+    const Xi=s3nsInvert(X,m), rhs=cons.map((c,a)=>c.nu*Math.sqrt(X[a][a])-Cv[a]), coef=Xi.map(r=>r.reduce((t,v,j)=>t+v*rhs[j],0));
+    for(let i=0;i<N3;i++){ if(!Pk[i]) continue; let ar=0, ai=0; for(let a=0;a<m;a++){ const w=Pk[i]/V*cons[a].W[i]*coef[a]; ar+=w*cs[a][i]; ai-=w*sn[a][i]; } re[i]+=ar; im[i]+=ai; }
+    for(let a=0;a<m;a++) info.push({target:cons[a].nu*Math.sqrt(X[a][a]), got:meas(a), sigma:Math.sqrt(X[a][a]), before:Cv[a]}); }
+  const field=(mul)=>{ const r=new Float64Array(N3), q=new Float64Array(N3); for(let i=0;i<N3;i++){ const [mr,mi]=mul(i); r[i]=re[i]*mr-im[i]*mi; q[i]=re[i]*mi+im[i]*mr; }
+    lssFFT3(r,q,N,true); const out=new Float32Array(N3); for(let i=0;i<N3;i++) out[i]=r[i]*N3; return out; };
+  const nyq=v=>v, k2=i=>kx[i]*kx[i]+ky[i]*ky[i]+kz[i]*kz[i];
+  const delta=field(()=>[1,0]);
+  const s=[kx,ky,kz].map(K=>field(i=>i===0?[0,0]:[0,nyq(K[i],i)/k2(i)]));              /* s = i k δ / k²  ⇒  ∇·s = −δ */
+  const pairs=[[0,0],[1,1],[2,2],[0,1],[0,2],[1,2]], KK=[kx,ky,kz];
+  const d=pairs.map(([a,b])=>field(i=>i===0?[0,0]:[nyq(KK[a][i],i)*nyq(KK[b][i],i)/k2(i),0]));   /* d_ab = ∂_a∂_b φ, φ = −∇⁻²δ... = −∂_b s_a */
+  return {N, L, delta, s, d, constraints:info}; }
+/* trilinear, periodic */
+function lssSample(G,arr,x,y,z){ const N=G.N, h=G.L/N, fx=((x/h)%N+N)%N, fy=((y/h)%N+N)%N, fz=((z/h)%N+N)%N,
+    i0=Math.floor(fx), j0=Math.floor(fy), k0=Math.floor(fz), tx=fx-i0, ty=fy-j0, tz=fz-k0, I=(i,j,k)=>arr[((k%N)*N+(j%N))*N+(i%N)];
+  return (1-tz)*((1-ty)*((1-tx)*I(i0,j0,k0)+tx*I(i0+1,j0,k0))+ty*((1-tx)*I(i0,j0+1,k0)+tx*I(i0+1,j0+1,k0)))
+        +tz*((1-ty)*((1-tx)*I(i0,j0,k0+1)+tx*I(i0+1,j0,k0+1))+ty*((1-tx)*I(i0,j0+1,k0+1)+tx*I(i0+1,j0+1,k0+1))); }
+/* eigenvalues of a symmetric 3×3, descending (trigonometric solution) */
+function lssEig3(a,b,c,d,e,f){ /* [[a,d,e],[d,b,f],[e,f,c]] */ const p1=d*d+e*e+f*f, q=(a+b+c)/3;
+  if(p1<1e-30){ return [a,b,c].sort((x,y)=>y-x); }
+  const p2=(a-q)**2+(b-q)**2+(c-q)**2+2*p1, p=Math.sqrt(p2/6), B=[(a-q)/p,d/p,e/p,(b-q)/p,f/p,(c-q)/p],
+    r=(B[0]*(B[3]*B[5]-B[4]*B[4])-B[1]*(B[1]*B[5]-B[4]*B[2])+B[2]*(B[1]*B[4]-B[3]*B[2]))/2, ph=r<=-1?Math.PI/3:r>=1?0:Math.acos(r)/3,
+    l1=q+2*p*Math.cos(ph), l3=q+2*p*Math.cos(ph+2*Math.PI/3); return [l1,3*q-l1-l3,l3]; }
+/* ── Burgers, the web's Navier–Stokes. u_t + u u_x = ν u_xx; Hopf–Cole: u = −2ν ∂ₓ ln θ with θ solving the heat
+   equation, so u(x,t) = ⟨(x − q)/t⟩ under the weight e^{−G/2ν}, G(q) = ψ₀(q) + (x − q)²/2t, ψ₀' = u₀. As ν → 0 the weight
+   sits on the minimiser q*(x): before shell crossing that is the Zel'dovich particle, x = q + t u₀(q); after it, q*
+   JUMPS across the streams and the jump is the shock — matter that the Zel'dovich map lets pass through, stuck. */
+function burgersHopfCole(x,t,nu,psi0,qa,qb,n){ n=n||4000; const h=(qb-qa)/n, G=new Float64Array(n+1); let gmin=Infinity;
+  for(let i=0;i<=n;i++){ const q=qa+i*h; G[i]=psi0(q)+(x-q)*(x-q)/(2*t); if(G[i]<gmin) gmin=G[i]; }
+  let Z=0, Q=0; for(let i=0;i<=n;i++){ const w=Math.exp(-(G[i]-gmin)/(2*nu))*((i===0||i===n)?0.5:1); Z+=w; Q+=w*(qa+i*h); }
+  const qs=Q/Z; return {u:(x-qs)/t, q:qs}; }
+/* the Zel'dovich streams of u₀ = −A sin q at x = 0 after crossing: q = A t sin q, by Newton */
+function burgersShockHalfWidth(A,t){ if(A*t<=1) return 0; let q=Math.PI*0.9; for(let i=0;i<60;i++){ const f=q-A*t*Math.sin(q), d=1-A*t*Math.cos(q); q-=f/d; } return q; }
+/* ── the clock: the growth each structure shows is the growth AT THE TIME ITS LIGHT LEFT, moved by the time machine ── */
+function lssGrowthSeen(zObs,dtYears){ const tEmit=dtAgeGyrAtA(1/(1+Math.max(0,zObs)))+(dtYears||0)/1e9; if(!(tEmit>0)) return 0;
+  return lssGrowth(Math.exp(dtLnA(tEmit))); }
+/* ── what a structure IS, as constraints on the field. Local frame: x the long axis, z the short (a wall's normal) ── */
+const LSS_BIAS=1.8;      /* the points are GALAXIES: sampled ∝ e^{bδ} (lognormal tracer, saturating above 2σ), b ≈ 1.8 as for the luminous galaxies that drew the Sloan Great Wall */
+const LSS_TWEB_TH=0.3;   /* T-web threshold on D·λ (Forero-Romero et al. 2009 use 0.2–0.4): the COLOUR; shell crossing is D·λ = 1 */
+function lssStructureSpec(s,rGly,ratio){ const hMpc=LSS_C.h*MPC_PER_GLY, r=rGly*hMpc, ax=(ratio||[1,1,1]).map(v=>v*r), big=rGly>=0.25||s.type==='wall';
+  const N=big?32:16, sample=s.type==='void'?1.3:1.0, L=2*Math.max(...ax)*sample*1.15, cell=L/N, Rs=Math.max(lssNonlinearR(),0.9*cell), Rc=R=>Math.max(R,1.2*cell);
+  let cons=[];
+  if(s.type==='void') cons=[{x:[0,0,0],R:Rc(0.45*r),nu:-2.5}];
+  else if(s.type==='wall') cons=[[0,0],[0.55,0],[-0.55,0],[0,0.3],[0,-0.3]].map(([u,v])=>({x:[u*ax[0],v*ax[0],0],R:Rc(Math.max(0.6*ax[2],0.12*r)),nu:2.2}));
+  else if(s.type==='cluster'||s.type==='attractor') cons=[{x:[0,0,0],R:Rc(0.3*r),nu:3}];
+  else cons=[{x:[0,0,0],R:Rc(0.35*r),nu:2.5}];
+  const seed=(s.key||'x').split('').reduce((a,c)=>(a*131+c.charCodeAt(0))|0,0x77eb);
+  return {key:s.key, type:s.type, N, L, Rs, ax, sample, seed, constraints:cons, hMpc, count:big?5200:2200, bias:LSS_BIAS}; }
+/* particles: uniform in the Lagrangian ellipsoid (a jittered, deterministic sample), each carrying q, s(q) and the
+   three eigenvalues of its deformation tensor — the GPU moves them by D and classifies them by D·λ */
+function lssRelief(spec,G){ G=G||lssRealize({N:spec.N, L:spec.L, seed:spec.seed, Rs:spec.Rs, constraints:spec.constraints});
+  const rnd=mulberry(spec.seed^0x5a5a), n=spec.count, q=new Float32Array(n*3), s=new Float32Array(n*3), lam=new Float32Array(n*3), dl=new Float32Array(n), ax=spec.ax.map(v=>v*spec.sample), b=spec.bias||0;
+  let v2=0; for(let i=0;i<G.delta.length;i++) v2+=G.delta[i]*G.delta[i]; const sig=Math.sqrt(v2/G.delta.length), ref=2*sig;
+  let k=0, guard=0; while(k<n&&guard<n*400){ guard++; const u=2*rnd()-1, v=2*rnd()-1, w=2*rnd()-1; if(u*u+v*v+w*w>1) continue;
+    const X=u*ax[0], Y=v*ax[1], Z=w*ax[2], gx=X+spec.L/2, gy=Y+spec.L/2, gz=Z+spec.L/2, de=lssSample(G,G.delta,gx,gy,gz);
+    if(b&&rnd()>Math.exp(Math.min(0,b*(de-ref)))) continue;
+    q[k*3]=X; q[k*3+1]=Y; q[k*3+2]=Z; dl[k]=de; for(let a=0;a<3;a++) s[k*3+a]=lssSample(G,G.s[a],gx,gy,gz);
+    const d=G.d.map(A=>lssSample(G,A,gx,gy,gz)), e=lssEig3(d[0],d[1],d[2],d[3],d[4],d[5]); lam[k*3]=e[0]; lam[k*3+1]=e[1]; lam[k*3+2]=e[2]; k++; }
+  return {n:k, q:q.subarray(0,k*3), s:s.subarray(0,k*3), lam:lam.subarray(0,k*3), dl:dl.subarray(0,k), sigma:sig, G}; }
+/* the census of a relief at growth D: how much of it is void, sheet, filament, node, and how much has shell-crossed */
+function lssReliefCensus(R,D,th){ th=th==null?LSS_TWEB_TH:th; const c=[0,0,0,0]; let crossed=0;
+  for(let i=0;i<R.n;i++){ let m=0, x=0; for(let a=0;a<3;a++){ const l=D*R.lam[i*3+a]; if(l>th) m++; if(l>1) x=1; } c[m]++; crossed+=x; }
+  return {void:c[0]/R.n, sheet:c[1]/R.n, filament:c[2]/R.n, node:c[3]/R.n, crossed:crossed/R.n}; }
+
+/* the cosmic-web laboratory shows the bridge: the Zel'dovich map (folded, three streams) against Burgers (one-valued, with a shock) */
+function cwBurgersSect(){ const A=1, t=state.cwBurT??2, nu=2e-3, psi0=q=>A*(Math.cos(q)-1), W=300, H=150, X=x=>(x/Math.PI*0.5+0.5)*W, Y=q=>H-(q/Math.PI*0.5+0.5)*H;
+  const za=[]; for(let i=0;i<=160;i++){ const q=-Math.PI+2*Math.PI*i/160, x=q-t*A*Math.sin(q); if(Math.abs(x)<=Math.PI) za.push(`${X(x).toFixed(1)},${Y(q).toFixed(1)}`); }
+  const bu=[]; for(let i=0;i<=120;i++){ const x=-Math.PI+2*Math.PI*i/120, B=burgersHopfCole(x,t,nu,psi0,-Math.PI,Math.PI,900); bu.push(`${X(x).toFixed(1)},${Y(B.q).toFixed(1)}`); }
+  const qs=burgersShockHalfWidth(A,t);
+  return `<div class="sect"><b>${TT('The web is Navier–Stokes without pressure','Паутина — это Навье–Стокс без давления','Das Netz ist Navier–Stokes ohne Druck')}</b>
+    <div class="note">${TT('Every particle of the web moves by the Zel’dovich map x = q + t u₀(q). That map is the inviscid limit of Burgers’ equation u_t + u u_x = ν u_xx — Navier–Stokes with no pressure, for a potential flow — which the Hopf–Cole transformation solves exactly through the heat equation. Plotted: where each piece of matter q ends up at x. Gold is Zel’dovich; blue is Burgers at ν = 0.002. Before shell crossing (t < 1) they are the same curve; after it Zel’dovich folds into three streams and Burgers jumps: a shock, and the matter between −q_s and q_s is stuck in it — a wall.','Каждая частица паутины движется по отображению Зельдовича x = q + t u₀(q). Это невязкий предел уравнения Бюргерса u_t + u u_x = ν u_xx — Навье–Стокса без давления для потенциального течения, — которое преобразование Хопфа–Коула решает точно через уравнение теплопроводности. На графике: куда приходит каждый кусок вещества q. Золотое — Зельдович, синее — Бюргерс при ν = 0.002. До пересечения потоков (t < 1) это одна кривая; после Зельдович складывается в три потока, а Бюргерс прыгает: ударная волна, и вещество между −q_s и q_s застревает в ней — стена.','Jedes Teilchen des Netzes bewegt sich nach der Zel’dovich-Abbildung. Sie ist der reibungsfreie Grenzfall der Burgers-Gleichung — Navier–Stokes ohne Druck —, die die Hopf–Cole-Transformation exakt über die Wärmeleitungsgleichung löst. Nach der Schalenkreuzung faltet Zel’dovich in drei Ströme, Burgers springt: ein Stoß, eine Wand.')}</div>
+    <div class="ctlrow"><label>t / t<sub>cross</sub></label><input type="range" id="cwBurT" min="0.2" max="4" step="0.05" value="${t}"><span class="val">${t.toFixed(2)}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;background:rgba(0,0,0,.25);border-radius:8px"><line x1="${W/2}" y1="0" x2="${W/2}" y2="${H}" stroke="rgba(255,255,255,.12)"/><line x1="0" y1="${H/2}" x2="${W}" y2="${H/2}" stroke="rgba(255,255,255,.12)"/>
+      <polyline points="${za.join(' ')}" fill="none" stroke="#e8b85c" stroke-width="2" opacity=".85"/><polyline points="${bu.join(' ')}" fill="none" stroke="#6fb7ff" stroke-width="1.6"/>
+      <text x="4" y="12" fill="#9aa6b8" font-size="10">q</text><text x="${W-10}" y="${H/2-4}" fill="#9aa6b8" font-size="10">x</text></svg>
+    <div class="note" style="font-variant-numeric:tabular-nums">${t<=1?TT('before shell crossing: the two agree — the web is still one stream everywhere','до пересечения потоков кривые совпадают — всюду ещё один поток','vor der Schalenkreuzung stimmen beide überein'):`${TT('shock at x = 0 holds','ударная волна в x = 0 держит','der Stoß bei x = 0 hält')} q ∈ [−${qs.toFixed(4)}, ${qs.toFixed(4)}] — <b>${(qs/Math.PI*100).toFixed(1)}%</b> ${TT('of the matter; q_s solves q = t sin q, exactly where the three Zel’dovich streams meet','вещества; q_s решает q = t sin q — ровно там, где сходятся три потока Зельдовича','der Materie; q_s löst q = t sin q')}`}</div>
+    <div class="chips"><button class="chip" data-nsfgo="nsflow">${TT('Navier–Stokes on S³','Навье–Стокс на S³','Navier–Stokes auf S³')}</button></div></div>`; }
+/* ── drawing the relief: one Points per structure; the GPU moves every particle by the growth its light shows ── */
+const LSS_RELIEF={busy:false, worker:null, noWorker:false, built:0, ms:0, lastYrs:NaN, fails:0};
+const LSS_VERT=`attribute vec3 q; attribute vec3 sd; attribute vec3 lam; attribute float dl;
+  uniform float uD, uScale, uSize, uPx, uTh, uBias; uniform vec3 uTint; varying vec3 vCol; varying float vA;
+  #include <common>
+  #include <logdepthbuf_pars_vertex>
+  void main(){ vec3 dL=uD*lam; float m=step(uTh,dL.x)+step(uTh,dL.y)+step(uTh,dL.z);
+    float J=abs((1.0-dL.x)*(1.0-dL.y)*(1.0-dL.z)), lr=log(clamp(1.0/max(J,0.03),0.05,33.0))/2.302585;
+    vec3 c=m<0.5?vec3(0.22,0.33,0.55):(m<1.5?vec3(0.36,0.64,0.86):(m<2.5?vec3(0.95,0.74,0.36):vec3(1.0,0.95,0.80)));
+    vCol=mix(c,uTint,0.25); vA=clamp((0.30+0.36*lr)*exp(clamp(uBias*(uD-1.0)*dl,-6.0,2.0)),0.0,1.0);   /* sampled at today's bias; at growth D the tracer density is e^{bDδ}, so each galaxy weighs e^{b(D−1)δ} */
+    vec4 mv=modelViewMatrix*vec4((q+uD*sd)*uScale,1.0);
+    gl_PointSize=clamp(uSize*(0.8+0.35*lr)*uPx/max(-mv.z,1e-9),1.0,10.0); gl_Position=projectionMatrix*mv;
+    #include <logdepthbuf_vertex>
+  }`;
+const LSS_FRAG=`uniform float uOpacity; varying vec3 vCol; varying float vA;
+  #include <logdepthbuf_pars_fragment>
+  void main(){
+    #include <logdepthbuf_fragment>
+    vec2 d=gl_PointCoord-0.5; float r2=dot(d,d); if(r2>0.25) discard; gl_FragColor=vec4(vCol,vA*uOpacity*exp(-r2*8.0)); }`;
+function lssReliefPoints(R,spec,col,rGly){ const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.BufferAttribute(new Float32Array(R.q.length),3));   /* bounding only; the shader places them */
+  g.setAttribute('q',new THREE.BufferAttribute(R.q,3)); g.setAttribute('sd',new THREE.BufferAttribute(R.s,3)); g.setAttribute('lam',new THREE.BufferAttribute(R.lam,3)); g.setAttribute('dl',new THREE.BufferAttribute(R.dl,1));
+  g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),rGly*1.6);
+  const m=new THREE.ShaderMaterial({uniforms:{uD:{value:1}, uScale:{value:1/spec.hMpc}, uSize:{value:Math.max(rGly*0.022,0.004)}, uPx:{value:innerHeight/2},
+      uTh:{value:LSS_TWEB_TH}, uBias:{value:spec.bias||0}, uTint:{value:new THREE.Color(col)}, uOpacity:{value:MOBILE_GPU?0.8:0.7}},
+    vertexShader:LSS_VERT, fragmentShader:LSS_FRAG, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending});
+  const P=new THREE.Points(g,m); P.name='lss-relief'; P.frustumCulled=false; P.userData.noGrade=true; return P; }
+function lssWorkerGet(){ if(LSS_RELIEF.worker||LSS_RELIEF.noWorker) return LSS_RELIEF.worker;
+  try{ const src="'use strict';\nconst LSS_PRIM="+JSON.stringify(LSS_PRIM)+", LSS_C="+JSON.stringify(LSS_C)+", LSS_A="+LSS_A+";\n"+
+      [mulberry,s3nsInvert,lssFFT1,lssFFT3,lssTransfer,lssPower,lssRealize,lssSample,lssEig3,lssRelief].map(f=>f.toString()).join('\n')+
+      "\nconst lssKIdx="+lssKIdx.toString()+";\nonmessage=e=>{ const t0=Date.now(); try{ const R=lssRelief(e.data.spec); postMessage({key:e.data.spec.key, n:R.n, q:R.q.slice(), s:R.s.slice(), lam:R.lam.slice(), dl:R.dl.slice(), ms:Date.now()-t0}); }catch(err){ postMessage({key:e.data.spec.key, error:String(err&&err.message||err)}); } };";
+    LSS_RELIEF.worker=new Worker(URL.createObjectURL(new Blob([src],{type:'text/javascript'}))); }catch(e){ LSS_RELIEF.noWorker=true; LSS_RELIEF.worker=null; }
+  return LSS_RELIEF.worker; }
+function lssReliefAttach(g,R,ms){ const U=g.userData; if(U.relief) return; const P=lssReliefPoints(R,U.reliefSpec,U.s.col,U.reliefR);
+  if(U.body&&U.s.type==='wall') P.quaternion.copy(U.body.quaternion);
+  g.add(P); U.relief=P; U.reliefData={n:R.n, q:R.q, s:R.s, lam:R.lam, dl:R.dl}; LSS_RELIEF.built++; LSS_RELIEF.ms+=ms||0; LSS_RELIEF.lastYrs=NaN; updateCosmicDust(); }
+function lssReliefBuild(g){ const U=g.userData, spec=U.reliefSpec; LSS_RELIEF.busy=true; U.reliefAsked=true;
+  const done=()=>{ LSS_RELIEF.busy=false; }, W=lssWorkerGet();
+  if(W){ W.onmessage=e=>{ const m=e.data, G=COSMOS_GROUPS.get(m.key); if(m.error||!G){ if(G) G.userData.reliefFail=m.error||'lost'; LSS_RELIEF.fails++; done(); return; }
+      lssReliefAttach(G,{n:m.n,q:m.q,s:m.s,lam:m.lam,dl:m.dl},m.ms); done(); };
+    W.onerror=()=>{ LSS_RELIEF.noWorker=true; LSS_RELIEF.worker=null; U.reliefAsked=false; done(); };
+    W.postMessage({spec}); }
+  else setTimeout(()=>{ try{ const t0=performance.now(), R=lssRelief(spec); lssReliefAttach(g,R,performance.now()-t0); }catch(e){ U.reliefFail=String(e&&e.message||e); } done(); },0); }
+/* every frame: the growth each structure shows, from the clock; and one more structure built, nearest the camera first */
+function lssReliefTick(){ if(!(obsGroup.visible&&cosmosGroup.visible)) return; const on=state.showWebRelief!==false; if(!on) return;
+  const yrs=(state.epochDays||0)/365.25, fresh=!(Math.abs(yrs-LSS_RELIEF.lastYrs)<1e4);
+  if(fresh) LSS_RELIEF.lastYrs=yrs;
+  for(const g of COSMOS_DUST){ const U=g.userData, P=U.relief; if(!P) continue; P.material.uniforms.uPx.value=innerHeight/2;
+    if(fresh){ U.reliefD=lssGrowthSeen(U.reliefZ,yrs); P.material.uniforms.uD.value=U.reliefD; } }
+  if(LSS_RELIEF.busy) return; let best=null, bd=Infinity; const w=new THREE.Vector3();
+  for(const g of COSMOS_DUST){ const U=g.userData; if(!U.reliefSpec||U.relief||U.reliefFail||U.reliefAsked) continue; const d=camera.position.distanceTo(g.getWorldPosition(w)); if(d<bd){ bd=d; best=g; } }
+  if(best) lssReliefBuild(best); }
+globalThis.HCC_WEB_RELIEF=Object.freeze({state:()=>({on:state.showWebRelief!==false, visible:!!(obsGroup.visible&&cosmosGroup.visible), structures:COSMOS_DUST.filter(g=>g.userData.reliefSpec).length,
+    built:LSS_RELIEF.built, busy:LSS_RELIEF.busy, worker:!!LSS_RELIEF.worker, noWorker:LSS_RELIEF.noWorker, fails:LSS_RELIEF.fails, msTotal:Math.round(LSS_RELIEF.ms),
+    growth:COSMOS_DUST.filter(g=>g.userData.relief).map(g=>({key:g.userData.s.key, D:g.userData.reliefD, z:g.userData.reliefZ}))}),
+  census:(key,D)=>{ const g=COSMOS_GROUPS.get(key); if(!g||!g.userData.reliefData) return null; return lssReliefCensus(g.userData.reliefData,D??g.userData.reliefD??1); },
+  growth:(a)=>lssGrowth(a), growthSeen:(z,yrs)=>lssGrowthSeen(z,yrs), dInfinity:()=>LSS_DINF, sigma:(R)=>lssSigma(R)});
+function lssBodyFaint(b,on){ const f=m=>{ if(!m||m.opacity==null) return; if(m.userData.op0==null) m.userData.op0=m.opacity; m.opacity=on?m.userData.op0*0.3:m.userData.op0; };
+  b.traverse(o=>f(o.material)); }
 const COSMOS_GROUPS=new Map(), COSMOS_POS=new Map(), COSMOS_DUST=[];
 // Per-structure "dust" cloud: a realistic galaxy-density profile (denser core; voids = hollow shells),
 // scaled to each structure's true extent. Visualisation only — positions are not new measurements.
@@ -25167,10 +25387,12 @@ function cosmicDust(s,r){
   return new THREE.Points(g,new THREE.PointsMaterial({size:Math.max(r*0.028,0.02),vertexColors:true,sizeAttenuation:true,
     transparent:true,opacity:isVoid?0.32:0.62,depthWrite:false,blending:THREE.AdditiveBlending}));
 }
-function updateCosmicDust(){ const on=state.showCosmicDust!==false;
-  COSMOS_DUST.forEach(g=>{ if(g.userData.dust){ g.userData.dust.visible=on;
-      if(g.userData.body) g.userData.body.visible=!on; }
-    else if(g.userData.body) g.userData.body.visible=true; }); }   // dust ⇄ wireframe
+function updateCosmicDust(){ const on=state.showCosmicDust!==false, rel=state.showWebRelief!==false;
+  COSMOS_DUST.forEach(g=>{ const U=g.userData;
+    if(U.reliefSpec){ if(U.relief) U.relief.visible=rel; if(U.body){ U.body.visible=true; lssBodyFaint(U.body,rel&&!!U.relief); } }   // the relief keeps a faint outline of the declared extent
+    else if(U.dust){ U.dust.visible=on;
+      if(U.body) U.body.visible=!on; }
+    else if(U.body) U.body.visible=true; }); }   // dust ⇄ wireframe
 const cosmosSightPos=[], cosmosSightCol=[];   // all structure→observer sightlines merged into ONE draw call
 for(const s of COSMOS){
   const dist = s.dGly!=null ? s.dGly : comovingGly(s.z);
@@ -25250,7 +25472,9 @@ for(const s of COSMOS){
            : THREE.MathUtils.clamp(r*0.16,0.03,0.11);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot);
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
-  const dust=(isCompact||isGalaxy)?null:cosmicDust(s,r); if(dust)g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
+  const reliefKind=!isCompact&&!isGalaxy&&['void','wall','supercluster','cluster','attractor'].includes(s.type);
+  if(reliefKind){ g.userData.reliefSpec=lssStructureSpec(s,r,structureAxisRatio(s).ratio); if(MOBILE_GPU) g.userData.reliefSpec.count=Math.round(g.userData.reliefSpec.count*0.55); g.userData.reliefR=r; g.userData.reliefZ=s.z!=null?s.z:COORD.zFromComoving(dist); }
+  const dust=(isCompact||isGalaxy||reliefKind)?null:cosmicDust(s,r); if(dust)g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
   body.visible=true; if(dust)dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
   COSMOS_DUST.push(g);
   { const p=g.position, c=new THREE.Color(s.col);   // sightline segment: structure → observer (origin)
@@ -25291,6 +25515,10 @@ for(const s of COSMOS){
             : 'axis RATIO from published dimensions ('+sh.source+'); '+
               (sh.normal ? 'and the ORIENTATION is sourced too — '+sh.orientationSource
                          : 'the ORIENTATION is still this atlas\u2019s convention and is not asserted'))]; })()]:[]),
+      ...(g.userData.relief?(()=>{ const U=g.userData, D=U.reliefD??1, c=lssReliefCensus(U.reliefData,D), sp=U.reliefSpec;
+          return [['Web relief',`ΛCDM realization, constrained to a ${s.type==='void'?'trough':s.type==='wall'?'sheet of peaks':'peak'} (Hoffman–Ribak) · ${sp.N}³ grid over ${(sp.L/LSS_C.h).toFixed(0)} Mpc · truncated at ${(sp.Rs/LSS_C.h).toFixed(1)} Mpc`],
+            ['Growth seen',`D = ${D.toFixed(3)} (z = ${U.reliefZ.toFixed(3)}, at the time its light left, on the clock) · D∞ = ${LSS_DINF.toFixed(3)}`],
+            ['Kinds of place',`void ${(c.void*100).toFixed(0)}% · sheet ${(c.sheet*100).toFixed(0)}% · filament ${(c.filament*100).toFixed(1)}% · node ${(c.node*100).toFixed(1)}% · shell-crossed ${(c.crossed*100).toFixed(1)}%`]]; })():[]),
       ...nestingRows(s.key),
       ['Status',isGalaxy?(s.group==='Virgo Cluster'?'member drawn at the CLUSTER distance — its own redshift is dominated by peculiar velocity':'published position and distance'):s.reconstruction?'probabilistic velocity-field reconstruction':s.centroidKnown===false?'field midpoint / uncertain':'approximate extended-object centre'],
       ['Source',s.note] ],
@@ -25486,6 +25714,7 @@ function applyNestingDepthColours(on,margin){
       col=new THREE.Color(NESTING_DEPTH_COLOURS[Math.min(e?e.depth:0,NESTING_DEPTH_COLOURS.length-1)]); }
     else col=new THREE.Color(s.col);
     g.traverse(o=>{ if(o.userData.noGrade) return;
+      if(o.material&&o.material.uniforms&&o.material.uniforms.uTint) o.material.uniforms.uTint.value.copy(col);
       if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); });
   }
 }
@@ -57749,11 +57978,12 @@ function updateNsf(dt){ if(!nsfObjs) nsfSetup(); let O=nsfObjs;
    relations, with no label consulted. How well it holds together is λ₂, and the cut obeys
    Cheeger's inequality λ₂/2 ≤ h ≤ √(2Δλ₂) for the conductance-free ratio h = |cut|/min(|S|,|S̄|).
    FOUND when two relations were added (the fluid's modes are spins): the half the cosmic microwave
-   background falls into flipped, while every other laboratory stayed put. The CMB's Fiedler coordinate is
-   the nearest to zero of all the laboratories — about a hundred and fifty times below the median — with the
-   spherical harmonics, redshift and lensing beside it: the CMB is not in either half, it IS the seam, the
-   one observed sky whose analysis is the harmonic analysis of a sphere. So the halves are oriented by the
-   main sequence, and the laboratories standing on the seam are named. */
+   background falls into flipped, while every other laboratory stayed put. Its Fiedler coordinate was then the
+   nearest to zero of all the laboratories, ~150 times below the median. One relation later (the web is
+   Navier–Stokes without pressure) the spherical harmonics took the nearest place and the CMB the fifth — and
+   that is the robust fact: the seam runs through the HARMONIC ANALYSIS OF A SPHERE, the CMB and the spherical
+   harmonics both stand on it, neither half owns them. So the halves are oriented by the main sequence, and
+   the laboratories standing on the seam are named, live. */
 function atlasRelGraph(rels){ const V=[...new Set(rels.flatMap(r=>[r[0],r[1]]))].sort(), ix=new Map(V.map((v,i)=>[v,i])), seen=new Map();
   for(const r of rels){ if(r[0]===r[1]) continue; const k=r[0]<r[1]?r[0]+'|'+r[1]:r[1]+'|'+r[0]; if(!seen.has(k)) seen.set(k,[ix.get(r[0]),ix.get(r[1]),[]]); seen.get(k)[2].push(r[2]); }
   return {V, ix, E:[...seen.values()]}; }
@@ -70899,7 +71129,7 @@ try{ hccApiRegister({
          'Вложенность, измеренная — что внутри чего на самом деле',
          'Die Verschachtelung, gemessen — was worin liegt'],
   status:'MEASURED over the atlas`s own catalogue: no new coordinate, no new extent, only the containment arithmetic that had never been run. A containment is ASSERTED only where the container has a known centroid and a shape a sphere can honestly stand for; every other overlap is returned with the reason it is not a claim.',
-  verifiers:['docs/verify-galaxies-are-placed.cjs','docs/verify-bus-publications-are-routable.cjs'],
+  verifiers:['docs/verify-galaxies-are-placed.cjs','docs/verify-bus-publications-are-routable.cjs','docs/verify-the-web-has-relief.cjs'],
   formulas:['contained(o,c) iff |p_o - p_c| <= margin * size_c / 2, in the one J2000 scene frame',
             'p = raDecDir(RA,Dec) * d, with d the published distance or the flat-LCDM comoving distance of z',
             'exit margin of an object = min over its asserted containers of |p_o - p_c| / (size_c/2)'],
@@ -79284,6 +79514,7 @@ const NEXUS_RELATIONS=[
   ['bbh','gw','coupling','the same law, for the two holes this atlas holds','The gravitational-wave laboratory computes the inspiral of any pair; this one runs it for Sgr A* and M31* to the end, and adds the merger and the ringdown.','theorem'],
   ['bbh','bht','coupling','what the remnant is','The remnant is a Kerr hole of 1.44×10⁸ solar masses with spin 0.094; its temperature, area and lifetime are the thermodynamics laboratory\'s.','theorem'],
   ['bbh','bhr','representation','the holes, traced','The relativistic laboratory traces one Schwarzschild hole pixel by pixel; the two here are drawn at their true horizon sizes in units of the total mass.','theorem'],
+  ['cosmicweb','nsflow','limit','the web is Navier–Stokes without pressure','The Zel\u2019dovich map that moves every particle of the cosmic web is the inviscid limit of the adhesion model — Burgers\u2019 equation, Navier–Stokes with no pressure for a potential flow — solved exactly by the Hopf–Cole transformation through the heat equation. Before shell crossing the two coincide; after it Burgers makes a shock where the Zel\u2019dovich streams cross, collecting exactly the mass they share.','theorem'],
   ['nsflow','su2','representation','the fluid\'s modes are spins','The curl shells of the Navier–Stokes flow are the SU(2)_L × SU(2)_R representations (k/2+1, k/2) and (k/2, k/2+1): the curl eigenvalue is the difference of the two Casimirs and the Stokes eigenvalue twice their sum less four.','theorem'],
   ['nsflow','eig','invariant','scalar and vector modes, one ladder','The Laplacian modes are (n/2, n/2) with Δ = 2(C_L + C_R); the fluid shells sit between them at |j_L − j_R| = 1 on the same Casimir ladder.','theorem'],
   ['nsflow','s3kb','coupling','the law that makes it exact, put to the test','The Killing–Beltrami laboratory proves the chiral identity that makes u = K + a e^{−νκt}(Φ_t^Y)_* v₀ a solution; this laboratory substitutes that solution into the Navier–Stokes equation and measures the curl of the residual.','theorem'],
@@ -91589,7 +91820,7 @@ const state = {
   skyPair:null,                                       // prediction observatory: selected conjunction pair / opposition
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
-  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showMwArms:true,
+  showLaniakeaFlows:true, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showWebRelief:true, showMwArms:true,
   nestingMargin:1, showNesting:true, nestingDepthColours:false,
   tomoL:4, tomoQ:1, tomoShow:true, tomoEpsLog:-2, tomoChi0:1.1,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
@@ -96110,6 +96341,9 @@ function buildCtlBody(){
       <div class="note" style="font-size:10.5px;color:var(--dim)">Click a chip to fly to that structure; click its marker/label for distance, redshift &amp; size. Catalogue markers use registered sky directions and distance-scaled anchors in this observer-centred comoving atlas. The selection card can add a direction-from-origin reference in compatible Solar/Observable frames; it deliberately refuses incompatible S³/FBS projections. Observed + reconstruction data; not a topology claim.</div>
     </div>
     <div class="sect"><b>Structure rendering</b>
+      <div class="ctlrow" title="${TT('Each supercluster, wall, cluster and void drawn as a constrained realization of the ΛCDM field, moved by the Zel\u2019dovich map at the growth its light shows','Каждое сверхскопление, стена, скопление и войд — связанная реализация поля ΛCDM, сдвинутая отображением Зельдовича на рост, который показывает его свет','Jeder Superhaufen, jede Wand, jeder Haufen und Void als bedingte Realisierung des ΛCDM-Feldes')}"><label>${TT('Relief — the ΛCDM web, grown by the clock','Рельеф — паутина ΛCDM, растущая по часам','Relief — das ΛCDM-Netz, gewachsen nach der Uhr')}</label><input type="checkbox" id="webRelief" ${state.showWebRelief!==false?'checked':''}></div>
+      <div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.5">${(()=>{ const n=COSMOS_DUST.filter(g=>g.userData.reliefSpec).length, b=COSMOS_DUST.filter(g=>g.userData.relief).length, yrs=(state.epochDays||0)/365.25, D0=lssGrowthSeen(0,yrs);
+        return `${TT('Built','Построено','Gebaut')} ${b}/${n} · P(k): Eisenstein–Hu, nₛ = ${LSS_PRIM.ns}, σ₈ = ${LSS_PRIM.sigma8} (${TT('measured here','измерено здесь','hier gemessen')} ${lssSigma(8).toFixed(4)}) · R_nl = ${lssNonlinearR().toFixed(2)} Mpc/h · D(${TT('here, on the clock','здесь, по часам','hier, nach der Uhr')}) = <b>${D0.toFixed(3)}</b> · D(z=1) = ${lssGrowth(0.5).toFixed(3)} · ${TT('Λ freezes the web at','Λ замораживает паутину на','Λ friert das Netz ein bei')} D∞ = <b>${LSS_DINF.toFixed(3)}</b> — ${TT('it can only ever grow','она может вырасти лишь на','es kann nur noch um')} ${((LSS_DINF-1)*100).toFixed(0)}% ${TT('more than today','больше, чем сегодня','wachsen')}. ${TT('Colour: void · sheet · filament · node by how many D·λ exceed 0.3 (T-web); brightness: the Zel\u2019dovich density 1/|Π(1−Dλ)|. Each structure shows the growth at the time its light left, moved by the time machine. A realization, not a reconstruction.','Цвет: войд · стена · филамент · узел по числу D·λ > 0.3 (T-web); яркость: плотность Зельдовича 1/|Π(1−Dλ)|. Каждая структура показывает рост на момент, когда вышел её свет, сдвинутый машиной времени. Реализация, не реконструкция.','Farbe: Void · Wand · Filament · Knoten nach Anzahl D·λ > 0,3 (T-Web); Helligkeit: Zel\u2019dovich-Dichte. Eine Realisierung, keine Rekonstruktion.')}`; })()}</div>
       <div class="ctlrow"><label>Dust clouds (realistic)</label><input type="checkbox" id="cosDust" ${state.showCosmicDust!==false?'checked':''}></div>
       <div class="ctlrow" title="Technique of Ménard & Shtarkman's Map of the Observable Universe (JHU 2022): colour = distance"><label>Lookback colours (Map of the Universe)</label><input type="checkbox" id="lookbackCol" ${state.obsLookback?'checked':''}></div>
       <div class="ctlrow" title="The map famously ends at the wall of CMB light — Planck-palette ΔT mottling, exaggerated for visibility"><label>CMB wall on S²_LSS</label><input type="checkbox" id="cmbWall" ${state.obsCmbTex?'checked':''}></div>
@@ -96157,6 +96391,7 @@ function buildCtlBody(){
     ctl.querySelector('#sMReq').onchange = e=>sphMReq.visible=e.target.checked;
     ctl.querySelector('#cosmosShow').onchange = e=>cosmosGroup.visible=e.target.checked;
     ctl.querySelector('#cosDust').onchange=e=>{state.showCosmicDust=e.target.checked;updateCosmicDust();};
+    { const w=ctl.querySelector('#webRelief'); if(w) w.onchange=e=>{ state.showWebRelief=e.target.checked; updateCosmicDust(); }; }
     ctl.querySelector('#lookbackCol').onchange=e=>{state.obsLookback=e.target.checked;applyLookbackColours(state.obsLookback);};
     ctl.querySelector('#cmbWall').onchange=e=>{state.obsCmbTex=e.target.checked;applyCmbWall(state.obsCmbTex);};
     ctl.querySelector('#nestShow')&&(ctl.querySelector('#nestShow').onchange=e=>{ state.showNesting=e.target.checked; if(_nestingLines)_nestingLines.visible=e.target.checked; });
@@ -97618,7 +97853,7 @@ function buildCtlBody(){
       <div class="note">${TT('The source paper’s singular branch is RELATIVE to an external Euclidean forced-blowup package (assumptions S₀…S₄) which is not evaluated anywhere in this atlas. Exterior matching and the annular correction cycle are unproved transfer requirements; the leading profile is an input, not a result. What is built here is the intrinsic half — the curl spectrum, the exact shell solutions, the Killing coefficients and the sharp projector constants — and nothing on this screen is an unconditional blowup theorem or a claim of priority.','Сингулярная ветвь исходной статьи ОТНОСИТЕЛЬНА: она опирается на внешний евклидов пакет вынужденного взрыва (предположения S₀…S₄), который здесь нигде не проверяется. Внешнее сшивание и кольцевой цикл коррекций остаются недоказанными требованиями переноса; ведущий профиль — вход, а не результат. Здесь построена внутренняя половина — вихревой спектр, точные решения на оболочках, коэффициенты Киллинга и острые константы проектора; ничто на этом экране не является безусловной теоремой о взрыве и не претендует на приоритет.','Der singuläre Zweig der Quellarbeit ist RELATIV zu einem externen euklidischen Paket (Annahmen S₀…S₄), das hier nirgends geprüft wird. Gebaut ist die intrinsische Hälfte; nichts hier ist ein unbedingter Blowup-Satz.')}</div></div>`;
     else if(V==='cosmicweb') body = `
     <div class="sect"><b>${TT('One displacement field, four kinds of place','Одно поле смещений, четыре рода мест','Ein Verschiebungsfeld, vier Arten von Orten')}</b>
-      <div class="note">${TT('This laboratory has no free parameter, and saying so is the honest panel. Every void, sheet, filament and node here is the SAME Zel\u2019dovich field read at a growth factor that walks on its own; the colour is how many axes have collapsed, which is counted from the eigenvalues rather than chosen. Nothing here is a slider because nothing here is a choice.','У этой лаборатории нет свободного параметра, и честная панель именно это и говорит. Всякая пустота, стена, филамент и узел здесь — ОДНО поле Зельдовича, прочитанное при факторе роста, который идёт сам; цвет есть число схлопнувшихся осей, оно посчитано по собственным значениям, а не выбрано. Здесь нет ползунков, потому что здесь нет выбора.','Dieses Labor hat keinen freien Parameter, und das zu sagen ist die ehrliche Anzeige. Die Farbe ist die Zahl der kollabierten Achsen, aus Eigenwerten gez\u00e4hlt, nicht gew\u00e4hlt.')}</div></div>`;
+      <div class="note">${TT('This laboratory has no free parameter, and saying so is the honest panel. Every void, sheet, filament and node here is the SAME Zel\u2019dovich field read at a growth factor that walks on its own; the colour is how many axes have collapsed, which is counted from the eigenvalues rather than chosen. Nothing here is a slider because nothing here is a choice.','У этой лаборатории нет свободного параметра, и честная панель именно это и говорит. Всякая пустота, стена, филамент и узел здесь — ОДНО поле Зельдовича, прочитанное при факторе роста, который идёт сам; цвет есть число схлопнувшихся осей, оно посчитано по собственным значениям, а не выбрано. Здесь нет ползунков, потому что здесь нет выбора.','Dieses Labor hat keinen freien Parameter, und das zu sagen ist die ehrliche Anzeige. Die Farbe ist die Zahl der kollabierten Achsen, aus Eigenwerten gez\u00e4hlt, nicht gew\u00e4hlt.')}</div></div>${cwBurgersSect()}`;
     else if(V==='jeans') body = `
     <div class="sect"><b>${TT('When does a cloud stop holding itself up?','Когда облако перестаёт себя держать?','Wann traegt sich eine Wolke nicht mehr?')}</b>
       <div class="ctlrow"><label>${TT('temperature','температура','Temperatur')} T (K)</label>
@@ -100590,6 +100825,10 @@ function buildCtlBody(){
       const sp=ctl.querySelector('#bbhSpeed'); if(sp) sp.oninput=e=>{ state.bbhSpeed=+e.target.value; const v=ctl.querySelector('#bbhSpeedV'); if(v) v.textContent=state.bbhSpeed.toFixed(2)+'×'; };
       const rs=ctl.querySelector('#bbhRestart'); if(rs) rs.onclick=()=>{ if(bbhObjs){ bbhObjs.tau=bbhObjs.tau0; bbhObjs.hist=[]; } };
       const pa=ctl.querySelector('#bbhPause'); if(pa) pa.onclick=()=>{ state.bbhPaused=!state.bbhPaused; pa.textContent=state.bbhPaused?'▶':'⏸'; pa.classList.toggle('on',!!state.bbhPaused); };
+    }
+    if(V==='cosmicweb'){
+      ctl.querySelectorAll('[data-nsfgo]').forEach(b=>b.onclick=()=>{ try{ navPush(); }catch(e){} hccGo({worldId:'s3',labId:b.dataset.nsfgo}); });
+      const bt=ctl.querySelector('#cwBurT'); if(bt) bt.onchange=()=>{ state.cwBurT=+bt.value; buildCtl(); };
     }
     if(V==='nsflow'){
       ctl.querySelectorAll('[data-nsfgo]').forEach(b=>b.onclick=()=>{ try{ navPush(); }catch(e){} if(b.dataset.nsfgo==='tri') state.triFlow=true; hccGo({worldId:'s3',labId:b.dataset.nsfgo}); });
@@ -110702,6 +110941,7 @@ function tickBody(now, frame){
   MOTION.apply(dt); MOTION.uiTick(dt);
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
   updateLaniakeaFlows(dt);
+  try{ lssReliefTick(); }catch(e){ if(!lssReliefTick._w){ lssReliefTick._w=1; console.warn('web relief:',e); } }
   updateHierarchyLocator();
   try{ labPassportTick(dt); }catch(e){}
   if(state.mode==='s3') scientificEnclosureTick(dt);
