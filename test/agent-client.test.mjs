@@ -23,6 +23,7 @@ test('SDK reads the actual published files, searches, describes and computes wit
   const x=sdk.describe('anyon');x.inputs.length=0;
   assert.ok(sdk.describe('anyon').inputs.length,'caller cannot corrupt internal catalogue');
   assert.ok(sdk.forecast('bht.M',.1).results.length>0);
+  assert.equal(sdk.geometry.measureS3({from:[0,0,0,-1],to:[1,0,0,0],radius:1,unit:'m'}).status,'CONDITIONAL');
   assert.equal(sdk.discover().access.public_http_compute,false);
 });
 
