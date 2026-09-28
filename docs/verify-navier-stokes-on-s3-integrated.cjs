@@ -69,7 +69,7 @@ let seed = 97; const rnd = () => { seed = (seed * 16807) % 2147483647; return se
   /* 7 · honesty and wiring */
   ok('honesty and wiring: the Clay Millennium problem is named OPEN and the API refuses the claim; the laboratory is declared once, routed, drawn, in the API and related to the programme it tests',
     /\{id:'nsflow', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',/.test(SRC) && /THIS IS NOT A SOLUTION OF THE MILLENNIUM PROBLEM/.test(SRC) && /The Clay Millennium problem — do smooth solutions in R³/.test(SRC)
-    && /nsfGroup\.visible = \(v==='nsflow'\);/.test(SRC) && /state\.s3view==='nsflow'\)\{\n\s*fbsAnimT\+=dt; updateNsf\(dt\);/.test(SRC) && /id:'nsflow', world:'s3', lab:'nsflow',/.test(SRC) && /\['nsflow','s3kb','coupling'/.test(SRC) && /\['nsfAtlas','nsflow',nsfGroup,/.test(SRC));
+    && /nsfGroup\.visible = \(v==='nsflow'\);/.test(SRC) && /state\.s3view==='nsflow'\)\{\n\s*fbsAnimT\+=labDt; updateNsf\(labDt\);/.test(SRC) && /id:'nsflow', world:'s3', lab:'nsflow',/.test(SRC) && /\['nsflow','s3kb','coupling'/.test(SRC) && /\['nsfAtlas','nsflow',nsfGroup,/.test(SRC));
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();

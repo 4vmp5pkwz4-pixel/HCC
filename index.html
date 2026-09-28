@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-last-merger-2026.09.26.43">
+<html lang="en" data-hcc-build="one-clock-and-phase-portraits-2026.09.28.44">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-last-merger-2026.09.26.43">
+<meta name="hcc-build" content="one-clock-and-phase-portraits-2026.09.28.44">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3041,7 +3041,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.328.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.329.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3347,8 +3347,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.328.0';
-const HCC_BUILD='the-last-merger-2026.09.26.43';
+const HCC_VERSION='4.329.0';
+const HCC_BUILD='one-clock-and-phase-portraits-2026.09.28.44';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -57507,6 +57507,66 @@ function bbhBudget(m1s,m2s){ const P=bbhParams(m1s,m2s), R=bbhRemnant(P.eta), tM
   const Mc=P.Mc*BBH_MSUN, tauAt=f=>(5/256)*Math.pow(BBH_G*Mc/BBH_C**3,-5/3)*Math.pow(Math.PI*f,-8/3);
   return {...P, ...R, tM, MfSun:Mf, EradSun:P.M*R.Erad, EradJ:P.M*R.Erad*BBH_MSUN*BBH_C**2, fISCO, fQNM, tauQNM, qnm:Q,
     yearsFromPTA:tauAt(1e-8)/BBH_YR, yearsFromLISAedge:tauAt(1e-4)/BBH_YR, lisaEdgeAbove:1e-4>fQNM}; }
+/* ══ ONE CLOCK FOR THE LABORATORIES, AND THE PHASE PORTRAIT OF ANY OF THEM ════════════════
+   Coupled (⏱ in the laboratory panel), every laboratory's own time runs at k·dt, where k is the
+   time machine's rate over the rate it had when the coupling was switched on: speed the machine
+   up a thousandfold and every cyclic laboratory turns a thousand times faster; pause it and they
+   all stop. k is capped at 10⁶, and negative rates are not passed on — a laboratory integrating
+   forward cannot be asked to run backward. Integrators already bound their own step, so a large k
+   is a larger step for a phase and a clamped step for a physics loop, never a hang.
+   And at a large k, each frame samples the laboratory once per k·dt of its own time: the frames
+   become a STROBOSCOPIC map, the discrete sampling Poincaré used to see the structure of a flow.
+   The phase portrait draws exactly that, for whatever the laboratory publishes on the bus: two
+   quantities against each other, or one against itself a few frames earlier — a delay embedding,
+   which by Takens's theorem reconstructs the attractor from a single observable — and it
+   estimates the correlation dimension (Grassberger & Procaccia 1983) of the cloud it has drawn:
+   ≈ 0 for a fixed point, ≈ 1 for a limit cycle, ≈ 2 for a torus, fractional for a strange set. */
+const LAB_CLOCK_MAX=1e6;
+function labClockFactor(){ if(state.labClock!==true) return 1; if(state.paused) return 0;
+  const r=state.daysPerSec*(state.timeDir<0?-1:1); if(!(r>0)) return 0; const r0=state.labClockRef||r; return Math.min(LAB_CLOCK_MAX,r/r0); }
+/* the correlation sum C(r) and its log–log slope between two radii: the correlation dimension of a point cloud */
+function ppCorrelationDimension(P,r1,r2){ const n=P.length; if(n<40) return null; let c1=0,c2=0,m=0;
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){ const dx=P[i][0]-P[j][0], dy=P[i][1]-P[j][1], d=Math.sqrt(dx*dx+dy*dy); m++; if(d<r1) c1++; if(d<r2) c2++; }
+  if(c1<5||c2<=c1) return null; return Math.log(c2/c1)/Math.log(r2/r1); }
+const PP={on:false, keyX:null, keyY:'(scene 2nd)', lag:6, pts:[], hist:[], el:null, dim:null, dimAt:0, scene:null};
+/* the moving parts of the open laboratory as an observable: every position and rotation of up to 300 objects, the two that vary
+   most chosen by their running variance (Welford) — so any animated laboratory has a phase portrait, whether or not it publishes */
+function ppSceneObjects(){ const lab=state.s3view; let grp=null; try{ const d=LAB_ATLAS_DEFS.find(r=>r[1]===lab); if(d&&d[2]&&d[2].isObject3D) grp=d[2]; }catch(e){}
+  if(!grp) grp=s3Group.children.find(c=>c.visible&&c.type==='Group'&&c.children.length>3); const objs=[];
+  if(grp) grp.traverse(o=>{ if(objs.length<300&&o!==grp&&!o.isCSS2DObject) objs.push(o); }); return {lab, grp, objs, n:0, mean:new Float64Array(objs.length*6), m2:new Float64Array(objs.length*6)}; }
+function ppSceneSample(){ let S=PP.scene; if(!S||S.lab!==state.s3view){ S=PP.scene=ppSceneObjects(); PP.pts=[]; PP.hist=[]; }
+  const v=new Float64Array(S.objs.length*6); S.objs.forEach((o,i)=>{ v[6*i]=o.position.x; v[6*i+1]=o.position.y; v[6*i+2]=o.position.z; v[6*i+3]=o.rotation.x; v[6*i+4]=o.rotation.y; v[6*i+5]=o.rotation.z; });
+  S.n++; for(let i=0;i<v.length;i++){ const d=v[i]-S.mean[i]; S.mean[i]+=d/S.n; S.m2[i]+=d*(v[i]-S.mean[i]); }
+  let a=-1,b=-1; for(let i=0;i<v.length;i++){ if(a<0||S.m2[i]>S.m2[a]){ b=a; a=i; } else if(b<0||S.m2[i]>S.m2[b]) b=i; }
+  if(a<0||!(S.m2[a]>1e-12)) return null; return {x:v[a], y:(b>=0&&S.m2[b]>1e-12*S.m2[a])?v[b]:null, comps:[a,b]}; }
+function ppLiveKeys(){ const lab=state.s3view||'', all=ATLAS_BUS.all(); return ['(scene)',...Object.keys(all).filter(k=>k.startsWith(lab+'.')&&typeof all[k].v==='number'&&Number.isFinite(all[k].v)&&all[k].age<3).sort()]; }
+function ppOpen(on){ PP.on=on===undefined?!PP.on:!!on; if(!PP.on){ PP.el?.remove(); PP.el=null; return; } PP.pts=[]; PP.hist=[];
+  const d=document.createElement('div'); d.id='hccPhase'; d.setAttribute('role','dialog'); d.setAttribute('aria-label','Phase portrait');
+  d.style.cssText='position:fixed;right:12px;bottom:calc(var(--bottom-band,0px) + 80px);z-index:120;width:min(92vw,300px);padding:8px 10px;border-radius:14px;background:rgba(8,11,19,.94);border:1px solid rgba(212,175,106,.45);color:#e9e2cf;font:11px/1.4 system-ui,sans-serif;box-shadow:0 12px 40px rgba(0,0,0,.55)';
+  d.innerHTML=`<div style="display:flex;align-items:center;gap:6px"><b style="flex:1;color:var(--gold-2,#f1dda6)">◌ ${TT('Phase portrait','Фазовый портрет','Phasenporträt')}</b><button class="btn" id="ppX" aria-label="close">✕</button></div>
+    <div style="display:flex;gap:4px;margin:4px 0"><select id="ppX1" style="flex:1;min-width:0"></select><select id="ppY1" style="flex:1;min-width:0"></select></div>
+    <canvas id="ppC" width="560" height="360" style="width:100%;height:180px;background:rgba(255,255,255,.02);border-radius:8px"></canvas>
+    <div id="ppT" style="margin-top:4px;color:#b8b2a2"></div>`;
+  document.body.appendChild(d); PP.el=d; d.querySelector('#ppX').onclick=()=>ppOpen(false);
+  d.querySelector('#ppX1').onchange=e=>{ PP.keyX=e.target.value; PP.pts=[]; PP.hist=[]; }; d.querySelector('#ppY1').onchange=e=>{ PP.keyY=e.target.value; PP.pts=[]; PP.hist=[]; }; }
+function ppTick(){ if(!PP.on||!PP.el) return; const keys=ppLiveKeys(), sx=PP.el.querySelector('#ppX1'), sy=PP.el.querySelector('#ppY1');
+  const sig=keys.join('|'); if(sx.dataset.sig!==sig){ sx.dataset.sig=sig; sx.innerHTML=keys.map(k=>`<option>${k}</option>`).join(''); sy.innerHTML=['(scene 2nd)','(delay)',...keys.filter(k=>k!=='(scene)')].map(k=>`<option>${k}</option>`).join('');
+    if(!keys.includes(PP.keyX)) PP.keyX=keys[0]||null; sx.value=PP.keyX||''; sy.value=(keys.includes(PP.keyY)||PP.keyY==='(scene 2nd)'||PP.keyY==='(delay)')?PP.keyY:'(scene 2nd)'; PP.keyY=sy.value; PP.pts=[]; PP.hist=[]; }
+  const T=PP.el.querySelector('#ppT'), k=labClockFactor();
+  if(!PP.keyX){ T.textContent=TT('This laboratory publishes no quantity that changes in time — nothing to portray.','Эта лаборатория не публикует величин, меняющихся во времени — изображать нечего.','Dieses Labor veröffentlicht keine zeitabhängige Größe.'); return; }
+  let x, y;
+  if(PP.keyX==='(scene)'){ const S=ppSceneSample(); if(!S){ T.textContent=TT('Nothing in this laboratory is moving yet.','В этой лаборатории пока ничего не движется.','In diesem Labor bewegt sich noch nichts.'); return; }
+    x=S.x; if(S.y!=null&&PP.keyY!=='(delay)'){ y=S.y; } else { PP.hist.push(x); if(PP.hist.length>PP.lag+1) PP.hist.shift(); if(PP.hist.length<=PP.lag) return; y=PP.hist[0]; } }
+  else { x=ATLAS_BUS.get(PP.keyX);
+    if(PP.keyY==='(delay)'||PP.keyY==='(scene 2nd)'){ PP.hist.push(x); if(PP.hist.length>PP.lag+1) PP.hist.shift(); if(PP.hist.length<=PP.lag) return; y=PP.hist[0]; } else y=ATLAS_BUS.get(PP.keyY); }
+  if(!(Number.isFinite(x)&&Number.isFinite(y))) return; PP.pts.push([x,y]); if(PP.pts.length>2400) PP.pts.shift();
+  const C=PP.el.querySelector('#ppC'), g=C.getContext('2d'), W=C.width, H=C.height; let x0=Infinity,x1=-Infinity,y0=Infinity,y1=-Infinity;
+  for(const [a,b] of PP.pts){ if(a<x0)x0=a; if(a>x1)x1=a; if(b<y0)y0=b; if(b>y1)y1=b; } const sxw=(x1-x0)||1, syw=(y1-y0)||1;
+  g.clearRect(0,0,W,H); const n=PP.pts.length;
+  for(let i=0;i<n;i++){ const [a,b]=PP.pts[i], t=i/n; g.fillStyle=`rgba(${Math.round(120+135*t)},${Math.round(170+40*t)},255,${0.15+0.85*t})`; g.fillRect(8+(W-16)*(a-x0)/sxw,H-8-(H-16)*(b-y0)/syw,2,2); }
+  const now=performance.now(); if(now-PP.dimAt>1500&&n>200){ PP.dimAt=now; const S=PP.pts.slice(-600).map(([a,b])=>[(a-x0)/sxw,(b-y0)/syw]); PP.dim=ppCorrelationDimension(S,0.02,0.08); }
+  const Dtxt=PP.dim==null?'—':PP.dim.toFixed(2), kind=PP.dim==null?'':PP.dim<0.35?TT('a fixed point','неподвижная точка','ein Fixpunkt'):PP.dim<1.35?TT('a closed curve — a limit cycle, or a periodic strobe','замкнутая кривая — предельный цикл или периодический строб','eine geschlossene Kurve'):PP.dim<2.2?TT('a filled surface — a torus, quasi-periodic','заполненная поверхность — тор, квазипериодичность','eine gefüllte Fläche — ein Torus'):TT('more than a surface — noise, or a strange set','больше поверхности — шум или странное множество','mehr als eine Fläche');
+  T.innerHTML=`${n} ${TT('samples','отсчётов','Proben')} · ${PP.keyY==='(delay)'?TT(`delay embedding, lag ${PP.lag} frames (Takens)`,`вложение с задержкой, ${PP.lag} кадров (Такенс)`,`Verzögerungseinbettung, ${PP.lag} Bilder`):TT('two observables','две наблюдаемые','zwei Observable')} · ${TT('lab clock','часы лаборатории','Laboruhr')} ×${k<10?k.toFixed(2):k.toExponential(1)}${k>20?' · '+TT('stroboscopic','стробоскопически','stroboskopisch'):''}<br>${TT('correlation dimension','корреляционная размерность','Korrelationsdimension')} D₂ ≈ <b>${Dtxt}</b> ${kind?'· '+kind:''}`; }
 /* ══ THE MERGER ON THE ATLAS CLOCK ════════════════════════════════════════════════════════
    What happens to the two central holes as the clock runs, each phase a pure function of the
    epoch — no step is integrated, so the state is the same at one day per second and at a billion
@@ -94792,6 +94852,7 @@ function labBrowserBuild(){
   const V=state.s3view||'sec', dom=labDomainOf(V);
   sect.innerHTML=`<b>${TT('S³ Laboratory','S³ лаборатория','S³-Labor')}</b>
     <div class="ctlrow" style="margin-top:4px"><button class="btn" id="labOpenBrowser" style="flex:1 1 auto">⌕ ${LAB_BROWSER_OPEN&&LAB_BROWSER_FOLDED?TT('unfold the catalogue','развернуть каталог','Katalog aufklappen'):TT('Browse all','Каталог, всего','Alle durchsuchen')+' '+LAB_BROWSER_TOTAL+' '+TT('laboratories','лабораторий','Labore')}</button></div>
+    <div class="chips" style="margin-top:4px"><button class="chip ${state.labClock===true?'on':''}" id="labClockBtn" title="${TT('Couple every laboratory\'s own time to the time machine: from now on its rate scales them all','Связать собственное время каждой лаборатории с машиной времени: с этого момента её скорость масштабирует их все','Die Eigenzeit jedes Labors an die Zeitmaschine koppeln')}">⏱ ${state.labClock===true?TT('lab time follows the time machine','время лабораторий идёт за машиной времени','Laborzeit folgt der Zeitmaschine')+' ×'+(labClockFactor()<10?labClockFactor().toFixed(2):labClockFactor().toExponential(1)):TT('couple lab time to the time machine','связать время лабораторий с машиной времени','Laborzeit an die Zeitmaschine koppeln')}</button><button class="chip ${PP.on?'on':''}" id="ppBtn">◌ ${TT('phase portrait','фазовый портрет','Phasenporträt')}</button></div>
     <div class="note" style="margin-top:4px"><b style="color:var(--gold-2)">${esc(S3_VIEW_NAMES[V]||V)}</b> <span style="color:var(--dim)">· ${esc(impL(LAB_DOMAIN_LABEL[dom]))}</span></div>
     ${labTrisphereHTML(V)}
     ${labBusHTML(V)}
@@ -94825,6 +94886,8 @@ function labBrowserBuild(){
     try{ navPush(); }catch(e){}
     hccGo({worldId:'s3', labId:b.dataset.tri}); });
   /* ⬡ — the same chain, seen whole: the Trisphere opens with this laboratory pinned and its geodesics lit */
+  { const lc=sect.querySelector('#labClockBtn'); if(lc) lc.onclick=()=>{ state.labClock=!(state.labClock===true); if(state.labClock) state.labClockRef=Math.max(1e-12,state.daysPerSec||10); try{ buildCtl(); }catch(e){} };
+    const pb=sect.querySelector('#ppBtn'); if(pb) pb.onclick=()=>{ ppOpen(); pb.classList.toggle('on',PP.on); }; }
   sect.querySelectorAll('[data-trimap]').forEach(b=>b.onclick=()=>{
     try{ navPush(); }catch(e){}
     state.triFocus=b.dataset.trimap; hccGo({worldId:'s3', labId:'tri'}); });
@@ -104210,6 +104273,7 @@ function toolsDefs(){ const click=id=>()=>{ const b=document.getElementById(id);
       ['🌀',TT('Navier–Stokes on S³, integrated','Навье–Стокс на S³, проинтегрированный','Navier–Stokes auf S³, integriert'),()=>{ try{ hccGo({worldId:'s3',labId:'nsflow'}); }catch(e){} }],
       ['⊛',TT('The last merger · Sgr A* + M31*','Последнее слияние · Sgr A* + M31*','Die letzte Verschmelzung · Sgr A* + M31*'),()=>{ try{ hccGo({worldId:'s3',labId:'bbh'}); }catch(e){} }],
       ['⏩',TT('Watch the holes merge on the atlas clock','Смотреть слияние дыр на часах атласа','Die Verschmelzung auf der Atlasuhr ansehen'),()=>{ try{ mergerWatch(); }catch(e){} }],
+      ['◌',TT('Phase portrait of the open laboratory','Фазовый портрет открытой лаборатории','Phasenporträt des offenen Labors'),()=>{ try{ ppOpen(true); }catch(e){} }],
       ['🌀',TT('The Galaxy from above','Галактика сверху','Die Galaxis von oben'),()=>{ try{ mwLivingShow(); }catch(e){} }],
       ['🌌',TT('Andromeda, as we see it','Андромеда, как мы её видим','Andromeda, wie wir sie sehen'),()=>{ try{ m31LivingShow(false); }catch(e){} }],
       ['◎',TT('Andromeda from above','Андромеда сверху','Andromeda von oben'),()=>{ try{ m31LivingShow(true); }catch(e){} }],
@@ -111103,6 +111167,8 @@ function tickBody(now, frame){
        build when an S³ laboratory is missing from them, so the next unrouted
        laboratory is a red build rather than a plausible-looking screen. Only `eig`
        may be absent: it is the laboratory the fallback belongs to. */
+    /* ONE CLOCK FOR THE LABORATORIES: every routed laboratory runs on k·dt when coupled to the time machine */
+    const labDt=dt*labClockFactor(); try{ ppTick(); }catch(e){}
     if(state.s3view==='sec'){
       if(state.photonRun){
         state.photonT += state.gyrPerSec*dt;
@@ -111180,181 +111246,181 @@ function tickBody(now, frame){
     } else if(state.s3view==='drd'){
       updateDrd(dt);
     } else if(state.s3view==='sel'){
-      fbsAnimT+=dt; updateSel(dt); updateTomography();
+      fbsAnimT+=labDt; updateSel(labDt); updateTomography();
     } else if(state.s3view==='hopfion'){
-      fbsAnimT+=dt; updateHopfion(dt);
+      fbsAnimT+=labDt; updateHopfion(labDt);
     } else if(state.s3view==='skyrmion'){
-      fbsAnimT+=dt; updateSkyrmion(dt);
+      fbsAnimT+=labDt; updateSkyrmion(labDt);
     } else if(state.s3view==='quasi'){
-      fbsAnimT+=dt; updateQuasi(dt);
+      fbsAnimT+=labDt; updateQuasi(labDt);
     } else if(state.s3view==='grav'){
-      fbsAnimT+=dt; updateGrav(dt);
+      fbsAnimT+=labDt; updateGrav(labDt);
     } else if(state.s3view==='qm'){
-      fbsAnimT+=dt; updateQm(dt);
+      fbsAnimT+=labDt; updateQm(labDt);
     } else if(state.s3view==='qcd'){
-      fbsAnimT+=dt; updateQcd(dt);
+      fbsAnimT+=labDt; updateQcd(labDt);
     } else if(state.s3view==='topo'){
-      fbsAnimT+=dt; updateTopo(dt);
+      fbsAnimT+=labDt; updateTopo(labDt);
     } else if(state.s3view==='sc'){
-      fbsAnimT+=dt; updateSc(dt);
+      fbsAnimT+=labDt; updateSc(labDt);
     } else if(state.s3view==='taub'){
-      fbsAnimT+=dt; updateTn(dt);
+      fbsAnimT+=labDt; updateTn(labDt);
     } else if(state.s3view==='photon'){
-      fbsAnimT+=dt; updatePhoton(dt);
+      fbsAnimT+=labDt; updatePhoton(labDt);
     } else if(state.s3view==='eos'){
-      fbsAnimT+=dt; updateEos(dt);
+      fbsAnimT+=labDt; updateEos(labDt);
     } else if(state.s3view==='tscale'){
-      fbsAnimT+=dt; updateTscale(dt);
+      fbsAnimT+=labDt; updateTscale(labDt);
     } else if(state.s3view==='sbright'){
-      fbsAnimT+=dt; updateSbright(dt);
+      fbsAnimT+=labDt; updateSbright(labDt);
     } else if(state.s3view==='anyzoo'){
-      fbsAnimT+=dt; updateAnyzoo(dt);
+      fbsAnimT+=labDt; updateAnyzoo(labDt);
     } else if(state.s3view==='jonesq'){
-      fbsAnimT+=dt; updateJonesq(dt);
+      fbsAnimT+=labDt; updateJonesq(labDt);
     } else if(state.s3view==='qregime'){
-      fbsAnimT+=dt; updateQregime(dt);
+      fbsAnimT+=labDt; updateQregime(labDt);
     } else if(state.s3view==='infolab'){
-      fbsAnimT+=dt; updateInfolab(dt);
+      fbsAnimT+=labDt; updateInfolab(labDt);
     } else if(state.s3view==='phorizon'){
-      fbsAnimT+=dt; updateHorizon(dt);
+      fbsAnimT+=labDt; updateHorizon(labDt);
     } else if(state.s3view==='clock'){
-      fbsAnimT+=dt; updateClock(dt);
+      fbsAnimT+=labDt; updateClock(labDt);
     } else if(state.s3view==='circ'){
-      fbsAnimT+=dt; updateCirc(dt);
+      fbsAnimT+=labDt; updateCirc(labDt);
     } else if(state.s3view==='origins'){
-      fbsAnimT+=dt; updateOrigins(dt);
+      fbsAnimT+=labDt; updateOrigins(labDt);
     } else if(state.s3view==='rungs'){
-      fbsAnimT+=dt; updateRungs(dt);
+      fbsAnimT+=labDt; updateRungs(labDt);
     } else if(state.s3view==='mainseq'){
-      fbsAnimT+=dt; updateMainseq(dt);
+      fbsAnimT+=labDt; updateMainseq(labDt);
     } else if(state.s3view==='galrot'){
-      fbsAnimT+=dt; updateGalrot(dt);
+      fbsAnimT+=labDt; updateGalrot(labDt);
     } else if(state.s3view==='seis'){
-      fbsAnimT+=dt; updateSeis(dt);
+      fbsAnimT+=labDt; updateSeis(labDt);
     } else if(state.s3view==='gyro'){
-      fbsAnimT+=dt; updateGyro(dt);
+      fbsAnimT+=labDt; updateGyro(labDt);
     } else if(state.s3view==='wind'){
-      fbsAnimT+=dt; updateWind(dt);
+      fbsAnimT+=labDt; updateWind(labDt);
     } else if(state.s3view==='exo'){
-      fbsAnimT+=dt; updateExo(dt);
+      fbsAnimT+=labDt; updateExo(labDt);
     } else if(state.s3view==='lam'){
-      fbsAnimT+=dt; updateLambda(dt);
+      fbsAnimT+=labDt; updateLambda(labDt);
     } else if(state.s3view==='resolve'){
-      fbsAnimT+=dt; updateResolve(dt);
+      fbsAnimT+=labDt; updateResolve(labDt);
     } else if(state.s3view==='phot'){
-      fbsAnimT+=dt; updatePhot(dt);
+      fbsAnimT+=labDt; updatePhot(labDt);
     } else if(state.s3view==='cosmo'){
-      fbsAnimT+=dt; updateCosmo(dt);
+      fbsAnimT+=labDt; updateCosmo(labDt);
     } else if(state.s3view==='jeans'){
-      fbsAnimT+=dt; updateJeans(dt);
+      fbsAnimT+=labDt; updateJeans(labDt);
     } else if(state.s3view==='eot'){
-      fbsAnimT+=dt; updateEot(dt);
+      fbsAnimT+=labDt; updateEot(labDt);
     } else if(state.s3view==='wave'){
-      fbsAnimT+=dt; updateWave(dt);
+      fbsAnimT+=labDt; updateWave(labDt);
     } else if(state.s3view==='spin'){
-      fbsAnimT+=dt; updateSpin(dt);
+      fbsAnimT+=labDt; updateSpin(labDt);
     } else if(state.s3view==='rel'){
-      fbsAnimT+=dt; updateRel(dt);
+      fbsAnimT+=labDt; updateRel(labDt);
     } else if(state.s3view==='chaos'){
-      fbsAnimT+=dt; updateChaos(dt);
+      fbsAnimT+=labDt; updateChaos(labDt);
     } else if(state.s3view==='he3'){
-      fbsAnimT+=dt; updateHe3(dt);
+      fbsAnimT+=labDt; updateHe3(labDt);
     } else if(state.s3view==='nuosc'){
-      fbsAnimT+=dt; updateNuosc(dt);
+      fbsAnimT+=labDt; updateNuosc(labDt);
     } else if(state.s3view==='adisk'){
-      fbsAnimT+=dt; updateAdisk(dt);
+      fbsAnimT+=labDt; updateAdisk(labDt);
     } else if(state.s3view==='elens'){
-      fbsAnimT+=dt; updateElens(dt);
+      fbsAnimT+=labDt; updateElens(labDt);
     } else if(state.s3view==='emb'){
-      fbsAnimT+=dt; updateEmb(dt);
+      fbsAnimT+=labDt; updateEmb(labDt);
     } else if(state.s3view==='kin'){
-      fbsAnimT+=dt; updateKin(dt);
+      fbsAnimT+=labDt; updateKin(labDt);
     } else if(state.s3view==='sh'){
-      fbsAnimT+=dt; updateSh(dt);
+      fbsAnimT+=labDt; updateSh(labDt);
     } else if(state.s3view==='kdv'){
-      fbsAnimT+=dt; updateKdv(dt);
+      fbsAnimT+=labDt; updateKdv(labDt);
     } else if(state.s3view==='ret'){
-      fbsAnimT+=dt; updateRet(dt);
+      fbsAnimT+=labDt; updateRet(labDt);
     } else if(state.s3view==='dip'){
-      fbsAnimT+=dt; updateDip(dt);
+      fbsAnimT+=labDt; updateDip(labDt);
     } else if(state.s3view==='cp'){
-      fbsAnimT+=dt; updateCp(dt);
+      fbsAnimT+=labDt; updateCp(labDt);
     } else if(state.s3view==='rd'){
-      fbsAnimT+=dt; updateRd(dt);
+      fbsAnimT+=labDt; updateRd(labDt);
     } else if(state.s3view==='he'){
-      fbsAnimT+=dt; updateHe(dt);
+      fbsAnimT+=labDt; updateHe(labDt);
     } else if(state.s3view==='bb'){
-      fbsAnimT+=dt; updateBb(dt);
+      fbsAnimT+=labDt; updateBb(labDt);
     } else if(state.s3view==='nuc'){
-      fbsAnimT+=dt; updateNuc(dt);
+      fbsAnimT+=labDt; updateNuc(labDt);
     } else if(state.s3view==='lens'){
-      fbsAnimT+=dt; updateLens(dt);
+      fbsAnimT+=labDt; updateLens(labDt);
     } else if(state.s3view==='te'){
-      fbsAnimT+=dt; updateTe(dt);
+      fbsAnimT+=labDt; updateTe(labDt);
     } else if(state.s3view==='gw'){
-      fbsAnimT+=dt; updateGw(dt);
+      fbsAnimT+=labDt; updateGw(labDt);
     } else if(state.s3view==='pv'){
-      fbsAnimT+=dt; updatePv(dt);
+      fbsAnimT+=labDt; updatePv(labDt);
     } else if(state.s3view==='su2'){
-      fbsAnimT+=dt; updateSu2(dt);
+      fbsAnimT+=labDt; updateSu2(labDt);
     } else if(state.s3view==='kam'){
-      fbsAnimT+=dt; updateKam(dt);
+      fbsAnimT+=labDt; updateKam(labDt);
     } else if(state.s3view==='cusp'){
-      fbsAnimT+=dt; updateCusp(dt);
+      fbsAnimT+=labDt; updateCusp(labDt);
     } else if(state.s3view==='poin'){
-      fbsAnimT+=dt; updatePoin(dt);
+      fbsAnimT+=labDt; updatePoin(labDt);
     } else if(state.s3view==='cps'){
-      fbsAnimT+=dt; updateCps(dt);
+      fbsAnimT+=labDt; updateCps(labDt);
     } else if(state.s3view==='gate'){
-      fbsAnimT+=dt; updateGate(dt);
+      fbsAnimT+=labDt; updateGate(labDt);
     } else if(state.s3view==='wil'){
-      fbsAnimT+=dt; updateWil(dt);
+      fbsAnimT+=labDt; updateWil(labDt);
     } else if(state.s3view==='cau'){
-      fbsAnimT+=dt; updateCau(dt);
+      fbsAnimT+=labDt; updateCau(labDt);
     } else if(state.s3view==='noe'){
-      fbsAnimT+=dt; updateNoe(dt);
+      fbsAnimT+=labDt; updateNoe(labDt);
     } else if(state.s3view==='dfx'){
-      fbsAnimT+=dt; updateDfx(dt);
+      fbsAnimT+=labDt; updateDfx(labDt);
     } else if(state.s3view==='psp'){
-      fbsAnimT+=dt; updatePsp(dt);
+      fbsAnimT+=labDt; updatePsp(labDt);
     } else if(state.s3view==='and'){
-      fbsAnimT+=dt; updateAnd(dt);
+      fbsAnimT+=labDt; updateAnd(labDt);
     } else if(state.s3view==='rsh'){
-      fbsAnimT+=dt; updateRsh(dt);
+      fbsAnimT+=labDt; updateRsh(labDt);
     } else if(state.s3view==='qcrys'){
-      fbsAnimT+=dt; updateQc(dt);
+      fbsAnimT+=labDt; updateQc(labDt);
     } else if(state.s3view==='leech'){
-      fbsAnimT+=dt; updateLeech(dt);
+      fbsAnimT+=labDt; updateLeech(labDt);
     } else if(state.s3view==='scales'){
-      fbsAnimT+=dt; updateScales(dt);
+      fbsAnimT+=labDt; updateScales(labDt);
     } else if(state.s3view==='osc'){
-      fbsAnimT+=dt; updateOsc(dt);
+      fbsAnimT+=labDt; updateOsc(labDt);
     } else if(state.s3view==='berry'){
-      fbsAnimT+=dt; updateBerry(dt);
+      fbsAnimT+=labDt; updateBerry(labDt);
     } else if(state.s3view==='disp'){
-      fbsAnimT+=dt; updateDisp(dt);
+      fbsAnimT+=labDt; updateDisp(labDt);
     } else if(state.s3view==='pole'){
-      fbsAnimT+=dt; updatePole(dt);
+      fbsAnimT+=labDt; updatePole(labDt);
     } else if(state.s3view==='imp'){
-      fbsAnimT+=dt; updateImp(dt); impUnrollTick(dt);
+      fbsAnimT+=labDt; updateImp(labDt); impUnrollTick(dt);
     } else if(state.s3view==='rpd'){
-      fbsAnimT+=dt; updateRpd(dt);
+      fbsAnimT+=labDt; updateRpd(labDt);
     } else if(state.s3view==='bht'){
-      fbsAnimT+=dt; updateBht(dt);
+      fbsAnimT+=labDt; updateBht(labDt);
     } else if(state.s3view==='cmb'){
-      fbsAnimT+=dt; updateCmb(dt);
+      fbsAnimT+=labDt; updateCmb(labDt);
     } else if(state.s3view==='mimg'){
-      fbsAnimT+=dt; updateMimg(dt);
+      fbsAnimT+=labDt; updateMimg(labDt);
     } else if(state.s3view==='bhr'){
-      fbsAnimT+=dt; updateBhr(dt);
+      fbsAnimT+=labDt; updateBhr(labDt);
     } else if(state.s3view==='ns'){
-      fbsAnimT+=dt; updateNs(dt);
+      fbsAnimT+=labDt; updateNs(labDt);
     } else if(state.s3view==='sn'){
-      fbsAnimT+=dt; updateSn(dt);
+      fbsAnimT+=labDt; updateSn(labDt);
     } else if(state.s3view==='psr'){
-      fbsAnimT+=dt; updatePsr(dt);
+      fbsAnimT+=labDt; updatePsr(labDt);
     } else if(state.s3view==='nul'){
-      fbsAnimT+=dt; updateNul(dt);
+      fbsAnimT+=labDt; updateNul(labDt);
     } else if(CIVP_VIEW_STATION[state.s3view]){
       /* ── THE SEVEN CIVP LABORATORIES RAN SOMEBODY ELSE'S UPDATE ─────────────
          updateCivp was called from the 'nul' branch and from nowhere else, and
@@ -111377,45 +111443,45 @@ function tickBody(now, frame){
          before any CIVP view is entered there is nothing to update. After one has
          been, the guard passes and the spinor observatory would have started
          wearing the CIVP caption. Removed from nul for that reason too. */
-      fbsAnimT+=dt; updateCivp(dt);
+      fbsAnimT+=labDt; updateCivp(labDt);
     } else if(state.s3view==='act'){
-      fbsAnimT+=dt; updateAct(dt);
+      fbsAnimT+=labDt; updateAct(labDt);
     } else if(state.s3view==='hol'){
-      fbsAnimT+=dt; updateHol(dt);
+      fbsAnimT+=labDt; updateHol(labDt);
     } else if(state.s3view==='syd'){
-      fbsAnimT+=dt; updateSyd(dt);
+      fbsAnimT+=labDt; updateSyd(labDt);
     } else if(state.s3view==='nexus'){
-      fbsAnimT+=dt; updateNexus(dt);
+      fbsAnimT+=labDt; updateNexus(labDt);
     } else if(state.s3view==='qso'){
-      fbsAnimT+=dt; updateQso(dt);
+      fbsAnimT+=labDt; updateQso(labDt);
     } else if(state.s3view==='rmhd'){
-      fbsAnimT+=dt; updateRmhd(dt);
+      fbsAnimT+=labDt; updateRmhd(labDt);
     } else if(state.s3view==='wd'){
-      fbsAnimT+=dt; updateWd(dt);
+      fbsAnimT+=labDt; updateWd(labDt);
     } else if(state.s3view==='cosmicweb'){
-      fbsAnimT+=dt; updateCosmicweb(dt);
+      fbsAnimT+=labDt; updateCosmicweb(labDt);
     } else if(state.s3view==='s3shell'){
-      fbsAnimT+=dt; updateS3shell(dt);
+      fbsAnimT+=labDt; updateS3shell(labDt);
     } else if(state.s3view==='s3torus'){
-      fbsAnimT+=dt; updateS3torus(dt);
+      fbsAnimT+=labDt; updateS3torus(labDt);
     } else if(state.s3view==='bbh'){
-      fbsAnimT+=dt; updateBbh(dt);
+      fbsAnimT+=labDt; updateBbh(labDt);
     } else if(state.s3view==='nsflow'){
-      fbsAnimT+=dt; updateNsf(dt);
+      fbsAnimT+=labDt; updateNsf(labDt);
     } else if(state.s3view==='tri'){
-      fbsAnimT+=dt; updateTri(dt);
+      fbsAnimT+=labDt; updateTri(labDt);
     } else if(state.s3view==='s3tube'){
-      fbsAnimT+=dt; updateS3tube(dt);
+      fbsAnimT+=labDt; updateS3tube(labDt);
     } else if(state.s3view==='s3escape'){
-      fbsAnimT+=dt; updateS3esc(dt);
+      fbsAnimT+=labDt; updateS3esc(labDt);
     } else if(state.s3view==='s3kb'){
-      fbsAnimT+=dt; updateS3kb(dt);
+      fbsAnimT+=labDt; updateS3kb(labDt);
     } else if(state.s3view==='s3lock'){
-      fbsAnimT+=dt; updateS3lock(dt);
+      fbsAnimT+=labDt; updateS3lock(labDt);
     } else if(state.s3view==='atom'){
-      fbsAnimT+=dt; updateAtom(dt);
+      fbsAnimT+=labDt; updateAtom(labDt);
     } else if(state.s3view==='anyon'){
-      fbsAnimT+=dt; updateAnyon(dt);
+      fbsAnimT+=labDt; updateAnyon(labDt);
     /* HCC:S3-VIEW-ROUTER:END */
     } else {
       eigSphere.rotation.y += dt*0.06;

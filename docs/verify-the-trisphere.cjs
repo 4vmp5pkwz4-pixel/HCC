@@ -77,7 +77,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
   /* 8 · wiring */
   ok('the wiring: declared once (so it reaches every registry), routed, drawn, in the API, and related to the core stations it draws',
-    /\{id:'tri', category:'hopf', domain:'quantum', cluster:'dynamics', predictionClass:'exact',/.test(SRC) && /triGroup\.visible = \(v==='tri'\);/.test(SRC) && /state\.s3view==='tri'\)\{\n\s*fbsAnimT\+=dt; updateTri\(dt\);/.test(SRC)
+    /\{id:'tri', category:'hopf', domain:'quantum', cluster:'dynamics', predictionClass:'exact',/.test(SRC) && /triGroup\.visible = \(v==='tri'\);/.test(SRC) && /state\.s3view==='tri'\)\{\n\s*fbsAnimT\+=labDt; updateTri\(labDt\);/.test(SRC)
     && /id:'tri', world:'s3', lab:'tri',/.test(SRC) && /\['tri','hopf','representation'/.test(SRC) && /\['tri','eig','invariant'/.test(SRC) && /function triCensus\(\)\{/.test(SRC) && /\['triAtlas','tri',triGroup,/.test(SRC));
 
   /* 8b · every laboratory leads to it */
