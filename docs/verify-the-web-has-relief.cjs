@@ -102,7 +102,7 @@ const gamma = z => { if (z < 0.5) return Math.PI / (Math.sin(Math.PI * z) * gamm
   { const worker = (SRC.match(/\[mulberry,s3nsInvert,lssFFT1,lssFFT3,lssTransfer,lssPower,lssRealize,lssSample,lssEig3,lssRelief\]/) || []).length === 1 && /"\\nconst lssKIdx="\+lssKIdx\.toString\(\)/.test(SRC);
     ok('wiring: the worker is given every function it runs, the shader reads the log-depth buffer, the layer is on by default with its control and the growth tick runs every frame; the cosmic-web laboratory draws the Burgers bridge and cosmicweb is related to nsflow',
       worker && /const LSS_VERT=`[\s\S]{0,400}#include <logdepthbuf_pars_vertex>/.test(SRC) && /showCosmicDust:false, showWebRelief:true,/.test(SRC) && /id="webRelief"/.test(SRC)
-      && /updateLaniakeaFlows\(dt\);\n(?:  try\{ cmbSkyTick\(dt\); \}catch\(e\)\{\}\n)?  try\{ lssReliefTick\(\); \}/.test(SRC) && /\$\{cwBurgersSect\(\)\}`;/.test(SRC) && /\['cosmicweb','nsflow','limit','the web is Navier–Stokes without pressure'/.test(SRC)
+      && /updateLaniakeaFlows\(dt\);\n(?:  try\{[^\n]*\n){0,4}  try\{ lssReliefTick\(\); \}/.test(SRC) && /\$\{cwBurgersSect\(\)\}`;/.test(SRC) && /\['cosmicweb','nsflow','limit','the web is Navier–Stokes without pressure'/.test(SRC)
       && /globalThis\.HCC_WEB_RELIEF=Object\.freeze/.test(SRC)); }
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

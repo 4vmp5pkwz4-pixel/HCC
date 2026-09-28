@@ -797,6 +797,7 @@ export const ROOTS = [
   'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
   'spin4C', 'spin4Scalar', 'spin4Shell',
   'LSS_PRIM', 'LSS_C', 'lssTransfer', 'lssTopHat', 'lssSigma2Raw', 'LSS_A', 'lssPower', 'lssSigma', 'lssNonlinearR', 'lssGrowthRaw', 'LSS_D1', 'lssGrowth', 'lssGrowthRate', 'LSS_DINF',
+  'LOCAL_WEB_META',
   'CMB_CAMB', 'CMB_PLANCK_CMAP', 'CMB_COLOR_RANGE_MUK', 'CMB_T_EMIT', 'cmbD', 'cmbPlanckColor', 'cmbAcoustic', 'cmbSigmaT', 'cmbCIE', 'cmbPlanckianXYZ', 'cmbPlanckianRGB',
   'lssFFT1', 'lssFFT3', 'lssKIdx', 'lssRealize', 'lssSample', 'lssEig3', 'burgersHopfCole', 'burgersShockHalfWidth', 'lssGrowthSeen', 'LSS_BIAS', 'LSS_TWEB_TH', 'lssStructureSpec', 'lssRelief', 'lssReliefCensus',
   'ppCorrelationDimension', 'LAB_CLOCK_MAX',
