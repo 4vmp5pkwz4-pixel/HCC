@@ -795,6 +795,7 @@ export const ROOTS = [
   'STAT_MG', 'statToGal', 'STAT_KMS', 'statGalRow', 'statOortRows', 'statSolveN', 'statOortSolve', 'statOortPred', 'statOortEllipsoid', 'statOortDerived', 'statOortFit', 'statOortWave', 'galLocalCurve', 'galOmegaR', 'galResonanceR', 'galResonances', 'galResonanceNumber', 'galArmBand',
   'webLogGamma', 'webWpH', 'webPairCounts', 'webWp', 'webPowerFit', 'webR0At', 'webMST', 'webPrune', 'webRandoms', 'KDV_STABLE_DTC', 'KDV_STABLE_DT',
   'TRI_ETA_CORE', 'TRI_ETA_STEP', 'TRI_ETA_MIN', 'triPoint', 'triHopf', 'triRotate', 'triProject', 'triGeodesic', 'triLayout', 'triFacts',
+  'spin4C', 'spin4Scalar', 'spin4Shell',
   'ppCorrelationDimension', 'LAB_CLOCK_MAX',
   'LG_NUCLEUS', 'LG_G_KPC', 'LG_KPC_PER_KMS_YR', 'lgDynFrictionYears', 'lgMergerTimeline', 'lgNucleusAt', 'bbhPeakStrain',
   'BBH_G', 'BBH_C', 'BBH_MSUN', 'BBH_YR', 'bbhParams', 'bbhRemnant', 'bbhQNM', 'bbhTauOfA', 'bbhAOfTau', 'bbhPhase', 'bbhFgw', 'bbhBudget', 'gwTau', 'gwChirpMass',

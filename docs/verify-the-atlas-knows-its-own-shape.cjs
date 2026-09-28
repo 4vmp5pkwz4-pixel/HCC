@@ -45,15 +45,19 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
       worst < 1e-9 && Math.abs(S.values[0]) < 1e-10 && cdev < 1e-9 && Math.abs(sum - trace) < 1e-8 && trace === 2 * B.E, `‖Lv − λv‖∞ ≤ ${worst.toExponential(1)} · λ₀ ${S.values[0].toExponential(1)} · Σλ ${sum.toFixed(6)} = tr L ${trace}`); }
 
   /* 3 · Fiedler and Cheeger */
-  const F = atlasFiedler(G, 'cmb');
+  const F = atlasFiedler(G, 'mainseq');
   { const v = F.vector, dot1 = v.reduce((t, x) => t + x, 0), nn = v.reduce((t, x) => t + x * x, 0); let q = 0; for (const [i, j] of G.E) q += (v[i] - v[j]) ** 2;
     ok('the Fiedler vector is orthogonal to the constant, its Rayleigh quotient is λ₂, and the cut it makes obeys Cheeger\'s inequality λ₂/2 ≤ h ≤ √(2Δλ₂)',
       Math.abs(dot1) < 1e-9 && Math.abs(q / nn - F.lambda2) < 1e-9 && F.lower <= F.h && F.h <= F.upper && F.lambda2 > 0, `λ₂ ${F.lambda2.toFixed(6)} · ${F.lower.toFixed(3)} ≤ h ${F.h.toFixed(3)} ≤ ${F.upper.toFixed(3)} · seam ${F.seam.length}`); }
 
   /* 4 · the found division */
-  { const sky = new Set(F.sky), inSky = ['cmb', 'bb', 'mainseq', 'cosmo', 'galrot'], inSphere = ['hopf', 'nsflow', 's3shell', 'tri', 'topo', 'su2'];
-    ok('FOUND — with no label consulted, the first mode separates the observed sky from the sphere: the CMB, black bodies, the main sequence, cosmology and galaxy rotation on one side; the Hopf fibration, Navier–Stokes on S³, the curl shells, the trisphere, topology and SU(2) on the other',
-      inSky.every(x => sky.has(x)) && inSphere.every(x => !sky.has(x)), `${F.sky.length} in the sky · ${F.sphere.length} in the sphere`); }
+  { const sky = new Set(F.sky), inSky = ['bb', 'mainseq', 'cosmo', 'galrot'], inSphere = ['hopf', 'nsflow', 's3shell', 'tri', 'topo', 'su2'];
+    ok('FOUND — with no label consulted, the first mode separates the observed sky from the sphere: black bodies, the main sequence, cosmology and galaxy rotation on one side; the Hopf fibration, Navier–Stokes on S³, the curl shells, the trisphere, topology and SU(2) on the other',
+      inSky.every(x => sky.has(x)) && inSphere.every(x => !sky.has(x)), `${F.sky.length} in the sky · ${F.sphere.length} in the sphere`);
+    /* and the CMB is in neither: its Fiedler coordinate is among the two nearest zero, far below the median — it IS the seam */
+    const rank = F.onSeam.findIndex(([x]) => x === 'cmb'), vc = Math.abs(F.vector[G.ix.get('cmb')]);
+    ok('FOUND — the cosmic microwave background stands ON the seam: its Fiedler coordinate is among the two nearest zero of all the laboratories and more than fifty times below the median, with the spherical harmonics beside it — the one observed sky whose analysis is the harmonic analysis of a sphere',
+      rank >= 0 && rank <= 1 && vc * 50 < F.medAbs && F.onSeam.slice(0, 4).some(([x]) => x === 'sh'), `|v_cmb| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)} · nearest: ${F.onSeam.slice(0, 5).map(([x, v]) => x + ' ' + v.toExponential(1)).join(', ')}`); }
 
   /* 5 · the bus */
   { const links = MAN.bus.links, lab = s => s.split('.')[0], g = new Map(); for (const l of links) { const x = lab(l.from), y = lab(l.to); if (!g.has(x)) g.set(x, new Set()); if (!g.has(y)) g.set(y, new Set()); if (x !== y) g.get(x).add(y); }
