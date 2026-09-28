@@ -142,6 +142,10 @@ const allChecks = [
   "docs/verify-back-is-always-there.cjs",
   "docs/verify-the-local-group-future.cjs",
   "docs/verify-the-discovery-ledger.cjs",
+  "docs/verify-the-colour-of-cosmic-time.cjs",
+  "docs/verify-the-space-forms.cjs",
+  "docs/verify-the-circles-in-the-sky.cjs",
+  "docs/verify-the-ladder-audit.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -341,6 +345,10 @@ if (fullMode) {
     'docs/verify-back-is-always-there.cjs',
     'docs/verify-the-local-group-future.cjs',
     'docs/verify-the-discovery-ledger.cjs',
+    'docs/verify-the-colour-of-cosmic-time.cjs',
+    'docs/verify-the-space-forms.cjs',
+    'docs/verify-the-circles-in-the-sky.cjs',
+    'docs/verify-the-ladder-audit.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
