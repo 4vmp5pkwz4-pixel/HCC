@@ -798,6 +798,8 @@ export const ROOTS = [
   'spin4C', 'spin4Scalar', 'spin4Shell',
   'LSS_PRIM', 'LSS_C', 'lssTransfer', 'lssTopHat', 'lssSigma2Raw', 'LSS_A', 'lssPower', 'lssSigma', 'lssNonlinearR', 'lssGrowthRaw', 'LSS_D1', 'lssGrowth', 'lssGrowthRate', 'LSS_DINF',
   'LOCAL_WEB_META',
+  'DISCOVERY_DOMAINS', 'DISCOVERIES', 'DISCOVERY_LEADS', 'discoveryById', 'discoveryGraph',
+  'LGM_G', 'LGM_GYR', 'LGM_GAL', 'LGM_OBS', 'LGM_LNL', 'LGM_RCOAL', 'lgmTotalMass', 'lgmAccel', 'lgmPotential', 'lgmHaloRho', 'lgmHaloSigma', 'lgmErf', 'lgmOrbit', 'lgmEvents', 'lgmMonteCarlo', 'LGM_GC', 'LGM_NGP', 'LGM_M31', 'lgmUnit', 'lgmCross', 'lgmDot', 'lgmNorm', 'lgmGeometry', 'lgmSampleDisc', 'lgmStars',
   'CMB_CAMB', 'CMB_PLANCK_CMAP', 'CMB_COLOR_RANGE_MUK', 'CMB_T_EMIT', 'cmbD', 'cmbPlanckColor', 'cmbAcoustic', 'cmbSigmaT', 'cmbCIE', 'cmbPlanckianXYZ', 'cmbPlanckianRGB',
   'lssFFT1', 'lssFFT3', 'lssKIdx', 'lssRealize', 'lssSample', 'lssEig3', 'burgersHopfCole', 'burgersShockHalfWidth', 'lssGrowthSeen', 'LSS_BIAS', 'LSS_TWEB_TH', 'lssStructureSpec', 'lssRelief', 'lssReliefCensus',
   'ppCorrelationDimension', 'LAB_CLOCK_MAX',
