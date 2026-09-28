@@ -2,9 +2,13 @@ export interface SceneSnapshot {
   schema: 'hcc.agent-scene/1';
   version: string;
   build: string;
-  worldId: string;
+  worldId: string | null;
   labId: string | null;
   selectedObjectId: string | null;
+  scaleLayer: 'local' | 'galactic' | 'andromeda' | 'cosmic' | null;
+  viewMode: 'single' | 'multiview';
+  activeTile: string | null;
+  visibleTiles: string[];
 }
 export interface LiveAtlasAPI {
   schema: 'hcc.api/2';
@@ -15,6 +19,7 @@ export interface LiveAtlasAPI {
   report(id: string, input: Record<string, unknown>): unknown;
 }
 export interface LiveAtlasNavigation {
+  scene(): Pick<SceneSnapshot, 'worldId' | 'labId' | 'selectedObjectId' | 'scaleLayer' | 'viewMode' | 'activeTile' | 'visibleTiles'>;
   worlds(): readonly {id: string}[];
   labs(): readonly {id: string; parentWorld: string}[];
   find(query: string, limit?: number): unknown[];
@@ -34,5 +39,4 @@ export interface LiveAtlasBridge {
 export declare function connectLiveAtlas(options?: {
   api?: LiveAtlasAPI;
   nav?: LiveAtlasNavigation;
-  ctx?: {worldId: string; labId: string | null; selectedObjectId: string | null};
 }): LiveAtlasBridge;

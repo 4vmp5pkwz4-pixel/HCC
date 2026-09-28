@@ -9,14 +9,14 @@ function serializableFinite(value) {
   return value;
 }
 
-export function connectLiveAtlas({api = globalThis.HCC_API, nav = globalThis.HCC_NAV, ctx = globalThis.HCC_CTX} = {}) {
+export function connectLiveAtlas({api = globalThis.HCC_API, nav = globalThis.HCC_NAV} = {}) {
   if (api?.schema !== 'hcc.api/2' || !api.ready || !api.describe || !api.report ||
-      !nav?.worlds || !nav.labs || !nav.find || !nav.go || !nav.layer || !nav.open || !ctx) {
+      !nav?.worlds || !nav.labs || !nav.find || !nav.go || !nav.layer || !nav.open || !nav.scene) {
     throw new Error('Atlas live interfaces unavailable; await the Atlas page and use its HCC_API/HCC_NAV');
   }
   const snapshot = () => serializableFinite({
     schema:'hcc.agent-scene/1', version:api.version, build:api.build,
-    worldId:ctx.worldId, labId:ctx.labId ?? null, selectedObjectId:ctx.selectedObjectId ?? null,
+    ...nav.scene(),
   });
   return Object.freeze({
     ready: async (timeout = 10000) => { await api.ready({timeout}); return snapshot(); },

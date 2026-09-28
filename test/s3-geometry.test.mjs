@@ -12,6 +12,7 @@ test('native stereographic chart preserves points and refuses its excluded pole'
   assert.ok(Math.abs(q[3] - 0.8) < 1e-15);
   assert.ok(Math.abs(s3ToStereographic(q)[0] - 3) < 1e-14);
   assert.ok(Math.abs(s3ToStereographic(stereographicToS3([1e9, 0, 0]))[0] / 1e9 - 1) < 1e-14);
+  assert.ok(Math.abs(s3ToStereographic(stereographicToS3([1e200, 0, 0]))[0] / 1e200 - 1) < 1e-14);
   assert.throws(() => s3ToStereographic([0, 0, 0, 1]), /pole|chart/i);
   assert.throws(() => s3ToStereographic([2, 0, 0, 0]), /unit|sphere/i);
   assert.throws(() => stereographicToS3([Infinity, 0, 0]), /finite/i);
@@ -24,6 +25,7 @@ test('round S³ metric retains near-coincident and antipodal distances', () => {
   const near = [Math.sin(1e-9), 0, 0, -Math.cos(1e-9)];
   assert.ok(Math.abs(s3GeodesicDistance(south, near, 2) / 2e-9 - 1) < 1e-7);
   assert.equal(s3GeodesicDistance(south, south, 2), 0);
+  assert.equal(s3GeodesicDistance([1, 0, 0, 0], [1 + 1e-11, 0, 0, 0], 2), 0);
   assert.ok(Math.abs(s3ConformalFactor([3, 0, 0]) - 0.2) < 1e-15);
   assert.throws(() => s3GeodesicDistance(south, near, 0), /radius/i);
 });

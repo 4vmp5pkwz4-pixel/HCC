@@ -8,8 +8,9 @@ function vector(value, length, name) {
 
 function unitPoint(value, name) {
   const p = vector(value, 4, name);
-  if (Math.abs(Math.hypot(...p) - 1) > 1e-10) throw new RangeError(`${name} must lie on the unit S³ sphere`);
-  return p;
+  const norm = Math.hypot(...p);
+  if (Math.abs(norm - 1) > 1e-10) throw new RangeError(`${name} must lie on the unit S³ sphere`);
+  return norm === 1 ? p : p.map(v => v / norm);
 }
 
 /** North-pole chart x = (q0,q1,q2)/(1-q3); the chart coordinates are dimensionless. */
@@ -29,13 +30,12 @@ export function stereographicToS3(chart) {
 
 export function s3ToStereographic(point) {
   const q = unitPoint(point, 'point');
-  // Near the north pole 1-q3 suffers cancellation (q3 can round to exactly 1).
-  // On the unit sphere, (1-q3) = (q0²+q1²+q2²)/(1+q3).
-  const d = q[3] > 0
-    ? (q[0] * q[0] + q[1] * q[1] + q[2] * q[2]) / (1 + q[3])
-    : 1 - q[3];
-  if (d === 0) throw new RangeError('north pole is excluded from the stereographic chart');
-  const x = q.slice(0, 3).map(v => v / d);
+  // Use the transverse norm before division: squared components underflow near the pole.
+  const transverse = Math.hypot(q[0], q[1], q[2]);
+  if (transverse === 0 && q[3] > 0) throw new RangeError('north pole is excluded from the stereographic chart');
+  const x = q[3] > 0
+    ? q.slice(0, 3).map(v => (v / transverse) * ((1 + q[3]) / transverse))
+    : q.slice(0, 3).map(v => v / (1 - q[3]));
   if (x.some(v => !Number.isFinite(v))) throw new RangeError('projected chart coordinate is outside float64 range');
   return x;
 }
@@ -75,12 +75,13 @@ export function measureS3({from, to, radius, unit} = {}) {
   if (typeof radius !== 'number' || !Number.isFinite(radius) || radius <= 0) {
     throw new RangeError('radius must be supplied explicitly as a finite positive number');
   }
-  const length = s3GeodesicDistance(from, to, radius);
+  const p = unitPoint(from, 'from'), q = unitPoint(to, 'to');
+  const length = s3GeodesicDistance(p, q, radius);
   return {
     schema: 'hcc.s3-measurement/1', status: 'CONDITIONAL', metric: 'round-spatial-s3',
-    from: [...from], to: [...to], radius, unit, length,
+    from: [...p], to: [...q], radius, unit, length,
     angle_rad: length / radius, precision: 'float64',
-    shortest_path_unique: !from.every((v, i) => v === -to[i]),
+    shortest_path_unique: !p.every((v, i) => v === -q[i]),
     assumptions: ['unit native R⁴ coordinates on a round spatial S³',
       'radius and unit supplied by the caller; no observational inference'],
     provenance: {equation: 'R·2 atan2(|p−q|, |p+q|)', source: 'core/math/s3-geometry.mjs'},
