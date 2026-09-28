@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-fluid-modes-are-spins-2026.09.28.45">
+<html lang="en" data-hcc-build="the-bar-stays-on-the-clock-2026.09.28.46">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-fluid-modes-are-spins-2026.09.28.45">
+<meta name="hcc-build" content="the-bar-stays-on-the-clock-2026.09.28.46">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1546,6 +1546,8 @@
   body.labbar-on #helpFab{bottom:calc(var(--bottom-band) + 70px)!important}
   body.labbar-on #ctlFab{display:none!important}           /* ⚙ lives in the bar now: one door, not two */
   body.labbar-on #dockFab{bottom:calc(var(--bottom-band) + 124px)!important}
+  /* the laboratory's caption stands ABOVE the bar — it used to push the bar up instead, by its own changing height */
+  @media (min-width:901px) and (pointer:fine){ body.labbar-on #hud{bottom:calc(var(--bottom-band) + var(--labbar-h,48px) + 18px)!important} }   /* on a phone the caption stands at the top */
   body.labbar-sheet .fab{display:none!important}
   /* ══ ☰ IS A TOOLBOX ══════════════════════════════════════════════════════════
      The three-bar button used to toggle a dock that, on a phone, the tab bar had
@@ -3041,7 +3043,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.330.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.330.1</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Solar</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3347,8 +3349,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.330.0';
-const HCC_BUILD='the-fluid-modes-are-spins-2026.09.28.45';
+const HCC_VERSION='4.330.1';
+const HCC_BUILD='the-bar-stays-on-the-clock-2026.09.28.46';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -94120,20 +94122,35 @@ function labBarInit(){ const b=document.getElementById('labBar'); if(!b||b.datas
     if(Math.abs(dx)>42&&Math.abs(dx)>1.5*Math.abs(dy)) labBarStep(dx<0?1:-1); setTimeout(()=>{ LAB_BAR.swipe=null; },0); });
   try{ LAB_BAR.hintDone=localStorage.getItem('hcc.labBar.seen.v1')==='1'; }catch(e){}
   if(!LAB_BAR.hintDone){ b.classList.add('hint'); setTimeout(()=>labBarSeen(),14000); } }
-/* the bar stands on the time machine, and above any sheet or caption that rises into its band */
+/* the bar stands on the time machine, and above any sheet that rises into its band.
+   IT DID NOT STAY THERE. Anything visible that reached into its band lifted it — the laboratory's own caption
+   (#hud) among them, whose height changes with every laboratory, so the bar hopped from one height to another
+   as you stepped through them (602 → 529 → 489 px on a 1280 × 800 window), and a Controls column docked on the
+   LEFT that merely clipped the bar's edge threw it to y = 266 on a 1100-px window: the middle of the picture.
+   Now: the caption makes room for the bar (it stands above it, CSS below), and a column docked BESIDE the bar
+   moves it sideways into the free gap. Only a sheet that spans the bar's centre — a bottom sheet — lifts it,
+   and only when there is no gap of 300 px beside a docked column does the old lift remain the fallback. */
+const LAB_BAR_LIFTERS=['ctl','labPanel','info','objectPanel','selCard','atlasNav','navPanel'];
 function labBarPlace(b){ const vh=window.visualViewport?.height||innerHeight;
+  let tmTop=vh; try{ const tm=document.getElementById('timeMachine'); if(tm&&getComputedStyle(tm).display!=='none'){ const r=tm.getBoundingClientRect(); if(r.height>0) tmTop=Math.min(tmTop,r.top); } }catch(e){}
+  const rects=[]; for(const id of LAB_BAR_LIFTERS){ const e=document.getElementById(id); if(!e) continue;
+    const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(r.height>0&&r.width>0) rects.push({id,r}); }
   /* a phone on its side keeps its sheets in a right-hand column: the bar takes the room to the LEFT of it, never across it */
   let land=false; try{ land=typeof phoneLandscape==='function'&&phoneLandscape(); }catch(e){}
-  if(land){ let colL=innerWidth; for(const id of ['ctl','labPanel','info','objectPanel']){ const e=document.getElementById(id); if(!e||getComputedStyle(e).display==='none') continue; const r=e.getBoundingClientRect(); if(r.width>0&&r.left>innerWidth*0.35) colL=Math.min(colL,r.left); }
+  if(land){ let colL=innerWidth; for(const {id,r} of rects){ if(id==='selCard'||id==='atlasNav'||id==='navPanel') continue; if(r.left>innerWidth*0.35) colL=Math.min(colL,r.left); }
     const w=Math.max(260,Math.min(560,colL-20)); b.style.left='10px'; b.style.transform='none'; b.style.width=w+'px'; }
-  else if(b.style.left){ b.style.left=''; b.style.transform=''; b.style.width=''; }
-  const br=b.getBoundingClientRect(); let top=vh;
-  try{ const tm=document.getElementById('timeMachine'); if(tm&&getComputedStyle(tm).display!=='none'){ const r=tm.getBoundingClientRect(); if(r.height>0) top=Math.min(top,r.top); } }catch(e){}
+  else { const H=b.getBoundingClientRect().height||48, natTop=tmTop-8-H, cx=innerWidth/2; let gL=10, gR=innerWidth-10;
+    for(const {id,r} of rects){ if(id==='selCard') continue; if(!(r.bottom>natTop+4&&r.top<tmTop-4)) continue;
+      if(r.left<cx-60&&r.right>cx+60) continue;                         /* spans the centre: a bottom sheet — lifts, below */
+      if((r.left+r.right)/2<cx) gL=Math.max(gL,Math.round(r.right+10)); else gR=Math.min(gR,Math.round(r.left-10)); }
+    const fw=gR-gL, ww=Math.min(560,innerWidth-20,fw);
+    if((gL>10||gR<innerWidth-10)&&fw>=300){ const L=Math.round(Math.max(gL,Math.min(cx-ww/2,gR-ww)))+'px';
+      if(b.style.left!==L) b.style.left=L; b.style.transform='none'; b.style.width=ww+'px'; }
+    else if(b.style.left){ b.style.left=''; b.style.transform=''; b.style.width=''; } }
+  const br=b.getBoundingClientRect(); let top=tmTop;
   /* only a sheet that actually reaches down into the bar's own band lifts it: the selection card is built to sit ON the bar */
   const natTop=top-8-br.height;
-  for(const id of ['ctl','labPanel','info','objectPanel','selCard','atlasNav','navPanel','hud']){ const e=document.getElementById(id); if(!e) continue;
-    const cs=getComputedStyle(e); if(cs.display==='none'||cs.visibility==='hidden') continue; const r=e.getBoundingClientRect(); if(!(r.height>0&&r.width>0)) continue;
-    const overlapX=r.right>br.left+4&&r.left<br.right-4; if(overlapX&&r.bottom>vh*0.45&&r.top>vh*0.3&&r.bottom>natTop+4) top=Math.min(top,r.top); }
+  for(const {r} of rects){ const overlapX=r.right>br.left+4&&r.left<br.right-4; if(overlapX&&r.bottom>vh*0.45&&r.top>vh*0.3&&r.bottom>natTop+4) top=Math.min(top,r.top); }
   document.documentElement.style.setProperty('--labbar-h',Math.round(br.height)+'px');
   { const sc=document.getElementById('selCard'), up=!!sc&&getComputedStyle(sc).display!=='none'; document.body.classList.toggle('selcard-up',up); }
   const bottom=Math.max(8,Math.round(vh-top+8)); if(b.style.bottom!==bottom+'px') b.style.bottom=bottom+'px';

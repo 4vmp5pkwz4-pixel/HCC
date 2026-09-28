@@ -11,9 +11,12 @@
  *   2. it is driven from the slow dock tick, and nothing in its visibility rule depends on
  *      the device: an upright phone shows it exactly as a desktop does; only XR, a landing,
  *      zen view or a missing world hide it
- *   3. it stands on the time machine and above any sheet or caption that rises into its
- *      band (a mini-player, not a panel), and on a phone lying on its side it takes the
- *      room left of the sheet column rather than crossing it
+ *   3. it stands on the time machine and above any bottom sheet that rises into its band
+ *      (a mini-player, not a panel); a column docked BESIDE it moves it sideways into the
+ *      free gap instead of lifting it, and the laboratory's caption stands above it rather
+ *      than pushing it — before, the caption's changing height made the bar hop between
+ *      laboratories and a left column clipping its edge threw it to mid-screen; on a phone
+ *      lying on its side it takes the room left of the sheet column rather than crossing it
  *   4. the doors do what they say: ‹ › walk the catalogue order and wrap, a horizontal
  *      swipe on the name does the same, ⊞ opens the full catalogue unfolded (or the Atlas
  *      outside the laboratory world), ⚙ toggles Controls, ◱ enters and leaves Multiview,
@@ -43,8 +46,12 @@ ok('driven from the slow dock tick, and the visibility rule never asks what devi
 
 /* 3 · placement */
 const place = SRC.slice(SRC.indexOf('function labBarPlace(b){'), SRC.indexOf('function labBarTick(){'));
-ok('it stands on the time machine and above any sheet or caption rising into its band, and on a phone on its side it takes the room left of the sheet column',
-  /getElementById\('timeMachine'\)/.test(place) && /\['ctl','labPanel','info','objectPanel','selCard','atlasNav','navPanel','hud'\]/.test(place) && /phoneLandscape\(\)/.test(place) && /colL-20/.test(place)
+const lifters = (SRC.match(/const LAB_BAR_LIFTERS=\[([^\]]*)\]/) || [, ''])[1];
+ok('it stands on the time machine and above any bottom sheet rising into its band; a docked column moves it sideways, never up; the caption stands above it and no longer lifts it; on a phone on its side it takes the room left of the sheet column',
+  /getElementById\('timeMachine'\)/.test(place) && lifters === "'ctl','labPanel','info','objectPanel','selCard','atlasNav','navPanel'" && !/'hud'/.test(place)
+  && /if\(r\.left<cx-60&&r\.right>cx\+60\) continue;/.test(place) && /fw>=300/.test(place) && /gL=Math\.max\(gL,Math\.round\(r\.right\+10\)\)/.test(place)
+  && /body\.labbar-on #hud\{bottom:calc\(var\(--bottom-band\) \+ var\(--labbar-h,48px\) \+ 18px\)!important\}/.test(SRC)
+  && /phoneLandscape\(\)/.test(place) && /colL-20/.test(place)
   && /#labBar\{position:fixed;left:50%;transform:translateX\(-50%\);bottom:calc\(var\(--bottom-band\) \+ 8px\)/.test(SRC));
 
 /* 4 · the doors do what they say */
