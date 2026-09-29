@@ -155,6 +155,8 @@ const allChecks = [
   "docs/verify-the-anatomy-of-a-forced-blow-up.cjs",
   "docs/verify-the-cycles-in-order.cjs",
   "docs/verify-the-stroboscope.cjs",
+  "docs/verify-vortex-stretching-is-vandermonde.cjs",
+  "docs/verify-the-formula-portal.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -369,6 +371,8 @@ if (fullMode) {
     'docs/verify-the-anatomy-of-a-forced-blow-up.cjs',
     'docs/verify-the-cycles-in-order.cjs',
     'docs/verify-the-stroboscope.cjs',
+    'docs/verify-vortex-stretching-is-vandermonde.cjs',
+    'docs/verify-the-formula-portal.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
