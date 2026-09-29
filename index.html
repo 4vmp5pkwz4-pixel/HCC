@@ -88831,13 +88831,19 @@ function updateCyc(dt){
      makes corotation visible at all. */
 
   // Mean precession diagnostic, deliberately separate from precision IERS orientation.
-  const pa = -2*Math.PI*yrs/PRECESSION_YR;
+  /* v4.340: the cone turns at the DERIVED Great Year (the tropical/sidereal beat, CYCLES.prec) rather than the
+     25772 the atlas already retired as an independent constant, and its opening is the obliquity OF THE EPOCH from
+     the atlas’s own long-term precession model (Vondrák et al. 2011, continued beyond ±200 kyr) — the cone
+     breathes between about 22.1° and 24.5° over 41 kyr instead of standing at 23.44° for ever. */
+  const precYr=(cycleByKey('prec')?.days||PRECESSION_YR*365.2425)/365.2425, pa = -2*Math.PI*yrs/precYr;
+  let precEps=23.44*DEG; try{ const e=ltpObliquityExtRad(2000+yrs); if(Number.isFinite(e)&&e>0.3&&e<0.5) precEps=e; }catch(err){}
+  precInst.userData.eps=precEps;
   precAxis.rotation.set(0,0,0);
-  precAxis.rotateOnWorldAxis(new THREE.Vector3(0,0,1), 23.44*DEG);
+  precAxis.rotateOnWorldAxis(new THREE.Vector3(0,0,1), precEps);
   precAxis.rotateOnWorldAxis(new THREE.Vector3(0,1,0), pa);
-  const rr=2.2*Math.sin(23.44*DEG), hh=2.2*Math.cos(23.44*DEG);
+  const rr=2.2*Math.sin(precEps), hh=2.2*Math.cos(precEps);
   precPointer.position.set(Math.sin(pa+Math.PI/2)*rr, hh, Math.cos(pa+Math.PI/2)*rr);
-  precInst.userData.ageLabel.element.textContent = `MEAN PRECESSION PHASE SINCE J2000 · ${(cyclePhase(cycleByKey('prec'))*360).toFixed(3)}°`;
+  precInst.userData.ageLabel.element.textContent = `MEAN PRECESSION PHASE SINCE J2000 · ${(cyclePhase(cycleByKey('prec'))*360).toFixed(3)}° · OBLIQUITY OF THE EPOCH ${(precEps/DEG).toFixed(3)}°`;
   precInst.userData.ageLabels.forEach(l=>l.visible=!!state.cycShowAges&&precInst.visible);
 
   const e=planetEcl(PLANETS[2], state.epochDays/36525), SC=seaInst.userData.SC;
