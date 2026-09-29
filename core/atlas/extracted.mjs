@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1796   ·   exported names: 1922
-   extracted physics, sha256 e1f27718d59188909fca53be53db9f772a39e5f90fb8c1d7a56b6090b0dd0898 */
+   extracted physics, sha256 140b5934fa0aa5dcd7c6c96d2aa92a0bfbefbfa2a552de284b10604730e39671 */
 
 const HCC_VERSION='4.342.0';
 
@@ -1123,7 +1123,7 @@ const LAB_DECLARATIONS=Object.freeze([
    title:{en:'Vortex stretching is a Vandermonde determinant · the curl levels of S³',
           ru:'Вихревое растяжение — определитель Вандермонда · уровни ротора на S³',
           de:'Wirbelstreckung ist eine Vandermonde-Determinante · die Rotationsniveaus von S³'},
-   purpose:'measured in the corpus of the S³ Navier–Stokes programme: for any finite sum of curl levels u = Σu_a (curl u_a = μ_a u_a) the total vortex stretching ∫Def u(ω, ω) equals −Σ_{a<b<c}(μ_a − μ_b)(μ_a − μ_c)(μ_b − μ_c)∫u_a·(u_b × u_c) — a Vandermonde determinant of the curl eigenvalues. The laboratory draws where the vortex lines stretch and shorten on S³ and the triads that carry it',
+   purpose:'measured in the corpus of the S³ Navier–Stokes programme: for any finite sum of curl levels u = Σu_a (curl u_a = μ_a u_a) the total vortex stretching ∫Def u(ω, ω) equals −Σ_{a < b < c}(μ_a − μ_b)(μ_a − μ_c)(μ_b − μ_c)∫u_a·(u_b × u_c) — a Vandermonde determinant of the curl eigenvalues. The laboratory draws where the vortex lines stretch and shorten on S³ and the triads that carry it',
    predictionTarget:'the stretching equals the Vandermonde sum to 1e-10 on the exact Hopf quadrature; it is zero for one level and for two levels; the triple product of three shells vanishes unless k_a + k_b + k_c is even, so the smallest stretching triad is E₁₊ + E₁₋ + E₂'},
   {id:'formulas', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'The Formula Portal · every formula of the S³ programme, and the ones the atlas can check',
@@ -7191,7 +7191,7 @@ const DISCOVERIES=Object.freeze([
    numbers:{RghostPDS:71.81, RcirclesPDS:143.62}},
   {id:'vandermondeStretch', kind:'found', domain:'flow', v:'4.342.0', labs:['vstretch','nsgal','s3lock'], verifier:'docs/verify-vortex-stretching-is-vandermonde.cjs',
    en:'Vortex stretching on S³ is a Vandermonde determinant of the curl levels', ru:'Вихревое растяжение на S³ — определитель Вандермонда уровней ротора', de:'Wirbelstreckung auf S³ ist eine Vandermonde-Determinante der Rotationsniveaus',
-   claim:'For any finite sum of curl levels u = Σu_a on S³ (curl u_a = μ_a u_a) the total vortex stretching is ∫Def u(ω, ω) = −Σ_{a<b<c}(μ_a − μ_b)(μ_a − μ_c)(μ_b − μ_c)∫u_a·(u_b × u_c): the Vandermonde determinant of the curl eigenvalues times the triple products of the parts. Measured to 1e-10 on the exact Hopf quadrature with the atlas\u2019s own orientation, for three, four and five levels. So one level cannot stretch (the Beltrami case), two cannot (1e-14), three can; and since the triple product of three shells vanishes unless k_a + k_b + k_c is even, the smallest stretching triad is E₁₊ + E₁₋ + E₂. Found in the audit of the S³ programme\u2019s corpus (from its curl identity, F00224 and F00228–F00231) and verified here independently.',
+   claim:'For any finite sum of curl levels u = Σu_a on S³ (curl u_a = μ_a u_a) the total vortex stretching is ∫Def u(ω, ω) = −Σ_{a < b < c}(μ_a − μ_b)(μ_a − μ_c)(μ_b − μ_c)∫u_a·(u_b × u_c): the Vandermonde determinant of the curl eigenvalues times the triple products of the parts. Measured to 1e-10 on the exact Hopf quadrature with the atlas\u2019s own orientation, for three, four and five levels. So one level cannot stretch (the Beltrami case), two cannot (1e-14), three can; and since the triple product of three shells vanishes unless k_a + k_b + k_c is even, the smallest stretching triad is E₁₊ + E₁₋ + E₂. Found in the audit of the S³ programme\u2019s corpus (from its curl identity, F00224 and F00228–F00231) and verified here independently.',
    numbers:{relative:2.4e-10, smallestTriadK:4}},
   {id:'stretchParityRevised', kind:'revises', domain:'sphere', v:'4.342.0', labs:['s3lock','vstretch'], verifier:'docs/verify-vortex-stretching-is-vandermonde.cjs',
    en:'The terminal lock\u2019s parity route has the wrong sign: 𝒥-symmetric fields stretch 𝒥-evenly', ru:'У маршрута чётности терминального замка неверный знак: 𝒥-симметричные поля растягиваются 𝒥-чётно', de:'Die Paritätsroute des Schlosses hat das falsche Vorzeichen',
