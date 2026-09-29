@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-stroboscope-of-everything-2026.09.29.63">
+<html lang="en" data-hcc-build="grips-2026.09.29.64">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-stroboscope-of-everything-2026.09.29.63">
+<meta name="hcc-build" content="grips-2026.09.29.64">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3047,7 +3047,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.346.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.347.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3359,8 +3359,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.346.0';
-const HCC_BUILD='the-stroboscope-of-everything-2026.09.29.63';
+const HCC_VERSION='4.347.0';
+const HCC_BUILD='grips-2026.09.29.64';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -20843,6 +20843,47 @@ renderer.domElement.addEventListener('pointerup', e=>{
   }
 });
 renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
+/* ══ GRIPS — EVERY LABORATORY'S POINTS UNDER THE FINGER (v4.347) ══════════════════════════════════════════════
+   A laboratory is watched until something in it can be taken hold of. Each laboratory that has a meaningful thing
+   to move declares GRIPS: which objects can be grabbed, what dragging them means, what a tap means, and a one-line
+   hint. One engine serves them all: it listens BEFORE the orbit controls (window, capture phase), so a grab never
+   also turns the camera; it drags on the plane through the grabbed point facing the camera (or the grip's own
+   mapping); a press that does not travel is a tap; the pointer shows a hand over anything grabbable, and the
+   hovered object swells; several fingers can hold several grips at once. Grips never replace the controls panel —
+   every gesture writes the same state the panel's sliders write, so the panel follows the hand. */
+const HCC_GRIPS=[]; const GRIP_DRAGS=new Map(); let GRIP_HOVER=null, GRIP_HOVER_T=0;
+function hccGrip(def){ HCC_GRIPS.push(def); return def; }
+function gripActive(){ return HCC_GRIPS.filter(g=>{ try{ return !!g.when(); }catch(e){ return false; } }); }
+function gripRaycast(e){ const act=gripActive(); if(!act.length) return null; const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
+  const P=raycaster.params, keepP=P.Points?P.Points.threshold:1, keepL=P.Line?P.Line.threshold:1; if(P.Points) P.Points.threshold=0.09; if(P.Line) P.Line.threshold=0.07;
+  let best=null; try{ for(const g of act){ let objs=[]; try{ objs=(g.targets()||[]).filter(o=>o&&o.visible!==false); }catch(err){} if(!objs.length) continue;
+      const hits=raycaster.intersectObjects(objs,true); if(!hits.length) continue; const h=hits[0]; if(!best||h.distance<best.hit.distance){ let o=h.object; while(o&&!objs.includes(o)) o=o.parent; best={grip:g, hit:h, obj:o||h.object}; } } }
+  finally{ if(P.Points) P.Points.threshold=keepP; if(P.Line) P.Line.threshold=keepL; } return best; }
+function gripWorldAt(D,e){ const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera); const p=new THREE.Vector3(); return raycaster.ray.intersectPlane(D.plane,p)?p:null; }
+function gripHoverSet(o){ if(GRIP_HOVER===o) return; if(GRIP_HOVER&&GRIP_HOVER.userData.gripScale){ GRIP_HOVER.scale.copy(GRIP_HOVER.userData.gripScale); delete GRIP_HOVER.userData.gripScale; }
+  GRIP_HOVER=o; if(o&&o.isMesh){ o.userData.gripScale=o.scale.clone(); o.scale.multiplyScalar(1.3); } try{ renderer.domElement.style.cursor=o?'grab':''; }catch(e){} }
+window.addEventListener('pointerdown',e=>{ if(e.target!==renderer.domElement||(e.pointerType==='mouse'&&e.button!==0)) return; if(e.pointerType==='touch'&&typeof touchPts!=='undefined'&&touchPts.size>1) return;
+  const pk=gripRaycast(e); if(!pk) return; const n=camera.getWorldDirection(new THREE.Vector3()).negate(), D={grip:pk.grip, obj:pk.obj, hit:pk.hit, x:e.clientX, y:e.clientY, moved:false, plane:new THREE.Plane().setFromNormalAndCoplanarPoint(n,pk.hit.point), start:pk.hit.point.clone(), e};
+  let ok=true; try{ if(pk.grip.start) ok=pk.grip.start(D)!==false; }catch(err){ console.warn('[grip start]',err); ok=false; } if(!ok) return;
+  GRIP_DRAGS.set(e.pointerId,D); try{ controls.enabled=false; }catch(err){} try{ downXY=null; }catch(err){} try{ renderer.domElement.setPointerCapture(e.pointerId); }catch(err){}
+  try{ renderer.domElement.style.cursor='grabbing'; }catch(err){} e.stopPropagation(); e.preventDefault(); },true);
+window.addEventListener('pointermove',e=>{ const D=GRIP_DRAGS.get(e.pointerId);
+  if(D){ if(!D.moved&&Math.hypot(e.clientX-D.x,e.clientY-D.y)>5) D.moved=true; if(D.moved&&D.grip.drag){ const w=gripWorldAt(D,e); if(w){ D.world=w; D.e=e; try{ D.grip.drag(D); }catch(err){ console.warn('[grip drag]',err); } } } e.stopPropagation(); return; }
+  if(e.pointerType!=='mouse'||e.target!==renderer.domElement) return; const now=performance.now(); if(now-GRIP_HOVER_T<70) return; GRIP_HOVER_T=now; const pk=gripRaycast(e); gripHoverSet(pk?pk.obj:null); },true);
+function gripEnd(e,cancel){ const D=GRIP_DRAGS.get(e.pointerId); if(!D) return; GRIP_DRAGS.delete(e.pointerId); D.e=e;
+  try{ if(cancel){ if(D.grip.end) D.grip.end(D); } else if(!D.moved){ if(D.grip.tap) D.grip.tap(D); else if(D.grip.end) D.grip.end(D); } else if(D.grip.end) D.grip.end(D); }catch(err){ console.warn('[grip end]',err); }
+  if(!GRIP_DRAGS.size){ let other=false; try{ other=typeof hfDragActive==='function'&&hfDragActive(); }catch(err){} if(!other) try{ controls.enabled=true; }catch(err){} }
+  try{ renderer.domElement.style.cursor=''; }catch(err){} try{ downXY=null; }catch(err){} e.stopPropagation(); }
+window.addEventListener('pointerup',e=>gripEnd(e,false),true); window.addEventListener('pointercancel',e=>gripEnd(e,true),true);
+/* the hint: one line under the toolbar naming what the open laboratory lets the hand do */
+function gripHintTick(){ let el=document.getElementById('gripHint'); const act=gripActive(), txt=act.map(g=>{ try{ return typeof g.hint==='function'?g.hint():g.hint; }catch(e){ return ''; } }).filter(Boolean).join(' · ');
+  if(!el){ if(!txt) return; el=document.createElement('div'); el.id='gripHint'; el.setAttribute('aria-live','polite'); el.style.cssText='position:fixed;left:50%;top:150px;transform:translateX(-50%);z-index:30;max-width:min(92vw,720px);padding:4px 12px;border-radius:999px;background:rgba(10,14,22,.72);border:1px solid rgba(127,224,166,.45);color:#cfe9da;font:600 11.5px var(--sans,system-ui);letter-spacing:.2px;pointer-events:none;text-align:center;backdrop-filter:blur(4px)'; document.body.appendChild(el); }
+  el.style.display=txt?'block':'none'; el.style.left=innerWidth>900?'62%':'50%'; if(txt&&el.textContent!=='✋ '+txt) el.textContent='✋ '+txt; }   /* on a wide screen the panels sit left: the hint stands over the scene */
+setInterval(()=>{ try{ gripHintTick(); }catch(e){} },500);
+/* for agents and tests: what can be grabbed right now, and where it is on the screen */
+globalThis.HCC_GRIPS=Object.freeze({ list:()=>{ const r=renderer.domElement.getBoundingClientRect(), v=new THREE.Vector3(); return gripActive().map(g=>({id:g.id, hint:(()=>{ try{ return typeof g.hint==='function'?g.hint():g.hint; }catch(e){ return ''; } })(),
+  targets:(()=>{ try{ return (g.targets()||[]).filter(o=>o&&o.visible!==false).map(o=>{ o.getWorldPosition(v); v.project(camera); return {name:o.name||o.type, x:r.left+(v.x+1)/2*r.width, y:r.top+(1-v.y)/2*r.height, onScreen:v.z<1&&Math.abs(v.x)<=1&&Math.abs(v.y)<=1}; }); }catch(e){ return []; } })()})); } });
+
 /* ── Hand-drag skyrmion & hopfion cores to see how they interact (capture phase so it
    pre-empts OrbitControls). Skyrmions move on their field plane; hopfions move on a
    screen-facing plane; the field/lines recompute live. ── */
@@ -59614,6 +59655,7 @@ function nsfPlace(){ const O=nsfObjs; if(!O) return; const {F,Q,N,t}=O, P=O.pts.
     const b=[q[0]-0.055*u[0],q[1]-0.055*u[1],q[2]-0.055*u[2],q[3]-0.055*u[3]], bn=Math.hypot(b[0],b[1],b[2],b[3]), tp=triProject([b[0]/bn,b[1]/bn,b[2]/bn,b[3]/bn],NSF_S,NSF_RMAX);
     S.set(p,6*i); S.set(tp,6*i+3);
     const f=w2/(w2+k2+1e-12), r=0.25+0.8*f, g=0.5+0.28*f, bl=1.0-0.72*f;          /* blue where the rigid Killing part carries the fluid, gold where the shell does */
+    if(O.dye&&O.dye[i]){ const d=O.dye[i], c=d===1?[1,0.35,0.9]:d===2?[1,1,1]:[0.55,1,0.4]; Cc[3*i]=c[0]; Cc[3*i+1]=c[1]; Cc[3*i+2]=c[2]; SC[6*i]=c[0]; SC[6*i+1]=c[1]; SC[6*i+2]=c[2]; SC[6*i+3]=c[0]*0.3; SC[6*i+4]=c[1]*0.3; SC[6*i+5]=c[2]*0.3; continue; }   /* dye painted by the hand rides the exact flow */
     Cc[3*i]=r; Cc[3*i+1]=g; Cc[3*i+2]=bl; SC[6*i]=r*0.9; SC[6*i+1]=g*0.9; SC[6*i+2]=bl*0.9; SC[6*i+3]=r*0.15; SC[6*i+4]=g*0.15; SC[6*i+5]=bl*0.15; }
   O.pts.geometry.attributes.position.needsUpdate=true; O.pts.geometry.attributes.color.needsUpdate=true;
   O.streak.geometry.attributes.position.needsUpdate=true; O.streak.geometry.attributes.color.needsUpdate=true;
@@ -60238,7 +60280,7 @@ function vdmSetup(){ labWipe(vdmGroup); const P=vdmParams(); vdmKey=vdmParamKey(
   { const l=mkLabel(TT('S³ through a stereographic window · gold: vortex lines stretch · blue: they shorten','S³ в стереографическом окне · золото: вихревые линии растягиваются · синее: укорачиваются','S³ stereographisch · gold: Streckung · blau: Stauchung'),'label'); l.position.set(0,4.6,0); vdmGroup.add(l); }
   /* the triads: the chosen levels on a ring, each triad a triangle */
   const tg=new THREE.Group(); tg.position.set(7.4,1.6,0); vdmGroup.add(tg); O.tg=tg; const n=parts.length, R=1.9, node=j=>new THREE.Vector3(R*Math.cos(2*Math.PI*j/n+Math.PI/2),R*Math.sin(2*Math.PI*j/n+Math.PI/2),0);
-  parts.forEach((P,j)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(0.13,14,10),new THREE.MeshBasicMaterial({color:P.sigma>0?0xffc65a:0x5ac8ff})); m.position.copy(node(j)); tg.add(m); const l=mkLabel(`E${P.k}${P.sigma>0?'₊':'₋'} · μ = ${P.mu>0?'+':''}${P.mu}`,'label dim'); l.position.copy(node(j).multiplyScalar(1.3)); tg.add(l); });
+  parts.forEach((P,j)=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(0.13,14,10),new THREE.MeshBasicMaterial({color:P.sigma>0?0xffc65a:0x5ac8ff})); m.position.copy(node(j)); m.userData.vdmLevel=[P.k,P.sigma]; (O.nodes||(O.nodes=[])).push(m); tg.add(m); const l=mkLabel(`E${P.k}${P.sigma>0?'₊':'₋'} · μ = ${P.mu>0?'+':''}${P.mu}`,'label dim'); l.position.copy(node(j).multiplyScalar(1.3)); tg.add(l); });
   const cmax=Math.max(1e-12,...L.triads.map(t=>Math.abs(t.contrib)));
   L.triads.forEach((t,j)=>{ const a=node(t.a), b=node(t.b), c=node(t.c), z=0.02*j, gg=new THREE.BufferGeometry().setFromPoints([a,b,c].map(v=>v.clone().setZ(z))); gg.setIndex([0,1,2]); const w=Math.abs(t.contrib)/cmax;
     tg.add(new THREE.Mesh(gg,new THREE.MeshBasicMaterial({color:!t.even?0x6f7a8c:t.contrib>=0?0xffc65a:0x5ac8ff,transparent:true,opacity:t.even?0.08+0.45*w:0.05,side:THREE.DoubleSide,depthWrite:false})));
@@ -60391,7 +60433,7 @@ function triadSetup(){ labWipe(triadGroup); const P=triadParams(); triadKey=tria
   /* the axes and the six rest states: centres on the outer curls, saddles on the middle one */
   ord.forEach((leg,r)=>{ const dir=[0,0,0]; dir[leg]=1; const v=toV(dir), col=TRIAD_COL[r];
     sg.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([v.clone().multiplyScalar(-1.25),v.clone().multiplyScalar(1.25)]),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.5})));
-    for(const s of [1,-1]){ const m=new THREE.Mesh(new THREE.SphereGeometry(r===1?0.12:0.1,14,10),new THREE.MeshBasicMaterial({color:r===1?0xff4a3a:0x7fe0a6})); m.position.copy(v.clone().multiplyScalar(s)); sg.add(m); }
+    for(const s of [1,-1]){ const m=new THREE.Mesh(new THREE.SphereGeometry(r===1?0.12:0.1,14,10),new THREE.MeshBasicMaterial({color:r===1?0xff4a3a:0x7fe0a6})); m.position.copy(v.clone().multiplyScalar(s)); m.userData.triadLeg=leg; m.userData.triadSign=s; (O.eqs||(O.eqs=[])).push(m); sg.add(m); }
     const [k,s]=T[leg], l=mkLabel(`E${k}${s>0?'₊':'₋'} · μ = ${mu[leg]>0?'+':''}${mu[leg]}${r===1?' · '+TT('unstable','неустойчива','instabil'):''}`,'label dim'); l.position.copy(v.clone().multiplyScalar(1.42)); sg.add(l); });
   /* the orbits: the energy sphere cut by the helicity levels Σμa² = h */
   const rot=mu[lo]===mu[md]||mu[md]===mu[hi];
@@ -60605,6 +60647,64 @@ function updateOmni(dt){ if(!omniObjs||omniParamKey()!==omniKey) omniSetup(); co
     O.bandLab.element.textContent=`${TT('the eye’s window','окно глаза','das Fenster des Auges')}: ${fmtDur(W.Pmin)} … ${fmtDur(W.Pmax)}`;
     hudBig.textContent=`${TT('THE STROBOSCOPE OF EVERYTHING','СТРОБОСКОП ВСЕГО','DAS STROBOSKOP VON ALLEM')} · ${TT('1 s on screen','1 с на экране','1 s am Schirm')} = ${fmtDur(s)} · ${TT('display','дисплей','Anzeige')} ${hz.toFixed(0)} Hz · ${P.flash==='lock'?TT(`flash locked to ${nm(O.I[0])} × (${P.N} + ${P.eps})`,`вспышка привязана к ${nm(O.I[0])} × (${P.N} + ${P.eps})`,'Blitz gekoppelt'):TT('one flash per frame','одна вспышка на кадр','ein Blitz pro Bild')} · ${O.flashN} ${TT('flashes','вспышек','Blitze')}`;
     hudSub.textContent=`${O.I.map((it,j)=>{ const h=O.hands.find(x=>x.it===it); return `${'ABC'[j]} ${nm(it)} ${h?h.tpf.toExponential(2):'—'} ${TT('turns/frame','об/кадр','U/Bild')} (${h?h.state:'—'})`; }).join(' · ')}${inTrue.length?' · '+TT('seen truly now','видно истинно сейчас','jetzt wahr')+': '+inTrue.join(', '):''}`; } }
+/* ── the grips of the laboratories ───────────────────────────────────────────────────────────────────────── */
+/* THE TENNIS RACKET: carry the state over its energy sphere (the orbit it lands on is the one it keeps), tap a
+   rest state to start beside it — a red saddle gives the flip — or tap the racket itself to throw it about its
+   unstable axis */
+function triadRestartAt(a){ const O=triadObjs; if(!O||!O.pick) return; const n=Math.hypot(...a)||1; a=a.map(x=>x/n); const mu=O.mu, [lo,md,hi]=O.ord, I=triadInvariants(mu,a), h=I.H/I.E;
+  const u=h>=mu[md]?(mu[hi]>mu[md]?(h-mu[md])/(mu[hi]-mu[md]):0):(mu[md]>mu[lo]?(h-mu[md])/(mu[md]-mu[lo]):0); state.triadU=Math.max(-0.95,Math.min(0.95,u)); O.P.u=state.triadU; triadKey=triadParamKey();
+  O.a=a.slice(); O.a0=a.slice(); O.per=triadPeriod(mu,O.S,a); O.I0=I; O.flash=[]; O.spread=NaN; O.flashN=0; if(O.flashPts) O.flashPts.geometry.setDrawRange(0,0); O.nextFlash=triadParams().strobe>0?O.t+triadParams().strobe*O.per.T:Infinity;
+  const v=O.toV(a); for(let i=0;i<O.trailN;i++) O.trail.set([v.x,v.y,v.z],3*i); O.trailLine.geometry.attributes.position.needsUpdate=true;
+  const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(...a).normalize(),new THREE.Vector3(0,1,0)); O.q=[q.w,q.x,q.y,q.z]; clearTimeout(O.ctlT); O.ctlT=setTimeout(()=>{ if(state.s3view==='triad') buildCtl(); },250); }
+hccGrip({ id:'triad', when:()=>state.mode==='s3'&&state.s3view==='triad'&&triadObjs&&triadObjs.pick,
+  targets:()=>{ const O=triadObjs; return [O.dot, ...(O.eqs||[]), O.box]; },
+  hint:()=>TT('drag the white state over the energy sphere · tap a red saddle for the flip · tap the racket to throw it','тяните белую точку по сфере энергии · нажмите на красное седло — переворот · нажмите на ракетку, чтобы бросить её','Zustand ziehen · Sattel antippen · Schläger werfen'),
+  drag:D=>{ const O=triadObjs; if(D.obj!==O.dot) return; const v=O.sg.worldToLocal(D.world.clone()); if(v.length()<1e-6) return; v.normalize(); const [lo,md,hi]=O.ord, a=[0,0,0]; a[lo]=v.x; a[md]=v.y; a[hi]=v.z; triadRestartAt(a); },
+  tap:D=>{ const O=triadObjs, [lo,md,hi]=O.ord, a=[0,0,0]; if(D.obj===O.box||(D.obj.userData.triadLeg===md)){ const s=D.obj.userData.triadSign||1; a[md]=s; a[lo]=2e-3; a[hi]=2e-3; }
+    else if(D.obj.userData.triadLeg!=null){ a[D.obj.userData.triadLeg]=D.obj.userData.triadSign; for(const l of [lo,md,hi]) if(l!==D.obj.userData.triadLeg) a[l]=0.08; } else return; triadRestartAt(a); } });
+/* THE STROBOSCOPE OF EVERYTHING: slide the eye's window along the ladder of frequencies — the time scale follows
+   the hand, from the electron to the Galaxy — and tap any clock on the ladder to put it in A, B, C */
+hccGrip({ id:'omnistrobe', when:()=>state.mode==='s3'&&state.s3view==='omnistrobe'&&omniObjs,
+  targets:()=>{ const O=omniObjs; return [O.band, ...O.hands.map(h=>h.ring)]; },
+  hint:()=>TT('slide the green window along the ladder — the time scale follows · tap a clock to put it in A, B, C','двигайте зелёное окно по лестнице — масштаб времени следует за рукой · нажмите на часы, чтобы поставить их в A, B, C','Fenster schieben · Uhr antippen'),
+  drag:D=>{ const O=omniObjs; if(D.obj!==O.band) return; const y=O.lg.worldToLocal(D.world.clone()).y, lf=OMNI_FLOG[0]+(y+5.2)/10.4*(OMNI_FLOG[1]-OMNI_FLOG[0]), hz=HCC_DISPLAY.hz||60;
+    state.omniLogS=Math.max(-24,Math.min(18,Math.log10(hz/2400)/2-lf)); const s=document.getElementById('omniS'); if(s){ s.value=state.omniLogS.toFixed(2); const v=document.getElementById('omniSV'); if(v) v.textContent=state.omniLogS.toFixed(2); const r=document.getElementById('omniSRead'); if(r) r.textContent=`${TT('1 s on screen','1 с на экране','1 s am Schirm')} = ${fmtDur(Math.pow(10,state.omniLogS))}`; } },
+  tap:D=>{ const O=omniObjs, h=O.hands.find(x=>x.ring===D.obj); if(!h) return; const k=h.it.key, P=omniParams(); if(P.A===k||P.B===k||P.C===k) return; state.omniSlot=((state.omniSlot??-1)+1)%3; if(state.omniSlot===0) state.omniA=k; else if(state.omniSlot===1) state.omniB=k; else state.omniC=k; omniObjs=null; if(panelIsOpen('ctl')) buildCtl(); } });
+/* THE STROBOSCOPE OF S³: drag the flash period along the landscape S(T) (it snaps to the named peaks), and drag
+   ρ across Thomae's popcorn — let go on a gold carrier and the exact solution of that shell is loaded */
+hccGrip({ id:'strobe', when:()=>state.mode==='s3'&&state.s3view==='strobe'&&strobeObjs&&strobeObjs.cursor,
+  targets:()=>[strobeObjs.cursor, strobeObjs.rhoCur],
+  hint:()=>TT('drag the white bar along S(T) to change the flash period · drag ρ across the popcorn — let go on gold for an exact carrier','тяните белую черту по S(T) — меняется период вспышки · тяните ρ по «попкорну» — отпустите на золоте, чтобы загрузить точный переносчик','Blitzperiode ziehen · ρ ziehen'),
+  drag:D=>{ const O=strobeObjs; if(D.obj===O.cursor){ const L=O.land, x=O.tw.worldToLocal(D.world.clone()).x; let lg=L.lo+(Math.max(-L.W/2,Math.min(L.W/2,x))+L.W/2)/L.W*(L.hi-L.lo);
+      for(const p of O.peaks||[]){ if(Math.abs(Math.log10(p.T)-lg)<0.004*(L.hi-L.lo)) lg=Math.log10(p.T); } state.strobeTd=Math.pow(10,lg); strobeClocks(); }
+    else if(D.obj===O.rhoCur){ const W=5.2, x=O.pp.worldToLocal(D.world.clone()).x; D.rho=Math.max(0.001,Math.min(0.999,(x+W/2)/W)); O.rhoCur.position.x=-W/2+W*D.rho; } },
+  end:D=>{ const O=strobeObjs; if(D.obj!==O.rhoCur||D.rho==null) return; let snap=null; for(let k=1;k<=9;k++){ const r=carrierKnot(k,1).rho; if(Math.abs(r-D.rho)<0.008) snap=k; }
+    if(snap){ state.strobeFree=false; state.strobeK=snap; } else { state.strobeFree=true; state.strobeRho=D.rho; } if(panelIsOpen('ctl')) buildCtl(); } });
+/* VORTEX STRETCHING: tap a level on the ring of triads to take it out — the stretching law recomputes */
+hccGrip({ id:'vstretch', when:()=>state.mode==='s3'&&state.s3view==='vstretch'&&vdmObjs&&vdmObjs.nodes,
+  targets:()=>vdmObjs.nodes, hint:()=>TT('tap a level on the ring to take it out — the law recomputes','нажмите на уровень в кольце, чтобы убрать его — закон пересчитывается','Niveau antippen zum Entfernen'),
+  tap:D=>{ const lv=D.obj.userData.vdmLevel; if(!lv) return; const cur=vdmParams().levels.filter(l=>!(l[0]===lv[0]&&l[1]===lv[1])); if(!cur.length) return; state.vdmLevels=cur; vdmObjs=null; if(panelIsOpen('ctl')) buildCtl(); } });
+/* THE LOCAL GROUP: drag Andromeda's hole sideways to give it a tangential velocity (let go and the two galaxies are
+   flown again by law), drag along Andromeda's orbit to scrub time, tap Sgr A* to pause or play */
+hccGrip({ id:'lgmerge', when:()=>state.mode==='s3'&&state.s3view==='lgmerge'&&lgmObjs,
+  targets:()=>[lgmObjs.bhB, lgmObjs.bhA, lgmObjs.path],
+  hint:()=>TT('drag M31* sideways to change Andromeda’s tangential velocity · drag along its orbit to scrub time · tap Sgr A* to pause','тяните M31* вбок — меняется поперечная скорость Андромеды · тяните вдоль орбиты — перемотка времени · нажмите на Sgr A* — пауза','M31* ziehen · Bahn ziehen · Sgr A* antippen'),
+  start:D=>{ const O=lgmObjs; D.v0=O.vTan; if(D.obj===O.path) state.lgmPaused=true; },
+  drag:D=>{ const O=lgmObjs; if(D.obj===O.bhB){ const dx=D.e.clientX-D.x; D.vt=Math.round(Math.max(0,Math.min(200,D.v0+dx*0.4))); O.lB.element.textContent=`M31* · v_t → ${D.vt} km/s · ${TT('let go to fly','отпустите — полёт','loslassen')}`; }
+    else if(D.obj===O.path&&O.centres.length){ const ndc=canvasNDC(D.e.clientX,D.e.clientY); raycaster.setFromCamera(ndc,camera); const P=O.path.geometry.attributes.position, v=new THREE.Vector3(); let best=0, bd=Infinity;
+      for(let i=0;i<600;i+=2){ v.fromBufferAttribute(P,i).applyMatrix4(O.path.matrixWorld); const d=raycaster.ray.distanceSqToPoint(v); if(d<bd){ bd=d; best=i; } } O.t=best/599*12; state.lgmT=O.t; } },
+  end:D=>{ const O=lgmObjs; if(D.obj===O.bhB&&D.vt!=null&&D.vt!==D.v0){ state.lgmScen='custom'; state.lgmVt=D.vt; state.lgmT=0; state.lgmPaused=false; if(panelIsOpen('ctl')) buildCtl(); } },
+  tap:D=>{ const O=lgmObjs; if(D.obj===O.bhA||D.obj===O.bhB) state.lgmPaused=!state.lgmPaused; else if(D.obj===O.path) state.lgmPaused=false; } });
+/* NAVIER–STOKES ON S³: paint dye onto the fluid with the finger and watch the exact solution carry and stretch it */
+function nsfDyeAt(e,r){ const O=nsfObjs; if(!O) return 0; if(!O.dye) O.dye=new Uint8Array(O.N); const rect=renderer.domElement.getBoundingClientRect(), P=O.pts.geometry.attributes.position.array, v=new THREE.Vector3(), m=O.pts.matrixWorld; let n=0;
+  for(let i=0;i<O.N;i++){ v.set(P[3*i],P[3*i+1],P[3*i+2]).applyMatrix4(m).project(camera); if(v.z>1) continue; const sx=rect.left+(v.x+1)/2*rect.width, sy=rect.top+(1-v.y)/2*rect.height; if(Math.hypot(sx-e.clientX,sy-e.clientY)<r){ if(!O.dye[i]) n++; O.dye[i]=1+((O.dyeCol||0)%3); } } return n; }
+hccGrip({ id:'nsflow', when:()=>state.mode==='s3'&&state.s3view==='nsflow'&&nsfObjs&&nsfObjs.pts,
+  targets:()=>[nsfObjs.pts], hint:()=>TT('paint dye on the fluid with your finger — the exact solution carries and stretches it · tap to change the colour','рисуйте краской по жидкости пальцем — точное решение переносит и растягивает её · нажмите, чтобы сменить цвет','Farbe malen · antippen: neue Farbe'),
+  start:D=>{ nsfDyeAt(D.e,26); }, drag:D=>{ nsfDyeAt(D.e,22); }, tap:D=>{ const O=nsfObjs; O.dyeCol=(O.dyeCol||0)+1; nsfDyeAt(D.e,34); } });
+/* FBS3R: tap a shell of the S³ spectrum and the ladder travels to its level */
+hccGrip({ id:'fbsS3', when:()=>state.mode==='fbs'&&typeof fbsS3Group!=='undefined'&&fbsS3Group.visible&&fbsS3Objs,
+  targets:()=>fbsS3Objs.slots.filter(s=>s.g.visible&&s.k!=null).map(s=>s.g), hint:()=>TT('tap a blue S³ shell and the ladder travels to its level','нажмите на синюю оболочку S³ — лестница переедет на её уровень','S³-Schale antippen'),
+  tap:D=>{ const s=fbsS3Objs.slots.find(x=>x.g===D.obj); if(!s) return; state.fbsTarget=s3LadderN(s.k,S3.R*GLY_M); state.fbsCycle=false; } });
 /* ══ THE FORMULA PORTAL — THE WHOLE S³ PROGRAMME, AS A SKY YOU CAN WALK INTO ═══════════════════════════════════
    5201 displayed formulas of the S³ Navier–Stokes programme (ten manuscripts, data/formula-atlas.json) collapse to
    1801 distinct ones once identical formulas are identified by their normalised hash — the four copies of the PRD
@@ -97590,7 +97690,12 @@ function labBarOrder(){ const p=document.getElementById('labPanel');
 function labBarCount(){ try{ const n=(HCC_NAV.labs()||[]).length; if(n) return n; }catch(e){} return Object.keys(S3_VIEW_NAMES).length; }
 function labBarGo(v){ if(!v) return; try{ navPush(); }catch(e){} try{ if(typeof MV!=='undefined'&&MV.on) mvExit(false); }catch(e){}
   hccGo({worldId:'s3',labId:v}); labBarSeen(); }
-function labBarStep(d){ const L=labBarOrder(); if(!L.length) return; let w=null; try{ w=HCC_CTX.worldId; }catch(e){}
+/* THE FIRST SWIPE IS AN INVITATION. After the page loads, the first step through the laboratories — a swipe on the
+   name, ‹ › or [ ] — lands in the Local Group's future: the Milky Way and Andromeda thrown at each other (head-on
+   unless a scenario was already chosen), their stars as test particles, their black holes riding the centres.
+   Every step after that walks the catalogue as before. */
+function labBarStep(d){ if(typeof LAB_BAR!=='undefined'&&!LAB_BAR.firstJumped){ LAB_BAR.firstJumped=true; if(state.s3view!=='lgmerge'||state.mode!=='s3'){ if(!state.lgmScen) state.lgmScen='headon'; state.lgmT=0; state.lgmPaused=false; labBarGo('lgmerge'); return; } }
+  const L=labBarOrder(); if(!L.length) return; let w=null; try{ w=HCC_CTX.worldId; }catch(e){}
   const i=w==='s3'?L.indexOf(state.s3view):-1; labBarGo(L[((i<0?(d>0?-1:0):i)+d+L.length)%L.length]); }
 function labBarCatalogue(){ labBarSeen(); let w=null; try{ w=HCC_CTX.worldId; }catch(e){}
   if(w==='s3'){ if(LAB_BROWSER_OPEN&&!LAB_BROWSER_FOLDED){ labBrowserSetOpen(false); } else { labBrowserFold(false); labBrowserSetOpen(true); } }
