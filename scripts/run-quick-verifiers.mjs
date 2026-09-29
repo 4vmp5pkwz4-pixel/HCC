@@ -162,6 +162,7 @@ const allChecks = [
   "docs/verify-the-tennis-racket-inside-the-fluid.cjs",
   "docs/verify-the-stroboscope-of-everything.cjs",
   "docs/verify-the-grips.cjs",
+  "docs/verify-a-sky-you-can-see.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -383,6 +384,7 @@ if (fullMode) {
     'docs/verify-the-tennis-racket-inside-the-fluid.cjs',
     'docs/verify-the-stroboscope-of-everything.cjs',
     'docs/verify-the-grips.cjs',
+    'docs/verify-a-sky-you-can-see.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
