@@ -154,6 +154,7 @@ const allChecks = [
   "docs/verify-the-hunt-for-a-hidden-law.cjs",
   "docs/verify-the-anatomy-of-a-forced-blow-up.cjs",
   "docs/verify-the-cycles-in-order.cjs",
+  "docs/verify-the-stroboscope.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -367,6 +368,7 @@ if (fullMode) {
     'docs/verify-the-hunt-for-a-hidden-law.cjs',
     'docs/verify-the-anatomy-of-a-forced-blow-up.cjs',
     'docs/verify-the-cycles-in-order.cjs',
+    'docs/verify-the-stroboscope.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
