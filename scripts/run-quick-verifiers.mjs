@@ -157,6 +157,7 @@ const allChecks = [
   "docs/verify-the-stroboscope.cjs",
   "docs/verify-vortex-stretching-is-vandermonde.cjs",
   "docs/verify-the-formula-portal.cjs",
+  "docs/verify-the-display-is-a-stroboscope.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -373,6 +374,7 @@ if (fullMode) {
     'docs/verify-the-stroboscope.cjs',
     'docs/verify-vortex-stretching-is-vandermonde.cjs',
     'docs/verify-the-formula-portal.cjs',
+    'docs/verify-the-display-is-a-stroboscope.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
