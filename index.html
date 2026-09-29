@@ -16252,9 +16252,9 @@ const eclDateStr=d=>formatDeepDate(d)+' UT';
 
 /* Cosmological cycles dashboard — period in days, phase reference (days from J2000) */
 const CYCLES = [
- {key:'moon', name:'Synodic month (New Moon → New Moon)', days:29.530588853, ref:5.26,
+ {key:'moon', name:'Synodic month (New Moon → New Moon)', days:CYC_SYNODIC, ref:5.26,
   desc:'The lunar phase cycle.', obs:{mode:'solar', focus:'moon', spd:1}},
- {key:'year', name:'Tropical year (equinox → equinox)', days:365.24219, ref:79.0,
+ {key:'year', name:'Tropical year (equinox → equinox)', days:CYC_TROPICAL_Y, ref:79.0,
   desc:'The cycle of the seasons.', obs:{mode:'solar', focus:'planet2', spd:5}},
  {key:'draconic', name:'Draconic month (node \u2192 node)', days:CYC_DRACONIC, ref:5.10,
   desc:'The Moon back to the same orbital node. An eclipse needs the Moon NEAR A NODE, so this month, not the synodic one, decides whether the shadow hits at all.', obs:{mode:'cyc'}},
@@ -16283,8 +16283,8 @@ const CYCLES = [
  {key:'saros', name:'Saros \u2014 eclipse cycle (derived)', days:223*CYC_SYNODIC, ref:8864.26, constructedFrom:{key:'moon',times:223},
   desc:'NOT a quoted number any more: 223 synodic months is where the phase, the node and the distance nearly coincide at once \u2014 223 synodic = 6585.3213 d, 242 draconic = 6585.3574, 239 anomalistic = 6585.5374. The eclipse path shifts 116\u00b0 west because the leftover 7.7 hours turn the Earth underneath it.',
   obs:{mode:'cyc'}},
- {key:'metonic', name:'Metonic cycle (19 yr)', days:6939.6018, ref:0,
-  desc:'235 synodic months ≈ 19 tropical years: lunar phases return to the same calendar dates.',
+ {key:'metonic', name:'Metonic cycle (19 yr)', days:19*CYC_TROPICAL_Y, ref:0, constructedFrom:{key:'year',times:19},
+  desc:'19 tropical years, DERIVED from the year rather than typed: 6939.6016 d, against 235 synodic months = 6939.6884 d — the two miss by 0.087 d (2 h 5 min) per cycle, which is why lunar phases return to the same calendar dates and why the calendar drifts a day every 219 years.',
   obs:{mode:'cyc'}},
  {key:'prec', name:'Axial precession — Great Year', days:cycPrecessionFromYears()*365.2425, ref:0,
   desc:'DERIVED, not stored: the beat between the tropical and sidereal years gives 25771 yr against the 25772 that used to sit here as an independent constant. Precision Earth orientation still requires IAU 2006/2000A precession-nutation plus IERS parameters.',
@@ -16299,6 +16299,18 @@ const CYCLES = [
 ];
 const CYCLE_PHASE_KEYS=['moon','draconic','anomalistic','sidmonth','year','sidyear','nodyear','saros','inex','metonic','solar','hale','obliq','prec','eccS','eccL','mercperi','gal'];
 const cycleByKey=key=>CYCLES.find(c=>c.key===key);
+/* THE DASHBOARD, IN FAMILIES (v4.340). Twenty rows used to sit in the order they were written — the month, the year,
+   the node month … the Metonic cycle near the end — with measured, derived, defined, predicted and model periods
+   side by side and nothing to tell them apart. Every cycle now belongs to exactly one family (by what turns), and
+   says what KIND of number its period is (by how the atlas knows it). */
+const CYCLE_FAMILIES=Object.freeze([
+  {id:'moon', keys:['moon','sidmonth','draconic','anomalistic','nodyear','saros','inex','metonic'], t:{en:'The Moon and the eclipses',ru:'Луна и затмения',de:'Der Mond und die Finsternisse'}},
+  {id:'earth', keys:['year','sidyear','prec','obliq','eccS','eccL'], t:{en:'The Earth — its year, its axis, its orbit',ru:'Земля — год, ось, орбита',de:'Die Erde — Jahr, Achse, Bahn'}},
+  {id:'sun', keys:['solar','hale'], t:{en:'The Sun',ru:'Солнце',de:'Die Sonne'}},
+  {id:'beyond', keys:['mercperi','gal','s3','fbs'], t:{en:'Beyond — relativity, the Galaxy, the model',ru:'Дальше — относительность, Галактика, модель',de:'Darüber hinaus'}}]);
+function cycleKind(c){ if(!c) return 'unknown'; if(c.key==='hale') return 'defined'; if(c.key==='mercperi') return 'predicted'; if(c.key==='s3'||c.key==='fbs') return 'model'; if(c.key==='gal') return 'approximate';
+  if(c.constructedFrom||['nodyear','prec','sidmonth'].includes(c.key)) return 'derived'; return 'measured'; }
+
 const cyclePhase=(c,days=state.epochDays)=>((days-(c.ref||0))/c.days%1+1)%1;
 /* ── ONE COMMENSURABILITY ENGINE, NOT TWO ────────────────────────────────────
    This atlas computed "how many of A equal how many of B" in two unrelated
@@ -16445,6 +16457,30 @@ function cyclePhaseMatch(a,b,days=state.epochDays,dir=1){
   const turns=dir>0?(f>0?mod(-delta):mod(delta)):(f>0?mod(delta):mod(-delta));
   return d+Math.sign(dir||1)*(turns<1e-12?1:turns)/Math.abs(f);
 }
+/* ══ THE CLOCKS ANCHORED, AND THEIR SECTIONS ═══════════════════════════════════════════════════════
+   Mean periods say how fast a clock turns; they do not say where its hand IS. The Moon’s hands are anchored
+   here to the sky by the mean elements at J2000 (Meeus, Astronomical Algorithms, ch. 47: L′, D, M, M′, F, Ω) —
+   so a dial can say whether an eclipse is possible NOW (the Moon at syzygy, D ≈ 0 or 180°, and near a node,
+   F ≈ 0 or 180°), and it says so for every eclipse in the catalogue.
+   And a pair of clocks has a phase space — the torus — and a SECTION of it: read clock B each time clock A
+   comes round (a stroboscope, a Poincaré map). For two uniform clocks that map is a rotation by ρ = P_A/P_B mod 1,
+   and it obeys the three-distance theorem (Steinhaus; Sós, Świerczkowski): N points of a rotation cut the circle
+   into gaps of at most THREE lengths, the longest the sum of the other two. For the Moon’s three months the
+   section at each new moon is a 2-torus of (node, apsis) phases, and its best return, found not told, is the Saros. */
+function cycMeanElements(days){ const T=days/36525, n=x=>((x%360)+360)%360;
+  return {T, Lsun:n(280.46646+36000.76983*T), Lmoon:n(218.3164477+481267.88123421*T), D:n(297.8501921+445267.1114034*T), M:n(357.5291092+35999.0502909*T), Mm:n(134.9633964+477198.8675055*T), F:n(93.2720950+483202.0175233*T), Om:n(125.0445479-1934.1362891*T)}; }
+function cycEclipseWindow(days){ const E=cycMeanElements(days), f=E.F%180, dF=Math.min(f,180-f), dNew=Math.min(E.D,360-E.D), dFull=Math.abs(E.D-180);
+  return {dF, dNew, dFull, solar:dNew<15&&dF<18.5, lunar:dFull<15&&dF<12.2}; }
+function cycSarosSection(N,days0){ const E0=cycMeanElements(days0||0), syn=CYC_SYNODIC, t0=(days0||0)-E0.D/360*syn, pts=[];
+  for(let k=0;k<N;k++){ const E=cycMeanElements(t0+k*syn); pts.push({k, F:E.F/360, M:E.Mm/360}); }
+  const c=x=>Math.min(((x%1)+1)%1, 1-((x%1)+1)%1), p0=pts[0], ret=pts.slice(1).map(p=>({k:p.k, dF:c(p.F-p0.F), dFopp:c(p.F-p0.F-0.5), dM:c(p.M-p0.M)}));
+  return {pts, ret}; }
+function cycStrobe(a,b,N,days0){ const ph=(c,d)=>cyclePhase(c,d), d0=Number.isFinite(days0)?days0:0, t0=d0+((1-ph(a,d0))%1)*a.days, xs=[];
+  for(let k=0;k<N;k++) xs.push(ph(b,t0+k*a.days));
+  const s=xs.slice().sort((x,y)=>x-y), g=[]; for(let i=0;i<s.length;i++) g.push(i+1<s.length?s[i+1]-s[i]:1+s[0]-s[s.length-1]);
+  const tol=1e-7, lens=[]; for(const x of g){ const f=lens.find(L=>Math.abs(L.v-x)<tol*Math.max(1,x*N)); if(f) f.n++; else lens.push({v:x,n:1}); } lens.sort((p,q)=>p.v-q.v);
+  const rho=((a.days/b.days)%1+1)%1, three=lens.length<=3, sum=lens.length===3?Math.abs(lens[2].v-lens[0].v-lens[1].v):0;
+  return {xs, gaps:lens, rho, three, sumRule:sum}; }
 /* ── A HELPER EVERY CALLER ASSUMED AND NOBODY DECLARED ─────────────────────
    Six readouts in the Cycles laboratory called fmt(). Four other places in the
    atlas define a local fmt inside their own closure, and one more defines it
@@ -58698,7 +58734,8 @@ const DISCOVERY_DOMAINS=Object.freeze([
   {id:'galaxy', en:'Galaxies & black holes', ru:'Галактики и чёрные дыры', de:'Galaxien & Schwarze Löcher', col:0xff8f6a},
   {id:'sphere', en:'S³, spin & geometry', ru:'S³, спин и геометрия', de:'S³, Spin & Geometrie', col:0x8fc7ff},
   {id:'flow', en:'Flows & waves', ru:'Течения и волны', de:'Strömungen & Wellen', col:0x7fe0c6},
-  {id:'self', en:'The atlas itself', ru:'Сам атлас', de:'Der Atlas selbst', col:0xd9a8ff}]);
+  {id:'self', en:'The atlas itself', ru:'Сам атлас', de:'Der Atlas selbst', col:0xd9a8ff},
+  {id:'time', en:'Cycles & time', ru:'Циклы и время', de:'Zyklen & Zeit', col:0xffe08a}]);
 const DISCOVERIES=Object.freeze([
   {id:'spin4', kind:'found', domain:'sphere', v:'4.330.0', labs:['nsflow','su2','eig','tri'], verifier:'docs/verify-the-fluid-modes-are-spins.cjs',
    en:'The modes of a fluid on S³ are spins', ru:'Моды жидкости на S³ — это спины', de:'Die Moden einer Flüssigkeit auf S³ sind Spins',
@@ -58716,6 +58753,18 @@ const DISCOVERIES=Object.freeze([
    en:'The ghost sky: the Milky Way seen again, if space were S³/Γ', ru:'Небо призраков: Млечный Путь, видимый снова, будь пространство S³/Γ', de:'Der Geisterhimmel: die Milchstraße noch einmal',
    claim:'Light in S³ runs on great circles, so the sky of S³/Γ is computed in closed form: every catalogue structure q and its images g·q, each at R·arccos(Re g·q), seen at its own epoch. The observer\u2019s own images are the group — for the Poincaré space 12 Milky Ways at 36°·R, 20 at 60°, 12 at 72°, 30 at 90° … — and they enter the light horizon exactly when R < χ_LSS/θ_min = 71.8 Gly, half the radius (143.6) at which matched circles appear: circles can exist in a universe whose ghosts are all hidden, never the reverse.',
    numbers:{RghostPDS:71.81, RcirclesPDS:143.62}},
+  {id:'sarosInSection', kind:'confirms', domain:'time', v:'4.340.0', labs:['chronometry','osc'], verifier:'docs/verify-the-cycles-in-order.cjs',
+   en:'The Saros, found in a section rather than quoted', ru:'Сарос, найденный в сечении, а не взятый готовым', de:'Der Saros, in einem Schnitt gefunden statt zitiert',
+   claim:'Read the Moon\u2019s node phase F and apsis phase M′ at every mean new moon (Meeus mean elements) — a stroboscope of the three months, one point per lunation on a torus. Over 900 lunations from any epoch tested, the point comes back nearest its start at lunation 223 (ΔF ≈ 0.5°, ΔM′ ≈ 3°): the Saros falls out of the section as its best return, then 446 and 669 (the Exeligmos). Lunation 358, the Inex, lands within 0.05° of the OPPOSITE node with the apsis a third of a turn away — which is why the Inex links eclipses of alternating kind and never repeats a Saros\u2019s geometry.',
+   numbers:{saros:223, inex:358, lunations:900}},
+  {id:'threeGaps', kind:'confirms', domain:'time', v:'4.340.0', labs:['osc','kam'], verifier:'docs/verify-the-cycles-in-order.cjs',
+   en:'Every pair of clocks obeys the three-distance theorem', ru:'Каждая пара часов подчиняется теореме о трёх расстояниях', de:'Jedes Uhrenpaar gehorcht dem Drei-Abstände-Satz',
+   claim:'Read clock B each time clock A comes round — the Poincaré section of their phase torus. For uniform clocks it is a rotation by ρ = P_A/P_B mod 1, and the three-distance theorem (Steinhaus; Sós, Świerczkowski) says N points never cut the circle into more than three gap lengths, the longest the sum of the other two. Checked on 267 ordered pairs of the atlas\u2019s finite cycles at N = 7, 50, 223 and 400 — 1068 sections: never more than three, the sum rule to 10⁻⁸ (the 39 pairs whose stroboscope spans more than 10⁸ turns of B are beyond double precision and are not claimed); and the convergents of ρ for the month against the year include 19/235 — the Metonic cycle is where the gap pattern of the lunar calendar changes.',
+   numbers:{maxGaps:3, pairs:267, sections:1068, convergent:'19/235'}},
+  {id:'antikytheraAnchored', kind:'revises', domain:'time', v:'4.340.0', labs:['chronometry'], verifier:'docs/verify-the-cycles-in-order.cjs',
+   en:'The Antikythera dials now point at the real sky', ru:'Циферблаты Антикитеры теперь указывают на настоящее небо', de:'Die Antikythera-Zeiger zeigen jetzt auf den wirklichen Himmel',
+   claim:'Every hand of the atlas\u2019s Antikythera turned at the right rate from an arbitrary zero (days/period since J2000, no epoch offset), so its eclipse glow fired at the wrong syzygies while the planet hands beside it were real. The hands now read the Moon\u2019s mean elements at the epoch (L☉, L′, M′, Ω, D, F) and the glow is the eclipse window itself — syzygy within 15° of elongation and the Moon within 18.5° of a node: it is lit at every eclipse in the catalogue and at under a third of all new moons.',
+   numbers:{catalogue:17}},
   {id:'blowupWindow', kind:'found', domain:'flow', v:'4.340.0', labs:['nsblow','nsflow','nsgal'], verifier:'docs/verify-the-anatomy-of-a-forced-blow-up.cjs',
    en:'Every theorem leaves the 2026 blow-up one window: 0 < h < 1/6', ru:'Все теоремы оставляют взрыву 2026 года одно окно: 0 < h < 1/6', de:'Alle Sätze lassen der Explosion von 2026 ein Fenster: 0 < h < 1/6',
    claim:'Put the published exponents of the September 2026 forced Navier–Stokes construction (velocity ∝ τ^{−½−h}, radius ∝ τ^{½}, height ∝ τ^{½−h}) through the classical regularity theory and each theorem becomes one inequality in h: Beale–Kato–Majda (‖ω‖∞ ∝ τ^{−1−h}) and Prodi–Serrin hold for h ≥ 0 (only logarithmically at h = 0); Escauriaza–Seregin–Šverák (‖u‖_{L³} ∝ τ^{−4h/3} must blow up), no Type I and no Leray self-similar blow-up demand h > 0 — the three fail together at h = 0 — while Leray\u2019s energy inequality (E ∝ τ^{½−3h}, total dissipation finite) demands h < 1/6. The construction\u2019s h < 1/100 sits inside, sixteen times below the edge. And one exponent pays for everything: the circulation, the core Reynolds number, the aspect z/r and √τ‖u‖∞ all grow as τ^{−h}; since without a force max r·u_θ cannot grow, h is exactly the rate at which the force must feed the swirl.',
@@ -58863,6 +58912,7 @@ const TRACK_OPS=Object.freeze({
     for(let s=0;s<n;s++) x=nsgStep(B,x,+a.nu||0.2,0.05); const I=nsgInvariants(B,x); return {E:I.E, Efinal:F.E, H:I.H, Hfinal:F.H, killingDrift:Math.max(...I.kill.map((v,i)=>Math.abs(v-I0.kill[i])))}; }},
   'fluid.invariants':{doc:'the hunt for a hidden law: how many polynomials of a degree the truncated Euler fluid of S³ conserves, and how many the theory names', run:a=>{ const K=(+a.K===2)?2:1, d=Math.max(1,Math.min(K===1?3:2,Math.round(+a.degree||2))), R=nsgInvariantHunt(nsgBasis(K),d,{seed:+a.seed||1234}); return {count:R.count, expected:R.expected, hidden:R.hidden, unknowns:R.unknowns, namedInNull:R.namedWorst<1e-12?1:0}; }},
   'blowup.window':{doc:'the forced blow-up of 2026: the window of anisotropy every regularity theorem leaves, and the invariant of the family', run:a=>{ const w=fbWindow(1200), h=+a.h||0.01; return {lo:w.lo, hi:w.hi, satisfied:fbCriteria(h).filter(c=>!c.force&&c.ok).length, invariant:fbFamilyInvariant(1e-6,{h, G0:3, a:2, U0:0.25},true)}; }},
+  'cycles.section':{doc:'a pair of the atlas\u2019s cycles read stroboscopically: the three-distance theorem on their Poincaré section, and the Saros found as the best return of the Moon\u2019s section', run:a=>{ const A=CYCLES.find(c=>c.key===String(a.a||'year')), B=CYCLES.find(c=>c.key===String(a.b||'moon')); if(!A||!B||!A.days||!B.days) return {error:'unknown cycle'}; const S=cycStrobe(A,B,Math.max(3,Math.min(2000,Math.round(+a.N||120))),+a.epoch||0), R=cycSarosSection(900,+a.epoch||0), best=R.ret.reduce((b,r)=>{ const d=Math.hypot(r.dF,r.dM); return d<b.d?{k:r.k,d}:b; },{k:0,d:Infinity}); return {gaps:S.gaps.length, sumRuleOk:S.gaps.length<3||S.sumRule<1e-9?1:0, sarosReturn:best.k}; }},
   'wf.experiment':{doc:'the Wiener filter and MASTER on a masked CAMB sky (L ≤ 48)', run:a=>{ const L=Math.max(8,Math.min(48,+a.L||24)), C=new Array(L+1).fill(0); for(let l=2;l<=L;l++) C[l]=2*Math.PI*cmbD(l,'TT')/(l*(l+1));
     const E=wfExperiment({L, C, seed:+a.seed||3, bDeg:+a.bDeg||20, lN:+a.lN||Math.round(0.7*L), R:0, holes:[]}); return {iter:E.iter, fsky:E.fsky, corrIn:E.corrIn, corrOut:E.corrOut}; }}});
 /* the canonical form of a result: keys sorted, numbers to 8 significant digits — and its FNV-1a fingerprint */
@@ -58900,6 +58950,8 @@ const DISCOVERY_TRACKS=Object.freeze({
   sigmat:[{op:'nav', world:'s3', lab:'cmb'},{op:'call', fn:'cmb.sigmaT', args:{fwhmArcmin:5}, expect:{sigmaT:{value:109.331, tol:0.001}}}],
   dinf:[{op:'nav', world:'s3', lab:'cosmicweb'},{op:'call', fn:'lss.dinf', expect:{Dinf:{value:1.396767, tol:1e-6}}}],
   bbhend:[{op:'nav', world:'s3', lab:'bbh'},{op:'call', fn:'bbh.budget', args:{m1:4.15e6, m2:1.4e8}, expect:{eta:{value:0.02796, tol:1e-5}, vkick:{value:8.6, tol:0.05}}}],
+  sarosInSection:[{op:'nav', world:'cyc'},{op:'call', fn:'cycles.section', args:{a:'year', b:'moon', N:223, epoch:0}, expect:{sarosReturn:{value:223}, gaps:{value:3}, sumRuleOk:{value:1}}}],
+  threeGaps:[{op:'nav', world:'cyc'},{op:'call', fn:'cycles.section', args:{a:'moon', b:'year', N:400, epoch:1234.5}, expect:{sumRuleOk:{value:1}}}],
   blowupWindow:[{op:'nav', world:'s3', lab:'nsblow'},{op:'call', fn:'blowup.window', args:{h:0.01}, expect:{hi:{value:0.16666667, tol:1e-8}, lo:{value:0, tol:1e-8}, satisfied:{value:7}}}],
   blowupInvariant:[{op:'nav', world:'s3', lab:'nsblow'},{op:'call', fn:'blowup.window', args:{h:0.1}, expect:{invariant:{value:1.7276467, tol:1e-6}}}],
   noHiddenLaw:[{op:'nav', world:'s3', lab:'nsgal'},{op:'call', fn:'fluid.invariants', args:{K:1, degree:2}, expect:{count:{value:23}, expected:{value:23}, hidden:{value:0}, namedInNull:{value:1}}},{op:'call', fn:'fluid.invariants', args:{K:2, degree:1}, expect:{count:{value:6}, hidden:{value:0}}}],
@@ -84920,6 +84972,56 @@ function phaseTorusPoint(a,b){
   const A=2*Math.PI*a,B=2*Math.PI*b,R=4,r=1.55;
   return new THREE.Vector3((R+r*Math.cos(B))*Math.cos(A),r*Math.sin(B),(R+r*Math.cos(B))*Math.sin(A));
 }
+/* THE SECTION (v4.340): read B every time A comes round — the stroboscope, the Poincaré map of the torus. The
+   points sit on the meridian A = 0, drawn as a ring standing in the torus; for two uniform clocks they are a
+   rotation by ρ = P_A/P_B mod 1, and however many there are they cut the ring into gaps of at most THREE lengths
+   (the three-distance theorem), coloured here short / middle / long. */
+const cycSectionRing=new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({length:97},(_,i)=>phaseTorusPoint(0,i/96).multiplyScalar(1.0))),
+  new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:.55,depthWrite:false}));
+const cycSectionPts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.34,vertexColors:true,transparent:true,opacity:.95,depthWrite:false}));
+cycSectionPts.frustumCulled=false; cycPhaseInst.add(cycSectionRing,cycSectionPts);
+const cycSectionLab=mkLabel('','label dim'); cycSectionLab.position.set(5.9,-2.2,0); cycPhaseInst.add(cycSectionLab);
+let CYC_SECTION=null;
+function rebuildCycleSection(){
+  const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB); if(!a||!b||!(a.days>0)||!(b.days>0)) return;
+  const N=Math.max(3,Math.min(400,Math.round(state.cycSectionN??120))), S=cycStrobe(a,b,N,state.epochDays); CYC_SECTION={...S,a:a.key,b:b.key,N};
+  const pos=[], col=[], srt=S.xs.map((x,k)=>({x,k})).sort((p,q)=>p.x-q.x), gapAfter=new Map();
+  srt.forEach((p,i)=>{ const nx=i+1<srt.length?srt[i+1].x:1+srt[0].x; gapAfter.set(p.k,nx-p.x); });
+  const cls=g=>{ let j=0, best=Infinity; S.gaps.forEach((L,i)=>{ const d=Math.abs(L.v-g); if(d<best){ best=d; j=i; } }); return j; }, pal=[[0.5,0.85,1],[1,0.85,0.45],[1,0.45,0.4]];
+  S.xs.forEach((x,k)=>{ const v=phaseTorusPoint(0,x); pos.push(v.x,v.y,v.z); const c=pal[S.gaps.length===1?0:Math.min(2,cls(gapAfter.get(k))+(S.gaps.length===2?0:0))]; col.push(...c); });
+  cycSectionPts.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); cycSectionPts.geometry.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); cycSectionPts.geometry.computeBoundingSphere();
+  cycSectionLab.element.textContent=`SECTION · ${N} returns of ${a.key} · ρ = ${S.rho.toFixed(6)} · ${S.gaps.length} gap length${S.gaps.length>1?'s':''}`+(S.gaps.length===3?' · long = short + middle':'');
+}
+/* the section on paper: the ring cut open to [0, 1), each point coloured by the gap that follows it, the gap lengths
+   and the continued fraction of ρ whose convergents are where the gap pattern changes */
+function cycConvergents(x,n){ const out=[]; let h0=0,h1=1,k0=1,k1=0,v=x; for(let i=0;i<(n||8);i++){ const a=Math.floor(v); const h=a*h1+h0, k=a*k1+k0; out.push({p:h,q:k}); h0=h1; h1=h; k0=k1; k1=k; const f=v-a; if(f<1e-12) break; v=1/f; } return out; }
+function cycSectionPanelHTML(){ const S=CYC_SECTION, N=Math.round(state.cycSectionN??120);
+  return `<div class="sect" style="margin-top:6px"><b>${TT('The section — B read each time A comes round','Сечение — B, прочитанное каждый раз, когда A делает оборот','Der Schnitt — B bei jedem Umlauf von A')}</b>
+    <div class="ctlrow"><label>${TT('returns','возвратов','Umläufe')} N</label><input type="range" id="cycSecN" min="3" max="400" step="1" value="${N}"><span class="val" id="cycSecNV">${N}</span></div>
+    <canvas id="cycSecCv" width="360" height="120" style="width:100%;height:auto;border-radius:8px;background:#05070c"></canvas>
+    <div class="note" id="cycSecRead" style="font-size:10.5px;font-variant-numeric:tabular-nums"></div>
+    <div class="note" style="font-size:10.2px;color:var(--dim)">${TT('A stroboscope of the torus — its Poincaré section. Two uniform clocks make it a rotation by ρ = P_A/P_B mod 1, and the three-distance theorem (Steinhaus; Sós; Świerczkowski) says N such points never cut the circle into more than THREE gap lengths, the longest the sum of the other two; the pattern changes exactly at the convergents of ρ. Checked here for every N you choose.','Стробоскоп тора — его сечение Пуанкаре. Двое равномерных часов делают его поворотом на ρ = P_A/P_B mod 1, и теорема о трёх расстояниях (Штейнгауз; Шош; Свежковский) говорит: N таких точек никогда не режут окружность больше чем на ТРИ длины промежутков, причём наибольшая — сумма двух других; картина меняется ровно на подходящих дробях ρ. Проверяется здесь для любого N.','Ein Stroboskop des Torus; höchstens drei Lückenlängen (Drei-Abstände-Satz).')}</div></div>`; }
+function cycSectionPaint(){ const cv=document.getElementById('cycSecCv'), S=CYC_SECTION; if(!cv||!S) return; const g=cv.getContext('2d'), W=cv.width, H=cv.height, x=v=>12+(W-24)*v;
+  g.fillStyle='#05070c'; g.fillRect(0,0,W,H); g.strokeStyle='rgba(255,255,255,.4)'; g.beginPath(); g.moveTo(x(0),44); g.lineTo(x(1),44); g.stroke();
+  const pal=['#80d8ff','#ffd870','#ff7266'], srt=S.xs.slice().sort((p,q)=>p-q), cls=v=>{ let j=0, b=Infinity; S.gaps.forEach((L,i)=>{ const d=Math.abs(L.v-v); if(d<b){ b=d; j=i; } }); return j; };
+  srt.forEach((v,i)=>{ const nx=i+1<srt.length?srt[i+1]:1+srt[0], c=pal[Math.min(2,cls(nx-v))]; g.strokeStyle=c; g.lineWidth=3; g.beginPath(); g.moveTo(x(v),44); g.lineTo(x(Math.min(1,nx)),44); g.stroke(); g.lineWidth=1; g.fillStyle='#fff'; g.fillRect(x(v)-0.8,36,1.6,16); });
+  S.xs.slice(0,12).forEach((v,k)=>{ g.fillStyle='rgba(255,255,255,.75)'; g.font='8px ui-monospace,monospace'; g.fillText(String(k),x(v)-2,30); });
+  const mx=Math.max(...S.gaps.map(L=>L.v)); S.gaps.forEach((L,i)=>{ const w=(W-140)*L.v/mx; g.fillStyle=pal[Math.min(2,i)]; g.fillRect(120,64+i*16,w,10); g.fillStyle='#cfd6e2'; g.font='9px ui-monospace,monospace'; g.fillText(`${L.v.toExponential(3)} × ${L.n}`,12,73+i*16); });
+  const r=document.getElementById('cycSecRead'); if(r){ const C=cycConvergents(S.rho,8).filter(c=>c.q>0).map(c=>c.p+'/'+c.q).join(', ');
+    r.innerHTML=`ρ = ${S.rho.toFixed(9)} · N = ${S.N} · <b style="color:${S.three?'#7fe0a6':'#ff8a7a'}">${S.gaps.length} ${TT('gap lengths','длины промежутков','Lückenlängen')}</b>${S.gaps.length===3?` · ${TT('long − short − middle','длинный − короткий − средний','lang − kurz − mittel')} = ${S.sumRule.toExponential(1)}`:''}<br>${TT('convergents of ρ','подходящие дроби ρ','Näherungsbrüche von ρ')}: ${C}`; } }
+function cycSarosPanelHTML(){ return `<div class="sect" style="margin-top:6px"><b>${TT('The Saros, found in a section','Сарос, найденный в сечении','Der Saros, gefunden in einem Schnitt')}</b>
+    <canvas id="cycSarosCv" width="360" height="200" style="width:100%;height:auto;border-radius:8px;background:#05070c"></canvas>
+    <div class="note" id="cycSarosRead" style="font-size:10.5px;font-variant-numeric:tabular-nums"></div>
+    <div class="note" style="font-size:10.2px;color:var(--dim)">${TT('At each mean new moon for 900 lunations from this epoch: the node phase F across, the apsis phase M′ up, from the anchored mean elements. Red bands: an eclipse is possible only there (F within 18.5° of a node). The point returns nearest its start at lunation 223 — the Saros — then 446 and 669 (the Exeligmos); lunation 358, the Inex, lands on the opposite node with the apsis a third of a turn away.','При каждом среднем новолунии на протяжении 900 лунаций от этой эпохи: фаза узла F по горизонтали, фаза апсид M′ по вертикали — по привязанным средним элементам. Красные полосы: только там возможно затмение (F в пределах 18.5° от узла). Точка ближе всего возвращается к началу на лунации 223 — Сарос, затем 446 и 669 (экселигмос); лунация 358, Инекс, приходит к противоположному узлу с апсидой на треть оборота в стороне.','Bei jedem Neumond: F waagerecht, M′ senkrecht; Rückkehr bei 223 — der Saros.')}</div></div>`; }
+function cycSarosPaint(){ const cv=document.getElementById('cycSarosCv'); if(!cv) return; const g=cv.getContext('2d'), W=cv.width, H=cv.height, S=cycSarosSection(900,Number.isFinite(state.epochDays)?state.epochDays:0), x=v=>10+(W-20)*v, y=v=>H-12-(H-24)*v;
+  g.fillStyle='#05070c'; g.fillRect(0,0,W,H); g.fillStyle='rgba(255,90,90,.16)'; const bw=18.5/360; for(const c of [0,0.5,1]) g.fillRect(x(c-bw),12,x(c+bw)-x(c-bw),H-24);
+  const F0=S.pts[0].F, M0=S.pts[0].M, sh=v=>((v-F0+0.5)%1+1)%1-0.5+0.5, shM=v=>((v-M0+0.5)%1+1)%1-0.5+0.5;   /* recentred on the start */
+  g.fillStyle='rgba(255,90,90,.16)';
+  S.pts.forEach(p=>{ const t=p.k/900; g.fillStyle=`rgba(${Math.round(90+110*t)},${Math.round(150+60*(1-t))},${Math.round(230-80*t)},.8)`; g.fillRect(x(sh(p.F))-1,y(shM(p.M))-1,2,2); });
+  [[0,'#ffffff','0'],[223,'#ffd870','223 Saros'],[446,'#ffd870','446'],[669,'#ffd870','669 Exeligmos'],[358,'#80e0ff','358 Inex']].forEach(([k,c,l],i)=>{ const p=S.pts[k]; if(!p) return; const px=x(sh(p.F)), py=y(shM(p.M)); g.fillStyle=c; g.beginPath(); g.arc(px,py,4,0,7); g.fill(); g.font='9px ui-monospace,monospace'; const ly=py-8-13*i; g.strokeStyle=c; g.globalAlpha=0.5; g.beginPath(); g.moveTo(px,py); g.lineTo(px+22,ly+3); g.stroke(); g.globalAlpha=1; g.fillText(l,px+24,ly+6); });
+  g.fillStyle='#9aa6b8'; g.font='9px ui-monospace,monospace'; g.fillText('F (node) →',W-72,H-2); g.save(); g.translate(8,60); g.rotate(-Math.PI/2); g.fillText('M′ (apsis) →',0,0); g.restore();
+  const best=S.ret.reduce((b,r)=>{ const d=Math.hypot(r.dF,r.dM); return d<b.d?{k:r.k,d,r}:b; },{k:0,d:Infinity}), r=document.getElementById('cycSarosRead');
+  if(r) r.innerHTML=`${TT('nearest return','ближайший возврат','nächste Rückkehr')}: <b>${best.k}</b> ${TT('lunations','лунаций','Lunationen')} (ΔF = ${(best.r.dF*360).toFixed(2)}°, ΔM′ = ${(best.r.dM*360).toFixed(2)}°) · Inex 358: ${TT('opposite node to','противоположный узел с точностью','Gegenknoten auf')} ${(S.ret[357].dFopp*360).toFixed(3)}°, ΔM′ = ${(S.ret[357].dM*360).toFixed(0)}°`; }
 function rebuildCyclePhaseTrace(){
   const a=cycleByKey(state.cycPairA),b=cycleByKey(state.cycPairB); if(!a||!b) return;
   const maxP=Math.max(a.days,b.days),minP=Math.min(a.days,b.days),ratio=maxP/minP;
@@ -84932,6 +85034,7 @@ function rebuildCyclePhaseTrace(){
   }
   cycPhaseTrace.geometry.setFromPoints(pts);
   solarPhaseTrace.geometry.setFromPoints(pts);
+  rebuildCycleSection();
 }
 function updateSolarPhaseObservatory(){
   solarPhaseInst.visible=state.mode==='solar'&&!!state.solarPhaseLab;
@@ -85139,9 +85242,11 @@ registerSel('cycResonanceWeb',{
    lenses. Edges are structural view links: this scene is not a physical causal graph. */
 const HCC_CYCLES_LINKED_VIEW_SCHEMA='hcc.cycles-linked-view/1';
 function cycLinkedPhaseOf(c){
+  /* ONE phase, not four: this used to divide the epoch by the period and ignore the cycle’s own zero (its ref),
+     so the linked view and the resonance feeds disagreed with the torus bead and the dashboard by up to a whole
+     turn for the same cycle at the same instant. It now reads the one definition every other view reads. */
   if(!c || !(c.days>0) || !Number.isFinite(state.epochDays)) return 0;
-  const q=state.epochDays/c.days;
-  return ((q%1)+1)%1;
+  return cyclePhase(c,state.epochDays);
 }
 function cycLinkedPhaseDistance(a,b){
   const d=Math.abs(a-b);
@@ -86225,6 +86330,30 @@ const sarosHands=[], sarosHandLabs=[], sarosResidue=[];
   const sub=mkLabel('','label dim'); sub.position.set(0,-6.2,0); cycSarosInst.add(sub);
   cycSarosInst.userData={sub,series:S};
 }
+/* THE SAROS, FOUND IN A SECTION (v4.340). At every mean new moon, read the node phase F and the apsis phase M′ —
+   a stroboscope of the Moon’s three months, one point per lunation on a torus of (F, M′). Eclipses can only happen
+   in the band near F = 0 or ½; the point comes back nearest to where it started at lunation 223 — the Saros,
+   found, not told — then 446 and 669 (the Exeligmos); lunation 358, the Inex, lands on the OPPOSITE node with the
+   apsis far away. Gold: Saros returns; cyan: Inex; red band: the eclipse window. */
+const sarosSectionGrp=new THREE.Group(); sarosSectionGrp.position.set(12.5,0,0); cycSarosInst.add(sarosSectionGrp);
+const SAROS_SEC_R=3.1, SAROS_SEC_r=1.25, sarosSecPoint=(F,M)=>{ const A=2*Math.PI*F, B=2*Math.PI*M; return new THREE.Vector3((SAROS_SEC_R+SAROS_SEC_r*Math.cos(B))*Math.cos(A),SAROS_SEC_r*Math.sin(B),(SAROS_SEC_R+SAROS_SEC_r*Math.cos(B))*Math.sin(A)); };
+{ const tor=new THREE.Mesh(new THREE.TorusGeometry(SAROS_SEC_R,SAROS_SEC_r,16,90),new THREE.MeshBasicMaterial({color:0x8fa6cf,wireframe:true,transparent:true,opacity:.12,depthWrite:false})); tor.rotation.x=Math.PI/2; sarosSectionGrp.add(tor);
+  for(const F0 of [0,0.5]){ const band=[]; for(let i=0;i<=48;i++){ const M=i/48; band.push(sarosSecPoint(F0-18.5/360,M),sarosSecPoint(F0+18.5/360,M)); }
+    const pos=[]; for(let i=0;i<band.length-2;i+=2) pos.push(band[i],band[i+2],band[i+1],band[i+1],band[i+2],band[i+3]);
+    const g=new THREE.BufferGeometry().setFromPoints(pos); sarosSectionGrp.add(new THREE.Mesh(g,new THREE.MeshBasicMaterial({color:0xff5a5a,transparent:true,opacity:.13,side:THREE.DoubleSide,depthWrite:false}))); }
+  const l=mkLabel('SAROS IN A SECTION · (node F, apsis M′) at every new moon','label'); l.position.set(0,SAROS_SEC_r+2.2,0); sarosSectionGrp.add(l);
+  const l2=mkLabel('','label dim'); l2.position.set(0,-SAROS_SEC_r-1.9,0); sarosSectionGrp.add(l2); sarosSectionGrp.userData.lab=l2; }
+const sarosSecPts=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.12,vertexColors:true,transparent:true,opacity:.9,depthWrite:false})); sarosSecPts.frustumCulled=false; sarosSectionGrp.add(sarosSecPts);
+const sarosSecHot=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial({size:0.42,vertexColors:true,transparent:true,depthWrite:false})); sarosSecHot.frustumCulled=false; sarosSectionGrp.add(sarosSecHot);
+let sarosSecKey=null;
+function updateSarosSection(){ const ep=Number.isFinite(state.epochDays)?state.epochDays:0, key=Math.floor(ep/CYC_SYNODIC); if(key===sarosSecKey) return; sarosSecKey=key;
+  const S=cycSarosSection(900,ep), pos=[], col=[], hp=[], hc=[];
+  S.pts.forEach(p=>{ const v=sarosSecPoint(p.F,p.M); pos.push(v.x,v.y,v.z); const t=p.k/900; col.push(0.35+0.4*t,0.55+0.2*(1-t),0.9-0.3*t);
+    const gold=p.k%223===0, inex=p.k===358||p.k===716; if(gold||inex){ hp.push(v.x,v.y,v.z); hc.push(...(gold?[1,0.84,0.4]:[0.4,0.9,1])); } });
+  sarosSecPts.geometry.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); sarosSecPts.geometry.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+  sarosSecHot.geometry.setAttribute('position',new THREE.Float32BufferAttribute(hp,3)); sarosSecHot.geometry.setAttribute('color',new THREE.Float32BufferAttribute(hc,3));
+  const best=S.ret.reduce((b,r)=>{ const d=Math.hypot(r.dF,r.dM); return d<b.d?{k:r.k,d}:b; },{k:0,d:Infinity});
+  sarosSectionGrp.userData.lab.element.textContent=`900 lunations from this epoch · nearest return at lunation ${best.k} (${(best.d*360).toFixed(2)}° away) — the Saros · lunation 358 lands ${(S.ret[357].dFopp*360).toFixed(2)}° from the opposite node — the Inex`; }
 function updateSarosEngine(){
   const S=cycSarosInst.userData.series;
   /* ONE UNIVERSE, ONE CLOCK.  The first implementation accumulated its own
@@ -86254,6 +86383,7 @@ function updateSarosEngine(){
     sarosResidue[i].geometry.computeBoundingSphere();
     sarosResidue[i].material.opacity=(u>0.93)?0.95:0.18;
   });
+  updateSarosSection();
   cycSarosInst.userData.sub.element.innerHTML=
     `shared Atlas epoch · Saros phase <b>${(u*100).toFixed(1)}%</b> · recurrence ${S.saros.days.toFixed(4)} d · `
     +`the node hand ends <b>${(Math.abs(S.saros.errB)*24*60).toFixed(0)} min</b> short, the distance hand <b>${(Math.abs(S.saros.errC)*24).toFixed(2)} h</b> short<br>`
@@ -86732,7 +86862,7 @@ function applyCycFrameView(){
    months = 19 yr, 5-turn spiral) and Saros (223 synodic months ≈ 18.03 yr,
    4-turn eclipse spiral) with index pointers. Geometry only; pointers are
    driven by the real mean periods in updateCyc (no module-level state refs). */
-const ANTIK={ year:365.2422, sidMonth:27.321661, synMonth:29.530589, metonic:235, saros:223 };
+const ANTIK={ year:CYC_TROPICAL_Y, sidMonth:CYC_SIDEREAL_M, synMonth:CYC_SYNODIC, metonic:235, saros:223 };   /* one set of constants, not a second copy */
 const antikGroup=new THREE.Group(); antikGroup.position.set(0,0,26); antikGroup.visible=false; cycGroup.add(antikGroup);
 function antikCircle(rad,col,op,seg){ const pts=[],n=seg||140; for(let i=0;i<=n;i++){const a=i/n*2*Math.PI; pts.push(new THREE.Vector3(Math.cos(a)*rad,Math.sin(a)*rad,0));}
   return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:col,transparent:true,opacity:op,depthWrite:false})); }
@@ -86808,29 +86938,35 @@ const antikSarPtr=new THREE.Mesh(new THREE.SphereGeometry(.2,10,8),new THREE.Mes
 const antikExePtr=antikSubDial(antikSar,0,0,0.95,0xffb070,3,['+0ʰ','+8ʰ','+16ʰ']);
 { const l=mkLabel('Exeligmos · 54 yr = 3 Saros → local-time shift of each eclipse','label dim'); l.position.set(0,1.5,0); antikSar.add(l); }
 { const t=mkLabel('ANTIKYTHERA MECHANISM · mean Sun & Moon · lunar phase · Metonic & Saros','label const'); t.position.set(0,-7.4,0); antikGroup.add(t); }
-const ANTIK_ANOM=27.554550, ANTIK_DRAC=27.212221, ANTIK_NODECYC=6798.383, ANTIK_ECC=6.289*Math.PI/180;
+const ANTIK_ECC=6.289*Math.PI/180;   /* the anomalistic, draconic and nodal periods were re-typed here; the hands now read CYC_* and the mean elements */
+/* ANCHORED (v4.340). Every hand used to turn at the right rate from an arbitrary zero — days/period from J2000
+   with no epoch offset — so the dials were a working gear train pointing at the wrong sky, and the "eclipse
+   possible" glow fired at the wrong syzygies while the planet hands beside it were real. The hands now read the
+   Moon’s mean elements at the epoch (cycMeanElements): Sun L☉, Moon L′, anomaly M′, node Ω, elongation D. The
+   glow is the eclipse window itself — D near 0° or 180° AND F near a node — and it is lit at every eclipse in the
+   catalogue. The Metonic and Saros spirals count lunations from the mean new moon of 2000 January 6. */
+const ANTIK_NEWMOON0=(360-297.8501921)/445267.1114034*36525;   /* days after J2000 where D = 0: 2000 Jan 6 */
 function antikUpdate(days){
-  const meanMoon=2*Math.PI*((days/ANTIK.sidMonth)%1);
-  antikSun.rotation.z = 2*Math.PI*((days/ANTIK.year)%1);
+  const E=cycMeanElements(days), rad=Math.PI/180, meanMoon=E.Lmoon*rad;
+  antikSun.rotation.z = E.Lsun*rad;
   antikMoon.rotation.z = meanMoon;
   // true Moon = mean + first anomaly (equation of centre), exactly what the pin-and-slot mechanism reproduced
-  const Manom=2*Math.PI*((days/ANTIK_ANOM)%1);
+  const Manom=E.Mm*rad;
   antikMoonTrue.rotation.z = meanMoon + ANTIK_ECC*Math.sin(Manom);
-  // ascending node regresses (retrograde) — the dragon hand; eclipses occur when Sun & Moon meet a node
-  antikNode.rotation.z = -2*Math.PI*((days/ANTIK_NODECYC)%1);
-  const syn=days/ANTIK.synMonth;
-  antikMetPtr.position.copy(antikSpiralPos(5,1.1,5.4,(syn%ANTIK.metonic)/ANTIK.metonic));
-  antikSarPtr.position.copy(antikSpiralPos(4,1.1,5.4,(syn%ANTIK.saros)/ANTIK.saros));
+  // the ascending node regresses — the dragon hand; eclipses occur when Sun and Moon meet it
+  antikNode.rotation.z = E.Om*rad;
+  const syn=(days-ANTIK_NEWMOON0)/CYC_SYNODIC, lun=((syn%1)+1)%1, wrap=(x,n)=>((x%n)+n)%n;
+  antikMetPtr.position.copy(antikSpiralPos(5,1.1,5.4,wrap(syn,ANTIK.metonic)/ANTIK.metonic));
+  antikSarPtr.position.copy(antikSpiralPos(4,1.1,5.4,wrap(syn,ANTIK.saros)/ANTIK.saros));
   // subsidiary dials — the mechanism's own gear ratios
   antikGamesPtr.rotation.z = -2*Math.PI*((days/(4*ANTIK.year))%1);            // Olympiad, 1 rev = 4 yr
   antikCalPtr.rotation.z   = -2*Math.PI*((days/(76*ANTIK.year))%1);           // Callippic, 1 rev = 76 yr
-  antikExePtr.rotation.z   = -2*Math.PI*((syn%(3*ANTIK.saros))/(3*ANTIK.saros));   // Exeligmos, 1 rev = 3 Saros
-  const illum=0.5-0.5*Math.cos(2*Math.PI*(syn%1)); antikPhase.material.color.setRGB(0.18+0.82*illum,0.18+0.82*illum,0.22+0.78*illum);
-  // eclipse possible when the Moon sits near a node at syzygy (new/full) → glow the Saros pointer red
-  const nodeAng=-2*Math.PI*((days/ANTIK_NODECYC)%1), dLon=Math.atan2(Math.sin(meanMoon-nodeAng),Math.cos(meanMoon-nodeAng));
-  const nearNode=Math.abs(dLon)<0.28||Math.abs(Math.abs(dLon)-Math.PI)<0.28, syzygy=Math.abs(Math.sin(Math.PI*(syn%1)))<0.16||((syn%1)<0.04||(syn%1)>0.96);
-  antikSarPtr.material.color.setHex(nearNode&&syzygy?0xff5a5a:0xffffff);
-  antikSarPtr.scale.setScalar(nearNode&&syzygy?1.7:1);
+  antikExePtr.rotation.z   = -2*Math.PI*(wrap(syn,3*ANTIK.saros)/(3*ANTIK.saros));   // Exeligmos, 1 rev = 3 Saros
+  const illum=0.5-0.5*Math.cos(E.D*rad); antikPhase.material.color.setRGB(0.18+0.82*illum,0.18+0.82*illum,0.22+0.78*illum);
+  // the eclipse window: at syzygy AND near a node → the Saros pointer glows red
+  const W=cycEclipseWindow(days), hot=W.solar||W.lunar; void lun;
+  antikSarPtr.material.color.setHex(hot?0xff5a5a:0xffffff);
+  antikSarPtr.scale.setScalar(hot?1.7:1);
   // five classical planets — true geocentric ecliptic longitude (JPL elements)
   { const Tc=days/36525, ee=planetEcl(PLANETS[2],Tc);
     for(const pl of ANTIK_PLANETS){ const ep=planetEcl(PLANETS[pl.i],Tc);
@@ -87333,19 +87469,19 @@ globalThis.HCC_GALACTIC_BUTTERFLY=Object.freeze({
 
 const HCC_CYCLE_VIEWS=[
   ['hierarchy','All cycles','Все циклы','Alle Zyklen'],
+  ['atlas','All models · one stage','Все модели · одна сцена','Alle Modelle · eine Bühne'],
   ['helio','Seasons','Времена года','Jahreszeiten'],
   ['geo','Precession','Прецессия','Präzession'],
   ['gal','Galactic year','Галактический год','Galaktisches Jahr'],
+  ['orientation','Reference planes','Опорные плоскости','Referenzebenen'],
   ['phase','Phase space','Фазовое пространство','Phasenraum'],
   ['resonance','Resonances · Saros','Резонансы · Сарос','Resonanzen · Saros'],
-  ['orientation','Reference planes','Опорные плоскости','Referenzebenen'],
-  ['antikythera','Antikythera','Антикитера','Antikythera'],
-  ['butterfly','Galactic butterfly','Галактическая бабочка','Galaktischer Schmetterling'],
   ['linked','Linked analysis','Связанный анализ','Verknüpfte Analyse'],
+  ['antikythera','Antikythera','Антикитера','Antikythera'],
   ['chronometry','Ancient chronometry','Древняя хронометрия','Antike Chronometrie'],
   ['wheels','Wheels of time','Колёса времени','Räder der Zeit'],
-  ['butterfly-explorer','Butterfly · connections','Бабочка · атлас связей','Schmetterling · Bezüge'],
-  ['atlas','All models · one stage','Все модели · одна сцена','Alle Modelle · eine Bühne']
+  ['butterfly','Galactic butterfly','Галактическая бабочка','Galaktischer Schmetterling'],
+  ['butterfly-explorer','Butterfly · connections','Бабочка · атлас связей','Schmetterling · Bezüge']
 ];
 /* ══ THE CYCLES WORLD, PUT IN ORDER ═══════════════════════════════════════════
    Thirteen frames arrived one at a time and the chip row grew into a flat list of
@@ -87353,7 +87489,13 @@ const HCC_CYCLE_VIEWS=[
    ordering: it tells a reader what exists and nothing about what KIND of thing each
    one is, and after the eleventh chip it stops being read at all.
 
-   These are four kinds of object and they answer four different questions.
+   v4.340 made the order STRICT and numbered, one level per question, and made the <select> below the chips
+   read the same table (it used to be a second, hand-typed list with other names, another order and two frames
+   missing): 0 · the whole; I · what repeats (the clocks and the planes they are read in); II · when clocks meet
+   (phase space, its sections, the commensurabilities); III · what people built and drew (the Antikythera gearing
+   joined the calendars — it is a human computation of the sky, not a measurement of it); IV · what happened once.
+
+   Before that there were four kinds of object answering four different questions:
 
      WHAT REPEATS      a physical cycle, measured, with a period. Season, precession,
                        galactic year, the phase torus a chosen pair traces.
@@ -87372,16 +87514,16 @@ const HCC_CYCLE_VIEWS=[
    list, so a verifier fails when the groups and the view list disagree — which is
    what stops this ordering from rotting the way the flat list did. */
 const HCC_CYCLE_GROUPS=Object.freeze([
-  {id:'repeats', frames:['hierarchy','helio','geo','gal','phase'],
-   t:{en:'What repeats — measured periods',ru:'Что повторяется — измеренные периоды',de:'Was sich wiederholt — gemessene Perioden'}},
-  {id:'predicts', frames:['resonance','antikythera','orientation'],
-   t:{en:'What predicts — mechanisms and the planes they are quoted against',ru:'Что предсказывает — механизмы и плоскости отсчёта',de:'Was vorhersagt — Mechanismen und Bezugsebenen'}},
-  {id:'drawn', frames:['chronometry','wheels'],
-   t:{en:'What people drew — claims about the sky, not measurements of it',ru:'Что рисовали люди — утверждения о небе, а не измерения его',de:'Was Menschen zeichneten — Aussagen über den Himmel'}},
+  {id:'whole', frames:['hierarchy','atlas'],
+   t:{en:'0 · The whole — every clock on one stage, from the day to the galactic year',ru:'0 · Целое — все часы на одной сцене, от суток до галактического года',de:'0 · Das Ganze — alle Uhren auf einer Bühne'}},
+  {id:'repeats', frames:['helio','geo','gal','orientation'],
+   t:{en:'I · What repeats — the clocks themselves, each a measured period, and the planes they are read in',ru:'I · Что повторяется — сами часы, каждые с измеренным периодом, и плоскости, в которых их читают',de:'I · Was sich wiederholt — die Uhren selbst und ihre Bezugsebenen'}},
+  {id:'meets', frames:['phase','resonance','linked'],
+   t:{en:'II · When clocks meet — their phase space, its sections and the commensurabilities that close it',ru:'II · Когда часы встречаются — их фазовое пространство, его сечения и соизмеримости, которые его замыкают',de:'II · Wenn Uhren sich treffen — Phasenraum, Schnitte, Kommensurabilitäten'}},
+  {id:'drawn', frames:['antikythera','chronometry','wheels'],
+   t:{en:'III · What people built and drew — machines and calendars that compute the sky, claims about it rather than measurements of it',ru:'III · Что люди строили и рисовали — машины и календари, вычисляющие небо: утверждения о нём, а не его измерения',de:'III · Was Menschen bauten und zeichneten — Maschinen und Kalender'}},
   {id:'once', frames:['butterfly','butterfly-explorer'],
-   t:{en:'What happened once — the one event that does not repeat',ru:'Что произошло однажды — единственное неповторяющееся событие',de:'Was einmal geschah'}},
-  {id:'across', frames:['linked','atlas'],
-   t:{en:'Across the four — one pair read every way at one epoch',ru:'Поперёк четырёх — одна пара, прочитанная всеми способами',de:'Quer über die vier'}}
+   t:{en:'IV · What happened once — the one event that does not repeat',ru:'IV · Что произошло однажды — единственное неповторяющееся событие',de:'IV · Was einmal geschah'}}
 ]);
 const hccCycleGroupOf=view=>{ for(const g of HCC_CYCLE_GROUPS) if(g.frames.includes(view)) return g.id; return null; };
 function hccCycleNavigate(view){
@@ -98118,22 +98260,23 @@ function buildCtlBody(){
       const past = (e.date.getTime()/86400000+2440587.5)-2451545 < state.epochDays ? '✓ ' : '';
       return `<option value="${i}">${past}${e.date.toISOString().slice(0,10)} — ${e.type}</option>`;
     }).join('');
-    const cycRows = CYCLES.map(c=>{
+    const cycRowOf = c=>{
       let frac=0;
-      if(c.days){ frac=(((state.epochDays-(c.ref||0))/c.days)%1+1)%1; }
+      if(c.days){ frac=cyclePhase(c,state.epochDays); }
       const pd = c.info ? c.info :
         c.days<40 ? c.days.toFixed(2)+' d' :
         c.days<40000 ? (c.days/365.2425).toFixed(2)+' yr' :
         c.days<4e8 ? (c.days/365.2425).toLocaleString('en-US',{maximumFractionDigits:0})+' yr' :
         (c.days/365.2425/1e6).toFixed(0)+' Myr';
-      return `<div class="cycrow"><span class="nm">${c.name}</span>
+      const kd=cycleKind(c), kc={measured:'#9fd8ff',derived:'#7fe0a6',defined:'#c9b6ff',predicted:'#ffd27a',approximate:'#ffb08a',model:'#8f9bb3'}[kd]||'#8f9bb3';
+      return `<div class="cycrow"><span class="nm">${c.name} <span style="font-size:9px;color:${kc};border:1px solid ${kc}66;border-radius:999px;padding:0 5px">${kd}</span></span>
         <span class="pd">${pd}</span>
         <span class="cycbar"><i style="width:${(frac*100).toFixed(1)}%"></i></span>
         <button class="btn" data-cyc="${c.key}" title="${c.desc}">👁</button></div>`;
-    }).join('');
+    };
+    const cycRows = CYCLE_FAMILIES.map(f=>`<div style="margin:6px 0 2px;font-size:10px;color:var(--dim);letter-spacing:.05em">${esc(nexusLang(f.t))}</div>`+f.keys.map(k=>cycleByKey(k)).filter(Boolean).map(cycRowOf).join('')).join('');
     ctl.innerHTML = `
     ${hccCycleNavigationHTML()}
-     ${hccMultiPhaseControlHTML()}
     <div class="sect"><b>Shared timeline</b>
       <div class="ctlrow"><label>Speed</label>
         <input type="range" id="cspd" min="-1" max="9.5" step="0.05" value="${Math.log10(Math.max(state.cycYrPerSec,0.1))}">
@@ -98152,22 +98295,10 @@ function buildCtlBody(){
         <input type="checkbox" id="ageLab" ${state.cycShowAges?'checked':''}></div>
     </div>
 
-    <div class="sect"><b>Engineering reference-frame view</b>
-      <div class="ctlrow"><label>View</label>
+    <div class="sect"><b>${TT('View — one list, in the order of the groups','Вид — один список, в порядке групп','Ansicht — eine Liste, in der Ordnung der Gruppen')}</b>
+      <div class="ctlrow"><label>${TT('View','Вид','Ansicht')}</label>
         <select id="cycFrame" style="flex:1">
-          <option value="hierarchy" ${state.cycFrame==='hierarchy'?'selected':''}>Hierarchy links</option>
-          <option value="helio" ${state.cycFrame==='helio'?'selected':''}>Heliocentric vectors</option>
-          <option value="geo" ${state.cycFrame==='geo'?'selected':''}>Geocentric / Earth-axis</option>
-          <option value="gal" ${state.cycFrame==='gal'?'selected':''}>Galactocentric reference</option>
-          <option value="phase" ${state.cycFrame==='phase'?'selected':''}>Dimensionless phase space</option>
-          <option value="resonance" ${state.cycFrame==='resonance'?'selected':''}>✦ Cycle resonance web</option>
-          <option value="orientation" ${state.cycFrame==='orientation'?'selected':''}>⊕ Earth/Sun/Moon orientation</option>
-          <option value="linked" ${state.cycFrame==='linked'?'selected':''}>⟲ Linked analytical view</option>
-              <option value="antikythera" ${state.cycFrame==='antikythera'?'selected':''}>⚙ Antikythera mechanism</option>
-          <option value="chronometry" ${state.cycFrame==='chronometry'?'selected':''}>𓎼 Ancient chronometry</option>
-          <option value="butterfly" ${state.cycFrame==='butterfly'?'selected':''}>⧗ Galactic butterfly · Fermi bubbles</option>
-          <option value="butterfly-explorer" ${state.cycFrame==='butterfly-explorer'?'selected':''}>Butterfly · connections</option>
-
+          ${HCC_CYCLE_GROUPS.map(g=>`<optgroup label="${esc(nexusLang(g.t).split(' — ')[0])}">${g.frames.map(f=>{ const v=HCC_CYCLE_VIEWS.find(x=>x[0]===f); return v?`<option value="${v[0]}" ${state.cycFrame===v[0]?'selected':''}>${esc(TT(v[1],v[2],v[3]))}</option>`:''; }).join('')}</optgroup>`).join('')}
         </select>
       </div>
       <!-- ── SAYING WHAT THE VIEW IS, WHERE THE VIEW IS CHOSEN ────────────────
@@ -98177,17 +98308,18 @@ function buildCtlBody(){
            back as "the button does not work and it is unclear what this is".
            One line per frame, at the point of choosing, in all three languages. -->
       <div class="note" style="font-size:10.5px;color:var(--gold-2)">${({
-        hierarchy:TT('All cycle instruments on one stage, with the identity links between them.','Все инструменты циклов на одной сцене со связями тождества между ними.','Alle Zyklus-Instrumente auf einer Bühne, mit den Identitätslinien dazwischen.'),
+        hierarchy:TT('The hierarchy of scales: the seasons inside the precession inside the galactic year, with the identity links that say the Sun and the Earth in each are the same bodies.','Иерархия масштабов: времена года внутри прецессии внутри галактического года, со связями тождества — Солнце и Земля в каждом инструменте одни и те же.','Die Hierarchie der Maßstäbe: Jahreszeiten in der Präzession im galaktischen Jahr.'),
         helio:TT('The seasonal dial alone: Earth on its orbit against the solstice/equinox quarters.','Только сезонный циферблат: Земля на орбите против четвертей солнцестояний и равноденствий.','Nur das Jahreszeiten-Zifferblatt: die Erde auf ihrer Bahn gegen die Sonnenwend-Viertel.'),
-        geo:TT('The precession of the equinoxes: the spin axis tracing its 25,772-year cone.','Прецессия равноденствий: ось вращения описывает конус за 25 772 года.','Die Präzession der Tagundnachtgleichen: die Rotationsachse auf ihrem 25 772-Jahre-Kegel.'),
-        gal:TT('The galactic year: the Sun\'s ~225-million-year circuit of the Milky Way.','Галактический год: обращение Солнца вокруг Млечного Пути за ~225 млн лет.','Das galaktische Jahr: der ~225-Millionen-Jahre-Umlauf der Sonne.'),
+        geo:TT(`The precession of the equinoxes: the spin axis tracing its cone in ${Math.round(cycPrecessionFromYears()).toLocaleString('en-US')} years — derived from the tropical and sidereal years, not quoted.`,`Прецессия равноденствий: ось вращения описывает конус за ${Math.round(cycPrecessionFromYears()).toLocaleString('ru-RU')} лет — выведено из тропического и звёздного года, а не взято готовым.`,`Die Präzession: die Achse auf ihrem Kegel in ${Math.round(cycPrecessionFromYears())} Jahren — abgeleitet, nicht zitiert.`),
+        gal:TT(`The galactic year: the Sun\'s circuit of the Milky Way, ${GAL_YEAR_MYR} Myr as displayed (2πR₀/v_c from the atlas\'s own rotation curve gives about 219 — the period is uncertain at that level).`,`Галактический год: обращение Солнца вокруг Млечного Пути, на экране ${GAL_YEAR_MYR} млн лет (2πR₀/v_c по собственной кривой вращения атласа даёт около 219 — период неопределён на этом уровне).`,`Das galaktische Jahr: ${GAL_YEAR_MYR} Myr angezeigt (2πR₀/v_c ergibt etwa 219).`),
         phase:TT('Two chosen cycles as one point on a torus: the pair\'s phase trajectory, dimensionless.','Два выбранных цикла как одна точка на торе: безразмерная траектория фаз пары.','Zwei gewählte Zyklen als ein Punkt auf einem Torus: die dimensionslose Phasenbahn.'),
         resonance:TT('Every cycle as a node, every pair as an edge lit by how tightly the two periods lock.','Каждый цикл — узел, каждая пара — ребро, яркость которого — теснота захвата периодов.','Jeder Zyklus ein Knoten, jedes Paar eine Kante, hell nach der Enge der Periodenkopplung.'),
         orientation:TT('The three reference planes the rest of the atlas assumes: ecliptic, equator, galactic.','Три опорные плоскости, которые предполагает остальной атлас: эклиптика, экватор, галактическая.','Die drei Bezugsebenen, die der übrige Atlas voraussetzt: Ekliptik, Äquator, galaktische Ebene.'),
-        antikythera:TT('The 2nd-century-BC gearing itself: zodiac and calendar in front, Metonic and Saros spirals behind.','Сама передача II века до н. э.: зодиак и календарь спереди, спирали Метона и Сароса сзади.','Das Getriebe des 2. Jh. v. Chr.: Tierkreis und Kalender vorn, Meton- und Saros-Spiralen hinten.'),
+        antikythera:TT('The 2nd-century-BC gearing itself: zodiac and calendar in front, Metonic and Saros spirals behind — every hand anchored to the real sky by the Moon\'s mean elements, and the Saros pointer glowing red inside the eclipse window.','Сама передача II века до н. э.: зодиак и календарь спереди, спирали Метона и Сароса сзади.','Das Getriebe des 2. Jh. v. Chr.: Tierkreis und Kalender vorn, Meton- und Saros-Spiralen hinten.'),
         linked:TT('The SELECTED PAIR read four ways at one epoch: phase proximity, the integer lock and its residual, the log period ratio, and the pair itself. Structural view links, not a causal graph.','ВЫБРАННАЯ ПАРА, прочитанная четырьмя способами на одну эпоху: близость фаз, целочисленный захват и его невязка, логарифм отношения периодов и сама пара. Структурные связи вида, а не причинный граф.','Das GEWÄHLTE PAAR, auf eine Epoche viermal gelesen: Phasennähe, ganzzahlige Kopplung samt Residuum, log-Periodenverhältnis und das Paar selbst. Strukturelle Sichtverknüpfungen, kein Kausalgraph.'),
         butterfly:TT('The two gamma-ray lobes above and below the Galactic centre — the one thing in this laboratory that happened once instead of repeating. Set the outflow speed and the age follows; the atlas will not choose the speed for you.','Две гамма-доли над и под центром Галактики — единственное здесь, что произошло однажды, а не повторяется. Задайте скорость истечения, и возраст последует; атлас не выберет скорость за вас.','Die zwei Gammastrahlen-Blasen über und unter dem galaktischen Zentrum — das Einzige hier, das einmal geschah statt sich zu wiederholen.'),
         wheels:TT('Eleven traditions that drew the universe as a cycle, each ring divided the way its own culture divided it — and a hand only on the wheels that can be pointed at this instant.','Одиннадцать традиций, рисовавших вселенную как цикл: каждое кольцо разделено так, как делила его сама культура — и стрелка лишь на тех колёсах, которые можно навести на это мгновение.','Elf Traditionen, die das Universum als Zyklus zeichneten.'),
+        atlas:TT('Every instrument of this world on one logarithmic ruler of days — from the month to the galactic year — so their periods can be compared by eye.','Все инструменты этого мира на одной логарифмической линейке суток — от месяца до галактического года, — чтобы периоды можно было сравнить на глаз.','Alle Instrumente auf einem logarithmischen Lineal der Tage.'),
         chronometry:TT('Ancient calendar durations placed against the same epoch, with each source\'s own closure.','Древние календарные длительности на той же эпохе, с собственным замыканием каждого источника.','Antike Kalenderdauern an derselben Epoche, mit dem eigenen Schluss jeder Quelle.')
       })[state.cycFrame]||''}</div>
       ${state.cycFrame==='wheels'?(()=>{const W=(typeof WOT_TRADITIONS!=='undefined')?WOT_TRADITIONS:[];
@@ -98228,6 +98360,8 @@ function buildCtlBody(){
           'Первые четыре джайнские ара и четыре юги — обе 4:3:2:1. Атлас указывает пропорцию и не утверждает заимствования, и не говорит, что пропорция о небе.',
           'Die ersten vier Ara und die vier Yuga sind beide 4:3:2:1 — der Atlas nennt die Proportion und behauptet keine Entlehnung.')}</div>
       </div>`;})():''}
+      ${state.cycFrame==='phase'?cycSectionPanelHTML():''}
+      ${state.cycFrame==='resonance'?cycSarosPanelHTML():''}
       ${state.cycFrame==='butterfly-explorer'?hccButterflyControls():''}
       ${state.cycFrame==='butterfly'?`
       <div class="sect" style="margin-top:6px"><b>${TT('The one event, and the clock you choose','Единственное событие и выбранные вами часы','Das eine Ereignis und die gewählte Uhr')}</b>
@@ -98258,6 +98392,9 @@ function buildCtlBody(){
       <div id="cycPhaseOut" class="note" style="font-variant-numeric:tabular-nums;font-size:10.5px">${cyclePairSummaryHTML()}</div>
     </div>
 
+    <details class="sect" ${['phase','linked','resonance','chronometry'].includes(state.cycFrame)?'open':''}><summary style="cursor:pointer"><b>${TT('Multiphase search · workspace · chronometry observatory','Многофазный поиск · рабочая область · обсерватория хронометрии','Mehrphasensuche · Arbeitsbereich · Chronometrie')}</b></summary>
+     ${hccMultiPhaseControlHTML()}
+    </details>
     <div class="sect"><b>Equinoxes & solstices (computed)</b>
       <div id="seasonList"></div>
     </div>
@@ -98305,6 +98442,8 @@ function buildCtlBody(){
     ctl.querySelector('#ecPredict')&&(ctl.querySelector('#ecPredict').onclick=()=>{ navPush(); setMode('solar'); openPanel('ctl'); buildCtl();
       setTimeout(()=>{ const b=ctl.querySelector('#eclNextB'); if(b){ b.click(); b.scrollIntoView({block:'center'}); } },80); });
     ctl.querySelectorAll('[data-cyc]').forEach(b=>b.onclick=()=>observeCycle(b.dataset.cyc));
+    { const sn=ctl.querySelector('#cycSecN'); if(sn) sn.oninput=e=>{ state.cycSectionN=+e.target.value; const v=ctl.querySelector('#cycSecNV'); if(v) v.textContent=state.cycSectionN; rebuildCycleSection(); cycSectionPaint(); }; }
+    cycSectionPaint(); cycSarosPaint();
     refreshSeasons();
   }
   else if(state.mode==='obs'){
