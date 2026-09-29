@@ -11,7 +11,9 @@ function has(x){ return s.includes(x); }
 
 console.log('=== linked Cycles view contract (introduced in v4.151.1) ===');
 ok('linked-view schema marker exists', has("hcc.cycles-linked-view/1"));
-ok('Cycles exposes a dedicated linked analytical frame', /option value=["']linked["']/.test(s) && /state\.cycFrame===['"]linked['"]/.test(s));
+/* v4.340: the <select> is no longer a hand-typed second list; it is generated from HCC_CYCLE_GROUPS and
+   HCC_CYCLE_VIEWS, so 'linked' is an option because it is a view in a group, not because it was typed twice */
+ok('Cycles exposes a dedicated linked analytical frame', (/option value=["']linked["']/.test(s) || (/\['linked','Linked analysis'/.test(s) && /frames:\[[^\]]*'linked'[^\]]*\]/.test(s) && /<select id="cycFrame"[\s\S]{0,200}HCC_CYCLE_GROUPS\.map\(g=>`<optgroup/.test(s))) && /state\.cycFrame===['"]linked['"]/.test(s));
 ok('linked view is one Three.js instrument owned by the Cycles scene', /const cycLinkedInst\s*=\s*new THREE\.Group\(\)/.test(s) && /cycGroup\.add\(cycLinkedInst\)/.test(s));
 ok('all four requested analytical lenses are explicit', ['INTEGRATED INFORMATION','INTEGRATED COMPLEXITY','UNIFIED SCALING','OBSERVER SELECTION'].every(has));
 ok('the linked view derives from the existing selected cycle pair', has('state.cycPairA') && has('state.cycPairB') && has('cycleByKey(state.cycPairA)') && has('cycleByKey(state.cycPairB)'));
