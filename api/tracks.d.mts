@@ -11,7 +11,7 @@ export type TrackStep =
 export type TrackOpName =
   | 'cosmic.chi' | 'cosmic.t0' | 'cmb.camb' | 'cmb.acoustic' | 'cmb.sigmaT' | 'lss.dinf'
   | 'space.firstMode' | 'space.circles' | 'ghost.rmax' | 'ghost.self' | 'bbh.budget'
-  | 'phi.audit' | 'hyp.ratio' | 'atlas.betti' | 'wf.experiment' | 'fluid.final';
+  | 'phi.audit' | 'hyp.ratio' | 'atlas.betti' | 'wf.experiment' | 'fluid.final' | 'fluid.invariants';
 export interface Track {
   schema: TrackSchema;
   id: string;

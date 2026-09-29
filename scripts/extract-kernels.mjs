@@ -806,7 +806,7 @@ export const ROOTS = [
   'shtIdx', 'shtGauss', 'shtLambda', 'shtGrid', 'shtRing', 'shtSynth', 'shtAnalysis', 'shtPixArea', 'shtCl', 'shtRealize', 'wfMask', 'wienerFilter', 'WF_LNF', 'wf3j2', 'masterCoupling', 'masterSolve', 'masterMaskCoeffs', 'masterPseudoCl', 'wfExperiment',
   'ghostQMul', 'ghostVec', 'ghostRaDec', 'ghostImages', 'ghostSelfDistances', 'ghostRmax',
   'hypScales', 'hypFind', 'hypDelta', 'hypRatio',
-  'NSG_ORIENT', 'nsgQuad', 'nsgCross', 'nsgBasis', 'nsgLamb', 'nsgStep', 'nsgInvariants', 'nsgFinal', 'nsgShellEnergies', 'nsgInitial', 'nsgFieldPrep', 'nsgFieldAt', 'nsgStreamline', 'nsgTriads',
+  'NSG_ORIENT', 'nsgQuad', 'nsgCross', 'nsgBasis', 'nsgLamb', 'nsgStep', 'nsgInvariants', 'nsgFinal', 'nsgShellEnergies', 'nsgInitial', 'nsgFieldPrep', 'nsgFieldAt', 'nsgStreamline', 'nsgTriads', 'nsgEigSym', 'nsgMonomials', 'nsgKnownInvariants', 'nsgInvariantHunt',
   'TRACK_SCHEMA', 'TRACK_OPS', 'trackCanon', 'trackFingerprint', 'trackEncode', 'trackDecode', 'trackRun', 'DISCOVERY_TRACKS', 'discoveryTrack',
   'DISCOVERY_DOMAINS', 'DISCOVERIES', 'DISCOVERY_LEADS', 'discoveryById', 'discoveryGraph',
   'LGM_G', 'LGM_GYR', 'LGM_GAL', 'LGM_OBS', 'LGM_LNL', 'LGM_RCOAL', 'lgmTotalMass', 'lgmAccel', 'lgmPotential', 'lgmHaloRho', 'lgmHaloSigma', 'lgmErf', 'lgmOrbit', 'lgmEvents', 'lgmMonteCarlo', 'LGM_GC', 'LGM_NGP', 'LGM_M31', 'lgmUnit', 'lgmCross', 'lgmDot', 'lgmNorm', 'lgmGeometry', 'lgmSampleDisc', 'lgmStars',
