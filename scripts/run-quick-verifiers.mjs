@@ -159,6 +159,7 @@ const allChecks = [
   "docs/verify-the-formula-portal.cjs",
   "docs/verify-the-display-is-a-stroboscope.cjs",
   "docs/verify-the-oracle.cjs",
+  "docs/verify-the-tennis-racket-inside-the-fluid.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -377,6 +378,7 @@ if (fullMode) {
     'docs/verify-the-formula-portal.cjs',
     'docs/verify-the-display-is-a-stroboscope.cjs',
     'docs/verify-the-oracle.cjs',
+    'docs/verify-the-tennis-racket-inside-the-fluid.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
