@@ -18,7 +18,9 @@ assert(/state\.epochDays/.test((src.match(/function updateChronometryObservatory
    view list, and the frame chip carries it. */
 assert(/HCC_CYCLE_VIEWS=\[[\s\S]{0,1200}\['chronometry'/.test(src),
   'Cycles must offer the Chronometry frame in its view list, where a reader can choose it');
-assert(/<option value="chronometry"/.test(src),
+/* v4.340: the frame selector is generated from HCC_CYCLE_GROUPS and HCC_CYCLE_VIEWS rather than typed as a second
+   list, so the option exists because chronometry is a view in a group — assert that, as well as a literal option */
+assert(/<option value="chronometry"/.test(src) || (/frames:\[[^\]]*'chronometry'[^\]]*\]/.test(src) && /<select id="cycFrame"[\s\S]{0,200}HCC_CYCLE_GROUPS\.map\(g=>`<optgroup/.test(src)),
   'and in the engineering frame selector beside the other frames');
 assert(src.includes('Same term / different definition'),
   'source space must make same-name definition conflicts explicit');
