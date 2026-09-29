@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="grips-2026.09.29.64">
+<html lang="en" data-hcc-build="a-sky-you-can-see-2026.09.29.65">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="grips-2026.09.29.64">
+<meta name="hcc-build" content="a-sky-you-can-see-2026.09.29.65">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3047,7 +3047,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.347.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.348.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3359,8 +3359,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.347.0';
-const HCC_BUILD='grips-2026.09.29.64';
+const HCC_VERSION='4.348.0';
+const HCC_BUILD='a-sky-you-can-see-2026.09.29.65';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -22214,14 +22214,29 @@ const HCC_STAR_PSF={
   scintillation(X,strength){ return Math.min(0.9,strength*0.09*Math.pow(X,1.75)); }
 };
 const HCC_STAR_MATS=new Set();
+/* ══ SKY EXPOSURE — THE SAME SKY, SHOWN SO IT CAN BE SEEN ══════════════════════════════════════════════════════
+   The stars are drawn by a calibrated law (magnitude → peak and radius) and the Milky Way is a line-of-sight
+   integral; neither changes here. What changes is the EXPOSURE of the display, as a camera's: one factor on every
+   star's peak and on the band's surface brightness. A phone draws without the bloom a desktop adds and is read in
+   daylight at arm's length, so it starts brighter (measured: the central Solar view on a 390-px phone showed the
+   brightest stars and no band at all); the reader sets it with ✦ Sky exposure, and the choice is remembered. */
+function hccSkyExposureAuto(){ let phone=false; try{ phone=(typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU)||matchMedia('(pointer:coarse)').matches; }catch(e){} return phone?2.2:1.35; }
+function hccSkyExposure(){ const v=state&&state.skyExposure; return (Number.isFinite(v)&&v>0)?v:hccSkyExposureAuto(); }
+/* and a tone curve for the band: raising the exposure alone brightens the Sagittarius side and leaves the anticentre
+   — five times fainter by the same integral — still below what a phone shows; a gamma < 1 lifts the faint parts
+   more than the bright ones, as any camera's curve does. At exposure 1 the curve is the identity. */
+const HCC_MW_GAMMA={value:1};
+try{ mwMesh.material.onBeforeCompile=sh=>{ sh.uniforms.uMWGamma=HCC_MW_GAMMA; sh.fragmentShader='uniform float uMWGamma;\n'+sh.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n\tdiffuseColor.rgb=pow(max(diffuseColor.rgb,vec3(0.0)),vec3(uMWGamma));'); };
+  mwMesh.material.customProgramCacheKey=()=>'hcc-mw-gamma-1'; mwMesh.material.needsUpdate=true; }catch(e){}
+try{ const v=parseFloat(localStorage.getItem('hcc.skyExposure.v1')); if(Number.isFinite(v)&&v>0) setTimeout(()=>{ try{ state.skyExposure=v; }catch(e){} },0); }catch(e){}
 function hccStarMaterial({abs=true}={}){
   const P=HCC_STAR_PSF, f=x=>Number(x).toFixed(6);
   const m=new THREE.ShaderMaterial({
-    uniforms:{uPx:{value:Math.min(2,renderer.getPixelRatio())}, uFade:{value:1}, uTime:{value:0}, uSky:{value:0},
+    uniforms:{uPx:{value:Math.min(2,renderer.getPixelRatio())}, uFade:{value:1}, uTime:{value:0}, uSky:{value:0}, uExposure:{value:1},
       uTwinkle:{value:0}, uExtinct:{value:0}, uZenith:{value:new THREE.Vector3(0,1,0)}, uSpikes:{value:1}},
     vertexShader:`attribute vec3 aColor; attribute float aMag; attribute float aAlpha; attribute float aSeed;
       uniform float uPx; uniform float uFade; uniform float uTime; uniform float uTwinkle; uniform float uExtinct; uniform float uSky;
-      uniform float uSpikes; uniform vec3 uZenith;
+      uniform float uSpikes; uniform float uExposure; uniform vec3 uZenith;
       varying vec3 vColor; varying float vI; varying float vSize; varying float vA; varying float vSpike; varying float vCore;
       #include <common>
       #include <logdepthbuf_pars_vertex>
@@ -22249,7 +22264,7 @@ function hccStarMaterial({abs=true}={}){
           }
         }
         float md=m>${f(P.knee)}?${f(P.knee)}+(m-${f(P.knee)})*${f(P.kneeSlope)}:m;
-        float I=${f(P.gain)}*pow(pow(10.0,-0.4*(md-${f(P.lim)})),${f(P.gamma)})*tw;
+        float I=${f(P.gain)}*pow(pow(10.0,-0.4*(md-${f(P.lim)})),${f(P.gamma)})*tw*uExposure;
         float R=${f(P.core0)}+${f(P.coreK)}*sqrt(I);
         float r=clamp(${f(P.haloK)}*R*log(max(${f(P.halo)}*I/${f(P.eps)},1.0)),${f(P.minR)},${f(P.maxR)});
         vCore=R;
@@ -22310,7 +22325,8 @@ function hccStarTick(dt){
      whatever the governor does to the buffer behind it. */
   let px=renderer.getPixelRatio();
   try{ if(premiumVisualsEnabled&&bloomComposer&&!renderer.xr.isPresenting) px=premiumComposerPixelRatio(); }catch(e){}
-  for(const m of HCC_STAR_MATS){ const u=m.uniforms; u.uPx.value=Math.max(0.25,Math.min(2,px));
+  const skyEx=hccSkyExposure(); try{ if(typeof mwMesh!=='undefined'&&mwMesh&&mwMesh.material){ const g=Math.min(3.2,Math.pow(skyEx,0.85)); if(Math.abs(mwMesh.material.color.r-g)>1e-3) mwMesh.material.color.setScalar(g); HCC_MW_GAMMA.value=Math.max(0.45,Math.min(1.2,1/(1+0.35*(skyEx-1)))); } }catch(e){}
+  for(const m of HCC_STAR_MATS){ const u=m.uniforms; u.uPx.value=Math.max(0.25,Math.min(2,px)); if(u.uExposure) u.uExposure.value=skyEx;
     u.uTime.value=(u.uTime.value+Math.min(dt,0.1))%1e4;
     u.uTwinkle.value=tw; u.uExtinct.value=ex; if(zen) u.uZenith.value.copy(zen);
     u.uSpikes.value=state.starSpikes===false?0:1; }
@@ -99204,6 +99220,8 @@ function buildCtlBody(){
     <div class="sect"><b>Celestial sphere</b>
       <div class="ctlrow"><label>Milky Way</label>
         <input type="checkbox" id="skyMW" ${mwMesh.visible?'checked':''}></div>
+      <div class="ctlrow" title="${TT('The exposure of the display, as a camera\u2019s: brighter stars and a brighter Milky Way. The calibrated magnitudes and the band\u2019s integral are unchanged.','Экспозиция показа, как у камеры: ярче звёзды и Млечный Путь. Калиброванные звёздные величины и интеграл полосы не меняются.','Belichtung der Anzeige')}"><label>✦ ${TT('Sky exposure','Экспозиция неба','Himmelsbelichtung')}</label>
+        <input type="range" id="skyExp" min="0.5" max="5" step="0.05" value="${hccSkyExposure().toFixed(2)}"><span class="val" id="skyExpV">${hccSkyExposure().toFixed(2)}</span></div>
       <div class="ctlrow" title="Celestial-sphere layer: constellation stick figures (J2000)"><label>Constellation figures</label>
         <input type="checkbox" id="skyConst" ${constGroup.visible?'checked':''}></div>
       <div class="ctlrow" title="The twelve zodiac constellations and Ophiuchus at their MEASURED distances (Gaia DR3 / Hipparcos / SIMBAD 2018), moved with the clock by rigorous space motion. The Precession Age Wheel in Cycles & Events is a DIFFERENT interpretive layer."><label>${TT('Zodiac · true 3D distances','Зодиак · истинные 3D-расстояния','Tierkreis · wahre 3D-Entfernungen')}</label>
@@ -99408,6 +99426,7 @@ function buildCtlBody(){
       armIdleDrift();   // frame change = scene change: the gentle cosmic orbiting resumes
     });
     ctl.querySelector('#skyMW').onchange    = e=>mwMesh.visible=e.target.checked;
+    { const se=ctl.querySelector('#skyExp'); if(se) se.oninput=e=>{ state.skyExposure=+e.target.value; try{ localStorage.setItem('hcc.skyExposure.v1',String(state.skyExposure)); }catch(err){} const v=ctl.querySelector('#skyExpV'); if(v) v.textContent=state.skyExposure.toFixed(2); }; }
     ctl.querySelector('#skyConst').onchange = e=>constGroup.visible=e.target.checked;
     ctl.querySelector('#skyZod').onchange   = e=>{ state.showZod3d=e.target.checked; zodGroup.visible=e.target.checked; };
     ctl.querySelector('#skySky3d')&&(ctl.querySelector('#skySky3d').onchange=e=>{ state.showSky3d=e.target.checked; });
