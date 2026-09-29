@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1813   ·   exported names: 1939
-   extracted physics, sha256 dd27a34abe208a845aa2f3b1cff6ae5e22a07a13009be447d84c4ca12836ea4a */
+   extracted physics, sha256 e6899000b99f49467c812044516d319caed202d99531e4797eb0858812c617a5 */
 
 const HCC_VERSION='4.343.0';
 
@@ -1130,7 +1130,7 @@ const LAB_DECLARATIONS=Object.freeze([
           ru:'Портал формул · все формулы программы S³ и те, что атлас может проверить',
           de:'Das Formelportal · jede Formel des S³-Programms'},
    purpose:'the 5201 displayed formulas of the ten manuscripts of the S³ Navier–Stokes programme, identified by their normalised hash to 1801 distinct ones, laid out as a sky — each manuscript a constellation, each section an arm, a formula carried by several manuscripts a star with threads — searchable, typeset on demand, linked to the laboratory that computes it, and, where the atlas can, checked on the spot by its own kernels',
-   predictionTarget:'the corpus holds 1801 distinct formulas; seventeen carry a live check that runs on the atlas\u2019s kernels — thirteen hold (the spectrum, the carrier weights, Casimir rigidity, the Grassmannian variance law, Q(E₁,E₁) ⊂ E₂, the Korn ladder, the filament pairing gap, the zeta residue, the shell curvature, the rotor identity, the Vandermonde stretching law) and four fail as stated (the boxed rational counting law below its Frobenius threshold, the 𝒥-odd stretching of route P₁, the shell commutator bound, inf Γ_N > 0)'},
+   predictionTarget:'the corpus holds 1801 distinct formulas; nineteen carry a live check that runs on the atlas\u2019s kernels — fifteen hold (the spectrum, the carrier weights, Casimir rigidity, the Grassmannian variance law, Q(E₁,E₁) ⊂ E₂, the Korn ladder, the filament pairing gap, the zeta residue, the shell curvature, the rotor identity, the Vandermonde stretching law, the Killing drift ladder, the addition theorem) and four fail as stated (the boxed rational counting law below its Frobenius threshold, the 𝒥-odd stretching of route P₁, the shell commutator bound, inf Γ_N > 0)'},
   {id:'nsflow', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'A Navier–Stokes flow on S³, integrated · the exact solution the equation itself confirms',
           ru:'Течение Навье–Стокса на S³, проинтегрированное · точное решение, которое подтверждает само уравнение',
