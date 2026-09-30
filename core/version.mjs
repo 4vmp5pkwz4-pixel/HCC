@@ -12,7 +12,12 @@
            civp.embadon_measure, civp.finite_index, civp.finite_carrier, civp.uv_selector,
            civp.closure), SLICED OUT OF the atlas's new seven-station laboratory rather than
            retyped beside it. The mathematics is written where index.html draws it; these
-           contracts import core/atlas/extracted.mjs and contain no arithmetic of their own. */
-export const CORE_VERSION = '1.4.0';
+           contracts import core/atlas/extracted.mjs and contain no arithmetic of their own.
+
+   1.5.0 — exact round-S3 curl-band reconstruction kernel: finite-band L1->Linf peak bound,
+           Slepian concentration trace / L2 support-energy bound, exact cumulative mode counts,
+           and finite-band helicity bound. It is theorem-level geometry and imports no
+           Navier-Stokes blowup claim. */
+export const CORE_VERSION = '1.5.0';
 export const CORE_SCHEMA  = 'hcc.core/1';
 export const RESULT_SCHEMA = 'hcc.result/2';

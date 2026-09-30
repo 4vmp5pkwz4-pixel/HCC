@@ -17,6 +17,7 @@ import anyons from './labs/fibonacci.anyons.mjs';
 import capsel from './labs/capacity.conditional_selector.mjs';
 import edgeng from './labs/edge.admissibility_no_go.mjs';
 import specop from './labs/s3.spectral_operator.mjs';
+import specRecon from './labs/s3.spectral_reconstruction_bound.mjs';
 import bixevo from './labs/bianchi_ix.evolution.mjs';
 import pcreate from './labs/s3.particle_creation.mjs';
 import ebkq from './labs/s3.ebk_quantisation.mjs';
@@ -60,7 +61,7 @@ function coreHash() {
     'labs/smith.identify_resonances.mjs','labs/smith.wireless_transfer.mjs',
     'labs/fbs.zero_point_ladder.mjs','labs/fibonacci.anyons.mjs',
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
-    'labs/s3.spectral_operator.mjs','labs/bianchi_ix.evolution.mjs',
+    'labs/s3.spectral_operator.mjs','labs/s3.spectral_reconstruction_bound.mjs','labs/bianchi_ix.evolution.mjs',
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
     'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
     'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs',
@@ -111,9 +112,9 @@ export const evidenceTierOf = st => { const s0 = String(st || '');
   return 'unclassified'; };
 
 
-/* the eighteen implemented instruments */
+/* implemented computational instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
-  zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
+  zpl, anyons, capsel, edgeng, specop, specRecon, bixevo, pcreate, ebkq,
   cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
