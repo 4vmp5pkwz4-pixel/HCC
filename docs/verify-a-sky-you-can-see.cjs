@@ -16,7 +16,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 ok('the calibration is untouched: the star law and the band integral keep their constants',
   /lim:6\.5, gain:0\.35, gamma:0\.5,/.test(SRC) && /hR:2\.6, hz:0\.30, R0:8\.178, hzDust:0\.125,/.test(SRC) && /magPerKpc:1\.8, magToTau:1\/1\.0857, covering:0\.05,/.test(SRC));
 ok('one exposure: every star’s peak times uExposure, the band’s gain and tone curve follow it, and the curve is the identity at exposure 1',
-  /uniform float uSpikes; uniform float uExposure;/.test(SRC) && /\*tw\*uExposure;/.test(SRC) && /u\.uExposure\.value=skyEx;/.test(SRC)
+  /uniform float uSpikes; uniform float uExposure;/.test(SRC) && /\*tw\*uExposure;/.test(SRC) && /u\.uExposure\.value=skyEx(\*starCrowd)?;/.test(SRC)
   && /mwMesh\.material\.color\.setScalar\(g\)/.test(SRC) && /HCC_MW_GAMMA\.value=Math\.max\(0\.45,Math\.min\(1\.2,1\/\(1\+0\.35\*\(skyEx-1\)\)\)\)/.test(SRC)
   && /diffuseColor\.rgb=pow\(max\(diffuseColor\.rgb,vec3\(0\.0\)\),vec3\(uMWGamma\)\)/.test(SRC) && Math.abs(1 / (1 + 0.35 * (1 - 1)) - 1) === 0);
 { const m = SRC.match(/return phone\?([0-9.]+):([0-9.]+); \}/); const phone = m ? +m[1] : 0, desk = m ? +m[2] : 0;
