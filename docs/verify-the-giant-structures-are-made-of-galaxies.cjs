@@ -99,7 +99,9 @@ ok('the Galaxy\'s globular clusters stand in a halo of 2 to 100 kpc, and no clus
   `${glob.length} globulars, ${Math.min(...glob.map(r => r[4])).toFixed(1)}–${Math.max(...glob.map(r => r[4])).toFixed(1)} kpc · ${D.local.length} clusters and nebulae in all, nearest ${Math.min(...D.local.map(r => r[4])) * 1000} pc`);
 
 const cage = s => /if\(e\.cage\)\{ const out=e\.o\.worldToLocal\(_dsoCam\.copy\(camera\.position\)\)\.length\(\)>=e\.o\.geometry\.parameters\.radius; if\(e\.o\.visible!==out\) e\.o\.visible=out; \}/.test(s)
-  && /const fo=THREE\.MathUtils\.smoothstep\(x,rx-0\.35,rx-0\.05\);\s*s\.wire\.material\.opacity=0\.14\*f\*fo;/.test(s);
+  && /const fo=THREE\.MathUtils\.smoothstep\(x,rx-0\.35,rx-0\.05\);\s*s\.wire\.material\.opacity=(0\.14\*f\*fo|0\.22\*f\*\(0\.35\+0\.65\*fo\));/.test(s)
+  /* v4.350: the sphere is a Fresnel shell — its face nearly clear, only its limb glows — so from inside it is no cage */
+  && /const wire=hccShellMesh\(rAU,col,0\);/.test(s) && /uOp\*\(0\.02\+0\.98\*f\)/.test(s);
 ok('a volume the camera is inside is not drawn as a cage over the whole view', cage(SRC));
 ok('the layer has its switch in Controls, and it is wired', /<input type="checkbox" id="skyDso" \$\{state\.showDso3d!==false\?'checked':''\}>/.test(SRC)
   && /#skyDso'\)\.onchange=e=>\{ state\.showDso3d=e\.target\.checked; \}/.test(SRC) && /on=state\.mode==='solar'&&state\.showDso3d!==false&&Ly!=='local'/.test(SRC));
@@ -114,6 +116,6 @@ buf.writeUInt16LE(Math.round((Math.log10(49.97) + 2) * 8000), k * 8 + 4);
 const m2 = read(SRC.replace(b64, buf.toString('base64')));
 ok('MUTATION — the catalogue\'s own LMC distance, put back, is caught', m2 && Math.abs(byName(m2, 'PGC 17223').d / 49.59 - 1) > 0.002,
   `${byName(m2, 'PGC 17223').d.toFixed(2)} kpc`);
-ok('MUTATION — a cage drawn from inside is caught', !cage(SRC.replace('s.wire.material.opacity=0.14*f*fo;', 's.wire.material.opacity=0.14*f;')));
+ok('MUTATION — a cage drawn from inside is caught', !cage(SRC.replace('s.wire.material.opacity=0.22*f*(0.35+0.65*fo);', 's.wire.material.opacity=0.22*f;')) && !cage(SRC.replace('uOp*(0.02+0.98*f)', 'uOp*(0.6+0.4*f)')));
 
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

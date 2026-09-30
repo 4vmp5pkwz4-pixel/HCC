@@ -24,7 +24,7 @@ ok('seven laboratories declare grips, each with a hint in three languages', have
   have.join(', '));
 ok('every gesture writes the state the panel writes: triadU, omniLogS, strobeTd / strobeRho / strobeK, vdmLevels, lgmVt / lgmScen / lgmT / lgmPaused, fbsTarget — and the dye rides the exact flow',
   /state\.triadU=Math\.max\(-0\.95/.test(SRC) && /state\.omniLogS=Math\.max\(-24/.test(SRC) && /state\.strobeTd=Math\.pow\(10,lg\)/.test(SRC) && /state\.strobeFree=true; state\.strobeRho=D\.rho/.test(SRC)
-  && /state\.vdmLevels=cur; vdmObjs=null/.test(SRC) && /state\.lgmScen='custom'; state\.lgmVt=D\.vt/.test(SRC) && /O\.t=best\/599\*12; state\.lgmT=O\.t/.test(SRC)
+  && /state\.vdmLevels=cur; vdmObjs=null/.test(SRC) && /state\.lgmScen='custom'; state\.lgmVt=D\.vt/.test(SRC) && /O\.t=best\/599\*(12|\(O\.tEnd\|\|12\)); state\.lgmT=O\.t/.test(SRC)
   && /state\.fbsTarget=s3LadderN\(s\.k,S3\.R\*GLY_M\)/.test(SRC) && /if\(O\.dye&&O\.dye\[i\]\)/.test(SRC) && /m\.userData\.triadLeg=leg/.test(SRC) && /m\.userData\.vdmLevel=\[P\.k,P\.sigma\]/.test(SRC));
 ok('the first swipe after load lands on the collision of the Milky Way and Andromeda (head-on unless a scenario was chosen), once; every later step walks the catalogue',
   /function labBarStep\(d\)\{ if\(typeof LAB_BAR!=='undefined'&&!LAB_BAR\.firstJumped\)\{ LAB_BAR\.firstJumped=true; if\(state\.s3view!=='lgmerge'\|\|state\.mode!=='s3'\)\{ if\(!state\.lgmScen\) state\.lgmScen='headon'; state\.lgmT=0; state\.lgmPaused=false; labBarGo\('lgmerge'\); return; \} \}/.test(SRC)
