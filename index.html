@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="a-sky-you-can-see-2026.09.29.65">
+<html lang="en" data-hcc-build="the-sky-at-every-scale-2026.09.30.66">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="a-sky-you-can-see-2026.09.29.65">
+<meta name="hcc-build" content="the-sky-at-every-scale-2026.09.30.66">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3047,7 +3047,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.348.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.349.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3359,8 +3359,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.348.0';
-const HCC_BUILD='a-sky-you-can-see-2026.09.29.65';
+const HCC_VERSION='4.349.0';
+const HCC_BUILD='the-sky-at-every-scale-2026.09.30.66';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -22221,6 +22221,21 @@ const HCC_STAR_MATS=new Set();
    daylight at arm's length, so it starts brighter (measured: the central Solar view on a 390-px phone showed the
    brightest stars and no band at all); the reader sets it with ✦ Sky exposure, and the choice is remembered. */
 function hccSkyExposureAuto(){ let phone=false; try{ phone=(typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU)||matchMedia('(pointer:coarse)').matches; }catch(e){} return phone?2.2:1.35; }
+/* ══ …AND IT KNOWS HOW CROWDED THE SCREEN IS ══════════════════════════════════════════════════════════════════
+   One exposure cannot serve every scale: stars and galaxies are drawn ADDITIVELY, so when a whole population falls
+   onto a few hundred pixels — the fifteen thousand catalogue stars round the Sun seen from outside the Galaxy, the
+   ninety thousand stars of a disc seen whole — they add up to a white blot. The crowding is computed, not guessed:
+   the population's radius projected in drawing-buffer pixels gives the area it covers (times the cosine of the
+   disc's inclination), its point count times one point's area gives the light laid on it, and their ratio is the
+   overlap. Up to about one point per pixel nothing changes; beyond it each point is dimmed as overlap^−0.6, so a
+   dense region stays brighter than a sparse one (the order of brightness is kept) but never saturates. */
+const HCC_SKY_CROWD={stars:1};
+const _crowdV=new THREE.Vector3(), _crowdN=new THREE.Vector3(), _crowdQ=new THREE.Quaternion();
+function hccCrowdGain(obj,Rworld,N,ptPx,disc){ if(!obj) return 1; try{ obj.getWorldPosition(_crowdV); }catch(e){ return 1; }
+  const d=_crowdV.distanceTo(camera.position); if(!(d>Rworld)) return 1;
+  const H=renderer.getDrawingBufferSize?renderer.getDrawingBufferSize(new THREE.Vector2()).y:innerHeight, f=(H/2)/Math.tan(THREE.MathUtils.degToRad(camera.fov)/2), Rpx=Rworld/d*f;
+  let incl=1; if(disc){ obj.getWorldQuaternion(_crowdQ); _crowdN.set(0,1,0).applyQuaternion(_crowdQ); incl=Math.max(0.3,Math.abs(_crowdN.dot(_crowdV.sub(camera.position).normalize()))); }
+  const overlap=N*Math.PI*(ptPx/2)*(ptPx/2)/(Math.PI*Rpx*Rpx*incl+1e-9); return overlap<=1.2?1:Math.max(0.06,Math.pow(1.2/overlap,0.6)); }
 function hccSkyExposure(){ const v=state&&state.skyExposure; return (Number.isFinite(v)&&v>0)?v:hccSkyExposureAuto(); }
 /* and a tone curve for the band: raising the exposure alone brightens the Sagittarius side and leaves the anticentre
    — five times fainter by the same integral — still below what a phone shows; a gamma < 1 lifts the faint parts
@@ -22325,8 +22340,13 @@ function hccStarTick(dt){
      whatever the governor does to the buffer behind it. */
   let px=renderer.getPixelRatio();
   try{ if(premiumVisualsEnabled&&bloomComposer&&!renderer.xr.isPresenting) px=premiumComposerPixelRatio(); }catch(e){}
+  /* the catalogue stars round the Sun (hip3d: ~15 000 within a few hundred parsecs) and the living discs */
+  let starCrowd=1; try{ if(typeof hip3dGroup!=='undefined'&&hip3dGroup.visible) starCrowd=hccCrowdGain(hip3dGroup,300*206264.8,15000,6*px,false); }catch(e){}
+  try{ const kpcAU=206264806.2; if(MW_LIVING&&MW_LIVING.obj&&MW_LIVING.obj.material.uniforms.uGain){ const g=hccCrowdGain(MW_LIVING.obj,15*kpcAU,MW_LIVING.N||90000,1.3*Math.max(1,px),true); MW_LIVING.obj.material.uniforms.uGain.value=g; if(MW_LIVING.glow&&MW_LIVING.glow.material.uniforms.uGlow){ const U=MW_LIVING.glow.material.uniforms.uGlow; if(U.base===undefined) U.base=U.value; U.value=U.base*Math.sqrt(g); } }
+    if(M31_LIVING&&M31_LIVING.stars&&M31_LIVING.stars.material.uniforms.uGain){ const g=hccCrowdGain(M31_LIVING.stars,20*kpcAU,M31_LIVING.stars.geometry.attributes.position.count,1.3*Math.max(1,px),true); M31_LIVING.stars.material.uniforms.uGain.value=g; if(M31_LIVING.glow&&M31_LIVING.glow.material.uniforms.uGlow){ const U=M31_LIVING.glow.material.uniforms.uGlow; if(U.base===undefined) U.base=U.value; U.value=U.base*Math.sqrt(g); } } }catch(e){}
+  HCC_SKY_CROWD.stars=starCrowd;
   const skyEx=hccSkyExposure(); try{ if(typeof mwMesh!=='undefined'&&mwMesh&&mwMesh.material){ const g=Math.min(3.2,Math.pow(skyEx,0.85)); if(Math.abs(mwMesh.material.color.r-g)>1e-3) mwMesh.material.color.setScalar(g); HCC_MW_GAMMA.value=Math.max(0.45,Math.min(1.2,1/(1+0.35*(skyEx-1)))); } }catch(e){}
-  for(const m of HCC_STAR_MATS){ const u=m.uniforms; u.uPx.value=Math.max(0.25,Math.min(2,px)); if(u.uExposure) u.uExposure.value=skyEx;
+  for(const m of HCC_STAR_MATS){ const u=m.uniforms; u.uPx.value=Math.max(0.25,Math.min(2,px)); if(u.uExposure) u.uExposure.value=skyEx*starCrowd;
     u.uTime.value=(u.uTime.value+Math.min(dt,0.1))%1e4;
     u.uTwinkle.value=tw; u.uExtinct.value=ex; if(zen) u.uZenith.value.copy(zen);
     u.uSpikes.value=state.starSpikes===false?0:1; }
@@ -24463,7 +24483,8 @@ function ctViewBuild(){ if(CT_VIEW.mesh) return; const N=CT_VIEW.N; CT_VIEW.lut=
   const m=new THREE.Mesh(new THREE.RingGeometry(0,1,192,48),mat); m.scale.setScalar(R); m.name='cosmic-time-colour';   /* small quads, not a fan of 256 needles: in the solar chain the disc is 5.7×10¹⁵ AU across, and needle triangles that long lose half the disc in the rasteriser */ m.frustumCulled=false; m.userData.noGrade=true; m.renderOrder=6; CT_VIEW.group=new THREE.Group(); CT_VIEW.group.name='cosmic-time-spheres'; cosmosGroup.add(CT_VIEW.group); try{ cosmosHome(); }catch(e){} CT_VIEW.group.add(m); CT_VIEW.mesh=m;   /* after the wall, which would otherwise paint over it */
   /* the epochs' boundaries, each a faint shell in its own colour, named with what the sky there IS */
   for(const z of [0.63,2,5.5,10,20,1089.9]){ const r=ctChiOfZ(z), c=ctColorAtChi(r,0), col=new THREE.Color(c.rgb[0],c.rgb[1],c.rgb[2]);
-    const sh=new THREE.Mesh(new THREE.SphereGeometry(r,48,24),new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:0.05,depthWrite:false})); sh.userData.noGrade=true; CT_VIEW.group.add(sh);
+    const pts=[]; for(let i=0;i<=256;i++){ const a=2*Math.PI*i/256; pts.push(new THREE.Vector3(r*Math.cos(a),r*Math.sin(a),0)); }   /* a boundary in time is the circle where the disc crosses it — not a lat–long cage (v4.349) */
+    const sh=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:col,transparent:true,opacity:0.35,depthWrite:false})); sh.userData.noGrade=true; sh.userData.ctRing=true; CT_VIEW.group.add(sh);
     const lab=mkLabel('','label dim'); lab.position.set(0,r*1.01,0); CT_VIEW.group.add(lab); CT_VIEW.shells.push({z,r,sh,lab}); }
   ctViewShells(0); }
 function ctViewShells(dtYears){ for(const S of CT_VIEW.shells){ const c=ctColorAtChi(S.r,dtYears), tE=ctAgeOfZ(S.z), ep=CT_EPOCHS.find(e=>e.id===(S.z>=1089?'recomb':ctEpochOfZ(S.z).id));
@@ -24477,7 +24498,7 @@ function ctStructureColours(on,dtYears){ for(const g of COSMOS_DUST){ const s=g.
       if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); }); } }
 function ctViewTick(){ const on=state.cosmicTimeColour!==false, shown=ctShown();
   if(on&&shown&&!CT_VIEW.mesh) ctViewBuild(); if(CT_VIEW.group) CT_VIEW.group.visible=on&&shown;
-  if(CT_VIEW.mesh){ CT_VIEW.mesh.visible=on&&shown; CT_VIEW.shells.forEach(S=>{ S.sh.visible=S.lab.visible=on&&shown; }); }
+  if(CT_VIEW.mesh){ CT_VIEW.mesh.visible=on&&shown; CT_VIEW.shells.forEach(S=>{ S.sh.visible=S.lab.visible=on&&shown; if(S.sh.userData.ctRing) S.sh.quaternion.copy(CT_VIEW.mesh.quaternion); }); }
   if(!on||!shown) return; if(CT_VIEW.mesh){ const q=camera.getWorldQuaternion(new THREE.Quaternion()), pq=CT_VIEW.group.getWorldQuaternion(new THREE.Quaternion()).invert(); CT_VIEW.mesh.quaternion.copy(pq.multiply(q));   /* the slice faces the camera, in whichever frame carries it */
     /* and it is read from outside: near the Sun (the Local Group, the nearby web) a disc through the observer shows
        only its gold centre and would veil the scene, so it rises with the camera's distance in Gly, 1.5 → 6 */
@@ -25991,6 +26012,21 @@ function lssReliefBuild(g){ const U=g.userData, spec=U.reliefSpec; LSS_RELIEF.bu
     W.postMessage({spec}); }
   else setTimeout(()=>{ try{ const t0=performance.now(), R=lssRelief(spec); lssReliefAttach(g,R,performance.now()-t0); }catch(e){ U.reliefFail=String(e&&e.message||e); } done(); },0); }
 /* every frame: the growth each structure shows, from the clock; and one more structure built, nearest the camera first */
+/* ══ THE GIANT STRUCTURES OF THE SOLAR WORLD ARE MATTER TOO (v4.349) ═══════════════════════════════════════════
+   Each structure the Solar world draws at true scale borrows the Horizons world's constrained ΛCDM realization of
+   the same catalogue entry — the same particles, the same growth uniform (so the time machine moves both), drawn in
+   AU instead of Gly — and its wireframe ellipsoid is hidden once the matter stands. The core pin and the name stay. */
+function solarReliefSync(){ if(typeof solarCosmicObjects==='undefined') return;
+  for(const O of solarCosmicObjects){ if(O.rel) continue; const H=COSMOS_GROUPS.get(O.s.key); if(!H) continue; const src=H.userData.relief; if(!src) continue;
+    const m=src.material.clone(); m.uniforms.uD=src.material.uniforms.uD; m.uniforms.uPx=src.material.uniforms.uPx; m.uniforms.uSize={value:src.material.uniforms.uSize.value*GLY_AU*0.45}; m.uniforms.uOpacity={value:src.material.uniforms.uOpacity.value*0.7};   /* seen from the Sun the structures crowd the sky: finer, fainter grains */
+    const P=new THREE.Points(src.geometry,m); P.scale.setScalar(GLY_AU); P.quaternion.copy(src.quaternion); P.frustumCulled=false; P.name='solar-lss-relief'; P.userData.noGrade=true;
+    O.g.add(P); O.rel=P; if(O.body){ O.body.visible=false; O.body.userData.matter=true; } } }
+/* the Solar world's share of the relief: build the same structures while its giant-structure layers are shown, keep their
+   growth on the clock, and hand the particles to the Solar structures (lssReliefTick itself serves Horizons only) */
+function solarReliefTick(){ const solarWeb=state.mode==='solar'&&(state.solarScaleLayer==='cosmic'||state.solarScaleLayer==='andromeda'); if(!solarWeb||cosmosShown()||state.showWebRelief===false) return;
+  try{ solarReliefSync(); }catch(e){} const yrs=(state.epochDays||0)/365.25;
+  for(const g of COSMOS_DUST){ const U=g.userData, P=U.relief; if(!P) continue; P.material.uniforms.uPx.value=innerHeight/2; if(!(Math.abs(yrs-(U.solarYrs??NaN))<1e4)){ U.solarYrs=yrs; U.reliefD=lssGrowthSeen(U.reliefZ,yrs); P.material.uniforms.uD.value=U.reliefD; } }
+  if(LSS_RELIEF.busy) return; const next=COSMOS_DUST.find(g=>{ const U=g.userData; return U.reliefSpec&&!U.relief&&!U.reliefFail&&!U.reliefAsked; }); if(next) lssReliefBuild(next); }
 function lssReliefTick(){ if(!cosmosShown()) return; const on=state.showWebRelief!==false; if(!on) return;
   const yrs=(state.epochDays||0)/365.25, fresh=!(Math.abs(yrs-LSS_RELIEF.lastYrs)<1e4);
   if(fresh) LSS_RELIEF.lastYrs=yrs;
@@ -26113,7 +26149,10 @@ function cosmicDust(s,r){
 }
 function updateCosmicDust(){ const on=state.showCosmicDust!==false, rel=state.showWebRelief!==false;
   COSMOS_DUST.forEach(g=>{ const U=g.userData;
-    if(U.reliefSpec){ if(U.relief) U.relief.visible=rel; if(U.body){ U.body.visible=true; lssBodyFaint(U.body,rel&&!!U.relief); } }   // the relief keeps a faint outline of the declared extent
+    if(U.reliefSpec){ if(U.relief) U.relief.visible=rel; const matter=rel&&!!U.relief;
+      /* MATTER, NOT CAGES (v4.349): once the constrained realization stands, the wireframe of the declared extent, the
+         void's dark ball and the reconstruction's fog are hidden — the structure is its galaxies; the core pin stays */
+      if(U.body){ U.body.visible=!matter; lssBodyFaint(U.body,false); } g.children.forEach(o=>{ if(o.userData&&o.userData.primitive) o.visible=!matter; }); }
     else if(U.dust){ U.dust.visible=on;
       if(U.body) U.body.visible=!on; }
     else if(U.body) U.body.visible=true; }); }   // dust ⇄ wireframe
@@ -26168,7 +26207,7 @@ for(const s of COSMOS){
     body=new THREE.Mesh(new THREE.SphereGeometry(r,22,16), new THREE.MeshBasicMaterial({color:s.col,wireframe:true,transparent:true,opacity:.12,depthWrite:false}));
     const hollow=new THREE.Mesh(new THREE.SphereGeometry(r*0.985,22,16),
       new THREE.MeshBasicMaterial({color:0x04050b,transparent:true,opacity:.42,side:THREE.BackSide,depthWrite:false}));
-    hollow.userData.noGrade=true;   // the void's dark interior is the grammar of ABSENCE — never colour-graded
+    hollow.userData.noGrade=true; hollow.userData.primitive=true;   // the void's dark interior is the grammar of ABSENCE — never colour-graded
     g.add(hollow);
   } else if(isCompact){
     body=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*0.45,0.028),12,9), new THREE.MeshBasicMaterial({color:s.col}));
@@ -26184,7 +26223,7 @@ for(const s of COSMOS){
     // Repeller) sit in the same general sky region, and their halos compound when stacked.
     const fog=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*1.35,0.10),20,14),
       new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.045,depthWrite:false,side:THREE.BackSide}));
-    g.add(fog);
+    fog.userData.primitive=true; g.add(fog);
   }
   // bright core marker (always identifiable)
   // Core marker: scales with the structure's own radius (bounded), so it stays a small
@@ -26194,9 +26233,9 @@ for(const s of COSMOS){
   const dotR=isCompact?Math.max(r*.55,1.2e-6)
            : isGalaxy?THREE.MathUtils.clamp(dist*0.0035,Math.max(r*0.30,2e-6),0.02)
            : THREE.MathUtils.clamp(r*0.16,0.03,0.11);
-  const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot);
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot); g.userData.dot=dot;
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
-  const reliefKind=!isCompact&&!isGalaxy&&['void','wall','supercluster','cluster','attractor'].includes(s.type);
+  const reliefKind=!isCompact&&!isGalaxy&&['void','wall','supercluster','cluster','attractor','field'].includes(s.type);   /* the fields too (v4.349): a proto-structure is a density field, not a cage */
   if(reliefKind){ g.userData.reliefSpec=lssStructureSpec(s,r,structureAxisRatio(s).ratio); if(MOBILE_GPU) g.userData.reliefSpec.count=Math.round(g.userData.reliefSpec.count*0.55); g.userData.reliefR=r; g.userData.reliefZ=s.z!=null?s.z:COORD.zFromComoving(dist); }
   const dust=(isCompact||isGalaxy||reliefKind)?null:cosmicDust(s,r); if(dust)g.add(dust); g.userData.dust=dust; g.userData.body=body; g.userData.s=s;
   body.visible=true; if(dust)dust.visible=false;   // WIREFRAME GRID by default — structures stay see-through and distinguishable on the sphere; dust clouds are an optional toggle
@@ -27422,7 +27461,7 @@ function buildCosmicFrame(){
     const wire=new THREE.Mesh(new THREE.SphereGeometry(rAU,30,18),
       new THREE.MeshBasicMaterial({color:col,wireframe:true,transparent:true,opacity:0,depthWrite:false}));
     const eq=guideCircle(rAU,col,0,128); eq.material.transparent=true;
-    g.add(wire,eq);
+    g.add(eq);   /* the scale is the ring and its name; the lat–long cage over the Galaxy is gone (v4.349) */
     const lab=mkLabel(label,'label axis'); lab.position.set(0,rAU*1.02,0); g.add(lab);
     cosmicFrameGroup.add(g);
     const o={g,wire,eq,lab,rAU}; _cfSpheres.push(o); return o;
@@ -27721,6 +27760,68 @@ registerSel('solarGC',{name:GAL_DATA.gc.name,mode:'solar',pick:gcDot,labelEl:gcL
     ['Image','traced: every pixel a Schwarzschild null geodesic — shadow, photon ring at b = √27 GM/c², lensed far side of the disk, Doppler-beamed approaching limb'],
     ['Gateway scale','MAGNIFIED: a 4500-ly drawing of a hole light-minutes across; its shape is exact in units of GM/c²; the physical core remains true AU scale'],['Scale','1 scene unit = 1 AU']]});
 
+/* ══ THE COLLISION ON THE ATLAS CLOCK, BY LAW (v4.349) ═══════════════════════════════════════════════════════════
+   The Solar world used to move Andromeda along a one-dimensional Kahn–Woltjer cycloid — a radial fall with the
+   transverse motion neglected, first passage at +3.3 Gyr — while its own ledger (flyby) had already superseded
+   that with the Local Group laboratory's law: two galaxies, each a Hernquist halo, a Miyamoto–Nagai disc and a
+   bulge, pulled by each other's full potential and slowed by Chandrasekhar friction, from today's measured
+   distance, radial and tangential velocity. The Solar world now runs THAT law on the atlas clock:
+   · the centres: lgmOrbit in three dimensions (the orbit's plane from lgmGeometry, J2000 equatorial → scene),
+     the scenario shared with the laboratory (today's v_t = 57 km/s, van der Marel 2012's 17, head-on);
+   · the stars: once the clock is past +20 Myr, the laboratory's worker integrates both discs as test particles in
+     the two moving potentials — bridges, tails, the splash of a passage, the mixed remnant — and the kinematic
+     "living" discs hand over to them;
+   · the black holes: they ride the centres, then sink by the atlas's friction clock and merge (lgmHolesAt), and
+     the gravitational-wave front leaves at c.
+   Before now the atlas has no forward model to run backwards, and the old cycloid stays for the past. */
+const SOLAR_LGM={key:'', orb:null, coal:null, G:null, M:null, stars:null, frames:[], centres:[], done:false, job:0, worker:null, n:0, lastDir:null, w:0, dt:0.03};
+function solarLgmBasis(){ if(SOLAR_LGM.M) return SOLAR_LGM.M; return SOLAR_LGM.M=[raDecDir(0,0).clone(), raDecDir(6,0).clone(), raDecDir(0,90).clone()]; }
+function solarLgmToScene(v,out){ const M=solarLgmBasis(); return out.set(0,0,0).addScaledVector(M[0],v[0]).addScaledVector(M[1],v[1]).addScaledVector(M[2],v[2]); }
+function solarLgmOrbit(){ const vt=lgmScenarioVt(), key=String(vt); const S=SOLAR_LGM;
+  if(S.key!==key){ S.key=key; const G=lgmGeometry(); S.G=G; const orb=lgmOrbit({vTan:vt, dKpc:G.dKpc, tGyr:14, dtMyr:0.5, outMyr:5}); S.orb=orb; S.coal=orb.coalescedGyr??null; S.ev=lgmEvents(orb);
+    S.frames=[]; S.centres=[]; S.done=false; S.job++; if(S.worker){ try{ S.worker.terminate(); }catch(e){} S.worker=null; } if(S.stars) S.stars.visible=false; }
+  return S; }
+function solarLgmRel(tGyr){ const S=solarLgmOrbit(), o=S.orb, G=S.G, dt=o[1].tGyr-o[0].tGyr, f=Math.max(0,Math.min(o.length-1.0001,tGyr/dt)), i=Math.floor(f), w=f-i, a=o[i], b=o[i+1]||a;
+  const x=a.x*(1-w)+b.x*w, y=a.y*(1-w)+b.y*w; return {v:[x*G.ex[0]+y*G.ey[0], x*G.ex[1]+y*G.ey[1], x*G.ex[2]+y*G.ey[2]], rKpc:a.rKpc*(1-w)+b.rKpc*w, vKms:a.vKms*(1-w)+b.vKms*w}; }
+function solarLgmPhase(tGyr){ const S=solarLgmOrbit(), H=lgmHolesAt(tGyr,S.coal);
+  return H.phase==='riding'?{phase:'approach'}:H.phase==='sinking'?{phase:'sinking', rKpc:H.rKpc}:{phase:'merged', frontLy:Math.max(0,H.since)*1e9}; }
+/* the stars: the laboratory's own worker, a second instance, streaming frames every 30 Myr */
+function solarLgmStarsStart(){ const S=solarLgmOrbit(); if(S.worker||S.done) return; const mob=typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU, n=mob?1600:3000; S.n=n; S.frames=[]; S.centres=[];
+  let W=null; try{ W=new Worker(URL.createObjectURL(new Blob([lgmWorkerSrc()],{type:'text/javascript'}))); }catch(e){ W=null; } if(!W) return; S.worker=W; const job=S.job;
+  W.onmessage=e=>{ const m=e.data; if(m.job!==job) return; if(m.kind==='frame'){ S.frames[m.i]=new Float32Array(m.f.buffer||m.f); S.centres[m.i]=m.c; } else if(m.kind==='done'){ S.done=true; try{ W.terminate(); }catch(err){} S.worker=null; } };
+  W.postMessage({kind:'stars', job, vTan:lgmScenarioVt(), tGyr:12, dtMyr:2, outMyr:30, n, seed:31});
+  if(!S.stars){ const N=2*n, g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(N*3),3));
+    const col=new Float32Array(N*3), c=new THREE.Color(); for(let i=0;i<N;i++){ const mw=i<n; c.setHSL(mw?0.6:0.1, mw?0.5:0.7, 0.62+0.25*((i*0.618)%1)); col.set([c.r,c.g,c.b],i*3); } g.setAttribute('color',new THREE.Float32BufferAttribute(col,3));
+    const P=new THREE.Points(g,new THREE.PointsMaterial({size:3.2,sizeAttenuation:false,map:(SOLAR_LGM.tex||(SOLAR_LGM.tex=starSpriteTex())),alphaTest:0.02,vertexColors:true,transparent:true,opacity:0,blending:THREE.AdditiveBlending,depthWrite:false})); P.frustumCulled=false; P.name='solar-lgm-stars'; P.visible=false;
+    milkyWayPhysical.parent.add(P); S.stars=P; }
+  else if(S.stars.geometry.attributes.position.count!==2*n){ S.stars.geometry.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(2*n*3),3)); } }
+const _slV=new THREE.Vector3(), _slA=new THREE.Vector3();
+globalThis.HCC_LGM_SOLAR=Object.freeze({watch:()=>solarLgmWatch(), frame:k=>solarLgmFrame(k||600), status:()=>{ const S=solarLgmOrbit(); return {vTan:lgmScenarioVt(), coal:S.coal, peri:(S.ev&&S.ev.peri||[]).slice(0,3), frames:S.frames.length, n:S.n, handover:S.w}; }});
+/* per frame, on the atlas clock; returns the hand-over weight (0 = living discs, 1 = test particles) */
+function solarLgmTick(tGyr,layer){ const S=solarLgmOrbit(), kpcAU=MILKY_WAY.KPC_LY*LY_AU;
+  const want=tGyr>0.02&&layer!=='local'; if(want&&!S.worker&&!S.done) solarLgmStarsStart();
+  const have=S.frames.length, fi=Math.min(12,tGyr)/S.dt, i0=Math.floor(fi), ok=want&&have>i0+1&&S.frames[i0]&&S.frames[i0+1];
+  const target=ok?THREE.MathUtils.smoothstep(tGyr,0.02,0.2):0; S.w+=(target-S.w)*0.15; if(!S.stars) return S.w;
+  S.stars.visible=S.w>0.01; if(!S.stars.visible) return S.w;
+  const w=Math.min(1,Math.max(0,fi-i0)), F0=S.frames[i0], F1=S.frames[i0+1], c0=S.centres[i0], c1=S.centres[i0+1], A=[0,1,2].map(k=>c0.A[k]*(1-w)+c1.A[k]*w);
+  const P=S.stars.geometry.attributes.position.array, N=2*S.n; for(let i=0;i<N;i++){ const a=i*3; const v=[F0[a]*(1-w)+F1[a]*w-A[0], F0[a+1]*(1-w)+F1[a+1]*w-A[1], F0[a+2]*(1-w)+F1[a+2]*w-A[2]];
+    solarLgmToScene(v,_slV).multiplyScalar(kpcAU); P[a]=_slV.x; P[a+1]=_slV.y; P[a+2]=_slV.z; }
+  S.stars.geometry.attributes.position.needsUpdate=true; S.stars.position.copy(milkyWayPhysical.position);
+  let g=1; try{ g=hccCrowdGain(S.stars,18*kpcAU,S.n,3.2*Math.max(1,renderer.getPixelRatio()),false); }catch(e){}   /* one disc's crowding: its n stars on its own ~18 kpc */ S.stars.material.opacity=0.95*S.w*g; return S.w; }
+/* send the reader to watch it: the clock at now, ~40 Myr a second, Andromeda's layer */
+function solarLgmWatch(){ try{ if(state.mode!=='solar') setMode('solar'); setSolarScaleLayer('andromeda'); updateSolarScaleVisibility(); }catch(e){}
+  try{ HCC_TIME_FABRIC.setEpochDays(Math.round(0.03e9*365.25),'lgm-watch'); HCC_TIME_FABRIC.setRateDaysPerSecond(40e6*365.25,'lgm-watch'); HCC_TIME_FABRIC.setPaused(false,'lgm-watch'); }catch(e){}
+  solarLgmFrame(900); }
+/* the camera above the orbital plane, on the pair's midpoint: the plane of the encounter seen face-on */
+function solarLgmFrame(kpc){ try{ clearFocus(); }catch(e){} try{ const S=solarLgmOrbit(), G=S.G, kpcAU=MILKY_WAY.KPC_LY*LY_AU, n=lgmCross(G.ex,G.ey), q=solarGalacticGroup.getWorldQuaternion(new THREE.Quaternion()), nS=solarLgmToScene(n,new THREE.Vector3()).normalize().applyQuaternion(q), pA=milkyWayPhysical.getWorldPosition(new THREE.Vector3()), pB=m31Physical.getWorldPosition(new THREE.Vector3()), mid=pA.clone().lerp(pB,0.5);   /* world coordinates: the camera and its target live there */
+    kpc=Math.max(kpc||300, 2.6*pA.distanceTo(pB)/kpcAU);   /* the pair always fits, above the bars at the bottom of a phone */
+    /* the camera's distance has ONE authority (hccWriteControlDistanceLimits, per layer): when the pair needs more room
+       than the Andromeda layer allows, step out to the cosmic layer — which draws both galaxies too — and frame there */
+    if(kpc*kpcAU>Math.min(controls.maxDistance||Infinity,(()=>{ try{ return zoomCeilingNow(); }catch(e){ return Infinity; } })())*0.95&&!solarLgmFrame._out&&state.solarScaleLayer!=='cosmic'){ solarLgmFrame._out=true; try{ setSolarScaleLayer('cosmic'); updateSolarScaleVisibility(); }catch(e){} setTimeout(()=>{ solarLgmFrame(kpc); solarLgmFrame._out=false; },60); return; }
+    controls.target.copy(mid); camera.position.copy(mid).addScaledVector(nS,kpc*kpcAU).addScaledVector(solarLgmToScene(G.ex,new THREE.Vector3()).normalize().applyQuaternion(q),0.25*kpc*kpcAU); controls.update();
+    try{ hccCameraGoal(camera.position.distanceTo(controls.target)); }catch(e){}   /* the distance governor keeps an explicit goal, as every framing of the atlas declares one */ }catch(e){} }
+function solarLgmStatusHTML(){ let S; try{ S=solarLgmOrbit(); }catch(e){ return ''; } const E=S.ev||{}, p=(E.peri||[])[0], coal=S.coal;
+  return `${TT('scenario','сценарий','Szenario')} v_t = <b>${lgmScenarioVt()}</b> km/s · ${p?`${TT('first passage','первое сближение','erster Vorbeigang')} <b>+${p.tGyr.toFixed(2)} Gyr</b> ${TT('at','на','bei')} <b>${p.rKpc.toFixed(0)} kpc</b>`:TT('no passage within 14 Gyr','сближения в пределах 14 млрд лет нет','kein Vorbeigang')} · ${coal!=null?`${TT('the cores coalesce at','ядра сливаются в','Kerne verschmelzen bei')} <b>+${coal.toFixed(2)} Gyr</b>`:TT('no coalescence within 14 Gyr','слияния в пределах 14 млрд лет нет','keine Verschmelzung')} · ${TT('stars','звёзды','Sterne')} ${S.frames.length?`${S.frames.length} ${TT('frames of 30 Myr','кадров по 30 млн лет','Bilder')}`:TT('not yet integrated','ещё не проинтегрированы','noch nicht')}`; }
 /* the merger on the clock (THE MERGER ON THE ATLAS CLOCK): the remnant replaces the pair, M31's disc fades into the remnant nobody
    here models, and the gravitational-wave front leaves the centre at exactly c */
 let GW_FRONT=null;
@@ -27740,7 +27841,9 @@ function mergerOnClock(yrs){ const N=M31_PHASE, merged=!!N&&N.phase==='merged', 
       const passed=N.frontLy>=26700;
       GW_FRONT.userData.lab.element.textContent=`gravitational-wave front · c·Δt = ${N.frontLy<1e4?N.frontLy.toFixed(0):N.frontLy.toExponential(2)} ly${passed?' · has passed the Sun':''}`; } } }
 /* watch it happen: the clock set 500 years before the holes merge, running 2 000 years a second, the Galaxy seen from above */
-function mergerWatch(){ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), T=lgMergerTimeline(O);
+function mergerWatch(){ try{ const S=solarLgmOrbit(); if(S.coal==null){ solarLgmWatch(); return {encounter:true}; } const H=lgMergerTimeline(M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0))), tBH=(S.coal+H.tDf/1e9)*1e9;
+    HCC_TIME_FABRIC.setEpochDays(Math.round((tBH-500)*365.25),'merger-watch'); HCC_TIME_FABRIC.setRateDaysPerSecond(2000*365.25,'merger-watch'); HCC_TIME_FABRIC.setPaused(false,'merger-watch'); try{ mwLivingShow(); }catch(e){} return {tBH}; }catch(e){}
+  const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), T=lgMergerTimeline(O);
   try{ HCC_TIME_FABRIC.setEpochDays(Math.round((T.tBH-500)*365.25),'merger-watch'); HCC_TIME_FABRIC.setRateDaysPerSecond(2000*365.25,'merger-watch'); HCC_TIME_FABRIC.setPaused(false,'merger-watch'); }catch(e){}
   try{ mwLivingShow(); }catch(e){} return T; }
 /* a hole seen as we see it: the camera on our own line of sight to it, at distRs gravitational radii of the traced gateway */
@@ -27860,7 +27963,7 @@ function galLivingStars(P){
   const mat=new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
     uniforms:{uT:{value:0}, uV:{value:P.Vflat*MW_KMS_KPC_TO_RAD_MYR}, uRs:{value:P.Rsolid}, uOmP:{value:P.OmP}, uFrame:{value:P.frame}, uWind:{value:P.wind}, uHand:{value:P.hand},
       uAz0:{value:P.az0||0}, uN:{value:Math.min(P.arms.length,5)}, uArmR:{value:armR}, uArmT:{value:armT}, uArmP:{value:armP}, uKpc:{value:P.kpc},
-      uPx:{value:P.px}, uFade:{value:1}},
+      uPx:{value:P.px}, uFade:{value:1}, uGain:{value:1}},
     vertexShader:`attribute float aR,aP,aZ,aK,aS; uniform float uT,uV,uRs,uOmP,uFrame,uWind,uHand,uAz0,uKpc,uPx; uniform int uN; uniform float uArmR[5],uArmT[5],uArmP[5];
       varying vec3 vC; varying float vA;
       float wrapPi(float a){ return a-6.2831853*floor((a+3.14159265)/6.2831853); }
@@ -27876,8 +27979,8 @@ function galLivingStars(P){
         else if(aK>0.5){ vC=mix(vec3(0.55,0.72,1.0),vec3(0.85,0.92,1.0),aS); lum=0.08+1.4*w; }
         else { vC=mix(vec3(1.0,0.8,0.58),vec3(1.0,0.92,0.8),aS); lum=0.22+0.2*w+0.1*aS; }
         vA=lum; vec4 mv=modelViewMatrix*vec4(p,1.0); gl_Position=projectionMatrix*mv; gl_PointSize=uPx*(0.7+0.9*lum); }`,
-    fragmentShader:`uniform float uFade; varying vec3 vC; varying float vA;
-      void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; gl_FragColor=vec4(vC*vA*exp(-r*14.0)*uFade,1.0); }`});
+    fragmentShader:`uniform float uFade; uniform float uGain; varying vec3 vC; varying float vA;
+      void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; gl_FragColor=vec4(vC*vA*exp(-r*14.0)*uFade*uGain,1.0); }`});
   const Pts=new THREE.Points(g,mat); Pts.frustumCulled=false; Pts.name=P.name||'galaxy-living-stars'; Pts.userData.count=N; return Pts; }
 /* ══ THE MILKY WAY, ALIVE ════════════════════════════════════════════════════════
    The disc in the Solar world was a picture: one cloud of points turned rigidly about
@@ -28090,7 +28193,8 @@ registerSel('solarM31',{name:GAL_DATA.m31.name,mode:'solar',pick:m31Dot,labelEl:
   formulas:['R_s=2GM/c²','r_ph=1.5 R_s','T_ISCO=2π·6^(3/2)GM/c³ (Schwarzschild reference)','phase = 2π·mod(epoch,T_ISCO)/T_ISCO'],
   getPos:()=>m31Physical.getWorldPosition(new THREE.Vector3()),focusDist:()=>10000*LY_AU,
   rows:()=>[['J2000 centre','RA 00h42m44.33s · Dec +41°16′07.5″'],
-    ['Falling toward us',(()=>{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), S=lgSeparationAt(O,(state.epochDays||0)/365.25);
+    ['The encounter, by law',(()=>{ try{ return solarLgmStatusHTML().replace(/<[^>]+>/g,''); }catch(e){ return '—'; } })()],
+    ['Falling toward us',(()=>{   /* the old radial cycloid, kept for the past (v4.349): the future is the row above */ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), S=lgSeparationAt(O,Math.min(0,(state.epochDays||0)/365.25));
       return S.merged?`merged on the radial solution — the first passage came ${(O.collapse_years/1e9).toFixed(2)} Gyr after J2000 (transverse motion neglected; a real merger takes several passages)`
         :`separation ${(S.rMpc*3.2615638).toFixed(3)} Mly at this epoch, closing at ${Math.abs(S.vKms).toFixed(0)} km/s on the Kahn–Woltjer cycloid; first passage ${(O.collapse_years/1e9).toFixed(2)} Gyr after J2000 on this radial solution (with the measured transverse motion, van der Marel et al. 2019 put the first pericentre near 4.5 Gyr)`; })()],
     ['Fate of M31*',(()=>{ const F=dtBlackHoleFate(GAL_DATA.m31.bhMassSolar); return `T_H = ${F.TH.toExponential(2)} K · grows on the CMB for ${(F.crossYears/1e9).toFixed(0)} Gyr, then evaporates over ${F.evapYears.toExponential(1)} yr`; })()],['Distance','2.537 million ly'],['Black-hole mass',`${GAL_DATA.m31.bhMassSolar.toExponential(2)} M☉ · HST/STIS dynamical estimate`],['Schwarzschild radius',`${m31BHModel.userData.rsAU.toFixed(3)} AU`],['Photon-sphere radius',`${m31BHModel.userData.photonSphereAU.toFixed(3)} AU`],['ISCO clock',`${(m31BHModel.userData.iscoPeriodDays*24).toFixed(2)} h · global epoch locked`],['Disk orientation','inclination 77.5° · PA 37.7° · the north-west half is the near side (Hubble 1943), the north-east half recedes (Rubin & Ford 1970) — so its arms trail'],
@@ -28153,8 +28257,7 @@ const solarCosmicGrid=new THREE.Group(); solarCosmicGroup.add(solarCosmicGrid);
   [comovingGly(RING.zMean),'ring-field mean z=0.802'],
   [comovingGly(1.9),'HCB putative GRB-overdensity reference z=1.9'],
 ].forEach(([rGly,label])=>{
-  const r=rGly*GLY_AU, mesh=new THREE.Mesh(new THREE.SphereGeometry(r,32,18),
-    new THREE.MeshBasicMaterial({color:0x526785,wireframe:true,transparent:true,opacity:.08,depthWrite:false}));
+  const r=rGly*GLY_AU, mesh=guideCircle(r,0x526785,.16,256);   /* a distance is a ring on the sky's plane, not a cage (v4.349) */
   const lab=mkLabel(label,'label axis'); lab.position.set(0,r,0); solarCosmicGrid.add(mesh,lab);
 });
 const solarSightPos=[], solarSightCol=[];   // Sun→structure sightlines merged into ONE draw call
@@ -28188,7 +28291,7 @@ COSMOS.forEach(s=>{
   // structure explicitly traceable, not just implied by the marker's placement.
   { const p=g.position, c=new THREE.Color(s.col);
     solarSightPos.push(p.x,p.y,p.z, 0,0,0); solarSightCol.push(c.r,c.g,c.b, c.r,c.g,c.b); }
-  g.add(body,dot,lab); solarCosmicObjects.push({g,s,lab});
+  g.add(body,dot,lab); solarCosmicObjects.push({g,s,lab,body,dot});
   registerSel('solarCosmic_'+s.key,{name:s.name,mode:'solar',pick:dot,labelEl:lab.element,
     desc:`True-scale AU placement derived from the same comoving atlas. ${s.note}. ${s.reconstruction?'Marker and flowlines are probabilistic reconstruction/display anchors, not measured trajectories.':s.centroidKnown===false?'Marker is a field midpoint and uncertainty volume, not a measured structure centroid.':'Extended-object centre and shape remain approximate.'}`,
     getPos:()=>g.position.clone(),focusDist:()=>isCompact?Math.max(r*7,dist*.0015*GLY_AU,2e-6*GLY_AU):Math.max(r*3,.2*GLY_AU),
@@ -28199,7 +28302,7 @@ COSMOS.forEach(s=>{
   sg.setAttribute('position',new THREE.Float32BufferAttribute(solarSightPos,3));
   sg.setAttribute('color',new THREE.Float32BufferAttribute(solarSightCol,3));
   solarCosmicGroup.add(new THREE.LineSegments(sg,
-    new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.14,depthWrite:false})));
+    new THREE.LineBasicMaterial({vertexColors:true,transparent:true,opacity:.06,depthWrite:false})));
 }
 const solarLaniakeaFlowGroup=new THREE.Group(), solarLaniakeaFlowLines=[]; solarCosmicGroup.add(solarLaniakeaFlowGroup);
 LANIAKEA_PATHS.slice(0,30).forEach((path,i)=>{
@@ -46227,6 +46330,7 @@ function dsoVolumes(k){
     if(m&&!Array.isArray(m)&&m.transparent&&(o.isMesh||o.isLine))
       dsoVol.push({o,m,a:m.opacity,cage:!!(o.isMesh&&m.wireframe&&o.geometry.type==='SphereGeometry')}); }); }
   for(const e of dsoVol){
+    if(e.o.userData.matter){ if(e.o.visible) e.o.visible=false; continue; }   /* its matter stands (v4.349): the cage stays hidden */
     if(e.cage){ const out=e.o.worldToLocal(_dsoCam.copy(camera.position)).length()>=e.o.geometry.parameters.radius; if(e.o.visible!==out) e.o.visible=out; }
     const val=e.a*(e.o.isMesh&&!e.m.wireframe?k*k:k); if(e.m.opacity!==val) e.m.opacity=val; }   // solid markers step back further
 }
@@ -99270,6 +99374,10 @@ function buildCtlBody(){
         <button class="chip ${state.solarScaleLayer==='andromeda'?'on':''}" data-solar-scale="andromeda">Andromeda</button>
         <button class="chip ${state.solarScaleLayer==='cosmic'?'on':''}" data-solar-scale="cosmic">Cosmic web</button>
       </div>
+      <div class="sect" style="margin-top:6px"><b>${TT('Milky Way × Andromeda, by law','Млечный Путь × Андромеда по закону','Milchstraße × Andromeda nach Gesetz')}</b>
+        <div class="note" style="font-size:10.5px">${TT('Two haloes, discs and bulges in each other\u2019s full potential, slowed by dynamical friction, from today\u2019s measured distance and velocities; the stars are test particles in the two moving potentials. On the atlas clock.','Два гало, диска и балджа в полном потенциале друг друга, с динамическим трением, от сегодняшних измеренных расстояния и скоростей; звёзды — пробные частицы в двух движущихся потенциалах. По часам атласа.','Nach Gesetz, auf der Atlasuhr.')}</div>
+        <div class="chips">${[['today',TT('today\u2019s data · 57 km/s','сегодняшние данные · 57 км/с','heute · 57 km/s')],['vdm2012','van der Marel 2012 · 17 km/s'],['headon',TT('head-on · 0','лобовое · 0','frontal · 0')]].map(([k,l])=>`<button class="chip ${(state.lgmScen||'today')===k?'on':''}" data-solarlgm="${k}">${l}</button>`).join('')}<button class="chip" id="solarLgmWatch">▶ ${TT('watch the encounter','смотреть столкновение','die Begegnung ansehen')}</button><button class="chip" data-solarlgmlab="1">${TT('the laboratory','лаборатория','das Labor')}</button></div>
+        <div class="note" id="solarLgmStatus" style="font-size:10.5px;font-variant-numeric:tabular-nums">${solarLgmStatusHTML()}</div></div>
       <div class="ctlrow" style="gap:4px;flex-wrap:wrap"><label>Galactic black-hole cores</label>
         <button class="chip" data-galcore="solarGC">Sgr A* → horizon</button>
         <button class="chip" data-galray="solarGC">Sgr A* → rays</button>
@@ -99505,6 +99613,9 @@ function buildCtlBody(){
       }
       const oc=SELECT.get('oortCloud'); if(oc){ selectKey('oortCloud'); focusOn(oc); } };
 
+    ctl.querySelectorAll('[data-solarlgm]').forEach(b=>b.onclick=()=>{ state.lgmScen=b.dataset.solarlgm; state.lgmT=0; buildCtl(); });
+    { const w=ctl.querySelector('#solarLgmWatch'); if(w) w.onclick=()=>{ solarLgmWatch(); buildCtl(); }; }
+    ctl.querySelectorAll('[data-solarlgmlab]').forEach(b=>b.onclick=()=>{ try{ navPush(); }catch(e){} hccGo({worldId:'s3',labId:'lgmerge'}); });
     ctl.querySelectorAll('[data-solar-scale]').forEach(b=>b.onclick=()=>{
       setSolarScaleLayer(b.dataset.solarScale); updateSolarScaleVisibility(); buildCtl();
       _autoScaleCd=2.2;   // a deliberate chip framing must never be auto-stepped away from
@@ -114774,6 +114885,7 @@ function tickBody(now, frame){
   try{ cosmosHome(); }catch(e){}
   try{ localWebTick(); }catch(e){ if(!localWebTick._w){ localWebTick._w=1; console.warn('local web:',e); } }
   try{ lssReliefTick(); }catch(e){ if(!lssReliefTick._w){ lssReliefTick._w=1; console.warn('web relief:',e); } }
+  try{ solarReliefTick(); }catch(e){ if(!solarReliefTick._w){ solarReliefTick._w=1; console.warn('solar web relief:',e); } }
   updateHierarchyLocator();
   try{ labPassportTick(dt); }catch(e){}
   if(state.mode==='s3') scientificEnclosureTick(dt);
@@ -115036,12 +115148,19 @@ function tickBody(now, frame){
       const m31Theta=2*Math.PI*(((state.epochDays%m31Days)+m31Days)%m31Days)/m31Days;
       m31Physical.quaternion.copy(m31BaseQuat).multiply(_m31SpinQ.setFromAxisAngle(_localY,m31Theta));
       /* M31 falls along the atlas's own timing cycloid (DEEP TIME); within a year of now it stands exactly on its catalogue position */
-      try{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), yrs=(state.epochDays||0)/365.25;
+      try{ const O=M31_ORBIT||(M31_ORBIT=lgRadialOrbit(LG_SEPARATION_MPC,LG_APPROACH_KMS,S3.t0)), yrs=(state.epochDays||0)/365.25, tG=yrs/1e9;
         if(Math.abs(yrs)<=1){ m31Physical.position.copy(GAL_DATA.m31.pos); M31_PHASE=null; }
-        else { const S=lgSeparationAt(O,yrs); M31_NOW=S; const N=lgNucleusAt(O,yrs); M31_PHASE=N;
+        else if(yrs>0){ /* the future: the Local Group laboratory's law (v4.349) */ const R=solarLgmRel(Math.min(tG,14)), N=solarLgmPhase(tG), kpcAU=MILKY_WAY.KPC_LY*LY_AU; M31_PHASE=N; M31_NOW={rMpc:R.rKpc/1000, vKms:R.vKms, merged:N.phase==='merged', law:'lgm'};
+          if(N.phase==='approach'){ solarLgmToScene(R.v,_slA); if(_slA.lengthSq()>0) SOLAR_LGM.lastDir=_slA.clone().normalize(); m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(_slA,kpcAU); }
+          else { const r=(N.phase==='sinking'?N.rKpc:0)*kpcAU, d=SOLAR_LGM.lastDir||M31_REL0.clone().normalize(); m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(d,r); } }
+        else { /* the past: the cycloid, run backwards */ const S=lgSeparationAt(O,yrs); M31_NOW=S; const N=lgNucleusAt(O,yrs); M31_PHASE=N;
           if(N.phase==='approach'){ const f=S.rMpc/(O.r0/LG_MPC_M); m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(M31_REL0,f); }
           else { const r=(N.phase==='sinking'?N.rKpc:0)*MILKY_WAY.KPC_LY*LY_AU; m31Physical.position.copy(milkyWayPhysical.position).addScaledVector(M31_REL0.clone().normalize(),r); } }
-        mergerOnClock(yrs); }catch(e){}
+        mergerOnClock(yrs);
+        /* the hand-over: the kinematic discs give way to the test particles of the encounter */
+        const hw=yrs>1?solarLgmTick(tG,state.solarScaleLayer):(SOLAR_LGM.stars&&(SOLAR_LGM.stars.visible=false),0), k=1-hw;
+        if(MW_LIVING.obj&&MW_LIVING.obj.material.uniforms.uFade) MW_LIVING.obj.material.uniforms.uFade.value=k;
+        for(const o of [MW_LIVING.glow,M31_LIVING.stars,M31_LIVING.glow]) if(o&&o.material.uniforms.uFade) o.material.uniforms.uFade.value*=k; }catch(e){}
       try{ m31LivingUpdate(); }catch(e){ if(!m31LivingUpdate._w){ m31LivingUpdate._w=1; console.warn('living M31:',e); } }
       updateGalacticBlackHoleModels();
     }
