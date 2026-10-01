@@ -25,6 +25,9 @@ export interface S3Measurement {
 export declare function stereographicToS3(chart: StereoPoint): S3Point;
 export declare function s3ToStereographic(point: S3Point): StereoPoint;
 export declare function s3ConformalFactor(chart: StereoPoint): number;
+/** All quaternions use [x,y,z,w], scalar last. */
+export declare function s3RotateSpin4(point: S3Point, left: S3Point, right: S3Point): S3Point;
+export declare function s3StereographicDifferential(point: S3Point, tangent: S3Point, radius?: number): StereoPoint;
 export declare function s3GeodesicDistance(from: S3Point, to: S3Point, radius?: number): number;
 export declare function hopfBase(point: S3Point): StereoPoint;
 export declare function measureS3(input: S3MeasurementInput): S3Measurement;

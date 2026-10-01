@@ -3337,6 +3337,10 @@ import {epochSummary as butterflyEpochSummary, RELATIONS as BUTTERFLY_RELATIONS,
 import {validateReachArtifact as hccValidateReachArtifact, controlSemantics as hccControlSemantics, listReachControls as hccListReachControls, forecastReach as hccForecastReach} from './core/prediction/reach-forecast.mjs';
 import {groupDefinitionConflicts as hccChronometryConflicts, jainAvasarpini as hccJainAvasarpini, sumSymbolicDurations as hccSumSymbolicDurations, classifyCandidate as hccClassifyChronometryCandidate} from './core/labs/chronometry.source_locked.mjs';
 import {wrap01 as hccWrapPhase01, evaluateMultiPhase as hccEvaluateMultiPhase, searchMultiPhase as hccSearchMultiPhase} from './core/cycles/multiphase-solver.mjs';
+import {HadwigerReductionEngine, HADWIGER_WGSL as HCC_HADWIGER_WGSL} from './visual/gpu/hadwiger-reduction.mjs';
+import {AsteroidComputeEngine} from './visual/gpu/asteroid-compute.mjs';
+import {inspectS3Multiview} from './visual/shaders/s3-multiview.mjs';
+import {verletStep as hccAsteroidVerlet} from './visual/gpu/asteroid-reference.mjs';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
@@ -27677,7 +27681,9 @@ void main(){
     float dl=clamp(0.12*(r-0.9),0.03,0.55);
     float k=-1.5*h2/(r2*r2*r);
     v+=0.5*dl*k*x; prevX=x; x+=dl*v;
-    float r2b=dot(x,x); float rb=sqrt(r2b); float kb=-1.5*h2/(r2b*r2b*rb);
+    float r2b=dot(x,x);
+    if(r2b<1.0){ captured=1.0; break; } // crossing on the final permitted step still captures
+    float invRb=inversesqrt(r2b); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
     v+=0.5*dl*kb*x;
     if(prevY*x.y<0.0){
       float t=prevY/(prevY-x.y); vec3 hit=mix(prevX,x,t); float rc=length(vec2(hit.x,hit.z));
@@ -27688,7 +27694,7 @@ void main(){
         float dopp=1.0/(gam*(1.0+beta*dot(tang,normalize(v))));   /* the photon travels along −v */
         float gred=sqrt(max(0.0,1.0-1.0/rc));                  /* static redshift √(1 − Rs/r); with 1/γ in the Doppler term the product is √(1 − 3M/r)/(1 + β t·v) */
         float om=pow(3.0/rc,1.5);                                /* Keplerian rate relative to the ISCO */
-        float edge=smoothstep(3.0,3.3,rc)*smoothstep(uRout,uRout*0.8,rc);
+        float edge=smoothstep(3.0,3.3,rc)*(1.0-smoothstep(uRout*0.8,uRout,rc));
         acc+=diskEmit(rc,dopp*gred,atan(hit.z,hit.x),om)*edge*0.55;
       }
     }
@@ -40294,7 +40300,7 @@ vec3 starBG(vec3 d){
     float h=hash13(cell);
     vec3 centre=(cell+0.5+0.6*(vec3(hash13(cell+7.1),hash13(cell+3.7),hash13(cell+9.3))-0.5))/sc;
     float dist=length(d-normalize(centre));
-    float b=smoothstep(0.008,0.0,dist)*step(0.984,h);
+    float b=(1.0-smoothstep(0.0,0.008,dist))*step(0.984,h);
     col+=b*mix(vec3(0.7,0.8,1.0),vec3(1.0,0.85,0.6),hash13(cell+1.7))*(L==0?1.0:1.8);
   }
   // faint galactic band
@@ -40323,9 +40329,11 @@ void main(){
     if(r>36.0 && dot(x,v)>0.0) break;
     float dl=clamp(0.12*(r-0.9),0.03,0.55);
     float k=-1.5*h2/(r2*r2*r);                         // exact Schwarzschild light-bending (central force)
-    v+=0.5*dl*k*x; x+=dl*v; prevX=x-dl*v;   // (prevX = pre-drift position)
-    float r2b=dot(x,x); float rb=sqrt(r2b); float kb=-1.5*h2/(r2b*r2b*rb);
-    v+=0.5*dl*kb*x;                                     // leapfrog (2nd order, symplectic)
+    v+=0.5*dl*k*x; prevX=x; x+=dl*v;
+    float r2b=dot(x,x);
+    if(r2b<1.0){ captured=1.0; break; } // crossing on the final permitted step still captures
+    float invRb=inversesqrt(r2b); float kb=-1.5*h2*invRb*invRb*invRb*invRb*invRb;
+    v+=0.5*dl*kb*x; // velocity Verlet per step; adaptive dl is not globally symplectic
     // accretion-disk crossing (equatorial plane y=0, ISCO 3Rs to 9Rs)
     if(uDisk>0.5 && prevY*x.y<0.0){
       float t=prevY/(prevY-x.y);
@@ -40341,7 +40349,7 @@ void main(){
         float dopp=1.0/(gam*(1.0+beta*dot(tang,normalize(v))));  // relativistic Doppler
         float gred=sqrt(max(0.0,1.0-1.0/rc));                    // gravitational redshift
         float phi=atan(hit.z,hit.x);
-        float edge=smoothstep(3.0,3.35,rc)*smoothstep(9.0,8.2,rc);
+        float edge=smoothstep(3.0,3.35,rc)*(1.0-smoothstep(8.2,9.0,rc));
         acc+=diskEmit(rc,dopp*gred,phi)*edge*0.55;
       }
     }
@@ -40366,7 +40374,9 @@ function bhrTraceJS(b,nSteps){   // JS twin of the shader integrator — asserte
     const dl=Math.min(0.55,Math.max(0.03,0.12*(r-0.9))), k=-1.5*h2/(r2*r2*r);
     v=[v[0]+0.5*dl*k*x[0],v[1]+0.5*dl*k*x[1],v[2]+0.5*dl*k*x[2]];
     x=[x[0]+dl*v[0],x[1]+dl*v[1],x[2]+dl*v[2]];
-    const r2b=x[0]*x[0]+x[1]*x[1]+x[2]*x[2],rb=Math.sqrt(r2b),kb=-1.5*h2/(r2b*r2b*rb);
+    const r2b=x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
+    if(r2b<1.0)return {captured:true};
+    const rb=Math.sqrt(r2b),kb=-1.5*h2/(r2b*r2b*rb);
     v=[v[0]+0.5*dl*kb*x[0],v[1]+0.5*dl*kb*x[1],v[2]+0.5*dl*kb*x[2]];
   }
   return {captured:false,dir:v.slice()};
@@ -58615,8 +58625,14 @@ function triRotate(p,a,b,g){ const ca=Math.cos(a), sa=Math.sin(a), cb=Math.cos(b
   const x0=ca*p[0]-sa*p[1], x1=sa*p[0]+ca*p[1], x2=cb*p[2]-sb*p[3], x3=sb*p[2]+cb*p[3];
   return [cg*x0-sg*x2, x1, sg*x0+cg*x2, x3]; }
 /* stereographic projection from (0,0,0,1), then a soft radial compression so the far side stays on screen:
-   inside r ≈ 1 it is conformal to within the compression, and the compression is a function of r only */
-function triProject(p,S,Rmax){ const d=Math.max(1e-6,1-p[3]), x=p[0]/d, y=p[2]/d, z=p[1]/d, r=Math.hypot(x,y,z), k=r>0?Rmax*Math.tanh(r/Rmax)/r:1; return [x*k*S,y*k*S,z*k*S]; }
+   compact mode is a non-conformal display map; exact mode is the stereographic chart away from its excluded display cap */
+function triProject(p,S,Rmax,exact=false){
+  const denom=1-p[3];
+  if(exact&&denom<=1e-6)return null; // excluded display cap; never a clamped metric
+  const d=Math.max(1e-6,denom),x=p[0]/d,y=p[2]/d,z=p[1]/d,r=Math.hypot(x,y,z);
+  const k=exact?1:(r>0?Rmax*Math.tanh(r/Rmax)/r:1);
+  return [x*k*S,y*k*S,z*k*S];
+}
 /* the geodesic of S³ between two points: the great-circle arc, sampled */
 function triGeodesic(p,q,n){ const d=Math.min(1,Math.max(-1,p[0]*q[0]+p[1]*q[1]+p[2]*q[2]+p[3]*q[3])), w=Math.acos(d), out=[];
   for(let k=0;k<=n;k++){ const t=k/n; if(w<1e-9){ out.push(p.slice()); continue; } const a=Math.sin((1-t)*w)/Math.sin(w), b=Math.sin(t*w)/Math.sin(w); out.push([0,1,2,3].map(i=>a*p[i]+b*q[i])); }
@@ -61271,15 +61287,16 @@ const triGroup=new THREE.Group(); triGroup.visible=false; s3Group.add(triGroup);
 let triObjs=null, triT=0, triUi=0, triHover=null;
 const TRI_S=2.05, TRI_RMAX=2.6;
 function triMaterial(kind,op){ return new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,
-  uniforms:{uA:{value:0},uB:{value:0},uG:{value:0},uS:{value:TRI_S},uR:{value:TRI_RMAX},uOp:{value:op},uPx:{value:1}},
-  vertexShader:`attribute vec4 p4; attribute vec3 col; attribute float sz; uniform float uA,uB,uG,uS,uR,uPx; varying vec3 vC;
+  uniforms:{uA:{value:0},uB:{value:0},uG:{value:0},uS:{value:TRI_S},uR:{value:TRI_RMAX},uExact:{value:0},uOp:{value:op},uPx:{value:1}},
+  vertexShader:`attribute vec4 p4; attribute vec3 col; attribute float sz; uniform float uA,uB,uG,uS,uR,uPx,uExact; varying vec3 vC; varying float vChartValid;
     void main(){ float ca=cos(uA),sa=sin(uA),cb=cos(uB),sb=sin(uB),cg=cos(uG),sg=sin(uG);
       float x0=ca*p4.x-sa*p4.y, x1=sa*p4.x+ca*p4.y, x2=cb*p4.z-sb*p4.w, x3=sb*p4.z+cb*p4.w;
       vec4 q=vec4(cg*x0-sg*x2, x1, sg*x0+cg*x2, x3);
-      float d=max(1e-6,1.0-q.w); vec3 v=vec3(q.x,q.z,q.y)/d; float r=length(v); float k=r>0.0?uR*tanh(r/uR)/r:1.0;
-      vC=col; vec4 mv=modelViewMatrix*vec4(v*k*uS,1.0); gl_Position=projectionMatrix*mv; ${kind==='pts'?'gl_PointSize=uPx*sz;':''} }`,
-  fragmentShader:kind==='pts'?`uniform float uOp; varying vec3 vC; void main(){ vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; gl_FragColor=vec4(vC*uOp*(exp(-r*10.0)+0.35*exp(-r*40.0)),1.0); }`
-    :`uniform float uOp; varying vec3 vC; void main(){ gl_FragColor=vec4(vC*uOp,1.0); }`}); }
+      float denom=1.0-q.w; vChartValid=(uExact<0.5||denom>1e-6)?1.0:0.0;
+      float d=max(1e-6,denom); vec3 v=vec3(q.x,q.z,q.y)/d; float r=length(v); float k=(uExact>0.5)?1.0:(r>0.0?uR*tanh(r/uR)/r:1.0);
+      vC=col; vec4 mv=modelViewMatrix*vec4(v*k*uS,1.0); gl_Position=projectionMatrix*mv; if(vChartValid<0.5)gl_Position=vec4(2.0,2.0,2.0,1.0); ${kind==='pts'?'gl_PointSize=uPx*sz;':''} }`,
+  fragmentShader:kind==='pts'?`uniform float uOp; varying vec3 vC; varying float vChartValid; void main(){ if(vChartValid<0.999)discard; vec2 q=gl_PointCoord-0.5; float r=dot(q,q); if(r>0.25) discard; gl_FragColor=vec4(vC*uOp*(exp(-r*10.0)+0.35*exp(-r*40.0)),1.0); }`
+    :`uniform float uOp; varying vec3 vC; varying float vChartValid; void main(){ if(vChartValid<0.999)discard; gl_FragColor=vec4(vC*uOp,1.0); }`}); }
 function triSegments(polys,colOf,op,closed){ const P=[], C=[]; polys.forEach((poly,pi)=>{ const c=colOf(pi); const n=poly.length, m=closed?n:n-1;
     for(let k=0;k<m;k++){ const a=poly[k], b=poly[(k+1)%n]; P.push(...a,...b); C.push(c[0],c[1],c[2],c[0],c[1],c[2]); } });
   const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(new Float32Array(P.length/4*3),3));
@@ -61333,11 +61350,11 @@ function triSetup(){ labWipe(triGroup); triT=0;
     const fp=new THREE.Points(fg,triMaterial('pts',0.9)); fp.frustumCulled=false; fp.name='tri-ns-flow'; fp.visible=false; triGroup.add(fp); flow={F:Fn,Q:Qf,N:Nf,pts:fp,t:0}; }catch(e){}
   triObjs={C,lay,ids,nodes,toriL,fibL,arcL,labs,hl,hiL:null,halfCol,seamL,flow,baseCol:Float32Array.from(col),halvesOn:false,mats:[toriL.material,fibL.material,arcL.material,nodes.material].concat(seamL?[seamL.material]:[]).concat(flow?[flow.pts.material]:[])}; triPick(); }
 function triAngles(){ return {a:0.11*triT, b:0.07*triT, g:0.38*Math.sin(0.045*triT)}; }
-function triScreen(p){ const A=triAngles(), q=triProject(triRotate(p,A.a,A.b,A.g),TRI_S,TRI_RMAX), v=new THREE.Vector3(q[0],q[1],q[2]); return v; }
+function triScreen(p){ const A=triAngles(),q=triProject(triRotate(p,A.a,A.b,A.g),TRI_S,TRI_RMAX,state.triProjection==='stereographic'); return q?new THREE.Vector3(q[0],q[1],q[2]):null; }
 function updateTri(dt){ if(!triObjs) triSetup(); const O=triObjs; if(state.triPaused!==true) triT+=dt*(state.triSpeed??1);
   if(state.triFocus){ if(O.lay.get(state.triFocus)){ O.pin=state.triFocus; triHighlight(O.pin); } state.triFocus=null; }
   const A=triAngles(), px=Math.min(2,renderer.getPixelRatio?renderer.getPixelRatio():1);
-  for(const m of (O.hiL?O.mats.concat([O.hiL.material]):O.mats)){ m.uniforms.uA.value=A.a; m.uniforms.uB.value=A.b; m.uniforms.uG.value=A.g; m.uniforms.uPx.value=px; }
+  for(const m of (O.hiL?O.mats.concat([O.hiL.material]):O.mats)){ m.uniforms.uExact.value=state.triProjection==='stereographic'?1:0; m.uniforms.uA.value=A.a; m.uniforms.uB.value=A.b; m.uniforms.uG.value=A.g; m.uniforms.uPx.value=px; }
   O.toriL.visible=state.triTori!==false; O.fibL.visible=state.triFibres!==false&&state.triHalves!==true; O.arcL.visible=state.triChains!==false&&state.triHalves!==true;
   if(O.flow){ const on=state.triFlow===true, W=O.flow; W.pts.visible=on;
     if(on){ const h=Math.min(0.05,dt)*(state.triSpeed??1), P4=W.pts.geometry.attributes.p4.array, Cc=W.pts.geometry.attributes.col.array;
@@ -61347,8 +61364,8 @@ function updateTri(dt){ if(!triObjs) triSetup(); const O=triObjs; if(state.triPa
       W.pts.geometry.attributes.p4.needsUpdate=true; W.pts.geometry.attributes.col.needsUpdate=true; } }
   { const on=state.triHalves===true; if(O.seamL) O.seamL.visible=on;
     if(O.halfCol&&on!==O.halvesOn){ O.halvesOn=on; const at=O.nodes.geometry.attributes.col; at.array.set(on?O.halfCol:O.baseCol); at.needsUpdate=true; } }
-  for(const {id,l} of O.labs){ const v=triScreen(O.lay.get(id).p); l.position.set(v.x,v.y+0.16,v.z); l.visible=state.triLabels!==false; }
-  if(triHover){ const v=triScreen(O.lay.get(triHover).p); O.hl.position.set(v.x,v.y+0.2,v.z); }
+  for(const {id,l} of O.labs){ const v=triScreen(O.lay.get(id).p); if(v)l.position.set(v.x,v.y+0.16,v.z); l.visible=!!v&&state.triLabels!==false; }
+  if(triHover){ const v=triScreen(O.lay.get(triHover).p); O.hl.visible=!!v; if(v)O.hl.position.set(v.x,v.y+0.2,v.z); }
   triUi+=dt; if(triUi>0.5){ triUi=0;
     hudBig.textContent=`${TT('THE TRISPHERE','ТРИСФЕРА','DIE TRISPHÄRE')} · ${O.C.reached} ${TT('of','из','von')} ${O.C.total} ${TT('laboratories reach S³','лабораторий доходят до S³','Labore erreichen S³')} · ${TT('longest chain','самая длинная цепочка','längste Kette')} ${O.C.maxD}`;
     hudSub.textContent=TT('gold: the flat Clifford torus of the ten core stations; blue tori: one per step away; coloured circles: the Hopf fibres, every two linked once; lines: the geodesic from each laboratory to the station its chain runs through. Tap a laboratory to enter it.',
@@ -61356,7 +61373,7 @@ function updateTri(dt){ if(!triObjs) triSetup(); const O=triObjs; if(state.triPa
       'Gold: der flache Clifford-Torus der zehn Kernstationen; blaue Tori: einer je Schritt; farbige Kreise: die Hopf-Fasern; Linien: die Geodäte zur Station der Kette. Tippen öffnet das Labor.'); } }
 /* picking: the nearest drawn laboratory within a few pixels, found by the JavaScript twin of the shader */
 function triNearest(cx,cy,maxPx){ if(!triObjs||state.s3view!=='tri') return null; const r=renderer.domElement.getBoundingClientRect(), v=new THREE.Vector3(); let best=null, bd=maxPx;
-  for(const id of triObjs.ids){ v.copy(triScreen(triObjs.lay.get(id).p)).applyMatrix4(triGroup.matrixWorld).project(camera); if(v.z>1) continue;
+  for(const id of triObjs.ids){ const screen=triScreen(triObjs.lay.get(id).p); if(!screen)continue; v.copy(screen).applyMatrix4(triGroup.matrixWorld).project(camera); if(v.z>1) continue;
     const x=r.left+(v.x+1)/2*r.width, y=r.top+(1-v.y)/2*r.height, d=Math.hypot(x-cx,y-cy); if(d<bd){ bd=d; best=id; } }
   return best; }
 function triHighlight(id){ const O=triObjs; if(!O) return; if(O.hiL){ triGroup.remove(O.hiL); O.hiL.geometry.dispose(); O.hiL.material.dispose(); O.hiL=null; }
@@ -101658,6 +101675,10 @@ function buildCtlBody(){
       <div class="note" style="margin-top:4px">${TT('the most related:','самые связанные:','die meistverbundenen:')}</div><div class="chips">${A.hubs.slice(0,6).map(([v,d])=>`<button class="chip" data-trigo="${v}">${esc(S3_VIEW_NAMES[v]||v)} · ${d}</button>`).join('')}</div></div>`; })()}
     <div class="sect"><b>${TT('Layers and motion','Слои и движение','Ebenen und Bewegung')}</b>
       <div class="chips">${[['triTori',TT('Clifford tori','торы Клиффорда','Clifford-Tori')],['triFibres',TT('Hopf fibres','волокна Хопфа','Hopf-Fasern')],['triChains',TT('chains (geodesics)','цепочки (геодезические)','Ketten (Geodäten)')],['triLabels',TT('core names','имена ядра','Kernnamen')]].map(([k,l])=>`<button class="chip ${state[k]!==false?'on':''}" data-trilay="${k}">${l}</button>`).join('')}<button class="chip ${state.triHalves===true?'on':''}" data-trihalves="1">◐ ${TT('the two halves of the atlas','две половины атласа','die zwei Hälften des Atlas')}</button><button class="chip ${state.triFlow===true?'on':''}" data-triflow="1">〰 ${TT('the Navier–Stokes flow on the trisphere','течение Навье–Стокса на трисфере','die Navier–Stokes-Strömung auf der Trisphäre')}</button><button class="chip" data-trigo="nsgal">🌀 ${TT('the fluid of the three-sphere — the shells exchange energy','жидкость трёхсферы — оболочки обмениваются энергией','die Flüssigkeit der Dreisphäre')}</button></div>
+      <div class="ctlrow"><label>${TT('Projection','Проекция','Projektion')}</label><select id="triProjection">
+        <option value="compact" ${state.triProjection!=='stereographic'?'selected':''}>${TT('Compact display','Компактный вид','Kompakte Ansicht')}</option>
+        <option value="stereographic" ${state.triProjection==='stereographic'?'selected':''}>${TT('Stereographic chart','Стереографическая карта','Stereografische Karte')}</option></select></div>
+      <div class="note">${state.triProjection==='stereographic'?TT('Conformal chart; the north pole is excluded. The display clips 1−q₄ ≤ 10⁻⁶. Distances use the round S³ metric.','Конформная карта; северный полюс исключён. Отображение отсекает 1−q₄ ≤ 10⁻⁶. Расстояния вычисляются по метрике круглой S³.','Konforme Karte; der Nordpol ist ausgeschlossen. Die Ansicht schneidet 1−q₄ ≤ 10⁻⁶ ab. Abstände verwenden die runde S³-Metrik.'):TT('Radial compression keeps the whole atlas visible; it does not preserve angles or distances.','Радиальное сжатие сохраняет обзор всего атласа; углы и расстояния не сохраняются.','Radiale Kompression hält den Atlas sichtbar; Winkel und Abstände werden nicht erhalten.')}</div>
       <div class="ctlrow"><label>${TT('4D rotation','4D-вращение','4D-Drehung')}</label><input type="range" id="triSpeed" min="0" max="4" step="0.05" value="${state.triSpeed??1}"><span class="val" id="triSpeedV">${(state.triSpeed??1).toFixed(2)}×</span></div>
       <div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The rotation is a double rotation of R⁴ plus a slow turn that moves the projection pole: the tori breathe and the fibres slide into each other, and nothing on S³ changes — only the view of it. Hover a laboratory to see its chain; tap to enter.','Вращение — двойное вращение R⁴ и медленный поворот, сдвигающий полюс проекции: торы дышат, волокна скользят друг в друга, а на S³ ничего не меняется — меняется только взгляд. Наведите на лабораторию — увидите её цепочку; коснитесь — войдёте.','Doppelrotation von R⁴ plus langsame Polverschiebung: nur der Blick ändert sich.')}</div></div>`; })();
     else if(V==='s3tube') body = `
@@ -104833,6 +104854,7 @@ function buildCtlBody(){
       ctl.querySelectorAll('[data-trihalves]').forEach(b=>b.onclick=()=>{ state.triHalves=!(state.triHalves===true); buildCtl(); });
       ctl.querySelectorAll('[data-triflow]').forEach(b=>b.onclick=()=>{ state.triFlow=!(state.triFlow===true); buildCtl(); });
       const bind=(id,key,fmt,rebuild)=>{ const el=ctl.querySelector('#'+id); if(!el) return; el.oninput=e=>{ state[key]=+e.target.value; const v=ctl.querySelector('#'+id+'V'); if(v) v.textContent=fmt(state[key]); if(rebuild){ clearTimeout(bind._t); bind._t=setTimeout(()=>buildCtl(),250); } }; };
+      if($('triProjection'))$('triProjection').onchange=e=>{state.triProjection=e.target.value;buildCtl();};
       bind('triN','triN',v=>String(v),true); bind('triEta','triEta',v=>v.toFixed(2),true); bind('triSpeed','triSpeed',v=>v.toFixed(2)+'×',false);
     }
     if(V==='s3tube'){
@@ -109341,9 +109363,9 @@ const HCC_UNMEASURED=Object.freeze([
     would_measure:'a CI runner with a real GPU, or a software adapter such as Dawn/SwiftShader exposed to the headless browser',
     fallback:'every caller checks hccGpuReady() first and takes the CPU kernel, which is the one the verifiers exercise', kernel:'hccGpuReady'}),
   Object.freeze({id:'wgsl-hadwiger',
-    what:'the WGSL compute shader that reduces the four intrinsic volumes over a mesh at @workgroup_size(64,1,1) with a workgroup tree reduction',
+    what:'the WGSL compute shader that reduces V2/V3 over a mesh at @workgroup_size(64,1,1) with a workgroup tree reduction',
     why:'WGSL is compiled by the GPU driver; with no adapter there is nothing to compile it and nothing to run it against',
-    would_measure:'dispatch it on a real device and compare V0..V3 against hadwigerIntrinsic, which is verified against closed forms on a cube, a ball and a torus',
+    would_measure:'dispatch it on a real device and compare V2/V3 against hadwigerIntrinsic, which is verified against closed forms on a cube, a ball and a torus',
     fallback:'hadwigerIntrinsic, measured exact on a polyhedron and convergent on a ball', kernel:'hadwigerIntrinsic'}),
   Object.freeze({id:'wgsl-vsop-layout',
     what:'the std430 storage layout that packs periodic terms as vec4<f32>(A, B, C, pad) on a 16-byte stride for a single dispatch',
@@ -109370,19 +109392,30 @@ const hccUnmeasured=()=>HCC_UNMEASURED.map(u=>({...u}));
    same number faster on hardware that exists.
 
    UNMEASURED[webgpu-adapter] — the device request and everything downstream of it. */
-let HCC_GPU=null, HCC_GPU_TRIED=false;
+let HCC_GPU=null, HCC_GPU_TRIED=false, HCC_GPU_INIT=null;
 const hccGpuPresent=()=>typeof navigator!=='undefined' && !!navigator.gpu;
 async function hccGpuInit(){
-  if(HCC_GPU_TRIED) return HCC_GPU;
+  if(HCC_GPU_INIT)return HCC_GPU_INIT;
+  if(HCC_GPU_TRIED)return HCC_GPU;
   HCC_GPU_TRIED=true;
-  if(!hccGpuPresent()) return null;
-  try{
-    const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
-    if(!adapter) return null;
-    const device=await adapter.requestDevice();
-    HCC_GPU={adapter, device, limits:{...adapter.limits}};
-    return HCC_GPU;
-  }catch(e){ console.warn('WebGPU adapter refused:', e&&e.message||e); return null; }
+  HCC_GPU_INIT=(async()=>{
+    if(!hccGpuPresent())return null;
+    try{
+      const adapter=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+      if(!adapter)return null;
+      const device=await adapter.requestDevice();
+      const gpu={adapter,device,limits:{maxBufferSize:device.limits.maxBufferSize,maxStorageBufferBindingSize:device.limits.maxStorageBufferBindingSize}};
+      HCC_GPU=gpu;
+      device.lost.then(()=>{
+        if(HCC_GPU!==gpu)return;
+        HCC_GPU=null;HCC_GPU_INIT=null;HCC_GPU_TRIED=false;
+        HCC_HAD_ENGINE?.destroy();HCC_HAD_ENGINE=null;HCC_HAD_INIT=null;
+        HCC_AST_DIAG?.engine.destroy();HCC_AST_DIAG=null;
+      });
+      return gpu;
+    }catch(e){console.warn('WebGPU adapter refused:',e&&e.message||e);return null;}
+  })();
+  return HCC_GPU_INIT;
 }
 const hccGpuReady=()=>!!HCC_GPU;
 
@@ -109420,42 +109453,7 @@ function hccEvalTerms(packed,t){
    PARALLELISM and not for accuracy: measured on the CPU, a tree reduction and a serial
    sum agree to the last bit on a million same-sign doubles, so no accuracy claim is made
    for it here and none should be. */
-const HCC_WGSL_HADWIGER=`
-struct Tri { a: vec4<f32>, b: vec4<f32>, c: vec4<f32> };
-struct Acc { vol: f32, area: f32, edge: f32, pad: f32 };
-@group(0) @binding(0) var<storage, read>       tris   : array<Tri>;
-@group(0) @binding(1) var<storage, read_write> out    : array<Acc>;
-var<workgroup> sh : array<Acc, 64>;
-
-@compute @workgroup_size(64, 1, 1)
-fn main(@builtin(global_invocation_id) gid : vec3<u32>,
-        @builtin(local_invocation_id)  lid : vec3<u32>,
-        @builtin(workgroup_id)         wid : vec3<u32>) {
-  var acc : Acc = Acc(0.0, 0.0, 0.0, 0.0);
-  let i = gid.x;
-  if (i < arrayLength(&tris)) {
-    let t = tris[i];
-    let A = t.a.xyz; let B = t.b.xyz; let C = t.c.xyz;
-    let n = cross(B - A, C - A);
-    acc.area = 0.5 * length(n);
-    acc.vol  = dot(A, cross(B, C)) / 6.0;
-  }
-  sh[lid.x] = acc;
-  workgroupBarrier();
-  var s : u32 = 32u;
-  loop {
-    if (s == 0u) { break; }
-    if (lid.x < s) {
-      sh[lid.x].vol  = sh[lid.x].vol  + sh[lid.x + s].vol;
-      sh[lid.x].area = sh[lid.x].area + sh[lid.x + s].area;
-      sh[lid.x].edge = sh[lid.x].edge + sh[lid.x + s].edge;
-    }
-    workgroupBarrier();
-    s = s >> 1u;
-  }
-  if (lid.x == 0u) { out[wid.x] = sh[0]; }
-}
-`;
+const HCC_WGSL_HADWIGER=HCC_HADWIGER_WGSL;
 /* ── WHAT THE SHADER COVERS, SAID PLAINLY ───────────────────────────────────
    V3 and V2 only. Volume is a divergence-theorem sum over triangles and area is half the
    cross-product norm — both are per-triangle and reduce cleanly. V1 is NOT: the mean-width
@@ -109463,7 +109461,7 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>,
    edge's two adjacent faces, and adjacency is not something this dispatch has. V0 is the
    body's Euler characteristic and needs the edge count for the same reason.
 
-   The `edge` lane in the accumulator is therefore always zero, and that is declared rather
+   The padding lanes in the accumulator are therefore always zero, and that is declared rather
    than left to look like a term that came out small. Half a reduction described as a whole
    one would be the exact failure this file keeps finding.
 
@@ -109472,62 +109470,75 @@ fn main(@builtin(global_invocation_id) gid : vec3<u32>,
    torus at genus one — so when a device exists the atlas computes both, reports the
    disagreement, and USES THE CPU ANSWER regardless. Unverifiable code that grades itself
    against verified code is the only kind worth shipping blind. */
-let HCC_HAD_PIPE=null;
-/* UNMEASURED[wgsl-hadwiger] — everything from here to the readback. Gated on a device
-   that does not exist in this environment, so not one line of it executes under CI. */
+let HCC_HAD_ENGINE=null, HCC_HAD_INIT=null;
 async function hadwigerGpuCompare(P,I){
   const cpu=hadwigerIntrinsic(P,I);
   if(!hccGpuReady()) return {ran:false, reason:'no WebGPU device', cpu, covers:['V2','V3']};
   try{
-    const {device}=HCC_GPU;
-    if(!HCC_HAD_PIPE){
-      const module=device.createShaderModule({code:HCC_WGSL_HADWIGER});
-      HCC_HAD_PIPE=device.createComputePipeline({layout:'auto', compute:{module, entryPoint:'main'}});
+    const owner=HCC_GPU,{device}=owner;
+    if(HCC_HAD_ENGINE&&(HCC_HAD_ENGINE.device!==device||HCC_HAD_ENGINE.destroyed)){
+      HCC_HAD_ENGINE.destroy();HCC_HAD_ENGINE=null;HCC_HAD_INIT=null;
     }
-    const F=I.length/3;
-    /* three vec4<f32> per triangle: the fourth lane of each is declared padding, not a
-       value someone forgot, exactly as in the term packing */
-    const tris=new Float32Array(F*12);
-    for(let f=0;f<F;f++){
-      for(let k=0;k<3;k++){
-        const v=I[3*f+k];
-        tris[f*12+k*4+0]=P[3*v]; tris[f*12+k*4+1]=P[3*v+1]; tris[f*12+k*4+2]=P[3*v+2]; tris[f*12+k*4+3]=0;
-      }
+    if(!HCC_HAD_INIT){
+      const pending=HadwigerReductionEngine.create(device,131072,3).then(engine=>{
+        if(HCC_GPU!==owner||engine.destroyed){engine.destroy();throw new Error('WebGPU device changed during Hadwiger initialization');}
+        HCC_HAD_ENGINE=engine;return engine;
+      });
+      HCC_HAD_INIT=pending;
+      pending.catch(()=>{if(HCC_HAD_INIT===pending){HCC_HAD_INIT=null;HCC_HAD_ENGINE=null;}});
     }
-    const groups=Math.ceil(F/64);
-    const inBuf=device.createBuffer({size:tris.byteLength, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
-    device.queue.writeBuffer(inBuf,0,tris);
-    const outBytes=groups*16;
-    const outBuf=device.createBuffer({size:outBytes, usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC});
-    const readBuf=device.createBuffer({size:outBytes, usage:GPUBufferUsage.COPY_DST|GPUBufferUsage.MAP_READ});
-    const bind=device.createBindGroup({layout:HCC_HAD_PIPE.getBindGroupLayout(0),
-      entries:[{binding:0,resource:{buffer:inBuf}},{binding:1,resource:{buffer:outBuf}}]});
-    const enc=device.createCommandEncoder();
-    const pass=enc.beginComputePass();
-    pass.setPipeline(HCC_HAD_PIPE); pass.setBindGroup(0,bind); pass.dispatchWorkgroups(groups); pass.end();
-    enc.copyBufferToBuffer(outBuf,0,readBuf,0,outBytes);
-    device.queue.submit([enc.finish()]);
-    await readBuf.mapAsync(GPUMapMode.READ);
-    const got=new Float32Array(readBuf.getMappedRange().slice(0));
-    readBuf.unmap();
-    /* the per-group partials are summed on the CPU by the SAME tree the shader used */
-    let vol=0, area=0;
-    const vols=[], areas=[];
-    for(let g=0;g<groups;g++){ vols.push(got[g*4]); areas.push(got[g*4+1]); }
-    vol=hccTreeReduce(vols,64); area=hccTreeReduce(areas,64);
-    const gpu={V3:Math.abs(vol), V2:area/2};
+    const engine=await HCC_HAD_INIT;
+    if(HCC_GPU!==owner||engine.device!==device||engine.destroyed)throw new Error('WebGPU device changed during Hadwiger initialization');
+    const gpu=await engine.computeMesh(P,I);
     const rel=(a,b)=>Math.abs(a-b)/Math.max(1e-12,Math.abs(b));
     const delta={V3:rel(gpu.V3,cpu.V3), V2:rel(gpu.V2,cpu.V2)};
-    inBuf.destroy(); outBuf.destroy(); readBuf.destroy();
-    /* THE CPU ANSWER IS RETURNED EITHER WAY. The shader is float32 and the kernel is
-       float64, so a disagreement around 1e-7 is arithmetic and not a fault; anything
-       larger is a fault and is reported rather than averaged away. */
     return {ran:true, cpu, gpu, delta, covers:['V2','V3'],
-      agrees: delta.V3<1e-5 && delta.V2<1e-5,
-      note:'V1 and V0 stay on the CPU: the mean-width term needs edge adjacency and the Euler characteristic needs the edge count, neither of which this dispatch has'};
+      agrees:delta.V3<1e-5 && delta.V2<1e-5,
+      resources:{capacity:engine.maxTriangles,ringSize:engine.slots.length,gpuBytes:engine.memoryBytes},
+      note:'V1 and V0 stay on the CPU: adjacency is not available to the GPU reduction; V2/V3 use float32, two compute stages and asynchronous 16-byte readback'};
   }catch(e){
     return {ran:false, reason:String(e&&e.message||e), cpu, covers:['V2','V3']};
   }
+}
+/* Explicit diagnostic, not an implicit WebGPU-to-WebGL copy in the animation loop.
+   The live WebGL swarm stays on its declared semi-implicit Euler backend. */
+let HCC_AST_DIAG=null, HCC_AST_DIAG_BUSY=false;
+async function hccGpuAsteroidsCompare({count=128,steps=8,dt=0.001}={}){
+  if(!Number.isInteger(count)||count<1||count>65536||!Number.isInteger(steps)||steps<0||steps>1024||!Number.isFinite(dt)||Math.abs(dt)>0.01)
+    return {ran:false,reason:'diagnostic domain: count 1..65536, steps 0..1024, |dt| <= 0.01 yr'};
+  await hccGpuInit();
+  if(!hccGpuReady())return {ran:false,reason:'no WebGPU device'};
+  if(HCC_AST_DIAG_BUSY)return {ran:false,reason:'asteroid diagnostic busy'};
+  HCC_AST_DIAG_BUSY=true;
+  try{
+    const owner=HCC_GPU,{device}=owner;
+    if(!HCC_AST_DIAG||HCC_AST_DIAG.count!==count||HCC_AST_DIAG.engine.device!==device||HCC_AST_DIAG.engine.destroyed){
+      HCC_AST_DIAG?.engine.destroy();HCC_AST_DIAG=null;
+      const initial=new Float32Array(count*8);
+      for(let i=0;i<count;i++){
+        const r=2.1+1.2*(i+0.5)/count,angle=i*2.399963229728653,v=Math.sqrt(AST_GM/r);
+        initial.set([r*Math.cos(angle),0,r*Math.sin(angle),i%3,-v*Math.sin(angle),0,v*Math.cos(angle),0],8*i);
+      }
+      const engine=await AsteroidComputeEngine.create(device,initial,count);
+      if(HCC_GPU!==owner||engine.destroyed){engine.destroy();throw new Error('WebGPU device changed during asteroid initialization');}
+      HCC_AST_DIAG={count,initial,engine};
+    }
+    const {engine,initial}=HCC_AST_DIAG;engine.reset(initial);
+    const T=state.epochDays/36525,j=planetPos(PLANETS[4],T),s=planetPos(PLANETS[5],T);
+    const params={sunGM:AST_GM,jupGM:AST_GMJ,satGM:AST_GMS,dt,particleCount:count,jupPos:[j.x,j.y,j.z],satPos:[s.x,s.y,s.z]};
+    for(let n=0;n<steps;n++)engine.step(params);
+    const got=await engine.snapshot();let positionErrorAU=0,velocityErrorAUPerYear=0;
+    for(let i=0;i<count;i++){
+      let x=[initial[8*i],initial[8*i+1],initial[8*i+2]],v=[initial[8*i+4],initial[8*i+5],initial[8*i+6]];
+      for(let n=0;n<steps;n++)[x,v]=hccAsteroidVerlet(x,v,params);
+      positionErrorAU=Math.max(positionErrorAU,Math.hypot(got[8*i]-x[0],got[8*i+1]-x[1],got[8*i+2]-x[2]));
+      velocityErrorAUPerYear=Math.max(velocityErrorAUPerYear,Math.hypot(got[8*i+4]-v[0],got[8*i+5]-v[1],got[8*i+6]-v[2]));
+    }
+    return {ran:true,count,steps,dt,units:{position:'AU',velocity:'AU/yr',dt:'yr'},positionErrorAU,velocityErrorAUPerYear,
+      gpuBytes:engine.memoryBytes,integrator:'velocity-Verlet',model:'massless test particles; Sun/Jupiter/Saturn; perturbers frozen over diagnostic',
+      renderBackend:'WebGL2 ping-pong; GPUBuffer is not a WebGL texture',performance:'UNMEASURED'};
+  }catch(e){return {ran:false,reason:String(e&&e.message||e)};}
+  finally{HCC_AST_DIAG_BUSY=false;}
 }
 /* the CPU twin of that reduction, in the SAME order, so a future comparison is against
    an identical accumulation and not against a different one */
@@ -117491,12 +117502,15 @@ globalThis.FBS3R_QA=Object.freeze({
      reducer is right BEFORE letting it turn anything — which is the only honest way to
      hand over a path that could not be measured where it was written. */
   /* the shader grades itself against the verified kernel, and says so either way */
+  asteroidsGpu(options){return hccGpuAsteroidsCompare(options);},
+  s3Multiview(){return inspectS3Multiview(renderer?.getContext?.());},
   async hadwigerGpu(){ try{
+      await hccGpuInit();
       const a=2, P=[0,0,0,a,0,0,a,a,0,0,a,0,0,0,a,a,0,a,a,a,a,0,a,a];
       const I=[0,3,2,0,2,1,4,5,6,4,6,7,0,1,5,0,5,4,1,2,6,1,6,5,2,3,7,2,7,6,3,0,4,3,4,7];
       const r=await hadwigerGpuCompare(P,I);
       return {ran:r.ran, reason:r.reason||null, covers:r.covers, agrees:r.agrees??null,
-        cpu:{V2:r.cpu.V2, V3:r.cpu.V3}, gpu:r.gpu||null, delta:r.delta||null, note:r.note||null};
+        cpu:{V2:r.cpu.V2, V3:r.cpu.V3}, gpu:r.gpu||null, delta:r.delta||null, note:r.note||null,resources:r.resources||null};
     }catch(e){ return {error:String(e&&e.message||e)}; } },
   hands(){ try{ return {seen:XR_HANDS.seen, frames:XR_HANDS.frames,
       left:{strength:+XR_HANDS.left.strength.toFixed(4), q:XR_HANDS.left.q.map(v=>+v.toFixed(6)), anchored:!!XR_HANDS.left.anchor},

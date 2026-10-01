@@ -14,6 +14,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 const allChecks = [
+  "docs/verify-visual-kernel.mjs",
   "docs/verify-linked-cycle-views.cjs",
   "docs/verify-multiphase-solar-control.cjs",
   "docs/verify-scale-continuity.cjs",
@@ -180,6 +181,7 @@ const add = (...paths) => paths.forEach(path => {
 });
 
 const smoke = [
+  "docs/verify-visual-kernel.mjs",
   'docs/verify-scale-continuity.cjs',
   'docs/verify-world-lab-routing.cjs',
   'docs/verify-the-global-inventory.cjs',

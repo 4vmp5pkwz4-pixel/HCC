@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1881   ·   exported names: 2009
-   extracted physics, sha256 f659224f1cf20c6450db96164ec42eebd8e13079cca5ff0ee6ccfd2a0b72db4d */
+   extracted physics, sha256 39f77933f454bd5e7e92dd5a5665e7ea5d839216140e389e223308d1e0c5a562 */
 
 const HCC_VERSION='4.351.0';
 
@@ -3715,7 +3715,9 @@ function bhrTraceJS(b,nSteps){   // JS twin of the shader integrator — asserte
     const dl=Math.min(0.55,Math.max(0.03,0.12*(r-0.9))), k=-1.5*h2/(r2*r2*r);
     v=[v[0]+0.5*dl*k*x[0],v[1]+0.5*dl*k*x[1],v[2]+0.5*dl*k*x[2]];
     x=[x[0]+dl*v[0],x[1]+dl*v[1],x[2]+dl*v[2]];
-    const r2b=x[0]*x[0]+x[1]*x[1]+x[2]*x[2],rb=Math.sqrt(r2b),kb=-1.5*h2/(r2b*r2b*rb);
+    const r2b=x[0]*x[0]+x[1]*x[1]+x[2]*x[2];
+    if(r2b<1.0)return {captured:true};
+    const rb=Math.sqrt(r2b),kb=-1.5*h2/(r2b*r2b*rb);
     v=[v[0]+0.5*dl*kb*x[0],v[1]+0.5*dl*kb*x[1],v[2]+0.5*dl*kb*x[2]];
   }
   return {captured:false,dir:v.slice()};
@@ -6959,7 +6961,13 @@ function triRotate(p,a,b,g){ const ca=Math.cos(a), sa=Math.sin(a), cb=Math.cos(b
   const x0=ca*p[0]-sa*p[1], x1=sa*p[0]+ca*p[1], x2=cb*p[2]-sb*p[3], x3=sb*p[2]+cb*p[3];
   return [cg*x0-sg*x2, x1, sg*x0+cg*x2, x3]; }
 
-function triProject(p,S,Rmax){ const d=Math.max(1e-6,1-p[3]), x=p[0]/d, y=p[2]/d, z=p[1]/d, r=Math.hypot(x,y,z), k=r>0?Rmax*Math.tanh(r/Rmax)/r:1; return [x*k*S,y*k*S,z*k*S]; }
+function triProject(p,S,Rmax,exact=false){
+  const denom=1-p[3];
+  if(exact&&denom<=1e-6)return null; // excluded display cap; never a clamped metric
+  const d=Math.max(1e-6,denom),x=p[0]/d,y=p[2]/d,z=p[1]/d,r=Math.hypot(x,y,z);
+  const k=exact?1:(r>0?Rmax*Math.tanh(r/Rmax)/r:1);
+  return [x*k*S,y*k*S,z*k*S];
+}
 
 function triGeodesic(p,q,n){ const d=Math.min(1,Math.max(-1,p[0]*q[0]+p[1]*q[1]+p[2]*q[2]+p[3]*q[3])), w=Math.acos(d), out=[];
   for(let k=0;k<=n;k++){ const t=k/n; if(w<1e-9){ out.push(p.slice()); continue; } const a=Math.sin((1-t)*w)/Math.sin(w), b=Math.sin(t*w)/Math.sin(w); out.push([0,1,2,3].map(i=>a*p[i]+b*q[i])); }
