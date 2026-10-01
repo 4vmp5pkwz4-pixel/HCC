@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1881   ·   exported names: 2009
-   extracted physics, sha256 95bacb00371a001b934c7cdcf867a9111f7c31991582f54069f0b9f74f3e6b53 */
+   extracted physics, sha256 f659224f1cf20c6450db96164ec42eebd8e13079cca5ff0ee6ccfd2a0b72db4d */
 
-const HCC_VERSION='4.350.0';
+const HCC_VERSION='4.351.0';
 
-const HCC_BUILD='the-merger-by-law-2026.09.30.67';
+const HCC_BUILD='the-merger-finds-you-2026.10.01.68';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
