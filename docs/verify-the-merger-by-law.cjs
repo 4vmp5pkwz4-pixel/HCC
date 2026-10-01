@@ -63,5 +63,12 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
       hs > 13.8 && hs < 15 && eh > 15.5 && eh < 17.8 && eh > hs && /function hccShellMaterial\(col,op\)/.test(SRC) && /function hccShellMesh\(r,col,op\)/.test(SRC)
       && /mkSphere\(hccHubbleSphereGly\(\)\*GLY_AU/.test(SRC) && /mkSphere\(hccEventHorizonGly\(\)\*GLY_AU/.test(SRC) && /Navier/.test(SRC) && /Silk/.test(SRC) && /solarCosmicGrid\.add\(hccShellMesh\(r,0x7f95b5,0\.12\)\)/.test(SRC),
       `Hubble sphere ${hs.toFixed(2)} Gly · event horizon ${eh.toFixed(2)} Gly`); }
+  /* 5 · the merger finds the reader (v4.351): running the clock fast is enough */
+  ok('the merger finds the reader: a fast forward clock (> 2 Myr/s) entering the last ~1.5 s before the coalescence hands over to the director once per pass, steps out to the cores, slows through every stage, then gives the reader’s own rate back; the time bar reads the Local Group’s clock; the stars are integrated ahead from any layer',
+    /function solarMergerAuto\(tGyr\)/.test(SRC) && /if\(tGyr<S\.coal-1\.2\) S\.autoDone=false; if\(S\.director\|\|S\.autoDone\) return;/.test(SRC) && /if\(!\(ypsec>2e6\)\) return;/.test(SRC)
+    && /const lead=Math\.max\(0\.3,ypsec\*1\.5\/1e9\), tM=S\.coal\+S\.bin\.tMergeYr\/1e9; if\(tGyr<S\.coal-lead\|\|tGyr>tM\) return;/.test(SRC)
+    && /S\.autoDone=true; S\.userRate=snap\.rateDaysPerSecond; S\.director=true; S\.dirLast=0; solarMergerFrame\(\);/.test(SRC)
+    && /ypsec=S\.userRate!=null\?S\.userRate\/365\.25:1e6; S\.userRate=null;/.test(SRC) && /try\{ solarMergerAuto\(tGyr\); \}catch\(e\)\{\} try\{ solarMergerDirector\(tGyr\); \}catch\(e\)\{\}/.test(SRC)
+    && /if\(\(want\|\|tGyr>0\.3\)&&!S\.worker&&!S\.done\) solarLgmStarsStart\(\);/.test(SRC) && /function solarLgmClockLine\(tGyr\)/.test(SRC) && /const lg=solarLgmClockLine\(jd\/365\.2425\/1e9\)/.test(SRC));
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });
