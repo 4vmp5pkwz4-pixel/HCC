@@ -4,6 +4,10 @@
 import {forecastReach,listReachControls,validateReachArtifact} from '../core/prediction/reach-forecast.mjs';
 import {auditForecast,AUDIT_INPUT_SCHEMA} from '../core/prediction/forecast-audit.mjs';
 import {measureS3,stereographicToS3,s3ToStereographic,hopfBase} from '../core/math/s3-geometry.mjs';
+import * as researchGeometry from '../core/research/geometry.mjs';
+import {CATALOG} from '../core/research/catalog.mjs';
+export {flrw,geometryAudit,curvatureDiagnostic,constantCurvatureFit,scalarMode,lensingKernel,delensingResidual} from '../core/research/geometry.mjs';
+export const researchCatalog=()=>structuredClone(CATALOG);
 export {auditForecast,AUDIT_INPUT_SCHEMA};
 export {measureS3,stereographicToS3,s3ToStereographic,hopfBase};
 const copy = value => JSON.parse(JSON.stringify(value));
@@ -43,6 +47,7 @@ export async function connectAtlas(baseURL=new URL('../',import.meta.url).href,{
   if(!verdict.ok) throw new Error('Atlas release mismatch: '+verdict.error);
   const instruments=manifest.instruments;
   return Object.freeze({
+    research:Object.freeze({...researchGeometry,catalog:researchCatalog}),
     geometry:Object.freeze({measureS3,stereographicToS3,s3ToStereographic,hopfBase}),
     discover:()=>copy({schema:'hcc.agent-session/1',...identity,base_url:base.href,counts:manifest.counts,
       access:{static_catalogue:true,static_scaling:true,static_forecast_audit:true,public_http_compute:false,

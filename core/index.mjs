@@ -32,6 +32,7 @@ import fcarrier from './labs/civp.finite_carrier.mjs';
 import uvsel from './labs/civp.uv_selector.mjs';
 import civpclosure from './labs/civp.closure.mjs';
 import forecastAudit from './labs/prediction.holdout_audit.mjs';
+import geometryEvidence from './labs/cosmology.geometry_audit.mjs';
 /* the sourced connections of the Galactic Butterfly explorer. It imports nothing —
    not three, not the DOM — so the same twelve rows the browser draws are the twelve
    rows this service hands an agent, rather than a transcription of them. */
@@ -64,6 +65,7 @@ function coreHash() {
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
     'labs/civp.cp1_locking.mjs','labs/civp.embadon_measure.mjs','labs/civp.finite_index.mjs',
     'labs/civp.finite_carrier.mjs','labs/civp.uv_selector.mjs','labs/civp.closure.mjs',
+    'labs/cosmology.geometry_audit.mjs','research/geometry.mjs','research/catalog.mjs',
     'labs/prediction.holdout_audit.mjs','prediction/forecast-audit.mjs','prediction/reach-forecast.mjs'];
   return sha256(files.map(f => readFileSync(join(HERE, f), 'utf8')).join('\n'));
 }
@@ -114,7 +116,7 @@ export const evidenceTierOf = st => { const s0 = String(st || '');
 /* the eighteen implemented instruments */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
   zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
-  cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit];
+  cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit, geometryEvidence];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
    A kernel does not RETIRE the laboratory it came from: one visual laboratory can host

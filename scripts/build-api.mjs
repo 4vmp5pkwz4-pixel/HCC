@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { CORE, LABS } from '../core/index.mjs';
 import { CORE_VERSION } from '../core/version.mjs';
 import { STATUS_DOC } from '../core/status.mjs';
+import {CATALOG} from '../core/research/catalog.mjs';
 import { AUDIT_INPUT_SCHEMA } from '../core/prediction/forecast-audit.mjs';
 /* the tool table is IMPORTED from the server, not restated here. It used to be written out
    twice — once for the descriptor and once for the endpoint — and two copies of a contract
@@ -18,6 +19,7 @@ import { TOOLS } from '../server/server.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 mkdirSync(join(ROOT, 'api'), { recursive: true });
 mkdirSync(join(ROOT, '.well-known'), { recursive: true });
+writeFileSync(join(ROOT,'api/research.json'),JSON.stringify(CATALOG,null,2)+'\n');
 
 const described = [...LABS.keys()].map(id => CORE.describe(id));
 
@@ -214,6 +216,7 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
     static_read:true,local_esm_compute:true,site_mutation:false},
   resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
     reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
+    research_catalog:'./api/research.json',research_kernel:'./core/research/geometry.mjs',
     live_bridge:'./api/live-agent-bridge.mjs',
     forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
   operations:[
@@ -222,11 +225,12 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
     {name:'describe',transport:'esm',description:'Inputs, outputs, units, domains and verifier references from the manifest.'},
     {name:'forecast',transport:'esm',description:'Conditional scaling scenarios. No empirical confidence or intervention domain guarantee.'},
     {name:'audit',transport:'esm',description:'Chronological holdout metrics, baseline skill, interval scoring, horizon groups and replayable SHA-256 input.'},
+    {name:'geometry_evidence',transport:'esm',description:'Explicit FLRW/CPL geometry, DESI covariance, supplied reconstruction null test, round S3 scalar modes and reference lensing. No fitted posterior or topology detection.'},
     {name:'measure_s3',transport:'esm',description:'Conditional round spatial S3 geodesic distance for two native R4 points, with explicit radius and unit.'},
     {name:'live_navigation',transport:'same-page-esm',description:'Opt-in bridge to the existing HCC_API/HCC_NAV page interfaces; no public HTTP mutation endpoint.'}
   ],
   self_hosted:{command:'node server/server.mjs',default_origin:'http://127.0.0.1:8974',openapi:'./api/openapi.json',mcp_path:'/mcp',
-    tools:TOOLS.map(t=>t.name),forecast_lab:'prediction.holdout_audit'},
+    tools:TOOLS.map(t=>t.name),forecast_lab:'prediction.holdout_audit',geometry_lab:'cosmology.geometry_audit'},
   evidence_policy:['Synthetic validation does not establish empirical accuracy.','Supplied timestamps are declarations, not proof of prior registration.',
     'Unknown values remain null; refused requests produce no plausible replacement result.']};
 writeFileSync(join(ROOT,'api/agent.json'),JSON.stringify(agent,null,2)+'\n');

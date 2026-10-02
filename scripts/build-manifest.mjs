@@ -110,6 +110,7 @@ const head = await page.evaluate(() => ({
     description_i18n: Array.isArray(w.d) ? { en: w.d[0], ru: w.d[1], de: w.d[2] } : null })),
   instruments: HCC_API.instruments.list().map(i => ({ ...i, describe: HCC_API.describe(i.id) })),
   labs: HCC_API.labs.list(),
+  research: HCC_API.research ? {schema:'hcc.research-catalog/1',catalog:'./api/research.json',kernel:'./core/research/geometry.mjs',source_count:HCC_API.research.catalog().sources.length,verified_at:HCC_API.research.catalog().verified_at,worlds:HCC_API.research.catalog().worlds.map(w=>w.id),live_surface:'HCC_API.research'} : null,
   multiview: HCC_API.multiviewPresets ? HCC_API.multiviewPresets().filter(p => p.id === 'focusing') : [],
   /* ── THE BUS IS PART OF THE CONTRACT, NOT A BROWSER AFFORDANCE ────────────
      Twenty-seven declared couplings, two refusals written down with their reasons, and a
@@ -282,6 +283,7 @@ const manifest = {
       parameters_total:parameters.length,parameters_fully_declared:parameters.length-undeclaredParameters,
       parameters_with_undeclared_semantics:undeclaredParameters,fail_closed:true};
   })(),
+  research: head.research,
   worlds: head.worlds,
   multiview: head.multiview,
   unmeasured: head.unmeasured,
