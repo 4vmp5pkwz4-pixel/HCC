@@ -14,6 +14,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 const allChecks = [
+  "test/keyboard-ownership.test.mjs",
   "docs/verify-visual-kernel.mjs",
   "docs/verify-linked-cycle-views.cjs",
   "docs/verify-multiphase-solar-control.cjs",
@@ -181,6 +182,7 @@ const add = (...paths) => paths.forEach(path => {
 });
 
 const smoke = [
+  "test/keyboard-ownership.test.mjs",
   "docs/verify-visual-kernel.mjs",
   'docs/verify-scale-continuity.cjs',
   'docs/verify-world-lab-routing.cjs',

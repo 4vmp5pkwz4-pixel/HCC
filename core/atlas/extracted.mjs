@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1881   ·   exported names: 2009
-   extracted physics, sha256 e158fc97fb999b226cbbb1d2cd82d88d60d0310c9e13f8dd4bd4415c29bffe4c */
+   extracted physics, sha256 f075b798cde919ab5654a3008c80aebc84cf5141f2ef2c7dcaebfe67b13eb468 */
 
-const HCC_VERSION='4.352.0';
+const HCC_VERSION='4.352.1';
 
-const HCC_BUILD='geometry-evidence-2026.10.02.1';
+const HCC_BUILD='keyboard-ownership-2026.10.04.1';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
