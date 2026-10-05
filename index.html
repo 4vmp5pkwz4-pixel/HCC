@@ -16832,8 +16832,13 @@ const PREMIUM_BLOOM_VIVID=new Set(['nul','nexus','hol','act','syd','hopf','hopfi
 const PREMIUM_BLOOM_QUIET=new Set(['kam','psp','noe','cau','disp','kin','he','nuc','qcrys']);
 function premiumBloomProfile(){
   if(typeof state==='undefined')return {strength:.46,radius:.56,threshold:.78};
+  /* a wide luminous field (the slice of cosmic time, seen whole) is not a highlight: bloomed, it melts into a milky
+     wall; the threshold rises above it so only true highlights glow (v4.354) */
+  try{ if(typeof CT_VIEW!=='undefined'&&CT_VIEW.mesh&&CT_VIEW.mesh.visible&&CT_VIEW.mesh.material.uniforms.uA.value>0.2&&(state.mode==='obs'||state.mode==='solar')) return {strength:.2,radius:.4,threshold:.92}; }catch(e){}
   if(state.mode==='solar')return {strength:.31,radius:.44,threshold:.86};
   if(state.mode==='obs')return {strength:.42,radius:.58,threshold:.78};
+  /* the fluids of S³ are dense additive strokes: a gentler bloom keeps their structure instead of a white core (v4.354) */
+  if(state.mode==='s3'&&(state.s3view==='nsflow'||state.s3view==='nsgal'||state.s3view==='triad'))return {strength:.36,radius:.5,threshold:.8};
   if(state.mode==='fbs')return {strength:.58,radius:.66,threshold:.68};
   if(state.mode==='field')return {strength:.46,radius:.55,threshold:.74};
   if(state.mode==='cyc')return {strength:.43,radius:.54,threshold:.76};
@@ -17025,6 +17030,14 @@ function snapshotMainRender(){
 }
 function renderMain(){
   premiumFrameTick();
+  /* ── A WIDE LUMINOUS FIELD IS EXPOSED FOR, NOT BURNED (v4.354) ──────────────────────────────────────────────
+     The post chain accumulates in half-float: every translucent layer of the observable ball — the slice of cosmic
+     time, the epoch shells, the screens, the last-scattering wall — adds linearly before the tone curve, so seen
+     whole they summed past white into a milky wall. While that field fills the frame the exposure steps down (eased,
+     like an eye), and returns when it does not; nothing the atlas measures passes through this. */
+  if(premiumVisualsEnabled&&!renderer.xr.isPresenting){ const base=(typeof themeDay!=='undefined'&&themeDay)?1.52:(MOBILE_GPU?1.04:1.12); let k=1;
+    try{ if(typeof CT_VIEW!=='undefined'&&CT_VIEW.mesh&&CT_VIEW.mesh.visible&&(state.mode==='obs'||state.mode==='solar')) k=1-0.6*Math.min(1,CT_VIEW.mesh.material.uniforms.uA.value/0.6); }catch(e){}
+    renderer.toneMappingExposure+=(base*k-renderer.toneMappingExposure)*0.06; }
   try{ renderer.info.reset(); }catch(e){}
   if(state.bloomOn!==false && !renderer.xr.isPresenting && !webglContextLost && !(hccSeamQuiet>0) && !HCC_SAFE_GPU && ensureBloom()){
     if(premiumVisualsEnabled){const p=premiumBloomProfile();bloomPass.strength+=(p.strength-bloomPass.strength)*.08;
@@ -24022,16 +24035,17 @@ function shellTomographyRows(key){
 }
 function screenSphere(radius, color, opacity, name, selKey, desc, rows){
   const grp = new THREE.Group();
+  /* children[0] stays the BackSide fill (the last-scattering screen carries the CMB wall on it) but whispers now;
+     the lat–long cage is gone — a screen is a glass limb with its equator ring (v4.354), so nested horizons no longer
+     pile into a milky wall and the sky behind them shows */
   const mesh = new THREE.Mesh(
     new THREE.SphereGeometry(radius, 64, 40),
-    new THREE.MeshBasicMaterial({color, transparent:true, opacity, side:THREE.BackSide, depthWrite:false})
+    new THREE.MeshBasicMaterial({color, transparent:true, opacity:opacity*0.35, side:THREE.BackSide, depthWrite:false})
   );
   grp.add(mesh);
-  const wire = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 36, 22),
-    new THREE.MeshBasicMaterial({color, wireframe:true, transparent:true, opacity:opacity*2.2, depthWrite:false})
-  );
+  const wire = hccShellMesh(radius, color, Math.min(0.5, opacity*6));
   grp.add(wire);
+  { const eq=guideCircle(radius, color, Math.min(0.42, opacity*5), 192); grp.add(eq); }
   const lab = mkLabel(name,'label major',selKey); lab.position.set(0, radius*1.02, 0); grp.add(lab);
   SHELL_SCREENS.push({key:selKey, name, radius});
   /* ── AND EVERY SHELL THIS ATLAS DRAWS NOW SAYS WHAT ONE MAP OF IT CAN SEE ──
@@ -24681,7 +24695,7 @@ function ctViewTick(){ const on=state.cosmicTimeColour!==false, shown=ctShown();
     /* and it is read from outside: near the Sun (the Local Group, the nearby web) a disc through the observer shows
        only its gold centre and would veil the scene, so it rises with the camera's distance in Gly, 1.5 → 6 */
     const dGly=camera.getWorldPosition(new THREE.Vector3()).distanceTo(CT_VIEW.group.getWorldPosition(new THREE.Vector3()))/CT_VIEW.group.getWorldScale(new THREE.Vector3()).x, f=THREE.MathUtils.smoothstep(dGly,1.5,6);
-    CT_VIEW.mesh.material.uniforms.uA.value=0.88*f; CT_VIEW.mesh.visible=f>0.002; }
+    CT_VIEW.mesh.material.uniforms.uA.value=0.6*f; CT_VIEW.mesh.visible=f>0.002; }   /* a veil of epochs the sky shows through, not a pastel wall under the bloom (v4.354) */
   const yrs=(state.epochDays||0)/365.25; if(!(Math.abs(yrs-CT_VIEW.lastYrs)<2e7)){ CT_VIEW.lastYrs=yrs; if(CT_VIEW.lut) ctLutFill(yrs); if(CT_VIEW.shells.length) ctViewShells(yrs); if(state.ctStructures!==false) ctStructureColours(true,yrs); } }
 /* the legend: the whole of cosmic time on one bar, logarithmic in age, with the epochs and where the clock stands */
 function ctLegendHTML(){ const t0=CT_T0(), yrs=(state.epochDays||0)/365.25, tNow=t0+yrs/1e9, lo=Math.log10(1e-5), hi=Math.log10(t0+50), x=t=>((Math.log10(Math.max(1e-5,t))-lo)/(hi-lo)*100);
