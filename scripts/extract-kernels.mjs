@@ -826,7 +826,8 @@ export const ROOTS = [
   /* s3.gmode — the resonator of the three-sphere (v4.355) */
   'GMODE_LY_M', 'GMODE_C', 'GMODE_HBAR', 'GMODE_R_CANON', 'gmodeChebU', 'gmodeZonal', 'gmodeFact', 'gmodeJacobi', 'gmodeTorusNorm', 'gmodeTorusY', 'gmodeTorusList', 'gmodeFrame', 'gmodeNullNorm', 'gmodeNullF', 'gmodeCurlAt',
   'gmodeRng', 'gmodeRandS3', 'gmodeNullCheck', 'gmodeScalarOmega', 'gmodeLightDeg', 'gmodeWeylLight', 'gmodeWeylScalar', 'gmodeCasimir', 'gmodeEigSym', 'gmodeSolve', 'gmodeBeam', 'gmodeResolution', 'gmodePulseWeights',
-  'gmodePulseAmps', 'gmodeSeries', 'gmodePulseProfile', 'gmodePulseFocus', 'gmodeCrystal', 'gmodeMatter', 'gmodeSteady', 'gmodeLorentz', 'gmodeCosmos'
+  'gmodePulseAmps', 'gmodeSeries', 'gmodePulseProfile', 'gmodePulseFocus', 'gmodeCrystal', 'gmodeMatter', 'gmodeSteady', 'gmodeLorentz', 'gmodeCosmos',
+  'gmodeLgam', 'gmodeGegen', 'gmodeSkyWeights', 'gmodeSkyHalfK'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
