@@ -827,7 +827,10 @@ export const ROOTS = [
   'GMODE_LY_M', 'GMODE_C', 'GMODE_HBAR', 'GMODE_R_CANON', 'gmodeChebU', 'gmodeZonal', 'gmodeFact', 'gmodeJacobi', 'gmodeTorusNorm', 'gmodeTorusY', 'gmodeTorusList', 'gmodeFrame', 'gmodeNullNorm', 'gmodeNullF', 'gmodeCurlAt',
   'gmodeRng', 'gmodeRandS3', 'gmodeNullCheck', 'gmodeScalarOmega', 'gmodeLightDeg', 'gmodeWeylLight', 'gmodeWeylScalar', 'gmodeCasimir', 'gmodeEigSym', 'gmodeSolve', 'gmodeBeam', 'gmodeResolution', 'gmodePulseWeights',
   'gmodePulseAmps', 'gmodeSeries', 'gmodePulseProfile', 'gmodePulseFocus', 'gmodeCrystal', 'gmodeMatter', 'gmodeSteady', 'gmodeLorentz', 'gmodeCosmos',
-  'gmodeLgam', 'gmodeGegen', 'gmodeSkyWeights', 'gmodeSkyHalfK'
+  'gmodeLgam', 'gmodeGegen', 'gmodeSkyWeights', 'gmodeSkyHalfK',
+  /* s3.unify — the unified fundamental atlas (v4.357) */
+  'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates',
+  'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));

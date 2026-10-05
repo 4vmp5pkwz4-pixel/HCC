@@ -170,6 +170,8 @@ const allChecks = [
   "docs/verify-the-fluid-answers-the-hand.cjs",
   "docs/verify-the-universe-is-a-resonator.cjs",
   "docs/verify-the-four-laboratories-redrawn.cjs",
+  "docs/verify-the-unified-fundamental-atlas.cjs",
+  "docs/verify-the-knots-of-light.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -399,6 +401,8 @@ if (fullMode) {
     'docs/verify-the-fluid-answers-the-hand.cjs',
     'docs/verify-the-universe-is-a-resonator.cjs',
     'docs/verify-the-four-laboratories-redrawn.cjs',
+    'docs/verify-the-unified-fundamental-atlas.cjs',
+    'docs/verify-the-knots-of-light.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
