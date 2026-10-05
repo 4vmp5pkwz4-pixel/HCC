@@ -166,6 +166,7 @@ const allChecks = [
   "docs/verify-a-sky-you-can-see.cjs",
   "docs/verify-the-sky-at-every-scale.cjs",
   "docs/verify-the-merger-by-law.cjs",
+  "docs/verify-the-second-tap.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -391,6 +392,7 @@ if (fullMode) {
     'docs/verify-a-sky-you-can-see.cjs',
     'docs/verify-the-sky-at-every-scale.cjs',
     'docs/verify-the-merger-by-law.cjs',
+    'docs/verify-the-second-tap.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
