@@ -32,7 +32,7 @@ function checks(src) {
     && /if\(layer!==state\.solarScaleLayer\) try\{ hccSeamGuard\(1\.5\); \}catch\(e\)\{\}/.test(src)
     && /!\(hccSeamQuiet>0\) && !HCC_SAFE_GPU && ensureBloom\(\)/.test(src)
     && /function premiumPerformanceTick\(dt\)\{\n  hccSeamTick\(dt\);\n  if\(hccSeamQuiet>0\) return;/.test(src);
-  r.safeMode = /const HCC_SAFE_GPU=\(\(\)=>\{ try\{ const t=\+localStorage\.getItem\(HCC_SEAM_MARK\)/.test(src)
+  r.safeMode = /(const|let) HCC_SAFE_GPU=\(\(\)=>\{ try\{ const t=\+localStorage\.getItem\(HCC_SEAM_MARK\)/.test(src)
     && /renderer\.setPixelRatio\(HCC_SAFE_GPU\?1:/.test(src) && /if\(HCC_SAFE_GPU\) premiumVisualsEnabled=false;/.test(src)
     && /localStorage\.removeItem\(HCC_SEAM_MARK\)/.test(src);
   r.ctxWatch = /renderer\.forceContextRestore\(\)/.test(src) && /function hccContextRecoveryCard\(\)/.test(src)
