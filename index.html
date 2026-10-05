@@ -21537,12 +21537,34 @@ function polarGuide(radii, spokes, title){
   const lab=mkLabel(title,'label axis'); lab.position.set(-maxR*.72,0,-maxR*.72); g.add(lab);
   return g;
 }
+/* ── A GUIDE PLANE THAT FADES, NOT A FENCE OF LINES (v4.354) ─────────────────────────────────────────────────
+   GridHelper draws every line to the edge at one weight — the most primitive mark a scene can carry, and the first
+   thing that reads as "a program" rather than space. The guide plane is now one quad whose shader draws the lines
+   analytically: anti-aliased at any distance (fwidth), the two central axes in the major colour, and the whole
+   pattern fading radially into the dark, so a frame is felt rather than fenced. Same size, divisions and colours as
+   the GridHelper it replaces; the guide opacity setting still scales it (material.opacity → uOp each frame). */
+function hccFadeGrid(size,divisions,major,minor,opacity){ const m=new THREE.ShaderMaterial({transparent:true,depthWrite:false,side:THREE.DoubleSide,extensions:{derivatives:true},
+    uniforms:{uDiv:{value:divisions}, uMajor:{value:new THREE.Color(major)}, uMinor:{value:new THREE.Color(minor)}, uOp:{value:opacity}},
+    vertexShader:`varying vec2 vUv;
+      #include <common>
+      #include <logdepthbuf_pars_vertex>
+      void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+        #include <logdepthbuf_vertex>
+      }`,
+    fragmentShader:`uniform float uDiv,uOp; uniform vec3 uMajor,uMinor; varying vec2 vUv;
+      #include <logdepthbuf_pars_fragment>
+      void main(){
+        #include <logdepthbuf_fragment>
+        vec2 p=(vUv-0.5)*uDiv, w=max(fwidth(p),vec2(1e-5)); vec2 g=abs(fract(p-0.5)-0.5)/w; float line=1.0-min(min(g.x,g.y),1.0);
+        vec2 c=abs(p)/w; float axis=1.0-min(min(c.x,c.y),1.0); float r=length(vUv-0.5)*2.0, fade=1.0-smoothstep(0.25,1.0,r);
+        float a=max(line*0.75,axis*1.4)*fade*uOp; if(a<0.002) discard; gl_FragColor=vec4(mix(uMinor*1.4,uMajor,axis),a); }`});
+  m.opacity=opacity; const mesh=new THREE.Mesh(new THREE.PlaneGeometry(size,size,1,1),m); mesh.rotation.x=-Math.PI/2; mesh.onBeforeRender=()=>{ m.uniforms.uOp.value=m.opacity; };
+  const g=new THREE.Group(); g.add(mesh); g.material=m; g.userData.fadeGrid=true; return g; }
 function orthogonalGrid(size, divisions, title){
   const g=new THREE.Group(), grids=[];
   const add=(rot,major,minor,opacity)=>{
-    const q=new THREE.GridHelper(size,divisions,major,minor);
-    q.rotation.set(...rot); q.material.transparent=true; q.material.opacity=opacity;
-    q.material.depthWrite=false; q.material.userData.guideBaseOpacity=opacity;
+    const q=hccFadeGrid(size,divisions,major,minor,opacity);   /* a fading guide plane, not a GridHelper (v4.354) */
+    q.rotation.set(...rot); q.material.userData.guideBaseOpacity=opacity;
     grids.push(q); g.add(q);
   };
   add([0,0,0],0xd4af6a,0x40516d,.13);             // xz
@@ -23978,8 +24000,7 @@ const syzygyLine = (()=>{
 const obsGroup = new THREE.Group(); obsGroup.visible=false; scene.add(obsGroup);
 spatialGuides.obs = new THREE.Group();
 {
-  const grid=new THREE.GridHelper(100,10,0xd4af6a,0x40516d);
-  grid.material.transparent=true; grid.material.opacity=.12; grid.material.depthWrite=false;
+  const grid=hccFadeGrid(100,10,0xd4af6a,0x40516d,.12);   /* fading guide plane (v4.354) */
   const lab=mkLabel('J2000 ECLIPTIC REFERENCE · grid step 10 Gly','label axis');
   lab.position.set(-48,0,-48);
   spatialGuides.obs.add(grid,lab,axisGuide(54,
@@ -86320,8 +86341,8 @@ let fbsBinduGlow=null;
 // pool of nested φ-shells
 const fbsShells = [], _fbsGold=new THREE.Color(0xf1dda6);
 for(let i=0;i<20;i++){
-  const mat = new THREE.MeshBasicMaterial({wireframe:true, transparent:true, opacity:.3});
-  const sh = new THREE.Mesh(new THREE.SphereGeometry(1,30,20), mat);
+  /* a rung is a sphere of glass with a glowing limb, not a lat–long cage (v4.354): twenty nested cages were a wall of lines */
+  const sh = hccShellMesh(1, 0xf1dda6, .3), mat = sh.material;
   const lab = mkLabel('','label dim'); lab.position.set(0,1.04,0); sh.add(lab);
   sh.userData = {label:lab, n:-999};
   sh.visible=false; fbsGroup.add(sh); fbsShells.push(sh);
@@ -86371,6 +86392,16 @@ const fbsSpiral = (()=>{
 const fbsSpiralDot = new THREE.Mesh(new THREE.SphereGeometry(.09,14,10),
   new THREE.MeshBasicMaterial({color:0xffe98a}));
 fbsSpiral.add(fbsSpiralDot);
+/* the spirals as strokes of light (v4.354): the gold one and the q = 4 thread were one-pixel polylines — the thread, winding
+   four golden angles per level, came out as a jagged polygon of eleven points a turn; both are now smooth capsule strokes
+   sampled at most 0.08 rad per segment, brighter where the ladder stands */
+fbsSpiral.material.visible=false;
+const fbsSpiralCaps=triCapsules(900,0.85,true); fbsSpiralCaps.name='fbs-golden-spiral'; fbsSpiralCaps.geometry.instanceCount=0; fbsGroup.add(fbsSpiralCaps);
+const fbsZpCaps=triCapsules(2600,0.8,true); fbsZpCaps.name='fbs-zp-thread'; fbsZpCaps.geometry.instanceCount=0; fbsGroup.add(fbsZpCaps);
+function fbsCapsFill(m,pts,col,focusR,w){ const A=m.geometry.attributes, H=A.h4.array, T=A.t4.array, C=A.col.array, WH=A.wh.array, n=Math.min(pts.length-1,m.userData.capsules);
+  for(let i=0;i<n;i++){ const a=pts[i], b=pts[i+1], r=Math.hypot(b.x,b.z), f=0.35+0.65*Math.exp(-Math.abs(Math.log(Math.max(r,1e-6)/(focusR||1)))*0.9);
+    T[4*i]=a.x; T[4*i+1]=a.y; T[4*i+2]=a.z; T[4*i+3]=1; H[4*i]=b.x; H[4*i+1]=b.y; H[4*i+2]=b.z; H[4*i+3]=1; C[3*i]=col[0]*f; C[3*i+1]=col[1]*f; C[3*i+2]=col[2]*f; WH[2*i]=w; WH[2*i+1]=0; }
+  m.geometry.instanceCount=Math.max(0,n); for(const k of ['h4','t4','col','wh']) A[k].needsUpdate=true; triCapsuleSync(m,null,{}); }
 /* Energy-quanta flow: golden points drifting outward along the spiral — a pure
    VISUALIZATION of the published Fibonacci energy ladder E_n ∝ F_n ≈ φⁿ/√5 (energy
    flowing rung to rung as the ladder unfolds). Adds no data and asserts nothing. */
@@ -86402,7 +86433,7 @@ const FBS_ARRIVE_COL=new THREE.Color(0xfff2c8);
    the same rungs as the golden spiral. */
 const fbsZpSpiral=new THREE.Line(new THREE.BufferGeometry(),new THREE.LineBasicMaterial({
   color:0xc99bff,transparent:true,opacity:.9,blending:THREE.AdditiveBlending,depthWrite:false}));
-fbsGroup.add(fbsZpSpiral);
+fbsGroup.add(fbsZpSpiral); fbsZpSpiral.material.visible=false;   /* drawn as strokes (fbsZpCaps); the line keeps its dot and label */
 const fbsZpDot=new THREE.Mesh(new THREE.SphereGeometry(.105,16,12),new THREE.MeshBasicMaterial({color:0xe9d4ff}));
 const fbsZpLab=mkLabel('ZP q=4 · ρ∝R⁻⁴','label major','fbsZpLadder'); /* the purple thread's name sat 0.42 above its dot, which at N=0 projects straight
    onto "Bindu — seed of the ladder" at the origin; on a phone the two words became
@@ -86424,8 +86455,7 @@ registerSel('fbsZpLadder',{name:'Planck–Casimir zero-point fractal ladder',mod
     ['Hopf fibre charges',z.charges.join(', ')+' · multiplicity β each'],['Status','derived benchmark · not Λ · not quantum gravity']];}});
 
 // re-quantization wave (nonlocal energy-density redistribution pulse)
-const fbsPulse = new THREE.Mesh(new THREE.SphereGeometry(1,40,26),
-  new THREE.MeshBasicMaterial({color:0x7ef0c2, transparent:true, opacity:.25, wireframe:true, depthWrite:false}));
+const fbsPulse = hccShellMesh(1, 0x7ef0c2, .25);   /* the wave as a glowing front (v4.354) */
 fbsGroup.add(fbsPulse);
 
 // epoch markers distributed by spherical-Fibonacci directions
@@ -86686,7 +86716,7 @@ function updateFBS(dt){
       const r = Math.exp((x-D)*LN_PHI), a = x*GOLDEN_ANGLE;
       pts.push(new THREE.Vector3(r*Math.cos(a), 0, r*Math.sin(a)));
     }
-    if(pts.length>1) lineSetPoints(fbsSpiral,pts);
+    if(pts.length>1){ lineSetPoints(fbsSpiral,pts); fbsCapsFill(fbsSpiralCaps,pts,[1.0,0.84,0.45],1,1.15); }
     fbsSpiralDot.position.set(Math.cos(D*GOLDEN_ANGLE), 0, Math.sin(D*GOLDEN_ANGLE));
     // energy-quanta flow riding the spiral outward (E_n ∝ F_n visualization)
     fbsFlowPhase=(fbsFlowPhase+dt*0.02)%1;
@@ -86700,12 +86730,13 @@ function updateFBS(dt){
     fbsFlow.geometry.attributes.position.needsUpdate=true;
     fbsFlow.geometry.computeBoundingSphere();
 
-    const zpPts=[];
-    for(let x=xmin;x<=xmax;x+=0.06){
+    const zpPts=[], zpStep=Math.min(0.06,0.08/(4*GOLDEN_ANGLE));   /* ≤ 0.08 rad of turn per segment: a curve, not a polygon */
+    for(let x=xmin;x<=xmax;x+=zpStep){
       const r=Math.exp((x-D)*LN_PHI), a=4*x*GOLDEN_ANGLE+0.55;
       zpPts.push(new THREE.Vector3(r*Math.cos(a),0.10*r*Math.sin(x*0.73),r*Math.sin(a)));
     }
-    if(zpPts.length>1) lineSetPoints(fbsZpSpiral,zpPts);
+    if(zpPts.length>1){ lineSetPoints(fbsZpSpiral,zpPts); fbsCapsFill(fbsZpCaps,zpPts,[0.84,0.6,1.0],1,1.05); }
+    fbsZpCaps.visible=state.fbsZpOn!==false;
     const za=4*D*GOLDEN_ANGLE+0.55;
     fbsZpDot.position.set(Math.cos(za),0.10*Math.sin(D*.73),Math.sin(za));
     fbsZpSpiral.visible=state.fbsZpOn!==false;
@@ -86782,8 +86813,7 @@ cycGroup.add(new THREE.AmbientLight(0x8090b0,.9));
 { const dl=new THREE.DirectionalLight(0xfff4e0,.8); dl.position.set(5,12,8); cycGroup.add(dl); }
 spatialGuides.cyc=new THREE.Group();
 {
-  const grid=new THREE.GridHelper(84,14,0xd4af6a,0x3b4b65);
-  grid.material.transparent=true; grid.material.opacity=.13; grid.material.depthWrite=false;
+  const grid=hccFadeGrid(84,14,0xd4af6a,0x3b4b65,.13);   /* fading guide plane (v4.354) */
   const lab=mkLabel('DISPLAY LAYOUT PLANE · native frames remain separate · spacing non-metric','label axis');
   lab.position.set(-40,0,-40);
   spatialGuides.cyc.add(grid,lab,axisGuide(42,['+x instruments','+y pole','+z phase']));
