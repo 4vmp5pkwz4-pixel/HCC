@@ -36,7 +36,7 @@ ok('a phone starts on the peek and a desktop on the open card; the reader\'s cho
 
 ok('one row of doors: the generic pin and hide rail give way to ◎ ▴/▾ ✕, named in three languages; the floating buttons step aside',
   /html body #selCard > \.panelRail,html body #selCard > \.pinBtn,html body #selCard > \.panel-collapser\{display:none!important\}/.test(SRC) && /body\.selcard-up \.fab\{display:none!important\}/.test(SRC)
-  && /TT\('Fly to it','Перелететь к объекту','Hinfliegen'\)/.test(SRC) && /TT\('Fold to one line','Свернуть в строку','Auf eine Zeile falten'\)/.test(SRC) && /b\.textContent=selCardExpanded\?'▾':'▴';/.test(SRC));
+  && /TT\('Fly to it','Перелететь к объекту','Hinfliegen'\)/.test(SRC) && /TT\('Fold to one line','Свернуть в строку','Auf eine Zeile falten'\)/.test(SRC) && /b\.textContent=(selCardExpanded|ex)\?'▾':'▴';/.test(SRC));
 
 { const a = SRC.indexOf('THE CARD IS RUBBER, LIKE EVERY OTHER SHEET'), rb = SRC.slice(a, SRC.indexOf('selCardCornerInit(); })();', a));
   /* the release rule, run here on a copy */
