@@ -829,7 +829,8 @@ export const ROOTS = [
   'gmodePulseAmps', 'gmodeSeries', 'gmodePulseProfile', 'gmodePulseFocus', 'gmodeCrystal', 'gmodeMatter', 'gmodeSteady', 'gmodeLorentz', 'gmodeCosmos',
   'gmodeLgam', 'gmodeGegen', 'gmodeSkyWeights', 'gmodeSkyHalfK',
   /* s3.unify — the unified fundamental atlas (v4.357) */
-  'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates'
+  'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates',
+  'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
