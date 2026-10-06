@@ -218,6 +218,7 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
     reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
     research_catalog:'./api/research.json',research_kernel:'./core/research/geometry.mjs',
     live_bridge:'./api/live-agent-bridge.mjs',
+    agora_relay:'./scripts/hcc-agora.mjs',agora_client:'./api/agora-client.mjs',
     forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
   operations:[
     {name:'discover',transport:'esm',description:'Release identity, capabilities, counts, worlds and scaling controls.'},
@@ -227,7 +228,8 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
     {name:'audit',transport:'esm',description:'Chronological holdout metrics, baseline skill, interval scoring, horizon groups and replayable SHA-256 input.'},
     {name:'geometry_evidence',transport:'esm',description:'Explicit FLRW/CPL geometry, DESI covariance, supplied reconstruction null test, round S3 scalar modes and reference lensing. No fitted posterior or topology detection.'},
     {name:'measure_s3',transport:'esm',description:'Conditional round spatial S3 geodesic distance for two native R4 points, with explicit radius and unit.'},
-    {name:'live_navigation',transport:'same-page-esm',description:'Opt-in bridge to the existing HCC_API/HCC_NAV page interfaces; no public HTTP mutation endpoint.'}
+    {name:'live_navigation',transport:'same-page-esm',description:'Opt-in bridge to the existing HCC_API/HCC_NAV page interfaces; no public HTTP mutation endpoint.'},
+    {name:'agora',transport:'mcp-stdio + ws://127.0.0.1 relay, BroadcastChannel, same-page',description:'Agents on the stage: drive the open atlas in front of its reader (worlds, laboratories, objects, camera, the one clock), evaluate its instruments and kernels, read live laboratory buses and phase portraits, speak, pin notes and make checkable predictions that the clock verifies at their epoch. Every agent waits for the reader\'s Allow; commands are a fixed JSON vocabulary (AGORA_SPECS).'}
   ],
   self_hosted:{command:'node server/server.mjs',default_origin:'http://127.0.0.1:8974',openapi:'./api/openapi.json',mcp_path:'/mcp',
     tools:TOOLS.map(t=>t.name),forecast_lab:'prediction.holdout_audit',geometry_lab:'cosmology.geometry_audit'},
