@@ -838,7 +838,9 @@ export const ROOTS = [
   /* the real flow of the local web (v4.361) */
   'webDecodeDelta', 'webThetaOfDelta', 'webLinearFlow', 'webFlowChecks', 'webGaussianInfall', 'webFlowAt',
   /* 2MRS and Cosmicflows-4 (v4.362) */
-  'surveyFluxDipole', 'surveyBulkFlow', 'surveyHubble'
+  'surveyFluxDipole', 'surveyBulkFlow', 'surveyHubble',
+  /* exoplanets (v4.363) */
+  'exoRadiusValley'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
