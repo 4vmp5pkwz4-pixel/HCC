@@ -39,8 +39,10 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
       worst <= 1 + 1e-9 && tight > 0.98 && /O\.env=\{t0:O\.t, E:nsgEddyEnergy\(B,O\.a,O\.fin\)\}/.test(SRC) && /bound=O\.env\.E\*Math\.exp\(-10\*nu\*\(O\.t-O\.env\.t0\)\)/.test(SRC),
       `max E′/bound = ${worst.toFixed(6)} · first shell keeps ${(100 * tight).toFixed(2)} % of the bound`); }
   /* 3 · the hand */
-  { let err = 0; for (let i = 0; i < 300; i++) { const r = () => Math.sin(i * 12.9898 + Math.random()) * 0.999; let q = [r(), r(), r(), r()]; const n = Math.hypot(...q); q = q.map(x => x / n); if (q[3] > 0.85) continue;
-      const A = { a: i * 0.37, b: i * 0.21, g: 0.4 * Math.sin(i) }, p = K.triRotate(q, A.a, A.b, A.g), v = K.triProject(p, 2.05, 2.6), back = K.triUnproject(v[0], v[1], v[2], A);
+  /* deterministic, and the pole is tested where it is: on the TURNED point (the compact chart saturates near it by design) */
+  { let err = 0, seed = 12345; const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+    for (let i = 0; i < 300; i++) { let q = [0, 1, 2, 3].map(() => 2 * rnd() - 1); const n = Math.hypot(...q); q = q.map(x => x / n);
+      const A = { a: i * 0.37, b: i * 0.21, g: 0.4 * Math.sin(i) }, p = K.triRotate(q, A.a, A.b, A.g); if (p[3] > 0.85) continue; const v = K.triProject(p, 2.05, 2.6), back = K.triUnproject(v[0], v[1], v[2], A);
       err = Math.max(err, Math.hypot(...back.map((x, k) => x - q[k]))); }
     const a = K.nsgInitial(B, { seed: 5, killing: 0.1, bias: 0, slope: 1 }), q0 = [0.5, 0.5, 0.5, 0.5], d0 = [0.3, -0.2, 0.1, -0.2], dq = d0.reduce((s, x, k) => s + x * q0[k], 0), d = d0.map((x, k) => x - dq * q0[k]);
     const D = K.nsgStirDelta(B, q0, d, 0.5); let kill = 0, rest = 0; for (let i = 0; i < B.n; i++) { if (killMask[i]) kill += D[i] * D[i]; else rest += D[i] * D[i]; }

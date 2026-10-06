@@ -172,6 +172,8 @@ const allChecks = [
   "docs/verify-the-four-laboratories-redrawn.cjs",
   "docs/verify-the-unified-fundamental-atlas.cjs",
   "docs/verify-the-knots-of-light.cjs",
+  "docs/verify-the-horizons-follow-the-clock.cjs",
+  "docs/verify-the-laboratories-in-the-headset.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -403,6 +405,8 @@ if (fullMode) {
     'docs/verify-the-four-laboratories-redrawn.cjs',
     'docs/verify-the-unified-fundamental-atlas.cjs',
     'docs/verify-the-knots-of-light.cjs',
+    'docs/verify-the-horizons-follow-the-clock.cjs',
+    'docs/verify-the-laboratories-in-the-headset.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

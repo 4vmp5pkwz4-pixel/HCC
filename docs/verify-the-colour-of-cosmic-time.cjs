@@ -35,8 +35,13 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   { const r = ctColorAtTime(ctAgeOfZ(zs)), w = cmbPlanckianRGB(HCC_S3R.T_cmb * (1 + zs)), d = Math.max(...r.rgb.map((v, i) => Math.abs(v - w[i]))), dark = ctColorAtTime(ctAgeOfZ(200));
     ok('before the first stars the colour IS the relic radiation: at recombination the slice\'s colour is the wall\'s Planckian at T₀(1+z*), and the dark ages are dim', d < 0.02 && r.b > 0.9 && dark.b < 0.12,
       `rgb ${r.rgb.map(v => v.toFixed(3))} vs ${w.map(v => v.toFixed(3))} · dark-age brightness ${dark.b.toFixed(3)}`); }
-  { const c = 20, dt = 2e9, a = ctColorAtChi(c, dt), b = ctColorAtTime(ctAgeOfZ(ctZOfChi(c)) + 2), f1 = ctColorAtTime(CT_T0() + 5), f2 = ctColorAtTime(CT_T0() + 20);
-    ok('the clock moves it exactly, and the future fades', a.rgb.every((v, i) => Math.abs(v - b.rgb[i]) < 1e-12) && Math.abs(a.b - b.b) < 1e-12 && f2.b < f1.b && f1.b < ctColorAtTime(CT_T0()).b, `+5 Gyr ${f1.b.toFixed(3)} · +20 Gyr ${f2.b.toFixed(3)}`); }
+  /* v4.358: the clock no longer shifts every epoch by Δt — the observer's past light cone moves with the observer, so at
+     comoving distance χ an observer at t₀ + Δt sees the event with χ_p(t_E) = χ_p(t₀ + Δt) − χ (the old shift ignored that) */
+  { const { hzAtT, hzAgeAtA, hzEmissionTime } = K, c = 20, dt = 2e9, a = ctColorAtChi(c, dt), tE = hzEmissionTime(c, dt), b = ctColorAtTime(tE), lc = hzAtT(hzAgeAtA(1) + 2).particle - hzAtT(tE).particle,
+      a0 = ctColorAtChi(c, 0), b0 = ctColorAtTime(ctAgeOfZ(ctZOfChi(c))), f1 = ctColorAtTime(CT_T0() + 5), f2 = ctColorAtTime(CT_T0() + 20);
+    ok('the clock moves it along the observer’s own light cone (χ_p(t) − χ_p(t_E) = χ), today it is the chain’s epoch at z(χ), and the future fades',
+      a.rgb.every((v, i) => Math.abs(v - b.rgb[i]) < 1e-12) && Math.abs(lc - c) < 1e-9 && a0.rgb.every((v, i) => Math.abs(v - b0.rgb[i]) < 1e-12) && f2.b < f1.b && f1.b < ctColorAtTime(CT_T0()).b,
+      `light-cone closure ${Math.abs(lc - c).toExponential(1)} · t_E = ${tE.toFixed(4)} Gyr (old shift gave ${(ctAgeOfZ(ctZOfChi(c)) + 2).toFixed(4)}) · +5 Gyr ${f1.b.toFixed(3)} · +20 Gyr ${f2.b.toFixed(3)}`); }
   ok('one authority, two readings, and the solar chain untouched: the Horizons group stays in Horizons, the solar chain draws its own true-scale structures and Laniakea flows as it always did, the ticks follow where each is shown, the tabs say what they are',
     /function cosmosHome\(\)\{[\s\S]{0,500}if\(cosmosGroup\.parent!==obsGroup\) obsGroup\.add\(cosmosGroup\);/.test(SRC) && !/o\.g\.visible=false;   \/\* retired/.test(SRC)
     && /o\.g\.visible=\(layer==='cosmic'\|\|layer==='andromeda'\)&&\(o\.s\.size>=\.2\|\|\['greatatt','laniakea','virgo'\]\.includes\(o\.s\.key\)\);/.test(SRC)
