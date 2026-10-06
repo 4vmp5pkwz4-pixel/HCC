@@ -60,7 +60,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 4 · the horizons as spheres */
   { const hs = K.hccHubbleSphereGly(), eh = K.hccEventHorizonGly();
     ok('the horizons as spheres: Hubble sphere c/H₀ ≈ 14.4 Gly, cosmic event horizon ≈ 16–17 Gly (comoving), the particle horizon beyond — drawn as Fresnel shells with a glowing limb, epoch shells with the last-scattering (Silk, Navier–Stokes) note',
-      hs > 13.8 && hs < 15 && eh > 15.5 && eh < 17.8 && eh > hs && /function hccShellMaterial\(col,op\)/.test(SRC) && /function hccShellMesh\(r,col,op\)/.test(SRC)
+      hs > 13.8 && hs < 15 && eh > 15.5 && eh < 17.8 && eh > hs && /function hccShellMaterial\(col,op(?:,grid)?\)/.test(SRC) && /function hccShellMesh\(r,col,op\)/.test(SRC)
       && /mkSphere\(hccHubbleSphereGly\(\)\*GLY_AU/.test(SRC) && /mkSphere\(hccEventHorizonGly\(\)\*GLY_AU/.test(SRC) && /Navier/.test(SRC) && /Silk/.test(SRC) && /solarCosmicGrid\.add\(hccShellMesh\(r,0x7f95b5,0\.12\)\)/.test(SRC),
       `Hubble sphere ${hs.toFixed(2)} Gly · event horizon ${eh.toFixed(2)} Gly`); }
   /* 5 · the merger finds the reader (v4.351): running the clock fast is enough */
