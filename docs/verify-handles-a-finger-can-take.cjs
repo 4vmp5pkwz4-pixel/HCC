@@ -21,4 +21,8 @@ ok('every slider: 18 px with a mouse; 28 px under a finger or below 820 px, cent
 ok('the sheet grips widen with the handles; on a phone the Agora button leaves the time machine until an agent is on stage, and the Navigator opens the Agora at any time',
   /html body #ctl \.sheetGrip::after,html body #selCard \.selGrip::after\{width:60px!important;height:6px!important\}/.test(coarse) && /@media \(max-width:560px\)\{ #timeMachine #tmAgora:not\(\.on\)\{display:none\} \}/.test(SRC)
   && /\['Agora · agents on the stage','Agents drive the atlas in front of you; the shared journal; the demonstration agent\.',\(\)=>\{ try\{ agoraOpen\(true\); \}catch\(e\)\{\} \}\]/.test(SRC));
+ok('the time machine\'s handle is larger still (v4.372): 24 px with a mouse and 34 px under a finger or below 820 px, ringed in gold, centred on its track, on a 44-px grab band — after the rule for every slider',
+  SRC.indexOf('html body #tmRate input[type=range]::-webkit-slider-thumb{width:24px!important;height:24px!important;margin-top:-10px!important;') > mine
+  && /html body #tmRate input\[type=range\]::-webkit-slider-thumb\{width:34px!important;height:34px!important;margin-top:-14px!important\}/.test(SRC) && /html body #tmRate input\[type=range\]\{min-height:44px!important\}/.test(SRC)
+  && (4 - 24) / 2 === -10 && (6 - 34) / 2 === -14);
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
