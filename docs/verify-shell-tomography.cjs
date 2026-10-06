@@ -148,7 +148,7 @@ ok('the cap fraction is computed and is NOT used as an information fraction anyw
   const built = (src.match(/screenSphere\(/g) || []).length - 1;   // minus the definition
   ok('every observer-centred screen is collected as it is built, in the one constructor they all go through, so a shell added later cannot arrive without the verdict',
     /SHELL_SCREENS\.push\(/.test(src) &&
-    /rows:\(\)=>rows\.concat\(shellTomographyRows\(selKey\)\)/.test(src) && built >= 6,
+    /rows:\(\)=>(?:rows|\(typeof rows==='function'\?rows\(\):rows\))\.concat\(shellTomographyRows\(selKey\)\)/.test(src) && built >= 6,
     `${built} screens built through screenSphere, each one appending its own rank row`);
   ok('and the JOINT bound over those screens is computed and refused in writing, which is a different thing from not computing it',
     /joint_claimed:false/.test(src) && /joint_refusal:/.test(src) &&

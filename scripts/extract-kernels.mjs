@@ -832,7 +832,9 @@ export const ROOTS = [
   'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates',
   'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres',
   /* the horizons in cosmic time (v4.358) */
-  'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS'
+  'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
+  /* the causal calendar of the web (v4.360) */
+  'hzCausal'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
