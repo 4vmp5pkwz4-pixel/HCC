@@ -72,6 +72,8 @@ src = open(INDEX, encoding='utf-8').read()
 camb = json.loads(re.search(r'const CMB_CAMB=Object\.freeze\((\{.*?\})\);', src).group(1))
 Dt = np.array(camb['spec']['TT'][:LMAX + 1]); band = slice(30, LMAX + 1)
 ratio = float(np.sum((2 * ell[band] + 1) * Dl[band]) / np.sum((2 * ell[band] + 1) * Dt[band]))
+br = lambda a_, b_: round(float(np.sum((2 * ell[a_:b_ + 1] + 1) * Dl[a_:b_ + 1]) / np.sum((2 * ell[a_:b_ + 1] + 1) * Dt[a_:b_ + 1])), 4)
+ratio_lo, ratio_hi = br(30, 999), br(1000, 1500)   # the full-mission map carries instrumental noise: it lifts l > 1000 (no half-mission cross-spectrum here)
 bins = [(2, 29), (30, 99), (100, 299), (300, 699), (700, 1099), (1100, 1500)]
 binned = [{'l': [a, b], 'measured': round(float(np.mean(Dl[a:b + 1])), 1), 'camb': round(float(np.mean(Dt[a:b + 1])), 1)} for a, b in bins]
 Dl_out = [round(float(x), 2) for x in Dl[:LMAX + 1]]
@@ -103,7 +105,7 @@ C2 = float(np.sum(np.abs(alm[[hp.Alm.getidx(3, 2, m) for m in range(3)]]) ** 2 *
 meta = {'generated': 'scripts/build-planck-sky.py', 'source': 'Planck 2018 PR3 SMICA, COM_CMB_IQU-smica_2048_R3.00_full.fits (Planck Legacy Archive via IRSA)',
         'sha256': SHA, 'nside': NSIDE, 'frame': 'Galactic', 'unit': 'muK_CMB', 'beamArcmin': 5, 'fsky': round(fsky, 4), 'rangeMuK': RANGE,
         'width': W, 'height': H, 'polSmoothDeg': 1.0, 'polMaxMuK': round(Pmax, 3), 'sigmaT': round(float(np.std(T[mask])), 2),
-        'bandRatio30to1500': round(ratio, 4), 'binned': binned, 'coldSpot': cold, 'axisL2': a2, 'axisL3': a3, 'axisSeparationDeg': round(sep, 1),
+        'bandRatio30to1500': round(ratio, 4), 'bandRatio30to999': ratio_lo, 'bandRatio1000to1500': ratio_hi, 'noiseNote': 'full-mission auto-spectrum: instrumental noise not subtracted, it lifts l > 1000', 'binned': binned, 'coldSpot': cold, 'axisL2': a2, 'axisL3': a3, 'axisSeparationDeg': round(sep, 1),
         'D2muK2': round(2 * 3 * C2 / (2 * np.pi), 1),
         'jpegSha256': hashlib.sha256(base64.b64decode(t_b64)).hexdigest(), 'polJpegSha256': hashlib.sha256(base64.b64decode(p_b64)).hexdigest()}
 tag = '<script type="application/json" id="hcc-planck-sky">' + json.dumps({'t': t_b64, 'p': p_b64, 'm': m_b64, 'dl': Dl_out}, separators=(',', ':')) + '</script>'

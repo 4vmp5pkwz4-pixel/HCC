@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1965   ·   exported names: 2096
-   extracted physics, sha256 19a4472f7a9de67ec213df1ba5d8a25b33120920e66055d7a74c7eb45e780873 */
+   extracted physics, sha256 758544dc6ac9d1c5835cd73f2e1cb44d1f8fea80c3b8fcb7ef9f560d5133a168 */
 
-const HCC_VERSION='4.362.0';
+const HCC_VERSION='4.363.0';
 
-const HCC_BUILD='the-surveys-in-exact-coordinates-2026.10.06.78';
+const HCC_BUILD='the-measured-sky-2026.10.06.79';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -7528,7 +7528,11 @@ const DISCOVERIES=Object.freeze([
    en:'Two numbers in the audited source are off by ten and nine orders', ru:'Два числа в проверенном источнике ошибочны на десять и девять порядков', de:'Zwei Zahlen der geprüften Quelle liegen um zehn und neun Größenordnungen daneben',
    claim:'A Planck-mass lens halfway to a source 8 kpc away has an Einstein radius √(4GM D_eff)/c = 6.3·10⁻⁶ cm, not the source’s 10⁻¹⁵ cm (9.8 orders); a 10⁵ g Schwarzschild hole evaporates in 5120πG²M³/(ħc⁴) = 8.4·10⁻¹¹ s, not ~10⁻¹⁹ s (8.9 orders, before any species factor) — as the specification found (M44, M46).',
    numbers:{einsteinRadiusCm:6.3e-6, lifetimeS:8.4e-11}},
-  {id:'radiusValley', kind:'confirms', domain:'astro', v:'4.363.0', labs:['cosmo'], verifier:'docs/verify-the-real-sky.cjs',
+  {id:'measuredCmbSky', kind:'confirms', domain:'cosmo', v:'4.363.0', labs:['cmb','cosmo'], verifier:'docs/verify-the-real-sky.cjs',
+   en:'The measured CMB sky in the atlas — its Cold Spot and its aligned low multipoles found in the map itself', ru:'Измеренное небо CMB в атласе — его Холодное пятно и выстроенные низкие мультиполи найдены в самой карте', de:'Der gemessene CMB-Himmel im Atlas — Kalter Fleck und ausgerichtete Multipole in der Karte selbst gefunden',
+   claim:'Planck 2018 SMICA (PR3, Nside 2048, SHA-256 recorded; integrity verified against its own header) now stands on the last-scattering wall and as the sky of every solar level, read by exact Galactic direction (the wall used to read by ecliptic UVs). Measured on the map: its spectrum outside the confidence mask (f_sky 0.84) is 1.019 × this atlas’s CAMB spectrum for 30 ≤ ℓ ≤ 999 (1.10 above ℓ = 1000, where the full-mission noise is not subtracted); the minimum of the 5°-smoothed map at |b| > 20° — the Cold Spot — is at l = 208.4°, b = −56.3°, −127 μK; the quadrupole and octopole axes (maximal angular-momentum dispersion) lie at (240.7°, 55.9°) and (237.5°, 63.4°), 7.7° apart; and the quadrupole power D₂ = 198 μK² is about a fifth of ΛCDM’s — the low-ℓ anomalies, found here rather than quoted.',
+   numbers:{ratio30to999:1.019, coldL:208.43, coldB:-56.26, coldMuK:-126.6, axisSep:7.7, d2:198.2, fsky:0.8424}},
+  {id:'radiusValley', kind:'confirms', domain:'galaxy', v:'4.363.0', labs:['cosmo'], verifier:'docs/verify-the-real-sky.cjs',
    en:'The radius valley, measured on every transiting planet in the atlas', ru:'Долина радиусов, измеренная по всем транзитным планетам атласа', de:'Das Radiustal, gemessen an allen Transitplaneten des Atlas',
    claim:'From the NASA Exoplanet Archive composite table embedded here (6 375 planets around 4 780 stars, validated), the kernel density of log R over the 3 178 transiting planets with P < 100 d and 1–4 R⊕ — radii measured, not inferred — has a valley at ≈ 1.77 R⊕ between peaks at ≈ 1.60 and ≈ 2.47 R⊕, the density there ≈ 80 % of the peaks (Fulton et al. 2017 place it near 1.75–2.0 R⊕). It survives 0.025 dex smoothing and washes out at 0.045 dex; no completeness correction is applied, which is why it is shallower than in curated samples.',
    numbers:{nTransiting:3178, valleyR:1.77, peakLowR:1.6, peakHighR:2.47, depth:0.8, planets:6375, hosts:4780}},
