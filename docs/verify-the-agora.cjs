@@ -45,7 +45,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     /* the stand-in atlas page: joins as the atlas and answers every command with what it was asked */
     const atlas = new WebSocket(`ws://127.0.0.1:${port}`); let joined = null;
     await new Promise(r => { atlas.onopen = () => { atlas.send(JSON.stringify({ t: 'atlas', build: 'verify' })); r(); }; });
-    atlas.onmessage = e => { const m = JSON.parse(e.data); if (m.t === 'join') joined = m.name; if (m.t === 'cmd') atlas.send(JSON.stringify({ t: 'res', id: m.id, ok: true, result: { echo: m.cmd, args: m.args, from: m.name } })); };
+    atlas.onmessage = e => { const m = JSON.parse(e.data); if (m.t === 'join') joined = m.name; if (m.t === 'cmd') atlas.send(JSON.stringify({ t: 'res', id: m.id, ok: true, result: m.cmd === 'look' ? { image: 'data:image/jpeg;base64,/9j/AAAA', width: 4, height: 3 } : { echo: m.cmd, args: m.args, from: m.name } })); };
     /* an MCP host on stdio */
     const mcp = cp.spawn(process.execPath, [relay, '--port', String(port), '--name', 'Verifier'], { stdio: ['pipe', 'pipe', 'pipe'] });
     let buf = ''; const got = new Map(); mcp.stdout.on('data', d => { buf += d; let i; while ((i = buf.indexOf('\n')) >= 0) { const l = buf.slice(0, i); buf = buf.slice(i + 1); try { const m = JSON.parse(l); got.set(m.id, m); } catch (e) {} } });
@@ -53,7 +53,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const init = await call(1, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'verify-host', version: '1' } });
     mcp.stdin.write(JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }) + '\n');
     const list = await call(2, 'tools/list', {}), go = await call(3, 'tools/call', { name: 'atlas_go', arguments: { world: 'solar' } }), badc = await call(4, 'tools/call', { name: 'atlas_layer', arguments: { layer: 'nowhere' } });
-    const echo = go && JSON.parse(go.result.content[0].text);
+    const echo = go && JSON.parse(go.result.content[0].text), look = await call(6, 'tools/call', { name: 'atlas_look', arguments: { width: 320 } });
     /* and with the atlas gone, the agent is told how to connect one */
     atlas.close(); await sleep(300); const none = await call(5, 'tools/call', { name: 'atlas_scene', arguments: {} });
     /* a web page posing as an agent, and an atlas from a foreign origin, are refused */
@@ -63,8 +63,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
       req.on('error', () => r(false)); req.end(); });
     const status = await new Promise(r => http.get(`http://127.0.0.1:${port}/`, res => { let b = ''; res.on('data', d => b += d); res.on('end', () => r(JSON.parse(b))); }).on('error', () => r(null)));
     mcp.stdin.end(); hub.kill(); await sleep(200);
-    ok('the relay, run here: MCP initialize and tools/list answer with the vocabulary, a tool call goes through the hub to the atlas and its answer comes back, under the agent\'s own name; a bad argument is refused before it leaves; with no atlas the agent is told how to connect one',
+    ok('the relay, run here: MCP initialize and tools/list answer with the vocabulary, a tool call goes through the hub to the atlas and its answer comes back, under the agent\'s own name; what the agent sees (look) arrives as an MCP image; a bad argument is refused before it leaves; with no atlas the agent is told how to connect one',
       init && init.result && init.result.serverInfo.name === 'hcc-agora' && list && list.result.tools.length === names.length && echo && echo.echo === 'go' && echo.args.world === 'solar' && echo.from === 'Verifier' && joined === 'Verifier'
+      && look && look.result.content[0].type === 'image' && look.result.content[0].mimeType === 'image/jpeg' && look.result.content[0].data === '/9j/AAAA' && JSON.parse(look.result.content[1].text).width === 4
       && badc && badc.result.isError && /layer must be one of/.test(badc.result.content[0].text) && none && none.result.isError && /no atlas is connected/.test(none.result.content[0].text),
       `${list && list.result.tools.length} tools · echo ${echo && echo.echo} from ${echo && echo.from} · no-atlas: "${none && none.result.content[0].text.slice(0, 60)}…"`);
     ok('safety at the hub: it binds 127.0.0.1, and an atlas offered from a foreign web origin is closed on arrival',
@@ -74,6 +75,16 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('safety in the page: a check may only read, never act; an agent from a tab or the relay waits for the reader\'s Allow; touching the view takes the camera back for eight seconds; the reader can pause or dismiss any agent',
     /a check must read, not act/.test(SRC) && /status:via==='page'\?'live':'pending'/.test(SRC) && /AGORA\.takeoverUntil=performance\.now\(\)\+8000/.test(SRC) && /the reader is steering/.test(SRC)
     && /if\(AGORA\.paused\) throw new Error\('the reader has paused every agent'\)/.test(SRC) && /data-ag="kick"/.test(SRC));
+
+  /* 6 · hands, eyes, voice and memory (v4.370) */
+  { const reads = SRC.match(/const AGORA_READS=(\[[^\]]+\]);/), R = reads ? JSON.parse(reads[1].replace(/'/g, '"')) : [];
+    const acting = ['go','layer','focus','camera','time','say','mark','predict','highlight','clear','tour','panel','press','input','point','guide','ask','note','visit','phase','look'];
+    ok('hands, eyes, voice and memory: look renders a fresh frame, read returns every open window, panels/panel/controls/press/input reach any window and control (each glows first) except the Agora\'s own consent controls; point, guide and ask lead the reader; the journal keeps each record\'s place, persists, syncs across tabs and travels as a file; a prediction\'s check may call only reading commands',
+      R.length >= 10 && R.every(c => S[c]) && !R.some(c => acting.includes(c))
+      && /!!e\.closest\('#agoraPanel,#agoraAsk,\[data-agora-guard\]'\)/.test(SRC) && /agoraCallout\(A,e,'',1\.4\); await new Promise\(r=>setTimeout\(r,650\)\); e\.click\(\);/.test(SRC)
+      && /renderer\.render\(scene,camera\);\s*const h=Math\.round/.test(SRC) && /function agoraAskCard\(A,q,options,seconds\)\{/.test(SRC) && /else if\(m\.t==='journal'&&m\.entry\) agoraJournalMerge\(\[m\.entry\]\);/.test(SRC)
+      && /const AGORA_JOURNAL_KEY='hcc\.agora\.journal';/.test(SRC) && /function agoraJournalExport\(\)\{/.test(SRC) && /async function agoraVisit\(E\)\{/.test(SRC),
+      `${R.length} reading commands a check may call: ${R.join(', ')}`); }
 
   /* 5 */
   ok('the stage: a presence per agent (glow, rings, motes, name), beams and ripples to what it touches, pins and rings that follow objects, captions in the page and on a plane in the headset, predictions that stop the clock at their epoch and run their check, the ◈ button on the time machine',

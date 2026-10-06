@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1992   ·   exported names: 2124
-   extracted physics, sha256 512fa451bee783d22f25b7f9334c4a33f882fcd2443f3f7e3751aeadd272fef6 */
+   extracted physics, sha256 cecee459c67ff4559fed3fc4e0695c266c04c0135f25f9f1fa6f53e424b3ef1a */
 
-const HCC_VERSION='4.369.0';
+const HCC_VERSION='4.370.0';
 
-const HCC_BUILD='the-agora-2026.10.06.85';
+const HCC_BUILD='hands-eyes-voice-memory-2026.10.06.86';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -12363,7 +12363,20 @@ const AGORA_SPECS=Object.freeze({
   predict:{doc:'Make a checkable prediction: a claim, an epoch (epochDays or ISO date), optionally an object key to pin it on, and a check {cmd, args, path, expect, tol}. When the clock reaches the epoch it stops there, runs the check in front of everyone and marks the claim confirmed or refuted; with no epoch it is checked now.', args:{claim:{type:'string'}, epochDays:{type:'number'}, date:{type:'string'}, key:{type:'string'}, check:{type:'object',description:'{cmd, args, path, expect, tol}: a command of this vocabulary, the dotted path to a number in its result, the value expected and the tolerance'}}, required:['claim','check']},
   highlight:{doc:'Ring objects by key so the reader sees what the agent is talking about.', args:{keys:{type:'array',items:{type:'string'}}}, required:['keys']},
   clear:{doc:'Remove this agent\'s marks, rings and pending predictions.', args:{}},
-  tour:{doc:'A choreographed sequence: steps of {cmd, args, dwell seconds}, run in order in front of the reader. Returns every step\'s result.', args:{steps:{type:'array',items:{type:'object'}}}, required:['steps']}
+  tour:{doc:'A choreographed sequence: steps of {cmd, args, dwell seconds}, run in order in front of the reader. Returns every step\'s result.', args:{steps:{type:'array',items:{type:'object'}}}, required:['steps']},
+  look:{doc:'SEE what the reader sees: a fresh frame of the scene as an image (JPEG, the given width, default 768 px), with the caption line, the world and the epoch. MCP hosts receive it as an image.', args:{width:{type:'number'}}},
+  read:{doc:'READ every window the reader has open — panels, cards, the caption, the laboratory bar, the time machine — as text, or one panel by id.', args:{panel:{type:'string'}}},
+  panels:{doc:'Every window and tool of the atlas (panel ids, whether open, whether available in this world) and every button that opens one.', args:{}},
+  panel:{doc:'Open, close or toggle any window of the atlas by id (from panels), in front of the reader.', args:{id:{type:'string'}, open:{type:'boolean'}}, required:['id']},
+  press:{doc:'Press any control of the atlas the reader could press — a button, chip, tab, checkbox — found by its visible label, aria-label, title or #id. The control glows in the agent\'s colour before it is pressed. The Agora\'s own consent controls are out of reach.', args:{label:{type:'string'}, nth:{type:'number',description:'which match, from 0, when several share the label'}}, required:['label']},
+  input:{doc:'Set any slider, number, text field or select of the atlas — found by its label, aria-label, placeholder or #id — and fire its change, in front of the reader.', args:{label:{type:'string'}, value:{type:'string'}}, required:['label','value']},
+  controls:{doc:'Every control the reader can operate right now — buttons, chips, checkboxes, sliders, selects — with labels and current values, filtered by a query.', args:{q:{type:'string'}}},
+  point:{doc:'GUIDE the reader: a glowing frame and a note in the agent\'s colour on a control or window (label or #id), or on an object in the scene (key), for some seconds.', args:{text:{type:'string'}, label:{type:'string'}, key:{type:'string'}, seconds:{type:'number'}}, required:['text']},
+  guide:{doc:'A guided walk for the reader: steps of {text, label | key, wait: "click" | seconds}. Each step points; a click step waits for the reader to press the thing pointed at (up to 90 s). Returns what the reader did.', args:{steps:{type:'array',items:{type:'object'}}}, required:['steps']},
+  ask:{doc:'ASK the reader a question on the stage, with options to choose from (or a free answer when none are given); returns the answer, or that none came in the time allowed (default 60 s).', args:{question:{type:'string'}, options:{type:'array',items:{type:'string'}}, seconds:{type:'number'}}, required:['question']},
+  note:{doc:'WRITE to the shared journal: a record that keeps the place it was written — world, laboratory, epoch, camera, selection — so anyone, reader or agent, can return to it. Pinned in the scene where it was written.', args:{title:{type:'string'}, text:{type:'string'}, tags:{type:'array',items:{type:'string'}}}, required:['text']},
+  journal:{doc:'READ the shared journal: every record left by readers and agents, newest first, filtered by a query on title, text, tags or author.', args:{q:{type:'string'}, n:{type:'number'}}},
+  visit:{doc:'Take the reader to the place a journal record keeps — the world, the laboratory, the epoch, the camera and the selection it was written in.', args:{id:{type:'string'}}, required:['id'], moves:true}
 });
 
 function agoraTools(){ return Object.entries(AGORA_SPECS).map(([k,s])=>({name:'atlas_'+k, description:s.doc,
