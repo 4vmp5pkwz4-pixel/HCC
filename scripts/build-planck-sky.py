@@ -4,7 +4,9 @@
 Source: COM_CMB_IQU-smica_2048_R3.00_full.fits, Planck Legacy Archive via IRSA
 (https://irsa.ipac.caltech.edu/data/Planck/release_3/all-sky-maps/maps/component-maps/cmb/), SHA-256 recorded.
 The map is in K_CMB, Galactic HEALPix (Nside 2048, NESTED as distributed), 5' beam, monopole and dipole removed;
-the Galactic plane is inpainted, and its confidence mask (TMASK) travels with it.
+the file carries both the measured Stokes maps with their confidence mask (TMASK) and an inpainted copy
+(I_STOKES_INP...) in which the masked Galactic plane is filled; the picture uses the inpainted copy, every statistic the
+measured map outside the mask.
 
 What is done, and nothing more:
   1. the temperature is projected to the SAME 2048 x 1024 equirectangular layout the atlas's realization uses
@@ -32,8 +34,15 @@ with open(SRC, 'rb') as f:
     for chunk in iter(lambda: f.read(1 << 22), b''): h.update(chunk)
 SHA = h.hexdigest()
 
-T, Q, U, TMASK = hp.read_map(SRC, field=[0, 1, 2, 3], nest=False)   # read_map reorders NESTED -> RING
-NSIDE = hp.get_nside(T); T *= 1e6; Q *= 1e6; U *= 1e6               # K_CMB -> muK
+from astropy.io import fits
+with fits.open(SRC) as hd:                                             # the build refuses a truncated or damaged file
+    hd.verify('exception'); hdr = hd[1].header
+    assert hdr['ORDERING'] == 'NESTED' and hdr['NSIDE'] == 2048 and hdr['COORDSYS'] == 'GALACTIC' and hdr['TUNIT1'].strip() == 'K_CMB', 'unexpected header'
+    assert os.path.getsize(SRC) >= hd[1]._data_offset + hd[1]._data_size, 'file shorter than its header declares'
+# the measured fields (statistics, outside the confidence mask) and the inpainted ones (the full-sky picture)
+T, Q, U, TMASK, Ti, Qi, Ui = hp.read_map(SRC, field=[0, 1, 2, 3, 5, 6, 7], nest=False)   # read_map reorders NESTED -> RING
+NSIDE = hp.get_nside(T)
+for a_ in (T, Q, U, Ti, Qi, Ui): a_ *= 1e6                             # K_CMB -> muK
 mask = TMASK > 0.5; fsky = float(mask.mean())
 assert NSIDE == 2048 and np.isfinite(T).all(), 'unexpected map'
 
@@ -41,10 +50,10 @@ assert NSIDE == 2048 and np.isfinite(T).all(), 'unexpected map'
 W, H, RANGE = 2048, 1024, 400.0
 th = (np.arange(H) + 0.5) / H * np.pi; ph = (np.arange(W) + 0.5) / W * 2 * np.pi
 TH, PH = np.meshgrid(th, ph, indexing='ij')
-Tm = hp.get_interp_val(T, TH.ravel(), PH.ravel()).reshape(H, W)
+Tm = hp.get_interp_val(Ti, TH.ravel(), PH.ravel()).reshape(H, W)   # the inpainted map: the Galactic plane filled, the mask image says where
 img = np.clip(np.round((Tm + RANGE) / (2 * RANGE) * 255), 0, 255).astype(np.uint8)
 buf = io.BytesIO(); Image.fromarray(img, 'L').save(buf, format='JPEG', quality=86, optimize=True); t_b64 = base64.b64encode(buf.getvalue()).decode()
-Ts, Qs, Us = hp.smoothing([T, Q, U], fwhm=np.radians(1.0), lmax=600, pol=True)
+Ts, Qs, Us = hp.smoothing([Ti, Qi, Ui], fwhm=np.radians(1.0), lmax=600, pol=True)
 w2, h2 = 512, 256
 TH2, PH2 = np.meshgrid((np.arange(h2) + 0.5) / h2 * np.pi, (np.arange(w2) + 0.5) / w2 * 2 * np.pi, indexing='ij')
 q = hp.get_interp_val(Qs, TH2.ravel(), PH2.ravel()).reshape(h2, w2); u = hp.get_interp_val(Us, TH2.ravel(), PH2.ravel()).reshape(h2, w2)
@@ -76,7 +85,7 @@ ok = (Msm > 0.9) & (np.abs(bg) > 20); i = np.argmin(np.where(ok, Tn, np.inf))
 cold = {'l': round(float(np.degrees(phg[i])), 2), 'b': round(float(bg[i]), 2), 'muK': round(float(Tn[i]), 1), 'smoothDeg': 5.0}
 
 # ── 4 · the quadrupole and octopole axes ────────────────────────────────────────
-alm = hp.map2alm(T, lmax=3)
+alm = hp.map2alm(Ti, lmax=3)                                            # the low multipoles need the full sky: the inpainted map, as Planck does
 def axis(l):
     nd = 32; best = (-1, None)
     for p in range(hp.nside2npix(nd)):

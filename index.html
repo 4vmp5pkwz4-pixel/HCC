@@ -24421,8 +24421,14 @@ function cmbPlanckianXYZ(T){ const h=6.62607015e-34, c=299792458, k=1.380649e-23
 function cmbPlanckianRGB(T){ const q=cmbPlanckianXYZ(T), lin=[3.2406*q.X-1.5372*q.Y-0.4986*q.Z, -0.9689*q.X+1.8758*q.Y+0.0415*q.Z, 0.0557*q.X-0.2040*q.Y+1.0570*q.Z].map(v=>Math.max(0,v)),
     m=Math.max(...lin), enc=v=>{ v/=m; return v<=0.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-0.055; }; return lin.map(enc); }
 const CMB_SKY={tex:null, pol:null, noise:null, cmap:null, bb:null, mat:null, failed:false, old:null};
-function cmbSkyTextures(){ if(CMB_SKY.tex||CMB_SKY.failed) return !CMB_SKY.failed;
-  try{ const j=JSON.parse(document.getElementById('hcc-cmb-sky').textContent||'{}'); if(!j.t) throw new Error('no embedded sky');
+/* which sky (v4.363): the MEASURED one — Planck 2018 SMICA, when embedded — or this atlas's own ΛCDM realization */
+function cmbPlanckMeta(){ try{ return PLANCK_SKY_META; }catch(e){ return null; } }
+function cmbPlanckNoteHTML(){ const M=cmbPlanckMeta(); if(!M||(state.cmbSkySource||'planck')!=='planck') return `<div class="note" style="font-size:10.5px;color:var(--dim)">${TT('A realization of this atlas’s own ΛCDM: statistically the sky, not the sky’s own spots.','Реализация собственной ΛCDM атласа: статистически небо, но не его собственные пятна.','Eine Realisierung des eigenen ΛCDM.')}</div>`;
+  return `<div class="note" style="font-size:10.5px;color:var(--dim)">${TT('The measured sky','Измеренное небо','Der gemessene Himmel')}: Planck 2018 SMICA (PR3, Nside ${M.nside}, sha256 ${M.sha256.slice(0,10)}…). ${TT('Its spectrum against this atlas’s CAMB, 30 ≤ ℓ ≤ 1500','Его спектр против CAMB атласа, 30 ≤ ℓ ≤ 1500','Sein Spektrum gegen das CAMB des Atlas')}: ${M.bandRatio30to1500.toFixed(3)} · ${TT('Cold Spot found at','Холодное пятно найдено в','Kalter Fleck gefunden bei')} l ${M.coldSpot.l}°, b ${M.coldSpot.b}° (${M.coldSpot.muK} μK, 5°) · ${TT('quadrupole and octopole axes','оси квадруполя и октуполя','Quadrupol- und Oktupolachsen')} ${M.axisSeparationDeg}° ${TT('apart','друг от друга','auseinander')} · D₂ = ${M.D2muK2} μK² (${TT('ΛCDM','ΛCDM','ΛCDM')} ≈ ${Math.round(CMB_CAMB.spec.TT[2])}).</div>`; }
+function cmbSkySourceId(){ const want=state.cmbSkySource||'planck'; return want==='planck'&&document.getElementById('hcc-planck-sky')?'hcc-planck-sky':'hcc-cmb-sky'; }
+function cmbSkyTextures(){ const id=cmbSkySourceId(); if(CMB_SKY.tex&&CMB_SKY.srcId!==id){ for(const t of [CMB_SKY.tex,CMB_SKY.pol]) t&&t.dispose(); CMB_SKY.tex=CMB_SKY.pol=null; }
+  if(CMB_SKY.tex||CMB_SKY.failed) return !CMB_SKY.failed;
+  try{ const j=JSON.parse(document.getElementById(id).textContent||'{}'); if(!j.t) throw new Error('no embedded sky'); CMB_SKY.srcId=id;
     const load=(b64,mime)=>{ const img=new Image(); img.src='data:'+mime+';base64,'+b64; const t=new THREE.Texture(img); img.onload=()=>{ t.needsUpdate=true; }; t.wrapS=THREE.RepeatWrapping; t.anisotropy=4; return t; };
     CMB_SKY.tex=load(j.t,'image/jpeg'); CMB_SKY.tex.generateMipmaps=true; CMB_SKY.tex.minFilter=THREE.LinearMipmapLinearFilter;
     CMB_SKY.pol=load(j.p,'image/jpeg'); CMB_SKY.pol.colorSpace=THREE.NoColorSpace;
@@ -24437,23 +24443,28 @@ function cmbSkyMaterial(opacity){ cmbSkyTextures();
   return new THREE.ShaderMaterial({transparent:true, depthWrite:false, side:THREE.BackSide,
     uniforms:{uT:{value:CMB_SKY.tex}, uP:{value:CMB_SKY.pol}, uCmap:{value:CMB_SKY.cmap}, uBB:{value:CMB_SKY.bb}, uNoise:{value:CMB_SKY.noise},
       uMode:{value:0}, uRange:{value:CMB_CAMB.meta.sky.rangeMuK}, uCRange:{value:CMB_COLOR_RANGE_MUK}, uTemit:{value:CMB_T_EMIT()}, uT0:{value:HCC_S3R.T_cmb*1e6},
-      uGain:{value:1e4}, uTime:{value:0}, uOpacity:{value:opacity}},
-    vertexShader:`varying vec2 vUv;
+      uGain:{value:1e4}, uTime:{value:0}, uOpacity:{value:opacity}, uGx:{value:hccGalacticBasis().x}, uGy:{value:hccGalacticBasis().y}, uGz:{value:hccGalacticBasis().z}},
+    /* the wall reads the map by GALACTIC direction (v4.363): the sphere's own UVs are ecliptic, which did not matter for a
+       realization and would put the measured Cold Spot in the wrong place on the measured sky */
+    vertexShader:`varying vec3 vD;
       #include <common>
       #include <logdepthbuf_pars_vertex>
-      void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
+      void main(){ vD=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
         #include <logdepthbuf_vertex>
       }`,
-    fragmentShader:`uniform sampler2D uT, uP, uCmap, uBB, uNoise; uniform float uMode, uRange, uCRange, uTemit, uT0, uGain, uTime, uOpacity; varying vec2 vUv;
+    fragmentShader:`uniform sampler2D uT, uP, uCmap, uBB, uNoise; uniform float uMode, uRange, uCRange, uTemit, uT0, uGain, uTime, uOpacity; uniform vec3 uGx, uGy, uGz; varying vec3 vD;
       #include <common>
       #include <logdepthbuf_pars_fragment>
-      float dT(vec2 uv, float bias){ return (texture2D(uT,uv,bias).r*2.0-1.0)*uRange; }
+      vec2 gDx, gDy;   /* seam-free texture gradients across l = 0 */
+      vec2 galUv(){ vec3 d=normalize(vD); float l=atan(dot(d,uGy),dot(d,uGx)); if(l<0.0) l+=2.0*PI; float u=l/(2.0*PI), v=0.5+asin(clamp(dot(d,uGz),-1.0,1.0))/PI, u2=fract(u+0.5)-0.5;
+        vec2 g1=vec2(dFdx(u),dFdy(u)), g2=vec2(dFdx(u2),dFdy(u2)), gu=dot(g1,g1)<dot(g2,g2)?g1:g2; gDx=vec2(gu.x,dFdx(v)); gDy=vec2(gu.y,dFdy(v)); return vec2(u,v); }
+      float dT(vec2 uv, float bias){ float k=exp2(bias); return (textureGrad(uT,uv,gDx*k,gDy*k).r*2.0-1.0)*uRange; }
       vec3 planck(float t){ return texture2D(uCmap,vec2(clamp((t+uCRange)/(2.0*uCRange),0.0,1.0)*(255.0/256.0)+0.5/256.0,0.5)).rgb; }
       vec2 dir(vec2 uv){ vec3 p=texture2D(uP,uv).rgb; float psi=0.5*atan(p.g*2.0-1.0,p.r*2.0-1.0); float st=max(sin((1.0-uv.y)*PI),0.08);
         return normalize(vec2(sin(psi)/(st*2.0), -cos(psi))); }
       void main(){
         #include <logdepthbuf_fragment>
-        vec3 col;
+        vec2 vUv=galUv(); vec3 col;
         if(uMode<0.5){ col=planck(dT(vUv,0.0)); }
         else if(uMode<1.5){ float T=uTemit*(1.0+uGain*dT(vUv,0.0)/uT0); col=texture2D(uBB,vec2(clamp((T-1200.0)/4000.0,0.0,1.0),0.5)).rgb; }
         else { float s=0.0, w=0.0; vec2 p=vUv, d=dir(vUv); const float h=0.0011;
@@ -24465,7 +24476,7 @@ function cmbSkyMaterial(opacity){ cmbSkyTextures();
 function applyCmbWall(on){
   const mesh=sphLSS.children[0];   // the BackSide fill sphere of the LSS screen
   if(!CMB_SKY.old) CMB_SKY.old=mesh.material;
-  if(on&&cmbSkyTextures()){ if(!CMB_SKY.mat) CMB_SKY.mat=cmbSkyMaterial(0.78); CMB_SKY.mat.uniforms.uMode.value=state.cmbSkyMode??(state.cosmicTimeColour!==false?1:0);   /* with the colour of cosmic time on, the wall shows the colour it WAS — one encoding */ CMB_SKY.mat.uniforms.uGain.value=Math.pow(10,state.cmbSkyGainLog??4); mesh.material=CMB_SKY.mat; }
+  if(on&&cmbSkyTextures()){ if(!CMB_SKY.mat) CMB_SKY.mat=cmbSkyMaterial(0.78); CMB_SKY.mat.uniforms.uT.value=CMB_SKY.tex; CMB_SKY.mat.uniforms.uP.value=CMB_SKY.pol; CMB_SKY.mat.uniforms.uMode.value=state.cmbSkyMode??(state.cosmicTimeColour!==false?1:0);   /* with the colour of cosmic time on, the wall shows the colour it WAS — one encoding */ CMB_SKY.mat.uniforms.uGain.value=Math.pow(10,state.cmbSkyGainLog??4); mesh.material=CMB_SKY.mat; }
   else if(on){ if(!applyCmbWall.tex) applyCmbWall.tex=makeCMBTexture(); const m=CMB_SKY.old; m.map=applyCmbWall.tex; m.color.set(0xffffff); m.opacity=.30; m.needsUpdate=true; mesh.material=m; }
   else { const m=CMB_SKY.old; m.map=null; m.color.set(0xd05ad8); m.opacity=.04; m.needsUpdate=true; mesh.material=m; }
 }
@@ -24953,10 +24964,12 @@ function cmbBackdropBuild(){ if(CMB_BACKDROP.mesh) return CMB_BACKDROP.mesh; if(
   mk(dip.clone().negate(),`CMB ${TT('dipole antapex','антиапекс диполя','Dipol-Antapex')} · −${(CMB_DIPOLE_PLANCK.ampMuK/1000).toFixed(2)} mK`);
   mk(hccGalToScene(0,90),TT('north galactic pole','северный галактический полюс','galaktischer Nordpol'));
   mk(hccGalToScene(0,0),TT('l = 0 · toward the Galactic centre','l = 0 · к центру Галактики','l = 0 · zum galaktischen Zentrum'));
+  { const M=cmbPlanckMeta(); if(M){ const c=M.coldSpot; mk(hccGalToScene(c.l,c.b),`${TT('Cold Spot — found in the Planck map','Холодное пятно — найдено в карте Planck','Kalter Fleck — in der Planck-Karte gefunden')} · ${c.muK} μK`);
+      for(const [A,n] of [[M.axisL2,'ℓ = 2'],[M.axisL3,'ℓ = 3']]){ mk(hccGalToScene(A.l,A.b),`${TT('axis','ось','Achse')} ${n} · l ${A.l}°, b ${A.b}°`); mk(hccGalToScene((A.l+180)%360,-A.b),`${TT('axis','ось','Achse')} ${n}`); } } }
   return mesh; }
 function hccCmbBackdropTick(){ const want=state.mode==='solar'&&!!state.cmbBackdrop;
   if(!want){ if(CMB_BACKDROP.mesh){ CMB_BACKDROP.mesh.visible=false; CMB_BACKDROP.labGroup.visible=false; } return; }
-  const m=cmbBackdropBuild(); if(!m) return; m.visible=true; const U=m.material.uniforms;
+  const m=cmbBackdropBuild(); if(!m) return; m.visible=true; const U=m.material.uniforms; cmbSkyTextures(); U.uT.value=CMB_SKY.tex;
   U.uMode.value=state.cmbBackdropMode|0; U.uOp.value=Math.max(0.02,Math.min(1,state.cmbBackdropOpacity??0.4)); U.uGain.value=Math.pow(10,state.cmbSkyGainLog??4);
   const G=CMB_BACKDROP.labGroup; G.visible=state.cmbBackdropLabels!==false; if(G.visible){ G.position.copy(camera.position); const k=Math.max(1e-9,camera.position.distanceTo(controls.target))*3;
     for(const L of CMB_BACKDROP.labs) L.position.copy(L.userData.dir).multiplyScalar(k); } }
@@ -97554,7 +97567,7 @@ const state = {
   showOortPoints: true, showOortOrbits: true, showOortShells: true,
   showGuides: true, guideOpacity:1, showSpinAxes:true, showHierarchyLocator:true, showMotionVectors:true,
   showLaniakeaFlows:false, laniakeaFlowDensity:.68, laniakeaFlowSpeed:.18, showCosmicDust:false, showWebRelief:true, showLocalWeb:true, cosmicTimeColour:true, showMwArms:true,
-  nestingMargin:1, showNesting:false, showSightlines:false, showDipoleAxis:false, showSurveyCone:false, showScaleRings:false, show2mrs:true, showExoplanets:true, showCf4Groups:true, showCf4Galaxies:false, showStructureExtents:false, cmbBackdrop:false, cmbBackdropMode:1, cmbBackdropOpacity:0.4, cmbBackdropLabels:true, nestingDepthColours:false,
+  nestingMargin:1, showNesting:false, showSightlines:false, showDipoleAxis:false, showSurveyCone:false, showScaleRings:false, show2mrs:true, showExoplanets:true, showCf4Groups:true, showCf4Galaxies:false, showStructureExtents:false, cmbBackdrop:false, cmbSkySource:'planck', cmbBackdropMode:1, cmbBackdropOpacity:0.4, cmbBackdropLabels:true, nestingDepthColours:false,
   tomoL:4, tomoQ:1, tomoShow:true, tomoEpsLog:-2, tomoChi0:1.1,
   atlasAudience:'expert', showQualityOverlay:true, showPhysDebug:false,
   evidenceFilter:null, tierFilter:null, poly4d:'tesseract', orbN:2, orbL:1, orbM:0,
@@ -101612,6 +101625,7 @@ function buildCtlBody(){
       <div class="sect" style="margin-top:6px"><b>${TT('CMB — the sky of every level','CMB — небо каждого уровня','CMB — der Himmel jeder Ebene')}</b>
         <div class="ctlrow" title="${TT('The relic radiation behind everything, from a planet’s orbit to the giant structures, oriented exactly in the IAU galactic frame. Its ℓ ≥ 2 spots are this atlas’s own ΛCDM realization; the dipole is Planck’s measurement.','Реликтовое излучение позади всего — от орбиты планеты до гигантских структур, точно ориентированное в галактической системе IAU. Пятна ℓ ≥ 2 — собственная ΛCDM-реализация атласа; диполь — измерение Planck.','Die Reliktstrahlung hinter allem, exakt im galaktischen IAU-System orientiert.')}"><label>${TT('Show the CMB sky','Показать небо CMB','CMB-Himmel zeigen')}</label><input type="checkbox" id="cmbBack" ${state.cmbBackdrop?'checked':''}></div>
         <div class="ctlrow">${[[0,TT('anisotropy ±300 μK','анизотропия ±300 мкК','Anisotropie ±300 μK')],[1,TT('as the Sun sees it · dipole','как видит Солнце · диполь','wie die Sonne sie sieht · Dipol')],[2,TT('the colour it was','цвет, каким он был','die Farbe, die sie hatte')]].map(([m,t])=>`<button class="chip ${(state.cmbBackdropMode|0)===m?'on':''}" data-cmbback="${m}">${t}</button>`).join(' ')}</div>
+        <div class="ctlrow">${[['planck',TT('Planck 2018 · the measured sky','Planck 2018 · измеренное небо','Planck 2018 · der gemessene Himmel')],['camb',TT('ΛCDM realization of this atlas','ΛCDM-реализация атласа','ΛCDM-Realisierung des Atlas')]].map(([k,t])=>`<button class="chip ${(state.cmbSkySource||'planck')===k?'on':''}" data-cmbsrc="${k}">${t}</button>`).join(' ')}</div>${cmbPlanckNoteHTML()}
         <div class="ctlrow"><label>${TT('Opacity','Непрозрачность','Deckkraft')}</label><input type="range" id="cmbBackOp" min="0.05" max="1" step="0.05" value="${state.cmbBackdropOpacity??0.4}"></div>
         <div class="ctlrow"><label>${TT('Dipole and galactic marks','Метки диполя и Галактики','Dipol- und Galaxismarken')}</label><input type="checkbox" id="cmbBackLab" ${state.cmbBackdropLabels!==false?'checked':''}></div>
       </div>
@@ -101822,6 +101836,7 @@ function buildCtlBody(){
     ctl.querySelector('#skyQso')&&(ctl.querySelector('#skyQso').onchange=e=>{ state.showQso3d=e.target.checked; });
     ctl.querySelector('#skyExo')&&(ctl.querySelector('#skyExo').onchange=e=>{ state.showExoplanets=e.target.checked; buildCtl(); });
     { const q=k=>ctl.querySelector(k); q('#cmbBack')&&(q('#cmbBack').onchange=e=>{ state.cmbBackdrop=e.target.checked; });
+      ctl.querySelectorAll('[data-cmbsrc]').forEach(b=>b.onclick=()=>{ state.cmbSkySource=b.dataset.cmbsrc; try{ applyCmbWall(state.obsCmbTex); }catch(e){} buildCtl(); });
       ctl.querySelectorAll('[data-cmbback]').forEach(b=>b.onclick=()=>{ state.cmbBackdropMode=+b.dataset.cmbback; state.cmbBackdrop=true; buildCtl(); });
       q('#cmbBackOp')&&(q('#cmbBackOp').oninput=e=>{ state.cmbBackdropOpacity=+e.target.value; });
       q('#cmbBackLab')&&(q('#cmbBackLab').onchange=e=>{ state.cmbBackdropLabels=e.target.checked; });
@@ -102147,6 +102162,7 @@ function buildCtlBody(){
       ${state.cosmicTimeColour!==false?ctLegendHTML()+`<div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.45">${TT('Before the first stars the colour IS the relic radiation at its then temperature T₀(1+z) — the white plasma, the 2973 K glow of recombination, the dark ages reddening into the infrared. After them the hue marks the epoch (a declared scale) and the brightness is the measured cosmic star-formation rate (Madau & Dickinson 2014), peaking at z ≈ 1.9. The clock moves it: a place shows t_emit + Δt. Last scattering lands at χ = ','До первых звёзд цвет — это реликтовое излучение при его тогдашней температуре T₀(1+z): белая плазма, свечение 2973 K рекомбинации, тёмные века, краснеющие в инфракрасное. После них оттенок отмечает эпоху (объявленная шкала), а яркость — измеренный темп звездообразования (Мадау и Дикинсон 2014) с пиком при z ≈ 1,9. Часы сдвигают его: место показывает t_испускания + Δt. Последнее рассеяние на χ = ','Vor den ersten Sternen ist die Farbe die Reliktstrahlung bei T₀(1+z); danach Epochen-Farbton und Helligkeit nach der Sternentstehungsrate. Letzte Streuung bei χ = ')}${ctChiOfZ(1089.89).toFixed(2)} Gly (CAMB ${(CMB_CAMB.meta.derived.DAstar*3.2615637771674333).toFixed(2)}).</div>`:''}
       <div class="ctlrow" title="Technique of Ménard & Shtarkman's Map of the Observable Universe (JHU 2022): colour = distance"><label>Lookback colours (Map of the Universe)</label><input type="checkbox" id="lookbackCol" ${state.obsLookback?'checked':''}></div>
       <div class="ctlrow" title="The map famously ends at the wall of CMB light — Planck-palette ΔT mottling, exaggerated for visibility"><label>CMB wall on S²_LSS</label><input type="checkbox" id="cmbWall" ${state.obsCmbTex?'checked':''}></div>
+      <div class="ctlrow">${[['planck',TT('Planck 2018 · the measured sky','Planck 2018 · измеренное небо','Planck 2018 · der gemessene Himmel')],['camb',TT('ΛCDM realization of this atlas','ΛCDM-реализация атласа','ΛCDM-Realisierung des Atlas')]].map(([k,t])=>`<button class="chip ${(state.cmbSkySource||'planck')===k?'on':''}" data-cmbsrc="${k}">${t}</button>`).join(' ')}</div>${cmbPlanckNoteHTML()}
       ${state.obsCmbTex?`<div class="chips">${[[0,TT('Planck colour ±300 μK','цвет Planck ±300 μK','Planck-Farbe ±300 μK')],[1,TT('the colour it WAS · 2973 K','цвет, каким он БЫЛ · 2973 K','die Farbe, die er WAR · 2973 K')],[2,TT('polarization drapery','драпировка поляризации','Polarisations-Draperie')]].map(([m,l])=>`<button class="chip ${(state.cmbSkyMode??(state.cosmicTimeColour!==false?1:0))===m?'on':''}" data-cmbsky="${m}">${l}</button>`).join('')}</div>
       ${(state.cmbSkyMode??(state.cosmicTimeColour!==false?1:0))===1?`<div class="ctlrow"><label>${TT('anisotropy gain','усиление анизотропии','Anisotropie-Verstärkung')} ×10^</label><input type="range" id="cmbSkyGain" min="0" max="4.6" step="0.1" value="${state.cmbSkyGainLog??4}"><span class="val">×${Math.pow(10,state.cmbSkyGainLog??4).toExponential(1)}</span></div>`:''}
       <div class="note" style="font-size:10.5px;color:var(--dim);line-height:1.5">${(()=>{ const D=CMB_CAMB.meta.derived, A=cmbAcoustic(), Te=CMB_T_EMIT(), rgb=cmbPlanckianRGB(Te).map(v=>Math.round(v*255)), sw=`<span style="display:inline-block;width:10px;height:10px;border-radius:2px;vertical-align:-1px;background:rgb(${rgb.join(',')})"></span>`;
@@ -102207,6 +102223,7 @@ function buildCtlBody(){
     ctl.querySelector('#lookbackCol').onchange=e=>{state.obsLookback=e.target.checked;applyLookbackColours(state.obsLookback);};
     { const c=ctl.querySelector('#ctColour'); if(c) c.onchange=e=>{ state.cosmicTimeColour=e.target.checked; CT_VIEW.lastYrs=NaN; if(!state.cosmicTimeColour) ctStructureColours(false); buildCtl(); }; }
     ctl.querySelector('#cmbWall').onchange=e=>{state.obsCmbTex=e.target.checked;applyCmbWall(state.obsCmbTex);buildCtl();};
+    ctl.querySelectorAll('[data-cmbsrc]').forEach(b=>b.onclick=()=>{ state.cmbSkySource=b.dataset.cmbsrc; try{ applyCmbWall(state.obsCmbTex); }catch(e){} buildCtl(); });
     ctl.querySelectorAll('[data-cmbsky]').forEach(b=>b.onclick=()=>{ state.cmbSkyMode=+b.dataset.cmbsky; applyCmbWall(state.obsCmbTex); buildCtl(); });
     { const g=ctl.querySelector('#cmbSkyGain'); if(g) g.onchange=()=>{ state.cmbSkyGainLog=+g.value; applyCmbWall(state.obsCmbTex); buildCtl(); }; }
     { const q=k=>ctl.querySelector(k); for(const id of ['#extShow','#extShowS']) q(id)&&(q(id).onchange=e=>{ state.showStructureExtents=e.target.checked; });
