@@ -78,11 +78,14 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   { const src = galFrameAngle.toString(), mut = new Function('GAL_YEAR_MYR', 'return ' + src.replace('return -2*Math.PI', 'return 2*Math.PI'))(230);
     const d0 = [-Math.cos(0), 0], a = mut(230e6 * 365.2425 / 4), gx = Math.cos(a), gy = Math.sin(a), l = ((Math.atan2(gy, gx) * 180 / Math.PI) + 360) % 360;
     ok('MUTATION — the frame turned the old way puts the centre toward l = 90° a quarter year on, caught', src.includes('return -2*Math.PI') && Math.abs(l - 90) < 1, `l = ${l.toFixed(1)}°`); }
-  { const src = K.galRingOf.toString(), cut = 'return [R*Math.cos(f), R*Math.sin(f), q[2]]'; const ring = new Function('return ' + src.replace(cut, 'return [R, q[1], q[2]]'))();
-    const mut = new Function('galSunVel', 'galPolarState', 'galRingOf', 'galHill', 'GAL_RIDE', 'return ' + galRide.toString())(K.galSunVel, K.galPolarState, ring, galHill, P);
-    const mutH = new Function('galSunVel', 'galPolarState', 'galRingOf', 'galHill', 'GAL_RIDE', 'return ' + galRideHalo.toString())(K.galSunVel, K.galPolarState, ring, galHill, P);
-    const d = [300, 400, 0], v = galCircularVel(d, P), R0 = Math.hypot(P.R0 - 300, 400), p = mut(d, v, 1000, P), gc = mutH([P.R0, 0, 0], 1000, P), dev = Math.abs(Math.hypot(p[0] - gc[0], p[1] - gc[1]) / R0 - 1);
-    ok('MUTATION — guiding centres carried on the tangent line instead of the circle let a circular orbit wander more than 10 % off its radius in a gigayear, caught', src.includes(cut) && dev > 0.1, `${(100 * dev).toFixed(0)} % off`); }
+  { /* the true orbit (v4.366): a leapfrog integration in the same potential is the referee; the period advance in
+       azimuth (k·Δφ) taken out of the torus reader must be caught */
+    const be = 1 - 2 * P.A / P.Om, V0 = P.Om * P.R0, acc = (x, y) => { const R = Math.hypot(x, y), a = V0 * V0 * Math.pow(R / P.R0, 2 * be) / (R * R); return [-a * x, -a * y]; };
+    const leap = (x, y, vx, vy, t) => { const n = Math.ceil(Math.abs(t) / 0.01), h = t / n; let a = acc(x, y); for (let i = 0; i < n; i++) { vx += 0.5 * h * a[0]; vy += 0.5 * h * a[1]; x += h * vx; y += h * vy; a = acc(x, y); vx += 0.5 * h * a[0]; vy += 0.5 * h * a[1]; } return [x, y]; };
+    const o = K.galOrbit([120, -80, 30], [-60, -45, 8]), ref = leap(o.x, o.y, o.ux, o.uy, 1000), good = K.galOrbitAt(o, 1000);
+    const src = K.galTorusAt.toString(), cut = 'T.fJ+k*T.Dphi+', mut = new Function('galTorusSeries', 'return ' + src.replace(cut, 'T.fJ+'))(K.galTorusSeries);
+    const q = mut(o.T, 1000), bad = [q[0] * Math.cos(q[1]), q[0] * Math.sin(q[1])], eg = Math.hypot(good[0] - ref[0], good[1] - ref[1]), eb = Math.hypot(bad[0] - ref[0], bad[1] - ref[1]);
+    ok('MUTATION — the torus read without its azimuthal advance per radial period strays by more than a kiloparsec from the integration in a gigayear (the true reader: under 0.5 pc), caught', src.includes(cut) && eg < 0.5 && eb > 1000, `true ${eg.toFixed(3)} pc · mutant ${eb.toFixed(0)} pc`); }
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();
