@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 1954   ·   exported names: 2085
-   extracted physics, sha256 4b00c140444e7e07e75cd2f09f5eb6becde4676dae2c43f5ff286f247b48f1c1 */
+   extracted physics, sha256 e8799a82a3bb9de60aed3cae4dce16cbf1e788cbf6d71e4109b41fd45bf672f0 */
 
-const HCC_VERSION='4.358.0';
+const HCC_VERSION='4.359.0';
 
-const HCC_BUILD='the-horizons-follow-the-clock-2026.10.06.74';
+const HCC_BUILD='one-model-of-the-horizons-2026.10.06.75';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -1784,7 +1784,7 @@ function ctColorAtTime(tGyr){ const t0=CT_T0(); const zOfT=t=>{ const T=ctTable(
   let i=0; while(i<K.length-2&&z<K[i+1][0]) i++; const [za,ca]=K[i], [zb,cb]=K[i+1], w=Math.max(0,Math.min(1,(za-z)/(za-zb)));
   return {rgb:ca.map((v,k)=>v+(cb[k]-v)*w), b:0.3+0.7*ctSFR(z)/ctSFR(1.86), z, epoch:ctEpochOfZ(z).id}; }
 
-function ctColorAtChi(chiGly,dtYears){ if(!dtYears){ const z=ctZOfChi(Math.max(0,chiGly)); return ctColorAtTime(ctAgeOfZ(z)); } const tE=hzEmissionTime(chiGly,dtYears); return ctColorAtTime(tE==null?0:tE); }
+function ctColorAtChi(chiGly,dtYears){ if(Math.abs(dtYears||0)<1e6) dtYears=0; if(!dtYears){ const z=ctZOfChi(Math.max(0,chiGly)); return ctColorAtTime(ctAgeOfZ(z)); } const tE=hzEmissionTime(chiGly,dtYears); return ctColorAtTime(tE==null?0:tE); }
 
 function shtIdx(l,m){ return l*l+l+m; }
 
