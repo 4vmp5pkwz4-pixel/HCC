@@ -36,7 +36,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
       && /rH=h\?h\.hubbleComoving\/\(hub\.rAU\/GLY_AU\):null, rE=h\?h\.event\/\(ev\.rAU\/GLY_AU\):null, rP=h\?h\.particle\/\(ob\.rAU\/GLY_AU\):null/.test(SRC);
     ok('no duplicates: the solar chain’s own Hubble, event and observable shells are retired, their waypoints stand at the chain’s absolute radii', retired); }
   { const body = SRC.slice(SRC.indexOf('function hccHorizonsTick('), SRC.indexOf('function hccHorizonsTick(') + 4000);
-    const abs = /const G=\{ph:S3\.Dparticle, ct:S3\.t0, lss:45\.4, ev:16\.6849, eq:45\.77, ac:7\.746, hub:14\.289\};/.test(body) && /hzScaleSphere\(sphHubble,hub!=null\?hub\/G\.hub:null,/.test(body) && !/\/h0\.(particle|event|hubbleComoving)/.test(body) && !/\/lssBase|\/eqBase|\/acBase/.test(body);
+    const abs = /const G=\{ph:S3\.Dparticle, ct:S3\.t0, lss:45\.4, ev:16\.6849, eq:45\.77, ac:7\.746, hub:14\.289(?:, dlg:8\.171)?\};/.test(body) && /hzScaleSphere\(sphHubble,hub!=null\?hub\/G\.hub:null,/.test(body) && !/\/h0\.(particle|event|hubbleComoving)/.test(body) && !/\/lssBase|\/eqBase|\/acBase/.test(body);
     const sphH = /const sphHubble = screenSphere\(14\.289,/.test(SRC);
     const panel = /const tN=hzNowGyr\(\), H=hzAtT\(tN\), L=H\?hzScreenAt\(tN,HZ_EVENTS\.lss\):null/.test(SRC) && /id="sHub"/.test(SRC) && /hb\.onchange=e=>sphHubble\.visible=e\.target\.checked/.test(SRC);
     ok('absolute radii: every shared shell is scaled to its value now over its built radius (no ratio to today remains); the Horizons panel reads the same chain at the clock’s time, Hubble sphere included', abs && sphH && panel); }

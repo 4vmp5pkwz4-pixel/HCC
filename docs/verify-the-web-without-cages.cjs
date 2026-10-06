@@ -14,6 +14,8 @@
  *      δ = −6.94° — computed here independently with the same constants the page uses
  *   4. wired: the backdrop rides the camera's rotation only (never its position), sits behind everything, has the three
  *      ways to look and a switch in the solar panel; the anisotropy is labelled as the atlas's own realization
+ *   6. CATALOGUES, NOT DICE: the observable ball no longer holds 24 000 Math.random points; it holds the VCV quasars and
+ *      the catalogued galaxies at their comoving distances; structure centres are soft glows, not solid balls
  *   5. ONE SOURCE FOR THE CARDS: every horizon card (event, Hubble, ct, particle, last scattering, equality,
  *      acceleration, dialogue) is computed by hzCardRows from the chain; no typed radius rows remain; the panel's
  *      milestone note is computed (Λ, ρ_crit, ρ_Λ, onset and equality times)
@@ -47,4 +49,8 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   const typed = /\['Event-horizon radius','16\.6849 Gly'\]/.test(SRC) || /\['Comoving radius','7\.75 Gly'\]/.test(SRC) || /\['Comoving radius','45\.77 Gly'\]/.test(SRC) || /accel onset t=7\.69 Gyr/.test(SRC);
   const note = /return `Λ = \$\{e\(3\*C\.OL\*H0\*H0\/\(c\*c\)\)\} m⁻² · ρ_crit = \$\{e\(rc\)\} kg m⁻³/.test(SRC) && /function hzCardRows\(kind\)\{/.test(SRC);
   ok('one source for the cards: every horizon card and the milestone note are computed from the chain; no typed radius rows remain', cards && !typed && note); }
+{ const dice = /const n = 24000, g = new THREE\.BufferGeometry\(\)/.test(SRC) || /clustered large-scale structure inside the ball B³_χ\(p\)\n\{/.test(SRC);
+  const real = /function obsCatalogueBuild\(\)\{/.test(SRC) && /const R=QSO3D\.rows, n=R\.length/.test(SRC) && /dc=hccComovingMpc\(z\)\*GLY_PER_MPC/.test(SRC) && /pts\.name='obs-quasars-vcv2010'/.test(SRC) && /pts\.name='obs-galaxies-catalogued'/.test(SRC) && /try\{ obsCatalogueTick\(\); \}catch\(e\)\{\}/.test(SRC);
+  const pins = /function hccSoftPin\(dot,col,r\)\{ dot\.material\.opacity=0;/.test(SRC) && (SRC.match(/hccSoftPin\(dot,s\.col,/g) || []).length === 2;
+  ok('the observable ball is filled with catalogues, not dice: the 24 000 random points are gone; the 5 959 VCV quasars and 4 341 catalogued galaxies stand at their own directions and comoving distances; structure centres are soft glows over a still-pickable target', !dice && real && pins); }
 console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);

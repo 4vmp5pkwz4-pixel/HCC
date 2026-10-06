@@ -22905,6 +22905,11 @@ registerSel('sun', {
             ['North pole','IAU approximate RA 286.13° · Dec +63.87°']],
 });
 
+/* A structure's centre is found by a soft glow, not a solid coloured ball (v4.360): the sphere stays as the target a
+   click or a ray finds, drawn fully transparent; what the eye sees is a small halo in the structure's colour. */
+function hccSoftPin(dot,col,r){ dot.material.opacity=0; dot.material.depthWrite=false; dot.userData.softPin=true;
+  const sp=new THREE.Sprite(new THREE.SpriteMaterial({map:glowTexture(),color:col,transparent:true,opacity:.7,depthWrite:false,blending:THREE.AdditiveBlending}));
+  sp.scale.setScalar(r*3.2); sp.userData.noGrade=true; sp.raycast=()=>{}; dot.add(sp); return sp; }
 function glowTexture(){
   if(glowTexture.shared)return glowTexture.shared;
   const c = document.createElement('canvas'); c.width=c.height=128;
@@ -24971,27 +24976,33 @@ function cmbSkyTick(dt){ if(CMB_SKY.mat&&sphLSS.children[0].material===CMB_SKY.m
     getPos:()=>new THREE.Vector3(), focusDist:()=>6,
     rows:()=>[['Domain','D_obs(p,T) ⊂ S³_R, D_obs ≠ S³_R'],['Γ_obs','1.2614×10⁻⁴'],['Γ_ST joint diagnostic','4.255×10⁻¹⁰']] });
 }
-// clustered large-scale structure inside the ball B³_χ(p)
-{
-  const n = 24000, g = new THREE.BufferGeometry(), pos = new Float32Array(n*3), col = new Float32Array(n*3);
-  const c1 = new THREE.Color(0xaac4ee), c2 = new THREE.Color(0xeec9a0);
-  const centers = [];
-  for(let k=0;k<260;k++)
-    centers.push(new THREE.Vector3().randomDirection().multiplyScalar(S3.Dparticle*Math.cbrt(Math.random())));
-  let i = 0;
-  while(i<n){
-    const c = centers[(Math.random()*centers.length)|0];
-    const v = new THREE.Vector3().randomDirection().multiplyScalar(Math.pow(Math.random(),1.6)*4.5).add(c);
-    if(v.length()>S3.Dparticle) continue;
-    pos.set([v.x,v.y,v.z], i*3);
-    const t = Math.random(), cc = c1.clone().lerp(c2,t);
-    col.set([cc.r,cc.g,cc.b], i*3);
-    i++;
-  }
-  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
-  g.setAttribute('color', new THREE.BufferAttribute(col,3));
-  obsGroup.add(new THREE.Points(g, new THREE.PointsMaterial({size:.18,vertexColors:true,transparent:true,opacity:.75})));
-}
+/* ── THE OBSERVABLE BALL IS FILLED WITH CATALOGUES, NOT DICE (v4.360) ───────────────────────────────────────────────
+   This ball used to hold 24 000 points thrown with Math.random around 260 random centres — "clustered large-scale
+   structure" that was no structure of this universe. It now holds the catalogues the atlas already carries, each at
+   its own direction and comoving distance on the same chain as every horizon: the 5 959 quasars of Véron-Cetty &
+   Véron (2010) out to z = 4.5 and the 4 341 galaxies with catalogued distances out to 333 Mpc (Stellarium 23.4), drawn
+   as soft discs sized by their luminosity — the same records the Sun → Cosmos world draws in AU. Built on first use
+   (the catalogues are declared further down the page). */
+const OBS_CATALOGUE={built:false, q:null, g:null};
+function obsCatalogueBuild(){ if(OBS_CATALOGUE.built) return; OBS_CATALOGUE.built=true;
+  const GLY_PER_MPC=3.261563777e-3, v=new THREE.Vector3();
+  { const R=QSO3D.rows, n=R.length, pos=new Float32Array(n*3), col=new Float32Array(n*3), dia=new Float32Array(n), lum=new Float32Array(n);
+    for(let i=0;i<n;i++){ const [name,ra,de,z,V,Mv]=R[i], dc=hccComovingMpc(z)*GLY_PER_MPC; v.copy(raDecDir(ra/15,de)).multiplyScalar(dc); pos.set([v.x,v.y,v.z],i*3);
+      col.set([0.66,0.58,1.0],i*3); lum[i]=Math.pow(10,-0.4*(Math.max(-31,Mv)+21)); dia[i]=30e3*3.261563777e-9; }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('aColor',new THREE.BufferAttribute(col,3)); g.setAttribute('aDia',new THREE.BufferAttribute(dia,1)); g.setAttribute('aLum',new THREE.BufferAttribute(lum,1));
+    const pts=new THREE.Points(g,dsoGalaxyMaterial()); pts.frustumCulled=false; pts.name='obs-quasars-vcv2010'; pts.userData.noGrade=true; obsGroup.add(pts); OBS_CATALOGUE.q=pts; }
+  { const bin=atob(DSO3D_GAL.b64), n=DSO3D_GAL.count, dv=new DataView(new ArrayBuffer(bin.length)); for(let i=0;i<bin.length;i++) dv.setUint8(i,bin.charCodeAt(i));
+    const pos=new Float32Array(n*3), col=new Float32Array(n*3), dia=new Float32Array(n), lum=new Float32Array(n);
+    for(let i=0;i<n;i++){ const o=i*8, ra=dv.getUint16(o,true)/65536*360, de=dv.getInt16(o+2,true)/32767*90, dK=Math.pow(10,dv.getUint16(o+4,true)/8000-2), V=dv.getUint8(o+6)/10, c=dv.getUint8(o+7);
+      v.copy(raDecDir(ra/15,de)).multiplyScalar(dK*3.261563777e-6); pos.set([v.x,v.y,v.z],i*3); const M=V-5*Math.log10(dK*100);
+      lum[i]=Math.pow(10,-0.4*(Math.max(-24,Math.min(-8,M))+21)); dia[i]=30*Math.sqrt(lum[i])*3.261563777e-6;
+      if(DSO3D_GAL_NAMES[i]&&DSO3D_GAL_NAMES[i][0]==='M31'){ lum[i]=0; dia[i]=0; }
+      col.set(c===4?[1,0.62,0.95]:bbColor(DSO_CLASS_T[c]||6000),i*3); }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('aColor',new THREE.BufferAttribute(col,3)); g.setAttribute('aDia',new THREE.BufferAttribute(dia,1)); g.setAttribute('aLum',new THREE.BufferAttribute(lum,1));
+    const pts=new THREE.Points(g,dsoGalaxyMaterial()); pts.frustumCulled=false; pts.name='obs-galaxies-catalogued'; pts.userData.noGrade=true; obsGroup.add(pts); OBS_CATALOGUE.g=pts; } }
+function obsCatalogueTick(){ if(state.mode!=='obs') return; if(!OBS_CATALOGUE.built){ try{ obsCatalogueBuild(); }catch(e){ console.warn('obs catalogues:',e); return; } }
+  const on=state.showObsCatalogues!==false, ref=Math.max(0.05,camera.position.distanceTo(controls.target)), H=renderer.domElement.clientHeight||innerHeight;
+  for(const p of [OBS_CATALOGUE.q,OBS_CATALOGUE.g]){ if(!p) continue; p.visible=on; const u=p.material.uniforms; u.uViewH.value=H; u.uRef.value=ref; } }
 
 /* ================================================================
    COSMIC ATLAS — real ultra-large-scale structures placed at their
@@ -26603,7 +26614,7 @@ function updateCosmicDust(){ const on=state.showCosmicDust!==false, rel=state.sh
    drawing aids, not the universe. By default the cosmic worlds show matter (catalogued galaxies, quasars, the
    constrained realizations), glass outlines and the horizons; each aid is one switch away (state.show*), never lost. */
 const COSMOS_GUIDES={sight:null, dipole:null, cone:null, solarSight:null};
-function hccCosmicGuidesSync(){ const G=COSMOS_GUIDES;
+function hccCosmicGuidesSync(){ const G=COSMOS_GUIDES; try{ obsCatalogueTick(); }catch(e){}
   if(G.sight) G.sight.visible=!!state.showSightlines; if(G.solarSight) G.solarSight.visible=!!state.showSightlines;
   if(G.dipole) G.dipole.visible=!!state.showDipoleAxis; if(G.cone) G.cone.visible=!!state.showSurveyCone;
   if(typeof solarCosmicGrid!=='undefined') solarCosmicGrid.visible=!!state.showScaleRings; }
@@ -26685,6 +26696,7 @@ for(const s of COSMOS){
            : isGalaxy?THREE.MathUtils.clamp(dist*0.0035,Math.max(r*0.30,2e-6),0.02)
            : THREE.MathUtils.clamp(r*0.16,0.03,0.11);
   const dot=new THREE.Mesh(new THREE.SphereGeometry(dotR,14,10), new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.88,depthWrite:false})); g.add(dot); g.userData.dot=dot;
+  if(!isCompact&&!isGalaxy) hccSoftPin(dot,s.col,dotR);   /* a glow, not a solid ball (v4.360) */
   // realistic "dust" point cloud: denser core for overdensities, hollow shell for voids — far prettier than a solid blob
   const reliefKind=!isCompact&&!isGalaxy&&['void','wall','supercluster','cluster','attractor','field'].includes(s.type);   /* the fields too (v4.349): a proto-structure is a density field, not a cage */
   if(reliefKind){ g.userData.reliefSpec=lssStructureSpec(s,r,structureAxisRatio(s).ratio); if(MOBILE_GPU) g.userData.reliefSpec.count=Math.round(g.userData.reliefSpec.count*0.55); g.userData.reliefR=r; g.userData.reliefZ=s.z!=null?s.z:COORD.zFromComoving(dist); }
@@ -28820,6 +28832,7 @@ COSMOS.forEach(s=>{
     body.scale.set(r*sh.ratio[0], r*sh.ratio[1], r*sh.ratio[2]);
     g.userData.axisRatio=sh.ratio; g.userData.axisKind=sh.kind; }
   const dot=new THREE.Mesh(new THREE.SphereGeometry(isCompact?Math.max(r*.55,1.2e-6*GLY_AU):Math.max(r*.035,.006*GLY_AU),10,7),new THREE.MeshBasicMaterial({color:s.col,transparent:true,opacity:.85,depthWrite:false}));
+  if(!isCompact) hccSoftPin(dot,s.col,Math.max(r*.035,.006*GLY_AU));   /* a glow, not a solid ball (v4.360) */
   const labelText=s.key==='gr'?'Lopez GA / GR / BR field midpoint · uncertain'
     :`${s.name}${s.centroidKnown===false?' · field midpoint / uncertain':''}`;
   const lab=mkLabel(labelText,'label dim','solarCosmic_'+s.key); lab.position.set(0,r*1.1,0);
@@ -116901,9 +116914,9 @@ function tickBody(now, frame){
   XRX.update(dt, frame);
   MOTION.apply(dt); MOTION.uiTick(dt);
   driveOscillators(dt);   // animate any slider that has its ⟳ oscillator enabled
+  try{ hccCmbBackdropTick(); }catch(e){}   /* the CMB as the sky of every solar level (v4.360) */
   updateLaniakeaFlows(dt);
   try{ cmbSkyTick(dt); }catch(e){}
-  try{ hccCmbBackdropTick(); }catch(e){}   /* the CMB as the sky of every solar level (v4.360) */
   try{ ctViewTick(); }catch(e){ if(!ctViewTick._w){ ctViewTick._w=1; console.warn('cosmic time colour:',e); } }
   try{ cosmosHome(); }catch(e){}
   try{ localWebTick(); }catch(e){ if(!localWebTick._w){ localWebTick._w=1; console.warn('local web:',e); } }
