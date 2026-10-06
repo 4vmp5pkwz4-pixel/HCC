@@ -821,7 +821,7 @@ export const ROOTS = [
   'atlasRelGraph', 'atlasBetti', 'atlasJacobi', 'atlasLaplacian', 'atlasFiedler', 'atlasBusOrder',
   'NSF_EP', 'NSF_EM', 'nsfMake', 'nsfKilling', 'nsfShellPart', 'nsfVelocity', 'nsfResidual', 'nsfResidualCurl', 'nsfUniform', 'nsfStep', 'nsfExactMeans', 'nsfFacts',
   's3nsVelocity', 's3nsShell', 's3nsShellElement', 's3nsCovariant', 's3nsNumCurl', 's3nsQMul', 's3nsQConj', 's3nsQAxis', 's3nsCarrierWeights', 's3nsTangentStep', 's3nsFrameVec', 's3nsDot4',
-  'GAL_RIDE', 'galHill', 'galFrameAngle', 'galPolarState', 'galRingOf', 'galSunVel', 'galRide', 'galRideHalo', 'galCircularVel', 'galRideEq',
+  'GAL_RIDE', 'galHill', 'galFrameAngle', 'galPolarState', 'galRingOf', 'galSunVel', 'galRide', 'galRideHalo', 'galCircularVel', 'galRideEq', 'galTorus', 'galTorusAt', 'galTorusSeries', 'galOrbit', 'galOrbitAt', 'galSunOrbit', 'galRideOrbit', 'galCentreAt', 'gaiaOrbitAttrs', 'gaiaSunUniforms', 'gaiaOrbitAt', 'gaiaClosestPasses', 'gaiaStarState', 'gaiaOrbitBlock',
   'TOPO_GENUS', 'topoGenusField', 'topoMeshTopology', 'topoFibration', 'topoAllPairs',
   /* s3.gmode — the resonator of the three-sphere (v4.355) */
   'GMODE_LY_M', 'GMODE_C', 'GMODE_HBAR', 'GMODE_R_CANON', 'gmodeChebU', 'gmodeZonal', 'gmodeFact', 'gmodeJacobi', 'gmodeTorusNorm', 'gmodeTorusY', 'gmodeTorusList', 'gmodeFrame', 'gmodeNullNorm', 'gmodeNullF', 'gmodeCurlAt',
