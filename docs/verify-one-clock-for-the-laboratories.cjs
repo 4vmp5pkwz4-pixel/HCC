@@ -30,9 +30,10 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 
   /* 2 · k, run here */
   { const f = SRC.slice(SRC.indexOf('function labClockFactor(){'), SRC.indexOf('/* the correlation sum C(r)'));
-    const k = st => new Function('state', 'LAB_CLOCK_MAX', f + ';return labClockFactor();')(st, LAB_CLOCK_MAX);
-    const r = [k({}), k({ labClock: true, daysPerSec: 100, labClockRef: 10 }), k({ labClock: true, paused: true, daysPerSec: 100, labClockRef: 10 }), k({ labClock: true, daysPerSec: 100, timeDir: -1, labClockRef: 10 }), k({ labClock: true, daysPerSec: 1e12, labClockRef: 1 })];
-    ok('k: 1 uncoupled; the rate over the rate at coupling; 0 paused and for negative rates; capped at 10⁶', r.join() === [1, 10, 0, 0, 1e6].join(), r.join(' · ')); }
+    const k = st => new Function('state', 'LAB_CLOCK_MAX', 'LAB_CLOCK_REF', f + ';return labClockFactor();')(st, LAB_CLOCK_MAX, 10);
+    const r = [k({ labClock: false, daysPerSec: 1e5 }), k({ daysPerSec: 10 }), k({ daysPerSec: 3650 }), k({ paused: true, daysPerSec: 3650 }), k({ daysPerSec: 3650, timeDir: -1 }), k({ daysPerSec: 1 }), k({ daysPerSec: 1e12 })];
+    ok('k (coupled by default since v4.368): 1 when the reader frees the laboratories; the rate over the default 10 days/s — ×1 at the default, ×365 at a year a second, ×0.1 at a day a second; 0 paused; a reversed clock runs them forward at the same speed; capped at 10⁶',
+      r.join() === [1, 1, 365, 0, 365, 0.1, 1e6].join(), r.join(' · ')); }
 
   /* 3 · no hang */
   { const loops = [...SRC.matchAll(/while\(acc>=fixed&&n<(\d+)\)/g)].map(m => +m[1]), clamps = (SRC.match(/Math\.min\(dt,\s*\.?0?\.05\)/g) || []).length;
@@ -51,7 +52,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
   /* 5 · wiring */
   ok('wiring: the portrait reads the moving parts of the scene or the bus, embeds by delay, names the stroboscope, and is reachable from the laboratory panel and the toolbox',
     /function ppSceneSample\(\)\{/.test(SRC) && /\['\(scene\)',\.\.\.Object\.keys\(all\)/.test(SRC) && /delay embedding, lag \$\{PP\.lag\} frames \(Takens\)/.test(SRC) && /TT\('stroboscopic'/.test(SRC)
-    && /id="labClockBtn"/.test(SRC) && /id="ppBtn"/.test(SRC) && /TT\('Phase portrait of the open laboratory'/.test(SRC));
+    && /id="labClockBtn"/.test(SRC) && /id="tmLab"/.test(SRC) && /FIELD\.update\(dt,labClockFactor\(\)\)/.test(SRC) && /state\.photonT \+= state\.gyrPerSec\*labDt;/.test(SRC) && /id="ppBtn"/.test(SRC) && /TT\('Phase portrait of the open laboratory'/.test(SRC));
 
   console.log('\n  ' + pass + ' passed, ' + fail + ' failed'); process.exit(fail ? 1 : 0);
 })();
