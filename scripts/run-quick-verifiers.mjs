@@ -180,6 +180,8 @@ const allChecks = [
   "docs/verify-the-real-flow.cjs",
   "docs/verify-the-surveys.cjs",
   "docs/verify-the-real-sky.cjs",
+  "docs/verify-the-neighbourhood.cjs",
+  "docs/verify-nothing-under-the-clock.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -419,6 +421,8 @@ if (fullMode) {
     'docs/verify-the-real-flow.cjs',
     'docs/verify-the-surveys.cjs',
     'docs/verify-the-real-sky.cjs',
+    'docs/verify-the-neighbourhood.cjs',
+    'docs/verify-nothing-under-the-clock.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
