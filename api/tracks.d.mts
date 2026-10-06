@@ -11,7 +11,7 @@ export type TrackStep =
 export type TrackOpName =
   | 'cosmic.chi' | 'cosmic.t0' | 'cmb.camb' | 'cmb.acoustic' | 'cmb.sigmaT' | 'lss.dinf'
   | 'space.firstMode' | 'space.circles' | 'ghost.rmax' | 'ghost.self' | 'bbh.budget'
-  | 'phi.audit' | 'hyp.ratio' | 'atlas.betti' | 'wf.experiment' | 'fluid.final' | 'fluid.invariants' | 'blowup.window' | 'cycles.section' | 'strobe.carrier' | 'strobe.saros' | 'formula.check' | 'triad.top' | 'triad.census' | 'gmode.address' | 'gmode.light' | 'gmode.cosmos' | 'gmode.flash' | 'gmode.sky' | 'gmode.flat' | 'cosmic.horizons' | 'cosmic.causal' | 'web.flow' | 'survey.bulkflow' | 'exo.valley' | 'unify.gates' | 'unify.rank' | 'unify.quintic' | 'unify.corrections' | 'phase.relation' | 'phase.lock';
+  | 'phi.audit' | 'hyp.ratio' | 'atlas.betti' | 'wf.experiment' | 'fluid.final' | 'fluid.invariants' | 'blowup.window' | 'cycles.section' | 'strobe.carrier' | 'strobe.saros' | 'formula.check' | 'triad.top' | 'triad.census' | 'gmode.address' | 'gmode.light' | 'gmode.cosmos' | 'gmode.flash' | 'gmode.sky' | 'gmode.flat' | 'cosmic.horizons' | 'cosmic.causal' | 'web.flow' | 'survey.bulkflow' | 'exo.valley' | 'gaia.solarMotion' | 'gw.massPeaks' | 'exo.slope' | 'unify.gates' | 'unify.rank' | 'unify.quintic' | 'unify.corrections' | 'phase.relation' | 'phase.lock';
 export interface Track {
   schema: TrackSchema;
   id: string;

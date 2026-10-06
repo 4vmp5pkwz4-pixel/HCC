@@ -840,7 +840,9 @@ export const ROOTS = [
   /* 2MRS and Cosmicflows-4 (v4.362) */
   'surveyFluxDipole', 'surveyBulkFlow', 'surveyHubble',
   /* exoplanets (v4.363) */
-  'exoRadiusValley'
+  'exoRadiusValley',
+  /* Gaia, GWTC, the valley slope (v4.364) */
+  'WEB_EQ2GAL_K', 'gaiaSolarMotion', 'gwMassPeaks', 'exoValleySlope'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
