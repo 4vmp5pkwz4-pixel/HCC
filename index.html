@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="the-unified-fundamental-atlas-2026.10.05.73">
+<html lang="en" data-hcc-build="the-horizons-follow-the-clock-2026.10.06.74">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="the-unified-fundamental-atlas-2026.10.05.73">
+<meta name="hcc-build" content="the-horizons-follow-the-clock-2026.10.06.74">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3061,7 +3061,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.357.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.358.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3381,8 +3381,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.357.0';
-const HCC_BUILD='the-unified-fundamental-atlas-2026.10.05.73';
+const HCC_VERSION='4.358.0';
+const HCC_BUILD='the-horizons-follow-the-clock-2026.10.06.74';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -21001,6 +21001,15 @@ renderer.domElement.addEventListener('pointercancel',()=>{downXY=null;});
    every gesture writes the same state the panel's sliders write, so the panel follows the hand. */
 const HCC_GRIPS=[]; const GRIP_DRAGS=new Map(); let GRIP_HOVER=null, GRIP_HOVER_T=0;
 function hccGrip(def){ HCC_GRIPS.push(def); return def; }
+/* ── IN THE HEADSET (v4.358) ── a stroke's width and a point's size are set in framebuffer pixels: in XR that is the
+   EYE's viewport, not the page's canvas, and a headset pixel is smaller than a phone's, so widths are measured against
+   the eye's viewport and scaled up. Laboratories that take taps on their own 3-D objects register a ray tap here too,
+   so a controller's trigger reaches an atom or a star exactly as a finger does. */
+function hccPx(){ return renderer.xr&&renderer.xr.isPresenting?1.7:Math.min(3,renderer.getPixelRatio?renderer.getPixelRatio():1); }
+const HCC_RAY_TAPS=[];
+function hccRayTap(origin,dir){ for(const t of HCC_RAY_TAPS){ try{ if(t.when()&&t.tap(origin,dir)) return true; }catch(e){ console.warn('[ray tap]',e); } } return false; }
+/* the nearest of a set of world points to a ray, within a cone of half-angle ~2.5° (and a few cm at arm's length) */
+function hccRayNearest(origin,dir,pts){ let best=-1, bd=Infinity; const v=new THREE.Vector3(); pts.forEach((p,i)=>{ if(!p) return; v.copy(p).sub(origin); const along=v.dot(dir); if(along<=0) return; const off=Math.sqrt(Math.max(0,v.lengthSq()-along*along)), tol=0.045*along+0.03; if(off<tol&&off/along<bd){ bd=off/along; best=i; } }); return best; }
 function gripActive(){ return HCC_GRIPS.filter(g=>{ try{ return !!g.when(); }catch(e){ return false; } }); }
 function gripRaycast(e){ const act=gripActive(); if(!act.length) return null; const ndc=canvasNDC(e.clientX,e.clientY); raycaster.setFromCamera(ndc,camera);
   const P=raycaster.params, keepP=P.Points?P.Points.threshold:1, keepL=P.Line?P.Line.threshold:1; if(P.Points) P.Points.threshold=0.09; if(P.Line) P.Line.threshold=0.07;
@@ -21054,7 +21063,25 @@ function hccInstrTick(dt){ HCC_INSTR.acc+=dt||0; if(HCC_INSTR.acc<0.12) return; 
   let sp=document.getElementById('hudSpark');
   if(!sp&&on&&phone){ const hud=document.getElementById('hud'); if(hud){ sp=document.createElement('canvas'); sp.id='hudSpark'; sp.setAttribute('aria-hidden','true'); hud.appendChild(sp); } }
   if(sp){ const show=on&&phone&&state.hudSpark!==false; if(sp.style.display!==(show?'block':'none')) sp.style.display=show?'block':'none'; if(show) hccInstrPaintInto(sp,true); }
-  const cv=document.getElementById('labInstr'); if(cv&&on&&cv.offsetParent) hccInstrPaintInto(cv,false); }
+  const cv=document.getElementById('labInstr'); if(cv&&on&&cv.offsetParent) hccInstrPaintInto(cv,false);
+  try{ hccXrInstrTick(on); }catch(e){ if(!HCC_INSTR.xrErr){ HCC_INSTR.xrErr=1; console.warn('[xr instrument]',e); } } }
+/* IN THE HEADSET the page's HUD and Controls are not drawn, so the laboratory's numbers and its instrument ride on a
+   panel of their own, low and to the left of the view, turned to the reader (v4.358) */
+function hccXrInstrTick(on){ const xr=renderer.xr&&renderer.xr.isPresenting; let P=HCC_INSTR.xr;
+  if(!xr){ if(P) P.mesh.visible=false; return; }
+  if(!P){ const c=document.createElement('canvas'); c.width=1024; c.height=640; const tex=new THREE.CanvasTexture(c); tex.colorSpace=THREE.SRGBColorSpace;
+    const mesh=new THREE.Mesh(new THREE.PlaneGeometry(0.56,0.35),new THREE.MeshBasicMaterial({map:tex,transparent:true,depthTest:false,side:THREE.DoubleSide})); mesh.renderOrder=999; mesh.name='xr-lab-instrument'; scene.add(mesh); P=HCC_INSTR.xr={c,tex,mesh}; }
+  const hasText=state.mode==='s3'||state.mode==='obs'; P.mesh.visible=on||hasText; if(!P.mesh.visible) return;
+  const xc=renderer.xr.getCamera(), head=new THREE.Vector3(), q=new THREE.Quaternion(); xc.getWorldPosition(head); xc.getWorldQuaternion(q);
+  const fwd=new THREE.Vector3(0,0,-1).applyQuaternion(q), right=new THREE.Vector3(1,0,0).applyQuaternion(q), up=new THREE.Vector3(0,1,0).applyQuaternion(q);
+  const want=head.clone().addScaledVector(fwd,0.85).addScaledVector(up,-0.30).addScaledVector(right,-0.30); P.mesh.position.lerp(want,P.placed?0.08:1); P.placed=true; P.mesh.lookAt(head);
+  const g=P.c.getContext('2d'), W=512, H=320; g.setTransform(2,0,0,2,0,0); g.clearRect(0,0,W,H); g.fillStyle='rgba(6,9,15,0.86)'; g.strokeStyle='rgba(212,175,106,0.55)'; g.lineWidth=1.5;
+  g.beginPath(); if(g.roundRect) g.roundRect(1,1,W-2,H-2,14); else g.rect(1,1,W-2,H-2); g.fill(); g.stroke();
+  const big=(typeof hudBig!=='undefined'&&hudBig.textContent)||'', sub=(typeof hudSub!=='undefined'&&hudSub.textContent)||'';
+  const wrap=(t,x,y,w,lh,font,col,max)=>{ g.font=font; g.fillStyle=col; const words=String(t).split(' '); let line='', n=0; for(const wd of words){ const tt=line?line+' '+wd:wd; if(g.measureText(tt).width>w&&line){ g.fillText(line,x,y+n*lh); n++; line=wd; if(n>=max) return n; } else line=tt; } if(line&&n<max){ g.fillText(line,x,y+n*lh); n++; } return n; };
+  const n1=wrap(big,14,26,W-28,17,'600 14px system-ui,sans-serif','#f1dda6',2), n2=wrap(sub,14,26+n1*17+4,W-28,14,'500 11px system-ui,sans-serif','rgba(232,220,190,0.8)',3), top=26+n1*17+4+n2*14+6;
+  if(on&&HCC_INSTR.paint){ g.save(); g.translate(10,top); try{ HCC_INSTR.paint(g,W-20,H-top-10,false); }catch(e){} g.restore(); }
+  P.tex.needsUpdate=true; }
 const HCC_CH={gold:'#f1dda6', amber:'#ffc65a', cyan:'#5ac8ff', ice:'#9fd8ff', white:'#f4f0e6', dim:'rgba(241,221,166,.62)', faint:'rgba(241,221,166,.34)', grid:'rgba(212,175,106,.13)', red:'#ff7a8a', green:'#7fe0a6'};
 function hccChFont(px,w){ return `${w||600} ${px}px ${(getComputedStyle(document.documentElement).getPropertyValue('--sans')||'').trim()||'system-ui, sans-serif'}`; }
 function hccChText(g,t,x,y,col,align,px,w){ g.save(); g.font=hccChFont(px||10,w); g.fillStyle=col||HCC_CH.dim; g.textAlign=align||'left'; g.textBaseline='middle'; g.fillText(t,x,y); g.restore(); }
@@ -24456,6 +24483,67 @@ function ctAgeOfZ(z){ const T=ctTable(); return ctInterp(T.zs,T.age,z); }
 const CT_T0=()=>ctAgeOfZ(0);
 /* the cosmic star-formation rate density, M☉ yr⁻¹ Mpc⁻³ (Madau & Dickinson 2014, eq. 15) */
 function ctSFR(z){ return 0.015*Math.pow(1+z,2.7)/(1+Math.pow((1+z)/2.9,5.6)); }
+/* ══ THE HORIZONS LIVE IN COSMIC TIME (v4.358) ═══════════════════════════════════════════════════════════════════
+   Reported: the light sphere does not grow when the time machine runs — forward or back. It did not: every horizon was
+   built once, for today. They are now functions of the cosmic time the clock shows, t = t₀ + Δt, on the atlas's own
+   ΛCDM + radiation chain (CT_COSMO), integrated in ln a from the radiation era (a = e⁻²⁵) into deep Λ domination:
+     t(a) = t_H ∫ dln a / E,   χ_p(a) = c/H₀ ∫₀^a da′/(a′²E)  (the particle horizon — what has been seen),
+     χ_e(a) = χ_p(∞) − χ_p(a)  (the event horizon — what ever will be),  c/(aH)  (the Hubble sphere, comoving),
+   and the last-scattering, matter–radiation-equality and acceleration-onset screens are χ_p(t) − χ_p(t_event) — where
+   those events are, seen from the moment the clock shows. All radii are COMOVING, the units the scene is drawn in. Back
+   toward the Big Bang the particle horizon shrinks to zero (before t = 0 nothing is drawn: the chain says nothing);
+   forward it grows toward its limit χ_p(∞) = 62.4 Gly while the event horizon shrinks to a point and the Hubble sphere
+   with it — a Λ universe ends with each galaxy alone. Before last scattering the CMB screen does not exist yet. */
+let HZ_TAB=null;
+function hzTable(){ if(HZ_TAB) return HZ_TAB; const C=CT_COSMO, x0=-25, x1=9, n=24000, dx=(x1-x0)/n, X=new Float64Array(n+1), T=new Float64Array(n+1), P=new Float64Array(n+1);
+  const E=x=>{ const a=Math.exp(x); return Math.sqrt(C.Or/(a*a*a*a)+C.Om/(a*a*a)+C.OL); }, ft=x=>C.tH/E(x), fp=x=>C.cH/(Math.exp(x)*E(x)), a0=Math.exp(x0);
+  X[0]=x0; T[0]=C.tH*a0*a0/(2*Math.sqrt(C.Or)); P[0]=C.cH*a0/Math.sqrt(C.Or);
+  for(let i=1;i<=n;i++){ const xa=x0+(i-1)*dx, xb=x0+i*dx, xm=xa+dx/2; X[i]=xb; T[i]=T[i-1]+dx/6*(ft(xa)+4*ft(xm)+ft(xb)); P[i]=P[i-1]+dx/6*(fp(xa)+4*fp(xm)+fp(xb)); }
+  HZ_TAB={C, X, T, P, n, Pinf:P[n]+C.cH/(Math.exp(x1)*Math.sqrt(C.OL)), E}; return HZ_TAB; }
+/* the age at scale factor a */
+function hzAgeAtA(a){ const H=hzTable(), x=Math.log(a), {X,T,n}=H; if(x<=X[0]) return T[0]*Math.exp(2*(x-X[0])); if(x>=X[n]) return T[n]+(x-X[n])*H.C.tH/Math.sqrt(H.C.OL);
+  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(X[m]<=x) lo=m; else hi=m; } const f=(x-X[lo])/(X[hi]-X[lo]); return T[lo]+f*(T[hi]-T[lo]); }
+/* every horizon at cosmic time t (Gyr): null before the Big Bang */
+function hzAtT(tGyr){ const H=hzTable(), {X,T,P,n,C,Pinf,E}=H; if(!(tGyr>0)) return null; let x, p;
+  if(tGyr<=T[0]){ const a=Math.sqrt(2*Math.sqrt(C.Or)*tGyr/C.tH); x=Math.log(a); p=C.cH*a/Math.sqrt(C.Or); }
+  else if(tGyr>=T[n]){ x=X[n]+(tGyr-T[n])*Math.sqrt(C.OL)/C.tH; p=Pinf-C.cH/(Math.exp(x)*Math.sqrt(C.OL)); }
+  else { let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(T[m]<=tGyr) lo=m; else hi=m; } const f=(tGyr-T[lo])/(T[hi]-T[lo]); x=X[lo]+f*(X[hi]-X[lo]); p=P[lo]+f*(P[hi]-P[lo]); }
+  const Ex=E(x), a=Math.exp(Math.min(700,x)); return {t:tGyr, lnA:x, a, z:x<0?Math.expm1(-x):null, particle:p, event:Math.max(0,Pinf-p), hubbleComoving:x>700?0:C.cH/(a*Ex), hubbleProper:C.cH/Ex, light:tGyr, limit:Pinf}; }
+/* the comoving distance, seen from time t, to the screen of an event that happened at scale factor aEv */
+/* the inverse: the cosmic time at which the particle horizon had comoving radius p */
+function hzTimeAtParticle(p){ const H=hzTable(), {X,T,P,n,C,Pinf}=H; if(!(p>0)) return 0;
+  if(p<=P[0]){ const a=p*Math.sqrt(C.Or)/C.cH; return C.tH*a*a/(2*Math.sqrt(C.Or)); }
+  if(p>=P[n]){ if(p>=Pinf) return Infinity; const a=C.cH/((Pinf-p)*Math.sqrt(C.OL)); return T[n]+(Math.log(a)-X[n])*C.tH/Math.sqrt(C.OL); }
+  let lo=0, hi=n; while(hi-lo>1){ const m=(lo+hi)>>1; if(P[m]<=p) lo=m; else hi=m; } const f=(p-P[lo])/(P[hi]-P[lo]); return T[lo]+f*(T[hi]-T[lo]); }
+/* what an observer at t₀ + Δt sees at comoving distance χ: the event whose particle horizon was χ_p(t) − χ — null if
+   the observer is before the Big Bang, 0 if χ lies beyond everything that observer can see */
+function hzEmissionTime(chiGly,dtYears){ const h=hzAtT(hzAgeAtA(1)+(dtYears||0)/1e9); if(!h) return null; const pE=h.particle-Math.max(0,chiGly); return pE<=0?0:hzTimeAtParticle(pE); }
+function hzScreenAt(tGyr,aEv){ const h=hzAtT(tGyr), tEv=hzAgeAtA(aEv); if(!h||tGyr<=tEv) return null; return h.particle-hzAtT(tEv).particle; }
+const HZ_EVENTS=Object.freeze({lss:1/1090.9, eq:1/3420.4, accel:1/1.6312});
+function hzNowGyr(){ return hzAgeAtA(1)+(state.epochDays||0)/365.25/1e9; }
+let HZ_LAST={key:null, ui:0, now:null};
+function hzFmt(g){ return g>=100?g.toFixed(0)+' Gly':g>=1?g.toFixed(2)+' Gly':g>=1e-3?(g*1e3).toFixed(1)+' Mly':(g*1e6).toFixed(1)+' kly'; }
+function hzScaleSphere(grp,ratio,label){ const on=ratio!=null&&ratio>0&&Number.isFinite(ratio); grp.scale.setScalar(on?Math.max(1e-9,ratio):1e-9);
+  const lab=grp.children.find(c=>c.isCSS2DObject); if(lab){ lab.visible=on&&ratio>1e-4; if(label!=null&&lab.element.textContent!==label) lab.element.textContent=label; } }
+/* called every frame by the Solar and Observable modes; does its work only when the clock has moved */
+function hccHorizonsTick(dt){ HZ_LAST.ui+=dt||0; const now=hzNowGyr(), key=now.toPrecision(10); if(key===HZ_LAST.key&&HZ_LAST.ui<0.5) return HZ_LAST.now; HZ_LAST.key=key;
+  const t0=hzAgeAtA(1), h0=hzAtT(t0), h=hzAtT(now), labels=HZ_LAST.ui>=0.25; if(labels) HZ_LAST.ui=0; HZ_LAST.now={now, h, h0};
+  const tag=h?` · t = ${now<1e-3?(now*1e6).toFixed(1)+' kyr':now<1?(now*1e3).toFixed(1)+' Myr':now<1e4?now.toFixed(2)+' Gyr':now.toExponential(2)+' Gyr'}`:` · ${TT('before the Big Bang','до Большого взрыва','vor dem Urknall')}`;
+  const lssBase=hzScreenAt(t0,HZ_EVENTS.lss), eqBase=hzScreenAt(t0,HZ_EVENTS.eq), acBase=hzScreenAt(t0,HZ_EVENTS.accel);
+  try{ if(typeof sphPH!=='undefined'){
+    const rP=h?h.particle/h0.particle:null, rE=h?h.event/h0.event:null, rC=h?now/t0:null, lss=h?hzScreenAt(now,HZ_EVENTS.lss):null, eq=h?hzScreenAt(now,HZ_EVENTS.eq):null, ac=h?hzScreenAt(now,HZ_EVENTS.accel):null;
+    hzScaleSphere(sphPH,rP,labels?`S²_ph — ${TT('particle horizon','горизонт частиц','Teilchenhorizont')}, D = ${h?hzFmt(S3.Dparticle*rP):'—'}${tag}`:null);
+    hzScaleSphere(sphCT0,rC,labels?`ct = ${h?hzFmt(now):'—'} — ${TT('light-age sphere','сфера светового возраста','Lichtalter-Sphäre')}${tag}`:null);
+    hzScaleSphere(sphLSS,lss!=null?lss/lssBase:null,labels?(lss!=null?`S²_LSS — ${TT('last-scattering screen','экран последнего рассеяния','Schirm der letzten Streuung')} ${hzFmt(45.4*lss/lssBase)}${tag}`:`S²_LSS — ${TT('not yet: the universe is still opaque','ещё нет: Вселенная пока непрозрачна','noch nicht: das Universum ist undurchsichtig')}`):null);
+    hzScaleSphere(sphEvent,rE,labels?`S²_event — ${TT('event horizon','горизонт событий','Ereignishorizont')} ${h?hzFmt(16.6849*rE):'—'}${tag}`:null);
+    hzScaleSphere(sphMReq,eq!=null?eq/eqBase:null,null); hzScaleSphere(sphAccel,ac!=null?ac/acBase:null,null); } }catch(e){}
+  try{ if(typeof _cfSpheres!=='undefined'&&_cfSpheres.length>=7){ const S=_cfSpheres, hub=S[4], ev=S[5], ob=S[6];
+    const rH=h?h.hubbleComoving/h0.hubbleComoving:null, rE=h?h.event/h0.event:null, rP=h?h.particle/h0.particle:null;
+    hzScaleSphere(hub.g,rH,labels?`HUBBLE SPHERE · c/(aH) = ${h?hzFmt(hccHubbleSphereGly()*rH):'—'} comoving${tag}`:null);
+    hzScaleSphere(ev.g,rE,labels?`COSMIC EVENT HORIZON · ${h?hzFmt(hccEventHorizonGly()*rE):'—'} comoving · light leaving beyond it now never arrives${tag}`:null);
+    for(const w of (_cfWaypoints||[])){ const S2=w.userData.cfS; if(S2&&(S2===hub||S2===ev||S2===ob)){ const k=S2.g.scale.x; w.position.copy(w.userData.cfDir).multiplyScalar(S2.rAU*k); w.visible=k>1e-6; w.userData.waypoint.r=S2.rAU*k; } }
+    hzScaleSphere(ob.g,rP,labels?`OBSERVABLE UNIVERSE · ${h?hzFmt(46.5*rP):'—'} comoving · the particle horizon${tag}`:null); } }catch(e){}
+  return HZ_LAST.now; }
 const CT_EPOCHS=Object.freeze([
   {id:'plasma', z:[1089.9,1e6], en:'the opaque plasma', ru:'непрозрачная плазма', de:'das undurchsichtige Plasma'},
   {id:'recomb', z:[1089.9,1089.9], en:'recombination — the light we see as the CMB', ru:'рекомбинация — свет, который мы видим как реликт', de:'Rekombination — das Licht des CMB'},
@@ -24476,7 +24564,10 @@ function ctColorAtTime(tGyr){ const t0=CT_T0(); const zOfT=t=>{ const T=ctTable(
   let i=0; while(i<K.length-2&&z<K[i+1][0]) i++; const [za,ca]=K[i], [zb,cb]=K[i+1], w=Math.max(0,Math.min(1,(za-z)/(za-zb)));
   return {rgb:ca.map((v,k)=>v+(cb[k]-v)*w), b:0.3+0.7*ctSFR(z)/ctSFR(1.86), z, epoch:ctEpochOfZ(z).id}; }
 /* what a place at comoving distance χ shows, with the atlas clock moved by dtYears */
-function ctColorAtChi(chiGly,dtYears){ const z=ctZOfChi(Math.max(0,chiGly)); return ctColorAtTime(ctAgeOfZ(z)+(dtYears||0)/1e9); }
+/* the colour at comoving distance χ is the colour of the epoch the light left — for an observer at t₀ + Δt that epoch is
+   found on THAT observer's past light cone (v4.358: the clock used to shift every epoch by Δt, ignoring that the light
+   cone moves with the observer; at Δt = 0 the two agree) */
+function ctColorAtChi(chiGly,dtYears){ if(!dtYears){ const z=ctZOfChi(Math.max(0,chiGly)); return ctColorAtTime(ctAgeOfZ(z)); } const tE=hzEmissionTime(chiGly,dtYears); return ctColorAtTime(tE==null?0:tE); }
 /* the cmb laboratory shows what the wall is drawn from: the CAMB spectra, the peaks, the acoustic scale */
 function cmbSpectrumSect(){ const W=300, H=150, L=CMB_CAMB.spec.lmax, lx=l=>Math.log(Math.max(2,l))/Math.log(L)*W, A=cmbAcoustic();
   const path=(w,ys,sc)=>{ const pts=[]; for(let l=2;l<=L;l+=l<50?1:l<400?3:8){ pts.push(`${lx(l).toFixed(1)},${(H-ys(cmbD(l,w))*sc).toFixed(1)}`); } return pts.join(' '); };
@@ -24661,9 +24752,10 @@ globalThis.HCC_CMB_SKY=Object.freeze({mode:m=>{ state.cmbSkyMode=m|0; state.obsC
    holder scaled exactly 1 Gly → GLY_AU, about the Sun): planets inside the Oort cloud inside the Galaxy inside the
    Local Group inside the web inside the epochs inside last scattering. */
 const CT_VIEW={mesh:null, lut:null, shells:[], lastYrs:NaN, N:512, group:null};
-function ctLutFill(dtYears){ const N=CT_VIEW.N, chiMax=ctChiOfZ(1089.9)*1.004, data=CT_VIEW.lut.image.data;
+function ctLutFill(dtYears){ const N=CT_VIEW.N, tObs=hzAgeAtA(1)+(dtYears||0)/1e9, scr=dtYears?hzScreenAt(tObs,HZ_EVENTS.lss):null, hNow=dtYears?hzAtT(tObs):null,
+    chiMax=!dtYears?ctChiOfZ(1089.9)*1.004:Math.max(1e-6,(scr!=null?scr:(hNow?hNow.particle:0))*1.004), data=CT_VIEW.lut.image.data;
   for(let i=0;i<N;i++){ const c=ctColorAtChi((i+0.5)/N*chiMax,dtYears); data.set([c.rgb[0]*255,c.rgb[1]*255,c.rgb[2]*255,Math.min(255,c.b*255)].map(v=>Math.round(Math.max(0,v))),i*4); }
-  CT_VIEW.lut.needsUpdate=true; CT_VIEW.chiMax=chiMax; }
+  CT_VIEW.lut.needsUpdate=true; CT_VIEW.chiMax=chiMax; if(CT_VIEW.mesh) CT_VIEW.mesh.scale.setScalar(chiMax); }
 function ctViewBuild(){ if(CT_VIEW.mesh) return; const N=CT_VIEW.N; CT_VIEW.lut=new THREE.DataTexture(new Uint8Array(N*4),N,1); CT_VIEW.lut.magFilter=CT_VIEW.lut.minFilter=THREE.LinearFilter; ctLutFill(0);
   /* A SLICE, NOT A FOG: integrated along every sight line all epochs add up to white, which says nothing. So the
      ball is cut through the observer by a disc that always faces the camera: on it every radius shows its own epoch
@@ -24692,9 +24784,13 @@ function ctViewBuild(){ if(CT_VIEW.mesh) return; const N=CT_VIEW.N; CT_VIEW.lut=
     const shell=hccShellMesh(r,col,z>=1000?0.22:0.10); CT_VIEW.group.add(shell);
     const lab=mkLabel('','label dim'); lab.position.set(0,r*1.01,0); CT_VIEW.group.add(lab); CT_VIEW.shells.push({z,r,sh,lab,shell}); }
   ctViewShells(0); }
-function ctViewShells(dtYears){ for(const S of CT_VIEW.shells){ const c=ctColorAtChi(S.r,dtYears), tE=ctAgeOfZ(S.z), ep=CT_EPOCHS.find(e=>e.id===(S.z>=1089?'recomb':ctEpochOfZ(S.z).id));
+function ctViewShells(dtYears){ const tObs=hzAgeAtA(1)+(dtYears||0)/1e9;
+  for(const S of CT_VIEW.shells){ const rNow=dtYears?hzScreenAt(tObs,1/(1+S.z)):S.r, k=rNow!=null&&rNow>0?rNow/S.r:0; S.gone=!(k>0); S.sh.scale.setScalar(Math.max(1e-9,k)); if(S.shell) S.shell.scale.setScalar(Math.max(1e-9,k)); S.lab.position.set(0,Math.max(1e-9,rNow||0)*1.01,0);
+    if(S.gone){ continue; } }
+  for(const S of CT_VIEW.shells){ if(S.gone) continue; const c=ctColorAtChi(S.r*(S.sh.scale.x||1),dtYears), tE=ctAgeOfZ(S.z), ep=CT_EPOCHS.find(e=>e.id===(S.z>=1089?'recomb':ctEpochOfZ(S.z).id));
     S.sh.material.color.setRGB(c.rgb[0],c.rgb[1],c.rgb[2]); if(S.shell) S.shell.material.color.setRGB(c.rgb[0],c.rgb[1],c.rgb[2]); const ago=(CT_T0()-tE)+(-(dtYears||0))/1e9;
-    S.lab.element.textContent=`z = ${S.z>=1000?S.z.toFixed(0):S.z} · ${TT(ep.en,ep.ru,ep.de)} · ${tE<0.01?(tE*1e6).toFixed(0)+' kyr':tE.toFixed(2)+' Gyr'} ${TT('after the Big Bang','после Большого взрыва','nach dem Urknall')}${S.z>=1000?' · '+TT('the photon–baryon FLUID let the light go: it was viscous — photon diffusion is its Navier–Stokes viscosity, and it smoothed away every structure smaller than the Silk damping scale','здесь фотон-барионная ЖИДКОСТЬ отпустила свет: она была вязкой — диффузия фотонов и есть её навье-стоксова вязкость, стёршая все структуры мельче масштаба затухания Силка','die Photon-Baryon-Flüssigkeit war viskos (Silk-Dämpfung)'):''}`;
+    const aObs=dtYears?((hzAtT(tObs)||{}).a||1):1, zObs=aObs*(1+S.z)-1, zTxt=!dtYears?(S.z>=1000?S.z.toFixed(0):S.z):`${zObs>=1000?zObs.toFixed(0):zObs>=10?zObs.toFixed(1):zObs.toFixed(2)} ${TT('seen from now','видно сейчас','von jetzt gesehen')} (${S.z} ${TT('today','сегодня','heute')})`;
+    S.lab.element.textContent=`z = ${zTxt} · ${TT(ep.en,ep.ru,ep.de)} · ${tE<0.01?(tE*1e6).toFixed(0)+' kyr':tE.toFixed(2)+' Gyr'} ${TT('after the Big Bang','после Большого взрыва','nach dem Urknall')}${S.z>=1000?' · '+TT('the photon–baryon FLUID let the light go: it was viscous — photon diffusion is its Navier–Stokes viscosity, and it smoothed away every structure smaller than the Silk damping scale','здесь фотон-барионная ЖИДКОСТЬ отпустила свет: она была вязкой — диффузия фотонов и есть её навье-стоксова вязкость, стёршая все структуры мельче масштаба затухания Силка','die Photon-Baryon-Flüssigkeit war viskos (Silk-Dämpfung)'):''}`;
     S.lab.element.style.color=`rgb(${c.rgb.map(v=>Math.round(v*255)).join(',')})`; } }
 /* the same colour on every giant structure: what each shows is the epoch its light left */
 function ctStructureColours(on,dtYears){ for(const g of COSMOS_DUST){ const s=g.userData.s; if(!s) continue; const dist=s.dGly!=null?s.dGly:comovingGly(s.z);
@@ -24703,7 +24799,7 @@ function ctStructureColours(on,dtYears){ for(const g of COSMOS_DUST){ const s=g.
       if(o.material&&o.material.color&&!o.material.map&&!(o.geometry&&o.geometry.getAttribute&&o.geometry.getAttribute('color'))) o.material.color.copy(col); }); } }
 function ctViewTick(){ const on=state.cosmicTimeColour!==false, shown=ctShown();
   if(on&&shown&&!CT_VIEW.mesh) ctViewBuild(); if(CT_VIEW.group) CT_VIEW.group.visible=on&&shown;
-  if(CT_VIEW.mesh){ CT_VIEW.mesh.visible=on&&shown; CT_VIEW.shells.forEach(S=>{ S.sh.visible=S.lab.visible=on&&shown; if(S.shell) S.shell.visible=on&&shown; if(S.sh.userData.ctRing) S.sh.quaternion.copy(CT_VIEW.mesh.quaternion); }); }
+  if(CT_VIEW.mesh){ CT_VIEW.mesh.visible=on&&shown; CT_VIEW.shells.forEach(S=>{ S.sh.visible=S.lab.visible=on&&shown&&!S.gone; if(S.shell) S.shell.visible=on&&shown&&!S.gone; if(S.sh.userData.ctRing) S.sh.quaternion.copy(CT_VIEW.mesh.quaternion); }); }
   if(!on||!shown) return; if(CT_VIEW.mesh){ const q=camera.getWorldQuaternion(new THREE.Quaternion()), pq=CT_VIEW.group.getWorldQuaternion(new THREE.Quaternion()).invert(); CT_VIEW.mesh.quaternion.copy(pq.multiply(q));   /* the slice faces the camera, in whichever frame carries it */
     /* and it is read from outside: near the Sun (the Local Group, the nearby web) a disc through the observer shows
        only its gold centre and would veil the scene, so it rises with the camera's distance in Gly, 1.5 → 6 */
@@ -27727,7 +27823,7 @@ function buildCosmicFrame(){
       const m=new THREE.Mesh(new THREE.SphereGeometry(1,8,6),
         new THREE.MeshBasicMaterial({color:0xf1dda6,transparent:true,opacity:.85,depthTest:false}));
       m.position.copy(A.d).multiplyScalar(sgn*S.rAU); m.renderOrder=31;
-      m.userData.waypoint={r:S.rAU,label:A.n+' ⊗ '+S.lab.element.textContent};
+      m.userData.waypoint={r:S.rAU,label:A.n+' ⊗ '+S.lab.element.textContent}; m.userData.cfS=S; m.userData.cfDir=A.d.clone().multiplyScalar(sgn);
       cosmicFrameGroup.add(m); _cfWaypoints.push(m);
     } } } }
 }
@@ -59479,6 +59575,10 @@ const DISCOVERIES=Object.freeze([
    en:'Two numbers in the audited source are off by ten and nine orders', ru:'Два числа в проверенном источнике ошибочны на десять и девять порядков', de:'Zwei Zahlen der geprüften Quelle liegen um zehn und neun Größenordnungen daneben',
    claim:'A Planck-mass lens halfway to a source 8 kpc away has an Einstein radius √(4GM D_eff)/c = 6.3·10⁻⁶ cm, not the source’s 10⁻¹⁵ cm (9.8 orders); a 10⁵ g Schwarzschild hole evaporates in 5120πG²M³/(ħc⁴) = 8.4·10⁻¹¹ s, not ~10⁻¹⁹ s (8.9 orders, before any species factor) — as the specification found (M44, M46).',
    numbers:{einsteinRadiusCm:6.3e-6, lifetimeS:8.4e-11}},
+  {id:'horizonsInTime', kind:'revises', domain:'cosmo', v:'4.358.0', labs:['cosmo','cmb','unify'], verifier:'docs/verify-the-horizons-follow-the-clock.cjs',
+   en:'The horizons follow the clock — and the colour of cosmic time follows the observer’s own light cone', ru:'Горизонты следуют часам — а цвет космического времени следует собственному световому конусу наблюдателя', de:'Die Horizonte folgen der Uhr',
+   claim:'Every observer-centred horizon was drawn once, for today. They are now functions of the cosmic time the clock shows: the particle horizon χ_p(t) grows from zero at the Big Bang toward its limit χ_p(∞) = 62.4 Gly (comoving), the event horizon χ_e = χ_p(∞) − χ_p shrinks to a point, the Hubble sphere c/(aH) with it, and the screens of last scattering, matter–radiation equality and acceleration onset stand at χ_p(t) − χ_p(t_E) only after their events. The colour of cosmic time used to shift every epoch by Δt; it now reads the epoch on the observer’s own past light cone, χ_p(t) − χ_p(t_E) = χ (closed to 1e-9), which agrees today and differs everywhere else — at 20 Gly and +2 Gyr the old shift was off by hundreds of Myr.',
+   numbers:{chiInfinity:62.377, particleToday:46.035, eventToday:16.342}},
   {id:'reach', kind:'found', domain:'sphere', v:'4.325.0', labs:['tri','hopf'], verifier:'docs/verify-the-trisphere.cjs',
    en:'120 of 121 laboratories reach S³', ru:'120 из 121 лабораторий достигают S³', de:'120 von 121 Laboren erreichen S³',
    claim:'Through the relations the atlas declares, 120 of its 121 laboratories reach the three-sphere; the longest chain has 4 steps, and the Hopf fibres are the station most chains run through.',
@@ -59550,6 +59650,7 @@ const TRACK_OPS=Object.freeze({
   'gmode.light':{doc:'the null light mode z₁^a z₂^b (ξ₂ + iξ₃) on S³: its measured curl eigenvalue, divergence, nullity and Poynting direction', run:a=>{ const L=gmodeNullCheck(Math.max(0,Math.round(+a.a||0)),Math.max(0,Math.round(+a.b||0)),10,5); return {n:L.n, kappa:L.kappa, eigResidual:L.eigResidual, nullDot:L.nullDot, normDiff:L.normDiff, poyntingOffHopf:L.poyntingOffHopf, count:gmodeWeylLight(L.n)}; }},
   'gmode.cosmos':{doc:'the resonator at the size of the universe: shell wavelengths, spacing against natural linewidths, the Casimir energy against the dark energy', run:a=>{ const X=gmodeCosmos(+a.R||GMODE_R_CANON), c=gmodeCasimir(); return {lambda1:X.shells[0].lambdaGly, lambda2:X.shells[1].lambdaGly, lambda3:X.shells[2].lambdaGly, cOverR:X.cOverR, shells21cm:X.lines[0].shellsInWidth, casimirFinite:c.finite, casimirOverLambda:X.casimirOverLambda}; }},
   'gmode.sky':{doc:'what our CMB sky sees of shell k of S³: the power per multipole on the last-scattering sphere, its sum rule, and the first shell that shows itself mostly as structure', run:a=>{ const R=+a.R||GMODE_R_CANON, chi=(+a.dLSS||45.121)/R, W=gmodeSkyWeights(Math.max(1,Math.min(400,Math.round(+a.k||1))),chi); return {chi, sum:W.sum, aboveDipole:W.aboveDipole, monopole:W.w[0], halfK:gmodeSkyHalfK(chi,800)}; }},
+  'cosmic.horizons':{doc:'the horizons at cosmic time t₀ + Δt (Gyr): comoving particle and event horizons, the Hubble sphere, the last-scattering screen', run:a=>{ const t=hzAgeAtA(1)+(+a.dtGyr||0), h=hzAtT(t); if(!h) return {defined:0}; const l=hzScreenAt(t,HZ_EVENTS.lss); return {defined:1, particle:h.particle, event:h.event, hubble:h.hubbleComoving, lss:l==null?-1:l, limit:h.limit}; }},
   'gmode.flat':{doc:'the null light of S³ pulled back to flat space: Maxwell residuals and nullity measured at random events', run:a=>{ const R=gmodeFlatMaxwell(Math.max(0,Math.min(4,Math.round(+a.a||0))),Math.max(0,Math.min(4,Math.round(+a.b||0))),6,+a.seed||3); return {gauss:R.gauss, faraday:R.faraday, ampere:R.ampere, nullity:R.nullity}; }},
   'unify.gates':{doc:'the 21 regression gates of the Unified Fundamental Atlas run on the atlas’s kernels', run:()=>{ const G=unifyRunGates(); return {passed:G.filter(g=>g.status==='PASS').length, failed:G.filter(g=>g.status==='FAIL').length, declared:G.filter(g=>g.status==='DECLARED').length, na:G.filter(g=>g.status==='N/A').length}; }},
   'unify.rank':{doc:'the real rank of the chiral null family of degree m against its SO(4) orbit (the full curl eigenspace)', run:a=>{ const m=Math.max(0,Math.min(3,Math.round(+a.m||0))); return {holomorphic:unifySpectrumRank(m,false,3), full:unifySpectrumRank(m,true,5)}; }},
@@ -59605,6 +59706,7 @@ const DISCOVERY_TRACKS=Object.freeze({
   oneShellIsProjective:[{op:'nav', world:'s3', lab:'gmode'},{op:'call', fn:'gmode.address', args:{k:5}, expect:{basis:{value:36}, addition:{value:0, tol:1e-12}, antipode:{value:-1, tol:1e-12}, rank:{value:36}}},{op:'call', fn:'gmode.address', args:{k:12}, expect:{rank:{value:51}}}],
   fishEyeUniverse:[{op:'nav', world:'s3', lab:'gmode'},{op:'call', fn:'gmode.flash', args:{K:24}, expect:{antipode:{value:1, tol:1e-9}, revival:{value:1, tol:1e-9}}}],
   firstShellsHide:[{op:'nav', world:'s3', lab:'gmode'},{op:'call', fn:'gmode.sky', args:{k:1, R:548.324513026856039, dLSS:45.121}, expect:{sum:{value:1, tol:1e-12}, monopole:{value:0.9932, tol:1e-4}, halfK:{value:32}}}],
+  horizonsInTime:[{op:'nav', world:'obs'},{op:'call', fn:'cosmic.horizons', args:{dtGyr:0}, expect:{particle:{value:46.035, tol:0.01}, event:{value:16.342, tol:0.01}, lss:{value:45.121, tol:0.01}}},{op:'call', fn:'cosmic.horizons', args:{dtGyr:-20}, expect:{defined:{value:0}}},{op:'call', fn:'cosmic.horizons', args:{dtGyr:10000}, expect:{event:{value:0, tol:1e-9}, particle:{value:62.377, tol:0.01}}}],
   lightKnotsFlat:[{op:'nav', world:'s3', lab:'gmode'},{op:'call', fn:'gmode.flat', args:{a:0, b:0}, expect:{gauss:{value:0, tol:1e-5}, faraday:{value:0, tol:1e-5}, ampere:{value:0, tol:1e-5}, nullity:{value:0, tol:1e-12}}},{op:'call', fn:'gmode.flat', args:{a:2, b:1}, expect:{faraday:{value:0, tol:1e-5}, nullity:{value:0, tol:1e-12}}}],
   chiralSubspace:[{op:'nav', world:'s3', lab:'unify'},{op:'call', fn:'unify.rank', args:{m:1}, expect:{holomorphic:{value:4}, full:{value:8}}},{op:'call', fn:'unify.rank', args:{m:2}, expect:{holomorphic:{value:6}, full:{value:15}}}],
   mirrorQuintic:[{op:'nav', world:'s3', lab:'unify'},{op:'call', fn:'unify.quintic', args:{order:5}, expect:{integral:{value:1}, q3:{value:8564575000}, n1:{value:2875}, n2:{value:609250}, n3:{value:317206375}, n4:{value:242467530000}}}],
@@ -60910,7 +61012,7 @@ function gmodeFlatTick(dt){ const O=gmodeObjs, P=O.P, F=O.flat; if(!F) return; c
   /* the cloud: a fifth of the points per frame */
   const U=F.cloud.geometry.attributes.u.array, chunk=Math.ceil(F.N/5); let mx=F.uMax||1e-9;
   for(let k=0;k<chunk;k++){ const i=(F.cloudNext+k)%F.N, f=gmodeFlatField(F.t,F.X[i],a,b,N), u=0.5*(f.E[0]**2+f.E[1]**2+f.E[2]**2+f.B[0]**2+f.B[1]**2+f.B[2]**2); U[i]=u; if(u>mx) mx=u; }
-  F.cloudNext=(F.cloudNext+chunk)%F.N; F.uMax=mx*0.995; F.cloud.material.uniforms.uMax.value=F.uMax; F.cloud.material.uniforms.uPx.value=Math.min(3,renderer.getPixelRatio?renderer.getPixelRatio():1); F.cloud.geometry.attributes.u.needsUpdate=true;
+  F.cloudNext=(F.cloudNext+chunk)%F.N; F.uMax=mx*0.995; F.cloud.material.uniforms.uMax.value=F.uMax; F.cloud.material.uniforms.uPx.value=hccPx(); F.cloud.geometry.attributes.u.needsUpdate=true;
   /* the lines: one per frame */
   const seeds=gmodeFlatSeeds(a,b), s=seeds[F.next%seeds.length]; F.lines[F.next%seeds.length]={w:s.w, pts:gmodeFlatLine(a,b,F.t,s.x,s.w,240,0.035,N)}; F.next++;
   const segB=[], segE=[]; F.lines.forEach((L,k)=>{ if(!L) return; const col=L.w==='B'?[0.45,0.78,1.0]:[1.0,0.8,0.42]; for(let i=0;i+1<L.pts.length;i++){ const A=L.pts[i], B=L.pts[i+1]; (L.w==='B'?segB:segE).push([new THREE.Vector3(A[0]*F.S,A[1]*F.S,A[2]*F.S),new THREE.Vector3(B[0]*F.S,B[1]*F.S,B[2]*F.S),col.map(c=>c*(0.55+0.45*Math.exp(-Math.hypot(...A)))),1,0]); } });
@@ -60922,7 +61024,7 @@ function updateGmode(dt){ if(!gmodeObjs||gmodeParamKey()!==gmodeKey) gmodeSetup(
   if(state.gmodePaused!==true) O.t+=dt*(state.gmodeSpeed??0.35)*(P.field==='pulse'?1.6:1);
   if(P.field==='pulse'&&O.t>2*Math.PI+0.6) O.t=0;
   O.turn+=dt*(state.gmodeTurn??0.25); const A={a:0.09*O.turn, b:0.06*O.turn, g:0.30*Math.sin(0.04*O.turn)}; O.A=A;
-  const U=O.cloud.material.uniforms; U.uA.value=A.a; U.uB.value=A.b; U.uG.value=A.g; U.uT.value=O.t; U.uOm.value=gmodeModeOmega(P); U.uPx.value=Math.min(3,renderer.getPixelRatio?renderer.getPixelRatio():1);
+  const U=O.cloud.material.uniforms; U.uA.value=A.a; U.uB.value=A.b; U.uG.value=A.g; U.uT.value=O.t; U.uOm.value=gmodeModeOmega(P); U.uPx.value=hccPx();
   if(P.field==='pulse'){ const Ak=U.uAk.value, Am=gmodePulseAmps(P.K,O.t,P.conformal); Ak.fill(0); for(let k=0;k<=P.K;k++) Ak[k]=Am[k]/(O.pulsePeak||1);
     let top=1e-9; for(let i=0;i<=90;i++) top=Math.max(top,Math.abs(gmodeSeries(Ak,Math.cos(Math.PI*i/90)))); O.pulseTop=top; U.uGain.value=0.95/top; }
   else if(P.field==='scalar'&&P.shape==='beam'){ U.uTc.value.forEach((_,i)=>{ if(O.beam&&i<O.beam.coef.length) U.uTc.value[i]=O.beam.coef[i]*Math.cos(gmodeModeOmega(P)*O.t); }); U.uGain.value=O.gain; }
@@ -61062,10 +61164,12 @@ function gmodeBind(root){ const R=root||ctl, q=s=>R.querySelector(s);
 function gmodeNearestAtom(e){ const O=gmodeObjs; if(!O||!e) return -1; const rect=renderer.domElement.getBoundingClientRect(), v=new THREE.Vector3(); let best=-1, bd=e.pointerType==='mouse'?16:28;
   O.atoms.forEach((at,j)=>{ v.copy(gmodeChart(at.x,O.A)).applyMatrix4(gmodeGroup.matrixWorld).project(camera); if(v.z>1) return; const sx=rect.left+(v.x+1)/2*rect.width, sy=rect.top+(1-v.y)/2*rect.height, d=Math.hypot(sx-e.clientX,sy-e.clientY); if(d<bd){ bd=d; best=j; } });
   return best; }
-function gmodeTapAtom(e){ const O=gmodeObjs; if(!O) return false; const best=gmodeNearestAtom(e);
-  if(best<0) return false; const i=O.targets.indexOf(best); if(i>=0){ if(O.targets.length>1) O.targets.splice(i,1); } else { O.targets.push(best); if(O.targets.length>GMODE_TMAX) O.targets.shift(); }
+function gmodeTapAtom(e){ return gmodeToggleTarget(gmodeNearestAtom(e)); }
+function gmodeToggleTarget(best){ const O=gmodeObjs; if(!O||best<0) return false; const i=O.targets.indexOf(best); if(i>=0){ if(O.targets.length>1) O.targets.splice(i,1); } else { O.targets.push(best); if(O.targets.length>GMODE_TMAX) O.targets.shift(); }
   state.gmodeTargets=O.targets.slice(); if(O.P.field==='light') { state.gmodeField='scalar'; } gmodePrepare(); try{ if(panelIsOpen('ctl')) buildCtl(); }catch(err){} return true; }
 const gmodePick=new THREE.Mesh(new THREE.SphereGeometry(5.6,24,16),new THREE.MeshBasicMaterial({visible:false})); gmodePick.name='gmode-pick'; gmodePick.userData.atlasPersistent=true; gmodeGroup.add(gmodePick);
+HCC_RAY_TAPS.push({ id:'gmode', when:()=>state.mode==='s3'&&state.s3view==='gmode'&&!!gmodeObjs&&gmodeObjs.P.field!=='flat',
+  tap:(o,d)=>{ const O=gmodeObjs, i=hccRayNearest(o,d,O.atoms.map(at=>gmodeChart(at.x,O.A).applyMatrix4(gmodeGroup.matrixWorld))); return i>=0&&gmodeToggleTarget(i); } });
 hccGrip({ id:'gmode', when:()=>state.mode==='s3'&&state.s3view==='gmode'&&!!gmodeObjs,
   targets:()=>[gmodePick], hint:()=>TT('tap an atom to address it (tap again to release) — the beam of the shell is solved at once; watch its antipodal twin','нажмите на атом, чтобы адресовать его (повторно — отпустить); пучок оболочки решается сразу — смотрите на близнеца в антиподе','Atom antippen, um es zu adressieren'),
   start:D=>gmodeNearestAtom(D.e)>=0, tap:D=>{ gmodeTapAtom(D.e); } });   /* only a press ON an atom is the hand's; anywhere else the camera turns */
@@ -62245,7 +62349,10 @@ function hccGlossMaterial(col,op){ return new THREE.ShaderMaterial({transparent:
 /* the per-frame uniforms: the 4-D turn, the chart, and the drawing buffer in device pixels (so widths are true pixels) */
 const _tcV=new THREE.Vector2();
 function triCapsuleSync(m,A,o){ if(!m) return; const U=m.material.uniforms; o=o||{}; U.uA.value=A?A.a:0; U.uB.value=A?A.b:0; U.uG.value=A?A.g:0;
-  if(o.S!=null) U.uS.value=o.S; if(o.R!=null) U.uR.value=o.R; U.uExact.value=o.exact?1:0; renderer.getDrawingBufferSize(_tcV); U.uView.value.copy(_tcV); U.uPx.value=Math.min(3,renderer.getPixelRatio?renderer.getPixelRatio():1); }
+  if(o.S!=null) U.uS.value=o.S; if(o.R!=null) U.uR.value=o.R; U.uExact.value=o.exact?1:0;
+  /* in XR the width is measured against the eye's viewport (v4.358) */
+  let vp=null; if(renderer.xr&&renderer.xr.isPresenting){ try{ const xc=renderer.xr.getCamera(); vp=xc&&xc.cameras&&xc.cameras[0]&&xc.cameras[0].viewport; }catch(e){} }
+  if(vp&&vp.z>0) U.uView.value.set(vp.z,vp.w); else { renderer.getDrawingBufferSize(_tcV); U.uView.value.copy(_tcV); } U.uPx.value=hccPx(); }
 const TRI_CAT_COL={geom:[0.47,0.85,1.0],hopf:[1.0,0.84,0.45],quant:[0.76,0.55,1.0],rel:[1.0,0.55,0.45],cosmo:[0.45,0.62,1.0],dyn:[1.0,0.47,0.6],inv:[0.62,1.0,0.78],maps:[1.0,0.72,0.9],contact:[0.9,0.9,0.6]};
 /* the census of dependence: each laboratory's chain to the core, and how many chains run through each station */
 function triCensus(){ const ids=Object.keys(S3_VIEW_NAMES).filter(v=>v!=='tri'), items=[], parent=new Map(), kind=new Map(), fan=new Map();
@@ -85196,7 +85303,7 @@ function pxNulDiamond(P){ const s=0.92, map=(T,R)=>new THREE.Vector3(R*s-1.35,T*
   P.dmap=map; }
 function pxNulTick(dt){ const station=state.nulStation||'null'; if(!nulGroup.visible) return; let P=PX.nul; if(!P||P.station!==station||P.root.parent!==nulGroup) P=pxNulBuild();
   pxHideOthers(nulGroup,P.root); P.root.visible=true; P.t+=dt; const dk=station+':'+(state.nulA??.56)+':'+(state.nulB??.34); if(P.dKey!==dk){ P.dKey=dk; P.D=(NUL.last&&NUL.last.station===station&&NUL.station===station)?NUL.last:nulDiagnostics(station); } const D=P.D, V=D.values||{}, par=D.parameters||[], U=P.stars.material.uniforms;
-  U.uPx.value=Math.min(3,renderer.getPixelRatio?renderer.getPixelRatio():1);
+  U.uPx.value=hccPx();
   const boosted=station==='lorentz'||station==='celestial'; const etaT=boosted?(par[0]?par[0].value:0):0, psiT=boosted?(par[1]?par[1].value:0):0;
   P.eta+=(etaT-P.eta)*Math.min(1,dt*3); P.psi+=(psiT-P.psi)*Math.min(1,dt*3); const beta=Math.tanh(P.eta), gam=Math.cosh(P.eta);
   U.uBeta.value=beta; U.uGamma.value=gam; U.uN.value.copy(P.axisN); U.uPsi.value=P.psi; U.uDop.value=boosted?1:0; U.uOp.value=station==='tetrad'?0.45:1;
@@ -85651,6 +85758,9 @@ globalThis.HCC_MECHANISMS=Object.freeze({
   promote:()=>{ throw new Error('a status cannot be promoted from the API — the registry changes only by review'); },
   principle:'Visual precision never upgrades evidence.'});
 const unifyPick=new THREE.Mesh(new THREE.SphereGeometry(4.2,24,16),new THREE.MeshBasicMaterial({visible:false})); unifyPick.name='unify-pick'; unifyPick.userData.atlasPersistent=true; unifyGroup.add(unifyPick);
+HCC_RAY_TAPS.push({ id:'unify', when:()=>state.mode==='s3'&&state.s3view==='unify'&&!!unifyObjs,
+  tap:(o,d)=>{ const P=unifyObjs, W=p=>p.clone().applyMatrix4(unifyGroup.matrixWorld), stars=P.pos.map((p,i)=>unifyShown(UNIFY_MECHANISMS[i])?W(p):null), gates=(P.gatePos||[]).map(W), all=stars.concat(gates), i=hccRayNearest(o,d,all);
+    if(i<0) return false; if(i>=stars.length) state.unifyGate=P.gatesRun[i-stars.length].id; else { const id=UNIFY_MECHANISMS[i].id; state.unifySel=state.unifySel===id?null:id; } unifyDraw(); return true; } });
 hccGrip({ id:'unify', when:()=>state.mode==='s3'&&state.s3view==='unify'&&!!unifyObjs, targets:()=>[unifyPick],
   hint:()=>TT('tap a star for the verdict on its mechanism · tap a bead of the halo for its gate','нажмите на звезду — вердикт по механизму · на бусину ореола — её гейт','Stern antippen für das Urteil · Perle für das Gate'),
   start:D=>unifyNearest(D.e)>=0, tap:D=>{ const i=unifyNearest(D.e); if(i>=100){ state.unifyGate=unifyObjs.gatesRun[i-100].id; } else if(i>=0){ const id=UNIFY_MECHANISMS[i].id; state.unifySel=state.unifySel===id?null:id; } unifyDraw(); try{ if(panelIsOpen('ctl')) buildCtl(); }catch(err){} } });
@@ -95802,6 +95912,8 @@ const XRX = (()=>{
                if(cardPanel.visible) showObjectCard(k); }                                        // (card already open? keep it live)
       }
       return; }
+    { const o=new THREE.Vector3(), d=new THREE.Vector3(0,0,-1), q=new THREE.Quaternion(); P.ctrl.getWorldPosition(o); P.ctrl.getWorldQuaternion(q); d.applyQuaternion(q).normalize();
+      if(hccRayTap(o,d)){ pulse(P,.4,30); return; } }   /* a laboratory's own objects (an atom, a mechanism) answer the trigger (v4.358) */
     if(xrMode==='ar' && reticle?.visible){ placeAtReticle(); return; }
     // blink teleport to cursor point in open space
     if(P.cursor.visible && xrMode==='vr'){
@@ -116801,6 +116913,7 @@ function tickBody(now, frame){
       }
     }
     updateCosmicFrame(camera.position.distanceTo(controls.target), T, geoShift);   // stitched axes + orientation spheres
+    try{ hccHorizonsTick(dt); }catch(e){}   /* the horizons follow the clock (v4.358) */
     updateSolarPhaseObservatory(); // shared Cycles laboratory, rendered inside the Solar world
 
     /* the Moon rides Earth's orbit (orbit exaggerated unless true scale) */
@@ -117014,8 +117127,9 @@ function tickBody(now, frame){
     }
   }
   else if(state.mode==='obs'){
-    hudBig.textContent = `Γ_obs = ${(100*S3.GammaObs).toFixed(5)} % of the S³ volume · θ_particle = ${S3.thetaPdeg.toFixed(2)}°`;
-    hudSub.textContent = '1 unit = 1 Gly · domain D_obs(p,T) ⊂ S³_R · screens are reconstruction boundaries';
+    const HZ=hccHorizonsTick(dt), hzH=HZ&&HZ.h;
+    hudBig.textContent = hzH?`${TT('cosmic time','космическое время','kosmische Zeit')} t = ${HZ.now<1?(HZ.now*1e3).toFixed(2)+' Myr':HZ.now.toFixed(3)+' Gyr'} · ${TT('particle horizon','горизонт частиц','Teilchenhorizont')} ${hzH.particle.toFixed(2)} Gly · ${TT('event horizon','горизонт событий','Ereignishorizont')} ${hzH.event.toFixed(2)} Gly (${TT('comoving','сопутствующие','mitbewegt')})`:`${TT('before the Big Bang — the clock shows','до Большого взрыва — часы показывают','vor dem Urknall — die Uhr zeigt')} t = ${(HZ?HZ.now:0).toFixed(3)} Gyr`;
+    hudSub.textContent = hzH?`1 unit = 1 Gly comoving · a = ${hzH.lnA>40?'e^'+hzH.lnA.toFixed(0):hzH.a.toPrecision(4)} · ${TT('the horizons follow the time machine — run it forward or back','горизонты следуют машине времени — запустите её вперёд или назад','die Horizonte folgen der Zeitmaschine')} · Γ_obs(today) = ${(100*S3.GammaObs).toFixed(5)} %`:'1 unit = 1 Gly · domain D_obs(p,T) ⊂ S³_R · screens are reconstruction boundaries';
     // approaching the HOME GALAXY continues INTO the Solar mode's nested layers —
     // Observable and Solar are one permeable instrument: same directions, same sky
     if(!state.landed && !renderer.xr.isPresenting && !focusAnim){

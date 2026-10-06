@@ -830,7 +830,9 @@ export const ROOTS = [
   'gmodeLgam', 'gmodeGegen', 'gmodeSkyWeights', 'gmodeSkyHalfK',
   /* s3.unify — the unified fundamental atlas (v4.357) */
   'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates',
-  'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres'
+  'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres',
+  /* the horizons in cosmic time (v4.358) */
+  'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
