@@ -177,6 +177,7 @@ const allChecks = [
   "docs/verify-one-model-of-the-horizons.cjs",
   "docs/verify-the-causal-calendar.cjs",
   "docs/verify-the-web-without-cages.cjs",
+  "docs/verify-the-real-flow.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -413,6 +414,7 @@ if (fullMode) {
     'docs/verify-one-model-of-the-horizons.cjs',
     'docs/verify-the-causal-calendar.cjs',
     'docs/verify-the-web-without-cages.cjs',
+    'docs/verify-the-real-flow.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

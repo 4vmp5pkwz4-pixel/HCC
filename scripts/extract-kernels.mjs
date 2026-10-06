@@ -834,7 +834,9 @@ export const ROOTS = [
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
-  'hzCausal'
+  'hzCausal',
+  /* the real flow of the local web (v4.361) */
+  'webDecodeDelta', 'webThetaOfDelta', 'webLinearFlow', 'webFlowChecks', 'webGaussianInfall', 'webFlowAt'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
