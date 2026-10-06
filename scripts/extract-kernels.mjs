@@ -836,7 +836,9 @@ export const ROOTS = [
   /* the causal calendar of the web (v4.360) */
   'hzCausal',
   /* the real flow of the local web (v4.361) */
-  'webDecodeDelta', 'webThetaOfDelta', 'webLinearFlow', 'webFlowChecks', 'webGaussianInfall', 'webFlowAt'
+  'webDecodeDelta', 'webThetaOfDelta', 'webLinearFlow', 'webFlowChecks', 'webGaussianInfall', 'webFlowAt',
+  /* 2MRS and Cosmicflows-4 (v4.362) */
+  'surveyFluxDipole', 'surveyBulkFlow', 'surveyHubble'
 ];
 
 const REFS = new Map(DECLS.map(d => [d, refs(d)]));
