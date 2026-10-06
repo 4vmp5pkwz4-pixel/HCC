@@ -36,8 +36,8 @@ export async function joinAgora({ name = 'agent', transport = 'relay', url = 'ws
     close = () => ws.close();
   }
   const run = (cmd, args = {}) => new Promise((ok, no) => { const id = ++n;
-    const to = setTimeout(() => { wait.delete(id); no(new Error(`no answer in ${timeout} s — has the reader allowed this agent?`)); }, 1000 * (cmd === 'tour' ? Math.max(timeout, 900) : timeout));
+    const to = setTimeout(() => { wait.delete(id); no(new Error(`no answer in time — has the reader allowed this agent?`)); }, 1000 * (cmd === 'tour' || cmd === 'guide' ? Math.max(timeout, 900) : cmd === 'ask' ? Math.max(timeout, (Number(args.seconds) || 60) + 60) : timeout));
     wait.set(id, { ok, no, to }); send(id, cmd, args); });
-  const COMMANDS = ['scene', 'find', 'worlds', 'go', 'layer', 'focus', 'camera', 'time', 'instruments', 'describe', 'run', 'kernels', 'kernel', 'bus', 'measure', 'phase', 'oracle', 'say', 'mark', 'predict', 'highlight', 'clear', 'tour'];
+  const COMMANDS = ['scene', 'find', 'worlds', 'go', 'layer', 'focus', 'camera', 'time', 'instruments', 'describe', 'run', 'kernels', 'kernel', 'bus', 'measure', 'phase', 'oracle', 'say', 'mark', 'predict', 'highlight', 'clear', 'tour', 'look', 'read', 'panels', 'panel', 'press', 'input', 'controls', 'point', 'guide', 'ask', 'note', 'journal', 'visit'];
   return Object.freeze({ name, do: run, close, ...Object.fromEntries(COMMANDS.map(c => [c, args => run(c, args)])) });
 }

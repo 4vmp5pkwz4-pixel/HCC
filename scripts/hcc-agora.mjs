@@ -117,15 +117,20 @@ async function mcp() {
       if (m.id === undefined) continue;                        /* notifications */
       try {
         if (m.method === 'initialize') { if (!name) name = m.params?.clientInfo?.name || 'MCP agent';
-          reply(m.id, { protocolVersion: m.params?.protocolVersion || '2025-06-18', capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'hcc-agora', version: '4.369.0' },
-            instructions: 'Tools drive the open HCC atlas in front of its reader: start with atlas_scene and atlas_worlds, find objects with atlas_find, speak with atlas_say, make checkable predictions with atlas_predict. The reader must open the atlas with ?agora=ws://127.0.0.1:' + PORT + ' and press Allow.' });
+          reply(m.id, { protocolVersion: m.params?.protocolVersion || '2025-06-18', capabilities: { tools: { listChanged: false } }, serverInfo: { name: 'hcc-agora', version: '4.370.0' },
+            instructions: 'Tools drive the open HCC atlas in front of its reader: see it with atlas_look and atlas_read, start with atlas_scene and atlas_worlds, find objects with atlas_find, open any window (atlas_panels, atlas_panel), operate any control (atlas_controls, atlas_press, atlas_input), lead the reader (atlas_point, atlas_guide, atlas_ask), speak with atlas_say, keep and share records in the journal (atlas_note, atlas_journal, atlas_visit), make checkable predictions with atlas_predict. The reader must open the atlas with ?agora=ws://127.0.0.1:' + PORT + ' and press Allow.' });
           ensure().catch(e => log(e.message)); }
         else if (m.method === 'ping') reply(m.id, {});
         else if (m.method === 'tools/list') reply(m.id, { tools: TOOLS });
         else if (m.method === 'tools/call') { const nm = String(m.params?.name || ''), cmd = nm.replace(/^atlas_/, ''), args = m.params?.arguments || {};
           if (!SPECS[cmd]) { reply(m.id, { isError: true, content: [{ type: 'text', text: 'unknown tool ' + nm }] }); continue; }
-          try { K.agoraCheckArgs(cmd, args); const A = await ensure(); const r = await A.do(cmd, args, cmd === 'tour' ? 900 : cmd === 'predict' ? 300 : 90);
-            reply(m.id, { content: [{ type: 'text', text: JSON.stringify(r, null, 1).slice(0, 400000) }] }); }
+          try { K.agoraCheckArgs(cmd, args); const A = await ensure();
+            const wait = cmd === 'tour' || cmd === 'guide' ? 900 : cmd === 'ask' ? Math.min(660, (Number(args.seconds) || 60) + 60) : cmd === 'predict' ? 300 : 90;
+            const r = await A.do(cmd, args, wait), content = [];
+            /* what the agent SEES comes back as an image, the rest as text */
+            if (r && typeof r.image === 'string' && /^data:image\/(jpeg|png);base64,/.test(r.image)) { const [head, data] = r.image.split(','); content.push({ type: 'image', data, mimeType: head.slice(5, head.indexOf(';')) }); delete r.image; }
+            content.push({ type: 'text', text: JSON.stringify(r, null, 1).slice(0, 400000) });
+            reply(m.id, { content }); }
           catch (e) { reply(m.id, { isError: true, content: [{ type: 'text', text: String(e && e.message || e) }] }); } }
         else fail(m.id, -32601, 'method not found: ' + m.method);
       } catch (e) { fail(m.id, -32603, String(e && e.message || e)); } } });
