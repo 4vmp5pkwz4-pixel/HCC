@@ -189,6 +189,7 @@ const allChecks = [
   "docs/verify-null-beltrami-geometry.cjs",
   "docs/verify-order-sync-and-light.cjs",
   "docs/verify-everything-moves-with-the-clock.cjs",
+  "docs/verify-the-research-chapter.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -437,6 +438,7 @@ if (fullMode) {
     'docs/verify-null-beltrami-geometry.cjs',
     'docs/verify-order-sync-and-light.cjs',
     'docs/verify-everything-moves-with-the-clock.cjs',
+    'docs/verify-the-research-chapter.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
