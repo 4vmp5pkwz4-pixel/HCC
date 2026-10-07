@@ -22,7 +22,7 @@ const ok = (n, c, d) => { if (c) { pass++; console.log('  PASS — ' + n + (d ? 
 const slice = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); if (i < 0 || j < 0) throw new Error('missing ' + a); return SRC.slice(i, j); };
 
 /* 1 */
-{ const ch = SRC.match(/const LAB_CHAPTERS=Object\.freeze\(\{\s*navier:\[([^\]]*)\],\s*s3light:\[([^\]]*)\]\}\);/), ids = s => s.split(',').map(x => x.trim().replace(/'/g, ''));
+{ const ch = SRC.match(/const LAB_CHAPTERS=Object\.freeze\(\{\s*navier:\[([^\]]*)\],\s*s3light:\[([^\]]*)\],/), ids = s => s.split(',').map(x => x.trim().replace(/'/g, ''));
   const nav = ch ? ids(ch[1]) : [], light = ch ? ids(ch[2]) : [];
   const known = id => new RegExp(`\\{id:'${id}', category:`).test(SRC) || new RegExp(`\\b${id}:'`).test(SRC);
   ok('the catalogue opens with two chapters — the fluid of S³ (Navier–Stokes first) and its light and geometry — before the domains; every member is a real laboratory; the first swipe lands on the fluid',
