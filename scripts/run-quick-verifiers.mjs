@@ -186,6 +186,7 @@ const allChecks = [
   "docs/verify-the-way-back-in.cjs",
   "docs/verify-the-agora.cjs",
   "docs/verify-handles-a-finger-can-take.cjs",
+  "docs/verify-null-beltrami-geometry.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -431,6 +432,7 @@ if (fullMode) {
     'docs/verify-the-way-back-in.cjs',
     'docs/verify-the-agora.cjs',
     'docs/verify-handles-a-finger-can-take.cjs',
+    'docs/verify-null-beltrami-geometry.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
