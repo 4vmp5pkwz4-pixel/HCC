@@ -56,11 +56,14 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
       inSky.every(x => sky.has(x)) && inSphere.every(x => !sky.has(x)), `${F.sky.length} in the sky · ${F.sphere.length} in the sphere`);
     /* and the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it. The CMB stood there too
        (nearest at 376 relations, 4th at 383) until the space-form laboratory declared the CMB can show the topology
-       of S³/Γ — that one causal relation carries it across to the sphere side. Measured both ways, every build. */
+       of S³/Γ — that one causal relation carries it across to the sphere side. Measured both ways, every build.
+       v4.373: the null Beltrami laboratory's five relations (to the resonator, the Unified Atlas, Hopf, contact and the
+       light cone) moved the charged-particle laboratory past the harmonics by a hair (|v| 2.6e-3 against 2.8e-3), so
+       the harmonics stand sixth nearest — the pin is the six nearest, and the five-times-below-the-median stays. */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
     const G0 = atlasRelGraph(REL.filter(r => !(r[0] === 's3gamma' && r[1] === 'cmb') && !(r[0] === 'cmb' && r[1] === 's3gamma'))), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
-    ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the five nearest zero, five times below the median); the CMB stands on it without the relation "the CMB can show S³/Γ", and that one relation carries it to the sphere side, still three times below the median',
-      rk('sh') >= 0 && rk('sh') < 5 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 3 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]),
+    ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the six nearest zero, five times below the median); the CMB stands on it without the relation "the CMB can show S³/Γ", and that one relation carries it to the sphere side, still three times below the median',
+      rk('sh') >= 0 && rk('sh') < 6 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 3 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]),
       `|v_sh| ${vs.toExponential(1)} (rank ${rk('sh')}) · CMB without s3gamma→cmb: rank ${rk0}, |v| ${Math.abs(F0.vector[G0.ix.get('cmb')]).toExponential(1)} · with it: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }
 
   /* 5 · the bus */

@@ -831,6 +831,11 @@ export const ROOTS = [
   /* s3.unify — the unified fundamental atlas (v4.357) */
   'UNIFY_MECHANISMS', 'UNIFY_TIERS', 'UNIFY_PHASES', 'UNIFY_GATES', 'unifyHash', 'unifyDatum', 'unifyQuintic', 'unifyCorrections', 'unifySO4', 'unifySpectrumRank', 'unifyHelicity', 'unifyHasimoto', 'unifyHopf', 'unifyRunGates',
   'gmodeFlatJ', 'gmodeDet4', 'gmodeFlatField', 'gmodeFlatMaxwell', 'gmodeFlatLine', 'gmodeZeroFibres',
+  /* null Beltrami geometry on the round S³ — Preece & Batenin (v4.373) */
+  'NBG_TAU', 'nbgCm', 'nbgCd', 'nbgDegree', 'nbgLin', 'nbgPoly', 'nbgExpand', 'nbgFactor', 'nbgF', 'nbgRot', 'nbgMv', 'nbgMtv', 'nbgFieldEB', 'nbgCross4', 'nbgPoynting', 'nbgOptics', 'nbgCheck', 'nbgCR',
+  'nbgFibre', 'nbgWinding', 'nbgZeroCensus', 'nbgBateman', 'nbgBatemanG', 'nbgBatemanF', 'nbgBatemanEnergy', 'nbgPsiInv', 'nbgIsotopy', 'nbgCircle', 'nbgCirclePts', 'nbgGaussLink', 'nbgBatemanCheck',
+  'nbgTwistorDim', 'nbgHam', 'nbgFlow', 'nbgFlowJacobian', 'nbgLine', 'nbgLinesMeet', 'nbgSplit', 'nbgLaurent', 'nbgDeformedLine', 'nbgKerrR', 'nbgKerrL', 'nbgKerrInv', 'nbgKerrCheck', 'nbgContact', 'NBG_PRESETS',
+  'nbgS2', 'nbgWofS2', 'nbgEnergyAt', 'nbgPolyStr', 'UNIFY_MANUSCRIPT', 'UNIFY_MANUSCRIPT_GATES', 'unifyManuscript',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
