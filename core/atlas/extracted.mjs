@@ -5,11 +5,11 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2072   ·   exported names: 2206
-   extracted physics, sha256 298b5530c782f1cca607f4c3ce8b36a45fb6c06c06d8da4c4c62ea70dc112937 */
+   extracted physics, sha256 b777793c4bb4888ed3590ec04a413d7ce955e754c151a08bb04c9cceeaf5df79 */
 
-const HCC_VERSION='4.377.0';
+const HCC_VERSION='4.378.0';
 
-const HCC_BUILD='living-ladder-2026.10.07.93';
+const HCC_BUILD='fluid-computer-2026.10.08.94';
 
 const HCC_S3C=Object.freeze({
   c:299792458.0, G:6.67430e-11, kB:1.380649e-23, hbar:1.054571817e-34,
@@ -11641,6 +11641,7 @@ const NEXUS_RELATIONS=[
   ['nsblow','nsflow','contrast','the exact solution cannot do what the forced core does','On S³ the exact family keeps its energy in one curl shell and its circulation fixed; the forced core must grow its circulation as τ^{−h} — the one thing a solution without a force cannot do, by the swirl maximum principle.','physics-contrast'],
   ['nsblow','nsgal','contrast','a truncation caps what the collapse needs','Every Galerkin truncation keeps E bounded and a finite top wavenumber, so its Reynolds number is capped; the forced collapse needs Re ∝ τ^{−h} → ∞ — the reason nothing in the hundred-mode fluid bears on blow-up.','regime-contrast'],
   ['nscomp','nsflow','contrast','a force can make the flow compute; the exact solution cannot','The exact solution of S³ is one closed formula with energy in one curl shell; the forced torus flow of family 376 encodes a Turing machine in where one particle goes — its force is ∂ₜV − νΔV because every stage is transverse to its own variation, so the pressure is zero.','physics-contrast'],
+  ['nscomp','act','analogy','contact geometry already computed on S³','Cardona, Miranda, Peralta-Salas and Presas built Turing-complete stationary Euler flows on an adapted S³ from Reeb fields of contact forms — Beltrami fields of the kind the contact laboratory draws; the forced construction keeps the flat metric fixed and puts the machine into the force instead.','structural-analogy'],
   ['nscomp','nsblow','contrast','undecidable reachability is not blow-up','Both are forced Navier–Stokes constructions of 2026, but the computing flow stays smooth with bounded derivatives for all time: what cannot be decided is where one particle goes, not whether the solution exists.','physics-contrast'],
   ['nsblow','kam','analogy','a family on a plane in the space of logarithms','Like the tori of an integrable family, the collapses of all h lie on one plane in (ln Γ, ln E, ln‖u‖∞), fenced by one invariant E‖u‖∞/Γ⁴; the theorems cut a window out of it as resonances cut the tori.','structural-analogy'],
   ['strobe','nsflow','invariant','the exact solution is periodic, its carrier knotted','The carrier of the exact solution is two rotations of ℝ⁴ with frequencies 2 and 4/(k+2), a rational ratio for every shell: its orbits are torus knots T(k+2, 2) (the trefoil at k = 1) and the whole solution returns to itself after π(k+2)/gcd(k, 4).','theorem'],
