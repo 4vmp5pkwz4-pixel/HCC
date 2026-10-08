@@ -114,6 +114,29 @@ and the predicted `Lambda` is unchanged. The observation Jacobian `[-1, beta]` h
 
 **Selector warning retained from PR #492.** For `Gamma=q(log(q/q*)-1)+nu log q+r(q)`, `Gamma'=log(q/q*)+nu/q+r'(q)` and `Gamma''=(q-nu)/q²+r''(q)`. Domain-restricted convexity in the current verifier assumes the omitted remainder is constant. Generic `O(1)` alone does **not** control either derivative.
 
+## 4a. Exact Hopf–corner topological transgression on S³ → S²
+
+Let `pi:S³→S²` be the standard Hopf fibration, with connection `alpha` normalized by `∫_(S¹ fiber) alpha=2π`. Its curvature `dalpha=pi*F` descends to `S²`. Orient the base and total space compatibly, so `∫_(S²)F/(2π)=+1`. Fiber integration gives the **exact identity**
+
+```text
+(1/(2π)^2) ∫_(S³) alpha∧dalpha
+= (1/(2π)) ∫_(S²) F
+= c₁(Hopf bundle)[S²] = 1.
+```
+
+**Elementary direct proof in Hopf coordinates.** Put `z₁=cos(eta)exp(i ξ₁)`, `z₂=sin(eta)exp(i ξ₂)` with `0≤eta≤π/2` and both angular coordinates modulo `2π`. Set
+
+```text
+alpha = cos²(eta)dξ₁ + sin²(eta)dξ₂,
+alpha∧dalpha = sin(2eta) d eta ∧ dξ₂ ∧ dξ₁
+```
+
+with the displayed positive orientation. Integrating over the coordinate fundamental domain yields `(2π)^2 ∫₀^(π/2) sin(2eta)deta = 4π²`. Independence under smooth U(1) gauge transformations follows from `(alpha+dchi)∧d(alpha+dchi)-alpha∧dalpha=d(chi·dalpha)` and Stokes' theorem on closed `S³`. A convergence-checked midpoint quadrature computes the same normalized value in `hopfFiberTransgression`.
+
+**Cohomological firewall.** `H¹(S³,Z)=0` and `H²(S³,Z)=0`, while `H³(S³,Z)=Z`. The nonzero Chern class is on the **base S²**, not on the total space S³. All complex line bundles on S³ are topologically trivial even though the **connection's Chern–Simons/Hopf 3-form** can carry a nonzero integral. It is incorrect to infer a bulk U(1) first Chern class from this invariant.
+
+**CEF opportunity, not closure:** this is an explicit bulk S³ → codimension-one base S² characteristic-class bridge, a candidate **template** for edge/determinant-line transgression. To make it a gravitational CEF theorem one must exhibit the correct physical principal bundle, identify horizon or corner charge with `F`, and establish the relevant Fredholm/index map. The Hopf number `1` is not the astronomical capacity `q_*`, nor an explanation of dark matter/energy. A higher-degree base Chern number generally changes the principal bundle total space (e.g., lens spaces), so one must not silently replace the topology of the fixed standard Hopf fibration.
+
 ## 5. A multi-invariant CEF admission vector
 
 Represent each candidate physical bridge by the typed data
@@ -125,7 +148,7 @@ I = (
   omega_mix = exp(i*kappa<pairing>),           phase,
   modular_centralizer_type,                    algebra + state/weight,
   uv_beta = 16π²/g and sensitivity bounds,    dimensionless,
-  regulator/continuum limit,
+  Hopf–Chern transgression (if physical bundle identified),\n  regulator/continuum limit,
   physical source, measurement or falsifier
 ).
 ```
