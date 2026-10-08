@@ -16,6 +16,7 @@ import { existsSync } from 'node:fs';
 const allChecks = [
   "docs/verify-capacity-selector-sign.cjs",
   "docs/verify-s3-cap-observability.cjs",
+  "docs/verify-s3-cap-patch.cjs",
   "docs/verify-visual-kernel.mjs",
   "docs/verify-linked-cycle-views.cjs",
   "docs/verify-multiphase-solar-control.cjs",
@@ -213,6 +214,7 @@ const add = (...paths) => paths.forEach(path => {
 const smoke = [
   "docs/verify-capacity-selector-sign.cjs",
   "docs/verify-s3-cap-observability.cjs",
+  "docs/verify-s3-cap-patch.cjs",
   "docs/verify-visual-kernel.mjs",
   'docs/verify-scale-continuity.cjs',
   'docs/verify-world-lab-routing.cjs',
