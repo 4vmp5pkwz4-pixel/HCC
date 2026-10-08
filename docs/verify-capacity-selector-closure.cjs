@@ -1,24 +1,13 @@
-/* ── THE SELECTOR, NOW CLOSED ─────────────────────────────────────────────────
-   STATUS: DERIVED (from the stated manuscript) + VERIFIED (everything below).
-
-   "Capacity-Fixed Trace-Free Gravity and Non-Perturbative Edge-Partition Boundary
-   Selection" (Preece & Batenin) completes what the earlier crystalline revision left
-   open.  The earlier paper reduced Lambda to a boundary selector and proved a NO-GO:
-   bounded admissibility data cannot produce a stable centre at u = ln q ~ 282.  This
-   one supplies the missing object -- a non-perturbative edge partition function -- and
-   the centre appears.
-
-   That is a categorical change, so it is checked categorically.  docs/verify-capacity-
-   sieve.cjs already verified the sieve and exercised the no-go; this file verifies the
-   CLOSURE: the free energy, its unique stationary point, its stability, the three gate
-   numbers, and the value of Lambda that comes out the other end.
-
-   The one thing worth stating before any of it: the selector is now a MINIMISATION with
-   an answer, not an open problem.  Whether the answer is right is a question for
-   observation, and the last check compares it with the measured sky rather than
-   asserting agreement.
-
-   Run: node docs/verify-capacity-selector-closure.cjs                                 */
+/* ── CAPACITY SELECTOR: CONDITIONAL CALCULUS CHECK ──────────────────────
+   Scientific scope: verifies stated numerical inputs and, under the explicitly
+   assumed remainder r(q)=constant, an extremum on the declared domain q>=1.
+   It does NOT independently derive q*, Z_edge, an RG gate, or the observed Lambda.
+   The source manuscript is not replaced by numerical agreement.
+   IMPORTANT: -log Z_edge = +nu log q requires a PLUS derivative nu/q.
+   An unknown q-dependent O(1) remainder needs separate derivative bounds.
+   Run: node docs/verify-capacity-selector-closure.cjs
+   See docs/CEF_OPENAI_MATH_SELECTOR_AUDIT_2026-10-08.md
+*/
 
 const out=[]; const ok=(n,c,d)=>out.push([c?'PASS':'FAIL',n,d]);
 
@@ -31,26 +20,27 @@ const N_PHI    = 292;                     // Fibonacci shell rank
 const L_P      = 1.616255e-35;            // m, CODATA 2022
 const PHI      = (1+Math.sqrt(5))/2;
 
-/* ══ 1 ══ the free energy has ONE stationary point, and it is a minimum ═════ */
+/* ══ 1 ══ sign, domain, and stationary-point scope ══════════════════ */
 {
-  /* Gamma(q) = q[ln(q/q*) - 1] - log Z_edge(q) with -log Z_edge = nu ln q + O(1).
-     dGamma/dq = ln(q/q*) - nu/q ;  d2Gamma/dq2 = 1/q + nu/q^2 > 0 for q > 0.
-     Positive second derivative everywhere means the stationary point is unique and is a
-     minimum -- there is no second solution to find and no maximum to fall off. */
-  const dG =q=>Math.log(q/Q_STAR)-NU/q;
-  const d2G=q=>1/q+NU/(q*q);
-  const stat=dG(Q_STAR);
-  let convex=true, sign=[];
-  for(const e of [-40,-20,-5,-1,0,1,5,20,40]){
-    const q=Q_STAR*Math.exp(e);
-    if(!(d2G(q)>0)) convex=false;
-    sign.push(Math.sign(dG(q)));
-  }
-  /* the derivative must cross zero exactly once, from below */
-  const crossings=sign.slice(1).filter((s,i)=>s!==sign[i]).length;
-  ok('the selector free energy has exactly ONE stationary point and it is a minimum: Gamma(q) = q[ln(q/q*) - 1] + nu ln q gives dGamma/dq = ln(q/q*) - nu/q, which vanishes essentially at q*, and d2Gamma/dq2 = 1/q + nu/q^2 is positive for every q > 0. Strict convexity in q means the answer is unique by construction rather than by search -- this is precisely what the earlier no-go said bounded admissibility data could never produce',
-    Math.abs(stat)<1e-120 && convex && crossings===1,
-    `dGamma/dq at q* = ${stat.toExponential(3)} · d2Gamma/dq2 > 0 at all nine probe scales spanning e^-40 to e^+40 around q* · the derivative changes sign exactly ${crossings} time`);
+  /* With the manuscript's displayed -log Z_edge = +nu log q and with its
+     O(1) remainder held constant:
+       Gamma(q) = q*(log(q/q*)-1) + nu*log(q).
+       Gamma'(q) = log(q/q*) + nu/q.
+       Gamma''(q) = 1/q - nu/q^2 = (q-nu)/q^2.
+     For nu=1/2, Gamma''>0 on the EXPLICIT domain q>=1, not on q>0.
+     Gamma'(1)<0 for q*>exp(nu), and Gamma'(q)->+infinity as q->infinity.
+     Strict convexity then proves one minimizer on [1,infinity).
+     Across q>0, Gamma is not globally convex; with constant remainder it
+     tends to -infinity at q->0+. The value q* is an input scale in Gamma,
+     NOT an independently predicted root of its own definition. */
+  const dG =q=>Math.log(q/Q_STAR)+NU/q;
+  const d2G=q=>1/q-NU/(q*q);
+  const physicalDomainConvex=(NU<1)&&[1,2,10,1e3,Q_STAR].every(q=>d2G(q)>0);
+  const bracket=(dG(1)<0 && dG(Q_STAR*Math.exp(2))>0);
+  const counterexample=(d2G(NU/2)<0);
+  ok('for constant remainder and q>=1, Gamma with +nu*log(q) is strictly convex and has exactly one minimum; global convexity over q>0 is FALSE',
+    physicalDomainConvex && bracket && counterexample,
+    `Gamma'(1)=${dG(1).toFixed(6)} · Gamma'(q*)=${dG(Q_STAR).toExponential(3)} · Gamma''(nu/2)=${d2G(NU/2).toFixed(3)} · root differs from input q* by an unresolvable relative O(nu/q*)`);
 }
 
 /* ══ 2 ══ the scheme relation closes on the quoted coupling ════════════════ */
@@ -94,7 +84,7 @@ const PHI      = (1+Math.sqrt(5))/2;
   const dOm=0.0056/0.6889, dH=2*0.42/67.66;
   const sig=LamObs*Math.hypot(dOm,dH);
   const dev=Math.abs(Lam-LamObs)/sig;
-  ok('and the number at the end of the construction: Lambda* = 3 pi/(l_P^2 q*) comes out at 1.09e-52 m^-2 against the Planck 2018 late-time value of 1.11e-52, a deviation of well under one standard deviation of the observational inputs. The construction therefore lands on the measured sky WITHOUT having been given it -- which is the claim the earlier paper could not make, and the reason this manuscript is a closure rather than a reduction',
+  ok('conditional numerical comparison only: with q* already an input of the free energy, Lambda(q*) resembles the cited Planck reference value; this is NOT independent cosmological prediction or physical validation. The displayed sigma assumes uncorrelated input errors and is an illustrative diagnostic',
     dev<1.5,
     `Lambda* = ${Lam.toExponential(6)} m^-2 · Planck 2018 gives ${LamObs.toExponential(6)} +/- ${sig.toExponential(2)} from Omega_L = 0.6889 +/- 0.0056 and H0 = 67.66 +/- 0.42 · deviation ${dev.toFixed(2)} sigma`);
 }
@@ -117,9 +107,9 @@ const PHI      = (1+Math.sqrt(5))/2;
 
 /* ══ 6 ══ what is still conditional ════════════════════════════════════════ */
 {
-  ok('and the boundary of the claim, kept as a check so it cannot be dropped in the retelling: the closure is CONDITIONAL on its three gates. The Hopf-Bradlow-APS-HC recursion gate supplies N_phi, the GLSM/stringy matching gate supplies b g^2 and Xi_edge, and the determinant-line gate supplies nu = 1/2. This file verifies that the gates are mutually consistent and that the free energy they define has a unique stable minimum landing on the observed sky. It does NOT independently derive the gates from string theory or from the Harish-Chandra character expansion -- that is the work of the manuscript itself, and reproducing it is a separate undertaking',
+  ok('epistemic boundary: the q>=1 minimum is a conditional statement assuming the declared sign and constant remainder. q*, Z_edge, nu, and matching coefficients are inputs here; their independent derivation, regulator independence and physical selection are not checked by this script',
     true,
-    'status: the sieve is VERIFIED (docs/verify-capacity-sieve.cjs, 9/9) · the closure is CONDITIONAL on three stated gates and VERIFIED to be internally consistent and observationally on target given them · the gates themselves are DERIVED in the manuscript and not re-derived here');
+    'status: algebra/calculus on q>=1 VERIFIED under constant-remainder assumption; numerical agreement is conditional; gates and independent origin of q* UNVERIFIED in this script');
 }
 
 for(const [s,n,d] of out) console.log(s.padEnd(5), n, '\n      ', d);
