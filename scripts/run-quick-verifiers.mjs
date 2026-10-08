@@ -14,6 +14,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 
 const allChecks = [
+  "docs/verify-cef-operator-frontier.cjs",
   "docs/verify-capacity-selector-sign.cjs",
   "docs/verify-visual-kernel.mjs",
   "docs/verify-linked-cycle-views.cjs",
@@ -208,6 +209,7 @@ const add = (...paths) => paths.forEach(path => {
 });
 
 const smoke = [
+  "docs/verify-cef-operator-frontier.cjs",
   "docs/verify-capacity-selector-sign.cjs",
   "docs/verify-visual-kernel.mjs",
   'docs/verify-scale-continuity.cjs',
