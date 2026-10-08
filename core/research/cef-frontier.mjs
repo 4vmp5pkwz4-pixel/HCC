@@ -111,6 +111,38 @@ export function couplingSensitivity(g, xi = 1, relativeDelta = 0) {
   });
 }
 
+/**
+ * Exact topological identity in the standard Hopf bundle S1→S3→S2:
+ * (2π)^(-2) ∫_{S3} alpha∧dalpha = (2π)^(-1)∫_{S2} F = 1
+ * for positively oriented normalized connection ∫fiber alpha=2π.
+ * Hopf coordinates z1=cos(eta)e^{i xi1}, z2=sin(eta)e^{i xi2}:
+ * alpha=cos²(eta)d xi1 + sin²(eta)d xi2.
+ * With orientation (eta,xi2,xi1), alpha∧dalpha =
+ * sin(2 eta)d eta∧d xi2∧d xi1.
+ * The code computes an INDEPENDENT midpoint quadrature, not a topological proof.
+ */
+export function hopfFiberTransgression(steps = 256) {
+  if (!Number.isSafeInteger(steps) || steps < 2 || steps > 100000)
+    throw new RangeError('steps must be an integer in [2,100000]');
+  const width = Math.PI / (2 * steps);
+  let normalized = 0;
+  for (let j = 0; j < steps; ++j) {
+    const eta = (j + 0.5) * width;
+    normalized += Math.sin(2 * eta) * width;
+  }
+  return Object.freeze({
+    bundle: 'standard Hopf S1 -> S3 -> S2',
+    firstChernOnBase: 1,
+    firstChernOnTotalSpace: 0,
+    cohomologyOfS3: {H1: 0, H2: 0, H3: 'Z'},
+    exactNormalizedBulkHopf: 1,
+    midpointNormalizedHopf: normalized,
+    quadratureError: Math.abs(normalized - 1),
+    normalizedBulkIntegral: 4 * Math.PI * Math.PI * normalized,
+    physicalStatus: 'topological template; no identified gravitational determinant-line map or capacity'
+  });
+}
+
 export const FRONTIER_RESEARCH_CONTRACT = Object.freeze({
   domain: 'finite clock-shift, Weyl cocycle, Type-I modular toy, conditional selector',
   researchOnly: true,
