@@ -13,6 +13,7 @@ import wpt from './labs/smith.wireless_transfer.mjs';
    slices the transitive closure of their physics out of index.html, so the picture and the number
    cannot drift apart. See core/atlas/extracted.mjs, which is generated and never edited. */
 import zpl from './labs/fbs.zero_point_ladder.mjs';
+import capobs from './labs/s3.cap_observability.mjs';
 import anyons from './labs/fibonacci.anyons.mjs';
 import capsel from './labs/capacity.conditional_selector.mjs';
 import edgeng from './labs/edge.admissibility_no_go.mjs';
@@ -56,10 +57,12 @@ function gitCommit() {
 function coreHash() {
   const files = ['contract.mjs','status.mjs','version.mjs','index.mjs',
     'math/complex.mjs','math/poly.mjs','math/elliptic.mjs','math/lstsq.mjs',
+    'math/s3-cap-observability.mjs',
     'atlas/extracted.mjs',
     'labs/smith.mobius.mjs','labs/smith.fit_series_rlc.mjs',
     'labs/smith.identify_resonances.mjs','labs/smith.wireless_transfer.mjs',
     'labs/fbs.zero_point_ladder.mjs','labs/fibonacci.anyons.mjs',
+    'labs/s3.cap_observability.mjs',
     'labs/capacity.conditional_selector.mjs','labs/edge.admissibility_no_go.mjs',
     'labs/s3.spectral_operator.mjs','labs/bianchi_ix.evolution.mjs',
     'labs/s3.particle_creation.mjs','labs/s3.ebk_quantisation.mjs',
@@ -113,9 +116,9 @@ export const evidenceTierOf = st => { const s0 = String(st || '');
   return 'unclassified'; };
 
 
-/* the eighteen implemented instruments */
+/* implemented computational instruments; counts are derived from the registry */
 const IMPLEMENTED = [mobius, rlc, ident, wpt,
-  zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
+  capobs, zpl, anyons, capsel, edgeng, specop, bixevo, pcreate, ebkq,
   cp1lock, embadon, findex, fcarrier, uvsel, civpclosure, forecastAudit, geometryEvidence];
 
 /* ── WHICH KERNEL COVERS WHICH VISUAL LABORATORY ─────────────────────────────
