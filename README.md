@@ -36,6 +36,22 @@ written where the atlas draws it and `scripts/extract-kernels.mjs` slices it int
 **Mobile:** 1 finger orbit · 2-finger pinch zoom (φ-ladder depth in FBS3R, FOV when landed) ·
 ⚙/ⓘ bottom-sheet panels · horizontal mode row · iOS safe-area aware · DPR capped for stable FPS.
 
+## Parity-Odd Observatory (isolated research instrument)
+
+The [Kerr–Newman Parity-Odd Lens](docs/parity-odd-lens.html) is an interactive
+scientific instrument for the **parameter space** of subextremal Kerr–Newman
+solutions: signed radial Weyl shell, local Pontryagin density, independent
+quadratic/cubic Weyl invariants, horizon nodal atlas and audit export.
+The [model and visual contract](docs/PARITY_ODD_PHASE_CONTRACT.md) separates
+model-derived identities from analogy, conditional phase-bridge interfaces
+and **explicit refusal** of inference to global S³ cosmic topology.
+
+Use a local HTTP server (python3 -m http.server 8000) and open
+http://localhost:8000/docs/parity-odd-lens.html. Run the independently
+testable kernel using npm run test:parity-odd. This tool does **not**
+modify the main Atlas camera, Time Machine or source-of-truth kernels;
+phase engine integration remains conditional on draft PR #437.
+
 ## Quest 3 quick start & diagnostics
 
 **Read `QUEST3_START_HERE.md` first.** WebXR needs HTTPS — never `file://`.
