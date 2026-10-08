@@ -836,6 +836,9 @@ export const ROOTS = [
   'nbgFibre', 'nbgWinding', 'nbgZeroCensus', 'nbgBateman', 'nbgBatemanG', 'nbgBatemanF', 'nbgBatemanEnergy', 'nbgPsiInv', 'nbgIsotopy', 'nbgCircle', 'nbgCirclePts', 'nbgGaussLink', 'nbgBatemanCheck',
   'nbgTwistorDim', 'nbgHam', 'nbgFlow', 'nbgFlowJacobian', 'nbgLine', 'nbgLinesMeet', 'nbgSplit', 'nbgLaurent', 'nbgDeformedLine', 'nbgKerrR', 'nbgKerrL', 'nbgKerrInv', 'nbgKerrCheck', 'nbgContact', 'NBG_PRESETS',
   'nbgS2', 'nbgWofS2', 'nbgEnergyAt', 'nbgPolyStr', 'UNIFY_MANUSCRIPT', 'UNIFY_MANUSCRIPT_GATES', 'unifyManuscript',
+  /* the fluid computer — family 376 of openai/math (v4.378) */
+  'NSC_MACHINES', 'nscNormalize', 'nscRunTM', 'nscRecorder', 'nscRecorderRun', 'nscQ', 'nscQadd', 'nscQmul', 'nscQeq', 'nscQnum', 'nscCode', 'nscInstr', 'nscInstrExact', 'nscExactAudit', 'nscSeparation',
+  'NSC_SHEARS', 'nscShear', 'nscE', 'nscS', 'nscPlateau', 'nscChart', 'nscBranch', 'nscField', 'nscCarry', 'nscFieldCheck', 'nscPeriodRK4', 'nscHeight', 'nscExperiment',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
