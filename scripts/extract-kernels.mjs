@@ -839,6 +839,9 @@ export const ROOTS = [
   /* the fluid computer — family 376 of openai/math (v4.378) */
   'NSC_MACHINES', 'nscNormalize', 'nscRunTM', 'nscRecorder', 'nscRecorderRun', 'nscQ', 'nscQadd', 'nscQmul', 'nscQeq', 'nscQnum', 'nscCode', 'nscInstr', 'nscInstrExact', 'nscExactAudit', 'nscSeparation',
   'NSC_SHEARS', 'nscShear', 'nscE', 'nscS', 'nscPlateau', 'nscChart', 'nscBranch', 'nscField', 'nscCarry', 'nscFieldCheck', 'nscPeriodRK4', 'nscHeight', 'nscExperiment',
+  /* critical curves — families 237 and 230 of openai/math (v4.379) */
+  'CRIT_MU', 'CRIT_GAMMA', 'critCol', 'critNbrs', 'critXY', 'critKey', 'CRIT_R60', 'CRIT_M', 'critD3', 'critEnumerate', 'critMuRatio', 'critRod', 'critIsSAW', 'critPivot', 'critR2', 'critSlope',
+  'critRng', 'critGauss', 'critPivotNu', 'critSqrtH', 'critSLE', 'critSlit', 'critSlitInv', 'critBoxDim', 'critGauge', 'critHexOf', 'critLERW', 'critHull', 'critLengthDim',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */

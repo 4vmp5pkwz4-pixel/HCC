@@ -193,6 +193,7 @@ const allChecks = [
   "docs/verify-the-research-chapter.cjs",
   "docs/verify-the-living-ladder.cjs",
   "docs/verify-the-fluid-computer.cjs",
+  "docs/verify-critical-curves.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -445,6 +446,7 @@ if (fullMode) {
     'docs/verify-the-research-chapter.cjs',
     'docs/verify-the-living-ladder.cjs',
     'docs/verify-the-fluid-computer.cjs',
+    'docs/verify-critical-curves.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
