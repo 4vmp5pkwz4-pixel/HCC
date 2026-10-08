@@ -85,6 +85,18 @@ function check(name,fn){fn(); count++; console.log('PASS '+name)}
     const ulp=Math.pow(2,Math.floor(Math.log2(qStar))-52);
     assert.ok(ulp>1e100);
   });
+  check('Hopf S3 bulk 3-form recovers S2 Chern integer under independent quadrature',()=>{
+    const t16=F.hopfFiberTransgression(16);
+    const t64=F.hopfFiberTransgression(64);
+    const t256=F.hopfFiberTransgression(256);
+    assert.equal(t256.firstChernOnBase,1);
+    assert.equal(t256.firstChernOnTotalSpace,0);
+    assert.equal(t256.exactNormalizedBulkHopf,1);
+    assert.ok(t256.quadratureError<t64.quadratureError);
+    assert.ok(t64.quadratureError<t16.quadratureError);
+    assert.ok(t256.quadratureError<1e-5);
+    assert.ok(Math.abs(t256.normalizedBulkIntegral-4*Math.PI*Math.PI)<4e-4);
+  });
   check('research provenance never claims full physical bridge',()=>{
     assert.equal(F.FRONTIER_RESEARCH_CONTRACT.independentPhysicalBridgeProved,false);
     assert.equal(F.FRONTIER_RESEARCH_CONTRACT.establishedWorldNovelty,false);
