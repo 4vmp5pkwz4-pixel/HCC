@@ -37,7 +37,7 @@ test('far-field dipole asymptotics, including charge dependence',()=>{
  const r=1500,a=.3,q=.4,mu=.7;
  const shell=state({spin:a,charge:q,radius:r,mu}).invariants.shell;
  const approximation=8*a*mu*(3*r-2*q*q)**2/r**6;
- near(shell,approximation,1e-10);
+ assert.ok(Math.abs(shell-approximation) <= 2e-6*Math.abs(approximation),'far-field relative error');
 });
 test('nodal polynomial identity and vacuum threshold',()=>{
  const eta=.07,r=4,charge=Math.sqrt(eta*r),sigma=.4,spin=.5,mu=sigma/spin;
@@ -50,4 +50,15 @@ test('parameter differences are never reported as dynamical flux',()=>{
  const a=state({spin:.2,charge:.1,radius:3,mu:.4});
  const b=state({spin:.3,charge:.1,radius:3,mu:.4});
  assert.equal(compareStates(a,b).notEvolution,true);
+});
+
+test('horizon nodal onset changes polar shell sign without stability inference',()=>{
+ const lo=horizonPolarSign(.97,0),hi=horizonPolarSign(.99,0);
+ assert.ok(lo.ok&&hi.ok&&lo.invariants.shell>0&&hi.invariants.shell<0);
+ assert.equal(CONTRACT.nonclaims.includes('no black-hole instability inference'),true);
+});
+test('charge modifies the Weyl shell in a valid subextremal domain',()=>{
+ const base=state({spin:.5,charge:0,radius:2.5,mu:.7});
+ const charged=state({spin:.5,charge:.4,radius:2.5,mu:.7});
+ assert.ok(Math.abs(base.invariants.shell-charged.invariants.shell)>0.01);
 });
