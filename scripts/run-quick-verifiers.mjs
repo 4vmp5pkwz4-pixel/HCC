@@ -15,6 +15,7 @@ import { existsSync } from 'node:fs';
 
 const allChecks = [
   "docs/verify-capacity-selector-sign.cjs",
+  "docs/verify-s3-cap-observability.cjs",
   "docs/verify-visual-kernel.mjs",
   "docs/verify-linked-cycle-views.cjs",
   "docs/verify-multiphase-solar-control.cjs",
@@ -200,7 +201,8 @@ const allChecks = [
 
 const agentJob = { args: ['--test', 'test/forecast-audit.test.mjs', 'test/agent-client.test.mjs',
   'test/agent-discovery.test.mjs',
-  'test/s3-geometry.test.mjs', 'test/live-agent-bridge.test.mjs', 'test/geometry-evidence.test.mjs'], label: 'agent unit tests' };
+  'test/s3-geometry.test.mjs', 'test/s3-cap-observability.test.mjs',
+  'test/live-agent-bridge.test.mjs', 'test/geometry-evidence.test.mjs'], label: 'agent unit tests' };
 const known = new Set(allChecks);
 const selected = new Set();
 
@@ -210,6 +212,7 @@ const add = (...paths) => paths.forEach(path => {
 
 const smoke = [
   "docs/verify-capacity-selector-sign.cjs",
+  "docs/verify-s3-cap-observability.cjs",
   "docs/verify-visual-kernel.mjs",
   'docs/verify-scale-continuity.cjs',
   'docs/verify-world-lab-routing.cjs',
