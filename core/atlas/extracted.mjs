@@ -5,7 +5,7 @@
    exists to prevent; scripts/ci.mjs regenerates it and the build fails if it differs.
 
    declarations: 2099   ·   exported names: 2235
-   extracted physics, sha256 2f9abcf7a50fc086427be60d813ff2fa5bbeb91b98fa2b2640fca635df457da0 */
+   extracted physics, sha256 204d14b383d032903cd586d6c2637e47ffeb02a7dd233a6e4fd3472f83b2e457 */
 
 const HCC_VERSION='4.379.0';
 
@@ -11737,6 +11737,8 @@ const NEXUS_RELATIONS=[
   ['nsgal','kam','analogy','a phase space with invariants that fence it','Like a KAM torus fencing an orbit, the realizability cone |H| ≤ √(2EΩ) and the six conserved angular momenta fence the fluid\u2019s path in (E, H, Ω); the end point is fixed before the motion starts.','structural-analogy'],
   ['nsblow','nsflow','contrast','the exact solution cannot do what the forced core does','On S³ the exact family keeps its energy in one curl shell and its circulation fixed; the forced core must grow its circulation as τ^{−h} — the one thing a solution without a force cannot do, by the swirl maximum principle.','physics-contrast'],
   ['nsblow','nsgal','contrast','a truncation caps what the collapse needs','Every Galerkin truncation keeps E bounded and a finite top wavenumber, so its Reynolds number is capped; the forced collapse needs Re ∝ τ^{−h} → ∞ — the reason nothing in the hundred-mode fluid bears on blow-up.','regime-contrast'],
+  ['ccurve','anyon','exact','the interfaces of a conformal theory are SLE_κ with c = (8 − 3κ)(κ − 6)/(2κ)','Critical Ising interfaces converge to SLE₃ (Smirnov 2010; Chelkak–Smirnov), and c(3) = 1/2 is the Ising central charge in the anyon laboratory\u2019s list of models; the self-avoiding walk (κ = 8/3) and percolation (κ = 6) are the two c = 0 theories of the same formula.','theorem'],
+  ['ccurve','kin','contrast','κ is a diffusion constant','The driving function of SLE_κ is a Brownian motion with ⟨W²⟩ = κt — the diffusion of kinetic theory with κ in the place of 2D; the loop-erased walk is the random walk of the same diffusion with its loops erased, and erasing them takes the dimension of the path from 2 to 5/4.','physics-contrast'],
   ['nscomp','nsflow','contrast','a force can make the flow compute; the exact solution cannot','The exact solution of S³ is one closed formula with energy in one curl shell; the forced torus flow of family 376 encodes a Turing machine in where one particle goes — its force is ∂ₜV − νΔV because every stage is transverse to its own variation, so the pressure is zero.','physics-contrast'],
   ['nscomp','act','analogy','contact geometry already computed on S³','Cardona, Miranda, Peralta-Salas and Presas built Turing-complete stationary Euler flows on an adapted S³ from Reeb fields of contact forms — Beltrami fields of the kind the contact laboratory draws; the forced construction keeps the flat metric fixed and puts the machine into the force instead.','structural-analogy'],
   ['nscomp','nsblow','contrast','undecidable reachability is not blow-up','Both are forced Navier–Stokes constructions of 2026, but the computing flow stays smooth with bounded derivatives for all time: what cannot be decided is where one particle goes, not whether the solution exists.','physics-contrast'],
