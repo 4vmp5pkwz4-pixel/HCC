@@ -38,6 +38,10 @@ V=Z−H²/W=(1/W) Σ_{i<j} A_i A_j(λ_i−λ_j)² ≥0
 
 This familiar weighted-variance identity is exact. If both components are nonzero, V=0 iff their signed curl eigenvalues agree. With two modes it reduces to AB(λ_H−λ_J)²/(A+B). For odd m, positive chirality and A,B>0 it follows that V≥AB/((A+B)R²). No novel global PDE theorem is claimed.
 
+### Mandatory Gram correction in a resonant eigenspace
+
+When the two input eigenvalues are equal, their eigenfields need **not** be orthogonal. Let A=||u_H||², B=||u_J||² and G=〈u_H,u_J〉 real. The actual sum has W=||u_H+u_J||²=A+B+2G, with |G|≤√(AB). When W=0, the sum is zero and no projective state exists. The typed laboratory therefore accepts an explicit **overlap** input, defaulting to 0 as an *assumption*, not a measurement. For distinct signed eigenvalues curl self-adjointness forces G=0; any nonzero overlap is rejected. For a common eigenvalue the Gram-adjusted packet is one spectral shell and has V=0 regardless of G. This is necessary to compute physical energy honestly from mode norms.
+
 ## Bridge to projective phase geometry (auxiliary, not viscous time)
 
 In the complexification of the curl Hilbert space consider the unitary **auxiliary** flow
