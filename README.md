@@ -19,12 +19,15 @@ python3 -m http.server 8000     # → http://localhost:8000
 ```
 or just open `index.html` (Three.js r160 + Google Fonts load from CDN).
 
-Two entry points share one origin:
+Three entry points share one origin:
 
 | page | for | needs a GPU |
 |---|---|---|
 | `index.html` | the atlas — **138** laboratories across 7 worlds, **150** typed instruments, φ-ladder, WebXR | yes |
 | `agent.html` | the machine-readable catalogue, read from `api/manifest.json` | no |
+| [`math.html`](math.html) | version-pinned OpenAI Math catalogue, theorem transfer gates and round S³ observability | no |
+
+The mathematics workspace indexes 372 families and 719 manuscripts from a pinned snapshot, with 23 audited source relations across 21 families and 17 explicit transfer tasks. Coverage markers are metadata, not local Lean verification or physical closure. See [the audit and proofs](docs/MATH_ATLAS_2026-10-10.md).
 
 The newest laboratories are the **seven CIVP stations** — the CP¹ evaluation lock, the
 molecular cut, the Jones ladder, the A₄ transfer, the UV selector, the Berry carrier and the

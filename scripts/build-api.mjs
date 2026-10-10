@@ -217,6 +217,8 @@ const agent={schema:'hcc.agent-discovery/1',version:identity.version,build:ident
   resources:{workspace:'./agent.html',instructions:'./llms.txt',manifest:'./api/manifest.json',
     reach:'./api/reach.json',invariants:'./api/invariants.json',uniqueness:'./api/uniqueness.json',open_problems:'./api/open-problems.json',sdk:'./api/agent-client.mjs',
     research_catalog:'./api/research.json',research_kernel:'./core/research/geometry.mjs',
+    math_workspace:'./math.html',math_catalog:'./api/math-catalog.json',math_bridges:'./api/math-bridges.json',
+    cap_observability:'./core/math/s3-cap-observability.mjs',
     live_bridge:'./api/live-agent-bridge.mjs',
     agora_relay:'./scripts/hcc-agora.mjs',agora_client:'./api/agora-client.mjs',
     forecast_input_schema:'./api/forecast-audit.schema.json',headless_atlas:'./index.html?render=0'},
