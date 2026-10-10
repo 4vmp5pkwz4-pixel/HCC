@@ -63,3 +63,24 @@ test('refuses invalid inputs and refuses physical or cross-catalog closure',()=>
  assert.match(r.forcedSector376Transfer,/REFUSED/);
  assert.match(r.nodalSector350Transfer,/REFUSED/);
 });
+
+test('Gram overlap is mandatory in same shell, forbidden across different shells',()=>{
+ const o=hopfJacobiCertificate({degree:0,jacobiIndex:0,hopfNorm:4,jacobiNorm:1,overlap:1});
+ assert.equal(o.energy,3.5);assert.equal(o.helicity,14);assert.equal(o.spectralDeficit,0);
+ assert.throws(()=>hopfJacobiCertificate({degree:0,jacobiIndex:0,hopfNorm:4,jacobiNorm:1,overlap:3}),RangeError);
+ assert.throws(()=>hopfJacobiCertificate({degree:0,jacobiIndex:0,hopfNorm:1,jacobiNorm:1,overlap:-1}),RangeError);
+ assert.throws(()=>hopfJacobiCertificate({degree:1,jacobiIndex:0,overlap:.1}),RangeError);
+});
+test('native agent contract retains status and rejects nonlinear certification',async()=>{
+ const {default:lab}=await import('../core/labs/s3.hopf_jacobi_certificate.mjs');
+ const d=lab.describe();
+ assert.equal(d.status,'REFERENCE_MODEL');
+ assert.ok(d.inputs.some(x=>x.name==='overlap'));
+ const v=lab.validate({});
+ assert.equal(v.all_pass,true);
+ const r=lab.run({degree:2,jacobi_index:1,hopf_norm:4,jacobi_norm:1,overlap:1});
+ assert.equal(r.outputs.exact_resonance,true);
+ assert.equal(r.outputs.nonlinear_pde_certified,false);
+ assert.equal(r.outputs.spectral_deficit,0);
+ assert.ok(r.warnings.some(x=>x.includes('REFUSED')));
+});
