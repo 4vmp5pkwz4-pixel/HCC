@@ -51,11 +51,18 @@ export function spectralDeficit(modes,{radius=1}={}){
  nonlinearPDEChecked:false});
 }
 
-export function hopfJacobiCertificate({degree,jacobiIndex,chirality=1,radius=1,hopfNorm=1,jacobiNorm=1}){
+export function hopfJacobiCertificate({degree,jacobiIndex,chirality=1,radius=1,hopfNorm=1,jacobiNorm=1,overlap=0}){
  const s=hopfJacobiSpectrum({degree,jacobiIndex,chirality,radius});
  const A=nonneg(hopfNorm,'hopfNorm'),B=nonneg(jacobiNorm,'jacobiNorm');
- const v=spectralDeficit([{Rlambda:s.hopfRlambda,weight:A},{Rlambda:s.jacobiRlambda,weight:B}],{radius});
- return Object.freeze({...s,...v,norms:{hopf:A,jacobi:B},
+ if(!Number.isFinite(overlap))throw new RangeError('overlap must be finite');
+ if(Math.abs(overlap)>Math.sqrt(A*B)+1e-12)throw new RangeError('overlap violates Cauchy-Schwarz');
+ if(!s.exactResonance&&overlap!==0)throw new RangeError('unequal curl eigenshells must be orthogonal');
+ const W=A+B+2*overlap;
+ if(W<=0)throw new RangeError('sum field is zero: no projective state exists');
+ const v=s.exactResonance?
+  spectralDeficit([{Rlambda:s.hopfRlambda,weight:W}],{radius}):
+  spectralDeficit([{Rlambda:s.hopfRlambda,weight:A},{Rlambda:s.jacobiRlambda,weight:B}],{radius});
+ return Object.freeze({...s,...v,norms:{hopf:A,jacobi:B,innerProduct:overlap},
  exactCompatibility:s.exactResonance&&A>0&&B>0,
  oddPositiveObstruction:chirality===1&&degree%2===1&&A>0&&B>0?A*B/(A+B)/(radius*radius):null,
  forcedSector376Transfer:'REFUSED: OpenAI Math 376 concerns forced flat-torus/R3 flows',
