@@ -84,3 +84,40 @@ test('native agent contract retains status and rejects nonlinear certification',
  assert.equal(r.outputs.spectral_deficit,0);
  assert.ok(r.warnings.some(x=>x.includes('REFUSED')));
 });
+
+
+test('physical-time viscous projective speed equals Fisher and log-energy curvature',async()=>{
+ const {viscousProjectiveTwoMode}=await import('../core/math/s3-hopf-jacobi-certificate.mjs');
+ for(let m=0;m<24;m++)for(let n=0;n<13;n++)for(const sg of [1,-1]){
+  const pars={degree:m,jacobiIndex:n,chirality:sg,radius:2.5,viscosity:.032,time:.7,hopfNorm:2.7,jacobiNorm:1.4};
+  const r=viscousProjectiveTwoMode(pars),h=1e-3;
+  const a=viscousProjectiveTwoMode({...pars,time:pars.time-h});
+  const b=viscousProjectiveTwoMode({...pars,time:pars.time+h});
+  const f=(-viscousProjectiveTwoMode({...pars,time:pars.time+2*h}).logHodgeNormSquared+
+    16*b.logHodgeNormSquared-30*r.logHodgeNormSquared+16*a.logHodgeNormSquared-
+    viscousProjectiveTwoMode({...pars,time:pars.time-2*h}).logHodgeNormSquared)/(48*h*h);
+  assert.ok(Math.abs(r.physicalFSSpeedSquared-f)<2e-7);
+  assert.ok(Math.abs(r.fisherInformation-4*r.physicalFSSpeedSquared)<1e-12);
+  assert.ok(Math.abs(r.logEnergyCurvature-4*r.physicalFSSpeedSquared)<1e-12);
+  assert.ok(Math.abs(r.logEbinMarsdenNormSquared-r.logHodgeNormSquared-8*pars.viscosity*pars.time/pars.radius**2)<1e-12);
+  assert.equal(r.nonlinearPDEChecked,false);
+ }
+});
+test('viscous projective blind spot: opposite signed equal-magnitude curl',async()=>{
+ const {viscousProjectiveTwoMode}=await import('../core/math/s3-hopf-jacobi-certificate.mjs');
+ const x=viscousProjectiveTwoMode({degree:0,jacobiIndex:0,chirality:-1});
+ assert.equal(x.physicalFSSpeedSquared,0);assert.ok(x.signedCurlVariance>0);
+ assert.equal(x.spectralBlindSpot,true);
+ const y=viscousProjectiveTwoMode({degree:2,jacobiIndex:1,overlap:.5});
+ assert.equal(y.physicalFSSpeedSquared,0);
+ assert.throws(()=>viscousProjectiveTwoMode({degree:0,jacobiIndex:0,chirality:-1,overlap:1}),RangeError);
+});
+test('two-rate commuting Hopf-Killing family has nonzero physical FS speed',async()=>{
+ const {viscousProjectiveTwoMode}=await import('../core/math/s3-hopf-jacobi-certificate.mjs');
+ for(let k=1;k<=20;k++){
+  const x=viscousProjectiveTwoMode({degree:2*k,jacobiIndex:0,chirality:-1,radius:3,viscosity:.1,time:.2});
+  const want=.1**2*(2*k/3)**2*x.signedCurlVariance;
+  assert.ok(Math.abs(x.physicalFSSpeedSquared-want)<1e-10);
+  assert.ok(x.physicalFSSpeedSquared>0);
+ }
+});
