@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {hopfJacobiSpectrum,hopfJacobiCertificate,spectralDeficit,viscousEigenmodeRates}
  from '../core/math/s3-hopf-jacobi-certificate.mjs';
-test('integer resonance iff positive chirality and m=2n, 2200+ cases',()=>{
+test('integer resonance iff positive chirality and m=2n, 2184 cases',()=>{
  for(let m=0;m<=41;m++)for(let n=0;n<=25;n++)for(const chirality of [1,-1]){
   const o=hopfJacobiSpectrum({degree:m,jacobiIndex:n,chirality,radius:3});
   assert.equal(o.exactResonance,chirality===1&&m===2*n);
