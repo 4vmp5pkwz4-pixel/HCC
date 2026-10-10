@@ -21,7 +21,7 @@ export default defineLab({
  assumptions:[
   'orientation fixed, round S3 with radius R',
   'independently verified smooth divergence-free signed curl eigenmodes',
-  'squared L2 norms include the metric measure, equal-eigenvalue modes are orthogonalized'
+  'squared L2 norms use the metric measure; same-eigenvalue modes require a supplied Gram overlap'
  ],
  domain_of_validity:[
   'spectral reference calculation on exact round S3 only',
@@ -43,6 +43,7 @@ export default defineLab({
   {name:'radius',type:'number',default:1,min:0.000001,max:1000000,unit:'length',doc:'round S3 radius'},
   {name:'hopf_norm',type:'number',default:1,min:0,max:1000000,unit:'L2 norm squared'},
   {name:'jacobi_norm',type:'number',default:1,min:0,max:1000000,unit:'L2 norm squared'},
+  {name:'overlap',type:'number',default:0,min:-1000000,max:1000000,unit:'L2 inner product',doc:'Gram cross term for equal eigenvalues, forced to 0 for distinct eigenvalues; default 0 is an explicit orthogonality hypothesis'}, 
   {name:'viscosity',type:'number',default:0.1,min:0,max:1000,unit:'length^2/time'}
  ],
  outputs:[
@@ -60,7 +61,7 @@ export default defineLab({
  ],
  evaluate(i){
   const o=hopfJacobiCertificate({degree:i.degree,jacobiIndex:i.jacobi_index,
-   chirality:i.chirality,radius:i.radius,hopfNorm:i.hopf_norm,jacobiNorm:i.jacobi_norm});
+   chirality:i.chirality,radius:i.radius,hopfNorm:i.hopf_norm,jacobiNorm:i.jacobi_norm,overlap:i.overlap});
   const h=viscousEigenmodeRates({Rlambda:o.hopfRlambda,radius:i.radius,viscosity:i.viscosity});
   const j=viscousEigenmodeRates({Rlambda:o.jacobiRlambda,radius:i.radius,viscosity:i.viscosity});
   return {
