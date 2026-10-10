@@ -1,6 +1,6 @@
 import { defineLab } from '../contract.mjs';
 import { STATUS } from '../status.mjs';
-import { hopfJacobiCertificate,viscousEigenmodeRates } from '../math/s3-hopf-jacobi-certificate.mjs';
+import { hopfJacobiCertificate,viscousEigenmodeRates,viscousProjectiveTwoMode } from '../math/s3-hopf-jacobi-certificate.mjs';
 
 /* Native computational reference lab. The visual atlas is NOT modified here. */
 export default defineLab({
@@ -16,6 +16,8 @@ export default defineLab({
   'exact resonance iff sigma=+1 and m=2n',
   'V=Z-H^2/(2E)=sum_(i<j) A_i A_j (lambda_i-lambda_j)^2/sum A_i',
   'FS_speed_squared=V/(2E) under auxiliary exp(-is curl); pure-state QFI=4 FS_speed_squared',
+  'PHYSICAL heat-flow projective speed squared=nu² Var(lambda²)=(1/4) second time derivative log(norm²)',
+  'time-Fisher information of modal energy fractions=4 physical projective speed squared',
   'gamma_H=nu lambda^2; gamma_EM=nu(lambda^2-4/R^2)'
  ],
  assumptions:[
@@ -44,7 +46,8 @@ export default defineLab({
   {name:'hopf_norm',type:'number',default:1,min:0,max:1000000,unit:'L2 norm squared'},
   {name:'jacobi_norm',type:'number',default:1,min:0,max:1000000,unit:'L2 norm squared'},
   {name:'overlap',type:'number',default:0,min:-1000000,max:1000000,unit:'L2 inner product',doc:'Gram cross term for equal eigenvalues, forced to 0 for distinct eigenvalues; default 0 is an explicit orthogonality hypothesis'}, 
-  {name:'viscosity',type:'number',default:0.1,min:0,max:1000,unit:'length^2/time'}
+  {name:'viscosity',type:'number',default:0.1,min:0,max:1000,unit:'length^2/time'},
+  {name:'time',type:'number',default:0,min:0,max:1000000,unit:'time'}
  ],
  outputs:[
   {name:'exact_resonance',type:'boolean',unit:null},
@@ -54,6 +57,12 @@ export default defineLab({
   {name:'pairwise_residual',unit:'norm^2 / length^2'},
   {name:'fubini_study_speed_squared',unit:'inverse length^2'},
   {name:'pure_state_qfi',unit:'inverse length^2'},
+  {name:'physical_projective_speed_squared',unit:'inverse time^2'},
+  {name:'modal_time_fisher',unit:'inverse time^2'},
+  {name:'log_energy_curvature',unit:'inverse time^2'},
+  {name:'spectral_blind_spot',type:'boolean',unit:null},
+  {name:'log_hodge_norm_squared',unit:'log(norm^2)'},
+  {name:'log_em_norm_squared',unit:'log(norm^2)'}, 
   {name:'odd_degree_lower_bound',unit:'norm^2 / length^2'},
   {name:'hodge_rates',type:'array',unit:'inverse time'},
   {name:'ebin_marsden_rates',type:'array',unit:'inverse time'},
@@ -62,6 +71,8 @@ export default defineLab({
  evaluate(i){
   const o=hopfJacobiCertificate({degree:i.degree,jacobiIndex:i.jacobi_index,
    chirality:i.chirality,radius:i.radius,hopfNorm:i.hopf_norm,jacobiNorm:i.jacobi_norm,overlap:i.overlap});
+  const physical=viscousProjectiveTwoMode({degree:i.degree,jacobiIndex:i.jacobi_index,chirality:i.chirality,
+   radius:i.radius,viscosity:i.viscosity,time:i.time,hopfNorm:i.hopf_norm,jacobiNorm:i.jacobi_norm,overlap:i.overlap});
   const h=viscousEigenmodeRates({Rlambda:o.hopfRlambda,radius:i.radius,viscosity:i.viscosity});
   const j=viscousEigenmodeRates({Rlambda:o.jacobiRlambda,radius:i.radius,viscosity:i.viscosity});
   return {
@@ -71,12 +82,18 @@ export default defineLab({
     spectral_deficit:o.spectralDeficit,pairwise_residual:Math.abs(o.spectralDeficit-o.pairwiseDeficit),
     fubini_study_speed_squared:o.fubiniStudySpeedSquared,
     pure_state_qfi:o.pureStateQuantumFisherInformation,
+    physical_projective_speed_squared:physical.physicalFSSpeedSquared,
+    modal_time_fisher:physical.fisherInformation,
+    log_energy_curvature:physical.logEnergyCurvature,
+    spectral_blind_spot:physical.spectralBlindSpot||false,
+    log_hodge_norm_squared:physical.logHodgeNormSquared,
+    log_em_norm_squared:physical.logEbinMarsdenNormSquared,
     odd_degree_lower_bound:o.oddPositiveObstruction,
     hodge_rates:[h.hodgeRate,j.hodgeRate],
     ebin_marsden_rates:[h.ebinMarsdenRate,j.ebinMarsdenRate],
     nonlinear_pde_certified:false
    },
-   warnings:[o.candidateNSConclusion,o.forcedSector376Transfer,
+   warnings:['Physical-time FS/Fisher outputs concern the reducing heat orbit only. They do not prove Navier-Stokes nonlinear closure.',o.candidateNSConclusion,o.forcedSector376Transfer,
      o.nodalSector350Transfer,o.conservationStatus],
    diagnostics:{source_families:[350,376],
     projective_phase_scope:'AUXILIARY, NOT VISCOUS TIME',
