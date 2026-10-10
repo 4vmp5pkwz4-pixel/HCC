@@ -123,7 +123,7 @@ export function viscousProjectiveTwoMode({degree,jacobiIndex,chirality=1,radius=
   signedCurlVariance:signedVariance,
   helicityDefectToPhysicalSpeedFactor:nu*nu*(lambda+mu)**2,
   rateInvariantLog:A>0&&B>0?Math.log(B/A):null,
-  spectralBlindSpot:fs2===0&&signedVariance>0,
+  spectralBlindSpot:s.hopfRlambda**2===s.jacobiRlambda**2&&s.hopfRlambda!==s.jacobiRlambda&&A>0&&B>0,
   rateDifference:delta,
   projectiveEvolution:'physical normalized heat orbit, conditional on NSE nonlinear closure',
   nonlinearPDEChecked:false});
