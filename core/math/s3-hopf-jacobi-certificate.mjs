@@ -80,3 +80,51 @@ export function viscousEigenmodeRates({Rlambda,radius=1,viscosity=0}){
  scope:'divergence-free round S3 signed curl eigenmode only',
  transformationScope:'NOT an equivalence of arbitrary nonlinear Navier-Stokes solutions'});
 }
+
+
+/* PHYSICAL-TIME projective metric of a reducing orthogonal heat packet.
+ * WARNING: algebraically computed; this function NEVER proves the NSE PDE closure.
+ * Projective angle uses standard d_FS=acos |<normalized vectors>|. */
+export function viscousProjectiveTwoMode({degree,jacobiIndex,chirality=1,radius=1,
+ viscosity=0.1,time=0,hopfNorm=1,jacobiNorm=1,overlap=0}){
+ const s=hopfJacobiSpectrum({degree,jacobiIndex,chirality,radius});
+ const nu=nonneg(viscosity,'viscosity'),t=nonneg(time,'time');
+ const A=nonneg(hopfNorm,'hopfNorm'),B=nonneg(jacobiNorm,'jacobiNorm');
+ if(!Number.isFinite(overlap)||Math.abs(overlap)>Math.sqrt(A*B)+1e-12)
+   throw new RangeError('overlap violates Gram positivity');
+ if(!s.exactResonance&&overlap!==0)
+   throw new RangeError('unequal signed curl shells must be L2 orthogonal');
+ const W0=A+B+2*overlap;
+ if(W0<=0)throw new RangeError('zero physical sum has no projective ray');
+ const lambda=s.hopfEigenvalue,mu=s.jacobiEigenvalue;
+ const gammaH=nu*lambda*lambda,gammaJ=nu*mu*mu,delta=gammaJ-gammaH;
+ if(s.exactResonance){
+   const logWH=Math.log(W0)-2*gammaH*t;
+   return Object.freeze({logHodgeNormSquared:logWH,
+     logEbinMarsdenNormSquared:logWH+8*nu*t/(radius*radius),
+     higherModeWeight:null,physicalFSSpeedSquared:0,fisherInformation:0,
+     logEnergyCurvature:0,signedCurlVariance:0,rateInvariantLog:null,
+     projectiveEvolution:'stationary single signed curl shell',
+     nonlinearPDEChecked:false});
+ }
+ const terms=[A>0?Math.log(A)-2*gammaH*t:-Infinity,
+              B>0?Math.log(B)-2*gammaJ*t:-Infinity];
+ const max=Math.max(...terms);
+ const z=terms.map(x=>x===-Infinity?0:Math.exp(x-max));
+ const norm=z[0]+z[1];
+ const q=z[1]/norm,product=(z[0]/norm)*q;
+ const fs2=delta*delta*product;
+ const signedVariance=(lambda-mu)**2*product;
+ const logW=max+Math.log(norm);
+ return Object.freeze({logHodgeNormSquared:logW,
+  logEbinMarsdenNormSquared:logW+8*nu*t/(radius*radius),
+  higherModeWeight:q,physicalFSSpeedSquared:fs2,
+  fisherInformation:4*fs2,logEnergyCurvature:4*fs2,
+  signedCurlVariance:signedVariance,
+  helicityDefectToPhysicalSpeedFactor:nu*nu*(lambda+mu)**2,
+  rateInvariantLog:A>0&&B>0?Math.log(B/A):null,
+  spectralBlindSpot:fs2===0&&signedVariance>0,
+  rateDifference:delta,
+  projectiveEvolution:'physical normalized heat orbit, conditional on NSE nonlinear closure',
+  nonlinearPDEChecked:false});
+}
