@@ -201,7 +201,7 @@ const allChecks = [
 const agentJob = { args: ['--test', 'test/forecast-audit.test.mjs', 'test/agent-client.test.mjs',
   'test/agent-discovery.test.mjs',
   'test/s3-geometry.test.mjs', 'test/live-agent-bridge.test.mjs', 'test/geometry-evidence.test.mjs', 'test/math-atlas.test.mjs',
-  'test/s3-hopf-jacobi-certificate.test.mjs', 'test/s3-commuting-nonresonance.test.mjs'], label: 'agent unit tests' };
+  'test/s3-hopf-jacobi-certificate.test.mjs', 'test/s3-commuting-nonresonance.test.mjs', 'test/s3-light-geometry-meta.test.mjs'], label: 'agent unit tests' };
 const known = new Set(allChecks);
 const selected = new Set();
 
@@ -475,6 +475,7 @@ if (fullMode) {
 
   if (/\b(api\/|server\/|agent|reach|mcp|forecast)\b/.test(signal)) includeAgent = true;
   if (/s3-hopf-jacobi-certificate|s3\.hopf_jacobi_certificate/.test(signal)) includeAgent = true;
+  if (/s3-light-geometry-meta|s3\.light_geometry_meta/.test(signal)) includeAgent = true;
 
   /* index.html is the shared runtime. Unknown edits there receive a compact generic
      safety neighborhood instead of silently receiving no subsystem check. */
