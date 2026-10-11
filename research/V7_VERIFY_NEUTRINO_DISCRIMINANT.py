@@ -7,7 +7,7 @@ z=x+S.I*y
 R=S.Matrix([[0,0],[S.cos(z),-S.sin(z)],[S.sin(z),S.cos(z)]])
 h=S.diag(S.sqrt(M1),S.sqrt(M2))*R.conjugate().T*S.diag(0,m2,m3)*R*S.diag(S.sqrt(M1),S.sqrt(M2))/v**2
 def zero(e):assert S.simplify(S.trigsimp(S.expand_complex(e)))==0,S.simplify(e)
-assert R.T*R==S.eye(2)
+assert (R.T*R-S.eye(2)).applyfunc(S.trigsimp)==S.zeros(2)
 a=S.simplify(v**2*h[0,0]/M1)
 b=S.simplify(v**2*h[1,1]/M2)
 A=S.simplify(a+b);B=S.simplify(a-b)
