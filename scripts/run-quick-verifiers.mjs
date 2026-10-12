@@ -200,6 +200,7 @@ const allChecks = [
   "docs/verify-the-mahler-volume-product.mjs",
   "docs/verify-the-irrationality-exponent-of-pi.mjs",
   "docs/verify-round-stars-and-star-hopping.cjs",
+  "docs/verify-the-universe-seen-from-outside.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -459,6 +460,7 @@ if (fullMode) {
     'docs/verify-the-mahler-volume-product.mjs',
     'docs/verify-the-irrationality-exponent-of-pi.mjs',
     'docs/verify-round-stars-and-star-hopping.cjs',
+    'docs/verify-the-universe-seen-from-outside.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [
