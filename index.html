@@ -17681,6 +17681,12 @@ const LAB_DECLARATIONS=Object.freeze([
           de:'Das Frontier-Observatorium · jedes offene Problem, das die Sammlung openai/math zu schließen beansprucht, als ein Himmel'},
    purpose:'the openai/math collection (2026, Apache-2.0; manuscripts produced by an internal OpenAI model at different stages of verification) as one navigable sphere: 372 result families in 17 subject constellations, each a star coloured by whether the catalogue links a Lean formalization and sized by its manuscripts, the famous open problems it claims to settle haloed, the families this atlas runs live marked ▶ and one click away; searchable, filterable, every description typeset and every manuscript linked — claims kept as claims',
    predictionTarget:'the catalogue read from overview.tex and CONTENTS.md: 372 families, 719 manuscripts, 17 subjects whose counts sum to 372, 242 families with a Lean link, 3 manuscripts withdrawn; every live link points at a laboratory of the atlas'},
+  {id:'haldane', category:'inv', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
+   title:{en:'The Haldane gap · exact diagonalization of spin-one rings, the AKLT valence bonds, the gap that stays open',
+          ru:'Щель Холдейна · точная диагонализация колец спина один, валентные связи AKLT, щель, которая не закрывается',
+          de:'Die Haldane-Lücke · exakte Diagonalisierung von Spin-1-Ringen, AKLT-Valenzbindungen, die Lücke, die offen bleibt'},
+   purpose:'family 268 of the openai/math collection (2026) claims the spin-one Haldane gap: the pure antiferromagnetic Heisenberg ring keeps a uniformly positive spectral gap as it grows; here the rings L = 4 … 12 are diagonalized exactly (Lanczos in fixed-S^z sectors, 73 789 states at L = 12, chunked across frames), the AKLT point β = 1/3 is reproduced exactly (E₀ = −2L/3, the valence-bond state, string order −4/9), and the spin-one sites are drawn as pairs of spin-½ partons joined by singlet ribbons lit by the measured correlations',
+   predictionTarget:'two spins one: S·S = −2, −1, +1; sector dimensions sum to 3^L (73 789 at L = 12, S^z = 0); the Heisenberg 4-ring E₀ = −6, Δ = 1; AKLT E₀ = −2L/3 and the VBS overlap 1; Heisenberg Δ(L) = 1, 0.7206, 0.5936, 0.5248, 0.4842 for L = 4 … 12, decreasing, and the three-point fit Δ∞ ≈ 0.426 within 0.05 of the literature 0.41048 — finite rings, no proof of a uniform gap'},
   {id:'strobe', category:'dyn', domain:'quantum', cluster:'dynamics', predictionClass:'exact',
    title:{en:'The Stroboscope · resonances across space, time and parameters',
           ru:'Стробоскоп · резонансы в пространстве, времени и параметрах',
@@ -63203,6 +63209,416 @@ function foBind(root){ const R=root||ctl, q=s=>R.querySelector(s), O=foObjs, P=f
   R.querySelectorAll('[data-fogo]').forEach(b=>b.onclick=()=>{ try{ navPush(); }catch(_){} hccGo({worldId:'s3',labId:b.dataset.fogo}); });
   if(O&&O.ready){ const f=O.F.find(x=>x.n===P.sel); if(f){ const t=q('#foTitle'), d=q('#foDesc'); if(t) foTex(t,f.t); if(d) foTex(d,f.d); f.m.forEach((m,i)=>{ const a=q('#foM'+i); if(a) foTex(a,m[0]); }); } } }
 
+/* ══ THE HALDANE GAP — family 268 of the openai/math collection (2026) ═══════════════════════════════════════════════
+ * The collection CLAIMS (family 268, not Lean-linked in the catalogue): the pure spin-one antiferromagnetic Heisenberg
+ * ring of even length L keeps a spectral gap bounded below uniformly in L (Haldane's 1983 conjecture); a companion
+ * claims a gap for odd open chains with an endpoint field h = 3/5 and boundary-selected infinite-volume states of
+ * topological index −1. Computed here, exactly and with nothing drawn by hand:
+ *   1. H_β = J Σ_bonds [S_i·S_j + β (S_i·S_j)²] (β = 0 Heisenberg, β = 1/3 AKLT) for L spins one; the bond operator
+ *      is built from S^z and S^± (S⁺|m⟩ = √(2 − m(m+1)) |m+1⟩), basis states are base-3 codes Σ (m_i + 1) 3^i, one
+ *      sorted Int32Array per S^z sector and one direct code → index table shared by the sectors of a length;
+ *   2. the sparse matrix of a sector (CSR) and Lanczos with full reorthogonalisation and explicit restarts for the
+ *      lowest eigenvalue and eigenvector, as a stepper that can be cut into slices of a few milliseconds (the clock
+ *      is passed in by the caller; nothing here reads a timer or an unseeded random number);
+ *   3. ⟨S_i·S_j⟩, the den Nijs–Rommelse string order ⟨S^z_i exp(iπ Σ_{i<k<j} S^z_k) S^z_j⟩ and ⟨S^z_i⟩ from the vectors;
+ *   4. the AKLT valence-bond state as a 2×2 matrix product, and its exact finite-ring correlations;
+ *   5. fits Δ(L) = Δ∞ + A e^{−L/ξ} (three parameters through three sizes; two with ξ fixed) and ξ from a decay.
+ * Finite rings are evidence about Δ(L) at the sizes computed, never a proof of a uniform gap. */
+const HG_LIT={gap:0.41048, xi:6.03, e0:-1.401484};          /* literature (DMRG / QMC), cited, never computed here */
+const HG_AKLT=1/3;
+const HG_STRING_AKLT=-4/9;                       /* the AKLT point and its exact infinite-chain string order */
+const HG_VBS=[[0,0,-Math.sqrt(2/3),0],[-Math.sqrt(1/3),0,0,Math.sqrt(1/3)],[0,Math.sqrt(2/3),0,0]]; /* A^m, m = −1, 0, 1 (row-major 2×2) */
+/* a seeded generator (mulberry32) */
+function hgRng(seed){ let a=seed>>>0; return ()=>{ a=(a+0x6D2B79F5)>>>0; let t=a; t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61); return ((t^(t>>>14))>>>0)/4294967296; }; }
+/* spin-one matrices on |m⟩, index d = m + 1, row-major ⟨r|·|c⟩ */
+function hgSpinOne(){ const Sz=new Float64Array(9), Sp=new Float64Array(9), Sm=new Float64Array(9);
+  for(let d=0;d<3;d++){ const m=d-1; Sz[d*3+d]=m; if(d<2){ const a=Math.sqrt(2-m*(m+1)); Sp[(d+1)*3+d]=a; Sm[d*3+d+1]=a; } }
+  return {Sz, Sp, Sm}; }
+function hgKron3(A,B){ const K=new Float64Array(81);
+  for(let r1=0;r1<3;r1++) for(let c1=0;c1<3;c1++){ const a=A[r1*3+c1]; if(!a) continue; for(let r2=0;r2<3;r2++) for(let c2=0;c2<3;c2++) K[(r1*3+r2)*9+c1*3+c2]+=a*B[r2*3+c2]; }
+  return K; }
+/* the two-site operators X = S_i·S_j = S^z S^z + (S⁺S⁻ + S⁻S⁺)/2 and B = X + β X² on the 9 states (d_i, d_j) */
+function hgBondMatrix(beta){ const S=hgSpinOne(), zz=hgKron3(S.Sz,S.Sz), pm=hgKron3(S.Sp,S.Sm), mp=hgKron3(S.Sm,S.Sp), X=new Float64Array(81), B=new Float64Array(81);
+  for(let k=0;k<81;k++) X[k]=zz[k]+0.5*(pm[k]+mp[k]);
+  for(let r=0;r<9;r++) for(let c=0;c<9;c++){ let s=0; for(let k=0;k<9;k++) s+=X[r*9+k]*X[k*9+c]; B[r*9+c]=X[r*9+c]+beta*s; }
+  return {X, B}; }
+/* the bond operator as transitions: for a source pair p = 3 d_i + d_j its diagonal and its off-diagonal moves (Δd_i, Δd_j, amplitude) */
+function hgBondTerms(beta,J){ const B=hgBondMatrix(beta).B, j=J==null?1:J, diag=new Float64Array(9), start=new Int32Array(10), di=[], dj=[], amp=[];
+  for(let p=0;p<9;p++){ diag[p]=j*B[p*9+p]; start[p]=amp.length;
+    for(let r=0;r<9;r++){ if(r===p) continue; const a=j*B[r*9+p]; if(Math.abs(a)>1e-14){ di.push(((r/3)|0)-((p/3)|0)); dj.push(r%3-p%3); amp.push(a); } } }
+  start[9]=amp.length; return {diag, start, di:Int32Array.from(di), dj:Int32Array.from(dj), amp:Float64Array.from(amp)}; }
+/* the bonds (i, i+1), and (L−1, 0) on a ring */
+function hgBonds(L,periodic){ const b=[]; for(let i=0;i+1<L;i++) b.push([i,i+1]); if(periodic&&L>=2) b.push([L-1,0]); return b; }
+/* the number of states with Σ m_i = M: a trinomial coefficient */
+function hgSectorDim(L,M){ let c=[1]; for(let s=0;s<L;s++){ const n=new Array(c.length+2).fill(0); for(let k=0;k<c.length;k++){ n[k]+=c[k]; n[k+1]+=c[k]; n[k+2]+=c[k]; } c=n; }
+  const k=M+L; return k<0||k>=c.length?0:c[k]; }
+const hgCode=(ms)=>ms.reduce((s,m,i)=>s+(m+1)*Math.pow(3,i),0);
+function hgDigits(L,code){ const m=new Array(L); let c=code; for(let k=0;k<L;k++){ const d=c%3; m[k]=d-1; c=(c-d)/3; } return m; }
+/* binary search in a sorted code list (the stepper uses the direct table; this is the portable lookup) */
+function hgIndexOf(codes,c){ let lo=0, hi=codes.length-1; while(lo<=hi){ const mid=(lo+hi)>>1, v=codes[mid]; if(v===c) return mid; if(v<c) lo=mid+1; else hi=mid-1; } return -1; }
+
+/* ── the sector stepper: basis → sparse matrix → Lanczos (full reorthogonalisation, restarts) → residual ───────────── */
+function hgLanczosStart(L,beta,periodic,M,opt){ const o=opt||{}, n3=Math.pow(3,L), N=hgSectorDim(L,M), bonds=hgBonds(L,periodic), P=new Int32Array(L+1);
+  P[0]=1; for(let k=1;k<=L;k++) P[k]=P[k-1]*3;
+  const m=Math.max(1,Math.min(o.m||40,N));
+  return {L, beta, periodic:!!periodic, M, N, n3, P, bi:Int32Array.from(bonds,b=>b[0]), bj:Int32Array.from(bonds,b=>b[1]), T:hgBondTerms(beta,o.J),
+    table:o.table&&o.table.length===n3?o.table:new Int32Array(n3), codes:new Int32Array(N), bc:0, bs:0, bn:0, bd:new Int8Array(L), dig:new Int8Array(L),
+    rp:new Int32Array(N+1), dg:new Float64Array(N), ci:null, va:null, nnz:0, row:0,
+    m, tol:o.tol||1e-9, maxCycles:o.maxCycles||80, seed:o.seed||20261012, V:[], a:new Float64Array(m), b:new Float64Array(m), j:0, k:0,
+    w:new Float64Array(N), x:new Float64Array(N), y:null, E:NaN, est:NaN, res:NaN, it:0, cyc:0, mv:0, conv:false, phase:'basis', units:0}; }
+/* the codes of the sector in increasing order, by a base-3 counter that carries its digit sum */
+function hgBasisUnit(z,count){ const L=z.L, d=z.bd, tgt=z.M+L, codes=z.codes, tab=z.table, lim=Math.min(z.n3,z.bc+count); let c=z.bc, s=z.bs, n=z.bn;
+  while(c<lim){ if(s===tgt){ tab[c]=n; codes[n++]=c; } c++; let k=0; while(k<L&&d[k]===2){ d[k]=0; s-=2; k++; } if(k<L){ d[k]++; s++; } }
+  z.bc=c; z.bs=s; z.bn=n; return c>=z.n3; }
+function hgRowsUnit(z,r0,r1,fill){ const L=z.L, nb=z.bi.length, bi=z.bi, bj=z.bj, P=z.P, codes=z.codes, dig=z.dig, T=z.T, D=T.diag, st=T.start, tdi=T.di, tdj=T.dj, ta=T.amp, tab=z.table, rp=z.rp, dg=z.dg, ci=z.ci, va=z.va;
+  for(let r=r0;r<r1;r++){ const code=codes[r]; let c=code; for(let k=0;k<L;k++){ const q=(c/3)|0; dig[k]=c-3*q; c=q; }
+    if(!fill){ let nn=0, dd=0; for(let b=0;b<nb;b++){ const p=3*dig[bi[b]]+dig[bj[b]]; nn+=st[p+1]-st[p]; dd+=D[p]; } rp[r+1]=nn; dg[r]=dd; }
+    else { let q=rp[r]; for(let b=0;b<nb;b++){ const i=bi[b], j=bj[b], p=3*dig[i]+dig[j]; for(let t=st[p];t<st[p+1];t++){ ci[q]=tab[code+tdi[t]*P[i]+tdj[t]*P[j]]; va[q]=ta[t]; q++; } } } } }
+/* y = H x on rows [r0, r1) */
+function hgMulRows(z,x,y,r0,r1){ const rp=z.rp, ci=z.ci, va=z.va, dg=z.dg;
+  for(let r=r0;r<r1;r++){ let s=dg[r]*x[r]; for(let k=rp[r],e=rp[r+1];k<e;k++) s+=va[k]*x[ci[k]]; y[r]=s; } }
+function hgApply(z,x,y){ hgMulRows(z,x,y,0,z.N); return y; }
+function hgDot(u,v){ let s=0; for(let i=0;i<u.length;i++) s+=u[i]*v[i]; return s; }
+/* the lowest eigenpair of the symmetric tridiagonal (a_0..a_{n−1}; b_0..b_{n−2}): Sturm bisection, then inverse iteration */
+function hgTriLowest(a,b,n){ if(n===1) return {theta:a[0], y:Float64Array.of(1)};
+  let lo=Infinity, hi=-Infinity; for(let i=0;i<n;i++){ const r=(i>0?Math.abs(b[i-1]):0)+(i<n-1?Math.abs(b[i]):0); if(a[i]-r<lo) lo=a[i]-r; if(a[i]+r>hi) hi=a[i]+r; }
+  const neg=x=>{ let c=0, q=a[0]-x; if(q<0) c++; for(let i=1;i<n;i++){ if(q===0) q=1e-300; q=a[i]-x-b[i-1]*b[i-1]/q; if(q<0) c++; } return c; };
+  const sc=Math.max(Math.abs(lo),Math.abs(hi),1); let l=lo, h=hi;
+  for(let it=0;it<300&&h-l>4e-16*sc;it++){ const mid=0.5*(l+h); if(neg(mid)>=1) h=mid; else l=mid; }
+  const theta=0.5*(l+h), sh=theta-1e-10*sc, y=new Float64Array(n).fill(1/Math.sqrt(n)), cp=new Float64Array(n), rr=new Float64Array(n);
+  for(let pass=0;pass<3;pass++){ let piv=a[0]-sh; cp[0]=b[0]/piv; rr[0]=y[0]/piv;
+    for(let i=1;i<n;i++){ piv=a[i]-sh-b[i-1]*cp[i-1]; cp[i]=i<n-1?b[i]/piv:0; rr[i]=(y[i]-b[i-1]*rr[i-1])/piv; }
+    y[n-1]=rr[n-1]; for(let i=n-2;i>=0;i--) y[i]=rr[i]-cp[i]*y[i+1];
+    let s=0; for(let i=0;i<n;i++) s+=y[i]*y[i]; s=1/Math.sqrt(s); for(let i=0;i<n;i++) y[i]*=s; }
+  return {theta, y}; }
+/* one slice of work (a few hundred microseconds at L = 12) */
+function hgLzUnit(z){ const N=z.N;
+  switch(z.phase){
+    case 'basis': if(hgBasisUnit(z,16384)){ z.row=0; z.phase='count'; } return;
+    case 'count': { const r1=Math.min(N,z.row+2048); hgRowsUnit(z,z.row,r1,false); z.row=r1;
+      if(r1>=N){ const rp=z.rp; for(let r=0;r<N;r++) rp[r+1]+=rp[r]; z.nnz=rp[N]; z.row=0; z.phase='alloc'; } return; }
+    case 'alloc': if(!z.ci) z.ci=new Int32Array(z.nnz); else { z.va=new Float64Array(z.nnz); z.phase='fill'; } return;
+    case 'fill': { const r1=Math.min(N,z.row+1024); hgRowsUnit(z,z.row,r1,true); z.row=r1; if(r1>=N) z.phase='init'; return; }
+    case 'init': { const g=hgRng(z.seed), v=new Float64Array(N); let s=0; for(let i=0;i<N;i++){ v[i]=g()-0.5; s+=v[i]*v[i]; } s=1/Math.sqrt(s); for(let i=0;i<N;i++) v[i]*=s;
+      z.V[0]=v; z.j=0; z.row=0; z.phase='mv'; return; }
+    case 'mv': { const r1=Math.min(N,z.row+4096); hgMulRows(z,z.V[z.j],z.w,z.row,r1); z.row=r1; if(r1>=N){ z.mv++; z.phase='ab'; } return; }
+    case 'ab': { const v=z.V[z.j], w=z.w; let al=0; for(let i=0;i<N;i++) al+=v[i]*w[i]; z.a[z.j]=al;
+      if(z.j>0){ const u=z.V[z.j-1], bb=z.b[z.j-1]; for(let i=0;i<N;i++) w[i]-=al*v[i]+bb*u[i]; } else for(let i=0;i<N;i++) w[i]-=al*v[i];
+      z.k=0; z.phase='ro'; return; }
+    case 'ro': { const v=z.V[z.k], w=z.w; let c=0; for(let i=0;i<N;i++) c+=v[i]*w[i]; for(let i=0;i<N;i++) w[i]-=c*v[i]; z.k++; if(z.k>z.j) z.phase='nb'; return; }
+    case 'nb': { const w=z.w; let s=0; for(let i=0;i<N;i++) s+=w[i]*w[i]; const bt=Math.sqrt(s); z.b[z.j]=bt; z.it++;
+      const t=hgTriLowest(z.a,z.b,z.j+1), sc=Math.max(1,Math.abs(t.theta)); z.E=t.theta; z.y=t.y; z.est=bt*Math.abs(t.y[z.j]);
+      if(z.est<=z.tol*sc||z.j+1>=N||bt<=1e-13*sc){ z.conv=true; z.k=0; z.phase='rz'; return; }
+      if(z.j+1>=z.m){ z.k=0; z.phase='rz'; return; }
+      let v=z.V[z.j+1]; if(!v){ v=new Float64Array(N); z.V[z.j+1]=v; } const ib=1/bt; for(let i=0;i<N;i++) v[i]=w[i]*ib; z.j++; z.row=0; z.phase='mv'; return; }
+    case 'rz': { const x=z.x; if(z.k===0) x.fill(0); const v=z.V[z.k], c=z.y[z.k]; for(let i=0;i<N;i++) x[i]+=c*v[i]; z.k++;
+      if(z.k>z.j){ let s=0; for(let i=0;i<N;i++) s+=x[i]*x[i]; s=1/Math.sqrt(s); for(let i=0;i<N;i++) x[i]*=s;
+        if(z.conv||z.cyc+1>=z.maxCycles){ z.row=0; z.phase='res'; } else { z.cyc++; z.V[0].set(x); z.j=0; z.row=0; z.phase='mv'; } } return; }
+    case 'res': { const r1=Math.min(N,z.row+4096); hgMulRows(z,z.x,z.w,z.row,r1); z.row=r1;
+      if(r1>=N){ z.mv++; const x=z.x, w=z.w; let e=0; for(let i=0;i<N;i++) e+=x[i]*w[i]; let r=0; for(let i=0;i<N;i++){ const d=w[i]-e*x[i]; r+=d*d; }
+        z.E=e; z.res=Math.sqrt(r); z.V=[]; z.phase='done'; } return; }
+  } }
+/* advance the stepper: with a clock, for about `budget` milliseconds; without one, by `budget` slices. true when done */
+function hgLanczosStep(z,budget,clock){ const timed=typeof clock==='function', t0=timed?clock():0; let u=0;
+  while(z.phase!=='done'){ hgLzUnit(z); u++; z.units++; if(timed){ if(clock()-t0>=budget) break; } else if(u>=budget) break; }
+  return z.phase==='done'; }
+/* run a stepper until its sparse matrix is built (for checks), or to the end */
+function hgBuild(L,beta,periodic,M,opt){ const z=hgLanczosStart(L,beta,periodic,M,opt); while(z.phase!=='init') hgLzUnit(z); return z; }
+function hgLanczos(L,beta,periodic,M,opt){ const z=hgLanczosStart(L,beta,periodic,M,opt); hgLanczosStep(z,Infinity); return z; }
+/* the dense matrix of a built sector (small sectors only) */
+function hgDense(z){ const N=z.N, A=new Float64Array(N*N); for(let r=0;r<N;r++){ A[r*N+r]+=z.dg[r]; for(let k=z.rp[r];k<z.rp[r+1];k++) A[r*N+z.ci[k]]+=z.va[k]; } return A; }
+/* cyclic Jacobi for a small dense symmetric matrix: eigenvalues ascending and the eigenvectors (columns) */
+function hgJacobi(Ain,n){ const A=Float64Array.from(Ain), V=new Float64Array(n*n); for(let i=0;i<n;i++) V[i*n+i]=1;
+  for(let sweep=0;sweep<100;sweep++){ let off=0, tot=0; for(let p=0;p<n;p++) for(let q=0;q<n;q++){ const v=A[p*n+q]*A[p*n+q]; tot+=v; if(p!==q) off+=v; } if(off<=1e-30*Math.max(tot,1e-300)) break;
+    for(let p=0;p<n;p++) for(let q=p+1;q<n;q++){ const apq=A[p*n+q]; if(Math.abs(apq)<1e-300) continue;
+      const th=(A[q*n+q]-A[p*n+p])/(2*apq), t=(th>=0?1:-1)/(Math.abs(th)+Math.sqrt(th*th+1)), c=1/Math.sqrt(t*t+1), s=t*c;
+      for(let k=0;k<n;k++){ const kp=A[k*n+p], kq=A[k*n+q]; A[k*n+p]=c*kp-s*kq; A[k*n+q]=s*kp+c*kq; }
+      for(let k=0;k<n;k++){ const pk=A[p*n+k], qk=A[q*n+k]; A[p*n+k]=c*pk-s*qk; A[q*n+k]=s*pk+c*qk; }
+      for(let k=0;k<n;k++){ const kp=V[k*n+p], kq=V[k*n+q]; V[k*n+p]=c*kp-s*kq; V[k*n+q]=s*kp+c*kq; } } }
+  const ord=Array.from({length:n},(_,i)=>i).sort((i,j)=>A[i*n+i]-A[j*n+j]);
+  return {values:ord.map(i=>A[i*n+i]), vectors:ord.map(i=>{ const v=new Float64Array(n); for(let k=0;k<n;k++) v[k]=V[k*n+i]; return v; })}; }
+
+/* ── measurements on a vector of a sector ─────────────────────────────────────────────────────────────────────────── */
+function hgMeasureStart(L,codes,table,v){ const P=new Int32Array(L+1); P[0]=1; for(let k=1;k<=L;k++) P[k]=P[k-1]*3;
+  return {L, N:codes.length, codes, table, v, P, s:0, m:new Int8Array(L), Zz:new Float64Array(L*L), Tr:new Float64Array(L*L), St:new Float64Array(L*L), Sz:new Float64Array(L)}; }
+/* accumulate over states [s, s + count): S^z S^z, the transverse part ⟨S⁺_i S⁻_j⟩ (= ½⟨S⁺S⁻ + S⁻S⁺⟩ for a real vector), the string */
+function hgMeasureUnit(ms,count){ const L=ms.L, codes=ms.codes, tab=ms.table, v=ms.v, P=ms.P, m=ms.m, Zz=ms.Zz, Tr=ms.Tr, St=ms.St, Sz=ms.Sz, s1=Math.min(ms.N,ms.s+count);
+  for(let s=ms.s;s<s1;s++){ const a=v[s]; if(a===0) continue; const a2=a*a, code=codes[s]; let c=code; for(let k=0;k<L;k++){ const q=(c/3)|0, d=c-3*q; c=q; m[k]=d-1; if(d!==1) Sz[k]+=a2*(d-1); }
+    for(let i=0;i<L;i++){ const mi=m[i], ri=i*L; let sg=1;
+      for(let j=i+1;j<L;j++){ const mj=m[j];
+        if(mi!==0&&mj!==0){ const p=a2*mi*mj; Zz[ri+j]+=p; St[ri+j]+=sg*p; }
+        if(mi<1&&mj>-1) Tr[ri+j]+=2*a*v[tab[code+P[i]-P[j]]];
+        if(mj!==0) sg=-sg; } } }
+  ms.s=s1; return s1>=ms.N; }
+function hgMeasureStep(ms,budget,clock){ const timed=typeof clock==='function', t0=timed?clock():0; let u=0;
+  while(ms.s<ms.N){ hgMeasureUnit(ms,512); u++; if(timed){ if(clock()-t0>=budget) break; } else if(u>=budget) break; }
+  return ms.s>=ms.N; }
+/* the full matrices ⟨S_i·S_j⟩ (diagonal 2 = s(s+1)) and the string order, symmetric */
+function hgMeasureOut(ms){ const L=ms.L, C=new Float64Array(L*L), S=new Float64Array(L*L);
+  for(let i=0;i<L;i++){ C[i*L+i]=2; for(let j=i+1;j<L;j++){ const c=ms.Zz[i*L+j]+ms.Tr[i*L+j]; C[i*L+j]=c; C[j*L+i]=c; S[i*L+j]=ms.St[i*L+j]; S[j*L+i]=ms.St[i*L+j]; } }
+  return {C, S, Sz:Float64Array.from(ms.Sz)}; }
+function hgMeasure(L,codes,table,v){ const ms=hgMeasureStart(L,codes,table,v); hgMeasureStep(ms,Infinity); return hgMeasureOut(ms); }
+/* ⟨S^z_i⟩ of a vector (the magnetisation profile of the lowest S^z = 1 state) */
+function hgSzUnit(L,S,count){ const codes=S.codes, v=S.v, out=S.out, s1=Math.min(codes.length,S.s+count);
+  for(let s=S.s;s<s1;s++){ const a2=v[s]*v[s]; if(!a2) continue; let c=codes[s]; for(let k=0;k<L;k++){ const q=(c/3)|0, d=c-3*q; c=q; if(d!==1) out[k]+=a2*(d-1); } }
+  S.s=s1; return s1>=codes.length; }
+function hgSzProfile(L,codes,v){ const S={codes, v, s:0, out:new Float64Array(L)}; hgSzUnit(L,S,codes.length); return S.out; }
+
+/* ── the AKLT valence-bond state: A⁺ = √(2/3) σ⁺, A⁰ = −√(1/3) σ^z, A⁻ = −√(2/3) σ⁻, amplitude Tr(A^{m_0} ⋯ A^{m_{L−1}}) ─── */
+function hgAkltVbs(L,codes){ const N=codes.length, out=new Float64Array(N); let nn=0;
+  for(let s=0;s<N;s++){ let c=codes[s], m00=1, m01=0, m10=0, m11=1;
+    for(let k=0;k<L;k++){ const q=(c/3)|0, d=c-3*q; c=q; const A=HG_VBS[d], n00=m00*A[0]+m01*A[2], n01=m00*A[1]+m01*A[3], n10=m10*A[0]+m11*A[2], n11=m10*A[1]+m11*A[3]; m00=n00; m01=n01; m10=n10; m11=n11; }
+    out[s]=m00+m11; nn+=out[s]*out[s]; }
+  nn=1/Math.sqrt(nn); for(let s=0;s<N;s++) out[s]*=nn; return out; }
+/* exact periodic-ring values from the transfer matrix (eigenvalues 1 and −1/3 three times):
+   ⟨S_0·S_r⟩ = 4[(−1/3)^r + (−1/3)^{L−r}] / [1 + 3(−1/3)^L],  string = −(4/9)[1 + 9(−1/3)^L] / [1 + 3(−1/3)^L] for 1 ≤ r ≤ L−1 */
+function hgAkltRing(L,r){ const q=Math.pow(-1/3,L), den=1+3*q; return {corr:4*(Math.pow(-1/3,r)+Math.pow(-1/3,L-r))/den, string:-(4/9)*(1+9*q)/den, e0:-2*L/3}; }
+
+/* ── fits ─────────────────────────────────────────────────────────────────────────────────────────────────────────── */
+/* Δ(L) = Δ∞ + A e^{−L/ξ} through the three largest sizes (exact solve; ξ by bisection on log ξ) */
+function hgFit3(Ls,gs){ const n=Ls.length; if(n<3) return null; const L1=Ls[n-3], L2=Ls[n-2], L3=Ls[n-1], g3=gs[n-1], d1=gs[n-3]-gs[n-2], d2=gs[n-2]-gs[n-1], h1=L2-L1, h2=L3-L2;
+  const F=u=>{ const xi=Math.exp(u), r21=Math.exp(-h1/xi), r31=Math.exp(-(h1+h2)/xi); return d1*(r21-r31)-d2*(1-r21); };
+  let a=Math.log(0.02), b=Math.log(2e4), fa=F(a), fb=F(b); if(!(fa*fb<0)) return {ok:false, Ls:[L1,L2,L3]};
+  for(let it=0;it<200;it++){ const c=0.5*(a+b), fc=F(c); if(fa*fc<=0){ b=c; fb=fc; } else { a=c; fa=fc; } }
+  const xi=Math.exp(0.5*(a+b)), dinf=g3-d2/(Math.exp(h2/xi)-1);
+  return {ok:true, dinf, xi, a3:g3-dinf, L3, A:(g3-dinf)*Math.exp(L3/xi), Ls:[L1,L2,L3]}; }
+/* the same form with ξ fixed, least squares over all sizes given */
+function hgFit2(Ls,gs,xi){ const n=Ls.length; if(n<2) return null; const Lr=Ls[n-1]; let s1=0, sx=0, sxx=0, sy=0, sxy=0;
+  for(let k=0;k<n;k++){ const x=Math.exp(-(Ls[k]-Lr)/xi); s1++; sx+=x; sxx+=x*x; sy+=gs[k]; sxy+=x*gs[k]; }
+  const det=s1*sxx-sx*sx; if(Math.abs(det)<1e-300) return null; const a3=(s1*sxy-sx*sy)/det, dinf=(sy-a3*sx)/s1;
+  let r=0; for(let k=0;k<n;k++){ const e=gs[k]-dinf-a3*Math.exp(-(Ls[k]-Lr)/xi); r+=e*e; }
+  return {ok:true, dinf, xi, a3, L3:Lr, A:a3*Math.exp(Lr/xi), rms:Math.sqrt(r/n), Ls:Ls.slice()}; }
+const hgFitAt=(f,L)=>f.dinf+f.a3*Math.exp(-(L-f.L3)/f.xi);
+/* an effective correlation length from |⟨S_i·S_j⟩|: on a ring A[e^{−r/ξ} + e^{−(L−r)/ξ}] for r ≤ L/2, open A e^{−r/ξ};
+   log-space least squares (A solved exactly), golden section in log ξ. Ornstein–Zernike prefactors are ignored. */
+function hgXiFit(L,periodic,row,i0){ const rs=[], ys=[];
+  if(periodic){ for(let r=1;r<=(L>>1);r++){ const v=Math.abs(row[(i0+r)%L]); if(v>1e-300){ rs.push(r); ys.push(Math.log(v)); } } }
+  else for(let j=0;j<L;j++){ if(j===i0) continue; const v=Math.abs(row[j]); if(v>1e-300){ rs.push(Math.abs(j-i0)); ys.push(Math.log(v)); } }
+  if(rs.length<2) return null; const n=rs.length;
+  const f=(r,xi)=>periodic?Math.log(Math.exp(-r/xi)+Math.exp(-(L-r)/xi)):-r/xi;
+  const S=u=>{ const xi=Math.exp(u); let mu=0; for(let k=0;k<n;k++) mu+=ys[k]-f(rs[k],xi); mu/=n; let s=0; for(let k=0;k<n;k++){ const e=ys[k]-mu-f(rs[k],xi); s+=e*e; } return {s, mu}; };
+  const g=(Math.sqrt(5)-1)/2; let a=Math.log(0.05), b=Math.log(500), c=b-g*(b-a), d=a+g*(b-a), fc=S(c).s, fd=S(d).s;
+  for(let it=0;it<200;it++){ if(fc<fd){ b=d; d=c; fd=fc; c=b-g*(b-a); fc=S(c).s; } else { a=c; c=d; fc=fd; d=a+g*(b-a); fd=S(d).s; } }
+  const u=0.5*(a+b), q=S(u); let stag=0; for(let j=0;j<L;j++){ if(j===i0) continue; const r=periodic?(j-i0+L)%L:Math.abs(j-i0); if(Math.sign(row[j])===(r%2?-1:1)) stag++; }
+  return {xi:Math.exp(u), lnA:q.mu, rms:Math.sqrt(q.s/n), n, staggered:stag===L-1}; }
+
+/* ── a whole study of one (L, β, boundary): S^z = 0, 1 (and 2 on open chains), then the measurements ─────────────── */
+function hgStudyStart(L,beta,periodic,opt){ const o=opt||{}, sec=(o.sectors||(periodic?[0,1]:[0,1,2])).filter(M=>Math.abs(M)<=L);
+  return {L, beta, periodic:!!periodic, sec, k:0, table:new Int32Array(Math.pow(3,L)), lz:null, E:{}, res:{}, it:{}, dim:{}, nnz:{}, cyc:{}, ms:{}, codes0:null, vec0:null, szs:null, sz1:null, meas:null, phase:'lz', o, out:null}; }
+/* the progress of a study in [0, 1] and what it is doing */
+function hgStudyProgress(job){ if(job.phase==='done') return {f:1, what:'done'}; const ns=job.sec.length+1;
+  if(job.phase==='meas') return {f:(ns-1+(job.meas?job.meas.s/job.meas.N:0))/ns, what:'measure'};
+  if(job.phase!=='lz') return {f:Math.min(job.k,ns-1)/ns, what:'measure'};
+  const z=job.lz; let f=0, what='basis';
+  if(z){ const pre={basis:0.02, count:0.05, fill:0.09, init:0.1}[z.phase]; what=pre!=null?z.phase:'lanczos'; f=pre!=null?pre:Math.min(0.97,0.1+0.87*(1-Math.exp(-z.it/(18+3*z.L)))); }
+  return {f:(job.k+f)/ns, what, M:job.sec[job.k], it:z?z.it:0, est:z?z.est:NaN}; }
+function hgStudyStep(job,budget,clock){ const timed=typeof clock==='function', t0=timed?clock():0, o=job.o;
+  while(job.phase!=='done'){ const left=timed?budget-(clock()-t0):budget; if(timed&&left<=0) break;
+    if(job.phase==='lz'){ const M=job.sec[job.k]; if(!job.lz) job.lz=hgLanczosStart(job.L,job.beta,job.periodic,M,{table:job.table, m:o.m, tol:o.tol, J:o.J, maxCycles:o.maxCycles, seed:(o.seed||20261012)+97*M});
+      const ta=timed?clock():0, d=hgLanczosStep(job.lz,left,clock); if(timed) job.ms[M]=(job.ms[M]||0)+clock()-ta;
+      if(d){ const z=job.lz; job.E[M]=z.E; job.res[M]=z.res; job.it[M]=z.it; job.dim[M]=z.N; job.nnz[M]=z.nnz; job.cyc[M]=z.cyc;
+        if(M===0){ job.codes0=z.codes; job.vec0=z.x; } if(M===1) job.szs={codes:z.codes, v:z.x, s:0, out:new Float64Array(job.L)};
+        job.lz=null; job.k++; job.phase=job.szs?'sz':job.k>=job.sec.length?(job.vec0?'meas':'fin'):'lz'; }
+      if(!timed) break; }
+    else if(job.phase==='sz'){ const S=job.szs; let d=false; do { d=hgSzUnit(job.L,S,4096); } while(!d&&timed&&clock()-t0<budget);
+      if(d){ job.sz1=S.out; job.szs=null; job.phase=job.k>=job.sec.length?(job.vec0?'meas':'fin'):'lz'; } if(!timed) break; }
+    else if(job.phase==='meas'){ if(!job.meas) job.meas=hgMeasureStart(job.L,job.codes0,job.table,job.vec0);
+      const ta=timed?clock():0, d=hgMeasureStep(job.meas,left,clock); if(timed) job.ms.meas=(job.ms.meas||0)+clock()-ta;
+      if(d) job.phase='fin'; if(!timed) break; }
+    else { job.out=hgStudyOut(job); job.table=null; job.vec0=null; job.codes0=null; job.meas=null; job.phase='done'; } }
+  return job.phase==='done'; }
+function hgStudyOut(job){ const L=job.L, per=job.periodic, E0=job.E[0], E1=job.E[1], out={L, beta:job.beta, periodic:per, E0, E1, gap:E1-E0, e0:E0/L,
+    dim:job.dim, nnz:job.nnz, it:job.it, cyc:job.cyc, res:job.res, ms:job.ms, sz1:job.sz1};
+  if(job.E[2]!=null){ out.E2=job.E[2]; out.gap21=job.E[2]-E1; out.gap20=job.E[2]-E0; }
+  if(job.meas){ const R=hgMeasureOut(job.meas), i0=per?0:(L>>2), j0=per?(L>>1):i0+(L>>1); out.C=R.C; out.S=R.S;
+    out.string=R.S[i0*L+j0]; out.stringPair=[i0,j0]; out.nn=R.C[i0*L+i0+1];
+    out.xi=hgXiFit(L,per,Array.from({length:L},(_,j)=>R.C[i0*L+j]),i0); }
+  return out; }
+function hgStudy(L,beta,periodic,opt){ const job=hgStudyStart(L,beta,periodic,opt); while(!hgStudyStep(job,Infinity)){ /* untimed: one sub-stepper per call */ } return job.out; }
+
+/* ── the laboratory: THE HALDANE GAP (frontier · family 268) ── a ring of L spins one, each two partons ½ (the AKLT picture)
+   joined by singlet ribbons lit by the measured ⟨S_i·S_{i+1}⟩; arcs ⟨S_{i₀}·S_j⟩ (colour = sign); the lowest triplet as a tilt wave of
+   momentum π; a spectral tower. Every number comes from the hgStudy stepper (kernels.js), a few ms per frame, cached per (L, β, boundary). */
+const hgGroup=new THREE.Group(); hgGroup.visible=false; s3Group.add(hgGroup);
+let hgObjs=null, hgKey='', hgUi=0, hgJob=null;
+const HG_LS=[4,6,8,10,12], HG_R=4.5, HG_K=2.9, HG_Y0=0.3, HG_TOWER=[6.05,0,-1.6], hgCache=new Map();
+const hgMob=()=>typeof MOBILE_GPU!=='undefined'&&MOBILE_GPU;
+const hgIsAklt=b=>Math.abs(b-1/3)<1e-9;
+function hgParams(){ const L=HG_LS.includes(+state.hgL)?+state.hgL:8, b=+state.hgBeta;
+  return {L, beta:Number.isFinite(b)?Math.max(-0.5,Math.min(1,b)):0, open:!!state.hgOpen, site:Math.max(0,Math.min(L-1,Math.round(+state.hgSite||0))),
+    speed:Math.max(0,Math.min(4,+(state.hgSpeed??1))), paused:!!state.hgPaused}; }
+const hgParamKey=()=>{ const P=hgParams(); return P.L+'|'+(P.open?'o':'p'); };
+const hgCKey=(L,b,open)=>L+'|'+(hgIsAklt(b)?'aklt':(+b).toFixed(4))+'|'+(open?'o':'p');
+function hgBetaTxt(b){ return hgIsAklt(b)?'1/3 · AKLT':b.toFixed(2)+(b===0?' · '+TT('Heisenberg','Гейзенберг','Heisenberg'):b===1?' · ULS':''); }
+/* the background studies: the current size first (or the small ones first when L = 12 is asked), one at a time */
+function hgOrder(P){ const small=HG_LS.filter(l=>l<12); return P.L===12?[...small,12]:[P.L,...small.filter(l=>l!==P.L)]; }
+function hgPump(P,ms){ const order=hgOrder(P), clock=()=>performance.now();
+  if(hgJob&&(hgJob.beta!==P.beta||hgJob.periodic===P.open||!order.includes(hgJob.L))) hgJob=null;
+  if(!hgJob){ const L=order.find(l=>!hgCache.has(hgCKey(l,P.beta,P.open))); if(L==null) return; hgJob=hgStudyStart(L,P.beta,!P.open,{m:hgMob()?28:40}); hgJob.t0=clock(); }
+  if(hgStudyStep(hgJob,ms,clock)){ const j=hgJob, o=j.out; o.wall=clock()-j.t0; o.work=Object.values(o.ms).reduce((a,b)=>a+b,0);
+    hgCache.set(hgCKey(j.L,j.beta,!j.periodic),o); hgJob=null; if(hgCache.size>90) hgCache.delete(hgCache.keys().next().value); } }
+function hgSeries(P){ return HG_LS.map(L=>hgCache.get(hgCKey(L,P.beta,P.open))).filter(Boolean); }
+/* Δ(L) = Δ∞ + A e^{−L/ξ}: three parameters through the three largest sizes ≥ 6, and ξ fixed at 6.0 (rings only) */
+function hgFits(P){ if(P.open) return {f3:null, f2:null, n:0}; const S=hgSeries(P).filter(r=>r.L>=6), Ls=S.map(r=>r.L), gs=S.map(r=>r.gap);
+  const f3=S.length>=3?hgFit3(Ls,gs):null; return {f3:f3&&f3.ok&&Number.isFinite(f3.dinf)?f3:null, f2:S.length>=2?hgFit2(Ls,gs,6.0):null, n:S.length, Ls}; }
+function hgSetup(){ labWipe(hgGroup); const P=hgParams(); hgKey=hgParamKey(); const mob=hgMob(), L=P.L;
+  const O={P, root:new THREE.Group(), arcs:new THREE.Group(), t:0, L, open:P.open, dataKey:'', amp:null, omega:1.2}; hgGroup.add(O.root); O.root.add(O.arcs); hgObjs=O;
+  const title=mkLabel('','label const'); title.position.set(0,5.4,0); O.root.add(title);
+  title.element.textContent=TT('THE HALDANE GAP · a ring of spins one, its valence bonds, and the gap claimed to stay open','ЩЕЛЬ ХОЛДЕЙНА · кольцо спинов 1, его валентные связи и щель, которая, как заявлено, не закрывается','DIE HALDANE-LÜCKE · ein Ring aus Spins 1, seine Valenzbindungen und die Lücke, die offen bleiben soll');
+  /* the floor: dark glass and the ring's circle */
+  const disc=new THREE.Mesh(new THREE.CircleGeometry(5.75,96),new THREE.MeshBasicMaterial({color:0x0b1230,transparent:true,opacity:0.55,depthWrite:false,side:THREE.DoubleSide})); disc.rotation.x=-Math.PI/2; disc.position.y=-0.62; O.root.add(disc);
+  { const pts=[]; for(let k=0;k<=160;k++){ const a=2*Math.PI*k/160; pts.push(HG_R*Math.cos(a),-0.6,HG_R*Math.sin(a)); } const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pts,3));
+    O.root.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:0x9fd8ff,transparent:true,opacity:0.22}))); }
+  /* the sites: glossy glass spheres, each holding two partons ½ */
+  const ang=i=>Math.PI/2+2*Math.PI*(i+(P.open?0.5:0))/L; O.ang=ang; O.pos=[]; O.rad=[]; O.tan=[];
+  for(let i=0;i<L;i++){ const a=ang(i); O.pos.push(new THREE.Vector3(HG_R*Math.cos(a),0,HG_R*Math.sin(a))); O.rad.push(new THREE.Vector3(Math.cos(a),0,Math.sin(a))); O.tan.push(new THREE.Vector3(-Math.sin(a),0,Math.cos(a))); }
+  const sg=new THREE.SphereGeometry(0.46,mob?20:36,mob?14:24), glass=new THREE.MeshPhysicalMaterial({color:0x2a3474,roughness:0.12,metalness:0.05,clearcoat:1,clearcoatRoughness:0.06,transparent:true,opacity:0.42,depthWrite:false});
+  O.pos.forEach(p=>{ const m=new THREE.Mesh(sg,glass); m.position.copy(p); O.root.add(m); });
+  const pg=new THREE.SphereGeometry(0.1,mob?10:16,mob?8:12), pm=new THREE.MeshBasicMaterial({color:0x9fd8ff}), em=new THREE.MeshBasicMaterial({color:0xff8a7a}), gp=[], gc=[];
+  O.parton=(i,s)=>O.pos[i].clone().addScaledVector(O.tan[i],0.2*s);
+  for(let i=0;i<L;i++) for(const s of [-1,1]){ const edge=P.open&&((i===0&&s<0)||(i===L-1&&s>0)), q=O.parton(i,s), m=new THREE.Mesh(pg,edge?em:pm); m.position.copy(q); O.root.add(m);
+    gp.push(q.x,q.y,q.z); const c=new THREE.Color(edge?0xff8a7a:0x9fd8ff); gc.push(c.r,c.g,c.b); }
+  { const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(gp,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(gc,3));
+    O.glow=new THREE.Points(g,new THREE.PointsMaterial({size:0.46,map:glowTexture(),vertexColors:true,transparent:true,opacity:0.9,depthWrite:false,blending:THREE.AdditiveBlending})); O.root.add(O.glow); }
+  if(P.open){ O.edgeLab=mkLabel('','label const'); O.edgeLab.position.copy(O.parton(0,-1)).add(new THREE.Vector3(0,0.75,0.35)); O.edgeLab.element.textContent=TT('free edge spins ½','свободные краевые спины ½','freie Randspins ½'); O.root.add(O.edgeLab); }
+  /* the valence bonds: half-twisted ribbons (a singlet is antisymmetric) from parton (i, +) to parton (i+1, −) */
+  O.bonds=[]; const nb=P.open?L-1:L, SEG=mob?16:28, hw=0.075, dA=0.2/HG_R;
+  for(let b=0;b<nb;b++){ const i=b, j=(b+1)%L, a0=ang(i)+dA, a1=ang(i)+2*Math.PI/L-dA, pos=[], col=[], idx=[];
+    for(let k=0;k<=SEG;k++){ const s=k/SEG, a=a0+(a1-a0)*s, c=new THREE.Vector3(HG_R*Math.cos(a),0.06*Math.sin(Math.PI*s),HG_R*Math.sin(a)), r=new THREE.Vector3(Math.cos(a),0,Math.sin(a)),
+        w=new THREE.Vector3(0,Math.cos(Math.PI*s),0).addScaledVector(r,Math.sin(Math.PI*s)).multiplyScalar(hw), br=0.45+0.55*Math.sin(Math.PI*s);
+      pos.push(c.x+w.x,c.y+w.y,c.z+w.z,c.x-w.x,c.y-w.y,c.z-w.z); col.push(br,br,br,br,br,br); if(k<SEG){ const v=2*k; idx.push(v,v+1,v+2,v+1,v+3,v+2); } }
+    const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx);
+    const mat=new THREE.MeshBasicMaterial({color:0x5a4a2a,vertexColors:true,transparent:true,opacity:0.95,side:THREE.DoubleSide,depthWrite:false,blending:THREE.AdditiveBlending});
+    const m=new THREE.Mesh(g,mat); O.root.add(m); O.bonds.push({i,j,mat}); }
+  /* the selected site: a gold halo */
+  O.halo=new THREE.Mesh(new THREE.TorusGeometry(0.62,0.022,8,mob?48:72),new THREE.MeshBasicMaterial({color:0xffd27a,transparent:true,opacity:0.85,depthWrite:false,blending:THREE.AdditiveBlending})); O.halo.rotation.x=Math.PI/2; O.root.add(O.halo);
+  O.haloGlow=pxGlow(0xffd27a,1.3); O.root.add(O.haloGlow);
+  /* the lowest triplet as arrows: a precessing tilt, momentum π */
+  const shaft=new THREE.CylinderGeometry(0.028,0.028,0.74,8), head=new THREE.ConeGeometry(0.075,0.2,12), am=new THREE.MeshBasicMaterial({color:0xff8a7a,transparent:true,opacity:0.88});
+  shaft.translate(0,0.37,0); head.translate(0,0.84,0); O.arrows=O.pos.map(p=>{ const g=new THREE.Group(); g.add(new THREE.Mesh(shaft,am),new THREE.Mesh(head,am)); g.position.copy(p); O.root.add(g); return g; });
+  /* the tower: the low spectrum E − E₀ beside the ring */
+  const T=new THREE.Group(); T.position.set(...HG_TOWER); O.root.add(T); O.tower=T;
+  { const sp=new THREE.Mesh(new THREE.CylinderGeometry(0.016,0.016,4.6,6),new THREE.MeshBasicMaterial({color:0x8fa0d8,transparent:true,opacity:0.45})); sp.position.y=HG_Y0+2.3-0.1; T.add(sp);
+    const tk=[]; for(let e=0;e<=1.5001;e+=0.5){ const y=HG_Y0+e*HG_K; tk.push(-0.12,y,0,0.12,y,0); } const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(tk,3));
+    T.add(new THREE.LineSegments(g,new THREE.LineBasicMaterial({color:0x8fa0d8,transparent:true,opacity:0.5}))); }
+  const bar=(w,hex)=>{ const g=new THREE.Group(), m=new THREE.Mesh(new THREE.BoxGeometry(w,0.035,0.035),new THREE.MeshBasicMaterial({color:hex,transparent:true,opacity:0.95})), n=9, q=[];
+    for(let k=0;k<n;k++) q.push(-w/2+w*k/(n-1),0,0); const pg2=new THREE.BufferGeometry(); pg2.setAttribute('position',new THREE.Float32BufferAttribute(q,3));
+    g.add(m,new THREE.Points(pg2,new THREE.PointsMaterial({size:0.32,map:glowTexture(),color:hex,transparent:true,opacity:0.75,depthWrite:false,blending:THREE.AdditiveBlending}))); return g; };
+  O.lev0=bar(1.3,0x9fd8ff); O.lev0.position.y=HG_Y0; T.add(O.lev0);
+  O.lev1=new THREE.Group(); [-0.47,0,0.47].forEach(x=>{ const b=bar(0.36,0xff8a7a); b.position.x=x; O.lev1.add(b); }); T.add(O.lev1);
+  O.lev2=bar(1.3,0xc79bff); T.add(O.lev2); O.lev2.visible=false;
+  { const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute([-0.95,0,0,0.95,0,0],3)); O.lit=new THREE.Line(g,new THREE.LineDashedMaterial({color:0x7fe0a6,dashSize:0.1,gapSize:0.07,transparent:true,opacity:0.9}));
+    O.lit.computeLineDistances(); O.lit.position.y=HG_Y0+HG_LIT.gap*HG_K; T.add(O.lit); }
+  O.fitDot=pxGlow(0xffd27a,0.5); T.add(O.fitDot); O.fitDot.visible=false;
+  O.lab0=mkLabel('','label const'); O.lab0.position.set(0,HG_Y0-0.38,0); T.add(O.lab0);
+  O.lab1=mkLabel('','label const'); O.lab1.position.set(0,HG_Y0+0.4,0); T.add(O.lab1);
+  O.labLit=mkLabel('','label const'); O.labLit.position.set(0,HG_Y0+HG_LIT.gap*HG_K+0.3,0); T.add(O.labLit);
+  O.labLit.element.textContent=TT('Δ∞ ≈ 0.41048 J · literature (β = 0)','Δ∞ ≈ 0,41048 J · литература (β = 0)','Δ∞ ≈ 0,41048 J · Literatur (β = 0)');
+  O.prog=mkLabel('','label const'); O.prog.position.set(0,1.1,0); O.root.add(O.prog); O.prog.visible=false;
+  hgPaint(O,null); }
+/* the measured numbers into the scene: ribbons, arcs, tower, magnon envelope */
+function hgPaint(O,r){ const P=O.P, L=O.L, gold=new THREE.Color(0xffd27a);
+  for(const b of O.bonds){ const c=r&&r.C?r.C[b.i*L+b.j]:-0.6, I=Math.max(0,Math.min(1,-c/2)); b.mat.color.copy(gold).multiplyScalar(0.1+1.05*Math.pow(I,1.6)); }
+  while(O.arcs.children.length){ const o=O.arcs.children[O.arcs.children.length-1]; O.arcs.remove(o); o.geometry.dispose(); o.material.dispose(); }
+  const i0=Math.min(P.site,L-1); O.halo.position.copy(O.pos[i0]); O.haloGlow.position.copy(O.pos[i0]).add(new THREE.Vector3(0,0.02,0));
+  if(r&&r.C){ let mx=0; for(let j=0;j<L;j++) if(j!==i0) mx=Math.max(mx,Math.abs(r.C[i0*L+j]));
+    const green=new THREE.Color(0x7fe0a6), violet=new THREE.Color(0xc79bff), up=new THREE.Vector3(0,0.5,0);
+    for(let j=0;j<L;j++){ if(j===i0) continue; const c=r.C[i0*L+j], m=mx>0?Math.abs(c)/mx:0, a=O.pos[i0].clone().add(up), e=O.pos[j].clone().add(up), ch=a.distanceTo(e);
+      const mid=a.clone().add(e).multiplyScalar(0.5); mid.x*=0.3; mid.z*=0.3; mid.y=0.5+0.9+2.0*ch/(2*HG_R);
+      const g=new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(a,mid,e),hgMob()?28:56,0.012+0.045*Math.pow(m,0.7),6,false);
+      const mat=new THREE.MeshBasicMaterial({color:(c>0?green:violet).clone().multiplyScalar(0.12+0.88*m),transparent:true,opacity:0.95,depthWrite:false,blending:THREE.AdditiveBlending});
+      O.arcs.add(new THREE.Mesh(g,mat)); } }
+  /* tower */
+  const f=hgFits(P), fy=e=>HG_Y0+Math.max(0,Math.min(1.5,e))*HG_K;
+  O.lev1.visible=!!r; O.lab1.visible=!!r; O.lev2.visible=!!(r&&r.E2!=null);
+  if(r){ O.lev1.position.y=fy(r.gap); O.lab1.position.y=fy(r.gap)+(P.open?0.62:0.36);
+    O.lab0.element.textContent=`S = 0 · E₀/L = ${r.e0.toFixed(5)} J`;
+    O.lab1.element.textContent=P.open?`${TT('edge triplet','краевой триплет','Randtriplett')} · ${r.gap.toFixed(4)} J`:`S = 1 · Δ(${L}) = ${r.gap.toFixed(4)} J`;
+    if(r.E2!=null) O.lev2.position.y=fy(r.gap20); }
+  else O.lab0.element.textContent=`S = 0 · ${TT('computing …','вычисляется …','wird berechnet …')}`;
+  O.lit.material.opacity=P.beta===0?0.9:0.35; O.labLit.visible=P.beta===0;
+  O.fitDot.visible=!!f.f3; if(f.f3) O.fitDot.position.set(0,fy(f.f3.dinf),0);
+  /* the magnon: on a ring a travelling envelope; on an open chain the measured ⟨S^z_i⟩ of the lowest S^z = 1 state */
+  O.amp=null; if(r&&r.sz1&&P.open){ let mx=0; for(const v of r.sz1) mx=Math.max(mx,Math.abs(v)); O.amp=Array.from(r.sz1,v=>mx>0?Math.abs(v)/mx:0); }
+  O.omega=1.0+1.6*Math.max(0.1,Math.min(1.2,r?r.gap:0.45)); }
+function hgAnimate(O){ const L=O.L, t=O.t, up=new THREE.Vector3(0,1,0), n=new THREE.Vector3();
+  for(let i=0;i<L;i++){ const env=O.amp?O.amp[i]:0.5+0.5*Math.cos(2*Math.PI*i/L-0.45*t), th=0.06+0.62*env, ps=Math.PI*i+O.omega*t;
+    n.copy(up).multiplyScalar(Math.cos(th)).addScaledVector(O.rad[i],Math.sin(th)*Math.cos(ps)).addScaledVector(O.tan[i],Math.sin(th)*Math.sin(ps)).normalize();
+    O.arrows[i].quaternion.setFromUnitVectors(up,n); }
+  O.halo.rotation.z=0.4*t; O.haloGlow.material.opacity=0.55+0.25*Math.sin(2.1*t);
+  if(O.fitDot.visible) O.fitDot.material.opacity=0.6+0.35*Math.sin(3*t); }
+function updateHg(dt){ if(!hgObjs||hgParamKey()!==hgKey) hgSetup(); const O=hgObjs; O.P=hgParams(); const P=O.P;
+  hgPump(P,hgMob()?2:3);
+  const ck=hgCKey(P.L,P.beta,P.open), r=hgCache.get(ck)||null, f=hgFits(P), dk=(r?'r':'-')+ck+'|'+P.site+'|'+(f.f3?f.f3.dinf.toFixed(6):'');
+  if(dk!==O.dataKey){ O.dataKey=dk; hgPaint(O,r); }
+  const busy=hgJob&&hgJob.L===P.L&&!r; O.prog.visible=!!busy;
+  if(busy){ const g=hgStudyProgress(hgJob); O.prog.element.textContent=`${TT('Lanczos','Ланцош','Lanczos')} · L = ${hgJob.L} · S^z = ${g.M??'–'} · ${Math.round(100*g.f)} %`; }
+  if(!P.paused) O.t+=dt*P.speed; hgAnimate(O);
+  hgUi+=dt; if(hgUi>0.4){ hgUi=0; hgHud(); const el=document.getElementById('hgRead'); if(el) el.innerHTML=hgReadHTML(); const cv=document.getElementById('hgPlot'); if(cv) hgPlot(cv); } }
+function hgHud(){ const O=hgObjs; if(!O) return; const P=O.P, r=hgCache.get(hgCKey(P.L,P.beta,P.open)), f=hgFits(P), bc=P.open?TT('open chain','открытая цепочка','offene Kette'):TT('ring','кольцо','Ring');
+  hudBig.textContent=`${TT('HALDANE GAP','ЩЕЛЬ ХОЛДЕЙНА','HALDANE-LÜCKE')} · L = ${P.L} ${bc} · `+(r?`Δ(L) = ${r.gap.toFixed(4)} J · E₀/L = ${r.e0.toFixed(5)} J`:TT('computing …','вычисляется …','wird berechnet …'));
+  hudSub.textContent=`β = ${hgBetaTxt(P.beta)} · `+(f.f3?`Δ∞ (${TT('fit','подгонка','Fit')} L = ${f.f3.Ls.join(', ')}) = ${f.f3.dinf.toFixed(3)} J · `:'')+`${TT('literature','литература','Literatur')} (β = 0): Δ∞ ≈ 0.41048 J, ξ ≈ 6.03 · ${TT('finite rings are evidence, not proof','конечные кольца — свидетельство, не доказательство','endliche Ringe sind Evidenz, kein Beweis')}`; }
+function hgReadHTML(){ const O=hgObjs, P=O?O.P:hgParams(), L=P.L, r=hgCache.get(hgCKey(L,P.beta,P.open)), f=hgFits(P), S=hgSeries(P), x=(v,d)=>v==null||!Number.isFinite(v)?'…':v.toFixed(d);
+  const head=`L = ${L} · ${P.open?TT('open chain','открытая цепочка','offene Kette'):TT('ring','кольцо','Ring')} · β = ${hgBetaTxt(P.beta)}`;
+  let s=head+'<br>';
+  if(!r){ const g=hgJob&&hgJob.L===L?hgStudyProgress(hgJob):null; s+=`${TT('computing by Lanczos','вычисляется методом Ланцоша','Lanczos rechnet')}${g?` · S^z = ${g.M??'–'} · ${TT('iteration','итерация','Iteration')} ${g.it} · ${Math.round(100*g.f)} %`:''} …<br>`; }
+  else { const i0=Math.min(P.site,L-1), row=Array.from({length:L},(_,j)=>r.C[i0*L+j]), xf=hgXiFit(L,!P.open,row,i0), j0=P.open?Math.min(L-1,i0+(L>>1)):(i0+(L>>1))%L, so=r.S[i0*L+j0];
+    s+=`E₀/L = <b>${x(r.e0,6)} J</b>${P.beta===0?` <span style="opacity:.75">(${TT('literature, L → ∞: −1.401484','литература, L → ∞: −1,401484','Literatur, L → ∞: −1,401484')})</span>`:hgIsAklt(P.beta)?` <span style="opacity:.75">(${TT('AKLT exact','AKLT точно','AKLT exakt')}: ${P.open?'−2/3·(L−1)/L':'−2/3'})</span>`:''}<br>`;
+    s+=P.open?`${TT('edge splitting','краевое расщепление','Randaufspaltung')} E₀(S^z = 1) − E₀(S^z = 0) = <b>${x(Math.abs(r.gap)<5e-9?0:r.gap,5)} J</b> → 0 · ${TT('bulk estimate','оценка в объёме','Volumenschätzung')} E₀(S^z = 2) − E₀(S^z = 1) = <b>${x(r.gap21,4)} J</b><br>`
+      :`Δ(L) = E₀(S^z = 1) − E₀(S^z = 0) = <b>${x(r.gap,6)} J</b> (${TT('lowest triplet','нижний триплет','tiefstes Triplett')})<br>`;
+    s+=`⟨S<sub>${i0}</sub>·S<sub>${P.open?Math.min(L-1,i0+1):(i0+1)%L}</sub>⟩ = ${x(row[P.open&&i0===L-1?L-2:(i0+1)%L],4)} · ${TT('string order','струнный порядок','String-Ordnung')} ⟨S^z<sub>${i0}</sub> e^{iπΣS^z} S^z<sub>${j0}</sub>⟩ = <b>${x(so,4)}</b> (AKLT: −4/9)<br>`;
+    s+=`${P.open?TT('decay length fitted on this chain','длина затухания на этой цепочке','Abklinglänge dieser Kette'):TT('decay length fitted on this ring','длина затухания на этом кольце','Abklinglänge auf diesem Ring')} ξ<sub>eff</sub> = <b>${xf?x(xf.xi,2):'…'}</b> <span style="opacity:.75">(${TT('effective; literature ξ ≈ 6.03 needs longer chains','эффективная; литературное ξ ≈ 6,03 требует длинных цепочек','effektiv; Literatur-ξ ≈ 6,03 braucht längere Ketten')})</span><br>`;
+    s+=`${TT('Lanczos','Ланцош','Lanczos')}: dim ${r.dim[0]}${r.dim[1]?' + '+r.dim[1]:''}${r.dim[2]?' + '+r.dim[2]:''} · ${TT('iterations','итераций','Iterationen')} ${[0,1,2].filter(M=>r.it[M]!=null).map(M=>r.it[M]).join(' + ')} · ‖Hx − Ex‖ ≤ ${Math.max(...[0,1,2].filter(M=>r.res[M]!=null).map(M=>r.res[M])).toExponential(0)} · ${x(r.work,0)} ms ${TT('of work','работы','Arbeit')}<br>`; }
+  if(!P.open) s+=`Δ∞ + A e<sup>−L/ξ</sup>: ${f.f3?`${TT('3 parameters,','3 параметра,','3 Parameter,')} L = ${f.f3.Ls.join(', ')} → <b>${x(f.f3.dinf,4)} J</b> (ξ<sub>fit</sub> = ${x(f.f3.xi,2)})`:TT('three parameters need three sizes ≥ 6','для трёх параметров нужны три размера ≥ 6','drei Parameter brauchen drei Größen ≥ 6')}${f.f2?` · ξ = 6.0 ${TT('fixed','фиксировано','fest')} → <b>${x(f.f2.dinf,4)} J</b>`:''} · ${TT('literature','литература','Literatur')} 0.41048 J<br>`;
+  else s+=`<span style="opacity:.8">${TT('open chains: no extrapolation — S^z = 1 is the edge triplet; a magnon in a box converges only as 1/L²','открытые цепочки: без экстраполяции — S^z = 1 это краевой триплет; магнон в ящике сходится лишь как 1/L²','offene Ketten: keine Extrapolation — S^z = 1 ist das Randtriplett')}</span><br>`;
+  s+=`${TT('computed here','посчитано здесь','hier berechnet')}: ${S.length?S.map(q=>'L = '+q.L).join(' · '):'—'}${hgJob?` · ${TT('now','сейчас','jetzt')} L = ${hgJob.L} (${Math.round(100*hgStudyProgress(hgJob).f)} %)`:''}${P.L!==12&&!hgCache.has(hgCKey(12,P.beta,P.open))?` · ${TT('L = 12 on request (73 789 states, seconds in slices)','L = 12 по запросу (73 789 состояний, секунды по кускам)','L = 12 auf Wunsch')}`:''}`;
+  return s; }
+/* Δ(L) against 1/L, the fits, and the literature value dashed */
+function hgPlot(cv){ const g=cv.getContext('2d'), W=cv.width, H=cv.height, P=hgObjs?hgObjs.P:hgParams(), S=hgSeries(P), f=hgFits(P);
+  const xmax=0.27, top=Math.max(1.05,...S.map(r=>1.08*Math.max(r.gap,P.open&&r.gap21!=null?r.gap21:0))), X=x=>34+(W-46)*x/xmax, Y=y=>H-22-(H-34)*Math.max(0,Math.min(top,y))/top;
+  g.clearRect(0,0,W,H); g.strokeStyle='rgba(160,180,230,0.35)'; g.lineWidth=1; g.strokeRect(34,12,W-46,H-34);
+  g.fillStyle='rgba(200,210,255,0.75)'; g.font='10px system-ui'; g.fillText('1/L',W-24,H-6); g.fillText('Δ',10,14);
+  [4,6,8,12].forEach(L=>{ g.fillText('1/'+L,X(1/L)-8,H-8); g.strokeStyle='rgba(160,180,230,0.12)'; g.beginPath(); g.moveTo(X(1/L),12); g.lineTo(X(1/L),H-22); g.stroke(); }); g.fillText('0',X(0)-3,H-8);
+  for(let v=0;v<=top+1e-9;v+=0.5) g.fillText(v.toFixed(1),8,Y(v)+4);
+  g.setLineDash([5,4]); g.strokeStyle=P.beta===0?'#7fe0a6':'rgba(127,224,166,0.4)'; g.lineWidth=1.4; g.beginPath(); g.moveTo(X(0),Y(HG_LIT.gap)); g.lineTo(X(xmax),Y(HG_LIT.gap)); g.stroke(); g.setLineDash([]);
+  g.fillStyle=P.beta===0?'#7fe0a6':'rgba(127,224,166,0.5)'; g.fillText(TT('0.41048 literature','0,41048 литература','0,41048 Literatur'),X(0.16),Y(HG_LIT.gap)+12);
+  const curve=(fit,col,dash)=>{ g.setLineDash(dash); g.strokeStyle=col; g.lineWidth=1.6; g.beginPath(); for(let k=0;k<=120;k++){ const x=Math.max(1e-3,xmax*k/120), y=hgFitAt(fit,1/x); if(k===0) g.moveTo(X(x),Y(y)); else g.lineTo(X(x),Y(y)); } g.stroke(); g.setLineDash([]);
+    g.fillStyle=col; g.beginPath(); g.arc(X(0),Y(fit.dinf),3.2,0,7); g.fill(); };
+  if(f.f2) curve(f.f2,'rgba(199,155,255,0.85)',[3,3]); if(f.f3) curve(f.f3,'#ffd27a',[]);
+  S.forEach(r=>{ g.fillStyle=P.open?'#ff8a7a':'#ffd27a'; g.beginPath(); g.arc(X(1/r.L),Y(r.gap),3.6,0,7); g.fill();
+    if(P.open&&r.gap21!=null){ g.fillStyle='#c79bff'; g.beginPath(); g.arc(X(1/r.L),Y(r.gap21),3.2,0,7); g.fill(); } });
+  g.font='9.5px system-ui'; let ly=22; const leg=(c,t)=>{ g.fillStyle=c; g.fillRect(W-120,ly-6,8,3); g.fillText(t,W-108,ly-2); ly+=11; };
+  if(P.open){ leg('#ff8a7a',TT('edge splitting','краевое расщепление','Randaufspaltung')); leg('#c79bff','E(S^z=2) − E(S^z=1)'); }
+  else { leg('#ffd27a',TT('Δ(L) · 3-par. fit','Δ(L) · 3-парам.','Δ(L) · 3-Param.')); leg('rgba(199,155,255,0.85)',TT('fit, ξ = 6.0 fixed','подгонка, ξ = 6,0','Fit, ξ = 6,0 fest')); } }
+function hgPanelHTML(){ const P=hgParams(), chip=(on,attr,val,txt)=>`<button class="chip ${on?'on':''}" ${attr}="${val}">${txt}</button>`;
+  const row=(tag,col,txt)=>`<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0"><span style="flex:0 0 auto;font:700 9.5px var(--sans);letter-spacing:.6px;padding:2px 6px;border-radius:999px;border:1px solid ${col};color:${col}">${tag}</span><span style="font-size:11.5px">${txt}</span></div>`;
+  const sl=(id,lab,min,max,step,val,shown,extra)=>`<div class="ctlrow"><label>${lab}</label><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${val}" ${extra||''}><span class="val" id="${id}V">${shown}</span></div>`;
+  return `<div class="sect"><b>${TT('The Haldane gap — spin-one rings diagonalised exactly, the AKLT valence bonds, and a gap claimed to stay open','Щель Холдейна — точная диагонализация колец спинов 1, валентные связи AKLT и щель, которая, как заявлено, не закрывается','Die Haldane-Lücke — Spin-1-Ringe exakt, AKLT-Valenzbindungen, die beanspruchte offene Lücke')}</b>
+    <div class="note">${TT('Family 268 (openai/math, 2026) claims the spin-one Heisenberg ring keeps a uniformly positive gap as it grows (Haldane’s conjecture). Exact diagonalisation here, L ≤ 12, H = J Σ [S·S + β (S·S)²] (β = 0 Heisenberg, 1/3 AKLT): singlet ribbons lit by ⟨S_i·S_{i+1}⟩, arcs ⟨S_{i₀}·S_j⟩ (green +, violet −), coral arrows the lowest triplet (momentum π).','Семейство 268 (openai/math, 2026) заявляет, что у кольца Гейзенберга спинов 1 щель остаётся равномерно положительной при его росте (гипотеза Холдейна). Здесь точная диагонализация, L ≤ 12, H = J Σ [S·S + β (S·S)²] (β = 0 — Гейзенберг, 1/3 — AKLT): синглетные ленты с яркостью ⟨S_i·S_{i+1}⟩, дуги ⟨S_{i₀}·S_j⟩ (зелёные +, фиолетовые −), коралловые стрелки — нижний триплет (импульс π).','Familie 268 beansprucht eine gleichmäßig positive Lücke des Spin-1-Heisenberg-Rings (Haldane). Hier exakt, L ≤ 12: Bänder ⟨S_i·S_{i+1}⟩, Bögen ⟨S_{i₀}·S_j⟩, Pfeile = tiefstes Triplett.')}</div>
+    <div class="chips">${HG_LS.map(L=>chip(P.L===L,'data-hgl',L,'L = '+L)).join('')}</div>
+    ${sl('hgBeta','β (S·S)²',-0.5,1,0.01,P.beta,hgBetaTxt(P.beta),'list="hgBetaTicks"')}<datalist id="hgBetaTicks"><option value="-0.5"></option><option value="0"></option><option value="0.3333"></option><option value="1"></option></datalist>
+    <div class="chips">${chip(P.beta===0,'data-hgb','0',TT('β = 0 · Heisenberg','β = 0 · Гейзенберг','β = 0 · Heisenberg'))}${chip(hgIsAklt(P.beta),'data-hgb','aklt','β = 1/3 · AKLT')}<button class="chip ${P.open?'on':''}" id="hgBc">${P.open?TT('⌒ open chain','⌒ открытая цепочка','⌒ offene Kette'):TT('◯ periodic ring','◯ периодическое кольцо','◯ periodischer Ring')}</button><button class="chip ${P.paused?'on':''}" id="hgPause">${P.paused?'▶':'⏸'}</button></div>
+    ${sl('hgSite',TT('site i₀ of the arcs','узел i₀ для дуг','Platz i₀ der Bögen'),0,P.L-1,1,P.site,String(P.site))}
+    ${sl('hgSpeed',TT('speed','скорость','Tempo'),0,4,0.05,P.speed,P.speed.toFixed(2))}
+    <canvas id="hgPlot" width="300" height="150" style="width:100%;max-width:340px;height:auto;margin:4px 0;background:rgba(8,12,26,.6);border-radius:8px"></canvas>
+    <div class="note" id="hgRead" style="font-variant-numeric:tabular-nums;font-size:11px">${hgReadHTML()}</div></div>
+    <div class="sect"><b>${TT('What is claimed, what is a theorem, what is measured here','Что заявлено, что является теоремой, что измерено здесь','Was behauptet, was bewiesen, was hier gemessen ist')}</b>
+    ${row(TT('CLAIMED · 268','ЗАЯВЛЕНО · 268','BEHAUPTET · 268'),'#c79bff',TT('openai/math family 268 (not Lean-linked in the catalogue) claims: on even periodic rings the pure spin-one antiferromagnetic Heisenberg chain has a gap uniformly positive in L. A companion claims a gap for odd open chains with endpoint field h = 3/5 and boundary-selected states of topological index −1 (not computed here).','Семейство 268 openai/math (в каталоге без ссылки на Lean) заявляет: на чётных периодических кольцах у чистой антиферромагнитной цепочки Гейзенберга спинов 1 щель равномерно положительна по L. Сопутствующая работа заявляет щель для нечётных открытых цепочек с полем на концах h = 3/5 и выбранные границей состояния топологического индекса −1 (здесь не вычисляется).','Familie 268 (nicht Lean-verknüpft): gleichmäßig positive Lücke auf geraden Ringen; Begleittext: ungerade offene Ketten, Randfeld h = 3/5, Index −1 (hier nicht berechnet).'))}
+    ${row(TT('THEOREMS','ТЕОРЕМЫ','SÄTZE'),'#7fe0a6',TT('AKLT (1987): H = Σ [S·S + (1/3)(S·S)²] has an exact valence-bond ground state (−2/3 per bond, string order −4/9) and a proven gap. Lieb–Schultz–Mattis (1961; Affleck–Lieb 1986): half-integer chains are gapless or degenerate; integer spin escapes. Haldane (1983) predicted the integer-spin gap (Nobel prize 2016); for the Heisenberg chain itself it is unproved outside the claim.','AKLT (1987): у H = Σ [S·S + (1/3)(S·S)²] точное основное состояние из валентных связей (−2/3 на связь, струнный порядок −4/9) и доказанная щель. Либ–Шульц–Маттис (1961; Аффлек–Либ 1986): цепочки полуцелых спинов бесщелевые или вырождены; целый спин под теорему не подпадает. Холдейн (1983) предсказал щель целого спина (Нобелевская премия 2016); для самой цепочки Гейзенберга она вне заявления не доказана.','AKLT (1987): exakter Valenzbindungszustand (−2/3 pro Bindung, String-Ordnung −4/9), Lücke bewiesen. Lieb–Schultz–Mattis: halbzahlige Ketten lückenlos oder entartet. Haldane (1983): Vorhersage (Nobelpreis 2016); für Heisenberg unbewiesen.'))}
+    ${row(TT('MEASURED','ИЗМЕРЕНО','GEMESSEN'),'#9fd8ff',TT('Lanczos with full reorthogonalisation in the S^z = 0, 1 sectors (open chains also 2), L ≤ 12 (73 789 states at L = 12). AKLT: −2/3 per bond to 10⁻¹⁴. Heisenberg rings: Δ(L) falls from 1 (L = 4) to 0.4842 J (L = 12); the fits in the readout are reported, not trusted.','Ланцош с полной реортогонализацией в секторах S^z = 0, 1 (у открытых цепочек и 2), L ≤ 12 (73 789 состояний при L = 12). AKLT: −2/3 на связь до 10⁻¹⁴. Кольца Гейзенберга: Δ(L) падает от 1 (L = 4) до 0,4842 J (L = 12); подгонки в сводке сообщаются, но им не доверяют.','Lanczos, S^z = 0, 1 (offen auch 2), L ≤ 12. AKLT: −2/3 pro Bindung auf 10⁻¹⁴. Heisenberg: Δ(L) von 1 (L = 4) auf 0,4842 J (L = 12); Fits nur berichtet.'))}
+    ${row(TT('SCOPE','ГРАНИЦЫ','GRENZEN'),'#ff8a7a',TT('Finite rings cannot prove a uniform gap: twelve sites are about two correlation lengths, and Δ∞ depends on the form fitted. Literature values (Δ∞ ≈ 0.41048 J, ξ ≈ 6.03, E₀/L ≈ −1.401484; DMRG and quantum Monte Carlo, White–Huse 1993 and later) are cited, never computed here.','Конечные кольца не доказывают равномерную щель: двенадцать узлов — около двух корреляционных длин, и Δ∞ зависит от формы подгонки. Литературные значения (Δ∞ ≈ 0,41048 J, ξ ≈ 6,03, E₀/L ≈ −1,401484; DMRG и квантовый Монте-Карло, Уайт–Хьюз 1993 и позже) цитируются, а не вычисляются здесь.','Endliche Ringe beweisen keine gleichmäßige Lücke. Literaturwerte (Δ∞ ≈ 0,41048 J, ξ ≈ 6,03, E₀/L ≈ −1,401484; White–Huse 1993 u. a.) zitiert, nie berechnet.'))}</div>`; }
+function hgBind(root){ const R=root||ctl, q=s=>R.querySelector(s);
+  R.querySelectorAll('[data-hgl]').forEach(b=>b.onclick=()=>{ state.hgL=+b.dataset.hgl; state.hgSite=Math.min(Math.round(+state.hgSite||0),state.hgL-1); buildCtl(); });
+  R.querySelectorAll('[data-hgb]').forEach(b=>b.onclick=()=>{ state.hgBeta=b.dataset.hgb==='aklt'?1/3:+b.dataset.hgb; buildCtl(); });
+  const bc=q('#hgBc'); if(bc) bc.onclick=()=>{ state.hgOpen=!state.hgOpen; buildCtl(); };
+  const pz=q('#hgPause'); if(pz) pz.onclick=()=>{ state.hgPaused=!state.hgPaused; buildCtl(); };
+  /* β is applied on release (each value is a new computation); the AKLT point snaps to exactly 1/3 */
+  const snap=v=>Math.abs(v-1/3)<0.006?1/3:Math.abs(v)<0.004?0:v, be=q('#hgBeta');
+  if(be){ be.oninput=e=>{ const o=q('#hgBetaV'); if(o) o.textContent=hgBetaTxt(snap(+e.target.value)); }; be.onchange=e=>{ state.hgBeta=snap(+e.target.value); buildCtl(); }; }
+  const live=(id,key,fmt)=>{ const el=q('#'+id); if(!el) return; el.oninput=e=>{ state[key]=+e.target.value; const o=q('#'+id+'V'); if(o) o.textContent=fmt(+e.target.value); }; };
+  live('hgSite','hgSite',v=>String(v)); live('hgSpeed','hgSpeed',v=>v.toFixed(2));
+  const cv=q('#hgPlot'); if(cv) hgPlot(cv); }
+
 /* ══ THE ANATOMY OF A FORCED BLOW-UP ═════════════════════════════════════════════════════════════════════════
    What the September 2026 constructions published, and what follows from it by arithmetic alone. OpenAI’s forced
    Navier–Stokes blow-up (announced 8 September 2026; Lean-certified by its own account; not accepted by the Clay
@@ -64006,7 +64422,7 @@ const FORMULA_KATEX_MACROS={'\\dd':'\\mathrm{d}','\\cL':'\\mathcal{L}','\\cK':'\
 /* which laboratory computes what: matched on the section a formula sits in (and its own text) */
 const FORMULA_LAB_LINKS=Object.freeze([
   [/Killing|Beltrami|Киллинг|бельтрам|Бельтрам/,'s3kb'],[/Hopf|Хопф|filament|нит[иья]|J-пар/,'s3lock'],[/Casimir|Казимир|Stokes dissipation|shell|оболоч|cascade|каскад/,'nsgal'],
-  [/exact viscous|nonstationary|Точн|exact solution/i,'nsflow'],[/Clifford|клиффорд|maximal-torus|тор/,'tri'],[/Mellin|swirl|type-II|type II|similarity|автомодел/i,'nsblow'],[/Turing|halting|undecidab|fluid computer|жидк\S* компьютер|остановк/i,'nscomp'],[/self-avoiding|SLE|Schramm|Loewner|percolation|перколяц|самоизбега|Лёвнер/i,'ccurve'],[/openai\/math|frontier|фронтир|open problem|открыт\S* проблем/i,'frontier'],
+  [/exact viscous|nonstationary|Точн|exact solution/i,'nsflow'],[/Clifford|клиффорд|maximal-torus|тор/,'tri'],[/Mellin|swirl|type-II|type II|similarity|автомодел/i,'nsblow'],[/Turing|halting|undecidab|fluid computer|жидк\S* компьютер|остановк/i,'nscomp'],[/self-avoiding|SLE|Schramm|Loewner|percolation|перколяц|самоизбега|Лёвнер/i,'ccurve'],[/openai\/math|frontier|фронтир|open problem|открыт\S* проблем/i,'frontier'],[/Haldane|AKLT|spin.one|спин.один|Холдейн/i,'haldane'],
   [/resonan|резонанс|averaging|усреднен/i,'strobe'],[/Spin\(4\)|Clebsch|representation|представлен/,'su2'],[/spectral|спектр|Laplac/i,'s3gamma']]);
 let FORMULA_ATLAS=null, FORMULA_LOADING=null;
 function formulaAtlasLoad(){ if(FORMULA_ATLAS) return Promise.resolve(FORMULA_ATLAS); if(FORMULA_LOADING) return FORMULA_LOADING;
@@ -77025,6 +77441,22 @@ try{ hccApiRegister({
     return {machine_steps:R.steps, recorder_transitions:R.micro.length, exact_transitions:A.exact, law_misses:R.counts.filter(c=>c.measured!==c.law).length, halting_period:E.enterPeriod>=0?E.enterPeriod+2:-1, max_x_before:E.maxXBefore, convective_residual:F.conv, ns_residual:F.res, period_map_error:P.err}; }
 }); }catch(e){ console.warn('nscomp contract',e); }
 try{ hccApiRegister({
+  id:'haldane', world:'s3', lab:'haldane',
+  title:['The Haldane gap · exact spin-one rings','Щель Холдейна · точные кольца спина один','Die Haldane-Lücke · exakte Spin-1-Ringe'],
+  status:'EXACT diagonalization (Lanczos with full reorthogonalization, checked against dense Jacobi) of finite rings; the uniform gap is the claim of openai/math family 268, not established here.',
+  verifiers:['docs/verify-the-haldane-gap.mjs'],
+  formulas:['H_β = J Σ [S_i·S_{i+1} + β (S_i·S_{i+1})²]','S·S = [S_tot(S_tot+1) − 4]/2','β = 1/3: E₀ = −2L/3, string order −4/9','Δ(L) = E₀(S^z=1) − E₀(S^z=0)','Δ∞ ≈ 0.41048 J (literature)'],
+  inputs:[{name:'ring_size', type:'number', unit:'1', quantity_kind:'count', default:()=>8, min:4, max:10, doc:['the even ring length L (4 … 10 here; 12 in the laboratory)','чётная длина кольца L (4 … 10 здесь; 12 в лаборатории)','die Ringlänge L']},
+    {name:'biquadratic', type:'number', unit:'1', quantity_kind:'ratio', default:()=>0, min:-0.5, max:1, doc:['β of the biquadratic term (1/3 = AKLT)','β биквадратичного члена (1/3 = AKLT)','β (1/3 = AKLT)']}],
+  outputs:[{name:'haldane_gap', unit:'1', quantity_kind:'ratio', doc:['the gap to the lowest triplet, in units of J','щель до нижнего триплета в единицах J','die Lücke in J']},
+    {name:'energy_per_site', unit:'1', quantity_kind:'ratio', doc:['E₀/L in units of J','E₀/L в единицах J','E₀/L']},
+    {name:'string_order', unit:'1', quantity_kind:'ratio', doc:['the den Nijs–Rommelse string order at distance L/2','струнный порядок ден Нейса–Роммельсе на расстоянии L/2','String-Ordnung']},
+    {name:'bond_correlation', unit:'1', quantity_kind:'ratio', doc:['⟨S₀·S₁⟩ in the ground state','⟨S₀·S₁⟩ в основном состоянии','⟨S₀·S₁⟩']}],
+  refusals:[['Finite rings cannot prove a uniform gap; the extrapolated value depends on the fitted form, and the literature numbers are cited, not reproduced.','Конечные кольца не доказывают равномерную щель; экстраполированное значение зависит от формы аппроксимации, а литературные числа приведены, а не воспроизведены.','Endliche Ringe beweisen keine gleichmäßige Lücke.']],
+  evaluate(inp){ const L=Math.max(4,Math.min(10,2*Math.round((+inp.ring_size||8)/2))), b=Math.max(-0.5,Math.min(1,+inp.biquadratic||0)), o=hgStudy(L,b,true);
+    return {haldane_gap:o.gap, energy_per_site:o.e0, string_order:o.string, bond_correlation:o.nn}; }
+}); }catch(e){ console.warn('haldane contract',e); }
+try{ hccApiRegister({
   id:'ccurve', world:'s3', lab:'ccurve',
   title:['Critical curves · SAW, loop-erased walk, percolation, SLE','Критические кривые · SAW, стёртое блуждание, перколяция, SLE','Kritische Kurven · SAW, LERW, Perkolation, SLE'],
   status:'MEASURED (openai/math families 237 and 230, 2026): exponents of three lattice curves by Monte Carlo with fixed seeds, the connective constant from exact counts; the theorems are the manuscripts\u2019 and the classical ones cited, the numbers are evidence, not proof.',
@@ -86139,6 +86571,7 @@ const NEXUS_RELATIONS=[
   ['nsblow','nsflow','contrast','the exact solution cannot do what the forced core does','On S³ the exact family keeps its energy in one curl shell and its circulation fixed; the forced core must grow its circulation as τ^{−h} — the one thing a solution without a force cannot do, by the swirl maximum principle.','physics-contrast'],
   ['nsblow','nsgal','contrast','a truncation caps what the collapse needs','Every Galerkin truncation keeps E bounded and a finite top wavenumber, so its Reynolds number is capped; the forced collapse needs Re ∝ τ^{−h} → ∞ — the reason nothing in the hundred-mode fluid bears on blow-up.','regime-contrast'],
   ['ccurve','anyon','exact','the interfaces of a conformal theory are SLE_κ with c = (8 − 3κ)(κ − 6)/(2κ)','Critical Ising interfaces converge to SLE₃ (Smirnov 2010; Chelkak–Smirnov), and c(3) = 1/2 is the Ising central charge in the anyon laboratory\u2019s list of models; the self-avoiding walk (κ = 8/3) and percolation (κ = 6) are the two c = 0 theories of the same formula.','theorem'],
+  ['haldane','su2','exact','two spins one make 0 ⊕ 1 ⊕ 2','The bond operator of the chain is fixed by SU(2): two spin-1 sites decompose into total spin 0, 1, 2 with S·S = −2, −1, +1, and the AKLT interaction S·S + (S·S)²/3 is 2P₂ − 2/3, the projector onto spin 2 — representation theory of the SU(2) laboratory, used exactly.','theorem'],
   ['ccurve','kin','contrast','κ is a diffusion constant','The driving function of SLE_κ is a Brownian motion with ⟨W²⟩ = κt — the diffusion of kinetic theory with κ in the place of 2D; the loop-erased walk is the random walk of the same diffusion with its loops erased, and erasing them takes the dimension of the path from 2 to 5/4.','physics-contrast'],
   ['nscomp','nsflow','contrast','a force can make the flow compute; the exact solution cannot','The exact solution of S³ is one closed formula with energy in one curl shell; the forced torus flow of family 376 encodes a Turing machine in where one particle goes — its force is ∂ₜV − νΔV because every stage is transverse to its own variation, so the pressure is zero.','physics-contrast'],
   ['nscomp','act','analogy','contact geometry already computed on S³','Cardona, Miranda, Peralta-Salas and Presas built Turing-complete stationary Euler flows on an adapted S³ from Reeb fields of contact forms — Beltrami fields of the kind the contact laboratory draws; the forced construction keeps the flat metric fixed and puts the machine into the force instead.','structural-analogy'],
@@ -88240,7 +88673,7 @@ function scientificViewReady(v){
    camera, MULTIVIEW uses it to give every tile its own correct scale under a shared
    orientation — laboratories differ in size by more than an order of magnitude, so a
    literally identical camera would show four wrong pictures. */
-function s3ViewPreset(v){ return v==='frontier'?[0.0,2.4,14.8]:v==='ccurve'?[0.4,5.4,11.0]:v==='nscomp'?[0.4,5.6,16.5]:v==='unify'?[0.4,1.8,13.5]:v==='nbg'?(state.nbgStation==='links'?[0.8,2.2,14.5]:state.nbgStation==='twistor'?[0,1.0,14.5]:state.nbgStation==='kerr'?[2.0,3.2,12.5]:[0.6,1.6,16.5]):v==='gmode'?[0.6,1.6,15.5]:v==='omnistrobe'?[0.2,1.0,21.5]:v==='triad'?[0.3,1.4,21.5]:v==='vstretch'?[3.0,0.8,17.5]:v==='formulas'?[0,5.5,19.5]:v==='strobe'?[2.2,1.0,20.5]:v==='nsblow'?[1.2,0.2,19.5]:v==='nsgal'?[1.4,0.6,13.6]:v==='tri'?[0,2.6,11.8]:v==='s3gamma'?[0,2.2,10.5]:v==='discover'?[0,2.4,11.5]:v==='lgmerge'?[0,5.5,10.5]:v==='nsflow'?[1.5,0.6,12.4]:v==='bbh'?[0,9.5,15.5]:v==='he3'?[0,2.2,10.4]:v==='nuosc'?[0,1.2,13.2]:v==='adisk'?[0,4.2,11.5]:v==='elens'?[3.2,2.4,11.5]:v==='emb'?[1.8,.6,12.6]:v==='civplock'?[0,.6,11.2]:v==='civpcut'?[0,.4,13.2]:v==='civpidx'?[1.2,1.3,15.2]:v==='civpa4'?[0,-.8,14.6]:v==='civpsel'?[6.4,5.4,12.4]:v==='civpcar'?[1.5,-.4,13.6]:v==='civpclo'?[.6,.3,13.2]:v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='cps'?[0,1.6,8.6]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='leech'?[0,-0.2,13.8]:v==='scales'?[0,0.35,13.8]:v==='osc'?[0,0.2,12.6]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:v==='cosmicweb'?[0,.8,12.8]:v==='s3shell'?[0,.4,12.6]:v==='s3torus'?[0,-.3,13.2]:v==='s3tube'?[0,-.25,13.8]:v==='s3escape'?[0,.2,13.4]:v==='s3kb'?[0,.35,12.6]:v==='s3lock'?[0,.15,16.4]:[0,8,17]; }
+function s3ViewPreset(v){ return v==='haldane'?[0.8,5.6,12.6]:v==='frontier'?[0.0,2.4,14.8]:v==='ccurve'?[0.4,5.4,11.0]:v==='nscomp'?[0.4,5.6,16.5]:v==='unify'?[0.4,1.8,13.5]:v==='nbg'?(state.nbgStation==='links'?[0.8,2.2,14.5]:state.nbgStation==='twistor'?[0,1.0,14.5]:state.nbgStation==='kerr'?[2.0,3.2,12.5]:[0.6,1.6,16.5]):v==='gmode'?[0.6,1.6,15.5]:v==='omnistrobe'?[0.2,1.0,21.5]:v==='triad'?[0.3,1.4,21.5]:v==='vstretch'?[3.0,0.8,17.5]:v==='formulas'?[0,5.5,19.5]:v==='strobe'?[2.2,1.0,20.5]:v==='nsblow'?[1.2,0.2,19.5]:v==='nsgal'?[1.4,0.6,13.6]:v==='tri'?[0,2.6,11.8]:v==='s3gamma'?[0,2.2,10.5]:v==='discover'?[0,2.4,11.5]:v==='lgmerge'?[0,5.5,10.5]:v==='nsflow'?[1.5,0.6,12.4]:v==='bbh'?[0,9.5,15.5]:v==='he3'?[0,2.2,10.4]:v==='nuosc'?[0,1.2,13.2]:v==='adisk'?[0,4.2,11.5]:v==='elens'?[3.2,2.4,11.5]:v==='emb'?[1.8,.6,12.6]:v==='civplock'?[0,.6,11.2]:v==='civpcut'?[0,.4,13.2]:v==='civpidx'?[1.2,1.3,15.2]:v==='civpa4'?[0,-.8,14.6]:v==='civpsel'?[6.4,5.4,12.4]:v==='civpcar'?[1.5,-.4,13.6]:v==='civpclo'?[.6,.3,13.2]:v==='nexus'?[0,1.5,20.5]:v==='nul'?[0,1.15,10.4]:v==='act'?[0,1.1,10.35]:v==='hol'?[0,1.1,10.25]:v==='syd'?[0,1.15,10.2]:v==='hopf'?[0,5,18]:v==='lab'?[0,6,17]:v==='bell'?[0,4,15]:v==='drd'?[0,.45,10.8]:v==='sel'?[0,5,26]:v==='hopfion'?[0,3,11]:v==='skyrmion'?[0,15,8]:v==='grav'?[0,8,12]:v==='qm'?[0,4.5,12]:v==='qcd'?[0,3,9.5]:v==='topo'?[0,4,11]:v==='sc'?[0,3.5,10.5]:v==='taub'?[0,4,11]:v==='eot'?[2,3.5,9.5]:v==='wave'?[0,6.5,10.5]:v==='spin'?[0,0,7.2]:v==='rel'?[0,0,8.5]:v==='chaos'?[0,3,10]:v==='kin'?[0,0,11]:v==='sh'?[0,0,7]:v==='kdv'?[3.5,4,9.5]:v==='ret'?[1.6,0.8,9.5]:v==='dip'?[0,0,7.5]:v==='cp'?[0,1,9]:v==='rd'?[0,0,7]:v==='he'?[4.5,3,7.5]:v==='bb'?[4,3,9]:v==='nuc'?[4.5,4,8]:v==='lens'?[3.5,3,9]:v==='te'?[0,0,9]:v==='gw'?[0,0.6,9]:v==='pv'?[4.5,3.5,8]:v==='su2'?[0,0,9]:v==='bht'?[0,0,9.5]:v==='rpd'?[0,0.8,11.5]:v==='imp'?[0,2.4,10.5]:v==='pole'?[0,2.2,10]:v==='disp'?[0,0.6,11]:v==='berry'?[0,1.2,9.5]:v==='cusp'?[0,1.5,8.5]:v==='kam'?[0,1.4,8.5]:v==='rsh'?[0,3.2,9.2]:v==='and'?[0,0.6,9.5]:v==='psp'?[0,1.6,10.4]:v==='dfx'?[0,2.2,8.2]:v==='noe'?[0,1.4,8.8]:v==='cau'?[0,2.0,8.4]:v==='wil'?[0,1.2,8.0]:v==='gate'?[0,0.4,9.4]:v==='cps'?[0,1.6,8.6]:v==='poin'?[0,1.0,8]:v==='qcrys'?[1.2,1.0,10]:v==='leech'?[0,-0.2,13.8]:v==='scales'?[0,0.35,13.8]:v==='osc'?[0,0.2,12.6]:v==='cmb'?[0,.35,10.4]:v==='mimg'?[0,0,9]:v==='bhr'?[0,3,16]:v==='ns'?[0,0.5,9]:v==='sn'?[0,0.5,9.5]:v==='psr'?[0,0.8,9.5]:v==='qso'?[3,2.5,9]:v==='rmhd'?[0,.35,10.6]:v==='wd'?[0,.45,9.8]:v==='cosmicweb'?[0,.8,12.8]:v==='s3shell'?[0,.4,12.6]:v==='s3torus'?[0,-.3,13.2]:v==='s3tube'?[0,-.25,13.8]:v==='s3escape'?[0,.2,13.4]:v==='s3kb'?[0,.35,12.6]:v==='s3lock'?[0,.15,16.4]:[0,8,17]; }
 function scientificCameraPreset(v){const p=s3ViewPreset(v);if(typeof innerWidth==='undefined'||innerWidth>760||!['nexus','nul','act','hol','syd','civplock','civpcut','civpidx','civpa4','civpsel','civpcar','civpclo'].includes(v))return p;const k=v==='nexus'?1.55:1.38;return [p[0],p[1]*.84,p[2]*k];}
 /* Visibility-only projection of a view id onto the scene graph. setS3View() calls it
    once; MULTIVIEW calls it per tile, between render passes, so four laboratories can
@@ -88380,6 +88813,7 @@ function s3ViewVisibility(v){
   nscGroup.visible = (v==='nscomp');
   ccGroup.visible = (v==='ccurve');
   foGroup.visible = (v==='frontier');
+  hgGroup.visible = (v==='haldane');
   strobeGroup.visible = (v==='strobe');
   vdmGroup.visible = (v==='vstretch');
   triadGroup.visible = (v==='triad');
@@ -88518,6 +88952,7 @@ function setS3View(v,opt={}){
     if(v==='nscomp'&&!nscObjs){ nscSetup(); }
     if(v==='ccurve'&&!ccObjs){ ccSetup(); }
     if(v==='frontier'&&!foObjs){ foSetup(); }
+    if(v==='haldane'&&!hgObjs){ hgSetup(); }
     if(v==='strobe'&&!strobeObjs){ strobeSetup(); }
     if(v==='vstretch'&&!vdmObjs){ vdmSetup(); }
     if(v==='triad'&&!triadObjs){ triadSetup(); }
@@ -89066,6 +89501,7 @@ const MV_SYNC_SPEC={
   nscomp:{speed:['nscSpeed',1.2], pause:['nscPaused','p']},
   ccurve:{speed:['ccSpeed',1], pause:['ccPaused','p']},
   frontier:{speed:['foSpeed',0.35], pause:['foPaused','p']},
+  haldane:{speed:['hgSpeed',1], pause:['hgPaused','p']},
   strobe:{speed:['strobeSpeed',1], pause:['strobePaused','p'], shell:['strobeK',1,9]},
   tri:{speed:['triSpeed',1], pause:['triPaused','p']},
   triad:{speed:['triadRate',5]},
@@ -101010,7 +101446,7 @@ const LAB_CHAPTERS=Object.freeze({
   navier:['nsflow','nsgal','triad','vstretch','nsblow','nscomp','strobe','omnistrobe','s3shell','s3kb','s3tube','s3torus','s3lock','formulas'],
   s3light:['gmode','nbg','unify','tri','hopf','s3gamma','discover'],
   /* v4.380: the frontier — the openai/math collection as a sky, and the laboratories that run its claims live */
-  frontier:['frontier','ccurve'],
+  frontier:['frontier','haldane','ccurve'],
   /* v4.376: nine laboratories that are not models of nature but of ARGUMENTS — the seven stations of the CIVP locking
      chain and the two capacity instruments of the FBS3R programme — were scattered through "dynamics" and "quantum"
      under names nobody could read. They are one chapter now, numbered in the order the argument runs, and the chapter
@@ -105625,6 +106061,7 @@ function buildCtlBody(){
     else if(V==='nscomp') body = nscPanelHTML();
     else if(V==='ccurve') body = ccPanelHTML();
     else if(V==='frontier') body = foPanelHTML();
+    else if(V==='haldane') body = hgPanelHTML();
     else if(V==='triad') body = (()=>{ const P=triadParams(), O=triadObjs, C=triadCensusCached(), R=TRIAD_CROWDS.get(triadCrowdKey()), pick=O&&O.pick;
       const tagCol={split:'#ffc65a', forward:'#5ac8ff', rotor:'#9aa4b2', forbidden:'#ff6a5a'}, tagTxt={split:TT('splits','делит','teilt'), forward:TT('forward','вперёд','vorwärts'), rotor:TT('rotor','ротор','Rotor'), forbidden:TT('forbidden','запрещена','verboten')};
       const row=(tag,col,txt)=>`<div style="display:flex;gap:6px;align-items:flex-start;margin:3px 0"><span style="flex:0 0 auto;font:700 9.5px var(--sans);letter-spacing:.6px;padding:2px 6px;border-radius:999px;border:1px solid ${col};color:${col}">${tag}</span><span style="font-size:11.5px;line-height:1.45">${txt}</span></div>`;
@@ -108909,6 +109346,7 @@ function buildCtlBody(){
     if(V==='nscomp'){ nscBind(ctl); }
     if(V==='ccurve'){ ccBind(ctl); }
     if(V==='frontier'){ foBind(ctl); }
+    if(V==='haldane'){ hgBind(ctl); }
     if(V==='triad'){
       ctl.querySelectorAll('[data-triadgo]').forEach(b=>b.onclick=()=>{ try{ navPush(); }catch(e){} hccGo({worldId:'s3',labId:b.dataset.triadgo}); });
       ctl.querySelectorAll('[data-triadt]').forEach(b=>b.onclick=()=>{ state.triadT=b.dataset.triadt; triadObjs=null; buildCtl(); });
@@ -112813,6 +113251,7 @@ function toolsDefs(){ const click=id=>()=>{ const b=document.getElementById(id);
       ['⬡',TT('The Trisphere','Трисфера','Die Trisphäre'),()=>{ try{ hccGo({worldId:'s3',labId:'tri'}); }catch(e){} }],
       ['🌀',TT('Navier–Stokes on S³, integrated','Навье–Стокс на S³, проинтегрированный','Navier–Stokes auf S³, integriert'),()=>{ try{ hccGo({worldId:'s3',labId:'nsflow'}); }catch(e){} }],
       ['🌀',TT('The fluid of the three-sphere','Жидкость трёхсферы','Die Flüssigkeit der Dreisphäre'),()=>{ try{ hccGo({worldId:'s3',labId:'nsgal'}); }catch(e){} }],
+      ['⚛',TT('The Haldane gap — exact spin-one rings','Щель Холдейна — точные кольца спина один','Die Haldane-Lücke — exakte Spin-1-Ringe'),()=>{ try{ hccGo({worldId:'s3',labId:'haldane'}); }catch(e){} }],
       ['✦',TT('The Frontier Observatory — openai/math as one sky','Обсерватория фронтира — openai/math одним небом','Das Frontier-Observatorium — openai/math als ein Himmel'),()=>{ try{ hccGo({worldId:'s3',labId:'frontier'}); }catch(e){} }],
       ['⬡',TT('Critical curves — the walk that avoids itself and the exact gauge of SLE','Критические кривые — самоизбегающее блуждание и точная калибровка SLE','Kritische Kurven — der selbstmeidende Pfad und die exakte SLE-Eichung'),()=>{ try{ hccGo({worldId:'s3',labId:'ccurve'}); }catch(e){} }],
       ['⌬',TT('The fluid computer — Navier–Stokes that decides halting','Жидкий компьютер — Навье–Стокс, решающий проблему остановки','Der Flüssigkeitsrechner — Navier–Stokes entscheidet das Halten'),()=>{ try{ hccGo({worldId:'s3',labId:'nscomp'}); }catch(e){} }],
@@ -120054,6 +120493,8 @@ function tickBody(now, frame){
       fbsAnimT+=labDt; updateUnify(labDt);
     } else if(state.s3view==='nbg'){
       fbsAnimT+=labDt; updateNbg(labDt);
+    } else if(state.s3view==='haldane'){
+      fbsAnimT+=labDt; updateHg(labDt);
     } else if(state.s3view==='frontier'){
       fbsAnimT+=labDt; updateFo(labDt);
     } else if(state.s3view==='ccurve'){
@@ -120294,6 +120735,7 @@ const LAB_ATLAS_DEFS=[
   ['s3shellAtlas','s3shell',s3shellGroup,'S³ curl-shell and Beltrami laboratory','signed curl eigenspaces built from harmonic polynomials on S³ ⊂ ℍ, with the exact Beltrami amplitude law and the sharp finite-band projector constants measured rather than quoted'],
   ['s3torusAtlas','s3torus',s3torusGroup,'S³ maximal-torus laboratory','the complete two-scalar invariant family, its Jacobi diagonalisation, the pressure that absorbs the whole nonlinearity and the chiral identity that lands mode n in curl shell 2n'],
   ['nsgAtlas','nsgal',nsgGroup,'The fluid of the three-sphere','Navier–Stokes solved in the Spin(4) curl shells: a hundred modes exchanging energy through the Lamb vector, drawn in the trisphere\u2019s four-dimensional turn with its streamlines and tracers, beside the phase space of the invariants and the rigid rotation it must end in'],
+  ['hgAtlas','haldane',hgGroup,'The Haldane gap','Family 268 of the openai/math collection (2026): the spin-one Heisenberg ring diagonalized exactly up to L = 12, the AKLT valence-bond picture with its exact string order, and the gap extrapolated against the literature — finite rings, the claim stated as a claim'],
   ['foAtlas','frontier',foGroup,'The Frontier Observatory','The openai/math collection (2026) as one sphere: 372 result families in 17 subject constellations, gold where the catalogue links a Lean formalization, the famous open problems it claims to settle haloed, the ones this atlas runs live one click away — claims kept as claims'],
   ['ccAtlas','ccurve',ccGroup,'Critical curves','Families 237 and 230 of the openai/math collection (2026): the honeycomb self-avoiding walk by the pivot algorithm, the loop-erased walk, the percolation exploration path and SLE_κ by the zipper — their measured dimensions on the line d = 1 + κ/8, every curve liftable by its own time'],
   ['nscAtlas','nscomp',nscGroup,'The fluid computer','Family 376 of the openai/math collection (2026): a forced viscous flow on the flat three-torus in which one particle enters one strip exactly when a Turing machine halts — the reversible recorder, the exact radix code of every configuration, and the seven-stage shear period whose pressure is zero'],
@@ -120457,6 +120899,7 @@ const LAB_DESC_I18N={
   s3shell:'знаковые вихревые оболочки, построенные из гармонических многочленов на S³ ⊂ ℍ, с точным законом затухания Бельтрами и острыми константами проектора конечной полосы',
   s3torus:'полное двухскалярное инвариантное семейство, его диагонализация Якоби, давление, поглощающее всю нелинейность, и хиральное тождество, помещающее моду n в вихревую оболочку 2n',
   nsgal:'жидкость трёхсферы — Навье–Стокс в оболочках ротора Spin(4): сотня мод обменивается энергией через вектор Лэмба, в четырёхмерном повороте трисферы, рядом — фазовое пространство инвариантов и жёсткое вращение, в котором она обязана закончить',
+  haldane:'щель Холдейна — семейство 268 коллекции openai/math (2026): кольцо Гейзенберга спина один, точно диагонализованное до L = 12, картина валентных связей AKLT с точным струнным порядком и экстраполяция щели — конечные кольца, заявление остаётся заявлением',
   frontier:'обсерватория фронтира — коллекция openai/math (2026) одной сферой: 372 семейства результатов в 17 созвездиях разделов, золото там, где каталог ссылается на формализацию в Lean, знаменитые открытые проблемы, которые она заявляет решёнными, в ореолах, те, что атлас запускает вживую, — в один клик; заявления остаются заявлениями',
   ccurve:'критические кривые — семейства 237 и 230 коллекции openai/math (2026): самоизбегающее блуждание на сотах (пивот-алгоритм), стёртое блуждание, путь перколяционного исследователя и SLE_κ — их измеренные размерности на прямой d = 1 + κ/8, каждая кривая поднимается собственным временем',
   nscomp:'жидкий компьютер — семейство 376 коллекции openai/math (2026): вынужденное вязкое течение на плоском трёхмерном торе, в котором одна частица входит в одну полосу ровно тогда, когда машина Тьюринга останавливается: обратимый регистратор, точный радиксный код каждой конфигурации и семистадийный сдвиговый период с нулевым давлением',
@@ -120607,6 +121050,7 @@ const LAB_DESC_I18N={
   s3shell:'vorzeichenbehaftete Curl-Schalen, aus harmonischen Polynomen auf S³ ⊂ ℍ gebaut, mit dem exakten Beltrami-Abklinggesetz und den scharfen Projektorkonstanten endlicher Bänder',
   s3torus:'die vollständige zweiskalare invariante Familie, ihre Jacobi-Diagonalisierung, der Druck, der die ganze Nichtlinearität aufnimmt, und die chirale Identität, die Mode n in Curl-Schale 2n legt',
   nsgal:'die Flüssigkeit der Dreisphäre — Navier–Stokes in den Spin(4)-Rotationsschalen: hundert Moden tauschen Energie über den Lamb-Vektor, in der 4-D-Drehung der Trisphäre, daneben der Phasenraum der Invarianten',
+  haldane:'die Haldane-Lücke — Familie 268 (2026): exakt diagonalisierte Spin-1-Ringe bis L = 12, AKLT-Valenzbindungen, extrapolierte Lücke',
   frontier:'das Frontier-Observatorium — die Sammlung openai/math (2026) als eine Sphäre: 372 Ergebnisfamilien in 17 Sternbildern, Gold wo eine Lean-Formalisierung verlinkt ist, die live laufenden mit einem Klick',
   ccurve:'kritische Kurven — Familien 237 und 230 (2026): selbstmeidender Pfad, schleifengelöschter Pfad, Perkolations-Erkundung und SLE_κ auf der Geraden d = 1 + κ/8',
   nscomp:'der Flüssigkeitsrechner — Familie 376 der Sammlung openai/math (2026): eine erzwungene zähe Strömung auf dem flachen Dreitorus, in der ein Teilchen genau dann einen Streifen erreicht, wenn eine Turingmaschine hält',
@@ -123527,6 +123971,7 @@ const NAV_TRIPS=[
   ['∮','Atlas of invariants','what every laboratory keeps: exact relations, constants in closed form, hidden symmetries, quantities conserved along a clock',()=>globalThis.HCC_INVARIANT_ATLAS&&HCC_INVARIANT_ATLAS.open()],
   ['⧉','Parameter space','any laboratory\'s output over any two inputs as a surface, the power law it obeys, its Jacobian, and doors that carry the value on',()=>globalThis.HCC_PSPACE&&HCC_PSPACE.open()],
   ['🌀','The fluid of the three-sphere','Navier–Stokes beyond the exact solutions: a hundred Spin(4) modes exchange energy, energy and helicity hold without viscosity, the six angular momenta always — and the rigid rotation the fluid must end in is drawn at t = 0',()=>{ try{ hccGo({worldId:'s3',labId:'nsgal'}); }catch(e){} }],
+  ['⚛','The Haldane gap','Family 268 of openai/math claims the spin-one Haldane gap; the rings L = 4 … 12 are diagonalized here exactly, the AKLT valence bonds drawn as singlet ribbons, the gap extrapolated to ≈ 0.43 against the literature 0.41',()=>{ try{ hccGo({worldId:'s3',labId:'haldane'}); }catch(e){} }],
   ['✦','The Frontier Observatory','The openai/math collection as one sky: 372 families of claimed results, 17 constellations, Lean-linked in gold, the famous open problems haloed — search, read every description typeset, open every manuscript, and run the ones the atlas can run',()=>{ try{ hccGo({worldId:'s3',labId:'frontier'}); }catch(e){} }],
   ['⬡','Critical curves','Families 237 and 230 of openai/math (2026): the honeycomb self-avoiding walk spreads as n^{3/4}, SLE has an exact gauge — three lattice curves generated live stand on the line d = 1 + κ/8, liftable into towers of their own time',()=>{ try{ hccGo({worldId:'s3',labId:'ccurve'}); }catch(e){} }],
   ['⌬','The fluid computer','Family 376 of openai/math (2026): a forced viscous flow on the three-torus whose one particle enters one strip exactly when a Turing machine halts — the recorder, the exact code and the seven shear stages run live, (V·∇)V = 0 and p = 0 measured',()=>{ try{ hccGo({worldId:'s3',labId:'nscomp'}); }catch(e){} }],

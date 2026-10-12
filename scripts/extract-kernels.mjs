@@ -844,6 +844,8 @@ export const ROOTS = [
   'critRng', 'critGauss', 'critPivotNu', 'critSqrtH', 'critSLE', 'critSlit', 'critSlitInv', 'critBoxDim', 'critGauge', 'critHexOf', 'critLERW', 'critHull', 'critLengthDim',
   /* the frontier observatory (v4.380): the pure parts of its catalogue logic */
   'FO_LIVE', 'FO_FLAG', 'FO_SUMMARY', 'foPlain', 'foMatch',
+  /* haldane (v4.380) */
+  'HG_LIT', 'HG_STRING_AKLT', 'HG_AKLT', 'HG_VBS', 'hgRng', 'hgSpinOne', 'hgKron3', 'hgBondMatrix', 'hgBondTerms', 'hgBonds', 'hgSectorDim', 'hgCode', 'hgDigits', 'hgIndexOf', 'hgLanczosStart', 'hgBasisUnit', 'hgRowsUnit', 'hgMulRows', 'hgApply', 'hgDot', 'hgTriLowest', 'hgLzUnit', 'hgLanczosStep', 'hgBuild', 'hgLanczos', 'hgDense', 'hgJacobi', 'hgMeasureStart', 'hgMeasureUnit', 'hgMeasureStep', 'hgMeasureOut', 'hgMeasure', 'hgSzUnit', 'hgSzProfile', 'hgAkltVbs', 'hgAkltRing', 'hgFit3', 'hgFit2', 'hgFitAt', 'hgXiFit', 'hgStudyStart', 'hgStudyProgress', 'hgStudyStep', 'hgStudyOut', 'hgStudy',
   /* the horizons in cosmic time (v4.358) */
   'hzTable', 'hzAgeAtA', 'hzAtT', 'hzTimeAtParticle', 'hzEmissionTime', 'hzScreenAt', 'HZ_EVENTS',
   /* the causal calendar of the web (v4.360) */
