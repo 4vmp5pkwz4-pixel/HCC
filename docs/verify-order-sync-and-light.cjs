@@ -27,7 +27,7 @@ const slice = (a, b) => { const i = SRC.indexOf(a), j = SRC.indexOf(b, i); if (i
   const known = id => new RegExp(`\\{id:'${id}', category:`).test(SRC) || new RegExp(`\\b${id}:'`).test(SRC);
   ok('the catalogue opens with two chapters — the fluid of S³ (Navier–Stokes first) and its light and geometry — before the domains; every member is a real laboratory; the first swipe lands on the fluid',
     nav[0] === 'nsflow' && nav.length >= 10 && light.includes('nbg') && [...nav, ...light].every(known)
-    && /const LAB_DOMAIN_ORDER=\['navier','s3light','invariance',/.test(SRC) && /for\(const \[k,ids\] of Object\.entries\(LAB_CHAPTERS\)\) if\(ids\.includes\(v\)\) return k;/.test(SRC)
+    && /const LAB_DOMAIN_ORDER=\['navier','s3light',('frontier',)?'invariance',/.test(SRC) && /for\(const \[k,ids\] of Object\.entries\(LAB_CHAPTERS\)\) if\(ids\.includes\(v\)\) return k;/.test(SRC)
     && /byDomain\.get\(k\)\.sort\(\(a,b\)=>ids\.indexOf/.test(SRC) && /labBarGo\('nsflow'\); return;/.test(SRC), `I: ${nav.join(', ')} · II: ${light.join(', ')}`); }
 
 /* 2 */
