@@ -7,6 +7,8 @@ import {measureS3,stereographicToS3,s3ToStereographic,hopfBase} from '../core/ma
 import * as researchGeometry from '../core/research/geometry.mjs';
 import {CATALOG} from '../core/research/catalog.mjs';
 export {flrw,geometryAudit,curvatureDiagnostic,constantCurvatureFit,scalarMode,lensingKernel,delensingResidual} from '../core/research/geometry.mjs';
+export {capObservability,capVolumeFraction,radialGram,scalarBandCount} from '../core/math/s3-cap-observability.mjs';
+export {searchMathCatalog,bridgeVerdict} from '../core/research/math-bridges.mjs';
 export const researchCatalog=()=>structuredClone(CATALOG);
 export {auditForecast,AUDIT_INPUT_SCHEMA};
 export {measureS3,stereographicToS3,s3ToStereographic,hopfBase};
