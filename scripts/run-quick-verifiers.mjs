@@ -199,6 +199,7 @@ const allChecks = [
   "docs/verify-the-critical-strip.mjs",
   "docs/verify-the-mahler-volume-product.mjs",
   "docs/verify-the-irrationality-exponent-of-pi.mjs",
+  "docs/verify-round-stars-and-star-hopping.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -457,6 +458,7 @@ if (fullMode) {
     'docs/verify-the-critical-strip.mjs',
     'docs/verify-the-mahler-volume-product.mjs',
     'docs/verify-the-irrationality-exponent-of-pi.mjs',
+    'docs/verify-round-stars-and-star-hopping.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

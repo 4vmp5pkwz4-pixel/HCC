@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="critical-curves-2026.10.08.95">
+<html lang="en" data-hcc-build="frontier-2026.10.12.96">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="critical-curves-2026.10.08.95">
+<meta name="hcc-build" content="frontier-2026.10.12.96">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3109,7 +3109,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.379.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.380.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3438,8 +3438,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.379.0';
-const HCC_BUILD='critical-curves-2026.10.08.95';
+const HCC_VERSION='4.380.0';
+const HCC_BUILD='frontier-2026.10.12.96';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -21350,6 +21350,7 @@ function canvasDoubleActivate(e){
   const ndc=canvasNDC(e.clientX,e.clientY);raycaster.setFromCamera(ndc,camera);
   const registeredHit=raycaster.intersectObjects(collectVisiblePicks(),true)[0],registeredKey=selectionKeyFromHit(registeredHit);
   if(registeredKey){dblFocus(registeredKey);return;}
+  if(hccStarHop(ndc)) return;
   if(state.mode==='fractal'){
     // modeling-app navigation for the 3D bifurcation bridge: double-click any point of
     // the structure to make it the ORBIT CENTRE — rotation/zoom then pivot around it.
@@ -21382,6 +21383,24 @@ function canvasDoubleActivate(e){
   }
 }
 renderer.domElement.addEventListener('dblclick',e=>{if(performance.now()-lastTouchDoubleAt>500)canvasDoubleActivate(e);});
+/* ── STAR HOPPING (v4.380) ──────────────────────────────────────────────────────────────────────────────────────────
+   Double-click (or double-tap) a star of a galaxy, of the Milky Way's spiral or of a catalogue cloud, and the camera
+   flies to it and stops a few star spacings away; the next star is one more double-click. The star is read from its own
+   geometry (its true world position, not the point under the cursor), and the threshold is set in the cloud's LOCAL
+   units — a Points raycast scales only by the object's own scale, not its parents'. */
+function hccStarHop(ndc){ const cands=[]; try{ scene.traverseVisible(o=>{ if(o.isPoints&&o.userData&&o.userData.hop&&o.geometry&&o.geometry.attributes.position) cands.push(o); }); }catch(e){ return false; } if(!cands.length) return false;
+  raycaster.setFromCamera(ndc,camera); const P=raycaster.params.Points, keep=P.threshold; let best=null;
+  for(const o of cands){ const sp=o.userData.hop.spacing||1, own=(o.scale.x+o.scale.y+o.scale.z)/3; P.threshold=0.6*sp*own;
+    let hits=[]; try{ hits=raycaster.intersectObject(o,false); }catch(e){}
+    for(const h of hits){ const d=h.distanceToRay/sp; if(!best||d<best.d-0.15||(Math.abs(d-best.d)<=0.15&&h.distance<best.dist)) best={o,h,d,dist:h.distance,sp}; } }
+  P.threshold=keep; if(!best) return false;
+  const o=best.o, w=new THREE.Vector3().fromBufferAttribute(o.geometry.attributes.position,best.h.index).applyMatrix4(o.matrixWorld), ws=new THREE.Vector3(); o.getWorldScale(ws);
+  const stop=3.2*best.sp*Math.max(ws.x,ws.y,ws.z);
+  HCC_STAR_HOP.last={name:o.name||'stars', index:best.h.index, at:[w.x,w.y,w.z], stop};
+  focusOn({getPos:()=>w.clone(), focusDist:stop, label:`${o.name||'stars'} #${best.h.index}`});
+  try{ syncCameraClipping(true); }catch(e){}
+  return true; }
+const HCC_STAR_HOP={last:null};
 
 /* ══ THE STAR OCEAN, AT ITS REAL TEMPERATURE ══════════════════════════════════
    Every star in this atlas was one flat slate blue, 0x9db4d8, at one fixed size.
@@ -25408,7 +25427,7 @@ function catIngest(pos,n,label,mode){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3));
   g.setAttribute('color',new THREE.BufferAttribute(col,3));
-  const cloud=new THREE.Points(g,new THREE.PointsMaterial({size:0.012,vertexColors:true,sizeAttenuation:true,
+  const cloud=new THREE.Points(g,new THREE.PointsMaterial({map:starSprite(),size:0.019,vertexColors:true,sizeAttenuation:true,
     transparent:true,opacity:0.5,depthWrite:false,blending:THREE.AdditiveBlending}));
   cloud.name='CAT catalogue cloud'; cosmosGroup.add(cloud); CAT.cloud=cloud;
   const t0=performance.now(); CAT.octRoot=catOctBuild(pos,n); CAT.buildMs=performance.now()-t0;
@@ -25953,8 +25972,11 @@ function galaxyStars(s,r){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3));
   g.setAttribute('color',new THREE.BufferAttribute(col,3));
-  grp.add(new THREE.Points(g,new THREE.PointsMaterial({size:Math.max(r*0.042,1e-8),vertexColors:true,
-    sizeAttenuation:true,transparent:true,opacity:.82,depthWrite:false,blending:THREE.AdditiveBlending})));
+  /* v4.380: a round star sprite — without a map a PointsMaterial draws SQUARES, and with size attenuation they grew
+     into big squares as soon as one came close; and every star of the cloud is now a place to fly to (star hopping) */
+  { const gs=new THREE.Points(g,new THREE.PointsMaterial({map:starSprite(),size:Math.max(r*0.068,1e-8),vertexColors:true,
+    sizeAttenuation:true,transparent:true,opacity:.86,depthWrite:false,blending:THREE.AdditiveBlending}));
+    gs.name='galaxy-stars'; gs.userData.hop={spacing:Math.max(r*1e-9,r/Math.cbrt(Math.max(1,pos.length/3))), what:'star'}; grp.add(gs); }
   const bulge=new THREE.Mesh(new THREE.SphereGeometry(Math.max(r*(isDisc?0.10:0.20),1e-9),12,9),
     new THREE.MeshBasicMaterial({color:0xfff3d8,transparent:true,opacity:.55,depthWrite:false}));
   bulge.userData.noGrade=true; grp.add(bulge);
@@ -27186,7 +27208,7 @@ function cosmicDust(s,r){
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3));
   g.setAttribute('color',new THREE.BufferAttribute(col,3));
-  return new THREE.Points(g,new THREE.PointsMaterial({size:Math.max(r*0.028,0.02),vertexColors:true,sizeAttenuation:true,
+  return new THREE.Points(g,new THREE.PointsMaterial({map:glowTexture(),size:Math.max(r*0.042,0.03),vertexColors:true,sizeAttenuation:true,
     transparent:true,opacity:isVoid?0.32:0.62,depthWrite:false,blending:THREE.AdditiveBlending}));
 }
 function updateCosmicDust(){ const on=state.showCosmicDust!==false, rel=state.showWebRelief!==false;
@@ -28751,7 +28773,8 @@ function galaxySpiral(radiusLy,arms,count,col,seed,wind=5.2){
   }
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(colors,3));
-  return new THREE.Points(g,new THREE.PointsMaterial({size:R*.006,vertexColors:true,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending}));
+  const P=new THREE.Points(g,new THREE.PointsMaterial({map:starSprite(),size:R*.0098,vertexColors:true,transparent:true,opacity:.78,depthWrite:false,blending:THREE.AdditiveBlending}));   /* round, not square (v4.380) */
+  P.name='galaxy-spiral-stars'; P.userData.hop={spacing:R/Math.cbrt(Math.max(1,pos.length/3)), what:'star'}; return P;
 }
 function orientDisk(group,xAxis,normal){
   const x=xAxis.clone().normalize(), y=normal.clone().normalize(), z=x.clone().cross(y).normalize();
