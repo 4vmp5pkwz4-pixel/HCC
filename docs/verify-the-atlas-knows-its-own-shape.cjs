@@ -27,7 +27,7 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
 
 (async () => {
   const K = await import(path.join(__dirname, '..', 'core', 'atlas', 'extracted.mjs'));
-  const { atlasRelGraph, atlasBetti, atlasJacobi, atlasLaplacian, atlasFiedler, atlasBusOrder } = K;
+  const { atlasRelGraph, atlasBetti, atlasJacobi, atlasLaplacian, atlasFiedler, atlasBusOrder, atlasCore2 } = K;
   const G = atlasRelGraph(REL), B = atlasBetti(G);
 
   /* 1 · Betti, counted here */
@@ -50,8 +50,13 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
     ok('the Fiedler vector is orthogonal to the constant, its Rayleigh quotient is λ₂, and the cut it makes obeys Cheeger\'s inequality λ₂/2 ≤ h ≤ √(2Δλ₂)',
       Math.abs(dot1) < 1e-9 && Math.abs(q / nn - F.lambda2) < 1e-9 && F.lower <= F.h && F.h <= F.upper && F.lambda2 > 0, `λ₂ ${F.lambda2.toFixed(6)} · ${F.lower.toFixed(3)} ≤ h ${F.h.toFixed(3)} ≤ ${F.upper.toFixed(3)} · seam ${F.seam.length}`); }
 
-  /* 4 · the found division */
-  { const sky = new Set(F.sky), inSky = ['bb', 'mainseq', 'cosmo', 'galrot'], inSphere = ['hopf', 'nsflow', 's3shell', 'tri', 'topo', 'su2'];
+  /* 4 · the found division — measured on the 2-core (v4.380): a laboratory hanging by one relation is a bottleneck of
+     its own and would take the first mode for itself (Cheeger); the leaves follow the laboratory they hang from */
+  const C2 = atlasCore2(REL), Gc = atlasRelGraph(C2.rels), Fc = atlasFiedler(Gc, 'mainseq');
+  ok('the 2-core: stripping the laboratories that hang by one relation leaves every laboratory measured before v4.380 in place — the leaves are exactly the newest, one relation each, and each is attached to a core laboratory',
+    C2.attach.size <= 8 && [...C2.attach].every(([v, r]) => Gc.ix.has(r) && !Gc.ix.has(v)) && Gc.V.length + C2.attach.size === G.V.length,
+    `${Gc.V.length} in the core · leaves: ${[...C2.attach].map(([v, r]) => v + '→' + r).join(', ') || 'none'}`);
+  { const F = Fc, G = Gc; const sky = new Set(F.sky), inSky = ['bb', 'mainseq', 'cosmo', 'galrot'], inSphere = ['hopf', 'nsflow', 's3shell', 'tri', 'topo', 'su2'];
     ok('FOUND — with no label consulted, the first mode separates the observed sky from the sphere: black bodies, the main sequence, cosmology and galaxy rotation on one side; the Hopf fibration, Navier–Stokes on S³, the curl shells, the trisphere, topology and SU(2) on the other',
       inSky.every(x => sky.has(x)) && inSphere.every(x => !sky.has(x)), `${F.sky.length} in the sky · ${F.sphere.length} in the sphere`);
     /* and the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it. The CMB stood there too
@@ -68,7 +73,7 @@ const REL = [...blk.matchAll(/^\s*\['([a-z0-9]+)','([a-z0-9]+)','([a-z]+)'/gm)].
        Measured on the way: ONE pendant relation can move them anywhere from 4th to 30th — the rank is fragile, the
        five-times-below-the-median is the robust half of this finding. */
     const rk = x => F.onSeam.findIndex(([y]) => y === x), rkAll = x => G.V.map((y, i) => [y, Math.abs(F.vector[i])]).sort((p, q) => p[1] - q[1]).findIndex(([y]) => y === x), vc = Math.abs(F.vector[G.ix.get('cmb')]), vs = Math.abs(F.vector[G.ix.get('sh')]);
-    const G0 = atlasRelGraph(REL.filter(r => !(r[0] === 's3gamma' && r[1] === 'cmb') && !(r[0] === 'cmb' && r[1] === 's3gamma'))), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
+    const G0 = atlasRelGraph(atlasCore2(REL.filter(r => !(r[0] === 's3gamma' && r[1] === 'cmb') && !(r[0] === 'cmb' && r[1] === 's3gamma'))).rels), F0 = atlasFiedler(G0, 'mainseq'), rk0 = F0.onSeam.findIndex(([y]) => y === 'cmb');
     ok('FOUND — the seam is the harmonic analysis of the sphere: the spherical harmonics stand ON it (among the ten nearest zero, five times below the median); the CMB stands on it without the relation "the CMB can show S³/Γ", and that one relation carries it to the sphere side, still three times below the median',
       rkAll('sh') >= 0 && rkAll('sh') < 10 && vs * 5 < F.medAbs && rk0 >= 0 && rk0 < 5 && !F.sky.includes('cmb') && vc * 3 < F.medAbs && vc > Math.abs(F0.vector[G0.ix.get('cmb')]),
       `|v_sh| ${vs.toExponential(1)} (rank ${rkAll('sh')}) · CMB without s3gamma→cmb: rank ${rk0}, |v| ${Math.abs(F0.vector[G0.ix.get('cmb')]).toExponential(1)} · with it: sphere side, |v| ${vc.toExponential(1)} · median ${F.medAbs.toExponential(1)}`); }

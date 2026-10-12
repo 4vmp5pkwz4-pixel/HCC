@@ -196,6 +196,9 @@ const allChecks = [
   "docs/verify-critical-curves.cjs",
   "docs/verify-the-frontier-observatory.cjs",
   "docs/verify-the-haldane-gap.mjs",
+  "docs/verify-the-critical-strip.mjs",
+  "docs/verify-the-mahler-volume-product.mjs",
+  "docs/verify-the-irrationality-exponent-of-pi.mjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -451,6 +454,9 @@ if (fullMode) {
     'docs/verify-critical-curves.cjs',
     'docs/verify-the-frontier-observatory.cjs',
     'docs/verify-the-haldane-gap.mjs',
+    'docs/verify-the-critical-strip.mjs',
+    'docs/verify-the-mahler-volume-product.mjs',
+    'docs/verify-the-irrationality-exponent-of-pi.mjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

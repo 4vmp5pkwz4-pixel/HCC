@@ -844,6 +844,13 @@ export const ROOTS = [
   'critRng', 'critGauss', 'critPivotNu', 'critSqrtH', 'critSLE', 'critSlit', 'critSlitInv', 'critBoxDim', 'critGauge', 'critHexOf', 'critLERW', 'critHull', 'critLengthDim',
   /* the frontier observatory (v4.380): the pure parts of its catalogue logic */
   'FO_LIVE', 'FO_FLAG', 'FO_SUMMARY', 'foPlain', 'foMatch',
+  'atlasCore2',
+  /* piexp (v4.380) */
+  'PE_K0', 'PE_LOCHS', 'PE_LEVY', 'PE_ZZ', 'PE_GUARD', 'PE_ERR', 'peBitLen', 'peLnBig', 'peIsqrt', 'pePiBS', 'pePi', 'peAtanInv', 'pePiMachin', 'peCatInit', 'peCatStep', 'peCatValue', 'peCatalan', 'peCatRamanujan', 'peDigitStr', 'peCfInit', 'peQuot', 'peCfStep', 'peCf', 'peCfRat', 'peCfEnds', 'peGK', 'peGKTail', 'peStats', 'peMaxMu', 'peMuCF', 'PE_C1', 'PE_C2', 'PE_C3', 'peSinCW', 'peFhInit', 'peFhStep', 'peFhSum', 'peFhAt', 'peSinRed',
+  /* mahler (v4.380) */
+  'MH_LANCZOS', 'mhLgamma', 'mhGamma', 'mhFact', 'mhLpVol', 'mhConj', 'mhPlp', 'mhPofU', 'mhUofP', 'mhMahlerSym', 'mhMahlerGen', 'mhSantaloMax', 'mhPrismProduct', 'mhRng', 'mhGauss', 'mhHull', 'mhFacets', 'mhPolytope', 'mhPolarPts', 'mhPolar', 'mhPolarAt', 'mhSolve3', 'mhSantalo', 'mhProduct', 'mhCubePts', 'mhOctaPts', 'mhPolygon', 'mhPrismPts', 'mhConePts', 'mhSimplexPts', 'mhRandSymPts', 'mhRandGenPts', 'mhLpNorm', 'mhOctMesh', 'mhLpMap', 'mhLpPts', 'mhWhitenMap', 'mhWhiten', 'mhCentroid',
+  /* zstrip (v4.380) */
+  'ZS_TWO_PI', 'ZS_LOG_PI', 'ZS_LOG_2PI', 'ZS_QRH', 'ZS_QRH2', 'ZS_MTY', 'ZS_MT15', 'ZS_KMAX', 'ZS_BK', 'ZS_STIRLING', 'ZS_LOGN', 'zsNTerms', 'zsEMTail', 'zsZetaEM', 'zsZeta', 'zsZetaHalf', 'zsLogGamma', 'zsTheta', 'zsThetaAsym', 'zsZc', 'zsZ', 'zsChi', 'zsSpacing', 'zsNvm', 'zsClassicalSigma', 'zsBrent', 'zsDip', 'zsZeroJob', 'zsZeroRun', 'zsZeros', 'zsArgRatio', 'zsArgTrack', 'zsArgRun', 'zsNJob', 'zsNRun', 'zsN', 'zsBoxJob', 'zsBoxRun', 'zsBoxCount', 'zsGridNew', 'zsGridRows', 'zsGrid', 'zsGram', 'zsGramWindow',
   /* haldane (v4.380) */
   'HG_LIT', 'HG_STRING_AKLT', 'HG_AKLT', 'HG_VBS', 'hgRng', 'hgSpinOne', 'hgKron3', 'hgBondMatrix', 'hgBondTerms', 'hgBonds', 'hgSectorDim', 'hgCode', 'hgDigits', 'hgIndexOf', 'hgLanczosStart', 'hgBasisUnit', 'hgRowsUnit', 'hgMulRows', 'hgApply', 'hgDot', 'hgTriLowest', 'hgLzUnit', 'hgLanczosStep', 'hgBuild', 'hgLanczos', 'hgDense', 'hgJacobi', 'hgMeasureStart', 'hgMeasureUnit', 'hgMeasureStep', 'hgMeasureOut', 'hgMeasure', 'hgSzUnit', 'hgSzProfile', 'hgAkltVbs', 'hgAkltRing', 'hgFit3', 'hgFit2', 'hgFitAt', 'hgXiFit', 'hgStudyStart', 'hgStudyProgress', 'hgStudyStep', 'hgStudyOut', 'hgStudy',
   /* the horizons in cosmic time (v4.358) */
