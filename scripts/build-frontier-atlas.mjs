@@ -29,11 +29,14 @@ for (const blk of blocks) { const m = blk.match(/^\*\*(\d{3})\. /); if (!m) cont
   f.m = [...blk.matchAll(/&emsp;\[([^\]]+)\]\((preprints\/.+?\.pdf)\)/g)].map(x => [x[1].replace(/\$`([^`]*)`\$/g, '$$$1$$').trim(), x[2]]); }
 /* cross references "result 032", "results 032 and 045", "Result 007" */
 for (const f of families) { const x = new Set(); for (const m of f.d.matchAll(/[Rr]esults?\s+((?:\d{3}(?:,\s*|\s+and\s+|\s*–\s*)?)+)/g)) for (const n of m[1].match(/\d{3}/g) || []) if (+n !== f.n && byN.has(+n)) x.add(+n); f.x = [...x].sort((a, b) => a - b); }
+/* the reasoning summaries the collection publishes, from its README table: | 017 | [title](reasoning_traces/x.pdf) | */
+const readme = fs.readFileSync(path.join(root, 'README.md'), 'utf8');
+for (const m of readme.matchAll(/^\|\s*(\d{3})\s*\|\s*\[[^\]]+\]\((reasoning_traces\/[^)]+\.pdf)\)\s*\|/gm)) { const f = byN.get(+m[1]); if (f) f.r = m[2]; }
 /* withdrawals: the preprints whose README says so */
 const withdrawn = [];
 for (const d of fs.readdirSync(path.join(root, 'preprints'))) { const r = path.join(root, 'preprints', d, 'README.md'); if (!fs.existsSync(r)) continue; const s = fs.readFileSync(r, 'utf8'); if (/withdrawn/i.test(s.slice(0, 2000))) withdrawn.push(d); }
 const out = { schema: 'hcc.frontier-atlas/1', source: { repo: 'https://github.com/openai/math', commit, license: 'Apache-2.0', note: 'Manuscripts produced by an internal OpenAI model, at different stages of verification; status as the collection states it.' },
-  counts: { families: families.length, manuscripts: families.reduce((s, f) => s + (f.m ? f.m.length : 0), 0), lean: families.filter(f => f.lean).length, disciplines: disciplines.length, cross_references: families.reduce((s, f) => s + f.x.length, 0), withdrawn: withdrawn.length },
-  disciplines, withdrawn, families: families.map(f => ({ n: f.n, t: f.t, d: f.d, k: f.k, lean: !!f.lean, m: f.m || [], x: f.x })) };
+  counts: { families: families.length, manuscripts: families.reduce((s, f) => s + (f.m ? f.m.length : 0), 0), lean: families.filter(f => f.lean).length, summaries: families.filter(f => f.r).length, disciplines: disciplines.length, cross_references: families.reduce((s, f) => s + f.x.length, 0), withdrawn: withdrawn.length },
+  disciplines, withdrawn, families: families.map(f => ({ n: f.n, t: f.t, d: f.d, k: f.k, lean: !!f.lean, m: f.m || [], x: f.x, ...(f.r ? { r: f.r } : {}) })) };
 const dst = path.join(path.dirname(new URL(import.meta.url).pathname), '..', 'data', 'frontier-atlas.json');
 fs.writeFileSync(dst, JSON.stringify(out)); console.log(JSON.stringify(out.counts), (fs.statSync(dst).size / 1024).toFixed(0) + ' KB');
