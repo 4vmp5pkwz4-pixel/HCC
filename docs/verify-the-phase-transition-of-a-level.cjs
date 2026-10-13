@@ -11,7 +11,7 @@
  *      the transition itself
  *   3. the spacing grid reads a uniform disc's spacing, and a dense core's members cross after a sparse halo's
  *   4. every cloud is wired, the ladder carries the measured universe, and the dial shows ψ
- *   5. the space-time scale: round lengths, the unit chosen, seventeen landmarks in order, light time t = L/c
+ *   5. the light time t = L/c and the seventeen landmarks the scale lays on the φ-ladder
  *   6. the time machine's 0: the first instant the J2000 day count can hold after t = 0, and the thermal epochs in order
  */
 const fs = require('node:fs'), path = require('node:path');
@@ -81,17 +81,13 @@ function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let 
   ok('every star cloud takes the transition (galaxies, the spiral fallback, the living Milky Way and Andromeda), the φ-ladder carries the measured universe on the rungs of its measured distances, and the dial reads ψ of the level crossing now',
     w.every(Boolean), w.map(x => x ? '✓' : '✗').join('')); }
 
-/* 5 — the space-time scale */
-{ const nice = new Function(grab(/function sxNice\(v\)\{[^\n]*\}/, 'sxNice') + '\nreturn sxNice;')();
-  const U = new Function('return ' + grab(/\[\['m',1\],\['km',1e3\],\['AU',1\.495978707e11\][^;]*\]/, 'SX_UNITS'))();
-  const unit = new Function('SX_UNITS', grab(/function sxUnit\(m\)\{[^\n]*\}/, 'sxUnit') + '\nreturn sxUnit;')(U);
-  const light = new Function(grab(/function sxLight\(sec\)\{[^\n]*\}/, 'sxLight') + '\nreturn sxLight;')();
+/* 5 — the light time and the landmarks the scale lays on the φ-ladder (the ruler itself: verify-the-fractal-scale.cjs) */
+{ const light = new Function(grab(/function sxLight\(sec\)\{[^\n]*\}/, 'sxLight') + '\nreturn sxLight;')();
   const LM = new Function('return ' + grab(/\[\[1\.616255e-35,'Planck length'[^\n]*\]\];/, 'SX_LANDMARKS').replace(/;$/, ''))();
   const sorted = LM.every((x, i) => i === 0 || x[0] > LM[i - 1][0]);
-  const n1 = [0.7, 3.3, 7, 1.0, 19].map(nice).join(','), u1 = [5e2, 5e8, 3e14, 2e17, 4e25].map(m => unit(m)[0]).join(',');
-  ok('the space-time scale: a round length (1, 2 or 5 × 10ⁿ), its unit (m … Gly; AU from a hundredth of an AU), the light time t = L/c, and seventeen landmarks from the Planck length to the observable universe in order',
-    n1 === '0.5,2,5,1,10' && u1 === 'm,km,AU,ly,Gly' && light(1.495978707e11 / 299792458) === '8.3 min' && LM.length === 17 && sorted,
-    `nice ${n1} · units ${u1} · 1 AU of light ${light(1.495978707e11 / 299792458)} · ${LM.length} landmarks`); }
+  ok('the light time t = L/c of a length, and seventeen landmarks from the Planck length to the observable universe in order',
+    light(1.495978707e11 / 299792458) === '8.3 min' && light(9.4607e15 / 299792458) === '1.0 yr' && LM.length === 17 && sorted,
+    `1 AU of light ${light(1.495978707e11 / 299792458)} · 1 ly ${light(9.4607e15 / 299792458)} · ${LM.length} landmarks`); }
 
 /* 6 — the time machine's 0 and the thermal epochs */
 { const ulp = new Function(grab(/function hccEpochUlpDays\(x\)\{[^\n]*\}/, 'hccEpochUlpDays') + '\nreturn hccEpochUlpDays;')();
