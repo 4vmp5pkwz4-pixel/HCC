@@ -31,7 +31,19 @@ const fn = name => { const i = SRC.indexOf('function ' + name + '('); if (i < 0)
   for (let k = j; k < SRC.length; k++) { const c = SRC[k]; if (c === '{') d++; else if (c === '}') { d--; if (!d) return SRC.slice(i, k + 1); } } throw new Error('unbalanced ' + name); };
 const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
 (async () => {
-  const THREE = await import(path.join(__dirname, '..', 'vendor', 'three', 'build', 'three.module.js'));
+  /* the little of three.js the page's pure code uses, with three.js's own formulas (the vendored copy is not in the repository) */
+  class Vector3 { constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; }
+    set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } copy(v) { return this.set(v.x, v.y, v.z); } clone() { return new Vector3(this.x, this.y, this.z); }
+    add(v) { this.x += v.x; this.y += v.y; this.z += v.z; return this; } sub(v) { this.x -= v.x; this.y -= v.y; this.z -= v.z; return this; }
+    multiplyScalar(k) { this.x *= k; this.y *= k; this.z *= k; return this; } length() { return Math.hypot(this.x, this.y, this.z); }
+    normalize() { const l = this.length() || 1; return this.multiplyScalar(1 / l); } distanceTo(v) { return Math.hypot(this.x - v.x, this.y - v.y, this.z - v.z); }
+    applyQuaternion(q) { const vx = this.x, vy = this.y, vz = this.z, tx = 2 * (q.y * vz - q.z * vy), ty = 2 * (q.z * vx - q.x * vz), tz = 2 * (q.x * vy - q.y * vx);
+      this.x = vx + q.w * tx + q.y * tz - q.z * ty; this.y = vy + q.w * ty + q.z * tx - q.x * tz; this.z = vz + q.w * tz + q.x * ty - q.y * tx; return this; } }
+  class Euler { constructor(x = 0, y = 0, z = 0) { this.x = x; this.y = y; this.z = z; } }
+  class Quaternion { constructor() { this.x = 0; this.y = 0; this.z = 0; this.w = 1; }
+    setFromEuler(e) { const c1 = Math.cos(e.x / 2), c2 = Math.cos(e.y / 2), c3 = Math.cos(e.z / 2), s1 = Math.sin(e.x / 2), s2 = Math.sin(e.y / 2), s3 = Math.sin(e.z / 2);
+      this.x = s1 * c2 * c3 + c1 * s2 * s3; this.y = c1 * s2 * c3 - s1 * c2 * s3; this.z = c1 * c2 * s3 + s1 * s2 * c3; this.w = c1 * c2 * c3 - s1 * s2 * s3; return this; } }
+  const THREE = { Vector3, Euler, Quaternion };
   const PHI = (1 + Math.sqrt(5)) / 2, LN_PHI = Math.log(PHI), GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5)), LP = 1.616255e-35;
   const levelOf = L => Math.log(L / LP) / LN_PHI, levelR = N => LP * Math.exp(N * LN_PHI);
   const mulberry = new Function('return ' + fn('mulberry').replace(/^function mulberry/, 'function'))();
