@@ -844,6 +844,8 @@ export const ROOTS = [
   'critRng', 'critGauss', 'critPivotNu', 'critSqrtH', 'critSLE', 'critSlit', 'critSlitInv', 'critBoxDim', 'critGauge', 'critHexOf', 'critLERW', 'critHull', 'critLengthDim',
   /* the frontier observatory (v4.380): the pure parts of its catalogue logic */
   'FO_LIVE', 'FO_FLAG', 'FO_SUMMARY', 'foPlain', 'foMatch',
+  /* everys3 (v4.380) */
+  'TQ_DEG', 'TQ_GM', 'tqEl', 'tqKepler', 'tqFock', 'tqHodograph', 'tqDot', 'tqPlane', 'tqDet4', 'tqLink', 'tqLinkMatrix', 'tqCircle', 'tqFrame', 'tqStereo', 'tqPole', 'tqGauss', 'tqHopf', 'tqFiber', 'tqOscillator', 'tqHarmonicDim', 'tqHydrogenOrbit', 'tqCosmos', 'tqDiskLink',
   'atlasCore2',
   /* piexp (v4.380) */
   'PE_K0', 'PE_LOCHS', 'PE_LEVY', 'PE_ZZ', 'PE_GUARD', 'PE_ERR', 'peBitLen', 'peLnBig', 'peIsqrt', 'pePiBS', 'pePi', 'peAtanInv', 'pePiMachin', 'peCatInit', 'peCatStep', 'peCatValue', 'peCatalan', 'peCatRamanujan', 'peDigitStr', 'peCfInit', 'peQuot', 'peCfStep', 'peCf', 'peCfRat', 'peCfEnds', 'peGK', 'peGKTail', 'peStats', 'peMaxMu', 'peMuCF', 'PE_C1', 'PE_C2', 'PE_C3', 'peSinCW', 'peFhInit', 'peFhStep', 'peFhSum', 'peFhAt', 'peSinRed',
