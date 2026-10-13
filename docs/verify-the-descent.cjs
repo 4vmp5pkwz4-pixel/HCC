@@ -22,6 +22,10 @@
  *  10. FBS3R: the models on the shells of their rungs at φ⁻² of their true size, placed once without touching
  *  11. the ladder folds: the strip, its steering, its memory; every body has its route; the API
  *  and near the Planck length: two-loop running, gravity's (E/E_P)², a probe and its horizon, the holographic bits
+ *  12. below the Planck length only the Hopf fibration (v4.386.2): the rung N ≤ 0 is the torus |z₂| = φᴺ, each sample of
+ *      a fibre on it to rounding and carrying its own ψ; the Clifford torus at N = log_φ(1/√2), the mirror of the probe's
+ *      crossing; the last fibre the unit circle at the centre; any two fibres linked once (Gauss's integral); no Fibonacci
+ *      squares, spiral or matrix left; the last fibre says what a probe that sharp would be
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -110,7 +114,7 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
       'return {DSC_PL,dscRunTable,dscInvAlphas2,dscInvAlphaG};'].join('\n'))({ hb: 1.054571817e-34, c: 299792458, G: 6.67430e-11, lP: Math.sqrt(1.054571817e-34 * 6.67430e-11 / 299792458 ** 3), mP: Math.sqrt(1.054571817e-34 * 299792458 / 6.67430e-11) }, {}, levelOf);
     const R = L2.dscRunTable(), P = L2.DSC_PL, cross = 0.5 * Math.log(2) / LN_PHI;
     const ok12 = R.c12 && R.c12.Q > 5e12 && R.c12.Q < 3e13, ok23 = R.c23 && R.c23.Q > 1e16 && R.c23.Q < 2e17, aG = L2.dscInvAlphaG(P.EPGeV), mz = L2.dscInvAlphas2(91.1876);
-    const inst = ["id:'qcloud'", "id:'ew'", "id:'desert'", "id:'probe'", "id:'bits'", "id:'planck'", "id:'beyond', anchor:'quark', band:[-60,-0.8,1.2]"].every(x => SRC.includes(x)) && /ratio=2\*Math\.pow\(PHI,-2\*N\)/.test(SRC) && /nb=\(Math\.PI\/Math\.LN2\)\*Math\.pow\(PHI,2\*N\)/.test(SRC);
+    const inst = ["id:'qcloud'", "id:'ew'", "id:'desert'", "id:'probe'", "id:'bits'", "id:'planck'", "id:'beyond', anchor:'quark', band:[-60,-0.3,0.45]"].every(x => SRC.includes(x)) && /ratio=2\*Math\.pow\(PHI,-2\*N\)/.test(SRC) && /nb=\(Math\.PI\/Math\.LN2\)\*Math\.pow\(PHI,2\*N\)/.test(SRC);
     ok('near the Planck length every instrument is exact where it can be: the gauge couplings run at two loops from M_Z (α₁ = α₂ near 10¹³ GeV, α₂ = α₃ near 10¹⁶–10¹⁷ GeV — no meeting); gravity’s α_G = (E/E_P)² is 1 at ℓ_P; a probe meets its own horizon at L = √2·ℓ_P (N = log_φ√2); a sphere holds (π/ln 2)(R/ℓ_P)² bits; the Planck units are CODATA’s; the mathematics begins only below N = 0',
       ok12 && ok23 && Math.abs(aG - 1) < 1e-12 && Math.abs(mz[0] - 59.02) < 1e-9 && Math.abs(cross - 0.7202) < 1e-3 && Math.abs(P.lP - 1.616255e-35) / 1.616255e-35 < 1e-5 && Math.abs(P.TP - 1.416784e32) / 1.416784e32 < 1e-5 && inst,
       `α₁=α₂ at ${R.c12.Q.toExponential(2)} GeV (1/α ${R.c12.inv.toFixed(2)}) · α₂=α₃ at ${R.c23.Q.toExponential(2)} GeV (1/α ${R.c23.inv.toFixed(2)}) · 1/α_G(E_P) = ${aG} · crossing N = ${cross.toFixed(4)} · T_P = ${P.TP.toExponential(6)} K`); }
@@ -141,6 +145,26 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     const api = ['enter:', 'exit:', 'go:', 'jump:', 'bodies:', 'body:', 'focused:', 'equivalentRung:', 'stations:', 'anchors:', 'levels:', 'starEstimate:', 'si28:', 'iceTop:', 'cristobalite:', 'noise:'].every(x => grab(/globalThis\.HCC_DESCENT=Object\.freeze\(\{[\s\S]*?\}\);/, 'the API').includes(x));
     ok(`the ladder folds into one slim strip (the rung, its length, the whole ladder as a track — dragged, it flies through the scales and into the descent; remembered); every body has its route (${planets.length} planets and dwarfs, the Moon, ${moons.length} moons, the Sun, the stars); HCC_DESCENT`,
       strip && code && missing.length === 0 && api, `strip ${strip ? '✓' : '✗'} · steering ${code ? '✓' : '✗'} · routes missing: ${missing.join(', ') || 'none'} · API ${api ? '✓' : '✗'}`); }
+  /* 12 */
+  { const H = new Function('THREE', 'PHI', [cst('dscS3P'), fn('dscHopfArc'), cst('dscHopfB'), cst('dscHopfTheta'), 'return {dscS3P,dscHopfArc,dscHopfB,dscHopfTheta};'].join('\n'))({ Vector3 }, PHI);
+    let worst = 0, inBall = true;
+    for (const N of [-0.05, -0.3, -0.72, -1, -3, -8, -20]) { const b = H.dscHopfB(N), a = Math.sqrt(1 - b * b), th = H.dscHopfTheta(N);
+      for (let k = 0; k < 12; k++) { const ph = 2 * Math.PI * k / 12, P = []; if (!H.dscHopfArc(th, ph, 64, 3.4, P)) continue;
+        for (let i = 0; i < P.length; i += 4) { const x = P[i], y = P[i + 1], z = P[i + 2], q = H.dscS3P(a, b, ph, P[i + 3]), r = Math.hypot(x, y, z);
+          worst = Math.max(worst, Math.abs(Math.hypot(Math.hypot(x, y) - 1 / a, z) - b / a) / (b / a), Math.hypot(q[0] - x, q[1] - y, q[2] - z) / (1 + r)); if (r > 3.4 + 1e-9) inBall = false; } } }
+    const Ncl = Math.log(Math.SQRT1_2) / LN_PHI, cl = Math.abs(H.dscHopfB(Ncl) - Math.SQRT1_2) < 1e-15 && Math.abs(Ncl + 0.5 * Math.log(2) / LN_PHI) < 1e-15;
+    const C0 = []; const m0 = H.dscHopfArc(0, 0, 180, 3.4, C0); let core = m0 === -180; for (let i = 0; i < C0.length; i += 4) if (Math.abs(Math.hypot(C0[i], C0[i + 1]) - 1) > 1e-12 || Math.abs(C0[i + 2]) > 1e-12) core = false;
+    const loop = (th, ph) => { const P = [], m = H.dscHopfArc(th, ph, 240, 1e9, P), o = []; for (let i = 0; i < P.length; i += 4) o.push([P[i], P[i + 1], P[i + 2]]); return m < 0 ? o : null; };
+    const gauss = (A, B) => { let s = 0; for (let i = 0; i < A.length; i++) { const a0 = A[i], a1 = A[(i + 1) % A.length]; for (let j = 0; j < B.length; j++) { const b0 = B[j], b1 = B[(j + 1) % B.length];
+          const r = [0, 1, 2].map(t => (a0[t] + a1[t] - b0[t] - b1[t]) / 2), da = [0, 1, 2].map(t => a1[t] - a0[t]), db = [0, 1, 2].map(t => b1[t] - b0[t]);
+          const cr = [da[1] * db[2] - da[2] * db[1], da[2] * db[0] - da[0] * db[2], da[0] * db[1] - da[1] * db[0]], d = Math.hypot(...r); s += (r[0] * cr[0] + r[1] * cr[1] + r[2] * cr[2]) / (d * d * d); } } return s / (4 * Math.PI); };
+    const lks = [[1.0, 0, 2.0, 1.3], [0, 0, 1.2, 0.4], [1.5, 0.2, 1.5, 2.9], [0.3, 0, 2.6, 4.0]].map(([t1, p1, t2, p2]) => { const A = loop(t1, p1), B = loop(t2, p2); return A && B ? gauss(A, B) : NaN; });
+    const lkOk = lks.every(x => Math.abs(Math.abs(x) - 1) < 0.01), axis = H.dscHopfArc(Math.PI, 0.3, 64, 3.4, []) === 0;
+    const blk = SRC.slice(SRC.indexOf("D.push({id:'beyond', anchor:'quark'"), SRC.indexOf("/* ── the globe of any body"));
+    const wired = /b=dscHopfB\(N\)/.test(blk) && /U\.Ncl=Math\.log\(Math\.SQRT1_2\)\/LN_PHI/.test(blk) && blk.includes('a probe this sharp would be its own black hole') && blk.includes('столь острый зонд стал бы собственной чёрной дырой')
+      && !/dscFibTiling|golden spiral|Fibonacci|F_\{N/.test(blk) && !SRC.includes('function dscFibTiling(') && /\['clifford',Math\.log\(Math\.SQRT1_2\)\/LN_PHI,/.test(SRC) && /\['lastfibre',/.test(SRC);
+    ok('below the Planck length only the Hopf fibration: the rung N ≤ 0 is the torus |z₂| = φᴺ (radii 1/a, b/a), every sample of every fibre on it to rounding and carrying its own ψ; the Clifford torus at N = log_φ(1/√2) = −0.7202, the mirror of the probe’s crossing; the last fibre the unit circle in the centre; any two fibres linked once; no squares, spiral or matrix; the last fibre labelled with the probe that would be its own black hole',
+      worst < 1e-9 && inBall && cl && core && lkOk && axis && wired, `worst ${worst.toExponential(1)} · in the ball ${inBall ? '✓' : '✗'} · Clifford N = ${Ncl.toFixed(6)} ${cl ? '✓' : '✗'} · last fibre ${core ? '✓' : '✗'} · Lk ${lks.map(x => x.toFixed(4)).join(', ')} · axis ${axis ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
