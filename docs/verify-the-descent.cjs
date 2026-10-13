@@ -21,6 +21,7 @@
  *   9. the Solar world is left as it is: no model is added to it; the sky of the descent is the Solar world's own stars
  *  10. FBS3R: the models on the shells of their rungs at φ⁻² of their true size, placed once without touching
  *  11. the ladder folds: the strip, its steering, its memory; every body has its route; the API
+ *  and near the Planck length: two-loop running, gravity's (E/E_P)², a probe and its horizon, the holographic bits
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -104,6 +105,15 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     ok('the gases and the couplings: the photosphere’s hydrogen at 1.2·10²³ m⁻³ is ≈ 20 nm apart at ≈ 12 km/s; Jupiter’s H₂ at 1 bar and 165 K ≈ 2.8 nm apart; α_s(M_Z) = 0.1180 and falling with energy; φᴺ = F_N·φ + F_{N−1} for N = −20…20',
       Math.abs(sp * 1e9 - 20.3) < 0.2 && Math.abs(v / 1e3 - 12) < 0.3 && Math.abs(spJ * 1e9 - 2.83) < 0.02 && Math.abs(a - 0.118) < 1e-9 && runs && fibOk && /T:165,P:1e5/.test(SRC),
       `${(sp * 1e9).toFixed(2)} nm · ${(v / 1e3).toFixed(2)} km/s · ${(spJ * 1e9).toFixed(3)} nm · α_s(M_Z) ${a.toFixed(4)}, α_s(1 TeV) ${lib.dscAlphaS(1000).toFixed(4)}`); }
+  /* 7b */
+  { const L2 = new Function('UC_K', 'DSC', 'levelOf', [grab(/const DSC_PL=\(\(\)=>\{[\s\S]*?\}\)\(\);\n/, 'Planck units'), grab(/const DSC_B1=[^\n]*\n/, 'β coefficients'), fn('dscRunTable'), fn('dscInvAlphas2'), cst('dscInvAlphaG'),
+      'return {DSC_PL,dscRunTable,dscInvAlphas2,dscInvAlphaG};'].join('\n'))({ hb: 1.054571817e-34, c: 299792458, G: 6.67430e-11, lP: Math.sqrt(1.054571817e-34 * 6.67430e-11 / 299792458 ** 3), mP: Math.sqrt(1.054571817e-34 * 299792458 / 6.67430e-11) }, {}, levelOf);
+    const R = L2.dscRunTable(), P = L2.DSC_PL, cross = 0.5 * Math.log(2) / LN_PHI;
+    const ok12 = R.c12 && R.c12.Q > 5e12 && R.c12.Q < 3e13, ok23 = R.c23 && R.c23.Q > 1e16 && R.c23.Q < 2e17, aG = L2.dscInvAlphaG(P.EPGeV), mz = L2.dscInvAlphas2(91.1876);
+    const inst = ["id:'qcloud'", "id:'ew'", "id:'desert'", "id:'probe'", "id:'bits'", "id:'planck'", "id:'beyond', anchor:'quark', band:[-60,-0.8,1.2]"].every(x => SRC.includes(x)) && /ratio=2\*Math\.pow\(PHI,-2\*N\)/.test(SRC) && /nb=\(Math\.PI\/Math\.LN2\)\*Math\.pow\(PHI,2\*N\)/.test(SRC);
+    ok('near the Planck length every instrument is exact where it can be: the gauge couplings run at two loops from M_Z (α₁ = α₂ near 10¹³ GeV, α₂ = α₃ near 10¹⁶–10¹⁷ GeV — no meeting); gravity’s α_G = (E/E_P)² is 1 at ℓ_P; a probe meets its own horizon at L = √2·ℓ_P (N = log_φ√2); a sphere holds (π/ln 2)(R/ℓ_P)² bits; the Planck units are CODATA’s; the mathematics begins only below N = 0',
+      ok12 && ok23 && Math.abs(aG - 1) < 1e-12 && Math.abs(mz[0] - 59.02) < 1e-9 && Math.abs(cross - 0.7202) < 1e-3 && Math.abs(P.lP - 1.616255e-35) / 1.616255e-35 < 1e-5 && Math.abs(P.TP - 1.416784e32) / 1.416784e32 < 1e-5 && inst,
+      `α₁=α₂ at ${R.c12.Q.toExponential(2)} GeV (1/α ${R.c12.inv.toFixed(2)}) · α₂=α₃ at ${R.c23.Q.toExponential(2)} GeV (1/α ${R.c23.inv.toFixed(2)}) · 1/α_G(E_P) = ${aG} · crossing N = ${cross.toFixed(4)} · T_P = ${P.TP.toExponential(6)} K`); }
   /* 8 */
   { let per = true; for (const p of [[0.3, 1.7, 2.9], [10.1, -4.2, 77.7], [123.4, 55.5, -201.1]]) for (const ax of [0, 1, 2]) { const q = p.slice(); q[ax] += 289; if (Math.abs(lib.dscNJ(...p) - lib.dscNJ(...q)) > 1e-9) per = false; }
     const cr = /dscCratersD\(x,float\(k\),0\.42\*uCrater,r\)/.test(SRC), an = /vec4 dscNd\(vec3 p\)/.test(SRC) && /N=normalize\(mat3\(vM0,vM1,vM2\)\*nl2\)/.test(SRC) && !/dscBump\(normalize\(vNw\)/.test(SRC);
