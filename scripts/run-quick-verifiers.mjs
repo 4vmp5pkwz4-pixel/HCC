@@ -203,6 +203,7 @@ const allChecks = [
   "docs/verify-the-universe-seen-from-outside.cjs",
   "docs/verify-the-phase-transition-of-a-level.cjs",
   "docs/verify-the-trisphere-at-every-scale.mjs",
+  "docs/verify-double-tap-resets-the-world.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -465,6 +466,7 @@ if (fullMode) {
     'docs/verify-the-universe-seen-from-outside.cjs',
     'docs/verify-the-phase-transition-of-a-level.cjs',
     'docs/verify-the-trisphere-at-every-scale.mjs',
+    'docs/verify-double-tap-resets-the-world.cjs',
   ]);
 
   route(/\b(i18n|translation|translate|language|languages|russian|german|trilingual|caption|captions|label|labels)\b/, [

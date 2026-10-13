@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="trisphere-2026.10.12.97">
+<html lang="en" data-hcc-build="first-sight-2026.10.13.98">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="trisphere-2026.10.12.97">
+<meta name="hcc-build" content="first-sight-2026.10.13.98">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -1439,6 +1439,12 @@
   #modeRow .tbsep{flex:0 0 auto;width:1px;align-self:stretch;margin:3px 4px;
     background:linear-gradient(180deg,transparent,rgba(212,175,106,.4),transparent)}
   #modeRow .btn,#modeRow .modebtn{flex:0 0 auto}
+  #modeRow .modebtn{touch-action:manipulation}   /* a double tap on a tab is the atlas's gesture (reset), not the browser's zoom */
+  #worldResetNote{position:fixed;left:50%;top:calc(var(--topbar-h,58px) + 10px);transform:translateX(-50%);z-index:9500;display:flex;align-items:center;gap:12px;
+    max-width:min(94vw,640px);padding:9px 10px 9px 16px;border-radius:12px;background:linear-gradient(165deg,rgba(14,19,34,.97),rgba(7,10,19,.95));
+    border:1px solid var(--gold-dim);box-shadow:0 14px 40px rgba(0,0,0,.55);color:var(--txt);font:12.5px/1.4 var(--sans);animation:wrIn .45s cubic-bezier(.2,.8,.2,1)}
+  @keyframes wrIn{from{opacity:0;transform:translate(-50%,-6px)}to{opacity:1;transform:translate(-50%,0)}}
+  #worldResetNote[hidden]{display:none!important} #worldResetNote b{color:var(--gold-2)} #worldResetNote .btn{flex:0 0 auto;white-space:nowrap}
   /* ── THE ESCAPE HATCH MUST NOT BE THE THING THAT IS HIDDEN ──────────────────
      #modeRow is a horizontal scroller, and the ⋯ More button — the one control whose
      whole job is to reveal what the row could not fit — was scrolling off its own right
@@ -3142,7 +3148,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.381.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.382.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3347,6 +3353,7 @@
   <button class="lbBtn" id="lbMv" title="Multiview — four laboratories side by side" aria-label="Multiview">◱</button>
 </div>
 <div id="lbTip" hidden></div>
+<div id="worldResetNote" role="status" aria-live="polite" hidden></div>
 <div id="hud"><div class="big" id="hudBig"></div><div class="sub" id="hudSub"></div></div>
 <div id="physDebug" style="display:none"></div>
 <div id="atlasCoach" hidden></div>
@@ -3474,8 +3481,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.381.0';
-const HCC_BUILD='trisphere-2026.10.12.97';
+const HCC_VERSION='4.382.0';
+const HCC_BUILD='first-sight-2026.10.13.98';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -113553,15 +113560,86 @@ addEventListener('wheel',disarmIdleDrift,{capture:true,passive:true});
 // (so the same button both reveals and hides them — quick to see, quick to dismiss)
 /* [data-mode] only: #vrBtn/#mrBtn also live in #modeRow and are .modebtn-styled —
    the bare selector used to capture them and OVERWRITE their XR-entry handlers. */
+/* ── A DOUBLE TAP ON THE OPEN TAB: THE WORLD AS IT FIRST APPEARS (v4.382) ─────────────────────────────────────────────
+   One more tap on the tab that is already open still shows or hides its Controls; two taps in quick succession return
+   the world to its first arrival — the camera framed as the world frames itself, and every setting of its scene back
+   to its default. Which settings are "the world's" is measured, not listed: the state keys its own Controls panel reads
+   while it is drawn (an accessor on every key and a proxy behind the object catch the reads, and both are gone before
+   anything else runs), less the clock and the view, which belong to every world. The defaults are then applied the way
+   a reader would apply them: every control of the panel the reset moved is changed through its own handler, so the scene
+   follows exactly as if each had been set back by hand. A notice says what was reset and offers to undo it. */
+const HCC_TAB_DOUBLE_MS=320;
+const HCC_WORLD_RESET_KEEP=new Set(['lang','mode','landed','fovLand','atlasAudience','showQualityOverlay','showPhysDebug','labClock','mvLink','mvLinkV','mvLinkSweep','mvLinkAll','evidenceFilter','tierFilter']);
+/* run fn and return the state keys it read — present ones through temporary accessors, absent ones through a proxy
+   placed behind the object; the object is returned exactly as it was (plain, writable data properties, its own
+   prototype), whatever fn does or throws. A census that walks the whole state (the drift count in the filter bar reads
+   every key on every rebuild) is not the world reading its settings: such a walk reads keys in their stored order, one
+   after another, so a run of HCC_SCAN_RUN or more reads in increasing stored order is set apart as a scan, and a key
+   counts only if it is also read outside such a run. */
+const HCC_SCAN_RUN=64;
+function hccTrackStateReads(fn,obj){ const S=obj||state, seq=[], saved=[], proto=Object.getPrototypeOf(S), order=new Map();
+  Object.keys(S).forEach((k,i)=>order.set(k,i));
+  for(const k of Object.keys(S)){ const d=Object.getOwnPropertyDescriptor(S,k); if(!d||!d.configurable||!('value' in d)) continue; let v=d.value; saved.push([k,d]);
+    Object.defineProperty(S,k,{configurable:true,enumerable:d.enumerable,get(){ seq.push(k); return v; },set(x){ v=x; }}); }
+  Object.setPrototypeOf(S,new Proxy(proto||Object.prototype,{get(t,p,r){ if(typeof p==='string'&&!(p in Object.prototype)) seq.push(p); return Reflect.get(t,p,r); }}));
+  try{ fn(); }
+  finally{ Object.setPrototypeOf(S,proto);
+    for(const [k,d] of saved){ const cur=Object.getOwnPropertyDescriptor(S,k); if(!cur) continue; const v=('value' in cur)?cur.value:S[k]; Object.defineProperty(S,k,{configurable:true,enumerable:d.enumerable,writable:d.writable,value:v}); } }
+  const reads=new Set(), scanned=new Set(); let run=[], last=-1;
+  const close=()=>{ const scan=run.length>=HCC_SCAN_RUN; for(const k of run) (scan?scanned:reads).add(k); run=[]; last=-1; };
+  for(const k of seq){ const i=order.has(k)?order.get(k):-1; if(i<0){ close(); reads.add(k); continue; } if(i<=last) close(); run.push(k); last=i; }
+  close();
+  reads.scanned=scanned.size; return reads; }
+function hccWorldSettingKeys(){ const reads=hccTrackStateReads(()=>{ try{ buildCtl(); }catch(e){} });
+  if(state.mode==='s3'){ try{ for(const k of hccLabStateKeys(state.s3view)) reads.add(k); }catch(e){} }
+  return [...reads].filter(k=>!HCC_WORLD_RESET_KEEP.has(k)&&!HCC_GLOBAL_PHYSICS_KEYS.has(k)&&!HCC_VIEW_ONLY_KEYS.has(k)); }
+/* the controls of the panel, by id, as they read now */
+function hccCtlValues(){ const m=new Map(); ctl.querySelectorAll('input[id],select[id],textarea[id]').forEach(el=>m.set(el.id,(el.type==='checkbox'||el.type==='radio')?el.checked:el.value)); return m; }
+/* rebuild the panel from the state and pass every control that moved through its own handler */
+function hccCtlReplay(before){ try{ buildCtl(); }catch(e){} let n=0;
+  ctl.querySelectorAll('input[id],select[id],textarea[id]').forEach(el=>{ if(!before.has(el.id)) return; const v=(el.type==='checkbox'||el.type==='radio')?el.checked:el.value; if(v===before.get(el.id)) return; n++;
+    try{ el.dispatchEvent(new Event('input',{bubbles:true})); el.dispatchEvent(new Event('change',{bubbles:true})); }catch(e){} });
+  return n; }
+function hccWorldReset(){ const mode=state.mode, keys=hccWorldSettingKeys(), before=hccCtlValues(), undo=[], cam={p:camera.position.clone(),t:controls.target.clone()};
+  for(const k of keys){ const cur=state[k]; if(cur!==null&&typeof cur==='object') continue;   /* scalars only: an array the scene mutates in place has no snapshot to return to */
+    if(Object.prototype.hasOwnProperty.call(STATE_DEFAULTS,k)){ const def=STATE_DEFAULTS[k]; if(def!==null&&typeof def==='object') continue; if(!labValueSame(cur,def)){ undo.push([k,cur,true]); state[k]=def; } }
+    else if(Object.prototype.hasOwnProperty.call(state,k)){ undo.push([k,cur,true]); delete state[k]; } }   /* a setting first written by the reader has no default but its absence */
+  if(mode==='solar'&&state.solarScaleLayer&&state.solarScaleLayer!=='local'){ undo.push(['solarScaleLayer',state.solarScaleLayer,true]); state.solarScaleLayer='local'; }
+  const replayed=hccCtlReplay(before);
+  for(const [k] of undo){ if(Object.prototype.hasOwnProperty.call(STATE_DEFAULTS,k)) state[k]=STATE_DEFAULTS[k]; else if(k!=='solarScaleLayer') delete state[k]; }   /* a handler that toggles instead of reading its control cannot leave a setting off its default */
+  try{ setMode(mode); }catch(e){} try{ buildCtl(); }catch(e){} try{ hccSave(); }catch(e){}
+  hccWorldResetNotice(mode,undo,cam);
+  return {mode, reset:undo.map(u=>u[0]), replayed}; }
+function hccWorldResetUndo(mode,undo,cam){ if(state.mode!==mode) return false; const before=hccCtlValues();
+  for(const [k,v] of undo){ if(v===undefined) delete state[k]; else state[k]=v; }
+  hccCtlReplay(before); for(const [k,v] of undo){ if(v===undefined) delete state[k]; else state[k]=v; }
+  try{ setMode(mode); }catch(e){}
+  try{ hccCameraGoalClear(); camera.position.copy(cam.p); controls.target.copy(cam.t); _lastCamDist=camera.position.distanceTo(controls.target); controls.update(); syncCameraClipping(true); }catch(e){}
+  try{ buildCtl(); }catch(e){} try{ hccSave(); }catch(e){} return true; }
+function hccWorldResetNotice(mode,undo,cam){ const n=document.getElementById('worldResetNote'); if(!n) return;
+  const tab=document.querySelector(`#modeRow .modebtn[data-mode="${mode}"]`), name=tab?tab.textContent.trim():mode, k=undo.length;
+  n.innerHTML=`<span>↺ <b>${esc(name)}</b> · ${k?TT(`camera and ${k} setting${k===1?'':'s'} back to how this world first appears`,`камера и настройки (${k}) — как при первом открытии мира`,`Kamera und ${k} Einstellung${k===1?'':'en'} wie beim ersten Öffnen`):TT('camera back to its first framing; every setting was already at its default','камера — как при первом открытии; настройки и так исходные','Kamera wie beim ersten Öffnen; alle Einstellungen waren schon Standard')}</span>`
+    +(k||cam?`<button type="button" class="btn" id="worldResetUndo">↶ ${TT('Undo','Отменить','Rückgängig')}</button>`:'');
+  n.hidden=false; clearTimeout(n._t); n._t=setTimeout(()=>{ n.hidden=true; },6500);
+  const u=document.getElementById('worldResetUndo'); if(u) u.onclick=()=>{ hccWorldResetUndo(mode,undo,cam); n.hidden=true; }; }
+globalThis.HCC_WORLD_RESET=Object.freeze({reset:()=>hccWorldReset(), keys:()=>hccWorldSettingKeys(), doubleTapMs:HCC_TAB_DOUBLE_MS});
+/* the gesture is said where it lives: on the tab, in the reader's language at the moment of reading */
+document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.addEventListener('pointerenter',()=>{ b.title=TT('Open this world · tap again: its Controls · double-tap: the world as it first appears (camera and settings)','Открыть этот мир · ещё одно нажатие — его Controls · двойное нажатие — мир как при первом открытии (камера и настройки)','Diese Welt öffnen · erneut tippen: ihre Controls · doppelt tippen: die Welt wie beim ersten Öffnen (Kamera und Einstellungen)'); }));
 document.querySelectorAll('#modeRow .modebtn[data-mode]').forEach(b=>b.onclick=()=>{
-  const same=b.dataset.mode===state.mode;
+  /* a double tap is two taps on a tab that was ALREADY open: a habitual double tap on another tab opens that world and
+     does not wipe it the moment it arrives */
+  const same=b.dataset.mode===state.mode, now=performance.now(), dbl=same&&!!b._tapOpen&&now-(b._tapAt||0)<HCC_TAB_DOUBLE_MS;
+  b._tapAt=now; b._tapOpen=same&&!dbl;
   if(same){
+    /* two taps: the world as it first appears (above); the first of them only waited to see whether a second came */
+    if(dbl){ clearTimeout(b._tapT); b._tapT=0; try{ hccWorldReset(); }catch(e){ console.warn('world reset',e); } return; }
     /* re-click the active section hides/shows its Controls — and when it SHOWS, it lands
        on that model's first real parameter rather than on the panel's own heading.
        Pressing a section is a request to work with it, so the answer is its settings. */
-    togglePanel('ctl');
-    try{ if(getComputedStyle(document.getElementById('ctl')).display!=='none')
-      hccScrollToFirstParameter('ctl'); }catch(e){}
+    clearTimeout(b._tapT);
+    b._tapT=setTimeout(()=>{ b._tapT=0; togglePanel('ctl');
+      try{ if(getComputedStyle(document.getElementById('ctl')).display!=='none')
+        hccScrollToFirstParameter('ctl'); }catch(e){} },HCC_TAB_DOUBLE_MS);
     return;
   }
   if(b.dataset.mode==='solar') state.solarScaleLayer='local';   // Solar returns to the planets, not a stale cosmic warp
