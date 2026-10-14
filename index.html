@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="hopf-below-planck-2026.10.13.104">
+<html lang="en" data-hcc-build="hopf-dive-2026.10.14.105">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="hopf-below-planck-2026.10.13.104">
+<meta name="hcc-build" content="hopf-dive-2026.10.14.105">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3276,7 +3276,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.386.2</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.386.3</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3612,8 +3612,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.386.2';
-const HCC_BUILD='hopf-below-planck-2026.10.13.104';
+const HCC_VERSION='4.386.3';
+const HCC_BUILD='hopf-dive-2026.10.14.105';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -25616,9 +25616,6 @@ function dscHopfArc(th,ph,n,C,out){ const a=Math.cos(th/2), b=Math.sin(th/2), p0
 /* the rung's latitude on the base sphere, and its torus: the rung N ≤ 0 is drawn as |z₂| = sin(θ/2) = φᴺ */
 const dscHopfB=N=>Math.min(1,Math.pow(PHI,N));
 const dscHopfTheta=N=>2*Math.asin(dscHopfB(N));
-/* the tori over one latitude: K fibres, hue = the base longitude φ/2π (the same colour as the fibre's point on the base) */
-function dscHopfTorus(th,K,n,C,gain,w,P,runs){ for(let k=0;k<K;k++){ const ph=2*Math.PI*k/K, o=P.length/4, m=dscHopfArc(th,ph,n,C,P); if(!m) continue;
-    const c=new THREE.Color().setHSL(k/K,0.8,0.58); runs.push({o,len:Math.abs(m),closed:m<0,c:[c.r,c.g,c.b],g:gain,w}); } }
 /* runs of [x,y,z,ψ] into a capsule mesh: the positions when they change, the light along ψ every frame */
 function dscHopfStrokes(m,runs,P){ const A=m.geometry.attributes, H=A.h4.array, T=A.t4.array, WH=A.wh.array, cap=m.userData.capsules, ps=m.userData.ps||(m.userData.ps=new Float32Array(cap)), bc=m.userData.bc||(m.userData.bc=new Float32Array(3*cap)), rr=[]; let j=0;
   for(const r of runs){ const j0=j, ns=r.closed?r.len:r.len-1; for(let i=0;i<ns&&j<cap;i++,j++){ const a=4*(r.o+i), b=4*(r.o+(i+1)%r.len);
@@ -25630,10 +25627,55 @@ function dscHopfStrokes(m,runs,P){ const A=m.geometry.attributes, H=A.h4.array, 
 function dscHopfLight(m,f,t,ai,ag){ const A=m.geometry.attributes, C=A.col.array, ps=m.userData.ps, bc=m.userData.bc, n=m.userData.n||0, rr=m.userData.rr||[], r=ai!=null?rr[ai]:null, k=r&&r[2]>0?ag/r[2]:1;
   for(let j=0;j<n;j++){ const q=0.5+0.5*Math.cos(2*(ps[j]-t)), I=f*(0.5+0.5*q*q*q)*(r&&j>=r[0]&&j<r[1]?k:1); C[3*j]=bc[3*j]*I; C[3*j+1]=bc[3*j+1]*I; C[3*j+2]=bc[3*j+2]*I; }
   A.col.needsUpdate=true; triCapsuleSync(m,null,{}); }
-/* segments [a, b, colour, width] — ucCapsSegs with a width for each */
-function dscCapsSegsW(m,segs){ const A=m.geometry.attributes, H=A.h4.array, T=A.t4.array, C=A.col.array, WH=A.wh.array, n=Math.min(segs.length,m.userData.capsules);
-  for(let i=0;i<n;i++){ const [a,b,c,w]=segs[i]; T[4*i]=a.x; T[4*i+1]=a.y; T[4*i+2]=a.z; T[4*i+3]=1; H[4*i]=b.x; H[4*i+1]=b.y; H[4*i+2]=b.z; H[4*i+3]=1; C[3*i]=c[0]; C[3*i+1]=c[1]; C[3*i+2]=c[2]; WH[2*i]=w; WH[2*i+1]=0; }
-  m.geometry.instanceCount=n; for(const k of ['h4','t4','col','wh']) A[k].needsUpdate=true; triCapsuleSync(m,null,{}); }
+/* ── the shells of the fibration, drawn on the GPU from their own two angles ─────────────────────────────────────────
+   A torus |z₂| = b of the unit S³ is (a·e^{iα₁}, b·e^{iα₂}), a² + b² = 1: α₁ goes round the axis, α₂ round the tube; its
+   fibres are the lines α₁ − α₂ = φ (φ the base longitude) and ψ = α₂ runs along each. Projected from (0,0,0,1) exactly,
+   vertex by vertex; then, below the rung where the dive begins, magnified k-fold across the last fibre (ρ ↦ 1 + k(ρ − 1),
+   z ↦ kz about the unit circle — a microscope across it, nothing along it), written without cancellation (ρ − 1 =
+   (w − b²/(1 + a))/(1 − w)) so that float32 keeps a tube of 10⁻⁹ as well as one of 1. In the fragment every fibre is a line a pixel
+   and a half wide, measured by its own derivative, in the colour of φ; light runs along ψ as e^{iψ} carries the points of
+   S³ round their fibres; glass by Fresnel, the far side dimmer, and the wedge facing the reader cut away so the nested
+   shells and the last fibre show through. dscHopfSurf is the same map on the CPU, for the words and for the verifier. */
+const DSC_HOPF_V=`uniform float uB,uK,uC; varying vec2 vA; varying vec3 vP; varying vec3 vN; varying vec3 vV;
+vec3 hopfP(float a1,float a2){ float b=uB, a=sqrt(max(0.0,1.0-b*b)), w=b*sin(a2), q=1.0/max(1e-4,1.0-w);
+  float dr=(w-b*b/(1.0+a))*q, z=b*cos(a2)*q, rho=1.0+dr, r=sqrt(rho*rho+z*z);
+  if(r>2.0*uC){ float s=2.0*uC/r; rho*=s; z*=s; dr=rho-1.0; }
+  float R=1.0+uK*dr; return vec3(cos(a1)*R,sin(a1)*R,uK*z); }
+void main(){ float a1=6.28318531*position.x, a2=6.28318531*position.y; vec3 P=hopfP(a1,a2), Pu=hopfP(a1+0.004,a2)-P, Pv=hopfP(a1,a2+0.004)-P;
+  vA=vec2(a1,a2); vP=P; vN=normalMatrix*(cross(Pu,Pv)+vec3(0.0,0.0,1e-9)); vec4 mv=modelViewMatrix*vec4(P,1.0); vV=-mv.xyz; gl_Position=projectionMatrix*mv;
+#include <logdepthbuf_vertex>
+}`;
+const DSC_HOPF_F=`uniform float uT,uFib,uGain,uGlass,uWedge,uAz,uFade,uC,uLw; uniform vec3 uTone; varying vec2 vA; varying vec3 vP; varying vec3 vN; varying vec3 vV;
+vec3 dscHue(float h){ vec3 k=clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0,0.0,1.0); return k*k*(3.0-2.0*k); }
+void main(){
+#include <logdepthbuf_fragment>
+  float r=length(vP); if(r>uC) discard;
+  float cw=cos(atan(vP.y,vP.x)-uAz); if(cw>uWedge) discard;
+  float ph=vA.x-vA.y, s=ph*uFib/6.28318531, d=abs(fract(s+0.5)-0.5)/max(fwidth(s),1e-4), line=1.0-smoothstep(0.55*uLw,uLw+0.75,d);
+  float p=0.5+0.5*cos(2.0*(vA.y-uT)), pk=p*p; pk*=pk; pk*=pk;
+  vec3 V=normalize(vV), Nn=normalize(vN); float fr=pow(1.0-abs(dot(Nn,V)),2.4), face=gl_FrontFacing?1.0:0.4, rim=smoothstep(uWedge-0.07,uWedge,cw);
+  vec3 hue=mix(vec3(0.8),dscHue(fract(ph/6.28318531)),0.94);
+  vec3 E=hue*line*(0.22+1.6*pk)*uGain*face+uTone*(0.14*fr+0.55*rim)*uGlass;
+  float al=clamp(uGlass*(0.06+0.5*fr+0.3*rim),0.0,0.55), fo=(1.0-smoothstep(0.72*uC,uC,r))*uFade;
+  gl_FragColor=vec4(E*fo,al*fo); }`;
+function dscHopfSurf(a1,a2,b,k,C){ const a=Math.sqrt(Math.max(0,1-b*b)), w=b*Math.sin(a2), q=1/Math.max(1e-4,1-w);
+  let dr=(w-b*b/(1+a))*q, z=b*Math.cos(a2)*q, rho=1+dr; const r=Math.hypot(rho,z); if(C&&r>2*C){ const s=2*C/r; rho*=s; z*=s; dr=rho-1; }
+  const R=1+k*dr; return [Math.cos(a1)*R,Math.sin(a1)*R,k*z]; }
+/* one grid in (α₁/2π, α₂/2π), shared by every shell */
+function dscHopfGrid(nu,nv){ const g=new THREE.BufferGeometry(), P=new Float32Array((nu+1)*(nv+1)*3), I=[]; let q=0;
+  for(let j=0;j<=nv;j++) for(let i=0;i<=nu;i++){ P[q++]=i/nu; P[q++]=j/nv; P[q++]=0; }
+  for(let j=0;j<nv;j++) for(let i=0;i<nu;i++){ const a=j*(nu+1)+i, c=a+nu+1; I.push(a,c,a+1, a+1,c,c+1); }
+  g.setAttribute('position',new THREE.BufferAttribute(P,3)); g.setIndex(I); g.boundingSphere=new THREE.Sphere(new THREE.Vector3(),1e4); return g; }
+/* a shell is two draws of one surface sharing its uniforms — the far side, then (after everything inside it) the near
+   side — so the glass, which dims what is behind it and adds its own light, is laid down from the back to the front */
+function dscHopfShell(geo,tone){ const u={uB:{value:0.5},uK:{value:1},uC:{value:3.4},uT:{value:0},uFib:{value:24},uGain:{value:0.36},uGlass:{value:0.42},uWedge:{value:0.47},uAz:{value:0},uFade:{value:1},uLw:{value:0.9},uTone:{value:new THREE.Color(tone||'#8aa6ff')}};
+  const mk=side=>{ const m=new THREE.Mesh(geo,new THREE.ShaderMaterial({transparent:true,depthWrite:false,depthTest:true,side,blending:THREE.CustomBlending,blendEquation:THREE.AddEquation,blendSrc:THREE.OneFactor,blendDst:THREE.OneMinusSrcAlphaFactor,
+      uniforms:u, vertexShader:DSC_LOGD_V+DSC_HOPF_V, fragmentShader:DSC_LOGD_F+DSC_HOPF_F})); m.frustumCulled=false; m.userData.noGrade=true; return m; };
+  return {u, back:mk(THREE.BackSide), front:mk(THREE.FrontSide)}; }
+/* the dive: until the rung N₁ the shells stand at their own size; below it the view is magnified across the last fibre
+   so that the rung's own torus keeps the tube it had at N₁ — every rung inward, φ-fold more */
+const DSC_DIVE_N1=-1.6;
+function dscDiveK(N){ const t=n=>{ const b=dscHopfB(n), a=Math.sqrt(Math.max(0,1-b*b)); return a>0?b/a:Infinity; }; return N<DSC_DIVE_N1?t(DSC_DIVE_N1)/t(N):1; }
 /* ── NEAR THE PLANCK LENGTH: every instrument here states something exact, and says where the exactness ends ──────────
    The constants are CODATA 2018 (the atlas's own UC_K): ℓ_P = √(ħG/c³), t_P = ℓ_P/c, m_P = √(ħc/G), E_P = m_P c², T_P = E_P/k_B.
    The Standard Model's three gauge couplings are run from M_Z at two loops in the gauge couplings (Machacek & Vaughn 1984;
@@ -25722,9 +25764,9 @@ function dscBuildRegimes(D){
       const shell=(col,op)=>new THREE.Mesh(new THREE.SphereGeometry(1,64,48),new THREE.ShaderMaterial({transparent:true,depthWrite:false,uniforms:{uC:{value:new THREE.Color(col)},uFade:{value:op}},
         vertexShader:DSC_LOGD_V+'varying vec3 vN; varying vec3 vV; void main(){ vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
         fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade; varying vec3 vN; varying vec3 vV; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.4); gl_FragColor=vec4(uC*(0.25+1.2*f),(0.06+0.8*f)*uFade); }'}));
-      const probe=shell('#7fdcff',1); g.add(probe); g.userData.probe=probe;
-      const hole=new THREE.Mesh(new THREE.SphereGeometry(1,64,48),new THREE.MeshBasicMaterial({color:0x000000,transparent:true})); g.add(hole); g.userData.hole=hole;
-      const rim=shell('#ffb35a',1); g.add(rim); g.userData.rim=rim;
+      const probe=shell('#7fdcff',1); probe.renderOrder=1; g.add(probe); g.userData.probe=probe;
+      const hole=new THREE.Mesh(new THREE.SphereGeometry(1,64,48),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,depthWrite:false})); hole.renderOrder=2; g.add(hole); g.userData.hole=hole;
+      const rim=shell('#ffb35a',1); rim.renderOrder=3; g.add(rim); g.userData.rim=rim;
       const L=dscLabel('','#e6f4ff','label'); g.add(L); g.userData.L=L; return g; },
     tick(f,N){ const g=this.obj, vh=dscVH(), rp=0.24*vh, ratio=2*Math.pow(PHI,-2*N), rh=Math.min(rp*ratio,0.92*DSC_D0);
       g.position.copy(DSC.rel[DSC.qi]); g.userData.probe.scale.setScalar(rp); g.userData.hole.scale.setScalar(rh); g.userData.rim.scale.setScalar(rh*1.04);
@@ -25756,84 +25798,77 @@ function dscBuildRegimes(D){
       g.add(L); g.userData.L=L; return g; },
     tick(f,N){ const g=this.obj; g.position.copy(DSC.rel[DSC.qi]); g.userData.L.position.copy(dscScreen(0,-0.4)); g.userData.L.visible=f>0.5&&!DSC.quiet; } });
   /* below the Planck length no length is physical; the ladder goes on as the mathematics it stands on — the Hopf
-     fibration of the unit S³ (Hopf 1931): S³ → S², over every point of the base sphere one great circle of S³, every two
-     of them linked once. Projected from (0,0,0,1), the fibres over one latitude, |z₂| = b, fill the torus of revolution
-     with radii 1/a and b/a (a² + b² = 1). A rung N ≤ 0 is drawn as its torus |z₂| = φᴺ — a construction of the atlas,
-     not a measurement: the axis at N = 0; the Clifford torus |z₁| = |z₂| = 1/√2, the equator's, at N = log_φ(1/√2) =
-     −0.72, the mirror of the probe's crossing at +0.72; below it the tori close, φ-fold thinner every rung, on the one
-     fibre every torus winds about — the last fibre, in the centre, where a probe sharp enough to resolve it would be its
-     own black hole. The integer rungs −1…−4 stay as the faint fibration, the reader's rung is the bright torus, and light
-     runs along every fibre as the circle action e^{iψ} moves its points. Drawn at the size of the view, not of a length;
-     set square to the view once, then the reader may turn it. Nothing else is drawn here. */
-  D.push({id:'beyond', anchor:'quark', band:[-60,-0.3,0.45], build(){ const g=new THREE.Group(), F=new THREE.Group(), B=new THREE.Group(), U=g.userData, lite=!!MOBILE_GPU;
-      g.add(F); g.add(B); U.F=F; U.B=B; U.C=3.4; U.lite=lite; U.Ncl=Math.log(Math.SQRT1_2)/LN_PHI;
-      const mk=n=>{ const m=triCapsules(n,0.95,true); m.material.uniforms.uW.value=1.0; m.material.depthTest=false; m.renderOrder=6; return m; };
-      /* the faint fibration: the tori of the integer rungs −1…−4, the axis (the fibre over the south pole, |z₂| = 1), and
-         the last fibre (over the north pole, z₂ = 0) — fixed */
-      const P=[], runs=[], Kr=lite?10:14, nr=lite?40:52;
-      [-1,-2,-3,-4].forEach((n,i)=>dscHopfTorus(dscHopfTheta(n),Kr,nr,U.C,0.13-0.015*i,0.75,P,runs));
-      { const o=P.length/4, m=48; for(let i=0;i<=m;i++){ const z=-U.C+2*U.C*i/m; P.push(0,0,z,2*Math.atan(z)-Math.PI/2); } runs.push({o,len:m+1,closed:false,c:[0.62,0.7,0.9],g:0.3,w:1.0,axis:true}); }
-      const ref=mk(runs.reduce((s,r)=>s+r.len,0)); dscHopfStrokes(ref,runs,P); F.add(ref); U.ref=ref; U.axisAt=runs.length-1;
-      const lp=[], lr=[]; { const o=0, m=dscHopfArc(0,0,180,U.C,lp); lr.push({o,len:Math.abs(m),closed:m<0,c:[1.0,0.72,0.3],g:0.55,w:2.0}); }
-      const core=mk(180); dscHopfStrokes(core,lr,lp); F.add(core); U.core=core;
-      /* the reader's rung: the bright torus, rebuilt as the rung moves */
-      U.Kc=lite?24:36; U.nc=lite?48:64; const cur=mk(U.Kc*(U.nc+1)); F.add(cur); U.cur=cur; U.curN=NaN;
-      /* the base S² of the fibration, small, square to the view: each point one fibre in the same colour; gold, the last
-         fibre's point (the north pole); the rung's latitude θ, sin(θ/2) = φᴺ, closing on it */
-      const shell=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),new THREE.ShaderMaterial({transparent:true,depthWrite:false,depthTest:false,uniforms:{uC:{value:new THREE.Color('#8fb4ff')},uFade:{value:1}},
-        vertexShader:DSC_LOGD_V+'varying vec3 vN; varying vec3 vV; void main(){ vN=normalize(normalMatrix*normal); vec4 mv=modelViewMatrix*vec4(position,1.0); vV=normalize(-mv.xyz); gl_Position=projectionMatrix*mv;\n#include <logdepthbuf_vertex>\n}',
-        fragmentShader:DSC_LOGD_F+'uniform vec3 uC; uniform float uFade; varying vec3 vN; varying vec3 vV; void main(){\n#include <logdepthbuf_fragment>\n float f=pow(1.0-abs(dot(normalize(vN),normalize(vV))),2.2); gl_FragColor=vec4(uC*(0.1+0.9*f),(0.04+0.5*f)*uFade); }'}));
-      shell.renderOrder=5; B.add(shell); U.shell=shell;
-      const lat=(th,m,col,gain,w,out)=>{ for(let i=0;i<m;i++){ const p0=2*Math.PI*i/m, p1=2*Math.PI*(i+1)/m, s=Math.sin(th), z=Math.cos(th), c=col||new THREE.Color().setHSL(i/m,0.8,0.58);
-          out.push([dscV(s*Math.cos(p0),s*Math.sin(p0),z),dscV(s*Math.cos(p1),s*Math.sin(p1),z),[c.r*gain,c.g*gain,c.b*gain],w]); } };
-      const bs=[]; lat(Math.PI/2,64,new THREE.Color('#9fb2d8'),0.32,0.8,bs); [-1,-2,-3,-4].forEach(n=>lat(dscHopfTheta(n),48,new THREE.Color('#9fb2d8'),0.16,0.7,bs)); U.bs=bs;
-      U.base=mk(bs.length+72); B.add(U.base);
-      const pole=(col,s)=>{ const p=dscGlow(col,s,1); p.renderOrder=7; p.material.depthTest=false; B.add(p); return p; };
-      U.north=pole('#ffd27a',0.5); U.north.position.set(0,0,1); U.south=pole('#a8b8e0',0.32); U.south.position.set(0,0,-1);
-      /* the words: what this is, the reader's rung, the last fibre, the base */
-      U.title=()=>TT('the Hopf fibration S³ → S² (Hopf 1931) · over every point of the sphere one circle of S³, every two of them linked once · below ℓ_P no length is physical — this is mathematics, not a place',
-        'расслоение Хопфа S³ → S² (Хопф, 1931) · над каждой точкой сферы — одна окружность S³, любые две сцеплены один раз · ниже ℓ_P никакая длина не физична — это математика, а не место','die Hopf-Faserung S³ → S²');
-      const T=dscLabel('','#ffe2a8','label major'); T.center.set(0.5,0); g.add(T); U.T=T;
-      const LF=dscLabel('','#ffd27a','label major'); LF.center.set(0.5,-0.25); F.add(LF); U.LF=LF;
-      const BL=dscLabel(TT('the base S² · each point is one fibre, in its colour · gold: the last fibre’s point','база S² · каждая точка — одно волокно его цвета · золото — точка последнего волокна','die Basis S²'),'#9fb2d8','label dim'); BL.center.set(0.5,0); BL.element.style.maxWidth='190px'; g.add(BL); U.BL=BL;
+     fibration of the unit S³ (Hopf 1931): S³ → S², over every point of the base sphere one great circle, every two linked
+     once. A rung N ≤ 0 is drawn as its torus |z₂| = φᴺ — a construction of the atlas, not a measurement: the axis at
+     N = 0, the Clifford torus |z₁| = |z₂| = 1/√2 at N = log_φ(1/√2) = −0.72 (the mirror of the probe's crossing at +0.72),
+     and the tori of the integer rungs as glass shells nested round the one fibre they all close on — the last fibre, gold,
+     in the centre, where a probe sharp enough to resolve it would be its own black hole. Down to N₁ = −1.6 the reader's
+     torus shrinks among the shells; below it the view dives: magnified across the last fibre φ-fold more every rung, the
+     reader's torus holds its tube while the shells come out of the last fibre, grow and pass it — at every rung, down to
+     the floor. Light runs along every fibre as e^{iψ} carries the points of S³ round them (the Hopf field, a steady flow
+     of an ideal fluid on S³). Square to the view when it appears; it turns with the reader's drag and, idle, slowly by
+     itself; never with the clock. Nothing else is drawn here. */
+  D.push({id:'beyond', anchor:'quark', band:[-60,-0.3,0.45], build(){ const g=new THREE.Group(), F=new THREE.Group(), U=g.userData, lite=!!MOBILE_GPU;
+      g.add(F); U.F=F; U.C=3.4; U.Ncl=Math.log(Math.SQRT1_2)/LN_PHI;
+      const geo=dscHopfGrid(lite?120:200,lite?44:72); U.shells=[];
+      for(let j=0;j<(lite?7:10);j++){ const m=dscHopfShell(geo); m.u.uFib.value=lite?14:18; F.add(m.back,m.front); U.shells.push(m); }
+      const me=dscHopfShell(geo,'#ffc874'); me.u.uFib.value=lite?22:28; me.u.uGain.value=0.95; me.u.uGlass.value=0.5; me.u.uLw.value=1.15; F.add(me.back,me.front); U.me=me;
+      const mk=(n,ro)=>{ const m=triCapsules(n,0.95,true); m.material.uniforms.uW.value=1.0; m.material.depthTest=false; m.renderOrder=ro; return m; };
+      /* the last fibre (over the north pole, z₂ = 0), a gold line in its own halo, and the axis (over the south pole) */
+      const lp=[], lr=[], lh=[]; { const m=dscHopfArc(0,0,200,U.C,lp); lr.push({o:0,len:Math.abs(m),closed:m<0,c:[1.0,0.74,0.3],g:1.25,w:2.6}); lh.push({o:0,len:Math.abs(m),closed:m<0,c:[1.0,0.55,0.16],g:0.2,w:13}); }
+      const halo=mk(200,34); dscHopfStrokes(halo,lh,lp); F.add(halo); U.halo=halo;
+      const core=mk(200,36); dscHopfStrokes(core,lr,lp); F.add(core); U.core=core;
+      const ap=[], ar=[]; { const m=48; for(let i=0;i<=m;i++){ const z=-U.C+2*U.C*i/m; ap.push(0,0,z,2*Math.atan(z)-Math.PI/2); } ar.push({o:0,len:m+1,closed:false,c:[0.62,0.7,0.9],g:0.3,w:1.0}); }
+      const axis=mk(48,35); dscHopfStrokes(axis,ar,ap); F.add(axis); U.axis=axis;
+      /* the words: what this is, the reader's rung, the last fibre */
+      const plain=L=>{ const st=L.element.style; st.filter='none'; st.textShadow='0 0 7px rgba(0,0,0,.95),0 0 2px rgba(0,0,0,.95)'; return L; };
+      const T=plain(dscLabel('','#ffe2a8','label major')); T.center.set(0.5,0); g.add(T); U.T=T;
+      const R=plain(dscLabel('','#dfe8fb','label')); R.center.set(0.5,1); g.add(R); U.R=R;
+      const LF=plain(dscLabel('','#ffd27a','label major')); LF.center.set(0.5,-0.3); F.add(LF); U.LF=LF;
       return g; },
-    tick(f,N){ const g=this.obj, U=g.userData, F=U.F, B=U.B, vh=dscVH(), asp=camera.aspect||1, t=DSC.t*0.55, b=dscHopfB(N), a=Math.sqrt(Math.max(0,1-b*b));
+    tick(f,N){ const g=this.obj, U=g.userData, F=U.F, vh=dscVH(), asp=camera.aspect||1, t=DSC.t*0.55, b=dscHopfB(N), a=Math.sqrt(Math.max(0,1-b*b)), k=dscDiveK(N);
       g.position.copy(DSC.rel[DSC.qi]); g.quaternion.identity(); g.scale.setScalar(1);
-      /* square to the view when it appears (the axis up, the last fibre seen from 34° above); the reader's own drag turns
-         it — the camera's turn between the last frame and this one's controls — while the turning with the body that the
-         clock gives the camera does not, so it never drifts however fast the clock runs */
-      if(!U.rel||DSC.t-U.seen>0.3){ U.rel=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.6-Math.PI/2); U.camPost=null; }
+      /* square to the view when it appears; the reader's drag turns it, the clock's co-rotation does not; idle, the
+         elevation breathes and the fibration turns slowly about its axis (a symmetry: the shells hold, the fibres pass) */
+      if(!U.rel||DSC.t-U.seen>0.3){ U.rel=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.6-Math.PI/2); U.camPost=null; U.t0=DSC.t; U.az=null; }
       else if(U.camPost&&DSC.camPre&&U.camQ){ const a0=U.camPost.clone().normalize(), a1=DSC.camPre.clone().normalize();
         if(a0.distanceToSquared(a1)>1e-14){ const Dq=new THREE.Quaternion().setFromUnitVectors(a0,a1), Dc=U.camQ.clone().invert().multiply(Dq).multiply(U.camQ); U.rel.premultiply(Dc.invert()).normalize(); } }
-      U.seen=DSC.t; F.quaternion.copy(camera.quaternion).multiply(U.rel); const S=0.2*vh*Math.min(1,asp*1.05); F.scale.setScalar(S);
-      /* the bright torus of the rung (none at N ≥ 0: there it is the axis itself) */
-      if(!(Math.abs(N-U.curN)<=1e-4)){ U.curN=N; const P=[], runs=[]; if(b<0.9995) dscHopfTorus(2*Math.asin(b),U.Kc,U.nc,U.C,1.25,1.8,P,runs); dscHopfStrokes(U.cur,runs,P);
-        const bc=[]; U.lat=bc; if(b<0.9995&&b>1e-4){ const th=2*Math.asin(b), s=Math.sin(th), z=Math.cos(th); for(let i=0;i<72;i++){ const p0=2*Math.PI*i/72, p1=2*Math.PI*(i+1)/72, c=new THREE.Color().setHSL(i/72,0.9,0.6);
-            bc.push([dscV(s*Math.cos(p0),s*Math.sin(p0),z),dscV(s*Math.cos(p1),s*Math.sin(p1),z),[c.r*0.95,c.g*0.95,c.b*0.95],2.2]); } } }
-      /* how thin the bright torus is on the screen: below a pixel and a half it has merged with the last fibre */
-      const px=(innerHeight||800)/vh, tubePx=(a>0?b/a:1e9)*S*px, vis=dscSmooth(0.6,2.5,tubePx);
-      dscHopfLight(U.ref,f,t,U.axisAt,0.16+0.5*dscSmooth(-0.6,0,N)); dscHopfLight(U.core,f,t*0.7); const tb=a>0?b/a:1e9; dscHopfLight(U.cur,f*vis*(tb>1?Math.pow(tb,-1.3):Math.max(0.1,Math.pow(tb,0.9))),t);
-      /* the base, at the lower left, square to the view */
-      const port=asp<0.9, narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches; B.position.copy(dscScreen(port?0.62:0.74,port?0.3:0.02)); B.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.45-Math.PI/2));
-      const sb=(narrow?0.05:0.07)*vh*Math.min(1,asp*1.6); B.scale.setScalar(sb); U.shell.material.uniforms.uFade.value=f; U.north.material.opacity=f; U.south.material.opacity=0.6*f;
-      const segs=U.bs.map(s=>[s[0],s[1],s[2].map(c=>c*f),s[3]]).concat((U.lat||[]).map(s=>[s[0],s[1],s[2].map(c=>c*f*0.9),s[3]])); dscCapsSegsW(U.base,segs);
-      /* the words */
-      const on=f>0.5&&!DSC.quiet&&N<-0.55; U.T.visible=on; U.LF.visible=on; U.BL.visible=on&&!narrow&&sb*px>18;
-      U.T.position.copy(dscScreen(0,0.56)); U.BL.position.copy(B.position).add(dscScreen(0,-0.17*Math.min(1,asp*1.6)));
+      U.seen=DSC.t; const ti=DSC.t-U.t0, breathe=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),0.13*Math.sin(0.11*ti)), spin=new THREE.Quaternion().setFromAxisAngle(dscV(0,0,1),0.045*ti);
+      F.quaternion.copy(camera.quaternion).multiply(breathe).multiply(U.rel).multiply(spin); const S=0.2*vh*Math.min(1,asp*1.05); F.scale.setScalar(S);
+      /* the wedge faces the reader, turning smoothly with the view */
+      g.updateMatrixWorld(true); const cl=F.worldToLocal(camera.position.clone()), hl=Math.hypot(cl.x,cl.y);
+      if(hl>0.15*cl.length()){ const az=Math.atan2(cl.y,cl.x); if(U.az==null) U.az=az; else { let d=az-U.az; d-=2*Math.PI*Math.round(d/(2*Math.PI)); U.az+=d*0.2; } }
+      const az=U.az??-Math.PI/2, wedge=0.47;
+      /* the integer rungs as shells: the largest whose magnified tube is under 0.95, and inward from it */
+      const tube=n=>{ const bb=dscHopfB(n), aa=Math.sqrt(Math.max(0,1-bb*bb)); return aa>0?bb/aa:Infinity; };
+      let nTop=Math.min(-1,Math.floor(Math.log(0.95/k)/LN_PHI)+2); while(nTop<-1&&k*tube(nTop+1)<=0.95) nTop++; while(k*tube(nTop)>0.95) nTop--;
+      const cold=U.cold||(U.cold=new THREE.Color('#7f9cff')), warm=U.warm||(U.warm=new THREE.Color('#ffcf7a'));
+      const vis=(m,on)=>{ m.back.visible=m.front.visible=on; }, order=[];
+      U.shells.forEach((m,j)=>{ const n=nTop-j, tm=k*tube(n), al=dscSmooth(0.01,0.035,tm)*(1-dscSmooth(0.6,0.95,tm)), u=m.u;
+        vis(m,al>0.003); if(al<=0.003) return; u.uB.value=dscHopfB(n); u.uK.value=k; u.uT.value=t; u.uAz.value=az; u.uWedge.value=wedge; u.uFade.value=f*al;
+        u.uTone.value.copy(warm).lerp(cold,dscSmooth(0.03,0.7,tm)); order.push([tm,m]); });
+      /* the reader's torus |z₂| = φᴺ, bright; at N ≥ 0 it is the axis itself */
+      { const u=U.me.u, big=a>0?b/a:1e9; vis(U.me,b<0.995); u.uB.value=Math.min(b,0.995); u.uK.value=k; u.uT.value=t; u.uAz.value=az; u.uWedge.value=wedge;
+        u.uFade.value=f*dscSmooth(0.995,0.9,b)*(big>1?Math.pow(big,-1.1):1); if(b<0.995) order.push([k*Math.min(big,50),U.me]); }
+      /* back to front: the far sides from the outermost in, the last fibre, the near sides from the innermost out */
+      order.sort((p,q)=>q[0]-p[0]).forEach(([,m],i)=>{ m.back.renderOrder=10+i; m.front.renderOrder=60-i; });
+      dscHopfLight(U.halo,f,t); dscHopfLight(U.core,f,t); dscHopfLight(U.axis,f*(1-dscSmooth(1,1.6,k))*(0.55+0.45*dscSmooth(-0.6,0,N)),t);
       U.camPost=(U.camPost||new THREE.Vector3()).copy(camera.position).sub(controls.target); U.camQ=(U.camQ||new THREE.Quaternion()).copy(camera.quaternion);
-      { g.updateMatrixWorld(true); const c=F.worldToLocal(camera.position.clone()), h=Math.hypot(c.x,c.y); U.LF.position.set(h>1e-6?c.x/h:0,h>1e-6?c.y/h:-1,0); }
-      if(DSC.labT===0&&on){ const ru=state.lang==='ru', fx=(x,d)=>{ const s=x>=1e-3?x.toFixed(d??4):dscSci(x,2); return ru?s.replace('.',','):s; }, ratio=2*Math.pow(PHI,-2*N), dv=2*Math.asin(b)*180/Math.PI, deg=dv>=0.01?dv.toFixed(2):dscSci(dv,2);
-        const rs=narrow?'':` · r_s/L = 2φ^(−2N) = ${dscSci(ratio,2)}`;
+      /* the words */
+      const narrow=innerWidth<=900||matchMedia('(pointer:coarse)').matches, on=f>0.5&&!DSC.quiet&&N<-0.55; U.T.visible=on; U.R.visible=on; U.LF.visible=on;
+      U.T.position.copy(dscScreen(0,0.56)); U.R.position.copy(dscScreen(0,narrow?-0.5:-0.72)); U.LF.position.set(hl>1e-6?cl.x/hl:0,hl>1e-6?cl.y/hl:-1,0);
+      if(DSC.labT===0&&on){ const ru=state.lang==='ru', dec=s=>ru?s.replace('.',','):s, fx=x=>dec(x>=1e-3?x.toFixed(4):dscSci(x,2)), Ns=dec(N.toFixed(2)), ratio=2*Math.pow(PHI,-2*N), atCl=Math.abs(N-U.Ncl)<0.12, deep=k>1.0005;
+        U.T.element.innerHTML=narrow?esc(TT('the Hopf fibration S³ → S² — mathematics, not a place','расслоение Хопфа S³ → S² — математика, а не место','die Hopf-Faserung S³ → S²'))
+          :`<div style="letter-spacing:1.6px">${esc(TT('THE HOPF FIBRATION  S³ → S²','РАССЛОЕНИЕ ХОПФА  S³ → S²','DIE HOPF-FASERUNG  S³ → S²'))}</div><div style="font-weight:400;font-size:11px;letter-spacing:.3px;color:#c9d3ea;margin-top:4px">${esc(TT('over every point of the sphere one circle, every two linked once (Hopf 1931) · below ℓ_P no length is physical — this is mathematics, not a place','над каждой точкой сферы — одна окружность, любые две сцеплены один раз (Хопф, 1931) · ниже ℓ_P никакая длина не физична — это математика, а не место','über jedem Punkt der Sphäre ein Kreis'))}</div>`;
+        const rs=narrow?'':` · r_s/L = ${dscSci(ratio,2)}`;
         U.LF.element.textContent=TT(`the last fibre — a probe this sharp would be its own black hole${rs}`,`последнее волокно — столь острый зонд стал бы собственной чёрной дырой${rs}`,'die letzte Faser');
-        const rd=Math.abs(N-U.Ncl)<0.12
-          ?TT(`N = log_φ(1/√2) = ${U.Ncl.toFixed(3)}: the Clifford torus |z₁| = |z₂| = 1/√2 — the fibres over the equator, radii √2 and 1 · the mirror of the probe’s crossing at N = +${(-U.Ncl).toFixed(3)}`,
-            `N = log_φ(1/√2) = ${U.Ncl.toFixed(3).replace('.',',')}: тор Клиффорда |z₁| = |z₂| = 1/√2 — волокна над экватором, радиусы √2 и 1 · зеркало пересечения зонда при N = +${(-U.Ncl).toFixed(3).replace('.',',')}`,'der Clifford-Torus')
-          :TT(`rung N = ${N.toFixed(2)} · its torus, bright: |z₂| = φᴺ = ${fx(b)}, over the latitude θ = ${deg}° of the base · tube ${fx(a>0?b/a:1)} of the last fibre’s radius, φ times thinner every rung${vis<0.5?' — thinner than the screen can draw':''} · a construction of the atlas, not a measurement`,
-            `ступень N = ${N.toFixed(2).replace('.',',')} · её тор, яркий: |z₂| = φᴺ = ${fx(b)}, над широтой θ = ${deg.replace('.',',')}° базы · трубка ${fx(a>0?b/a:1)} радиуса последнего волокна, в φ раз тоньше с каждой ступенью${vis<0.5?' — тоньше, чем может нарисовать экран':''} · построение атласа, не измерение`,'die Sprosse');
-        if(narrow){ const cl=Math.abs(N-U.Ncl)<0.12, Ns=ru?N.toFixed(2).replace('.',','):N.toFixed(2);
-          U.T.element.textContent=TT(`the Hopf fibration S³ → S² — mathematics, not a place · N ${Ns}: ${cl?'the Clifford torus |z₁| = |z₂| = 1/√2':`its torus |z₂| = φᴺ = ${fx(b)}`}`,
-            `расслоение Хопфа S³ → S² — математика, а не место · N ${Ns}: ${cl?'тор Клиффорда |z₁| = |z₂| = 1/√2':`её тор |z₂| = φᴺ = ${fx(b)}`}`,'die Hopf-Faserung'); }
-        else U.T.element.innerHTML=`<div>${esc(U.title())}</div><div style="font-weight:400;font-size:11px;letter-spacing:.3px;color:#dfe8fb;margin-top:5px">${esc(rd)}</div>`; } } });
+        const kk=deep?TT(` · magnified ×${dscSci(k,2)} across the last fibre, φ-fold more every rung — the shells keep coming out of it`,` · увеличено ×${dscSci(k,2)} поперёк последнего волокна, с каждой ступенью ещё в φ раз — оболочки всё выходят из него`,''):'';
+        U.R.element.textContent=atCl
+          ?TT(`N = log_φ(1/√2) = ${U.Ncl.toFixed(3)} · the Clifford torus |z₁| = |z₂| = 1/√2, the fibres over the equator · the mirror of the probe’s crossing at +${(-U.Ncl).toFixed(3)}`,
+              `N = log_φ(1/√2) = ${dec(U.Ncl.toFixed(3))} · тор Клиффорда |z₁| = |z₂| = 1/√2, волокна над экватором · зеркало пересечения зонда при +${dec((-U.Ncl).toFixed(3))}`,'der Clifford-Torus')
+          :narrow?TT(`N ${Ns} · its torus |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,`N ${Ns} · её тор |z₂| = φᴺ = ${fx(b)}${deep?` · ×${dscSci(k,2)}`:''}`,'die Sprosse')
+          :TT(`N ${Ns} · the rung’s torus |z₂| = φᴺ = ${fx(b)} — bright, a construction of the atlas · the shells are the integer rungs${kk}`,`N ${Ns} · тор ступени |z₂| = φᴺ = ${fx(b)} — яркий, построение атласа · оболочки — целые ступени${kk}`,'die Sprosse'); } } });
+
  }
 
 /* ── the globe of any body: the Sun with the Solar world's own photosphere, every other body with its drawn surface, its

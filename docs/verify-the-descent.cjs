@@ -26,6 +26,9 @@
  *      a fibre on it to rounding and carrying its own ψ; the Clifford torus at N = log_φ(1/√2), the mirror of the probe's
  *      crossing; the last fibre the unit circle at the centre; any two fibres linked once (Gauss's integral); no Fibonacci
  *      squares, spiral or matrix left; the last fibre says what a probe that sharp would be
+ *  13. the shells and the dive (v4.386.3): the GPU's torus map, read back on the CPU, lies on |z₂| = b and its lines
+ *      α₁ − α₂ = φ are Hopf fibres; it is written without cancellation, so float32 holds a tube of 10⁻⁹ magnified 10⁸-fold;
+ *      below N₁ the magnification keeps the rung's tube fixed while the last fibre stays the unit circle
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -165,6 +168,24 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
       && !/dscFibTiling|golden spiral|Fibonacci|F_\{N/.test(blk) && !SRC.includes('function dscFibTiling(') && /\['clifford',Math\.log\(Math\.SQRT1_2\)\/LN_PHI,/.test(SRC) && /\['lastfibre',/.test(SRC);
     ok('below the Planck length only the Hopf fibration: the rung N ≤ 0 is the torus |z₂| = φᴺ (radii 1/a, b/a), every sample of every fibre on it to rounding and carrying its own ψ; the Clifford torus at N = log_φ(1/√2) = −0.7202, the mirror of the probe’s crossing; the last fibre the unit circle in the centre; any two fibres linked once; no squares, spiral or matrix; the last fibre labelled with the probe that would be its own black hole',
       worst < 1e-9 && inBall && cl && core && lkOk && axis && wired, `worst ${worst.toExponential(1)} · in the ball ${inBall ? '✓' : '✗'} · Clifford N = ${Ncl.toFixed(6)} ${cl ? '✓' : '✗'} · last fibre ${core ? '✓' : '✗'} · Lk ${lks.map(x => x.toFixed(4)).join(', ')} · axis ${axis ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
+  /* 13 */
+  { const K = new Function('THREE', 'PHI', 'DSC_LOGD_V', 'DSC_LOGD_F', [cst('dscHopfB'), grab(/const DSC_HOPF_V=`[\s\S]*?`;\n/, 'the shell vertex shader'), fn('dscHopfSurf'), grab(/const DSC_DIVE_N1=[^\n]*\n/, 'N₁'), fn('dscDiveK'),
+      'return {dscHopfB,DSC_HOPF_V,dscHopfSurf,DSC_DIVE_N1,dscDiveK};'].join('\n'))({}, PHI, '', '');
+    const S3P = (a, b, ph, ps) => { const k = 1 / (1 - b * Math.sin(ps)); return [a * Math.cos(ps + ph) * k, a * Math.sin(ps + ph) * k, b * Math.cos(ps) * k]; };
+    let torus = 0, fib = 0;
+    for (const n of [-0.3, -0.72, -1, -3, -8, -15]) { const b = K.dscHopfB(n), a = Math.sqrt(1 - b * b);
+      for (let i = 0; i < 60; i++) { const ph = i * 0.41, ps = i * 1.07, P = K.dscHopfSurf(ps + ph, ps, b, 1, 1e9), Q = S3P(a, b, ph, ps);
+        torus = Math.max(torus, Math.abs(Math.hypot(Math.hypot(P[0], P[1]) - 1 / a, P[2]) - b / a) / (b / a)); fib = Math.max(fib, Math.hypot(P[0] - Q[0], P[1] - Q[1], P[2] - Q[2]) / Math.max(b, 1e-9)); } }
+    const F = Math.fround, f32 = (a1, a2, b, k) => { const bb = F(b), a = F(Math.sqrt(F(1 - F(bb * bb)))), w = F(bb * F(Math.sin(a2))), q = F(1 / F(1 - w)), dr = F(F(w - F(F(bb * bb) / F(1 + a))) * q), z = F(F(bb * F(Math.cos(a2))) * q), R = F(1 + F(F(k) * dr)); return [F(Math.cos(a1) * R), F(Math.sin(a1) * R), F(F(k) * z)]; };
+    let f32e = 0; for (const n of [-20, -33, -41]) { const b = K.dscHopfB(n), k = 0.5 / b; for (let i = 0; i < 40; i++) { const P = f32(0.3, i * 0.157, b, k), D = K.dscHopfSurf(0.3, i * 0.157, b, k); f32e = Math.max(f32e, Math.hypot(P[0] - D[0], P[1] - D[1], P[2] - D[2])); } }
+    const tube = N => { const b = K.dscHopfB(N), a = Math.sqrt(1 - b * b); return b / a; }, T1 = tube(K.DSC_DIVE_N1);
+    let hold = 0; for (const N of [-1.7, -2.5, -5, -10, -20, -33]) hold = Math.max(hold, Math.abs(K.dscDiveK(N) * tube(N) - T1) / T1);
+    const above = [-1.6, -1.2, -0.72, -0.3].every(N => K.dscDiveK(N) === 1);
+    let core = 0; for (const k of [1, 37, 4e6]) for (let i = 0; i < 24; i++) { const P = K.dscHopfSurf(i * 0.26, i * 0.77, 0, k); core = Math.max(core, Math.abs(Math.hypot(P[0], P[1]) - 1), Math.abs(P[2])); }
+    const glsl = /float dr=\(w-b\*b\/\(1\.0\+a\)\)\*q, z=b\*cos\(a2\)\*q/.test(K.DSC_HOPF_V) && /float R=1\.0\+uK\*dr; return vec3\(cos\(a1\)\*R,sin\(a1\)\*R,uK\*z\)/.test(K.DSC_HOPF_V)
+      && /float ph=vA\.x-vA\.y, s=ph\*uFib\/6\.28318531, d=abs\(fract\(s\+0\.5\)-0\.5\)\/max\(fwidth\(s\),1e-4\)/.test(SRC) && /blendSrc:THREE\.OneFactor,blendDst:THREE\.OneMinusSrcAlphaFactor/.test(SRC);
+    ok('the shells and the dive: the GPU’s torus map (read back on the CPU) lies on |z₂| = b and its lines α₁ − α₂ = φ are the Hopf fibres; written without cancellation it holds a tube of 10⁻⁹ magnified 10⁸-fold in float32; below N₁ the rung keeps its tube while the last fibre stays the unit circle; above N₁ nothing is magnified',
+      torus < 1e-12 && fib < 1e-9 && f32e < 1e-5 && hold < 1e-12 && above && core < 1e-12 && glsl, `torus ${torus.toExponential(1)} · fibres ${fib.toExponential(1)} · float32 ${f32e.toExponential(1)} · tube held ${hold.toExponential(1)} · above N₁ ${above ? '✓' : '✗'} · last fibre ${core.toExponential(1)} · shader ${glsl ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
