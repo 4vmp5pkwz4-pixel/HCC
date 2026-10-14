@@ -36,6 +36,10 @@
  *      phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines as
  *      bright as their couplings — and the plots live on an instrument in the strip at the top, whose cursor reads the
  *      couplings at the reader's rung
+ *  17. the scale tunnel (v4.388): a ring's diameter on the screen is the size it names over the view's height (s/L), so
+ *      every gate shows for some twelve rungs, a point to past the edge; the gates span a kilometre to ℓ_P with every
+ *      power of ten between; the motes zoom as φ^(rung − N) in a window that wraps, and their streaks run at the radial
+ *      speed of a zoom, r·ln φ·|dN/dt|
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -214,6 +218,17 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     const Nv = levelOf(L2.hbcGeVm / 246.22), fwd = Math.abs(L2.hbcGeVm / 246.22 - 8.014e-19) / 8.014e-19 < 1e-3;
     ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines, each as bright as its coupling at the view’s length — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
       noPlots && hig && lines && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines by α_i ${lines ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
+  /* 17 */
+  { const G = new Function('PHI', 'levelOf', grab(/const DSC_GATES=\[[\s\S]*?\]\];\n/, 'the gates') + 'return DSC_GATES;')(PHI, levelOf);
+    const tun = fn('dscTunnelTick'), bld = fn('dscTunnelBuild'), mv = grab(/const DSC_MOTE_V=`[\s\S]*?`;\n/, 'the motes');
+    const trueSize = /const rpx=0\.5\*q\.s\/L\*H;/.test(tun) && /r=0\.5\*q\.s\/L\*vh/.test(tun) && /if\(rpx<2\|\|rpx>1\.25\*hd\) continue;/.test(tun);
+    const H = 800, hd = 0.5 * Math.hypot(1280, H), span = Math.log(1.25 * hd / 2) / Math.log(PHI);
+    const sizes = G.map(g => g[0]), sorted = sizes.every((v, i) => !i || v < sizes[i - 1]), ends = Math.abs(sizes[0] - 1e3) < 1e-9 && Math.abs(sizes[sizes.length - 1] - 1.616255e-35) < 1e-40;
+    const decades = /for\(let k=7;k>=-35;k--\)\{ const s=Math\.pow\(10,k\);/.test(bld) && /R\.c12/.test(bld) && /R\.c23/.test(bld);
+    const zoom = /l=base\+mod\(aSeed\.x\*span-base,span\), rel=l-uN, g=pow\(uPhi,rel\)/.test(mv) && /float S=clamp\(rr\*0\.4812\*uV\*0\.07,-0\.38,0\.38\);/.test(mv) && Math.abs(Math.log(PHI) - 0.4812) < 1e-4;
+    const wired = /try\{ dscTunnelTick\(N,dt\); \}catch\(e\)\{/.test(SRC) && /const fade=dscSmooth\(DSC\.top-1,DSC\.top-4,N\)\*dscSmooth\(-0\.3,0\.6,N\)/.test(tun);
+    ok('the scale tunnel: a ring’s diameter on the screen is the size it names over the view’s height, so each gate shows for some twelve rungs, a point to past the edge; the gates run from a kilometre to ℓ_P, every power of ten between; the motes zoom as φ^(rung − N) in a wrapping window, their streaks at a zoom’s radial speed r·ln φ·|dN/dt|; it fades at the top and below ℓ_P',
+      trueSize && sorted && ends && decades && zoom && wired && span > 11 && span < 14, `true size ${trueSize ? '✓' : '✗'} · ${G.length} named gates, sorted ${sorted ? '✓' : '✗'}, ends ${ends ? '✓' : '✗'} · decades and crossings ${decades ? '✓' : '✗'} · a gate lives ${span.toFixed(1)} rungs · zoom law ${zoom ? '✓' : '✗'} · wired ${wired ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
