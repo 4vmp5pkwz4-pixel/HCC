@@ -32,6 +32,10 @@
  *      fibre is a tube laid round that exact curve
  *  15. the holographic bits (v4.387): exactly ⌈(π/ln 2)φ²ᴺ⌉ cells, found by the inverse spherical Fibonacci mapping —
  *      the nearest and the next lattice point equal to a brute-force search; the probe's shadow is √27/2·r_s
+ *  16. the object stays (v4.387.1): in the electroweak band and the desert the view keeps the quark — the Higgs field's
+ *      phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines as
+ *      bright as their couplings — and the plots live on an instrument in the strip at the top, whose cursor reads the
+ *      couplings at the reader's rung
  */
 const fs = require('node:fs'), path = require('node:path');
 const SRC = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
@@ -201,6 +205,15 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
       && /nb=\(Math\.PI\/Math\.LN2\)\*Math\.pow\(PHI,2\*N\), n=Math\.max\(1,Math\.ceil\(nb\)\)/.test(SRC) && /sh=ratio\*Math\.sqrt\(27\)\/2/.test(SRC);
     ok('the holographic bits: exactly ⌈(π/ln 2)·φ²ᴺ⌉ cells on the sphere of the view, the Voronoi cells of a spherical Fibonacci lattice found per pixel by the inverse mapping (Keinert et al. 2015) — its nearest and next lattice points equal a brute-force search; the probe’s horizon casts its Schwarzschild shadow, √27/2·r_s',
       near === tot && next === tot && wired, `${near}/${tot} nearest · ${next}/${tot} next · shader and counts ${wired ? '✓' : '✗'}`); }
+  /* 16 */
+  { const ew = SRC.slice(SRC.indexOf("D.push({id:'ew', anchor:'quark'"), SRC.indexOf("D.push({id:'desert', anchor:'quark'")), de = SRC.slice(SRC.indexOf("D.push({id:'desert', anchor:'quark'"), SRC.indexOf("D.push({id:'probe', anchor:'quark'"));
+    const noPlots = !/PlaneGeometry|SphereGeometry|dscLabel\(/.test(ew + de), hig = /Nv=levelOf\(DSC_PL\.hbcGeVm\/246\.22\), A=dscSmooth\(Nv\+1\.2,Nv-1\.2,N\)/.test(ew);
+    const lines = /iv=dscInvAlphas2\(Q\), al=iv\.map\(x=>1\/x\), amax=Math\.max\(\.\.\.al\)/.test(de) && /gk=f\*\(0\.1\+0\.9\*Math\.pow\(al\[k\]\/amax,3\)\)/.test(de);
+    const inst = SRC.includes('<div id="dscInst" class="dscInst" hidden></div>') && ['function dscInstDesert(', 'function dscInstEW(', 'function dscInstTick('].every(x => SRC.includes(x)) && /try\{ dscInstTick\(\); \}catch\(e\)\{\}/.test(SRC);
+    const L2 = new Function('UC_K', 'DSC', 'levelOf', [grab(/const DSC_PL=\(\(\)=>\{[\s\S]*?\}\)\(\);\n/, 'Planck units'), 'return DSC_PL;'].join('\n'))({ hb: 1.054571817e-34, c: 299792458, lP: 1.616255e-35, mP: 2.176434e-8 }, {}, levelOf);
+    const Nv = levelOf(L2.hbcGeVm / 246.22), fwd = Math.abs(L2.hbcGeVm / 246.22 - 8.014e-19) / 8.014e-19 < 1e-3;
+    ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines, each as bright as its coupling at the view’s length — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
+      noPlots && hig && lines && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines by α_i ${lines ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
