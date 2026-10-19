@@ -308,6 +308,17 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
     ok('the central fibre, honestly: the reader’s 4-D turn is an element of SU(2) — every turned fibre stays one fibre over the medallion’s point of its colour; a quarter turn carries the centre onto the axis and the axis onto the unit circle; the turn rests below N₁; the station and the labels say “the pole of this chart”, and the twist’s slope is stated as drawn (tm/Rc) and as in S³ (φᴺ)',
       shader && twin < 1e-9 && fib < 1e-9 && swap < 1e-9 && rest && colours && words && slope < 1e-9,
       `shader ${shader ? '✓' : '✗'} · twin ${twin.toExponential(1)} · fibres over their medallion points ${fib.toExponential(1)} · quarter turn swaps ${swap.toExponential(1)} · rests below N₁ ${rest ? '✓' : '✗'} · colours ${colours ? '✓' : '✗'} · words ${words ? '✓' : '✗'} · wall tm/Rc ${slope.toExponential(1)}`); }
+  /* 20 */
+  { /* v4.393: the descent's media are written in linear light and pass through three.js's ACES fit and sRGB: the brightest a
+       lit cloud's inside, a giant's deck or a photosphere can be must land at a mid-tone on the screen, not white */
+    const rrt = v => (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.4329510) + 0.238081), srgb = c => c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
+    const screen = (lin, exp) => srgb(Math.max(0, Math.min(1, rrt(lin * exp / 0.6))));   /* a grey passes the ACES input and output matrices unchanged (their rows sum to one) */
+    const fogM = SRC.match(/vec3 fog=uFogC\*mix\(0\.18,1\.0,max\(day,1\.0-uAir\)\)\*mix\(0\.84,1\.0,uFogFar\)\*\(0\.80\+0\.12\*\(0\.5\+0\.5\*cs\)\)\*\(0\.56\+0\.44\*smoothstep\(-0\.85,0\.85,el\)\)\*([0-9.]+);/);
+    const adM = SRC.match(/adapt=([0-9.]+)\+([0-9.]+)\*dscSmooth\(118,152,N\); return \{glow:inside\*\(1-deep\*0\.92\)/), gwM = /float gw=\(0\.8-0\.24\*el\)\*\(0\.9\+0\.1\*sin/.test(SRC), exp = 1.12;
+    const fogLin = fogM ? 0.97 * 1 * 1 * 0.92 * 1.0 * +fogM[1] : NaN, glowLin = adM ? 0.99 * (+adM[1] + +adM[2]) * (0.8 + 0.24) * 1.0 : NaN;
+    const sf = screen(fogLin, exp), sg = screen(glowLin, exp), before = [screen(0.97 * 0.92 * 0.86, exp), screen(0.99 * 1.0 * 1.0, exp)];
+    ok('no white-out in the descent: the brightest a lit cloud’s inside or a giant’s deck (×' + (fogM ? fogM[1] : '?') + ' in linear light) and a photosphere (≤ ' + (adM ? (+adM[1] + +adM[2]).toFixed(2) : '?') + ' of its colour) can be lands at a mid-tone after ACES (exposure 1.12) and sRGB — where they had read white',
+      sf < 0.7 && sg < 0.7 && sf > 0.35 && sg > 0.35 && gwM, `cloud ${sf.toFixed(3)} (was ${before[0].toFixed(3)}) · photosphere ${sg.toFixed(3)} (was ${before[1].toFixed(3)}) on the screen · hotter below ${gwM ? '✓' : '✗'}`); }
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('verifier error:', e && e.stack || e); process.exit(1); });
