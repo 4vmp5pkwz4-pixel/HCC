@@ -6,10 +6,11 @@
  * median — a model, not a detection) with its Hopf fibration and its lowest modes about us. Checked here by running the
  * page's own pure code and reading its wiring:
  *   1. the chart is the observer's geodesic polar chart: every point of S³ lands at its true comoving distance χR from
- *      us, in its true direction — this world's own rule (1 unit = 1 Gly comoving)
+ *      us, in its true direction (x₄, x₂, x₃)/sin χ — this world's own rule (1 unit = 1 Gly comoving)
  *   2. our fibre is the straight line through us (|y| = R|α|), the fibre farthest from ours is the circle χ = π/2 of
  *      radius πR/2, and the torus |z₂| = sin η comes no nearer to us than ηR
- *   3. any two fibres drawn are linked once (Gauss's integral, in the chart)
+ *   3. any two fibres drawn are linked once, +1 with both oriented by their flow (Gauss's integral, in the chart; signed
+ *      since v4.396, when the chart stopped drawing the mirror — docs/verify-the-fibre-is-oriented.cjs)
  *   4. the fibre through the particle horizon's equator leans on ours by exactly η = D_ph/R (2.97°): the label says so
  *   5. the section's modes are the zonal eigenfunctions of the Laplacian of S³: f_n = sin((n+1)χ)/((n+1) sin χ) satisfies
  *      (sin²χ f′)′/sin²χ = −n(n+2) f, with its nodes at χ = jπ/(n+1); the shader draws exactly that
@@ -33,7 +34,7 @@ try {
   /* 1 */
   { let worst = 0, dir = 0; for (let i = 0; i < 4000; i++) { const eta = rnd() * Math.PI / 2, al = rnd() * 2 * Math.PI, be = rnd() * 2 * Math.PI, { o, chi } = at(eta, al, be);
       const x1 = Math.cos(eta) * Math.cos(al), want = Math.acos(x1), r = Math.hypot(...o); worst = Math.max(worst, Math.abs(r - want * R) / (want * R + 1e-9), Math.abs(chi - want));
-      const x2 = Math.cos(eta) * Math.sin(al), x3 = Math.sin(eta) * Math.cos(be), x4 = Math.sin(eta) * Math.sin(be), sn = Math.sin(want); if (sn > 1e-6 && r > 1e-6) dir = Math.max(dir, Math.hypot(o[0] / r - x3 / sn, o[1] / r - x2 / sn, o[2] / r - x4 / sn)); }
+      const x2 = Math.cos(eta) * Math.sin(al), x3 = Math.sin(eta) * Math.cos(be), x4 = Math.sin(eta) * Math.sin(be), sn = Math.sin(want); if (sn > 1e-6 && r > 1e-6) dir = Math.max(dir, Math.hypot(o[0] / r - x4 / sn, o[1] / r - x2 / sn, o[2] / r - x3 / sn)); }
     ok('the chart is the observer’s geodesic polar chart: every point of S³ at its true comoving distance χR from us, in its true direction — this world’s own rule',
       worst < 1e-12 && dir < 1e-9, `distance to ${worst.toExponential(1)} · direction to ${dir.toExponential(1)} over 4000 points`); }
   /* 2 */
@@ -49,8 +50,9 @@ try {
           const cr = [da[1] * db[2] - da[2] * db[1], da[2] * db[0] - da[0] * db[2], da[0] * db[1] - da[1] * db[0]], d = Math.hypot(...r); g += (r[0] * cr[0] + r[1] * cr[1] + r[2] * cr[2]) / (d * d * d); } } return g / (4 * Math.PI); };
     const pairs = [[Math.PI / 12, 0, Math.PI / 4, 1.1], [Math.PI / 3, 0.4, 5 * Math.PI / 12, 2.9], [Math.PI / 6, 0, Math.PI / 2, 0.0], [Math.PI / 4, 0, Math.PI / 4, 2.2]];
     const lks = pairs.map(([e1, d1, e2, d2]) => gauss(loop(e1, d1, 900), loop(e2, d2, 900)));
-    ok('any two fibres drawn are linked once — Gauss’s integral in the chart',
-      lks.every(x => Math.abs(Math.abs(x) - 1) < 2e-2), `Lk ${lks.map(x => x.toFixed(4)).join(', ')}`); }
+    /* v4.396: signed — the chart keeps the handedness, so the standard fibration's +1 is what is drawn */
+    ok('any two fibres drawn are linked once, +1 with both oriented by their flow — Gauss’s integral in the chart',
+      lks.every(x => Math.abs(x - 1) < 2e-2), `Lk ${lks.map(x => x.toFixed(4)).join(', ')}`); }
   /* 4 */
   { const eta = 46.04 / R, h = 1e-6, a = at(eta, -h, -h + 0.9).o, b = at(eta, h, h + 0.9).o, t = b.map((x, q) => x - a[q]), tl = Math.hypot(...t), lean = Math.acos(Math.abs(t[1]) / tl);
     const tw = grab(/const obsFibStretch=[^\n]*\n/, 'the twist'), exact = /obsFibTwistDeg=L=>L\/S3\.R\*180\/Math\.PI/.test(tw), said = /lean \$\{dec\(obsFibTwistDeg\(S3\.Dparticle\)\.toFixed\(2\)\)\}° on ours/.test(SRC) && /const eph=S3\.Dparticle\/R;/.test(SRC);
@@ -78,7 +80,7 @@ try {
     const thr = new Function(fn('obsFibThrough') + '\nreturn obsFibThrough;')(), R = 886.59;
     let through = 0, onFibre = 0, worstLk = 0;
     const hopf = x => [2 * (x[0] * x[2] + x[1] * x[3]), 2 * (x[1] * x[2] - x[0] * x[3]), x[0] * x[0] + x[1] * x[1] - x[2] * x[2] - x[3] * x[3]];
-    const inv = q => { const r = Math.hypot(...q), chi = r / R, d = r > 1e-12 ? q.map(v => v / r) : [0, 1, 0], s = Math.sin(chi); return [Math.cos(chi), s * d[1], s * d[0], s * d[2]]; };
+    const inv = q => { const r = Math.hypot(...q), chi = r / R, d = r > 1e-12 ? q.map(v => v / r) : [0, 1, 0], s = Math.sin(chi); return [Math.cos(chi), s * d[1], s * d[2], s * d[0]]; };
     /* the catalogue's structures lie 5–20 Gly out, where their fibres run nearly parallel to ours; linking is topological, so it is
        measured on points farther out, where a discrete Gauss integral resolves the two circles */
     for (const P of [[12.6, 3.1, -2.2], [-4, 9, 15], [300, -20, 50], [-210, 420, -380], [150, 600, 90]]) { const f = thr(P, R, 400); through = Math.max(through, Math.hypot(f.P[0] - P[0], f.P[1] - P[1], f.P[2] - P[2]));

@@ -213,6 +213,7 @@ const allChecks = [
   "docs/verify-the-lens-space-circles.cjs",
   "docs/verify-the-hopf-raymarch.cjs",
   "docs/verify-the-causal-memory.cjs",
+  "docs/verify-the-fibre-is-oriented.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -323,6 +324,12 @@ if (fullMode) {
   route(/\b(hopf|bloch|spin|reeb|contact form|momentum map)\b/, [
     'docs/verify-hopf-bundle.cjs',
     'docs/verify-the-hopf-raymarch.cjs',
+    'docs/verify-the-fibre-is-oriented.cjs',
+  ]);
+
+  route(/\b(obsfib|dscsky|skytrue|handedness|orientation|beyond|dscs2|radecdir|scenetosky|galacticbasis|obliq)\b/, [
+    'docs/verify-the-fibre-is-oriented.cjs',
+    'docs/verify-the-fibration-at-the-edge.cjs',
   ]);
 
   route(/\b(lpq|lens space|lens spaces|matched circle|matched circles|s3gamma|space form|space forms)\b/, [
