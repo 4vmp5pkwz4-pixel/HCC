@@ -208,6 +208,7 @@ const allChecks = [
   "docs/verify-the-ladder-everywhere.cjs",
   "docs/verify-the-universe-on-the-spheres.cjs",
   "docs/verify-the-descent.cjs",
+  "docs/verify-the-fibration-at-the-edge.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -317,6 +318,13 @@ if (fullMode) {
 
   route(/\b(hopf|bloch|spin|reeb|contact form|momentum map)\b/, [
     'docs/verify-hopf-bundle.cjs',
+  ]);
+
+  route(/\b(obsfib|antipode|fibration|horizons|zonal mode|eigenmode|lens space)\b/, [
+    'docs/verify-the-fibration-at-the-edge.cjs',
+    'docs/verify-scale-continuity.cjs',
+    'docs/verify-the-seam-lands-at-the-observer.cjs',
+    'docs/verify-controls-where-they-act.cjs',
   ]);
 
   route(/\b(hcc_s3r|conditional reconstruction|shell tomography|s3 radius|s³ radius|omega_k|curvature radius)\b/, [
