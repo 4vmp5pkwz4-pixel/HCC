@@ -1,12 +1,12 @@
 <!DOCTYPE html>
-<html lang="en" data-hcc-build="solar-media-catalogue-fibre-2026.10.19.113">
+<html lang="en" data-hcc-build="hopf-raymarch-2026.10.19.114">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<meta name="hcc-build" content="solar-media-catalogue-fibre-2026.10.19.113">
+<meta name="hcc-build" content="hopf-raymarch-2026.10.19.114">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -3351,7 +3351,7 @@
 </div>
 
 <div id="topbar">
-  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.393.0</span></small></span>
+  <span class="title">S³ LIGHT-TRISPHERE<small>Solar System · Compact S³ Universe · FBS3R φ-Ladder · Celestial Atlas <span class="buildMark">· v4.394.0</span></small></span>
   <nav id="modeRow">
     <button class="modebtn active" data-mode="solar">☀ Sun → Cosmos</button>
     <button class="modebtn" data-mode="cyc">✶ Cycles</button>
@@ -3687,8 +3687,8 @@ import { TIME_DOMAIN_KIND, STATE_SCOPE, CLOCK_STATUS, TIME_DOMAINS, CLOCK_ADAPTE
    ones written by a human: everything else is stamped from them at boot, and a
    self-test fails the build if any copy disagrees.  Bumping a release is a
    one-line edit. */
-const HCC_VERSION='4.393.0';
-const HCC_BUILD='solar-media-catalogue-fibre-2026.10.19.113';
+const HCC_VERSION='4.394.0';
+const HCC_BUILD='hopf-raymarch-2026.10.19.114';
 const HCC_DEPLOYMENT=Object.freeze({version:HCC_VERSION,build:HCC_BUILD,channel:'github-pages',source:'main'});
 function hccStampVersion(){
   try{
@@ -34684,23 +34684,35 @@ hopfBaseMap.add(hopfDotA, hopfDotB);
 const HOPF_RAY_V=`varying vec3 vPos; void main(){ vPos=position; vec4 mv=modelViewMatrix*vec4(position,1.0); gl_Position=projectionMatrix*mv;
 #include <logdepthbuf_vertex>
 }`;
-const HOPF_RAY_F=`uniform vec3 uCam; uniform mat4 uMV; uniform float uS,uN,uR,uC1,uC2,uT,uFade,uRb; varying vec3 vPos;
-const float PI=3.14159265359, PHI=1.61803398875;
-float madfrac(float a,float b){ return a*b-floor(a*b); }
-vec3 sfp(float i,float n){ float ph=2.0*PI*madfrac(i,PHI-1.0), ct=1.0-(2.0*i+1.0)/n, st=sqrt(max(0.0,1.0-ct*ct)); return vec3(cos(ph)*st,sin(ph)*st,ct); }
-/* the nearest lattice point to p on S² (the inverse spherical Fibonacci mapping) */
-float sfNearest(vec3 p,float n,out vec3 bq){ float m=1.0-1.0/n, ph=min(atan(p.y,p.x),PI), ct=p.z, k=max(2.0,floor(log(n*PI*2.2360679775*max(1.0-ct*ct,1e-12))/log(PHI*PHI)));
-  float Fk=pow(PHI,k)/2.2360679775, F0=floor(Fk+0.5), F1=floor(Fk*PHI+0.5);
-  float b00=2.0*PI*madfrac(F0+1.0,PHI-1.0)-2.0*PI*(PHI-1.0), b01=2.0*PI*madfrac(F1+1.0,PHI-1.0)-2.0*PI*(PHI-1.0), b10=-2.0*F0/n, b11=-2.0*F1/n, det=b00*b11-b01*b10;
-  float y=ct-m, c0=floor((b11*ph-b01*y)/det), c1=floor((-b10*ph+b00*y)/det), d1=9.0, j=0.0; bq=vec3(0.0,0.0,1.0);
-  for(int u=-1;u<=2;u++) for(int v=-1;v<=2;v++){ float i=clamp(F0*(float(u)+c0)+F1*(float(v)+c1),0.0,n-1.0); vec3 q=sfp(i,n), e=q-p; float d=dot(e,e); if(d<d1){ d1=d; j=i; bq=q; } }
-  return j; }
+const HOPF_RAY_F=`uniform vec3 uCam; uniform mat4 uMV; uniform float uS,uN,uR,uC1,uC2,uT,uFade,uRb,uW; varying vec3 vPos;
+const float PI=3.14159265359, PHI=1.61803398875, INV=0.61803398875;
+/* the k-th point of the spherical Fibonacci lattice */
+vec3 sfPoint(float k,float n){ k=clamp(k,0.0,n-1.0); float z=1.0-(2.0*k+1.0)/n, r=sqrt(max(0.0,1.0-z*z)), ph=6.28318531*fract(k*INV); return vec3(r*cos(ph),r*sin(ph),z); }
+/* its nearest point to p by the inverse mapping: the parastichy pair (F_m, F_m+1) at p's latitude, the lattice cell
+   containing p on the (φ, z) cylinder, and the four corners of that cell (Keinert et al. 2015) */
+float sfNearest(vec3 p,float n,out vec3 bq){ float z=clamp(p.z,-0.999999,0.999999), ph=min(atan(p.y,p.x),PI), s2=max(1.0-z*z,1e-6);
+  float m=max(2.0,floor(log(n*PI*2.2360679775*s2)/log(PHI*PHI))), pk=pow(PHI,m)/2.2360679775, f0=floor(pk+0.5), f1=floor(pk*PHI+0.5);
+  float d0=f0*INV-floor(f0*INV+0.5), d1=f1*INV-floor(f1*INV+0.5), b00=6.28318531*d0, b01=6.28318531*d1, b10=-2.0*f0/n, b11=-2.0*f1/n, id=1.0/(b00*b11-b01*b10);
+  float dz=z-1.0, c0=floor((b11*ph-b01*dz)*id), c1=floor((-b10*ph+b00*dz)*id), best=-2.0, bk=0.0; bq=vec3(0.0,0.0,1.0);
+  for(int s=0;s<4;s++){ float k=f0*(c0+float(s-2*(s/2)))+f1*(c1+float(s/2)); if(k<0.0) k=-k; if(k>=n) k=2.0*(n-1.0)-k; k=clamp(k,0.0,n-1.0);
+    vec3 b=sfPoint(k,n); float c=dot(p,b); if(c>best){ best=c; bk=k; bq=b; } }
+  return bk; }
 /* a point of the view (object units) to S³, turned in 4D */
 vec4 pull(vec3 X){ vec3 y=X/uS; float r2=dot(y,y), k=1.0/(1.0+r2); vec4 x=vec4(2.0*y*k,(r2-1.0)*k);
   float c1=cos(uC1), s1=sin(uC1), c2=cos(uC2), s2=sin(uC2); return vec4(c1*x.x-s1*x.y, s1*x.x+c1*x.y, c2*x.z-s2*x.w, s2*x.z+c2*x.w); }
 vec3 hopf(vec4 x){ return vec3(2.0*(x.x*x.z+x.y*x.w), 2.0*(x.y*x.z-x.x*x.w), x.x*x.x+x.y*x.y-x.z*x.z-x.w*x.w); }
-/* the distance in S³ to the nearest fibre, minus the tube's radius; the fibre's index and base point */
-float sdf(vec3 X,out float id,out vec3 b){ vec3 n=hopf(pull(X)); id=sfNearest(n,uN,b); return asin(clamp(0.5*length(n-b),0.0,1.0))-uR; }
+/* two pictures, both exact. RINGS (uMode 0): over each latitude θ_k = kπ/6 (k = 1 … 5) M_k fibres at equal longitudes —
+   the tori of the classic picture, woven of hundreds of fibres — and the two polar fibres, the central circle and the axis;
+   on a ring every point has the same latitude, so the nearest is the one of nearest longitude, exactly. LATTICE (uMode 1):
+   every fibre over the N points of the spherical Fibonacci lattice, the nearest by the inverse mapping above */
+uniform float uMode, uMeq;
+float ringNearest(vec3 n,out vec3 bq){ float lon=atan(n.y,n.x), best=-2.0; bq=vec3(0.0,0.0,1.0);
+  for(int k=0;k<7;k++){ float th=float(k)*PI/6.0, st=sin(th), M=max(1.0,floor(uMeq*st+0.5)), off=0.37*float(k), j=floor((lon-off)*M/6.28318531+0.5), ph=off+6.28318531*j/M;
+    vec3 b=vec3(st*cos(ph),st*sin(ph),cos(th)); float c=dot(n,b); if(c>best){ best=c; bq=b; } }
+  return best; }
+/* the distance in S³ to the nearest drawn fibre (asin(|π(x) − b|/2), the submersion), minus the tube's radius; its base point */
+float sdf(vec3 X,out float id,out vec3 b){ vec3 n=hopf(pull(X)); id=0.0; if(uMode>0.5) id=sfNearest(n,uN,b); else ringNearest(n,b);
+  return asin(clamp(0.5*length(n-b),0.0,1.0))-uR; }
 void main(){
   vec3 ro=uCam, rd=normalize(vPos-uCam); float tExit=length(vPos-uCam), bq=dot(ro,rd), cc=dot(ro,ro)-uRb*uRb, disc=bq*bq-cc, t=0.0;
   if(cc>0.0){ if(disc<=0.0) discard; t=max(0.0,-bq-sqrt(disc)); }
@@ -34708,7 +34720,7 @@ void main(){
   for(int i=0;i<96;i++){ vec3 X=ro+rd*t; d=sdf(X,id,b); dmin=min(dmin,d); if(d<1.5e-4){ hit=true; break; }
     /* the step: d over the largest conformal factor 2/(1 + ρ²) on the ball it may cross (ρ = |y|), refined once */
     float ry=length(X)/uS, dy0=d*(1.0+ry*ry)*0.5, rm=max(0.0,ry-dy0), dy=d*(1.0+rm*rm)*0.5; t+=0.92*uS*dy; if(t>tExit) break; }
-  if(!hit){ float a=uFade*0.32*exp(-max(dmin,0.0)/(1.6*uR)); if(a<0.01) discard; vec3 hb=0.5+0.5*vec3(cos(atan(b.y,b.x)),cos(atan(b.y,b.x)-2.094),cos(atan(b.y,b.x)+2.094));
+  if(!hit){ float a=uFade*0.16*exp(-max(dmin,0.0)/(1.2*uR)); if(a<0.01) discard; vec3 hb=0.5+0.5*vec3(cos(atan(b.y,b.x)),cos(atan(b.y,b.x)-2.094),cos(atan(b.y,b.x)+2.094));
     gl_FragColor=vec4(hb*a,a*0.5);
     #ifdef USE_LOGDEPTHBUF
       gl_FragDepth=log2(1.0+max(1e-6,-(uMV*vec4(vPos,1.0)).z))*logDepthBufFC*0.5;
@@ -34718,7 +34730,7 @@ void main(){
   vec3 g=vec3(sdf(X+vec3(h,0,0),i0,b0)-sdf(X-vec3(h,0,0),i0,b0), sdf(X+vec3(0,h,0),i0,b0)-sdf(X-vec3(0,h,0),i0,b0), sdf(X+vec3(0,0,h),i0,b0)-sdf(X-vec3(0,0,h),i0,b0));
   vec3 Nv=normalize(mat3(uMV)*normalize(g)), P=(uMV*vec4(X,1.0)).xyz, V=normalize(-P);
   /* the fibre's colour by its base point: hue by longitude, light by latitude; light runs along it as e^{iψ} */
-  float lon=atan(b.y,b.x), hue=lon/(2.0*PI)+0.5; vec3 col=0.5+0.5*cos(6.2831853*(hue+vec3(0.0,0.33,0.67))); col=mix(col,vec3(1.0,0.86,0.6),0.25+0.25*b.z);
+  float lon=atan(b.y,b.x), hue=lon/(2.0*PI)+0.5, lat=acos(clamp(b.z,-1.0,1.0))/PI; vec3 col=0.5+0.5*cos(6.2831853*(hue+vec3(0.0,0.33,0.67))); col=mix(col,mix(vec3(1.0,0.82,0.5),vec3(0.55,0.7,1.0),lat),0.45);
   vec4 x=pull(X); float psi=length(x.zw)>0.25?atan(x.w,x.z):atan(x.y,x.x)-lon, p=0.5+0.5*cos(2.0*(psi-uT)), pk=p*p; pk*=pk; pk*=pk;
   vec3 L1=normalize(vec3(-0.5,0.72,0.55)), L2=normalize(vec3(0.75,0.15,0.6)), L3=normalize(vec3(0.15,-0.25,-1.0));
   float d1=max(dot(Nv,L1),0.0), d2=max(dot(Nv,L2),0.0), d3=max(dot(Nv,L3),0.0), ndv=max(dot(Nv,V),0.0), sp=pow(max(dot(Nv,normalize(L1+V)),0.0),60.0), fr=pow(1.0-ndv,3.0);
@@ -34728,10 +34740,21 @@ void main(){
     gl_FragDepth=log2(1.0+max(1e-6,-P.z))*logDepthBufFC*0.5;
   #endif
 }`;
-let HOPF_RAY=null; const HOPF_RAY_READY=false;   /* offered in the panel once its banded picture is tuned */
+let HOPF_RAY=null; const HOPF_RAY_READY=true;
+/* the shader's twins on the CPU, for the verifier: the nearest point of the spherical Fibonacci lattice by its four cell
+   corners, and the distance in S³ from a point to the whole fibre over b, asin(|π(x) − b|/2) */
+function hopfSfPoint(k,n){ k=Math.max(0,Math.min(n-1,k)); const z=1-(2*k+1)/n, r=Math.sqrt(Math.max(0,1-z*z)), f=k*(PHI-1), ph=2*Math.PI*(f-Math.floor(f)); return [r*Math.cos(ph),r*Math.sin(ph),z]; }
+function hopfSfNearest4(p,n){ const INV=PHI-1, z=Math.max(-0.999999,Math.min(0.999999,p[2])), ph=Math.min(Math.atan2(p[1],p[0]),Math.PI), s2=Math.max(1-z*z,1e-6);
+  const m=Math.max(2,Math.floor(Math.log(n*Math.PI*Math.sqrt(5)*s2)/Math.log(PHI*PHI))), pk=Math.pow(PHI,m)/Math.sqrt(5), f0=Math.floor(pk+0.5), f1=Math.floor(pk*PHI+0.5);
+  const d0=f0*INV-Math.floor(f0*INV+0.5), d1=f1*INV-Math.floor(f1*INV+0.5), b00=2*Math.PI*d0, b01=2*Math.PI*d1, b10=-2*f0/n, b11=-2*f1/n, id=1/(b00*b11-b01*b10);
+  const dz=z-1, c0=Math.floor((b11*ph-b01*dz)*id), c1=Math.floor((-b10*ph+b00*dz)*id); let best=-2, bk=0;
+  for(let s=0;s<4;s++){ let k=f0*(c0+(s&1))+f1*(c1+(s>>1)); if(k<0) k=-k; if(k>=n) k=2*(n-1)-k; k=Math.max(0,Math.min(n-1,k)); const b=hopfSfPoint(k,n), c=b[0]*p[0]+b[1]*p[1]+b[2]*p[2]; if(c>best){ best=c; bk=k; } }
+  return bk; }
+const hopfMapS2=x=>[2*(x[0]*x[2]+x[1]*x[3]), 2*(x[1]*x[2]-x[0]*x[3]), x[0]*x[0]+x[1]*x[1]-x[2]*x[2]-x[3]*x[3]];
+const hopfFibreDist=(x,b)=>{ const n=hopfMapS2(x); return Math.asin(Math.min(1,0.5*Math.hypot(n[0]-b[0],n[1]-b[1],n[2]-b[2]))); };
 function hopfRayBuild(){ if(HOPF_RAY) return HOPF_RAY; const s=RU*HOPF_TUBE.scale, Rb=s*7;
   const mat=new THREE.ShaderMaterial({side:THREE.BackSide,transparent:true,depthWrite:true,depthTest:true,
-    uniforms:{uCam:{value:new THREE.Vector3()},uMV:{value:new THREE.Matrix4()},uS:{value:s},uN:{value:600},uR:{value:0.03},uC1:{value:0},uC2:{value:0},uT:{value:0},uFade:{value:1},uRb:{value:Rb}},
+    uniforms:{uCam:{value:new THREE.Vector3()},uMV:{value:new THREE.Matrix4()},uS:{value:s},uN:{value:600},uR:{value:0.03},uC1:{value:0},uC2:{value:0},uT:{value:0},uFade:{value:1},uRb:{value:Rb},uW:{value:0.1},uMode:{value:0},uMeq:{value:72}},
     vertexShader:'#include <common>\n#include <logdepthbuf_pars_vertex>\n'+HOPF_RAY_V, fragmentShader:'#include <logdepthbuf_pars_fragment>\n'+HOPF_RAY_F});
   const mesh=new THREE.Mesh(new THREE.SphereGeometry(Rb,48,32),mat); mesh.frustumCulled=false; mesh.renderOrder=3; mesh.visible=false; mesh.name='hopf-raymarched';
   const inv=new THREE.Matrix4();
@@ -34740,7 +34763,9 @@ function hopfRayBuild(){ if(HOPF_RAY) return HOPF_RAY; const s=RU*HOPF_TUBE.scal
 /* the lattice's size and the tubes' S³-radius: a fifth of the spacing of the fibres, ½·√(4π/N) */
 function hopfRayTick(dt){ const on=state.s3view==='hopf'&&!!state.hopfRay; if(!on){ if(HOPF_RAY) HOPF_RAY.mesh.visible=false; hopfFibersSub.visible=true; return; }
   const H=hopfRayBuild(), u=H.mat.uniforms, N=Math.round(state.hopfRayN||600); H.mesh.visible=true; hopfFibersSub.visible=false;
-  u.uN.value=N; u.uR.value=0.21*0.5*Math.sqrt(4*Math.PI/N); u.uT.value=hopfFlowT;
+  const lat=state.hopfRayMode==='lattice', sp=Math.sqrt(4*Math.PI/N); u.uMode.value=lat?1:0; u.uN.value=N; u.uMeq.value=Math.max(6,Math.round(Math.sqrt(N)*1.6)); u.uT.value=hopfFlowT;
+  /* tubes: in the rings, a quarter of the spacing along the equator's ring; in the whole lattice a sixteenth of the fibres' spacing, so the bundle stays a weave */
+  u.uR.value=lat?0.06*0.5*sp:0.25*0.5*(2*Math.PI/u.uMeq.value);
   if(state.hopfRayTurn){ state.hopfRayChi=(state.hopfRayChi||0)+dt*0.12; } const c=state.hopfRayChi||0; u.uC1.value=c; u.uC2.value=c*PHI; }
 function updateHopfHighlights(){
   const v=new THREE.Vector3();
@@ -109899,6 +109924,7 @@ function buildCtlBody(){
       <div class="ctlrow"><label>${TT('raymarch the bundle','рисовать рэймарчингом','Raymarching')}</label><input type="checkbox" id="hRay" ${state.hopfRay?'checked':''}></div>
       <div class="ctlrow"><label>${TT('fibres N','волокон N','Fasern N')}</label><input type="range" id="hRayN" min="${Math.log10(24)}" max="${Math.log10(4000)}" step="0.01" value="${Math.log10(state.hopfRayN||600)}"><span class="val" id="hRayNV">${Math.round(state.hopfRayN||600)}</span></div>
       <div class="ctlrow"><label>${TT('turn S³ in 4D: e^{iχ}, e^{iφχ}','поворот S³ в 4D: e^{iχ}, e^{iφχ}','4D-Drehung')}</label><input type="checkbox" id="hRayTurn" ${state.hopfRayTurn?'checked':''}></div>
+      <div class="chips"><button class="chip ${state.hopfRayMode!=='lattice'?'on':''}" data-hraymode="rings">${TT('the tori, woven of fibres','торы, сотканные из волокон','die Tori')}</button><button class="chip ${state.hopfRayMode==='lattice'?'on':''}" data-hraymode="lattice">${TT('every fibre over the lattice','все волокна над решёткой','alle Fasern')}</button></div>
       <div class="note" style="font-size:10.5px">${TT('Each ray is marched in R³; its point is pulled back to S³, turned in 4D and sent to the base by the Hopf map. The map is a Riemannian submersion onto the sphere of radius ½, so the distance in S³ to the whole fibre over b is exactly asin(|π(x) − b|/2): the fibres over N points of a spherical Fibonacci lattice are found in constant time (the inverse mapping of Keinert et al. 2015), whatever N is. Each fibre is the geodesic tube of S³-radius r about its great circle — it swells where the projection magnifies, by 1/(conformal factor 2/(1 + |y|²)) — and no step can pass one: it is the distance over the largest conformal factor it may cross. A 4D turn with χ₂ ≠ χ₁ turns the base about its pole by χ₁ − χ₂: fibres go to fibres.','Каждый луч идёт по R³; его точка возвращается на S³, поворачивается в 4D и отображением Хопфа уходит на базу. Это отображение — риманова субмерсия на сферу радиуса ½, поэтому расстояние в S³ до всего волокна над b ровно asin(|π(x) − b|/2): волокна над N точками сферической решётки Фибоначчи находятся за постоянное время (обратное отображение Кайнерта и др., 2015), каким бы ни было N. Каждое волокно — геодезическая трубка радиуса r в S³ вокруг своей большой окружности; она толще там, где проекция увеличивает, — в 1/(конформный множитель 2/(1 + |y|²)) раз, и ни один шаг её не перепрыгнет: шаг — расстояние, делённое на наибольший конформный множитель на пути. Поворот в 4D с χ₂ ≠ χ₁ поворачивает базу вокруг полюса на χ₁ − χ₂: волокна переходят в волокна.','Jeder Strahl wird durch R³ verfolgt.')}</div></div>`:''}
     <div class="sect"><b>Hopf flow & fibre field</b>
       <div class="ctlrow"><label>Fibre density</label>
@@ -115668,7 +115694,8 @@ function buildCtlBody(){
       { const r=ctl.querySelector('#hRay'), n=ctl.querySelector('#hRayN'), tr=ctl.querySelector('#hRayTurn');
         if(r) r.onchange=e=>{ state.hopfRay=e.target.checked; };
         if(n) n.oninput=e=>{ state.hopfRayN=Math.round(Math.pow(10,+e.target.value)); const v=ctl.querySelector('#hRayNV'); if(v) v.textContent=String(state.hopfRayN); };
-        if(tr) tr.onchange=e=>{ state.hopfRayTurn=e.target.checked; }; }
+        if(tr) tr.onchange=e=>{ state.hopfRayTurn=e.target.checked; };
+        ctl.querySelectorAll('[data-hraymode]').forEach(b=>b.onclick=()=>{ state.hopfRayMode=b.dataset.hraymode; state.hopfRay=true; const c=ctl.querySelector('#hRay'); if(c) c.checked=true; ctl.querySelectorAll('[data-hraymode]').forEach(x=>x.classList.toggle('on',x===b)); }); }
       ctl.querySelector('#hflow').onchange = e=>state.hopfFlow=e.target.checked;
       ctl.querySelector('#hspd').oninput = e=>{ state.hopfFlowSpd=+e.target.value; updCtlVals(); };
       const upd = ()=>{ updateHopfHighlights(); updCtlVals(); };
@@ -125460,7 +125487,7 @@ function tickBody(now, frame){
       if(state.hopfFlow){ hopfFlowT += labDt*state.hopfFlowSpd; updateHopfBeads(hopfFlowT); }
       HOPF_UNIFORMS.uTime.value=hopfFlowT; HOPF_UNIFORMS.uFlow.value=state.hopfFlow?1:0;
       hopfGroup.rotation.y += labDt*0.03; try{ hopfRayTick(labDt); }catch(e){ if(!HOPF_RAY||!HOPF_RAY.err){ console.warn('hopf raymarch:',e); if(HOPF_RAY) HOPF_RAY.err=e; } }
-      hudBig.textContent = state.hopfRay?`Hopf fibration, raymarched · ${Math.round(state.hopfRayN)} fibres over a Fibonacci lattice · every pair linked once`:`Hopf flow · ${hopfDefs.length} fibres · every pair linked once`;
+      hudBig.textContent = state.hopfRay?(state.hopfRayMode==='lattice'?`Hopf fibration, raymarched · all ${Math.round(state.hopfRayN)} fibres over a Fibonacci lattice · every pair linked once`:`Hopf fibration, raymarched · seven latitudes of the base, the tori woven of fibres · every pair linked once`):`Hopf flow · ${hopfDefs.length} fibres · every pair linked once`;
       hudSub.textContent = 'beads ride the S¹ action — each fibre slides along itself · gold & white fibres are inseparable';
     } else if(state.s3view==='lab'){
       const chiAB=S3M.chi(CLAB.P.A,CLAB.P.B);

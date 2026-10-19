@@ -211,6 +211,7 @@ const allChecks = [
   "docs/verify-the-fibration-at-the-edge.cjs",
   "docs/verify-the-energy-density-scale.cjs",
   "docs/verify-the-lens-space-circles.cjs",
+  "docs/verify-the-hopf-raymarch.cjs",
   "docs/verify-every-word-in-three-languages.cjs",
   "docs/verify-self-description-authority.mjs"
 ];
@@ -320,6 +321,7 @@ if (fullMode) {
 
   route(/\b(hopf|bloch|spin|reeb|contact form|momentum map)\b/, [
     'docs/verify-hopf-bundle.cjs',
+    'docs/verify-the-hopf-raymarch.cjs',
   ]);
 
   route(/\b(lpq|lens space|lens spaces|matched circle|matched circles|s3gamma|space form|space forms)\b/, [
