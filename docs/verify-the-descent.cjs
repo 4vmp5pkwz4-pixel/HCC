@@ -32,10 +32,11 @@
  *      fibre is a tube laid round that exact curve
  *  15. the holographic bits (v4.387): exactly ⌈(π/ln 2)φ²ᴺ⌉ cells, found by the inverse spherical Fibonacci mapping —
  *      the nearest and the next lattice point equal to a brute-force search; the probe's shadow is √27/2·r_s
- *  16. the object stays (v4.387.1): in the electroweak band and the desert the view keeps the quark — the Higgs field's
- *      phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines as
- *      bright as their couplings — and the plots live on an instrument in the strip at the top, whose cursor reads the
- *      couplings at the reader's rung
+ *  16. the object stays (v4.387.1, v4.389): in the electroweak band and the desert the view keeps the quark — the Higgs
+ *      field's phase round it, agreeing above ħc/v and free below (N_v = log_φ(ħc/v/ℓ_P)), its three charges' field lines
+ *      in space at their true scale, every point as bright as its coupling at its own distance, a bead at every
+ *      r = ½·10ᵏ m on the sphere the tunnel's ring outlines, turned by the reader's drag and never by the clock — and the
+ *      plots live on an instrument in the strip at the top, whose cursor reads the couplings at the reader's rung
  *  17. the scale tunnel (v4.388): a ring's diameter on the screen is the size it names over the view's height (s/L), so
  *      every gate shows for some twelve rungs, a point to past the edge; the gates span a kilometre to ℓ_P with every
  *      power of ten between; the motes zoom as φ^(rung − N) in a window that wraps, and their streaks run at the radial
@@ -212,12 +213,19 @@ const cst = name => grab(new RegExp('const ' + name + '=[^\\n]*\\n'), name);
   /* 16 */
   { const ew = SRC.slice(SRC.indexOf("D.push({id:'ew', anchor:'quark'"), SRC.indexOf("D.push({id:'desert', anchor:'quark'")), de = SRC.slice(SRC.indexOf("D.push({id:'desert', anchor:'quark'"), SRC.indexOf("D.push({id:'probe', anchor:'quark'"));
     const noPlots = !/PlaneGeometry|SphereGeometry|dscLabel\(/.test(ew + de), hig = /Nv=levelOf\(DSC_PL\.hbcGeVm\/246\.22\), A=dscSmooth\(Nv\+1\.2,Nv-1\.2,N\)/.test(ew);
-    const lines = /iv=dscInvAlphas2\(Q\), al=iv\.map\(x=>1\/x\), amax=Math\.max\(\.\.\.al\)/.test(de) && /gk=f\*\(0\.1\+0\.9\*Math\.pow\(al\[k\]\/amax,3\)\)/.test(de);
+    /* v4.389: the lines are in space at their true scale — every point as bright as the couplings at its own distance r = ρ·L,
+       a bead on every line at r = ½·10ᵏ m (the sphere the tunnel's ring of diameter 10ᵏ m outlines), turned by the drag only */
+    const lines = /fit=Math\.min\(1,asp\*1\.2\), Lm=levelR\(N\)\*fit/.test(de) && /g\.scale\.setScalar\(vh\*fit\)/.test(de)
+      && /iv=dscInvAlphas2\(dscQofL\(rho\*Lm\)\); s\.rho=rho; s\.r=rho\*Lm;/.test(de) && /gain=\(k,al\)=>0\.08\+0\.92\*Math\.pow\(al\/amax,3\)/.test(de)
+      && /const r=0\.5\*Math\.pow\(10,e\), rho=r\/Lm/.test(de) && /const tu=2\*Math\.PI\*lr\+l\.ph/.test(de)
+      && /g\.quaternion\.copy\(camera\.quaternion\)\.multiply\(rel\)/.test(de) && /const rel=dscDragFrame\(U,0\)/.test(de) && /dscDragPost\(U\); \} \}\);/.test(de);
+    /* the bead's sphere and the tunnel's ring are one: ρ·(vh·fit) = (r/(L·fit))·vh·fit = ½·10ᵏ·vh/L, the ring's radius 0.5·s/L·vh */
+    const beadRing = [1, 0.62, 0.4].every(fit => { const L = 3.7e-27, vh = 10.4, r = 0.5e-27, rho = r / (L * fit); return Math.abs(rho * vh * fit - 0.5 * 1e-27 / L * vh) < 1e-12; });
     const inst = SRC.includes('<div id="dscInst" class="dscInst" hidden></div>') && ['function dscInstDesert(', 'function dscInstEW(', 'function dscInstTick('].every(x => SRC.includes(x)) && /try\{ dscInstTick\(\); \}catch\(e\)\{\}/.test(SRC);
     const L2 = new Function('UC_K', 'DSC', 'levelOf', [grab(/const DSC_PL=\(\(\)=>\{[\s\S]*?\}\)\(\);\n/, 'Planck units'), 'return DSC_PL;'].join('\n'))({ hb: 1.054571817e-34, c: 299792458, lP: 1.616255e-35, mP: 2.176434e-8 }, {}, levelOf);
     const Nv = levelOf(L2.hbcGeVm / 246.22), fwd = Math.abs(L2.hbcGeVm / 246.22 - 8.014e-19) / 8.014e-19 < 1e-3;
-    ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines, each as bright as its coupling at the view’s length — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
-      noPlots && hig && lines && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines by α_i ${lines ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
+    ok('the object stays: in the electroweak band and the desert the view keeps the quark — the Higgs field’s phase round it, agreeing above ħc/v and free below it, and its three charges’ field lines in space at their true scale, every point as bright as its coupling at its own distance, beads at ½·10ᵏ m on the tunnel’s spheres, turned by the reader’s drag and never by the clock — while the plots (V(|φ|); the running couplings with a cursor at the reader’s rung) live on an instrument in the strip at the top',
+      noPlots && hig && lines && beadRing && inst && fwd && Nv > 79 && Nv < 81, `no plot in the scene ${noPlots ? '✓' : '✗'} · ħc/v = ${(L2.hbcGeVm / 246.22).toExponential(3)} m at N_v = ${Nv.toFixed(2)} · Higgs phases ${hig ? '✓' : '✗'} · field lines at true scale, by α_i(ħc/r), turned by the drag ${lines ? '✓' : '✗'} · beads on the tunnel's spheres ${beadRing ? '✓' : '✗'} · instrument ${inst ? '✓' : '✗'}`); }
   /* 17 */
   { const G = new Function('PHI', 'levelOf', grab(/const DSC_GATES=\[[\s\S]*?\]\];\n/, 'the gates') + 'return DSC_GATES;')(PHI, levelOf);
     const tun = fn('dscTunnelTick'), bld = fn('dscTunnelBuild'), mv = grab(/const DSC_MOTE_V=`[\s\S]*?`;\n/, 'the motes');

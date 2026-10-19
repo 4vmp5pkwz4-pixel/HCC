@@ -25810,6 +25810,15 @@ const dscInvAlphaG=QGeV=>Math.pow(DSC_PL.EPGeV/QGeV,2);
 const dscSci=(x,d)=>{ const e=Math.floor(Math.log10(Math.abs(x))), m=x/Math.pow(10,e); return `${m.toFixed(d??2)}·10${String(e).replace('-','⁻').replace(/\d/g,c=>'⁰¹²³⁴⁵⁶⁷⁸⁹'[c])}`; };
 /* a ring of capsule segments in the plane of the view */
 const dscRing=(r,n,col,z)=>{ const S=[]; for(let i=0;i<n;i++){ const a0=2*Math.PI*i/n, a1=2*Math.PI*(i+1)/n; S.push([dscV(r*Math.cos(a0),r*Math.sin(a0),z||0),dscV(r*Math.cos(a1),r*Math.sin(a1),z||0),col]); } return S; };
+/* the frame of a picture that holds its place in the view while the reader turns it (v4.389): square to the view when it
+   appears, then turned only by the reader's drag — the camera's orbit about the target, read between the end of the last
+   frame and the start of this one — never by the clock's co-rotation of the view with the ground */
+const _dscQd=new THREE.Quaternion(), _dscY=new THREE.Vector3(0,1,0), _dscP0=new THREE.Vector3(), _dscP1=new THREE.Vector3(), _dscP2=new THREE.Vector3(), _dscP3=new THREE.Vector3();
+function dscDragFrame(U,tilt){ if(!U.rel||DSC.t-U.seen>0.3){ U.rel=new THREE.Quaternion().setFromAxisAngle(dscV(1,0,0),tilt||0); U.camPost=null; U.t0=DSC.t; U.az=null; }
+  else if(U.camPost&&DSC.camPre&&U.camQ){ const a0=U.camPost.clone().normalize(), a1=DSC.camPre.clone().normalize();
+    if(a0.distanceToSquared(a1)>1e-14){ const Dq=new THREE.Quaternion().setFromUnitVectors(a0,a1), Dc=U.camQ.clone().invert().multiply(Dq).multiply(U.camQ); U.rel.premultiply(Dc.invert()).normalize(); } }
+  U.seen=DSC.t; return U.rel; }
+function dscDragPost(U){ U.camPost=(U.camPost||new THREE.Vector3()).copy(camera.position).sub(controls.target); U.camQ=(U.camQ||new THREE.Quaternion()).copy(camera.quaternion); }
 function dscBuildRegimes(D){
   /* a quark seen ever closer (v4.387): no size down to 4.3·10⁻¹⁹ m (ZEUS 2016, the quark's charge radius); its colour
      charge is screened and anti-screened by the virtual quarks and gluons about it, and what is seen of it weakens as it
@@ -25856,27 +25865,47 @@ void main(){ float age=fract(uT/aCol.w+aOff.w), op=sin(3.14159265*age); vec3 p=p
         const dx=Math.cos(th)*L, dy=Math.sin(th)*L; c.setHSL(((th/6.2832)%1+1)%1,0.8,0.62); const w=f*(0.75-0.2*A), r=(1-A)*1.0+A*c.r, gg=(1-A)*0.8+A*c.g, b=(1-A)*0.42+A*c.b;
         Ht[4*j]=p[0]-dx; Ht[4*j+1]=p[1]-dy; Ht[4*j+2]=p[2]; Ht[4*j+3]=1; Hh[4*j]=p[0]+dx; Hh[4*j+1]=p[1]+dy; Hh[4*j+2]=p[2]; Hh[4*j+3]=1; Cc[3*j]=r*w; Cc[3*j+1]=gg*w; Cc[3*j+2]=b*w; WH[2*j]=1.7; WH[2*j+1]=1; j++; }
       m.geometry.instanceCount=j; for(const k of ['h4','t4','col','wh']) Hd[k].needsUpdate=true; triCapsuleSync(m,null,{}); } });
-  /* the desert (v4.387.1): the object stays — the quark at the centre, and round it its three charges' fields, drawn as
-     field lines: hypercharge U(1) straight, weak SU(2) twisting, colour SU(3) braided in its three colours — each as bright
-     as its coupling at the length of the view, α_i(ħc/L), run at two loops from M_Z. Down the sixteen powers of ten that
-     no experiment has reached the strong fades (asymptotic freedom), the hypercharge grows, and the three draw together
-     without ever meeting; gravity's α_G = (E/E_P)² is still nothing beside them. The running itself is on the
-     instrument in the strip at the top. */
-  D.push({id:'desert', anchor:'quark', band:[14,73,1.2], build(){ const g=new THREE.Group(), nL=MOBILE_GPU?10:16, S=44, fam=[];
+  /* the desert (v4.389): the quark at the centre and its three charges' fields round it as field lines in space, at their
+     true scale — hypercharge U(1) straight, weak SU(2) wound once round its line every power of ten, colour SU(3) braided
+     in its three colours, three to a power of ten. Every point of a line at a distance r from the quark is as bright as
+     its own coupling there, α_i(ħc/r), run at two loops from M_Z (contrast-stretched, the cube of each over the largest;
+     the values are on the instrument in the strip at the top), and a bead sits on every line at each r = ½·10ᵏ m — on
+     the sphere whose outline is the tunnel's ring of diameter 10ᵏ m. So the picture is fixed to lengths, not to the
+     screen: as the reader dives, the beads, the windings and the colours stream outward, one power of ten every 4.8
+     rungs, and the shorter lengths come out of the centre, where the strong fades (asymptotic freedom), the hypercharge
+     grows and the three draw together without ever meeting. The lines hold their place in space: the reader's drag
+     turns them; the clock does not. About them, virtual pairs open and close, polarised along the field — a picture of
+     what the running counts, not particles one could see. */
+  D.push({id:'desert', anchor:'quark', band:[14,73,1.2], build(){ const g=new THREE.Group(), lite=!!MOBILE_GPU, nL=lite?10:16, S=lite?56:80, nP=lite?54:108, fam=[];
       for(let k=0;k<3;k++){ const ls=[]; for(let i=0;i<nL;i++){ const y=1-2*(i+0.5)/nL, r=Math.sqrt(Math.max(0,1-y*y)), a=i*GOLDEN_ANGLE+k*2.1, d=dscV(r*Math.cos(a),y,r*Math.sin(a)).normalize();
-          const e1=new THREE.Vector3().crossVectors(d,Math.abs(d.y)<0.9?dscV(0,1,0):dscV(1,0,0)).normalize(), e2=new THREE.Vector3().crossVectors(d,e1); ls.push({d,e1,e2,ph:i*1.7+k}); } fam.push(ls); }
-      g.userData.fam=fam; g.userData.S=S; const caps=triCapsules(3*nL*S,0.95,true); caps.material.uniforms.uW.value=1.0; g.add(caps); g.userData.caps=caps; return g; },
-    tick(f,N){ const g=this.obj, vh=dscVH(), asp=camera.aspect||1, U=g.userData, S=U.S, t=DSC.t, Q=dscQofL(levelR(N)), iv=dscInvAlphas2(Q), al=iv.map(x=>1/x), amax=Math.max(...al);
-      g.position.copy(DSC.rel[DSC.qi]); g.quaternion.copy(camera.quaternion).multiply(new THREE.Quaternion().setFromAxisAngle(dscV(0,1,0),0.05*t)); g.scale.setScalar(vh*Math.min(1,asp*1.2));
-      const m=U.caps, Hd=m.geometry.attributes, Hh=Hd.h4.array, Ht=Hd.t4.array, Cc=Hd.col.array, WH=Hd.wh.array, P=new THREE.Vector3(), Q0=new THREE.Vector3(); let j=0;
-      const cols=[[1.0,0.84,0.5],[0.45,0.92,0.85],null], rgb=[[1,0.36,0.32],[0.36,1,0.5],[0.42,0.58,1]];
-      const at=(k,l,s,out)=>{ const r=0.04+0.38*s; out.copy(l.d).multiplyScalar(r); if(k===1){ const tu=4*Math.PI*s+l.ph+0.5*t; out.addScaledVector(l.e1,0.07*r*Math.cos(tu)).addScaledVector(l.e2,0.07*r*Math.sin(tu)); }
-        else if(k===2){ const tu=6*Math.PI*s+l.ph-0.7*t; out.addScaledVector(l.e1,0.05*r*Math.cos(tu)).addScaledVector(l.e2,0.05*r*Math.sin(tu)); } return out; };
-      for(let k=0;k<3;k++){ const gk=f*(0.1+0.9*Math.pow(al[k]/amax,3));
-        for(const l of U.fam[k]){ for(let i=0;i<S;i++){ const s0=i/S, s1=(i+1)/S; at(k,l,s0,Q0); at(k,l,s1,P); const pk=Math.pow(Math.max(0,Math.cos(6.2832*(2.4*s0-0.32*t+l.ph*0.1))),3), env=Math.sin(Math.PI*Math.min(1,s0*1.15+0.04));
-            const I=gk*env*(0.42+0.58*pk), cc=k===2?rgb[(Math.floor(i/5)+Math.floor(l.ph))%3]:cols[k];
-            Ht[4*j]=Q0.x; Ht[4*j+1]=Q0.y; Ht[4*j+2]=Q0.z; Ht[4*j+3]=1; Hh[4*j]=P.x; Hh[4*j+1]=P.y; Hh[4*j+2]=P.z; Hh[4*j+3]=1; Cc[3*j]=cc[0]*I; Cc[3*j+1]=cc[1]*I; Cc[3*j+2]=cc[2]*I; WH[2*j]=k===0?1.1:1.3; WH[2*j+1]=0; j++; } } }
-      m.geometry.instanceCount=j; for(const k of ['h4','t4','col','wh']) Hd[k].needsUpdate=true; triCapsuleSync(m,null,{}); } });
+          const e1=new THREE.Vector3().crossVectors(d,Math.abs(d.y)<0.9?dscV(0,1,0):dscV(1,0,0)).normalize(), e2=new THREE.Vector3().crossVectors(d,e1); ls.push({d,e1,e2,ph:i*1.7+k*2.09}); } fam.push(ls); }
+      const U=g.userData; U.fam=fam; U.S=S; U.nL=nL; U.nP=nP; U.seg=[]; for(let i=0;i<=S;i++) U.seg.push({rho:0,r:0,al:[0,0,0]});
+      const caps=triCapsules(3*nL*S+3*nL*4+2*nP,0.95,true); caps.material.uniforms.uW.value=1.0; g.add(caps); U.caps=caps; return g; },
+    tick(f,N){ const g=this.obj, U=g.userData, vh=dscVH(), asp=camera.aspect||1, S=U.S, fit=Math.min(1,asp*1.2), Lm=levelR(N)*fit, r0=0.03, r1=0.8;
+      g.position.copy(DSC.rel[DSC.qi]); const rel=dscDragFrame(U,0), ti=DSC.t-U.t0;
+      g.quaternion.copy(camera.quaternion).multiply(rel).multiply(_dscQd.setFromAxisAngle(_dscY,0.025*ti)); g.scale.setScalar(vh*fit);
+      /* the samples along a line, the same for every line: at ρ (a fraction of the view) the length r = ρ·L, and there the couplings */
+      let amax=0; for(let i=0;i<=S;i++){ const s=U.seg[i], rho=r0*Math.pow(r1/r0,i/S), iv=dscInvAlphas2(dscQofL(rho*Lm)); s.rho=rho; s.r=rho*Lm; s.lr=Math.log10(s.r); for(let k=0;k<3;k++){ s.al[k]=1/iv[k]; if(s.al[k]>amax) amax=s.al[k]; } }
+      const m=U.caps, Hd=m.geometry.attributes, Hh=Hd.h4.array, Ht=Hd.t4.array, Cc=Hd.col.array, WH=Hd.wh.array, P=_dscP1, Q0=_dscP0; let j=0;
+      const cols=[[1.0,0.84,0.5],[0.45,0.92,0.85]], rgb=[[1,0.36,0.32],[0.36,1,0.5],[0.42,0.58,1]], gain=(k,al)=>0.08+0.92*Math.pow(al/amax,3), env=rho=>dscSmooth(r0,r0*2.4,rho);
+      /* a line's point at ρ: straight for U(1); wound round it once a decade for SU(2), one and a half times for SU(3) — by the length, so the winding streams with the dive */
+      const at=(k,l,rho,lr,out)=>{ out.copy(l.d).multiplyScalar(rho); if(k===1){ const tu=2*Math.PI*lr+l.ph; out.addScaledVector(l.e1,0.06*rho*Math.cos(tu)).addScaledVector(l.e2,0.06*rho*Math.sin(tu)); }
+        else if(k===2){ const tu=3*Math.PI*lr+l.ph; out.addScaledVector(l.e1,0.045*rho*Math.cos(tu)).addScaledVector(l.e2,0.045*rho*Math.sin(tu)); } return out; };
+      const put=(a,b,c,I,w)=>{ Ht[4*j]=a.x; Ht[4*j+1]=a.y; Ht[4*j+2]=a.z; Ht[4*j+3]=1; Hh[4*j]=b.x; Hh[4*j+1]=b.y; Hh[4*j+2]=b.z; Hh[4*j+3]=1; Cc[3*j]=c[0]*I; Cc[3*j+1]=c[1]*I; Cc[3*j+2]=c[2]*I; WH[2*j]=w; WH[2*j+1]=0; j++; };
+      for(let k=0;k<3;k++) for(const l of U.fam[k]){ for(let i=0;i<S;i++){ const A=U.seg[i], B=U.seg[i+1]; at(k,l,A.rho,A.lr,Q0); at(k,l,B.rho,B.lr,P);
+          const I=f*env(A.rho)*gain(k,A.al[k]), cc=k===2?rgb[(((Math.floor(3*A.lr+l.ph))%3)+3)%3]:cols[k]; put(Q0,P,cc,I,k===0?1.1:1.3); } }
+      /* the beads: every line, at each r = ½·10ᵏ m in the view */
+      const lo=Math.ceil(Math.log10(r0*Lm/0.5)), hi=Math.floor(Math.log10(r1*Lm/0.5));
+      for(let e=lo;e<=hi;e++){ const r=0.5*Math.pow(10,e), rho=r/Lm, lr=Math.log10(r), al=dscInvAlphas2(dscQofL(r)).map(x=>1/x), dl=0.012*rho;
+        for(let k=0;k<3;k++) for(const l of U.fam[k]){ const cc=k===2?rgb[(((Math.floor(3*lr+l.ph))%3)+3)%3]:cols[k]; at(k,l,rho-dl,lr-0.0052,Q0); at(k,l,rho+dl,lr+0.0052,P); put(Q0,P,cc,f*env(rho)*(0.35+1.4*gain(k,al[k])),3.2); } }
+      /* the vacuum about them: pairs that open and close along the lines, polarised along the field (a picture) */
+      const t=DSC.t; for(let p=0;p<U.nP;p++){ const tau=0.7+0.9*((p*0.618034)%1), cyc=Math.floor(t/tau+p*0.37), age=t/tau+p*0.37-cyc, h=n=>{ const x=Math.sin(n*12.9898+p*78.233)*43758.5453; return x-Math.floor(x); };
+        const k=p%3, l=U.fam[k][Math.floor(h(cyc+1.3)*U.nL)%U.nL], s=0.08+0.88*h(cyc+7.1), rho=r0*Math.pow(r1/r0,s), lr=Math.log10(rho*Lm), op=Math.sin(Math.PI*age), sep=0.016*rho*op;
+        const al=1/dscInvAlphas2(dscQofL(rho*Lm))[k], I=f*env(rho)*op*op*(0.25+0.75*gain(k,al));
+        at(k,l,rho,lr,Q0); const c0=k===2?rgb[cyc%3]:[1.0,0.62,0.38], c1=k===2?[1-0.6*rgb[cyc%3][0],1-0.6*rgb[cyc%3][1],1-0.6*rgb[cyc%3][2]]:[0.45,0.8,1.0];
+        P.copy(l.d).multiplyScalar(sep); _dscP2.copy(Q0).sub(P); _dscP3.copy(Q0).sub(P).addScaledVector(P,0.15); put(_dscP2,_dscP3,c0,I,2.4);
+        _dscP2.copy(Q0).add(P); _dscP3.copy(Q0).add(P).addScaledVector(P,-0.15); put(_dscP2,_dscP3,c1,I,2.4); }
+      m.geometry.instanceCount=j; for(const k of ['h4','t4','col','wh']) Hd[k].needsUpdate=true; triCapsuleSync(m,null,{}); dscDragPost(U); } });
   /* a probe and its own horizon (v4.387): the probe that resolves L carries E = ħc/L — drawn as a wave packet of that
      length, its wavefronts running out; its horizon r_s = 2GE/c⁴ = 2ℓ_P²/L grows as L shrinks, r_s/L = 2φ^(−2N), and is
      drawn as what it would show — its shadow, the disc of radius √27/2·r_s that no light leaves (Schwarzschild), edged by
@@ -26283,7 +26312,7 @@ void main(){ float span=2.0*uW, base=uN-uW, l=base+mod(aSeed.x*span-base,span), 
 const DSC_MOTE_F=`varying vec3 vC; varying float vA; varying vec2 vQ; varying float vS;
 void main(){
 #include <logdepthbuf_fragment>
-  float u=vQ.x, v=vQ.y, cu=clamp(u,min(0.0,vS),max(0.0,vS)); vec2 d=vec2(u-cu,v); float core=exp(-dot(d,d)*3.2), head=mix(0.22,1.0,1.0-abs(cu)/max(abs(vS),1e-4));
+  float u=vQ.x, v=vQ.y, cu=clamp(u,min(0.0,vS),max(0.0,vS)); vec2 d=vec2(u-cu,v); float core=exp(-dot(d,d)*3.2)*(1.0-smoothstep(0.55,1.0,abs(d.x)))*(1.0-smoothstep(0.55,1.0,abs(d.y))), head=mix(0.22,1.0,1.0-abs(cu)/max(abs(vS),1e-4));
   float a=core*head*vA; if(a<0.004) discard; gl_FragColor=vec4(vC*a,1.0); }`;
 function dscTunnelBuild(){ const T=DSC.tun={}, g=new THREE.Group(); g.name='descent-scale-tunnel'; DSC.g.add(g); T.g=g; const lite=!!MOBILE_GPU;
   /* the motes: one instanced quad each; a mote is a seed (its place in a window of rungs, its direction, its distance) */
